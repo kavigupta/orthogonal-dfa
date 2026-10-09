@@ -88,7 +88,8 @@
   reference placement of the target's states (ℓ\* places them by each read's more likely side),
   at most `|Q| + 2` leaves plus the splits that separate no two states. `RoundStrongLeafPaths`:
   edges join leaves. `RoundStrongTrichotomy`, `RoundStrongQuality`: the level theorems for this
-  round.
+  round. Open (not sorried, see `notes/start-at-k.md`): the chance of a split separating no
+  ℓ\*-states, and split power for edges with margin.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding

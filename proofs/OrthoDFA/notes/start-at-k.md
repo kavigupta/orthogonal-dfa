@@ -790,3 +790,24 @@ readings can take. Off one set of measure `δ` the end hypothesis meets `Quality
 
 so the bound tracks the readings actually made: at binary, `k = 20`, `nr = 480`, `δ = 0.005`,
 `ε_r` is 0.013, 0.018, 0.028, 0.068, 0.13, 0.22 at `r` = 1, 2, 5, 29, 100, 300.
+
+## The strengthened round (`RoundStrong`, D42–D52)
+
+Proved deterministically, no noise: the budget is never reached, readings ≤ `readStar(leaves)`,
+leaves ≤ `|Q| + 2 + #splits separating no ℓ*-states`, and edges join leaves. A member added on a
+given-up edge does not reset the quiet streak (D51); without that a pass is unbounded.
+
+Planned deterministic reduction: a split that separates no ℓ*-states needs one of at most
+`2·depth + 2` decided reads on the minority side — the witness's and the probe prefix's sift
+reads, and the two parting reads.
+
+Open, not sorried:
+- The reduction's round-level probability. The witness is picked from the pool by reads, so the
+  per-string `depth·ρ` does not apply to it, and a union over the pool is vacuous.
+- Split power, and with it the halving claim's given-up residue, only for edges whose successor
+  states sit outside the band with margin. In-band edges are left to the stopped harvest.
+
+Known structural gap: the split test groups members by the training half and compares the test
+half, while ℓ* reads the full family. A state whose training-half side at the distinguisher
+differs from its full side can be split off without separating any ℓ*-states, with no noise
+involved, so validity cannot be stated against ℓ* for every family.
