@@ -328,7 +328,8 @@ theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 
             congr 1
             refine Finset.sum_congr rfl fun i _ => ?_
             ring_nf
-    have hbad := reading_bad_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha ha1 hδc0 hδc hν hcert hist
+    have hbad := reading_bad_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha ha1
+      hδc0 hδc hν hcert hist
       (j := j) (Rmax := Rmax) (by omega) s first
     calc _ ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := hL
       _ = ρm Bad + ∫⁻ y, G y ∂ρm := by

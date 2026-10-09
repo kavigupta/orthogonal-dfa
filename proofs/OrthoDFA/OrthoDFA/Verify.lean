@@ -15,8 +15,8 @@ import OrthoDFA.Proofs.RoundLevel
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
 in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `StartExists`, stated in `OrthoDFA.StartState`, `StartRootCovered`, `EndsCovered` and
-`BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and `RoundTrichotomyLevel`, stated in
-`OrthoDFA.RoundLevel`, hold.
+`BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and
+`RoundTrichotomyLevel`, stated in `OrthoDFA.RoundLevel`, hold.
 -/
 
 namespace OrthoDFA
