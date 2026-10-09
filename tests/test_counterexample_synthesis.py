@@ -197,7 +197,7 @@ class TestWhenTheTargetIsReached(unittest.TestCase):
         resolver = SimpleNamespace(
             counterexample_pass=lambda **kw: None,
             read_fresh=lambda **kw: SimpleNamespace(
-                passed=passed, start=0, disagreements=[]
+                passed=passed, start=0, fired=set(), disagreements=[]
             ),
             to_dfa_and_tree=lambda start: (None, None),
             refusal_sample=lambda gate: gate,
@@ -211,6 +211,37 @@ class TestWhenTheTargetIsReached(unittest.TestCase):
 
     def test_a_refused_gate_does_not(self):
         self.assertIsNone(self._round(False))
+
+
+class TestWhenARefusalReruns(unittest.TestCase):
+    @staticmethod
+    def _passes(fired):
+        """The first probes of each pass of a round whose every sample meets an
+        edge and fires ``fired``, and whose third pass spends its probes."""
+        passes = []
+
+        def counterexample_pass(**kw):
+            passes.append(kw["first"])
+            resolver.probed = 1500 * len(passes)
+
+        resolver = SimpleNamespace(
+            probed=0,
+            counterexample_pass=counterexample_pass,
+            read_fresh=lambda **kw: SimpleNamespace(passed=False, start=0),
+            to_dfa_and_tree=lambda start: (None, None),
+            refusal_sample=lambda gate: SimpleNamespace(
+                passed=False, start=0, fired=fired, disagreements=[b"w"]
+            ),
+        )
+        certificate = _Certificate(pst=None, tracker=None)
+        _read_round(resolver, certificate, patience=10, acc_threshold=0.9, index=0)
+        return passes
+
+    def test_a_sample_where_a_class_fires_ends_the_round(self):
+        self.assertEqual([[]], self._passes({"triple"}))
+
+    def test_a_sample_where_nothing_fires_reruns_from_its_edges(self):
+        self.assertEqual([[], [b"w"], [b"w"]], self._passes(set()))
 
 
 if __name__ == "__main__":

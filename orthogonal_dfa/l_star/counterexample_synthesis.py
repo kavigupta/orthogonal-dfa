@@ -131,10 +131,10 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 def _read_round(resolver, certificate, *, patience, acc_threshold, index):
     """The pass, then the gate, then the certificate on a hypothesis the gate
-    passes.  A refusal by either is sampled (see ``refusal_sample``) and reruns
-    the pass from the live edges it met, until the certificate passes, a sample
-    meets none, or the round's probes run out.  Returns the last reading, its
-    DFA, and the certified DFA if any."""
+    passes.  A refusal by either is sampled (see ``refusal_sample``); a sample
+    where no class fires reruns the pass from the edges it met, until the
+    certificate passes, a sample fires or meets none, or the round's probes run
+    out.  Returns the last reading, its DFA, and the certified DFA if any."""
     first = []
     while True:
         resolver.counterexample_pass(
@@ -152,7 +152,11 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
         gate = resolver.refusal_sample(gate)
         if dfa is None:
             dfa = resolver.to_dfa_and_tree(gate.start)[0]
-        if not gate.disagreements or resolver.probed >= COUNTEREXAMPLE_PROBES:
+        if (
+            gate.fired
+            or not gate.disagreements
+            or resolver.probed >= COUNTEREXAMPLE_PROBES
+        ):
             return gate, dfa, None
         first = gate.disagreements
 
