@@ -27,12 +27,12 @@ structure HarvestSpec (G : DTree α → Edges α → FreeMonoid α → Qry α β
     ∃ i, k ≤ i ∧ ∃ m, b = prefixOf x i * m
 
 omit [Fintype α] [DecidableEq α] in
-/-- In a trace whose reads before a block are decided and whose block is tagged, an undecided
-string read in the block is first read there, tagged. -/
+/-- In a trace whose untagged reads before a block are decided and whose block is tagged, an
+undecided string read in the block is first read tagged. -/
 theorem first_of_split (cut : FreeMonoid α → Option Bool)
     {pre blk post : List (FreeMonoid α × Bool)}
-    (hpre : ∀ e ∈ pre, cut e.1 ≠ none) (hblk : ∀ e ∈ blk, e.2 = true) {b : FreeMonoid α}
-    (hb : (b, true) ∈ blk) (hcut : cut b = none) :
+    (hpre : ∀ e ∈ pre, e.2 = false → cut e.1 ≠ none) (hblk : ∀ e ∈ blk, e.2 = true)
+    {b : FreeMonoid α} (hb : (b, true) ∈ blk) (hcut : cut b = none) :
     ∃ r, ∃ hr : r < (pre ++ blk ++ post).length, (pre ++ blk ++ post)[r] = (b, true)
       ∧ ∀ i, ∀ hi : i < r, ((pre ++ blk ++ post)[i]'(hi.trans hr)).1 ≠ b := by
   classical
@@ -45,15 +45,15 @@ theorem first_of_split (cut : FreeMonoid α → Option Bool)
     have := List.findIdx_getElem (w := hr)
     simpa using this
   refine ⟨r, hr, ?_, fun i hi => by simpa using List.not_of_lt_findIdx hi⟩
-  have hpb : pre.length ≤ (pre ++ blk).length := by simp
-  -- the first read of `b` is not in `pre`
-  have hnpre : pre.length ≤ r := by
-    by_contra hlt
-    push Not at hlt
-    have : L[r] = pre[r] := by
+  refine Prod.ext hrb ?_
+  by_contra hg
+  rw [Bool.not_eq_true] at hg
+  by_cases hlt : r < pre.length
+  · have : L[r] = pre[r] := by
       simp only [L]
       rw [List.getElem_append_left (by simp; omega), List.getElem_append_left hlt]
-    exact hpre _ (this ▸ List.getElem_mem hlt) (by rw [hrb]; exact hcut)
+    exact hpre _ (List.getElem_mem hlt) (this ▸ hg) (by rw [← this, hrb]; exact hcut)
+  push Not at hlt
   obtain ⟨j, hj, hjb⟩ := List.mem_iff_getElem.1 hb
   have hpos : L[pre.length + j]'(by simp [L]; omega) = (b, true) := by
     simp only [L]
@@ -67,10 +67,22 @@ theorem first_of_split (cut : FreeMonoid α → Option Bool)
     simp at this
   have hblkr : L[r] = blk[r - pre.length]'(by omega) := by
     simp only [L]
-    rw [List.getElem_append_left (by simp; omega), List.getElem_append_right hnpre]
+    rw [List.getElem_append_left (by simp; omega), List.getElem_append_right hlt]
   have htag := hblk _ (List.getElem_mem (l := blk) (n := r - pre.length) (by omega))
-  rw [← hblkr] at htag
-  exact Prod.ext hrb htag
+  rw [← hblkr, hg] at htag
+  exact absurd htag (by decide)
+
+omit [Fintype α] [DecidableEq α] in
+/-- A first tagged read stays first when more reads follow. -/
+theorem first_append {L E : List (FreeMonoid α × Bool)} {b : FreeMonoid α}
+    (h : ∃ r, ∃ hr : r < L.length, L[r] = (b, true)
+      ∧ ∀ i, ∀ hi : i < r, (L[i]'(hi.trans hr)).1 ≠ b) :
+    ∃ r, ∃ hr : r < (L ++ E).length, (L ++ E)[r] = (b, true)
+      ∧ ∀ i, ∀ hi : i < r, ((L ++ E)[i]'(hi.trans hr)).1 ≠ b := by
+  obtain ⟨r, hr, hrb, hf⟩ := h
+  refine ⟨r, by simp; omega, by rw [List.getElem_append_left hr]; exact hrb, fun i hi => ?_⟩
+  rw [List.getElem_append_left (hi.trans hr)]
+  exact hf i hi
 
 section Fresh
 
