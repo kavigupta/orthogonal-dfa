@@ -327,11 +327,74 @@ theorem measurable_gContrib [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k
 
 end Class
 
+section GenPass
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
+  (k : ℕ) (seed probes : List (FreeMonoid α)) (Pf : CutReads α → KState α)
+
+/-- The pass `Pf` on noise `ω`. -/
+noncomputable def passOf (ω : Ω) : KState α := Pf (readsAt O B F ω)
+
+/-- The strings the pass `Pf` on noise `ω` can read. -/
+noncomputable def readsOf (ω : Ω) : Finset (FreeMonoid α) :=
+  passReadSet k seed probes (passOf O B F Pf ω).tree
+
+/-- The cell of the pass `Pf`: its read set `c.1`, with those reads' bits patterned `c.2`. -/
+def cellOf (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) : Set Ω :=
+  pcell O (F ∪ K.train F) c ∩ cleanAll O ∩ {ω | readsOf O B F k seed probes Pf ω = c.1}
+
+/-- The pass `Pf` is decided by the oracle's bits at what it can read against the tree it ends
+with. -/
+def PassDetermined : Prop :=
+  ∀ ω ω' : Ω, (∀ y ∈ vBits (F ∪ K.train F) (readsOf O B F k seed probes Pf ω),
+    O.noise y ω = O.noise y ω') → passOf O B F Pf ω' = passOf O B F Pf ω
+
+theorem runPassK_passDetermined :
+    PassDetermined (μ := μ) O B F K k seed probes
+      fun R => runPassK K R k (initialK K R seed) probes :=
+  fun ω ω' h => runPassK_determined O B F K k seed probes ω ω' h
+
+variable {O B F K k seed probes Pf}
+
+theorem cellOf_const [IsProbabilityMeasure μ] (hD : PassDetermined O B F K k seed probes Pf)
+    {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
+    (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) (hω : ω ∈ pcell O (F ∪ K.train F) c)
+    (hcl : ω ∈ cleanAll O) :
+    passOf O B F Pf ω = passOf O B F Pf ω₀ ∧ ω ∈ cellOf O B F K k seed probes Pf c := by
+  obtain ⟨⟨⟨hp₀, hc₀⟩, -⟩, hT₀⟩ := h₀
+  have hT₀' : readsOf O B F k seed probes Pf ω₀ = c.1 := hT₀
+  have hag : ∀ y ∈ vBits (F ∪ K.train F) (readsOf O B F k seed probes Pf ω₀),
+      O.noise y ω₀ = O.noise y ω := by
+    rw [hT₀']
+    exact noise_eq_of_pattern O hc₀ hω.2 (hp₀.trans hω.1.symm)
+  have hs := hD ω₀ ω hag
+  refine ⟨hs, ⟨⟨hω, hcl⟩, ?_⟩⟩
+  change readsOf O B F k seed probes Pf ω = c.1
+  rw [← hT₀']
+  simp only [readsOf, hs]
+
+theorem measurableSet_cellOf [IsProbabilityMeasure μ] (hD : PassDetermined O B F K k seed probes Pf)
+    (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) :
+    MeasurableSet (cellOf O B F K k seed probes Pf c) := by
+  by_cases h : (cellOf O B F K k seed probes Pf c).Nonempty
+  · obtain ⟨ω₀, h₀⟩ := h
+    have he : cellOf O B F K k seed probes Pf c = pcell O (F ∪ K.train F) c ∩ cleanAll O := by
+      ext ω; constructor
+      · intro hω; exact ⟨hω.1.1, hω.1.2⟩
+      · rintro ⟨hP, hc'⟩; exact (cellOf_const hD h₀ hP hc').2
+    rw [he]
+    exact (noiseAlg_le O _ _ ((measurableSet_noisePattern O _ c.2).inter
+      (measurableSet_noiseClean O _))).inter (measurableSet_cleanAll O)
+  · rw [Set.not_nonempty_iff_eq_empty.1 h]; exact MeasurableSet.empty
+
+end GenPass
+
 section Cells
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-  (k : ℕ) (seed probes : List (FreeMonoid α))
+  (k : ℕ) (seed probes : List (FreeMonoid α)) (Pf : CutReads α → KState α)
 variable {G : DTree α → Edges α → FreeMonoid α → Qry α β} {harv : β → List (FreeMonoid α)}
 
 /-- Inside a cell of the pass, a draw's share is pulled down on average: its fresh harvests are
@@ -342,16 +405,17 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     (A : DFA (FreeMonoid α) Q) {uGood : ℝ}
     (hu : 0 ≤ uGood) (hV : SuffixFree (F ∪ K.train F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
-    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (x : FreeMonoid α) :
+    (hD : PassDetermined O B F K k seed probes Pf)
+    (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) (x : FreeMonoid α) :
     μ.real (pcell O (F ∪ K.train F) c)
       * ∫ ω, gContrib G harv A O B F uGood (cellReads O B F (F ∪ K.train F) c ω).cut
-          (passK O B F K k seed probes ω₀).tree (passK O B F K k seed probes ω₀).edges c.1 x ∂μ
+          (passOf O B F Pf ω₀).tree (passOf O B F Pf ω₀).edges c.1 x ∂μ
       ≤ 0 := by
   classical
   set V := F ∪ K.train F
-  set s₀ := passK O B F K k seed probes ω₀
+  set s₀ := passOf O B F Pf ω₀
   set P := pcell O V c
-  set C := passCell O B F K k seed probes c
+  set C := cellOf O B F K k seed probes Pf c
   set FTc : Ω → Prop := fun ω =>
     GFresh G harv A O B F uGood (cellReads O B F V c ω).cut s₀.tree s₀.edges c.1 x
   set tc : Ω → ℕ := fun ω => gTags G (cellReads O B F V c ω).cut s₀.tree s₀.edges x
@@ -398,7 +462,7 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     filter_upwards [this] with ω hω
     by_cases hP : ω ∈ P
     · rw [Set.indicator_of_mem hP,
-        Set.indicator_of_mem (passCell_const O B F K k seed probes h₀ hP hω).2]
+        Set.indicator_of_mem (cellOf_const hD h₀ hP hω).2]
     · rw [Set.indicator_of_notMem hP, Set.indicator_of_notMem fun h => hP (hCP h)]
   have e2 : ∫ ω, P.indicator 1 ω * h ω ∂μ = ∫ ω, C.indicator 1 ω * h ω ∂μ :=
     integral_congr_ae (hae.mono fun ω hω => by
@@ -406,25 +470,25 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
       rw [hω])
   -- on the cell, the cell's reads are the oracle's
   have hon : ∀ ω ∈ C, cellReads O B F V c ω = readsAt O B F ω
-      ∧ passK O B F K k seed probes ω = s₀ ∧ passReads O B F K k seed probes ω = c.1 := by
+      ∧ passOf O B F Pf ω = s₀ ∧ readsOf O B F k seed probes Pf ω = c.1 := by
     intro ω hω
     exact ⟨cellReads_eq O B F V c hω.1.1.1 hω.1.2,
-      (passCell_const O B F K k seed probes h₀ hω.1.1 hω.1.2).1, hω.2⟩
+      (cellOf_const hD h₀ hω.1.1 hω.1.2).1, hω.2⟩
   -- the fresh triples, by `fresh_first_le`
   set st : Ω → DTree α × Edges α := fun ω =>
-    ((passK O B F K k seed probes ω).tree, (passK O B F K k seed probes ω).edges)
-  set C₀ := P ∩ {ω | passReads O B F K k seed probes ω = c.1}
-  have hst : ∀ ω ω', (∀ y ∈ vBits V (passReads O B F K k seed probes ω),
+    ((passOf O B F Pf ω).tree, (passOf O B F Pf ω).edges)
+  set C₀ := P ∩ {ω | readsOf O B F k seed probes Pf ω = c.1}
+  have hst : ∀ ω ω', (∀ y ∈ vBits V (readsOf O B F k seed probes Pf ω),
       O.noise y ω = O.noise y ω') → st ω' = st ω
-        ∧ passReads O B F K k seed probes ω' = passReads O B F K k seed probes ω := by
+        ∧ readsOf O B F k seed probes Pf ω' = readsOf O B F k seed probes Pf ω := by
     intro ω ω' hag
-    have hs := passK_determined O B F K k seed probes ω ω' hag
-    exact ⟨by simp only [st, hs], by simp only [passReads, hs]⟩
-  have hC₀ : ∀ ω ω', (∀ y ∈ vBits V (passReads O B F K k seed probes ω),
+    have hs := hD ω ω' hag
+    exact ⟨by simp only [st, hs], by simp only [readsOf, hs]⟩
+  have hC₀ : ∀ ω ω', (∀ y ∈ vBits V (readsOf O B F k seed probes Pf ω),
       O.noise y ω = O.noise y ω') → (ω' ∈ C₀ ↔ ω ∈ C₀) := by
     intro ω ω' hag
     have hT := (hst ω ω' hag).2
-    by_cases hω : passReads O B F K k seed probes ω = c.1
+    by_cases hω : readsOf O B F k seed probes Pf ω = c.1
     · rw [hω] at hag
       have hpat : noisePattern O (vBits V c.1) ω' = noisePattern O (vBits V c.1) ω :=
         Finset.filter_congr fun y hy => by rw [hag y hy]
@@ -434,18 +498,18 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
       simp only [C₀, P, pcell, Set.mem_inter_iff, Set.mem_ofPred_eq, hpat, hcln, hT]
     · simp only [C₀, Set.mem_inter_iff, Set.mem_ofPred_eq, hT, hω, and_false]
   have hfresh := fresh_first_le_gen O B F V hV Finset.subset_union_left
-    (fun p : DTree α × Edges α => G p.1 p.2 x) st (passReads O B F K k seed probes) hst C₀ hC₀
+    (fun p : DTree α × Edges α => G p.1 p.2 x) st (readsOf O B F k seed probes Pf) hst C₀ hC₀
     (fun z => stateIndecision A O B F (A.state z) < uGood) (u := ENNReal.ofReal uGood)
     fun z hz => good_le O B F A z hz
   have hsub : C ∩ {ω | FTc ω} ⊆ {ω | ω ∈ C₀
       ∧ FirstBad ((G (st ω).1 (st ω).2 x).trace (readsAt O B F ω).cut)
-      (passReads O B F K k seed probes ω) (readsAt O B F ω).cut
+      (readsOf O B F k seed probes Pf ω) (readsAt O B F ω).cut
       fun z => stateIndecision A O B F (A.state z) < uGood} := by
     rintro ω ⟨hω, hft⟩
     obtain ⟨hr, hs, hT⟩ := hon ω hω
     refine ⟨⟨hω.1.1, hT⟩, ?_⟩
     have hft' : GFresh G harv A O B F uGood (readsAt O B F ω).cut (st ω).1 (st ω).2
-        (passReads O B F K k seed probes ω) x := by
+        (readsOf O B F k seed probes Pf ω) x := by
       simp only [st, hs, hT]; simpa [FTc, hr] using hft
     exact gFresh_firstBad hG A O B F hft'
   have hlin : ∫⁻ ω, C₀.indicator (fun ω =>
@@ -455,7 +519,7 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     refine lintegral_congr_ae (this.mono fun ω hcl' => ?_)
     beta_reduce
     by_cases hω : ω ∈ C₀
-    · have hC : ω ∈ C := (passCell_const O B F K k seed probes h₀ hω.1 hcl').2
+    · have hC : ω ∈ C := (cellOf_const hD h₀ hω.1 hcl').2
       obtain ⟨hr, hs, -⟩ := hon ω hC
       rw [Set.indicator_of_mem hω, Set.indicator_of_mem hC, ENNReal.ofReal_natCast]
       simp only [st, hs, tc, gTags, hr]
@@ -465,7 +529,7 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     have : C = P ∩ cleanAll O := by
       ext ω; constructor
       · intro hω; exact ⟨hω.1.1, hω.1.2⟩
-      · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
+      · rintro ⟨hP, hc'⟩; exact (cellOf_const hD h₀ hP hc').2
     rw [this]; exact hPm'.inter (measurableSet_cleanAll O)
   have hint_ctc : Integrable (C.indicator fun ω => (tc ω : ℝ)) μ := hint_tc.indicator hCm
   have hFTbound : μ.real (C ∩ {ω | FTc ω})
@@ -509,7 +573,7 @@ section Hoeffding
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-  (k : ℕ) (seed probes : List (FreeMonoid α))
+  (k : ℕ) (seed probes : List (FreeMonoid α)) (Pf : CutReads α → KState α)
 variable {G : DTree α → Edges α → FreeMonoid α → Qry α β} {harv : β → List (FreeMonoid α)}
 
 /-- The bits a draw's class can read off the cell's. -/
@@ -567,18 +631,19 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
     (hkL : k ≤ L) {uGood ε : ℝ} (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (F ∪ K.train F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
-    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) :
-    μ.real (passCell O B F K k seed probes c ∩ {ω | ε * (1 + uGood
-        * bnd (passK O B F K k seed probes ω).tree L) < ∑ x ∈ wordsOf (α := α) L, D.real {x}
+    (hD : PassDetermined O B F K k seed probes Pf)
+    (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) :
+    μ.real (cellOf O B F K k seed probes Pf c ∩ {ω | ε * (1 + uGood
+        * bnd (passOf O B F Pf ω).tree L) < ∑ x ∈ wordsOf (α := α) L, D.real {x}
           * gContrib G harv A O B F uGood (readsAt O B F ω).cut
-            (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
-            (passReads O B F K k seed probes ω) x})
-      ≤ μ.real (passCell O B F K k seed probes c) * Real.exp (-2 * ε ^ 2 / prefixMax D k) := by
+            (passOf O B F Pf ω).tree (passOf O B F Pf ω).edges
+            (readsOf O B F k seed probes Pf ω) x})
+      ≤ μ.real (cellOf O B F K k seed probes Pf c) * Real.exp (-2 * ε ^ 2 / prefixMax D k) := by
   classical
   set V := F ∪ K.train F
-  set s₀ := passK O B F K k seed probes ω₀
+  set s₀ := passOf O B F Pf ω₀
   set P := pcell O V c
-  set C := passCell O B F K k seed probes c
+  set C := cellOf O B F K k seed probes Pf c
   set d₀ : ℝ := (bnd s₀.tree L : ℝ)
   set R : ℝ := 1 + uGood * d₀
   set X := wordsOf (α := α) L
@@ -613,7 +678,7 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
   have hCeq : C = P ∩ cleanAll O := by
     ext ω; constructor
     · intro (hω : ω ∈ C); exact ⟨hω.1.1, hω.1.2⟩
-    · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
+    · rintro ⟨hP, hc'⟩; exact (cellOf_const hD h₀ hP hc').2
   have hCP : μ.real C = μ.real P := by
     rw [hCeq, measureReal_def, measure_inter_conull hcl, ← measureReal_def]
   rcases eq_or_lt_of_le (measureReal_nonneg : 0 ≤ μ.real P) with hP0 | hP0
@@ -623,7 +688,7 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
   -- the means are at most zero
   set m : FreeMonoid α → ℝ := fun x => ∫ ω, h x ω ∂μ
   have hm0 : ∀ x, m x ≤ 0 := fun x => by
-    have := cell_mean_le_gen O B F K k seed probes hG bnd hbnd A hu hV h₀ x
+    have := cell_mean_le_gen O B F K k seed probes Pf hG bnd hbnd A hu hV hD h₀ x
     exact nonpos_of_mul_nonpos_right this hP0
   -- the groups by first `k` letters
   set Ps := X.image (prefixOf · k)
@@ -757,19 +822,19 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
         linarith
   -- on the cell
   have hon : ∀ ω ∈ C, (∑ x ∈ X, D.real {x} * gContrib G harv A O B F uGood (readsAt O B F ω).cut
-      (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
-      (passReads O B F K k seed probes ω) x) = W ω
-      ∧ bnd (passK O B F K k seed probes ω).tree L = bnd s₀.tree L := by
+      (passOf O B F Pf ω).tree (passOf O B F Pf ω).edges
+      (readsOf O B F k seed probes Pf ω) x) = W ω
+      ∧ bnd (passOf O B F Pf ω).tree L = bnd s₀.tree L := by
     intro ω hω
     have hr := cellReads_eq O B F V c hω.1.1.1 hω.1.2
-    have hs := (passCell_const O B F K k seed probes h₀ hω.1.1 hω.1.2).1
-    have hT : passReads O B F K k seed probes ω = c.1 := hω.2
+    have hs := (cellOf_const hD h₀ hω.1.1 hω.1.2).1
+    have hT : readsOf O B F k seed probes Pf ω = c.1 := hω.2
     refine ⟨Finset.sum_congr rfl fun x _ => ?_, by rw [hs]⟩
     simp only [h, hr, hs, hT, s₀]
-  have hsub : C ∩ {ω | ε * (1 + uGood * bnd (passK O B F K k seed probes ω).tree L)
+  have hsub : C ∩ {ω | ε * (1 + uGood * bnd (passOf O B F Pf ω).tree L)
       < ∑ x ∈ X, D.real {x} * gContrib G harv A O B F uGood (readsAt O B F ω).cut
-        (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
-        (passReads O B F K k seed probes ω) x} ⊆ P ∩ {ω | ε * R ≤ W ω - M} := by
+        (passOf O B F Pf ω).tree (passOf O B F Pf ω).edges
+        (readsOf O B F k seed probes Pf ω) x} ⊆ P ∩ {ω | ε * R ≤ W ω - M} := by
     rintro ω ⟨hω, hlt⟩
     obtain ⟨hsum, hdep⟩ := hon ω hω
     simp only [Set.mem_ofPred_eq, hsum, hdep] at hlt
@@ -908,52 +973,53 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] {L : ℕ} (seed probes : List (FreeMonoid α)) {u ε : ℝ}
+    [IsProbabilityMeasure D] {L : ℕ} (seed probes : List (FreeMonoid α))
+    (Pf : CutReads α → KState α) (hD : PassDetermined O B F K k seed probes Pf) {u ε : ℝ}
     (hu : 0 ≤ u) (hε : 0 < ε) (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
     (hV : SuffixFree (F ∪ K.train F)) :
-    μ.real {ω | ¬ D.real {x | harv ((G (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x).run (readsAt O B F ω).cut) ≠ []
-        ∧ ∀ b ∈ harv ((G (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x).run (readsAt O B F ω).cut),
+    μ.real {ω | ¬ D.real {x | harv ((G (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x).run (readsAt O B F ω).cut) ≠ []
+        ∧ ∀ b ∈ harv ((G (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x).run (readsAt O B F ω).cut),
           stateIndecision A O B F (A.state b) < u}
-      ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x : ℝ) ∂D
-        + (kPrefixes k (passReadSet k seed probes (passK O B F K k seed probes ω).tree)).card
+      ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x : ℝ) ∂D
+        + (kPrefixes k (passReadSet k seed probes (passOf O B F Pf ω).tree)).card
           * prefixMax D k
-        + ε * (1 + u * bnd (passK O B F K k seed probes ω).tree L)}
+        + ε * (1 + u * bnd (passOf O B F Pf ω).tree L)}
       ≤ Real.exp (-2 * ε ^ 2 / prefixMax D k) := by
   classical
   set V := F ∪ K.train F
   have hr : 0 ≤ Real.exp (-2 * ε ^ 2 / prefixMax D k) := (Real.exp_pos _).le
-  set Ev : Set Ω := {ω | ε * (1 + u * bnd (passK O B F K k seed probes ω).tree L)
+  set Ev : Set Ω := {ω | ε * (1 + u * bnd (passOf O B F Pf ω).tree L)
     < ∑ x ∈ wordsOf (α := α) L, D.real {x} * gContrib G harv A O B F u (readsAt O B F ω).cut
-      (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
-      (passReads O B F K k seed probes ω) x}
-  have hsub : {ω | ¬ D.real {x | harv ((G (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x).run (readsAt O B F ω).cut) ≠ []
-        ∧ ∀ b ∈ harv ((G (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x).run (readsAt O B F ω).cut),
+      (passOf O B F Pf ω).tree (passOf O B F Pf ω).edges
+      (readsOf O B F k seed probes Pf ω) x}
+  have hsub : {ω | ¬ D.real {x | harv ((G (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x).run (readsAt O B F ω).cut) ≠ []
+        ∧ ∀ b ∈ harv ((G (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x).run (readsAt O B F ω).cut),
           stateIndecision A O B F (A.state b) < u}
-      ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passK O B F K k seed probes ω).tree
-          (passK O B F K k seed probes ω).edges x : ℝ) ∂D
-        + (kPrefixes k (passReadSet k seed probes (passK O B F K k seed probes ω).tree)).card
+      ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passOf O B F Pf ω).tree
+          (passOf O B F Pf ω).edges x : ℝ) ∂D
+        + (kPrefixes k (passReadSet k seed probes (passOf O B F Pf ω).tree)).card
           * prefixMax D k
-        + ε * (1 + u * bnd (passK O B F K k seed probes ω).tree L)} ⊆ Ev := fun ω hω =>
+        + ε * (1 + u * bnd (passOf O B F Pf ω).tree L)} ⊆ Ev := fun ω hω =>
     gen_fail_sum hG A O B F _ _ _ _ D hkL hlen hω
   set cells := fun c : Finset (FreeMonoid α) × Finset (FreeMonoid α) =>
-    passCell O B F K k seed probes c
+    cellOf O B F K k seed probes Pf c
   have hcover : Ev ⊆ (cleanAll O)ᶜ ∪ ⋃ c, cells c ∩ Ev := by
     intro ω hω
     by_cases hcl : ω ∈ cleanAll O
-    · refine .inr (Set.mem_iUnion.2 ⟨(passReads O B F K k seed probes ω,
-        noisePattern O (vBits V (passReads O B F K k seed probes ω)) ω), ?_, hω⟩)
+    · refine .inr (Set.mem_iUnion.2 ⟨(readsOf O B F k seed probes Pf ω,
+        noisePattern O (vBits V (readsOf O B F k seed probes Pf ω)) ω), ?_, hω⟩)
       exact ⟨⟨⟨rfl, fun y _ => hcl y⟩, hcl⟩, rfl⟩
     · exact .inl hcl
   have hcell : ∀ c, μ (cells c ∩ Ev) ≤ μ (cells c) * ENNReal.ofReal (Real.exp (-2 * ε ^ 2 / prefixMax D k)) := by
     intro c
     by_cases hne : (cells c).Nonempty
     · obtain ⟨ω₀, h₀⟩ := hne
-      have := cell_tail_hoeff O B F K k seed probes hG bnd hbnd A D hkL hu hε hV h₀
+      have := cell_tail_hoeff O B F K k seed probes Pf hG bnd hbnd A D hkL hu hε hV hD h₀
       rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def,
         ← ENNReal.ofReal_toReal (measure_ne_top μ (cells c)), ← measureReal_def,
         ← ENNReal.ofReal_mul measureReal_nonneg]
@@ -972,7 +1038,7 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
       rw [h1] at a
       exact a.symm.trans b
     exact Prod.ext h1 h2
-  have hmeas : ∀ c, MeasurableSet (cells c) := measurableSet_passCell O B F K k seed probes
+  have hmeas : ∀ c, MeasurableSet (cells c) := measurableSet_cellOf hD
   have htot : μ Ev ≤ ENNReal.ofReal (Real.exp (-2 * ε ^ 2 / prefixMax D k)) := by
     calc μ Ev ≤ μ ((cleanAll O)ᶜ ∪ ⋃ c, cells c ∩ Ev) := measure_mono hcover
       _ ≤ μ (cleanAll O)ᶜ + μ (⋃ c, cells c ∩ Ev) := measure_union_le _ _

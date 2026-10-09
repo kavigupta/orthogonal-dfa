@@ -35,32 +35,32 @@ theorem exists_good_of_le {P : Ω → Prop} {r : ℝ} (h : μ.real {ω | ¬ P ω
     ∃ E : Set Ω, μ.real E ≤ r ∧ ∀ ω ∉ E, P ω :=
   ⟨_, h, fun ω hω => by simpa using hω⟩
 
-theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+/-- `quality_holds`, for any pass decided by the bits at what it can read. -/
+theorem quality_holds_of [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} (hkL : k ≤ L)
-    (seed probes : List (FreeMonoid α)) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c) (hε : 0 < ε)
-    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
+    (seed probes : List (FreeMonoid α)) (Pf : CutReads α → KState α)
+    (hD : PassDetermined O B F K k seed probes Pf) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c)
+    (hε : 0 < ε) (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
     ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
-      QualityHolds (readsAt O B F ω) A O B F
-        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes)
-        D k L seed probes f c ε := by
+      QualityHolds (readsAt O B F ω) A O B F (Pf (readsAt O B F ω)) D k L seed probes f c ε := by
   classical
   have hu : 0 ≤ c * f := mul_nonneg hc hf
   have hT := harvest_holds_le (μ := μ) (triple_spec k) (fun t n => t.depth * n)
     (fun R t e x => (qProbeH_countP R t e k x).trans (Nat.mul_le_mul_left _ (visits_le R t e k x)))
-    A O B F K D seed probes hu hε hkL hlen hV
+    A O B F K D seed probes Pf hD hu hε hkL hlen hV
   have hP := harvest_holds_le (μ := μ) (pair_spec k) (fun t n => t.depth * n)
     (fun R t e x => (qProbeH_countP R t e k x).trans (Nat.mul_le_mul_left _ (visits_le R t e k x)))
-    A O B F K D seed probes hu hε hkL hlen hV
+    A O B F K D seed probes Pf hD hu hε hkL hlen hV
   have hS := harvest_holds_le (μ := μ) (ends_spec k (prefixOf · k) fun x => ⟨k, le_rfl, rfl⟩)
     (fun t _ => t.depth - 1)
-    (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes hu hε hkL hlen hV
+    (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes Pf hD hu hε hkL hlen hV
   have hE := harvest_holds_le (μ := μ)
     (ends_spec k id fun x => ⟨max k x.toList.length, le_max_left _ _,
     (prefixOf_max x k).symm⟩) (fun t _ => t.depth - 1)
-    (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes hu hε hkL hlen hV
+    (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes Pf hD hu hε hkL hlen hV
   have hB := harvest_holds_le (μ := μ) (blocked_spec k) (fun t _ => 2 * t.depth)
-    (fun R t e x => qWalkB_countP R.cut t e k x) A O B F K D seed probes hu hε hkL hlen hV
+    (fun R t e x => qWalkB_countP R.cut t e k x) A O B F K D seed probes Pf hD hu hε hkL hlen hV
   obtain ⟨E1, hE1, hc1⟩ := exists_good_of_le hT
   obtain ⟨E2, hE2, hc2⟩ := exists_good_of_le hP
   obtain ⟨E3, hE3, hc3⟩ := exists_good_of_le hS
@@ -82,7 +82,7 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
   have h4 := hc4 ω n4
   have h5 := hc5 ω n5
   set R := readsAt O B F ω
-  set s := passK O B F K k seed probes ω
+  set s := passOf O B F Pf ω
   change QualityHolds R A O B F s D k L seed probes f c ε
   set Tn := (kPrefixes k (passReadSet k seed probes s.tree)).card
   have hpm : 0 ≤ prefixMax D k :=
@@ -201,5 +201,17 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     refine (measureReal_mono hsub).trans (h5.trans ?_)
     push_cast
     linarith [mul_le_mul_of_nonneg_left hint hu]
+
+theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} (hkL : k ≤ L)
+    (seed probes : List (FreeMonoid α)) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c) (hε : 0 < ε)
+    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
+    ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
+      QualityHolds (readsAt O B F ω) A O B F
+        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes)
+        D k L seed probes f c ε :=
+  quality_holds_of A O B F K D hkL seed probes _ (runPassK_passDetermined O B F K k seed probes)
+    hf hc hε hlen hV
 
 end OrthoDFA
