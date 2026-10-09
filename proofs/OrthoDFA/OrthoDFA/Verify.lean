@@ -91,4 +91,8 @@ theorem round_strong_leaf_paths' : RoundStrongLeafPaths := round_strong_leaf_pat
 
 #print axioms round_strong_leaf_paths'
 
+theorem round_strong_trichotomy' : RoundStrongTrichotomy := round_strong_trichotomy
+
+#print axioms round_strong_trichotomy'
+
 end OrthoDFA

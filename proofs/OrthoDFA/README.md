@@ -88,9 +88,14 @@
   `RoundStrongReadings` (at most `readStar(leaves)` readings), `RoundStrongLeaves` (at most
   `|Q| + 2` leaves plus the noisy splits: those with one of their `≤ 2·depth + 2` sifting or
   parting reads off a reference placement's side), `RoundStrongSameState` (a split between two
-  strings of one state is noisy) and `RoundStrongLeafPaths`. Not yet proved:
-  `RoundStrongTrichotomy` and `RoundStrongQuality`. Open, not sorried (see
-  `notes/start-at-k.md`): the chance of a noisy split, and split power for edges with margin.
+  strings of one state is noisy) and `RoundStrongLeafPaths`. `RoundStrongTrichotomy`, proved:
+  the round ends consistent (start disagreeing on at most `1 − acc`, certified), holding a class,
+  halving as in `RoundTrichotomyLevel` with the edges actually given up (every covering start's
+  residue claimed only where the gate settled below), or out of readings only past `readStar`,
+  but for `4(log₂(ng/30)+2)a`, `(1 − ν)^nr` per reading in expectation, and the certificate's
+  failure chances over its calls in expectation. Not yet proved: `RoundStrongQuality`. Open, not
+  sorried (see `notes/start-at-k.md`): the chance of a noisy split, and split power for edges
+  with margin.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding

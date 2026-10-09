@@ -794,7 +794,9 @@ so the bound tracks the readings actually made: at binary, `k = 20`, `nr = 480`,
 ## The strengthened round (`RoundStrong`, D42–D55)
 
 Proved with no noise: the budget is never reached, readings ≤ `readStar(leaves)`, edges join
-leaves, and leaves ≤ `|Q| + 2 + #noisy splits`. A member added on a given-up edge does not reset
+leaves, and leaves ≤ `|Q| + 2 + #noisy splits`. Proved: `RoundStrongTrichotomy`, the failure
+bound `4(log₂(ng/30)+2)a + E[readings]·(1 − ν)^nr + E[Σ_{i < certificate calls} α_i]`; a gate
+that does not settle is a refusal (D49), so the unsettled tail and `δc` are gone. A member added on a given-up edge does not reset
 the quiet streak (D51); without that a pass is unbounded.
 
 A split is noisy when one of its at most `2·depth + 2` reads lands off a reference placement's

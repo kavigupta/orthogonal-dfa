@@ -962,3 +962,556 @@ theorem round_strong_leaves : RoundStrongLeaves := by
 end Round
 
 end OrthoDFA
+
+namespace OrthoDFA
+
+open MeasureTheory
+open scoped ENNReal
+
+variable {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*}
+
+section Gate
+
+variable (R : CutReads α)
+
+open scoped Classical in
+/-- The gate's claims where its test settles: off a set of batches of chance at most the looks'
+failure chances, settling above leaves its start disagreeing on at most `1 − acc`, and settling
+below leaves every start short of `acc`. -/
+theorem gate_settled (s : KState α) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (ng : ℕ) {acc a : ℝ} (hacc0 : 0 ≤ acc) (hacc1 : acc ≤ 1) (ha : 0 ≤ a) :
+    ∃ Bad : Set (Fin ng → FreeMonoid α),
+      (Measure.pi fun _ : Fin ng => D).real Bad ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a
+      ∧ ∀ bg ∉ Bad,
+        (gateSide R s.tree s.edges bg acc a (gateStop R s.tree s.edges bg acc a) = some true
+          → D.real {x | StartDis R s.edges (gateStart R s.tree s.edges bg acc a) x} ≤ 1 - acc)
+        ∧ (gateSide R s.tree s.edges bg acc a (gateStop R s.tree s.edges bg acc a) = some false
+          → ∀ q ∈ s.tree.paths, D.real {x | ¬ StartDis R s.edges q x} < acc) := by
+  set t := s.tree with ht
+  set e := s.edges with he
+  set P := t.paths with hP
+  set a' := a / P.length with ha'
+  have hP0 : 0 < P.length := List.length_pos_of_ne_nil (paths_ne_nil t)
+  have ha'0 : 0 ≤ a' := div_nonneg ha (Nat.cast_nonneg _)
+  set pq : List Bool → ℝ := fun q => D.real {x | ¬ StartDis R e q x} with hpq
+  have hpq_compl : ∀ q, pq q = 1 - D.real {x | StartDis R e q x} := fun q => by
+    simp only [hpq]
+    rw [show {x | ¬ StartDis R e q x} = {x | StartDis R e q x}ᶜ from rfl,
+      measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
+  set looks := lookSet 30 ng
+  set Gab := ⋃ q ∈ P.toFinset.filter (fun q => pq q < acc), ⋃ n ∈ looks,
+    {bg : Fin ng → FreeMonoid α | binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n) < a'}
+  set Gbe := ⋃ q ∈ P.toFinset.filter (fun q => acc ≤ pq q), ⋃ n ∈ looks,
+    {bg : Fin ng → FreeMonoid α |
+      1 - binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n + 1) < a'}
+  refine ⟨Gab ∪ Gbe, ?_, fun bg hbad => ?_⟩
+  · set ν₁ := Measure.pi fun _ : Fin ng => D
+    have hfil : ∀ p : List Bool → Prop, ((P.toFinset.filter p).card : ℝ) * a' ≤ a := by
+      intro p
+      have h1 : ((P.toFinset.filter p).card : ℝ) ≤ P.length := by
+        exact_mod_cast (Finset.card_filter_le _ _).trans (List.toFinset_card_le _)
+      rw [ha', mul_div_assoc']
+      rw [div_le_iff₀ (by exact_mod_cast hP0)]
+      nlinarith
+    have hlooks : (looks.card : ℝ) ≤ Nat.log 2 (ng / 30) + 2 := by
+      exact_mod_cast lookSet_card 30 ng
+    have hGab : ν₁.real Gab ≤ (Nat.log 2 (ng / 30) + 2) * a := by
+      refine (measureReal_biUnion_finset_le _ _).trans ?_
+      calc ∑ q ∈ P.toFinset.filter (fun q => pq q < acc), ν₁.real (⋃ n ∈ looks,
+            {bg : Fin ng → FreeMonoid α |
+              binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n) < a'})
+          ≤ ∑ _q ∈ P.toFinset.filter (fun q => pq q < acc), (looks.card : ℝ) * a' := by
+            refine Finset.sum_le_sum fun q hq => (measureReal_biUnion_finset_le _ _).trans ?_
+            rw [← nsmul_eq_mul, ← Finset.sum_const]
+            exact Finset.sum_le_sum fun n hn => gate_look_above D _ (mem_lookSet hn).1 hacc1
+              (Finset.mem_filter.1 hq).2.le ha'0
+        _ = (looks.card : ℝ) * ((P.toFinset.filter (fun q => pq q < acc)).card * a') := by
+            rw [Finset.sum_const, nsmul_eq_mul]; ring
+        _ ≤ (Nat.log 2 (ng / 30) + 2) * a :=
+            mul_le_mul hlooks (hfil _) (by positivity) (by positivity)
+    have hGbe : ν₁.real Gbe ≤ (Nat.log 2 (ng / 30) + 2) * a := by
+      refine (measureReal_biUnion_finset_le _ _).trans ?_
+      calc ∑ q ∈ P.toFinset.filter (fun q => acc ≤ pq q), ν₁.real (⋃ n ∈ looks,
+            {bg : Fin ng → FreeMonoid α |
+              1 - binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n + 1) < a'})
+          ≤ ∑ _q ∈ P.toFinset.filter (fun q => acc ≤ pq q), (looks.card : ℝ) * a' := by
+            refine Finset.sum_le_sum fun q hq => (measureReal_biUnion_finset_le _ _).trans ?_
+            rw [← nsmul_eq_mul, ← Finset.sum_const]
+            exact Finset.sum_le_sum fun n hn => gate_look_below D _ (mem_lookSet hn).1 hacc0
+              (Finset.mem_filter.1 hq).2 ha'0
+        _ = (looks.card : ℝ) * ((P.toFinset.filter (fun q => acc ≤ pq q)).card * a') := by
+            rw [Finset.sum_const, nsmul_eq_mul]; ring
+        _ ≤ (Nat.log 2 (ng / 30) + 2) * a :=
+            mul_le_mul hlooks (hfil _) (by positivity) (by positivity)
+    refine (measureReal_union_le _ _).trans ?_
+    linarith
+  simp only [Set.mem_union, not_or] at hbad
+  obtain ⟨hab, hbe⟩ := hbad
+  obtain ⟨hstop, -⟩ := gateStop_spec R t e bg acc a
+  set stop := gateStop R t e bg acc a
+  set qh := gateStart R t e bg acc a
+  have hqh : qh ∈ P := bestOf_mem (paths_ne_nil t) _
+  have hgs : gateSide R t e bg acc a stop
+      = rateSide acc a' 0 stop (hitsIn bg (fun x => ¬ StartDis R e qh x) stop) := rfl
+  refine ⟨fun hv => ?_, fun hfalse => ?_⟩
+  · by_contra hA
+    have hlt : pq qh < acc := by
+      rw [hpq_compl]; push Not at hA; linarith
+    rw [hgs] at hv
+    unfold rateSide at hv
+    rw [if_pos (Nat.zero_le _)] at hv
+    split_ifs at hv with h1 h2
+    · exact hab (Set.mem_biUnion (Finset.mem_filter.2 ⟨List.mem_toFinset.2 hqh, hlt⟩)
+        (Set.mem_biUnion hstop h1))
+    · simp at hv
+  · intro q hq
+    by_contra hge
+    push Not at hge
+    have hle : hitsIn bg (fun x => ¬ StartDis R e q x) stop
+        ≤ hitsIn bg (fun x => ¬ StartDis R e qh x) stop :=
+      bestOf_max P (fun q => hitsIn bg (fun x => ¬ StartDis R e q x) stop) hq
+    have := rateSide_false_mono hacc0 hacc1 (hgs.symm.trans hfalse) hle
+    exact hbe (Set.mem_biUnion (Finset.mem_filter.2 ⟨List.mem_toFinset.2 hq, hge⟩)
+      (Set.mem_biUnion hstop this))
+
+end Gate
+
+section StrongReading
+
+variable (C : StrongCfg α) (R : CutReads α)
+
+theorem strongPass_certs (Ac : RoundAcc α) (probes : List (FreeMonoid α)) :
+    (strongPass C R Ac probes).certs = Ac.certs := by
+  rw [strongPass_eq]
+  have : ∀ (l : List (FreeMonoid α)) (X : RoundAcc α),
+      (l.foldl (passBody C R) X).certs = X.certs := by
+    intro l
+    induction l with
+    | nil => exact fun _ => rfl
+    | cons x xs ih =>
+      intro X
+      simp only [List.foldl_cons]
+      rw [ih]
+      unfold passBody
+      split_ifs
+      · rfl
+      · exact (strongStep_state C R X x).2.2.2.2
+  exact this _ _
+
+/-- Whether reading `j`'s gate settles above, so that it calls the certificate. -/
+def CallsCert (j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α))
+    (pr : Fin C.np → FreeMonoid α) (bg : Fin C.ng → FreeMonoid α) : Prop :=
+  gateSide R (strongPass C R Ac (first ++ List.ofFn pr)).s.tree
+    (strongPass C R Ac (first ++ List.ofFn pr)).s.edges bg C.acc (C.a / 2 ^ j)
+    (gateStop R (strongPass C R Ac (first ++ List.ofFn pr)).s.tree
+      (strongPass C R Ac (first ++ List.ofFn pr)).s.edges bg C.acc (C.a / 2 ^ j)) = some true
+
+open scoped Classical in
+theorem strongReading_certs (j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α))
+    (y : C.Draws) :
+    (strongReading C R j Ac first y).1.certs
+      = Ac.certs + if CallsCert C R j Ac first y.1 y.2.1 then 1 else 0 := by
+  unfold strongReading CallsCert
+  simp only []
+  split_ifs <;> simp_all [strongPass_certs]
+
+variable (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+  (CertGood : KState α → Prop)
+
+/-- A reading's failure chance but for the certificate's. -/
+noncomputable def strongBound (ν : ℝ) (j : ℕ) : ℝ :=
+  2 * (Nat.log 2 (C.ng / 30) + 2) * (C.a / 2 ^ j) + (1 - ν) ^ C.nr
+
+open scoped Classical in
+/-- Given its probes, a reading from an entry ends the round badly with chance at most
+`strongBound`, and the certificate's failure chance where its gate settles above. -/
+theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
+    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
+    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax)
+    {Ac : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ} (hE : Entry C R Ac first m)
+    (j Rmax : ℕ) (pr : Fin C.np → FreeMonoid α) :
+    ((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
+        (Measure.pi fun _ : Fin C.nc => D))).real
+      {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
+        ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first (pr, z)).1
+          e}
+      ≤ strongBound C ν j
+        + (Measure.pi fun _ : Fin C.ng => D).real {bg | CallsCert C R j Ac first pr bg}
+          * αs Ac.certs := by
+  set A' := strongPass C R Ac (first ++ List.ofFn pr) with hA'
+  set s := A'.s with hs
+  set aj := C.a / 2 ^ j
+  have haj : 0 ≤ aj := by positivity
+  have hcerts : A'.certs = Ac.certs := strongPass_certs C R Ac _
+  obtain ⟨Bad, hBad, hgood⟩ := gate_settled R s D C.ng hacc0 hacc1 haj
+  set gu := givenUp C A'
+  set Miss := {br : Fin C.nr → FreeMonoid α | ν < D.real {x | NAOff R s.tree s.edges C.k gu x}
+    ∧ ∀ i, ¬ NAOff R s.tree s.edges C.k gu (br i)}
+  set Called := {bg | CallsCert C R j Ac first pr bg}
+  set CB := {cs : Fin C.nc → FreeMonoid α | C.cert Ac.certs R s cs = true ∧ ¬ CertGood s}
+  have hsub : {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
+      ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first (pr, z)).1
+        e}
+      ⊆ Bad ×ˢ Set.univ ∪ Set.univ ×ˢ (Miss ×ˢ Set.univ) ∪ Called ×ˢ (Set.univ ×ˢ CB) := by
+    rintro ⟨bg, br, cs⟩ ⟨e, he, hne⟩
+    by_cases hbad : bg ∈ Bad
+    · exact .inl (.inl ⟨hbad, trivial⟩)
+    obtain ⟨hpass, hrefuse⟩ := hgood bg hbad
+    have hnex := (reading_entry C R hp1 hpn hm hE j (pr, (bg, br, cs))).2.2.2.1
+    unfold strongReading at he hne hnex
+    simp only [← hA', ← hs] at he hne hnex
+    split_ifs at he hne hnex with h1 h2 h3 h4 h5 h6 <;>
+      simp only [Sum.inl.injEq] at he <;> subst he
+    all_goals dsimp only at hnex hne
+    all_goals first
+      | exact absurd rfl hnex
+      | exact absurd h1.1 h2
+      | exact absurd trivial hne
+      | (simp only [StrongEndHolds, not_and_or] at hne
+         rcases hne with hne | hne
+         · exact absurd (hpass h1.1) hne
+         · exact .inr ⟨h1.1, trivial, by rw [hcerts] at h1; exact h1.2, hne⟩)
+      | (simp only [StrongEndHolds, not_or, not_and_or, not_le] at hne
+         obtain ⟨htau, hM, hne⟩ := hne
+         have hB : ¬ ∃ i : Fin C.nr, (i : ℕ) < refusalStop br C.a
+             (harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM)
+             (LiveEdge R s.tree s.edges C.k gu) ∧ LiveEdge R s.tree s.edges C.k gu (br i) := by
+           rintro ⟨i, hi, hl⟩
+           apply h3
+           rw [Ne, List.map_eq_nil_iff, List.filter_eq_nil_iff]
+           push Not
+           refine ⟨i, List.mem_finRange _, ?_⟩
+           first | exact ⟨hi, hl⟩ | exact decide_eq_true ⟨hi, hl⟩
+         have hclear := refusal_clear R s.tree s.edges C.k C.L hf ha gu br htau hM hB h6
+         refine .inl (.inr ⟨trivial, ?_, trivial⟩)
+         refine ⟨?_, hclear⟩
+         rcases hne with hne | hne
+         · exact hne
+         · simp only [Classical.not_imp, not_forall, decide_eq_true_eq] at hne
+           obtain ⟨hgr, q₀, h, hq₀, hhq, hcov, hh, hneed⟩ := hne
+           have hall := hrefuse hgr
+           have herr : 1 - C.acc < D.real {x | StartDis R s.edges (h q₀) x} := by
+             have := hall _ hhq
+             rw [show {x | ¬ StartDis R s.edges (h q₀) x} = {x | StartDis R s.edges (h q₀) x}ᶜ
+               from rfl, measureReal_compl (Set.to_countable _).measurableSet,
+               probReal_univ] at this
+             linarith
+           have hNA := need_lt R A D _ h s.tree s.edges C.k q₀ gu hcov hh herr
+           have hneed' : ν < need R A D (Covered A D C.k C.L minCov) h s.tree s.edges C.k q₀ gu
+               C.acc η := lt_of_not_ge hneed
+           linarith)
+  set ν₁ := Measure.pi fun _ : Fin C.ng => D
+  set ν₂ := Measure.pi fun _ : Fin C.nr => D
+  set ν₃ := Measure.pi fun _ : Fin C.nc => D
+  have hMiss := miss_all_le D (NAOff R s.tree s.edges C.k gu) C.nr hν
+  have hCB : ν₃.real CB ≤ αs Ac.certs := hcert Ac.certs R s
+  calc (ν₁.prod (ν₂.prod ν₃)).real {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
+        ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+          (strongReading C R j Ac first (pr, z)).1 e}
+      ≤ (ν₁.prod (ν₂.prod ν₃)).real
+          (Bad ×ˢ Set.univ ∪ Set.univ ×ˢ (Miss ×ˢ Set.univ) ∪ Called ×ˢ (Set.univ ×ˢ CB)) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ (ν₁.prod (ν₂.prod ν₃)).real (Bad ×ˢ Set.univ)
+        + (ν₁.prod (ν₂.prod ν₃)).real (Set.univ ×ˢ (Miss ×ˢ Set.univ))
+        + (ν₁.prod (ν₂.prod ν₃)).real (Called ×ˢ (Set.univ ×ˢ CB)) :=
+        (measureReal_union_le _ _).trans (add_le_add (measureReal_union_le _ _) le_rfl)
+    _ = ν₁.real Bad + ν₂.real Miss + ν₁.real Called * ν₃.real CB := by
+        simp only [measureReal_prod_prod, probReal_univ, mul_one, one_mul]
+    _ ≤ strongBound C ν j + ν₁.real Called * αs Ac.certs := by
+        unfold strongBound
+        have := mul_le_mul_of_nonneg_left hCB (measureReal_nonneg (μ := ν₁) (s := Called))
+        linarith
+
+theorem strongRound_len_certs :
+    ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
+      (strongRound C R n j Ac first d).2.2.length ≤ n
+        ∧ Ac.certs ≤ (strongRound C R n j Ac first d).2.1.certs
+        ∧ (strongRound C R n j Ac first d).2.1.certs ≤ Ac.certs + n := by
+  intro n
+  induction n with
+  | zero => intro j Ac first d; simp [strongRound]
+  | succ n ih =>
+    intro j Ac first d
+    have hc := strongReading_certs C R j Ac first (d 0)
+    have hc1 : (strongReading C R j Ac first (d 0)).1.certs ≤ Ac.certs + 1 := by
+      rw [hc]; split_ifs <;> omega
+    rcases hR : strongReading C R j Ac first (d 0) with ⟨A'', e | lv⟩ <;>
+      rw [hR] at hc hc1 <;> simp only [strongRound, hR] <;> dsimp only at hc hc1
+    · refine ⟨by simp, by omega, by omega⟩
+    · obtain ⟨h1, h2, h3⟩ := ih (j + 1) A'' lv (Fin.tail d)
+      refine ⟨by simp only [List.length_cons]; omega, by omega, by omega⟩
+
+instance StrongCfg.drawMeasure_prob (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
+    IsProbabilityMeasure (C.drawMeasure D) := by
+  unfold StrongCfg.drawMeasure; infer_instance
+
+open scoped Classical in
+/-- The certificate's failure chance a reading spends: on the calls it makes. -/
+noncomputable def certCost (αs : ℕ → ℝ) (c₀ c₁ : ℕ) : ℝ≥0∞ :=
+  ENNReal.ofReal (∑ i ∈ Finset.Ico c₀ c₁, αs i)
+
+theorem certCost_split {αs : ℕ → ℝ} (hα : ∀ i, 0 ≤ αs i) {c₀ c₁ c₂ : ℕ} (h₁ : c₀ ≤ c₁)
+    (h₂ : c₁ ≤ c₂) : certCost αs c₀ c₂ = certCost αs c₀ c₁ + certCost αs c₁ c₂ := by
+  unfold certCost
+  rw [← Finset.sum_Ico_consecutive _ h₁ h₂, ENNReal.ofReal_add (Finset.sum_nonneg fun i _ => hα i)
+    (Finset.sum_nonneg fun i _ => hα i)]
+
+open scoped Classical in
+/-- A reading from an entry ends the round badly with chance at most `strongBound`, and the
+certificate's failure chance on the calls it makes. -/
+theorem strong_reading_bad_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc)
+    (hacc1 : C.acc ≤ 1) (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
+    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax)
+    {Ac : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ} (hE : Entry C R Ac first m)
+    (j Rmax : ℕ) :
+    C.drawMeasure D {y | ∃ e, (strongReading C R j Ac first y).2 = .inl e
+        ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first y).1 e}
+      ≤ ENNReal.ofReal (strongBound C ν j)
+        + ∫⁻ y, certCost αs Ac.certs (strongReading C R j Ac first y).1.certs
+          ∂C.drawMeasure D := by
+  have hα : 0 ≤ αs Ac.certs := measureReal_nonneg.trans (hcert Ac.certs R Ac.s)
+  have hβ : 0 ≤ strongBound C ν j := by
+    unfold strongBound
+    have := pow_nonneg (by linarith : (0 : ℝ) ≤ 1 - ν) C.nr
+    positivity
+  have hK : ∀ pr, ∫⁻ z, certCost αs Ac.certs (strongReading C R j Ac first (pr, z)).1.certs
+      ∂((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
+        (Measure.pi fun _ : Fin C.nc => D)))
+      = ENNReal.ofReal ((Measure.pi fun _ : Fin C.ng => D).real
+          {bg | CallsCert C R j Ac first pr bg} * αs Ac.certs) := by
+    intro pr
+    have hpt : ∀ z, certCost αs Ac.certs (strongReading C R j Ac first (pr, z)).1.certs
+        = ({bg | CallsCert C R j Ac first pr bg} ×ˢ (Set.univ : Set _)).indicator
+          (fun _ => ENNReal.ofReal (αs Ac.certs)) z := by
+      intro z
+      rw [strongReading_certs]
+      unfold certCost
+      by_cases hc : CallsCert C R j Ac first pr z.1
+      · rw [if_pos hc, Set.indicator_of_mem (by exact ⟨hc, trivial⟩)]
+        simp
+      · rw [if_neg hc, Set.indicator_of_notMem (by exact fun h => hc h.1)]
+        simp
+    simp only [hpt]
+    rw [lintegral_indicator_const (Set.to_countable _).measurableSet, Measure.prod_prod,
+      measure_univ, mul_one, ENNReal.ofReal_mul measureReal_nonneg, ofReal_measureReal, mul_comm]
+  unfold StrongCfg.drawMeasure
+  rw [Measure.prod_apply (Set.to_countable _).measurableSet,
+    lintegral_prod _ (measurable_of_countable _).aemeasurable]
+  simp only [hK]
+  rw [← (show ∫⁻ _pr : Fin C.np → FreeMonoid α, ENNReal.ofReal (strongBound C ν j)
+      ∂(Measure.pi fun _ : Fin C.np => D) = ENNReal.ofReal (strongBound C ν j) by simp),
+    ← lintegral_add_left measurable_const]
+  refine lintegral_mono fun pr => ?_
+  have := strong_section_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha hν hcert
+    hp1 hpn hm hE j Rmax pr
+  rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← ENNReal.ofReal_add hβ
+    (mul_nonneg measureReal_nonneg hα)]
+  exact ENNReal.ofReal_le_ofReal this
+
+open scoped Classical in
+/-- Over `n` readings from an entry at reading `j`, the round ends badly with chance at most the
+expected sum of `strongBound` over the readings it makes, and the certificate's failure chance on
+the calls it makes. -/
+theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
+    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
+    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax) (Rmax : ℕ) :
+    ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)), Entry C R Ac first j →
+      j + n = Rmax →
+      (Measure.pi fun _ : Fin n => C.drawMeasure D)
+          {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+            (strongRound C R n j Ac first d).2.1 (strongRound C R n j Ac first d).1}
+        ≤ ∫⁻ d, (∑ i ∈ Finset.range (strongRound C R n j Ac first d).2.2.length,
+              ENNReal.ofReal (strongBound C ν (j + i)))
+            + certCost αs Ac.certs (strongRound C R n j Ac first d).2.1.certs
+          ∂(Measure.pi fun _ : Fin n => C.drawMeasure D) := by
+  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i R (startAcc C R []).s)
+  intro n
+  induction n with
+  | zero =>
+    intro j Ac first hE hjn
+    rw [show {d : Fin 0 → C.Draws | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+        (strongRound C R 0 j Ac first d).2.1 (strongRound C R 0 j Ac first d).1} = ∅ from
+      Set.eq_empty_of_forall_notMem fun d hd => hd ?_]
+    · simp
+    · simp only [strongRound, StrongEndHolds]
+      have := ev_le C R Ac hE.1
+      have := hE.2.2.1
+      have := hE.1.2
+      unfold readStar
+      omega
+  | succ n ih =>
+    intro j Ac first hE hjn
+    set ρm := C.drawMeasure D
+    set μn := Measure.pi fun _ : Fin n => ρm
+    set β : ℕ → ℝ≥0∞ := fun i => ENNReal.ofReal (strongBound C ν i)
+    have hmp := measurePreserving_piFinSuccAbove (fun _ : Fin (n + 1) => ρm) 0
+    set e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => C.Draws) 0
+    set F : C.Draws × (Fin n → C.Draws) → StrongEnd × RoundAcc α × List (ℕ × ℕ) := fun p =>
+      match strongReading C R j Ac first p.1 with
+      | (A', .inl e) => (e, A', [(A'.s.tree.paths.length, A'.used)])
+      | (A', .inr lv) =>
+        ((strongRound C R n (j + 1) A' lv p.2).1, (strongRound C R n (j + 1) A' lv p.2).2.1,
+          (A'.s.tree.paths.length, A'.used) :: (strongRound C R n (j + 1) A' lv p.2).2.2)
+    have hF : ∀ d, strongRound C R (n + 1) j Ac first d = F (e d) := by
+      intro d
+      rw [piFinSuccAbove_zero]
+      rfl
+    set G : C.Draws → ℝ≥0∞ := fun y => match strongReading C R j Ac first y with
+      | (_, .inl _) => 0
+      | (A', .inr lv) => ∫⁻ d', (∑ i ∈ Finset.range (strongRound C R n (j + 1) A' lv d').2.2.length,
+          β (j + 1 + i)) + certCost αs A'.certs (strongRound C R n (j + 1) A' lv d').2.1.certs ∂μn
+    set K : C.Draws → ℝ≥0∞ := fun y =>
+      certCost αs Ac.certs (strongReading C R j Ac first y).1.certs
+    set Bad := {y | ∃ e, (strongReading C R j Ac first y).2 = .inl e
+      ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first y).1 e}
+    have hcount : ∀ (T : Set (C.Draws × (Fin n → C.Draws))), MeasurableSet T :=
+      fun T => (Set.to_countable T).measurableSet
+    have hL : (Measure.pi fun _ : Fin (n + 1) => ρm)
+        {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+          (strongRound C R (n + 1) j Ac first d).2.1 (strongRound C R (n + 1) j Ac first d).1}
+        ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := by
+      have hpre : {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+          (strongRound C R (n + 1) j Ac first d).2.1 (strongRound C R (n + 1) j Ac first d).1}
+          = e ⁻¹' {p | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (F p).2.1 (F p).1} := by
+        ext d; simp only [Set.mem_ofPred_eq, Set.mem_preimage, hF]
+      rw [hpre, hmp.measure_preimage (hcount _).nullMeasurableSet,
+        Measure.prod_apply (hcount _)]
+      refine lintegral_mono fun y => ?_
+      have hnext := (reading_entry C R hp1 hpn hm hE j y).2.2.2.2
+      simp only [F, G, Set.preimage, Set.mem_ofPred_eq]
+      rcases hstep : strongReading C R j Ac first y with ⟨A', e' | lv⟩
+      · simp only []
+        by_cases hb : StrongEndHolds C R A D CertGood η minCov ν Rmax A' e'
+        · simp [hb]
+        · have hy : y ∈ Bad := ⟨e', by rw [hstep], by rw [hstep]; exact hb⟩
+          simp only [hb, not_false_eq_true, Set.setOf_true, measure_univ, add_zero,
+            Set.indicator_of_mem hy, Pi.one_apply, le_refl]
+      · simp only []
+        rw [hstep] at hnext
+        refine le_trans ?_ le_add_self
+        exact ih (j + 1) A' lv (hnext lv rfl) (by omega)
+    set Hf : C.Draws × (Fin n → C.Draws) → ℝ≥0∞ := fun p =>
+      (∑ i ∈ Finset.range (F p).2.2.length, β (j + i)) + certCost αs Ac.certs (F p).2.1.certs
+    have hR : ∫⁻ d, (∑ i ∈ Finset.range (strongRound C R (n + 1) j Ac first d).2.2.length,
+            β (j + i)) + certCost αs Ac.certs (strongRound C R (n + 1) j Ac first d).2.1.certs
+          ∂(Measure.pi fun _ : Fin (n + 1) => ρm)
+        = ∫⁻ y, β j + (K y + G y) ∂ρm := by
+      calc _ = ∫⁻ d, Hf (e d) ∂(Measure.pi fun _ : Fin (n + 1) => ρm) :=
+            lintegral_congr fun d => by simp only [Hf, hF]
+        _ = ∫⁻ p, Hf p ∂(ρm.prod μn) := hmp.lintegral_comp (measurable_of_countable Hf)
+        _ = ∫⁻ y, ∫⁻ d', Hf (y, d') ∂μn ∂ρm :=
+            lintegral_prod _ (measurable_of_countable Hf).aemeasurable
+        _ = ∫⁻ y, β j + (K y + G y) ∂ρm := by
+          refine lintegral_congr fun y => ?_
+          have hc := strongReading_certs C R j Ac first y
+          simp only [Hf, F, G, K]
+          rcases hstep : strongReading C R j Ac first y with ⟨A', e' | lv⟩
+          · simp
+          · rw [hstep] at hc
+            dsimp only at hc
+            simp only []
+            have hca : ∀ (c : ℝ≥0∞) (g : (Fin n → C.Draws) → ℝ≥0∞),
+                c + ∫⁻ d', g d' ∂μn = ∫⁻ d', c + g d' ∂μn := fun c g => by
+              rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one]
+            rw [hca, hca]
+            refine lintegral_congr fun d' => ?_
+            obtain ⟨-, h2, -⟩ := strongRound_len_certs C R n (j + 1) A' lv d'
+            rw [List.length_cons, Finset.sum_range_succ', add_zero,
+              certCost_split hα (show Ac.certs ≤ A'.certs by rw [hc]; omega) h2]
+            simp only [add_assoc, add_comm, add_left_comm]
+    have hbad := strong_reading_bad_le C R A D CertGood (αs := αs) (η := η) (minCov := minCov)
+      hacc0 hacc1 hf ha hν hcert hp1 hpn hm hE j Rmax
+    calc _ ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := hL
+      _ = ρm Bad + ∫⁻ y, G y ∂ρm := by
+          rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator_one
+            (Set.to_countable _).measurableSet]
+      _ ≤ (β j + ∫⁻ y, K y ∂ρm) + ∫⁻ y, G y ∂ρm := add_le_add hbad le_rfl
+      _ = ∫⁻ y, β j + (K y + G y) ∂ρm := by
+          rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
+            lintegral_add_left (measurable_of_countable _), add_assoc]
+      _ = _ := hR.symm
+
+end StrongReading
+
+
+
+
+theorem round_strong_trichotomy : RoundStrongTrichotomy := by
+  intro α _ _ Q C A D _ seed CertGood αs η minCov ν Rmax hacc0 hacc1 hf ha hν hp1 hpn hm hcert R
+  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i R (startAcc C R seed).s)
+  set P := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
+  set N : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.2.length
+  set M : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.1.certs
+  set S : (Fin Rmax → C.Draws) → ℝ := fun d => ∑ i ∈ Finset.range (M d), αs i
+  set γ : ℝ := (1 - ν) ^ C.nr
+  set c₀ : ℝ := 2 * (Nat.log 2 (C.ng / 30) + 2)
+  have hc₀ : 0 ≤ c₀ := by positivity
+  have hγ : 0 ≤ γ := pow_nonneg (by linarith) _
+  have hlc : ∀ d, N d ≤ Rmax ∧ M d ≤ Rmax := fun d => by
+    obtain ⟨h1, -, h3⟩ := strongRound_len_certs C R Rmax 0 (startAcc C R seed) [] d
+    have h0 : (startAcc C R seed).certs = 0 := rfl
+    exact ⟨h1, by simp only [M, strongRun]; omega⟩
+  have hS0 : ∀ d, 0 ≤ S d := fun d => Finset.sum_nonneg fun i _ => hα i
+  have hSle : ∀ d, S d ≤ ∑ i ∈ Finset.range Rmax, αs i := fun d =>
+    Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_subset_range.2 (hlc d).2)
+      fun i _ _ => hα i
+  have hNint : Integrable (fun d => (N d : ℝ)) P :=
+    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable Rmax
+      (ae_of_all _ fun d => by
+        rw [Real.norm_of_nonneg (Nat.cast_nonneg _)]; exact_mod_cast (hlc d).1)
+  have hSint : Integrable S P :=
+    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable _
+      (ae_of_all _ fun d => by rw [Real.norm_of_nonneg (hS0 d)]; exact hSle d)
+  have h := strong_round_bad C R A D CertGood (αs := αs) (η := η) (minCov := minCov) hacc0 hacc1
+    hf ha hν hcert hp1 hpn hm Rmax Rmax 0 (startAcc C R seed) [] (entry_start C R seed)
+    (by omega)
+  have hsb : ∀ i, strongBound C ν i = c₀ * (C.a / 2 ^ i) + γ := fun i => rfl
+  have hpt : ∀ d, (∑ i ∈ Finset.range (N d), ENNReal.ofReal (strongBound C ν (0 + i)))
+      + certCost αs (startAcc C R seed).certs (M d)
+      ≤ ENNReal.ofReal (2 * c₀ * C.a + N d * γ + S d) := by
+    intro d
+    have hnn : ∀ i, 0 ≤ strongBound C ν (0 + i) := fun i => by rw [hsb]; positivity
+    rw [← ENNReal.ofReal_sum_of_nonneg (fun i _ => hnn i)]
+    unfold certCost
+    rw [show (startAcc C R seed).certs = 0 from rfl, ← Finset.range_eq_Ico,
+      ← ENNReal.ofReal_add (Finset.sum_nonneg fun i _ => hnn i) (hS0 d)]
+    refine ENNReal.ofReal_le_ofReal ?_
+    simp only [hsb, zero_add, Finset.sum_add_distrib, Finset.sum_const, Finset.card_range,
+      nsmul_eq_mul]
+    have hgeo : ∑ i ∈ Finset.range (N d), c₀ * (C.a / 2 ^ i)
+        = c₀ * C.a * ∑ i ∈ Finset.range (N d), (1 / 2 : ℝ) ^ i := by
+      rw [Finset.mul_sum]
+      refine Finset.sum_congr rfl fun i _ => ?_
+      rw [one_div_pow]; ring
+    have := sum_geometric_two_le (N d)
+    rw [hgeo]
+    nlinarith [mul_nonneg hc₀ ha]
+  have hi1 : Integrable (fun d => 2 * c₀ * C.a + (N d : ℝ) * γ) P :=
+    (integrable_const _).add (hNint.mul_const _)
+  have hint : Integrable (fun d => 2 * c₀ * C.a + (N d : ℝ) * γ + S d) P := hi1.add hSint
+  have hlin : ∫⁻ d, ENNReal.ofReal (2 * c₀ * C.a + N d * γ + S d) ∂P
+      = ENNReal.ofReal (2 * c₀ * C.a + (∫ d, (N d : ℝ) ∂P) * γ + ∫ d, S d ∂P) := by
+    rw [← ofReal_integral_eq_lintegral_ofReal hint (ae_of_all _ fun d => by
+        have := hS0 d; positivity),
+      integral_add hi1 hSint,
+      integral_add (integrable_const _) (hNint.mul_const _), integral_const, integral_mul_const]
+    simp
+  have hrhs0 : 0 ≤ 2 * c₀ * C.a + (∫ d, (N d : ℝ) ∂P) * γ + ∫ d, S d ∂P := by
+    have := integral_nonneg (μ := P) (f := fun d => (N d : ℝ)) fun d => Nat.cast_nonneg _
+    have := integral_nonneg (μ := P) (f := S) hS0
+    positivity
+  have hle : P {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
+      (strongRun C R seed Rmax d).2.1 (strongRun C R seed Rmax d).1}
+      ≤ ENNReal.ofReal (2 * c₀ * C.a + (∫ d, (N d : ℝ) ∂P) * γ + ∫ d, S d ∂P) :=
+    h.trans ((lintegral_mono hpt).trans hlin.le)
+  rw [show 4 * ((Nat.log 2 (C.ng / 30) : ℝ) + 2) * C.a = 2 * c₀ * C.a by simp only [c₀]; ring]
+  rw [measureReal_def]
+  exact ENNReal.toReal_le_of_le_ofReal hrhs0 hle
+
+end OrthoDFA
