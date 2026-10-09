@@ -1007,7 +1007,8 @@ theorem harvest_holds_le_of [IsProbabilityMeasure μ] (hG : HarvestSpec pbad G h
     (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] {L : ℕ} (seed probes : List (FreeMonoid α))
     (Pf : CutReads α → KState α) (hD : PassDetermined O B F K k seed probes Pf) {u ε : ℝ}
-    (hu : 0 ≤ u) (hgood : ∀ z, good z → μ {ω | pbad z ((readsAt O B F ω).cut z)} ≤ ENNReal.ofReal u)
+    (hu : 0 ≤ u)
+    (hgood : ∀ z, good z → μ {ω | pbad z ((readsAt O B F ω).cut z)} ≤ ENNReal.ofReal u)
     (hε : 0 < ε) (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
     (hV : SuffixFree (F ∪ K.train F)) :
     μ.real {ω | ¬ D.real {x | harv ((G (passOf O B F Pf ω).tree
