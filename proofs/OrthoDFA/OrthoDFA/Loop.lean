@@ -5,22 +5,23 @@ import OrthoDFA.Exhausted
 
 Probes are fresh draws, each walked from `k` along the learned edges and searched for its first
 disagreement (`probeOutcome`). Counts run over a stretch of probes, which starts afresh whenever
-the tree or the edges change, and are tested at every `n₀`-th probe:
+the tree or the edges change, and are tested after every probe:
 * a start, end, triple or pair rate above its threshold ends the loop with a harvest of those
   strings;
 * a disagreement rate (edges, pairs and triples) settling below `1 − acc` ends it consistent;
 * at `nmax`, with nothing settled and no change, the loop ends flagged unsettled.
 
 A probe reaching an unlearned edge learns it from its own prefix. A probe ending at an edge
-records its prefix and the leaf its next prefix sifts to, where none of their reads was read
-before. An edge with `m` of a stretch's records at a target it does not point at is redirected
-there, once; with `m` at two targets, or after a redirect at another, its leaf splits on the
-letter and the midfix where the targets part. A tree past `Lmax` leaves ends the loop flagged.
+records its prefix and the leaf its next prefix sifts to. An edge with `m` of a stretch's records
+at a target it does not point at is redirected there, once; with `m` at two targets, or after a
+redirect at another, its leaf splits on the letter and the midfix where the targets part. A tree
+past `Lmax` leaves ends the loop flagged, and so does running out of the round's probes.
 
-`LoopSucceeds`: with the thresholds below `τ₀` (one hit fires each harvest test), the loop ends
-consistent with the draws disagreeing at most `1 − acc` of the time, or with a harvest of a class
-above its threshold, but for chance at most its tests' levels, an unsettled stretch and a
-spurious split, per stretch, over at most `stretchMax` stretches.
+`LoopSucceeds`: with the thresholds below `τ₀`, the loop ends consistent with the draws
+disagreeing at most `1 − acc` of the time, or with a harvest of a class above its threshold, but
+for chance at most its tests' levels over the round's probes, a decided read off its side, more
+than `j` in-band reads off their side, a misread string drawn `m / j` times within a stretch, and
+an unsettled stretch.
 -/
 
 namespace OrthoDFA
@@ -55,7 +56,6 @@ structure LoopCfg where
   k : ℕ
   L : ℕ
   m : ℕ
-  n₀ : ℕ
   nmax : ℕ
   Lmax : ℕ
   acc : ℝ
@@ -147,18 +147,16 @@ noncomputable def edgeChange (m : ℕ) (s : LoopState α) (p : List Bool) (c : �
   | _, _ => none
 
 open scoped Classical in
-/-- The stretch's tests, at every `n₀`-th probe. -/
+/-- The stretch's tests, after every probe. -/
 noncomputable def look (C : LoopCfg) (s : LoopState α) : LoopState α ⊕ (LoopEnd × LoopState α) :=
   let d := s.tree.depth
-  let fires := fun c => rateSide (C.θ c d) C.a C.n₀ s.n (s.hits c) = some true
-  if 0 < s.n ∧ C.n₀ ∣ s.n then
-    if fires .start then .inr (.harvest .start, s)
-    else if fires .stop then .inr (.harvest .stop, s)
-    else if fires .triple then .inr (.harvest .triple, s)
-    else if fires .pair then .inr (.harvest .pair, s)
-    else if rateSide (1 - C.acc) C.a C.n₀ s.n s.dis = some false then .inr (.agree, s)
-    else if C.nmax ≤ s.n then .inr (.unsettled, s)
-    else .inl s
+  let fires := fun c => rateSide (C.θ c d) C.a 1 s.n (s.hits c) = some true
+  if fires .start then .inr (.harvest .start, s)
+  else if fires .stop then .inr (.harvest .stop, s)
+  else if fires .triple then .inr (.harvest .triple, s)
+  else if fires .pair then .inr (.harvest .pair, s)
+  else if rateSide (1 - C.acc) C.a 1 s.n s.dis = some false then .inr (.agree, s)
+  else if C.nmax ≤ s.n then .inr (.unsettled, s)
   else .inl s
 
 /-- `s` with the edge `(p, c)` set to `e`. -/
@@ -207,12 +205,10 @@ noncomputable def loopStep (C : LoopCfg) (R : CutReads α) (s : LoopState α) (x
     let s₂ := { s₁ with hits := bump s.hits .edge }
     match x.toList[fd - 1]?, s.tree.sift R.cut (prefixOf x fd) with
     | some c, .inl t =>
-      if readsOf s.tree sp ∩ s.log = ∅ ∧ readsOf s.tree (prefixOf x fd) ∩ s.log = ∅ then
-        let s₃ := s₂.record p c sp t
-        match edgeChange C.m s₃ p c with
-        | some ch => applyChange C R s₃ p c ch
-        | none => look C s₃
-      else look C s₂
+      let s₃ := s₂.record p c sp t
+      match edgeChange C.m s₃ p c with
+      | some ch => applyChange C R s₃ p c ch
+      | none => look C s₃
     | _, _ => look C s₂
   | o =>
     match o.cls with
@@ -279,54 +275,59 @@ end Band
 
 section Budget
 
-/-- The fewest hits at which a rate test at `θ` and level `a` settles above over `n` draws. -/
-noncomputable def fireCount (θ a : ℝ) (n : ℕ) : ℕ := sInf {h | binomSfGe n θ h < a}
+/-- `P(Bin(n, p) ≤ h)`. -/
+noncomputable def binomCdfLe (n : ℕ) (p : ℝ) (h : ℕ) : ℝ := 1 - binomSfGe n p (h + 1)
 
+/-- The most hits at which a rate test at `θ` and level `a` settles below over `n` draws. -/
+noncomputable def lowCount (θ a : ℝ) (n : ℕ) : ℕ := sSup {h | binomCdfLe n θ h < a}
 
-/-- The stretches a loop can run: each but the last ends at a change, and a change is a split
-(at most `Lmax`), a redirect (one per learned edge) or a learning (the root's edges, and per split
+/-- The stretches a loop with no misread runs: each but the last ends at a change, a split (at
+most `|Q|`), a redirect (one per learned edge) or a learning (the root's edges, and per split
 the new leaves' edges and those into the split leaf). -/
-def stretchMax (C : LoopCfg) (nα : ℕ) : ℕ :=
-  1 + C.Lmax + 2 * (2 * nα + C.Lmax * nα * (C.Lmax + 2))
+def stretchGood (nα nQ : ℕ) : ℕ := 1 + nQ + 2 * (2 * nα + nQ * nα * (nQ + 4))
 
-/-- The undecided reads a stretch can make: each class's firing count at `nmax` and `n₀` more past
-the last look, two reads a pair, at the worst depth. -/
-noncomputable def undecCap (C : LoopCfg) : ℕ :=
-  2 * (Finset.range (C.Lmax + 1)).sup fun d =>
-    ∑ c ∈ ({.start, .stop, .triple, .pair} : Finset Cls), (fireCount (C.θ c d) C.a C.nmax + C.n₀)
+/-- The most strings the round reads over `P` probes: each prefix of a probe sifted, and each
+split's retargeted witnesses. -/
+def readMax (C : LoopCfg) (nα P : ℕ) : ℕ :=
+  P * (C.L + 2) * C.Lmax + C.Lmax * nα * C.Lmax ^ 2
 
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+/-- An unsettled stretch's chance with no misread, where edges run at `1 − acc − η` or less:
+the disagreement short of settling below `1 − acc`, or edges past it short of `m` records at one
+of the `|Σ|·|Q|` edges and targets correct reads reach. -/
+noncomputable def unsettledAt (C : LoopCfg) (nα nQ : ℕ) (η : ℝ) : ℝ :=
+  binomSfGe C.nmax (1 - C.acc - η) (lowCount (1 - C.acc) C.a C.nmax + 1)
+    + binomCdfLe C.nmax (1 - C.acc - η) ((C.m - 1) * (nα * nQ) + C.m)
 
-/-- A stretch's chance of `m` wrong reads among those it makes first: decided ones at most
-`crossB` each over at most `nmax·(L + 1)·Lmax` reads, in-band ones at most `κ` each per undecided
-read, of which there are at most `undecCap`. -/
-noncomputable def spurBound (C : LoopCfg) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) : ℝ :=
-  ∑ i ∈ Finset.range (C.m + 1),
-    ((C.nmax * (C.L + 1) * C.Lmax : ℕ) * crossB O B F) ^ i / i.factorial
-      * ((undecCap C + (C.m - i)).choose (C.m - i) : ℝ) * kappa O B F ^ (C.m - i)
+/-- A misread string drawn `r` times among `nmax + 1` draws, for `j` strings in each window of
+`P` probes: `(e·(nmax + 1)·prefixMax/(r − 1))^(r − 1)` each. -/
+noncomputable def hitBound (C : LoopCfg) (D : Measure (FreeMonoid α)) (P j r : ℕ) : ℝ :=
+  P * j * (Real.exp 1 * (C.nmax + 1) * prefixMax D C.k / (r - 1 : ℕ)) ^ (r - 1)
 
 end Budget
 
-/-- The harvest tests fire on a stretch's first hit at any look up to `nmax + n₀`: the
-thresholds are below `τ₀`. -/
+/-- The harvest tests fire on a stretch's first hit up to `nmax + 1` probes: the thresholds are
+below `τ₀`. -/
 def BelowTau (C : LoopCfg) : Prop :=
   ∀ c ∈ ({.start, .stop, .triple, .pair} : Finset Cls), ∀ d ≤ C.Lmax,
-    binomSfGe (C.nmax + C.n₀) (C.θ c d) 1 < C.a
+    binomSfGe (C.nmax + 1) (C.θ c d) 1 < C.a
 
-/-- `LoopSucceeds`: below `τ₀`, from the root, over `P` fresh draws, enough for every stretch the
-loop can run, the loop ends genuinely consistent or with a genuine harvest, but for chance at
-most, per stretch, its tests' levels and a spurious split. -/
+/-- `LoopSucceeds`: below `τ₀`, from the root, over `P` fresh draws, enough for the stretches a
+loop with no misread runs, the loop ends genuinely consistent or with a genuine harvest, but for
+chance at most its tests' levels over the `P` probes, a decided read off its side among the
+reads of `P` probes, more than `j` in-band reads off their side, a misread string drawn `m / j`
+times within a stretch, and an unsettled stretch with none of these. -/
 def LoopSucceeds : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (C : LoopCfg) (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (P : ℕ),
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (P j : ℕ) (η : ℝ),
     O.L = {w | A.state w ∈ A.accept} → SuffixFree F → (∀ᵐ x ∂D, x.toList.length = C.L) →
-    C.k ≤ C.L → 0 < C.n₀ → 1 ≤ C.m → Fintype.card Q + 3 ≤ C.Lmax → BelowTau C →
-    stretchMax C (Fintype.card α) * (C.nmax + C.n₀) ≤ P →
-    1 - stretchMax C (Fintype.card α) * (5 * ((C.nmax + C.n₀) / C.n₀ : ℕ) * C.a
-        + spurBound C O B F)
+    C.k ≤ C.L → 1 ≤ j → 2 ≤ C.m / j → Fintype.card Q + 3 ≤ C.Lmax → BelowTau C →
+    stretchGood (Fintype.card α) (Fintype.card Q) * (C.nmax + 1) ≤ P →
+    1 - (5 * P * C.a + readMax C (Fintype.card α) P * crossB O B F + kappa O B F ^ (j + 1)
+        + hitBound C D P j (C.m / j)
+        + stretchGood (Fintype.card α) (Fintype.card Q)
+          * unsettledAt C (Fintype.card α) (Fintype.card Q) η)
       ≤ (μ.prod (Measure.pi fun _ : Fin P => D)).real
           {p | LoopGenuine C (readsAt O B F p.1) D
             (loopRun C (readsAt O B F p.1) loopStart (List.ofFn p.2)).1
