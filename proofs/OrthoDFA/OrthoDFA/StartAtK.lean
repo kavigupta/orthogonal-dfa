@@ -256,7 +256,7 @@ noncomputable def stepReads (K : StageKnobs α) (F : Finset (FreeMonoid α)) (t 
 
 /-- What the pass carries: the tree, the population, the learned edges, the probes since the
 last split or evidence weighed, the block strings the split tests have counted and their owners,
-every other string read, and the keys taken as not splitting, which in the round are none. -/
+and every other string read. -/
 structure KState (α : Type*) where
   tree : DTree α
   pool : List (FreeMonoid α)
@@ -264,13 +264,11 @@ structure KState (α : Type*) where
   streak : ℕ
   tested : Tested α
   log : Finset (FreeMonoid α)
-  forced : Set (TestKey α)
 
 /-- Every edge re-voted, as after every probe. -/
 noncomputable def closeK (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α)
-    (streak : ℕ) (T : Tested α) (log : Finset (FreeMonoid α)) (forced : Set (TestKey α)) :
-    KState α :=
-  ⟨t, pool, closeEdges K R t pool edges, streak, T, log, forced⟩
+    (streak : ℕ) (T : Tested α) (log : Finset (FreeMonoid α)) : KState α :=
+  ⟨t, pool, closeEdges K R t pool edges, streak, T, log⟩
 
 /-- The block strings the test of `d` at `s1` against `t` and `pool` counts. -/
 noncomputable def counted (t : DTree α) (pool : List (FreeMonoid α))
@@ -296,10 +294,9 @@ noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KSt
   let post := fun (t' : DTree α) (pool' : List (FreeMonoid α)) =>
     s.log ∪ stepReads K R.F s.tree t' (s.pool ++ pool') k x
   let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1) s.tested (post s.tree s.pool)
-    s.forced
   match probeOutcome R s.tree s.edges k x with
   | .edge ps fd =>
-      match seedStep K R s.tree s.pool s.edges skip s.forced k x ps fd with
+      match seedStep K R s.tree s.pool s.edges skip K.forced k x ps fd with
       | .split d s1 y sprime =>
         let cleared : Edges α := fun p c' =>
           match s.edges p c' with
@@ -308,15 +305,14 @@ noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KSt
         let pool' := s.pool ++ ([y, sprime].filter (· ∉ s.pool))
         closeK K R (s.tree.splitAt d s1) pool' cleared 0
           (testedAfter K R s.tree s.pool s.tested skip s1 d) (post (s.tree.splitAt d s1) pool')
-          s.forced
       | .member s1 sprime d =>
         let pool' := sprime :: s.pool.filter (· ≠ sprime)
         closeK K R s.tree pool' s.edges 0 (testedAfter K R s.tree s.pool s.tested skip s1 d)
-          (post s.tree pool') s.forced
+          (post s.tree pool')
       | _ => quiet
   | .member u =>
     let pool' := if u ∈ s.pool then s.pool else s.pool ++ [u]
-    closeK K R s.tree pool' s.edges (s.streak + 1) s.tested (post s.tree pool') s.forced
+    closeK K R s.tree pool' s.edges (s.streak + 1) s.tested (post s.tree pool')
   | _ => quiet
 
 /-- The pass: probes in order until `patience` in a row are quiet. -/
@@ -327,7 +323,7 @@ noncomputable def runPassK (k : ℕ) (s : KState α) (probes : List (FreeMonoid 
 edges are voted once, reading the population. -/
 noncomputable def initialK (seed : List (FreeMonoid α)) : KState α :=
   closeK K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 []
-    (stepReads K R.F (.node 1 .leaf .leaf) (.node 1 .leaf .leaf) seed 0 1) ∅
+    (stepReads K R.F (.node 1 .leaf .leaf) (.node 1 .leaf .leaf) seed 0 1)
 
 open scoped Classical in
 /-- How many of a batch's first `n` draws satisfy `P`. -/

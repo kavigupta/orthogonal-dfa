@@ -78,6 +78,9 @@ structure StageKnobs (α : Type*) where
   missRate : ℝ
   /-- `BoundarySource` keeps only boundaries of prefixes at least this long. -/
   longEnough : ℕ
+  /-- The leaves and distinguishers whose split tests are taken as not splitting, untested: none
+  in the round itself. -/
+  forced : Set (List Bool × FreeMonoid α)
 
 /-- The suffixes read after a string: the family, its training half and the held-out block. -/
 def StageKnobs.suffixes (K : StageKnobs α) (F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=

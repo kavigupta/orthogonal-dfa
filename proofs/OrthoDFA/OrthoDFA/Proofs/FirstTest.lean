@@ -60,7 +60,7 @@ theorem fold_of_guard (A : RoundAcc α)
 theorem passFind_some_readLog (P : RoundAcc α → FreeMonoid α → Prop) :
     ∀ (probes : List (FreeMonoid α)) (A A' : RoundAcc α) (x' : FreeMonoid α),
       passFind C R P A probes = some (A', x') →
-        readLog A ⊆ readLog A' ∧ (WitPool A.s → WitPool A'.s)
+        readLog C A ⊆ readLog C A' ∧ (WitPool A.s → WitPool A'.s)
   | [], _, _, _, h => by simp [passFind] at h
   | x :: xs, A, A', x', h => by
     unfold passFind at h
@@ -100,7 +100,7 @@ theorem stepReads_mono {K : StageKnobs α} {F : Finset (FreeMonoid α)} {t t' : 
   · rcases hm with hm | hm <;> exact .inl hm
 
 theorem stepPre_sub_readLog (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
-    readLog A ∪ ↑(stepPre C R.F A x) ⊆ readLog (strongStep C R A x) := by
+    readLog C A ∪ ↑(stepPre C R.F A x) ⊆ readLog C (strongStep C R A x) := by
   refine Set.union_subset (strongStep_readLog C R A x) fun z hz => ?_
   left
   rw [(strongStep_state C R A x).1, probeStepK_log]
@@ -118,11 +118,11 @@ or the log at the pass's end. -/
 noncomputable def passE (R : CutReads α) (A : RoundAcc α) (probes : List (FreeMonoid α)) :
     Set (FreeMonoid α) :=
   match passFind C R (P R) A probes with
-  | some (A', x') => readLog A' ∪ ↑(stepPre C R.F A' x')
-  | none => readLog (probes.foldl (passBody C R) A)
+  | some (A', x') => readLog C A' ∪ ↑(stepPre C R.F A' x')
+  | none => readLog C (probes.foldl (passBody C R) A)
 
 theorem passFind_mask
-    (hP : ∀ A x, WitPool A.s → (∀ z ∈ readLog A ∪ ↑(stepPre C F A x), f₁ z = f₂ z) →
+    (hP : ∀ A x, WitPool A.s → (∀ z ∈ readLog C A ∪ ↑(stepPre C F A x), f₁ z = f₂ z) →
       (P (rd B F f₁) A x ↔ P (rd B F f₂) A x)) :
     ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), WitPool A.s →
       (∀ z ∈ passE C P (rd B F f₁) A probes, f₁ z = f₂ z) →
@@ -136,7 +136,7 @@ theorem passFind_mask
     · refine ⟨by unfold passFind; rw [if_pos hg, if_pos hg], fun _ => ?_⟩
       rw [fold_of_guard C _ A hg, fold_of_guard C _ A hg]
     by_cases hp : P (rd B F f₁) A x
-    · have hag : ∀ z ∈ readLog A ∪ ↑(stepPre C F A x), f₁ z = f₂ z := by
+    · have hag : ∀ z ∈ readLog C A ∪ ↑(stepPre C F A x), f₁ z = f₂ z := by
         intro z hz; apply h z
         simp only [passE]; unfold passFind; rw [if_neg hg, if_pos hp]; exact hz
       have hp2 := (hP A x hw hag).1 hp
@@ -155,7 +155,7 @@ theorem passFind_mask
         = passE C P (rd B F f₁) (strongStep C (rd B F f₁) A x) xs := by
       simp only [passE, hcont, hfold]
     rw [hE] at h
-    have hsub : readLog (strongStep C (rd B F f₁) A x)
+    have hsub : readLog C (strongStep C (rd B F f₁) A x)
         ⊆ passE C P (rd B F f₁) (strongStep C (rd B F f₁) A x) xs := by
       simp only [passE]
       rcases hf : passFind C (rd B F f₁) (P (rd B F f₁)) (strongStep C (rd B F f₁) A x) xs
@@ -164,8 +164,7 @@ theorem passFind_mask
       · exact (passFind_some_readLog C _ _ xs _ A' x' hf).1.trans Set.subset_union_left
     have hstep : strongStep C (rd B F f₁) A x = strongStep C (rd B F f₂) A x := by
       refine strongStep_mask C hw (fun z hz => h z (hsub (.inl hz))) fun b κ hb hf => ?_
-      refine h b (hsub (.inr (.inr ⟨κ, hb, ?_⟩)))
-      rw [(strongStep_state C _ A x).1, probeStepK_forced]; exact hf
+      exact h b (hsub (.inr (.inr ⟨κ, hb, hf⟩)))
     have hp2 : ¬ P (rd B F f₂) A x := fun hp2 => hp ((hP A x hw fun z hz =>
       h z (hsub (stepPre_sub_readLog C (rd B F f₁) A x hz))).2 hp2)
     have hw' : WitPool (strongStep C (rd B F f₁) A x).s := by
@@ -187,10 +186,10 @@ or the log at the round's end. -/
 noncomputable def roundE (R : CutReads α) (n j : ℕ) (A : RoundAcc α)
     (first : List (FreeMonoid α)) (d : Fin n → C.Draws) : Set (FreeMonoid α) :=
   match roundFind C R (P R) n j A first d with
-  | some (A', x') => readLog A' ∪ ↑(stepPre C R.F A' x')
-  | none => readLog (strongRound C R n j A first d).2.1
+  | some (A', x') => readLog C A' ∪ ↑(stepPre C R.F A' x')
+  | none => readLog C (strongRound C R n j A first d).2.1
 
-theorem passStart_readLog (A : RoundAcc α) : readLog A ⊆ readLog (passStart A) := by
+theorem passStart_readLog (A : RoundAcc α) : readLog C A ⊆ readLog C (passStart A) := by
   rintro z (hz | hz | hz)
   · left; exact Finset.mem_union_left _ hz
   · right; left; exact hz
@@ -198,10 +197,10 @@ theorem passStart_readLog (A : RoundAcc α) : readLog A ⊆ readLog (passStart A
 
 theorem roundFind_readLog (R : CutReads α) :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
-      readLog A ⊆ roundE C P R n j A first d
+      readLog C A ⊆ roundE C P R n j A first d
   | 0, _, _, _, _ => by simp only [roundE, roundFind, strongRound]; exact le_rfl
   | n + 1, j, A, first, d => by
-    have hpass := (passStart_readLog A).trans (fold_readLog C R (first ++ List.ofFn (d 0).1) _)
+    have hpass := (passStart_readLog C A).trans (fold_readLog C R (first ++ List.ofFn (d 0).1) _)
     rw [← strongPass_start] at hpass
     have hread := hpass.trans (strongReading_fst_acc C R j A first (d 0)).1
     simp only [roundE, roundFind]
@@ -213,11 +212,11 @@ theorem roundFind_readLog (R : CutReads α) :
         have := roundFind_readLog R n (j + 1) A'' lv (Fin.tail d)
         simp only [roundE] at this
         exact hread.trans this
-    · exact ((passStart_readLog A).trans
+    · exact ((passStart_readLog C A).trans
         (passFind_some_readLog C R (P R) _ _ A' x' hf).1).trans Set.subset_union_left
 
 theorem roundFind_mask
-    (hP : ∀ A x, WitPool A.s → (∀ z ∈ readLog A ∪ ↑(stepPre C F A x), f₁ z = f₂ z) →
+    (hP : ∀ A x, WitPool A.s → (∀ z ∈ readLog C A ∪ ↑(stepPre C F A x), f₁ z = f₂ z) →
       (P (rd B F f₁) A x ↔ P (rd B F f₂) A x)) :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
       WitPool A.s → (∀ z ∈ roundE C P (rd B F f₁) n j A first d, f₁ z = f₂ z) →
@@ -252,7 +251,7 @@ theorem roundFind_mask
       have hpass : strongPass C (rd B F f₁) A (first ++ List.ofFn (d 0).1)
           = strongPass C (rd B F f₂) A (first ++ List.ofFn (d 0).1) := by
         rw [strongPass_start, strongPass_start]; exact h2 hf
-      have hRR : readLog (strongReading C (rd B F f₁) j A first (d 0)).1
+      have hRR : readLog C (strongReading C (rd B F f₁) j A first (d 0)).1
           ⊆ roundE C P (rd B F f₁) (n + 1) j A first d := by
         simp only [roundE, roundFind, hf]
         rcases hR : strongReading C (rd B F f₁) j A first (d 0) with ⟨A'', e | lv⟩

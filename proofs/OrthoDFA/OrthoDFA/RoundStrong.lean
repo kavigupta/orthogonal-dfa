@@ -104,7 +104,7 @@ noncomputable def strongStep (C : StrongCfg α) (R : CutReads α) (A : RoundAcc 
   let A₁ := { A with s := probeStepK C.K R C.k s x, used := A.used + 1 }
   match probeOutcome R s.tree s.edges C.k x with
   | .edge ps fd =>
-    match seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) s.forced C.k x ps fd with
+    match seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) C.K.forced C.k x ps fd with
     | .split d s1 y sp => { A₁ with splits := A.splits ++ [⟨s.tree, s1, d, y, sp⟩] }
     | _ => A₁
   | _ => A₁
@@ -276,8 +276,8 @@ def RoundStrongNoStop : Prop :=
     probeOutcome R s.tree s.edges C.k x = .edge ps fd →
       let sk := stepSkip C.K R C.k s x
       (∃ dd s1 y sp,
-          seedStep C.K R s.tree s.pool s.edges sk s.forced C.k x ps fd = .split dd s1 y sp)
-        ∨ ∃ s1 sp dd, seedStep C.K R s.tree s.pool s.edges sk s.forced C.k x ps fd
+          seedStep C.K R s.tree s.pool s.edges sk C.K.forced C.k x ps fd = .split dd s1 y sp)
+        ∨ ∃ s1 sp dd, seedStep C.K R s.tree s.pool s.edges sk C.K.forced C.k x ps fd
           = .member s1 sp dd
 
 variable {Q : Type*}

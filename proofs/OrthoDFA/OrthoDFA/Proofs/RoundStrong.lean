@@ -330,7 +330,7 @@ theorem strongStep_cases (A : RoundAcc α) (x : FreeMonoid α)
     rw [hst]
     exact ⟨rfl, hp⟩
   obtain ⟨ps, fd, ho⟩ := hE
-  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges (stepSkip C.K R C.k A.s x) A.s.forced
+  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges (stepSkip C.K R C.k A.s x) C.K.forced
       C.k x ps fd with
     ⟨d, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
   · right

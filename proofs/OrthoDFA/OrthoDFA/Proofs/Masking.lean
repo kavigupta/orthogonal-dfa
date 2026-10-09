@@ -29,13 +29,6 @@ theorem probeStepK_log (k : ℕ) (s : KState α) (x : FreeMonoid α) :
   repeat' split
   all_goals simp [closeK]
 
-theorem probeStepK_forced (k : ℕ) (s : KState α) (x : FreeMonoid α) :
-    (probeStepK K R k s x).forced = s.forced := by
-  unfold probeStepK
-  simp only []
-  repeat' split
-  all_goals simp [closeK]
-
 theorem tested_sub_record (T : Tested α) (κ : TestKey α) (bs : List (FreeMonoid α)) :
     ∀ e ∈ T, e ∈ T.record κ bs := fun e he => List.mem_append_left _ he
 
@@ -74,7 +67,7 @@ theorem testStrings_not_skip {t : DTree α} {pool : List (FreeMonoid α)} {path 
 /-- The strings a step's split test counts at an unforced key are recorded as that key's. -/
 theorem probeStepK_counted (k : ℕ) (s : KState α) (x : FreeMonoid α) {ps : List (List Bool)}
     {fd : ℕ} {κ : TestKey α} (ho : probeOutcome R s.tree s.edges k x = .edge ps fd)
-    (hk : (seedStep K R s.tree s.pool s.edges (stepSkip K R k s x) s.forced k x ps fd).key
+    (hk : (seedStep K R s.tree s.pool s.edges (stepSkip K R k s x) K.forced k x ps fd).key
       = some κ) :
     ∀ p ∈ testStrings K R s.tree s.pool κ.1 κ.2 (stepSkip K R k s x κ),
       (p.1, κ) ∈ (probeStepK K R k s x).tested := by
@@ -97,7 +90,7 @@ theorem probeStepK_counted (k : ℕ) (s : KState α) (x : FreeMonoid α) {ps : L
   unfold probeStepK
   simp only [ho]
   revert hk
-  rcases hs : seedStep K R s.tree s.pool s.edges (stepSkip K R k s x) s.forced k x ps fd with
+  rcases hs : seedStep K R s.tree s.pool s.edges (stepSkip K R k s x) K.forced k x ps fd with
     ⟨d, s1, y, sp⟩ | ⟨s1, sp, d⟩ | b | _ <;>
     intro hk <;> simp only [SeedResult.key, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at hk
   · obtain ⟨rfl, rfl⟩ := hk
@@ -110,10 +103,10 @@ theorem probeStepK_counted (k : ℕ) (s : KState α) (x : FreeMonoid α) {ps : L
 theorem probeStepK_witPool (k : ℕ) (s : KState α) (x : FreeMonoid α) (h : WitPool s) :
     WitPool (probeStepK K R k s x) := by
   have key : ∀ (t : DTree α) (pool' : List (FreeMonoid α)) (e : Edges α) (st : ℕ) (T : Tested α)
-      (lg : Finset (FreeMonoid α)) (fc : Set (TestKey α)), (∀ b ∈ s.pool, b ∈ pool') →
+      (lg : Finset (FreeMonoid α)), (∀ b ∈ s.pool, b ∈ pool') →
       (∀ p c q y, e p c = some (q, y) → s.edges p c = some (q, y)) →
-      WitPool (closeK K R t pool' e st T lg fc) := by
-    intro t pool' e st T lg fc hp he p c q y hy
+      WitPool (closeK K R t pool' e st T lg) := by
+    intro t pool' e st T lg hp he p c q y hy
     exact (closeK_poolIn K R (Bs := {b | b ∈ pool'}) (fun b hb => hb)
       (fun p c q y hq => hp _ (h p c q y (he p c q y hq)))).2 p c q y hy
   unfold probeStepK
@@ -121,20 +114,20 @@ theorem probeStepK_witPool (k : ℕ) (s : KState α) (x : FreeMonoid α) (h : Wi
   split
   · split
     · rename_i d s1 y sp _
-      refine key _ _ _ _ _ _ _ (fun b hb => List.mem_append_left _ hb) fun p c q w hq => ?_
+      refine key _ _ _ _ _ _ (fun b hb => List.mem_append_left _ hb) fun p c q w hq => ?_
       revert hq
       rcases hE : s.edges p c with _ | ⟨q', w'⟩ <;> simp only []
       · simp
       · split_ifs <;> simp
     · rename_i s1 sp d _
-      exact key _ _ _ _ _ _ _ (fun b hb => by
+      exact key _ _ _ _ _ _ (fun b hb => by
         by_cases hbs : b = sp
         · exact List.mem_cons.2 (.inl hbs)
         · exact List.mem_cons_of_mem _ (List.mem_filter.2 ⟨hb, by simpa using hbs⟩))
         fun _ _ _ _ hq => hq
-    · exact key _ _ _ _ _ _ _ (fun b hb => hb) fun _ _ _ _ hq => hq
-  · exact key _ _ _ _ _ _ _ (fun b hb => by split_ifs <;> simp [hb]) fun _ _ _ _ hq => hq
-  · exact key _ _ _ _ _ _ _ (fun b hb => hb) fun _ _ _ _ hq => hq
+    · exact key _ _ _ _ _ _ (fun b hb => hb) fun _ _ _ _ hq => hq
+  · exact key _ _ _ _ _ _ (fun b hb => by split_ifs <;> simp [hb]) fun _ _ _ _ hq => hq
+  · exact key _ _ _ _ _ _ (fun b hb => hb) fun _ _ _ _ hq => hq
 
 end Step
 
@@ -204,7 +197,7 @@ theorem mem_stepReads {F : Finset (FreeMonoid α)} {t t' : DTree α} {pool : Lis
 theorem strongStep_mask (C : StrongCfg α) {A : RoundAcc α} {x : FreeMonoid α}
     (hwp : WitPool A.s)
     (h : ∀ z ∈ (strongStep C (rd B F f₁) A x).s.log, f₁ z = f₂ z)
-    (ht : ∀ b κ, (b, κ) ∈ (strongStep C (rd B F f₁) A x).s.tested → κ ∉ A.s.forced →
+    (ht : ∀ b κ, (b, κ) ∈ (strongStep C (rd B F f₁) A x).s.tested → κ ∉ C.K.forced →
       f₁ b = f₂ b) :
     strongStep C (rd B F f₁) A x = strongStep C (rd B F f₂) A x := by
   set s₁ := probeStepK C.K (rd B F f₁) C.k A.s x with hs₁
@@ -240,16 +233,16 @@ theorem strongStep_mask (C : StrongCfg α) {A : RoundAcc α} {x : FreeMonoid α}
     fun p c q y he => (hwit p c q y he).mono' hT
   have hsk : stepSkip C.K (rd B F f₁) C.k A.s x = stepSkip C.K (rd B F f₂) C.k A.s x := rfl
   have hk₁ : (seedStep C.K (rd B F f₁) A.s.tree A.s.pool A.s.edges (stepSkip C.K (rd B F f₁) C.k
-      A.s x) A.s.forced C.k x ps fd).key = some κ := by
+      A.s x) C.K.forced C.k x ps fd).key = some κ := by
     rw [hsk, seedStep_key_congr hwit' ((hw _ hfd).mono' hT)]; exact hk
   obtain ⟨κ1, κ2⟩ := κ
   have hr : (∃ s1 y sprime, seedStep C.K (rd B F f₂) A.s.tree A.s.pool A.s.edges
-      (stepSkip C.K (rd B F f₂) C.k A.s x) A.s.forced C.k x ps fd = .split κ2 s1 y sprime)
+      (stepSkip C.K (rd B F f₂) C.k A.s x) C.K.forced C.k x ps fd = .split κ2 s1 y sprime)
       ∨ ∃ s1 sprime, seedStep C.K (rd B F f₂) A.s.tree A.s.pool A.s.edges
-        (stepSkip C.K (rd B F f₂) C.k A.s x) A.s.forced C.k x ps fd = .member s1 sprime κ2 := by
+        (stepSkip C.K (rd B F f₂) C.k A.s x) C.K.forced C.k x ps fd = .member s1 sprime κ2 := by
     revert hk
     rcases seedStep C.K (rd B F f₂) A.s.tree A.s.pool A.s.edges (stepSkip C.K (rd B F f₂) C.k A.s x)
-      A.s.forced C.k x ps fd with ⟨d, s1, y, sp⟩ | ⟨s1, sp, d⟩ | b | _ <;> intro hk <;>
+      C.K.forced C.k x ps fd with ⟨d, s1, y, sp⟩ | ⟨s1, sp, d⟩ | b | _ <;> intro hk <;>
       simp only [SeedResult.key, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at hk
     · exact .inl ⟨s1, y, sp, by rw [hk.2]⟩
     · exact .inr ⟨s1, sp, by rw [hk.2]⟩
@@ -273,7 +266,7 @@ variable (C : StrongCfg α)
 /-- What the round has read, but the held-out strings the tests at the keys it takes as not
 splitting have counted. -/
 def readLog (A : RoundAcc α) : Set (FreeMonoid α) :=
-  {z | z ∈ A.s.log ∨ z ∈ A.reads ∨ ∃ κ, (z, κ) ∈ A.s.tested ∧ κ ∉ A.s.forced}
+  {z | z ∈ A.s.log ∨ z ∈ A.reads ∨ ∃ κ, (z, κ) ∈ A.s.tested ∧ κ ∉ C.K.forced}
 
 theorem strongStep_reads (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
     (strongStep C R A x).reads = A.reads := by
@@ -283,18 +276,17 @@ theorem strongStep_reads (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α)
   all_goals rfl
 
 theorem strongStep_readLog (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
-    readLog A ⊆ readLog (strongStep C R A x) := by
+    readLog C A ⊆ readLog C (strongStep C R A x) := by
   have hs := (strongStep_state C R A x).1
   rintro z (hz | hz | ⟨κ, hz, hf⟩)
   · left; rw [hs, probeStepK_log]; exact Finset.mem_union_left _ hz
   · right; left; rw [strongStep_reads]; exact hz
   · right; right
-    refine ⟨κ, ?_, ?_⟩
-    · rw [hs]; exact probeStepK_tested_mono _ _ _ _ _ _ hz
-    · rw [hs, probeStepK_forced]; exact hf
+    refine ⟨κ, ?_, hf⟩
+    rw [hs]; exact probeStepK_tested_mono _ _ _ _ _ _ hz
 
 theorem passBody_readLog (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
-    readLog A ⊆ readLog (passBody C R A x) := by
+    readLog C A ⊆ readLog C (passBody C R A x) := by
   unfold passBody
   split_ifs
   · exact le_rfl
@@ -302,7 +294,7 @@ theorem passBody_readLog (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α)
 
 theorem fold_readLog (R : CutReads α) :
     ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α),
-      readLog A ⊆ readLog (probes.foldl (passBody C R) A)
+      readLog C A ⊆ readLog C (probes.foldl (passBody C R) A)
   | [], _ => le_rfl
   | x :: xs, A => (passBody_readLog C R A x).trans (fold_readLog R xs _)
 
@@ -324,7 +316,7 @@ theorem strongPass_witPool (R : CutReads α) (A : RoundAcc α) (probes : List (F
   rw [strongPass_eq]; exact fold_witPool C R probes _ h
 
 theorem strongPass_readLog (R : CutReads α) (A : RoundAcc α) (probes : List (FreeMonoid α)) :
-    readLog A ⊆ readLog (strongPass C R A probes) := by
+    readLog C A ⊆ readLog C (strongPass C R A probes) := by
   rw [strongPass_eq]
   refine le_trans ?_ (fold_readLog C R probes _)
   rintro z (hz | hz | hz)
@@ -334,9 +326,10 @@ theorem strongPass_readLog (R : CutReads α) (A : RoundAcc α) (probes : List (F
 
 theorem strongReading_fst_acc (R : CutReads α) (j : ℕ) (A : RoundAcc α)
     (first : List (FreeMonoid α)) (y : C.Draws) :
-    readLog (strongPass C R A (first ++ List.ofFn y.1)) ⊆ readLog (strongReading C R j A first y).1
+    readLog C (strongPass C R A (first ++ List.ofFn y.1))
+        ⊆ readLog C (strongReading C R j A first y).1
       ∧ ↑(readingReads C R.F (strongPass C R A (first ++ List.ofFn y.1)).s.tree y)
-        ⊆ readLog (strongReading C R j A first y).1 := by
+        ⊆ readLog C (strongReading C R j A first y).1 := by
   rw [strongReading_acc]
   constructor
   · rintro z (hz | hz | hz)
@@ -354,7 +347,7 @@ theorem strongReading_witPool (R : CutReads α) (j : ℕ) (A : RoundAcc α)
 
 theorem strongRound_readLog (R : CutReads α) :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
-      readLog A ⊆ readLog (strongRound C R n j A first d).2.1
+      readLog C A ⊆ readLog C (strongRound C R n j A first d).2.1
   | 0, _, _, _, _ => le_rfl
   | n + 1, j, A, first, d => by
     have h1 := (strongPass_readLog C R A (first ++ List.ofFn (d 0).1)).trans
@@ -368,7 +361,7 @@ variable {B : State} {F : Finset (FreeMonoid α)} {f₁ f₂ : FreeMonoid α →
 
 theorem fold_mask :
     ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), WitPool A.s →
-      (∀ z ∈ readLog (probes.foldl (passBody C (rd B F f₁)) A), f₁ z = f₂ z) →
+      (∀ z ∈ readLog C (probes.foldl (passBody C (rd B F f₁)) A), f₁ z = f₂ z) →
       probes.foldl (passBody C (rd B F f₁)) A = probes.foldl (passBody C (rd B F f₂)) A
   | [], _, _, _ => by simp only [List.foldl_nil]
   | x :: xs, A, hw, h => by
@@ -380,18 +373,17 @@ theorem fold_mask :
         unfold passBody; rw [if_neg hg]
       have e₂ : passBody C (rd B F f₂) A x = strongStep C (rd B F f₂) A x := by
         unfold passBody; rw [if_neg hg]
-      have hsub : readLog (strongStep C (rd B F f₁) A x)
-          ⊆ readLog (xs.foldl (passBody C (rd B F f₁)) (passBody C (rd B F f₁) A x)) := by
+      have hsub : readLog C (strongStep C (rd B F f₁) A x)
+          ⊆ readLog C (xs.foldl (passBody C (rd B F f₁)) (passBody C (rd B F f₁) A x)) := by
         rw [e₁]; exact fold_readLog C (rd B F f₁) xs _
       rw [e₁, e₂]
       refine strongStep_mask C hw (fun z hz => h z (hsub (.inl hz))) fun b κ hb hf => ?_
-      refine h b (hsub (.inr (.inr ⟨κ, hb, ?_⟩)))
-      rw [(strongStep_state C _ A x).1, probeStepK_forced]; exact hf
+      exact h b (hsub (.inr (.inr ⟨κ, hb, hf⟩)))
     rw [← hstep]
     exact fold_mask xs _ (passBody_witPool C _ A x hw) h
 
 theorem strongPass_mask {A : RoundAcc α} {probes : List (FreeMonoid α)} (hw : WitPool A.s)
-    (h : ∀ z ∈ readLog (strongPass C (rd B F f₁) A probes), f₁ z = f₂ z) :
+    (h : ∀ z ∈ readLog C (strongPass C (rd B F f₁) A probes), f₁ z = f₂ z) :
     strongPass C (rd B F f₁) A probes = strongPass C (rd B F f₂) A probes := by
   rw [strongPass_eq] at h ⊢
   rw [strongPass_eq]
@@ -399,7 +391,7 @@ theorem strongPass_mask {A : RoundAcc α} {probes : List (FreeMonoid α)} (hw : 
 
 theorem strongReading_mask {j : ℕ} {A : RoundAcc α} {first : List (FreeMonoid α)} {y : C.Draws}
     (hw : WitPool A.s)
-    (h : ∀ z ∈ readLog (strongReading C (rd B F f₁) j A first y).1, f₁ z = f₂ z) :
+    (h : ∀ z ∈ readLog C (strongReading C (rd B F f₁) j A first y).1, f₁ z = f₂ z) :
     strongReading C (rd B F f₁) j A first y = strongReading C (rd B F f₂) j A first y := by
   obtain ⟨h1, h2⟩ := strongReading_fst_acc C (rd B F f₁) j A first y
   have hpass := strongPass_mask C hw fun z hz => h z (h1 hz)
@@ -408,12 +400,12 @@ theorem strongReading_mask {j : ℕ} {A : RoundAcc α} {first : List (FreeMonoid
 theorem strongRound_mask :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
       WitPool A.s →
-      (∀ z ∈ readLog (strongRound C (rd B F f₁) n j A first d).2.1, f₁ z = f₂ z) →
+      (∀ z ∈ readLog C (strongRound C (rd B F f₁) n j A first d).2.1, f₁ z = f₂ z) →
       strongRound C (rd B F f₁) n j A first d = strongRound C (rd B F f₂) n j A first d
   | 0, _, _, _, _, _, _ => by simp only [strongRound]
   | n + 1, j, A, first, d, hw, h => by
-    have hsub : readLog (strongReading C (rd B F f₁) j A first (d 0)).1
-        ⊆ readLog (strongRound C (rd B F f₁) (n + 1) j A first d).2.1 := by
+    have hsub : readLog C (strongReading C (rd B F f₁) j A first (d 0)).1
+        ⊆ readLog C (strongRound C (rd B F f₁) (n + 1) j A first d).2.1 := by
       rcases hR : strongReading C (rd B F f₁) j A first (d 0) with ⟨A'', e | lv⟩ <;>
         simp only [strongRound, hR]
       · exact le_rfl

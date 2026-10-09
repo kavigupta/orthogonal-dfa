@@ -523,9 +523,8 @@ def KPoolIn (Bs : Set (FreeMonoid α)) (s : KState α) : Prop :=
 
 theorem closeK_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : Edges α} {st : ℕ} {T : Tested α} {lg : Finset (FreeMonoid α)}
-    {fc : Set (TestKey α)} (hp : ∀ b ∈ pool, b ∈ Bs)
-    (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
-    KPoolIn Bs (closeK K R t pool edges st T lg fc) := by
+    (hp : ∀ b ∈ pool, b ∈ Bs) (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
+    KPoolIn Bs (closeK K R t pool edges st T lg) := by
   refine ⟨hp, fun p c q y h => ?_⟩
   simp only [closeK, closeEdges] at h
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩
@@ -588,22 +587,22 @@ key `s` leaves tested. -/
 def StepTestsAgree (K : StageKnobs α) (B : State) (F : Finset (FreeMonoid α))
     (f₁ f₂ : FreeMonoid α → ℝ) (k : ℕ) (s : KState α) (x : FreeMonoid α) : Prop :=
   ∀ ps fd κ, probeOutcome (rd B F f₂) s.tree s.edges k x = .edge ps fd →
-    (seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) s.forced k x
-      ps fd).key = some κ → κ ∉ s.forced →
+    (seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) K.forced k x
+      ps fd).key = some κ → κ ∉ K.forced →
     ∀ p ∈ testStrings K (rd B F f₂) s.tree s.pool κ.1 κ.2 (stepSkip K (rd B F f₂) k s x κ),
       f₁ p.1 = f₂ p.1
 
 theorem stepTests_of_agreeTests {k : ℕ} {s : KState α} {x : FreeMonoid α}
-    (h : AgreeTests K B F f₁ f₂ s.tree s.pool (stepSkip K (rd B F f₂) k s x) s.forced) :
+    (h : AgreeTests K B F f₁ f₂ s.tree s.pool (stepSkip K (rd B F f₂) k s x) K.forced) :
     StepTestsAgree K B F f₁ f₂ k s x := by
   intro ps fd κ _ hk hf p hp
   obtain ⟨κ1, κ2⟩ := κ
   have hr : (∃ s1 y sprime, seedStep K (rd B F f₂) s.tree s.pool s.edges
-      (stepSkip K (rd B F f₂) k s x) s.forced k x ps fd = .split κ2 s1 y sprime)
+      (stepSkip K (rd B F f₂) k s x) K.forced k x ps fd = .split κ2 s1 y sprime)
       ∨ ∃ s1 sprime, seedStep K (rd B F f₂) s.tree s.pool s.edges
-        (stepSkip K (rd B F f₂) k s x) s.forced k x ps fd = .member s1 sprime κ2 := by
+        (stepSkip K (rd B F f₂) k s x) K.forced k x ps fd = .member s1 sprime κ2 := by
     revert hk
-    rcases seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) s.forced
+    rcases seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) K.forced
       k x ps fd with ⟨d, s1, y, sp⟩ | ⟨s1, sp, d⟩ | b | _ <;> intro hk <;>
       simp only [SeedResult.key, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at hk
     · exact .inl ⟨s1, y, sp, by rw [hk.2]⟩

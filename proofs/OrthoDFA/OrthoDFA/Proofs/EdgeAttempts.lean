@@ -100,10 +100,10 @@ theorem round_strong_no_stop : RoundStrongNoStop := by
   have hl := (strongRound_preserves C R (fun _ => True) (fun _ _ _ _ _ _ => trivial)
     (fun _ _ _ _ => trivial) Rmax 0 (startAcc C R seed) [] d (startAcc_inv C R seed) trivial).1.1
   have hnd := seedStep_ne_dropped C.K R (pool := s.pool) (skip := stepSkip C.K R C.k s x)
-    (forced := s.forced) hl ho
+    (forced := C.K.forced) hl ho
   have hns := seedStep_ne_stopped C.K R (pool := s.pool) (skip := stepSkip C.K R C.k s x)
-    (forced := s.forced) hl ho
-  rcases hs : seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) s.forced C.k x ps fd
+    (forced := C.K.forced) hl ho
+  rcases hs : seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) C.K.forced C.k x ps fd
     with
     ⟨dd, s1, y, sp⟩ | ⟨s1, sp, dd⟩ | b | _
   · exact .inl ⟨dd, s1, y, sp, hs⟩
