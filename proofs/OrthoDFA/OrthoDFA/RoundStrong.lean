@@ -1,22 +1,27 @@
 import OrthoDFA.RoundLevel
 
 /-!
-# The round, with its edges' attempts counted
+# The round as Python runs it
 
-The round of `RoundLevel` with what Python carries across its readings: every end of the split
-test but a split counts against its edge, an edge with `mmax` such ends is given up, the
-strings that stop the test's guards are held, each pass starts its quiet streak afresh, and the
-probes spent are counted against a budget set by the leaves.
+The round of `RoundLevel` with what Python carries across its readings: each pass starts its quiet
+streak afresh, a split is recorded with what it split, and the probes spent are counted against a
+backstop budget set by the leaves. Every edge a refusal draw's search ends at is live.
 
 A gate is a pass only where its test settles above `acc`; one that does not settle is refused,
-and the certificate's failure chance is spent per call.
+and the certificate's failure chance is spent per call. On a refusal, a class that fires ends the
+round holding it; only when none fires do the live edges rerun.
 
-`RoundStrongBudget`: the budget is never reached, so the round never ends exhausted.
-`RoundStrongReadings`: a round makes at most `readStar` of its last leaf count readings.
+The round ends exhausted only when, reading after reading, the refusal sample finds some live edge
+and no class firing, until the probes spent reach the budget.
+
+`RoundStrongReadings`: every reading but the last spends at least `patience` probes, so the
+readings times `patience` are at most the budget and one more `patience`.
 `RoundStrongLeaves`: the leaves are at most `|Q| + 2` and the splits that one of their at most
 `2·depth + 2` reads, landing off a reference placement's side, let through.
 `RoundStrongSameState`: a split between two strings of one state is one of those.
 `RoundStrongLeafPaths`: the learned edges join leaves.
+`RoundStrongNoStop`: at the hypothesis the round ends with, every attempt on an edge a draw's
+search ends at splits or adds a member.
 `RoundStrongTrichotomy` and `RoundStrongQuality`: `RoundTrichotomyLevel` and
 `RoundQualityLevel` for this round.
 -/
@@ -27,9 +32,8 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- A round's settings: as `RoundCfg`, with the ends of the split test after which an edge is
-given up by the leaf count, the fewest probes the budget allows, and the certificate by how many
-calls came before. -/
+/-- A round's settings: as `RoundCfg`, with the probes the round may spend by its leaf count, and
+the certificate by how many calls came before. -/
 structure StrongCfg (α : Type*) where
   K : StageKnobs α
   k : ℕ
@@ -43,8 +47,7 @@ structure StrongCfg (α : Type*) where
   θM : ℝ
   acc : ℝ
   a : ℝ
-  mmax : ℕ → ℕ
-  minProbes : ℕ
+  budget : ℕ → ℕ
   cert : ℕ → CutReads α → KState α → (Fin nc → FreeMonoid α) → Bool
 
 /-- One reading's draws: probes, gate batch, refusal sample, certificate sample. -/
@@ -58,14 +61,6 @@ noncomputable def StrongCfg.drawMeasure (C : StrongCfg α) (D : Measure (FreeMon
   (Measure.pi fun _ : Fin C.np => D).prod ((Measure.pi fun _ : Fin C.ng => D).prod
     ((Measure.pi fun _ : Fin C.nr => D).prod (Measure.pi fun _ : Fin C.nc => D)))
 
-/-- The readings a round with `n` leaves can have made. -/
-def readStar (C : StrongCfg α) (n : ℕ) : ℕ :=
-  n - 1 + C.mmax n * Fintype.card α * (2 * (n - 1) + 1)
-
-/-- `probe_budget`. -/
-def budgetOf (C : StrongCfg α) (n : ℕ) : ℕ :=
-  max C.minProbes (readStar C n * (C.K.patience + C.nr) + C.K.patience * (n - 2))
-
 /-- A split: the tree it split, the leaf, the distinguisher, the edge's witness and the probe's
 prefix. -/
 structure SplitRec (α : Type*) where
@@ -75,13 +70,10 @@ structure SplitRec (α : Type*) where
   y : FreeMonoid α
   sprime : FreeMonoid α
 
-/-- What the round carries: the pass's state, each edge's ends of the split test other than a
-split, the strings that stopped its guards, its splits, the probes spent and the certificate's
+/-- What the round carries: the pass's state, its splits, the probes spent and the certificate's
 calls. -/
 structure RoundAcc (α : Type*) where
   s : KState α
-  att : List Bool × α → ℕ
-  stopped : List (FreeMonoid α)
   splits : List (SplitRec α)
   used : ℕ
   certs : ℕ
@@ -89,38 +81,18 @@ structure RoundAcc (α : Type*) where
 /-- The round's start. -/
 noncomputable def startAcc (C : StrongCfg α) (R : CutReads α) (seed : List (FreeMonoid α)) :
     RoundAcc α :=
-  ⟨initialK C.K R seed, fun _ => 0, [], [], 0, 0⟩
+  ⟨initialK C.K R seed, [], 0, 0⟩
 
-/-- `given_up`. -/
-def givenUp (C : StrongCfg α) (A : RoundAcc α) (e : List Bool × α) : Prop :=
-  C.mmax A.s.tree.paths.length ≤ A.att e
-
-instance (C : StrongCfg α) (A : RoundAcc α) (e : List Bool × α) : Decidable (givenUp C A e) :=
-  inferInstanceAs (Decidable (_ ≤ _))
-
-/-- The string that stopped the split test's guards, if any. -/
-def SeedResult.stoppedAt : SeedResult α → List (FreeMonoid α)
-  | .stopped b => [b]
-  | _ => []
-
-/-- One probe: `probeStepK`, with each end of the split test but a split counted against its
-edge; a member added on a given-up edge leaves the quiet streak running. -/
+/-- One probe: `probeStepK`, a split recorded with the tree it split. -/
 noncomputable def strongStep (C : StrongCfg α) (R : CutReads α) (A : RoundAcc α)
     (x : FreeMonoid α) : RoundAcc α :=
   let s := A.s
-  let s' := probeStepK C.K R C.k s x
-  let A₁ := { A with s := s', used := A.used + 1 }
+  let A₁ := { A with s := probeStepK C.K R C.k s x, used := A.used + 1 }
   match probeOutcome R s.tree s.edges C.k x with
   | .edge ps fd =>
-    match seedStep C.K R s.tree s.pool s.edges C.k x ps fd, edgeAt R s.tree s.edges C.k x with
-    | .split d s1 y sp, _ => { A₁ with splits := A.splits ++ [⟨s.tree, s1, d, y, sp⟩] }
-    | r, some e =>
-      let A₂ : RoundAcc α :=
-        { A₁ with
-          att := Function.update A.att e (A.att e + 1)
-          stopped := A.stopped ++ r.stoppedAt }
-      if givenUp C A e then { A₂ with s := { s' with streak := s.streak + 1 } } else A₂
-    | _, none => A₁
+    match seedStep C.K R s.tree s.pool s.edges C.k x ps fd with
+    | .split d s1 y sp => { A₁ with splits := A.splits ++ [⟨s.tree, s1, d, y, sp⟩] }
+    | _ => A₁
   | _ => A₁
 
 /-- `counterexample_pass`: from a fresh quiet streak, probes in order until `patience` in a row
@@ -128,7 +100,7 @@ are quiet or the budget is spent. -/
 noncomputable def strongPass (C : StrongCfg α) (R : CutReads α) (A : RoundAcc α)
     (probes : List (FreeMonoid α)) : RoundAcc α :=
   probes.foldl (fun A x =>
-      if C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used then A
+      if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then A
       else strongStep C R A x)
     { A with s := { A.s with streak := 0 } }
 
@@ -143,8 +115,8 @@ inductive StrongEnd
 
 open scoped Classical in
 /-- Reading `j`: the pass with `first` ahead of the reading's probes; the gate at failure chance
-`a·2⁻ʲ`, and on a settled pass the certificate; otherwise the refusal sample's live-edge draws
-rerun while the budget lasts, else a fired class is held, else the limit halves. -/
+`a·2⁻ʲ`, and on a settled pass the certificate; otherwise a class firing on the refusal sample is
+held, else its live-edge draws rerun while the budget lasts, else the limit halves. -/
 noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (A : RoundAcc α)
     (first : List (FreeMonoid α)) (y : C.Draws) : RoundAcc α × (StrongEnd ⊕ List (FreeMonoid α)) :=
   let A' := strongPass C R A (first ++ List.ofFn y.1)
@@ -156,14 +128,14 @@ noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (
     (A'', .inl (.consistent (gateStart R s.tree s.edges y.2.1 C.acc aj)))
   else
     let tests := harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM
-    let live := LiveEdge R s.tree s.edges C.k (givenUp C A')
+    let live := LiveEdge R s.tree s.edges C.k fun _ => False
     let br := y.2.2.1
     let Tr := refusalStop br C.a tests live
     let lv := ((List.finRange C.nr).filter fun i : Fin C.nr =>
       decide ((i : ℕ) < Tr ∧ live (br i))).map br
-    if lv ≠ [] then
-      if budgetOf C s.tree.paths.length ≤ A'.used then (A'', .inl .exhausted) else (A'', .inr lv)
-    else if ∃ T ∈ tests, T.fires br C.a Tr then (A'', .inl .harvest)
+    if ∃ T ∈ tests, T.fires br C.a Tr then (A'', .inl .harvest)
+    else if lv ≠ [] then
+      if C.budget s.tree.paths.length ≤ A'.used then (A'', .inl .exhausted) else (A'', .inr lv)
     else (A'', .inl (.halve (decide (side = some false))))
 
 /-- The round from reading `j` with `n` readings left: its end, what it carries, and at each
@@ -243,22 +215,14 @@ noncomputable def noisySplits {Q : Type*} (R : CutReads α) (A : DFA (FreeMonoid
 def EdgesOnLeaves (s : KState α) : Prop :=
   ∀ p c q w, s.edges p c = some (q, w) → p ∈ s.tree.paths ∧ q ∈ s.tree.paths
 
-/-- `RoundStrongBudget`: at every reading's gate the probes spent are below the budget, so no
-pass meets it and the round never ends exhausted. -/
-def RoundStrongBudget : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : StrongCfg α) (R : CutReads α)
-    (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
-    1 ≤ C.K.patience → C.K.patience ≤ C.nr → Monotone C.mmax →
-    (strongRun C R seed Rmax d).1 ≠ .exhausted
-      ∧ ∀ p ∈ (strongRun C R seed Rmax d).2.2, p.2 < budgetOf C p.1
-
-/-- `RoundStrongReadings`: a round makes at most `readStar` of its last leaf count readings. -/
+/-- `RoundStrongReadings`: where each pass is given at least `patience` probes, the readings times
+`patience` are at most the budget at the round's last leaf count and one more `patience`. -/
 def RoundStrongReadings : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : StrongCfg α) (R : CutReads α)
     (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
-    1 ≤ C.K.patience → C.K.patience ≤ C.nr → Monotone C.mmax →
-    (strongRun C R seed Rmax d).2.2.length
-      ≤ readStar C (strongRun C R seed Rmax d).2.1.s.tree.paths.length
+    C.K.patience ≤ C.np → Monotone C.budget →
+    (strongRun C R seed Rmax d).2.2.length * C.K.patience
+      ≤ C.budget (strongRun C R seed Rmax d).2.1.s.tree.paths.length + C.K.patience
 
 /-- `RoundStrongLeaves`: placing each state `q` where every node reads `rep q` on the side
 `side` gives, the round ends with at most `|Q| + 2` leaves and its noisy splits. -/
@@ -284,12 +248,24 @@ def RoundStrongLeafPaths : Prop :=
     (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
     EdgesOnLeaves (strongRun C R seed Rmax d).2.1.s
 
+/-- `RoundStrongNoStop`: at the hypothesis the round ends with, an attempt on the edge any draw's
+search ends at splits or adds a member; it never stops at a read it cannot place. -/
+def RoundStrongNoStop : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : StrongCfg α) (R : CutReads α)
+    (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws) (x : FreeMonoid α)
+    (ps : List (List Bool)) (fd : ℕ),
+    let s := (strongRun C R seed Rmax d).2.1.s
+    probeOutcome R s.tree s.edges C.k x = .edge ps fd →
+      (∃ dd s1 y sp, seedStep C.K R s.tree s.pool s.edges C.k x ps fd = .split dd s1 y sp)
+        ∨ ∃ s1 sp, seedStep C.K R s.tree s.pool s.edges C.k x ps fd = .member s1 sp
+
 variable {Q : Type*}
 
 open scoped Classical in
 /-- What each end claims: consistent, the start agreeing on at least `acc` and certified; a
-halving, as `RoundEndHolds` with the edges given up, every covering start's residue claimed only
-where the gate settled below; never exhausted; out of readings only past `readStar`. -/
+halving, as `RoundEndHolds` with no edge given up, every covering start's residue claimed only
+where the gate settled below; exhausted, nothing; out of readings, `patience` times the readings
+within the budget. -/
 def StrongEndHolds (C : StrongCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) (Rmax : ℕ)
     (Ac : RoundAcc α) : StrongEnd → Prop
@@ -297,27 +273,27 @@ def StrongEndHolds (C : StrongCfg α) (R : CutReads α) (A : DFA (FreeMonoid α)
   | .harvest => True
   | .halve gr =>
     let s := Ac.s
-    let gu := givenUp C Ac
+    let gu : List Bool × α → Prop := fun _ => False
     tauZero s.tree C.k C.L C.nr C.c C.a ≤ C.f ∨ 1 - C.a ≤ C.θM * C.nr
       ∨ (D.real {x | NAOff R s.tree s.edges C.k gu x} ≤ ν
         ∧ (gr = true → ∀ (q₀ : Q) (h : Q → List Bool), q₀ ∈ Covered A D C.k C.L minCov →
           h q₀ ∈ s.tree.paths → 1 - η ≤ D.real (CoverGood A (Covered A D C.k C.L minCov) q₀) →
           (∀ q ∈ Covered A D C.k C.L minCov, leafAccepts (h q) = decide (q ∈ A.accept)) →
           need R A D (Covered A D C.k C.L minCov) h s.tree s.edges C.k q₀ gu C.acc η ≤ ν))
-  | .exhausted => False
-  | .cap => Rmax ≤ readStar C Ac.s.tree.paths.length
+  | .exhausted => True
+  | .cap => Rmax * C.K.patience ≤ C.budget Ac.s.tree.paths.length
 
 /-- `RoundStrongTrichotomy`: for any reads, over `Rmax` readings' draws, the round's end breaks
 its claim with chance at most the gate's spent failure chances, the refusal sample's miss per
 reading made in expectation, and the certificate's failure chances over its calls in
-expectation. -/
+expectation. Ending exhausted claims nothing. -/
 def RoundStrongTrichotomy : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*} (C : StrongCfg α)
     (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (seed : List (FreeMonoid α)) (CertGood : KState α → Prop) (αs : ℕ → ℝ) (η minCov ν : ℝ)
     (Rmax : ℕ),
     0 ≤ C.acc → C.acc ≤ 1 → 0 ≤ C.f → 0 ≤ C.a → ν ≤ 1 →
-    1 ≤ C.K.patience → C.K.patience ≤ C.nr → Monotone C.mmax →
+    C.K.patience ≤ C.np → Monotone C.budget →
     (∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i) →
     ∀ R : CutReads α,

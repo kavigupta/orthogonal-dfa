@@ -1,5 +1,4 @@
 import OrthoDFA.Proofs.RoundStrong
-import OrthoDFA.HalvingStrong
 
 /-!
 # What an attempt on an edge comes to
@@ -92,73 +91,17 @@ theorem seedStep_ne_stopped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
     rw [hsp] at hfd3
     simp at hfd3
 
-theorem strongStep_stopped (C : StrongCfg α) (A : RoundAcc α) (x : FreeMonoid α)
-    (hl : Learned R A.s.tree A.s.edges) : (strongStep C R A x).stopped = A.stopped := by
-  unfold strongStep
-  simp only []
-  split
-  · rename_i ps fd ho
-    have hns := seedStep_ne_stopped C.K R (pool := A.s.pool) hl ho
-    rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges C.k x ps fd with
-      ⟨d, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
-    case stopped => exact absurd hs (hns b)
-    all_goals first
-      | rfl
-      | (split <;> (try split_ifs) <;> simp [SeedResult.stoppedAt])
-  · rfl
-
-theorem fold_stopped (C : StrongCfg α) :
-    ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), StrongInv R A →
-      (probes.foldl (passBody C R) A).stopped = A.stopped := by
-  intro probes
-  induction probes with
-  | nil => intro A _; rfl
-  | cons x xs ih =>
-    intro A hI
-    simp only [List.foldl_cons]
-    by_cases hg : C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used
-    · have h1 : passBody C R A x = A := by unfold passBody; rw [if_pos hg]
-      rw [h1]; exact ih A hI
-    · have h1 : passBody C R A x = strongStep C R A x := by unfold passBody; rw [if_neg hg]
-      rw [h1, ih _ (strongStep_inv C R A x hI), strongStep_stopped R C A x hI.1]
-
-theorem fold_strongInv (C : StrongCfg α) :
-    ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), StrongInv R A →
-      StrongInv R (probes.foldl (passBody C R) A) := by
-  intro probes
-  induction probes with
-  | nil => exact fun A h => h
-  | cons x xs ih =>
-    intro A hI
-    simp only [List.foldl_cons]
-    by_cases hg : C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used
-    · have h1 : passBody C R A x = A := by unfold passBody; rw [if_pos hg]
-      rw [h1]; exact ih A hI
-    · have h1 : passBody C R A x = strongStep C R A x := by unfold passBody; rw [if_neg hg]
-      rw [h1]; exact ih _ (strongStep_inv C R A x hI)
-
 theorem round_strong_no_stop : RoundStrongNoStop := by
-  intro α _ _ C R seed Rmax d
-  suffices h : ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
-      StrongInv R A → (strongRound C R n j A first d).2.1.stopped = A.stopped by
-    exact h Rmax 0 _ [] d (startAcc_inv C R seed)
-  intro n
-  induction n with
-  | zero => intro j A first d _; rfl
-  | succ n ih =>
-    intro j A first d hI
-    have hacc := strongReading_acc C R j A first (d 0)
-    obtain ⟨hs, -, hsp, -⟩ := strongReading_fst C R j A first (d 0)
-    have hp : (strongPass C R A (first ++ List.ofFn (d 0).1)).stopped = A.stopped := by
-      rw [strongPass_eq]
-      exact fold_stopped R C _ _ hI
-    have hIR : StrongInv R (strongReading C R j A first (d 0)).1 := by
-      unfold StrongInv
-      rw [hs, hsp, strongPass_eq]
-      exact fold_strongInv R C _ _ hI
-    rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩ <;>
-      rw [hR] at hacc hIR <;> dsimp only at hacc hIR <;> simp only [strongRound, hR]
-    · rw [hacc]; exact hp
-    · rw [ih (j + 1) A'' lv (Fin.tail d) hIR, hacc]; exact hp
+  intro α _ _ C R seed Rmax d x ps fd s ho
+  have hl := (strongRound_preserves C R (fun _ => True) (fun _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ => trivial) Rmax 0 (startAcc C R seed) [] d (startAcc_inv C R seed) trivial).1.1
+  have hnd := seedStep_ne_dropped C.K R (pool := s.pool) hl ho
+  have hns := seedStep_ne_stopped C.K R (pool := s.pool) hl ho
+  rcases hs : seedStep C.K R s.tree s.pool s.edges C.k x ps fd with
+    ⟨dd, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
+  · exact .inl ⟨dd, s1, y, sp, rfl⟩
+  · exact .inr ⟨s1, sp, rfl⟩
+  · exact absurd hs (hns b)
+  · exact absurd hs hnd
 
 end OrthoDFA

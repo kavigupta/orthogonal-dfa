@@ -5,8 +5,8 @@ import OrthoDFA.Trichotomy
 
 A round reads until a reading ends it: each reading runs the pass on the previous hypothesis with
 the previous reading's live-edge draws first, then the gate and, where the gate's test settles
-above, the certificate; anything else reads a refusal sample, which reruns live edges, holds a
-class that fired, or halves.
+above, the certificate; anything else reads a refusal sample, which holds a class that fired,
+or else reruns live edges, or else halves.
 
 `RoundTrichotomyLevel`: for any reads, the round ends consistent with the certificate's guarantee,
 holding a class that fired, halving only above `τ₀` or with the walk's non-agreeing mass at most
@@ -78,8 +78,8 @@ inductive ReadStep (α : Type*)
 open scoped Classical in
 /-- Reading `j`: the pass from `s₀` with `first` ahead of the reading's probes; past `Pmax`
 leaves the budget is out; the gate at failure chance `a·2⁻ʲ`, and on a settled pass the
-certificate; otherwise the refusal sample's live-edge draws rerun, else a fired class is held, else
-the limit halves. -/
+certificate; otherwise a class firing on the refusal sample is held, else its live-edge draws
+rerun, else the limit halves. -/
 noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C.Draws) (j : ℕ)
     (s₀ : KState α) (first : List (FreeMonoid α)) (y : C.Draws) : ReadStep α :=
   let s := runPassK C.K R C.k s₀ (first ++ List.ofFn y.1)
@@ -96,8 +96,8 @@ noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C
     let Tr := refusalStop br C.a tests live
     let lv := ((List.finRange C.nr).filter fun i : Fin C.nr =>
       decide ((i : ℕ) < Tr ∧ live (br i))).map br
-    if lv ≠ [] then .rerun s lv
-    else if ∃ T ∈ tests, T.fires br C.a Tr then .done (.harvest s)
+    if ∃ T ∈ tests, T.fires br C.a Tr then .done (.harvest s)
+    else if lv ≠ [] then .rerun s lv
     else .done (.halve s gu (decide (gateSide R s.tree s.edges y.2.1 C.acc aj
       (gateStop R s.tree s.edges y.2.1 C.acc aj) = some false)))
 

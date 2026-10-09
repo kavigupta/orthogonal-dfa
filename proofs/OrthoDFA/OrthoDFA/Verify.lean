@@ -9,7 +9,6 @@ import OrthoDFA.Proofs.Trichotomy
 import OrthoDFA.Proofs.RoundLevel
 import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
-import OrthoDFA.Proofs.DeadEdges
 
 /-!
 # The theorem
@@ -73,10 +72,6 @@ theorem round_quality_level' : RoundQualityLevel := round_quality_level
 
 #print axioms round_quality_level'
 
-theorem round_strong_budget' : RoundStrongBudget := round_strong_budget
-
-#print axioms round_strong_budget'
-
 theorem round_strong_readings' : RoundStrongReadings := round_strong_readings
 
 #print axioms round_strong_readings'
@@ -105,8 +100,5 @@ theorem round_strong_no_stop' : RoundStrongNoStop := round_strong_no_stop
 
 #print axioms round_strong_no_stop'
 
-theorem round_strong_dead_edge' : RoundStrongDeadEdge := round_strong_dead_edge
-
-#print axioms round_strong_dead_edge'
 
 end OrthoDFA

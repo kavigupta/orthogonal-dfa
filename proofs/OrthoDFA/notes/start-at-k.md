@@ -791,52 +791,25 @@ readings can take. Off one set of measure `δ` the end hypothesis meets `Quality
 so the bound tracks the readings actually made: at binary, `k = 20`, `nr = 480`, `δ = 0.005`,
 `ε_r` is 0.013, 0.018, 0.028, 0.068, 0.13, 0.22 at `r` = 1, 2, 5, 29, 100, 300.
 
-## The strengthened round (`RoundStrong`, D42–D55)
+## The strengthened round (`RoundStrong`, D42–D70)
 
-Proved with no noise: the budget is never reached, readings ≤ `readStar(leaves)`, edges join
-leaves, and leaves ≤ `|Q| + 2 + #noisy splits`. Proved: `RoundStrongTrichotomy`, the failure
-bound `4(log₂(ng/30)+2)a + E[readings]·(1 − ν)^nr + E[Σ_{i < certificate calls} α_i]`; a gate
-that does not settle is a refusal (D49), so the unsettled tail and `δc` are gone. Proved:
-`RoundStrongQuality`, at the same `ε_r` as D45; the harvest argument now takes any pass decided
-by the bits at what it can read, and the round's passes, each from a fresh quiet streak, are one
-such pass over the segments its readings took. A member added on a given-up edge does not reset
-the quiet streak (D51); without that a pass is unbounded.
+D69 dropped given-up edges, in Python and in the model: no attempt counters, every edge a
+refusal draw's search ends at is live and reruns. D70: a class that fires ends the round with its
+harvest, and live edges rerun only when none fires, so a wrong edge between badly read states
+cannot trap the rerun loop. The probe budget is a plain backstop, and "exhausted" is an explicit
+outcome: it needs the refusal sample to find some live edge and no class firing, reading after
+reading, until the budget is spent.
+
+Proved with no noise: every reading but the last spends at least `patience` probes, the leaves
+are at most `|Q| + 2` plus the noisy splits, edges join leaves, and no attempt on an edge stops
+(the search ends between decided sifts and the witness's paths are decided).
 
 A split is noisy when one of its at most `2·depth + 2` reads lands off a reference placement's
 side: the reads sifting its witness and its probe's prefix to the leaf, or the two parting reads
 at the distinguisher. A split that changes no reference placement is noisy, and so is a split
-between two strings of one state (its parting reads differ, so one is off the state's side).
+between two strings of one state. Any split between two different states is valid (D53, D54),
+whether or not the reference sees the difference; a state whose training-half side differs from
+its full side can be split off with no noise, which only lengthens the round.
 
-Any split between two different states is valid (D53, D54), whether or not the reference sees
-the difference. The split test groups members by the training half and compares the test half,
-while the reference reads the full family, so a state whose training-half side differs from its
-full side can be split off with no noise; such a split is valid and harmless, it only lengthens
-the round, and when the reference keeps the pair together its parting read is itself off the
-reference's side, so it is counted among the noisy splits.
-
-`RoundTrichotomyLevel` takes D49 too: only a settled pass is a pass, so its bound is
-`4(log₂(ng/30)+2)a + E[readings]·((1 − ν)^nr + α)`, with no `δc` and no unsettled tail.
-
-Open, not sorried:
-- The chance of a noisy split over a round. The witness is picked from the pool by reads, so the
-  per-string `depth·ρ` does not apply to it, and a union over the pool is vacuous.
-- Split power, and with it the halving claim's given-up residue, only for edges whose successor
-  states sit outside the band with margin. In-band edges are left to the stopped harvest.
-
-### Given-up edges (D63–D68)
-
-No attempt on an edge stops (`RoundStrongNoStop`): the search ends between decided sifts, and
-the witness sifts decided to the source and, followed by the letter, to the target, so the
-parting reads only decided paths. The stopped harvest is gone from Python (D66).
-
-`RoundStrongDeadEdge` splits the dead mass by whether the edge is right for every string the
-likelier sides place at its source. At a right edge a dead draw has a read off its likelier side
-among its walk's, search's and edge's reads; scanning those reads, split at undecided chance `u`,
-gives `ρ·E[reads at strings undecided ≥ u] + crossWell(u)·E[reads]` plus slack. At `u = cf = 0.1`
-a well-read string is decided on its less likely side about `1e-12` of the time.
-
-The witness side of a wrong edge without margin is not seen by any class. Its badly read part is
-absorbed across rounds: `closeEdges` re-reads every member followed by the letter after each
-probe, undecided ones join the boundary population, and the next round's FNR gate makes the
-family read that population well. With 10 members at `cf = 0.1`, about 0.65 catch chance per edge.
-
+Open: the chance of a noisy split over a round (the witness is picked from the pool by reads, so
+the per-string `depth·ρ` does not apply), and the chance of ending exhausted.

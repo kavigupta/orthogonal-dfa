@@ -30,42 +30,32 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   `(1−ν)^nr + α` per reading in expectation.
 - `RoundQualityLevel`: off a noise set of measure `δ`, the hypothesis a round ends with has every
   harvest class close to its incidental rate, at a fluctuation set by the readings it made.
-- `RoundStrongBudget`: in the round as Python runs it (attempts counted, edges given up, a fresh
-  quiet streak per pass), the probe budget is never reached, so the round never ends exhausted.
-- `RoundStrongReadings`: that round makes at most `readStar(leaves)` readings.
+- `RoundStrongReadings`: in the round as Python runs it (a fresh quiet streak per pass, every
+  edge live, a class that fires ending the round, a backstop budget on probes), every reading but
+  the last spends at least `patience` probes, so `readings × patience ≤ budget + patience`.
 - `RoundStrongLeaves`: it ends with at most `|Q| + 2` leaves plus its noisy splits, those with one
   of their at most `2·depth + 2` sifting or parting reads off a reference placement's side.
 - `RoundStrongSameState`: a split between two strings of one state is noisy.
 - `RoundStrongLeafPaths`: its learned edges join leaves.
-- `RoundStrongTrichotomy`: it ends consistent, holding a class, halving with the edges actually
-  given up, or out of readings only past `readStar`, but for `4(log₂(ng/30)+2)a`,
-  `(1−ν)^nr` per reading and the certificate's failure chance per call, in expectation.
+- `RoundStrongNoStop`: at the hypothesis it ends with, every attempt on an edge a draw's search
+  ends at splits or adds a member.
+- `RoundStrongTrichotomy`: it ends consistent, holding a class, halving, exhausted, or out of
+  readings only where `Rmax × patience` is within the budget, but for `4(log₂(ng/30)+2)a`,
+  `(1−ν)^nr` per reading and the certificate's failure chance per call, in expectation. Ending
+  exhausted needs the refusal sample to find a live edge and no class firing at every reading
+  until the budget is spent; its chance is not yet bounded.
 - `RoundStrongQuality`: `RoundQualityLevel` for that round.
-- `RoundStrongNoStop`: no attempt on an edge stops; the search ends between decided sifts and the
-  witness's paths are decided, so every attempt splits or adds a member.
-- `RoundStrongDeadEdge`: off a noise set of measure `δ`, the draws left at given-up edges are at
-  most those at edges the reads' likelier sides get wrong, plus `ρ` times the expected reads of
-  the walk, search and edge at strings read undecided at least `u` of the time, plus the chance a
-  string read undecided less than `u` of the time is decided on its less likely side times every
-  read, plus the classes' slack.
 
 ## Open
 
-Three claims are not proved. Only the last is stated, in `OrthoDFA/HalvingStrong.lean`, and
-sorried in `OrthoDFA/Proofs/OpenLemmas.lean`, which nothing in `Verify.lean` imports.
+Two claims are not proved, and are not assumed or sorried anywhere:
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
    picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
-2. Split power on wrong edges with margin, which would split `RoundStrongDeadEdge`'s residue at
-   wrong edges into a tail and the edges without margin. Not yet stated: a wrong edge whose leaf
-   holds a single witness-side member can be given up through that member's one, persistent read
-   with a chance of a few percent, so the claim needs at least `m*` members on each side as well
-   as the two halves' means outside their bands by a margin.
-3. `RoundCleanCrossing`: the chance that some string the round's passes can read, read undecided
-   less than `u` of the time, is decided on its less likely side is at most `crossWell u` times the
-   expected number of such strings.
+2. The chance a round ends exhausted: spurious live edges recurring on fresh refusal samples, or
+   repeated power failure on a wrong edge between well-read, separated states.
 
 ## What to read
 
@@ -146,26 +136,15 @@ sorried in `OrthoDFA/Proofs/OpenLemmas.lean`, which nothing in `Verify.lean` imp
   with meets `QualityHolds` against every probe its passes took, at a fluctuation `ε_r` set by the
   number `r` of readings it made. The reruns' probes are picked by reads, so the set covers every
   choice of live-edge draws, `2^((nr+1)·r)` of them for `r` readings, each `r` at chance `δ·2^-(r+1)`.
-- `OrthoDFA/RoundStrong.lean` — the round with what Python carries across readings: every end of
-  the split test but a split counts against its edge, an edge with `mmax` of them is given up,
-  the strings stopping the test's guards are held, each pass starts a fresh quiet streak, a
-  member added on a given-up edge does not reset it, and probes are counted against
-  `probe_budget`. A gate passes only where its test settles above `acc`, and the certificate's
-  failure chance is spent per call. Proved in `Proofs/RoundStrong.lean`, with no noise:
-  `RoundStrongBudget` (the budget is never reached, so there is no exhausted exit),
-  `RoundStrongReadings` (at most `readStar(leaves)` readings), `RoundStrongLeaves` (at most
-  `|Q| + 2` leaves plus the noisy splits: those with one of their `≤ 2·depth + 2` sifting or
-  parting reads off a reference placement's side), `RoundStrongSameState` (a split between two
-  strings of one state is noisy) and `RoundStrongLeafPaths`. `RoundStrongTrichotomy`, proved:
-  the round ends consistent (start disagreeing on at most `1 − acc`, certified), holding a class,
-  halving as in `RoundTrichotomyLevel` with the edges actually given up (every covering start's
-  residue claimed only where the gate settled below), or out of readings only past `readStar`,
-  but for `4(log₂(ng/30)+2)a`, `(1 − ν)^nr` per reading in expectation, and the certificate's
-  failure chances over its calls in expectation. `RoundStrongQuality`, proved: the end state's
-  harvest quality at the realised readings' `ε_r`, the round's passes being decided by the bits
-  at what they can read, read segment by segment (`segRun_determined`). Open, not
-  sorried (see `notes/start-at-k.md`): the chance of a noisy split, and split power for edges
-  with margin.
+- `OrthoDFA/RoundStrong.lean` — the round as Python runs it: each pass starts a fresh quiet
+  streak and stops at `patience` quiet probes or the backstop budget, every edge a refusal draw's
+  search ends at is live, a gate passes only where its test settles above `acc`, the
+  certificate's failure chance is spent per call, and on a refusal a class that fires ends the
+  round holding it, else live edges rerun, else the limit halves. Proved in
+  `Proofs/RoundStrong.lean` and `Proofs/EdgeAttempts.lean`: `RoundStrongReadings`,
+  `RoundStrongLeaves`, `RoundStrongSameState`, `RoundStrongLeafPaths`, `RoundStrongNoStop`,
+  `RoundStrongTrichotomy` and `RoundStrongQuality` (the round's passes are decided by the bits at
+  what they can read, segment by segment, `segRun_determined`).
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class and any pass

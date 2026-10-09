@@ -67,7 +67,7 @@ theorem reading_section_le {αc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1
     · exact .inl (.inl ⟨hbad, trivial⟩)
     obtain ⟨hpass1, hrefuse⟩ := hgood bg hbad
     simp only [readingStep, ← hs, if_neg (not_lt.2 hP)] at he
-    split_ifs at he with hgc hlv hfire
+    split_ifs at he with hgc hfire hlv
     · simp only [ReadStep.done.injEq] at he
       subst he
       simp only [RoundEndHolds, not_and_or] at hne

@@ -13,30 +13,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 namespace DTree
 
-/-- Every node's path, the root's first. -/
-def nodes : DTree α → List (List Bool)
-  | .leaf => [[]]
-  | .node _ r a => [] :: (r.nodes.map (false :: ·) ++ a.nodes.map (true :: ·))
-
-omit [Fintype α] [DecidableEq α] in
-theorem paths_sub_nodes : ∀ (t : DTree α), ∀ p ∈ t.paths, p ∈ t.nodes
-  | .leaf, p, h => by simpa [paths, nodes] using h
-  | .node _ r a, p, h => by
-    simp only [paths, List.mem_append, List.mem_map] at h
-    simp only [nodes, List.mem_cons, List.mem_append, List.mem_map]
-    rcases h with ⟨q, hq, rfl⟩ | ⟨q, hq, rfl⟩
-    · exact .inr (.inl ⟨q, paths_sub_nodes r q hq, rfl⟩)
-    · exact .inr (.inr ⟨q, paths_sub_nodes a q hq, rfl⟩)
-
-omit [Fintype α] [DecidableEq α] in
-theorem nodes_length : ∀ t : DTree α, t.nodes.length + 1 = 2 * t.paths.length
-  | .leaf => by simp [nodes, paths]
-  | .node _ r a => by
-    have := nodes_length r
-    have := nodes_length a
-    simp only [nodes, paths, List.length_cons, List.length_append, List.length_map]
-    omega
-
 omit [Fintype α] [DecidableEq α] in
 theorem sift_mem_paths {cut : FreeMonoid α → Option Bool} :
     ∀ (t : DTree α) (x : FreeMonoid α) (p : List Bool), t.sift cut x = .inl p → p ∈ t.paths
@@ -82,25 +58,6 @@ theorem splitAt_paths_length (d : FreeMonoid α) :
     simp only [splitAt, paths, List.length_append, List.length_map,
       splitAt_paths_length d a p this]
     omega
-
-omit [Fintype α] [DecidableEq α] in
-theorem nodes_splitAt (d : FreeMonoid α) :
-    ∀ (t : DTree α) (p : List Bool), ∀ q ∈ t.nodes, q ∈ (t.splitAt d p).nodes
-  | .leaf, [], q, h => by simp_all [splitAt, nodes]
-  | .leaf, _ :: _, q, h => h
-  | .node _ _ _, [], q, h => h
-  | .node n r a, false :: p, q, h => by
-    simp only [nodes, List.mem_cons, List.mem_append, List.mem_map, splitAt] at h ⊢
-    rcases h with h | ⟨q', hq, rfl⟩ | ⟨q', hq, rfl⟩
-    · exact .inl h
-    · exact .inr (.inl ⟨q', nodes_splitAt d r p q' hq, rfl⟩)
-    · exact .inr (.inr ⟨q', hq, rfl⟩)
-  | .node n r a, true :: p, q, h => by
-    simp only [nodes, List.mem_cons, List.mem_append, List.mem_map, splitAt] at h ⊢
-    rcases h with h | ⟨q', hq, rfl⟩ | ⟨q', hq, rfl⟩
-    · exact .inl h
-    · exact .inr (.inl ⟨q', hq, rfl⟩)
-    · exact .inr (.inr ⟨q', nodes_splitAt d a p q' hq, rfl⟩)
 
 omit [Fintype α] [DecidableEq α] in
 theorem append_not_mem_paths :
@@ -320,33 +277,6 @@ section Step
 
 variable (C : StrongCfg α) (R : CutReads α)
 
-theorem edge_source_mem {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    {ps : List (List Bool)} {fd : ℕ} (h : probeOutcome R t edges k x = .edge ps fd) :
-    ps.getD (fd - 1 - k) [] ∈ t.paths := by
-  obtain ⟨ps₀, hi, hw, hb⟩ := probeOutcome_search R h trivial
-  obtain ⟨p₀, hk, hf, hkh, hhn, hpn⟩ := walkCheck_inr R hw
-  set walkAt : ℕ → List Bool := fun j => ps₀.getD (j - k) [] with hwalk
-  obtain ⟨hlen, hhead, hstep⟩ := follow_inl _ _ _ hf
-  have hpk : agreesAt R t x walkAt k = some true := by
-    simp only [agreesAt, hk, Sum.elim_inl, hwalk, Nat.sub_self, hhead, decide_true]
-  obtain ⟨rfl, hfd1, hfd2, hfd3, hfd4⟩ :=
-    bracketAt_edge (agreesAt R t x walkAt) ps₀ (hi - k) k hi ps fd hkh le_rfl hpk hpn hb
-  simp only [agreesAt] at hfd3
-  rcases hs : t.sift R.cut (prefixOf x (fd - 1)) with p | b <;> rw [hs] at hfd3
-  · simp only [Sum.elim_inl, Option.some.injEq, decide_eq_true_eq] at hfd3
-    rw [show ps.getD (fd - 1 - k) [] = p by simp only [hwalk] at hfd3; exact hfd3.symm]
-    exact DTree.sift_mem_paths t _ p hs
-  · simp at hfd3
-
-theorem edgeAt_mem {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    {e : List Bool × α} (h : edgeAt R t edges k x = some e) : e.1 ∈ t.paths := by
-  unfold edgeAt at h
-  split at h
-  · rename_i ps fd ho
-    obtain ⟨c, -, rfl⟩ := Option.map_eq_some_iff.1 h
-    exact edge_source_mem R ho
-  · simp at h
-
 theorem split_leaf_mem {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α} {k : ℕ}
     (hl : Learned R t edges) {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     {d y sp : FreeMonoid α} {s1 : List Bool}
@@ -355,45 +285,30 @@ theorem split_leaf_mem {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
   exact DTree.sift_mem_paths t _ _ (hl _ _ _ _ he).1
 
 theorem strongStep_state (A : RoundAcc α) (x : FreeMonoid α) :
-    (strongStep C R A x).s.tree = (probeStepK C.K R C.k A.s x).tree
-      ∧ (strongStep C R A x).s.edges = (probeStepK C.K R C.k A.s x).edges
-      ∧ (strongStep C R A x).s.pool = (probeStepK C.K R C.k A.s x).pool
+    (strongStep C R A x).s = probeStepK C.K R C.k A.s x
       ∧ (strongStep C R A x).used = A.used + 1 ∧ (strongStep C R A x).certs = A.certs := by
   unfold strongStep
   simp only []
   repeat' split
   all_goals simp
 
-/-- A step counted an end of the split test against an edge not given up. -/
-def LiveInc (A A' : RoundAcc α) : Prop :=
-  ∃ e, ¬ givenUp C A e ∧ e.1 ∈ A.s.tree.paths ∧ A'.att e = A.att e + 1
-
-theorem seedStep_of_edgeAt_none {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
-    (ho : probeOutcome R t edges k x = .edge ps fd) (he : edgeAt R t edges k x = none) :
-    seedStep C.K R t pool edges k x ps fd = .dropped := by
-  simp only [edgeAt, ho, Option.map_eq_none_iff] at he
-  simp [seedStep, he]
+theorem probeStepK_streak (A : RoundAcc α) (x : FreeMonoid α) :
+    (probeStepK C.K R C.k A.s x).streak = A.s.streak + 1
+      ∨ (probeStepK C.K R C.k A.s x).streak = 0 := by
+  unfold probeStepK
+  simp only []
+  repeat' split
+  all_goals simp [closeK]
 
 theorem strongStep_cases (A : RoundAcc α) (x : FreeMonoid α)
     (hl : Learned R A.s.tree A.s.edges) :
-    ((strongStep C R A x).splits = A.splits ∧ (strongStep C R A x).s.tree = A.s.tree
-      ∧ (∀ e, A.att e ≤ (strongStep C R A x).att e)
-      ∧ ((strongStep C R A x).s.streak = A.s.streak + 1
-        ∨ ((strongStep C R A x).s.streak = 0 ∧ LiveInc C A (strongStep C R A x)))
-      ∧ (LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x → LiveInc C A (strongStep C R A x)))
+    ((strongStep C R A x).splits = A.splits ∧ (strongStep C R A x).s.tree = A.s.tree)
     ∨ ∃ r : SplitRec α, (strongStep C R A x).splits = A.splits ++ [r] ∧ r.tree = A.s.tree
       ∧ r.leaf ∈ A.s.tree.paths ∧ (strongStep C R A x).s.tree = A.s.tree.splitAt r.d r.leaf
-      ∧ (strongStep C R A x).att = A.att ∧ (strongStep C R A x).s.streak = 0 ∧ SplitOK R r := by
+      ∧ SplitOK R r := by
   by_cases hE : ∃ ps fd, probeOutcome R A.s.tree A.s.edges C.k x = .edge ps fd
   swap
   · left
-    have hL : ¬ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x := by
-      rintro ⟨e, he, -⟩
-      unfold edgeAt at he
-      split at he
-      · exact hE ⟨_, _, by assumption⟩
-      · simp at he
     have hst : strongStep C R A x = { A with s := probeStepK C.K R C.k A.s x, used := A.used + 1 }
         := by
       unfold strongStep
@@ -401,58 +316,24 @@ theorem strongStep_cases (A : RoundAcc α) (x : FreeMonoid α)
       split
       · exact absurd ⟨_, _, by assumption⟩ hE
       · rfl
-    have hp : (probeStepK C.K R C.k A.s x).tree = A.s.tree
-        ∧ (probeStepK C.K R C.k A.s x).streak = A.s.streak + 1 := by
+    have hp : (probeStepK C.K R C.k A.s x).tree = A.s.tree := by
       unfold probeStepK
       simp only []
       split
       · exact absurd ⟨_, _, by assumption⟩ hE
       all_goals simp [closeK]
     rw [hst]
-    exact ⟨rfl, hp.1, fun _ => le_rfl, .inl hp.2, fun h => absurd h hL⟩
+    exact ⟨rfl, hp⟩
   obtain ⟨ps, fd, ho⟩ := hE
   rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges C.k x ps fd with
     ⟨d, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
   · right
-    refine ⟨⟨A.s.tree, s1, d, y, sp⟩, ?_, rfl, split_leaf_mem C R hl hs, ?_, ?_, ?_,
+    refine ⟨⟨A.s.tree, s1, d, y, sp⟩, ?_, rfl, split_leaf_mem C R hl hs, ?_,
       seedStep_split_facts C.K R hs⟩ <;>
       simp [strongStep, probeStepK, ho, hs, closeK]
   all_goals
     left
-    rcases he : edgeAt R A.s.tree A.s.edges C.k x with _ | e
-    · have hd := seedStep_of_edgeAt_none C R (pool := A.s.pool) ho he
-      rw [hs] at hd
-      cases hd
-      all_goals
-        have hL : ¬ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x := by
-          rintro ⟨e, he', -⟩
-          rw [he] at he'
-          cases he'
-        refine ⟨?_, ?_, fun _ => ?_, .inl ?_, fun h => absurd h hL⟩ <;>
-          simp [strongStep, probeStepK, ho, hs, he, closeK]
-    have hmem := edgeAt_mem R he
-    have hatt : ∀ e', A.att e' ≤ (strongStep C R A x).att e' := fun e' => by
-      by_cases h : e' = e
-      · subst h; by_cases hg : givenUp C A e' <;> simp [strongStep, ho, hs, he, hg]
-      · by_cases hg : givenUp C A e <;> simp [strongStep, ho, hs, he, hg, Function.update_of_ne h]
-    by_cases hg : givenUp C A e
-    · have hL : ¬ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x := by
-        rintro ⟨e', he', hg'⟩
-        rw [he] at he'
-        cases he'
-        exact hg' hg
-      refine ⟨?_, ?_, hatt, .inl ?_, fun h => absurd h hL⟩ <;>
-        simp [strongStep, probeStepK, ho, hs, he, closeK, hg]
-    · have hinc : LiveInc C A (strongStep C R A x) := by
-        refine ⟨e, hg, hmem, ?_⟩
-        simp [strongStep, ho, hs, he, hg]
-      refine ⟨?_, ?_, hatt, ?_, fun _ => hinc⟩
-      · simp [strongStep, probeStepK, ho, hs, he, closeK, hg]
-      · simp [strongStep, probeStepK, ho, hs, he, closeK, hg]
-      · have h0 : (strongStep C R A x).s.streak = (probeStepK C.K R C.k A.s x).streak := by
-          simp [strongStep, ho, hs, he, hg]
-        rw [h0]
-        simp [probeStepK, ho, hs, closeK, hinc]
+    exact ⟨by simp [strongStep, ho, hs], by simp [strongStep, probeStepK, ho, hs, closeK]⟩
 
 end Step
 
@@ -460,114 +341,13 @@ section Count
 
 variable (C : StrongCfg α) (R : CutReads α)
 
-/-- The edge keys counted: every node's path by every letter. -/
-noncomputable def keys (t : DTree α) : Finset (List Bool × α) :=
-  t.nodes.toFinset ×ˢ Finset.univ
-
-/-- The ends of the split test counted against edges while not given up. -/
-noncomputable def phi (A : RoundAcc α) : ℕ :=
-  ∑ e ∈ keys A.s.tree, min (A.att e) (C.mmax A.s.tree.paths.length)
-
-/-- What the round has done that its readings are counted by. -/
-noncomputable def ev (A : RoundAcc α) : ℕ := A.splits.length + phi C A
-
-omit [DecidableEq α] in
-theorem leaves_pos (t : DTree α) : 1 ≤ t.paths.length :=
-  List.length_pos_iff.2 (paths_ne_nil t)
-
-theorem phi_le (A : RoundAcc α) :
-    phi C A ≤ C.mmax A.s.tree.paths.length * Fintype.card α
-      * (2 * (A.s.tree.paths.length - 1) + 1) := by
-  classical
-  have hn := DTree.nodes_length A.s.tree
-  have h1 := leaves_pos A.s.tree
-  calc phi C A ≤ ∑ _e ∈ keys A.s.tree, C.mmax A.s.tree.paths.length :=
-        Finset.sum_le_sum fun _ _ => min_le_right _ _
-    _ = (keys A.s.tree).card * C.mmax A.s.tree.paths.length := by simp
-    _ ≤ (A.s.tree.nodes.length * Fintype.card α) * C.mmax A.s.tree.paths.length := by
-        refine Nat.mul_le_mul_right _ ?_
-        simp only [keys, Finset.card_product, Finset.card_univ]
-        exact Nat.mul_le_mul_right _ (List.toFinset_card_le _)
-    _ = _ := by
-        rw [show A.s.tree.nodes.length = 2 * (A.s.tree.paths.length - 1) + 1 by omega]
-        ring
-
-theorem phi_mono (hm : Monotone C.mmax) {A A' : RoundAcc α}
-    (hn : A.s.tree.paths.length ≤ A'.s.tree.paths.length)
-    (hnodes : ∀ q ∈ A.s.tree.nodes, q ∈ A'.s.tree.nodes) (hatt : ∀ e, A.att e ≤ A'.att e) :
-    phi C A ≤ phi C A' := by
-  classical
-  have hsub : keys A.s.tree ⊆ keys A'.s.tree := fun e he => by
-    simp only [keys, Finset.mem_product, List.mem_toFinset, Finset.mem_univ, and_true] at he ⊢
-    exact hnodes _ he
-  calc phi C A ≤ ∑ e ∈ keys A.s.tree, min (A'.att e) (C.mmax A'.s.tree.paths.length) :=
-        Finset.sum_le_sum fun e _ => min_le_min (hatt e) (hm hn)
-    _ ≤ phi C A' := Finset.sum_le_sum_of_subset hsub
-
-theorem phi_inc (hm : Monotone C.mmax) {A A' : RoundAcc α}
-    (hn : A.s.tree.paths.length ≤ A'.s.tree.paths.length)
-    (hnodes : ∀ q ∈ A.s.tree.nodes, q ∈ A'.s.tree.nodes) (hatt : ∀ e, A.att e ≤ A'.att e)
-    (hinc : LiveInc C A A') : phi C A + 1 ≤ phi C A' := by
-  classical
-  obtain ⟨e, hg, hmem, he⟩ := hinc
-  have hsub : keys A.s.tree ⊆ keys A'.s.tree := fun e he => by
-    simp only [keys, Finset.mem_product, List.mem_toFinset, Finset.mem_univ, and_true] at he ⊢
-    exact hnodes _ he
-  have hek : e ∈ keys A.s.tree := by
-    simp only [keys, Finset.mem_product, List.mem_toFinset, Finset.mem_univ, and_true]
-    exact DTree.paths_sub_nodes _ _ hmem
-  have hg' : A.att e < C.mmax A.s.tree.paths.length := Nat.lt_of_not_le hg
-  calc phi C A + 1 ≤ ∑ e ∈ keys A.s.tree, min (A'.att e) (C.mmax A'.s.tree.paths.length) := by
-        refine Finset.sum_lt_sum (fun e _ => min_le_min (hatt e) (hm hn)) ⟨e, hek, ?_⟩
-        rw [he, min_eq_left hg'.le]
-        exact lt_min (Nat.lt_succ_self _) (lt_of_lt_of_le hg' (hm hn))
-    _ ≤ phi C A' := Finset.sum_le_sum_of_subset hsub
-
 /-- What every state the round reaches satisfies. -/
 def StrongInv (A : RoundAcc α) : Prop :=
   Learned R A.s.tree A.s.edges ∧ A.splits.length + 2 = A.s.tree.paths.length
 
-theorem strongStep_ev (hm : Monotone C.mmax) (A : RoundAcc α) (x : FreeMonoid α)
-    (hI : StrongInv R A) :
-    StrongInv R (strongStep C R A x) ∧ ev C A ≤ ev C (strongStep C R A x)
-      ∧ ((strongStep C R A x).s.streak = A.s.streak + 1
-        ∨ ((strongStep C R A x).s.streak = 0 ∧ ev C A + 1 ≤ ev C (strongStep C R A x)))
-      ∧ (LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x
-        → ev C A + 1 ≤ ev C (strongStep C R A x))
-      ∧ (strongStep C R A x).used = A.used + 1 ∧ (strongStep C R A x).certs = A.certs
-      ∧ A.s.tree.paths.length ≤ (strongStep C R A x).s.tree.paths.length := by
-  obtain ⟨hl, hlen⟩ := hI
-  obtain ⟨htr, hed, -, hus, hce⟩ := strongStep_state C R A x
-  have hlearn : Learned R (strongStep C R A x).s.tree (strongStep C R A x).s.edges := by
-    rw [htr, hed]
-    exact probeStepK_learned C.K R hl
-  rcases strongStep_cases C R A x hl with ⟨hsp, ht, hatt, hstr, hlive⟩ |
-    ⟨r, hsp, hrt, hrl, ht, hatt, hstr, -⟩
-  · have hn : A.s.tree.paths.length ≤ (strongStep C R A x).s.tree.paths.length := by rw [ht]
-    have hnodes : ∀ q ∈ A.s.tree.nodes, q ∈ (strongStep C R A x).s.tree.nodes := by
-      rw [ht]; exact fun q h => h
-    have hinc := fun h => phi_inc C hm hn hnodes hatt h
-    refine ⟨⟨hlearn, by rw [hsp, ht]; exact hlen⟩, ?_, ?_, ?_, hus, hce, hn⟩
-    · unfold ev; rw [hsp]; exact Nat.add_le_add_left (phi_mono C hm hn hnodes hatt) _
-    · rcases hstr with h | ⟨h, hi⟩
-      · exact .inl h
-      · refine .inr ⟨h, ?_⟩
-        unfold ev; rw [hsp]; have := hinc hi; omega
-    · intro h
-      unfold ev; rw [hsp]; have := hinc (hlive h); omega
-  · have hn : A.s.tree.paths.length + 1 = (strongStep C R A x).s.tree.paths.length := by
-      rw [ht, DTree.splitAt_paths_length _ _ _ hrl]
-    have hnodes : ∀ q ∈ A.s.tree.nodes, q ∈ (strongStep C R A x).s.tree.nodes := by
-      rw [ht]; exact DTree.nodes_splitAt _ _ _
-    have hph := phi_mono C hm (by omega) hnodes (fun e => by rw [hatt])
-    have hev : ev C A + 1 ≤ ev C (strongStep C R A x) := by
-      unfold ev; rw [hsp, List.length_append]; simp only [List.length_singleton]; omega
-    refine ⟨⟨hlearn, by rw [hsp, List.length_append]; simp only [List.length_singleton]; omega⟩,
-      by omega, .inr ⟨hstr, hev⟩, fun _ => hev, hus, hce, by omega⟩
-
 /-- One probe of the pass. -/
 noncomputable def passBody (A : RoundAcc α) (x : FreeMonoid α) : RoundAcc α :=
-  if C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used then A
+  if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then A
   else strongStep C R A x
 
 theorem strongPass_eq (A : RoundAcc α) (probes : List (FreeMonoid α)) :
@@ -575,75 +355,8 @@ theorem strongPass_eq (A : RoundAcc α) (probes : List (FreeMonoid α)) :
       = probes.foldl (passBody C R) { A with s := { A.s with streak := 0 } } :=
   rfl
 
-/-- Within a pass from `X`, each probe spends one, and a probe that resets the quiet streak is
-paid for by `patience` of what the round has done. -/
-theorem fold_inv (hm : Monotone C.mmax) :
-    ∀ (probes : List (FreeMonoid α)) (X : RoundAcc α) (u0 e0 : ℕ), StrongInv R X →
-      X.s.streak ≤ C.K.patience → e0 ≤ ev C X →
-      X.used + C.K.patience * e0 ≤ u0 + X.s.streak + C.K.patience * ev C X →
-      let Y := probes.foldl (passBody C R) X
-      StrongInv R Y ∧ Y.s.streak ≤ C.K.patience ∧ e0 ≤ ev C Y
-        ∧ Y.used + C.K.patience * e0 ≤ u0 + Y.s.streak + C.K.patience * ev C Y
-        ∧ Y.certs = X.certs ∧ X.s.tree.paths.length ≤ Y.s.tree.paths.length
-  | [], X, _, _, hI, hs, he, hu => ⟨hI, hs, he, hu, rfl, le_rfl⟩
-  | x :: xs, X, u0, e0, hI, hs, he, hu => by
-    simp only [List.foldl_cons]
-    unfold passBody
-    split_ifs with hg
-    · exact fold_inv hm xs X u0 e0 hI hs he hu
-    · push Not at hg
-      obtain ⟨hI', hev, hstr, -, hus, hce, hn⟩ := strongStep_ev C R hm X x hI
-      have := fold_inv hm xs (strongStep C R X x) u0 e0 hI' ?_ (he.trans hev) ?_
-      · exact ⟨this.1, this.2.1, this.2.2.1, this.2.2.2.1, this.2.2.2.2.1.trans hce,
-          hn.trans this.2.2.2.2.2⟩
-      · rcases hstr with h | ⟨h, -⟩ <;> omega
-      · rw [hus]
-        rcases hstr with h | ⟨h, hi⟩
-        · rw [h]
-          have := Nat.mul_le_mul_left C.K.patience hev
-          omega
-        · rw [h]
-          have := Nat.mul_le_mul_left C.K.patience hi
-          rw [Nat.mul_add] at this
-          omega
-
-theorem strongPass_inv (hm : Monotone C.mmax) (A : RoundAcc α) (probes : List (FreeMonoid α))
-    (hI : StrongInv R A) :
-    let Y := strongPass C R A probes
-    StrongInv R Y ∧ Y.s.streak ≤ C.K.patience ∧ ev C A ≤ ev C Y
-      ∧ Y.used + C.K.patience * ev C A ≤ A.used + C.K.patience + C.K.patience * ev C Y
-      ∧ Y.certs = A.certs ∧ A.s.tree.paths.length ≤ Y.s.tree.paths.length := by
-  rw [strongPass_eq]
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := fold_inv C R hm probes { A with s := { A.s with streak := 0 } }
-    A.used (ev C A) hI (Nat.zero_le _) le_rfl (by simp [ev, phi])
-  exact ⟨h1, h2, h3, by omega, h5, h6⟩
-
-/-- A pass whose first probe ends at an edge not given up does something counted. -/
-theorem strongPass_live (hm : Monotone C.mmax) (A : RoundAcc α) (x : FreeMonoid α)
-    (rest : List (FreeMonoid α)) (hI : StrongInv R A) (hp : 1 ≤ C.K.patience)
-    (hb : A.used < budgetOf C A.s.tree.paths.length)
-    (hlive : LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x) :
-    ev C A + 1 ≤ ev C (strongPass C R A (x :: rest)) := by
-  rw [strongPass_eq, List.foldl_cons]
-  set A₀ : RoundAcc α := { A with s := { A.s with streak := 0 } }
-  have hI₀ : StrongInv R A₀ := hI
-  have hb0 : passBody C R A₀ x = strongStep C R A₀ x := by
-    unfold passBody
-    rw [if_neg]
-    push Not
-    exact ⟨hp, hb⟩
-  rw [hb0]
-  obtain ⟨hI', hev, hstr, hl, -⟩ := strongStep_ev C R hm A₀ x hI₀
-  have h1 : ev C A + 1 ≤ ev C (strongStep C R A₀ x) := hl hlive
-  have h0 : A₀.s.streak = 0 := rfl
-  have := (fold_inv C R hm rest (strongStep C R A₀ x) (strongStep C R A₀ x).used
-    (ev C (strongStep C R A₀ x)) hI' ?_ le_rfl (by omega)).2.2.1
-  · omega
-  · rcases hstr with h | ⟨h, -⟩ <;> omega
-
 theorem strongReading_fst (j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (y : C.Draws) :
     (strongReading C R j A first y).1.s = (strongPass C R A (first ++ List.ofFn y.1)).s
-      ∧ (strongReading C R j A first y).1.att = (strongPass C R A (first ++ List.ofFn y.1)).att
       ∧ (strongReading C R j A first y).1.splits
         = (strongPass C R A (first ++ List.ofFn y.1)).splits
       ∧ (strongReading C R j A first y).1.used
@@ -652,168 +365,108 @@ theorem strongReading_fst (j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid 
   simp only []
   split_ifs <;> simp
 
-theorem strongReading_exhausted {j : ℕ} {A : RoundAcc α} {first : List (FreeMonoid α)}
-    {y : C.Draws} (h : (strongReading C R j A first y).2 = .inl .exhausted) :
-    budgetOf C (strongPass C R A (first ++ List.ofFn y.1)).s.tree.paths.length
-      ≤ (strongPass C R A (first ++ List.ofFn y.1)).used := by
-  unfold strongReading at h
-  simp only [] at h
-  split_ifs at h with h1 h2 h3 h4 <;> first | assumption | simp at h
-
-theorem exists_cons_of_ne_nil {β : Type*} {L : List β} {P : β → Prop} (h : L ≠ [])
-    (hP : ∀ x ∈ L, P x) : ∃ x rest, L = x :: rest ∧ P x := by
-  cases L with
-  | nil => exact absurd rfl h
-  | cons x rest => exact ⟨x, rest, rfl, hP x (by simp)⟩
-
-theorem strongReading_rerun {j : ℕ} {A : RoundAcc α} {first lv : List (FreeMonoid α)}
+theorem strongReading_rerun_budget {j : ℕ} {A : RoundAcc α} {first lv : List (FreeMonoid α)}
     {y : C.Draws} (h : (strongReading C R j A first y).2 = .inr lv) :
-    ∃ x rest, lv = x :: rest
-      ∧ LiveEdge R (strongPass C R A (first ++ List.ofFn y.1)).s.tree
-        (strongPass C R A (first ++ List.ofFn y.1)).s.edges C.k
-        (givenUp C (strongPass C R A (first ++ List.ofFn y.1))) x := by
+    (strongPass C R A (first ++ List.ofFn y.1)).used
+      < C.budget (strongPass C R A (first ++ List.ofFn y.1)).s.tree.paths.length := by
   unfold strongReading at h
   simp only [] at h
-  split_ifs at h with h1 h2 h3 h4 <;> simp only [Sum.inr.injEq] at h
-  all_goals
-    subst h
-    exact exists_cons_of_ne_nil h2 fun x hx => by
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.1 hx
-      have := (List.mem_filter.1 hi).2
-      simp only [decide_eq_true_eq] at this
-      exact this.2
-
-theorem ev_congr {A B : RoundAcc α} (hs : A.s = B.s) (ha : A.att = B.att)
-    (hsp : A.splits = B.splits) : ev C A = ev C B := by
-  simp only [ev, phi, hs, ha, hsp]
-
-theorem ev_le (A : RoundAcc α) (hI : StrongInv R A) :
-    ev C A ≤ A.s.tree.paths.length - 2
-      + C.mmax A.s.tree.paths.length * Fintype.card α * (2 * (A.s.tree.paths.length - 1) + 1) := by
-  have := phi_le C A
-  have := hI.2
-  unfold ev
-  omega
-
-theorem budget_gap (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) {n u r e : ℕ}
-    (hn : 2 ≤ n) (hu : u ≤ C.K.patience * r + C.K.patience * e) (hr : r ≤ e + 1)
-    (he : e ≤ n - 2 + C.mmax n * Fintype.card α * (2 * (n - 1) + 1)) : u < budgetOf C n := by
-  obtain ⟨n', rfl⟩ : ∃ n', n = n' + 2 := ⟨n - 2, by omega⟩
-  have h1 : n' + 2 - 1 = n' + 1 := by omega
-  have h2 : n' + 2 - 2 = n' := by omega
-  rw [h2, h1] at he
-  unfold budgetOf readStar
-  rw [h1, h2]
-  set M := C.mmax (n' + 2) * Fintype.card α * (2 * (n' + 1) + 1)
-  set p := C.K.patience
-  have key : p * M < C.nr * (n' + 1 + M) :=
-    calc p * M ≤ C.nr * M := Nat.mul_le_mul_right _ hpn
-      _ < C.nr * (n' + 1 + M) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
-  refine lt_of_lt_of_le ?_ (le_max_right _ _)
-  have hpr := Nat.mul_le_mul_left p hr
-  have hpe := Nat.mul_le_mul_left p he
-  nlinarith
-
-theorem givenUp_congr {A B : RoundAcc α} (hs : A.s = B.s) (ha : A.att = B.att) :
-    givenUp C A = givenUp C B := by
-  funext e
-  simp only [givenUp, hs, ha]
+  split_ifs at h with h1 h2 h3 h4 <;> first | omega | simp at h
 
 theorem startAcc_inv (seed : List (FreeMonoid α)) : StrongInv R (startAcc C R seed) :=
   ⟨closeEdges_learned C.K R fun _ _ _ _ he => by simp at he,
     by simp [startAcc, initialK, closeK, DTree.paths]⟩
 
-/-- What a reading starts from, `m` readings into the round: the probes spent are paid for by
-what the round has done, the readings are at most that plus one, and a rerun's first probe ends
-at an edge not given up, with the budget not yet reached. -/
-def Entry (A : RoundAcc α) (first : List (FreeMonoid α)) (m : ℕ) : Prop :=
-  StrongInv R A ∧ A.used ≤ C.K.patience * m + C.K.patience * ev C A ∧ m ≤ ev C A + 1
-    ∧ (1 ≤ m → (∃ x rest, first = x :: rest
-        ∧ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x)
-      ∧ A.used < budgetOf C A.s.tree.paths.length)
-
-theorem entry_start (seed : List (FreeMonoid α)) : Entry C R (startAcc C R seed) [] 0 :=
-  ⟨startAcc_inv C R seed, by simp [startAcc], Nat.zero_le _, fun h => absurd h (by omega)⟩
-
-/-- A reading from an entry stays within the budget at its gate, never ends exhausted, and a rerun
-starts from an entry. -/
-theorem reading_entry (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr)
-    (hm : Monotone C.mmax) {A : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ}
-    (hE : Entry C R A first m) (j : ℕ) (y : C.Draws) :
-    (strongReading C R j A first y).1.used
-        < budgetOf C (strongReading C R j A first y).1.s.tree.paths.length
-      ∧ m + 1 ≤ ev C (strongReading C R j A first y).1 + 1
-      ∧ StrongInv R (strongReading C R j A first y).1
-      ∧ (strongReading C R j A first y).2 ≠ .inl .exhausted
-      ∧ ∀ lv, (strongReading C R j A first y).2 = .inr lv →
-        Entry C R (strongReading C R j A first y).1 lv (m + 1) := by
-  obtain ⟨hI, hu0, hme, hfirst⟩ := hE
-  obtain ⟨hI', -, hev, hu, -, -⟩ := strongPass_inv C R hm A (first ++ List.ofFn y.1) hI
-  obtain ⟨hs, hat, hsp, hus⟩ := strongReading_fst C R j A first y
-  have hevm : m ≤ ev C (strongPass C R A (first ++ List.ofFn y.1)) := by
-    rcases Nat.eq_zero_or_pos m with h0 | hm1
-    · omega
-    obtain ⟨⟨x, rest, rfl, hlive⟩, hb⟩ := hfirst hm1
-    have := strongPass_live C R hm A x (rest ++ List.ofFn y.1) hI hp1 hb hlive
-    simp only [List.cons_append]
+theorem strongStep_inv (A : RoundAcc α) (x : FreeMonoid α) (hI : StrongInv R A) :
+    StrongInv R (strongStep C R A x) := by
+  obtain ⟨hl, hlen⟩ := hI
+  obtain ⟨hs, -⟩ := strongStep_state C R A x
+  refine ⟨by rw [hs]; exact probeStepK_learned C.K R hl, ?_⟩
+  rcases strongStep_cases C R A x hl with ⟨hsp, ht⟩ | ⟨r, hsp, -, hrl, ht, -⟩
+  · rw [hsp, ht]; exact hlen
+  · rw [hsp, ht, DTree.splitAt_paths_length _ _ _ hrl, List.length_append]
+    simp only [List.length_singleton]
     omega
-  have hex := fun (h : (strongReading C R j A first y).2 = .inl .exhausted) =>
-    strongReading_exhausted C R h
-  have hrr := fun lv (h : (strongReading C R j A first y).2 = .inr lv) =>
-    strongReading_rerun C R h
-  set A' := strongPass C R A (first ++ List.ofFn y.1) with hA'
-  have hused : A'.used ≤ C.K.patience * (m + 1) + C.K.patience * ev C A' := by
-    rw [Nat.mul_succ]
-    omega
-  have hn2 : 2 ≤ A'.s.tree.paths.length := by rw [← hI'.2]; omega
-  have hb' : A'.used < budgetOf C A'.s.tree.paths.length :=
-    budget_gap C hp1 hpn hn2 hused (by omega) (ev_le C R A' hI')
-  have hevR := ev_congr C hs hat hsp
-  set A₁ := (strongReading C R j A first y).1
-  have hIR : StrongInv R A₁ := by
-    unfold StrongInv; rw [hs, hsp]; exact hI'
-  have hb₁ : A₁.used < budgetOf C A₁.s.tree.paths.length := by rw [hs, hus]; exact hb'
-  refine ⟨hb₁, by rw [hevR]; omega, hIR, fun h => by have := hex h; omega, fun lv h => ?_⟩
-  obtain ⟨x, rest, hlv, hlive⟩ := hrr lv h
-  refine ⟨hIR, by rw [hevR, hus]; exact hused, by rw [hevR]; omega, fun _ => ⟨⟨x, rest, hlv, ?_⟩,
-    hb₁⟩⟩
-  rw [hs, givenUp_congr C hs hat]
-  exact hlive
 
-/-- The round's count: the budget holds at every gate, and the readings are at most what it has
-done, plus one. -/
-theorem round_count (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr)
-    (hm : Monotone C.mmax) :
-    ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws) (m : ℕ),
-      Entry C R A first m →
-      (strongRound C R n j A first d).1 ≠ .exhausted
-        ∧ (∀ p ∈ (strongRound C R n j A first d).2.2, p.2 < budgetOf C p.1)
-        ∧ m + (strongRound C R n j A first d).2.2.length
-          ≤ ev C (strongRound C R n j A first d).2.1 + 1
-        ∧ StrongInv R (strongRound C R n j A first d).2.1
-  | 0, j, A, first, d, m, hE => by
-    simp only [strongRound]
-    exact ⟨by simp, by simp, by simpa using hE.2.2.1, hE.1⟩
-  | n + 1, j, A, first, d, m, hE => by
-    obtain ⟨hb, hev, hI, hex, hnext⟩ := reading_entry C R hp1 hpn hm hE j (d 0)
-    rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩
-    all_goals
-      rw [hR] at hb hev hI hex hnext
-      dsimp only at hb hev hI hex hnext
-      simp only [strongRound, hR]
-    · refine ⟨fun he => hex (by rw [he]), ?_, by simp only [List.length_singleton]; omega, hI⟩
-      simp only [List.mem_singleton]
-      rintro p rfl
-      exact hb
-    · have ih := round_count hp1 hpn hm n (j + 1) A'' lv (Fin.tail d) (m + 1) (hnext lv rfl)
-      refine ⟨ih.1, ?_, ?_, ih.2.2.2⟩
-      · simp only [List.mem_cons]
-        rintro p (rfl | hp)
-        · exact hb
-        · exact ih.2.1 p hp
-      · simp only [List.length_cons]
-        have := ih.2.2.1
-        omega
+theorem strongStep_leaves (A : RoundAcc α) (x : FreeMonoid α) (hI : StrongInv R A) :
+    A.s.tree.paths.length ≤ (strongStep C R A x).s.tree.paths.length := by
+  have h1 := hI.2
+  have h2 := (strongStep_inv C R A x hI).2
+  rcases strongStep_cases C R A x hI.1 with ⟨hsp, -⟩ | ⟨r, hsp, -⟩ <;> rw [hsp] at h2
+  · omega
+  · simp only [List.length_append, List.length_singleton] at h2
+    omega
+
+/-- Through a pass, the state stays reachable, the leaves only grow, and the probes spent stay
+within the budget at the leaves reached. -/
+theorem fold_inv (hb : Monotone C.budget) :
+    ∀ (probes : List (FreeMonoid α)) (X : RoundAcc α), StrongInv R X →
+      X.used ≤ C.budget X.s.tree.paths.length →
+      StrongInv R (probes.foldl (passBody C R) X)
+        ∧ X.s.tree.paths.length ≤ (probes.foldl (passBody C R) X).s.tree.paths.length
+        ∧ (probes.foldl (passBody C R) X).used
+          ≤ C.budget (probes.foldl (passBody C R) X).s.tree.paths.length
+        ∧ (probes.foldl (passBody C R) X).certs = X.certs := by
+  intro probes
+  induction probes with
+  | nil => exact fun X hI hu => ⟨hI, le_rfl, hu, rfl⟩
+  | cons x xs ih =>
+    intro X hI hu
+    simp only [List.foldl_cons]
+    by_cases hg : C.K.patience ≤ X.s.streak ∨ C.budget X.s.tree.paths.length ≤ X.used
+    · have h1 : passBody C R X x = X := by unfold passBody; rw [if_pos hg]
+      rw [h1]
+      exact ih X hI hu
+    · have h1 : passBody C R X x = strongStep C R X x := by unfold passBody; rw [if_neg hg]
+      rw [h1]
+      push Not at hg
+      obtain ⟨-, hus, hce⟩ := strongStep_state C R X x
+      have hl := strongStep_leaves C R X x hI
+      obtain ⟨i1, i2, i3, i4⟩ := ih _ (strongStep_inv C R X x hI)
+        (by rw [hus]; exact (Nat.succ_le_of_lt hg.2).trans (hb hl))
+      exact ⟨i1, hl.trans i2, i3, i4.trans hce⟩
+
+/-- A pass spends at least `patience` less its starting streak, or all it is given, unless it
+stops at the budget. -/
+theorem fold_gain :
+    ∀ (probes : List (FreeMonoid α)) (X : RoundAcc α),
+      C.budget (probes.foldl (passBody C R) X).s.tree.paths.length
+          ≤ (probes.foldl (passBody C R) X).used
+        ∨ X.used + min probes.length (C.K.patience - X.s.streak)
+          ≤ (probes.foldl (passBody C R) X).used := by
+  have hstuck : ∀ (l : List (FreeMonoid α)) (X : RoundAcc α),
+      (C.K.patience ≤ X.s.streak ∨ C.budget X.s.tree.paths.length ≤ X.used) →
+        l.foldl (passBody C R) X = X := by
+    intro l
+    induction l with
+    | nil => exact fun _ _ => rfl
+    | cons x xs ih =>
+      intro X hg
+      simp only [List.foldl_cons]
+      have h1 : passBody C R X x = X := by unfold passBody; rw [if_pos hg]
+      rw [h1]
+      exact ih X hg
+  intro probes
+  induction probes with
+  | nil => exact fun X => .inr (by simp)
+  | cons x xs ih =>
+    intro X
+    by_cases hg : C.K.patience ≤ X.s.streak ∨ C.budget X.s.tree.paths.length ≤ X.used
+    · rw [hstuck _ X hg]
+      rcases hg with hg | hg
+      · exact .inr (by rw [Nat.sub_eq_zero_of_le hg]; simp)
+      · exact .inl hg
+    · simp only [List.foldl_cons]
+      have h1 : passBody C R X x = strongStep C R X x := by unfold passBody; rw [if_neg hg]
+      rw [h1]
+      push Not at hg
+      obtain ⟨hs, hus, -⟩ := strongStep_state C R X x
+      rcases ih (strongStep C R X x) with h | h
+      · exact .inl h
+      · refine .inr (le_trans ?_ h)
+        rw [hus, hs]
+        simp only [List.length_cons]
+        rcases probeStepK_streak C R X x with e | e <;> rw [e] <;> omega
 
 end Count
 
@@ -826,17 +479,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 section Round
 
 variable (C : StrongCfg α) (R : CutReads α)
-
-theorem strongStep_inv (A : RoundAcc α) (x : FreeMonoid α) (hI : StrongInv R A) :
-    StrongInv R (strongStep C R A x) := by
-  obtain ⟨hl, hlen⟩ := hI
-  obtain ⟨htr, hed, -⟩ := strongStep_state C R A x
-  refine ⟨by rw [htr, hed]; exact probeStepK_learned C.K R hl, ?_⟩
-  rcases strongStep_cases C R A x hl with ⟨hsp, ht, -⟩ | ⟨r, hsp, -, hrl, ht, -⟩
-  · rw [hsp, ht]; exact hlen
-  · rw [hsp, ht, DTree.splitAt_paths_length _ _ _ hrl, List.length_append]
-    simp only [List.length_singleton]
-    omega
 
 /-- A property of the tree, edges and splits that every step keeps holds of the round's end. -/
 theorem strongRound_preserves (P : RoundAcc α → Prop)
@@ -862,7 +504,7 @@ theorem strongRound_preserves (P : RoundAcc α → Prop)
   have hread : ∀ j A first (y : C.Draws), StrongInv R A → P A →
       StrongInv R (strongReading C R j A first y).1 ∧ P (strongReading C R j A first y).1 := by
     intro j A first y h1 h2
-    obtain ⟨hs, -, hsp, -⟩ := strongReading_fst C R j A first y
+    obtain ⟨hs, hsp, -⟩ := strongReading_fst C R j A first y
     rw [strongPass_eq] at hs hsp
     obtain ⟨g1, g2⟩ := hfold (first ++ List.ofFn y.1) { A with s := { A.s with streak := 0 } } h1
       (hcongr A _ rfl rfl rfl h2)
@@ -880,19 +522,98 @@ theorem strongRound_preserves (P : RoundAcc α → Prop)
     · exact ⟨g1, g2⟩
     · exact ih _ _ _ _ g1 g2
 
-theorem round_strong_budget : RoundStrongBudget := by
-  intro α _ _ C R seed Rmax d hp1 hpn hm
-  obtain ⟨h1, h2, -⟩ := round_count C R hp1 hpn hm Rmax 0 (startAcc C R seed) [] d 0
-    (entry_start C R seed)
-  exact ⟨h1, h2⟩
+/-- What a reading starts from, `j` readings into the round: the probes spent are at least
+`patience` per reading so far and within the budget. -/
+def Entry (A : RoundAcc α) (j : ℕ) : Prop :=
+  StrongInv R A ∧ j * C.K.patience ≤ A.used ∧ A.used ≤ C.budget A.s.tree.paths.length
+
+theorem strongReading_ne_cap (j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α))
+    (y : C.Draws) : (strongReading C R j A first y).2 ≠ .inl .cap := by
+  unfold strongReading
+  simp only []
+  split_ifs <;> simp
+
+/-- A reading from an entry keeps the probes within the budget, and a rerun spends at least
+`patience` more. -/
+theorem reading_entry (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) {A : RoundAcc α}
+    {j : ℕ} (hE : Entry C R A j) (first : List (FreeMonoid α)) (y : C.Draws) :
+    StrongInv R (strongReading C R j A first y).1
+      ∧ (strongReading C R j A first y).1.used
+        ≤ C.budget (strongReading C R j A first y).1.s.tree.paths.length
+      ∧ j * C.K.patience ≤ (strongReading C R j A first y).1.used
+      ∧ ∀ lv, (strongReading C R j A first y).2 = .inr lv →
+        Entry C R (strongReading C R j A first y).1 (j + 1) := by
+  obtain ⟨hI, hj, hu⟩ := hE
+  obtain ⟨hs, hsp, hus⟩ := strongReading_fst C R j A first y
+  have hrr := fun lv (h : (strongReading C R j A first y).2 = .inr lv) =>
+    strongReading_rerun_budget C R h
+  rw [strongPass_eq] at hs hsp hus hrr
+  set X : RoundAcc α := { A with s := { A.s with streak := 0 } }
+  have hIX : StrongInv R X := hI
+  obtain ⟨i1, i2, i3, -⟩ := fold_inv C R hb (first ++ List.ofFn y.1) X hIX hu
+  have hgain := fold_gain C R (first ++ List.ofFn y.1) X
+  set Y := (first ++ List.ofFn y.1).foldl (passBody C R) X
+  have hIR : StrongInv R (strongReading C R j A first y).1 := by
+    unfold StrongInv; rw [hs, hsp]; exact i1
+  have hle : X.used ≤ Y.used := by
+    rcases hgain with h | h
+    · exact hu.trans ((hb i2).trans h)
+    · exact le_trans (Nat.le_add_right _ _) h
+  refine ⟨hIR, by rw [hs, hus]; exact i3, by rw [hus]; exact hj.trans hle, fun lv h => ?_⟩
+  refine ⟨hIR, ?_, by rw [hs, hus]; exact i3⟩
+  have hlt := hrr lv h
+  rcases hgain with h' | h'
+  · omega
+  · rw [hus]
+    have hlen : C.K.patience ≤ (first ++ List.ofFn y.1).length := by
+      simp only [List.length_append, List.length_ofFn]; omega
+    have : X.s.streak = 0 := rfl
+    rw [this, Nat.sub_zero, min_eq_right hlen] at h'
+    have hXu : X.used = A.used := rfl
+    rw [Nat.succ_mul]
+    omega
+
+/-- Over the round from an entry: the probes stay within the budget, the readings times
+`patience` are at most the probes spent and one more `patience`, and running out of readings
+means `patience` for each. -/
+theorem round_used (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) :
+    ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
+      Entry C R A j →
+      StrongInv R (strongRound C R n j A first d).2.1
+        ∧ (strongRound C R n j A first d).2.1.used
+          ≤ C.budget (strongRound C R n j A first d).2.1.s.tree.paths.length
+        ∧ (j + (strongRound C R n j A first d).2.2.length) * C.K.patience
+          ≤ (strongRound C R n j A first d).2.1.used + C.K.patience
+        ∧ ((strongRound C R n j A first d).1 = .cap →
+          (j + n) * C.K.patience ≤ (strongRound C R n j A first d).2.1.used)
+  | 0, j, A, first, d, hE => by
+    simp only [strongRound, List.length_nil, Nat.add_zero]
+    exact ⟨hE.1, hE.2.2, by have := hE.2.1; omega, fun _ => hE.2.1⟩
+  | n + 1, j, A, first, d, hE => by
+    obtain ⟨g1, g2, g3, g4⟩ := reading_entry C R hp hb hE first (d 0)
+    have hnc := strongReading_ne_cap C R j A first (d 0)
+    rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩
+    all_goals
+      rw [hR] at g1 g2 g3 g4 hnc
+      dsimp only at g1 g2 g3 g4 hnc
+      simp only [strongRound, hR]
+    · refine ⟨g1, g2, by simp only [List.length_singleton]; rw [Nat.add_mul]; omega,
+        fun he => absurd (by rw [he]) hnc⟩
+    · obtain ⟨i1, i2, i3, i4⟩ := round_used hp hb n (j + 1) A'' lv (Fin.tail d) (g4 lv rfl)
+      refine ⟨i1, i2, by simp only [List.length_cons]; convert i3 using 2; omega, fun hc => ?_⟩
+      have := i4 hc
+      rw [show j + (n + 1) = j + 1 + n by omega]
+      exact this
+
+theorem entry_start (seed : List (FreeMonoid α)) : Entry C R (startAcc C R seed) 0 :=
+  ⟨startAcc_inv C R seed, by simp [startAcc], by simp [startAcc]⟩
 
 theorem round_strong_readings : RoundStrongReadings := by
-  intro α _ _ C R seed Rmax d hp1 hpn hm
-  obtain ⟨-, -, h3, h4⟩ := round_count C R hp1 hpn hm Rmax 0 (startAcc C R seed) [] d 0
+  intro α _ _ C R seed Rmax d hp hb
+  obtain ⟨-, h2, h3, -⟩ := round_used C R hp hb Rmax 0 (startAcc C R seed) [] d
     (entry_start C R seed)
-  have := ev_le C R _ h4
-  have := h4.2
-  unfold strongRun readStar
+  unfold strongRun
+  simp only [Nat.zero_add] at h3
   omega
 
 theorem round_strong_leaf_paths : RoundStrongLeafPaths := by
@@ -907,7 +628,7 @@ theorem round_strong_same_state : RoundStrongSameState := by
   intro α _ _ Q C R A side rep seed Rmax d
   have h := (strongRound_preserves C R (fun B => ∀ r ∈ B.splits, SplitOK R r)
     (fun A B _ _ hsp hA => hsp ▸ hA) (fun A x hI hA => by
-      rcases strongStep_cases C R A x hI.1 with ⟨hsp, -⟩ | ⟨r, hsp, -, -, -, -, -, hok⟩
+      rcases strongStep_cases C R A x hI.1 with ⟨hsp, -⟩ | ⟨r, hsp, -, -, -, hok⟩
       · rw [hsp]; exact hA
       · rw [hsp]
         intro r' hr'
@@ -925,8 +646,8 @@ theorem round_strong_leaves : RoundStrongLeaves := by
       ≤ classCount side rep B.s.tree + 2 + (B.splits.filter fun r => ¬ r.Separates side rep).length)
     (fun A B ht _ hsp hA => by rw [← ht, ← hsp]; exact hA) (fun A x hI hA => by
       obtain ⟨hok, hc⟩ := hA
-      rcases strongStep_cases C R A x hI.1 with ⟨hsp, ht, -⟩ |
-        ⟨r, hsp, hrt, hrl, ht, -, -, hokr⟩
+      rcases strongStep_cases C R A x hI.1 with ⟨hsp, ht⟩ |
+        ⟨r, hsp, hrt, hrl, ht, hokr⟩
       · rw [hsp, ht]; exact ⟨hok, hc⟩
       · rw [hsp, ht]
         refine ⟨fun r' hr' => ?_, ?_⟩
@@ -989,7 +710,7 @@ theorem strongPass_certs (Ac : RoundAcc α) (probes : List (FreeMonoid α)) :
       unfold passBody
       split_ifs
       · rfl
-      · exact (strongStep_state C R X x).2.2.2.2
+      · exact (strongStep_state C R X x).2.2
   exact this _ _
 
 /-- Whether reading `j`'s gate settles above, so that it calls the certificate. -/
@@ -1023,8 +744,7 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
-    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax)
-    {Ac : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ} (hE : Entry C R Ac first m)
+    {Ac : RoundAcc α} {first : List (FreeMonoid α)}
     (j Rmax : ℕ) (pr : Fin C.np → FreeMonoid α) :
     ((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
         (Measure.pi fun _ : Fin C.nc => D))).real
@@ -1040,7 +760,7 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
   have haj : 0 ≤ aj := by positivity
   have hcerts : A'.certs = Ac.certs := strongPass_certs C R Ac _
   obtain ⟨Bad, hBad, hgood⟩ := gate_settled R s D C.ng hacc0 hacc1 haj
-  set gu := givenUp C A'
+  set gu : List Bool × α → Prop := fun _ => False
   set Miss := {br : Fin C.nr → FreeMonoid α | ν < D.real {x | NAOff R s.tree s.edges C.k gu x}
     ∧ ∀ i, ¬ NAOff R s.tree s.edges C.k gu (br i)}
   set Called := {bg | CallsCert C R j Ac first pr bg}
@@ -1053,14 +773,12 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
     by_cases hbad : bg ∈ Bad
     · exact .inl (.inl ⟨hbad, trivial⟩)
     obtain ⟨hpass, hrefuse⟩ := hgood bg hbad
-    have hnex := (reading_entry C R hp1 hpn hm hE j (pr, (bg, br, cs))).2.2.2.1
-    unfold strongReading at he hne hnex
-    simp only [← hA', ← hs] at he hne hnex
-    split_ifs at he hne hnex with h1 h2 h3 h4 h5 h6 <;>
+    unfold strongReading at he hne
+    simp only [← hA', ← hs] at he hne
+    split_ifs at he hne with h1 h2 h3 h4 h5 h6 <;>
       simp only [Sum.inl.injEq] at he <;> subst he
-    all_goals dsimp only at hnex hne
+    all_goals dsimp only at hne
     all_goals first
-      | exact absurd rfl hnex
       | exact absurd h1.1 h2
       | exact absurd trivial hne
       | (simp only [StrongEndHolds, not_and_or] at hne
@@ -1073,12 +791,12 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
              (harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM)
              (LiveEdge R s.tree s.edges C.k gu) ∧ LiveEdge R s.tree s.edges C.k gu (br i) := by
            rintro ⟨i, hi, hl⟩
-           apply h3
+           apply h5
            rw [Ne, List.map_eq_nil_iff, List.filter_eq_nil_iff]
            push Not
            refine ⟨i, List.mem_finRange _, ?_⟩
            first | exact ⟨hi, hl⟩ | exact decide_eq_true ⟨hi, hl⟩
-         have hclear := refusal_clear R s.tree s.edges C.k C.L hf ha gu br htau hM hB h6
+         have hclear := refusal_clear R s.tree s.edges C.k C.L hf ha gu br htau hM hB h3
          refine .inl (.inr ⟨trivial, ?_, trivial⟩)
          refine ⟨?_, hclear⟩
          rcases hne with hne | hne
@@ -1159,9 +877,7 @@ theorem strong_reading_bad_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 
     (hacc1 : C.acc ≤ 1) (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
-    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax)
-    {Ac : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ} (hE : Entry C R Ac first m)
-    (j Rmax : ℕ) :
+    {Ac : RoundAcc α} {first : List (FreeMonoid α)} (j Rmax : ℕ) :
     C.drawMeasure D {y | ∃ e, (strongReading C R j Ac first y).2 = .inl e
         ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first y).1 e}
       ≤ ENNReal.ofReal (strongBound C ν j)
@@ -1201,7 +917,7 @@ theorem strong_reading_bad_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 
     ← lintegral_add_left measurable_const]
   refine lintegral_mono fun pr => ?_
   have := strong_section_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha hν hcert
-    hp1 hpn hm hE j Rmax pr
+    (Ac := Ac) (first := first) j Rmax pr
   rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← ENNReal.ofReal_add hβ
     (mul_nonneg measureReal_nonneg hα)]
   exact ENNReal.ofReal_le_ofReal this
@@ -1214,8 +930,8 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
-    (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr) (hm : Monotone C.mmax) (Rmax : ℕ) :
-    ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)), Entry C R Ac first j →
+    (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) (Rmax : ℕ) :
+    ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)), Entry C R Ac j →
       j + n = Rmax →
       (Measure.pi fun _ : Fin n => C.drawMeasure D)
           {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
@@ -1234,11 +950,8 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
       Set.eq_empty_of_forall_notMem fun d hd => hd ?_]
     · simp
     · simp only [strongRound, StrongEndHolds]
-      have := ev_le C R Ac hE.1
-      have := hE.2.2.1
-      have := hE.1.2
-      unfold readStar
-      omega
+      rw [← hjn, Nat.add_zero]
+      exact hE.2.1.trans hE.2.2
   | succ n ih =>
     intro j Ac first hE hjn
     set ρm := C.drawMeasure D
@@ -1277,7 +990,7 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
       rw [hpre, hmp.measure_preimage (hcount _).nullMeasurableSet,
         Measure.prod_apply (hcount _)]
       refine lintegral_mono fun y => ?_
-      have hnext := (reading_entry C R hp1 hpn hm hE j y).2.2.2.2
+      have hnext := (reading_entry C R hp hb hE first y).2.2.2
       simp only [F, G, Set.preimage, Set.mem_ofPred_eq]
       rcases hstep : strongReading C R j Ac first y with ⟨A', e' | lv⟩
       · simp only []
@@ -1320,7 +1033,7 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
               certCost_split hα (show Ac.certs ≤ A'.certs by rw [hc]; omega) h2]
             simp only [add_assoc, add_comm, add_left_comm]
     have hbad := strong_reading_bad_le C R A D CertGood (αs := αs) (η := η) (minCov := minCov)
-      hacc0 hacc1 hf ha hν hcert hp1 hpn hm hE j Rmax
+      hacc0 hacc1 hf ha hν hcert (Ac := Ac) (first := first) j Rmax
     calc _ ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := hL
       _ = ρm Bad + ∫⁻ y, G y ∂ρm := by
           rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator_one
@@ -1337,7 +1050,7 @@ end StrongReading
 
 
 theorem round_strong_trichotomy : RoundStrongTrichotomy := by
-  intro α _ _ Q C A D _ seed CertGood αs η minCov ν Rmax hacc0 hacc1 hf ha hν hp1 hpn hm hcert R
+  intro α _ _ Q C A D _ seed CertGood αs η minCov ν Rmax hacc0 hacc1 hf ha hν hp hb hcert R
   have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i R (startAcc C R seed).s)
   set P := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
   set N : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.2.length
@@ -1363,7 +1076,7 @@ theorem round_strong_trichotomy : RoundStrongTrichotomy := by
     Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable _
       (ae_of_all _ fun d => by rw [Real.norm_of_nonneg (hS0 d)]; exact hSle d)
   have h := strong_round_bad C R A D CertGood (αs := αs) (η := η) (minCov := minCov) hacc0 hacc1
-    hf ha hν hcert hp1 hpn hm Rmax Rmax 0 (startAcc C R seed) [] (entry_start C R seed)
+    hf ha hν hcert hp hb Rmax Rmax 0 (startAcc C R seed) [] (entry_start C R seed)
     (by omega)
   have hsb : ∀ i, strongBound C ν i = c₀ * (C.a / 2 ^ i) + γ := fun i => rfl
   have hpt : ∀ d, (∑ i ∈ Finset.range (N d), ENNReal.ofReal (strongBound C ν (0 + i)))
@@ -1427,13 +1140,10 @@ noncomputable def segRun (R : CutReads α) : RoundAcc α → List (List (FreeMon
 
 theorem strongStep_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (x : FreeMonoid α) :
     strongStep C R { A with certs := c } x = { strongStep C R A x with certs := c } := by
-  unfold strongStep givenUp
+  unfold strongStep
   simp only []
   split
-  · split
-    · rfl
-    · split_ifs with h <;> simp [h]
-    · rfl
+  · split <;> rfl
   · rfl
 
 theorem passBody_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (x : FreeMonoid α) :
@@ -1618,12 +1328,9 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
   have hpo : probeOutcome (rd B F f₁) A.s.tree A.s.edges C.k x
       = probeOutcome (rd B F f₂) A.s.tree A.s.edges C.k x :=
     probeOutcome_congr fun i hi m hm => (hw' i hi).tree m hm
-  have hea : edgeAt (rd B F f₁) A.s.tree A.s.edges C.k x
-      = edgeAt (rd B F f₂) A.s.tree A.s.edges C.k x := by
-    unfold edgeAt; rw [hpo]
   unfold strongStep
   simp only []
-  rw [hps, hpo, hea]
+  rw [hps, hpo]
   split
   · rename_i ps fd heq
     have hfd : C.k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
@@ -1633,9 +1340,8 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
 theorem strongStep_poolIn {Bs : Set (FreeMonoid α)} (R : CutReads α) {A : RoundAcc α}
     {x : FreeMonoid α} (hs : KPoolIn Bs A.s) (hw : ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) :
     KPoolIn Bs (strongStep C R A x).s := by
-  obtain ⟨-, hed, hpo, -⟩ := strongStep_state C R A x
-  obtain ⟨h1, h2⟩ := probeStepK_poolIn C.K R hs hw
-  exact ⟨by rw [hpo]; exact h1, by rw [hed]; exact h2⟩
+  rw [(strongStep_state C R A x).1]
+  exact probeStepK_poolIn C.K R hs hw
 
 theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
     (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
@@ -1650,7 +1356,7 @@ theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
     intro A hA hws hT
     simp only [List.foldl_cons] at hT ⊢
     have hx := hws x (List.mem_cons_self ..)
-    by_cases hg : C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used
+    by_cases hg : C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used
     · have h1 : passBody C (rd B F f₁) A x = A := by unfold passBody; rw [if_pos hg]
       have h2 : passBody C (rd B F f₂) A x = A := by unfold passBody; rw [if_pos hg]
       rw [h1] at hT ⊢
