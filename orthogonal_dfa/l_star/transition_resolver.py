@@ -47,7 +47,7 @@ from .suffix_family import SuffixFamily
 #: Most fresh draws one reading takes.
 READING_DRAWS = 2000
 #: Most fresh draws a refused gate reads against its start.
-REFUSAL_DRAWS = 480
+REFUSAL_DRAWS = 960
 #: The share of a refusal sample's searches that may end in a pair.
 PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
@@ -93,7 +93,7 @@ _SEARCHED = (PAIR, EDGE, TRIPLE)
 #: The draw counts the gate's tests are read at, so their failure chances add
 #: over a handful of looks rather than every draw.  The first, as the gate always
 #: has, waits out an early run of agreements.
-_REFUSAL_LOOKS = {30 * 2**i for i in range(5)}
+_REFUSAL_LOOKS = {30 * 2**i for i in range(6)}
 _LOOKS = {
     *(
         30 * 2**i
@@ -104,11 +104,8 @@ _LOOKS = {
 }
 
 
-def _side(hits, trials, rate, tests):
-    """The binomial test's side at ``READING_FAILURE_PROB`` over ``tests``."""
-    return binomial_side_of_boundary(
-        hits, trials, rate, failure_prob=READING_FAILURE_PROB / tests
-    )
+def _side(hits, trials, rate, failure_prob):
+    return binomial_side_of_boundary(hits, trials, rate, failure_prob=failure_prob)
 
 
 def _fires(hits, trials, rate) -> bool:
@@ -119,7 +116,7 @@ def _fires(hits, trials, rate) -> bool:
         return hits > 0
     if rate >= 1 or not trials:
         return False
-    side = _side(hits, trials, rate, 1)
+    side = _side(hits, trials, rate, READING_FAILURE_PROB)
     return hits > rate * trials if side is None else side
 
 
@@ -128,7 +125,11 @@ def _fires_now(hits, trials, rate) -> bool:
     over a rate of 0."""
     if rate <= 0:
         return hits > 0
-    return rate < 1 and bool(trials) and _side(hits, trials, rate, 1) is True
+    return (
+        rate < 1
+        and bool(trials)
+        and _side(hits, trials, rate, READING_FAILURE_PROB) is True
+    )
 
 
 def _refusal_tests(sample, rates):
@@ -185,6 +186,8 @@ class TransitionResolver:
         self.indecisive = set()
         #: Probes since the pass's last split or undecided split test.
         self.quiet_probes = 0
+        #: Gate readings this round.
+        self.readings = 0
         #: Per edge, the split tests on it this round that did not split.
         self.unsplit = Counter()
         self.k = start_length(pst.sampler.length)
@@ -257,11 +260,16 @@ class TransitionResolver:
         The exported DFA is run on each draw from every state: a start agrees on
         it where it accepts it as the middle of the band at the root does.  The
         best start's agreement is tested against ``acc_threshold``, over every
-        start, at each of ``_LOOKS`` until it settles; one still unsettled at the
+        start and halving its chance of error with each reading in the round,
+        at each of ``_LOOKS`` until it settles; one still unsettled at the
         last passes.  Where it falls short, a sample is read against that start
         (see ``_refused``)."""
         transitions = self._totalised()[0]
         n = self.tree.num_states
+        # The round's i-th reading at 2 ** -i of the chance, so a round's
+        # readings sum to twice the first's, over every start.
+        failure_prob = READING_FAILURE_PROB * 2.0**-self.readings / n
+        self.readings += 1
         agree = [0] * n
         drawn = 0
         side = None
@@ -272,7 +280,7 @@ class TransitionResolver:
             for q, end in enumerate(ends_at):
                 agree[q] += self._accepts(end, w)
             if drawn in _LOOKS:
-                side = _side(agree[_best(agree)], drawn, acc_threshold, n)
+                side = _side(agree[_best(agree)], drawn, acc_threshold, failure_prob)
                 if side is not None:
                     break
         start = _best(agree)
