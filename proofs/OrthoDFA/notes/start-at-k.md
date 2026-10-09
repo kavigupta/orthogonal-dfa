@@ -748,3 +748,21 @@ At `L = 40`, `k = 20`, binary, `prefixMax(20) = 2⁻²⁰ ≈ 9.5e-7`, the slack
   is `5·exp(−2ε²/prefixMax(k))`: `3e-8` at `ε = 0.003`, `1e-5` at `ε = 0.0025`.
 - **So** at `ε = 0.003` a class's slack is about `0.004 + 0.003·(1 + c·f·M)`: `0.007` for the ends
   and blocked reads, `0.007–0.013` for triples and pairs at `f` from `1e-3` to `1e-2`.
+
+## Lean status: `RoundTrichotomyLevel` proved (D38)
+
+`OrthoDFA/RoundLevel.lean` models a round as up to `Rmax` readings, each with fresh probes, gate
+batch, refusal sample and certificate sample. `round_trichotomy_level` proves, for any reads,
+
+    P(the round's end breaks its claim) ≤ 4(log₂(ng/30)+2)·a
+        + E[#readings]·((1−ν)^nr + α + Pmax·Bin(ng, acc−δc) ≥ gateCut(ng, acc, a/2^Rmax/Pmax)).
+
+Reading `j`'s draws are independent of everything before it, so the chance it ends the round
+badly is at most its own bound whatever the history; summing over the readings the round makes
+gives the expected count. On a certificate refusal only `D(NAOff) ≤ ν` is claimed: the gate passed,
+so nothing bounds a covering start's disagreement below, and `need` may be at most zero there.
+
+Problematic component: the exhausted exit (budget of `Rmax` readings or more than `Pmax` leaves).
+It stays because give-ups on genuinely wrong edges and attempts stopped at undecided reads are not
+yet bounded; false splits are bounded separately (claim 4). D39–D41 plan to bound the rest with
+attempt counters, a stopped-read harvest and a dynamic budget.

@@ -6,6 +6,7 @@ import OrthoDFA.Proofs.RoundAtK
 import OrthoDFA.Proofs.StartState
 import OrthoDFA.Proofs.Ends
 import OrthoDFA.Proofs.Trichotomy
+import OrthoDFA.Proofs.RoundLevel
 
 /-!
 # The theorem
@@ -14,8 +15,8 @@ import OrthoDFA.Proofs.Trichotomy
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
 in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `StartExists`, stated in `OrthoDFA.StartState`, `StartRootCovered`, `EndsCovered` and
-`BadShare`, stated in `OrthoDFA.Ends`, and `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`,
-hold.
+`BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and `RoundTrichotomyLevel`, stated in
+`OrthoDFA.RoundLevel`, hold.
 -/
 
 namespace OrthoDFA
@@ -60,5 +61,9 @@ theorem bad_share' : BadShare := bad_share
 theorem round_trichotomy' : RoundTrichotomy := round_trichotomy
 
 #print axioms round_trichotomy'
+
+theorem round_trichotomy_level' : RoundTrichotomyLevel := round_trichotomy_level
+
+#print axioms round_trichotomy_level'
 
 end OrthoDFA

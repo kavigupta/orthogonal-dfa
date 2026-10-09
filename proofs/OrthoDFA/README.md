@@ -65,6 +65,15 @@
   its start disagrees on at most `1 − acc + δc`; live edges turn up to rerun; some class fires;
   or the limit halves, and then `f ≥ τ₀`, or members do not fire on a first hit, or every
   covering start leaves the classes and live edges at most `ν`.
+- `OrthoDFA/RoundLevel.lean` — `RoundTrichotomyLevel`: the round over its readings. Each reading
+  runs the pass with the previous reading's live-edge draws first, then the gate (at failure chance
+  `a·2⁻ʲ`) and a certificate taken as a black box with failure chance `α`; a refusal by either
+  reads a refusal sample that reruns live edges, holds a fired class, or halves. The round ends
+  consistent and certified, holding a class, halving above `τ₀` or with the walk's non-agreeing mass
+  at most `ν` (and every covering start at most `ν` where the gate refused), or exhausted, but for
+  `4(log₂(ng/30)+2)a` plus, per reading made in expectation, the refusal sample's miss, `α` and the
+  gate's unsettled tail. The exhausted exit is a problematic component: give-ups and stopped
+  attempts are not yet bounded. `Proofs/RoundLevel.lean` proves it reading by reading.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding
