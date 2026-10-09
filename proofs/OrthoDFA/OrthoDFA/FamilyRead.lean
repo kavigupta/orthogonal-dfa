@@ -9,8 +9,8 @@ accepts at `X(w) ≥ kh`, rejects at `X(w) ≤ kl`, and is undecided in between.
 
 Across strings the reads are independent draws when no member of `F` is a proper suffix of
 another, and a string's read law is fixed by how many members its DFA state sends into the
-language.  At the shipped parameters every state's read is either nearly never accept, nearly
-never reject, or undecided at least a third of the time.
+language.  So whether every state's read is nearly never accept, nearly never reject, or often
+undecided comes down to a check on the parameters alone, `TrichotomyAt`.
 -/
 
 namespace OrthoDFA
@@ -40,9 +40,10 @@ noncomputable def readProb (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S
 
 /-! ## Strings -/
 
-instance {α : Type*} : MeasurableSpace (FreeMonoid α) := ⊤
-
-noncomputable instance {α : Type*} [Countable α] : Stringlike (FreeMonoid α) where
+/-- Scoped, so that it never meets another `MeasurableSpace (FreeMonoid α)`.  On a countable
+type the discrete σ-algebra is the only one with measurable singletons. -/
+noncomputable scoped instance {α : Type*} [Countable α] : Stringlike (FreeMonoid α) where
+  toMeasurableSpace := ⊤
   measurable_const_mul _ := fun _ _ => trivial
   measurable_mul_const _ := fun _ _ => trivial
   exists_injective_nat' := (inferInstance : Countable (List α)).exists_injective_nat'
@@ -52,72 +53,46 @@ noncomputable instance {α : Type*} [Countable α] : Stringlike (FreeMonoid α) 
 def SuffixFree {α : Type*} (F : Finset (FreeMonoid α)) : Prop :=
   ∀ v ∈ F, ∀ v' ∈ F, v.toList <:+ v'.toList → v = v'
 
-/-! ## The read's law
+/-! ## The read's law -/
 
-A sum of independent bits at rates `p₁, …, p_N` has the Poisson-binomial law, built one bit at a
-time by `pbStep`. -/
-
-def pbStep (p : ℝ) (f : ℕ → ℝ) : ℕ → ℝ
-  | 0 => (1 - p) * f 0
-  | k + 1 => (1 - p) * f (k + 1) + p * f k
-
-def pbBase (k : ℕ) : ℝ := if k = 0 then 1 else 0
-
-instance : LeftCommutative pbStep where
-  left_comm p q f := by
-    funext k
-    rcases k with _ | _ | k <;> simp only [pbStep] <;> ring
-
-/-- `P[X = k]` for `a` bits at rate `p` and `N − a` at rate `r`. -/
+/-- `P[X = k]` for `X` the sum of `Bin(a, p)` and an independent `Bin(N − a, r)`. -/
 noncomputable def voteLaw (N a : ℕ) (p r : ℝ) (k : ℕ) : ℝ :=
-  (Multiset.replicate a p + Multiset.replicate (N - a) r).foldr pbStep pbBase k
+  ∑ x ∈ Finset.antidiagonal k,
+    (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
+      * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
 
 noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : ℝ :=
   ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
 
-/-- Every vote law whose mean `a(1 − ηIn) + (N − a)ηOut` lies strictly inside the band is
-undecided at least a third of the time. -/
-def BandHolds (N kl kh : ℕ) (ηIn ηOut : ℝ) : Prop :=
-  ∀ a ≤ N, (kl : ℝ) < a * (1 - ηIn) + ((N - a : ℕ) : ℝ) * ηOut →
-    (a : ℝ) * (1 - ηIn) + ((N - a : ℕ) : ℝ) * ηOut < kh →
-    1 / 3 ≤ readLaw N a (1 - ηIn) ηOut kl kh .undecided
+/-- Every read law over `N` members, `a` of them accepting, is accept at most `ε` of the time,
+or reject at most `ε`, or undecided at least a third. -/
+def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
+  ∀ a ≤ N,
+    readLaw N a (1 - ηIn) ηOut kl kh .accept ≤ ε
+    ∨ readLaw N a (1 - ηIn) ηOut kl kh .reject ≤ ε
+    ∨ 1 / 3 ≤ readLaw N a (1 - ηIn) ηOut kl kh .undecided
 
 /-! ## The claims -/
 
-/-- Distinct strings query disjoint sets of strings, so their reads are independent. -/
-def FamilyReadIndependent : Prop :=
-  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {α : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh : ℕ),
-  SuffixFree F →
-  iIndepFun (fun w => familyRead O.mq F kl kh w) μ
-
-/-- Two strings in the same DFA state read with the same law. -/
-def FamilyReadByState : Prop :=
-  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
-    (F : Finset (FreeMonoid α)) (kl kh : ℕ),
-  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  ∀ w w', M.eval w.toList = M.eval w'.toList →
-  ∀ rd, readProb O F kl kh w rd = readProb O F kl kh w' rd
-
-/-- For any parameters whose band holds, every string's read is accept at most
-`exp(−2(kh − kl)²/N)` of the time, or reject at most that, or undecided at least a third. -/
+/-- With the language a DFA's and the family suffix-free, the reads are independent across
+strings, every string in a state reads with that state's law, and wherever `TrichotomyAt` holds
+every state's law is accept at most `ε` of the time, or reject at most `ε`, or undecided at least
+a third. -/
 def FamilyReadTrichotomy : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {S : Type*} [Stringlike S] (O : Oracle μ S) (F : Finset S) (kl kh : ℕ),
-  kl < kh →
-  BandHolds F.card kl kh O.ηIn O.ηOut →
-  ∀ w : S,
-    readProb O F kl kh w .accept ≤ Real.exp (-2 * ((kh : ℝ) - kl) ^ 2 / F.card)
-    ∨ readProb O F kl kh w .reject ≤ Real.exp (-2 * ((kh : ℝ) - kl) ^ 2 / F.card)
-    ∨ 1 / 3 ≤ readProb O F kl kh w .undecided
+    {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (ε : ℝ),
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  SuffixFree F →
+  TrichotomyAt F.card kl kh O.ηIn O.ηOut ε →
+  iIndepFun (fun w => familyRead O.mq F kl kh w) μ
+  ∧ ∀ q : σ, ∃ law : Read → ℝ,
+    (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
+    ∧ (law .accept ≤ ε ∨ law .reject ≤ ε ∨ 1 / 3 ≤ law .undecided)
 
-/-- At the shipped parameters, `N = 62`, `kl = 20`, `kh = 42` and both noise rates `1/5`, with
-the language a DFA's and the family suffix-free: the reads are independent across strings, each
-string's read law depends only on its state, and every state's law is accept at most `10⁻¹⁰`
-of the time, or reject at most that, or undecided at least a third. -/
-def FamilyReadGuarantee : Prop :=
+/-- `FamilyReadTrichotomy` at the shipped parameters: `N = 62`, `kl = 20`, `kh = 42`, both
+noise rates `1/5`, and `ε = 10⁻¹⁰`. -/
+def FamilyReadShipped : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
     (F : Finset (FreeMonoid α)),

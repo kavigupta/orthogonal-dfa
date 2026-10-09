@@ -6,8 +6,9 @@ import OrthoDFA.Proofs.Adaptive
 
 A string's vote reads the oracle's bits at `w·F` and no others.  Suffix-freeness keeps those
 blocks disjoint across strings, which is the independence.  Within one string the bits are
-independent at two rates, so the vote is Poisson-binomial and its law is fixed by how many of
-`w·F` lie in the language.  The shipped parameters' laws are computed exactly in integers.
+independent at two rates, so the vote is a sum of two binomials and its law is fixed by how
+many of `w·F` lie in the language.  The shipped parameters' laws are computed exactly in
+integers.
 -/
 
 namespace OrthoDFA
@@ -100,7 +101,88 @@ theorem read_iIndep {α : Type*} [Countable α] (O : Oracle μ (FreeMonoid α))
     iIndepFun (fun w => familyRead O.mq F kl kh w) μ :=
   (vote_iIndep O hF).comp (fun _ => readOf kl kh) (fun _ => measurable_from_nat)
 
-/-! ## The vote's law -/
+/-! ## The vote's law
+
+A sum of independent bits at rates `p₁, …, p_N` has the Poisson-binomial law, built one bit at a
+time by `pbStep`. -/
+
+def pbStep (p : ℝ) (f : ℕ → ℝ) : ℕ → ℝ
+  | 0 => (1 - p) * f 0
+  | k + 1 => (1 - p) * f (k + 1) + p * f k
+
+def pbBase (k : ℕ) : ℝ := if k = 0 then 1 else 0
+
+instance : LeftCommutative pbStep where
+  left_comm p q f := by
+    funext k
+    rcases k with _ | _ | k <;> simp only [pbStep] <;> ring
+
+noncomputable def binTerm (n : ℕ) (p : ℝ) (i : ℕ) : ℝ := n.choose i * p ^ i * (1 - p) ^ (n - i)
+
+lemma binTerm_zero_succ (n : ℕ) (p : ℝ) : binTerm (n + 1) p 0 = (1 - p) * binTerm n p 0 := by
+  simp [binTerm, pow_succ]
+  ring
+
+lemma binTerm_succ (n i : ℕ) (p : ℝ) :
+    binTerm (n + 1) p (i + 1) = (1 - p) * binTerm n p (i + 1) + p * binTerm n p i := by
+  rcases Nat.lt_or_ge i n with h | h
+  · obtain ⟨m, rfl⟩ : ∃ m, n = i + 1 + m := ⟨n - (i + 1), by omega⟩
+    simp only [binTerm, Nat.choose_succ_succ, Nat.cast_add]
+    rw [show i + 1 + m + 1 - (i + 1) = m + 1 by omega, show i + 1 + m - (i + 1) = m by omega,
+      show i + 1 + m - i = m + 1 by omega]
+    ring
+  · simp only [binTerm]
+    rw [Nat.choose_succ_succ, Nat.choose_eq_zero_of_lt (by omega : n < i + 1),
+      show n + 1 - (i + 1) = n - i by omega]
+    push_cast
+    ring
+
+lemma foldr_replicate (n : ℕ) (p : ℝ) (h : ℕ → ℝ) (k : ℕ) :
+    (List.replicate n p).foldr pbStep h k
+      = ∑ x ∈ Finset.antidiagonal k, binTerm n p x.1 * h x.2 := by
+  induction n generalizing k with
+  | zero =>
+    cases k with
+    | zero => simp [binTerm]
+    | succ k =>
+      rw [Finset.Nat.sum_antidiagonal_succ]
+      simp [binTerm, Nat.choose_zero_succ]
+  | succ n ih =>
+    rw [List.replicate_succ, List.foldr_cons]
+    cases k with
+    | zero =>
+      simp only [pbStep, ih 0, Finset.Nat.antidiagonal_zero, Finset.sum_singleton,
+        binTerm_zero_succ]
+      ring
+    | succ k =>
+      simp only [pbStep]
+      rw [ih (k + 1), ih k, Finset.Nat.sum_antidiagonal_succ, Finset.Nat.sum_antidiagonal_succ,
+        binTerm_zero_succ]
+      have hs : ∑ x ∈ Finset.antidiagonal k, binTerm (n + 1) p (x.1 + 1) * h x.2
+          = (1 - p) * ∑ x ∈ Finset.antidiagonal k, binTerm n p (x.1 + 1) * h x.2
+            + p * ∑ x ∈ Finset.antidiagonal k, binTerm n p x.1 * h x.2 := by
+        rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+        exact Finset.sum_congr rfl (fun x _ => by rw [binTerm_succ]; ring)
+      rw [hs]
+      ring
+
+lemma voteLaw_eq_foldr (N a : ℕ) (p r : ℝ) (k : ℕ) :
+    voteLaw N a p r k
+      = (List.replicate a p ++ List.replicate (N - a) r).foldr pbStep pbBase k := by
+  rw [List.foldr_append, foldr_replicate, voteLaw]
+  refine Finset.sum_congr rfl (fun x _ => ?_)
+  rw [foldr_replicate, Finset.sum_eq_single (x.2, 0)]
+  · simp [binTerm, pbBase]
+  · intro y hy hne
+    have h0 : y.2 ≠ 0 := by
+      intro h0
+      apply hne
+      have := Finset.mem_antidiagonal.1 hy
+      ext <;> simp_all
+    simp [pbBase, h0]
+  · intro h
+    exact absurd (Finset.mem_antidiagonal.2 (by simp)) h
+
 
 omit [MeasurableSpace Ω] in
 lemma voteCount_insert (mq : S → Ω → ℝ) {F : Finset S} {x : S} (hx : x ∉ F) (w : S)
@@ -208,8 +290,8 @@ lemma map_acceptRate (O : Oracle μ S) (F : Finset S) (w : S) :
 theorem vote_prob (O : Oracle μ S) (F : Finset S) (w : S) (k : ℕ) :
     μ.real {ω | voteCount O.mq F w ω = k}
       = voteLaw F.card (acceptCount O.L F w) (1 - O.ηIn) O.ηOut k := by
-  rw [vote_prob_foldr, map_acceptRate]
-  rfl
+  rw [vote_prob_foldr, map_acceptRate, voteLaw_eq_foldr, ← Multiset.coe_replicate,
+    ← Multiset.coe_replicate, Multiset.coe_add, Multiset.coe_foldr]
 
 theorem readProb_eq_readLaw (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (rd : Read) :
     readProb O F kl kh w rd
@@ -250,121 +332,17 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
   rw [hL, FreeMonoid.toList_mul]
   simp only [DFA.eval, DFA.evalFrom_of_append]
 
-theorem family_read_by_state_holds : FamilyReadByState := by
-  intro Ω _ μ _ α σ _ O M F kl kh hL w w' hq rd
-  rw [readProb_eq_readLaw, readProb_eq_readLaw, acceptCount_eq_state O M hL,
-    acceptCount_eq_state O M hL, hq]
 
-theorem family_read_independent_holds : FamilyReadIndependent := by
-  intro Ω _ μ _ α _ O F kl kh hF
-  exact read_iIndep O hF kl kh
-
-/-! ## Tails -/
-
-lemma meanVote_eq (O : Oracle μ S) (F : Finset S) (w : S) :
-    meanVote O F w = acceptCount O.L F w * (1 - O.ηIn)
-      + ((F.card - acceptCount O.L F w : ℕ) : ℝ) * O.ηOut := by
-  unfold meanVote
-  rw [Finset.sum_congr rfl (fun v _ => measureReal_mq_one O (w * v)),
-    Finset.sum_eq_multiset_sum, map_acceptRate, Multiset.sum_add, Multiset.sum_replicate,
-    Multiset.sum_replicate, nsmul_eq_mul, nsmul_eq_mul]
-
-lemma exp_tail_le {N : ℕ} {d e : ℝ} (hd : 0 ≤ d) (hde : d ≤ e) :
-    Real.exp (-2 * (N : ℝ) * (e / N) ^ 2) ≤ Real.exp (-2 * d ^ 2 / N) := by
-  rcases Nat.eq_zero_or_pos N with h0 | hpos
-  · simp [h0]
-  have hc : (0 : ℝ) < N := by exact_mod_cast hpos
-  refine Real.exp_le_exp.2 ?_
-  have e1 : -2 * (N : ℝ) * (e / N) ^ 2 = -2 * e ^ 2 / N := by field_simp
-  rw [e1]
-  exact div_le_div_of_nonneg_right (by nlinarith [pow_le_pow_left₀ hd hde 2]) hc.le
-
-lemma accept_tail (O : Oracle μ S) (F : Finset S) (w : S) {kl kh : ℕ} (hk : kl ≤ kh)
-    (hm : meanVote O F w ≤ kl) :
-    μ.real {ω | kh ≤ voteCount O.mq F w ω} ≤ Real.exp (-2 * ((kh : ℝ) - kl) ^ 2 / F.card) := by
-  classical
-  have hmean : meanVote O F w = ∑ v ∈ F, μ[O.mq (w * v)] :=
-    Finset.sum_congr rfl (fun v _ => measureReal_mq_eq_one O (w * v))
-  have hkl : (kl : ℝ) ≤ kh := by exact_mod_cast hk
-  rcases Nat.eq_zero_or_pos F.card with h0 | hpos
-  · rw [h0, Nat.cast_zero, div_zero, Real.exp_zero]; exact measureReal_le_one
-  have hc : (0 : ℝ) < F.card := by exact_mod_cast hpos
-  set γ : ℝ := ((kh : ℝ) - meanVote O F w) / F.card with hγ
-  have hγ0 : 0 ≤ γ := div_nonneg (by linarith) hc.le
-  have hT := sumUpper_le_total (fun v : S => O.mq (w * v)) F (meanVote O F w) γ
-    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O w) (fun v => mq_icc O _)
-    hmean.ge hγ0
-  have hcg : meanVote O F w + (F.card : ℝ) * γ = kh := by rw [hγ]; field_simp; ring
-  rw [hcg] at hT
-  refine le_trans (measureReal_le_of_ae_imp ?_) (hT.trans (exp_tail_le (by linarith) ?_))
-  · filter_upwards [voteCount_eq_voteSum O F w] with ω heq h
-    have h' : (kh : ℝ) ≤ (voteCount O.mq F w ω : ℝ) := by exact_mod_cast h
-    rw [heq] at h'
-    exact h'
-  · linarith
-
-lemma reject_tail (O : Oracle μ S) (F : Finset S) (w : S) {kl kh : ℕ} (hk : kl ≤ kh)
-    (hm : (kh : ℝ) ≤ meanVote O F w) :
-    μ.real {ω | voteCount O.mq F w ω ≤ kl} ≤ Real.exp (-2 * ((kh : ℝ) - kl) ^ 2 / F.card) := by
-  classical
-  have hmean : meanVote O F w = ∑ v ∈ F, μ[O.mq (w * v)] :=
-    Finset.sum_congr rfl (fun v _ => measureReal_mq_eq_one O (w * v))
-  have hkl : (kl : ℝ) ≤ kh := by exact_mod_cast hk
-  rcases Nat.eq_zero_or_pos F.card with h0 | hpos
-  · rw [h0, Nat.cast_zero, div_zero, Real.exp_zero]; exact measureReal_le_one
-  have hc : (0 : ℝ) < F.card := by exact_mod_cast hpos
-  set γ : ℝ := (meanVote O F w - kl) / F.card with hγ
-  have hγ0 : 0 ≤ γ := div_nonneg (by linarith) hc.le
-  have hT := sumLower_le_total (fun v : S => O.mq (w * v)) F (meanVote O F w) γ
-    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O w) (fun v => mq_icc O _)
-    hmean.le hγ0
-  have hcg : meanVote O F w - (F.card : ℝ) * γ = kl := by rw [hγ]; field_simp; ring
-  rw [hcg] at hT
-  refine le_trans (measureReal_le_of_ae_imp ?_) (hT.trans (exp_tail_le (by linarith) ?_))
-  · filter_upwards [voteCount_eq_voteSum O F w] with ω heq h
-    have h' : (voteCount O.mq F w ω : ℝ) ≤ kl := by exact_mod_cast h
-    rw [heq] at h'
-    exact h'
-  · linarith
-
-/-! ## The trichotomy -/
-
-omit [IsProbabilityMeasure μ] in
-lemma readProb_accept (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) :
-    readProb O F kl kh w .accept = μ.real {ω | kh ≤ voteCount O.mq F w ω} := by
-  unfold readProb familyRead readOf
-  congr 1
-  ext ω
-  simp only [Set.mem_ofPred_eq]
-  split_ifs <;> simp_all
-
-omit [IsProbabilityMeasure μ] in
-lemma readProb_reject (O : Oracle μ S) (F : Finset S) {kl kh : ℕ} (hk : kl < kh) (w : S) :
-    readProb O F kl kh w .reject = μ.real {ω | voteCount O.mq F w ω ≤ kl} := by
-  unfold readProb familyRead readOf
-  congr 1
-  ext ω
-  simp only [Set.mem_ofPred_eq]
-  split_ifs <;> simp_all
-  omega
+/-! ## The reduction to the parameters -/
 
 theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
-  intro Ω _ μ _ S _ O F kl kh hk hband w
-  have hmean := meanVote_eq O F w
-  by_cases h1 : meanVote O F w ≤ kl
-  · left
-    rw [readProb_accept]
-    exact accept_tail O F w hk.le h1
-  by_cases h2 : (kh : ℝ) ≤ meanVote O F w
-  · right; left
-    rw [readProb_reject O F hk]
-    exact reject_tail O F w hk.le h2
-  right; right
-  rw [readProb_eq_readLaw]
-  replace h1 := not_le.1 h1
-  replace h2 := not_le.1 h2
-  rw [hmean] at h1 h2
-  exact hband _ (acceptCount_le _ _ _) h1 h2
+  classical
+  intro Ω _ μ _ α σ _ O M F kl kh ε hL hF htri
+  refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
+  set a := (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card with ha
+  refine ⟨readLaw F.card a (1 - O.ηIn) O.ηOut kl kh, fun w hw rd => ?_,
+    htri a (Finset.card_filter_le _ _)⟩
+  rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
 
 /-! ## The shipped parameters, computed exactly
 
@@ -433,10 +411,6 @@ lemma shippedMass_check : ∀ a < 63,
       ∨ 5 ^ 62 ≤ 3 * shippedMass a .undecided := by
   decide +kernel
 
-set_option maxRecDepth 100000 in
-lemma shippedMass_band_check : ∀ a < 63, 13 ≤ a → a ≤ 49 →
-    5 ^ 62 ≤ 3 * shippedMass a .undecided := by
-  decide +kernel
 
 lemma voteLaw_shipped {a : ℕ} (ha : a ≤ 62) (j : ℕ) :
     voteLaw 62 a (1 - 1 / 5) (1 / 5) j = ((shippedVotes a).getD j 0 : ℝ) / 5 ^ 62 := by
@@ -447,8 +421,7 @@ lemma voteLaw_shipped {a : ℕ} (ha : a ≤ 62) (j : ℕ) :
     · rfl
   have hlen : (List.replicate a (1, 4) ++ List.replicate (62 - a) ((4 : ℕ), (1 : ℕ))).length
       = 62 := by simp; omega
-  rw [shippedVotes, dpList_getD _ hl j, hlen, voteLaw, ← Multiset.coe_replicate,
-    ← Multiset.coe_replicate, Multiset.coe_add, Multiset.coe_foldr]
+  rw [shippedVotes, dpList_getD _ hl j, hlen, voteLaw_eq_foldr]
   simp only [List.map_append, List.map_replicate]
   norm_num
 
@@ -477,32 +450,12 @@ lemma shipped_trichotomy {a : ℕ} (ha : a ≤ 62) :
     rw [div_le_div_iff₀ (by norm_num) h5]
     exact_mod_cast (by omega : 1 * 5 ^ 62 ≤ shippedMass a .undecided * 3)
 
-/-- The parametric trichotomy's band holds at the shipped parameters. -/
-theorem shipped_band_holds : BandHolds 62 20 42 (1 / 5) (1 / 5) := by
-  intro a ha h1 h2
-  rw [Nat.cast_sub ha] at h1 h2
-  push_cast at h1 h2
-  have ha13 : 13 ≤ a := by
-    by_contra hc
-    have : (a : ℝ) ≤ 12 := by exact_mod_cast (by omega : a ≤ 12)
-    linarith
-  have ha49 : a ≤ 49 := by
-    by_contra hc
-    have : (50 : ℝ) ≤ a := by exact_mod_cast (by omega : 50 ≤ a)
-    linarith
-  rw [readLaw_shipped ha, le_div_iff₀ (by positivity)]
-  have := shippedMass_band_check a (by omega) ha13 ha49
-  have h' : ((5 ^ 62 : ℕ) : ℝ) ≤ 3 * (shippedMass a .undecided : ℝ) := by exact_mod_cast this
-  push_cast at h'
-  linarith
+theorem trichotomyAt_shipped : TrichotomyAt 62 20 42 (1 / 5) (1 / 5) (1 / 10 ^ 10) :=
+  fun _ ha => shipped_trichotomy ha
 
-theorem family_read_guarantee_holds : FamilyReadGuarantee := by
-  classical
+theorem family_read_shipped_holds : FamilyReadShipped := by
   intro Ω _ μ _ α σ _ O M F hL hF hN hIn hOut
-  refine ⟨read_iIndep O hF 20 42, fun q => ?_⟩
-  set a := (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card with ha
-  have ha62 : a ≤ 62 := hN ▸ Finset.card_filter_le _ _
-  refine ⟨readLaw 62 a (1 - 1 / 5) (1 / 5) 20 42, fun w hw rd => ?_, shipped_trichotomy ha62⟩
-  rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw, hN, hIn, hOut]
+  exact family_read_trichotomy_holds O M F 20 42 (1 / 10 ^ 10) hL hF
+    (by rw [hN, hIn, hOut]; exact trichotomyAt_shipped)
 
 end OrthoDFA

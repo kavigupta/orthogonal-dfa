@@ -10,12 +10,11 @@
   `2·indecisionLimit + slack` of the time on each.
 - `OrthoDFA/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`,
   reject at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query
-  `w·v` answers 1.  `FamilyReadIndependent`: for a suffix-free family the reads are independent
-  across strings.  `FamilyReadByState`: strings in one DFA state read with one law.
-  `FamilyReadTrichotomy`: wherever `BandHolds`, each read is accept at most
-  `exp(−2(kh − kl)²/N)`, or reject at most that, or undecided at least a third.
-  `FamilyReadGuarantee`: at `N = 62`, `kl = 20`, `kh = 42`, noise `1/5`, all three hold with
-  `10⁻¹⁰` in place of the exponential.
+  `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's and the family
+  suffix-free, the reads are independent across strings, each DFA state has one read law, and
+  every state's law is accept at most `ε` of the time, or reject at most `ε`, or undecided at
+  least a third, wherever the parameter check `TrichotomyAt` holds.  `FamilyReadShipped`: the
+  same at `N = 62`, `kl = 20`, `kh = 42`, noise `1/5`, `ε = 10⁻¹⁰`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

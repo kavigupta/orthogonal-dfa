@@ -21,24 +21,12 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 
 #print axioms clustering_quality_guarantee
 
-theorem family_read_independent : FamilyReadIndependent := family_read_independent_holds
-
-#print axioms family_read_independent
-
-theorem family_read_by_state : FamilyReadByState := family_read_by_state_holds
-
-#print axioms family_read_by_state
-
 theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
 
 #print axioms family_read_trichotomy
 
-theorem band_holds_shipped : BandHolds 62 20 42 (1 / 5) (1 / 5) := shipped_band_holds
+theorem family_read_shipped : FamilyReadShipped := family_read_shipped_holds
 
-#print axioms band_holds_shipped
-
-theorem family_read_guarantee : FamilyReadGuarantee := family_read_guarantee_holds
-
-#print axioms family_read_guarantee
+#print axioms family_read_shipped
 
 end OrthoDFA
