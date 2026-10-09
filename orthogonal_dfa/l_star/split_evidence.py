@@ -58,6 +58,8 @@ class SplitEvidence:
         self._population = population
         self._tree = tree
         self._split_fpr = pst.config.split_pval
+        #: Held-out string -> the (leaf path, distinguisher) whose test first read it.
+        self._first_read = {}
         self._split_miss_rate = DEFAULT_SPLIT_MISS_RATE
 
     def _members(self, state: int):
@@ -67,13 +69,18 @@ class SplitEvidence:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
-        return self._weigh(self._members(state), distinguisher, self._edge_count())
+        return self._weigh(
+            self._members(state),
+            distinguisher,
+            self._edge_count(),
+            key=(self._tree.path_of(state), distinguisher),
+        )
 
     def _edge_count(self) -> int:
         return self._tree.num_states * self.pst.alphabet_size
 
-    def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
-        a1, t1, a2, t2, n_a, n_b = self._tally(members, distinguisher)
+    def _weigh(self, members, distinguisher: bytes, tests: int, *, key) -> str:
+        a1, t1, a2, t2, n_a, n_b = self._tally(members, distinguisher, key=key)
         if self._splits(a1, t1, a2, t2, tests=tests):
             return SPLIT
         if self._agrees_as_one_state(n_a, n_b):
@@ -99,14 +106,19 @@ class SplitEvidence:
         for state in self._tree.leaves():
             members = self._members(state)
             blocking = {SPLIT, UNDECIDED} if state in fillable else {SPLIT}
-            if any(self._weigh(members, d, tests) in blocking for d in candidates):
+            path = self._tree.path_of(state)
+            if any(
+                self._weigh(members, d, tests, key=(path, d)) in blocking
+                for d in candidates
+            ):
                 return False
         return True
 
-    def _tally(self, members, distinguisher: bytes):
+    def _tally(self, members, distinguisher: bytes, *, key):
         """
         Group ``members`` by the train half and count the held-out reads per
-        side, each string once:
+        side, each string once and only where no test but ``key``'s (a leaf's
+        path and the distinguisher) read it first:
 
         Returns (A_true, T_true, A_false, T_false, n_true, n_false), the
         held-out accepts and reads and the member counts, where true/false is the
@@ -124,7 +136,7 @@ class SplitEvidence:
             strings = [
                 s
                 for s in self.family.held_out_strings(member + distinguisher)
-                if s not in seen
+                if s not in seen and self._first_read.setdefault(s, key) == key
             ]
             seen.update(strings)
             reads.append((group, strings))

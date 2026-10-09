@@ -202,6 +202,21 @@ class TestVerdict(unittest.TestCase):
         ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
         self.assertEqual(SPLIT, ev.verdict(0, bytes([1])))
 
+    def test_a_retest_of_the_same_edge_reuses_its_own_held_out_reads(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+        first = ev._tally(ev._members(0), bytes([1]), key="edge")
+
+        self.assertEqual(first, ev._tally(ev._members(0), bytes([1]), key="edge"))
+
+    def test_a_held_out_read_another_test_made_first_is_not_counted(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+        ev._tally(ev._members(0), bytes([1]), key="edge")
+
+        tally = ev._tally(ev._members(0), bytes([1]), key="another")
+        self.assertEqual((0, 0), (tally[1], tally[3]))
+
     def test_a_one_sided_population_settles_the_leaf(self):
         # Every member on the same side: there is no second rate to differ, so
         # the one-state test decides it -- a zero minority over enough members
@@ -210,7 +225,7 @@ class TestVerdict(unittest.TestCase):
             _StubFamily(side_of=lambda p, d: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, t1, a2, t2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
+        a1, t1, a2, t2, n_a, n_b = ev._tally(ev._members(0), bytes([1]), key=0)
         self.assertEqual((200, 0), (n_a, n_b))
         self.assertFalse(ev._splits(a1, t1, a2, t2, tests=2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
