@@ -138,7 +138,7 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         ]
         reached = route(strings)
         np.add.at(drawn, reached, 1)
-        np.add.at(ones, reached, pst.oracle.membership_queries(strings))
+        np.add.at(ones, reached, pst.table.memo.membership_queries(strings))
         level = look_level(alpha, look) / (2 * len(states))
         masses = clopper_pearson(drawn, np.full(len(states), size), level)
         rates = clopper_pearson(ones, drawn, level)

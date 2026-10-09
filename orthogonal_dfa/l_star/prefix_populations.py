@@ -4,11 +4,8 @@ The rounds carry these across each other, and the family search in `cluster`
 reads and grows them, so they live apart from the round loop that fills them.
 """
 
-from collections import Counter
-
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource, draw_many
-from .provenance import Read
 
 
 class PoolState:
@@ -28,8 +25,6 @@ class PoolState:
         self.named = 0
         #: The one this round is filling, or None before it strands anything.
         self.harvesting = None
-        #: The reads that met the strings this round took into it, counted.
-        self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
 
@@ -47,6 +42,18 @@ class PoolState:
         self.held[label] = sorted(source.draw() for _ in range(count))
         self.sources[label] = source
 
+    def hold_found(self, kind, found, source) -> None:
+        """Hold the strings in ``found`` not yet seen as a new population of
+        ``kind``, which ``source`` grows."""
+        fresh = sorted(set(found) - self.seen)
+        if not fresh:
+            return
+        self.named += 1
+        label = (kind, self.named)
+        self.seen.update(fresh)
+        self.held[label] = fresh
+        self.sources[label] = source
+
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
         it."""
@@ -59,23 +66,12 @@ class PoolState:
     def close_harvest(self) -> None:
         """End the round's boundary population: the next round names its own."""
         self.harvesting = None
-        self.harvest_reads = Counter()
 
-    def take(self, string, read) -> None:
-        """Take a string this round could not place into its boundary population,
-        with the read that met it."""
+    def take(self, string) -> None:
+        """Take a string this round could not place into its boundary
+        population."""
         self.seen.add(string)
         self.harvest().append(string)
-        self.harvest_reads[read] += 1
-
-    def draws(self, sampler) -> dict:
-        """Per prefix a population holds, the draw it was: one of that
-        population's source, ``sampler`` for the uniform pool's."""
-        draws = {p: Read(sampler, b"") for p in self.uniform}
-        for label, held in self.held.items():
-            if label in self.sources:
-                draws.update((p, Read(self.sources[label], b"")) for p in held)
-        return draws
 
 
 def grow_population(pst, state, label) -> bool:

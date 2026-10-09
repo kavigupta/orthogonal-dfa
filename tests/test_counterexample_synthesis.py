@@ -10,16 +10,17 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
-    _blocked_at_limit,
+    _after_refusal,
+    _Certificate,
     _publish_pool,
+    _read_round,
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.provenance import Read
 
 
 def _resolver(*strings):
-    return SimpleNamespace(indecisive={string: Read(None, b"") for string in strings})
+    return SimpleNamespace(indecisive=set(strings))
 
 
 def _state(held=()):
@@ -118,6 +119,34 @@ class TestWhatARoundTakes(unittest.TestCase):
         self.assertEqual(state.seen, set(_taken(state)))
 
 
+class TestWhenTheLimitHalves(unittest.TestCase):
+    def _halves(self, fired, disagreements=()):
+        pst = SimpleNamespace(fnr_limit=0.1, sampler=SimpleNamespace(length=4))
+        gate = SimpleNamespace(
+            fired=fired, disagreements=list(disagreements), harvests={}
+        )
+        return _after_refusal(
+            pst,
+            SimpleNamespace(k=2),
+            gate,
+            PoolState([]),
+            per_state=1,
+            acc_threshold=0.9,
+        )
+
+    def test_a_refusal_that_holds_nothing_and_reruns_nothing_halves(self):
+        self.assertTrue(self._halves(set()))
+
+    def test_a_refusal_with_an_edge_to_rerun_does_not(self):
+        self.assertFalse(self._halves(set(), [b"w"]))
+
+    def test_a_refusal_with_too_many_pairs_halves(self):
+        self.assertTrue(self._halves({"pairs over half", "pair", "triple"}))
+
+    def test_a_refusal_that_holds_something_does_not(self):
+        self.assertFalse(self._halves({"pair", "triple"}))
+
+
 class TestWhenARoundGivesUp(unittest.TestCase):
     def _rounds_of(self, *, states, improved, settled):
         """One verdict per round, for a run of identical rounds."""
@@ -162,6 +191,59 @@ class TestWhenARoundGivesUp(unittest.TestCase):
         self.assertFalse(stall.stalled(states=3, improved=False, settled=done))
 
 
+class TestWhenTheTargetIsReached(unittest.TestCase):
+    @staticmethod
+    def _round(passed):
+        resolver = SimpleNamespace(
+            counterexample_pass=lambda **kw: None,
+            read_fresh=lambda **kw: SimpleNamespace(
+                passed=passed, start=0, fired=set(), disagreements=[]
+            ),
+            to_dfa_and_tree=lambda start: (None, None),
+            refusal_sample=lambda gate: gate,
+        )
+        certificate = _Certificate(pst=None, tracker=None)
+        _read_round(resolver, certificate, patience=10, acc_threshold=0.9, index=3)
+        return certificate.first_round
+
+    def test_a_gate_unsettled_at_its_last_look_starts_the_patience(self):
+        self.assertEqual(3, self._round(None))
+
+    def test_a_refused_gate_does_not(self):
+        self.assertIsNone(self._round(False))
+
+
+class TestWhenARefusalReruns(unittest.TestCase):
+    @staticmethod
+    def _passes(fired):
+        """The first probes of each pass of a round whose every sample meets an
+        edge and fires ``fired``, and whose third pass spends its probes."""
+        passes = []
+
+        def counterexample_pass(**kw):
+            passes.append(kw["first"])
+            resolver.probed = 1500 * len(passes)
+
+        resolver = SimpleNamespace(
+            probed=0,
+            counterexample_pass=counterexample_pass,
+            read_fresh=lambda **kw: SimpleNamespace(passed=False, start=0),
+            to_dfa_and_tree=lambda start: (None, None),
+            refusal_sample=lambda gate: SimpleNamespace(
+                passed=False, start=0, fired=fired, disagreements=[b"w"]
+            ),
+        )
+        certificate = _Certificate(pst=None, tracker=None)
+        _read_round(resolver, certificate, patience=10, acc_threshold=0.9, index=0)
+        return passes
+
+    def test_a_sample_where_a_class_fires_ends_the_round(self):
+        self.assertEqual([[]], self._passes({"triple"}))
+
+    def test_a_sample_where_nothing_fires_reruns_from_its_edges(self):
+        self.assertEqual([[], [b"w"], [b"w"]], self._passes(set()))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -199,16 +281,3 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
-
-
-class TestTheLimitHalvesWhenProbesAreBlockedAtIt(unittest.TestCase):
-    def _pass(self, unchecked, reads):
-        return SimpleNamespace(unchecked_quiet_probes=unchecked, quiet_reads=reads)
-
-    def test_a_minority_of_probes_unchecked_can_still_be_the_limits_rate(self):
-        # 149 probes of 8 reads each at a 0.1 limit can leave ~119 unchecked;
-        # 70 is more than half of that, though fewer than half the probes.
-        self.assertTrue(_blocked_at_limit(self._pass(70, 149 * 8), 0.1))
-
-    def test_fewer_than_half_the_limits_rate_does_not_halve(self):
-        self.assertFalse(_blocked_at_limit(self._pass(50, 149 * 8), 0.1))

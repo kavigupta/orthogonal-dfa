@@ -5,10 +5,8 @@ Putting them together is what "sift" means, and both the probe loop and the edge
 resolver need it, so it lives here rather than in either of them.
 """
 
+from collections import namedtuple
 from typing import Optional, Tuple
-
-#: Probes sifted per batched pass.
-PROBE_BLOCK = 16
 
 
 class Sifter:
@@ -17,18 +15,11 @@ class Sifter:
     def __init__(self, tree, family):
         self.tree = tree
         self.family = family
-        #: Node reads every sift so far has made.
-        self.reads = 0
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
         """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
         when some node cannot place it."""
-
-        def decide(s, midfix):
-            self.reads += 1
-            return self.family.is_accept(s, midfix)
-
-        return self.tree.sift(seq, decide)
+        return self.tree.sift(seq, self.family.is_accept)
 
     def known_sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to without a new query, or ``None`` when some
@@ -68,38 +59,87 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
 
-def anchored_walk(probe, sift, transitions, earliest):
-    """Where ``sift`` first places a prefix of ``probe`` at least ``earliest``
-    long, and what following ``transitions`` from there reaches.
+#: How reading a probe against a hypothesis ends (see ``read``).
+AGREE = "agree"
+START_UNDECIDED = "start undecided"
+END_UNDECIDED = "end undecided"
+PAIR = "pair"
+EDGE = "edge"
+TRIPLE = "triple"
+UNLEARNED_EDGE = "unlearned edge"
 
-    ``states[i]`` is the state after ``probe[:i]``, ``None`` below the anchor;
-    ``(None, None)`` where no such prefix places.
-    """
-    start = earliest
-    while start < len(probe):
-        state = sift(probe[:start])
-        if state is not None:
-            break
-        start += 1
-    else:
-        return None, None
-    states = [None] * start + [state]
-    for symbol in probe[start:]:
-        state = transitions[state][symbol]
-        states.append(state)
-    return start, states
+#: ``at``: the length of the prefix the outcome is at (the read cut short, the
+#: edge's head, a triple's middle, a pair's first, or before an unlearned edge);
+#: ``string``: an undecided read's boundary string, both a pair's, or an
+#: unlearned edge's member; ``state``: the walk's state before an edge, or the
+#: one an unlearned edge's member reaches.
+Outcome = namedtuple("Outcome", "kind at string state")
 
 
-def first_disagreeing_edge(probe, states, sift, lo, hi):
-    """The first index where the walk and a fresh sift diverge, or ``None``
-    where a sift on the way comes out indecisive.
+def read(probe, sift, transitions, k):
+    """The outcome of walking ``probe`` along the learned ``transitions`` from
+    where ``sift`` places its first ``k`` symbols, and sifting it whole.
 
-    Invariant: the sift agrees at ``lo`` and disagrees at ``hi``.
-    """
-    while lo + 1 < hi:
+    At an unlearned edge the prefixes either side of it are sifted.  Where the
+    walk and the sift disagree, the search between them narrows on decided reads
+    only, and ends at an edge (agree, disagree), a triple (agree, undecided,
+    disagree) or a pair of adjacent undecided reads."""
+    anchor, boundary = sift(probe[:k])
+    if anchor is None:
+        return Outcome(START_UNDECIDED, k, boundary, None)
+    states = [None] * k + [anchor]
+    for j in range(k, len(probe)):
+        target = transitions[states[-1]].get(probe[j])
+        if target is None:
+            return _unlearned(probe, sift, states, k)
+        states.append(target)
+    end, boundary = sift(probe)
+    if end is None:
+        return Outcome(END_UNDECIDED, len(probe), boundary, None)
+    if end == states[-1]:
+        return Outcome(AGREE, len(probe), None, None)
+    return _search(probe, sift, states, k)
+
+
+def _unlearned(probe, sift, states, k):
+    j = len(states) - 1
+    for at in (j + 1, j):
+        leaf, boundary = sift(probe[:at])
+        if leaf is None:
+            return Outcome(END_UNDECIDED, at, boundary, None)
+    if leaf == states[j]:
+        return Outcome(UNLEARNED_EDGE, j, probe[:j], leaf)
+    return _search(probe, sift, states, k)
+
+
+def _search(probe, sift, states, lo):
+    """Where the walk ``states`` and ``sift`` part between ``lo``, where they
+    agree, and the walk's end, where they disagree."""
+    hi = len(states) - 1
+
+    def agrees(p):
+        if p in (lo, hi):
+            return p == lo
+        leaf = sift(probe[:p])[0]
+        return None if leaf is None else leaf == states[p]
+
+    while hi - lo > 1:
         mid = (lo + hi) // 2
-        landed = sift(probe[:mid])
-        if landed is None:
-            return None
-        lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
-    return hi
+        side = agrees(mid)
+        if side is not None:
+            lo, hi = (mid, hi) if side else (lo, mid)
+            continue
+        left = agrees(mid - 1)
+        if left is None:
+            return _pair(probe, sift, mid - 1)
+        right = agrees(mid + 1)
+        if right is None:
+            return _pair(probe, sift, mid)
+        if left and not right:
+            return Outcome(TRIPLE, mid, sift(probe[:mid])[1], None)
+        lo, hi = (lo, mid - 1) if not left else (mid + 1, hi)
+    return Outcome(EDGE, hi, None, states[hi - 1])
+
+
+def _pair(probe, sift, at):
+    return Outcome(PAIR, at, (sift(probe[:at])[1], sift(probe[: at + 1])[1]), None)

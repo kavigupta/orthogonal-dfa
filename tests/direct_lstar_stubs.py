@@ -4,6 +4,7 @@ accept-everything oracle, and a PST namespace pointed at them."""
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
+from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
 class StubTable:
@@ -34,5 +35,6 @@ def make_pst():
         evidence_margin=0.0,
         table=StubTable(oracle),
         oracle=oracle,
+        sampler=UniformSampler(4),
         config=SimpleNamespace(split_pval=0.001, min_signal_strength=0.3),
     )

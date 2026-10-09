@@ -498,9 +498,19 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
+def _hold_out(ranked, count, rng):
+    """A uniformly random ``count`` of ``ranked`` held out, and the rest in rank
+    order."""
+    held = set(rng.choice(len(ranked), size=min(count, len(ranked)), replace=False))
+    return [u for i, u in enumerate(ranked) if i not in held], [
+        ranked[i] for i in sorted(held)
+    ]
+
+
+def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
-    split before it is returned.
+    split before it is returned, with half as many suffixes held out of the same
+    cluster at random for the split test alone.
 
     ``v`` is the empty suffix from either caller, and the gate reads the split
     off its column on the strength of that: membership of ``p + v`` is
@@ -527,8 +537,8 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         # rest: ask again at the new size before spending a cohort of oracle
         # queries on suffixes to cover a handful.
         for _ in range(2):
-            vs, decision_boundary = identify_cluster_around(
-                pst, v, family_size, decision_boundary
+            ranked, decision_boundary = identify_cluster_around(
+                pst, v, family_size + family_size // 2, decision_boundary
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
@@ -536,8 +546,9 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 decision_boundary,
                 read_rates(pst, decision_boundary),
             )
-            if len(vs) >= family_size:
+            if len(ranked) >= family_size + family_size // 2:
                 break
+        vs, held_out = _hold_out(ranked, family_size // 2, pst.rng)
 
         judged = judge_family(pst, gate, v, vs, family_size)
 
@@ -546,7 +557,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
-            return judged.vs, decision_boundary
+            return judged.vs, held_out, decision_boundary
 
         if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so

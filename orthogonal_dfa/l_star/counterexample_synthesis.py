@@ -15,8 +15,8 @@ in the next round.
 import math
 import time
 import warnings
-from collections import Counter
 from dataclasses import dataclass
+from functools import partial
 from typing import List, Optional
 
 import numpy as np
@@ -24,15 +24,14 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
-from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
+from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
-from .provenance import provenance
 from .tracker import SynthesisTracker
-from .transition_resolver import TransitionResolver
+from .transition_resolver import PAIR_TRIP, TransitionResolver
 
 
 @dataclass
@@ -79,7 +78,7 @@ def _round_classifier(pst, vs) -> RoundClassifier:
     )
 
 
-#: Probes drawn per counterexample pass.
+#: Probes drawn per round.
 COUNTEREXAMPLE_PROBES = 4000
 
 #: P(some round certifies a DFA whose error is over certified_error), where the
@@ -109,16 +108,8 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     taken = sorted(set(resolver.indecisive) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(string, resolver.indecisive[string])
+        state.take(string)
     return min(wanted, len(taken))
-
-
-def _blocked_at_limit(resolver, fnr_limit) -> bool:
-    """Whether the pass's quiet probes went unchecked as often as a family
-    indecisive at the limit could leave them: a probe goes unchecked when any of
-    its reads is undecided, so that is up to ``fnr_limit`` times their reads, and
-    at half of it only a lower limit gets a later round past them."""
-    return 2 * resolver.unchecked_quiet_probes > fnr_limit * resolver.quiet_reads
 
 
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
@@ -138,24 +129,62 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Hands the round's boundary population a source that draws more the way
-    its strings were found, proved only when a family search first asks it for
-    more: otherwise the only population the counterexample pass fills for free is
-    the one a later round has nothing to draw with."""
-    if state.harvesting is None:
-        return
-    state.sources[state.harvesting] = HarvestSource(
-        Counter(
-            {
-                provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
-                for read, count in state.harvest_reads.items()
-            }
-        ),
-        pst.rng,
-        known=state.seen,
-        acc_threshold=acc_threshold,
-    )
+def _read_round(resolver, certificate, *, patience, acc_threshold, index):
+    """The pass, then the gate, then the certificate on a hypothesis the gate
+    passes.  A refusal by either is sampled (see ``refusal_sample``); a sample
+    where no class fires reruns the pass from the edges it met, until the
+    certificate passes, a sample fires or meets none, or the round's probes run
+    out.  Returns the last reading, its DFA, and the certified DFA if any."""
+    first = []
+    while True:
+        resolver.counterexample_pass(
+            patience=patience, first=first, budget=COUNTEREXAMPLE_PROBES
+        )
+        gate = resolver.read_fresh(acc_threshold=acc_threshold)
+        dfa = None
+        if gate.passed:
+            dfa = resolver.to_dfa_and_tree(gate.start)[0]
+            output = certificate.certify(dfa, index=index)
+            if output is not None:
+                return gate, dfa, output
+        elif gate.passed is None:
+            certificate.reached_target(index)
+        gate = resolver.refusal_sample(gate)
+        if dfa is None:
+            dfa = resolver.to_dfa_and_tree(gate.start)[0]
+        if (
+            gate.fired
+            or not gate.disagreements
+            or resolver.probed >= COUNTEREXAMPLE_PROBES
+        ):
+            return gate, dfa, None
+        first = gate.disagreements
+
+
+def _after_refusal(pst, resolver, gate, state, *, per_state, acc_threshold) -> bool:
+    """Halve the FNR limit where the sample came down to pairs too often, or held
+    nothing and met no live edge, saying whether it did; and hold what each
+    class that fired left.  A start or end class holds draws cut to ``k`` or
+    whole and followed by each midfix it stopped at; the others, their
+    strings, grown by replaying the sample."""
+    halve = PAIR_TRIP in gate.fired or not (gate.fired or gate.disagreements)
+    if halve:
+        pst.fnr_limit /= 2
+    lengths = {"start": resolver.k, "end": pst.sampler.length}
+    for end in lengths:
+        state.retire(end)
+    for name, found in gate.harvests.items():
+        if name in lengths:
+            for m in found:
+                state.hold((name, m), MidfixSource(pst, lengths[name], m), per_state)
+        elif found:
+            source = HarvestSource(
+                partial(resolver.replay, gate, name),
+                known=state.seen,
+                acc_threshold=acc_threshold,
+            )
+            state.hold_found(name, found, source)
+    return halve
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -192,8 +221,8 @@ def _publish_pool(pst, state) -> int:
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
-#: Rounds a run keeps going after the certificate first refuses a round at the
-#: consistency target.
+#: Rounds a run keeps going after it first reaches the consistency target
+#: without certifying.
 CERTIFICATE_PATIENCE = 5
 
 
@@ -259,17 +288,33 @@ class BestRound:
             self.certified = certified
 
 
-def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
-    output = denoise_accept_labels(pst, dfa)
-    # Spread over the rounds, whichever of them reach the certificate.
-    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
-    tracker.on_certificate_decided(verdict.certified, index)
-    if verdict.certified:
-        print(f"[round {index}] certified; stopping synthesis")
-        return output
-    print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
-    return None
+class _Certificate:
+    """The certificate, its alpha spread over every attempt in the run."""
+
+    def __init__(self, pst, tracker):
+        self.pst, self.tracker = pst, tracker
+        self.attempts = 0
+        #: Round of the first attempt, or of the first gate left unsettled at the
+        #: target; CERTIFICATE_PATIENCE counts from it.
+        self.first_round = None
+
+    def reached_target(self, index):
+        if self.first_round is None:
+            self.first_round = index
+
+    def certify(self, dfa, *, index):
+        """denoise_accept_labels(dfa) if the certificate passes it, else None."""
+        self.reached_target(index)
+        output = denoise_accept_labels(self.pst, dfa)
+        alpha = look_level(CERTIFICATE_ALPHA, self.attempts)
+        self.attempts += 1
+        verdict = certifies(self.pst, output, alpha=alpha)
+        self.tracker.on_certificate_decided(verdict.certified, index)
+        if verdict.certified:
+            print(f"[round {index}] certified; stopping synthesis")
+            return output
+        print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
+        return None
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -278,7 +323,7 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     print(
         f"[round {index}] no hypothesis the certificate passes in "
         f"{CERTIFICATE_PATIENCE} "
-        "rounds since the certificate first failed; stopping synthesis"
+        "rounds since one first reached the target; stopping synthesis"
     )
     return True
 
@@ -309,24 +354,30 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
-    # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
-    uncertified_since = None
+    certificate = _Certificate(pst, tracker)
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        vs, held_out, boundary = sample_suffix_family(
+            pst, pst.table.intern_suffix(b""), state
+        )
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
+        resolver = TransitionResolver(pst, vs, held_out)
         resolver.close_edges()
-        resolver.counterexample_pass(
-            max_probes=COUNTEREXAMPLE_PROBES, patience=patience
+        gate, dfa, output = _read_round(
+            resolver,
+            certificate,
+            patience=patience,
+            acc_threshold=acc_threshold,
+            index=index,
         )
-        dfa, dt = resolver.to_dfa_and_tree()
+        true_acc = gate.agreement
+        dt = resolver.tree
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
             f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
@@ -335,24 +386,8 @@ def counterexample_driven_synthesis(
         assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
-        # Only a round that would otherwise return is worth the certificate's reads.
-        output = None
-        if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, index=index, tracker=tracker)
-            uncertified_since = (
-                index if uncertified_since is None else uncertified_since
-            )
         best.consider(
             consistency=true_acc,
             dfa=dfa,
@@ -363,22 +398,19 @@ def counterexample_driven_synthesis(
         )
         if output is not None:
             return best
-        if _uncertified_too_long(index, uncertified_since):
+        if _uncertified_too_long(index, certificate.first_round):
             return best
-        if _blocked_at_limit(resolver, pst.fnr_limit):
-            pst.fnr_limit /= 2
-            print(
-                f"[round {index}] {resolver.unchecked_quiet_probes} of the "
-                f"{resolver.quiet_probes} probes since the last split unchecked, "
-                f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
-            )
+        if _after_refusal(
+            pst, resolver, gate, state, per_state=per_state, acc_threshold=acc_threshold
+        ):
+            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.  Rounds after a
         # refusal have their own patience, so they are not weighed for a stall.
-        if uncertified_since is None and stall.stalled(
+        if certificate.first_round is None and stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
             settled=lambda: resolver.splits.nothing_left_to_split(
@@ -394,7 +426,6 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

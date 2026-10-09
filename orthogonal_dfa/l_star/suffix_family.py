@@ -11,17 +11,20 @@ from typing import Dict, List, Optional
 
 class SuffixFamily:
     """The round's suffixes ``vs`` (rows into ``pst.table``), and confident
-    classification of a string against a midfix node through their mean."""
+    classification of a string against a midfix node through their mean;
+    ``held_out``, rows only the split test reads."""
 
-    def __init__(self, pst, vs: List[int]):
+    def __init__(self, pst, vs: List[int], held_out: List[int]):
         self.pst = pst
         self.vs = list(vs)
+        self.held_out = list(held_out)
         # A later round moves pst's boundary; this round's tree was cut at these.
         self.accept_thresh = pst.accept_thresh
         self.reject_thresh = pst.reject_thresh
-        # train/test halves for the split test
+        #: The middle of the band, where the gate reads.
+        self.middle = (self.accept_thresh + self.reject_thresh) / 2
+        # The half a split test groups members on.
         self.train_idx = list(range(0, len(self.vs), 2))
-        self.test_idx = list(range(1, len(self.vs), 2))
         # keyed by seq + midfix, which is all a mean depends on
         self._means: Dict[bytes, float] = {}
 
@@ -30,6 +33,19 @@ class SuffixFamily:
         shared memo so cells the mask already holds cost no new query."""
         table = self.pst.table
         return table.memo.membership_queries([base + table.suffix(v) for v in self.vs])
+
+    def held_out_bits(self, strings) -> List[int]:
+        """Membership of each of ``strings``, which are bases followed by
+        held-out suffixes."""
+        return self.pst.table.memo.membership_queries(strings)
+
+    def held_out_strings(self, base) -> List[bytes]:
+        return [base + self.pst.table.suffix(v) for v in self.held_out]
+
+    def unread(self, strings) -> List[bytes]:
+        """Those of ``strings`` no read in the run has asked."""
+        known = self.pst.table.memo.known(strings) if strings else []
+        return [s for s, k in zip(strings, known) if not k]
 
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs
@@ -64,6 +80,11 @@ class SuffixFamily:
             return False
         return None
 
+    def middle_side(self, seq, midfix) -> bool:
+        """Whether the family mean lands above the middle of the band; exactly on
+        it reads as reject."""
+        return self.mean(seq, midfix) > self.middle
+
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""
         bits = self.bits(seq + midfix)
@@ -72,11 +93,13 @@ class SuffixFamily:
 
     def train_side(self, votes) -> Optional[bool]:
         """
-        Which side of the distinguisher the votes fall on (on the training half only).
+        Which side of the distinguisher the votes fall on (on the training half
+        only): accept past ``accept_thresh``, reject at or below
+        ``reject_thresh``.
         """
-        mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
-        if mean >= self.accept_thresh:
+        accepts = sum(votes[i] for i in self.train_idx)
+        if accepts > self.accept_thresh * len(self.train_idx):
             return True
-        if mean < self.reject_thresh:
+        if accepts <= self.reject_thresh * len(self.train_idx):
             return False
         return None

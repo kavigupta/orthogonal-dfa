@@ -68,12 +68,15 @@ class _StubTable:
     # Two prefixes, one reaching each state, so both get relabelled.
     prefixes = ([0], [1])
 
+    def __init__(self, memo):
+        self.memo = memo
+
 
 class _StubPst:
     def __init__(self, seed=0):
         self.oracle = _CountingOracle()
         self.sampler = UniformSampler(20)
-        self.table = _StubTable()
+        self.table = _StubTable(self.oracle)
         self.rng = np.random.default_rng(seed)
         self.decision_boundary = 0.5
         self.config = _StubConfig()
@@ -110,7 +113,7 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         # degraded into a series of shrinking calls.  Needs an oracle that never
         # decides, or the budget is never approached.
         pst = _StubPst()
-        pst.oracle = _CoinFlipOracle()
+        pst.oracle = pst.table.memo = _CoinFlipOracle()
         denoise_accept_labels(pst, PARITY, block_size=32)
         budget = denoise_sample_size(
             pst.config.min_signal_strength, pst.decision_boundary
@@ -132,7 +135,7 @@ class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
         # The silence this replaces is how a cap below the test's requirement
         # went unnoticed: every state undecided, and nothing said so.
         pst = _StubPst()
-        pst.oracle = _CoinFlipOracle()
+        pst.oracle = pst.table.memo = _CoinFlipOracle()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             denoise_accept_labels(pst, PARITY)
@@ -143,7 +146,7 @@ class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
         # so it runs out of strings rather than out of budget -- the condition
         # the report turns on, and the reason it is not just "undecided".
         pst = _StubPst()
-        pst.oracle = _CoinFlipOracle()
+        pst.oracle = pst.table.memo = _CoinFlipOracle()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             denoise_accept_labels(pst, ALL_ONES)

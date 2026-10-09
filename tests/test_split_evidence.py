@@ -3,7 +3,6 @@ from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.provenance import Read
 from orthogonal_dfa.l_star.split_evidence import (
     MEMBERS_TO_RULE_OUT_A_SPLIT,
     NO_SPLIT,
@@ -16,19 +15,23 @@ from orthogonal_dfa.l_star.split_evidence import (
 class _StubFamily:
     """Classifies by caller-supplied rules, so no oracle is involved.
 
-    The two halves are driven independently, because that is the whole point of
-    the partition: ``side_of(prefix)`` groups a member on the train half
-    (``None`` = indecisive there, contributing no evidence), and
-    ``accept_rate(prefix)`` sets the fraction of TEST bits that score it.
+    The train half and the held-out suffixes are driven independently, because
+    that is the whole point of the partition: ``side_of(prefix)`` groups a
+    member on the train half (``None`` = indecisive there, contributing no
+    evidence), and ``accept_rate(prefix)`` sets the fraction of held-out bits
+    that score it.
     """
 
-    test_idx = list(range(1, 20, 2))
     train_idx = list(range(0, 20, 2))
+    held_out = list(range(10))
 
     def __init__(self, side_of=lambda p, d: True, accept_rate=None):
         self.side_of = side_of
         self.accept_rate = accept_rate
         self.prefilled = []
+        self._rates = {}
+        #: Held-out strings some other read in the run asked first.
+        self.read = set()
 
     def prefill(self, bases):
         self.prefilled.extend(bases)
@@ -36,15 +39,26 @@ class _StubFamily:
     def votes(self, prefix, distinguisher):
         side = self.side_of(list(prefix), distinguisher)
         rate = self.accept_rate(list(prefix)) if self.accept_rate else float(bool(side))
+        self._rates[prefix + distinguisher] = rate
         votes = [0] * 20
         for i in self.train_idx:
             votes[i] = 0 if side is None else (1 if side else 0)
         if side is None:  # straddle the train thresholds
             for i in self.train_idx[: len(self.train_idx) // 2]:
                 votes[i] = 1
-        for n, i in enumerate(self.test_idx):
-            votes[i] = 1 if n < round(rate * len(self.test_idx)) else 0
         return votes
+
+    def held_out_strings(self, base):
+        return [(base, n) for n in self.held_out]
+
+    def unread(self, strings):
+        return [s for s in strings if s not in self.read]
+
+    def held_out_bits(self, strings):
+        return [
+            int(n < round(self._rates[base] * len(self.held_out)))
+            for base, n in strings
+        ]
 
     def train_side(self, votes):
         mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
@@ -77,11 +91,11 @@ def _evidence(family=None, members=(), state=0, tree_splits=(), by_state=None):
     population = LeafPopulation(
         tree,
         lambda strings, midfix: [None] * len(strings),
-        harvest=lambda _boundary, _read: None,
+        harvest=lambda _boundary: None,
     )
     for leaf, held in (by_state or {state: members}).items():
         for member in held:
-            population.add(member, at=tree.path_of(leaf), draw=Read(None, b""))
+            population.add(member, at=tree.path_of(leaf))
     return SplitEvidence(
         _pst(),
         family or _StubFamily(),
@@ -193,17 +207,41 @@ class TestVerdict(unittest.TestCase):
         ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
         self.assertEqual(SPLIT, ev.verdict(0, bytes([1])))
 
+    def test_a_retest_of_the_same_edge_reuses_its_own_held_out_reads(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+        first = ev._tally(ev._members(0), bytes([1]), key="edge")
+
+        self.assertEqual(first, ev._tally(ev._members(0), bytes([1]), key="edge"))
+
+    def test_a_held_out_read_another_test_made_first_is_not_counted(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+        ev._tally(ev._members(0), bytes([1]), key="edge")
+
+        tally = ev._tally(ev._members(0), bytes([1]), key="another")
+        self.assertEqual((0, 0), (tally[1], tally[3]))
+
+    def test_a_held_out_string_another_read_asked_first_is_not_counted(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        members = [bytes([i, i % 2]) for i in range(40)]
+        family.read = {(m + bytes([1]), n) for m in members for n in range(10)}
+        ev = _evidence(family, members=members)
+
+        tally = ev._tally(ev._members(0), bytes([1]), key="edge")
+        self.assertEqual((0, 0), (tally[1], tally[3]))
+
     def test_a_one_sided_population_settles_the_leaf(self):
-        # Every member on the same side: scores stay 0 (no second rate), so the
-        # one-state test decides it -- a zero minority over enough members rules
-        # a split out.
+        # Every member on the same side: there is no second rate to differ, so
+        # the one-state test decides it -- a zero minority over enough members
+        # rules a split out.
         ev = _evidence(
             _StubFamily(side_of=lambda p, d: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, r1, a2, r2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
+        a1, t1, a2, t2, n_a, n_b = ev._tally(ev._members(0), bytes([1]), key=0)
         self.assertEqual((200, 0), (n_a, n_b))
-        self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
+        self.assertFalse(ev._splits(a1, t1, a2, t2, tests=2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):
