@@ -67,9 +67,6 @@ Reading = namedtuple(
 
 #: The populations a refusal sample's outcomes may be held as.
 TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
-#: Each harvest's multiple of what a sift could leave undecided at the limit:
-#: a search sifts about log2(L - k) + 1 prefixes, and an unlearned edge two.
-TRIPLE_SLACK = 2
 
 
 def _harvest(w, outcome):
@@ -361,7 +358,7 @@ class TransitionResolver:
         return {
             "start": (depth - 1) * limit,
             "end": (depth - 1) * limit,
-            TRIPLES: TRIPLE_SLACK * limit * depth * search,
+            TRIPLES: limit * depth * search,
             PAIRS: PAIR_SHARE,
             MEMBERS: 0,
             OPEN_EDGES: 2 * depth * limit,
