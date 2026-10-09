@@ -200,30 +200,47 @@ noncomputable def anchorMisses (t : DTree α) (w : FreeMonoid α) : List (FreeMo
   ((List.range (w.toList.length + 1)).map fun i => t.sift R.cut (prefixOf w i)).takeWhile
     (·.isRight) |>.filterMap Sum.getRight?
 
-/-- The two-group test's tally: over the members the training half places, the test half's
-accepts and the member count on each side, accepting side first. -/
-noncomputable def tally (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool)
-    (d : FreeMonoid α) : (ℕ × ℕ) × (ℕ × ℕ) :=
-  (members K R t pool path).foldl (fun acc m =>
-    let s := acceptsOn (K.train R.F) R.f (m * d)
-    let e := acceptsOn (R.F \ K.train R.F) R.f (m * d)
-    if R.B.hi * (K.train R.F).card < R.F.card * s then ((acc.1.1 + e, acc.1.2 + 1), acc.2)
-    else if R.F.card * s ≤ R.B.lo * (K.train R.F).card then (acc.1, (acc.2.1 + e, acc.2.2 + 1))
-    else acc) ((0, 0), (0, 0))
+/-- The training half's side of `y`, each threshold rescaled to the half: accept above `hi`,
+reject at or below `lo`. -/
+noncomputable def trainSide (y : FreeMonoid α) : Option Bool :=
+  let s := acceptsOn (K.train R.F) R.f y
+  if R.B.hi * (K.train R.F).card < R.F.card * s then some true
+  else if R.F.card * s ≤ R.B.lo * (K.train R.F).card then some false else none
 
-/-- `SplitEvidence.verdict`: split when the two sides' held-out votes differ in rate by more than
+open scoped Classical in
+/-- The block strings a split test of `d` at `path` reads, each with its member's side: `m·d·h`
+over the members the training half places, in order, and the block's `h`, each string once and
+none that `skip` holds. -/
+noncomputable def testStrings (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool)
+    (d : FreeMonoid α) (skip : FreeMonoid α → Prop) : List (FreeMonoid α × Bool) :=
+  ((members K R t pool path).flatMap fun m => match trainSide K R (m * d) with
+    | some b => (K.block R.F).toList.map fun h => (m * d * h, b)
+    | none => []).foldl
+    (fun acc p => if p.1 ∈ acc.map Prod.fst ∨ skip p.1 then acc else acc ++ [p]) []
+
+/-- How many members the training half places on each side, accepting side first. -/
+noncomputable def sideCounts (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool)
+    (d : FreeMonoid α) : ℕ × ℕ :=
+  (((members K R t pool path).filter fun m => trainSide K R (m * d) = some true).length,
+    ((members K R t pool path).filter fun m => trainSide K R (m * d) = some false).length)
+
+open scoped Classical in
+/-- `SplitEvidence.verdict`: split when the two sides' block reads differ in rate by more than
 Hoeffding allows at `splitFpr` over `tests` tests; no split when one side is too small for a
 `minSplit` share to be missed more than `missRate` of the time; otherwise undecided. -/
 noncomputable def verdict (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool)
-    (d : FreeMonoid α) (tests : ℕ) : Verdict :=
-  let x := tally K R t pool path d
-  let E : ℝ := (R.F \ K.train R.F).card
-  if 0 < x.1.2 ∧ 0 < x.2.2 ∧ 0 < E ∧
-      Real.log (2 * tests / K.splitFpr)
-        ≤ 2 * E * ((x.1.2 * x.2.2 : ℕ) : ℝ) / (x.1.2 + x.2.2)
-          * ((x.1.1 : ℝ) / (x.1.2 * E) - (x.2.1 : ℝ) / (x.2.2 * E)) ^ 2 then .split
-  else if 0 < x.1.2 + x.2.2
-      ∧ 1 - binomSfGe (x.1.2 + x.2.2) K.minSplit (min x.1.2 x.2.2 + 1) ≤ K.missRate
+    (d : FreeMonoid α) (tests : ℕ) (skip : FreeMonoid α → Prop) : Verdict :=
+  let ts := testStrings K R t pool path d skip
+  let t₁ : ℝ := (ts.filter (·.2 = true)).length
+  let t₂ : ℝ := (ts.filter (·.2 = false)).length
+  let a₁ : ℝ := ((ts.filter (·.2 = true)).filter fun p => R.f p.1 = 1).length
+  let a₂ : ℝ := ((ts.filter (·.2 = false)).filter fun p => R.f p.1 = 1).length
+  let n := sideCounts K R t pool path d
+  if (0 : ℝ) < t₁ ∧ (0 : ℝ) < t₂ ∧ Real.log (2 * (tests : ℝ) / K.splitFpr)
+      ≤ 2 * t₁ * t₂ / (t₁ + t₂) * (a₁ / t₁ - a₂ / t₂) ^ (2 : ℕ) then
+    .split
+  else if 0 < n.1 + n.2
+      ∧ 1 - binomSfGe (n.1 + n.2) K.minSplit (min n.1 n.2 + 1) ≤ K.missRate
   then .noSplit
   else .undecided
 
@@ -264,7 +281,7 @@ noncomputable def onEdge (s : PassState α) (w : FreeMonoid α) (walkAt : ℕ �
       | none => clean
       | some d =>
         let kept := sprime :: pool.filter (· ≠ sprime)
-        match verdict K R t pool s1 d (t.paths.length * Fintype.card α) with
+        match verdict K R t pool s1 d (t.paths.length * Fintype.card α) (fun _ => False) with
         | .split =>
           let cleared := fun p c' => match s.edges p c' with
             | some (q, y) => if p = s1 ∨ q = s1 then none else some (q, y)

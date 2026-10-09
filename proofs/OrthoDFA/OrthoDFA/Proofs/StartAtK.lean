@@ -753,9 +753,10 @@ theorem walkCheck_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoi
     exact ha (by rw [hlast, he])
 
 theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
+    {T : Tested α}
     (hl : Learned R t edges) {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     (h : probeOutcome R t edges k x = .edge ps fd) :
-    seedStep K R t pool edges k x ps fd ≠ .dropped := by
+    seedStep K R t pool edges T k x ps fd ≠ .dropped := by
   obtain ⟨ps₀, hi, hw, hb⟩ := probeOutcome_search R h trivial
   obtain ⟨p₀, hk, hf, hkh, hhn, hpn⟩ := walkCheck_inr R hw
   set walkAt : ℕ → List Bool := fun j => ps₀.getD (j - k) [] with hwalk

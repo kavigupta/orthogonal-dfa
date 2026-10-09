@@ -194,9 +194,9 @@ theorem parting_inl {cut : FreeMonoid α → Option Bool} {x y pre d : FreeMonoi
     · exact parting_inl a h
 
 theorem seedStep_split_facts (K : StageKnobs α) (R : CutReads α) {t : DTree α}
-    {pool : List (FreeMonoid α)} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    {pool : List (FreeMonoid α)} {edges : Edges α} {T : Tested α} {k : ℕ} {x : FreeMonoid α}
     {ps : List (List Bool)} {fd : ℕ} {d : FreeMonoid α} {s1 : List Bool} {y sprime : FreeMonoid α}
-    (h : seedStep K R t pool edges k x ps fd = .split d s1 y sprime) :
+    (h : seedStep K R t pool edges T k x ps fd = .split d s1 y sprime) :
     SplitOK R ⟨t, s1, d, y, sprime⟩ := by
   unfold seedStep at h
   simp only [] at h
@@ -277,10 +277,11 @@ section Step
 
 variable (C : StrongCfg α) (R : CutReads α)
 
-theorem split_leaf_mem {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α} {k : ℕ}
+theorem split_leaf_mem {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
+    {T : Tested α} {k : ℕ}
     (hl : Learned R t edges) {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     {d y sp : FreeMonoid α} {s1 : List Bool}
-    (h : seedStep C.K R t pool edges k x ps fd = .split d s1 y sp) : s1 ∈ t.paths := by
+    (h : seedStep C.K R t pool edges T k x ps fd = .split d s1 y sp) : s1 ∈ t.paths := by
   obtain ⟨⟨c, s2, he⟩, -⟩ := seedStep_split_spec C.K R h
   exact DTree.sift_mem_paths t _ _ (hl _ _ _ _ he).1
 
@@ -325,7 +326,7 @@ theorem strongStep_cases (A : RoundAcc α) (x : FreeMonoid α)
     rw [hst]
     exact ⟨rfl, hp⟩
   obtain ⟨ps, fd, ho⟩ := hE
-  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges C.k x ps fd with
+  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges A.s.tested C.k x ps fd with
     ⟨d, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
   · right
     refine ⟨⟨A.s.tree, s1, d, y, sp⟩, ?_, rfl, split_leaf_mem C R hl hs, ?_,

@@ -282,23 +282,80 @@ theorem bisect_congr {t : DTree α} {w : FreeMonoid α} {walk : ℕ → List Boo
   | fuel + 1, lo, hi => by
     simp only [bisect, sift_congr (B := B) (h ((lo + hi) / 2)), bisect_congr h fuel]
 
-theorem tally_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
+theorem trainSide_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
+    trainSide K (rd B F f₁) y = trainSide K (rd B F f₂) y := by
+  simp only [trainSide, rd, acceptsOn_congr (K.train_sub F) h]
+
+theorem mem_foldl_keep {β : Type*} (c : List β → β → Prop) [∀ a b, Decidable (c a b)] :
+    ∀ (l acc : List β) (x : β),
+      x ∈ l.foldl (fun acc p => if c acc p then acc else acc ++ [p]) acc → x ∈ acc ∨ x ∈ l
+  | [], _, _, h => .inl h
+  | p :: l, acc, x, h => by
+    rw [List.foldl_cons] at h
+    rcases mem_foldl_keep c l _ x h with h | h
+    · split_ifs at h with hc
+      · exact .inl h
+      · rcases List.mem_append.1 h with h | h
+        · exact .inl h
+        · exact .inr (List.mem_singleton.1 h ▸ List.mem_cons_self)
+    · exact .inr (List.mem_cons_of_mem _ h)
+
+theorem mem_testStrings {R : CutReads α} {t : DTree α} {pool : List (FreeMonoid α)}
+    {path : List Bool} {d : FreeMonoid α} {skip : FreeMonoid α → Prop}
+    {p : FreeMonoid α × Bool} (hp : p ∈ testStrings K R t pool path d skip) :
+    ∃ m ∈ members K R t pool path, ∃ h ∈ K.block R.F, p.1 = m * d * h := by
+  classical
+  unfold testStrings at hp
+  rcases mem_foldl_keep _ _ _ _ hp with hp | hp
+  · simp at hp
+  obtain ⟨m, hm, hp⟩ := List.mem_flatMap.1 hp
+  refine ⟨m, hm, ?_⟩
+  split at hp
+  · obtain ⟨h, hh, rfl⟩ := List.mem_map.1 hp
+    exact ⟨h, Finset.mem_toList.1 hh, rfl⟩
+  · simp at hp
+
+theorem testStrings_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
+    {d : FreeMonoid α} {skip : FreeMonoid α → Prop}
+    (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
+    (hd : ∀ b ∈ pool, Agree K F f₁ f₂ (b * d)) :
+    testStrings K (rd B F f₁) t pool path d skip
+      = testStrings K (rd B F f₂) t pool path d skip := by
+  unfold testStrings
+  rw [members_congr h]
+  congr 1
+  refine List.flatMap_congr fun m hm => ?_
+  rw [trainSide_congr (hd m (members_mem hm))]
+
+theorem sideCounts_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
     {d : FreeMonoid α} (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
     (hd : ∀ b ∈ pool, Agree K F f₁ f₂ (b * d)) :
-    tally K (rd B F f₁) t pool path d = tally K (rd B F f₂) t pool path d := by
-  unfold tally
+    sideCounts K (rd B F f₁) t pool path d = sideCounts K (rd B F f₂) t pool path d := by
+  unfold sideCounts
   rw [members_congr h]
-  refine foldl_congr_mem _ fun acc b hb => ?_
-  have hb' := hd b (members_mem hb)
-  simp only [rd, acceptsOn_congr (K.train_sub F) hb',
-    acceptsOn_congr (Finset.sdiff_subset.trans (K.family_sub F)) hb']
+  congr 2 <;> refine List.filter_congr fun m hm => ?_ <;>
+    rw [trainSide_congr (hd m (members_mem hm))]
 
 theorem verdict_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
-    {d : FreeMonoid α} {tests : ℕ} (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
+    {d : FreeMonoid α} {tests : ℕ} {skip : FreeMonoid α → Prop}
+    (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
     (hd : ∀ b ∈ pool, Agree K F f₁ f₂ (b * d)) :
-    verdict K (rd B F f₁) t pool path d tests = verdict K (rd B F f₂) t pool path d tests := by
+    verdict K (rd B F f₁) t pool path d tests skip
+      = verdict K (rd B F f₂) t pool path d tests skip := by
+  have hf : ∀ p ∈ testStrings K (rd B F f₂) t pool path d skip, f₁ p.1 = f₂ p.1 := by
+    intro p hp
+    obtain ⟨m, hm, b, hb, he⟩ := mem_testStrings hp
+    rw [he]
+    exact hd m (members_mem hm) b (K.block_sub F hb)
+  have e : ∀ b : Bool,
+      ((testStrings K (rd B F f₂) t pool path d skip).filter fun p => decide (p.2 = b)).filter
+        (fun p => decide (f₁ p.1 = 1))
+      = ((testStrings K (rd B F f₂) t pool path d skip).filter fun p => decide (p.2 = b)).filter
+        (fun p => decide (f₂ p.1 = 1)) := fun b =>
+    List.filter_congr fun p hp => by simp only [hf p (List.mem_of_mem_filter hp)]
   unfold verdict
-  rw [tally_congr h hd]
+  rw [testStrings_congr h hd, sideCounts_congr h hd]
+  simp only [rd, e]
 
 theorem prefixOf_length (w : FreeMonoid α) : prefixOf w w.toList.length = w := by
   simp [prefixOf]
@@ -334,7 +391,7 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
           rw [verdict_congr (fun b hb => (hone b hb).tree)
             (fun b hb => (hone b hb).letter' c m' hm')]
           rcases hv : verdict K (rd B F f₂) s.tree pool (walkAt (fd - 1)) (FreeMonoid.of c * m')
-              (s.tree.paths.length * Fintype.card α) with _ | _ | _
+              (s.tree.paths.length * Fintype.card α) (fun _ => False) with _ | _ | _
           · refine settle_congr fun b hb => ?_
             rcases List.mem_append.1 hb with hb | hb
             · exact (hpool b hb).split hm'
