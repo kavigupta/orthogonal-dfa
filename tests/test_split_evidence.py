@@ -193,16 +193,16 @@ class TestVerdict(unittest.TestCase):
         self.assertEqual(SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_one_sided_population_settles_the_leaf(self):
-        # Every member on the same side: scores stay 0 (no second rate), so the
-        # one-state test decides it -- a zero minority over enough members rules
-        # a split out.
+        # Every member on the same side: there is no second rate to differ, so
+        # the one-state test decides it -- a zero minority over enough members
+        # rules a split out.
         ev = _evidence(
             _StubFamily(side_of=lambda p, d: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, r1, a2, r2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
+        a1, a2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
         self.assertEqual((200, 0), (n_a, n_b))
-        self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
+        self.assertFalse(ev._splits(a1, a2, n_a, n_b, tests=2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):

@@ -5,7 +5,7 @@ A proposed distinguisher is weighed against the leaf's members until one of two
 tests fires.
 
 1. split. We group the sides on the train half, and check if they differ in accept rate
-  on the held-out test half, and the Bayes factor clears the Bonferroni threshold.
+  on the held-out test half by more than Hoeffding allows, Bonferroni-corrected.
 2. no split. The members agree closely enough to rule out a split of at least
   _MIN_DETECTABLE_SPLIT at the tolerated miss rate. This is a binomial test
   on the minority count.
@@ -36,10 +36,6 @@ _MEMBER_LIMIT = 1500
 SPLIT = "split"
 NO_SPLIT = "no_split"
 UNDECIDED = "undecided"
-
-
-def _log_beta(a: float, b: float) -> float:
-    return math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
 
 
 class SplitEvidence:
@@ -77,8 +73,8 @@ class SplitEvidence:
 
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
         assert self.family.test_idx  # vs is sized to the family size, never empty
-        a1, r1, a2, r2, n_a, n_b = self._tally(members, distinguisher)
-        if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold(tests):
+        a1, a2, n_a, n_b = self._tally(members, distinguisher)
+        if self._splits(a1, a2, n_a, n_b, tests=tests):
             return SPLIT
         if self._agrees_as_one_state(n_a, n_b):
             return NO_SPLIT
@@ -112,14 +108,14 @@ class SplitEvidence:
         Group ``members`` by the train half and count the disjoint
         test half per side:
 
-        Returns (A_true, R_true, A_false, R_false, n_true, n_false)
-            where A means accept, R means reject
-            and true/false is the grouping into each side of the distinguisher.
+        Returns (A_true, A_false, n_true, n_false), the test-half accepts and
+        the member counts, where true/false is the grouping into each side of
+        the distinguisher.
 
         Indecisive members contribute nothing.
         """
         self.family.prefill([member + distinguisher for member in members])
-        a1 = r1 = a2 = r2 = n_a = n_b = 0
+        a1 = a2 = n_a = n_b = 0
         test = self.family.test_idx
         for member in members:
             votes = self.family.votes(member, distinguisher)
@@ -128,10 +124,10 @@ class SplitEvidence:
                 continue
             accepts = sum(votes[i] for i in test)
             if group:
-                a1, r1, n_a = a1 + accepts, r1 + len(test) - accepts, n_a + 1
+                a1, n_a = a1 + accepts, n_a + 1
             else:
-                a2, r2, n_b = a2 + accepts, r2 + len(test) - accepts, n_b + 1
-        return a1, r1, a2, r2, n_a, n_b
+                a2, n_b = a2 + accepts, n_b + 1
+        return a1, a2, n_a, n_b
 
     def _agrees_as_one_state(self, n_a: int, n_b: int) -> bool:
         """
@@ -145,26 +141,16 @@ class SplitEvidence:
             <= self._split_miss_rate
         )
 
-    @staticmethod
-    def _log_bf_scores(a1: int, r1: int, a2: int, r2: int) -> float:
-        """
-        One pooled Beta-Bernoulli rate (a single state) against two (a real
-        split), over the test-half votes.  This is the split test's statistic.
-        """
-        return (
-            _log_beta(1 + a1, 1 + r1)
-            + _log_beta(1 + a2, 1 + r2)
-            - _log_beta(1 + a1 + a2, 1 + r1 + r2)
-        )
+    def _splits(self, a1: int, a2: int, n_a: int, n_b: int, *, tests: int) -> bool:
+        """Whether the sides' held-out rates differ by more than Hoeffding allows
+        at the false positive rate over ``tests`` tests, with E test suffixes:
 
-    def _split_threshold(self, tests: int) -> float:
+            2 E n_a n_b / (n_a + n_b) (a1 / (n_a E) - a2 / (n_b E))^2
+                >= log(2 tests / split_fpr)
         """
-        The minimum log Bayes factor a split must clear when ``tests`` are weighed.
-
-        Under the one-state null a Bayes factor exceeds K only with probability
-            <= 1/K
-        We can Bonferroni-correct that for the number of tests run, giving
-            <= n/K
-        which then requires K > n/fpr to hold the overall false positive rate at fpr
-        """
-        return math.log(max(tests, 1) / max(self._split_fpr, 1e-12))
+        e = len(self.family.test_idx)
+        if not (n_a and n_b):
+            return False
+        gap = a1 / (n_a * e) - a2 / (n_b * e)
+        statistic = 2 * e * n_a * n_b / (n_a + n_b) * gap**2
+        return statistic >= math.log(2 * tests / self._split_fpr)
