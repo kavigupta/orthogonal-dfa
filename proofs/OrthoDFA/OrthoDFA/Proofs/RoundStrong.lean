@@ -1337,8 +1337,7 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
     (hpool : ∀ b ∈ A.s.pool, AgreeOne C.K F f₁ f₂ Tf b)
     (hwit : ∀ p c q y, A.s.edges p c = some (q, y) → AgreeOne C.K F f₁ f₂ Tf y)
     (hw : ∀ i, C.k ≤ i → AgreeOne C.K F f₁ f₂ Tf (prefixOf x i))
-    (htest : AgreeTests C.K B F f₁ f₂ A.s.tree A.s.pool (stepSkip C.K (rd B F f₂) C.k A.s x)
-      A.s.forced) :
+    (htest : StepTestsAgree C.K B F f₁ f₂ C.k A.s x) :
     strongStep C (rd B F f₁) A x = strongStep C (rd B F f₂) A x := by
   have hT'p : ∀ m ∈ (probeStepK C.K (rd B F f₁) C.k A.s x).tree.mids, m ∈ Tf.mids := by
     rw [← (strongStep_state C _ A x).1]; exact hT'
@@ -1359,7 +1358,7 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
   split
   · rename_i ps fd heq
     have hfd : C.k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
-    rw [seedStep_congr hpool' hwit' (hw' _ hfd) htest]
+    rw [seedStep_congr hpool' hwit' (hw' _ hfd) fun κ hk hf => htest ps fd κ heq hk hf]
   · rfl
 
 theorem strongStep_poolIn {Bs : Set (FreeMonoid α)} (R : CutReads α) {A : RoundAcc α}
@@ -1397,8 +1396,8 @@ theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
       have hstep := strongStep_congr C Tf (fun m hm => hTs m (strongStep_mids C _ A x m hm)) hTs
         (fun b hb => hB b (hA.1 b hb)) (fun p c q y h => hB y (hA.2 p c q y h))
         (fun i hi => hB _ (hx i hi))
-        (agreeTests_of_blk (fun m hm => hTs m (strongStep_mids C _ A x m hm))
-          fun b hb => hBblk b (hA.1 b hb))
+        (stepTests_of_agreeTests (agreeTests_of_blk
+          (fun m hm => hTs m (strongStep_mids C _ A x m hm)) fun b hb => hBblk b (hA.1 b hb)))
       rw [h2, ← hstep]
       exact ih _ (strongStep_poolIn C _ hA hx) (fun y hy => hws y (List.mem_cons_of_mem _ hy)) hT
 

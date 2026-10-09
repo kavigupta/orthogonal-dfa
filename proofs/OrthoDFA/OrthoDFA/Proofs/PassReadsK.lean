@@ -286,6 +286,32 @@ theorem agreeTests_of_blk {t t' : DTree α} {pool : List (FreeMonoid α)}
   rw [he]
   exact h b (members_mem hb) c m (ht m hm) v hv
 
+/-- The key of the split test a probe's step reaches, if any. -/
+def SeedResult.key : SeedResult α → Option (TestKey α)
+  | .split d s1 _ _ => some (s1, d)
+  | .member s1 _ d => some (s1, d)
+  | _ => none
+
+theorem seedStep_key {R : CutReads α} {t : DTree α} {pool : List (FreeMonoid α)}
+    {edges : Edges α} {skip : TestKey α → FreeMonoid α → Prop} {forced : Set (TestKey α)} {k : ℕ}
+    {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {c : α} {s2 p : List Bool}
+    {y d : FreeMonoid α} (hc : x.toList[fd - 1]? = some c)
+    (he : edges (ps.getD (fd - 1 - k) []) c = some (s2, y)) (h1 : s2 = ps.getD (fd - k) [])
+    (hsp : t.sift R.cut (prefixOf x (fd - 1)) = .inl p)
+    (h2 : p = ps.getD (fd - 1 - k) [] ∧ t.sift R.cut y = .inl (ps.getD (fd - 1 - k) []))
+    (hd : t.parting R.cut y (prefixOf x (fd - 1)) (FreeMonoid.of c) = some (.inl d)) :
+    (seedStep K R t pool edges skip forced k x ps fd).key = some (ps.getD (fd - 1 - k) [], d) := by
+  unfold seedStep
+  simp only [hc]
+  simp only [he]
+  rw [if_neg (by rw [h1]; exact fun h => h rfl)]
+  simp only [hsp]
+  rw [if_neg (by rw [h2.1, h2.2]; simp)]
+  simp only [hd]
+  split_ifs
+  · rfl
+  · split <;> rfl
+
 theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
     {skip : TestKey α → FreeMonoid α → Prop}
     {forced : Set (TestKey α)} {k : ℕ}
@@ -293,25 +319,26 @@ theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
     (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b)
     (hwit : ∀ p c q y, edges p c = some (q, y) → AgreeOne K F f₁ f₂ t y)
     (hw : AgreeOne K F f₁ f₂ t (prefixOf x (fd - 1)))
-    (htest : AgreeTests K B F f₁ f₂ t pool skip forced) :
+    (htest : ∀ κ, (seedStep K (rd B F f₂) t pool edges skip forced k x ps fd).key = some κ →
+      κ ∉ forced → ∀ p ∈ testStrings K (rd B F f₂) t pool κ.1 κ.2 (skip κ), f₁ p.1 = f₂ p.1) :
     seedStep K (rd B F f₁) t pool edges skip forced k x ps fd
       = seedStep K (rd B F f₂) t pool edges skip forced k x ps fd := by
   unfold seedStep
   simp only []
   split
   · rfl
-  rename_i c _
+  rename_i c hc
   split
   · rfl
   rename_i s2 y he
-  split_ifs
+  split_ifs with h1
   · rfl
   have hy := hwit _ _ _ _ he
   rw [sift_congr (B := B) hw.tree, sift_congr (B := B) hy.tree]
   split
   · rfl
-  rename_i p _
-  split_ifs
+  rename_i p hsp
+  split_ifs with h2
   · rfl
   rw [parting_congr t fun m hm => ⟨cut_congr ((hy.letter' c) m hm),
     cut_congr ((hw.letter' c) m hm)⟩]
@@ -322,8 +349,13 @@ theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
   obtain ⟨m, hm, rfl⟩ := parting_mids t hd
   split_ifs with hf
   · rfl
-  rw [verdict_congr (fun b hb => (hpool b hb).tree) (fun b hb => (hpool b hb).letter' c m hm)
-    (htest _ c m hm hf)]
+  push Not at h1 h2
+  have hk := seedStep_key (K := K) (R := rd B F f₂) (pool := pool) (skip := skip) (forced := forced)
+    hc he h1 hsp h2 hd
+  have hf' : ∀ q ∈ testStrings K (rd B F f₂) t pool (ps.getD (fd - 1 - k) [])
+      (FreeMonoid.of c * m) (skip (ps.getD (fd - 1 - k) [], FreeMonoid.of c * m)),
+      f₁ q.1 = f₂ q.1 := htest _ hk hf
+  rw [verdict_congr (fun b hb => (hpool b hb).tree) (fun b hb => (hpool b hb).letter' c m hm) hf']
 
 theorem counted_congr {t : DTree α} {pool : List (FreeMonoid α)}
     {skip : TestKey α → FreeMonoid α → Prop} {s1 : List Bool} {c : α} {m : FreeMonoid α}
@@ -551,13 +583,41 @@ section StepCongr
 
 variable {K : StageKnobs α} {B : State} {F : Finset (FreeMonoid α)} {f₁ f₂ : FreeMonoid α → ℝ}
 
+/-- They agree on the strings the split test of `x`'s step from `s` counts, where it tests at a
+key `s` leaves tested. -/
+def StepTestsAgree (K : StageKnobs α) (B : State) (F : Finset (FreeMonoid α))
+    (f₁ f₂ : FreeMonoid α → ℝ) (k : ℕ) (s : KState α) (x : FreeMonoid α) : Prop :=
+  ∀ ps fd κ, probeOutcome (rd B F f₂) s.tree s.edges k x = .edge ps fd →
+    (seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) s.forced k x
+      ps fd).key = some κ → κ ∉ s.forced →
+    ∀ p ∈ testStrings K (rd B F f₂) s.tree s.pool κ.1 κ.2 (stepSkip K (rd B F f₂) k s x κ),
+      f₁ p.1 = f₂ p.1
+
+theorem stepTests_of_agreeTests {k : ℕ} {s : KState α} {x : FreeMonoid α}
+    (h : AgreeTests K B F f₁ f₂ s.tree s.pool (stepSkip K (rd B F f₂) k s x) s.forced) :
+    StepTestsAgree K B F f₁ f₂ k s x := by
+  intro ps fd κ _ hk hf p hp
+  obtain ⟨κ1, κ2⟩ := κ
+  have hr : (∃ s1 y sprime, seedStep K (rd B F f₂) s.tree s.pool s.edges
+      (stepSkip K (rd B F f₂) k s x) s.forced k x ps fd = .split κ2 s1 y sprime)
+      ∨ ∃ s1 sprime, seedStep K (rd B F f₂) s.tree s.pool s.edges
+        (stepSkip K (rd B F f₂) k s x) s.forced k x ps fd = .member s1 sprime κ2 := by
+    revert hk
+    rcases seedStep K (rd B F f₂) s.tree s.pool s.edges (stepSkip K (rd B F f₂) k s x) s.forced
+      k x ps fd with ⟨d, s1, y, sp⟩ | ⟨s1, sp, d⟩ | b | _ <;> intro hk <;>
+      simp only [SeedResult.key, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at hk
+    · exact .inl ⟨s1, y, sp, by rw [hk.2]⟩
+    · exact .inr ⟨s1, sp, by rw [hk.2]⟩
+  obtain ⟨c, m, hm, rfl⟩ := seedStep_dist K _ hr
+  exact h κ1 c m hm hf p hp
+
 theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTree α)
     (hT : ∀ m ∈ s.tree.mids, m ∈ Tf.mids)
     (hT' : ∀ m ∈ (probeStepK K (rd B F f₁) k s x).tree.mids, m ∈ Tf.mids)
     (hpool : ∀ b ∈ s.pool, AgreeOne K F f₁ f₂ Tf b)
     (hwit : ∀ p c q y, s.edges p c = some (q, y) → AgreeOne K F f₁ f₂ Tf y)
     (hw : ∀ i, k ≤ i → AgreeOne K F f₁ f₂ Tf (prefixOf x i))
-    (htest : AgreeTests K B F f₁ f₂ s.tree s.pool (stepSkip K (rd B F f₂) k s x) s.forced) :
+    (htest : StepTestsAgree K B F f₁ f₂ k s x) :
     probeStepK K (rd B F f₁) k s x = probeStepK K (rd B F f₂) k s x := by
   have hpool' : ∀ b ∈ s.pool, AgreeOne K F f₁ f₂ s.tree b := fun b hb => (hpool b hb).mono' hT
   have hwit' : ∀ p c q y, s.edges p c = some (q, y) → AgreeOne K F f₁ f₂ s.tree y :=
@@ -575,7 +635,7 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
   · rename_i ps fd heq
     have hfd : k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
     simp only [heq] at hT'
-    rw [seedStep_congr hpool' hwit' (hw' _ hfd) htest] at hT' ⊢
+    rw [seedStep_congr hpool' hwit' (hw' _ hfd) fun κ hk hf => htest ps fd κ heq hk hf] at hT' ⊢
     split
     · rename_i d s1 y sprime hsd
       simp only [hsd, closeK] at hT'
@@ -720,7 +780,7 @@ theorem phaseK_congr (k : ℕ) {Bs : Set (FreeMonoid α)} {seed probes : List (F
         exact probeStepK_congr Tf (hTf n) hT' (fun b hb => hB b (hp b hb))
           (fun p c q y hy => hB y (he p c q y hy))
           (fun i hi => hB _ (hws _ (List.getElem_mem hn) i hi))
-          (agreeTests_of_blk (hTf n) fun b hb => hBblk b (hp b hb))
+          (stepTests_of_agreeTests (agreeTests_of_blk (hTf n) fun b hb => hBblk b (hp b hb)))
     · rw [phaseK_of_le K _ k seed probes (n := n + 1) (by omega),
         phaseK_of_le K _ k seed probes (n := n + 1) (by omega),
         ← phaseK_of_le K _ k seed probes (n := n) (by omega),
