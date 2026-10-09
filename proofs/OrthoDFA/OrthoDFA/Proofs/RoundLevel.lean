@@ -5,8 +5,8 @@ import OrthoDFA.Proofs.TrichotomyBatch
 # `RoundTrichotomyLevel`
 
 A reading ends the round badly with chance at most its gate's spent failure chance and the
-refusal sample's, certificate's and gate tail's (`reading_bad_le`), whatever the readings before
-it; summing over the readings the round makes gives the bound (`round_bad_le`).
+refusal sample's and certificate's (`reading_bad_le`), whatever the readings before it; summing
+over the readings the round makes gives the bound (`round_bad_aux`).
 -/
 
 namespace OrthoDFA
@@ -16,97 +16,51 @@ open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*}
 
-theorem gateCut_mono {n : ℕ} {θ a a' : ℝ} (ha : a ≤ a') (ha1 : a' ≤ 1) :
-    gateCut n θ a ≤ gateCut n θ a' := by
-  unfold gateCut
-  have hne : ({h | ¬ 1 - binomSfGe n θ (h + 1) < a'} : Set ℕ).Nonempty := by
-    refine ⟨n, ?_⟩
-    have : binomSfGe n θ (n + 1) = 0 := by unfold binomSfGe; simp
-    simp only [Set.mem_ofPred_eq, this]
-    linarith
-  refine Nat.sInf_le ?_
-  have := Nat.sInf_mem hne
-  simp only [Set.mem_ofPred_eq, not_lt] at this ⊢
-  linarith
-
-/-- The tail a gate left unsettled at its end can leave, at the reading's failure chance over its
-starts, bounded by the round's worst. -/
-theorem tail_le_round {ng : ℕ} {acc δc a : ℝ} {j Rmax P Pmax : ℕ} (hj : j ≤ Rmax) (hP : 1 ≤ P)
-    (hPm : P ≤ Pmax) (ha : 0 ≤ a) (ha1 : a ≤ 1) (hδc0 : 0 ≤ δc) (hδc : δc ≤ acc)
-    (hacc1 : acc ≤ 1) :
-    P * binomSfGe ng (acc - δc) (gateCut ng acc (a / 2 ^ j / P))
-      ≤ Pmax * binomSfGe ng (acc - δc) (gateCut ng acc (a / 2 ^ Rmax / Pmax)) := by
-  have hP' : (1 : ℝ) ≤ P := by exact_mod_cast hP
-  have hPm' : (P : ℝ) ≤ Pmax := by exact_mod_cast hPm
-  have h2 : (2 : ℝ) ^ j ≤ 2 ^ Rmax := pow_le_pow_right₀ (by norm_num) hj
-  have hcut : gateCut ng acc (a / 2 ^ Rmax / Pmax) ≤ gateCut ng acc (a / 2 ^ j / P) := by
-    refine gateCut_mono ?_ ?_
-    · rw [div_div, div_div]
-      exact div_le_div_of_nonneg_left ha (by positivity)
-        (mul_le_mul h2 hPm' (by positivity) (by positivity))
-    · rw [div_div]
-      have : (1 : ℝ) ≤ 2 ^ j := one_le_pow₀ (by norm_num)
-      exact (div_le_one (by positivity)).2 (ha1.trans (by nlinarith))
-  have hsf := binomSfGe_antitone' (n := ng) (by linarith : (0 : ℝ) ≤ acc - δc)
-    (by linarith : acc - δc ≤ 1) hcut
-  have h0 : 0 ≤ binomSfGe ng (acc - δc) (gateCut ng acc (a / 2 ^ j / P)) :=
-    binomSfGe_nonneg (by linarith) (by linarith) _
-  calc (P : ℝ) * binomSfGe ng (acc - δc) (gateCut ng acc (a / 2 ^ j / P))
-      ≤ Pmax * binomSfGe ng (acc - δc) (gateCut ng acc (a / 2 ^ j / P)) :=
-        mul_le_mul_of_nonneg_right hPm' h0
-    _ ≤ _ := mul_le_mul_of_nonneg_left hsf (by positivity)
-
 section Reading
 
 variable (C : RoundCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q)
   (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (CertGood : KState α → Prop)
 
-/-- The per-reading failure chance: the gate's at reading `j`, the refusal sample's miss, the
-certificate's, and the gate tail's at the round's worst. -/
-noncomputable def readBound (Rmax j : ℕ) (αc δc ν : ℝ) : ℝ :=
-  2 * (Nat.log 2 (C.ng / 30) + 2) * (C.a / 2 ^ j)
-    + ((1 - ν) ^ C.nr + αc
-      + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)))
+/-- The per-reading failure chance: the gate's at reading `j`, the refusal sample's miss and the
+certificate's. -/
+noncomputable def readBound (j : ℕ) (αc ν : ℝ) : ℝ :=
+  2 * (Nat.log 2 (C.ng / 30) + 2) * (C.a / 2 ^ j) + ((1 - ν) ^ C.nr + αc)
 
 open scoped Classical in
 /-- Given its probes, a reading ends the round badly with chance at most `readBound`. -/
-theorem reading_section_le {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
-    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (ha1 : C.a ≤ 1) (hδc0 : 0 ≤ δc) (hδc : δc ≤ C.acc)
-    (hν : ν ≤ 1)
+theorem reading_section_le {αc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
+    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert R s cs = true ∧ ¬ CertGood s} ≤ αc)
-    (hist : List C.Draws) {j Rmax : ℕ} (hj : j ≤ Rmax) (s₀ : KState α)
+    (hist : List C.Draws) (j : ℕ) (s₀ : KState α)
     (first : List (FreeMonoid α)) (pr : Fin C.np → FreeMonoid α) :
     ((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
         (Measure.pi fun _ : Fin C.nc => D))).real
       {z | ∃ e, readingStep C R hist j s₀ first (pr, z) = .done e
-        ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e}
-      ≤ readBound C Rmax j αc δc ν := by
+        ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e}
+      ≤ readBound C j αc ν := by
   set s := runPassK C.K R C.k s₀ (first ++ List.ofFn pr) with hs
   set aj := C.a / 2 ^ j
   have haj : 0 ≤ aj := by positivity
   have hαc : 0 ≤ αc := (measureReal_nonneg).trans (hcert R s)
-  have htail0 : 0 ≤ (C.Pmax : ℝ) * binomSfGe C.ng (C.acc - δc)
-      (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)) :=
-    mul_nonneg (Nat.cast_nonneg _) (binomSfGe_nonneg (by linarith) (by linarith) _)
   have hmiss0 : 0 ≤ (1 - ν) ^ C.nr := pow_nonneg (by linarith) _
-  have hRB0 : 0 ≤ readBound C Rmax j αc δc ν := by unfold readBound; positivity
+  have hRB0 : 0 ≤ readBound C j αc ν := by unfold readBound; positivity
   by_cases hP : C.Pmax < s.tree.paths.length
   · refine le_of_eq_of_le ?_ hRB0
     rw [show {z | ∃ e, readingStep C R hist j s₀ first (pr, z) = .done e
-        ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e} = ∅ from ?_, measureReal_empty]
+        ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e} = ∅ from ?_, measureReal_empty]
     refine Set.eq_empty_of_forall_notMem fun z ⟨e, he, hne⟩ => ?_
     simp only [readingStep, ← hs, if_pos hP, ReadStep.done.injEq] at he
     subst he
     exact hne trivial
   push Not at hP
-  obtain ⟨Bad, hBad, hgood⟩ := gate_claims R s D C.ng hacc0 hacc1 haj hδc0 hδc
+  obtain ⟨Bad, hBad, hgood⟩ := gate_settled R s D C.ng hacc0 hacc1 haj
   set gu := C.gu R hist
   set Miss := {br : Fin C.nr → FreeMonoid α | ν < D.real {x | NAOff R s.tree s.edges C.k gu x}
     ∧ ∀ i, ¬ NAOff R s.tree s.edges C.k gu (br i)}
   set CB := {cs : Fin C.nc → FreeMonoid α | C.cert R s cs = true ∧ ¬ CertGood s}
   have hsub : {z | ∃ e, readingStep C R hist j s₀ first (pr, z) = .done e
-      ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e}
+      ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e}
       ⊆ Bad ×ˢ Set.univ ∪ Set.univ ×ˢ (Miss ×ˢ Set.univ) ∪ Set.univ ×ˢ (Set.univ ×ˢ CB) := by
     rintro ⟨bg, br, cs⟩ ⟨e, he, hne⟩
     by_cases hbad : bg ∈ Bad
@@ -156,11 +110,8 @@ theorem reading_section_le {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (h
   set ν₃ := Measure.pi fun _ : Fin C.nc => D
   have hMiss := miss_all_le D (NAOff R s.tree s.edges C.k gu) C.nr hν
   have hCB := hcert R s
-  have hP1 : 1 ≤ s.tree.paths.length := List.length_pos_of_ne_nil (paths_ne_nil _)
-  have htail := tail_le_round (ng := C.ng) (acc := C.acc) (δc := δc) (a := C.a) hj hP1 hP ha ha1
-    hδc0 hδc hacc1
   calc (ν₁.prod (ν₂.prod ν₃)).real {z | ∃ e, readingStep C R hist j s₀ first (pr, z) = .done e
-        ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e}
+        ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e}
       ≤ (ν₁.prod (ν₂.prod ν₃)).real
           (Bad ×ˢ Set.univ ∪ Set.univ ×ˢ (Miss ×ˢ Set.univ) ∪ Set.univ ×ˢ (Set.univ ×ˢ CB)) :=
         measureReal_mono hsub (measure_ne_top _ _)
@@ -170,35 +121,31 @@ theorem reading_section_le {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (h
         (measureReal_union_le _ _).trans (add_le_add (measureReal_union_le _ _) le_rfl)
     _ = ν₁.real Bad + ν₂.real Miss + ν₃.real CB := by
         simp only [measureReal_prod_prod, probReal_univ, mul_one, one_mul]
-    _ ≤ readBound C Rmax j αc δc ν := by
+    _ ≤ readBound C j αc ν := by
         unfold readBound
-        have : ν₁.real Bad ≤ 2 * (Nat.log 2 (C.ng / 30) + 2) * (C.a / 2 ^ j)
-            + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)) :=
-          hBad.trans (add_le_add le_rfl htail)
         linarith
 
 open scoped Classical in
 /-- A reading ends the round badly with chance at most `readBound`, whatever came before it. -/
-theorem reading_bad_le {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
-    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (ha1 : C.a ≤ 1) (hδc0 : 0 ≤ δc) (hδc : δc ≤ C.acc)
-    (hν : ν ≤ 1)
+theorem reading_bad_le {αc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
+    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert R s cs = true ∧ ¬ CertGood s} ≤ αc)
-    (hist : List C.Draws) {j Rmax : ℕ} (hj : j ≤ Rmax) (s₀ : KState α)
+    (hist : List C.Draws) (j : ℕ) (s₀ : KState α)
     (first : List (FreeMonoid α)) :
     C.drawMeasure D {y | ∃ e, readingStep C R hist j s₀ first y = .done e
-        ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e}
-      ≤ ENNReal.ofReal (readBound C Rmax j αc δc ν) := by
+        ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e}
+      ≤ ENNReal.ofReal (readBound C j αc ν) := by
   unfold RoundCfg.drawMeasure
   rw [Measure.prod_apply (Set.to_countable _).measurableSet]
-  calc ∫⁻ pr, _ ∂_ ≤ ∫⁻ _pr, ENNReal.ofReal (readBound C Rmax j αc δc ν)
+  calc ∫⁻ pr, _ ∂_ ≤ ∫⁻ _pr, ENNReal.ofReal (readBound C j αc ν)
         ∂(Measure.pi fun _ : Fin C.np => D) := by
         refine lintegral_mono fun pr => ?_
         have := reading_section_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha
-          ha1 hδc0 hδc hν hcert hist hj s₀ first pr
+          hν hcert hist j s₀ first pr
         rw [← ENNReal.ofReal_toReal (measure_ne_top _ _)]
         exact ENNReal.ofReal_le_ofReal this
-    _ = ENNReal.ofReal (readBound C Rmax j αc δc ν) := by simp
+    _ = ENNReal.ofReal (readBound C j αc ν) := by simp
 
 end Reading
 
@@ -232,32 +179,30 @@ theorem roundAux_le (n j : ℕ) (hist : List C.Draws) (s : KState α)
 open scoped Classical in
 /-- Over `n` readings from reading `j`, the round ends badly with chance at most the expected sum
 of `readBound` over the readings it makes. -/
-theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
-    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (ha1 : C.a ≤ 1) (hδc0 : 0 ≤ δc) (hδc : δc ≤ C.acc)
-    (hν : ν ≤ 1)
+theorem round_bad_aux {αc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
+    (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
     (hcert : ∀ R s, (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert R s cs = true ∧ ¬ CertGood s} ≤ αc) (Rmax : ℕ) :
+      {cs | C.cert R s cs = true ∧ ¬ CertGood s} ≤ αc) :
     ∀ (n j : ℕ) (hist : List C.Draws) (s : KState α) (first : List (FreeMonoid α)),
-      j + n ≤ Rmax →
       (Measure.pi fun _ : Fin n => C.drawMeasure D)
-          {d | ¬ RoundEndHolds C R A D CertGood δc η minCov ν
+          {d | ¬ RoundEndHolds C R A D CertGood η minCov ν
             (roundAux C R n j hist s first d).1}
         ≤ ∫⁻ d, ∑ i ∈ Finset.range (roundAux C R n j hist s first d).2,
-            ENNReal.ofReal (readBound C Rmax (j + i) αc δc ν)
+            ENNReal.ofReal (readBound C (j + i) αc ν)
           ∂(Measure.pi fun _ : Fin n => C.drawMeasure D) := by
   intro n
   induction n with
   | zero =>
-    intro j hist s first _
-    rw [show {d : Fin 0 → C.Draws | ¬ RoundEndHolds C R A D CertGood δc η minCov ν
+    intro j hist s first
+    rw [show {d : Fin 0 → C.Draws | ¬ RoundEndHolds C R A D CertGood η minCov ν
         (roundAux C R 0 j hist s first d).1} = ∅ from
       Set.eq_empty_of_forall_notMem fun d hd => hd (by simp [roundAux, RoundEndHolds])]
     simp
   | succ n ih =>
-    intro j hist s first hjn
+    intro j hist s first
     set ρm := C.drawMeasure D
     set μn := Measure.pi fun _ : Fin n => ρm
-    set β : ℕ → ℝ≥0∞ := fun i => ENNReal.ofReal (readBound C Rmax i αc δc ν)
+    set β : ℕ → ℝ≥0∞ := fun i => ENNReal.ofReal (readBound C i αc ν)
     have hmp := measurePreserving_piFinSuccAbove (fun _ : Fin (n + 1) => ρm) 0
     set e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => C.Draws) 0
     -- the round from its first reading's draws and the rest's
@@ -276,17 +221,17 @@ theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 
       | .rerun s' first' => ∫⁻ d', ∑ i ∈ Finset.range
           (roundAux C R n (j + 1) (hist ++ [y]) s' first' d').2, β (j + 1 + i) ∂μn
     set Bad := {y | ∃ e, readingStep C R hist j s first y = .done e
-      ∧ ¬ RoundEndHolds C R A D CertGood δc η minCov ν e}
+      ∧ ¬ RoundEndHolds C R A D CertGood η minCov ν e}
     have hcount : ∀ (T : Set (C.Draws × (Fin n → C.Draws))), MeasurableSet T :=
       fun T => (Set.to_countable T).measurableSet
     -- the left side, reading by reading
     have hL : (Measure.pi fun _ : Fin (n + 1) => ρm)
-        {d | ¬ RoundEndHolds C R A D CertGood δc η minCov ν (roundAux C R (n + 1) j hist s
+        {d | ¬ RoundEndHolds C R A D CertGood η minCov ν (roundAux C R (n + 1) j hist s
           first d).1}
         ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := by
-      have hpre : {d | ¬ RoundEndHolds C R A D CertGood δc η minCov ν
+      have hpre : {d | ¬ RoundEndHolds C R A D CertGood η minCov ν
           (roundAux C R (n + 1) j hist s first d).1}
-          = e ⁻¹' {p | ¬ RoundEndHolds C R A D CertGood δc η minCov ν (F p).1} := by
+          = e ⁻¹' {p | ¬ RoundEndHolds C R A D CertGood η minCov ν (F p).1} := by
         ext d; simp only [Set.mem_ofPred_eq, Set.mem_preimage, hF]
       rw [hpre, hmp.measure_preimage (hcount _).nullMeasurableSet,
         Measure.prod_apply (hcount _)]
@@ -294,14 +239,14 @@ theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 
       simp only [F, G, Set.preimage, Set.mem_ofPred_eq]
       rcases hstep : readingStep C R hist j s first y with e' | ⟨s', first'⟩
       · simp only []
-        by_cases hb : RoundEndHolds C R A D CertGood δc η minCov ν e'
+        by_cases hb : RoundEndHolds C R A D CertGood η minCov ν e'
         · simp [hb]
         · have hy : y ∈ Bad := ⟨e', hstep, hb⟩
           simp only [hb, not_false_eq_true, Set.setOf_true, measure_univ, add_zero,
             Set.indicator_of_mem hy, Pi.one_apply, le_refl]
       · simp only []
         refine le_trans ?_ (le_add_self)
-        exact ih (j + 1) _ s' first' (by omega)
+        exact ih (j + 1) _ s' first'
     -- the right side, reading by reading
     set Hf : C.Draws × (Fin n → C.Draws) → ℝ≥0∞ := fun p =>
       ∑ i ∈ Finset.range (F p).2, β (j + i)
@@ -328,9 +273,8 @@ theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 
             congr 1
             refine Finset.sum_congr rfl fun i _ => ?_
             ring_nf
-    have hbad := reading_bad_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha ha1
-      hδc0 hδc hν hcert hist
-      (j := j) (Rmax := Rmax) (by omega) s first
+    have hbad := reading_bad_le C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha
+      hν hcert hist j s first
     calc _ ≤ ∫⁻ y, Bad.indicator 1 y + G y ∂ρm := hL
       _ = ρm Bad + ∫⁻ y, G y ∂ρm := by
           rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator_one
@@ -343,17 +287,14 @@ theorem round_bad_aux {αc δc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 
 end Round
 
 theorem round_trichotomy_level : RoundTrichotomyLevel := by
-  intro α _ _ Q C A D _ seed CertGood αc δc η minCov ν Rmax hacc0 hacc1 hf ha hδc0 hδc hν hcert R
+  intro α _ _ Q C A D _ seed CertGood αc η minCov ν Rmax hacc0 hacc1 hf ha hν hcert R
   set P := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
   set N : (Fin Rmax → C.Draws) → ℕ := fun d => (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).2
   set γ : ℝ := (1 - ν) ^ C.nr + αc
-    + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax))
   set c₀ : ℝ := 2 * (Nat.log 2 (C.ng / 30) + 2)
   have hc₀ : 0 ≤ c₀ := by positivity
   have hαc : 0 ≤ αc := measureReal_nonneg.trans (hcert R (initialK C.K R seed))
   have hγ : 0 ≤ γ := by
-    have := binomSfGe_nonneg (n := C.ng) (by linarith : (0 : ℝ) ≤ C.acc - δc)
-      (by linarith : C.acc - δc ≤ 1) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax))
     have := pow_nonneg (by linarith : (0 : ℝ) ≤ 1 - ν) C.nr
     positivity
   have hNle : ∀ d, N d ≤ Rmax := fun d => roundAux_le C R _ _ _ _ _ d
@@ -364,22 +305,13 @@ theorem round_trichotomy_level : RoundTrichotomyLevel := by
   have hEN : 0 ≤ ∫ d, (N d : ℝ) ∂P := integral_nonneg fun d => Nat.cast_nonneg _
   have hrhs0 : 0 ≤ 2 * c₀ * C.a + (∫ d, (N d : ℝ) ∂P) * γ := by positivity
   rw [show 4 * ((Nat.log 2 (C.ng / 30) : ℝ) + 2) * C.a = 2 * c₀ * C.a by simp only [c₀]; ring]
-  by_cases ha1 : C.a ≤ 1
-  swap
-  · push Not at ha1
-    have hlog : (0 : ℝ) ≤ (Nat.log 2 (C.ng / 30) : ℕ) := Nat.cast_nonneg _
-    have hc4 : 4 ≤ c₀ := by simp only [c₀]; linarith
-    have : (1 : ℝ) ≤ 2 * c₀ * C.a := by nlinarith
-    have hEγ : 0 ≤ (∫ d, (N d : ℝ) ∂P) * γ := mul_nonneg hEN hγ
-    linarith [measureReal_le_one (μ := P) (s := {d | ¬ RoundEndHolds C R A D CertGood δc η minCov
-      ν (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).1})]
-  have h := round_bad_aux C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha ha1
-    hδc0 hδc hν hcert Rmax Rmax 0 [] (initialK C.K R seed) [] (by omega)
-  have hrb : ∀ i, readBound C Rmax i αc δc ν = c₀ * (C.a / 2 ^ i) + γ := fun i => rfl
-  have hpt : ∀ d, ∑ i ∈ Finset.range (N d), ENNReal.ofReal (readBound C Rmax (0 + i) αc δc ν)
+  have h := round_bad_aux C R A D CertGood (η := η) (minCov := minCov) hacc0 hacc1 hf ha
+    hν hcert Rmax 0 [] (initialK C.K R seed) []
+  have hrb : ∀ i, readBound C i αc ν = c₀ * (C.a / 2 ^ i) + γ := fun i => rfl
+  have hpt : ∀ d, ∑ i ∈ Finset.range (N d), ENNReal.ofReal (readBound C (0 + i) αc ν)
       ≤ ENNReal.ofReal (2 * c₀ * C.a + N d * γ) := by
     intro d
-    have hnn : ∀ i, 0 ≤ readBound C Rmax (0 + i) αc δc ν := fun i => by
+    have hnn : ∀ i, 0 ≤ readBound C (0 + i) αc ν := fun i => by
       rw [hrb]; positivity
     rw [← ENNReal.ofReal_sum_of_nonneg (fun i _ => hnn i)]
     refine ENNReal.ofReal_le_ofReal ?_
@@ -400,7 +332,7 @@ theorem round_trichotomy_level : RoundTrichotomyLevel := by
     rw [← ofReal_integral_eq_lintegral_ofReal hint (ae_of_all _ fun d => by positivity),
       integral_add (integrable_const _) (hNint.mul_const _), integral_const, integral_mul_const]
     simp
-  have hle : P {d | ¬ RoundEndHolds C R A D CertGood δc η minCov ν
+  have hle : P {d | ¬ RoundEndHolds C R A D CertGood η minCov ν
       (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).1}
       ≤ ENNReal.ofReal (2 * c₀ * C.a + (∫ d, (N d : ℝ) ∂P) * γ) :=
     h.trans ((lintegral_mono hpt).trans hlin.le)

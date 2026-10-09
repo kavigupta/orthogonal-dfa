@@ -4,14 +4,14 @@ import OrthoDFA.Trichotomy
 # The round's trichotomy
 
 A round reads until a reading ends it: each reading runs the pass on the previous hypothesis with
-the previous reading's live-edge draws first, then the gate and the certificate; a refusal by
-either reads a refusal sample, which reruns live edges, holds a class that fired, or halves.
+the previous reading's live-edge draws first, then the gate and, where the gate's test settles
+above, the certificate; anything else reads a refusal sample, which reruns live edges, holds a
+class that fired, or halves.
 
 `RoundTrichotomyLevel`: for any reads, the round ends consistent with the certificate's guarantee,
 holding a class that fired, halving only above `τ₀` or with the walk's non-agreeing mass at most
 `ν`, or with its budget exhausted, but for the gate's failure chances spent `a·2⁻ʲ` over the
-readings and, per reading made, the refusal sample's miss, the certificate's failure and the gate's
-unsettled tail.
+readings and, per reading made, the refusal sample's miss and the certificate's failure.
 
 The budget exit is a problematic component: it stays because give-ups on genuinely wrong edges and
 attempts stopped at reads the cut cannot place are not bounded.
@@ -77,15 +77,16 @@ inductive ReadStep (α : Type*)
 
 open scoped Classical in
 /-- Reading `j`: the pass from `s₀` with `first` ahead of the reading's probes; past `Pmax`
-leaves the budget is out; the gate at failure chance `a·2⁻ʲ` and the certificate; on a refusal
-by either, the refusal sample's live-edge draws rerun, else a fired class is held, else the limit
-halves. -/
+leaves the budget is out; the gate at failure chance `a·2⁻ʲ`, and on a settled pass the
+certificate; otherwise the refusal sample's live-edge draws rerun, else a fired class is held, else
+the limit halves. -/
 noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C.Draws) (j : ℕ)
     (s₀ : KState α) (first : List (FreeMonoid α)) (y : C.Draws) : ReadStep α :=
   let s := runPassK C.K R C.k s₀ (first ++ List.ofFn y.1)
   let aj := C.a / 2 ^ j
   if C.Pmax < s.tree.paths.length then .done (.exhausted s)
-  else if GatePasses R s.tree s.edges y.2.1 C.acc aj ∧ C.cert R s y.2.2.2 = true then
+  else if gateSide R s.tree s.edges y.2.1 C.acc aj (gateStop R s.tree s.edges y.2.1 C.acc aj)
+      = some true ∧ C.cert R s y.2.2.2 = true then
     .done (.consistent s (gateStart R s.tree s.edges y.2.1 C.acc aj))
   else
     let gu := C.gu R hist
@@ -97,7 +98,8 @@ noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C
       decide ((i : ℕ) < Tr ∧ live (br i))).map br
     if lv ≠ [] then .rerun s lv
     else if ∃ T ∈ tests, T.fires br C.a Tr then .done (.harvest s)
-    else .done (.halve s gu (decide (¬ GatePasses R s.tree s.edges y.2.1 C.acc aj)))
+    else .done (.halve s gu (decide (gateSide R s.tree s.edges y.2.1 C.acc aj
+      (gateStop R s.tree s.edges y.2.1 C.acc aj) = some false)))
 
 /-- The round from reading `j` with `n` readings left, and how many it makes. -/
 noncomputable def roundAux (C : RoundCfg α) (R : CutReads α) :
@@ -125,13 +127,13 @@ noncomputable def roundProbes (C : RoundCfg α) (R : CutReads α) :
 variable {Q : Type*}
 
 open scoped Classical in
-/-- What each end claims: consistent, its start within `δc` of `acc` and certified; a halving,
-above `τ₀`, or with members not firing on a first hit, or with the walk's non-agreeing mass at
-most `ν` and, where the gate refused, every covering start leaving at most `ν`. -/
+/-- What each end claims: consistent, its start agreeing on at least `acc` and certified; a
+halving, above `τ₀`, or with members not firing on a first hit, or with the walk's non-agreeing
+mass at most `ν` and, where the gate settled below, every covering start leaving at most `ν`. -/
 def RoundEndHolds (C : RoundCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q)
-    (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (δc η minCov ν : ℝ) :
+    (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) :
     RoundEnd α → Prop
-  | .consistent s q => D.real {x | StartDis R s.edges q x} ≤ 1 - C.acc + δc ∧ CertGood s
+  | .consistent s q => D.real {x | StartDis R s.edges q x} ≤ 1 - C.acc ∧ CertGood s
   | .harvest _ => True
   | .halve s gu gr =>
     tauZero s.tree C.k C.L C.nr C.c C.a ≤ C.f ∨ 1 - C.a ≤ C.θM * C.nr
@@ -144,24 +146,23 @@ def RoundEndHolds (C : RoundCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q
 
 /-- `RoundTrichotomyLevel`: for any reads, over `Rmax` readings' draws, the round's end breaks
 its claim with chance at most the gate's spent failure chances, plus, per reading made in
-expectation, the refusal sample's miss, the certificate's failure and the gate's unsettled tail. -/
+expectation, the refusal sample's miss and the certificate's failure. -/
 def RoundTrichotomyLevel : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*} (C : RoundCfg α)
     (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (seed : List (FreeMonoid α)) (CertGood : KState α → Prop) (αc δc η minCov ν : ℝ)
+    (seed : List (FreeMonoid α)) (CertGood : KState α → Prop) (αc η minCov ν : ℝ)
     (Rmax : ℕ),
-    0 ≤ C.acc → C.acc ≤ 1 → 0 ≤ C.f → 0 ≤ C.a → 0 ≤ δc → δc ≤ C.acc → ν ≤ 1 →
+    0 ≤ C.acc → C.acc ≤ 1 → 0 ≤ C.f → 0 ≤ C.a → ν ≤ 1 →
     (∀ R s, (Measure.pi fun _ : Fin C.nc => D).real
       {cs | C.cert R s cs = true ∧ ¬ CertGood s} ≤ αc) →
     ∀ R : CutReads α,
       (Measure.pi fun _ : Fin Rmax => C.drawMeasure D).real
-          {d | ¬ RoundEndHolds C R A D CertGood δc η minCov ν
+          {d | ¬ RoundEndHolds C R A D CertGood η minCov ν
             (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).1}
         ≤ 4 * (Nat.log 2 (C.ng / 30) + 2) * C.a
           + (∫ d, ((roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).2 : ℝ)
               ∂(Measure.pi fun _ : Fin Rmax => C.drawMeasure D))
-            * ((1 - ν) ^ C.nr + αc
-              + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)))
+            * ((1 - ν) ^ C.nr + αc)
 
 /-- The fluctuation allowed a round that made `r` readings, at total failure chance `δ`. -/
 noncomputable def roundEps (C : RoundCfg α) (D : Measure (FreeMonoid α)) (δ : ℝ) (r : ℕ) : ℝ :=

@@ -67,12 +67,13 @@
   covering start leaves the classes and live edges at most `ν`.
 - `OrthoDFA/RoundLevel.lean` — `RoundTrichotomyLevel`: the round over its readings. Each reading
   runs the pass with the previous reading's live-edge draws first, then the gate (at failure chance
-  `a·2⁻ʲ`) and a certificate taken as a black box with failure chance `α`; a refusal by either
-  reads a refusal sample that reruns live edges, holds a fired class, or halves. The round ends
-  consistent and certified, holding a class, halving above `τ₀` or with the walk's non-agreeing mass
-  at most `ν` (and every covering start at most `ν` where the gate refused), or exhausted, but for
-  `4(log₂(ng/30)+2)a` plus, per reading made in expectation, the refusal sample's miss, `α` and the
-  gate's unsettled tail. The exhausted exit is a problematic component: give-ups and stopped
+  `a·2⁻ʲ`) and, where its test settles above, a certificate taken as a black box with failure
+  chance `α`; anything else, an unsettled gate included, reads a refusal sample that reruns live
+  edges, holds a fired class, or halves. The round ends consistent (its start disagreeing on at
+  most `1 − acc`) and certified, holding a class, halving above `τ₀` or with the walk's
+  non-agreeing mass at most `ν` (and every covering start at most `ν` where the gate settled
+  below), or exhausted, but for `4(log₂(ng/30)+2)a` plus, per reading made in expectation, the
+  refusal sample's miss and `α`. The exhausted exit is a problematic component: give-ups and stopped
   attempts are not yet bounded. `Proofs/RoundLevel.lean` proves it reading by reading.
   `RoundQualityLevel`: for any draws, off a noise set of measure `δ`, the hypothesis the round ends
   with meets `QualityHolds` against every probe its passes took, at a fluctuation `ε_r` set by the

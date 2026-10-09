@@ -814,6 +814,9 @@ full side can be split off with no noise; such a split is valid and harmless, it
 the round, and when the reference keeps the pair together its parting read is itself off the
 reference's side, so it is counted among the noisy splits.
 
+`RoundTrichotomyLevel` takes D49 too: only a settled pass is a pass, so its bound is
+`4(log₂(ng/30)+2)a + E[readings]·((1 − ν)^nr + α)`, with no `δc` and no unsettled tail.
+
 Open, not sorried:
 - The chance of a noisy split over a round. The witness is picked from the pool by reads, so the
   per-string `depth·ρ` does not apply to it, and a union over the pool is vacuous.
