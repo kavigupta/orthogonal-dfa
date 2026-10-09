@@ -44,62 +44,6 @@ theorem measurableSet_run_trace {m : MeasurableSpace Ω} (cut : Ω → FreeMonoi
 
 end Qry
 
-theorem qProbe_asksIn_ge (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (qProbe t edges k x).AsksIn fun y => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, y = prefixOf x i * m := by
-  set S : FreeMonoid α → Prop := fun y => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, y = prefixOf x i * m
-  have hs : ∀ i g, k ≤ i → (qSift (prefixOf x i) g t).AsksIn S := fun i g hi =>
-    Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨i, hi, m, hm, he⟩) _ (qSift_asksIn _ g t)
-  have hx : (qSift x false t).AsksIn S := by
-    refine Qry.asksIn_mono (fun y ⟨m, hm, he⟩ =>
-      ⟨max k x.toList.length, le_max_left _ _, m, hm, ?_⟩)
-      _ (qSift_asksIn _ false t)
-    rw [he]
-    congr 1
-    apply FreeMonoid.toList.injective
-    simp [prefixOf, List.take_of_length_le (le_max_right _ _)]
-  have hb : ∀ walkAt ps fuel lo hi, k ≤ lo →
-      (qBracket (qAgrees t x walkAt) ps fuel lo hi).AsksIn S := by
-    intro walkAt ps fuel
-    induction fuel with
-    | zero => intro lo hi _; trivial
-    | succ fuel ih =>
-      intro lo hi hlo
-      have hg : ∀ p g, lo ≤ p → (qGuard t x walkAt lo hi p g).AsksIn S := by
-        intro p g hp; unfold qGuard; split_ifs
-        · trivial
-        · trivial
-        · exact Qry.asksIn_map _ _ (hs p g (hlo.trans hp))
-      by_cases hlh : lo + 1 < hi
-      · rw [qBracket_unfold t x walkAt ps fuel lo hi hlh]
-        refine Qry.asksIn_bind (fun o => ?_) _ (hg _ _ (by omega))
-        rcases o with _ | _ | _
-        · refine Qry.asksIn_bind (fun l => ?_) _ (hg _ _ (by omega))
-          rcases l with _ | lv
-          · trivial
-          · refine Qry.asksIn_bind (fun r => ?_) _ (hg _ _ (by omega))
-            rcases lv <;> rcases r with _ | _ | _
-            all_goals first | trivial | exact ih _ _ (by omega)
-        · exact ih _ _ (by omega)
-        · exact ih _ _ (by omega)
-      · rw [qBracket, if_neg hlh]
-        trivial
-  refine Qry.asksIn_bind (fun d => ?_) _ ?_
-  · rcases d with o | d
-    · trivial
-    · exact hb _ d.1 _ _ _ le_rfl
-  · unfold qWalk
-    refine Qry.asksIn_bind (fun s0 => ?_) _ (hs k false le_rfl)
-    rcases s0 with p | _
-    · simp only []
-      split
-      · exact Qry.asksIn_bind (fun s => by rcases s with _ | _ <;> trivial) _ hx
-      · refine Qry.asksIn_bind (fun s1 => ?_) _ (hs _ false (by omega))
-        rcases s1 with _ | _
-        · exact Qry.asksIn_bind (fun s2 => by rcases s2 with _ | _ <;> trivial) _
-            (hs _ false (by omega))
-        · trivial
-    · trivial
-
 omit [Fintype α] [DecidableEq α] in
 theorem visited_le (agrees : ℕ → Option Bool) : ∀ fuel lo hi, visited agrees fuel lo hi ≤ fuel
   | 0, _, _ => le_rfl
@@ -450,7 +394,7 @@ noncomputable def passK (ω : Ω) : KState α :=
 
 /-- The strings the pass on noise `ω` can read. -/
 noncomputable def passReads (ω : Ω) : Finset (FreeMonoid α) :=
-  passReadSet seed probes (passK O B F K k seed probes ω).tree
+  passReadSet k seed probes (passK O B F K k seed probes ω).tree
 
 /-- A pattern of the bits `vBits V c.1`, clean. -/
 def pcell (V : Finset (FreeMonoid α)) (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) :

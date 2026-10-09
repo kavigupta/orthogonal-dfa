@@ -158,51 +158,6 @@ theorem probeOutcome_endUndecided {t : DTree α} {edges : Edges α} {k : ℕ} {x
       exact .inr hw.symm
     · split_ifs at hw <;> simp at hw
 
-omit [Fintype α] [DecidableEq α] in
-theorem bracketAt_edge_range (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
-    ∀ fuel lo hi ps' j, lo < hi → bracketAt (α := α) agrees ps fuel lo hi = .edge ps' j →
-      lo < j ∧ j ≤ hi
-  | 0, lo, hi, ps', j, hlt, h => by
-    simp only [bracketAt, Outcome.edge.injEq] at h
-    omega
-  | fuel + 1, lo, hi, ps', j, hlt, h => by
-    simp only [bracketAt] at h
-    by_cases hlh : lo + 1 < hi
-    swap
-    · rw [if_neg hlh] at h
-      simp only [Outcome.edge.injEq] at h
-      omega
-    rw [if_pos hlh] at h
-    have hl0 : (lo + hi) / 2 - 1 = lo → (if (lo + hi) / 2 - 1 = lo then some true
-        else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1))
-          = some true := fun e => if_pos e
-    have hr0 : (lo + hi) / 2 + 1 = hi → (if (lo + hi) / 2 + 1 = lo then some true
-        else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1))
-          = some false := fun e => by rw [if_neg (by omega), if_pos e]
-    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
-      else agrees ((lo + hi) / 2)) = v at h
-    generalize (if (lo + hi) / 2 - 1 = lo then some true
-      else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = l at h hl0
-    generalize (if (lo + hi) / 2 + 1 = lo then some true
-      else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = r at h hr0
-    rcases v with _ | _ | _
-    · rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;> simp only [reduceCtorEq] at h
-      · -- false, some false
-        have hne : (lo + hi) / 2 - 1 ≠ lo := fun e => by simpa using hl0 e
-        have := bracketAt_edge_range agrees ps fuel lo _ ps' j (by omega) h
-        omega
-      · have hne : (lo + hi) / 2 - 1 ≠ lo := fun e => by simpa using hl0 e
-        have := bracketAt_edge_range agrees ps fuel lo _ ps' j (by omega) h
-        omega
-      · -- true, some true
-        have hne : (lo + hi) / 2 + 1 ≠ hi := fun e => by simpa using hr0 e
-        have := bracketAt_edge_range agrees ps fuel _ hi ps' j (by omega) h
-        omega
-    · have := bracketAt_edge_range agrees ps fuel lo _ ps' j (by omega) h
-      omega
-    · have := bracketAt_edge_range agrees ps fuel _ hi ps' j (by omega) h
-      omega
-
 theorem edgeAt_of_edge {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
     {ps : List (List Bool)} {fd : ℕ} (h : probeOutcome R t edges k x = .edge ps fd) :
     ∃ e, edgeAt R t edges k x = some e := by

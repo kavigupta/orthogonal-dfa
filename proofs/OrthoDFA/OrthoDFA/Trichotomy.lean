@@ -240,15 +240,16 @@ def WellRead (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : St
 
 /-- What the harvest classes claim of the hypothesis `s` that reads `R`: in each, the draws whose
 harvested read is at a well-read state are at most the incidental rate over the class's trials,
-but for the draws whose harvested read the pass may have read and the fluctuation `ε`, in units of
-the most tagged reads a draw makes. So a class with rate `r` has a bad share of at least
-`1 − (incidental + slack)/r`. -/
+but for the draws sharing their first `k` letters with a string the pass may have read and the
+fluctuation `ε`, in units of the most tagged reads a draw makes. So a class with rate `r` has a
+bad share of at least `1 − (incidental + slack)/r`. -/
 def QualityHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (s : KState α) (D : Measure (FreeMonoid α)) (k L : ℕ)
     (seed probes : List (FreeMonoid α)) (f c ε : ℝ) : Prop :=
   let t := s.tree
   let e := s.edges
-  let slack := fun M : ℝ => (passReadSet seed probes t).card * prefixMax D k + ε * (1 + c * f * M)
+  let slack := fun M : ℝ =>
+    (kPrefixes k (passReadSet k seed probes t)).card * prefixMax D k + ε * (1 + c * f * M)
   let wr := WellRead A O B F (c * f)
   D.real {x | ∃ j b, probeOutcome R t e k x = .triple j ∧ tripleRead R t x j = some b ∧ wr b}
       ≤ c * f * t.depth * searchSteps L k * D.real {x | Searched R t e k x} + slack (t.depth * L)

@@ -367,13 +367,18 @@ def RoundAtKHolds (s : KState α) (D : Measure (FreeMonoid α)) (k : ℕ) (acc �
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 
-/-- Strings the pass can read: a seed string or a probe's prefix, then at most a letter, then `1`
-or a midfix of `t`. -/
-noncomputable def passReadSet (seed probes : List (FreeMonoid α)) (t : DTree α) :
+/-- Strings the pass walked from `k` can read: a seed string or a probe's prefix at least `k` long,
+then at most a letter, then `1` or a midfix of `t`. -/
+noncomputable def passReadSet (k : ℕ) (seed probes : List (FreeMonoid α)) (t : DTree α) :
     Finset (FreeMonoid α) :=
-  (((seed ++ probes.flatMap fun p => (List.range (p.toList.length + 1)).map (prefixOf p)).toFinset
+  (((seed ++ probes.flatMap fun p =>
+      (List.range (p.toList.length + 1)).map fun i => prefixOf p (max k i)).toFinset
     ×ˢ insert 1 (Finset.univ.image FreeMonoid.of)) ×ˢ insert 1 t.midfixes).image
     fun z => z.1.1 * z.1.2 * z.2
+
+/-- The first `k` letters of the strings of `T` at least `k` long. -/
+noncomputable def kPrefixes (k : ℕ) (T : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
+  (T.filter fun w => k ≤ w.toList.length).image (prefixOf · k)
 
 /-- The most of `D` on draws beginning with any one string of length `k`. -/
 noncomputable def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
@@ -389,7 +394,7 @@ def TripleHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B :
   D.real {x | ∃ j b, probeOutcome R s.tree s.edges k x = .triple j
       ∧ tripleRead R s.tree x j = some b ∧ stateIndecision A O B F (A.state b) < uGood}
     ≤ uGood * s.tree.depth * ∫ x, (visits R s.tree s.edges k x : ℝ) ∂D
-      + (passReadSet seed probes s.tree).card * prefixMax D (k + 1)
+      + (passReadSet k seed probes s.tree).card * prefixMax D (k + 1)
       + ε * (1 + uGood * s.tree.depth * L)
 
 /-- `RoundAtK`: for any reads, the gate's batch makes the round's claims but for the tests'

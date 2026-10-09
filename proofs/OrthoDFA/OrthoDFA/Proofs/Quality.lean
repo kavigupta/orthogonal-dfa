@@ -87,7 +87,7 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
   set R := readsAt O B F ω
   set s := passK O B F K k seed probes ω
   change QualityHolds R A O B F s D k L seed probes f c ε
-  set Tn := (passReadSet seed probes s.tree).card
+  set Tn := (kPrefixes k (passReadSet k seed probes s.tree)).card
   have hpm : 0 ≤ prefixMax D k :=
     Real.iSup_nonneg fun p => by split_ifs <;> simp [measureReal_nonneg]
   have hT0 : (0 : ℝ) ≤ Tn := Nat.cast_nonneg _

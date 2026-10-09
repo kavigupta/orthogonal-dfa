@@ -735,11 +735,11 @@ theorem gen_touched_le (hG : HarvestSpec G harv k) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] {L : ℕ} (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
     (R : CutReads α) (t : DTree α) (edges : Edges α)
     (Tp : Finset (FreeMonoid α)) :
-    D.real {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp} ≤ Tp.card * prefixMax D k := by
+    D.real {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp}
+      ≤ (kPrefixes k Tp).card * prefixMax D k := by
   classical
   have hsub : {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp}
-      ⊆ (⋃ w ∈ Tp.filter (fun w => k ≤ w.toList.length),
-          {x | (prefixOf w k).toList <+: x.toList}) ∪ {x | ¬ x.toList.length = L} := by
+      ⊆ (⋃ p ∈ kPrefixes k Tp, {x | p.toList <+: x.toList}) ∪ {x | ¬ x.toList.length = L} := by
     rintro x ⟨b, hb, hT⟩
     by_cases hx : x.toList.length = L
     swap
@@ -749,7 +749,7 @@ theorem gen_touched_le (hG : HarvestSpec G harv k) (D : Measure (FreeMonoid α))
     have hlen' : k ≤ (prefixOf x i).toList.length := by simp [prefixOf]; omega
     have hbk : k ≤ (prefixOf x i * m).toList.length := by
       simp only [FreeMonoid.toList_mul, List.length_append]; omega
-    refine Set.mem_biUnion (Finset.mem_filter.2 ⟨hT, hbk⟩) ?_
+    refine Set.mem_biUnion (Finset.mem_image_of_mem _ (Finset.mem_filter.2 ⟨hT, hbk⟩)) ?_
     simp only [Set.mem_ofPred_eq, prefixOf, FreeMonoid.toList_ofList, FreeMonoid.toList_mul]
     rw [List.take_append_of_le_length (by simpa [prefixOf] using hlen'), List.take_take,
       min_eq_left hi]
@@ -760,22 +760,17 @@ theorem gen_touched_le (hG : HarvestSpec G harv k) (D : Measure (FreeMonoid α))
     ((measureReal_union_le _ _).trans ?_)
   rw [hnull, add_zero]
   refine (measureReal_biUnion_finset_le _ _).trans ?_
-  have hpm : 0 ≤ prefixMax D k :=
-    Real.iSup_nonneg fun p => by split_ifs <;> simp [measureReal_nonneg]
-  calc ∑ w ∈ Tp.filter (fun w => k ≤ w.toList.length),
-        D.real {x | (prefixOf w k).toList <+: x.toList}
-      ≤ ∑ _w ∈ Tp.filter (fun w => k ≤ w.toList.length), prefixMax D k :=
-        Finset.sum_le_sum fun w hw => by
+  calc ∑ p ∈ kPrefixes k Tp, D.real {x | p.toList <+: x.toList}
+      ≤ ∑ _p ∈ kPrefixes k Tp, prefixMax D k :=
+        Finset.sum_le_sum fun p hp => by
+          obtain ⟨w, hw, rfl⟩ := Finset.mem_image.1 hp
           refine le_trans (le_of_eq ?_) (le_ciSup (f := fun p : FreeMonoid α =>
             if p.toList.length = k then D.real {x | p.toList <+: x.toList} else 0)
             ⟨1, by rintro _ ⟨p, rfl⟩; simp only []; split_ifs <;> simp [measureReal_le_one]⟩
             (prefixOf w k))
           rw [if_pos (length_prefixOf (Finset.mem_filter.1 hw).2)]
-    _ = (Tp.filter (fun w => k ≤ w.toList.length)).card * prefixMax D k := by
+    _ = (kPrefixes k Tp).card * prefixMax D k := by
         rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ Tp.card * prefixMax D k := by
-        have := Finset.card_filter_le Tp (fun w => k ≤ w.toList.length)
-        exact mul_le_mul_of_nonneg_right (by exact_mod_cast this) hpm
 
 open scoped Classical in
 /-- Where the class's claim fails, the draws' shares sum past the fluctuation allowed. -/
@@ -786,7 +781,8 @@ theorem gen_fail_sum (hG : HarvestSpec G harv k) (A : DFA (FreeMonoid α) Q)
     (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
     (h : ¬ D.real {x | harv ((G t edges x).run R.cut) ≠ []
           ∧ ∀ b ∈ harv ((G t edges x).run R.cut), stateIndecision A O B F (A.state b) < u}
-      ≤ u * ∫ x, (gTags G R.cut t edges x : ℝ) ∂D + Tp.card * prefixMax D k + ε * (1 + u * M)) :
+      ≤ u * ∫ x, (gTags G R.cut t edges x : ℝ) ∂D + (kPrefixes k Tp).card * prefixMax D k
+        + ε * (1 + u * M)) :
     ε * (1 + u * M)
       < ∑ x ∈ wordsOf (α := α) L, D.real {x} * gContrib G harv A O B F u R.cut t edges Tp x := by
   set X := wordsOf (α := α) L
@@ -845,7 +841,8 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
           stateIndecision A O B F (A.state b) < u}
       ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passK O B F K k seed probes ω).tree
           (passK O B F K k seed probes ω).edges x : ℝ) ∂D
-        + (passReadSet seed probes (passK O B F K k seed probes ω).tree).card * prefixMax D k
+        + (kPrefixes k (passReadSet k seed probes (passK O B F K k seed probes ω).tree)).card
+          * prefixMax D k
         + ε * (1 + u * bnd (passK O B F K k seed probes ω).tree L)}
       ≤ prefixMax D k / ε ^ 2 := by
   classical
@@ -864,7 +861,8 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
           stateIndecision A O B F (A.state b) < u}
       ≤ u * ∫ x, (gTags G (readsAt O B F ω).cut (passK O B F K k seed probes ω).tree
           (passK O B F K k seed probes ω).edges x : ℝ) ∂D
-        + (passReadSet seed probes (passK O B F K k seed probes ω).tree).card * prefixMax D k
+        + (kPrefixes k (passReadSet k seed probes (passK O B F K k seed probes ω).tree)).card
+          * prefixMax D k
         + ε * (1 + u * bnd (passK O B F K k seed probes ω).tree L)} ⊆ Ev := fun ω hω =>
     gen_fail_sum hG A O B F _ _ _ _ D hkL hlen hω
   set cells := fun c : Finset (FreeMonoid α) × Finset (FreeMonoid α) =>
