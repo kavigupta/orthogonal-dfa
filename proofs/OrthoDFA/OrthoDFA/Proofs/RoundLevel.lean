@@ -466,84 +466,149 @@ theorem roundAux_state :
     · rename_i s' first' he
       rw [roundAux_state n, runPassK_append, ← (hr s' first' he).1]
 
-/-- The probe lists a round over the draws `d` can take, from first probes among `firsts`. -/
-noncomputable def candSet : (n : ℕ) → (Fin n → C.Draws) → Finset (List (FreeMonoid α))
+/-- The probe lists a round over the draws `d` can take in `r` readings, from first probes among
+`firsts`. -/
+noncomputable def candR : (n : ℕ) → (Fin n → C.Draws) → ℕ → Finset (List (FreeMonoid α))
     → Finset (List (FreeMonoid α))
-  | 0, _, _ => {[]}
-  | n + 1, d, firsts => firsts.biUnion fun f =>
+  | _, _, 0, _ => {[]}
+  | 0, _, _ + 1, _ => ∅
+  | n + 1, d, r + 1, firsts => firsts.biUnion fun f =>
     insert (f ++ List.ofFn (d 0).1)
-      ((candSet n (Fin.tail d) (sublistsOf C (d 0).2.2.1)).image
+      ((candR n (Fin.tail d) r (sublistsOf C (d 0).2.2.1)).image
         ((f ++ List.ofFn (d 0).1) ++ ·))
 
 theorem roundProbes_mem :
     ∀ (n j : ℕ) (hist : List C.Draws) (s : KState α) (first : List (FreeMonoid α))
       (d : Fin n → C.Draws) (firsts : Finset (List (FreeMonoid α))), first ∈ firsts →
-      roundProbes C R n j hist s first d ∈ candSet C n d firsts
-  | 0, _, _, _, _, _, _, _ => by simp [roundProbes, candSet]
+      roundProbes C R n j hist s first d
+        ∈ candR C n d (roundAux C R n j hist s first d).2 firsts
+  | 0, _, _, _, _, _, _, _ => by simp [roundProbes, roundAux, candR]
   | n + 1, j, hist, s, first, d, firsts, hf => by
     obtain ⟨-, hr⟩ := readingStep_spec C R hist j s first (d 0)
-    simp only [roundProbes, candSet]
-    refine Finset.mem_biUnion.2 ⟨first, hf, ?_⟩
+    simp only [roundProbes, roundAux]
     split
-    · exact Finset.mem_insert_self _ _
+    · simp only [candR]
+      exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_self _ _⟩
     · rename_i s' first' he
-      exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨_, roundProbes_mem n (j + 1) _ s' first'
-        (Fin.tail d) _ (hr s' first' he).2, rfl⟩)
+      simp only [candR]
+      exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_of_mem (Finset.mem_image.2
+        ⟨_, roundProbes_mem n (j + 1) _ s' first' (Fin.tail d) _ (hr s' first' he).2, rfl⟩)⟩
 
-theorem card_candSet :
-    ∀ (n : ℕ) (d : Fin n → C.Draws) (firsts : Finset (List (FreeMonoid α))),
-      (candSet C n d firsts).card ≤ max 1 firsts.card * ((n + 1) * 2 ^ (C.nr * n))
-  | 0, _, firsts => by simp [candSet]
-  | n + 1, d, firsts => by
-    have ih := card_candSet n (Fin.tail d) (sublistsOf C (d 0).2.2.1)
+theorem card_candR :
+    ∀ (n : ℕ) (d : Fin n → C.Draws) (r : ℕ) (firsts : Finset (List (FreeMonoid α))),
+      (candR C n d r firsts).card ≤ max 1 firsts.card * 2 ^ ((C.nr + 1) * r)
+  | _, _, 0, firsts => by simp [candR]
+  | 0, _, _ + 1, firsts => by simp [candR]
+  | n + 1, d, r + 1, firsts => by
+    have ih := card_candR n (Fin.tail d) r (sublistsOf C (d 0).2.2.1)
     have hS : max 1 (sublistsOf C (d 0).2.2.1).card ≤ 2 ^ C.nr :=
       max_le (Nat.one_le_two_pow) (card_sublistsOf C _)
     have hone : ∀ f ∈ firsts, (insert (f ++ List.ofFn (d 0).1)
-        ((candSet C n (Fin.tail d) (sublistsOf C (d 0).2.2.1)).image
-          ((f ++ List.ofFn (d 0).1) ++ ·))).card ≤ 1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)) := by
+        ((candR C n (Fin.tail d) r (sublistsOf C (d 0).2.2.1)).image
+          ((f ++ List.ofFn (d 0).1) ++ ·))).card ≤ 2 ^ ((C.nr + 1) * (r + 1)) := by
       intro f _
       refine (Finset.card_insert_le _ _).trans ?_
-      have := (Finset.card_image_le (s := candSet C n (Fin.tail d) (sublistsOf C (d 0).2.2.1))
+      have h1 := (Finset.card_image_le (s := candR C n (Fin.tail d) r (sublistsOf C (d 0).2.2.1))
         (f := ((f ++ List.ofFn (d 0).1) ++ ·))).trans (ih.trans (Nat.mul_le_mul_right _ hS))
+      have h2 : 2 ^ ((C.nr + 1) * (r + 1)) = 2 * (2 ^ C.nr * 2 ^ ((C.nr + 1) * r)) := by ring
+      have h3 : 1 ≤ 2 ^ C.nr * 2 ^ ((C.nr + 1) * r) := Nat.one_le_iff_ne_zero.2 (by positivity)
       omega
-    simp only [candSet]
+    simp only [candR]
     refine (Finset.card_biUnion_le).trans ((Finset.sum_le_sum hone).trans ?_)
     rw [Finset.sum_const, smul_eq_mul]
-    have h2 : 1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)) ≤ (n + 1 + 1) * 2 ^ (C.nr * (n + 1)) := by
-      have : 2 ^ (C.nr * (n + 1)) = 2 ^ C.nr * 2 ^ (C.nr * n) := by ring
-      rw [this]
-      have : 1 ≤ 2 ^ C.nr * 2 ^ (C.nr * n) := Nat.one_le_iff_ne_zero.2 (by positivity)
-      nlinarith
-    calc firsts.card * (1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)))
-        ≤ max 1 firsts.card * ((n + 1 + 1) * 2 ^ (C.nr * (n + 1))) :=
-          Nat.mul_le_mul (le_max_right _ _) h2
+    exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
+theorem prefixMax_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ}
+    (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L) : 0 < prefixMax D k := by
+  classical
+  have h1 : ∑ x ∈ wordsOf (α := α) L, D.real {x} = 1 := by
+    have := real_eq_sum_words D hlen Set.univ
+    simpa using this.symm
+  obtain ⟨x, hx, hpos⟩ : ∃ x ∈ wordsOf (α := α) L, 0 < D.real {x} := by
+    by_contra h
+    push Not at h
+    have : ∑ x ∈ wordsOf (α := α) L, D.real {x} ≤ 0 := Finset.sum_nonpos h
+    linarith
+  have hle : D.real {x} ≤ D.real {y | (prefixOf x k).toList <+: y.toList} :=
+    measureReal_mono (fun y hy => by
+      rw [Set.mem_singleton_iff.1 hy]; simp only [Set.mem_ofPred_eq, prefixOf,
+        FreeMonoid.toList_ofList]; exact List.take_prefix _ _) (measure_ne_top _ _)
+  refine lt_of_lt_of_le (hpos.trans_le hle) ?_
+  refine le_trans (le_of_eq ?_) (le_ciSup (f := fun p : FreeMonoid α =>
+    if p.toList.length = k then D.real {x | p.toList <+: x.toList} else 0)
+    ⟨1, by rintro _ ⟨p, rfl⟩; simp only []; split_ifs <;> simp [measureReal_le_one]⟩
+    (prefixOf x k))
+  rw [if_pos (length_prefixOf (by rw [mem_wordsOf.1 hx]; exact hkL))]
 
 end Quality
 
 theorem round_quality_level : RoundQualityLevel := by
-  intro α _ _ Ω _ μ _ Q C A O B F D _ seed ε Rmax d hf hc hε hkL hlen hV
-  have hq := fun probes => quality_holds (μ := μ) A O B F C.K D hkL seed probes hf hc hε hlen hV
+  intro α _ _ Ω _ μ _ Q C A O B F D _ seed δ Rmax d hf hc hδ hδ1 hkL hlen hV
+  have hpm := prefixMax_pos D hkL hlen
+  have hlog : 0 < Real.log (5 / δ) := Real.log_pos (by rw [lt_div_iff₀ hδ]; linarith)
+  have heps : ∀ r, 0 < roundEps C D δ r := fun r => by
+    unfold roundEps
+    refine Real.sqrt_pos.2 (div_pos (mul_pos hpm ?_) two_pos)
+    have : 0 ≤ (((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2 :=
+      mul_nonneg (Nat.cast_nonneg _) (Real.log_nonneg (by norm_num))
+    linarith
+  have hq := fun (r : ℕ) (probes : List (FreeMonoid α)) => quality_holds (μ := μ) A O B F C.K D
+    hkL seed probes hf hc (heps r) hlen hV
   choose Ef hEf hgood using hq
-  set cands := candSet C Rmax d {[]}
-  refine ⟨⋃ p ∈ cands, Ef p, ?_, fun ω hω => ?_⟩
-  · have hcard : (cands.card : ℝ) ≤ (Rmax + 1) * 2 ^ (C.nr * Rmax) := by
-      have := card_candSet C Rmax d {[]}
-      simp only [Finset.card_singleton, max_self, one_mul] at this
-      exact_mod_cast this
-    have h5 : 0 ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k) := by positivity
-    calc μ.real (⋃ p ∈ cands, Ef p) ≤ ∑ p ∈ cands, μ.real (Ef p) :=
+  set E : Set Ω := ⋃ r ∈ Finset.range (Rmax + 1), ⋃ p ∈ candR C Rmax d r {[]}, Ef r p
+  refine ⟨E, ?_, fun ω hω => ?_⟩
+  · have hterm : ∀ r, ∑ p ∈ candR C Rmax d r {[]}, μ.real (Ef r p) ≤ δ / 2 ^ (r + 1) := by
+      intro r
+      have hcard : ((candR C Rmax d r {[]}).card : ℝ) ≤ 2 ^ ((C.nr + 1) * r) := by
+        have := card_candR C Rmax d r {[]}
+        simp only [Finset.card_singleton, max_self, one_mul] at this
+        exact_mod_cast this
+      have hexp : 5 * Real.exp (-2 * roundEps C D δ r ^ 2 / prefixMax D C.k)
+          = δ / 2 ^ ((C.nr + 1) * r + r + 1) := by
+        unfold roundEps
+        rw [Real.sq_sqrt (by
+          have : 0 ≤ (((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2 :=
+            mul_nonneg (Nat.cast_nonneg _) (Real.log_nonneg (by norm_num))
+          positivity)]
+        rw [show -2 * (prefixMax D C.k * ((((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2
+            + Real.log (5 / δ)) / 2) / prefixMax D C.k
+            = -((((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2) - Real.log (5 / δ) by
+          field_simp; ring]
+        rw [Real.exp_sub, Real.exp_neg, ← Real.log_rpow two_pos, Real.exp_log (by positivity),
+          Real.exp_log (by positivity), Real.rpow_natCast]
+        field_simp
+      calc ∑ p ∈ candR C Rmax d r {[]}, μ.real (Ef r p)
+          ≤ ∑ _p ∈ candR C Rmax d r {[]}, δ / 2 ^ ((C.nr + 1) * r + r + 1) :=
+            Finset.sum_le_sum fun p _ => (hEf r p).trans (le_of_eq hexp)
+        _ = (candR C Rmax d r {[]}).card * (δ / 2 ^ ((C.nr + 1) * r + r + 1)) := by
+            rw [Finset.sum_const, nsmul_eq_mul]
+        _ ≤ 2 ^ ((C.nr + 1) * r) * (δ / 2 ^ ((C.nr + 1) * r + r + 1)) :=
+            mul_le_mul_of_nonneg_right hcard (by positivity)
+        _ = δ / 2 ^ (r + 1) := by
+            rw [pow_add, pow_add (2 : ℝ) ((C.nr + 1) * r)]
+            field_simp
+            ring
+    calc μ.real E ≤ ∑ r ∈ Finset.range (Rmax + 1), μ.real (⋃ p ∈ candR C Rmax d r {[]}, Ef r p) :=
           measureReal_biUnion_finset_le _ _
-      _ ≤ ∑ _p ∈ cands, 5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k) :=
-          Finset.sum_le_sum fun p _ => hEf p
-      _ = cands.card * (5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k)) := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ _ := mul_le_mul_of_nonneg_right hcard h5
+      _ ≤ ∑ r ∈ Finset.range (Rmax + 1), δ / 2 ^ (r + 1) :=
+          Finset.sum_le_sum fun r _ => (measureReal_biUnion_finset_le _ _).trans (hterm r)
+      _ ≤ δ := by
+          have h := sum_geometric_two_le (Rmax + 1)
+          have : ∑ r ∈ Finset.range (Rmax + 1), δ / 2 ^ (r + 1)
+              = δ / 2 * ∑ r ∈ Finset.range (Rmax + 1), (1 / 2 : ℝ) ^ r := by
+            rw [Finset.mul_sum]
+            refine Finset.sum_congr rfl fun r _ => ?_
+            rw [one_div_pow, pow_succ]; ring
+          rw [this]
+          nlinarith
   · simp only []
     set R := readsAt O B F ω
     have hmem := roundProbes_mem C R Rmax 0 [] (initialK C.K R seed) [] d {[]}
       (Finset.mem_singleton_self _)
-    simp only [Set.mem_iUnion, not_exists] at hω
+    have hr : (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).2 ∈ Finset.range (Rmax + 1) :=
+      Finset.mem_range.2 (Nat.lt_succ_of_le (roundAux_le C R _ _ _ _ _ d))
+    simp only [E, Set.mem_iUnion, not_exists] at hω
     rw [roundAux_state]
-    exact hgood _ ω (hω _ hmem)
+    exact hgood _ _ ω (hω _ hr _ hmem)
 
 end OrthoDFA

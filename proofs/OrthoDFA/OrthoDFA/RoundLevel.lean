@@ -163,22 +163,27 @@ def RoundTrichotomyLevel : Prop :=
             * ((1 - ν) ^ C.nr + αc
               + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)))
 
-/-- `RoundQualityLevel`: for any draws, outside a set of the oracle's noise, the hypothesis the
-round ends with meets `QualityHolds` against everything its passes probed. The set covers every
-choice of live-edge draws the readings could rerun, so its measure carries `2^(nr·Rmax)`. -/
+/-- The fluctuation allowed a round that made `r` readings, at total failure chance `δ`. -/
+noncomputable def roundEps (C : RoundCfg α) (D : Measure (FreeMonoid α)) (δ : ℝ) (r : ℕ) : ℝ :=
+  Real.sqrt (prefixMax D C.k * ((((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2
+    + Real.log (5 / δ)) / 2)
+
+/-- `RoundQualityLevel`: for any draws, outside a set of the oracle's noise of measure at most
+`δ`, the hypothesis the round ends with meets `QualityHolds` against everything its passes probed,
+at the fluctuation `roundEps` of the number of readings it made. The set covers every choice of
+live-edge draws the readings could rerun. -/
 def RoundQualityLevel : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} (C : RoundCfg α) (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (ε : ℝ)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (δ : ℝ)
     (Rmax : ℕ) (d : Fin Rmax → C.Draws),
-    0 ≤ C.f → 0 ≤ C.c → 0 < ε → C.k ≤ C.L → (∀ᵐ x ∂D, x.toList.length = C.L) →
+    0 ≤ C.f → 0 ≤ C.c → 0 < δ → δ ≤ 1 → C.k ≤ C.L → (∀ᵐ x ∂D, x.toList.length = C.L) →
     SuffixFree (F ∪ C.K.train F) →
-    ∃ E : Set Ω, μ.real E
-        ≤ (Rmax + 1) * 2 ^ (C.nr * Rmax) * (5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k))
-      ∧ ∀ ω ∉ E,
-        let R := readsAt O B F ω
-        QualityHolds R A O B F (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).1.state D C.k
-          C.L seed (roundProbes C R Rmax 0 [] (initialK C.K R seed) [] d) C.f C.c ε
+    ∃ E : Set Ω, μ.real E ≤ δ ∧ ∀ ω ∉ E,
+      let R := readsAt O B F ω
+      let r := roundAux C R Rmax 0 [] (initialK C.K R seed) [] d
+      QualityHolds R A O B F r.1.state D C.k C.L seed
+        (roundProbes C R Rmax 0 [] (initialK C.K R seed) [] d) C.f C.c (roundEps C D δ r.2)
 
 end OrthoDFA

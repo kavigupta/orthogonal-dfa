@@ -781,3 +781,12 @@ rule to be read-determined, and whose slack grows with the gate's draws (`Rmax·
 about 0.055 at 29 readings) where this one's `ε` grows only as `√(nr·Rmax)`. Binary, `L = 40`,
 `k = 20`, failure 0.005: `ε` is 0.013 at one reading, 0.018 at two, 0.028 at five, 0.068 at 29;
 the read-strings slack is `(probes + nr·Rmax)·2⁻²⁰`, 0.004 to 0.017.
+
+**Restated with the realised readings (D45).** The union now runs over the number of readings `r`
+the round made, each at chance `δ·2^-(r+1)`, over the at most `2^((nr+1)·r)` probe lists `r`
+readings can take. Off one set of measure `δ` the end hypothesis meets `QualityHolds` at
+
+    ε_r = √(prefixMax(k)·(((nr+1)·r + r + 1)·ln 2 + ln(5/δ))/2),
+
+so the bound tracks the readings actually made: at binary, `k = 20`, `nr = 480`, `δ = 0.005`,
+`ε_r` is 0.013, 0.018, 0.028, 0.068, 0.13, 0.22 at `r` = 1, 2, 5, 29, 100, 300.
