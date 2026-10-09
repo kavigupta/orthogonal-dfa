@@ -1,21 +1,22 @@
 import OrthoDFA.StartAtK
 import OrthoDFA.StartState
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # The round's trichotomy
 
 The gate runs the hypothesis's DFA from every start on each draw and scores it against the draw's
-root read; it passes where the best start's agreement reaches `acc`. On a refusal a fresh sample
-is read, every draw to one outcome, and each harvest class is tested against the rate incidental
-indecision alone would give it: a class that fires is held, and a refusal with no class firing
-halves the limit, as does a pair test past one half of the searched draws. Edges still live in
-the sample rerun the pass.
+root read; it passes where the best start's agreement reaches `acc`. A gate whose test never
+settles passes. On a refusal a fresh sample is read, every draw to one outcome, until a harvest
+class's test against the rate incidental indecision alone would give it fires or an edge still
+live turns up, else to its end: a class that fires is held, live edges rerun the pass, and
+otherwise the limit halves.
 
-`RoundTrichotomy`: given the target's coverage precondition, outside a set of the oracle's noise
-of measure at most `β₁`, the gate's batch and the refusal sample leave, but for chance `β₂`, the
-reading consistent, or holding a class that fired, whose bad share is at least one less its
-incidental rate over its rate, or halving with the limit above `τ*`, or with live edges left to
-rerun.
+`RoundTrichotomy`: outside a set of the oracle's noise of measure at most `β₁`, the gate's batch
+and the refusal sample leave, but for chance `β₂`, the reading consistent, or holding a class
+that fired, whose bad share is at least one less its incidental rate over its rate, or with live
+edges left to rerun, or halving, which below `τ₀` needs every covering start to leave the classes
+at most `ν`.
 -/
 
 namespace OrthoDFA
@@ -55,21 +56,27 @@ variable (t : DTree α) (edges : Edges α) {N : ℕ} (bg : Fin N → FreeMonoid 
 noncomputable def gateBest (n : ℕ) : List Bool :=
   bestOf t.paths fun q => hitsIn bg (fun x => ¬ StartDis R edges q x) n
 
-/-- Where the gate stops: the first look at which the best start's test against `acc`, at
-failure chance `a` over the starts, settles, else the batch's end. -/
+/-- The best start's test against `acc`, at failure chance `a` over the starts, after `n` draws. -/
+noncomputable def gateSide (acc a : ℝ) (n : ℕ) : Option Bool :=
+  rateSide acc (a / t.paths.length) 0 n
+    (hitsIn bg (fun x => ¬ StartDis R edges (gateBest R t edges bg n) x) n)
+
+/-- Where the gate stops: the first look at which its test settles, else the batch's end. -/
 noncomputable def gateStop (acc a : ℝ) : ℕ :=
-  (((lookSet 30 N).sort (· ≤ ·)).find? fun n => (rateSide acc (a / t.paths.length) 0 n
-    (hitsIn bg (fun x => ¬ StartDis R edges (gateBest R t edges bg n) x) n)).isSome).getD N
+  (((lookSet 30 N).sort (· ≤ ·)).find? fun n => (gateSide R t edges bg acc a n).isSome).getD N
 
 /-- The start the gate chooses. -/
 noncomputable def gateStart (acc a : ℝ) : List Bool :=
   gateBest R t edges bg (gateStop R t edges bg acc a)
 
-/-- The gate passes: the chosen start agrees on at least `acc` of the draws read. -/
+/-- The gate passes unless its test settles below `acc`. -/
 def GatePasses (acc a : ℝ) : Prop :=
-  acc * gateStop R t edges bg acc a
-    ≤ hitsIn bg (fun x => ¬ StartDis R edges (gateStart R t edges bg acc a) x)
-      (gateStop R t edges bg acc a)
+  gateSide R t edges bg acc a (gateStop R t edges bg acc a) ≠ some false
+
+/-- The fewest hits of `n` at which a test against `θ` at failure chance `a` does not settle
+below. -/
+noncomputable def gateCut (n : ℕ) (θ a : ℝ) : ℕ :=
+  sInf {h | ¬ 1 - binomSfGe n θ (h + 1) < a}
 
 end Gate
 
@@ -135,28 +142,25 @@ structure ClassTest (α : Type*) where
   trials : FreeMonoid α → Prop
   θ : ℝ
 
-/-- The test, read after the first `n` draws, has settled. -/
-noncomputable def ClassTest.settled {N : ℕ} (b : Fin N → FreeMonoid α) (a : ℝ) (T : ClassTest α)
-    (n : ℕ) : Prop :=
-  T.θ ≤ 0 ∨ 1 ≤ T.θ ∨ (rateSide T.θ a 0 (hitsIn b T.trials n) (hitsIn b T.hits n)).isSome
-
 /-- The test fires, read after the first `n` draws. -/
 noncomputable def ClassTest.fires {N : ℕ} (b : Fin N → FreeMonoid α) (a : ℝ) (T : ClassTest α)
     (n : ℕ) : Prop :=
   testFires T.θ a (hitsIn b T.trials n) (hitsIn b T.hits n)
 
 open scoped Classical in
-/-- Where the refusal sample stops: the first look at which every test has settled. -/
+/-- Where the refusal sample stops: the first look at which some test fires or a live edge has
+turned up, else its end. -/
 noncomputable def refusalStop {N : ℕ} (b : Fin N → FreeMonoid α) (a : ℝ)
-    (tests : List (ClassTest α)) : ℕ :=
-  (((lookSet 30 N).sort (· ≤ ·)).find? fun n => decide (∀ T ∈ tests, T.settled b a n)).getD N
+    (tests : List (ClassTest α)) (live : FreeMonoid α → Prop) : ℕ :=
+  (((lookSet 30 N).sort (· ≤ ·)).find? fun n =>
+    decide ((∃ T ∈ tests, T.fires b a n) ∨ ∃ i : Fin N, (i : ℕ) < n ∧ live (b i))).getD N
 
 section Round
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 
-/-- The steps `log₂` bounds a search by. -/
-def searchSteps (L k : ℕ) : ℕ := Nat.clog 2 (L - k) + 1
+/-- The prefixes `log₂` bounds a search by. -/
+noncomputable def searchSteps (L k : ℕ) : ℝ := Real.logb 2 (L - k : ℕ) + 1
 
 /-- The harvest classes, with the rates incidental indecision gives them: the ends at
 `(depth − 1)·f` of draws, triples and pairs at `c·f·depth·searchSteps` of searched draws, the
@@ -170,11 +174,6 @@ noncomputable def harvestTests (t : DTree α) (edges : Edges α) (k L : ℕ) (f 
    ⟨IsBlocked R t edges k, fun _ => True, 2 * c * f * t.depth⟩,
    ⟨IsMember R t edges k, fun _ => True, θM⟩]
 
-/-- The pair test, which halves past one half of the searched draws; it decides nothing the
-classes' tests do not, so the trichotomy reads only their firing. -/
-noncomputable def pairTest (t : DTree α) (edges : Edges α) (k : ℕ) : ClassTest α :=
-  ⟨IsPair R t edges k, Searched R t edges k, 1 / 2⟩
-
 /-- The target's states some position from `k` to `L` of at least `minCov` of the draws visits:
 the covered states. -/
 def Covered (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) (k L : ℕ) (minCov : ℝ) :
@@ -187,8 +186,8 @@ def CoverGood (A : DFA (FreeMonoid α) Q) (S : Set Q) (q₀ : Q) : Set (FreeMono
 
 /-- The masking residue: draws the target re-rooted at `q₀` judges well, on which the DFA from
 `h q₀` leaves `h` of the target's run while the walk from `k` agrees. -/
-def maskMass (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) (S : Set Q) (h : Q → List Bool)
-    (t : DTree α) (edges : Edges α) (k : ℕ) (q₀ : Q) : ℝ :=
+def maskMass (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) (S : Set Q)
+    (h : Q → List Bool) (t : DTree α) (edges : Edges α) (k : ℕ) (q₀ : Q) : ℝ :=
   D.real {x | x ∈ CoverGood A S q₀ ∧ probeOutcome R t edges k x = .agree
     ∧ ∃ i ≤ x.toList.length, tRun edges (h q₀) (prefixOf x i) ≠ h (A.step q₀ (prefixOf x i))}
 
@@ -197,41 +196,41 @@ open scoped Classical in
 noncomputable def labelErr (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) : ℝ :=
   D.real {x | R.mid x ≠ decide (A.state x ∈ A.accept)}
 
-/-- What a refusal must leave to the harvest classes. -/
+/-- What a refusal leaves to the harvest classes and live edges. -/
 noncomputable def need (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) (S : Set Q)
-    (h : Q → List Bool) (t : DTree α) (edges : Edges α) (k : ℕ) (q₀ : Q) (gu : List Bool × α → Prop)
-    (acc η δ : ℝ) : ℝ :=
-  1 - acc - 2 * δ - η - labelErr R A D - maskMass R A D S h t edges k q₀
+    (h : Q → List Bool) (t : DTree α) (edges : Edges α) (k : ℕ) (q₀ : Q)
+    (gu : List Bool × α → Prop) (acc η : ℝ) : ℝ :=
+  1 - acc - η - labelErr R A D - maskMass R A D S h t edges k q₀
     - D.real {x | RootUndecided R t edges k x} - D.real {x | DeadEdge R t edges k gu x}
 
-/-- The limit above which a refusal with no class firing must be: where the classes' incidental
-rates and slack cover what a refusal leaves them. -/
-noncomputable def tauStar (t : DTree α) (k L : ℕ) (c θM δ needV : ℝ) : ℝ :=
-  (needV - θM - 8 * δ) / (2 * (t.depth - 1 : ℕ) + 2 * c * t.depth * (searchSteps L k + 1))
+/-- The limit below which every class fires on its first hit in `nr` draws. -/
+noncomputable def tauZero (t : DTree α) (k L nr : ℕ) (c a : ℝ) : ℝ :=
+  (1 - a) / (nr * max ((t.depth - 1 : ℕ) : ℝ)
+    (max (2 * c * t.depth) (c * t.depth * searchSteps L k)))
 
 open scoped Classical in
 /-- What a reading of the round against the hypothesis `s` claims: the gate passes and its
-chosen start disagrees on at most `1 − acc + δ` of draws; or it refuses and the refusal sample
-leaves live edges to rerun; or it refuses and some harvest class fires; or it refuses with no
-class firing, which halves, and the limit is at least `τ*` for any covering `(q₀, h)`. A pair
-test past one half halves too, but where no class fires that is the last case. -/
+chosen start disagrees on at most `1 − acc + δc` of draws; or it refuses and the refusal sample
+turns up live edges to rerun; or some harvest class fires; or the limit halves, and then, below
+`τ₀` with members firing on their first hit, every covering start leaves at most `ν`. -/
 def TrichotomyHolds (A : DFA (FreeMonoid α) Q) (s : KState α) (D : Measure (FreeMonoid α))
-    (k L : ℕ) (f c θM acc a δ η minCov : ℝ) (gu : List Bool × α → Prop) {ng nr : ℕ}
+    (k L : ℕ) (f c θM acc a δc η minCov ν : ℝ) (gu : List Bool × α → Prop) {ng nr : ℕ}
     (bg : Fin ng → FreeMonoid α) (br : Fin nr → FreeMonoid α) : Prop :=
   let t := s.tree
   let e := s.edges
   let tests := harvestTests R t e k L f c θM
-  let Tr := refusalStop br a (pairTest R t e k :: tests)
+  let Tr := refusalStop br a tests (LiveEdge R t e k gu)
+  let S := Covered A D k L minCov
   (GatePasses R t e bg acc a
-      ∧ D.real {x | StartDis R e (gateStart R t e bg acc a) x} ≤ 1 - acc + δ)
+      ∧ D.real {x | StartDis R e (gateStart R t e bg acc a) x} ≤ 1 - acc + δc)
     ∨ (¬ GatePasses R t e bg acc a ∧ ∃ i : Fin nr, (i : ℕ) < Tr ∧ LiveEdge R t e k gu (br i))
     ∨ (¬ GatePasses R t e bg acc a ∧ ∃ T ∈ tests, T.fires br a Tr)
-    ∨ (¬ GatePasses R t e bg acc a ∧ (∀ T ∈ tests, ¬ T.fires br a Tr)
-      ∧ ∀ (q₀ : Q) (h : Q → List Bool), q₀ ∈ Covered A D k L minCov →
-        1 - η ≤ D.real (CoverGood A (Covered A D k L minCov) q₀) →
-        (∀ q ∈ Covered A D k L minCov, leafAccepts (h q) = decide (q ∈ A.accept)) →
-        tauStar t k L c θM δ
-          (need R A D (Covered A D k L minCov) h t e k q₀ gu acc η δ) ≤ f)
+    ∨ (¬ GatePasses R t e bg acc a
+      ∧ (tauZero t k L nr c a ≤ f ∨ 1 - a ≤ θM * nr
+        ∨ ∀ (q₀ : Q) (h : Q → List Bool), q₀ ∈ S → h q₀ ∈ t.paths →
+          1 - η ≤ D.real (CoverGood A S q₀) →
+          (∀ q ∈ S, leafAccepts (h q) = decide (q ∈ A.accept)) →
+          need R A D S h t e k q₀ gu acc η ≤ ν))
 
 /-- The draws whose class's harvested read is at a well-read state: a state the family leaves
 undecided less than `c·f` of the time. -/
@@ -265,16 +264,16 @@ def QualityHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B 
 
 /-- `RoundTrichotomy`: for any probes, outside a set of the oracle's noise of measure at most
 `5·prefixMax D k / ε²`, where the classes' quality may fail, the gate's batch and the refusal
-sample break the trichotomy with chance at most the tests' failure chances at each look, the
-Hoeffding tails at the gate's stop and the refusal sample's end, and the chance a stop with no
-live edge hides live edges above `δ`. -/
+sample break the trichotomy with chance at most the gate tests' failure chances at each look,
+the chance a start far below `acc` leaves its test unsettled at the batch's end, and the chance
+the refusal sample misses mass `ν`. -/
 def RoundTrichotomy : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
     (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (L ng nr : ℕ) (seed probes : List (FreeMonoid α))
-    (f c θM acc a δ η minCov ε : ℝ) (gu : List Bool × α → Prop),
-    0 ≤ acc → acc ≤ 1 → 0 < f → 0 < c → 0 ≤ θM → 0 ≤ a → 0 < δ → 0 < ε →
+    (f c θM acc a δc η minCov ν ε : ℝ) (gu : List Bool × α → Prop),
+    0 ≤ acc → acc ≤ 1 → 0 ≤ f → 0 ≤ c → 0 ≤ a → 0 ≤ δc → δc ≤ acc → ν ≤ 1 → 0 < ε →
     (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (F ∪ K.train F) →
     let k := (L + 1) / 2
     ∃ E : Set Ω, μ.real E ≤ 5 * prefixMax D k / ε ^ 2 ∧ ∀ ω ∉ E,
@@ -282,10 +281,11 @@ def RoundTrichotomy : Prop :=
       let s := runPassK K R k (initialK K R seed) probes
       QualityHolds R A O B F s D k L seed probes f c ε
         ∧ ((Measure.pi fun _ : Fin ng => D).prod (Measure.pi fun _ : Fin nr => D)).real
-            {b | ¬ TrichotomyHolds R A s D k L f c θM acc a δ η minCov gu b.1 b.2}
-          ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a + s.tree.paths.length * Real.exp (-2 * ng * δ ^ 2)
-            + 6 * (Nat.log 2 (nr / 30) + 2) * a + 6 * Real.exp (-(nr : ℝ) * δ ^ 2 / 2)
-            + 2 * Real.exp (-(min 30 nr : ℕ) * δ)
+            {b | ¬ TrichotomyHolds R A s D k L f c θM acc a δc η minCov ν gu b.1 b.2}
+          ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a
+            + max 1 s.tree.paths.length
+              * binomSfGe ng (acc - δc) (gateCut ng acc (a / s.tree.paths.length))
+            + (1 - ν) ^ nr
 
 end Round
 
