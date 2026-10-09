@@ -58,7 +58,8 @@
   ends are. `BadShare`: a population left undecided `ā` of the time has at least
   `(ā − f)/(umax − f)` of its mass at states read undecided more than `f` of the time.
 - `OrthoDFA/Trichotomy.lean` — `RoundTrichotomy`: one reading of the round. Off a noise set of
-  measure at most `5·prefixMax/ε²`, every harvest class is at most its incidental rate plus slack.
+  measure at most `5·exp(−2ε²/prefixMax)`, every harvest class is at most its incidental rate plus
+  slack: the draws sharing their first `k` letters with a string the pass read, and `ε`.
   There, but for the gate tests' failure chance per look, a binomial tail for a gate left
   unsettled at its batch's end, and `(1 − ν)^nr`, the reading ends in one of: the gate passes and
   its start disagrees on at most `1 − acc + δc`; live edges turn up to rerun; some class fires;
@@ -66,7 +67,9 @@
   covering start leaves the classes and live edges at most `ν`.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
-  tagged; `HarvestBound` is the triples' fresh-read and Chebyshev argument for any such class.
+  tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding
+  over the draws grouped by their first `k` letters, which are independent inside a cell of the
+  pass.
 - `OrthoDFA/Proofs/TrichotomyBatch.lean`, `Trichotomy.lean` — the batch claims. A refusal leaves
   every start disagreeing on more than `1 − acc`; a covering start's disagreements off its own
   start region fall in the walk's classes; below `τ₀` each class fires on its first hit.

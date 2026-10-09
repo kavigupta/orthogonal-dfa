@@ -731,3 +731,20 @@ The proof:
   A halving therefore reads to the cap with no draw in a class or at a live edge.
 - `searchSteps` is `log₂(L − k) + 1`, as the Python uses. A search visits at most `⌈log₂(hi − lo)⌉`
   middles.
+
+## The classes' slack on a binary alphabet (D22)
+
+At `L = 40`, `k = 20`, binary, `prefixMax(20) = 2⁻²⁰ ≈ 9.5e-7`, the slack had been vacuous:
+`|passReadSet|·prefixMax(k) ≈ 6` at 4000 probes, and Chebyshev needed `ε ≳ 0.05` per reading.
+
+- **Read strings.** The pass walked from `k` reads only seed strings and probe prefixes at least
+  `k` long (`passReadSet k`, with the determinism proof narrowed to prefixes from `k`). A draw's
+  harvested read is `x[:i]·m` with `i ≥ k`, so it can be a read string only if `x[:k]` is the
+  first `k` letters of one. The slack is `|kPrefixes k (passReadSet …)|·prefixMax(k)`: one per
+  probe, one per seed string at least `k` long, and at most `(|Σ|+1)(|midfixes|+1)` per shorter
+  seed string. At 4000 probes that is `0.0038`, plus `0.001` per thousand long seed strings.
+- **Hoeffding.** Inside a cell of the pass the draws grouped by their first `k` letters are
+  independent, each group moving the sum by at most its mass times the scale, so the noise set
+  is `5·exp(−2ε²/prefixMax(k))`: `3e-8` at `ε = 0.003`, `1e-5` at `ε = 0.0025`.
+- **So** at `ε = 0.003` a class's slack is about `0.004 + 0.003·(1 + c·f·M)`: `0.007` for the ends
+  and blocked reads, `0.007–0.013` for triples and pairs at `f` from `1e-3` to `1e-2`.

@@ -265,7 +265,7 @@ def QualityHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B 
       ≤ 2 * c * f * t.depth + slack (2 * t.depth)
 
 /-- `RoundTrichotomy`: for any probes, outside a set of the oracle's noise of measure at most
-`5·prefixMax D k / ε²`, where the classes' quality may fail, the gate's batch and the refusal
+`5·exp(−2ε²/prefixMax D k)`, where the classes' quality may fail, the gate's batch and the refusal
 sample break the trichotomy with chance at most the gate tests' failure chances at each look,
 the chance a start far below `acc` leaves its test unsettled at the batch's end, and the chance
 the refusal sample misses mass `ν`. -/
@@ -278,7 +278,7 @@ def RoundTrichotomy : Prop :=
     0 ≤ acc → acc ≤ 1 → 0 ≤ f → 0 ≤ c → 0 ≤ a → 0 ≤ δc → δc ≤ acc → ν ≤ 1 → 0 < ε →
     (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (F ∪ K.train F) →
     let k := (L + 1) / 2
-    ∃ E : Set Ω, μ.real E ≤ 5 * prefixMax D k / ε ^ 2 ∧ ∀ ω ∉ E,
+    ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
       let R := readsAt O B F ω
       let s := runPassK K R k (initialK K R seed) probes
       QualityHolds R A O B F s D k L seed probes f c ε

@@ -40,7 +40,7 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
     (seed probes : List (FreeMonoid α)) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c) (hε : 0 < ε)
     (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
-    ∃ E : Set Ω, μ.real E ≤ 5 * prefixMax D ((L + 1) / 2) / ε ^ 2 ∧ ∀ ω ∉ E,
+    ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D ((L + 1) / 2)) ∧ ∀ ω ∉ E,
       QualityHolds (readsAt O B F ω) A O B F
         (runPassK K (readsAt O B F ω) ((L + 1) / 2) (initialK K (readsAt O B F ω) seed) probes)
         D ((L + 1) / 2) L seed probes f c ε := by
@@ -75,7 +75,6 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     refine (add_le_add (add_le_add (add_le_add (measureReal_union_le _ _) hE3) le_rfl)
       le_rfl).trans ?_
     have := add_le_add hE1 hE2
-    rw [mul_div_assoc]
     linarith
   simp only [Set.mem_union, not_or] at hω
   obtain ⟨⟨⟨⟨n1, n2⟩, n3⟩, n4⟩, n5⟩ := hω
