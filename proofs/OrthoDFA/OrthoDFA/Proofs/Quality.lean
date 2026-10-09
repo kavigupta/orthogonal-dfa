@@ -37,16 +37,14 @@ theorem exists_good_of_le {P : Ω → Prop} {r : ℝ} (h : μ.real {ω | ¬ P ω
 
 theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} (hkL : k ≤ L)
     (seed probes : List (FreeMonoid α)) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c) (hε : 0 < ε)
     (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
-    ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D ((L + 1) / 2)) ∧ ∀ ω ∉ E,
+    ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
       QualityHolds (readsAt O B F ω) A O B F
-        (runPassK K (readsAt O B F ω) ((L + 1) / 2) (initialK K (readsAt O B F ω) seed) probes)
-        D ((L + 1) / 2) L seed probes f c ε := by
+        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes)
+        D k L seed probes f c ε := by
   classical
-  set k := (L + 1) / 2
-  have hkL : k ≤ L := by omega
   have hu : 0 ≤ c * f := mul_nonneg hc hf
   have hT := harvest_holds_le (μ := μ) (triple_spec k) (fun t n => t.depth * n)
     (fun R t e x => (qProbeH_countP R t e k x).trans (Nat.mul_le_mul_left _ (visits_le R t e k x)))

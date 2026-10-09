@@ -74,6 +74,9 @@
   `4(log₂(ng/30)+2)a` plus, per reading made in expectation, the refusal sample's miss, `α` and the
   gate's unsettled tail. The exhausted exit is a problematic component: give-ups and stopped
   attempts are not yet bounded. `Proofs/RoundLevel.lean` proves it reading by reading.
+  `RoundQualityLevel`: for any draws, off a noise set, the hypothesis the round ends with meets
+  `QualityHolds` against every probe its passes took. The reruns' probes are picked by reads, so
+  the set covers every choice of live-edge draws: its measure carries `2^(nr·Rmax)`.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding

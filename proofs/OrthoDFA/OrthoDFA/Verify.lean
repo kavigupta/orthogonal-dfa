@@ -16,7 +16,7 @@ import OrthoDFA.Proofs.RoundLevel
 in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `StartExists`, stated in `OrthoDFA.StartState`, `StartRootCovered`, `EndsCovered` and
 `BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and
-`RoundTrichotomyLevel`, stated in `OrthoDFA.RoundLevel`, hold.
+`RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, hold.
 -/
 
 namespace OrthoDFA
@@ -65,5 +65,9 @@ theorem round_trichotomy' : RoundTrichotomy := round_trichotomy
 theorem round_trichotomy_level' : RoundTrichotomyLevel := round_trichotomy_level
 
 #print axioms round_trichotomy_level'
+
+theorem round_quality_level' : RoundQualityLevel := round_quality_level
+
+#print axioms round_quality_level'
 
 end OrthoDFA

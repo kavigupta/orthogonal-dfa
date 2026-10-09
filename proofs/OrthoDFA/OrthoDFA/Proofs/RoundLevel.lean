@@ -407,4 +407,143 @@ theorem round_trichotomy_level : RoundTrichotomyLevel := by
   rw [measureReal_def]
   exact ENNReal.toReal_le_of_le_ofReal hrhs0 hle
 
+section Quality
+
+variable (C : RoundCfg α) (R : CutReads α)
+
+theorem runPassK_append (K : StageKnobs α) (k : ℕ) (s : KState α) (l₁ l₂ : List (FreeMonoid α)) :
+    runPassK K R k s (l₁ ++ l₂) = runPassK K R k (runPassK K R k s l₁) l₂ :=
+  List.foldl_append ..
+
+open scoped Classical in
+/-- The rerun lists a refusal sample `br` can give: its draws picked by a set of positions. -/
+noncomputable def sublistsOf (br : Fin C.nr → FreeMonoid α) : Finset (List (FreeMonoid α)) :=
+  (Finset.univ : Finset (Finset (Fin C.nr))).image fun S =>
+    ((List.finRange C.nr).filter fun i => decide (i ∈ S)).map br
+
+theorem card_sublistsOf (br : Fin C.nr → FreeMonoid α) : (sublistsOf C br).card ≤ 2 ^ C.nr := by
+  unfold sublistsOf
+  refine Finset.card_image_le.trans (le_of_eq ?_)
+  rw [Finset.card_univ, Fintype.card_finset, Fintype.card_fin]
+
+open scoped Classical in
+theorem mem_sublistsOf (br : Fin C.nr → FreeMonoid α) (q : Fin C.nr → Bool) :
+    ((List.finRange C.nr).filter q).map br ∈ sublistsOf C br :=
+  Finset.mem_image.2 ⟨Finset.univ.filter fun i => q i = true, Finset.mem_univ _, by
+    congr 1
+    exact List.filter_congr fun i _ => by simp⟩
+
+open scoped Classical in
+theorem readingStep_spec (hist : List C.Draws) (j : ℕ) (s₀ : KState α)
+    (first : List (FreeMonoid α)) (y : C.Draws) :
+    (∀ e, readingStep C R hist j s₀ first y = .done e
+      → e.state = runPassK C.K R C.k s₀ (first ++ List.ofFn y.1))
+    ∧ ∀ s' first', readingStep C R hist j s₀ first y = .rerun s' first'
+      → s' = runPassK C.K R C.k s₀ (first ++ List.ofFn y.1) ∧ first' ∈ sublistsOf C y.2.2.1 := by
+  constructor
+  · intro e h
+    simp only [readingStep] at h
+    split_ifs at h <;> simp only [ReadStep.done.injEq, reduceCtorEq] at h <;> subst h <;> rfl
+  · intro s' first' h
+    simp only [readingStep] at h
+    split_ifs at h with h1 h2 h3
+    simp only [ReadStep.rerun.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨rfl, mem_sublistsOf C _ _⟩
+
+theorem roundAux_state :
+    ∀ (n j : ℕ) (hist : List C.Draws) (s : KState α) (first : List (FreeMonoid α))
+      (d : Fin n → C.Draws),
+      (roundAux C R n j hist s first d).1.state
+        = runPassK C.K R C.k s (roundProbes C R n j hist s first d)
+  | 0, _, _, _, _, _ => rfl
+  | n + 1, j, hist, s, first, d => by
+    obtain ⟨hd, hr⟩ := readingStep_spec C R hist j s first (d 0)
+    simp only [roundAux, roundProbes]
+    split
+    · rename_i e he
+      exact hd e he
+    · rename_i s' first' he
+      rw [roundAux_state n, runPassK_append, ← (hr s' first' he).1]
+
+/-- The probe lists a round over the draws `d` can take, from first probes among `firsts`. -/
+noncomputable def candSet : (n : ℕ) → (Fin n → C.Draws) → Finset (List (FreeMonoid α))
+    → Finset (List (FreeMonoid α))
+  | 0, _, _ => {[]}
+  | n + 1, d, firsts => firsts.biUnion fun f =>
+    insert (f ++ List.ofFn (d 0).1)
+      ((candSet n (Fin.tail d) (sublistsOf C (d 0).2.2.1)).image
+        ((f ++ List.ofFn (d 0).1) ++ ·))
+
+theorem roundProbes_mem :
+    ∀ (n j : ℕ) (hist : List C.Draws) (s : KState α) (first : List (FreeMonoid α))
+      (d : Fin n → C.Draws) (firsts : Finset (List (FreeMonoid α))), first ∈ firsts →
+      roundProbes C R n j hist s first d ∈ candSet C n d firsts
+  | 0, _, _, _, _, _, _, _ => by simp [roundProbes, candSet]
+  | n + 1, j, hist, s, first, d, firsts, hf => by
+    obtain ⟨-, hr⟩ := readingStep_spec C R hist j s first (d 0)
+    simp only [roundProbes, candSet]
+    refine Finset.mem_biUnion.2 ⟨first, hf, ?_⟩
+    split
+    · exact Finset.mem_insert_self _ _
+    · rename_i s' first' he
+      exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨_, roundProbes_mem n (j + 1) _ s' first'
+        (Fin.tail d) _ (hr s' first' he).2, rfl⟩)
+
+theorem card_candSet :
+    ∀ (n : ℕ) (d : Fin n → C.Draws) (firsts : Finset (List (FreeMonoid α))),
+      (candSet C n d firsts).card ≤ max 1 firsts.card * ((n + 1) * 2 ^ (C.nr * n))
+  | 0, _, firsts => by simp [candSet]
+  | n + 1, d, firsts => by
+    have ih := card_candSet n (Fin.tail d) (sublistsOf C (d 0).2.2.1)
+    have hS : max 1 (sublistsOf C (d 0).2.2.1).card ≤ 2 ^ C.nr :=
+      max_le (Nat.one_le_two_pow) (card_sublistsOf C _)
+    have hone : ∀ f ∈ firsts, (insert (f ++ List.ofFn (d 0).1)
+        ((candSet C n (Fin.tail d) (sublistsOf C (d 0).2.2.1)).image
+          ((f ++ List.ofFn (d 0).1) ++ ·))).card ≤ 1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)) := by
+      intro f _
+      refine (Finset.card_insert_le _ _).trans ?_
+      have := (Finset.card_image_le (s := candSet C n (Fin.tail d) (sublistsOf C (d 0).2.2.1))
+        (f := ((f ++ List.ofFn (d 0).1) ++ ·))).trans (ih.trans (Nat.mul_le_mul_right _ hS))
+      omega
+    simp only [candSet]
+    refine (Finset.card_biUnion_le).trans ((Finset.sum_le_sum hone).trans ?_)
+    rw [Finset.sum_const, smul_eq_mul]
+    have h2 : 1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)) ≤ (n + 1 + 1) * 2 ^ (C.nr * (n + 1)) := by
+      have : 2 ^ (C.nr * (n + 1)) = 2 ^ C.nr * 2 ^ (C.nr * n) := by ring
+      rw [this]
+      have : 1 ≤ 2 ^ C.nr * 2 ^ (C.nr * n) := Nat.one_le_iff_ne_zero.2 (by positivity)
+      nlinarith
+    calc firsts.card * (1 + 2 ^ C.nr * ((n + 1) * 2 ^ (C.nr * n)))
+        ≤ max 1 firsts.card * ((n + 1 + 1) * 2 ^ (C.nr * (n + 1))) :=
+          Nat.mul_le_mul (le_max_right _ _) h2
+
+end Quality
+
+theorem round_quality_level : RoundQualityLevel := by
+  intro α _ _ Ω _ μ _ Q C A O B F D _ seed ε Rmax d hf hc hε hkL hlen hV
+  have hq := fun probes => quality_holds (μ := μ) A O B F C.K D hkL seed probes hf hc hε hlen hV
+  choose Ef hEf hgood using hq
+  set cands := candSet C Rmax d {[]}
+  refine ⟨⋃ p ∈ cands, Ef p, ?_, fun ω hω => ?_⟩
+  · have hcard : (cands.card : ℝ) ≤ (Rmax + 1) * 2 ^ (C.nr * Rmax) := by
+      have := card_candSet C Rmax d {[]}
+      simp only [Finset.card_singleton, max_self, one_mul] at this
+      exact_mod_cast this
+    have h5 : 0 ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k) := by positivity
+    calc μ.real (⋃ p ∈ cands, Ef p) ≤ ∑ p ∈ cands, μ.real (Ef p) :=
+          measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ _p ∈ cands, 5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k) :=
+          Finset.sum_le_sum fun p _ => hEf p
+      _ = cands.card * (5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k)) := by
+          rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ _ := mul_le_mul_of_nonneg_right hcard h5
+  · simp only []
+    set R := readsAt O B F ω
+    have hmem := roundProbes_mem C R Rmax 0 [] (initialK C.K R seed) [] d {[]}
+      (Finset.mem_singleton_self _)
+    simp only [Set.mem_iUnion, not_exists] at hω
+    rw [roundAux_state]
+    exact hgood _ ω (hω _ hmem)
+
 end OrthoDFA

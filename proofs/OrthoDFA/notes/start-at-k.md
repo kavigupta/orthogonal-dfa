@@ -766,3 +766,18 @@ Problematic component: the exhausted exit (budget of `Rmax` readings or more tha
 It stays because give-ups on genuinely wrong edges and attempts stopped at undecided reads are not
 yet bounded; false splits are bounded separately (claim 4). D39–D41 plan to bound the rest with
 attempt counters, a stopped-read harvest and a dynamic budget.
+
+## Lean status: `RoundQualityLevel` proved (D23)
+
+A round's passes chain into one pass over all their probes, so the hypothesis it ends with is
+`runPassK (initialK seed)` over that list. The list depends on the noise only through which
+live-edge draws each reading reruns, a subset of its refusal sample, so it lies in a set of at most
+`(Rmax + 1)·2^(nr·Rmax)` lists fixed by the draws. `quality_holds` for each, unioned, gives
+
+    μ(E) ≤ (Rmax + 1)·2^(nr·Rmax)·5·exp(−2ε²/prefixMax(k)).
+
+This avoids a history-determinism proof, which would have needed the certificate and the given-up
+rule to be read-determined, and whose slack grows with the gate's draws (`Rmax·ng·prefixMax(k)`,
+about 0.055 at 29 readings) where this one's `ε` grows only as `√(nr·Rmax)`. Binary, `L = 40`,
+`k = 20`, failure 0.005: `ε` is 0.013 at one reading, 0.018 at two, 0.028 at five, 0.068 at 29;
+the read-strings slack is `(probes + nr·Rmax)·2⁻²⁰`, 0.004 to 0.017.

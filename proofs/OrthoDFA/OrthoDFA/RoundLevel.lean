@@ -63,6 +63,13 @@ inductive RoundEnd (α : Type*)
   | halve (s : KState α) (gu : List Bool × α → Prop) (gateRefused : Bool)
   | exhausted (s : KState α)
 
+/-- The hypothesis a round ends with. -/
+def RoundEnd.state : RoundEnd α → KState α
+  | .consistent s _ => s
+  | .harvest s => s
+  | .halve s _ _ => s
+  | .exhausted s => s
+
 /-- How a reading ends: the round, or a rerun with these first probes. -/
 inductive ReadStep (α : Type*)
   | done (e : RoundEnd α)
@@ -104,6 +111,17 @@ noncomputable def roundAux (C : RoundCfg α) (R : CutReads α) :
       ((roundAux C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)).1,
         (roundAux C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)).2 + 1)
 
+/-- The probes the round's passes take, in order. -/
+noncomputable def roundProbes (C : RoundCfg α) (R : CutReads α) :
+    (n : ℕ) → ℕ → List C.Draws → KState α → List (FreeMonoid α) → (Fin n → C.Draws)
+      → List (FreeMonoid α)
+  | 0, _, _, _, _, _ => []
+  | n + 1, j, hist, s, first, d =>
+    match readingStep C R hist j s first (d 0) with
+    | .done _ => first ++ List.ofFn (d 0).1
+    | .rerun s' first' =>
+      first ++ List.ofFn (d 0).1 ++ roundProbes C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)
+
 variable {Q : Type*}
 
 open scoped Classical in
@@ -144,5 +162,23 @@ def RoundTrichotomyLevel : Prop :=
               ∂(Measure.pi fun _ : Fin Rmax => C.drawMeasure D))
             * ((1 - ν) ^ C.nr + αc
               + C.Pmax * binomSfGe C.ng (C.acc - δc) (gateCut C.ng C.acc (C.a / 2 ^ Rmax / C.Pmax)))
+
+/-- `RoundQualityLevel`: for any draws, outside a set of the oracle's noise, the hypothesis the
+round ends with meets `QualityHolds` against everything its passes probed. The set covers every
+choice of live-edge draws the readings could rerun, so its measure carries `2^(nr·Rmax)`. -/
+def RoundQualityLevel : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {Q : Type*} (C : RoundCfg α) (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (ε : ℝ)
+    (Rmax : ℕ) (d : Fin Rmax → C.Draws),
+    0 ≤ C.f → 0 ≤ C.c → 0 < ε → C.k ≤ C.L → (∀ᵐ x ∂D, x.toList.length = C.L) →
+    SuffixFree (F ∪ C.K.train F) →
+    ∃ E : Set Ω, μ.real E
+        ≤ (Rmax + 1) * 2 ^ (C.nr * Rmax) * (5 * Real.exp (-2 * ε ^ 2 / prefixMax D C.k))
+      ∧ ∀ ω ∉ E,
+        let R := readsAt O B F ω
+        QualityHolds R A O B F (roundAux C R Rmax 0 [] (initialK C.K R seed) [] d).1.state D C.k
+          C.L seed (roundProbes C R Rmax 0 [] (initialK C.K R seed) [] d) C.f C.c ε
 
 end OrthoDFA
