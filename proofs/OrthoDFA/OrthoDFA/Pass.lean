@@ -133,12 +133,14 @@ noncomputable def edgeMisses (t : DTree α) (c : α) :
     | .inl _ => []
     | .inr b => b :: edgeMisses t c ms
 
-/-- `close`: every edge re-voted; an edge no member can place keeps its target. -/
+/-- `close`: every edge re-voted; an edge keeps its target and witness where no member can place
+or the vote returns its target. -/
 noncomputable def closeEdges (t : DTree α) (pool : List (FreeMonoid α))
     (edges : List Bool → α → Option (List Bool × FreeMonoid α)) :
     List Bool → α → Option (List Bool × FreeMonoid α) :=
-  fun path c => (decisiveTarget K R t pool path c ((edges path c).map Prod.fst)).orElse
-    fun _ => edges path c
+  fun path c => match decisiveTarget K R t pool path c ((edges path c).map Prod.fst) with
+    | some (q, y) => if (edges path c).map Prod.fst = some q then edges path c else some (q, y)
+    | none => edges path c
 
 /-- The totalised step on a leaf's path: the edge's target when it is a leaf, else stay put. -/
 def stepPath (t : DTree α) (edges : List Bool → α → Option (List Bool × FreeMonoid α))

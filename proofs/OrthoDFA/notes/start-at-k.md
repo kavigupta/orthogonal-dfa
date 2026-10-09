@@ -813,3 +813,25 @@ its full side can be split off with no noise, which only lengthens the round.
 
 Open: the chance of a noisy split over a round (the witness is picked from the pool by reads, so
 the per-string `depth·ρ` does not apply), and the chance of ending exhausted.
+
+## The model against #413 at 2ed3c03 (D77)
+
+Matched: the fallback count only at the refusal sample's last look; the open-edge class over
+proper prefixes only; `PAIR_TRIP` (pairs over half the searched draws, holding nothing) ending
+the round with the harvest and halving; an edge keeping its witness where the vote returns its
+target; the Hoeffding split test, its threshold `log(2·tests/split_fpr)` with `tests` the leaves
+times the alphabet, and its counts over members the training half decides; the fixed budget.
+
+Still apart:
+- Edge votes. Python counts the first member whose successor sifts, then only later members
+  whose successor's sift is already in the round's family-mean cache. The model counts every
+  member whose successor sifts. Reads are keyed by the string, so a cached sift is the full sift;
+  only which members vote differs, and with it the majority. Modelling it means threading the
+  cache, which every read of the round (pass, gate, refusal sample, split tallies) fills.
+- The training-half side. Python compares the half's mean against `accept_thresh` (at or above)
+  and `reject_thresh` (below); the model rescales the whole family's counts, `hi·|train| <
+  |F|·s` and `|F|·s ≤ lo·|train|`. They differ only for a half mean between `hi/|F|` and
+  `accept_thresh`, or between `lo/|F|` and `reject_thresh`.
+- Members are the first `memberLimit` of the pool in order; Python pulls them lazily in chunks.
+- The gate's tie-break (lowest id, against first path) and the certificate's `α` index (the run's
+  attempts, against calls this round) are relabellings.

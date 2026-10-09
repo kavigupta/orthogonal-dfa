@@ -76,8 +76,8 @@ theorem one_sub_sf_ge {m h : ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1)
   linarith
 
 /-- A test whose rate times its trials is short of `1 − a` fires on its first hit. -/
-theorem testFires_of_hit {θ a : ℝ} {m h : ℕ} (ha : 0 ≤ a) (hθm : θ * m < 1 - a) (h1 : 1 ≤ h)
-    (hhm : h ≤ m) : testFires θ a m h := by
+theorem testFires_of_hit {θ a : ℝ} {P : Prop} {m h : ℕ} (hP : P) (ha : 0 ≤ a)
+    (hθm : θ * m < 1 - a) (h1 : 1 ≤ h) (hhm : h ≤ m) : testFires θ a P m h := by
   have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast h1.trans hhm
   unfold testFires
   split_ifs with h0 h1'
@@ -86,10 +86,9 @@ theorem testFires_of_hit {θ a : ℝ} {m h : ℕ} (ha : 0 ≤ a) (hθm : θ * m 
   · push Not at h0 h1'
     rcases hr : rateSide θ a 0 m h with _ | s
     · simp only []
-      have : θ * m < h := by
-        have : (1 : ℝ) ≤ h := by exact_mod_cast h1
-        linarith
-      exact this
+      refine ⟨hP, ?_⟩
+      have : (1 : ℝ) ≤ h := by exact_mod_cast h1
+      linarith
     · simp only []
       unfold rateSide at hr
       rw [if_pos (Nat.zero_le _)] at hr
@@ -157,6 +156,28 @@ theorem probeOutcome_endUndecided {t : DTree α} {edges : Edges α} {k : ℕ} {x
       exact .inr hw.symm
     · split_ifs at hw <;> simp at hw
 
+theorem probeOutcome_endUndecided_prefix {t : DTree α} {edges : Edges α} {k : ℕ}
+    {x w : FreeMonoid α} (h : probeOutcome R t edges k x = .endUndecided w) :
+    ∃ i, w = prefixOf x i := by
+  have hw := walkCheck_of_not_search R h id
+  unfold walkCheck at hw
+  split at hw
+  · simp at hw
+  · split at hw
+    · exact ⟨_, by simpa using hw.symm⟩
+    · split at hw
+      · exact ⟨_, by simpa using hw.symm⟩
+      · split_ifs at hw <;> simp at hw
+  · split at hw
+    · exact ⟨x.toList.length, by simpa [prefixOf_length] using hw.symm⟩
+    · split_ifs at hw <;> simp at hw
+
+omit [Fintype α] [DecidableEq α] in
+theorem eq_of_prefixOf_length {x : FreeMonoid α} {i : ℕ}
+    (h : x.toList.length ≤ (prefixOf x i).toList.length) : prefixOf x i = x := by
+  have : x.toList.length ≤ i := by simp [prefixOf] at h; omega
+  simp [prefixOf, List.take_of_length_le this]
+
 theorem edgeAt_of_edge {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
     {ps : List (List Bool)} {fd : ℕ} (h : probeOutcome R t edges k x = .edge ps fd) :
     ∃ e, edgeAt R t edges k x = some e := by
@@ -180,11 +201,15 @@ theorem naOff_cases {t : DTree α} {edges : Edges α} {k : ℕ} {gu : List Bool 
     subst hw
     by_contra hd
     exact hroot (.inl ⟨_, ho, hd⟩)
-  · rcases probeOutcome_endUndecided R ho with hB | rfl
-    · right; right; right; right; right; left; exact ⟨hB, w, ho⟩
-    · right; right; left
-      by_contra hd
-      exact hroot (.inr ⟨ho, hd⟩)
+  · obtain ⟨i, rfl⟩ := probeOutcome_endUndecided_prefix R ho
+    rcases lt_or_ge (prefixOf x i).toList.length x.toList.length with hl | hl
+    · rcases probeOutcome_endUndecided R ho with hB | hB
+      · right; right; right; right; right; left; exact ⟨hB, _, ho, hl⟩
+      · rw [hB] at hl; exact absurd hl (lt_irrefl _)
+    rw [eq_of_prefixOf_length hl] at ho
+    right; right; left
+    by_contra hd
+    exact hroot (.inr ⟨ho, hd⟩)
   · right; right; right; right; left; exact ⟨j, ho⟩
   · obtain ⟨e, he⟩ := edgeAt_of_edge R ho
     by_cases hg : gu e
@@ -323,7 +348,7 @@ theorem tau_rate {t : DTree α} {k L nr : ℕ} {c a f coef : ℝ} (hf : 0 ≤ f)
 theorem harvest_fires (R : CutReads α) (t : DTree α) (edges : Edges α) (k L : ℕ) {f c θM a : ℝ}
     (hf : 0 ≤ f) (ha : 0 ≤ a) {nr : ℕ} (htau : f < tauZero t k L nr c a)
     (hM : θM * nr < 1 - a) (br : Fin nr → FreeMonoid α) :
-    ∀ T ∈ harvestTests R t edges k L f c θM, (∀ x, T.hits x → T.trials x) →
+    ∀ T ∈ heldTests R t edges k L f c θM, (∀ x, T.hits x → T.trials x) →
       1 ≤ hitsIn br T.hits nr → T.fires br a nr := by
   classical
   have hS := logb_steps_nonneg L k
@@ -338,9 +363,9 @@ theorem harvest_fires (R : CutReads α) (t : DTree α) (edges : Edges α) (k L :
   by_cases hθ : T.θ ≤ 0
   · unfold testFires; rw [if_pos hθ]; omega
   push Not at hθ
-  refine testFires_of_hit ha ?_ h1 hhm
+  refine testFires_of_hit rfl ha ?_ h1 hhm
   refine lt_of_le_of_lt (mul_le_mul_of_nonneg_left hmr hθ.le) ?_
-  simp only [harvestTests, List.mem_cons, List.not_mem_nil, or_false] at hT
+  simp only [heldTests, List.mem_cons, List.not_mem_nil, or_false] at hT
   rcases hT with rfl | rfl | rfl | rfl | rfl | rfl
   · have := tau_rate hf htau (le_max_left _ _)
     simp only []; linarith [mul_comm ((t.depth - 1 : ℕ) : ℝ) f]
@@ -527,11 +552,13 @@ theorem refusal_clear (t : DTree α) (edges : Edges α) (k L : ℕ) {f c θM a :
     · exact h1
     · exact absurd h1 hC
     · exact absurd h1 hB
-  have hfire : ∀ T ∈ tests, T.hits (br i) → (∀ x, T.hits x → T.trials x) → False := by
+  have hfire : ∀ T ∈ heldTests R t edges k L f c θM, T.hits (br i) →
+      (∀ x, T.hits x → T.trials x) → False := by
     intro T hT hx hht
     have h1 : 1 ≤ hitsIn br T.hits nr :=
       Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ _, i.2, hx⟩⟩
-    exact hC ⟨T, hT, by rw [hTr]; exact harvest_fires R t edges k L hf ha htau hM br T hT hht h1⟩
+    exact hC ⟨T, List.mem_append_left _ hT,
+      by rw [hTr]; exact harvest_fires R t edges k L hf ha htau hM br T hT hht h1⟩
   have hsearch : ∀ x, (∃ j, probeOutcome R t edges k x = .triple j)
       ∨ (∃ j, probeOutcome R t edges k x = .pair j) → Searched R t edges k x := by
     rintro x (⟨j, hj⟩ | ⟨j, hj⟩)
@@ -542,17 +569,17 @@ theorem refusal_clear (t : DTree α) (edges : Edges α) (k L : ℕ) {f c θM a :
   rcases naOff_cases R hi with hl | hc' | hc' | hc' | hc' | hc' | hc'
   · exact hB ⟨i, by rw [hTr]; exact i.2, hl⟩
   · exact hfire ⟨StartDeep R t k, fun _ => True, (t.depth - 1 : ℕ) * f⟩
-      (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+      (by simp [heldTests]) hc' fun _ _ => trivial
   · exact hfire ⟨EndDeep R t, fun _ => True, (t.depth - 1 : ℕ) * f⟩
-      (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+      (by simp [heldTests]) hc' fun _ _ => trivial
   · exact hfire ⟨IsTriple R t edges k, Searched R t edges k, c * f * t.depth * searchSteps L k⟩
-      (by simp [tests, harvestTests]) hc' fun x hx => hsearch x (.inl hx)
+      (by simp [heldTests]) hc' fun x hx => hsearch x (.inl hx)
   · exact hfire ⟨IsPair R t edges k, Searched R t edges k, c * f * t.depth * searchSteps L k⟩
-      (by simp [tests, harvestTests]) hc' fun x hx => hsearch x (.inr hx)
+      (by simp [heldTests]) hc' fun x hx => hsearch x (.inr hx)
   · exact hfire ⟨IsBlocked R t edges k, fun _ => True, 2 * c * f * t.depth⟩
-      (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+      (by simp [heldTests]) hc' fun _ _ => trivial
   · exact hfire ⟨IsMember R t edges k, fun _ => True, θM⟩
-      (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+      (by simp [heldTests]) hc' fun _ _ => trivial
 
 open scoped Classical in
 theorem trichotomy_batch (A : DFA (FreeMonoid α) Q) (s : KState α) (D : Measure (FreeMonoid α))

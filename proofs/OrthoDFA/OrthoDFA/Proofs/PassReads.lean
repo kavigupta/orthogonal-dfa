@@ -552,9 +552,12 @@ theorem settle_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (Fr
   simp only [settle, closeEdges] at h
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩
   · rw [hd] at h
-    exact he _ _ _ _ (by simpa using h)
+    exact he _ _ _ _ h
   · rw [hd] at h
-    obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj (by simpa using h))
+    dsimp only at h
+    split_ifs at h
+    · exact he _ _ _ _ h
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj h)
     exact hp _ (members_mem (decisiveTarget_mem K R hd))
 
 theorem probePool_in {Bs : Set (FreeMonoid α)} {s : PassState α} {w : FreeMonoid α}

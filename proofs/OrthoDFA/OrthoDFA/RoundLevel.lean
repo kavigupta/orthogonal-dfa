@@ -59,14 +59,14 @@ noncomputable def RoundCfg.drawMeasure (C : RoundCfg α) (D : Measure (FreeMonoi
 /-- How a round ends. -/
 inductive RoundEnd (α : Type*)
   | consistent (s : KState α) (q : List Bool)
-  | harvest (s : KState α)
+  | harvest (s : KState α) (halve : Bool)
   | halve (s : KState α) (gu : List Bool × α → Prop) (gateRefused : Bool)
   | exhausted (s : KState α)
 
 /-- The hypothesis a round ends with. -/
 def RoundEnd.state : RoundEnd α → KState α
   | .consistent s _ => s
-  | .harvest s => s
+  | .harvest s _ => s
   | .halve s _ _ => s
   | .exhausted s => s
 
@@ -78,8 +78,8 @@ inductive ReadStep (α : Type*)
 open scoped Classical in
 /-- Reading `j`: the pass from `s₀` with `first` ahead of the reading's probes; past `Pmax`
 leaves the budget is out; the gate at failure chance `a·2⁻ʲ`, and on a settled pass the
-certificate; otherwise a class firing on the refusal sample is held, else its live-edge draws
-rerun, else the limit halves. -/
+certificate; otherwise a class firing on the refusal sample is held, halving where pairs were
+over half, else its live-edge draws rerun, else the limit halves. -/
 noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C.Draws) (j : ℕ)
     (s₀ : KState α) (first : List (FreeMonoid α)) (y : C.Draws) : ReadStep α :=
   let s := runPassK C.K R C.k s₀ (first ++ List.ofFn y.1)
@@ -96,7 +96,8 @@ noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C
     let Tr := refusalStop br C.a tests live
     let lv := ((List.finRange C.nr).filter fun i : Fin C.nr =>
       decide ((i : ℕ) < Tr ∧ live (br i))).map br
-    if ∃ T ∈ tests, T.fires br C.a Tr then .done (.harvest s)
+    if ∃ T ∈ tests, T.fires br C.a Tr then
+      .done (.harvest s (decide ((pairTrip R s.tree s.edges C.k).fires br C.a Tr)))
     else if lv ≠ [] then .rerun s lv
     else .done (.halve s gu (decide (gateSide R s.tree s.edges y.2.1 C.acc aj
       (gateStop R s.tree s.edges y.2.1 C.acc aj) = some false)))
@@ -134,7 +135,7 @@ def RoundEndHolds (C : RoundCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q
     (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) :
     RoundEnd α → Prop
   | .consistent s q => D.real {x | StartDis R s.edges q x} ≤ 1 - C.acc ∧ CertGood s
-  | .harvest _ => True
+  | .harvest _ _ => True
   | .halve s gu gr =>
     tauZero s.tree C.k C.L C.nr C.c C.a ≤ C.f ∨ 1 - C.a ≤ C.θM * C.nr
       ∨ (D.real {x | NAOff R s.tree s.edges C.k gu x} ≤ ν

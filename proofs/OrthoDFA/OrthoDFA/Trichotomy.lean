@@ -91,9 +91,11 @@ def IsTriple (x : FreeMonoid α) : Prop := ∃ j, probeOutcome R t edges k x = .
 /-- Its read ends at a member of a leaf whose edge is unlearned. -/
 def IsMember (x : FreeMonoid α) : Prop := ∃ u, probeOutcome R t edges k x = .member u
 
-/-- Its walk reaches an unlearned edge whose prefixes the cut cannot place. -/
+/-- Its walk reaches an unlearned edge, and the cut cannot place a proper prefix either side of
+it. -/
 def IsBlocked (x : FreeMonoid α) : Prop :=
-  (∃ s c j, kWalk R t edges k x = .edge s c j) ∧ ∃ w, probeOutcome R t edges k x = .endUndecided w
+  (∃ s c j, kWalk R t edges k x = .edge s c j)
+    ∧ ∃ w, probeOutcome R t edges k x = .endUndecided w ∧ w.toList.length < x.toList.length
 
 /-- The start is undecided below the root. -/
 def StartDeep (x : FreeMonoid α) : Prop := DeepUndecided R t (prefixOf x k)
@@ -126,14 +128,15 @@ def NAOff (gu : List Bool × α → Prop) (x : FreeMonoid α) : Prop :=
 
 end Classes
 
-/-- `_fires`: `binomial_side_of_boundary` of `h` hits in `m` trials against `θ`, then its count
-where it does not settle; at a rate of zero any hit fires, and at one none does. -/
-noncomputable def testFires (θ a : ℝ) (m h : ℕ) : Prop :=
+/-- `_fires`: `binomial_side_of_boundary` of `h` hits in `m` trials against `θ`, then, at the
+`final` look only, its count where it does not settle; at a rate of zero any hit fires, and at one
+none does. -/
+noncomputable def testFires (θ a : ℝ) (final : Prop) (m h : ℕ) : Prop :=
   if θ ≤ 0 then 0 < h
   else if 1 ≤ θ then False
   else match rateSide θ a 0 m h with
     | some s => s = true
-    | none => θ * m < h
+    | none => final ∧ θ * m < h
 
 /-- A harvest class's test on the refusal sample: hits `H` among trials `Tr`, against `θ`. -/
 structure ClassTest (α : Type*) where
@@ -144,7 +147,7 @@ structure ClassTest (α : Type*) where
 /-- The test fires, read after the first `n` draws. -/
 noncomputable def ClassTest.fires {N : ℕ} (b : Fin N → FreeMonoid α) (a : ℝ) (T : ClassTest α)
     (n : ℕ) : Prop :=
-  testFires T.θ a (hitsIn b T.trials n) (hitsIn b T.hits n)
+  testFires T.θ a (n = N) (hitsIn b T.trials n) (hitsIn b T.hits n)
 
 open scoped Classical in
 /-- Where the refusal sample stops: the first look at which some test fires or a live edge has
@@ -161,10 +164,10 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 /-- The prefixes `log₂` bounds a search by. -/
 noncomputable def searchSteps (L k : ℕ) : ℝ := Real.logb 2 (L - k : ℕ) + 1
 
-/-- The harvest classes, with the rates incidental indecision gives them: the ends at
+/-- The held harvest classes, with the rates incidental indecision gives them: the ends at
 `(depth − 1)·f` of draws, triples and pairs at `c·f·depth·searchSteps` of searched draws, the
 reads undecided at an unlearned edge at `2·c·f·depth` of draws, and members at `θM`. -/
-noncomputable def harvestTests (t : DTree α) (edges : Edges α) (k L : ℕ) (f c θM : ℝ) :
+noncomputable def heldTests (t : DTree α) (edges : Edges α) (k L : ℕ) (f c θM : ℝ) :
     List (ClassTest α) :=
   [⟨StartDeep R t k, fun _ => True, (t.depth - 1 : ℕ) * f⟩,
    ⟨EndDeep R t, fun _ => True, (t.depth - 1 : ℕ) * f⟩,
@@ -172,6 +175,15 @@ noncomputable def harvestTests (t : DTree α) (edges : Edges α) (k L : ℕ) (f 
    ⟨IsPair R t edges k, Searched R t edges k, c * f * t.depth * searchSteps L k⟩,
    ⟨IsBlocked R t edges k, fun _ => True, 2 * c * f * t.depth⟩,
    ⟨IsMember R t edges k, fun _ => True, θM⟩]
+
+/-- `PAIR_TRIP`: pairs over half the searched draws. It holds nothing, and halves the limit. -/
+noncomputable def pairTrip (t : DTree α) (edges : Edges α) (k : ℕ) : ClassTest α :=
+  ⟨IsPair R t edges k, Searched R t edges k, 1 / 2⟩
+
+/-- The harvest classes. -/
+noncomputable def harvestTests (t : DTree α) (edges : Edges α) (k L : ℕ) (f c θM : ℝ) :
+    List (ClassTest α) :=
+  heldTests R t edges k L f c θM ++ [pairTrip R t edges k]
 
 /-- The target's states some position from `k` to `L` of at least `minCov` of the draws visits:
 the covered states. -/

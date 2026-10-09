@@ -454,8 +454,11 @@ theorem closeEdges_learned {t : DTree α} {pool : List (FreeMonoid α)} {edges :
   simp only [closeEdges] at he
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩ <;>
     rw [hd] at he
-  · exact h p c q y (by simpa using he)
-  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj (by simpa using he))
+  · exact h p c q y he
+  · dsimp only at he
+    split_ifs at he
+    · exact h p c q y he
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj he)
     exact decisiveTarget_learned K R hd
 
 theorem probeStepK_learned {k : ℕ} {s : KState α} {x : FreeMonoid α}

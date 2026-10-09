@@ -104,11 +104,11 @@ noncomputable def strongPass (C : StrongCfg α) (R : CutReads α) (A : RoundAcc 
       else strongStep C R A x)
     { A with s := { A.s with streak := 0 } }
 
-/-- How a round ends: consistent at a start, holding a class that fired, halving, with the
-budget spent, or out of readings. -/
+/-- How a round ends: consistent at a start, holding the classes that fired and halving where
+pairs were over half, halving, with the budget spent, or out of readings. -/
 inductive StrongEnd
   | consistent (q : List Bool)
-  | harvest
+  | harvest (halve : Bool)
   | halve (gateRefused : Bool)
   | exhausted
   | cap
@@ -116,7 +116,8 @@ inductive StrongEnd
 open scoped Classical in
 /-- Reading `j`: the pass with `first` ahead of the reading's probes; the gate at failure chance
 `a·2⁻ʲ`, and on a settled pass the certificate; otherwise a class firing on the refusal sample is
-held, else its live-edge draws rerun while the budget lasts, else the limit halves. -/
+held, halving where pairs were over half, else its live-edge draws rerun while the budget lasts,
+else the limit halves. -/
 noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (A : RoundAcc α)
     (first : List (FreeMonoid α)) (y : C.Draws) : RoundAcc α × (StrongEnd ⊕ List (FreeMonoid α)) :=
   let A' := strongPass C R A (first ++ List.ofFn y.1)
@@ -133,7 +134,8 @@ noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (
     let Tr := refusalStop br C.a tests live
     let lv := ((List.finRange C.nr).filter fun i : Fin C.nr =>
       decide ((i : ℕ) < Tr ∧ live (br i))).map br
-    if ∃ T ∈ tests, T.fires br C.a Tr then (A'', .inl .harvest)
+    if ∃ T ∈ tests, T.fires br C.a Tr then
+      (A'', .inl (.harvest (decide ((pairTrip R s.tree s.edges C.k).fires br C.a Tr))))
     else if lv ≠ [] then
       if C.budget s.tree.paths.length ≤ A'.used then (A'', .inl .exhausted) else (A'', .inr lv)
     else (A'', .inl (.halve (decide (side = some false))))
@@ -270,7 +272,7 @@ def StrongEndHolds (C : StrongCfg α) (R : CutReads α) (A : DFA (FreeMonoid α)
     (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) (Rmax : ℕ)
     (Ac : RoundAcc α) : StrongEnd → Prop
   | .consistent q => D.real {x | StartDis R Ac.s.edges q x} ≤ 1 - C.acc ∧ CertGood Ac.s
-  | .harvest => True
+  | .harvest _ => True
   | .halve gr =>
     let s := Ac.s
     let gu : List Bool × α → Prop := fun _ => False
