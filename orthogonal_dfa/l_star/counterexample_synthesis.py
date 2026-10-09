@@ -139,6 +139,8 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
     while True:
         resolver.counterexample_pass(patience=patience, first=first)
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
+        if gate.passed is None:
+            certificate.reached_target(index)
         dfa = resolver.to_dfa_and_tree(gate.start)[0]
         if gate.passed:
             output = certificate.certify(dfa, index=index)
@@ -222,8 +224,8 @@ def _publish_pool(pst, state) -> int:
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
-#: Rounds a run keeps going after the certificate first refuses a round at the
-#: consistency target.
+#: Rounds a run keeps going after it first reaches the consistency target
+#: without certifying.
 CERTIFICATE_PATIENCE = 5
 
 
@@ -295,13 +297,17 @@ class _Certificate:
     def __init__(self, pst, tracker):
         self.pst, self.tracker = pst, tracker
         self.attempts = 0
-        #: Round of the first attempt; CERTIFICATE_PATIENCE counts from it.
+        #: Round of the first attempt, or of the first gate left unsettled at the
+        #: target; CERTIFICATE_PATIENCE counts from it.
         self.first_round = None
+
+    def reached_target(self, index):
+        if self.first_round is None:
+            self.first_round = index
 
     def certify(self, dfa, *, index):
         """denoise_accept_labels(dfa) if the certificate passes it, else None."""
-        if self.first_round is None:
-            self.first_round = index
+        self.reached_target(index)
         output = denoise_accept_labels(self.pst, dfa)
         alpha = look_level(CERTIFICATE_ALPHA, self.attempts)
         self.attempts += 1
@@ -320,7 +326,7 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     print(
         f"[round {index}] no hypothesis the certificate passes in "
         f"{CERTIFICATE_PATIENCE} "
-        "rounds since the certificate first failed; stopping synthesis"
+        "rounds since one first reached the target; stopping synthesis"
     )
     return True
 

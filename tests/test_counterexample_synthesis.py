@@ -10,7 +10,9 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
+    _Certificate,
     _publish_pool,
+    _read_round,
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
@@ -181,6 +183,27 @@ class TestWhenARoundGivesUp(unittest.TestCase):
         stall.stalled(states=3, improved=False, settled=done)  # a new state resets
 
         self.assertFalse(stall.stalled(states=3, improved=False, settled=done))
+
+
+class TestWhenTheTargetIsReached(unittest.TestCase):
+    @staticmethod
+    def _round(passed):
+        resolver = SimpleNamespace(
+            counterexample_pass=lambda **kw: None,
+            read_fresh=lambda **kw: SimpleNamespace(
+                passed=passed, start=0, disagreements=[]
+            ),
+            to_dfa_and_tree=lambda start: (None, None),
+        )
+        certificate = _Certificate(pst=None, tracker=None)
+        _read_round(resolver, certificate, patience=10, acc_threshold=0.9, index=3)
+        return certificate.first_round
+
+    def test_a_gate_unsettled_at_its_last_look_starts_the_patience(self):
+        self.assertEqual(3, self._round(None))
+
+    def test_a_refused_gate_does_not(self):
+        self.assertIsNone(self._round(False))
 
 
 if __name__ == "__main__":

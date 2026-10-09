@@ -284,7 +284,7 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         reading = learner.read_fresh(acc_threshold=0.5)
 
-        self.assertFalse(reading.passed)
+        self.assertIsNone(reading.passed)
         # Past the gate's 2000 draws, the refusal sample read.
         self.assertGreater(learner.drawn, 2000)
         self.assertIsNotNone(reading.fired)

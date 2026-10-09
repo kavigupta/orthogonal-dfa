@@ -57,7 +57,7 @@ PAIR_SHARE = 0.5
 READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): whether it
-#: passed, the start
+#: passed (None where its test was still unsettled at the last look), the start
 #: that agrees on most of them and the share it agrees on, and on a refusal
 #: sample, per harvest whose test fired the strings it left, the classes whose
 #: tests fired, the ends and midfixes the cut stopped
@@ -285,7 +285,7 @@ class TransitionResolver:
                 if side is not None:
                     break
         start = _best(agree)
-        passed = side is True
+        passed = side
         reading = Reading(
             passed,
             start,
