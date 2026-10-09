@@ -38,6 +38,7 @@ from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq
 from .partial_dfa import PartialDFA
+from .preconditions import start_length
 from .progress import counter, write
 from .sifting import EDGE, END_UNDECIDED, PAIR, TRIPLE, UNLEARNED_EDGE, Sifter, read
 from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
@@ -170,13 +171,6 @@ def _kl_from_half(signal) -> float:
 
 def _best(agree) -> int:
     return max(range(len(agree)), key=lambda q: (agree[q], -q))
-
-
-def start_length(length: int) -> int:
-    """k, where the pass anchors a probe of ``length``: a uniform draw's first k
-    symbols are as many strings as `aim_at` asks a leaf to hold at full length,
-    and the rest of the probe is at least as long for the walk."""
-    return math.ceil(length / 2)
 
 
 class TransitionResolver:

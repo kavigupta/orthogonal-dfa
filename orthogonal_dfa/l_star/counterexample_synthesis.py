@@ -27,11 +27,12 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
+from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import PAIR_TRIP, TransitionResolver, start_length
+from .transition_resolver import PAIR_TRIP, TransitionResolver
 
 
 @dataclass
