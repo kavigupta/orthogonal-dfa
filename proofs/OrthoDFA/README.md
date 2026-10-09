@@ -57,14 +57,15 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   only strings no other key's tests or other reads have read, its sides' mean answers apart by
   `τ` beyond its threshold) or splitting is in the power case and does not split, with chance at
   most `e^{−τ²}` times the chances, summed over the keys, that there is such a test.
-- `RoundStrongExhausted`: where the budget at two leaves covers `|Q| + N₁ + N₂` readings of
-  `nr + np` probes, the round ends exhausted with chance at most `RoundStrongPower`'s bound
-  averaged over the draws, plus the chance that `N₁` readings rerun first a draw with a read off
-  its route, plus the chance that `N₂` rerun first a draw with no such read whose step reaches
-  no test in the power case or splitting (the stated residual: too few members on a side, too
-  few fresh strings, or too small a gap), plus the chance of a noisy split, which is open. A
-  rerun that adds a member is a test that did not split, so it falls in the power term or the
-  residual; it needs no term of its own.
+- `RoundStrongExhausted`: for draws of length `L`, where the budget at two leaves covers
+  `|Q| + N₁ + N₂` readings of `nr + np` probes, the round ends exhausted with chance at most
+  `RoundStrongPower`'s bound averaged over the draws; plus, over `N₁`, `spurRate` and the
+  `BadRoute` mass summed over every reading's refusal draws (Markov on the reruns of draws with a
+  read off their route, each bounded by `RoundStrongSpurious`); plus the chance that `N₂`
+  readings rerun first a draw with no such read whose step reaches no test in the power case or
+  splitting (the stated residual: too few members on a side, too few fresh strings, or too small
+  a gap); plus the chance of a noisy split, which is open. A rerun that adds a member is a test
+  that did not split, so it falls in the power term or the residual; it needs no term of its own.
 
 ## Open
 
@@ -74,9 +75,8 @@ Two claims are not proved, and are not assumed or sorried anywhere:
    noisy split needs one specific decided read on the minority side, but the witness it reads is
    picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
-2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only through the
-   noisy-split chance above, the non-power residual, and the count of spurious reruns, which
-   `RoundStrongSpurious` bounds per draw but which is not yet summed over the round.
+2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only up to the
+   noisy-split chance above and the non-power residual, which is stated, not bounded.
 
 Two gaps between the model and Python:
 

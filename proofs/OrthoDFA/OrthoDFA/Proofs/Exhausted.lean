@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Trace
 import OrthoDFA.Proofs.EdgeAttempts
+import OrthoDFA.Proofs.Spurious
 
 /-!
 # The round ends exhausted only after many readings that rerun without progress
@@ -408,6 +409,110 @@ theorem rerun_exhausted :
 
 end Count
 
+section Spur
+
+variable (C : StrongCfg α) (R : CutReads α)
+
+theorem strongReading_rerun_draws {j : ℕ} {A A'' : RoundAcc α} {first lv : List (FreeMonoid α)}
+    {y : C.Draws} (h : strongReading C R j A first y = (A'', .inr lv)) :
+    ∀ x ∈ lv, ∃ i, x = y.2.2.1 i := by
+  unfold strongReading at h
+  simp only [] at h
+  split_ifs at h <;>
+    simp only [Prod.mk.injEq, reduceCtorEq, and_false, Sum.inr.injEq] at h
+  all_goals
+    obtain ⟨-, rfl⟩ := h
+    intro x hx
+    simp only [List.mem_map] at hx
+    obtain ⟨i, -, rfl⟩ := hx
+    exact ⟨i, rfl⟩
+
+open scoped Classical in
+/-- The reruns of draws with a read off their route are at most the refusal draws with one, in
+the tree of the reading that drew them. -/
+theorem spur_count {Q : Type*} (A₀ : DFA (FreeMonoid α) Q) (side : FreeMonoid α → Bool)
+    (rep : Q → FreeMonoid α) :
+    ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws),
+      ((rerunFirsts (strongEntries C R n j A first d)).filter fun e =>
+          SpuriousAt R A₀ side rep e.1.s.tree C.k e.2).length
+        ≤ (if ∃ x, first.head? = some x ∧ SpuriousAt R A₀ side rep A.s.tree C.k x then 1 else 0)
+          + ∑ m : Fin n, ∑ i : Fin C.nr,
+            if ∃ e ∈ (strongEntries C R n j A first d)[(m : ℕ)]?, SpuriousAt R A₀ side rep
+              (strongPass C R e.1 (e.2 ++ List.ofFn (d m).1)).s.tree C.k ((d m).2.2.1 i)
+            then 1 else 0
+  | 0, _, _, _, _ => by simp [strongEntries, rerunFirsts]
+  | n + 1, j, A, first, d => by
+    have hhead : (((first.head?.map (A, ·)).toList).filter fun e =>
+        decide (SpuriousAt R A₀ side rep e.1.s.tree C.k e.2)).length
+        = if ∃ x, first.head? = some x ∧ SpuriousAt R A₀ side rep A.s.tree C.k x then 1 else 0 := by
+      rcases first with _ | ⟨x, xs⟩
+      · simp
+      · by_cases hs : SpuriousAt R A₀ side rep A.s.tree C.k x <;> simp [hs]
+    rw [Fin.sum_univ_succ]
+    have hfst := (strongReading_fst C R j A first (d 0)).1
+    rw [strongEntries_succ, rerunFirsts_cons, List.filter_append, List.length_append, hhead]
+    rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩ <;>
+      rw [hR] at hfst <;> simp only [] at hfst ⊢
+    · simp only [rerunFirsts, List.filterMap_nil, List.filter_nil, List.length_nil]
+      omega
+    · have ih := spur_count A₀ side rep n (j + 1) A'' lv (Fin.tail d)
+      have hlv : (if ∃ x, lv.head? = some x ∧ SpuriousAt R A₀ side rep A''.s.tree C.k x then 1
+          else 0) ≤ ∑ i : Fin C.nr, if ∃ e ∈ ((A, first) :: strongEntries C R n (j + 1) A'' lv
+            (Fin.tail d))[((0 : Fin (n + 1)) : ℕ)]?, SpuriousAt R A₀ side rep
+              (strongPass C R e.1 (e.2 ++ List.ofFn (d 0).1)).s.tree C.k ((d 0).2.2.1 i)
+            then 1 else 0 := by
+        split_ifs with hx
+        · obtain ⟨x, hx, hs⟩ := hx
+          obtain ⟨i, rfl⟩ := strongReading_rerun_draws C R hR x (List.mem_of_mem_head? hx)
+          refine le_trans ?_ (Finset.single_le_sum (f := fun i : Fin C.nr =>
+            if ∃ e ∈ ((A, first) :: strongEntries C R n (j + 1) A'' lv
+              (Fin.tail d))[((0 : Fin (n + 1)) : ℕ)]?, SpuriousAt R A₀ side rep
+                (strongPass C R e.1 (e.2 ++ List.ofFn (d 0).1)).s.tree C.k ((d 0).2.2.1 i)
+            then 1 else 0) (fun _ _ => Nat.zero_le _) (Finset.mem_univ i))
+          rw [if_pos ⟨(A, first), rfl, by rw [← hfst]; exact hs⟩]
+        · exact Nat.zero_le _
+      have hrest : (∑ m : Fin n, ∑ i : Fin C.nr, if ∃ e ∈ ((A, first) :: strongEntries C R n
+            (j + 1) A'' lv (Fin.tail d))[((m.succ : Fin (n + 1)) : ℕ)]?, SpuriousAt R A₀ side rep
+              (strongPass C R e.1 (e.2 ++ List.ofFn (d m.succ).1)).s.tree C.k
+                ((d m.succ).2.2.1 i) then 1 else 0)
+          = ∑ m : Fin n, ∑ i : Fin C.nr, if ∃ e ∈ (strongEntries C R n (j + 1) A'' lv
+            (Fin.tail d))[(m : ℕ)]?, SpuriousAt R A₀ side rep
+              (strongPass C R e.1 (e.2 ++ List.ofFn (Fin.tail d m).1)).s.tree C.k
+                ((Fin.tail d m).2.2.1 i) then 1 else 0 := rfl
+      rw [hrest]
+      omega
+
+/-- Markov for a count of events, measurable or not. -/
+theorem count_markov {β ι : Type*} [MeasurableSpace β] (P : Measure β) (s : Finset ι)
+    (T : ι → Set β) [∀ k p, Decidable (p ∈ T k)] (N : ℕ) :
+    (N : ENNReal) * P {p | N ≤ ∑ k ∈ s, if p ∈ T k then 1 else 0} ≤ ∑ k ∈ s, P (T k) := by
+  classical
+  set T' := fun k => toMeasurable P (T k)
+  have hsub : {p | N ≤ ∑ k ∈ s, if p ∈ T k then 1 else 0}
+      ⊆ {p | (N : ENNReal) ≤ ∑ k ∈ s, (T' k).indicator 1 p} := by
+    intro p hp
+    simp only [Set.mem_setOf_eq] at hp ⊢
+    calc (N : ENNReal) ≤ ((∑ k ∈ s, if p ∈ T k then 1 else 0 : ℕ) : ENNReal) := by
+          exact_mod_cast hp
+      _ = ∑ k ∈ s, if p ∈ T k then (1 : ENNReal) else 0 := by push_cast; rfl
+      _ ≤ ∑ k ∈ s, (T' k).indicator 1 p := by
+          gcongr with k
+          split_ifs with h
+          · rw [Set.indicator_of_mem (subset_toMeasurable P (T k) h)]; rfl
+          · exact zero_le
+  have hm : ∀ k, MeasurableSet (T' k) := fun k => measurableSet_toMeasurable P (T k)
+  calc (N : ENNReal) * P {p | N ≤ ∑ k ∈ s, if p ∈ T k then 1 else 0}
+      ≤ (N : ENNReal) * P {p | (N : ENNReal) ≤ ∑ k ∈ s, (T' k).indicator 1 p} := by
+        gcongr
+    _ ≤ ∫⁻ p, ∑ k ∈ s, (T' k).indicator 1 p ∂P :=
+        mul_meas_ge_le_lintegral₀ (f := fun p => ∑ k ∈ s, (T' k).indicator 1 p)
+          (Finset.measurable_sum s fun k _ => measurable_one.indicator (hm k)).aemeasurable _
+    _ = ∑ k ∈ s, P (T k) := by
+        rw [lintegral_finset_sum _ fun k _ => measurable_one.indicator (hm k)]
+        simp only [lintegral_indicator_one (hm _), T', measure_toMeasurable]
+
+end Spur
+
 section Round
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
@@ -473,7 +578,8 @@ theorem exhausted_det {Q : Type*} [Fintype Q] (C : StrongCfg α) (A : DFA (FreeM
 
 open scoped Classical in
 theorem round_strong_exhausted : RoundStrongExhausted := by
-  intro α _ _ Ω _ μ _ Q _ C A O B F side rep D _ seed τ N₁ N₂ Rmax h0 hτ hpat hb hB ν R reruns
+  intro α _ _ Ω _ μ _ Q _ C A O B F side rep D _ seed τ n ψ₀ N₁ N₂ Rmax h0 hτ hpat hb hN₁ hL hB ν
+    R reruns
   set φ := ENNReal.ofReal (Real.exp (-τ ^ 2))
   set bad : Ω → (Fin Rmax → C.Draws) → Prop := fun ω d =>
     ∃ κ A₁ x₁, roundFind C (readsAt O B F ω) (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0
@@ -520,6 +626,39 @@ theorem round_strong_exhausted : RoundStrongExhausted := by
           simp only [mul_assoc, ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_right]
           rw [ENNReal.tsum_comm]
       _ = _ := by simp only [lintegral_countable']
+  -- the spurious reruns: Markov over every reading's refusal draws, each bounded by D82
+  set T : Fin Rmax × Fin C.nr → Set (Ω × (Fin Rmax → C.Draws)) := fun k =>
+    {p | ∃ e ∈ (strongEntries C (R p) Rmax 0 (startAcc C (R p) seed) [] p.2)[(k.1 : ℕ)]?,
+      SpuriousAt (R p) A side rep (strongPass C (R p) e.1 (e.2 ++ List.ofFn (p.2 k.1).1)).s.tree
+        C.k ((p.2 k.1).2.2.1 k.2)} with hT
+  set Bd : Fin Rmax → Fin C.nr → Set (Ω × (Fin Rmax → C.Draws)) := fun j i =>
+    {p | ∃ e ∈ (strongEntries C (R p) Rmax 0 (startAcc C (R p) seed) [] p.2)[(j : ℕ)]?,
+      (p.2 j).2.2.1 i ∈ BadRoute A O B F side rep C.k n ψ₀
+        (strongPass C (R p) e.1 (e.2 ++ List.ofFn (p.2 j).1)).s.tree} with hBd
+  have hcount : S₁ ⊆ {p | N₁ ≤ ∑ k : Fin Rmax × Fin C.nr, if p ∈ T k then 1 else 0} := by
+    intro p hp
+    have hc := spur_count C (R p) A side rep Rmax 0 (startAcc C (R p) seed) [] p.2
+    simp only [List.head?_nil, reduceCtorEq, false_and, exists_false, if_false, zero_add] at hc
+    rw [Set.mem_setOf_eq, Fintype.sum_prod_type]
+    exact le_trans hp (le_trans hc le_rfl)
+  have hTk : ∀ k, μ.prod ν (T k)
+      ≤ ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀) + μ.prod ν (Bd k.1 k.2) := by
+    intro k
+    have h := (round_strong_spurious C A O B F side rep D seed n ψ₀ Rmax k.1 hL).1 k.2
+    rw [← ofReal_measureReal (measure_ne_top _ _), ← ofReal_measureReal (μ := μ.prod ν)
+      (s := Bd k.1 k.2) (measure_ne_top _ _)]
+    exact (ENNReal.ofReal_le_ofReal h).trans ENNReal.ofReal_add_le
+  have hS₁ : μ.prod ν S₁ ≤ (∑ j : Fin Rmax, ∑ i : Fin C.nr,
+      (ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀) + μ.prod ν (Bd j i))) / N₁ := by
+    have hN : (N₁ : ENNReal) ≠ 0 := by exact_mod_cast hN₁.ne'
+    rw [ENNReal.le_div_iff_mul_le (.inl hN) (.inl (ENNReal.natCast_ne_top N₁)), mul_comm]
+    calc (N₁ : ENNReal) * μ.prod ν S₁
+        ≤ (N₁ : ENNReal) * μ.prod ν {p | N₁ ≤ ∑ k : Fin Rmax × Fin C.nr,
+            if p ∈ T k then 1 else 0} := by gcongr
+      _ ≤ ∑ k : Fin Rmax × Fin C.nr, μ.prod ν (T k) := count_markov _ _ _ _
+      _ ≤ ∑ k : Fin Rmax × Fin C.nr, (ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀)
+            + μ.prod ν (Bd k.1 k.2)) := Finset.sum_le_sum fun k _ => hTk k
+      _ = _ := Fintype.sum_prod_type _
   calc μ.prod ν {p | (strongRun C (R p) seed Rmax p.2).1 = .exhausted}
       ≤ μ.prod ν ({p | bad p.1 p.2} ∪ S₁ ∪ S₂ ∪ S₃) := measure_mono hsub
     _ ≤ μ.prod ν {p | bad p.1 p.2} + μ.prod ν S₁ + μ.prod ν S₂ + μ.prod ν S₃ := by
@@ -528,7 +667,7 @@ theorem round_strong_exhausted : RoundStrongExhausted := by
         refine (measure_union_le _ _).trans ?_
         gcongr
         exact measure_union_le _ _
-    _ ≤ _ := by gcongr
+    _ ≤ _ := by gcongr; exact hS₁
 
 end Round
 

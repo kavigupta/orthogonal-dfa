@@ -11,10 +11,10 @@ the first test in the power case or splitting is in the power case and does not 
 `e^{−τ²}` times the chances, summed over the keys, that there is such a test.
 
 `RoundStrongExhausted`: where the budget covers `|Q| + N₁ + N₂` readings of `nr + np` probes, the
-round ends exhausted with chance at most that power term, the chance that `N₁` of its readings
-rerun first a draw with a read off its route, the chance that `N₂` rerun first a draw with no
-such read whose test is not in the power case and does not split, and the chance of a noisy
-split, which is not bounded.
+round ends exhausted with chance at most that power term, the misread chance `spurRate` and the
+`BadRoute` mass of every reading's refusal draws over `N₁`, the chance that `N₂` readings rerun
+first a draw with no read off its route whose test is not in the power case and does not split,
+and the chance of a noisy split, which is not bounded.
 -/
 
 namespace OrthoDFA
@@ -147,20 +147,22 @@ def RoundStrongPower : Prop :=
         ≠ none}
 
 open scoped Classical in
-/-- `RoundStrongExhausted`: with the noise and the draws drawn together, and the budget at two
-leaves covering `|Q| + N₁ + N₂` readings of `nr + np` probes, the round ends exhausted with chance
-at most `RoundStrongPower`'s bound averaged over the draws, the chance that at least `N₁` readings
-rerun first a draw with a read off its route in the tree it was drawn against, the chance that at
-least `N₂` rerun first a draw with no such read whose step reaches no test in the power case or
-splitting, and the chance of a noisy split. The last is not bounded. -/
+/-- `RoundStrongExhausted`: with the noise and the draws drawn together, draws of length `L`, and
+the budget at two leaves covering `|Q| + N₁ + N₂` readings of `nr + np` probes, the round ends
+exhausted with chance at most `RoundStrongPower`'s bound averaged over the draws; `spurRate` and
+the chance of `BadRoute` in its tree, summed over every reading's refusal draws, over `N₁`; the
+chance that at least `N₂` readings rerun first a draw with no read off its route whose step
+reaches no test in the power case or splitting; and the chance of a noisy split. The last is not
+bounded. -/
 def RoundStrongExhausted : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (C : StrongCfg α)
     (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (τ : ℝ)
-    (N₁ N₂ Rmax : ℕ),
-    C.K.forced = ∅ → 0 ≤ τ → 0 < C.K.patience → Monotone C.budget →
+    (n : ℕ) (ψ₀ : ℝ) (N₁ N₂ Rmax : ℕ),
+    C.K.forced = ∅ → 0 ≤ τ → 0 < C.K.patience → Monotone C.budget → 0 < N₁ →
+    (∀ᵐ x ∂D, x.toList.length = C.L) →
     (Fintype.card Q + N₁ + N₂) * (C.nr + C.np) ≤ C.budget 2 →
     let ν := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
     let R := fun p : Ω × (Fin Rmax → C.Draws) => readsAt O B F p.1
@@ -170,8 +172,11 @@ def RoundStrongExhausted : Prop :=
       ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, ∫⁻ d, μ {ω | roundFind C (readsAt O B F ω)
           (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
             ≠ none} ∂ν
-        + μ.prod ν {p | N₁ ≤ ((reruns p).filter fun e =>
-            SpuriousAt (R p) A side rep e.1.s.tree C.k e.2).length}
+        + (∑ j : Fin Rmax, ∑ i : Fin C.nr,
+            (ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀)
+              + μ.prod ν {p | ∃ e ∈ (strongEntries C (R p) Rmax 0 (startAcc C (R p) seed) []
+                  p.2)[j]?, (p.2 j).2.2.1 i ∈ BadRoute A O B F side rep C.k n ψ₀
+                (strongPass C (R p) e.1 (e.2 ++ List.ofFn (p.2 j).1)).s.tree})) / N₁
         + μ.prod ν {p | N₂ ≤ ((reruns p).filter fun e =>
             ¬ SpuriousAt (R p) A side rep e.1.s.tree C.k e.2
               ∧ ¬ ∃ κ, Decisive C O F τ κ (R p) (passStart e.1) e.2).length}
