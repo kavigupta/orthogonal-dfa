@@ -93,12 +93,12 @@ def LoopState.fresh (s : LoopState α) : LoopState α :=
 def LoopState.dis (s : LoopState α) : ℕ := s.hits .edge + s.hits .pair + s.hits .triple
 
 /-- What sifting `z` in `t` may read: `z` followed by a midfix. -/
-def readsOf (t : DTree α) (z : FreeMonoid α) : Set (FreeMonoid α) :=
+def siftReadsOf (t : DTree α) (z : FreeMonoid α) : Set (FreeMonoid α) :=
   {y | ∃ m ∈ t.midfixes, y = z * m}
 
 /-- What a probe of `x` may read against `t`: each prefix of `x`, sifted. -/
 def probeLog (t : DTree α) (x : FreeMonoid α) : Set (FreeMonoid α) :=
-  {y | ∃ i ≤ x.toList.length, y ∈ readsOf t (prefixOf x i)}
+  {y | ∃ i ≤ x.toList.length, y ∈ siftReadsOf t (prefixOf x i)}
 
 /-- The longest common prefix. -/
 def lcp : List Bool → List Bool → List Bool
@@ -123,7 +123,7 @@ noncomputable def retarget (R : CutReads α) (t' : DTree α) (p : List Bool) (ed
 
 /-- What the retargeted edges into `p` read. -/
 def retargetLog (t' : DTree α) (p : List Bool) (edges : Edges α) : Set (FreeMonoid α) :=
-  {y | ∃ q c w, edges q c = some (p, w) ∧ y ∈ readsOf t' (w * FreeMonoid.of c)}
+  {y | ∃ q c w, edges q c = some (p, w) ∧ y ∈ siftReadsOf t' (w * FreeMonoid.of c)}
 
 /-- A change of the hypothesis an edge's records call for. -/
 inductive Change (α : Type*)

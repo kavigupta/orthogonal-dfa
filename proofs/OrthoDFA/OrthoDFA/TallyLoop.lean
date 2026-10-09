@@ -17,7 +17,9 @@ new node to refine its target, drops the two triggering targets' records, and re
 edges into the leaf; the edges then settle again. Every change of the tree or the edges counts
 in `version`.
 
-How the round ends (harvests, success, its caps) is left as any rule `ends`.
+How the round ends (harvests, success, its caps) is left as any rule `ends`. Undecided outcomes go
+to one counter, not to the edge each is charged to, and an undecided re-read at a split is dropped
+rather than charged to a child; the exits will need both per edge.
 -/
 
 namespace OrthoDFA
