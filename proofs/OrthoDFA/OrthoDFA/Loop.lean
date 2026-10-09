@@ -6,10 +6,10 @@ import OrthoDFA.Exhausted
 Probes are fresh draws, each walked from `k` along the learned edges and searched for its first
 disagreement (`probeOutcome`). Counts run over a stretch of probes, which starts afresh whenever
 the tree or the edges change, and are tested at every `n₀`-th probe:
-* a start, end or triple rate above its threshold ends the loop with a harvest of those strings;
-* a pair rate above its threshold halves;
-* an agreement rate above `acc` ends the loop consistent;
-* at `nmax`, with nothing fired and no change, the loop halves.
+* a start, end, triple or pair rate above its threshold ends the loop with a harvest of those
+  strings;
+* a disagreement rate (edges, pairs and triples) settling below `1 − acc` ends it consistent;
+* at `nmax`, with nothing settled and no change, the loop ends flagged unsettled.
 
 A probe reaching an unlearned edge learns it from its own prefix. A probe ending at an edge
 records its prefix and the leaf its next prefix sifts to, where none of their reads was read
@@ -17,9 +17,10 @@ before. An edge with `m` of a stretch's records at a target it does not point at
 there, once; with `m` at two targets, or after a redirect at another, its leaf splits on the
 letter and the midfix where the targets part. A tree past `Lmax` leaves ends the loop flagged.
 
-`LoopSucceeds`: the loop ends consistent with the draws agreeing at least `acc` of the time, with
-a harvest of a class above its threshold, or halving, but for chance at most its tests' levels
-and a spurious split, per stretch, over at most `stretchMax` stretches.
+`LoopSucceeds`: with the thresholds below `τ₀` (one hit fires each harvest test), the loop ends
+consistent with the draws disagreeing at most `1 − acc` of the time, or with a harvest of a class
+above its threshold, but for chance at most its tests' levels, an unsettled stretch and a
+spurious split, per stretch, over at most `stretchMax` stretches.
 -/
 
 namespace OrthoDFA
@@ -30,11 +31,11 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- The undecided outcomes the loop's exits watch. -/
 inductive Cls
-  | start | stop | triple | pair
+  | start | stop | triple | pair | edge
   deriving DecidableEq
 
 instance : Fintype Cls :=
-  ⟨{.start, .stop, .triple, .pair}, fun c => by cases c <;> simp⟩
+  ⟨{.start, .stop, .triple, .pair, .edge}, fun c => by cases c <;> simp⟩
 
 /-- The class an outcome counts toward. -/
 def Outcome.cls : Outcome α → Option Cls
@@ -42,7 +43,12 @@ def Outcome.cls : Outcome α → Option Cls
   | .endUndecided _ => some .stop
   | .triple _ => some .triple
   | .pair _ => some .pair
+  | .edge _ _ => some .edge
   | _ => none
+
+/-- The outcomes that disagree: an edge, a pair or a triple. -/
+def Outcome.Disagrees (o : Outcome α) : Prop :=
+  o.cls = some .edge ∨ o.cls = some .pair ∨ o.cls = some .triple
 
 /-- The loop's settings: each class's threshold by tree depth. -/
 structure LoopCfg where
@@ -65,23 +71,26 @@ structure LoopState (α : Type*) where
   moved : List Bool → α → Bool
   log : Set (FreeMonoid α)
   n : ℕ
-  agrees : ℕ
   hits : Cls → ℕ
 
-/-- How the loop ends: (a) consistent, (b) a harvest or a halving, (c) the tree too big. -/
+/-- How the loop ends: (a) consistent, (b) a harvest, (c) no progress: the tree too big or a
+stretch unsettled. -/
 inductive LoopEnd
   | agree
   | harvest (c : Cls)
-  | halve
   | tooBig
+  | unsettled
 
 /-- The first state: the root reads at `ε`, no edge learned. -/
 def loopStart : LoopState α :=
-  ⟨.node 1 .leaf .leaf, fun _ _ => none, fun _ _ => [], fun _ _ => false, ∅, 0, 0, fun _ => 0⟩
+  ⟨.node 1 .leaf .leaf, fun _ _ => none, fun _ _ => [], fun _ _ => false, ∅, 0, fun _ => 0⟩
 
 /-- `s` with a fresh stretch. -/
 def LoopState.fresh (s : LoopState α) : LoopState α :=
-  { s with recs := fun _ _ => [], n := 0, agrees := 0, hits := fun _ => 0 }
+  { s with recs := fun _ _ => [], n := 0, hits := fun _ => 0 }
+
+/-- The stretch's disagreeing probes. -/
+def LoopState.dis (s : LoopState α) : ℕ := s.hits .edge + s.hits .pair + s.hits .triple
 
 /-- What sifting `z` in `t` may read: `z` followed by a midfix. -/
 def readsOf (t : DTree α) (z : FreeMonoid α) : Set (FreeMonoid α) :=
@@ -140,14 +149,15 @@ noncomputable def edgeChange (m : ℕ) (s : LoopState α) (p : List Bool) (c : �
 open scoped Classical in
 /-- The stretch's tests, at every `n₀`-th probe. -/
 noncomputable def look (C : LoopCfg) (s : LoopState α) : LoopState α ⊕ (LoopEnd × LoopState α) :=
-  let fires := fun c => rateSide (C.θ c s.tree.depth) C.a C.n₀ s.n (s.hits c) = some true
+  let d := s.tree.depth
+  let fires := fun c => rateSide (C.θ c d) C.a C.n₀ s.n (s.hits c) = some true
   if 0 < s.n ∧ C.n₀ ∣ s.n then
     if fires .start then .inr (.harvest .start, s)
     else if fires .stop then .inr (.harvest .stop, s)
     else if fires .triple then .inr (.harvest .triple, s)
-    else if fires .pair then .inr (.halve, s)
-    else if rateSide C.acc C.a C.n₀ s.n s.agrees = some true then .inr (.agree, s)
-    else if C.nmax ≤ s.n then .inr (.halve, s)
+    else if fires .pair then .inr (.harvest .pair, s)
+    else if rateSide (1 - C.acc) C.a C.n₀ s.n s.dis = some false then .inr (.agree, s)
+    else if C.nmax ≤ s.n then .inr (.unsettled, s)
     else .inl s
   else .inl s
 
@@ -194,16 +204,16 @@ noncomputable def loopStep (C : LoopCfg) (R : CutReads α) (s : LoopState α) (x
   | .edge ps fd =>
     let p := ps.getD (fd - 1 - C.k) []
     let sp := prefixOf x (fd - 1)
+    let s₂ := { s₁ with hits := bump s.hits .edge }
     match x.toList[fd - 1]?, s.tree.sift R.cut (prefixOf x fd) with
     | some c, .inl t =>
       if readsOf s.tree sp ∩ s.log = ∅ ∧ readsOf s.tree (prefixOf x fd) ∩ s.log = ∅ then
-        let s₂ := s₁.record p c sp t
-        match edgeChange C.m s₂ p c with
-        | some ch => applyChange C R s₂ p c ch
-        | none => look C s₂
-      else look C s₁
-    | _, _ => look C s₁
-  | .agree => look C { s₁ with agrees := s.agrees + 1 }
+        let s₃ := s₂.record p c sp t
+        match edgeChange C.m s₃ p c with
+        | some ch => applyChange C R s₃ p c ch
+        | none => look C s₃
+      else look C s₂
+    | _, _ => look C s₂
   | o =>
     match o.cls with
     | some cl => look C { s₁ with hits := bump s.hits cl }
@@ -223,14 +233,12 @@ noncomputable def outRate (C : LoopCfg) (R : CutReads α) (D : Measure (FreeMono
     (s : LoopState α) (P : Outcome α → Prop) : ℝ :=
   D.real {x | P (probeOutcome R s.tree s.edges C.k x)}
 
-/-- What each ending claims: consistent, the draws agreeing at least `acc` of the time; a
-harvest, its class above its threshold; a halving, progress as it is; the tree too big or the
-probes run out, nothing. -/
+/-- What each ending claims: consistent, the draws disagreeing at most `1 − acc` of the time; a
+harvest, its class above its threshold; no progress or the probes run out, nothing. -/
 def LoopGenuine (C : LoopCfg) (R : CutReads α) (D : Measure (FreeMonoid α)) (s : LoopState α) :
     Option LoopEnd → Prop
-  | some .agree => C.acc ≤ outRate C R D s (· = .agree)
+  | some .agree => outRate C R D s Outcome.Disagrees ≤ 1 - C.acc
   | some (.harvest c) => C.θ c s.tree.depth < outRate C R D s (·.cls = some c)
-  | some .halve => True
   | _ => False
 
 section Band
@@ -271,8 +279,9 @@ end Band
 
 section Budget
 
-/-- The fewest hits at which a rate test at `θ` and level `a` fires over `n` draws. -/
+/-- The fewest hits at which a rate test at `θ` and level `a` settles above over `n` draws. -/
 noncomputable def fireCount (θ a : ℝ) (n : ℕ) : ℕ := sInf {h | binomSfGe n θ h < a}
+
 
 /-- The stretches a loop can run: each but the last ends at a change, and a change is a split
 (at most `Lmax`), a redirect (one per learned edge) or a learning (the root's edges, and per split
@@ -284,7 +293,7 @@ def stretchMax (C : LoopCfg) (nα : ℕ) : ℕ :=
 the last look, two reads a pair, at the worst depth. -/
 noncomputable def undecCap (C : LoopCfg) : ℕ :=
   2 * (Finset.range (C.Lmax + 1)).sup fun d =>
-    ∑ c : Cls, (fireCount (C.θ c d) C.a C.nmax + C.n₀)
+    ∑ c ∈ ({.start, .stop, .triple, .pair} : Finset Cls), (fireCount (C.θ c d) C.a C.nmax + C.n₀)
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
@@ -299,8 +308,14 @@ noncomputable def spurBound (C : LoopCfg) (O : Oracle μ (FreeMonoid α)) (B : S
 
 end Budget
 
-/-- `LoopSucceeds`: from the root, over `P` fresh draws, enough for every stretch the loop can
-run, the loop ends genuinely consistent, with a genuine harvest, or halving, but for chance at
+/-- The harvest tests fire on a stretch's first hit at any look up to `nmax + n₀`: the
+thresholds are below `τ₀`. -/
+def BelowTau (C : LoopCfg) : Prop :=
+  ∀ c ∈ ({.start, .stop, .triple, .pair} : Finset Cls), ∀ d ≤ C.Lmax,
+    binomSfGe (C.nmax + C.n₀) (C.θ c d) 1 < C.a
+
+/-- `LoopSucceeds`: below `τ₀`, from the root, over `P` fresh draws, enough for every stretch the
+loop can run, the loop ends genuinely consistent or with a genuine harvest, but for chance at
 most, per stretch, its tests' levels and a spurious split. -/
 def LoopSucceeds : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
@@ -308,9 +323,10 @@ def LoopSucceeds : Prop :=
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (P : ℕ),
     O.L = {w | A.state w ∈ A.accept} → SuffixFree F → (∀ᵐ x ∂D, x.toList.length = C.L) →
-    C.k ≤ C.L → 0 < C.n₀ → 1 ≤ C.m → Fintype.card Q + 3 ≤ C.Lmax →
+    C.k ≤ C.L → 0 < C.n₀ → 1 ≤ C.m → Fintype.card Q + 3 ≤ C.Lmax → BelowTau C →
     stretchMax C (Fintype.card α) * (C.nmax + C.n₀) ≤ P →
-    1 - stretchMax C (Fintype.card α) * (4 * ((C.nmax + C.n₀) / C.n₀ : ℕ) * C.a + spurBound C O B F)
+    1 - stretchMax C (Fintype.card α) * (5 * ((C.nmax + C.n₀) / C.n₀ : ℕ) * C.a
+        + spurBound C O B F)
       ≤ (μ.prod (Measure.pi fun _ : Fin P => D)).real
           {p | LoopGenuine C (readsAt O B F p.1) D
             (loopRun C (readsAt O B F p.1) loopStart (List.ofFn p.2)).1
