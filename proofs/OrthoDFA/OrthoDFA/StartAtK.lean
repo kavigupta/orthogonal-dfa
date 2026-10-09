@@ -244,34 +244,31 @@ noncomputable def seedStep (t : DTree α) (pool : List (FreeMonoid α)) (edges :
           | .split => .split d s1 y sprime
           | _ => .member s1 sprime d
 
-/-- The witnesses of `edges`. -/
-def witnesses (edges : Edges α) : Set (FreeMonoid α) := {y | ∃ p c q, edges p c = some (q, y)}
-
-/-- What a probe of `x` may read against the trees `t` and `t'`, the population `pool` and the
-witnesses `W`: a string of `pool` or `W` or a prefix of `x` from `k` on, then at most a letter,
-then a midfix, then a suffix of the family or its training half. -/
-def stepReads (K : StageKnobs α) (F : Finset (FreeMonoid α)) (t t' : DTree α)
-    (pool : List (FreeMonoid α)) (W : Set (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) :
-    Set (FreeMonoid α) :=
-  {z | ∃ b, (b ∈ pool ∨ b ∈ W ∨ ∃ i, k ≤ i ∧ b = prefixOf x i) ∧ ∃ e : Option α, ∃ m,
-    (m ∈ t.midfixes ∨ m ∈ t'.midfixes) ∧ ∃ v ∈ F ∪ K.train F,
-      z = b * e.elim 1 FreeMonoid.of * m * v}
+open scoped Classical in
+/-- What a probe of `x` may read against the trees `t` and `t'` and the population `pool`, whose
+strings the edges' witnesses are: a string of `pool` or a prefix of `x` from `k` on, then at most
+a letter, then a midfix, then a suffix of the family or its training half. -/
+noncomputable def stepReads (K : StageKnobs α) (F : Finset (FreeMonoid α)) (t t' : DTree α)
+    (pool : List (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
+  ((((pool ++ (List.range (x.toList.length + 1)).map fun i => prefixOf x (max k i)).toFinset
+      ×ˢ insert 1 (Finset.univ.image FreeMonoid.of)) ×ˢ (t.midfixes ∪ t'.midfixes))
+    ×ˢ (F ∪ K.train F)).image fun z => z.1.1.1 * z.1.1.2 * z.1.2 * z.2
 
 /-- What the pass carries: the tree, the population, the learned edges, the probes since the
 last split or evidence weighed, the block strings the split tests have counted and their owners,
-every string read, and the keys taken as not splitting, which in the round are none. -/
+every other string read, and the keys taken as not splitting, which in the round are none. -/
 structure KState (α : Type*) where
   tree : DTree α
   pool : List (FreeMonoid α)
   edges : Edges α
   streak : ℕ
   tested : Tested α
-  log : Set (FreeMonoid α)
+  log : Finset (FreeMonoid α)
   forced : Set (TestKey α)
 
 /-- Every edge re-voted, as after every probe. -/
 noncomputable def closeK (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α)
-    (streak : ℕ) (T : Tested α) (log : Set (FreeMonoid α)) (forced : Set (TestKey α)) :
+    (streak : ℕ) (T : Tested α) (log : Finset (FreeMonoid α)) (forced : Set (TestKey α)) :
     KState α :=
   ⟨t, pool, closeEdges K R t pool edges, streak, T, log, forced⟩
 
@@ -286,18 +283,18 @@ noncomputable def testedAfter (t : DTree α) (pool : List (FreeMonoid α)) (T : 
     (skip : TestKey α → FreeMonoid α → Prop) (s1 : List Bool) (d : FreeMonoid α) : Tested α :=
   T.record (s1, d) (counted K R t pool skip s1 d)
 
-/-- What a split test on the probe `x` from `s` skips at a key: a block string read before that
-a test at the key has not counted first. -/
+/-- What a split test on the probe `x` from `s` skips at a key: a block string read before, by a
+test or otherwise, that a test at the key has not counted first. -/
 def stepSkip (k : ℕ) (s : KState α) (x : FreeMonoid α) (κ : TestKey α) (b : FreeMonoid α) :
     Prop :=
-  (b ∈ s.log ∨ b ∈ stepReads K R.F s.tree s.tree s.pool (witnesses s.edges) k x)
+  (b ∈ s.log ∨ b ∈ stepReads K R.F s.tree s.tree s.pool k x ∨ b ∈ s.tested.map Prod.fst)
     ∧ (b, κ) ∉ s.tested
 
 /-- One probe of the counterexample pass. -/
 noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KState α :=
   let skip := stepSkip K R k s x
   let post := fun (t' : DTree α) (pool' : List (FreeMonoid α)) =>
-    s.log ∪ stepReads K R.F s.tree t' (s.pool ++ pool') (witnesses s.edges) k x
+    s.log ∪ stepReads K R.F s.tree t' (s.pool ++ pool') k x
   let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1) s.tested (post s.tree s.pool)
     s.forced
   match probeOutcome R s.tree s.edges k x with
@@ -310,13 +307,12 @@ noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KSt
           | none => none
         let pool' := s.pool ++ ([y, sprime].filter (· ∉ s.pool))
         closeK K R (s.tree.splitAt d s1) pool' cleared 0
-          (testedAfter K R s.tree s.pool s.tested skip s1 d)
-          (post (s.tree.splitAt d s1) pool' ∪ {b | b ∈ counted K R s.tree s.pool skip s1 d})
+          (testedAfter K R s.tree s.pool s.tested skip s1 d) (post (s.tree.splitAt d s1) pool')
           s.forced
       | .member s1 sprime d =>
         let pool' := sprime :: s.pool.filter (· ≠ sprime)
         closeK K R s.tree pool' s.edges 0 (testedAfter K R s.tree s.pool s.tested skip s1 d)
-          (post s.tree pool' ∪ {b | b ∈ counted K R s.tree s.pool skip s1 d}) s.forced
+          (post s.tree pool') s.forced
       | _ => quiet
   | .member u =>
     let pool' := if u ∈ s.pool then s.pool else s.pool ++ [u]
@@ -331,7 +327,7 @@ noncomputable def runPassK (k : ℕ) (s : KState α) (probes : List (FreeMonoid 
 edges are voted once, reading the population. -/
 noncomputable def initialK (seed : List (FreeMonoid α)) : KState α :=
   closeK K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 []
-    (stepReads K R.F (.node 1 .leaf .leaf) (.node 1 .leaf .leaf) seed ∅ 0 1) ∅
+    (stepReads K R.F (.node 1 .leaf .leaf) (.node 1 .leaf .leaf) seed 0 1) ∅
 
 open scoped Classical in
 /-- How many of a batch's first `n` draws satisfy `P`. -/

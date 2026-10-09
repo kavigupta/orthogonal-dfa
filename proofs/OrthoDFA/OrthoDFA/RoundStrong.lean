@@ -77,21 +77,25 @@ structure RoundAcc (α : Type*) where
   splits : List (SplitRec α)
   used : ℕ
   certs : ℕ
-  reads : Set (FreeMonoid α)
+  reads : Finset (FreeMonoid α)
 
 /-- The round's start. -/
 noncomputable def startAcc (C : StrongCfg α) (R : CutReads α) (seed : List (FreeMonoid α)) :
     RoundAcc α :=
   ⟨initialK C.K R seed, [], 0, 0, ∅⟩
 
+open scoped Classical in
 /-- What a reading's gate, refusal sample and certificate may read against `t`: a gate draw, or a
 refusal draw's prefix from `k` on and a midfix, then a suffix of the family; or a certificate
 draw. -/
-def readingReads (C : StrongCfg α) (F : Finset (FreeMonoid α)) (t : DTree α) (y : C.Draws) :
-    Set (FreeMonoid α) :=
-  {z | (∃ i, ∃ v ∈ F, z = y.2.1 i * v)
-    ∨ (∃ i j, C.k ≤ j ∧ ∃ m ∈ t.midfixes, ∃ v ∈ F, z = prefixOf (y.2.2.1 i) j * m * v)
-    ∨ ∃ i, z = y.2.2.2 i}
+noncomputable def readingReads (C : StrongCfg α) (F : Finset (FreeMonoid α)) (t : DTree α)
+    (y : C.Draws) : Finset (FreeMonoid α) :=
+  (Finset.univ.biUnion fun i => F.image (y.2.1 i * ·))
+    ∪ (Finset.univ.biUnion fun i =>
+      ((((List.range ((y.2.2.1 i).toList.length + 1)).map fun j =>
+        prefixOf (y.2.2.1 i) (max C.k j)).toFinset ×ˢ t.midfixes) ×ˢ F).image
+          fun z => z.1.1 * z.1.2 * z.2)
+    ∪ Finset.univ.image y.2.2.2
 
 /-- One probe: `probeStepK`, a split recorded with the tree it split. -/
 noncomputable def strongStep (C : StrongCfg α) (R : CutReads α) (A : RoundAcc α)

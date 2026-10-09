@@ -465,7 +465,7 @@ def KPoolIn (Bs : Set (FreeMonoid α)) (s : KState α) : Prop :=
   (∀ b ∈ s.pool, b ∈ Bs) ∧ ∀ p c q y, s.edges p c = some (q, y) → y ∈ Bs
 
 theorem closeK_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
-    {edges : Edges α} {st : ℕ} {T : Tested α} {lg : Set (FreeMonoid α)}
+    {edges : Edges α} {st : ℕ} {T : Tested α} {lg : Finset (FreeMonoid α)}
     {fc : Set (TestKey α)} (hp : ∀ b ∈ pool, b ∈ Bs)
     (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
     KPoolIn Bs (closeK K R t pool edges st T lg fc) := by
@@ -556,7 +556,7 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
       obtain ⟨c', m', hm', rfl⟩ := seedStep_dist K _ (.inl ⟨s1, y, sprime, hsd⟩)
       obtain ⟨⟨c, s2, hy⟩, rfl⟩ := seedStep_split_spec K _ hsd
       simp only [closeK]
-      rw [testedAfter_congr hm' hpool', counted_congr hm' hpool']
+      rw [testedAfter_congr hm' hpool']
       rw [closeEdges_congr fun b hb => ?_]
       refine AgreeOne.mono' ?_ hT'
       rcases List.mem_append.1 hb with hb | hb
@@ -568,7 +568,7 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
       obtain ⟨c', m', hm', rfl⟩ := seedStep_dist K _ (.inr ⟨s1, sprime, hsd⟩)
       rw [seedStep_member_spec K _ hsd]
       simp only [closeK]
-      rw [testedAfter_congr hm' hpool', counted_congr hm' hpool']
+      rw [testedAfter_congr hm' hpool']
       rw [closeEdges_congr fun b hb => ?_]
       rcases List.mem_cons.1 hb with rfl | hb
       · exact hw' _ hfd

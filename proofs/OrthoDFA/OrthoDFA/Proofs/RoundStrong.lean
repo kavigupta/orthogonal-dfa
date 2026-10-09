@@ -1144,7 +1144,7 @@ variable (C : StrongCfg α)
 
 /-- A reading's accumulator once its gate, refusal sample and certificate have read the draws
 `y`. -/
-def afterReads (R : CutReads α) (A : RoundAcc α) (y : C.Draws) : RoundAcc α :=
+noncomputable def afterReads (R : CutReads α) (A : RoundAcc α) (y : C.Draws) : RoundAcc α :=
   { A with reads := A.reads ∪ readingReads C R.F A.s.tree y }
 
 /-- The round's passes over its readings' probes, one segment each, with each reading's draws. -/
