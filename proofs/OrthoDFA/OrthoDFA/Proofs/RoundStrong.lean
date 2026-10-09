@@ -719,73 +719,97 @@ theorem givenUp_congr {A B : RoundAcc α} (hs : A.s = B.s) (ha : A.att = B.att) 
   funext e
   simp only [givenUp, hs, ha]
 
+theorem startAcc_inv (seed : List (FreeMonoid α)) : StrongInv R (startAcc C R seed) :=
+  ⟨closeEdges_learned C.K R fun _ _ _ _ he => by simp at he,
+    by simp [startAcc, initialK, closeK, DTree.paths]⟩
+
+/-- What a reading starts from, `m` readings into the round: the probes spent are paid for by
+what the round has done, the readings are at most that plus one, and a rerun's first probe ends
+at an edge not given up, with the budget not yet reached. -/
+def Entry (A : RoundAcc α) (first : List (FreeMonoid α)) (m : ℕ) : Prop :=
+  StrongInv R A ∧ A.used ≤ C.K.patience * m + C.K.patience * ev C A ∧ m ≤ ev C A + 1
+    ∧ (1 ≤ m → (∃ x rest, first = x :: rest
+        ∧ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x)
+      ∧ A.used < budgetOf C A.s.tree.paths.length)
+
+theorem entry_start (seed : List (FreeMonoid α)) : Entry C R (startAcc C R seed) [] 0 :=
+  ⟨startAcc_inv C R seed, by simp [startAcc], Nat.zero_le _, fun h => absurd h (by omega)⟩
+
+/-- A reading from an entry stays within the budget at its gate, never ends exhausted, and a rerun
+starts from an entry. -/
+theorem reading_entry (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr)
+    (hm : Monotone C.mmax) {A : RoundAcc α} {first : List (FreeMonoid α)} {m : ℕ}
+    (hE : Entry C R A first m) (j : ℕ) (y : C.Draws) :
+    (strongReading C R j A first y).1.used
+        < budgetOf C (strongReading C R j A first y).1.s.tree.paths.length
+      ∧ m + 1 ≤ ev C (strongReading C R j A first y).1 + 1
+      ∧ StrongInv R (strongReading C R j A first y).1
+      ∧ (strongReading C R j A first y).2 ≠ .inl .exhausted
+      ∧ ∀ lv, (strongReading C R j A first y).2 = .inr lv →
+        Entry C R (strongReading C R j A first y).1 lv (m + 1) := by
+  obtain ⟨hI, hu0, hme, hfirst⟩ := hE
+  obtain ⟨hI', -, hev, hu, -, -⟩ := strongPass_inv C R hm A (first ++ List.ofFn y.1) hI
+  obtain ⟨hs, hat, hsp, hus⟩ := strongReading_fst C R j A first y
+  have hevm : m ≤ ev C (strongPass C R A (first ++ List.ofFn y.1)) := by
+    rcases Nat.eq_zero_or_pos m with h0 | hm1
+    · omega
+    obtain ⟨⟨x, rest, rfl, hlive⟩, hb⟩ := hfirst hm1
+    have := strongPass_live C R hm A x (rest ++ List.ofFn y.1) hI hp1 hb hlive
+    simp only [List.cons_append]
+    omega
+  have hex := fun (h : (strongReading C R j A first y).2 = .inl .exhausted) =>
+    strongReading_exhausted C R h
+  have hrr := fun lv (h : (strongReading C R j A first y).2 = .inr lv) =>
+    strongReading_rerun C R h
+  set A' := strongPass C R A (first ++ List.ofFn y.1) with hA'
+  have hused : A'.used ≤ C.K.patience * (m + 1) + C.K.patience * ev C A' := by
+    rw [Nat.mul_succ]
+    omega
+  have hn2 : 2 ≤ A'.s.tree.paths.length := by rw [← hI'.2]; omega
+  have hb' : A'.used < budgetOf C A'.s.tree.paths.length :=
+    budget_gap C hp1 hpn hn2 hused (by omega) (ev_le C R A' hI')
+  have hevR := ev_congr C hs hat hsp
+  set A₁ := (strongReading C R j A first y).1
+  have hIR : StrongInv R A₁ := by
+    unfold StrongInv; rw [hs, hsp]; exact hI'
+  have hb₁ : A₁.used < budgetOf C A₁.s.tree.paths.length := by rw [hs, hus]; exact hb'
+  refine ⟨hb₁, by rw [hevR]; omega, hIR, fun h => by have := hex h; omega, fun lv h => ?_⟩
+  obtain ⟨x, rest, hlv, hlive⟩ := hrr lv h
+  refine ⟨hIR, by rw [hevR, hus]; exact hused, by rw [hevR]; omega, fun _ => ⟨⟨x, rest, hlv, ?_⟩,
+    hb₁⟩⟩
+  rw [hs, givenUp_congr C hs hat]
+  exact hlive
+
 /-- The round's count: the budget holds at every gate, and the readings are at most what it has
 done, plus one. -/
 theorem round_count (hp1 : 1 ≤ C.K.patience) (hpn : C.K.patience ≤ C.nr)
     (hm : Monotone C.mmax) :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws) (m : ℕ),
-      StrongInv R A → A.used ≤ C.K.patience * m + C.K.patience * ev C A → m ≤ ev C A + 1 →
-      (1 ≤ m → (∃ x rest, first = x :: rest
-          ∧ LiveEdge R A.s.tree A.s.edges C.k (givenUp C A) x)
-        ∧ A.used < budgetOf C A.s.tree.paths.length) →
+      Entry C R A first m →
       (strongRound C R n j A first d).1 ≠ .exhausted
         ∧ (∀ p ∈ (strongRound C R n j A first d).2.2, p.2 < budgetOf C p.1)
         ∧ m + (strongRound C R n j A first d).2.2.length
           ≤ ev C (strongRound C R n j A first d).2.1 + 1
         ∧ StrongInv R (strongRound C R n j A first d).2.1
-  | 0, j, A, first, d, m, hI, _, hme, _ => by
+  | 0, j, A, first, d, m, hE => by
     simp only [strongRound]
-    exact ⟨by simp, by simp, by simpa using hme, hI⟩
-  | n + 1, j, A, first, d, m, hI, hu0, hme, hfirst => by
-    obtain ⟨hI', -, hev, hu, -, -⟩ := strongPass_inv C R hm A (first ++ List.ofFn (d 0).1) hI
-    obtain ⟨hs, hat, hsp, hus⟩ := strongReading_fst C R j A first (d 0)
-    have hevm : m ≤ ev C (strongPass C R A (first ++ List.ofFn (d 0).1)) := by
-      rcases Nat.eq_zero_or_pos m with h0 | hm1
-      · omega
-      obtain ⟨⟨x, rest, rfl, hlive⟩, hb⟩ := hfirst hm1
-      have := strongPass_live C R hm A x (rest ++ List.ofFn (d 0).1) hI hp1 hb hlive
-      simp only [List.cons_append]
-      omega
-    set A' := strongPass C R A (first ++ List.ofFn (d 0).1) with hA'
-    have hused : A'.used ≤ C.K.patience * (m + 1) + C.K.patience * ev C A' := by
-      rw [Nat.mul_succ]
-      omega
-    have hn2 : 2 ≤ A'.s.tree.paths.length := by rw [← hI'.2]; omega
-    have hb' : A'.used < budgetOf C A'.s.tree.paths.length :=
-      budget_gap C hp1 hpn hn2 hused (by omega) (ev_le C R A' hI')
-    have hevR := ev_congr C hs hat hsp
-    have hIR : StrongInv R (strongReading C R j A first (d 0)).1 := by
-      unfold StrongInv; rw [hs, hsp]; exact hI'
-    have hex : (strongReading C R j A first (d 0)).2 ≠ .inl .exhausted := fun h => by
-      have := strongReading_exhausted C R h
-      rw [← hA'] at this
-      omega
-    have hrr := fun lv (h : (strongReading C R j A first (d 0)).2 = .inr lv) =>
-      strongReading_rerun C R h
+    exact ⟨by simp, by simp, by simpa using hE.2.2.1, hE.1⟩
+  | n + 1, j, A, first, d, m, hE => by
+    obtain ⟨hb, hev, hI, hex, hnext⟩ := reading_entry C R hp1 hpn hm hE j (d 0)
     rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩
     all_goals
-      rw [hR] at hevR hIR hs hus hat hex
-      dsimp only at hevR hIR hs hus hat hex
+      rw [hR] at hb hev hI hex hnext
+      dsimp only at hb hev hI hex hnext
       simp only [strongRound, hR]
-    · refine ⟨fun he => hex (by rw [he]), ?_, ?_, hIR⟩
-      · simp only [List.mem_singleton]
-        rintro p rfl
-        simp only [hs, hus]
-        exact hb'
-      · simp only [List.length_singleton]
-        rw [hevR]
-        omega
-    · obtain ⟨x, rest, hlv, hlive⟩ := hrr lv (by rw [hR])
-      rw [← hA'] at hlive
-      have ih := round_count hp1 hpn hm n (j + 1) A'' lv (Fin.tail d) (m + 1) hIR
-        (by rw [hevR, hus]; exact hused) (by rw [hevR]; omega)
-        (fun _ => ⟨⟨x, rest, hlv, by rw [hs, givenUp_congr C hs hat]; exact hlive⟩,
-          by rw [hus, hs]; exact hb'⟩)
+    · refine ⟨fun he => hex (by rw [he]), ?_, by simp only [List.length_singleton]; omega, hI⟩
+      simp only [List.mem_singleton]
+      rintro p rfl
+      exact hb
+    · have ih := round_count hp1 hpn hm n (j + 1) A'' lv (Fin.tail d) (m + 1) (hnext lv rfl)
       refine ⟨ih.1, ?_, ?_, ih.2.2.2⟩
       · simp only [List.mem_cons]
         rintro p (rfl | hp)
-        · simp only [hs, hus]
-          exact hb'
+        · exact hb
         · exact ih.2.1 p hp
       · simp only [List.length_cons]
         have := ih.2.2.1
@@ -802,10 +826,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 section Round
 
 variable (C : StrongCfg α) (R : CutReads α)
-
-theorem startAcc_inv (seed : List (FreeMonoid α)) : StrongInv R (startAcc C R seed) :=
-  ⟨closeEdges_learned C.K R fun _ _ _ _ he => by simp at he,
-    by simp [startAcc, initialK, closeK, DTree.paths]⟩
 
 theorem strongStep_inv (A : RoundAcc α) (x : FreeMonoid α) (hI : StrongInv R A) :
     StrongInv R (strongStep C R A x) := by
@@ -863,13 +883,13 @@ theorem strongRound_preserves (P : RoundAcc α → Prop)
 theorem round_strong_budget : RoundStrongBudget := by
   intro α _ _ C R seed Rmax d hp1 hpn hm
   obtain ⟨h1, h2, -⟩ := round_count C R hp1 hpn hm Rmax 0 (startAcc C R seed) [] d 0
-    (startAcc_inv C R seed) (by simp [startAcc]) (Nat.zero_le _) (fun h => absurd h (by omega))
+    (entry_start C R seed)
   exact ⟨h1, h2⟩
 
 theorem round_strong_readings : RoundStrongReadings := by
   intro α _ _ C R seed Rmax d hp1 hpn hm
   obtain ⟨-, -, h3, h4⟩ := round_count C R hp1 hpn hm Rmax 0 (startAcc C R seed) [] d 0
-    (startAcc_inv C R seed) (by simp [startAcc]) (Nat.zero_le _) (fun h => absurd h (by omega))
+    (entry_start C R seed)
   have := ev_le C R _ h4
   have := h4.2
   unfold strongRun readStar
