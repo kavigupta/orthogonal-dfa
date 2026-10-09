@@ -429,6 +429,21 @@ theorem power_miss (h0 : C.K.forced = ∅) (hτ : 0 ≤ τ) :
   rw [measure_cleanAll_compl O, add_zero]
   exact key.trans (by gcongr)
 
+/-- `power_miss` over every key at once. -/
+theorem power_tail (h0 : C.K.forced = ∅) (hτ : 0 ≤ τ) :
+    μ {ω | ∃ κ A x, roundFind C (readsAt O B F ω) (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0
+          (startAcc C (readsAt O B F ω) seed) [] d = some (A, x)
+        ∧ CaseAt C O F τ κ (readsAt O B F ω) A x
+        ∧ verdict C.K (readsAt O B F ω) A.s.tree A.s.pool κ.1 κ.2
+            (A.s.tree.paths.length * Fintype.card α)
+            (stepSkip C.K (readsAt O B F ω) C.k A.s x κ) ≠ .split}
+      ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, μ {ω | roundFind C (readsAt O B F ω)
+          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
+        ≠ none} := by
+  rw [Set.setOf_exists, ← ENNReal.tsum_mul_left]
+  exact (measure_iUnion_le _).trans
+    (ENNReal.tsum_le_tsum fun κ => power_miss C O B F seed τ κ Rmax d h0 hτ)
+
 end Power
 
 end OrthoDFA
