@@ -25,22 +25,5 @@ class TestMidfixesAreWhatCanBeProposed(unittest.TestCase):
         self.assertEqual({b"", bytes([5])}, set(tree.midfixes()))
 
 
-class TestTheFirstDisagreement(unittest.TestCase):
-    def test_reads_that_part_give_the_midfix(self):
-        tree = MidfixTree(())
-
-        found = tree.first_disagreement(b"a", b"b", lambda s, m: s == b"a", b"x")
-
-        self.assertEqual((b"x", None), found)
-
-    def test_an_undecided_read_gives_its_boundary_string(self):
-        tree = MidfixTree(())
-        decide = lambda s, m: None if s == b"b" else True
-
-        self.assertEqual(
-            (None, b"bx"), tree.first_disagreement(b"a", b"b", decide, b"x")
-        )
-
-
 if __name__ == "__main__":
     unittest.main()

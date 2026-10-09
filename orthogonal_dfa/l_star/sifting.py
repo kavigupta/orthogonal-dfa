@@ -49,9 +49,9 @@ class Sifter:
 
         self.tree.classify_many(seqs, warm)
 
-    def disagreement(self, s, sprime, prefix):
-        """A midfix separating ``s`` and ``sprime``, or the boundary string of the
-        read that stopped the search (see :meth:`MidfixTree.first_disagreement`).
+    def disagreement(self, s, sprime, prefix) -> Optional[bytes]:
+        """A midfix separating ``s`` and ``sprime`` (see
+        :meth:`MidfixTree.first_disagreement`), or ``None``.
 
         This only *proposes* a distinguisher; whether the split fires is decided
         by the population evidence, so the pair need only clear the ordinary

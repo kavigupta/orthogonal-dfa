@@ -50,7 +50,7 @@ Reading = namedtuple(
 Row = namedtuple("Row", "w start end outcome")
 
 TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
-PAIR_TRIP, STOPPED = "pairs over half", "stopped"
+PAIR_TRIP = "pairs over half"
 
 
 def _some(x) -> tuple:
@@ -124,8 +124,6 @@ class TransitionResolver:
         self.unsplit = Counter()
         #: Probes this round.
         self.probed = 0
-        #: Boundary strings of the undecided reads that stopped the pass's guards.
-        self.stopped = []
         self.k = start_length(pst.sampler.length)
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
@@ -308,15 +306,9 @@ class TransitionResolver:
 
     def replay(self, gate, name):
         """Read a fresh draw as the ``gate``'s refusal sample did, for what it
-        leaves the class ``name``; for ``STOPPED``, what stops the pass's guards
-        on the edge it ends at."""
+        leaves the class ``name``."""
         w = self._draw()
         row = Row(w, None, None, self._read(w, gate.learned))
-        if name == STOPPED:
-            if row.outcome.kind != EDGE:
-                return []
-            boundary = self._parting(w, row.outcome.state, row.outcome.at)[1]
-            return [] if boundary is None else [boundary]
         return list(next(c for c in CLASSES if c.name == name).left(row))
 
     # -- counterexamples ----------------------------------------------------
@@ -359,22 +351,14 @@ class TransitionResolver:
             w, outcome.state, outcome.at
         )
 
-    def _parting(self, w, s1, fd):
-        """As ``Sifter.disagreement``, for the witness of the edge into ``w[:fd]``
-        and ``w[:fd - 1]``, once both sift to ``s1``."""
-        c = w[fd - 1]
-        witness, sprime = self.dfa.witness(s1, c), w[: fd - 1]
-        for p in (witness, sprime):
-            leaf, boundary = self.sifter.sift_and_boundary(p)
-            if leaf != s1:
-                return None, boundary
-        return self.sifter.disagreement(witness, sprime, bytes([c]))
-
     def _act_on_disagreement(self, w, s1, fd) -> bool:
         """Whether weighing a split of ``s1`` on the edge into ``w[:fd]`` split it
         or asks for more members on an edge not given up on (see ``_live``)."""
-        c, witness, sprime = w[fd - 1], self.dfa.witness(s1, w[fd - 1]), w[: fd - 1]
-        distinguisher, boundary = self._parting(w, s1, fd)
+        c = w[fd - 1]
+        witness, sprime = self.dfa.witness(s1, c), w[: fd - 1]
+        distinguisher = None
+        if self._sift(witness) == s1 and self._sift(sprime) == s1:
+            distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if (
             distinguisher is not None
             and self.splits.verdict(s1, distinguisher) == SPLIT
@@ -388,8 +372,6 @@ class TransitionResolver:
                     self.population.add(p, at=self.tree.path_of(st))
             return True
         self.unsplit[s1, c] += 1
-        if boundary is not None:
-            self.stopped.append(boundary)
         if distinguisher is None:
             return False
         # The leaf may hold too few members of sprime's state to split on, even

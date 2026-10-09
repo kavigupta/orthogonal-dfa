@@ -127,7 +127,7 @@ class TestWhenTheLimitHalves(unittest.TestCase):
         )
         return _after_refusal(
             pst,
-            SimpleNamespace(k=2, stopped=[]),
+            SimpleNamespace(k=2),
             gate,
             PoolState([]),
             per_state=1,

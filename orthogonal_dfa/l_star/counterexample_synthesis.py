@@ -31,7 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import MIN_PROBES, PAIR_TRIP, STOPPED, TransitionResolver
+from .transition_resolver import MIN_PROBES, PAIR_TRIP, TransitionResolver
 
 
 @dataclass
@@ -155,16 +155,16 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
 def _after_refusal(pst, resolver, gate, state, *, per_state, acc_threshold) -> bool:
     """Halve the FNR limit where the sample came down to pairs too often, or held
     nothing and met no live edge, saying whether it did; and hold what each
-    class that fired left, and what stopped the pass's guards.  A start or end
-    class holds draws cut to ``k`` or whole and followed by each midfix it
-    stopped at; the others, their strings, grown by replaying the sample."""
+    class that fired left.  A start or end class holds draws cut to ``k`` or
+    whole and followed by each midfix it stopped at; the others, their
+    strings, grown by replaying the sample."""
     halve = PAIR_TRIP in gate.fired or not (gate.fired or gate.disagreements)
     if halve:
         pst.fnr_limit /= 2
     lengths = {"start": resolver.k, "end": pst.sampler.length}
     for end in lengths:
         state.retire(end)
-    for name, found in {**gate.harvests, STOPPED: resolver.stopped}.items():
+    for name, found in gate.harvests.items():
         if name in lengths:
             for m in found:
                 state.hold((name, m), MidfixSource(pst, lengths[name], m), per_state)
