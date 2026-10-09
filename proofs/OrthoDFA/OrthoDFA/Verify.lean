@@ -9,6 +9,7 @@ import OrthoDFA.Proofs.Trichotomy
 import OrthoDFA.Proofs.RoundLevel
 import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
+import OrthoDFA.Proofs.Spurious
 
 /-!
 # The theorem
@@ -99,6 +100,18 @@ theorem round_strong_quality' : RoundStrongQuality := round_strong_quality
 theorem round_strong_no_stop' : RoundStrongNoStop := round_strong_no_stop
 
 #print axioms round_strong_no_stop'
+
+theorem edge_cause' : EdgeCause := edge_cause
+
+#print axioms edge_cause'
+
+theorem spurious_draw' : SpuriousDraw := spurious_draw
+
+#print axioms spurious_draw'
+
+theorem round_strong_spurious' : RoundStrongSpurious := round_strong_spurious
+
+#print axioms round_strong_spurious'
 
 
 end OrthoDFA

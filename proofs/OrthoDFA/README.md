@@ -45,6 +45,14 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   exhausted needs the refusal sample to find a live edge and no class firing at every reading
   until the budget is spent; its chance is not yet bounded.
 - `RoundStrongQuality`: `RoundQualityLevel` for that round.
+- `EdgeCause`: a draw whose search ends at an edge has a prefix with a read, down its state's
+  route by a reference placement, that the cut decides on the other side; or the edge it ends at
+  leads off the leaf its next state is placed at.
+- `SpuriousDraw` and `RoundStrongSpurious`: however the hypothesis was chosen, a draw apart from
+  the noise has such a read with chance at most `spurRate` (the misread chances of at most `ψ₀`
+  over its prefixes and the midfixes up to length `n`) plus the chance it lies in `BadRoute` of
+  the hypothesis's tree: routed through a midfix its state is misread at more than `ψ₀`, a state
+  near the band there. For each reading of the round, for each refusal draw and fresh probe.
 
 ## Open
 
@@ -54,8 +62,10 @@ Two claims are not proved, and are not assumed or sorried anywhere:
    noisy split needs one specific decided read on the minority side, but the witness it reads is
    picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
-2. The chance a round ends exhausted: spurious live edges recurring on fresh refusal samples, or
-   repeated power failure on a wrong edge between well-read, separated states.
+2. The chance a round ends exhausted. Its parts: spurious live edges (`RoundStrongSpurious`,
+   proved, with `BadRoute` as the residual), and power failure on a wrong edge between well-read,
+   separated states (the Hoeffding tail `two_sample_power` is proved; the held-out block it
+   needs is not yet modelled), composed over the round.
 
 ## What to read
 
@@ -145,6 +155,11 @@ Two claims are not proved, and are not assumed or sorried anywhere:
   `RoundStrongLeaves`, `RoundStrongSameState`, `RoundStrongLeafPaths`, `RoundStrongNoStop`,
   `RoundStrongTrichotomy` and `RoundStrongQuality` (the round's passes are decided by the bits at
   what they can read, segment by segment, `segRun_determined`).
+- `OrthoDFA/Spurious.lean` — `EdgeCause`, `SpuriousDraw` and `RoundStrongSpurious`, proved in
+  `Proofs/Spurious.lean`. A read off the route lies in a set of the noise and the draw that no
+  hypothesis enters, or in `BadRoute` of the hypothesis's tree, which holds no noise; so the
+  draw's independence from the noise is all the bound takes, however adaptively the hypothesis
+  was chosen.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class and any pass
