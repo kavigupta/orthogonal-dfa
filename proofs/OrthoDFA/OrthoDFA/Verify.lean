@@ -7,6 +7,7 @@ import OrthoDFA.Proofs.StartState
 import OrthoDFA.Proofs.Ends
 import OrthoDFA.Proofs.Trichotomy
 import OrthoDFA.Proofs.RoundLevel
+import OrthoDFA.Proofs.RoundStrong
 
 /-!
 # The theorem
@@ -69,5 +70,25 @@ theorem round_trichotomy_level' : RoundTrichotomyLevel := round_trichotomy_level
 theorem round_quality_level' : RoundQualityLevel := round_quality_level
 
 #print axioms round_quality_level'
+
+theorem round_strong_budget' : RoundStrongBudget := round_strong_budget
+
+#print axioms round_strong_budget'
+
+theorem round_strong_readings' : RoundStrongReadings := round_strong_readings
+
+#print axioms round_strong_readings'
+
+theorem round_strong_leaves' : RoundStrongLeaves := round_strong_leaves
+
+#print axioms round_strong_leaves'
+
+theorem round_strong_same_state' : RoundStrongSameState := round_strong_same_state
+
+#print axioms round_strong_same_state'
+
+theorem round_strong_leaf_paths' : RoundStrongLeafPaths := round_strong_leaf_paths
+
+#print axioms round_strong_leaf_paths'
 
 end OrthoDFA

@@ -78,18 +78,19 @@
   with meets `QualityHolds` against every probe its passes took, at a fluctuation `ε_r` set by the
   number `r` of readings it made. The reruns' probes are picked by reads, so the set covers every
   choice of live-edge draws, `2^((nr+1)·r)` of them for `r` readings, each `r` at chance `δ·2^-(r+1)`.
-- `OrthoDFA/RoundStrong.lean` — statements only, not yet proved. The round with what Python carries
-  across readings: every end of the split test but a split counts against its edge, an edge with
-  `mmax` of them is given up, the strings stopping the test's guards are held, each pass starts a
-  fresh quiet streak, and probes are counted against `probe_budget`. A gate passes only where its
-  test settles above `acc`, and the certificate's failure chance is spent per call.
-  `RoundStrongBudget`: the budget is never reached, so there is no exhausted exit.
-  `RoundStrongReadings`: at most `readStar(leaves)` readings. `RoundStrongLeaves`: for any
-  reference placement of the target's states (ℓ\* places them by each read's more likely side),
-  at most `|Q| + 2` leaves plus the splits that separate no two states. `RoundStrongLeafPaths`:
-  edges join leaves. `RoundStrongTrichotomy`, `RoundStrongQuality`: the level theorems for this
-  round. Open (not sorried, see `notes/start-at-k.md`): the chance of a split separating no
-  ℓ\*-states, and split power for edges with margin.
+- `OrthoDFA/RoundStrong.lean` — the round with what Python carries across readings: every end of
+  the split test but a split counts against its edge, an edge with `mmax` of them is given up,
+  the strings stopping the test's guards are held, each pass starts a fresh quiet streak, a
+  member added on a given-up edge does not reset it, and probes are counted against
+  `probe_budget`. A gate passes only where its test settles above `acc`, and the certificate's
+  failure chance is spent per call. Proved in `Proofs/RoundStrong.lean`, with no noise:
+  `RoundStrongBudget` (the budget is never reached, so there is no exhausted exit),
+  `RoundStrongReadings` (at most `readStar(leaves)` readings), `RoundStrongLeaves` (at most
+  `|Q| + 2` leaves plus the noisy splits: those with one of their `≤ 2·depth + 2` sifting or
+  parting reads off a reference placement's side), `RoundStrongSameState` (a split between two
+  strings of one state is noisy) and `RoundStrongLeafPaths`. Not yet proved:
+  `RoundStrongTrichotomy` and `RoundStrongQuality`. Open, not sorried (see
+  `notes/start-at-k.md`): the chance of a noisy split, and split power for edges with margin.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding

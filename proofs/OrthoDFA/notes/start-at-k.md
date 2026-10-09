@@ -791,23 +791,26 @@ readings can take. Off one set of measure `δ` the end hypothesis meets `Quality
 so the bound tracks the readings actually made: at binary, `k = 20`, `nr = 480`, `δ = 0.005`,
 `ε_r` is 0.013, 0.018, 0.028, 0.068, 0.13, 0.22 at `r` = 1, 2, 5, 29, 100, 300.
 
-## The strengthened round (`RoundStrong`, D42–D52)
+## The strengthened round (`RoundStrong`, D42–D55)
 
-Proved deterministically, no noise: the budget is never reached, readings ≤ `readStar(leaves)`,
-leaves ≤ `|Q| + 2 + #splits separating no ℓ*-states`, and edges join leaves. A member added on a
-given-up edge does not reset the quiet streak (D51); without that a pass is unbounded.
+Proved with no noise: the budget is never reached, readings ≤ `readStar(leaves)`, edges join
+leaves, and leaves ≤ `|Q| + 2 + #noisy splits`. A member added on a given-up edge does not reset
+the quiet streak (D51); without that a pass is unbounded.
 
-Planned deterministic reduction: a split that separates no ℓ*-states needs one of at most
-`2·depth + 2` decided reads on the minority side — the witness's and the probe prefix's sift
-reads, and the two parting reads.
+A split is noisy when one of its at most `2·depth + 2` reads lands off a reference placement's
+side: the reads sifting its witness and its probe's prefix to the leaf, or the two parting reads
+at the distinguisher. A split that changes no reference placement is noisy, and so is a split
+between two strings of one state (its parting reads differ, so one is off the state's side).
+
+Any split between two different states is valid (D53, D54), whether or not the reference sees
+the difference. The split test groups members by the training half and compares the test half,
+while the reference reads the full family, so a state whose training-half side differs from its
+full side can be split off with no noise; such a split is valid and harmless, it only lengthens
+the round, and when the reference keeps the pair together its parting read is itself off the
+reference's side, so it is counted among the noisy splits.
 
 Open, not sorried:
-- The reduction's round-level probability. The witness is picked from the pool by reads, so the
+- The chance of a noisy split over a round. The witness is picked from the pool by reads, so the
   per-string `depth·ρ` does not apply to it, and a union over the pool is vacuous.
 - Split power, and with it the halving claim's given-up residue, only for edges whose successor
   states sit outside the band with margin. In-band edges are left to the stopped harvest.
-
-Known structural gap: the split test groups members by the training half and compares the test
-half, while ℓ* reads the full family. A state whose training-half side at the distinguisher
-differs from its full side can be split off without separating any ℓ*-states, with no noise
-involved, so validity cannot be stated against ℓ* for every family.

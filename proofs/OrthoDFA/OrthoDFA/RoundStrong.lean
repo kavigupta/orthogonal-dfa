@@ -13,8 +13,9 @@ and the certificate's failure chance is spent per call.
 
 `RoundStrongBudget`: the budget is never reached, so the round never ends exhausted.
 `RoundStrongReadings`: a round makes at most `readStar` of its last leaf count readings.
-`RoundStrongLeaves`: for any reference placement of the target's states, the leaves are at most
-`|Q| + 2` and the splits that do not separate the reference's states.
+`RoundStrongLeaves`: the leaves are at most `|Q| + 2` and the splits that one of their at most
+`2·depth + 2` reads, landing off a reference placement's side, let through.
+`RoundStrongSameState`: a split between two strings of one state is one of those.
 `RoundStrongLeafPaths`: the learned edges join leaves.
 `RoundStrongTrichotomy` and `RoundStrongQuality`: `RoundTrichotomyLevel` and
 `RoundQualityLevel` for this round.
@@ -193,9 +194,9 @@ noncomputable def strongRun (C : StrongCfg α) (R : CutReads α) (seed : List (F
   strongRound C R Rmax 0 (startAcc C R seed) [] d
 
 /-- The leaf `x` reaches when every node reads it on the side `side` gives. -/
-def majPath (side : FreeMonoid α → Bool) : DTree α → FreeMonoid α → List Bool
+def sidePath (side : FreeMonoid α → Bool) : DTree α → FreeMonoid α → List Bool
   | .leaf, _ => []
-  | .node m r a, x => if side (x * m) then true :: majPath side a x else false :: majPath side r x
+  | .node m r a, x => if side (x * m) then true :: sidePath side a x else false :: sidePath side r x
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
@@ -209,14 +210,34 @@ noncomputable def majSide (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finse
 the distinguisher. -/
 def SplitRec.Separates {Q : Type*} (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
     (r : SplitRec α) : Prop :=
-  ∃ q q', majPath side r.tree (rep q) = r.leaf ∧ majPath side r.tree (rep q') = r.leaf
+  ∃ q q', sidePath side r.tree (rep q) = r.leaf ∧ sidePath side r.tree (rep q') = r.leaf
     ∧ side (rep q * r.d) ≠ side (rep q' * r.d)
 
+/-- The read of `x·m` lands on the side `side` gives its state's representative. -/
+def Faithful {Q : Type*} (R : CutReads α) (A : DFA (FreeMonoid α) Q) (side : FreeMonoid α → Bool)
+    (rep : Q → FreeMonoid α) (x m : FreeMonoid α) : Prop :=
+  R.cut (x * m) = some (side (rep (A.state x) * m))
+
+/-- Every read of `x`'s sift lands on the side `side` gives `z`, down `z`'s path. -/
+def FaithfulRoute (R : CutReads α) (side : FreeMonoid α → Bool) (z : FreeMonoid α) :
+    DTree α → FreeMonoid α → Prop
+  | .leaf, _ => True
+  | .node m r a, x => R.cut (x * m) = some (side (z * m))
+      ∧ if side (z * m) then FaithfulRoute R side z a x else FaithfulRoute R side z r x
+
+/-- One of the split's reads lands off its state's side: sifting its witness or its probe's
+prefix to the leaf, or parting them. -/
+def SplitRec.Noisy {Q : Type*} (R : CutReads α) (A : DFA (FreeMonoid α) Q)
+    (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α) (r : SplitRec α) : Prop :=
+  ¬ FaithfulRoute R side (rep (A.state r.y)) r.tree r.y
+    ∨ ¬ FaithfulRoute R side (rep (A.state r.sprime)) r.tree r.sprime
+    ∨ ¬ Faithful R A side rep r.y r.d ∨ ¬ Faithful R A side rep r.sprime r.d
+
 open scoped Classical in
-/-- The splits that do not separate the reference's states. -/
-noncomputable def badSplits {Q : Type*} (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
-    (rs : List (SplitRec α)) : ℕ :=
-  (rs.filter fun r => ¬ r.Separates side rep).length
+/-- The noisy splits. -/
+noncomputable def noisySplits {Q : Type*} (R : CutReads α) (A : DFA (FreeMonoid α) Q)
+    (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α) (rs : List (SplitRec α)) : ℕ :=
+  (rs.filter fun r => r.Noisy R A side rep).length
 
 /-- Every learned edge joins two leaves. -/
 def EdgesOnLeaves (s : KState α) : Prop :=
@@ -240,14 +261,22 @@ def RoundStrongReadings : Prop :=
       ≤ readStar C (strongRun C R seed Rmax d).2.1.s.tree.paths.length
 
 /-- `RoundStrongLeaves`: placing each state `q` where every node reads `rep q` on the side
-`side` gives, the round ends with at most `|Q| + 2` leaves and its splits that separate no two
-states. -/
+`side` gives, the round ends with at most `|Q| + 2` leaves and its noisy splits. -/
 def RoundStrongLeaves : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*} [Fintype Q] (C : StrongCfg α)
-    (R : CutReads α) (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
-    (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
+    (R : CutReads α) (A : DFA (FreeMonoid α) Q) (side : FreeMonoid α → Bool)
+    (rep : Q → FreeMonoid α) (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
     (strongRun C R seed Rmax d).2.1.s.tree.paths.length
-      ≤ Fintype.card Q + 2 + badSplits side rep (strongRun C R seed Rmax d).2.1.splits
+      ≤ Fintype.card Q + 2 + noisySplits R A side rep (strongRun C R seed Rmax d).2.1.splits
+
+/-- `RoundStrongSameState`: a split between two strings of one state has one of its two parting
+reads off their state's side. -/
+def RoundStrongSameState : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*} (C : StrongCfg α) (R : CutReads α)
+    (A : DFA (FreeMonoid α) Q) (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
+    (seed : List (FreeMonoid α)) (Rmax : ℕ) (d : Fin Rmax → C.Draws),
+    ∀ r ∈ (strongRun C R seed Rmax d).2.1.splits, A.state r.y = A.state r.sprime →
+      ¬ Faithful R A side rep r.y r.d ∨ ¬ Faithful R A side rep r.sprime r.d
 
 /-- `RoundStrongLeafPaths`: the round's learned edges join leaves. -/
 def RoundStrongLeafPaths : Prop :=
