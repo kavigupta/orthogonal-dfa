@@ -225,7 +225,7 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner = _gate(lambda seq: 0, _TO_REJECT)
         reading = learner.read_fresh(acc_threshold=0.9)
 
-        self.assertEqual(30 + 960, learner.drawn)
+        self.assertEqual(30 + 480, learner.drawn)
         self.assertEqual((set(), []), (reading.fired, reading.disagreements))
 
     def test_a_passing_gate_stops_once_the_agreement_settles_and_reads_no_ends(

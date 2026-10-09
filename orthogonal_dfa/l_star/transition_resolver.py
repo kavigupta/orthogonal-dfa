@@ -47,7 +47,7 @@ from .suffix_family import SuffixFamily
 #: Most fresh draws one reading takes.
 READING_DRAWS = 2000
 #: Most fresh draws a refused gate reads against its start.
-REFUSAL_DRAWS = 960
+REFUSAL_DRAWS = 480
 #: The share of a refusal sample's searches that may end in a pair.
 PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
@@ -93,7 +93,7 @@ _SEARCHED = (PAIR, EDGE, TRIPLE)
 #: The draw counts the gate's tests are read at, so their failure chances add
 #: over a handful of looks rather than every draw.  The first, as the gate always
 #: has, waits out an early run of agreements.
-_REFUSAL_LOOKS = {30 * 2**i for i in range(6)}
+_REFUSAL_LOOKS = {30 * 2**i for i in range(5)}
 _LOOKS = {
     *(
         30 * 2**i
