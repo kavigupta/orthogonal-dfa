@@ -407,4 +407,128 @@ theorem rerun_exhausted :
 
 end Count
 
+section Round
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+
+open scoped Classical in
+/-- A round that ends exhausted with no noisy split, fewer than `N₁` reruns of draws with a read
+off their route and fewer than `N₂` of others reaching no test in the power case or splitting,
+has some key's first test in the power case or splitting in the power case and not splitting. -/
+theorem exhausted_det {Q : Type*} [Fintype Q] (C : StrongCfg α) (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (side : FreeMonoid α → Bool)
+    (rep : Q → FreeMonoid α) (R : CutReads α) (seed : List (FreeMonoid α)) (τ : ℝ)
+    (N₁ N₂ Rmax : ℕ) (d : Fin Rmax → C.Draws) (h0 : C.K.forced = ∅) (hpat : 0 < C.K.patience)
+    (hb : Monotone C.budget) (hB : (Fintype.card Q + N₁ + N₂) * (C.nr + C.np) ≤ C.budget 2)
+    (hex : (strongRun C R seed Rmax d).1 = .exhausted)
+    (hno : noisySplits R A side rep (strongRun C R seed Rmax d).2.1.splits = 0)
+    (h1 : ((rerunFirsts (strongEntries C R Rmax 0 (startAcc C R seed) [] d)).filter fun e =>
+      SpuriousAt R A side rep e.1.s.tree C.k e.2).length < N₁)
+    (h2 : ((rerunFirsts (strongEntries C R Rmax 0 (startAcc C R seed) [] d)).filter fun e =>
+      ¬ SpuriousAt R A side rep e.1.s.tree C.k e.2
+        ∧ ¬ ∃ κ, Decisive C O F τ κ R (passStart e.1) e.2).length < N₂) :
+    ∃ κ A₁ x₁, roundFind C R (Decisive C O F τ κ R) Rmax 0 (startAcc C R seed) [] d
+        = some (A₁, x₁)
+      ∧ CaseAt C O F τ κ R A₁ x₁
+      ∧ verdict C.K R A₁.s.tree A₁.s.pool κ.1 κ.2 (A₁.s.tree.paths.length * Fintype.card α)
+        (stepSkip C.K R C.k A₁.s x₁ κ) ≠ .split := by
+  by_contra hbad
+  have hstart : RerunStart C R (startAcc C R seed) [] :=
+    ⟨startAcc_inv C R seed, by simp, by simp⟩
+  have hfacts := rerun_facts C R hpat Rmax 0 _ [] d hstart
+  have hcls : ∀ e ∈ rerunFirsts (strongEntries C R Rmax 0 (startAcc C R seed) [] d),
+      RerunSplits C R e ∨ SpuriousAt R A side rep e.1.s.tree C.k e.2
+        ∨ (¬ SpuriousAt R A side rep e.1.s.tree C.k e.2
+          ∧ ¬ ∃ κ, Decisive C O F τ κ R (passStart e.1) e.2) := by
+    intro e he
+    obtain ⟨hI, hl, htr⟩ := hfacts e he
+    rcases rerun_classify C O F τ R hI hl with h | h | h
+    · exact .inl h
+    · exact absurd (rerunMiss_first C O F τ R h0 htr h) hbad
+    · by_cases hs : SpuriousAt R A side rep e.1.s.tree C.k e.2
+      · exact .inr (.inl hs)
+      · exact .inr (.inr ⟨hs, h⟩)
+  have hlen := length_le_filters _ hcls
+  have hsp := rerun_splits_count C R h0 hpat Rmax 0 _ [] d hstart
+  have hinv := (strongRound_preserves C R (fun _ => True) (fun _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ => trivial) Rmax 0 (startAcc C R seed) [] d (startAcc_inv C R seed) trivial).1
+  have hleaves := round_strong_leaves C R A side rep seed Rmax d
+  have hrl := (rerun_length C R Rmax 0 (startAcc C R seed) [] d).1
+  have hused := rerun_used C R Rmax 0 (startAcc C R seed) [] d (by simp)
+  simp only [strongRun] at hex hno hleaves
+  obtain ⟨hex1, hnr⟩ := rerun_exhausted C R Rmax 0 _ [] d hex
+  rw [hno] at hleaves
+  have hsl := hinv.2
+  have hs0 : (startAcc C R seed).splits.length = 0 := rfl
+  have hu0 : (startAcc C R seed).used = 0 := rfl
+  set r := (strongEntries C R Rmax 0 (startAcc C R seed) [] d).length
+  set K := C.nr + C.np
+  set P := (strongRound C R Rmax 0 (startAcc C R seed) [] d).2.1.s.tree.paths.length
+  have hb2 : C.budget 2 ≤ C.budget P := hb (by omega)
+  have hr : r + 1 ≤ Fintype.card Q + N₁ + N₂ := by omega
+  have hmul : (r + 1) * K ≤ (Fintype.card Q + N₁ + N₂) * K := Nat.mul_le_mul_right K hr
+  rw [Nat.succ_mul] at hmul
+  omega
+
+open scoped Classical in
+theorem round_strong_exhausted : RoundStrongExhausted := by
+  intro α _ _ Ω _ μ _ Q _ C A O B F side rep D _ seed τ N₁ N₂ Rmax h0 hτ hpat hb hB ν R reruns
+  set φ := ENNReal.ofReal (Real.exp (-τ ^ 2))
+  set bad : Ω → (Fin Rmax → C.Draws) → Prop := fun ω d =>
+    ∃ κ A₁ x₁, roundFind C (readsAt O B F ω) (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0
+        (startAcc C (readsAt O B F ω) seed) [] d = some (A₁, x₁)
+      ∧ CaseAt C O F τ κ (readsAt O B F ω) A₁ x₁
+      ∧ verdict C.K (readsAt O B F ω) A₁.s.tree A₁.s.pool κ.1 κ.2
+          (A₁.s.tree.paths.length * Fintype.card α)
+          (stepSkip C.K (readsAt O B F ω) C.k A₁.s x₁ κ) ≠ .split with hbad
+  set S₁ := {p : Ω × (Fin Rmax → C.Draws) | N₁ ≤ ((reruns p).filter fun e =>
+    SpuriousAt (R p) A side rep e.1.s.tree C.k e.2).length}
+  set S₂ := {p : Ω × (Fin Rmax → C.Draws) | N₂ ≤ ((reruns p).filter fun e =>
+    ¬ SpuriousAt (R p) A side rep e.1.s.tree C.k e.2
+      ∧ ¬ ∃ κ, Decisive C O F τ κ (R p) (passStart e.1) e.2).length}
+  set S₃ := {p : Ω × (Fin Rmax → C.Draws) |
+    noisySplits (R p) A side rep (strongRun C (R p) seed Rmax p.2).2.1.splits ≠ 0}
+  have hsub : {p : Ω × (Fin Rmax → C.Draws) | (strongRun C (R p) seed Rmax p.2).1 = .exhausted}
+      ⊆ {p | bad p.1 p.2} ∪ S₁ ∪ S₂ ∪ S₃ := by
+    intro p hp
+    by_contra hn
+    simp only [Set.mem_union, not_or, Set.mem_setOf_eq, S₁, S₂, S₃, not_le, not_not] at hn
+    obtain ⟨⟨⟨hn0, hn1⟩, hn2⟩, hn3⟩ := hn
+    exact hn0 (exhausted_det C A O F side rep (R p) seed τ N₁ N₂ Rmax p.2 h0 hpat hb hB hp hn3
+      hn1 hn2)
+  have hpow : μ.prod ν {p | bad p.1 p.2}
+      ≤ φ * ∑' κ, ∫⁻ d, μ {ω | roundFind C (readsAt O B F ω)
+          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
+            ≠ none} ∂ν := by
+    have hU : {p : Ω × (Fin Rmax → C.Draws) | bad p.1 p.2}
+        ⊆ ⋃ d, {ω | bad ω d} ×ˢ {d} := by
+      intro p hp
+      exact Set.mem_iUnion.2 ⟨p.2, Set.mem_prod.2 ⟨hp, rfl⟩⟩
+    calc μ.prod ν {p | bad p.1 p.2}
+        ≤ ∑' d, μ.prod ν ({ω | bad ω d} ×ˢ {d}) := (measure_mono hU).trans (measure_iUnion_le _)
+      _ = ∑' d, μ {ω | bad ω d} * ν {d} := by simp only [Measure.prod_prod]
+      _ ≤ ∑' d, (φ * ∑' κ, μ {ω | roundFind C (readsAt O B F ω)
+          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
+            ≠ none}) * ν {d} :=
+          ENNReal.tsum_le_tsum fun d => by
+            gcongr
+            exact power_tail C O B F seed τ Rmax d h0 hτ
+      _ = φ * ∑' κ, ∑' d, μ {ω | roundFind C (readsAt O B F ω)
+          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
+            ≠ none} * ν {d} := by
+          simp only [mul_assoc, ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_right]
+          rw [ENNReal.tsum_comm]
+      _ = _ := by simp only [lintegral_countable']
+  calc μ.prod ν {p | (strongRun C (R p) seed Rmax p.2).1 = .exhausted}
+      ≤ μ.prod ν ({p | bad p.1 p.2} ∪ S₁ ∪ S₂ ∪ S₃) := measure_mono hsub
+    _ ≤ μ.prod ν {p | bad p.1 p.2} + μ.prod ν S₁ + μ.prod ν S₂ + μ.prod ν S₃ := by
+        refine (measure_union_le _ _).trans ?_
+        gcongr
+        refine (measure_union_le _ _).trans ?_
+        gcongr
+        exact measure_union_le _ _
+    _ ≤ _ := by gcongr
+
+end Round
+
 end OrthoDFA

@@ -10,7 +10,7 @@ import OrthoDFA.Proofs.RoundLevel
 import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
-import OrthoDFA.Proofs.Power
+import OrthoDFA.Proofs.Exhausted
 
 /-!
 # The theorem
@@ -119,6 +119,10 @@ theorem round_strong_power' : RoundStrongPower := by
   exact power_tail C O B F seed τ Rmax d h0 hτ
 
 #print axioms round_strong_power'
+
+theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
+
+#print axioms round_strong_exhausted'
 
 
 end OrthoDFA
