@@ -57,6 +57,9 @@ class _StubPopulation:
     def add(self, string, at):
         self.recorded.append((at, bytes(string)))
 
+    def add_first(self, string, at):
+        self.recorded.append((at, bytes(string)))
+
 
 class _Learner(TransitionResolver):
     # pylint: disable=super-init-not-called
@@ -155,6 +158,28 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
 
         self.assertEqual([b"?"], found)
         self.assertEqual(Counter(), learner.unsplit)
+
+    def _asking_for_members(self, unsplit):
+        sifter = _StubSifter(_parting(set()), search=(b"m", None))
+        learner = _Learner(sifter, _EVERYWHERE, 1)
+        learner.family = SimpleNamespace(test_idx=range(10))
+        learner.splits = SimpleNamespace(verdict=lambda s, m: "undecided")
+        learner.unsplit[7, _PROBE[3]] = unsplit
+        return learner
+
+    def test_asking_for_members_resets_the_quiet_run(self):
+        learner = self._asking_for_members(0)
+
+        self.assertTrue(learner._check(_PROBE))
+        self.assertEqual(1, learner.unsplit[7, _PROBE[3]])
+
+    def test_asking_for_members_on_an_edge_given_up_on_is_quiet(self):
+        learner = self._asking_for_members(0)
+        given_up = learner._give_up_after()
+        learner.unsplit[7, _PROBE[3]] = given_up
+
+        self.assertFalse(learner._check(_PROBE))
+        self.assertEqual(given_up + 1, learner.unsplit[7, _PROBE[3]])
 
     def test_a_disagreement_down_to_a_triple_is_quiet(self):
         sifter = _StubSifter(_parting({3}))

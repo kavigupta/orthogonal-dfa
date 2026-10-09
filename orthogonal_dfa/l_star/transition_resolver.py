@@ -494,8 +494,9 @@ class TransitionResolver:
 
     def _act_on_disagreement(self, w, s1, fd) -> bool:
         """Weigh splitting ``s1`` on the edge into ``w[:fd]``: whether it split
-        or asks for more members.  Any other end counts against the edge (see
-        ``given_up``), and an undecided read that stopped it is kept."""
+        or asks for more members on an edge not given up on.  Any other end
+        counts against the edge (see ``given_up``), and an undecided read that
+        stopped it is kept."""
         c = w[fd - 1]
         witness = self.dfa.witness(s1, c)
         sprime = w[: fd - 1]
@@ -521,7 +522,8 @@ class TransitionResolver:
         # where they rule a split out; keeping sprime, ahead of the member limit,
         # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1))
-        return True
+        # Quiet on an edge already given up on, or a pass could run on unbounded.
+        return self.unsplit[s1, c] <= self._give_up_after()
 
     # -- edge closing -------------------------------------------------------
 
