@@ -19,6 +19,7 @@ from orthogonal_dfa.l_star.transition_resolver import (
     OPEN_EDGES,
     PAIR_TRIP,
     PAIRS,
+    STOPPED,
     TRIPLES,
     TransitionResolver,
 )
@@ -30,9 +31,10 @@ class _StubSifter:
     """A one-node tree placing a string by ``places``, with ``seq + b"?"`` as the
     boundary of what it cannot place, and the middle of the band at ``middle``."""
 
-    def __init__(self, places, middle=None):
+    def __init__(self, places, middle=None, search=(None, None)):
         self.places = places
         self.middle = middle
+        self.search = search
         self.searched = []
 
     def sift_and_boundary(self, seq):
@@ -45,6 +47,7 @@ class _StubSifter:
 
     def disagreement(self, s, sprime, prefix):
         self.searched.append((s, sprime, prefix))
+        return self.search
 
 
 class _StubPopulation:
@@ -71,6 +74,7 @@ class _Learner(TransitionResolver):
             config=SimpleNamespace(min_signal_strength=0.3, split_pval=0.001),
         )
         self.unsplit = Counter()
+        self.stopped = []
         self.readings = 0
         self.draws = iter(())
         self.drawn = 0
@@ -127,12 +131,49 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         # It found no distinguisher, which counts against the edge.
         self.assertEqual(Counter({(7, _PROBE[3]): 1}), learner.unsplit)
 
+    def test_an_undecided_witness_is_kept_and_counts_against_the_edge(self):
+        # The edge's witness is the empty string, which nothing places.
+        learner = _Learner(_StubSifter(_parting({0})), _EVERYWHERE, 1)
+
+        self.assertFalse(learner._check(_PROBE))
+        self.assertEqual([b"?"], learner.stopped)
+        self.assertEqual(Counter({(7, _PROBE[3]): 1}), learner.unsplit)
+
+    def test_an_undecided_read_in_the_search_is_kept(self):
+        sifter = _StubSifter(_parting(set()), search=(None, b"stuck"))
+        learner = _Learner(sifter, _EVERYWHERE, 1)
+
+        self.assertFalse(learner._check(_PROBE))
+        self.assertEqual([b"stuck"], learner.stopped)
+        self.assertEqual(Counter({(7, _PROBE[3]): 1}), learner.unsplit)
+
+    def test_a_replay_keeps_what_stops_the_guards_without_counting_it(self):
+        learner = _Learner(_StubSifter(_parting({0})), _EVERYWHERE, 1)
+        learner.draws = iter([_PROBE])
+
+        found = learner.replay(SimpleNamespace(learned=_EVERYWHERE), STOPPED)
+
+        self.assertEqual([b"?"], found)
+        self.assertEqual(Counter(), learner.unsplit)
+
     def test_a_disagreement_down_to_a_triple_is_quiet(self):
         sifter = _StubSifter(_parting({3}))
         learner = _Learner(sifter, _EVERYWHERE, 1)
 
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([], sifter.searched)
+
+
+class TestTheProbeBudget(unittest.TestCase):
+    @staticmethod
+    def _budget(leaves):
+        learner = _Learner(_StubSifter(lambda seq: 7), _EVERYWHERE, 1)
+        learner.tree = SimpleNamespace(num_states=leaves)
+        learner.family = SimpleNamespace(test_idx=range(10))
+        return learner.probe_budget(10)
+
+    def test_it_grows_with_the_leaves(self):
+        self.assertLess(self._budget(2), self._budget(3))
 
 
 #: Each state stays where it is; 1 accepts.

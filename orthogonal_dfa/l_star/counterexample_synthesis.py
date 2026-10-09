@@ -32,7 +32,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import PAIR_TRIP, TransitionResolver
+from .transition_resolver import MIN_PROBES, PAIR_TRIP, STOPPED, TransitionResolver
 
 
 @dataclass
@@ -79,9 +79,6 @@ def _round_classifier(pst, vs) -> RoundClassifier:
     )
 
 
-#: Probes drawn per counterexample pass.
-COUNTEREXAMPLE_PROBES = 4000
-
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
@@ -93,9 +90,9 @@ def _default_patience(acc_threshold: float) -> int:
     tolerated ``1 - acc_threshold``.
 
     A perfect-accuracy target tolerates no disagreement, so no finite clean run
-    rules it out -- never early-stop, run the whole probe budget."""
+    rules it out -- wait out ``MIN_PROBES`` of them."""
     if acc_threshold >= 1:
-        return COUNTEREXAMPLE_PROBES
+        return MIN_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
@@ -138,11 +135,9 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
     certificate passes, a refusal sample ends at no such edge, or the round's
     probes run out.  Returns the last reading, its DFA, and the certified DFA if
     any."""
-    first, probes = [], COUNTEREXAMPLE_PROBES
+    first = []
     while True:
-        probes -= resolver.counterexample_pass(
-            max_probes=probes, patience=patience, first=first
-        )
+        resolver.counterexample_pass(patience=patience, first=first)
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
         dfa = resolver.to_dfa_and_tree(gate.start)[0]
         if gate.passed:
@@ -150,7 +145,7 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
             if output is not None:
                 return gate, dfa, output
             gate = resolver.refusal_sample(gate)
-        if not gate.disagreements or probes <= 0:
+        if not gate.disagreements or resolver.probed >= resolver.probe_budget(patience):
             return gate, dfa, None
         first = gate.disagreements
 
@@ -167,11 +162,11 @@ def _hold_ends(pst, state, ends, count) -> None:
 
 
 def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
-    """Hold what the gate's refusal sample's outcomes left, a population per
-    kind grown by replaying that reading, and the start and end populations at
-    the midfixes the sample's ends stopped at."""
+    """Hold what the gate's refusal sample's outcomes and the pass's stopped
+    guards left, a population per kind grown by replaying that reading, and the
+    start and end populations at the midfixes the sample's ends stopped at."""
     _hold_ends(pst, state, gate.ends, per_state)
-    for kind, found in gate.harvests.items():
+    for kind, found in {**gate.harvests, STOPPED: resolver.stopped}.items():
         if found:
             source = HarvestSource(
                 partial(resolver.replay, gate, kind),

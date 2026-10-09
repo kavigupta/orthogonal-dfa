@@ -49,6 +49,8 @@ from .suffix_family import SuffixFamily
 READING_DRAWS = 2000
 #: Most fresh draws a refused gate reads against its start.
 REFUSAL_DRAWS = 480
+#: Fewest probes a round may spend.
+MIN_PROBES = 4000
 #: The share of a refusal sample's searches that may end in a pair.
 PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
@@ -71,6 +73,8 @@ Reading = namedtuple(
 TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
 #: The test that a refusal sample's searches came down to pairs too often.
 PAIR_TRIP = "pairs over half"
+#: The population of undecided reads that stopped the pass short of a split test.
+STOPPED = "stopped"
 
 
 def _harvest(w, outcome):
@@ -184,6 +188,10 @@ class TransitionResolver:
         self.readings = 0
         #: Per edge, the split tests on it this round that did not split.
         self.unsplit = Counter()
+        #: Probes this round.
+        self.probed = 0
+        #: Boundary strings of the undecided reads that stopped the pass's guards.
+        self.stopped = []
         self.k = start_length(pst.sampler.length)
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
@@ -395,10 +403,23 @@ class TransitionResolver:
     def given_up(self, state, c) -> bool:
         """Whether the edge ``(state, c)`` has had ``give_up_after`` attempts to
         split on it in the round end other than in a split."""
-        return self.unsplit[state, c] >= give_up_after(
+        return self.unsplit[state, c] >= self._give_up_after()
+
+    def _give_up_after(self) -> int:
+        return give_up_after(
             self.pst,
             edges=self.num_states * self.pst.alphabet_size,
             test_suffixes=len(self.family.test_idx),
+        )
+
+    def probe_budget(self, patience) -> int:
+        """Probes the round may spend: room for ``give_up_after`` attempts, a
+        pass's ``patience`` and a refusal sample apart, on every edge out of the
+        2 (leaves - 1) + 1 leaves the splits so far have made."""
+        edges = self.pst.alphabet_size * (2 * (self.num_states - 1) + 1)
+        return max(
+            MIN_PROBES,
+            (1 + self._give_up_after() * edges) * (patience + REFUSAL_DRAWS),
         )
 
     def _read(self, w, learned):
@@ -406,21 +427,30 @@ class TransitionResolver:
 
     def replay(self, gate, name):
         """Read a fresh draw as the ``gate``'s refusal sample did, for what it
-        leaves the harvest ``name``."""
+        leaves the harvest ``name``; for ``STOPPED``, what stops the pass's
+        guards on the edge it ends at."""
         w = self._draw()
         outcome = self._read(w, gate.learned)
+        if name == STOPPED:
+            if outcome.kind != EDGE:
+                return []
+            boundary = self._parting(w, outcome.state, outcome.at)[1]
+            return [] if boundary is None else [boundary]
         return list(_harvested(outcome)) if _harvest(w, outcome) == name else []
 
     # -- counterexamples ----------------------------------------------------
 
-    def counterexample_pass(self, *, max_probes, patience, first):
+    def counterexample_pass(self, *, patience, first):
         """Split in place on the disagreements probes find until ``patience``
-        probes in a row go without one, starting with the probes ``first``;
-        returns how many it probed."""
-        self.quiet_probes = probed = 0
-        with counter(max_probes, "Probing for counterexamples") as pbar:
-            for w in self._probes(first, max_probes):
-                probed += 1
+        probes in a row go without one or the round's ``probe_budget`` is spent,
+        starting with the probes ``first``."""
+        self.quiet_probes = 0
+        first = iter(first)
+        with counter(None, "Probing for counterexamples") as pbar:
+            while self.probed < self.probe_budget(patience):
+                self.probed += 1
+                w = next(first, None)
+                w = self._draw() if w is None else w
                 self.quiet_probes = 0 if self._check(w) else self.quiet_probes + 1
                 # A split drops edges and rewrites the state set, and any probe may
                 # have read successors a re-vote counts.
@@ -433,12 +463,6 @@ class TransitionResolver:
                 pbar.update(1)
                 if self.quiet_probes >= patience:
                     break
-        return probed
-
-    def _probes(self, first, count):
-        yield from first[:count]
-        for _ in range(count - len(first[:count])):
-            yield self._draw()
 
     def _below_root(self, seq):
         """The midfix the cut cannot place ``seq`` at below the root, if any."""
@@ -454,16 +478,26 @@ class TransitionResolver:
             w, outcome.state, outcome.at
         )
 
+    def _parting(self, w, s1, fd):
+        """(A midfix the edge into ``w[:fd]``'s witness and ``w[:fd - 1]`` part
+        at, None), or (None, the boundary string of the read that stopped the
+        search for one, if undecided)."""
+        c = w[fd - 1]
+        witness, sprime = self.dfa.witness(s1, c), w[: fd - 1]
+        for p in (witness, sprime):
+            leaf, boundary = self.sifter.sift_and_boundary(p)
+            if leaf != s1:
+                return None, boundary
+        return self.sifter.disagreement(witness, sprime, bytes([c]))
+
     def _act_on_disagreement(self, w, s1, fd) -> bool:
         """Weigh splitting ``s1`` on the edge into ``w[:fd]``: whether it split
         or asks for more members.  Any other end counts against the edge (see
-        ``given_up``)."""
+        ``given_up``), and an undecided read that stopped it is kept."""
         c = w[fd - 1]
         witness = self.dfa.witness(s1, c)
         sprime = w[: fd - 1]
-        distinguisher = None
-        if self._sift(witness) == s1 and self._sift(sprime) == s1:
-            distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
+        distinguisher, boundary = self._parting(w, s1, fd)
         if (
             distinguisher is not None
             and self.splits.verdict(s1, distinguisher) == SPLIT
@@ -477,6 +511,8 @@ class TransitionResolver:
                     self.population.add(p, at=self.tree.path_of(st))
             return True
         self.unsplit[s1, c] += 1
+        if boundary is not None:
+            self.stopped.append(boundary)
         if distinguisher is None:
             return False
         # The leaf may hold too few members of sprime's state to split on, even
