@@ -440,7 +440,7 @@ theorem power_tail (h0 : C.K.forced = ∅) (hτ : 0 ≤ τ) :
       ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, μ {ω | roundFind C (readsAt O B F ω)
           (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
         ≠ none} := by
-  rw [Set.setOf_exists, ← ENNReal.tsum_mul_left]
+  rw [Set.ofPred_exists, ← ENNReal.tsum_mul_left]
   exact (measure_iUnion_le _).trans
     (ENNReal.tsum_le_tsum fun κ => power_miss C O B F seed τ κ Rmax d h0 hτ)
 

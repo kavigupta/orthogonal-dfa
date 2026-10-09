@@ -64,8 +64,9 @@ Two claims are not proved, and are not assumed or sorried anywhere:
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
 2. The chance a round ends exhausted. Its parts: spurious live edges (`RoundStrongSpurious`,
    proved, with `BadRoute` as the residual), and power failure on a wrong edge between well-read,
-   separated states (the Hoeffding tail `two_sample_power` is proved; the held-out block it
-   needs is not yet modelled), composed over the round.
+   separated states (proved per key in `Proofs/Power.lean`: the round's first test at a key that
+   is in the power case or splits is a power-case test that does not split with chance at most
+   `e^{−τ²}` times the chance there is one), composed over the round.
 
 ## What to read
 
@@ -150,7 +151,13 @@ Two claims are not proved, and are not assumed or sorried anywhere:
   streak and stops at `patience` quiet probes or the backstop budget, every edge a refusal draw's
   search ends at is live, a gate passes only where its test settles above `acc`, the
   certificate's failure chance is spent per call, and on a refusal a class that fires ends the
-  round holding it, else live edges rerun, else the limit halves. Proved in
+  round holding it, else live edges rerun, else the limit halves. The split test counts the reads
+  of a held-out block `K.block F`, skipping a string the round has read before unless a test at
+  the same leaf and distinguisher counted it first; `KState.log` records what the round has read,
+  over-approximated by every read a step or a reading could make. The suffix-free premise covers
+  `F ∪ train ∪ block`. The certificate reads the tree, the edges, its draws and their bits. The
+  knobs' `forced` keys, whose tests are taken as not splitting, are none in the round itself; the
+  power proof couples the round to one forcing a key. Proved in
   `Proofs/RoundStrong.lean` and `Proofs/EdgeAttempts.lean`: `RoundStrongReadings`,
   `RoundStrongLeaves`, `RoundStrongSameState`, `RoundStrongLeafPaths`, `RoundStrongNoStop`,
   `RoundStrongTrichotomy` and `RoundStrongQuality` (the round's passes are decided by the bits at
