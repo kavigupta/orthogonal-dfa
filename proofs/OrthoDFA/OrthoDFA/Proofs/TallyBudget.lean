@@ -355,15 +355,15 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     (hharv : HarvestGood.{u, v}) (hsucc : SuccessSound.{u}) : TallyRound.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd nRec hP hS L T ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs
     η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond
-    hhP hhS hhS' hL1 ha ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hθe hXe0 hXe
-    hθs' hXs hlin hη hν hside hT
+    hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1
+    hlow hθe hXe0 hXe hθs' hXs hlin hη hν hside hT
   set Tsub := subT C (Fintype.card α) nEnd nRec
   set W := (S + Fintype.card σ + 1) * Tsub
   set U := (S + 1) * C.m
   set δ' := subOpen C (Fintype.card α) (Fintype.card σ) nRec U θr (termLevel nEnd hP hS θpt' εd')
   set φ := fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν
   set c := ENNReal.ofReal φ + ENNReal.ofReal ((S + Fintype.card σ + 1) * δ')
-    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
+    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 3 * (T * T)) * C.a)
   set M := toMeasurable μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
   have hτ0 := termLevel_nonneg (nEnd := nEnd) (hP := hP) (hS := hS) hθpt'0 hθpt'1 hεd'0 hεd'1
   have hδ'0 : 0 ≤ δ' := by
@@ -384,7 +384,7 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
             ≤ ENNReal.ofReal δ' := by
         intro s B T' hs hB hT'
         refine (hsub G (read · ω) D C S nEnd nRec hP hS B θpt' θr εd' hm hLmax hn₀ hn₀' hθpt0
-          hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' s hs T'
+          hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn s hs T'
           hT').trans (ENNReal.ofReal_le_ofReal ?_)
         simp only [δ', subOpen]
         have := binomSfGe_antitone' (n := nRec) hθr0 hθr1
@@ -397,8 +397,8 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
           Nat.mul_pos (Nat.succ_pos _) hm, by simp [U], le_rfl, hT⟩
       have h1 := round_budget G D C (read · ω) S hm hLmax hδ'0 hsb _ tallyStart 0 S
         (Fintype.card σ) W T rfl hstart₀
-      have h1' := hrace G (read · ω) D C S L W ρ θg θgs θgpt Xe θs' Xs η ν hlen hm hLmax hθe hρ0
-        hXe0 hXe hθs' hXs hlin hη hν hside hω T
+      have h1' := hrace G (read · ω) D C S L W ρ θg θgs θgpt Xe θs' Xs η ν hlen hm hLmax hθe hφe0
+        hρ0 hXe0 hXe hθs' hXs hlin hη hν hside hω T
       have hokb : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut) (OkEnd G S)
           tallyStart (List.ofFn xs)}
           ⊆ {xs | FailB G C (read · ω) S tallyStart 0 W T xs}
@@ -407,8 +407,8 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         have := fail_split G C (read · ω) S T tallyStart 0 W xs
           (Nat.mul_pos (Nat.succ_pos _) hm) hxs
         simpa [U] using this
-      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg
-        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hω
+      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hφe0
+        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1 hlow hω
       have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut) (GoodEnd G)
           tallyStart (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (tallyStep C cut) (OkEnd G S) tallyStart (List.ofFn xs)}
@@ -442,9 +442,9 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
             · exact absurd ((harvest_endsWell G D _ _ _).2 hge) hns
             · exact hge.elim
         · exact .inl hg
-      have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+      have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
           + ENNReal.ofReal (T * T * C.a)
-          = ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a) := by
+          = ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 3 * (T * T)) * C.a) := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         congr 1
         ring

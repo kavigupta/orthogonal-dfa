@@ -14,14 +14,16 @@ whose neighbours read alike). A clean disagreement records, at the edge it cross
 prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns it.
 
 Each place keeps its count over the whole round: the start, its undecided reads' strings, and
-each edge, the reads charged to it and the strings of those that were undecided. Every position a
-probe sifts past its start, the bisection's stepped-past middles included, charges its reads to an
-edge: the walk's edge out of that position, or, where there is none, the walk's last edge. The
-disagreement rate, and the undecided middles searches stop at, are counted over a stretch, which
-starts afresh whenever the tree or the edges change. After every probe:
-* the start-undecided rate above `θs`, an edge's undecided reads exceeding `θe` of its reads by
-  `exc` of them, or the share of the stretch's searches stopping at an undecided middle (a pair
-  or a triple) above `θpt`, ends the round with a harvest there;
+each edge, the positions charged to it and the strings read undecided at them. Every position past
+the start is charged to an edge: the walk's edge out of that position, or, where there is none,
+the walk's last edge; every position a probe sifts, the bisection's stepped-past middles included,
+keeps the string it read undecided, if any, at its edge. The disagreement rate, and the undecided
+middles searches stop at, are counted over a stretch, which starts afresh whenever the tree or the
+edges change. After every probe:
+* the start-undecided rate above `θs`; an edge charged at least `φe` of the round's probes, its
+  undecided strings exceeding `θe` of its positions by `exc` of them; or a stretch searching on at
+  least `φpt` of its probes, the share of its searches stopping at an undecided middle (a pair or
+  a triple) above `θpt`, ends the round with a harvest there;
 * the disagreement rate settling below `εd` ends it in success;
 * otherwise one edge is fixed. Where an edge has `m` records at a target it does not point at,
   its leaf splits on the letter and the midfix where that target and the current one part if the
@@ -153,6 +155,11 @@ def posEdgeBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (i
     Option (List Bool × α) :=
   (edgeAtBy cut t edges k x i).orElse fun _ => edgeAtBy cut t edges k x (i - 1)
 
+/-- How many of a probe's positions past its start are charged to the edge `e`. -/
+def travBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (e : List Bool × α) : ℕ :=
+  ((List.range (x.toList.length + 1)).filter fun i =>
+    k < i ∧ posEdgeBy cut t edges k x i = some e).length
+
 /-- How many reads a probe charges to the edge `e`. -/
 def edgeReadsBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
     (e : List Bool × α) : ℕ :=
@@ -189,8 +196,8 @@ end Probe
 
 /-- What the loop carries: the hypothesis, its version, each edge's records (the probe's prefix at
 the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
-its probes, the strings read undecided at the start, and for each edge the reads charged to it and
-the strings of those that were undecided. -/
+its probes, the strings read undecided at the start, and for each edge the positions charged to it
+and the strings read undecided at them. -/
 structure TState (α : Type*) where
   tree : DTree α
   edges : Edges α
@@ -201,7 +208,7 @@ structure TState (α : Type*) where
   pt : List (FreeMonoid α)
   probes : ℕ
   startH : List (FreeMonoid α)
-  reads : List Bool → α → ℕ
+  trav : List Bool → α → ℕ
   harv : List Bool → α → List (FreeMonoid α)
 
 /-- `s` with a fresh stretch. -/
@@ -238,7 +245,7 @@ def TState.charge (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : TState α
     pt := s.pt ++ ptHarvBy cut s.tree s.edges k x
     probes := s.probes + 1
     startH := s.startH ++ startHarvBy cut s.tree k x
-    reads := fun p c => s.reads p c + edgeReadsBy cut s.tree s.edges k x (p, c)
+    trav := fun p c => s.trav p c + travBy cut s.tree s.edges k x (p, c)
     harv := fun p c => s.harv p c ++ edgeHarvBy cut s.tree s.edges k x (p, c) }
 
 /-- The first state: the root reads at `ε`, no edge learned. -/
@@ -288,7 +295,8 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
   else .inl s
 
 /-- The loop's settings: the start, the records a fix takes, the cap, the tests' thresholds, level
-and first look, and the excess `exc r` an edge's undecided reads need after `r` reads. -/
+and first look, the excess `exc r` an edge's undecided strings need after `r` positions, and the
+traffic an edge test and the search rate a middles test need. -/
 structure TallyCfg where
   k : ℕ
   m : ℕ
@@ -300,6 +308,8 @@ structure TallyCfg where
   a : ℝ
   n₀ : ℕ
   exc : ℕ → ℝ
+  φe : ℝ
+  φpt : ℝ
 
 open scoped Classical in
 /-- A probe's reads charged, and its outcome learned, recorded or counted. -/
@@ -323,15 +333,18 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
   | _ => s₁
 
 open scoped Classical in
-/-- The tests: the start's undecided rate above `θs` over the round, an edge's undecided reads
-exceeding `θe` of its reads by `exc` of its reads, the share of the stretch's searches stopping at
-an undecided middle above `θpt`, or its disagreement rate settling below `εd`. -/
+/-- The tests: the start's undecided rate above `θs` over the round; at an edge charged at least
+`φe` of the probes, its undecided strings exceeding `θe` of its positions by `exc`; at a stretch
+searching on at least `φpt` of its probes, the share of its searches stopping at an undecided
+middle above `θpt`; or its disagreement rate settling below `εd`. -/
 noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=
   if rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true then some .harvestStart
   else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.paths
-      ∧ C.exc (s.reads e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.reads e.1 e.2 then
+      ∧ C.φe * s.probes ≤ s.trav e.1 e.2
+      ∧ C.exc (s.trav e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2 then
     some (.harvest h.choose)
-  else if rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true then some .harvestPT
+  else if C.φpt * s.n ≤ s.dis ∧ rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true then
+    some .harvestPT
   else if rateSide C.εd C.a C.n₀ s.n s.dis = some false then some .success
   else none
 

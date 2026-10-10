@@ -90,6 +90,15 @@ noise event `TallyE` as a hypothesis, to be bounded separately):
 2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only up to the
    noisy-split chance above and the non-power residual, which is stated, not bounded.
 
+The tally round's noise event `TallyE` is discharged field by field, and its edge and
+pair/triple fields need the reads to concentrate over the probes' length-`k` prefixes, which
+asks for an unrealistically small largest prefix mass `p₀`. The planned replacement drops that
+requirement: the tests count each string once, at its first read in the round, and a harvest is
+judged over those new strings. Each new string's read is then fresh when it is charged, so by lazy
+revelation the good read-states' undecided new strings at a place are at most binomial in the new
+strings read there, with no noise field, no union over the class and no `p₀`. It needs the probe's
+computation stated as an adaptive sequence of reads.
+
 Two gaps between the model and Python:
 
 - Each theorem is per round, with the family, the seed and the band fixed, and treats the noise
@@ -260,9 +269,10 @@ Two gaps between the model and Python:
   hypotheses recording at least `θr` of the time are one binomial over `nRec`. `FakeRace` is
   proved in `Proofs/TallyRace.lean`: `TallyE.spurious` bounds a probe's record not being true by
   `κ` times its undecided strings plus `ρ`, the edges' and the start's tests hold those strings
-  over the round to `θe` of the reads past `Xe` an edge and `θs'` of the probes past `Xs`, so the
+  over the round to `θe` of an edge's positions past `Xe` once the edge is charged `φe` of the
+  probes (an edge charged less holds them to that) and `θs'` of the probes past `Xs`, so the
   records that are not true less `ν/η` times the strings' excess exponentiate to a supermartingale
-  up to `ν (θe L Lmax + θs') + (e^η - 1) ρ` a probe.
+  up to `ν (θe (L + 1) + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

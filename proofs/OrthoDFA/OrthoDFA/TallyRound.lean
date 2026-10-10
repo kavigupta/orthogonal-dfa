@@ -20,8 +20,9 @@ event `TallyE` is a hypothesis on `rd`, quantified over the class and edges into
   have mass at most `κ` times a probe's undecided strings, at the start and charged to the edges
   out of the leaves (`twinsBy`), plus `ρ`;
 * `goodEdge`, `goodStart`, `goodPT`: good read-states' undecided reads average at most `θg` of an
-  edge's reads, and `θgs` a probe at the start; at most `θgpt` of the searches stop at an
-  undecided middle read at a good read-state.
+  edge's positions, up to a slack the edge test's traffic gate covers, and `θgs` a probe at the
+  start; at most `θgpt` of the searches stop at an undecided middle read at a good read-state,
+  up to a slack the middles test's search-rate gate covers.
 
 A sub-round starts at a tree of the class with no records and a fresh stretch, and lasts until the
 tree changes or the round ends. Each hypothesis ends the round or changes within `nEnd` probes but
@@ -158,10 +159,12 @@ structure TallyE {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)
       ≤ G.κ * ∫ x, (twinsBy (fun z => (rd z).cut) T edges C.k x : ℝ) ∂D + ρ
   goodEdge : ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ e,
     ∫ x, (G.undecAt rd C.k T edges e G.Good x : ℝ) ∂D
-      ≤ θg * ∫ x, (edgeReadsBy (fun z => (rd z).cut) T edges C.k x e : ℝ) ∂D
+      ≤ θg * ∫ x, (travBy (fun z => (rd z).cut) T edges C.k x e : ℝ) ∂D
+        + C.φe * (C.θe / 2 - 2 * θg) / 2
   goodStart : ∀ T, G.InClass S T → D.real (G.startAt rd C.k T G.Good) ≤ θgs
   goodPT : ∀ T edges, G.InClass S T → EdgesInto T edges →
-    D.real (G.ptAt rd C.k T edges G.Good) ≤ θgpt * D.real (ReadModel.searchAt rd C.k T edges)
+    D.real (G.ptAt rd C.k T edges G.Good)
+      ≤ θgpt * D.real (ReadModel.searchAt rd C.k T edges) + θgpt * C.φpt / 2
 
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
 def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S → Prop) :
@@ -250,7 +253,7 @@ def SubRound : Prop :=
     C.n₀ ≤ hS + 1 → 0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
     0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
     binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
-    C.a ≤ binomSfGe nEnd C.εd hS →
+    C.a ≤ binomSfGe nEnd C.εd hS → C.φpt * nEnd ≤ hS + 1 →
     ∀ s, SubStart G S s → ∀ T, subT C (Fintype.card α) nEnd nRec ≤ T →
       (Measure.pi fun _ : Fin T => D)
           {xs | SubOpen G C rd s B (subT C (Fintype.card α) nEnd nRec) T xs}
@@ -271,22 +274,23 @@ def UntrueHit {σ : Type*} (G : ReadModel α σ) (C : TallyCfg) (rd : FreeMonoid
 
 /-- The chance that the round's records that are not true reach `(S + 1) m` within `W` probes:
 a probe's are at most `κ` times its undecided strings plus `ρ`, which the start's and the edges'
-tests hold to `θs'` a probe past `Xs` and `θe` a read past `Xe` at each of at most `2 Lmax |Σ|`
-edges, with at most `L + 1` undecided strings and `L Lmax` reads a probe. -/
+tests hold to `θs'` a probe past `Xs`, and at each of at most `2 Lmax |Σ|` edges to `θe` of its
+positions past `Xe` once charged `φe` of the probes, with at most `L + 1` undecided strings and
+`L + 1` positions a probe. -/
 noncomputable def fakeRun (C : TallyCfg) (nα S L W : ℕ) (ρ Xe θs' Xs η ν : ℝ) : ℝ :=
   Real.exp (-η * ((S + 1) * C.m) + ν * (2 * C.Lmax * nα * Xe + Xs)
-    + W * (ν * (C.θe * (L * C.Lmax) + θs') + (Real.exp η - 1) * ρ))
+    + W * (ν * (C.θe * (L + 1) + θs' + 2 * C.Lmax * nα * C.φe) + (Real.exp η - 1) * ρ))
 
 /-- `FakeRace`: with draws of length at most `L`, every edge excess at most `Xe`, the start's test
 firing past `θs'` of `n` probes and `Xs`, and `(e^η - 1) κ (L + 1) ≤ 1 - e^{-ν (L + 1)}`, the
 round's records that are not true reach `(S + 1) m` within `W` probes with chance at most
-`fakeRun`. -/
+`fakeRun`; an edge charged less than `φe` of the probes holds its undecided strings to that. -/
 def FakeRace : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : TallyCfg) (S L W : ℕ) (ρ θg θgs θgpt Xe θs' Xs η ν : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → 0 ≤ C.θe →
-    0 ≤ ρ → 0 ≤ Xe → (∀ j, C.exc j ≤ Xe) → 0 ≤ θs' → C.n₀ ≤ Xs →
+    0 ≤ C.φe → 0 ≤ ρ → 0 ≤ Xe → (∀ j, C.exc j ≤ Xe) → 0 ≤ θs' → C.n₀ ≤ Xs →
     (∀ n h : ℕ, C.n₀ ≤ n → θs' * n + Xs ≤ h → binomSfGe n C.θs h < C.a) →
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
     TallyE G D C S ρ θg θgs θgpt rd →
@@ -295,26 +299,29 @@ def FakeRace : Prop :=
       ≤ ENNReal.ofReal (fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν)
 
 /-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, every edge excess above
-`4 L (1 + 4 θg Lmax) log(1/a)`, and the start's and the middles' tests firing only where good
-read-states' undecided reads reach half their count with chance at most `a`, the round ends in a
-harvest at a tree of the class most of whose strings are at good read-states with chance at most
-`(2^(Lmax+1) |Σ| + T + T²) a`. -/
+`4 L (1 + 4 θg Lmax) log(1/a)`, the start's and the middles' tests firing only where good
+read-states' undecided reads (at `2θgpt` of searches for the middles) reach half their count with
+chance at most `a`, and a stretch searching on at most `φpt/2` of its probes reaching `φpt` of
+`n ≥ n₀` with chance at most `a`, the round ends in a harvest at a tree of the class most of whose
+strings are at good read-states with chance at most `(2^(Lmax+1) |Σ| + T + 2T²) a`. -/
 def HarvestGood : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : TallyCfg) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.m → 0 < C.a → C.a ≤ 1 → 0 ≤ θg →
-    4 * θg ≤ C.θe → Fintype.card σ + S + 2 ≤ C.Lmax →
+    4 * θg ≤ C.θe → 0 ≤ C.φe → Fintype.card σ + S + 2 ≤ C.Lmax →
     (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
-    0 ≤ θgpt → θgpt ≤ 1 →
-    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t θgpt ((h + 1) / 2) ≤ C.a) →
+    0 ≤ θgpt → 2 * θgpt ≤ 1 →
+    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.a) →
+    0 ≤ C.φpt → C.φpt ≤ 1 →
+    (∀ n, C.n₀ ≤ n → binomSfGe n (C.φpt / 2) ⌈C.φpt * n⌉₊ ≤ C.a) →
     TallyE G D C S ρ θg θgs θgpt rd →
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (tallyStep C fun z => (rd z).cut)
           (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig ∧ ¬ GoodEnd G e s') tallyStart
           (List.ofFn xs)}
-      ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+      ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
 
 /-- `SuccessSound`: a round ends in success at a hypothesis disagreeing on at least `εd` of the
 probes with chance at most `T² a`. -/
@@ -345,12 +352,14 @@ def TallyRound : Prop :=
     C.n₀ ≤ hS + 1 → 0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
     0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
     binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
-    C.a ≤ binomSfGe nEnd C.εd hS →
-    1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe →
+    C.a ≤ binomSfGe nEnd C.εd hS → C.φpt * nEnd ≤ hS + 1 →
+    1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe → 0 ≤ C.φe →
     (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
-    0 ≤ θgpt → θgpt ≤ 1 →
-    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t θgpt ((h + 1) / 2) ≤ C.a) →
+    0 ≤ θgpt → 2 * θgpt ≤ 1 →
+    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.a) →
+    0 ≤ C.φpt → C.φpt ≤ 1 →
+    (∀ n, C.n₀ ≤ n → binomSfGe n (C.φpt / 2) ⌈C.φpt * n⌉₊ ≤ C.a) →
     0 ≤ C.θe → 0 ≤ Xe → (∀ j, C.exc j ≤ Xe) → 0 ≤ θs' → C.n₀ ≤ Xs →
     (∀ n h : ℕ, C.n₀ ≤ n → θs' * n + Xs ≤ h → binomSfGe n C.θs h < C.a) →
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
@@ -363,7 +372,7 @@ def TallyRound : Prop :=
           ((S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec) ρ Xe θs' Xs η ν)
         + ENNReal.ofReal ((S + Fintype.card σ + 1) * subOpen C (Fintype.card α) (Fintype.card σ)
           nRec ((S + 1) * C.m) θr (termLevel nEnd hP hS θpt' εd'))
-        + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
+        + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 3 * (T * T)) * C.a)
 
 end OrthoDFA
 

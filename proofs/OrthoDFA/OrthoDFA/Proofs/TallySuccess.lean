@@ -21,13 +21,6 @@ section Success
 
 variable (C : TallyCfg) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
-/-- The hypothesis's disagreement rate: the probes that search. -/
-noncomputable def disRate (s : TState α) : ℝ := D.real (ReadModel.searchAt rd C.k s.tree s.edges)
-
-/-- The searches a probe adds to the stretch's count. -/
-noncomputable def dt (s : TState α) (x : FreeMonoid α) : ℕ :=
-  (tallyPre C (fun z => (rd z).cut) s x).dis - s.dis
-
 /-- From `s`, at a hypothesis disagreeing on at least `εd` of the probes, the next `N + 1` probes
 stay in the stretch and search at most `h` times. -/
 def EvC : ℕ → ℕ → TState α → List (FreeMonoid α) → Prop
