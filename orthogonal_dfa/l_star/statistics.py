@@ -137,6 +137,9 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
 #: rarer decided side may be read.
 MINORITY_READ_LIMIT = 0.01
 
+#: In such a state, the most its rarer decided side may be read per undecided read.
+MINORITY_UNDECIDED_RATIO = 4e-3
+
 
 def evidence_margin_for_population_size(
     signal_strength, cross_limit, acceptable_fnr, N, *, center
@@ -168,6 +171,7 @@ def evidence_margin_for_population_size(
                 reject_rate=center - signal_strength,
                 limit=cross_limit,
                 minority_limit=MINORITY_READ_LIMIT,
+                minority_ratio=MINORITY_UNDECIDED_RATIO,
             )
         ):
             return N, eps
@@ -189,12 +193,13 @@ def _vote_parts(N, accept_rate, reject_rate):
 
 
 def reads_trichotomous(
-    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit
+    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit, minority_ratio
 ):
     """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
     lead into the language (each voting accept at `accept_rate`, the rest at
     `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
-    or undecided at least a third with accept or reject at most `minority_limit`.
+    or undecided at least a third with accept or reject at most `minority_limit` and the
+    rarer of them at most `minority_ratio` times the undecided.
     `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
@@ -207,8 +212,13 @@ def reads_trichotomous(
     accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
     undecided = 1 - accept - reject
     leans = (accept <= minority_limit) | (reject <= minority_limit)
+    rare = np.minimum(accept, reject) <= minority_ratio * undecided
     return bool(
-        np.all((accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3)))
+        np.all(
+            (accept <= limit)
+            | (reject <= limit)
+            | (leans & (undecided >= 1 / 3) & rare)
+        )
     )
 
 

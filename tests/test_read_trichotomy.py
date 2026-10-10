@@ -2,6 +2,7 @@ import unittest
 
 from orthogonal_dfa.l_star.statistics import (
     MINORITY_READ_LIMIT,
+    MINORITY_UNDECIDED_RATIO,
     evidence_margin_for_population_size,
     reads_trichotomous,
 )
@@ -24,6 +25,7 @@ class TestReadTrichotomy(unittest.TestCase):
                 reject_rate=CENTER - SIGNAL,
                 limit=CROSS_LIMIT,
                 minority_limit=MINORITY_READ_LIMIT,
+                minority_ratio=MINORITY_UNDECIDED_RATIO,
             )
         )
 
@@ -35,15 +37,21 @@ class TestReadTrichotomy(unittest.TestCase):
         )
 
     def test_shipped_band_is_trichotomous(self):
-        self.assertTrue(self._shipped_band(MINORITY_READ_LIMIT))
+        self.assertTrue(
+            self._shipped_band(MINORITY_READ_LIMIT, MINORITY_UNDECIDED_RATIO)
+        )
 
     def test_shipped_band_fails_a_tighter_minority_limit(self):
         # The state with half its suffixes in the language reads each way 4.1e-4 of
         # the time, with neither side under the cross limit.
-        self.assertFalse(self._shipped_band(1e-4))
+        self.assertFalse(self._shipped_band(1e-4, MINORITY_UNDECIDED_RATIO))
+
+    def test_shipped_band_fails_a_tighter_minority_ratio(self):
+        # Its worst state reads its rarer side 4.1e-4 times per undecided read.
+        self.assertFalse(self._shipped_band(MINORITY_READ_LIMIT, 4e-4))
 
     @staticmethod
-    def _shipped_band(minority_limit):
+    def _shipped_band(minority_limit, minority_ratio):
         return reads_trichotomous(
             20,
             42,
@@ -52,4 +60,5 @@ class TestReadTrichotomy(unittest.TestCase):
             reject_rate=0.2,
             limit=1e-10,
             minority_limit=minority_limit,
+            minority_ratio=minority_ratio,
         )

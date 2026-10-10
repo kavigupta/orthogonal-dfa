@@ -346,7 +346,7 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
 
 theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
   classical
-  intro Ω _ μ _ α σ _ O M F kl kh ε ε₂ hL hF hband
+  intro Ω _ μ _ α σ _ O M F kl kh ε ε₂ κ hL hF hband
   refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
   refine ⟨readLaw F.card (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card
     (1 - O.ηIn) O.ηOut kl kh, fun w hw => funext fun rd => ?_,
@@ -382,9 +382,9 @@ theorem selection_not_trichotomy :
           - binomCdf 15 2 (17 / 30 + (17 / 30 - 67 / 500)))
         (binomCdf 15 (15 - 1) (17 / 30 - (17 / 30 - 67 / 500))
           - binomCdf 15 2 (17 / 30 - (17 / 30 - 67 / 500))) ≤ 33 / 100
-    ∧ ∀ ε₂, ¬ BandPasses 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
-        (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) ε₂ := by
-  refine ⟨?_, ?_, fun ε₂ h => ?_⟩
+    ∧ ∀ ε₂ κ, ¬ BandPasses 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
+        (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) ε₂ κ := by
+  refine ⟨?_, ?_, fun ε₂ κ h => ?_⟩
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
     norm_num [Nat.choose]
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
@@ -395,7 +395,7 @@ theorem selection_not_trichotomy :
           .reject ≤ (2 / 15) ^ 15
         ∨ 1 / 3 ≤ readLaw 15 0 (17 / 30 + (17 / 30 - 67 / 500))
           (17 / 30 - (17 / 30 - 67 / 500)) 2 15 .undecided :=
-      (h 0 (by norm_num)).imp_right (Or.imp_right And.right)
+      (h 0 (by norm_num)).imp_right (Or.imp_right fun h => h.2.1)
     rcases h0 with h | h | h <;>
       simp only [readLaw, voteLaw_zero, Finset.sum_range_succ, Finset.sum_range_zero,
         readOf] at h <;>

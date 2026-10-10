@@ -47,15 +47,17 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- The target, each of its states' read law, and what makes a read-state good. Every law is
 accept at most `ε` of the time, or reject at most `ε`, or undecided at least a third with accept
-or reject at most `ε₂`. -/
+or reject at most `ε₂` and the rarer of them at most `κ` times the undecided. -/
 structure ReadModel (α σ : Type*) where
   M : _root_.DFA α σ
   dist : σ → ARU → ℝ
   θ : ℝ
   ε : ℝ
   ε₂ : ℝ
+  κ : ℝ
   trich : ∀ r, dist r .accept ≤ ε ∨ dist r .reject ≤ ε
-    ∨ ((dist r .accept ≤ ε₂ ∨ dist r .reject ≤ ε₂) ∧ 1 / 3 ≤ dist r .undecided)
+    ∨ ((dist r .accept ≤ ε₂ ∨ dist r .reject ≤ ε₂) ∧ 1 / 3 ≤ dist r .undecided
+      ∧ min (dist r .accept) (dist r .reject) ≤ κ * dist r .undecided)
 
 namespace ReadModel
 
