@@ -10,12 +10,11 @@
   `2·indecisionLimit + slack` of the time on each.
 - `OrthoDFA/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`,
   reject at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query
-  `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's, the family
-  suffix-free and the band passing `BandPasses`, the reads are independent across strings and
-  every DFA state has one distribution its strings read with, which is accept at most `ε` of the
-  time, or reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`.
-  `BandPasses` is the check the band selection rule `evidence_margin_for_population_size` makes,
-  at `ε = cross_limit` and `ε₂ = MINORITY_READ_LIMIT`.
+  `w·v` answers 1.  `FamilyReadBound`: with the language a DFA's, the family suffix-free
+  and the band passing `BandPasses`, the reads are independent across strings and every DFA
+  state has one distribution its strings read with, which is on its rarer decided side at most
+  `κ` times as often as it is undecided.  `BandPasses` is the check the band selection rule
+  `evidence_margin_for_population_size` makes, at `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
