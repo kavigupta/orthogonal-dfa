@@ -19,10 +19,10 @@ event `TallyE` is a hypothesis on `rd`, quantified over the class and edges into
 * `spurious`: probes whose record is not true (its prefix or its successor off its true leaf)
   have mass at most `κ` times a probe's undecided strings, at the start and charged to the edges
   out of the leaves (`twinsBy`), plus `ρ`;
-* `goodEdge`, `goodStart`, `goodPT`: good read-states' undecided reads average at most `θg` of an
-  edge's positions, up to a slack the edge test's traffic gate covers, and `θgs` a probe at the
-  start; at most `θgpt` of the searches stop at an undecided middle read at a good read-state,
-  up to a slack the middles test's search-rate gate covers.
+* `goodEdge`, `goodStart`, `goodPT`: good read-states' undecided first reads average at most `θg`
+  of an edge's first reads, up to a slack the edge test's traffic gate covers, and `θgs` a probe
+  at the start; at most `θgpt` of the searches stop at an undecided middle read at a good
+  read-state, up to a slack the middles test's search-rate gate covers.
 
 A sub-round starts at a tree of the class with no records and a fresh stretch, and lasts until the
 tree changes or the round ends. Each hypothesis ends the round or changes within `nEnd` probes but
@@ -275,11 +275,12 @@ def UntrueHit {σ : Type*} (G : ReadModel α σ) (C : TallyCfg) (rd : FreeMonoid
 /-- The chance that the round's records that are not true reach `(S + 1) m` within `W` probes:
 a probe's are at most `κ` times its undecided strings plus `ρ`, which the start's and the edges'
 tests hold to `θs'` a probe past `Xs`, and at each of at most `2 Lmax |Σ|` edges to `θe` of its
-positions past `Xe` once charged `φe` of the probes, with at most `L + 1` undecided strings and
-`L + 1` positions a probe. -/
+reads past `Xe` once charged `φe` of the probes, with at most `L + 1` undecided strings and
+`(L + 1) Lmax` first reads a probe. -/
 noncomputable def fakeRun (C : TallyCfg) (nα S L W : ℕ) (ρ Xe θs' Xs η ν : ℝ) : ℝ :=
   Real.exp (-η * ((S + 1) * C.m) + ν * (2 * C.Lmax * nα * Xe + Xs)
-    + W * (ν * (C.θe * (L + 1) + θs' + 2 * C.Lmax * nα * C.φe) + (Real.exp η - 1) * ρ))
+    + W * (ν * (C.θe * ((L + 1) * C.Lmax) + θs' + 2 * C.Lmax * nα * C.φe)
+      + (Real.exp η - 1) * ρ))
 
 /-- `FakeRace`: with draws of length at most `L`, every edge excess at most `Xe`, the start's test
 firing past `θs'` of `n` probes and `Xs`, and `(e^η - 1) κ (L + 1) ≤ 1 - e^{-ν (L + 1)}`, the
@@ -299,7 +300,7 @@ def FakeRace : Prop :=
       ≤ ENNReal.ofReal (fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν)
 
 /-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, every edge excess above
-`4 L (1 + 4 θg Lmax) log(1/a)`, the start's and the middles' tests firing only where good
+`4 (L + 1)(1 + 4 θg Lmax) log(1/a)`, the start's and the middles' tests firing only where good
 read-states' undecided reads (at `2θgpt` of searches for the middles) reach half their count with
 chance at most `a`, and a stretch searching on at most `φpt/2` of its probes reaching `φpt` of
 `n ≥ n₀` with chance at most `a`, the round ends in a harvest at a tree of the class most of whose
@@ -310,7 +311,7 @@ def HarvestGood : Prop :=
     (C : TallyCfg) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.m → 0 < C.a → C.a ≤ 1 → 0 ≤ θg →
     4 * θg ≤ C.θe → 0 ≤ C.φe → Fintype.card σ + S + 2 ≤ C.Lmax →
-    (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     0 ≤ θgpt → 2 * θgpt ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.a) →
@@ -354,7 +355,7 @@ def TallyRound : Prop :=
     binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS → C.φpt * nEnd ≤ hS + 1 →
     1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe → 0 ≤ C.φe →
-    (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     0 ≤ θgpt → 2 * θgpt ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.a) →

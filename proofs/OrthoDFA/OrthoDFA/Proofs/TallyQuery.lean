@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.QueryTree
-import OrthoDFA.Proofs.TallyEdgeNoise
+import OrthoDFA.Proofs.TallyWalk
 
 /-!
 # A probe as a query tree
@@ -500,64 +500,6 @@ theorem untrue_minority {σ : Type*} (G : ReadModel α σ) (hx : x ∈ G.untrueA
     obtain ⟨w, hw, hcw⟩ := minority_of_sift G T _ _ ht hn
     exact ⟨((fd, none), w), by simp [hw], hcw⟩
 
-/-- An undecided read stops a sift the tests charge it to: the start's, or a position's charged
-to an edge out of a leaf. -/
-theorem und_mem_twins (he : EdgesInto T edges) (q : PLabel α × FreeMonoid α)
-    (hq : q ∈ (recordQ T edges k x).asks rd) (hu : (rd q.2).cut = none) :
-    q.2 ∈ startHarvBy (fun z => (rd z).cut) T k x
-      ++ (T.paths.toFinset ×ˢ (Finset.univ : Finset α)).toList.flatMap
-        (edgeHarvBy (fun z => (rd z).cut) T edges k x) := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  rw [asks_recordQ, List.mem_append] at hq
-  rcases hq with hq | hq
-  · obtain ⟨hr, hpos⟩ := asks_probeQ T edges k x rd q hq
-    have hs := sift_of_route_und T _ _ hr hu
-    rcases hpos with hpos | ⟨hi, e, he', -⟩
-    · rw [hpos] at hs
-      refine List.mem_append_left _ ?_
-      simp [startHarvBy, cut, hs]
-    · refine List.mem_append_right _ (List.mem_flatMap.2 ⟨e, ?_, ?_⟩)
-      · simp only [Finset.mem_toList, Finset.mem_product, List.mem_toFinset, Finset.mem_univ,
-          and_true]
-        exact posEdgeBy_mem_paths he he'
-      · simp only [edgeHarvBy, List.mem_filterMap]
-        exact ⟨q.1.1, hi, by simp [he', cut, hs]⟩
-  · exfalso
-    rcases ho : probeBy cut T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;>
-      rw [ho] at hq <;> simp only [List.not_mem_nil] at hq
-    obtain ⟨-, hs1, t, hs2⟩ := probeBy_edge T edges k x rd ho
-    simp only [List.mem_append, List.mem_map] at hq
-    rcases hq with ⟨w, hw, rfl⟩ | ⟨w, hw, rfl⟩
-    · exact sift_route_decided T hs1 hw hu
-    · exact sift_route_decided T hs2 hw hu
-
-/-- The undecided first reads are at most the probe's undecided strings the tests count. -/
-theorem und_twins (he : EdgesInto T edges) :
-    (((recordQ T edges k x).firsts rd ∅).filter fun q => (rd q.2).cut = none).length
-      ≤ twinsBy (fun z => (rd z).cut) T edges k x := by
-  set L := startHarvBy (fun z => (rd z).cut) T k x
-      ++ (T.paths.toFinset ×ˢ (Finset.univ : Finset α)).toList.flatMap
-        (edgeHarvBy (fun z => (rd z).cut) T edges k x)
-  have hL : L.length = twinsBy (fun z => (rd z).cut) T edges k x := by
-    simp only [L, twinsBy, List.length_append, List.length_flatMap, Finset.sum_map_toList]
-  set F := ((recordQ T edges k x).firsts rd ∅).filter fun q => (rd q.2).cut = none
-  obtain ⟨hnd, hkeys⟩ := QTree.firsts_keys_eq rd (recordQ T edges k x) ∅
-  have hnd' : (F.map Prod.snd).Nodup := hnd.sublist (List.filter_sublist.map _)
-  have hsub : F.map Prod.snd ⊆ L := by
-    intro w hw
-    obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hw
-    rw [List.mem_filter, decide_eq_true_eq] at hq
-    have hk : q.2 ∈ ((recordQ T edges k x).asks rd).map Prod.snd := by
-      have : q.2 ∈ (((recordQ T edges k x).firsts rd ∅).map Prod.snd).toFinset :=
-        List.mem_toFinset.2 (List.mem_map_of_mem hq.1)
-      rw [hkeys, Finset.sdiff_empty, List.mem_toFinset] at this
-      exact this
-    obtain ⟨q', hq', heq⟩ := List.mem_map.1 hk
-    rw [← heq] at hq ⊢
-    exact und_mem_twins T edges k x rd he q' hq' hq.2
-  rw [← hL, ← List.length_map (f := Prod.snd)]
-  exact (hnd'.subperm hsub).length_le
-
 end Record
 
 section Mean
@@ -617,61 +559,6 @@ theorem minority_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : 
   rcases le_total G.ε (G.κ * G.dist (G.M.eval w.toList) .undecided) with h | h
   · rw [max_eq_right h]; exact le_add_right le_rfl
   · rw [max_eq_left h]; exact le_add_left le_rfl
-
-/-- The coupled `spurious` field in mean, at one probe: its chance of a record that is not true
-is at most `κ` times its mean undecided strings plus `ε` times its mean first reads. -/
-theorem spurious_mean (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (he : EdgesInto T edges) (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ) :
-    ∫⁻ ω, (G.untrueAt (fun y => read y ω) k T edges).indicator 1 x ∂μ
-      ≤ ENNReal.ofReal G.κ * ∫⁻ ω, (twinsBy (fun z => (read z ω).cut) T edges k x : ENNReal) ∂μ
-        + ENNReal.ofReal G.ε
-          * ∫⁻ ω, (((recordQ T edges k x).firsts (fun y => read y ω) ∅).length : ENNReal) ∂μ := by
-  set t := recordQ T edges k x
-  have hfs : ∀ rd : FreeMonoid α → ARU,
-      QTree.fsum (fun _ _ v => (if v = .undecided then ENNReal.ofReal G.κ else 0)
-        + ENNReal.ofReal G.ε) rd ∅ t
-      = ENNReal.ofReal G.κ * ((t.firsts rd ∅).filter fun q => (rd q.2).cut = none).length
-        + ENNReal.ofReal G.ε * (t.firsts rd ∅).length := by
-    intro rd
-    unfold QTree.fsum
-    induction t.firsts rd ∅ with
-    | nil => simp
-    | cons q l ih =>
-      simp only [List.map_cons, List.sum_cons, ih, List.filter_cons, List.length_cons]
-      rcases h : rd q.2 <;> simp [ARU.cut, h] <;> push_cast <;> ring
-  calc ∫⁻ ω, (G.untrueAt (fun y => read y ω) k T edges).indicator 1 x ∂μ
-      ≤ ∫⁻ ω, QTree.fsum (fun _ w v => if v = G.minVal (G.M.eval w.toList) then 1 else 0)
-          (fun y => read y ω) ∅ t ∂μ := by
-        refine lintegral_mono fun ω => ?_
-        by_cases hx : x ∈ G.untrueAt (fun y => read y ω) k T edges
-        · rw [Set.indicator_of_mem hx, Pi.one_apply]
-          obtain ⟨q, hq, hc⟩ := untrue_minority T edges k x _ G hx
-          have hk : q.2 ∈ ((t.firsts (fun y => read y ω) ∅).map Prod.snd).toFinset := by
-            rw [(QTree.firsts_keys_eq _ t ∅).2, Finset.sdiff_empty, List.mem_toFinset]
-            exact List.mem_map_of_mem hq
-          obtain ⟨q', hq', heq⟩ := List.mem_map.1 (List.mem_toFinset.1 hk)
-          unfold QTree.fsum
-          refine le_trans ?_ (List.single_le_sum (fun _ _ => zero_le) _
-            (List.mem_map_of_mem hq'))
-          have hv := (cut_minVal G _ _).1 hc
-          simp only [heq, hv, if_true, le_refl]
-        · rw [Set.indicator_of_notMem hx]; exact zero_le
-    _ ≤ _ := minority_mean G hmeas hind hlaw hκ t
-    _ ≤ ∫⁻ ω, ENNReal.ofReal G.κ * (twinsBy (fun z => (read z ω).cut) T edges k x : ENNReal)
-          + ENNReal.ofReal G.ε * ((t.firsts (fun y => read y ω) ∅).length : ENNReal) ∂μ := by
-        refine lintegral_mono fun ω => ?_
-        rw [hfs]
-        gcongr
-        exact_mod_cast und_twins T edges k x (fun y => read y ω) he
-    _ = _ := by
-        have hm : Measurable fun ω =>
-            ENNReal.ofReal G.ε * ((t.firsts (fun y => read y ω) ∅).length : ENNReal) := by
-          refine Measurable.const_mul ?_ _
-          simp_rw [← fsum_one]
-          exact QTree.fsum_measurable _ read hmeas ∅ t
-        rw [lintegral_add_right _ hm, lintegral_const_mul' _ _ ENNReal.ofReal_ne_top,
-          lintegral_const_mul' _ _ ENNReal.ofReal_ne_top]
 
 /-- The per-read edge field in mean, each string counted at its first read in the probe: a query
 tree's undecided first reads labelled `e` at read-states where undecided reads are at most `θ'`

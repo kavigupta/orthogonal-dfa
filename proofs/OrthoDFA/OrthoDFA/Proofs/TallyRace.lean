@@ -69,141 +69,6 @@ section Charges
 
 variable (cut : FreeMonoid α → Option Bool)
 
-omit [Fintype α] [DecidableEq α] in
-theorem sum_filterMap_le {ι κ β : Type*} [DecidableEq κ] (f : ι → Option κ) (h : ι → Option β)
-    (K : Finset κ) : ∀ l : List ι,
-    ∑ e ∈ K, (l.filterMap fun i => if f i = some e then h i else none).length ≤ l.length
-  | [] => by simp
-  | i :: l => by
-    have ih := sum_filterMap_le f h K l
-    have h1 : ∑ e ∈ K, (if f i = some e ∧ (h i).isSome then 1 else 0) ≤ 1 := by
-      rcases hf : f i with _ | v
-      · simp
-      · simp only [Option.some.injEq]
-        calc _ ≤ ∑ e ∈ K, (if v = e then 1 else 0) := Finset.sum_le_sum fun e _ => by
-              split_ifs <;> simp_all
-          _ ≤ 1 := by rw [Finset.sum_ite_eq]; split_ifs <;> omega
-    have h2 : ∀ e, (List.filterMap (fun i => if f i = some e then h i else none) (i :: l)).length
-        = (if f i = some e ∧ (h i).isSome then 1 else 0)
-          + (l.filterMap fun i => if f i = some e then h i else none).length := by
-      intro e
-      by_cases hfe : f i = some e
-      · rcases hh : h i with _ | b <;> simp [List.filterMap_cons, hfe, hh, add_comm]
-      · simp [List.filterMap_cons, hfe]
-    simp only [h2, Finset.sum_add_distrib, List.length_cons]
-    omega
-
-/-- A probe's undecided strings charged to the edges of `K` are at most its positions. -/
-theorem sum_edgeHarvBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (K : Finset (List Bool × α)) :
-    ∑ e ∈ K, (edgeHarvBy cut T edges k x e).length ≤ x.toList.length :=
-  (sum_filterMap_le _ _ K _).trans (siftsBy_length_le cut)
-
-theorem twinsBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    twinsBy cut T edges k x ≤ x.toList.length + 1 := by
-  have h1 : (startHarvBy cut T k x).length ≤ 1 := by
-    unfold startHarvBy; rcases T.sift cut (prefixOf x k) with _ | b <;> simp
-  have h2 := sum_edgeHarvBy_le cut T edges k x (T.paths.toFinset ×ˢ Finset.univ)
-  unfold twinsBy
-  omega
-
-/-- A probe charges only edges out of leaves. -/
-theorem posEdgeBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
-    {x : FreeMonoid α} {i : ℕ} {e : List Bool × α} (h : posEdgeBy cut T edges k x i = some e) :
-    e.1 ∈ T.paths := by
-  have hat : ∀ j, edgeAtBy cut T edges k x j = some e → e.1 ∈ T.paths := by
-    intro j hj
-    unfold edgeAtBy at hj
-    rcases hl : (walkToBy cut T edges k x j).getLast? with _ | p <;>
-      rcases hc : x.toList[j]? with _ | c <;> simp [hl, hc] at hj
-    subst hj
-    unfold walkToBy at hl
-    rcases hs : T.sift cut (prefixOf x k) with p₀ | b <;> simp only [hs] at hl
-    · rcases hf : follow edges p₀ ((x.toList.drop k).take (j - k)) with ps | _ <;>
-        simp only [hf, Sum.elim_inl, Sum.elim_inr, id] at hl
-      · exact follow_mem_paths he _ p₀ ps (DTree.sift_mem_paths _ _ _ hs) hf p
-          (List.mem_of_getLast? hl)
-      · simp at hl
-    · simp at hl
-  unfold posEdgeBy at h
-  rcases ha : edgeAtBy cut T edges k x i with _ | e'
-  · rw [ha] at h; exact hat _ (by simpa using h)
-  · rw [ha] at h; simp only [Option.orElse_some, Option.some.injEq] at h; subst h; exact hat _ ha
-
-theorem edgeHarvBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
-    {x : FreeMonoid α} {e : List Bool × α} (h : edgeHarvBy cut T edges k x e ≠ []) :
-    e.1 ∈ T.paths := by
-  obtain ⟨b, hb⟩ := List.exists_mem_of_ne_nil _ h
-  unfold edgeHarvBy at hb
-  obtain ⟨i, -, hi⟩ := List.mem_filterMap.1 hb
-  split_ifs at hi with hp
-  exact posEdgeBy_mem cut he hp
-
-theorem sum_travBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (K : Finset (List Bool × α)) :
-    ∑ e ∈ K, travBy cut T edges k x e ≤ x.toList.length + 1 := by
-  unfold travBy
-  suffices h : ∀ l : List ℕ, ∑ e ∈ K, (l.filter fun i =>
-      decide (k < i ∧ posEdgeBy cut T edges k x i = some e)).length ≤ l.length by
-    simpa using h (List.range (x.toList.length + 1))
-  intro l
-  induction l with
-  | nil => simp
-  | cons i l ih =>
-    have h1 : ∑ e ∈ K, (if k < i ∧ posEdgeBy cut T edges k x i = some e then 1 else 0) ≤ 1 := by
-      rcases hf : posEdgeBy cut T edges k x i with _ | v
-      · simp
-      · calc _ ≤ ∑ e ∈ K, (if v = e then 1 else 0) := Finset.sum_le_sum fun e _ => by
-              split_ifs <;> simp_all
-          _ ≤ 1 := by rw [Finset.sum_ite_eq]; split_ifs <;> omega
-    have h2 : ∀ e, ((i :: l).filter fun i =>
-        decide (k < i ∧ posEdgeBy cut T edges k x i = some e)).length
-        = (if k < i ∧ posEdgeBy cut T edges k x i = some e then 1 else 0)
-          + (l.filter fun i => decide (k < i ∧ posEdgeBy cut T edges k x i = some e)).length := by
-      intro e
-      by_cases h : k < i ∧ posEdgeBy cut T edges k x i = some e <;>
-        simp [List.filter_cons, h, add_comm]
-    simp only [h2, Finset.sum_add_distrib, List.length_cons]
-    omega
-
-omit [Fintype α] [DecidableEq α] in
-theorem length_filterMap_ite_le {ι β : Type*} (P : ι → Prop) [DecidablePred P]
-    (g : ι → Option β) : ∀ l : List ι,
-    (l.filterMap fun i => if P i then g i else none).length ≤ (l.filter fun i => P i).length
-  | [] => by simp
-  | i :: l => by
-    have := length_filterMap_ite_le P g l
-    by_cases h : P i
-    · rcases hg : g i with _ | b <;> simp [List.filterMap_cons, h, hg] <;> omega
-    · simp [List.filterMap_cons, h, this]
-
-/-- A probe's undecided strings at an edge are at most its positions there. -/
-theorem edgeHarvBy_le_travBy (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (e : List Bool × α) : (edgeHarvBy cut T edges k x e).length ≤ travBy cut T edges k x e := by
-  classical
-  refine (length_filterMap_ite_le (fun i => posEdgeBy cut T edges k x i = some e) _ _).trans ?_
-  set A := (siftsBy cut T edges k x).filter fun i => decide (posEdgeBy cut T edges k x i = some e)
-  set B := (List.range (x.toList.length + 1)).filter fun i =>
-    decide (k < i ∧ posEdgeBy cut T edges k x i = some e)
-  have hA : A.Nodup := (List.nodup_dedup _).filter _
-  have hB : B.Nodup := List.nodup_range.filter _
-  have hsub : A.toFinset ⊆ B.toFinset := by
-    intro i hi
-    simp only [A, B, List.mem_toFinset, List.mem_filter, decide_eq_true_eq, List.mem_range] at hi ⊢
-    have := siftsBy_range cut hi.1
-    exact ⟨by omega, this.1, hi.2⟩
-  have := Finset.card_le_card hsub
-  rw [List.toFinset_card_of_nodup hA, List.toFinset_card_of_nodup hB] at this
-  exact this
-
-theorem travBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
-    {x : FreeMonoid α} {e : List Bool × α} (h : travBy cut T edges k x e ≠ 0) :
-    e.1 ∈ T.paths := by
-  unfold travBy at h
-  obtain ⟨i, hi⟩ := List.exists_mem_of_length_pos (Nat.pos_of_ne_zero h)
-  simp only [List.mem_filter, decide_eq_true_eq] at hi
-  exact posEdgeBy_mem cut he hi.2.2
-
 end Charges
 
 /-- A step that goes on: no test fired, so the start's undecided strings are not past its test and
@@ -381,8 +246,8 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
       edgeHarvBy cut s.tree s.edges C.k x (q, c) = [] ∧
         travBy cut s.tree s.edges C.k x (q, c) = 0 := by
     intro q c hq
-    exact ⟨by_contra fun hne => hq (edgeHarvBy_mem cut he hne),
-      by_contra fun hne => hq (travBy_mem cut he hne)⟩
+    exact ⟨by_contra fun hne => hq (edgeHarvBy_mem cut s.tree C.k x he hne),
+      by_contra fun hne => hq (travBy_mem cut s.tree C.k x he hne)⟩
   have hht' : ∀ q c, (s'.harv q c).length ≤ s'.trav q c := by
     intro q c
     rw [c1, c2, p1, p2]
@@ -493,9 +358,9 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
 
 theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} {u : ℕ}
     (hs : RInv G C Xe θs' Xs s u) (h : tallyStep C (fun z => (rd z).cut) s x = .inl s')
-    (hnodes : ∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) :
+    (hnodes : ∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) (hp : s.tree.paths.length ≤ C.Lmax) :
     excess C θs' s + twinsBy (fun z => (rd z).cut) s.tree s.edges C.k x
-        - C.θe * (x.toList.length + 1) - θs' - 2 * C.Lmax * Fintype.card α * C.φe
+        - C.θe * ((x.toList.length + 1) * C.Lmax) - θs' - 2 * C.Lmax * Fintype.card α * C.φe
       ≤ excess C θs' s' := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
   obtain ⟨-, he, -, hsup, -, -, -, -⟩ := hs
@@ -529,9 +394,9 @@ theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} 
       exact hq (hsup e.1 e.2 (by tauto))
     have hp : e.1 ∉ s.tree.paths := fun hp => hq (DTree.paths_sub_nodes _ _ hp)
     have h1 : edgeHarvBy cut s.tree s.edges C.k x e = [] :=
-      by_contra fun hne => hp (edgeHarvBy_mem cut he hne)
+      by_contra fun hne => hp (edgeHarvBy_mem cut s.tree C.k x he hne)
     have h2 : travBy cut s.tree s.edges C.k x e = 0 :=
-      by_contra fun hne => hp (travBy_mem cut he hne)
+      by_contra fun hne => hp (travBy_mem cut s.tree C.k x he hne)
     rw [hF', hold.1, hold.2, h1, h2]
     simp
   have hsum : ∑ e ∈ K', F' e = ∑ e ∈ K, F' e :=
@@ -539,8 +404,14 @@ theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} 
   have hH : (∑ e ∈ Lv, ((edgeHarvBy cut s.tree s.edges C.k x e).length : ℝ))
       ≤ ∑ e ∈ K, ((edgeHarvBy cut s.tree s.edges C.k x e).length : ℝ) :=
     Finset.sum_le_sum_of_subset_of_nonneg hLK fun _ _ _ => Nat.cast_nonneg _
-  have hR : (∑ e ∈ K, (travBy cut s.tree s.edges C.k x e : ℝ)) ≤ x.toList.length + 1 := by
-    exact_mod_cast sum_travBy_le cut s.tree s.edges C.k x K
+  have hR : (∑ e ∈ K, (travBy cut s.tree s.edges C.k x e : ℝ))
+      ≤ (x.toList.length + 1) * C.Lmax := by
+    have h1 := sum_travBy_le cut s.tree s.edges C.k x K
+    have h2 := midfixes_card s.tree
+    have h3 : s.tree.midfixes.card ≤ C.Lmax := by omega
+    have : ∑ e ∈ K, travBy cut s.tree s.edges C.k x e ≤ (x.toList.length + 1) * C.Lmax :=
+      h1.trans (Nat.mul_le_mul_left _ h3)
+    exact_mod_cast this
   have htw : (twinsBy cut s.tree s.edges C.k x : ℝ)
       = (startHarvBy cut s.tree C.k x).length
         + ∑ e ∈ Lv, ((edgeHarvBy cut s.tree s.edges C.k x e).length : ℝ) := by
@@ -577,11 +448,11 @@ theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.m)
       (Measure.pi fun _ : Fin T => D) {xs | UntrueHit G C rd s n j T xs}
         ≤ ENNReal.ofReal (Real.exp (-η * n
           + ν * (2 * C.Lmax * Fintype.card α * Xe + Xs - excess C θs' s)
-          + j * (ν * (C.θe * (L + 1) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
+          + j * (ν * (C.θe * ((L + 1) * C.Lmax) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
             + (Real.exp η - 1) * ρ))) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
   set X := 2 * C.Lmax * Fintype.card α * Xe + Xs
-  set c := ν * (C.θe * (L + 1) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
+  set c := ν * (C.θe * ((L + 1) * C.Lmax) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
     + (Real.exp η - 1) * ρ
   have ha : 0 ≤ Real.exp η - 1 := by linarith [Real.one_le_exp hη]
   have hc : 0 ≤ c := by positivity
@@ -632,7 +503,7 @@ theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.m)
     set U := G.untrueAt rd C.k s.tree s.edges
     set W := twinsBy cut s.tree s.edges C.k
     set base := -η * ((n + 1 : ℕ) : ℝ) + ν * (X - excess C θs' s) + j * c
-      + ν * (C.θe * (L + 1) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
+      + ν * (C.θe * ((L + 1) * C.Lmax) + θs' + 2 * C.Lmax * Fintype.card α * C.φe)
     rw [pi_succ_apply]
     have hsec : ∀ᵐ x ∂D, (Measure.pi fun _ : Fin T => D)
         {xs | UntrueHit G C rd s (n + 1) (j + 1) (T + 1) (Fin.cons x xs)}
@@ -651,13 +522,14 @@ theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.m)
           · exact fun h2 => ⟨s', hst, h2⟩
         rw [hset]
         obtain ⟨hs', hnodes⟩ := rinv_step G C rd Xe θs' Xs hm hθe hφe hXe0 hθs' hXe hXs hlin hs hst
-        have hex := excess_step G C rd Xe θs' Xs hθe hs hst hnodes
+        have hex := excess_step G C rd Xe θs' Xs hθe hs hst hnodes hp
         refine (ih s' _ _ j hs' (by split_ifs <;> omega)).trans (ENNReal.ofReal_le_ofReal ?_)
         refine Real.exp_le_exp.2 ?_
         have hxL : (x.toList.length : ℝ) + 1 ≤ L + 1 := by
           have h1 : (x.toList.length : ℝ) ≤ L := by exact_mod_cast hx
           linarith
-        have hθx := mul_le_mul_of_nonneg_left hxL hθe
+        have hθx : C.θe * ((x.toList.length + 1) * C.Lmax) ≤ C.θe * ((L + 1) * C.Lmax) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hxL (Nat.cast_nonneg _)) hθe
         simp only [base, Set.indicator_apply, Pi.one_apply]
         split_ifs with hU'
         · push_cast; nlinarith [mul_le_mul_of_nonneg_left hex hν]

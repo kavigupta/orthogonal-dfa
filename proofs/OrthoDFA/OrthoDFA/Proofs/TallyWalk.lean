@@ -289,18 +289,6 @@ theorem siftsBy_range {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoi
         · have := bracketSifts_range _ _ _ _ i h; omega
     · simp at h; omega
 
-theorem siftsBy_length_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α} :
-    (siftsBy cut t edges k x).length ≤ x.toList.length := by
-  classical
-  have hnd : (siftsBy cut t edges k x).Nodup := List.nodup_dedup _
-  have hsub : (siftsBy cut t edges k x).toFinset ⊆ Finset.Ioc k x.toList.length := by
-    intro i hi
-    have := siftsBy_range cut (List.mem_toFinset.1 hi)
-    simp only [Finset.mem_Ioc]; exact this
-  have := Finset.card_le_card hsub
-  rw [List.toFinset_card_of_nodup hnd, Nat.card_Ioc] at this
-  omega
-
 theorem route_length_le : ∀ (t : DTree α) (z : FreeMonoid α), (t.route cut z).1.length ≤ t.depth
   | .leaf, _ => by simp [DTree.route]
   | .node m r a, z => by
@@ -320,23 +308,42 @@ theorem depth_lt_paths : ∀ t : DTree α, t.depth < t.paths.length
     have := depth_lt_paths a
     omega
 
-/-- A probe charges an edge at most a read per position per node. -/
-theorem edgeReadsBy_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    (e : List Bool × α) : edgeReadsBy cut t edges k x e ≤ x.toList.length * t.paths.length := by
-  unfold edgeReadsBy
-  have h1 : ∀ n ∈ ((siftsBy cut t edges k x).filter fun i => decide
-      (posEdgeBy cut t edges k x i = some e)).map fun i => (t.route cut (prefixOf x i)).1.length,
-      n ≤ t.paths.length := by
-    intro n hn
-    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hn
-    exact (route_length_le cut t _).trans (depth_lt_paths t).le
-  refine (List.sum_le_card_nsmul _ _ h1).trans ?_
-  simp only [List.length_map, smul_eq_mul]
-  exact Nat.mul_le_mul_right _ ((List.length_filter_le _ _).trans (siftsBy_length_le cut))
+omit [Fintype α] [DecidableEq α] in
+theorem map_cons_eq_inl {s : List Bool ⊕ FreeMonoid α} {b : Bool} {q : List Bool} :
+    s.map (b :: ·) id = .inl q ↔ ∃ p, q = b :: p ∧ s = .inl p := by
+  rcases s with p | z <;> simp [eq_comm]
 
-theorem edgeHarvBy_length_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    (e : List Bool × α) : (edgeHarvBy cut t edges k x e).length ≤ x.toList.length :=
-  (List.length_filterMap_le _ _).trans (siftsBy_length_le cut)
+theorem posEdgeBy_of_inl {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
+    {k : ℕ} {x : FreeMonoid α} {p : List Bool} (h : T.sift cut (prefixOf x k) = .inl p) (i : ℕ) :
+    posEdgeBy cut T edges k x i = posEdgeFrom edges k x p i := by
+  simp only [posEdgeBy, edgeAtBy, walkToBy, h, posEdgeFrom, walkFrom]
+
+
+theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
+    {k : ℕ} {x : FreeMonoid α} {i : ℕ} {d : List Bool × α} (he : EdgesInto T edges)
+    (h : posEdgeBy cut T edges k x i = some d) : d.1 ∈ T.paths := by
+  have hat : ∀ j, edgeAtBy cut T edges k x j = some d → d.1 ∈ T.paths := by
+    intro j hj
+    unfold edgeAtBy at hj
+    rcases hl : (walkToBy cut T edges k x j).getLast? with _ | q <;> rw [hl] at hj
+    · simp at hj
+    rcases hc : x.toList[j]? with _ | c <;> rw [hc] at hj
+    · simp at hj
+    simp only [Option.some.injEq] at hj
+    subst hj
+    have hq := List.mem_of_getLast? hl
+    unfold walkToBy at hq
+    rcases hs : T.sift cut (prefixOf x k) with p₀ | b <;> rw [hs] at hq
+    · simp only [] at hq
+      rcases hf : follow edges p₀ ((x.toList.drop k).take (j - k)) with ps | r <;>
+        rw [hf] at hq
+      · exact follow_mem_paths he _ p₀ ps (DTree.sift_mem_paths _ _ _ hs) hf q hq
+      · simp at hq
+    · simp at hq
+  unfold posEdgeBy at h
+  rcases h1 : edgeAtBy cut T edges k x i with _ | d'
+  · rw [h1] at h; exact hat _ h
+  · rw [h1] at h; simp only [Option.orElse_some, Option.some.injEq] at h; subst h; exact hat _ h1
 
 end Walk
 

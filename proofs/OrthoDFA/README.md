@@ -97,20 +97,21 @@ revelation the good read-states' undecided new strings at a place are at most bi
 strings read there, with no noise field, no union over the class and no `p₀`. It needs the probe's
 computation stated as an adaptive sequence of reads.
 
-The edge field is per position an edge is traversed at, and the pair/triple field per search, so
-their bounds carry a factor of the probe's positions: the edge test needs
-`θe ≥ 12 (|Q| + S + 1) θ` of its traversals, and the pair/triple field `θgpt ≥ 3 (Lmax + 1)
-(|Q| + S + 1) θ` of its searches. A within-probe adaptive lemma removes that factor: a probe's
-reads are made in order, each fresh when first made, so a probe's undecided reads at good
-read-states at an edge are at most `1.5θ` per read it makes there, with the reads rather than the
-positions as the count. The edge test can then be per read with `θe` free of `Lmax`.
+The edge tests count, per probe, the strings first read at positions charged to an edge, and
+those of them read undecided; a probe's first reads are fresh, so the edge field holds at `3θ` of
+them (`Proofs/TallyEdgeRead.lean`), and the edge test needs `θe ≥ 12θ` of its reads. The
+pair/triple field is still per search: a search makes up to `(L + 1)(|Q| + S + 1)` first reads, so
+the field needs `θgpt ≥ 3 (L + 1)(|Q| + S + 1) θ`, and with `2θgpt ≤ 1` asks `θ` below about
+`3e-4` at `|Q| = 10`, `S = 5`, `L = 30`. That is the worst case of a search at good read-states,
+not slack in the bound: a tree of depth `|Q| + S + 1` read at every position a search sifts
+stops undecided with chance near `1 - e^{-1.5θ R}` for `R` its reads.
 
 The tally round's `FakeRace` races the round's records that are not true against the undecided
 strings the start's and edges' tests let through, counted with their multiplicity; with each
 string counted once, a heavy string's undecided read is one count while its minority twin is a
-record at every probe through it. `fakeRun` also charges every probe the most positions it can
-have, `L + 1`, against the edge test's allowance of `θe` a position; a bound `R̄` on the mean
-positions a probe is charged would put `R̄` there instead, and is not proved.
+record at every probe through it. `fakeRun` also charges every probe the most first reads it can
+make, `(L + 1) Lmax`, against the edge test's allowance of `θe` a read; a bound `R̄` on the mean
+first reads a probe makes would put `R̄` there instead, and is not proved.
 
 Two gaps between the model and Python:
 
@@ -282,10 +283,10 @@ Two gaps between the model and Python:
   hypotheses recording at least `θr` of the time are one binomial over `nRec`. `FakeRace` is
   proved in `Proofs/TallyRace.lean`: `TallyE.spurious` bounds a probe's record not being true by
   `κ` times its undecided strings plus `ρ`, the edges' and the start's tests hold those strings
-  over the round to `θe` of an edge's positions past `Xe` once the edge is charged `φe` of the
+  over the round to `θe` of an edge's first reads past `Xe` once the edge is charged `φe` of the
   probes (an edge charged less holds them to that) and `θs'` of the probes past `Xs`, so the
   records that are not true less `ν/η` times the strings' excess exponentiate to a supermartingale
-  up to `ν (θe (L + 1) + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
+  up to `ν (θe (L + 1) Lmax + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
   `Proofs/QueryTree.lean` and `Proofs/TallyQuery.lean` give the fields' per-probe means: a probe
   is a query tree over independent reads (`run_probeQ`), and a string's first read in it is fresh,
   so a record not being true, which needs a read on its state's rarer side

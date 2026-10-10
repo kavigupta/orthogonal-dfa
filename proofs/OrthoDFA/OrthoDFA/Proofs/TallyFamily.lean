@@ -64,21 +64,6 @@ theorem leafOf_with (G : ReadModel α σ) (κ' : ℝ)
     congr
 
 omit [Fintype σ] in
-theorem grown_with (G : ReadModel α σ) (κ' : ℝ)
-    (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided))
-    {T : DTree α} {f : ℕ} (hg : G.Grown T f) : ({ G with κ := κ', rare := h } : ReadModel α σ).Grown T f := by
-  induction hg with
-  | start => exact .start
-  | real _ ht ht₀ hs ih =>
-    refine .real ih ht ht₀ ?_
-    simp only [ReadModel.GenuineSplit, leafOf_with, ReadModel.side, ReadModel.at'] at hs ⊢
-    convert hs using 8 <;> exact decide_eq_decide.2 Iff.rfl
-  | fake _ hp ht ht₀ hs ih =>
-    refine .fake ih hp ht ht₀ ?_
-    simp only [ReadModel.GenuineSplit, leafOf_with, ReadModel.side, ReadModel.at'] at hs ⊢
-    convert hs using 9 <;> exact decide_eq_decide.2 Iff.rfl
-
-omit [Fintype σ] in
 theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
     (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided))
     {T : DTree α} {f : ℕ} (hg : ({ G with κ := κ', rare := h } : ReadModel α σ).Grown T f) :
@@ -125,7 +110,7 @@ theorem tally_round_family_holds : TallyRoundFamily := by
     Xs η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1
     hcond hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθe hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1
     hstartpt hφ0 hφ1 hlow (by linarith) hXe0 hXe hθs' hXs hlin hη hν hside hT
-  have hE := tallyE_le (ρ := ρ) (θgs := θgs) G read hmeas hind hlaw hθ D C S L hL1 hlen hk hp₀
+  have hE := tallyE_le (ρ := ρ) (θgs := θgs) G read hmeas hind hlaw hθ D C S L hlen hk hp₀
     hpmax hl hφe0 hφ0 hθe hθg hθgpt
   have hSp := spurious_le G₁ read hmeas hind hlaw hκ hε D C.k L S hlen hk hp₀ hpmax hκs hρ
   have hcard : ((classSet (Fintype.card σ + S) : Finset (DTree α)).card : ℝ)
@@ -141,8 +126,7 @@ theorem tally_round_family_holds : TallyRoundFamily := by
   all_goals
     refine ENNReal.ofReal_le_ofReal ?_
   · gcongr ?_ * _ * _
-  · gcongr ?_ * _ * Real.exp ?_
-    exact le_of_eq (by ring)
+  · gcongr ?_ * _ * _
   · gcongr ?_ * _
   · gcongr ?_ * _ * Real.exp ?_
     exact le_of_eq (by ring)

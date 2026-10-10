@@ -14,14 +14,14 @@ whose neighbours read alike). A clean disagreement records, at the edge it cross
 prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns it.
 
 Each place keeps its count over the whole round: the start, its undecided reads' strings, and
-each edge, the positions charged to it and the strings read undecided at them. Every position past
-the start is charged to an edge: the walk's edge out of that position, or, where there is none,
-the walk's last edge; every position a probe sifts, the bisection's stepped-past middles included,
-keeps the string it read undecided, if any, at its edge. The disagreement rate, and the undecided
-middles searches stop at, are counted over a stretch, which starts afresh whenever the tree or the
-edges change. After every probe:
+each edge, the strings first read in a probe at positions charged to it and those of them read
+undecided. Every position past the start is charged to an edge: the walk's edge out of that
+position, or, where there is none, the walk's last edge; every position a probe sifts, the
+bisection's stepped-past middles included, reads at its edge. The disagreement rate, and the
+undecided middles searches stop at, are counted over a stretch, which starts afresh whenever the
+tree or the edges change. After every probe:
 * the start-undecided rate above `θs`; an edge charged at least `φe` of the round's probes, its
-  undecided strings exceeding `θe` of its positions by `exc` of them; or a stretch searching on at
+  undecided strings exceeding `θe` of its reads by `exc` of them; or a stretch searching on at
   least `φpt` of its probes, the share of its searches stopping at an undecided middle (a pair or
   a triple) above `θpt`, ends the round with a harvest there;
 * the disagreement rate settling below `εd` ends it in success;
@@ -154,25 +154,6 @@ edge. -/
 def posEdgeBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
     Option (List Bool × α) :=
   (edgeAtBy cut t edges k x i).orElse fun _ => edgeAtBy cut t edges k x (i - 1)
-
-/-- How many of a probe's positions past its start are charged to the edge `e`. -/
-def travBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (e : List Bool × α) : ℕ :=
-  ((List.range (x.toList.length + 1)).filter fun i =>
-    k < i ∧ posEdgeBy cut t edges k x i = some e).length
-
-/-- How many reads a probe charges to the edge `e`. -/
-def edgeReadsBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (e : List Bool × α) : ℕ :=
-  (((siftsBy cut t edges k x).filter fun i => posEdgeBy cut t edges k x i = some e).map
-    fun i => (t.route cut (prefixOf x i)).1.length).sum
-
-/-- The strings it read undecided there. -/
-def edgeHarvBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (e : List Bool × α) : List (FreeMonoid α) :=
-  (siftsBy cut t edges k x).filterMap fun i =>
-    if posEdgeBy cut t edges k x i = some e then
-      (t.sift cut (prefixOf x i)).elim (fun _ => none) some
-    else none
 
 /-- The undecided middle its search stopped at, as a pair or a triple, if any. -/
 def ptHarvBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
@@ -324,10 +305,35 @@ def probeQ : PQ α (Outcome α) :=
 
 end ProbeQ
 
+/-- `cut` as reads. -/
+def ofCut (cut : FreeMonoid α → Option Bool) (z : FreeMonoid α) : ARU :=
+  match cut z with
+  | some true => .accept
+  | some false => .reject
+  | none => .undecided
+
+section Charge
+
+variable (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : Edges α) (k : ℕ)
+  (x : FreeMonoid α)
+
+/-- A probe's first read of each string, in order, with its label. -/
+def firstsBy : List (PLabel α × FreeMonoid α) := (probeQ t edges k x).firsts (ofCut cut) ∅
+
+/-- How many strings a probe first reads at positions charged to the edge `e`. -/
+def travBy (e : List Bool × α) : ℕ :=
+  ((firstsBy cut t edges k x).filter fun q => q.1.2 = some e).length
+
+/-- The strings among them read undecided. -/
+def edgeHarvBy (e : List Bool × α) : List (FreeMonoid α) :=
+  ((firstsBy cut t edges k x).filter fun q => q.1.2 = some e ∧ cut q.2 = none).map Prod.snd
+
+end Charge
+
 /-- What the loop carries: the hypothesis, its version, each edge's records (the probe's prefix at
 the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
-its probes, the strings read undecided at the start, and for each edge the positions charged to it
-and the strings read undecided at them. -/
+its probes, the strings read undecided at the start, and for each edge how many strings probes
+first read at it and those of them read undecided. -/
 structure TState (α : Type*) where
   tree : DTree α
   edges : Edges α
@@ -425,7 +431,7 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
   else .inl s
 
 /-- The loop's settings: the start, the records a fix takes, the cap, the tests' thresholds, level
-and first look, the excess `exc r` an edge's undecided strings need after `r` positions, and the
+and first look, the excess `exc r` an edge's undecided strings need after `r` reads, and the
 traffic an edge test and the search rate a middles test need. -/
 structure TallyCfg where
   k : ℕ
@@ -464,7 +470,7 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
 
 open scoped Classical in
 /-- The tests: the start's undecided rate above `θs` over the round; at an edge charged at least
-`φe` of the probes, its undecided strings exceeding `θe` of its positions by `exc`; at a stretch
+`φe` of the probes, its undecided strings exceeding `θe` of its reads by `exc`; at a stretch
 searching on at least `φpt` of its probes, the share of its searches stopping at an undecided
 middle above `θpt`; or its disagreement rate settling below `εd`. -/
 noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=

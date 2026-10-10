@@ -1,11 +1,12 @@
 import OrthoDFA.Proofs.TallySub
+import OrthoDFA.Proofs.TallyFirsts
 
 /-!
 # A harvest's strings are mostly at read-states that are not good
 
 Each place's counts only grow, by the probe's own charge. At an edge, the good read-states'
-undecided reads less `2θg` of its reads, scaled by `λ = 1 / (2L (1 + 4θg Lmax))`, exponentiate to
-a supermartingale while the tree is in the class, since `goodEdge` bounds their mean by `θg` of
+undecided reads less `2θg` of its reads, scaled by `λ = 1 / (2(L + 1)(1 + 4θg Lmax))`,
+exponentiate to a supermartingale while the tree is in the class, since `goodEdge` bounds their mean by `θg` of
 the reads; so they pass `log(1/a)/λ` with chance at most `a`. A harvest that is not mostly bad
 has them past half its excess. At the start, the good read-states' undecided reads by the `t`-th
 probe are at most binomial, and a firing start test that is not mostly bad has them at half its
@@ -165,11 +166,6 @@ theorem class_paths {T : DTree α} (hT : G.InClass S T) (hL : Fintype.card σ + 
   omega
 
 end Reach
-
-theorem travBy_le (cut : FreeMonoid α → Option Bool) {t : DTree α} {edges : Edges α} {k : ℕ}
-    {x : FreeMonoid α} (e : List Bool × α) : travBy cut t edges k x e ≤ x.toList.length + 1 := by
-  unfold travBy
-  exact (List.length_filter_le _ _).trans (by simp)
 
 section Edge
 
@@ -357,13 +353,11 @@ theorem edge_super (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMe
           {xs | EvE G C (fun z => (rd z).cut) S θg (C.φe * (C.θe / 2 - 2 * θg) / 2) e thr s
             (List.ofFn xs)}
         ≤ ENNReal.ofReal (Real.exp ((edgeZ G θg (C.φe * (C.θe / 2 - 2 * θg) / 2) e s - thr)
-          / (2 * L * (1 + 4 * θg * C.Lmax)))) := by
+          / (2 * (L + 1) * (1 + 4 * θg * C.Lmax)))) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   set η : ℝ := C.φe * (C.θe / 2 - 2 * θg) / 2
-  set K : ℝ := 2 * L * (1 + 4 * θg * C.Lmax)
-  have hK : 0 < K := by
-    have : (1 : ℝ) ≤ L := by exact_mod_cast hL
-    positivity
+  set K : ℝ := 2 * (L + 1) * (1 + 4 * θg * C.Lmax)
+  have hK : 0 < K := by positivity
   intro T
   induction T with
   | zero => intro s _; simp [EvE]
@@ -426,14 +420,13 @@ theorem edge_super (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMe
       constructor
       · have h1 : goodCount G (edgeHarvBy cut s.tree s.edges C.k x e)
             ≤ (edgeHarvBy cut s.tree s.edges C.k x e).length := List.length_filter_le _ _
-        have h2 := edgeHarvBy_length_le cut (t := s.tree) (edges := s.edges) (k := C.k) (x := x) e
-        exact_mod_cast h1.trans (h2.trans hx)
-      · have h1 := travBy_le cut (t := s.tree) (edges := s.edges) (k := C.k) (x := x) e
-        have : travBy cut s.tree s.edges C.k x e ≤ L * C.Lmax := by
-          have : 2 ≤ C.Lmax := by omega
-          calc _ ≤ x.toList.length + 1 := h1
-            _ ≤ L + L := by omega
-            _ ≤ L * C.Lmax := by nlinarith
+        have h2 := edgeHarvBy_length_le cut s.tree s.edges C.k x e
+        have : goodCount G (edgeHarvBy cut s.tree s.edges C.k x e) ≤ L + 1 := by omega
+        exact_mod_cast this
+      · have h1 := travBy_le cut s.tree s.edges C.k x e
+        have hm := midfixes_card s.tree
+        have : travBy cut s.tree s.edges C.k x e ≤ (L + 1) * C.Lmax :=
+          h1.trans (Nat.mul_le_mul (by omega) (by omega))
         exact_mod_cast this
     · exact hE.goodEdge s.tree s.edges hc hs.2.1 e
 
@@ -1147,10 +1140,8 @@ open scoped Classical in
 theorem harvest_good_holds : HarvestGood := by
   intro α _ _ σ _ G rd D _ C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hφe0 hLmax hexc
     hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1 hlow hE
-  set K : ℝ := 2 * L * (1 + 4 * θg * C.Lmax)
-  have hK : 0 < K := by
-    have : (1 : ℝ) ≤ L := by exact_mod_cast hL1
-    positivity
+  set K : ℝ := 2 * (L + 1) * (1 + 4 * θg * C.Lmax)
+  have hK : 0 < K := by positivity
   set η : ℝ := C.φe * (C.θe / 2 - 2 * θg) / 2
   have hη : 0 ≤ η := by
     have : 0 ≤ C.θe / 2 - 2 * θg := by linarith
@@ -1319,8 +1310,8 @@ theorem harvest_good_holds : HarvestGood := by
               simp only [η]
               nlinarith [mul_le_mul_of_nonneg_left hgate hgap]
             simp only [edgeZ, thr, K]
-            have : Real.log (1 / C.a) * (2 * L * (1 + 4 * θg * C.Lmax))
-                = 2 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) := by ring
+            have : Real.log (1 / C.a) * (2 * (L + 1) * (1 + 4 * θg * C.Lmax))
+                = 2 * (L + 1) * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) := by ring
             rw [this]
             nlinarith
         · obtain ⟨hgate, hn₀, hlt⟩ := tallyLook_pt' C hl

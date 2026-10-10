@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.TallyPTNoise
+import OrthoDFA.Proofs.TallyEdgeRead
 
 /-!
 # The noise event's good-read fields
@@ -18,11 +19,11 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G
 theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : TallyCfg) (S L : ℕ)
-    {p₀ ρ θg θgs θgpt l : ℝ} (hL : 1 ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    {p₀ ρ θg θgs θgpt l : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hk : ∀ᵐ x ∂D, C.k ≤ x.toList.length) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x C.k = u} ≤ p₀) (hl : 0 ≤ l) (hφe : 0 ≤ C.φe)
     (hφpt : 0 ≤ C.φpt) (hθe : 4 * θg ≤ C.θe)
-    (hθg : 2 * ((Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θg)
+    (hθg : 2 * (3 / 2 * G.θ) ≤ θg)
     (hθgpt : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
       ≤ μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
@@ -31,8 +32,8 @@ theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
         + ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
           * ((Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
             * ((Fintype.card σ + S + 2) * Fintype.card α))
-          * Real.exp (-(C.φe * (C.θe / 2 - 2 * θg) / 2
-            / (2 * L * p₀ * (1 + 4 * ((Fintype.card σ + S + 1) * (3 / 2 * G.θ)) * 2)))))
+          * Real.exp (-(C.φe * (C.θe / 2 - 2 * θg) / 2 / (2 * p₀ * (L + 1)
+            * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + S + 1))))))
         + ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
           * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * G.θ) * (Real.exp (l * p₀) - 1) / p₀
             - l * θgs))
@@ -42,7 +43,7 @@ theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
             * (3 / 2 * G.θ)) * 1))))) := by
   have hθg0 : 0 ≤ θg := le_trans (by positivity) hθg
   have hθgpt0 : 0 ≤ θgpt := le_trans (by positivity) hθgpt
-  have hE := goodEdge_le G read hmeas hind hlaw hθ D C.k L S hL hlen hk hp₀ hpmax
+  have hE := goodEdge_le G read hmeas hind hlaw hθ D C.k L S hlen hk hp₀ hpmax
     (η := C.φe * (C.θe / 2 - 2 * θg) / 2)
     (mul_nonneg (mul_nonneg hφe (by linarith)) (by norm_num)) hθg
   have hS := goodStart_le G read hmeas hind hlaw D C.k (Fintype.card σ + S) (θgs := θgs) hθ hk

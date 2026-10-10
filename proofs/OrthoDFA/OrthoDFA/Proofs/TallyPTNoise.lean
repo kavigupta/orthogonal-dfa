@@ -1,4 +1,6 @@
 import OrthoDFA.Proofs.TallyEdgeNoise
+import OrthoDFA.Proofs.TallyFirsts
+import OrthoDFA.Proofs.TallyHarvest
 
 /-!
 # The noise event's middles field
@@ -63,11 +65,6 @@ section PTExp
 
 variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
-
-/-- The strings a probe of `x` from `k` can read: its prefixes from `k` on, followed by the
-tree's midfixes. -/
-noncomputable def probeStrings (T : DTree α) (k : ℕ) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
-  (Finset.Icc k x.toList.length).biUnion fun j => T.midfixes.image (prefixOf x j * ·)
 
 theorem prefAgreeK_of_strings {cut cut' : FreeMonoid α → Option Bool} {T : DTree α} {k : ℕ}
     {x : FreeMonoid α} (hkx : k ≤ x.toList.length)

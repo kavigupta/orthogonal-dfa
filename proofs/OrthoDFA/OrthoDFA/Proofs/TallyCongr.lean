@@ -14,78 +14,6 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-section Cut
-
-variable {cut cut' : FreeMonoid α → Option Bool} {t : DTree α} {edges : Edges α} {k : ℕ}
-  {x : FreeMonoid α}
-
-/-- The sifts of `x`'s prefixes agree. -/
-def PrefAgree (cut cut' : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) : Prop :=
-  ∀ j, t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j)
-
-theorem PrefAgree.whole (h : PrefAgree cut cut' t x) : t.sift cut x = t.sift cut' x := by
-  have := h x.toList.length
-  rwa [show prefixOf x x.toList.length = x by simp [prefixOf]] at this
-
-theorem kWalkBy_congr (h : PrefAgree cut cut' t x) :
-    kWalkBy cut t edges k x = kWalkBy cut' t edges k x := by
-  simp only [kWalkBy, h k]
-
-theorem walkToBy_congr (h : PrefAgree cut cut' t x) :
-    walkToBy cut t edges k x = walkToBy cut' t edges k x := by
-  funext j
-  simp only [walkToBy, h k]
-
-theorem agreesAtBy_congr (h : PrefAgree cut cut' t x) :
-    agreesAtBy cut t x = agreesAtBy cut' t x := by
-  funext w i
-  simp only [agreesAtBy, h i]
-
-theorem walkCheckBy_congr (h : PrefAgree cut cut' t x) :
-    walkCheckBy cut t edges k x = walkCheckBy cut' t edges k x := by
-  have h' : ∀ j, t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j) := h
-  simp only [walkCheckBy, kWalkBy_congr (edges := edges) (k := k) h, h', h.whole,
-    walkToBy_congr (edges := edges) (k := k) h]
-
-theorem probeBy_congr (h : PrefAgree cut cut' t x) :
-    probeBy cut t edges k x = probeBy cut' t edges k x := by
-  simp only [probeBy, walkCheckBy_congr (edges := edges) (k := k) h, agreesAtBy_congr h]
-
-theorem edgeAtBy_congr (h : PrefAgree cut cut' t x) :
-    edgeAtBy cut t edges k x = edgeAtBy cut' t edges k x := by
-  funext i
-  simp only [edgeAtBy, walkToBy_congr (edges := edges) (k := k) h]
-
-theorem posEdgeBy_congr (h : PrefAgree cut cut' t x) :
-    posEdgeBy cut t edges k x = posEdgeBy cut' t edges k x := by
-  funext i
-  simp only [posEdgeBy, edgeAtBy_congr (edges := edges) (k := k) h]
-
-theorem travBy_congr (h : PrefAgree cut cut' t x) :
-    travBy cut t edges k x = travBy cut' t edges k x := by
-  funext e
-  simp only [travBy, posEdgeBy_congr (edges := edges) (k := k) h]
-
-theorem siftsBy_congr (h : PrefAgree cut cut' t x) :
-    siftsBy cut t edges k x = siftsBy cut' t edges k x := by
-  have h' : ∀ j, t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j) := h
-  simp only [siftsBy, kWalkBy_congr (edges := edges) (k := k) h, h', h.whole,
-    walkToBy_congr (edges := edges) (k := k) h, agreesAtBy_congr h]
-
-theorem edgeHarvBy_congr (h : PrefAgree cut cut' t x) :
-    edgeHarvBy cut t edges k x = edgeHarvBy cut' t edges k x := by
-  funext e
-  have h' : ∀ j, t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j) := h
-  simp only [edgeHarvBy, siftsBy_congr (edges := edges) (k := k) h,
-    posEdgeBy_congr (edges := edges) (k := k) h, h']
-
-theorem ptHarvBy_congr (h : PrefAgree cut cut' t x) :
-    ptHarvBy cut t edges k x = ptHarvBy cut' t edges k x := by
-  have h' : ∀ j, t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j) := h
-  simp only [ptHarvBy, probeBy_congr (edges := edges) (k := k) h, h']
-
-end Cut
-
 section Edges
 
 /-- The two edge maps point every leaf's edges at the same targets. -/
@@ -133,27 +61,6 @@ theorem walkCheckBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
 theorem probeBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     probeBy cut T e k x = probeBy cut T e' k x := by
   simp only [probeBy, walkCheckBy_econgr (x := x) (k := k) (cut := cut) he h]
-
-theorem posEdgeBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
-    posEdgeBy cut T e k x = posEdgeBy cut T e' k x := by
-  funext i
-  simp only [posEdgeBy, edgeAtBy, walkToBy_econgr (x := x) (k := k) (cut := cut) he h]
-
-theorem travBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
-    travBy cut T e k x = travBy cut T e' k x := by
-  funext d
-  simp only [travBy, posEdgeBy_econgr (x := x) (k := k) (cut := cut) he h]
-
-theorem siftsBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
-    siftsBy cut T e k x = siftsBy cut T e' k x := by
-  simp only [siftsBy, kWalkBy_econgr (x := x) (k := k) (cut := cut) he h,
-    walkToBy_econgr (x := x) (k := k) (cut := cut) he h]
-
-theorem edgeHarvBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
-    edgeHarvBy cut T e k x = edgeHarvBy cut T e' k x := by
-  funext d
-  simp only [edgeHarvBy, siftsBy_econgr (x := x) (k := k) (cut := cut) he h,
-    posEdgeBy_econgr (x := x) (k := k) (cut := cut) he h]
 
 theorem ptHarvBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     ptHarvBy cut T e k x = ptHarvBy cut T e' k x := by
@@ -300,40 +207,6 @@ theorem probeBy_congrK (h : PrefAgreeK cut cut' t x k) :
   · rfl
   · simp only [Sum.elim_inr]
     exact bracketAt_congr ps _ _ _ _ _ (agreesAtBy_congrK h _)
-
-theorem posEdgeBy_congrK (h : PrefAgreeK cut cut' t x k) :
-    posEdgeBy cut t edges k x = posEdgeBy cut' t edges k x := by
-  funext i
-  simp only [posEdgeBy, edgeAtBy, walkToBy_congrK (edges := edges) h]
-
-theorem travBy_congrK (h : PrefAgreeK cut cut' t x k) :
-    travBy cut t edges k x = travBy cut' t edges k x := by
-  funext e
-  simp only [travBy, posEdgeBy_congrK (edges := edges) h]
-
-theorem siftsBy_congrK (h : PrefAgreeK cut cut' t x k) :
-    siftsBy cut t edges k x = siftsBy cut' t edges k x := by
-  unfold siftsBy
-  simp only []
-  rw [← kWalkBy_congrK (edges := edges) h, walkToBy_congrK (edges := edges) h, h.whole]
-  have hb : ∀ (ps : List (List Bool)) (hi : ℕ),
-      bracketSifts (agreesAtBy cut t x fun j => ps.getD (j - k) []) (hi - k) k hi
-        = bracketSifts (agreesAtBy cut' t x fun j => ps.getD (j - k) []) (hi - k) k hi :=
-    fun ps hi => bracketSifts_congr _ _ _ _ _ (agreesAtBy_congrK h _)
-  rcases hk : kWalkBy cut t edges k x with _ | ⟨s, c, j⟩ | ps
-  · rfl
-  · have hj := kWalkBy_edge_ge hk
-    simp only [h (j + 1) (by omega), h j hj, hb]
-  · simp only [hb]
-
-theorem edgeHarvBy_congrK (h : PrefAgreeK cut cut' t x k) :
-    edgeHarvBy cut t edges k x = edgeHarvBy cut' t edges k x := by
-  funext e
-  unfold edgeHarvBy
-  rw [siftsBy_congrK (edges := edges) h, posEdgeBy_congrK (edges := edges) h]
-  refine List.filterMap_congr fun i hi => ?_
-  have hki := (siftsBy_range cut' hi).1
-  simp only [h i hki.le]
 
 theorem ptHarvBy_congrK (h : PrefAgreeK cut cut' t x k) :
     ptHarvBy cut t edges k x = ptHarvBy cut' t edges k x := by

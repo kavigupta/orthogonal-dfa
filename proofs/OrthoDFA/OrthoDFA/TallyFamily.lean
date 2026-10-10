@@ -11,12 +11,12 @@ Over the class of at most `(1 + (n + 1)³ |Σ|)ⁿ` trees, `n = |Q| + S`, at mos
 * records, at `κs ≥ 2κ` of a probe's undecided strings, `ρ` less `2ε (L + 1)(n + 1)` against
   `exp(−slack / (2 p₀ (1 + 4 (κ (L + 1) + ε (L + 1)(n + 1)))))`;
 * edges, at each of `(n + 2) |Σ|` edges, its traffic gate's slack `φe (θe/2 − 2θg)/2` against
-  `exp(−slack / (2 L p₀ (1 + 8θ₁)))`;
+  `exp(−slack / (2 p₀ (L + 1)(1 + 6θ (n + 1))))`;
 * the start, `exp(θ₁ (e^{l p₀} − 1)/p₀ − l θgs)` for any `l ≥ 0`;
 * the middles, the search-rate gate's slack `θgpt φpt/2` against
   `exp(−slack / (2 p₀ (1 + 4 (L + 1) θ₁)))`;
 where `p₀` bounds the mass of the probes' length-`k` prefixes, and the fields' rates are
-`θg ≥ 2θ₁` of an edge's positions and `θgpt ≥ 2 (L + 1) θ₁` of the searches.
+`θg ≥ 3θ` of an edge's first reads and `θgpt ≥ 2 (L + 1) θ₁` of the searches.
 -/
 
 noncomputable section
@@ -41,7 +41,7 @@ def TallyRoundFamily : Prop :=
     0 < κ → 2 * κ ≤ κs → 0 ≤ ε → 2 * (ε * ((L + 1) * (Fintype.card σ + S + 1))) ≤ ρ →
     0 ≤ θ → (∀ᵐ x ∂D, C.k ≤ x.toList.length) → 0 < p₀ →
     (∀ u, D.real {x | prefixOf x C.k = u} ≤ p₀) → 0 ≤ l →
-    2 * ((Fintype.card σ + S + 1) * (3 / 2 * θ)) ≤ θg →
+    2 * (3 / 2 * θ) ≤ θg →
     2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * θ)) ≤ θgpt →
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
     0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → C.n₀ ≤ nEnd →
@@ -50,7 +50,7 @@ def TallyRoundFamily : Prop :=
     binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS → C.φpt * nEnd ≤ hS + 1 →
     1 ≤ L → 0 < C.a → C.a ≤ 1 → 4 * θg ≤ C.θe → 0 ≤ C.φe →
-    (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     2 * θgpt ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.a) →
@@ -74,8 +74,8 @@ def TallyRoundFamily : Prop :=
               ^ (Fintype.card σ + S)
             * ((Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
               * ((Fintype.card σ + S + 2) * Fintype.card α))
-            * Real.exp (-(C.φe * (C.θe / 2 - 2 * θg) / 2
-              / (2 * L * p₀ * (1 + 8 * ((Fintype.card σ + S + 1) * (3 / 2 * θ)))))))
+            * Real.exp (-(C.φe * (C.θe / 2 - 2 * θg) / 2 / (2 * p₀ * (L + 1)
+              * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + S + 1))))))
           + ENNReal.ofReal ((1 + (Fintype.card σ + S + 1) ^ 3 * Fintype.card α)
               ^ (Fintype.card σ + S)
             * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * θ) * (Real.exp (l * p₀) - 1) / p₀
