@@ -20,8 +20,8 @@ edge: the walk's edge out of that position, or, where there is none, the walk's 
 disagreement rate, and the undecided middles searches stop at, are counted over a stretch, which
 starts afresh whenever the tree or the edges change. After every probe:
 * the start-undecided rate above `θs`, an edge's undecided reads exceeding `θe` of its reads by
-  `exc` of them, or the stretch's rate of searches stopping at an undecided middle (a pair or a
-  triple) above `θpt`, ends the round with a harvest there;
+  `exc` of them, or the share of the stretch's searches stopping at an undecided middle (a pair
+  or a triple) above `θpt`, ends the round with a harvest there;
 * the disagreement rate settling below `εd` ends it in success;
 * otherwise one edge is fixed. Where an edge has `m` records at a target it does not point at,
   its leaf splits on the letter and the midfix where that target and the current one part if the
@@ -324,14 +324,14 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
 
 open scoped Classical in
 /-- The tests: the start's undecided rate above `θs` over the round, an edge's undecided reads
-exceeding `θe` of its reads by `exc` of its reads, the stretch's rate of searches stopping at an
-undecided middle above `θpt`, or its disagreement rate settling below `εd`. -/
+exceeding `θe` of its reads by `exc` of its reads, the share of the stretch's searches stopping at
+an undecided middle above `θpt`, or its disagreement rate settling below `εd`. -/
 noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=
   if rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true then some .harvestStart
   else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.paths
       ∧ C.exc (s.reads e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.reads e.1 e.2 then
     some (.harvest h.choose)
-  else if rateSide C.θpt C.a C.n₀ s.n s.pt.length = some true then some .harvestPT
+  else if rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true then some .harvestPT
   else if rateSide C.εd C.a C.n₀ s.n s.dis = some false then some .success
   else none
 

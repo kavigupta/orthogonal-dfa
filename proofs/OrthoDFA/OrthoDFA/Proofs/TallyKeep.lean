@@ -537,6 +537,14 @@ theorem keepV_le : ∀ (j : ℕ) (s : TState α) (T : ℕ) (xs : Fin T → FreeM
   | _ + 1, _, 0, _, h => h.elim
   | j + 1, s, T + 1, xs, ⟨s', _, _, h⟩ => by have := keepV_le j s' T _ h; omega
 
+theorem keepV_mono : ∀ (j j' : ℕ) (s : TState α) (T : ℕ) (xs : Fin T → FreeMonoid α),
+    j' ≤ j → KeepV C cut s j T xs → KeepV C cut s j' T xs
+  | _, 0, _, _, _, _, _ => trivial
+  | 0, _ + 1, _, _, _, h, _ => absurd h (by omega)
+  | _ + 1, _ + 1, _, 0, _, _, h => h.elim
+  | j + 1, j' + 1, s, T + 1, xs, hj, ⟨s', h1, h2, h3⟩ =>
+    ⟨s', h1, h2, keepV_mono j j' s' T _ (by omega) h3⟩
+
 open scoped Classical in
 theorem tally_pre (s : TState α) (x : FreeMonoid α) (p : List Bool) (c : α) (t : List Bool) :
     s.tally p c t + (if ∃ sp, recordBy cut C.k (s.tree, s.edges) x = some ((p, c, t), sp)
@@ -728,12 +736,12 @@ section KeepBound
 
 variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
 
-theorem look_none_pt {s : TState α} {hP : ℕ} (hl : tallyLook C s = none) (hn₀ : C.n₀ ≤ s.n)
-    (hθ0 : 0 ≤ C.θpt) (hθ1 : C.θpt ≤ 1) (hhP : binomSfGe s.n C.θpt hP < C.a) :
+theorem look_none_pt {s : TState α} {hP : ℕ} (hl : tallyLook C s = none) (hn₀ : C.n₀ ≤ s.dis)
+    (hθ0 : 0 ≤ C.θpt) (hθ1 : C.θpt ≤ 1) (hhP : binomSfGe s.dis C.θpt hP < C.a) :
     s.pt.length < hP := by
   by_contra hge
   push_neg at hge
-  have hr : rateSide C.θpt C.a C.n₀ s.n s.pt.length = some true := by
+  have hr : rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true := by
     unfold rateSide
     rw [if_pos hn₀, if_pos ((binomSfGe_antitone' hθ0 hθ1 hge).trans_lt hhP)]
   unfold tallyLook at hl
@@ -775,6 +783,149 @@ theorem pi_cnt (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (P : FreeM
 
 end KeepBound
 
+section Trials
+
+variable {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
+
+theorem cnt_succ_le (P : X → Prop) : ∀ (T j : ℕ) (xs : Fin T → X),
+    cnt j P xs ≤ cnt (j + 1) P xs ∧ cnt (j + 1) P xs ≤ cnt j P xs + 1
+  | 0, _, _ => by simp [cnt]
+  | T + 1, 0, xs => by rw [cnt_succ, cnt_zero, cnt_zero]; split_ifs <;> omega
+  | T + 1, j + 1, xs => by
+    have := cnt_succ_le P T j (Fin.tail xs)
+    rw [cnt_succ (j + 1), cnt_succ j]
+    omega
+
+theorem cnt_mono (P : X → Prop) {T : ℕ} (xs : Fin T → X) {j j' : ℕ} (h : j ≤ j') :
+    cnt j P xs ≤ cnt j' P xs := by
+  induction h with
+  | refl => exact le_rfl
+  | step _ ih => exact ih.trans (cnt_succ_le P T _ xs).1
+
+open scoped Classical in
+/-- The draws reach `t` in `A` with fewer than `h` of them in `B`. -/
+def RR (A B : Set X) : (T : ℕ) → ℕ → ℕ → (Fin T → X) → Prop
+  | _, 0, h, _ => 0 < h
+  | 0, _ + 1, _, _ => False
+  | T + 1, t + 1, h, xs => if xs 0 ∈ B then 0 < h ∧ RR A B T t (h - 1) (Fin.tail xs)
+      else if xs 0 ∈ A then RR A B T t h (Fin.tail xs) else RR A B T (t + 1) h (Fin.tail xs)
+
+theorem rr_zero (A B : Set X) : ∀ (T t : ℕ) (xs : Fin T → X), ¬ RR A B T t 0 xs
+  | _, 0, _ => by simp [RR]
+  | 0, _ + 1, _ => by simp [RR]
+  | T + 1, t + 1, xs => by
+    simp only [RR]
+    split_ifs
+    · simp
+    · exact rr_zero A B T t _
+    · exact rr_zero A B T (t + 1) _
+
+open scoped Classical in
+theorem rr_incl {A B : Set X} (hBA : B ⊆ A) : ∀ (T j t h : ℕ) (xs : Fin T → X),
+    cnt j (· ∈ A) xs = t → cnt j (· ∈ B) xs < h → RR A B T t h xs
+  | T, j, 0, h, xs, _, hB => by simp only [RR]; omega
+  | 0, j, t + 1, h, xs, hA, _ => by simp [cnt] at hA
+  | T + 1, 0, t + 1, h, xs, hA, _ => by rw [cnt_zero] at hA; omega
+  | T + 1, j + 1, t + 1, h, xs, hA, hB => by
+    rw [cnt_succ] at hA hB
+    simp only [RR]
+    by_cases hx : xs 0 ∈ B
+    · rw [if_pos hx] at hB
+      rw [if_pos (hBA hx)] at hA
+      rw [if_pos hx]
+      exact ⟨by omega, rr_incl hBA T j t (h - 1) _ (by omega) (by omega)⟩
+    · rw [if_neg hx] at hB
+      rw [if_neg hx]
+      by_cases hxA : xs 0 ∈ A
+      · rw [if_pos hxA] at hA
+        rw [if_pos hxA]
+        exact rr_incl hBA T j t h _ (by omega) (by omega)
+      · rw [if_neg hxA] at hA
+        rw [if_neg hxA]
+        exact rr_incl hBA T j (t + 1) h _ (by omega) (by omega)
+
+open scoped Classical in
+/-- Where at least `π` of the draws in `A` are in `B`, the draws reach `t` in `A` with fewer than
+`h` in `B` with chance at most `P(Bin(t, π) < h)`. -/
+theorem rr_le (D : Measure X) [IsProbabilityMeasure D] {A B : Set X} (hBA : B ⊆ A) {π : ℝ}
+    (hπ0 : 0 ≤ π) (hπ1 : π ≤ 1) (hπ : π * D.real A ≤ D.real B) :
+    ∀ (T t h : ℕ), (Measure.pi fun _ : Fin T => D) {xs | RR A B T t h xs}
+      ≤ ENNReal.ofReal (1 - binomSfGe t π h) := by
+  have hle1 : ∀ E : Set X, D.real E ≤ 1 := fun E => by
+    have := measureReal_mono (μ := D) (Set.subset_univ E)
+    rwa [probReal_univ] at this
+  intro T
+  induction T with
+  | zero =>
+    intro t h
+    rcases t with _ | t
+    · rcases h with _ | h
+      · simp [RR]
+      · rw [binomSfGe_zero_left, sub_zero, ENNReal.ofReal_one]; exact prob_le_one
+    · simp [RR]
+  | succ T ih =>
+    intro t h
+    rcases h with _ | h
+    · have : {xs : Fin (T + 1) → X | RR A B (T + 1) t 0 xs} = ∅ := by
+        ext xs; simpa using rr_zero A B (T + 1) t xs
+      rw [this, measure_empty]; exact zero_le
+    rcases t with _ | t
+    · rw [binomSfGe_zero_left, sub_zero, ENNReal.ofReal_one]; exact prob_le_one
+    set g₁ := 1 - binomSfGe t π h
+    set g₀ := 1 - binomSfGe t π (h + 1)
+    set g₂ := 1 - binomSfGe (t + 1) π (h + 1)
+    have hg₁ : 0 ≤ g₁ := sub_nonneg.2 (binomSfGe_le_one hπ0 hπ1 _)
+    have hg₁₀ : g₁ ≤ g₀ := by
+      have := binomSfGe_antitone hπ0 hπ1 (n := t) h
+      simp only [g₁, g₀]; linarith
+    have hg₀ : 0 ≤ g₀ := hg₁.trans hg₁₀
+    have hg₂ : 0 ≤ g₂ := sub_nonneg.2 (binomSfGe_le_one hπ0 hπ1 _)
+    have hsec : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+        {xs : Fin (T + 1) → X | RR A B (T + 1) (t + 1) (h + 1) xs}}
+        ≤ B.indicator (fun _ => ENNReal.ofReal g₁) x
+          + (A \ B).indicator (fun _ => ENNReal.ofReal g₀) x
+          + Aᶜ.indicator (fun _ => ENNReal.ofReal g₂) x := by
+      intro x
+      by_cases hxB : x ∈ B
+      · rw [Set.indicator_of_mem hxB, Set.indicator_of_notMem (fun h => h.2 hxB),
+          Set.indicator_of_notMem (by simp [hBA hxB]), add_zero, add_zero]
+        refine le_trans (measure_mono fun xs hxs => ?_) (ih t h)
+        simp only [Set.mem_ofPred_eq, RR, Fin.cons_zero, Fin.tail_cons, if_pos hxB] at hxs
+        simpa using hxs.2
+      by_cases hxA : x ∈ A
+      · rw [Set.indicator_of_notMem hxB, Set.indicator_of_mem (Set.mem_sdiff_of_mem hxA hxB),
+          Set.indicator_of_notMem (by simp [hxA]), zero_add, add_zero]
+        refine le_trans (measure_mono fun xs hxs => ?_) (ih t (h + 1))
+        simp only [Set.mem_ofPred_eq, RR, Fin.cons_zero, Fin.tail_cons, if_neg hxB,
+          if_pos hxA] at hxs
+        exact hxs
+      · rw [Set.indicator_of_notMem hxB, Set.indicator_of_notMem (fun h => hxA h.1),
+          Set.indicator_of_mem hxA, zero_add, zero_add]
+        refine le_trans (measure_mono fun xs hxs => ?_) (ih (t + 1) (h + 1))
+        simp only [Set.mem_ofPred_eq, RR, Fin.cons_zero, Fin.tail_cons, if_neg hxB,
+          if_neg hxA] at hxs
+        exact hxs
+    rw [pi_succ_apply]
+    refine (lintegral_mono hsec).trans ?_
+    have hmeas : ∀ E : Set X, MeasurableSet E := fun E => (Set.to_countable _).measurableSet
+    have hB0 : 0 ≤ D.real B := measureReal_nonneg
+    have hBA' : D.real B ≤ D.real A := measureReal_mono hBA
+    rw [lintegral_add_left (measurable_of_countable _), lintegral_add_left
+        (measurable_of_countable _), lintegral_indicator (hmeas _), lintegral_indicator (hmeas _),
+      lintegral_indicator (hmeas _), setLIntegral_const, setLIntegral_const, setLIntegral_const,
+      ← ofReal_measureReal, ← ofReal_measureReal, ← ofReal_measureReal,
+      measureReal_compl (hmeas _), probReal_univ, measureReal_sdiff hBA (hmeas _),
+      ← ENNReal.ofReal_mul hg₁, ← ENNReal.ofReal_mul hg₀, ← ENNReal.ofReal_mul hg₂,
+      ← ENNReal.ofReal_add (mul_nonneg hg₁ hB0) (mul_nonneg hg₀ (by linarith)),
+      ← ENNReal.ofReal_add (by positivity) (mul_nonneg hg₂ (by linarith [hle1 A]))]
+    refine ENNReal.ofReal_le_ofReal ?_
+    have e₂ : g₂ = π * g₁ + (1 - π) * g₀ := by
+      simp only [g₂, g₁, g₀, binomSfGe_succ]; ring
+    rw [e₂]
+    nlinarith [mul_le_mul_of_nonneg_right hπ (sub_nonneg.2 hg₁₀)]
+
+end Trials
+
 section KeepLe
 
 variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
@@ -783,28 +934,30 @@ variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
 def recAt (s : TState α) : Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy cut C.k (s.tree, s.edges) x = some (pct, sp)}
 
+theorem ptHarvBy_search {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : ptHarvBy cut T E k x ≠ []) : (probeBy cut T E k x).IsSearch := by
+  unfold ptHarvBy at h
+  rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
+    simp_all [Outcome.IsSearch]
+
 open scoped Classical in
 /-- A fresh hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at
 most `termLevel`. -/
 theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
-    {θpt' θr εd' : ℝ} (hn₀ : C.n₀ ≤ nEnd)
+    {θpt' θr εd' : ℝ} (hn₀ : C.n₀ ≤ nEnd) (hn₀' : C.n₀ ≤ hS + 1)
     (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'1 : εd' ≤ 1) (hcond : θpt' + θr ≤ εd')
-    (hhP : binomSfGe nEnd C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hcond : θr ≤ (1 - θpt') * εd')
+    (hhP : binomSfGe (hS + 1) C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
     (hhS' : C.a ≤ binomSfGe nEnd C.εd hS)
     {s : TState α} (hrec : D.real (recAt C cut s) < θr) (hn : s.n = 0) (hd : s.dis = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
       ≤ ENNReal.ofReal (termLevel nEnd hP hS θpt' εd') := by
-  have hεd'0 : 0 ≤ εd' := by
-    have : 0 ≤ D.real (recAt C cut s) := measureReal_nonneg
-    linarith
-  have t1 : 0 ≤ 1 - binomSfGe nEnd θpt' hP := sub_nonneg.2 (binomSfGe_le_one hθpt'0 hθpt'1 _)
+  have t1 : 0 ≤ 1 - binomSfGe (hS + 1) θpt' hP :=
+    sub_nonneg.2 (binomSfGe_le_one hθpt'0 hθpt'1 _)
   have t3 : 0 ≤ binomSfGe nEnd εd' (hS + 1) := binomSfGe_nonneg hεd'0 hεd'1 _
   have hτ : termLevel nEnd hP hS θpt' εd'
-      = (1 - binomSfGe nEnd θpt' hP) + binomSfGe nEnd εd' (hS + 1) := rfl
-  have hle1 : ∀ A : Set (FreeMonoid α), D.real A ≤ 1 := fun A => by
-    have := measureReal_mono (μ := D) (Set.subset_univ A)
-    rwa [probReal_univ] at this
+      = (1 - binomSfGe (hS + 1) θpt' hP) + binomSfGe nEnd εd' (hS + 1) := rfl
   by_cases hT : nEnd ≤ T
   swap
   · have : {xs : Fin T → FreeMonoid α | KeepV C cut s nEnd T xs} = ∅ := by
@@ -813,47 +966,59 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
       exact fun h => hT (keepV_le C cut _ _ _ _ h)
     rw [this, measure_empty]; exact zero_le
   rcases nEnd with _ | N
-  · have hP0 : hP ≠ 0 := by
-      rintro rfl
-      have := binomSfGe_le_one (n := 0) hεd0 hεd1 hS
-      rw [binomSfGe_zero_right] at hhP
-      linarith
-    obtain ⟨hP', rfl⟩ : ∃ hP', hP = hP' + 1 := ⟨hP - 1, by omega⟩
-    refine prob_le_one.trans ?_
-    rw [← ENNReal.ofReal_one]
-    refine ENNReal.ofReal_le_ofReal ?_
-    rw [hτ, binomSfGe_zero_left]
+  · exfalso
+    rw [binomSfGe_zero_left] at hhS
+    have := binomSfGe_le_one (n := 0) hεd0 hεd1 hS
     linarith
   set T0 := s.tree
   set E0 := s.edges
   set ptO : FreeMonoid α → Prop := fun x => ptHarvBy cut T0 E0 C.k x ≠ []
   set disO : FreeMonoid α → Prop := fun x => (probeBy cut T0 E0 C.k x).IsSearch
+  have hBA : {x | ptO x} ⊆ {x | disO x} := fun x hx => ptHarvBy_search cut hx
   have hincl : {xs : Fin T → FreeMonoid α | KeepV C cut s (N + 1) T xs}
-      ⊆ {xs | cnt (N + 1) ptO xs < hP} ∩ {xs | hS + 1 ≤ cnt (N + 1) disO xs} := by
+      ⊆ {xs | RR {x | disO x} {x | ptO x} T (hS + 1) hP xs}
+        ∩ {xs | hS + 1 ≤ cnt (N + 1) disO xs} := by
     intro xs hk
-    obtain ⟨s₁, -, -, h3, h4, h5, -, h7, -⟩ := keep_counts C cut T0 E0 N s T xs rfl rfl hk
+    obtain ⟨s₁, h1, h2, h3, h4, h5, h6, h7, h8⟩ := keep_counts C cut T0 E0 N s T xs rfl rfl hk
     rw [hn, zero_add] at h3
     rw [hd, zero_add] at h5
-    refine ⟨?_, ?_⟩
-    · have := look_none_pt C h7 (by rw [h3]; exact hn₀) hθpt0 hθpt1 (by rw [h3]; exact hhP)
-      simp only [Set.mem_setOf_eq, ptO]
-      omega
-    · have := look_none_dis C h7 (by rw [h3]; exact hn₀) hεd0 hεd1 (by rw [h3]; exact hhS)
+    have hdis : hS + 1 ≤ cnt (N + 1) disO xs := by
+      have := look_none_dis C h7 (by rw [h3]; exact hn₀) hεd0 hεd1 (by rw [h3]; exact hhS)
         (by rw [h3]; exact hhS')
-      simp only [Set.mem_setOf_eq, disO]
+      simp only [disO]
       omega
-  by_cases ha : θpt' ≤ D.real {x | ptO x}
-  · calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | cnt (N + 1) ptO xs < hP} :=
+    refine ⟨?_, hdis⟩
+    have hex : ∃ j, hS + 1 ≤ cnt j disO xs := ⟨N + 1, hdis⟩
+    set j₀ := Nat.find hex
+    have hj₀ : hS + 1 ≤ cnt j₀ disO xs := Nat.find_spec hex
+    have hj₀N : j₀ ≤ N + 1 := Nat.find_min' hex hdis
+    obtain ⟨j', hj'⟩ : ∃ j', j₀ = j' + 1 := by
+      rcases h : j₀ with _ | j'
+      · rw [h, cnt_zero] at hj₀; omega
+      · exact ⟨j', rfl⟩
+    have hlt : cnt j' disO xs < hS + 1 := by
+      have := Nat.find_min hex (show j' < j₀ by omega)
+      omega
+    have heq : cnt j₀ disO xs = hS + 1 := by
+      have := (cnt_succ_le disO T j' xs).2
+      rw [hj'] at hj₀ ⊢
+      omega
+    have hk' := keepV_mono C cut (N + 1) (j' + 1) s T xs (by omega) hk
+    obtain ⟨s₂, -, -, -, g4, g5, -, g7, -⟩ := keep_counts C cut T0 E0 j' s T xs rfl rfl hk'
+    rw [hd, zero_add] at g5
+    rw [← hj'] at g4 g5
+    have hpt := look_none_pt C g7 (by rw [g5, heq]; exact hn₀') hθpt0 hθpt1
+      (by rw [g5, heq]; exact hhP)
+    refine rr_incl hBA T j₀ (hS + 1) hP xs heq ?_
+    show cnt j₀ ptO xs < hP
+    simp only [ptO]
+    omega
+  by_cases ha : θpt' * D.real {x | disO x} ≤ D.real {x | ptO x}
+  · calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | RR {x | disO x} {x | ptO x} T (hS + 1) hP xs} :=
           measure_mono fun xs h => (hincl h).1
-      _ = ENNReal.ofReal (1 - binomSfGe (N + 1) (D.real {x | ptO x}) hP) := by
-          rw [← ofReal_measureReal,
-            show {xs : Fin T → FreeMonoid α | cnt (N + 1) ptO xs < hP}
-              = {xs | hP ≤ cnt (N + 1) ptO xs}ᶜ by ext; simp,
-            measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
-            pi_cnt D ptO hT hP]
+      _ ≤ _ := rr_le D hBA hθpt'0 hθpt'1 ha T (hS + 1) hP
       _ ≤ _ := by
         refine ENNReal.ofReal_le_ofReal ?_
-        have := binomSfGe_mono hθpt'0 (hle1 _) ha (N + 1) hP
         rw [hτ]; linarith
   push_neg at ha
   have hdis : D.real {x | disO x} ≤ εd' := by
@@ -862,9 +1027,11 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
       rcases search_cases cut hx with h | ⟨pct, sp, h⟩
       · exact .inl h
       · exact .inr ⟨pct, sp, h⟩
-    calc D.real {x | disO x} ≤ D.real ({x | ptO x} ∪ recAt C cut s) := measureReal_mono hsub
-      _ ≤ D.real {x | ptO x} + D.real (recAt C cut s) := measureReal_union_le _ _
-      _ ≤ εd' := by linarith
+    have hsum : D.real {x | disO x} ≤ D.real {x | ptO x} + D.real (recAt C cut s) :=
+      (measureReal_mono hsub).trans (measureReal_union_le _ _)
+    by_contra hcon
+    push_neg at hcon
+    nlinarith [mul_nonneg (sub_nonneg.2 hθpt'1) (sub_nonneg.2 hcon.le)]
   calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | hS + 1 ≤ cnt (N + 1) disO xs} :=
         measure_mono fun xs h => (hincl h).2
     _ = ENNReal.ofReal (binomSfGe (N + 1) (D.real {x | disO x}) (hS + 1)) := by
@@ -1237,7 +1404,7 @@ theorem termLevel_nonneg {nEnd hP hS : ℕ} {θpt' εd' : ℝ} (hθpt'0 : 0 ≤ 
     (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) :
     0 ≤ termLevel nEnd hP hS θpt' εd' := by
   unfold termLevel
-  have t1 := binomSfGe_le_one (n := nEnd) hθpt'0 hθpt'1 hP
+  have t1 := binomSfGe_le_one (n := hS + 1) hθpt'0 hθpt'1 hP
   have t3 := binomSfGe_nonneg (n := nEnd) hεd'0 hεd'1 (hS + 1)
   linarith
 
@@ -1287,10 +1454,10 @@ probes at rate `p`, given each hypothesis recording at least `θr` of the time r
 chance at least `p`. -/
 theorem open_le [IsProbabilityMeasure D] {nEnd hP hS : ℕ} {θpt' εd' p : ℝ}
     (K : DTree α → Finset (List Bool × α × List Bool)) (hm : 0 < C.m) (hn₀ : C.n₀ ≤ nEnd)
-    (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hεd'1 : εd' ≤ 1)
-    (hcond : θpt' + θr ≤ εd') (hp0 : 0 ≤ p) (hp1 : p ≤ 1)
-    (hhP : binomSfGe nEnd C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
+    (hn₀' : C.n₀ ≤ hS + 1) (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd)
+    (hεd1 : C.εd ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hcond : θr ≤ (1 - θpt') * εd') (hp0 : 0 ≤ p) (hp1 : p ≤ 1)
+    (hhP : binomSfGe (hS + 1) C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
     (hhS' : C.a ≤ binomSfGe nEnd C.εd hS)
     (hK : ∀ s : TState α, G.InClass S s.tree → EdgesInto s.tree s.edges →
       θr ≤ D.real (recAt C cut s) → p ≤ D.real (recIn C cut K s)) :
@@ -1307,7 +1474,7 @@ end Open
 open scoped Classical in
 theorem sub_round_holds : SubRound := by
   intro α _ _ σ _ G rd D _ C S nEnd nRec hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax hn₀
-    hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'1 hcond hhP hhS hhS' hE
+    hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hE
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   set Tsub := subT C (Fintype.card α) nEnd nRec
   intro s hs T hT
@@ -1366,8 +1533,9 @@ theorem sub_round_holds : SubRound := by
       refine h.trans (measureReal_mono fun x hx => ?_)
       obtain ⟨pct, sp, h'⟩ := hx
       exact ⟨pct, sp, h', (rec_keys cut he' h').1⟩
-    refine (open_le G C cut S D θr keysF hm hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hεd'1
-      hcond hθr0 hθr1 hhP hhS hhS' hK _ s nRec Tsub T hc he hr hset hn hd hpot le_rfl hT).trans ?_
+    refine (open_le G C cut S D θr keysF hm hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hεd'0
+      hεd'1 hcond hθr0 hθr1 hhP hhS hhS' hK _ s nRec Tsub T hc he hr hset hn hd hpot le_rfl
+      hT).trans ?_
     refine ENNReal.ofReal_le_ofReal ?_
     rw [hphi, Nat.sub_zero]
     unfold subOpen

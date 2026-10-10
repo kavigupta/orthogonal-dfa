@@ -18,19 +18,20 @@ event `TallyE` is a hypothesis on `rd`, quantified over the class and edges into
 * `spurious`: at each edge and target, probes whose record there is not true (its prefix or its
   successor off its true leaf) have mass at most `ρ`;
 * `goodEdge`, `goodStart`, `goodPT`: good read-states' undecided reads average at most `θg` of an
-  edge's reads, and `θgs` a probe at the start; searches stop at an undecided middle read at a
-  good read-state with chance at most `θgpt`.
+  edge's reads, and `θgs` a probe at the start; at most `θgpt` of the searches stop at an
+  undecided middle read at a good read-state.
 
 A sub-round starts at a tree of the class with no records and a fresh stretch, and lasts until the
 tree changes or the round ends: in a split that is genuine (real) or not (fake), in success or a
 harvest (good), or with the tree past `Lmax` leaves (bad). Each hypothesis ends the round or
 changes within `nEnd` probes but for `termLevel`, unless it records at least `θr` of the time:
-searches stopping at undecided middles more than `θpt'` of the time fire their test, and otherwise
-the disagreement rate is below `εd' ≥ θpt' + θr` and success fires. Within a sub-round each edge is
-learned, and redirected, at most once, and every record raises its edge and target towards the
-`m` at which it is fixed, so a sub-round holds at most `Lmax² |Σ| m` records.
-`SubRound`: a sub-round is fake with chance at most `subFake`, `m` records that are not true at one
-edge and target over its `subT` probes, and unfinished with chance at most `subOpen`. `HarvestGood`: a harvest the round
+more than `θpt'` of searches stopping at undecided middles fire their test by the `hS + 1`-th
+search, and otherwise the disagreement rate is below `εd'`, where `θr ≤ (1 - θpt') εd'`, and success
+fires. Within a sub-round each edge is learned, and redirected, at most once, and every record
+raises its edge and target towards the `m` at which it is fixed, so a sub-round holds at most
+`Lmax² |Σ| m` records. `SubRound`: a sub-round is fake with chance at most `subFake`, `m` records
+that are not true at one edge and target over its `subT` probes, and unfinished with chance at
+most `subOpen`. `HarvestGood`: a harvest the round
 ends in at a tree of the class has most of its strings at read-states that are not good, but for
 chance `(2^(Lmax+1) |Σ| + T + T²) a`. `TallyRound`: over `T ≥ (S + |Q| + 1) · subT` probes the
 round ends in success or such a harvest but for chance at most that of not `TallyE`, the fake
@@ -114,6 +115,13 @@ def startAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (P : σ → Pr
     Set (FreeMonoid α) :=
   {x | ∃ b, T.sift (fun z => (rd z).cut) (prefixOf x k) = .inr b ∧ P (G.M.eval b.toList)}
 
+/-- The probes that search: their walk and the cut disagree at a decided read. -/
+def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
+    Set (FreeMonoid α) :=
+  {x | match probeBy (fun z => (rd z).cut) T edges k x with
+    | .pair _ | .edge _ _ | .triple _ => True
+    | _ => False}
+
 /-- The probes whose search stops at an undecided middle, read at a read-state satisfying `P`. -/
 def ptAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) (P : σ → Prop) :
     Set (FreeMonoid α) :=
@@ -138,7 +146,7 @@ structure TallyE {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)
       ≤ θg * ∫ x, (edgeReadsBy (fun z => (rd z).cut) T edges C.k x e : ℝ) ∂D
   goodStart : ∀ T, G.InClass S T → D.real (G.startAt rd C.k T G.Good) ≤ θgs
   goodPT : ∀ T edges, G.InClass S T → EdgesInto T edges →
-    D.real (G.ptAt rd C.k T edges G.Good) ≤ θgpt
+    D.real (G.ptAt rd C.k T edges G.Good) ≤ θgpt * D.real (ReadModel.searchAt rd C.k T edges)
 
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
 def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S → Prop) :
@@ -219,10 +227,11 @@ def SubRoundBound {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α
         ≤ ENNReal.ofReal δ'
 
 /-- A hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at most
-this: its middle-stopping searches reaching `θpt'` of probes without `hP` of `nEnd` firing their
-test, or the disagreement rate at most `εd'` with more than `hS` of `nEnd`, too many for success. -/
+this: `θpt'` of its searches stopping at undecided middles but fewer than `hP` of the first
+`hS + 1`, or the disagreement rate at most `εd'` with more than `hS` of `nEnd`, too many for
+success. -/
 noncomputable def termLevel (nEnd hP hS : ℕ) (θpt' εd' : ℝ) : ℝ :=
-  (1 - binomSfGe nEnd θpt' hP) + binomSfGe nEnd εd' (hS + 1)
+  (1 - binomSfGe (hS + 1) θpt' hP) + binomSfGe nEnd εd' (hS + 1)
 
 /-- The most versions within a sub-round: each edge learned, and redirected, at most once. -/
 def subVersions (C : TallyCfg) (nα : ℕ) : ℕ := 2 * C.Lmax * nα
@@ -244,17 +253,17 @@ with chance at most `(c + δ)/(1 + c)`, with `δ'` for each bad or unfinished on
 noncomputable def roundW (c δ δ' : ℝ) (k g : ℕ) : ℝ :=
   binomSfGe (k + g + 1) (min 1 ((c + δ) / (1 + c))) (k + 1) + (k + g + 1) * δ'
 
-/-- `SubRound`: given `TallyE`, with the tests' thresholds `hP` and `hS` at `nEnd` probes and
-`θpt' + θr ≤ εd'`, sub-rounds are fake with chance at most `subFake` and bad or unfinished within
-`subT` with chance at most `subOpen` of `termLevel`. -/
+/-- `SubRound`: given `TallyE`, with the middles test's threshold `hP` at `hS + 1` searches, the
+success test's `hS` at `nEnd` probes and `θr ≤ (1 - θpt') εd'`, sub-rounds are fake with chance at
+most `subFake` and bad or unfinished within `subT` with chance at most `subOpen` of `termLevel`. -/
 def SubRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : TallyCfg) (S nEnd nRec hP hS : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
     0 ≤ ρ → ρ ≤ 1 → 0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → C.n₀ ≤ nEnd →
-    0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 → 0 ≤ θr → θr ≤ 1 →
-    εd' ≤ 1 → θpt' + θr ≤ εd' →
-    binomSfGe nEnd C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
+    C.n₀ ≤ hS + 1 → 0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
+    0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
+    binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS →
     TallyE G D C S ρ θg θgs θgpt rd →
     SubRoundBound G D C (fun z => (rd z).cut) S 0
@@ -295,9 +304,9 @@ def TallyRound : Prop :=
     (C : TallyCfg) (S nEnd nRec hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
     0 ≤ ρ → ρ ≤ 1 → 0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → C.n₀ ≤ nEnd →
-    0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 → 0 ≤ θr → θr ≤ 1 →
-    εd' ≤ 1 → θpt' + θr ≤ εd' →
-    binomSfGe nEnd C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
+    C.n₀ ≤ hS + 1 → 0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
+    0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
+    binomSfGe (hS + 1) C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS →
     1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe →
     (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
