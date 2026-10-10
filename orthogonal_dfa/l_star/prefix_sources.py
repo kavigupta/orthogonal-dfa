@@ -14,7 +14,6 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
-from .provenance import Aimed, Read
 from .rejection_source import RejectionSource, proving_attempts
 
 #: A leaf landing at least this share of its aims is one worth asking again.
@@ -114,15 +113,15 @@ def aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(resolver, leaf, aim, *, wanted):
+def state_source(rests, aim):
     """
     A source that draws on `aim` and guarantees (up to the misread chance in
     `proving_attempts`) that at least POOR_YIELD (25%) of the strings it draws
-    will land at the given leaf, according to the tree in `resolver`.
+    are ones `rests` keeps.
 
     If this guarantee cannot be made, returns None
     """
-    source = StateSource(resolver, leaf, aim, wanted=wanted)
+    source = StateSource(rests, aim)
     return source if source.worth_drawing() else None
 
 
@@ -132,35 +131,21 @@ class StateSource(RejectionSource):
     proving = proving_attempts(GOOD_YIELD, POOR_YIELD)
     poor = POOR_YIELD
 
-    def __init__(self, resolver, leaf, aim, *, wanted):
+    def __init__(self, rests, aim):
         super().__init__()
-        self._population = resolver.population
-        self._aimed = Read(Aimed(aim), b"")
-        self._path = resolver.tree.path_of(leaf)
-        # A split replaces a leaf with a node holding both ids, so every id the
-        # tree reports has a path to it.
-        assert self._path is not None, leaf
+        self._rests = rests
         self._aim = aim
-        #: Resting at the leaf and not yet handed out.  Reading a leaf pushes
-        #: strings down to it, so the count is work rather than a cap: ask for
-        #: what this source is being built to serve.
-        self._pool.extend(self._population.members(self._path, wanted))
 
     def attempt_draw(self) -> bool:
-        """Aim one string, let the tree place it, and say whether it rested here.
-
-        One that does joins the pool.  One that does not belongs to the leaf it
-        did rest at, which is the answer that counts.
-        """
         aimed = self._aim()
         # Where it rests, not where it was aimed.
-        if self._population.settle(aimed, self._path, draw=self._aimed):
+        if self._rests(aimed):
             self._pool.append(aimed)
             return True
         return False
 
     def source_repr(self) -> str:
-        return f"leaf {self._path}"
+        return "leaf"
 
 
 def draw_many(source, wanted: int) -> list:

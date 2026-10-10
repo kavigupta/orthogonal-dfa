@@ -9,17 +9,18 @@ import numpy as np
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
-    _accumulate_indecisive,
-    _blocked_at_limit,
+    _accumulate_harvest,
     _publish_pool,
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.provenance import Read
+
+#: What draws more like the harvest, which these tests never ask.
+_REPLAY = object()
 
 
-def _resolver(*strings):
-    return SimpleNamespace(indecisive={string: Read(None, b"") for string in strings})
+def _take(strings, state, wanted):
+    return _accumulate_harvest(strings, _REPLAY, state, wanted)
 
 
 def _state(held=()):
@@ -59,27 +60,25 @@ class TestWhatARoundTakes(unittest.TestCase):
     def test_it_takes_what_it_is_asked_for(self):
         state = _state()
 
-        self.assertEqual(
-            2, _accumulate_indecisive(_resolver(b"a", b"b", b"c"), state, 2)
-        )
+        self.assertEqual(2, _take([b"a", b"b", b"c"], state, 2))
         self.assertEqual(2, len(_taken(state)))
 
     def test_and_no_more_than_there_is(self):
         state = _state()
 
-        self.assertEqual(1, _accumulate_indecisive(_resolver(b"a"), state, 5))
+        self.assertEqual(1, _take([b"a"], state, 5))
         self.assertEqual([b"a"], _taken(state))
 
     def test_what_the_round_already_holds_is_not_taken_again(self):
         state = _state([b"a"])
 
-        self.assertEqual(1, _accumulate_indecisive(_resolver(b"a", b"b"), state, 5))
+        self.assertEqual(1, _take([b"a", b"b"], state, 5))
         self.assertEqual([b"a", b"b"], sorted(_taken(state)))
 
     def test_asking_for_none_takes_none(self):
         state = _state()
 
-        self.assertEqual(0, _accumulate_indecisive(_resolver(b"a"), state, 0))
+        self.assertEqual(0, _take([b"a"], state, 0))
         self.assertEqual([], _taken(state))
 
     def test_two_runs_take_the_same_strings(self):
@@ -88,78 +87,50 @@ class TestWhatARoundTakes(unittest.TestCase):
         strings = [bytes([i]) for i in range(20)]
         first, second = _state(), _state()
 
-        _accumulate_indecisive(_resolver(*strings), first, 5)
-        _accumulate_indecisive(_resolver(*strings), second, 5)
+        _take([*strings], first, 5)
+        _take([*strings], second, 5)
 
         self.assertEqual(_taken(first), _taken(second))
 
     def test_a_round_that_takes_twice_fills_one_population(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a"), state, 1)
-        _accumulate_indecisive(_resolver(b"a", b"b"), state, 1)
+        _take([b"a"], state, 1)
+        _take([b"a", b"b"], state, 1)
 
         self.assertEqual(1, len(state.held), "one population for the round")
 
     def test_each_round_names_a_population_of_its_own(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a"), state, 5)
+        _take([b"a"], state, 5)
         _published(state)
-        _accumulate_indecisive(_resolver(b"b"), state, 5)
+        _take([b"b"], state, 5)
 
         self.assertEqual([("boundary", 1), ("boundary", 2)], sorted(state.held))
 
     def test_what_it_takes_it_also_remembers(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a", b"b"), state, 2)
+        _take([b"a", b"b"], state, 2)
 
         self.assertEqual(state.seen, set(_taken(state)))
 
 
 class TestWhenARoundGivesUp(unittest.TestCase):
-    def _rounds_of(self, *, states, improved, settled):
-        """One verdict per round, for a run of identical rounds."""
+    def test_rounds_that_harvest_nothing_run_out_of_patience(self):
         stall = _StallDetector(STALL_PATIENCE)
-        return [
-            stall.stalled(states=states, improved=improved, settled=settled)
-            for _ in range(STALL_PATIENCE + 1)
-        ]
+        rounds = [stall.stalled(progressed=False) for _ in range(STALL_PATIENCE + 1)]
 
-    def test_a_round_that_shows_nothing_runs_out_of_patience(self):
-        rounds = self._rounds_of(states=2, improved=False, settled=lambda: True)
-
-        self.assertEqual(STALL_PATIENCE, rounds.index(True))
-
-    def test_a_new_state_is_progress(self):
-        stall = _StallDetector(STALL_PATIENCE)
-
-        never = [
-            stall.stalled(states=n, improved=False, settled=lambda: True)
-            for n in range(2, 2 + STALL_PATIENCE + 1)
-        ]
-
-        self.assertNotIn(True, never)
-
-    def test_a_better_hypothesis_is_progress(self):
-        rounds = self._rounds_of(states=2, improved=True, settled=lambda: True)
-
-        self.assertNotIn(True, rounds)
-
-    def test_a_state_left_to_split_is_progress(self):
-        rounds = self._rounds_of(states=2, improved=False, settled=lambda: False)
-
-        self.assertNotIn(True, rounds)
+        self.assertEqual(STALL_PATIENCE - 1, rounds.index(True))
 
     def test_the_count_it_keeps_is_consecutive(self):
         stall = _StallDetector(STALL_PATIENCE)
-        done = lambda: True
 
-        stall.stalled(states=2, improved=False, settled=done)
-        stall.stalled(states=3, improved=False, settled=done)  # a new state resets
+        stall.stalled(progressed=False)
+        stall.stalled(progressed=True)
 
-        self.assertFalse(stall.stalled(states=3, improved=False, settled=done))
+        self.assertFalse(stall.stalled(progressed=False))
 
 
 if __name__ == "__main__":
@@ -176,7 +147,13 @@ class TestWhatARoundPublishes(unittest.TestCase):
             cs, "state_source", lambda *_, **__: drawn
         ):
             cs._per_state_members(  # pylint: disable=protected-access
-                None, SimpleNamespace(num_states=1), None, state, 1
+                None,
+                SimpleNamespace(
+                    tree=SimpleNamespace(num_states=1, path_of=lambda _: ())
+                ),
+                None,
+                state,
+                1,
             )
 
         self.assertEqual([("state", 0)], sorted(state.held))
@@ -199,16 +176,3 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
-
-
-class TestTheLimitHalvesWhenProbesAreBlockedAtIt(unittest.TestCase):
-    def _pass(self, unchecked, reads):
-        return SimpleNamespace(unchecked_quiet_probes=unchecked, quiet_reads=reads)
-
-    def test_a_minority_of_probes_unchecked_can_still_be_the_limits_rate(self):
-        # 149 probes of 8 reads each at a 0.1 limit can leave ~119 unchecked;
-        # 70 is more than half of that, though fewer than half the probes.
-        self.assertTrue(_blocked_at_limit(self._pass(70, 149 * 8), 0.1))
-
-    def test_fewer_than_half_the_limits_rate_does_not_halve(self):
-        self.assertFalse(_blocked_at_limit(self._pass(50, 149 * 8), 0.1))

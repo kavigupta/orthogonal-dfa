@@ -11,36 +11,9 @@ from types import SimpleNamespace
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import (
-    HarvestSource,
-    StateSource,
-    aim_at,
-    state_source,
-)
-from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
+from orthogonal_dfa.l_star.prefix_sources import HarvestSource, aim_at, state_source
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
-
-#: Where these tests' strings came from, which they never read.
-_DRAW = Read(None, b"")
-
-
-class _Tree:
-    """One split at the root: the accept child is leaf 1, the reject child 0."""
-
-    def midfix_at(self, path):
-        assert path == (), path
-        return b""
-
-    def path_of(self, leaf):
-        return (leaf == 1,)
-
-
-class _Resolver:
-    def __init__(self, population):
-        self.population = population
-        self.tree = _Tree()
 
 
 class _Pst:
@@ -62,82 +35,6 @@ _UNREACHABLE = DFA(
 )
 
 
-def _lands():
-    """An aim the tree rests where it was aimed, a fresh string each time."""
-    drawn = itertools.count()
-    return lambda: bytes([2, next(drawn) % 256])
-
-
-class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
-    """Aiming is how a leaf nothing has reached gets its first prefixes, not how
-    it gets every one: what the population already rests there is served first,
-    and aiming makes up the rest."""
-
-    def _source(self, resting):
-        population = LeafPopulation(
-            _Tree(),
-            lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
-        )
-        for prefix in resting:
-            population.add(prefix, at=(True,), draw=_DRAW)
-        return StateSource(_Resolver(population), 1, _lands(), wanted=20)
-
-    def test_what_already_rests_there_is_served_first(self):
-        resting = [bytes([1, i]) for i in range(20)]
-
-        source = self._source(resting)
-        drawn = [source.draw() for _ in range(20)]
-
-        self.assertEqual(sorted(drawn), sorted(resting))
-
-    def test_aiming_makes_up_what_the_leaf_is_short(self):
-        resting = [bytes([1, 0])]
-
-        source = self._source(resting)
-
-        drawn = [source.draw() for _ in range(20)]
-
-        self.assertEqual(len(drawn), 20, "the ask is met however little rests there")
-        self.assertIn(resting[0], drawn)
-
-    def test_each_member_is_served_once(self):
-        source = self._source([bytes([1, 0]), bytes([1, 1])])
-
-        drawn = [source.draw() for _ in range(8)]
-
-        self.assertEqual(len(set(drawn)), 8)
-
-    def test_it_aims_before_serving_what_rests(self):
-        """Aiming is what puts new strings in front of the tree, so a leaf that
-        can be aimed at is aimed at even when it has members to hand."""
-        reachable = DFA(
-            states={0, 1},
-            input_symbols={0, 1},
-            transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}},
-            initial_state=0,
-            final_states={1},
-        )
-        population = LeafPopulation(
-            _Tree(),
-            lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
-        )
-        resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
-        for prefix in resting:
-            population.add(prefix, at=(True,), draw=_DRAW)
-        source = state_source(
-            _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
-        )
-
-        drawn = [source.draw() for _ in range(20)]
-
-        self.assertTrue(
-            set(drawn) - set(resting),
-            "drawing served resting members without aiming anything new",
-        )
-
-
 #: State 1 is entered only on a ``1``, so weights that never draw one never
 #: reach it however long the string.  It is the tree's leaf 1, so aims that get
 #: there do settle there.
@@ -156,13 +53,8 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
 
     def test_a_leaf_with_nothing_left_to_draw_raises(self):
         support = [bytes([9, i]) for i in range(3)]
-        population = LeafPopulation(
-            _Tree(),
-            lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
-        )
         aims = itertools.cycle(support)
-        source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
+        source = state_source(lambda _: True, lambda: next(aims))
 
         drawn = [source.draw() for _ in range(len(support))]
 
@@ -195,17 +87,12 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
     length arrive at it, so more sampling is not the answer to it."""
 
     def _made(self, pst, dfa, leaf, *, lands=True):
-        population = LeafPopulation(
-            _Tree(),
-            # ``lands`` decides whether the tree rests an aimed string where it
-            # was aimed, which is the only thing that makes the leaf a source.
-            lambda strings, midfix: [lands] * len(strings),
-            harvest=lambda _boundary, _read: None,
-        )
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
             return None
-        return state_source(_Resolver(population), leaf, aim, wanted=20)
+        # ``lands`` decides whether the tree rests an aimed string where it was
+        # aimed, which is the only thing that makes the leaf a source.
+        return state_source(lambda _: lands, aim)
 
     def test_a_state_nothing_enters_has_no_source(self):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))
@@ -232,124 +119,71 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
 
 
-class _Walk:
-    """A tree that places strings by a rule the test chooses."""
+class _Finds:
+    """A provenance whose every fresh draw finds ``strings``."""
 
-    def __init__(self, places):
-        self._places = places
+    def __init__(self, *strings):
+        self._strings = list(strings)
 
-    def sift_and_boundary(self, seq):
-        leaf = self._places(seq)
-        return (leaf, None) if leaf is not None else (None, seq + b"?")
-
-    def prefill(self, seqs):
-        pass
+    def sample(self):
+        return list(self._strings)
 
 
-class _Fixed:
-    """A distribution handing out ``string`` every time."""
-
-    def __init__(self, string):
-        self._string = string
-
-    def draw(self):
-        return self._string
-
-
-class _Dry:
-    def draw(self):
-        raise SourceDry("nothing left")
-
-
-#: Walks end at 1 where the tree says 0, so every probe is bisected.
-_STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
-_LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
-_PROBE = bytes([0, 1, 0, 1])
-
-
-class _Always:
-    """An rng whose every integer draw is ``value``."""
-
-    def __init__(self, value):
-        self._value = value
-
-    def integers(self, _high):
-        return self._value
-
-
-def _walked(places, earliest=0):
-    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, _Always(earliest))
-
-
-class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
-    def test_a_walk_keeps_what_the_tree_cannot_place_on_the_way(self):
-        self.assertEqual([_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS).sample())
-
-    def test_a_walk_anchored_past_what_the_tree_cannot_place_keeps_nothing(self):
-        self.assertEqual([], _walked(_LONG_ONE_FAILS, earliest=3).sample())
-
-    def test_a_walk_the_tree_places_throughout_keeps_nothing(self):
-        self.assertEqual([], _walked(lambda seq: 0).sample())
-
-    def test_a_sift_reads_the_draw_with_its_extension(self):
-        sifted = Sifted(_Fixed(bytes([0])), _Walk(_LONG_ONE_FAILS), bytes([1]))
-        self.assertEqual([bytes([0, 1]) + b"?"], sifted.sample())
-
-    def test_a_sift_the_tree_places_keeps_nothing(self):
-        sifted = Sifted(_Fixed(bytes([0])), _Walk(_LONG_ONE_FAILS), b"")
-        self.assertEqual([], sifted.sample())
-
-    def test_a_distribution_run_dry_gives_nothing(self):
-        self.assertEqual([], Sifted(_Dry(), _Walk(lambda seq: None), b"").sample())
+_FOUND = b"\x00\x01?"
 
 
 class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
-    def _source(self, places, *, known):
+    def _source(self, *, known):
         return HarvestSource(
-            {_walked(places): 1},
+            {_Finds(_FOUND): 1},
             np.random.default_rng(0),
             known=known,
             acc_threshold=0.98,
         )
 
     def test_a_find_is_served(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
+        source = self._source(known=())
 
         self.assertTrue(source.attempt_draw())
-        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+        self.assertEqual(_FOUND, source.draw())
 
     def test_keeping_the_same_string_again_is_not_a_find(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
+        source = self._source(known=())
 
         self.assertTrue(source.attempt_draw())
         self.assertFalse(source.attempt_draw(), "the second probe found nothing new")
 
     def test_what_the_caller_already_holds_is_not_a_find(self):
-        source = self._source(_LONG_ONE_FAILS, known=[_PROBE[:2] + b"?"])
+        source = self._source(known=[_FOUND])
 
         self.assertFalse(source.attempt_draw())
 
     def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
+        source = self._source(known=())
 
-        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+        self.assertEqual(_FOUND, source.draw())
 
         with self.assertRaisesRegex(SourceDry, "found no new samples"):
             source.draw()
 
     def test_provenances_are_drawn_in_proportion_to_what_they_found(self):
         drawn = itertools.count()
-        fresh = SimpleNamespace(draw=lambda: next(drawn).to_bytes(4, "big"))
-        never = lambda seq: None
-        often = Sifted(fresh, _Walk(never), b"a")
-        rarely = Sifted(fresh, _Walk(never), b"b")
+
+        class Finds:
+            def __init__(self, tag):
+                self._tag = tag
+
+            def sample(self):
+                return [next(drawn).to_bytes(4, "big") + self._tag]
+
+        often, rarely = Finds(b"a"), Finds(b"b")
         source = HarvestSource(
             {often: 3, rarely: 1},
             np.random.default_rng(0),
             known=(),
             acc_threshold=0.98,
         )
-        ends = [source.draw()[-2:-1] for _ in range(400)]
+        ends = [source.draw()[-1:] for _ in range(400)]
 
         self.assertAlmostEqual(ends.count(b"a") / len(ends), 3 / 4, delta=0.06)
 

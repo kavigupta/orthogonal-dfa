@@ -8,7 +8,6 @@ from collections import Counter
 
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource, draw_many
-from .provenance import Read
 
 
 class PoolState:
@@ -28,7 +27,7 @@ class PoolState:
         self.named = 0
         #: The one this round is filling, or None before it strands anything.
         self.harvesting = None
-        #: The reads that met the strings this round took into it, counted.
+        #: What draws more like the strings this round took into it, counted.
         self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
@@ -61,21 +60,12 @@ class PoolState:
         self.harvesting = None
         self.harvest_reads = Counter()
 
-    def take(self, string, read) -> None:
-        """Take a string this round could not place into its boundary population,
-        with the read that met it."""
+    def take(self, string, provenance) -> None:
+        """Take a string this round harvested into its boundary population, with
+        what draws more like it."""
         self.seen.add(string)
         self.harvest().append(string)
-        self.harvest_reads[read] += 1
-
-    def draws(self, sampler) -> dict:
-        """Per prefix a population holds, the draw it was: one of that
-        population's source, ``sampler`` for the uniform pool's."""
-        draws = {p: Read(sampler, b"") for p in self.uniform}
-        for label, held in self.held.items():
-            if label in self.sources:
-                draws.update((p, Read(self.sources[label], b"")) for p in held)
-        return draws
+        self.harvest_reads[provenance] += 1
 
 
 def grow_population(pst, state, label) -> bool:
