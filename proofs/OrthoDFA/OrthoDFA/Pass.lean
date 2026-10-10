@@ -34,26 +34,6 @@ end DTree
 noncomputable def CutReads.mid (R : CutReads α) (y : FreeMonoid α) : Bool :=
   decide (R.B.lo + R.B.hi < 2 * acceptsOn R.F R.f y)
 
-/-- The pass's knobs.  `train F` is the family's training half; `block F` the suffixes held out
-from it, which only the split test reads. -/
-structure StageKnobs (α : Type*) where
-  train : Finset (FreeMonoid α) → Finset (FreeMonoid α)
-  block : Finset (FreeMonoid α) → Finset (FreeMonoid α)
-  memberLimit : ℕ
-  patience : ℕ
-  splitFpr : ℝ
-  minSplit : ℝ
-  missRate : ℝ
-  /-- `BoundarySource` keeps only boundaries of prefixes at least this long. -/
-  longEnough : ℕ
-  /-- The leaves and distinguishers whose split tests are taken as not splitting, untested: none
-  in the round itself. -/
-  forced : Set (List Bool × FreeMonoid α)
-
-/-- The suffixes read after a string: the family, its training half and the held-out block. -/
-def StageKnobs.suffixes (K : StageKnobs α) (F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
-  F ∪ K.train F ∪ K.block F
-
-variable (K : StageKnobs α) (R : CutReads α)
+variable (R : CutReads α)
 
 end OrthoDFA

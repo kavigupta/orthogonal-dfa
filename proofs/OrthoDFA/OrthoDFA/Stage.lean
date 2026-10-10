@@ -67,17 +67,6 @@ def paths : DTree α → List (List Bool)
 
 end DTree
 
-/-- The hypothesis: the tree, and each leaf's edges by letter, open where `none`. -/
-structure Hypothesis (α : Type*) where
-  tree : DTree α
-  edges : List Bool → α → Option (List Bool)
-
-/-- The totalised step: the edge's target when it is a leaf, else stay put. -/
-def Hypothesis.step (H : Hypothesis α) (path : List Bool) (c : α) : List Bool :=
-  match H.edges path c with
-  | some p => if p ∈ H.tree.paths then p else path
-  | none => path
-
 variable (R : CutReads α)
 
 /-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/

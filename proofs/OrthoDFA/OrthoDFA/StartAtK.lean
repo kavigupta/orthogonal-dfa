@@ -1,4 +1,6 @@
-import OrthoDFA.Round
+import OrthoDFA.Pass
+import OrthoDFA.ClusteringQuality
+import OrthoDFA.FamilyRead
 
 /-!
 # Walks and searches from position `k`
@@ -52,14 +54,6 @@ inductive Outcome (α : Type*)
   | triple (j : ℕ)
   | member (u : FreeMonoid α)
 
-/-- What the pass does with a disagreeing probe: split a leaf, add `sprime` as a member, stop at
-a string the cut cannot place, or drop it. -/
-inductive SeedResult (α : Type*)
-  | split (d : FreeMonoid α) (s1 : List Bool) (y sprime : FreeMonoid α)
-  | member (s1 : List Bool) (sprime d : FreeMonoid α)
-  | stopped (b : FreeMonoid α)
-  | dropped
-
 namespace DTree
 
 open scoped Classical in
@@ -90,34 +84,7 @@ def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → �
         | some false, some _ => bracketAt agrees ps fuel lo (mid - 1)
     else .edge ps hi
 
-variable (K : StageKnobs α) (R : CutReads α)
-
-/-- A split test's key: the leaf's path and the distinguisher. -/
-abbrev TestKey (α : Type*) := List Bool × FreeMonoid α
-
-/-- The key of the split test a probe's step reaches, if any. -/
-def SeedResult.key : SeedResult α → Option (TestKey α)
-  | .split d s1 _ _ => some (s1, d)
-  | .member s1 _ d => some (s1, d)
-  | _ => none
-
-/-- Each block string a split test has counted, with the key of the first test that counted it. -/
-abbrev Tested (α : Type*) := List (FreeMonoid α × TestKey α)
-
-/-- `T` with the strings `bs` a test at `key` counted, those no test counted before. -/
-def Tested.record (T : Tested α) (key : TestKey α) (bs : List (FreeMonoid α)) : Tested α :=
-  T ++ (bs.filter fun b => b ∉ T.map Prod.fst).map (·, key)
-
-/-- What the pass carries: the tree, the population, the learned edges, the probes since the
-last split or evidence weighed, the block strings the split tests have counted and their owners,
-and every other string read. -/
-structure KState (α : Type*) where
-  tree : DTree α
-  pool : List (FreeMonoid α)
-  edges : Edges α
-  streak : ℕ
-  tested : Tested α
-  log : Finset (FreeMonoid α)
+variable (R : CutReads α)
 
 /-- `binomial_side_of_boundary` once `n₀` draws are in: above `θ` when `Bin(n, θ)` reaches `h`
 hits with chance below `a`, below when it stays at or under `h` with chance below `a`. -/

@@ -412,7 +412,6 @@ def ClusteringQualityAll : Prop :=
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
-
 theorem clustering_quality_all : ClusteringQualityAll := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack

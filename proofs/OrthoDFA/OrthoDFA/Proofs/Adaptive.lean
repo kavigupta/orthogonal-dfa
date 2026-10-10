@@ -3922,7 +3922,6 @@ theorem indecision_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle 
       · simpa [hg] using hE)
   convert h using 8
 
-
 open scoped Classical in
 /-- `indecision_frac_le` for the family with its seed added.  The seed's read is at the bare
 prefix, which the clustering never reads either. -/

@@ -40,28 +40,4 @@ theorem bracketAt_triple_gt (agrees : ℕ → Option Bool) (ps : List (List Bool
     · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
     · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
 
-section Cells
-
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-
-variable {Q : Type*}
-
-end Cells
-
-section PassCells
-
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
-variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-  (k : ℕ) (seed probes : List (FreeMonoid α))
-
-end PassCells
-
-section Tail
-
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
-variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-  (k : ℕ) (seed probes : List (FreeMonoid α))
-
-end Tail
-
 end OrthoDFA

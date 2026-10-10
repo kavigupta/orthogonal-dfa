@@ -192,7 +192,6 @@ lemma voteLaw_eq_foldr (N a : ℕ) (p r : ℝ) (k : ℕ) :
   · intro h
     exact absurd (Finset.mem_antidiagonal.2 (by simp)) h
 
-
 omit [MeasurableSpace Ω] in
 lemma voteCount_insert (mq : S → Ω → ℝ) {F : Finset S} {x : S} (hx : x ∉ F) (w : S)
     (ω : Ω) :
@@ -340,7 +339,6 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
   refine Finset.filter_congr (fun v _ => ?_)
   rw [hL, FreeMonoid.toList_mul]
   simp only [DFA.eval, DFA.evalFrom_of_append]
-
 
 /-! ## The reduction to the parameters -/
 

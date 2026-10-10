@@ -1,6 +1,6 @@
 import OrthoDFA.StartAtK
 import OrthoDFA.Proofs.Hoeffding
-import OrthoDFA.Proofs.EdgeGap
+import OrthoDFA.Proofs.Replay
 import OrthoDFA.Proofs.PassReads
 import OrthoDFA.Proofs.Adaptive
 import OrthoDFA.Proofs.BinomLaw
@@ -31,52 +31,7 @@ end Batch
 
 section Learned
 
-variable (K : StageKnobs α) (R : CutReads α)
-
-/-- Every edge's witness sits at the edge's leaf, and its extension by the letter at the edge's
-target. -/
-def Learned (t : DTree α) (edges : Edges α) : Prop :=
-  ∀ p c q y, edges p c = some (q, y) →
-    t.sift R.cut y = .inl p ∧ t.sift R.cut (y * FreeMonoid.of c) = .inl q
-
-omit [Fintype α] in
-theorem route_splitAt {cut : FreeMonoid α → Option Bool} (d : FreeMonoid α) :
-    ∀ (t : DTree α) (x : FreeMonoid α) (s p : List Bool), (t.route cut x).2 = .inl p → p ≠ s →
-      ((t.splitAt d s).route cut x).2 = .inl p
-  | .leaf, x, s, p, h, hps => by
-    simp only [DTree.route, Sum.inl.injEq] at h
-    subst h
-    rcases s with _ | ⟨b, s⟩
-    · exact absurd rfl hps
-    · rfl
-  | .node m r a, x, s, p, h, hps => by
-    simp only [DTree.route] at h
-    rcases hc : cut (x * m) with _ | _ | _ <;> rw [hc] at h
-    · simp at h
-    · rcases hr : (r.route cut x).2 with p' | b <;> rw [hr] at h
-      · simp only [Sum.map_inl, Sum.inl.injEq] at h
-        subst h
-        rcases s with _ | ⟨_ | _, s⟩
-        · simp [DTree.splitAt, DTree.route, hc, hr]
-        · have := route_splitAt d r x s p' hr (fun he => hps (by rw [he]))
-          simp [DTree.splitAt, DTree.route, hc, this]
-        · simp [DTree.splitAt, DTree.route, hc, hr]
-      · simp at h
-    · rcases ha : (a.route cut x).2 with p' | b <;> rw [ha] at h
-      · simp only [Sum.map_inl, Sum.inl.injEq] at h
-        subst h
-        rcases s with _ | ⟨_ | _, s⟩
-        · simp [DTree.splitAt, DTree.route, hc, ha]
-        · simp [DTree.splitAt, DTree.route, hc, ha]
-        · have := route_splitAt d a x s p' ha (fun he => hps (by rw [he]))
-          simp [DTree.splitAt, DTree.route, hc, this]
-      · simp at h
-
-omit [Fintype α] in
-theorem sift_splitAt {cut : FreeMonoid α → Option Bool} {t : DTree α} {x : FreeMonoid α}
-    {d : FreeMonoid α} {s p : List Bool} (h : t.sift cut x = .inl p) (hps : p ≠ s) :
-    (t.splitAt d s).sift cut x = .inl p :=
-  route_splitAt d t x s p h hps
+variable (R : CutReads α)
 
 omit [Fintype α] [DecidableEq α] in
 theorem follow_inl {edges : Edges α} :

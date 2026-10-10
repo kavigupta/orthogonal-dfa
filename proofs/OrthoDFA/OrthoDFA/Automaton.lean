@@ -18,7 +18,4 @@ structure DFA (S : Type*) [Monoid S] (Q : Type*) where
 
 variable {Q : Type*}
 
-/-- The state a prefix reaches. -/
-def DFA.state (A : DFA S Q) (p : S) : Q := A.step A.start p
-
 end OrthoDFA

@@ -41,12 +41,4 @@ theorem route_undecided : ∀ (t : DTree α) (w b : FreeMonoid α), (t.route cut
 
 end Trace
 
-section Fresh
-
-open scoped ENNReal
-
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-
-end Fresh
-
 end OrthoDFA
