@@ -279,16 +279,18 @@ def SubRound : Prop :=
       (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) n nEnd))
       (subOpen C (Fintype.card α) n (c₀ * q₀) βterm) (subT C (Fintype.card α) n nEnd)
 
-/-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, `10 θg Lmax ≤ 1`, every edge
-excess above `2 L log(1/a)`, and the start's test firing only where good read-states' undecided
-reads reach half its count with chance at most `a`, the round ends in a harvest at a tree of the
-class most of whose strings are at good read-states with chance at most `(2^(Lmax+1) |Σ| + T) a`. -/
+/-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, every edge excess above
+`4 L (1 + 4 θg Lmax) log(1/a)`, and the start's test firing only where good read-states'
+undecided reads reach half its count with chance at most `a`, the round ends in a harvest at a
+tree of the class most of whose strings are at good read-states with chance at most
+`(2^(Lmax+1) |Σ| + T) a`. -/
 def HarvestGood : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : TallyCfg) (S L T : ℕ) (q₀ c₀ ρ θg θgs : ℝ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < C.a → 0 ≤ θg → 4 * θg ≤ C.θe →
-    10 * θg * C.Lmax ≤ 1 → (∀ j, 2 * L * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.m → 0 < C.a → C.a ≤ 1 → 0 ≤ θg →
+    4 * θg ≤ C.θe → Fintype.card σ + S + 2 ≤ C.Lmax →
+    (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     TallyE G D C S q₀ c₀ ρ θg θgs rd →
     (Measure.pi fun _ : Fin T => D)
@@ -309,8 +311,8 @@ def TallyRound : Prop :=
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
     0 < q₀ → 0 < c₀ * q₀ → c₀ * q₀ ≤ 1 → 0 ≤ ρ → ρ ≤ 1 → 0 < C.m → 1 ≤ C.n₀ →
     Fintype.card σ + S + 2 ≤ C.Lmax → 0 ≤ βterm →
-    0 < C.a → 0 ≤ θg → 4 * θg ≤ C.θe → 10 * θg * C.Lmax ≤ 1 →
-    (∀ j, 2 * L * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe →
+    (∀ j, 4 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) n nEnd ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)

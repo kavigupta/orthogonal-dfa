@@ -242,7 +242,10 @@ Two gaps between the model and Python:
   `TallyE` and `Terminates`; `HarvestGood` bounds a harvest that is not mostly at read-states that
   are not good. Proved in `Proofs/TallySub.lean`: `round_of_sub` composes sub-rounds (at most
   `|Q|` real ones, failing past `S` fake ones) into `roundW`, and `tally_round_of` gives
-  `TallyRound` from `SubRound` and `HarvestGood`, which are not yet proved.
+  `TallyRound` from `SubRound` and `HarvestGood`. `HarvestGood` is proved in
+  `Proofs/TallyHarvest.lean`: at each edge the good read-states' undecided reads less `2θg` of its
+  reads exponentiate to a supermartingale while the tree is in the class, and at the start they are
+  at most binomial. `SubRound` is not yet proved.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

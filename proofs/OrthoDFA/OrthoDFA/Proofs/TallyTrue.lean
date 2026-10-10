@@ -109,6 +109,82 @@ theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p �
       · exact hne (by simpa using h)
       · exact hW _ (Finset.mem_of_mem_erase h)
 
+open scoped Classical in
+theorem trueLeaves_splitAt_le [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.paths)
+    (d : FreeMonoid α) :
+    (G.trueLeaves (T.splitAt d p)).card
+      ≤ (G.trueLeaves T).card + if G.GenuineSplit T p d then 1 else 0 := by
+  classical
+  set A := (Finset.univ.filter fun q => G.leafOf T q = p).image fun q => p ++ [G.side (G.at' q d)]
+  have hsub : G.trueLeaves (T.splitAt d p) ⊆ (G.trueLeaves T).erase p ∪ A := by
+    intro r hr
+    obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hr
+    by_cases hq : G.leafOf T q = p
+    · rw [(G.leafOf_splitAt d T p hp q).2 hq]
+      exact Finset.mem_union_right _ (Finset.mem_image.2 ⟨q, by simp [hq], rfl⟩)
+    · rw [(G.leafOf_splitAt d T p hp q).1 hq]
+      exact Finset.mem_union_left _ (Finset.mem_erase.2 ⟨hq, Finset.mem_image.2
+        ⟨q, Finset.mem_univ _, rfl⟩⟩)
+  refine (Finset.card_le_card hsub).trans ((Finset.card_union_le _ _).trans ?_)
+  by_cases hpW : p ∈ G.trueLeaves T
+  · rw [Finset.card_erase_of_mem hpW]
+    have hpos := Finset.card_pos.2 ⟨p, hpW⟩
+    have hA : A.card ≤ 1 + if G.GenuineSplit T p d then 1 else 0 := by
+      split_ifs with hg
+      · refine (Finset.card_le_card (t := {p ++ [true], p ++ [false]}) ?_).trans
+          (Finset.card_le_two)
+        intro r hr
+        obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hr
+        cases G.side (G.at' q d) <;> simp
+      · obtain ⟨q₀, -, hq₀⟩ := Finset.mem_image.1 hpW
+        refine Finset.card_le_one.2 fun r₁ h₁ r₂ h₂ => ?_
+        obtain ⟨q₁, hq₁, rfl⟩ := Finset.mem_image.1 h₁
+        obtain ⟨q₂, hq₂, rfl⟩ := Finset.mem_image.1 h₂
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hq₁ hq₂
+        by_contra hne
+        exact hg ⟨q₁, q₂, hq₁, hq₂, fun h => hne (by rw [h])⟩
+    omega
+  · have hA : A = ∅ := by
+      refine Finset.image_eq_empty.2 (Finset.filter_eq_empty_iff.2 fun q _ hq => hpW ?_)
+      exact Finset.mem_image.2 ⟨q, Finset.mem_univ _, hq⟩
+    rw [hA, Finset.erase_eq_of_notMem hpW]
+    simp
+
+/-- The class's trees: each split adds a leaf, a genuine one a true leaf too, so the count of
+splits that are not genuine is fixed by the tree. -/
+theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
+    T.paths.length + (G.trueLeaves (.node 1 .leaf .leaf)).card = (G.trueLeaves T).card + 2 + f := by
+  classical
+  induction h with
+  | start => simp [DTree.paths]; omega
+  | @real T f p t t₀ c hT ht ht₀ hg ih =>
+    have hp : p ∈ T.paths := by
+      obtain ⟨q₁, -, hl, -⟩ := hg
+      exact hl ▸ G.leafOf_mem_paths T q₁
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (lcp t t₀))).2 hg
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (lcp t t₀))
+    rw [if_pos hg] at h2
+    rw [DTree.splitAt_paths_length _ _ _ hp]
+    omega
+  | @fake T f p t t₀ c hT hp ht ht₀ hg ih =>
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (lcp t t₀))).1
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (lcp t t₀))
+    rw [if_neg hg] at h2
+    rw [DTree.splitAt_paths_length _ _ _ hp]
+    omega
+
+theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f)
+    (h' : G.Grown T f') : f = f' := by
+  have := G.grown_count h
+  have := G.grown_count h'
+  omega
+
+theorem grown_paths [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
+    T.paths.length ≤ Fintype.card σ + 2 + f := by
+  have := G.grown_count h
+  have := G.trueLeaves_card_le T
+  omega
+
 end ReadModel
 
 namespace DTree

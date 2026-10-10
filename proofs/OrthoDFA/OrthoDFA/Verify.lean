@@ -11,7 +11,7 @@ import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
-import OrthoDFA.Proofs.TallySub
+import OrthoDFA.Proofs.TallyHarvest
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
 
@@ -26,7 +26,7 @@ in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, the
 `RoundStrong` claims, stated in `OrthoDFA.RoundStrong`, `OrthoDFA.Spurious` and
 `OrthoDFA.Exhausted`, and the family-read claims stated in `OrthoDFA.FamilyRead`, hold, and
-`TallyRound`, stated in `OrthoDFA.TallyRound`, holds given `SubRound` and `HarvestGood`.
+`TallyRound`, stated in `OrthoDFA.TallyRound`, holds given `SubRound`.
 -/
 
 namespace OrthoDFA
@@ -141,6 +141,8 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 #print axioms round_of_sub
 
 #print axioms tally_round_of
+
+#print axioms harvest_good_holds
 
 theorem tally_round : TallyRound := tally_round_of sub_round_holds harvest_good_holds
 

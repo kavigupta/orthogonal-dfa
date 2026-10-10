@@ -468,16 +468,12 @@ theorem runEnds_or {S X E : Type*} {step : S → X → S ⊕ (E × S)} {P Q : E 
 theorem sub_round_holds : SubRound := by
   sorry
 
-/-- `HarvestGood`: sorried, pending the statement's approval. -/
-theorem harvest_good_holds : HarvestGood := by
-  sorry
-
 universe u v w in
 /-- `TallyRound` from `SubRound` and `HarvestGood`. -/
 theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
     TallyRound.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S n nEnd L T q₀ c₀ ρ θg θgs βterm hlen hq₀ hcq hcq1 hρ0
-    hρ1 hm hn₀ hLmax hβ ha hθg0 hθg hθgL hexc hθgs0 hθgs1 hstart hT
+    hρ1 hm hn₀ hLmax hβ hL1 ha ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hT
   set Tsub := subT C (Fintype.card α) n nEnd
   set δ := subFake C (Fintype.card α) ρ Tsub
   set δ' := subOpen C (Fintype.card α) n (c₀ * q₀) βterm
@@ -508,8 +504,8 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
           fun _ _ => rfl, rfl, rfl⟩, ⟨0, .start, by omega⟩, by omega, hT⟩
       have h1 := round_of_sub G D C cut S hm le_rfl hδ0 hδ'0 hsb _ S (Fintype.card σ)
         tallyStart T rfl hstart₀
-      have h2 := hharv G (read · ω) D C S L T q₀ c₀ ρ θg θgs hlen ha hθg0 hθg hθgL hexc hθgs0
-        hθgs1 hstart hω.1
+      have h2 := hharv G (read · ω) D C S L T q₀ c₀ ρ θg θgs hlen hL1 hm ha ha1 hθg0 hθg hLmax
+        hexc hθgs0 hθgs1 hstart hω.1
       have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut) (GoodEnd G)
           tallyStart (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (tallyStep C cut) (OkEnd G S) tallyStart (List.ofFn xs)}
