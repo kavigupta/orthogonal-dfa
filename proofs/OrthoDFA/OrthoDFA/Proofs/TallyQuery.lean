@@ -601,61 +601,6 @@ theorem edge_first_mean {β : Type*} (hmeas : ∀ w, Measurable (read w))
   rw [← lintegral_const_mul' _ _ ENNReal.ofReal_ne_top]
   convert h1 using 3 <;> simp
 
-/-- Counted with multiplicity, a query tree's undecided reads at read-states where undecided
-reads are at most `θ'` average at most `M θ'` times its reads, when no run reads a string more
-than `M` times. -/
-theorem und_asks_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r)
-    (P : σ → Prop) [DecidablePred P] (θ' : ℝ) (hP : ∀ r, P r → G.dist r .undecided ≤ θ')
-    (t : PQ α β) (M : ℕ)
-    (hM : ∀ ω w, ((t.asks fun y => read y ω).map Prod.snd).count w ≤ M) :
-    ∫⁻ ω, (((t.asks fun y => read y ω).filter fun q =>
-        read q.2 ω = .undecided ∧ P (G.M.eval q.2.toList)).length : ENNReal) ∂μ
-      ≤ M * ENNReal.ofReal θ' * ∫⁻ ω, ((t.asks fun y => read y ω).length : ENNReal) ∂μ := by
-  set a : FreeMonoid α → ARU → ENNReal :=
-    fun w v => if v = .undecided ∧ P (G.M.eval w.toList) then 1 else 0
-  have hsum : ∀ (l : List (PLabel α × FreeMonoid α)) (rd : FreeMonoid α → ARU),
-      (l.map fun q => a q.2 (rd q.2)).sum
-        = ((l.filter fun q => rd q.2 = .undecided ∧ P (G.M.eval q.2.toList)).length : ENNReal) := by
-    intro l rd
-    induction l with
-    | nil => simp
-    | cons q l ih =>
-      simp only [List.map_cons, List.sum_cons, ih, List.filter_cons, a]
-      by_cases h : rd q.2 = .undecided ∧ P (G.M.eval q.2.toList)
-      · simp [h, add_comm]
-      · simp [h]
-  have hconst : ∀ (l : List (PLabel α × FreeMonoid α)) (rd : FreeMonoid α → ARU),
-      (l.map fun q => (fun (_ : FreeMonoid α) (_ : ARU) => ENNReal.ofReal θ') q.2 (rd q.2)).sum
-        = ENNReal.ofReal θ' * l.length := by
-    intro l rd; simp [mul_comm]
-  have h1 := QTree.firsts_lintegral_le (μ := μ) (fun _ w v => a w v)
-    (fun _ _ _ => ENNReal.ofReal θ') t read ∅ hmeas hind (fun _ w _ => by
-      by_cases hp : P (G.M.eval w.toList)
-      · have : (fun ω => a w (read w ω)) = fun ω => if read w ω = .undecided then 1 else 0 := by
-          ext ω; simp [a, hp]
-        rw [this, lintegral_ite_read read hmeas, one_mul, measure_read G hlaw, lintegral_const,
-          measure_univ, mul_one]
-        exact ENNReal.ofReal_le_ofReal (hP _ hp)
-      · simp [a, hp])
-  unfold QTree.fsum at h1
-  calc ∫⁻ ω, (((t.asks fun y => read y ω).filter fun q =>
-          read q.2 ω = .undecided ∧ P (G.M.eval q.2.toList)).length : ENNReal) ∂μ
-      ≤ ∫⁻ ω, M * ((t.firsts (fun y => read y ω) ∅).map fun q => a q.2 (read q.2 ω)).sum ∂μ := by
-        refine lintegral_mono fun ω => ?_
-        rw [← hsum _ (fun y => read y ω)]
-        exact QTree.asks_sum_le a _ t M (hM ω)
-    _ = M * ∫⁻ ω, ((t.firsts (fun y => read y ω) ∅).map fun q => a q.2 (read q.2 ω)).sum ∂μ :=
-        lintegral_const_mul' _ _ (ENNReal.natCast_ne_top M)
-    _ ≤ M * ∫⁻ ω, ENNReal.ofReal θ' * (t.firsts (fun y => read y ω) ∅).length ∂μ := by
-        refine mul_le_mul_of_nonneg_left (h1.trans_eq (lintegral_congr fun ω => ?_)) zero_le
-        simp [mul_comm]
-    _ ≤ M * ∫⁻ ω, ENNReal.ofReal θ' * (t.asks fun y => read y ω).length ∂μ := by
-        gcongr with ω
-        have := QTree.firsts_sum_le (fun _ _ => (1 : ENNReal)) (fun y => read y ω) t
-        simpa using this
-    _ = _ := by rw [lintegral_const_mul' _ _ ENNReal.ofReal_ne_top, mul_assoc]
-
 end Mean
 
 end OrthoDFA

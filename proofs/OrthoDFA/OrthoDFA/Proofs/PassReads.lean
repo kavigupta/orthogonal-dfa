@@ -539,7 +539,6 @@ theorem runStep_congr {s : PassState α} {w : FreeMonoid α}
 
 end Congr
 
-
 section Phases
 
 variable (K : StageKnobs α) (R : CutReads α)
@@ -677,12 +676,6 @@ theorem runStep_mids_mono (s : PassState α) (w : FreeMonoid α) :
   · rw [h]; exact hm
   · rw [h]; exact DTree.mem_mids_splitAt hm
 
-theorem runStep_mids_new (s : PassState α) (w : FreeMonoid α) :
-    ∃ d, ∀ m ∈ (runStep K R s w).tree.mids, m ∈ s.tree.mids ∨ m = d := by
-  rcases runStep_tree_cases K R s w with h | ⟨d, p, h⟩
-  · exact ⟨1, fun m hm => .inl (h ▸ hm)⟩
-  · exact ⟨d, fun m hm => DTree.mids_splitAt_cases (h ▸ hm)⟩
-
 theorem runPass_eq_foldl (s : PassState α) (ws : List (FreeMonoid α)) :
     runPass K R s ws = ws.foldl (runStep K R) s := rfl
 
@@ -720,19 +713,6 @@ theorem phase_mids_mono (seed ws : List (FreeMonoid α)) (k : ℕ) :
   rcases phase_succ_cases K R seed ws k with h | ⟨hk, h⟩
   · rw [h]; exact fun m hm => hm
   · rw [h]; exact runStep_mids_mono K R _ _
-
-theorem phase_mids_mono' (seed ws : List (FreeMonoid α)) {j k : ℕ} (hjk : j ≤ k) :
-    ∀ m ∈ (phase K R seed ws j).tree.mids, m ∈ (phase K R seed ws k).tree.mids := by
-  induction hjk with
-  | refl => exact fun m hm => hm
-  | step _ ih => exact fun m hm => phase_mids_mono K R seed ws _ m (ih m hm)
-
-theorem phase_mids_new (seed ws : List (FreeMonoid α)) (k : ℕ) :
-    ∃ d, ∀ m ∈ (phase K R seed ws (k + 1)).tree.mids,
-      m ∈ (phase K R seed ws k).tree.mids ∨ m = d := by
-  rcases phase_succ_cases K R seed ws k with h | ⟨hk, h⟩
-  · exact ⟨1, fun m hm => .inl (h ▸ hm)⟩
-  · rw [h]; exact runStep_mids_new K R _ _
 
 theorem phase_poolIn {Bs : Set (FreeMonoid α)} {seed ws : List (FreeMonoid α)}
     (hseed : ∀ b ∈ seed, b ∈ Bs) (hws : ∀ w ∈ ws, ∀ i, prefixOf w i ∈ Bs) :
@@ -793,112 +773,6 @@ end PhaseCongr
 section Reads
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : MeasureTheory.Measure Ω} {Q : Type*}
-
-/-- The strings `b·e₁·e₂·m` a pass reads against `t`, `b` from `Bs`. -/
-noncomputable def nodeReads (Bs : Finset (FreeMonoid α)) (t : DTree α) : Finset (FreeMonoid α) :=
-  Bs.biUnion fun b => (Finset.univ : Finset (Option α)).biUnion fun e₁ =>
-    (Finset.univ : Finset (Option α)).biUnion fun e₂ =>
-      t.mids.toFinset.image fun m => b * ext e₁ * ext e₂ * m
-
-theorem mem_nodeReads {Bs : Finset (FreeMonoid α)} {t : DTree α} {b m : FreeMonoid α}
-    (e₁ e₂ : Option α) (hb : b ∈ Bs) (hm : m ∈ t.mids) :
-    b * ext e₁ * ext e₂ * m ∈ nodeReads Bs t := by
-  simp only [nodeReads, Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image,
-    List.mem_toFinset]
-  exact ⟨b, hb, e₁, e₂, m, hm, rfl⟩
-
-theorem card_nodeReads (Bs : Finset (FreeMonoid α)) (t : DTree α) :
-    (nodeReads Bs t).card
-      ≤ Bs.card * ((Fintype.card α + 1) * ((Fintype.card α + 1) * t.mids.length)) := by
-  unfold nodeReads
-  calc _ ≤ ∑ _b ∈ Bs, ∑ _e₁ : Option α, ∑ _e₂ : Option α, t.mids.length := by
-        refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun b _ => ?_)
-        refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun e₁ _ => ?_)
-        refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun e₂ _ => ?_)
-        exact Finset.card_image_le.trans (List.toFinset_card_le _)
-    _ = _ := by simp [Finset.sum_const, Fintype.card_option]
-
-/-- A pass's bases: the seed, and every prefix of a probe no longer than `L`. -/
-noncomputable def passBases (seed ws : List (FreeMonoid α)) (L : ℕ) : Finset (FreeMonoid α) :=
-  seed.toFinset ∪ ws.toFinset.biUnion fun w => (Finset.range (L + 1)).image (prefixOf w)
-
-theorem seed_mem_passBases {seed ws : List (FreeMonoid α)} {L : ℕ} {b : FreeMonoid α}
-    (hb : b ∈ seed) : b ∈ passBases seed ws L :=
-  Finset.mem_union_left _ (List.mem_toFinset.2 hb)
-
-theorem prefixOf_mem_passBases {seed ws : List (FreeMonoid α)} {L : ℕ} {w : FreeMonoid α}
-    (hw : w ∈ ws) (hL : w.toList.length ≤ L) (i : ℕ) : prefixOf w i ∈ passBases seed ws L := by
-  refine Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨w, List.mem_toFinset.2 hw, ?_⟩)
-  refine Finset.mem_image.2 ⟨min i L, Finset.mem_range.2 (by omega), ?_⟩
-  unfold prefixOf
-  rcases le_total i L with h | h
-  · rw [min_eq_left h]
-  · rw [min_eq_right h, List.take_of_length_le hL, List.take_of_length_le (hL.trans h)]
-
-theorem card_passBases (seed ws : List (FreeMonoid α)) (L : ℕ) :
-    (passBases seed ws L).card ≤ seed.length + ws.length * (L + 1) := by
-  unfold passBases
-  refine (Finset.card_union_le _ _).trans (add_le_add (List.toFinset_card_le _) ?_)
-  calc _ ≤ ∑ _w ∈ ws.toFinset, (L + 1) := Finset.card_biUnion_le.trans
-        (Finset.sum_le_sum fun w _ => Finset.card_image_le.trans (by simp))
-    _ = ws.toFinset.card * (L + 1) := by simp
-    _ ≤ _ := Nat.mul_le_mul_right _ (List.toFinset_card_le _)
-
-theorem agree_of_noise (K : StageKnobs α) (O : Oracle μ (FreeMonoid α))
-    (F : Finset (FreeMonoid α)) {ω ω' : Ω} {y : FreeMonoid α}
-    (h : ∀ v ∈ K.suffixes F, O.noise (y * v) ω = O.noise (y * v) ω') :
-    AgreeAll K F (fun w => O.mq w ω) (fun w => O.mq w ω') y := fun v hv => by
-  simp only [Oracle.mq, h v hv]
-
-theorem roundEnd_eq_phase (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (seed : List (FreeMonoid α)) {N : ℕ}
-    (θ : Ω × (Fin N → FreeMonoid α)) :
-    roundEnd K O B F seed θ
-      = phase K (rd B F fun w => O.mq w θ.1) seed (List.ofFn θ.2) N := by
-  simp only [roundEnd, phase, readsAt, rd]
-  rw [List.take_of_length_le (by simp)]
-
-/-- The oracle's bits a pass reads at the strings `Y`: each followed by each of `K.suffixes F`. -/
-noncomputable def readBits (K : StageKnobs α) (F : Finset (FreeMonoid α))
-    (Y : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
-  Y.biUnion fun y => (K.suffixes F).image (y * ·)
-
-/-- After `k` probes, the round's state is decided by the oracle's bits at what the pass reads
-against the tree after `k`, and so is the state after `k + 1`. -/
-theorem phase_determined (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (seed : List (FreeMonoid α)) {N L : ℕ}
-    (p : Fin N → FreeMonoid α) (hp : ∀ i, (p i).toList.length ≤ L) (ω ω' : Ω) (k : ℕ)
-    (h : ∀ x ∈ readBits K F (nodeReads (passBases seed (List.ofFn p) L)
-        (phase K (rd B F fun w => O.mq w ω) seed (List.ofFn p) k).tree),
-      O.noise x ω = O.noise x ω') :
-    phase K (rd B F fun w => O.mq w ω') seed (List.ofFn p) k
-        = phase K (rd B F fun w => O.mq w ω) seed (List.ofFn p) k
-      ∧ phase K (rd B F fun w => O.mq w ω') seed (List.ofFn p) (k + 1)
-        = phase K (rd B F fun w => O.mq w ω) seed (List.ofFn p) (k + 1) := by
-  have hseed : ∀ b ∈ seed, b ∈ (passBases seed (List.ofFn p) L : Set (FreeMonoid α)) :=
-    fun b hb => seed_mem_passBases hb
-  have hws : ∀ w ∈ List.ofFn p, ∀ i,
-      prefixOf w i ∈ (passBases seed (List.ofFn p) L : Set (FreeMonoid α)) := by
-    intro w hw i
-    obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hw
-    exact prefixOf_mem_passBases hw (hp j) i
-  have hag : ∀ b ∈ (passBases seed (List.ofFn p) L : Set (FreeMonoid α)),
-      AgreeDeep K F (fun w => O.mq w ω) (fun w => O.mq w ω')
-        (phase K (rd B F fun w => O.mq w ω) seed (List.ofFn p) k).tree b :=
-    fun b hb e₁ e₂ m hm => agree_of_noise K O F fun v hv => h _
-      (Finset.mem_biUnion.2 ⟨_, mem_nodeReads e₁ e₂ hb hm, Finset.mem_image.2 ⟨v, hv, rfl⟩⟩)
-  have h0 := phase_congr K B F _ _ hseed hws k hag
-  exact ⟨h0.symm, (phase_succ_congr_of K B F _ _ hseed hws h0 hag).symm⟩
-
-/-- The round's pass is decided by the oracle's bits at what it reads against its final tree. -/
-theorem roundEnd_determined (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (seed : List (FreeMonoid α)) {N L : ℕ}
-    (p : Fin N → FreeMonoid α) (hp : ∀ i, (p i).toList.length ≤ L) (ω ω' : Ω)
-    (h : ∀ x ∈ readBits K F (nodeReads (passBases seed (List.ofFn p) L)
-        (roundEnd K O B F seed (ω, p)).tree), O.noise x ω = O.noise x ω') :
-    roundEnd K O B F seed (ω', p) = roundEnd K O B F seed (ω, p) := by
-  rw [roundEnd_eq_phase, roundEnd_eq_phase] at *
-  exact (phase_determined K O B F seed p hp ω ω' N h).1
 
 end Reads
 

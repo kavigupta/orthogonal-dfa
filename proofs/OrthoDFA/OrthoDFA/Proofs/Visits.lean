@@ -39,31 +39,4 @@ theorem visited_le_clog (agrees : ℕ → Option Bool) :
     rcases v with _ | _ | _ <;> rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;>
       simp only [] <;> omega
 
-theorem clog_le_logb (n : ℕ) : (Nat.clog 2 n : ℝ) ≤ Real.logb 2 n + 1 := by
-  rcases Nat.lt_or_ge n 2 with hn | hn
-  · interval_cases n <;> simp
-  have hlt := Nat.pow_pred_clog_lt_self (b := 2) (by norm_num) (by omega : 1 < n)
-  have hpos : 0 < Nat.clog 2 n := Nat.clog_pos (by norm_num) (by omega)
-  have hlt' : (2 : ℝ) ^ ((Nat.clog 2 n - 1 : ℕ) : ℝ) < n := by
-    rw [Real.rpow_natCast]; exact_mod_cast hlt
-  have := (Real.lt_logb_iff_rpow_lt (by norm_num) (by positivity)).2 hlt'
-  rw [Nat.cast_sub hpos] at this
-  push_cast at this
-  linarith
-
-open scoped Classical in
-/-- A searched draw of length `L` visits at most `searchSteps L k` middles, and an unsearched
-one none. -/
-theorem visits_le_steps (R : CutReads α) (t : DTree α) (edges : Edges α) {k L : ℕ}
-    {x : FreeMonoid α} (hx : x.toList.length = L) :
-    (visits R t edges k x : ℝ)
-      ≤ searchSteps L k * if Searched R t edges k x then 1 else 0 := by
-  unfold visits Searched
-  rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩
-  · simp
-  · obtain ⟨-, -, -, -, hhi, -⟩ := walkCheck_inr R hw
-    simp only [Sum.elim_inr, Sum.isRight_inr, if_true, mul_one]
-    refine le_trans ?_ (clog_le_logb (L - k))
-    exact_mod_cast (visited_le_clog _ _ _ _).trans (Nat.clog_mono_right 2 (by omega))
-
 end OrthoDFA

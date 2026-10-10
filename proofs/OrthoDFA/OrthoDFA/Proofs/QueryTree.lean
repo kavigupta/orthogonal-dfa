@@ -115,55 +115,6 @@ theorem firsts_keys_eq :
             · exact .inl hy
             · exact .inr ⟨h, fun h'' => h''.elim hy h'⟩
 
-/-- Reads counted with multiplicity are at most the most reads of one key times the first reads. -/
-theorem asks_sum_le (a : ι → V → ENNReal) (rd : ι → V) (t : QTree Λ ι V β) (M : ℕ)
-    (hM : ∀ w, ((t.asks rd).map Prod.snd).count w ≤ M) :
-    ((t.asks rd).map fun q => a q.2 (rd q.2)).sum
-      ≤ M * ((t.firsts rd ∅).map fun q => a q.2 (rd q.2)).sum := by
-  classical
-  obtain ⟨hnd, hset⟩ := firsts_keys_eq rd t ∅
-  rw [Finset.sdiff_empty] at hset
-  have h1 : ((t.asks rd).map fun q => a q.2 (rd q.2)).sum
-      = ∑ w ∈ ((t.asks rd).map Prod.snd).toFinset,
-        ((t.asks rd).map Prod.snd).count w • a w (rd w) := by
-    rw [show ((t.asks rd).map fun q => a q.2 (rd q.2))
-        = ((t.asks rd).map Prod.snd).map fun w => a w (rd w) by simp [List.map_map]]
-    exact Finset.sum_list_map_count _ _
-  have h2 : ((t.firsts rd ∅).map fun q => a q.2 (rd q.2)).sum
-      = ∑ w ∈ ((t.asks rd).map Prod.snd).toFinset, a w (rd w) := by
-    rw [show ((t.firsts rd ∅).map fun q => a q.2 (rd q.2))
-        = ((t.firsts rd ∅).map Prod.snd).map fun w => a w (rd w) by simp [List.map_map],
-      ← hset, List.sum_toFinset _ hnd]
-  rw [h1, h2, Finset.mul_sum]
-  refine Finset.sum_le_sum fun w _ => ?_
-  rw [nsmul_eq_mul]
-  exact mul_le_mul_of_nonneg_right (by exact_mod_cast hM w) zero_le
-
-/-- The first reads are among the reads. -/
-theorem firsts_sum_le (a : ι → V → ENNReal) (rd : ι → V) (t : QTree Λ ι V β) :
-    ((t.firsts rd ∅).map fun q => a q.2 (rd q.2)).sum
-      ≤ ((t.asks rd).map fun q => a q.2 (rd q.2)).sum := by
-  classical
-  obtain ⟨hnd, hset⟩ := firsts_keys_eq rd t ∅
-  rw [Finset.sdiff_empty] at hset
-  have h1 : ((t.asks rd).map fun q => a q.2 (rd q.2)).sum
-      = ∑ w ∈ ((t.asks rd).map Prod.snd).toFinset,
-        ((t.asks rd).map Prod.snd).count w • a w (rd w) := by
-    rw [show ((t.asks rd).map fun q => a q.2 (rd q.2))
-        = ((t.asks rd).map Prod.snd).map fun w => a w (rd w) by simp [List.map_map]]
-    exact Finset.sum_list_map_count _ _
-  have h2 : ((t.firsts rd ∅).map fun q => a q.2 (rd q.2)).sum
-      = ∑ w ∈ ((t.asks rd).map Prod.snd).toFinset, a w (rd w) := by
-    rw [show ((t.firsts rd ∅).map fun q => a q.2 (rd q.2))
-        = ((t.firsts rd ∅).map Prod.snd).map fun w => a w (rd w) by simp [List.map_map],
-      ← hset, List.sum_toFinset _ hnd]
-  rw [h1, h2]
-  refine Finset.sum_le_sum fun w hw => ?_
-  have : 1 ≤ ((t.asks rd).map Prod.snd).count w :=
-    List.count_pos_iff.2 (List.mem_toFinset.1 hw)
-  calc a w (rd w) = 1 • a w (rd w) := by simp
-    _ ≤ _ := nsmul_le_nsmul_left zero_le this
-
 end QTree
 
 /-- The reads `ARU` can take. -/

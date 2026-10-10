@@ -318,7 +318,6 @@ theorem posEdgeBy_of_inl {cut : FreeMonoid α → Option Bool} {T : DTree α} {e
     posEdgeBy cut T edges k x i = posEdgeFrom edges k x p i := by
   simp only [posEdgeBy, edgeAtBy, walkToBy, h, posEdgeFrom, walkFrom]
 
-
 theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
     {k : ℕ} {x : FreeMonoid α} {i : ℕ} {d : List Bool × α} (he : EdgesInto T edges)
     (h : posEdgeBy cut T edges k x i = some d) : d.1 ∈ T.paths := by

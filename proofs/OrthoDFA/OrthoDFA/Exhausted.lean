@@ -25,26 +25,6 @@ open MeasureTheory ProbabilityTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
-open scoped Classical in
-/-- The counted strings on the side `b`. -/
-noncomputable def sideOf (ts : List (FreeMonoid α × Bool)) (b : Bool) : Finset (FreeMonoid α) :=
-  ((ts.filter fun p => p.2 = b).map Prod.fst).toFinset
-
-/-- The mean of the oracle's answers over `S`. -/
-noncomputable def meanBit (O : Oracle μ (FreeMonoid α)) (S : Finset (FreeMonoid α)) : ℝ :=
-  (∑ w ∈ S, μ[O.mq w]) / S.card
-
-/-- `2ab/(a + b)`. -/
-noncomputable def harm (a b : ℕ) : ℝ := 2 * a * b / (a + b)
-
-/-- The test of the sides of `ts` at threshold `θ`, with both sides read, misses by a margin `τ`
-of signal: `√H` times the gap of the sides' mean answers is at least `√θ + τ`. -/
-def PowerCase (O : Oracle μ (FreeMonoid α)) (θ τ : ℝ) (ts : List (FreeMonoid α × Bool)) :
-    Prop :=
-  (sideOf ts true).Nonempty ∧ (sideOf ts false).Nonempty
-    ∧ √θ + τ ≤ √(harm (sideOf ts true).card (sideOf ts false).card)
-      * (meanBit O (sideOf ts true) - meanBit O (sideOf ts false))
-
 section Find
 
 variable (C : StrongCfg α) (R : CutReads α)
@@ -81,46 +61,6 @@ section Test
 
 variable (C : StrongCfg α)
 
-/-- What a step reads before its test. -/
-noncomputable def stepPre (F : Finset (FreeMonoid α)) (A : RoundAcc α) (x : FreeMonoid α) :
-    Finset (FreeMonoid α) :=
-  stepReads C.K F A.s.tree A.s.tree A.s.pool C.k x
-
-/-- The split test the step of `x` from `A` reaches: its key and the strings it counts. -/
-noncomputable def stepTest (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
-    Option (TestKey α × List (FreeMonoid α × Bool)) :=
-  match probeOutcome R A.s.tree A.s.edges C.k x with
-  | .edge ps fd =>
-    (seedStep C.K R A.s.tree A.s.pool A.s.edges (stepSkip C.K R C.k A.s x) C.K.forced C.k x ps
-      fd).key.map fun κ => (κ, testStrings C.K R A.s.tree A.s.pool κ.1 κ.2
-        (stepSkip C.K R C.k A.s x κ))
-  | _ => none
-
-/-- The split test's threshold against `A`'s tree. -/
-noncomputable def testThreshold (A : RoundAcc α) : ℝ :=
-  Real.log (2 * ((A.s.tree.paths.length * Fintype.card α : ℕ) : ℝ) / C.K.splitFpr)
-
-/-- A test at `κ` from `A` on `x`, counting `ts`: none of its strings read before but by `κ`'s
-tests, and its sides' mean answers apart by `τ` beyond its threshold. -/
-def FreshCase (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ)
-    (κ : TestKey α) (A : RoundAcc α) (x : FreeMonoid α) (ts : List (FreeMonoid α × Bool)) :
-    Prop :=
-  (∀ p ∈ ts, p.1 ∉ A.s.log ∧ p.1 ∉ A.reads ∧ p.1 ∉ stepPre C F A x
-      ∧ ∀ κ', (p.1, κ') ∈ A.s.tested → κ' = κ)
-    ∧ PowerCase O (testThreshold C A) τ ts
-
-/-- The step reaches a test at `κ` in the power case. -/
-def CaseAt (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ) (κ : TestKey α)
-    (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) : Prop :=
-  ∃ ts, stepTest C R A x = some (κ, ts) ∧ FreshCase C O F τ κ A x ts
-
-/-- The step reaches a test at `κ` in the power case or one that splits. -/
-def Decisive (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ) (κ : TestKey α)
-    (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) : Prop :=
-  ∃ ts, stepTest C R A x = some (κ, ts) ∧ (FreshCase C O F τ κ A x ts
-    ∨ verdict C.K R A.s.tree A.s.pool κ.1 κ.2 (A.s.tree.paths.length * Fintype.card α)
-      (stepSkip C.K R C.k A.s x κ) = .split)
-
 end Test
 
 section Trace
@@ -146,66 +86,5 @@ noncomputable def roundTrace :
       | (A', .inr lv) => roundTrace n (j + 1) A' lv (Fin.tail d)
 
 end Trace
-
-/-- A reading's refusal draw or probe. -/
-def drawAt (C : StrongCfg α) {Rmax : ℕ} (d : Fin Rmax → C.Draws) :
-    Fin Rmax × (Fin C.nr ⊕ Fin C.np) → FreeMonoid α
-  | (j, .inl i) => (d j).2.2.1 i
-  | (j, .inr i) => (d j).1 i
-
-/-- `RoundStrongPower`: in the round, which takes no key as not splitting, at some key the first
-test in the power case or splitting is in the power case and does not split with chance at most
-`e^{−τ²}` times the chances, over the keys, that there is such a test. -/
-def RoundStrongPower : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-    [IsProbabilityMeasure μ] (C : StrongCfg α) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (seed : List (FreeMonoid α)) (τ : ℝ) (Rmax : ℕ)
-    (d : Fin Rmax → C.Draws),
-    C.K.forced = ∅ → 0 ≤ τ →
-    μ {ω | ∃ κ A x, roundFind C (readsAt O B F ω) (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0
-          (startAcc C (readsAt O B F ω) seed) [] d = some (A, x)
-        ∧ CaseAt C O F τ κ (readsAt O B F ω) A x
-        ∧ verdict C.K (readsAt O B F ω) A.s.tree A.s.pool κ.1 κ.2
-            (A.s.tree.paths.length * Fintype.card α)
-            (stepSkip C.K (readsAt O B F ω) C.k A.s x κ) ≠ .split}
-      ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, μ {ω | roundFind C (readsAt O B F ω)
-          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
-        ≠ none}
-
-open scoped Classical in
-/-- `RoundStrongExhausted`: with the noise and the draws drawn together, draws of length `L`, and
-the budget at two leaves covering `patience + 1` probes for each of `|Q| + N₁ + N₂` steps that are
-not quiet, the round ends exhausted with chance at most `RoundStrongPower`'s bound averaged over
-the draws; over `N₁`, `spurRate` and the chance a step probes the draw in its tree's `BadRoute`,
-summed over every refusal draw and probe; the chance that at least `N₂` steps are not quiet, have
-no read off their route, and reach no test in the power case or splitting; and the chance of a
-noisy split. The last is not bounded. -/
-def RoundStrongExhausted : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (C : StrongCfg α)
-    (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (side : FreeMonoid α → Bool) (rep : Q → FreeMonoid α)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (τ : ℝ)
-    (n : ℕ) (ψ₀ : ℝ) (N₁ N₂ Rmax : ℕ),
-    C.K.forced = ∅ → 0 ≤ τ → 0 < C.K.patience → Monotone C.budget → 0 < N₁ →
-    (∀ᵐ x ∂D, x.toList.length = C.L) →
-    (C.K.patience + 1) * (Fintype.card Q + N₁ + N₂) ≤ C.budget 2 →
-    let ν := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
-    let R := fun p : Ω × (Fin Rmax → C.Draws) => readsAt O B F p.1
-    let steps := fun p : Ω × (Fin Rmax → C.Draws) =>
-      roundTrace C (R p) Rmax 0 (startAcc C (R p) seed) [] p.2
-    μ.prod ν {p | (strongRun C (R p) seed Rmax p.2).1 = .exhausted}
-      ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, ∫⁻ d, μ {ω | roundFind C (readsAt O B F ω)
-          (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
-            ≠ none} ∂ν
-        + (∑ δ : Fin Rmax × (Fin C.nr ⊕ Fin C.np),
-            (ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀)
-              + μ.prod ν {p | ∃ s ∈ steps p, s.2 = drawAt C p.2 δ
-                ∧ drawAt C p.2 δ ∈ BadRoute A O B F side rep C.k n ψ₀ s.1.s.tree})) / N₁
-        + μ.prod ν {p | N₂ ≤ ((steps p).filter fun s => (stepTest C (R p) s.1 s.2).isSome
-            ∧ ¬ SpuriousAt (R p) A side rep s.1.s.tree C.k s.2
-            ∧ ¬ ∃ κ, Decisive C O F τ κ (R p) s.1 s.2).length}
-        + μ.prod ν {p | noisySplits (R p) A side rep (strongRun C (R p) seed Rmax p.2).2.1.splits
-            ≠ 0}
 
 end OrthoDFA

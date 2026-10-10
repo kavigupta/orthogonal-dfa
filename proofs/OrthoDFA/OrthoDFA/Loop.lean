@@ -81,10 +81,6 @@ inductive LoopEnd
   | tooBig
   | unsettled
 
-/-- The first state: the root reads at `ε`, no edge learned. -/
-def loopStart : LoopState α :=
-  ⟨.node 1 .leaf .leaf, fun _ _ => none, fun _ _ => [], fun _ _ => false, ∅, 0, fun _ => 0⟩
-
 /-- `s` with a fresh stretch. -/
 def LoopState.fresh (s : LoopState α) : LoopState α :=
   { s with recs := fun _ _ => [], n := 0, hits := fun _ => 0 }
@@ -224,113 +220,14 @@ noncomputable def loopRun (C : LoopCfg) (R : CutReads α) :
     | .inl s' => loopRun C R s' xs
     | .inr (e, s') => (s', some e)
 
-/-- The share of draws the hypothesis `s` brings to an outcome satisfying `P`. -/
-noncomputable def outRate (C : LoopCfg) (R : CutReads α) (D : Measure (FreeMonoid α))
-    (s : LoopState α) (P : Outcome α → Prop) : ℝ :=
-  D.real {x | P (probeOutcome R s.tree s.edges C.k x)}
-
-/-- What each ending claims: consistent, the draws disagreeing at most `1 − acc` of the time; a
-harvest, its class above its threshold; no progress or the probes run out, nothing. -/
-def LoopGenuine (C : LoopCfg) (R : CutReads α) (D : Measure (FreeMonoid α)) (s : LoopState α) :
-    Option LoopEnd → Prop
-  | some .agree => outRate C R D s Outcome.Disagrees ≤ 1 - C.acc
-  | some (.harvest c) => C.θ c s.tree.depth < outRate C R D s (·.cls = some c)
-  | _ => False
-
 section Band
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-
-/-- `z`'s mean count lies in the band. -/
-def InBand (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (z : FreeMonoid α) : Prop :=
-  (B.lo : ℝ) < meanVote O F z ∧ meanVote O F z ≤ B.hi
-
-/-- The side a read of `z` belongs on: accepting where its mean count is past the band's centre. -/
-noncomputable def refSide (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (z : FreeMonoid α) : Bool :=
-  decide (((B.lo + B.hi : ℕ) : ℝ) < 2 * meanVote O F z)
-
-/-- The chance the cut decides `z` off its side. -/
-noncomputable def wrongProb (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (z : FreeMonoid α) : ℝ :=
-  μ.real {ω | (readsAt O B F ω).cut z = some (!refSide O B F z)}
-
-/-- The chance the cut leaves `z` undecided. -/
-noncomputable def undecProb (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (z : FreeMonoid α) : ℝ :=
-  μ.real {ω | (readsAt O B F ω).cut z = none}
-
-/-- The most a read outside the band is decided off its side. -/
-noncomputable def crossB (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) :
-    ℝ :=
-  ⨆ z : {z // ¬ InBand O B F z}, wrongProb O B F z
-
-/-- The most a read inside the band is decided off its side, per chance it is undecided. -/
-noncomputable def kappa (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) :
-    ℝ :=
-  ⨆ z : {z // InBand O B F z}, wrongProb O B F z / undecProb O B F z
 
 end Band
 
 section Budget
 
-/-- `P(Bin(n, p) ≤ h)`. -/
-noncomputable def binomCdfLe (n : ℕ) (p : ℝ) (h : ℕ) : ℝ := 1 - binomSfGe n p (h + 1)
-
-/-- The most hits at which a rate test at `θ` and level `a` settles below over `n` draws. -/
-noncomputable def lowCount (θ a : ℝ) (n : ℕ) : ℕ := sSup {h | binomCdfLe n θ h < a}
-
-/-- The stretches a loop with no misread runs: each but the last ends at a change, a split (at
-most `|Q|`), a redirect (one per learned edge) or a learning (the root's edges, and per split
-the new leaves' edges and those into the split leaf). -/
-def stretchGood (nα nQ : ℕ) : ℕ := 1 + nQ + 2 * (2 * nα + nQ * nα * (nQ + 4))
-
-/-- The most strings the round reads over `P` probes: each prefix of a probe sifted, and each
-split's retargeted witnesses. -/
-def readMax (C : LoopCfg) (nα P : ℕ) : ℕ :=
-  P * (C.L + 2) * C.Lmax + C.Lmax * nα * C.Lmax ^ 2
-
-/-- An unsettled stretch's chance with no misread, where edges run at `1 − acc − η` or less:
-the disagreement short of settling below `1 − acc`, or edges past it short of `m` records at one
-of the `|Σ|·|Q|` edges and targets correct reads reach. -/
-noncomputable def unsettledAt (C : LoopCfg) (nα nQ : ℕ) (η : ℝ) : ℝ :=
-  binomSfGe C.nmax (1 - C.acc - η) (lowCount (1 - C.acc) C.a C.nmax + 1)
-    + binomCdfLe C.nmax (1 - C.acc - η) ((C.m - 1) * (nα * nQ) + C.m)
-
-/-- A misread string drawn `r` times among `nmax + 1` draws, for `j` strings in each window of
-`P` probes: `(e·(nmax + 1)·prefixMax/(r − 1))^(r − 1)` each. -/
-noncomputable def hitBound (C : LoopCfg) (D : Measure (FreeMonoid α)) (P j r : ℕ) : ℝ :=
-  P * j * (Real.exp 1 * (C.nmax + 1) * prefixMax D C.k / (r - 1 : ℕ)) ^ (r - 1)
-
 end Budget
-
-/-- The harvest tests fire on a stretch's first hit up to `nmax + 1` probes: the thresholds are
-below `τ₀`. -/
-def BelowTau (C : LoopCfg) : Prop :=
-  ∀ c ∈ ({.start, .stop, .triple, .pair} : Finset Cls), ∀ d ≤ C.Lmax,
-    binomSfGe (C.nmax + 1) (C.θ c d) 1 < C.a
-
-/-- `LoopSucceeds`: below `τ₀`, from the root, over `P` fresh draws, enough for the stretches a
-loop with no misread runs, the loop ends genuinely consistent or with a genuine harvest, but for
-chance at most its tests' levels over the `P` probes, a decided read off its side among the
-reads of `P` probes, more than `j` in-band reads off their side, a misread string drawn `m / j`
-times within a stretch, and an unsettled stretch with none of these. -/
-def LoopSucceeds : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (C : LoopCfg) (A : DFA (FreeMonoid α) Q)
-    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (P j : ℕ) (η : ℝ),
-    O.L = {w | A.state w ∈ A.accept} → SuffixFree F → (∀ᵐ x ∂D, x.toList.length = C.L) →
-    C.k ≤ C.L → 1 ≤ j → 2 ≤ C.m / j → Fintype.card Q + 3 ≤ C.Lmax → BelowTau C →
-    stretchGood (Fintype.card α) (Fintype.card Q) * (C.nmax + 1) ≤ P →
-    1 - (5 * P * C.a + readMax C (Fintype.card α) P * crossB O B F + kappa O B F ^ (j + 1)
-        + hitBound C D P j (C.m / j)
-        + stretchGood (Fintype.card α) (Fintype.card Q)
-          * unsettledAt C (Fintype.card α) (Fintype.card Q) η)
-      ≤ (μ.prod (Measure.pi fun _ : Fin P => D)).real
-          {p | LoopGenuine C (readsAt O B F p.1) D
-            (loopRun C (readsAt O B F p.1) loopStart (List.ofFn p.2)).1
-            (loopRun C (readsAt O B F p.1) loopStart (List.ofFn p.2)).2}
 
 end OrthoDFA

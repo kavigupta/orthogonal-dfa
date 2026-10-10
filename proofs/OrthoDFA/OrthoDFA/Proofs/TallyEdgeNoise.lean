@@ -213,7 +213,6 @@ theorem measurable_of_strings {β : Type*} [MeasurableSpace β] (hmeas : ∀ z, 
   rw [this]
   exact (measurable_of_countable _).comp (measurable_pi_lambda _ fun i => hmeas i)
 
-
 /-- Probe quantities each read through strings sharing the probe's length-`k` prefix, the first's
 mean at most `θ₀` of the second's: their `D`-weighted sums exceed twice `θ₀` by `η` with chance at
 most `exp(−η / (2 p₀ B (1 + 4θ₀R)))`. -/

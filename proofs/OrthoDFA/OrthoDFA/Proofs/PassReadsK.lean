@@ -93,33 +93,6 @@ theorem qBracket_asksIn (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → Lis
     · rw [qBracket, if_neg hlh]
       trivial
 
-theorem qWalk_asksIn (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (qWalk t edges k x).AsksIn (PrefixRead t x) := by
-  have hs : ∀ i g, (qSift (prefixOf x i) g t).AsksIn (PrefixRead t x) := fun i g =>
-    Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨i, m, hm, he⟩) _ (qSift_asksIn _ g t)
-  have hx : (qSift x false t).AsksIn (PrefixRead t x) :=
-    Qry.asksIn_mono (fun y ⟨m, hm, he⟩ =>
-      ⟨x.toList.length, m, hm, by rw [prefixOf_length]; exact he⟩)
-      _ (qSift_asksIn _ false t)
-  unfold qWalk
-  refine Qry.asksIn_bind (fun s0 => ?_) _ (hs k false)
-  rcases s0 with p | _
-  · simp only []
-    split
-    · exact Qry.asksIn_bind (fun s => by rcases s with _ | _ <;> trivial) _ hx
-    · refine Qry.asksIn_bind (fun s1 => ?_) _ (hs _ false)
-      rcases s1 with _ | _
-      · exact Qry.asksIn_bind (fun s2 => by rcases s2 with _ | _ <;> trivial) _ (hs _ false)
-      · trivial
-  · trivial
-
-theorem qProbe_asksIn (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (qProbe t edges k x).AsksIn (PrefixRead t x) :=
-  Qry.asksIn_bind (fun d => by
-    rcases d with o | d
-    · trivial
-    · exact qBracket_asksIn t x _ d.1 _ _ _) _ (qWalk_asksIn t edges k x)
-
 theorem qProbe_asksIn_ge (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
     (qProbe t edges k x).AsksIn fun y => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, y = prefixOf x i * m := by
   set S : FreeMonoid α → Prop := fun y => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, y = prefixOf x i * m
@@ -690,41 +663,6 @@ theorem phaseK_of_le (seed probes : List (FreeMonoid α)) {n : ℕ} (hn : probes
     phaseK K R k seed probes n = phaseK K R k seed probes probes.length := by
   simp only [phaseK, List.take_of_length_le hn, List.take_length]
 
-theorem stepK_mids_mono (s : KState α) (x : FreeMonoid α) :
-    ∀ m ∈ s.tree.mids, m ∈ (stepK K R k s x).tree.mids := fun m hm => by
-  unfold stepK
-  split
-  · exact hm
-  · rcases probeStepK_tree_cases K R k s x with h | ⟨d, p, h⟩
-    · rw [h]; exact hm
-    · rw [h]; exact DTree.mem_mids_splitAt hm
-
-theorem phaseK_mids_mono (seed probes : List (FreeMonoid α)) (n : ℕ) :
-    ∀ m ∈ (phaseK K R k seed probes n).tree.mids,
-      m ∈ (phaseK K R k seed probes (n + 1)).tree.mids := by
-  by_cases hn : n < probes.length
-  · rw [phaseK_succ K R k seed probes hn]; exact stepK_mids_mono K R k _ _
-  · rw [phaseK_of_le K R k seed probes (n := n + 1) (by omega),
-      phaseK_of_le K R k seed probes (n := n) (by omega)]
-    exact fun m hm => hm
-
-theorem phaseK_mids_le (seed probes : List (FreeMonoid α)) {n n' : ℕ} (h : n ≤ n') :
-    ∀ m ∈ (phaseK K R k seed probes n).tree.mids, m ∈ (phaseK K R k seed probes n').tree.mids := by
-  induction h with
-  | refl => exact fun m hm => hm
-  | step _ ih => exact fun m hm => phaseK_mids_mono K R k seed probes _ m (ih m hm)
-
-theorem phaseK_final_mids (seed probes : List (FreeMonoid α)) (n : ℕ) :
-    ∀ m ∈ (phaseK K R k seed probes n).tree.mids,
-      m ∈ (runPassK K R k (initialK K R seed) probes).tree.mids := by
-  have hfin : runPassK K R k (initialK K R seed) probes
-      = phaseK K R k seed probes probes.length := by
-    simp [phaseK]
-  rw [hfin]
-  rcases le_total n probes.length with h | h
-  · exact phaseK_mids_le K R k seed probes h
-  · rw [phaseK_of_le K R k seed probes h]; exact fun m hm => hm
-
 theorem phaseK_poolIn {Bs : Set (FreeMonoid α)} {seed probes : List (FreeMonoid α)}
     (hseed : ∀ b ∈ seed, b ∈ Bs) (hws : ∀ w ∈ probes, ∀ i, k ≤ i → prefixOf w i ∈ Bs) :
     ∀ n, KPoolIn Bs (phaseK K R k seed probes n)
@@ -779,58 +717,6 @@ theorem phaseK_congr (k : ℕ) {Bs : Set (FreeMonoid α)} {seed probes : List (F
         ← phaseK_of_le K _ k seed probes (n := n) (by omega),
         ← phaseK_of_le K _ k seed probes (n := n) (by omega)]
       exact phaseK_congr k hseed hws Tf hTf hB hBblk n
-
-theorem prefixOf_mem_bases {k : ℕ} {seed probes : List (FreeMonoid α)} {p : FreeMonoid α}
-    (hp : p ∈ probes) {i : ℕ} (hi : k ≤ i) :
-    prefixOf p i ∈ seed ++ probes.flatMap fun p =>
-      (List.range (p.toList.length + 1)).map fun i => prefixOf p (max k i) := by
-  refine List.mem_append_right _ (List.mem_flatMap.2 ⟨p, hp, List.mem_map.2
-    ⟨min i p.toList.length, List.mem_range.2 (by omega), ?_⟩⟩)
-  unfold prefixOf
-  congr 1
-  rcases le_total i p.toList.length with h | h
-  · rw [min_eq_left h, max_eq_right hi]
-  · rw [min_eq_right h, List.take_of_length_le h, List.take_of_length_le (by omega)]
-
-/-- The pass walked from `k` is decided by the oracle's bits at what it reads against the tree it
-ends with. -/
-theorem runPassK_determined {Ω : Type*} [MeasurableSpace Ω] {μ : MeasureTheory.Measure Ω}
-    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
-    (k : ℕ) (seed probes : List (FreeMonoid α)) (ω ω' : Ω)
-    (h : ∀ y ∈ vBits (K.suffixes F) (passReadSet k seed probes
-        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes).tree),
-      O.noise y ω = O.noise y ω') :
-    runPassK K (readsAt O B F ω') k (initialK K (readsAt O B F ω') seed) probes
-      = runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes := by
-  set Bs : Set (FreeMonoid α) := {b | b ∈ seed ++ probes.flatMap fun p =>
-    (List.range (p.toList.length + 1)).map fun i => prefixOf p (max k i)}
-  set Tf := (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes).tree
-  have hseed : ∀ b ∈ seed, b ∈ Bs := fun b hb => List.mem_append_left _ hb
-  have hws : ∀ w ∈ probes, ∀ i, k ≤ i → prefixOf w i ∈ Bs := fun w hw i hi =>
-    prefixOf_mem_bases hw hi
-  have hAll : ∀ b ∈ Bs, ∀ e, ∀ m ∈ Tf.mids,
-      AgreeAll K F (fun w => O.mq w ω) (fun w => O.mq w ω') (b * ext e * m) := by
-    intro b hb e m hm
-    refine agree_of_noise K O F fun v hv => h _ ?_
-    simp only [vBits, Finset.mem_biUnion, Finset.mem_image]
-    refine ⟨b * ext e * m, ?_, v, hv, rfl⟩
-    simp only [passReadSet, Finset.mem_image, Finset.mem_product, Prod.exists]
-    refine ⟨b, ext e, m, ⟨⟨List.mem_toFinset.2 hb, ?_⟩, ?_⟩, rfl⟩
-    · rcases e with _ | c
-      · exact Finset.mem_insert_self _ _
-      · exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨c, Finset.mem_univ _, rfl⟩)
-    · exact Finset.mem_insert_of_mem ((DTree.mem_midfixes_iff _).2 hm)
-  have hB : ∀ b ∈ Bs, AgreeOne K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b :=
-    fun b hb e m hm => (hAll b hb e m hm).agree
-  have hBblk : ∀ b ∈ Bs, AgreeBlk K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b := by
-    intro b hb c m hm v hv
-    have := hAll b hb (some c) m hm v (K.block_sub F hv)
-    simpa [ext, mul_assoc] using this
-  have hTf : ∀ n, ∀ m ∈ (phaseK K (rd B F fun w => O.mq w ω) k seed probes n).tree.mids,
-      m ∈ Tf.mids := fun n => phaseK_final_mids K _ k seed probes n
-  have := phaseK_congr k hseed hws Tf hTf hB hBblk probes.length
-  simp only [phaseK, List.take_length] at this
-  exact this.symm
 
 end Determined
 

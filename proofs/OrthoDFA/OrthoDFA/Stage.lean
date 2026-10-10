@@ -131,68 +131,8 @@ noncomputable def bisect (t : DTree α) (w : FreeMonoid α) (walk : ℕ → List
         ((lo + hi) / 2 :: rest.1, rest.2)
     else ([], .inr hi)
 
-/-- `Walked`'s replay of `w` from the earliest anchor `e`: the prefix lengths it sifts, and what
-it harvests. -/
-noncomputable def replay (H : Hypothesis α) (w : FreeMonoid α) (e : ℕ) :
-    List ℕ × List (FreeMonoid α) :=
-  let t := H.tree
-  let n := w.toList.length
-  let search := anchorSearch R t w ((List.range (n + 1)).filter (e ≤ ·))
-  let missed := search.1.filterMap fun i => (t.sift R.cut (prefixOf w i)).getRight?
-  match search.2 with
-  | none => (search.1, missed)
-  | some (start, p) =>
-    let walk := (w.toList.drop start).scanl H.step p
-    let walkAt := fun j => walk.getD (j - start) []
-    match t.sift R.cut w with
-    | .inr b => (search.1 ++ [start, n], missed ++ [b])
-    | .inl actual =>
-      if actual = walkAt n then (search.1 ++ [start, n], missed) else
-      let found := bisect R t w walkAt n start n
-      (search.1 ++ [start, n] ++ found.1, missed ++ match found.2 with
-        | .inl b => [b]
-        | .inr fd => [prefixOf w (fd - 1)])
-
-/-- The strings whose noise the replay reads: each sifted prefix's queries, extended by every
-suffix of the family. -/
-def replayReads (H : Hypothesis α) (w : FreeMonoid α) (e : ℕ) : Set (FreeMonoid α) :=
-  {x | ∃ i ∈ (replay R H w e).1, ∃ q ∈ (H.tree.route R.cut (prefixOf w i)).1, ∃ v ∈ R.F,
-    x = q * v}
-
 /-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/
 noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=
   (L : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.range L, Measure.dirac k
-
-/-- The tree read at the middle of the band, as `estimate_agreement_rate` reads it at
-`decision_boundary`: every string is decided. -/
-noncomputable def midPath (H : Hypothesis α) (x : FreeMonoid α) : List Bool :=
-  (H.tree.sift (fun y => some (decide (R.B.lo + R.B.hi < 2 * acceptsOn R.F R.f y))) x).elim id
-    fun _ => []
-
-/-- `estimate_agreement_rate` counts `x` against the hypothesis: walked from where the tree read
-at the middle of the band sends `ε`, it ends somewhere other than where that reading sends `x`. -/
-def DFAandDTDisagree (H : Hypothesis α) (x : FreeMonoid α) : Prop :=
-  x.toList.foldl H.step (midPath R H 1) ≠ midPath R H x
-
-/-- `RoundOutcome`: for any tree and DFA a round ends with, if the DFA/DT agreement check fails
-on a share `d` of `D`, the harvest's replay, from an earliest anchor drawn uniformly below `L`,
-
-* finds at least one string on at least a `d/L` share of attempts;
-* harvests no single string `t` on more than a `B(t)` share of them; and
-* reads no single string `t` on more than a `B(t)` share of them,
-
-where `B(t) = ∑_{i ≤ |t|} min(i + 1, L) / L · D(the draw's first i letters are t's)`. -/
-def RoundOutcome : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (H : Hypothesis α)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    R.B.lo ≤ R.B.hi →
-    D.real {x | DFAandDTDisagree R H x} / L
-        ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
-      ∧ (∀ t : FreeMonoid α, (D.prod (anchorLaw L)).real {q | t ∈ (replay R H q.1 q.2).2}
-          ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
-              ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i})
-      ∧ ∀ t : FreeMonoid α, (D.prod (anchorLaw L)).real {q | t ∈ replayReads R H q.1 q.2}
-          ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
-              ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i}
 
 end OrthoDFA

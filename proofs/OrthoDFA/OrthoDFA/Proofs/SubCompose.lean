@@ -89,11 +89,6 @@ theorem binomSfGe_le_one {n : ℕ} {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (j 
   have := binomSfGe_antitone' hp0 hp1 (n := n) (Nat.zero_le j)
   rwa [binomSfGe_zero_right] at this
 
-theorem binomSfGe_top {n : ℕ} {p : ℝ} : binomSfGe n p (n + 1) = 0 := by
-  rw [binomSfGe_eq_range]
-  exact Finset.sum_eq_zero fun i hi => by
-    simp only [Finset.mem_range] at hi; rw [if_neg (by omega)]
-
 end Bound
 
 end OrthoDFA

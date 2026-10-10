@@ -95,12 +95,6 @@ noncomputable def midfixes : DTree α → Finset (FreeMonoid α)
   | .leaf => ∅
   | .node m r a => insert m (r.midfixes ∪ a.midfixes)
 
-open scoped Classical in
-/-- The midfixes of the nodes below the root. -/
-noncomputable def belowRoot : DTree α → Finset (FreeMonoid α)
-  | .leaf => ∅
-  | .node _ r a => r.midfixes ∪ a.midfixes
-
 end DTree
 
 /-- `bracket` from `lo`, agreeing, to `hi`, disagreeing, over the walk `ps`, `agrees i` being
@@ -437,10 +431,6 @@ noncomputable def passReadSet (k : ℕ) (seed probes : List (FreeMonoid α)) (t 
       (List.range (p.toList.length + 1)).map fun i => prefixOf p (max k i)).toFinset
     ×ˢ insert 1 (Finset.univ.image FreeMonoid.of)) ×ˢ insert 1 t.midfixes).image
     fun z => z.1.1 * z.1.2 * z.2
-
-/-- The first `k` letters of the strings of `T` at least `k` long. -/
-noncomputable def kPrefixes (k : ℕ) (T : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
-  (T.filter fun w => k ≤ w.toList.length).image (prefixOf · k)
 
 /-- The most of `D` on draws beginning with any one string of length `k`. -/
 noncomputable def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=

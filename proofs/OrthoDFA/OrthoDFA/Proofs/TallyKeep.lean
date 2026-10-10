@@ -594,12 +594,6 @@ theorem cnt_succ_le (P : X → Prop) : ∀ (T j : ℕ) (xs : Fin T → X),
     rw [cnt_succ (j + 1), cnt_succ j]
     omega
 
-theorem cnt_mono (P : X → Prop) {T : ℕ} (xs : Fin T → X) {j j' : ℕ} (h : j ≤ j') :
-    cnt j P xs ≤ cnt j' P xs := by
-  induction h with
-  | refl => exact le_rfl
-  | step _ ih => exact ih.trans (cnt_succ_le P T _ xs).1
-
 open scoped Classical in
 /-- The draws reach `t` in `A` with fewer than `h` of them in `B`. -/
 def RR (A B : Set X) : (T : ℕ) → ℕ → ℕ → (Fin T → X) → Prop

@@ -65,12 +65,6 @@ theorem nodes_length : ∀ T : DTree α, T.nodes.length + 1 = 2 * T.paths.length
 
 end DTree
 
-section Charges
-
-variable (cut : FreeMonoid α → Option Bool)
-
-end Charges
-
 /-- A step that goes on: no test fired, so the start's undecided strings are not past its test and
 no edge out of a leaf charged `φe` of the probes has its undecided strings past `θe` of its
 positions by `exc` of them. -/

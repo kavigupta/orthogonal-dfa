@@ -146,7 +146,6 @@ theorem asks_probeQ_label (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T
 
 end Label
 
-
 section Count
 
 theorem route_mid (cut : FreeMonoid α → Option Bool) :

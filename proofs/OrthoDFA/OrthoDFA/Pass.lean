@@ -86,14 +86,6 @@ structure StageKnobs (α : Type*) where
 def StageKnobs.suffixes (K : StageKnobs α) (F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
   F ∪ K.train F ∪ K.block F
 
-theorem StageKnobs.family_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
-    F ⊆ K.suffixes F :=
-  Finset.subset_union_left.trans Finset.subset_union_left
-
-theorem StageKnobs.train_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
-    K.train F ⊆ K.suffixes F :=
-  Finset.subset_union_right.trans Finset.subset_union_left
-
 theorem StageKnobs.block_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
     K.block F ⊆ K.suffixes F :=
   Finset.subset_union_right
@@ -387,15 +379,5 @@ noncomputable def runPass (s : PassState α) (probes : List (FreeMonoid α)) : P
 edges are closed once. -/
 noncomputable def initialState (seed : List (FreeMonoid α)) : PassState α :=
   settle K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 0 [] []
-
-/-- `_blocked_at_limit`: the probes since the pass's last split went unchecked more than half as
-often as a family undecided at `τ` per read could leave them, so the round halves the limits
-every later family is held to. -/
-def PassState.halves (τ : ℝ) (s : PassState α) : Prop := τ * s.reads < 2 * s.unchecked
-
-
-/-- The hypothesis a pass state names: its tree and the targets of its edges. -/
-def PassState.hyp (s : PassState α) : Hypothesis α :=
-  ⟨s.tree, fun p c => (s.edges p c).map Prod.fst⟩
 
 end OrthoDFA
