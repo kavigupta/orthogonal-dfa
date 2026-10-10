@@ -12,8 +12,11 @@ import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyKeep
+import OrthoDFA.Proofs.TallyNoise
+import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
+import OrthoDFA.Proofs.IdealRound
 
 /-!
 # The theorem
@@ -26,7 +29,8 @@ in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, the
 `RoundStrong` claims, stated in `OrthoDFA.RoundStrong`, `OrthoDFA.Spurious` and
 `OrthoDFA.Exhausted`, and the family-read claims stated in `OrthoDFA.FamilyRead`, hold, and
-`TallyRound`, stated in `OrthoDFA.TallyRound`, holds given `SubRound`.
+`TallyRound`, stated in `OrthoDFA.TallyRound`, holds, and so does the idealized round's claim,
+stated in `OrthoDFA.IdealRound`.
 -/
 
 namespace OrthoDFA
@@ -146,8 +150,17 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 
 #print axioms sub_round_holds
 
-theorem tally_round : TallyRound := tally_round_of sub_round_holds harvest_good_holds
+#print axioms goodStart_le
+
+#print axioms success_sound_holds
+
+theorem tally_round : TallyRound :=
+  tally_round_of sub_round_holds harvest_good_holds success_sound_holds
 
 #print axioms tally_round
+
+theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
+
+#print axioms ideal_round_correct
 
 end OrthoDFA
