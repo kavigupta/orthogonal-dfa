@@ -120,8 +120,10 @@ def bracketSifts (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → List �
       | none =>
         match ag (mid - 1), ag (mid + 1) with
         | none, _ => [mid, mid - 1]
-        | some true, some true => mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel (mid + 1) hi
-        | some false, some _ => mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel lo (mid - 1)
+        | some true, some true =>
+          mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel (mid + 1) hi
+        | some false, some _ =>
+          mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel lo (mid - 1)
         | some _, _ => [mid, mid - 1, mid + 1]
     else []
 

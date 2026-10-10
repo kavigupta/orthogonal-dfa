@@ -70,9 +70,17 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   open. A step that is not quiet splits, at most `|Q|` times without a noisy split, or adds a
   member after a test that did not split, which falls in the power term or the residual.
 
+- `TallyRound`: in the tally loop, the family's read of a string taken as one accept, reject or
+  undecided draw, one round over `T` probes reaches a state where no path-good transition's
+  boundary has mass `q₀`, or ends in success, or ends in a harvest that bad read-states trigger,
+  but for the chance that the noise event `TallyE` fails, `T · P(Bin(n, c₀q₀) < m)`,
+  `P(Bin(T, (|Q| + 2)² |Σ| ρ) ≥ m)` and `T² (Lmax |Σ| + 1) a`. `TallyE` is a hypothesis on the
+  reads over every genuine tree, not proved here.
+
 ## Open
 
-Two claims are not proved, and are not assumed or sorried anywhere:
+Two claims are not proved, and are not assumed or sorried anywhere (`TallyRound` assumes its
+noise event `TallyE` as a hypothesis, to be bounded separately):
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
@@ -218,6 +226,22 @@ Two gaps between the model and Python:
   every DFA state has one distribution its strings read with, which is accept at most `ε` of the
   time, or reject at most `ε`, or undecided at least a third.  `BandPasses` is the check the band
   selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`.
+- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`.
+  Probes walk from `k` as `sifting.read` does; a clean disagreement records its prefix and target
+  at its edge, `m` records at a target an edge does not point at redirect it or, where its own
+  target also has `m`, split its leaf, dropping the records at and into the leaf. Each sifted
+  position charges its reads, stepped-past middles included, to an edge; an edge's undecided reads
+  exceeding `θe` of its reads by `exc n`, or the start's undecided rate above `θs`, harvests; the
+  disagreement rate settling below `εd` succeeds; `Lmax` leaves, `fuel` fixes and running out of
+  probes fail. A genuine tree grows from the root's cut by splits separating two path-good states
+  with good reads of the new midfix on different sides. `TallyE` says, over every genuine tree and
+  edges into its leaves: a path-good transition with boundary mass `q₀` gets clean records at
+  `c₀` times it; records that are not true have mass at most `ρ` at each edge and target; good
+  read-states' undecided reads average at most `θg` of an edge's reads, and `θgs` at the start.
+  Proved in `Proofs/TallyRound.lean`: with fewer than `m` records that are not true every split is
+  genuine (`Proofs/TallyInv.lean`), `pot` bounds the versions (`Proofs/TallyCount.lean`), and the
+  probe tails are `tally_fix_in_time`, `hits_le` and the stretch tests' levels
+  (`Proofs/TallyStretch.lean`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

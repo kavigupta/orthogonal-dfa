@@ -136,7 +136,8 @@ theorem split_sides : ∀ (T : DTree α) (q₁ q₂ : σ), G.PathGood T q₁ →
       simp [lcp, DTree.midAt, s₁, s₂, h₁.1, h₂.1]
     · simp only [s₁, s₂, if_true, Bool.false_eq_true, if_false] at h₁ h₂ ⊢
       simp [lcp, DTree.midAt, s₁, s₂, h₁.1, h₂.1]
-    · simp only [s₁, s₂, Bool.false_eq_true, if_false, ne_eq, List.cons.injEq, true_and] at h₁ h₂ hne ⊢
+    · simp only [s₁, s₂, Bool.false_eq_true, if_false, ne_eq, List.cons.injEq, true_and]
+        at h₁ h₂ hne ⊢
       simpa [lcp, DTree.midAt] using split_sides r q₁ q₂ h₁.2 h₂.2 hne
 
 theorem eval_mul_of (sp : FreeMonoid α) (c : α) :

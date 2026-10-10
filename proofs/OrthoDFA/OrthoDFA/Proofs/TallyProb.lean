@@ -106,14 +106,15 @@ theorem hits_le (A : S → Set X) {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1)
     change c₁ * d + c₀ * (1 - d) ≤ ρ * c₁ + (1 - ρ) * c₀
     nlinarith
 
-theorem somewhere_le (F : S → (T : ℕ) → (Fin T → X) → Prop) (c : ENNReal)
-    (hF : ∀ s T, (Measure.pi fun _ : Fin T => D) {xs | F s T xs} ≤ c) :
-    ∀ (T : ℕ) (s : S), (Measure.pi fun _ : Fin T => D) {xs | Somewhere step F s T xs} ≤ T * c := by
+theorem somewhere_le (F : S → (T : ℕ) → (Fin T → X) → Prop) (c : ENNReal) (T₀ : ℕ)
+    (hF : ∀ s T, T ≤ T₀ → (Measure.pi fun _ : Fin T => D) {xs | F s T xs} ≤ c) :
+    ∀ (T : ℕ), T ≤ T₀ → ∀ s : S,
+      (Measure.pi fun _ : Fin T => D) {xs | Somewhere step F s T xs} ≤ T * c := by
   intro T
   induction T with
-  | zero => intro s; simp [Somewhere]
+  | zero => intro _ s; simp [Somewhere]
   | succ T ih =>
-    intro s
+    intro hT s
     have h2 : (Measure.pi fun _ : Fin (T + 1) => D)
         {xs : Fin (T + 1) → X | ∃ s', step s (xs 0) = some s'
           ∧ Somewhere step F s' T (Fin.tail xs)} ≤ T * c := by
@@ -130,7 +131,7 @@ theorem somewhere_le (F : S → (T : ℕ) → (Fin T → X) → Prop) (c : ENNRe
                   = {xs | Somewhere step F s' T xs} := by
                 ext xs; simp [hx]
               rw [this]
-              exact ih s'
+              exact ih (by omega) s'
         _ = T * c := by rw [lintegral_const, measure_univ, mul_one]
     have hsplit : {xs | Somewhere step F s (T + 1) xs}
         = {xs | F s (T + 1) xs}
@@ -139,7 +140,7 @@ theorem somewhere_le (F : S → (T : ℕ) → (Fin T → X) → Prop) (c : ENNRe
       ext xs; simp [Somewhere]
     rw [hsplit]
     refine (measure_union_le _ _).trans ?_
-    calc _ ≤ c + T * c := add_le_add (hF s (T + 1)) h2
+    calc _ ≤ c + T * c := add_le_add (hF s (T + 1) hT) h2
       _ = (T + 1 : ℕ) * c := by push_cast; ring
 
 section Tests
