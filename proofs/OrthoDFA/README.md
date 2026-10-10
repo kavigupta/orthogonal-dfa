@@ -98,6 +98,14 @@ revelation the good read-states' undecided new strings at a place are at most bi
 strings read there, with no noise field, no union over the class and no `p₀`. It needs the probe's
 computation stated as an adaptive sequence of reads.
 
+The edge field is per position an edge is traversed at, and the pair/triple field per search, so
+their bounds carry a factor of the probe's positions: the edge test needs
+`θe ≥ 12 (|Q| + S + 1) θ` of its traversals, and the pair/triple field `θgpt ≥ 3 (Lmax + 1)
+(|Q| + S + 1) θ` of its searches. A within-probe adaptive lemma removes that factor: a probe's
+reads are made in order, each fresh when first made, so a probe's undecided reads at good
+read-states at an edge are at most `1.5θ` per read it makes there, with the reads rather than the
+positions as the count. The edge test can then be per read with `θe` free of `Lmax`.
+
 Two gaps between the model and Python:
 
 - Each theorem is per round, with the family, the seed and the band fixed, and treats the noise

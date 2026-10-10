@@ -467,4 +467,94 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
 
 end PTOne
 
+section PTUnion
+
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω]
+  {μ : Measure Ω} [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
+
+theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θgpt : ℝ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
+    (hθg : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
+    μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
+        D.real (G.ptAt (read · ω) k T edges G.Good)
+          ≤ θgpt * D.real (ReadModel.searchAt (read · ω) k T edges) + η}
+      ≤ ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
+        * (Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
+        * Real.exp (-(η / (2 * p₀ * (1 + 4 * ((L + 1) * (Fintype.card σ + S + 1)
+          * (3 / 2 * G.θ)) * 1))))) := by
+  set n := Fintype.card σ + S
+  set θ₀ : ℝ := (L + 1) * (n + 1) * (3 / 2 * G.θ)
+  have hθ₀ : 0 ≤ θ₀ := by positivity
+  have h2θ : 2 * θ₀ ≤ θgpt := by simp only [θ₀, n]; push_cast; linarith
+  set ε : ℝ := Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))
+  set B : DTree α → Edges α → Set Ω := fun T e => {ω |
+    2 * θ₀ * D.real (ReadModel.searchAt (read · ω) k T e) + η
+      < D.real (G.ptAt (read · ω) k T e G.Good)}
+  have hsub : {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
+      D.real (G.ptAt (read · ω) k T edges G.Good)
+        ≤ θgpt * D.real (ReadModel.searchAt (read · ω) k T edges) + η}
+      ⊆ ⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T, B T e := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, not_forall, not_le] at hω
+    obtain ⟨T, edges, hT, he, hlt⟩ := hω
+    obtain ⟨e', he'm, hagr, -⟩ := exists_edgeMaps he
+    have hP : G.ptAt (read · ω) k T edges G.Good = G.ptAt (read · ω) k T e' G.Good := by
+      ext x
+      simp only [ReadModel.ptAt, Set.mem_setOf_eq]
+      rw [ptHarvBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
+    have hS : ReadModel.searchAt (read · ω) k T edges = ReadModel.searchAt (read · ω) k T e' := by
+      ext x
+      simp only [ReadModel.searchAt, Set.mem_setOf_eq]
+      rw [probeBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
+    refine Set.mem_biUnion (inClass_mem G hT) (Set.mem_biUnion he'm ?_)
+    simp only [B, Set.mem_setOf_eq]
+    rw [hP, hS] at hlt
+    have : 0 ≤ D.real (ReadModel.searchAt (read · ω) k T e') := measureReal_nonneg
+    nlinarith [mul_le_mul_of_nonneg_right h2θ this]
+  have hone : ∀ T ∈ (classSet n : Finset (DTree α)), ∀ e, μ (B T e) ≤ ENNReal.ofReal ε := by
+    intro T hT e
+    have hm : (T.midfixes.card : ℝ) ≤ n + 1 := by
+      have := midfixes_card T
+      have := classSet_paths n T hT
+      exact_mod_cast (by omega : T.midfixes.card ≤ n + 1)
+    have hT' : ((L : ℝ) + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀ :=
+      mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hm (by positivity)) (by positivity)
+    exact pt_one G read hmeas hind hlaw hθ D hlen hk hp₀ hpmax hη T hT' e
+  calc μ _ ≤ μ (⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T, B T e) :=
+        measure_mono hsub
+    _ ≤ ∑ T ∈ (classSet n : Finset (DTree α)), ∑ e ∈ edgeMaps T, μ (B T e) := by
+        refine (measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum fun T _ => ?_)
+        exact measure_biUnion_finset_le _ _
+    _ ≤ ∑ T ∈ (classSet n : Finset (DTree α)),
+          (((n + 3) ^ ((n + 2) * Fintype.card α) : ℕ) : ENNReal) * ENNReal.ofReal ε := by
+        refine Finset.sum_le_sum fun T hT => ?_
+        have hp := classSet_paths n T hT
+        calc ∑ e ∈ edgeMaps T, μ (B T e) ≤ ∑ e ∈ edgeMaps T, ENNReal.ofReal ε :=
+              Finset.sum_le_sum fun e _ => hone T hT e
+          _ = ((edgeMaps T).card : ENNReal) * ENNReal.ofReal ε := by
+              simp only [Finset.sum_const, nsmul_eq_mul]
+          _ ≤ _ := by
+              refine mul_le_mul' ?_ le_rfl
+              have h1 : (edgeMaps T).card ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
+                calc (edgeMaps T).card
+                    ≤ (T.paths.length + 1) ^ (T.paths.length * Fintype.card α) := edgeMaps_card T
+                  _ ≤ (n + 3) ^ (T.paths.length * Fintype.card α) :=
+                    Nat.pow_le_pow_left (by omega) _
+                  _ ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
+                    Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_right _ hp)
+              exact_mod_cast h1
+    _ = _ := by
+        rw [Finset.sum_const, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
+          ← ENNReal.ofReal_natCast ((n + 3) ^ ((n + 2) * Fintype.card α)),
+          ← ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_mul (by positivity)]
+        congr 1
+        simp only [n, ε, θ₀]
+        push_cast
+        ring
+
+end PTUnion
+
 end OrthoDFA
