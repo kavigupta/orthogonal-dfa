@@ -118,8 +118,8 @@ One assignment meeting every condition, the binomial ones checked numerically: `
   strings, and each edge's first reads and those of them read undecided; the start's undecided
   rate above `θs`, or an edge's undecided first reads exceeding `θe` of its first reads by `exc`
   of them, harvests; the stretch's rate of searches stopping at an undecided middle above `θpt`
-  harvests those middles; the stretch's disagreement rate settling below `εd` succeeds. Otherwise one edge with `m` records
-  at a target it does not point at is redirected there, or its leaf splits where its own target
+  harvests those middles; the stretch's disagreement rate settling below `εd` succeeds. Otherwise
+  one edge with `m` records at a target it does not point at is redirected there, or its leaf splits where its own target
   also has `m`; a split drops every record. A stretch starts afresh at every change of hypothesis.
   Each law reads its rarer decided side at most `κ` times as often as it is undecided. A sub-round
   runs at one tree of the class (genuine splits and at most `S` that are not) until a split,
