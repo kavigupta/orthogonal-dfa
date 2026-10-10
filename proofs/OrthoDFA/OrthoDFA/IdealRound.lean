@@ -1,4 +1,4 @@
-import OrthoDFA.FamilyRead
+import OrthoDFA.RoundEnd
 
 /-!
 # A round with ideal reads
@@ -15,8 +15,8 @@ the end, or an edge, and `h` strings of one class end the round with them as its
 probes in a row with no disagreement end it consistent. Every change of the hypothesis starts the
 counts afresh.
 
-`IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends consistent with the
-hypothesis disagreeing on at most `ε` of the probes, or with a harvest mostly of undecided states.
+`IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends well
+(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided.
 -/
 
 namespace OrthoDFA
@@ -288,14 +288,14 @@ def budget (C : RoundCfg) (nα : ℕ) : ℕ :=
   (C.Lmax * (2 * C.Lmax * nα + 1) + 1)
     * ((C.m - 1) * C.Lmax ^ 2 * nα + (C.h - 1) * (C.Lmax * nα + 2) + 1) * C.n
 
-open scoped Classical in
-/-- The round ends consistent with the hypothesis disagreeing on at most `ε` of the draws, or with
-a harvest more than half of whose strings are at states all of whose strings read undecided. -/
-def GoodEnd [Countable α] {σ : Type*} (M : DFA α σ) (D : Measure (FreeMonoid α)) (C : RoundCfg)
-    (ε : ℝ) (r : RState α × Option (REnd α)) : Prop :=
-  (r.2 = some .consistent ∧ D.real {x | Disagrees read r.1.tree r.1.edges C.k x} ≤ ε)
-  ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs.length < 2 * (zs.filter fun z =>
-      ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided).length
+/-- Every string in the state reads undecided. -/
+def AllUndecided {σ : Type*} (M : DFA α σ) (q : σ) : Prop :=
+  ∀ w : FreeMonoid α, M.eval w.toList = q → read w = .undecided
+
+def REnd.toRoundEnd : Option (REnd α) → RoundEnd α
+  | some .consistent => .consistent
+  | some (.harvest zs) => .harvest zs
+  | _ => .failed
 
 /-- With ideal reads and enough probes, the round fails to end well with chance at most
 `(P + 1)(1 − ε)^n`. -/
@@ -306,7 +306,9 @@ def IdealRoundCorrect : Prop :=
     budget C (Fintype.card α) ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
-          {xs | ¬ GoodEnd read M D C ε (round read C start (List.ofFn xs))}
+          {xs | let r := round read C start (List.ofFn xs)
+            ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
+              (REnd.toRoundEnd r.2)}
         ≤ (P + 1) * (1 - ε) ^ C.n
 
 end Ideal

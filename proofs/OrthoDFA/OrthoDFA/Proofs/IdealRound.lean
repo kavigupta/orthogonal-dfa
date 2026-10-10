@@ -289,21 +289,27 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   have h2 : 2 ≤ C.Lmax := by omega
   have hΘ : Θ C (start : RState α) < P := (Θ_start C hn h2).trans_le hP
   intro D _ ε hε
-  have hsub : {xs : Fin P → FreeMonoid α |
-        ¬ GoodEnd read M D C ε (round read C start (List.ofFn xs))}
+  have hsub : {xs : Fin P → FreeMonoid α | let r := round read C start (List.ofFn xs)
+        ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
+          (REnd.toRoundEnd r.2)}
       ⊆ {xs | (round read C start (List.ofFn xs)).2 = some .consistent
           ∧ Bad read C D ε (round read C start (List.ofFn xs)).1} := by
     intro xs hxs
+    simp only [Set.mem_setOf_eq] at hxs
     obtain ⟨e, he, hok, -, hr⟩ := round_ok read C hI hcap hm hh hn (List.ofFn xs) start
       (inv_start read C hm hh hn h2) (reached_start read) (by simpa using hΘ)
     rcases (sound_of read hI he hok hr).1 with hc | hv
-    · refine ⟨hc, lt_of_lt_of_le (not_le.1 fun hd => hxs (Or.inl ⟨hc, hd⟩))
-        (measureReal_mono fun x hx => ?_)⟩
+    · rw [hc] at hxs
+      refine ⟨hc, lt_of_lt_of_le (not_le.1 hxs) (measureReal_mono fun x hx => ?_)⟩
       exact probe_disagrees read _ _ _ hx
     · obtain ⟨zs, hz, hne, hu⟩ := hv
-      refine absurd (Or.inr ⟨zs, hz, ?_⟩) hxs
+      rw [hz] at hxs
+      refine absurd ?_ hxs
       classical
-      rw [List.filter_eq_self.2 fun z hz' => decide_eq_true (hu z hz')]
+      show zs.length < 2 * (zs.filter fun z => AllUndecided read M (M.eval z.toList)).length
+      have hall : ∀ z ∈ zs, decide (AllUndecided read M (M.eval (FreeMonoid.toList z))) = true :=
+        fun z hz' => decide_eq_true (hu z hz')
+      rw [List.filter_eq_self.2 hall]
       have := List.length_pos_of_ne_nil hne
       omega
   have hb := bad_round read C D ε hε P start
