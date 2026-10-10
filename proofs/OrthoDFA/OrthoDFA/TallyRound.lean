@@ -6,7 +6,8 @@ import OrthoDFA.TallyLoop
 The family is the oracle: every string's read is accept, reject or undecided, independently
 across strings, with a law that depends only on the string's state in the target DFA
 (`FamilyReadTrichotomy`). `ReadModel` holds the target and those laws; `rd` is one draw of all
-the reads, each law reading its rarer decided side at most `κ` times as often as it is undecided.
+the reads, each law reading its rarer decided side at most `κ` times as often as it is undecided
+or at most `ε`.
 A read-state is good where it is undecided at most `1.5θ` of the time. A state's true leaf is
 where its reads' majority sides lead.
 
@@ -45,13 +46,14 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- The target, each of its states' read law, and what makes a read-state good. Every law reads
-its rarer decided side at most `κ` times as often as it is undecided. -/
+its rarer decided side at most `κ` times as often as it is undecided, or at most `ε`. -/
 structure ReadModel (α σ : Type*) where
   M : _root_.DFA α σ
   dist : σ → ARU → ℝ
   θ : ℝ
   κ : ℝ
-  rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ κ * dist r .undecided
+  ε : ℝ
+  rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ max ε (κ * dist r .undecided)
 
 namespace ReadModel
 
