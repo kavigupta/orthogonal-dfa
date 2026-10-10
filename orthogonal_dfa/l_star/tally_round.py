@@ -48,9 +48,10 @@ L = 40, |Σ| = 4, a 30-state target and S = 0:
   ``subT ≥ (2 Lmax |Σ| + 1) nEnd``, about 1e7 probes at the nEnd = 460 that success
   at εd = 0.02 needs; the cap is 5e4.  Its union bound
   ``(2^(Lmax+1) |Σ| + T + 3T²) a`` exceeds 1 for any T.
-* Counting.  ``count_reads`` is off: per read with first-read attribution is not proved,
-  and at k = 0 it never fires on the few short prefixes every probe shares, so a round
-  whose one-letter prefixes all read undecided succeeds with no edge learned.
+* Counting.  ``count_reads`` is off: per read with first-read attribution is not proved.
+  At k = 0 its failure is the p₀ = 1 regime the prefix-mass condition excludes: every
+  probe shares the two one-letter prefixes, so a round whose one-letter prefixes read
+  undecided counts them once and succeeds with no edge learned.
 """
 
 from collections import Counter
