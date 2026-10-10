@@ -132,7 +132,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
   have h2 : 2 ≤ C.Lmax := by omega
   have hNs : 0 < Ns := by omega
   have hst := inv_start read C hm h2 (α := α)
-  have hΨ := Ψr_start C (α := α)
+  have hΨ := Ψr_start C h2 (α := α)
   set b := ENNReal.ofReal (stretchRisk C L Ns N₁ G θr εd' θpt')
   have hseg : ∀ s, Inv read C s → s = fresh s.tree s.edges s.moved → ∀ N,
       (Measure.pi fun _ : Fin N => D)
