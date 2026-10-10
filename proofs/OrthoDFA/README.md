@@ -248,9 +248,12 @@ Two gaps between the model and Python:
   tree is in the class, and at the start and over a stretch's undecided middles they are at most
   binomial. `SubRound` is proved in `Proofs/TallyKeep.lean`: a fake split needs `m` records that
   are not true at one edge and target, at most binomial at rate `ρ` over the sub-round; a
-  hypothesis keeping over `nEnd` probes has its middle-stopping searches rarer than `θpt'`, each
-  edge and target recording rarer than `θr`, or its disagreements too many for success; and each
-  new hypothesis learns or redirects an edge, lowering a potential of at most `2 Lmax |Σ|`.
+  hypothesis recording less than `θr` of the time and keeping over `nEnd` probes has its
+  middle-stopping searches rarer than `θpt'` of its searches, or its disagreements too many for
+  success; each new hypothesis learns or redirects an edge, lowering a potential of at most
+  `2 Lmax |Σ|`; and the sub-round's records number at most `Lmax² |Σ| m`, since each raises its edge
+  and target towards the `m` at which it is fixed, so its probes at hypotheses recording at least
+  `θr` of the time are one binomial over `nRec`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

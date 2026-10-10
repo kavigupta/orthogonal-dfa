@@ -4,14 +4,17 @@ import OrthoDFA.Proofs.TallyHarvest
 # Sub-rounds end
 
 Within a sub-round the tree is fixed, so its records that are not true accumulate at one edge
-and target at most binomially, and a fake split needs `m` of them (`fake_le`). A hypothesis that
-keeps over `nEnd` probes has its probes' outcomes independent: its middle-stopping searches are
-rarer than `θpt'`, each edge and target records rarer than `θr`, or its disagreements, rarer than
-`εd'`, are too many for success (`keep_le`). Each change of hypothesis learns or redirects an edge,
-which lowers a potential of at most `2 Lmax |Σ|`, so a sub-round is unfinished after
-`subT` probes only if some hypothesis kept over `nEnd` (`open_le`).
+and target at most binomially, and a fake split needs `m` of them (`fake_bin`). A hypothesis
+recording less than `θr` of the time and keeping over `nEnd` probes has its probes' outcomes
+independent: its middle-stopping searches are rarer than `θpt'` of its searches, or its
+disagreements, rarer than `εd'`, are too many for success (`keep_le`). No edge is ever left with
+`m` records at a target it does not point at (`settled_step`), so every record raises its edge and
+target towards `m` (`phi_step`) and a sub-round holds at most `Lmax² |Σ| m` records. Each change of
+hypothesis learns or redirects an edge, lowering a potential of at most `2 Lmax |Σ|`, so a
+sub-round is unfinished after `subT` probes only if some hypothesis recording less than `θr` kept
+over `nEnd`, or its hypotheses recording more made too few records over `nRec` probes
+(`open_le`).
 -/
-
 namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory
@@ -1467,7 +1470,278 @@ theorem open_le [IsProbabilityMeasure D] {nEnd hP hS : ℕ} {θpt' εd' p : ℝ}
       (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
         ≤ ENNReal.ofReal ((v + 1) * termLevel nEnd hP hS θpt' εd'
           + (1 - binomSfGe r p ((K s.tree).card * C.m - phi C K s + 1))) := by
-  sorry
+  set τ := termLevel nEnd hP hS θpt' εd'
+  have hτ0 : 0 ≤ τ := termLevel_nonneg hθpt'0 hθpt'1 hεd'0 hεd'1
+  set gR : ℕ → ℕ → ℝ := fun r c => 1 - binomSfGe r p (c + 1) with hgR
+  have hg0 : ∀ r c, 0 ≤ gR r c := fun r c => sub_nonneg.2 (binomSfGe_le_one hp0 hp1 _)
+  have hg1 : ∀ r c, gR r c ≤ 1 := fun r c => by
+    have := binomSfGe_nonneg (n := r) hp0 hp1 (c + 1); simp only [gR]; linarith
+  have hgc : ∀ r c c', c ≤ c' → gR r c ≤ gR r c' := fun r c c' h => by
+    have := binomSfGe_antitone' (n := r) hp0 hp1 (show c + 1 ≤ c' + 1 by omega)
+    simp only [gR]; linarith
+  have hg00 : ∀ c, gR 0 c = 1 := fun c => by simp [gR, binomSfGe_zero_left]
+  set cap : TState α → ℕ := fun s' => (K s'.tree).card * C.m with hcap
+  intro v
+  induction v using Nat.strong_induction_on with
+  | _ v ih =>
+  intro s r B T hc he hr hset hn hd hpot hB hBT
+  set Inv : TState α → Prop := fun s' => G.InClass S s'.tree ∧ EdgesInto s'.tree s'.edges
+    ∧ RecsInto s' ∧ Settled C.m s' ∧ s'.n = 0 ∧ s'.dis = 0
+  set w : Option Bool → TState α × ℕ × ℕ → ℕ → ENNReal := fun k sb T' => match k with
+    | none => 1
+    | some false => 0
+    | some true => if Inv sb.1 ∧ pot C sb.1 < v ∧ v * nEnd + sb.2.2 ≤ sb.2.1 ∧ sb.2.1 ≤ T' then
+        ENNReal.ofReal (v * τ + gR sb.2.2 (cap sb.1 - phi C K sb.1)) else 1
+  set F : TState α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
+    fun sb T xs => subEnd G C cut sb.1 sb.2.1 T xs = .unfinished
+  set V : Option Bool → TState α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
+    fun k sb T xs => match k with
+    | none => True
+    | some false => False
+    | some true => F sb T xs
+  have hF : ∀ sb T x xs, F sb (T + 1) (Fin.cons x xs)
+      ↔ (segR C cut D θr sb x).elim (fun sb' => F sb' T xs) fun q => V q.1 q.2 T xs := by
+    rintro ⟨s', b, r'⟩ T' x xs
+    rcases b with _ | b
+    · simp [F, V, segR, subEnd]
+    simp only [F, V]
+    rw [subEnd_succ]
+    simp only [Fin.cons_zero, Fin.tail_cons, subSeg, segR]
+    rcases hst : tallyStep C cut s' x with s'' | ⟨e, s''⟩
+    · simp only []
+      by_cases htr : s''.tree = s'.tree
+      · by_cases hv : s''.version = s'.version
+        · simp [htr, hv]
+        · simp [htr, hv]
+      · simp only [htr, if_false, Sum.elim_inr]
+        cases decide (∃ p d, s''.tree = s'.tree.splitAt d p ∧ G.GenuineSplit s'.tree p d) <;>
+          simp [subKind]
+    · simp only [Sum.elim_inr]
+      rcases e with _ | _ | _ | _ | _ <;> simp [subKind]
+  have hV : ∀ k sb T', (Measure.pi fun _ : Fin T' => D) {xs | V k sb T' xs} ≤ w k sb T' := by
+    rintro (_ | _ | _) ⟨s', b, r'⟩ T'
+    · simp only [V, w, Set.setOf_true]; exact prob_le_one
+    · simp [V, w]
+    · simp only [V, w]
+      split_ifs with hcond'
+      · obtain ⟨⟨hc', he', hr', hs', hn', hd'⟩, hlt, hb, hbT⟩ := hcond'
+        have := ih (v - 1) (by omega) s' r' b T' hc' he' hr' hs' hn' hd' (by omega)
+          (by rw [show v - 1 + 1 = v by omega]; exact hb) hbT
+        rwa [show ((v - 1 : ℕ) : ℝ) + 1 = v by
+          rw [Nat.cast_sub (by omega)]; push_cast; ring] at this
+      · exact prob_le_one
+  have hseg := fun j => seg_le D (segR C cut D θr) F V w hF hV T (s, B, r) j
+  have hrecAt : ∀ s' : TState α, s'.tree = s.tree → s'.edges = s.edges →
+      recAt C cut s' = recAt C cut s := by
+    intro s' htr hed; simp only [recAt, htr, hed]
+  have hvn : (v + 1) * nEnd = v * nEnd + nEnd := by ring
+  by_cases htype : θr ≤ D.real (recAt C cut s)
+  swap
+  · have hpt : ∀ j (s' : TState α) (b' T' : ℕ) (xs : Fin T' → FreeMonoid α), s'.tree = s.tree →
+        s'.edges = s.edges → EdgesInto s'.tree s'.edges → RecsInto s' → Settled C.m s' →
+        pot C s' ≤ v → phi C K s ≤ phi C K s' → v * nEnd + r + j ≤ b' → b' ≤ T' →
+        segVal (segR C cut D θr) w (s', b', r) j T' xs
+          ≤ (if KeepV C cut s' j T' xs then 1 else 0)
+            + ENNReal.ofReal (v * τ + gR r (cap s - phi C K s)) := by
+      intro j
+      induction j with
+      | zero => intro s' b' T' xs _ _ _ _ _ _ _ _ _; simp [segVal, KeepV]
+      | succ j ihj =>
+        intro s' b' T' xs htr hed he' hr' hs' hpot' hphi hb hbT
+        rcases b' with _ | b'
+        · omega
+        rcases T' with _ | T'
+        · omega
+        rw [segVal_succ']
+        have hty : ¬ θr ≤ D.real (recAt C cut s') := by rwa [hrecAt s' htr hed]
+        rcases hst : tallyStep C cut s' (xs 0) with s'' | ⟨e, s''⟩
+        · by_cases htr' : s''.tree = s'.tree
+          · obtain ⟨he'', hr'', hs'', hpl, hved, hpv⟩ := same_step C cut hm he' hr' hs' hst htr'
+            have hph := phi_step C cut K hs' he' hst htr'
+            by_cases hv : s''.version = s'.version
+            · have hsv : segR C cut D θr (s', b' + 1, r) (xs 0) = .inl (s'', b', r) := by
+                simp [segR, hst, htr', hv, hty]
+              rw [hsv]
+              simp only [Sum.elim_inl]
+              refine (ihj s'' b' T' (Fin.tail xs) (htr'.trans htr) ((hved hv).trans hed) he''
+                hr'' hs'' (hpl.trans hpot') (hphi.trans (by omega)) (by omega)
+                (by omega)).trans (add_le_add ?_ le_rfl)
+              split_ifs with h1 h2
+              · exact le_rfl
+              · exact absurd ⟨s'', hst, hv, h1⟩ h2
+              · exact zero_le
+              · exact le_rfl
+            · have hsv : segR C cut D θr (s', b' + 1, r) (xs 0)
+                  = .inr (some true, (s'', b', r)) := by
+                simp [segR, hst, htr', hv, hty]
+              rw [hsv]
+              simp only [Sum.elim_inr, w]
+              obtain ⟨hlt, hn'', hd''⟩ := hpv hv
+              rw [if_pos ⟨⟨(htr'.trans htr) ▸ hc, he'', hr'', hs'', hn'', hd''⟩, by omega,
+                by omega, by omega⟩]
+              refine le_trans ?_ le_add_self
+              refine ENNReal.ofReal_le_ofReal (add_le_add le_rfl (hgc r _ _ ?_))
+              have : cap s'' = cap s := by simp only [cap, htr', htr]
+              omega
+          · have hsv : segR C cut D θr (s', b' + 1, r) (xs 0)
+                = .inr (some false, (s'', b', r)) := by
+              simp [segR, hst, htr']
+            rw [hsv]
+            simp [w]
+        · have hsv : segR C cut D θr (s', b' + 1, r) (xs 0)
+              = .inr (some false, (s'', b', r)) := by
+            simp [segR, hst]
+          rw [hsv]
+          simp [w]
+    have hkeep := keep_le C cut D hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
+      hhP hhS hhS' (not_le.1 htype) hn hd T
+    have hB' : v * nEnd + r + nEnd ≤ B := by
+      have : (v + 1) * nEnd = v * nEnd + nEnd := by ring
+      omega
+    have hg := hg0 r (cap s - phi C K s)
+    calc (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
+        = (Measure.pi fun _ : Fin T => D) {xs | F (s, B, r) T xs} := rfl
+      _ ≤ _ := hseg nEnd
+      _ ≤ ∫⁻ xs, ((if KeepV C cut s nEnd T xs then 1 else 0)
+            + ENNReal.ofReal (v * τ + gR r (cap s - phi C K s)))
+            ∂(Measure.pi fun _ : Fin T => D) :=
+          lintegral_mono fun xs => hpt nEnd s B T xs rfl rfl he hr hset hpot le_rfl hB' hBT
+      _ = (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
+            + ENNReal.ofReal (v * τ + gR r (cap s - phi C K s)) := by
+          rw [lintegral_add_left (measurable_of_countable _), lintegral_ite_one, lintegral_const,
+            measure_univ, mul_one]
+      _ ≤ ENNReal.ofReal τ + ENNReal.ofReal (v * τ + gR r (cap s - phi C K s)) :=
+          add_le_add hkeep le_rfl
+      _ = _ := by
+          rw [← ENNReal.ofReal_add hτ0 (by positivity)]
+          congr 1
+          simp only [gR, cap]
+          ring
+  · have hwM : ∀ k sb T', w k sb T' ≤ ENNReal.ofReal (v * τ + 1) := by
+      have hvt : 0 ≤ (v : ℝ) * τ := by positivity
+      rintro (_ | _ | _) sb T'
+      · simp only [w]; rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (by linarith)
+      · simp [w]
+      · simp only [w]
+        split_ifs
+        · exact ENNReal.ofReal_le_ofReal (by linarith [hg1 sb.2.2 (cap sb.1 - phi C K sb.1)])
+        · rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (by linarith)
+    have h1M : (1 : ENNReal) ≤ ENNReal.ofReal (v * τ + 1) := by
+      have hvt : 0 ≤ (v : ℝ) * τ := by positivity
+      rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (by linarith)
+    have key : ∀ j (s' : TState α) (b' r' T' : ℕ), s'.tree = s.tree → s'.edges = s.edges →
+        EdgesInto s'.tree s'.edges → RecsInto s' → Settled C.m s' → pot C s' ≤ v → b' < j →
+        (v + 1) * nEnd + r' ≤ b' → b' ≤ T' →
+        ∫⁻ xs, segVal (segR C cut D θr) w (s', b', r') j T' xs ∂(Measure.pi fun _ : Fin T' => D)
+          ≤ ENNReal.ofReal (v * τ + gR r' (cap s' - phi C K s')) := by
+      intro j
+      induction j with
+      | zero => intro s' b' r' T' _ _ _ _ _ _ hbj; omega
+      | succ j ihj =>
+        intro s' b' r' T' htr hed he' hr' hs' hpot' hbj hb hbT
+        rcases r' with _ | r''
+        · rw [hg00]
+          refine (lintegral_mono fun xs => segVal_le (segR C cut D θr) w h1M hwM _ _ _ xs).trans ?_
+          rw [lintegral_const, measure_univ, mul_one]
+        obtain ⟨b'', rfl⟩ : ∃ b'', b' = b'' + 1 := ⟨b' - 1, by omega⟩
+        obtain ⟨T'', rfl⟩ : ∃ T'', T' = T'' + 1 := ⟨T' - 1, by omega⟩
+        have hty : θr ≤ D.real (recAt C cut s') := by rwa [hrecAt s' htr hed]
+        have hrec : p ≤ D.real (recIn C cut K s') := hK s' (htr ▸ hc) he' hty
+        set c := cap s' - phi C K s' with hc_def
+        set A := 1 - binomSfGe r'' p c with hA_def
+        set Bv := gR r'' c with hBv_def
+        have hA0 : 0 ≤ A := sub_nonneg.2 (binomSfGe_le_one hp0 hp1 _)
+        have hAB : A ≤ Bv := by
+          have := binomSfGe_antitone (n := r'') hp0 hp1 c
+          simp only [A, Bv, gR]; linarith
+        set E := recIn C cut K s' with hE_def
+        have hcaseval : ∀ x (s'' : TState α), tallyStep C cut s' x = .inl s'' →
+            s''.tree = s'.tree →
+            ENNReal.ofReal (v * τ + gR r'' (cap s'' - phi C K s''))
+              ≤ E.indicator (fun _ => ENNReal.ofReal (v * τ + A)) x
+                + Eᶜ.indicator (fun _ => ENNReal.ofReal (v * τ + Bv)) x := by
+          intro x s'' hst htr'
+          have hph := phi_step C cut K hs' he' hst htr'
+          have hcap' : cap s'' = cap s' := by simp only [cap, htr']
+          have hle := phi_le C K s''
+          by_cases hx : x ∈ E
+          · rw [Set.indicator_of_mem hx, Set.indicator_of_notMem (by simpa using hx), add_zero]
+            refine ENNReal.ofReal_le_ofReal (add_le_add le_rfl ?_)
+            rw [if_pos hx] at hph
+            have h1 : cap s'' - phi C K s'' + 1 ≤ c := by
+              have hle' : phi C K s'' ≤ cap s'' := hle
+              rw [hc_def, ← hcap']; omega
+            have := binomSfGe_antitone' (n := r'') hp0 hp1 h1
+            simp only [gR, A]; linarith
+          · rw [Set.indicator_of_notMem hx, Set.indicator_of_mem (by simpa using hx), zero_add]
+            refine ENNReal.ofReal_le_ofReal (add_le_add le_rfl (hgc r'' _ _ ?_))
+            rw [if_neg hx] at hph
+            rw [hc_def, ← hcap']; omega
+        have hstep : ∀ x, ∫⁻ xs, segVal (segR C cut D θr) w (s', b'' + 1, r'' + 1) (j + 1)
+            (T'' + 1) (Fin.cons x xs) ∂(Measure.pi fun _ : Fin T'' => D)
+            ≤ E.indicator (fun _ => ENNReal.ofReal (v * τ + A)) x
+              + Eᶜ.indicator (fun _ => ENNReal.ofReal (v * τ + Bv)) x := by
+          intro x
+          simp only [segVal_succ', Fin.cons_zero, Fin.tail_cons]
+          rcases hst : tallyStep C cut s' x with s'' | ⟨e, s''⟩
+          · by_cases htr' : s''.tree = s'.tree
+            · obtain ⟨he'', hr'', hs'', hpl, hved, hpv⟩ := same_step C cut hm he' hr' hs' hst htr'
+              by_cases hv : s''.version = s'.version
+              · have hsv : segR C cut D θr (s', b'' + 1, r'' + 1) x = .inl (s'', b'', r'') := by
+                  simp [segR, hst, htr', hv, hty]
+                rw [hsv]
+                simp only [Sum.elim_inl]
+                exact (ihj s'' b'' r'' T'' (htr'.trans htr) ((hved hv).trans hed) he'' hr'' hs''
+                  (hpl.trans hpot') (by omega) (by omega) (by omega)).trans
+                  (hcaseval x s'' hst htr')
+              · have hsv : segR C cut D θr (s', b'' + 1, r'' + 1) x
+                    = .inr (some true, (s'', b'', r'')) := by
+                  simp [segR, hst, htr', hv, hty]
+                rw [hsv]
+                simp only [Sum.elim_inr, w]
+                obtain ⟨hlt, hn'', hd''⟩ := hpv hv
+                rw [if_pos ⟨⟨(htr'.trans htr) ▸ hc, he'', hr'', hs'', hn'', hd''⟩, by omega,
+                  by omega, by omega⟩]
+                rw [lintegral_const, measure_univ, mul_one]
+                exact hcaseval x s'' hst htr'
+            · have hsv : segR C cut D θr (s', b'' + 1, r'' + 1) x
+                  = .inr (some false, (s'', b'', r'' + 1)) := by
+                simp [segR, hst, htr']
+              rw [hsv]
+              simp [w]
+          · have hsv : segR C cut D θr (s', b'' + 1, r'' + 1) x
+                = .inr (some false, (s'', b'', r'' + 1)) := by
+              simp [segR, hst]
+            rw [hsv]
+            simp [w]
+        rw [lintegral_pi_succ]
+        refine (lintegral_mono hstep).trans ?_
+        have hE0 : 0 ≤ D.real E := measureReal_nonneg
+        have hE1 : D.real E ≤ 1 := by
+          have := measureReal_mono (μ := D) (Set.subset_univ E); rwa [probReal_univ] at this
+        have hvt : 0 ≤ (v : ℝ) * τ := by positivity
+        rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator
+            (Set.to_countable _).measurableSet, lintegral_indicator
+            (Set.to_countable _).measurableSet,
+          setLIntegral_const, setLIntegral_const, ← ofReal_measureReal, ← ofReal_measureReal,
+          measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
+          ← ENNReal.ofReal_mul (by linarith), ← ENNReal.ofReal_mul (by linarith),
+          ← ENNReal.ofReal_add (mul_nonneg (by linarith) hE0)
+            (mul_nonneg (by linarith) (by linarith))]
+        refine ENNReal.ofReal_le_ofReal ?_
+        have hrecur : gR (r'' + 1) c = p * A + (1 - p) * Bv := by
+          simp only [gR, A, Bv, binomSfGe_succ]; ring
+        rw [hrecur]
+        nlinarith [mul_le_mul_of_nonneg_right hrec (sub_nonneg.2 hAB)]
+    calc (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
+        = (Measure.pi fun _ : Fin T => D) {xs | F (s, B, r) T xs} := rfl
+      _ ≤ _ := hseg (B + 1)
+      _ ≤ ENNReal.ofReal (v * τ + gR r (cap s - phi C K s)) :=
+          key (B + 1) s B r T rfl rfl he hr hset hpot (by omega) hB hBT
+      _ ≤ _ := by
+          refine ENNReal.ofReal_le_ofReal ?_
+          simp only [gR, cap]
+          nlinarith [hτ0]
 
 end Open
 
