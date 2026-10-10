@@ -70,27 +70,6 @@ section Charges
 variable (cut : FreeMonoid α → Option Bool)
 
 omit [Fintype α] [DecidableEq α] in
-theorem sum_filter_le {ι κ : Type*} [DecidableEq κ] (f : ι → Option κ) (g : ι → ℕ)
-    (K : Finset κ) : ∀ l : List ι,
-    ∑ e ∈ K, ((l.filter fun i => f i = some e).map g).sum ≤ (l.map g).sum
-  | [] => by simp
-  | i :: l => by
-    have ih := sum_filter_le f g K l
-    have h1 : ∑ e ∈ K, (if f i = some e then g i else 0) ≤ g i := by
-      rcases hf : f i with _ | v
-      · simp
-      · simp only [Option.some.injEq]
-        rw [Finset.sum_ite_eq]
-        split_ifs <;> omega
-    have h2 : ∀ e, ((List.filter (fun i => decide (f i = some e)) (i :: l)).map g).sum
-        = (if f i = some e then g i else 0)
-          + ((l.filter fun i => decide (f i = some e)).map g).sum := by
-      intro e
-      by_cases h : f i = some e <;> simp [List.filter_cons, h]
-    simp only [h2, Finset.sum_add_distrib, List.map_cons, List.sum_cons]
-    omega
-
-omit [Fintype α] [DecidableEq α] in
 theorem sum_filterMap_le {ι κ β : Type*} [DecidableEq κ] (f : ι → Option κ) (h : ι → Option β)
     (K : Finset κ) : ∀ l : List ι,
     ∑ e ∈ K, (l.filterMap fun i => if f i = some e then h i else none).length ≤ l.length
@@ -119,20 +98,6 @@ theorem sum_edgeHarvBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeM
     (K : Finset (List Bool × α)) :
     ∑ e ∈ K, (edgeHarvBy cut T edges k x e).length ≤ x.toList.length :=
   (sum_filterMap_le _ _ K _).trans (siftsBy_length_le cut)
-
-/-- A probe's reads charged to the edges of `K` are at most its positions times the leaves. -/
-theorem sum_edgeReadsBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (K : Finset (List Bool × α)) :
-    ∑ e ∈ K, edgeReadsBy cut T edges k x e ≤ x.toList.length * T.paths.length := by
-  refine (sum_filter_le (posEdgeBy cut T edges k x) _ K _).trans ?_
-  have h1 : ∀ n ∈ (siftsBy cut T edges k x).map fun i => (T.route cut (prefixOf x i)).1.length,
-      n ≤ T.paths.length := by
-    intro n hn
-    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hn
-    exact (route_length_le cut T _).trans (depth_lt_paths T).le
-  refine (List.sum_le_card_nsmul _ _ h1).trans ?_
-  simp only [List.length_map, smul_eq_mul]
-  exact Nat.mul_le_mul_right _ (siftsBy_length_le cut)
 
 theorem twinsBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
     twinsBy cut T edges k x ≤ x.toList.length + 1 := by
@@ -173,14 +138,6 @@ theorem edgeHarvBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges
   obtain ⟨i, -, hi⟩ := List.mem_filterMap.1 hb
   split_ifs at hi with hp
   exact posEdgeBy_mem cut he hp
-
-theorem edgeReadsBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
-    {x : FreeMonoid α} {e : List Bool × α} (h : edgeReadsBy cut T edges k x e ≠ 0) :
-    e.1 ∈ T.paths := by
-  unfold edgeReadsBy at h
-  obtain ⟨n, hn, -⟩ := List.exists_mem_ne_zero_of_sum_ne_zero h
-  obtain ⟨i, hi, -⟩ := List.mem_map.1 hn
-  exact posEdgeBy_mem cut he (by simpa using (List.mem_filter.1 hi).2)
 
 theorem sum_travBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
     (K : Finset (List Bool × α)) :
