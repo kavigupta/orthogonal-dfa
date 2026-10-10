@@ -206,7 +206,7 @@ theorem round_bad_aux {αc η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.
     have hmp := measurePreserving_piFinSuccAbove (fun _ : Fin (n + 1) => ρm) 0
     set e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => C.Draws) 0
     -- the round from its first reading's draws and the rest's
-    set F : C.Draws × (Fin n → C.Draws) → RoundEnd α × ℕ := fun p =>
+    set F : C.Draws × (Fin n → C.Draws) → LevelEnd α × ℕ := fun p =>
       match readingStep C R hist j s first p.1 with
       | .done e => (e, 1)
       | .rerun s' first' =>

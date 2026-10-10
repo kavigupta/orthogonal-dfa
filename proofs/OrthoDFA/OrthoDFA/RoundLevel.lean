@@ -57,14 +57,14 @@ noncomputable def RoundCfg.drawMeasure (C : RoundCfg α) (D : Measure (FreeMonoi
     ((Measure.pi fun _ : Fin C.nr => D).prod (Measure.pi fun _ : Fin C.nc => D)))
 
 /-- How a round ends. -/
-inductive RoundEnd (α : Type*)
+inductive LevelEnd (α : Type*)
   | consistent (s : KState α) (q : List Bool)
   | harvest (s : KState α) (halve : Bool)
   | halve (s : KState α) (gu : List Bool × α → Prop) (gateRefused : Bool)
   | exhausted (s : KState α)
 
 /-- The hypothesis a round ends with. -/
-def RoundEnd.state : RoundEnd α → KState α
+def LevelEnd.state : LevelEnd α → KState α
   | .consistent s _ => s
   | .harvest s _ => s
   | .halve s _ _ => s
@@ -72,7 +72,7 @@ def RoundEnd.state : RoundEnd α → KState α
 
 /-- How a reading ends: the round, or a rerun with these first probes. -/
 inductive ReadStep (α : Type*)
-  | done (e : RoundEnd α)
+  | done (e : LevelEnd α)
   | rerun (s : KState α) (first : List (FreeMonoid α))
 
 open scoped Classical in
@@ -105,7 +105,7 @@ noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C
 /-- The round from reading `j` with `n` readings left, and how many it makes. -/
 noncomputable def roundAux (C : RoundCfg α) (R : CutReads α) :
     (n : ℕ) → ℕ → List C.Draws → KState α → List (FreeMonoid α) → (Fin n → C.Draws)
-      → RoundEnd α × ℕ
+      → LevelEnd α × ℕ
   | 0, _, _, s, _, _ => (.exhausted s, 0)
   | n + 1, j, hist, s, first, d =>
     match readingStep C R hist j s first (d 0) with
@@ -133,7 +133,7 @@ halving, above `τ₀`, or with members not firing on a first hit, or with the w
 mass at most `ν` and, where the gate settled below, every covering start leaving at most `ν`. -/
 def RoundEndHolds (C : RoundCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) :
-    RoundEnd α → Prop
+    LevelEnd α → Prop
   | .consistent s q => D.real {x | StartDis R s.edges q x} ≤ 1 - C.acc ∧ CertGood s
   | .harvest _ _ => True
   | .halve s gu gr =>
