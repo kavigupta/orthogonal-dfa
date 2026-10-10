@@ -14,7 +14,7 @@
   and the band passing `BandPasses`, the reads are independent across strings and every DFA
   state has one distribution its strings read with, which is accept at most `ε` of the time, or
   reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`; and is on
-  its rarer decided side at most `κ` times as often as it is undecided.  `BandPasses` is the
+  its rarer decided side at most `ε`, or at most `κ` times as often as it is undecided.  `BandPasses` is the
   check the band selection rule `evidence_margin_for_population_size` makes, at
   `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should

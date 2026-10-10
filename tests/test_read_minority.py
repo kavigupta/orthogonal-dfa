@@ -46,12 +46,18 @@ class TestReadMinority(unittest.TestCase):
         # That state reads undecided nearly always.
         self.assertFalse(self._shipped_band(MINORITY_READ_LIMIT, 4e-4))
 
-    def test_selection_finds_a_band_at_a_zero_reject_rate(self):
-        # The decision boundary is clamped to the signal, so the off-language rate
-        # can be exactly zero.
-        self.assertIsNotNone(
-            population_size_and_evidence_margin(0.2, 1.5e-7, 0.01, center=0.2)
-        )
+    def test_selection_unmoved_by_a_tiny_reject_rate(self):
+        # A state whose suffixes all lead out reads undecided under float epsilon of
+        # the time, and accept rarer still.  The decision boundary is clamped to the
+        # signal, so the off-language rate can be zero or near it.
+        # The sizes are those the cross and FNR criteria alone pick.
+        for center, size in ((0.2, 126), (0.202, 122)):
+            self.assertEqual(
+                population_size_and_evidence_margin(0.2, 1.5e-7, 0.01, center=center)[
+                    0
+                ],
+                size,
+            )
 
     @staticmethod
     def _passes(k_low, k_high, N, *, center, signal, cross_limit):

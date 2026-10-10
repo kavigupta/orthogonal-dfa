@@ -409,8 +409,9 @@ theorem selection_not_minority_bounded :
     max (binomCdf 7 2 ((7 - 1) / 7)) (1 - binomCdf 7 (7 - 1) (2 / 7)) ≤ 1 / 1000
     ∧ max (binomCdf 7 (7 - 1) (3 / 5 + 7 / 20) - binomCdf 7 2 (3 / 5 + 7 / 20))
         (binomCdf 7 (7 - 1) (3 / 5 - 7 / 20) - binomCdf 7 2 (3 / 5 - 7 / 20)) ≤ 33 / 100
-    ∧ ∀ ε ε₂, ∀ κ ≤ 1 / 200, ¬ BandPasses 7 2 7 (3 / 5 + 7 / 20) (3 / 5 - 7 / 20) ε ε₂ κ := by
-  refine ⟨?_, ?_, fun ε ε₂ κ hκ h => ?_⟩
+    ∧ ∀ ε ≤ 1 / 1000, ∀ ε₂, ∀ κ ≤ 1 / 200,
+        ¬ BandPasses 7 2 7 (3 / 5 + 7 / 20) (3 / 5 - 7 / 20) ε ε₂ κ := by
+  refine ⟨?_, ?_, fun ε hε ε₂ κ hκ h => ?_⟩
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
     norm_num [Nat.choose]
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
@@ -421,6 +422,6 @@ theorem selection_not_minority_bounded :
     norm_num [Nat.choose] at h4
     simp only [reduceCtorEq, ↓reduceIte] at h4
     norm_num at h4
-    rcases h4 with h4 | h4 <;> linarith
+    rcases h4 with h4 | h4 <;> rcases h4 with h4 | h4 <;> linarith
 
 end OrthoDFA

@@ -200,7 +200,8 @@ def reads_minority_bounded(
     lead into the language (each voting accept at `accept_rate`, the rest at
     `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
     or undecided at least a third with accept or reject at most `minority_limit`; and
-    is on its rarer decided side at most `ratio` times as often as it is undecided.
+    is on its rarer decided side at most `limit`, or at most `ratio` times as often as
+    it is undecided.
     `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria imply neither half:
@@ -213,14 +214,16 @@ def reads_minority_bounded(
     count = np.arange(N + 1)
     reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
     accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
-    # Rounding leaves 1 - accept - reject a hair below zero where both sides are
-    # certain, which would fail the ratio at a state reading undecided never.
-    undecided = np.maximum(1 - accept - reject, 0)
+    undecided = 1 - accept - reject
     leans = (accept <= minority_limit) | (reject <= minority_limit)
     trichotomous = (
         (accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3))
     )
-    bounded = np.minimum(accept, reject) <= ratio * undecided
+    # Below `limit` the ratio is not asked: `undecided` is computed by subtraction, so
+    # it reads 0 at a state whose true undecided rate is under float epsilon, while
+    # its rarer side is tinier still.
+    minority = np.minimum(accept, reject)
+    bounded = (minority <= limit) | (minority <= ratio * undecided)
     return bool(np.all(trichotomous & bounded))
 
 
