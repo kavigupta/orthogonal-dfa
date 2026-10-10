@@ -106,6 +106,13 @@ the field needs `θgpt ≥ 3 (L + 1)(|Q| + S + 1) θ`, and with `2θgpt ≤ 1` a
 not slack in the bound: a tree of depth `|Q| + S + 1` read at every position a search sifts
 stops undecided with chance near `1 - e^{-1.5θ R}` for `R` its reads.
 
+`TallyRoundFamily`'s conditions hold together only far from the shipped parameters. At
+`|Q| = 10`, `S = 5`, `|Σ| = 2`: the records field needs `p₀` below about `1e-12` (its slack `ρ` is
+held to `1/W` by `fakeRun`, `W ≈ 8e8` probes), so `k ≥ 40` and `L ≥ 40` under uniform letters;
+the middles field needs `2θgpt` well under `θpt`, so `θ ≲ 1e-7`; `fakeRun` needs `κ ≲ 8e-7`
+and the band's cross limit `ε ≲ 1e-14`. One assignment meeting all of them, the binomial
+conditions checked numerically: `L = 60`, `k = 54`, `θ = 1e-7`, `m = 30`, `εd = 0.1`.
+
 The tally round's `FakeRace` races the round's records that are not true against the undecided
 strings the start's and edges' tests let through, counted with their multiplicity; with each
 string counted once, a heavy string's undecided read is one count while its minority twin is a
