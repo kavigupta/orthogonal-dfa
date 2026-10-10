@@ -1,5 +1,7 @@
 import OrthoDFA.Proofs.TripleBound
-import OrthoDFA.Trichotomy
+import OrthoDFA.StartAtK
+import OrthoDFA.Pass
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # The harvest classes

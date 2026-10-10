@@ -70,24 +70,6 @@ structure SplitRec (α : Type*) where
   y : FreeMonoid α
   sprime : FreeMonoid α
 
-/-- What the round carries: the pass's state, its splits, the probes spent, the certificate's
-calls, and what the readings have read outside the passes. -/
-structure RoundAcc (α : Type*) where
-  s : KState α
-  splits : List (SplitRec α)
-  used : ℕ
-  certs : ℕ
-  reads : Finset (FreeMonoid α)
-
-/-- How a round ends: consistent at a start, holding the classes that fired and halving where
-pairs were over half, halving, with the budget spent, or out of readings. -/
-inductive StrongEnd
-  | consistent (q : List Bool)
-  | harvest (halve : Bool)
-  | halve (gateRefused : Bool)
-  | exhausted
-  | cap
-
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
 variable {Q : Type*}

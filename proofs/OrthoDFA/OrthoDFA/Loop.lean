@@ -51,17 +51,6 @@ def Outcome.cls : Outcome α → Option Cls
 def Outcome.Disagrees (o : Outcome α) : Prop :=
   o.cls = some .edge ∨ o.cls = some .pair ∨ o.cls = some .triple
 
-/-- The loop's settings: each class's threshold by tree depth. -/
-structure LoopCfg where
-  k : ℕ
-  L : ℕ
-  m : ℕ
-  nmax : ℕ
-  Lmax : ℕ
-  acc : ℝ
-  a : ℝ
-  θ : Cls → ℕ → ℝ
-
 /-- What the loop carries: the hypothesis, each edge's records this stretch, whether it has been
 redirected since it was learned, the strings read so far, and the stretch's counts. -/
 structure LoopState (α : Type*) where
@@ -72,14 +61,6 @@ structure LoopState (α : Type*) where
   log : Set (FreeMonoid α)
   n : ℕ
   hits : Cls → ℕ
-
-/-- How the loop ends: (a) consistent, (b) a harvest, (c) no progress: the tree too big or a
-stretch unsettled. -/
-inductive LoopEnd
-  | agree
-  | harvest (c : Cls)
-  | tooBig
-  | unsettled
 
 /-- `s` with a fresh stretch. -/
 def LoopState.fresh (s : LoopState α) : LoopState α :=
@@ -108,11 +89,6 @@ noncomputable def retarget (R : CutReads α) (t' : DTree α) (p : List Bool) (ed
     if s = p then (t'.sift R.cut (w * FreeMonoid.of c)).elim (fun s' => some (s', w)) fun _ => none
     else some (s, w)
   | none => none
-
-/-- A change of the hypothesis an edge's records call for. -/
-inductive Change (α : Type*)
-  | split (d : FreeMonoid α)
-  | redirect (t : List Bool) (w : FreeMonoid α)
 
 /-- `s` with the edge `(p, c)` set to `e`. -/
 def LoopState.setEdge (s : LoopState α) (p : List Bool) (c : α)

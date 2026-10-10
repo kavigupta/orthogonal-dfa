@@ -1,4 +1,6 @@
-import OrthoDFA.Trichotomy
+import OrthoDFA.StartAtK
+import OrthoDFA.Pass
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # The round's trichotomy
@@ -69,11 +71,6 @@ def LevelEnd.state : LevelEnd α → KState α
   | .harvest s _ => s
   | .halve s _ _ => s
   | .exhausted s => s
-
-/-- How a reading ends: the round, or a rerun with these first probes. -/
-inductive ReadStep (α : Type*)
-  | done (e : LevelEnd α)
-  | rerun (s : KState α) (first : List (FreeMonoid α))
 
 variable {Q : Type*}
 
