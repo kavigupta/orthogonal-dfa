@@ -344,9 +344,9 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
 
 /-! ## The reduction to the parameters -/
 
-theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
+theorem family_read_bound_holds : FamilyReadBound := by
   classical
-  intro Ω _ μ _ α σ _ O M F kl kh ε ε₂ hL hF hband
+  intro Ω _ μ _ α σ _ O M F kl kh ε ε₂ κ hL hF hband
   refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
   refine ⟨readLaw F.card (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card
     (1 - O.ηIn) O.ηOut kl kh, fun w hw => funext fun rd => ?_,
@@ -355,8 +355,10 @@ theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
 
 /-! ## Why the rule checks `BandPasses`
 
-Its cross and FNR criteria alone admit a band some state reads badly: `(2, 15)` over 15 at
-`center = 17/30`, where the state with no accepting member reads as `Bin(15, 67/500)`. -/
+Its cross and FNR criteria alone admit bands some state reads badly, against either half of the
+check: `(2, 15)` over 15 at `center = 17/30`, where the state with no accepting member reads as
+`Bin(15, 67/500)`; and `(2, 7)` over 7 at `center = 3/5` and signal `7/20`, where the state with
+four accepting members reads reject `6.1e-3` of the time and undecided `0.98`. -/
 
 /-- `binom_cdf(k, N, q)`. -/
 noncomputable def binomCdf (N k : ℕ) (q : ℝ) : ℝ :=
@@ -382,9 +384,9 @@ theorem selection_not_trichotomy :
           - binomCdf 15 2 (17 / 30 + (17 / 30 - 67 / 500)))
         (binomCdf 15 (15 - 1) (17 / 30 - (17 / 30 - 67 / 500))
           - binomCdf 15 2 (17 / 30 - (17 / 30 - 67 / 500))) ≤ 33 / 100
-    ∧ ∀ ε₂, ¬ BandPasses 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
-        (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) ε₂ := by
-  refine ⟨?_, ?_, fun ε₂ h => ?_⟩
+    ∧ ∀ ε₂ κ, ¬ BandPasses 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
+        (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) ε₂ κ := by
+  refine ⟨?_, ?_, fun ε₂ κ h => ?_⟩
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
     norm_num [Nat.choose]
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
@@ -395,12 +397,31 @@ theorem selection_not_trichotomy :
           .reject ≤ (2 / 15) ^ 15
         ∨ 1 / 3 ≤ readLaw 15 0 (17 / 30 + (17 / 30 - 67 / 500))
           (17 / 30 - (17 / 30 - 67 / 500)) 2 15 .undecided :=
-      (h 0 (by norm_num)).imp_right (Or.imp_right And.right)
+      (h 0 (by norm_num)).1.imp_right (Or.imp_right And.right)
     rcases h0 with h | h | h <;>
       simp only [readLaw, voteLaw_zero, Finset.sum_range_succ, Finset.sum_range_zero,
         readOf] at h <;>
       norm_num [Nat.choose] at h <;>
       simp only [reduceCtorEq, ↓reduceIte] at h <;>
       norm_num at h
+
+theorem selection_not_minority_bounded :
+    max (binomCdf 7 2 ((7 - 1) / 7)) (1 - binomCdf 7 (7 - 1) (2 / 7)) ≤ 1 / 1000
+    ∧ max (binomCdf 7 (7 - 1) (3 / 5 + 7 / 20) - binomCdf 7 2 (3 / 5 + 7 / 20))
+        (binomCdf 7 (7 - 1) (3 / 5 - 7 / 20) - binomCdf 7 2 (3 / 5 - 7 / 20)) ≤ 33 / 100
+    ∧ ∀ ε ≤ 1 / 1000, ∀ ε₂, ∀ κ ≤ 1 / 200,
+        ¬ BandPasses 7 2 7 (3 / 5 + 7 / 20) (3 / 5 - 7 / 20) ε ε₂ κ := by
+  refine ⟨?_, ?_, fun ε hε ε₂ κ hκ h => ?_⟩
+  · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
+    norm_num [Nat.choose]
+  · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
+    norm_num [Nat.choose]
+  · have h4 := (h 4 (by norm_num)).2
+    simp only [Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk, Finset.sum_range_succ,
+      Finset.sum_range_zero, readOf] at h4
+    norm_num [Nat.choose] at h4
+    simp only [reduceCtorEq, ↓reduceIte] at h4
+    norm_num at h4
+    rcases h4 with h4 | h4 <;> rcases h4 with h4 | h4 <;> linarith
 
 end OrthoDFA
