@@ -39,13 +39,16 @@ theorem round_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C
       exact round_ok hI hcap hm hh hn xs s' hs' hr' (by simp only [List.length_cons] at h; omega)
     · exact ⟨e, rfl, hst, hs, hr⟩
 
+omit [DecidableEq α] [Fintype α] in
 theorem leaves_start : (start : RState α).tree.leaves = [[false], [true]] := by
   simp [start, fresh, DTree.leaves]
 
+omit [Fintype α] in
 theorem inv_start (hm : 1 ≤ C.m) (hh : 1 ≤ C.h) (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
     Inv read C (start : RState α) :=
   inv_fresh read C hm hh hn (fun _ _ _ _ _ h => by simp at h) (by simp [DTree.leaves]; omega)
 
+omit [DecidableEq α] [Fintype α] in
 theorem reached_start : Reached read (start : RState α).tree := by
   intro p hp
   rw [leaves_start] at hp
@@ -81,6 +84,7 @@ theorem Θ_start (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
   have := Nat.mul_le_mul_right (B (α := α) C) hΨ
   nlinarith
 
+omit [DecidableEq α] [Fintype α] in
 theorem sound_of (hI : IdealReads read M side) {r : RState α × Option (REnd α)} {e : REnd α}
     (he : r.2 = some e) (hok : EndOK read e) (hr : Reached read r.1.tree) : Sound read M r := by
   refine ⟨?_, hr, leaves_le_of_reached read hI hr⟩
@@ -93,7 +97,7 @@ theorem sound_of (hI : IdealReads read M side) {r : RState α × Option (REnd α
     · exact h w hw
     · have := h z rfl
       rw [hu z hz] at this
-      split_ifs at this <;> cases this
+      split_ifs at this
   | tooBig => exact hok.elim
 
 end Ends
@@ -137,6 +141,7 @@ theorem step_clean (s : RState α) (x : FreeMonoid α) :
 
 variable {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
 
+omit [Countable X] [MeasurableSingletonClass X] in
 theorem piFinSuccAbove_zero {n : ℕ} (d : Fin (n + 1) → X) :
     MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => X) 0 d = (d 0, Fin.tail d) := by
   ext j
@@ -152,7 +157,7 @@ theorem pi_succ_apply (D : Measure X) [IsProbabilityMeasure D] (T : ℕ)
   set e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (T + 1) => X) 0
   have hE : E = e ⁻¹' {p | Fin.cons p.1 p.2 ∈ E} := by
     ext d
-    simp only [Set.mem_preimage, Set.mem_setOf_eq, e, piFinSuccAbove_zero, Fin.cons_self_tail]
+    simp only [Set.mem_preimage, Set.mem_ofPred_eq, e, piFinSuccAbove_zero, Fin.cons_self_tail]
   rw [hE, hmp.measure_preimage (Set.to_countable _).measurableSet.nullMeasurableSet,
     Measure.prod_apply (Set.to_countable _).measurableSet]
   rfl
@@ -191,7 +196,7 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
         ≤ S.indicator (fun _ => A) x + Sᶜ.indicator (fun _ => δ) x + N * δ := by
       intro x
       have hcl := step_clean read C s x
-      simp only [Set.mem_setOf_eq, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ]
+      simp only [Set.mem_ofPred_eq, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ]
       rcases hst : step read C s x with s' | e <;> rw [hst] at hcl <;> simp only [round, hst]
       · refine (ih s').trans ?_
         by_cases hx : (probe read s.tree s.edges C.k x).clean = true
@@ -223,7 +228,7 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
         · have : {ys : Fin N → FreeMonoid α | (s, some e).2 = some REnd.consistent
               ∧ Bad read C D ε (s, some e).1} = ∅ := by
             ext ys
-            simp only [Set.mem_setOf_eq, Option.some.injEq, Set.mem_empty_iff_false, iff_false]
+            simp only [Set.mem_ofPred_eq, Option.some.injEq, Set.mem_empty_iff_false, iff_false]
             exact hb
           rw [this, measure_empty]
           exact bot_le
@@ -294,7 +299,8 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
       (mul_nonneg (by positivity) (pow_nonneg h1ε _)) (hb.trans ?_))
     rw [ENNReal.ofReal_mul (by positivity)]
     have : ENNReal.ofReal ((P : ℝ) + 1) = (P : ENNReal) + 1 := by
-      rw [ENNReal.ofReal_add (by positivity) zero_le_one, ENNReal.ofReal_natCast, ENNReal.ofReal_one]
+      rw [ENNReal.ofReal_add (by positivity) zero_le_one, ENNReal.ofReal_natCast,
+        ENNReal.ofReal_one]
     rw [this, add_mul, one_mul, add_comm]
     gcongr
     split_ifs

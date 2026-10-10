@@ -20,20 +20,11 @@ namespace Ideal
 
 open Finset
 
-variable {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (C : RoundCfg)
+variable {α : Type*} (read : FreeMonoid α → ARU) (C : RoundCfg)
 
 /-- Every leaf past the first two is reached by some string. -/
 def Reached (T : DTree α) : Prop :=
   ∀ p ∈ T.leaves, p = [false] ∨ p = [true] ∨ ∃ w, T.sift read w = .inl p
-
-structure Inv (s : RState α) : Prop where
-  edges : EdgesOK read s.tree s.edges
-  recs_mem : ∀ r ∈ s.recs, r.1 ∈ s.tree.leaves ∧ r.2.2 ∈ s.tree.leaves
-  recs_lt : ∀ r, s.recs.count r < C.m
-  und_lt : ∀ k, (s.und k).length < C.h
-  und_read : ∀ k, ∀ z ∈ s.und k, read z = .undecided
-  clean_lt : s.clean < C.n
-  size : s.tree.leaves.length ≤ C.Lmax
 
 /-- What the end of a round promises. -/
 def EndOK : REnd α → Prop
@@ -153,11 +144,16 @@ theorem edgesOK_retarget {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {
         exact ⟨sift_splitAt_ne read hw hne, sift_splitAt_ne read hwc ht₁⟩
   · simp [hpq] at h
 
-/-! ## The potential -/
+variable [DecidableEq α]
 
-section Potential
-
-variable [Fintype α]
+structure Inv (s : RState α) : Prop where
+  edges : EdgesOK read s.tree s.edges
+  recs_mem : ∀ r ∈ s.recs, r.1 ∈ s.tree.leaves ∧ r.2.2 ∈ s.tree.leaves
+  recs_lt : ∀ r, s.recs.count r < C.m
+  und_lt : ∀ k, (s.und k).length < C.h
+  und_read : ∀ k, ∀ z ∈ s.und k, read z = .undecided
+  clean_lt : s.clean < C.n
+  size : s.tree.leaves.length ≤ C.Lmax
 
 theorem upd2_same {β γ δ : Type*} [DecidableEq β] [DecidableEq γ] (f : β → γ → δ) (b : β) (c : γ)
     (v : δ) : upd2 f b c v b c = v := by simp [upd2]
@@ -170,6 +166,27 @@ theorem upd2_ne {β γ δ : Type*} [DecidableEq β] [DecidableEq γ] (f : β →
     have hc : c' ≠ c := fun hc => h (by rw [hc])
     simp [hc]
   · simp [hb]
+
+theorem edgesOK_upd {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p t : List Bool} {c : α}
+    {u : FreeMonoid α} (hu : T.sift read u = .inl p)
+    (huc : T.sift read (u * FreeMonoid.of c) = .inl t) :
+    EdgesOK read T (upd2 E p c (some (t, u))) := by
+  intro q hq c' t' w h
+  by_cases hqc : (q, c') = (p, c)
+  · simp only [Prod.mk.injEq] at hqc
+    obtain ⟨rfl, rfl⟩ := hqc
+    rw [upd2_same] at h
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨hu, huc⟩
+  · rw [upd2_ne _ _ hqc] at h
+    exact hE q hq c' t' w h
+
+/-! ## The potential -/
+
+section Potential
+
+variable [Fintype α]
 
 /-- What an edge has left to change before the next split: learning and redirecting, or one. -/
 def wt (s : RState α) (q : List Bool) (c : α) : ℕ :=
@@ -196,11 +213,13 @@ def B : ℕ := (R (α := α) C + 1) * C.n
 
 def Θ (s : RState α) : ℕ := Ψ C s * B (α := α) C + ρ C s
 
+omit [DecidableEq α] [Fintype α] in
 theorem wt_le (s : RState α) (q : List Bool) (c : α) : wt s q c ≤ 2 := by
   unfold wt; split
   · exact le_rfl
   · split <;> omega
 
+omit [DecidableEq α] in
 theorem Φ_le (s : RState α) : Φ s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
   unfold Φ
   calc ∑ qc ∈ s.tree.leaves.toFinset ×ˢ univ, wt s qc.1 qc.2
@@ -246,7 +265,7 @@ theorem length_eq_sum_count {β : Type*} [BEq β] [LawfulBEq β] (K : Finset β)
     have ha : a ∈ K := hK a (by simp)
     have ih := length_eq_sum_count K l fun x hx => hK x (by simp [hx])
     simp only [List.count_cons, List.length_cons, sum_add_distrib, beq_iff_eq, ← ih]
-    simp [sum_ite_eq', ha]
+    simp [ha]
 
 theorem length_le_of_count {β : Type*} [BEq β] [LawfulBEq β] (l : List β) (K : Finset β)
     (c : ℕ) (hK : ∀ x ∈ l, x ∈ K) (hc : ∀ x, l.count x ≤ c) : l.length ≤ K.card * c := by
@@ -256,8 +275,9 @@ theorem length_le_of_count {β : Type*} [BEq β] [LawfulBEq β] (l : List β) (K
 theorem Dc_le {s : RState α} (hs : Inv read C s) : Dc s ≤ R (α := α) C := by
   unfold Dc R
   have hL := hs.size
-  have h1 : s.recs.length ≤ (s.tree.leaves.toFinset ×ˢ ((univ : Finset α) ×ˢ s.tree.leaves.toFinset)).card
-      * (C.m - 1) := by
+  have h1 : s.recs.length
+      ≤ (s.tree.leaves.toFinset ×ˢ ((univ : Finset α) ×ˢ s.tree.leaves.toFinset)).card
+        * (C.m - 1) := by
     refine length_le_of_count _ _ _ (fun r hr => ?_) (fun r => by have := hs.recs_lt r; omega)
     obtain ⟨h1, h2⟩ := hs.recs_mem r hr
     simp [mem_product, h1, h2]
@@ -329,6 +349,7 @@ theorem Ψ_lt_upd {s : RState α} {p : List Bool} {c : α} (hp : p ∈ s.tree.le
   simp only [fresh] at this ⊢
   omega
 
+omit [DecidableEq α] in
 theorem Ψ_lt_split {s : RState α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d : FreeMonoid α}
     (hsz : (s.tree.splitAt d p).leaves.length ≤ C.Lmax) (E : Edges α)
     (mv : List Bool → α → Bool) :
@@ -354,6 +375,7 @@ section Step
 
 variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
+omit [Fintype α] in
 theorem inv_fresh {T : DTree α} {E : Edges α} {mv : List Bool → α → Bool}
     (hm : 1 ≤ C.m) (hh : 1 ≤ C.h) (hn : 1 ≤ C.n) (hE : EdgesOK read T E)
     (hsz : T.leaves.length ≤ C.Lmax) : Inv read C (fresh T E mv) where
@@ -364,21 +386,6 @@ theorem inv_fresh {T : DTree α} {E : Edges α} {mv : List Bool → α → Bool}
   und_read := by simp [fresh]
   clean_lt := by simp [fresh]; omega
   size := hsz
-
-theorem edgesOK_upd {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p t : List Bool} {c : α}
-    {u : FreeMonoid α} (hu : T.sift read u = .inl p)
-    (huc : T.sift read (u * FreeMonoid.of c) = .inl t) :
-    EdgesOK read T (upd2 E p c (some (t, u))) := by
-  intro q hq c' t' w h
-  by_cases hqc : (q, c') = (p, c)
-  · simp only [Prod.mk.injEq] at hqc
-    obtain ⟨rfl, rfl⟩ := hqc
-    rw [upd2_same] at h
-    simp only [Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨hu, huc⟩
-  · rw [upd2_ne _ _ hqc] at h
-    exact hE q hq c' t' w h
 
 /-- What a step from `s` promises. -/
 def StepOK (s : RState α) : RState α ⊕ REnd α → Prop
@@ -511,7 +518,7 @@ theorem step_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.
         · intro r
           by_cases hrr : r = (p, c, t)
           · subst hrr
-            show List.count (p, c, t) (s.recs ++ [(p, c, t)]) < C.m
+            change List.count (p, c, t) (s.recs ++ [(p, c, t)]) < C.m
             omega
           · have := hs.recs_lt r
             simp only [List.count_append, List.count_singleton]
