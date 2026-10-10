@@ -213,7 +213,9 @@ def reads_minority_bounded(
     count = np.arange(N + 1)
     reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
     accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
-    undecided = 1 - accept - reject
+    # Rounding leaves 1 - accept - reject a hair below zero where both sides are
+    # certain, which would fail the ratio at a state reading undecided never.
+    undecided = np.maximum(1 - accept - reject, 0)
     leans = (accept <= minority_limit) | (reject <= minority_limit)
     trichotomous = (
         (accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3))

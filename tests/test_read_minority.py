@@ -4,6 +4,7 @@ from orthogonal_dfa.l_star.statistics import (
     MINORITY_READ_LIMIT,
     MINORITY_UNDECIDED_RATIO,
     evidence_margin_for_population_size,
+    population_size_and_evidence_margin,
     reads_minority_bounded,
 )
 
@@ -44,6 +45,13 @@ class TestReadMinority(unittest.TestCase):
     def test_shipped_band_fails_a_tighter_ratio(self):
         # That state reads undecided nearly always.
         self.assertFalse(self._shipped_band(MINORITY_READ_LIMIT, 4e-4))
+
+    def test_selection_finds_a_band_at_a_zero_reject_rate(self):
+        # The decision boundary is clamped to the signal, so the off-language rate
+        # can be exactly zero.
+        self.assertIsNotNone(
+            population_size_and_evidence_margin(0.2, 1.5e-7, 0.01, center=0.2)
+        )
 
     @staticmethod
     def _passes(k_low, k_high, N, *, center, signal, cross_limit):
