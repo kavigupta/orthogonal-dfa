@@ -300,7 +300,12 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
     · refine ⟨hc, lt_of_lt_of_le (not_le.1 fun hd => hxs (Or.inl ⟨hc, hd⟩))
         (measureReal_mono fun x hx => ?_)⟩
       exact probe_disagrees read _ _ _ hx
-    · exact absurd (Or.inr hv) hxs
+    · obtain ⟨zs, hz, hne, hu⟩ := hv
+      refine absurd (Or.inr ⟨zs, hz, ?_⟩) hxs
+      classical
+      rw [List.filter_eq_self.2 fun z hz' => decide_eq_true (hu z hz')]
+      have := List.length_pos_of_ne_nil hne
+      omega
   have hb := bad_round read C D ε hε P start
   have h1ε : 0 ≤ 1 - ε := by linarith
   refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal

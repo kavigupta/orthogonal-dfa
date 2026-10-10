@@ -16,7 +16,7 @@ probes in a row with no disagreement end it consistent. Every change of the hypo
 counts afresh.
 
 `IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends consistent with the
-hypothesis disagreeing on at most `ε` of the probes, or with a harvest of undecided states.
+hypothesis disagreeing on at most `ε` of the probes, or with a harvest mostly of undecided states.
 -/
 
 namespace OrthoDFA
@@ -288,13 +288,14 @@ def budget (C : RoundCfg) (nα : ℕ) : ℕ :=
   (C.Lmax * (2 * C.Lmax * nα + 1) + 1)
     * ((C.m - 1) * C.Lmax ^ 2 * nα + (C.h - 1) * (C.Lmax * nα + 2) + 1) * C.n
 
+open scoped Classical in
 /-- The round ends consistent with the hypothesis disagreeing on at most `ε` of the draws, or with
-a nonempty harvest of states all of whose strings read undecided. -/
+a harvest more than half of whose strings are at states all of whose strings read undecided. -/
 def GoodEnd [Countable α] {σ : Type*} (M : DFA α σ) (D : Measure (FreeMonoid α)) (C : RoundCfg)
     (ε : ℝ) (r : RState α × Option (REnd α)) : Prop :=
   (r.2 = some .consistent ∧ D.real {x | Disagrees read r.1.tree r.1.edges C.k x} ≤ ε)
-  ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs ≠ [] ∧
-      ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided
+  ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs.length < 2 * (zs.filter fun z =>
+      ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided).length
 
 /-- With ideal reads and enough probes, the round fails to end well with chance at most
 `(P + 1)(1 − ε)^n`. -/
