@@ -71,11 +71,11 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   member after a test that did not split, which falls in the power term or the residual.
 
 - `TallyRound`: in the tally loop, the family's read of a string taken as one accept, reject or
-  undecided draw, one round over `T` probes reaches a state where no path-good transition's
-  boundary has mass `q₀`, or ends in success, or ends in a harvest that bad read-states trigger,
-  but for the chance that the noise event `TallyE` fails, `T · P(Bin(n, c₀q₀) < m)`,
-  `P(Bin(T, (|Q| + 2)² |Σ| ρ) ≥ m)` and `T² (Lmax |Σ| + 1) a`. `TallyE` is a hypothesis on the
-  reads over every genuine tree, not proved here.
+  undecided draw, one round over `T ≥ (S + |Q| + 1) · subT` probes ends in success or in a harvest
+  most of whose strings are at read-states that are not good, but for the chance that the noise
+  event `TallyE` fails, `roundW 0 subFake subOpen S |Q|` (the fake sub-rounds outnumbering `S`
+  before the at most `|Q|` real ones, and the unfinished ones) and `(2^(Lmax+1) |Σ| + T + T²) a`.
+  `TallyE` is a hypothesis on the reads over every tree of the class, not proved here.
 
 ## Open
 
@@ -233,19 +233,24 @@ Two gaps between the model and Python:
   and target at its edge. Each place keeps its count over the round: the start's undecided read
   strings, and each edge's reads and undecided read strings; the start's undecided rate above
   `θs`, or an edge's undecided reads exceeding `θe` of its reads by `exc` of them, harvests; the
-  stretch's disagreement rate settling below `εd` succeeds. Otherwise one edge with `m` records at
-  a target it does not point at is redirected there, or its leaf splits where its own target also
-  has `m`; a split drops every record. Each law reads its rarer decided side at most `κ` times as
-  often as it is undecided. A sub-round runs at one tree of the class (genuine splits and at most
-  `S` that are not) until a split, genuine (real) or not (fake), or the round ends. `SubRound`
-  bounds a sub-round's chance of being fake and of being bad or unfinished, given the noise event
-  `TallyE` and `Terminates`; `HarvestGood` bounds a harvest that is not mostly at read-states that
-  are not good. Proved in `Proofs/TallySub.lean`: `round_of_sub` composes sub-rounds (at most
-  `|Q|` real ones, failing past `S` fake ones) into `roundW`, and `tally_round_of` gives
-  `TallyRound` from `SubRound` and `HarvestGood`. `HarvestGood` is proved in
-  `Proofs/TallyHarvest.lean`: at each edge the good read-states' undecided reads less `2θg` of its
-  reads exponentiate to a supermartingale while the tree is in the class, and at the start they are
-  at most binomial. `SubRound` is not yet proved.
+  stretch's rate of searches stopping at an undecided middle above `θpt` harvests those middles;
+  the stretch's disagreement rate settling below `εd` succeeds. Otherwise one edge with `m` records
+  at a target it does not point at is redirected there, or its leaf splits where its own target
+  also has `m`; a split drops every record. A stretch starts afresh at every change of hypothesis.
+  Each law reads its rarer decided side at most `κ` times as often as it is undecided. A sub-round
+  runs at one tree of the class (genuine splits and at most `S` that are not) until a split,
+  genuine (real) or not (fake), or the round ends. `SubRound` bounds a sub-round's chance of being
+  fake and of being bad or unfinished, given `TallyE`; `HarvestGood` bounds a harvest that is not
+  mostly at read-states that are not good. Proved in `Proofs/TallySub.lean`: `round_of_sub`
+  composes sub-rounds into `roundW`, and `tally_round_of` gives `TallyRound` from `SubRound` and
+  `HarvestGood`. `HarvestGood` is proved in `Proofs/TallyHarvest.lean`: at each edge the good
+  read-states' undecided reads less `2θg` of its reads exponentiate to a supermartingale while the
+  tree is in the class, and at the start and over a stretch's undecided middles they are at most
+  binomial. `SubRound` is proved in `Proofs/TallyKeep.lean`: a fake split needs `m` records that
+  are not true at one edge and target, at most binomial at rate `ρ` over the sub-round; a
+  hypothesis keeping over `nEnd` probes has its middle-stopping searches rarer than `θpt'`, each
+  edge and target recording rarer than `θr`, or its disagreements too many for success; and each
+  new hypothesis learns or redirects an edge, lowering a potential of at most `2 Lmax |Σ|`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
