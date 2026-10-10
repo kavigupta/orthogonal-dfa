@@ -13,8 +13,9 @@
   `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's, the family
   suffix-free and the band passing `BandPasses`, the reads are independent across strings and
   every DFA state has one distribution its strings read with, which is accept at most `ε` of the
-  time, or reject at most `ε`, or undecided at least a third.  `BandPasses` is the check the band
-  selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`.
+  time, or reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`.
+  `BandPasses` is the check the band selection rule `evidence_margin_for_population_size` makes,
+  at `ε = cross_limit` and `ε₂ = MINORITY_READ_LIMIT`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
