@@ -787,7 +787,7 @@ section Union
 variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
 
-theorem posEdgeBy_mem {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
+theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
     {k : ℕ} {x : FreeMonoid α} {i : ℕ} {d : List Bool × α} (he : EdgesInto T edges)
     (h : posEdgeBy cut T edges k x i = some d) : d.1 ∈ T.paths := by
   have hat : ∀ j, edgeAtBy cut T edges k x j = some d → d.1 ∈ T.paths := by
@@ -866,7 +866,7 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
         have : edgeHarvBy (fun z => (read z ω).cut) T edges k x d = [] := by
           unfold edgeHarvBy
           refine List.filterMap_eq_nil_iff.2 fun i _ => ?_
-          rw [if_neg fun h => hd (posEdgeBy_mem he h)]
+          rw [if_neg fun h => hd (posEdgeBy_mem_paths he h)]
         simp [this]
       simp only [h0, Nat.cast_zero, integral_zero] at hlt
       have : 0 ≤ ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D :=

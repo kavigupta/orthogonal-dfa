@@ -25,9 +25,9 @@ theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
     (hθg : 2 * ((Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θg)
     (hθgpt : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
-      ≤ μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ pct,
-          D.real {x | ∃ sp, recordBy (fun z => (read z ω).cut) C.k (T, edges) x = some (pct, sp)
-            ∧ ¬ G.TrueRec T pct sp} ≤ ρ}
+      ≤ μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
+          D.real (G.untrueAt (read · ω) C.k T edges)
+            ≤ G.κ * ∫ x, (twinsBy (fun z => (read z ω).cut) T edges C.k x : ℝ) ∂D + ρ}
         + ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
           * ((Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
             * ((Fintype.card σ + S + 2) * Fintype.card α))

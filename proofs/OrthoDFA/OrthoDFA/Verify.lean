@@ -12,6 +12,7 @@ import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyKeep
+import OrthoDFA.Proofs.TallyRace
 import OrthoDFA.Proofs.TallyNoise
 import OrthoDFA.Proofs.TallyEvent
 import OrthoDFA.Proofs.TallySuccess
@@ -143,13 +144,15 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 
 #print axioms family_read_trichotomy
 
-#print axioms round_of_sub
+#print axioms round_budget
 
 #print axioms tally_round_of
 
 #print axioms harvest_good_holds
 
 #print axioms sub_round_holds
+
+#print axioms fake_race_holds
 
 #print axioms goodStart_le
 
@@ -162,7 +165,7 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 #print axioms success_sound_holds
 
 theorem tally_round : TallyRound :=
-  tally_round_of sub_round_holds harvest_good_holds success_sound_holds
+  tally_round_of sub_round_holds fake_race_holds harvest_good_holds success_sound_holds
 
 #print axioms tally_round
 

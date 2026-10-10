@@ -73,9 +73,10 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 - `TallyRound`: in the tally loop, the family's read of a string taken as one accept, reject or
   undecided draw, one round over `T ≥ (S + |Q| + 1) · subT` probes ends in success or in a harvest
   most of whose strings are at read-states that are not good, but for the chance that the noise
-  event `TallyE` fails, `roundW 0 subFake subOpen S |Q|` (the fake sub-rounds outnumbering `S`
-  before the at most `|Q|` real ones, and the unfinished ones) and `(2^(Lmax+1) |Σ| + T + T²) a`.
-  `TallyE` is a hypothesis on the reads over every tree of the class, not proved here.
+  event `TallyE` fails, `fakeRun` (the round's records that are not true reaching `(S + 1) m`
+  within its first `(S + |Q| + 1) · subT` probes), `(S + |Q| + 1) · subOpen` (a sub-round keeping
+  its tree over `subT` probes) and `(2^(Lmax+1) |Σ| + T + 2T²) a`. `TallyE` is a hypothesis on the
+  reads over every tree of the class, not proved here.
 
 ## Open
 
@@ -105,6 +106,13 @@ their bounds carry a factor of the probe's positions: the edge test needs
 reads are made in order, each fresh when first made, so a probe's undecided reads at good
 read-states at an edge are at most `1.5θ` per read it makes there, with the reads rather than the
 positions as the count. The edge test can then be per read with `θe` free of `Lmax`.
+
+The tally round's `FakeRace` races the round's records that are not true against the undecided
+strings the start's and edges' tests let through, counted with their multiplicity; with each
+string counted once, a heavy string's undecided read is one count while its minority twin is a
+record at every probe through it. `fakeRun` also charges every probe the most positions it can
+have, `L + 1`, against the edge test's allowance of `θe` a position; a bound `R̄` on the mean
+positions a probe is charged would put `R̄` there instead, and is not proved.
 
 Two gaps between the model and Python:
 
@@ -256,18 +264,30 @@ Two gaps between the model and Python:
   also has `m`; a split drops every record. A stretch starts afresh at every change of hypothesis.
   Each law reads its rarer decided side at most `κ` times as often as it is undecided. A sub-round
   runs at one tree of the class (genuine splits and at most `S` that are not) until a split,
-  genuine (real) or not (fake), or the round ends. `SubRound` bounds a sub-round's chance of being
-  fake and of being bad or unfinished, given `TallyE`; `HarvestGood` bounds a harvest that is not
-  mostly at read-states that are not good. Proved in `Proofs/TallySub.lean`: `round_of_sub`
-  composes sub-rounds into `roundW`, and `tally_round_of` gives `TallyRound` from `SubRound` and
-  `HarvestGood`. `HarvestGood` is proved in `Proofs/TallyHarvest.lean`: at each edge the good
-  read-states' undecided reads less `2θg` of its reads exponentiate to a supermartingale while the
-  tree is in the class, and at the start and over a stretch's undecided middles they are at most
-  binomial. `SubRound` is proved in `Proofs/TallyKeep.lean`: a fake split needs `m` records that
-  are not true at one edge and target, at most binomial at rate `ρ` over the sub-round; a
-  hypothesis keeping over `nEnd` probes has its middle-stopping searches rarer than `θpt'`, each
-  edge and target recording rarer than `θr`, or its disagreements too many for success; and each
-  new hypothesis learns or redirects an edge, lowering a potential of at most `2 Lmax |Σ|`.
+  genuine (real) or not (fake), or the round ends. A split that is not genuine needs `m` records
+  that are not true made in its sub-round, so while the round's such records stay below
+  `(S + 1) m` its trees stay in the class. `SubRound` bounds a sub-round's chance of keeping its
+  tree over `subT` probes with fewer than `B` records that are not true; `FakeRace` bounds the
+  round's records that are not true reaching `(S + 1) m`, given `TallyE`; `HarvestGood` bounds a
+  harvest that is not mostly at read-states that are not good. Proved in
+  `Proofs/TallyBudget.lean`: `round_budget` composes sub-rounds, and `tally_round_of` gives
+  `TallyRound` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`. `HarvestGood` is
+  proved in `Proofs/TallyHarvest.lean`: at each edge the good read-states' undecided reads less
+  `2θg` of its reads exponentiate to a supermartingale while the tree is in the class, and at the
+  start and over a stretch's undecided middles they are at most binomial. `SubRound` is proved in
+  `Proofs/TallyKeep.lean`: a hypothesis recording less than `θr` of the time and keeping over
+  `nEnd` probes has its middle-stopping searches rarer than `θpt'` of its searches, or its
+  disagreements too many for success; each new hypothesis learns or redirects an edge, lowering a
+  potential of at most `2 Lmax |Σ|`; and every record raises its edge and target towards the `m`
+  at which it is fixed, a true one at one of `|Q| |Σ|` edges and targets, so with fewer than `B`
+  that are not true the sub-round holds at most `|Q| |Σ| m + B - 1` records and its probes at
+  hypotheses recording at least `θr` of the time are one binomial over `nRec`. `FakeRace` is
+  proved in `Proofs/TallyRace.lean`: `TallyE.spurious` bounds a probe's record not being true by
+  `κ` times its undecided strings plus `ρ`, the edges' and the start's tests hold those strings
+  over the round to `θe` of an edge's positions past `Xe` once the edge is charged `φe` of the
+  probes (an edge charged less holds them to that) and `θs'` of the probes past `Xs`, so the
+  records that are not true less `ν/η` times the strings' excess exponentiate to a supermartingale
+  up to `ν (θe (L + 1) + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
