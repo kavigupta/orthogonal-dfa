@@ -170,8 +170,9 @@ def evidence_margin_for_population_size(
 
 @functools.lru_cache(maxsize=8)
 def _vote_parts(N, accept_rate, reject_rate):
-    """Row `a` is the state with `a` accepting members: the law of the count among
-    them, and the two tails of the count among the rest."""
+    """Indexed `[a, k]`, for a state with `a` of the `N` suffixes accepting: P(Y = k),
+    P(Z <= k) and P(Z >= k), where Y and Z count the accept votes among the accepting
+    suffixes and among the rest."""
     a = np.arange(N + 1)[:, None]
     count = np.arange(N + 1)[None, :]
     members = scipy.stats.binom.pmf(count, a, accept_rate)
