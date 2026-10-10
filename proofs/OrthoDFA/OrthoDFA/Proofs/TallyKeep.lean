@@ -737,15 +737,16 @@ section KeepBound
 variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
 
 theorem look_none_pt {s : TState α} {hP : ℕ} (hl : tallyLook C s = none) (hn₀ : C.n₀ ≤ s.dis)
-    (hθ0 : 0 ≤ C.θpt) (hθ1 : C.θpt ≤ 1) (hhP : binomSfGe s.dis C.θpt hP < C.a) :
-    s.pt.length < hP := by
+    (hθ0 : 0 ≤ C.θpt) (hθ1 : C.θpt ≤ 1) (hhP : binomSfGe s.dis C.θpt hP < C.a)
+    (hg : C.φpt * s.n ≤ s.dis) : s.pt.length < hP := by
   by_contra hge
   push_neg at hge
   have hr : rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true := by
     unfold rateSide
     rw [if_pos hn₀, if_pos ((binomSfGe_antitone' hθ0 hθ1 hge).trans_lt hhP)]
   unfold tallyLook at hl
-  split_ifs at hl <;> contradiction
+  split_ifs at hl with h1 h2 h3
+  all_goals first | contradiction | exact absurd ⟨hg, hr⟩ h3
 
 theorem look_none_dis {s : TState α} {hS : ℕ} (hl : tallyLook C s = none) (hn₀ : C.n₀ ≤ s.n)
     (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1) (hhS : 1 - binomSfGe s.n C.εd (hS + 1) < C.a)
@@ -946,7 +947,7 @@ theorem keep_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (Fr
     (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
     (hεd'1 : εd' ≤ 1) (hcond : C.Lmax ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hhP : binomSfGe (hS + 1) C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
-    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS)
+    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS) (hφn : C.φpt * nEnd ≤ hS + 1)
     {s : TState α} (hc : G.InClass S s.tree) (he : EdgesInto s.tree s.edges) (hn : s.n = 0)
     (hd : s.dis = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
@@ -1015,11 +1016,17 @@ theorem keep_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (Fr
         rw [hj'] at hj₀ ⊢
         omega
       have hk' := keepV_mono C cut (N + 1) (j' + 1) s T xs (by omega) hk
-      obtain ⟨s₂, -, -, -, g4, g5, -, g7, -⟩ := keep_counts C cut T0 E0 j' s T xs rfl rfl hk'
+      obtain ⟨s₂, -, -, g3, g4, g5, -, g7, -⟩ := keep_counts C cut T0 E0 j' s T xs rfl rfl hk'
       rw [hd, zero_add] at g5
-      rw [← hj'] at g4 g5
+      rw [hn, zero_add] at g3
+      rw [← hj'] at g3 g4 g5
+      have hgate : C.φpt * s₂.n ≤ s₂.dis := by
+        rw [g3, g5, heq]
+        have hj : (j₀ : ℝ) ≤ N + 1 := by exact_mod_cast hj₀N
+        push_cast at hφn ⊢
+        rcases le_or_gt 0 C.φpt with h | h <;> nlinarith
       have hpt := look_none_pt C g7 (by rw [g5, heq]; exact hn₀') hθpt0 hθpt1
-        (by rw [g5, heq]; exact hhP)
+        (by rw [g5, heq]; exact hhP) hgate
       refine rr_incl hBA T j₀ (hS + 1) hP xs heq ?_
       show cnt j₀ ptO xs < hP
       simp only [ptO]
@@ -1335,7 +1342,7 @@ theorem open_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
     (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
     (hεd'1 : εd' ≤ 1) (hcond : C.Lmax ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hhP : binomSfGe (hS + 1) C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
-    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS) :
+    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS) (hφn : C.φpt * nEnd ≤ hS + 1) :
     ∀ (v : ℕ) (s : TState α) (B T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
       RecsInto s → s.n = 0 → s.dis = 0 → pot C s ≤ v → (v + 1) * nEnd ≤ B → B ≤ T →
       (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
@@ -1443,7 +1450,7 @@ theorem open_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
         rw [hsv]
         simp [w]
   have hkeep := keep_le C cut G D hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0
-    hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hc he hn hd T
+    hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn hc he hn hd T
   have hB' : v * nEnd + nEnd ≤ B := by
     have : (v + 1) * nEnd = v * nEnd + nEnd := by ring
     omega
@@ -1466,7 +1473,7 @@ end Open
 open scoped Classical in
 theorem sub_round_holds : SubRound := by
   intro α _ _ σ _ G rd D _ C S nEnd hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax hn₀ hn₀'
-    hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hE
+    hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn hE
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   set Tsub := subT C (Fintype.card α) nEnd
   intro s hs T hT
@@ -1515,6 +1522,6 @@ theorem sub_round_holds : SubRound := by
       unfold subVersions
       gcongr
     exact open_le G C cut S D hm (by omega) hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0
-      hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' _ s Tsub T hc he hr hn hd hpot le_rfl hT
+      hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn _ s Tsub T hc he hr hn hd hpot le_rfl hT
 
 end OrthoDFA

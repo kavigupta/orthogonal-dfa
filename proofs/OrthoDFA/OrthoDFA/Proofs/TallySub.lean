@@ -477,12 +477,12 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v})
     (hsucc : SuccessSound.{u}) : TallyRound.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd hP hS L T ρ θg θgs θgpt θpt' θr εd' hlen hρ0 hρ1
     hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS'
-    hL1 ha ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hT
+    hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1 hlow hT
   set Tsub := subT C (Fintype.card α) nEnd
   set δ := subFake C (Fintype.card α) ρ Tsub
   set δ' := subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd')
   set c := ENNReal.ofReal (roundW 0 δ δ' S (Fintype.card σ))
-    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
+    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 3 * (T * T)) * C.a)
   set M := toMeasurable μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
   have hδ0 : 0 ≤ δ := by
     have := binomSfGe_nonneg (n := Tsub) hρ0 hρ1 C.m
@@ -503,14 +503,14 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v})
     · refine le_trans ?_ le_add_self
       set cut : FreeMonoid α → Option Bool := fun z => (read z ω).cut
       have hsb := hsub G (read · ω) D C S nEnd hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax
-        hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hω
+        hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn hω
       have hstart₀ : Adm G S Tsub (tallyStart : TState α) S (Fintype.card σ) T :=
         ⟨⟨⟨0, Nat.zero_le _, .start⟩, fun _ _ _ _ h => by simp [tallyStart] at h,
           fun _ _ => rfl, rfl, rfl⟩, ⟨0, .start, by omega⟩, by omega, hT⟩
       have h1 := round_of_sub G D C cut S hm le_rfl hδ0 hδ'0 hsb _ S (Fintype.card σ)
         tallyStart T rfl hstart₀
-      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg
-        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hω
+      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hφe0
+        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1 hlow hω
       have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut) (GoodEnd G)
           tallyStart (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (tallyStep C cut) (OkEnd G S) tallyStart (List.ofFn xs)}
@@ -544,9 +544,9 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v})
             · exact absurd ((harvest_endsWell G D _ _ _).2 hge) hns
             · exact hge.elim
         · exact .inl hg
-      have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+      have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
           + ENNReal.ofReal (T * T * C.a)
-          = ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a) := by
+          = ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 3 * (T * T)) * C.a) := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         congr 1
         ring
