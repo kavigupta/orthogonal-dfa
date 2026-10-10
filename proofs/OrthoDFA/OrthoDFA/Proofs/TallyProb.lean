@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.FixTime
 import OrthoDFA.Proofs.Freedman
+import OrthoDFA.Proofs.Hoeffding
 
 /-!
 # Hits along a round of fresh draws
@@ -103,6 +104,122 @@ theorem hits_le (A : S → Set X) {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1)
         (mul_nonneg hc₀ (by simp only [d] at hd ⊢; linarith))]
     refine ENNReal.ofReal_le_ofReal ?_
     rw [binomSfGe_succ]
+    change c₁ * d + c₀ * (1 - d) ≤ ρ * c₁ + (1 - ρ) * c₀
+    nlinarith
+
+theorem binomSfGe_le_succ {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (n : ℕ) :
+    ∀ j, binomSfGe n p j ≤ binomSfGe (n + 1) p j
+  | 0 => by rw [binomSfGe_zero_right, binomSfGe_zero_right]
+  | j + 1 => by
+    rw [binomSfGe_succ]
+    have := binomSfGe_antitone hp0 hp1 (n := n) j
+    nlinarith
+
+theorem binomSfGe_mono_left {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n n' : ℕ} (h : n ≤ n') (j : ℕ) :
+    binomSfGe n p j ≤ binomSfGe n' p j := by
+  induction h with
+  | refl => exact le_rfl
+  | step _ ih => exact ih.trans (binomSfGe_le_succ hp0 hp1 _ j)
+
+open scoped Classical in
+/-- Where hits fall only at states satisfying `sp`, and each step from one uses up a unit of a
+budget `b` that no step raises, the hits reach `j` with chance at most `P(Bin(b s, ρ) ≥ j)`. -/
+theorem hits_le_budget (A : S → Set X) (b : S → ℕ) (sp : S → Prop) {ρ : ℝ} (hρ0 : 0 ≤ ρ)
+    (hρ1 : ρ ≤ 1) (hA : ∀ s, D.real (A s) ≤ ρ) (hsp : ∀ s, ¬ sp s → A s = ∅)
+    (hb1 : ∀ s, sp s → 1 ≤ b s)
+    (hb : ∀ s x s', step s x = some s' → b s' + (if sp s then 1 else 0) ≤ b s) :
+    ∀ (T : ℕ) (s : S) (j : ℕ), (Measure.pi fun _ : Fin T => D) {xs | j ≤ hitsAlong step A s T xs}
+      ≤ ENNReal.ofReal (binomSfGe (b s) ρ j) := by
+  intro T
+  induction T with
+  | zero =>
+    intro s j
+    rcases j with _ | j
+    · rw [binomSfGe_zero_right, ENNReal.ofReal_one]; exact prob_le_one
+    · simp [hitsAlong]
+  | succ T ih =>
+    intro s j
+    rcases j with _ | j
+    · rw [binomSfGe_zero_right, ENNReal.ofReal_one]; exact prob_le_one
+    by_cases hs : sp s
+    swap
+    · have hAe := hsp s hs
+      rw [pi_succ_apply]
+      calc ∫⁻ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+            {xs : Fin (T + 1) → X | j + 1 ≤ hitsAlong step A s (T + 1) xs}} ∂D
+          ≤ ∫⁻ _, ENNReal.ofReal (binomSfGe (b s) ρ (j + 1)) ∂D := by
+            refine lintegral_mono fun x => ?_
+            rcases hx : step s x with _ | s'
+            · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+                  j + 1 ≤ hitsAlong step A s (T + 1) xs}} = ∅ := by
+                ext xs; simp [hitsAlong, hx, hAe]
+              rw [this, measure_empty]; exact zero_le
+            · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+                  j + 1 ≤ hitsAlong step A s (T + 1) xs}}
+                  = {xs | j + 1 ≤ hitsAlong step A s' T xs} := by
+                ext xs; simp [hitsAlong, hx, hAe]
+              rw [this]
+              have hbs := hb s x s' hx
+              rw [if_neg hs, add_zero] at hbs
+              exact (ih s' (j + 1)).trans
+                (ENNReal.ofReal_le_ofReal (binomSfGe_mono_left hρ0 hρ1 hbs _))
+        _ = _ := by rw [lintegral_const, measure_univ, mul_one]
+    obtain ⟨N, hN⟩ : ∃ N, b s = N + 1 := ⟨b s - 1, by have := hb1 s hs; omega⟩
+    set c₁ := binomSfGe N ρ j
+    set c₀ := binomSfGe N ρ (j + 1)
+    have hc₀ : 0 ≤ c₀ := binomSfGe_nonneg hρ0 hρ1 _
+    have hc₀₁ : c₀ ≤ c₁ := binomSfGe_antitone hρ0 hρ1 j
+    set d := D.real (A s)
+    have hd : d ≤ ρ := hA s
+    have hd0 : 0 ≤ d := measureReal_nonneg
+    have hbN : ∀ x s', step s x = some s' → b s' ≤ N := fun x s' hx => by
+      have := hb s x s' hx; rw [if_pos hs] at this; omega
+    have hsec : ∀ x, (Measure.pi fun _ : Fin T => D)
+        {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X | j + 1 ≤ hitsAlong step A s (T + 1) xs}}
+        ≤ (A s).indicator (fun _ => ENNReal.ofReal c₁) x
+          + (A s)ᶜ.indicator (fun _ => ENNReal.ofReal c₀) x := by
+      intro x
+      by_cases hxA : x ∈ A s
+      · rw [Set.indicator_of_mem hxA, Set.indicator_of_notMem (by simpa using hxA), add_zero]
+        rcases hx : step s x with _ | s'
+        · rcases j with _ | j
+          · exact prob_le_one.trans (by
+              rw [show c₁ = 1 from binomSfGe_zero_right N ρ, ENNReal.ofReal_one])
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+                j + 1 + 1 ≤ hitsAlong step A s (T + 1) xs}} = ∅ := by
+              ext xs; simp [hitsAlong, hx, hxA]
+            rw [this, measure_empty]; exact zero_le
+        · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+              j + 1 ≤ hitsAlong step A s (T + 1) xs}} = {xs | j ≤ hitsAlong step A s' T xs} := by
+            ext xs; simp [hitsAlong, hx, hxA]; omega
+          rw [this]
+          exact (ih s' j).trans
+            (ENNReal.ofReal_le_ofReal (binomSfGe_mono_left hρ0 hρ1 (hbN x s' hx) _))
+      · rw [Set.indicator_of_notMem hxA, Set.indicator_of_mem (by simpa using hxA), zero_add]
+        rcases hx : step s x with _ | s'
+        · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+              j + 1 ≤ hitsAlong step A s (T + 1) xs}} = ∅ := by
+            ext xs; simp [hitsAlong, hx, hxA]
+          rw [this, measure_empty]; exact zero_le
+        · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → X |
+              j + 1 ≤ hitsAlong step A s (T + 1) xs}}
+              = {xs | j + 1 ≤ hitsAlong step A s' T xs} := by
+            ext xs; simp [hitsAlong, hx, hxA]
+          rw [this]
+          exact (ih s' (j + 1)).trans
+            (ENNReal.ofReal_le_ofReal (binomSfGe_mono_left hρ0 hρ1 (hbN x s' hx) _))
+    rw [pi_succ_apply]
+    refine (lintegral_mono hsec).trans ?_
+    have hc₁ : 0 ≤ c₁ := hc₀.trans hc₀₁
+    rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator
+        (Set.to_countable _).measurableSet, lintegral_indicator (Set.to_countable _).measurableSet,
+      setLIntegral_const, setLIntegral_const, ← ofReal_measureReal, ← ofReal_measureReal,
+      measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
+      ← ENNReal.ofReal_mul hc₁, ← ENNReal.ofReal_mul hc₀,
+      ← ENNReal.ofReal_add (mul_nonneg hc₁ hd0)
+        (mul_nonneg hc₀ (by simp only [d] at hd ⊢; linarith))]
+    refine ENNReal.ofReal_le_ofReal ?_
+    rw [hN, binomSfGe_succ]
     change c₁ * d + c₀ * (1 - d) ≤ ρ * c₁ + (1 - ρ) * c₀
     nlinarith
 
@@ -291,6 +408,125 @@ theorem excess_test_le (U N : X → ℕ) {θ R c : ℝ} (hθ : 0 < θ) (hR : 0 <
     (by rw [Finset.sum_const, hS, nsmul_eq_mul]; simp only [A]; ring_nf; rfl) hA (by linarith)
   rw [← ofReal_measureReal]
   exact ENNReal.ofReal_le_ofReal hbound
+
+/-- Hoeffding's lower tail for a test on the first `j + 1` of `T` fresh draws: their counts `U`
+exceed `θ` times their counts `N` by less than `c`, both at most `R` almost surely, where `U`
+exceeds `θ` times `N` by `η` on average and `c ≤ (j + 1) η`. -/
+theorem lower_test_le (U N : X → ℕ) {θ R c η : ℝ} (hθ : 0 ≤ θ) (hR : 0 < R)
+    (hb : ∀ᵐ x ∂D, (U x : ℝ) ≤ R ∧ (N x : ℝ) ≤ R)
+    (hmean : θ * ∫ x, (N x : ℝ) ∂D + η ≤ ∫ x, (U x : ℝ) ∂D) {T j : ℕ} (hj : j < T)
+    (hc : c ≤ (j + 1 : ℕ) * η) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | (∑ i : Fin T, if (i : ℕ) ≤ j then (U (xs i) : ℝ) else 0)
+          - θ * (∑ i : Fin T, if (i : ℕ) ≤ j then (N (xs i) : ℝ) else 0) < c}
+      ≤ ENNReal.ofReal (Real.exp (-2 * ((j + 1 : ℕ) * η - c) ^ 2
+          / ((j + 1 : ℕ) * ((1 + θ) * R) ^ 2))) := by
+  set b := (1 + θ) * R
+  have hb0 : 0 < b := by positivity
+  set g : X → ℝ := fun x => (U x : ℝ) - θ * N x + θ * R
+  set gc : X → ℝ := fun x => max 0 (min (g x) b)
+  set B := {x : X | ¬ ((U x : ℝ) ≤ R ∧ (N x : ℝ) ≤ R)}
+  have hB : D B = 0 := by
+    rw [ae_iff] at hb; exact hb
+  have hgc : ∀ x, x ∉ B → gc x = g x := by
+    intro x hx
+    simp only [B, Set.mem_ofPred_eq, not_not] at hx
+    have h0 : 0 ≤ g x := by
+      simp only [g]; nlinarith [hx.2, (Nat.cast_nonneg (U x) : (0 : ℝ) ≤ U x)]
+    have h1 : g x ≤ b := by
+      simp only [g, b]; nlinarith [hx.1, (Nat.cast_nonneg (N x) : (0 : ℝ) ≤ N x)]
+    simp only [gc, min_eq_left h1, max_eq_right h0]
+  have hgc_ae : gc =ᵐ[D] g := by
+    rw [Filter.EventuallyEq, ae_iff]
+    exact measure_mono_null (fun x (hx : ¬ gc x = g x) => by
+      by_contra hxB; exact hx (hgc x hxB)) hB
+  have hUi : Integrable (fun x => (U x : ℝ)) D := by
+    refine Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable R ?_
+    filter_upwards [hb] with x hx
+    rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact hx.1
+  have hNi : Integrable (fun x => (N x : ℝ)) D := by
+    refine Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable R ?_
+    filter_upwards [hb] with x hx
+    rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact hx.2
+  have hEg : η + θ * R ≤ ∫ x, gc x ∂D := by
+    rw [integral_congr_ae hgc_ae]
+    have h1 : ∫ x, g x ∂D = ∫ x, (U x : ℝ) ∂D - θ * ∫ x, (N x : ℝ) ∂D + θ * R := by
+      simp only [g]
+      rw [integral_add (f := fun x => (U x : ℝ) - θ * N x) (g := fun _ => θ * R)
+        (hUi.sub (hNi.const_mul θ)) (integrable_const _),
+        integral_sub (f := fun x => (U x : ℝ)) (g := fun x => θ * (N x : ℝ)) hUi
+        (hNi.const_mul θ), integral_const_mul, integral_const]
+      simp
+    rw [h1]
+    linarith
+  set S := Finset.univ.filter fun i : Fin T => (i : ℕ) ≤ j
+  have hS : S.card = j + 1 := by
+    rw [show S = (Finset.range (j + 1)).attachFin (fun i hi => by
+      simp only [Finset.mem_range] at hi; omega) from by
+        ext i; simp [S, Finset.mem_attachFin, Nat.lt_succ_iff]]
+    simp
+  set J : ℝ := ((j + 1 : ℕ) : ℝ)
+  have hJ : 0 < J := by positivity
+  set β := (η + θ * R) / b
+  set γ := (J * η - c) / (J * b)
+  have hγ : 0 ≤ γ := div_nonneg (by linarith) (by positivity)
+  set Y : Fin T → (Fin T → X) → ℝ := fun i xs => gc (xs i) / b
+  have hsub : {xs : Fin T → X | (∑ i : Fin T, if (i : ℕ) ≤ j then (U (xs i) : ℝ) else 0)
+        - θ * (∑ i : Fin T, if (i : ℕ) ≤ j then (N (xs i) : ℝ) else 0) < c}
+      ⊆ {xs | ∑ i ∈ S, Y i xs ≤ (S.card : ℝ) * (β - γ)} ∪ {xs | ∃ i, xs i ∈ B} := by
+    intro xs hxs
+    by_cases hbad : ∃ i, xs i ∈ B
+    · exact .inr hbad
+    left
+    push_neg at hbad
+    simp only [Set.mem_ofPred_eq] at hxs ⊢
+    have hsum : ∑ i ∈ S, gc (xs i) = (∑ i : Fin T, if (i : ℕ) ≤ j then (U (xs i) : ℝ) else 0)
+        - θ * (∑ i : Fin T, if (i : ℕ) ≤ j then (N (xs i) : ℝ) else 0) + J * θ * R := by
+      rw [Finset.sum_congr rfl fun i _ => hgc (xs i) (hbad i)]
+      simp only [g, S, Finset.sum_filter, J]
+      rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+      have hcard : (∑ i : Fin T, if (i : ℕ) ≤ j then θ * R else 0)
+          = ((j + 1 : ℕ) : ℝ) * θ * R := by
+        rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
+        change (S.card : ℝ) * (θ * R) = _
+        rw [hS]; ring
+      rw [← hcard, ← Finset.sum_add_distrib]
+      exact Finset.sum_congr rfl fun i _ => by split_ifs <;> ring
+    have hY : ∑ i ∈ S, Y i xs = (∑ i ∈ S, gc (xs i)) / b := by
+      simp only [Y, Finset.sum_div]
+    rw [hY, hsum, hS, div_le_iff₀ hb0]
+    have : ((j + 1 : ℕ) : ℝ) * (β - γ) * b = J * θ * R + c := by
+      simp only [β, γ, J]; field_simp; ring
+    rw [this]
+    linarith
+  refine (measure_mono hsub).trans ((measure_union_le _ _).trans ?_)
+  rw [pi_bad_null D hB, add_zero]
+  have hind : iIndepFun Y (Measure.pi fun _ : Fin T => D) :=
+    iIndepFun_pi (X := fun _ x => gc x / b) fun _ => (measurable_of_countable _).aemeasurable
+  have hIcc : ∀ i, ∀ᵐ xs ∂(Measure.pi fun _ : Fin T => D), Y i xs ∈ Set.Icc (0 : ℝ) 1 := by
+    intro i
+    refine ae_of_all _ fun xs => ⟨div_nonneg (le_max_left _ _) hb0.le, ?_⟩
+    rw [div_le_one hb0]
+    exact max_le hb0.le (min_le_right _ _)
+  have hmean' : (S.card : ℝ) * β ≤ ∑ i ∈ S, (Measure.pi fun _ : Fin T => D)[Y i] := by
+    have hYi : ∀ i, (Measure.pi fun _ : Fin T => D)[Y i] = (∫ x, gc x ∂D) / b := by
+      intro i
+      have : ∫ xs, gc (xs i) ∂(Measure.pi fun _ : Fin T => D) = ∫ x, gc x ∂D := by
+        conv_rhs => rw [← (measurePreserving_eval (fun _ : Fin T => D) i).map_eq]
+        rw [integral_map (measurable_pi_apply i).aemeasurable
+            (measurable_of_countable _).aestronglyMeasurable]
+      simp only [Y]
+      rw [integral_div, this]
+    rw [Finset.sum_congr rfl fun i _ => hYi i, Finset.sum_const, nsmul_eq_mul]
+    exact mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hEg hb0.le) (by positivity)
+  have hbound := sumLower_le (μ := Measure.pi fun _ : Fin T => D) Y S β γ
+    (fun i => (measurable_of_countable _).aemeasurable) hind hIcc hmean' hγ
+  rw [← ofReal_measureReal]
+  refine ENNReal.ofReal_le_ofReal (hbound.trans (le_of_eq ?_))
+  rw [hS]
+  congr 1
+  simp only [γ, J]
+  field_simp
 
 end Tests
 

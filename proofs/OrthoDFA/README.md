@@ -234,16 +234,23 @@ Two gaps between the model and Python:
   position charges its reads, stepped-past middles included, to an edge; an edge's undecided reads
   exceeding `θe` of its reads by `exc n`, or the start's undecided rate above `θs`, harvests; the
   disagreement rate settling below `εd` succeeds; `Lmax` leaves, `fuel` fixes and running out of
-  probes fail. A genuine tree grows from the root's cut by splits separating two path-good states
-  with good reads of the new midfix on different sides. `TallyE` says, over every genuine tree and
-  edges into its leaves: a path-good transition with boundary mass `q₀` (where the probe, read on
-  majority sides, stops at its edge: its search, or its walk where the edge is unlearned) gets
-  clean records, or learns its edge, at `c₀` times it; records that are not true have mass at most `ρ` at each edge and target; good
-  read-states' undecided reads average at most `θg` of an edge's reads, and `θgs` at the start.
-  Proved in `Proofs/TallyRound.lean`: with fewer than `m` records that are not true every split is
-  genuine (`Proofs/TallyInv.lean`), `pot` bounds the versions (`Proofs/TallyCount.lean`), and the
-  probe tails are `tally_fix_in_time`, `hits_le` and the stretch tests' levels
-  (`Proofs/TallyStretch.lean`).
+  probes fail. A genuine tree grows from the root's cut by splits separating two states whose true
+  leaf (where their reads' majority sides lead) is the split leaf, their reads of the new midfix on
+  different majority sides. `TallyE` says, over every genuine tree and edges into its leaves: a
+  path-good transition with boundary mass `q₀` (where the probe, read on majority sides, stops at
+  its edge: its search, or its walk where the edge is unlearned) gets clean records, or learns its
+  edge, at `c₀` times it; records that are not true have mass at most `ρH`, and those whose two
+  prefixes' reads are counted at light places at most `ρ`; good read-states' undecided reads
+  average at most `θg` of an edge's reads, and `θgs` at the start. A place is the start, for the
+  prefix at `k`, or the edge a later prefix's reads are charged to; it is heavy where its undecided
+  reads exceed the harvest's drift by `η` a probe (`θs + ηs` at the start). Proved in
+  `Proofs/TallyRound.lean`: with fewer than `m` records that are not true every split is genuine
+  (`Proofs/TallyInv.lean`), `pot` bounds the versions (`Proofs/TallyCount.lean`), and the probe
+  tails are `tally_fix_in_time`, the light records' `P(Bin(T, ρ) ≥ m₁)`, the heavy records'
+  `P(Bin((versionCap + 1) J, ρH) ≥ m₂)` (made only within the first `J` probes of a stretch at an
+  armed hypothesis, `hits_le_budget`), an armed stretch outlasting `J` probes (Hoeffding's
+  `heavyLevel` at an edge, the binomial at the start, `Proofs/TallyHeavy.lean`), and the stretch
+  tests' levels (`Proofs/TallyStretch.lean`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

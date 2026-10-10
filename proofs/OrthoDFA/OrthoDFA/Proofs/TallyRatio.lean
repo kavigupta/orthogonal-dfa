@@ -2,12 +2,13 @@ import OrthoDFA.Proofs.TallyRound
 import Mathlib.Analysis.Complex.Exponential
 
 /-!
-# The tally round's spurious tail in ratio form
+# The tally round's spurious tails in ratio form
 
-`P(Bin(T, r) ≥ m) ≤ (e T r / m)^m`. With `T = (versionCap + 1) n` probes and `n ≤ 3m / (c₀q₀)`
-per version (enough for `P(Bin(n, c₀q₀) < m)` to be small), the spurious term of `TallyRound` is
-at most `e^{-m}` once the spurious rate is a small enough share of the clean rate:
-`(|Q| + 2)² |Σ| ρ / (c₀q₀) ≤ 1 / (3 e² (versionCap + 1))`.
+`P(Bin(T, r) ≥ m) ≤ (e T r / m)^m`. With `T = (versionCap + 1) n` probes and `n ≤ 3m₁ / (c₀q₀)`
+per version (enough for `P(Bin(n, c₀q₀) < m)` to be small), the light term of `TallyRound` is at
+most `e^{-m₁}` once the light rate is a small enough share of the clean rate:
+`ρ / (c₀q₀) ≤ 1 / (3 e² (versionCap + 1))`. The heavy term is at most `e^{-m₂}` once
+`(versionCap + 1) J ρH ≤ m₂ / e²`.
 -/
 
 namespace OrthoDFA
@@ -84,6 +85,22 @@ theorem spurious_tail_ratio {r cq : ℝ} (hr0 : 0 ≤ r) (hr1 : r ≤ 1) (hcq : 
   have hnn : 0 ≤ Real.exp 1 * ((V + 1) * n : ℕ) * r / m := by positivity
   calc (Real.exp 1 * ((V + 1) * n : ℕ) * r / m) ^ m ≤ Real.exp (-1) ^ m :=
         pow_le_pow_left₀ hnn hbase m
+    _ = Real.exp (-m) := by rw [← Real.exp_nat_mul]; ring_nf
+
+/-- The heavy term in ratio form: over `N` probes at rate `r`, with `N r ≤ m / e²`, it is at most
+`e^{-m}`. -/
+theorem heavy_tail_ratio {r : ℝ} (hr0 : 0 ≤ r) (hr1 : r ≤ 1) {N m : ℕ} (hm : 1 ≤ m)
+    (h : N * r ≤ m / Real.exp 1 ^ 2) : binomSfGe N r m ≤ Real.exp (-m) := by
+  refine (binomSfGe_le_pow hr0 hr1 N hm).trans ?_
+  have hm0 : (0 : ℝ) < m := by exact_mod_cast hm
+  have he : 0 < Real.exp 1 := Real.exp_pos 1
+  have hbase : Real.exp 1 * N * r / m ≤ Real.exp (-1) := by
+    rw [div_le_iff₀ hm0, Real.exp_neg]
+    calc Real.exp 1 * N * r = Real.exp 1 * (N * r) := by ring
+      _ ≤ Real.exp 1 * (m / Real.exp 1 ^ 2) := mul_le_mul_of_nonneg_left h he.le
+      _ = (Real.exp 1)⁻¹ * m := by field_simp
+  calc (Real.exp 1 * N * r / m) ^ m ≤ Real.exp (-1) ^ m :=
+        pow_le_pow_left₀ (by positivity) hbase m
     _ = Real.exp (-m) := by rw [← Real.exp_nat_mul]; ring_nf
 
 end OrthoDFA

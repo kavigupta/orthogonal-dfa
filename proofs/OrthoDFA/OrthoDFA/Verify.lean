@@ -147,4 +147,6 @@ theorem tally_round : TallyRound := tally_round_holds
 
 #print axioms spurious_tail_ratio
 
+#print axioms heavy_tail_ratio
+
 end OrthoDFA
