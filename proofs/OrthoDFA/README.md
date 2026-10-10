@@ -99,6 +99,13 @@ revelation the good read-states' undecided new strings at a place are at most bi
 strings read there, with no noise field, no union over the class and no `p₀`. It needs the probe's
 computation stated as an adaptive sequence of reads.
 
+The tally round's `FakeRace` races the round's records that are not true against the undecided
+strings the start's and edges' tests let through, counted with their multiplicity; with each
+string counted once, a heavy string's undecided read is one count while its minority twin is a
+record at every probe through it. `fakeRun` also charges every probe the most positions it can
+have, `L + 1`, against the edge test's allowance of `θe` a position; a bound `R̄` on the mean
+positions a probe is charged would put `R̄` there instead, and is not proved.
+
 Two gaps between the model and Python:
 
 - Each theorem is per round, with the family, the seed and the band fixed, and treats the noise
