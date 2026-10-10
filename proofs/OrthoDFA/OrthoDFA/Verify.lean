@@ -14,7 +14,7 @@ import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyFix
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
-import OrthoDFA.Proofs.TallyRound
+import OrthoDFA.Proofs.TallyRatio
 
 /-!
 # The theorem
@@ -144,5 +144,7 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 theorem tally_round : TallyRound := tally_round_holds
 
 #print axioms tally_round
+
+#print axioms spurious_tail_ratio
 
 end OrthoDFA
