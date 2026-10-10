@@ -381,7 +381,8 @@ theorem round_of_sub (hm : 0 < C.m) {c δ δ' : ℝ} {Tsub : ℕ} (hc : 0 ≤ c)
           rcases hspec.2 _ _ hst with h | h
           · exact absurd h he
           · rw [h, htr]; exact hs.1
-        rcases e with _ | _ | e | _
+        rcases e with _ | _ | e | _ | _
+        · simp [w, subKind, hok (by simp)]
         · simp [w, subKind, hok (by simp)]
         · simp [w, subKind, hok (by simp)]
         · simp [w, subKind, hok (by simp)]
@@ -472,40 +473,43 @@ universe u v w in
 /-- `TallyRound` from `SubRound` and `HarvestGood`. -/
 theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
     TallyRound.{u, v, w} := by
-  intro α _ _ σ _ Ω _ μ _ G read D _ C S n nEnd L T q₀ c₀ ρ θg θgs βterm hlen hq₀ hcq hcq1 hρ0
-    hρ1 hm hn₀ hLmax hβ hL1 ha ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hT
-  set Tsub := subT C (Fintype.card α) n nEnd
+  intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd hP hS L T ρ θg θgs θgpt θpt' θr εd' hlen hρ0 hρ1
+    hm hLmax hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'1 hcond hhP hhS hhS' hL1 ha
+    ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hT
+  set Tsub := subT C (Fintype.card α) nEnd
   set δ := subFake C (Fintype.card α) ρ Tsub
-  set δ' := subOpen C (Fintype.card α) n (c₀ * q₀) βterm
+  set δ' := subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd')
   set c := ENNReal.ofReal (roundW 0 δ δ' S (Fintype.card σ))
-    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T) * C.a)
-  set M := toMeasurable μ {ω | ¬ (TallyE G D C S q₀ c₀ ρ θg θgs (read · ω)
-    ∧ Terminates G D C S q₀ nEnd βterm (read · ω))}
+    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+  set M := toMeasurable μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
   have hδ0 : 0 ≤ δ := by
     have := binomSfGe_nonneg (n := Tsub) hρ0 hρ1 C.m
     simp only [δ, subFake]; positivity
   have hδ'0 : 0 ≤ δ' := by
-    have := binomSfGe_le_one (n := n) hcq.le hcq1 C.m
-    simp only [δ', subOpen]
-    have : 0 ≤ 1 - binomSfGe n (c₀ * q₀) C.m + βterm := by linarith
+    have hεd'0 : 0 ≤ εd' := le_trans (by positivity) hcond
+    have h1 := binomSfGe_le_one (n := nEnd) hθpt'0 hθpt'1 hP
+    have h2 := binomSfGe_le_one (n := nEnd) hθr0 hθr1 C.m
+    have h3 := binomSfGe_nonneg (n := nEnd) hεd'0 hεd'1 (hS + 1)
+    simp only [δ', subOpen, termLevel]
+    have : 0 ≤ 1 - binomSfGe nEnd θpt' hP + (1 - binomSfGe nEnd θr C.m)
+      + binomSfGe nEnd εd' (hS + 1) := by linarith
     positivity
   have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
       {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
         (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
     intro ω
-    by_cases hω : TallyE G D C S q₀ c₀ ρ θg θgs (read · ω)
-      ∧ Terminates G D C S q₀ nEnd βterm (read · ω)
+    by_cases hω : TallyE G D C S ρ θg θgs θgpt (read · ω)
     · refine le_trans ?_ le_add_self
       set cut : FreeMonoid α → Option Bool := fun z => (read z ω).cut
-      have hsb := hsub G (read · ω) D C S n nEnd q₀ c₀ ρ θg θgs βterm hq₀ hcq hcq1 hρ0 hρ1 hm
-        hn₀ hLmax hω.1 hω.2
+      have hsb := hsub G (read · ω) D C S nEnd hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax
+        hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'1 hcond hhP hhS hhS' hω
       have hstart₀ : Adm G S Tsub (tallyStart : TState α) S (Fintype.card σ) T :=
         ⟨⟨⟨0, Nat.zero_le _, .start⟩, fun _ _ _ _ h => by simp [tallyStart] at h,
           fun _ _ => rfl, rfl, rfl⟩, ⟨0, .start, by omega⟩, by omega, hT⟩
       have h1 := round_of_sub G D C cut S hm le_rfl hδ0 hδ'0 hsb _ S (Fintype.card σ)
         tallyStart T rfl hstart₀
-      have h2 := hharv G (read · ω) D C S L T q₀ c₀ ρ θg θgs hlen hL1 hm ha ha1 hθg0 hθg hLmax
-        hexc hθgs0 hθgs1 hstart hω.1
+      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg
+        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hω
       have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut) (GoodEnd G)
           tallyStart (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (tallyStep C cut) (OkEnd G S) tallyStart (List.ofFn xs)}
@@ -526,8 +530,7 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
           (List.ofFn xs)} ∂μ
       ≤ ∫⁻ ω, (M.indicator 1 ω + c) ∂μ := lintegral_mono hpt
-    _ = μ {ω | ¬ (TallyE G D C S q₀ c₀ ρ θg θgs (read · ω)
-          ∧ Terminates G D C S q₀ nEnd βterm (read · ω))} + c := by
+    _ = μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)} + c := by
       rw [lintegral_add_right _ measurable_const, lintegral_indicator_one
         (measurableSet_toMeasurable _ _), measure_toMeasurable, lintegral_const, measure_univ,
         mul_one]

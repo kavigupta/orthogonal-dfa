@@ -63,6 +63,37 @@ theorem tallyStep_counts {s s' : TState α} {x : FreeMonoid α} (h : tallyStep C
   · cases h
   · exact settleOne_counts cut h
 
+/-- A step that continues starts a fresh stretch, or is the probe's outcome at the same hypothesis,
+one probe further into the stretch. -/
+theorem tallyStep_fresh {s s' : TState α} {x : FreeMonoid α} (h : tallyStep C cut s x = .inl s') :
+    (s'.n = 0 ∧ s'.dis = 0 ∧ s'.pt = [])
+      ∨ (s' = tallyPre C cut s x ∧ s'.n = s.n + 1 ∧ s'.tree = s.tree ∧ s'.edges = s.edges) := by
+  unfold tallyStep at h
+  simp only [] at h
+  split at h
+  · cases h
+  unfold settleOne at h
+  split_ifs at h with hv
+  · simp only [Sum.inl.injEq] at h
+    subst h
+    left
+    unfold fixEdge
+    simp only []
+    split
+    · split_ifs <;> simp [TState.setEdge, TState.fresh]
+    · simp [TState.setEdge, TState.fresh]
+  · simp only [Sum.inl.injEq] at h
+    subst h
+    unfold tallyPre
+    split
+    · split
+      · split
+        · left; simp [TState.setEdge, TState.fresh]
+        · right; simp [TState.charge]
+      · right; simp [TState.charge]
+    · right; split <;> simp [TState.charge, TState.addRec]
+    all_goals right; simp [TState.charge]
+
 theorem tallyStep_inr_pre {s s' : TState α} {x : FreeMonoid α} {e : TEnd α}
     (h : tallyStep C cut s x = .inr (e, s')) (he : e ≠ .tooBig) :
     s' = tallyPre C cut s x ∧ tallyLook C (tallyPre C cut s x) = some e := by
@@ -87,26 +118,30 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : TallyCfg)
 
 /-- Reached by the loop: a tree of the class's shape, edges and records pointing at leaves. -/
 def Reach (s : TState α) : Prop :=
-  (∃ f, G.Grown s.tree f) ∧ EdgesInto s.tree s.edges ∧ RecsInto s
+  (∃ f, G.Grown s.tree f) ∧ EdgesInto s.tree s.edges ∧ RecsInto s ∧ (s.n = 0 → s.pt = [])
 
 theorem reach_start : Reach G (tallyStart : TState α) :=
   ⟨⟨0, .start⟩, fun _ _ _ _ h => by simp [tallyStart] at h,
-    fun _ _ _ h => by simp [tallyStart] at h⟩
+    fun _ _ _ h => by simp [tallyStart] at h, fun _ => rfl⟩
 
 theorem reach_step (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α} (hs : Reach G s)
     (h : tallyStep C cut s x = .inl s') :
     Reach G s' ∧ ∀ f f', G.Grown s.tree f → G.Grown s'.tree f' → f ≤ f' := by
-  obtain ⟨⟨f, hf⟩, he, hr⟩ := hs
+  obtain ⟨⟨f, hf⟩, he, hr, -⟩ := hs
+  have hpt : s'.n = 0 → s'.pt = [] := fun h0 => by
+    rcases tallyStep_fresh C cut h with ⟨-, -, h'⟩ | ⟨-, h', -⟩
+    · exact h'
+    · omega
   rcases (tallyStep_spec cut C hm he hr).1 s' h with ⟨ht, he', hr'⟩ |
     ⟨p, c, t, t₀, ht, ht₀, hp, hT, he', hr', -, -⟩
-  · refine ⟨⟨⟨f, ht ▸ hf⟩, he', hr'⟩, fun f₁ f₂ h₁ h₂ => ?_⟩
+  · refine ⟨⟨⟨f, ht ▸ hf⟩, he', hr', hpt⟩, fun f₁ f₂ h₁ h₂ => ?_⟩
     rw [ht] at h₂
     exact (G.grown_unique h₁ h₂).le
   · have hg : G.Grown s'.tree f ∨ G.Grown s'.tree (f + 1) := by
       by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (lcp t t₀))
       · exact .inl (hT ▸ .real hf ht ht₀ hgen)
       · exact .inr (hT ▸ .fake hf hp ht ht₀ hgen)
-    refine ⟨⟨hg.elim (⟨_, ·⟩) (⟨_, ·⟩), he', ?_⟩, fun f₁ f₂ h₁ h₂ => ?_⟩
+    refine ⟨⟨hg.elim (⟨_, ·⟩) (⟨_, ·⟩), he', ?_, hpt⟩, fun f₁ f₂ h₁ h₂ => ?_⟩
     · intro q e r hmem
       rw [hr' q e] at hmem
       cases hmem
@@ -278,8 +313,8 @@ theorem edgeZ_step {θg : ℝ} {e : List Bool × α} {s s' : TState α} {x : Fre
 /-- The edge's exponentiated count is a supermartingale while the tree is in the class. -/
 theorem edge_super (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (rd : FreeMonoid α → ARU) {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hL : 1 ≤ L)
-    {q₀ c₀ ρ θg θgs : ℝ} (hθg : 0 ≤ θg) (hLmax : Fintype.card σ + S + 2 ≤ C.Lmax)
-    (hE : TallyE G D C S q₀ c₀ ρ θg θgs rd) (e : List Bool × α) (thr : ℝ) :
+    {ρ θg θgs θgpt : ℝ} (hθg : 0 ≤ θg) (hLmax : Fintype.card σ + S + 2 ≤ C.Lmax)
+    (hE : TallyE G D C S ρ θg θgs θgpt rd) (e : List Bool × α) (thr : ℝ) :
     ∀ (T : ℕ) (s : TState α), Reach G s →
       (Measure.pi fun _ : Fin T => D)
           {xs | EvE G C (fun z => (rd z).cut) S θg e thr s (List.ofFn xs)}
@@ -411,8 +446,8 @@ theorem binomSfGe_gt {n j : ℕ} (p : ℝ) (h : n < j) : binomSfGe n p j = 0 := 
 
 /-- The start's good read-states' undecided reads at the `j + 1`-th probe are at most binomial. -/
 theorem start_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (rd : FreeMonoid α → ARU) {q₀ c₀ ρ θg θgs : ℝ} (hθ0 : 0 ≤ θgs) (hθ1 : θgs ≤ 1)
-    (hE : TallyE G D C S q₀ c₀ ρ θg θgs rd) :
+    (rd : FreeMonoid α → ARU) {ρ θg θgs θgpt : ℝ} (hθ0 : 0 ≤ θgs) (hθ1 : θgs ≤ 1)
+    (hE : TallyE G D C S ρ θg θgs θgpt rd) :
     ∀ (T j : ℕ) (s : TState α) (k : ℕ), Reach G s →
       (Measure.pi fun _ : Fin T => D)
           {xs | EvS G C (fun z => (rd z).cut) S j s (goodCount G s.startH + k) (List.ofFn xs)}
@@ -534,6 +569,251 @@ theorem start_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMea
 
 end Start
 
+section PT
+
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : TallyCfg)
+  (cut : FreeMonoid α → Option Bool) (S : ℕ)
+
+/-- At the `len`-th probe after this one, within the stretch, from a state of the class, the good
+read-states' undecided middles searches stopped at reach `k`. -/
+def EvP : ℕ → TState α → ℕ → List (FreeMonoid α) → Prop
+  | _, _, _, [] => False
+  | 0, s, k, x :: _ => G.InClass S s.tree ∧ k ≤ goodCount G (tallyPre C cut s x).pt
+  | len + 1, s, k, x :: xs => match tallyStep C cut s x with
+    | .inl s' => s'.n ≠ 0 ∧ EvP len s' k xs
+    | .inr _ => False
+
+/-- After `i` probes, the run is at a state from which `Q` holds of the remaining draws. -/
+def Skip (Q : TState α → List (FreeMonoid α) → Prop) : ℕ → TState α → List (FreeMonoid α) → Prop
+  | 0, s, l => Q s l
+  | _ + 1, _, [] => False
+  | i + 1, s, x :: xs => match tallyStep C cut s x with
+    | .inl s' => Skip Q i s' xs
+    | .inr _ => False
+
+theorem ptHarvBy_cases (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    ptHarvBy cut T edges k x = [] ∨ ∃ b, ptHarvBy cut T edges k x = [b] := by
+  unfold ptHarvBy
+  split
+  · rcases T.sift cut _ with _ | b
+    · exact .inl rfl
+    · exact .inr ⟨b, rfl⟩
+  · rcases T.sift cut _ with _ | b
+    · exact .inl rfl
+    · exact .inr ⟨b, rfl⟩
+  · exact .inl rfl
+
+theorem tallyPre_stretch (s : TState α) (x : FreeMonoid α) :
+    ((tallyPre C cut s x).n = s.n + 1
+      ∧ (tallyPre C cut s x).pt = s.pt ++ ptHarvBy cut s.tree s.edges C.k x)
+    ∨ ((tallyPre C cut s x).n = 0 ∧ (tallyPre C cut s x).pt = []) := by
+  unfold tallyPre
+  split
+  · split
+    · split
+      · right; simp [TState.setEdge, TState.fresh]
+      · left; simp [TState.charge]
+    · left; simp [TState.charge]
+  · left; split <;> simp [TState.charge, TState.addRec]
+  all_goals left; simp [TState.charge]
+
+open scoped Classical in
+theorem goodCount_ptPre (rd : FreeMonoid α → ARU) (s : TState α) (x : FreeMonoid α) :
+    goodCount G (tallyPre C (fun z => (rd z).cut) s x).pt ≤ goodCount G s.pt
+      + if x ∈ G.ptAt rd C.k s.tree s.edges G.Good then 1 else 0 := by
+  have h : (tallyPre C (fun z => (rd z).cut) s x).pt = s.pt ++ ptHarvBy (fun z => (rd z).cut)
+      s.tree s.edges C.k x ∨ (tallyPre C (fun z => (rd z).cut) s x).pt = [] :=
+    (tallyPre_stretch C _ s x).imp (·.2) (·.2)
+  rcases h with h | h
+  · rw [h, goodCount_append]
+    rcases ptHarvBy_cases (fun z => (rd z).cut) s.tree s.edges C.k x with h0 | ⟨b, hb⟩
+    · rw [h0]; simp [goodCount]
+    · rw [hb]
+      by_cases hg : G.Good (G.M.eval b.toList)
+      · have : x ∈ G.ptAt rd C.k s.tree s.edges G.Good := ⟨b, hb, hg⟩
+        simp [goodCount, hg, this]
+      · simp [goodCount, hg]
+  · rw [h]; simp [goodCount]
+
+theorem evP_mono : ∀ (l : List (FreeMonoid α)) (len : ℕ) (s : TState α) {k k' : ℕ}, k ≤ k' →
+    EvP G C cut S len s k' l → EvP G C cut S len s k l
+  | [], len, _, _, _, _, h => by cases len <;> simp [EvP] at h
+  | x :: xs, 0, s, _, _, hk, h => ⟨h.1, hk.trans h.2⟩
+  | x :: xs, len + 1, s, _, _, hk, h => by
+    simp only [EvP] at h ⊢
+    rcases hst : tallyStep C cut s x with s' | _ <;> rw [hst] at h
+    · exact ⟨h.1, evP_mono xs len s' hk h.2⟩
+    · exact h
+
+theorem evP_notClass (hm : 0 < C.m) :
+    ∀ (l : List (FreeMonoid α)) (len : ℕ) (s : TState α) (k : ℕ), Reach G s →
+      ¬ G.InClass S s.tree → ¬ EvP G C cut S len s k l
+  | [], len, _, _, _, _ => by cases len <;> simp [EvP]
+  | x :: xs, 0, s, k, _, hn => fun h => hn h.1
+  | x :: xs, len + 1, s, k, hs, hn => by
+    simp only [EvP]
+    rcases h : tallyStep C cut s x with s' | _
+    · exact fun h' => evP_notClass hm xs len s' k (reach_step G C cut hm hs h).1
+        (notClass_step G C cut S hm hs hn h) h'.2
+    · exact id
+
+/-- The good read-states' undecided middles within a stretch, `len + 1` probes on, are at most
+binomial. -/
+theorem pt_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (rd : FreeMonoid α → ARU) {ρ θg θgs θgpt : ℝ} (hθ0 : 0 ≤ θgpt) (hθ1 : θgpt ≤ 1)
+    (hE : TallyE G D C S ρ θg θgs θgpt rd) :
+    ∀ (T len : ℕ) (s : TState α) (k : ℕ), Reach G s →
+      (Measure.pi fun _ : Fin T => D)
+          {xs | EvP G C (fun z => (rd z).cut) S len s (goodCount G s.pt + k) (List.ofFn xs)}
+        ≤ ENNReal.ofReal (binomSfGe (len + 1) θgpt k) := by
+  classical
+  intro T
+  induction T with
+  | zero => intro len s k _; cases len <;> simp [EvP]
+  | succ T ih =>
+    intro len s k hs
+    rcases k with _ | k
+    · rw [binomSfGe_zero_right, ENNReal.ofReal_one]; exact prob_le_one
+    by_cases hc : G.InClass S s.tree
+    swap
+    · have : {xs : Fin (T + 1) → FreeMonoid α |
+          EvP G C (fun z => (rd z).cut) S len s (goodCount G s.pt + (k + 1)) (List.ofFn xs)}
+          = ∅ := by
+        ext xs
+        simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
+        exact evP_notClass G C _ S hm _ len s _ hs hc
+      rw [this, measure_empty]; exact zero_le
+    set A := G.ptAt rd C.k s.tree s.edges G.Good
+    have hA : D.real A ≤ θgpt := hE.goodPT s.tree s.edges hc hs.2.1
+    have hA0 : 0 ≤ D.real A := measureReal_nonneg
+    have hgc := fun x => goodCount_ptPre G C rd s x
+    rw [pi_succ_apply]
+    rcases len with _ | len
+    · have hsec : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+          {xs : Fin (T + 1) → FreeMonoid α |
+            EvP G C (fun z => (rd z).cut) S 0 s (goodCount G s.pt + (k + 1)) (List.ofFn xs)}}
+          ≤ A.indicator (fun _ => if k = 0 then 1 else 0) x := by
+        intro x
+        have h1 := hgc x
+        by_cases hx : x ∈ A
+        · rw [Set.indicator_of_mem hx]
+          rcases k with _ | k
+          · exact prob_le_one
+          · rw [if_pos (show x ∈ G.ptAt rd C.k s.tree s.edges G.Good from hx)] at h1
+            have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                EvP G C (fun z => (rd z).cut) S 0 s (goodCount G s.pt + (k + 1 + 1))
+                  (List.ofFn xs)}} = ∅ := by
+              ext xs
+              simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, Set.mem_empty_iff_false,
+                iff_false, not_and]
+              intro _; omega
+            rw [this, measure_empty]; simp
+        · rw [Set.indicator_of_notMem hx]
+          rw [if_neg (show x ∉ G.ptAt rd C.k s.tree s.edges G.Good from hx)] at h1
+          have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+              EvP G C (fun z => (rd z).cut) S 0 s (goodCount G s.pt + (k + 1))
+                (List.ofFn xs)}} = ∅ := by
+            ext xs
+            simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, Set.mem_empty_iff_false,
+              iff_false, not_and]
+            intro _; omega
+          rw [this, measure_empty]
+      refine (lintegral_mono hsec).trans ?_
+      rw [lintegral_indicator (Set.to_countable _).measurableSet, setLIntegral_const,
+        ← ofReal_measureReal]
+      rcases k with _ | k
+      · rw [if_pos rfl, one_mul, show (0 + 1 : ℕ) = 0 + 1 from rfl, binomSfGe_succ,
+          binomSfGe_zero_right, binomSfGe_zero_left]
+        exact ENNReal.ofReal_le_ofReal (by linarith)
+      · simp
+    · set c₁ := binomSfGe (len + 1) θgpt k
+      set c₀ := binomSfGe (len + 1) θgpt (k + 1)
+      have hc₀ : 0 ≤ c₀ := binomSfGe_nonneg hθ0 hθ1 _
+      have hc₀₁ : c₀ ≤ c₁ := binomSfGe_antitone hθ0 hθ1 k
+      have hsec : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+          {xs : Fin (T + 1) → FreeMonoid α |
+            EvP G C (fun z => (rd z).cut) S (len + 1) s (goodCount G s.pt + (k + 1))
+              (List.ofFn xs)}}
+          ≤ A.indicator (fun _ => ENNReal.ofReal c₁) x
+            + Aᶜ.indicator (fun _ => ENNReal.ofReal c₀) x := by
+        intro x
+        rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | ⟨e, s'⟩
+        · rcases tallyStep_fresh C _ hst with ⟨h0, -, -⟩ | ⟨rfl, -, -, -⟩
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                EvP G C (fun z => (rd z).cut) S (len + 1) s (goodCount G s.pt + (k + 1))
+                  (List.ofFn xs)}} = ∅ := by
+              ext xs
+              simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hst, h0, ne_eq,
+                not_true_eq_false, false_and, Set.mem_empty_iff_false]
+            rw [this, measure_empty]; exact zero_le
+          have hs' := (reach_step G C _ hm hs hst).1
+          have h1 := hgc x
+          by_cases hx : x ∈ A
+          · rw [Set.indicator_of_mem hx, Set.indicator_of_notMem (by simpa using hx), add_zero]
+            rw [if_pos (show x ∈ G.ptAt rd C.k s.tree s.edges G.Good from hx)] at h1
+            refine le_trans (measure_mono fun xs hxs => ?_) (ih len _ k hs')
+            simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hst] at hxs ⊢
+            exact evP_mono G C _ S _ len _ (by omega) hxs.2
+          · rw [Set.indicator_of_notMem hx, Set.indicator_of_mem (by simpa using hx), zero_add]
+            rw [if_neg (show x ∉ G.ptAt rd C.k s.tree s.edges G.Good from hx)] at h1
+            refine le_trans (measure_mono fun xs hxs => ?_) (ih len _ (k + 1) hs')
+            simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hst] at hxs ⊢
+            exact evP_mono G C _ S _ len _ (by omega) hxs.2
+        · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+              EvP G C (fun z => (rd z).cut) S (len + 1) s (goodCount G s.pt + (k + 1))
+                (List.ofFn xs)}} = ∅ := by
+            ext xs
+            simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hst, Set.mem_empty_iff_false]
+          rw [this, measure_empty]; exact zero_le
+      refine (lintegral_mono hsec).trans ?_
+      have hc₁ : 0 ≤ c₁ := hc₀.trans hc₀₁
+      rw [lintegral_add_left (measurable_of_countable _), lintegral_indicator
+          (Set.to_countable _).measurableSet, lintegral_indicator
+          (Set.to_countable _).measurableSet,
+        setLIntegral_const, setLIntegral_const, ← ofReal_measureReal, ← ofReal_measureReal,
+        measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
+        ← ENNReal.ofReal_mul hc₁, ← ENNReal.ofReal_mul hc₀,
+        ← ENNReal.ofReal_add (mul_nonneg hc₁ hA0) (mul_nonneg hc₀ (by linarith))]
+      refine ENNReal.ofReal_le_ofReal ?_
+      rw [show len + 1 + 1 = (len + 1) + 1 from rfl, binomSfGe_succ]
+      change c₁ * D.real A + c₀ * (1 - D.real A) ≤ θgpt * c₁ + (1 - θgpt) * c₀
+      nlinarith
+
+theorem skip_le (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (Q : TState α → List (FreeMonoid α) → Prop) {c : ENNReal}
+    (hQ : ∀ (T : ℕ) (s : TState α), Reach G s →
+      (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
+    ∀ (T i : ℕ) (s : TState α), Reach G s →
+      (Measure.pi fun _ : Fin T => D) {xs | Skip C cut Q i s (List.ofFn xs)} ≤ c := by
+  intro T
+  induction T with
+  | zero =>
+    intro i s hs
+    rcases i with _ | i
+    · exact hQ 0 s hs
+    · simp [Skip]
+  | succ T ih =>
+    intro i s hs
+    rcases i with _ | i
+    · exact hQ _ s hs
+    rw [pi_succ_apply]
+    calc ∫⁻ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+          {xs : Fin (T + 1) → FreeMonoid α | Skip C cut Q (i + 1) s (List.ofFn xs)}} ∂D
+        ≤ ∫⁻ _, c ∂D := lintegral_mono fun x => by
+          rcases hst : tallyStep C cut s x with s' | _
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                Skip C cut Q (i + 1) s (List.ofFn xs)}} = {xs | Skip C cut Q i s' (List.ofFn xs)} := by
+              ext xs; simp only [Set.mem_ofPred_eq, List.ofFn_cons, Skip, hst]
+            rw [this]; exact ih i s' (reach_step G C cut hm hs hst).1
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                Skip C cut Q (i + 1) s (List.ofFn xs)}} = ∅ := by
+              ext xs
+              simp only [Set.mem_ofPred_eq, List.ofFn_cons, Skip, hst, Set.mem_empty_iff_false]
+            rw [this, measure_empty]; exact zero_le
+      _ = c := by rw [lintegral_const, measure_univ, mul_one]
+
+end PT
+
 section Assemble
 
 theorem tallyLook_start' (C : TallyCfg) {s : TState α} (h : tallyLook C s = some .harvestStart) :
@@ -561,6 +841,22 @@ theorem tallyLook_harvest' (C : TallyCfg) {s : TState α} {e : List Bool × α}
       exact h2.choose_spec
     · rw [dif_neg h2] at h
       split_ifs at h <;> simp at h
+
+theorem tallyLook_pt' (C : TallyCfg) {s : TState α} (h : tallyLook C s = some .harvestPT) :
+    C.n₀ ≤ s.n ∧ binomSfGe s.n C.θpt s.pt.length < C.a := by
+  unfold tallyLook at h
+  by_cases h1 : rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true
+  · rw [if_pos h1] at h; simp at h
+  rw [if_neg h1] at h
+  by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.paths
+      ∧ C.exc (s.reads e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.reads e.1 e.2
+  · rw [dif_pos h2] at h; simp at h
+  rw [dif_neg h2] at h
+  by_cases h3 : rateSide C.θpt C.a C.n₀ s.n s.pt.length = some true
+  · unfold rateSide at h3
+    split_ifs at h3 with h4 h5 <;> first | exact ⟨h4, h5⟩ | simp at h3
+  · rw [if_neg h3] at h
+    split_ifs at h <;> simp at h
 
 theorem paths_length_pos : ∀ T : DTree α, 0 < T.paths.length
   | .leaf => by simp [DTree.paths]
@@ -600,8 +896,8 @@ theorem shortPaths_card (n : ℕ) : (shortPaths n).card ≤ 2 ^ (n + 1) := by
 
 open scoped Classical in
 theorem harvest_good_holds : HarvestGood := by
-  intro α _ _ σ _ G rd D _ C S L T q₀ c₀ ρ θg θgs hlen hL1 hm ha ha1 hθg0 hθg hLmax hexc hθgs0
-    hθgs1 hstart hE
+  intro α _ _ σ _ G rd D _ C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hLmax hexc hθgs0
+    hθgs1 hstart hθgpt0 hθgpt1 hstartpt hE
   set K : ℝ := 2 * L * (1 + 4 * θg * C.Lmax)
   have hK : 0 < K := by
     have : (1 : ℝ) ≤ L := by exact_mod_cast hL1
@@ -610,49 +906,71 @@ theorem harvest_good_holds : HarvestGood := by
   set keys := shortPaths C.Lmax ×ˢ (Finset.univ : Finset α)
   set kf : ℕ → ℕ := fun t => if h : ∃ h', C.n₀ ≤ t ∧ binomSfGe t C.θs h' < C.a then
     (Nat.find h + 1) / 2 else t + 1
+  set kp : ℕ → ℕ := fun t => if h : ∃ h', C.n₀ ≤ t ∧ binomSfGe t C.θpt h' < C.a then
+    (Nat.find h + 1) / 2 else t + 1
+  set cr : FreeMonoid α → Option Bool := fun z => (rd z).cut
+  set Qp : ℕ → TState α → List (FreeMonoid α) → Prop := fun len s l =>
+    EvP G C cr S len s (goodCount G s.pt + kp (len + 1)) l
   set P : TEnd α → TState α → Prop := fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
     ∧ ¬ GoodEnd G e s'
   have hincl : ∀ (l : List (FreeMonoid α)) (s : TState α), Reach G s →
-      RunEnds (tallyStep C fun z => (rd z).cut) P s l →
-      (∃ e ∈ keys, EvE G C (fun z => (rd z).cut) S θg e thr s l)
-        ∨ ∃ j < l.length, EvS G C (fun z => (rd z).cut) S j s (kf (s.probes + j + 1)) l := by
+      RunEnds (tallyStep C cr) P s l →
+      (∃ e ∈ keys, EvE G C cr S θg e thr s l)
+        ∨ (∃ j < l.length, EvS G C cr S j s (kf (s.probes + j + 1)) l)
+        ∨ (∃ i len, i + len < l.length ∧ Skip C cr (Qp len) i s l)
+        ∨ ∃ len < l.length, EvP G C cr S len s (kp (s.n + len + 1)) l := by
     intro l
     induction l with
     | nil => intro s _ h; exact h.elim
     | cons x xs ih =>
       intro s hs h
       simp only [RunEnds] at h
-      rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | ⟨e, s''⟩ <;> rw [hst] at h
-      · rcases ih s' (reach_step G C _ hm hs hst).1 h with ⟨e, he, hE'⟩ | ⟨j, hj, hS⟩
+      rcases hst : tallyStep C cr s x with s' | ⟨e, s''⟩ <;> rw [hst] at h
+      · rcases ih s' (reach_step G C _ hm hs hst).1 h with ⟨e, he, hE'⟩ | ⟨j, hj, hS⟩ |
+          ⟨i, len, hil, hk⟩ | ⟨len, hlen', hP⟩
         · exact .inl ⟨e, he, .inr (by simp only [hst]; exact hE')⟩
-        · refine .inr ⟨j + 1, by simp; omega, ?_⟩
+        · refine .inr (.inl ⟨j + 1, by simp; omega, ?_⟩)
           simp only [EvS, hst]
           have hp := (tallyStep_counts C _ hst).2.2.2
           rw [(tallyPre_charge C _ s x).2.2.2] at hp
           rw [hp] at hS
           rw [show s.probes + (j + 1) + 1 = s.probes + 1 + j + 1 by omega]
           exact hS
+        · refine .inr (.inr (.inl ⟨i + 1, len, by simp; omega, ?_⟩))
+          simp only [Skip, hst]
+          exact hk
+        · rcases tallyStep_fresh C _ hst with ⟨hn0, -, hpt0⟩ | ⟨-, hn, -, -⟩
+          · refine .inr (.inr (.inl ⟨1, len, by simp; omega, ?_⟩))
+            simp only [Skip, hst, Qp]
+            have : goodCount G s'.pt + kp (len + 1) = kp (s'.n + len + 1) := by
+              rw [hpt0, hn0]; simp [goodCount]
+            rw [this]
+            exact hP
+          · refine .inr (.inr (.inr ⟨len + 1, by simp; omega, ?_⟩))
+            simp only [EvP, hst]
+            refine ⟨by omega, ?_⟩
+            rw [show s.n + (len + 1) + 1 = s'.n + len + 1 by omega]
+            exact hP
       · obtain ⟨hcl, hne, hng⟩ := h
         obtain ⟨rfl, hl⟩ := tallyStep_inr_pre C _ hst hne
-        have htr : (tallyPre C (fun z => (rd z).cut) s x).tree = s.tree :=
-          (tallyPre_into _ C x hs.2.1 hs.2.2).1
+        have htr : (tallyPre C cr s x).tree = s.tree :=
+          (tallyPre_into _ C x hs.2.1 hs.2.2.1).1
         rw [htr] at hcl
-        obtain ⟨-, -, hstH, hprob⟩ := tallyPre_charge C (fun z => (rd z).cut) s x
-        rcases e with _ | _ | e | _
+        obtain ⟨-, -, hstH, hprob⟩ := tallyPre_charge C cr s x
+        rcases e with _ | _ | e | _ | _
         · exact absurd trivial hng
-        · right
-          refine ⟨0, by simp, hcl, ?_⟩
+        · refine .inr (.inl ⟨0, by simp, hcl, ?_⟩)
           obtain ⟨hn₀, hlt⟩ := tallyLook_start' C hl
           rw [hprob] at hn₀ hlt
           have hn₀' : C.n₀ ≤ s.probes + 0 + 1 := by simpa using hn₀
           have hlt' : binomSfGe (s.probes + 0 + 1) C.θs
-              (tallyPre C (fun z => (rd z).cut) s x).startH.length < C.a := by simpa using hlt
+              (tallyPre C cr s x).startH.length < C.a := by simpa using hlt
           have hex : ∃ h', C.n₀ ≤ s.probes + 0 + 1 ∧ binomSfGe (s.probes + 0 + 1) C.θs h' < C.a :=
             ⟨_, hn₀', hlt'⟩
           simp only [kf, dif_pos hex]
-          have hfind : Nat.find hex ≤ (tallyPre C (fun z => (rd z).cut) s x).startH.length :=
+          have hfind : Nat.find hex ≤ (tallyPre C cr s x).startH.length :=
             Nat.find_min' hex ⟨hn₀', hlt'⟩
-          have hsum := goodCount_add_badCount G (tallyPre C (fun z => (rd z).cut) s x).startH
+          have hsum := goodCount_add_badCount G (tallyPre C cr s x).startH
           simp only [GoodEnd, not_lt] at hng
           omega
         · left
@@ -662,39 +980,64 @@ theorem harvest_good_holds : HarvestGood := by
           · have := path_length_lt _ _ hp
             have := class_paths G C S hcl hLmax
             omega
-          · have hsum := goodCount_add_badCount G
-              ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2)
+          · have hsum := goodCount_add_badCount G ((tallyPre C cr s x).harv e.1 e.2)
             simp only [GoodEnd, not_lt] at hng
-            have hb : (G.badCount ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2) : ℝ) * 2
-                ≤ ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2).length := by
+            have hb : (G.badCount ((tallyPre C cr s x).harv e.1 e.2) : ℝ) * 2
+                ≤ ((tallyPre C cr s x).harv e.1 e.2).length := by
               exact_mod_cast (by omega : _ * 2 ≤ _)
-            have hs' : (goodCount G ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2) : ℝ)
-                + G.badCount ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2)
-                = ((tallyPre C (fun z => (rd z).cut) s x).harv e.1 e.2).length := by
+            have hs' : (goodCount G ((tallyPre C cr s x).harv e.1 e.2) : ℝ)
+                + G.badCount ((tallyPre C cr s x).harv e.1 e.2)
+                = ((tallyPre C cr s x).harv e.1 e.2).length := by
               exact_mod_cast hsum
-            have hx := hexc ((tallyPre C (fun z => (rd z).cut) s x).reads e.1 e.2)
-            have hr0 : (0 : ℝ) ≤ (tallyPre C (fun z => (rd z).cut) s x).reads e.1 e.2 :=
-              Nat.cast_nonneg _
+            have hx := hexc ((tallyPre C cr s x).reads e.1 e.2)
+            have hr0 : (0 : ℝ) ≤ (tallyPre C cr s x).reads e.1 e.2 := Nat.cast_nonneg _
             simp only [edgeZ, thr, K]
             have : Real.log (1 / C.a) * (2 * L * (1 + 4 * θg * C.Lmax))
                 = 2 * L * (1 + 4 * θg * C.Lmax) * Real.log (1 / C.a) := by ring
             rw [this]
             nlinarith
+        · refine .inr (.inr (.inr ⟨0, by simp, hcl, ?_⟩))
+          obtain ⟨hn₀, hlt⟩ := tallyLook_pt' C hl
+          rcases tallyPre_stretch C cr s x with ⟨hn, -⟩ | ⟨-, hpt0⟩
+          · rw [hn] at hn₀ hlt
+            have hn₀' : C.n₀ ≤ s.n + 0 + 1 := by simpa using hn₀
+            have hlt' : binomSfGe (s.n + 0 + 1) C.θpt (tallyPre C cr s x).pt.length < C.a := by
+              simpa using hlt
+            have hex : ∃ h', C.n₀ ≤ s.n + 0 + 1 ∧ binomSfGe (s.n + 0 + 1) C.θpt h' < C.a :=
+              ⟨_, hn₀', hlt'⟩
+            simp only [kp, dif_pos hex]
+            have hfind : Nat.find hex ≤ (tallyPre C cr s x).pt.length :=
+              Nat.find_min' hex ⟨hn₀', hlt'⟩
+            have hsum := goodCount_add_badCount G (tallyPre C cr s x).pt
+            simp only [GoodEnd, not_lt] at hng
+            omega
+          · rw [hpt0, List.length_nil, binomSfGe_zero_right] at hlt
+            exact absurd hlt (not_lt.2 ha1)
         · exact absurd rfl hne
-  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (tallyStep C fun z => (rd z).cut) P tallyStart
-      (List.ofFn xs)}
-      ⊆ (⋃ e ∈ keys, {xs | EvE G C (fun z => (rd z).cut) S θg e thr tallyStart (List.ofFn xs)})
-        ∪ ⋃ j ∈ Finset.range T, {xs | EvS G C (fun z => (rd z).cut) S j tallyStart
-          (goodCount G (tallyStart : TState α).startH + kf (j + 1)) (List.ofFn xs)} := by
+  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (tallyStep C cr) P tallyStart (List.ofFn xs)}
+      ⊆ ((⋃ e ∈ keys, {xs | EvE G C cr S θg e thr tallyStart (List.ofFn xs)})
+        ∪ ⋃ j ∈ Finset.range T, {xs | EvS G C cr S j tallyStart
+          (goodCount G (tallyStart : TState α).startH + kf (j + 1)) (List.ofFn xs)})
+        ∪ ⋃ q ∈ Finset.range T ×ˢ Finset.range T,
+          {xs | Skip C cr (Qp q.2) q.1 tallyStart (List.ofFn xs)} := by
     intro xs hxs
-    rcases hincl _ _ (reach_start G) hxs with ⟨e, he, h⟩ | ⟨j, hj, h⟩
-    · exact .inl (Set.mem_biUnion he h)
-    · refine .inr (Set.mem_biUnion (Finset.mem_range.2 (by simpa using hj)) ?_)
+    rcases hincl _ _ (reach_start G) hxs with ⟨e, he, h⟩ | ⟨j, hj, h⟩ | ⟨i, len, hil, h⟩ |
+      ⟨len, hlen', h⟩
+    · exact .inl (.inl (Set.mem_biUnion he h))
+    · refine .inl (.inr (Set.mem_biUnion (Finset.mem_range.2 (by simpa using hj)) ?_))
+      simpa [tallyStart, goodCount] using h
+    · simp only [List.length_ofFn] at hil
+      exact .inr (Set.mem_biUnion (x := (i, len))
+        (Finset.mem_product.2 ⟨Finset.mem_range.2 (by omega), Finset.mem_range.2 (by omega)⟩) h)
+    · simp only [List.length_ofFn] at hlen'
+      refine .inr (Set.mem_biUnion (x := (0, len))
+        (Finset.mem_product.2 ⟨Finset.mem_range.2 (by omega), Finset.mem_range.2 hlen'⟩) ?_)
+      simp only [Skip, Qp]
       simpa [tallyStart, goodCount] using h
   refine (measure_mono hsub).trans ((measure_union_le _ _).trans ?_)
+  refine (add_le_add (measure_union_le _ _) le_rfl).trans ?_
   have h1 : ∀ e ∈ keys, (Measure.pi fun _ : Fin T => D)
-      {xs | EvE G C (fun z => (rd z).cut) S θg e thr tallyStart (List.ofFn xs)}
-      ≤ ENNReal.ofReal C.a := by
+      {xs | EvE G C cr S θg e thr tallyStart (List.ofFn xs)} ≤ ENNReal.ofReal C.a := by
     intro e _
     refine (edge_super G C S hm D rd hlen hL1 hθg0 hLmax hE e thr T tallyStart
       (reach_start G)).trans (le_of_eq ?_)
@@ -702,7 +1045,7 @@ theorem harvest_good_holds : HarvestGood := by
     rw [hz, show (0 - thr) / K = Real.log C.a by
       simp only [thr]; field_simp; rw [one_div, Real.log_inv]; ring, Real.exp_log ha]
   have h2 : ∀ j ∈ Finset.range T, (Measure.pi fun _ : Fin T => D)
-      {xs | EvS G C (fun z => (rd z).cut) S j tallyStart
+      {xs | EvS G C cr S j tallyStart
         (goodCount G (tallyStart : TState α).startH + kf (j + 1)) (List.ofFn xs)}
       ≤ ENNReal.ofReal C.a := by
     intro j _
@@ -712,21 +1055,34 @@ theorem harvest_good_holds : HarvestGood := by
     split_ifs with hex
     · exact hstart (j + 1) _ (Nat.find_spec hex).1 (Nat.find_spec hex).2
     · rw [binomSfGe_gt _ (by omega)]; exact ha.le
-  calc _ ≤ ∑ e ∈ keys, ENNReal.ofReal C.a + ∑ j ∈ Finset.range T, ENNReal.ofReal C.a :=
-        add_le_add ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h1))
-          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h2))
-    _ = (keys.card + T) * ENNReal.ofReal C.a := by
-        rw [Finset.sum_const, Finset.sum_const, Finset.card_range, nsmul_eq_mul, nsmul_eq_mul,
-          add_mul]
-    _ ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T) * C.a) := by
+  have h3 : ∀ q ∈ Finset.range T ×ˢ Finset.range T, (Measure.pi fun _ : Fin T => D)
+      {xs | Skip C cr (Qp q.2) q.1 tallyStart (List.ofFn xs)} ≤ ENNReal.ofReal C.a := by
+    intro q _
+    refine skip_le G C cr hm D (Qp q.2) (fun T' s hs => ?_) T q.1 tallyStart (reach_start G)
+    refine (pt_bin G C S hm D rd hθgpt0 hθgpt1 hE T' q.2 s _ hs).trans
+      (ENNReal.ofReal_le_ofReal ?_)
+    simp only [kp]
+    split_ifs with hex
+    · exact hstartpt (q.2 + 1) _ (Nat.find_spec hex).1 (Nat.find_spec hex).2
+    · rw [binomSfGe_gt _ (by omega)]; exact ha.le
+  calc _ ≤ ∑ e ∈ keys, ENNReal.ofReal C.a + ∑ j ∈ Finset.range T, ENNReal.ofReal C.a
+        + ∑ q ∈ Finset.range T ×ˢ Finset.range T, ENNReal.ofReal C.a :=
+        add_le_add (add_le_add ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h1))
+          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h2)))
+          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h3))
+    _ = (keys.card + T + T * T) * ENNReal.ofReal C.a := by
+        simp only [Finset.sum_const, Finset.card_product, Finset.card_range, nsmul_eq_mul]
+        push_cast; ring
+    _ ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a) := by
         rw [ENNReal.ofReal_mul (by positivity)]
         gcongr
-        rw [show ((2 : ℝ) ^ (C.Lmax + 1) * Fintype.card α + T) = ((2 ^ (C.Lmax + 1)
-          * Fintype.card α + T : ℕ) : ℝ) by push_cast; ring, ENNReal.ofReal_natCast]
+        rw [show ((2 : ℝ) ^ (C.Lmax + 1) * Fintype.card α + T + T * T) = ((2 ^ (C.Lmax + 1)
+          * Fintype.card α + T + T * T : ℕ) : ℝ) by push_cast; ring, ENNReal.ofReal_natCast]
         have : keys.card ≤ 2 ^ (C.Lmax + 1) * Fintype.card α := by
           simp only [keys, Finset.card_product, Finset.card_univ]
           exact Nat.mul_le_mul_right _ (shortPaths_card _)
-        exact_mod_cast (by omega : keys.card + T ≤ 2 ^ (C.Lmax + 1) * Fintype.card α + T)
+        exact_mod_cast (by omega : keys.card + T + T * T ≤ 2 ^ (C.Lmax + 1) * Fintype.card α
+          + T + T * T)
 
 end Assemble
 
