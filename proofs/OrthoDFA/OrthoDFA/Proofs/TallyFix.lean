@@ -107,17 +107,17 @@ theorem recordBy_none {s : TState α} {x : FreeMonoid α}
   · rename_i ps fd ho; exact absurd ho (h ps fd)
   · rfl
 
-@[simp] theorem charge_tree (s : TState α) (e) : (s.charge e).tree = s.tree := by
-  unfold TState.charge; split <;> rfl
+@[simp] theorem charge_tree (k : ℕ) (s : TState α) (x : FreeMonoid α) :
+    (s.charge cut k x).tree = s.tree := rfl
 
-@[simp] theorem charge_edges (s : TState α) (e) : (s.charge e).edges = s.edges := by
-  unfold TState.charge; split <;> rfl
+@[simp] theorem charge_edges (k : ℕ) (s : TState α) (x : FreeMonoid α) :
+    (s.charge cut k x).edges = s.edges := rfl
 
-@[simp] theorem charge_version (s : TState α) (e) : (s.charge e).version = s.version := by
-  unfold TState.charge; split <;> rfl
+@[simp] theorem charge_version (k : ℕ) (s : TState α) (x : FreeMonoid α) :
+    (s.charge cut k x).version = s.version := rfl
 
-@[simp] theorem charge_recs (s : TState α) (e) : (s.charge e).recs = s.recs := by
-  unfold TState.charge; split <;> rfl
+@[simp] theorem charge_recs (k : ℕ) (s : TState α) (x : FreeMonoid α) :
+    (s.charge cut k x).recs = s.recs := rfl
 
 theorem tallyPre_version_ge (s : TState α) (x : FreeMonoid α) :
     s.version ≤ (tallyPre C cut s x).version := by
@@ -157,8 +157,7 @@ theorem tallyPre_same (s : TState α) (x : FreeMonoid α)
       simp only [Option.map_some, Option.some.injEq] at this ⊢
       simpa [TState.tally, TState.addRec] using this
   all_goals
-    rename_i ho
-    have hr := hnr (by rw [ho]; intro ps fd h; cases h)
+    have hr : recordBy cut C.k (s.tree, s.edges) x = none := hnr fun ps fd h => by simp_all
     simp [hr, TState.tally]
 
 /-- With the version unchanged, a step only adds its record and counts. -/
