@@ -12,25 +12,26 @@ namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory
 
-inductive Read
+/-- Accept, reject or undecided. -/
+inductive ARU
   | accept
   | reject
   | undecided
   deriving DecidableEq
 
-instance : MeasurableSpace Read := ⊤
+instance : MeasurableSpace ARU := ⊤
 
-def readOf (kl kh x : ℕ) : Read :=
+def readOf (kl kh x : ℕ) : ARU :=
   if kh ≤ x then .accept else if x ≤ kl then .reject else .undecided
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 variable {S : Type*} [Stringlike S]
 
 noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ) (w : S) (ω : Ω) :
-    Read :=
+    ARU :=
   readOf kl kh (voteCount mq F w ω)
 
-noncomputable def readProb (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (r : Read) : ℝ :=
+noncomputable def readProb (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (r : ARU) : ℝ :=
   μ.real {ω | familyRead O.mq F kl kh w ω = r}
 
 /-! ## Strings -/
@@ -55,7 +56,7 @@ with chance `p` and the rest with chance `r`; for every `a ≤ N`, the read of t
 accept at most `ε` of the time, or reject at most `ε`, or undecided at least a third. -/
 def BandPasses (N kl kh : ℕ) (p r ε : ℝ) : Prop :=
   ∀ a ≤ N,
-    let dist : Read → ℝ := fun rd => ∑ j ∈ Finset.range (N + 1),
+    let dist : ARU → ℝ := fun rd => ∑ j ∈ Finset.range (N + 1),
       if readOf kl kh j = rd then
         ∑ x ∈ Finset.antidiagonal j,
           (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
@@ -77,7 +78,7 @@ def FamilyReadTrichotomy : Prop :=
   SuffixFree F →
   BandPasses F.card kl kh (1 - O.ηIn) O.ηOut ε →
   iIndepFun (fun w => familyRead O.mq F kl kh w) μ
-  ∧ ∀ q : σ, ∃ dist : Read → ℝ,
+  ∧ ∀ q : σ, ∃ dist : ARU → ℝ,
     (∀ w, M.eval w.toList = q → readProb O F kl kh w = dist)
     ∧ (dist .accept ≤ ε ∨ dist .reject ≤ ε ∨ 1 / 3 ≤ dist .undecided)
 

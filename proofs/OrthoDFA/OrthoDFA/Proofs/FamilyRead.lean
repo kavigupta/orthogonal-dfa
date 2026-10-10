@@ -123,7 +123,7 @@ noncomputable def voteLaw (N a : ℕ) (p r : ℝ) (k : ℕ) : ℝ :=
     (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
       * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
 
-noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : ℝ :=
+noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : ARU) : ℝ :=
   ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
 
 noncomputable def binTerm (n : ℕ) (p : ℝ) (i : ℕ) : ℝ := n.choose i * p ^ i * (1 - p) ^ (n - i)
@@ -302,7 +302,7 @@ theorem vote_prob (O : Oracle μ S) (F : Finset S) (w : S) (k : ℕ) :
   rw [vote_prob_foldr, map_acceptRate, voteLaw_eq_foldr, ← Multiset.coe_replicate,
     ← Multiset.coe_replicate, Multiset.coe_add, Multiset.coe_foldr]
 
-theorem readProb_eq_readLaw (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (rd : Read) :
+theorem readProb_eq_readLaw (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (rd : ARU) :
     readProb O F kl kh w rd
       = readLaw F.card (acceptCount O.L F w) (1 - O.ηIn) O.ηOut kl kh rd := by
   classical
