@@ -12,9 +12,11 @@ the learner will draw from:
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
 - covered_accuracy_ceiling: re-rooting the target at the best *covered* start
-  state (all the learner can anchor to) still classifies almost every string
+  state (all the learner can anchor to) still classifies almost every string,
+  without the re-rooted run leaving the covered states
 """
 
+import math
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
@@ -115,6 +117,22 @@ def class_preserving_fraction(
     return preserving / num_samples
 
 
+def start_length(length: int) -> int:
+    """The first position at which a state's visits count toward covering it."""
+    return math.ceil(length / 2)
+
+
+def _run(dfa: DFA, string: bytes, start=None) -> list:
+    """The states visited running ``string`` from ``start`` (default q0), the
+    start included."""
+    q = dfa.initial_state if start is None else start
+    states = [q]
+    for c in string:
+        q = dfa.transitions[q][c]
+        states.append(q)
+    return states
+
+
 def covered_states(
     dfa: DFA,
     *,
@@ -124,10 +142,14 @@ def covered_states(
     sampler: Optional[Sampler] = None,
 ) -> set:
     """
-    The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
+    The states at least ``min_coverage`` of random length-``length`` strings visit
+    somewhere from ``start_length(length)`` on.
     """
+    k = start_length(length)
     counts = Counter(
-        _endpoint(dfa, s) for s in _samples(dfa, length, num_samples, sampler)
+        q
+        for s in _samples(dfa, length, num_samples, sampler)
+        for q in set(_run(dfa, s)[k:])
     )
     return {q for q, c in counts.items() if c / num_samples >= min_coverage}
 
@@ -142,23 +164,31 @@ def covered_accuracy_ceiling(
 ) -> float:
     """
     Best accuracy reachable when the classifier may only be started from a
-    covered state.
+    covered state, counting a string only if the run from there stays within the
+    covered states.
 
     E-L* discovers states from where its sampled prefixes land, so it can only
     anchor its automaton at covered state; if the true initial state is uncovered
     it cannot represent it. Only the start is constrained, from there we follow
     the target's true transitions and read off the endpoint's true accept label.
+    A run through an uncovered state uses transitions the learner never checks.
     """
     strings = _samples(dfa, length, num_samples, sampler)
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
-    counts = Counter(_endpoint(dfa, s) for s in strings)
-    covered = {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    covered = covered_states(
+        dfa,
+        length=length,
+        num_samples=num_samples,
+        min_coverage=min_coverage,
+        sampler=sampler,
+    )
     best = 0.0
     for start in covered:
-        correct = sum(
-            (_endpoint(dfa, s, start) in dfa.final_states) == t
-            for s, t in zip(strings, truth)
-        )
+        correct = 0
+        for s, t in zip(strings, truth):
+            run = _run(dfa, s, start)
+            if all(q in covered for q in run) and (run[-1] in dfa.final_states) == t:
+                correct += 1
         best = max(best, correct / num_samples)
     return best
 

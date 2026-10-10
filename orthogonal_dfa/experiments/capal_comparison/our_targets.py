@@ -19,7 +19,7 @@ from .benchmark import FAMILY_OURS, Benchmark
 
 
 def our_benchmarks() -> List[Benchmark]:
-    """The oracles from `tests/test_lstar.py` that the findings doc reports on."""
+    """The oracles from `tests/e2e/test_basic.py` that the findings doc reports on."""
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
         BernoulliParityOracle,
         BernoulliRegex,

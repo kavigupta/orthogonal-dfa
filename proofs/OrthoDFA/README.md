@@ -211,6 +211,13 @@ Two gaps between the model and Python:
   string at a time; a triple's harvest is a middle's first undecided read; the pass is decided by
   the bits its reads ask; given those, draws with different first `k` letters are independent,
   and Chebyshev in each cell of the pass bounds the fluctuation.
+- `OrthoDFA/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`,
+  reject at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query
+  `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's, the family
+  suffix-free and the band passing `BandPasses`, the reads are independent across strings and
+  every DFA state has one distribution its strings read with, which is accept at most `ε` of the
+  time, or reject at most `ε`, or undecided at least a third.  `BandPasses` is the check the band
+  selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

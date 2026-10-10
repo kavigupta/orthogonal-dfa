@@ -1,5 +1,6 @@
 import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
+import OrthoDFA.FamilyRead
 
 /-!
 # The round's outcomes
@@ -157,11 +158,6 @@ def MidFlipPremise (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (
     (F : Finset (FreeMonoid α)) (uHi φ : ℝ) : Prop :=
   ∀ z, stateIndecision A O B F (A.state z) < uHi →
     μ.real {ω | midRead O B F ω z} ≤ φ ∨ 1 - φ ≤ μ.real {ω | midRead O B F ω z}
-
-/-- No suffix in `V` ends another: reads of different strings through `V` ask the oracle about
-different strings. -/
-def SuffixFree (V : Finset (FreeMonoid α)) : Prop :=
-  ∀ v ∈ V, ∀ v' ∈ V, ∀ u : FreeMonoid α, v = u * v' → u = 1
 
 /-- A bound on the node reads a pass makes: every string it sifts is the seed or a probe's prefix,
 extended by at most a letter, and every midfix it reads at is the final tree's, of which there are

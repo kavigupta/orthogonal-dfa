@@ -1,9 +1,12 @@
+import functools
 import itertools
 import math
 from typing import Iterator, Optional, Tuple
 
+import numpy as np
 import scipy
 import scipy.special
+import scipy.stats
 
 
 def binom_cdf(k, n, p):
@@ -149,9 +152,52 @@ def evidence_margin_for_population_size(
             binom_cdf(k_high - 1, N, center + side) - binom_cdf(k_low, N, center + side)
             for side in (signal_strength, -signal_strength)
         )
-        if cross <= cross_limit and fnr <= acceptable_fnr:
+        if (
+            cross <= cross_limit
+            and fnr <= acceptable_fnr
+            and reads_trichotomous(
+                k_low,
+                k_high,
+                N,
+                accept_rate=center + signal_strength,
+                reject_rate=center - signal_strength,
+                limit=cross_limit,
+            )
+        ):
             return N, eps
     return None
+
+
+@functools.lru_cache(maxsize=8)
+def _vote_parts(N, accept_rate, reject_rate):
+    """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[a, k]` for a
+    state from which `a` of the `N` suffixes lead into the language, where Y and Z
+    count the accept votes among those `a` suffixes and among the other `N - a`."""
+    a = np.arange(N + 1)[:, None]
+    count = np.arange(N + 1)[None, :]
+    y_pmf = scipy.stats.binom.pmf(count, a, accept_rate)
+    z_pmf = scipy.stats.binom.pmf(count, N - a, reject_rate)
+    z_le = np.cumsum(z_pmf, axis=1)
+    z_ge = np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1]
+    return y_pmf, z_le, z_ge
+
+
+def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
+    """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
+    lead into the language (each voting accept at `accept_rate`, the rest at
+    `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
+    or undecided at least a third.  `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
+
+    `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
+    just inside the band at a small count can sit at or below `k_low` more than 2/3 of
+    the time while its far tail is a hair above the band edge's.
+    """
+    y_pmf, z_le, z_ge = _vote_parts(N, accept_rate, reject_rate)
+    count = np.arange(N + 1)
+    reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
+    accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
+    undecided = 1 - accept - reject
+    return bool(np.all((accept <= limit) | (reject <= limit) | (undecided >= 1 / 3)))
 
 
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):

@@ -26,13 +26,13 @@ theorem SuffixFree.eq_of_mul {V : Finset (FreeMonoid α)} (hV : SuffixFree V)
   have hl : z.toList ++ v.toList = y.toList ++ v'.toList := by
     rw [← FreeMonoid.toList_mul, ← FreeMonoid.toList_mul, h]
   rcases List.append_eq_append_iff.1 hl with ⟨a, hy, hva⟩ | ⟨b, hz, hvb⟩
-  · have h1 := hV v hv v' hv' (FreeMonoid.ofList a)
-      (FreeMonoid.toList.injective (by simp [hva]))
-    have ha : a = [] := by simpa using congrArg FreeMonoid.toList h1
+  · have h1 := hV v' hv' v hv ⟨a, hva.symm⟩
+    subst h1
+    have ha : a = [] := by simpa using hva
     exact FreeMonoid.toList.injective (by rw [hy, ha, List.append_nil])
-  · have h1 := hV v' hv' v hv (FreeMonoid.ofList b)
-      (FreeMonoid.toList.injective (by simp [hvb]))
-    have hb : b = [] := by simpa using congrArg FreeMonoid.toList h1
+  · have h1 := hV v hv v' hv' ⟨b, hvb.symm⟩
+    subst h1
+    have hb : b = [] := by simpa using hvb
     exact FreeMonoid.toList.injective (by rw [hz, hb, List.append_nil])
 
 /-- The oracle's bits a read of each string in `Y` through `V` asks. -/

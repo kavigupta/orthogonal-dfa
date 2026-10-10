@@ -15,7 +15,7 @@ _PLACES_NOTHING = lambda seq: None
 class TestAnchoringAWalk(unittest.TestCase):
     def test_it_anchors_where_the_tree_first_places_a_prefix(self):
         start, states = anchored_walk(
-            _PROBE, lambda seq: 0 if len(seq) >= 2 else None, _STEPS_TO_ONE
+            _PROBE, lambda seq: 0 if len(seq) >= 2 else None, _STEPS_TO_ONE, 0
         )
 
         self.assertEqual(2, start)
@@ -23,19 +23,33 @@ class TestAnchoringAWalk(unittest.TestCase):
 
     def test_states_below_the_anchor_are_unknown(self):
         _, states = anchored_walk(
-            _PROBE, lambda seq: 0 if len(seq) >= 3 else None, _STEPS_TO_ONE
+            _PROBE, lambda seq: 0 if len(seq) >= 3 else None, _STEPS_TO_ONE, 0
         )
 
         self.assertEqual([None, None, None, 0, 1], states)
 
+    def test_it_anchors_no_earlier_than_asked(self):
+        start, states = anchored_walk(_PROBE, _PLACES_EVERYTHING, _STEPS_TO_ONE, 3)
+
+        self.assertEqual(3, start)
+        self.assertEqual([None, None, None, 0, 1], states)
+
+    def test_a_probe_nothing_places_past_the_earliest_anchors_nowhere(self):
+        self.assertEqual(
+            (None, None),
+            anchored_walk(
+                _PROBE, lambda seq: 0 if len(seq) < 2 else None, _STEPS_TO_ONE, 2
+            ),
+        )
+
     def test_a_probe_nothing_places_anchors_nowhere(self):
         self.assertEqual(
-            (None, None), anchored_walk(_PROBE, _PLACES_NOTHING, _STEPS_TO_ONE)
+            (None, None), anchored_walk(_PROBE, _PLACES_NOTHING, _STEPS_TO_ONE, 0)
         )
 
     def test_an_empty_probe_anchors_nowhere(self):
         self.assertEqual(
-            (None, None), anchored_walk(b"", _PLACES_EVERYTHING, _STEPS_TO_ONE)
+            (None, None), anchored_walk(b"", _PLACES_EVERYTHING, _STEPS_TO_ONE, 0)
         )
 
 

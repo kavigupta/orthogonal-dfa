@@ -13,6 +13,7 @@ import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyFix
 import OrthoDFA.Proofs.Freedman
+import OrthoDFA.Proofs.FamilyRead
 
 /-!
 # The theorem
@@ -24,7 +25,7 @@ in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and
 `RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, the
 `RoundStrong` claims, stated in `OrthoDFA.RoundStrong`, `OrthoDFA.Spurious` and
-`OrthoDFA.Exhausted`, hold.
+`OrthoDFA.Exhausted`, and the family-read claims stated in `OrthoDFA.FamilyRead`, hold.
 -/
 
 namespace OrthoDFA
@@ -134,5 +135,8 @@ theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
 
 #print axioms bennett_tail
 
+theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
+
+#print axioms family_read_trichotomy
 
 end OrthoDFA

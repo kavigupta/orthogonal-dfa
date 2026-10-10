@@ -75,9 +75,14 @@ class Sifted(Provenance):
 @dataclass(frozen=True, eq=False)
 class Walked(Provenance):
     """A probe walked as the counterexample pass walks one: anchored, sifted at
-    its end, and searched for the disagreeing edge where walk and sift part."""
+    its end, and searched for the disagreeing edge where walk and sift part.
+
+    Anchored no earlier than a uniformly drawn point, even for a read the pass
+    made from the start: walks from the start all meet the same few early
+    strings, so replaying them finds nothing new."""
 
     transitions: dict = field(repr=False)
+    rng: Any = field(repr=False)
 
     def _read(self, drawn) -> List[bytes]:
         met = []
@@ -88,7 +93,8 @@ class Walked(Provenance):
                 met.append(boundary)
             return leaf
 
-        start, states = anchored_walk(drawn, sift, self.transitions)
+        earliest = int(self.rng.integers(len(drawn)))
+        start, states = anchored_walk(drawn, sift, self.transitions, earliest)
         if start is not None:
             landed = sift(drawn)
             if landed is not None and landed != states[-1]:
@@ -96,9 +102,9 @@ class Walked(Provenance):
         return met
 
 
-def provenance(read: Read, sifter, transitions) -> Provenance:
+def provenance(read: Read, sifter, transitions, rng) -> Provenance:
     """The provenance of a read the round made with ``sifter``, walking
     ``transitions``."""
     if read.extension is None:
-        return Walked(read.distribution, sifter, transitions)
+        return Walked(read.distribution, sifter, transitions, rng)
     return Sifted(read.distribution, sifter, read.extension)

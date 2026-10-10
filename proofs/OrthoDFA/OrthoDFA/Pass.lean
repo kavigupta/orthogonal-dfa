@@ -14,7 +14,7 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-instance : Stringlike (FreeMonoid α) where
+instance (priority := high) : Stringlike (FreeMonoid α) where
   measurableSet_singleton _ := trivial
   measurable_const_mul _ _ _ := trivial
   measurable_mul_const _ _ _ := trivial
