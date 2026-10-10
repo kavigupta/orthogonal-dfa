@@ -6,12 +6,6 @@ import Mathlib.Computability.DFA
 
 `X(w)` counts the members `v` of the suffix family `F` whose query `w·v` answers 1.  The read
 accepts at `X(w) ≥ kh`, rejects at `X(w) ≤ kl`, and is undecided in between.
-
-Across strings the reads are independent draws when no member of `F` is a proper suffix of
-another, and a string's read law is fixed by how many members its DFA state sends into the
-language.  So whether every state's read is nearly never accept, nearly never reject, or often
-undecided comes down to a check on the parameters alone, `TrichotomyAt`, which the band selection
-rule makes.
 -/
 
 namespace OrthoDFA
@@ -39,12 +33,6 @@ noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ
 noncomputable def readProb (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (r : Read) : ℝ :=
   μ.real {ω | familyRead O.mq F kl kh w ω = r}
 
-/-- The chance a query answers 1 on a string in the language. -/
-def Oracle.yesRateIn (O : Oracle μ S) : ℝ := 1 - O.ηIn
-
-/-- The chance a query answers 1 on a string outside the language. -/
-def Oracle.yesRateOut (O : Oracle μ S) : ℝ := O.ηOut
-
 /-! ## Strings -/
 
 /-- Scoped, so that it never meets another `MeasurableSpace (FreeMonoid α)`.  On a countable
@@ -60,41 +48,37 @@ noncomputable scoped instance {α : Type*} [Countable α] : Stringlike (FreeMono
 def SuffixFree {α : Type*} (F : Finset (FreeMonoid α)) : Prop :=
   ∀ v ∈ F, ∀ v' ∈ F, v.toList <:+ v'.toList → v = v'
 
-/-! ## The read's law -/
+/-! ## The band check -/
 
-/-- `P[X = k]` for `X` the sum of `Bin(a, p)` and an independent `Bin(N − a, r)`. -/
-noncomputable def voteLaw (N a : ℕ) (p r : ℝ) (k : ℕ) : ℝ :=
-  ∑ x ∈ Finset.antidiagonal k,
-    (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
-      * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
-
-noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : ℝ :=
-  ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
-
-/-- For every `a ≤ N`, the read law of a state from which `a` of the `N` suffixes lead into the
-language, with yes rates `pIn` and `pOut`, is accept at most `ε` of the time, or reject at most
-`ε`, or undecided at least a third.  `evidence_margin_for_population_size` accepts only bands
-that pass it at `ε = cross_limit` (`reads_trichotomous`), so by `FamilyReadLaw` every state's
-read is too. -/
-def TrichotomyAt (N kl kh : ℕ) (pIn pOut ε : ℝ) : Prop :=
+/-- The check `reads_trichotomous` makes of a band.  Take `N` queries, `a` of them answering 1
+with chance `p` and the rest with chance `r`; for every `a ≤ N`, the read of their count is
+accept at most `ε` of the time, or reject at most `ε`, or undecided at least a third. -/
+def BandPasses (N kl kh : ℕ) (p r ε : ℝ) : Prop :=
   ∀ a ≤ N,
-    readLaw N a pIn pOut kl kh .accept ≤ ε
-    ∨ readLaw N a pIn pOut kl kh .reject ≤ ε
-    ∨ 1 / 3 ≤ readLaw N a pIn pOut kl kh .undecided
+    let dist : Read → ℝ := fun rd => ∑ j ∈ Finset.range (N + 1),
+      if readOf kl kh j = rd then
+        ∑ x ∈ Finset.antidiagonal j,
+          (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
+            * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
+      else 0
+    dist .accept ≤ ε ∨ dist .reject ≤ ε ∨ 1 / 3 ≤ dist .undecided
 
-/-! ## The claims -/
+/-! ## The claim -/
 
-/-- With the language a DFA's and the family suffix-free, the reads are independent across
-strings, and every string in a state reads with the vote law of that state's `a`, the number of
-the `N` suffixes that lead from it into the language. -/
-def FamilyReadLaw : Prop :=
+/-- With the language a DFA's, the family suffix-free and the band passing its check: the reads
+are independent across strings, and every DFA state has one distribution that all its strings
+read with, which is accept at most `ε` of the time, or reject at most `ε`, or undecided at least
+a third. -/
+def FamilyReadTrichotomy : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
-    (F : Finset (FreeMonoid α)) (kl kh : ℕ),
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (ε : ℝ),
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   SuffixFree F →
+  BandPasses F.card kl kh (1 - O.ηIn) O.ηOut ε →
   iIndepFun (fun w => familyRead O.mq F kl kh w) μ
-  ∧ ∀ q : σ, ∃ a ≤ F.card, ∀ w, M.eval w.toList = q →
-      readProb O F kl kh w = readLaw F.card a O.yesRateIn O.yesRateOut kl kh
+  ∧ ∀ q : σ, ∃ dist : Read → ℝ,
+    (∀ w, M.eval w.toList = q → readProb O F kl kh w = dist)
+    ∧ (dist .accept ≤ ε ∨ dist .reject ≤ ε ∨ 1 / 3 ≤ dist .undecided)
 
 end OrthoDFA

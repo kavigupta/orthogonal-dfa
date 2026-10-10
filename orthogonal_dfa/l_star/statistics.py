@@ -186,7 +186,7 @@ def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
     """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
     lead into the language (each voting accept at `accept_rate`, the rest at
     `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
-    or undecided at least a third.  `TrichotomyAt` in proofs/OrthoDFA/FamilyRead.lean.
+    or undecided at least a third.  `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
     just inside the band at a small count can sit at or below `k_low` more than 2/3 of

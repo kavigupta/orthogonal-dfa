@@ -21,8 +21,8 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 
 #print axioms clustering_quality_guarantee
 
-theorem family_read_law : FamilyReadLaw := family_read_law_holds
+theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
 
-#print axioms family_read_law
+#print axioms family_read_trichotomy
 
 end OrthoDFA

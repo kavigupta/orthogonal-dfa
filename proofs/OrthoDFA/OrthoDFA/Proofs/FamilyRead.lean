@@ -117,6 +117,15 @@ instance : LeftCommutative pbStep where
     funext k
     rcases k with _ | _ | k <;> simp only [pbStep] <;> ring
 
+/-- `P[X = k]` for `X` the sum of `Bin(a, p)` and an independent `Bin(N − a, r)`. -/
+noncomputable def voteLaw (N a : ℕ) (p r : ℝ) (k : ℕ) : ℝ :=
+  ∑ x ∈ Finset.antidiagonal k,
+    (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
+      * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
+
+noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : ℝ :=
+  ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
+
 noncomputable def binTerm (n : ℕ) (p : ℝ) (i : ℕ) : ℝ := n.choose i * p ^ i * (1 - p) ^ (n - i)
 
 lemma binTerm_zero_succ (n : ℕ) (p : ℝ) : binTerm (n + 1) p 0 = (1 - p) * binTerm n p 0 := by
@@ -335,16 +344,16 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
 
 /-! ## The reduction to the parameters -/
 
-theorem family_read_law_holds : FamilyReadLaw := by
+theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
   classical
-  intro Ω _ μ _ α σ _ O M F kl kh hL hF
+  intro Ω _ μ _ α σ _ O M F kl kh ε hL hF hband
   refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
-  refine ⟨(F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card,
-    Finset.card_filter_le _ _, fun w hw => funext fun rd => ?_⟩
+  refine ⟨readLaw F.card (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card
+    (1 - O.ηIn) O.ηOut kl kh, fun w hw => funext fun rd => ?_,
+    hband _ (Finset.card_filter_le _ _)⟩
   rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
-  rfl
 
-/-! ## Why the rule checks `TrichotomyAt`
+/-! ## Why the rule checks `BandPasses`
 
 Its cross and FNR criteria alone admit a band some state reads badly: `(2, 15)` over 15 at
 `center = 17/30`, where the state with no accepting member reads as `Bin(15, 67/500)`. -/
@@ -373,14 +382,20 @@ theorem selection_not_trichotomy :
           - binomCdf 15 2 (17 / 30 + (17 / 30 - 67 / 500)))
         (binomCdf 15 (15 - 1) (17 / 30 - (17 / 30 - 67 / 500))
           - binomCdf 15 2 (17 / 30 - (17 / 30 - 67 / 500))) ≤ 33 / 100
-    ∧ ¬ TrichotomyAt 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
+    ∧ ¬ BandPasses 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
         (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) := by
   refine ⟨?_, ?_, fun h => ?_⟩
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
     norm_num [Nat.choose]
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
     norm_num [Nat.choose]
-  · rcases h 0 (by norm_num) with h | h | h <;>
+  · have h0 : readLaw 15 0 (17 / 30 + (17 / 30 - 67 / 500)) (17 / 30 - (17 / 30 - 67 / 500)) 2
+          15 .accept ≤ (2 / 15) ^ 15
+        ∨ readLaw 15 0 (17 / 30 + (17 / 30 - 67 / 500)) (17 / 30 - (17 / 30 - 67 / 500)) 2 15
+          .reject ≤ (2 / 15) ^ 15
+        ∨ 1 / 3 ≤ readLaw 15 0 (17 / 30 + (17 / 30 - 67 / 500))
+          (17 / 30 - (17 / 30 - 67 / 500)) 2 15 .undecided := h 0 (by norm_num)
+    rcases h0 with h | h | h <;>
       simp only [readLaw, voteLaw_zero, Finset.sum_range_succ, Finset.sum_range_zero,
         readOf] at h <;>
       norm_num [Nat.choose] at h <;>
