@@ -171,6 +171,12 @@ def GoodEnd {σ : Type*} (G : ReadModel α σ) : TEnd α → TState α → Prop
   | .harvestPT, s => s.pt.length < 2 * G.badCount s.pt
   | .tooBig, _ => False
 
+/-- The endings the round claims, with success only at a hypothesis disagreeing on fewer than
+`εd` of the probes. -/
+def SoundEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
+    (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
+  GoodEnd G e s ∧ (e = .success → D.real (ReadModel.searchAt rd C.k s.tree s.edges) < C.εd)
+
 /-- How a sub-round ends. -/
 inductive SubEnd
   | good
@@ -291,10 +297,24 @@ def HarvestGood : Prop :=
           (List.ofFn xs)}
       ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
 
+/-- `SuccessSound`: a round ends in success at a hypothesis disagreeing on at least `εd` of the
+probes with chance at most `T² a`. -/
+def SuccessSound : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (rd : FreeMonoid α → ARU)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : TallyCfg) (T : ℕ),
+    0 ≤ C.εd → C.εd ≤ 1 → C.a ≤ 1 →
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (tallyStep C fun z => (rd z).cut)
+          (fun e s' => e = .success
+            ∧ C.εd ≤ D.real (ReadModel.searchAt rd C.k s'.tree s'.edges)) tallyStart
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (T * T * C.a)
+
 /-- `TallyRound`: under `SubRound`'s and `HarvestGood`'s conditions, over
-`T ≥ (S + |Q| + 1) · subT` probes the round ends in success or a harvest most of whose strings are
-at read-states that are not good, but for chance at most that of not `TallyE`,
-`roundW 0 subFake subOpen S |Q|`, and `HarvestGood`'s. -/
+`T ≥ (S + |Q| + 1) · subT` probes the round ends in success at a hypothesis disagreeing on fewer
+than `εd` of the probes, or in a harvest most of whose strings are at read-states that are not
+good, but for chance at most that of not `TallyE`, `roundW 0 subFake subOpen S |Q|`,
+`HarvestGood`'s and `SuccessSound`'s. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
@@ -313,13 +333,13 @@ def TallyRound : Prop :=
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t θgpt ((h + 1) / 2) ≤ C.a) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
-          (List.ofFn xs)} ∂μ
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (SoundEnd G D C (read · ω))
+          tallyStart (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (roundW 0
           (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) nEnd))
           (subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd')) S (Fintype.card σ))
-        + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+        + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
 
 end OrthoDFA
 

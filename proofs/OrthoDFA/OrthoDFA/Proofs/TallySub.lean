@@ -467,8 +467,8 @@ theorem runEnds_or {S X E : Type*} {step : S → X → S ⊕ (E × S)} {P Q : E 
 
 universe u v w in
 /-- `TallyRound` from `SubRound` and `HarvestGood`. -/
-theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
-    TallyRound.{u, v, w} := by
+theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v})
+    (hsucc : SuccessSound.{u}) : TallyRound.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd hP hS L T ρ θg θgs θgpt θpt' θr εd' hlen hρ0 hρ1
     hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS'
     hL1 ha ha1 hθg0 hθg hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hT
@@ -476,7 +476,7 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
   set δ := subFake C (Fintype.card α) ρ Tsub
   set δ' := subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd')
   set c := ENNReal.ofReal (roundW 0 δ δ' S (Fintype.card σ))
-    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+    + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
   set M := toMeasurable μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
   have hδ0 : 0 ≤ δ := by
     have := binomSfGe_nonneg (n := Tsub) hρ0 hρ1 C.m
@@ -490,8 +490,8 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
       + binomSfGe nEnd εd' (hS + 1) := by linarith
     positivity
   have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
-      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
-        (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
+      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (SoundEnd G D C (read · ω))
+        tallyStart (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
     intro ω
     by_cases hω : TallyE G D C S ρ θg θgs θgpt (read · ω)
     · refine le_trans ?_ le_add_self
@@ -517,13 +517,40 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :
           · exact absurd h hxs
           · exact .inr (runEnds_mono (fun e s' h => ⟨h.1.2, h.1.1, h.2⟩) _ _ h)
         · exact .inl hok
-      exact (measure_mono hsub').trans ((measure_union_le _ _).trans (add_le_add h1 h2))
+      have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
+      have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut)
+          (SoundEnd G D C (read · ω)) tallyStart (List.ofFn xs)}
+          ⊆ {xs | ¬ RunEnds (tallyStep C cut) (GoodEnd G) tallyStart (List.ofFn xs)}
+            ∪ {xs | RunEnds (tallyStep C cut) (fun e s' => e = .success
+              ∧ C.εd ≤ D.real (ReadModel.searchAt (read · ω) C.k s'.tree s'.edges)) tallyStart
+              (List.ofFn xs)} := by
+        intro xs hxs
+        by_cases hg : RunEnds (tallyStep C cut) (GoodEnd G) tallyStart (List.ofFn xs)
+        · rcases runEnds_or (Q := SoundEnd G D C (read · ω)) _ _ hg with h | h
+          · exact absurd h hxs
+          · refine .inr (runEnds_mono (fun e s' h => ?_) _ _ h)
+            obtain ⟨hge, hns⟩ := h
+            simp only [SoundEnd, not_and, not_forall] at hns
+            obtain ⟨he, hlt⟩ := hns hge
+            exact ⟨he, not_lt.1 hlt⟩
+        · exact .inl hg
+      have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
+          + ENNReal.ofReal (T * T * C.a)
+          = ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a) := by
+        rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
+        congr 1
+        ring
+      refine (measure_mono hsnd).trans ((measure_union_le _ _).trans ((add_le_add
+        ((measure_mono hsub').trans ((measure_union_le _ _).trans (add_le_add h1 h2))) h3).trans
+        (le_of_eq ?_)))
+      simp only [c]
+      rw [add_assoc, hsplit]
     · have hM : ω ∈ M := subset_toMeasurable _ _ hω
       rw [Set.indicator_of_mem hM, Pi.one_apply]
       exact prob_le_one.trans le_self_add
   calc ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
-          (List.ofFn xs)} ∂μ
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (SoundEnd G D C (read · ω))
+          tallyStart (List.ofFn xs)} ∂μ
       ≤ ∫⁻ ω, (M.indicator 1 ω + c) ∂μ := lintegral_mono hpt
     _ = μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)} + c := by
       rw [lintegral_add_right _ measurable_const, lintegral_indicator_one
