@@ -246,13 +246,13 @@ Two gaps between the model and Python:
   and Chebyshev in each cell of the pass bounds the fluctuation.
 - `OrthoDFA/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`,
   reject at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query
-  `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's, the family
-  suffix-free and the band passing `BandPasses`, the reads are independent across strings and
-  every DFA state has one distribution its strings read with, which is accept at most `ε` of the
-  time, or reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`
-  and the rarer of them at most `κ` times the undecided. `BandPasses` is the check the band
-  selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`,
-  `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
+  `w·v` answers 1.  `FamilyReadBound`: with the language a DFA's, the family suffix-free
+  and the band passing `BandPasses`, the reads are independent across strings and every DFA
+  state has one distribution its strings read with, which is accept at most `ε` of the time, or
+  reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`; and is on
+  its rarer decided side at most `ε`, or at most `κ` times as often as it is undecided.  `BandPasses` is the
+  check the band selection rule `evidence_margin_for_population_size` makes, at
+  `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`, as
   sub-rounds. Probes walk from `k` as `sifting.read` does; a clean disagreement records its prefix
   and target at its edge. Each place keeps its count over the round: the start's undecided read

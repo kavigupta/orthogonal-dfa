@@ -140,9 +140,9 @@ theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
 
 #print axioms bennett_tail
 
-theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
+theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
-#print axioms family_read_trichotomy
+#print axioms family_read_bound
 
 #print axioms round_budget
 
