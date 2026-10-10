@@ -72,6 +72,14 @@ theorem binE_mono (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f g : ℕ → ℝ} 
     positivity
   exact mul_le_mul_of_nonneg_left (h j) this
 
+theorem binE_mono_le (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f g : ℕ → ℝ}
+    (h : ∀ j ≤ n, f j ≤ g j) : binE n p f ≤ binE n p g := by
+  refine sum_le_sum fun j hj => ?_
+  have : 0 ≤ (n.choose j : ℝ) * p ^ j * (1 - p) ^ (n - j) := by
+    have : 0 ≤ 1 - p := by linarith
+    positivity
+  exact mul_le_mul_of_nonneg_left (h j (Nat.lt_succ_iff.1 (mem_range.1 hj))) this
+
 theorem binE_nonneg (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f : ℕ → ℝ} (h : ∀ j, 0 ≤ f j) :
     0 ≤ binE n p f := by
   have := binE_mono hp0 hp1 (n := n) (f := fun _ => 0) h
@@ -168,6 +176,11 @@ theorem one_sub_binomSfGe (n j : ℕ) :
   rw [show (1 : ℝ) - _ = 1 * 1 + -1 * binE n p (fun i => if j + 1 ≤ i then 1 else 0) by ring,
     ← this]
   exact binE_congr fun i _ => by split_ifs <;> first | omega | norm_num
+
+theorem one_sub_binomSfGe' {n c : ℕ} (hc : 1 ≤ c) :
+    1 - binomSfGe n p c = binE n p (fun i => if i < c then 1 else 0) := by
+  rw [show c = c - 1 + 1 by omega, one_sub_binomSfGe hp0 hp1]
+  exact binE_congr fun i _ => by split_ifs <;> first | rfl | omega
 
 /-- The lower tail's p-value is below `a` with chance at most `a`. -/
 theorem binE_pvalue_le {a : ℝ} (ha : 0 ≤ a) (n : ℕ) :
@@ -409,6 +422,24 @@ theorem pi_cnt (fB : X → Bool) (N n : ℕ) (hn : n ≤ N) (Q : ℕ → Prop) [
   have := pi_cnt2 D fB fB (fun _ h => h) N n hn (fun s _ => Q s)
   rw [this]
   exact binE_congr fun s _ => binE_const _ _ _
+
+/-- Over fresh draws, an up-closed condition on how many of the first `n` fall in `B`, met only
+from `c` on, holds with chance at most `P(Bin(n, G) ≥ c)` where `D(B) ≤ G`. -/
+theorem pi_cnt_up (f : X → Bool) {N n : ℕ} (hn : n ≤ N) {G : ℝ} (hg : D.real {x | f x} ≤ G)
+    (hG1 : G ≤ 1) (Q : ℕ → Prop) [DecidablePred Q] (hQ : ∀ j j', j ≤ j' → Q j → Q j') (c : ℕ)
+    (hc : ∀ j, Q j → c ≤ j) :
+    (Measure.pi fun _ : Fin N => D).real {xs | Q (cnt f n (List.ofFn xs))} ≤ binomSfGe n G c := by
+  rw [pi_cnt D f N n hn Q, binomSfGe_eq]
+  have hg0 : 0 ≤ D.real {x | f x} := measureReal_nonneg
+  calc _ ≤ binE n G (fun s => if Q s then 1 else 0) :=
+        binE_le_of_le hg0 hg hG1 n _ fun i j h => by
+          by_cases hi : Q i
+          · rw [if_pos hi, if_pos (hQ i j h hi)]
+          · rw [if_neg hi]; split_ifs <;> norm_num
+    _ ≤ _ := binE_mono (hg0.trans hg) hG1 fun j => by
+          by_cases hj : Q j
+          · rw [if_pos hj, if_pos (hc j hj)]
+          · rw [if_neg hj]; split_ifs <;> norm_num
 
 end Draws
 

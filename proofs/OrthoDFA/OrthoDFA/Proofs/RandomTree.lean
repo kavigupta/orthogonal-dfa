@@ -164,6 +164,11 @@ end Tree
 
 /-! ## The steps -/
 
+/-- The record a probe makes: the edge it disagrees at and the target there. -/
+def recOf : Outcome α → Option (List Bool × α × List Bool)
+  | .edge p c _ t => some (p, c, t)
+  | _ => none
+
 section Steps
 
 variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
@@ -213,11 +218,12 @@ theorem probeR_ok {T : DTree α} {E : Ideal.Edges α} (hE : EdgesOK read T E) (k
   · trivial
   · exact Ideal.probe_ok read T E k hE x
 
-theorem finish_inl {t s' : RState α} (h : finish C t = .inl s') : s' = t := by
+theorem finish_inl {t s' : RState α} (h : finish C t = .inl s') : s' = t ∧ look C t = none := by
   unfold finish at h
   split at h
   · simp at h
-  · simpa using h.symm
+  · rename_i hl
+    exact ⟨by simpa using h.symm, hl⟩
 
 theorem charge_tree (s : RState α) (x : FreeMonoid α) : (charge read C s x).tree = s.tree := rfl
 theorem charge_edges (s : RState α) (x : FreeMonoid α) : (charge read C s x).edges = s.edges := rfl
@@ -237,9 +243,9 @@ theorem step_cases {s s' : RState α} {x : FreeMonoid α} (hs : Inv read C s)
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧
         fix read C s p c u t = .inl s')
-    ∨ (s' = charge read C { s with recs := s.recs ++ (match probeR read s.tree s.edges C.k x with
-          | .edge p c _ t => [(p, c, t)]
-          | _ => []) } x
+    ∨ (s' = charge read C
+          { s with recs := s.recs ++ (recOf (probeR read s.tree s.edges C.k x)).toList } x
+        ∧ look C s' = none
         ∧ ∀ p c u t, probeR read s.tree s.edges C.k x = .edge p c u t →
           ¬ C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t)) := by
   have hOK := probeR_ok read hs.edges C.k x
@@ -254,17 +260,26 @@ theorem step_cases {s s' : RState α} {x : FreeMonoid α} (hs : Inv read C s)
     simp only at h
     split_ifs at h with hc
     · exact Or.inr (Or.inl ⟨p, c, u, t, t₀, w₀, rfl, hE, hne, hp, hu, huc, hc, h⟩)
-    · refine Or.inr (Or.inr ⟨finish_inl C h, ?_⟩)
+    · obtain ⟨h1, h2⟩ := finish_inl C h
+      refine Or.inr (Or.inr ⟨h1, h1 ▸ h2, ?_⟩)
       intro p' c' u' t' he
       cases he
       exact hc
-  | agree => exact Or.inr (Or.inr ⟨by simpa using finish_inl C h, fun _ _ _ _ he => by cases he⟩)
-  | startU z => exact Or.inr (Or.inr ⟨by simpa using finish_inl C h, fun _ _ _ _ he => by cases he⟩)
-  | endU z => exact Or.inr (Or.inr ⟨by simpa using finish_inl C h, fun _ _ _ _ he => by cases he⟩)
+  | agree =>
+    obtain ⟨h1, h2⟩ := finish_inl C h
+    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
+  | startU z =>
+    obtain ⟨h1, h2⟩ := finish_inl C h
+    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
+  | endU z =>
+    obtain ⟨h1, h2⟩ := finish_inl C h
+    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
   | triple k zs =>
-    exact Or.inr (Or.inr ⟨by simpa using finish_inl C h, fun _ _ _ _ he => by cases he⟩)
+    obtain ⟨h1, h2⟩ := finish_inl C h
+    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
   | pair k zs =>
-    exact Or.inr (Or.inr ⟨by simpa using finish_inl C h, fun _ _ _ _ he => by cases he⟩)
+    obtain ⟨h1, h2⟩ := finish_inl C h
+    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
 /-- A step that keeps the hypothesis counts one more probe. -/
 theorem step_same (hW : NoWrong M side read) {s s' : RState α} (hs : Inv read C s)
@@ -272,7 +287,7 @@ theorem step_same (hW : NoWrong M side read) {s s' : RState α} (hs : Inv read C
     (he : s'.edges = s.edges) : Inv read C s' ∧ Ψr C s' = Ψr C s ∧ s'.n = s.n + 1 := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, -, hfix⟩ |
-    ⟨rfl, hlt⟩
+    ⟨rfl, -, hlt⟩
   · exfalso
     have := congrFun (congrFun he p) c
     simp only [fresh, Ideal.upd2_same, hE] at this
@@ -299,14 +314,15 @@ theorem step_same (hW : NoWrong M side read) {s s' : RState α} (hs : Inv read C
   · refine ⟨⟨hs.edges, ?_, hs.size, hs.reached, hs.cls, hs.two⟩, rfl, rfl⟩
     intro r
     simp only [charge_recs]
-    split
-    · rename_i p c u t hg
+    generalize hg : probeR read s.tree s.edges C.k x = o at hlt
+    cases o with
+    | edge p c u t =>
       by_cases hr : r = (p, c, t)
-      · subst hr; have := hlt p c u t hg; omega
-      · simp only [List.count_append, List.count_singleton]
+      · subst hr; have := hlt p c u t rfl; simp only [recOf, Option.toList_some]; omega
+      · simp only [recOf, Option.toList_some, List.count_append, List.count_singleton]
         have := hs.recs_lt r
         simp [Ne.symm hr, this]
-    · simpa using hs.recs_lt r
+    | _ => simpa [recOf] using hs.recs_lt r
 
 /-- A split on a letter and the midfix where its targets part keeps the tree in the class and
 every leaf past the first two reached. -/
@@ -345,7 +361,7 @@ theorem step_change (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C
     Inv read C s' ∧ s' = fresh s'.tree s'.edges s'.moved ∧ Ψr C s' < Ψr C s := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, hu, huc, hp, rfl⟩ |
-    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, hfix⟩ | ⟨rfl, -⟩
+    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, hfix⟩ | ⟨rfl, -, -⟩
   · refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [fresh]; omega, hs.size,
       hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
     exact Ideal.Ψ_lt_upd (idealCfg C) (s := Ideal.fresh s.tree s.edges s.moved) hp _ _
