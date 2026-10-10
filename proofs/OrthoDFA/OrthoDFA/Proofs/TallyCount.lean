@@ -269,25 +269,27 @@ theorem pot_congr {s s' : TState α} (ht : s'.tree = s.tree) (he : s'.edges = s.
   unfold TState.pot TState.unl TState.uns TState.keys TState.tally
   rw [ht, he, hr]
 
-/-- A probe's outcome learns an unlearned edge out of a leaf, or keeps the hypothesis and the
-records, adding at most one. -/
+/-- A probe's outcome learns an unlearned edge out of a leaf, at a leaf, or keeps the hypothesis
+and the records, adding at most its own record. -/
 theorem tallyPre_cases (C : TallyCfg) (s : TState α) (x : FreeMonoid α) :
-    (∃ p c t u, p ∈ s.tree.paths ∧ s.edges p c = none
+    (∃ p c t u, p ∈ s.tree.paths ∧ t ∈ s.tree.paths ∧ s.edges p c = none
       ∧ tallyPre C cut s x = s.setEdge p c (t, u))
     ∨ ∃ s₂ : TState α, s₂.tree = s.tree ∧ s₂.edges = s.edges ∧ s₂.recs = s.recs
       ∧ s₂.version = s.version
-      ∧ (tallyPre C cut s x = s₂ ∨ ∃ p c r, tallyPre C cut s x = s₂.addRec p c r) := by
+      ∧ (tallyPre C cut s x = s₂ ∨ ∃ p c r, recordBy cut C.k (s.tree, s.edges) x
+          = some ((p, c, r.2), r.1) ∧ tallyPre C cut s x = s₂.addRec p c r) := by
   unfold tallyPre
   split
   · split
     · split
-      · rename_i u _ _ _ c p _ hp _ _ t _ he
-        exact .inl ⟨p, c, t, u, DTree.sift_mem_paths _ _ _ hp, he, rfl⟩
+      · rename_i u _ _ _ c p _ hp _ _ t ht he
+        exact .inl ⟨p, c, t, u, DTree.sift_mem_paths _ _ _ hp, DTree.sift_mem_paths _ _ _ ht,
+          he, rfl⟩
       · refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inl rfl⟩) <;> rfl
     · refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inl rfl⟩) <;> rfl
   · split
-    · rename_i p c t sp _
-      refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inr ⟨p, c, (sp, t), rfl⟩⟩) <;> rfl
+    · rename_i p c t sp hr
+      refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inr ⟨p, c, (sp, t), hr, rfl⟩⟩) <;> rfl
     · refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inl rfl⟩) <;> rfl
   all_goals refine (.inr ⟨_, ?_, ?_, ?_, ?_, .inl rfl⟩) <;> rfl
 
@@ -297,14 +299,14 @@ theorem tallyPre_spec (C : TallyCfg) (s : TState α) (x : FreeMonoid α) :
       ∧ (tallyPre C cut s x).pot C.m Lmax + ((tallyPre C cut s x).version - s.version)
         ≤ s.pot C.m Lmax
       ∧ ((tallyPre C cut s x).version ≠ s.version → (tallyPre C cut s x).Fresh) := by
-  rcases tallyPre_cases cut C s x with ⟨p, c, t, u, hp, he, h⟩ | ⟨s₂, ht, he, hr, hv, h⟩
+  rcases tallyPre_cases cut C s x with ⟨p, c, t, u, hp, -, he, h⟩ | ⟨s₂, ht, he, hr, hv, h⟩
   · rw [h]
     have := pot_learn C.m Lmax s (t := t) (w := u) hp he
     refine ⟨rfl, by simp [TState.setEdge], ?_, fun _ => ⟨rfl, rfl, rfl, rfl, rfl⟩⟩
     simp only [show (s.setEdge p c (t, u)).version = s.version + 1 from rfl]
     omega
   · have h2 := pot_congr C.m Lmax ht he hr
-    rcases h with h | ⟨p, c, r, h⟩ <;> rw [h]
+    rcases h with h | ⟨p, c, r, -, h⟩ <;> rw [h]
     · exact ⟨ht, hv.ge, by rw [hv, h2]; simp, fun h => absurd hv h⟩
     · have := pot_addRec C.m Lmax s₂ p c r
       exact ⟨ht, hv.ge, by
