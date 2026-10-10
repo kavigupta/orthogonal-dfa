@@ -280,6 +280,14 @@ Two gaps between the model and Python:
   probes (an edge charged less holds them to that) and `θs'` of the probes past `Xs`, so the
   records that are not true less `ν/η` times the strings' excess exponentiate to a supermartingale
   up to `ν (θe (L + 1) + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
+  `Proofs/QueryTree.lean` and `Proofs/TallyQuery.lean` give the fields' per-probe means: a probe
+  is a query tree over independent reads (`run_probeQ`), and a string's first read in it is fresh,
+  so a record not being true, which needs a read on its state's rarer side
+  (`untrue_minority`), has chance at most `κ` times the probe's undecided first reads, which the
+  tests count (`und_twins`), plus `ε` times its first reads (`spurious_mean`); and an edge's good
+  undecided first reads average at most `1.5θ` of its first reads (`edge_first_mean`), or, counted
+  with multiplicity, `M · 1.5θ` of its reads when no string is read more than `M` times
+  (`und_asks_mean`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

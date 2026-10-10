@@ -18,6 +18,7 @@ import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.TallyQuery
 
 /-!
 # The theorem
@@ -161,6 +162,26 @@ theorem tally_round : TallyRound :=
   tally_round_of sub_round_holds fake_race_holds harvest_good_holds success_sound_holds
 
 #print axioms tally_round
+
+#print axioms QTree.firsts_lintegral_le
+
+#print axioms QTree.firsts_prod_le
+
+#print axioms QTree.asks_sum_le
+
+#print axioms run_probeQ
+
+#print axioms asks_probeQ
+
+#print axioms untrue_minority
+
+#print axioms und_twins
+
+#print axioms spurious_mean
+
+#print axioms edge_first_mean
+
+#print axioms und_asks_mean
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 
