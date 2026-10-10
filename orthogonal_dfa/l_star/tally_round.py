@@ -48,8 +48,9 @@ L = 40, |Σ| = 4, a 30-state target and S = 0:
   ``subT ≥ (2 Lmax |Σ| + 1) nEnd``, about 1e7 probes at the nEnd = 460 that success
   at εd = 0.02 needs; the cap is 5e4.  Its union bound
   ``(2^(Lmax+1) |Σ| + T + 3T²) a`` exceeds 1 for any T.
-* Counting.  ``count_reads`` is on, which is not proved, and its edge gate compares the
-  edge's reads, not its positions, to ``φe`` of the probes.
+* Counting.  ``count_reads`` is off: per read with first-read attribution is not proved,
+  and at k = 0 it never fires on the few short prefixes every probe shares, so a round
+  whose one-letter prefixes all read undecided succeeds with no edge learned.
 """
 
 from collections import Counter
@@ -114,7 +115,7 @@ def tally_config(acc_threshold: float) -> TallyConfig:
         edge_traffic=0.01,
         search_share=0.01,
         max_probes=50_000,
-        count_reads=True,
+        count_reads=False,
     )
 
 
