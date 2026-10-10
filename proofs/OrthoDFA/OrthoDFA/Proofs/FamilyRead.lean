@@ -340,8 +340,9 @@ theorem family_read_law_holds : FamilyReadLaw := by
   intro Ω _ μ _ α σ _ O M F kl kh hL hF
   refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
   refine ⟨(F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card,
-    Finset.card_filter_le _ _, fun w hw rd => ?_⟩
+    Finset.card_filter_le _ _, fun w hw => funext fun rd => ?_⟩
   rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
+  rfl
 
 /-! ## Why the rule checks `TrichotomyAt`
 
@@ -372,7 +373,7 @@ theorem selection_not_trichotomy :
           - binomCdf 15 2 (17 / 30 + (17 / 30 - 67 / 500)))
         (binomCdf 15 (15 - 1) (17 / 30 - (17 / 30 - 67 / 500))
           - binomCdf 15 2 (17 / 30 - (17 / 30 - 67 / 500))) ≤ 33 / 100
-    ∧ ¬ TrichotomyAt 15 2 15 (1 - (17 / 30 + (17 / 30 - 67 / 500)))
+    ∧ ¬ TrichotomyAt 15 2 15 (17 / 30 + (17 / 30 - 67 / 500))
         (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) := by
   refine ⟨?_, ?_, fun h => ?_⟩
   · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]

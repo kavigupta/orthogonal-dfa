@@ -39,6 +39,12 @@ noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ
 noncomputable def readProb (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : S) (r : Read) : ℝ :=
   μ.real {ω | familyRead O.mq F kl kh w ω = r}
 
+/-- The chance a query answers 1 on a string in the language. -/
+def Oracle.yesRateIn (O : Oracle μ S) : ℝ := 1 - O.ηIn
+
+/-- The chance a query answers 1 on a string outside the language. -/
+def Oracle.yesRateOut (O : Oracle μ S) : ℝ := O.ηOut
+
 /-! ## Strings -/
 
 /-- Scoped, so that it never meets another `MeasurableSpace (FreeMonoid α)`.  On a countable
@@ -66,14 +72,15 @@ noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : �
   ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
 
 /-- For every `a ≤ N`, the read law of a state from which `a` of the `N` suffixes lead into the
-language is accept at most `ε` of the time, or reject at most `ε`, or undecided at least a
-third.  `evidence_margin_for_population_size` accepts only bands that pass it at
-`ε = cross_limit` (`reads_trichotomous`), so by `FamilyReadLaw` every state's read is too. -/
-def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
+language, with yes rates `pIn` and `pOut`, is accept at most `ε` of the time, or reject at most
+`ε`, or undecided at least a third.  `evidence_margin_for_population_size` accepts only bands
+that pass it at `ε = cross_limit` (`reads_trichotomous`), so by `FamilyReadLaw` every state's
+read is too. -/
+def TrichotomyAt (N kl kh : ℕ) (pIn pOut ε : ℝ) : Prop :=
   ∀ a ≤ N,
-    readLaw N a (1 - ηIn) ηOut kl kh .accept ≤ ε
-    ∨ readLaw N a (1 - ηIn) ηOut kl kh .reject ≤ ε
-    ∨ 1 / 3 ≤ readLaw N a (1 - ηIn) ηOut kl kh .undecided
+    readLaw N a pIn pOut kl kh .accept ≤ ε
+    ∨ readLaw N a pIn pOut kl kh .reject ≤ ε
+    ∨ 1 / 3 ≤ readLaw N a pIn pOut kl kh .undecided
 
 /-! ## The claims -/
 
@@ -88,6 +95,6 @@ def FamilyReadLaw : Prop :=
   SuffixFree F →
   iIndepFun (fun w => familyRead O.mq F kl kh w) μ
   ∧ ∀ q : σ, ∃ a ≤ F.card, ∀ w, M.eval w.toList = q →
-      ∀ rd, readProb O F kl kh w rd = readLaw F.card a (1 - O.ηIn) O.ηOut kl kh rd
+      readProb O F kl kh w = readLaw F.card a O.yesRateIn O.yesRateOut kl kh
 
 end OrthoDFA
