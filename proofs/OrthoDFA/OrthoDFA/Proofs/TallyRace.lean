@@ -108,7 +108,7 @@ theorem twinsBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid �
   omega
 
 /-- A probe charges only edges out of leaves. -/
-theorem posEdgeBy_mem_paths {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
+theorem posEdgeBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k : ℕ}
     {x : FreeMonoid α} {i : ℕ} {e : List Bool × α} (h : posEdgeBy cut T edges k x i = some e) :
     e.1 ∈ T.paths := by
   have hat : ∀ j, edgeAtBy cut T edges k x j = some e → e.1 ∈ T.paths := by
@@ -137,7 +137,7 @@ theorem edgeHarvBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges
   unfold edgeHarvBy at hb
   obtain ⟨i, -, hi⟩ := List.mem_filterMap.1 hb
   split_ifs at hi with hp
-  exact posEdgeBy_mem_paths cut he hp
+  exact posEdgeBy_mem cut he hp
 
 theorem sum_travBy_le (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
     (K : Finset (List Bool × α)) :
@@ -202,7 +202,7 @@ theorem travBy_mem {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) {k
   unfold travBy at h
   obtain ⟨i, hi⟩ := List.exists_mem_of_length_pos (Nat.pos_of_ne_zero h)
   simp only [List.mem_filter, decide_eq_true_eq] at hi
-  exact posEdgeBy_mem_paths cut he hi.2.2
+  exact posEdgeBy_mem cut he hi.2.2
 
 end Charges
 

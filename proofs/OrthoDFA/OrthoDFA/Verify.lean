@@ -14,6 +14,8 @@ import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyKeep
 import OrthoDFA.Proofs.TallyRace
 import OrthoDFA.Proofs.TallyNoise
+import OrthoDFA.Proofs.TallyEvent
+import OrthoDFA.Proofs.TallyFamily
 import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
@@ -140,9 +142,9 @@ theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
 
 #print axioms bennett_tail
 
-theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
+theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
-#print axioms family_read_trichotomy
+#print axioms family_read_bound
 
 #print axioms round_budget
 
@@ -155,6 +157,12 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 #print axioms fake_race_holds
 
 #print axioms goodStart_le
+
+#print axioms goodEdge_le
+
+#print axioms goodPT_le
+
+#print axioms tallyE_le
 
 #print axioms success_sound_holds
 
@@ -182,6 +190,12 @@ theorem tally_round : TallyRound :=
 #print axioms edge_first_mean
 
 #print axioms und_asks_mean
+
+#print axioms readModel_of_family
+
+theorem tally_round_family : TallyRoundFamily := tally_round_family_holds
+
+#print axioms tally_round_family
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

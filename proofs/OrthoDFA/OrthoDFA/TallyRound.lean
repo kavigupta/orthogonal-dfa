@@ -6,7 +6,7 @@ import OrthoDFA.RoundEnd
 
 The family is the oracle: every string's read is accept, reject or undecided, independently
 across strings, with a law that depends only on the string's state in the target DFA
-(`FamilyReadTrichotomy`). `ReadModel` holds the target and those laws; `rd` is one draw of all
+(`FamilyReadBound`). `ReadModel` holds the target and those laws; `rd` is one draw of all
 the reads, each law reading its rarer decided side at most `κ` times as often as it is undecided
 or at most `ε`.
 A read-state is good where it is undecided at most `1.5θ` of the time. A state's true leaf is

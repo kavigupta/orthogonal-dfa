@@ -587,7 +587,7 @@ theorem und_mem_twins (he : EdgesInto T edges) (q : PLabel α × FreeMonoid α)
     · refine List.mem_append_right _ (List.mem_flatMap.2 ⟨e, ?_, ?_⟩)
       · simp only [Finset.mem_toList, Finset.mem_product, List.mem_toFinset, Finset.mem_univ,
           and_true]
-        exact posEdgeBy_mem he he'
+        exact posEdgeBy_mem_paths he he'
       · simp only [edgeHarvBy, List.mem_filterMap]
         exact ⟨q.1.1, hi, by simp [he', cut, hs]⟩
   · exfalso

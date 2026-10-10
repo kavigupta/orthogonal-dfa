@@ -80,8 +80,8 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
 ## Open
 
-Two claims are not proved, and are not assumed or sorried anywhere (`TallyRound` assumes its
-noise event `TallyE` as a hypothesis, to be bounded separately):
+Two claims are not proved, and are not assumed or sorried anywhere (`TallyRoundFamily` leaves
+the tail of `TallyE`'s records field as a term in its bound, to be bounded separately):
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
@@ -90,7 +90,8 @@ noise event `TallyE` as a hypothesis, to be bounded separately):
 2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only up to the
    noisy-split chance above and the non-power residual, which is stated, not bounded.
 
-The tally round's noise event `TallyE` is discharged field by field, and its edge and
+The tally round's noise event `TallyE` is discharged field by field except its records field
+(`spurious`), whose tail `TallyRoundFamily` carries as a term. Its edge and
 pair/triple fields need the reads to concentrate over the probes' length-`k` prefixes, which
 asks for an unrealistically small largest prefix mass `p₀`. The planned replacement drops that
 requirement: the tests count each string once, at its first read in the round, and a harvest is
@@ -98,6 +99,14 @@ judged over those new strings. Each new string's read is then fresh when it is c
 revelation the good read-states' undecided new strings at a place are at most binomial in the new
 strings read there, with no noise field, no union over the class and no `p₀`. It needs the probe's
 computation stated as an adaptive sequence of reads.
+
+The edge field is per position an edge is traversed at, and the pair/triple field per search, so
+their bounds carry a factor of the probe's positions: the edge test needs
+`θe ≥ 12 (|Q| + S + 1) θ` of its traversals, and the pair/triple field `θgpt ≥ 3 (Lmax + 1)
+(|Q| + S + 1) θ` of its searches. A within-probe adaptive lemma removes that factor: a probe's
+reads are made in order, each fresh when first made, so a probe's undecided reads at good
+read-states at an edge are at most `1.5θ` per read it makes there, with the reads rather than the
+positions as the count. The edge test can then be per read with `θe` free of `Lmax`.
 
 The tally round's `FakeRace` races the round's records that are not true against the undecided
 strings the start's and edges' tests let through, counted with their multiplicity; with each
@@ -238,13 +247,13 @@ Two gaps between the model and Python:
   and Chebyshev in each cell of the pass bounds the fluctuation.
 - `OrthoDFA/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`,
   reject at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query
-  `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's, the family
-  suffix-free and the band passing `BandPasses`, the reads are independent across strings and
-  every DFA state has one distribution its strings read with, which is accept at most `ε` of the
-  time, or reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`
-  and the rarer of them at most `κ` times the undecided. `BandPasses` is the check the band
-  selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`,
-  `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
+  `w·v` answers 1.  `FamilyReadBound`: with the language a DFA's, the family suffix-free
+  and the band passing `BandPasses`, the reads are independent across strings and every DFA
+  state has one distribution its strings read with, which is accept at most `ε` of the time, or
+  reject at most `ε`, or undecided at least a third with accept or reject at most `ε₂`; and is on
+  its rarer decided side at most `ε`, or at most `κ` times as often as it is undecided.  `BandPasses` is the
+  check the band selection rule `evidence_margin_for_population_size` makes, at
+  `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`, as
   sub-rounds. Probes walk from `k` as `sifting.read` does; a clean disagreement records its prefix
   and target at its edge. Each place keeps its count over the round: the start's undecided read
@@ -288,6 +297,13 @@ Two gaps between the model and Python:
   undecided first reads average at most `1.5θ` of its first reads (`edge_first_mean`), or, counted
   with multiplicity, `M · 1.5θ` of its reads when no string is read more than `M` times
   (`und_asks_mean`).
+- `OrthoDFA/TallyFamily.lean` — `TallyRoundFamily`: `TallyRound` with the reads the family's,
+  from a DFA target, a suffix-free family and `BandPasses`, and `TallyE` replaced by its fields'
+  tails: the edge, start and middles fields' over the class and its edge maps, given that no
+  length-`k` prefix carries more than `p₀` of the probes, and the records field's, left as a term.
+  Proved in `Proofs/TallyFamily.lean`, from `FamilyReadBound` and `tallyE_le`
+  (`Proofs/TallyEvent.lean`), which unions `goodEdge_le` (`Proofs/TallyEdgeNoise.lean`),
+  `goodStart_le` (`Proofs/TallyNoise.lean`) and `goodPT_le` (`Proofs/TallyPTNoise.lean`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
