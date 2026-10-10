@@ -6,12 +6,13 @@ Each round searches a suffix family and runs the tally round
 join the next round's representative pool, with a per-state balanced sample,
 and drive the suffix-family FNR gate to re-cluster and resolve them.
 
-Outer-loop policy, outside what the round's proof covers: a round that ends in a
-harvest, or ends consistent, is refused by the certificate and harvests nothing
-new, halves the FNR limit, so the next family must be more decisive.  A harvest
-is the round finding the family undecided somewhere; and the round cannot see a
-state the family reads decisively on the wrong side (a merge), which only a
-tighter family moves off.
+Outer-loop policy, outside what the round's proof covers.  Where the certificate
+refuses a round that ended consistent, the round's undecided strings at the
+state it blames go to the next family search, as a harvest would: the round
+cannot see a state the family reads on the wrong side, but the family's search
+can, once it is shown that state's undecided strings.  A round that ends in a
+harvest, or is refused with nothing new to show, halves the FNR limit, so the
+next family must be more decisive.
 """
 
 import time
@@ -219,16 +220,48 @@ class BestRound:
 
 
 def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
+    """denoise_accept_labels(dfa) if the certificate passes it, else None, and
+    the state it blames."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
     tracker.on_certificate_decided(verdict.certified, index)
     if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
-        return output
+        return output, None
     print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
-    return None
+    return None, verdict.blamed
+
+
+class _LeafReplay:
+    """A fresh probe of a round's last hypothesis, keeping the strings it reads
+    undecided at the edges out of one leaf."""
+
+    def __init__(self, hypothesis, leaf, draw, alphabet_size):
+        self._hypothesis, self._leaf = hypothesis, leaf
+        self._draw, self._alphabet_size = draw, alphabet_size
+
+    def sample(self) -> list:
+        probe = self._hypothesis.probe(self._draw())
+        return [
+            z
+            for c in range(self._alphabet_size)
+            for z in probe.edge_harvest((self._leaf, c))
+        ]
+
+
+def _next_harvest(pst, hypothesis, ending, blamed):
+    """What the round hands the next family search, and what draws more of it:
+    its harvest, or where the certificate refused a success, the strings it read
+    undecided at the edges out of the state the certificate blamed."""
+    draw = UniformSource(pst).draw
+    if blamed is None or ending.harvest:
+        return ending.harvest, Replay(hypothesis, ending, draw)
+    leaf = hypothesis.tree.path_of(blamed)
+    strings = [
+        z for (p, _), zs in hypothesis.edge_harvest.items() if p == leaf for z in zs
+    ]
+    return strings, _LeafReplay(hypothesis, leaf, draw, pst.alphabet_size)
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -330,9 +363,9 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
-        output = None
+        output, blamed = None, None
         if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, index=index, tracker=tracker)
+            output, blamed = _certified(pst, dfa, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
@@ -349,12 +382,8 @@ def counterexample_driven_synthesis(
         if _uncertified_too_long(index, uncertified_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        taken = _accumulate_harvest(
-            ending.harvest,
-            Replay(hypothesis, ending, UniformSource(pst).draw),
-            state,
-            target,
-        )
+        strings, provenance = _next_harvest(pst, hypothesis, ending, blamed)
+        taken = _accumulate_harvest(strings, provenance, state, target)
         if _family_too_loose(ending, true_acc, acc_threshold, taken):
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
