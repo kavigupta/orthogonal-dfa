@@ -84,6 +84,14 @@ theorem Θ_start (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
   have := Nat.mul_le_mul_right (B (α := α) C) hΨ
   nlinarith
 
+/-- The round ends consistent or with a nonempty harvest of undecided states, and every leaf
+past the first two is reached by some string. -/
+def Sound {σ : Type*} [Fintype σ] (M : DFA α σ) (r : RState α × Option (REnd α)) : Prop :=
+  (r.2 = some .consistent ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs ≠ [] ∧
+      ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided)
+  ∧ (∀ p ∈ r.1.tree.leaves, p = [false] ∨ p = [true] ∨ ∃ w, r.1.tree.sift read w = .inl p)
+  ∧ r.1.tree.leaves.length ≤ Fintype.card σ + 2
+
 omit [DecidableEq α] [Fintype α] in
 theorem sound_of (hI : IdealReads read M side) {r : RState α × Option (REnd α)} {e : REnd α}
     (he : r.2 = some e) (hok : EndOK read e) (hr : Reached read r.1.tree) : Sound read M r := by
@@ -280,32 +288,32 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   intro α _ _ σ _ M read side C P hI hm hh hn hcap hP
   have h2 : 2 ≤ C.Lmax := by omega
   have hΘ : Θ C (start : RState α) < P := (Θ_start C hn h2).trans_le hP
-  refine ⟨fun xs => ?_, fun D _ ε hε => ?_⟩
-  · obtain ⟨e, he, hok, -, hr⟩ := round_ok read C hI hcap hm hh hn (List.ofFn xs) start
+  intro D _ ε hε
+  have hsub : {xs : Fin P → FreeMonoid α |
+        ¬ GoodEnd read M D C ε (round read C start (List.ofFn xs))}
+      ⊆ {xs | (round read C start (List.ofFn xs)).2 = some .consistent
+          ∧ Bad read C D ε (round read C start (List.ofFn xs)).1} := by
+    intro xs hxs
+    obtain ⟨e, he, hok, -, hr⟩ := round_ok read C hI hcap hm hh hn (List.ofFn xs) start
       (inv_start read C hm hh hn h2) (reached_start read) (by simpa using hΘ)
-    exact sound_of read hI he hok hr
-  · have hsub : {xs : Fin P → FreeMonoid α |
-          (round read C start (List.ofFn xs)).2 = some .consistent
-            ∧ ε < D.real {x | Disagrees read (round read C start (List.ofFn xs)).1.tree
-                (round read C start (List.ofFn xs)).1.edges C.k x}}
-        ⊆ {xs | (round read C start (List.ofFn xs)).2 = some .consistent
-            ∧ Bad read C D ε (round read C start (List.ofFn xs)).1} := by
-      rintro xs ⟨h1, h2⟩
-      refine ⟨h1, lt_of_lt_of_le h2 (measureReal_mono fun x hx => ?_)⟩
+    rcases (sound_of read hI he hok hr).1 with hc | hv
+    · refine ⟨hc, lt_of_lt_of_le (not_le.1 fun hd => hxs (Or.inl ⟨hc, hd⟩))
+        (measureReal_mono fun x hx => ?_)⟩
       exact probe_disagrees read _ _ _ hx
-    have hb := bad_round read C D ε hε P start
-    have h1ε : 0 ≤ 1 - ε := by linarith
-    refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal
-      (mul_nonneg (by positivity) (pow_nonneg h1ε _)) (hb.trans ?_))
-    rw [ENNReal.ofReal_mul (by positivity)]
-    have : ENNReal.ofReal ((P : ℝ) + 1) = (P : ENNReal) + 1 := by
-      rw [ENNReal.ofReal_add (by positivity) zero_le_one, ENNReal.ofReal_natCast,
-        ENNReal.ofReal_one]
-    rw [this, add_mul, one_mul, add_comm]
-    gcongr
-    split_ifs
-    · simp [start, fresh]
-    · exact bot_le
+    · exact absurd (Or.inr hv) hxs
+  have hb := bad_round read C D ε hε P start
+  have h1ε : 0 ≤ 1 - ε := by linarith
+  refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal
+    (mul_nonneg (by positivity) (pow_nonneg h1ε _)) (hb.trans ?_))
+  rw [ENNReal.ofReal_mul (by positivity)]
+  have : ENNReal.ofReal ((P : ℝ) + 1) = (P : ENNReal) + 1 := by
+    rw [ENNReal.ofReal_add (by positivity) zero_le_one, ENNReal.ofReal_natCast,
+      ENNReal.ofReal_one]
+  rw [this, add_mul, one_mul, add_comm]
+  gcongr
+  split_ifs
+  · simp [start, fresh]
+  · exact bot_le
 
 end Ideal
 

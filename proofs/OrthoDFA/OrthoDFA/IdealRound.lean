@@ -15,9 +15,8 @@ the end, or an edge, and `h` strings of one class end the round with them as its
 probes in a row with no disagreement end it consistent. Every change of the hypothesis starts the
 counts afresh.
 
-`IdealRoundCorrect`: the round never stops short; a harvest is all undecided states; every leaf
-past the first two is reached, so there are at most `|Q| + 2`; and it ends consistent with the
-hypothesis disagreeing on more than `ε` of the probes with chance at most `(P + 1)(1 − ε)^n`.
+`IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends consistent with the
+hypothesis disagreeing on at most `ε` of the probes, or with a harvest of undecided states.
 -/
 
 namespace OrthoDFA
@@ -289,28 +288,24 @@ def budget (C : RoundCfg) (nα : ℕ) : ℕ :=
   (C.Lmax * (2 * C.Lmax * nα + 1) + 1)
     * ((C.m - 1) * C.Lmax ^ 2 * nα + (C.h - 1) * (C.Lmax * nα + 2) + 1) * C.n
 
-/-- The round ends consistent or with a nonempty harvest of undecided states, and every leaf
-past the first two is reached by some string. -/
-def Sound {σ : Type*} [Fintype σ] (M : DFA α σ) (r : RState α × Option (REnd α)) : Prop :=
-  (r.2 = some .consistent ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs ≠ [] ∧
-      ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided)
-  ∧ (∀ p ∈ r.1.tree.leaves, p = [false] ∨ p = [true] ∨ ∃ w, r.1.tree.sift read w = .inl p)
-  ∧ r.1.tree.leaves.length ≤ Fintype.card σ + 2
+/-- The round ends consistent with the hypothesis disagreeing on at most `ε` of the draws, or with
+a nonempty harvest of states all of whose strings read undecided. -/
+def GoodEnd [Countable α] {σ : Type*} (M : DFA α σ) (D : Measure (FreeMonoid α)) (C : RoundCfg)
+    (ε : ℝ) (r : RState α × Option (REnd α)) : Prop :=
+  (r.2 = some .consistent ∧ D.real {x | Disagrees read r.1.tree r.1.edges C.k x} ≤ ε)
+  ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs ≠ [] ∧
+      ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided
 
-/-- With ideal reads and enough probes, every run of the round is sound, and it ends consistent
-with the hypothesis disagreeing on more than `ε` of the draws with chance at most
+/-- With ideal reads and enough probes, the round fails to end well with chance at most
 `(P + 1)(1 − ε)^n`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : RoundCfg) (P : ℕ),
     IdealReads read M side → 1 ≤ C.m → 1 ≤ C.h → 1 ≤ C.n → Fintype.card σ + 2 ≤ C.Lmax →
     budget C (Fintype.card α) ≤ P →
-    (∀ xs : Fin P → FreeMonoid α, Sound read M (round read C start (List.ofFn xs)))
-    ∧ ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ), ε ≤ 1 →
+    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
-          {xs | (round read C start (List.ofFn xs)).2 = some .consistent
-            ∧ ε < D.real {x | Disagrees read (round read C start (List.ofFn xs)).1.tree
-                (round read C start (List.ofFn xs)).1.edges C.k x}}
+          {xs | ¬ GoodEnd read M D C ε (round read C start (List.ofFn xs))}
         ≤ (P + 1) * (1 - ε) ^ C.n
 
 end Ideal
