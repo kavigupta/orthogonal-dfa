@@ -24,12 +24,13 @@ event `TallyE` is a hypothesis on `rd`, quantified over the class and edges into
 A sub-round starts at a tree of the class with no records and a fresh stretch, and lasts until the
 tree changes or the round ends: in a split that is genuine (real) or not (fake), in success or a
 harvest (good), or with the tree past `Lmax` leaves (bad). Each hypothesis ends the round or
-changes within `nEnd` probes but for `termLevel`: searches stopping at undecided middles more than
-`θpt'` of the time fire their test, an edge and target recording more than `θr` of the time is
-fixed, and otherwise the disagreement rate is below `εd' ≥ θpt' + Lmax² |Σ| θr` and success fires.
-Within a sub-round each edge is learned, and redirected, at most once. `SubRound`: a sub-round is
-fake with chance at most `subFake`, `m` records that are not true at one edge and target over its
-`subT` probes, and unfinished with chance at most `subOpen`. `HarvestGood`: a harvest the round
+changes within `nEnd` probes but for `termLevel`, unless it records at least `θr` of the time:
+searches stopping at undecided middles more than `θpt'` of the time fire their test, and otherwise
+the disagreement rate is below `εd' ≥ θpt' + θr` and success fires. Within a sub-round each edge is
+learned, and redirected, at most once, and every record raises its edge and target towards the
+`m` at which it is fixed, so a sub-round holds at most `Lmax² |Σ| m` records.
+`SubRound`: a sub-round is fake with chance at most `subFake`, `m` records that are not true at one
+edge and target over its `subT` probes, and unfinished with chance at most `subOpen`. `HarvestGood`: a harvest the round
 ends in at a tree of the class has most of its strings at read-states that are not good, but for
 chance `(2^(Lmax+1) |Σ| + T + T²) a`. `TallyRound`: over `T ≥ (S + |Q| + 1) · subT` probes the
 round ends in success or such a harvest but for chance at most that of not `TallyE`, the fake
@@ -217,25 +218,26 @@ def SubRoundBound {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α
           {xs | subEnd G C cut s Tsub T xs = .bad ∨ subEnd G C cut s Tsub T xs = .unfinished}
         ≤ ENNReal.ofReal δ'
 
-/-- A hypothesis keeps over `nEnd` probes with chance at most this: its middle-stopping searches
-reaching `θpt'` of probes without `hP` of `nEnd` firing their test, an edge and target recording
-`θr` of probes without `m` records in `nEnd`, or the disagreement rate at most `εd'` with more than
-`hS` of `nEnd`, too many for success. -/
-noncomputable def termLevel (C : TallyCfg) (nEnd hP hS : ℕ) (θpt' θr εd' : ℝ) : ℝ :=
-  (1 - binomSfGe nEnd θpt' hP) + (1 - binomSfGe nEnd θr C.m) + binomSfGe nEnd εd' (hS + 1)
+/-- A hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at most
+this: its middle-stopping searches reaching `θpt'` of probes without `hP` of `nEnd` firing their
+test, or the disagreement rate at most `εd'` with more than `hS` of `nEnd`, too many for success. -/
+noncomputable def termLevel (nEnd hP hS : ℕ) (θpt' εd' : ℝ) : ℝ :=
+  (1 - binomSfGe nEnd θpt' hP) + binomSfGe nEnd εd' (hS + 1)
 
 /-- The most versions within a sub-round: each edge learned, and redirected, at most once. -/
 def subVersions (C : TallyCfg) (nα : ℕ) : ℕ := 2 * C.Lmax * nα
 
-/-- A sub-round's probes: `nEnd` for each version. -/
-def subT (C : TallyCfg) (nα nEnd : ℕ) : ℕ := (subVersions C nα + 1) * nEnd
+/-- A sub-round's probes: `nEnd` for each version, and `nRec` at hypotheses that record. -/
+def subT (C : TallyCfg) (nα nEnd nRec : ℕ) : ℕ := (subVersions C nα + 1) * nEnd + nRec
 
 /-- A fake sub-round's chance: `m` records that are not true at one edge and target. -/
 noncomputable def subFake (C : TallyCfg) (nα : ℕ) (ρ : ℝ) (Tsub : ℕ) : ℝ :=
   C.Lmax ^ 2 * nα * binomSfGe Tsub ρ C.m
 
-/-- An unfinished sub-round's chance: some version keeping over `nEnd` probes. -/
-noncomputable def subOpen (C : TallyCfg) (nα : ℕ) (βt : ℝ) : ℝ := (subVersions C nα + 1) * βt
+/-- An unfinished sub-round's chance: some version keeping over `nEnd` probes, or `nRec` probes,
+each recording with chance `θr`, making no more than the `Lmax² |Σ| m` records a sub-round holds. -/
+noncomputable def subOpen (C : TallyCfg) (nα nRec : ℕ) (θr βt : ℝ) : ℝ :=
+  (subVersions C nα + 1) * βt + (1 - binomSfGe nRec θr (C.Lmax ^ 2 * nα * C.m + 1))
 
 /-- The chance that fake sub-rounds outnumber `k` before `g` real ones and an ending, each fake
 with chance at most `(c + δ)/(1 + c)`, with `δ'` for each bad or unfinished one. -/
@@ -243,22 +245,22 @@ noncomputable def roundW (c δ δ' : ℝ) (k g : ℕ) : ℝ :=
   binomSfGe (k + g + 1) (min 1 ((c + δ) / (1 + c))) (k + 1) + (k + g + 1) * δ'
 
 /-- `SubRound`: given `TallyE`, with the tests' thresholds `hP` and `hS` at `nEnd` probes and
-`θpt' + Lmax² |Σ| θr ≤ εd'`, sub-rounds are fake with chance at most `subFake` and bad or unfinished
-within `subT` with chance at most `subOpen` of `termLevel`. -/
+`θpt' + θr ≤ εd'`, sub-rounds are fake with chance at most `subFake` and bad or unfinished within
+`subT` with chance at most `subOpen` of `termLevel`. -/
 def SubRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : TallyCfg) (S nEnd hP hS : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
+    (C : TallyCfg) (S nEnd nRec hP hS : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
     0 ≤ ρ → ρ ≤ 1 → 0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → C.n₀ ≤ nEnd →
     0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 → 0 ≤ θr → θr ≤ 1 →
-    εd' ≤ 1 → θpt' + C.Lmax ^ 2 * Fintype.card α * θr ≤ εd' →
+    εd' ≤ 1 → θpt' + θr ≤ εd' →
     binomSfGe nEnd C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS →
     TallyE G D C S ρ θg θgs θgpt rd →
     SubRoundBound G D C (fun z => (rd z).cut) S 0
-      (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) nEnd))
-      (subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd'))
-      (subT C (Fintype.card α) nEnd)
+      (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) nEnd nRec))
+      (subOpen C (Fintype.card α) nRec θr (termLevel nEnd hP hS θpt' εd'))
+      (subT C (Fintype.card α) nEnd nRec)
 
 /-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, every edge excess above
 `4 L (1 + 4 θg Lmax) log(1/a)`, and the start's and the middles' tests firing only where good
@@ -290,11 +292,11 @@ def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : TallyCfg) (S nEnd hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
+    (C : TallyCfg) (S nEnd nRec hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
     0 ≤ ρ → ρ ≤ 1 → 0 < C.m → Fintype.card σ + S + 3 ≤ C.Lmax → C.n₀ ≤ nEnd →
     0 ≤ C.θpt → C.θpt ≤ 1 → 0 ≤ C.εd → C.εd ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 → 0 ≤ θr → θr ≤ 1 →
-    εd' ≤ 1 → θpt' + C.Lmax ^ 2 * Fintype.card α * θr ≤ εd' →
+    εd' ≤ 1 → θpt' + θr ≤ εd' →
     binomSfGe nEnd C.θpt hP < C.a → 1 - binomSfGe nEnd C.εd (hS + 1) < C.a →
     C.a ≤ binomSfGe nEnd C.εd hS →
     1 ≤ L → 0 < C.a → C.a ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.θe →
@@ -302,14 +304,14 @@ def TallyRound : Prop :=
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
     0 ≤ θgpt → θgpt ≤ 1 →
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t θgpt ((h + 1) / 2) ≤ C.a) →
-    (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd ≤ T →
+    (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
           (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (roundW 0
-          (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) nEnd))
-          (subOpen C (Fintype.card α) (termLevel C nEnd hP hS θpt' θr εd')) S (Fintype.card σ))
+          (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) nEnd nRec))
+          (subOpen C (Fintype.card α) nRec θr (termLevel nEnd hP hS θpt' εd')) S (Fintype.card σ))
         + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + T * T) * C.a)
 
 end OrthoDFA

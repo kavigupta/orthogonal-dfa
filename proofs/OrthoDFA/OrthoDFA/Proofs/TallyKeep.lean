@@ -779,29 +779,29 @@ section KeepLe
 
 variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
 
+/-- The probes that record against the hypothesis of `s`. -/
+def recAt (s : TState α) : Set (FreeMonoid α) :=
+  {x | ∃ pct sp, recordBy cut C.k (s.tree, s.edges) x = some (pct, sp)}
+
 open scoped Classical in
-/-- A fresh hypothesis of the class keeps over `nEnd` probes with chance at most `termLevel`. -/
-theorem keep_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] {S nEnd hP hS : ℕ} {θpt' θr εd' : ℝ} (hm : 0 < C.m)
-    (hLmax : Fintype.card σ + S + 2 ≤ C.Lmax) (hn₀ : C.n₀ ≤ nEnd)
+/-- A fresh hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at
+most `termLevel`. -/
+theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
+    {θpt' θr εd' : ℝ} (hn₀ : C.n₀ ≤ nEnd)
     (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'1 : εd' ≤ 1)
-    (hcond : θpt' + C.Lmax ^ 2 * Fintype.card α * θr ≤ εd')
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'1 : εd' ≤ 1) (hcond : θpt' + θr ≤ εd')
     (hhP : binomSfGe nEnd C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
     (hhS' : C.a ≤ binomSfGe nEnd C.εd hS)
-    {s : TState α} (hc : G.InClass S s.tree) (he : EdgesInto s.tree s.edges) (hn : s.n = 0)
-    (hd : s.dis = 0) (T : ℕ) :
+    {s : TState α} (hrec : D.real (recAt C cut s) < θr) (hn : s.n = 0) (hd : s.dis = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
-      ≤ ENNReal.ofReal (termLevel C nEnd hP hS θpt' θr εd') := by
+      ≤ ENNReal.ofReal (termLevel nEnd hP hS θpt' εd') := by
   have hεd'0 : 0 ≤ εd' := by
-    have : 0 ≤ (C.Lmax : ℝ) ^ 2 * Fintype.card α * θr := by positivity
+    have : 0 ≤ D.real (recAt C cut s) := measureReal_nonneg
     linarith
   have t1 : 0 ≤ 1 - binomSfGe nEnd θpt' hP := sub_nonneg.2 (binomSfGe_le_one hθpt'0 hθpt'1 _)
-  have t2 : 0 ≤ 1 - binomSfGe nEnd θr C.m := sub_nonneg.2 (binomSfGe_le_one hθr0 hθr1 _)
   have t3 : 0 ≤ binomSfGe nEnd εd' (hS + 1) := binomSfGe_nonneg hεd'0 hεd'1 _
-  have hτ : termLevel C nEnd hP hS θpt' θr εd'
-      = (1 - binomSfGe nEnd θpt' hP) + (1 - binomSfGe nEnd θr C.m)
-        + binomSfGe nEnd εd' (hS + 1) := rfl
+  have hτ : termLevel nEnd hP hS θpt' εd'
+      = (1 - binomSfGe nEnd θpt' hP) + binomSfGe nEnd εd' (hS + 1) := rfl
   have hle1 : ∀ A : Set (FreeMonoid α), D.real A ≤ 1 := fun A => by
     have := measureReal_mono (μ := D) (Set.subset_univ A)
     rwa [probReal_univ] at this
@@ -813,101 +813,58 @@ theorem keep_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (Fr
       exact fun h => hT (keepV_le C cut _ _ _ _ h)
     rw [this, measure_empty]; exact zero_le
   rcases nEnd with _ | N
-  · have h0 : binomSfGe 0 θr C.m = 0 := by
-      obtain ⟨m', hm'⟩ : ∃ m', C.m = m' + 1 := ⟨C.m - 1, by omega⟩
-      rw [hm', binomSfGe_zero_left]
+  · have hP0 : hP ≠ 0 := by
+      rintro rfl
+      have := binomSfGe_le_one (n := 0) hεd0 hεd1 hS
+      rw [binomSfGe_zero_right] at hhP
+      linarith
+    obtain ⟨hP', rfl⟩ : ∃ hP', hP = hP' + 1 := ⟨hP - 1, by omega⟩
     refine prob_le_one.trans ?_
     rw [← ENNReal.ofReal_one]
     refine ENNReal.ofReal_le_ofReal ?_
-    rw [hτ, h0]
+    rw [hτ, binomSfGe_zero_left]
     linarith
   set T0 := s.tree
   set E0 := s.edges
   set ptO : FreeMonoid α → Prop := fun x => ptHarvBy cut T0 E0 C.k x ≠ []
   set disO : FreeMonoid α → Prop := fun x => (probeBy cut T0 E0 C.k x).IsSearch
-  set recO : (List Bool × α × List Bool) → FreeMonoid α → Prop :=
-    fun pct x => ∃ sp, recordBy cut C.k (T0, E0) x = some (pct, sp)
-  set NT := (keysF T0).filter fun pct => (E0 pct.1 pct.2.1).map Prod.fst ≠ some pct.2.2
   have hincl : {xs : Fin T → FreeMonoid α | KeepV C cut s (N + 1) T xs}
-      ⊆ ({xs | cnt (N + 1) ptO xs < hP} ∩ {xs | ∀ pct ∈ NT, cnt (N + 1) (recO pct) xs < C.m})
-        ∩ {xs | hS + 1 ≤ cnt (N + 1) disO xs} := by
+      ⊆ {xs | cnt (N + 1) ptO xs < hP} ∩ {xs | hS + 1 ≤ cnt (N + 1) disO xs} := by
     intro xs hk
-    obtain ⟨s₁, h1, h2, h3, h4, h5, h6, h7, h8⟩ := keep_counts C cut T0 E0 N s T xs rfl rfl hk
+    obtain ⟨s₁, -, -, h3, h4, h5, -, h7, -⟩ := keep_counts C cut T0 E0 N s T xs rfl rfl hk
     rw [hn, zero_add] at h3
     rw [hd, zero_add] at h5
-    refine ⟨⟨?_, ?_⟩, ?_⟩
+    refine ⟨?_, ?_⟩
     · have := look_none_pt C h7 (by rw [h3]; exact hn₀) hθpt0 hθpt1 (by rw [h3]; exact hhP)
       simp only [Set.mem_setOf_eq, ptO]
-      omega
-    · intro pct hpct
-      obtain ⟨p, c, t⟩ := pct
-      simp only [NT, keysF, Finset.mem_filter, Finset.mem_product, List.mem_toFinset,
-        Finset.mem_univ, true_and] at hpct
-      obtain ⟨⟨hp, -⟩, hne⟩ := hpct
-      have h9 : ¬ C.m ≤ s₁.tally p c t := fun hle => h8 p c t ⟨h1 ▸ hp, h2 ▸ hne, hle⟩
-      have := h6 p c t
-      simp only [recO]
       omega
     · have := look_none_dis C h7 (by rw [h3]; exact hn₀) hεd0 hεd1 (by rw [h3]; exact hhS)
         (by rw [h3]; exact hhS')
       simp only [Set.mem_setOf_eq, disO]
       omega
-  have hlt : ∀ (P : FreeMonoid α → Prop) (h : ℕ),
-      (Measure.pi fun _ : Fin T => D) {xs | cnt (N + 1) P xs < h}
-        = ENNReal.ofReal (1 - binomSfGe (N + 1) (D.real {x | P x}) h) := by
-    intro P h
-    rw [← ofReal_measureReal,
-      show {xs : Fin T → FreeMonoid α | cnt (N + 1) P xs < h} = {xs | h ≤ cnt (N + 1) P xs}ᶜ
-        by ext; simp,
-      measureReal_compl (Set.to_countable _).measurableSet, probReal_univ, pi_cnt D P hT h]
   by_cases ha : θpt' ≤ D.real {x | ptO x}
   · calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | cnt (N + 1) ptO xs < hP} :=
-          measure_mono fun xs h => (hincl h).1.1
-      _ = _ := hlt ptO hP
+          measure_mono fun xs h => (hincl h).1
+      _ = ENNReal.ofReal (1 - binomSfGe (N + 1) (D.real {x | ptO x}) hP) := by
+          rw [← ofReal_measureReal,
+            show {xs : Fin T → FreeMonoid α | cnt (N + 1) ptO xs < hP}
+              = {xs | hP ≤ cnt (N + 1) ptO xs}ᶜ by ext; simp,
+            measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
+            pi_cnt D ptO hT hP]
       _ ≤ _ := by
         refine ENNReal.ofReal_le_ofReal ?_
         have := binomSfGe_mono hθpt'0 (hle1 _) ha (N + 1) hP
         rw [hτ]; linarith
-  by_cases hb : ∃ pct ∈ NT, θr ≤ D.real {x | recO pct x}
-  · obtain ⟨pct, hpct, hr⟩ := hb
-    calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | cnt (N + 1) (recO pct) xs < C.m} :=
-          measure_mono fun xs h => (hincl h).1.2 pct hpct
-      _ = _ := hlt (recO pct) C.m
-      _ ≤ _ := by
-        refine ENNReal.ofReal_le_ofReal ?_
-        have := binomSfGe_mono hθr0 (hle1 _) hr (N + 1) C.m
-        rw [hτ]; linarith
-  push_neg at ha hb
-  have hpaths : T0.paths.length ≤ C.Lmax := by
-    obtain ⟨f, hf, hg⟩ := hc
-    have := G.grown_paths hg
-    omega
-  have hNT : (NT.card : ℝ) ≤ C.Lmax ^ 2 * Fintype.card α := by
-    have h1 : NT.card ≤ (keysF T0).card := Finset.card_filter_le _ _
-    have h2 : (keysF T0).card ≤ C.Lmax ^ 2 * Fintype.card α := by
-      simp only [keysF, Finset.card_product, Finset.card_univ]
-      have := (List.toFinset_card_le T0.paths).trans hpaths
-      calc _ ≤ C.Lmax * (Fintype.card α * C.Lmax) := by gcongr
-        _ = C.Lmax ^ 2 * Fintype.card α := by ring
-    exact_mod_cast h1.trans h2
+  push_neg at ha
   have hdis : D.real {x | disO x} ≤ εd' := by
-    have hsub : {x | disO x} ⊆ {x | ptO x} ∪ ⋃ pct ∈ NT, {x | recO pct x} := by
+    have hsub : {x | disO x} ⊆ {x | ptO x} ∪ recAt C cut s := by
       intro x hx
       rcases search_cases cut hx with h | ⟨pct, sp, h⟩
       · exact .inl h
-      · obtain ⟨hk, hne⟩ := rec_keys cut he h
-        exact .inr (Set.mem_biUnion (Finset.mem_filter.2 ⟨hk, hne⟩) ⟨sp, h⟩)
-    calc D.real {x | disO x} ≤ D.real ({x | ptO x} ∪ ⋃ pct ∈ NT, {x | recO pct x}) :=
-          measureReal_mono hsub
-      _ ≤ D.real {x | ptO x} + D.real (⋃ pct ∈ NT, {x | recO pct x}) := measureReal_union_le _ _
-      _ ≤ D.real {x | ptO x} + ∑ pct ∈ NT, D.real {x | recO pct x} :=
-          add_le_add le_rfl (measureReal_biUnion_finset_le _ _)
-      _ ≤ θpt' + NT.card * θr := by
-          refine add_le_add ha.le ?_
-          have := Finset.sum_le_card_nsmul NT (fun pct => D.real {x | recO pct x}) θr
-            fun pct hp => (hb pct hp).le
-          simpa [nsmul_eq_mul] using this
-      _ ≤ εd' := by nlinarith
+      · exact .inr ⟨pct, sp, h⟩
+    calc D.real {x | disO x} ≤ D.real ({x | ptO x} ∪ recAt C cut s) := measureReal_mono hsub
+      _ ≤ D.real {x | ptO x} + D.real (recAt C cut s) := measureReal_union_le _ _
+      _ ≤ εd' := by linarith
   calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | hS + 1 ≤ cnt (N + 1) disO xs} :=
         measure_mono fun xs h => (hincl h).2
     _ = ENNReal.ofReal (binomSfGe (N + 1) (D.real {x | disO x}) (hS + 1)) := by
@@ -1062,23 +1019,201 @@ theorem pot_step {s s' : TState α} {x : FreeMonoid α} (h : tallyStep C cut s x
 
 end Pot
 
+section Records
+
+variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
+
+open scoped Classical in
+theorem tally_pre_le (s : TState α) (x : FreeMonoid α) (p : List Bool) (c : α) (t : List Bool) :
+    (tallyPre C cut s x).tally p c t ≤ s.tally p c t
+      + (if ∃ sp, recordBy cut C.k (s.tree, s.edges) x = some ((p, c, t), sp) then 1 else 0) := by
+  unfold TState.tally
+  rcases tallyPre_recs cut C s x with ⟨-, h⟩ | ⟨p', c', t', sp, hr, h⟩
+  · rw [h]; omega
+  rw [h]
+  simp only [TState.addRec]
+  by_cases hpc : p = p' ∧ c = c'
+  · obtain ⟨rfl, rfl⟩ := hpc
+    simp only [Function.update_self, List.filter_append, List.length_append]
+    by_cases ht : t = t'
+    · subst ht
+      rw [if_pos ⟨sp, hr⟩]
+      have := List.length_filter_le (fun r : FreeMonoid α × List Bool => decide (r.2 = t)) [(sp, t)]
+      simp only [List.length_singleton] at this
+      omega
+    · have : ([(sp, t')].filter fun r : FreeMonoid α × List Bool => decide (r.2 = t)) = [] := by
+        simp [Ne.symm ht]
+      rw [this]
+      simp
+  · by_cases hp : p = p'
+    · subst hp
+      have hc : c ≠ c' := fun hc => hpc ⟨rfl, hc⟩
+      simp [Function.update_of_ne hc]
+    · simp [Function.update_of_ne hp]
+
+/-- With no edge violated, a probe's charge violates only its record's edge and target. -/
+theorem pre_viol {s : TState α} (hs : Settled C.m s) {x : FreeMonoid α} {p : List Bool} {c : α}
+    {t : List Bool} (hv : Violates C.m (tallyPre C cut s x) p c t) :
+    ∃ sp, recordBy cut C.k (s.tree, s.edges) x = some ((p, c, t), sp) := by
+  classical
+  by_contra hno
+  have htal := tally_pre_le C cut s x p c t
+  rw [if_neg hno, add_zero] at htal
+  obtain ⟨hp, hne, hle⟩ := hv
+  obtain ⟨htr, hc⟩ := tallyPre_cases cut C s x
+  refine hs p c t ⟨htr ▸ hp, ?_, hle.trans htal⟩
+  rcases hc with ⟨-, hed, -⟩ | ⟨-, -, -, p₁, c₁, e, hnone, -, hed⟩
+  · rwa [hed] at hne
+  · by_cases hq : (p, c) = (p₁, c₁)
+    · simp only [Prod.mk.injEq] at hq
+      obtain ⟨rfl, rfl⟩ := hq
+      rw [hnone]
+      simp
+    · rwa [hed, if_neg hq] at hne
+
+/-- A step at the same tree keeps every edge unviolated. -/
+theorem settled_step {s s' : TState α} {x : FreeMonoid α} (hs : Settled C.m s)
+    (h : tallyStep C cut s x = .inl s') (htr : s'.tree = s.tree) : Settled C.m s' := by
+  have htr₁ := (tallyPre_cases cut C s x).1
+  rcases tallyStep_cases cut C h with ⟨e, -, he⟩ | ⟨-, hst⟩
+  · cases he
+  rcases settleOne_cases cut C hst with ⟨he, hnv⟩ | ⟨p, c, t, hvi, he | ⟨he, -⟩⟩
+  · cases he; exact hnv
+  · cases he
+    rcases (fixEdge_cases cut C hvi).2 with ⟨hft, hr, -, -, hlt, w, hed⟩ | ⟨t₀, w₀, -, -, ht⟩
+    swap
+    · rw [ht, htr₁] at htr; exact absurd htr (DTree.splitAt_ne (htr₁ ▸ hvi.1))
+    obtain ⟨sp, hsp⟩ := pre_viol C cut hs hvi
+    have hone : ∀ q c' t', Violates C.m (tallyPre C cut s x) q c' t' → (q, c', t') = (p, c, t) := by
+      intro q c' t' hv'
+      obtain ⟨sp', hsp'⟩ := pre_viol C cut hs hv'
+      rw [hsp] at hsp'
+      simp only [Option.some.injEq, Prod.mk.injEq] at hsp'
+      obtain ⟨⟨rfl, rfl, rfl⟩, -⟩ := hsp'
+      rfl
+    intro q c' t' hv'
+    obtain ⟨hq, hne, hle⟩ := hv'
+    have htal : (fixEdge cut C.m (tallyPre C cut s x) p c t).tally q c' t'
+        = (tallyPre C cut s x).tally q c' t' := by
+      unfold TState.tally; rw [hr]
+    rw [htal] at hle
+    rw [hft] at hq
+    by_cases hqc : (q, c') = (p, c)
+    · simp only [Prod.mk.injEq] at hqc
+      obtain ⟨rfl, rfl⟩ := hqc
+      rw [hed, if_pos rfl] at hne
+      have htt : t' ≠ t := fun h => hne (by simp [h])
+      rcases he₀ : (tallyPre C cut s x).edges q c' with _ | ⟨t₀, w₀⟩
+      · have := hone q c' t' ⟨hq, by rw [he₀]; simp, hle⟩
+        simp only [Prod.mk.injEq] at this
+        exact htt this.2.2
+      · by_cases ht0 : t' = t₀
+        · subst ht0
+          have := hlt t' w₀ he₀
+          omega
+        · have := hone q c' t' ⟨hq, by rw [he₀]; simpa using Ne.symm ht0, hle⟩
+          simp only [Prod.mk.injEq] at this
+          exact htt this.2.2
+    · rw [hed, if_neg hqc] at hne
+      have := hone q c' t' ⟨hq, hne, hle⟩
+      simp only [Prod.mk.injEq] at this hqc
+      exact hqc ⟨this.1, this.2.1⟩
+  · cases he
+
+/-- The probes that record against the hypothesis of `s` at an edge and target of `K`. -/
+def recIn (K : DTree α → Finset (List Bool × α × List Bool)) (s : TState α) :
+    Set (FreeMonoid α) :=
+  {x | ∃ pct sp, recordBy cut C.k (s.tree, s.edges) x = some (pct, sp) ∧ pct ∈ K s.tree}
+
+/-- The records the edges and targets of `K` hold, each counted up to `m`. -/
+noncomputable def phi (K : DTree α → Finset (List Bool × α × List Bool)) (s : TState α) : ℕ :=
+  ∑ pct ∈ K s.tree, min (s.tally pct.1 pct.2.1 pct.2.2) C.m
+
+theorem phi_le (K : DTree α → Finset (List Bool × α × List Bool)) (s : TState α) :
+    phi C K s ≤ (K s.tree).card * C.m := by
+  unfold phi
+  refine (Finset.sum_le_card_nsmul _ _ C.m fun _ _ => min_le_right _ _).trans ?_
+  simp
+
+open scoped Classical in
+/-- A step at the same tree lowers no count, and its record at an edge and target of `K` raises
+one. -/
+theorem phi_step (K : DTree α → Finset (List Bool × α × List Bool)) {s s' : TState α}
+    {x : FreeMonoid α} (hs : Settled C.m s) (he : EdgesInto s.tree s.edges)
+    (h : tallyStep C cut s x = .inl s') (htr : s'.tree = s.tree) :
+    phi C K s + (if x ∈ recIn C cut K s then 1 else 0) ≤ phi C K s' := by
+  have htal : ∀ p c t, s'.tally p c t = (tallyPre C cut s x).tally p c t := by
+    intro p c t; unfold TState.tally; rw [tallyStep_recs C cut h htr]
+  have hmono : ∀ pct : List Bool × α × List Bool, min (s.tally pct.1 pct.2.1 pct.2.2) C.m
+      ≤ min (s'.tally pct.1 pct.2.1 pct.2.2) C.m := fun pct =>
+    min_le_min_right _ (by rw [htal]; exact tally_mono_pre C cut s x _ _ _)
+  unfold phi
+  rw [htr]
+  split_ifs with hx
+  · obtain ⟨⟨p, c, t⟩, sp, hsp, hk⟩ := hx
+    obtain ⟨hk', hne⟩ := rec_keys cut he hsp
+    have hp : p ∈ s.tree.paths := by
+      simp only [keysF, Finset.mem_product, List.mem_toFinset] at hk'
+      exact hk'.1
+    have hlt : s.tally p c t < C.m := by
+      by_contra hge
+      exact hs p c t ⟨hp, hne, not_lt.1 hge⟩
+    have hinc : s.tally p c t + 1 ≤ s'.tally p c t := by
+      have := tally_pre C cut s x p c t
+      rw [if_pos ⟨sp, hsp⟩] at this
+      rw [htal]; exact this
+    rw [← Finset.add_sum_erase _ _ hk, ← Finset.add_sum_erase _ _ hk]
+    have := Finset.sum_le_sum fun pct (_ : pct ∈ (K s.tree).erase (p, c, t)) => hmono pct
+    have : min (s.tally p c t) C.m + 1 ≤ min (s'.tally p c t) C.m := by
+      simp only [min_eq_left hlt.le]; omega
+    simp only at this ⊢
+    omega
+  · rw [add_zero]
+    exact Finset.sum_le_sum fun pct _ => hmono pct
+
+/-- A step at the same tree keeps edges into its leaves, records at them and every edge
+unviolated, lowers no share of the potential, keeps the edges with the version, and otherwise
+lowers the potential with a fresh stretch. -/
+theorem same_step (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α}
+    (he : EdgesInto s.tree s.edges) (hr : RecsInto s) (hs : Settled C.m s)
+    (h : tallyStep C cut s x = .inl s') (htr : s'.tree = s.tree) :
+    EdgesInto s'.tree s'.edges ∧ RecsInto s' ∧ Settled C.m s' ∧ pot C s' ≤ pot C s
+      ∧ (s'.version = s.version → s'.edges = s.edges)
+      ∧ (s'.version ≠ s.version → pot C s' < pot C s ∧ s'.n = 0 ∧ s'.dis = 0) := by
+  obtain ⟨hpl, hpv⟩ := pot_step C cut h htr
+  rcases (tallyStep_spec cut C hm he hr).1 _ h with ⟨-, he', hr'⟩ |
+    ⟨p₁, c₁, t₁, t₁', -, -, hp, hT', -⟩
+  swap
+  · exact absurd htr (by rw [hT']; exact DTree.splitAt_ne hp)
+  refine ⟨he', hr', settled_step C cut hs h htr, hpl, fun hv => ?_, hpv⟩
+  obtain ⟨rfl, -, -, -⟩ := tallyStep_same cut C h hv
+  rcases (tallyPre_cases cut C s x).2 with ⟨-, hed, -⟩ | ⟨hv', -⟩
+  · exact hed
+  · obtain ⟨-, -, -, hv''⟩ := tallyStep_same cut C h hv
+    omega
+
+end Records
+
 section Open
 
 variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : TallyCfg)
-  (cut : FreeMonoid α → Option Bool) (S : ℕ)
+  (cut : FreeMonoid α → Option Bool) (S : ℕ) (D : Measure (FreeMonoid α)) (θr : ℝ)
 
 open scoped Classical in
-/-- A probe of a stretch with `b` probes left: it continues at the same version, or the stretch
-ends at a new version of the same tree (`some true`), with the sub-round (`some false`), or out of
-probes (`none`). -/
-noncomputable def segV : TState α × ℕ → FreeMonoid α →
-    (TState α × ℕ) ⊕ (Option Bool × (TState α × ℕ))
-  | (s, 0), _ => .inr (none, (s, 0))
-  | (s, b + 1), x => match tallyStep C cut s x with
-    | .inr (_, s') => .inr (some false, (s', b))
+/-- A probe of a stretch with `b` probes left, of which `r` are to be at hypotheses recording at
+least `θr` of the time: it continues at the same version, or the stretch ends at a new version of
+the same tree (`some true`), with the sub-round (`some false`), or out of probes (`none`). -/
+noncomputable def segR : TState α × ℕ × ℕ → FreeMonoid α →
+    (TState α × ℕ × ℕ) ⊕ (Option Bool × (TState α × ℕ × ℕ))
+  | (s, 0, r), _ => .inr (none, (s, 0, r))
+  | (s, b + 1, r), x =>
+    match tallyStep C cut s x with
+    | .inr (_, s') => .inr (some false, (s', b, r))
     | .inl s' => if s'.tree = s.tree then
-        if s'.version = s.version then .inl (s', b) else .inr (some true, (s', b))
-      else .inr (some false, (s', b))
+        if s'.version = s.version then
+          .inl (s', b, if θr ≤ D.real (recAt C cut s) then r - 1 else r)
+        else .inr (some true, (s', b, if θr ≤ D.real (recAt C cut s) then r - 1 else r))
+      else .inr (some false, (s', b, r))
 
 theorem segVal_succ' {K S' : Type*} (seg : S' → FreeMonoid α → S' ⊕ (K × S'))
     (w : K → S' → ℕ → ENNReal) (s : S') (j T : ℕ) (xs : Fin (T + 1) → FreeMonoid α) :
@@ -1087,12 +1222,22 @@ theorem segVal_succ' {K S' : Type*} (seg : S' → FreeMonoid α → S' ⊕ (K ×
   simp only [segVal]
   rcases seg s (xs 0) with _ | ⟨_, _⟩ <;> rfl
 
-theorem termLevel_nonneg {nEnd hP hS : ℕ} {θpt' θr εd' : ℝ} (hθpt'0 : 0 ≤ θpt')
-    (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) :
-    0 ≤ termLevel C nEnd hP hS θpt' θr εd' := by
+theorem segVal_le {K S' : Type*} (seg : S' → FreeMonoid α → S' ⊕ (K × S'))
+    (w : K → S' → ℕ → ENNReal) {M : ENNReal} (h1 : 1 ≤ M) (hw : ∀ k s T, w k s T ≤ M) :
+    ∀ j s T xs, segVal seg w s j T xs ≤ M
+  | 0, _, _, _ => by simpa [segVal] using h1
+  | _ + 1, _, 0, _ => by simpa [segVal] using h1
+  | j + 1, s, T + 1, xs => by
+    rw [segVal_succ']
+    rcases seg s (xs 0) with s' | ⟨k, s'⟩
+    · exact segVal_le seg w h1 hw j s' T _
+    · exact hw k s' T
+
+theorem termLevel_nonneg {nEnd hP hS : ℕ} {θpt' εd' : ℝ} (hθpt'0 : 0 ≤ θpt')
+    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) :
+    0 ≤ termLevel nEnd hP hS θpt' εd' := by
   unfold termLevel
   have t1 := binomSfGe_le_one (n := nEnd) hθpt'0 hθpt'1 hP
-  have t2 := binomSfGe_le_one (n := nEnd) hθr0 hθr1 C.m
   have t3 := binomSfGe_nonneg (n := nEnd) hεd'0 hεd'1 (hS + 1)
   linarith
 
@@ -1135,152 +1280,36 @@ theorem no_bad (hm : 0 < C.m) (hLmax : Fintype.card σ + S + 3 ≤ C.Lmax) :
       omega
 
 open scoped Classical in
-/-- A sub-round from a fresh hypothesis of potential at most `v` is unfinished after
-`(v + 1) nEnd` probes with chance at most `(v + 1)` times `termLevel`. -/
-theorem open_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
-    {θpt' θr εd' : ℝ} (hm : 0 < C.m)
-    (hLmax : Fintype.card σ + S + 2 ≤ C.Lmax) (hn₀ : C.n₀ ≤ nEnd)
+/-- A sub-round from a fresh hypothesis of potential at most `v`, with the edges and targets of `K`
+holding `phi` records, is unfinished after `(v + 1) nEnd + r` probes with chance at most `v + 1`
+times `termLevel`, and that of fewer than the `|K| m - phi` more records `K` can hold over `r`
+probes at rate `p`, given each hypothesis recording at least `θr` of the time records at `K` with
+chance at least `p`. -/
+theorem open_le [IsProbabilityMeasure D] {nEnd hP hS : ℕ} {θpt' εd' p : ℝ}
+    (K : DTree α → Finset (List Bool × α × List Bool)) (hm : 0 < C.m) (hn₀ : C.n₀ ≤ nEnd)
     (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'1 : εd' ≤ 1)
-    (hcond : θpt' + C.Lmax ^ 2 * Fintype.card α * θr ≤ εd')
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hθr0 : 0 ≤ θr) (hεd'1 : εd' ≤ 1)
+    (hcond : θpt' + θr ≤ εd') (hp0 : 0 ≤ p) (hp1 : p ≤ 1)
     (hhP : binomSfGe nEnd C.θpt hP < C.a) (hhS : 1 - binomSfGe nEnd C.εd (hS + 1) < C.a)
-    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS) :
-    ∀ (v : ℕ) (s : TState α) (B T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
-      RecsInto s → s.n = 0 → s.dis = 0 → pot C s ≤ v → (v + 1) * nEnd ≤ B → B ≤ T →
+    (hhS' : C.a ≤ binomSfGe nEnd C.εd hS)
+    (hK : ∀ s : TState α, G.InClass S s.tree → EdgesInto s.tree s.edges →
+      θr ≤ D.real (recAt C cut s) → p ≤ D.real (recIn C cut K s)) :
+    ∀ (v : ℕ) (s : TState α) (r B T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
+      RecsInto s → Settled C.m s → s.n = 0 → s.dis = 0 → pot C s ≤ v →
+      (v + 1) * nEnd + r ≤ B → B ≤ T →
       (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
-        ≤ ENNReal.ofReal ((v + 1) * termLevel C nEnd hP hS θpt' θr εd') := by
-  have hεd'0 : 0 ≤ εd' := by
-    have : 0 ≤ (C.Lmax : ℝ) ^ 2 * Fintype.card α * θr := by positivity
-    linarith
-  set τ := termLevel C nEnd hP hS θpt' θr εd'
-  have hτ0 : 0 ≤ τ := termLevel_nonneg C hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1
-  intro v
-  induction v using Nat.strong_induction_on with
-  | _ v ih =>
-  intro s B T hc he hr hn hd hpot hB hBT
-  set Inv : TState α → Prop := fun s' => G.InClass S s'.tree ∧ EdgesInto s'.tree s'.edges
-    ∧ RecsInto s' ∧ s'.n = 0 ∧ s'.dis = 0
-  set w : Option Bool → TState α × ℕ → ℕ → ENNReal := fun k sb T' => match k with
-    | none => 1
-    | some false => 0
-    | some true => if Inv sb.1 ∧ pot C sb.1 < v ∧ v * nEnd ≤ sb.2 ∧ sb.2 ≤ T' then
-        ENNReal.ofReal (v * τ) else 1
-  set F : TState α × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
-    fun sb T xs => subEnd G C cut sb.1 sb.2 T xs = .unfinished
-  set V : Option Bool → TState α × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
-    fun k sb T xs => match k with
-    | none => True
-    | some false => False
-    | some true => F sb T xs
-  have hF : ∀ sb T x xs, F sb (T + 1) (Fin.cons x xs)
-      ↔ (segV C cut sb x).elim (fun sb' => F sb' T xs) fun p => V p.1 p.2 T xs := by
-    rintro ⟨s', b⟩ T' x xs
-    rcases b with _ | b
-    · simp [F, V, segV, subEnd]
-    simp only [F, V]
-    rw [subEnd_succ]
-    simp only [Fin.cons_zero, Fin.tail_cons, subSeg, segV]
-    rcases hst : tallyStep C cut s' x with s'' | ⟨e, s''⟩
-    · simp only []
-      by_cases htr : s''.tree = s'.tree
-      · by_cases hv : s''.version = s'.version
-        · simp [htr, hv]
-        · simp [htr, hv]
-      · simp only [htr, if_false, Sum.elim_inr]
-        cases decide (∃ p d, s''.tree = s'.tree.splitAt d p ∧ G.GenuineSplit s'.tree p d) <;>
-          simp [subKind]
-    · simp only [Sum.elim_inr]
-      rcases e with _ | _ | _ | _ | _ <;> simp [subKind]
-  have hV : ∀ k sb T', (Measure.pi fun _ : Fin T' => D) {xs | V k sb T' xs} ≤ w k sb T' := by
-    rintro (_ | _ | _) ⟨s', b⟩ T'
-    · simp only [V, w, Set.setOf_true]; exact prob_le_one
-    · simp [V, w]
-    · simp only [V, w]
-      split_ifs with hcond
-      · obtain ⟨⟨hc', he', hr', hn', hd'⟩, hlt, hb, hbT⟩ := hcond
-        have := ih (v - 1) (by omega) s' b T' hc' he' hr' hn' hd' (by omega)
-          (by rw [show v - 1 + 1 = v by omega]; exact hb) hbT
-        rwa [show ((v - 1 : ℕ) : ℝ) + 1 = v by
-          rw [Nat.cast_sub (by omega)]; push_cast; ring] at this
-      · exact prob_le_one
-  have hseg := seg_le D (segV C cut) F V w hF hV T (s, B) nEnd
-  have hpt : ∀ j (s' : TState α) (b T' : ℕ) (xs : Fin T' → FreeMonoid α), G.InClass S s'.tree →
-      EdgesInto s'.tree s'.edges → RecsInto s' → pot C s' ≤ v → v * nEnd + j ≤ b → b ≤ T' →
-      segVal (segV C cut) w (s', b) j T' xs
-        ≤ (if KeepV C cut s' j T' xs then 1 else 0) + ENNReal.ofReal (v * τ) := by
-    intro j
-    induction j with
-    | zero =>
-      intro s' b T' xs _ _ _ _ _ _
-      simp [segVal, KeepV]
-    | succ j ihj =>
-      intro s' b T' xs hc' he' hr' hpot' hb hbT
-      rcases b with _ | b
-      · omega
-      rcases T' with _ | T'
-      · omega
-      rw [segVal_succ']
-      rcases hst : tallyStep C cut s' (xs 0) with s'' | ⟨e, s''⟩
-      · by_cases htr : s''.tree = s'.tree
-        · obtain ⟨hpl, hpv⟩ := pot_step C cut hst htr
-          rcases (tallyStep_spec cut C hm he' hr').1 _ hst with ⟨-, he'', hr''⟩ |
-            ⟨p₁, c₁, t₁, t₁', -, -, hp, hT', -⟩
-          swap
-          · exact absurd htr (by rw [hT']; exact DTree.splitAt_ne hp)
-          by_cases hv : s''.version = s'.version
-          · have hsv : segV C cut (s', b + 1) (xs 0) = .inl (s'', b) := by
-              simp [segV, hst, htr, hv]
-            rw [hsv]
-            simp only [Sum.elim_inl]
-            refine (ihj s'' b T' (Fin.tail xs) (htr ▸ hc') he'' hr'' (hpl.trans hpot')
-              (by omega) (by omega)).trans (add_le_add ?_ le_rfl)
-            split_ifs with h1 h2
-            · exact le_rfl
-            · exact absurd ⟨s'', hst, hv, h1⟩ h2
-            · exact zero_le
-            · exact le_rfl
-          · have hsv : segV C cut (s', b + 1) (xs 0) = .inr (some true, (s'', b)) := by
-              simp [segV, hst, htr, hv]
-            rw [hsv]
-            simp only [Sum.elim_inr, w]
-            obtain ⟨hlt, hn'', hd''⟩ := hpv hv
-            rw [if_pos ⟨⟨htr ▸ hc', he'', hr'', hn'', hd''⟩, by omega, by omega, by omega⟩]
-            exact le_add_self
-        · have hsv : segV C cut (s', b + 1) (xs 0) = .inr (some false, (s'', b)) := by
-            simp [segV, hst, htr]
-          rw [hsv]
-          simp [w]
-      · have hsv : segV C cut (s', b + 1) (xs 0) = .inr (some false, (s'', b)) := by
-          simp [segV, hst]
-        rw [hsv]
-        simp [w]
-  have hkeep := keep_le C cut G D hm hLmax hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1
-    hεd'1 hcond hhP hhS hhS' hc he hn hd T
-  have hB' : v * nEnd + nEnd ≤ B := by
-    have : (v + 1) * nEnd = v * nEnd + nEnd := by ring
-    omega
-  calc (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s B T xs = .unfinished}
-      = (Measure.pi fun _ : Fin T => D) {xs | F (s, B) T xs} := rfl
-    _ ≤ _ := hseg
-    _ ≤ ∫⁻ xs, ((if KeepV C cut s nEnd T xs then 1 else 0) + ENNReal.ofReal (v * τ))
-          ∂(Measure.pi fun _ : Fin T => D) :=
-        lintegral_mono fun xs => hpt nEnd s B T xs hc he hr hpot hB' hBT
-    _ = (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
-          + ENNReal.ofReal (v * τ) := by
-        rw [lintegral_add_left (measurable_of_countable _), lintegral_ite_one, lintegral_const,
-          measure_univ, mul_one]
-    _ ≤ ENNReal.ofReal τ + ENNReal.ofReal (v * τ) := add_le_add hkeep le_rfl
-    _ = ENNReal.ofReal ((v + 1) * τ) := by
-        rw [← ENNReal.ofReal_add hτ0 (by positivity)]; ring_nf
+        ≤ ENNReal.ofReal ((v + 1) * termLevel nEnd hP hS θpt' εd'
+          + (1 - binomSfGe r p ((K s.tree).card * C.m - phi C K s + 1))) := by
+  sorry
 
 end Open
 
 open scoped Classical in
 theorem sub_round_holds : SubRound := by
-  intro α _ _ σ _ G rd D _ C S nEnd hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax hn₀ hθpt0
-    hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'1 hcond hhP hhS hhS' hE
+  intro α _ _ σ _ G rd D _ C S nEnd nRec hP hS ρ θg θgs θgpt θpt' θr εd' hρ0 hρ1 hm hLmax hn₀
+    hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'1 hcond hhP hhS hhS' hE
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  set Tsub := subT C (Fintype.card α) nEnd
+  set Tsub := subT C (Fintype.card α) nEnd nRec
   intro s hs T hT
   obtain ⟨hc, he, hrecs, hn, hd⟩ := hs
   have hr : RecsInto s := fun q c r h => by rw [hrecs q c] at h; cases h
@@ -1288,6 +1317,11 @@ theorem sub_round_holds : SubRound := by
     obtain ⟨f, hf, hg⟩ := hc
     have := G.grown_paths hg
     omega
+  have hcard : (keysF s.tree).card ≤ C.Lmax ^ 2 * Fintype.card α := by
+    simp only [keysF, Finset.card_product, Finset.card_univ]
+    have := (List.toFinset_card_le s.tree.paths).trans hpaths
+    calc _ ≤ C.Lmax * (Fintype.card α * C.Lmax) := by gcongr
+      _ = C.Lmax ^ 2 * Fintype.card α := by ring
   constructor
   · rw [ENNReal.ofReal_zero, zero_mul, zero_add]
     have hsub : {xs : Fin T → FreeMonoid α | subEnd G C cut s Tsub T xs = .fake}
@@ -1302,11 +1336,6 @@ theorem sub_round_holds : SubRound := by
         {xs | EvF G C cut S pct s Tsub C.m T xs} ≤ ENNReal.ofReal (binomSfGe Tsub ρ C.m) :=
       fun pct _ => fake_bin G C cut S D pct hρ0 hρ1
         (fun s' hc' he' => hE.spurious s'.tree s'.edges hc' he' pct) T Tsub s C.m
-    have hcard : (keysF s.tree).card ≤ C.Lmax ^ 2 * Fintype.card α := by
-      simp only [keysF, Finset.card_product, Finset.card_univ]
-      have := (List.toFinset_card_le s.tree.paths).trans hpaths
-      calc _ ≤ C.Lmax * (Fintype.card α * C.Lmax) := by gcongr
-        _ = C.Lmax ^ 2 * Fintype.card α := by ring
     have hsf := binomSfGe_nonneg (n := Tsub) hρ0 hρ1 C.m
     calc _ ≤ ∑ pct ∈ keysF s.tree, ENNReal.ofReal (binomSfGe Tsub ρ C.m) := Finset.sum_le_sum hb
       _ = ENNReal.ofReal ((keysF s.tree).card * binomSfGe Tsub ρ C.m) := by
@@ -1326,7 +1355,26 @@ theorem sub_round_holds : SubRound := by
       refine (pot_le C s).trans ?_
       unfold subVersions
       gcongr
-    exact open_le G C cut S D hm (by omega) hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1
-      hεd'1 hcond hhP hhS hhS' _ s Tsub T hc he hr hn hd hpot le_rfl hT
+    have hset : Settled C.m s := fun p c t hv => by
+      have := hv.2.2
+      simp [TState.tally, hrecs] at this
+      omega
+    have hphi : phi C keysF s = 0 := by simp [phi, TState.tally, hrecs]
+    have hK : ∀ s' : TState α, G.InClass S s'.tree → EdgesInto s'.tree s'.edges →
+        θr ≤ D.real (recAt C cut s') → θr ≤ D.real (recIn C cut keysF s') := by
+      intro s' _ he' h
+      refine h.trans (measureReal_mono fun x hx => ?_)
+      obtain ⟨pct, sp, h'⟩ := hx
+      exact ⟨pct, sp, h', (rec_keys cut he' h').1⟩
+    refine (open_le G C cut S D θr keysF hm hn₀ hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hεd'1
+      hcond hθr0 hθr1 hhP hhS hhS' hK _ s nRec Tsub T hc he hr hset hn hd hpot le_rfl hT).trans ?_
+    refine ENNReal.ofReal_le_ofReal ?_
+    rw [hphi, Nat.sub_zero]
+    unfold subOpen
+    have : binomSfGe nRec θr (C.Lmax ^ 2 * Fintype.card α * C.m + 1)
+        ≤ binomSfGe nRec θr ((keysF s.tree).card * C.m + 1) :=
+      binomSfGe_antitone' hθr0 hθr1 (by have := Nat.mul_le_mul_right C.m hcard; omega)
+    push_cast
+    linarith
 
 end OrthoDFA
