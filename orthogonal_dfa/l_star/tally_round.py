@@ -39,15 +39,16 @@ L = 40, |Σ| = 4, a 30-state target and S = 0:
 * θ.  ``θe ≥ 4θg`` with ``θg ≥ 3(|Q| + S + 1)θ``, so θe = 0.1 holds only for read-states
   undecided at most θ = 2.7e-4 of the time to count as good.
 * Threshold ratios.  ``HarvestGood`` needs ``exc > 4L(1 + 4θg Lmax) log(1/a)``, over
-  1474 here, against exc = 10; and ``P(Bin(n, φpt/2) ≥ ⌈φpt n⌉) ≤ a`` from ``n₀`` on,
-  0.14 at φpt = 0.01, n₀ = 30, against a = 1e-4.
+  1105 here, against exc = 10; and ``P(Bin(n, φpt/2) ≥ ⌈φpt n⌉) ≤ a`` from ``n₀`` on,
+  0.14 at φpt = 0.01, n₀ = 30, against a = 1e-3.
 * κ.  ``FakeRace`` needs ``ν ≥ ηκ`` roughly, and charges ``Wν(θe(L + 1) + 2 Lmax |Σ| φe)``
   against ``η m``: at the band's κ = 4e-3 and m = 5 its bound exceeds 1 past about
   W = 100 probes.
 * Probe budget.  ``TallyRound`` needs ``T ≥ (S + |Q| + 1) subT`` with
-  ``subT ≥ (2 Lmax |Σ| + 1) nEnd``, about 1e7 probes at the nEnd = 460 that success
+  ``subT ≥ (2 Lmax |Σ| + 1) nEnd``, about 8e6 probes at the nEnd = 342 that success
   at εd = 0.02 needs; the cap is 5e4.  Its union bound
-  ``(2^(Lmax+1) |Σ| + T + 3T²) a`` exceeds 1 for any T.
+  ``(2^(Lmax+1) |Σ| + T + 3T²) a`` exceeds 1 for any T, and a = 1e-3, raised from
+  1e-4 because it shortens the stretch success needs, is ten times further off.
 * Counting.  ``count_reads`` is off: per read with first-read attribution is not proved.
   At k = 0 its failure is the p₀ = 1 regime the prefix-mass condition excludes: every
   probe shares the two one-letter prefixes, so a round whose one-letter prefixes read
@@ -116,7 +117,7 @@ def tally_config(acc_threshold: float) -> TallyConfig:
         edge_rate=0.1,
         middle_rate=0.2,
         disagreement_rate=1 - acc_threshold,
-        level=1e-4,
+        level=1e-3,
         first_look=30,
         edge_excess=10,
         edge_traffic=0.01,
