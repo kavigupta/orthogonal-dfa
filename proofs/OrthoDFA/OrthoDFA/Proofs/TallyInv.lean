@@ -72,10 +72,10 @@ theorem tallyStart_inv (hL : 2 ≤ C.Lmax) : TallyInv G C 0 (tallyStart : TState
 theorem TrueRec.splitAt {T : DTree α} {p : List Bool} (hp : p ∈ T.paths) (d : FreeMonoid α)
     {q : List Bool} {c : α} {t : List Bool} {sp : FreeMonoid α} (h : G.TrueRec T (q, c, t) sp)
     (hq : q ≠ p) (ht : t ≠ p) : G.TrueRec (T.splitAt d p) (q, c, t) sp := by
-  obtain ⟨g₁, l₁, g₂, l₂⟩ := h
+  obtain ⟨l₁, l₂⟩ := h
   have h1 := (G.leafOf_splitAt d T p hp _).1 (by rw [l₁]; exact hq)
   have h2 := (G.leafOf_splitAt d T p hp _).1 (by rw [l₂]; exact ht)
-  exact ⟨h1.2.2 g₁, h1.1.trans l₁, h2.2.2 g₂, h2.1.trans l₂⟩
+  exact ⟨h1.trans l₁, h2.trans l₂⟩
 
 open scoped Classical in
 theorem exists_trueRec {T : DTree α} {q : List Bool} {c : α} {t : List Bool}

@@ -10,14 +10,14 @@ the reads. A read-state is good where it is undecided at most `1.5θ` of the tim
 minority side at most `ε`. A state's true leaf is where its reads' majority sides lead, and it is
 path-good where every read on the way is good.
 
-A tree is genuine where it grows from the root's cut by splits that each separate two path-good
-states at the split leaf, with good reads of the new midfix on different sides. The noise event
+A tree is genuine where it grows from the root's cut by splits that each separate two states whose
+true leaf is the split leaf, their reads of the new midfix on different sides. The noise event
 `TallyE` is a hypothesis on `rd`, quantified over genuine trees and edges into their leaves:
 * `clean`: a path-good transition `τ = (q, c)` whose boundary (where the probe's search stops,
   read on majority sides, at `τ`) has mass at least `q₀` gets clean records, at `τ`'s true leaves,
   at least `c₀` times that mass;
 * `spurious`: at each edge and target, probes whose record there is not true (its prefix or its
-  successor not path-good, or off their true leaves) have mass at most `ρ`;
+  successor off its true leaf) have mass at most `ρ`;
 * `goodEdge`: at each edge, the undecided reads at good read-states charged to it average at most
   `θg` times the reads charged to it;
 * `goodStart`: start-undecided outcomes at good read-states have mass at most `θgs`.
@@ -77,11 +77,10 @@ def PathGood : DTree α → σ → Prop
 /-- The cut that reads every string on its state's side. -/
 def trueCut (z : FreeMonoid α) : Option Bool := some (G.side (G.M.eval z.toList))
 
-/-- Splitting the leaf `p` on `d` separates two path-good states there, with good reads of `d` on
-different sides. -/
+/-- Splitting the leaf `p` on `d` separates two states whose true leaf is `p`, their reads of `d`
+on different sides. -/
 def GenuineSplit (T : DTree α) (p : List Bool) (d : FreeMonoid α) : Prop :=
-  ∃ q₁ q₂, G.PathGood T q₁ ∧ G.PathGood T q₂ ∧ G.leafOf T q₁ = p ∧ G.leafOf T q₂ = p
-    ∧ G.Good (G.at' q₁ d) ∧ G.Good (G.at' q₂ d) ∧ G.side (G.at' q₁ d) ≠ G.side (G.at' q₂ d)
+  ∃ q₁ q₂, G.leafOf T q₁ = p ∧ G.leafOf T q₂ = p ∧ G.side (G.at' q₁ d) ≠ G.side (G.at' q₂ d)
 
 /-- A tree grown from the root's cut by genuine splits. -/
 inductive Genuine : DTree α → Prop
@@ -89,11 +88,10 @@ inductive Genuine : DTree α → Prop
   | split {T : DTree α} {p : List Bool} {d : FreeMonoid α} :
       Genuine T → G.GenuineSplit T p d → Genuine (T.splitAt d p)
 
-/-- A record of the prefix `sp` at the edge `(p, c)` with target `t` is true: `sp` and its
-successor are path-good, at the leaves `p` and `t`. -/
+/-- A record of the prefix `sp` at the edge `(p, c)` with target `t` is true: the true leaves of
+`sp` and its successor are `p` and `t`. -/
 def TrueRec (T : DTree α) (pct : List Bool × α × List Bool) (sp : FreeMonoid α) : Prop :=
-  G.PathGood T (G.M.eval sp.toList) ∧ G.leafOf T (G.M.eval sp.toList) = pct.1
-    ∧ G.PathGood T (G.M.eval (sp * FreeMonoid.of pct.2.1).toList)
+  G.leafOf T (G.M.eval sp.toList) = pct.1
     ∧ G.leafOf T (G.M.eval (sp * FreeMonoid.of pct.2.1).toList) = pct.2.2
 
 /-- `τ = (q, c)`'s boundary: read on majority sides, the probe's search stops at the edge out of
