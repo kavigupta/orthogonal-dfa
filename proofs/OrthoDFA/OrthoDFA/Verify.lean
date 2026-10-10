@@ -3,6 +3,7 @@ import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.RandomRound
+import OrthoDFA.Proofs.EpsRound
 
 /-!
 # The theorem
@@ -10,7 +11,8 @@ import OrthoDFA.Proofs.RandomRound
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
 `OrthoDFA.FamilyRead`, the idealized round's, stated in `OrthoDFA.IdealRound`, and the round's
-with random reads, stated in `OrthoDFA.RandomRound`.
+with random reads, stated in `OrthoDFA.RandomRound`, and with rare wrong ones, in
+`OrthoDFA.EpsRound`.
 -/
 
 namespace OrthoDFA
@@ -35,5 +37,9 @@ theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect
 theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCorrect_holds
 
 #print axioms random_round_correct
+
+theorem eps_round_correct : Random.EpsRoundCorrect := Random.epsRoundCorrect_holds
+
+#print axioms eps_round_correct
 
 end OrthoDFA
