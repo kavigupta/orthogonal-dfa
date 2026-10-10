@@ -334,10 +334,9 @@ theorem edgeReadsBy_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMono
   simp only [List.length_map, smul_eq_mul]
   exact Nat.mul_le_mul_right _ ((List.length_filter_le _ _).trans (siftsBy_length_le cut))
 
-theorem edgeUndecBy_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    (e : List Bool × α) (P : FreeMonoid α → Prop) [DecidablePred P] :
-    edgeUndecBy cut t edges k x e P ≤ x.toList.length :=
-  (List.length_filter_le _ _).trans (siftsBy_length_le cut)
+theorem edgeHarvBy_length_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (e : List Bool × α) : (edgeHarvBy cut t edges k x e).length ≤ x.toList.length :=
+  (List.length_filterMap_le _ _).trans (siftsBy_length_le cut)
 
 end Walk
 

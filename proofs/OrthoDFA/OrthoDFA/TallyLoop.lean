@@ -13,21 +13,21 @@ disagreement as `sifting.read` does (`probeBy`, whose bisection steps past an un
 whose neighbours read alike). A clean disagreement records, at the edge it crosses, the probe's
 prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns it.
 
-Counts run over a stretch of probes, which starts afresh whenever the tree or the edges change:
-its probes, start-undecided outcomes, decided disagreements (edges, pairs and triples), and for
-each edge the reads charged to it and how many were undecided. Every position a probe sifts past
-its start, the bisection's stepped-past middles included, charges its reads to an edge: the walk's
-edge out of that position, or, where there is none, the walk's last edge. After every probe:
+Each place keeps its count over the whole round: the start, its undecided reads' strings, and
+each edge, the reads charged to it and the strings of those that were undecided. Every position a
+probe sifts past its start, the bisection's stepped-past middles included, charges its reads to an
+edge: the walk's edge out of that position, or, where there is none, the walk's last edge. The
+disagreement rate is counted over a stretch, which starts afresh whenever the tree or the edges
+change. After every probe:
 * the start-undecided rate above `θs`, or an edge's undecided reads exceeding `θe` of its reads
-  by `exc`, ends the round with a harvest there;
+  by `exc` of them, ends the round with a harvest there;
 * the disagreement rate settling below `εd` ends it in success;
-* otherwise the edges settle. Where an edge has `m` records at a target it does not point at, its
-  leaf splits on the letter and the midfix where that target and the current one part if the
-  current one also has `m`, and otherwise it is redirected there. A split drops the records at
-  the leaf and into it, clears the edges out of it and re-sifts the witnesses of those into it.
+* otherwise one edge is fixed. Where an edge has `m` records at a target it does not point at,
+  its leaf splits on the letter and the midfix where that target and the current one part if the
+  current one also has `m`, and otherwise it is redirected there. A split drops every record,
+  clears the edges out of its leaf and re-sifts the witnesses of those into it.
 
-A tree past `Lmax` leaves, or edges unsettled after `fuel` fixes, end the round failed, and so
-does running out of probes.
+A tree past `Lmax` leaves ends the round failed, and so does running out of probes.
 -/
 
 namespace OrthoDFA
@@ -165,11 +165,17 @@ def edgeReadsBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
   (((siftsBy cut t edges k x).filter fun i => posEdgeBy cut t edges k x i = some e).map
     fun i => (t.route cut (prefixOf x i)).1.length).sum
 
-/-- How many of them were undecided, at a string satisfying `P`. -/
-def edgeUndecBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (e : List Bool × α) (P : FreeMonoid α → Prop) [DecidablePred P] : ℕ :=
-  ((siftsBy cut t edges k x).filter fun i => decide (posEdgeBy cut t edges k x i = some e)
-    && (t.sift cut (prefixOf x i)).elim (fun _ => false) fun b => decide (P b)).length
+/-- The strings it read undecided there. -/
+def edgeHarvBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
+    (e : List Bool × α) : List (FreeMonoid α) :=
+  (siftsBy cut t edges k x).filterMap fun i =>
+    if posEdgeBy cut t edges k x i = some e then
+      (t.sift cut (prefixOf x i)).elim (fun _ => none) some
+    else none
+
+/-- The string it read undecided at its start, if any. -/
+def startHarvBy (t : DTree α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+  (t.sift cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
 
 /-- `retarget` through `cut`. -/
 def retargetBy (t' : DTree α) (p : List Bool) (edges : Edges α) : Edges α := fun q c =>
@@ -182,22 +188,23 @@ def retargetBy (t' : DTree α) (p : List Bool) (edges : Edges α) : Edges α := 
 end Probe
 
 /-- What the loop carries: the hypothesis, its version, each edge's records (the probe's prefix at
-the edge and the target leaf), and the stretch's counts: its probes, start-undecided outcomes,
-decided disagreements, and the reads charged to each edge and how many were undecided. -/
+the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
+its probes, the strings read undecided at the start, and for each edge the reads charged to it and
+the strings of those that were undecided. -/
 structure TState (α : Type*) where
   tree : DTree α
   edges : Edges α
   version : ℕ
   recs : List Bool → α → List (FreeMonoid α × List Bool)
   n : ℕ
-  starts : ℕ
   dis : ℕ
+  probes : ℕ
+  startH : List (FreeMonoid α)
   reads : List Bool → α → ℕ
-  und : List Bool → α → ℕ
+  harv : List Bool → α → List (FreeMonoid α)
 
 /-- `s` with a fresh stretch. -/
-def TState.fresh (s : TState α) : TState α :=
-  { s with n := 0, starts := 0, dis := 0, reads := fun _ _ => 0, und := fun _ _ => 0 }
+def TState.fresh (s : TState α) : TState α := { s with n := 0, dis := 0 }
 
 /-- The records of the edge `(p, c)` at the target `t`. -/
 def TState.tally (s : TState α) (p : List Bool) (c : α) (t : List Bool) : ℕ :=
@@ -222,17 +229,20 @@ def TState.addRec (s : TState α) (p : List Bool) (c : α) (r : FreeMonoid α ×
   let row := Function.update (s.recs p) c (s.recs p c ++ [r])
   { s with recs := Function.update s.recs p row }
 
-open scoped Classical in
-/-- `s` with a probe's reads charged to their edges. -/
-noncomputable def TState.charge (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : TState α)
+/-- `s` with a probe counted and its reads charged to their places. -/
+def TState.charge (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : TState α)
     (x : FreeMonoid α) : TState α :=
   { s with
+    n := s.n + 1
+    probes := s.probes + 1
+    startH := s.startH ++ startHarvBy cut s.tree k x
     reads := fun p c => s.reads p c + edgeReadsBy cut s.tree s.edges k x (p, c)
-    und := fun p c => s.und p c + edgeUndecBy cut s.tree s.edges k x (p, c) fun _ => True }
+    harv := fun p c => s.harv p c ++ edgeHarvBy cut s.tree s.edges k x (p, c) }
 
 /-- The first state: the root reads at `ε`, no edge learned. -/
 def tallyStart : TState α :=
-  ⟨.node 1 .leaf .leaf, fun _ _ => none, 0, fun _ _ => [], 0, 0, 0, fun _ _ => 0, fun _ _ => 0⟩
+  ⟨.node 1 .leaf .leaf, fun _ _ => none, 0, fun _ _ => [], 0, 0, 0, [], fun _ _ => 0,
+    fun _ _ => []⟩
 
 open scoped Classical in
 /-- Fix the edge `(p, c)` at the target `t` it has `m` records at: split where the current target
@@ -250,41 +260,36 @@ noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : T
         tree := t'
         version := s.version + 1
         edges := fun q e => if p <+: q then none else retargetBy cut t' p s.edges q e
-        recs := fun q e => if p <+: q then [] else (s.recs q e).filter (·.2 ≠ p) }
+        recs := fun _ _ => [] }
     else redirect
   | none => redirect
 
-/-- How the round ends: in success, a harvest at the start or at an edge, the tree past `Lmax`
-leaves, or the edges unsettled within `fuel` fixes. -/
+/-- How the round ends: in success, a harvest at the start or at an edge, or the tree past `Lmax`
+leaves. -/
 inductive TEnd (α : Type*)
   | success
   | harvestStart
   | harvest (e : List Bool × α)
   | tooBig
-  | stuck
 
 open scoped Classical in
-/-- The edges settle, fixing one edge at a time, within `fuel` fixes and `Lmax` leaves. -/
-noncomputable def settleEdges (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ) :
-    ℕ → TState α → TState α ⊕ (TEnd α × TState α)
-  | 0, s => if Settled m s then .inl s else .inr (.stuck, s)
-  | fuel + 1, s =>
-    if h : ∃ p c t, Violates m s p c t then
-      if Lmax < (fixEdge cut m s h.choose h.choose_spec.choose
-          h.choose_spec.choose_spec.choose).tree.paths.length then
-        .inr (.tooBig, fixEdge cut m s h.choose h.choose_spec.choose
-          h.choose_spec.choose_spec.choose)
-      else settleEdges cut m Lmax fuel
-        (fixEdge cut m s h.choose h.choose_spec.choose h.choose_spec.choose_spec.choose)
-    else .inl s
+/-- One edge with `m` records at a target it does not point at is fixed, within `Lmax` leaves. -/
+noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ) (s : TState α) :
+    TState α ⊕ (TEnd α × TState α) :=
+  if h : ∃ p c t, Violates m s p c t then
+    if Lmax < (fixEdge cut m s h.choose h.choose_spec.choose
+        h.choose_spec.choose_spec.choose).tree.paths.length then
+      .inr (.tooBig, fixEdge cut m s h.choose h.choose_spec.choose
+        h.choose_spec.choose_spec.choose)
+    else .inl (fixEdge cut m s h.choose h.choose_spec.choose h.choose_spec.choose_spec.choose)
+  else .inl s
 
-/-- The loop's settings: the start, the records a fix takes, the caps, the tests' thresholds,
-level and first look, and the excess `exc n` an edge's undecided reads need after `n` probes. -/
+/-- The loop's settings: the start, the records a fix takes, the cap, the tests' thresholds, level
+and first look, and the excess `exc r` an edge's undecided reads need after `r` reads. -/
 structure TallyCfg where
   k : ℕ
   m : ℕ
   Lmax : ℕ
-  fuel : ℕ
   θs : ℝ
   θe : ℝ
   εd : ℝ
@@ -293,16 +298,16 @@ structure TallyCfg where
   exc : ℕ → ℝ
 
 open scoped Classical in
-/-- A probe's outcome learned, recorded or counted, and its reads charged. -/
+/-- A probe's reads charged, and its outcome learned, recorded or counted. -/
 noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
     (x : FreeMonoid α) : TState α :=
-  let s₁ := { s.charge cut C.k x with n := s.n + 1 }
+  let s₁ := s.charge cut C.k x
   match probeBy cut s.tree s.edges C.k x with
   | .member u =>
     match x.toList[u.toList.length]?, s.tree.sift cut u with
     | some c, .inl p =>
       match s.tree.sift cut (u * FreeMonoid.of c), s.edges p c with
-      | .inl t, none => s.setEdge p c (t, u)
+      | .inl t, none => s₁.setEdge p c (t, u)
       | _, _ => s₁
     | _, _ => s₁
   | .edge _ _ =>
@@ -311,27 +316,27 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
     | some ((p, c, t), sp) => s₂.addRec p c (sp, t)
     | none => s₂
   | .pair _ | .triple _ => { s₁ with dis := s₁.dis + 1 }
-  | .startUndecided _ => { s₁ with starts := s₁.starts + 1 }
   | _ => s₁
 
 open scoped Classical in
-/-- The stretch's tests: the start-undecided rate above `θs`, an edge's undecided reads exceeding
-`θe` of its reads by `exc n`, or the disagreement rate settling below `εd`. -/
+/-- The tests: the start's undecided rate above `θs` over the round, an edge's undecided reads
+exceeding `θe` of its reads by `exc` of its reads, or the stretch's disagreement rate settling
+below `εd`. -/
 noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=
-  if rateSide C.θs C.a C.n₀ s.n s.starts = some true then some .harvestStart
-  else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.paths ∧ C.n₀ ≤ s.n
-      ∧ C.exc s.n ≤ (s.und e.1 e.2 : ℝ) - C.θe * s.reads e.1 e.2 then
+  if rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true then some .harvestStart
+  else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.paths
+      ∧ C.exc (s.reads e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.reads e.1 e.2 then
     some (.harvest h.choose)
   else if rateSide C.εd C.a C.n₀ s.n s.dis = some false then some .success
   else none
 
-/-- One probe: its outcome is learned, recorded or counted, the stretch's tests may end the round,
-and otherwise the edges settle. -/
+/-- One probe: its reads are charged and its outcome learned, recorded or counted, the tests may
+end the round, and otherwise one edge is fixed. -/
 noncomputable def tallyStep (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
     (x : FreeMonoid α) : TState α ⊕ (TEnd α × TState α) :=
   let s₁ := tallyPre C cut s x
   match tallyLook C s₁ with
   | some e => .inr (e, s₁)
-  | none => settleEdges cut C.m C.Lmax C.fuel s₁
+  | none => settleOne cut C.m C.Lmax s₁
 
 end OrthoDFA

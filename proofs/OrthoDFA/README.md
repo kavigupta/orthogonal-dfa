@@ -228,30 +228,21 @@ Two gaps between the model and Python:
   and the rarer of them at most `κ` times the undecided. `BandPasses` is the check the band
   selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`,
   `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
-- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`.
-  Probes walk from `k` as `sifting.read` does; a clean disagreement records its prefix and target
-  at its edge, `m` records at a target an edge does not point at redirect it or, where its own
-  target also has `m`, split its leaf, dropping the records at and into the leaf. Each sifted
-  position charges its reads, stepped-past middles included, to an edge; an edge's undecided reads
-  exceeding `θe` of its reads by `exc n`, or the start's undecided rate above `θs`, harvests; the
-  disagreement rate settling below `εd` succeeds; `Lmax` leaves, `fuel` fixes and running out of
-  probes fail. A genuine tree grows from the root's cut by splits separating two states whose true
-  leaf (where their reads' majority sides lead) is the split leaf, their reads of the new midfix on
-  different majority sides. `TallyE` says, over every genuine tree and edges into its leaves: a
-  path-good transition with boundary mass `q₀` (where the probe, read on majority sides, stops at
-  its edge: its search, or its walk where the edge is unlearned) gets clean records, or learns its
-  edge, at `c₀` times it; records that are not true have mass at most `ρH`, and those whose two
-  prefixes' reads are counted at light places at most `ρ`; good read-states' undecided reads
-  average at most `θg` of an edge's reads, and `θgs` at the start. A place is the start, for the
-  prefix at `k`, or the edge a later prefix's reads are charged to; it is heavy where its undecided
-  reads exceed the harvest's drift by `η` a probe (`θs + ηs` at the start). Proved in
-  `Proofs/TallyRound.lean`: with fewer than `m` records that are not true every split is genuine
-  (`Proofs/TallyInv.lean`), `pot` bounds the versions (`Proofs/TallyCount.lean`), and the probe
-  tails are `tally_fix_in_time`, the light records' `P(Bin(T, ρ) ≥ m₁)`, the heavy records'
-  `P(Bin((versionCap + 1) J, ρH) ≥ m₂)` (made only within the first `J` probes of a stretch at an
-  armed hypothesis, `hits_le_budget`), an armed stretch outlasting `J` probes (Hoeffding's
-  `heavyLevel` at an edge, the binomial at the start, `Proofs/TallyHeavy.lean`), and the stretch
-  tests' levels (`Proofs/TallyStretch.lean`).
+- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`, as
+  sub-rounds. Probes walk from `k` as `sifting.read` does; a clean disagreement records its prefix
+  and target at its edge. Each place keeps its count over the round: the start's undecided read
+  strings, and each edge's reads and undecided read strings; the start's undecided rate above
+  `θs`, or an edge's undecided reads exceeding `θe` of its reads by `exc` of them, harvests; the
+  stretch's disagreement rate settling below `εd` succeeds. Otherwise one edge with `m` records at
+  a target it does not point at is redirected there, or its leaf splits where its own target also
+  has `m`; a split drops every record. Each law reads its rarer decided side at most `κ` times as
+  often as it is undecided. A sub-round runs at one tree of the class (genuine splits and at most
+  `S` that are not) until a split, genuine (real) or not (fake), or the round ends. `SubRound`
+  bounds a sub-round's chance of being fake and of being bad or unfinished, given the noise event
+  `TallyE` and `Terminates`; `HarvestGood` bounds a harvest that is not mostly at read-states that
+  are not good. Proved in `Proofs/TallySub.lean`: `round_of_sub` composes sub-rounds (at most
+  `|Q|` real ones, failing past `S` fake ones) into `roundW`, and `tally_round_of` gives
+  `TallyRound` from `SubRound` and `HarvestGood`, which are not yet proved.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

@@ -1,40 +1,40 @@
 import OrthoDFA.TallyLoop
 
 /-!
-# One round of the tally loop
+# One round of the tally loop, as sub-rounds
 
 The family is the oracle: every string's read is accept, reject or undecided, independently
 across strings, with a law that depends only on the string's state in the target DFA
 (`FamilyReadTrichotomy`). `ReadModel` holds the target and those laws; `rd` is one draw of all
-the reads. A read-state is good where it is undecided at most `1.5θ` of the time and reads on its
-minority side at most `ε`. A state's true leaf is where its reads' majority sides lead, and it is
-path-good where every read on the way is good.
+the reads, each law reading its rarer decided side at most `κ` times as often as it is undecided.
+A read-state is good where it is undecided at most `1.5θ` of the time. A state's true leaf is
+where its reads' majority sides lead, and it is path-good where every read on the way is good.
 
-A tree is genuine where it grows from the root's cut by splits that each separate two states whose
-true leaf is the split leaf, their reads of the new midfix on different sides. The noise event
-`TallyE` is a hypothesis on `rd`, quantified over genuine trees and edges into their leaves:
+A tree in the class grows from the root's cut by splits each at a leaf, on a letter followed by
+the midfix where two leaves part: genuine ones, separating two states whose true leaf is the split
+leaf, their reads of the new midfix on different sides, and at most `S` that are not. The noise
+event `TallyE` is a hypothesis on `rd`, quantified over the class and edges into its leaves:
 * `clean`: a path-good transition `τ = (q, c)` whose boundary (where the probe, read on majority
   sides, stops at `τ`'s edge: its search, or its walk where the edge is unlearned) has mass at
   least `q₀` gets clean records at `τ`'s true leaves, or learns its edge, at least `c₀` times that
   mass;
-* `spurious`: probes whose record is not true (its prefix or its successor off its true leaf)
-  have mass at most `ρH`, and those of them whose two prefixes' reads are counted at places that
-  are not heavy at most `ρ`. A place is the start, for the prefix at `k`, or the edge a later
-  prefix's reads are charged to, where an undecided read there would be counted; the start is
-  heavy where it is left undecided `θs + ηs` of the time, an edge where its undecided reads exceed
-  `θe` of its reads by `η` a probe;
-* `goodEdge`: at each edge, the undecided reads at good read-states charged to it average at most
-  `θg` times the reads charged to it;
-* `goodStart`: start-undecided outcomes at good read-states have mass at most `θgs`.
+* `spurious`: at each edge and target, probes whose record there is not true (its prefix or its
+  successor off its true leaf) have mass at most `ρ`;
+* `goodEdge`, `goodStart`: good read-states' undecided reads average at most `θg` of an edge's
+  reads, and `θgs` a probe at the start.
 
-`TallyRound`: over `T` probes, the round reaches a state where no path-good transition's boundary
-has mass `q₀`, or ends in success, or ends in a harvest whose bad read-states' undecided reads
-exceed the threshold less the good ones' bound, but for chance at most that of not `TallyE`,
-`T · P(Bin(n, c₀q₀) < m)`, the tails of the records that are not true, and the harvest tests'
-levels over the round. A record that is not true reads at a light place, at rate `ρ` over all
-`T` probes, or at a heavy one. A heavy place arms its hypothesis, whose stretch then harvests
-within `J` probes but for `heavyLevel` or the start's binomial tail; so the heavy records are made
-over at most `(versionCap + 1) J` probes, at rate `ρH`.
+A sub-round starts at a tree of the class with no records and a fresh stretch, and lasts until the
+tree changes or the round ends: in a split that is genuine (real) or not (fake), in success or a
+harvest (good), or with the tree past `Lmax` leaves (bad). `SubRound`: a sub-round is fake with
+chance at most `subFake` and bad or unfinished within `subT` probes with chance at most
+`subOpen`, given `TallyE`, and `Terminates`: from a fresh hypothesis of the class whose
+path-good transitions are all fixed, the round ends or the hypothesis changes within `nEnd`
+probes but for chance `βterm`. `HarvestGood`: a harvest the round ends in at a tree of the class
+has most of its strings at read-states that are not good, but for chance
+`(2^(Lmax+1) |Σ| + T) a`. `TallyRound`: over `T ≥ (S + |Q| + 1) · subT` probes the round ends in
+success or such a harvest but for chance at most that of not `TallyE` or not `Terminates`, the
+fake sub-rounds outnumbering `S` before the real ones (at most `|Q|`) run out,
+`P(Bin(S + |Q| + 1, subFake) ≥ S + 1)`, `(S + |Q| + 1) · subOpen`, and the harvests' chance.
 -/
 
 noncomputable section
@@ -45,19 +45,14 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- The target, each of its states' read law, and what makes a read-state good. Every law is
-accept at most `ε` of the time, or reject at most `ε`, or undecided at least a third with accept
-or reject at most `ε₂` and the rarer of them at most `κ` times the undecided. -/
+/-- The target, each of its states' read law, and what makes a read-state good. Every law reads
+its rarer decided side at most `κ` times as often as it is undecided. -/
 structure ReadModel (α σ : Type*) where
   M : _root_.DFA α σ
   dist : σ → ARU → ℝ
   θ : ℝ
-  ε : ℝ
-  ε₂ : ℝ
   κ : ℝ
-  trich : ∀ r, dist r .accept ≤ ε ∨ dist r .reject ≤ ε
-    ∨ ((dist r .accept ≤ ε₂ ∨ dist r .reject ≤ ε₂) ∧ 1 / 3 ≤ dist r .undecided
-      ∧ min (dist r .accept) (dist r .reject) ≤ κ * dist r .undecided)
+  rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ κ * dist r .undecided
 
 namespace ReadModel
 
@@ -66,10 +61,7 @@ variable {σ : Type*} (G : ReadModel α σ)
 /-- The side a read-state reads on more often. -/
 def side (r : σ) : Bool := decide (G.dist r .reject < G.dist r .accept)
 
-/-- How often a read-state reads on its other side. -/
-def wrong (r : σ) : ℝ := if G.side r then G.dist r .reject else G.dist r .accept
-
-def Good (r : σ) : Prop := G.dist r .undecided ≤ 3 / 2 * G.θ ∧ G.wrong r ≤ G.ε
+def Good (r : σ) : Prop := G.dist r .undecided ≤ 3 / 2 * G.θ
 
 /-- The state a string in state `q` reads `w` at. -/
 def at' (q : σ) (w : FreeMonoid α) : σ := G.M.evalFrom q w.toList
@@ -92,11 +84,19 @@ on different sides. -/
 def GenuineSplit (T : DTree α) (p : List Bool) (d : FreeMonoid α) : Prop :=
   ∃ q₁ q₂, G.leafOf T q₁ = p ∧ G.leafOf T q₂ = p ∧ G.side (G.at' q₁ d) ≠ G.side (G.at' q₂ d)
 
-/-- A tree grown from the root's cut by genuine splits. -/
-inductive Genuine : DTree α → Prop
-  | start : Genuine (.node 1 .leaf .leaf)
-  | split {T : DTree α} {p : List Bool} {d : FreeMonoid α} :
-      Genuine T → G.GenuineSplit T p d → Genuine (T.splitAt d p)
+/-- A tree grown from the root's cut by `f` splits that are not genuine and any number that are,
+each at a leaf, on a letter followed by the midfix where two leaves part. -/
+inductive Grown : DTree α → ℕ → Prop
+  | start : Grown (.node 1 .leaf .leaf) 0
+  | real {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → t ∈ T.paths →
+      t₀ ∈ T.paths → G.GenuineSplit T p (FreeMonoid.of c * T.midAt (lcp t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p) f
+  | fake {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → p ∈ T.paths →
+      t ∈ T.paths → t₀ ∈ T.paths → ¬ G.GenuineSplit T p (FreeMonoid.of c * T.midAt (lcp t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p) (f + 1)
+
+/-- Grown with at most `S` splits that are not genuine. -/
+def InClass (S : ℕ) (T : DTree α) : Prop := ∃ f ≤ S, G.Grown T f
 
 /-- A record of the prefix `sp` at the edge `(p, c)` with target `t` is true: the true leaves of
 `sp` and its successor are `p` and `t`. -/
@@ -117,7 +117,12 @@ open scoped Classical in
 /-- The undecided reads a probe charges to `e` at read-states satisfying `P`. -/
 noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
     (e : List Bool × α) (P : σ → Prop) (x : FreeMonoid α) : ℕ :=
-  edgeUndecBy (fun z => (rd z).cut) T edges k x e fun b => P (G.M.eval b.toList)
+  ((edgeHarvBy (fun z => (rd z).cut) T edges k x e).filter fun b => P (G.M.eval b.toList)).length
+
+open scoped Classical in
+/-- How many of the strings were read at a read-state that is not good. -/
+noncomputable def badCount (l : List (FreeMonoid α)) : ℕ :=
+  (l.filter fun b => ¬ G.Good (G.M.eval b.toList)).length
 
 /-- The probes whose start is undecided, at a read-state satisfying `P`. -/
 def startAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (P : σ → Prop) :
@@ -130,67 +135,24 @@ end ReadModel
 def EdgesInto (T : DTree α) (edges : Edges α) : Prop :=
   ∀ q c t w, edges q c = some (t, w) → t ∈ T.paths
 
-section Heavy
-
-variable (C : TallyCfg) (D : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool) (η ηs : ℝ)
-  (T : DTree α) (edges : Edges α)
-
-/-- The edge `e`, out of a leaf, has undecided reads exceeding `θe` of its reads by `η` a probe on
-average. -/
-def HeavyEdge (e : List Bool × α) : Prop :=
-  e.1 ∈ T.paths ∧ C.θe * ∫ x, (edgeReadsBy cut T edges C.k x e : ℝ) ∂D + η
-    ≤ ∫ x, (edgeUndecBy cut T edges C.k x e (fun _ => True) : ℝ) ∂D
-
-/-- The start is left undecided at least `θs + ηs` of the time. -/
-def HeavyStart : Prop := C.θs + ηs ≤ D.real {x | ∃ b, T.sift cut (prefixOf x C.k) = .inr b}
-
-/-- Some edge, or the start, is heavy. -/
-def Armed : Prop := HeavyStart C D cut ηs T ∨ ∃ e, HeavyEdge C D cut η T edges e
-
-/-- Where an undecided read at position `i` of `x` is counted is heavy: the start, at `k`, or the
-edge it is charged to. -/
-def HeavyAt (x : FreeMonoid α) (i : ℕ) : Prop :=
-  if i = C.k then HeavyStart C D cut ηs T
-  else ∃ e, posEdgeBy cut T edges C.k x i = some e ∧ HeavyEdge C D cut η T edges e
-
-/-- A record of `x` at the prefix `sp` reads at a heavy place: `sp`'s or the next prefix's. -/
-def HeavyRec (x sp : FreeMonoid α) : Prop :=
-  HeavyAt C D cut η ηs T edges x sp.toList.length
-    ∨ HeavyAt C D cut η ηs T edges x (sp.toList.length + 1)
-
-end Heavy
-
-/-- The noise event: over every genuine tree and edges into its leaves, path-good transitions
-with a heavy boundary get clean records or learn their edge, records that are not true are rare,
-and rarer still where their reads are at places that are not heavy, and good read-states'
-undecided reads are rare at each edge and at the start. -/
+/-- The noise event: over the class and edges into its leaves, path-good transitions with a heavy
+boundary get clean records or learn their edge, records that are not true are rare at each edge
+and target, and good read-states' undecided reads are rare at each edge and at the start. -/
 structure TallyE {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (q₀ c₀ ρ ρH θg θgs η ηs : ℝ) (rd : FreeMonoid α → ARU) : Prop where
-  clean : ∀ T edges, G.Genuine T → EdgesInto T edges → ∀ q c, G.PathGood T q →
+    (S : ℕ) (q₀ c₀ ρ θg θgs : ℝ) (rd : FreeMonoid α → ARU) : Prop where
+  clean : ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ q c, G.PathGood T q →
     G.PathGood T (G.M.step q c) → q₀ ≤ D.real (G.tauBoundary C.k T edges q c) →
     c₀ * D.real (G.tauBoundary C.k T edges q c)
       ≤ D.real {x | (recordBy (fun z => (rd z).cut) C.k (T, edges) x).map Prod.fst
           = some (G.leafOf T q, c, G.leafOf T (G.M.step q c))
         ∨ LearnsBy (fun z => (rd z).cut) C.k (T, edges) (G.leafOf T q) c x}
-  spurious : ∀ T edges, G.Genuine T → EdgesInto T edges →
-    D.real {x | ∃ pct sp, recordBy (fun z => (rd z).cut) C.k (T, edges) x = some (pct, sp)
-      ∧ ¬ G.TrueRec T pct sp ∧ ¬ HeavyRec C D (fun z => (rd z).cut) η ηs T edges x sp} ≤ ρ
-  spuriousAll : ∀ T edges, G.Genuine T → EdgesInto T edges →
-    D.real {x | ∃ pct sp, recordBy (fun z => (rd z).cut) C.k (T, edges) x = some (pct, sp)
-      ∧ ¬ G.TrueRec T pct sp} ≤ ρH
-  goodEdge : ∀ T edges, G.Genuine T → EdgesInto T edges → ∀ e,
+  spurious : ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ pct,
+    D.real {x | ∃ sp, recordBy (fun z => (rd z).cut) C.k (T, edges) x = some (pct, sp)
+      ∧ ¬ G.TrueRec T pct sp} ≤ ρ
+  goodEdge : ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ e,
     ∫ x, (G.undecAt rd C.k T edges e G.Good x : ℝ) ∂D
       ≤ θg * ∫ x, (edgeReadsBy (fun z => (rd z).cut) T edges C.k x e : ℝ) ∂D
-  goodStart : ∀ T, G.Genuine T → D.real (G.startAt rd C.k T G.Good) ≤ θgs
-
-/-- The run from `s` over the draws reaches a state satisfying `P`, or ends with an ending
-satisfying `Q`. -/
-def RunReaches {S X E : Type*} (step : S → X → S ⊕ (E × S)) (P : S → Prop)
-    (Q : E → S → Prop) : S → List X → Prop
-  | s, [] => P s
-  | s, x :: xs => P s ∨ match step s x with
-    | .inl s' => RunReaches step P Q s' xs
-    | .inr (e, s') => Q e s'
+  goodStart : ∀ T, G.InClass S T → D.real (G.startAt rd C.k T G.Good) ≤ θgs
 
 /-- No path-good transition's boundary has mass `q₀`. -/
 def AllFixed {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (k : ℕ) (q₀ : ℝ)
@@ -198,66 +160,168 @@ def AllFixed {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (k
   ∀ q c, G.PathGood s.tree q → G.PathGood s.tree (G.M.step q c) →
     D.real (G.tauBoundary k s.tree s.edges q c) < q₀
 
-/-- The endings the round claims: success, or a harvest whose bad read-states' undecided outcomes
-there exceed the threshold less the good read-states' bound. -/
-def GoodEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (rd : FreeMonoid α → ARU) (θg θgs : ℝ) : TEnd α → TState α → Prop
+/-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
+def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S → Prop) :
+    S → List X → Prop
+  | _, [] => False
+  | s, x :: xs => match step s x with
+    | .inl s' => RunEnds step Q s' xs
+    | .inr (e, s') => Q e s'
+
+/-- The run from `s` keeps its hypothesis over the draws. -/
+def Keeps (C : TallyCfg) (cut : FreeMonoid α → Option Bool) : TState α → List (FreeMonoid α) →
+    Prop
+  | _, [] => True
+  | s, x :: xs => ∃ s', tallyStep C cut s x = .inl s' ∧ s'.tree = s.tree ∧ s'.edges = s.edges
+    ∧ Keeps C cut s' xs
+
+/-- The endings the round claims: success, or a harvest most of whose strings are at read-states
+that are not good. -/
+def GoodEnd {σ : Type*} (G : ReadModel α σ) : TEnd α → TState α → Prop
   | .success, _ => True
-  | .harvestStart, s => C.θs - θgs < D.real (G.startAt rd C.k s.tree fun r => ¬ G.Good r)
-  | .harvest e, s =>
-    (C.θe - θg) * ∫ x, (edgeReadsBy (fun z => (rd z).cut) s.tree s.edges C.k x e : ℝ) ∂D
-      < ∫ x, (G.undecAt rd C.k s.tree s.edges e (fun r => ¬ G.Good r) x : ℝ) ∂D
-  | _, _ => False
+  | .harvestStart, s => s.startH.length < 2 * G.badCount s.startH
+  | .harvest e, s => (s.harv e.1 e.2).length < 2 * G.badCount (s.harv e.1 e.2)
+  | .tooBig, _ => False
 
-/-- The most versions the round's hypothesis can take within `Lmax` leaves. -/
-def versionCap (C : TallyCfg) (nα : ℕ) : ℕ := C.Lmax * (2 * C.Lmax * nα + 1)
+/-- How a sub-round ends. -/
+inductive SubEnd
+  | good
+  | bad
+  | real
+  | fake
+  | unfinished
 
-/-- Bennett's bound on the chance that `j` probes' undecided reads at an edge, reading at most `R`
-each, exceed `θe` of their reads by `C.exc j`, where they average at most `θe` of them. -/
-noncomputable def edgeLevel (C : TallyCfg) (R j : ℕ) : ℝ :=
-  let A := j * C.θe * R
-  let s := C.exc j + A
-  Real.exp (-(s * Real.log (s / A) - s + A) / ((1 + C.θe) * R))
+open scoped Classical in
+/-- One probe of a sub-round: it continues at the same tree, or ends the round, or the tree
+changes by a split that is genuine (`true`) or not. -/
+noncomputable def subSeg {σ : Type*} (G : ReadModel α σ) (C : TallyCfg)
+    (cut : FreeMonoid α → Option Bool) (s : TState α) (x : FreeMonoid α) :
+    TState α ⊕ ((TEnd α ⊕ Bool) × TState α) :=
+  match tallyStep C cut s x with
+  | .inr (e, s') => .inr (.inl e, s')
+  | .inl s' => if s'.tree = s.tree then .inl s' else
+      .inr (.inr (decide (∃ p d, s'.tree = s.tree.splitAt d p ∧ G.GenuineSplit s.tree p d)), s')
 
-/-- Hoeffding's bound on the chance that `J` probes' undecided reads at an edge, reading at most
-`R` each, exceed `θe` of their reads by less than `C.exc J`, where they exceed it by `η` a probe on
-average. -/
-noncomputable def heavyLevel (C : TallyCfg) (R J : ℕ) (η : ℝ) : ℝ :=
-  Real.exp (-2 * (J * η - C.exc J) ^ 2 / (J * ((1 + C.θe) * R) ^ 2))
+/-- The kind of a sub-round's last probe. -/
+def subKind : (TEnd α ⊕ Bool) → SubEnd
+  | .inl .tooBig => .bad
+  | .inl _ => .good
+  | .inr true => .real
+  | .inr false => .fake
 
-/-- `TallyRound`: with draws of length at most `L`, the caps above the genuine trees' leaves and
-the hypothesis's versions, `T` probes enough for every version to last `n`, and each edge test's
-excess making Bennett's bound at most `a`, the round reaches a state where no path-good
-transition's boundary has mass `q₀`, or ends in success or in a harvest its bad read-states
-trigger, but for chance at most that of not `TallyE`, `T · P(Bin(n, c₀q₀) < m)`, the records that
-are not true reaching `m`, and `T² (Lmax |Σ| + 1) a` for the harvest tests. Those records reach
-`m` only where `m₁` of them read at light places, `P(Bin(T, ρ) ≥ m₁)`, or `m₂` at heavy ones within
-the first `J` probes of their stretch, `P(Bin((versionCap + 1) J, ρH) ≥ m₂)`, or some stretch at a
-hypothesis with a heavy place outlasts `J` probes, at most `T` times `heavyLevel` and the start's
-`P(Bin(J, θs + ηs) < hS)`, where `hS` start-undecided outcomes in `J` fire the start's test. -/
+/-- How the sub-round from `s` ends within its first `j` probes, or is unfinished. -/
+noncomputable def subEnd {σ : Type*} (G : ReadModel α σ) (C : TallyCfg)
+    (cut : FreeMonoid α → Option Bool) : TState α → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → SubEnd
+  | _, 0, _, _ => .unfinished
+  | _, _ + 1, 0, _ => .unfinished
+  | s, j + 1, T + 1, xs => match subSeg G C cut s (xs 0) with
+    | .inl s' => subEnd G C cut s' j T (Fin.tail xs)
+    | .inr (k, _) => subKind k
+
+/-- Where a sub-round starts: a tree of the class, edges into its leaves, no records, a fresh
+stretch. -/
+def SubStart {σ : Type*} (G : ReadModel α σ) (S : ℕ) (s : TState α) : Prop :=
+  G.InClass S s.tree ∧ EdgesInto s.tree s.edges ∧ (∀ q c, s.recs q c = []) ∧ s.n = 0 ∧ s.dis = 0
+
+/-- From every start, over any `T ≥ Tsub` fresh draws, the sub-round's first `Tsub` probes end it
+fake with chance at most `c` times its ending real or good plus `δ`, and bad or unfinished with
+chance at most `δ'`. -/
+def SubRoundBound {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
+    (cut : FreeMonoid α → Option Bool) (S : ℕ) (c δ δ' : ℝ) (Tsub : ℕ) : Prop :=
+  ∀ s, SubStart G S s → ∀ T, Tsub ≤ T →
+    (Measure.pi fun _ : Fin T => D) {xs | subEnd G C cut s Tsub T xs = .fake}
+        ≤ ENNReal.ofReal c * (Measure.pi fun _ : Fin T => D)
+          {xs | subEnd G C cut s Tsub T xs = .good ∨ subEnd G C cut s Tsub T xs = .real}
+        + ENNReal.ofReal δ
+      ∧ (Measure.pi fun _ : Fin T => D)
+          {xs | subEnd G C cut s Tsub T xs = .bad ∨ subEnd G C cut s Tsub T xs = .unfinished}
+        ≤ ENNReal.ofReal δ'
+
+/-- From any fresh hypothesis of the class whose path-good transitions are all fixed, the round
+ends or the hypothesis changes within `nEnd` probes but for chance `βterm`. -/
+def Terminates {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
+    (S : ℕ) (q₀ : ℝ) (nEnd : ℕ) (βterm : ℝ) (rd : FreeMonoid α → ARU) : Prop :=
+  ∀ s : TState α, G.InClass S s.tree → EdgesInto s.tree s.edges → s.n = 0 → s.dis = 0 →
+    AllFixed G D C.k q₀ s →
+    (Measure.pi fun _ : Fin nEnd => D) {xs | Keeps C (fun z => (rd z).cut) s (List.ofFn xs)}
+      ≤ ENNReal.ofReal βterm
+
+/-- The most versions within a sub-round: each edge learned, and redirected, at most once. -/
+def subVersions (C : TallyCfg) (nα : ℕ) : ℕ := 2 * C.Lmax * nα
+
+/-- A sub-round's probes: `n` for each version to change, or `nEnd` for the round to end. -/
+def subT (C : TallyCfg) (nα n nEnd : ℕ) : ℕ := (subVersions C nα + 1) * (n + nEnd)
+
+/-- A fake sub-round's chance: `m` records that are not true at one edge and target. -/
+noncomputable def subFake (C : TallyCfg) (nα : ℕ) (ρ : ℝ) (Tsub : ℕ) : ℝ :=
+  C.Lmax ^ 2 * nα * binomSfGe Tsub ρ C.m
+
+/-- An unfinished sub-round's chance: some version outlasting `n` probes, or `nEnd` where every
+path-good transition is fixed. -/
+noncomputable def subOpen (C : TallyCfg) (nα n : ℕ) (cq βterm : ℝ) : ℝ :=
+  (subVersions C nα + 1) * ((1 - binomSfGe n cq C.m) + βterm)
+
+/-- The chance that fake sub-rounds outnumber `k` before `g` real ones and an ending, each fake
+with chance at most `(c + δ)/(1 + c)`, with `δ'` for each bad or unfinished one. -/
+noncomputable def roundW (c δ δ' : ℝ) (k g : ℕ) : ℝ :=
+  binomSfGe (k + g + 1) (min 1 ((c + δ) / (1 + c))) (k + 1) + (k + g + 1) * δ'
+
+/-- `SubRound`: given `TallyE` and `Terminates`, sub-rounds are fake with chance at most
+`subFake` and bad or unfinished within `subT` with chance at most `subOpen`. -/
+def SubRound : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
+    (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (C : TallyCfg) (S n nEnd : ℕ) (q₀ c₀ ρ θg θgs βterm : ℝ),
+    0 < q₀ → 0 < c₀ * q₀ → c₀ * q₀ ≤ 1 → 0 ≤ ρ → ρ ≤ 1 → 0 < C.m → 1 ≤ C.n₀ →
+    Fintype.card σ + S + 2 ≤ C.Lmax →
+    TallyE G D C S q₀ c₀ ρ θg θgs rd → Terminates G D C S q₀ nEnd βterm rd →
+    SubRoundBound G D C (fun z => (rd z).cut) S 0
+      (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) n nEnd))
+      (subOpen C (Fintype.card α) n (c₀ * q₀) βterm) (subT C (Fintype.card α) n nEnd)
+
+/-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, `10 θg Lmax ≤ 1`, every edge
+excess above `2 L log(1/a)`, and the start's test firing only where good read-states' undecided
+reads reach half its count with chance at most `a`, the round ends in a harvest at a tree of the
+class most of whose strings are at good read-states with chance at most `(2^(Lmax+1) |Σ| + T) a`. -/
+def HarvestGood : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
+    (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (C : TallyCfg) (S L T : ℕ) (q₀ c₀ ρ θg θgs : ℝ),
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < C.a → 0 ≤ θg → 4 * θg ≤ C.θe →
+    10 * θg * C.Lmax ≤ 1 → (∀ j, 2 * L * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
+    TallyE G D C S q₀ c₀ ρ θg θgs rd →
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (tallyStep C fun z => (rd z).cut)
+          (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig ∧ ¬ GoodEnd G e s') tallyStart
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T) * C.a)
+
+/-- `TallyRound`: under `SubRound`'s and `HarvestGood`'s conditions, over
+`T ≥ (S + |Q| + 1) · subT` probes the round ends in success or a harvest most of whose strings are
+at read-states that are not good, but for chance at most that of not `TallyE` or not
+`Terminates`, `roundW 0 subFake subOpen S |Q|`, and `HarvestGood`'s. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : TallyCfg) (q₀ c₀ ρ ρH θg θgs η ηs : ℝ) (L n T m₁ m₂ J hS : ℕ),
+    (C : TallyCfg) (S n nEnd L T : ℕ) (q₀ c₀ ρ θg θgs βterm : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
-    0 < q₀ → 0 < c₀ * q₀ → c₀ * q₀ ≤ 1 → 0 ≤ ρ → ρ ≤ 1 → 0 ≤ ρH → ρH ≤ 1 →
-    m₁ + m₂ ≤ C.m + 1 →
-    0 ≤ C.θs → C.θs ≤ 1 → 0 < C.θe → 0 < C.m → 1 ≤ C.n₀ → Fintype.card σ + 2 ≤ C.Lmax →
-    versionCap C (Fintype.card α) ≤ C.fuel → 1 ≤ n →
-    (versionCap C (Fintype.card α) + 1) * n ≤ T →
-    (∀ j, 1 ≤ j → j ≤ T → 0 ≤ C.exc j ∧ edgeLevel C ((L + 1) * C.Lmax) j ≤ C.a) →
-    C.n₀ ≤ J → C.exc J ≤ J * η → 0 ≤ ηs → C.θs + ηs ≤ 1 → binomSfGe J C.θs hS < C.a →
+    0 < q₀ → 0 < c₀ * q₀ → c₀ * q₀ ≤ 1 → 0 ≤ ρ → ρ ≤ 1 → 0 < C.m → 1 ≤ C.n₀ →
+    Fintype.card σ + S + 2 ≤ C.Lmax → 0 ≤ βterm →
+    0 < C.a → 0 ≤ θg → 4 * θg ≤ C.θe → 10 * θg * C.Lmax ≤ 1 →
+    (∀ j, 2 * L * Real.log (1 / C.a) < C.exc j) → 0 ≤ θgs → θgs ≤ 1 →
+    (∀ t h, C.n₀ ≤ t → binomSfGe t C.θs h < C.a → binomSfGe t θgs ((h + 1) / 2) ≤ C.a) →
+    (S + Fintype.card σ + 1) * subT C (Fintype.card α) n nEnd ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunReaches (tallyStep C fun z => (read z ω).cut) (AllFixed G D C.k q₀)
-          (GoodEnd G D C (read · ω) θg θgs) tallyStart (List.ofFn xs)} ∂μ
-      ≤ μ {ω | ¬ TallyE G D C q₀ c₀ ρ ρH θg θgs η ηs (read · ω)}
-        + T * ENNReal.ofReal (1 - binomSfGe n (c₀ * q₀) C.m)
-        + ENNReal.ofReal (binomSfGe T ρ m₁)
-        + ENNReal.ofReal (binomSfGe ((versionCap C (Fintype.card α) + 1) * J) ρH m₂)
-        + T * ENNReal.ofReal (heavyLevel C ((L + 1) * C.Lmax) J η
-          + (1 - binomSfGe J (C.θs + ηs) hS))
-        + T * T * (C.Lmax * Fintype.card α + 1) * ENNReal.ofReal C.a
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (GoodEnd G) tallyStart
+          (List.ofFn xs)} ∂μ
+      ≤ μ {ω | ¬ (TallyE G D C S q₀ c₀ ρ θg θgs (read · ω)
+          ∧ Terminates G D C S q₀ nEnd βterm (read · ω))}
+        + ENNReal.ofReal (roundW 0
+          (subFake C (Fintype.card α) ρ (subT C (Fintype.card α) n nEnd))
+          (subOpen C (Fintype.card α) n (c₀ * q₀) βterm) S (Fintype.card σ))
+        + ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T) * C.a)
 
 end OrthoDFA
 

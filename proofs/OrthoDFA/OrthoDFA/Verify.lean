@@ -11,10 +11,9 @@ import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
-import OrthoDFA.Proofs.TallyFix
+import OrthoDFA.Proofs.TallySub
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
-import OrthoDFA.Proofs.TallyRatio
 
 /-!
 # The theorem
@@ -26,8 +25,8 @@ in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and
 `RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, the
 `RoundStrong` claims, stated in `OrthoDFA.RoundStrong`, `OrthoDFA.Spurious` and
-`OrthoDFA.Exhausted`, the family-read claims stated in `OrthoDFA.FamilyRead`, and `TallyRound`,
-stated in `OrthoDFA.TallyRound`, hold.
+`OrthoDFA.Exhausted`, and the family-read claims stated in `OrthoDFA.FamilyRead`, hold, and
+`TallyRound`, stated in `OrthoDFA.TallyRound`, holds given `SubRound` and `HarvestGood`.
 -/
 
 namespace OrthoDFA
@@ -133,20 +132,18 @@ theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
 
 #print axioms fix_in_time
 
-#print axioms tally_fix_in_time
-
 #print axioms bennett_tail
 
 theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
 
 #print axioms family_read_trichotomy
 
-theorem tally_round : TallyRound := tally_round_holds
+#print axioms round_of_sub
+
+#print axioms tally_round_of
+
+theorem tally_round : TallyRound := tally_round_of sub_round_holds harvest_good_holds
 
 #print axioms tally_round
-
-#print axioms spurious_tail_ratio
-
-#print axioms heavy_tail_ratio
 
 end OrthoDFA

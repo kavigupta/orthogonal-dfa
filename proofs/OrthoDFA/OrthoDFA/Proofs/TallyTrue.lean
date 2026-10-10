@@ -4,9 +4,9 @@ import OrthoDFA.Proofs.TallyWalk
 # True leaves and genuine trees
 
 A split at `p` leaves every other state's true leaf where it was, and sends the states at `p` to
-the side their read of the new midfix is on. A genuine tree has at most `|Q| + 2` leaves: each
-genuine split adds one leaf and one more true leaf. Two true records at one edge with different
-targets make the split they trigger genuine.
+the side their read of the new midfix is on. So no split lowers the count of true leaves, at most
+`|Q|`, and a genuine one raises it. Two true records at one edge with different targets make the
+split they trigger genuine. A split is fixed by its tree.
 -/
 
 namespace OrthoDFA
@@ -58,30 +58,45 @@ open scoped Classical in
 noncomputable def trueLeaves [Fintype σ] (T : DTree α) : Finset (List Bool) :=
   (Finset.univ : Finset σ).image (G.leafOf T)
 
-theorem genuine_paths_aux [Fintype σ] {T : DTree α} (hT : G.Genuine T) :
-    T.paths.length ≤ (G.trueLeaves T).card + 2 := by
+theorem trueLeaves_card_le [Fintype σ] (T : DTree α) :
+    (G.trueLeaves T).card ≤ Fintype.card σ :=
+  Finset.card_image_le.trans_eq rfl
+
+theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.paths)
+    (d : FreeMonoid α) :
+    (G.trueLeaves T).card ≤ (G.trueLeaves (T.splitAt d p)).card
+      ∧ (G.GenuineSplit T p d →
+        (G.trueLeaves T).card + 1 ≤ (G.trueLeaves (T.splitAt d p)).card) := by
   classical
-  induction hT with
-  | start => simp [DTree.paths]
-  | @split T p d hT hs ih =>
-    obtain ⟨q₁, q₂, hl₁, hl₂, hne⟩ := hs
-    have hp : p ∈ T.paths := hl₁ ▸ G.leafOf_mem_paths T q₁
-    rw [DTree.splitAt_paths_length d T p hp]
+  have hW : ∀ b, p ++ [b] ∉ G.trueLeaves T := by
+    intro b hb
+    obtain ⟨q, -, hq⟩ := Finset.mem_image.1 hb
+    exact DTree.append_not_mem_paths T p b hp (hq ▸ G.leafOf_mem_paths T q)
+  have hrest : (G.trueLeaves T).erase p ⊆ G.trueLeaves (T.splitAt d p) := by
+    intro r hr
+    obtain ⟨hrp, hr⟩ := Finset.mem_erase.1 hr
+    obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hr
+    exact Finset.mem_image.2 ⟨q, Finset.mem_univ _, (G.leafOf_splitAt d T p hp q).1 hrp⟩
+  have hnew : ∀ q, G.leafOf T q = p →
+      p ++ [G.side (G.at' q d)] ∈ G.trueLeaves (T.splitAt d p) := fun q hq =>
+    Finset.mem_image.2 ⟨q, Finset.mem_univ _, (G.leafOf_splitAt d T p hp q).2 hq⟩
+  constructor
+  · by_cases hpW : p ∈ G.trueLeaves T
+    · obtain ⟨q, -, hq⟩ := Finset.mem_image.1 hpW
+      have hsub : insert (p ++ [G.side (G.at' q d)]) ((G.trueLeaves T).erase p)
+          ⊆ G.trueLeaves (T.splitAt d p) := Finset.insert_subset (hnew q hq) hrest
+      have := Finset.card_le_card hsub
+      rw [Finset.card_insert_of_notMem (fun h => hW _ (Finset.mem_of_mem_erase h)),
+        Finset.card_erase_of_mem hpW] at this
+      have := Finset.card_pos.2 ⟨p, hpW⟩
+      omega
+    · rw [← Finset.erase_eq_of_notMem hpW]
+      exact Finset.card_le_card hrest
+  · rintro ⟨q₁, q₂, hl₁, hl₂, hne⟩
     have hpW : p ∈ G.trueLeaves T := Finset.mem_image.2 ⟨q₁, Finset.mem_univ _, hl₁⟩
     have hsub : insert (p ++ [G.side (G.at' q₁ d)]) (insert (p ++ [G.side (G.at' q₂ d)])
-        ((G.trueLeaves T).erase p)) ⊆ G.trueLeaves (T.splitAt d p) := by
-      intro r hr
-      rcases Finset.mem_insert.1 hr with rfl | hr
-      · exact Finset.mem_image.2 ⟨q₁, Finset.mem_univ _, (G.leafOf_splitAt d T p hp q₁).2 hl₁⟩
-      rcases Finset.mem_insert.1 hr with rfl | hr
-      · exact Finset.mem_image.2 ⟨q₂, Finset.mem_univ _, (G.leafOf_splitAt d T p hp q₂).2 hl₂⟩
-      obtain ⟨hrp, hr⟩ := Finset.mem_erase.1 hr
-      obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hr
-      exact Finset.mem_image.2 ⟨q, Finset.mem_univ _, (G.leafOf_splitAt d T p hp q).1 hrp⟩
-    have hW : ∀ b, p ++ [b] ∉ G.trueLeaves T := by
-      intro b hb
-      obtain ⟨q, -, hq⟩ := Finset.mem_image.1 hb
-      exact DTree.append_not_mem_paths T p b hp (hq ▸ G.leafOf_mem_paths T q)
+        ((G.trueLeaves T).erase p)) ⊆ G.trueLeaves (T.splitAt d p) :=
+      Finset.insert_subset (hnew q₁ hl₁) (Finset.insert_subset (hnew q₂ hl₂) hrest)
     have hcard := Finset.card_le_card hsub
     rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_erase_of_mem hpW]
       at hcard
@@ -94,12 +109,43 @@ theorem genuine_paths_aux [Fintype σ] {T : DTree α} (hT : G.Genuine T) :
       · exact hne (by simpa using h)
       · exact hW _ (Finset.mem_of_mem_erase h)
 
-theorem genuine_paths [Fintype σ] {T : DTree α} (hT : G.Genuine T) :
-    T.paths.length ≤ Fintype.card σ + 2 := by
-  classical
-  have h1 := G.genuine_paths_aux hT
-  have h2 : (G.trueLeaves T).card ≤ Fintype.card σ := Finset.card_image_le.trans_eq rfl
+end ReadModel
+
+namespace DTree
+
+omit [Fintype α] [DecidableEq α] in
+theorem splitAt_ne {d : FreeMonoid α} {T : DTree α} {p : List Bool} (hp : p ∈ T.paths) :
+    T.splitAt d p ≠ T := fun h => by
+  have := splitAt_paths_length d T p hp
+  rw [h] at this
   omega
+
+omit [Fintype α] [DecidableEq α] in
+theorem splitAt_inj {d d' : FreeMonoid α} :
+    ∀ {T : DTree α} {p p' : List Bool}, p ∈ T.paths → p' ∈ T.paths →
+      T.splitAt d p = T.splitAt d' p' → p = p' ∧ d = d'
+  | .leaf, p, p', hp, hp', h => by
+    simp only [paths, List.mem_singleton] at hp hp'
+    subst hp hp'
+    simp only [splitAt, node.injEq] at h
+    exact ⟨rfl, h.1⟩
+  | .node n r a, [], _, hp, _, _ => absurd hp paths_ne_nil_of_node
+  | .node n r a, _, [], _, hp', _ => absurd hp' paths_ne_nil_of_node
+  | .node n r a, b :: p, b' :: p', hp, hp', h => by
+    simp only [paths, List.mem_append, List.mem_map, List.cons.injEq] at hp hp'
+    rcases hp with ⟨q, hq, rfl, rfl⟩ | ⟨q, hq, rfl, rfl⟩ <;>
+      rcases hp' with ⟨q', hq', rfl, rfl⟩ | ⟨q', hq', rfl, rfl⟩ <;>
+      simp only [splitAt, node.injEq, true_and, and_true] at h
+    · obtain ⟨rfl, rfl⟩ := splitAt_inj hq hq' h; exact ⟨rfl, rfl⟩
+    · exact absurd h.1 (splitAt_ne hq)
+    · exact absurd h.2 (splitAt_ne hq)
+    · obtain ⟨rfl, rfl⟩ := splitAt_inj hq hq' h; exact ⟨rfl, rfl⟩
+
+end DTree
+
+namespace ReadModel
+
+variable {σ : Type*} (G : ReadModel α σ)
 
 /-- Two states at different true leaves read the midfix where their leaves part on different
 sides. -/
