@@ -15,6 +15,7 @@ import OrthoDFA.Proofs.TallyKeep
 import OrthoDFA.Proofs.TallyRace
 import OrthoDFA.Proofs.TallyNoise
 import OrthoDFA.Proofs.TallyEvent
+import OrthoDFA.Proofs.TallyFamily
 import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
@@ -168,6 +169,12 @@ theorem tally_round : TallyRound :=
   tally_round_of sub_round_holds fake_race_holds harvest_good_holds success_sound_holds
 
 #print axioms tally_round
+
+#print axioms readModel_of_family
+
+theorem tally_round_family : TallyRoundFamily := tally_round_family_holds
+
+#print axioms tally_round_family
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

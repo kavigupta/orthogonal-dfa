@@ -80,8 +80,8 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
 ## Open
 
-Two claims are not proved, and are not assumed or sorried anywhere (`TallyRound` assumes its
-noise event `TallyE` as a hypothesis, to be bounded separately):
+Two claims are not proved, and are not assumed or sorried anywhere (`TallyRoundFamily` leaves
+the tail of `TallyE`'s records field as a term in its bound, to be bounded separately):
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
@@ -90,7 +90,8 @@ noise event `TallyE` as a hypothesis, to be bounded separately):
 2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only up to the
    noisy-split chance above and the non-power residual, which is stated, not bounded.
 
-The tally round's noise event `TallyE` is discharged field by field, and its edge and
+The tally round's noise event `TallyE` is discharged field by field except its records field
+(`spurious`), whose tail `TallyRoundFamily` carries as a term. Its edge and
 pair/triple fields need the reads to concentrate over the probes' length-`k` prefixes, which
 asks for an unrealistically small largest prefix mass `p₀`. The planned replacement drops that
 requirement: the tests count each string once, at its first read in the round, and a harvest is
@@ -288,6 +289,13 @@ Two gaps between the model and Python:
   probes (an edge charged less holds them to that) and `θs'` of the probes past `Xs`, so the
   records that are not true less `ν/η` times the strings' excess exponentiate to a supermartingale
   up to `ν (θe (L + 1) + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe.
+- `OrthoDFA/TallyFamily.lean` — `TallyRoundFamily`: `TallyRound` with the reads the family's,
+  from a DFA target, a suffix-free family and `BandPasses`, and `TallyE` replaced by its fields'
+  tails: the edge, start and middles fields' over the class and its edge maps, given that no
+  length-`k` prefix carries more than `p₀` of the probes, and the records field's, left as a term.
+  Proved in `Proofs/TallyFamily.lean`, from `FamilyReadBound` and `tallyE_le`
+  (`Proofs/TallyEvent.lean`), which unions `goodEdge_le` (`Proofs/TallyEdgeNoise.lean`),
+  `goodStart_le` (`Proofs/TallyNoise.lean`) and `goodPT_le` (`Proofs/TallyPTNoise.lean`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
