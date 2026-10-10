@@ -465,10 +465,6 @@ theorem runEnds_or {S X E : Type*} {step : S → X → S ⊕ (E × S)} {P Q : E 
       · exact .inl hq
       · exact .inr ⟨hp, hq⟩
 
-/-- `SubRound`: sorried, pending the statement's approval. -/
-theorem sub_round_holds : SubRound := by
-  sorry
-
 universe u v w in
 /-- `TallyRound` from `SubRound` and `HarvestGood`. -/
 theorem tally_round_of (hsub : SubRound.{u, v}) (hharv : HarvestGood.{u, v}) :

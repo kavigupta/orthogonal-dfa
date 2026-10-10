@@ -11,7 +11,7 @@ import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
-import OrthoDFA.Proofs.TallyHarvest
+import OrthoDFA.Proofs.TallyKeep
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
 
@@ -143,6 +143,8 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 #print axioms tally_round_of
 
 #print axioms harvest_good_holds
+
+#print axioms sub_round_holds
 
 theorem tally_round : TallyRound := tally_round_of sub_round_holds harvest_good_holds
 
