@@ -13,9 +13,8 @@
   `w·v` answers 1.  `FamilyReadTrichotomy`: with the language a DFA's and the family
   suffix-free, the reads are independent across strings, each DFA state has one read law, and
   every state's law is accept at most `ε` of the time, or reject at most `ε`, or undecided at
-  least a third, wherever the parameter check `TrichotomyAt` holds.  `FamilyReadSelected`: the
-  same for any band `evidence_margin_for_population_size` selects (`SelectedBand`), with
-  `ε = cross_limit`.
+  least a third, wherever the parameter check `TrichotomyAt` holds.  The band selection rule
+  `evidence_margin_for_population_size` checks `TrichotomyAt` at `ε = cross_limit`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

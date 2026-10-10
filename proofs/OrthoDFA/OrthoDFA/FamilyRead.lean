@@ -65,28 +65,15 @@ noncomputable def voteLaw (N a : ℕ) (p r : ℝ) (k : ℕ) : ℝ :=
 noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : ℝ :=
   ∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then voteLaw N a p r j else 0
 
-/-- Every read law over `N` members, `a` of them accepting, is accept at most `ε` of the time,
-or reject at most `ε`, or undecided at least a third. -/
+/-- For every `a ≤ N`, the read law of a state from which `a` of the `N` suffixes lead into the
+language is accept at most `ε` of the time, or reject at most `ε`, or undecided at least a
+third.  `evidence_margin_for_population_size` accepts only bands that pass it at
+`ε = cross_limit` (`reads_trichotomous`). -/
 def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
   ∀ a ≤ N,
     readLaw N a (1 - ηIn) ηOut kl kh .accept ≤ ε
     ∨ readLaw N a (1 - ηIn) ηOut kl kh .reject ≤ ε
     ∨ 1 / 3 ≤ readLaw N a (1 - ηIn) ηOut kl kh .undecided
-
-/-! ## The band selection rule -/
-
-/-- `binom_cdf(k, N, q)`. -/
-noncomputable def binomCdf (N k : ℕ) (q : ℝ) : ℝ :=
-  ∑ j ∈ Finset.range (k + 1), (N.choose j : ℝ) * q ^ j * (1 - q) ^ (N - j)
-
-/-- The three criteria `evidence_margin_for_population_size` accepts a band on: the cross
-rate at the band's edges, the FNR at `center ± s`, and `reads_trichotomous`. -/
-def SelectedBand (N kl kh : ℕ) (center s crossLimit acceptableFnr : ℝ) : Prop :=
-  max (binomCdf N kl (((kh : ℝ) - 1) / N)) (1 - binomCdf N (kh - 1) ((kl : ℝ) / N))
-      ≤ crossLimit
-  ∧ max (binomCdf N (kh - 1) (center + s) - binomCdf N kl (center + s))
-      (binomCdf N (kh - 1) (center - s) - binomCdf N kl (center - s)) ≤ acceptableFnr
-  ∧ TrichotomyAt N kl kh (1 - (center + s)) (center - s) crossLimit
 
 /-! ## The claims -/
 
@@ -105,21 +92,5 @@ def FamilyReadTrichotomy : Prop :=
   ∧ ∀ q : σ, ∃ law : Read → ℝ,
     (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
     ∧ (law .accept ≤ ε ∨ law .reject ≤ ε ∨ 1 / 3 ≤ law .undecided)
-
-/-- `FamilyReadTrichotomy` for any band `evidence_margin_for_population_size` selects, with
-the oracle's rates `center ± s` and `ε = cross_limit`. -/
-def FamilyReadSelected : Prop :=
-  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
-    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (center s crossLimit acceptableFnr : ℝ),
-  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  SuffixFree F →
-  O.ηIn = 1 - (center + s) →
-  O.ηOut = center - s →
-  SelectedBand F.card kl kh center s crossLimit acceptableFnr →
-  iIndepFun (fun w => familyRead O.mq F kl kh w) μ
-  ∧ ∀ q : σ, ∃ law : Read → ℝ,
-    (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
-    ∧ (law .accept ≤ crossLimit ∨ law .reject ≤ crossLimit ∨ 1 / 3 ≤ law .undecided)
 
 end OrthoDFA

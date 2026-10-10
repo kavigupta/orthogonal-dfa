@@ -25,8 +25,4 @@ theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_
 
 #print axioms family_read_trichotomy
 
-theorem family_read_selected : FamilyReadSelected := family_read_selected_holds
-
-#print axioms family_read_selected
-
 end OrthoDFA

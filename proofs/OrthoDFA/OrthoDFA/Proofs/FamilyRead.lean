@@ -344,15 +344,14 @@ theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
     htri a (Finset.card_filter_le _ _)⟩
   rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
 
-theorem family_read_selected_holds : FamilyReadSelected := by
-  intro Ω _ μ _ α σ _ O M F kl kh center s crossLimit acceptableFnr hL hF hIn hOut hsel
-  exact family_read_trichotomy_holds O M F kl kh crossLimit hL hF
-    (by rw [hIn, hOut]; exact hsel.2.2)
-
 /-! ## Why the rule checks `TrichotomyAt`
 
 Its cross and FNR criteria alone admit a band some state reads badly: `(2, 15)` over 15 at
 `center = 17/30`, where the state with no accepting member reads as `Bin(15, 67/500)`. -/
+
+/-- `binom_cdf(k, N, q)`. -/
+noncomputable def binomCdf (N k : ℕ) (q : ℝ) : ℝ :=
+  ∑ j ∈ Finset.range (k + 1), (N.choose j : ℝ) * q ^ j * (1 - q) ^ (N - j)
 
 lemma voteLaw_zero (N : ℕ) (p r : ℝ) (k : ℕ) :
     voteLaw N 0 p r k = (N.choose k : ℝ) * r ^ k * (1 - r) ^ (N - k) := by
