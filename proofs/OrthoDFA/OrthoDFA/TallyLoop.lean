@@ -142,7 +142,7 @@ def siftsBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Li
       match t.sift cut x with
       | .inl a => if some a = ps.getLast? then [x.toList.length] else found ps x.toList.length
       | .inr _ => [x.toList.length]
-  (all.filter (· ≠ k)).dedup
+  (all.filter (k < ·)).dedup
 
 /-- The edge a position's reads are charged to: the walk's edge out of it, else the walk's last
 edge. -/

@@ -216,6 +216,129 @@ theorem recordBy_spec {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoi
     simp only [agreesAtBy, ht, Sum.elim_inl, Option.some.injEq, decide_eq_false_iff_not] at hfd
     exact fun he => hfd he.symm
 
+theorem bracketSifts_range (agrees : ℕ → Option Bool) :
+    ∀ (fuel lo hi i : ℕ), i ∈ bracketSifts agrees fuel lo hi → lo ≤ i ∧ i ≤ hi
+  | 0, _, _, _, h => by simp [bracketSifts] at h
+  | fuel + 1, lo, hi, i, h => by
+    unfold bracketSifts at h
+    split_ifs at h with h1
+    · simp only [] at h
+      split at h
+      · rcases List.mem_cons.1 h with rfl | h
+        · omega
+        · have := bracketSifts_range agrees fuel _ _ i h; omega
+      · rcases List.mem_cons.1 h with rfl | h
+        · omega
+        · have := bracketSifts_range agrees fuel _ _ i h; omega
+      · split at h
+        · simp only [List.mem_cons, List.not_mem_nil, or_false] at h; omega
+        · simp only [List.mem_cons] at h
+          rcases h with rfl | rfl | rfl | h
+          · omega
+          · omega
+          · omega
+          · have := bracketSifts_range agrees fuel _ _ i h; omega
+        · simp only [List.mem_cons] at h
+          rcases h with rfl | rfl | rfl | h
+          · omega
+          · omega
+          · omega
+          · have := bracketSifts_range agrees fuel _ _ i h; omega
+        · simp only [List.mem_cons, List.not_mem_nil, or_false] at h; omega
+    · simp at h
+
+/-- A probe sifts positions after its start and up to its end. -/
+theorem siftsBy_range {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α} {i : ℕ}
+    (h : i ∈ siftsBy cut t edges k x) : k < i ∧ i ≤ x.toList.length := by
+  unfold siftsBy at h
+  simp only [List.mem_dedup, List.mem_filter, decide_eq_true_eq] at h
+  obtain ⟨h, hik⟩ := h
+  refine ⟨hik, ?_⟩
+  split at h
+  · simp at h
+  · rename_i s c j hw
+    have hj : k ≤ j ∧ j < x.toList.length := by
+      unfold kWalkBy at hw
+      split at hw
+      · simp at hw
+      · split at hw
+        · simp at hw
+        · rename_i s' c' i' hf
+          simp only [KWalk.edge.injEq] at hw
+          obtain ⟨-, -, rfl⟩ := hw
+          obtain ⟨hi', -⟩ := follow_inr _ _ _ _ _ hf
+          simp only [List.length_drop] at hi'
+          omega
+    split at h
+    · simp at h; omega
+    · split at h
+      · simp at h; omega
+      · split_ifs at h
+        · simp at h; omega
+        · simp only [List.mem_cons] at h
+          rcases h with rfl | rfl | h
+          · omega
+          · omega
+          · have := bracketSifts_range _ _ _ _ i h; omega
+  · split at h
+    · split_ifs at h
+      · simp at h; omega
+      · simp only [List.mem_cons] at h
+        rcases h with rfl | h
+        · exact le_rfl
+        · have := bracketSifts_range _ _ _ _ i h; omega
+    · simp at h; omega
+
+theorem siftsBy_length_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α} :
+    (siftsBy cut t edges k x).length ≤ x.toList.length := by
+  classical
+  have hnd : (siftsBy cut t edges k x).Nodup := List.nodup_dedup _
+  have hsub : (siftsBy cut t edges k x).toFinset ⊆ Finset.Ioc k x.toList.length := by
+    intro i hi
+    have := siftsBy_range cut (List.mem_toFinset.1 hi)
+    simp only [Finset.mem_Ioc]; exact this
+  have := Finset.card_le_card hsub
+  rw [List.toFinset_card_of_nodup hnd, Nat.card_Ioc] at this
+  omega
+
+theorem route_length_le : ∀ (t : DTree α) (z : FreeMonoid α), (t.route cut z).1.length ≤ t.depth
+  | .leaf, _ => by simp [DTree.route]
+  | .node m r a, z => by
+    simp only [DTree.route, DTree.depth]
+    rcases hc : cut (z * m) with _ | _ | _
+    · simp
+    · simp only [List.length_cons]
+      have := route_length_le r z; omega
+    · simp only [List.length_cons]
+      have := route_length_le a z; omega
+
+theorem depth_lt_paths : ∀ t : DTree α, t.depth < t.paths.length
+  | .leaf => by simp [DTree.depth, DTree.paths]
+  | .node m r a => by
+    simp only [DTree.depth, DTree.paths, List.length_append, List.length_map]
+    have := depth_lt_paths r
+    have := depth_lt_paths a
+    omega
+
+/-- A probe charges an edge at most a read per position per node. -/
+theorem edgeReadsBy_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (e : List Bool × α) : edgeReadsBy cut t edges k x e ≤ x.toList.length * t.paths.length := by
+  unfold edgeReadsBy
+  have h1 : ∀ n ∈ ((siftsBy cut t edges k x).filter fun i => decide
+      (posEdgeBy cut t edges k x i = some e)).map fun i => (t.route cut (prefixOf x i)).1.length,
+      n ≤ t.paths.length := by
+    intro n hn
+    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hn
+    exact (route_length_le cut t _).trans (depth_lt_paths t).le
+  refine (List.sum_le_card_nsmul _ _ h1).trans ?_
+  simp only [List.length_map, smul_eq_mul]
+  exact Nat.mul_le_mul_right _ ((List.length_filter_le _ _).trans (siftsBy_length_le cut))
+
+theorem edgeUndecBy_le {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (e : List Bool × α) (P : FreeMonoid α → Prop) [DecidablePred P] :
+    edgeUndecBy cut t edges k x e P ≤ x.toList.length :=
+  (List.length_filter_le _ _).trans (siftsBy_length_le cut)
+
 end Walk
 
 end OrthoDFA

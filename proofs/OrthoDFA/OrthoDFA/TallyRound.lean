@@ -184,7 +184,7 @@ def TallyRound : Prop :=
     0 < c₀ * q₀ → c₀ * q₀ ≤ 1 → 0 ≤ ρ → (Fintype.card σ + 2) ^ 2 * Fintype.card α * ρ ≤ 1 →
     0 ≤ C.θs → C.θs ≤ 1 → 0 < C.θe → 0 < C.m → 1 ≤ C.n₀ → Fintype.card σ + 2 ≤ C.Lmax →
     versionCap C (Fintype.card α) ≤ C.fuel → (versionCap C (Fintype.card α) + 1) * n ≤ T →
-    (∀ j, 1 ≤ j → j ≤ T → 0 ≤ C.exc j ∧ edgeLevel C (L * C.Lmax) j ≤ C.a) →
+    (∀ j, 1 ≤ j → j ≤ T → 0 ≤ C.exc j ∧ edgeLevel C ((L + 1) * C.Lmax) j ≤ C.a) →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunReaches (tallyStep C fun z => (read z ω).cut) (AllFixed G D C.k q₀)
           (GoodEnd G D C (read · ω) θg θgs) tallyStart (List.ofFn xs)} ∂μ
