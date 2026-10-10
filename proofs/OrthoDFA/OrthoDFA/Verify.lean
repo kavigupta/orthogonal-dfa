@@ -1,13 +1,14 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.FamilyRead
+import OrthoDFA.Proofs.IdealRound
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead`.
+`OrthoDFA.FamilyRead` and the idealized round's, stated in `OrthoDFA.IdealRound`.
 -/
 
 namespace OrthoDFA
@@ -24,5 +25,9 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms family_read_bound
+
+theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
+
+#print axioms ideal_round_correct
 
 end OrthoDFA
