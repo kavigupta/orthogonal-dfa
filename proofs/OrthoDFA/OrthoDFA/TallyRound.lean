@@ -1,4 +1,5 @@
 import OrthoDFA.TallyLoop
+import OrthoDFA.RoundEnd
 
 /-!
 # One round of the tally loop, as sub-rounds
@@ -171,11 +172,21 @@ def GoodEnd {σ : Type*} (G : ReadModel α σ) : TEnd α → TState α → Prop
   | .harvestPT, s => s.pt.length < 2 * G.badCount s.pt
   | .tooBig, _ => False
 
-/-- The endings the round claims, with success only at a hypothesis disagreeing on fewer than
-`εd` of the probes. -/
-def SoundEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
+/-- The round's ending, as every level of the loop states it: success is consistent, a harvest
+is its strings. -/
+def tallyEnd : TEnd α → TState α → RoundEnd α
+  | .success, _ => .consistent
+  | .harvestStart, s => .harvest s.startH
+  | .harvest e, s => .harvest (s.harv e.1 e.2)
+  | .harvestPT, s => .harvest s.pt
+  | .tooBig, _ => .failed
+
+/-- The round ends well: consistent with the hypothesis disagreeing on at most `εd` of the probes,
+or a harvest more than half of whose strings are at read-states that are not good. -/
+def TallyEndsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
     (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
-  GoodEnd G e s ∧ (e = .success → D.real (ReadModel.searchAt rd C.k s.tree s.edges) < C.εd)
+  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges)
+    (tallyEnd e s)
 
 /-- How a sub-round ends. -/
 inductive SubEnd
@@ -333,7 +344,7 @@ def TallyRound : Prop :=
     (∀ t h, C.n₀ ≤ t → binomSfGe t C.θpt h < C.a → binomSfGe t θgpt ((h + 1) / 2) ≤ C.a) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (SoundEnd G D C (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (roundW 0
