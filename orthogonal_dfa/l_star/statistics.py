@@ -169,7 +169,7 @@ def evidence_margin_for_population_size(
 
 
 @functools.lru_cache(maxsize=8)
-def _state_counts(N, accept_rate, reject_rate):
+def _vote_parts(N, accept_rate, reject_rate):
     """Row `a` is the state with `a` accepting members: the law of the count among
     them, and the two tails of the count among the rest."""
     a = np.arange(N + 1)[:, None]
@@ -190,7 +190,7 @@ def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
     just inside the band at a small count can sit at or below `k_low` more than 2/3 of
     the time while its far tail is a hair above the band edge's.
     """
-    members, others_le, others_ge = _state_counts(N, accept_rate, reject_rate)
+    members, others_le, others_ge = _vote_parts(N, accept_rate, reject_rate)
     count = np.arange(N + 1)
     reject = (members[:, : k_low + 1] * others_le[:, k_low::-1]).sum(axis=1)
     accept = (members * others_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
