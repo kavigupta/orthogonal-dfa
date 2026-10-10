@@ -2,11 +2,7 @@ import OrthoDFA.Proofs.Query
 import OrthoDFA.Proofs.StartAtK
 
 /-!
-# The triples' harvest
-
-A triple's harvest is a read the cut leaves undecided. In a probe whose search ends at a triple,
-every read outside the search's middles is decided, so the harvested string was first read, and
-left undecided, at one of the middles (`triple_first_read`).
+# A sift stopped undecided
 -/
 
 namespace OrthoDFA

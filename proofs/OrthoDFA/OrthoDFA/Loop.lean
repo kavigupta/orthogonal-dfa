@@ -3,10 +3,10 @@ import OrthoDFA.Pass
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
-# The loop's bookkeeping
+# Undecided classes and midfixes
 
-The classes the loop's undecided exits count (`Cls`), the outcomes that disagree, and the edge
-updates a split makes (`retarget`, `DTree.midAt`).
+The classes of undecided outcomes (`Cls`), and the midfix where two leaves part (`DTree.midAt`,
+`lcp`).
 -/
 
 namespace OrthoDFA

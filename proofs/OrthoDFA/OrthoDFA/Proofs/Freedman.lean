@@ -2,7 +2,7 @@ import Mathlib.Probability.Martingale.Basic
 import Mathlib.Probability.Moments.Basic
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
-/-! # Bennett's tail for increments in `[0, b]`, adapted or independent -/
+/-! # The exponential below its chord -/
 
 namespace OrthoDFA
 

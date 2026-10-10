@@ -4,10 +4,7 @@ import OrthoDFA.Pass
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
-# The harvest classes
-
-Each class of `QualityHolds` as a computation and harvest meeting `HarvestSpec`: the ends' sifts
-with the root's read untagged, the reads at an unlearned edge, and the search's middles.
+# Where a bisection's pairs land
 -/
 
 namespace OrthoDFA

@@ -1,16 +1,7 @@
 import OrthoDFA.Stage
 
 /-!
-# The round's outcome
-
-Every string a replay reads extends a prefix of the draw at least as long as its earliest anchor
-(`take_of_mem_replayReads`), so reading a fixed `t` needs the draw to start as `t` does, up to
-some point at or past the anchor.
-
-A draw the gate counts against the hypothesis is one whose replay harvests, anchored no earlier
-than any point before the gate's reading and the walk first part (`replay_harvests`): a read the
-band decides is on the side of the middle of the band, so a replay that decides every read
-follows the gate's own reading, and parts from the walk where the gate does.
+# One node of a sift
 -/
 
 namespace OrthoDFA

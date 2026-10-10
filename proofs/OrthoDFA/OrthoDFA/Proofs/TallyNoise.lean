@@ -9,7 +9,7 @@ only its length-`k` prefix followed by the tree's midfixes, so the sifts of dist
 prefixes read disjoint strings and are independent. The good read-states' undecided start reads
 then have mass a weighted sum of independent indicators, each weight at most `p₀`, the largest
 mass of a length-`k` prefix, and each indicator on with chance at most the midfixes' count times
-`1.5θ`. `goodStart_holds` bounds its upper tail by the exponential moment, over the class.
+`1.5θ`. `goodStart_le` bounds its upper tail by the exponential moment, over the class.
 -/
 
 namespace OrthoDFA

@@ -1,11 +1,7 @@
 import OrthoDFA.Proofs.Triple
 
 /-!
-# The triples' claim
-
-Given the pass's bits, draws with different first `k` letters read different strings, so their
-contributions are independent, each pulled down on average by `fresh_first_le`. Chebyshev over
-the pass's cells bounds the fluctuation by the most any one first `k` letters carry.
+# Where a bisection's triples land
 -/
 
 namespace OrthoDFA

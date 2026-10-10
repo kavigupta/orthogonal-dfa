@@ -6,12 +6,10 @@ import OrthoDFA.Proofs.Adaptive
 import OrthoDFA.Proofs.BinomLaw
 
 /-!
-# `RoundAtK`
+# Walks and bisections
 
-A decision on a batch against a fixed hypothesis is an exact binomial test at the look where the
-gate stops, or a Hoeffding tail at the batch's end.  An edge reaches the split test or stops at a
-string the cut cannot place, because the pass keeps its edges learned: every edge's witness sits
-at its leaf and its extension at its target.
+What `follow` returns, and where `bracketAt` ends: at an edge between an agreeing and a
+disagreeing position, or at a search outcome.
 -/
 
 namespace OrthoDFA

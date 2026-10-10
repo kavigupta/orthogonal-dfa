@@ -2,10 +2,10 @@ import OrthoDFA.Stage
 import OrthoDFA.Automaton
 
 /-!
-# The pass's knobs
+# Splitting a leaf
 
-Splitting a leaf (`splitAt`), the gate's read past the middle of the band (`CutReads.mid`), and the
-suffixes a pass reads (`StageKnobs`).
+`splitAt` splits a leaf of a tree on a midfix; `CutReads.mid` is a read past the middle of the
+band.
 -/
 
 namespace OrthoDFA

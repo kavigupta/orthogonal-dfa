@@ -6,9 +6,8 @@ import OrthoDFA.FamilyRead
 # Walks and searches from position `k`
 
 A probe is walked from where the cut places its first `k` letters along learned edges (`follow`,
-`KWalk`) and checked against where the cut places the whole probe; a disagreement is searched by
-bisection (`bracketAt`) to what the probe comes to (`Outcome`). `rateSide` is the tests' verdict on
-a count against a rate.
+`KWalk`); a disagreement is searched by bisection (`bracketAt`) to what the probe comes to
+(`Outcome`). `rateSide` is a test's verdict on a count against a rate.
 -/
 
 namespace OrthoDFA

@@ -1,12 +1,7 @@
 import OrthoDFA.StartAtK
 
 /-!
-# A probe's reads, in order
-
-`Qry` is a computation that asks the cut about one string at a time, each ask tagged. Its trace
-is what it asks, in order, and what it asks next depends only on the answers so far
-(`trace_congr`). `qProbe` is `probeOutcome` written this way, with the reads of the search's
-middles tagged.
+# Computations asking the cut one string at a time
 -/
 
 namespace OrthoDFA

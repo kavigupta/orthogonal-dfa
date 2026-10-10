@@ -2,16 +2,7 @@ import OrthoDFA.Proofs.BinomLaw
 import Mathlib.Probability.ProductMeasure
 
 /-!
-# A significant edge is fixed in time
-
-A round driven by fresh draws: `step s x` is the state after the draw `x`, or `none` once the
-round has ended. Each state has a hypothesis `key s`. Where the hypothesis is significant, a
-fresh draw lies in its record set `A (key s)` with chance at least `q`; each such draw raises the
-counter `cnt` while the hypothesis stays, and the counter never reaches `m`, since `m` records
-force a fix.
-
-`fix_in_time`: over `T` draws, the chance that at some point a significant hypothesis outlasts
-the next `n` draws, the round still running, is at most `T · P(Bin(n, q) < m)`.
+# The first draw of a product measure
 -/
 
 namespace OrthoDFA

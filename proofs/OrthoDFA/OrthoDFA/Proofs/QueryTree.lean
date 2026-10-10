@@ -6,11 +6,8 @@ import OrthoDFA.Proofs.TallyNoise
 A query tree reads keys one at a time, each chosen by the values read before it, and each read
 labelled by what the tree knows before it. Over independent reads, whether a key is read, and the
 label of its first read, are fixed before its own value is: they depend only on the other keys'
-values (`firsts_update`). So a sum over first reads of a per-read quantity has the mean of the sum
-of that quantity's own means (`firsts_lintegral_le`), and the product over first reads of
-per-read factors of mean at most `1` has mean at most `1` (`firsts_prod_le`). A key read again
-within one run is counted once by `firsts`; with multiplicity, the sum is at most the most reads of
-one key times the sum over first reads (`asks_sum_le`).
+values. So a sum over first reads of a per-read quantity has the mean of the sum of that
+quantity's own means (`firsts_lintegral_le`).
 -/
 
 namespace OrthoDFA
