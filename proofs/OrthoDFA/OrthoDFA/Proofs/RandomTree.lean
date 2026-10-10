@@ -202,7 +202,8 @@ theorem Ψr_start (h2 : 2 ≤ C.Lmax) :
   have hX : Ideal.X (α := α) (idealCfg C) = 2 * C.Lmax * Fintype.card α + 1 := rfl
   rw [hX]
   have hL : C.Lmax * (2 * C.Lmax * Fintype.card α + 1)
-      = (C.Lmax - 2) * (2 * C.Lmax * Fintype.card α + 1) + 2 * (2 * C.Lmax * Fintype.card α + 1) := by
+      = (C.Lmax - 2) * (2 * C.Lmax * Fintype.card α + 1)
+        + 2 * (2 * C.Lmax * Fintype.card α + 1) := by
     rw [← Nat.add_mul, Nat.sub_add_cancel h2]
   have : 4 * Fintype.card α ≤ 2 * (2 * C.Lmax * Fintype.card α + 1) := by
     have := Nat.mul_le_mul_right (Fintype.card α) h2
@@ -282,7 +283,7 @@ theorem step_cases {s s' : RState α} {x : FreeMonoid α} (hs : Inv read C s)
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
 /-- A step that keeps the hypothesis counts one more probe. -/
-theorem step_same (hW : NoWrong M side read) {s s' : RState α} (hs : Inv read C s)
+theorem step_same {s s' : RState α} (hs : Inv read C s)
     {x : FreeMonoid α} (h : step read C s x = .inl s') (ht : s'.tree = s.tree)
     (he : s'.edges = s.edges) : Inv read C s' ∧ Ψr C s' = Ψr C s ∧ s'.n = s.n + 1 := by
   rcases step_cases read C hs h with
@@ -324,29 +325,37 @@ theorem step_same (hW : NoWrong M side read) {s s' : RState α} (hs : Inv read C
         simp [Ne.symm hr, this]
     | _ => simpa [recOf] using hs.recs_lt r
 
-/-- A split on a letter and the midfix where its targets part keeps the tree in the class and
-every leaf past the first two reached. -/
-theorem split_ok (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lmax) (hm : 1 ≤ C.m)
-    {s : RState α} (hs : Inv read C s) {p t t₀ : List Bool} {c : α} {u w₀ : FreeMonoid α}
-    (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
+/-- A split on a letter and the midfix where its targets part keeps every leaf past the first
+two reached. -/
+theorem split_reached {s : RState α} (hs : Inv read C s) {p t t₀ : List Bool} {c : α}
+    {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
     (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
     (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
     (hne : t₀ ≠ t) :
+    Reached read (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p) := by
+  have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm hne)
+  refine Ideal.reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
+  · simpa [mul_assoc] using hpart.1
+  · simpa [mul_assoc] using hpart.2.1
+  · simpa [mul_assoc] using hpart.2.2
+
+/-- A split that fits keeps the invariant, the tree in the class, and lowers `Ψr`. -/
+theorem split_ok {s : RState α} (hs : Inv read C s) (hm : 1 ≤ C.m) {p t t₀ : List Bool} {c : α}
+    {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
+    (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
+    (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
+    (hne : t₀ ≠ t)
+    (hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p).leaves.length
+      ≤ C.Lmax) :
     let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p
-    T'.leaves.length ≤ C.Lmax ∧ Inv read C (fresh T' (retarget read T' p s.edges) fun _ _ => false)
+    Inv read C (fresh T' (retarget read T' p s.edges) fun _ _ => false)
       ∧ Ψr C (fresh T' (retarget read T' p s.edges) fun _ _ => false) < Ψr C s := by
   intro T'
-  have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm hne)
-  have hreach : Reached read T' := by
-    refine Ideal.reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
-    · simpa [mul_assoc] using hpart.1
-    · simpa [mul_assoc] using hpart.2.1
-    · simpa [mul_assoc] using hpart.2.2
-  have hsz := (leaves_le_of_reached' read hW hreach).trans hcap
+  have hreach := split_reached read C hs hp hu huc hw₀ hw₀c hne
   have hlen := DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) s.tree p hp
   have ht := DTree.sift_inl_mem read _ _ t huc
   have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
-  refine ⟨hsz, ⟨Ideal.edgesOK_retarget read hs.edges hp _, by simp [fresh]; omega, hsz, hreach,
+  refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, by simp [fresh]; omega, hsz, hreach,
     ?_, by simp only [fresh, T']; rw [hlen]; have := hs.two; omega⟩, ?_⟩
   · simp only [fresh, T']
     rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
@@ -355,8 +364,7 @@ theorem split_ok (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lm
   · exact Ideal.Ψ_lt_split (idealCfg C) (s := Ideal.fresh s.tree s.edges s.moved) hp hsz _ _
 
 /-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
-theorem step_change (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lmax)
-    (hm : 1 ≤ C.m) {s s' : RState α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_change (hm : 1 ≤ C.m) {s s' : RState α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : step read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
     Inv read C s' ∧ s' = fresh s'.tree s'.edges s'.moved ∧ Ψr C s' < Ψr C s := by
   rcases step_cases read C hs h with
@@ -371,12 +379,12 @@ theorem step_change (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C
     rw [hE] at hfix
     simp only at hfix
     split_ifs at hfix with hmv
-    · obtain ⟨hsz, hinv, hΨ⟩ := split_ok read C hW hcap hm hs hp hu huc hw₀ hw₀c htt
-      unfold split at hfix
+    · unfold split at hfix
       simp only at hfix
-      rw [if_neg (by omega)] at hfix
+      split_ifs at hfix with hlt
       simp only [Sum.inl.injEq] at hfix
       subst hfix
+      obtain ⟨hinv, hΨ⟩ := split_ok read C hs hm hp hu huc hw₀ hw₀c htt (by omega)
       exact ⟨hinv, rfl, hΨ⟩
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
@@ -386,39 +394,51 @@ theorem step_change (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C
         (by simp [Ideal.wt, Ideal.fresh, Ideal.upd2_same, hE, hmv])
   · exact absurd ⟨rfl, rfl⟩ hne
 
-theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lmax)
-    (hm : 1 ≤ C.m) {s : RState α} (hs : Inv read C s) (x : FreeMonoid α) :
-    step read C s x ≠ .inr .tooBig := by
-  intro h
+/-- The round ends too big only at a split, of an edge redirected since it was learned, at
+its `m`-th record of a new target. -/
+theorem step_tooBig {s : RState α} (hs : Inv read C s) {x : FreeMonoid α}
+    (h : step read C s x = .inr .tooBig) :
+    ∃ p c u t t₀ w₀, probeR read s.tree s.edges C.k x = .edge p c u t ∧
+      s.edges p c = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
+      s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
+      s.moved p c = true ∧ C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧
+      C.Lmax < (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p).leaves.length := by
   have hOK := probeR_ok read hs.edges C.k x
   have hlook : ∀ t : RState α, finish C t ≠ .inr .tooBig := by
     intro t ht
     unfold finish look at ht
     split_ifs at ht <;> simp_all
   unfold step at h
-  generalize probeR read s.tree s.edges C.k x = o at h hOK
+  generalize hg : probeR read s.tree s.edges C.k x = o at h hOK
   cases o with
   | member p c u t => simp at h
   | edge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, htt⟩ := hOK
     simp only at h
-    split_ifs at h
-    · obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
-      unfold fix at h
+    split_ifs at h with hc
+    · unfold fix at h
       rw [hE] at h
       simp only at h
-      split_ifs at h
-      · obtain ⟨hsz, -, -⟩ := split_ok read C hW hcap hm hs hp hu huc hw₀ hw₀c htt
-        unfold split at h
+      split_ifs at h with hmv
+      · unfold split at h
         dsimp only at h
         split_ifs at h with hlt
-        omega
-    · exact hlook _ h
-  | agree => exact hlook _ h
-  | startU z => exact hlook _ h
-  | endU z => exact hlook _ h
-  | triple k zs => exact hlook _ h
-  | pair k zs => exact hlook _ h
+        exact ⟨p, c, u, t, t₀, w₀, rfl, hE, htt, hp, hu, huc, hmv, hc, hlt⟩
+    · exact absurd h (hlook _)
+  | agree => exact absurd h (hlook _)
+  | startU z => exact absurd h (hlook _)
+  | endU z => exact absurd h (hlook _)
+  | triple k zs => exact absurd h (hlook _)
+  | pair k zs => exact absurd h (hlook _)
+
+theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lmax)
+    {s : RState α} (hs : Inv read C s) (x : FreeMonoid α) :
+    step read C s x ≠ .inr .tooBig := by
+  intro h
+  obtain ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, -, hlt⟩ := step_tooBig read C hs h
+  obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
+  have := leaves_le_of_reached' read hW (split_reached read C hs hp hu huc hw₀ hw₀c htt)
+  omega
 
 theorem cls_mem (hW : NoWrong M side read) {s : RState α} (hs : Inv read C s) :
     s.tree ∈ classSet (Fintype.card σ) :=

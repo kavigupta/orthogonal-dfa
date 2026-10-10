@@ -21,9 +21,9 @@ tests of `OrthoDFA.TallyLoop`, checked after every probe:
 * the disagreement rate settling below `εd` ends the round consistent.
 
 `RandomRoundCorrect`: with at least `stretches · Ns` probes, the round fails to end well
-(`OrthoDFA.RoundEnd`) with chance at most `noiseRisk`, the chance that good read-states' undecided
-reads reach `G` of the probes for some tree the round can grow, plus `stretches` times
-`stretchRisk`, what one stretch risks over its first `Ns` probes.
+(`OrthoDFA.RoundEnd`) with chance at most `noiseRisk`, the chance that the probes that can read a
+good read-state undecided reach `G` of the probes for some tree the round can grow, plus
+`stretches` times `stretchRisk`, what one stretch risks over its first `Ns` probes.
 -/
 
 namespace OrthoDFA
@@ -268,11 +268,12 @@ noncomputable def hFire (θ a : ℝ) (n : ℕ) : ℕ := sInf {h | binomSfGe n θ
 once; the stretches are one more than those changes. -/
 def stretches (C : Cfg) (nα : ℕ) : ℕ := C.Lmax * (2 * C.Lmax * nα + 1) + 1
 
-/-- The chance that good read-states' undecided reads reach `G` of the probes for some tree of
-at most `nQ + 2` leaves grown by splits on a letter and a midfix where two leaves part, with
-probes of length at most `L` and no length-`k` prefix above `p₀`. -/
-noncomputable def noiseRisk (nQ nα L : ℕ) (θ p₀ G : ℝ) : ℝ :=
-  ((1 + (nQ + 1) ^ 3 * nα) ^ nQ : ℕ) * Real.exp (-(G - 3 * θ * (L + 1) * (nQ + 1)) / p₀)
+/-- The chance that the probes that can read a string with a read of chance at most `β` reach
+`G` of the probes, for some tree of at most `nQ + 2` leaves grown by splits on a letter and a
+midfix where two leaves part, with probes of length at most `L` and no length-`k` prefix above
+`p₀`. -/
+noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
+  ((1 + (nQ + 1) ^ 3 * nα) ^ nQ : ℕ) * Real.exp (-(G - 2 * β * (L + 1) * (nQ + 1)) / p₀)
 
 /-- What one stretch risks over its first `Ns` probes, with good read-states' undecided reads
 at most `G` of the probes: a test harvesting good strings at one of its looks, or a false
@@ -315,7 +316,7 @@ def RandomRoundCorrect : Prop :=
         {xs | let r := round (read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
             (toRoundEnd r.2)} ∂μ
-      ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L θ p₀ G
+      ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G
         + stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt')
 
 end Random

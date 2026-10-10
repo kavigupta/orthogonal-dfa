@@ -27,8 +27,9 @@ variable {S X E : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonC
 
 /-- The chance of a bad step is at most the current segment's, plus `Ψ` times a fresh one's. -/
 theorem anyB_le
-    (hsame : ∀ s x s', I s → step s x = .inl s' → same s s' → I s' ∧ Ψ s' = Ψ s)
-    (hchg : ∀ s x s', I s → step s x = .inl s' → ¬ same s s' → I s' ∧ F s' ∧ Ψ s' < Ψ s)
+    (hsame : ∀ s x s', I s → step s x = .inl s' → same s s' → ¬ B s x → I s' ∧ Ψ s' = Ψ s)
+    (hchg : ∀ s x s', I s → step s x = .inl s' → ¬ same s s' → ¬ B s x →
+      I s' ∧ F s' ∧ Ψ s' < Ψ s)
     (hseg : ∀ s, I s → F s → ∀ N, (Measure.pi fun _ : Fin N => D)
       {xs | SegB step B same s (List.ofFn xs)} ≤ b) :
     ∀ N s, I s → (Measure.pi fun _ : Fin N => D) {xs | AnyB step B s (List.ofFn xs)}
@@ -58,11 +59,11 @@ theorem anyB_le
       rcases hst : step s x with s' | e
       · simp only [Sum.inl.injEq, exists_eq_left']
         by_cases hsm : same s s'
-        · obtain ⟨hs', hΨ⟩ := hsame s x s' hs hst hsm
+        · obtain ⟨hs', hΨ⟩ := hsame s x s' hs hst hsm hB
           simp only [hsm, true_and]
           rw [← hΨ]
           exact ih s' hs'
-        · obtain ⟨hs', hF, hΨ⟩ := hchg s x s' hs hst hsm
+        · obtain ⟨hs', hF, hΨ⟩ := hchg s x s' hs hst hsm hB
           simp only [hsm, false_and, Set.ofPred_false, measure_empty, zero_add]
           calc _ ≤ _ := ih s' hs'
             _ ≤ b + Ψ s' * b := add_le_add (hseg s' hs' hF N) le_rfl
@@ -78,11 +79,10 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
   (ε : ℝ) (Ns : ℕ)
 
 /-- A run with no bad step ends well, given enough probes. -/
-theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
-    (hcap : Fintype.card σ + 2 ≤ C.Lmax) (hm : 1 ≤ C.m) :
+theorem ends_of_not_anyB (X : RState α → FreeMonoid α → Prop) (hm : 1 ≤ C.m) :
     ∀ (xs : List (FreeMonoid α)) (s : RState α), Inv read C s → s.n < Ns →
       Ψr C s * Ns + (Ns - s.n) ≤ xs.length →
-      ¬ AnyB (step read C) (BadStep read C M U θ D ε Ns) s xs →
+      ¬ AnyB (step read C) (BadStep read C M U θ D ε Ns X) s xs →
       EndsWell M (BadAt U θ) D ε
         {y | Disagrees read (round read C s xs).1.tree (round read C s xs).1.edges C.k y}
         (toRoundEnd (round read C s xs).2)
@@ -93,17 +93,17 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     rcases hst : step read C s x with s' | e
     · simp only [round, hst]
       by_cases hsm : Same s s'
-      · obtain ⟨hs', hΨ, hn'⟩ := step_same read C hW hs hst hsm.1 hsm.2
+      · obtain ⟨hs', hΨ, hn'⟩ := step_same read C hs hst hsm.1 hsm.2
         have hlt : s'.n < Ns := by
           have : s'.n ≠ Ns := fun h => hb1 (Or.inr ⟨s', hst, hsm, h⟩)
           omega
-        refine ends_of_not_anyB hW hcap hm xs s' hs' hlt ?_ (hb2 s' hst)
+        refine ends_of_not_anyB X hm xs s' hs' hlt ?_ (hb2 s' hst)
         rw [hΨ, hn']
         simp only [List.length_cons] at hlen
         omega
-      · obtain ⟨hs', hf, hΨ⟩ := step_change read C hW hcap hm hs hst hsm
+      · obtain ⟨hs', hf, hΨ⟩ := step_change read C hm hs hst hsm
         have h0 : s'.n = 0 := by rw [hf]; rfl
-        refine ends_of_not_anyB hW hcap hm xs s' hs' (by omega) ?_ (hb2 s' hst)
+        refine ends_of_not_anyB X hm xs s' hs' (by omega) ?_ (hb2 s' hst)
         rw [h0, Nat.sub_zero]
         simp only [List.length_cons] at hlen
         have : (Ψr C s' + 1) * Ns ≤ Ψr C s * Ns := Nat.mul_le_mul_right _ hΨ
@@ -111,7 +111,7 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
         omega
     · simp only [round, hst]
       by_contra hne
-      exact hb1 (Or.inl ⟨hn, e, hst, hne⟩)
+      exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
 theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabilityMeasure D]
     (L P N₁ : ℕ) (G θr εd' θpt' : ℝ) (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
@@ -134,24 +134,29 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
   have hst := inv_start read C hm h2 (α := α)
   have hΨ := Ψr_start C h2 (α := α)
   set b := ENNReal.ofReal (stretchRisk C L Ns N₁ G θr εd' θpt')
+  set X : RState α → FreeMonoid α → Prop := fun _ _ => False
   have hseg : ∀ s, Inv read C s → s = fresh s.tree s.edges s.moved → ∀ N,
       (Measure.pi fun _ : Fin N => D)
-        {xs | SegB (step read C) (BadStep read C M U θ D ε Ns) Same s (List.ofFn xs)} ≤ b :=
-    fun s hs hf N => seg_le read C M U θ D ε Ns hW L N₁ G θr εd' θpt' hL hN hcap hm hn₀ hN₁ hN₁s
-      hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0
-      hθpt'1 hsep hs hf N
-  have hany := anyB_le (step read C) (BadStep read C M U θ D ε Ns) Same D (Inv read C)
+        {xs | SegB (step read C) (BadStep read C M U θ D ε Ns X) Same s (List.ofFn xs)} ≤ b := by
+    intro s hs hf N
+    have := seg_le read C M U θ D ε Ns X (fun _ => False) 0 L N₁ G θr εd' θpt' hL hs hf
+      (cls_mem read C hW hs) hN (fun _ _ _ _ _ h => h)
+      (fun _ s' x hs' _ _ _ => step_ne_tooBig read C hW hcap hs' x)
+      (fun N => by simp) hm hn₀ hN₁ hN₁s hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 hεd
+      hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep N
+    rwa [add_zero] at this
+  have hany := anyB_le (step read C) (BadStep read C M U θ D ε Ns X) Same D (Inv read C)
     (fun s => s = fresh s.tree s.edges s.moved) (Ψr C) b
-    (fun s x s' hs h hsm => by
-      obtain ⟨h1, h2, -⟩ := step_same read C hW hs h hsm.1 hsm.2
+    (fun s x s' hs h hsm _ => by
+      obtain ⟨h1, h2, -⟩ := step_same read C hs h hsm.1 hsm.2
       exact ⟨h1, h2⟩)
-    (fun s x s' hs h hsm => step_change read C hW hcap hm hs h hsm) hseg P start hst
+    (fun s x s' hs h hsm _ => step_change read C hm hs h hsm) hseg P start hst
   calc _ ≤ (Measure.pi fun _ : Fin P => D)
-        {xs | AnyB (step read C) (BadStep read C M U θ D ε Ns) start (List.ofFn xs)} := by
+        {xs | AnyB (step read C) (BadStep read C M U θ D ε Ns X) start (List.ofFn xs)} := by
         refine measure_mono fun xs hxs => ?_
         by_contra hb
         have hn0 : (start : RState α).n = 0 := rfl
-        refine hxs (ends_of_not_anyB read C M U θ D ε Ns hW hcap hm _ start hst
+        refine hxs (ends_of_not_anyB read C M U θ D ε Ns X hm _ start hst
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
         have : (Ψr C (start : RState α) + 1) * Ns ≤ stretches C (Fintype.card α) * Ns :=
@@ -206,7 +211,7 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
         gcongr
         rw [measure_toMeasurable]
         exact measure_union_le _ _
-    _ ≤ c + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L θ p₀ G) := by
+    _ ≤ c + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G) := by
         rw [hW, zero_add]
         gcongr
     _ = _ := by
