@@ -176,6 +176,25 @@ theorem tallyStep_same {s s' : TState α} {x : FreeMonoid α}
   subst hs'
   exact tallyPre_same C cut s x (by omega)
 
+theorem tallyStep_version_ge {s s' : TState α} {x : FreeMonoid α}
+    (h : tallyStep C cut s x = .inl s') : (tallyPre C cut s x).version ≤ s'.version := by
+  unfold tallyStep at h
+  simp only [] at h
+  split at h
+  · cases h
+  · exact (settle_version cut C.m C.Lmax C.fuel _ s' h).1
+
+/-- A probe that learns an unlearned edge starts a new version. -/
+theorem learnsBy_version {s : TState α} {x : FreeMonoid α} {p : List Bool} {c : α}
+    (h : LearnsBy cut C.k (s.tree, s.edges) p c x) :
+    (tallyPre C cut s x).version = s.version + 1 := by
+  obtain ⟨he, u, t, ho, hc, hp, ht⟩ := h
+  simp only [] at he ho hp ht
+  unfold tallyPre
+  rw [ho]
+  simp only [hc, hp, ht, he]
+  rfl
+
 end Step
 
 section Fix
@@ -190,11 +209,12 @@ noncomputable def tallyStep' (s : TState α) (x : FreeMonoid α) : Option (TStat
 /-- The hypothesis: the tree, the edges and their version. -/
 def tallyKey (s : TState α) : DTree α × Edges α × ℕ := (s.tree, s.edges, s.version)
 
-/-- The edge `(p, c)` out of a leaf and a target `t` it does not point at get clean records at
-rate `q`. -/
+/-- The edge `(p, c)` out of a leaf and a target `t` it does not point at get clean records, or
+probes learning the edge, at rate `q`. -/
 def CleanSig (h : DTree α × Edges α × ℕ) (pct : List Bool × α × List Bool) : Prop :=
   pct.1 ∈ h.1.paths ∧ (h.2.1 pct.1 pct.2.1).map Prod.fst ≠ some pct.2.2
-    ∧ q ≤ D.real {x | (recordBy cut C.k (h.1, h.2.1) x).map Prod.fst = some pct}
+    ∧ q ≤ D.real {x | (recordBy cut C.k (h.1, h.2.1) x).map Prod.fst = some pct
+      ∨ LearnsBy cut C.k (h.1, h.2.1) pct.1 pct.2.1 x}
 
 /-- Some edge and a target it does not point at get clean records at rate `q`. -/
 def Significant (h : DTree α × Edges α × ℕ) : Prop := ∃ pct, CleanSig C cut D q h pct
@@ -203,7 +223,8 @@ open scoped Classical in
 /-- The clean records of a significant pair, where `h` is significant. -/
 noncomputable def sigRecs (h : DTree α × Edges α × ℕ) : Set (FreeMonoid α) :=
   if hs : Significant C cut D q h then
-    {x | (recordBy cut C.k (h.1, h.2.1) x).map Prod.fst = some hs.choose}
+    {x | (recordBy cut C.k (h.1, h.2.1) x).map Prod.fst = some hs.choose
+      ∨ LearnsBy cut C.k (h.1, h.2.1) hs.choose.1 hs.choose.2.1 x}
   else ∅
 
 open scoped Classical in
@@ -245,13 +266,15 @@ theorem tally_fix_in_time (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (hm : 0 < C.m) (n T : 
         unfold sigCount; rw [dif_pos h1, hch]
       have hle : sigCount C cut D q s ≤ s.tally hs.choose.1 hs.choose.2.1 hs.choose.2.2 := by
         unfold sigCount; split_ifs <;> simp
+      have hnl : ¬ LearnsBy cut C.k (s.tree, s.edges) hs.choose.1 hs.choose.2.1 x := fun hl =>
+        by have := learnsBy_version C cut hl; have := tallyStep_version_ge C cut hst; omega
       have hA : (if x ∈ sigRecs C cut D q (tallyKey s) then 1 else 0)
           = (if (recordBy cut C.k (s.tree, s.edges) x).map Prod.fst
               = some (hs.choose.1, hs.choose.2.1, hs.choose.2.2) then 1 else 0) := by
         rw [sigRecs, dif_pos hs]
         by_cases hx : (recordBy cut C.k (s.tree, s.edges) x).map Prod.fst = some hs.choose
-        · rw [if_pos (show x ∈ _ from hx), if_pos hx]
-        · rw [if_neg (show x ∉ _ from hx), if_neg hx]
+        · rw [if_pos hx]; exact if_pos (Or.inl hx)
+        · rw [if_neg hx]; exact if_neg fun h => h.elim hx hnl
       rw [hs', hA]
       exact le_trans (Nat.add_le_add_right hle _) (htal _ _ _)
     · simp [sigCount, hs, sigRecs]

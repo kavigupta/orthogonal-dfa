@@ -99,6 +99,13 @@ def recordBy (k : ℕ) (h : DTree α × Edges α) (x : FreeMonoid α) :
     | _, _ => none
   | _ => none
 
+/-- A probe of `x` against `h` learns the unlearned edge `(p, c)`: a member at `u`, which sifts to
+`p` and is followed by `c`, whose next prefix the cut places. -/
+def LearnsBy (k : ℕ) (h : DTree α × Edges α) (p : List Bool) (c : α) (x : FreeMonoid α) : Prop :=
+  h.2 p c = none ∧ ∃ u t, probeBy cut h.1 h.2 k x = .member u
+    ∧ x.toList[u.toList.length]? = some c ∧ h.1.sift cut u = .inl p
+    ∧ h.1.sift cut (u * FreeMonoid.of c) = .inl t
+
 /-- The walk's edge out of position `i`: its leaf there and the probe's next letter. -/
 def edgeAtBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
     Option (List Bool × α) :=

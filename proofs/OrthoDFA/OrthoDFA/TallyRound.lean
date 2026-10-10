@@ -13,9 +13,10 @@ path-good where every read on the way is good.
 A tree is genuine where it grows from the root's cut by splits that each separate two states whose
 true leaf is the split leaf, their reads of the new midfix on different sides. The noise event
 `TallyE` is a hypothesis on `rd`, quantified over genuine trees and edges into their leaves:
-* `clean`: a path-good transition `τ = (q, c)` whose boundary (where the probe's search stops,
-  read on majority sides, at `τ`) has mass at least `q₀` gets clean records, at `τ`'s true leaves,
-  at least `c₀` times that mass;
+* `clean`: a path-good transition `τ = (q, c)` whose boundary (where the probe, read on majority
+  sides, stops at `τ`'s edge: its search, or its walk where the edge is unlearned) has mass at
+  least `q₀` gets clean records at `τ`'s true leaves, or learns its edge, at least `c₀` times that
+  mass;
 * `spurious`: at each edge and target, probes whose record there is not true (its prefix or its
   successor off its true leaf) have mass at most `ρ`;
 * `goodEdge`: at each edge, the undecided reads at good read-states charged to it average at most
@@ -95,11 +96,13 @@ def TrueRec (T : DTree α) (pct : List Bool × α × List Bool) (sp : FreeMonoid
     ∧ G.leafOf T (G.M.eval (sp * FreeMonoid.of pct.2.1).toList) = pct.2.2
 
 /-- `τ = (q, c)`'s boundary: read on majority sides, the probe's search stops at the edge out of
-`q`'s leaf by `c`, from a prefix in state `q`. -/
+`q`'s leaf by `c`, from a prefix in state `q`, or its walk stops there, the edge unlearned. -/
 def tauBoundary (k : ℕ) (T : DTree α) (edges : Edges α) (q : σ) (c : α) :
     Set (FreeMonoid α) :=
-  {x | ∃ sp, recordBy G.trueCut k (T, edges) x
-      = some ((G.leafOf T q, c, G.leafOf T (G.M.step q c)), sp) ∧ G.M.eval sp.toList = q}
+  {x | (∃ sp, recordBy G.trueCut k (T, edges) x
+      = some ((G.leafOf T q, c, G.leafOf T (G.M.step q c)), sp) ∧ G.M.eval sp.toList = q)
+    ∨ ∃ u, probeBy G.trueCut T edges k x = .member u ∧ x.toList[u.toList.length]? = some c
+      ∧ G.M.eval u.toList = q}
 
 open scoped Classical in
 /-- The undecided reads a probe charges to `e` at read-states satisfying `P`. -/
@@ -127,7 +130,8 @@ structure TallyE {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)
     G.PathGood T (G.M.step q c) → q₀ ≤ D.real (G.tauBoundary k T edges q c) →
     c₀ * D.real (G.tauBoundary k T edges q c)
       ≤ D.real {x | (recordBy (fun z => (rd z).cut) k (T, edges) x).map Prod.fst
-          = some (G.leafOf T q, c, G.leafOf T (G.M.step q c))}
+          = some (G.leafOf T q, c, G.leafOf T (G.M.step q c))
+        ∨ LearnsBy (fun z => (rd z).cut) k (T, edges) (G.leafOf T q) c x}
   spurious : ∀ T edges, G.Genuine T → EdgesInto T edges → ∀ pct,
     D.real {x | ∃ sp, recordBy (fun z => (rd z).cut) k (T, edges) x = some (pct, sp)
       ∧ ¬ G.TrueRec T pct sp} ≤ ρ

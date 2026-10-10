@@ -5,8 +5,8 @@ import OrthoDFA.Proofs.TallyInv
 
 Fix the reads and suppose `TallyE`. While fewer than `m` probes have made records that are not
 true, every state is genuine, so `TallyE` applies to it: a state with a path-good transition whose
-boundary has mass `q₀` gets clean records at rate `c₀q₀` at an edge not pointing at their target,
-so its hypothesis changes within `n` probes unless `tally_fix_in_time`'s event happens; every
+boundary has mass `q₀` gets clean records, or probes learning its edge, at rate `c₀q₀` at an edge
+not pointing at their target, so its hypothesis changes within `n` probes unless `tally_fix_in_time`'s event happens; every
 change lowers `pot`, so within `T` probes the round reaches a state with no such transition, or
 ends. It ends only in success or a harvest, since genuine trees stay within `Lmax` leaves and
 `pot` within `fuel`; and a harvest its stretch's hypothesis does not call for is a stretch's test
@@ -75,21 +75,25 @@ theorem sig_of_not_fixed (hq₀ : 0 < q₀) (hcq : 0 < c₀ * q₀)
   have hc₀ : 0 < c₀ := pos_of_mul_pos_left hcq hq₀.le
   have hclean := hE.clean s.tree s.edges hg he q c hq hqc hb
   have hrate : c₀ * q₀ ≤ D.real {x | (recordBy (rdCut rd) C.k (s.tree, s.edges) x).map Prod.fst
-      = some (G.leafOf s.tree q, c, G.leafOf s.tree (G.M.step q c))} :=
+      = some (G.leafOf s.tree q, c, G.leafOf s.tree (G.M.step q c))
+      ∨ LearnsBy (rdCut rd) C.k (s.tree, s.edges) (G.leafOf s.tree q) c x} :=
     (mul_le_mul_of_nonneg_left hb hc₀.le).trans hclean
   refine ⟨(G.leafOf s.tree q, c, G.leafOf s.tree (G.M.step q c)), G.leafOf_mem_paths _ _, ?_,
     hrate⟩
   have hne : {x | (recordBy (rdCut rd) C.k (s.tree, s.edges) x).map Prod.fst
-      = some (G.leafOf s.tree q, c, G.leafOf s.tree (G.M.step q c))}.Nonempty := by
+      = some (G.leafOf s.tree q, c, G.leafOf s.tree (G.M.step q c))
+      ∨ LearnsBy (rdCut rd) C.k (s.tree, s.edges) (G.leafOf s.tree q) c x}.Nonempty := by
     by_contra h
     rw [Set.not_nonempty_iff_eq_empty] at h
     rw [h, measureReal_empty] at hrate
     linarith
-  obtain ⟨x, hx⟩ := hne
-  simp only [Set.mem_ofPred_eq, Option.map_eq_some_iff] at hx
-  obtain ⟨⟨pct, sp⟩, hr, rfl⟩ := hx
-  obtain ⟨-, -, -, -, -, -, hne'⟩ := recordBy_spec (rdCut rd) hr
-  exact hne'
+  obtain ⟨x, hx | ⟨hnone, -⟩⟩ := hne
+  · simp only [Option.map_eq_some_iff] at hx
+    obtain ⟨⟨pct, sp⟩, hr, rfl⟩ := hx
+    obtain ⟨-, -, -, -, -, -, hne'⟩ := recordBy_spec (rdCut rd) hr
+    exact hne'
+  · simp only [] at hnone
+    simp [tallyKey, hnone]
 
 theorem filter_split (l : List ℕ) (a b c d : ℕ → Bool) (h : ∀ i, b i = (c i || d i))
     (hx : ∀ i, ¬ (c i = true ∧ d i = true)) :

@@ -236,8 +236,9 @@ Two gaps between the model and Python:
   disagreement rate settling below `εd` succeeds; `Lmax` leaves, `fuel` fixes and running out of
   probes fail. A genuine tree grows from the root's cut by splits separating two path-good states
   with good reads of the new midfix on different sides. `TallyE` says, over every genuine tree and
-  edges into its leaves: a path-good transition with boundary mass `q₀` gets clean records at
-  `c₀` times it; records that are not true have mass at most `ρ` at each edge and target; good
+  edges into its leaves: a path-good transition with boundary mass `q₀` (where the probe, read on
+  majority sides, stops at its edge: its search, or its walk where the edge is unlearned) gets
+  clean records, or learns its edge, at `c₀` times it; records that are not true have mass at most `ρ` at each edge and target; good
   read-states' undecided reads average at most `θg` of an edge's reads, and `θgs` at the start.
   Proved in `Proofs/TallyRound.lean`: with fewer than `m` records that are not true every split is
   genuine (`Proofs/TallyInv.lean`), `pot` bounds the versions (`Proofs/TallyCount.lean`), and the
