@@ -6,11 +6,12 @@ Each round searches a suffix family and runs the tally round
 join the next round's representative pool, with a per-state balanced sample,
 and drive the suffix-family FNR gate to re-cluster and resolve them.
 
-Outer-loop policy, outside what the round's proof covers: a round that ends
-consistent, is refused by the certificate and harvests nothing new halves the
-FNR limit, so the next family must be more decisive.  The round cannot see a
-state the family reads decisively on the wrong side (a merge), and this is what
-moves the family off it.
+Outer-loop policy, outside what the round's proof covers: a round that ends in a
+harvest, or ends consistent, is refused by the certificate and harvests nothing
+new, halves the FNR limit, so the next family must be more decisive.  A harvest
+is the round finding the family undecided somewhere; and the round cannot see a
+state the family reads decisively on the wrong side (a merge), which only a
+tighter family moves off.
 """
 
 import time
@@ -31,7 +32,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import counter, track
 from .suffix_family import SuffixFamily
-from .tally_round import SUCCESS, Replay, TallyRound, tally_config
+from .tally_round import HARVESTS, SUCCESS, Replay, TallyRound, tally_config
 from .tracker import SynthesisTracker
 
 
@@ -98,11 +99,13 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
     return min(wanted, len(taken))
 
 
-def _refused_with_nothing_to_carry(ending, true_acc, acc_threshold, taken) -> bool:
-    """A round the certificate refused that gives the next family search nothing
-    new: the family itself reads the hypothesis consistent, so only a tighter
-    family can show it more."""
-    return ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
+def _family_too_loose(ending, true_acc, acc_threshold, taken) -> bool:
+    """A round that met too many undecided reads, or that the certificate refused
+    with nothing new to give the next family search: the family itself reads
+    that hypothesis consistent, so only a tighter family can show it more."""
+    return ending.kind in HARVESTS or (
+        ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
+    )
 
 
 def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
@@ -352,12 +355,9 @@ def counterexample_driven_synthesis(
             state,
             target,
         )
-        if _refused_with_nothing_to_carry(ending, true_acc, acc_threshold, taken):
+        if _family_too_loose(ending, true_acc, acc_threshold, taken):
             pst.fnr_limit /= 2
-            print(
-                f"[round {index}] consistent and refused, with nothing harvested; "
-                f"FNR limit now {pst.fnr_limit:.4f}"
-            )
+            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
         # Rounds after a refusal have their own patience, so they are not
         # weighed for a stall.

@@ -84,6 +84,7 @@ HARVEST_START = "harvest start"
 HARVEST_EDGE = "harvest edge"
 HARVEST_MIDDLES = "harvest middles"
 TOO_BIG = "too big"
+HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 OUT_OF_PROBES = "out of probes"
 
 
