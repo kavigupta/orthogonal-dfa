@@ -133,6 +133,11 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
             yield k_low, k_high, eps
 
 
+#: In a state whose read is undecided at least a third of the time, the most its
+#: rarer decided side may be read.
+MINORITY_READ_LIMIT = 0.01
+
+
 def evidence_margin_for_population_size(
     signal_strength, cross_limit, acceptable_fnr, N, *, center
 ) -> Optional[Tuple[int, float]]:
@@ -162,6 +167,7 @@ def evidence_margin_for_population_size(
                 accept_rate=center + signal_strength,
                 reject_rate=center - signal_strength,
                 limit=cross_limit,
+                minority_limit=MINORITY_READ_LIMIT,
             )
         ):
             return N, eps
@@ -182,11 +188,14 @@ def _vote_parts(N, accept_rate, reject_rate):
     return y_pmf, z_le, z_ge
 
 
-def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
+def reads_trichotomous(
+    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit
+):
     """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
     lead into the language (each voting accept at `accept_rate`, the rest at
     `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
-    or undecided at least a third.  `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
+    or undecided at least a third with accept or reject at most `minority_limit`.
+    `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
     just inside the band at a small count can sit at or below `k_low` more than 2/3 of
@@ -197,7 +206,10 @@ def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
     reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
     accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
     undecided = 1 - accept - reject
-    return bool(np.all((accept <= limit) | (reject <= limit) | (undecided >= 1 / 3)))
+    leans = (accept <= minority_limit) | (reject <= minority_limit)
+    return bool(
+        np.all((accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3)))
+    )
 
 
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
