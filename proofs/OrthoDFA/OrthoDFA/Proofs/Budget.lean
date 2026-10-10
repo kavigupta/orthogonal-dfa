@@ -823,6 +823,7 @@ def ClusteringGuaranteeAll : Prop :=
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
+
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and collision cap it names as the witnesses,
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the

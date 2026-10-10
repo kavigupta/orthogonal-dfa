@@ -4,6 +4,7 @@ import OrthoDFA.Clustering
 
 namespace OrthoDFA
 
+
 open MeasureTheory ProbabilityTheory
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -46,6 +47,7 @@ bounds consume). -/
 lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards [O.noise_bit w] with ω hω
   rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
+
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w).aemeasurable (O.noise_icc w)

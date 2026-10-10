@@ -315,6 +315,7 @@ lemma clusterAround_subset (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Fins
   unfold clusterAround
   exact lloydIterate_subset mq cn cd P cands ω k hone _ _ (by simpa using hone)
 
+
 /-- A read table as an oracle: the "noise" is the table itself. -/
 noncomputable def tableRead (w : S) (reads : S → Prop) : ℝ := by
   classical
