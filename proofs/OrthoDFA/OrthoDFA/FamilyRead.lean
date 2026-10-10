@@ -68,7 +68,7 @@ noncomputable def readLaw (N a : ℕ) (p r : ℝ) (kl kh : ℕ) (rd : Read) : �
 /-- For every `a ≤ N`, the read law of a state from which `a` of the `N` suffixes lead into the
 language is accept at most `ε` of the time, or reject at most `ε`, or undecided at least a
 third.  `evidence_margin_for_population_size` accepts only bands that pass it at
-`ε = cross_limit` (`reads_trichotomous`). -/
+`ε = cross_limit` (`reads_trichotomous`), so by `FamilyReadLaw` every state's read is too. -/
 def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
   ∀ a ≤ N,
     readLaw N a (1 - ηIn) ηOut kl kh .accept ≤ ε
@@ -78,19 +78,16 @@ def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
 /-! ## The claims -/
 
 /-- With the language a DFA's and the family suffix-free, the reads are independent across
-strings, every string in a state reads with that state's law, and wherever `TrichotomyAt` holds
-every state's law is accept at most `ε` of the time, or reject at most `ε`, or undecided at least
-a third. -/
-def FamilyReadTrichotomy : Prop :=
+strings, and every string in a state reads with the vote law of that state's `a`, the number of
+the `N` suffixes that lead from it into the language. -/
+def FamilyReadLaw : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
-    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (ε : ℝ),
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ),
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   SuffixFree F →
-  TrichotomyAt F.card kl kh O.ηIn O.ηOut ε →
   iIndepFun (fun w => familyRead O.mq F kl kh w) μ
-  ∧ ∀ q : σ, ∃ law : Read → ℝ,
-    (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
-    ∧ (law .accept ≤ ε ∨ law .reject ≤ ε ∨ 1 / 3 ≤ law .undecided)
+  ∧ ∀ q : σ, ∃ a ≤ F.card, ∀ w, M.eval w.toList = q →
+      ∀ rd, readProb O F kl kh w rd = readLaw F.card a (1 - O.ηIn) O.ηOut kl kh rd
 
 end OrthoDFA

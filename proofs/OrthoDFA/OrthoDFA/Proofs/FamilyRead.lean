@@ -335,13 +335,12 @@ lemma acceptCount_eq_state {α σ : Type*} [Countable α] (O : Oracle μ (FreeMo
 
 /-! ## The reduction to the parameters -/
 
-theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
+theorem family_read_law_holds : FamilyReadLaw := by
   classical
-  intro Ω _ μ _ α σ _ O M F kl kh ε hL hF htri
+  intro Ω _ μ _ α σ _ O M F kl kh hL hF
   refine ⟨read_iIndep O hF kl kh, fun q => ?_⟩
-  set a := (F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card with ha
-  refine ⟨readLaw F.card a (1 - O.ηIn) O.ηOut kl kh, fun w hw rd => ?_,
-    htri a (Finset.card_filter_le _ _)⟩
+  refine ⟨(F.filter (fun v => M.evalFrom q v.toList ∈ M.accept)).card,
+    Finset.card_filter_le _ _, fun w hw rd => ?_⟩
   rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
 
 /-! ## Why the rule checks `TrichotomyAt`
