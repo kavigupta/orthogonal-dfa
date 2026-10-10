@@ -2,12 +2,10 @@ import OrthoDFA.Stage
 import OrthoDFA.Automaton
 
 /-!
-# The counterexample pass
+# The pass's knobs
 
-`TransitionResolver.counterexample_pass` over a round's cut: probes walked through the hypothesis
-from where the gate places `ε` and re-sifted, leaves split where the evidence confirms a
-disagreement, and what the cut cannot place harvested: into the bisection population when the
-probe disagrees, else into the boundary population.
+Splitting a leaf (`splitAt`), the gate's read past the middle of the band (`CutReads.mid`), and the
+suffixes a pass reads (`StageKnobs`).
 -/
 
 namespace OrthoDFA

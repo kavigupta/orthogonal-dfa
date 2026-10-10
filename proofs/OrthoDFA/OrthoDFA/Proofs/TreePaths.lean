@@ -1,8 +1,10 @@
-import OrthoDFA.RoundStrong
-import OrthoDFA.Proofs.RoundLevel
+import OrthoDFA.StartAtK
+import OrthoDFA.Pass
+import Mathlib.Analysis.SpecialFunctions.Log.Base
+import OrthoDFA.Proofs.HarvestClasses
 
 /-!
-# The strengthened round's deterministic claims
+# Leaves' paths
 -/
 
 namespace OrthoDFA
@@ -74,41 +76,5 @@ theorem append_not_mem_paths :
     · obtain ⟨-, rfl⟩ := he; exact append_not_mem_paths a q' b hq' hq
 
 end DTree
-
-end OrthoDFA
-
-namespace OrthoDFA
-
-open MeasureTheory
-open scoped ENNReal
-
-variable {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*}
-
-section StrongReading
-
-variable (C : StrongCfg α) (R : CutReads α)
-
-variable (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-  (CertGood : DTree α → Edges α → Prop)
-
-instance StrongCfg.drawMeasure_prob (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
-    IsProbabilityMeasure (C.drawMeasure D) := by
-  unfold StrongCfg.drawMeasure; infer_instance
-
-end StrongReading
-
-end OrthoDFA
-
-namespace OrthoDFA
-
-open MeasureTheory
-
-variable {α : Type*} [Fintype α] [DecidableEq α]
-
-section Segments
-
-variable (C : StrongCfg α)
-
-end Segments
 
 end OrthoDFA

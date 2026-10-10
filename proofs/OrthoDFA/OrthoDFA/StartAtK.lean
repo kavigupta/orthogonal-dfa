@@ -1,23 +1,12 @@
 import OrthoDFA.Round
 
 /-!
-# The round, walked from position `k`
+# Walks and searches from position `k`
 
-A probe is walked from where the cut places its first `k` letters, along learned edges only, and
-checked against where the cut places the whole probe. `probeOutcome` says what one probe comes
-to; a decided disagreement is searched, narrowing on decided reads only, down to two adjacent
-undecided reads, a triple, or an edge.
-
-The counterexample pass acts on edges and members. The gate then reads fresh draws against the
-frozen hypothesis until its agreement's test and its ends test both settle, or to the batch's
-end. Its share agreeing decides between passing and refusing, a refusal's decided disagreements
-becoming the next pass's first probes. The limit halves where the searches end at pairs too
-often, or where a refusal has nothing decided to carry.
-
-`RoundAtK` makes one claim per outcome: the gate's agreement, the ends test, the pair test and a
-refusal with nothing to carry, edges reaching the split test, members placed at the leaf whose
-edge is missing, and triples harvested from badly read states but for their share among the
-searches.
+A probe is walked from where the cut places its first `k` letters along learned edges (`follow`,
+`KWalk`) and checked against where the cut places the whole probe; a disagreement is searched by
+bisection (`bracketAt`) to what the probe comes to (`Outcome`). `rateSide` is the tests' verdict on
+a count against a rate.
 -/
 
 namespace OrthoDFA

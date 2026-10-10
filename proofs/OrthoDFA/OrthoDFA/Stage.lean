@@ -1,31 +1,11 @@
 import OrthoDFA.Clustering
 
 /-!
-# The round's outcome
+# Trees and their reads
 
-A round of the L\* stage ends with a hypothesis: `TransitionResolver`'s discrimination tree over
-the family's cut, and the edges between its leaves.  The DFA/DT agreement gate
-(`estimate_agreement_rate`) reads the tree at the middle of the cut's band and walks the
-hypothesis from where that reading sends `ε`.  The round's harvest is replayed as `Walked` does:
-from the first prefix at least as long as an earliest anchor drawn uniformly below `L` that the
-tree places, walk the hypothesis, sift the draw, and bisect to the first edge where walk and sift
-part, keeping every string the cut cannot place and, with every read decided, the draw up to that
-edge.
-
-`RoundOutcome`: for any tree and DFA a round ends with, if the DFA/DT agreement check fails on a
-share `d` of sampler strings, the harvest sampler finds at least one string on at least a `d/L`
-share of attempts, harvests no single string `t` on more than a `B(t)` share of them, and reads no
-single string `t` on more than a `B(t)` share of them, where
-
-    B(t) = ∑_{i ≤ |t|} min(i + 1, L) / L · D(the draw's first i letters are t's).
-
-Known modelling gap.  This is `Walked` as #398 (the uniform anchor) and #403 (one harvest, which
-keeps the disagreement's prefix) have it; on main it walks from the start and keeps no prefix.
-
-Known modelling gap.  `HarvestSource` counts an attempt only when it turns up a string it has not
-served, and retires a source whose yield falls below `(1 - acc_threshold) / 2`, while
-`RoundOutcome` guarantees a refused round's replay only `(1 - acc_threshold) / L`, so a source
-between the two can be retired that the argument relies on.
+A family's cut reads a string accept, reject or undecided (`CutReads`). A discrimination tree
+places a string by reading it followed by each node's midfix (`route`, `sift`), and a hypothesis
+sets each leaf's edges by letter (`Hypothesis`).
 -/
 
 namespace OrthoDFA

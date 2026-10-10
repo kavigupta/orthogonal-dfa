@@ -1,27 +1,12 @@
-import OrthoDFA.RoundStrong
+import OrthoDFA.StartAtK
+import OrthoDFA.Pass
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
-# The L\* loop
+# The loop's bookkeeping
 
-Probes are fresh draws, each walked from `k` along the learned edges and searched for its first
-disagreement (`probeOutcome`). Counts run over a stretch of probes, which starts afresh whenever
-the tree or the edges change, and are tested after every probe:
-* a start, end, triple or pair rate above its threshold ends the loop with a harvest of those
-  strings;
-* a disagreement rate (edges, pairs and triples) settling below `1 − acc` ends it consistent;
-* at `nmax`, with nothing settled and no change, the loop ends flagged unsettled.
-
-A probe reaching an unlearned edge learns it from its own prefix. A probe ending at an edge
-records its prefix and the leaf its next prefix sifts to. An edge with `m` of a stretch's records
-at a target it does not point at is redirected there, once; with `m` at two targets, or after a
-redirect at another, its leaf splits on the letter and the midfix where the targets part. A tree
-past `Lmax` leaves ends the loop flagged, and so does running out of the round's probes.
-
-`LoopSucceeds`: with the thresholds below `τ₀`, the loop ends consistent with the draws
-disagreeing at most `1 − acc` of the time, or with a harvest of a class above its threshold, but
-for chance at most its tests' levels over the round's probes, a decided read off its side, more
-than `j` in-band reads off their side, a misread string drawn `m / j` times within a stretch, and
-an unsettled stretch.
+The classes the loop's undecided exits count (`Cls`), the outcomes that disagree, and the edge
+updates a split makes (`retarget`, `DTree.midAt`).
 -/
 
 namespace OrthoDFA

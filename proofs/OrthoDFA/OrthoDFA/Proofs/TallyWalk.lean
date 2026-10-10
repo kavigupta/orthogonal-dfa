@@ -1,6 +1,6 @@
 import OrthoDFA.TallyRound
 import OrthoDFA.Proofs.StartAtK
-import OrthoDFA.Proofs.RoundStrong
+import OrthoDFA.Proofs.TreePaths
 
 /-!
 # The tally loop's walks
