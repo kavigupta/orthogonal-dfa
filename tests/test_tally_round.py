@@ -78,7 +78,7 @@ def _config(**changes):
 
 
 def _round(cut, edges, **changes):
-    tally = TallyRound(_config(**changes), cut, MidfixTree([]))
+    tally = TallyRound(_config(**changes), cut, lambda _: None, MidfixTree([]))
     tally.edges = dict(edges)
     return tally
 
@@ -319,6 +319,41 @@ class TestTheTests(unittest.TestCase):
         tally = _round(_cut(), PARITY_EDGES, max_probes=3)
         self.assertEqual(OUT_OF_PROBES, tally.run(lambda: b"\x01").kind)
         self.assertEqual(3, tally.probes)
+
+
+class TestWarming(unittest.TestCase):
+    DRAWS = [bytes([i % 2, (i // 2) % 2, (i // 4) % 2, 1]) for i in range(40)]
+
+    def test_a_held_hypothesis_warms_only_what_its_probes_read(self):
+        read, warmed = set(), set()
+
+        def cut(z):
+            read.add(z)
+            return _cut()(z)
+
+        stepped = _round(cut, PARITY_EDGES)
+        for x in self.DRAWS:
+            stepped.step(x)
+        draws = iter(self.DRAWS)
+        tally = TallyRound(
+            _config(max_probes=len(self.DRAWS)), _cut(), warmed.update, MidfixTree([])
+        )
+        tally.edges = dict(PARITY_EDGES)
+
+        self.assertEqual(OUT_OF_PROBES, tally.run(lambda: next(draws)).kind)
+        self.assertTrue(warmed)
+        self.assertLessEqual(warmed, read)
+
+    def test_the_block_stops_where_success_could_fire(self):
+        drawn = []
+
+        def draw():
+            drawn.append(b"\x01\x00")
+            return drawn[-1]
+
+        tally = _round(_cut(), PARITY_EDGES, disagreement_rate=0.5)
+        self.assertEqual(SUCCESS, tally.run(draw).kind)
+        self.assertEqual(7, len(drawn))
 
 
 class TestExport(unittest.TestCase):

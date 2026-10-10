@@ -65,6 +65,11 @@ from .statistics import binom_cdf, binom_sf
 Path = Tuple[bool, ...]
 Edge = Tuple[Path, int]
 Cut = Callable[[bytes], Optional[bool]]
+#: Reads many strings at once, so that ``Cut`` finds them already read.
+Warm = Callable[[List[bytes]], None]
+
+#: Most probes whose reads are warmed together.
+MAX_BLOCK = 64
 
 AGREE = "agree"
 START = "start"
@@ -228,6 +233,16 @@ class Probe:
     def walk_to(self, j) -> List[Path]:
         steps = self._steps(j)
         return [] if steps is None else self._walk[: steps + 1]
+
+    def opens(self) -> bool:
+        """The walk meets an unlearned edge."""
+        return bool(self._walk) and self._open is not None
+
+    def end(self) -> Optional[int]:
+        """The first position ``walk_check`` sifts past the start, if any."""
+        if not self._walk:
+            return None
+        return len(self.x) if self._open is None else self.k + self._open + 1
 
     def walk_check(self):
         """An outcome, or the walk and the length to search below."""
@@ -405,8 +420,8 @@ class Ending:
 class TallyRound:
     """The loop's state, ``TState``, over a tree it splits in place."""
 
-    def __init__(self, config: TallyConfig, cut: Cut, tree):
-        self.config, self.cut, self.tree = config, cut, tree
+    def __init__(self, config: TallyConfig, cut: Cut, warm: Warm, tree):
+        self.config, self.cut, self.warm, self.tree = config, cut, warm, tree
         self.edges: Dict[Edge, Tuple[Path, bytes]] = {}
         self.version = 0
         self.records: Dict[Edge, List[Tuple[bytes, Path]]] = {}
@@ -427,11 +442,67 @@ class TallyRound:
         return route(self.cut, self.tree.root, z)[1]
 
     def run(self, draw: Callable[[], bytes]) -> Ending:
-        for _ in range(self.config.max_probes):
-            ending = self.step(draw())
+        """``step`` over the draws, warming each block's starts and ends together.
+
+        The block doubles while the hypothesis holds and is one probe after a
+        change, and never runs past where success could fire, so the warming
+        reads little a probe stepped alone would not."""
+        block, queue, version = 1, [], self.version
+        for done in range(self.config.max_probes):
+            if not queue:
+                size = min(block, self.config.max_probes - done, self._before_success())
+                queue = [draw() for _ in range(size)]
+                version = self.version
+                self._warm_ends(queue)
+            ending = self.step(queue.pop(0))
             if ending is not None:
                 return ending
+            if self.version != version:
+                block = 1
+            elif not queue:
+                block = min(2 * block, MAX_BLOCK)
         return Ending(OUT_OF_PROBES, [], None)
+
+    def _before_success(self) -> int:
+        """The fewest further probes after which the success test could fire."""
+        c = self.config
+        more = 1
+        while (
+            rate_side(
+                c.disagreement_rate, c.level, c.first_look, self.n + more, self.searches
+            )
+            is not False
+            and more < MAX_BLOCK
+        ):
+            more += 1
+        return more
+
+    def _warm_ends(self, xs: List[bytes]):
+        """The reads ``walk_check`` makes before any search."""
+        k = self.config.k
+        self._warm_routes([x[:k] for x in xs])
+        probes = [self.probe(x) for x in xs]
+        self._warm_routes([p.x[: p.end()] for p in probes if p.end() is not None])
+        self._warm_routes(
+            [
+                p.x[: p.end() - 1]
+                for p in probes
+                if p.opens() and p.leaf(p.end()) is not None
+            ]
+        )
+
+    def _warm_routes(self, strings: List[bytes]):
+        """Every read sifting ``strings`` makes, one level of the tree at a time."""
+        active = [(z, self.tree.root) for z in strings]
+        while active:
+            active = [(z, node) for z, node in active if not isinstance(node, int)]
+            self.warm([z + node[0] for z, node in active])
+            active = [
+                (z, node[1][side])
+                for z, node in active
+                for side in [self.cut(z + node[0])]
+                if side is not None
+            ]
 
     def step(self, x: bytes) -> Optional[Ending]:
         probe = self.probe(x)

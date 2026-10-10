@@ -245,6 +245,7 @@ def _tally_round(pst, vs, *, acc_threshold):
     hypothesis = TallyRound(
         tally_config(acc_threshold),
         lambda z: family.is_accept(z, b""),
+        family.read_many,
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
     with counter(hypothesis.config.max_probes, "Probing") as pbar:

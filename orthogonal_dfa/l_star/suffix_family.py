@@ -28,6 +28,19 @@ class SuffixFamily:
         table = self.pst.table
         return table.memo.membership_queries([base + table.suffix(v) for v in self.vs])
 
+    def read_many(self, bases) -> None:
+        """``mean`` of every base at once, in one call to the memo."""
+        new = [base for base in dict.fromkeys(bases) if base not in self._means]
+        if not new:
+            return
+        table = self.pst.table
+        bits = table.memo.membership_queries(
+            [base + table.suffix(v) for base in new for v in self.vs]
+        )
+        size = len(self.vs)
+        for i, base in enumerate(new):
+            self._means[base] = sum(bits[i * size : (i + 1) * size]) / size
+
     def mean(self, seq, midfix) -> float:
         """Mean family membership of ``seq`` under the distinguishers
         ``midfix + v``."""
