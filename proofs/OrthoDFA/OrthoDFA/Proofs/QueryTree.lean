@@ -17,33 +17,9 @@ namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory
 
-/-- An adaptive computation: done with a value, or read a key under a label and go on by its
-value. -/
-inductive QTree (Λ ι V β : Type*) where
-  | done (b : β)
-  | ask (ℓ : Λ) (w : ι) (next : V → QTree Λ ι V β)
-
 namespace QTree
 
 variable {Λ ι V β γ : Type*}
-
-/-- The run's value under the reads `rd`. -/
-def run (rd : ι → V) : QTree Λ ι V β → β
-  | done b => b
-  | ask _ w next => run rd (next (rd w))
-
-/-- The run's reads, in order, with their labels. -/
-def asks (rd : ι → V) : QTree Λ ι V β → List (Λ × ι)
-  | done _ => []
-  | ask ℓ w next => (ℓ, w) :: asks rd (next (rd w))
-
-/-- `t`, and then `f` of its value. -/
-def bind : QTree Λ ι V β → (β → QTree Λ ι V γ) → QTree Λ ι V γ
-  | done b, f => f b
-  | ask ℓ w next, f => ask ℓ w fun v => bind (next v) f
-
-/-- `t` with its value mapped. -/
-def map (f : β → γ) (t : QTree Λ ι V β) : QTree Λ ι V γ := t.bind fun b => done (f b)
 
 theorem run_bind (rd : ι → V) (f : β → QTree Λ ι V γ) :
     ∀ t : QTree Λ ι V β, (t.bind f).run rd = (f (t.run rd)).run rd
@@ -65,12 +41,6 @@ theorem asks_map (rd : ι → V) (f : β → γ) (t : QTree Λ ι V β) :
   simp [map, asks_bind, asks]
 
 variable [DecidableEq ι]
-
-/-- The first read of each key not in `P`, in order, with its label. -/
-def firsts (rd : ι → V) : Finset ι → QTree Λ ι V β → List (Λ × ι)
-  | _, done _ => []
-  | P, ask ℓ w next => if w ∈ P then firsts rd P (next (rd w))
-      else (ℓ, w) :: firsts rd (insert w P) (next (rd w))
 
 /-- `rd` with the key `w` read as `v`. -/
 def upd (rd : ι → V) (w : ι) (v : V) : ι → V := fun y => if y = w then v else rd y

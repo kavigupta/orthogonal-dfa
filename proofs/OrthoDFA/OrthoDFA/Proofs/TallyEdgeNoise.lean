@@ -151,24 +151,10 @@ end Anchor
 
 section From
 
-/-- The walk from the leaf `p` at the start, to position `j`. -/
-def walkFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (j : ℕ) :
-    List (List Bool) :=
-  (follow edges p ((x.toList.drop k).take (j - k))).elim id fun _ => []
-
-/-- The edge position `i` is charged to, the walk starting at the leaf `p`. -/
-def posEdgeFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (i : ℕ) :
-    Option (List Bool × α) :=
-  let at' := fun i => match (walkFrom edges k x p i).getLast?, x.toList[i]? with
-    | some q, some c => some (q, c)
-    | _, _ => none
-  (at' i).orElse fun _ => at' (i - 1)
-
 theorem posEdgeBy_of_inl {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
     {k : ℕ} {x : FreeMonoid α} {p : List Bool} (h : T.sift cut (prefixOf x k) = .inl p) (i : ℕ) :
     posEdgeBy cut T edges k x i = posEdgeFrom edges k x p i := by
   simp only [posEdgeBy, edgeAtBy, walkToBy, h, posEdgeFrom, walkFrom]
-  rfl
 
 theorem posEdgeBy_of_inr {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
     {k : ℕ} {x : FreeMonoid α} {b : FreeMonoid α} (h : T.sift cut (prefixOf x k) = .inr b)

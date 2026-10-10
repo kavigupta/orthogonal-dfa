@@ -21,21 +21,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 attribute [local instance] ARU.fintype
 
-/-- A read's label: the position sifted, and the edge it is charged to. -/
-abbrev PLabel (α : Type*) := ℕ × Option (List Bool × α)
-
-/-- A probe's query trees. -/
-abbrev PQ (α β : Type*) := QTree (PLabel α) (FreeMonoid α) ARU β
-
 section Sift
-
-/-- The sift of `u`, each node's string read under the label `ℓ`. -/
-def siftQ (ℓ : PLabel α) : DTree α → FreeMonoid α → PQ α (List Bool ⊕ FreeMonoid α)
-  | .leaf, _ => .done (.inl [])
-  | .node m r a, u => .ask ℓ (u * m) fun v => match v.cut with
-    | none => .done (.inr (u * m))
-    | some true => (siftQ ℓ a u).map fun s => s.map (true :: ·) id
-    | some false => (siftQ ℓ r u).map fun s => s.map (false :: ·) id
 
 theorem run_siftQ (ℓ : PLabel α) (rd : FreeMonoid α → ARU) :
     ∀ (T : DTree α) (u : FreeMonoid α),
@@ -117,28 +103,6 @@ theorem minority_of_sift {cut : FreeMonoid α → Option Bool} :
 end Sift
 
 section Bracket
-
-/-- The agreement at `p`, the range's ends known. -/
-def agAt (agQ : ℕ → PQ α (Option Bool)) (lo hi p : ℕ) : PQ α (Option Bool) :=
-  if p = lo then .done (some true) else if p = hi then .done (some false) else agQ p
-
-/-- `bracketAt`, each position's agreement read through `agQ`. -/
-def bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)) :
-    ℕ → ℕ → ℕ → PQ α (Outcome α)
-  | 0, _, hi => .done (.edge ps hi)
-  | fuel + 1, lo, hi =>
-    if lo + 1 < hi then
-      (agAt agQ lo hi ((lo + hi) / 2)).bind fun am => match am with
-      | some true => bracketQ agQ ps fuel ((lo + hi) / 2) hi
-      | some false => bracketQ agQ ps fuel lo ((lo + hi) / 2)
-      | none => (agAt agQ lo hi ((lo + hi) / 2 - 1)).bind fun al => match al with
-        | none => .done (.pair ((lo + hi) / 2 - 1))
-        | some bl => (agAt agQ lo hi ((lo + hi) / 2 + 1)).bind fun ar => match bl, ar with
-          | _, none => .done (.pair ((lo + hi) / 2))
-          | true, some false => .done (.triple ((lo + hi) / 2))
-          | true, some true => bracketQ agQ ps fuel ((lo + hi) / 2 + 1) hi
-          | false, some _ => bracketQ agQ ps fuel lo ((lo + hi) / 2 - 1)
-    else .done (.edge ps hi)
 
 theorem run_agAt (agQ : ℕ → PQ α (Option Bool)) (rd : FreeMonoid α → ARU)
     (agrees : ℕ → Option Bool) (h : ∀ i, (agQ i).run rd = agrees i) (lo hi p : ℕ) :
@@ -284,38 +248,6 @@ end Walk
 section Probe
 
 variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
-
-/-- The label of position `i`'s reads, the start at the leaf `p₀`. -/
-def plab (p₀ : List Bool) (i : ℕ) : PLabel α := (i, posEdgeFrom edges k x p₀ i)
-
-/-- The agreement of position `i`'s sift with the walk. -/
-def agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : PQ α (Option Bool) :=
-  (siftQ (plab edges k x p₀ i) T (prefixOf x i)).map fun s =>
-    s.elim (fun q => some (decide (q = walkAt i))) fun _ => none
-
-/-- One probe of `x` from `k`, as a query tree. -/
-def probeQ : PQ α (Outcome α) :=
-  (siftQ (k, none) T (prefixOf x k)).bind fun a => match a with
-  | .inr _ => .done (.startUndecided (prefixOf x k))
-  | .inl p₀ => match follow edges p₀ (x.toList.drop k) with
-    | .inl ps =>
-      (siftQ (plab edges k x p₀ x.toList.length) T (prefixOf x x.toList.length)).bind fun r =>
-        match r with
-        | .inr _ => .done (.endUndecided x)
-        | .inl a' => if some a' = ps.getLast? then .done .agree
-            else bracketQ (agQ T edges k x p₀ fun j => ps.getD (j - k) []) ps
-              (x.toList.length - k) k x.toList.length
-    | .inr (s, _, i) =>
-      (siftQ (plab edges k x p₀ (k + i + 1)) T (prefixOf x (k + i + 1))).bind fun r1 =>
-        match r1 with
-        | .inr _ => .done (.endUndecided (prefixOf x (k + i + 1)))
-        | .inl _ => (siftQ (plab edges k x p₀ (k + i)) T (prefixOf x (k + i))).bind fun r2 =>
-          match r2 with
-          | .inr _ => .done (.endUndecided (prefixOf x (k + i)))
-          | .inl p => if p = s then .done (.member (prefixOf x (k + i)))
-              else bracketQ
-                (agQ T edges k x p₀ fun j => (walkFrom edges k x p₀ (k + i)).getD (j - k) [])
-                (walkFrom edges k x p₀ (k + i)) (k + i - k) k (k + i)
 
 /-- The probe, and then the sifts of its record's two positions again. -/
 def recordQ : PQ α (Outcome α) :=

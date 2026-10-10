@@ -194,6 +194,136 @@ def retargetBy (t' : DTree α) (p : List Bool) (edges : Edges α) : Edges α := 
 
 end Probe
 
+/-! ## A probe's reads, in order
+
+A query tree reads keys one at a time, each chosen by the values read before it. A probe is one,
+each read labelled by the position it sifts and the edge that position is charged to. -/
+
+/-- An adaptive computation: done with a value, or read a key under a label and go on by its
+value. -/
+inductive QTree (Λ ι V β : Type*) where
+  | done (b : β)
+  | ask (ℓ : Λ) (w : ι) (next : V → QTree Λ ι V β)
+
+namespace QTree
+
+variable {Λ ι V β γ : Type*}
+
+/-- The run's value under the reads `rd`. -/
+def run (rd : ι → V) : QTree Λ ι V β → β
+  | done b => b
+  | ask _ w next => run rd (next (rd w))
+
+/-- The run's reads, in order, with their labels. -/
+def asks (rd : ι → V) : QTree Λ ι V β → List (Λ × ι)
+  | done _ => []
+  | ask ℓ w next => (ℓ, w) :: asks rd (next (rd w))
+
+/-- `t`, and then `f` of its value. -/
+def bind : QTree Λ ι V β → (β → QTree Λ ι V γ) → QTree Λ ι V γ
+  | done b, f => f b
+  | ask ℓ w next, f => ask ℓ w fun v => bind (next v) f
+
+/-- `t` with its value mapped. -/
+def map (f : β → γ) (t : QTree Λ ι V β) : QTree Λ ι V γ := t.bind fun b => done (f b)
+
+variable [DecidableEq ι]
+
+/-- The first read of each key not in `P`, in order, with its label. -/
+def firsts (rd : ι → V) : Finset ι → QTree Λ ι V β → List (Λ × ι)
+  | _, done _ => []
+  | P, ask ℓ w next => if w ∈ P then firsts rd P (next (rd w))
+      else (ℓ, w) :: firsts rd (insert w P) (next (rd w))
+
+end QTree
+
+section ProbeQ
+
+/-- The walk from the leaf `p` at the start, to position `j`. -/
+def walkFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (j : ℕ) :
+    List (List Bool) :=
+  (follow edges p ((x.toList.drop k).take (j - k))).elim id fun _ => []
+
+/-- The edge position `i` is charged to, the walk starting at the leaf `p`. -/
+def posEdgeFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (i : ℕ) :
+    Option (List Bool × α) :=
+  let at' := fun i => match (walkFrom edges k x p i).getLast?, x.toList[i]? with
+    | some q, some c => some (q, c)
+    | _, _ => none
+  (at' i).orElse fun _ => at' (i - 1)
+
+/-- A read's label: the position sifted, and the edge it is charged to. -/
+abbrev PLabel (α : Type*) := ℕ × Option (List Bool × α)
+
+/-- A probe's query trees. -/
+abbrev PQ (α β : Type*) := QTree (PLabel α) (FreeMonoid α) ARU β
+
+/-- The sift of `u`, each node's string read under the label `ℓ`. -/
+def siftQ (ℓ : PLabel α) : DTree α → FreeMonoid α → PQ α (List Bool ⊕ FreeMonoid α)
+  | .leaf, _ => .done (.inl [])
+  | .node m r a, u => .ask ℓ (u * m) fun v => match v.cut with
+    | none => .done (.inr (u * m))
+    | some true => (siftQ ℓ a u).map fun s => s.map (true :: ·) id
+    | some false => (siftQ ℓ r u).map fun s => s.map (false :: ·) id
+
+/-- The agreement at `p`, the range's ends known. -/
+def agAt (agQ : ℕ → PQ α (Option Bool)) (lo hi p : ℕ) : PQ α (Option Bool) :=
+  if p = lo then .done (some true) else if p = hi then .done (some false) else agQ p
+
+/-- `bracketAt`, each position's agreement read through `agQ`. -/
+def bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)) :
+    ℕ → ℕ → ℕ → PQ α (Outcome α)
+  | 0, _, hi => .done (.edge ps hi)
+  | fuel + 1, lo, hi =>
+    if lo + 1 < hi then
+      (agAt agQ lo hi ((lo + hi) / 2)).bind fun am => match am with
+      | some true => bracketQ agQ ps fuel ((lo + hi) / 2) hi
+      | some false => bracketQ agQ ps fuel lo ((lo + hi) / 2)
+      | none => (agAt agQ lo hi ((lo + hi) / 2 - 1)).bind fun al => match al with
+        | none => .done (.pair ((lo + hi) / 2 - 1))
+        | some bl => (agAt agQ lo hi ((lo + hi) / 2 + 1)).bind fun ar => match bl, ar with
+          | _, none => .done (.pair ((lo + hi) / 2))
+          | true, some false => .done (.triple ((lo + hi) / 2))
+          | true, some true => bracketQ agQ ps fuel ((lo + hi) / 2 + 1) hi
+          | false, some _ => bracketQ agQ ps fuel lo ((lo + hi) / 2 - 1)
+    else .done (.edge ps hi)
+
+variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
+
+/-- The label of position `i`'s reads, the start at the leaf `p₀`. -/
+def plab (p₀ : List Bool) (i : ℕ) : PLabel α := (i, posEdgeFrom edges k x p₀ i)
+
+/-- The agreement of position `i`'s sift with the walk. -/
+def agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : PQ α (Option Bool) :=
+  (siftQ (plab edges k x p₀ i) T (prefixOf x i)).map fun s =>
+    s.elim (fun q => some (decide (q = walkAt i))) fun _ => none
+
+/-- One probe of `x` from `k`, as a query tree. -/
+def probeQ : PQ α (Outcome α) :=
+  (siftQ (k, none) T (prefixOf x k)).bind fun a => match a with
+  | .inr _ => .done (.startUndecided (prefixOf x k))
+  | .inl p₀ => match follow edges p₀ (x.toList.drop k) with
+    | .inl ps =>
+      (siftQ (plab edges k x p₀ x.toList.length) T (prefixOf x x.toList.length)).bind fun r =>
+        match r with
+        | .inr _ => .done (.endUndecided x)
+        | .inl a' => if some a' = ps.getLast? then .done .agree
+            else bracketQ (agQ T edges k x p₀ fun j => ps.getD (j - k) []) ps
+              (x.toList.length - k) k x.toList.length
+    | .inr (s, _, i) =>
+      (siftQ (plab edges k x p₀ (k + i + 1)) T (prefixOf x (k + i + 1))).bind fun r1 =>
+        match r1 with
+        | .inr _ => .done (.endUndecided (prefixOf x (k + i + 1)))
+        | .inl _ => (siftQ (plab edges k x p₀ (k + i)) T (prefixOf x (k + i))).bind fun r2 =>
+          match r2 with
+          | .inr _ => .done (.endUndecided (prefixOf x (k + i)))
+          | .inl p => if p = s then .done (.member (prefixOf x (k + i)))
+              else bracketQ
+                (agQ T edges k x p₀ fun j => (walkFrom edges k x p₀ (k + i)).getD (j - k) [])
+                (walkFrom edges k x p₀ (k + i)) (k + i - k) k (k + i)
+
+end ProbeQ
+
 /-- What the loop carries: the hypothesis, its version, each edge's records (the probe's prefix at
 the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
 its probes, the strings read undecided at the start, and for each edge the positions charged to it
