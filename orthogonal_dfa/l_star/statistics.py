@@ -171,30 +171,31 @@ def evidence_margin_for_population_size(
 @functools.lru_cache(maxsize=8)
 def _vote_parts(N, accept_rate, reject_rate):
     """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[a, k]` for a
-    state with `a` of the `N` suffixes accepting, where Y and Z count the accept votes
-    among the accepting suffixes and among the rest."""
+    state from which `a` of the `N` suffixes lead into the language, where Y and Z
+    count the accept votes among those `a` suffixes and among the other `N - a`."""
     a = np.arange(N + 1)[:, None]
     count = np.arange(N + 1)[None, :]
-    members = scipy.stats.binom.pmf(count, a, accept_rate)
-    others = scipy.stats.binom.pmf(count, N - a, reject_rate)
-    others_le = np.cumsum(others, axis=1)
-    others_ge = np.cumsum(others[:, ::-1], axis=1)[:, ::-1]
-    return members, others_le, others_ge
+    y_pmf = scipy.stats.binom.pmf(count, a, accept_rate)
+    z_pmf = scipy.stats.binom.pmf(count, N - a, reject_rate)
+    z_le = np.cumsum(z_pmf, axis=1)
+    z_ge = np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1]
+    return y_pmf, z_le, z_ge
 
 
 def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
-    """Whether every state's read, over `a` members at `accept_rate` and `N - a` at
-    `reject_rate`, is accept at most `limit` of the time, or reject at most `limit`,
+    """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
+    lead into the language (each voting accept at `accept_rate`, the rest at
+    `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
     or undecided at least a third.  `TrichotomyAt` in proofs/OrthoDFA/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
     just inside the band at a small count can sit at or below `k_low` more than 2/3 of
     the time while its far tail is a hair above the band edge's.
     """
-    members, others_le, others_ge = _vote_parts(N, accept_rate, reject_rate)
+    y_pmf, z_le, z_ge = _vote_parts(N, accept_rate, reject_rate)
     count = np.arange(N + 1)
-    reject = (members[:, : k_low + 1] * others_le[:, k_low::-1]).sum(axis=1)
-    accept = (members * others_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
+    reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
+    accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
     undecided = 1 - accept - reject
     return bool(np.all((accept <= limit) | (reject <= limit) | (undecided >= 1 / 3)))
 
