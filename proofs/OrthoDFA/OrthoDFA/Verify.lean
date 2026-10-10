@@ -22,9 +22,9 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 
 #print axioms clustering_quality_guarantee
 
-theorem family_read_trichotomy : FamilyReadTrichotomy := family_read_trichotomy_holds
+theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
-#print axioms family_read_trichotomy
+#print axioms family_read_bound
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 
