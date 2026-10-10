@@ -75,56 +75,6 @@ inductive ReadStep (α : Type*)
   | done (e : LevelEnd α)
   | rerun (s : KState α) (first : List (FreeMonoid α))
 
-open scoped Classical in
-/-- Reading `j`: the pass from `s₀` with `first` ahead of the reading's probes; past `Pmax`
-leaves the budget is out; the gate at failure chance `a·2⁻ʲ`, and on a settled pass the
-certificate; otherwise a class firing on the refusal sample is held, halving where pairs were
-over half, else its live-edge draws rerun, else the limit halves. -/
-noncomputable def readingStep (C : RoundCfg α) (R : CutReads α) (hist : List C.Draws) (j : ℕ)
-    (s₀ : KState α) (first : List (FreeMonoid α)) (y : C.Draws) : ReadStep α :=
-  let s := runPassK C.K R C.k s₀ (first ++ List.ofFn y.1)
-  let aj := C.a / 2 ^ j
-  if C.Pmax < s.tree.paths.length then .done (.exhausted s)
-  else if gateSide R s.tree s.edges y.2.1 C.acc aj (gateStop R s.tree s.edges y.2.1 C.acc aj)
-      = some true ∧ C.cert R s y.2.2.2 = true then
-    .done (.consistent s (gateStart R s.tree s.edges y.2.1 C.acc aj))
-  else
-    let gu := C.gu R hist
-    let tests := harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM
-    let live := LiveEdge R s.tree s.edges C.k gu
-    let br := y.2.2.1
-    let Tr := refusalStop br C.a tests live
-    let lv := ((List.finRange C.nr).filter fun i : Fin C.nr =>
-      decide ((i : ℕ) < Tr ∧ live (br i))).map br
-    if ∃ T ∈ tests, T.fires br C.a Tr then
-      .done (.harvest s (decide ((pairTrip R s.tree s.edges C.k).fires br C.a Tr)))
-    else if lv ≠ [] then .rerun s lv
-    else .done (.halve s gu (decide (gateSide R s.tree s.edges y.2.1 C.acc aj
-      (gateStop R s.tree s.edges y.2.1 C.acc aj) = some false)))
-
-/-- The round from reading `j` with `n` readings left, and how many it makes. -/
-noncomputable def roundAux (C : RoundCfg α) (R : CutReads α) :
-    (n : ℕ) → ℕ → List C.Draws → KState α → List (FreeMonoid α) → (Fin n → C.Draws)
-      → LevelEnd α × ℕ
-  | 0, _, _, s, _, _ => (.exhausted s, 0)
-  | n + 1, j, hist, s, first, d =>
-    match readingStep C R hist j s first (d 0) with
-    | .done e => (e, 1)
-    | .rerun s' first' =>
-      ((roundAux C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)).1,
-        (roundAux C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)).2 + 1)
-
-/-- The probes the round's passes take, in order. -/
-noncomputable def roundProbes (C : RoundCfg α) (R : CutReads α) :
-    (n : ℕ) → ℕ → List C.Draws → KState α → List (FreeMonoid α) → (Fin n → C.Draws)
-      → List (FreeMonoid α)
-  | 0, _, _, _, _, _ => []
-  | n + 1, j, hist, s, first, d =>
-    match readingStep C R hist j s first (d 0) with
-    | .done _ => first ++ List.ofFn (d 0).1
-    | .rerun s' first' =>
-      first ++ List.ofFn (d 0).1 ++ roundProbes C R n (j + 1) (hist ++ [d 0]) s' first' (Fin.tail d)
-
 variable {Q : Type*}
 
 end OrthoDFA

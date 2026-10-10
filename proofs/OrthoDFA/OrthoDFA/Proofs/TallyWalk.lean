@@ -289,25 +289,6 @@ theorem siftsBy_range {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoi
         · have := bracketSifts_range _ _ _ _ i h; omega
     · simp at h; omega
 
-theorem route_length_le : ∀ (t : DTree α) (z : FreeMonoid α), (t.route cut z).1.length ≤ t.depth
-  | .leaf, _ => by simp [DTree.route]
-  | .node m r a, z => by
-    simp only [DTree.route, DTree.depth]
-    rcases hc : cut (z * m) with _ | _ | _
-    · simp
-    · simp only [List.length_cons]
-      have := route_length_le r z; omega
-    · simp only [List.length_cons]
-      have := route_length_le a z; omega
-
-theorem depth_lt_paths : ∀ t : DTree α, t.depth < t.paths.length
-  | .leaf => by simp [DTree.depth, DTree.paths]
-  | .node m r a => by
-    simp only [DTree.depth, DTree.paths, List.length_append, List.length_map]
-    have := depth_lt_paths r
-    have := depth_lt_paths a
-    omega
-
 omit [Fintype α] [DecidableEq α] in
 theorem map_cons_eq_inl {s : List Bool ⊕ FreeMonoid α} {b : Bool} {q : List Bool} :
     s.map (b :: ·) id = .inl q ↔ ∃ p, q = b :: p ∧ s = .inl p := by

@@ -20,26 +20,6 @@ open MeasureTheory ProbabilityTheory
 
 variable {X S H : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
 
-section Defs
-
-variable (step : S → X → Option S) (key : S → H)
-
-/-- The round from `s` runs the first `n` of the draws `xs` with its hypothesis unchanged. -/
-def Stays : ℕ → S → (T : ℕ) → (Fin T → X) → Prop
-  | 0, _, _, _ => True
-  | _ + 1, _, 0, _ => False
-  | n + 1, s, _ + 1, xs =>
-    ∃ s', step s (xs 0) = some s' ∧ key s' = key s ∧ Stays n s' _ (Fin.tail xs)
-
-/-- At some point of the draws `xs` from `s`, the round reaches a significant hypothesis that then
-runs `n` more draws unchanged. -/
-def Lingers (sig : H → Prop) (n : ℕ) : S → (T : ℕ) → (Fin T → X) → Prop
-  | _, 0, _ => False
-  | s, _ + 1, xs => (sig (key s) ∧ Stays step key n s _ xs)
-    ∨ ∃ s', step s (xs 0) = some s' ∧ Lingers sig n s' _ (Fin.tail xs)
-
-end Defs
-
 omit [Countable X] [MeasurableSingletonClass X] in
 theorem piFinSuccAbove_zero' {n : ℕ} (d : Fin (n + 1) → X) :
     MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => X) 0 d = (d 0, Fin.tail d) := by

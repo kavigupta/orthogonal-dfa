@@ -150,22 +150,6 @@ theorem bracketAt_congr (ps : List (List Bool)) :
         bracketAt_congr ps fuel lo ((lo + hi) / 2 - 1) ag ag' h]
     · rw [if_neg hlh, if_neg hlh]
 
-omit [Fintype α] [DecidableEq α] in
-theorem bracketSifts_congr :
-    ∀ (fuel lo hi : ℕ) (ag ag' : ℕ → Option Bool), (∀ i, lo ≤ i → ag i = ag' i) →
-      bracketSifts ag fuel lo hi = bracketSifts ag' fuel lo hi
-  | 0, _, _, _, _, _ => rfl
-  | fuel + 1, lo, hi, ag, ag', h => by
-    simp only [bracketSifts]
-    by_cases hlh : lo + 1 < hi
-    · rw [if_pos hlh, if_pos hlh, h ((lo + hi) / 2) (by omega), h ((lo + hi) / 2 - 1) (by omega),
-        h ((lo + hi) / 2 + 1) (by omega),
-        bracketSifts_congr fuel ((lo + hi) / 2) hi ag ag' (fun i hi' => h i (by omega)),
-        bracketSifts_congr fuel lo ((lo + hi) / 2) ag ag' h,
-        bracketSifts_congr fuel ((lo + hi) / 2 + 1) hi ag ag' (fun i hi' => h i (by omega)),
-        bracketSifts_congr fuel lo ((lo + hi) / 2 - 1) ag ag' h]
-    · rw [if_neg hlh, if_neg hlh]
-
 theorem kWalkBy_congrK (h : PrefAgreeK cut cut' t x k) :
     kWalkBy cut t edges k x = kWalkBy cut' t edges k x := by
   simp only [kWalkBy, h k le_rfl]

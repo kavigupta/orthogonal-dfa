@@ -85,11 +85,6 @@ def paths : DTree α → List (List Bool)
   | .leaf => [[]]
   | .node _ r a => r.paths.map (false :: ·) ++ a.paths.map (true :: ·)
 
-/-- Nodes on the longest root-to-leaf path. -/
-def depth : DTree α → ℕ
-  | .leaf => 0
-  | .node _ r a => max r.depth a.depth + 1
-
 end DTree
 
 /-- The hypothesis: the tree, and each leaf's edges by letter, open where `none`. -/
@@ -104,32 +99,6 @@ def Hypothesis.step (H : Hypothesis α) (path : List Bool) (c : α) : List Bool 
   | none => path
 
 variable (R : CutReads α)
-
-/-- `anchored_walk`'s search over the prefix lengths `is`: the ones whose prefix of `w` the tree
-cannot place, up to the first it places, and that one with its leaf. -/
-noncomputable def anchorSearch (t : DTree α) (w : FreeMonoid α) :
-    List ℕ → List ℕ × Option (ℕ × List Bool)
-  | [] => ([], none)
-  | i :: is =>
-    match t.sift R.cut (prefixOf w i) with
-    | .inl p => ([], some (i, p))
-    | .inr _ => let rest := anchorSearch t w is; (i :: rest.1, rest.2)
-
-/-- `first_disagreeing_edge` between an index where the sift agrees with the walk and one where
-it does not: the prefix lengths it sifts, and the first index where they do not agree, or the
-string a sift on the way could not place. -/
-noncomputable def bisect (t : DTree α) (w : FreeMonoid α) (walk : ℕ → List Bool) :
-    ℕ → ℕ → ℕ → List ℕ × (FreeMonoid α ⊕ ℕ)
-  | 0, _, hi => ([], .inr hi)
-  | fuel + 1, lo, hi =>
-    if lo + 1 < hi then
-      match t.sift R.cut (prefixOf w ((lo + hi) / 2)) with
-      | .inr b => ([(lo + hi) / 2], .inl b)
-      | .inl p =>
-        let rest := if p = walk ((lo + hi) / 2) then bisect t w walk fuel ((lo + hi) / 2) hi
-          else bisect t w walk fuel lo ((lo + hi) / 2)
-        ((lo + hi) / 2 :: rest.1, rest.2)
-    else ([], .inr hi)
 
 /-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/
 noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=

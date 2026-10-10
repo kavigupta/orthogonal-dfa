@@ -174,13 +174,6 @@ def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S →
     | .inl s' => RunEnds step Q s' xs
     | .inr (e, s') => Q e s'
 
-/-- The run from `s` keeps its hypothesis over the draws. -/
-def Keeps (C : TallyCfg) (cut : FreeMonoid α → Option Bool) : TState α → List (FreeMonoid α) →
-    Prop
-  | _, [] => True
-  | s, x :: xs => ∃ s', tallyStep C cut s x = .inl s' ∧ s'.tree = s.tree ∧ s'.edges = s.edges
-    ∧ Keeps C cut s' xs
-
 /-- The endings the round claims: success, or a harvest most of whose strings are at read-states
 that are not good. -/
 def GoodEnd {σ : Type*} (G : ReadModel α σ) : TEnd α → TState α → Prop

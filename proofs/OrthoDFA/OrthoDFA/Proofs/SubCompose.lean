@@ -1,4 +1,6 @@
-import OrthoDFA.Proofs.TallyProb
+import OrthoDFA.Proofs.FixTime
+import OrthoDFA.Proofs.Freedman
+import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.TallyRound
 
 /-!
@@ -77,12 +79,6 @@ theorem seg_le (F : S → (T : ℕ) → (Fin T → X) → Prop)
 end Segment
 
 section Bound
-
-theorem binomSfGe_one : ∀ n j : ℕ, j ≤ n → binomSfGe n 1 j = 1
-  | n, 0, _ => binomSfGe_zero_right n 1
-  | 0, _ + 1, h => absurd h (by omega)
-  | n + 1, j + 1, h => by
-    rw [binomSfGe_succ, binomSfGe_one n j (by omega)]; ring
 
 theorem binomSfGe_le_one {n : ℕ} {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (j : ℕ) :
     binomSfGe n p j ≤ 1 := by

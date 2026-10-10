@@ -169,18 +169,6 @@ theorem ind_measurable (read : ι → Ω → ARU) (hmeas : ∀ w, Measurable (re
     Measurable fun ω => if read w ω = v then (1 : ENNReal) else 0 :=
   (measurable_of_countable (fun a : ARU => if a = v then (1 : ENNReal) else 0)).comp (hmeas w)
 
-theorem lintegral_split (read : ι → Ω → ARU) (hmeas : ∀ w, Measurable (read w)) (w : ι)
-    (g : Ω → ENNReal) (hg : Measurable g) :
-    ∫⁻ ω, g ω ∂μ = ∑ v : ARU, ∫⁻ ω, (if read w ω = v then 1 else 0) * g ω ∂μ := by
-  rw [← lintegral_finset_sum (f := fun v ω => (if read w ω = v then (1 : ENNReal) else 0) * g ω)
-    _ fun v _ => (ind_measurable read hmeas w v).mul hg]
-  congr 1
-  ext ω
-  rw [Finset.sum_eq_single (read w ω)]
-  · simp
-  · intro v _ hv; simp [Ne.symm hv]
-  · simp
-
 /-- Freshly read: a read family with the key `w` set to `v` is still independent. -/
 theorem iIndepFun_upd (read : ι → Ω → ARU) (hind : iIndepFun read μ) (w : ι) (v : ARU) :
     iIndepFun (fun y ω => upd (fun y => read y ω) w v y) μ := by
@@ -190,40 +178,14 @@ theorem iIndepFun_upd (read : ι → Ω → ARU) (hind : iIndepFun read μ) (w :
     funext y ω; simp [upd]
   rw [h]; exact this
 
-theorem lintegral_prob (read : ι → Ω → ARU) (hmeas : ∀ w, Measurable (read w)) (w : ι)
-    (g : ARU → ENNReal) :
-    ∫⁻ ω, g (read w ω) ∂μ = ∑ v : ARU, μ {ω | read w ω = v} * g v := by
-  rw [lintegral_split read hmeas w (fun ω => g (read w ω))
-    ((measurable_of_countable g).comp (hmeas w))]
-  refine Finset.sum_congr rfl fun v _ => ?_
-  have hS : MeasurableSet {ω | read w ω = v} := hmeas w (measurableSet_singleton v)
-  have : (fun ω => (if read w ω = v then (1 : ENNReal) else 0) * g (read w ω))
-      = fun ω => g v * {ω | read w ω = v}.indicator 1 ω := by
-    ext ω; by_cases h : read w ω = v <;> simp [h, Set.indicator_apply]
-  rw [this, lintegral_const_mul _ (measurable_one.indicator hS), lintegral_indicator_one hS,
-    mul_comm]
-
 /-- The sum over first reads of a quantity `a`, along the run under `rd`. -/
 noncomputable def fsum (a : Λ → ι → ARU → ENNReal) (rd : ι → ARU) (P : Finset ι)
     (t : QTree Λ ι ARU β) : ENNReal :=
   ((t.firsts rd P).map fun q => a q.1 q.2 (rd q.2)).sum
 
-/-- The product over first reads of a factor `a`, along the run under `rd`. -/
-noncomputable def fprod (a : Λ → ι → ARU → ENNReal) (rd : ι → ARU) (P : Finset ι)
-    (t : QTree Λ ι ARU β) : ENNReal :=
-  ((t.firsts rd P).map fun q => a q.1 q.2 (rd q.2)).prod
-
 theorem fsum_congr (a : Λ → ι → ARU → ENNReal) {rd rd' : ι → ARU} (t : QTree Λ ι ARU β)
     (P : Finset ι) (h : ∀ w ∈ t.keys, rd w = rd' w) : fsum a rd P t = fsum a rd' P t := by
   unfold fsum
-  rw [firsts_congr t P h]
-  congr 1
-  refine List.map_congr_left fun q hq => ?_
-  rw [h q.2 (firsts_keys rd' t P q hq).1]
-
-theorem fprod_congr (a : Λ → ι → ARU → ENNReal) {rd rd' : ι → ARU} (t : QTree Λ ι ARU β)
-    (P : Finset ι) (h : ∀ w ∈ t.keys, rd w = rd' w) : fprod a rd P t = fprod a rd' P t := by
-  unfold fprod
   rw [firsts_congr t P h]
   congr 1
   refine List.map_congr_left fun q hq => ?_
@@ -255,38 +217,12 @@ theorem fsum_ask (a : Λ → ι → ARU → ENNReal) (rd : ι → ARU) (P : Fins
     unfold fsum
     simp [firsts, if_neg hw]
 
-theorem fprod_ask (a : Λ → ι → ARU → ENNReal) (rd : ι → ARU) (P : Finset ι) (ℓ : Λ) (w : ι)
-    (next : ARU → QTree Λ ι ARU β) :
-    fprod a rd P (ask ℓ w next)
-      = ∑ v : ARU, (if rd w = v then 1 else 0) * ((if w ∈ P then 1 else a ℓ w v)
-          * fprod a (upd rd w v) (insert w P) (next v)) := by
-  rw [Finset.sum_eq_single (rd w)]
-  · simp only [if_true, one_mul]
-    have : upd rd w (rd w) = rd := by ext y; simp [upd]; intro h; rw [h]
-    rw [this]
-    unfold fprod
-    by_cases hw : w ∈ P
-    · simp [firsts, if_pos hw, Finset.insert_eq_of_mem hw]
-    · simp [firsts, if_neg hw]
-  · intro v _ hv; simp [Ne.symm hv]
-  · simp
-
 theorem fsum_upd_local (a : Λ → ι → ARU → ENNReal) (w : ι) (v : ARU) (P : Finset ι)
     (t : QTree Λ ι ARU β) :
     ∀ rd rd' : ι → ARU, (∀ y ∈ t.keys, y ≠ w → rd y = rd' y) →
       fsum a (upd rd w v) P t = fsum a (upd rd' w v) P t := by
   intro rd rd' h
   refine fsum_congr a t P fun y hy => ?_
-  by_cases hyw : y = w
-  · simp [upd, hyw]
-  · simp [upd, hyw, h y hy hyw]
-
-theorem fprod_upd_local (a : Λ → ι → ARU → ENNReal) (w : ι) (v : ARU) (P : Finset ι)
-    (t : QTree Λ ι ARU β) :
-    ∀ rd rd' : ι → ARU, (∀ y ∈ t.keys, y ≠ w → rd y = rd' y) →
-      fprod a (upd rd w v) P t = fprod a (upd rd' w v) P t := by
-  intro rd rd' h
-  refine fprod_congr a t P fun y hy => ?_
   by_cases hyw : y = w
   · simp [upd, hyw]
   · simp [upd, hyw, h y hy hyw]
@@ -353,71 +289,6 @@ theorem firsts_lintegral_le (a b : Λ → ι → ARU → ENNReal) :
       · exact hab ℓ w hw
     · exact mul_le_mul_of_nonneg_left (firsts_lintegral_le a b (next v) (read' v) (insert w P)
         (hmeas' v) (hind' v) (hab' v)) zero_le
-
-theorem fprod_measurable (a : Λ → ι → ARU → ENNReal) (read : ι → Ω → ARU)
-    (hmeas : ∀ w, Measurable (read w)) (P : Finset ι) (t : QTree Λ ι ARU β) :
-    Measurable fun ω => fprod a (fun y => read y ω) P t := by
-  classical
-  set K := t.keys
-  set Φ : (K → ARU) → ENNReal := fun z =>
-    fprod a (fun y => if h : y ∈ K then z ⟨y, h⟩ else .accept) P t
-  have : (fun ω => fprod a (fun y => read y ω) P t) = fun ω => Φ (fun i : K => read i ω) := by
-    ext ω; exact fprod_congr a t P fun y hy => by simp only [dif_pos (show y ∈ K from hy)]
-  rw [this]
-  exact (measurable_of_countable Φ).comp (measurable_pi_lambda _ fun i => hmeas i)
-
-open scoped Classical in
-/-- First reads are fresh: if each key's own mean of the factor `a` is at most `1`, so is the mean
-of the product over first reads. -/
-theorem firsts_prod_le (a : Λ → ι → ARU → ENNReal) :
-    ∀ (t : QTree Λ ι ARU β) (read : ι → Ω → ARU) (P : Finset ι), (∀ w, Measurable (read w)) →
-      iIndepFun read μ → (∀ ℓ w, w ∉ P → ∫⁻ ω, a ℓ w (read w ω) ∂μ ≤ 1) →
-      ∫⁻ ω, fprod a (fun y => read y ω) P t ∂μ ≤ 1
-  | done _, _, _, _, _, _ => by simp [fprod, firsts]
-  | ask ℓ w next, read, P, hmeas, hind, ha => by
-    set read' : ARU → ι → Ω → ARU := fun v y ω => upd (fun y => read y ω) w v y
-    have hmeas' : ∀ v y, Measurable (read' v y) := by
-      intro v y
-      by_cases hy : y = w
-      · simp only [read', upd, hy, if_true]; exact measurable_const
-      · simp only [read', upd, hy, if_false]; exact hmeas y
-    have hind' : ∀ v, iIndepFun (read' v) μ := fun v => iIndepFun_upd read hind w v
-    have ha' : ∀ v ℓ' y, y ∉ insert w P → ∫⁻ ω, a ℓ' y (read' v y ω) ∂μ ≤ 1 := by
-      intro v ℓ' y hy
-      have hyw : y ≠ w := fun h => hy (h ▸ Finset.mem_insert_self _ _)
-      simp only [read', upd, hyw, if_false]
-      exact ha ℓ' y fun h => hy (Finset.mem_insert_of_mem h)
-    simp_rw [fprod_ask a _ P ℓ w next]
-    rw [lintegral_finset_sum (f := fun v ω => (if read w ω = v then (1 : ENNReal) else 0)
-      * ((if w ∈ P then 1 else a ℓ w v)
-        * fprod a (upd (fun y => read y ω) w v) (insert w P) (next v)))
-      _ fun v _ => (ind_measurable read hmeas w v).mul
-        (measurable_const.mul (fprod_measurable a (read' v) (hmeas' v) _ _))]
-    have hstep : ∀ v : ARU, ∫⁻ ω, (if read w ω = v then 1 else 0) * ((if w ∈ P then 1 else a ℓ w v)
-        * fprod a (upd (fun y => read y ω) w v) (insert w P) (next v)) ∂μ
-        ≤ μ {ω | read w ω = v} * (if w ∈ P then 1 else a ℓ w v) := by
-      intro v
-      simp_rw [← mul_assoc, mul_comm _ (if w ∈ P then (1 : ENNReal) else a ℓ w v), mul_assoc]
-      rw [lintegral_const_mul (f := fun ω => (if read w ω = v then (1 : ENNReal) else 0)
-        * fprod a (upd (fun y => read y ω) w v) (insert w P) (next v)) _
-        ((ind_measurable read hmeas w v).mul (fprod_measurable a (read' v) (hmeas' v) _ _))]
-      rw [lintegral_ind_mul read hmeas hind w v (next v).keys
-        (fun rd => fprod a (upd rd w v) (insert w P) (next v))
-        (fprod_upd_local a w v (insert w P) (next v))]
-      have := firsts_prod_le a (next v) (read' v) (insert w P) (hmeas' v) (hind' v) (ha' v)
-      calc (if w ∈ P then 1 else a ℓ w v) * (μ {ω | read w ω = v}
-            * ∫⁻ ω, fprod a (upd (fun y => read y ω) w v) (insert w P) (next v) ∂μ)
-          ≤ (if w ∈ P then 1 else a ℓ w v) * (μ {ω | read w ω = v} * 1) := by gcongr
-        _ = _ := by rw [mul_one, mul_comm]
-    refine (Finset.sum_le_sum fun v _ => hstep v).trans ?_
-    by_cases hw : w ∈ P
-    · simp only [if_pos hw, mul_one]
-      have h := lintegral_prob (μ := μ) read hmeas w (fun _ => (1 : ENNReal))
-      simp only [mul_one, lintegral_const, measure_univ] at h
-      rw [← h]
-    · simp only [if_neg hw]
-      rw [← lintegral_prob read hmeas w (a ℓ w)]
-      exact ha ℓ w hw
 
 end QTree
 
