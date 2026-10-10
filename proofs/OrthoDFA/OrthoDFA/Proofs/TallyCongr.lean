@@ -1,4 +1,6 @@
 import OrthoDFA.Proofs.TallyNoise
+import OrthoDFA.Proofs.HarvestClasses
+import OrthoDFA.Proofs.TripleBound
 
 /-!
 # What a probe depends on
@@ -206,5 +208,150 @@ theorem exists_edgeMaps {T : DTree α} {e : Edges α} (he : EdgesInto T e) :
         exact he _ _ _ _ he'
 
 end Edges
+
+section CutK
+
+/-- The sifts of `x`'s prefixes from position `k` on agree. -/
+def PrefAgreeK (cut cut' : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) (k : ℕ) :
+    Prop :=
+  ∀ j, k ≤ j → t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j)
+
+variable {cut cut' : FreeMonoid α → Option Bool} {t : DTree α} {edges : Edges α} {k : ℕ}
+  {x : FreeMonoid α}
+
+theorem PrefAgreeK.whole (h : PrefAgreeK cut cut' t x k) : t.sift cut x = t.sift cut' x := by
+  by_cases hk : k ≤ x.toList.length
+  · have := h x.toList.length hk
+    rwa [show prefixOf x x.toList.length = x by simp [prefixOf]] at this
+  · have := h k le_rfl
+    rwa [show prefixOf x k = x by
+      simp only [prefixOf]; rw [List.take_of_length_le (by omega)]; simp] at this
+
+omit [Fintype α] [DecidableEq α] in
+theorem bracketAt_congr (ps : List (List Bool)) :
+    ∀ (fuel lo hi : ℕ) (ag ag' : ℕ → Option Bool), (∀ i, lo ≤ i → ag i = ag' i) →
+      bracketAt (α := α) ag ps fuel lo hi = bracketAt ag' ps fuel lo hi
+  | 0, _, _, _, _, _ => rfl
+  | fuel + 1, lo, hi, ag, ag', h => by
+    simp only [bracketAt]
+    by_cases hlh : lo + 1 < hi
+    · rw [if_pos hlh, if_pos hlh, h ((lo + hi) / 2) (by omega), h ((lo + hi) / 2 - 1) (by omega),
+        h ((lo + hi) / 2 + 1) (by omega),
+        bracketAt_congr ps fuel ((lo + hi) / 2) hi ag ag' (fun i hi' => h i (by omega)),
+        bracketAt_congr ps fuel lo ((lo + hi) / 2) ag ag' h,
+        bracketAt_congr ps fuel ((lo + hi) / 2 + 1) hi ag ag' (fun i hi' => h i (by omega)),
+        bracketAt_congr ps fuel lo ((lo + hi) / 2 - 1) ag ag' h]
+    · rw [if_neg hlh, if_neg hlh]
+
+omit [Fintype α] [DecidableEq α] in
+theorem bracketSifts_congr :
+    ∀ (fuel lo hi : ℕ) (ag ag' : ℕ → Option Bool), (∀ i, lo ≤ i → ag i = ag' i) →
+      bracketSifts ag fuel lo hi = bracketSifts ag' fuel lo hi
+  | 0, _, _, _, _, _ => rfl
+  | fuel + 1, lo, hi, ag, ag', h => by
+    simp only [bracketSifts]
+    by_cases hlh : lo + 1 < hi
+    · rw [if_pos hlh, if_pos hlh, h ((lo + hi) / 2) (by omega), h ((lo + hi) / 2 - 1) (by omega),
+        h ((lo + hi) / 2 + 1) (by omega),
+        bracketSifts_congr fuel ((lo + hi) / 2) hi ag ag' (fun i hi' => h i (by omega)),
+        bracketSifts_congr fuel lo ((lo + hi) / 2) ag ag' h,
+        bracketSifts_congr fuel ((lo + hi) / 2 + 1) hi ag ag' (fun i hi' => h i (by omega)),
+        bracketSifts_congr fuel lo ((lo + hi) / 2 - 1) ag ag' h]
+    · rw [if_neg hlh, if_neg hlh]
+
+theorem kWalkBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    kWalkBy cut t edges k x = kWalkBy cut' t edges k x := by
+  simp only [kWalkBy, h k le_rfl]
+
+theorem walkToBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    walkToBy cut t edges k x = walkToBy cut' t edges k x := by
+  funext j
+  simp only [walkToBy, h k le_rfl]
+
+theorem agreesAtBy_congrK (h : PrefAgreeK cut cut' t x k) (w : ℕ → List Bool) :
+    ∀ i, k ≤ i → agreesAtBy cut t x w i = agreesAtBy cut' t x w i := by
+  intro i hi
+  simp only [agreesAtBy, h i hi]
+
+theorem kWalkBy_edge_ge {s : List Bool} {c : α} {j : ℕ} (hk : kWalkBy cut t edges k x = .edge s c j) :
+    k ≤ j := by
+  unfold kWalkBy at hk
+  split at hk
+  · cases hk
+  · split at hk
+    · cases hk
+    · simp only [KWalk.edge.injEq] at hk; omega
+
+theorem walkCheckBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    walkCheckBy cut t edges k x = walkCheckBy cut' t edges k x := by
+  unfold walkCheckBy
+  rw [← kWalkBy_congrK (edges := edges) h, walkToBy_congrK (edges := edges) h, h.whole]
+  rcases hk : kWalkBy cut t edges k x with _ | ⟨s, c, j⟩ | ps
+  · rfl
+  · have hj := kWalkBy_edge_ge hk
+    simp only [h (j + 1) (by omega), h j hj]
+  · rfl
+
+theorem probeBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    probeBy cut t edges k x = probeBy cut' t edges k x := by
+  unfold probeBy
+  rw [walkCheckBy_congrK (edges := edges) h]
+  rcases walkCheckBy cut' t edges k x with o | ⟨ps, hi⟩
+  · rfl
+  · simp only [Sum.elim_inr]
+    exact bracketAt_congr ps _ _ _ _ _ (agreesAtBy_congrK h _)
+
+theorem posEdgeBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    posEdgeBy cut t edges k x = posEdgeBy cut' t edges k x := by
+  funext i
+  simp only [posEdgeBy, edgeAtBy, walkToBy_congrK (edges := edges) h]
+
+theorem travBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    travBy cut t edges k x = travBy cut' t edges k x := by
+  funext e
+  simp only [travBy, posEdgeBy_congrK (edges := edges) h]
+
+theorem siftsBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    siftsBy cut t edges k x = siftsBy cut' t edges k x := by
+  unfold siftsBy
+  simp only []
+  rw [← kWalkBy_congrK (edges := edges) h, walkToBy_congrK (edges := edges) h, h.whole]
+  have hb : ∀ (ps : List (List Bool)) (hi : ℕ),
+      bracketSifts (agreesAtBy cut t x fun j => ps.getD (j - k) []) (hi - k) k hi
+        = bracketSifts (agreesAtBy cut' t x fun j => ps.getD (j - k) []) (hi - k) k hi :=
+    fun ps hi => bracketSifts_congr _ _ _ _ _ (agreesAtBy_congrK h _)
+  rcases hk : kWalkBy cut t edges k x with _ | ⟨s, c, j⟩ | ps
+  · rfl
+  · have hj := kWalkBy_edge_ge hk
+    simp only [h (j + 1) (by omega), h j hj, hb]
+  · simp only [hb]
+
+theorem edgeHarvBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    edgeHarvBy cut t edges k x = edgeHarvBy cut' t edges k x := by
+  funext e
+  unfold edgeHarvBy
+  rw [siftsBy_congrK (edges := edges) h, posEdgeBy_congrK (edges := edges) h]
+  refine List.filterMap_congr fun i hi => ?_
+  have hki := (siftsBy_range cut' hi).1
+  simp only [h i hki.le]
+
+theorem ptHarvBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    ptHarvBy cut t edges k x = ptHarvBy cut' t edges k x := by
+  unfold ptHarvBy
+  rw [probeBy_congrK (edges := edges) h]
+  rcases ho : probeBy cut' t edges k x with _ | _ | _ | j | _ | j | _
+  · rfl
+  · rfl
+  · rfl
+  · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut' ho trivial
+    have := bracketAt_pair_gt _ _ _ _ _ _ hb
+    simp only [h j this.le]
+  · rfl
+  · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut' ho trivial
+    have := bracketAt_triple_gt _ _ _ _ _ _ hb
+    simp only [h j this.le]
+  · rfl
+
+end CutK
 
 end OrthoDFA
