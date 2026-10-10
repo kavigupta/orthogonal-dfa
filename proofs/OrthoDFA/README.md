@@ -80,8 +80,7 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
 ## Open
 
-Two claims are not proved, and are not assumed or sorried anywhere (`TallyRoundFamily` leaves
-the tail of `TallyE`'s records field as a term in its bound, to be bounded separately):
+Two claims are not proved, and are not assumed or sorried anywhere:
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
@@ -90,9 +89,7 @@ the tail of `TallyE`'s records field as a term in its bound, to be bounded separ
 2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only up to the
    noisy-split chance above and the non-power residual, which is stated, not bounded.
 
-The tally round's noise event `TallyE` is discharged field by field except its records field
-(`spurious`), whose tail `TallyRoundFamily` carries as a term. Its edge and
-pair/triple fields need the reads to concentrate over the probes' length-`k` prefixes, which
+The tally round's noise event `TallyE` is discharged field by field. Its fields need the reads to concentrate over the probes' length-`k` prefixes, which
 asks for an unrealistically small largest prefix mass `p₀`. The planned replacement drops that
 requirement: the tests count each string once, at its first read in the round, and a harvest is
 judged over those new strings. Each new string's read is then fresh when it is charged, so by lazy
@@ -299,8 +296,9 @@ Two gaps between the model and Python:
   (`und_asks_mean`).
 - `OrthoDFA/TallyFamily.lean` — `TallyRoundFamily`: `TallyRound` with the reads the family's,
   from a DFA target, a suffix-free family and `BandPasses`, and `TallyE` replaced by its fields'
-  tails: the edge, start and middles fields' over the class and its edge maps, given that no
-  length-`k` prefix carries more than `p₀` of the probes, and the records field's, left as a term.
+  tails over the class and its edge maps, given that no length-`k` prefix carries more than `p₀`
+  of the probes. The records field's tail is `spurious_le` (`Proofs/TallySpurNoise.lean`), at
+  twice the band's `κ`, from the probe's first reads being fresh (`Proofs/TallyQuery.lean`).
   Proved in `Proofs/TallyFamily.lean`, from `FamilyReadBound` and `tallyE_le`
   (`Proofs/TallyEvent.lean`), which unions `goodEdge_le` (`Proofs/TallyEdgeNoise.lean`),
   `goodStart_le` (`Proofs/TallyNoise.lean`) and `goodPT_le` (`Proofs/TallyPTNoise.lean`).

@@ -16,6 +16,7 @@ import OrthoDFA.Proofs.TallyRace
 import OrthoDFA.Proofs.TallyNoise
 import OrthoDFA.Proofs.TallyEvent
 import OrthoDFA.Proofs.TallyFamily
+import OrthoDFA.Proofs.TallySpurNoise
 import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.FamilyRead
@@ -163,6 +164,8 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 #print axioms goodPT_le
 
 #print axioms tallyE_le
+
+#print axioms spurious_le
 
 #print axioms success_sound_holds
 
