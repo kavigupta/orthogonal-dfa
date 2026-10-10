@@ -45,8 +45,8 @@ theorem tally_round_family_holds : TallyRoundFamily := by
   have hTR := tally_round_of sub_round_holds fake_race_holds harvest_good_holds
     success_sound_holds (μ := μ) G read D C S nEnd nRec hP hS L T ρ θg θgs θgpt θpt' θr εd' Xe θs'
     Xs η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1
-    hcond     hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθe hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0
-    hφ1 hlow (by linarith) hXe0 hXe hθs' hXs hlin hη hν hside hT
+    hcond hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθe hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1
+    hstartpt hφ0 hφ1 hlow (by linarith) hXe0 hXe hθs' hXs hlin hη hν hside hT
   have hE := tallyE_le (ρ := ρ) (θgs := θgs) G read hmeas hind hlaw hθ D C S L hL1 hlen hk hp₀
     hpmax hl hφe0 hφ0 hθe hθg hθgpt
   have hcard : ((classSet (Fintype.card σ + S) : Finset (DTree α)).card : ℝ)
