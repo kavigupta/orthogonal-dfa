@@ -10,6 +10,7 @@ import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.TallyEvent
 import OrthoDFA.Proofs.TallySpurNoise
 import OrthoDFA.Proofs.TallyFamily
+import OrthoDFA.Proofs.TallyRisk
 
 /-!
 # The theorem
@@ -58,8 +59,7 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms success_sound_holds
 
-theorem tally_round : TallyRound :=
-  tally_round_of sub_round_holds fake_race_holds harvest_good_holds success_sound_holds
+theorem tally_round : TallyRound := tally_round_holds
 
 #print axioms tally_round
 
@@ -76,8 +76,6 @@ theorem tally_round : TallyRound :=
 #print axioms spurious_mean
 
 #print axioms edge_first_mean
-
-#print axioms readModel_of_family
 
 theorem tally_round_family : TallyRoundFamily := tally_round_family_holds
 

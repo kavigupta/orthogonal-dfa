@@ -142,22 +142,12 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
   [IsProbabilityMeasure μ] {read : FreeMonoid α → Ω → ARU}
 
 open scoped Classical in
-theorem measureReal_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    {k L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
-    (S : Set (FreeMonoid α)) :
-    D.real S = ∑ x ∈ lenRange k L, D.real {x} * if x ∈ S then 1 else 0 := by
-  have h1 : D.real S = ∫ x, (if x ∈ S then (1 : ℝ) else 0) ∂D := by
-    rw [← integral_indicator_one (Set.to_countable S).measurableSet]
-    congr 1
-  rw [h1, integral_eq_sum_lenRange D hlen hk _ fun x _ => by split_ifs <;> norm_num <;> positivity]
-
-open scoped Classical in
 /-- At one tree and edge map, records that are not true exceed twice `κ` times the undecided
 strings and twice `ε` times the most first reads a probe makes by `η` with chance at most this. -/
 theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
     (T : DTree α) (edges : Edges α) (he : EdgesInto T edges) :
     μ {ω | 2 * G.κ * ∫ x, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂D
@@ -172,7 +162,7 @@ theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
     if k ≤ x.toList.length ∧ x ∈ G.untrueAt rd k T edges then 1 else 0
   set tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
-    if k ≤ x.toList.length then (twinsBy (fun z => (rd z).cut) T edges k x : ℝ) + s else 0
+    (twinsBy (fun z => (rd z).cut) T edges k x : ℝ) + s
   have hagr : ∀ x, k ≤ x.toList.length → ∀ rd rd' : FreeMonoid α → ARU,
       (∀ z ∈ probeStrings T k x, rd z = rd' z) →
       PrefAgreeK (fun z => (rd z).cut) (fun z => (rd' z).cut) T x k := fun x hkx rd rd' h =>
@@ -185,26 +175,33 @@ theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
   have htf : ∀ x rd rd', (∀ z ∈ probeStrings T k x, rd z = rd' z) → tf rd x = tf rd' x := by
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
-    · simp only [tf, if_pos hkx, twinsBy_congr_strings (edges := edges) (T := T) (x := x)
+    · simp only [tf, twinsBy_congr_strings (edges := edges) (T := T) (x := x)
         (cut := fun z => (rd z).cut) (cut' := fun z => (rd' z).cut) hkx
         fun z hz => by rw [h z hz]]
-    · simp only [tf, if_neg hkx]
-  have hub : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ uf rd x ∧ uf rd x ≤ 1 := by
+    · have hs' : x.toList.length < k := by omega
+      simp only [tf, twinsBy_short _ T edges hs']
+  have hub : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ uf rd x ∧ uf rd x ≤ 1 := by
     intro rd x _
     simp only [uf]; split_ifs <;> norm_num
-  have htb : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ tf rd x ∧ tf rd x ≤ 1 * (L + 1 + s) := by
+  have htb : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ tf rd x ∧ tf rd x ≤ 1 * (L + 1 + s) := by
     intro rd x hx
-    obtain ⟨hkx, hxL⟩ := mem_lenRange.1 hx
-    simp only [tf, if_pos hkx, one_mul]
+    obtain ⟨-, hxL⟩ := mem_lenRange.1 hx
+    simp only [tf, one_mul]
     have h1 := twinsBy_le (fun z => (rd z).cut) T edges k x
     have h2 : ((twinsBy (fun z => (rd z).cut) T edges k x : ℕ) : ℝ) ≤ L + 1 := by
       exact_mod_cast h1.trans (by omega)
     have h3 : (0 : ℝ) ≤ twinsBy (fun z => (rd z).cut) T edges k x := Nat.cast_nonneg _
     constructor <;> linarith
-  have hmean : ∀ x ∈ lenRange k L,
+  have hmean : ∀ x ∈ lenRange 0 L,
       ∫ ω, uf (read · ω) x ∂μ ≤ G.κ * ∫ ω, tf (read · ω) x ∂μ := by
     intro x hx
-    obtain ⟨hkx, hxL⟩ := mem_lenRange.1 hx
+    obtain ⟨-, hxL⟩ := mem_lenRange.1 hx
+    by_cases hkx : k ≤ x.toList.length
+    swap
+    · have hs' : x.toList.length < k := by omega
+      simp only [uf, hkx, false_and, if_false, integral_zero, tf, twinsBy_short _ T edges hs',
+        Nat.cast_zero, zero_add, integral_const, probReal_univ, one_smul]
+      positivity
     have hmU : MeasurableSet {ω | x ∈ G.untrueAt (read · ω) k T edges} := by
       have := measurable_of_strings hmeas (probeStrings T k x)
         (fun rd => decide (x ∈ G.untrueAt rd k T edges)) fun rd rd' h => by
@@ -226,7 +223,7 @@ theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
       congr 1
     have hN : ∫ ω, tf (read · ω) x ∂μ
         = ∫ ω, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂μ + s := by
-      simp only [tf, if_pos hkx]
+      simp only [tf]
       rw [integral_add hNi (integrable_const s), integral_const, probReal_univ, one_smul]
     rw [hU, hN]
     have h1 := untrue_mean_real G hmeas hind hlaw hκ.le hε T edges he hkx
@@ -237,29 +234,34 @@ theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     nlinarith
   have hTB := block_tail (μ := μ) (read := read) hmeas hind D (L := L) hp₀ hpmax hη hκ.le
     one_pos (by positivity : (0 : ℝ) ≤ L + 1 + s) (probeStrings T k ·)
-    (fun x z hz _ => probeStrings_prefix hz) uf tf huf htf hub htb hmean
-  have hw1 : ∑ x ∈ lenRange k L, D.real {x} = 1 := by
-    have := measureReal_eq_sum_lenRange D hlen hk Set.univ
+    (fun x z hz => probeStrings_prefix hz) uf tf huf htf hub htb hmean
+  have hw1 : ∑ x ∈ lenRange 0 L, D.real {x} = 1 := by
+    have := measureReal_eq_sum_len D hlen Set.univ
     simpa using this.symm
-  have hUs : ∀ ω, ∑ x ∈ lenRange k L, D.real {x} * uf (read · ω) x
+  have hUs : ∀ ω, ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x
       = D.real (G.untrueAt (read · ω) k T edges) := by
     intro ω
-    rw [measureReal_eq_sum_lenRange D hlen hk]
-    refine Finset.sum_congr rfl fun x hx => ?_
-    simp only [uf, (mem_lenRange.1 hx).1, true_and]
-  have hNs : ∀ ω, ∑ x ∈ lenRange k L, D.real {x} * tf (read · ω) x
+    rw [measureReal_eq_sum_len D hlen]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    by_cases hkx : k ≤ x.toList.length
+    · simp only [uf, hkx, true_and]
+    · have hs' : x.toList.length < k := by omega
+      have : x ∉ G.untrueAt (read · ω) k T edges := by
+        simp [ReadModel.untrueAt, recordBy_short _ T edges hs']
+      simp [uf, hkx, this]
+  have hNs : ∀ ω, ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x
       = ∫ x, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂D + s := by
     intro ω
-    rw [integral_eq_sum_lenRange D hlen hk _ fun x hx => by
+    rw [integral_eq_sum_len D hlen _ (L + 1) fun x hx => by
       rw [abs_of_nonneg (Nat.cast_nonneg _)]
       have := twinsBy_le (fun z => (read z ω).cut) T edges k x
       exact_mod_cast this.trans (by omega)]
     rw [← mul_one s, ← hw1, Finset.mul_sum, ← Finset.sum_add_distrib]
-    refine Finset.sum_congr rfl fun x hx => ?_
-    simp only [tf, (mem_lenRange.1 hx).1, if_true]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    simp only [tf]
     ring
-  calc μ _ ≤ μ {ω | 2 * G.κ * ∑ x ∈ lenRange k L, D.real {x} * tf (read · ω) x + η
-        < ∑ x ∈ lenRange k L, D.real {x} * uf (read · ω) x} := by
+  calc μ _ ≤ μ {ω | 2 * G.κ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
+        < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
         refine measure_mono fun ω hω => ?_
         simp only [Set.mem_setOf_eq] at hω ⊢
         rw [hUs, hNs]
@@ -283,7 +285,7 @@ open scoped Classical in
 theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ)
-    {p₀ ρ κs : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+    {p₀ ρ κs : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hκs : 2 * G.κ ≤ κs)
     (hρ : 2 * (G.ε * ((L + 1) * (Fintype.card σ + S + 1))) ≤ ρ) :
     μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
@@ -335,7 +337,7 @@ theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
   have hone : ∀ T ∈ (classSet n : Finset (DTree α)), ∀ e ∈ (edgeMaps T).filter (EdgesInto T ·),
       μ (B T e) ≤ ENNReal.ofReal ε' := by
     intro T hT e he
-    refine (spurious_one G hmeas hind hlaw hκ hε D hlen hk hp₀ hpmax hη T e
+    refine (spurious_one G hmeas hind hlaw hκ hε D hlen hp₀ hpmax hη T e
       (Finset.mem_filter.1 he).2).trans (ENNReal.ofReal_le_ofReal ?_)
     simp only [ε']
     gcongr

@@ -86,9 +86,11 @@ def agreesAtBy (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool) (
     Option Bool :=
   (t.sift cut (prefixOf x i)).elim (fun p => some (decide (p = walkAt i))) fun _ => none
 
-/-- What one probe comes to, read through `cut`. -/
+/-- What one probe comes to, read through `cut`; a probe shorter than `k` agrees and reads
+nothing. -/
 def probeBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Outcome α :=
-  (walkCheckBy cut t edges k x).elim id fun d =>
+  if x.toList.length < k then .agree
+  else (walkCheckBy cut t edges k x).elim id fun d =>
     bracketAt (agreesAtBy cut t x fun j => d.1.getD (j - k) []) d.1 (d.2 - k) k d.2
 
 /-- The record a probe of `x` makes against the hypothesis `h`: at a clean disagreement, the edge
@@ -163,7 +165,7 @@ def ptHarvBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : L
 
 /-- The string it read undecided at its start, if any. -/
 def startHarvBy (t : DTree α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
-  (t.sift cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
+  if x.toList.length < k then [] else (t.sift cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
 
 /-- `retarget` through `cut`. -/
 def retargetBy (t' : DTree α) (p : List Bool) (edges : Edges α) : Edges α := fun q c =>
@@ -281,6 +283,7 @@ def agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : PQ α (Optio
 
 /-- One probe of `x` from `k`, as a query tree. -/
 def probeQ : PQ α (Outcome α) :=
+  if x.toList.length < k then .done .agree else
   (siftQ (k, none) T (prefixOf x k)).bind fun a => match a with
   | .inr _ => .done (.startUndecided (prefixOf x k))
   | .inl p₀ => match follow edges p₀ (x.toList.drop k) with
@@ -431,8 +434,8 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
   else .inl s
 
 /-- The loop's settings: the start, the records a fix takes, the cap, the tests' thresholds, level
-and first look, the excess `exc r` an edge's undecided strings need after `r` reads, and the
-traffic an edge test and the search rate a middles test need. -/
+and first look, the excess `exc r` an edge's undecided strings need after `r` reads, the traffic
+an edge test and the search rate a middles test need, and the probes a round may draw. -/
 structure TallyCfg where
   k : ℕ
   m : ℕ
@@ -446,6 +449,7 @@ structure TallyCfg where
   exc : ℕ → ℝ
   φe : ℝ
   φpt : ℝ
+  budget : ℕ
 
 open scoped Classical in
 /-- A probe's reads charged, and its outcome learned, recorded or counted. -/

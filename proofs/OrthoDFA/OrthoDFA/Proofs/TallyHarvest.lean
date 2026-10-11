@@ -5,13 +5,13 @@ import OrthoDFA.Proofs.TallyFirsts
 # A harvest's strings are mostly at read-states that are not good
 
 Each place's counts only grow, by the probe's own charge. At an edge, the good read-states'
-undecided reads less `2θg` of its reads, scaled by `λ = 1 / (2(L + 1)(1 + 4θg Lmax))`,
-exponentiate to a supermartingale while the tree is in the class, since `goodEdge` bounds their mean by `θg` of
-the reads; so they pass `log(1/a)/λ` with chance at most `a`. A harvest that is not mostly bad
-has them past half its excess. At the start, the good read-states' undecided reads by the `t`-th
-probe are at most binomial, and a firing start test that is not mostly bad has them at half its
-count. The class's trees only gain splits that are not genuine, so a run that ends in the class
-was in it throughout.
+undecided reads less `2θg` of its reads, scaled by `λ = 1 / (2(L + 1)(1 + 4θg Lmax))`, exponentiate
+to a supermartingale while the tree is in the class, since `goodEdge` bounds their mean by `θg` of
+the reads; so they pass `log(1/a)/λ` with chance at most `a`. A harvest that is not mostly bad has
+them past half its excess. At the start, the good read-states' undecided reads by the `t`-th probe
+are at most binomial, and a firing start test that is not mostly bad has them at half its count. The
+class's trees only gain splits that are not genuine, so a run that ends in the class was in it
+throughout.
 -/
 
 namespace OrthoDFA
@@ -466,6 +466,10 @@ theorem goodCount_startPre (rd : FreeMonoid α → ARU) (s : TState α) (x : Fre
   rw [h, goodCount_append]
   congr 1
   simp only [startHarvBy, ReadModel.startAt, Set.mem_ofPred_eq]
+  by_cases hshort : x.toList.length < C.k
+  · have : ¬ C.k ≤ x.toList.length := by omega
+    simp [hshort, goodCount, this]
+  simp only [hshort, if_false, not_lt.1 hshort, true_and]
   obtain ⟨p, hp⟩ | ⟨b, hb⟩ : (∃ p, s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) = .inl p)
       ∨ ∃ b, s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) = .inr b := by
     rcases s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) with p | b

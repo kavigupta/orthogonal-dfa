@@ -20,7 +20,7 @@ theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : TallyCfg) (S L : ℕ)
     {p₀ ρ θg θgs θgpt l : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hk : ∀ᵐ x ∂D, C.k ≤ x.toList.length) (hp₀ : 0 < p₀)
+    (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x C.k = u} ≤ p₀) (hl : 0 ≤ l) (hφe : 0 ≤ C.φe)
     (hφpt : 0 ≤ C.φpt) (hθe : 4 * θg ≤ C.θe)
     (hθg : 2 * (3 / 2 * G.θ) ≤ θg)
@@ -43,13 +43,13 @@ theorem tallyE_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
             * (3 / 2 * G.θ)) * 1))))) := by
   have hθg0 : 0 ≤ θg := le_trans (by positivity) hθg
   have hθgpt0 : 0 ≤ θgpt := le_trans (by positivity) hθgpt
-  have hE := goodEdge_le G read hmeas hind hlaw hθ D C.k L S hlen hk hp₀ hpmax
+  have hE := goodEdge_le G read hmeas hind hlaw hθ D C.k L S hlen hp₀ hpmax
     (η := C.φe * (C.θe / 2 - 2 * θg) / 2)
     (mul_nonneg (mul_nonneg hφe (by linarith)) (by norm_num)) hθg
-  have hS := goodStart_le G read hmeas hind hlaw D C.k (Fintype.card σ + S) (θgs := θgs) hθ hk
+  have hS := goodStart_le G read hmeas hind hlaw D C.k (Fintype.card σ + S) (θgs := θgs) hθ
     hp₀ hpmax hl
   rw [Nat.cast_add] at hS
-  have hP := goodPT_le G read hmeas hind hlaw hθ D C.k L S hlen hk hp₀ hpmax
+  have hP := goodPT_le G read hmeas hind hlaw hθ D C.k L S hlen hp₀ hpmax
     (η := θgpt * C.φpt / 2) (by positivity) hθgpt
   refine le_trans (measure_mono ?_) (le_trans (measure_union_le _ _) (add_le_add
     (le_trans (measure_union_le _ _) (add_le_add

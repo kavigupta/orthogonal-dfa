@@ -186,6 +186,8 @@ theorem walkCheckBy_congrK (h : PrefAgreeK cut cut' t x k) :
 theorem probeBy_congrK (h : PrefAgreeK cut cut' t x k) :
     probeBy cut t edges k x = probeBy cut' t edges k x := by
   unfold probeBy
+  split_ifs
+  · rfl
   rw [walkCheckBy_congrK (edges := edges) h]
   rcases walkCheckBy cut' t edges k x with o | ⟨ps, hi⟩
   · rfl

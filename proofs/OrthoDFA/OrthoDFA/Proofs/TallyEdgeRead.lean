@@ -119,7 +119,7 @@ first reads by `η` with chance at most this. -/
 theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length) (hp₀ : 0 < p₀)
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
     (edges : Edges α) (d : List Bool × α) :
     μ {ω | 2 * (3 / 2 * G.θ) * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η
@@ -145,9 +145,12 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     by_cases hkx : k ≤ x.toList.length
     · simp only [tf, if_pos hkx, travBy_congr_strings (edges := edges) hkx (hagr x hkx rd rd' h)]
     · simp only [tf, if_neg hkx]
-  have hub : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ uf rd x ∧ uf rd x ≤ L + 1 := by
+  have hub : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ uf rd x ∧ uf rd x ≤ L + 1 := by
     intro rd x hx
-    obtain ⟨hkx, hxL⟩ := mem_lenRange.1 hx
+    obtain ⟨-, hxL⟩ := mem_lenRange.1 hx
+    by_cases hkx : k ≤ x.toList.length
+    swap
+    · simp only [uf, if_neg hkx]; constructor <;> positivity
     simp only [uf, if_pos hkx]
     refine ⟨Nat.cast_nonneg _, ?_⟩
     have h1 : G.undecAt rd k T edges d G.Good x
@@ -155,35 +158,40 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     have h2 := edgeHarvBy_length_le (fun z => (rd z).cut) T edges k x d
     have : G.undecAt rd k T edges d G.Good x ≤ L + 1 := by omega
     exact_mod_cast this
-  have htb : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ tf rd x
+  have htb : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ tf rd x
       ∧ tf rd x ≤ (L + 1) * (T.midfixes.card : ℝ) := by
     intro rd x hx
-    obtain ⟨hkx, hxL⟩ := mem_lenRange.1 hx
+    obtain ⟨-, hxL⟩ := mem_lenRange.1 hx
+    by_cases hkx : k ≤ x.toList.length
+    swap
+    · simp only [tf, if_neg hkx]; constructor <;> positivity
     simp only [tf, if_pos hkx]
     refine ⟨Nat.cast_nonneg _, ?_⟩
     have h1 := travBy_le (fun z => (rd z).cut) T edges k x d
     have : travBy (fun z => (rd z).cut) T edges k x d ≤ (L + 1) * T.midfixes.card :=
       h1.trans (Nat.mul_le_mul_right _ (by omega))
     exact_mod_cast this
-  have hmean : ∀ x ∈ lenRange k L,
+  have hmean : ∀ x ∈ lenRange 0 L,
       ∫ ω, uf (read · ω) x ∂μ ≤ 3 / 2 * G.θ * ∫ ω, tf (read · ω) x ∂μ := by
     intro x hx
-    obtain ⟨hkx, -⟩ := mem_lenRange.1 hx
+    by_cases hkx : k ≤ x.toList.length
+    swap
+    · simp only [uf, tf, if_neg hkx, integral_zero, mul_zero, le_refl]
     simp only [uf, tf, if_pos hkx]
     exact undecAt_mean_real G hmeas hind hlaw hθ T edges k d x
   have hTB := block_tail (μ := μ) (read := read) hmeas hind D (L := L) hp₀ hpmax hη
     (by positivity : (0 : ℝ) ≤ 3 / 2 * G.θ) (by positivity : (0 : ℝ) < L + 1)
     (Nat.cast_nonneg T.midfixes.card) (probeStrings T k ·)
-    (fun x z hz _ => probeStrings_prefix hz) uf tf huf htf hub htb hmean
+    (fun x z hz => probeStrings_prefix hz) uf tf huf htf hub htb hmean
   have hM : ∀ (f : FreeMonoid α → ℝ), (∀ x, x.toList.length ≤ L → 0 ≤ f x ∧
       f x ≤ (L + 1) * (T.midfixes.card + 1)) →
       ∀ x, x.toList.length ≤ L → |f x| ≤ (L + 1) * (T.midfixes.card + 1) := by
     intro f hf x hx
     rw [abs_of_nonneg (hf x hx).1]; exact (hf x hx).2
   have hUs : ∀ ω, ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D
-      = ∑ x ∈ lenRange k L, D.real {x} * uf (read · ω) x := by
+      = ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x := by
     intro ω
-    rw [integral_eq_sum_lenRange' D hlen hk _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
+    rw [integral_eq_sum_len D hlen _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
       refine ⟨Nat.cast_nonneg _, ?_⟩
       have h1 : G.undecAt (read · ω) k T edges d G.Good x
           ≤ (edgeHarvBy (fun z => (read z ω).cut) T edges k x d).length :=
@@ -193,12 +201,15 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
         have : G.undecAt (read · ω) k T edges d G.Good x ≤ L + 1 := by omega
         exact_mod_cast this
       nlinarith [(Nat.cast_nonneg T.midfixes.card : (0 : ℝ) ≤ _)])]
-    refine Finset.sum_congr rfl fun x hx => ?_
-    simp only [uf, if_pos (mem_lenRange.1 hx).1]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    by_cases hkx : k ≤ x.toList.length
+    · simp only [uf, if_pos hkx]
+    · have hs' : x.toList.length < k := by omega
+      simp [uf, hkx, ReadModel.undecAt, edgeHarvBy_short _ T edges hs']
   have hNs : ∀ ω, ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D
-      = ∑ x ∈ lenRange k L, D.real {x} * tf (read · ω) x := by
+      = ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x := by
     intro ω
-    rw [integral_eq_sum_lenRange' D hlen hk _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
+    rw [integral_eq_sum_len D hlen _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
       refine ⟨Nat.cast_nonneg _, ?_⟩
       have h1 := travBy_le (fun z => (read z ω).cut) T edges k x d
       have : (travBy (fun z => (read z ω).cut) T edges k x d : ℝ)
@@ -207,10 +218,12 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
           h1.trans (Nat.mul_le_mul_right _ (by omega))
         exact_mod_cast this
       nlinarith)]
-    refine Finset.sum_congr rfl fun x hx => ?_
-    simp only [tf, if_pos (mem_lenRange.1 hx).1]
-  calc μ _ ≤ μ {ω | 2 * (3 / 2 * G.θ) * ∑ x ∈ lenRange k L, D.real {x} * tf (read · ω) x + η
-        < ∑ x ∈ lenRange k L, D.real {x} * uf (read · ω) x} := by
+    refine Finset.sum_congr rfl fun x _ => ?_
+    by_cases hkx : k ≤ x.toList.length
+    · simp only [tf, if_pos hkx]
+    · simp [tf, hkx, travBy_short _ T edges (show x.toList.length < k by omega)]
+  calc μ _ ≤ μ {ω | 2 * (3 / 2 * G.θ) * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
+        < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
         refine measure_mono fun ω hω => ?_
         simp only [Set.mem_setOf_eq] at hω ⊢
         rw [← hUs, ← hNs]
@@ -231,7 +244,7 @@ times `exp(−η / (2 p₀ (L + 1)(1 + 6θ (|Q| + S + 1))))`. -/
 theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θg : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
     (hθg : 2 * (3 / 2 * G.θ) ≤ θg) :
     μ {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,
@@ -291,7 +304,7 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
       have := midfixes_card T
       have := classSet_paths n T hT
       exact_mod_cast (by omega : T.midfixes.card ≤ n + 1)
-    refine (goodEdge_one G read hmeas hind hlaw hθ D hlen hk hp₀ hpmax hη T e d).trans
+    refine (goodEdge_one G read hmeas hind hlaw hθ D hlen hp₀ hpmax hη T e d).trans
       (ENNReal.ofReal_le_ofReal ?_)
     simp only [ε]
     gcongr

@@ -270,7 +270,9 @@ theorem walkToBy_of_sift {p₀ : List Bool}
 theorem run_probeQ : (probeQ T edges k x).run rd = probeBy (fun z => (rd z).cut) T edges k x := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   unfold probeQ probeBy walkCheckBy kWalkBy
-  rw [QTree.run_bind, run_siftQ]
+  by_cases hshort : x.toList.length < k
+  · simp only [if_pos hshort, QTree.run]
+  rw [if_neg hshort, if_neg hshort, QTree.run_bind, run_siftQ]
   rcases hk : T.sift cut (prefixOf x k) with p₀ | b
   · simp only []
     rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i⟩
@@ -315,6 +317,8 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
             ∧ q.1.2 = some e)) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
   unfold probeQ at hq
+  split_ifs at hq with hshort
+  · simp [QTree.asks] at hq
   rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
   rcases hq with hq | hq
   · obtain ⟨h1, h2⟩ := mem_asks_siftQ T rd hq

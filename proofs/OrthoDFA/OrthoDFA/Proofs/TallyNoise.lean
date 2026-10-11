@@ -159,7 +159,7 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k n : ℕ) {p₀ l θgs : ℝ}
-    (hθ : 0 ≤ G.θ) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length) (hp₀ : 0 < p₀)
+    (hθ : 0 ≤ G.θ) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hl : 0 ≤ l) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
         D.real (G.startAt (read · ω) k T G.Good) ≤ θgs}
@@ -175,22 +175,24 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
       h (h1.symm.trans h2)) (fun u _ => (Set.to_countable _).measurableSet)]
     have := measureReal_mono (μ := D) (Set.subset_univ (⋃ u ∈ U, {x | prefixOf x k = u}))
     rwa [probReal_univ] at this
-  have hsplit : ∀ P : FreeMonoid α → Prop, D.real {x | P (prefixOf x k)}
+  have hsplit : ∀ P : FreeMonoid α → Prop, D.real {x | k ≤ x.toList.length ∧ P (prefixOf x k)}
       = ∑ u ∈ U, w u * if P u then 1 else 0 := by
     intro P
-    have hae : {x | P (prefixOf x k)} =ᵐ[D] ⋃ u ∈ U.filter P, {x | prefixOf x k = u} := by
-      filter_upwards [hk] with x hx
-      show (x ∈ {x | P (prefixOf x k)}) = (x ∈ ⋃ u ∈ U.filter P, {x | prefixOf x k = u})
+    have hset : {x | k ≤ x.toList.length ∧ P (prefixOf x k)}
+        = ⋃ u ∈ U.filter P, {x | prefixOf x k = u} := by
+      ext x
       rw [Set.mem_iUnion₂]
-      apply propext
       simp only [Set.mem_ofPred_eq, Finset.mem_filter, exists_prop]
       constructor
-      · intro h
+      · rintro ⟨hx, h⟩
         refine ⟨prefixOf x k, ⟨mem_lenK.2 ?_, h⟩, rfl⟩
         simp [prefixOf, List.length_take, hx]
-      · rintro ⟨u, ⟨-, hu⟩, rfl⟩
-        exact hu
-    rw [measureReal_congr hae, measureReal_biUnion_finset (fun u _ u' _ h =>
+      · rintro ⟨u, ⟨hu, hP⟩, rfl⟩
+        refine ⟨?_, hP⟩
+        have := mem_lenK.1 hu
+        simp only [prefixOf, FreeMonoid.toList_ofList, List.length_take] at this
+        omega
+    rw [hset, measureReal_biUnion_finset (fun u _ u' _ h =>
       Set.disjoint_left.2 fun x h1 h2 => h (h1.symm.trans h2))
       (fun u _ => (Set.to_countable _).measurableSet), Finset.sum_filter]
     exact Finset.sum_congr rfl fun u _ => by by_cases h : P u <;> simp [w, h]

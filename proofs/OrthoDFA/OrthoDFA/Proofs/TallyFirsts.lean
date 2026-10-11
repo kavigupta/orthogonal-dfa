@@ -95,6 +95,8 @@ theorem asks_probeQ_label (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T
     q.1 = (k, none) ∨ q.1.2 = posEdgeBy (fun z => (rd z).cut) T edges k x q.1.1 := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
   unfold probeQ at hq
+  split_ifs at hq with hshort
+  · simp [QTree.asks] at hq
   rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
   rcases hq with hq | hq
   · exact .inl (mem_asks_siftQ T rd hq).1
@@ -355,7 +357,11 @@ theorem edgeHarvBy_le_travBy (e : List Bool × α) :
   exact (List.monotone_filter_right _ fun q h => by
     simp only [decide_eq_true_eq] at h ⊢; exact h.1).length_le
 
-theorem start_mem_firstsBy {b : FreeMonoid α} (h : T.sift cut (prefixOf x k) = .inr b) :
+theorem firstsBy_short (h : x.toList.length < k) : firstsBy cut T edges k x = [] := by
+  simp [firstsBy, probeQ, h, QTree.firsts]
+
+theorem start_mem_firstsBy (hkx : ¬ x.toList.length < k) {b : FreeMonoid α}
+    (h : T.sift cut (prefixOf x k) = .inr b) :
     ((k, none), b) ∈ firstsBy cut T edges k x := by
   have hb := (route_undecided cut T _ b h).1
   have ha : ((k, none), b) ∈ (siftQ (k, none) T (prefixOf x k)).asks (ofCut cut) := by
@@ -368,7 +374,7 @@ theorem start_mem_firstsBy {b : FreeMonoid α} (h : T.sift cut (prefixOf x k) = 
   obtain ⟨q, hq, hqb⟩ := List.mem_map.1 (List.mem_toFinset.1 hk)
   have hl := (mem_asks_siftQ T (ofCut cut) (QTree.firsts_sub_asks _ _ _ q hq)).1
   unfold firstsBy probeQ
-  rw [QTree.firsts_bind]
+  rw [if_neg hkx, QTree.firsts_bind]
   refine List.mem_append_left _ ?_
   have : q = ((k, none), b) := Prod.ext hl hqb
   rw [← this]
@@ -396,12 +402,16 @@ theorem twinsBy_le : twinsBy cut T edges k x ≤ x.toList.length + 1 := by
     rw [List.length_eq_length_filter_add (fun q => decide (q.1.2 ≠ none))]
     simp only [U', decide_not]
   unfold twinsBy
-  rcases hs : T.sift cut (prefixOf x k) with p | b
-  · have : (startHarvBy cut T k x).length = 0 := by simp [startHarvBy, hs]
+  by_cases hshort : x.toList.length < k
+  · have : (startHarvBy cut T k x).length = 0 := by simp [startHarvBy, hshort]
     omega
-  · have h1 : (startHarvBy cut T k x).length = 1 := by simp [startHarvBy, hs]
+  rcases hs : T.sift cut (prefixOf x k) with p | b
+  · have : (startHarvBy cut T k x).length = 0 := by simp [startHarvBy, hshort, hs]
+    omega
+  · have h1 : (startHarvBy cut T k x).length = 1 := by simp [startHarvBy, hshort, hs]
     have hq₀ : ((k, none), b) ∈ U.filter fun q => ¬ q.1.2 ≠ none := by
-      refine List.mem_filter.2 ⟨List.mem_filter.2 ⟨start_mem_firstsBy cut T edges k x hs, ?_⟩,
+      refine List.mem_filter.2 ⟨List.mem_filter.2
+        ⟨start_mem_firstsBy cut T edges k x hshort hs, ?_⟩,
         by simp⟩
       simpa using (route_undecided cut T _ b hs).2
     have h2 := List.length_pos_of_mem hq₀
@@ -425,6 +435,33 @@ theorem edgeHarvBy_mem {edges : Edges α} (he : EdgesInto T edges) {e : List Boo
   exact List.eq_nil_of_length_eq_zero (by omega)
 
 end Count
+
+section Short
+
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α) {k : ℕ}
+  {x : FreeMonoid α}
+
+theorem probeBy_short (h : x.toList.length < k) : probeBy cut T edges k x = .agree := by
+  simp [probeBy, h]
+
+theorem recordBy_short (h : x.toList.length < k) : recordBy cut k (T, edges) x = none := by
+  simp [recordBy, probeBy_short cut T edges h]
+
+theorem twinsBy_short (h : x.toList.length < k) : twinsBy cut T edges k x = 0 := by
+  simp [twinsBy, startHarvBy, h, edgeHarvBy, firstsBy_short cut T edges k x h]
+
+theorem travBy_short (h : x.toList.length < k) (e : List Bool × α) :
+    travBy cut T edges k x e = 0 := by
+  simp [travBy, firstsBy_short cut T edges k x h]
+
+theorem edgeHarvBy_short (h : x.toList.length < k) (e : List Bool × α) :
+    edgeHarvBy cut T edges k x e = [] := by
+  simp [edgeHarvBy, firstsBy_short cut T edges k x h]
+
+theorem ptHarvBy_short (h : x.toList.length < k) : ptHarvBy cut T edges k x = [] := by
+  simp [ptHarvBy, probeBy_short cut T edges h]
+
+end Short
 
 section Congr
 
@@ -499,6 +536,8 @@ theorem twinsBy_congr_strings (hkx : k ≤ x.toList.length)
 theorem firstsBy_econgr {e e' : Edges α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) : firstsBy cut T e k x = firstsBy cut T e' k x := by
   unfold firstsBy probeQ
+  split_ifs
+  · rfl
   rw [QTree.firsts_bind, QTree.firsts_bind]
   congr 1
   rw [run_siftQ]
@@ -578,8 +617,10 @@ theorem und_twins (he : EdgesInto T edges) :
     rcases hp with hp | ⟨-, e, hpe, hle⟩
     · rw [hp] at hr
       have hs := sift_of_route_und T _ _ hr hq.2
+      have hlong : ¬ x.toList.length < k := fun hsh => by
+        rw [firstsBy_short cut T edges k x hsh] at hq'; simp at hq'
       refine List.mem_append_left _ ?_
-      simp [startHarvBy, cut, hs]
+      simp [startHarvBy, cut, hs, hlong]
     · refine List.mem_append_right _ (List.mem_flatMap.2 ⟨e, ?_, ?_⟩)
       · simp only [Finset.mem_toList, Finset.mem_product, List.mem_toFinset, Finset.mem_univ,
           and_true]

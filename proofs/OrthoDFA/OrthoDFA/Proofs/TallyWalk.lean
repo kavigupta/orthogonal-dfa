@@ -1,4 +1,4 @@
-import OrthoDFA.TallyRound
+import OrthoDFA.Proofs.TallyParts
 import OrthoDFA.Proofs.StartAtK
 import OrthoDFA.Proofs.TreePaths
 
@@ -38,6 +38,8 @@ theorem probeBy_search {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMono
     ∃ ps hi, walkCheckBy cut t edges k x = .inr (ps, hi)
       ∧ bracketAt (agreesAtBy cut t x fun j => ps.getD (j - k) []) ps (hi - k) k hi = o := by
   unfold probeBy at h
+  split_ifs at h with hs
+  · subst h; exact absurd ho (by simp [Outcome.IsSearch])
   rcases hw : walkCheckBy cut t edges k x with o' | ⟨ps, hi⟩ <;> rw [hw] at h
   · simp only [Sum.elim_inl, id] at h
     subst h

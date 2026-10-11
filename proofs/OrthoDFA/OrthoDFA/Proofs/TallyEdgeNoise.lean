@@ -195,6 +195,28 @@ theorem integral_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMea
     ∫ x, f x ∂D = ∑ x ∈ lenRange k L, D.real {x} * f x :=
   integral_eq_sum_lenRange' D hlen hk f (L + 1) hf
 
+open scoped Classical in
+theorem measureReal_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    {k L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+    (S : Set (FreeMonoid α)) :
+    D.real S = ∑ x ∈ lenRange k L, D.real {x} * if x ∈ S then 1 else 0 := by
+  have h1 : D.real S = ∫ x, (if x ∈ S then (1 : ℝ) else 0) ∂D := by
+    rw [← integral_indicator_one (Set.to_countable S).measurableSet]
+    congr 1
+  rw [h1, integral_eq_sum_lenRange D hlen hk _ fun x _ => by split_ifs <;> norm_num <;> positivity]
+
+theorem integral_eq_sum_len (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (f : FreeMonoid α → ℝ) (M : ℝ)
+    (hf : ∀ x, x.toList.length ≤ L → |f x| ≤ M) :
+    ∫ x, f x ∂D = ∑ x ∈ lenRange 0 L, D.real {x} * f x :=
+  integral_eq_sum_lenRange' D hlen (Filter.Eventually.of_forall fun _ => Nat.zero_le _) f M hf
+
+open scoped Classical in
+theorem measureReal_eq_sum_len (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (S : Set (FreeMonoid α)) :
+    D.real S = ∑ x ∈ lenRange 0 L, D.real {x} * if x ∈ S then 1 else 0 :=
+  measureReal_eq_sum_lenRange D hlen (Filter.Eventually.of_forall fun _ => Nat.zero_le _) S
+
 end One
 
 section Blocks
@@ -221,29 +243,25 @@ theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
     (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (hθ₀ : 0 ≤ θ₀) (hB : 0 < B)
     (hR : 0 ≤ R) (Sx : FreeMonoid α → Finset (FreeMonoid α))
-    (hSx : ∀ x z, z ∈ Sx x → k ≤ x.toList.length → prefixOf z k = prefixOf x k)
+    (hSx : ∀ x z, z ∈ Sx x → prefixOf z k = prefixOf x k)
     (uf tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ)
     (huf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → uf rd x = uf rd' x)
     (htf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → tf rd x = tf rd' x)
-    (hub : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ uf rd x ∧ uf rd x ≤ B)
-    (htb : ∀ rd, ∀ x ∈ lenRange k L, 0 ≤ tf rd x ∧ tf rd x ≤ B * R)
-    (hmean : ∀ x ∈ lenRange k L,
+    (hub : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ uf rd x ∧ uf rd x ≤ B)
+    (htb : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ tf rd x ∧ tf rd x ≤ B * R)
+    (hmean : ∀ x ∈ lenRange 0 L,
       ∫ ω, uf (read · ω) x ∂μ ≤ θ₀ * ∫ ω, tf (read · ω) x ∂μ) :
-    μ {ω | 2 * θ₀ * ∑ x ∈ lenRange k L, D.real {x} * tf (read · ω) x + η
-        < ∑ x ∈ lenRange k L, D.real {x} * uf (read · ω) x}
+    μ {ω | 2 * θ₀ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
+        < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * B * (1 + 4 * θ₀ * R))))) := by
   set c : ℝ := 1 / (2 * p₀ * B * (1 + 4 * θ₀ * R))
   have hc : 0 < c := by positivity
-  set X : Finset (FreeMonoid α) := lenRange k L
-  set U : Finset (FreeMonoid α) := lenK k
+  set X : Finset (FreeMonoid α) := lenRange 0 L
+  set U : Finset (FreeMonoid α) := X.image (prefixOf · k)
   set Xu : FreeMonoid α → Finset (FreeMonoid α) := fun u => X.filter fun x => prefixOf x k = u
   set w : FreeMonoid α → ℝ := fun x => D.real {x}
   set Sb : FreeMonoid α → Finset (FreeMonoid α) := fun u => (Xu u).biUnion Sx
-  have hXk : ∀ x ∈ X, k ≤ x.toList.length := fun x hx => (mem_lenRange.1 hx).1
-  have hmapsto : ∀ x ∈ X, prefixOf x k ∈ U := by
-    intro x hx
-    refine mem_lenK.2 ?_
-    simp [prefixOf, hXk x hx]
+  have hmapsto : ∀ x ∈ X, prefixOf x k ∈ U := fun x hx => Finset.mem_image_of_mem _ hx
   have hsum : ∀ f : FreeMonoid α → ℝ, ∑ x ∈ X, w x * f x = ∑ u ∈ U, ∑ x ∈ Xu u, w x * f x :=
     fun f => (Finset.sum_fiberwise_of_maps_to hmapsto _).symm
   have hblk : ∀ u, ∀ x ∈ Xu u, ∀ rd rd' : FreeMonoid α → ARU, (∀ z ∈ Sb u, rd z = rd' z) →
@@ -338,7 +356,7 @@ theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
       obtain ⟨x, hx, hz⟩ := Finset.mem_biUnion.1 hz
       obtain ⟨hxX, hxv⟩ := Finset.mem_filter.1 hx
       rw [← hxv]
-      exact hSx x z hz (hXk x hxX)
+      exact hSx x z hz
     rw [← key u h1, key u' h2]
   set gb : ∀ u, (Sb u → ARU) → ENNReal := fun u v => ENNReal.ofReal (Real.exp (c *
     ∑ x ∈ Xu u, w x * (uf (rdOf (Sb u) v) x - 2 * θ₀ * tf (rdOf (Sb u) v) x)))

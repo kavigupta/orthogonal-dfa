@@ -350,9 +350,9 @@ theorem round_budget (hm : 0 < C.m) (hLmax : Fintype.card σ + S + 3 ≤ C.Lmax)
 end Budget
 
 universe u v w in
-/-- `TallyRound` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`. -/
+/-- `TallyRoundGiven` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`. -/
 theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
-    (hharv : HarvestGood.{u, v}) (hsucc : SuccessSound.{u}) : TallyRound.{u, v, w} := by
+    (hharv : HarvestGood.{u, v}) (hsucc : SuccessSound.{u}) : TallyRoundGiven.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd nRec hP hS L T ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs
     η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond
     hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1

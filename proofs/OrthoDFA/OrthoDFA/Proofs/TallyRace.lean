@@ -325,7 +325,7 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
     by_contra hc
     push_neg at hc
     have hle1 : (startHarvBy cut s.tree C.k x).length ≤ 1 := by
-      unfold startHarvBy; rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp
+      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp)]
     rw [p3, p4] at hc hstart
     by_cases hn : C.n₀ ≤ s.probes + 1
     · have hh : θs' * ((s.probes + 1 : ℕ) : ℝ) + Xs
@@ -347,7 +347,7 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
       linarith
   · rw [c3, c4, p3, p4, List.length_append]
     have : (startHarvBy cut s.tree C.k x).length ≤ 1 := by
-      unfold startHarvBy; rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp
+      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp)]
     omega
 
 theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} {u : ℕ}
