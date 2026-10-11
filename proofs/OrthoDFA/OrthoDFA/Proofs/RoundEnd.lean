@@ -63,4 +63,19 @@ theorem spread_of_prefix (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (L : 
         rw [measureReal_prod_prod, anchorLaw_real_le]
         ring
 
+theorem spread_nil (D : Measure (FreeMonoid α)) (L : ℕ) : Spread D L fun _ _ => [] := by
+  intro t
+  simp only [List.not_mem_nil, Set.ofPred_false, measureReal_empty]
+  exact Finset.sum_nonneg fun i _ => mul_nonneg (by positivity) measureReal_nonneg
+
+/-- The ending is the same at any spread replay. -/
+theorem EndsWell.respread {σ : Type*} {M : DFA α σ} {bad : σ → Prop}
+    {D : Measure (FreeMonoid α)} {ε : ℝ} {dis : Set (FreeMonoid α)} {L L' : ℕ}
+    {rp rp' : FreeMonoid α → ℕ → List (FreeMonoid α)} (hs : Spread D L rp) {e : RoundEnd α}
+    (h : EndsWell M bad D ε dis L' rp' e) : EndsWell M bad D ε dis L rp e := by
+  cases e with
+  | consistent => exact h
+  | harvest zs => exact ⟨h.1, hs⟩
+  | failed => exact h
+
 end OrthoDFA
