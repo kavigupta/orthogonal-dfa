@@ -292,7 +292,9 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   intro D _ ε L hε
   have hsub : {xs : Fin P → FreeMonoid α | let r := round read C start (List.ofFn xs)
         ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-          L (replay read r.1.tree r.1.edges) (REnd.toRoundEnd r.2)}
+          L (replay read r.1.tree r.1.edges)
+          (coverage D L M (AllUndecided read M) / (L + 1 - startLength L : ℕ))
+          (REnd.toRoundEnd r.2)}
       ⊆ {xs | (round read C start (List.ofFn xs)).2 = some .consistent
           ∧ Bad read C D ε (round read C start (List.ofFn xs)).1} := by
     intro xs hxs
@@ -305,7 +307,8 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
       exact probe_disagrees read _ _ _ hx
     · obtain ⟨zs, hz, hne, hu⟩ := hv
       rw [hz] at hxs
-      refine absurd ⟨?_, replay_spread read _ _ D L⟩ hxs
+      refine absurd ⟨?_, replay_spread read _ _ D L, replay_yields read
+        (round_root read C _ start ⟨_, _, rfl⟩) _ D L M⟩ hxs
       classical
       show zs.length < 2 * (zs.filter fun z => AllUndecided read M (M.eval z.toList)).length
       have hall : ∀ z ∈ zs, decide (AllUndecided read M (M.eval (FreeMonoid.toList z))) = true :=
