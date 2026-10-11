@@ -2,11 +2,14 @@ import OrthoDFA.Proofs.IdealProbe
 import OrthoDFA.Proofs.RoundEnd
 
 /-!
-# The level-2 replay is spread
+# The level-2 replay is spread, and yields
 
 Every undecided string a probe walked from `k` turns up is a prefix of the probe at least `k`
 long, extended by a midfix. So the replay, walked from its anchor, keeps a prefix of its draw past
 the anchor, whatever the hypothesis.
+
+The root of every tree the round holds reads its string alone, so a replay finds the anchor's
+prefix whenever it reads undecided: whenever the draw is at a bad state there.
 -/
 
 namespace OrthoDFA
@@ -141,6 +144,88 @@ theorem replay_prefix (w : FreeMonoid α) (e : ℕ) (x : FreeMonoid α)
   · rw [hi, FreeMonoid.toList_mul, List.length_append, hlen]; omega
   · rw [hi, FreeMonoid.toList_mul, List.take_left' hlen]
     simp only [pre, FreeMonoid.toList_ofList]
+
+/-- The tree's root reads its string alone. -/
+def RootOne (T : DTree α) : Prop := ∃ r a, T = .node 1 r a
+
+theorem splitAt_root {T : DTree α} (hT : RootOne T) (d : FreeMonoid α) (p : List Bool) :
+    RootOne (T.splitAt d p) := by
+  obtain ⟨r, a, rfl⟩ := hT
+  rcases p with _ | ⟨_ | _, p⟩
+  · exact ⟨r, a, rfl⟩
+  · exact ⟨_, a, rfl⟩
+  · exact ⟨r, _, rfl⟩
+
+section Steps
+
+variable [DecidableEq α] (C : RoundCfg)
+
+omit [DecidableEq α] in
+theorem tick_tree {s s' : RState α} (h : tick C s = .inl s') : s'.tree = s.tree := by
+  unfold tick at h
+  split_ifs at h
+  cases h; rfl
+
+theorem charge_tree {s s' : RState α} {k : Cls α} {zs : List (FreeMonoid α)} {cl : Bool}
+    (h : charge C s k zs cl = .inl s') : s'.tree = s.tree := by
+  unfold charge at h
+  simp only at h
+  split_ifs at h
+  · have := tick_tree C h; exact this
+  · cases h; rfl
+
+theorem record_root {s s' : RState α} {p : List Bool} {c : α} {u : FreeMonoid α}
+    {t : List Bool} (h : record read C s p c u t = .inl s') (hs : RootOne s.tree) :
+    RootOne s'.tree := by
+  unfold record split at h
+  simp only at h
+  repeat' (first | split_ifs at h | split at h)
+  all_goals first
+    | (injection h with h; rw [← h]; exact splitAt_root hs _ _)
+    | (injection h with h; rw [← h]; exact hs)
+
+theorem step_root {s s' : RState α} {x : FreeMonoid α} (h : step read C s x = .inl s')
+    (hs : RootOne s.tree) : RootOne s'.tree := by
+  unfold step at h
+  split at h
+  · exact tick_tree C h ▸ hs
+  · exact charge_tree C h ▸ hs
+  · exact charge_tree C h ▸ hs
+  · exact charge_tree C h ▸ hs
+  · exact charge_tree C h ▸ hs
+  · exact record_root read C h hs
+  · injection h with h; rw [← h]; exact hs
+
+end Steps
+
+variable [DecidableEq α] (C : RoundCfg) in
+theorem round_root : ∀ (xs : List (FreeMonoid α)) (s : RState α), RootOne s.tree →
+    RootOne (round read C s xs).1.tree
+  | [], s, hs => hs
+  | x :: xs, s, hs => by
+    simp only [round]
+    split
+    · rename_i s' h; exact round_root xs s' (step_root read C h hs)
+    · exact hs
+
+theorem replay_root {T : DTree α} (hT : RootOne T) (E : Edges α) {w : FreeMonoid α} {e : ℕ}
+    (he : e ≤ w.toList.length) (hu : read (pre w e) = .undecided) : replay read T E w e ≠ [] := by
+  obtain ⟨r, a, rfl⟩ := hT
+  have hs : (DTree.node 1 r a).sift read (pre w e) = .inr (pre w e) := by
+    simp [DTree.sift, hu]
+  unfold replay probe
+  rw [if_neg (by omega), hs]
+  simp [Outcome.undecided]
+
+theorem replay_yields [Countable α] {T : DTree α} (hT : RootOne T) (E : Edges α)
+    (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (L : ℕ)
+    {σ : Type*} (M : DFA α σ) :
+    Yields D L (replay read T E)
+      (coverage D L M (AllUndecided read M) / (L + 1 - startLength L : ℕ)) := by
+  refine (coverage_le_anchor D L M _).trans (MeasureTheory.measureReal_mono ?_
+    (MeasureTheory.measure_ne_top _ _))
+  rintro ⟨w, e⟩ ⟨he, hb⟩
+  exact replay_root read hT E he (hb _ (by simp [pre]))
 
 theorem replay_spread [Countable α] (D : MeasureTheory.Measure (FreeMonoid α))
     [MeasureTheory.IsFiniteMeasure D]

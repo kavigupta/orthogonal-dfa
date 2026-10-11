@@ -17,7 +17,8 @@ counts afresh.
 
 `IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends well
 (`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided. The harvest's
-replay probes a fresh draw walked from a uniform anchor, so it is spread for any hypothesis.
+replay probes a fresh draw walked from a uniform anchor, so it is spread for any hypothesis, and
+it finds the anchor's prefix whenever that prefix is at a bad state.
 -/
 
 namespace OrthoDFA
@@ -312,7 +313,8 @@ def REnd.toRoundEnd : Option (REnd α) → RoundEnd α
   | _ => .failed
 
 /-- With ideal reads and enough probes, the round fails to end well with chance at most
-`(P + 1)(1 − ε)^n`, its harvest replayed from an anchor drawn uniformly below `L`. -/
+`(P + 1)(1 − ε)^n`. Its harvest is replayed from an anchor drawn uniformly from `⌈L/2⌉, …, L`,
+and yields the share of draws visiting a bad state from `⌈L/2⌉` on, over `L + 1 − ⌈L/2⌉`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : RoundCfg) (P : ℕ),
@@ -322,7 +324,9 @@ def IdealRoundCorrect : Prop :=
       (Measure.pi fun _ : Fin P => D).real
           {xs | let r := round read C start (List.ofFn xs)
             ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-              L (replay read r.1.tree r.1.edges) (REnd.toRoundEnd r.2)}
+              L (replay read r.1.tree r.1.edges)
+              (coverage D L M (AllUndecided read M) / (L + 1 - startLength L : ℕ))
+              (REnd.toRoundEnd r.2)}
         ≤ (P + 1) * (1 - ε) ^ C.n
 
 end Ideal
