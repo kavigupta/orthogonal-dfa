@@ -138,7 +138,8 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/RoundEnd.lean` — `EndsWell`, the ending every level of the round claims.
 - `OrthoDFA/IdealRound.lean` — the round with ideal reads, and `IdealRoundCorrect`.
-- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRound`;
+- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop, `TallyRound` and
+  `TallyRiskBound`;
   `Proofs/TallyParts.lean` states its parts, as sub-rounds. Probes walk from `k` as `sifting.read`
   does; a clean disagreement records its prefix and target at its edge. Each place keeps its count
   over the round: the start's undecided read strings, and each edge's first reads and those of them

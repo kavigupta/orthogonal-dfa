@@ -13,6 +13,8 @@ read-state is good where it reads undecided at most `1.5θ` of the time.
 harvest more than half of whose strings are at read-states that are not good) but for chance at
 most `roundRisk`: the least, over the proof's free parameters (`Knobs`) meeting
 `Knobs.Admissible`, of `roundBound`, a sum of named terms.
+
+`TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the read model and the settings.
 -/
 
 noncomputable section
