@@ -111,7 +111,7 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   its allowance is `θe ≥ 12θ` a read; `fakeRun` charges every probe the most first reads it can
   make, `(L + 1) Lmax`, against it. A bound `R̄` on the mean first reads a probe makes would put
   `R̄` there instead, and is not proved.
-- **`W`, `κ` and `ε`.** `fakeRun` holds `ρ` to about `1/W`, and with it `κ` and `ε` far below the
+- **`W` and `κ`.** `fakeRun` holds `ρ` to about `(S + 1)m/W`, and with it `κ` far below the
   shipped band's. `FakeRace` races the records that are not true against the undecided strings the
   tests let through, counted with their multiplicity; with each string counted once, a heavy
   string's undecided read is one count while its minority twin is a record at every probe through
