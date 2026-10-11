@@ -169,10 +169,41 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
+theorem le_prefixMax [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
+    (u : FreeMonoid α) : D.real {x | Ideal.pre x k = u} ≤ prefixMax D k :=
+  le_ciSup (f := fun u => D.real {x | Ideal.pre x k = u}) ⟨1, by
+    rintro _ ⟨v, rfl⟩; exact measureReal_le_one⟩ u
+
+theorem prefixMax_pos [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ) :
+    0 < prefixMax D k := by
+  have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
+  by_contra h
+  push_neg at h
+  have h0 : ∀ u : FreeMonoid α, D {x | Ideal.pre x k = u} = 0 := by
+    intro u
+    have h1 := (le_prefixMax D k u).trans h
+    have h2 : D.real {x | Ideal.pre x k = u} = 0 := le_antisymm h1 measureReal_nonneg
+    rwa [measureReal_eq_zero_iff] at h2
+  have : (Set.univ : Set (FreeMonoid α)) = ⋃ u, {x | Ideal.pre x k = u} := by
+    ext x; simp
+  have hu := measure_iUnion_null (μ := D) h0
+  rw [← this, measure_univ] at hu
+  exact one_ne_zero hu
+
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
-  intro α _ _ σ _ M side U θ Ω _ μ _ read D _ C L P Ns N₁ p₀ ε G θr εd' θpt' hmeas hind hU
-    hwrong hL hp₀ hpre hcap hm hn₀ hN₁ hN₁s hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1
-    hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+  intro α _ _ σ _ M side U θ Ω _ μ _ read D _ L C ε hmeas hind hU hwrong hL
+  refine le_iInf₂ fun kn hA => ?_
+  obtain ⟨Ns, N₁, G, θr, εd', θpt'⟩ := kn
+  obtain ⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, hG1, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
+    hεd, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP⟩ := hA
+  simp only at hN₁ hN₁s hG0 hG1 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+  unfold roundBound
+  simp only
+  set P := C.budget
+  set p₀ := prefixMax D C.k
+  have hp₀ : 0 < p₀ := prefixMax_pos D C.k
+  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | Ideal.pre x C.k = u} ≤ p₀ :=
+    fun u _ => le_prefixMax D C.k u
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set W := {ω | ¬ NoWrong M side (read · ω)}
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
