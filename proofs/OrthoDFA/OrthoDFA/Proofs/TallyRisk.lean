@@ -74,7 +74,8 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
 theorem tally_round_holds : TallyRound := by
-  intro α _ _ σ _ Ω _ μ _ G read hmeas hind hlaw D _ L hlen C κs hκ
+  intro α _ _ σ _ Ω _ μ _ G R D _ L hlen C κs hκ
+  obtain ⟨read, hmeas, hind, hlaw⟩ := R
   refine le_iInf₂ fun kn hA => ?_
   have hp₀ := prefixMax_pos D C.k
   have hpmax := le_prefixMax D C.k

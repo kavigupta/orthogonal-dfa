@@ -35,6 +35,15 @@ structure ReadModel (α σ : Type*) where
   nonneg : ∀ r v, 0 ≤ dist r v
   rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ max ε (κ * dist r .undecided)
 
+/-- An oracle answering accept, reject or undecided: a read of every string, independent across
+strings, each with its state's law. -/
+structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
+    (G : ReadModel α σ) where
+  read : FreeMonoid α → Ω → ARU
+  measurable : ∀ z, Measurable (read z)
+  indep : iIndepFun read μ
+  law : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r
+
 namespace ReadModel
 
 variable {σ : Type*} (G : ReadModel α σ)
@@ -268,18 +277,16 @@ def roundRisk (κs : ℝ) : ENNReal :=
 
 end Bound
 
-/-- `TallyRound`: with independent reads with the read model's laws, the round over `C.budget`
-probes drawn from `D`, of length at most `L`, fails to end well with chance at most `roundRisk`,
-at any records coefficient `κs ≥ 2κ`. -/
+/-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
+`C.budget` probes drawn from `D`, of length at most `L`, fails to end well with chance at most
+`roundRisk`, at any records coefficient `κs ≥ 2κ`. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
-    (read : FreeMonoid α → Ω → ARU), (∀ z, Measurable (read z)) → iIndepFun read μ →
-    (∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) →
-    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
+    (R : ReadOracle μ G) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut) (TallyEndsWell G D C (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk G D L C κs
 

@@ -21,6 +21,12 @@ def SuffixFamily.readModel {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {σ : Type*} (fam : SuffixFamily μ α σ) (θ : ℝ) : ReadModel α σ :=
   ⟨fam.M, fam.law, θ, fam.κ, fam.ε, fam.law_nonneg, fam.law_rare⟩
 
+/-- The family's reads, as an oracle with its read model's laws. -/
+def SuffixFamily.readOracle {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : Type*} (fam : SuffixFamily μ α σ) (θ : ℝ) :
+    ReadOracle μ (fam.readModel θ) :=
+  ⟨fun z ω => fam.read ω z, fam.read_measurable, fam.read_indep, fam.read_law⟩
+
 /-- `TallyRoundFamily`: read by a suffix family, the round over `C.budget` probes drawn from `D`,
 of length at most `L`, fails to end well with chance at most `roundRisk` of the family's read
 model, at any records coefficient `κs ≥ 2κ`. -/
