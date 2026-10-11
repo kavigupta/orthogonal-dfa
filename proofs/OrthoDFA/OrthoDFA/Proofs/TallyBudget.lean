@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.TallyKeep
+import OrthoDFA.Proofs.TallyReplay
 
 /-!
 # The round from its sub-rounds, with its records that are not true as one budget
@@ -373,7 +374,7 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     have : 0 ≤ 1 - binomSfGe nRec θr (Fintype.card σ * Fintype.card α * C.m + U) := by linarith
     positivity
   have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
-      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C (read · ω))
+      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C L (read · ω))
         tallyStart (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
     intro ω
     by_cases hω : TallyE G D C S ρ θg θgs θgpt (read · ω)
@@ -423,23 +424,23 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         · exact .inl hok
       have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
       have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (tallyStep C cut)
-          (TallyEndsWell G D C (read · ω)) tallyStart (List.ofFn xs)}
+          (TallyEndsWell G D C L (read · ω)) tallyStart (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (tallyStep C cut) (GoodEnd G) tallyStart (List.ofFn xs)}
             ∪ {xs | RunEnds (tallyStep C cut) (fun e s' => e = .success
               ∧ C.εd ≤ D.real (ReadModel.searchAt (read · ω) C.k s'.tree s'.edges)) tallyStart
               (List.ofFn xs)} := by
         intro xs hxs
         by_cases hg : RunEnds (tallyStep C cut) (GoodEnd G) tallyStart (List.ofFn xs)
-        · rcases runEnds_or (Q := TallyEndsWell G D C (read · ω)) _ _ hg with h | h
+        · rcases runEnds_or (Q := TallyEndsWell G D C L (read · ω)) _ _ hg with h | h
           · exact absurd h hxs
           · refine .inr (runEnds_mono (fun e s' h => ?_) _ _ h)
             obtain ⟨hge, hns⟩ := h
             rcases e with _ | _ | e | _ | _
             · simp only [TallyEndsWell, tallyEnd, EndsWell, not_le] at hns
               exact ⟨rfl, hns.le⟩
-            · exact absurd ((harvest_endsWell G D _ _ _).2 hge) hns
-            · exact absurd ((harvest_endsWell G D _ _ _).2 hge) hns
-            · exact absurd ((harvest_endsWell G D _ _ _).2 hge) hns
+            · exact absurd ((harvest_endsWell G D _ _ _ (tallyReplay_spread _ _ _ D L) _).2 hge) hns
+            · exact absurd ((harvest_endsWell G D _ _ _ (tallyReplay_spread _ _ _ D L) _).2 hge) hns
+            · exact absurd ((harvest_endsWell G D _ _ _ (tallyReplay_spread _ _ _ D L) _).2 hge) hns
             · exact hge.elim
         · exact .inl hg
       have hsplit : ENNReal.ofReal ((2 ^ (C.Lmax + 1) * Fintype.card α + T + 2 * (T * T)) * C.a)
@@ -464,7 +465,7 @@ theorem tally_round_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
       rw [Set.indicator_of_mem hM, Pi.one_apply]
       exact prob_le_one.trans le_self_add
   calc ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C L (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ ∫⁻ ω, (M.indicator 1 ω + c) ∂μ := lintegral_mono hpt
     _ = μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)} + c := by

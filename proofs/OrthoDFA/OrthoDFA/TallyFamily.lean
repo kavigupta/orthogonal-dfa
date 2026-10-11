@@ -36,7 +36,8 @@ def TallyRoundFamily : Prop :=
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (θ κs : ℝ), 2 * fam.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C (fam.cut ω)) (TallyEndsWell (fam.readModel θ) D C (fam.read ω))
+        {xs | ¬ RunEnds (tallyStep C (fam.cut ω))
+          (TallyEndsWell (fam.readModel θ) D C L (fam.read ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk (fam.readModel θ) D L C κs
 

@@ -44,17 +44,6 @@ theorem sift_inr {cut : FreeMonoid α → Option Bool} :
 
 end DTree
 
-variable (R : CutReads α)
-
-instance (L : ℕ) : IsFiniteMeasure (anchorLaw L) := by
-  constructor
-  rcases Nat.eq_zero_or_pos L with rfl | hL
-  · simp [anchorLaw]
-  · simp only [anchorLaw, Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply,
-      measure_univ, Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one, smul_eq_mul]
-    rw [ENNReal.inv_mul_cancel (by exact_mod_cast hL.ne') (by simp)]
-    exact ENNReal.one_lt_top
-
 instance : Countable (FreeMonoid α) := inferInstanceAs (Countable (List α))
 
 instance : MeasurableSingletonClass (FreeMonoid α) := ⟨fun _ => trivial⟩

@@ -67,10 +67,4 @@ def paths : DTree α → List (List Bool)
 
 end DTree
 
-variable (R : CutReads α)
-
-/-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/
-noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=
-  (L : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.range L, Measure.dirac k
-
 end OrthoDFA

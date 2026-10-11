@@ -26,8 +26,15 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
 Each level proves one L\* round correct and states its ending through `OrthoDFA/RoundEnd.lean`:
 the round ends well when it is consistent, the hypothesis and the tree parting on at most `ε` of
-the probes, or ends in a harvest more than half of whose strings are at bad states. What makes a
-state bad is each level's own.
+the probes, or ends in a harvest more than half of whose strings are at bad states and whose
+sampler is spread. What makes a state bad is each level's own.
+
+The harvest's sampler replays the final hypothesis on a fresh draw from an anchor drawn uniformly
+below `L` (here `tallyReplay`: the strings a probe walked from the anchor first reads undecided).
+`Spread` asks that it take no string `t` more often than
+`B(t) = ∑_{i ≤ |t|} min(i + 1, L)/L · D(the draw's first i letters are t's)`. Every string a probe
+walked from `e` reads extends a prefix of the draw at least `e` long, so this holds for any
+hypothesis (`Proofs/TallyReplay.lean`, by `spread_of_prefix` in `Proofs/RoundEnd.lean`).
 
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
 2. #419: indecision random, decided reads always right.

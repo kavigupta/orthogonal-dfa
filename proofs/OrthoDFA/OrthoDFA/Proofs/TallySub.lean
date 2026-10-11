@@ -255,9 +255,11 @@ theorem runEnds_or {S X E : Type*} {step : S → X → S ⊕ (E × S)} {P Q : E 
       · exact .inr ⟨hp, hq⟩
 
 theorem harvest_endsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (ε : ℝ)
-    (dis : Set (FreeMonoid α)) (l : List (FreeMonoid α)) :
-    EndsWell G.M (fun q => ¬ G.Good q) D ε dis (.harvest l) ↔ l.length < 2 * G.badCount l := by
-  simp only [EndsWell, ReadModel.badCount]
+    (dis : Set (FreeMonoid α)) (L : ℕ) {rp : FreeMonoid α → ℕ → List (FreeMonoid α)}
+    (hs : Spread D L rp) (l : List (FreeMonoid α)) :
+    EndsWell G.M (fun q => ¬ G.Good q) D ε dis L rp (.harvest l)
+      ↔ l.length < 2 * G.badCount l := by
+  simp only [EndsWell, ReadModel.badCount, hs, and_true]
   constructor <;> intro h <;> convert h using 5 <;> exact decide_eq_decide.2 Iff.rfl
 
 end Compose

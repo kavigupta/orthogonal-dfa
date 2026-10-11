@@ -10,7 +10,8 @@ read-state is good where it reads undecided at most `1.5θ` of the time.
 
 `TallyRound`: over `C.budget` probes drawn from `D`, of length at most `L`, the round ends well
 (`TallyEndsWell`: consistent with the hypothesis disagreeing on at most `εd` of the probes, or a
-harvest more than half of whose strings are at read-states that are not good) but for chance at
+harvest more than half of whose strings are at read-states that are not good, with a spread
+replay) but for chance at
 most `roundRisk`: the least, over the proof's free parameters (`Knobs`) meeting
 `Knobs.Admissible`, of `roundBound`, a sum of named terms.
 
@@ -79,12 +80,19 @@ def tallyEnd : TEnd α → TState α → RoundEnd α
   | .harvestPT, s => .harvest s.pt
   | .tooBig, _ => .failed
 
+/-- The hypothesis `(T, edges)` replayed on a draw `w` from the anchor `e`: the strings a probe of
+`w` walked from `e` first reads undecided. -/
+def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α) (w : FreeMonoid α)
+    (e : ℕ) : List (FreeMonoid α) :=
+  ((firstsBy (fun z => (rd z).cut) T edges e w).filter fun q => (rd q.2).cut = none).map Prod.snd
+
 /-- The round ends well: consistent with the hypothesis disagreeing on at most `εd` of the probes,
-or a harvest more than half of whose strings are at read-states that are not good. -/
+or a harvest more than half of whose strings are at read-states that are not good, its replay
+from an anchor drawn uniformly below `L` spread. -/
 def TallyEndsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
-  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges)
-    (tallyEnd e s)
+    (L : ℕ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
+  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges) L
+    (tallyReplay rd s.tree s.edges) (tallyEnd e s)
 
 /-- The largest mass the probes' law puts on one length-`k` prefix. -/
 def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x | prefixOf x k = u}
@@ -329,7 +337,7 @@ def TallyRound : Prop :=
     (R : ReadOracle μ G) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut) (TallyEndsWell G D C (R.read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut) (TallyEndsWell G D C L (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk G D L C κs
 
