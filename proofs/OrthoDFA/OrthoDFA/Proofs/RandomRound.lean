@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.RandomStretch
 import OrthoDFA.Proofs.RandomNoise
 import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.Yield
 
 /-!
 # The random round: the proofs
@@ -85,7 +86,7 @@ theorem ends_of_not_anyB (X : RState α → FreeMonoid α → Prop) (hm : 1 ≤ 
       ¬ AnyB (step read C) (BadStep read C M U θ D ε Ns X) s xs →
       EndsWell M (BadAt U θ) D ε
         {y | Disagrees read (round read C s xs).1.tree (round read C s xs).1.edges C.k y}
-        0 (fun _ _ => []) (toRoundEnd (round read C s xs).2)
+        0 (fun _ _ => []) 0 (toRoundEnd (round read C s xs).2)
   | [], s, _, hn, hlen, _ => by simp at hlen; omega
   | x :: xs, s, hs, hn, hlen, hb => by
     simp only [AnyB, not_or, not_exists, not_and] at hb
@@ -127,7 +128,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := round read C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            0 (fun _ _ => []) (toRoundEnd r.2)}
+            0 (fun _ _ => []) 0 (toRoundEnd r.2)}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt') := by
   have h2 : 2 ≤ C.Lmax := by omega
   have hNs : 0 < Ns := by omega
@@ -190,9 +191,50 @@ theorem prefixMax_pos [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityM
   rw [← this, measure_univ] at hu
   exact one_ne_zero hu
 
+section Root
+
+variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Cfg)
+
+theorem finish_tree {s s' : RState α} (h : finish C s = .inl s') : s'.tree = s.tree := by
+  unfold finish at h
+  split at h
+  · cases h
+  · injection h with h; rw [← h]
+
+theorem fix_root {s s' : RState α} {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool}
+    (h : fix read C s p c u t = .inl s') (hs : Ideal.RootOne s.tree) : Ideal.RootOne s'.tree := by
+  unfold fix split at h
+  simp only at h
+  repeat' (first | split_ifs at h | split at h)
+  all_goals first
+    | (injection h with h; rw [← h]; exact Ideal.splitAt_root hs _ _)
+    | (injection h with h; rw [← h]; exact hs)
+
+theorem step_root {s s' : RState α} {x : FreeMonoid α} (h : step read C s x = .inl s')
+    (hs : Ideal.RootOne s.tree) : Ideal.RootOne s'.tree := by
+  unfold step at h
+  split at h
+  · injection h with h; rw [← h]; exact hs
+  · split_ifs at h
+    · exact fix_root read C h hs
+    · exact finish_tree C h ▸ hs
+  · exact finish_tree C h ▸ hs
+
+theorem round_root : ∀ (xs : List (FreeMonoid α)) (s : RState α), Ideal.RootOne s.tree →
+    Ideal.RootOne (round read C s xs).1.tree
+  | [], s, hs => hs
+  | x :: xs, s, hs => by
+    simp only [round]
+    split
+    · rename_i s' h; exact round_root xs s' (step_root read C h hs)
+    · exact hs
+
+end Root
+
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
-  intro α _ _ σ _ M side U θ Ω _ μ _ R D _ L C ε hL
+  intro α _ _ σ _ M side U θ Ω _ μ _ R D _ L C ε t q hL ht hq hpreq
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
+  simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
   obtain ⟨Ns, N₁, G, θr, εd', θpt'⟩ := kn
   obtain ⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, hG1, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
@@ -209,6 +251,10 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   set W := {ω | ¬ NoWrong M side (read · ω)}
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     D.real (PotGood M U θ C.k (read · ω) T) ≤ G}
+  set Ny := {ω | (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
+    < 3 / 2 * θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} - t}
   have hW : μ W = 0 := by
     have : W ⊆ ⋃ z, {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} := by
       intro ω hω
@@ -217,40 +263,63 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
       exact Set.mem_iUnion.2 ⟨z, hz⟩
     exact measure_mono_null this (measure_iUnion_null hwrong)
   have hNn := noise_le M U θ μ read D C.k L p₀ G hmeas hind hU hL hp₀ hpre hθ
+  have hNy : μ Ny ≤ ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q)) := by
+    rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
+    exact ENNReal.ofReal_le_ofReal (anchor_reads read hmeas hind D L
+      (fun u => BadAt U θ (M.eval u.toList)) (3 / 2 * θ) (fun u hu => (hU u).symm ▸ hu.le) t q ht
+      hq hpreq)
   set c := ENNReal.ofReal (stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt')
-  set B := toMeasurable μ (W ∪ Nn)
+  set B := toMeasurable μ (W ∪ Nn ∪ Ny)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := round (read · ω) C start (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          L (Ideal.replay (read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)}
+          L (Ideal.replay (read · ω) r.1.tree r.1.edges)
+          (3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ) - t)
+          (toRoundEnd r.2)}
         ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans le_add_self
-    · have hω' : ω ∉ W ∪ Nn := fun h => hω (subset_toMeasurable _ _ h)
+    · have hω' : ω ∉ W ∪ Nn ∪ Ny := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
-      simp only [Set.mem_union, not_or, W, Nn, Set.mem_ofPred_eq, not_not] at hω'
-      refine le_trans (measure_mono ?_) (probe_level (read · ω) C M U θ D ε Ns hω'.1 L P N₁ G
-        θr εd' θpt' hL hω'.2 hcap hm hn₀ hN₁ hN₁s hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0
+      simp only [Set.mem_union, not_or] at hω'
+      obtain ⟨⟨hωW, hωN⟩, hωY⟩ := hω'
+      simp only [W, Nn, Set.mem_ofPred_eq, not_not] at hωW hωN
+      simp only [Ny, Set.mem_ofPred_eq, not_lt] at hωY
+      refine le_trans (measure_mono ?_) (probe_level (read · ω) C M U θ D ε Ns hωW L P N₁ G
+        θr εd' θpt' hL hωN hcap hm hn₀ hN₁ hN₁s hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0
         hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP)
       intro xs hxs h
-      exact hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L))
+      refine hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L) ?_)
+      have hroot := round_root (read · ω) C (List.ofFn xs) start ⟨_, _, rfl⟩
+      have hcov : coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ)
+          ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+            BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
+        coverage_le_anchor D L M (BadAt U θ)
+      refine le_trans ?_ (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
+      · have := mul_le_mul_of_nonneg_left hcov (show 0 ≤ 3 / 2 * θ by linarith)
+        rw [mul_div_assoc]
+        linarith
+      · rintro ⟨w, e⟩ ⟨he, hu⟩
+        exact Ideal.replay_root (read · ω) hroot _ he hu
   have hnn : 0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' :=
     stretchRisk_nonneg C L Ns N₁ G θr εd' θpt' hG0 hG1 ha hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
   calc _ ≤ ∫⁻ ω, (c + B.indicator 1 ω) ∂μ := lintegral_mono hpt
     _ = c + μ B := by
         rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
-    _ ≤ c + (μ W + μ Nn) := by
+    _ ≤ c + (μ W + μ Nn + μ Ny) := by
         gcongr
         rw [measure_toMeasurable]
-        exact measure_union_le _ _
-    _ ≤ c + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G) := by
+        exact (measure_union_le _ _).trans (by gcongr; exact measure_union_le _ _)
+    _ ≤ c + (ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G)
+          + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))) := by
         rw [hW, zero_add]
         gcongr
     _ = _ := by
-        rw [add_comm, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity) (by positivity)]
+        rw [← add_assoc, add_comm c, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
+          (by positivity)]
 
 end Random
 

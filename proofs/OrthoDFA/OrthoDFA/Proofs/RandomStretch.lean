@@ -48,7 +48,8 @@ def Same (s s' : RState α) : Prop := s'.tree = s.tree ∧ s'.edges = s.edges
 steps `X`, or its stretch reaches `Ns` probes. -/
 def BadStep (X : RState α → FreeMonoid α → Prop) (s : RState α) (x : FreeMonoid α) : Prop :=
   (s.n < Ns ∧ ((∃ e, step read C s x = .inr e ∧ ¬ EndsWell M (BadAt U θ) D ε
-      {y | Disagrees read s.tree s.edges C.k y} 0 (fun _ _ => []) (toRoundEnd (some e))) ∨ X s x))
+      {y | Disagrees read s.tree s.edges C.k y} 0 (fun _ _ => []) 0 (toRoundEnd (some e)))
+      ∨ X s x))
   ∨ ∃ s', step read C s x = .inl s' ∧ Same s s' ∧ s'.n = Ns
 
 /-! ## A step within a stretch -/
@@ -168,10 +169,10 @@ noncomputable def goodCount (zs : List (FreeMonoid α)) : ℕ :=
   (zs.filter fun z => ¬ BadAt U θ (M.eval z.toList)).length
 
 theorem len_le_two_good {zs : List (FreeMonoid α)} {dis : Set (FreeMonoid α)}
-    (h : ¬ EndsWell M (BadAt U θ) D ε dis 0 (fun _ _ => []) (.harvest zs)) :
+    (h : ¬ EndsWell M (BadAt U θ) D ε dis 0 (fun _ _ => []) 0 (.harvest zs)) :
     zs.length ≤ 2 * goodCount M U θ zs := by
   classical
-  replace h := not_lt.1 fun h' => h ⟨h', spread_nil D 0⟩
+  replace h := not_lt.1 fun h' => h ⟨h', spread_nil D 0, yields_zero D 0 _⟩
   unfold goodCount
   have := List.length_eq_length_filter_add (l := zs)
     (f := fun z => decide (BadAt U θ (M.eval z.toList)))
@@ -387,7 +388,7 @@ theorem falseFire_of_end (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 �
     {x : FreeMonoid α} (hnt : step read C s x ≠ .inr .tooBig) {e : REnd α}
     (he : step read C s x = .inr e)
     (hbad : ¬ EndsWell M (BadAt U θ) D ε {y | Disagrees read s.tree s.edges C.k y}
-      0 (fun _ _ => []) (toRoundEnd (some e))) :
+      0 (fun _ _ => []) 0 (toRoundEnd (some e))) :
     FalseFire read C M U θ D ε T E L (ys ++ [x]) := by
   classical
   have hlook := step_inr read C hnt he
