@@ -370,17 +370,26 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
 
 /-- Over `C.budget` probes drawn from `D`, of length at most `L`, the round fails to end well, a
 state being bad where it is undecided more than `1.5θ` of the time, with chance at most
-`roundRisk`; its harvest is replayed as #417's, from an anchor drawn uniformly below `L`. -/
+`roundRisk` plus `exp(−2t²n/q)`. Its harvest is replayed as #417's, from an anchor drawn uniformly
+from the `n = L + 1 − ⌈L/2⌉` positions from `⌈L/2⌉` on, and yields `1.5θ` times the share of
+draws visiting a bad state from there, over `n`, less `t`, where no string past `⌈L/2⌉` starts
+more than `q` of the draws. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε t q : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    0 ≤ t → 0 < q →
+    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
+      D.real {x | u.toList <+: x.toList} ≤ q) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            L (replay (R.read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)} ∂μ
+            L (replay (R.read · ω) r.1.tree r.1.edges)
+            (3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ) - t)
+            (toRoundEnd r.2)} ∂μ
       ≤ roundRisk (α := α) σ θ D L C ε
+        + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))
 
 end Random
 
