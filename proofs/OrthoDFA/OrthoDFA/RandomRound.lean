@@ -32,7 +32,8 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (DTree Edges walk pre search agrees probe Outcome upd2 lcp retarget Disagrees)
+open OrthoDFA.Ideal (DTree Edges walk pre search agrees probe Outcome upd2 lcp retarget Disagrees
+  replay)
 
 variable {α : Type*}
 
@@ -369,7 +370,7 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
 
 /-- Over `C.budget` probes drawn from `D`, of length at most `L`, the round fails to end well, a
 state being bad where it is undecided more than `1.5θ` of the time, with chance at most
-`roundRisk`. -/
+`roundRisk`; its harvest is replayed as #417's, from an anchor drawn uniformly below `L`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -378,7 +379,7 @@ def RandomRoundCorrect : Prop :=
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            (toRoundEnd r.2)} ∂μ
+            L (replay (R.read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)} ∂μ
       ≤ roundRisk (α := α) σ θ D L C ε
 
 end Random

@@ -137,6 +137,10 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
 #: rarer decided side may be read.
 MINORITY_READ_LIMIT = 0.01
 
+#: The most often a state may read on its rarer decided side, as a multiple of how
+#: often it reads undecided.
+MINORITY_UNDECIDED_RATIO = 4e-3
+
 
 def evidence_margin_for_population_size(
     signal_strength, cross_limit, acceptable_fnr, N, *, center
@@ -160,7 +164,7 @@ def evidence_margin_for_population_size(
         if (
             cross <= cross_limit
             and fnr <= acceptable_fnr
-            and reads_trichotomous(
+            and reads_minority_bounded(
                 k_low,
                 k_high,
                 N,
@@ -168,6 +172,7 @@ def evidence_margin_for_population_size(
                 reject_rate=center - signal_strength,
                 limit=cross_limit,
                 minority_limit=MINORITY_READ_LIMIT,
+                ratio=MINORITY_UNDECIDED_RATIO,
             )
         ):
             return N, eps
@@ -188,18 +193,22 @@ def _vote_parts(N, accept_rate, reject_rate):
     return y_pmf, z_le, z_ge
 
 
-def reads_trichotomous(
-    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit
+def reads_minority_bounded(
+    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit, ratio
 ):
     """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
     lead into the language (each voting accept at `accept_rate`, the rest at
     `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
-    or undecided at least a third with accept or reject at most `minority_limit`.
+    or undecided at least a third with accept or reject at most `minority_limit`; and
+    is on its rarer decided side at most `limit`, or at most `ratio` times as often as
+    it is undecided.
     `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
 
-    `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
-    just inside the band at a small count can sit at or below `k_low` more than 2/3 of
-    the time while its far tail is a hair above the band edge's.
+    `evidence_margin_for_population_size`'s other two criteria imply neither half:
+    a mean just inside the band at a small count can sit at or below `k_low` more
+    than 2/3 of the time while its far tail is a hair above the band edge's, and a
+    band can keep both edges' tails under the cross limit while the state at its
+    centre reads each way a sizeable fraction of its undecided rate.
     """
     y_pmf, z_le, z_ge = _vote_parts(N, accept_rate, reject_rate)
     count = np.arange(N + 1)
@@ -207,9 +216,15 @@ def reads_trichotomous(
     accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
     undecided = 1 - accept - reject
     leans = (accept <= minority_limit) | (reject <= minority_limit)
-    return bool(
-        np.all((accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3)))
+    trichotomous = (
+        (accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3))
     )
+    # Below `limit` the ratio is not asked: `undecided` is computed by subtraction, so
+    # it reads 0 at a state whose true undecided rate is under float epsilon, while
+    # its rarer side is tinier still.
+    minority = np.minimum(accept, reject)
+    bounded = (minority <= limit) | (minority <= ratio * undecided)
+    return bool(np.all(trichotomous & bounded))
 
 
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):

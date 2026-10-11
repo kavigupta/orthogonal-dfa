@@ -85,7 +85,7 @@ theorem ends_of_not_anyB (X : RState α → FreeMonoid α → Prop) (hm : 1 ≤ 
       ¬ AnyB (step read C) (BadStep read C M U θ D ε Ns X) s xs →
       EndsWell M (BadAt U θ) D ε
         {y | Disagrees read (round read C s xs).1.tree (round read C s xs).1.edges C.k y}
-        (toRoundEnd (round read C s xs).2)
+        0 (fun _ _ => []) (toRoundEnd (round read C s xs).2)
   | [], s, _, hn, hlen, _ => by simp at hlen; omega
   | x :: xs, s, hs, hn, hlen, hb => by
     simp only [AnyB, not_or, not_exists, not_and] at hb
@@ -127,7 +127,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := round read C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            (toRoundEnd r.2)}
+            0 (fun _ _ => []) (toRoundEnd r.2)}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt') := by
   have h2 : 2 ≤ C.Lmax := by omega
   have hNs : 0 < Ns := by omega
@@ -222,7 +222,8 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := round (read · ω) C start (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          (toRoundEnd r.2)} ≤ c + B.indicator 1 ω := by
+          L (Ideal.replay (read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)}
+        ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
@@ -230,9 +231,11 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
     · have hω' : ω ∉ W ∪ Nn := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
       simp only [Set.mem_union, not_or, W, Nn, Set.mem_ofPred_eq, not_not] at hω'
-      exact probe_level (read · ω) C M U θ D ε Ns hω'.1 L P N₁ G θr εd' θpt' hL hω'.2 hcap hm
-        hn₀ hN₁ hN₁s hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0
-        hεd'1 hθpt'0 hθpt'1 hsep hP
+      refine le_trans (measure_mono ?_) (probe_level (read · ω) C M U θ D ε Ns hω'.1 L P N₁ G
+        θr εd' θpt' hL hω'.2 hcap hm hn₀ hN₁ hN₁s hθ hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0
+        hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP)
+      intro xs hxs h
+      exact hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L))
   have hnn : 0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' :=
     stretchRisk_nonneg C L Ns N₁ G θr εd' θpt' hG0 hG1 ha hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
   calc _ ≤ ∫⁻ ω, (c + B.indicator 1 ω) ∂μ := lintegral_mono hpt
