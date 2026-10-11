@@ -1,7 +1,7 @@
 """The tally round against hand-built trees and scripted reads."""
 
 import unittest
-from dataclasses import replace
+from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.tally_round import (
@@ -21,11 +21,11 @@ from orthogonal_dfa.l_star.tally_round import (
     Ending,
     Probe,
     Replay,
-    TallyConfig,
     TallyRound,
     harvest_reader,
     rate_side,
     route,
+    tally_config,
 )
 
 EVEN, ODD = (False,), (True,)
@@ -58,24 +58,24 @@ def _mod3_cut(z):
 
 
 def _config(**changes):
-    """A config whose tests never fire and whose fixes need two records."""
-    quiet = TallyConfig(
-        k=0,
-        m=2,
-        max_leaves=10,
-        start_rate=1.0,
-        edge_rate=0.0,
-        middle_rate=1.0,
-        disagreement_rate=0.0,
-        level=0.01,
-        first_look=1,
-        edge_excess=1e9,
-        edge_traffic=0.0,
-        search_share=1e9,
-        max_probes=100,
-        count_reads=False,
-    )
-    return replace(quiet, **changes)
+    """What the round reads of a config, set so no test fires and a fix takes two
+    records."""
+    quiet = {
+        "k": 0,
+        "m": 2,
+        "max_leaves": 10,
+        "start_rate": 1.0,
+        "edge_rate": 0.0,
+        "middle_rate": 1.0,
+        "disagreement_rate": 0.0,
+        "level": 0.01,
+        "first_look": 1,
+        "edge_excess": 1e9,
+        "edge_traffic": 0.0,
+        "search_share": 1e9,
+        "max_probes": 100,
+    }
+    return SimpleNamespace(**{**quiet, **changes})
 
 
 def _round(cut, edges, **changes):
@@ -179,15 +179,8 @@ class TestCharging(unittest.TestCase):
         self.assertEqual(4, tally.charged[(ODD, 0)])
         self.assertEqual([b"\x01\x00"] * 2, tally.edge_harvest[(ODD, 0)])
 
-    def test_counted_by_read_a_string_counts_at_its_first_read_only(self):
-        tally = _round(_cut([b"\x01\x00"]), PARITY_EDGES, count_reads=True)
-        tally.step(b"\x01\x00")
-        tally.step(b"\x01\x00")
-        self.assertEqual(1, tally.charged[(ODD, 0)])
-        self.assertEqual([b"\x01\x00"], tally.edge_harvest[(ODD, 0)])
-
     def test_the_start_is_not_charged_to_an_edge(self):
-        tally = _round(_cut(), PARITY_EDGES, count_reads=True)
+        tally = _round(_cut(), PARITY_EDGES)
         tally.step(b"\x01")
         self.assertEqual({(EVEN, 1): 1}, dict(tally.charged))
 
@@ -250,6 +243,26 @@ class TestLearningAndRecords(unittest.TestCase):
         tally.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x01", EVEN)] * 2
         ending = tally._settle_one()  # pylint: disable=protected-access
         self.assertEqual(TOO_BIG, ending.kind)
+
+
+class TestTheShippedConfig(unittest.TestCase):
+    def test_it_derives_the_rest_from_the_family_and_the_level(self):
+        config = tally_config(0.98, 0.01)
+        derived = (
+            config.k,
+            config.max_leaves,
+            config.start_rate,
+            config.edge_rate,
+            config.middle_rate,
+            config.disagreement_rate,
+            config.first_look,
+            config.edge_excess,
+            config.edge_traffic,
+            config.search_share,
+        )
+        self.assertEqual(
+            (0, 100, 0.05, 0.1, 0.2, 1 - 0.98, 30, 10, 0.01, 0.01), derived
+        )
 
 
 class TestTheTests(unittest.TestCase):

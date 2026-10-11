@@ -1,5 +1,6 @@
 """``tallyStep`` of ``OrthoDFA/TallyLoop.lean``, read through the round's suffix family."""
 
+import math
 from collections import Counter
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
@@ -14,6 +15,12 @@ Cut = Callable[[bytes], Optional[bool]]
 Warm = Callable[[List[bytes]], None]
 
 MAX_BLOCK = 64
+
+#: Leaves past which a round gives up.
+MAX_LEAVES = 100
+
+#: Probes before a rate test may first decide, as the consistency estimate's.
+FIRST_LOOK = 30
 
 AGREE = "agree"
 START = "start"
@@ -34,40 +41,76 @@ HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 
 @dataclass(frozen=True)
 class TallyConfig:
-    """``TallyCfg``: k, m, Lmax, θs, θe, θpt, εd, a, n₀, exc and φe, φpt, in order."""
+    """``TallyCfg``, from the values it does not derive."""
 
-    k: int
+    #: Records at one target before the edge they are at is fixed.
     m: int
-    max_leaves: int
-    start_rate: float
-    edge_rate: float
-    middle_rate: float
-    disagreement_rate: float
+    #: Chance a rate test errs at one look.
     level: float
-    first_look: int
-    edge_excess: float
-    edge_traffic: float
-    search_share: float
+    #: Probes a round draws before giving up.
     max_probes: int
-    count_reads: bool
+    #: Each harvest's undecided rate, as a multiple of ``acceptable_fnr``.
+    start_multiple: float
+    edge_multiple: float
+    middle_multiple: float
+    #: Agreement the hypothesis is driven to.
+    acc_threshold: float
+    #: The share of prefixes the family may leave undecided.
+    acceptable_fnr: float
+
+    @property
+    def k(self) -> int:
+        return 0
+
+    @property
+    def max_leaves(self) -> int:
+        return MAX_LEAVES
+
+    @property
+    def first_look(self) -> int:
+        return FIRST_LOOK
+
+    @property
+    def disagreement_rate(self) -> float:
+        return 1 - self.acc_threshold
+
+    @property
+    def start_rate(self) -> float:
+        return self.start_multiple * self.acceptable_fnr
+
+    @property
+    def edge_rate(self) -> float:
+        return self.edge_multiple * self.acceptable_fnr
+
+    @property
+    def middle_rate(self) -> float:
+        return self.middle_multiple * self.acceptable_fnr
+
+    @property
+    def edge_excess(self) -> int:
+        """An edge undecided at most ln 2 times ``edge_rate`` reaches it with
+        chance under ``level``."""
+        return math.ceil(math.log2(1 / self.level))
+
+    @property
+    def edge_traffic(self) -> float:
+        return self.acceptable_fnr
+
+    @property
+    def search_share(self) -> float:
+        return self.acceptable_fnr
 
 
-def tally_config(acc_threshold: float) -> TallyConfig:
+def tally_config(acc_threshold: float, acceptable_fnr: float) -> TallyConfig:
     return TallyConfig(
-        k=0,
         m=5,
-        max_leaves=100,
-        start_rate=0.05,
-        edge_rate=0.1,
-        middle_rate=0.2,
-        disagreement_rate=1 - acc_threshold,
         level=1e-3,
-        first_look=30,
-        edge_excess=10,
-        edge_traffic=0.01,
-        search_share=0.01,
         max_probes=50_000,
-        count_reads=False,
+        start_multiple=5,
+        edge_multiple=10,
+        middle_multiple=20,
+        acc_threshold=acc_threshold,
+        acceptable_fnr=acceptable_fnr,
     )
 
 
@@ -329,7 +372,6 @@ class TallyRound:
         self.charged: Counter = Counter()
         self.edge_harvest: Dict[Edge, List[bytes]] = {}
         self.paths = set(leaf_paths(tree.root))
-        self._seen = set()
 
     def probe(self, x: bytes) -> Probe:
         return Probe(self.cut, self.tree.root, self.edges, k=self.config.k, x=x)
@@ -424,26 +466,9 @@ class TallyRound:
         self.middles += probe.middle()
         self.probes += 1
         self.start_harvest += probe.start()
-        if not self.config.count_reads:
-            self.charged.update(probe.traversals())
-            for edge, strings in probe.undecided_by_edge().items():
-                self.edge_harvest.setdefault(edge, []).extend(strings)
-            return
-        self._first_reads(probe.route(probe.k)[0])
-        for i in probe.sifts():
-            reads, leaf = probe.route(i)
-            new = self._first_reads(reads)
-            edge = probe.pos_edge(i)
-            if edge is None:
-                continue
-            self.charged[edge] += len(new)
-            if leaf is None and reads[-1] in new:
-                self.edge_harvest.setdefault(edge, []).append(reads[-1])
-
-    def _first_reads(self, reads) -> List[bytes]:
-        new = [z for z in dict.fromkeys(reads) if z not in self._seen]
-        self._seen.update(new)
-        return new
+        self.charged.update(probe.traversals())
+        for edge, strings in probe.undecided_by_edge().items():
+            self.edge_harvest.setdefault(edge, []).extend(strings)
 
     def _act(self, probe: Probe):
         outcome = probe.outcome()
@@ -521,11 +546,7 @@ class TallyRound:
             if source[: len(leaf)] == leaf:
                 continue
             if target == leaf:
-                reads, target = route(
-                    self.cut, self.tree.root, witness + bytes([letter])
-                )
-                if self.config.count_reads:
-                    self._first_reads(reads)
+                target = self.sift(witness + bytes([letter]))
                 if target is None:
                     continue
             edges[(source, letter)] = (target, witness)

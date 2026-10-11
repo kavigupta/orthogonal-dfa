@@ -261,7 +261,7 @@ def _tally_round(pst, vs, *, acc_threshold):
     """The round's hypothesis and how it ended."""
     family = SuffixFamily(pst, vs)
     hypothesis = TallyRound(
-        tally_config(acc_threshold),
+        tally_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         family.read_many,
         MidfixTree([pst.table.suffix(i) for i in vs]),
