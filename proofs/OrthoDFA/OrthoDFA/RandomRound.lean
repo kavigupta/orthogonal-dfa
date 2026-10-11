@@ -20,9 +20,10 @@ tests of `OrthoDFA.TallyLoop`, checked after every probe:
   `θpt` of them harvest those middles;
 * the disagreement rate settling below `εd` ends the round consistent.
 
-`RandomRoundCorrect`: with at least `stretches · Ns` probes, the round fails to end well
-(`OrthoDFA.RoundEnd`) with chance at most `noiseRisk`, the chance that the probes that can read a
-good read-state undecided reach `G` of the probes for some tree the round can grow, plus
+`RandomRoundCorrect`: over `C.budget` probes, the round fails to end well (`OrthoDFA.RoundEnd`)
+with chance at most `roundRisk`: the least, over the proof's free parameters (`Knobs`) meeting
+`Knobs.Admissible`, of `roundBound`, which is `noiseRisk`, the chance that the probes that can read
+a good read-state undecided reach `G` of the probes for some tree the round can grow, plus
 `stretches` times `stretchRisk`, what one stretch risks over its first `Ns` probes.
 -/
 
@@ -156,6 +157,7 @@ structure Cfg where
   θpt : ℝ
   qg : ℝ
   εd : ℝ
+  budget : ℕ
 
 /-- The hypothesis, whether each edge has been redirected since it was learned, and over the
 stretch since the hypothesis last changed: the records by edge and target, the probes, the
@@ -292,32 +294,87 @@ noncomputable def stretchRisk (C : Cfg) (L Ns N₁ : ℕ) (G θr εd' θpt' : �
     + ∑ s ∈ Finset.Icc (max C.n₀ ⌈C.qg * Ns⌉₊) Ns,
         binE s θpt' (fun j => if C.a ≤ binomSfGe s C.θpt j then 1 else 0)
 
+/-- The largest mass the probes' law puts on one length-`k` prefix. -/
+noncomputable def prefixMax [Fintype α] (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
+  ⨆ u, D.real {x | pre x k = u}
+
+/-- The proof's free parameters. -/
+structure Knobs where
+  /-- The probes a stretch gets before its risk is counted. -/
+  Ns : ℕ
+  /-- The look at which the success test must have fired. -/
+  N₁ : ℕ
+  /-- The good read-states' undecided reads, as a share of the probes. -/
+  G : ℝ
+  /-- The rate at which a record recurs. -/
+  θr : ℝ
+  /-- The disagreement rate the stretch's risk tests against. -/
+  εd' : ℝ
+  /-- The middles rate the stretch's risk tests against. -/
+  θpt' : ℝ
+
+/-- The relations the knobs must meet, at the loop's settings `C` and the ending's tolerance
+`ε`. -/
+structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Cfg) (ε : ℝ)
+    (kn : Knobs) : Prop where
+  Lmax_ge : Fintype.card σ + 2 ≤ C.Lmax
+  m_pos : 1 ≤ C.m
+  n₀_pos : 1 ≤ C.n₀
+  n₀_le : C.n₀ ≤ kn.N₁
+  N₁_le : kn.N₁ ≤ kn.Ns
+  θ_nonneg : 0 ≤ θ
+  G_nonneg : 0 ≤ kn.G
+  G_le : kn.G ≤ 1
+  a_nonneg : 0 ≤ C.a
+  θs_nonneg : 0 ≤ C.θs
+  θs_le : C.θs ≤ 1
+  θe_nonneg : 0 ≤ C.θe
+  θpt_nonneg : 0 ≤ C.θpt
+  θpt_le : C.θpt ≤ 1
+  εd_nonneg : 0 ≤ C.εd
+  εd_le : C.εd ≤ 1
+  εd_le_ε : C.εd ≤ ε
+  θr_nonneg : 0 ≤ kn.θr
+  θr_le : kn.θr ≤ 1
+  εd'_nonneg : 0 ≤ kn.εd'
+  εd'_le : kn.εd' ≤ 1
+  θpt'_nonneg : 0 ≤ kn.θpt'
+  θpt'_le : kn.θpt' ≤ 1
+  sep : (C.Lmax : ℝ) ^ 2 * Fintype.card α * kn.θr ≤ (1 - kn.θpt') * kn.εd'
+  budget_ge : stretches C (Fintype.card α) * kn.Ns ≤ C.budget
+
+/-- The round's failure chance at the knobs `kn`: `noiseRisk`, the probes that can read a good
+read-state undecided reaching `G` of the probes for some tree, and `stretches` times
+`stretchRisk`, what one stretch risks over its first `Ns` probes. -/
+noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
+    (D : Measure (FreeMonoid α)) (L : ℕ) (C : Cfg) (kn : Knobs) : ℝ :=
+  noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.k) kn.G
+    + stretches C (Fintype.card α) * stretchRisk C L kn.Ns kn.N₁ kn.G kn.θr kn.εd' kn.θpt'
+
+/-- The least of `roundBound` over the admissible knobs. -/
+noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
+    (D : Measure (FreeMonoid α)) (L : ℕ) (C : Cfg) (ε : ℝ) : ENNReal :=
+  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε),
+    ENNReal.ofReal (roundBound (α := α) σ θ D L C kn)
+
 /-- The reads are independent across strings, each undecided with its state's chance `U` and
-never on its state's wrong side; the probes are `P` draws from `D`, of length at most `L`, with
-no length-`k` prefix above `p₀`. With at least `stretches · Ns` probes, the round fails to end
-well, a state being bad where it is undecided more than `1.5θ` of the time, with chance at most
-`noiseRisk + stretches · stretchRisk`. -/
+never on its state's wrong side; the probes are `C.budget` draws from `D`, of length at most `L`.
+The round fails to end well, a state being bad where it is undecided more than `1.5θ` of the time,
+with chance at most `roundRisk`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (C : Cfg) (L P Ns N₁ : ℕ) (p₀ ε G θr εd' θpt' : ℝ),
+    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ),
     (∀ z, Measurable (read z)) → ProbabilityTheory.iIndepFun read μ →
     (∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) →
     (∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0) →
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < p₀ →
-    (∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | pre x C.k = u} ≤ p₀) →
-    Fintype.card σ + 2 ≤ C.Lmax → 1 ≤ C.m → 1 ≤ C.n₀ → C.n₀ ≤ N₁ → N₁ ≤ Ns →
-    0 ≤ θ → 0 ≤ G → G ≤ 1 → 0 ≤ C.a → 0 ≤ C.θs → C.θs ≤ 1 → 0 ≤ C.θe → 0 ≤ C.θpt → C.θpt ≤ 1 →
-    0 ≤ C.εd → C.εd ≤ 1 → C.εd ≤ ε → 0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → 0 ≤ θpt' →
-    θpt' ≤ 1 → (C.Lmax : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd' →
-    stretches C (Fintype.card α) * Ns ≤ P →
-    ∫⁻ ω, (Measure.pi fun _ : Fin P => D)
+    (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | let r := round (read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
             (toRoundEnd r.2)} ∂μ
-      ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G
-        + stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt')
+      ≤ roundRisk (α := α) σ θ D L C ε
 
 end Random
 
