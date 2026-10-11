@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.EpsTree
 import OrthoDFA.Proofs.RandomRound
+import OrthoDFA.Proofs.Yield
 
 /-!
 # The random round with rare wrong reads: the proofs
@@ -243,7 +244,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := round read C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            0 (fun _ _ => []) (toRoundEnd r.2)}
+            0 (fun _ _ => []) 0 (toRoundEnd r.2)}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α)
         * (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw)) := by
   have h2 : 2 ≤ C.Lmax := by omega
@@ -303,9 +304,10 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
 theorem epsRoundCorrect_holds : EpsRoundCorrect := by
-  intro α _ _ σ _ M side U θ εw Ω _ μ _ R D _ L C ε hL
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ R D _ L C ε t q hL ht hq hpreq
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   have hεw : 0 ≤ εw := measureReal_nonneg.trans (hwrong 1)
+  simp only [epsRoundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
   obtain ⟨⟨Ns, N₁, G, θr, εd', θpt'⟩, Gw⟩ := kn
   obtain ⟨⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, hG1, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
@@ -323,30 +325,55 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   set Nw := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     D.real (PotWrong (read · ω) M side C.k T) ≤ Gw}
   have hNn := noise_le M U θ μ read D C.k L p₀ G hmeas hind hU hL hp₀ hpre hθ
+  set Ny := {ω | (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
+    < 3 / 2 * θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} - t}
+  have hNy : μ Ny ≤ ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q)) := by
+    rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
+    exact ENNReal.ofReal_le_ofReal (anchor_reads read hmeas hind D L
+      (fun u => BadAt U θ (M.eval u.toList)) (3 / 2 * θ) (fun u hu => (hU u).symm ▸ hu.le) t q ht
+      hq hpreq)
   have hNw : μ Nw ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw) :=
     noise_hit μ read D C.k L (Fintype.card σ) p₀ Gw εw
       (fun z r => r = if side (M.eval z.toList) then .reject else .accept) hmeas hind hwrong hεw
       hL hp₀ hpre
   set c := ENNReal.ofReal (stretches C (Fintype.card α)
     * (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw))
-  set B := toMeasurable μ (Nn ∪ Nw)
+  set B := toMeasurable μ (Nn ∪ Nw ∪ Ny)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := round (read · ω) C start (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          L (Ideal.replay (read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)}
+          L (Ideal.replay (read · ω) r.1.tree r.1.edges)
+          (3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ) - t)
+          (toRoundEnd r.2)}
         ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans le_add_self
-    · have hω' : ω ∉ Nn ∪ Nw := fun h => hω (subset_toMeasurable _ _ h)
+    · have hω' : ω ∉ Nn ∪ Nw ∪ Ny := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
-      simp only [Set.mem_union, not_or, Nn, Nw, Set.mem_ofPred_eq, not_not] at hω'
+      simp only [Set.mem_union, not_or] at hω'
+      obtain ⟨⟨hωN, hωW⟩, hωY⟩ := hω'
+      simp only [Nn, Nw, Set.mem_ofPred_eq, not_not] at hωN hωW
+      simp only [Ny, Set.mem_ofPred_eq, not_lt] at hωY
       refine le_trans (measure_mono ?_) (probe_level_eps (read · ω) C M side U θ D ε Ns L P N₁ G
-        Gw θr εd' θpt' hL hω'.1 hω'.2 hcap hm hn₀ hN₁ hN₁s hG0 hG1 hGw0 hGw1 ha hθs0 hθs1 hθe
+        Gw θr εd' θpt' hL hωN hωW hcap hm hn₀ hN₁ hN₁s hG0 hG1 hGw0 hGw1 ha hθs0 hθs1 hθe
         hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP)
       intro xs hxs h
-      exact hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L))
+      refine hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L) ?_)
+      have hroot := round_root (read · ω) C (List.ofFn xs) start ⟨_, _, rfl⟩
+      have hcov : coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ)
+          ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+            BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
+        coverage_le_anchor D L M (BadAt U θ)
+      refine le_trans ?_ (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
+      · have := mul_le_mul_of_nonneg_left hcov (show 0 ≤ 3 / 2 * θ by linarith)
+        rw [mul_div_assoc]
+        linarith
+      · rintro ⟨w, e⟩ ⟨he, hu⟩
+        exact Ideal.replay_root (read · ω) hroot _ he hu
   have hf0 : 0 ≤ fakeRisk C (Fintype.card α) Ns Gw :=
     mul_nonneg (Nat.cast_nonneg _) (binomSfGe_nonneg hGw0 hGw1 _ _)
   have hnn : 0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw :=
@@ -356,15 +383,18 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
     _ = c + μ B := by
         rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
-    _ ≤ c + (μ Nn + μ Nw) := by
+    _ ≤ c + (μ Nn + μ Nw + μ Ny) := by
         gcongr
         rw [measure_toMeasurable]
-        exact measure_union_le _ _
+        exact (measure_union_le _ _).trans (by gcongr; exact measure_union_le _ _)
     _ ≤ c + (ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G)
-          + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw)) := by
+          + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw)
+          + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))) := by
         gcongr
     _ = _ := by
-        rw [add_comm, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
+        rw [← add_assoc _ _ (ENNReal.ofReal (Real.exp _)), ← add_assoc c]
+        congr 1
+        rw [add_assoc, add_comm, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
           (by unfold noiseRisk; positivity), ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
           (by positivity)]
         congr 1
