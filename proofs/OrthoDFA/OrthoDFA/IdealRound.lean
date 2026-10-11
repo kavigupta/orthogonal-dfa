@@ -16,7 +16,8 @@ probes in a row with no disagreement end it consistent. Every change of the hypo
 counts afresh.
 
 `IdealRoundCorrect`: but for chance at most `(P + 1)(1 − ε)^n`, the round ends well
-(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided.
+(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided. The harvest's
+replay probes a fresh draw walked from a uniform anchor, so it is spread for any hypothesis.
 -/
 
 namespace OrthoDFA
@@ -292,23 +293,36 @@ def budget (C : RoundCfg) (nα : ℕ) : ℕ :=
 def AllUndecided {σ : Type*} (M : DFA α σ) (q : σ) : Prop :=
   ∀ w : FreeMonoid α, M.eval w.toList = q → read w = .undecided
 
+/-- The undecided strings a probe turns up. -/
+def Outcome.undecided : Outcome α → List (FreeMonoid α)
+  | .startU z => [z]
+  | .endU z => [z]
+  | .triple _ zs => zs
+  | .pair _ zs => zs
+  | _ => []
+
+/-- The hypothesis `(T, E)` replayed on a draw `w` from the anchor `e`: a probe of `w` walked from
+`e`, harvesting the undecided strings it turns up, or nothing where `w` is shorter than `e`. -/
+def replay (T : DTree α) (E : Edges α) (w : FreeMonoid α) (e : ℕ) : List (FreeMonoid α) :=
+  if w.toList.length < e then [] else (probe read T E e w).undecided
+
 def REnd.toRoundEnd : Option (REnd α) → RoundEnd α
   | some .consistent => .consistent
   | some (.harvest zs) => .harvest zs
   | _ => .failed
 
 /-- With ideal reads and enough probes, the round fails to end well with chance at most
-`(P + 1)(1 − ε)^n`. -/
+`(P + 1)(1 − ε)^n`, its harvest replayed from an anchor drawn uniformly below `L`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : RoundCfg) (P : ℕ),
     IdealReads read M side → 1 ≤ C.m → 1 ≤ C.h → 1 ≤ C.n → Fintype.card σ + 2 ≤ C.Lmax →
     budget C (Fintype.card α) ≤ P →
-    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ), ε ≤ 1 →
+    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (L : ℕ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
           {xs | let r := round read C start (List.ofFn xs)
             ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-              (REnd.toRoundEnd r.2)}
+              L (replay read r.1.tree r.1.edges) (REnd.toRoundEnd r.2)}
         ≤ (P + 1) * (1 - ε) ^ C.n
 
 end Ideal
