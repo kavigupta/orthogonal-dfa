@@ -12,7 +12,8 @@ state it blames go to the next family search, as a harvest would: the round
 cannot see a state the family reads on the wrong side, but the family's search
 can, once it is shown that state's undecided strings.  A round that ends in a
 harvest, or is refused with nothing new to show, halves the FNR limit, so the
-next family must be more decisive.
+next family must be more decisive, down to ``FNR_FLOOR`` of the limit it
+started at.
 """
 
 import time
@@ -168,6 +169,10 @@ STALL_PATIENCE = 2
 #: Rounds a run keeps going after the certificate first refuses a round at the
 #: consistency target.
 CERTIFICATE_PATIENCE = 5
+
+#: The tightest the FNR limit gets, as a share of where it starts: each halving
+#: makes the next family search costlier.
+FNR_FLOOR = 0.25
 
 
 class _StallDetector:
@@ -384,7 +389,10 @@ def counterexample_driven_synthesis(
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, hypothesis, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        if _family_too_loose(ending, true_acc, acc_threshold, taken):
+        if (
+            _family_too_loose(ending, true_acc, acc_threshold, taken)
+            and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
+        ):
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
