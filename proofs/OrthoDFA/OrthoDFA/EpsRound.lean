@@ -66,18 +66,18 @@ def EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε t q : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
-    0 ≤ t → 0 < q →
+    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε q : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    0 < q →
     (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
       D.real {x | u.toList <+: x.toList} ≤ q) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
             L (replay (R.read · ω) r.1.tree r.1.edges)
-            (3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ) - t)
+            (3 / 4 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ))
             (toRoundEnd r.2)} ∂μ
       ≤ epsRoundRisk (α := α) σ θ εw D L C ε
-        + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L M (BadAt U θ)) / (16 * q)))
 
 end Random
 

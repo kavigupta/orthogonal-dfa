@@ -304,7 +304,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
 theorem epsRoundCorrect_holds : EpsRoundCorrect := by
-  intro α _ _ σ _ M side U θ εw Ω _ μ _ R D _ L C ε t q hL ht hq hpreq
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ R D _ L C ε q hL hq hpreq
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   have hεw : 0 ≤ εw := measureReal_nonneg.trans (hwrong 1)
   simp only [epsRoundRisk, ENNReal.iInf_add]
@@ -325,15 +325,27 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   set Nw := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     D.real (PotWrong (read · ω) M side C.k T) ≤ Gw}
   have hNn := noise_le M U θ μ read D C.k L p₀ G hmeas hind hU hL hp₀ hpre hθ
+  set m₀ := 3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ)
   set Ny := {ω | (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
-    < 3 / 2 * θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-      BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} - t}
-  have hNy : μ Ny ≤ ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q)) := by
+      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
+  have hm₀ : m₀ ≤ 3 / 2 * θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} := by
+    have hcov : coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ)
+        ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+          BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
+      coverage_le_anchor D L M (BadAt U θ)
+    simp only [m₀, mul_div_assoc]
+    exact mul_le_mul_of_nonneg_left hcov (by linarith)
+  have hNy : μ Ny ≤ ENNReal.ofReal
+      (Real.exp (-(3 / 2 * θ * coverage D L M (BadAt U θ)) / (16 * q))) := by
     rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
-    exact ENNReal.ofReal_le_ofReal (anchor_reads read hmeas hind D L
-      (fun u => BadAt U θ (M.eval u.toList)) (3 / 2 * θ) (fun u hu => (hU u).symm ▸ hu.le) t q ht
-      hq hpreq)
+    refine ENNReal.ofReal_le_ofReal ((anchor_reads read hmeas hind D L
+      (fun u => BadAt U θ (M.eval u.toList)) (3 / 2 * θ) (fun u hu => (hU u).symm ▸ hu.le) m₀ q
+      hm₀ hq hpreq).trans_eq ?_)
+    have hn : ((L + 1 - startLength L : ℕ) : ℝ) ≠ 0 := by exact_mod_cast (anchorCount_pos L).ne'
+    simp only [m₀]
+    congr 1
+    field_simp
   have hNw : μ Nw ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw) :=
     noise_hit μ read D C.k L (Fintype.card σ) p₀ Gw εw
       (fun z r => r = if side (M.eval z.toList) then .reject else .accept) hmeas hind hwrong hεw
@@ -345,7 +357,7 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       {xs | let r := round (read · ω) C start (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
           L (Ideal.replay (read · ω) r.1.tree r.1.edges)
-          (3 / 2 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ) - t)
+          (3 / 4 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ))
           (toRoundEnd r.2)}
         ≤ c + B.indicator 1 ω := by
     intro ω
@@ -364,14 +376,8 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       intro xs hxs h
       refine hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L) ?_)
       have hroot := round_root (read · ω) C (List.ofFn xs) start ⟨_, _, rfl⟩
-      have hcov : coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ)
-          ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-            BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
-        coverage_le_anchor D L M (BadAt U θ)
-      refine le_trans ?_ (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
-      · have := mul_le_mul_of_nonneg_left hcov (show 0 ≤ 3 / 2 * θ by linarith)
-        rw [mul_div_assoc]
-        linarith
+      refine le_trans (le_of_eq ?_) (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
+      · simp only [m₀]; ring
       · rintro ⟨w, e⟩ ⟨he, hu⟩
         exact Ideal.replay_root (read · ω) hroot _ he hu
   have hf0 : 0 ≤ fakeRisk C (Fintype.card α) Ns Gw :=
@@ -389,7 +395,7 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
         exact (measure_union_le _ _).trans (by gcongr; exact measure_union_le _ _)
     _ ≤ c + (ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G)
           + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw)
-          + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))) := by
+          + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L M (BadAt U θ)) / (16 * q)))) := by
         gcongr
     _ = _ := by
         rw [← add_assoc _ _ (ENNReal.ofReal (Real.exp _)), ← add_assoc c]
