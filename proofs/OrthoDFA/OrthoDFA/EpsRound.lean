@@ -52,19 +52,24 @@ noncomputable def epsRoundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ εw : 
   ⨅ (kn : EpsKnobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε),
     ENNReal.ofReal (epsRoundBound (α := α) σ θ εw D L C kn)
 
+/-- `ReadOracle` with each read on its state's wrong side with chance at most `εw`. -/
+structure EpsReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
+    (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (εw : ℝ) where
+  read : FreeMonoid α → Ω → ARU
+  measurable : ∀ z, Measurable (read z)
+  indep : ProbabilityTheory.iIndepFun read μ
+  undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
+  wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} ≤ εw
+
 /-- `RandomRoundCorrect` with each read wrong with chance at most `εw`. -/
 def EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ),
-    (∀ z, Measurable (read z)) → ProbabilityTheory.iIndepFun read μ →
-    (∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) →
-    (∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} ≤ εw) →
-    0 ≤ εw → (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | let r := round (read · ω) C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
+        {xs | let r := round (R.read · ω) C start (List.ofFn xs)
+          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
             (toRoundEnd r.2)} ∂μ
       ≤ epsRoundRisk (α := α) σ θ εw D L C ε
 
