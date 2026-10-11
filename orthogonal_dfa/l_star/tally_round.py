@@ -1,59 +1,4 @@
-"""One round of the tally loop: ``tallyStep`` of ``OrthoDFA/TallyLoop.lean``.
-
-The round's suffix family is the oracle: a string reads accept, reject or undecided
-(``cut``), and a tree node reads a string ``w`` at its midfix ``m`` as the read of
-``w + m``.  Leaves are named by their paths from the root (``True`` the accepting
-side), as in the Lean, and only the export names them by the tree's state ids.
-
-Each probe is walked from position ``k`` along the learned edges and searched for its
-first disagreement (``Probe``).  What it comes to is learned (an unlearned edge),
-recorded (a clean disagreement, at the edge it crosses) or counted, its reads are
-charged to the start and the edges, and then the tests may end the round; otherwise
-one edge with ``m`` records at a target it does not point at is fixed.
-
-Lean to Python:
-
-    DTree, route, sift, splitAt, midAt     MidfixTree, route, TallyRound._split
-    Edges                                  TallyRound.edges, (leaf, letter) -> (target, witness)
-    follow, kWalkBy, walkToBy, walkCheckBy follow, Probe.__init__, Probe.walk_to, Probe.walk_check
-    bracketAt, probeBy, recordBy           Probe.bracket, Probe.outcome, Probe.record
-    bracketSifts, siftsBy                  Probe.bracket_sifts, Probe.sifts
-    edgeAtBy, posEdgeBy, travBy            Probe.edge_at, Probe.pos_edge, Probe.traversals
-    edgeHarvBy, ptHarvBy, startHarvBy      Probe.edge_harvest, Probe.middle, Probe.start
-    TState, fresh, tally, Violates         TallyRound, _fresh, tally, violation
-    setEdge, charge, fixEdge, retargetBy   _set_edge, _charge, _fix, _split
-    tallyPre, tallyLook, settleOne         _act, _look, _settle_one
-    tallyStep, TallyCfg, rateSide, TEnd    step, TallyConfig, rate_side, Ending
-
-Where ``TallyConfig.count_reads`` is set, an edge's count is the strings its positions
-read for the first time in the round, and its harvest the undecided ones among them:
-the per-read test the README's planned replacement describes.  Unset, it is
-``travBy`` and ``edgeHarvBy`` as proved.
-
-Gaps.  ``tally_config`` is outside the proof's conditions here, at sample length
-L = 40, |Σ| = 4, a 30-state target and S = 0:
-
-* p₀ and k.  ``k = 0``, so every probe starts at the one string ``ε`` and p₀ = 1, where
-  ``TallyRoundFamily``'s edge and middles tails are vacuous.  A larger k leaves the
-  edges out of states only short prefixes reach unlearned.
-* θ.  ``θe ≥ 4θg`` with ``θg ≥ 3(|Q| + S + 1)θ``, so θe = 0.1 holds only for read-states
-  undecided at most θ = 2.7e-4 of the time to count as good.
-* Threshold ratios.  ``HarvestGood`` needs ``exc > 4L(1 + 4θg Lmax) log(1/a)``, over
-  1105 here, against exc = 10; and ``P(Bin(n, φpt/2) ≥ ⌈φpt n⌉) ≤ a`` from ``n₀`` on,
-  0.14 at φpt = 0.01, n₀ = 30, against a = 1e-3.
-* κ.  ``FakeRace`` needs ``ν ≥ ηκ`` roughly, and charges ``Wν(θe(L + 1) + 2 Lmax |Σ| φe)``
-  against ``η m``: at the band's κ = 4e-3 and m = 5 its bound exceeds 1 past about
-  W = 100 probes.
-* Probe budget.  ``TallyRound`` needs ``T ≥ (S + |Q| + 1) subT`` with
-  ``subT ≥ (2 Lmax |Σ| + 1) nEnd``, about 8e6 probes at the nEnd = 342 that success
-  at εd = 0.02 needs; the cap is 5e4.  Its union bound
-  ``(2^(Lmax+1) |Σ| + T + 3T²) a`` exceeds 1 for any T, and a = 1e-3, raised from
-  1e-4 because it shortens the stretch success needs, is ten times further off.
-* Counting.  ``count_reads`` is off: per read with first-read attribution is not proved.
-  At k = 0 its failure is the p₀ = 1 regime the prefix-mass condition excludes: every
-  probe shares the two one-letter prefixes, so a round whose one-letter prefixes read
-  undecided counts them once and succeeds with no edge learned.
-"""
+"""``tallyStep`` of ``OrthoDFA/TallyLoop.lean``, read through the round's suffix family."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -66,10 +11,8 @@ from .statistics import binom_cdf, binom_sf
 Path = Tuple[bool, ...]
 Edge = Tuple[Path, int]
 Cut = Callable[[bytes], Optional[bool]]
-#: Reads many strings at once, so that ``Cut`` finds them already read.
 Warm = Callable[[List[bytes]], None]
 
-#: Most probes whose reads are warmed together.
 MAX_BLOCK = 64
 
 AGREE = "agree"
@@ -85,30 +28,31 @@ HARVEST_START = "harvest start"
 HARVEST_EDGE = "harvest edge"
 HARVEST_MIDDLES = "harvest middles"
 TOO_BIG = "too big"
-HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 OUT_OF_PROBES = "out of probes"
+HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 
 
 @dataclass(frozen=True)
 class TallyConfig:
+    """``TallyCfg``: k, m, Lmax, θs, θe, θpt, εd, a, n₀, exc and φe, φpt, in order."""
+
     k: int
     m: int
-    max_leaves: int  # Lmax
-    start_rate: float  # θs
-    edge_rate: float  # θe
-    middle_rate: float  # θpt
-    disagreement_rate: float  # εd
-    level: float  # a
-    first_look: int  # n₀
-    edge_excess: float  # exc, the same after any count
-    edge_traffic: float  # φe
-    search_share: float  # φpt
+    max_leaves: int
+    start_rate: float
+    edge_rate: float
+    middle_rate: float
+    disagreement_rate: float
+    level: float
+    first_look: int
+    edge_excess: float
+    edge_traffic: float
+    search_share: float
     max_probes: int
     count_reads: bool
 
 
 def tally_config(acc_threshold: float) -> TallyConfig:
-    """The round's settings; see the module's gaps."""
     return TallyConfig(
         k=0,
         m=5,
@@ -139,8 +83,7 @@ def rate_side(theta, a, n0, n, h) -> Optional[bool]:
 
 
 def route(cut: Cut, root, z: bytes) -> Tuple[List[bytes], Optional[Path]]:
-    """The strings sifting ``z`` reads, root first, and its leaf's path, or ``None``
-    where the last of them is undecided."""
+    """The strings sifting ``z`` reads, and its leaf, ``None`` where the last read is undecided."""
     reads, path, node = [], (), root
     while not isinstance(node, int):
         midfix, lookup = node
@@ -179,8 +122,7 @@ def lcp(a: Path, b: Path) -> Path:
 
 
 def follow(edges, leaf: Path, letters: bytes):
-    """The leaves visited from ``leaf`` along ``letters``, and the step at which an
-    edge is not learned, or ``None``."""
+    """The leaves visited, and the step whose edge is not learned, or ``None``."""
     visited = [leaf]
     for step, letter in enumerate(letters):
         edge = edges.get((visited[-1], letter))
@@ -190,18 +132,39 @@ def follow(edges, leaf: Path, letters: bytes):
     return visited, None
 
 
-def _bracketed(agrees, lo, hi, i) -> Optional[bool]:
-    """``agrees``, taking the bracket's ends as agreeing and disagreeing."""
-    if i == lo:
-        return True
-    if i == hi:
-        return False
-    return agrees(i)
+def tripartite_search(agrees, fuel, lo, hi):
+    """``bracketAt`` and ``bracketSifts`` at once: ``(kind, position, sifted)``.
+
+    ``agrees`` is ``None`` where a read is undecided; ``lo`` counts as agreeing and
+    ``hi`` as disagreeing whatever it says."""
+
+    def at(i):
+        return True if i == lo else False if i == hi else agrees(i)
+
+    sifted = []
+    while fuel > 0 and lo + 1 < hi:
+        fuel -= 1
+        mid = (lo + hi) // 2
+        sifted.append(mid)
+        here = at(mid)
+        if here is not None:
+            lo, hi = (mid, hi) if here else (lo, mid)
+            continue
+        sifted.append(mid - 1)
+        left = at(mid - 1)
+        if left is None:
+            return PAIR, mid - 1, sifted
+        sifted.append(mid + 1)
+        right = at(mid + 1)
+        if right is None:
+            return PAIR, mid, sifted
+        if left and not right:
+            return TRIPLE, mid, sifted
+        lo, hi = (mid + 1, hi) if left else (lo, mid - 1)
+    return EDGE, hi, sifted
 
 
 class Probe:
-    """What one probe of ``x`` comes to against a tree and its edges."""
-
     def __init__(self, cut: Cut, root, edges, *, k: int, x: bytes):
         self._cut, self._root = cut, root
         self.k, self.x = k, x
@@ -210,6 +173,7 @@ class Probe:
         self._walk, self._open = (
             ([], None) if start is None else follow(edges, start, x[k:])
         )
+        self._resolved = None
 
     def route(self, i):
         if i not in self._routes:
@@ -224,7 +188,7 @@ class Probe:
         return reads[-1] if path is None else None
 
     def _steps(self, j) -> Optional[int]:
-        """How many edges ``walk_to(j)`` follows, or ``None`` where it is empty."""
+        """Edges ``walkToBy j`` follows, ``None`` where it is empty."""
         if not self._walk:
             return None
         steps = min(max(j - self.k, 0), max(len(self.x) - self.k, 0))
@@ -232,116 +196,62 @@ class Probe:
             return None
         return steps
 
-    def walk_to(self, j) -> List[Path]:
-        steps = self._steps(j)
-        return [] if steps is None else self._walk[: steps + 1]
-
-    def opens(self) -> bool:
-        """The walk meets an unlearned edge."""
-        return bool(self._walk) and self._open is not None
-
-    def end(self) -> Optional[int]:
-        """The first position ``walk_check`` sifts past the start, if any."""
+    def ends(self) -> List[int]:
+        """The positions ``walkCheckBy`` sifts before any search, the second only
+        where the first is decided."""
         if not self._walk:
-            return None
-        return len(self.x) if self._open is None else self.k + self._open + 1
+            return []
+        if self._open is None:
+            return [len(self.x)]
+        return [self.k + self._open + 1, self.k + self._open]
 
-    def walk_check(self):
-        """An outcome, or the walk and the length to search below."""
+    def _resolve(self):
+        """``probeBy`` and ``siftsBy``: the outcome, and the positions it sifts."""
         k, x = self.k, self.x
         if not self._walk:
-            return (START, x[:k]), None
+            return (START, x[:k]), []
         if self._open is not None:
             j = k + self._open
             if self.leaf(j + 1) is None:
-                return (END, x[: j + 1]), None
+                return (END, x[: j + 1]), [j + 1]
             here = self.leaf(j)
             if here is None:
-                return (END, x[:j]), None
+                return (END, x[:j]), [j + 1, j]
             if here == self._walk[-1]:
-                return (MEMBER, x[:j]), None
-            return None, (self.walk_to(j), j)
-        end = self.leaf(len(x))
-        if end is None:
-            return (END, x), None
-        if end == self._walk[-1]:
-            return (AGREE,), None
-        return None, (self._walk, len(x))
+                return (MEMBER, x[:j]), [j + 1, j]
+            walk, hi, before = self._walk[: self._steps(j) + 1], j, [j + 1]
+        else:
+            end = self.leaf(len(x))
+            if end is None:
+                return (END, x), [len(x)]
+            if end == self._walk[-1]:
+                return (AGREE,), [len(x)]
+            walk, hi, before = self._walk, len(x), []
 
-    def _agrees(self, walk):
         def agrees(i):
             here = self.leaf(i)
             if here is None:
                 return None
-            at = max(i - self.k, 0)
+            at = max(i - k, 0)
             return at < len(walk) and here == walk[at]
 
-        return agrees
-
-    def bracket(self, walk, fuel, lo, hi):
-        agrees = self._agrees(walk)
-        while fuel > 0 and lo + 1 < hi:
-            fuel -= 1
-            mid = (lo + hi) // 2
-            here = _bracketed(agrees, lo, hi, mid)
-            if here is True:
-                lo = mid
-                continue
-            if here is False:
-                hi = mid
-                continue
-            left = _bracketed(agrees, lo, hi, mid - 1)
-            if left is None:
-                return (PAIR, mid - 1)
-            right = _bracketed(agrees, lo, hi, mid + 1)
-            if right is None:
-                return (PAIR, mid)
-            if left and not right:
-                return (TRIPLE, mid)
-            if left:
-                lo = mid + 1
-            else:
-                hi = mid - 1
-        return (EDGE, walk, hi)
-
-    def bracket_sifts(self, walk, fuel, lo, hi) -> List[int]:
-        agrees = self._agrees(walk)
-        out = []
-        while fuel > 0 and lo + 1 < hi:
-            fuel -= 1
-            mid = (lo + hi) // 2
-            here = _bracketed(agrees, lo, hi, mid)
-            out.append(mid)
-            if here is True:
-                lo = mid
-                continue
-            if here is False:
-                hi = mid
-                continue
-            out.append(mid - 1)
-            left = _bracketed(agrees, lo, hi, mid - 1)
-            if left is None:
-                return out
-            out.append(mid + 1)
-            right = _bracketed(agrees, lo, hi, mid + 1)
-            if left is True and right is True:
-                lo = mid + 1
-            elif left is False and right is not None:
-                hi = mid - 1
-            else:
-                return out
-        return out
+        kind, j, sifted = tripartite_search(agrees, hi - k, k, hi)
+        outcome = (EDGE, walk, j) if kind == EDGE else (kind, j)
+        return outcome, before + [hi] + sifted
 
     def outcome(self):
-        outcome, search = self.walk_check()
-        if outcome is not None:
-            return outcome
-        walk, hi = search
-        return self.bracket(walk, hi - self.k, self.k, hi)
+        if self._resolved is None:
+            self._resolved = self._resolve()
+        return self._resolved[0]
 
-    def record(self, outcome) -> Optional[Tuple[Tuple[Path, int, Path], bytes]]:
-        """The edge a clean disagreement crosses, the leaf its next prefix sifts to,
-        and its prefix at the edge."""
+    def sifts(self) -> List[int]:
+        if self._resolved is None:
+            self._resolved = self._resolve()
+        return list(dict.fromkeys(i for i in self._resolved[1] if self.k < i))
+
+    def record(self) -> Optional[Tuple[Tuple[Path, int, Path], bytes]]:
+        """``recordBy``: the edge crossed, the target, and the prefix there."""
+        outcome = self.outcome()
         if outcome[0] != EDGE:
             return None
         _, walk, fd = outcome
@@ -353,40 +263,13 @@ class Probe:
         source = walk[at] if at < len(walk) else None
         return (source, self.x[before], target), self.x[:before]
 
-    def sifts(self) -> List[int]:
-        """The positions past the start the probe sifts."""
-        k, x = self.k, self.x
-
-        def found(walk, hi):
-            return [hi] + self.bracket_sifts(walk, hi - k, k, hi)
-
-        if not self._walk:
-            positions = []
-        elif self._open is not None:
-            j = k + self._open
-            if self.leaf(j + 1) is None:
-                positions = [j + 1]
-            elif self.leaf(j) is None or self.leaf(j) == self._walk[-1]:
-                positions = [j + 1, j]
-            else:
-                positions = [j + 1] + found(self.walk_to(j), j)
-        else:
-            end = self.leaf(len(x))
-            if end is not None and end != self._walk[-1]:
-                positions = found(self._walk, len(x))
-            else:
-                positions = [len(x)]
-        return list(dict.fromkeys(i for i in positions if k < i))
-
-    def edge_at(self, i) -> Optional[Edge]:
-        steps = self._steps(i)
-        if steps is not None and i < len(self.x):
-            return (self._walk[steps], self.x[i])
-        return None
-
     def pos_edge(self, i) -> Optional[Edge]:
-        """The edge position ``i``'s reads are charged to."""
-        return self.edge_at(i) or self.edge_at(max(i - 1, 0))
+        """``posEdgeBy``: the walk's edge out of ``i``, else out of ``i - 1``."""
+        for j in (i, max(i - 1, 0)):
+            steps = self._steps(j)
+            if steps is not None and j < len(self.x):
+                return (self._walk[steps], self.x[j])
+        return None
 
     def traversals(self) -> Counter:
         return Counter(
@@ -395,14 +278,16 @@ class Probe:
             if e is not None
         )
 
-    def edge_harvest(self, edge: Edge) -> List[bytes]:
-        return [
-            self.undecided(i)
-            for i in self.sifts()
-            if self.pos_edge(i) == edge and self.undecided(i) is not None
-        ]
+    def undecided_by_edge(self) -> Dict[Edge, List[bytes]]:
+        out = {}
+        for i in self.sifts():
+            edge, undecided = self.pos_edge(i), self.undecided(i)
+            if edge is not None and undecided is not None:
+                out.setdefault(edge, []).append(undecided)
+        return out
 
-    def middle(self, outcome) -> List[bytes]:
+    def middle(self) -> List[bytes]:
+        outcome = self.outcome()
         if outcome[0] in (PAIR, TRIPLE) and self.undecided(outcome[1]) is not None:
             return [self.undecided(outcome[1])]
         return []
@@ -419,8 +304,17 @@ class Ending:
     edge: Optional[Edge]
 
 
+def harvest_reader(ending: Ending) -> Callable[[Probe], List[bytes]]:
+    """What a probe reads undecided where ``ending`` harvested."""
+    if ending.kind == HARVEST_START:
+        return Probe.start
+    if ending.kind == HARVEST_EDGE:
+        return lambda probe: probe.undecided_by_edge().get(ending.edge, [])
+    return Probe.middle
+
+
 class TallyRound:
-    """The loop's state, ``TState``, over a tree it splits in place."""
+    """``TState``, over a tree it splits in place."""
 
     def __init__(self, config: TallyConfig, cut: Cut, warm: Warm, tree):
         self.config, self.cut, self.warm, self.tree = config, cut, warm, tree
@@ -428,11 +322,11 @@ class TallyRound:
         self.version = 0
         self.records: Dict[Edge, List[Tuple[bytes, Path]]] = {}
         self.n = 0
-        self.searches = 0  # dis
-        self.middles: List[bytes] = []  # pt
+        self.searches = 0
+        self.middles: List[bytes] = []
         self.probes = 0
         self.start_harvest: List[bytes] = []
-        self.charged: Counter = Counter()  # trav, or the first reads
+        self.charged: Counter = Counter()
         self.edge_harvest: Dict[Edge, List[bytes]] = {}
         self.paths = set(leaf_paths(tree.root))
         self._seen = set()
@@ -444,18 +338,17 @@ class TallyRound:
         return route(self.cut, self.tree.root, z)[1]
 
     def run(self, draw: Callable[[], bytes]) -> Ending:
-        """``step`` over the draws, warming each block's starts and ends together.
+        """``step`` over the draws, warming a block's reads before any search together.
 
-        The block doubles while the hypothesis holds and is one probe after a
-        change, and never runs past where success could fire, so the warming
-        reads little a probe stepped alone would not."""
+        A block runs past a change or past where success could fire only at the
+        cost of reads the probes stepped alone would not make."""
         block, queue, version = 1, [], self.version
         for done in range(self.config.max_probes):
             if not queue:
                 size = min(block, self.config.max_probes - done, self._before_success())
                 queue = [draw() for _ in range(size)]
                 version = self.version
-                self._warm_ends(queue)
+                self._warm(queue)
             ending = self.step(queue.pop(0))
             if ending is not None:
                 return ending
@@ -466,35 +359,25 @@ class TallyRound:
         return Ending(OUT_OF_PROBES, [], None)
 
     def _before_success(self) -> int:
-        """The fewest further probes after which the success test could fire."""
-        c = self.config
         more = 1
-        while (
-            rate_side(
-                c.disagreement_rate, c.level, c.first_look, self.n + more, self.searches
-            )
-            is not False
-            and more < MAX_BLOCK
-        ):
+        while not self._settles_below(self.n + more) and more < MAX_BLOCK:
             more += 1
         return more
 
-    def _warm_ends(self, xs: List[bytes]):
-        """The reads ``walk_check`` makes before any search."""
+    def _warm(self, xs: List[bytes]):
         k = self.config.k
         self._warm_routes([x[:k] for x in xs])
         probes = [self.probe(x) for x in xs]
-        self._warm_routes([p.x[: p.end()] for p in probes if p.end() is not None])
+        self._warm_routes([p.x[: p.ends()[0]] for p in probes if p.ends()])
         self._warm_routes(
             [
-                p.x[: p.end() - 1]
+                p.x[: p.ends()[1]]
                 for p in probes
-                if p.opens() and p.leaf(p.end()) is not None
+                if len(p.ends()) > 1 and p.leaf(p.ends()[0]) is not None
             ]
         )
 
     def _warm_routes(self, strings: List[bytes]):
-        """Every read sifting ``strings`` makes, one level of the tree at a time."""
         active = [(z, self.tree.root) for z in strings]
         while active:
             active = [(z, node) for z, node in active if not isinstance(node, int)]
@@ -508,16 +391,15 @@ class TallyRound:
 
     def step(self, x: bytes) -> Optional[Ending]:
         probe = self.probe(x)
-        outcome = probe.outcome()
-        self._charge(probe, outcome)
-        self._act(probe, outcome)
+        self._charge(probe)
+        self._act(probe)
         return self._look() or self._settle_one()
 
     def tally(self, edge: Edge, target: Path) -> int:
         return sum(1 for _, t in self.records.get(edge, ()) if t == target)
 
     def violation(self) -> Optional[Tuple[Edge, Path]]:
-        """An edge out of a leaf with ``m`` records at a target it does not point at."""
+        """``Violates``: an edge with ``m`` records at a target it does not point at."""
         for edge, records in self.records.items():
             if edge[0] not in self.paths:
                 continue
@@ -537,17 +419,15 @@ class TallyRound:
         self.edges[edge] = value
         self.version += 1
 
-    def _charge(self, probe: Probe, outcome):
+    def _charge(self, probe: Probe):
         self.n += 1
-        self.middles += probe.middle(outcome)
+        self.middles += probe.middle()
         self.probes += 1
         self.start_harvest += probe.start()
         if not self.config.count_reads:
             self.charged.update(probe.traversals())
-            for i in probe.sifts():
-                edge, undecided = probe.pos_edge(i), probe.undecided(i)
-                if edge is not None and undecided is not None:
-                    self.edge_harvest.setdefault(edge, []).append(undecided)
+            for edge, strings in probe.undecided_by_edge().items():
+                self.edge_harvest.setdefault(edge, []).extend(strings)
             return
         self._first_reads(probe.route(probe.k)[0])
         for i in probe.sifts():
@@ -565,7 +445,8 @@ class TallyRound:
         self._seen.update(new)
         return new
 
-    def _act(self, probe: Probe, outcome):
+    def _act(self, probe: Probe):
+        outcome = probe.outcome()
         kind = outcome[0]
         if kind == MEMBER:
             j = len(outcome[1])
@@ -575,27 +456,26 @@ class TallyRound:
             edge = (source, probe.x[j])
             if source is not None and target is not None and edge not in self.edges:
                 self._set_edge(edge, (target, outcome[1]))
-        elif kind == EDGE:
+        elif kind in (EDGE, PAIR, TRIPLE):
             self.searches += 1
-            record = probe.record(outcome)
+            record = probe.record()
             if record is not None:
                 (source, letter, target), prefix = record
                 self.records.setdefault((source, letter), []).append((prefix, target))
-        elif kind in (PAIR, TRIPLE):
-            self.searches += 1
+
+    def _above(self, theta, n, h) -> bool:
+        return rate_side(theta, self.config.level, self.config.first_look, n, h) is True
+
+    def _settles_below(self, n) -> bool:
+        c = self.config
+        return (
+            rate_side(c.disagreement_rate, c.level, c.first_look, n, self.searches)
+            is False
+        )
 
     def _look(self) -> Optional[Ending]:
         c = self.config
-        if (
-            rate_side(
-                c.start_rate,
-                c.level,
-                c.first_look,
-                self.probes,
-                len(self.start_harvest),
-            )
-            is True
-        ):
+        if self._above(c.start_rate, self.probes, len(self.start_harvest)):
             return Ending(HARVEST_START, list(self.start_harvest), None)
         for edge, count in self.charged.items():
             harvest = self.edge_harvest.get(edge, [])
@@ -605,18 +485,11 @@ class TallyRound:
                 and c.edge_excess <= len(harvest) - c.edge_rate * count
             ):
                 return Ending(HARVEST_EDGE, list(harvest), edge)
-        if (
-            c.search_share * self.n <= self.searches
-            and rate_side(
-                c.middle_rate, c.level, c.first_look, self.searches, len(self.middles)
-            )
-            is True
+        if c.search_share * self.n <= self.searches and self._above(
+            c.middle_rate, self.searches, len(self.middles)
         ):
             return Ending(HARVEST_MIDDLES, list(self.middles), None)
-        if (
-            rate_side(c.disagreement_rate, c.level, c.first_look, self.n, self.searches)
-            is False
-        ):
+        if self._settles_below(self.n):
             return Ending(SUCCESS, [], None)
         return None
 
@@ -630,7 +503,7 @@ class TallyRound:
         return None
 
     def _fix(self, edge: Edge, target: Path):
-        """Split where the current target also has ``m`` records, else redirect."""
+        """``fixEdge``: split where the current target also has ``m`` records, else redirect."""
         witness = next((w for w, t in self.records[edge] if t == target), b"")
         current = self.edges.get(edge)
         if current is not None and self.tally(edge, current[0]) >= self.config.m:
@@ -662,16 +535,12 @@ class TallyRound:
         self.version += 1
 
     def to_dfa(self, alphabet_size: int, initial_state: int) -> DFA:
-        """The hypothesis, an unlearned edge looping on its leaf."""
+        """An unlearned edge loops on its leaf."""
         root = self.tree.root
         ids = {path: leaf_id(root, path) for path in self.paths}
         transitions = {
             ids[path]: {
-                c: (
-                    ids[self.edges[(path, c)][0]]
-                    if (path, c) in self.edges
-                    else ids[path]
-                )
+                c: ids[self.edges.get((path, c), (path,))[0]]
                 for c in range(alphabet_size)
             }
             for path in self.paths
@@ -688,17 +557,11 @@ class TallyRound:
 
 @dataclass(frozen=True, eq=False)
 class Replay:
-    """A fresh probe of a round's last hypothesis, keeping the strings it reads
-    undecided where the round's harvest was."""
+    """Fresh probes of a round's last hypothesis, kept as ``read`` reads them."""
 
     round: TallyRound
-    ending: Ending
+    read: Callable[[Probe], List[bytes]]
     draw: Callable[[], bytes]
 
     def sample(self) -> List[bytes]:
-        probe = self.round.probe(self.draw())
-        if self.ending.kind == HARVEST_START:
-            return probe.start()
-        if self.ending.kind == HARVEST_EDGE:
-            return probe.edge_harvest(self.ending.edge)
-        return probe.middle(probe.outcome())
+        return self.read(self.round.probe(self.draw()))

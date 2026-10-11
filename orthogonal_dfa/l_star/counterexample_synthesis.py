@@ -1,19 +1,8 @@
 """
 Counterexample-driven synthesis: the E-L* learner loop.
 
-Each round searches a suffix family and runs the tally round
-(`tally_round`) against it.  When the round ends in a harvest, those strings
-join the next round's representative pool, with a per-state balanced sample,
-and drive the suffix-family FNR gate to re-cluster and resolve them.
-
-Outer-loop policy, outside what the round's proof covers.  Where the certificate
-refuses a round that ended consistent, the round's undecided strings at the
-state it blames go to the next family search, as a harvest would: the round
-cannot see a state the family reads on the wrong side, but the family's search
-can, once it is shown that state's undecided strings.  A round that ends in a
-harvest, or is refused with nothing new to show, halves the FNR limit, so the
-next family must be more decisive, down to ``FNR_FLOOR`` of the limit it
-started at.
+Each round searches a suffix family and runs the tally round against it; what
+the round harvests joins the next round's pool.
 """
 
 import time
@@ -34,7 +23,14 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import counter, track
 from .suffix_family import SuffixFamily
-from .tally_round import HARVESTS, SUCCESS, Replay, TallyRound, tally_config
+from .tally_round import (
+    HARVESTS,
+    SUCCESS,
+    Replay,
+    TallyRound,
+    harvest_reader,
+    tally_config,
+)
 from .tracker import SynthesisTracker
 
 
@@ -102,9 +98,6 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
 
 
 def _family_too_loose(ending, true_acc, acc_threshold, taken) -> bool:
-    """A round that met too many undecided reads, or that the certificate refused
-    with nothing new to give the next family search: the family itself reads
-    that hypothesis consistent, so only a tighter family can show it more."""
     return ending.kind in HARVESTS or (
         ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
     )
@@ -170,8 +163,7 @@ STALL_PATIENCE = 2
 #: consistency target.
 CERTIFICATE_PATIENCE = 5
 
-#: The tightest the FNR limit gets, as a share of where it starts: each halving
-#: makes the next family search costlier.
+#: The tightest the FNR limit gets, as a share of where it starts.
 FNR_FLOOR = 0.25
 
 
@@ -225,8 +217,8 @@ class BestRound:
 
 
 def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None, and
-    the state it blames."""
+    """denoise_accept_labels(dfa) if the certificate passes it, else None; and the
+    state it blames."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
@@ -238,35 +230,20 @@ def _certified(pst, dfa, *, index, tracker):
     return None, verdict.blamed
 
 
-class _LeafReplay:
-    """A fresh probe of a round's last hypothesis, keeping the strings it reads
-    undecided at the edges out of one leaf."""
-
-    def __init__(self, hypothesis, leaf, draw, alphabet_size):
-        self._hypothesis, self._leaf = hypothesis, leaf
-        self._draw, self._alphabet_size = draw, alphabet_size
-
-    def sample(self) -> list:
-        probe = self._hypothesis.probe(self._draw())
-        return [
-            z
-            for c in range(self._alphabet_size)
-            for z in probe.edge_harvest((self._leaf, c))
-        ]
-
-
 def _next_harvest(pst, hypothesis, ending, blamed):
-    """What the round hands the next family search, and what draws more of it:
-    its harvest, or where the certificate refused a success, the strings it read
-    undecided at the edges out of the state the certificate blamed."""
+    """The strings the next family search is shown, and what draws more of them:
+    a success the certificate refused shows the blamed state's undecided reads."""
     draw = UniformSource(pst).draw
     if blamed is None or ending.harvest:
-        return ending.harvest, Replay(hypothesis, ending, draw)
+        return ending.harvest, Replay(hypothesis, harvest_reader(ending), draw)
     leaf = hypothesis.tree.path_of(blamed)
-    strings = [
-        z for (p, _), zs in hypothesis.edge_harvest.items() if p == leaf for z in zs
-    ]
-    return strings, _LeafReplay(hypothesis, leaf, draw, pst.alphabet_size)
+
+    def at_leaf(by_edge):
+        return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
+
+    return at_leaf(hypothesis.edge_harvest), Replay(
+        hypothesis, lambda probe: at_leaf(probe.undecided_by_edge()), draw
+    )
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:

@@ -23,6 +23,7 @@ from orthogonal_dfa.l_star.tally_round import (
     Replay,
     TallyConfig,
     TallyRound,
+    harvest_reader,
     rate_side,
     route,
 )
@@ -127,14 +128,14 @@ class TestOutcomes(unittest.TestCase):
         probe = _probe(_cut(), WRONG_ODD_0, [1, 0, 0, 0])
         outcome = probe.outcome()
         self.assertEqual((EDGE, 2), (outcome[0], outcome[2]))
-        self.assertEqual(((ODD, 0, ODD), b"\x01"), probe.record(outcome))
+        self.assertEqual(((ODD, 0, ODD), b"\x01"), probe.record())
         self.assertEqual([4, 2, 1], probe.sifts())
 
     def test_an_undecided_middle_between_agreement_and_disagreement_is_a_triple(self):
         probe = _probe(_cut([b"\x00\x01"]), WRONG_ODD_0, [0, 1, 0, 0])
         self.assertEqual((TRIPLE, 2), probe.outcome())
-        self.assertEqual([b"\x00\x01"], probe.middle(probe.outcome()))
-        self.assertIsNone(probe.record(probe.outcome()))
+        self.assertEqual([b"\x00\x01"], probe.middle())
+        self.assertIsNone(probe.record())
 
     def test_an_undecided_middle_and_left_neighbour_are_a_pair(self):
         probe = _probe(_cut([b"\x00\x01", b"\x00"]), WRONG_ODD_0, [0, 1, 0, 0])
@@ -150,7 +151,7 @@ class TestOutcomes(unittest.TestCase):
         probe = _probe(_cut([b"\x00\x00\x00"]), WRONG_ODD_0, [0, 0, 0, 1, 0, 0])
         outcome = probe.outcome()
         self.assertEqual((EDGE, 5), (outcome[0], outcome[2]))
-        self.assertEqual(((ODD, 0, ODD), b"\x00\x00\x00\x01"), probe.record(outcome))
+        self.assertEqual(((ODD, 0, ODD), b"\x00\x00\x00\x01"), probe.record())
         self.assertEqual([6, 3, 2, 4, 5], probe.sifts())
 
 
@@ -169,8 +170,7 @@ class TestCharging(unittest.TestCase):
 
     def test_an_edge_keeps_the_strings_read_undecided_at_its_positions(self):
         probe = _probe(_cut([b"\x01\x00"]), PARITY_EDGES, [1, 0])
-        self.assertEqual([b"\x01\x00"], probe.edge_harvest((ODD, 0)))
-        self.assertEqual([], probe.edge_harvest((EVEN, 1)))
+        self.assertEqual({(ODD, 0): [b"\x01\x00"]}, probe.undecided_by_edge())
 
     def test_counted_by_position_a_string_counts_each_time(self):
         tally = _round(_cut([b"\x01\x00"]), PARITY_EDGES)
@@ -369,9 +369,12 @@ class TestReplay(unittest.TestCase):
         tally = _round(_cut([b"\x01\x00"]), PARITY_EDGES)
         ending = Ending(HARVEST_EDGE, [], (ODD, 0))
         self.assertEqual(
-            [b"\x01\x00"], Replay(tally, ending, lambda: b"\x01\x00").sample()
+            [b"\x01\x00"],
+            Replay(tally, harvest_reader(ending), lambda: b"\x01\x00").sample(),
         )
-        self.assertEqual([], Replay(tally, ending, lambda: b"\x01\x01").sample())
+        self.assertEqual(
+            [], Replay(tally, harvest_reader(ending), lambda: b"\x01\x01").sample()
+        )
 
 
 if __name__ == "__main__":
