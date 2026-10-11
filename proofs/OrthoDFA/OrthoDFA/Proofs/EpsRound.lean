@@ -243,7 +243,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := round read C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            (toRoundEnd r.2)}
+            0 (fun _ _ => []) (toRoundEnd r.2)}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α)
         * (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw)) := by
   have h2 : 2 ≤ C.Lmax := by omega
@@ -333,7 +333,8 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := round (read · ω) C start (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          (toRoundEnd r.2)} ≤ c + B.indicator 1 ω := by
+          L (Ideal.replay (read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)}
+        ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
@@ -341,9 +342,11 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
     · have hω' : ω ∉ Nn ∪ Nw := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
       simp only [Set.mem_union, not_or, Nn, Nw, Set.mem_ofPred_eq, not_not] at hω'
-      exact probe_level_eps (read · ω) C M side U θ D ε Ns L P N₁ G Gw θr εd' θpt' hL hω'.1
-        hω'.2 hcap hm hn₀ hN₁ hN₁s hG0 hG1 hGw0 hGw1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 hεd
-        hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+      refine le_trans (measure_mono ?_) (probe_level_eps (read · ω) C M side U θ D ε Ns L P N₁ G
+        Gw θr εd' θpt' hL hω'.1 hω'.2 hcap hm hn₀ hN₁ hN₁s hG0 hG1 hGw0 hGw1 ha hθs0 hθs1 hθe
+        hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP)
+      intro xs hxs h
+      exact hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D L))
   have hf0 : 0 ≤ fakeRisk C (Fintype.card α) Ns Gw :=
     mul_nonneg (Nat.cast_nonneg _) (binomSfGe_nonneg hGw0 hGw1 _ _)
   have hnn : 0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw :=

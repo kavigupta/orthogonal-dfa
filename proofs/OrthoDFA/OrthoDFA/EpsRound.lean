@@ -18,7 +18,7 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (pre Disagrees)
+open OrthoDFA.Ideal (pre Disagrees replay)
 
 /-- What a stretch risks where reads can be wrong: `m` records, over its first `Ns` probes, at
 one of the at most `Lmax² |Σ|` edges and targets, each from a probe that can read a string wrong,
@@ -70,7 +70,7 @@ def EpsRoundCorrect : Prop :=
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            (toRoundEnd r.2)} ∂μ
+            L (replay (R.read · ω) r.1.tree r.1.edges) (toRoundEnd r.2)} ∂μ
       ≤ epsRoundRisk (α := α) σ θ εw D L C ε
 
 end Random
