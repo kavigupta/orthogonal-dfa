@@ -29,23 +29,24 @@ def SuffixFamily.readOracle {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
 /-- `TallyRoundFamily`: read by a suffix family, the round over `C.budget` probes drawn from `D`,
 of length at most `L`, fails to end well with chance at most `roundRisk` of the family's read
-model plus `exp(−2t²n/q)`, at any records coefficient `κs ≥ 2κ`, its replay yielding as in
-`TallyRound`. -/
+model plus `exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`, its replay yielding as
+in `TallyRound`. -/
 def TallyRoundFamily : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (fam : SuffixFamily μ α σ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (θ κs t q : ℝ), 2 * fam.κ ≤ κs → 0 ≤ t →
-    0 < q → (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (θ κs q : ℝ), 2 * fam.κ ≤ κs → 0 < q →
+    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
       D.real {x | u.toList <+: x.toList} ≤ q) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | ¬ RunEnds (tallyStep C (fam.cut ω))
           (TallyEndsWell (fam.readModel θ) D C L
-            (3 / 2 * θ * coverage D L fam.M (fun r => ¬ (fam.readModel θ).Good r)
-              / (L + 1 - startLength L : ℕ) - t) (fam.read ω))
+            (3 / 4 * θ * coverage D L fam.M (fun r => ¬ (fam.readModel θ).Good r)
+              / (L + 1 - startLength L : ℕ)) (fam.read ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk (fam.readModel θ) D L C κs
-        + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L fam.M
+          (fun r => ¬ (fam.readModel θ).Good r)) / (16 * q)))
 
 end OrthoDFA
 

@@ -39,9 +39,9 @@ from `⌈L/2⌉, …, L`, the positions from which #415's `covered_states` count
   `spread_of_prefix` in `Proofs/RoundEnd.lean`).
 - `Yields y`: it finds something on at least `y` of its draws and anchors. A tree's root reads its
   string alone, so the replay finds the anchor's prefix whenever that reads undecided. Over the
-  independent reads (`anchor_reads`, `Proofs/Yield.lean`) that share is at least `1.5θ` times
-  `coverage(not good) / (L + 1 − ⌈L/2⌉)` less `t`, but for chance `exp(−2t²(L + 1 − ⌈L/2⌉)/q)`,
-  `coverage` being the share of draws visiting a read-state that is not good at a position from
+  independent reads (`anchor_reads`, `Proofs/Yield.lean`, a Chernoff bound) that share is at
+  least `0.75θ · coverage(not good) / (L + 1 − ⌈L/2⌉)`, half its least mean, but for chance
+  `exp(−1.5θ · coverage(not good) / (16q))`, `coverage` being the share of draws visiting a read-state that is not good at a position from
   `⌈L/2⌉` on, and `q` the most a draw puts on starting with any one string past `⌈L/2⌉`.
 
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
@@ -55,14 +55,14 @@ from `⌈L/2⌉, …, L`, the positions from which #415's `covered_states` count
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
 to be read:
 
-    TallyRound: ∀ G (R : ReadOracle μ G) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C κs t q, 2κ ≤ κs →
-      0 ≤ t → 0 < q → (no string past ⌈L/2⌉ starts more than q of D) →
+    TallyRound: ∀ G (R : ReadOracle μ G) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C κs q, 2κ ≤ κs →
+      0 < q → (no string past ⌈L/2⌉ starts more than q of D) →
       ∫⁻ ω, P[the round over C.budget probes from D does not end well] ∂μ
-        ≤ roundRisk G D L C κs + exp(−2t²(L + 1 − ⌈L/2⌉)/q)
+        ≤ roundRisk G D L C κs + exp(−1.5θ · coverage(not good) / (16q))
 
-    TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C θ κs t q,
+    TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C θ κs q,
       2 · fam.κ ≤ κs → (as above) →
-      ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) D L C κs + exp(−2t²(L + 1 − ⌈L/2⌉)/q)
+      ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) D L C κs + exp(−1.5θ · coverage / (16q))
 
 `roundRisk G D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
 `kn.Admissible G D L C κs`, of `roundBound G D L C kn`, the sum of:

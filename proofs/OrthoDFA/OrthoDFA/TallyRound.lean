@@ -330,24 +330,25 @@ def TallyRiskBound : Prop :=
 
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
 `C.budget` probes drawn from `D`, of length at most `L`, fails to end well with chance at most
-`roundRisk` plus `exp(−2t²n/q)`, at any records coefficient `κs ≥ 2κ`. The harvest's replay
-yields `1.5θ` times the share of draws visiting a read-state that is not good from `⌈L/2⌉` on,
-over the `n = L + 1 − ⌈L/2⌉` anchors, less `t`, where no string past `⌈L/2⌉` starts more than `q`
-of the draws. -/
+`roundRisk` plus `exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`. The harvest's
+replay yields `0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not
+good from `⌈L/2⌉` on, `n = L + 1 − ⌈L/2⌉` the anchors, and no string past `⌈L/2⌉` starts more
+than `q` of the draws. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (R : ReadOracle μ G) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs t q : ℝ), 2 * G.κ ≤ κs → 0 ≤ t →
-    0 < q → (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs q : ℝ), 2 * G.κ ≤ κs → 0 < q →
+    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
       D.real {x | u.toList <+: x.toList} ≤ q) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
         {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut)
-          (TallyEndsWell G D C L (3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
-            / (L + 1 - startLength L : ℕ) - t) (R.read · ω))
+          (TallyEndsWell G D C L (3 / 4 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
+            / (L + 1 - startLength L : ℕ)) (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk G D L C κs
-        + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r))
+          / (16 * q)))
 
 end OrthoDFA
 

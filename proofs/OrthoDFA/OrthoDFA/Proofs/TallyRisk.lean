@@ -75,7 +75,7 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
 theorem tally_round_holds : TallyRound := by
-  intro α _ _ σ _ Ω _ μ _ G R D _ L hlen C κs t q hκ ht hq hpreq
+  intro α _ _ σ _ Ω _ μ _ G R D _ L hlen C κs q hκ hq hpreq
   obtain ⟨read, hmeas, hind, hlaw⟩ := R
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
@@ -127,21 +127,35 @@ theorem tally_round_holds : TallyRound := by
     · gcongr ?_ * _
     · simp only [mul_one]
       gcongr ?_ * _ * _
+  set m₀ := 3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r) / (L + 1 - startLength L : ℕ)
   set Ny := {ω | (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
-    < 3 / 2 * G.θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-      ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} - t}
-  have hNy : μ Ny ≤ ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q)) := by
+      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
+  have hm₀ : m₀ ≤ 3 / 2 * G.θ * (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+      ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} := by
+    have hcov : coverage D L G.M (fun r => ¬ G.Good r) / (L + 1 - startLength L : ℕ)
+        ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
+          ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
+      coverage_le_anchor D L G.M (fun r => ¬ G.Good r)
+    simp only [m₀, mul_div_assoc]
+    exact mul_le_mul_of_nonneg_left hcov (by linarith [hA.θ_nonneg])
+  have hNy : μ Ny ≤ ENNReal.ofReal
+      (Real.exp (-(3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)) / (16 * q))) := by
     rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
-    refine ENNReal.ofReal_le_ofReal (anchor_reads read hmeas hind D L
-      (fun u => ¬ G.Good (G.M.eval u.toList)) (3 / 2 * G.θ) (fun u hu => ?_) t q ht hq hpreq)
-    rw [hlaw]
-    exact (not_le.1 hu).le
+    refine ENNReal.ofReal_le_ofReal ((anchor_reads read hmeas hind D L
+      (fun u => ¬ G.Good (G.M.eval u.toList)) (3 / 2 * G.θ) (fun u hu => ?_) m₀ q hm₀ hq
+      hpreq).trans_eq ?_)
+    · rw [hlaw]
+      exact (not_le.1 hu).le
+    · have hn : ((L + 1 - startLength L : ℕ) : ℝ) ≠ 0 := by
+        exact_mod_cast (anchorCount_pos L).ne'
+      simp only [m₀]
+      congr 1
+      field_simp
   set B := toMeasurable μ Ny
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.budget => D)
       {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-        (TallyEndsWell G D C L (3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
-          / (L + 1 - startLength L : ℕ) - t) (read · ω)) tallyStart (List.ofFn xs)}
+        (TallyEndsWell G D C L (3 / 4 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
+          / (L + 1 - startLength L : ℕ)) (read · ω)) tallyStart (List.ofFn xs)}
       ≤ (Measure.pi fun _ : Fin C.budget => D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C L 0 (read · ω))
           tallyStart (List.ofFn xs)} + B.indicator 1 ω := by
@@ -158,14 +172,8 @@ theorem tally_round_holds : TallyRound := by
       refine runEnds_mono (fun e s' hs => ?_) _ _ h'
       obtain ⟨hQ, hroot⟩ := hs
       refine EndsWell.respread (tallyReplay_spread _ _ _ D L) ?_ hQ
-      have hcov : coverage D L G.M (fun r => ¬ G.Good r) / (L + 1 - startLength L : ℕ)
-          ≤ (D.prod (anchorLaw L)).real {r | r.2 ≤ r.1.toList.length ∧
-            ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
-        coverage_le_anchor D L G.M (fun r => ¬ G.Good r)
-      refine le_trans ?_ (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
-      · have := mul_le_mul_of_nonneg_left hcov (show 0 ≤ 3 / 2 * G.θ by linarith [hA.θ_nonneg])
-        rw [mul_div_assoc]
-        linarith
+      refine le_trans (le_of_eq ?_) (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
+      · simp only [m₀]; ring
       · rintro ⟨w, e⟩ ⟨he, hu⟩
         exact tallyReplay_root _ hroot _ he hu
   calc _ ≤ ∫⁻ ω, ((Measure.pi fun _ : Fin C.budget => D)
