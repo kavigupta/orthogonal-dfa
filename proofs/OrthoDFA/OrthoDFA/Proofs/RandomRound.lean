@@ -191,7 +191,8 @@ theorem prefixMax_pos [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityM
   exact one_ne_zero hu
 
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
-  intro α _ _ σ _ M side U θ Ω _ μ _ read D _ L C ε hmeas hind hU hwrong hL
+  intro α _ _ σ _ M side U θ Ω _ μ _ R D _ L C ε hL
+  obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   refine le_iInf₂ fun kn hA => ?_
   obtain ⟨Ns, N₁, G, θr, εd', θpt'⟩ := kn
   obtain ⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, hG1, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,

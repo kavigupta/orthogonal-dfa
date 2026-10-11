@@ -357,22 +357,27 @@ noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
   ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε),
     ENNReal.ofReal (roundBound (α := α) σ θ D L C kn)
 
-/-- The reads are independent across strings, each undecided with its state's chance `U` and
-never on its state's wrong side; the probes are `C.budget` draws from `D`, of length at most `L`.
-The round fails to end well, a state being bad where it is undecided more than `1.5θ` of the time,
-with chance at most `roundRisk`. -/
+/-- Reads of every string, independent across strings, each undecided with its state's chance `U`
+and never on its state's wrong side. -/
+structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*} (M : DFA α σ)
+    (side : σ → Bool) (U : σ → ℝ) where
+  read : FreeMonoid α → Ω → ARU
+  measurable : ∀ z, Measurable (read z)
+  indep : ProbabilityTheory.iIndepFun read μ
+  undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
+  wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
+
+/-- Over `C.budget` probes drawn from `D`, of length at most `L`, the round fails to end well, a
+state being bad where it is undecided more than `1.5θ` of the time, with chance at most
+`roundRisk`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ),
-    (∀ z, Measurable (read z)) → ProbabilityTheory.iIndepFun read μ →
-    (∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) →
-    (∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0) →
-    (∀ᵐ x ∂D, x.toList.length ≤ L) →
+    [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | let r := round (read · ω) C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
+        {xs | let r := round (R.read · ω) C start (List.ofFn xs)
+          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
             (toRoundEnd r.2)} ∂μ
       ≤ roundRisk (α := α) σ θ D L C ε
 
