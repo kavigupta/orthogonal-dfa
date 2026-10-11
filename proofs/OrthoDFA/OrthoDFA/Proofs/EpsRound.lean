@@ -303,9 +303,19 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
 theorem epsRoundCorrect_holds : EpsRoundCorrect := by
-  intro α _ _ σ _ M side U θ εw Ω _ μ _ read D _ C L P Ns N₁ p₀ ε G Gw θr εd' θpt' hmeas hind
-    hU hwrong hεw hL hp₀ hpre hcap hm hn₀ hN₁ hN₁s hθ hG0 hG1 hGw0 hGw1 ha hθs0 hθs1 hθe hθpt0
-    hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ read D _ L C ε hmeas hind hU hwrong hεw hL
+  refine le_iInf₂ fun kn hA => ?_
+  obtain ⟨⟨Ns, N₁, G, θr, εd', θpt'⟩, Gw⟩ := kn
+  obtain ⟨⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, hG1, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
+    hεd, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP⟩, hGw0, hGw1⟩ := hA
+  simp only at hN₁ hN₁s hG0 hG1 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGw0 hGw1
+  unfold epsRoundBound roundBound
+  simp only
+  set P := C.budget
+  set p₀ := prefixMax D C.k
+  have hp₀ : 0 < p₀ := prefixMax_pos D C.k
+  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | pre x C.k = u} ≤ p₀ :=
+    fun u _ => le_prefixMax D C.k u
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     D.real (PotGood M U θ C.k (read · ω) T) ≤ G}
   set Nw := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
@@ -352,6 +362,8 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
         rw [add_comm, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
           (by unfold noiseRisk; positivity), ← ENNReal.ofReal_add (by unfold noiseRisk; positivity)
           (by positivity)]
+        congr 1
+        ring
 
 end Random
 
