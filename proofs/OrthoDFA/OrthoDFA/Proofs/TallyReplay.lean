@@ -151,6 +151,73 @@ theorem tallyReplay_prefix (rd : FreeMonoid α → ARU) (T : DTree α) (edges : 
   · rw [hi, FreeMonoid.toList_mul, List.take_left' hlen]
     simp only [prefixOf, FreeMonoid.toList_ofList]
 
+/-- The tree's root reads its string alone. -/
+def RootOne (T : DTree α) : Prop := ∃ r a, T = .node 1 r a
+
+theorem splitAt_rootOne {T : DTree α} (hT : RootOne T) (d : FreeMonoid α) (p : List Bool) :
+    RootOne (T.splitAt d p) := by
+  obtain ⟨r, a, rfl⟩ := hT
+  rcases p with _ | ⟨_ | _, p⟩
+  · exact ⟨r, a, rfl⟩
+  · exact ⟨_, a, rfl⟩
+  · exact ⟨r, _, rfl⟩
+
+theorem tallyPre_tree (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
+    (x : FreeMonoid α) : (tallyPre C cut s x).tree = s.tree := by
+  unfold tallyPre
+  simp only
+  repeat' split
+  all_goals rfl
+
+theorem fixEdge_rootOne (cut : FreeMonoid α → Option Bool) (m : ℕ) {s : TState α}
+    (hs : RootOne s.tree) (p : List Bool) (c : α) (t : List Bool) :
+    RootOne (fixEdge cut m s p c t).tree := by
+  unfold fixEdge
+  simp only
+  repeat' split
+  all_goals first | exact splitAt_rootOne hs _ _ | exact hs
+
+theorem tallyStep_rootOne (C : TallyCfg) (cut : FreeMonoid α → Option Bool) {s : TState α}
+    (hs : RootOne s.tree) (x : FreeMonoid α) :
+    (∀ s', tallyStep C cut s x = .inl s' → RootOne s'.tree)
+      ∧ ∀ e s', tallyStep C cut s x = .inr (e, s') → RootOne s'.tree := by
+  have h1 : RootOne (tallyPre C cut s x).tree := by rw [tallyPre_tree]; exact hs
+  unfold tallyStep settleOne
+  simp only
+  constructor
+  · intro s' h
+    repeat' split at h
+    all_goals first
+      | (injection h with h; rw [← h]; exact fixEdge_rootOne cut _ h1 _ _ _)
+      | (injection h with h; rw [← h]; exact h1)
+      | cases h
+  · intro e s' h
+    repeat' split at h
+    all_goals first
+      | (injection h with h; injection h with _ h; rw [← h]; exact fixEdge_rootOne cut _ h1 _ _ _)
+      | (injection h with h; injection h with _ h; rw [← h]; exact h1)
+      | cases h
+
+/-- A run from a state where `I` holds, `I` kept by every step, ends where `I` holds. -/
+theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E → S → Prop}
+    (I : S → Prop) (hI : ∀ s x, I s → (∀ s', step s x = .inl s' → I s')
+      ∧ ∀ e s', step s x = .inr (e, s') → I s') :
+    ∀ (s : S) (l : List X), I s → RunEnds step Q s l → RunEnds step (fun e s' => Q e s' ∧ I s') s l
+  | _, [], _, h => h
+  | s, x :: xs, hs, h => by
+    simp only [RunEnds] at h ⊢
+    rcases hst : step s x with s' | ⟨e, s'⟩ <;> rw [hst] at h
+    · exact runEnds_inv I hI s' xs ((hI s x hs).1 s' hst) h
+    · exact ⟨h, (hI s x hs).2 e s' hst⟩
+
+theorem tallyReplay_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T)
+    (edges : Edges α) {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length)
+    (hu : rd (prefixOf w e) = .undecided) : tallyReplay rd T edges w e ≠ [] := by
+  obtain ⟨r, a, rfl⟩ := hT
+  unfold tallyReplay firstsBy probeQ
+  rw [if_neg (by omega)]
+  simp [siftQ, QTree.bind, QTree.firsts, hu, ARU.cut]
+
 theorem tallyReplay_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α)
     (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (L : ℕ) :
     Spread D L (tallyReplay rd T edges) :=

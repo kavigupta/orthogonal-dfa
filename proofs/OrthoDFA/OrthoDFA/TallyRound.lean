@@ -88,11 +88,11 @@ def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α) (
 
 /-- The round ends well: consistent with the hypothesis disagreeing on at most `εd` of the probes,
 or a harvest more than half of whose strings are at read-states that are not good, its replay
-from an anchor drawn uniformly below `L` spread. -/
+from an anchor drawn uniformly from `⌈L/2⌉, …, L` spread and yielding `y`. -/
 def TallyEndsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (L : ℕ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
+    (L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
   EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges) L
-    (tallyReplay rd s.tree s.edges) (tallyEnd e s)
+    (tallyReplay rd s.tree s.edges) y (tallyEnd e s)
 
 /-- The largest mass the probes' law puts on one length-`k` prefix. -/
 def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x | prefixOf x k = u}
@@ -330,16 +330,24 @@ def TallyRiskBound : Prop :=
 
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
 `C.budget` probes drawn from `D`, of length at most `L`, fails to end well with chance at most
-`roundRisk`, at any records coefficient `κs ≥ 2κ`. -/
+`roundRisk` plus `exp(−2t²n/q)`, at any records coefficient `κs ≥ 2κ`. The harvest's replay
+yields `1.5θ` times the share of draws visiting a read-state that is not good from `⌈L/2⌉` on,
+over the `n = L + 1 − ⌈L/2⌉` anchors, less `t`, where no string past `⌈L/2⌉` starts more than `q`
+of the draws. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (R : ReadOracle μ G) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs t q : ℝ), 2 * G.κ ≤ κs → 0 ≤ t →
+    0 < q → (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
+      D.real {x | u.toList <+: x.toList} ≤ q) →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut) (TallyEndsWell G D C L (R.read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut)
+          (TallyEndsWell G D C L (3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
+            / (L + 1 - startLength L : ℕ) - t) (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk G D L C κs
+        + ENNReal.ofReal (Real.exp (-2 * t ^ 2 * (L + 1 - startLength L : ℕ) / q))
 
 end OrthoDFA
 

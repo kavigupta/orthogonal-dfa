@@ -286,7 +286,7 @@ def TallyRoundGiven : Prop :=
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C L (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C L 0 (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (fakeRun C (Fintype.card α) S L
