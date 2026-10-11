@@ -14,8 +14,11 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   has one law its strings read with, and the band's check bounds each law.
 - `IdealRoundCorrect`: with every read fixed by its state, one L\* round ends well but for
   chance `(P + 1)(1 − ε)^n`.
-- `TallyRound`: with independent reads, each with its state's law in a `ReadModel`, the tally
-  loop's round over `C.budget` probes from `D` fails to end well with chance at most `roundRisk`.
+- `TallyRound`: with a `ReadOracle` reading every string independently with its state's law in a
+  `ReadModel`, the tally loop's round over `C.budget` probes from `D` fails to end well with chance
+  at most `roundRisk`.
+- `TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the read model and the loop's
+  settings.
 - `TallyRoundFamily`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family and
   a band passing `BandPasses`), at the family's read model.
 
@@ -37,9 +40,8 @@ state bad is each level's own.
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
 to be read:
 
-    TallyRound: ∀ G read, measurable reads → iIndepFun read μ → reads have G's laws →
-      ∀ D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C κs, 2κ ≤ κs →
-        ∫⁻ ω, P[the round over C.budget probes from D does not end well] ∂μ ≤ roundRisk G D L C κs
+    TallyRound: ∀ G (R : ReadOracle μ G) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C κs, 2κ ≤ κs →
+      ∫⁻ ω, P[the round over C.budget probes from D does not end well] ∂μ ≤ roundRisk G D L C κs
 
     TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C θ κs,
       2 · fam.κ ≤ κs → ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) D L C κs
@@ -65,21 +67,34 @@ maps, `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a 
 `(e^η − 1)κs(L + 1) ≤ 1 − e^{−ν(L+1)}`, the tests' binomial levels, and the budget covering
 `(S + |Q| + 1)` sub-rounds. A probe shorter than `k` agrees and reads nothing.
 
-## Where the conditions hold
+## The closed form
 
-They hold together only far from the shipped parameters. At `|Q| = 10`, `S = 5`, `|Σ| = 2`,
-with the termination tests at `m = 30`, `εd = 0.1` (`W ≈ 8e8` probes, `a ≈ 5e-22`):
+`TallyRiskBound` picks the knobs as explicit functions of the primitives and makes each of the
+four noise tails and `fakeRun` at most `δ/8`, and every test and termination term at most `a`.
+With `n = |Q| + S`, `p₀ = prefixMax D k`, `lg = log(1/a)` and
+`Λ = 4(n + 2)|Σ| log((n + 3)|Σ|/δ) ≥ log(8 K E (n + 2)|Σ| / δ)`, its conditions are:
 
-- the records field needs `prefixMax D k ≲ 7e-13`, its slack `ρ` being held to about `1/W` by
-  `fakeRun`; with uniform letters that is `k ≥ 40`, and so `L ≥ 40`. At `L = 30` no knobs are
-  admissible with a useful bound.
-- the middles field needs `2θgpt` well under the middles test's rate, so `θ ≲ 1e-7`. At `θ = 0.004`
-  it needs `θgpt ≥ 5.95`.
-- `fakeRun` needs `κ ≲ 8e-7`; the shipped band has `κ = 4e-3`.
-- the band's cross limit needs `ε ≲ 1e-14`; the shipped one is `1e-10`.
+* the read model: `0 < κ`, `2κ ≤ κs`, `4κs(L + 1) ≤ 1`, `0 ≤ ε`, `4ε(L + 1)(n + 1) ≤ 1`, `0 ≤ θ`;
+* the tests' rates: `24θ ≤ θe`, `96(L + 1)(n + 1)θ ≤ θpt ≤ 1/4`, `24(n + 1)θ + 8p₀Λ ≤ θs ≤ 1`,
+  `φpt ≤ 3εd/4`, `εd ≤ 1`;
+* the prefix mass: `32(L + 1)p₀Λ ≤ φe θe` and `256 p₀Λ ≤ θpt φpt`;
+* the tests' counts: `n₀ ≥ 32 lg/θs²`, `32 lg/θpt²`, `2 lg/φpt²`, and
+  `4(L + 1)(1 + 12θ Lmax) lg < exc ≤ 8(L + 1)(1 + 12θ Lmax) lg`;
+* the level: `4(2^(Lmax+1)|Σ| + 7 budget²) a ≤ δ`;
+* the budget: `budget ≥ (n + 1)((4 Lmax|Σ| + 1)(8 lg/(εd² θpt²) + 4n₀/(3εd) + 2)
+  + 8(|Q||Σ| + S + 1)m/εd + 32 lg/εd² + 1)`;
+* the records cap: `(S + 1)m` at least `4 log(8/δ)`, `16κs(16(L + 1)(1 + 12θ Lmax) Lmax|Σ| lg + n₀)`,
+  `16κs budget (θe(L + 1)Lmax + 2θs + 2 Lmax|Σ| φe)` and `16 budget (ε(L + 1)(n + 1) + 3p₀Λ)`.
 
-One assignment meeting every condition, the binomial ones checked numerically: `L = 60`, `k = 54`,
-`θ = 1e-7`, `κ = 7.7e-7`, `ε = 1e-14`, `ρ = 3.5e-10`, `prefixMax D k = 5.8e-17`.
+Since the budget grows with `m`, the last two give, roughly,
+`κs ≲ (S + 1)εd / (128(n + 1)(|Q||Σ| + S + 1)(L + 1) Lmax θe)` and
+`p₀ ≲ (S + 1)εd / (384(n + 1)(|Q||Σ| + S + 1)Λ)`.
+
+At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 2`, `Lmax = 15`,
+`εd = θpt = θs = 1/4`, `φpt = 3/16`, `θe = 0.1`, `φe = 0.8`, `n₀ = 24215`, `m = 17826`,
+`budget = 3.5e8`, `a = 2.9e-21`, for any read model with `κ ≤ 5e-8`, `θ ≤ 6e-6`, `ε ≤ 1e-8`, and
+`p₀ = 2^-30`, which uniform length-30 binary probes give at `k = 30`. The shipped band's
+`κ = 4e-3` and `θ = 0.004` are far outside this; its `ε = 1e-10` is inside.
 
 ## Open
 
@@ -168,6 +183,8 @@ One assignment meeting every condition, the binomial ones checked numerically: `
   `SuffixFamily.readModel`, and `TallyRoundFamily`. Proved in `Proofs/TallyFamily.lean` from
   `TallyRound`, the family's reads being independent with its laws (`Proofs/SuffixFamily.lean`,
   from `FamilyReadBound`).
+- `Proofs/TallyRiskBound.lean` — `TallyRiskBound`: explicit knobs, Hoeffding's lower binomial tail
+  for the termination tests, and `tallyLog` bounding the unions' counts.
 - `Proofs/TallyRisk.lean` — `TallyRound` at each admissible choice of knobs: `TallyRoundGiven`
   (`Proofs/TallyParts.lean`, proved in `Proofs/TallyBudget.lean`) with its noise event's chance
   bounded by `tallyE_le` (`Proofs/TallyEvent.lean`), which unions the fields' tails:

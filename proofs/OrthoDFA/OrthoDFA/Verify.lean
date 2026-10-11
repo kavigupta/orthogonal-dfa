@@ -11,14 +11,15 @@ import OrthoDFA.Proofs.TallyEvent
 import OrthoDFA.Proofs.TallySpurNoise
 import OrthoDFA.Proofs.TallyFamily
 import OrthoDFA.Proofs.TallyRisk
+import OrthoDFA.Proofs.TallyRiskBound
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-the idealized round's, stated in `OrthoDFA.IdealRound`, the tally round's, stated in
-`OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
+the idealized round's, stated in `OrthoDFA.IdealRound`, the tally round's and its risk's closed
+form, stated in `OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
 `OrthoDFA.TallyFamily`.
 -/
 
@@ -62,6 +63,10 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tally_round : TallyRound := tally_round_holds
 
 #print axioms tally_round
+
+theorem tally_risk_bound : TallyRiskBound := tally_risk_bound_holds
+
+#print axioms tally_risk_bound
 
 #print axioms QTree.firsts_lintegral_le
 
