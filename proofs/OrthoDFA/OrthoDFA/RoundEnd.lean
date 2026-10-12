@@ -30,8 +30,8 @@ inductive RoundEnd (α : Type*)
   | harvest (zs : List (FreeMonoid α))
   | failed
 
-/-- The probes' law: draws of length at most `L`, the replay's anchors running from `start`, and
-no draw starting more than `q` of the time with any one string at least `start` long. -/
+/-- Draws of length at most `L`, the replay's anchors running from `start`, and no draw starting
+more than `q` of the time with any one string at least `start` long. -/
 structure PrefixDistribution (α : Type*) [Countable α] where
   D : Measure (FreeMonoid α)
   prob : IsProbabilityMeasure D
@@ -47,13 +47,13 @@ structure PrefixDistribution (α : Type*) [Countable α] where
 instance [Countable α] (P : PrefixDistribution α) : IsProbabilityMeasure P.D := P.prob
 
 /-- The replay's anchor: uniform on `{s, …, L}`. -/
-noncomputable def anchorLaw (s L : ℕ) : Measure ℕ :=
+noncomputable def uniformAnchor (s L : ℕ) : Measure ℕ :=
   ((L + 1 - s : ℕ) : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.Icc s L, Measure.dirac k
 
 /-- `rp w e` is what the replay of a draw `w` from the anchor `e` harvests. -/
 def Spread [Countable α] (D : Measure (FreeMonoid α)) (s L : ℕ)
     (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) : Prop :=
-  ∀ t : FreeMonoid α, (D.prod (anchorLaw s L)).real {q | t ∈ rp q.1 q.2}
+  ∀ t : FreeMonoid α, (D.prod (uniformAnchor s L)).real {q | t ∈ rp q.1 q.2}
     ≤ ∑ i ∈ Finset.Icc s t.toList.length,
         ((min i L + 1 - s : ℕ) : ℝ) / (L + 1 - s : ℕ)
           * D.real {p | p.toList.take i = t.toList.take i}
@@ -61,7 +61,7 @@ def Spread [Countable α] (D : Measure (FreeMonoid α)) (s L : ℕ)
 /-- The replay finds something on at least `y` of its draws and anchors. -/
 def Yields [Countable α] (D : Measure (FreeMonoid α)) (s L : ℕ)
     (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) (y : ℝ) : Prop :=
-  y ≤ (D.prod (anchorLaw s L)).real {q | rp q.1 q.2 ≠ []}
+  y ≤ (D.prod (uniformAnchor s L)).real {q | rp q.1 q.2 ≠ []}
 
 /-- The share of draws that visit a state satisfying `P` at some position from `s` to `L`. At
 `s = ⌈L/2⌉` this counts visits as #415's `covered_states` does: a state `q` is covered there when

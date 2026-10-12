@@ -59,7 +59,7 @@ theorem prefix_iff_take {x u : FreeMonoid α} :
 strings. -/
 theorem anchor_sum (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {s L : ℕ} (hs : s ≤ L)
     (Q : FreeMonoid α → Prop) [DecidablePred Q] :
-    (D.prod (anchorLaw s L)).real
+    (D.prod (uniformAnchor s L)).real
         {r | r.2 ≤ r.1.toList.length ∧ Q (FreeMonoid.ofList (r.1.toList.take r.2))}
       = ∑ u ∈ anchorStrs s L, if Q u then anchorWeight D s L u else 0 := by
   classical
@@ -69,13 +69,13 @@ theorem anchor_sum (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {s L : ℕ}
   set E : ℕ → FreeMonoid α → Set (FreeMonoid α) := fun k u =>
     {x | k ≤ x.toList.length ∧ FreeMonoid.ofList (x.toList.take k) = u}
   have hS : MeasurableSet S := S.to_countable.measurableSet
-  have hsec : ∀ x, anchorLaw s L (Prod.mk x ⁻¹' S)
+  have hsec : ∀ x, uniformAnchor s L (Prod.mk x ⁻¹' S)
       = ∑ k ∈ Finset.Icc (s) L,
           Set.indicator
             {y : FreeMonoid α | k ≤ y.toList.length ∧ Q (FreeMonoid.ofList (y.toList.take k))}
             (fun _ => c) x := by
     intro x
-    rw [anchorLaw_apply, Finset.card_filter, Nat.cast_sum, Finset.mul_sum]
+    rw [uniformAnchor_apply, Finset.card_filter, Nat.cast_sum, Finset.mul_sum]
     refine Finset.sum_congr rfl fun k _ => ?_
     simp only [Set.indicator, Set.mem_preimage, S, Set.mem_ofPred_eq]
     split_ifs <;> simp [c]
@@ -98,7 +98,7 @@ theorem anchor_sum (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {s L : ℕ}
       refine Set.disjoint_left.2 fun y hu hv => huv ?_
       exact hu.2.symm.trans hv.2
     · intro u _; exact (Set.to_countable _).measurableSet
-  have htot : (D.prod (anchorLaw s L)) S
+  have htot : (D.prod (uniformAnchor s L)) S
       = ∑ u ∈ anchorStrs s L, if Q u then c * D {x | u.toList <+: x.toList} else 0 := by
     rw [Measure.prod_apply hS]
     simp_rw [hsec]
@@ -139,7 +139,7 @@ theorem sum_anchorWeight_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure 
   have h := anchor_sum D hs (fun _ => True)
   simp only [if_true] at h
   rw [← h]
-  have := anchorLaw_isProb hs
+  have := uniformAnchor_isProb hs
   exact measureReal_le_one
 
 theorem one_sub_exp_neg_ge {x : ℝ} (hx : 0 ≤ x) : x * (1 - x) ≤ 1 - Real.exp (-x) := by
@@ -164,12 +164,12 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
     (hs : s ≤ L)
     (P : FreeMonoid α → Prop) (c : ℝ)
     (hc : ∀ u, P u → c ≤ μ.real {ω | read u ω = .undecided}) (m₀ q : ℝ)
-    (hm₀ : m₀ ≤ c * (D.prod (anchorLaw s L)).real
+    (hm₀ : m₀ ≤ c * (D.prod (uniformAnchor s L)).real
       {r | r.2 ≤ r.1.toList.length ∧ P (FreeMonoid.ofList (r.1.toList.take r.2))})
     (hq : 0 < q)
     (hpre : ∀ u : FreeMonoid α, s ≤ u.toList.length → u.toList.length ≤ L →
       D.real {x | u.toList <+: x.toList} ≤ q) :
-    μ.real {ω | (D.prod (anchorLaw s L)).real
+    μ.real {ω | (D.prod (uniformAnchor s L)).real
         {r | r.2 ≤ r.1.toList.length ∧
           read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
       ≤ Real.exp (-(m₀ * (L + 1 - s : ℕ)) / (16 * q)) := by
@@ -188,7 +188,7 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
   have hZm : ∀ u, Measurable (Z u) := fun u =>
     Measurable.comp (fun _ _ => trivial : Measurable (g u)) (hmeas u)
   have hZind : iIndepFun Z μ := hind.comp _ fun u => fun _ _ => trivial
-  have hY : ∀ ω, (D.prod (anchorLaw s L)).real
+  have hY : ∀ ω, (D.prod (uniformAnchor s L)).real
       {r | r.2 ≤ r.1.toList.length ∧
         read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
       = ∑ u ∈ anchorStrs s L, Z u ω := by
@@ -251,7 +251,7 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
         simp only [Z, g, Function.comp_apply]; split_ifs <;> simp [hw0 u]
       rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _)]
       exact Real.exp_le_one_iff.2 (by nlinarith)
-  have hsub : {ω | (D.prod (anchorLaw s L)).real
+  have hsub : {ω | (D.prod (uniformAnchor s L)).real
         {r | r.2 ≤ r.1.toList.length ∧
           read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
       ⊆ {ω | (∑ u ∈ anchorStrs s L, Z u) ω ≤ m₀ / 2} := by

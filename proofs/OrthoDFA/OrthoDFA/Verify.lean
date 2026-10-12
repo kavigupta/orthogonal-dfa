@@ -8,7 +8,7 @@ import OrthoDFA.Proofs.IdealRound
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead` and the idealized round's, stated in `OrthoDFA.IdealRound`.
+`OrthoDFA.FamilyRead` and level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`.
 -/
 
 namespace OrthoDFA
