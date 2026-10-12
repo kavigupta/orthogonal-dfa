@@ -121,6 +121,29 @@ lemma loopRounds_stops :
     rw [List.getLast?_eq_getElem?, ← hlast]
     simp
 
+/-- The first `r` rounds are run on the first `r` rounds' draws. -/
+lemma loopRounds_congr (draws' : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget) :
+    ∀ r : ℕ, (∀ i : Fin K, i.val < r → draws i = draws' i) →
+      loopRounds settings O draws r = loopRounds settings O draws' r
+  | 0, _ => rfl
+  | r + 1, h => by
+    rw [loopRounds_succ settings O draws r, loopRounds_succ settings O draws' r,
+      loopRounds_congr draws' r (fun i hi => h i (by omega))]
+    split_ifs with hc
+    · rw [h ⟨r, hc.1⟩ (by simp)]
+    · rfl
+
+lemma take_loopRounds {r s : ℕ} (hrs : r ≤ s) :
+    (loopRounds settings O draws s).take r = loopRounds settings O draws r := by
+  induction s, hrs using Nat.le_induction with
+  | base => exact List.take_of_length_le (length_loopRounds_le settings O draws r)
+  | succ s hrs ih =>
+    rw [loopRounds_succ]
+    split_ifs with hc
+    · have hlen := length_eq_of_allHarvested settings O draws hc.1.le hc.2
+      rw [List.take_append_of_le_length (by omega), ih]
+    · exact ih
+
 omit [MeasurableSpace Ω] in
 lemma harvestsOf_take_getD {rounds : List (LoopRound Ω α K)} {j i : ℕ} (hij : i < j)
     (hj : j ≤ rounds.length) (hall : AllHarvested (rounds.take j)) {zs : List (FreeMonoid α)}
