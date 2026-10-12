@@ -1,4 +1,4 @@
-import OrthoDFA.EpsRound
+import OrthoDFA.Level3_5Claim
 import OrthoDFA.Proofs.RandomStretch
 
 /-!
@@ -10,9 +10,9 @@ A split is genuine where two states at its leaf part at its midfix; a split betw
 targets is. Each genuine split adds a true leaf, so a tree grown by genuine splits has at most
 `|Q| + 1` leaves (`GInv`).
 
-A fix is fake where its target is not real. A step that is not a fake fix keeps `GInv`, and only
-a fake fix can make the tree too big. A fake fix needs `m` records at a target that is not real,
-each from a probe that can read a string wrong.
+A fix (`redirectOrSplit`) is fake where its target is not real. A step that is not a fake fix
+keeps `GInv`, and only a fake fix can make the tree too big. A fake fix needs `recordsToMove`
+records at a target that is not real, each from a probe that can read a string wrong.
 -/
 
 namespace OrthoDFA
@@ -239,7 +239,7 @@ theorem gInv_cls {s : Level3State α} (hs : Inv read C s) (hg : GInv M side s) :
     s.tree ∈ classSet (Fintype.card σ) :=
   classSet_mono' (by have := gInv_leaves M side hg; omega) hs.cls
 
-/-- A split of an edge redirected to a real target, at the `m`-th record of a real one, is
+/-- A split of an edge redirected to a real target, at the `recordsToMove`-th record of a real one, is
 genuine and keeps `GInv`'s count. -/
 theorem gInv_split {s : Level3State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
     {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges (p, c) = some (t₀, w₀))

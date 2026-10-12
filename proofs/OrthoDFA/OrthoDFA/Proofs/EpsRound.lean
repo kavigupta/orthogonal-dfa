@@ -7,9 +7,9 @@ import OrthoDFA.Proofs.Yield
 
 A record at a target that is not real comes from a probe that can read a string wrong: its two
 sifts end at leaves, and with every read on their way right they would end at the true leaves of
-a state and of its successor, making the target real. So a fake fix needs `m` such records at
-one edge and target within a stretch, which `fakeRisk` bounds given the read field's second
-tail. Otherwise the proof is the random round's, with `GInv` in place of the reads being right.
+a state and of its successor, making the target real. So a fake fix needs `recordsToMove` such
+records at one edge and target within a stretch, which `fakeRisk` bounds given the read field's
+second tail. Otherwise the proof is the random round's, with `GInv` in place of the reads being right.
 -/
 
 namespace OrthoDFA
@@ -148,7 +148,7 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
 noncomputable def recSet (T : DTree α) : Finset (List Bool × α × List Bool) :=
   T.leaves.toFinset ×ˢ ((Finset.univ : Finset α) ×ˢ T.leaves.toFinset)
 
-/-- `m` records over the stretch at an edge and a target that is not real. -/
+/-- `recordsToMove` records over the stretch at an edge and a target that is not real. -/
 def FakeEv (T : DTree α) (E : Edges α) (zs : List (FreeMonoid α)) : Prop :=
   ∃ τ ∈ recSet T, ¬ RealT M side T τ.1 τ.2.1 τ.2.2 ∧ C.recordsToMove ≤ zs.countP (fR read C T E τ)
 

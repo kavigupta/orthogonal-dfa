@@ -11,8 +11,8 @@ import OrthoDFA.Proofs.EpsRound
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
 `OrthoDFA.FamilyRead`, level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 3's
-random-read claim, stated in `OrthoDFA.Level3Claim`, and its claim with rare wrong reads, stated in
-`OrthoDFA.EpsRound`.
+random-read claim, stated in `OrthoDFA.Level3Claim`, and level 3.5's claim with rare wrong reads,
+stated in `OrthoDFA.Level3_5Claim`.
 -/
 
 namespace OrthoDFA

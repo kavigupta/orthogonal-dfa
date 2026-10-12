@@ -35,6 +35,11 @@
   independently, undecided with its state's chance and never on its state's wrong side, level 3
   on `C.probeBudget` probes fails to end well with chance at most `roundRisk` plus
   `exp(−1.5θ c/(16 q))`, its harvest's replay yielding `0.75θ c / n`.
+- `OrthoDFA/Level3_5.lean` — level 3.5, `indecisiveLStarLevel3_5`: level 3's algorithm, run where
+  a read can fall on its state's wrong side.
+- `OrthoDFA/Level3_5Claim.lean` — `EpsRoundCorrect`: `RandomRoundCorrect`, its yield included,
+  with each read on its state's wrong side with chance at most `εw`, at `epsRoundRisk` in place of
+  `roundRisk`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
