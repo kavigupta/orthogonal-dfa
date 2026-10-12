@@ -9,7 +9,8 @@ A record at a target that is not real comes from a probe that can read a string 
 sifts end at leaves, and with every read on their way right they would end at the true leaves of
 a state and of its successor, making the target real. So a fake fix needs `recordsToMove` such
 records at one edge and target within a stretch, which `fakeRisk` bounds given the read field's
-second tail. Otherwise the proof is the random round's, with `GInv` in place of the reads being right.
+second tail. Otherwise the proof is the random round's, with `GInv` in place of the reads being
+right.
 -/
 
 namespace OrthoDFA

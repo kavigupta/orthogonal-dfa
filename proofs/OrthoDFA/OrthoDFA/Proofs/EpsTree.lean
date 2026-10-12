@@ -239,8 +239,8 @@ theorem gInv_cls {s : Level3State α} (hs : Inv read C s) (hg : GInv M side s) :
     s.tree ∈ classSet (Fintype.card σ) :=
   classSet_mono' (by have := gInv_leaves M side hg; omega) hs.cls
 
-/-- A split of an edge redirected to a real target, at the `recordsToMove`-th record of a real one, is
-genuine and keeps `GInv`'s count. -/
+/-- A split of an edge redirected to a real target, at the `recordsToMove`-th record of a real
+one, is genuine and keeps `GInv`'s count. -/
 theorem gInv_split {s : Level3State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
     {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges (p, c) = some (t₀, w₀))
     (hmv : s.redirected (p, c) = true) (ht : RealT M side s.tree p c t) (hne : t₀ ≠ t) :
