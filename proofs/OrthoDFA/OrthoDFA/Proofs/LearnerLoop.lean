@@ -41,7 +41,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
     (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) :
     ∃ cap : ℝ, 0 < cap ∧ ∃ schedule : Finset (Option (Fin K)) → Finset State,
-      (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ,
+      (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ,
         0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
@@ -84,9 +84,9 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   refine ⟨cap, hcap0, fun pops =>
     stoppable η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP c cap, ?_, ?_⟩
   · intro pops B hB
-    obtain ⟨hlohi, -, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀
+    obtain ⟨hlohi, hk2, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀
       (Finset.mem_of_mem_filter _ hB)
-    refine ⟨hlohi, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ =>
+    refine ⟨hlohi, hk2, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ =>
       bandPasses_of_wide hp0 hp1 hr0 hr1 hlohi ?_⟩
     have hlog : Real.log (1 / c) = 2 / crossLimit := by
       rw [hc, one_div, ← Real.exp_neg, Real.log_exp]; ring
@@ -355,20 +355,86 @@ theorem loop_cluster_round_le (O : Oracle μ (FreeMonoid α))
         rw [Measure.real, loop_long_null P Dsf T, ENNReal.toReal_zero]
     _ = δc := add_zero δc
 
+open scoped Classical in
+/-- The state a round's clustering returns at, after `harvests`. -/
+def roundState (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (harvests : List (List (FreeMonoid α))) (c : ClusterDraws Ω α K) : State :=
+  Classical.epsilon fun B => B ∈ settings.schedule (loopPopulations K harvests.length)
+    ∧ clusterRun harvests c ∈ ret O.mq (loopPopulations K harvests.length) none
+      settings.indecisionLimit settings.gateLevel B
+
+/-- A round at the state `B` and family `F`, on level 4's draws `d`. -/
+def mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (x₀ : Run Ω (FreeMonoid α) (Option (Fin K))) (B : State) (F : Finset (FreeMonoid α))
+    (d : Ω × (Fin settings.level4.probeBudget → FreeMonoid α)) : LoopRound Ω α K :=
+  ⟨x₀, B, F, fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1,
+    indecisiveLStarLevel4 settings.level4 (fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1) d.2⟩
+
+omit [IsProbabilityMeasure μ] in
+lemma loopRound_eq_mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (harvests : List (List (FreeMonoid α)))
+    (d : LoopRoundDraws Ω α K settings.level4.probeBudget) :
+    loopRound settings O harvests d = mkRound settings O (clusterRun harvests d.1)
+      (roundState settings O harvests d.1)
+      (clusterAt O.mq (loopPopulations K harvests.length) (clusterRun harvests d.1)
+        (roundState settings O harvests d.1)) d.2 := rfl
+
+/-- After given harvests, the state a round's clustering returns at and its family are a
+measurable function of the round's clustering draws. -/
+theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (harvests : List (List (FreeMonoid α))) (B : State) (F : Finset (FreeMonoid α)) :
+    MeasurableSet {c : ClusterDraws Ω α K | roundState settings O harvests c = B
+      ∧ clusterAt O.mq (loopPopulations K harvests.length) (clusterRun harvests c)
+        (roundState settings O harvests c) = F} := by
+  sorry
+
+/-- At a given state and family, where level 4 fails its claim is a measurable set of its noise
+and probes. -/
+theorem measurableSet_level4Fail (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
+    (P : PrefixDistribution α) (θ δ εd : ℝ) (k : ℕ) (settings : LoopSettings K)
+    (x₀ : Run Ω (FreeMonoid α) (Option (Fin K))) (B : State) (F : Finset (FreeMonoid α)) :
+    MeasurableSet {d : Ω × (Fin settings.level4.probeBudget → FreeMonoid α) |
+      ¬ Level4Spec M O P θ δ εd k (mkRound settings O x₀ B F d)} := by
+  sorry
+
+instance : Countable State :=
+  Function.Injective.countable (f := fun B : State => (B.nsuff, B.npref, B.k, B.lo, B.hi, B.sc,
+    B.scd)) fun a b h => by
+    cases a; cases b
+    simp only [Prod.mk.injEq] at h
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
+    subst h1 h2 h3 h4 h5 h6 h7
+    rfl
+
+/-- `O` with a rate no string has set to zero. -/
+def Oracle.clamped (O : Oracle μ (FreeMonoid α)) : Oracle μ (FreeMonoid α) :=
+  { O with
+    ηIn := max O.ηIn 0
+    ηOut := max O.ηOut 0
+    noise_mean_in := fun w hw => by
+      have h := O.rate_nonneg w
+      unfold Oracle.rate at h
+      rw [if_pos hw] at h
+      rw [O.noise_mean_in w hw, max_eq_left h]
+    noise_mean_out := fun w hw => by
+      have h := O.rate_nonneg w
+      unfold Oracle.rate at h
+      rw [if_neg hw] at h
+      rw [O.noise_mean_out w hw, max_eq_left h] }
+
 /-- Round `r`, meeting the clustering's claim, meets level 4's but for chance `2δ`. Given the
 earlier rounds and the round's clustering, level 4 reads a suffix family drawn afresh. -/
 theorem loop_level4_round_le [Nonempty α] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
     (settings : LoopSettings K) (S k Ls : ℕ) (εcov slack εd δ crossLimit : ℝ)
-    (hLs : P.L + Fintype.card σ + S + 3 ≤ Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
-    (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ ∀ N, N + 1 ≤ B.k →
+    (hη1 : O.η ≤ 1)
+    (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
     (hwalk : settings.level4.walkStart = k) (hdis : settings.level4.disagreementRate = εd)
-    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hεd : 0 < εd) (hεd1 : εd ≤ 1) (hL1 : 1 ≤ P.L)
-    (hcross : 0 < crossLimit)
+    (hδ : 0 < δ) (hεd : 0 < εd) (hcross : 0 < crossLimit)
     (hθ : 384 * (P.L + 1) * (Fintype.card σ + S + 1)
       * loopTheta σ settings.indecisionLimit slack ≤ 1)
     (hθ0 : 0 ≤ loopTheta σ settings.indecisionLimit slack)
@@ -403,7 +469,197 @@ theorem loop_level4_round_le [Nonempty α] (M : _root_.DFA α σ) (O : Oracle μ
             ((loopRounds settings O draws K)[r]'hr).run
           ∧ ¬ Level4Spec M O P (loopTheta σ settings.indecisionLimit slack) δ εd k
             ((loopRounds settings O draws K)[r]'hr)} ≤ 2 * δ := by
-  sorry
+  classical
+  have : IsProbabilityMeasure (clusterLaw μ P.D Dsf K) := by unfold clusterLaw; infer_instance
+  have : IsProbabilityMeasure (loopMeasure μ P.D Dsf K settings.level4.probeBudget) := by
+    unfold loopMeasure; infer_instance
+  set T := settings.level4.probeBudget with hT
+  set θ := loopTheta σ settings.indecisionLimit slack
+  by_cases hrK : r < K
+  swap
+  · have hempty : {draws : Fin K → LoopRoundDraws Ω α K T |
+        ∃ hr : r < (loopRounds settings O draws K).length,
+          ClusterSpec settings O P.D εcov slack
+              (harvestsOf ((loopRounds settings O draws K).take r))
+              ((loopRounds settings O draws K)[r]'hr).run
+            ∧ ¬ Level4Spec M O P θ δ εd k ((loopRounds settings O draws K)[r]'hr)} = ∅ := by
+      refine Set.eq_empty_of_forall_notMem fun draws hd => ?_
+      obtain ⟨hr, -⟩ := hd
+      have := length_loopRounds_le settings O draws K
+      omega
+    rw [hempty, measureReal_empty]
+    positivity
+  set rK : Fin K := ⟨r, hrK⟩
+  obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
+  set x₀ : Run Ω (FreeMonoid α) (Option (Fin K)) := (ω₀, ((fun _ => 1, fun _ _ => 1), fun _ _ => 1))
+  set ν₂ : Measure (Ω × (Fin T → FreeMonoid α)) := μ.prod (Measure.pi fun _ : Fin T => P.D)
+  set Y := List (List (FreeMonoid α)) × State × Finset (FreeMonoid α)
+  set Bad : Y → Set (Ω × (Fin T → FreeMonoid α)) := fun y =>
+    {d | SuffixFree y.2.2 ∧ y.2.2.card + 1 ≤ y.2.1.k
+      ∧ y.2.1 ∈ settings.schedule (loopPopulations K y.1.length)
+      ∧ ¬ Level4Spec M O P θ δ εd k (mkRound settings O x₀ y.2.1 y.2.2 d)} with hBadd
+  -- the family's reads, as an oracle
+  set n : ℝ := (Fintype.card σ : ℝ) + S
+  set A : ℝ := (Fintype.card α : ℝ)
+  set ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
+  have hρ0 : 0 < ρ := by positivity
+  set W : ℝ := 8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1
+  have hW : 0 < W := by positivity
+  set κ₀ : ℝ := ρ / (4 * W)
+  have hκ₀ : 0 < κ₀ := by positivity
+  have hκ₀W : 4 * κ₀ * W ≤ ρ := by
+    simp only [κ₀]
+    rw [show 4 * (ρ / (4 * W)) * W = ρ by field_simp]
+  set Oc := O.clamped
+  have hηIn : 0 ≤ 1 - Oc.ηIn ∧ 1 - Oc.ηIn ≤ 1 := by
+    have h1 : O.ηIn ≤ O.η := le_max_left _ _
+    exact ⟨by simp only [Oc, Oracle.clamped]; have := le_max_left O.ηIn 0
+              exact sub_nonneg.2 (max_le (by linarith) (by norm_num)),
+      by simp only [Oc, Oracle.clamped]; linarith [le_max_right O.ηIn 0]⟩
+  have hηOut : 0 ≤ Oc.ηOut ∧ Oc.ηOut ≤ 1 := by
+    have h1 : O.ηOut ≤ O.η := le_max_right _ _
+    exact ⟨by simp only [Oc, Oracle.clamped]; exact le_max_right _ _,
+      by simp only [Oc, Oracle.clamped]; exact max_le (by linarith) (by norm_num)⟩
+  have hBad : ∀ y, ν₂ (Bad y) ≤ ENNReal.ofReal (2 * δ) := by
+    rintro ⟨H, B, F⟩
+    by_cases hc : SuffixFree F ∧ F.card + 1 ≤ B.k
+      ∧ B ∈ settings.schedule (loopPopulations K H.length)
+    swap
+    · have : Bad (H, B, F) = ∅ :=
+        Set.eq_empty_of_forall_notMem fun d hd => hc ⟨hd.1, hd.2.1, hd.2.2.1⟩
+      rw [this, measure_empty]
+      exact zero_le
+    obtain ⟨hsf, hcard, hB⟩ := hc
+    have hb := (hband _ B hB).2.2 F.card hcard (1 - Oc.ηIn) Oc.ηOut 0 κ₀ hηIn.1 hηIn.2
+      hηOut.1 hηOut.2 hκ₀.le
+    let fam : SuffixFamily μ α σ := ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit, 0, κ₀, hL, hsf, hb⟩
+    have h4 := hlevel4 fam.oracle θ hθ0 hθ hκ₀ hκ₀W hcross.le hε
+    rw [hdis, hwalk] at h4
+    have hmeas := measurableSet_level4Fail M O P θ δ εd k settings x₀ B F
+    have hBe : Bad (H, B, F) = {d : Ω × (Fin T → FreeMonoid α) |
+        ¬ Level4Spec M O P θ δ εd k (mkRound settings O x₀ B F d)} := by
+      ext d
+      simp only [hBadd, Set.mem_ofPred_eq]
+      exact ⟨fun h => h.2.2.2, fun h => ⟨hsf, hcard, hB, h⟩⟩
+    rw [hBe, Measure.prod_apply hmeas]
+    refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs => ?_) h4
+    exact hxs
+  have hσ : MeasurePreserving (id : LoopRoundDraws Ω α K T → LoopRoundDraws Ω α K T)
+      ((clusterLaw μ P.D Dsf K).prod ν₂) ((clusterLaw μ P.D Dsf K).prod ν₂) :=
+    MeasurePreserving.id _
+  set stage : (Fin K → LoopRoundDraws Ω α K T) → Y := fun x =>
+    (harvestsOf (loopRounds settings O x r),
+      roundState settings O (harvestsOf (loopRounds settings O x r)) (x rK).1,
+      clusterAt O.mq (loopPopulations K (harvestsOf (loopRounds settings O x r)).length)
+        (clusterRun (harvestsOf (loopRounds settings O x r)) (x rK).1)
+        (roundState settings O (harvestsOf (loopRounds settings O x r)) (x rK).1)) with hstage
+  have hdep : ∀ x x' : Fin K → LoopRoundDraws Ω α K T, (∀ i, i < rK → x i = x' i) →
+      (id (x rK)).1 = (id (x' rK)).1 → stage x = stage x' := by
+    intro x x' hxx' h1
+    have hH := loopRounds_congr settings O x x' r fun i hi => hxx' i hi
+    simp only [id] at h1
+    simp only [hstage, hH, h1]
+  have hmeas : ∀ y, MeasurableSet {x | stage x = y} := by
+    rintro ⟨H, B, F⟩
+    have hset : {x | stage x = (H, B, F)} = {x : Fin K → LoopRoundDraws Ω α K T |
+        harvestsOf (loopRounds settings O x r) = H}
+        ∩ (fun x : Fin K → LoopRoundDraws Ω α K T => (x rK).1) ⁻¹'
+          {c | roundState settings O H c = B
+            ∧ clusterAt O.mq (loopPopulations K H.length) (clusterRun H c)
+              (roundState settings O H c) = F} := by
+      ext x
+      simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage]
+      constructor
+      · intro h
+        simp only [hstage] at h
+        obtain ⟨h1, h23⟩ := Prod.mk.inj h
+        obtain ⟨h2, h3⟩ := Prod.mk.inj h23
+        subst h1
+        exact ⟨rfl, h2, h3⟩
+      · rintro ⟨h1, h2, h3⟩
+        subst h1
+        simp only [hstage]
+        exact Prod.ext rfl (Prod.ext h2 h3)
+    rw [hset]
+    exact (measurableSet_harvestsOf settings O r H).inter
+      (measurable_fst.comp (measurable_pi_apply rK) (measurableSet_roundPick settings O H B F))
+  have hmain := round_stage_le ((clusterLaw μ P.D Dsf K).prod ν₂) (clusterLaw μ P.D Dsf K) ν₂ id
+    hσ id measurable_id (fun w => rfl) rK stage hdep hmeas Bad (ENNReal.ofReal (2 * δ)) hBad
+  -- a suffix of the wrong length is drawn with chance zero
+  set N' := {x : Fin K → LoopRoundDraws Ω α K T | ∃ m, ((x rK).1.2.1 m).toList.length ≠ Ls}
+  have hN' : loopMeasure μ P.D Dsf K T N' = 0 := by
+    have hset : N' = ⋃ m, (fun x : Fin K → LoopRoundDraws Ω α K T => (x rK).1.2.1 m) ⁻¹'
+        {v | v.toList.length ≠ Ls} := by
+      ext x; simp [N']
+    rw [hset]
+    refine measure_iUnion_null fun m => ?_
+    have hev : MeasurePreserving (fun u : ℕ → FreeMonoid α => u m)
+        (Measure.infinitePi fun _ : ℕ => Dsf) Dsf :=
+      ⟨measurable_pi_apply m, Measure.infinitePi_map_eval _ m⟩
+    have hf : MeasurePreserving (fun x : Fin K → LoopRoundDraws Ω α K T => (x rK).1.2.1 m)
+        (Measure.pi fun _ : Fin K => (clusterLaw μ P.D Dsf K).prod ν₂) Dsf :=
+      hev.comp (measurePreserving_fst.comp (measurePreserving_snd.comp
+        (measurePreserving_fst.comp (measurePreserving_eval _ rK))))
+    unfold loopMeasure
+    rw [hf.measure_preimage (measurableSet_of_countable _).nullMeasurableSet]
+    exact hDsf
+  have hsub : {draws : Fin K → LoopRoundDraws Ω α K T |
+        ∃ hr : r < (loopRounds settings O draws K).length,
+          ClusterSpec settings O P.D εcov slack
+              (harvestsOf ((loopRounds settings O draws K).take r))
+              ((loopRounds settings O draws K)[r]'hr).run
+            ∧ ¬ Level4Spec M O P θ δ εd k ((loopRounds settings O draws K)[r]'hr)}
+      ⊆ {x | (id (x rK)).2 ∈ Bad (stage x)} ∪ N' := by
+    rintro x ⟨hr, hspec, hnot⟩
+    by_cases hlong : x ∈ N'
+    · exact Or.inr hlong
+    left
+    simp only [N', Set.mem_ofPred_eq, not_exists, not_not] at hlong
+    simp only [id, Set.mem_ofPred_eq, hstage, hBadd]
+    obtain ⟨hK', e⟩ := getElem_loopRounds settings O x K r hr
+    rw [take_loopRounds settings O x (le_of_lt hrK)] at e hspec
+    set H := harvestsOf (loopRounds settings O x r)
+    have hxr : x ⟨r, hK'⟩ = x rK := rfl
+    rw [e, hxr] at hspec hnot
+    have hret := loopRound_returns settings O H (x rK) hspec.1
+    set B := roundState settings O H (x rK).1
+    set c := (x rK).1
+    have hBs : B ∈ settings.schedule (loopPopulations K H.length) := hret.1
+    obtain ⟨-, hk2, -⟩ := hband _ B hBs
+    refine ⟨?_, ?_, hBs, hnot⟩
+    · -- the family's members are suffix draws, all of length `Ls`
+      intro v hv v' hv' hsuf
+      have hlen : ∀ w ∈ clusterAt O.mq (loopPopulations K H.length) (clusterRun H c) B,
+          w.toList.length = Ls := by
+        intro w hw
+        unfold clusterAt at hw
+        obtain ⟨hw1, hw⟩ := Finset.mem_erase.1 hw
+        have := clusterAround_subset _ 1 2 _ _ _ _
+          (one_mem_screenedAt O (loopPopulations K H.length) B (clusterRun H c)) hw
+        have := screenedAt_subset O (loopPopulations K H.length) B (clusterRun H c) this
+        simp only [poolAt, Finset.mem_insert, Finset.mem_image, Finset.mem_range] at this
+        rcases this with h | ⟨i, -, rfl⟩
+        · exact absurd h hw1
+        · exact hlong i
+      apply FreeMonoid.toList.injective
+      exact hsuf.eq_of_length ((hlen v hv).trans (hlen v' hv').symm)
+    · have h1 := clusterAt_card_add_one (rule := lloydClusterer) O (loopPopulations K H.length) B
+        (clusterRun H c)
+      have h2 := lloydClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun H c)) = 1)
+        (prefixesAt (loopPopulations K H.length) B.npref (clusterRun H c))
+        (screenedAt O.mq (loopPopulations K H.length) B (clusterRun H c)) B.k (by omega)
+      rw [clusterAt_eq]
+      unfold clusterFull at h1
+      omega
+  calc (loopMeasure μ P.D Dsf K T).real _
+      ≤ (loopMeasure μ P.D Dsf K T).real ({x | (id (x rK)).2 ∈ Bad (stage x)} ∪ N') :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ (loopMeasure μ P.D Dsf K T).real {x | (id (x rK)).2 ∈ Bad (stage x)}
+        + (loopMeasure μ P.D Dsf K T).real N' := measureReal_union_le _ _
+    _ ≤ 2 * δ + 0 := by
+        refine add_le_add (ENNReal.toReal_le_of_le_ofReal (by positivity) hmain) ?_
+        rw [Measure.real, hN', ENNReal.toReal_zero]
+    _ = 2 * δ := add_zero _
 
 end Rounds
 
@@ -624,8 +880,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
             simp only [Set.mem_compl_iff, Set.mem_ofPred_eq] at hv ⊢
             exact hv) hpAPDsf hDcol hcolSf) r
   have h2 : ∀ r, (loopMeasure μ P.D Dsf K s4.probeBudget).real (E2 r) ≤ 2 * δ := fun r =>
-    loop_level4_round_le M O hL P Dsf settings S k Ls εcov slack εd δ cross hLs hDsfLen hband
-      hwalk hdis hδ hδ1 hεd hεd1 hL1 hcr hθ' hθ0 hcross
+    loop_level4_round_le M O hL P Dsf settings S k Ls εcov slack εd δ cross hDsfLen
+      (by unfold Oracle.η at hη ⊢; linarith) hband hwalk hdis hδ hεd hcr hθ' hθ0 hcross
       (fun O' θ => hl4 O' θ) r
   have h3 : ∀ r, (loopMeasure μ P.D Dsf K s4.probeBudget).real (E3 r) ≤ δ := by
     intro r
