@@ -3531,9 +3531,7 @@ theorem decided_whp_gap (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (
 
 /-! ### From the clustering's empirical bound to the population's
 
-The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
-with replacement, and `flipMass` is about a fresh draw.  On the event that a population's
-draws are distinct the three agree; `pi_not_injective_le` prices the rest at `m²ρ`. -/
+The clustering scores a candidate on the table, which holds every population's sample. -/
 
 open scoped Classical in
 lemma sum_prefixesOf_le_prefixesAt (O : Oracle μ S) (populations : Finset J) (j : J)

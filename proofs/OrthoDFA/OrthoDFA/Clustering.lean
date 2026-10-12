@@ -347,7 +347,8 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
-          ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
+          ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p
+            (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α (clusterAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
@@ -373,13 +374,13 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of the uniform pool the way the noiseless oracle does, reads no other population backwards (cuts
-at least half of it that way), and leaves at most `2·indecisionLimit` of each undecided; no state draws more prefixes than the first count below, nor asks for a family
-or a suffix pool larger than the sizes below.  Some
-state draws no more than the second count, which is what validity alone costs, so a stop is
-covered from there; the first count is what the loop may need before a round passes.  Every
-state's band is wide enough that a vote over a family no larger than its own, whose mean lies
-above the band, lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`,
-at most `crossLimit` of the time.
+at least half of it that way), and leaves at most `2·indecisionLimit` of each undecided; no
+state draws more prefixes than the first count below, nor asks for a family or a suffix pool
+larger than the sizes below.  Some state draws no more than the second count, which is what
+validity alone costs, so a stop is covered from there; the first count is what the loop may need
+before a round passes.  Every state's band is wide enough that a vote over a family no larger
+than its own, whose mean lies above the band, lands at or below `lo`, or one whose mean lies at
+or below `lo` lands above `hi`, at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
 the one population the gate admits on.  `pAP` lower-bounds the share of suffixes that preserve
