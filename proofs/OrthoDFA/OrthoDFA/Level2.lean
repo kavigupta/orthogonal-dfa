@@ -54,6 +54,8 @@ def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E :
       else some (t, w)
     | none => none
 
+section
+
 variable (read : FreeMonoid α → ARU) (C : Level2Settings)
 
 def extendCleanRun (s : Level2State α) : Level2State α ⊕ RoundEnd α :=
@@ -108,8 +110,11 @@ structure Level2Result (α : Type*) where
   hypothesis : Hypothesis α
   ending : RoundEnd α
 
-def indecisiveLStarLevel2 {P : ℕ} (draws : Fin P → FreeMonoid α) : Level2Result α :=
-  let r := runProbes read C initialState (List.ofFn draws)
+end
+
+def indecisiveLStarLevel2 (settings : Level2Settings) (read : FreeMonoid α → ARU) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) : Level2Result α :=
+  let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
 end Ideal
