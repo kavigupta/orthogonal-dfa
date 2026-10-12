@@ -1,4 +1,4 @@
-import OrthoDFA.IdealRound
+import OrthoDFA.Level2Claim
 
 /-!
 # A round with random reads, none of them wrong
@@ -7,7 +7,7 @@ Every string's read is drawn once, independently across strings, from a law fixe
 string's target state: undecided with chance `U q`, otherwise on the state's side, never on the
 other. A read-state is bad where it is undecided more than `1.5θ` of the time.
 
-The round keeps the shape of `OrthoDFA.IdealRound`: each probe is walked from `k` along the
+The round keeps the shape of `OrthoDFA.Level2`: each probe is walked from `k` along the
 learned edges and sifted whole, a binary search finds where the two part, a clean disagreement
 records its edge and target, `m` records redirect the edge or, once it has been redirected, split
 its leaf, and a probe at an unlearned edge learns it. A probe shorter than `k` has no walk and is
@@ -32,8 +32,7 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (DTree Edges walk pre search agrees probe Outcome upd2 lcp retarget Disagrees
-  replay)
+open OrthoDFA.Ideal (siftAgrees probe Outcome retarget replay)
 
 variable {α : Type*}
 
@@ -46,7 +45,7 @@ noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
     else none
   else none
 
-/-- The positions `search` sifts: each middle, and its neighbours where it is undecided. -/
+/-- The positions `bisect` sifts: each middle, and its neighbours where it is undecided. -/
 def searchPos (ag : ℕ → Option Bool) (lo hi : ℕ) : List ℕ :=
   if _h : hi ≤ lo + 1 then []
   else
@@ -88,7 +87,7 @@ variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) 
 
 /-- A probe's walk, and the positions it sifts past its start, as `probe` reads them. -/
 def probePos : (ℕ → List Bool) × List ℕ :=
-  match T.sift read (pre x k) with
+  match T.sift read (prefixOf x k) with
   | .inr _ => (fun _ => [], [])
   | .inl a =>
     let ss := walk E a (x.toList.drop k)
@@ -96,15 +95,16 @@ def probePos : (ℕ → List Bool) × List ℕ :=
     let j := k + ss.length - 1
     match x.toList[j]? with
     | some _ =>
-      match T.sift read (pre x (j + 1)), T.sift read (pre x j) with
+      match T.sift read (prefixOf x (j + 1)), T.sift read (prefixOf x j) with
       | .inr _, _ => (st, [j + 1])
       | _, .inr _ => (st, [j + 1, j])
       | .inl _, .inl s =>
-        (st, if s = st j then [j + 1, j] else (j + 1) :: j :: searchPos (agrees read T x st) k j)
+        (st, if s = st j then [j + 1, j]
+          else (j + 1) :: j :: searchPos (siftAgrees read T x st) k j)
     | none =>
       match T.sift read x with
       | .inr _ => (st, [j])
-      | .inl e => (st, if e = st j then [j] else j :: searchPos (agrees read T x st) k j)
+      | .inl e => (st, if e = st j then [j] else j :: searchPos (siftAgrees read T x st) k j)
 
 /-- A probe, which counts as agreeing where it is shorter than `k`. -/
 def probeR : Outcome α := if x.toList.length < k then .agree else probe read T E k x
@@ -116,7 +116,8 @@ def charges : List (List Bool × α × ℕ × Option (FreeMonoid α)) :=
   else
     (((probePos read T E k x).2.filter fun i => k < i ∧ i ≤ x.toList.length).dedup).filterMap
       fun i => (edgeOf x (probePos read T E k x).1 i).map fun e =>
-        (e.1, e.2, siftReads read T (pre x i), (T.sift read (pre x i)).elim (fun _ => none) some)
+        (e.1, e.2, siftReads read T (prefixOf x i),
+          (T.sift read (prefixOf x i)).elim (fun _ => none) some)
 
 end Probe
 
@@ -131,16 +132,17 @@ def undAt (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : Li
 
 /-- The probe searched: its walk and its sift parted at decided reads. -/
 def searches : Outcome α → Bool
-  | .edge .. | .pair .. | .triple .. => true
+  | .wrongEdge .. => true
+  | .undecided _ _ clean => !clean
   | _ => false
 
 def startStr : Outcome α → List (FreeMonoid α)
-  | .startU z => [z]
+  | .undecided .start [z] _ => [z]
   | _ => []
 
 /-- The undecided middle the search stopped at. -/
 def ptStr : Outcome α → List (FreeMonoid α)
-  | .pair _ zs | .triple _ zs => zs.take 1
+  | .undecided _ zs false => zs.take 1
   | _ => []
 
 /-- The round's settings: the walk's start, the records that move an edge, the most leaves, and
@@ -167,7 +169,7 @@ undecided strings. -/
 structure RState (α : Type*) where
   tree : DTree α
   edges : Edges α
-  moved : List Bool → α → Bool
+  moved : List Bool × α → Bool
   recs : List (List Bool × α × List Bool)
   n : ℕ
   dis : ℕ
@@ -176,17 +178,11 @@ structure RState (α : Type*) where
   reads : List Bool → α → ℕ
   und : List Bool → α → List (FreeMonoid α)
 
-/-- How the round ends: consistent, a harvest, or the tree too big. -/
-inductive REnd (α : Type*)
-  | consistent
-  | harvest (zs : List (FreeMonoid α))
-  | tooBig
-
-def fresh (T : DTree α) (E : Edges α) (moved : List Bool → α → Bool) : RState α :=
+def fresh (T : DTree α) (E : Edges α) (moved : List Bool × α → Bool) : RState α :=
   ⟨T, E, moved, [], 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def start : RState α := fresh (.node 1 .leaf .leaf) (fun _ _ => none) fun _ _ => false
+def start : RState α := fresh (.node 1 .leaf .leaf) (fun _ => none) fun _ => false
 
 variable (read : FreeMonoid α → ARU) (C : Cfg)
 
@@ -203,7 +199,7 @@ def charge (s : RState α) (x : FreeMonoid α) : RState α :=
 open scoped Classical in
 /-- The tests, in turn: the start's undecided rate, an edge's undecided reads, the undecided
 middles among the searches, and the disagreement rate. -/
-noncomputable def look [Fintype α] (s : RState α) : Option (REnd α) :=
+noncomputable def look [Fintype α] (s : RState α) : Option (RoundEnd α) :=
   if rateSide C.θs C.a C.n₀ s.n s.startH.length = some true then some (.harvest s.startH)
   else if h : ∃ e ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α),
       C.τe * s.n ≤ s.reads e.1 e.2 ∧ C.exc + C.θe * s.reads e.1 e.2 ≤ (s.und e.1 e.2).length then
@@ -213,47 +209,44 @@ noncomputable def look [Fintype α] (s : RState α) : Option (REnd α) :=
   else if rateSide C.εd C.a C.n₀ s.n s.dis = some false then some .consistent
   else none
 
-noncomputable def finish [Fintype α] (s : RState α) : RState α ⊕ REnd α :=
+noncomputable def finish [Fintype α] (s : RState α) : RState α ⊕ RoundEnd α :=
   match look C s with
   | some e => .inr e
   | none => .inl s
 
-def split (s : RState α) (p : List Bool) (d : FreeMonoid α) : RState α ⊕ REnd α :=
+def split (s : RState α) (p : List Bool) (d : FreeMonoid α) : RState α ⊕ RoundEnd α :=
   let T' := s.tree.splitAt d p
-  if C.Lmax < T'.leaves.length then .inr .tooBig
-  else .inl (fresh T' (retarget read T' p s.edges) fun _ _ => false)
+  if C.Lmax < T'.leaves.length then .inr .failed
+  else .inl (fresh T' (retarget read T' p s.edges) fun _ => false)
 
 /-- The edge `(p, c)` has `m` records at `t`, with `u` at `p`: split where it has been
 redirected, else redirect it. -/
 def fix (s : RState α) (p : List Bool) (c : α) (u : FreeMonoid α) (t : List Bool) :
-    RState α ⊕ REnd α :=
-  match s.edges p c with
+    RState α ⊕ RoundEnd α :=
+  match s.edges (p, c) with
   | some (t₀, _) =>
-    if s.moved p c then split read C s p (FreeMonoid.of c * s.tree.midAt (lcp t t₀))
-    else .inl (fresh s.tree (upd2 s.edges p c (some (t, u))) (upd2 s.moved p c true))
+    if s.moved (p, c) then split read C s p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
+    else .inl (fresh s.tree (Function.update s.edges (p, c) (some (t, u)))
+      (Function.update s.moved (p, c) true))
   | none => .inl s
 
-noncomputable def step [Fintype α] (s : RState α) (x : FreeMonoid α) : RState α ⊕ REnd α :=
+noncomputable def step [Fintype α] (s : RState α) (x : FreeMonoid α) : RState α ⊕ RoundEnd α :=
   match probeR read s.tree s.edges C.k x with
-  | .member p c u t =>
-    .inl (fresh s.tree (upd2 s.edges p c (some (t, u))) (upd2 s.moved p c false))
-  | .edge p c u t =>
+  | .unlearnedEdge p c u t =>
+    .inl (fresh s.tree (Function.update s.edges (p, c) (some (t, u)))
+      (Function.update s.moved (p, c) false))
+  | .wrongEdge p c u t =>
     if C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) then fix read C s p c u t
     else finish C (charge read C { s with recs := s.recs ++ [(p, c, t)] } x)
   | _ => finish C (charge read C s x)
 
-/-- The round over the probes; the state it ended in, with `none` where the probes ran out. -/
-noncomputable def round [Fintype α] : RState α → List (FreeMonoid α) → RState α × Option (REnd α)
-  | s, [] => (s, none)
+/-- The state the probes end in, and how; `failed` where they ran out. -/
+noncomputable def round [Fintype α] : RState α → List (FreeMonoid α) → RState α × RoundEnd α
+  | s, [] => (s, .failed)
   | s, x :: xs =>
     match step read C s x with
     | .inl s' => round s' xs
-    | .inr e => (s, some e)
-
-def toRoundEnd : Option (REnd α) → RoundEnd α
-  | some .consistent => .consistent
-  | some (.harvest zs) => .harvest zs
-  | _ => .failed
+    | .inr e => (s, e)
 
 /-! ## The claim -/
 
@@ -297,7 +290,7 @@ noncomputable def stretchRisk (C : Cfg) (L Ns N₁ : ℕ) (G θr εd' θpt' : �
 
 /-- The largest mass the probes' law puts on one length-`k` prefix. -/
 noncomputable def prefixMax [Fintype α] (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
-  ⨆ u, D.real {x | pre x k = u}
+  ⨆ u, D.real {x | prefixOf x k = u}
 
 /-- The proof's free parameters. -/
 structure Knobs where
@@ -380,13 +373,14 @@ def RandomRoundCorrect : Prop :=
     (ε : ℝ),
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) P.D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            P.start P.L (replay (R.read · ω) r.1.tree r.1.edges)
-            (3 / 4 * θ * coverage P.D P.start P.L M (BadAt U θ) / (P.L + 1 - P.start : ℕ))
-            (toRoundEnd r.2)} ∂μ
+          ¬ EndsWell M (BadAt U θ) P.D ε {x | Disagrees (R.read · ω) ⟨r.1.tree, r.1.edges⟩ C.k x}
+            P.firstAnchor P.L (replay (R.read · ω) ⟨r.1.tree, r.1.edges⟩)
+            (3 / 4 * θ * coverage P.D P.firstAnchor P.L M (BadAt U θ)
+              / (P.L + 1 - P.firstAnchor : ℕ))
+            r.2} ∂μ
       ≤ roundRisk (α := α) σ θ P.D P.L C ε
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.start P.L M (BadAt U θ))
-          / (16 * P.q)))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.firstAnchor P.L M (BadAt U θ))
+          / (16 * P.prefixBound)))
 
 end Random
 

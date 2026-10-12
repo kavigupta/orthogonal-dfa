@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Yield
 /-!
 # The random round: the proofs
 
-A run with no bad step ends well within `stretches · Ns` probes: each stretch is shorter than
+A walkEnd with no bad step ends well within `stretches · Ns` probes: each stretch is shorter than
 `Ns` probes, and each change of hypothesis lowers `Ψr`. The chance of a bad step is at most what
 the current stretch risks plus `Ψr` times what a fresh one does (`anyB_le`), the chance part of
 #417 with its runs of clean probes replaced by stretches. Over the reads, the wrong ones are
@@ -18,7 +18,7 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (DTree Disagrees pi_succ_apply)
+open OrthoDFA.Ideal (pi_succ_apply)
 
 section Compose
 
@@ -79,14 +79,14 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
   {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α))
   (ε : ℝ) (Ns : ℕ)
 
-/-- A run with no bad step ends well, given enough probes. -/
+/-- A walkEnd with no bad step ends well, given enough probes. -/
 theorem ends_of_not_anyB (X : RState α → FreeMonoid α → Prop) (hm : 1 ≤ C.m) :
     ∀ (xs : List (FreeMonoid α)) (s : RState α), Inv read C s → s.n < Ns →
       Ψr C s * Ns + (Ns - s.n) ≤ xs.length →
       ¬ AnyB (step read C) (BadStep read C M U θ D ε Ns X) s xs →
       EndsWell M (BadAt U θ) D ε
-        {y | Disagrees read (round read C s xs).1.tree (round read C s xs).1.edges C.k y}
-        0 0 (fun _ _ => []) 0 (toRoundEnd (round read C s xs).2)
+        {y | Disagrees read ⟨(round read C s xs).1.tree, (round read C s xs).1.edges⟩ C.k y}
+        0 0 (fun _ _ => []) 0 (round read C s xs).2
   | [], s, _, hn, hlen, _ => by simp at hlen; omega
   | x :: xs, s, hs, hn, hlen, hb => by
     simp only [AnyB, not_or, not_exists, not_and] at hb
@@ -127,8 +127,8 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (hP : stretches C (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := round read C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            0 0 (fun _ _ => []) 0 (toRoundEnd r.2)}
+          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.k x}
+            0 0 (fun _ _ => []) 0 r.2}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α) * stretchRisk C L Ns N₁ G θr εd' θpt') := by
   have h2 : 2 ≤ C.Lmax := by omega
   have hNs : 0 < Ns := by omega
@@ -171,8 +171,8 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
 theorem le_prefixMax [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
-    (u : FreeMonoid α) : D.real {x | Ideal.pre x k = u} ≤ prefixMax D k :=
-  le_ciSup (f := fun u => D.real {x | Ideal.pre x k = u}) ⟨1, by
+    (u : FreeMonoid α) : D.real {x | prefixOf x k = u} ≤ prefixMax D k :=
+  le_ciSup (f := fun u => D.real {x | prefixOf x k = u}) ⟨1, by
     rintro _ ⟨v, rfl⟩; exact measureReal_le_one⟩ u
 
 theorem prefixMax_pos [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ) :
@@ -180,12 +180,12 @@ theorem prefixMax_pos [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityM
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   by_contra h
   push_neg at h
-  have h0 : ∀ u : FreeMonoid α, D {x | Ideal.pre x k = u} = 0 := by
+  have h0 : ∀ u : FreeMonoid α, D {x | prefixOf x k = u} = 0 := by
     intro u
     have h1 := (le_prefixMax D k u).trans h
-    have h2 : D.real {x | Ideal.pre x k = u} = 0 := le_antisymm h1 measureReal_nonneg
+    have h2 : D.real {x | prefixOf x k = u} = 0 := le_antisymm h1 measureReal_nonneg
     rwa [measureReal_eq_zero_iff] at h2
-  have : (Set.univ : Set (FreeMonoid α)) = ⋃ u, {x | Ideal.pre x k = u} := by
+  have : (Set.univ : Set (FreeMonoid α)) = ⋃ u, {x | prefixOf x k = u} := by
     ext x; simp
   have hu := measure_iUnion_null (μ := D) h0
   rw [← this, measure_univ] at hu
@@ -246,19 +246,19 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   set P := C.budget
   set p₀ := prefixMax D C.k
   have hp₀ : 0 < p₀ := prefixMax_pos D C.k
-  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | Ideal.pre x C.k = u} ≤ p₀ :=
+  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | prefixOf x C.k = u} ≤ p₀ :=
     fun u _ => le_prefixMax D C.k u
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set W := {ω | ¬ NoWrong M side (read · ω)}
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     D.real (PotGood M U θ C.k (read · ω) T) ≤ G}
   set m₀ := 3 / 2 * θ * coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ)
-  set Ny := {ω | (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+  set Ny := {ω | (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
       read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
-  have hm₀ : m₀ ≤ 3 / 2 * θ * (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+  have hm₀ : m₀ ≤ 3 / 2 * θ * (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
       BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} := by
     have hcov : coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ)
-        ≤ (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+        ≤ (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
           BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
       coverage_le_anchor D st L M (BadAt U θ)
     simp only [m₀, mul_div_assoc]
@@ -285,10 +285,10 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   set B := toMeasurable μ (W ∪ Nn ∪ Ny)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := round (read · ω) C start (List.ofFn xs)
-        ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          st L (Ideal.replay (read · ω) r.1.tree r.1.edges)
+        ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) ⟨r.1.tree, r.1.edges⟩ C.k x}
+          st L (Ideal.replay (read · ω) ⟨r.1.tree, r.1.edges⟩)
           (3 / 4 * θ * coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ))
-          (toRoundEnd r.2)}
+          r.2}
         ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B

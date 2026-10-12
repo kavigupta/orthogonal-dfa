@@ -9,8 +9,8 @@ import OrthoDFA.Proofs.RandomRound
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead`, the idealized round's, stated in `OrthoDFA.IdealRound`, and the round's
-with random reads, stated in `OrthoDFA.RandomRound`.
+`OrthoDFA.FamilyRead`, level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, and the
+round's with random reads, stated in `OrthoDFA.RandomRound`.
 -/
 
 namespace OrthoDFA

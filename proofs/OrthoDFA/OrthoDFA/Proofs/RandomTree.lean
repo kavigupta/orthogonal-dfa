@@ -16,8 +16,7 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (DTree Edges walk pre search agrees probe Outcome upd2 lcp retarget Disagrees
-  EdgesOK Reached OutcomeOK)
+open OrthoDFA.Ideal (probe Outcome retarget EdgesOK Reached OutcomeOK)
 
 variable {α : Type*}
 
@@ -34,7 +33,7 @@ noncomputable def mids : DTree α → Finset (FreeMonoid α)
 open scoped Classical in
 /-- The strings a probe of `x` can read: a prefix of length at least `k` followed by a midfix. -/
 noncomputable def pot (k : ℕ) (x : FreeMonoid α) (T : DTree α) : Finset (FreeMonoid α) :=
-  (Finset.Icc k x.toList.length).biUnion fun p => (mids T).image (pre x p * ·)
+  (Finset.Icc k x.toList.length).biUnion fun p => (mids T).image (prefixOf x p * ·)
 
 /-- The probes that can read a string at a good read-state undecided. -/
 def PotGood {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (k : ℕ) (read : FreeMonoid α → ARU)
@@ -49,15 +48,16 @@ noncomputable def classSet [Fintype α] : ℕ → Finset (DTree α)
   | n + 1 => classSet n ∪ (classSet n).biUnion fun T =>
       (T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
         T.leaves.toFinset).image
-        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (lcp q.2.2.1 q.2.2.2)) q.1
+        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1
 
 variable [DecidableEq α] (read : FreeMonoid α → ARU) (C : Cfg)
 
 /-- #417's settings with this round's cap, for its potential. -/
-def idealCfg (C : Cfg) : Ideal.RoundCfg := ⟨C.k, C.m, 1, 1, C.Lmax⟩
+def idealCfg (C : Cfg) : Ideal.Level2Settings := ⟨C.k, C.m, 1, 1, C.Lmax⟩
 
 /-- The splits, learnings and redirects left, as #417 counts them. -/
-def Ψr [Fintype α] (s : RState α) : ℕ := Ideal.Ψ (idealCfg C) (Ideal.fresh s.tree s.edges s.moved)
+def Ψr [Fintype α] (s : RState α) : ℕ :=
+  Ideal.Ψ (idealCfg C) (Ideal.newHypothesis s.tree s.edges s.moved)
 
 structure Inv [Fintype α] (s : RState α) : Prop where
   edges : EdgesOK read s.tree s.edges
@@ -153,7 +153,7 @@ theorem classSet_mono' [Fintype α] {n n' : ℕ} (h : n ≤ n') :
 
 theorem classSet_split [Fintype α] {n : ℕ} {T : DTree α} (hT : T ∈ classSet n)
     {p t t₀ : List Bool} {c : α} (hp : p ∈ T.leaves) (ht : t ∈ T.leaves) (ht₀ : t₀ ∈ T.leaves) :
-    T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p ∈ classSet (n + 1) := by
+    T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p ∈ classSet (n + 1) := by
   classical
   simp only [classSet]
   refine Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨T, hT, Finset.mem_image.2
@@ -166,7 +166,7 @@ end Tree
 
 /-- The record a probe makes: the edge it disagrees at and the target there. -/
 def recOf : Outcome α → Option (List Bool × α × List Bool)
-  | .edge p c _ t => some (p, c, t)
+  | .wrongEdge p c _ t => some (p, c, t)
   | _ => none
 
 section Steps
@@ -193,10 +193,10 @@ theorem leaves_root : (DTree.node 1 .leaf .leaf : DTree α).leaves = [[false], [
 
 theorem Ψr_start (h2 : 2 ≤ C.Lmax) :
     Ψr C (start : RState α) + 1 ≤ stretches C (Fintype.card α) := by
-  have hΦ := Ideal.Φ_le (Ideal.fresh (start : RState α).tree (start : RState α).edges
+  have hΦ := Ideal.Φ_le (Ideal.newHypothesis (start : RState α).tree (start : RState α).edges
     (start : RState α).moved)
   unfold Ψr stretches Ideal.Ψ
-  simp only [start, fresh, Ideal.fresh] at hΦ ⊢
+  simp only [start, fresh, Ideal.newHypothesis] at hΦ ⊢
   rw [leaves_root] at hΦ ⊢
   simp only [List.length_cons, List.length_nil, zero_add, Nat.reduceAdd] at hΦ ⊢
   have hX : Ideal.X (α := α) (idealCfg C) = 2 * C.Lmax * Fintype.card α + 1 := rfl
@@ -208,11 +208,11 @@ theorem Ψr_start (h2 : 2 ≤ C.Lmax) :
   have : 4 * Fintype.card α ≤ 2 * (2 * C.Lmax * Fintype.card α + 1) := by
     have := Nat.mul_le_mul_right (Fintype.card α) h2
     nlinarith
-  have hC : (idealCfg C).Lmax = C.Lmax := rfl
+  have hC : (idealCfg C).maxLeaves = C.Lmax := rfl
   rw [hC]
   omega
 
-theorem probeR_ok {T : DTree α} {E : Ideal.Edges α} (hE : EdgesOK read T E) (k : ℕ)
+theorem probeR_ok {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) (k : ℕ)
     (x : FreeMonoid α) : OutcomeOK read T E (probeR read T E k x) := by
   unfold probeR
   split_ifs
@@ -235,28 +235,29 @@ theorem charge_n (s : RState α) (x : FreeMonoid α) : (charge read C s x).n = s
 /-- The steps that keep the hypothesis: a look after counting the probe. -/
 theorem step_cases {s s' : RState α} {x : FreeMonoid α} (hs : Inv read C s)
     (h : step read C s x = .inl s') :
-    (∃ p c u t, probeR read s.tree s.edges C.k x = .member p c u t ∧ s.edges p c = none ∧
+    (∃ p c u t, probeR read s.tree s.edges C.k x = .unlearnedEdge p c u t ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
-        s' = fresh s.tree (upd2 s.edges p c (some (t, u))) (upd2 s.moved p c false))
-    ∨ (∃ p c u t t₀ w₀, probeR read s.tree s.edges C.k x = .edge p c u t ∧
-        s.edges p c = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
+        s' = fresh s.tree (Function.update s.edges (p, c) (some (t, u)))
+          (Function.update s.moved (p, c) false))
+    ∨ (∃ p c u t t₀ w₀, probeR read s.tree s.edges C.k x = .wrongEdge p c u t ∧
+        s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧
         fix read C s p c u t = .inl s')
     ∨ (s' = charge read C
           { s with recs := s.recs ++ (recOf (probeR read s.tree s.edges C.k x)).toList } x
         ∧ look C s' = none
-        ∧ ∀ p c u t, probeR read s.tree s.edges C.k x = .edge p c u t →
+        ∧ ∀ p c u t, probeR read s.tree s.edges C.k x = .wrongEdge p c u t →
           ¬ C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t)) := by
   have hOK := probeR_ok read hs.edges C.k x
   unfold step at h
   generalize hg : probeR read s.tree s.edges C.k x = o at h hOK
   cases o with
-  | member p c u t =>
+  | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
     exact Or.inl ⟨p, c, u, t, rfl, hE, hu, huc, hp, by simpa using h.symm⟩
-  | edge p c u t =>
+  | wrongEdge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, hne⟩ := hOK
     simp only at h
     split_ifs at h with hc
@@ -269,16 +270,7 @@ theorem step_cases {s s' : RState α} {x : FreeMonoid α} (hs : Inv read C s)
   | agree =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
-  | startU z =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
-  | endU z =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
-  | triple k zs =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
-  | pair k zs =>
+  | undecided k zs cl =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
@@ -290,8 +282,8 @@ theorem step_same {s s' : RState α} (hs : Inv read C s)
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, -, hfix⟩ |
     ⟨rfl, -, hlt⟩
   · exfalso
-    have := congrFun (congrFun he p) c
-    simp only [fresh, Ideal.upd2_same, hE] at this
+    have := congrFun he (p, c)
+    simp only [fresh, Function.update_self, hE] at this
     exact absurd this (by simp)
   · exfalso
     unfold fix at hfix
@@ -309,15 +301,15 @@ theorem step_same {s s' : RState α} (hs : Inv read C s)
       omega
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
-      have := congrFun (congrFun he p) c
-      simp only [fresh, Ideal.upd2_same, hE, Option.some.injEq, Prod.mk.injEq] at this
+      have := congrFun he (p, c)
+      simp only [fresh, Function.update_self, hE, Option.some.injEq, Prod.mk.injEq] at this
       exact hne this.1.symm
   · refine ⟨⟨hs.edges, ?_, hs.size, hs.reached, hs.cls, hs.two⟩, rfl, rfl⟩
     intro r
     simp only [charge_recs]
     generalize hg : probeR read s.tree s.edges C.k x = o at hlt
     cases o with
-    | edge p c u t =>
+    | wrongEdge p c u t =>
       by_cases hr : r = (p, c, t)
       · subst hr; have := hlt p c u t rfl; simp only [recOf, Option.toList_some]; omega
       · simp only [recOf, Option.toList_some, List.count_append, List.count_singleton]
@@ -332,7 +324,7 @@ theorem split_reached {s : RState α} (hs : Inv read C s) {p t t₀ : List Bool}
     (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
     (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
     (hne : t₀ ≠ t) :
-    Reached read (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p) := by
+    Reached read (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) := by
   have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm hne)
   refine Ideal.reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
   · simpa [mul_assoc] using hpart.1
@@ -345,14 +337,15 @@ theorem split_ok {s : RState α} (hs : Inv read C s) (hm : 1 ≤ C.m) {p t t₀ 
     (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
     (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
     (hne : t₀ ≠ t)
-    (hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p).leaves.length
+    (hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length
       ≤ C.Lmax) :
-    let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p
-    Inv read C (fresh T' (retarget read T' p s.edges) fun _ _ => false)
-      ∧ Ψr C (fresh T' (retarget read T' p s.edges) fun _ _ => false) < Ψr C s := by
+    let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
+    Inv read C (fresh T' (retarget read T' p s.edges) fun _ => false)
+      ∧ Ψr C (fresh T' (retarget read T' p s.edges) fun _ => false) < Ψr C s := by
   intro T'
   have hreach := split_reached read C hs hp hu huc hw₀ hw₀c hne
-  have hlen := DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) s.tree p hp
+  have hlen :=
+    DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) s.tree p hp
   have ht := DTree.sift_inl_mem read _ _ t huc
   have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
   refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, by simp [fresh]; omega, hsz, hreach,
@@ -361,7 +354,7 @@ theorem split_ok {s : RState α} (hs : Inv read C s) (hm : 1 ≤ C.m) {p t t₀ 
     rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
       have := hs.two; omega]
     exact classSet_split hs.cls hp ht ht₀
-  · exact Ideal.Ψ_lt_split (idealCfg C) (s := Ideal.fresh s.tree s.edges s.moved) hp hsz _ _
+  · exact Ideal.Ψ_lt_split (idealCfg C) (s := Ideal.newHypothesis s.tree s.edges s.moved) hp hsz _ _
 
 /-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
 theorem step_change (hm : 1 ≤ C.m) {s s' : RState α} (hs : Inv read C s) {x : FreeMonoid α}
@@ -372,8 +365,8 @@ theorem step_change (hm : 1 ≤ C.m) {s s' : RState α} (hs : Inv read C s) {x :
     ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, hfix⟩ | ⟨rfl, -, -⟩
   · refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [fresh]; omega, hs.size,
       hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-    exact Ideal.Ψ_lt_upd (idealCfg C) (s := Ideal.fresh s.tree s.edges s.moved) hp _ _
-      (by simp [Ideal.wt, Ideal.fresh, Ideal.upd2_same, hE])
+    exact Ideal.Ψ_lt_upd (idealCfg C) (s := Ideal.newHypothesis s.tree s.edges s.moved) hp _ _
+      (by simp [Ideal.wt, Ideal.newHypothesis, Function.update_self, hE])
   · obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
     unfold fix at hfix
     rw [hE] at hfix
@@ -390,29 +383,30 @@ theorem step_change (hm : 1 ≤ C.m) {s s' : RState α} (hs : Inv read C s) {x :
       subst hfix
       refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [fresh]; omega, hs.size,
         hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-      exact Ideal.Ψ_lt_upd (idealCfg C) (s := Ideal.fresh s.tree s.edges s.moved) hp _ _
-        (by simp [Ideal.wt, Ideal.fresh, Ideal.upd2_same, hE, hmv])
+      exact Ideal.Ψ_lt_upd (idealCfg C) (s := Ideal.newHypothesis s.tree s.edges s.moved) hp _ _
+        (by simp [Ideal.wt, Ideal.newHypothesis, Function.update_self, hE, hmv])
   · exact absurd ⟨rfl, rfl⟩ hne
 
 /-- The round ends too big only at a split, of an edge redirected since it was learned, at
 its `m`-th record of a new target. -/
 theorem step_tooBig {s : RState α} (hs : Inv read C s) {x : FreeMonoid α}
-    (h : step read C s x = .inr .tooBig) :
-    ∃ p c u t t₀ w₀, probeR read s.tree s.edges C.k x = .edge p c u t ∧
-      s.edges p c = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
+    (h : step read C s x = .inr .failed) :
+    ∃ p c u t t₀ w₀, probeR read s.tree s.edges C.k x = .wrongEdge p c u t ∧
+      s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
       s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
-      s.moved p c = true ∧ C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧
-      C.Lmax < (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p).leaves.length := by
+      s.moved (p, c) = true ∧ C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧
+      C.Lmax < (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length
+        := by
   have hOK := probeR_ok read hs.edges C.k x
-  have hlook : ∀ t : RState α, finish C t ≠ .inr .tooBig := by
+  have hlook : ∀ t : RState α, finish C t ≠ .inr .failed := by
     intro t ht
     unfold finish look at ht
     split_ifs at ht <;> simp_all
   unfold step at h
   generalize hg : probeR read s.tree s.edges C.k x = o at h hOK
   cases o with
-  | member p c u t => simp at h
-  | edge p c u t =>
+  | unlearnedEdge p c u t => simp at h
+  | wrongEdge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, htt⟩ := hOK
     simp only at h
     split_ifs at h with hc
@@ -426,14 +420,11 @@ theorem step_tooBig {s : RState α} (hs : Inv read C s) {x : FreeMonoid α}
         exact ⟨p, c, u, t, t₀, w₀, rfl, hE, htt, hp, hu, huc, hmv, hc, hlt⟩
     · exact absurd h (hlook _)
   | agree => exact absurd h (hlook _)
-  | startU z => exact absurd h (hlook _)
-  | endU z => exact absurd h (hlook _)
-  | triple k zs => exact absurd h (hlook _)
-  | pair k zs => exact absurd h (hlook _)
+  | undecided k zs cl => exact absurd h (hlook _)
 
 theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.Lmax)
     {s : RState α} (hs : Inv read C s) (x : FreeMonoid α) :
-    step read C s x ≠ .inr .tooBig := by
+    step read C s x ≠ .inr .failed := by
   intro h
   obtain ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, -, hlt⟩ := step_tooBig read C hs h
   obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE

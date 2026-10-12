@@ -20,18 +20,18 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (DTree Edges Disagrees Outcome EdgesOK OutcomeOK)
+open OrthoDFA.Ideal (Outcome EdgesOK OutcomeOK)
 
 section Segments
 
 variable {S X E : Type*} (step : S → X → S ⊕ E) (B : S → X → Prop) (same : S → S → Prop)
 
-/-- Some step before the run leaves the segment is bad. -/
+/-- Some step before the walkEnd leaves the segment is bad. -/
 def SegB : S → List X → Prop
   | _, [] => False
   | s, x :: xs => B s x ∨ ∃ s', step s x = .inl s' ∧ same s s' ∧ SegB s' xs
 
-/-- Some step of the run is bad. -/
+/-- Some step of the walkEnd is bad. -/
 def AnyB : S → List X → Prop
   | _, [] => False
   | s, x :: xs => B s x ∨ ∃ s', step s x = .inl s' ∧ AnyB s' xs
@@ -48,7 +48,7 @@ def Same (s s' : RState α) : Prop := s'.tree = s.tree ∧ s'.edges = s.edges
 steps `X`, or its stretch reaches `Ns` probes. -/
 def BadStep (X : RState α → FreeMonoid α → Prop) (s : RState α) (x : FreeMonoid α) : Prop :=
   (s.n < Ns ∧ ((∃ e, step read C s x = .inr e ∧ ¬ EndsWell M (BadAt U θ) D ε
-      {y | Disagrees read s.tree s.edges C.k y} 0 0 (fun _ _ => []) 0 (toRoundEnd (some e)))
+      {y | Disagrees read ⟨s.tree, s.edges⟩ C.k y} 0 0 (fun _ _ => []) 0 e)
       ∨ X s x))
   ∨ ∃ s', step read C s x = .inl s' ∧ Same s s' ∧ s'.n = Ns
 
@@ -60,7 +60,8 @@ def chg (s : RState α) (x : FreeMonoid α) : RState α :=
 
 section StepFacts
 
-theorem finish_inr {t : RState α} {e : REnd α} (h : finish C t = .inr e) : look C t = some e := by
+theorem finish_inr {t : RState α} {e : RoundEnd α} (h : finish C t = .inr e) :
+    look C t = some e := by
   unfold finish at h
   split at h
   · rename_i e' he'; simp only [Sum.inr.injEq] at h; rw [he', h]
@@ -76,12 +77,11 @@ theorem chg_of_none {s : RState α} {x : FreeMonoid α}
   rw [h]
   simp only [Option.toList_none, List.append_nil]
 
-theorem step_inr {s : RState α} {x : FreeMonoid α} (hne : step read C s x ≠ .inr .tooBig)
-    {e : REnd α} (h : step read C s x = .inr e) : look C (chg read C s x) = some e := by
+theorem step_inr {s : RState α} {x : FreeMonoid α} (hne : step read C s x ≠ .inr .failed)
+    {e : RoundEnd α} (h : step read C s x = .inr e) : look C (chg read C s x) = some e := by
   have h' := h
   unfold step at h
-  rcases ho : probeR read s.tree s.edges C.k x with _ | z | z | ⟨p, c, u, t⟩ | ⟨k, zs⟩ | ⟨k, zs⟩ |
-    ⟨p, c, u, t⟩
+  rcases ho : probeR read s.tree s.edges C.k x with _ | ⟨p, c, u, t⟩ | ⟨p, c, u, t⟩ | ⟨k, zs, cl⟩
   all_goals rw [ho] at h
   all_goals try (rw [chg_of_none read C (by rw [ho]; rfl)]; exact finish_inr C h)
   swap
@@ -92,7 +92,7 @@ theorem step_inr {s : RState α} {x : FreeMonoid α} (hne : step read C s x ≠ 
     simp only at h
     split_ifs at h with hc
     · exfalso
-      have : e = .tooBig := by
+      have : e = .failed := by
         unfold fix at h
         split at h
         · split_ifs at h
@@ -113,8 +113,8 @@ theorem step_same_chg {s s' : RState α} (hs : Inv read C s)
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, -, hfix⟩ |
     ⟨h1, h2, -⟩
   · exfalso
-    have := congrFun (congrFun hsm.2 p) c
-    simp only [fresh, Ideal.upd2_same, hE] at this
+    have := congrFun hsm.2 (p, c)
+    simp only [fresh, Function.update_self, hE] at this
     exact absurd this (by simp)
   · exfalso
     unfold fix at hfix
@@ -132,8 +132,8 @@ theorem step_same_chg {s s' : RState α} (hs : Inv read C s)
       omega
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
-      have := congrFun (congrFun hsm.2 p) c
-      simp only [fresh, Ideal.upd2_same, hE, Option.some.injEq, Prod.mk.injEq] at this
+      have := congrFun hsm.2 (p, c)
+      simp only [fresh, Function.update_self, hE, Option.some.injEq, Prod.mk.injEq] at this
       exact hne this.1.symm
   · exact ⟨h1, h2, hinv⟩
 
@@ -144,7 +144,7 @@ theorem look_none {t : RState α} (h : look C t = none) :
   split_ifs at h with h1 h2 h3 h4
   exact ⟨h4, h3⟩
 
-theorem look_some {t : RState α} {e : REnd α} (h : look C t = some e) :
+theorem look_some {t : RState α} {e : RoundEnd α} (h : look C t = some e) :
     (rateSide C.θs C.a C.n₀ t.n t.startH.length = some true ∧ e = .harvest t.startH)
     ∨ (∃ p c, C.τe * t.n ≤ t.reads p c ∧ C.exc + C.θe * t.reads p c ≤ (t.und p c).length
         ∧ e = .harvest (t.und p c))
@@ -218,7 +218,7 @@ open scoped Classical in
 noncomputable def fG (x : FreeMonoid α) : Bool := decide (x ∈ PotGood M U θ C.k read T)
 
 open scoped Classical in
-noncomputable def fDis (x : FreeMonoid α) : Bool := decide (Disagrees read T E C.k x)
+noncomputable def fDis (x : FreeMonoid α) : Bool := decide (Disagrees read ⟨T, E⟩ C.k x)
 
 def fR (τ : List Bool × α × List Bool) (x : FreeMonoid α) : Bool :=
   decide (recOf (probeR read T E C.k x) = some τ)
@@ -242,7 +242,7 @@ structure StInv (ys : List (FreeMonoid α)) (s : RState α) : Prop where
 def Look₁ (ys : List (FreeMonoid α)) : Prop :=
   N₁ ≤ ys.length → rateSide C.εd C.a C.n₀ N₁ ((ys.take N₁).countP (fS read C T E)) ≠ some false
 
-theorem stInv_fresh (mv : List Bool → α → Bool) :
+theorem stInv_fresh (mv : List Bool × α → Bool) :
     StInv read C M U θ T E L [] (fresh T E mv) where
   tree := rfl
   edges := rfl
@@ -354,7 +354,7 @@ def FalseFire (zs : List (FreeMonoid α)) : Prop :=
   ∨ (∃ y ∈ zs, L < y.toList.length)
   ∨ C.exc + C.θe * C.τe * zs.length ≤ 2 * (L + 1) * zs.countP (fG read C M U θ T)
   ∨ binomSfGe (max C.n₀ ⌈C.qg * zs.length⌉₊) C.θpt (2 * zs.countP (fG read C M U θ T)) < C.a
-  ∨ (ε < D.real {x | Disagrees read T E C.k x} ∧ C.n₀ ≤ zs.length
+  ∨ (ε < D.real {x | Disagrees read ⟨T, E⟩ C.k x} ∧ C.n₀ ≤ zs.length
       ∧ 1 - binomSfGe zs.length C.εd (zs.countP (fDis read C T E) + 1) < C.a)
 
 /-- The stretch reached `zs.length` probes: fewer than `m` records at every edge and target,
@@ -385,10 +385,10 @@ theorem rateSide_false {θ' a : ℝ} {n₀ n h : ℕ} (hr : rateSide θ' a n₀ 
 theorem falseFire_of_end (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 ≤ C.θe) (hθpt0 : 0 ≤ C.θpt)
     (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1) {ys : List (FreeMonoid α)}
     {s : RState α} (hs : Inv read C s) (hst : StInv read C M U θ T E L ys s)
-    {x : FreeMonoid α} (hnt : step read C s x ≠ .inr .tooBig) {e : REnd α}
+    {x : FreeMonoid α} (hnt : step read C s x ≠ .inr .failed) {e : RoundEnd α}
     (he : step read C s x = .inr e)
-    (hbad : ¬ EndsWell M (BadAt U θ) D ε {y | Disagrees read s.tree s.edges C.k y}
-      0 0 (fun _ _ => []) 0 (toRoundEnd (some e))) :
+    (hbad : ¬ EndsWell M (BadAt U θ) D ε {y | Disagrees read ⟨s.tree, s.edges⟩ C.k y}
+      0 0 (fun _ _ => []) 0 e) :
     FalseFire read C M U θ D ε T E L (ys ++ [x]) := by
   classical
   have hlook := step_inr read C hnt he
@@ -430,8 +430,8 @@ theorem falseFire_of_end (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 �
           binomSfGe_anti hθpt0 hθpt1 (by omega)
       _ < C.a := hsf
   · obtain ⟨hn₀, hsf⟩ := rateSide_false hr
-    have hD : ε < D.real {y | Disagrees read T E C.k y} := by
-      simpa [toRoundEnd, EndsWell] using hbad
+    have hD : ε < D.real {y | Disagrees read ⟨T, E⟩ C.k y} := by
+      simpa [EndsWell] using hbad
     rw [hlen] at hn₀ hsf
     refine Or.inr (Or.inr (Or.inr (Or.inr ⟨hD, hn₀, ?_⟩)))
     have hle : (ys ++ [x]).countP (fDis read C T E) ≤ (ys ++ [x]).countP (fS read C T E) :=
@@ -444,10 +444,10 @@ theorem falseFire_of_end (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 �
 
 /-- A bad step in a stretch shows in its counts. -/
 theorem seg_reduce (X : RState α → FreeMonoid α → Prop) (XEv : List (FreeMonoid α) → Prop)
-    (mv : List Bool → α → Bool)
+    (mv : List Bool × α → Bool)
     (hX : ∀ ys s x, Inv read C s → StInv read C M U θ T E L ys s → X s x → XEv (ys ++ [x]))
     (hnt : ∀ ys s x, Inv read C s → StInv read C M U θ T E L ys s → s.moved = mv → ¬ X s x →
-      step read C s x ≠ .inr .tooBig)
+      step read C s x ≠ .inr .failed)
     (hN₁s : N₁ ≤ Ns) (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 ≤ C.θe)
     (hθpt0 : 0 ≤ C.θpt) (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1) :
     ∀ (xs ys : List (FreeMonoid α)) (s : RState α), Inv read C s →
@@ -560,7 +560,7 @@ theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
     C.exc + C.θe * C.τe * n ≤ 2 * (L + 1) * (cnt fg n (List.ofFn xs) : ℝ)}
   set A4 := {xs : Fin N → FreeMonoid α |
     binomSfGe (max C.n₀ ⌈C.qg * n⌉₊) C.θpt (2 * cnt fg n (List.ofFn xs)) < C.a}
-  set A5 := {xs : Fin N → FreeMonoid α | ε < D.real {x | Disagrees read T E C.k x} ∧ C.n₀ ≤ n ∧
+  set A5 := {xs : Fin N → FreeMonoid α | ε < D.real {x | Disagrees read ⟨T, E⟩ C.k x} ∧ C.n₀ ≤ n ∧
     1 - binomSfGe n C.εd (cnt (fDis read C T E) n (List.ofFn xs) + 1) < C.a}
   have hsub : {xs : Fin N → FreeMonoid α | n ≤ N ∧
       FalseFire read C M U θ D ε T E L ((List.ofFn xs).take n)} ⊆ A1 ∪ A2 ∪ A3 ∪ A4 ∪ A5 := by
@@ -602,7 +602,7 @@ theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
     have := Nat.sInf_le (s := {h | binomSfGe (max C.n₀ ⌈C.qg * n⌉₊) C.θpt h < C.a}) hj
     unfold hFire; omega
   have h5 : (Measure.pi fun _ : Fin N => D).real A5 ≤ if C.n₀ ≤ n then C.a else 0 := by
-    by_cases hc : ε < D.real {x | Disagrees read T E C.k x} ∧ C.n₀ ≤ n
+    by_cases hc : ε < D.real {x | Disagrees read ⟨T, E⟩ C.k x} ∧ C.n₀ ≤ n
     · rw [if_pos hc.2]
       have : A5 = {xs | 1 - binomSfGe n C.εd (cnt (fDis read C T E) n (List.ofFn xs) + 1)
           < C.a} := by
@@ -610,12 +610,12 @@ theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
       rw [this]
       refine (le_of_eq (pi_cnt D (fDis read C T E) N n hnN
         (fun j => 1 - binomSfGe n C.εd (j + 1) < C.a))).trans ?_
-      have hp : D.real {x | fDis read C T E x} = D.real {x | Disagrees read T E C.k x} := by
+      have hp : D.real {x | fDis read C T E x} = D.real {x | Disagrees read ⟨T, E⟩ C.k x} := by
         congr 1; ext x; simp [fDis]
       rw [hp]
       calc _ ≤ binE n C.εd (fun j => if 1 - binomSfGe n C.εd (j + 1) < C.a then 1 else 0) :=
             binE_le_of_le_anti hεd0 (by linarith [hc.1]) (by
-              have := measureReal_le_one (μ := D) (s := {x | Disagrees read T E C.k x})
+              have := measureReal_le_one (μ := D) (s := {x | Disagrees read ⟨T, E⟩ C.k x})
               exact this) n _ fun i j h => by
               have := binomSfGe_anti hεd0 hεd1 (n := n) (Nat.succ_le_succ h)
               by_cases hj : 1 - binomSfGe n C.εd (j + 1) < C.a
@@ -737,29 +737,23 @@ theorem surv_le {s : RState α} (hs : Inv read C s) (hT : s.tree = T) (hE : s.ed
     have hOK := probeR_ok read hEOK C.k x
     generalize hg : probeR read T E C.k x = o at hx hOK
     cases o with
-    | edge p c u t =>
+    | wrongEdge p c u t =>
       obtain ⟨hp, -, huc, -⟩ := hOK
       refine Or.inr (Set.mem_biUnion (x := (p, c, t)) ?_ ?_)
       · simp [Rset, hp, DTree.sift_inl_mem read T _ t huc]
       · simp [fR, hg, recOf]
-    | triple k zs =>
-      obtain ⟨-, hzs, -⟩ := hOK
-      refine Or.inl ?_
-      simp only [Set.mem_ofPred_eq, fP, hg, ptStr]
-      cases zs with
-      | nil => exact absurd rfl hzs
-      | cons z zs => simp
-    | pair k zs =>
-      obtain ⟨-, hzs, -⟩ := hOK
-      refine Or.inl ?_
-      simp only [Set.mem_ofPred_eq, fP, hg, ptStr]
-      cases zs with
-      | nil => exact absurd rfl hzs
-      | cons z zs => simp
+    | undecided k zs cl =>
+      cases cl with
+      | true => simp [searches] at hx
+      | false =>
+        obtain ⟨-, hzs, -⟩ := hOK
+        refine Or.inl ?_
+        simp only [Set.mem_ofPred_eq, fP, hg, ptStr]
+        cases zs with
+        | nil => exact absurd rfl (hzs rfl)
+        | cons z zs => simp
     | agree => simp [searches] at hx
-    | startU z => simp [searches] at hx
-    | endU z => simp [searches] at hx
-    | member p c u t => simp [searches] at hx
+    | unlearnedEdge p c u t => simp [searches] at hx
   have hRcard : (Rset.card : ℝ) ≤ (C.Lmax : ℝ) ^ 2 * Fintype.card α := by
     have h1 : T.leaves.toFinset.card ≤ C.Lmax :=
       (List.toFinset_card_le _).trans (hT ▸ hs.size)
@@ -858,7 +852,7 @@ theorem seg_le (X : RState α → FreeMonoid α → Prop) (XEv : List (FreeMonoi
     (hX : ∀ ys s' x, Inv read C s' → StInv read C M U θ s.tree s.edges L ys s' → X s' x →
       XEv (ys ++ [x]))
     (hnt : ∀ ys s' x, Inv read C s' → StInv read C M U θ s.tree s.edges L ys s' →
-      s'.moved = s.moved → ¬ X s' x → step read C s' x ≠ .inr .tooBig)
+      s'.moved = s.moved → ¬ X s' x → step read C s' x ≠ .inr .failed)
     (hbX : ∀ N, (Measure.pi fun _ : Fin N => D).real
       {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ XEv ((List.ofFn xs).take n)} ≤ bX)
     (hm : 1 ≤ C.m) (hn₀ : 1 ≤ C.n₀) (hN₁ : C.n₀ ≤ N₁)

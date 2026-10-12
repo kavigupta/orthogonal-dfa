@@ -18,7 +18,6 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory ProbabilityTheory
-open OrthoDFA.Ideal (DTree pre lcp)
 
 variable {α : Type*}
 
@@ -62,7 +61,7 @@ theorem classSet_card : ∀ n : ℕ,
     have hstep : ∀ T ∈ (classSet n : Finset (DTree α)),
         ((T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
           T.leaves.toFinset).image fun q => T.splitAt (FreeMonoid.of q.2.1 *
-            T.midAt (lcp q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
+            T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
       intro T hT
       refine Finset.card_image_le.trans ?_
       have h := (List.toFinset_card_le T.leaves).trans (classSet_leaves n T hT)
@@ -112,14 +111,14 @@ theorem mem_upTo {L : ℕ} {u : FreeMonoid α} : u ∈ upTo L ↔ u.toList.lengt
 
 /-- A string a probe of `x` can read has `x`'s length-`k` prefix. -/
 theorem pot_pre {k : ℕ} {x z : FreeMonoid α} {T : DTree α} (h : z ∈ pot k x T) :
-    k ≤ x.toList.length ∧ pre z k = pre x k := by
+    k ≤ x.toList.length ∧ prefixOf z k = prefixOf x k := by
   classical
   unfold pot at h
   obtain ⟨p, hp, hz⟩ := Finset.mem_biUnion.1 h
   obtain ⟨hkp, hpx⟩ := Finset.mem_Icc.1 hp
   obtain ⟨m, -, rfl⟩ := Finset.mem_image.1 hz
   refine ⟨hkp.trans hpx, ?_⟩
-  simp only [pre, FreeMonoid.toList_mul, FreeMonoid.toList_ofList]
+  simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_ofList]
   rw [List.take_append_of_le_length (by simp; omega), List.take_take, min_eq_left hkp]
 
 theorem card_pot (k : ℕ) (x : FreeMonoid α) (T : DTree α) :
@@ -214,7 +213,7 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | pre x k = u} ≤ p₀)
+    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
     (T : DTree α) (n : ℕ) (hT : (mids T).card ≤ n + 1) :
     μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}
       ≤ ENNReal.ofReal (Real.exp (-(G - 2 * β * (L + 1) * (n + 1)) / p₀)) := by
@@ -231,10 +230,10 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
     intro z hz
     obtain ⟨x, -, hzx⟩ := Finset.mem_biUnion.1 hz
     obtain ⟨hkx, hpz⟩ := pot_pre hzx
-    have hlen : (pre z k).toList.length = k := by
-      rw [hpz]; simp [pre, hkx]
+    have hlen : (prefixOf z k).toList.length = k := by
+      rw [hpz]; simp [prefixOf, hkx]
     calc c z = D.real ↑((upTo L).filter fun x => z ∈ pot k x T) := sum_measureReal_singleton _
-      _ ≤ D.real {y | pre y k = pre z k} := measureReal_mono fun y hy => by
+      _ ≤ D.real {y | prefixOf y k = prefixOf z k} := measureReal_mono fun y hy => by
           simp only [Finset.coe_filter, Set.mem_ofPred_eq] at hy
           exact ((pot_pre hy.2).2).symm
       _ ≤ p₀ := hpre _ hlen
@@ -389,7 +388,7 @@ theorem noise_hit {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | pre x k = u} ≤ p₀) :
+    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
         D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)} ≤ G}
       ≤ ENNReal.ofReal (noiseRisk n (Fintype.card α) L β p₀ G) := by
@@ -422,7 +421,7 @@ theorem noise_le {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (θ 
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList))
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | pre x k = u} ≤ p₀)
+    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
     (hθ : 0 ≤ θ) :
     μ {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
         D.real (PotGood M U θ k (read · ω) T) ≤ G}
