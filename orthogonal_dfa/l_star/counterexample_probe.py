@@ -5,7 +5,16 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .midfix_tree import MidfixTree
-from .tripartite_search import EDGE, PAIR, TRIPLE, tripartite_search
+from .tripartite_search import (
+    ALL_AGREE,
+    DISAGREE_LO,
+    EDGE,
+    PAIR,
+    TRIPLE,
+    UNDECIDED_HI,
+    UNDECIDED_LO,
+    tripartite_search,
+)
 
 Path = Tuple[bool, ...]
 Edge = Tuple[Path, int]
@@ -81,7 +90,29 @@ def probe(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> ProbeResult:
                 return walk[steps], x[j]
         return None
 
-    outcome, positions = _resolve(leaf, walk, open_, k, x)
+    def agrees(i):
+        here = leaf(i)
+        if here is None:
+            return None
+        at = max(i - k, 0)
+        return at < len(walk) and here == walk[at]
+
+    if open_ is None:
+        hi, positions = len(x), []
+    else:
+        hi, positions = k + open_, [k + open_ + 1]
+    if open_ is not None and leaf(hi + 1) is None:
+        outcome = (END, x[: hi + 1])
+    else:
+        found = tripartite_search(agrees, k, hi, recover=True)
+        assert found.kind != DISAGREE_LO
+        positions += found.queried
+        outcome = {
+            UNDECIDED_LO: (START, x[:k]),
+            ALL_AGREE: (AGREE,) if open_ is None else (MEMBER, x[:hi]),
+            UNDECIDED_HI: (END, x[:hi]),
+            EDGE: (EDGE, walk, found.position),
+        }.get(found.kind, (found.kind, found.position))
     sifts = list(dict.fromkeys(i for i in positions if k < i))
     undecided_by_edge = {}
     for i in sifts:
@@ -110,37 +141,3 @@ def probe(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> ProbeResult:
         middle=undecided(outcome[1]) if outcome[0] in (PAIR, TRIPLE) else [],
         start=undecided(k),
     )
-
-
-def _resolve(leaf, walk, open_, k, x):
-    """``probeBy`` and ``siftsBy``: the outcome, and the positions it sifts."""
-    if not walk:
-        return (START, x[:k]), []
-    if open_ is not None:
-        j = k + open_
-        if leaf(j + 1) is None:
-            return (END, x[: j + 1]), [j + 1]
-        here = leaf(j)
-        if here is None:
-            return (END, x[:j]), [j + 1, j]
-        if here == walk[-1]:
-            return (MEMBER, x[:j]), [j + 1, j]
-        hi, before = j, [j + 1]
-    else:
-        end = leaf(len(x))
-        if end is None:
-            return (END, x), [len(x)]
-        if end == walk[-1]:
-            return (AGREE,), [len(x)]
-        hi, before = len(x), []
-
-    def agrees(i):
-        here = leaf(i)
-        if here is None:
-            return None
-        at = max(i - k, 0)
-        return at < len(walk) and here == walk[at]
-
-    kind, j, sifted = tripartite_search(agrees, hi - k, k, hi)
-    outcome = (EDGE, walk, j) if kind == EDGE else (kind, j)
-    return outcome, before + [hi] + sifted
