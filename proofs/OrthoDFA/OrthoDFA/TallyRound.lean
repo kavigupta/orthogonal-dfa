@@ -294,37 +294,38 @@ def tallyLog (σ : Type*) [Fintype σ] (S : ℕ) (δ : ℝ) : ℝ :=
     * Real.log ((Fintype.card σ + S + 3) * Fintype.card α / δ)
 
 /-- `TallyRiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the read model,
-at `S` splits that are not genuine, with `Λ = tallyLog σ S δ`, `p₀ = prefixMax P.D C.k` and
+at `S` splits that are not genuine, with `Λ = tallyLog σ S δ`, `p₀ = prefixMax D C.k` and
 `lg = log (1 / C.a)`. -/
 def TallyRiskBound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ]
-    (G : ReadModel α σ) (P : PrefixDistribution α) (C : TallyCfg) (κs δ : ℝ) (S : ℕ),
+    (G : ReadModel α σ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
+    (C : TallyCfg) (κs δ : ℝ) (S : ℕ),
     let n : ℝ := Fintype.card σ + S
     let Λ := tallyLog (α := α) σ S δ
-    let p₀ := prefixMax P.D C.k
+    let p₀ := prefixMax D C.k
     let lg := Real.log (1 / C.a)
     let A : ℝ := Fintype.card α
-    0 < δ → δ ≤ 1 → 1 ≤ P.L → Fintype.card σ + S + 3 ≤ C.Lmax →
-    0 < G.κ → 2 * G.κ ≤ κs → 4 * κs * (P.L + 1) ≤ 1 →
-    0 ≤ G.ε → 4 * G.ε * ((P.L + 1) * (n + 1)) ≤ 1 →
-    0 ≤ G.θ → 24 * G.θ ≤ C.θe → 96 * ((P.L + 1) * (n + 1)) * G.θ ≤ C.θpt →
+    0 < δ → δ ≤ 1 → 1 ≤ L → Fintype.card σ + S + 3 ≤ C.Lmax →
+    0 < G.κ → 2 * G.κ ≤ κs → 4 * κs * (L + 1) ≤ 1 →
+    0 ≤ G.ε → 4 * G.ε * ((L + 1) * (n + 1)) ≤ 1 →
+    0 ≤ G.θ → 24 * G.θ ≤ C.θe → 96 * ((L + 1) * (n + 1)) * G.θ ≤ C.θpt →
     24 * (n + 1) * G.θ + 8 * p₀ * Λ ≤ C.θs → C.θs ≤ 1 →
-    32 * (P.L + 1) * p₀ * Λ ≤ C.φe * C.θe → 256 * p₀ * Λ ≤ C.θpt * C.φpt →
+    32 * (L + 1) * p₀ * Λ ≤ C.φe * C.θe → 256 * p₀ * Λ ≤ C.θpt * C.φpt →
     C.εd ≤ 1 → C.θpt ≤ 1 / 4 → C.φpt ≤ 3 / 4 * C.εd →
     32 * lg ≤ C.n₀ * C.θs ^ 2 → 32 * lg ≤ C.n₀ * C.θpt ^ 2 → 2 * lg ≤ C.n₀ * C.φpt ^ 2 →
-    (∀ j, 4 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg < C.exc j) →
-    (∀ j, C.exc j ≤ 8 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) →
+    (∀ j, 4 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg < C.exc j) →
+    (∀ j, C.exc j ≤ 8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) →
     0 < C.a → 4 * (2 ^ (C.Lmax + 1) * A + 7 * C.budget ^ 2) * C.a ≤ δ →
     (S + Fintype.card σ + 1) * ((2 * C.Lmax * A + 1)
         * (8 * lg / (C.εd ^ 2 * C.θpt ^ 2) + 4 * C.n₀ / (3 * C.εd) + 2)
         + 8 * (Fintype.card σ * A + S + 1) * C.m / C.εd + 32 * lg / C.εd ^ 2 + 1) ≤ C.budget →
     4 * Real.log (8 / δ) ≤ (S + 1) * C.m →
-    16 * κs * (2 * C.Lmax * A * (8 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) + C.n₀)
+    16 * κs * (2 * C.Lmax * A * (8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) + C.n₀)
       ≤ (S + 1) * C.m →
-    16 * κs * C.budget * (C.θe * ((P.L + 1) * C.Lmax) + 2 * C.θs + 2 * C.Lmax * A * C.φe)
+    16 * κs * C.budget * (C.θe * ((L + 1) * C.Lmax) + 2 * C.θs + 2 * C.Lmax * A * C.φe)
       ≤ (S + 1) * C.m →
-    16 * C.budget * (G.ε * ((P.L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
-    roundRisk G P.D P.L C κs ≤ ENNReal.ofReal δ
+    16 * C.budget * (G.ε * ((L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
+    roundRisk G D L C κs ≤ ENNReal.ofReal δ
 
 
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
