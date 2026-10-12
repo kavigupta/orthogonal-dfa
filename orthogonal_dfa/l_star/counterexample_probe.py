@@ -1,11 +1,11 @@
-"""``probeBy`` of ``OrthoDFA/TallyLoop.lean``: one string against a hypothesis."""
+"""One string probed against a hypothesis, as in ``OrthoDFA/TallyLoop.lean``."""
 
 from collections import Counter
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .midfix_tree import MidfixTree
-from .tally_search import EDGE, PAIR, TRIPLE, tripartite_search
+from .tripartite_search import EDGE, PAIR, TRIPLE, tripartite_search
 
 Path = Tuple[bool, ...]
 Edge = Tuple[Path, int]

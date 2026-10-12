@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import numpy as np
 from automata.fa.dfa import DFA
 
+from orthogonal_dfa.l_star.counterexample_search import HARVEST_EDGE, Ending
 from orthogonal_dfa.l_star.prefix_sources import (
     HarvestSource,
     Replay,
@@ -20,8 +21,7 @@ from orthogonal_dfa.l_star.prefix_sources import (
 )
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.tally_round import HARVEST_EDGE, Ending
-from tests.tally_common import ODD, PARITY_EDGES, parity_cut, quiet_round
+from tests.counterexample_common import ODD, PARITY_EDGES, parity_cut, quiet_search
 
 
 class _Pst:
@@ -198,14 +198,14 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
 
 class TestReplay(unittest.TestCase):
     def test_a_replay_reads_a_fresh_probe_where_the_round_harvested(self):
-        tally = quiet_round(parity_cut([b"\x01\x00"]), PARITY_EDGES)
+        search = quiet_search(parity_cut([b"\x01\x00"]), PARITY_EDGES)
         ending = Ending(HARVEST_EDGE, [], (ODD, 0))
         self.assertEqual(
             [b"\x01\x00"],
-            Replay(tally, harvest_reader(ending), lambda: b"\x01\x00").sample(),
+            Replay(search, harvest_reader(ending), lambda: b"\x01\x00").sample(),
         )
         self.assertEqual(
-            [], Replay(tally, harvest_reader(ending), lambda: b"\x01\x01").sample()
+            [], Replay(search, harvest_reader(ending), lambda: b"\x01\x01").sample()
         )
 
 

@@ -1,4 +1,4 @@
-"""``tallyStep`` of ``OrthoDFA/TallyLoop.lean``, read through the round's suffix family."""
+"""The counterexample search of ``OrthoDFA/TallyLoop.lean``, read through the round's suffix family."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -7,11 +7,11 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from automata.fa.dfa import DFA
 
+from .counterexample_config import CounterexampleSearchConfig
+from .counterexample_probe import Cut, Edge, Path, ProbeResult, probe
 from .midfix_tree import MidfixTree
 from .statistics import rate_side
-from .tally_config import TallyConfig
-from .tally_probe import Cut, Edge, Path, ProbeResult, probe
-from .tally_search import EDGE, PAIR, TRIPLE
+from .tripartite_search import EDGE, PAIR, TRIPLE
 
 SUCCESS = "success"
 HARVEST_START = "harvest start"
@@ -38,10 +38,10 @@ def lcp(a: Path, b: Path) -> Path:
     return tuple(out)
 
 
-class TallyRound:
+class CounterexampleSearch:
     """``TState``, over a tree it splits in place."""
 
-    def __init__(self, config: TallyConfig, cut: Cut, tree: MidfixTree):
+    def __init__(self, config: CounterexampleSearchConfig, cut: Cut, tree: MidfixTree):
         self.config, self.cut, self.tree = config, cut, tree
         self.edges: Dict[Edge, Tuple[Path, bytes]] = {}
         self.version = 0
@@ -75,7 +75,7 @@ class TallyRound:
         self._act(result)
         return self._look() or self._settle_one()
 
-    def tally(self, edge: Edge, target: Path) -> int:
+    def records_at(self, edge: Edge, target: Path) -> int:
         return sum(1 for _, t in self.records.get(edge, ()) if t == target)
 
     def violation(self) -> Optional[Tuple[Edge, Path]]:
@@ -160,7 +160,7 @@ class TallyRound:
         """``fixEdge``: split where the current target also has ``m`` records, else redirect."""
         witness = next((w for w, t in self.records[edge] if t == target), b"")
         current = self.edges.get(edge)
-        if current is not None and self.tally(edge, current[0]) >= self.config.m:
+        if current is not None and self.records_at(edge, current[0]) >= self.config.m:
             source, letter = edge
             node = self.tree.midfix_at(lcp(target, current[0]))
             self._split(source, bytes([letter]) + node)

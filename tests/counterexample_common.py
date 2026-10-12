@@ -1,9 +1,9 @@
-"""Hand-built hypotheses and scripted reads for the tally round's tests."""
+"""Hand-built hypotheses and scripted reads for the counterexample search's tests."""
 
 from types import SimpleNamespace
 
+from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.tally_round import TallyRound
 
 EVEN, ODD = (False,), (True,)
 
@@ -55,7 +55,7 @@ def quiet_config(**changes):
     return SimpleNamespace(**{**quiet, **changes})
 
 
-def quiet_round(cut, edges, **changes):
-    tally = TallyRound(quiet_config(**changes), cut, MidfixTree([]))
-    tally.edges = dict(edges)
-    return tally
+def quiet_search(cut, edges, **changes):
+    search = CounterexampleSearch(quiet_config(**changes), cut, MidfixTree([]))
+    search.edges = dict(edges)
+    return search

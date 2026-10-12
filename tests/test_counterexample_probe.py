@@ -2,10 +2,10 @@
 
 import unittest
 
+from orthogonal_dfa.l_star.counterexample_probe import AGREE, END, MEMBER, START, probe
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.tally_probe import AGREE, END, MEMBER, START, probe
-from orthogonal_dfa.l_star.tally_search import EDGE, PAIR, TRIPLE
-from tests.tally_common import EVEN, ODD, PARITY_EDGES, WRONG_ODD_0, parity_cut
+from orthogonal_dfa.l_star.tripartite_search import EDGE, PAIR, TRIPLE
+from tests.counterexample_common import EVEN, ODD, PARITY_EDGES, WRONG_ODD_0, parity_cut
 
 
 def _probe(cut, edges, x):

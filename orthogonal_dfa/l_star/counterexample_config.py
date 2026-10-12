@@ -1,4 +1,4 @@
-"""``TallyCfg`` of ``OrthoDFA/TallyLoop.lean``, and the one the learner ships."""
+"""The counterexample search's config, as in ``OrthoDFA/TallyLoop.lean``, and the one shipped."""
 
 import math
 from dataclasses import dataclass
@@ -11,8 +11,8 @@ FIRST_LOOK = 30
 
 
 @dataclass(frozen=True)
-class TallyConfig:
-    """``TallyCfg``, from the values it does not derive."""
+class CounterexampleSearchConfig:
+    """Only the values it does not derive are fields."""
 
     #: Records at one target before the edge they are at is fixed.
     m: int
@@ -72,8 +72,10 @@ class TallyConfig:
         return self.acceptable_fnr
 
 
-def tally_config(acc_threshold: float, acceptable_fnr: float) -> TallyConfig:
-    return TallyConfig(
+def counterexample_search_config(
+    acc_threshold: float, acceptable_fnr: float
+) -> CounterexampleSearchConfig:
+    return CounterexampleSearchConfig(
         m=5,
         level=1e-3,
         max_probes=50_000,

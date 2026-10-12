@@ -2,9 +2,9 @@
 
 import unittest
 
-from orthogonal_dfa.l_star.tally_batching import warmed_draws
-from orthogonal_dfa.l_star.tally_round import OUT_OF_PROBES, SUCCESS
-from tests.tally_common import PARITY_EDGES, parity_cut, quiet_round
+from orthogonal_dfa.l_star.counterexample_search import OUT_OF_PROBES, SUCCESS
+from orthogonal_dfa.l_star.probe_batching import warmed_draws
+from tests.counterexample_common import PARITY_EDGES, parity_cut, quiet_search
 
 
 class TestWarming(unittest.TestCase):
@@ -17,13 +17,13 @@ class TestWarming(unittest.TestCase):
             read.add(z)
             return parity_cut(())(z)
 
-        stepped = quiet_round(cut, PARITY_EDGES)
+        stepped = quiet_search(cut, PARITY_EDGES)
         for x in self.DRAWS:
             stepped.step(x)
         draws = iter(self.DRAWS)
-        tally = quiet_round(parity_cut(()), PARITY_EDGES, max_probes=len(self.DRAWS))
+        search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=len(self.DRAWS))
 
-        ending = tally.run(warmed_draws(tally, lambda: next(draws), warmed.update))
+        ending = search.run(warmed_draws(search, lambda: next(draws), warmed.update))
         self.assertEqual(OUT_OF_PROBES, ending.kind)
         self.assertTrue(warmed)
         self.assertLessEqual(warmed, read)
@@ -35,9 +35,9 @@ class TestWarming(unittest.TestCase):
             drawn.append(b"\x01\x00")
             return drawn[-1]
 
-        tally = quiet_round(parity_cut(()), PARITY_EDGES, disagreement_rate=0.5)
+        search = quiet_search(parity_cut(()), PARITY_EDGES, disagreement_rate=0.5)
         self.assertEqual(
-            SUCCESS, tally.run(warmed_draws(tally, draw, lambda _: None)).kind
+            SUCCESS, search.run(warmed_draws(search, draw, lambda _: None)).kind
         )
         self.assertEqual(7, len(drawn))
 

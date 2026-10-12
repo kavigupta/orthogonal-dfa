@@ -3,7 +3,7 @@
 import unittest
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from tests.tally_common import ODD, parity_cut
+from tests.counterexample_common import ODD, parity_cut
 
 
 class TestRoute(unittest.TestCase):

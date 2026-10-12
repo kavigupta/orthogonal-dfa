@@ -11,14 +11,19 @@ from typing import Callable, List
 
 import numpy as np
 
+from .counterexample_probe import ProbeResult
+from .counterexample_search import (
+    HARVEST_EDGE,
+    HARVEST_START,
+    CounterexampleSearch,
+    Ending,
+)
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
-from .tally_probe import ProbeResult
-from .tally_round import HARVEST_EDGE, HARVEST_START, Ending, TallyRound
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -102,7 +107,7 @@ def harvest_reader(ending: Ending) -> Callable[[ProbeResult], List[bytes]]:
 class Replay:
     """Fresh probes of a round's last hypothesis, kept as ``read`` reads them."""
 
-    round: TallyRound
+    round: CounterexampleSearch
     read: Callable[[ProbeResult], List[bytes]]
     draw: Callable[[], bytes]
 

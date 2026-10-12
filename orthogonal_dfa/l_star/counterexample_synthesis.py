@@ -1,7 +1,7 @@
 """
 Counterexample-driven synthesis: the E-L* learner loop.
 
-Each round searches a suffix family and runs the tally round against it; what
+Each round searches a suffix family and runs the counterexample search against it; what
 the round harvests joins the next round's pool.
 """
 
@@ -16,6 +16,8 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
+from .counterexample_config import counterexample_search_config
+from .counterexample_search import HARVESTS, SUCCESS, CounterexampleSearch
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -28,11 +30,9 @@ from .prefix_sources import (
     harvest_reader,
     state_source,
 )
+from .probe_batching import warmed_draws
 from .progress import counter, track
 from .suffix_family import SuffixFamily
-from .tally_batching import warmed_draws
-from .tally_config import tally_config
-from .tally_round import HARVESTS, SUCCESS, TallyRound
 from .tracker import SynthesisTracker
 
 
@@ -259,11 +259,11 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-def _tally_round(pst, vs, *, acc_threshold):
+def _counterexample_search(pst, vs, *, acc_threshold):
     """The round's hypothesis and how it ended."""
     family = SuffixFamily(pst, vs)
-    hypothesis = TallyRound(
-        tally_config(acc_threshold, pst.config.acceptable_fnr),
+    hypothesis = CounterexampleSearch(
+        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
@@ -323,7 +323,9 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        hypothesis, ending = _tally_round(pst, vs, acc_threshold=acc_threshold)
+        hypothesis, ending = _counterexample_search(
+            pst, vs, acc_threshold=acc_threshold
+        )
         dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {hypothesis.probes} probes: "
