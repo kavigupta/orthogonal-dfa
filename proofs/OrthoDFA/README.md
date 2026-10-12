@@ -17,7 +17,8 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 - `TallyRoundCorrect`: with a `TriOracle` reading every string independently with its state's
   law, settings chosen by the proof make the tally loop's round over at most `K · G` probes from a
   `PrefixDistribution` fail to end well with chance at most `2δ`, once the laws' `κ` and `ε`, the
-  goodness level `θ` and the probes' prefix mass are small enough.
+  goodness level `θ` and the probes' prefix mass are small enough. A harvest's replay yields in
+  proportion to how often the draws' prefixes read undecided.
 - `TallyRoundFamily`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family and
   a band passing `BandPasses`), at `fam.oracle`.
 
@@ -41,11 +42,13 @@ anchors are the positions from which `covered_states` counts a visit.
   least `e` long, so this holds for any hypothesis (`Proofs/TallyReplay.lean`, by
   `spread_of_prefix` in `Proofs/RoundEnd.lean`).
 - `Yields y`: it finds something on at least `y` of its draws and anchors. A tree's root reads its
-  string alone, so the replay finds the anchor's prefix whenever that reads undecided. Over the
-  independent reads (`anchor_reads`, `Proofs/Yield.lean`, a Chernoff bound) that share is at
-  least `0.75θ · coverage(not good) / (L + 1 − start)`, half its least mean, but for chance
-  `exp(−1.5θ · coverage(not good) / (16q))`, `coverage` being the share of draws visiting a
-  read-state that is not good at a position from `start` to `L`.
+  string alone, so the replay finds the anchor's prefix whenever that reads undecided. That share
+  has mean `V / (L + 1 − start)`, `V = undecidedCount` being the mean count of positions from
+  `start` to `L` at which a draw's prefix reads undecided. It is a sum of independent reads with
+  weights at most `q / (L + 1 − start)`, so Chernoff's bound (`anchor_reads`, `Proofs/Yield.lean`)
+  holds it at least `(V − 2√(q V log(1/δ))) / (L + 1 − start)` but for chance `δ`. Every state
+  that is not good reads undecided more than `1.5θ` of the time, so `V ≥ 1.5θ · coverage(not
+  good)`, but the yield does not depend on `θ`.
 
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
 2. #419: indecision random, decided reads always right.
@@ -56,40 +59,58 @@ anchors are the positions from which `covered_states` counts a visit.
 ## The statements
 
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
-to be read. With `n = |Q| + S`, `A = |Σ|`, `L = P.L`, `K = 2^18 (n + 1)² A / εd³`,
-`G = 2 log(64 (2^(n+3) A + 8K²)/δ)` and a read-state bad where it reads undecided more than `1.5θ`
+to be read. With `n = |Q| + S`, `A = |Σ|`, `L = P.L`, `Z = |Q| A + S + 1`,
+`ρ = (S + 1) εd / (256 (n + 1) Z)`, `K = (n + 1)(2(n + 3)A + 1)(10/εd³ + 270/εd² + 1400/εd)
++ 8(n + 3) A (L + 1)`, `X = 4 (2^(n+4) A + 7K²)/δ`, `G = log X + 2 log(2 log X)`,
+`V = undecidedCount P M O.dist` and a read-state bad where it reads undecided more than `1.5θ`
 of the time:
 
     TallyRoundCorrect: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ S k,
       0 < δ ≤ 1 → 0 < εd ≤ 1 → 1 ≤ L → 0 ≤ θ →
-      2^13 (L + 1)(n + 1) θ ≤ εd →
-      0 < O.κ → 2^14 (n + 1)² A² (L + 1)(n + 3) O.κ ≤ εd →
-      0 ≤ O.ε → 2^13 (L + 1)(n + 1)² A (O.ε (n + 1) + tallyLog σ S δ · prefixMax P.D k) ≤ εd →
-      11 P.q log(1/δ) ≤ θ · coverage P.D P.start P.L M bad →
+      384 (L + 1)(n + 1) θ ≤ 1 →
+      0 < O.κ → 4 O.κ (8 (n + 3)(L + 1) √(A ρ / 3) + 1) ≤ ρ →
+      0 ≤ O.ε → (L + 1)(n + 1) O.ε + 3 · tallyLog σ S δ · prefixMax P.D k ≤ ρ →
       ∃ C : TallyCfg, C.k = k ∧ C.εd = εd ∧ C.budget ≤ K · G ∧
-        P[the round over C.budget probes from P.D does not end well] ≤ 2δ
+        P[the round over C.budget probes from P.D does not end well, its replay yielding
+          (V − 2√(P.q V log(1/δ))) / (L + 1 − P.start)] ≤ 2δ
 
     TallyRoundFamily: TallyRoundCorrect at fam.oracle : TriOracle μ fam.M.
 
-The proof chooses `Lmax = n + 3`, `θpt = 1/4`, `φpt = 3εd/4`, `θs = θe = 3εd/16`, `φe = 1`,
-`a = e^{−G}`, `n₀ = ⌈1000 G/εd²⌉`, `m = ⌈3100 G/εd²⌉`, `exc = 6(L + 1)(1 + 12θ Lmax) G` and the
-budget the records cap asks for (`Proofs/TallyCorrect.lean`).
+`16ρ` is about the share of the probes at which the budget affords a record that is not true. The
+proof (`Proofs/TallyCorrect.lean`) chooses, with `N = n + 3`, `L₁ = L + 1` and `s = √(A ρ/3)`:
+`Lmax = N`, `θpt = 1/4`, `θs = 1/2`, `φpt = 3εd/4`, `θe = 8s + 1/(L₁ N)`, `φe = 4s L₁/A`,
+`a = e^{−G}`, `n₀ = ⌈(512 + 32/(9εd²)) G⌉`, `exc = 6 L₁ G`, `m` the records the caps ask for and
+the budget `TallyRiskBound` asks for. `θe φe ≥ 32 L₁ ρ/3` holds the edge field's prefix mass to the
+same cap as the records', and `θe L₁ N = 2 N A φe` then minimises the edges' share of `κ`'s cap.
+`θpt` is at its largest, since `θ` and the budget both scale with it.
 
-At `|Q| = 10`, `|Σ| = 2`, `S = 2`, `δ = 0.01` and `εd = 1`, the conditions ask for `θ ≤ 3e-7`,
-`κ ≤ 2e-10`, `ε ≤ 9e-10` and `prefixMax ≤ 1.3e-11`, so `k ≥ 37` for uniform binary probes, with a
-budget of at most `8.4e9` probes (`1.1e13` at `εd = 0.1`). At `L = 30` they cannot all hold:
-the prefix mass needs `k > L`, and the yield condition, with `q = 2^-15`, needs `θ ≥ 1.5e-3/c`.
-At `L = 60` (`q = 2^-30`) they hold for `k ≥ 37` and `θ ≤ 1.5e-7` once the bad read-states'
-coverage `c ≥ 0.3`. The constants are loose; the internal closed form below admits far more.
+At `|Q| = 10`, `|Σ| = 2`, `S = 2`, `δ = 0.01`, with `ε` and the prefix mass each taking the
+whole of their shared cap (half each halves both):
+
+| | `θ ≤` | `κ ≤` | `ε ≤` | `prefixMax ≤` | uniform binary `k ≥` | budget `≤ K G` |
+|---|---|---|---|---|---|---|
+| `L = 30`, `εd = 1` | 6.5e-6 | 4.9e-7 | 9.7e-8 | 1.5e-8 | 27 | 6.0e7 |
+| `L = 30`, `εd = 0.1` | 6.5e-6 | 1.4e-7 | 9.7e-9 | 1.5e-9 | 30 | 2.1e9 |
+| `L = 60`, `εd = 1` | 3.3e-6 | 2.6e-7 | 4.9e-8 | 1.5e-8 | 27 | 6.0e7 |
+| `L = 60`, `εd = 0.1` | 3.3e-6 | 7.6e-8 | 4.9e-9 | 1.5e-9 | 30 | 2.1e9 |
+
+The chosen budget is within 5% of `K G`. Against the earlier constants (`2^13`, `2^14`, `2^18`) this
+is 21× more `θ` at `εd = 1` (213× at 0.1), about 2500× (7000×) more `κ`, 110× more `ε`, 1100× more
+prefix mass (`k ≥ 27` against 37), and a 140× (5000×) smaller budget. Every condition holds at
+`L = 30` for `k` from 27 to 30 at `εd = 1`; at `εd = 0.1` only `k = 30 = L` with `ε` near 0 is
+left. The yield is positive once `V > 4 q log(1/δ)`: at `L = 30` (`start = 15`, `q = 2^-15`)
+that is a mean undecided rate above `3.5e-5` over the 16 anchors, and at `L = 60` above `5.5e-10`.
 
 ## The internal bound
 
 `Proofs/TallyRiskDefs.lean` states what the claim is derived from; none of it needs to be read to
 trust the claim.
 
-    TallyRoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs, 2 · O.κ ≤ κs →
-      ∫⁻ ω, P[the round over C.budget probes from P.D does not end well] ∂μ
-        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + exp(−1.5θ · coverage(not O.Good θ) / (16 P.q))
+    TallyRoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs δ,
+      2 · O.κ ≤ κs → 0 < δ ≤ 1 →
+      ∫⁻ ω, P[the round over C.budget probes from P.D does not end well, its replay yielding
+          (V − 2√(P.q V log(1/δ))) / (L + 1 − P.start)] ∂μ
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + δ
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
 `roundRisk σ κ ε θ D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
@@ -110,9 +131,10 @@ where here `K = classCount` bounds the class of trees, `E = edgeMapCount` their 
 `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k` prefix.
 `TallyRiskBound` (same file) is `roundRisk ≤ δ` under explicit conditions on `κ`, `ε`, `θ` and the
 settings; `TallyRoundCorrect` substitutes its chosen settings into those conditions. At
-`|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, `TallyRiskBound`'s conditions hold at hand-picked
-settings (`S = 2`, `εd = θpt = θs = 1/4`, `budget = 3.5e8`) for `κ ≤ 5e-8`, `θ ≤ 6e-6`,
-`ε ≤ 1e-8` and `p₀ = 2^-30`.
+`|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01` and `εd = 1/4`, the chosen settings admit
+`κ ≤ 2.3e-7`, `θ ≤ 6.5e-6`, `ε ≤ 2.4e-8` and `p₀ ≤ 3.6e-9` at a budget of `3.9e8`, against
+`κ ≤ 5e-8`, `θ ≤ 6e-6`, `ε ≤ 1e-8` and `p₀ = 2^-30` at `3.5e8` for the earlier hand-picked
+settings.
 
 ## Open
 
@@ -120,7 +142,10 @@ settings (`S = 2`, `εd = θpt = θs = 1/4`, `budget = 3.5e8`) for `κ ≤ 5e-8`
 
 - **The middles field is per search.** A search makes up to `(L + 1)(n + 1)` first reads, and in a
   tree of depth `n + 1` at good read-states it stops undecided with chance near `1 − e^{−1.5θ R}`
-  for `R` its reads, so the bound is the worst case, not slack.
+  for `R` its reads, so the bound is the worst case, not slack. `pt_mean_le` unions over every
+  position a search could stop at; the bisection sifts at most `2 + 3⌈log₂ L⌉` of them, which
+  would raise `θ`'s cap by `(L + 1)/(2 + 3⌈log₂ L⌉)` (1.8× at `L = 30`, 3× at `L = 60`), but
+  needs an adaptive, first-read count of the middles like `edge_first_mean`'s.
 - **`prefixMax` and `k`.** Every field concentrates over the probes' length-`k` prefixes, with a
   union over the class and its edge maps. The planned replacement (a): the tests count each string
   once, at its first read in the round, and a harvest is judged over those new strings; each new
