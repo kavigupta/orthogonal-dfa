@@ -5,10 +5,9 @@ import Mathlib.Probability.Moments.Basic
 # The anchor's read concentrates
 
 Over reads independent across strings, the share of draws and anchors whose anchor prefix reads
-undecided is at least half of its mean `m`, but for chance `exp(−m n/(16 q))`, where `n` is the
-number of anchors and `q` the most a draw puts on starting with any one string at least `s` long:
-it is a weighted sum of independent reads with weights at most `q / n`, and Chernoff's bound at
-`λ = n/(4q)` holds its lower tail.
+undecided is a weighted sum of independent reads with weights at most `q / n`, where `n` is the
+number of anchors and `q` the most a draw puts on starting with any one string at least `s` long,
+and Chernoff's bound holds its lower tail.
 -/
 
 namespace OrthoDFA
@@ -34,6 +33,11 @@ theorem mem_strsOfLen {i : ℕ} {u : FreeMonoid α} : u ∈ strsOfLen i ↔ u.to
 /-- The strings an anchor prefix can be. -/
 noncomputable def anchorStrs (s L : ℕ) : Finset (FreeMonoid α) :=
   (Finset.Icc (s) L).biUnion strsOfLen
+
+theorem mem_anchorStrs {s L : ℕ} {u : FreeMonoid α} :
+    u ∈ anchorStrs s L ↔ s ≤ u.toList.length ∧ u.toList.length ≤ L := by
+  simp only [anchorStrs, Finset.mem_biUnion, Finset.mem_Icc, mem_strsOfLen]
+  exact ⟨fun ⟨_, h, rfl⟩ => h, fun h => ⟨_, h, rfl⟩⟩
 
 /-- The anchor prefix is `u` on this share of draws and anchors. -/
 noncomputable def anchorWeight (D : Measure (FreeMonoid α)) (s L : ℕ) (u : FreeMonoid α) : ℝ :=
@@ -154,32 +158,23 @@ theorem one_sub_exp_neg_ge {x : ℝ} (hx : 0 ≤ x) : x * (1 - x) ≤ 1 - Real.e
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-/-- Over reads independent across strings, each string satisfying `P` reading undecided with
-chance at least `c`, and no string at least `s` long starting more than `q` of the draws, the
-share of draws and anchors whose anchor prefix reads undecided falls below half of any `m₀` at
-most `c` times the share whose anchor prefix satisfies `P` with chance at most
-`exp(−m₀ n/(16 q))`. -/
+/-- Over reads independent across strings, no string at least `s` long starting more than `q` of
+the draws, the share of draws and anchors whose anchor prefix reads undecided is at most `t` with
+chance at most `exp(λt − λ(1 − λq/n) m)` at any `λ ≥ 0`, `m` being its mean. -/
 theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : iIndepFun read μ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {s L : ℕ}
-    (hs : s ≤ L)
-    (P : FreeMonoid α → Prop) (c : ℝ)
-    (hc : ∀ u, P u → c ≤ μ.real {ω | read u ω = .undecided}) (m₀ q : ℝ)
-    (hm₀ : m₀ ≤ c * (D.prod (anchorLaw s L)).real
-      {r | r.2 ≤ r.1.toList.length ∧ P (FreeMonoid.ofList (r.1.toList.take r.2))})
-    (hq : 0 < q)
+    (hs : s ≤ L) (q : ℝ)
     (hpre : ∀ u : FreeMonoid α, s ≤ u.toList.length → u.toList.length ≤ L →
-      D.real {x | u.toList <+: x.toList} ≤ q) :
+      D.real {x | u.toList <+: x.toList} ≤ q) (t lam : ℝ) (hlam : 0 ≤ lam) :
     μ.real {ω | (D.prod (anchorLaw s L)).real
         {r | r.2 ≤ r.1.toList.length ∧
-          read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
-      ≤ Real.exp (-(m₀ * (L + 1 - s : ℕ)) / (16 * q)) := by
+          read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} ≤ t}
+      ≤ Real.exp (lam * t - lam * (1 - lam * (q / (L + 1 - s : ℕ)))
+        * ∑ u ∈ anchorStrs s L, anchorWeight D s L u * μ.real {ω | read u ω = .undecided}) := by
   classical
   set n : ℝ := ((L + 1 - s : ℕ) : ℝ)
   have hn : (0 : ℝ) < n := by simp only [n]; exact_mod_cast anchorCount_pos hs
   set W : ℝ := q / n
-  have hW : 0 < W := div_pos hq hn
-  set lam : ℝ := 1 / (4 * W)
-  have hlam : 0 < lam := by positivity
   have hw0 : ∀ u, 0 ≤ anchorWeight D s L u := anchorWeight_nonneg D s L
   set p : FreeMonoid α → ℝ := fun u => μ.real {ω | read u ω = .undecided}
   let g : FreeMonoid α → ARU → ℝ := fun u a =>
@@ -197,13 +192,6 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
     refine Finset.sum_congr rfl fun u _ => ?_
     simp only [Z, g, Function.comp_apply]
     split_ifs <;> simp
-  have hmean : m₀ ≤ ∑ u ∈ anchorStrs s L, anchorWeight D s L u * p u := by
-    refine hm₀.trans ?_
-    rw [anchor_sum D hs P, Finset.mul_sum]
-    refine Finset.sum_le_sum fun u _ => ?_
-    split_ifs with hP
-    · rw [mul_comm]; exact mul_le_mul_of_nonneg_left (hc u hP) (hw0 u)
-    · simp only [mul_zero]; exact mul_nonneg (hw0 u) measureReal_nonneg
   have hw : ∀ u ∈ anchorStrs s L, anchorWeight D s L u ≤ W := by
     intro u hu
     obtain ⟨k, hk, hu'⟩ := Finset.mem_biUnion.1 hu
@@ -226,12 +214,12 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
         integral_const, integral_indicator_const _ hs, smul_eq_mul, smul_eq_mul]
       simp [p]
     rw [hm]
-    have hx := one_sub_exp_neg_ge (mul_nonneg hlam.le (hw0 u))
+    have hx := one_sub_exp_neg_ge (mul_nonneg hlam (hw0 u))
     have hp0 : 0 ≤ p u := measureReal_nonneg
     have hwu := hw u hu
     have h1 : lam * anchorWeight D s L u * (1 - lam * W)
         ≤ lam * anchorWeight D s L u * (1 - lam * anchorWeight D s L u) :=
-      mul_le_mul_of_nonneg_left (by nlinarith) (mul_nonneg hlam.le (hw0 u))
+      mul_le_mul_of_nonneg_left (by nlinarith) (mul_nonneg hlam (hw0 u))
     have h2 : Real.exp (-lam * anchorWeight D s L u) - 1
         ≤ -(lam * anchorWeight D s L u * (1 - lam * W)) := by
       rw [show -lam * anchorWeight D s L u = -(lam * anchorWeight D s L u) by ring]
@@ -253,39 +241,26 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
       exact Real.exp_le_one_iff.2 (by nlinarith)
   have hsub : {ω | (D.prod (anchorLaw s L)).real
         {r | r.2 ≤ r.1.toList.length ∧
-          read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
-      ⊆ {ω | (∑ u ∈ anchorStrs s L, Z u) ω ≤ m₀ / 2} := by
+          read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} ≤ t}
+      ⊆ {ω | (∑ u ∈ anchorStrs s L, Z u) ω ≤ t} := by
     intro ω hω
     simp only [Set.mem_ofPred_eq, hY, Finset.sum_apply] at hω ⊢
-    exact hω.le
-  refine (measureReal_mono hsub).trans ((measure_le_le_exp_mul_mgf (m₀ / 2)
-    (neg_nonpos.2 hlam.le) (by simpa [Finset.sum_apply] using hint)).trans ?_)
+    exact hω
+  refine (measureReal_mono hsub).trans ((measure_le_le_exp_mul_mgf t
+    (neg_nonpos.2 hlam) (by simpa [Finset.sum_apply] using hint)).trans ?_)
   rw [hZind.mgf_sum hZm]
-  calc Real.exp (- -lam * (m₀ / 2)) * ∏ u ∈ anchorStrs s L, mgf (Z u) μ (-lam)
-      ≤ Real.exp (lam * (m₀ / 2)) * ∏ u ∈ anchorStrs s L,
+  calc Real.exp (- -lam * t) * ∏ u ∈ anchorStrs s L, mgf (Z u) μ (-lam)
+      ≤ Real.exp (lam * t) * ∏ u ∈ anchorStrs s L,
           Real.exp (-(lam * (1 - lam * W)) * (anchorWeight D s L u * p u)) := by
         rw [neg_neg]
         exact mul_le_mul_of_nonneg_left (Finset.prod_le_prod (fun u _ => mgf_nonneg) hmgf)
           (Real.exp_pos _).le
-    _ = Real.exp (lam * (m₀ / 2) - lam * (1 - lam * W)
-          * ∑ u ∈ anchorStrs s L, anchorWeight D s L u * p u) := by
+    _ = _ := by
         have hs : ∑ u ∈ anchorStrs s L, -(lam * (1 - lam * W)) * (anchorWeight D s L u * p u)
             = -(lam * (1 - lam * W)) * ∑ u ∈ anchorStrs s L, anchorWeight D s L u * p u := by
           rw [Finset.mul_sum]
         rw [← Real.exp_sum, ← Real.exp_add, hs]
         congr 1
-        ring
-    _ ≤ Real.exp (lam * (m₀ / 2) - lam * (1 - lam * W) * m₀) := by
-        refine Real.exp_le_exp.2 ?_
-        have : 0 ≤ lam * (1 - lam * W) := by
-          refine mul_nonneg hlam.le ?_
-          rw [show lam * W = 1 / 4 by simp only [lam]; field_simp]
-          norm_num
-        nlinarith [mul_le_mul_of_nonneg_left hmean this]
-    _ = Real.exp (-(m₀ * n) / (16 * q)) := by
-        congr 1
-        simp only [lam, W]
-        field_simp
         ring
 
 end OrthoDFA

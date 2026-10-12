@@ -12,8 +12,9 @@ good where it reads undecided at most `1.5θ` of the time.
 (`TallyEndsWell`: consistent with the hypothesis disagreeing on at most `εd` of the probes, or a
 harvest more than half of whose strings are at read-states that are not good, with a replay that
 is spread and yields) but for chance at most `2δ`, at settings the proof chooses, once the laws'
-`κ` and `ε`, the goodness level and the probes' prefix mass are small enough. It is derived from a
-detailed bound (`Proofs/TallyRiskDefs.lean`) that need not be read to trust it.
+`κ` and `ε`, the goodness level and the probes' prefix mass are small enough. The replay's yield
+is set by how often the draws' prefixes read undecided. It is derived from a detailed bound
+(`Proofs/TallyRiskDefs.lean`) that need not be read to trust it.
 -/
 
 noncomputable section
@@ -92,31 +93,43 @@ def tallyLog (σ : Type*) [Fintype σ] (S : ℕ) (δ : ℝ) : ℝ :=
   4 * (Fintype.card σ + S + 2) * Fintype.card α
     * Real.log ((Fintype.card σ + S + 3) * Fintype.card α / δ)
 
+/-- The mean count, over a draw from `P.D`, of the positions from `start` to `L` at which its
+prefix reads undecided, a string at the state `q` of `M` reading undecided `dist q .undecided` of
+the time. -/
+def undecidedCount (P : PrefixDistribution α) {σ : Type*} (M : _root_.DFA α σ)
+    (dist : σ → ARU → ℝ) : ℝ :=
+  ∑' u : FreeMonoid α, if P.start ≤ u.toList.length ∧ u.toList.length ≤ P.L then
+    P.D.real {x | u.toList <+: x.toList} * dist (M.eval u.toList) .undecided else 0
+
 /-- `TallyRoundGuarantee M O θ εd P δ S k`: some settings `C`, with `C.k = k`, `C.εd = εd` and a
 budget of at most `K · G` probes, make the round fail to end well with chance at most `2δ`, once
-the laws' `κ` and `ε`, the goodness level `θ` and the probes' prefix mass at `k` are small enough
+the goodness level `θ`, the laws' `κ` and `ε` and the probes' prefix mass at `k` are small enough
 for `n = |Q| + S` (at most `S` splits that are not genuine), `A = |Σ|` and the draws' length `L`.
-A harvest's replay then yields `0.75θ c / (L + 1 − start)`, `c` being the share of draws visiting
-a read-state that is not good at a position from `start` to `L`. -/
+`16ρ` is about the share of the probes at which the round affords a record that is not true. A
+harvest's replay then yields `(V − 2√(q V log(1/δ))) / (L + 1 − start)`, `V` being the mean count
+of positions from `start` to `L` at which a draw's prefix reads undecided. -/
 def TallyRoundGuarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
     (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Prop :=
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
-  let K : ℝ := 2 ^ 18 * (n + 1) ^ 2 * A / εd ^ 3
-  let G : ℝ := 2 * Real.log (64 * (2 ^ (Fintype.card σ + S + 3) * A + 8 * K ^ 2) / δ)
+  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
+  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
+    + 8 * (n + 3) * A * (P.L + 1)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 4) * A + 7 * K ^ 2) / δ
+  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let V := undecidedCount P M O.dist
   let bad := fun q => ¬ O.Good θ q
   0 < δ → δ ≤ 1 → 0 < εd → εd ≤ 1 → 1 ≤ P.L → 0 ≤ θ →
-  2 ^ 13 * (P.L + 1) * (n + 1) * θ ≤ εd →
-  0 < O.κ → 2 ^ 14 * (n + 1) ^ 2 * A ^ 2 * (P.L + 1) * (n + 3) * O.κ ≤ εd →
-  0 ≤ O.ε → 2 ^ 13 * (P.L + 1) * (n + 1) ^ 2 * A
-    * (O.ε * (n + 1) + tallyLog (α := α) σ S δ * prefixMax P.D k) ≤ εd →
-  11 * P.q * Real.log (1 / δ) ≤ θ * coverage P.D P.start P.L M bad →
+  384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
+  0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
+  0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * tallyLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
   ∃ C : TallyCfg, C.k = k ∧ C.εd = εd ∧ (C.budget : ℝ) ≤ K * G ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (O.read z ω).cut)
           (TallyEndsWell M bad P.D C P.start P.L
-            (3 / 4 * θ * coverage P.D P.start P.L M bad / (P.L + 1 - P.start : ℕ)) (O.read · ω))
+            ((V - 2 * Real.sqrt (P.q * V * Real.log (1 / δ))) / (P.L + 1 - P.start : ℕ))
+            (O.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ ENNReal.ofReal (2 * δ)
 

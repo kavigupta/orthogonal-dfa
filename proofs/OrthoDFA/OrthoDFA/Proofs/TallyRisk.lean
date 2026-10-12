@@ -79,16 +79,16 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
     {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r)
-    (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ) (hκ : 2 * G.κ ≤ κs) :
+    (P : PrefixDistribution α) (C : TallyCfg) (κs δ : ℝ) (hκ : 2 * G.κ ≤ κs) (hδ0 : 0 < δ)
+    (hδ1 : δ ≤ 1) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
           (TallyEndsWell G.M (fun q => ¬ G.Good q) P.D C P.start P.L
-            (3 / 4 * G.θ * coverage P.D P.start P.L G.M (fun q => ¬ G.Good q)
+            ((undecidedCount P G.M G.dist
+              - 2 * Real.sqrt (P.q * undecidedCount P G.M G.dist * Real.log (1 / δ)))
               / (P.L + 1 - P.start : ℕ)) (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
-      ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs
-        + ENNReal.ofReal (Real.exp
-          (-(3 / 2 * G.θ * coverage P.D P.start P.L G.M (fun q => ¬ G.Good q)) / (16 * P.q))) := by
+      ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs + ENNReal.ofReal δ := by
   obtain ⟨D, _, L, st, hst, hlen, q, hq, hpreq⟩ := P
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
@@ -141,37 +141,61 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
     · gcongr ?_ * _
     · simp only [mul_one]
       gcongr ?_ * _ * _
-  set m₀ := 3 / 2 * G.θ * coverage D st L G.M (fun r => ¬ G.Good r) / (L + 1 - st : ℕ)
-  set Ny := {ω | (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
-      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
-  have hm₀ : m₀ ≤ 3 / 2 * G.θ * (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
-      ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} := by
-    have hcov : coverage D st L G.M (fun r => ¬ G.Good r) / (L + 1 - st : ℕ)
-        ≤ (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
-          ¬ G.Good (G.M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
-      coverage_le_anchor D st L G.M (fun r => ¬ G.Good r)
-    simp only [m₀, mul_div_assoc]
-    exact mul_le_mul_of_nonneg_left hcov (by linarith [hA.θ_nonneg])
-  have hNy : μ Ny ≤ ENNReal.ofReal
-      (Real.exp (-(3 / 2 * G.θ * coverage D st L G.M (fun r => ¬ G.Good r)) / (16 * q))) := by
-    rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
-    refine ENNReal.ofReal_le_ofReal ((anchor_reads read hmeas hind D hst
-      (fun u => ¬ G.Good (G.M.eval u.toList)) (3 / 2 * G.θ) (fun u hu => ?_) m₀ q hm₀ hq
-      hpreq).trans_eq ?_)
-    · rw [hlaw]
-      exact (not_le.1 hu).le
-    · have hn : ((L + 1 - st : ℕ) : ℝ) ≠ 0 := by
-        exact_mod_cast (anchorCount_pos hst).ne'
-      simp only [m₀]
-      congr 1
-      field_simp
+  set n : ℝ := ((L + 1 - st : ℕ) : ℝ)
+  have hn : (0 : ℝ) < n := by simp only [n]; exact_mod_cast anchorCount_pos hst
+  set V := undecidedCount ⟨D, inferInstance, L, st, hst, hlen, q, hq, hpreq⟩ G.M G.dist
+  set lg := Real.log (1 / δ)
+  have hlg : 0 ≤ lg := Real.log_nonneg (by rw [le_div_iff₀ hδ0]; linarith)
+  set Y : Ω → ℝ := fun ω => (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+      read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
+  set y := (V - 2 * Real.sqrt (q * V * lg)) / n
+  set Ny := {ω | Y ω < y}
+  have hV : V = n * ∑ u ∈ anchorStrs st L, anchorWeight D st L u
+      * μ.real {ω | read u ω = .undecided} := by
+    simp only [V, undecidedCount]
+    rw [tsum_eq_sum (s := anchorStrs st L) fun u hu => if_neg fun h => hu (mem_anchorStrs.2 h),
+      Finset.mul_sum]
+    refine Finset.sum_congr rfl fun u hu => ?_
+    rw [if_pos (mem_anchorStrs.1 hu), hlaw, anchorWeight]
+    have hn0 := hn.ne'
+    simp only [n] at hn0 ⊢
+    field_simp
+  have hV0 : 0 ≤ V := by
+    rw [hV]
+    exact mul_nonneg hn.le (Finset.sum_nonneg fun u _ =>
+      mul_nonneg (anchorWeight_nonneg D st L u) measureReal_nonneg)
+  have hNy : μ Ny ≤ ENNReal.ofReal δ := by
+    rcases hV0.lt_or_eq with hVp | hVz
+    · rw [← ENNReal.ofReal_toReal (measure_ne_top μ Ny)]
+      refine ENNReal.ofReal_le_ofReal ((measureReal_mono (fun ω (h : Y ω < y) => h.le)).trans
+        ((anchor_reads read hmeas hind D hst q hpreq y
+          (n * Real.sqrt (q * V * lg) / (q * V)) (by positivity)).trans_eq ?_))
+      have hr : Real.sqrt (q * V * lg) ^ 2 = q * V * lg := Real.sq_sqrt (by positivity)
+      have hm : ∑ u ∈ anchorStrs st L, anchorWeight D st L u * μ.real {ω | read u ω = .undecided}
+          = V / n := by rw [hV]; field_simp
+      have hexp : n * Real.sqrt (q * V * lg) / (q * V) * y
+          - n * Real.sqrt (q * V * lg) / (q * V)
+            * (1 - n * Real.sqrt (q * V * lg) / (q * V) * (q / n)) * (V / n) = -lg := by
+        have hq0 : q ≠ 0 := hq.ne'
+        have hV0' : V ≠ 0 := hVp.ne'
+        have hn0 : n ≠ 0 := hn.ne'
+        simp only [y]
+        field_simp
+        linear_combination (-1 : ℝ) * hr
+      rw [hm, hexp, show lg = Real.log (1 / δ) from rfl, one_div, Real.log_inv, neg_neg,
+        Real.exp_log hδ0]
+    · have : Ny = ∅ := by
+        refine Set.eq_empty_of_forall_notMem fun ω (h : Y ω < y) => ?_
+        simp only [y, ← hVz, mul_zero, zero_mul, Real.sqrt_zero, sub_zero, zero_div] at h
+        exact absurd h (not_lt.2 measureReal_nonneg)
+      rw [this, measure_empty]
+      exact zero_le
   set B := toMeasurable μ Ny
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.budget => D)
       {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
 
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C st L
-            (3 / 4 * G.θ * coverage D st L G.M (fun r => ¬ G.Good r)
-          / (L + 1 - st : ℕ)) (read · ω)) tallyStart (List.ofFn xs)}
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C st L y (read · ω)) tallyStart
+          (List.ofFn xs)}
       ≤ (Measure.pi fun _ : Fin C.budget => D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
           (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
@@ -189,10 +213,9 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
       refine runEnds_mono (fun e s' hs => ?_) _ _ h'
       obtain ⟨hQ, hroot⟩ := hs
       refine EndsWell.respread (tallyReplay_spread _ _ _ D st L) ?_ hQ
-      refine le_trans (le_of_eq ?_) (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
-      · simp only [m₀]; ring
-      · rintro ⟨w, e⟩ ⟨he, hu⟩
-        exact tallyReplay_root _ hroot _ he hu
+      refine hωY.trans (measureReal_mono ?_ (measure_ne_top _ _))
+      rintro ⟨w, e⟩ ⟨he, hu⟩
+      exact tallyReplay_root _ hroot _ he hu
   calc _ ≤ ∫⁻ ω, ((Measure.pi fun _ : Fin C.budget => D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
           (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
@@ -208,8 +231,8 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
         exact add_le_add hold hNy
 
 theorem tally_round_holds : TallyRoundRisk := by
-  intro α _ _ σ _ Ω _ μ _ M O θ P C κs hκ
+  intro α _ _ σ _ Ω _ μ _ M O θ P C κs δ hκ hδ0 hδ1
   exact tally_round_model ⟨M, O.dist, θ, O.κ, O.ε, O.nonneg, O.rare⟩ O.read O.measurable O.indep
-    O.law P C κs hκ
+    O.law P C κs δ hκ hδ0 hδ1
 
 end OrthoDFA

@@ -248,24 +248,23 @@ def TallyRiskBound : Prop :=
 
 
 /-- `TallyRoundRisk`: with an oracle reading every string with the read model's laws, the round over
-`C.budget` probes drawn from `P.D` fails to end well with chance at most `roundRisk` plus
-`exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`. The harvest's replay yields
-`0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not good at a
-position from `start` to `L` and `n = L + 1 − start` the anchors. -/
+`C.budget` probes drawn from `P.D` fails to end well with chance at most `roundRisk` plus `δ`, at
+any records coefficient `κs ≥ 2κ`. The harvest's replay yields `(V − 2√(q V log(1/δ))) / n`,
+where `V` is the mean count of positions from `start` to `L` at which a draw's prefix reads
+undecided and `n = L + 1 − start` the anchors. -/
 def TallyRoundRisk : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
-    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ),
-    2 * O.κ ≤ κs →
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : TallyCfg) (κs δ : ℝ),
+    2 * O.κ ≤ κs → 0 < δ → δ ≤ 1 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (O.read z ω).cut)
           (TallyEndsWell M (fun q => ¬ O.Good θ q) P.D C P.start P.L
-            (3 / 4 * θ * coverage P.D P.start P.L M (fun q => ¬ O.Good θ q)
+            ((undecidedCount P M O.dist
+              - 2 * Real.sqrt (P.q * undecidedCount P M O.dist * Real.log (1 / δ)))
               / (P.L + 1 - P.start : ℕ)) (O.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
-      ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
-        + ENNReal.ofReal (Real.exp
-          (-(3 / 2 * θ * coverage P.D P.start P.L M (fun q => ¬ O.Good θ q)) / (16 * P.q)))
+      ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + ENNReal.ofReal δ
 
 end OrthoDFA
 
