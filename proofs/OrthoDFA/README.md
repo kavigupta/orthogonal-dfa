@@ -28,6 +28,13 @@
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
   all on its side, level 2 on `P` probes ends well but for chance at most `(P + 1)(1 − ε)^n`, `n`
   the clean probes in a row that end it.
+- `OrthoDFA/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
+  random, its counts kept over the stretch since the hypothesis last changed and tested after
+  every probe.
+- `OrthoDFA/Level3Claim.lean` — `RandomRoundCorrect`: with every string's read drawn once,
+  independently, undecided with its state's chance and never on its state's wrong side, level 3
+  on `C.probeBudget` probes fails to end well with chance at most `roundRisk` plus
+  `exp(−1.5θ c/(16 q))`, its harvest's replay yielding `0.75θ c / n`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

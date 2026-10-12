@@ -48,9 +48,9 @@ theorem pot_of_sift {T : DTree α} {k p : ℕ} {x z : FreeMonoid α} (h1 : k ≤
   obtain ⟨m, hm, rfl⟩ := sift_inr_mids read T _ z h
   exact ⟨mem_pot h1 h2 hm, DTree.sift_inr read T _ _ h⟩
 
-/-! ## The bisect's stopping points -/
+/-! ## The bisection's stopping points -/
 
-/-- Where the bisect's answer lies between `lo` and `hi`. -/
+/-- Where the bisection's answer lies between `lo` and `hi`. -/
 def PosIn (lo hi : ℕ) : SearchResult → Prop
   | .edge _ => True
   | .triple p => lo ≤ p ∧ p ≤ hi
@@ -86,7 +86,7 @@ theorem search_pos (ag : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n
 variable (T : DTree α) (x : FreeMonoid α)
 
 theorem located_pt (st : ℕ → List Bool) (lo hi : ℕ) :
-    ∀ z ∈ ptStr (locate read T x st lo hi), ∃ p, lo ≤ p ∧ p ≤ hi ∧
+    ∀ z ∈ middleString (locate read T x st lo hi), ∃ p, lo ≤ p ∧ p ≤ hi ∧
       T.sift read (prefixOf x p) = .inr z := by
   have hpos := search_pos (siftAgrees read T x st) _ lo hi rfl
   unfold locate
@@ -100,19 +100,19 @@ theorem located_pt (st : ℕ → List Bool) (lo hi : ℕ) :
   cases f with
   | edge p =>
     simp only at hz
-    split at hz <;> simp [ptStr] at hz
+    split at hz <;> simp [middleString] at hz
   | triple p =>
-    simp only [ptStr] at hz
+    simp only [middleString] at hz
     exact ⟨p, hpos.1, hpos.2, hst p (List.mem_of_mem_take hz)⟩
   | pair p =>
-    simp only [ptStr] at hz
+    simp only [middleString] at hz
     rcases List.mem_append.1 (List.mem_of_mem_take hz) with h | h
     · exact ⟨p, hpos.1, by have := hpos.2; omega, hst p h⟩
     · exact ⟨p + 1, by have := hpos.1; omega, hpos.2, hst _ h⟩
 
 theorem located_searches (st : ℕ → List Bool) (lo hi : ℕ) :
-    searches (locate read T x st lo hi) = true ∧ startStr (locate read T x st lo hi) = [] := by
-  have hs : ∀ p zs, startStr (.undecided (Ideal.siteAt x st p) zs false) = [] := by
+    searches (locate read T x st lo hi) = true ∧ startString (locate read T x st lo hi) = [] := by
+  have hs : ∀ p zs, startString (.undecided (Ideal.siteAt x st p) zs false) = [] := by
     intro p zs
     unfold Ideal.siteAt
     split <;> rfl
@@ -126,7 +126,7 @@ variable (E : Edges α) (k : ℕ)
 
 /-- The undecided middle a probe stops at was read at a prefix between `k` and `|x|`. -/
 theorem probe_pt (hk : k ≤ x.toList.length) :
-    ∀ z ∈ ptStr (probe read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
+    ∀ z ∈ middleString (probe read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
       T.sift read (prefixOf x p) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -142,49 +142,50 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
         rw [List.getElem?_eq_none (by omega)] at hc
         simp at hc
       split
-      · simp [ptStr]
-      · simp [ptStr]
+      · simp [middleString]
+      · simp [middleString]
       · split_ifs
-        · simp [ptStr]
+        · simp [middleString]
         · intro z hz
           obtain ⟨p, h1, h2, h3⟩ := located_pt read T x _ k _ z hz
           exact ⟨p, h1, by omega, h3⟩
     · split
-      · simp [ptStr]
+      · simp [middleString]
       · split_ifs
-        · simp [ptStr]
+        · simp [middleString]
         · intro z hz
           obtain ⟨p, h1, h2, h3⟩ := located_pt read T x _ k _ z hz
           exact ⟨p, h1, by omega, h3⟩
-  · simp [ptStr]
+  · simp [middleString]
 
 /-- The undecided read a probe stops at at its start is its first `k` letters' sift's. -/
-theorem probe_start : ∀ z ∈ startStr (probe read T E k x), T.sift read (prefixOf x k) = .inr z := by
+theorem probe_start : ∀ z ∈ startString (probe read T E k x), T.sift read (prefixOf x k)
+    = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · simp only
     split
     · split
-      · simp [startStr]
-      · simp [startStr]
+      · simp [startString]
+      · simp [startString]
       · split_ifs
-        · simp [startStr]
+        · simp [startString]
         · simp [(located_searches read T x _ k _).2]
     · split
-      · simp [startStr]
+      · simp [startString]
       · split_ifs
-        · simp [startStr]
+        · simp [startString]
         · simp [(located_searches read T x _ k _).2]
-  · simp [startStr]
+  · simp [startString]
 
 /-- A probe the hypothesis disagrees on is long enough to walk, and searches. -/
 theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
-    k ≤ x.toList.length ∧ searches (probeR read T E k x) = true := by
+    k ≤ x.toList.length ∧ searches (probeOrAgree read T E k x) = true := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   obtain ⟨hlen, hlast⟩ := run_walk E a _ q hq
   by_cases hkx : k ≤ x.toList.length
   · refine ⟨hkx, ?_⟩
-    unfold probeR
+    unfold probeOrAgree
     rw [if_neg (by omega)]
     unfold probe
     simp only [ha]
@@ -209,38 +210,40 @@ theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
 
 /-! ## The counted strings -/
 
-theorem ptStr_length (o : Outcome α) : (ptStr o).length ≤ 1 := by
-  unfold ptStr; split <;> simp
+theorem middleString_length (o : Outcome α) : (middleString o).length ≤ 1 := by
+  unfold middleString; split <;> simp
 
-theorem startStr_length (o : Outcome α) : (startStr o).length ≤ 1 := by
-  unfold startStr; split <;> simp
+theorem startString_length (o : Outcome α) : (startString o).length ≤ 1 := by
+  unfold startString; split <;> simp
 
-theorem searches_of_ptStr {o : Outcome α} (h : ptStr o ≠ []) : searches o = true := by
-  unfold ptStr at h
+theorem searches_of_ptStr {o : Outcome α} (h : middleString o ≠ []) : searches o = true := by
+  unfold middleString at h
   split at h
   · rfl
   · exact absurd rfl h
 
-theorem probeR_pt : ∀ z ∈ ptStr (probeR read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+theorem probeOrAgree_pt : ∀ z ∈ middleString (probeOrAgree read T E k x), z ∈ pot k x T
+    ∧ read z = .undecided := by
   intro z hz
-  unfold probeR at hz
+  unfold probeOrAgree at hz
   split_ifs at hz with hs
-  · simp [ptStr] at hz
+  · simp [middleString] at hz
   · obtain ⟨p, h1, h2, h3⟩ := probe_pt read T x E k (by omega) z hz
     exact pot_of_sift read h1 h2 h3
 
-theorem probeR_start :
-    ∀ z ∈ startStr (probeR read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+theorem probeOrAgree_start :
+    ∀ z ∈ startString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
-  unfold probeR at hz
+  unfold probeOrAgree at hz
   split_ifs at hz with hs
-  · simp [startStr] at hz
+  · simp [startString] at hz
   · exact pot_of_sift read le_rfl (by omega) (probe_start read T x E k z hz)
 
-theorem charges_und :
-    ∀ e ∈ charges read T E k x, ∀ z, e.2.2.2 = some z → z ∈ pot k x T ∧ read z = .undecided := by
+theorem positionReads_und :
+    ∀ e ∈ positionReads read T E k x, ∀ z, e.2.2.2 = some z
+        → z ∈ pot k x T ∧ read z = .undecided := by
   intro e he z hz
-  unfold charges at he
+  unfold positionReads at he
   split_ifs at he
   · simp at he
   · obtain ⟨i, hi, hie⟩ := List.mem_filterMap.1 he
@@ -252,13 +255,13 @@ theorem charges_und :
     subst hz
     exact pot_of_sift read hi'.2.1.le hi'.2.2 hs
 
-theorem charges_length : (charges read T E k x).length ≤ x.toList.length - k := by
+theorem positionReads_length : (positionReads read T E k x).length ≤ x.toList.length - k := by
   classical
-  unfold charges
+  unfold positionReads
   split_ifs
   · simp
   · refine (List.length_filterMap_le _ _).trans ?_
-    set l := ((probePos read T E k x).2.filter fun i => k < i ∧ i ≤ x.toList.length).dedup
+    set l := ((probePositions read T E k x).2.filter fun i => k < i ∧ i ≤ x.toList.length).dedup
     have hnd : l.Nodup := List.nodup_dedup _
     rw [← List.toFinset_card_of_nodup hnd, ← Nat.card_Ioc]
     refine Finset.card_le_card fun i hi => ?_
@@ -268,14 +271,15 @@ theorem charges_length : (charges read T E k x).length ≤ x.toList.length - k :
 
 variable [DecidableEq α]
 
-theorem undAt_sub (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool)
-    (c : α) : ∀ z ∈ undAt ch p c, ∃ e ∈ ch, e.2.2.2 = some z := by
+theorem undecidedAtEdge_sub (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool)
+    (c : α) : ∀ z ∈ undecidedAtEdge ch p c, ∃ e ∈ ch, e.2.2.2 = some z := by
   intro z hz
   obtain ⟨e, he, hez⟩ := List.mem_filterMap.1 hz
   exact ⟨e, (List.mem_filter.1 he).1, hez⟩
 
-theorem undAt_length (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool)
-    (c : α) : (undAt ch p c).length ≤ ch.length :=
+theorem undecidedAtEdge_length (ch : List (List Bool × α × ℕ × Option (FreeMonoid α)))
+    (p : List Bool)
+    (c : α) : (undecidedAtEdge ch p c).length ≤ ch.length :=
   (List.length_filterMap_le _ _).trans (List.length_filter_le _ _)
 
 end Random
