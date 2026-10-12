@@ -22,6 +22,10 @@
   result says what `agrees` is where it points, the queries stay between the endpoints and number
   at most `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
+- `OrthoDFA/DTree.lean` — the discrimination tree, and `DTree.route`, sifting a string through it
+  under a three-valued cut. `RouteCorrect`: the reads are the string followed by each midfix on
+  its way, no more than the tree is deep; a decided route ends at a leaf, along the path its reads
+  decide, and an undecided one at its only undecided read. `MidfixTree.route` is the same function.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

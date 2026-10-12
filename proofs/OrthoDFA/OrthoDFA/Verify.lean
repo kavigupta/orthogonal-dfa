@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.TripartiteSearch
 
@@ -8,7 +9,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead` and `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`.
+`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, and
+`RouteCorrect`, stated in `OrthoDFA.DTree`.
 -/
 
 namespace OrthoDFA
@@ -29,5 +31,9 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
 
 #print axioms tripartite_search_correct
+
+theorem route_correct : RouteCorrect := routeCorrect
+
+#print axioms route_correct
 
 end OrthoDFA

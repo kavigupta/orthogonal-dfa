@@ -132,6 +132,30 @@ class MidfixTree:
 
     # -- classification -----------------------------------------------------
 
+    def route(
+        self, cut: Callable[[bytes], Optional[bool]], seq: bytes
+    ) -> Tuple[List[bytes], Optional[Tuple[bool, ...]]]:
+        """``DTree.route`` of ``OrthoDFA/DTree.lean``, proved by ``RouteCorrect``: the
+        strings sifting ``seq`` reads, and its leaf's path, ``None`` where the last read
+        is undecided."""
+        reads, path, node = [], (), self._root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            reads.append(seq + midfix)
+            side = cut(reads[-1])
+            if side is None:
+                return reads, None
+            path += (side,)
+            node = lookup[side]
+        return reads, path
+
+    def leaf_at(self, path: Tuple[bool, ...]) -> int:
+        """The leaf reached by following ``path`` from the root."""
+        node = self._root
+        for branch in path:
+            node = node[1][branch]
+        return node
+
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[bytes]]:
         """
         Route seq to a leaf: (state, None) when it lands decisively, or
@@ -141,14 +165,10 @@ class MidfixTree:
         seq + midfix + v, so it is seq + midfix that the family failed on and
         that a caller can force the next family to resolve.
         """
-        node = self._root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            decision = decide(seq, midfix)
-            if decision is None:
-                return None, seq + midfix
-            node = lookup[decision]
-        return node, None
+        reads, path = self.route(lambda read: decide(seq, read[len(seq) :]), seq)
+        if path is None:
+            return None, reads[-1]
+        return self.leaf_at(path), None
 
     def classify(self, seq, decide: Decide) -> Optional[int]:
         """
