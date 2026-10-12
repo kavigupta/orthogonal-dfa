@@ -82,12 +82,27 @@ class MidfixTree:
 
         return find(self._root, ())
 
-    def midfix_at(self, path: Tuple[bool, ...]) -> bytes:
-        """The midfix of the internal node reached by following ``path``."""
+    def _at(self, path: Tuple[bool, ...]) -> Node:
         node = self._root
         for branch in path:
             node = node[1][branch]
-        return node[0]
+        return node
+
+    def midfix_at(self, path: Tuple[bool, ...]) -> bytes:
+        """The midfix of the internal node reached by following ``path``."""
+        return self._at(path)[0]
+
+    def leaf_at(self, path: Tuple[bool, ...]) -> int:
+        return self._at(path)
+
+    def leaf_paths(self) -> List[Tuple[bool, ...]]:
+        def paths(node: Node) -> List[Tuple[bool, ...]]:
+            if isinstance(node, int):
+                return [()]
+            _, lookup = node
+            return [(side,) + p for side in (False, True) for p in paths(lookup[side])]
+
+        return paths(self._root)
 
     def accepting_leaves(self) -> set:
         """
@@ -115,6 +130,22 @@ class MidfixTree:
         return new_state
 
     # -- classification -----------------------------------------------------
+
+    def route(
+        self, cut: Callable[[bytes], Optional[bool]], seq: bytes
+    ) -> Tuple[List[bytes], Optional[Tuple[bool, ...]]]:
+        """The strings sifting ``seq`` reads, and its leaf's path, ``None`` where the
+        last read is undecided."""
+        reads, path, node = [], (), self._root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            reads.append(seq + midfix)
+            side = cut(reads[-1])
+            if side is None:
+                return reads, None
+            path += (side,)
+            node = lookup[side]
+        return reads, path
 
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[bytes]]:
         """

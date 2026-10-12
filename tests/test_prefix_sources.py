@@ -11,9 +11,17 @@ from types import SimpleNamespace
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.prefix_sources import HarvestSource, aim_at, state_source
+from orthogonal_dfa.l_star.prefix_sources import (
+    HarvestSource,
+    Replay,
+    aim_at,
+    harvest_reader,
+    state_source,
+)
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
+from orthogonal_dfa.l_star.tally_round import HARVEST_EDGE, Ending
+from tests.tally_common import ODD, PARITY_EDGES, parity_cut, quiet_round
 
 
 class _Pst:
@@ -186,6 +194,19 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
         ends = [source.draw()[-1:] for _ in range(400)]
 
         self.assertAlmostEqual(ends.count(b"a") / len(ends), 3 / 4, delta=0.06)
+
+
+class TestReplay(unittest.TestCase):
+    def test_a_replay_reads_a_fresh_probe_where_the_round_harvested(self):
+        tally = quiet_round(parity_cut([b"\x01\x00"]), PARITY_EDGES)
+        ending = Ending(HARVEST_EDGE, [], (ODD, 0))
+        self.assertEqual(
+            [b"\x01\x00"],
+            Replay(tally, harvest_reader(ending), lambda: b"\x01\x00").sample(),
+        )
+        self.assertEqual(
+            [], Replay(tally, harvest_reader(ending), lambda: b"\x01\x01").sample()
+        )
 
 
 if __name__ == "__main__":

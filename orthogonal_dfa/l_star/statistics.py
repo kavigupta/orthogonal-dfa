@@ -32,6 +32,17 @@ def binom_sf(k, n, p):
     return scipy.special.bdtrc(k, n, p)
 
 
+def rate_side(theta, a, n0, n, h) -> Optional[bool]:
+    """``True`` where ``P(Bin(n, θ) ≥ h) < a``, ``False`` where ``P(Bin(n, θ) ≤ h) < a``."""
+    if n < n0:
+        return None
+    if binom_sf(h - 1, n, theta) < a:
+        return True
+    if binom_cdf(h, n, theta) < a:
+        return False
+    return None
+
+
 def population_size_and_evidence_margin(
     signal_strength, cross_limit, acceptable_fnr, *, center
 ) -> Tuple[int, float]:

@@ -5,7 +5,9 @@ which says where a string rests, and its hypothesis, which says where to aim
 one.  Only the tree's answer counts.
 """
 
+from dataclasses import dataclass
 from math import isqrt
+from typing import Callable, List
 
 import numpy as np
 
@@ -15,6 +17,8 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
+from .tally_probe import ProbeResult
+from .tally_round import HARVEST_EDGE, HARVEST_START, Ending, TallyRound
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -83,6 +87,27 @@ class HarvestSource(RejectionSource):
 
     def source_repr(self) -> str:
         return "boundary"
+
+
+def harvest_reader(ending: Ending) -> Callable[[ProbeResult], List[bytes]]:
+    """What a probe reads undecided where ``ending`` harvested."""
+    if ending.kind == HARVEST_START:
+        return lambda result: result.start
+    if ending.kind == HARVEST_EDGE:
+        return lambda result: result.undecided_by_edge.get(ending.edge, [])
+    return lambda result: result.middle
+
+
+@dataclass(frozen=True, eq=False)
+class Replay:
+    """Fresh probes of a round's last hypothesis, kept as ``read`` reads them."""
+
+    round: TallyRound
+    read: Callable[[ProbeResult], List[bytes]]
+    draw: Callable[[], bytes]
+
+    def sample(self) -> List[bytes]:
+        return self.read(self.round.probe(self.draw()))
 
 
 def aim_at(pst, dfa, leaf):

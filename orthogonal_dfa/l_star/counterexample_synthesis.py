@@ -20,17 +20,19 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
+from .prefix_sources import (
+    HarvestSource,
+    Replay,
+    UniformSource,
+    aim_at,
+    harvest_reader,
+    state_source,
+)
 from .progress import counter, track
 from .suffix_family import SuffixFamily
-from .tally_round import (
-    HARVESTS,
-    SUCCESS,
-    Replay,
-    TallyRound,
-    harvest_reader,
-    tally_config,
-)
+from .tally_batching import warmed_draws
+from .tally_config import tally_config
+from .tally_round import HARVESTS, SUCCESS, TallyRound
 from .tracker import SynthesisTracker
 
 
@@ -242,7 +244,7 @@ def _next_harvest(pst, hypothesis, ending, blamed):
         return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
 
     return at_leaf(hypothesis.edge_harvest), Replay(
-        hypothesis, lambda probe: at_leaf(probe.undecided_by_edge()), draw
+        hypothesis, lambda result: at_leaf(result.undecided_by_edge), draw
     )
 
 
@@ -263,7 +265,6 @@ def _tally_round(pst, vs, *, acc_threshold):
     hypothesis = TallyRound(
         tally_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
-        family.read_many,
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
     with counter(hypothesis.config.max_probes, "Probing") as pbar:
@@ -272,7 +273,7 @@ def _tally_round(pst, vs, *, acc_threshold):
             pbar.update(1)
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
-        ending = hypothesis.run(draw)
+        ending = hypothesis.run(warmed_draws(hypothesis, draw, family.read_many))
     return hypothesis, ending
 
 
