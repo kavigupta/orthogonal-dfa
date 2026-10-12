@@ -7711,8 +7711,8 @@ ladder shares, so it is charged once against `δ/4` rather than per rung. -/
 lemma solved_findability (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : ℝ}
     (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
     Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      * (2 * pAP / 5) ^ 2) ≤ δ / 32 := by
-  have ctap : Real.log (1 / (δ / 32)) / (2 * (2 * pAP / 5) ^ 2)
+      * (9 * pAP / 20) ^ 2) ≤ δ / 32 := by
+  have ctap : Real.log (1 / (δ / 32)) / (2 * (9 * pAP / 20) ^ 2)
       ≤ ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℕ) : ℝ) := by
     have hmono : Real.log (1 / (δ / 32))
         ≤ Real.log (128 * (populations.card : ℝ) / δ) := by
@@ -7721,11 +7721,11 @@ lemma solved_findability (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : 
       nlinarith
     refine le_trans (div_le_div_of_nonneg_right hmono (by positivity)) ?_
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (2 * pAP / 5) ^ 2)⌉₊
+    have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊
         ≤ poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
       rw [poolCount]; omega
     exact_mod_cast hle
-  have h := tail_le_of_count (γ := 2 * pAP / 5) (c := 1) (by positivity)
+  have h := tail_le_of_count (γ := 9 * pAP / 20) (c := 1) (by positivity)
     (by positivity : (0 : ℝ) < δ / 32) (by norm_num) ctap
   linarith
 
@@ -7735,7 +7735,7 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
     (hδ : 0 < δ) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-        * (2 * pAP / 5) ^ 2)
+        * (9 * pAP / 20) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
     ∧ ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2
         * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
@@ -7761,12 +7761,12 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hMR : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
   -- each count clears the logarithm its tail asks for
-  have ctap : Real.log (1 / ε₀) / (2 * (2 * pAP / 5) ^ 2) ≤ (M : ℝ) := by
+  have ctap : Real.log (1 / ε₀) / (2 * (9 * pAP / 20) ^ 2) ≤ (M : ℝ) := by
     have heq : (1 : ℝ) / ε₀ = 128 * (populations.card : ℝ) / δ := by
       rw [hε₀def]; field_simp
     rw [heq]
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (2 * pAP / 5) ^ 2)⌉₊ ≤ M := by
+    have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊ ≤ M := by
       rw [hMdef, poolCount]; omega
     exact_mod_cast hle
   have cscr : Real.log ((((M : ℝ) + 2) ^ 2) / ε₀)
@@ -7803,8 +7803,8 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
       rw [hmdef, prefCount]; omega
     exact_mod_cast hle
   -- the tails those counts kill
-  have ttap : Real.exp (-2 * (M : ℝ) * (2 * pAP / 5) ^ 2) ≤ ε₀ := by
-    have h := tail_le_of_count (γ := 2 * pAP / 5) (c := 1) (by positivity) hε₀ (by norm_num) ctap
+  have ttap : Real.exp (-2 * (M : ℝ) * (9 * pAP / 20) ^ 2) ≤ ε₀ := by
+    have h := tail_le_of_count (γ := 9 * pAP / 20) (c := 1) (by positivity) hε₀ (by norm_num) ctap
     linarith
   have tscr : ((M : ℝ) + 2) ^ 2
       * Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations indecisionLimit εcov δ / 2) ^ 2)
@@ -7844,7 +7844,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
             (screenMargin η₀ populations indecisionLimit εcov δ / 2)
             (screenMargin η₀ populations indecisionLimit εcov δ / 2)
             (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32)
-            (2 * pAP / 5) ρ ρsf
+            (9 * pAP / 20) ρ ρsf
             (rejCount η₀ indecisionLimit εcov
               (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit))
             (poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
@@ -8115,7 +8115,7 @@ lemma poolCount_found (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : ℝ
     push_cast
     linarith [Nat.le_ceil (2 * ((κ : ℝ) + 1) / pAP),
       Nat.cast_nonneg (α := ℝ)
-        ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (2 * pAP / 5) ^ 2)⌉₊]
+        ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊]
   have hM : 2 * ((κ : ℝ) + 1) ≤ (M : ℝ) * pAP := by
     rw [div_le_iff₀ hpAP] at hc
     exact hc
@@ -8368,6 +8368,31 @@ theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ 
   show ((N / 2 ^ i : ℕ) : ℝ) ≤ 2 * (V : ℝ)
   exact_mod_cast hlt.le
 
+/-- The top rung can always be stopped at: it carries the whole proportional share. -/
+theorem solvedState_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
+    (hρ0 : 0 ≤ ρ) (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+      ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ := by
+  classical
+  have hB := solvedState_mem_schedule (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit) η₀ populations εcov δ α pAP
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  have hmpos : 0 < m := prefCount_pos (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit) η₀ populations εcov δ α pAP
+  have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
+  rw [stoppable]
+  refine Finset.mem_filter.2 ⟨hB, ⟨(band_of_mem_schedule hη0 hsig hB).1, hmpos,
+    poolCount_found η₀ populations hsig hpAP, ?_⟩⟩
+  show stateFail η₀ populations indecisionLimit εcov ρ
+      (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    ≤ δ * (m : ℝ) / (8 * m) + _
+  have hval : δ * (m : ℝ) / (8 * (m : ℝ)) = δ / 8 := by field_simp
+  rw [hval]
+  exact le_add_of_le_of_nonneg (solved_share η₀ populations hsig hη0 hε hind hδ hpAP hcard hρ0
+    hρcap) (by split_ifs <;> positivity)
+
 set_option maxHeartbeats 1000000 in
 /-- The computed ladder holds a state whose round can pass.
 
@@ -8478,7 +8503,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hη₀ hεcov hindLim
   obtain ⟨hcle, hceq⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hη₀ hεcov hindLim
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
-    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, 2 * pAP / 5,
+    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, 9 * pAP / 20,
     decSlack η₀ populations indecisionLimit εcov δ crossLimit,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,

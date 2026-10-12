@@ -147,12 +147,12 @@ of the rest. -/
 noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
   7 * validFlip η populations εcov * ((1 - η) * sig η) / 8
 
-/-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `2pAP/5` so
+/-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `9pAP/20` so
 that a twentieth of the pool is left for the draws the sampler redraws. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
   ⌈2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (2 * pAP / 5) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊
 
 /-- The fraction of a state's prefix draws the samplers may redraw.  Every margin it is charged
 against is a fraction of the cut budget, the flip margins at the flip fraction, so this is both
