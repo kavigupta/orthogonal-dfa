@@ -10,7 +10,7 @@ import OrthoDFA.Proofs.TripartiteSearch
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, and
-`RouteCorrect`, stated in `OrthoDFA.DTree`.
+`SiftWithPathCorrect`, stated in `OrthoDFA.DTree`.
 -/
 
 namespace OrthoDFA
@@ -32,8 +32,8 @@ theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.triparti
 
 #print axioms tripartite_search_correct
 
-theorem route_correct : RouteCorrect := routeCorrect
+theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
 
-#print axioms route_correct
+#print axioms sift_with_path_correct
 
 end OrthoDFA

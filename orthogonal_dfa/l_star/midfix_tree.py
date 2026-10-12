@@ -132,10 +132,11 @@ class MidfixTree:
 
     # -- classification -----------------------------------------------------
 
-    def route(
+    def sift_with_path(
         self, cut: Callable[[bytes], Optional[bool]], seq: bytes
     ) -> Tuple[List[bytes], Optional[Tuple[bool, ...]]]:
-        """``DTree.route`` of ``OrthoDFA/DTree.lean``, proved by ``RouteCorrect``: the
+        """``DTree.siftWithPath`` of ``OrthoDFA/DTree.lean``, proved by
+        ``SiftWithPathCorrect``: the
         strings sifting ``seq`` reads, and its leaf's path, ``None`` where the last read
         is undecided."""
         reads, path, node = [], (), self._root
@@ -165,7 +166,9 @@ class MidfixTree:
         seq + midfix + v, so it is seq + midfix that the family failed on and
         that a caller can force the next family to resolve.
         """
-        reads, path = self.route(lambda read: decide(seq, read[len(seq) :]), seq)
+        reads, path = self.sift_with_path(
+            lambda read: decide(seq, read[len(seq) :]), seq
+        )
         if path is None:
             return None, reads[-1]
         return self.leaf_at(path), None

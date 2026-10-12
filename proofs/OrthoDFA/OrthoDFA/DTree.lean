@@ -17,11 +17,11 @@ def leaves : DTree α → List (List Bool)
   | leaf => [[]]
   | node _ r a => r.leaves.map (false :: ·) ++ a.leaves.map (true :: ·)
 
-def midAt : DTree α → List Bool → FreeMonoid α
+def midfixAt : DTree α → List Bool → FreeMonoid α
   | leaf, _ => 1
   | node m _ _, [] => m
-  | node _ r _, false :: p => r.midAt p
-  | node _ _ a, true :: p => a.midAt p
+  | node _ r _, false :: p => r.midfixAt p
+  | node _ _ a, true :: p => a.midfixAt p
 
 def depth : DTree α → ℕ
   | leaf => 0
@@ -29,24 +29,24 @@ def depth : DTree α → ℕ
 
 /-- The strings sifting `z` reads, in order, and the path to its leaf, `none` where the last read
 is undecided. -/
-def route (cut : FreeMonoid α → Option Bool) :
+def siftWithPath (cut : FreeMonoid α → Option Bool) :
     DTree α → FreeMonoid α → List (FreeMonoid α) × Option (List Bool)
   | leaf, _ => ([], some [])
   | node m r a, z =>
     match cut (z * m) with
-    | some true => (z * m :: (a.route cut z).1, (a.route cut z).2.map (true :: ·))
-    | some false => (z * m :: (r.route cut z).1, (r.route cut z).2.map (false :: ·))
+    | some true => (z * m :: (a.siftWithPath cut z).1, (a.siftWithPath cut z).2.map (true :: ·))
+    | some false => (z * m :: (r.siftWithPath cut z).1, (r.siftWithPath cut z).2.map (false :: ·))
     | none => ([z * m], none)
 
 end DTree
 
-/-- Routing reads `z` followed by the midfix of each node on its way, the `i`th at the node the
-first `i` decided reads lead to, and no more of them than the tree is deep. A decided route ends at
+/-- Sifting `z` reads it followed by the midfix of each node on its way, the `i`th at the node the
+first `i` decided reads lead to, and no more of them than the tree is deep. A decided sift ends at
 a leaf, along the path its reads decide; an undecided one ends at its only undecided read. -/
-def RouteCorrect : Prop :=
+def SiftWithPathCorrect : Prop :=
   ∀ {α : Type*} (cut : FreeMonoid α → Option Bool) (T : DTree α) (z : FreeMonoid α),
-    let r := T.route cut z
-    (∀ i (h : i < r.1.length), r.1[i] = z * T.midAt ((r.1.filterMap cut).take i))
+    let r := T.siftWithPath cut z
+    (∀ i (h : i < r.1.length), r.1[i] = z * T.midfixAt ((r.1.filterMap cut).take i))
     ∧ r.1.length ≤ T.depth
     ∧ (∀ p, r.2 = some p → p ∈ T.leaves ∧ p = r.1.filterMap cut ∧ ∀ w ∈ r.1, cut w ≠ none)
     ∧ (r.2 = none →

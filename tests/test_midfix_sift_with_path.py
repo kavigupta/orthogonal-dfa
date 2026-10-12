@@ -1,5 +1,5 @@
-"""Routing a string through the tree keeps the promises ``RouteCorrect`` makes, and ``sift``
-is routing."""
+"""``sift_with_path`` keeps the promises ``SiftWithPathCorrect`` makes, and ``sift`` runs on
+it."""
 
 import itertools
 import unittest
@@ -30,7 +30,7 @@ def cuts(reads):
 
 
 def old_sift(tree, seq, decide):
-    """``MidfixTree.sift`` before it was written on ``route``."""
+    """``MidfixTree.sift`` before it was written on ``sift_with_path``."""
     node = tree.root
     while not isinstance(node, int):
         midfix, lookup = node
@@ -41,9 +41,9 @@ def old_sift(tree, seq, decide):
     return node, None
 
 
-class TestRouteCorrect(unittest.TestCase):
+class TestSiftWithPathCorrect(unittest.TestCase):
     def check(self, tree, cut, seq):
-        reads, path = tree.route(cut, seq)
+        reads, path = tree.sift_with_path(cut, seq)
         sides = tuple(cut(r) for r in reads if cut(r) is not None)
         for i, read in enumerate(reads):
             self.assertEqual(seq + tree.midfix_at(sides[:i]), read)
@@ -66,7 +66,7 @@ class TestRouteCorrect(unittest.TestCase):
         self.assertGreater(checked, 10000)
 
 
-class TestSiftIsRouting(unittest.TestCase):
+class TestSiftRunsOnSiftWithPath(unittest.TestCase):
     def test_every_small_tree_and_cut(self):
         for tree in small_trees():
             for seq in (b"", bytes([1, 0])):
@@ -88,19 +88,22 @@ class TestSiftIsRouting(unittest.TestCase):
 
 
 class TestExamples(unittest.TestCase):
-    def test_a_decided_route_reads_each_node_on_its_way(self):
+    def test_a_decided_sift_reads_each_node_on_its_way(self):
         tree = MidfixTree(())
         tree.split(0, bytes([5]))
         reads = {b"\x07": True, b"\x07\x05": False}
         self.assertEqual(
-            ([b"\x07", b"\x07\x05"], (True, False)), tree.route(reads.get, b"\x07")
+            ([b"\x07", b"\x07\x05"], (True, False)),
+            tree.sift_with_path(reads.get, b"\x07"),
         )
 
-    def test_an_undecided_read_ends_the_route(self):
+    def test_an_undecided_read_ends_the_sift(self):
         tree = MidfixTree(())
         tree.split(0, bytes([5]))
         reads = {b"\x07": True}
-        self.assertEqual(([b"\x07", b"\x07\x05"], None), tree.route(reads.get, b"\x07"))
+        self.assertEqual(
+            ([b"\x07", b"\x07\x05"], None), tree.sift_with_path(reads.get, b"\x07")
+        )
 
 
 if __name__ == "__main__":
