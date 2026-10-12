@@ -232,7 +232,8 @@ theorem round_root : ∀ (xs : List (FreeMonoid α)) (s : RState α), Ideal.Root
 end Root
 
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
-  intro α _ _ σ _ M side U θ Ω _ μ _ R D _ L C ε q hL hq hpreq
+  intro α _ _ σ _ M side U θ Ω _ μ _ R P C ε
+  obtain ⟨D, _, L, hL, q, hq, hpreq⟩ := P
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_

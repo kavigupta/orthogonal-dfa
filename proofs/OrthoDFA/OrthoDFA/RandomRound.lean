@@ -368,28 +368,24 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
   undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
   wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
 
-/-- Over `C.budget` probes drawn from `D`, of length at most `L`, the round fails to end well, a
-state being bad where it is undecided more than `1.5θ` of the time, with chance at most
-`roundRisk` plus `exp(−1.5θ c/(16 q))`. Its harvest is replayed as #417's, from an anchor drawn
-uniformly from the `n = L + 1 − ⌈L/2⌉` positions from `⌈L/2⌉` on, and yields `0.75θ c / n`,
-where `c` is the share of draws visiting a bad state from there and no string past `⌈L/2⌉` starts
-more than `q` of the draws. -/
+/-- Over `C.budget` probes drawn from `P.D`, the round fails to end well, a state being bad where
+it is undecided more than `1.5θ` of the time, with chance at most `roundRisk` plus
+`exp(−1.5θ c/(16 q))`. Its harvest is replayed as #417's, from an anchor drawn uniformly from the
+`n = L + 1 − ⌈L/2⌉` positions from `⌈L/2⌉` on, and yields `0.75θ c / n`, where `c` is the share of
+draws visiting a bad state from there. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε q : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
-    0 < q →
-    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
-      D.real {x | u.toList <+: x.toList} ≤ q) →
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
+    [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α) (C : Cfg)
+    (ε : ℝ),
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            L (replay (R.read · ω) r.1.tree r.1.edges)
-            (3 / 4 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ))
+          ¬ EndsWell M (BadAt U θ) P.D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
+            P.L (replay (R.read · ω) r.1.tree r.1.edges)
+            (3 / 4 * θ * coverage P.D P.L M (BadAt U θ) / (P.L + 1 - startLength P.L : ℕ))
             (toRoundEnd r.2)} ∂μ
-      ≤ roundRisk (α := α) σ θ D L C ε
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L M (BadAt U θ)) / (16 * q)))
+      ≤ roundRisk (α := α) σ θ P.D P.L C ε
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.L M (BadAt U θ)) / (16 * P.q)))
 
 end Random
 
