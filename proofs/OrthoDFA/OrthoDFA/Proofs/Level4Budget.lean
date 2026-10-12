@@ -117,15 +117,15 @@ open scoped Classical in
 over the window with chance at most `k + g + 1` times `δ'`, a sub-round's chance of keeping its
 tree over `Tsub` probes with fewer than the budget. -/
 theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3 ≤ C.maxLeaves)
-    {δ' : ℝ}
-    {Tsub : ℕ} (hδ' : 0 ≤ δ')
-    (hsub : ∀ s B T, SubStart G S s → B ≤ (S + 1) * C.recordsToMove → Tsub ≤ T →
-      (Measure.pi fun _ : Fin T => D) {xs | SubOpen G C rd s B Tsub T xs} ≤ ENNReal.ofReal δ') :
+    {δ' : ℝ} {Tsub : ℕ} (hδ' : 0 ≤ δ')
+    (hsub : ∀ s B T, SubStart G S s → B ≤ (S + 1) * C.recordsToMove → Tsub ≤ T
+      → (Measure.pi fun _ : Fin T => D) {xs | SubOpen G C rd s B Tsub T xs} ≤ ENNReal.ofReal δ') :
     ∀ N (s : Level4State α) (u k g W T : ℕ), k + g = N → AdmB G C S Tsub s u k g W T →
       (Measure.pi fun _ : Fin T => D) {xs | FailB G C rd S s u W T xs}
         ≤ ENNReal.ofReal ((k + g + 1) * δ') := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges with hU
+  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
+      with hU
   intro N
   induction N using Nat.strong_induction_on with
   | _ N ih =>
@@ -440,7 +440,8 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         · exact .inl hok
       have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
       have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω)) initialState (List.ofFn xs)}
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω)) initialState
+              (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (applyProbe C cut) (GoodEnd G) initialState (List.ofFn xs)}
             ∪ {xs | RunEnds (applyProbe C cut) (fun e s' => e = .success
               ∧ C.disagreementRate ≤ D.real (searchAt (read · ω) C.walkStart s'.tree s'.edges))

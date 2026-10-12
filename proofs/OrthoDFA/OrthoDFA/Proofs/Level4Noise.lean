@@ -158,9 +158,8 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
     {μ : Measure Ω} [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k n : ℕ) {p₀ l θgs : ℝ}
-    (hθ : 0 ≤ G.θ) (hp₀ : 0 < p₀)
-    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hl : 0 ≤ l) :
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k n : ℕ) {p₀ l θgs : ℝ} (hθ : 0 ≤ G.θ)
+    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hl : 0 ≤ l) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
         D.real (G.startAt (read · ω) k T G.Good) ≤ θgs}
       ≤ ENNReal.ofReal ((classSet n : Finset (DTree α)).card

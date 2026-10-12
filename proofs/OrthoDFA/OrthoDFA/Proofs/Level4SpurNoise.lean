@@ -147,9 +147,9 @@ strings and twice `ε` times the most first reads a probe makes by `η` with cha
 theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
-    (T : DTree α) (edges : EdgeTable α) (he : EdgesInto T edges) :
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
+    (edges : EdgeTable α) (he : EdgesInto T edges) :
     μ {ω | 2 * G.κ * ∫ x, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂D
           + 2 * (G.ε * ((L + 1) * T.midfixes.card)) + η
         < D.real (G.untrueAt (read · ω) k T edges)}
@@ -284,9 +284,9 @@ open scoped Classical in
 `ρ ≥ 2ε (L + 1)(|Q| + S + 1)`. -/
 theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
-    (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ)
-    {p₀ ρ κs : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hκs : 2 * G.κ ≤ κs)
+    (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ ρ κs : ℝ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hκs : 2 * G.κ ≤ κs)
     (hρ : 2 * (G.ε * ((L + 1) * (Fintype.card σ + S + 1))) ≤ ρ) :
     μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
         D.real (G.untrueAt (read · ω) k T edges)

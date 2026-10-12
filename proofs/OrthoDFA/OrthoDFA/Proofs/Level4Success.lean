@@ -41,8 +41,9 @@ def SkipC (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level
     | .inr _ => False
 
 theorem skipC_le [IsProbabilityMeasure D] (Q : Level4State α → List (FreeMonoid α) → Prop)
-    {c : ENNReal} (hQ : ∀ (T : ℕ) (s : Level4State α),
-      (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
+    {c : ENNReal}
+    (hQ : ∀ (T : ℕ) (s : Level4State α), (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)}
+      ≤ c) :
     ∀ (T i : ℕ) (s : Level4State α),
       (Measure.pi fun _ : Fin T => D) {xs | SkipC C rd Q i s (List.ofFn xs)} ≤ c := by
   intro T
@@ -173,7 +174,8 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
     nlinarith
 
 theorem runTests_success' {s : Level4State α} (h : runTests C s = some .success) :
-    C.firstLook ≤ s.stretchProbes ∧ 1 - binomSfGe s.stretchProbes C.disagreementRate (s.stretchDisagreements + 1) < C.testLevel := by
+    C.firstLook ≤ s.stretchProbes ∧ 1 - binomSfGe s.stretchProbes C.disagreementRate
+        (s.stretchDisagreements + 1) < C.testLevel := by
   unfold runTests at h
   split_ifs at h with h1 h2 h3 h4 <;> simp at h
   unfold rateSide at h4
@@ -183,11 +185,11 @@ open scoped Classical in
 /-- A round ends in success at a hypothesis disagreeing on at least `εd` of the probes with chance
 at most `T² a`. -/
 theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
-    (hε1 : C.disagreementRate ≤ 1)
-    (ha1 : C.testLevel ≤ 1) (T : ℕ) :
+    (hε1 : C.disagreementRate ≤ 1) (ha1 : C.testLevel ≤ 1) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (applyProbe C fun z => (rd z).cut)
-          (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState (List.ofFn xs)}
+          (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState
+              (List.ofFn xs)}
       ≤ ENNReal.ofReal (T * T * C.testLevel) := by
   set P : ℕ → ℕ → Prop := fun n h => 1 - binomSfGe n C.disagreementRate (h + 1) < C.testLevel
   set H : ℕ → ℕ := fun n => Nat.findGreatest (P n) n
@@ -242,7 +244,8 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
             have hdR : disRate C D rd (recordProbe C (fun z => (rd z).cut) s x)
                 = disRate C D rd s := by
               simp only [disRate, htr, hed]
-            have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements = s.stretchDisagreements + dt C rd s x := by
+            have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements
+                = s.stretchDisagreements + dt C rd s x := by
               rcases (recordProbe_cases (fun z => (rd z).cut) C s x).2 with
                 ⟨-, -, -, -, hdis'⟩ | ⟨-, hn', -⟩
               · simp only [dt]; rw [hdis']; split_ifs <;> omega
@@ -268,7 +271,8 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
         · have hdR : disRate C D rd (recordProbe C (fun z => (rd z).cut) s x)
               = disRate C D rd s := by
             simp only [disRate, htr, hed]
-          have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements = s.stretchDisagreements + dt C rd s x := by
+          have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements
+              = s.stretchDisagreements + dt C rd s x := by
             simp only [dt]; rw [hdis']; split_ifs <;> omega
           rw [hn] at hlt
           obtain ⟨hle, hPH⟩ := hfire _ _ hlt
@@ -278,7 +282,8 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
         · rw [hn0, hd0, binomSfGe_zero_left, sub_zero] at hlt
           linarith
   have hsub : {xs : Fin T → FreeMonoid α | RunEnds (applyProbe C fun z => (rd z).cut)
-        (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState (List.ofFn xs)}
+        (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState
+            (List.ofFn xs)}
       ⊆ ⋃ q ∈ Finset.range T ×ˢ Finset.range T,
           {xs | SkipC C rd (Q q.2) q.1 initialState (List.ofFn xs)} := by
     intro xs hxs
@@ -303,7 +308,8 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
   calc _ ≤ ∑ q ∈ Finset.range T ×ˢ Finset.range T, (Measure.pi fun _ : Fin T => D)
         {xs | SkipC C rd (Q q.2) q.1 initialState (List.ofFn xs)} :=
         (measure_mono hsub).trans (measure_biUnion_finset_le _ _)
-    _ ≤ ∑ _q ∈ Finset.range T ×ˢ Finset.range T, ENNReal.ofReal C.testLevel := Finset.sum_le_sum hterm
+    _ ≤ ∑ _q ∈ Finset.range T ×ˢ Finset.range T, ENNReal.ofReal C.testLevel :=
+        Finset.sum_le_sum hterm
     _ = _ := by
         rw [Finset.sum_const, Finset.card_product, Finset.card_range, nsmul_eq_mul,
           ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_mul (by positivity)]

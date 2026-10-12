@@ -19,11 +19,9 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G
 theorem noiseEvent_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : Level4Settings) (S L : ℕ)
-    {p₀ ρ θg θgs θgpt l : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀)
+    {p₀ ρ θg θgs θgpt l : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x C.walkStart = u} ≤ p₀) (hl : 0 ≤ l)
-        (hφe : 0 ≤ C.edgeTraffic)
-    (hφpt : 0 ≤ C.searchShare) (hθe : 4 * θg ≤ C.edgeUndecidedRate)
+    (hφe : 0 ≤ C.edgeTraffic) (hφpt : 0 ≤ C.searchShare) (hθe : 4 * θg ≤ C.edgeUndecidedRate)
     (hθg : 2 * (3 / 2 * G.θ) ≤ θg)
     (hθgpt : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}

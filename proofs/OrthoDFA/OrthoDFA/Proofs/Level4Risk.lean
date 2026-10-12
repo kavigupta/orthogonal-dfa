@@ -42,7 +42,7 @@ theorem prefixMax_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k 
 omit [Fintype σ] in
 theorem leafOf_with (G : ReadModel α σ) (κ' : ℝ)
     (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
-        ≤ max G.ε (κ' * G.readDist r .undecided)) :
+      ≤ max G.ε (κ' * G.readDist r .undecided)) :
     ∀ (T : DTree α) (q : σ), ({ G with κ := κ', rare := h } : ReadModel α σ).leafOf T q
       = G.leafOf T q
   | .leaf, _ => rfl
@@ -54,8 +54,8 @@ theorem leafOf_with (G : ReadModel α σ) (κ' : ℝ)
 omit [Fintype σ] in
 theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
     (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
-        ≤ max G.ε (κ' * G.readDist r .undecided))
-    {T : DTree α} {f : ℕ} (hg : ({ G with κ := κ', rare := h } : ReadModel α σ).Grown T f) :
+      ≤ max G.ε (κ' * G.readDist r .undecided)) {T : DTree α} {f : ℕ}
+    (hg : ({ G with κ := κ', rare := h } : ReadModel α σ).Grown T f) :
     G.Grown T f := by
   induction hg with
   | start => exact .start
@@ -71,15 +71,15 @@ theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
 omit [Fintype σ] in
 theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
     (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
-        ≤ max G.ε (κ' * G.readDist r .undecided))
-    (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
+      ≤ max G.ε (κ' * G.readDist r .undecided)) (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α)
+    (edges : EdgeTable α) :
     ({ G with κ := κ', rare := h } : ReadModel α σ).untrueAt rd k T edges
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
 /-- `Level4RoundRisk` over the proofs' view of the oracle. -/
-theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
-    {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
+theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
     (P : PrefixDistribution α) (C : Level4Settings) (κs δ : ℝ) (hκ : 2 * G.κ ≤ κs) (hδ0 : 0 < δ)
@@ -119,9 +119,11 @@ theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
       hθgpt0 hA.θgpt_le hA.pt_test hA.φpt_nonneg hA.φpt_le hA.φpt_test (by linarith [hA.θe_ge])
       hA.Xe_nonneg hA.exc_le hA.θs'_nonneg hA.n₀_le_Xs hA.start_lin hA.η_nonneg hA.ν_nonneg
       hA.race_side hA.budget_ge
-    have hE := noiseEvent_le (ρ := kn.ρ) (θgs := kn.θgs) G₂ read hmeas hind hlaw hA.θ_nonneg D C kn.S L
+    have hE := noiseEvent_le (ρ := kn.ρ) (θgs := kn.θgs) G₂ read hmeas hind hlaw hA.θ_nonneg D C
+        kn.S L
       hlen hp₀ hpmax hA.l_nonneg hA.φe_nonneg hA.φpt_nonneg hA.θe_ge hA.θg_ge hA.θgpt_ge
-    have hSp := spurious_le G read hmeas hind hlaw hA.κ_pos hA.ε_nonneg D C.walkStart L kn.S hlen hp₀ hpmax
+    have hSp := spurious_le G read hmeas hind hlaw hA.κ_pos hA.ε_nonneg D C.walkStart L kn.S hlen
+        hp₀ hpmax
       hκ hA.records_slack
     have hcard : ((classSet (Fintype.card σ + kn.S) : Finset (DTree α)).card : ℝ)
         ≤ classCount (α := α) σ kn.S := by

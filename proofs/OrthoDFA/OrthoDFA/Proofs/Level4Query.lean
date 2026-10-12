@@ -9,8 +9,8 @@ sifts its walk check and its bisection call for, each sift reading a node's stri
 its read. `probeQuery` is that computation as a query tree, each read labelled by the position
 sifted and the edge the position is charged to, which the start's sift fixes before; its run is
 `probeBy` (`run_probeQuery`). `recordQ` then sifts the record's two positions again, so a record
-that is not true has a read on its state's rarer side among its reads (`untrue_minority`), and a read undecided
-stops the sift of a position the tests charge it to (`und_twins`).
+that is not true has a read on its state's rarer side among its reads (`untrue_minority`), and a
+read undecided stops the sift of a position the tests charge it to (`und_twins`).
 -/
 
 namespace OrthoDFA
@@ -112,7 +112,7 @@ theorem run_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : Fr
 
 theorem run_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool))
     (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool)
-        (h : ∀ i, (agreementQuery i).run rd = agrees i) :
+    (h : ∀ i, (agreementQuery i).run rd = agrees i) :
     ∀ fuel lo hi, (bracketQuery agreementQuery ps fuel lo hi).run rd
         = bracketAt agrees ps fuel lo hi
   | 0, _, _ => rfl
@@ -152,7 +152,7 @@ theorem asks_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : F
 `bracketSifts` lists. -/
 theorem asks_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool))
     (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool)
-        (h : ∀ i, (agreementQuery i).run rd = agrees i) :
+    (h : ∀ i, (agreementQuery i).run rd = agrees i) :
     ∀ fuel lo hi q, q ∈ (bracketQuery agreementQuery ps fuel lo hi).asks rd →
       ∃ i, i ∈ bracketSifts agrees fuel lo hi ∧ lo < i ∧ i < hi ∧ q ∈ (agreementQuery i).asks rd
   | 0, _, _, q, hq => by simp [bracketQuery, QTree.asks] at hq
@@ -171,7 +171,8 @@ theorem asks_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool))
         ∃ i, i ∈ bracketSifts agrees fuel lo' hi' ∧ lo < i ∧ i < hi
             ∧ q ∈ (agreementQuery i).asks rd := by
       intro lo' hi' h1 h2 hq'
-      obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel lo' hi' q hq'
+      obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel lo' hi' q
+          hq'
       exact ⟨i, hi', by omega, by omega, hq'⟩
     rw [QTree.asks_bind, hag, List.mem_append] at hq
     generalize hvm : (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then
@@ -378,7 +379,8 @@ theorem asks_probeQuery (q : ReadLabel α × FreeMonoid α)
       rw [agreementQuery, QTree.asks_map] at hq'
       obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq'
       have e1 : q.1.1 = i := by rw [h1]; rfl
-      refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 hki ?_ (posEdgeFrom_isSome (i' := i) (.inl rfl) hix
+      refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 hki ?_
+          (posEdgeFrom_isSome (i' := i) (.inl rfl) hix
         (by simp; omega) hfull))⟩
       rw [prefixOf_length] at hx
       simp only [siftsBy, hkw, hx, List.mem_dedup, List.mem_filter, decide_eq_true_eq]
@@ -393,7 +395,8 @@ theorem asks_probeQuery (q : ReadLabel α × FreeMonoid α)
     rcases hq with hq | hq
     · obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq
       have e1 : q.1.1 = k + i₀ + 1 := by rw [h1]; rfl
-      refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 (by omega) ?_ (posEdgeFrom_isSome (i' := k + i₀) (.inr rfl)
+      refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 (by omega) ?_
+          (posEdgeFrom_isSome (i' := k + i₀) (.inr rfl)
         (by omega) (by omega) hps'))⟩
       simp only [siftsBy, hkw, List.mem_dedup, List.mem_filter, decide_eq_true_eq]
       refine ⟨?_, by omega⟩
@@ -432,7 +435,8 @@ theorem asks_probeQuery (q : ReadLabel α × FreeMonoid α)
     rw [agreementQuery, QTree.asks_map] at hq'
     obtain ⟨h1', h2'⟩ := mem_asks_siftQuery T rd hq'
     have e1 : q.1.1 = i := by rw [h1']; rfl
-    refine ⟨by rw [e1]; exact h2', .inr (hlab _ h1' hki ?_ (posEdgeFrom_isSome (i' := i) (.inl rfl) (by omega)
+    refine ⟨by rw [e1]; exact h2', .inr (hlab _ h1' hki ?_
+        (posEdgeFrom_isSome (i' := i) (.inl rfl) (by omega)
       (by omega) hps'))⟩
     simp only [siftsBy, hkw, h1, h2, List.mem_dedup, List.mem_filter, decide_eq_true_eq]
     refine ⟨?_, hki⟩
@@ -474,7 +478,8 @@ theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
 
 theorem asks_recordQ : (recordQ T edges k x).asks rd = (probeQuery T edges k x).asks rd
     ++ match probeBy (fun z => (rd z).cut) T edges k x with
-      | .edge _ fd => (T.route (fun z => (rd z).cut) (prefixOf x (fd - 1))).1.map ((fd - 1, none), ·)
+      | .edge _ fd => (T.route (fun z => (rd z).cut) (prefixOf x (fd - 1))).1.map
+          ((fd - 1, none), ·)
           ++ (T.route (fun z => (rd z).cut) (prefixOf x fd)).1.map ((fd, none), ·)
       | _ => [] := by
   unfold recordQ
@@ -578,15 +583,15 @@ theorem minority_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : 
 /-- The per-read edge field in mean, each string counted at its first read in the probe: a query
 tree's undecided first reads labelled `e` at read-states where undecided reads are at most `θ'`
 average at most `θ'` times its first reads labelled `e`. -/
-theorem edge_first_mean {β : Type*} (hmeas : ∀ w, Measurable (read w))
-    (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r)
-    (P : σ → Prop) [DecidablePred P] (θ' : ℝ) (hP : ∀ r, P r → G.readDist r .undecided ≤ θ')
-    (e : List Bool × α) (t : ProbeQuery α β) :
+theorem edge_first_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
+    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (P : σ → Prop)
+    [DecidablePred P] (θ' : ℝ) (hP : ∀ r, P r → G.readDist r .undecided ≤ θ') (e : List Bool × α)
+    (t : ProbeQuery α β) :
     ∫⁻ ω, (((t.firsts (fun y => read y ω) ∅).filter fun q =>
         q.1.2 = some e ∧ read q.2 ω = .undecided ∧ P (G.M.eval q.2.toList)).length : ENNReal) ∂μ
       ≤ ENNReal.ofReal θ' * ∫⁻ ω,
-        (((t.firsts (fun y => read y ω) ∅).filter fun q => q.1.2 = some e).length : ENNReal) ∂μ := by
+        (((t.firsts (fun y => read y ω) ∅).filter fun q => q.1.2 = some e).length : ENNReal)
+            ∂μ := by
   have hcount : ∀ (rd : FreeMonoid α → ARU) (f : ReadLabel α → FreeMonoid α → ARU → Prop)
       [∀ ℓ w v, Decidable (f ℓ w v)] (c : ENNReal),
       QTree.fsum (fun ℓ w v => if f ℓ w v then c else 0) rd ∅ t

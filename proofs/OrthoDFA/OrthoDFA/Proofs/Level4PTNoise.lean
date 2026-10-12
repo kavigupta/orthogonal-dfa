@@ -67,8 +67,8 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
   [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
 
 theorem prefAgreeK_of_strings {cut cut' : FreeMonoid α → Option Bool} {T : DTree α} {k : ℕ}
-    {x : FreeMonoid α} (hkx : k ≤ x.toList.length)
-    (h : ∀ z ∈ probeStrings T k x, cut z = cut' z) : PrefAgreeK cut cut' T x k := by
+    {x : FreeMonoid α} (hkx : k ≤ x.toList.length) (h : ∀ z ∈ probeStrings T k x, cut z = cut' z) :
+    PrefAgreeK cut cut' T x k := by
   intro j hj
   have hj' : ∃ j' ∈ Finset.Icc k x.toList.length, prefixOf x j = prefixOf x j' := by
     by_cases hjl : j ≤ x.toList.length
@@ -179,7 +179,8 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
       | (simp at hb)
       | skip
     all_goals
-      rcases hs : T.siftCut (fun y => (read y ω).cut) (prefixOf x j) with q | b' <;> rw [hs] at hb <;>
+      rcases hs : T.siftCut (fun y => (read y ω).cut) (prefixOf x j) with q
+          | b' <;> rw [hs] at hb <;>
         simp only [Sum.elim_inl, Sum.elim_inr, List.cons.injEq, reduceCtorEq, and_true,
           List.nil_eq] at hb
       subst hb
@@ -243,9 +244,9 @@ read-state exceed twice `θ₀` of the probes that search by `η` with chance at
 theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
-    (T : DTree α) (hT : (L + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀) (edges : EdgeTable α) :
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
+    (hT : (L + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀) (edges : EdgeTable α) :
     μ {ω | 2 * θ₀ * D.real (searchAt (read · ω) k T edges) + η
         < D.real (G.ptAt (read · ω) k T edges G.Good)}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))) := by
@@ -358,8 +359,8 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [Measurabl
 theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θgpt : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
     (hθg : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
         D.real (G.ptAt (read · ω) k T edges G.Good)

@@ -35,8 +35,8 @@ def replayAt (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α) 
     (e : ℕ) : List (FreeMonoid α) :=
   level4Replay rd ⟨T, Function.uncurry edges⟩ w e
 
-theorem replayAt_eq (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
-    (w : FreeMonoid α) (e : ℕ) : replayAt rd T edges w e =
+theorem replayAt_eq (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α) (w : FreeMonoid α)
+    (e : ℕ) : replayAt rd T edges w e =
       ((firstsBy (fun z => (rd z).cut) T edges e w).filter fun q => (rd q.2).cut = none).map
         Prod.snd := rfl
 
@@ -138,8 +138,8 @@ def edgeMapCount (σ : Type*) [Fintype σ] (S : ℕ) : ℝ :=
 /-- The relations the knobs must meet, at `|Q| = card σ` states, the laws' `κ` and `ε`, the
 goodness level `θ`, the probes' law `D` with lengths at most `L`, the loop's settings `C` and the
 records' coefficient `κs`. -/
-structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α))
-    (L : ℕ) (C : Level4Settings) (κs : ℝ) (kn : Knobs) : Prop where
+structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) (L : ℕ)
+    (C : Level4Settings) (κs : ℝ) (kn : Knobs) : Prop where
   κ_pos : 0 < κ
   ε_nonneg : 0 ≤ ε
   θ_nonneg : 0 ≤ θ

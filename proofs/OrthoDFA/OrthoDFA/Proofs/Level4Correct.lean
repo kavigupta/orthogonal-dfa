@@ -25,9 +25,9 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 /-- The tests' level at `a = e^{−G}`. -/
 theorem level_le (P K b G δ : ℝ) (hP : 0 ≤ P) (hK : 100 ≤ K) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1)
     (hb0 : 0 ≤ b)
-    (hG : G = Real.log (4 * (P + 7 * K ^ 2) / δ)
-      + 2 * Real.log (2 * Real.log (4 * (P + 7 * K ^ 2) / δ)))
-    (hb : b ≤ K * G) : 4 * (P + 7 * b ^ 2) * Real.exp (-G) ≤ δ := by
+    (hG : G = Real.log (4 * (P + 7 * K ^ 2) / δ) + 2
+      * Real.log (2 * Real.log (4 * (P + 7 * K ^ 2) / δ))) (hb : b ≤ K * G) :
+    4 * (P + 7 * b ^ 2) * Real.exp (-G) ≤ δ := by
   set X := 4 * (P + 7 * K ^ 2) / δ
   set l := Real.log X
   have hX0 : 0 < X := by positivity
@@ -69,13 +69,12 @@ theorem level_le (P K b G δ : ℝ) (hP : 0 ≤ P) (hK : 100 ≤ K) (hδ0 : 0 < 
     _ = δ * (X * (2 * l) ^ 2) := by rw [← hδX]; ring
 
 /-- The chosen budget is at most `K G`. -/
-theorem budget_le (N1 A L1 εd G lo S1 Z n₀ m b : ℝ) (hN1 : 2 ≤ N1) (hA : 1 ≤ A)
-    (hεd0 : 0 < εd) (hεd1 : εd ≤ 1) (hG : 1 ≤ G) (hlo0 : 0 ≤ lo) (hlo : lo ≤ G) (hS1 : 1 ≤ S1)
-    (hZ0 : 0 < Z) (hZ : Z ≤ N1 * A)
-    (hn₀ : n₀ ≤ (512 + 32 / (9 * εd ^ 2)) * G + 1)
+theorem budget_le (N1 A L1 εd G lo S1 Z n₀ m b : ℝ) (hN1 : 2 ≤ N1) (hA : 1 ≤ A) (hεd0 : 0 < εd)
+    (hεd1 : εd ≤ 1) (hG : 1 ≤ G) (hlo0 : 0 ≤ lo) (hlo : lo ≤ G) (hS1 : 1 ≤ S1) (hZ0 : 0 < Z)
+    (hZ : Z ≤ N1 * A) (hn₀ : n₀ ≤ (512 + 32 / (9 * εd ^ 2)) * G + 1)
     (hm : m ≤ εd * ((2 * (N1 + 2) * A + 1) * (128 * G / εd ^ 2 + 4 * n₀ / (3 * εd) + 2)
-        + 32 * G / εd ^ 2 + 2) / (8 * Z)
-      + εd * (32 * (N1 + 2) * A * L1 * G + n₀) / (32 * N1 * Z) + 4 * lo / S1 + 1)
+      + 32 * G / εd ^ 2 + 2) / (8 * Z) + εd * (32 * (N1 + 2) * A * L1 * G + n₀) / (32 * N1 * Z)
+      + 4 * lo / S1 + 1)
     (hb : b ≤ N1 * ((2 * (N1 + 2) * A + 1) * (128 * G / εd ^ 2 + 4 * n₀ / (3 * εd) + 2)
       + 8 * Z * m / εd + 32 * G / εd ^ 2 + 1) + 1) :
     b ≤ (N1 * (2 * (N1 + 2) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)

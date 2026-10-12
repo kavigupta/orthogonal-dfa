@@ -151,9 +151,8 @@ theorem exp_neg_le_of_le {a x : ℝ} (ha0 : 0 < a) (h : Real.log (1 / a) ≤ x) 
 
 /-- The termination tests' knobs: `nEnd` probes a hypothesis, the success count `hS` and the
 middles count `hP`. -/
-theorem exists_end_knobs (n₀ : ℕ) (εd θpt φpt a : ℝ) (hεd0 : 0 < εd) (hεd1 : εd ≤ 1)
-    (hθ0 : 0 < θpt) (hθ1 : θpt ≤ 1 / 4) (hφ : φpt ≤ 3 / 4 * εd) (ha0 : 0 < a)
-    (ha : a ≤ 1 / 2) :
+theorem exists_end_knobs (n₀ : ℕ) (εd θpt φpt a : ℝ) (hεd0 : 0 < εd) (hεd1 : εd ≤ 1) (hθ0 : 0 < θpt)
+    (hθ1 : θpt ≤ 1 / 4) (hφ : φpt ≤ 3 / 4 * εd) (ha0 : 0 < a) (ha : a ≤ 1 / 2) :
     ∃ nEnd hS hP : ℕ,
       (nEnd : ℝ) ≤ 8 * Real.log (1 / a) / (εd ^ 2 * θpt ^ 2) + 4 * n₀ / (3 * εd) + 2
       ∧ n₀ ≤ nEnd ∧ n₀ ≤ hS + 1 ∧ binomSfGe (hS + 1) θpt hP < a
@@ -314,7 +313,8 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
     calc (2 : ℝ) = 2 ^ 1 := by norm_num
       _ ≤ 2 ^ (C.maxLeaves + 1) := pow_le_pow_right₀ (by norm_num) (by omega)
   have hpowA : (2 : ℝ) ≤ 2 ^ (C.maxLeaves + 1) * Fintype.card α := by nlinarith only [hpow, hA1]
-  have ha8 : 8 * C.testLevel ≤ δ := by nlinarith only [sq_nonneg (C.probeBudget : ℝ), ha, hpowA, ha0]
+  have ha8 : 8 * C.testLevel ≤ δ := by
+    nlinarith only [sq_nonneg (C.probeBudget : ℝ), ha, hpowA, ha0]
   have ha2 : C.testLevel ≤ 1 / 2 := by linarith
   have ha1 : C.testLevel ≤ 1 := by linarith
   have hlg0 : 0 < lg := by rw [← hlg]; exact Real.log_pos (by rw [lt_div_iff₀ ha0]; linarith)
@@ -378,7 +378,8 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
   have h8gs : 8 * θgs ≤ C.startUndecidedRate := by rw [hθgs]; linarith
   have hlgle : Real.log (1 / C.testLevel) ≤ lg := hlg.le
   obtain ⟨nEnd, hS, hP, hnE, hn₀E, hn₀S, hpt, hsucc, hreach, hφE, hterm⟩ :=
-    exists_end_knobs C.firstLook C.disagreementRate C.middleUndecidedRate C.searchShare C.testLevel hεd0 hεd1 hθpt_pos hθpt4 hφεd ha0 ha2
+    exists_end_knobs C.firstLook C.disagreementRate C.middleUndecidedRate C.searchShare C.testLevel
+        hεd0 hεd1 hθpt_pos hθpt4 hφεd ha0 ha2
   rw [hlg] at hnE
   obtain ⟨nRec, hnR, hrec⟩ := exists_rec_knob
     (Fintype.card σ * Fintype.card α * C.recordsToMove
@@ -464,7 +465,8 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
         start_test := fun t h ht hlt => by
           dsimp only
           have : (C.firstLook : ℝ) ≤ t := by exact_mod_cast ht
-          refine binomSfGe_half_le t h C.startUndecidedRate θgs C.testLevel hθs1 hgs0 h8gs ha0 ha2 ?_ hlt
+          refine binomSfGe_half_le t h C.startUndecidedRate θgs C.testLevel hθs1 hgs0 h8gs ha0 ha2
+              ?_ hlt
           rw [hlg]; nlinarith only [hn₀s, this, sq_nonneg C.startUndecidedRate]
         pt_test := fun t h ht hlt => by
           dsimp only
@@ -479,7 +481,8 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
               (by positivity) (by linarith)
             (by positivity) (by linarith [Nat.le_ceil (C.searchShare * t)])).trans ?_
           rw [show -2 * (t : ℝ) * (C.searchShare / 2) ^ 2 = -(t * C.searchShare ^ 2 / 2) by ring]
-          exact exp_neg_le_of_le ha0 (by rw [hlg]; nlinarith only [hn₀φ, this, sq_nonneg C.searchShare])
+          exact exp_neg_le_of_le ha0 (by
+            rw [hlg]; nlinarith only [hn₀φ, this, sq_nonneg C.searchShare])
         Xe_nonneg := by
           dsimp only; rw [hXe]
           have : 0 ≤ 1 + 12 * θ * C.maxLeaves := by

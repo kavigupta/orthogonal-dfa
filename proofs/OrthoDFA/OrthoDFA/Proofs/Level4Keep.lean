@@ -34,7 +34,8 @@ theorem recordProbe_cases (s : Level4State α) (x : FreeMonoid α) :
         ∧ (recordProbe C cut s x).stretchMiddles = s.stretchMiddles
             ++ middleHarvestBy cut s.tree s.edges C.walkStart x
         ∧ (recordProbe C cut s x).stretchDisagreements
-          = s.stretchDisagreements + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0)
+          = s.stretchDisagreements
+            + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0)
       ∨ ((recordProbe C cut s x).version = s.version + 1 ∧ (recordProbe C cut s x).stretchProbes = 0
         ∧ (recordProbe C cut s x).stretchDisagreements = 0 ∧ ∃ p c e, s.edges p c = none
             ∧ p ∈ s.tree.leaves
@@ -83,7 +84,8 @@ theorem recordProbe_recs (s : Level4State α) (x : FreeMonoid α) :
   all_goals first
     | (left; exact ⟨hn _ ho (by simp), rfl⟩)
     | skip
-  · rcases hr : recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;> try dsimp only
+  · rcases hr : recordBy cut C.walkStart (s.tree, s.edges) x with _
+      | ⟨⟨p, c, t⟩, sp⟩ <;> try dsimp only
     · left; exact ⟨rfl, rfl⟩
     · right; exact ⟨p, c, t, sp, rfl, by simp [Level4State.countProbe, Level4State.addRecord]⟩
   · have hr := hn _ ho (by simp)
@@ -141,8 +143,7 @@ theorem settleOne_cases {s₁ : Level4State α} {r : Level4State α ⊕ (Level4E
     exact .inl ⟨rfl, hv⟩
 
 theorem applyProbe_cases {s : Level4State α} {x : FreeMonoid α}
-    {r : Level4State α ⊕ (Level4Ending α × Level4State α)}
-    (h : applyProbe C cut s x = r) :
+    {r : Level4State α ⊕ (Level4Ending α × Level4State α)} (h : applyProbe C cut s x = r) :
     (∃ e, runTests C (recordProbe C cut s x) = some e ∧ r = .inr (e, recordProbe C cut s x))
       ∨ (runTests C (recordProbe C cut s x) = none
           ∧ settleOne cut C.recordsToMove C.maxLeaves (recordProbe C cut s x)
@@ -157,8 +158,7 @@ theorem applyProbe_cases {s : Level4State α} {x : FreeMonoid α}
 /-- A step that keeps the version keeps the hypothesis: it is the probe's charge, its tests do not
 fire and no edge is violated. -/
 theorem applyProbe_same {s s' : Level4State α} {x : FreeMonoid α}
-    (h : applyProbe C cut s x = .inl s')
-    (hv : s'.version = s.version) :
+    (h : applyProbe C cut s x = .inl s') (hv : s'.version = s.version) :
     s' = recordProbe C cut s x ∧ runTests C (recordProbe C cut s x) = none
       ∧ (∀ p c t, ¬ Violates C.recordsToMove (recordProbe C cut s x) p c t)
       ∧ (recordProbe C cut s x).version = s.version := by
@@ -241,8 +241,8 @@ theorem badRecs_pre (s : Level4State α) (x : FreeMonoid α) (pct : List Bool ×
 
 /-- A step at the same tree keeps the charge's records. -/
 theorem applyProbe_recs {s s' : Level4State α} {x : FreeMonoid α}
-    (h : applyProbe C cut s x = .inl s')
-    (htr : s'.tree = s.tree) : s'.records = (recordProbe C cut s x).records := by
+    (h : applyProbe C cut s x = .inl s') (htr : s'.tree = s.tree) :
+    s'.records = (recordProbe C cut s x).records := by
   have htr₁ := (recordProbe_cases cut C s x).1
   rcases applyProbe_cases cut C h with ⟨e, -, he⟩ | ⟨-, hs⟩
   · cases he
@@ -257,8 +257,8 @@ theorem applyProbe_recs {s s' : Level4State α} {x : FreeMonoid α}
 
 /-- A step that changes the tree splits a leaf where two targets both have `m` records. -/
 theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
-    (he : EdgesInto s.tree s.edges)
-    (hr : RecsInto s) (h : applyProbe C cut s x = .inl s') (htr : s'.tree ≠ s.tree) :
+    (he : EdgesInto s.tree s.edges) (hr : RecsInto s) (h : applyProbe C cut s x = .inl s')
+    (htr : s'.tree ≠ s.tree) :
     ∃ p c t t₀, p ∈ s.tree.leaves ∧ t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ t ≠ t₀
       ∧ C.recordsToMove ≤ (recordProbe C cut s x).recordCount p c t
           ∧ C.recordsToMove ≤ (recordProbe C cut s x).recordCount p c t₀
@@ -290,7 +290,7 @@ open scoped Classical in
 /-- A split that is not genuine has all of one target's records not true. -/
 theorem badRecs_of_fake {s₁ : Level4State α} {p : List Bool} {c : α} {t t₀ : List Bool}
     (hne : t ≠ t₀) (hm₁ : C.recordsToMove ≤ s₁.recordCount p c t)
-        (hm₂ : C.recordsToMove ≤ s₁.recordCount p c t₀)
+    (hm₂ : C.recordsToMove ≤ s₁.recordCount p c t₀)
     (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midAt (commonPrefix t t₀))) :
     C.recordsToMove ≤ badRecs G s₁ (p, c, t) ∨ C.recordsToMove ≤ badRecs G s₁ (p, c, t₀) := by
   have hall : ∀ t', (¬ ∃ r ∈ s₁.records p c, r.2 = t' ∧ G.TrueRec s₁.tree (p, c, t') r.1) →
@@ -359,7 +359,8 @@ theorem keepV_mono : ∀ (j j' : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T
 open scoped Classical in
 theorem recordCount_recordProbe (s : Level4State α) (x : FreeMonoid α) (p : List Bool) (c : α)
     (t : List Bool) :
-    s.recordCount p c t + (if ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp)
+    s.recordCount p c t + (if ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x
+        = some ((p, c, t), sp)
       then 1 else 0) ≤ (recordProbe C cut s x).recordCount p c t := by
   unfold Level4State.recordCount
   rcases recordProbe_recs cut C s x with ⟨hr, h⟩ | ⟨p', c', t', sp, hr, h⟩
@@ -551,14 +552,15 @@ section KeepBound
 variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
 
 theorem look_none_pt {s : Level4State α} {hP : ℕ} (hl : runTests C s = none)
-    (hn₀ : C.firstLook ≤ s.stretchDisagreements)
-    (hθ0 : 0 ≤ C.middleUndecidedRate) (hθ1 : C.middleUndecidedRate ≤ 1)
-        (hhP : binomSfGe s.stretchDisagreements C.middleUndecidedRate hP < C.testLevel)
+    (hn₀ : C.firstLook ≤ s.stretchDisagreements) (hθ0 : 0 ≤ C.middleUndecidedRate)
+    (hθ1 : C.middleUndecidedRate ≤ 1)
+    (hhP : binomSfGe s.stretchDisagreements C.middleUndecidedRate hP < C.testLevel)
     (hg : C.searchShare * s.stretchProbes ≤ s.stretchDisagreements) : s.stretchMiddles.length
         < hP := by
   by_contra hge
   push_neg at hge
-  have hr : rateSide C.middleUndecidedRate C.testLevel C.firstLook s.stretchDisagreements s.stretchMiddles.length = some true := by
+  have hr : rateSide C.middleUndecidedRate C.testLevel C.firstLook s.stretchDisagreements
+      s.stretchMiddles.length = some true := by
     unfold rateSide
     rw [if_pos hn₀, if_pos ((binomSfGe_antitone' hθ0 hθ1 hge).trans_lt hhP)]
   unfold runTests at hl
@@ -566,9 +568,9 @@ theorem look_none_pt {s : Level4State α} {hP : ℕ} (hl : runTests C s = none)
   all_goals first | contradiction | exact absurd ⟨hg, hr⟩ h3
 
 theorem look_none_dis {s : Level4State α} {hS : ℕ} (hl : runTests C s = none)
-    (hn₀ : C.firstLook ≤ s.stretchProbes)
-    (hε0 : 0 ≤ C.disagreementRate) (hε1 : C.disagreementRate ≤ 1)
-        (hhS : 1 - binomSfGe s.stretchProbes C.disagreementRate (hS + 1) < C.testLevel)
+    (hn₀ : C.firstLook ≤ s.stretchProbes) (hε0 : 0 ≤ C.disagreementRate)
+    (hε1 : C.disagreementRate ≤ 1)
+    (hhS : 1 - binomSfGe s.stretchProbes C.disagreementRate (hS + 1) < C.testLevel)
     (hhS' : C.testLevel ≤ binomSfGe s.stretchProbes C.disagreementRate hS) : hS + 1
         ≤ s.stretchDisagreements := by
   by_contra hlt
@@ -579,7 +581,8 @@ theorem look_none_dis {s : Level4State α} {hS : ℕ} (hl : runTests C s = none)
       ≤ hS + 1 by omega)
   have h2 : 1 - binomSfGe s.stretchProbes C.disagreementRate (s.stretchDisagreements + 1)
       < C.testLevel := by linarith
-  have hr : rateSide C.disagreementRate C.testLevel C.firstLook s.stretchProbes s.stretchDisagreements = some false := by
+  have hr : rateSide C.disagreementRate C.testLevel C.firstLook s.stretchProbes
+      s.stretchDisagreements = some false := by
     unfold rateSide
     rw [if_pos hn₀, if_neg h1, if_pos h2]
   unfold runTests at hl
@@ -763,15 +766,13 @@ most `termLevel`. -/
 theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
     {θpt' θr εd' : ℝ} (hn₀ : C.firstLook ≤ nEnd) (hn₀' : C.firstLook ≤ hS + 1)
     (hθpt0 : 0 ≤ C.middleUndecidedRate) (hθpt1 : C.middleUndecidedRate ≤ 1)
-        (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
-    (hcond : θr ≤ (1 - θpt') * εd')
+    (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) (hθpt'0 : 0 ≤ θpt')
+    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hcond : θr ≤ (1 - θpt') * εd')
     (hhP : binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel)
-        (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
+    (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
     (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
-        (hφn : C.searchShare * nEnd ≤ hS + 1)
-    {s : Level4State α} (hrec : D.real (recAt C cut s) < θr) (hn : s.stretchProbes = 0)
-        (hd : s.stretchDisagreements = 0) (T : ℕ) :
+    (hφn : C.searchShare * nEnd ≤ hS + 1) {s : Level4State α} (hrec : D.real (recAt C cut s) < θr)
+    (hn : s.stretchProbes = 0) (hd : s.stretchDisagreements = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
       ≤ ENNReal.ofReal (termLevel nEnd hP hS θpt' εd') := by
   have t1 : 0 ≤ 1 - binomSfGe (hS + 1) θpt' hP :=
@@ -938,7 +939,8 @@ theorem psi_pre (s : Level4State α) (x : FreeMonoid α) :
   · exact ⟨fun p c => psi_mono C (by rw [hed]) (recordCount_mono_recordProbe C cut s x p c),
       fun h => absurd hv h⟩
   have hother : ∀ q c', (q, c') ≠ (p, c) → psi C (recordProbe C cut s x) q c' ≤ psi C s q c' :=
-    fun q c' hne => psi_mono C (by rw [hed, if_neg hne]) (recordCount_mono_recordProbe C cut s x q c')
+    fun q c' hne => psi_mono C (by rw [hed, if_neg hne])
+        (recordCount_mono_recordProbe C cut s x q c')
   have hat : psi C (recordProbe C cut s x) p c < psi C s p c := by
     have h2 : psi C s p c = 2 := by unfold psi; rw [hnone]
     have h1 : psi C (recordProbe C cut s x) p c ≤ 1 := by
@@ -1051,8 +1053,8 @@ theorem recordCount_recordProbe_le (s : Level4State α) (x : FreeMonoid α) (p :
 
 /-- With no edge violated, a probe's charge violates only its record's edge and target. -/
 theorem pre_viol {s : Level4State α} (hs : Settled C.recordsToMove s) {x : FreeMonoid α}
-    {p : List Bool} {c : α}
-    {t : List Bool} (hv : Violates C.recordsToMove (recordProbe C cut s x) p c t) :
+    {p : List Bool} {c : α} {t : List Bool}
+    (hv : Violates C.recordsToMove (recordProbe C cut s x) p c t) :
     ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp) := by
   classical
   by_contra hno
@@ -1214,7 +1216,8 @@ theorem trueKeys_card (T : DTree α) :
 /-- A record is at an edge and target of a true record, or is not true. -/
 theorem rec_true (rd : FreeMonoid α → ARU) {s : Level4State α} {x : FreeMonoid α}
     (h : x ∈ recAt C (fun z => (rd z).cut) s) :
-    x ∈ recIn C (fun z => (rd z).cut) (trueKeys G) s ∨ x ∈ G.untrueAt rd C.walkStart s.tree s.edges := by
+    x ∈ recIn C (fun z => (rd z).cut) (trueKeys G) s
+        ∨ x ∈ G.untrueAt rd C.walkStart s.tree s.edges := by
   obtain ⟨⟨p, c, t⟩, sp, hr⟩ := h
   by_cases ht : G.TrueRec s.tree (p, c, t) sp
   · left
@@ -1279,8 +1282,8 @@ theorem segVal_le {K S' : Type*} (seg : S' → FreeMonoid α → S' ⊕ (K × S'
     · exact segVal_le seg w h1 hw j s' T _
     · exact hw k s' T
 
-theorem termLevel_nonneg {nEnd hP hS : ℕ} {θpt' εd' : ℝ} (hθpt'0 : 0 ≤ θpt')
-    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) :
+theorem termLevel_nonneg {nEnd hP hS : ℕ} {θpt' εd' : ℝ} (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
+    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) :
     0 ≤ termLevel nEnd hP hS θpt' εd' := by
   unfold termLevel
   have t1 := binomSfGe_le_one (n := hS + 1) hθpt'0 hθpt'1 hP
@@ -1292,17 +1295,16 @@ open scoped Classical in
 are not true allowed, keeps its tree over `(v + 1) nEnd + r` probes with chance at most `v + 1`
 times `termLevel`, and that of fewer than the records the true edges and targets and the allowance
 still hold over `r` probes at rate `θr`. -/
-theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
-    {θpt' εd' : ℝ} (hm : 0 < C.recordsToMove) (hn₀ : C.firstLook ≤ nEnd)
-    (hn₀' : C.firstLook ≤ hS + 1) (hθpt0 : 0 ≤ C.middleUndecidedRate)
-        (hθpt1 : C.middleUndecidedRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
-    (hεd1 : C.disagreementRate ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd')
-        (hεd'1 : εd' ≤ 1)
-    (hcond : θr ≤ (1 - θpt') * εd') (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP hS : ℕ} {θpt' εd' : ℝ}
+    (hm : 0 < C.recordsToMove) (hn₀ : C.firstLook ≤ nEnd) (hn₀' : C.firstLook ≤ hS + 1)
+    (hθpt0 : 0 ≤ C.middleUndecidedRate) (hθpt1 : C.middleUndecidedRate ≤ 1)
+    (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) (hθpt'0 : 0 ≤ θpt')
+    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hcond : θr ≤ (1 - θpt') * εd')
+    (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hhP : binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel)
-        (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
+    (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
     (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
-        (hφn : C.searchShare * nEnd ≤ hS + 1) :
+    (hφn : C.searchShare * nEnd ≤ hS + 1) :
     ∀ (v : ℕ) (s : Level4State α) (r B b T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
       RecsInto s → Settled C.recordsToMove s → s.stretchProbes = 0 → s.stretchDisagreements = 0
           → pot C s ≤ v →
@@ -1312,7 +1314,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
           + (1 - binomSfGe r θr ((trueKeys G s.tree).card * C.recordsToMove + B
               - phi C (trueKeys G) s))) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges with hU
+  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
+      with hU
   set τ := termLevel nEnd hP hS θpt' εd'
   have hτ0 : 0 ≤ τ := termLevel_nonneg hθpt'0 hθpt'1 hεd'0 hεd'1
   set h : ℕ → ℕ → ℝ := fun r k => 1 - binomSfGe r θr k with hh
@@ -1440,7 +1443,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
             by_cases hv : s''.version = s'.version
             · have hsv : segR G C D θr rd (s', b' + 1, r, B') (xs 0) = .inl (s'', b', r,
                   if xs 0 ∈ U s' then B' - 1 else B') := by
-                simp only [segR]; rw [hst]; dsimp only; rw [if_pos ⟨htr', hBc⟩, if_pos hv, if_neg hty]
+                simp only [segR]; rw [hst]; dsimp only
+                rw [if_pos ⟨htr', hBc⟩, if_pos hv, if_neg hty]
               rw [hsv]
               simp only [Sum.elim_inl]
               refine (ihj s'' b' _ T' (Fin.tail xs) (htr'.trans htr) ((hved hv).trans hed) he''
@@ -1453,7 +1457,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
               · exact le_rfl
             · have hsv : segR G C D θr rd (s', b' + 1, r, B') (xs 0) = .inr (some true, (s'', b', r,
                   if xs 0 ∈ U s' then B' - 1 else B')) := by
-                simp only [segR]; rw [hst]; dsimp only; rw [if_pos ⟨htr', hBc⟩, if_neg hv, if_neg hty]
+                simp only [segR]; rw [hst]; dsimp only
+                rw [if_pos ⟨htr', hBc⟩, if_neg hv, if_neg hty]
               rw [hsv]
               simp only [Sum.elim_inr, w]
               obtain ⟨hlt, hn'', hd''⟩ := hpv hv
@@ -1562,7 +1567,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
               by_cases hv : s''.version = s'.version
               · have hsv : segR G C D θr rd (s', b'' + 1, r'' + 1, B') x = .inl (s'', b'', r'',
                     if x ∈ U s' then B' - 1 else B') := by
-                  simp only [segR]; rw [hst]; dsimp only; rw [if_pos ⟨htr', hBc⟩, if_pos hv, if_pos hty]; rfl
+                  simp only [segR]; rw [hst]; dsimp only
+                  rw [if_pos ⟨htr', hBc⟩, if_pos hv, if_pos hty]; rfl
                 rw [hsv]
                 simp only [Sum.elim_inl]
                 exact (ihj s'' b'' r'' _ T'' (htr'.trans htr) ((hved hv).trans hed) he'' hr'' hs''
@@ -1570,7 +1576,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
                   (hcaseval x s'' hst htr' hBc)
               · have hsv : segR G C D θr rd (s', b'' + 1, r'' + 1, B') x
                     = .inr (some true, (s'', b'', r'', if x ∈ U s' then B' - 1 else B')) := by
-                  simp only [segR]; rw [hst]; dsimp only; rw [if_pos ⟨htr', hBc⟩, if_neg hv, if_pos hty]; rfl
+                  simp only [segR]; rw [hst]; dsimp only
+                  rw [if_pos ⟨htr', hBc⟩, if_neg hv, if_pos hty]; rfl
                 rw [hsv]
                 simp only [Sum.elim_inr, w]
                 obtain ⟨hlt, hn'', hd''⟩ := hpv hv

@@ -84,8 +84,8 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
 
 /-- A bounded increment whose mean is at most `θ` of a bounded count's, less twice that, has
 exponential moment at most `1` at any scale `c` with `c B (1 + 4θR) ≤ 1/2`. -/
-theorem mgf_real (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {θ B R c : ℝ}
-    (hθ : 0 ≤ θ) (hB : 0 ≤ B) (hR : 0 ≤ R) (hc : 0 < c) (hcB : c * B * (1 + 4 * θ * R) ≤ 1 / 2)
+theorem mgf_real (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {θ B R c : ℝ} (hθ : 0 ≤ θ)
+    (hB : 0 ≤ B) (hR : 0 ≤ R) (hc : 0 < c) (hcB : c * B * (1 + 4 * θ * R) ≤ 1 / 2)
     (hU : ∀ ω, 0 ≤ U ω ∧ U ω ≤ B) (hN : ∀ ω, 0 ≤ N ω ∧ N ω ≤ B * R)
     (hmean : ∫ ω, U ω ∂μ ≤ θ * ∫ ω, N ω ∂μ) :
     ∫⁻ ω, ENNReal.ofReal (Real.exp (c * (U ω - 2 * θ * N ω))) ∂μ ≤ 1 := by
@@ -176,9 +176,9 @@ theorem mem_lenRange {k L : ℕ} {x : FreeMonoid α} :
 def rdOf (S : Finset (FreeMonoid α)) (v : S → ARU) (z : FreeMonoid α) : ARU :=
   if h : z ∈ S then v ⟨z, h⟩ else .undecided
 
-theorem integral_eq_sum_lenRange' (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    {k L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
-    (f : FreeMonoid α → ℝ) (M : ℝ) (hf : ∀ x, x.toList.length ≤ L → |f x| ≤ M) :
+theorem integral_eq_sum_lenRange' (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length) (f : FreeMonoid α → ℝ)
+    (M : ℝ) (hf : ∀ x, x.toList.length ≤ L → |f x| ≤ M) :
     ∫ x, f x ∂D = ∑ x ∈ lenRange k L, D.real {x} * f x := by
   have hae : ∀ᵐ x ∂D, x ∈ ((lenRange k L : Finset (FreeMonoid α)) : Set (FreeMonoid α)) := by
     filter_upwards [hlen, hk] with x h1 h2
@@ -189,15 +189,15 @@ theorem integral_eq_sum_lenRange' (D : Measure (FreeMonoid α)) [IsProbabilityMe
         f x ∂D := by rw [Measure.restrict_eq_self_of_ae_mem hae]
     _ = _ := by rw [setIntegral_finset _ hi.integrableOn]; simp [smul_eq_mul]
 
-theorem integral_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    {k L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
-    (f : FreeMonoid α → ℝ) (hf : ∀ x, x.toList.length ≤ L → |f x| ≤ L + 1) :
+theorem integral_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length) (f : FreeMonoid α → ℝ)
+    (hf : ∀ x, x.toList.length ≤ L → |f x| ≤ L + 1) :
     ∫ x, f x ∂D = ∑ x ∈ lenRange k L, D.real {x} * f x :=
   integral_eq_sum_lenRange' D hlen hk f (L + 1) hf
 
 open scoped Classical in
-theorem measureReal_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    {k L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
+theorem measureReal_eq_sum_lenRange (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hk : ∀ᵐ x ∂D, k ≤ x.toList.length)
     (S : Set (FreeMonoid α)) :
     D.real S = ∑ x ∈ lenRange k L, D.real {x} * if x ∈ S then 1 else 0 := by
   have h1 : D.real S = ∫ x, (if x ∈ S then (1 : ℝ) else 0) ∂D := by
@@ -239,8 +239,7 @@ theorem measurable_of_strings {β : Type*} [MeasurableSpace β] (hmeas : ∀ z, 
 mean at most `θ₀` of the second's: their `D`-weighted sums exceed twice `θ₀` by `η` with chance at
 most `exp(−η / (2 p₀ B (1 + 4θ₀R)))`. -/
 theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ B R : ℝ}
-    (hp₀ : 0 < p₀)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ B R : ℝ} (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (hθ₀ : 0 ≤ θ₀) (hB : 0 < B)
     (hR : 0 ≤ R) (Sx : FreeMonoid α → Finset (FreeMonoid α))
     (hSx : ∀ x z, z ∈ Sx x → prefixOf z k = prefixOf x k)
@@ -249,8 +248,7 @@ theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
     (htf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → tf rd x = tf rd' x)
     (hub : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ uf rd x ∧ uf rd x ≤ B)
     (htb : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ tf rd x ∧ tf rd x ≤ B * R)
-    (hmean : ∀ x ∈ lenRange 0 L,
-      ∫ ω, uf (read · ω) x ∂μ ≤ θ₀ * ∫ ω, tf (read · ω) x ∂μ) :
+    (hmean : ∀ x ∈ lenRange 0 L, ∫ ω, uf (read · ω) x ∂μ ≤ θ₀ * ∫ ω, tf (read · ω) x ∂μ) :
     μ {ω | 2 * θ₀ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * B * (1 + 4 * θ₀ * R))))) := by

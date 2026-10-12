@@ -200,7 +200,8 @@ theorem excess_le {s : Level4State α} {u : ℕ} (hs : RInv G C Xe θs' Xs s u) 
           exact_mod_cast Nat.mul_le_mul_right _ this
       _ = _ := by push_cast; ring
   have hsum := Finset.sum_le_card_nsmul (s.tree.nodes.toFinset ×ˢ (Finset.univ : Finset α))
-    (fun e => ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2) (Xe + C.edgeTraffic * s.probes)
+    (fun e => ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2)
+        (Xe + C.edgeTraffic * s.probes)
     (fun e _ => hex e.1 e.2)
   rw [nsmul_eq_mul] at hsum
   have hX0 : 0 ≤ Xe + C.edgeTraffic * s.probes := by positivity
@@ -209,12 +210,11 @@ theorem excess_le {s : Level4State α} {u : ℕ} (hs : RInv G C Xe θs' Xs s u) 
 
 open scoped Classical in
 theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
-    (hφe : 0 ≤ C.edgeTraffic) (hXe0 : 0 ≤ Xe)
-    (hθs' : 0 ≤ θs') (hXe : ∀ j, C.edgeExcess j ≤ Xe) (hXs : C.firstLook ≤ Xs)
+    (hφe : 0 ≤ C.edgeTraffic) (hXe0 : 0 ≤ Xe) (hθs' : 0 ≤ θs') (hXe : ∀ j, C.edgeExcess j ≤ Xe)
+    (hXs : C.firstLook ≤ Xs)
     (hlin : ∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-        → binomSfGe n C.startUndecidedRate h < C.testLevel)
-    {s s' : Level4State α} {x : FreeMonoid α} {u : ℕ} (hs : RInv G C Xe θs' Xs s u)
-    (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
+      → binomSfGe n C.startUndecidedRate h < C.testLevel) {s s' : Level4State α} {x : FreeMonoid α}
+    {u : ℕ} (hs : RInv G C Xe θs' Xs s u) (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
     RInv G C Xe θs' Xs s' (u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0)
       ∧ (∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
@@ -275,14 +275,16 @@ theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
             (FreeMonoid.of c * (recordProbe C cut s x).tree.midAt (commonPrefix t t₀)) := by
           rw [htr₁]; exact hgen
         have key : ∀ pct', C.recordsToMove ≤ badRecs G (recordProbe C cut s x) pct' →
-            C.recordsToMove * (f + 1) ≤ u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0 := by
+            C.recordsToMove * (f + 1)
+              ≤ u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0 := by
           intro pct' hb
           have h1 := badRecs_pre G C cut s x pct'
           have := hbad pct'
           have := hind pct'
           rw [Nat.mul_succ]
           omega
-        have hf1 : C.recordsToMove * (f + 1) ≤ u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0 := by
+        have hf1 : C.recordsToMove * (f + 1)
+            ≤ u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0 := by
           rcases badRecs_of_fake G C hne hm₁ hm₂ hngP with hb | hb
           · exact key _ hb
           · exact key _ hb
@@ -335,7 +337,8 @@ theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
     by_contra hc
     push_neg at hc
     have hle1 : (startHarvestBy cut s.tree C.walkStart x).length ≤ 1 := by
-      unfold startHarvestBy; split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | b <;> simp)]
+      unfold startHarvestBy
+      split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | b <;> simp)]
     rw [p3, p4] at hc hstart
     by_cases hn : C.firstLook ≤ s.probes + 1
     · have hh : θs' * ((s.probes + 1 : ℕ) : ℝ) + Xs
@@ -359,12 +362,12 @@ theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
       linarith
   · rw [c3, c4, p3, p4, List.length_append]
     have : (startHarvestBy cut s.tree C.walkStart x).length ≤ 1 := by
-      unfold startHarvestBy; split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | b <;> simp)]
+      unfold startHarvestBy
+      split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | b <;> simp)]
     omega
 
 theorem excess_step (hθe : 0 ≤ C.edgeUndecidedRate) {s s' : Level4State α} {x : FreeMonoid α}
-    {u : ℕ}
-    (hs : RInv G C Xe θs' Xs s u) (h : applyProbe C (fun z => (rd z).cut) s x = .inl s')
+    {u : ℕ} (hs : RInv G C Xe θs' Xs s u) (h : applyProbe C (fun z => (rd z).cut) s x = .inl s')
     (hnodes : ∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) (hp : s.tree.leaves.length ≤ C.maxLeaves) :
     excess C θs' s + twinsBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x
         - C.edgeUndecidedRate * ((x.toList.length + 1) * C.maxLeaves) - θs'
@@ -449,12 +452,10 @@ open scoped Classical in
 have chance at most `exp (-η n + ν (allowance - excess) + j c)`. -/
 theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.recordsToMove)
     (hLmax : Fintype.card σ + S + 3 ≤ C.maxLeaves) (hθe : 0 ≤ C.edgeUndecidedRate)
-        (hφe : 0 ≤ C.edgeTraffic) (hρ0 : 0 ≤ ρ)
-    (hXe0 : 0 ≤ Xe)
-    (hXe : ∀ j, C.edgeExcess j ≤ Xe) (hθs' : 0 ≤ θs') (hXs : C.firstLook ≤ Xs)
+    (hφe : 0 ≤ C.edgeTraffic) (hρ0 : 0 ≤ ρ) (hXe0 : 0 ≤ Xe) (hXe : ∀ j, C.edgeExcess j ≤ Xe)
+    (hθs' : 0 ≤ θs') (hXs : C.firstLook ≤ Xs)
     (hlin : ∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-        → binomSfGe n C.startUndecidedRate h < C.testLevel)
-    (hη : 0 ≤ η) (hν : 0 ≤ ν)
+      → binomSfGe n C.startUndecidedRate h < C.testLevel) (hη : 0 ≤ η) (hν : 0 ≤ ν)
     (hside : (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))))
     (hE : NoiseEvent G D C S ρ θg θgs θgpt rd) :
     ∀ (T : ℕ) (s : Level4State α) (u n j : ℕ), RInv G C Xe θs' Xs s u

@@ -245,9 +245,8 @@ times `exp(−η / (2 p₀ (L + 1)(1 + 6θ (|Q| + S + 1))))`. -/
 theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θg : ℝ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
-    (hθg : 2 * (3 / 2 * G.θ) ≤ θg) :
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (hθg : 2 * (3 / 2 * G.θ) ≤ θg) :
     μ {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,
         ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D
           ≤ θg * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}

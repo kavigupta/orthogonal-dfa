@@ -174,8 +174,8 @@ theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     rw [DTree.splitAt_paths_length _ _ _ hp]
     omega
 
-theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f)
-    (h' : G.Grown T f') : f = f' := by
+theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f) (h' : G.Grown T f') :
+    f = f' := by
   have := G.grown_count h
   have := G.grown_count h'
   omega

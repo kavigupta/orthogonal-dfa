@@ -212,8 +212,8 @@ theorem prefStrings_card (T : DTree α) (x : FreeMonoid α) :
         Finset.sum_le_sum fun j _ => Finset.card_image_le
     _ = _ := by simp
 
-theorem route_mem_prefStrings {cut : FreeMonoid α → Option Bool} {T : DTree α}
-    {x : FreeMonoid α} {i : ℕ} {q : FreeMonoid α} (h : q ∈ (T.route cut (prefixOf x i)).1) :
+theorem route_mem_prefStrings {cut : FreeMonoid α → Option Bool} {T : DTree α} {x : FreeMonoid α}
+    {i : ℕ} {q : FreeMonoid α} (h : q ∈ (T.route cut (prefixOf x i)).1) :
     q ∈ prefStrings T x := by
   obtain ⟨m, hm, rfl⟩ := route_mid cut T _ q h
   refine Finset.mem_biUnion.2 ⟨min i x.toList.length, Finset.mem_range.2 (by omega),

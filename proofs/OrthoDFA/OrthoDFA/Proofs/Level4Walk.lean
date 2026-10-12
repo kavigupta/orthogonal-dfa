@@ -163,8 +163,8 @@ theorem follow_mem_paths {T : DTree α} {edges : EdgeTable α} (he : EdgesInto T
 
 /-- What a record says about its walk: the edge it is at, out of a leaf on the walk, points at the
 walk's next leaf, which is not the leaf the next prefix sifts to. -/
-theorem recordBy_spec {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    {p : List Bool} {c : α} {t : List Bool} {sp : FreeMonoid α}
+theorem recordBy_spec {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α} {p : List Bool}
+    {c : α} {t : List Bool} {sp : FreeMonoid α}
     (h : recordBy cut k (T, edges) x = some ((p, c, t), sp)) :
     ∃ p₀ ps, T.siftCut cut (prefixOf x k) = .inl p₀
       ∧ follow edges p₀ ((x.toList.drop k).take (ps.length - 1)) = .inl ps ∧ p ∈ ps

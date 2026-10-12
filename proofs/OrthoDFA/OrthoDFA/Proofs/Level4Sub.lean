@@ -111,8 +111,7 @@ theorem recordProbe_into (C : Level4Settings) {s : Level4State α} (x : FreeMono
 leaf, on a letter followed by the midfix where two leaves part, with edges into the new tree's
 leaves, no records and a fresh stretch. -/
 theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto s.tree s.edges)
-    (hr : RecsInto s)
-    {p : List Bool} {c : α} {t : List Bool} (hv : Violates m s p c t) :
+    (hr : RecsInto s) {p : List Bool} {c : α} {t : List Bool} (hv : Violates m s p c t) :
     let s' := fixEdge cut m s p c t
     (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
     ∨ (∃ t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
@@ -160,8 +159,7 @@ variable (C : Level4Settings)
 /-- A step that continues keeps the tree, the edges and records pointing at leaves, or splits as
 `fixEdge_spec` says; one that ends past `Lmax` leaves splits, and any other keeps the tree. -/
 theorem applyProbe_spec (hm : 0 < C.recordsToMove) {s : Level4State α} {x : FreeMonoid α}
-    (he : EdgesInto s.tree s.edges)
-    (hr : RecsInto s) :
+    (he : EdgesInto s.tree s.edges) (hr : RecsInto s) :
     (∀ s', applyProbe C cut s x = .inl s' →
       (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
       ∨ (∃ p c t t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
@@ -212,8 +210,8 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (FreeMonoi
 def OkEnd (e : Level4Ending α) (s : Level4State α) : Prop := e ≠ .tooBig ∧ G.InClass S s.tree
 
 omit [Fintype σ] [IsProbabilityMeasure D] in
-theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β]
-    [MeasurableSingletonClass β] (μ : Measure β) (P : β → Prop) [DecidablePred P] :
+theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β] [MeasurableSingletonClass β]
+    (μ : Measure β) (P : β → Prop) [DecidablePred P] :
     ∫⁻ x, (if P x then (1 : ENNReal) else 0) ∂μ = μ {x | P x} := by
   rw [← lintegral_indicator_one (Set.to_countable _).measurableSet]
   congr 1
@@ -222,8 +220,7 @@ theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β]
 
 /-- A split from a sub-round's state lands at a start of the class, genuine or not. -/
 theorem split_lands {s s' : Level4State α} {f : ℕ} (hf : G.Grown s.tree f) {p : List Bool} {c : α}
-    {t t₀ : List Bool} (ht : t ∈ s.tree.leaves) (ht₀ : t₀ ∈ s.tree.leaves)
-    (hp : p ∈ s.tree.leaves)
+    {t t₀ : List Bool} (ht : t ∈ s.tree.leaves) (ht₀ : t₀ ∈ s.tree.leaves) (hp : p ∈ s.tree.leaves)
     (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) :
     (∃ p d, s'.tree = s.tree.splitAt d p ∧ G.GenuineSplit s.tree p d) →
       G.Grown s'.tree f ∧ (G.trueLeaves s.tree).card + 1 ≤ (G.trueLeaves s'.tree).card := by

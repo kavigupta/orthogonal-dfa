@@ -150,8 +150,7 @@ def EdgesInto (T : DTree α) (edges : EdgeTable α) : Prop :=
 at each edge and target, and good read-states' undecided reads are rare at each edge, at the start
 and at the middles searches stop at. -/
 structure NoiseEvent {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-    (C : Level4Settings)
-    (S : ℕ) (ρ θg θgs θgpt : ℝ) (rd : FreeMonoid α → ARU) : Prop where
+    (C : Level4Settings) (S : ℕ) (ρ θg θgs θgpt : ℝ) (rd : FreeMonoid α → ARU) : Prop where
   spurious : ∀ T edges, G.InClass S T → EdgesInto T edges →
     D.real (G.untrueAt rd C.walkStart T edges)
       ≤ G.κ * ∫ x, (twinsBy (fun z => (rd z).cut) T edges C.walkStart x : ℝ) ∂D + ρ

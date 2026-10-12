@@ -70,9 +70,8 @@ theorem siftQuery_pastK (x : FreeMonoid α) {k i : ℕ} (hi : k ≤ i) (ℓ : Re
     AllAsk (PastK x k) (siftQuery ℓ T (prefixOf x i)) :=
   (siftQuery_allAsk ℓ T _).mono fun _ ⟨m, hm⟩ => ⟨i, hi, m, hm⟩
 
-theorem bracketQuery_pastK (x : FreeMonoid α) (k : ℕ) (agreementQuery : ℕ
-    → ProbeQuery α (Option Bool))
-    (ps : List (List Bool)) :
+theorem bracketQuery_pastK (x : FreeMonoid α) (k : ℕ)
+    (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool)) :
     ∀ (fuel lo hi : ℕ), k ≤ lo → (∀ p, k ≤ p → AllAsk (PastK x k) (agreementQuery p)) →
       AllAsk (PastK x k) (bracketQuery agreementQuery ps fuel lo hi)
   | 0, _, _, _, _ => trivial
@@ -179,8 +178,7 @@ theorem fixEdge_rootOne (cut : FreeMonoid α → Option Bool) (m : ℕ) {s : Lev
   all_goals first | exact splitAt_rootOne hs _ _ | exact hs
 
 theorem applyProbe_rootOne (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
-    {s : Level4State α}
-    (hs : RootOne s.tree) (x : FreeMonoid α) :
+    {s : Level4State α} (hs : RootOne s.tree) (x : FreeMonoid α) :
     (∀ s', applyProbe C cut s x = .inl s' → RootOne s'.tree)
       ∧ ∀ e s', applyProbe C cut s x = .inr (e, s') → RootOne s'.tree := by
   have h1 : RootOne (recordProbe C cut s x).tree := by rw [recordProbe_tree]; exact hs
@@ -201,9 +199,8 @@ theorem applyProbe_rootOne (C : Level4Settings) (cut : FreeMonoid α → Option 
       | cases h
 
 /-- A run from a state where `I` holds, `I` kept by every step, ends where `I` holds. -/
-theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E → S → Prop}
-    (I : S → Prop) (hI : ∀ s x, I s → (∀ s', step s x = .inl s' → I s')
-      ∧ ∀ e s', step s x = .inr (e, s') → I s') :
+theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E → S → Prop} (I : S → Prop)
+    (hI : ∀ s x, I s → (∀ s', step s x = .inl s' → I s') ∧ ∀ e s', step s x = .inr (e, s') → I s') :
     ∀ (s : S) (l : List X), I s → RunEnds step Q s l → RunEnds step (fun e s' => Q e s' ∧ I s') s l
   | _, [], _, h => h
   | s, x :: xs, hs, h => by
@@ -212,9 +209,9 @@ theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E �
     · exact runEnds_inv I hI s' xs ((hI s x hs).1 s' hst) h
     · exact ⟨h, (hI s x hs).2 e s' hst⟩
 
-theorem replayAt_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T)
-    (edges : EdgeTable α) {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length)
-    (hu : rd (prefixOf w e) = .undecided) : replayAt rd T edges w e ≠ [] := by
+theorem replayAt_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T) (edges : EdgeTable α)
+    {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length) (hu : rd (prefixOf w e) = .undecided) :
+    replayAt rd T edges w e ≠ [] := by
   obtain ⟨r, a, rfl⟩ := hT
   rw [replayAt_eq]; unfold firstsBy probeQuery
   rw [if_neg (by omega)]

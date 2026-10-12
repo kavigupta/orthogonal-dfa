@@ -100,8 +100,8 @@ theorem grown_two {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h
   | @fake T f p t t₀ c hg hp ht ht₀ hng ih =>
     rw [DTree.splitAt_paths_length _ _ _ hp]; omega
 
-theorem grown_mem {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ}
-    (h : G.Grown T f) : T ∈ classSet (T.leaves.length - 2) := by
+theorem grown_mem {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h : G.Grown T f) :
+    T ∈ classSet (T.leaves.length - 2) := by
   induction h with
   | start => simp [classSet, DTree.leaves]
   | @real T f p t t₀ c hg ht ht₀ hgen ih =>
