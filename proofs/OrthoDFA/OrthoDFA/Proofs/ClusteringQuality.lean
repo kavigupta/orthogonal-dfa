@@ -413,8 +413,17 @@ def ClusteringQualityAll : Prop :=
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
 
+/-- The collision mass the clustering's proof admits of the populations and the suffixes. -/
+noncomputable def qualityCap {J : Type*} (η₀ : ℝ) (populations : Finset J)
+    (indecisionLimit εcov α δ pAP crossLimit slack : ℝ) : ℝ :=
+  min (collisionCap η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit)
+    (min (slack ^ 2 / (64 * ((populations.card : ℝ)
+        * (prefCount η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit : ℝ) + 1)))
+      (δ * slack ^ 2 / (16 * ((ladderLen η₀ populations indecisionLimit εcov (δ / 2) α pAP
+        crossLimit : ℝ) + 1) * ((populations.card : ℝ) + 1))))
+
 /-- `ClusteringQualityAll` at the states `stoppable … ρ`, as a bound on the runs that are not
-good. -/
+good, at the cap `qualityCap`. -/
 theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
@@ -423,8 +432,7 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
     (hpAP : 0 < pAP) (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2)
     (hα : 0 < α) (hα1 : α < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
     (hδ1 : δ ≤ 1) (hstr : 0 < crossLimit) (hslack : 0 < slack) :
-    ∃ cap : ℝ,
-      0 < cap ∧
+      0 < qualityCap η₀ populations indecisionLimit εcov α δ pAP crossLimit slack ∧
       ∀ (D : J → Measure S) (Dsf : Measure S),
         (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
         (∀ j ∈ populations, D j Preᶜ = 0) →
@@ -432,8 +440,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         ∀ ρ : ℝ,
         (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
-        ρ ≤ cap →
-        collisionMass Dsf ≤ cap →
+        ρ ≤ qualityCap η₀ populations indecisionLimit εcov α δ pAP crossLimit slack →
+        collisionMass Dsf ≤ qualityCap η₀ populations indecisionLimit εcov α δ pAP crossLimit slack →
         (∀ B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ,
           ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
             (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
@@ -454,6 +462,7 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
+  unfold qualityCap
   generalize (lloydClusterer : Clusterer S) = rule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
@@ -466,8 +475,7 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
   set Jc : ℝ := (populations.card : ℝ) with hJcdef
   have hL0 : 0 ≤ L := Nat.cast_nonneg _
   have hJc0 : 0 ≤ Jc := Nat.cast_nonneg _
-  refine ⟨min (collisionCap η₀ populations indecisionLimit εcov δ' α pAP crossLimit)
-      (min (slack ^ 2 / (64 * (N + 1))) (δ * slack ^ 2 / (16 * (L + 1) * (Jc + 1)))), ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · refine lt_min ?_ (lt_min (by positivity) (by positivity))
     simp only [collisionCap]
     positivity
@@ -674,10 +682,10 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
 theorem clustering_quality_all : ClusteringQualityAll := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
-  obtain ⟨cap, hcap, h⟩ := clustering_quality_bad O populations uni Pre Suf η₀ indecisionLimit
+  obtain ⟨hcap, h⟩ := clustering_quality_bad O populations uni Pre Suf η₀ indecisionLimit
     εcov α δ pAP crossLimit slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr
     hslack
-  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  refine ⟨_, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
   have := hD
   obtain ⟨h1, h2⟩ := h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
   refine ⟨_, h1, ?_⟩

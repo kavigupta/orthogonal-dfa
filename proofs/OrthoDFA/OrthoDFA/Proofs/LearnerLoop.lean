@@ -40,8 +40,11 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hflat : Flat Pre Suf) (hpAP : 0 < pAP)
     (hι : 0 < indecisionLimit) (hι1 : indecisionLimit ≤ 1 / 2) (hg : 0 < gateLevel)
     (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
-    (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) :
-    ∃ cap : ℝ, 0 < cap ∧ ∃ schedule : Finset (Option (Fin K)) → Finset State,
+    (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) (cap : ℝ)
+    (hcap : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
+      cap ≤ qualityCap η₀ pops indecisionLimit εcov gateLevel δc pAP
+        (Real.exp (-2 / crossLimit)) slack) :
+    ∃ schedule : Finset (Option (Fin K)) → Finset State,
       (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ,
         0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
@@ -61,28 +64,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   classical
   obtain ⟨c, hc⟩ : ∃ c : ℝ, c = Real.exp (-2 / crossLimit) := ⟨_, rfl⟩
   have hc0 : 0 < c := hc ▸ Real.exp_pos _
-  choose capOf hcapOf using fun (pops : Finset (Option (Fin K))) (h : none ∈ pops) =>
-    clustering_quality_bad O pops none Pre Suf η₀ indecisionLimit εcov gateLevel δc pAP c slack
-      hη hη₀ h hflat hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0 hslack
-  set capAt : Finset (Option (Fin K)) → ℝ := fun pops =>
-    if h : none ∈ pops then capOf pops h else 1 with hcapAt
-  have hcapAt0 : ∀ pops, 0 < capAt pops := by
-    intro pops
-    simp only [hcapAt]
-    split_ifs with h
-    · exact (hcapOf pops h).1
-    · norm_num
-  obtain ⟨cap, hcapd⟩ : ∃ cap : ℝ,
-      cap = (Finset.univ : Finset (Finset (Option (Fin K)))).inf' ⟨∅, Finset.mem_univ _⟩ capAt :=
-    ⟨_, rfl⟩
-  have hcap0 : 0 < cap := by
-    rw [hcapd]; exact (Finset.lt_inf'_iff _).2 fun pops _ => hcapAt0 pops
-  have hcap_le : ∀ pops (h : none ∈ pops), cap ≤ capOf pops h := by
-    intro pops h
-    have := Finset.inf'_le capAt (Finset.mem_univ pops)
-    simp only [hcapAt, dif_pos h] at this
-    rw [hcapd]; exact this
-  refine ⟨cap, hcap0, fun pops =>
+  rw [← hc] at hcap
+  refine ⟨fun pops =>
     stoppable η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP c cap, ?_, ?_⟩
   · intro pops B hB
     obtain ⟨hlohi, hk2, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀
@@ -97,8 +80,10 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have h2 : ((B.hi : ℝ) - B.lo) ^ 2 ≤ ((B.hi : ℝ) + 1 - B.lo) ^ 2 := by nlinarith
     nlinarith [mul_le_mul_of_nonneg_left h2 hcross.le]
   · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolSf
-    obtain ⟨-, hbad⟩ := (hcapOf pops hpops).2 D Dsf hD hDsf hsupp hsuppSf hpAPDsf cap hcolD
-      (hcap_le pops hpops) (hcolSf.trans (hcap_le pops hpops))
+    obtain ⟨-, hq⟩ := clustering_quality_bad O pops none Pre Suf η₀ indecisionLimit εcov gateLevel
+      δc pAP c slack hη hη₀ hpops hflat hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0 hslack
+    obtain ⟨-, hbad⟩ := hq D Dsf hD hDsf hsupp hsuppSf hpAPDsf cap hcolD
+      (hcap pops hpops) (hcolSf.trans (hcap pops hpops))
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hbad
     intro x hx hgood
     apply hx
@@ -746,9 +731,59 @@ theorem loop_harvest_spread_le (O : Oracle μ (FreeMonoid α)) (P : PrefixDistri
 
 end Spread
 
-theorem learner_loop_correct_holds : LearnerLoopCorrect := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K S Ls η₀ ι gate εcov δc slack pAP εd δ n A Kp X G
-    hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
+/-- The loop's claim at a collision cap `cap` and walk start `k`: `cap` within what the
+clustering's proof admits of every set of populations, and the probes' mass on one length-`k`
+prefix small against the budget `cap` costs. -/
+def LoopCore : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+    (K S Ls : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ cap : ℝ) (k : ℕ),
+  let n : ℝ := Fintype.card σ + S
+  let A : ℝ := Fintype.card α
+  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
+    + 8 * (n + 3) * A * (P.L + 1)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 4) * A + 7 * Kp ^ 2) / δ
+  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 →
+  0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
+  0 < gateLevel → gateLevel < 1 / 2 →
+  0 < εcov → εcov ≤ 1 →
+  0 < δc → δc ≤ 1 →
+  0 < slack → 0 < pAP →
+  0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 1 ≤ P.L →
+  Fintype.card σ + 1 ≤ K →
+  P.L + Fintype.card σ + S + 3 ≤ Ls →
+  512 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
+  0 < cap →
+  (∀ pops : Finset (Option (Fin K)), none ∈ pops →
+    cap ≤ qualityCap η₀ pops indecisionLimit εcov gateLevel δc pAP
+      (Real.exp (-2 / ((S + 1) * εd / (256 * (Fintype.card σ + S + 1)
+        * (Fintype.card σ * Fintype.card α + S + 1)) / (2 * (P.L + 1) * (Fintype.card σ + S + 1)))))
+      slack) →
+  prefixMax P.D k ≤ δ / ((Kp * (G + ⌈1 / cap⌉₊)) ^ 2 + 1) →
+  prefixMax P.D k ≤ (S + 1) * εd / (256 * (Fintype.card σ + S + 1)
+    * (Fintype.card σ * Fintype.card α + S + 1)) / (6 * unionLog (α := α) σ S δ) →
+  ∃ settings : LoopSettings K,
+    settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
+    settings.level4.walkStart = k ∧ settings.level4.disagreementRate = εd ∧
+    (settings.level4.probeBudget : ℝ) ≤ Kp * (G + ⌈1 / cap⌉₊) ∧
+    ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
+      Dsf {v | v.toList.length ≠ Ls} = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      collisionMass P.D ≤ cap → collisionMass Dsf ≤ cap →
+      (loopMeasure μ P.D Dsf K settings.level4.probeBudget).real
+          {draws | let rounds := indecisiveLStarLoop settings O draws
+            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+                o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
+                  (2 * indecisionLimit + slack) εd)}
+        ≤ (Fintype.card σ + 1) * (δc + 3 * δ)
+
+theorem loop_core_holds : LoopCore := by
+  intro α _ _ _ σ _ Ω _ μ _ M O P K S Ls η₀ ι gate εcov δc slack pAP εd δ cap k n A Kp X G
+    hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap hcapq
+    hk1 hk2
   classical
   have hA1 : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
   obtain ⟨ρ, hρ⟩ : ∃ x : ℝ, x = (S + 1) * εd / (256 * (Fintype.card σ + S + 1)
@@ -757,10 +792,10 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
   obtain ⟨cross, hcrossd⟩ : ∃ x : ℝ, x = ρ / (2 * (P.L + 1) * (Fintype.card σ + S + 1)) :=
     ⟨_, rfl⟩
   have hcr : 0 < cross := by rw [hcrossd]; positivity
-  obtain ⟨cap, hcap, schedule, hband, hclust⟩ := clustering_schedule_exists O K
+  obtain ⟨schedule, hband, hclust⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
     η₀ ι gate cross εcov δc slack pAP hη hη₀ (flat_of_length Ls) hpAP hι hι1 hg hg1 hcr hε hε1
-    hδc hδc1 hsl
+    hδc hδc1 hsl cap (fun pops hp => by rw [hcrossd, hρ]; exact hcapq pops hp)
   obtain ⟨B, hB⟩ : ∃ x : ℝ, x = Kp * (G + ⌈1 / cap⌉₊) := ⟨_, rfl⟩
   have hΛ : 0 < unionLog (α := α) σ S δ := by
     unfold unionLog
@@ -768,12 +803,9 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     rw [one_lt_div hδ]
     have : (3 : ℝ) ≤ Fintype.card σ + S + 3 := by linarith [(Nat.cast_nonneg S : (0 : ℝ) ≤ S),
       (Nat.cast_nonneg (Fintype.card σ) : (0 : ℝ) ≤ Fintype.card σ)]
-    nlinarith
-  obtain ⟨q₀, hq₀⟩ : ∃ x : ℝ, x = min (δ / (B ^ 2 + 1)) (ρ / (6 * unionLog (α := α) σ S δ)) :=
-    ⟨_, rfl⟩
-  have hq₀0 : 0 < q₀ := by rw [hq₀]; exact lt_min (by positivity) (by positivity)
-  refine ⟨cap, hcap, q₀, hq₀0, fun k hk => ?_⟩
-  rw [hq₀] at hk
+    nlinarith only [this, hA1, hδ1, hδ]
+  have hk : prefixMax P.D k ≤ min (δ / (B ^ 2 + 1)) (ρ / (6 * unionLog (α := α) σ S δ)) :=
+    le_min (by rw [hB]; exact hk1) (by rw [hρ]; exact hk2)
   obtain ⟨s4, hwalk, hdis, hbud, hmax, hsize, hl4⟩ :=
     level4_guarantee_uniform (μ := μ) M εd P δ S k ⌈1 / cap⌉₊ hδ hδ1 hεd hεd1 hL1
   have hbud' : (s4.probeBudget : ℝ) ≤ B := by rw [hB]; exact hbud
@@ -905,6 +937,55 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
         push_cast
         ring
+
+theorem learner_loop_correct_holds : LearnerLoopCorrect := by
+  intro α _ _ _ σ _ Ω _ μ _ M O P K S Ls η₀ ι gate εcov δc slack pAP εd δ n A Kp X G
+    hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
+  classical
+  have hA1 : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
+  obtain ⟨ρ, hρ⟩ : ∃ x : ℝ, x = (S + 1) * εd / (256 * (Fintype.card σ + S + 1)
+      * (Fintype.card σ * Fintype.card α + S + 1)) := ⟨_, rfl⟩
+  have hρ0 : 0 < ρ := by rw [hρ]; positivity
+  obtain ⟨c, hc⟩ : ∃ x : ℝ, x = Real.exp (-2 / (ρ / (2 * (P.L + 1) * (Fintype.card σ + S + 1))))
+    := ⟨_, rfl⟩
+  have hc0 : 0 < c := hc ▸ Real.exp_pos _
+  -- one cap within every set of populations' own
+  set capAt : Finset (Option (Fin K)) → ℝ := fun pops =>
+    if none ∈ pops then qualityCap η₀ pops ι εcov gate δc pAP c slack else 1 with hcapAt
+  have hcapAt0 : ∀ pops, 0 < capAt pops := by
+    intro pops
+    simp only [hcapAt]
+    split_ifs with h
+    · exact (clustering_quality_bad O pops none {p : FreeMonoid α | p.toList.length < Ls}
+        {v : FreeMonoid α | v.toList.length = Ls} η₀ ι εcov gate δc pAP c slack hη hη₀ h
+        (flat_of_length Ls) hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0 hsl).1
+    · norm_num
+  obtain ⟨cap, hcapd⟩ : ∃ cap : ℝ,
+      cap = (Finset.univ : Finset (Finset (Option (Fin K)))).inf' ⟨∅, Finset.mem_univ _⟩ capAt :=
+    ⟨_, rfl⟩
+  have hcap0 : 0 < cap := by
+    rw [hcapd]; exact (Finset.lt_inf'_iff _).2 fun pops _ => hcapAt0 pops
+  have hcapq : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
+      cap ≤ qualityCap η₀ pops ι εcov gate δc pAP c slack := by
+    intro pops h
+    have := Finset.inf'_le capAt (Finset.mem_univ pops)
+    simp only [hcapAt, if_pos h] at this
+    rw [hcapd]; exact this
+  obtain ⟨B, hB⟩ : ∃ x : ℝ, x = Kp * (G + ⌈1 / cap⌉₊) := ⟨_, rfl⟩
+  have hΛ : 0 < unionLog (α := α) σ S δ := by
+    unfold unionLog
+    refine mul_pos (by positivity) (Real.log_pos ?_)
+    rw [one_lt_div hδ]
+    have : (3 : ℝ) ≤ Fintype.card σ + S + 3 := by linarith [(Nat.cast_nonneg S : (0 : ℝ) ≤ S),
+      (Nat.cast_nonneg (Fintype.card σ) : (0 : ℝ) ≤ Fintype.card σ)]
+    nlinarith only [this, hA1, hδ1, hδ]
+  refine ⟨cap, hcap0, min (δ / (B ^ 2 + 1)) (ρ / (6 * unionLog (α := α) σ S δ)),
+    lt_min (by positivity) (by positivity), fun k hk => ?_⟩
+  exact loop_core_holds M O P K S Ls η₀ ι gate εcov δc slack pAP εd δ cap k hL hη hη₀ hι hι1
+    hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0
+    (fun pops h => by rw [← hρ, ← hc]; exact hcapq pops h)
+    (by rw [← hB]; exact hk.trans (min_le_left _ _))
+    (by rw [← hρ]; exact hk.trans (min_le_right _ _))
 
 end OrthoDFA
 
