@@ -29,7 +29,8 @@
 - `OrthoDFA/Hypothesis.lean` — the learner's hypothesis: a tree sifting strings to its leaves, and
   edges between the leaves.
 - `OrthoDFA/Level2Probe.lean` and `OrthoDFA/Level2.lean` — level 2 of indecisive L\*,
-  `indecisiveLStarLevel2`.
+  `indecisiveLStarLevel2`. Its probe walks to where the walk stops, sifts the successor of an
+  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`.
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
   all on its side, level 2 on `P` probes ends well but for chance at most `(P + 1)(1 − ε)^n`, `n`
   the clean probes in a row that end it.
