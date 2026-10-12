@@ -1,37 +1,67 @@
-"""The tripartite binary search of ``OrthoDFA/TallyLoop.lean``."""
+"""``tripartiteSearch``, proved by ``TripartiteSearchCorrect`` in ``OrthoDFA/TripartiteSearch.lean``."""
 
-PAIR = "pair"
+from dataclasses import dataclass
+from typing import Callable, Optional, Tuple
+
+UNDECIDED_LO = "undecided_lo"
+DISAGREE_LO = "disagree_lo"
+UNDECIDED_HI = "undecided_hi"
+ALL_AGREE = "all_agree"
 EDGE = "edge"
+PAIR = "pair"
 TRIPLE = "triple"
+UNDECIDED_MID = "undecided_mid"
 
 
-def tripartite_search(agrees, fuel, lo, hi):
-    """``bracketAt`` and ``bracketSifts`` at once: ``(kind, position, sifted)``.
+@dataclass(frozen=True)
+class Found:
+    """``kind`` is one of the constants above; ``position`` is ``None`` for the four
+    endpoint kinds; ``queried`` lists the positions ``agrees`` was called at, in order.
+    """
 
-    ``agrees`` is ``None`` where a read is undecided; ``lo`` counts as agreeing and
-    ``hi`` as disagreeing whatever it says."""
+    kind: str
+    position: Optional[int]
+    queried: Tuple[int, ...]
 
-    def at(i):
-        return True if i == lo else False if i == hi else agrees(i)
 
-    sifted = []
-    while fuel > 0 and lo + 1 < hi:
-        fuel -= 1
+def tripartite_search(
+    agrees: Callable[[int], Optional[bool]], lo: int, hi: int, *, recover: bool
+) -> Found:
+    """Where ``agrees`` turns from ``True`` to ``False`` between ``lo`` and ``hi``."""
+    queried = []
+
+    def ask(i):
+        queried.append(i)
+        return agrees(i)
+
+    def found(kind, position):
+        return Found(kind, position, tuple(queried))
+
+    first = ask(lo)
+    if first is None:
+        return found(UNDECIDED_LO, None)
+    if not first:
+        return found(DISAGREE_LO, None)
+    last = ask(hi)
+    if last is None:
+        return found(UNDECIDED_HI, None)
+    if last:
+        return found(ALL_AGREE, None)
+    while lo + 1 < hi:
         mid = (lo + hi) // 2
-        sifted.append(mid)
-        here = at(mid)
+        here = ask(mid)
         if here is not None:
             lo, hi = (mid, hi) if here else (lo, mid)
             continue
-        sifted.append(mid - 1)
-        left = at(mid - 1)
+        if not recover:
+            return found(UNDECIDED_MID, mid)
+        left = ask(mid - 1)
         if left is None:
-            return PAIR, mid - 1, sifted
-        sifted.append(mid + 1)
-        right = at(mid + 1)
+            return found(PAIR, mid - 1)
+        right = ask(mid + 1)
         if right is None:
-            return PAIR, mid, sifted
+            return found(PAIR, mid)
         if left and not right:
-            return TRIPLE, mid, sifted
+            return found(TRIPLE, mid)
         lo, hi = (mid + 1, hi) if left else (lo, mid - 1)
-    return EDGE, hi, sifted
+    return found(EDGE, hi)
