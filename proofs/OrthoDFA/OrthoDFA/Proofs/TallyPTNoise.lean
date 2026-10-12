@@ -162,10 +162,10 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
     (T : DTree α) (edges : Edges α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
     μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
       ≤ (x.toList.length + 1) * T.midfixes.card * (3 / 2 * G.θ)
-        * μ.real {ω | x ∈ ReadModel.searchAt (read · ω) k T edges} := by
+        * μ.real {ω | x ∈ searchAt (read · ω) k T edges} := by
   set J := Finset.Icc k x.toList.length
   set Srch : Set Ω := {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch}
-  have hsrch : {ω | x ∈ ReadModel.searchAt (read · ω) k T edges} = Srch := by
+  have hsrch : {ω | x ∈ searchAt (read · ω) k T edges} = Srch := by
     ext ω; simp only [Set.mem_setOf_eq, Srch]; exact mem_searchAt
   have hsub : {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
       ⊆ ⋃ j ∈ J, ⋃ m ∈ T.midfixes.filter fun m => G.Good (G.M.eval (prefixOf x j * m).toList),
@@ -246,14 +246,14 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
     (T : DTree α) (hT : (L + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀) (edges : Edges α) :
-    μ {ω | 2 * θ₀ * D.real (ReadModel.searchAt (read · ω) k T edges) + η
+    μ {ω | 2 * θ₀ * D.real (searchAt (read · ω) k T edges) + η
         < D.real (G.ptAt (read · ω) k T edges G.Good)}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))) := by
   have hθ₀ : 0 ≤ θ₀ := le_trans (by positivity) hT
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
     if k ≤ x.toList.length ∧ x ∈ G.ptAt rd k T edges G.Good then 1 else 0
   set tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
-    if k ≤ x.toList.length ∧ x ∈ ReadModel.searchAt rd k T edges then 1 else 0
+    if k ≤ x.toList.length ∧ x ∈ searchAt rd k T edges then 1 else 0
   have hagr : ∀ x, k ≤ x.toList.length → ∀ rd rd' : FreeMonoid α → ARU,
       (∀ z ∈ probeStrings T k x, rd z = rd' z) →
       PrefAgreeK (fun z => (rd z).cut) (fun z => (rd' z).cut) T x k := fun x hkx rd rd' h =>
@@ -267,7 +267,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
   have htf : ∀ x rd rd', (∀ z ∈ probeStrings T k x, rd z = rd' z) → tf rd x = tf rd' x := by
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
-    · simp only [tf, ReadModel.searchAt, Set.mem_setOf_eq,
+    · simp only [tf, searchAt, Set.mem_setOf_eq,
         probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
     · simp only [tf, hkx, false_and, if_false]
   have hb01 : ∀ (P : Prop) [Decidable P], 0 ≤ (if P then (1 : ℝ) else 0)
@@ -293,17 +293,17 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
             ptHarvBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
       convert this (measurableSet_singleton true) using 1
       ext ω; simp
-    have hmS : MeasurableSet {ω | x ∈ ReadModel.searchAt (read · ω) k T edges} := by
+    have hmS : MeasurableSet {ω | x ∈ searchAt (read · ω) k T edges} := by
       have := measurable_of_strings hmeas (probeStrings T k x)
-        (fun rd => decide (x ∈ ReadModel.searchAt rd k T edges)) fun rd rd' h => by
-          simp only [ReadModel.searchAt, Set.mem_setOf_eq,
+        (fun rd => decide (x ∈ searchAt rd k T edges)) fun rd rd' h => by
+          simp only [searchAt, Set.mem_setOf_eq,
             probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
       convert this (measurableSet_singleton true) using 1
       ext ω; simp
     have e1 : ∫ ω, uf (read · ω) x ∂μ = μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good} := by
       simp only [uf, hkx, true_and]; exact hset _ hmP
     have e2 : ∫ ω, tf (read · ω) x ∂μ
-        = μ.real {ω | x ∈ ReadModel.searchAt (read · ω) k T edges} := by
+        = μ.real {ω | x ∈ searchAt (read · ω) k T edges} := by
       simp only [tf, hkx, true_and]; exact hset _ hmS
     rw [e1, e2]
     refine (pt_mean_le G read hmeas hind hlaw hθ T edges hkx).trans ?_
@@ -329,15 +329,15 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
         simp [ReadModel.ptAt, ptHarvBy_short _ T edges hs']
       simp [uf, hkx, this]
   have hSs : ∀ ω, ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x
-      = D.real (ReadModel.searchAt (read · ω) k T edges) := by
+      = D.real (searchAt (read · ω) k T edges) := by
     intro ω
     rw [measureReal_eq_sum_len D hlen]
     refine Finset.sum_congr rfl fun x _ => ?_
     by_cases hkx : k ≤ x.toList.length
     · simp only [tf, hkx, true_and]
     · have hs' : x.toList.length < k := by omega
-      have : x ∉ ReadModel.searchAt (read · ω) k T edges := by
-        simp [ReadModel.searchAt, probeBy_short _ T edges hs']
+      have : x ∉ searchAt (read · ω) k T edges := by
+        simp [searchAt, probeBy_short _ T edges hs']
       simp [tf, hkx, this]
   calc μ _ ≤ μ {ω | 2 * θ₀ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
@@ -363,7 +363,7 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
     (hθg : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
         D.real (G.ptAt (read · ω) k T edges G.Good)
-          ≤ θgpt * D.real (ReadModel.searchAt (read · ω) k T edges) + η}
+          ≤ θgpt * D.real (searchAt (read · ω) k T edges) + η}
       ≤ ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
         * (Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
         * Real.exp (-(η / (2 * p₀ * (1 + 4 * ((L + 1) * (Fintype.card σ + S + 1)
@@ -374,11 +374,11 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
   have h2θ : 2 * θ₀ ≤ θgpt := by simp only [θ₀, n]; push_cast; linarith
   set ε : ℝ := Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))
   set B : DTree α → Edges α → Set Ω := fun T e => {ω |
-    2 * θ₀ * D.real (ReadModel.searchAt (read · ω) k T e) + η
+    2 * θ₀ * D.real (searchAt (read · ω) k T e) + η
       < D.real (G.ptAt (read · ω) k T e G.Good)}
   have hsub : {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
       D.real (G.ptAt (read · ω) k T edges G.Good)
-        ≤ θgpt * D.real (ReadModel.searchAt (read · ω) k T edges) + η}
+        ≤ θgpt * D.real (searchAt (read · ω) k T edges) + η}
       ⊆ ⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T, B T e := by
     intro ω hω
     simp only [Set.mem_setOf_eq, not_forall, not_le] at hω
@@ -388,14 +388,14 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
       ext x
       simp only [ReadModel.ptAt, Set.mem_setOf_eq]
       rw [ptHarvBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
-    have hS : ReadModel.searchAt (read · ω) k T edges = ReadModel.searchAt (read · ω) k T e' := by
+    have hS : searchAt (read · ω) k T edges = searchAt (read · ω) k T e' := by
       ext x
-      simp only [ReadModel.searchAt, Set.mem_setOf_eq]
+      simp only [searchAt, Set.mem_setOf_eq]
       rw [probeBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
     refine Set.mem_biUnion (inClass_mem G hT) (Set.mem_biUnion he'm ?_)
     simp only [B, Set.mem_setOf_eq]
     rw [hP, hS] at hlt
-    have : 0 ≤ D.real (ReadModel.searchAt (read · ω) k T e') := measureReal_nonneg
+    have : 0 ≤ D.real (searchAt (read · ω) k T e') := measureReal_nonneg
     nlinarith [mul_le_mul_of_nonneg_right h2θ this]
   have hone : ∀ T ∈ (classSet n : Finset (DTree α)), ∀ e, μ (B T e) ≤ ENNReal.ofReal ε := by
     intro T hT e

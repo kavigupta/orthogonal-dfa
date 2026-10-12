@@ -4,18 +4,19 @@ import OrthoDFA.RoundEnd
 /-!
 # One round of the tally loop
 
-The reads are the oracle: every string's read is accept, reject or undecided, independently across
-strings, with a law that depends only on the string's state in the target DFA (`ReadModel`). A
-read-state is good where it reads undecided at most `1.5θ` of the time.
+The oracle (`TriOracle`): every string's read is accept, reject or undecided, independently across
+strings, with a law that depends only on the string's state in the target DFA. A read-state is
+good where it reads undecided at most `1.5θ` of the time.
 
-`TallyRound`: over `C.budget` probes drawn from `D`, of length at most `L`, the round ends well
+`TallyRound`: over `C.budget` probes drawn from a `PrefixDistribution`, the round ends well
 (`TallyEndsWell`: consistent with the hypothesis disagreeing on at most `εd` of the probes, or a
-harvest more than half of whose strings are at read-states that are not good, with a spread
-replay) but for chance at
-most `roundRisk`: the least, over the proof's free parameters (`Knobs`) meeting
-`Knobs.Admissible`, of `roundBound`, a sum of named terms.
+harvest more than half of whose strings are at read-states that are not good, with a replay that
+is spread and yields) but for chance at most `roundRisk` and the yield's term: the least, over the
+proof's free parameters (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, a sum of named
+terms.
 
-`TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the read model and the settings.
+`TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the laws' `κ` and `ε`, the goodness
+level `θ` and the settings.
 -/
 
 noncomputable section
@@ -26,33 +27,25 @@ open MeasureTheory ProbabilityTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- The target, each of its states' read law, and what makes a read-state good. Every law is
-nonnegative and reads its rarer decided side at most `κ` times as often as it is undecided, or at
-most `ε`. -/
-structure ReadModel (α σ : Type*) where
-  M : _root_.DFA α σ
-  dist : σ → ARU → ℝ
-  θ : ℝ
-  κ : ℝ
-  ε : ℝ
-  nonneg : ∀ r v, 0 ≤ dist r v
-  rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ max ε (κ * dist r .undecided)
-
-/-- An oracle answering accept, reject or undecided: a read of every string, independent across
-strings, each with its state's law. -/
-structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
-    (G : ReadModel α σ) where
+/-- The oracle: a read of every string, accept, reject or undecided, independent across strings,
+each with its state's law in the target `M`. Every law is nonnegative and reads its rarer decided
+side at most `κ` times as often as it is undecided, or at most `ε`. -/
+structure TriOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
+    (M : _root_.DFA α σ) where
   read : FreeMonoid α → Ω → ARU
   measurable : ∀ z, Measurable (read z)
   indep : iIndepFun read μ
-  law : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r
-
-namespace ReadModel
-
-variable {σ : Type*} (G : ReadModel α σ)
+  dist : σ → ARU → ℝ
+  law : ∀ z r, μ.real {ω | read z ω = r} = dist (M.eval z.toList) r
+  κ : ℝ
+  ε : ℝ
+  nonneg : ∀ q v, 0 ≤ dist q v
+  rare : ∀ q, min (dist q .accept) (dist q .reject) ≤ max ε (κ * dist q .undecided)
 
 /-- A read-state is good where it reads undecided at most `1.5θ` of the time. -/
-def Good (r : σ) : Prop := G.dist r .undecided ≤ 3 / 2 * G.θ
+def TriOracle.Good {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {σ : Type*}
+    {M : _root_.DFA α σ} (O : TriOracle μ M) (θ : ℝ) (q : σ) : Prop :=
+  O.dist q .undecided ≤ 3 / 2 * θ
 
 /-- The probes that search: their walk and the cut disagree at a decided read. -/
 def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
@@ -60,8 +53,6 @@ def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edge
   {x | match probeBy (fun z => (rd z).cut) T edges k x with
     | .pair _ | .edge _ _ | .triple _ => True
     | _ => False}
-
-end ReadModel
 
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
 def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S → Prop) :
@@ -87,12 +78,13 @@ def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α) (
   ((firstsBy (fun z => (rd z).cut) T edges e w).filter fun q => (rd q.2).cut = none).map Prod.snd
 
 /-- The round ends well: consistent with the hypothesis disagreeing on at most `εd` of the probes,
-or a harvest more than half of whose strings are at read-states that are not good, its replay
-from an anchor drawn uniformly from `a, …, L` spread and yielding `y`. -/
-def TallyEndsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
-  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges) a L
-    (tallyReplay rd s.tree s.edges) y (tallyEnd e s)
+or a harvest more than half of whose strings are at `bad` read-states, its replay from an anchor
+drawn uniformly from `a, …, L` spread and yielding `y`. -/
+def TallyEndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
+    (C : TallyCfg) (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) :
+    Prop :=
+  EndsWell M bad D C.εd (searchAt rd C.k s.tree s.edges) a L (tallyReplay rd s.tree s.edges) y
+    (tallyEnd e s)
 
 /-- The largest mass the probes' law puts on one length-`k` prefix. -/
 def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x | prefixOf x k = u}
@@ -168,8 +160,6 @@ structure Knobs where
 
 section Bound
 
-variable {σ : Type*} [Fintype σ]
-
 /-- At least the trees of the class with at most `S` splits that are not genuine. -/
 def classCount (σ : Type*) [Fintype σ] (S : ℕ) : ℝ :=
   (1 + (Fintype.card σ + S + 1) ^ 3 * Fintype.card α) ^ (Fintype.card σ + S)
@@ -178,17 +168,18 @@ def classCount (σ : Type*) [Fintype σ] (S : ℕ) : ℝ :=
 def edgeMapCount (σ : Type*) [Fintype σ] (S : ℕ) : ℝ :=
   (Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
 
-/-- The relations the knobs must meet, at the read model `G`, the probes' law `D` with lengths at
-most `L`, the loop's settings `C` and the records' coefficient `κs`. -/
-structure Knobs.Admissible (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (L : ℕ)
-    (C : TallyCfg) (κs : ℝ) (kn : Knobs) : Prop where
-  κ_pos : 0 < G.κ
-  ε_nonneg : 0 ≤ G.ε
-  θ_nonneg : 0 ≤ G.θ
-  records_slack : 2 * (G.ε * ((L + 1) * (Fintype.card σ + kn.S + 1))) ≤ kn.ρ
+/-- The relations the knobs must meet, at `|Q| = card σ` states, the laws' `κ` and `ε`, the
+goodness level `θ`, the probes' law `D` with lengths at most `L`, the loop's settings `C` and the
+records' coefficient `κs`. -/
+structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α))
+    (L : ℕ) (C : TallyCfg) (κs : ℝ) (kn : Knobs) : Prop where
+  κ_pos : 0 < κ
+  ε_nonneg : 0 ≤ ε
+  θ_nonneg : 0 ≤ θ
+  records_slack : 2 * (ε * ((L + 1) * (Fintype.card σ + kn.S + 1))) ≤ kn.ρ
   l_nonneg : 0 ≤ kn.l
-  θg_ge : 2 * (3 / 2 * G.θ) ≤ kn.θg
-  θgpt_ge : 2 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * G.θ)) ≤ kn.θgpt
+  θg_ge : 2 * (3 / 2 * θ) ≤ kn.θg
+  θgpt_ge : 2 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * θ)) ≤ kn.θgpt
   θgpt_le : 2 * kn.θgpt ≤ 1
   θe_ge : 4 * kn.θg ≤ C.θe
   m_pos : 0 < C.m
@@ -234,15 +225,16 @@ structure Knobs.Admissible (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (
   race_side : (Real.exp kn.η - 1) * κs * (L + 1) ≤ 1 - Real.exp (-(kn.ν * (L + 1)))
   budget_ge : (kn.S + Fintype.card σ + 1) * subT C (Fintype.card α) kn.nEnd kn.nRec ≤ C.budget
 
-variable (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (L : ℕ) (C : TallyCfg) (kn : Knobs)
+variable (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) (L : ℕ) (C : TallyCfg)
+  (kn : Knobs)
 
 /-- Records that are not true exceeding `κs` times the undecided strings plus `ρ`, at some tree of
 the class and edge map. -/
 def recordsTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ kn.S * edgeMapCount (α := α) σ kn.S
-    * Real.exp (-((kn.ρ - 2 * (G.ε * ((L + 1) * (Fintype.card σ + kn.S + 1))))
+    * Real.exp (-((kn.ρ - 2 * (ε * ((L + 1) * (Fintype.card σ + kn.S + 1))))
       / (2 * prefixMax D C.k
-        * (1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * (Fintype.card σ + kn.S + 1))))))))
+        * (1 + 4 * (κ * (L + 1) + ε * ((L + 1) * (Fintype.card σ + kn.S + 1))))))))
 
 /-- Good read-states' undecided first reads at an edge exceeding `θg` of its first reads past the
 edge test's slack, at some tree, edge map and edge. -/
@@ -250,12 +242,12 @@ def edgeTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ kn.S
     * (edgeMapCount (α := α) σ kn.S * ((Fintype.card σ + kn.S + 2) * Fintype.card α))
     * Real.exp (-(C.φe * (C.θe / 2 - 2 * kn.θg) / 2 / (2 * prefixMax D C.k * (L + 1)
-      * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + kn.S + 1))))))
+      * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + kn.S + 1))))))
 
 /-- Good read-states' undecided start reads exceeding `θgs` of the probes, at some tree. -/
 def startTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ kn.S
-    * Real.exp ((Fintype.card σ + kn.S + 1) * (3 / 2 * G.θ)
+    * Real.exp ((Fintype.card σ + kn.S + 1) * (3 / 2 * θ)
       * (Real.exp (kn.l * prefixMax D C.k) - 1) / prefixMax D C.k - kn.l * kn.θgs))
 
 /-- Searches stopping at an undecided middle at a good read-state exceeding `θgpt` of the
@@ -263,7 +255,7 @@ searches past the middles test's slack, at some tree and edge map. -/
 def middlesTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ kn.S * edgeMapCount (α := α) σ kn.S
     * Real.exp (-(kn.θgpt * C.φpt / 2 / (2 * prefixMax D C.k
-      * (1 + 4 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * G.θ)))))))
+      * (1 + 4 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * θ)))))))
 
 /-- The harvests' and success's tests firing wrongly at some probe of the round. -/
 def testLevels : ENNReal :=
@@ -273,7 +265,8 @@ def testLevels : ENNReal :=
 are not true racing the tests (`fakeRun`), a sub-round keeping its tree too long (`subOpen`), and
 the tests' levels. -/
 def roundBound : ENNReal :=
-  recordsTail G D L C kn + edgeTail G D L C kn + startTail G D C kn + middlesTail G D L C kn
+  recordsTail σ κ ε D L C kn + edgeTail σ θ D L C kn + startTail σ θ D C kn
+    + middlesTail σ θ D L C kn
     + ENNReal.ofReal (fakeRun C (Fintype.card α) kn.S L
       ((kn.S + Fintype.card σ + 1) * subT C (Fintype.card α) kn.nEnd kn.nRec)
       kn.ρ kn.Xe kn.θs' kn.Xs kn.η kn.ν)
@@ -283,7 +276,7 @@ def roundBound : ENNReal :=
 
 /-- The least of `roundBound` over the admissible knobs. -/
 def roundRisk (κs : ℝ) : ENNReal :=
-  ⨅ (kn : Knobs) (_ : kn.Admissible G D L C κs), roundBound G D L C kn
+  ⨅ (kn : Knobs) (_ : kn.Admissible σ κ ε θ D L C κs), roundBound σ κ ε θ D L C kn
 
 end Bound
 
@@ -293,12 +286,13 @@ def tallyLog (σ : Type*) [Fintype σ] (S : ℕ) (δ : ℝ) : ℝ :=
   4 * (Fintype.card σ + S + 2) * Fintype.card α
     * Real.log ((Fintype.card σ + S + 3) * Fintype.card α / δ)
 
-/-- `TallyRiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the read model,
+/-- `TallyRiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the laws' `κ`
+and `ε` and the goodness level `θ`,
 at `S` splits that are not genuine, with `Λ = tallyLog σ S δ`, `p₀ = prefixMax D C.k` and
 `lg = log (1 / C.a)`. -/
 def TallyRiskBound : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ]
-    (G : ReadModel α σ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (σ : Type*) [Fintype σ]
+    (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
     (C : TallyCfg) (κs δ : ℝ) (S : ℕ),
     let n : ℝ := Fintype.card σ + S
     let Λ := tallyLog (α := α) σ S δ
@@ -306,26 +300,26 @@ def TallyRiskBound : Prop :=
     let lg := Real.log (1 / C.a)
     let A : ℝ := Fintype.card α
     0 < δ → δ ≤ 1 → 1 ≤ L → Fintype.card σ + S + 3 ≤ C.Lmax →
-    0 < G.κ → 2 * G.κ ≤ κs → 4 * κs * (L + 1) ≤ 1 →
-    0 ≤ G.ε → 4 * G.ε * ((L + 1) * (n + 1)) ≤ 1 →
-    0 ≤ G.θ → 24 * G.θ ≤ C.θe → 96 * ((L + 1) * (n + 1)) * G.θ ≤ C.θpt →
-    24 * (n + 1) * G.θ + 8 * p₀ * Λ ≤ C.θs → C.θs ≤ 1 →
+    0 < κ → 2 * κ ≤ κs → 4 * κs * (L + 1) ≤ 1 →
+    0 ≤ ε → 4 * ε * ((L + 1) * (n + 1)) ≤ 1 →
+    0 ≤ θ → 24 * θ ≤ C.θe → 96 * ((L + 1) * (n + 1)) * θ ≤ C.θpt →
+    24 * (n + 1) * θ + 8 * p₀ * Λ ≤ C.θs → C.θs ≤ 1 →
     32 * (L + 1) * p₀ * Λ ≤ C.φe * C.θe → 256 * p₀ * Λ ≤ C.θpt * C.φpt →
     C.εd ≤ 1 → C.θpt ≤ 1 / 4 → C.φpt ≤ 3 / 4 * C.εd →
     32 * lg ≤ C.n₀ * C.θs ^ 2 → 32 * lg ≤ C.n₀ * C.θpt ^ 2 → 2 * lg ≤ C.n₀ * C.φpt ^ 2 →
-    (∀ j, 4 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg < C.exc j) →
-    (∀ j, C.exc j ≤ 8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) →
+    (∀ j, 4 * (L + 1) * (1 + 12 * θ * C.Lmax) * lg < C.exc j) →
+    (∀ j, C.exc j ≤ 8 * (L + 1) * (1 + 12 * θ * C.Lmax) * lg) →
     0 < C.a → 4 * (2 ^ (C.Lmax + 1) * A + 7 * C.budget ^ 2) * C.a ≤ δ →
     (S + Fintype.card σ + 1) * ((2 * C.Lmax * A + 1)
         * (8 * lg / (C.εd ^ 2 * C.θpt ^ 2) + 4 * C.n₀ / (3 * C.εd) + 2)
         + 8 * (Fintype.card σ * A + S + 1) * C.m / C.εd + 32 * lg / C.εd ^ 2 + 1) ≤ C.budget →
     4 * Real.log (8 / δ) ≤ (S + 1) * C.m →
-    16 * κs * (2 * C.Lmax * A * (8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) + C.n₀)
+    16 * κs * (2 * C.Lmax * A * (8 * (L + 1) * (1 + 12 * θ * C.Lmax) * lg) + C.n₀)
       ≤ (S + 1) * C.m →
     16 * κs * C.budget * (C.θe * ((L + 1) * C.Lmax) + 2 * C.θs + 2 * C.Lmax * A * C.φe)
       ≤ (S + 1) * C.m →
-    16 * C.budget * (G.ε * ((L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
-    roundRisk G D L C κs ≤ ENNReal.ofReal δ
+    16 * C.budget * (ε * ((L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
+    roundRisk σ κ ε θ D L C κs ≤ ENNReal.ofReal δ
 
 
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
@@ -335,17 +329,18 @@ def TallyRiskBound : Prop :=
 position from `start` to `L` and `n = L + 1 − start` the anchors. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
-    (R : ReadOracle μ G) (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ),
+    2 * O.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut)
-          (TallyEndsWell G P.D C P.start P.L
-            (3 / 4 * G.θ * coverage P.D P.start P.L G.M (fun r => ¬ G.Good r)
-              / (P.L + 1 - P.start : ℕ)) (R.read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (O.read z ω).cut)
+          (TallyEndsWell M (fun q => ¬ O.Good θ q) P.D C P.start P.L
+            (3 / 4 * θ * coverage P.D P.start P.L M (fun q => ¬ O.Good θ q)
+              / (P.L + 1 - P.start : ℕ)) (O.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
-      ≤ roundRisk G P.D P.L C κs
+      ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
         + ENNReal.ofReal (Real.exp
-          (-(3 / 2 * G.θ * coverage P.D P.start P.L G.M (fun r => ¬ G.Good r)) / (16 * P.q)))
+          (-(3 / 2 * θ * coverage P.D P.start P.L M (fun q => ¬ O.Good θ q)) / (16 * P.q)))
 
 end OrthoDFA
 

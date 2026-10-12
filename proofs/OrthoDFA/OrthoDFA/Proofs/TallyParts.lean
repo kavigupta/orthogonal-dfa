@@ -5,7 +5,8 @@ import OrthoDFA.TallyRound
 
 The family is the oracle: every string's read is accept, reject or undecided, independently
 across strings, with a law that depends only on the string's state in the target DFA
-(`FamilyReadBound`). `ReadModel` holds the target and those laws; `rd` is one draw of all
+(`FamilyReadBound`). `ReadModel` holds the target and those laws, as `TriOracle` does with the
+goodness level beside it; `rd` is one draw of all
 the reads, each law reading its rarer decided side at most `κ` times as often as it is undecided
 or at most `ε`.
 A read-state is good where it is undecided at most `1.5θ` of the time. A state's true leaf is
@@ -50,7 +51,21 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
+/-- The proofs' view of the oracle: the target, each of its states' read law, the goodness level
+`θ`, and the laws' `κ` and `ε`. -/
+structure ReadModel (α σ : Type*) where
+  M : _root_.DFA α σ
+  dist : σ → ARU → ℝ
+  θ : ℝ
+  κ : ℝ
+  ε : ℝ
+  nonneg : ∀ r v, 0 ≤ dist r v
+  rare : ∀ r, min (dist r .accept) (dist r .reject) ≤ max ε (κ * dist r .undecided)
+
 namespace ReadModel
+
+/-- A read-state is good where it reads undecided at most `1.5θ` of the time. -/
+def Good {σ : Type*} (G : ReadModel α σ) (r : σ) : Prop := G.dist r .undecided ≤ 3 / 2 * G.θ
 
 variable {σ : Type*} (G : ReadModel α σ)
 
@@ -145,7 +160,7 @@ structure TallyE {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)
   goodStart : ∀ T, G.InClass S T → D.real (G.startAt rd C.k T G.Good) ≤ θgs
   goodPT : ∀ T edges, G.InClass S T → EdgesInto T edges →
     D.real (G.ptAt rd C.k T edges G.Good)
-      ≤ θgpt * D.real (ReadModel.searchAt rd C.k T edges) + θgpt * C.φpt / 2
+      ≤ θgpt * D.real (searchAt rd C.k T edges) + θgpt * C.φpt / 2
 
 /-- The endings the round claims: success, or a harvest most of whose strings are at read-states
 that are not good. -/
@@ -253,7 +268,7 @@ def SuccessSound : Prop :=
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (tallyStep C fun z => (rd z).cut)
           (fun e s' => e = .success
-            ∧ C.εd ≤ D.real (ReadModel.searchAt rd C.k s'.tree s'.edges)) tallyStart
+            ∧ C.εd ≤ D.real (searchAt rd C.k s'.tree s'.edges)) tallyStart
           (List.ofFn xs)}
       ≤ ENNReal.ofReal (T * T * C.a)
 
@@ -286,7 +301,8 @@ def TallyRoundGiven : Prop :=
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C 0 L 0 (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ TallyE G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (fakeRun C (Fintype.card α) S L

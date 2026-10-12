@@ -74,15 +74,28 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
-theorem tally_round_holds : TallyRound := by
-  intro α _ _ σ _ Ω _ μ _ G R P C κs hκ
+/-- `TallyRound` over the proofs' view of the oracle. -/
+theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
+    {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
+    (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r)
+    (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ) (hκ : 2 * G.κ ≤ κs) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) P.D C P.start P.L
+            (3 / 4 * G.θ * coverage P.D P.start P.L G.M (fun q => ¬ G.Good q)
+              / (P.L + 1 - P.start : ℕ)) (read · ω))
+          tallyStart (List.ofFn xs)} ∂μ
+      ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs
+        + ENNReal.ofReal (Real.exp
+          (-(3 / 2 * G.θ * coverage P.D P.start P.L G.M (fun q => ¬ G.Good q)) / (16 * P.q))) := by
   obtain ⟨D, _, L, st, hst, hlen, q, hq, hpreq⟩ := P
-  obtain ⟨read, hmeas, hind, hlaw⟩ := R
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
   have hold : ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C 0 L 0 (read · ω))
-        tallyStart (List.ofFn xs)} ∂μ ≤ roundBound G D L C kn := by
+      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+        (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+        tallyStart (List.ofFn xs)} ∂μ ≤ roundBound σ G.κ G.ε G.θ D L C kn := by
     have hp₀ := prefixMax_pos D C.k
     have hpmax := le_prefixMax D C.k
     have hrare : ∀ r, min (G.dist r .accept) (G.dist r .reject)
@@ -155,10 +168,13 @@ theorem tally_round_holds : TallyRound := by
   set B := toMeasurable μ Ny
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.budget => D)
       {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-        (TallyEndsWell G D C st L (3 / 4 * G.θ * coverage D st L G.M (fun r => ¬ G.Good r)
+
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C st L
+            (3 / 4 * G.θ * coverage D st L G.M (fun r => ¬ G.Good r)
           / (L + 1 - st : ℕ)) (read · ω)) tallyStart (List.ofFn xs)}
       ≤ (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C 0 L 0 (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
           tallyStart (List.ofFn xs)} + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
@@ -178,15 +194,22 @@ theorem tally_round_holds : TallyRound := by
       · rintro ⟨w, e⟩ ⟨he, hu⟩
         exact tallyReplay_root _ hroot _ he hu
   calc _ ≤ ∫⁻ ω, ((Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C 0 L 0 (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
           tallyStart (List.ofFn xs)} + B.indicator 1 ω) ∂μ := lintegral_mono hpt
     _ = ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut) (TallyEndsWell G D C 0 L 0 (read · ω))
+        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
           tallyStart (List.ofFn xs)} ∂μ + μ B := by
         rw [lintegral_add_right _ (measurable_one.indicator (measurableSet_toMeasurable _ _)),
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
     _ ≤ _ := by
         rw [measure_toMeasurable]
         exact add_le_add hold hNy
+
+theorem tally_round_holds : TallyRound := by
+  intro α _ _ σ _ Ω _ μ _ M O θ P C κs hκ
+  exact tally_round_model ⟨M, O.dist, θ, O.κ, O.ε, O.nonneg, O.rare⟩ O.read O.measurable O.indep
+    O.law P C κs hκ
 
 end OrthoDFA

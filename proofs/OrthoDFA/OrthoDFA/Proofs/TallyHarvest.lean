@@ -682,13 +682,13 @@ theorem goodCount_ptPre (rd : FreeMonoid α → ARU) (s : TState α) (x : FreeMo
 
 theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edges : Edges α}
     {x : FreeMonoid α} :
-    x ∈ ReadModel.searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
-  simp only [ReadModel.searchAt, Set.mem_setOf_eq]
+    x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
+  simp only [searchAt, Set.mem_setOf_eq]
   rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ | _ <;>
     simp [Outcome.IsSearch]
 
 theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
-    (P : σ → Prop) : G.ptAt rd k T edges P ⊆ ReadModel.searchAt rd k T edges := by
+    (P : σ → Prop) : G.ptAt rd k T edges P ⊆ searchAt rd k T edges := by
   rintro x ⟨b, hb, -⟩
   rw [mem_searchAt]
   unfold ptHarvBy at hb
@@ -736,10 +736,10 @@ theorem evR_notClass (ok : TState α → Prop) :
 open scoped Classical in
 theorem tallyPre_dis_sub (rd : FreeMonoid α → ARU) (s : TState α) (x : FreeMonoid α) :
     (tallyPre C (fun z => (rd z).cut) s x).dis - s.dis
-      = if x ∈ ReadModel.searchAt rd C.k s.tree s.edges then 1 else 0 := by
+      = if x ∈ searchAt rd C.k s.tree s.edges then 1 else 0 := by
   rcases tallyPre_stretch C (fun z => (rd z).cut) s x with ⟨-, -, h⟩ | ⟨-, -, h, hn⟩
   · rw [h]
-    by_cases hx : x ∈ ReadModel.searchAt rd C.k s.tree s.edges
+    by_cases hx : x ∈ searchAt rd C.k s.tree s.edges
     · rw [if_pos hx, if_pos (mem_searchAt.1 hx)]; omega
     · rw [if_neg hx, if_neg (fun h' => hx (mem_searchAt.2 h'))]; omega
   · rw [h, if_neg (fun h' => hn (mem_searchAt.1 h'))]; omega
@@ -753,7 +753,7 @@ theorem ptR_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasu
     ∀ (T t k : ℕ) (s : TState α), Reach G s →
       (Measure.pi fun _ : Fin T => D)
           {xs | EvR G C (fun z => (rd z).cut) S
-            (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) t k s
+            (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) t k s
             (List.ofFn xs)}
         ≤ ENNReal.ofReal (binomSfGe t (2 * θgpt) k) := by
   have h20 : 0 ≤ 2 * θgpt := by linarith
@@ -765,18 +765,18 @@ theorem ptR_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasu
     rcases k with _ | k
     · rw [binomSfGe_zero_right, ENNReal.ofReal_one]; exact prob_le_one
     by_cases hc : G.InClass S s.tree
-        ∧ C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)
+        ∧ C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)
     swap
     · have : {xs : Fin (T + 1) → FreeMonoid α |
           EvR G C (fun z => (rd z).cut) S
-            (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) t (k + 1) s
+            (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) t (k + 1) s
             (List.ofFn xs)} = ∅ := by
         ext xs
         simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
         exact evR_notClass G C _ S _ _ t _ s hc
       rw [this, measure_empty]; exact zero_le
     set A := G.ptAt rd C.k s.tree s.edges G.Good
-    set B := ReadModel.searchAt rd C.k s.tree s.edges
+    set B := searchAt rd C.k s.tree s.edges
     have hAB : A ⊆ B := ptAt_sub_searchAt G rd C.k s.tree s.edges G.Good
     have hA : D.real A ≤ 2 * θgpt * D.real B := by
       have := hE.goodPT s.tree s.edges hc.1 hs.2.1
@@ -795,13 +795,13 @@ theorem ptR_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasu
     -- the section at `x` of the event
     have hsecE : ∀ x, {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
         EvR G C (fun z => (rd z).cut) S
-            (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) t (k + 1) s (List.ofFn xs)}}
+            (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) t (k + 1) s (List.ofFn xs)}}
         ⊆ {xs | (tallyPre C (fun z => (rd z).cut) s x).dis - s.dis ≤ t ∧
           (((tallyPre C (fun z => (rd z).cut) s x).dis - s.dis = t ∧ k + 1
               ≤ goodCount G (tallyPre C (fun z => (rd z).cut) s x).pt - goodCount G s.pt)
           ∨ ∃ s', tallyStep C (fun z => (rd z).cut) s x = .inl s' ∧ Reach G s' ∧
             EvR G C (fun z => (rd z).cut) S
-              (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) (t - ((tallyPre C (fun z => (rd z).cut) s x).dis
+              (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) (t - ((tallyPre C (fun z => (rd z).cut) s x).dis
               - s.dis)) (k + 1 - (goodCount G (tallyPre C (fun z => (rd z).cut) s x).pt
                 - goodCount G s.pt)) s' (List.ofFn xs))} := by
       intro x xs hxs
@@ -818,7 +818,7 @@ theorem ptR_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasu
     have hcont : ∀ x t' k', (Measure.pi fun _ : Fin T => D) {xs : Fin T → FreeMonoid α |
         ∃ s', tallyStep C (fun z => (rd z).cut) s x = .inl s' ∧ Reach G s' ∧
           EvR G C (fun z => (rd z).cut) S
-            (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) t' k' s' (List.ofFn xs)}
+            (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) t' k' s' (List.ofFn xs)}
         ≤ ENNReal.ofReal (binomSfGe t' (2 * θgpt) k') := by
       intro x t' k'
       rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | _
@@ -835,7 +835,7 @@ theorem ptR_bin (hm : 0 < C.m) (D : Measure (FreeMonoid α)) [IsProbabilityMeasu
     have hsec : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
         {xs : Fin (T + 1) → FreeMonoid α |
           EvR G C (fun z => (rd z).cut) S
-            (fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)) t (k + 1) s (List.ofFn xs)}}
+            (fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)) t (k + 1) s (List.ofFn xs)}}
         ≤ A.indicator (fun _ => ENNReal.ofReal c₁) x
           + (B \ A).indicator (fun _ => ENNReal.ofReal c₀) x
           + Bᶜ.indicator (fun _ => ENNReal.ofReal c₂) x := by
@@ -955,7 +955,7 @@ section Low
 variable (C : TallyCfg) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
 /-- The hypothesis's disagreement rate: the probes that search. -/
-noncomputable def disRate (s : TState α) : ℝ := D.real (ReadModel.searchAt rd C.k s.tree s.edges)
+noncomputable def disRate (s : TState α) : ℝ := D.real (searchAt rd C.k s.tree s.edges)
 
 /-- The searches a probe adds to the stretch's count. -/
 noncomputable def dt (s : TState α) (x : FreeMonoid α) : ℕ :=
@@ -994,7 +994,7 @@ theorem evH_le [IsProbabilityMeasure D] (hφ0 : 0 ≤ C.φpt) (hφ1 : C.φpt ≤
       rcases N with _ | N
       · exact hd hxs.1
       · exact hd hxs.1
-    set B := ReadModel.searchAt rd C.k s.tree s.edges
+    set B := searchAt rd C.k s.tree s.edges
     set A : ℝ := binomSfGe N (C.φpt / 2) h
     set Cc : ℝ := binomSfGe N (C.φpt / 2) (h + 1)
     have hC0 : 0 ≤ Cc := binomSfGe_nonneg hp0 hp1 _
@@ -1157,7 +1157,7 @@ theorem harvest_good_holds : HarvestGood := by
   set kp : ℕ → ℕ := fun t => if h : ∃ h', C.n₀ ≤ t ∧ binomSfGe t C.θpt h' < C.a then
     (Nat.find h + 1) / 2 else t + 1
   set hf : ℕ → ℕ := fun n => max ⌈C.φpt * n⌉₊ C.n₀
-  set ok : TState α → Prop := fun s => C.φpt / 2 ≤ D.real (ReadModel.searchAt rd C.k s.tree s.edges)
+  set ok : TState α → Prop := fun s => C.φpt / 2 ≤ D.real (searchAt rd C.k s.tree s.edges)
   set Qp : ℕ → TState α → List (FreeMonoid α) → Prop := fun dd s l =>
     EvR G C (fun z => (rd z).cut) S ok dd (kp dd) s l
   set Qh : ℕ → TState α → List (FreeMonoid α) → Prop := fun N s l =>

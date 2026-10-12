@@ -73,7 +73,7 @@ theorem skipC_le [IsProbabilityMeasure D] (Q : TState α → List (FreeMonoid α
 
 open scoped Classical in
 theorem tallyPre_dis_search (s : TState α) (x : FreeMonoid α) :
-    dt C rd s x = if x ∈ ReadModel.searchAt rd C.k s.tree s.edges then 1 else 0 :=
+    dt C rd s x = if x ∈ searchAt rd C.k s.tree s.edges then 1 else 0 :=
   tallyPre_dis_sub C rd s x
 
 /-- A stretch at a hypothesis disagreeing on at least `εd` of the probes searches at most `h`
@@ -97,7 +97,7 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
         · exact fun h' => hd h'.1
         · exact fun h' => hd h'.1
       rw [this, measure_empty]; exact zero_le
-    set B := ReadModel.searchAt rd C.k s.tree s.edges
+    set B := searchAt rd C.k s.tree s.edges
     have hB1 : D.real B ≤ 1 := by
       have := measureReal_mono (μ := D) (Set.subset_univ B)
       rwa [probReal_univ] at this

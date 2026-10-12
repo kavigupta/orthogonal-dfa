@@ -288,7 +288,7 @@ theorem mul_exp_le {K K₁ Λ x δ : ℝ} (hδ : 0 < δ) (hK0 : 0 ≤ K) (hK : K
 
 set_option maxHeartbeats 1000000 in -- every field of `Knobs.Admissible` and all seven terms
 theorem tally_risk_bound_holds : TallyRiskBound := by
-  intro α _ _ _ σ _ G D _ L C κs δ S
+  intro α _ _ _ σ _ κ ε θ D _ L C κs δ S
   dsimp only
   intro hδ0 hδ1 hL hLmax hκ hκs hκsL hε0 hεL hθ0 hθe hθpt hθs hθs1 hφe hφpt hεd1 hθpt4 hφεd
     hn₀s hn₀pt hn₀φ hexc_gt hexc_le ha0 ha hbudget hm1 hm2 hm3 hm4
@@ -318,7 +318,7 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
   have ha2 : C.a ≤ 1 / 2 := by linarith
   have ha1 : C.a ≤ 1 := by linarith
   have hlg0 : 0 < lg := by rw [← hlg]; exact Real.log_pos (by rw [lt_div_iff₀ ha0]; linarith)
-  have hθX : 0 ≤ ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * G.θ :=
+  have hθX : 0 ≤ ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * θ :=
     mul_nonneg (by positivity) hθ0
   have hθpt0 : 0 ≤ C.θpt := by linarith
   have hθφ : 0 < C.θpt * C.φpt := by linarith
@@ -337,30 +337,30 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
     push Not at h
     nlinarith only [h, hθe0, hφeθe]
   have hθs0 : 0 ≤ C.θs := by
-    have : 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * G.θ := mul_nonneg (by positivity) hθ0
+    have : 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * θ := mul_nonneg (by positivity) hθ0
     linarith
-  have hθN : ((Fintype.card σ : ℝ) + S + 1) * G.θ ≤ ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))
-      * G.θ := by
-    have : 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * G.θ := mul_nonneg (by positivity) hθ0
+  have hθN : ((Fintype.card σ : ℝ) + S + 1) * θ ≤ ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))
+      * θ := by
+    have : 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * θ := mul_nonneg (by positivity) hθ0
     nlinarith only [this, hL1]
   have hκs0 : 0 ≤ κs := by linarith
-  obtain ⟨ρ, hρ⟩ : ∃ ρ : ℝ, ρ = 2 * (G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)))
-      + 2 * p₀ * (1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))))
+  obtain ⟨ρ, hρ⟩ : ∃ ρ : ℝ, ρ = 2 * (ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)))
+      + 2 * p₀ * (1 + 4 * (κ * (L + 1) + ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))))
         * Λ := ⟨_, rfl⟩
-  obtain ⟨θgs, hθgs⟩ : ∃ x : ℝ, x = 3 * G.θ * ((Fintype.card σ : ℝ) + S + 1) + p₀ * Λ :=
+  obtain ⟨θgs, hθgs⟩ : ∃ x : ℝ, x = 3 * θ * ((Fintype.card σ : ℝ) + S + 1) + p₀ * Λ :=
     ⟨_, rfl⟩
   obtain ⟨θgpt, hθgpt⟩ : ∃ x : ℝ,
-      x = 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * G.θ + 8 * p₀ * Λ / C.φpt := ⟨_, rfl⟩
-  obtain ⟨Xe, hXe⟩ : ∃ x : ℝ, x = 8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg := ⟨_, rfl⟩
-  have hκL : 0 ≤ G.κ * (L + 1) := mul_nonneg hκ.le (by positivity)
-  have hεN : 0 ≤ G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) :=
+      x = 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * θ + 8 * p₀ * Λ / C.φpt := ⟨_, rfl⟩
+  obtain ⟨Xe, hXe⟩ : ∃ x : ℝ, x = 8 * (L + 1) * (1 + 12 * θ * C.Lmax) * lg := ⟨_, rfl⟩
+  have hκL : 0 ≤ κ * (L + 1) := mul_nonneg hκ.le (by positivity)
+  have hεN : 0 ≤ ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) :=
     mul_nonneg hε0 (by positivity)
-  have hρ1 : 0 ≤ 2 * p₀ * (1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1)
+  have hρ1 : 0 ≤ 2 * p₀ * (1 + 4 * (κ * (L + 1) + ε * ((L + 1)
       * ((Fintype.card σ : ℝ) + S + 1)))) * Λ := by
-    have : 0 ≤ 1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) := by
+    have : 0 ≤ 1 + 4 * (κ * (L + 1) + ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) := by
       linarith
     exact mul_nonneg (mul_nonneg (by linarith) this) hΛ0.le
-  have hgφ : θgpt * C.φpt = 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * G.θ * C.φpt
+  have hgφ : θgpt * C.φpt = 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * θ * C.φpt
       + 8 * (p₀ * Λ) := by
     rw [hθgpt]; field_simp
   have hgpt0 : 0 ≤ θgpt := by
@@ -371,7 +371,7 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
       rw [div_mul_eq_mul_div, div_le_iff₀ hφpt_pos]; linarith
     rw [hθgpt]; linarith
   have hgs0 : 0 ≤ θgs := by
-    rw [hθgs]; have : 0 ≤ G.θ * ((Fintype.card σ : ℝ) + S + 1) := mul_nonneg hθ0 (by positivity)
+    rw [hθgs]; have : 0 ≤ θ * ((Fintype.card σ : ℝ) + S + 1) := mul_nonneg hθ0 (by positivity)
     linarith
   have h8gs : 8 * θgs ≤ C.θs := by rw [hθgs]; linarith
   have hlgle : Real.log (1 / C.a) ≤ lg := hlg.le
@@ -409,7 +409,7 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
     have hP : (0 : ℝ) ≤ (S + Fintype.card σ + 1) := by positivity
     have hQ : (0 : ℝ) ≤ 2 * C.Lmax * Fintype.card α + 1 := by positivity
     nlinarith only [mul_nonneg (mul_nonneg hP hQ) hx, mul_nonneg hP hy]
-  have hadm : Knobs.Admissible G D L C κs ⟨S, nEnd, nRec, hP, hS, ρ, 3 * G.θ, θgs, θgpt,
+  have hadm : Knobs.Admissible σ κ ε θ D L C κs ⟨S, nEnd, nRec, hP, hS, ρ, 3 * θ, θgs, θgpt,
       2 * C.θpt, C.εd / 4, C.εd / 2, Xe, 2 * C.θs, C.n₀, 1, 4 * κs, 1 / p₀⟩ := by
     refine
       { κ_pos := hκ
@@ -471,8 +471,8 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
           exact exp_neg_le_of_le ha0 (by rw [hlg]; nlinarith only [hn₀φ, this, sq_nonneg C.φpt])
         Xe_nonneg := by
           dsimp only; rw [hXe]
-          have : 0 ≤ 1 + 12 * G.θ * C.Lmax := by
-            have : 0 ≤ G.θ * C.Lmax := mul_nonneg hθ0 (Nat.cast_nonneg _)
+          have : 0 ≤ 1 + 12 * θ * C.Lmax := by
+            have : 0 ≤ θ * C.Lmax := mul_nonneg hθ0 (Nat.cast_nonneg _)
             linarith
           positivity
         exc_le := fun j => by dsimp only; rw [hXe]; exact hexc_le j
@@ -507,56 +507,56 @@ theorem tally_risk_bound_holds : TallyRiskBound := by
   have hKc : classCount (α := α) σ S ≤ classCount (α := α) σ S
       * (edgeMapCount (α := α) σ S * ((Fintype.card σ + S + 2) * Fintype.card α)) :=
     le_mul_of_one_le_right (by positivity) (by nlinarith only [he1, hm1'])
-  have hθ6 : 6 * G.θ * ((Fintype.card σ : ℝ) + S + 1) ≤ 1 := by linarith
+  have hθ6 : 6 * θ * ((Fintype.card σ : ℝ) + S + 1) ≤ 1 := by linarith
   have hT1 : classCount (α := α) σ S * edgeMapCount (α := α) σ S
-      * Real.exp (-((ρ - 2 * (G.ε * ((L + 1) * (Fintype.card σ + S + 1))))
-        / (2 * p₀ * (1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * (Fintype.card σ + S + 1)))))))
+      * Real.exp (-((ρ - 2 * (ε * ((L + 1) * (Fintype.card σ + S + 1))))
+        / (2 * p₀ * (1 + 4 * (κ * (L + 1) + ε * ((L + 1) * (Fintype.card σ + S + 1)))))))
       ≤ δ / 8 := by
     refine mul_exp_le hδ0 (by positivity) hK0 hK ?_
     rw [le_div_iff₀ (by positivity), hρ]
     linarith
   have hT2 : classCount (α := α) σ S
       * (edgeMapCount (α := α) σ S * ((Fintype.card σ + S + 2) * Fintype.card α))
-      * Real.exp (-(C.φe * (C.θe / 2 - 2 * (3 * G.θ)) / 2 / (2 * p₀ * (L + 1)
-        * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + S + 1))))) ≤ δ / 8 := by
+      * Real.exp (-(C.φe * (C.θe / 2 - 2 * (3 * θ)) / 2 / (2 * p₀ * (L + 1)
+        * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + S + 1))))) ≤ δ / 8 := by
     refine mul_exp_le hδ0 (by positivity) le_rfl hK ?_
     rw [le_div_iff₀ (by positivity)]
-    have e1 : 1 + 4 * (3 / 2 * G.θ) * ((Fintype.card σ : ℝ) + S + 1) ≤ 2 := by linarith
+    have e1 : 1 + 4 * (3 / 2 * θ) * ((Fintype.card σ : ℝ) + S + 1) ≤ 2 := by linarith
     have e2 := mul_le_mul_of_nonneg_left e1
       (show 0 ≤ 2 * p₀ * (L + 1) * Λ from mul_nonneg (by positivity) hΛ0.le)
-    have e3 : C.φe * (C.θe / 4) ≤ C.φe * (C.θe / 2 - 2 * (3 * G.θ)) :=
+    have e3 : C.φe * (C.θe / 4) ≤ C.φe * (C.θe / 2 - 2 * (3 * θ)) :=
       mul_le_mul_of_nonneg_left (by linarith) hφe0
     nlinarith only [e2, e3, hφe]
   have hT3 : classCount (α := α) σ S
-      * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * G.θ)
+      * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * θ)
         * (Real.exp (1 / p₀ * p₀) - 1) / p₀ - 1 / p₀ * θgs) ≤ δ / 8 := by
     rw [one_div_mul_cancel hp0.ne']
     have := mul_exp_le (K := classCount (α := α) σ S) (x := -((Fintype.card σ + S + 1)
-      * (3 / 2 * G.θ) * (Real.exp 1 - 1) / p₀ - 1 / p₀ * θgs)) hδ0 (by positivity) hKc hK ?_
+      * (3 / 2 * θ) * (Real.exp 1 - 1) / p₀ - 1 / p₀ * θgs)) hδ0 (by positivity) hKc hK ?_
     · rwa [neg_neg] at this
     have he : Real.exp 1 - 1 ≤ 2 := by linarith [Real.exp_one_lt_three]
-    have h1 : ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * G.θ) * (Real.exp 1 - 1) / p₀
-        - 1 / p₀ * θgs = (((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * G.θ) * (Real.exp 1 - 1)
+    have h1 : ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * θ) * (Real.exp 1 - 1) / p₀
+        - 1 / p₀ * θgs = (((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * θ) * (Real.exp 1 - 1)
           - θgs) / p₀ := by field_simp
     rw [h1, le_neg, div_le_iff₀ hp0, hθgs]
     have := mul_le_mul_of_nonneg_left he
-      (show 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * G.θ) from
+      (show 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * θ) from
         mul_nonneg (by positivity) (by linarith))
     nlinarith only [this]
   have hT4 : classCount (α := α) σ S * edgeMapCount (α := α) σ S
       * Real.exp (-(θgpt * C.φpt / 2 / (2 * p₀
-        * (1 + 4 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)))))) ≤ δ / 8 := by
+        * (1 + 4 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * θ)))))) ≤ δ / 8 := by
     refine mul_exp_le hδ0 (by positivity) hK0 hK ?_
     rw [le_div_iff₀ (by positivity), hgφ]
-    have e1 : 1 + 4 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * G.θ)) ≤ 2 := by
+    have e1 : 1 + 4 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1) * (3 / 2 * θ)) ≤ 2 := by
       linarith
     have e2 := mul_le_mul_of_nonneg_left e1 (show 0 ≤ 2 * (p₀ * Λ) by linarith)
-    have e3 : 0 ≤ 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * G.θ * C.φpt :=
+    have e3 : 0 ≤ 3 * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1)) * θ * C.φpt :=
       mul_nonneg (by linarith) hφpt_pos.le
     nlinarith only [e2, e3]
-  have hρle : ρ ≤ 2 * (G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) + 6 * (p₀ * Λ) := by
+  have hρle : ρ ≤ 2 * (ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) + 6 * (p₀ * Λ) := by
     rw [hρ]
-    have e1 : 1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) ≤ 3 := by
+    have e1 : 1 + 4 * (κ * (L + 1) + ε * ((L + 1) * ((Fintype.card σ : ℝ) + S + 1))) ≤ 3 := by
       nlinarith only [hκs, hκsL, hεL, hL1]
     have := mul_le_mul_of_nonneg_left e1 (show 0 ≤ 2 * (p₀ * Λ) by linarith)
     nlinarith only [this]

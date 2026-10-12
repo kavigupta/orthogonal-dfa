@@ -14,11 +14,11 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   has one law its strings read with, and the band's check bounds each law.
 - `IdealRoundCorrect`: with every read fixed by its state, one L\* round ends well but for
   chance `(P + 1)(1 − ε)^n`.
-- `TallyRound`: with a `ReadOracle` reading every string independently with its state's law in a
-  `ReadModel`, the tally loop's round over `C.budget` probes from `D` fails to end well with chance
-  at most `roundRisk`.
-- `TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the read model and the loop's
-  settings.
+- `TallyRound`: with a `TriOracle` reading every string independently with its state's law, the
+  tally loop's round over `C.budget` probes from a `PrefixDistribution` fails to end well with
+  chance at most `roundRisk` and the yield's term.
+- `TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the laws' `κ` and `ε`, the goodness
+  level `θ` and the loop's settings.
 - `TallyRoundFamily`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family and
   a band passing `BandPasses`), at the family's read model.
 
@@ -59,16 +59,15 @@ anchors are the positions from which `covered_states` counts a visit.
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
 to be read:
 
-    TallyRound: ∀ G (R : ReadOracle μ G) (P : PrefixDistribution α) C κs, 2κ ≤ κs →
+    TallyRound: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs, 2 · O.κ ≤ κs →
       ∫⁻ ω, P[the round over C.budget probes from P.D does not end well] ∂μ
-        ≤ roundRisk G P.D P.L C κs + exp(−1.5θ · coverage(not good) / (16 P.q))
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + exp(−1.5θ · coverage(not O.Good θ) / (16 P.q))
 
-    TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) (P : PrefixDistribution α) C θ κs,
-      2 · fam.κ ≤ κs →
-      ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) P.D P.L C κs + exp(−1.5θ · coverage / (16 P.q))
+    TallyRoundFamily: TallyRound at fam.oracle : TriOracle μ fam.M.
 
-`roundRisk G D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
-`kn.Admissible G D L C κs`, of `roundBound G D L C kn`, the sum of:
+A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
+`roundRisk σ κ ε θ D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
+`kn.Admissible σ κ ε θ D L C κs`, of `roundBound σ κ ε θ D L C kn`, the sum of:
 
 * `recordsTail`, records that are not true exceeding `κs` times the undecided strings plus `ρ`:
   `K · E · exp(−(ρ − 2ε(L + 1)(n + 1)) / (2p₀(1 + 4(κ(L + 1) + ε(L + 1)(n + 1)))))`;
@@ -202,7 +201,7 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   plus `ε` times its first reads (`spurious_mean`); and an edge's good undecided first reads average
   at most `1.5θ` of its first reads (`edge_first_mean`).
 - `OrthoDFA/SuffixFamily.lean`, `OrthoDFA/TallyFamily.lean` — `SuffixFamily`, its reads and laws,
-  `SuffixFamily.readModel`, and `TallyRoundFamily`. Proved in `Proofs/TallyFamily.lean` from
+  `SuffixFamily.oracle`, and `TallyRoundFamily`. Proved in `Proofs/TallyFamily.lean` from
   `TallyRound`, the family's reads being independent with its laws (`Proofs/SuffixFamily.lean`,
   from `FamilyReadBound`).
 - `Proofs/TallyRiskBound.lean` — `TallyRiskBound`: explicit knobs, Hoeffding's lower binomial tail
