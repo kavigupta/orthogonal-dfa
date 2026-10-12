@@ -6,7 +6,7 @@ namespace OrthoDFA
 
 open MeasureTheory
 
-/-- `binomial_side_of_boundary` once `n₀` draws are in: above `θ` when `Bin(n, θ)` reaches `h`
+/-- `statistics.rate_side`: once `n₀` draws are in, above `θ` when `Bin(n, θ)` reaches `h`
 hits with chance below `a`, below when it stays at or under `h` with chance below `a`. -/
 noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
   if n₀ ≤ n then

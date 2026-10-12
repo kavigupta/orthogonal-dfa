@@ -1,4 +1,4 @@
-"""The binomial rate test keeps the promises ``RateTestSound`` makes, and is ``rateSide``."""
+"""``rate_side`` keeps the promises ``RateTestSound`` makes, and is ``rateSide``."""
 
 import itertools
 import math
@@ -7,23 +7,22 @@ from fractions import Fraction
 
 import numpy as np
 
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.statistics import rate_side
 
 #: Float slack on a probability the test is compared against.
 _SLACK = 1e-9
-
-
-def side(h, n, theta, a):
-    return binomial_side_of_boundary(h, n, theta, failure_prob=a)
 
 
 def pmf(k, n, p):
     return math.comb(n, k) * p**k * (1 - p) ** (n - k)
 
 
-def chance_of(verdict, n, theta, a, p):
-    """``P(side(X, n, θ, a) = verdict)`` for ``X ~ Bin(n, p)``, summed exactly."""
-    return sum(pmf(k, n, p) for k in range(n + 1) if side(k, n, theta, a) is verdict)
+def chance_of(verdict, theta, a, n0, n, *, p):
+    """``P(rate_side(θ, a, n0, n, X) = verdict)`` for ``X ~ Bin(n, p)``, summed
+    exactly."""
+    return sum(
+        pmf(k, n, p) for k in range(n + 1) if rate_side(theta, a, n0, n, k) is verdict
+    )
 
 
 def lean_rate_side(theta, a, n0, n, h):
@@ -49,13 +48,16 @@ class TestSoundExactly(unittest.TestCase):
             range(0, 31),
             np.linspace(0, 1, 11),
             (1e-5, 1e-3, 0.05, 0.3, 1.0),
+            (0, 5, 20),
         )
-        for n, theta, a in grid:
+        for n, theta, a, n0 in grid:
             for p in np.linspace(0, 1, 21):
                 if p <= theta:
-                    self.assertLessEqual(chance_of(True, n, theta, a, p), a + _SLACK)
+                    above = chance_of(True, theta, a, n0, n, p=p)
+                    self.assertLessEqual(above, a + _SLACK)
                 if p >= theta:
-                    self.assertLessEqual(chance_of(False, n, theta, a, p), a + _SLACK)
+                    below = chance_of(False, theta, a, n0, n, p=p)
+                    self.assertLessEqual(below, a + _SLACK)
 
 
 class TestSoundBySimulation(unittest.TestCase):
@@ -66,7 +68,7 @@ class TestSoundBySimulation(unittest.TestCase):
             for theta in (0.05, 0.3, 0.5, 0.9):
                 a = 0.05
                 counts = rng.binomial(n, theta, size=trials)
-                verdicts = [side(int(k), n, theta, a) for k in counts]
+                verdicts = [rate_side(theta, a, 0, n, int(k)) for k in counts]
                 margin = 5 * math.sqrt(a * (1 - a) / trials)
                 self.assertLessEqual(verdicts.count(True) / trials, a + margin)
                 self.assertLessEqual(verdicts.count(False) / trials, a + margin)
@@ -78,33 +80,38 @@ class TestSoundBySimulation(unittest.TestCase):
         for n in (200, 2000):
             for theta, p in ((0.5, 0.45), (0.2, 0.1)):
                 counts = rng.binomial(n, p, size=trials)
-                above = [side(int(k), n, theta, a) is True for k in counts]
+                above = [rate_side(theta, a, 0, n, int(k)) is True for k in counts]
                 self.assertLessEqual(sum(above) / trials, a)
             for theta, p in ((0.5, 0.55), (0.2, 0.3)):
                 counts = rng.binomial(n, p, size=trials)
-                below = [side(int(k), n, theta, a) is False for k in counts]
+                below = [rate_side(theta, a, 0, n, int(k)) is False for k in counts]
                 self.assertLessEqual(sum(below) / trials, a)
 
 
 class TestEdges(unittest.TestCase):
     def test_no_draws_says_nothing(self):
         for theta in (0.0, 0.3, 1.0):
-            self.assertIsNone(side(0, 0, theta, 0.05))
+            self.assertIsNone(rate_side(theta, 0.05, 0, 0, 0))
+
+    def test_too_few_draws_says_nothing(self):
+        self.assertIsNone(rate_side(0.5, 0.05, 100, 99, 0))
+        self.assertIsNone(rate_side(0.5, 0.05, 100, 99, 99))
+        self.assertIs(rate_side(0.5, 0.05, 100, 100, 100), True)
 
     def test_extreme_counts(self):
-        self.assertIs(side(0, 100, 0.5, 1e-5), False)
-        self.assertIs(side(100, 100, 0.5, 1e-5), True)
-        self.assertIsNone(side(50, 100, 0.5, 1e-5))
+        self.assertIs(rate_side(0.5, 1e-5, 0, 100, 0), False)
+        self.assertIs(rate_side(0.5, 1e-5, 0, 100, 100), True)
+        self.assertIsNone(rate_side(0.5, 1e-5, 0, 100, 50))
 
     def test_a_count_of_zero_is_never_above(self):
         for n in range(0, 20):
             for theta in (0.0, 0.5, 1.0):
-                self.assertIsNot(side(0, n, theta, 1.0), True)
+                self.assertIsNot(rate_side(theta, 1.0, 0, n, 0), True)
 
     def test_a_full_count_is_never_below(self):
         for n in range(0, 20):
             for theta in (0.0, 0.5, 1.0):
-                self.assertIsNot(side(n, n, theta, 1.0), False)
+                self.assertIsNot(rate_side(theta, 1.0, 0, n, n), False)
 
 
 class TestIsRateSide(unittest.TestCase):
@@ -117,8 +124,8 @@ class TestIsRateSide(unittest.TestCase):
             Fraction(1, 2),
         ]
         checked = 0
-        grid = itertools.product(range(0, 26), thetas, levels)
-        for n, theta, a in grid:
+        grid = itertools.product(range(0, 26), thetas, levels, (0, 10))
+        for n, theta, a, n0 in grid:
             for h in range(0, n + 1):
                 tails = (
                     sum(pmf(k, n, float(theta)) for k in range(h, n + 1)),
@@ -126,12 +133,12 @@ class TestIsRateSide(unittest.TestCase):
                 )
                 if any(abs(t - float(a)) <= _SLACK for t in tails):
                     continue
-                got = side(h, n, float(theta), float(a))
+                got = rate_side(float(theta), float(a), n0, n, h)
                 self.assertEqual(
-                    lean_rate_side(theta, a, 0, n, h), got, (n, theta, a, h)
+                    lean_rate_side(theta, a, n0, n, h), got, (n, theta, a, n0, h)
                 )
                 checked += 1
-        self.assertGreater(checked, 25000)
+        self.assertGreater(checked, 50000)
 
 
 if __name__ == "__main__":
