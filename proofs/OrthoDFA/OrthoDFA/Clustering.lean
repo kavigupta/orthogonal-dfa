@@ -8,10 +8,11 @@ import Mathlib.Probability.Independence.InfinitePi
 Everything `ClusteringGuarantee` mentions is defined here, so auditing the claim means reading
 this file and no other.  Each definition's doc names the Python it models.
 
-Known modelling gap.  The draws here are i.i.d. and deduplicated downstream (`poolAt`,
-`prefixesAt`), whereas `_draw_cohort` and `sample_more_prefixes` redraw on a duplicate —
-sampling without replacement.  Deduplicated i.i.d. draws give a pool at most as large, so this
-is the conservative model, but it is why the claim caps the collision mass.
+Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
+`draw_many` on a `UniformSource`, which redraws neither a repeat nor a prefix the table holds,
+and a `RejectionSource` redraws only what it has served itself, not another population's
+prefixes.  `certOf` redraws both.  The pool's draws merge with the seed `ε` when one is `ε`,
+where `_draw_cohort` would redraw it.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
@@ -174,24 +175,33 @@ family's vote. -/
 
 /-! ### Draw -/
 
-/-- The first `M` suffixes drawn, with the seed `ε`: `pst.table.column(v)` promotes it to
-fully observed at the top of every round. -/
-noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
-  insert 1 ((Finset.range M).image (fun i => suffixDraw i x))
+open scoped Classical in
+/-- The first `m` distinct draws of `y` outside `T`, sampling without replacement: a draw
+already taken, or in `T`, is drawn again, as `_draw_cohort` and `_distinct_prefixes` do.  Empty
+when `y` never offers `m` of them. -/
+noncomputable def freshDraws (T : Finset S) (y : ℕ → S) (m : ℕ) : Finset S :=
+  if h : ∃ n, m ≤ ((Finset.range n).image y \ T).card then
+    (Finset.range (Nat.find h)).image y \ T
+  else ∅
 
-/-- Population `j`'s first `m` draws, as a set: the table interns prefixes, so a repeated
-draw is one column and not two. -/
+/-- `M` suffixes drawn without replacement, with the seed `ε`: `pst.table.column(v)` promotes
+it to fully observed at the top of every round. -/
+noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
+  insert 1 (freshDraws ∅ (fun i => suffixDraw i x) M)
+
+/-- Population `j`'s `m` prefixes, drawn without replacement. -/
 noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
-  (Finset.range m).image (fun i => prefixDraw j i x)
+  freshDraws ∅ (fun i => prefixDraw j i x) m
 
 /-- Every population's representative prefixes, pooled. -/
 noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
     (x : Run Ω S J) : Finset S :=
   populations.biUnion (fun j => prefixesOf j m x)
 
-/-- Population `j`'s `certification_sample` draws, which the family was never clustered on. -/
-noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
-  (Finset.range m).image (fun i => certPrefix j i x)
+/-- Population `j`'s `m` `certification_sample` prefixes, drawn without replacement and outside
+the table `T`, so the family was never clustered on them. -/
+noncomputable def certOf (T : Finset S) (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
+  freshDraws T (fun i => certPrefix j i x) m
 
 /-! ### Screen -/
 
@@ -336,11 +346,11 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
-          (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
-        ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterAt mq populations x B) (certOf uni (B.npref + e) x) (oracleNoise x)}
+      (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
+          ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
+        ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
+    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α (clusterAt mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -353,9 +363,9 @@ with both suffixes drawn forces `p = p'` on length alone.  Against the seed `ε`
 def Flat (Pre Suf : Set S) : Prop :=
   ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v ∈ insert 1 Suf, ∀ v' ∈ insert 1 Suf, p * v = p' * v' → p = p'
 
-/-- The chance two independent draws coincide, `∑ₐ D({a})²`.  The oracle is persistent, so
-draws carry independent noise only where they are distinct; `S` is countable, so this is never
-zero and the claim asks only that it be small. -/
+/-- The chance two independent draws coincide, `∑ₐ D({a})²`: `1/h` for a population uniform
+over `h` strings.  Drawing without replacement redraws a repeat, and the claim asks that a state's
+draws redraw only a small fraction of the time. -/
 noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
 
 /-! ## The theorem -/
@@ -373,7 +383,9 @@ at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
 the one population the gate admits on.  `pAP` lower-bounds the share of suffixes that preserve
-membership for every prefix, and `cap` bounds the collision mass. -/
+membership for every prefix.  The states depend on none of the distributions, and a population
+need only have a collision mass small against the prefixes a state draws, and the suffix measure
+against the suffixes. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -394,56 +406,55 @@ def ClusteringGuarantee : Prop :=
   δ ≤ 1 →
   0 < crossLimit →
   crossLimit ≤ 1 →
-  ∃ cap : ℝ,
-    0 < cap ∧
+  ∃ states : Finset State,
+    (∀ B ∈ states, (B.npref : ℝ) ≤
+      6000
+      * (populations.card : ℝ) ^ 2
+      * Real.log (
+        ((populations.card : ℝ) + 2) * B.nsuff
+        / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+      )
+      / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+    ) ∧
+    (∃ B ∈ states, (B.npref : ℝ) ≤
+      104
+      * (populations.card : ℝ) ^ 2
+      * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
+      / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
+    ) ∧
+    (∀ B ∈ states,
+      (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+        / (1 / 2 - η₀) ^ 2
+      ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
+            (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+          / ((1 / 2 - η₀) ^ 2 * pAP)
+        + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
+    (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+      (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+      ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      ∀ ρ : ℝ,
-      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
-      ρ ≤ cap →
-      collisionMass Dsf ≤ cap →
-      ∃ states : Finset State,
-        (∀ B ∈ states, (B.npref : ℝ) ≤
-          6000
-          * (populations.card : ℝ) ^ 2
-          * Real.log (
-            ((populations.card : ℝ) + 2) * B.nsuff
-            / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
-          )
-          / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
-        ) ∧
-        (∃ B ∈ states, (B.npref : ℝ) ≤
-          104
-          * (populations.card : ℝ) ^ 2
-          * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
-          / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
-        ) ∧
-        (∀ B ∈ states,
-          (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
-            / (1 / 2 - η₀) ^ 2
-          ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-                (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
-              / ((1 / 2 - η₀) ^ 2 * pAP)
-            + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
-        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
-          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
-          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
-        1 - δ ≤ (runMeasure μ D Dsf).real
-          {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α B.val)
-            ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α B.val →
-              1 - εcov
-                ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
-              ∧ ∀ j ∈ populations, 1 / 2
-                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
-                ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
-                  ≤ 2 * indecisionLimit}
+      (∀ B ∈ states, ∀ j ∈ populations,
+        2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
+          ≤ δ * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2) →
+      (∀ B ∈ states,
+        2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+      1 - δ ≤ (runMeasure μ D Dsf).real
+        {x | (∃ B : {B : State // B ∈ states},
+              x ∈ ret O.mq populations uni indecisionLimit α B.val)
+          ∧ ∀ B : {B : State // B ∈ states},
+            x ∈ ret O.mq populations uni indecisionLimit α B.val →
+            1 - εcov
+              ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+            ∧ ∀ j ∈ populations, 1 / 2
+              ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+              ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                ≤ 2 * indecisionLimit}
 
 end OrthoDFA

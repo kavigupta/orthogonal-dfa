@@ -109,10 +109,11 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
 /-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
 flipping, so Markov charges the cut budget at that fraction and not at the family's size.
 
-The screen's tail binds and is read at this, so it takes seven eighths of the cut budget; the
-heavy-prefix count's slack and threshold, whose tails are cheap, share the rest. -/
+The screen's tail binds and is read at this, so it takes fifty-five sixty-fourths of the cut
+budget; the heavy-prefix count's slack and threshold, whose tails are cheap, and the prefixes the
+samplers redraw share the rest. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
-  7 * cutBudget η indecisionLimit εcov * flipFrac η / (8 * (populations.card : ℝ))
+  55 * cutBudget η indecisionLimit εcov * flipFrac η / (64 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget.
 
@@ -146,11 +147,26 @@ of the rest. -/
 noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
   7 * validFlip η populations εcov * ((1 - η) * sig η) / 8
 
-/-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
+/-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `2pAP/5` so
+that a twentieth of the pool is left for the draws the sampler redraws. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
   ⌈2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (2 * pAP / 5) ^ 2)⌉₊
+
+/-- The fraction of a state's prefix draws the samplers may redraw.  Every margin it is charged
+against is a fraction of the cut budget, the flip margins at the flip fraction, so this is both
+at once with room to spare. -/
+noncomputable def rejFrac (η indecisionLimit εcov : ℝ) : ℝ :=
+  cutBudget η indecisionLimit εcov * flipFrac η / 128
+
+/-- The draws the samplers may redraw at a prefix count. -/
+noncomputable def rejCount (η indecisionLimit εcov : ℝ) (m : ℕ) : ℕ :=
+  ⌊rejFrac η indecisionLimit εcov * m⌋₊
+
+/-- The suffix draws the pool's sampler may redraw: a twentieth of the findable share. -/
+noncomputable def poolRej (pAP : ℝ) (M : ℕ) : ℕ :=
+  ⌊pAP * M / 20⌋₊
 
 /-- The log factor the counts share.  Every tail is a deviation bound at one of the failure
 probabilities or rates in play, union-bounded over at most the pool's pairs of suffixes, so a
@@ -204,7 +220,7 @@ noncomputable def validCount (η : ℝ) (populations : Finset J)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (2 * (εcov * validFrac η / 8) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 32) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (indecisionLimit / 2) ^ 2)⌉₊
     + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
@@ -235,24 +251,26 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
     (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
       (prefCount η populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i))
 
-/-- What one tested state may cost, summed over the populations: the certification draws
-repeating or meeting the table, the sample missing the wrong set, a family member flipping more
-than `validFlip`, the sample holding too many prefixes the family flips, the family's vote
-misfiring on too many of the rest, and the sample missing the undecided set.
+/-- What one tested state may cost, summed over the populations: the samplers redrawing more
+than `rejCount` of the state's draws, the certification draws missing the wrong set, a family
+member flipping more than `validFlip`, the draws holding too many prefixes the family flips,
+the family's vote misfiring on too many of the rest, and the draws missing the undecided set.
+The redraws are priced by Markov's inequality at `ρ` a chance, so they cost the state linearly
+in its draws.
 
-The pool's findability and its draws colliding are not here: neither mentions the prefixes, so
-each is the same event at every rung and is charged once. -/
+The pool's findability and its redraws are not here: neither mentions the prefixes, so each is
+the same event at every rung and is charged once. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
-      + (((B.npref : ℝ) ^ 2 * ρ
-          + ((B.nsuff : ℝ) + 2) ^ 2
+  (populations.card : ℝ) * ((2 * (populations.card : ℝ) + 3) * (B.npref : ℝ) * ρ
+      / rejFrac η₀ indecisionLimit εcov
+    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
+      + ((((B.nsuff : ℝ) + 2) ^ 2
             * Real.exp (-2 * (B.npref : ℝ) * validMargin η₀ populations εcov ^ 2)
           + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
         + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
           + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
-            + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2))))))
+            + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))))))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
@@ -265,9 +283,9 @@ structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov �
   lohi : B.lo ≤ B.hi
   /-- There are prefixes to read the rate off. -/
   mpos : 0 < B.npref
-  /-- Two accept-preserving draws are expected in the pool, so one of them is not the seed
-  and the floor has a clean candidate to sit at. -/
-  found : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP / 2)
+  /-- Two accept-preserving draws more than the pool's sampler redraws are expected in the
+  pool, so one of them is not the seed and the floor has a clean candidate to sit at. -/
+  found : (2 : ℝ) + poolRej pAP B.nsuff ≤ (B.nsuff : ℝ) * (pAP / 2)
   /-- Two shares, each summing to at most `δ/8` over the ladder.  One is proportional to the
   prefix count, whose sum halves down from the top count `N`; it is what the top rung and the
   collision terms, which grow with the count, are paid from.  The other goes to the rungs at or
@@ -291,13 +309,21 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
       (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
 
-/-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
-collisions, so the mass is capped against the prefix count and the state's own share. -/
+/-- How much collision mass the populations may carry.  A state redraws `m·ρ/rejFrac` of its
+`m` draws in expectation, which its share `δ·m/(8N)` pays for, so the cap is linear in the top
+count `N`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℝ :=
-  δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-    * ((prefCount η populations indecisionLimit εcov δ α pAP crossLimit : ℝ) ^ 2
-      + (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) ^ 2 + 1))
+  δ * budgetScale η indecisionLimit εcov ^ 2
+    / (2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2
+      * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit : ℝ))
+
+/-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
+draws, a twentieth of the findable share. -/
+noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  δ * pAP / (2 ^ 12 * ((populations.card : ℝ) + 1)
+    * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ` the loop
 terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εcov` of
@@ -313,7 +339,7 @@ The hypotheses, in the order they appear: both of the oracle's noise rates are a
 which has signal; the uniform pool the gate admits on is a population; the populations and the suffix measure are
 supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
 the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
-and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
+and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits `poolCollisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
@@ -348,7 +374,7 @@ def ClusteringCorrect : Prop :=
   (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
     ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k →
   ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
-  collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
+  collisionMass Dsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},

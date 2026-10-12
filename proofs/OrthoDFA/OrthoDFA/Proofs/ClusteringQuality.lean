@@ -236,15 +236,13 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
       ae_sfx_mem_Suf D Dsf Suf hsuppSf] with d hd hdS
     set P : Finset S :=
-      populations.biUnion (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPdef
-    set cands : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i))
+      populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPdef
+    set cands : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff)
       with hcands
     have hV : ∀ v ∈ cands, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
-    have hP : ∀ q ∈ P, q ∈ Pre := by
-      intro q hq
-      obtain ⟨j, hj, hq'⟩ := Finset.mem_biUnion.1 hq
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
-      exact hd j hj i
+    have hP : ∀ q ∈ P, q ∈ Pre :=
+      table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hd
     have hfsub : ∀ ω, familyBy rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands := by
       intro ω
       have hc : clusterBy rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands :=
