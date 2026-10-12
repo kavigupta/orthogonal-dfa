@@ -17,11 +17,10 @@ from .dfa_utils import (
 )
 from .midfix_tree import oracle_decider
 from .progress import counter
-from .statistics import (
-    DENOISE_FAILURE_PROB,
-    binomial_side_of_boundary,
-    denoise_sample_size,
-)
+from .statistics import DENOISE_FAILURE_PROB, denoise_sample_size, rate_side
+
+#: Failure chance of the accuracy estimate's early stop.
+ESTIMATE_FAILURE_PROB = 1e-5
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
@@ -93,11 +92,8 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
                 n += 1
-                decision = binomial_side_of_boundary(
-                    accepts,
-                    n,
-                    pst.decision_boundary,
-                    failure_prob=DENOISE_FAILURE_PROB,
+                decision = rate_side(
+                    pst.decision_boundary, DENOISE_FAILURE_PROB, 0, n, accepts
                 )
                 if decision is not None:
                     return decision
@@ -172,8 +168,10 @@ def _batch_before_possible_stop(agreements, valid, boundary, min_valid, remainin
 
     def possible(k):
         return (
-            binomial_side_of_boundary(agreements + k, valid + k, boundary) is True
-            or binomial_side_of_boundary(agreements, valid + k, boundary) is False
+            rate_side(boundary, ESTIMATE_FAILURE_PROB, 0, valid + k, agreements + k)
+            is True
+            or rate_side(boundary, ESTIMATE_FAILURE_PROB, 0, valid + k, agreements)
+            is False
         )
 
     if lo >= remaining or not possible(remaining):
@@ -255,7 +253,9 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
                 pbar.set_postfix(consistent=f"{agreements / valid:.3f}", refresh=False)
                 if (
                     valid >= min_valid
-                    and binomial_side_of_boundary(agreements, valid, acc_threshold)
+                    and rate_side(
+                        acc_threshold, ESTIMATE_FAILURE_PROB, 0, valid, agreements
+                    )
                     is not None
                 ):
                     return agreements / valid

@@ -7,7 +7,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from .statistics import binomial_side_of_boundary
+from .statistics import rate_side
 
 DEFAULT_BLOCK = 16
 DEFAULT_ALPHA = 1e-3
@@ -41,12 +41,9 @@ def sequential_decisions(
         return None
 
     def confident_side(accepts: int, drawn: int) -> Optional[bool]:
-        if binomial_side_of_boundary(accepts, drawn, accept, failure_prob=alpha):
+        if rate_side(accept, alpha, 0, drawn, accepts):
             return True
-        if (
-            binomial_side_of_boundary(accepts, drawn, reject, failure_prob=alpha)
-            is False
-        ):
+        if rate_side(reject, alpha, 0, drawn, accepts) is False:
             return False
         return None
 
