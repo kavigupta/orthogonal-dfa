@@ -42,7 +42,7 @@ def IdealRoundCorrect : Prop :=
     Fintype.card σ + 2 ≤ C.maxLeaves → probeBudget C (Fintype.card α) ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (s L : ℕ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
-          {draws | let result := indecisiveLStarLevel2 read C draws
+          {draws | let result := indecisiveLStarLevel2 C read draws
             ¬ EndsWell M (AllUndecided read M) D ε
               {x | Disagrees read result.hypothesis C.walkStart x}
               s L (replay read result.hypothesis)

@@ -18,7 +18,7 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (locate bisect siftAgrees probe Outcome length_walk_le pre_of_le pre_succ
+open OrthoDFA.Ideal (searchOutcome siftAgrees probe Outcome length_walk_le pre_of_le pre_succ
   agrees_inl walk_cons EdgesOK OutcomeOK)
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
@@ -26,80 +26,47 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
 
 /-! ## Where a record is made -/
 
-theorem located_edge (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool) (lo hi : ℕ)
-    (hle : lo ≤ hi) (hlo : siftAgrees read T x st lo = some true)
-    (hhi : siftAgrees read T x st hi = some false) {p : List Bool} {c : α} {u : FreeMonoid α}
-    {t : List Bool} (h : locate read T x st lo hi = .wrongEdge p c u t) :
+theorem searchOutcome_edge (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool)
+    (un : Option (α × List Bool)) (lo hi : ℕ) (hle : lo ≤ hi) {p : List Bool} {c : α}
+    {u : FreeMonoid α} {t : List Bool}
+    (h : searchOutcome read T x st un hi (tripartiteSearch true (siftAgrees read T x st) lo hi).1
+      = .wrongEdge p c u t) :
     ∃ q, lo < q ∧ q ≤ hi ∧ u = prefixOf x (q - 1) ∧ x.toList[q - 1]? = some c := by
-  have hf := Ideal.search_ok (siftAgrees read T x st) _ lo hi rfl hle hlo hhi
-  unfold locate at h
-  rcases hsr : bisect (siftAgrees read T x st) lo hi with q | q | q
-  · rw [hsr] at hf h
-    have h1 := hf.1
-    have h2 := hf.2.1
-    simp only at h
-    rcases hc : x.toList[q - 1]? with _ | c'
-    · rw [hc] at h; simp at h
-    · rcases ht : T.sift read (prefixOf x q) with t' | z
-      · rw [hc, ht] at h
-        simp only [Outcome.wrongEdge.injEq] at h
-        obtain ⟨-, rfl, rfl, -⟩ := h
-        exact ⟨q, h1, h2, rfl, hc⟩
-      · rw [hc, ht] at h; simp at h
-  · rw [hsr] at h; simp at h
-  · rw [hsr] at h; simp at h
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hle
+  generalize (tripartiteSearch true (siftAgrees read T x st) lo hi).1 = r at hs h
+  cases r with
+  | edge q =>
+    obtain ⟨h1, h2, -, -⟩ := hs
+    simp only [searchOutcome] at h
+    split at h
+    · rename_i c' t' hc ht
+      simp only [Outcome.wrongEdge.injEq] at h
+      obtain ⟨-, rfl, rfl, -⟩ := h
+      exact ⟨q, h1, h2, rfl, hc⟩
+    · simp at h
+  | allAgree => simp only [searchOutcome] at h; split at h <;> simp at h
+  | _ => simp [searchOutcome] at h
 
 /-- A record's prefix and letter are the probe's, past its first `k` letters. -/
-theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α)
-    (hk : k ≤ x.toList.length) {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool}
-    (h : probe read T E k x = .wrongEdge p c u t) :
+theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) {p : List Bool} {c : α}
+    {u : FreeMonoid α} {t : List Bool} (h : probe read T E k x = .wrongEdge p c u t) :
     ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = prefixOf x i ∧ x.toList[i]? = some c := by
   unfold probe at h
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · rw [ha] at h
     simp only at h
-    revert h
-    generalize hcs : x.toList.drop k = cs
-    generalize hss : walk E a cs = ss
-    intro h
-    have hle : ss.length ≤ cs.length + 1 := hss ▸ length_walk_le E a cs
-    have hpos : 0 < ss.length := hss ▸ Ideal.length_walk_pos E a cs
-    have hcsl : cs.length = x.toList.length - k := by rw [← hcs, List.length_drop]
-    have hst0 : ss.getD (k - k) [] = a := by
-      rw [Nat.sub_self, ← hss]
-      obtain ⟨l, hl⟩ := walk_cons E a cs
-      simp [hl]
-    have hagk : siftAgrees read T x (fun p => ss.getD (p - k) []) k = some true := by
-      rw [agrees_inl read T x _ ha]
-      simp only [hst0, decide_true]
+    have hpos := Ideal.length_walk_pos E a (x.toList.drop k)
+    have hlt : ∀ q, x.toList[q - 1]? = some c → q - 1 < x.toList.length := fun q hc => by
+      by_contra hcon
+      rw [List.getElem?_eq_none (by omega)] at hc
+      simp at hc
     split at h
-    · rename_i c' hc
-      have hj : k + ss.length - 1 < x.toList.length := by
-        by_contra hcon
-        rw [List.getElem?_eq_none (by omega)] at hc
-        simp at hc
-      split at h
+    · split at h
       · simp at h
-      · simp at h
-      · rename_i t' s' hs'
-        split_ifs at h with hseq
-        obtain ⟨q, h1, h2, h3, h4⟩ := located_edge read T x _ k _ (by omega) hagk
-          (by rw [agrees_inl read T x _ hs']; simpa using hseq) h
-        exact ⟨q - 1, by omega, by omega, h3, h4⟩
-    · rename_i hc
-      have hjx : x.toList.length ≤ k + ss.length - 1 := by
-        by_contra hcon
-        rw [List.getElem?_eq_getElem (by omega)] at hc
-        simp at hc
-      split at h
-      · simp at h
-      · rename_i e he
-        split_ifs at h with heq
-        have hj : k + ss.length - 1 = x.toList.length := by omega
-        obtain ⟨q, h1, h2, h3, h4⟩ := located_edge read T x _ k _ (by omega) hagk
-          (by rw [agrees_inl read T x _ (by rw [hj, pre_of_le le_rfl]; exact he)]
-              simpa using heq) h
-        exact ⟨q - 1, by omega, by omega, h3, h4⟩
+      · obtain ⟨q, h1, -, h3, h4⟩ := searchOutcome_edge read T x _ _ k _ (by omega) h
+        exact ⟨q - 1, by omega, hlt q h4, h3, h4⟩
+    · obtain ⟨q, h1, -, h3, h4⟩ := searchOutcome_edge read T x _ _ k _ (by omega) h
+      exact ⟨q - 1, by omega, hlt q h4, h3, h4⟩
   · rw [ha] at h
     simp at h
 
@@ -126,7 +93,7 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
       simp [probeOrAgree, show x.toList.length < C.walkStart by omega] at ho
     have ho' : probe read T E C.walkStart x = .wrongEdge p' c' u t' := by
       simpa [probeOrAgree, show ¬ x.toList.length < C.walkStart by omega] using ho
-    obtain ⟨i, hi1, hi2, rfl, hc⟩ := probe_edge read T E C.walkStart x hk ho'
+    obtain ⟨i, hi1, hi2, rfl, hc⟩ := probe_edge read T E C.walkStart x ho'
     by_contra hw
     simp only [PotWrong, Set.mem_ofPred_eq, not_exists, not_and] at hw
     have hp := sift_true M side read T _ p' hu fun m hm =>

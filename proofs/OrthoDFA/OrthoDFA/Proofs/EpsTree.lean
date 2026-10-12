@@ -19,8 +19,8 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (probe Outcome locate bisect siftAgrees walk_cons length_walk_le pre_of_le
-  pre_succ SearchResult OutcomeOK EdgesOK)
+open OrthoDFA.Ideal (probe Outcome siftAgrees walk_cons length_walk_le pre_of_le pre_succ
+  OutcomeOK EdgesOK)
 
 variable {α : Type*} {σ : Type*} (M : DFA α σ) (side : σ → Bool)
 

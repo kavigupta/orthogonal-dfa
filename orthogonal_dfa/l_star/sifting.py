@@ -7,6 +7,8 @@ resolver need it, so it lives here rather than in either of them.
 
 from typing import Optional, Tuple
 
+from .tripartite_search import EDGE, tripartite_search
+
 #: Probes sifted per batched pass.
 PROBE_BLOCK = 16
 
@@ -94,12 +96,15 @@ def first_disagreeing_edge(probe, states, sift, lo, hi):
     """The first index where the walk and a fresh sift diverge, or ``None``
     where a sift on the way comes out indecisive.
 
-    Invariant: the sift agrees at ``lo`` and disagrees at ``hi``.
+    Invariant: the sift agrees at ``lo`` and disagrees at ``hi``, so neither is
+    sifted again.
     """
-    while lo + 1 < hi:
-        mid = (lo + hi) // 2
-        landed = sift(probe[:mid])
-        if landed is None:
-            return None
-        lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
-    return hi
+
+    def agrees(i):
+        if i in (lo, hi):
+            return i == lo
+        landed = sift(probe[:i])
+        return None if landed is None else landed == states[i]
+
+    found = tripartite_search(agrees, lo, hi, recover=False)
+    return found.position if found.kind == EDGE else None

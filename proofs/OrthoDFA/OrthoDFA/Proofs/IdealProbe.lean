@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.IdealTree
+import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
 # A probe under ideal reads
@@ -101,53 +102,6 @@ theorem run_walk : ∀ (s : List Bool) (cs : List α) (q : List Bool), walkEnd E
 
 end Walk
 
-/-! ## The search -/
-
-/-- What the search's answer promises between `lo` and `hi`. -/
-def FoundOK (ag : ℕ → Option Bool) (lo hi : ℕ) : SearchResult → Prop
-  | .edge p => lo < p ∧ p ≤ hi ∧ ag (p - 1) = some true ∧ ag p = some false
-  | .triple p => lo < p ∧ p < hi ∧ ag p = none
-  | .pair p => lo ≤ p ∧ p + 1 ≤ hi ∧ ag p = none ∧ ag (p + 1) = none
-
-theorem FoundOK.mono {ag : ℕ → Option Bool} {lo hi lo' hi' : ℕ} {f : SearchResult}
-    (h : FoundOK ag lo' hi' f) (hlo : lo ≤ lo') (hhi : hi' ≤ hi) : FoundOK ag lo hi f := by
-  cases f with
-  | edge p => obtain ⟨h1, h2, h3, h4⟩ := h; exact ⟨by omega, by omega, h3, h4⟩
-  | triple p => obtain ⟨h1, h2, h3⟩ := h; exact ⟨by omega, by omega, h3⟩
-  | pair p => obtain ⟨h1, h2, h3, h4⟩ := h; exact ⟨by omega, by omega, h3, h4⟩
-
-theorem search_ok (ag : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n → lo ≤ hi →
-    ag lo = some true → ag hi = some false → FoundOK ag lo hi (bisect ag lo hi) := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro lo hi hn hle hlo hhi
-  have hne : lo ≠ hi := by rintro rfl; rw [hlo] at hhi; simp at hhi
-  rw [bisect]
-  split
-  · refine ⟨by omega, le_rfl, ?_, hhi⟩
-    rwa [show hi - 1 = lo by omega]
-  · rename_i hgap
-    split
-    · rename_i hm
-      exact (ih _ (by omega) _ _ rfl (by omega) hm hhi).mono (by omega) le_rfl
-    · rename_i hm
-      exact (ih _ (by omega) _ _ rfl (by omega) hlo hm).mono le_rfl (by omega)
-    · rename_i hm
-      split
-      · rename_i hl
-        refine ⟨by omega, by omega, hl, ?_⟩
-        rwa [show (lo + hi) / 2 - 1 + 1 = (lo + hi) / 2 by omega]
-      · rename_i hr _
-        exact ⟨by omega, by omega, hm, hr⟩
-      · exact ⟨by omega, by omega, hm⟩
-      · rename_i hl _
-        have : (lo + hi) / 2 - 1 ≠ lo := by rintro h; rw [h, hlo] at hl; simp at hl
-        exact (ih _ (by omega) _ _ rfl (by omega) hlo hl).mono le_rfl (by omega)
-      · rename_i _ hr
-        have : (lo + hi) / 2 + 1 ≠ hi := by rintro h; rw [h, hhi] at hr; simp at hr
-        exact (ih _ (by omega) _ _ rfl (by omega) hr hhi).mono (by omega) le_rfl
-
 /-! ## Prefixes -/
 
 theorem pre_succ {x : FreeMonoid α} {p : ℕ} {c : α} (h : x.toList[p]? = some c) :
@@ -212,54 +166,76 @@ theorem stuckAt_ok {p : ℕ} (h : siftAgrees read T x st p = none) :
   · simp at h
   · simpa using DTree.sift_inr read T _ z hs
 
-theorem located_clean (lo hi : ℕ) : (locate read T x st lo hi).clean = false := by
-  unfold locate
-  split
-  · split <;> rfl
-  · rfl
-  · rfl
-
-/-- The search between `k` and `j` along a walk whose leaves are `st`. -/
-theorem located_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
-    (hk : siftAgrees read T x st k = some true) (hj : siftAgrees read T x st j = some false)
+/-- The search between `k` and `j` along a walk whose leaves are `st`, `un` the unlearned edge
+the walk stopped at, if any. -/
+theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     (hmem : ∀ p, k ≤ p → p ≤ j → st p ∈ T.leaves)
     (hstep : ∀ p, k ≤ p → p < j →
-      ∃ c w, x.toList[p]? = some c ∧ E (st p, c) = some (st (p + 1), w)) :
-    OutcomeOK read T E (locate read T x st k j) := by
-  have hf := search_ok (siftAgrees read T x st) _ k j rfl hkj hk hj
-  unfold locate
-  revert hf
-  generalize bisect (siftAgrees read T x st) k j = f
-  intro hf
+      ∃ c w, x.toList[p]? = some c ∧ E (st p, c) = some (st (p + 1), w))
+    (un : Option (α × List Bool))
+    (hun : ∀ c t, un = some (c, t) → x.toList[j]? = some c
+      ∧ T.sift read (prefixOf x (j + 1)) = .inl t ∧ E (st j, c) = none) :
+    OutcomeOK read T E
+      (searchOutcome read T x st un j (tripartiteSearch true (siftAgrees read T x st) k j).1) := by
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hkj
+  generalize (tripartiteSearch true (siftAgrees read T x st) k j).1 = r at hs
   have hcell : ∀ p, k ≤ p → p ≤ j → SiteOK T (siteAt x st p) := by
     intro p h1 h2
     unfold siteAt
     split
     · exact hmem p h1 h2
     · trivial
-  cases f with
+  cases r with
+  | undecidedLo => exact ⟨trivial, by simp, by simp⟩
+  | disagreeLo => exact ⟨trivial, by simp, by simp⟩
+  | undecidedHi =>
+    exact ⟨trivial, (fun h => by cases h), (stuckAt_ok read T x st hs.2).2⟩
+  | allAgree =>
+    rcases un with _ | ⟨c, t⟩
+    · trivial
+    · obtain ⟨hc, ht, hE⟩ := hun c t rfl
+      refine ⟨hmem j hkj le_rfl, agrees_true read T x st hs.2, ?_, hE⟩
+      rw [← pre_succ hc, ht]
   | edge p =>
-    obtain ⟨h1, h2, h3, h4⟩ := hf
+    obtain ⟨h1, h2, h3, h4⟩ := hs
     obtain ⟨c, w, hc, hE⟩ := hstep (p - 1) (by omega) (by omega)
     obtain ⟨t, ht, htne⟩ := agrees_false read T x st h4
     have hp : p - 1 + 1 = p := by omega
-    simp only [hc, ht]
+    simp only [searchOutcome, hc, ht]
     refine ⟨hmem _ (by omega) (by omega), agrees_true read T x st h3, ?_, st (p - 1 + 1), w, hE, ?_⟩
     · rw [← pre_succ hc, hp, ht]
     · rw [hp]; exact fun h => htne h.symm
   | triple p =>
-    obtain ⟨h1, h2, h3⟩ := hf
+    obtain ⟨h1, h2, -, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
     exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
+  | undecidedMid p => exact absurd hs.1 (by simp)
   | pair p =>
-    obtain ⟨h1, h2, h3, h4⟩ := hf
+    obtain ⟨h1, h2, h3, h4⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
     obtain ⟨_, u4⟩ := stuckAt_ok read T x st h4
-    refine ⟨hcell p (by omega) (by omega), by simp [n3], ?_⟩
+    refine ⟨hcell p (by omega) (by omega), by simp [searchOutcome, n3], ?_⟩
     intro z hz
     rcases List.mem_append.1 hz with hz | hz
     · exact u3 z hz
     · exact u4 z hz
+
+/-- Where the walk agrees at `k` and disagrees at `j`, the search's outcome is not clean. -/
+theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k ≤ j)
+    (hk : siftAgrees read T x st k = some true) (hj : siftAgrees read T x st j = some false) :
+    (searchOutcome read T x st un j
+      (tripartiteSearch true (siftAgrees read T x st) k j).1).clean = false := by
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hkj
+  generalize (tripartiteSearch true (siftAgrees read T x st) k j).1 = r at hs
+  cases r with
+  | undecidedLo => simp [SearchOK, hk] at hs
+  | disagreeLo => simp [SearchOK, hk] at hs
+  | undecidedHi => simp [SearchOK, hj] at hs
+  | allAgree => simp [SearchOK, hj] at hs
+  | edge p => simp only [searchOutcome]; split <;> rfl
+  | triple p => rfl
+  | undecidedMid p => rfl
+  | pair p => rfl
 
 end Located
 
@@ -297,13 +273,6 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
       refine ⟨c, w, ?_, by rwa [show p + 1 - k = p - k + 1 by omega]⟩
       rw [← hcs, List.getElem?_drop] at hc
       rwa [show k + (p - k) = p by omega] at hc
-    have hst0 : ss.getD (k - k) [] = a := by
-      rw [Nat.sub_self, ← hss]
-      obtain ⟨l, hl⟩ := walk_cons E a cs
-      simp [hl]
-    have hagk : siftAgrees read T x (fun p => ss.getD (p - k) []) k = some true := by
-      rw [agrees_inl read T x _ ha]
-      simp only [hst0, decide_true]
     split
     · -- the walk stopped at an unlearned edge
       rename_i c hc
@@ -319,44 +288,11 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
       cases hc'
       have hj : k + ss.length - 1 - k = ss.length - 1 := by omega
       rcases ht : T.sift read (prefixOf x (k + ss.length - 1 + 1)) with t | z
-      · rcases hs : T.sift read (prefixOf x (k + ss.length - 1)) with s | z
-        · simp only
-          split
-          · rename_i hseq
-            refine ⟨DTree.sift_inl_mem read T _ s hs, hs, ?_, ?_⟩
-            · rw [← pre_succ hc, ht]
-            · rw [hseq, hj]; exact hE'
-          · rename_i hsne
-            refine located_ok read T x _ E k _ (by omega) hagk ?_ hmem hstep
-            rw [agrees_inl read T x _ hs]
-            simp only [hsne, decide_false]
-        · exact outcomeOK_one (k := .stop) trivial (DTree.sift_inr read T _ z hs)
+      · refine searchOutcome_ok read T x _ E k _ (by omega) hmem hstep _ fun c' t' h => ?_
+        cases h
+        exact ⟨hc, ht, by rw [hj]; exact hE'⟩
       · exact outcomeOK_one (k := .stop) trivial (DTree.sift_inr read T _ z ht)
-    · rename_i hc
-      have hjx : x.toList.length ≤ k + ss.length - 1 := by
-        by_contra hcon
-        rw [List.getElem?_eq_getElem (by omega)] at hc
-        simp at hc
-      split
-      · rename_i z hz; exact outcomeOK_one (k := .stop) trivial (DTree.sift_inr read T _ z hz)
-      · rename_i e he
-        split
-        · trivial
-        · rename_i hne
-          have hkx : k ≤ x.toList.length := by
-            by_contra hcon
-            have hcs0 : cs = [] := by rw [← hcs]; exact List.drop_eq_nil_of_le (by omega)
-            have hss1 : ss.length = 1 := by
-              rw [← hss, hcs0]; simp [walk]
-            rw [pre_of_le (by omega)] at ha
-            rw [ha] at he
-            cases he
-            apply hne
-            rw [show k + ss.length - 1 = k by omega, hst0]
-          refine located_ok read T x _ E k _ (by omega) hagk ?_ hmem hstep
-          rw [show k + ss.length - 1 = x.toList.length by omega] at hne ⊢
-          rw [agrees_inl read T x _ (by rw [pre_of_le le_rfl]; exact he)]
-          simp only [hne, decide_false]
+    · exact searchOutcome_ok read T x _ E k _ (by omega) hmem hstep _ fun _ _ h => by cases h
   · exact outcomeOK_one (k := .start) trivial (DTree.sift_inr read T _ z ha)
 
 theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
@@ -371,12 +307,17 @@ theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) 
   have hcsl : cs.length = x.toList.length - k := by rw [← hcs, List.length_drop]
   by_cases hkx : k ≤ x.toList.length
   · have hj : k + ss.length - 1 = x.toList.length := by omega
-    rw [hj, List.getElem?_eq_none le_rfl, pre_of_le le_rfl] at *
-    simp only [he]
-    rw [if_neg]
-    · exact located_clean read T x _ k _
-    · rw [show x.toList.length - k = cs.length by omega, hlast]
-      exact fun h => hne h.symm
+    have hst0 : ss.getD (k - k) [] = a := by
+      rw [Nat.sub_self, ← hss]
+      obtain ⟨l, hl⟩ := walk_cons E a cs
+      simp [hl]
+    rw [hj, List.getElem?_eq_none le_rfl]
+    refine searchOutcome_clean read T x _ _ k _ hkx ?_ ?_
+    · rw [agrees_inl read T x _ ha]
+      simp only [hst0, decide_true]
+    · rw [agrees_inl read T x _ (by rw [pre_of_le le_rfl]; exact he)]
+      rw [show x.toList.length - k = cs.length by omega, hlast]
+      simpa using fun h => hne h.symm
   · exfalso
     have hcs0 : cs = [] := by rw [← hcs]; exact List.drop_eq_nil_of_le (by omega)
     subst hcs0

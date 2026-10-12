@@ -12,9 +12,9 @@ namespace Random
 
 variable {α : Type*} [DecidableEq α] [Fintype α]
 
-noncomputable abbrev indecisiveLStarLevel3_5 (read : FreeMonoid α → ARU) (C : Level3Settings)
-    {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
-  indecisiveLStarLevel3 read C draws
+noncomputable abbrev indecisiveLStarLevel3_5 (settings : Level3Settings)
+    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
+  indecisiveLStarLevel3 settings read draws
 
 end Random
 

@@ -4,8 +4,8 @@ import OrthoDFA.Level2Claim
 # Level 3 of indecisive L*: random reads
 
 Level 2's probes, walk and search, with reads drawn at random. Each probe is walked from
-`walkStart` along the learned edges and sifted whole, a binary search finds where the two part, a
-clean disagreement records its edge and target, `recordsToMove` records redirect the edge or,
+`walkStart` along the learned edges and sifted whole, `tripartiteSearch` finds where the two part,
+a clean disagreement records its edge and target, `recordsToMove` records redirect the edge or,
 once it has been redirected, split its leaf, and a probe at an unlearned edge learns it. A probe
 shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over the stretch
 since the hypothesis last changed, feed the tests of level 4, checked after every probe:
@@ -35,27 +35,6 @@ noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
     else none
   else none
 
-/-- The positions `bisect` sifts: each middle, and its neighbours where it is undecided. -/
-def bisectPositions (ag : ℕ → Option Bool) (lo hi : ℕ) : List ℕ :=
-  if _h : hi ≤ lo + 1 then []
-  else
-    match ag ((lo + hi) / 2) with
-    | some true => (lo + hi) / 2 :: bisectPositions ag ((lo + hi) / 2) hi
-    | some false => (lo + hi) / 2 :: bisectPositions ag lo ((lo + hi) / 2)
-    | none =>
-      match ag ((lo + hi) / 2 - 1), ag ((lo + hi) / 2 + 1) with
-      | none, _ => [(lo + hi) / 2, (lo + hi) / 2 - 1]
-      | _, none => [(lo + hi) / 2, (lo + hi) / 2 - 1, (lo + hi) / 2 + 1]
-      | some true, some false => [(lo + hi) / 2, (lo + hi) / 2 - 1, (lo + hi) / 2 + 1]
-      | some false, _ =>
-        (lo + hi) / 2 :: ((lo + hi) / 2 - 1) :: ((lo + hi) / 2 + 1)
-          :: bisectPositions ag lo ((lo + hi) / 2 - 1)
-      | some true, some true =>
-        (lo + hi) / 2 :: ((lo + hi) / 2 - 1) :: ((lo + hi) / 2 + 1)
-          :: bisectPositions ag ((lo + hi) / 2 + 1) hi
-termination_by hi - lo
-decreasing_by all_goals omega
-
 /-- How many reads the sift of `z` makes: one per node down to a leaf or an undecided read. -/
 def siftReads (read : FreeMonoid α → ARU) : DTree α → FreeMonoid α → ℕ
   | .leaf, _ => 0
@@ -75,27 +54,22 @@ section Probe
 
 variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α)
 
-/-- A probe's walk, and the positions it sifts past its start, as `probe` reads them. -/
+/-- A probe's walk, and the positions it sifts past its start, as `probe` reads them: the stop's
+successor, where the walk stops at an unlearned edge, and the search's. -/
 def probePositions : (ℕ → List Bool) × List ℕ :=
   match T.sift read (prefixOf x k) with
   | .inr _ => (fun _ => [], [])
   | .inl a =>
     let ss := walk E a (x.toList.drop k)
     let st := fun p => ss.getD (p - k) []
-    let j := k + ss.length - 1
-    match x.toList[j]? with
+    let hi := k + ss.length - 1
+    let searched := (tripartiteSearch true (siftAgrees read T x st) k hi).2
+    match x.toList[hi]? with
     | some _ =>
-      match T.sift read (prefixOf x (j + 1)), T.sift read (prefixOf x j) with
-      | .inr _, _ => (st, [j + 1])
-      | _, .inr _ => (st, [j + 1, j])
-      | .inl _, .inl s =>
-        (st, if s = st j then [j + 1, j]
-          else (j + 1) :: j :: bisectPositions (siftAgrees read T x st) k j)
-    | none =>
-      match T.sift read x with
-      | .inr _ => (st, [j])
-      | .inl e =>
-        (st, if e = st j then [j] else j :: bisectPositions (siftAgrees read T x st) k j)
+      match T.sift read (prefixOf x (hi + 1)) with
+      | .inr _ => (st, [hi + 1])
+      | .inl _ => (st, (hi + 1) :: searched)
+    | none => (st, searched)
 
 /-- A probe, which counts as agreeing where it is shorter than `k`. -/
 def probeOrAgree : Outcome α := if x.toList.length < k then .agree else probe read T E k x
@@ -179,6 +153,8 @@ def newHypothesis (T : DTree α) (E : Edges α) (redirected : List Bool × α �
 def initialState : Level3State α :=
   newHypothesis (.node 1 .leaf .leaf) (fun _ => none) fun _ => false
 
+section
+
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- A probe counted into the stretch. -/
@@ -258,9 +234,11 @@ structure Level3Result (α : Type*) where
   hypothesis : Hypothesis α
   ending : RoundEnd α
 
-noncomputable def indecisiveLStarLevel3 [Fintype α] {P : ℕ} (draws : Fin P → FreeMonoid α) :
-    Level3Result α :=
-  let r := runProbes read C initialState (List.ofFn draws)
+end
+
+noncomputable def indecisiveLStarLevel3 [Fintype α] (settings : Level3Settings)
+    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
+  let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
 end Random

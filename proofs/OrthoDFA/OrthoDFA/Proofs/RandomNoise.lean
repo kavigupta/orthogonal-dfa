@@ -208,10 +208,9 @@ variable [DecidableEq α]
 /-- Over the reads, the mass of probes that can read a string `z` with a read in `Ev z`, each
 with chance at most `β`, exceeds `G` with chance at most `exp(-(G - 2β(L + 1)(n + 1))/p₀)`. -/
 theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k L : ℕ) (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop)
-    (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
+    (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L : ℕ)
+    (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop) (hmeas : ∀ z, Measurable (read z))
+    (hind : iIndepFun read μ) (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
     (T : DTree α) (n : ℕ) (hT : (mids T).card ≤ n + 1) :
@@ -384,9 +383,8 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
 /-- Over `classSet n`, the union of `noise_hit_one`. -/
 theorem noise_hit {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k L n : ℕ) (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop)
-    (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
+    (k L n : ℕ) (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop) (hmeas : ∀ z, Measurable (read z))
+    (hind : iIndepFun read μ) (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
