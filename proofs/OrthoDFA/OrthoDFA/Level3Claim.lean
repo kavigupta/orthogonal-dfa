@@ -148,7 +148,7 @@ def RandomRoundCorrect : Prop :=
     [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α)
     (C : Level3Settings) (ε : ℝ),
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
-        {draws | let result := indecisiveLStarLevel3 (R.read · ω) C draws
+        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε
             {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
             P.firstAnchor P.L (replay (R.read · ω) result.hypothesis)
