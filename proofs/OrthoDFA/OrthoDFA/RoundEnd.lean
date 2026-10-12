@@ -33,6 +33,20 @@ inductive RoundEnd (α : Type*)
 /-- `⌈L/2⌉`, as `preconditions.start_length`. -/
 def startLength (L : ℕ) : ℕ := (L + 1) / 2
 
+/-- The probes' law: draws of length at most `L`, none starting more than `q` of the time with
+any one string past `⌈L/2⌉`. -/
+structure PrefixDistribution (α : Type*) [Countable α] where
+  D : Measure (FreeMonoid α)
+  prob : IsProbabilityMeasure D
+  L : ℕ
+  short : ∀ᵐ x ∂D, x.toList.length ≤ L
+  q : ℝ
+  q_pos : 0 < q
+  prefix_le : ∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
+    D.real {x | u.toList <+: x.toList} ≤ q
+
+instance [Countable α] (P : PrefixDistribution α) : IsProbabilityMeasure P.D := P.prob
+
 /-- The replay's anchor: uniform on `{⌈L/2⌉, …, L}`. -/
 noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=
   ((L + 1 - startLength L : ℕ) : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.Icc (startLength L) L, Measure.dirac k
