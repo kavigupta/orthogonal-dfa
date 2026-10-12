@@ -48,8 +48,8 @@ section Probe
 variable (cut : FreeMonoid α → Option Bool)
 
 /-- `kWalk` through `cut`. -/
-def kWalkBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : KWalk α :=
-  match t.sift cut (prefixOf x k) with
+def kWalkBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : KWalk α :=
+  match t.siftCut cut (prefixOf x k) with
   | .inr _ => .anchor
   | .inl p =>
     match follow edges p (x.toList.drop k) with
@@ -57,55 +57,55 @@ def kWalkBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : KW
     | .inr (s, c, i) => .edge s c (k + i)
 
 /-- `walkTo` through `cut`. -/
-def walkToBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (j : ℕ) :
+def walkToBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (j : ℕ) :
     List (List Bool) :=
-  match t.sift cut (prefixOf x k) with
+  match t.siftCut cut (prefixOf x k) with
   | .inr _ => []
   | .inl p => (follow edges p ((x.toList.drop k).take (j - k))).elim id fun _ => []
 
 /-- `walkCheck` through `cut`. -/
-def walkCheckBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+def walkCheckBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
     Outcome α ⊕ (List (List Bool) × ℕ) :=
   match kWalkBy cut t edges k x with
   | .anchor => .inl (.startUndecided (prefixOf x k))
   | .edge s _ j =>
-    match t.sift cut (prefixOf x (j + 1)) with
+    match t.siftCut cut (prefixOf x (j + 1)) with
     | .inr _ => .inl (.endUndecided (prefixOf x (j + 1)))
     | .inl _ =>
-      match t.sift cut (prefixOf x j) with
+      match t.siftCut cut (prefixOf x j) with
       | .inr _ => .inl (.endUndecided (prefixOf x j))
       | .inl p => if p = s then .inl (.member (prefixOf x j))
         else .inr (walkToBy cut t edges k x j, j)
   | .reached ps =>
-    match t.sift cut x with
+    match t.siftCut cut x with
     | .inr _ => .inl (.endUndecided x)
     | .inl a => if some a = ps.getLast? then .inl .agree else .inr (ps, x.toList.length)
 
 /-- `agreesAt` through `cut`. -/
 def agreesAtBy (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool) (i : ℕ) :
     Option Bool :=
-  (t.sift cut (prefixOf x i)).elim (fun p => some (decide (p = walkAt i))) fun _ => none
+  (t.siftCut cut (prefixOf x i)).elim (fun p => some (decide (p = walkAt i))) fun _ => none
 
 /-- What one probe comes to, read through `cut`; a probe shorter than `k` agrees and reads
 nothing. -/
-def probeBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Outcome α :=
+def probeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : Outcome α :=
   if x.toList.length < k then .agree
   else (walkCheckBy cut t edges k x).elim id fun d =>
     bracketAt (agreesAtBy cut t x fun j => d.1.getD (j - k) []) d.1 (d.2 - k) k d.2
 
 /-- The record a probe of `x` makes against the hypothesis `h`: at a clean disagreement, the edge
 it crosses, the leaf its next prefix sifts to, and its prefix at the edge. -/
-def recordBy (k : ℕ) (h : DTree α × Edges α) (x : FreeMonoid α) :
+def recordBy (k : ℕ) (h : DTree α × EdgeTable α) (x : FreeMonoid α) :
     Option ((List Bool × α × List Bool) × FreeMonoid α) :=
   match probeBy cut h.1 h.2 k x with
   | .edge ps fd =>
-    match x.toList[fd - 1]?, h.1.sift cut (prefixOf x fd) with
+    match x.toList[fd - 1]?, h.1.siftCut cut (prefixOf x fd) with
     | some c, .inl t => some ((ps.getD (fd - 1 - k) [], c, t), prefixOf x (fd - 1))
     | _, _ => none
   | _ => none
 
 /-- The walk's edge out of position `i`: its leaf there and the probe's next letter. -/
-def edgeAtBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
+def edgeAtBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
     Option (List Bool × α) :=
   match (walkToBy cut t edges k x i).getLast?, x.toList[i]? with
   | some p, some c => some (p, c)
@@ -133,45 +133,45 @@ def bracketSifts (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → List �
     else []
 
 /-- The positions a probe sifts past its start, as `probeBy` reads them. -/
-def siftsBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : List ℕ :=
+def siftsBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : List ℕ :=
   let found := fun (ps : List (List Bool)) (hi : ℕ) =>
     hi :: bracketSifts (agreesAtBy cut t x fun j => ps.getD (j - k) []) (hi - k) k hi
   let all := match kWalkBy cut t edges k x with
     | .anchor => []
     | .edge s _ j =>
-      match t.sift cut (prefixOf x (j + 1)) with
+      match t.siftCut cut (prefixOf x (j + 1)) with
       | .inr _ => [j + 1]
       | .inl _ =>
-        match t.sift cut (prefixOf x j) with
+        match t.siftCut cut (prefixOf x j) with
         | .inr _ => [j + 1, j]
         | .inl p => if p = s then [j + 1, j] else (j + 1) :: found (walkToBy cut t edges k x j) j
     | .reached ps =>
-      match t.sift cut x with
+      match t.siftCut cut x with
       | .inl a => if some a = ps.getLast? then [x.toList.length] else found ps x.toList.length
       | .inr _ => [x.toList.length]
   (all.filter (k < ·)).dedup
 
 /-- The edge a position's reads are charged to: the walk's edge out of it, else the walk's last
 edge. -/
-def posEdgeBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
+def posEdgeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (i : ℕ) :
     Option (List Bool × α) :=
   (edgeAtBy cut t edges k x i).orElse fun _ => edgeAtBy cut t edges k x (i - 1)
 
 /-- The undecided middle its search stopped at, as a pair or a triple, if any. -/
-def ptHarvBy (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+def ptHarvBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
   match probeBy cut t edges k x with
-  | .pair j | .triple j => (t.sift cut (prefixOf x j)).elim (fun _ => []) fun b => [b]
+  | .pair j | .triple j => (t.siftCut cut (prefixOf x j)).elim (fun _ => []) fun b => [b]
   | _ => []
 
 /-- The string it read undecided at its start, if any. -/
 def startHarvBy (t : DTree α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
-  if x.toList.length < k then [] else (t.sift cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
+  if x.toList.length < k then [] else (t.siftCut cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
 
 /-- `retarget` through `cut`. -/
-def retargetBy (t' : DTree α) (p : List Bool) (edges : Edges α) : Edges α := fun q c =>
+def retargetBy (t' : DTree α) (p : List Bool) (edges : EdgeTable α) : EdgeTable α := fun q c =>
   match edges q c with
   | some (s, w) =>
-    if s = p then (t'.sift cut (w * FreeMonoid.of c)).elim (fun s' => some (s', w)) fun _ => none
+    if s = p then (t'.siftCut cut (w * FreeMonoid.of c)).elim (fun s' => some (s', w)) fun _ => none
     else some (s, w)
   | none => none
 
@@ -223,12 +223,12 @@ end QTree
 section ProbeQ
 
 /-- The walk from the leaf `p` at the start, to position `j`. -/
-def walkFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (j : ℕ) :
+def walkFrom (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (j : ℕ) :
     List (List Bool) :=
   (follow edges p ((x.toList.drop k).take (j - k))).elim id fun _ => []
 
 /-- The edge position `i` is charged to, the walk starting at the leaf `p`. -/
-def posEdgeFrom (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (i : ℕ) :
+def posEdgeFrom (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (p : List Bool) (i : ℕ) :
     Option (List Bool × α) :=
   let at' := fun i => match (walkFrom edges k x p i).getLast?, x.toList[i]? with
     | some q, some c => some (q, c)
@@ -271,7 +271,7 @@ def bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)) :
           | false, some _ => bracketQ agQ ps fuel lo ((lo + hi) / 2 - 1)
     else .done (.edge ps hi)
 
-variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
+variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 /-- The label of position `i`'s reads, the start at the leaf `p₀`. -/
 def plab (p₀ : List Bool) (i : ℕ) : PLabel α := (i, posEdgeFrom edges k x p₀ i)
@@ -317,7 +317,7 @@ def ofCut (cut : FreeMonoid α → Option Bool) (z : FreeMonoid α) : ARU :=
 
 section Charge
 
-variable (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : Edges α) (k : ℕ)
+variable (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : EdgeTable α) (k : ℕ)
   (x : FreeMonoid α)
 
 /-- A probe's first read of each string, in order, with its label. -/
@@ -339,7 +339,7 @@ its probes, the strings read undecided at the start, and for each edge how many 
 first read at it and those of them read undecided. -/
 structure TState (α : Type*) where
   tree : DTree α
-  edges : Edges α
+  edges : EdgeTable α
   version : ℕ
   recs : List Bool → α → List (FreeMonoid α × List Bool)
   n : ℕ
@@ -359,7 +359,7 @@ def TState.tally (s : TState α) (p : List Bool) (c : α) (t : List Bool) : ℕ 
 
 /-- The edge `(p, c)` out of a leaf has `m` records at a target it does not point at. -/
 def Violates (m : ℕ) (s : TState α) (p : List Bool) (c : α) (t : List Bool) : Prop :=
-  p ∈ s.tree.paths ∧ (s.edges p c).map Prod.fst ≠ some t ∧ m ≤ s.tally p c t
+  p ∈ s.tree.leaves ∧ (s.edges p c).map Prod.fst ≠ some t ∧ m ≤ s.tally p c t
 
 /-- No edge has `m` records at a target it does not point at. -/
 def Settled (m : ℕ) (s : TState α) : Prop := ∀ p c t, ¬ Violates m s p c t
@@ -402,7 +402,7 @@ noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : T
   match s.edges p c with
   | some (t₀, _) =>
     if m ≤ s.tally p c t₀ then
-      let d := FreeMonoid.of c * s.tree.midAt (lcp t t₀)
+      let d := FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)
       let t' := s.tree.splitAt d p
       { s.fresh with
         tree := t'
@@ -427,7 +427,7 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
     TState α ⊕ (TEnd α × TState α) :=
   if h : ∃ p c t, Violates m s p c t then
     if Lmax < (fixEdge cut m s h.choose h.choose_spec.choose
-        h.choose_spec.choose_spec.choose).tree.paths.length then
+        h.choose_spec.choose_spec.choose).tree.leaves.length then
       .inr (.tooBig, fixEdge cut m s h.choose h.choose_spec.choose
         h.choose_spec.choose_spec.choose)
     else .inl (fixEdge cut m s h.choose h.choose_spec.choose h.choose_spec.choose_spec.choose)
@@ -458,9 +458,9 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
   let s₁ := s.charge cut C.k x
   match probeBy cut s.tree s.edges C.k x with
   | .member u =>
-    match x.toList[u.toList.length]?, s.tree.sift cut u with
+    match x.toList[u.toList.length]?, s.tree.siftCut cut u with
     | some c, .inl p =>
-      match s.tree.sift cut (u * FreeMonoid.of c), s.edges p c with
+      match s.tree.siftCut cut (u * FreeMonoid.of c), s.edges p c with
       | .inl t, none => s₁.setEdge p c (t, u)
       | _, _ => s₁
     | _, _ => s₁
@@ -479,7 +479,7 @@ searching on at least `φpt` of its probes, the share of its searches stopping a
 middle above `θpt`; or its disagreement rate settling below `εd`. -/
 noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=
   if rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true then some .harvestStart
-  else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.paths
+  else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
       ∧ C.φe * s.probes ≤ s.trav e.1 e.2
       ∧ C.exc (s.trav e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2 then
     some (.harvest h.choose)

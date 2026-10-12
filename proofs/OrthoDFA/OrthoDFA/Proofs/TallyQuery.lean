@@ -25,10 +25,10 @@ section Sift
 
 theorem run_siftQ (ℓ : PLabel α) (rd : FreeMonoid α → ARU) :
     ∀ (T : DTree α) (u : FreeMonoid α),
-      (siftQ ℓ T u).run rd = T.sift (fun z => (rd z).cut) u
-  | .leaf, _ => by simp [siftQ, QTree.run, DTree.sift, DTree.route]
+      (siftQ ℓ T u).run rd = T.siftCut (fun z => (rd z).cut) u
+  | .leaf, _ => by simp [siftQ, QTree.run, DTree.siftCut, DTree.route]
   | .node m r a, u => by
-    simp only [siftQ, QTree.run, DTree.sift, DTree.route]
+    simp only [siftQ, QTree.run, DTree.siftCut, DTree.route]
     rcases h : (rd (u * m)).cut with _ | _ | _ <;> simp only []
     · rfl
     · rw [QTree.run_map, run_siftQ ℓ rd r u]; rfl
@@ -46,12 +46,12 @@ theorem asks_siftQ (ℓ : PLabel α) (rd : FreeMonoid α → ARU) :
     · rw [QTree.asks_map, asks_siftQ ℓ rd a u]; simp
 
 /-- A string read undecided on a sift's route is where the sift stops. -/
-theorem sift_of_route_und {cut : FreeMonoid α → Option Bool} :
+theorem siftCut_of_route_und {cut : FreeMonoid α → Option Bool} :
     ∀ (T : DTree α) (u w : FreeMonoid α), w ∈ (T.route cut u).1 → cut w = none →
-      T.sift cut u = .inr w
+      T.siftCut cut u = .inr w
   | .leaf, _, _, h, _ => by simp [DTree.route] at h
   | .node m r a, u, w, h, hw => by
-    simp only [DTree.sift, DTree.route] at h ⊢
+    simp only [DTree.siftCut, DTree.route] at h ⊢
     rcases hc : cut (u * m) with _ | _ | _ <;> simp only [hc, List.mem_cons, List.mem_singleton]
       at h ⊢
     · rcases h with rfl | h
@@ -59,29 +59,29 @@ theorem sift_of_route_und {cut : FreeMonoid α → Option Bool} :
       · simp at h
     · rcases h with rfl | h
       · rw [hw] at hc; cases hc
-      · have := sift_of_route_und r u w h hw
-        simp only [DTree.sift] at this
+      · have := siftCut_of_route_und r u w h hw
+        simp only [DTree.siftCut] at this
         rw [this]; rfl
     · rcases h with rfl | h
       · rw [hw] at hc; cases hc
-      · have := sift_of_route_und a u w h hw
-        simp only [DTree.sift] at this
+      · have := siftCut_of_route_und a u w h hw
+        simp only [DTree.siftCut] at this
         rw [this]; rfl
 
 variable {σ : Type*} (G : ReadModel α σ)
 
 /-- A decided sift off the true leaf read a string on its state's rarer side. -/
 theorem minority_of_sift {cut : FreeMonoid α → Option Bool} :
-    ∀ (T : DTree α) (u : FreeMonoid α) (p : List Bool), T.sift cut u = .inl p →
+    ∀ (T : DTree α) (u : FreeMonoid α) (p : List Bool), T.siftCut cut u = .inl p →
       G.leafOf T (G.M.eval u.toList) ≠ p →
       ∃ w ∈ (T.route cut u).1, cut w = some (!G.side (G.M.eval w.toList))
   | .leaf, u, p, h, hne => by
-    simp only [DTree.sift, DTree.route, Sum.inl.injEq] at h
+    simp only [DTree.siftCut, DTree.route, Sum.inl.injEq] at h
     subst h; exact absurd rfl hne
   | .node m r a, u, p, h, hne => by
     have hst : G.M.eval (u * m).toList = G.at' (G.M.eval u.toList) m := by
       simp [ReadModel.at', FreeMonoid.toList_mul, DFA.eval, DFA.evalFrom_of_append]
-    simp only [DTree.sift, DTree.route] at h ⊢
+    simp only [DTree.siftCut, DTree.route] at h ⊢
     simp only [ReadModel.leafOf] at hne
     rcases hc : cut (u * m) with _ | _ | _ <;> simp only [hc] at h ⊢
     · cases h
@@ -210,7 +210,7 @@ end Bracket
 section Walk
 
 omit [Fintype α] [DecidableEq α] in
-theorem follow_take_inl {edges : Edges α} :
+theorem follow_take_inl {edges : EdgeTable α} :
     ∀ (l : List α) (p : List Bool) (ps : List (List Bool)), follow edges p l = .inl ps →
       ∀ n, ∃ ps', follow edges p (l.take n) = .inl ps' ∧ ps' ≠ []
   | [], p, ps, _, n => ⟨[p], by simp [follow], by simp⟩
@@ -226,7 +226,7 @@ theorem follow_take_inl {edges : Edges α} :
       exact ⟨p :: ps', by simp [follow, he, h'], by simp⟩
     · cases h
 
-theorem posEdgeFrom_isSome {edges : Edges α} {k : ℕ} {x : FreeMonoid α} {p₀ : List Bool}
+theorem posEdgeFrom_isSome {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α} {p₀ : List Bool}
     {i i' n : ℕ} (hi : i' = i ∨ i' + 1 = i) (hlt : i' < x.toList.length) (hn : i' - k ≤ n)
     {ps : List (List Bool)} (hf : follow edges p₀ ((x.toList.drop k).take n) = .inl ps) :
     (posEdgeFrom edges k x p₀ i).isSome := by
@@ -247,7 +247,7 @@ end Walk
 
 section Probe
 
-variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
+variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 /-- The probe, and then the sifts of its record's two positions again. -/
 def recordQ : PQ α (Outcome α) :=
@@ -263,7 +263,7 @@ theorem run_agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) :
   simp only [agQ, QTree.run_map, run_siftQ, agreesAtBy]
 
 theorem walkToBy_of_sift {p₀ : List Bool}
-    (hk : T.sift (fun z => (rd z).cut) (prefixOf x k) = .inl p₀) (j : ℕ) :
+    (hk : T.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inl p₀) (j : ℕ) :
     walkToBy (fun z => (rd z).cut) T edges k x j = walkFrom edges k x p₀ j := by
   simp only [walkToBy, hk, walkFrom]
 
@@ -273,12 +273,12 @@ theorem run_probeQ : (probeQ T edges k x).run rd = probeBy (fun z => (rd z).cut)
   by_cases hshort : x.toList.length < k
   · simp only [if_pos hshort, QTree.run]
   rw [if_neg hshort, if_neg hshort, QTree.run_bind, run_siftQ]
-  rcases hk : T.sift cut (prefixOf x k) with p₀ | b
+  rcases hk : T.siftCut cut (prefixOf x k) with p₀ | b
   · simp only []
     rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i⟩
     · simp only []
       rw [QTree.run_bind, run_siftQ, prefixOf_length]
-      rcases hx : T.sift cut x with a' | b'
+      rcases hx : T.siftCut cut x with a' | b'
       · simp only []
         split_ifs
         · rfl
@@ -287,10 +287,10 @@ theorem run_probeQ : (probeQ T edges k x).run rd = probeBy (fun z => (rd z).cut)
       · rfl
     · simp only []
       rw [QTree.run_bind, run_siftQ]
-      rcases h1 : T.sift cut (prefixOf x (k + i + 1)) with q₁ | b₁
+      rcases h1 : T.siftCut cut (prefixOf x (k + i + 1)) with q₁ | b₁
       · simp only []
         rw [QTree.run_bind, run_siftQ]
-        rcases h2 : T.sift cut (prefixOf x (k + i)) with q₂ | b₂
+        rcases h2 : T.siftCut cut (prefixOf x (k + i)) with q₂ | b₂
         · simp only []
           split_ifs
           · rfl
@@ -325,7 +325,7 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
     have e1 : q.1.1 = k := by rw [h1]
     rw [e1]
     exact ⟨h2, .inl rfl⟩
-  rcases hk : T.sift cut (prefixOf x k) with p₀ | b <;> rw [hk] at hq
+  rcases hk : T.siftCut cut (prefixOf x k) with p₀ | b <;> rw [hk] at hq
   swap
   · simp [QTree.asks] at hq
   simp only [] at hq
@@ -360,7 +360,7 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
         decide_eq_true_eq]
       refine ⟨?_, hlx⟩
       split <;> (try split_ifs) <;> simp
-    rcases hx : T.sift cut (prefixOf x x.toList.length) with a' | b' <;> rw [hx] at hq <;>
+    rcases hx : T.siftCut cut (prefixOf x x.toList.length) with a' | b' <;> rw [hx] at hq <;>
       simp only [] at hq
     · split_ifs at hq with hag
       · simp [QTree.asks] at hq
@@ -392,7 +392,7 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
       · split
         · simp
         · split_ifs <;> simp
-    rcases h1 : T.sift cut (prefixOf x (k + i₀ + 1)) with q₁ | b₁ <;> rw [h1] at hq <;>
+    rcases h1 : T.siftCut cut (prefixOf x (k + i₀ + 1)) with q₁ | b₁ <;> rw [h1] at hq <;>
       simp only [] at hq
     swap
     · simp [QTree.asks] at hq
@@ -411,7 +411,7 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
       split
       · simp
       · split_ifs <;> simp
-    rcases h2 : T.sift cut (prefixOf x (k + i₀)) with q₂ | b₂ <;> rw [h2] at hq <;>
+    rcases h2 : T.siftCut cut (prefixOf x (k + i₀)) with q₂ | b₂ <;> rw [h2] at hq <;>
       simp only [] at hq
     swap
     · simp [QTree.asks] at hq
@@ -433,17 +433,17 @@ end Probe
 
 section Record
 
-variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
+variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
 
-theorem sift_route_decided {cut : FreeMonoid α → Option Bool} {u : FreeMonoid α} {p : List Bool}
-    (h : T.sift cut u = .inl p) {w : FreeMonoid α} (hw : w ∈ (T.route cut u).1) : cut w ≠ none :=
-  fun hc => by rw [sift_of_route_und T u w hw hc] at h; exact Sum.inr_ne_inl h
+theorem siftCut_route_decided {cut : FreeMonoid α → Option Bool} {u : FreeMonoid α} {p : List Bool}
+    (h : T.siftCut cut u = .inl p) {w : FreeMonoid α} (hw : w ∈ (T.route cut u).1) : cut w ≠ none :=
+  fun hc => by rw [siftCut_of_route_und T u w hw hc] at h; exact Sum.inr_ne_inl h
 
 /-- A probe at an edge sifts the edge's two positions decided, the first to the walk. -/
 theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
     (h : probeBy (fun z => (rd z).cut) T edges k x = .edge ps fd) :
-    k < fd ∧ T.sift (fun z => (rd z).cut) (prefixOf x (fd - 1)) = .inl (ps.getD (fd - 1 - k) [])
-      ∧ ∃ t, T.sift (fun z => (rd z).cut) (prefixOf x fd) = .inl t := by
+    k < fd ∧ T.siftCut (fun z => (rd z).cut) (prefixOf x (fd - 1)) = .inl (ps.getD (fd - 1 - k) [])
+      ∧ ∃ t, T.siftCut (fun z => (rd z).cut) (prefixOf x fd) = .inl t := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   obtain ⟨ps₀, hi, hw, hb⟩ := probeBy_search cut h trivial
   obtain ⟨p₀, hk, hf, hkh, hhx, hag⟩ := walkCheckBy_inr cut hw
@@ -453,11 +453,11 @@ theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
   obtain ⟨rfl, hfd, -, h1, h2⟩ := bracketAt_edge _ ps₀ (hi - k) k hi ps fd hkh le_rfl hlo hag hb
   unfold agreesAtBy at h1 h2
   refine ⟨hfd, ?_, ?_⟩
-  · rcases hs : T.sift cut (prefixOf x (fd - 1)) with p | b <;> rw [hs] at h1 <;>
+  · rcases hs : T.siftCut cut (prefixOf x (fd - 1)) with p | b <;> rw [hs] at h1 <;>
       simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq, decide_eq_true_eq,
         reduceCtorEq] at h1
     rw [h1]
-  · rcases hs : T.sift cut (prefixOf x fd) with p | b <;> rw [hs] at h2 <;>
+  · rcases hs : T.siftCut cut (prefixOf x fd) with p | b <;> rw [hs] at h2 <;>
       simp only [Sum.elim_inl, Sum.elim_inr, reduceCtorEq] at h2
     exact ⟨p, rfl⟩
 
@@ -484,7 +484,7 @@ theorem untrue_minority {σ : Type*} (G : ReadModel α σ) (hx : x ∈ G.untrueA
   obtain ⟨hkf, hs1, -⟩ := probeBy_edge T edges k x rd ho
   rcases hc : x.toList[fd - 1]? with _ | c₁ <;> rw [hc] at hrec
   · simp at hrec
-  rcases ht : T.sift (fun z => (rd z).cut) (prefixOf x fd) with t' | b <;> rw [ht] at hrec
+  rcases ht : T.siftCut (fun z => (rd z).cut) (prefixOf x fd) with t' | b <;> rw [ht] at hrec
   swap
   · simp at hrec
   simp only [Option.some.injEq, Prod.mk.injEq] at hrec

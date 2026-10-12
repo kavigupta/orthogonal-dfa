@@ -1,10 +1,11 @@
 import OrthoDFA.Clustering
+import OrthoDFA.Hypothesis
 
 /-!
 # Trees and their reads
 
 A family's cut reads a string accept, reject or undecided (`CutReads`). A discrimination tree
-places a string by reading it followed by each node's midfix (`route`, `sift`), and a hypothesis
+places a string by reading it followed by each node's midfix (`route`, `siftCut`), and a hypothesis
 sets each leaf's edges by letter (`Hypothesis`).
 -/
 
@@ -13,12 +14,11 @@ namespace OrthoDFA
 open MeasureTheory
 open scoped ENNReal
 
+section
+
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 instance : MeasurableSpace (FreeMonoid α) := ⊤
-
-/-- The first `i` letters of `w`. -/
-def prefixOf (w : FreeMonoid α) (i : ℕ) : FreeMonoid α := FreeMonoid.ofList (w.toList.take i)
 
 open scoped Classical in
 /-- How many of `V` accept `x` extended by them, read through `f`. -/
@@ -37,12 +37,11 @@ noncomputable def CutReads.cut (R : CutReads α) (x : FreeMonoid α) : Option Bo
   if R.B.hi < acceptsOn R.F R.f x then some true
   else if acceptsOn R.F R.f x ≤ R.B.lo then some false else none
 
-/-- A discrimination tree.  A node's accepting side is `acc`, its rejecting side `rej`. -/
-inductive DTree (α : Type*)
-  | leaf
-  | node (midfix : FreeMonoid α) (rej acc : DTree α)
+end
 
 namespace DTree
+
+variable {α : Type*}
 
 /-- `x`'s way down the tree by `cut`: the strings it asks the cut about, root first (`x` followed
 by each node's midfix), and the path to its leaf (`true` for an accepting side) or the string a
@@ -56,14 +55,9 @@ def route (cut : FreeMonoid α → Option Bool) :
     | some true => (x * m :: (a.route cut x).1, (a.route cut x).2.map (true :: ·) id)
     | some false => (x * m :: (r.route cut x).1, (r.route cut x).2.map (false :: ·) id)
 
-def sift (cut : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) :
+def siftCut (cut : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) :
     List Bool ⊕ FreeMonoid α :=
   (t.route cut x).2
-
-/-- The leaves' paths. -/
-def paths : DTree α → List (List Bool)
-  | .leaf => [[]]
-  | .node _ r a => r.paths.map (false :: ·) ++ a.paths.map (true :: ·)
 
 end DTree
 

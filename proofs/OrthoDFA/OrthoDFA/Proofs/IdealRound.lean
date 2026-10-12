@@ -19,7 +19,7 @@ namespace Ideal
 
 open MeasureTheory Finset
 
-variable {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (C : RoundCfg)
+variable {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level2Settings)
 
 /-! ## The round ends -/
 
@@ -27,30 +27,32 @@ section Ends
 
 variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
-theorem round_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.Lmax)
-    (hm : 1 ≤ C.m) (hh : 1 ≤ C.h) (hn : 1 ≤ C.n) :
-    ∀ (xs : List (FreeMonoid α)) (s : RState α), Inv read C s → Reached read s.tree →
-      Θ C s < xs.length → ∃ e, (round read C s xs).2 = some e ∧ EndOK read e ∧
-        Inv read C (round read C s xs).1 ∧ Reached read (round read C s xs).1.tree
+theorem round_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
+    (hm : 1 ≤ C.recordsToMove) (hh : 1 ≤ C.harvestSize) (hn : 1 ≤ C.cleanProbesToEnd) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level2State α), Inv read C s → Reached read s.tree →
+      Θ C s < xs.length → EndOK read (runProbes read C s xs).2 ∧
+        Inv read C (runProbes read C s xs).1 ∧ Reached read (runProbes read C s xs).1.tree
   | [], s, _, _, h => by simp at h
   | x :: xs, s, hs, hr, h => by
     have hst := step_ok read C hI hcap hm hh hn hs hr x
-    rcases hstep : step read C s x with s' | e <;> rw [hstep] at hst <;> simp only [round, hstep]
+    rcases hstep : applyProbe read C s x with s' | e <;> rw [hstep] at hst <;>
+      simp only [runProbes, hstep]
     · obtain ⟨hs', hr', hlt⟩ := hst
       exact round_ok hI hcap hm hh hn xs s' hs' hr' (by simp only [List.length_cons] at h; omega)
-    · exact ⟨e, rfl, hst, hs, hr⟩
+    · exact ⟨hst, hs, hr⟩
 
 omit [DecidableEq α] [Fintype α] in
-theorem leaves_start : (start : RState α).tree.leaves = [[false], [true]] := by
-  simp [start, fresh, DTree.leaves]
+theorem leaves_start : (initialState : Level2State α).tree.leaves = [[false], [true]] := by
+  simp [initialState, newHypothesis, DTree.leaves]
 
 omit [Fintype α] in
-theorem inv_start (hm : 1 ≤ C.m) (hh : 1 ≤ C.h) (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
-    Inv read C (start : RState α) :=
+theorem inv_start (hm : 1 ≤ C.recordsToMove) (hh : 1 ≤ C.harvestSize) (hn : 1 ≤ C.cleanProbesToEnd)
+    (h2 : 2 ≤ C.maxLeaves) :
+    Inv read C (initialState : Level2State α) :=
   inv_fresh read C hm hh hn (fun _ _ _ _ _ h => by simp at h) (by simp [DTree.leaves]; omega)
 
 omit [DecidableEq α] [Fintype α] in
-theorem reached_start : Reached read (start : RState α).tree := by
+theorem reached_start : Reached read (initialState : Level2State α).tree := by
   intro p hp
   rw [leaves_start] at hp
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
@@ -58,14 +60,14 @@ theorem reached_start : Reached read (start : RState α).tree := by
   · exact Or.inl rfl
   · exact Or.inr (Or.inl rfl)
 
-theorem Θ_start (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
-    Θ C (start : RState α) < budget C (Fintype.card α) := by
-  have hΦ := Φ_le (start : RState α)
+theorem Θ_start (hn : 1 ≤ C.cleanProbesToEnd) (h2 : 2 ≤ C.maxLeaves) :
+    Θ C (initialState : Level2State α) < probeBudget C (Fintype.card α) := by
+  have hΦ := Φ_le (initialState : Level2State α)
   rw [leaves_start] at hΦ
-  have hΨ : Ψ C (start : RState α) ≤ C.Lmax * X (α := α) C := by
+  have hΨ : Ψ C (initialState : Level2State α) ≤ C.maxLeaves * X (α := α) C := by
     unfold Ψ
     rw [leaves_start]
-    have hL : C.Lmax * X (α := α) C = (C.Lmax - 2) * X (α := α) C + 2 * X (α := α) C := by
+    have hL : C.maxLeaves * X (α := α) C = (C.maxLeaves - 2) * X (α := α) C + 2 * X (α := α) C := by
       rw [← Nat.add_mul, Nat.sub_add_cancel h2]
     have hX : 4 * Fintype.card α ≤ 2 * X (α := α) C := by
       unfold X
@@ -73,13 +75,13 @@ theorem Θ_start (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
       nlinarith
     simp only [List.length_cons, List.length_nil, zero_add, Nat.reduceAdd] at hΦ ⊢
     omega
-  have hρ : ρ C (start : RState α) + 1 ≤ B (α := α) C := by
+  have hρ : ρ C (initialState : Level2State α) + 1 ≤ B (α := α) C := by
     unfold ρ B Dc
-    simp only [start, fresh, List.length_nil, sum_const_zero, add_zero, Nat.sub_zero]
+    simp only [initialState, newHypothesis, List.length_nil, sum_const_zero, add_zero, Nat.sub_zero]
     rw [Nat.add_mul, one_mul]
     omega
-  have hb : budget C (Fintype.card α) = (C.Lmax * X (α := α) C + 1) * B (α := α) C := by
-    unfold budget X B R; ring
+  have hb : probeBudget C (Fintype.card α) = (C.maxLeaves * X (α := α) C + 1) * B (α := α) C := by
+    unfold probeBudget X B R; ring
   rw [hb]
   unfold Θ
   have := Nat.mul_le_mul_right (B (α := α) C) hΨ
@@ -87,27 +89,26 @@ theorem Θ_start (hn : 1 ≤ C.n) (h2 : 2 ≤ C.Lmax) :
 
 /-- The round ends consistent or with a nonempty harvest of undecided states, and every leaf
 past the first two is reached by some string. -/
-def Sound {σ : Type*} [Fintype σ] (M : DFA α σ) (r : RState α × Option (REnd α)) : Prop :=
-  (r.2 = some .consistent ∨ ∃ zs, r.2 = some (.harvest zs) ∧ zs ≠ [] ∧
+def Sound {σ : Type*} [Fintype σ] (M : DFA α σ) (r : Level2State α × RoundEnd α) : Prop :=
+  (r.2 = .consistent ∨ ∃ zs, r.2 = .harvest zs ∧ zs ≠ [] ∧
       ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided)
   ∧ (∀ p ∈ r.1.tree.leaves, p = [false] ∨ p = [true] ∨ ∃ w, r.1.tree.sift read w = .inl p)
   ∧ r.1.tree.leaves.length ≤ Fintype.card σ + 2
 
 omit [DecidableEq α] [Fintype α] in
-theorem sound_of (hI : IdealReads read M side) {r : RState α × Option (REnd α)} {e : REnd α}
-    (he : r.2 = some e) (hok : EndOK read e) (hr : Reached read r.1.tree) : Sound read M r := by
+theorem sound_of (hI : IdealReads read M side) {r : Level2State α × RoundEnd α}
+    (hok : EndOK read r.2) (hr : Reached read r.1.tree) : Sound read M r := by
   refine ⟨?_, hr, leaves_le_of_reached read hI hr⟩
-  cases e with
-  | consistent => exact Or.inl he
-  | harvest zs =>
-    obtain ⟨hne, hu⟩ := hok
-    refine Or.inr ⟨zs, he, hne, fun z hz w hw => ?_⟩
+  rcases he : r.2 with _ | zs | _ <;> rw [he] at hok
+  · exact Or.inl rfl
+  · obtain ⟨hne, hu⟩ := hok
+    refine Or.inr ⟨zs, rfl, hne, fun z hz w hw => ?_⟩
     rcases hI (M.eval z.toList) with h | h
     · exact h w hw
     · have := h z rfl
       rw [hu z hz] at this
       split_ifs at this
-  | tooBig => exact hok.elim
+  · exact hok.elim
 
 end Ends
 
@@ -117,36 +118,34 @@ section Chance
 
 /-- What a step does to the clean run: a clean probe extends it or ends the round, any other
 resets it. -/
-def CleanOK (s : RState α) (cl : Bool) : RState α ⊕ REnd α → Prop
-  | .inl s' => if cl then s'.tree = s.tree ∧ s'.edges = s.edges ∧ s'.clean = s.clean + 1
-      else s'.clean = 0
-  | .inr e => e = .consistent → cl = true ∧ C.n ≤ s.clean + 1
+def CleanOK (s : Level2State α) (cl : Bool) : Level2State α ⊕ RoundEnd α → Prop
+  | .inl s' => if cl then s'.tree = s.tree ∧ s'.edges = s.edges ∧ s'.cleanRun = s.cleanRun + 1
+      else s'.cleanRun = 0
+  | .inr e => e = .consistent → cl = true ∧ C.cleanProbesToEnd ≤ s.cleanRun + 1
 
-theorem charge_clean (s : RState α) (k : Cls α) (zs : List (FreeMonoid α)) (cl : Bool) :
-    CleanOK C s cl (charge C s k zs cl) := by
-  unfold charge tick
+theorem charge_clean (s : Level2State α) (k : UndecidedSite α) (zs : List (FreeMonoid α))
+    (cl : Bool) :
+    CleanOK C s cl (addUndecided C s k zs cl) := by
+  unfold addUndecided extendCleanRun
   simp only
   split_ifs with h1 h2 h3 <;> simp_all [CleanOK]
 
-theorem step_clean (s : RState α) (x : FreeMonoid α) :
-    CleanOK C s (probe read s.tree s.edges C.k x).clean (step read C s x) := by
-  unfold step
-  generalize probe read s.tree s.edges C.k x = o
+theorem step_clean (s : Level2State α) (x : FreeMonoid α) :
+    CleanOK C s (probe read s.tree s.edges C.walkStart x).clean (applyProbe read C s x) := by
+  unfold applyProbe
+  generalize probe read s.tree s.edges C.walkStart x = o
   cases o with
   | agree =>
     simp only [Outcome.clean]
-    unfold tick
+    unfold extendCleanRun
     split_ifs <;> simp_all [CleanOK]
-  | startU z => exact charge_clean C s _ _ _
-  | endU z => exact charge_clean C s _ _ _
-  | triple k zs => exact charge_clean C s _ _ _
-  | pair k zs => exact charge_clean C s _ _ _
-  | member p c u t => simp [CleanOK, Outcome.clean, fresh]
-  | edge p c u t =>
+  | undecided k zs cl => exact charge_clean C s _ _ _
+  | unlearnedEdge p c u t => simp [CleanOK, Outcome.clean, newHypothesis]
+  | wrongEdge p c u t =>
     simp only [Outcome.clean]
-    unfold record split
+    unfold recordDisagreement splitLeaf
     simp only
-    split_ifs <;> (try split) <;> (try split_ifs) <;> simp_all [CleanOK, fresh]
+    split_ifs <;> (try split) <;> (try split_ifs) <;> simp_all [CleanOK, newHypothesis]
 
 variable {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
 
@@ -174,50 +173,54 @@ theorem pi_succ_apply (D : Measure X) [IsProbabilityMeasure D] (T : ℕ)
 variable [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ)
 
 /-- The hypothesis of `s` disagrees on more than `ε` of the probes. -/
-def Bad (s : RState α) : Prop :=
-  ε < D.real {x | (probe read s.tree s.edges C.k x).clean = false}
+def Bad (s : Level2State α) : Prop :=
+  ε < D.real {x | (probe read s.tree s.edges C.walkStart x).clean = false}
 
 open scoped Classical in
-theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
+theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : Level2State α),
     (Measure.pi fun _ : Fin N => D)
-        {xs | (round read C s (List.ofFn xs)).2 = some .consistent
-          ∧ Bad read C D ε (round read C s (List.ofFn xs)).1}
-      ≤ (if Bad read C D ε s then ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean)) else 0)
-        + N * ENNReal.ofReal ((1 - ε) ^ C.n) := by
+        {xs | (runProbes read C s (List.ofFn xs)).2 = .consistent
+          ∧ Bad read C D ε (runProbes read C s (List.ofFn xs)).1}
+      ≤ (if Bad read C D ε s then ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun))
+          else 0)
+        + N * ENNReal.ofReal ((1 - ε) ^ C.cleanProbesToEnd) := by
   intro N
   induction N with
   | zero =>
     intro s
-    have : {xs : Fin 0 → FreeMonoid α | (round read C s (List.ofFn xs)).2 = some .consistent
-        ∧ Bad read C D ε (round read C s (List.ofFn xs)).1} = ∅ := by
-      ext xs; simp [round]
+    have : {xs : Fin 0 → FreeMonoid α | (runProbes read C s (List.ofFn xs)).2 = .consistent
+        ∧ Bad read C D ε (runProbes read C s (List.ofFn xs)).1} = ∅ := by
+      ext xs; simp [runProbes]
     rw [this, measure_empty]
     exact bot_le
   | succ N ih =>
     intro s
-    set δ := ENNReal.ofReal ((1 - ε) ^ C.n)
-    set A := if Bad read C D ε s then ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean - 1)) else 0
-    set S := {x : FreeMonoid α | (probe read s.tree s.edges C.k x).clean = true}
+    set δ := ENNReal.ofReal ((1 - ε) ^ C.cleanProbesToEnd)
+    set A := if Bad read C D ε s
+      then ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun - 1)) else 0
+    set S := {x : FreeMonoid α | (probe read s.tree s.edges C.walkStart x).clean = true}
     have hpt : ∀ x, (Measure.pi fun _ : Fin N => D)
         {ys | Fin.cons x ys ∈ {xs : Fin (N + 1) → FreeMonoid α |
-          (round read C s (List.ofFn xs)).2 = some .consistent
-            ∧ Bad read C D ε (round read C s (List.ofFn xs)).1}}
+          (runProbes read C s (List.ofFn xs)).2 = .consistent
+            ∧ Bad read C D ε (runProbes read C s (List.ofFn xs)).1}}
         ≤ S.indicator (fun _ => A) x + Sᶜ.indicator (fun _ => δ) x + N * δ := by
       intro x
       have hcl := step_clean read C s x
       simp only [Set.mem_ofPred_eq, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ]
-      rcases hst : step read C s x with s' | e <;> rw [hst] at hcl <;> simp only [round, hst]
+      rcases hst : applyProbe read C s x with s' | e <;> rw [hst] at hcl <;>
+        simp only [runProbes, hst]
       · refine (ih s').trans ?_
-        by_cases hx : (probe read s.tree s.edges C.k x).clean = true
+        by_cases hx : (probe read s.tree s.edges C.walkStart x).clean = true
         · rw [hx] at hcl
           obtain ⟨ht, he, hc⟩ := hcl
           have hbad : Bad read C D ε s' ↔ Bad read C D ε s := by unfold Bad; rw [ht, he]
           have hxS : x ∈ S := hx
           simp only [Set.indicator_of_mem hxS, Set.indicator_of_notMem (Set.notMem_compl_iff.2 hxS),
             add_zero, hc, A]
-          rw [show C.n - (s.clean + 1) = C.n - s.clean - 1 by omega]
+          rw [show C.cleanProbesToEnd - (s.cleanRun + 1) = C.cleanProbesToEnd - s.cleanRun - 1 by
+            omega]
           simp only [hbad, le_refl]
-        · have hx' : (probe read s.tree s.edges C.k x).clean = false := by simpa using hx
+        · have hx' : (probe read s.tree s.edges C.walkStart x).clean = false := by simpa using hx
           rw [hx'] at hcl
           simp only [CleanOK, Bool.false_eq_true, if_false] at hcl
           have hxS : x ∈ Sᶜ := fun h => hx h
@@ -230,14 +233,14 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
           obtain ⟨hx, hc⟩ := hcl rfl
           have hxS : x ∈ S := hx
           simp only [Set.indicator_of_mem hxS, Set.indicator_of_notMem (Set.notMem_compl_iff.2 hxS),
-            add_zero, A, if_pos hb, show C.n - s.clean - 1 = 0 by omega, pow_zero,
+            add_zero, A, if_pos hb, show C.cleanProbesToEnd - s.cleanRun - 1 = 0 by omega, pow_zero,
             ENNReal.ofReal_one]
           calc _ ≤ (1 : ENNReal) := prob_le_one
             _ ≤ 1 + N * δ := le_self_add
-        · have : {ys : Fin N → FreeMonoid α | (s, some e).2 = some REnd.consistent
-              ∧ Bad read C D ε (s, some e).1} = ∅ := by
+        · have : {ys : Fin N → FreeMonoid α | (s, e).2 = RoundEnd.consistent
+              ∧ Bad read C D ε (s, e).1} = ∅ := by
             ext ys
-            simp only [Set.mem_ofPred_eq, Option.some.injEq, Set.mem_empty_iff_false, iff_false]
+            simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
             exact hb
           rw [this, measure_empty]
           exact bot_le
@@ -249,7 +252,8 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
           rw [lintegral_add_right _ measurable_const,
             lintegral_add_left (measurable_const.indicator hS), lintegral_indicator_const hS,
             lintegral_indicator_const hS.compl, lintegral_const, measure_univ, mul_one]
-      _ ≤ (if Bad read C D ε s then ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean)) else 0)
+      _ ≤ (if Bad read C D ε s then ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun))
+            else 0)
           + δ + N * δ := by
           gcongr
           · unfold A
@@ -257,7 +261,7 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
             · have hDS : D S ≤ ENNReal.ofReal (1 - ε) := by
                 have hc : D.real S = 1 - D.real Sᶜ := by
                   rw [measureReal_compl hS, probReal_univ]; ring
-                have hSc : Sᶜ = {x | (probe read s.tree s.edges C.k x).clean = false} := by
+                have hSc : Sᶜ = {x | (probe read s.tree s.edges C.walkStart x).clean = false} := by
                   ext x; simp [S]
                 rw [← ENNReal.ofReal_toReal (measure_ne_top D S)]
                 apply ENNReal.ofReal_le_ofReal
@@ -265,15 +269,17 @@ theorem bad_round (hε : ε ≤ 1) : ∀ (N : ℕ) (s : RState α),
                 rw [hc, hSc]
                 unfold Bad at hb
                 linarith
-              by_cases hcn : s.clean < C.n
-              · calc ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean - 1)) * D S
-                    ≤ ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean - 1)) * ENNReal.ofReal (1 - ε) := by
+              by_cases hcn : s.cleanRun < C.cleanProbesToEnd
+              · calc ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun - 1)) * D S
+                    ≤ ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun - 1))
+                      * ENNReal.ofReal (1 - ε) := by
                       gcongr
-                  _ = ENNReal.ofReal ((1 - ε) ^ (C.n - s.clean)) := by
+                  _ = ENNReal.ofReal ((1 - ε) ^ (C.cleanProbesToEnd - s.cleanRun)) := by
                       rw [← ENNReal.ofReal_mul (pow_nonneg (by linarith) _), ← pow_succ]
                       congr 2
                       omega
-              · rw [show C.n - s.clean - 1 = 0 by omega, show C.n - s.clean = 0 by omega]
+              · rw [show C.cleanProbesToEnd - s.cleanRun - 1 = 0 by omega,
+                  show C.cleanProbesToEnd - s.cleanRun = 0 by omega]
                 calc _ ≤ ENNReal.ofReal ((1 - ε) ^ 0) * 1 := by gcongr; exact prob_le_one
                   _ = _ := mul_one _
             · simp
@@ -287,28 +293,29 @@ end Chance
 
 theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   intro α _ _ σ _ M read side C P hI hm hh hn hcap hP
-  have h2 : 2 ≤ C.Lmax := by omega
-  have hΘ : Θ C (start : RState α) < P := (Θ_start C hn h2).trans_le hP
+  have h2 : 2 ≤ C.maxLeaves := by omega
+  have hΘ : Θ C (initialState : Level2State α) < P := (Θ_start C hn h2).trans_le hP
   intro D _ ε s L hε
-  have hsub : {xs : Fin P → FreeMonoid α | let r := round read C start (List.ofFn xs)
-        ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-          s L (replay read r.1.tree r.1.edges)
+  have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 read C draws
+        ¬ EndsWell M (AllUndecided read M) D ε
+          {x | Disagrees read result.hypothesis C.walkStart x}
+          s L (replay read result.hypothesis)
           (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ))
-          (REnd.toRoundEnd r.2)}
-      ⊆ {xs | (round read C start (List.ofFn xs)).2 = some .consistent
-          ∧ Bad read C D ε (round read C start (List.ofFn xs)).1} := by
+          result.ending}
+      ⊆ {xs | (runProbes read C initialState (List.ofFn xs)).2 = .consistent
+          ∧ Bad read C D ε (runProbes read C initialState (List.ofFn xs)).1} := by
     intro xs hxs
-    simp only [Set.mem_setOf_eq] at hxs
-    obtain ⟨e, he, hok, -, hr⟩ := round_ok read C hI hcap hm hh hn (List.ofFn xs) start
+    simp only [Set.mem_ofPred_eq, indecisiveLStarLevel2] at hxs
+    obtain ⟨hok, -, hr⟩ := round_ok read C hI hcap hm hh hn (List.ofFn xs) initialState
       (inv_start read C hm hh hn h2) (reached_start read) (by simpa using hΘ)
-    rcases (sound_of read hI he hok hr).1 with hc | hv
+    rcases (sound_of read hI hok hr).1 with hc | hv
     · rw [hc] at hxs
       refine ⟨hc, lt_of_lt_of_le (not_le.1 hxs) (measureReal_mono fun x hx => ?_)⟩
       exact probe_disagrees read _ _ _ hx
     · obtain ⟨zs, hz, hne, hu⟩ := hv
       rw [hz] at hxs
       refine absurd ⟨?_, replay_spread read _ _ D s L, replay_yields read
-        (round_root read C _ start ⟨_, _, rfl⟩) _ D s L M⟩ hxs
+        (round_root read C _ initialState ⟨_, _, rfl⟩) _ D s L M⟩ hxs
       classical
       show zs.length < 2 * (zs.filter fun z => AllUndecided read M (M.eval z.toList)).length
       have hall : ∀ z ∈ zs, decide (AllUndecided read M (M.eval (FreeMonoid.toList z))) = true :=
@@ -316,7 +323,7 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
       rw [List.filter_eq_self.2 hall]
       have := List.length_pos_of_ne_nil hne
       omega
-  have hb := bad_round read C D ε hε P start
+  have hb := bad_round read C D ε hε P initialState
   have h1ε : 0 ≤ 1 - ε := by linarith
   refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal
     (mul_nonneg (by positivity) (pow_nonneg h1ε _)) (hb.trans ?_))
@@ -327,7 +334,7 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   rw [this, add_mul, one_mul, add_comm]
   gcongr
   split_ifs
-  · simp [start, fresh]
+  · simp [initialState, newHypothesis]
   · exact bot_le
 
 end Ideal

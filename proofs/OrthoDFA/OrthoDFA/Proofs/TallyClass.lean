@@ -18,8 +18,8 @@ open scoped Classical in
 noncomputable def classSet : ℕ → Finset (DTree α)
   | 0 => {.node 1 .leaf .leaf}
   | n + 1 => classSet n ∪ (classSet n).biUnion fun T =>
-      (T.paths.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.paths.toFinset ×ˢ T.paths.toFinset).image
-        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (lcp q.2.2.1 q.2.2.2)) q.1
+      (T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ T.leaves.toFinset).image
+        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1
 
 theorem classSet_mono (n : ℕ) : (classSet n : Finset (DTree α)) ⊆ classSet (n + 1) := by
   classical
@@ -34,19 +34,19 @@ theorem classSet_mono' {n n' : ℕ} (h : n ≤ n') :
   | step _ ih => exact ih.trans (classSet_mono _)
 
 theorem classSet_split {n : ℕ} {T : DTree α} (hT : T ∈ classSet n) {p t t₀ : List Bool} {c : α}
-    (hp : p ∈ T.paths) (ht : t ∈ T.paths) (ht₀ : t₀ ∈ T.paths) :
-    T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p ∈ classSet (n + 1) := by
+    (hp : p ∈ T.leaves) (ht : t ∈ T.leaves) (ht₀ : t₀ ∈ T.leaves) :
+    T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p ∈ classSet (n + 1) := by
   classical
   simp only [classSet]
   refine Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨T, hT, Finset.mem_image.2
     ⟨(p, c, t, t₀), ?_, rfl⟩⟩)
   simp [hp, ht, ht₀]
 
-theorem classSet_paths : ∀ (n : ℕ) (T : DTree α), T ∈ classSet n → T.paths.length ≤ n + 2
+theorem classSet_paths : ∀ (n : ℕ) (T : DTree α), T ∈ classSet n → T.leaves.length ≤ n + 2
   | 0, T, h => by
     simp only [classSet, Finset.mem_singleton] at h
     subst h
-    simp [DTree.paths]
+    simp [DTree.leaves]
   | n + 1, T, h => by
     classical
     simp only [classSet, Finset.mem_union, Finset.mem_biUnion, Finset.mem_image] at h
@@ -65,12 +65,12 @@ theorem classSet_card : ∀ n : ℕ,
     simp only [classSet]
     refine (Finset.card_union_le _ _).trans ?_
     have hstep : ∀ T ∈ (classSet n : Finset (DTree α)),
-        ((T.paths.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.paths.toFinset ×ˢ
-          T.paths.toFinset).image fun q => T.splitAt (FreeMonoid.of q.2.1 *
-            T.midAt (lcp q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
+        ((T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
+          T.leaves.toFinset).image fun q => T.splitAt (FreeMonoid.of q.2.1 *
+            T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
       intro T hT
       refine Finset.card_image_le.trans ?_
-      have h := (List.toFinset_card_le T.paths).trans (classSet_paths n T hT)
+      have h := (List.toFinset_card_le T.leaves).trans (classSet_paths n T hT)
       simp only [Finset.card_product, Finset.card_univ]
       calc _ ≤ (n + 2) * (Fintype.card α * ((n + 2) * (n + 2))) := by gcongr
         _ = _ := by ring
@@ -88,11 +88,11 @@ theorem classSet_card : ∀ n : ℕ,
       _ = _ := by ring
 
 theorem grown_two {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h : G.Grown T f) :
-    2 ≤ T.paths.length := by
+    2 ≤ T.leaves.length := by
   induction h with
-  | start => simp [DTree.paths]
+  | start => simp [DTree.leaves]
   | @real T f p t t₀ c hg ht ht₀ hgen ih =>
-    have hp : p ∈ T.paths := by
+    have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hgen
       exact hl ▸ G.leafOf_mem_paths _ _
     rw [DTree.splitAt_paths_length _ _ _ hp]; omega
@@ -100,21 +100,21 @@ theorem grown_two {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h
     rw [DTree.splitAt_paths_length _ _ _ hp]; omega
 
 theorem grown_mem {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ}
-    (h : G.Grown T f) : T ∈ classSet (T.paths.length - 2) := by
+    (h : G.Grown T f) : T ∈ classSet (T.leaves.length - 2) := by
   induction h with
-  | start => simp [classSet, DTree.paths]
+  | start => simp [classSet, DTree.leaves]
   | @real T f p t t₀ c hg ht ht₀ hgen ih =>
-    have hp : p ∈ T.paths := by
+    have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hgen
       exact hl ▸ G.leafOf_mem_paths _ _
     rw [DTree.splitAt_paths_length _ _ _ hp]
     have h2 := grown_two G hg
-    rw [show T.paths.length + 1 - 2 = T.paths.length - 2 + 1 by omega]
+    rw [show T.leaves.length + 1 - 2 = T.leaves.length - 2 + 1 by omega]
     exact classSet_split ih hp ht ht₀
   | @fake T f p t t₀ c hg hp ht ht₀ hng ih =>
     rw [DTree.splitAt_paths_length _ _ _ hp]
     have h2 := grown_two G hg
-    rw [show T.paths.length + 1 - 2 = T.paths.length - 2 + 1 by omega]
+    rw [show T.leaves.length + 1 - 2 = T.leaves.length - 2 + 1 by omega]
     exact classSet_split ih hp ht ht₀
 
 /-- A tree of the class is in `classSet (|Q| + S)`. -/

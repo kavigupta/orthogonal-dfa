@@ -139,7 +139,7 @@ theorem reach_step (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α} (hs : R
     rw [ht] at h₂
     exact (G.grown_unique h₁ h₂).le
   · have hg : G.Grown s'.tree f ∨ G.Grown s'.tree (f + 1) := by
-      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (lcp t t₀))
+      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
       · exact .inl (hT ▸ .real hf ht ht₀ hgen)
       · exact .inr (hT ▸ .fake hf hp ht ht₀ hgen)
     refine ⟨⟨hg.elim (⟨_, ·⟩) (⟨_, ·⟩), he', ?_, hpt⟩, fun f₁ f₂ h₁ h₂ => ?_⟩
@@ -160,7 +160,7 @@ theorem notClass_step (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α} (hs 
   omega
 
 theorem class_paths {T : DTree α} (hT : G.InClass S T) (hL : Fintype.card σ + S + 2 ≤ C.Lmax) :
-    T.paths.length ≤ C.Lmax := by
+    T.leaves.length ≤ C.Lmax := by
   obtain ⟨f, hf, hg⟩ := hT
   have := G.grown_paths hg
   omega
@@ -470,9 +470,9 @@ theorem goodCount_startPre (rd : FreeMonoid α → ARU) (s : TState α) (x : Fre
   · have : ¬ C.k ≤ x.toList.length := by omega
     simp [hshort, goodCount, this]
   simp only [hshort, if_false, not_lt.1 hshort, true_and]
-  obtain ⟨p, hp⟩ | ⟨b, hb⟩ : (∃ p, s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) = .inl p)
-      ∨ ∃ b, s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) = .inr b := by
-    rcases s.tree.sift (fun z => (rd z).cut) (prefixOf x C.k) with p | b
+  obtain ⟨p, hp⟩ | ⟨b, hb⟩ : (∃ p, s.tree.siftCut (fun z => (rd z).cut) (prefixOf x C.k) = .inl p)
+      ∨ ∃ b, s.tree.siftCut (fun z => (rd z).cut) (prefixOf x C.k) = .inr b := by
+    rcases s.tree.siftCut (fun z => (rd z).cut) (prefixOf x C.k) with p | b
     · exact .inl ⟨p, rfl⟩
     · exact .inr ⟨b, rfl⟩
   · simp [hp, goodCount]
@@ -621,14 +621,14 @@ def Skip (Q : TState α → List (FreeMonoid α) → Prop) : ℕ → TState α �
     | .inl s' => Skip Q i s' xs
     | .inr _ => False
 
-theorem ptHarvBy_cases (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+theorem ptHarvBy_cases (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
     ptHarvBy cut T edges k x = [] ∨ ∃ b, ptHarvBy cut T edges k x = [b] := by
   unfold ptHarvBy
   split
-  · rcases T.sift cut _ with _ | b
+  · rcases T.siftCut cut _ with _ | b
     · exact .inl rfl
     · exact .inr ⟨b, rfl⟩
-  · rcases T.sift cut _ with _ | b
+  · rcases T.siftCut cut _ with _ | b
     · exact .inl rfl
     · exact .inr ⟨b, rfl⟩
   · exact .inl rfl
@@ -654,10 +654,10 @@ theorem tallyPre_stretch (s : TState α) (x : FreeMonoid α) :
   · left; simp [TState.charge, Outcome.IsSearch]
   · rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · left; simp [TState.charge, Outcome.IsSearch]
-    rcases s.tree.sift cut u with p | b <;> try dsimp only
+    rcases s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
     · left; simp [TState.charge, Outcome.IsSearch]
-    rcases s.tree.sift cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
+    rcases s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
       try dsimp only
     · right; simp [TState.setEdge, TState.fresh, Outcome.IsSearch]
     all_goals left; simp [TState.charge, Outcome.IsSearch]
@@ -680,14 +680,14 @@ theorem goodCount_ptPre (rd : FreeMonoid α → ARU) (s : TState α) (x : FreeMo
       · simp [goodCount, hg]
   · rw [h]; simp [goodCount]
 
-theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edges : Edges α}
+theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edges : EdgeTable α}
     {x : FreeMonoid α} :
     x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
   simp only [searchAt, Set.mem_setOf_eq]
   rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ | _ <;>
     simp [Outcome.IsSearch]
 
-theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
+theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (P : σ → Prop) : G.ptAt rd k T edges P ⊆ searchAt rd k T edges := by
   rintro x ⟨b, hb, -⟩
   rw [mem_searchAt]
@@ -1072,13 +1072,13 @@ theorem tallyLook_start' (C : TallyCfg) {s : TState α} (h : tallyLook C s = som
 
 theorem tallyLook_harvest' (C : TallyCfg) {s : TState α} {e : List Bool × α}
     (h : tallyLook C s = some (.harvest e)) :
-    e.1 ∈ s.tree.paths ∧ C.φe * s.probes ≤ s.trav e.1 e.2 ∧ C.exc (s.trav e.1 e.2)
+    e.1 ∈ s.tree.leaves ∧ C.φe * s.probes ≤ s.trav e.1 e.2 ∧ C.exc (s.trav e.1 e.2)
       ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2 := by
   unfold tallyLook at h
   by_cases h1 : rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true
   · rw [if_pos h1] at h; simp at h
   · rw [if_neg h1] at h
-    by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.paths ∧ C.φe * s.probes ≤ s.trav e.1 e.2
+    by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves ∧ C.φe * s.probes ≤ s.trav e.1 e.2
         ∧ C.exc (s.trav e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2
     · rw [dif_pos h2] at h
       simp only [Option.some.injEq, TEnd.harvest.injEq] at h
@@ -1093,7 +1093,7 @@ theorem tallyLook_pt' (C : TallyCfg) {s : TState α} (h : tallyLook C s = some .
   by_cases h1 : rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true
   · rw [if_pos h1] at h; simp at h
   rw [if_neg h1] at h
-  by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.paths ∧ C.φe * s.probes ≤ s.trav e.1 e.2
+  by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves ∧ C.φe * s.probes ≤ s.trav e.1 e.2
       ∧ C.exc (s.trav e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2
   · rw [dif_pos h2] at h; simp at h
   rw [dif_neg h2] at h
@@ -1104,17 +1104,17 @@ theorem tallyLook_pt' (C : TallyCfg) {s : TState α} (h : tallyLook C s = some .
   · rw [if_neg h3] at h
     split_ifs at h <;> simp at h
 
-theorem paths_length_pos : ∀ T : DTree α, 0 < T.paths.length
-  | .leaf => by simp [DTree.paths]
+theorem paths_length_pos : ∀ T : DTree α, 0 < T.leaves.length
+  | .leaf => by simp [DTree.leaves]
   | .node _ r a => by
-    simp only [DTree.paths, List.length_append, List.length_map]
+    simp only [DTree.leaves, List.length_append, List.length_map]
     have := paths_length_pos r
     omega
 
-theorem path_length_lt : ∀ (T : DTree α) (p : List Bool), p ∈ T.paths → p.length < T.paths.length
-  | .leaf, p, h => by simp [DTree.paths] at h; simp [h, DTree.paths]
+theorem path_length_lt : ∀ (T : DTree α) (p : List Bool), p ∈ T.leaves → p.length < T.leaves.length
+  | .leaf, p, h => by simp [DTree.leaves] at h; simp [h, DTree.leaves]
   | .node _ r a, p, h => by
-    simp only [DTree.paths, List.mem_append, List.mem_map, List.length_append,
+    simp only [DTree.leaves, List.mem_append, List.mem_map, List.length_append,
       List.length_map] at h ⊢
     have hr := paths_length_pos r
     have ha := paths_length_pos a

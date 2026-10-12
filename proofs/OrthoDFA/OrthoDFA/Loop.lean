@@ -3,10 +3,9 @@ import OrthoDFA.Pass
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
-# Undecided classes and midfixes
+# Undecided classes
 
-The classes of undecided outcomes (`Cls`), and the midfix where two leaves part (`DTree.midAt`,
-`lcp`).
+The classes of undecided outcomes (`Cls`).
 -/
 
 namespace OrthoDFA
@@ -22,17 +21,5 @@ inductive Cls
 
 instance : Fintype Cls :=
   ⟨{.start, .stop, .triple, .pair, .edge}, fun c => by cases c <;> simp⟩
-
-/-- The longest common prefix. -/
-def lcp : List Bool → List Bool → List Bool
-  | a :: as, b :: bs => if a = b then a :: lcp as bs else []
-  | _, _ => []
-
-/-- The midfix at the node `p` leads to, `ε` past a leaf. -/
-def DTree.midAt : DTree α → List Bool → FreeMonoid α
-  | .leaf, _ => 1
-  | .node m _ _, [] => m
-  | .node _ r _, false :: p => midAt r p
-  | .node _ _ a, true :: p => midAt a p
 
 end OrthoDFA

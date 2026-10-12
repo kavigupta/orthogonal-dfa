@@ -23,7 +23,7 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
   [IsProbabilityMeasure μ] {read : FreeMonoid α → Ω → ARU}
 
 open scoped Classical in
-theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
+theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (d : List Bool × α) (x : FreeMonoid α) :
     G.undecAt rd k T edges d G.Good x = (((probeQ T edges k x).firsts rd ∅).filter fun q =>
       q.1.2 = some d ∧ rd q.2 = .undecided ∧ G.Good (G.M.eval q.2.toList)).length := by
@@ -40,7 +40,7 @@ theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges 
   · simp [h1]
   · simp [h1]
 
-theorem travBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
+theorem travBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (d : List Bool × α) (x : FreeMonoid α) :
     travBy (fun z => (rd z).cut) T edges k x d
       = (((probeQ T edges k x).firsts rd ∅).filter fun q => q.1.2 = some d).length := by
@@ -51,7 +51,7 @@ open scoped Classical in
 /-- The per-read edge field in mean at one probe, over real expectations. -/
 theorem undecAt_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
     (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hθ : 0 ≤ G.θ)
-    (T : DTree α) (edges : Edges α) (k : ℕ) (d : List Bool × α) (x : FreeMonoid α) :
+    (T : DTree α) (edges : EdgeTable α) (k : ℕ) (d : List Bool × α) (x : FreeMonoid α) :
     ∫ ω, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂μ
       ≤ 3 / 2 * G.θ * ∫ ω, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ := by
   have h := edge_first_mean G hmeas hind hlaw G.Good (3 / 2 * G.θ) (fun r h => h) d
@@ -121,7 +121,7 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
-    (edges : Edges α) (d : List Bool × α) :
+    (edges : EdgeTable α) (d : List Bool × α) :
     μ {ω | 2 * (3 / 2 * G.θ) * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η
         < ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (L + 1)
@@ -257,14 +257,14 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
           * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + S + 1)))))) := by
   set n := Fintype.card σ + S
   set ε : ℝ := Real.exp (-(η / (2 * p₀ * (L + 1) * (1 + 4 * (3 / 2 * G.θ) * (n + 1)))))
-  set B : DTree α → Edges α → List Bool × α → Set Ω := fun T e d => {ω |
+  set B : DTree α → EdgeTable α → List Bool × α → Set Ω := fun T e d => {ω |
     2 * (3 / 2 * G.θ) * ∫ x, (travBy (fun z => (read z ω).cut) T e k x d : ℝ) ∂D + η
       < ∫ x, (G.undecAt (read · ω) k T e d G.Good x : ℝ) ∂D}
   have hsub : {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,
       ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D
         ≤ θg * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}
       ⊆ ⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T,
-          ⋃ d ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α), B T e d := by
+          ⋃ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), B T e d := by
     intro ω hω
     simp only [Set.mem_setOf_eq, not_forall, not_le] at hω
     obtain ⟨T, hT, edges, he, d, hlt⟩ := hω
@@ -278,7 +278,7 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
         = travBy (fun z => (read z ω).cut) T e' k x d := by
       intro x
       rw [travBy_econgr (k := k) (x := x) he hagr (fun z => (read z ω).cut)]
-    have hd : d.1 ∈ T.paths := by
+    have hd : d.1 ∈ T.leaves := by
       by_contra hd
       have h0 : ∀ x, G.undecAt (read · ω) k T edges d G.Good x = 0 := by
         intro x
@@ -309,9 +309,9 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
     simp only [ε]
     gcongr
   calc μ _ ≤ μ (⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T,
-        ⋃ d ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α), B T e d) := measure_mono hsub
+        ⋃ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), B T e d) := measure_mono hsub
     _ ≤ ∑ T ∈ (classSet n : Finset (DTree α)), ∑ e ∈ edgeMaps T,
-          ∑ d ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α), μ (B T e d) := by
+          ∑ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), μ (B T e d) := by
         refine (measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum fun T _ => ?_)
         refine (measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum fun e _ => ?_)
         exact measure_biUnion_finset_le _ _
@@ -320,23 +320,23 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
             * ENNReal.ofReal ε := by
         refine Finset.sum_le_sum fun T hT => ?_
         have hp := classSet_paths n T hT
-        calc ∑ e ∈ edgeMaps T, ∑ d ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α), μ (B T e d)
-            ≤ ∑ e ∈ edgeMaps T, ∑ d ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α),
+        calc ∑ e ∈ edgeMaps T, ∑ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), μ (B T e d)
+            ≤ ∑ e ∈ edgeMaps T, ∑ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α),
                 ENNReal.ofReal ε := Finset.sum_le_sum fun e _ =>
               Finset.sum_le_sum fun d _ => hone T hT e d
-          _ = ((edgeMaps T).card * (T.paths.toFinset ×ˢ (Finset.univ : Finset α)).card : ℕ)
+          _ = ((edgeMaps T).card * (T.leaves.toFinset ×ˢ (Finset.univ : Finset α)).card : ℕ)
                 * ENNReal.ofReal ε := by
               simp only [Finset.sum_const, nsmul_eq_mul]; push_cast; ring
           _ ≤ _ := by
               refine mul_le_mul' ?_ le_rfl
               have h1 : (edgeMaps T).card ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
                 calc (edgeMaps T).card
-                    ≤ (T.paths.length + 1) ^ (T.paths.length * Fintype.card α) := edgeMaps_card T
-                  _ ≤ (n + 3) ^ (T.paths.length * Fintype.card α) :=
+                    ≤ (T.leaves.length + 1) ^ (T.leaves.length * Fintype.card α) := edgeMaps_card T
+                  _ ≤ (n + 3) ^ (T.leaves.length * Fintype.card α) :=
                     Nat.pow_le_pow_left (by omega) _
                   _ ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
                     Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_right _ hp)
-              have h2 : (T.paths.toFinset ×ˢ (Finset.univ : Finset α)).card
+              have h2 : (T.leaves.toFinset ×ˢ (Finset.univ : Finset α)).card
                   ≤ (n + 2) * Fintype.card α := by
                 simp only [Finset.card_product, Finset.card_univ]
                 exact Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans hp)

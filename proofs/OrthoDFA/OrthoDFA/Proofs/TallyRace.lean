@@ -27,10 +27,10 @@ def nodes : DTree α → List (List Bool)
   | .node _ r a => [] :: (r.nodes.map (false :: ·) ++ a.nodes.map (true :: ·))
 
 omit [Fintype α] [DecidableEq α] in
-theorem paths_sub_nodes : ∀ (T : DTree α) (q : List Bool), q ∈ T.paths → q ∈ T.nodes
-  | .leaf, q, h => by simpa [paths, nodes] using h
+theorem paths_sub_nodes : ∀ (T : DTree α) (q : List Bool), q ∈ T.leaves → q ∈ T.nodes
+  | .leaf, q, h => by simpa [leaves, nodes] using h
   | .node _ r a, q, h => by
-    simp only [paths, nodes, List.mem_append, List.mem_map, List.mem_cons] at h ⊢
+    simp only [leaves, nodes, List.mem_append, List.mem_map, List.mem_cons] at h ⊢
     rcases h with ⟨q', h, rfl⟩ | ⟨q', h, rfl⟩
     · exact .inr (.inl ⟨q', paths_sub_nodes r q' h, rfl⟩)
     · exact .inr (.inr ⟨q', paths_sub_nodes a q' h, rfl⟩)
@@ -55,12 +55,12 @@ theorem nodes_splitAt (d : FreeMonoid α) :
     · exact .inr (.inr ⟨q', nodes_splitAt d a p q' h, rfl⟩)
 
 omit [Fintype α] [DecidableEq α] in
-theorem nodes_length : ∀ T : DTree α, T.nodes.length + 1 = 2 * T.paths.length
-  | .leaf => by simp [nodes, paths]
+theorem nodes_length : ∀ T : DTree α, T.nodes.length + 1 = 2 * T.leaves.length
+  | .leaf => by simp [nodes, leaves]
   | .node _ r a => by
     have := nodes_length r
     have := nodes_length a
-    simp only [nodes, paths, List.length_cons, List.length_append, List.length_map]
+    simp only [nodes, leaves, List.length_cons, List.length_append, List.length_map]
     omega
 
 end DTree
@@ -70,7 +70,7 @@ no edge out of a leaf charged `φe` of the probes has its undecided strings past
 positions by `exc` of them. -/
 theorem tallyLook_none (C : TallyCfg) {s : TState α} (h : tallyLook C s = none) :
     rateSide C.θs C.a C.n₀ s.probes s.startH.length ≠ some true
-      ∧ ∀ e : List Bool × α, e.1 ∈ s.tree.paths → C.φe * s.probes ≤ s.trav e.1 e.2 →
+      ∧ ∀ e : List Bool × α, e.1 ∈ s.tree.leaves → C.φe * s.probes ≤ s.trav e.1 e.2 →
         ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2 < C.exc (s.trav e.1 e.2) := by
   unfold tallyLook at h
   split_ifs at h with h1 h2
@@ -182,7 +182,7 @@ noncomputable def excess (s : TState α) : ℝ :=
     - 2 * C.Lmax * Fintype.card α * C.φe * s.probes
 
 theorem excess_le {s : TState α} {u : ℕ} (hs : RInv G C Xe θs' Xs s u) (hXe : 0 ≤ Xe)
-    (hφe : 0 ≤ C.φe) (hp : s.tree.paths.length ≤ C.Lmax) :
+    (hφe : 0 ≤ C.φe) (hp : s.tree.leaves.length ≤ C.Lmax) :
     excess C θs' s ≤ 2 * C.Lmax * Fintype.card α * Xe + Xs := by
   obtain ⟨-, -, -, -, hex, hst, -, -⟩ := hs
   have hcard : ((s.tree.nodes.toFinset ×ˢ (Finset.univ : Finset α)).card : ℝ)
@@ -236,7 +236,7 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
     rcases hspec with ⟨ht, -, -⟩ | ⟨p, c, t, t₀, -, -, hp, hT, -⟩
     · intro q hq; rwa [ht]
     · intro q hq; rw [hT]; exact DTree.nodes_splitAt _ _ _ _ hq
-  have hzero : ∀ q c, q ∉ s.tree.paths →
+  have hzero : ∀ q c, q ∉ s.tree.leaves →
       edgeHarvBy cut s.tree s.edges C.k x (q, c) = [] ∧
         travBy cut s.tree s.edges C.k x (q, c) = 0 := by
     intro q c hq
@@ -261,12 +261,12 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
     · have h0 : ∀ pct, badRecs G s' pct = 0 := fun pct => by simp [badRecs, hrec]
       have htr' : s'.tree ≠ s.tree := fun h' => DTree.splitAt_ne hp (hT.symm.trans h')
       obtain ⟨p, c, t, t₀, hp, ht, ht₀, hne, hm₁, hm₂, hT⟩ := tallyStep_split C cut hm he hr h htr'
-      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (lcp t t₀))
+      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
       · refine ⟨f, hT ▸ .real hf ht ht₀ hgen, by omega, fun pct => ?_⟩
         rw [h0]
         omega
       · have hngP : ¬ G.GenuineSplit (tallyPre C cut s x).tree p
-            (FreeMonoid.of c * (tallyPre C cut s x).tree.midAt (lcp t t₀)) := by
+            (FreeMonoid.of c * (tallyPre C cut s x).tree.midAt (commonPrefix t t₀)) := by
           rw [htr₁]; exact hgen
         have key : ∀ pct', C.m ≤ badRecs G (tallyPre C cut s x) pct' →
             C.m * (f + 1) ≤ u + if x ∈ G.untrueAt rd C.k s.tree s.edges then 1 else 0 := by
@@ -293,14 +293,14 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
     by_cases hold : s.harv q c ≠ [] ∨ s.trav q c ≠ 0
     · exact hnodes q (hsup q c hold)
     · push_neg at hold
-      have hq : q ∈ s.tree.paths := by
+      have hq : q ∈ s.tree.leaves := by
         by_contra hq
         obtain ⟨h1, h2⟩ := hzero q c hq
         simp [hold.1, hold.2, h1, h2] at hqc
       exact hnodes q (DTree.paths_sub_nodes _ _ hq)
   · intro q c
     have hpr : (s.probes : ℝ) ≤ s'.probes := by rw [c4, p4]; push_cast; linarith
-    by_cases hq : q ∈ s.tree.paths
+    by_cases hq : q ∈ s.tree.leaves
     · by_cases hg : C.φe * (tallyPre C cut s x).probes ≤ (tallyPre C cut s x).trav q c
       · have := hedge (q, c) (by rw [htr₁]; exact hq) hg
         rw [c1, c2, c4]
@@ -325,7 +325,7 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
     by_contra hc
     push_neg at hc
     have hle1 : (startHarvBy cut s.tree C.k x).length ≤ 1 := by
-      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp)]
+      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.k) with _ | b <;> simp)]
     rw [p3, p4] at hc hstart
     by_cases hn : C.n₀ ≤ s.probes + 1
     · have hh : θs' * ((s.probes + 1 : ℕ) : ℝ) + Xs
@@ -347,12 +347,12 @@ theorem rinv_step (hm : 0 < C.m) (hθe : 0 ≤ C.θe) (hφe : 0 ≤ C.φe) (hXe0
       linarith
   · rw [c3, c4, p3, p4, List.length_append]
     have : (startHarvBy cut s.tree C.k x).length ≤ 1 := by
-      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.sift cut (prefixOf x C.k) with _ | b <;> simp)]
+      unfold startHarvBy; split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.k) with _ | b <;> simp)]
     omega
 
 theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} {u : ℕ}
     (hs : RInv G C Xe θs' Xs s u) (h : tallyStep C (fun z => (rd z).cut) s x = .inl s')
-    (hnodes : ∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) (hp : s.tree.paths.length ≤ C.Lmax) :
+    (hnodes : ∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) (hp : s.tree.leaves.length ≤ C.Lmax) :
     excess C θs' s + twinsBy (fun z => (rd z).cut) s.tree s.edges C.k x
         - C.θe * ((x.toList.length + 1) * C.Lmax) - θs' - 2 * C.Lmax * Fintype.card α * C.φe
       ≤ excess C θs' s' := by
@@ -362,7 +362,7 @@ theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} 
   obtain ⟨p1, p2, p3, p4⟩ := tallyPre_charge C cut s x
   set K := s.tree.nodes.toFinset ×ˢ (Finset.univ : Finset α)
   set K' := s'.tree.nodes.toFinset ×ˢ (Finset.univ : Finset α)
-  set Lv := s.tree.paths.toFinset ×ˢ (Finset.univ : Finset α)
+  set Lv := s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)
   have hKK' : K ⊆ K' := by
     intro e he'
     simp only [K, K', Finset.mem_product, List.mem_toFinset, Finset.mem_univ, and_true] at he' ⊢
@@ -386,7 +386,7 @@ theorem excess_step (hθe : 0 ≤ C.θe) {s s' : TState α} {x : FreeMonoid α} 
     have hold : s.harv e.1 e.2 = [] ∧ s.trav e.1 e.2 = 0 := by
       by_contra hc
       exact hq (hsup e.1 e.2 (by tauto))
-    have hp : e.1 ∉ s.tree.paths := fun hp => hq (DTree.paths_sub_nodes _ _ hp)
+    have hp : e.1 ∉ s.tree.leaves := fun hp => hq (DTree.paths_sub_nodes _ _ hp)
     have h1 : edgeHarvBy cut s.tree s.edges C.k x e = [] :=
       by_contra fun hne => hp (edgeHarvBy_mem cut s.tree C.k x he hne)
     have h2 : travBy cut s.tree s.edges C.k x e = 0 :=
@@ -451,7 +451,7 @@ theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.m)
   have ha : 0 ≤ Real.exp η - 1 := by linarith [Real.one_le_exp hη]
   have hc : 0 ≤ c := by positivity
   have hpaths : ∀ (s : TState α) (u : ℕ), RInv G C Xe θs' Xs s u → u ≤ (S + 1) * C.m →
-      s.tree.paths.length ≤ C.Lmax := by
+      s.tree.leaves.length ≤ C.Lmax := by
     intro s u hs hu
     obtain ⟨f, hf, hmf, -⟩ := hs.1
     have hfS : C.m * f ≤ C.m * (S + 1) := by rw [mul_comm C.m (S + 1)]; omega

@@ -46,7 +46,7 @@ def TriOracle.Good {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {σ : Typ
   O.dist q .undecided ≤ 3 / 2 * θ
 
 /-- The probes that search: their walk and the cut disagree at a decided read. -/
-def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
+def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     Set (FreeMonoid α) :=
   {x | match probeBy (fun z => (rd z).cut) T edges k x with
     | .pair _ | .edge _ _ | .triple _ => True
@@ -71,7 +71,7 @@ def tallyEnd : TEnd α → TState α → RoundEnd α
 
 /-- The hypothesis `(T, edges)` replayed on a draw `w` from the anchor `e`: the strings a probe of
 `w` walked from `e` first reads undecided. -/
-def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α) (w : FreeMonoid α)
+def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α) (w : FreeMonoid α)
     (e : ℕ) : List (FreeMonoid α) :=
   ((firstsBy (fun z => (rd z).cut) T edges e w).filter fun q => (rd q.2).cut = none).map Prod.snd
 
@@ -98,7 +98,7 @@ prefix reads undecided, a string at the state `q` of `M` reading undecided `dist
 the time. -/
 def undecidedCount (P : PrefixDistribution α) {σ : Type*} (M : _root_.DFA α σ)
     (dist : σ → ARU → ℝ) : ℝ :=
-  ∑' u : FreeMonoid α, if P.start ≤ u.toList.length ∧ u.toList.length ≤ P.L then
+  ∑' u : FreeMonoid α, if P.firstAnchor ≤ u.toList.length ∧ u.toList.length ≤ P.L then
     P.D.real {x | u.toList <+: x.toList} * dist (M.eval u.toList) .undecided else 0
 
 /-- `TallyRoundGuarantee M O θ εd P δ S k`: some settings `C`, with `C.k = k`, `C.εd = εd` and a
@@ -127,8 +127,8 @@ def TallyRoundGuarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Me
   ∃ C : TallyCfg, C.k = k ∧ C.εd = εd ∧ (C.budget : ℝ) ≤ K * G ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (O.read z ω).cut)
-          (TallyEndsWell M bad P.D C P.start P.L
-            ((V - 2 * Real.sqrt (P.q * V * Real.log (1 / δ))) / (P.L + 1 - P.start : ℕ))
+          (TallyEndsWell M bad P.D C P.firstAnchor P.L
+            ((V - 2 * Real.sqrt (P.prefixBound * V * Real.log (1 / δ))) / (P.L + 1 - P.firstAnchor : ℕ))
             (O.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ ENNReal.ofReal (2 * δ)

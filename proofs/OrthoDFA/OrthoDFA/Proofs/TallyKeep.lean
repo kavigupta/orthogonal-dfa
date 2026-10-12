@@ -35,7 +35,7 @@ theorem tallyPre_cases (s : TState α) (x : FreeMonoid α) :
         ∧ (tallyPre C cut s x).dis
           = s.dis + if (probeBy cut s.tree s.edges C.k x).IsSearch then 1 else 0)
       ∨ ((tallyPre C cut s x).version = s.version + 1 ∧ (tallyPre C cut s x).n = 0
-        ∧ (tallyPre C cut s x).dis = 0 ∧ ∃ p c e, s.edges p c = none ∧ p ∈ s.tree.paths
+        ∧ (tallyPre C cut s x).dis = 0 ∧ ∃ p c e, s.edges p c = none ∧ p ∈ s.tree.leaves
         ∧ ∀ q c', (tallyPre C cut s x).edges q c' = if (q, c') = (p, c) then some e
           else s.edges q c')) := by
   unfold tallyPre
@@ -50,14 +50,14 @@ theorem tallyPre_cases (s : TState α) (x : FreeMonoid α) :
   · simp [TState.charge, Outcome.IsSearch]
   · rcases hc : x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · simp [TState.charge, Outcome.IsSearch]
-    rcases hp : s.tree.sift cut u with p | b <;> try dsimp only
+    rcases hp : s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
     · simp [TState.charge, Outcome.IsSearch]
-    rcases ht : s.tree.sift cut (u * FreeMonoid.of c) with t | b <;> try dsimp only
+    rcases ht : s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> try dsimp only
     swap
     · simp [TState.charge, Outcome.IsSearch]
     rcases he : s.edges p c with _ | e <;> try dsimp only
-    · refine ⟨rfl, .inr ⟨rfl, rfl, rfl, p, c, (t, u), he, DTree.sift_mem_paths _ _ _ hp, ?_⟩⟩
+    · refine ⟨rfl, .inr ⟨rfl, rfl, rfl, p, c, (t, u), he, DTree.siftCut_mem_paths _ _ _ hp, ?_⟩⟩
       intro q c'
       exact setEdge_eq (s.charge cut C.k x) p c (t, u) q c'
     · simp [TState.charge, Outcome.IsSearch]
@@ -85,10 +85,10 @@ theorem tallyPre_recs (s : TState α) (x : FreeMonoid α) :
   · have hr := hn _ ho (by simp)
     rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · left; exact ⟨hr, rfl⟩
-    rcases s.tree.sift cut u with p | b <;> try dsimp only
+    rcases s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
     · left; exact ⟨hr, rfl⟩
-    rcases s.tree.sift cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
+    rcases s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
       dsimp only
     all_goals left; exact ⟨hr, rfl⟩
 
@@ -103,7 +103,7 @@ theorem fixEdge_cases {s : TState α} {p : List Bool} {c : α} {t : List Bool}
             = if (q, c') = (p, c) then some (t, w) else s.edges q c')
         ∨ ∃ t₀ w₀, s.edges p c = some (t₀, w₀) ∧ C.m ≤ s.tally p c t₀
           ∧ (fixEdge cut C.m s p c t).tree
-            = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p) := by
+            = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) := by
   unfold fixEdge
   simp only []
   rcases he0 : s.edges p c with _ | ⟨t₀, w₀⟩
@@ -124,7 +124,7 @@ theorem settleOne_cases {s₁ : TState α} {r : TState α ⊕ (TEnd α × TState
     (r = .inl s₁ ∧ ∀ p c t, ¬ Violates C.m s₁ p c t)
       ∨ ∃ p c t, Violates C.m s₁ p c t ∧ (r = .inl (fixEdge cut C.m s₁ p c t)
         ∨ (r = .inr (.tooBig, fixEdge cut C.m s₁ p c t)
-          ∧ C.Lmax < (fixEdge cut C.m s₁ p c t).tree.paths.length)) := by
+          ∧ C.Lmax < (fixEdge cut C.m s₁ p c t).tree.leaves.length)) := by
   subst h
   unfold settleOne
   split_ifs with hv hL
@@ -167,7 +167,7 @@ theorem tallyStep_same {s s' : TState α} {x : FreeMonoid α} (h : tallyStep C c
 /-- A step past `Lmax` leaves splits a leaf. -/
 theorem tallyStep_tooBig {s s' : TState α} {x : FreeMonoid α}
     (h : tallyStep C cut s x = .inr (.tooBig, s')) :
-    C.Lmax < s'.tree.paths.length ∧ s'.tree.paths.length ≤ s.tree.paths.length + 1 := by
+    C.Lmax < s'.tree.leaves.length ∧ s'.tree.leaves.length ≤ s.tree.leaves.length + 1 := by
   have htr := (tallyPre_cases cut C s x).1
   rcases tallyStep_cases cut C h with ⟨e, hl, he⟩ | ⟨hl, hs⟩
   · simp only [Sum.inr.injEq, Prod.mk.injEq] at he
@@ -247,9 +247,9 @@ theorem tallyStep_recs {s s' : TState α} {x : FreeMonoid α} (h : tallyStep C c
 theorem tallyStep_split (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α}
     (he : EdgesInto s.tree s.edges)
     (hr : RecsInto s) (h : tallyStep C cut s x = .inl s') (htr : s'.tree ≠ s.tree) :
-    ∃ p c t t₀, p ∈ s.tree.paths ∧ t ∈ s.tree.paths ∧ t₀ ∈ s.tree.paths ∧ t ≠ t₀
+    ∃ p c t t₀, p ∈ s.tree.leaves ∧ t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ t ≠ t₀
       ∧ C.m ≤ (tallyPre C cut s x).tally p c t ∧ C.m ≤ (tallyPre C cut s x).tally p c t₀
-      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p := by
+      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p := by
   obtain ⟨htr₁, he₁, hr₁⟩ := tallyPre_into cut C x he hr
   rcases tallyStep_cases cut C h with ⟨e, -, he'⟩ | ⟨-, hs⟩
   · cases he'
@@ -259,7 +259,7 @@ theorem tallyStep_split (hm : 0 < C.m) {s s' : TState α} {x : FreeMonoid α}
     rcases (fixEdge_cases cut C hvi).2 with ⟨ht, -⟩ | ⟨t₀, w₀, he0, hm, ht⟩
     · exact absurd (ht.trans htr₁) htr
     obtain ⟨hp, hne, htal⟩ := hvi
-    have htp : t ∈ s.tree.paths := by
+    have htp : t ∈ s.tree.leaves := by
       have : 0 < (((tallyPre C cut s x).recs p c).filter (·.2 = t)).length := by
         unfold TState.tally at htal; omega
       obtain ⟨r, hr'⟩ := List.exists_mem_of_length_pos this
@@ -277,7 +277,7 @@ open scoped Classical in
 /-- A split that is not genuine has all of one target's records not true. -/
 theorem badRecs_of_fake {s₁ : TState α} {p : List Bool} {c : α} {t t₀ : List Bool}
     (hne : t ≠ t₀) (hm₁ : C.m ≤ s₁.tally p c t) (hm₂ : C.m ≤ s₁.tally p c t₀)
-    (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midAt (lcp t t₀))) :
+    (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midAt (commonPrefix t t₀))) :
     C.m ≤ badRecs G s₁ (p, c, t) ∨ C.m ≤ badRecs G s₁ (p, c, t₀) := by
   have hall : ∀ t', (¬ ∃ r ∈ s₁.recs p c, r.2 = t' ∧ G.TrueRec s₁.tree (p, c, t') r.1) →
       badRecs G s₁ (p, c, t') = s₁.tally p c t' := by
@@ -297,7 +297,7 @@ theorem badRecs_of_fake {s₁ : TState α} {p : List Bool} {c : α} {t t₀ : Li
 
 /-- The edges and targets of a tree. -/
 def keysF (T : DTree α) : Finset (List Bool × α × List Bool) :=
-  T.paths.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.paths.toFinset
+  T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset
 
 end Fake
 
@@ -381,7 +381,7 @@ theorem tally_pre (s : TState α) (x : FreeMonoid α) (p : List Bool) (c : α) (
 open scoped Classical in
 /-- Over a run that keeps its version, the counts grow by the outcomes of the fixed hypothesis,
 and the last charge's tests do not fire and no edge is violated. -/
-theorem keep_counts (T0 : DTree α) (E0 : Edges α) :
+theorem keep_counts (T0 : DTree α) (E0 : EdgeTable α) :
     ∀ (j : ℕ) (s : TState α) (T : ℕ) (xs : Fin T → FreeMonoid α), s.tree = T0 → s.edges = E0 →
       KeepV C cut s (j + 1) T xs → ∃ s₁ : TState α, s₁.tree = T0 ∧ s₁.edges = E0
         ∧ s₁.n = s.n + (j + 1)
@@ -475,7 +475,7 @@ theorem bracketAt_none (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
     · exact bracketAt_none agrees ps fuel _ _ j h
 
 /-- A search ends at an undecided middle, or records. -/
-theorem search_cases {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem search_cases {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     (h : (probeBy cut T E k x).IsSearch) :
     ptHarvBy cut T E k x ≠ [] ∨ ∃ pct sp, recordBy cut k (T, E) x = some (pct, sp) := by
   obtain ⟨ps₀, hi, hw, hb⟩ := probeBy_search cut rfl h
@@ -487,7 +487,7 @@ theorem search_cases {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
     unfold ptHarvBy
     rw [ho]
     simp only [agreesAtBy] at this
-    rcases hs : T.sift cut (prefixOf x j) with _ | b <;> rw [hs] at this
+    rcases hs : T.siftCut cut (prefixOf x j) with _ | b <;> rw [hs] at this
     · simp at this
     · simp [hs]
   · right
@@ -503,7 +503,7 @@ theorem search_cases {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
     obtain ⟨c, hc⟩ := hc
     rw [hc]
     simp only [agreesAtBy] at hfd
-    rcases ht : T.sift cut (prefixOf x fd) with t | b <;> rw [ht] at hfd
+    rcases ht : T.siftCut cut (prefixOf x fd) with t | b <;> rw [ht] at hfd
     · exact ⟨_, _, rfl⟩
     · simp at hfd
   · left
@@ -511,12 +511,12 @@ theorem search_cases {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
     unfold ptHarvBy
     rw [ho]
     simp only [agreesAtBy] at this
-    rcases hs : T.sift cut (prefixOf x j) with _ | b <;> rw [hs] at this
+    rcases hs : T.siftCut cut (prefixOf x j) with _ | b <;> rw [hs] at this
     · simp at this
     · simp [hs]
 
 /-- A record is at a leaf, out along an edge not already pointing at its target, a leaf. -/
-theorem rec_keys {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem rec_keys {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {pct : List Bool × α × List Bool} {sp : FreeMonoid α} (he : EdgesInto T E)
     (h : recordBy cut k (T, E) x = some (pct, sp)) :
     pct ∈ keysF T ∧ (E pct.1 pct.2.1).map Prod.fst ≠ some pct.2.2 := by
@@ -524,8 +524,8 @@ theorem rec_keys {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
   obtain ⟨p₀, ps, hk, hf, hp, ht, hne⟩ := recordBy_spec cut h
   refine ⟨?_, hne⟩
   simp only [keysF, Finset.mem_product, List.mem_toFinset, Finset.mem_univ, true_and]
-  exact ⟨follow_mem_paths he _ p₀ ps (DTree.sift_mem_paths _ _ _ hk) hf p hp,
-    DTree.sift_mem_paths _ _ _ ht⟩
+  exact ⟨follow_mem_paths he _ p₀ ps (DTree.siftCut_mem_paths _ _ _ hk) hf p hp,
+    DTree.siftCut_mem_paths _ _ _ ht⟩
 
 end Outcomes
 
@@ -726,7 +726,7 @@ variable (C : TallyCfg) (cut : FreeMonoid α → Option Bool)
 def recAt (s : TState α) : Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy cut C.k (s.tree, s.edges) x = some (pct, sp)}
 
-theorem ptHarvBy_search {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem ptHarvBy_search {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     (h : ptHarvBy cut T E k x ≠ []) : (probeBy cut T E k x).IsSearch := by
   unfold ptHarvBy at h
   rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
@@ -854,7 +854,7 @@ noncomputable def psi (s : TState α) (p : List Bool) (c : α) : ℕ :=
   | some (t₀, _) => if C.m ≤ s.tally p c t₀ then 0 else 1
 
 noncomputable def pot (s : TState α) : ℕ :=
-  ∑ pc ∈ s.tree.paths.toFinset ×ˢ (Finset.univ : Finset α), psi C s pc.1 pc.2
+  ∑ pc ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α), psi C s pc.1 pc.2
 
 theorem psi_le_two (s : TState α) (p : List Bool) (c : α) : psi C s p c ≤ 2 := by
   unfold psi
@@ -862,12 +862,12 @@ theorem psi_le_two (s : TState α) (p : List Bool) (c : α) : psi C s p c ≤ 2 
   · exact le_rfl
   · simp only []; split_ifs <;> omega
 
-theorem pot_le (s : TState α) : pot C s ≤ 2 * s.tree.paths.length * Fintype.card α := by
+theorem pot_le (s : TState α) : pot C s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
   unfold pot
   refine (Finset.sum_le_card_nsmul _ _ 2 fun pc _ => psi_le_two C s pc.1 pc.2).trans ?_
   simp only [Finset.card_product, Finset.card_univ, smul_eq_mul]
-  have := List.toFinset_card_le s.tree.paths
-  calc _ ≤ s.tree.paths.length * Fintype.card α * 2 := by gcongr
+  have := List.toFinset_card_le s.tree.leaves
+  calc _ ≤ s.tree.leaves.length * Fintype.card α * 2 := by gcongr
     _ = _ := by ring
 
 /-- With the same edges and no fewer records, each share is no larger. -/
@@ -889,7 +889,7 @@ theorem pot_mono {s s' : TState α} (htr : s'.tree = s.tree)
 
 theorem pot_lt {s s' : TState α} (htr : s'.tree = s.tree)
     (hle : ∀ p c, psi C s' p c ≤ psi C s p c)
-    (hlt : ∃ p ∈ s.tree.paths, ∃ c, psi C s' p c < psi C s p c) : pot C s' < pot C s := by
+    (hlt : ∃ p ∈ s.tree.leaves, ∃ c, psi C s' p c < psi C s p c) : pot C s' < pot C s := by
   unfold pot
   rw [htr]
   obtain ⟨p, hp, c, h⟩ := hlt
@@ -904,7 +904,7 @@ theorem tally_mono_pre (s : TState α) (x : FreeMonoid α) (p : List Bool) (c : 
 theorem psi_pre (s : TState α) (x : FreeMonoid α) :
     (∀ p c, psi C (tallyPre C cut s x) p c ≤ psi C s p c)
       ∧ ((tallyPre C cut s x).version ≠ s.version →
-        ∃ p ∈ s.tree.paths, ∃ c, psi C (tallyPre C cut s x) p c < psi C s p c) := by
+        ∃ p ∈ s.tree.leaves, ∃ c, psi C (tallyPre C cut s x) p c < psi C s p c) := by
   rcases (tallyPre_cases cut C s x).2 with ⟨hv, hed, -⟩ | ⟨hv, -, -, p, c, e, hnone, hp, hed⟩
   · exact ⟨fun p c => psi_mono C (by rw [hed]) (tally_mono_pre C cut s x p c),
       fun h => absurd hv h⟩
@@ -1117,7 +1117,7 @@ theorem phi_step (K : DTree α → Finset (List Bool × α × List Bool)) {s s' 
   split_ifs with hx
   · obtain ⟨⟨p, c, t⟩, sp, hsp, hk⟩ := hx
     obtain ⟨hk', hne⟩ := rec_keys cut he hsp
-    have hp : p ∈ s.tree.paths := by
+    have hp : p ∈ s.tree.leaves := by
       simp only [keysF, Finset.mem_product, List.mem_toFinset] at hk'
       exact hk'.1
     have hlt : s.tally p c t < C.m := by
@@ -1580,7 +1580,7 @@ theorem sub_round_holds : SubRound := by
   have hpot : pot C s ≤ subVersions C (Fintype.card α) := by
     refine (pot_le C s).trans ?_
     unfold subVersions
-    have hpaths : s.tree.paths.length ≤ C.Lmax := by
+    have hpaths : s.tree.leaves.length ≤ C.Lmax := by
       obtain ⟨f, hf, hg⟩ := hc
       have := G.grown_paths hg
       omega

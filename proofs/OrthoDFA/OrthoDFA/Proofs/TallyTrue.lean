@@ -17,26 +17,26 @@ namespace ReadModel
 
 variable {σ : Type*} (G : ReadModel α σ)
 
-theorem leafOf_mem_paths : ∀ (T : DTree α) (q : σ), G.leafOf T q ∈ T.paths
-  | .leaf, q => by simp [leafOf, DTree.paths]
+theorem leafOf_mem_paths : ∀ (T : DTree α) (q : σ), G.leafOf T q ∈ T.leaves
+  | .leaf, q => by simp [leafOf, DTree.leaves]
   | .node m r a, q => by
-    simp only [leafOf, DTree.paths, List.mem_append, List.mem_map]
+    simp only [leafOf, DTree.leaves, List.mem_append, List.mem_map]
     split
     · exact .inr ⟨_, leafOf_mem_paths a q, rfl⟩
     · exact .inl ⟨_, leafOf_mem_paths r q, rfl⟩
 
 theorem leafOf_splitAt (d : FreeMonoid α) :
-    ∀ (T : DTree α) (p : List Bool), p ∈ T.paths → ∀ q : σ,
+    ∀ (T : DTree α) (p : List Bool), p ∈ T.leaves → ∀ q : σ,
       (G.leafOf T q ≠ p → G.leafOf (T.splitAt d p) q = G.leafOf T q)
       ∧ (G.leafOf T q = p → G.leafOf (T.splitAt d p) q = p ++ [G.side (G.at' q d)])
   | .leaf, [], _, q => by
     refine ⟨fun h => absurd rfl h, fun _ => ?_⟩
     simp only [DTree.splitAt, leafOf, List.nil_append]
     split <;> simp_all
-  | .leaf, _ :: _, h, _ => by simp [DTree.paths] at h
+  | .leaf, _ :: _, h, _ => by simp [DTree.leaves] at h
   | .node _ _ _, [], h, _ => absurd h DTree.paths_ne_nil_of_node
   | .node n r a, false :: p, h, q => by
-    have hp : p ∈ r.paths := by simpa [DTree.paths] using h
+    have hp : p ∈ r.leaves := by simpa [DTree.leaves] using h
     have ih := leafOf_splitAt d r p hp q
     simp only [DTree.splitAt, leafOf]
     by_cases hs : G.side (G.at' q n)
@@ -45,7 +45,7 @@ theorem leafOf_splitAt (d : FreeMonoid α) :
         List.cons_append]
       exact ⟨fun h => by rw [ih.1 h], fun h => by rw [ih.2 h]⟩
   | .node n r a, true :: p, h, q => by
-    have hp : p ∈ a.paths := by simpa [DTree.paths] using h
+    have hp : p ∈ a.leaves := by simpa [DTree.leaves] using h
     have ih := leafOf_splitAt d a p hp q
     simp only [DTree.splitAt, leafOf]
     by_cases hs : G.side (G.at' q n)
@@ -62,7 +62,7 @@ theorem trueLeaves_card_le [Fintype σ] (T : DTree α) :
     (G.trueLeaves T).card ≤ Fintype.card σ :=
   Finset.card_image_le.trans_eq rfl
 
-theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.paths)
+theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.leaves)
     (d : FreeMonoid α) :
     (G.trueLeaves T).card ≤ (G.trueLeaves (T.splitAt d p)).card
       ∧ (G.GenuineSplit T p d →
@@ -110,7 +110,7 @@ theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p �
       · exact hW _ (Finset.mem_of_mem_erase h)
 
 open scoped Classical in
-theorem trueLeaves_splitAt_le [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.paths)
+theorem trueLeaves_splitAt_le [Fintype σ] {T : DTree α} {p : List Bool} (hp : p ∈ T.leaves)
     (d : FreeMonoid α) :
     (G.trueLeaves (T.splitAt d p)).card
       ≤ (G.trueLeaves T).card + if G.GenuineSplit T p d then 1 else 0 := by
@@ -153,22 +153,22 @@ theorem trueLeaves_splitAt_le [Fintype σ] {T : DTree α} {p : List Bool} (hp : 
 /-- The class's trees: each split adds a leaf, a genuine one a true leaf too, so the count of
 splits that are not genuine is fixed by the tree. -/
 theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
-    T.paths.length + (G.trueLeaves (.node 1 .leaf .leaf)).card = (G.trueLeaves T).card + 2 + f := by
+    T.leaves.length + (G.trueLeaves (.node 1 .leaf .leaf)).card = (G.trueLeaves T).card + 2 + f := by
   classical
   induction h with
-  | start => simp [DTree.paths]; omega
+  | start => simp [DTree.leaves]; omega
   | @real T f p t t₀ c hT ht ht₀ hg ih =>
-    have hp : p ∈ T.paths := by
+    have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hg
       exact hl ▸ G.leafOf_mem_paths T q₁
-    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (lcp t t₀))).2 hg
-    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (lcp t t₀))
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))).2 hg
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))
     rw [if_pos hg] at h2
     rw [DTree.splitAt_paths_length _ _ _ hp]
     omega
   | @fake T f p t t₀ c hT hp ht ht₀ hg ih =>
-    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (lcp t t₀))).1
-    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (lcp t t₀))
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))).1
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))
     rw [if_neg hg] at h2
     rw [DTree.splitAt_paths_length _ _ _ hp]
     omega
@@ -180,7 +180,7 @@ theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f)
   omega
 
 theorem grown_paths [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
-    T.paths.length ≤ Fintype.card σ + 2 + f := by
+    T.leaves.length ≤ Fintype.card σ + 2 + f := by
   have := G.grown_count h
   have := G.trueLeaves_card_le T
   omega
@@ -190,7 +190,7 @@ end ReadModel
 namespace DTree
 
 omit [Fintype α] [DecidableEq α] in
-theorem splitAt_ne {d : FreeMonoid α} {T : DTree α} {p : List Bool} (hp : p ∈ T.paths) :
+theorem splitAt_ne {d : FreeMonoid α} {T : DTree α} {p : List Bool} (hp : p ∈ T.leaves) :
     T.splitAt d p ≠ T := fun h => by
   have := splitAt_paths_length d T p hp
   rw [h] at this
@@ -198,17 +198,17 @@ theorem splitAt_ne {d : FreeMonoid α} {T : DTree α} {p : List Bool} (hp : p �
 
 omit [Fintype α] [DecidableEq α] in
 theorem splitAt_inj {d d' : FreeMonoid α} :
-    ∀ {T : DTree α} {p p' : List Bool}, p ∈ T.paths → p' ∈ T.paths →
+    ∀ {T : DTree α} {p p' : List Bool}, p ∈ T.leaves → p' ∈ T.leaves →
       T.splitAt d p = T.splitAt d' p' → p = p' ∧ d = d'
   | .leaf, p, p', hp, hp', h => by
-    simp only [paths, List.mem_singleton] at hp hp'
+    simp only [leaves, List.mem_singleton] at hp hp'
     subst hp hp'
     simp only [splitAt, node.injEq] at h
     exact ⟨rfl, h.1⟩
   | .node n r a, [], _, hp, _, _ => absurd hp paths_ne_nil_of_node
   | .node n r a, _, [], _, hp', _ => absurd hp' paths_ne_nil_of_node
   | .node n r a, b :: p, b' :: p', hp, hp', h => by
-    simp only [paths, List.mem_append, List.mem_map, List.cons.injEq] at hp hp'
+    simp only [leaves, List.mem_append, List.mem_map, List.cons.injEq] at hp hp'
     rcases hp with ⟨q, hq, rfl, rfl⟩ | ⟨q, hq, rfl, rfl⟩ <;>
       rcases hp' with ⟨q', hq', rfl, rfl⟩ | ⟨q', hq', rfl, rfl⟩ <;>
       simp only [splitAt, node.injEq, true_and, and_true] at h
@@ -226,19 +226,19 @@ variable {σ : Type*} (G : ReadModel α σ)
 /-- Two states at different true leaves read the midfix where their leaves part on different
 sides. -/
 theorem split_sides : ∀ (T : DTree α) (q₁ q₂ : σ), G.leafOf T q₁ ≠ G.leafOf T q₂ →
-    G.side (G.at' q₁ (T.midAt (lcp (G.leafOf T q₁) (G.leafOf T q₂))))
-      ≠ G.side (G.at' q₂ (T.midAt (lcp (G.leafOf T q₁) (G.leafOf T q₂))))
+    G.side (G.at' q₁ (T.midAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
+      ≠ G.side (G.at' q₂ (T.midAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
   | .leaf, _, _, h => absurd rfl h
   | .node m r a, q₁, q₂, hne => by
     simp only [leafOf] at hne ⊢
     by_cases s₁ : G.side (G.at' q₁ m) <;> by_cases s₂ : G.side (G.at' q₂ m)
     · simp only [s₁, s₂, if_true, ne_eq, List.cons.injEq, true_and] at hne ⊢
-      simpa [lcp, DTree.midAt] using split_sides a q₁ q₂ hne
-    · simp [lcp, DTree.midAt, s₁, s₂]
-    · simp [lcp, DTree.midAt, s₁, s₂]
+      simpa [commonPrefix, DTree.midAt] using split_sides a q₁ q₂ hne
+    · simp [commonPrefix, DTree.midAt, s₁, s₂]
+    · simp [commonPrefix, DTree.midAt, s₁, s₂]
     · simp only [s₁, s₂, Bool.false_eq_true, if_false, ne_eq, List.cons.injEq, true_and]
         at hne ⊢
-      simpa [lcp, DTree.midAt] using split_sides r q₁ q₂ hne
+      simpa [commonPrefix, DTree.midAt] using split_sides r q₁ q₂ hne
 
 theorem eval_mul_of (sp : FreeMonoid α) (c : α) :
     G.M.eval (sp * FreeMonoid.of c).toList = G.M.step (G.M.eval sp.toList) c := by
@@ -251,7 +251,7 @@ theorem at'_of_mul (q : σ) (c : α) (m : FreeMonoid α) :
 /-- True records at one edge with different targets make the split they trigger genuine. -/
 theorem genuineSplit_of_recs {T : DTree α} {p : List Bool} {c : α} {t t₀ : List Bool}
     {sp₁ sp₂ : FreeMonoid α} (h₁ : G.TrueRec T (p, c, t) sp₁) (h₂ : G.TrueRec T (p, c, t₀) sp₂)
-    (hne : t ≠ t₀) : G.GenuineSplit T p (FreeMonoid.of c * T.midAt (lcp t t₀)) := by
+    (hne : t ≠ t₀) : G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) := by
   obtain ⟨l₁, l₁'⟩ := h₁
   obtain ⟨l₂, l₂'⟩ := h₂
   simp only [G.eval_mul_of] at l₁' l₂'

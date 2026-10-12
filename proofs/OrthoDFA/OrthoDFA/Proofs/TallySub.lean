@@ -21,17 +21,17 @@ namespace DTree
 
 omit [Fintype α] [DecidableEq α] in
 theorem mem_paths_splitAt (d : FreeMonoid α) :
-    ∀ (T : DTree α) (p q : List Bool), q ∈ T.paths → q ≠ p → q ∈ (T.splitAt d p).paths
-  | .leaf, [], q, hq, hne => by simp [paths] at hq; exact absurd hq hne
+    ∀ (T : DTree α) (p q : List Bool), q ∈ T.leaves → q ≠ p → q ∈ (T.splitAt d p).leaves
+  | .leaf, [], q, hq, hne => by simp [leaves] at hq; exact absurd hq hne
   | .leaf, _ :: _, q, hq, _ => by simpa [splitAt] using hq
   | .node _ _ _, [], q, hq, _ => by simpa [splitAt] using hq
   | .node n r a, false :: p, q, hq, hne => by
-    simp only [splitAt, paths, List.mem_append, List.mem_map] at hq ⊢
+    simp only [splitAt, leaves, List.mem_append, List.mem_map] at hq ⊢
     rcases hq with ⟨q', hq', rfl⟩ | ⟨q', hq', rfl⟩
     · exact .inl ⟨q', mem_paths_splitAt d r p q' hq' (fun h => hne (by rw [h])), rfl⟩
     · exact .inr ⟨q', hq', rfl⟩
   | .node n r a, true :: p, q, hq, hne => by
-    simp only [splitAt, paths, List.mem_append, List.mem_map] at hq ⊢
+    simp only [splitAt, leaves, List.mem_append, List.mem_map] at hq ⊢
     rcases hq with ⟨q', hq', rfl⟩ | ⟨q', hq', rfl⟩
     · exact .inl ⟨q', hq', rfl⟩
     · exact .inr ⟨q', mem_paths_splitAt d a p q' hq' (fun h => hne (by rw [h])), rfl⟩
@@ -43,7 +43,7 @@ section Steps
 variable (cut : FreeMonoid α → Option Bool)
 
 /-- Every record's target is a leaf. -/
-def RecsInto (s : TState α) : Prop := ∀ q c r, r ∈ s.recs q c → r.2 ∈ s.tree.paths
+def RecsInto (s : TState α) : Prop := ∀ q c r, r ∈ s.recs q c → r.2 ∈ s.tree.leaves
 
 theorem setEdge_eq (s : TState α) (p : List Bool) (c : α) (e) (q : List Bool) (c' : α) :
     (s.setEdge p c e).edges q c' = if (q, c') = (p, c) then some e else s.edges q c' := by
@@ -56,7 +56,7 @@ theorem setEdge_eq (s : TState α) (p : List Bool) (c : α) (e) (q : List Bool) 
   · simp [hq]
 
 theorem setEdge_into {s : TState α} (he : EdgesInto s.tree s.edges) {p : List Bool} {c : α}
-    {t : List Bool} {w : FreeMonoid α} (ht : t ∈ s.tree.paths) :
+    {t : List Bool} {w : FreeMonoid α} (ht : t ∈ s.tree.leaves) :
     EdgesInto (s.setEdge p c (t, w)).tree (s.setEdge p c (t, w)).edges := by
   intro q e t' w' h
   rw [setEdge_eq] at h
@@ -67,7 +67,7 @@ theorem setEdge_into {s : TState α} (he : EdgesInto s.tree s.edges) {p : List B
   · exact he _ _ _ _ h
 
 theorem addRec_into {s : TState α} (hr : RecsInto s) {p : List Bool} {c : α}
-    {r : FreeMonoid α × List Bool} (ht : r.2 ∈ s.tree.paths) : RecsInto (s.addRec p c r) := by
+    {r : FreeMonoid α × List Bool} (ht : r.2 ∈ s.tree.leaves) : RecsInto (s.addRec p c r) := by
   intro q e r' h
   simp only [TState.addRec] at h ⊢
   by_cases hq : q = p
@@ -93,7 +93,7 @@ theorem tallyPre_into (C : TallyCfg) {s : TState α} (x : FreeMonoid α)
   · split
     · split
       · rename_i u _ _ _ c p _ hp _ _ t ht he'
-        exact ⟨rfl, setEdge_into (s := s.charge cut C.k x) he (DTree.sift_mem_paths _ _ _ ht),
+        exact ⟨rfl, setEdge_into (s := s.charge cut C.k x) he (DTree.siftCut_mem_paths _ _ _ ht),
           hr⟩
       · exact ⟨rfl, he, hr⟩
     · exact ⟨rfl, he, hr⟩
@@ -101,7 +101,7 @@ theorem tallyPre_into (C : TallyCfg) {s : TState α} (x : FreeMonoid α)
     · rename_i p c t sp hrec
       obtain ⟨-, -, -, -, -, ht, -⟩ := recordBy_spec cut hrec
       exact ⟨rfl, he, addRec_into (s := { s.charge cut C.k x with dis := _ }) hr
-        (DTree.sift_mem_paths _ _ _ ht)⟩
+        (DTree.siftCut_mem_paths _ _ _ ht)⟩
     · exact ⟨rfl, he, hr⟩
   all_goals exact ⟨rfl, he, hr⟩
 
@@ -113,11 +113,11 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : TState α} (he : EdgesInto s.tr
     {p : List Bool} {c : α} {t : List Bool} (hv : Violates m s p c t) :
     let s' := fixEdge cut m s p c t
     (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
-    ∨ (∃ t₀, t ∈ s.tree.paths ∧ t₀ ∈ s.tree.paths ∧ p ∈ s.tree.paths
-      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p
+    ∨ (∃ t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
+      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
       ∧ EdgesInto s'.tree s'.edges ∧ (∀ q e, s'.recs q e = []) ∧ s'.n = 0 ∧ s'.dis = 0) := by
   obtain ⟨hp, -, ht⟩ := hv
-  have htp : t ∈ s.tree.paths := by
+  have htp : t ∈ s.tree.leaves := by
     have : 0 < ((s.recs p c).filter (·.2 = t)).length := by
       unfold TState.tally at ht; omega
     obtain ⟨r, hr'⟩ := List.exists_mem_of_length_pos this
@@ -132,7 +132,7 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : TState α} (he : EdgesInto s.tr
   · simp only []
     split_ifs with hm
     · right
-      set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p
+      set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
       refine ⟨t₀, htp, he _ _ _ _ he0, hp, rfl, ?_, fun _ _ => rfl, rfl, rfl⟩
       intro q e t' w h
       simp only [] at h
@@ -142,10 +142,10 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : TState α} (he : EdgesInto s.tr
       · simp at h
       · simp only [] at h
         split_ifs at h with hs'
-        · rcases hsift : T'.sift cut (w' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at h
+        · rcases hsift : T'.siftCut cut (w' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at h
           · simp only [Sum.elim_inl, Option.some.injEq, Prod.mk.injEq] at h
             obtain ⟨rfl, -⟩ := h
-            exact DTree.sift_mem_paths _ _ _ hsift
+            exact DTree.siftCut_mem_paths _ _ _ hsift
           · simp at h
         · simp only [Option.some.injEq, Prod.mk.injEq] at h
           obtain ⟨rfl, -⟩ := h
@@ -161,8 +161,8 @@ theorem tallyStep_spec (hm : 0 < C.m) {s : TState α} {x : FreeMonoid α}
     (hr : RecsInto s) :
     (∀ s', tallyStep C cut s x = .inl s' →
       (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
-      ∨ (∃ p c t t₀, t ∈ s.tree.paths ∧ t₀ ∈ s.tree.paths ∧ p ∈ s.tree.paths
-        ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p
+      ∨ (∃ p c t t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
+        ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
         ∧ EdgesInto s'.tree s'.edges ∧ (∀ q e, s'.recs q e = []) ∧ s'.n = 0 ∧ s'.dis = 0))
     ∧ (∀ e s', tallyStep C cut s x = .inr (e, s') → e = .tooBig ∨ s'.tree = s.tree) := by
   obtain ⟨htr, he₁, hr₁⟩ := tallyPre_into cut C x he hr
@@ -218,13 +218,13 @@ theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β]
 
 /-- A split from a sub-round's state lands at a start of the class, genuine or not. -/
 theorem split_lands {s s' : TState α} {f : ℕ} (hf : G.Grown s.tree f) {p : List Bool} {c : α}
-    {t t₀ : List Bool} (ht : t ∈ s.tree.paths) (ht₀ : t₀ ∈ s.tree.paths)
-    (hp : p ∈ s.tree.paths)
-    (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p) :
+    {t t₀ : List Bool} (ht : t ∈ s.tree.leaves) (ht₀ : t₀ ∈ s.tree.leaves)
+    (hp : p ∈ s.tree.leaves)
+    (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) :
     (∃ p d, s'.tree = s.tree.splitAt d p ∧ G.GenuineSplit s.tree p d) →
       G.Grown s'.tree f ∧ (G.trueLeaves s.tree).card + 1 ≤ (G.trueLeaves s'.tree).card := by
   rintro ⟨p', d', hT', hg⟩
-  have hp' : p' ∈ s.tree.paths := by
+  have hp' : p' ∈ s.tree.leaves := by
     obtain ⟨q₁, -, hl, -⟩ := hg
     exact hl ▸ G.leafOf_mem_paths _ _
   obtain ⟨rfl, rfl⟩ := DTree.splitAt_inj hp' hp (hT'.symm.trans hT)

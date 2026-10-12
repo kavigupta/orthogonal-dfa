@@ -17,7 +17,7 @@ section Walk
 
 variable (cut : FreeMonoid α → Option Bool)
 
-theorem walkCheckBy_inl {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem walkCheckBy_inl {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {o : Outcome α} (h : walkCheckBy cut t edges k x = .inl o) : ¬ o.IsSearch := by
   unfold walkCheckBy at h
   split at h
@@ -33,7 +33,7 @@ theorem walkCheckBy_inl {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
     · split_ifs at h
       · obtain rfl := Sum.inl.inj h; exact id
 
-theorem probeBy_search {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem probeBy_search {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {o : Outcome α} (h : probeBy cut t edges k x = o) (ho : o.IsSearch) :
     ∃ ps hi, walkCheckBy cut t edges k x = .inr (ps, hi)
       ∧ bracketAt (agreesAtBy cut t x fun j => ps.getD (j - k) []) ps (hi - k) k hi = o := by
@@ -46,9 +46,9 @@ theorem probeBy_search {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMono
     exact absurd ho (walkCheckBy_inl cut hw)
   · exact ⟨ps, hi, rfl, h⟩
 
-theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem walkCheckBy_inr {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {ps : List (List Bool)} {hi : ℕ} (h : walkCheckBy cut t edges k x = .inr (ps, hi)) :
-    ∃ p₀, t.sift cut (prefixOf x k) = .inl p₀
+    ∃ p₀, t.siftCut cut (prefixOf x k) = .inl p₀
       ∧ follow edges p₀ ((x.toList.drop k).take (hi - k)) = .inl ps ∧ k < hi
       ∧ hi ≤ x.toList.length
       ∧ agreesAtBy cut t x (fun j => ps.getD (j - k) []) hi = some false := by
@@ -56,7 +56,7 @@ theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
   rcases hw : kWalkBy cut t edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hw] at h
   · simp at h
   · unfold kWalkBy at hw
-    rcases hk : t.sift cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
+    rcases hk : t.siftCut cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
     swap
     · simp at hw
     simp only [] at hw
@@ -66,11 +66,11 @@ theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
     obtain ⟨rfl, rfl, rfl⟩ := hw
     obtain ⟨hi', hc, hn, qs, hqs, hlast⟩ := follow_inr _ _ _ _ _ hf
     simp only [] at h
-    rcases h1 : t.sift cut (prefixOf x (k + i + 1)) with _ | _ <;> rw [h1] at h
+    rcases h1 : t.siftCut cut (prefixOf x (k + i + 1)) with _ | _ <;> rw [h1] at h
     swap
     · simp at h
     simp only [] at h
-    rcases h2 : t.sift cut (prefixOf x (k + i)) with p | _ <;> rw [h2] at h
+    rcases h2 : t.siftCut cut (prefixOf x (k + i)) with p | _ <;> rw [h2] at h
     swap
     · simp at h
     simp only [] at h
@@ -101,7 +101,7 @@ theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
       simp only [agreesAtBy, h2, Sum.elim_inl, hget, Option.some.injEq, decide_eq_false_iff_not]
       exact hps
   · simp only [] at h
-    rcases hs : t.sift cut x with a | b <;> rw [hs] at h
+    rcases hs : t.siftCut cut x with a | b <;> rw [hs] at h
     swap
     · simp at h
     simp only [] at h
@@ -109,7 +109,7 @@ theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
     simp only [Sum.inr.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     unfold kWalkBy at hw
-    rcases hk : t.sift cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
+    rcases hk : t.siftCut cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
     swap
     · simp at hw
     simp only [] at hw
@@ -141,9 +141,9 @@ theorem walkCheckBy_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
     intro he
     exact ha (by rw [hlast, he])
 
-theorem follow_mem_paths {T : DTree α} {edges : Edges α} (he : EdgesInto T edges) :
-    ∀ (cs : List α) (p : List Bool) (ps : List (List Bool)), p ∈ T.paths →
-      follow edges p cs = .inl ps → ∀ q ∈ ps, q ∈ T.paths
+theorem follow_mem_paths {T : DTree α} {edges : EdgeTable α} (he : EdgesInto T edges) :
+    ∀ (cs : List α) (p : List Bool) (ps : List (List Bool)), p ∈ T.leaves →
+      follow edges p cs = .inl ps → ∀ q ∈ ps, q ∈ T.leaves
   | [], p, ps, hp, h, q, hq => by
     simp only [follow, Sum.inl.injEq] at h
     subst h
@@ -163,12 +163,12 @@ theorem follow_mem_paths {T : DTree α} {edges : Edges α} (he : EdgesInto T edg
 
 /-- What a record says about its walk: the edge it is at, out of a leaf on the walk, points at the
 walk's next leaf, which is not the leaf the next prefix sifts to. -/
-theorem recordBy_spec {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem recordBy_spec {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {p : List Bool} {c : α} {t : List Bool} {sp : FreeMonoid α}
     (h : recordBy cut k (T, edges) x = some ((p, c, t), sp)) :
-    ∃ p₀ ps, T.sift cut (prefixOf x k) = .inl p₀
+    ∃ p₀ ps, T.siftCut cut (prefixOf x k) = .inl p₀
       ∧ follow edges p₀ ((x.toList.drop k).take (ps.length - 1)) = .inl ps ∧ p ∈ ps
-      ∧ T.sift cut (sp * FreeMonoid.of c) = .inl t ∧ (edges p c).map Prod.fst ≠ some t := by
+      ∧ T.siftCut cut (sp * FreeMonoid.of c) = .inl t ∧ (edges p c).map Prod.fst ≠ some t := by
   unfold recordBy at h
   simp only [] at h
   rcases ho : probeBy cut T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;> rw [ho] at h <;>
@@ -182,7 +182,7 @@ theorem recordBy_spec {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoi
   obtain ⟨rfl, hfd1, hfd2, -, hfd⟩ := bracketAt_edge _ ps₀ (hi - k) k hi ps fd hkh le_rfl hlo hag hb
   rcases hc : x.toList[fd - 1]? with _ | c₁ <;> rw [hc] at h
   · simp at h
-  rcases ht : T.sift cut (prefixOf x fd) with t' | b <;> rw [ht] at h
+  rcases ht : T.siftCut cut (prefixOf x fd) with t' | b <;> rw [ht] at h
   swap
   · simp at h
   simp only [Option.some.injEq, Prod.mk.injEq] at h
@@ -250,7 +250,7 @@ theorem bracketSifts_range (agrees : ℕ → Option Bool) :
     · simp at h
 
 /-- A probe sifts positions after its start and up to its end. -/
-theorem siftsBy_range {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α} {i : ℕ}
+theorem siftsBy_range {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α} {i : ℕ}
     (h : i ∈ siftsBy cut t edges k x) : k < i ∧ i ≤ x.toList.length := by
   unfold siftsBy at h
   simp only [List.mem_dedup, List.mem_filter, decide_eq_true_eq] at h
@@ -296,15 +296,15 @@ theorem map_cons_eq_inl {s : List Bool ⊕ FreeMonoid α} {b : Bool} {q : List B
     s.map (b :: ·) id = .inl q ↔ ∃ p, q = b :: p ∧ s = .inl p := by
   rcases s with p | z <;> simp [eq_comm]
 
-theorem posEdgeBy_of_inl {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
-    {k : ℕ} {x : FreeMonoid α} {p : List Bool} (h : T.sift cut (prefixOf x k) = .inl p) (i : ℕ) :
+theorem posEdgeBy_of_inl {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : EdgeTable α}
+    {k : ℕ} {x : FreeMonoid α} {p : List Bool} (h : T.siftCut cut (prefixOf x k) = .inl p) (i : ℕ) :
     posEdgeBy cut T edges k x i = posEdgeFrom edges k x p i := by
   simp only [posEdgeBy, edgeAtBy, walkToBy, h, posEdgeFrom, walkFrom]
 
-theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α}
+theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α} {edges : EdgeTable α}
     {k : ℕ} {x : FreeMonoid α} {i : ℕ} {d : List Bool × α} (he : EdgesInto T edges)
-    (h : posEdgeBy cut T edges k x i = some d) : d.1 ∈ T.paths := by
-  have hat : ∀ j, edgeAtBy cut T edges k x j = some d → d.1 ∈ T.paths := by
+    (h : posEdgeBy cut T edges k x i = some d) : d.1 ∈ T.leaves := by
+  have hat : ∀ j, edgeAtBy cut T edges k x j = some d → d.1 ∈ T.leaves := by
     intro j hj
     unfold edgeAtBy at hj
     rcases hl : (walkToBy cut T edges k x j).getLast? with _ | q <;> rw [hl] at hj
@@ -315,11 +315,11 @@ theorem posEdgeBy_mem_paths {cut : FreeMonoid α → Option Bool} {T : DTree α}
     subst hj
     have hq := List.mem_of_getLast? hl
     unfold walkToBy at hq
-    rcases hs : T.sift cut (prefixOf x k) with p₀ | b <;> rw [hs] at hq
+    rcases hs : T.siftCut cut (prefixOf x k) with p₀ | b <;> rw [hs] at hq
     · simp only [] at hq
       rcases hf : follow edges p₀ ((x.toList.drop k).take (j - k)) with ps | r <;>
         rw [hf] at hq
-      · exact follow_mem_paths he _ p₀ ps (DTree.sift_mem_paths _ _ _ hs) hf q hq
+      · exact follow_mem_paths he _ p₀ ps (DTree.siftCut_mem_paths _ _ _ hs) hf q hq
       · simp at hq
     · simp at hq
   unfold posEdgeBy at h

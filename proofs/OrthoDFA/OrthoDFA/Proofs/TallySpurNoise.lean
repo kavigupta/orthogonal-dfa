@@ -20,7 +20,7 @@ attribute [local instance] ARU.fintype
 
 section Congr
 
-variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α)
+variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 theorem recordBy_congrK {rd rd' : FreeMonoid α → ARU}
     (h : PrefAgreeK (fun z => (rd z).cut) (fun z => (rd' z).cut) T x k) :
@@ -34,7 +34,7 @@ theorem recordBy_congrK {rd rd' : FreeMonoid α → ARU}
   have hfd := (probeBy_edge T edges k x rd' ho).1
   simp only [h fd hfd.le]
 
-theorem recordBy_econgr {e e' : Edges α} (he : EdgesInto T e) (hg : TgtAgree T e e')
+theorem recordBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) :
     recordBy cut k (T, e) x = recordBy cut k (T, e') x := by
   unfold recordBy
@@ -45,7 +45,7 @@ end Congr
 
 section Count
 
-variable (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
+variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
 
 theorem recordQ_firsts_le :
     ((recordQ T edges k x).firsts rd ∅).length ≤ (x.toList.length + 1) * T.midfixes.card := by
@@ -71,7 +71,7 @@ section Mean
 variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ] {read : FreeMonoid α → Ω → ARU}
 
-theorem untrue_iff_congrK {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+theorem untrue_iff_congrK {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {rd rd' : FreeMonoid α → ARU}
     (h : PrefAgreeK (fun z => (rd z).cut) (fun z => (rd' z).cut) T x k) :
     x ∈ G.untrueAt rd k T edges ↔ x ∈ G.untrueAt rd' k T edges := by
@@ -81,7 +81,7 @@ open scoped Classical in
 /-- The records field in mean at one probe, over real expectations. -/
 theorem untrue_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
     (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
-    (hε : 0 ≤ G.ε) (T : DTree α) (edges : Edges α) (he : EdgesInto T edges) {k : ℕ}
+    (hε : 0 ≤ G.ε) (T : DTree α) (edges : EdgeTable α) (he : EdgesInto T edges) {k : ℕ}
     {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
     μ.real {ω | x ∈ G.untrueAt (read · ω) k T edges}
       ≤ G.κ * ∫ ω, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂μ
@@ -149,7 +149,7 @@ theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
-    (T : DTree α) (edges : Edges α) (he : EdgesInto T edges) :
+    (T : DTree α) (edges : EdgeTable α) (he : EdgesInto T edges) :
     μ {ω | 2 * G.κ * ∫ x, (twinsBy (fun z => (read z ω).cut) T edges k x : ℝ) ∂D
           + 2 * (G.ε * ((L + 1) * T.midfixes.card)) + η
         < D.real (G.untrueAt (read · ω) k T edges)}
@@ -300,7 +300,7 @@ theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
   set η : ℝ := ρ - 2 * (G.ε * ((L + 1) * (n + 1)))
   have hη : 0 ≤ η := by simp only [η, n]; push_cast; linarith
   set ε' : ℝ := Real.exp (-(η / (2 * p₀ * (1 + 4 * (G.κ * (L + 1) + G.ε * ((L + 1) * (n + 1)))))))
-  set B : DTree α → Edges α → Set Ω := fun T e => {ω |
+  set B : DTree α → EdgeTable α → Set Ω := fun T e => {ω |
     2 * G.κ * ∫ x, (twinsBy (fun z => (read z ω).cut) T e k x : ℝ) ∂D
       + 2 * (G.ε * ((L + 1) * T.midfixes.card)) + η < D.real (G.untrueAt (read · ω) k T e)}
   have hmid : ∀ T ∈ (classSet n : Finset (DTree α)), (T.midfixes.card : ℝ) ≤ n + 1 := by
@@ -363,8 +363,8 @@ theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
                   ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
                 calc ((edgeMaps T).filter (EdgesInto T ·)).card ≤ (edgeMaps T).card :=
                       Finset.card_filter_le _ _
-                  _ ≤ (T.paths.length + 1) ^ (T.paths.length * Fintype.card α) := edgeMaps_card T
-                  _ ≤ (n + 3) ^ (T.paths.length * Fintype.card α) :=
+                  _ ≤ (T.leaves.length + 1) ^ (T.leaves.length * Fintype.card α) := edgeMaps_card T
+                  _ ≤ (n + 3) ^ (T.leaves.length * Fintype.card α) :=
                     Nat.pow_le_pow_left (by omega) _
                   _ ≤ (n + 3) ^ ((n + 2) * Fintype.card α) :=
                     Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_right _ hp)

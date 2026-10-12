@@ -89,12 +89,12 @@ def GenuineSplit (T : DTree α) (p : List Bool) (d : FreeMonoid α) : Prop :=
 each at a leaf, on a letter followed by the midfix where two leaves part. -/
 inductive Grown : DTree α → ℕ → Prop
   | start : Grown (.node 1 .leaf .leaf) 0
-  | real {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → t ∈ T.paths →
-      t₀ ∈ T.paths → G.GenuineSplit T p (FreeMonoid.of c * T.midAt (lcp t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p) f
-  | fake {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → p ∈ T.paths →
-      t ∈ T.paths → t₀ ∈ T.paths → ¬ G.GenuineSplit T p (FreeMonoid.of c * T.midAt (lcp t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (lcp t t₀)) p) (f + 1)
+  | real {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → t ∈ T.leaves →
+      t₀ ∈ T.leaves → G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) f
+  | fake {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → p ∈ T.leaves →
+      t ∈ T.leaves → t₀ ∈ T.leaves → ¬ G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) (f + 1)
 
 /-- Grown with at most `S` splits that are not genuine. -/
 def InClass (S : ℕ) (T : DTree α) : Prop := ∃ f ≤ S, G.Grown T f
@@ -107,7 +107,7 @@ def TrueRec (T : DTree α) (pct : List Bool × α × List Bool) (sp : FreeMonoid
 
 open scoped Classical in
 /-- The undecided reads a probe charges to `e` at read-states satisfying `P`. -/
-noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
+noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (e : List Bool × α) (P : σ → Prop) (x : FreeMonoid α) : ℕ :=
   ((edgeHarvBy (fun z => (rd z).cut) T edges k x e).filter fun b => P (G.M.eval b.toList)).length
 
@@ -119,16 +119,16 @@ noncomputable def badCount (l : List (FreeMonoid α)) : ℕ :=
 /-- The probes whose start is undecided, at a read-state satisfying `P`. -/
 def startAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (P : σ → Prop) :
     Set (FreeMonoid α) :=
-  {x | k ≤ x.toList.length ∧ ∃ b, T.sift (fun z => (rd z).cut) (prefixOf x k) = .inr b
+  {x | k ≤ x.toList.length ∧ ∃ b, T.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inr b
     ∧ P (G.M.eval b.toList)}
 
 /-- The probes whose search stops at an undecided middle, read at a read-state satisfying `P`. -/
-def ptAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) (P : σ → Prop) :
+def ptAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) (P : σ → Prop) :
     Set (FreeMonoid α) :=
   {x | ∃ b, ptHarvBy (fun z => (rd z).cut) T edges k x = [b] ∧ P (G.M.eval b.toList)}
 
 /-- The probes whose record is not true. -/
-def untrueAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
+def untrueAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy (fun z => (rd z).cut) k (T, edges) x = some (pct, sp)
     ∧ ¬ G.TrueRec T pct sp}
@@ -136,14 +136,14 @@ def untrueAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edge
 end ReadModel
 
 /-- The undecided strings a probe reads at the start and charges to the edges out of the leaves. -/
-noncomputable def twinsBy (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α)
+noncomputable def twinsBy (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α)
     (k : ℕ) (x : FreeMonoid α) : ℕ :=
   (startHarvBy cut T k x).length
-    + ∑ e ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α), (edgeHarvBy cut T edges k x e).length
+    + ∑ e ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), (edgeHarvBy cut T edges k x e).length
 
 /-- Every learned edge points at a leaf. -/
-def EdgesInto (T : DTree α) (edges : Edges α) : Prop :=
-  ∀ q c t w, edges q c = some (t, w) → t ∈ T.paths
+def EdgesInto (T : DTree α) (edges : EdgeTable α) : Prop :=
+  ∀ q c t w, edges q c = some (t, w) → t ∈ T.leaves
 
 /-- The noise event: over the class and edges into its leaves, records that are not true are rare
 at each edge and target, and good read-states' undecided reads are rare at each edge, at the start

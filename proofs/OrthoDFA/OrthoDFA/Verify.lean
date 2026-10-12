@@ -18,7 +18,7 @@ import OrthoDFA.Proofs.TallyRiskBound
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-the idealized round's, stated in `OrthoDFA.IdealRound`, the tally round's, stated in
+level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, the tally round's, stated in
 `OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
 `OrthoDFA.TallyFamily`. The tally round's detailed bound and its closed form, stated in
 `OrthoDFA.Proofs.TallyRiskDefs`, are internal: the claims above are derived from them.

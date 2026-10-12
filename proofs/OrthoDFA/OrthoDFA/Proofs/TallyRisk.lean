@@ -69,7 +69,7 @@ theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
 omit [Fintype σ] in
 theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
     (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided))
-    (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
+    (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     ({ G with κ := κ', rare := h } : ReadModel α σ).untrueAt rd k T edges
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
@@ -83,10 +83,10 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
     (hδ1 : δ ≤ 1) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) P.D C P.start P.L
+          (TallyEndsWell G.M (fun q => ¬ G.Good q) P.D C P.firstAnchor P.L
             ((undecidedCount P G.M G.dist
-              - 2 * Real.sqrt (P.q * undecidedCount P G.M G.dist * Real.log (1 / δ)))
-              / (P.L + 1 - P.start : ℕ)) (read · ω))
+              - 2 * Real.sqrt (P.prefixBound * undecidedCount P G.M G.dist * Real.log (1 / δ)))
+              / (P.L + 1 - P.firstAnchor : ℕ)) (read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs + ENNReal.ofReal δ := by
   obtain ⟨D, _, L, st, hst, hlen, q, hq, hpreq⟩ := P
@@ -146,7 +146,7 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
   set V := undecidedCount ⟨D, inferInstance, L, st, hst, hlen, q, hq, hpreq⟩ G.M G.dist
   set lg := Real.log (1 / δ)
   have hlg : 0 ≤ lg := Real.log_nonneg (by rw [le_div_iff₀ hδ0]; linarith)
-  set Y : Ω → ℝ := fun ω => (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+  set Y : Ω → ℝ := fun ω => (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
       read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided}
   set y := (V - 2 * Real.sqrt (q * V * lg)) / n
   set Ny := {ω | Y ω < y}

@@ -100,7 +100,7 @@ theorem bracketQ_pastK (x : FreeMonoid α) (k : ℕ) (agQ : ℕ → PQ α (Optio
           · exact bracketQ_pastK x k agQ ps fuel lo _ hk hag
     · trivial
 
-theorem probeQ_pastK (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+theorem probeQ_pastK (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
     AllAsk (PastK x k) (probeQ T edges k x) := by
   have hag : ∀ p₀ walkAt p, k ≤ p → AllAsk (PastK x k) (agQ T edges k x p₀ walkAt p) :=
     fun p₀ walkAt p hp => (siftQ_pastK x hp _ T).map _
@@ -128,7 +128,7 @@ theorem probeQ_pastK (T : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid
           · trivial
           · exact bracketQ_pastK x k _ _ _ _ _ le_rfl (hag _ _)
 
-theorem tallyReplay_prefix (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α)
+theorem tallyReplay_prefix (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
     (w : FreeMonoid α) (e : ℕ) (x : FreeMonoid α) (hx : x ∈ tallyReplay rd T edges w e) :
     ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i := by
   unfold tallyReplay at hx
@@ -211,14 +211,14 @@ theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E �
     · exact ⟨h, (hI s x hs).2 e s' hst⟩
 
 theorem tallyReplay_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T)
-    (edges : Edges α) {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length)
+    (edges : EdgeTable α) {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length)
     (hu : rd (prefixOf w e) = .undecided) : tallyReplay rd T edges w e ≠ [] := by
   obtain ⟨r, a, rfl⟩ := hT
   unfold tallyReplay firstsBy probeQ
   rw [if_neg (by omega)]
   simp [siftQ, QTree.bind, QTree.firsts, hu, ARU.cut]
 
-theorem tallyReplay_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α)
+theorem tallyReplay_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
     (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (s L : ℕ) :
     Spread D s L (tallyReplay rd T edges) :=
   spread_of_prefix D s L _ (tallyReplay_prefix rd T edges)

@@ -259,10 +259,10 @@ def TallyRoundRisk : Prop :=
     2 * O.κ ≤ κs → 0 < δ → δ ≤ 1 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (O.read z ω).cut)
-          (TallyEndsWell M (fun q => ¬ O.Good θ q) P.D C P.start P.L
+          (TallyEndsWell M (fun q => ¬ O.Good θ q) P.D C P.firstAnchor P.L
             ((undecidedCount P M O.dist
-              - 2 * Real.sqrt (P.q * undecidedCount P M O.dist * Real.log (1 / δ)))
-              / (P.L + 1 - P.start : ℕ)) (O.read · ω))
+              - 2 * Real.sqrt (P.prefixBound * undecidedCount P M O.dist * Real.log (1 / δ)))
+              / (P.L + 1 - P.firstAnchor : ℕ)) (O.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + ENNReal.ofReal δ
 

@@ -14,14 +14,14 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-section Edges
+section EdgeTable
 
 /-- The two edge maps point every leaf's edges at the same targets. -/
-def TgtAgree (T : DTree α) (e e' : Edges α) : Prop :=
-  ∀ p ∈ T.paths, ∀ c, (e p c).map Prod.fst = (e' p c).map Prod.fst
+def TgtAgree (T : DTree α) (e e' : EdgeTable α) : Prop :=
+  ∀ p ∈ T.leaves, ∀ c, (e p c).map Prod.fst = (e' p c).map Prod.fst
 
-theorem follow_congr {T : DTree α} {e e' : Edges α} (he : EdgesInto T e) (h : TgtAgree T e e') :
-    ∀ (cs : List α) (p : List Bool), p ∈ T.paths → follow e p cs = follow e' p cs
+theorem follow_congr {T : DTree α} {e e' : EdgeTable α} (he : EdgesInto T e) (h : TgtAgree T e e') :
+    ∀ (cs : List α) (p : List Bool), p ∈ T.leaves → follow e p cs = follow e' p cs
   | [], _, _ => rfl
   | c :: cs, p, hp => by
     have hc := h p hp c
@@ -33,24 +33,24 @@ theorem follow_congr {T : DTree α} {e e' : Edges α} (he : EdgesInto T e) (h : 
       | rfl
       | (subst hc; simp only []; rw [follow_congr he h cs q (he _ _ _ _ h1)])
 
-variable {cut : FreeMonoid α → Option Bool} {T : DTree α} {e e' : Edges α} {k : ℕ}
+variable {cut : FreeMonoid α → Option Bool} {T : DTree α} {e e' : EdgeTable α} {k : ℕ}
   {x : FreeMonoid α}
 
 theorem kWalkBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     kWalkBy cut T e k x = kWalkBy cut T e' k x := by
   simp only [kWalkBy]
-  rcases hs : T.sift cut (prefixOf x k) with p | b
+  rcases hs : T.siftCut cut (prefixOf x k) with p | b
   · simp only []
-    rw [follow_congr he h _ p (DTree.sift_mem_paths _ _ _ hs)]
+    rw [follow_congr he h _ p (DTree.siftCut_mem_paths _ _ _ hs)]
   · rfl
 
 theorem walkToBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     walkToBy cut T e k x = walkToBy cut T e' k x := by
   funext j
   simp only [walkToBy]
-  rcases hs : T.sift cut (prefixOf x k) with p | b
+  rcases hs : T.siftCut cut (prefixOf x k) with p | b
   · simp only []
-    rw [follow_congr he h _ p (DTree.sift_mem_paths _ _ _ hs)]
+    rw [follow_congr he h _ p (DTree.siftCut_mem_paths _ _ _ hs)]
   · rfl
 
 theorem walkCheckBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
@@ -68,41 +68,41 @@ theorem ptHarvBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
 
 open scoped Classical in
 /-- Edge maps out of the leaves into the leaves, each witness `1`. -/
-noncomputable def edgeMaps (T : DTree α) : Finset (Edges α) :=
-  (Finset.univ : Finset (↥(T.paths.toFinset ×ˢ (Finset.univ : Finset α))
-    → Option ↥T.paths.toFinset)).image fun f p c =>
-      if h : (p, c) ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α) then
+noncomputable def edgeMaps (T : DTree α) : Finset (EdgeTable α) :=
+  (Finset.univ : Finset (↥(T.leaves.toFinset ×ˢ (Finset.univ : Finset α))
+    → Option ↥T.leaves.toFinset)).image fun f p c =>
+      if h : (p, c) ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α) then
         (f ⟨(p, c), h⟩).map fun t => (t.1, 1)
       else none
 
 theorem edgeMaps_card (T : DTree α) :
-    (edgeMaps T).card ≤ (T.paths.length + 1) ^ (T.paths.length * Fintype.card α) := by
+    (edgeMaps T).card ≤ (T.leaves.length + 1) ^ (T.leaves.length * Fintype.card α) := by
   classical
   refine Finset.card_image_le.trans ?_
   simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_option, Fintype.card_coe,
     Finset.card_product, Finset.card_univ]
-  have h := List.toFinset_card_le T.paths
-  calc _ ≤ (T.paths.length + 1) ^ (T.paths.toFinset.card * Fintype.card α) := by gcongr
+  have h := List.toFinset_card_le T.leaves
+  calc _ ≤ (T.leaves.length + 1) ^ (T.leaves.toFinset.card * Fintype.card α) := by gcongr
     _ ≤ _ := by
       apply Nat.pow_le_pow_right (by omega)
       gcongr
 
-theorem exists_edgeMaps {T : DTree α} {e : Edges α} (he : EdgesInto T e) :
+theorem exists_edgeMaps {T : DTree α} {e : EdgeTable α} (he : EdgesInto T e) :
     ∃ e' ∈ edgeMaps T, TgtAgree T e e' ∧ EdgesInto T e' := by
   classical
-  refine ⟨fun p c => if h : (p, c) ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α) then
+  refine ⟨fun p c => if h : (p, c) ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α) then
       (e p c).map fun q => (q.1, 1) else none, ?_, ?_, ?_⟩
   · refine Finset.mem_image.2 ⟨fun pc => (e pc.1.1 pc.1.2).bind fun q =>
-      if hq : q.1 ∈ T.paths.toFinset then some ⟨q.1, hq⟩ else none, Finset.mem_univ _, ?_⟩
+      if hq : q.1 ∈ T.leaves.toFinset then some ⟨q.1, hq⟩ else none, Finset.mem_univ _, ?_⟩
     funext p c
     split_ifs with h
     · rcases hpc : e p c with _ | ⟨q, w⟩
       · simp [hpc]
-      · have hq : q ∈ T.paths := he _ _ _ _ hpc
+      · have hq : q ∈ T.leaves := he _ _ _ _ hpc
         simp [hpc, hq]
     · rfl
   · intro p hp c
-    have h : (p, c) ∈ T.paths.toFinset ×ˢ (Finset.univ : Finset α) := by simp [hp]
+    have h : (p, c) ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α) := by simp [hp]
     simp only [dif_pos h]
     rcases e p c with _ | ⟨q, w⟩ <;> simp
   · intro p c q w hpc
@@ -114,19 +114,19 @@ theorem exists_edgeMaps {T : DTree α} {e : Edges α} (he : EdgesInto T e) :
         obtain ⟨rfl, -⟩ := hpc
         exact he _ _ _ _ he'
 
-end Edges
+end EdgeTable
 
 section CutK
 
 /-- The sifts of `x`'s prefixes from position `k` on agree. -/
 def PrefAgreeK (cut cut' : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) (k : ℕ) :
     Prop :=
-  ∀ j, k ≤ j → t.sift cut (prefixOf x j) = t.sift cut' (prefixOf x j)
+  ∀ j, k ≤ j → t.siftCut cut (prefixOf x j) = t.siftCut cut' (prefixOf x j)
 
-variable {cut cut' : FreeMonoid α → Option Bool} {t : DTree α} {edges : Edges α} {k : ℕ}
+variable {cut cut' : FreeMonoid α → Option Bool} {t : DTree α} {edges : EdgeTable α} {k : ℕ}
   {x : FreeMonoid α}
 
-theorem PrefAgreeK.whole (h : PrefAgreeK cut cut' t x k) : t.sift cut x = t.sift cut' x := by
+theorem PrefAgreeK.whole (h : PrefAgreeK cut cut' t x k) : t.siftCut cut x = t.siftCut cut' x := by
   by_cases hk : k ≤ x.toList.length
   · have := h x.toList.length hk
     rwa [show prefixOf x x.toList.length = x by simp [prefixOf]] at this

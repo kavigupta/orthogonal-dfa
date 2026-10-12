@@ -32,7 +32,7 @@ section Learned
 variable (R : CutReads α)
 
 omit [Fintype α] [DecidableEq α] in
-theorem follow_inl {edges : Edges α} :
+theorem follow_inl {edges : EdgeTable α} :
     ∀ (cs : List α) (p : List Bool) (ps : List (List Bool)), follow edges p cs = .inl ps →
       ps.length = cs.length + 1 ∧ ps.getD 0 [] = p
         ∧ ∀ i (hi : i < cs.length), ∃ y, edges (ps.getD i []) cs[i] = some (ps.getD (i + 1) [], y)
@@ -58,7 +58,7 @@ theorem follow_inl {edges : Edges α} :
       · simp at h
 
 omit [Fintype α] [DecidableEq α] in
-theorem follow_inr {edges : Edges α} :
+theorem follow_inr {edges : EdgeTable α} :
     ∀ (cs : List α) (p s : List Bool) (c : α) (i : ℕ), follow edges p cs = .inr (s, c, i) →
       ∃ (hi : i < cs.length), cs[i] = c ∧ edges s c = none
         ∧ ∃ ps, follow edges p (cs.take i) = .inl ps ∧ ps.getLast? = some s

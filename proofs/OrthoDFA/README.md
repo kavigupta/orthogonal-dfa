@@ -181,8 +181,17 @@ settings.
   most `ε`, or at most `κ` times as often as it is undecided. `BandPasses` is the check the band
   selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`, `ε₂ =
   MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
-- `OrthoDFA/RoundEnd.lean` — `EndsWell`, the ending every level of the round claims.
-- `OrthoDFA/IdealRound.lean` — the round with ideal reads, and `IdealRoundCorrect`.
+- `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`), where a replay
+  of one is anchored (`uniformAnchor`), and the share of draws visiting given states (`coverage`).
+- `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
+  level: consistent, or a harvest mostly at bad states whose replay is spread and yields.
+- `OrthoDFA/Hypothesis.lean` — the learner's hypothesis: a tree sifting strings to its leaves, and
+  edges between the leaves.
+- `OrthoDFA/Level2Probe.lean` and `OrthoDFA/Level2.lean` — level 2 of indecisive L\*,
+  `indecisiveLStarLevel2`.
+- `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
+  all on its side, level 2 on `P` probes ends well but for chance at most `(P + 1)(1 − ε)^n`, `n`
+  the clean probes in a row that end it.
 - `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRoundCorrect`.
   `Proofs/TallyRiskDefs.lean` holds the internal bound (`TallyRoundRisk`, `TallyRiskBound`), and
   `Proofs/TallyCorrect.lean` derives the claim from it at the chosen settings.

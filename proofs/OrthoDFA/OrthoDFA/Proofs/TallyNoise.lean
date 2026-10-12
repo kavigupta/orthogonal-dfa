@@ -29,24 +29,24 @@ instance : Finite ARU :=
 
 section Sift
 
-theorem sift_congr_mid {cut cut' : FreeMonoid α → Option Bool} :
+theorem siftCut_congr_mid {cut cut' : FreeMonoid α → Option Bool} :
     ∀ (T : DTree α) (u : FreeMonoid α), (∀ m ∈ T.midfixes, cut (u * m) = cut' (u * m)) →
-      T.sift cut u = T.sift cut' u
+      T.siftCut cut u = T.siftCut cut' u
   | .leaf, _, _ => rfl
   | .node m r a, u, h => by
     have hm := h m (by simp [DTree.midfixes])
-    have hr := sift_congr_mid r u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    have ha := sift_congr_mid a u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    simp only [DTree.sift, DTree.route] at hr ha ⊢
+    have hr := siftCut_congr_mid r u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
+    have ha := siftCut_congr_mid a u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
+    simp only [DTree.siftCut, DTree.route] at hr ha ⊢
     rw [hm]
     rcases cut' (u * m) with _ | _ | _ <;> simp [hr, ha]
 
-theorem sift_inr {cut : FreeMonoid α → Option Bool} :
-    ∀ (T : DTree α) (u b : FreeMonoid α), T.sift cut u = .inr b →
+theorem siftCut_inr {cut : FreeMonoid α → Option Bool} :
+    ∀ (T : DTree α) (u b : FreeMonoid α), T.siftCut cut u = .inr b →
       ∃ m ∈ T.midfixes, b = u * m ∧ cut (u * m) = none
-  | .leaf, _, _, h => by simp [DTree.sift, DTree.route] at h
+  | .leaf, _, _, h => by simp [DTree.siftCut, DTree.route] at h
   | .node m r a, u, b, h => by
-    simp only [DTree.sift, DTree.route] at h
+    simp only [DTree.siftCut, DTree.route] at h
     rcases hc : cut (u * m) with _ | _ | _ <;> simp only [hc] at h
     · simp only [Sum.inr.injEq] at h
       exact ⟨m, by simp [DTree.midfixes], h.symm, hc⟩
@@ -54,22 +54,22 @@ theorem sift_inr {cut : FreeMonoid α → Option Bool} :
       · simp at h
       · simp only [Sum.map_inr, id, Sum.inr.injEq] at h
         subst h
-        obtain ⟨m', hm', h1, h2⟩ := sift_inr r u b' hr
+        obtain ⟨m', hm', h1, h2⟩ := siftCut_inr r u b' hr
         exact ⟨m', by simp [DTree.midfixes, hm'], h1, h2⟩
     · rcases ha : (a.route cut u).2 with q | b' <;> rw [ha] at h
       · simp at h
       · simp only [Sum.map_inr, id, Sum.inr.injEq] at h
         subst h
-        obtain ⟨m', hm', h1, h2⟩ := sift_inr a u b' ha
+        obtain ⟨m', hm', h1, h2⟩ := siftCut_inr a u b' ha
         exact ⟨m', by simp [DTree.midfixes, hm'], h1, h2⟩
 
-theorem midfixes_card : ∀ T : DTree α, T.midfixes.card + 1 ≤ T.paths.length
-  | .leaf => by simp [DTree.midfixes, DTree.paths]
+theorem midfixes_card : ∀ T : DTree α, T.midfixes.card + 1 ≤ T.leaves.length
+  | .leaf => by simp [DTree.midfixes, DTree.leaves]
   | .node m r a => by
     classical
     have hr := midfixes_card r
     have ha := midfixes_card a
-    simp only [DTree.midfixes, DTree.paths, List.length_append, List.length_map]
+    simp only [DTree.midfixes, DTree.leaves, List.length_append, List.length_map]
     have := Finset.card_insert_le m (r.midfixes ∪ a.midfixes)
     have := Finset.card_union_le r.midfixes a.midfixes
     omega
@@ -203,13 +203,13 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
     intro T hT
     set Sb : FreeMonoid α → Finset (FreeMonoid α) := fun u => T.midfixes.image (u * ·)
     set bad : FreeMonoid α → (FreeMonoid α → Option Bool) → Prop := fun u cut =>
-      ∃ b, T.sift cut u = .inr b ∧ G.Good (G.M.eval b.toList)
+      ∃ b, T.siftCut cut u = .inr b ∧ G.Good (G.M.eval b.toList)
     set cutOf : ∀ u, (Sb u → ARU) → FreeMonoid α → Option Bool := fun u v z =>
       if h : z ∈ Sb u then (v ⟨z, h⟩).cut else none
     have hcutOf : ∀ u ω, bad u (cutOf u fun z => read z ω) ↔ bad u fun z => (read z ω).cut := by
       intro u ω
       simp only [bad]
-      rw [sift_congr_mid (cut' := fun z => (read z ω).cut) T u fun m hm => by
+      rw [siftCut_congr_mid (cut' := fun z => (read z ω).cut) T u fun m hm => by
         simp only [cutOf]
         rw [dif_pos (show u * m ∈ Sb u from Finset.mem_image_of_mem (u * ·) hm)]]
     set E : FreeMonoid α → Set Ω := fun u => {ω | bad u fun z => (read z ω).cut}
@@ -226,7 +226,7 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
       have hsub : E u ⊆ ⋃ m ∈ T.midfixes.filter (fun m => G.Good (G.M.eval (u * m).toList)),
           {ω | read (u * m) ω = .undecided} := by
         rintro ω ⟨b, hb, hg⟩
-        obtain ⟨m, hm, rfl, hc⟩ := sift_inr T u b hb
+        obtain ⟨m, hm, rfl, hc⟩ := siftCut_inr T u b hb
         refine Set.mem_biUnion (Finset.mem_filter.2 ⟨hm, hg⟩) ?_
         simp only [Set.mem_ofPred_eq]
         revert hc
