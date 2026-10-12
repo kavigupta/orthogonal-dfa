@@ -100,12 +100,12 @@ def follow(edges, leaf: Optional[Path], letters: bytes):
 def ends(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> List[int]:
     """The positions ``walkCheckBy`` sifts before any search, the second only
     where the first is decided."""
-    walk, open_ = follow(edges, tree.route(cut, x[:k])[1], x[k:])
+    walk, unlearned_step = follow(edges, tree.route(cut, x[:k])[1], x[k:])
     if not walk:
         return []
-    if open_ is None:
+    if unlearned_step is None:
         return [len(x)]
-    return [k + open_ + 1, k + open_]
+    return [k + unlearned_step + 1, k + unlearned_step]
 
 
 def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
@@ -121,9 +121,9 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
     def located(outcome, positions):
         return Located(outcome, walk, {i: sift(i)[1] for i in positions if k < i})
 
-    walk, open_ = follow(edges, sift(k)[0], x[k:])
-    hi = len(x) if open_ is None else k + open_
-    before = [] if open_ is None else [hi + 1]
+    walk, unlearned_step = follow(edges, sift(k)[0], x[k:])
+    hi = len(x) if unlearned_step is None else k + unlearned_step
+    before = [] if unlearned_step is None else [hi + 1]
     if before and sift(hi + 1)[0] is None:
         return located(End(sift(hi + 1)[1]), before)
 
@@ -138,7 +138,7 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
         outcome = Start(sift(k)[1])
     elif kind == UNDECIDED_HI:
         outcome = End(sift(hi)[1])
-    elif kind == ALL_AGREE and open_ is None:
+    elif kind == ALL_AGREE and unlearned_step is None:
         outcome = Agree()
     elif kind == ALL_AGREE:
         outcome = Member((walk[-1], x[hi]), sift(hi + 1)[0], x[:hi])

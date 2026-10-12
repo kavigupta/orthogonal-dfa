@@ -15,25 +15,41 @@ def warmed_draws(
 ) -> Iterator[bytes]:
     # Not trajectory-neutral: a block is drawn ahead, and one that sees a change
     # has read for its later probes under the old hypothesis.
-    c = search.config
+    config = search.config
     block, done = 1, 0
-    while done < c.max_probes:
+    while done < config.max_probes:
         version = search.version
-        settle = next(
-            (m for m in range(1, MAX_BLOCK) if search.settles_below(search.n + m)),
+        until_success = next(
+            (
+                more
+                for more in range(1, MAX_BLOCK)
+                if search.succeeds_at(search.stretch_probes + more)
+            ),
             MAX_BLOCK,
         )
-        size = min(block, c.max_probes - done, settle)
+        size = min(block, config.max_probes - done, until_success)
         xs = [draw() for _ in range(size)]
-        firsts = [
-            (x, e)
+        with_ends = [
+            (x, positions)
             for x in xs
-            for e in [ends(search.cut, search.tree, search.edges, c.k, x)]
-            if e
+            for positions in [ends(search.cut, search.tree, search.edges, config.k, x)]
+            if positions
         ]
-        _warm(search, warm, [x[: e[0]] for x, e in firsts])
-        decided = [(x, e) for x, e in firsts if search.sift(x[: e[0]]) is not None]
-        _warm(search, warm, [x[: e[1]] for x, e in decided if len(e) == 2])
+        _warm(search, warm, [x[: positions[0]] for x, positions in with_ends])
+        first_decided = [
+            (x, positions)
+            for x, positions in with_ends
+            if search.sift(x[: positions[0]]) is not None
+        ]
+        _warm(
+            search,
+            warm,
+            [
+                x[: positions[1]]
+                for x, positions in first_decided
+                if len(positions) == 2
+            ],
+        )
         yield from xs
         done += size
         block = min(2 * block, MAX_BLOCK) if search.version == version else 1

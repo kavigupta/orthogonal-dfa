@@ -29,13 +29,13 @@ class TestCharging(unittest.TestCase):
         search = quiet_search(parity_cut([b"\x01\x00"]), PARITY_EDGES)
         search.step(b"\x01\x00")
         search.step(b"\x01\x00")
-        self.assertEqual(4, search.charged[(ODD, 0)])
+        self.assertEqual(4, search.traversals[(ODD, 0)])
         self.assertEqual([b"\x01\x00"] * 2, search.edge_harvest[(ODD, 0)])
 
     def test_the_start_is_not_charged_to_an_edge(self):
         search = quiet_search(parity_cut(()), PARITY_EDGES)
         search.step(b"\x01")
-        self.assertEqual({(EVEN, 1): 1}, dict(search.charged))
+        self.assertEqual({(EVEN, 1): 1}, dict(search.traversals))
 
 
 class TestLearningAndRecords(unittest.TestCase):
@@ -43,13 +43,15 @@ class TestLearningAndRecords(unittest.TestCase):
         search = quiet_search(parity_cut(()), {})
         search.step(b"\x01\x00")
         self.assertEqual({(EVEN, 1): (ODD, b"")}, search.edges)
-        self.assertEqual((0, 1, 1), (search.n, search.probes, search.version))
+        self.assertEqual(
+            (0, 1, 1), (search.stretch_probes, search.probes, search.version)
+        )
 
     def test_a_clean_disagreement_records_at_its_edge(self):
         search = quiet_search(parity_cut(()), WRONG_ODD_0, m=3)
         search.step(b"\x01\x00\x00\x00")
         self.assertEqual({(ODD, 0): [(b"\x01", ODD)]}, search.records)
-        self.assertEqual((1, 1), (search.n, search.searches))
+        self.assertEqual((1, 1), (search.stretch_probes, search.stretch_searches))
 
     def test_m_records_at_another_target_redirect_the_edge(self):
         search = quiet_search(parity_cut(()), WRONG_ODD_0)
@@ -57,7 +59,9 @@ class TestLearningAndRecords(unittest.TestCase):
         search.step(b"\x01\x00\x01\x01")
         self.assertEqual((ODD, b"\x01"), search.edges[(ODD, 0)])
         self.assertEqual(2, len(search.records[(ODD, 0)]), "a redirect keeps them")
-        self.assertEqual((0, 0, 1), (search.n, search.searches, search.version))
+        self.assertEqual(
+            (0, 0, 1), (search.stretch_probes, search.stretch_searches, search.version)
+        )
 
     def test_one_record_short_fixes_nothing(self):
         search = quiet_search(parity_cut(()), WRONG_ODD_0)
@@ -72,10 +76,10 @@ class TestLearningAndRecords(unittest.TestCase):
         )
         search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x01", EVEN)] * 2
         search.version = 7
-        self.assertIsNone(search._settle_one())  # pylint: disable=protected-access
+        self.assertIsNone(search._fix_one_edge())  # pylint: disable=protected-access
 
         self.assertEqual(b"\x01", search.tree.midfix_at(EVEN))
-        self.assertEqual({(False, False), (False, True), ODD}, search.paths)
+        self.assertEqual({(False, False), (False, True), ODD}, search.leaves)
         self.assertEqual({}, search.records)
         self.assertEqual(8, search.version)
         # Out of the split leaf: dropped.  Into it: its witness re-sifted, the empty
@@ -88,13 +92,13 @@ class TestLearningAndRecords(unittest.TestCase):
             {(EVEN, 1): (ODD, b"\x01\x01"), (ODD, 1): (EVEN, b"")},
         )
         search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x00", EVEN)] * 2
-        search._settle_one()  # pylint: disable=protected-access
+        search._fix_one_edge()  # pylint: disable=protected-access
         self.assertEqual({}, search.edges)
 
     def test_a_tree_past_its_cap_ends_the_round(self):
         search = quiet_search(mod3_cut, {(EVEN, 1): (ODD, b"")}, max_leaves=2)
         search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x01", EVEN)] * 2
-        ending = search._settle_one()  # pylint: disable=protected-access
+        ending = search._fix_one_edge()  # pylint: disable=protected-access
         self.assertEqual(TOO_BIG, ending.kind)
 
 
