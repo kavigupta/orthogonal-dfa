@@ -72,8 +72,8 @@ theorem binE_mono (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f g : ℕ → ℝ} 
     positivity
   exact mul_le_mul_of_nonneg_left (h j) this
 
-theorem binE_mono_le (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f g : ℕ → ℝ}
-    (h : ∀ j ≤ n, f j ≤ g j) : binE n p f ≤ binE n p g := by
+theorem binE_mono_le (hp0 : 0 ≤ p) (hp1 : p ≤ 1) {n : ℕ} {f g : ℕ → ℝ} (h : ∀ j ≤ n, f j ≤ g j) :
+    binE n p f ≤ binE n p g := by
   refine sum_le_sum fun j hj => ?_
   have : 0 ≤ (n.choose j : ℝ) * p ^ j * (1 - p) ^ (n - j) := by
     have : 0 ≤ 1 - p := by linarith
@@ -115,8 +115,8 @@ theorem binE_le_of_le {p' : ℝ} (hp0 : 0 ≤ p) (hpp : p ≤ p') (hp1 : p' ≤ 
           nlinarith
 
 /-- An antitone function of `Bin(n, p)` falls with `p`. -/
-theorem binE_le_of_le_anti {p' : ℝ} (hp0 : 0 ≤ p) (hpp : p ≤ p') (hp1 : p' ≤ 1) (n : ℕ)
-    (f : ℕ → ℝ) (hf : Antitone f) : binE n p' f ≤ binE n p f := by
+theorem binE_le_of_le_anti {p' : ℝ} (hp0 : 0 ≤ p) (hpp : p ≤ p') (hp1 : p' ≤ 1) (n : ℕ) (f : ℕ → ℝ)
+    (hf : Antitone f) : binE n p' f ≤ binE n p f := by
   have := binE_le_of_le hp0 hpp hp1 n (fun j => -f j) fun i j h => neg_le_neg (hf h)
   have e : ∀ q, binE n q (fun j => -f j) = -binE n q f := fun q => by
     have := binE_lin n q (-1) 0 f f
@@ -234,8 +234,8 @@ theorem stretchRisk_nonneg (C : Level3Settings) (L Ns N₁ : ℕ) (G θr εd' θ
     sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _) ha
   have : 0 ≤ ∑ n ∈ Icc 1 Ns,
       (binomSfGe n G ⌈(C.edgeExcess + C.edgeRate * C.edgeReadShare * n) / (2 * (L + 1))⌉₊
-        + binomSfGe n G ((hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊) + 1)
-            / 2)) :=
+        + binomSfGe n G
+          ((hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊) + 1) / 2)) :=
     sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _)
       (binomSfGe_nonneg hG0 hG1 _ _)
   linarith

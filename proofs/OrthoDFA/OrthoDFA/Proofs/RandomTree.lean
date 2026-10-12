@@ -152,8 +152,8 @@ theorem classSet_mono' [Fintype α] {n n' : ℕ} (h : n ≤ n') :
   | refl => exact le_rfl
   | step _ ih => exact ih.trans (classSet_mono _)
 
-theorem classSet_split [Fintype α] {n : ℕ} {T : DTree α} (hT : T ∈ classSet n)
-    {p t t₀ : List Bool} {c : α} (hp : p ∈ T.leaves) (ht : t ∈ T.leaves) (ht₀ : t₀ ∈ T.leaves) :
+theorem classSet_split [Fintype α] {n : ℕ} {T : DTree α} (hT : T ∈ classSet n) {p t t₀ : List Bool}
+    {c : α} (hp : p ∈ T.leaves) (ht : t ∈ T.leaves) (ht₀ : t₀ ∈ T.leaves) :
     T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p ∈ classSet (n + 1) := by
   classical
   simp only [classSet]
@@ -174,16 +174,15 @@ section Steps
 
 variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
-theorem inv_start (hm : 1 ≤ C.recordsToMove) (h2 : 2 ≤ C.maxLeaves) : Inv read C
-    (initialState : Level3State α) where
+theorem inv_start (hm : 1 ≤ C.recordsToMove) (h2 : 2 ≤ C.maxLeaves) :
+    Inv read C (initialState : Level3State α) where
   edges := fun _ _ _ _ _ h => by simp [initialState, newHypothesis] at h
   recs_lt := fun _ => by simp [initialState, newHypothesis]; omega
   size := by simp [initialState, newHypothesis, DTree.leaves]; omega
   reached := by
     intro p hp
     simp only [initialState, newHypothesis, DTree.leaves, List.map_cons, List.map_nil,
-        List.cons_append,
-      List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+      List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl
     · exact Or.inl rfl
     · exact Or.inr (Or.inl rfl)
@@ -197,8 +196,7 @@ theorem leaves_root : (DTree.node 1 .leaf .leaf : DTree α).leaves = [[false], [
 theorem Ψr_start (h2 : 2 ≤ C.maxLeaves) :
     Ψr C (initialState : Level3State α) + 1 ≤ stretches C (Fintype.card α) := by
   have hΦ := Ideal.Φ_le (Ideal.newHypothesis (initialState : Level3State α).tree
-      (initialState : Level3State α).edges
-    (initialState : Level3State α).redirected)
+    (initialState : Level3State α).edges (initialState : Level3State α).redirected)
   unfold Ψr stretches Ideal.Ψ
   simp only [initialState, newHypothesis, Ideal.newHypothesis] at hΦ ⊢
   rw [leaves_root] at hΦ ⊢
@@ -231,16 +229,16 @@ theorem finish_inl {t s' : Level3State α} (h : applyTests C t = .inl s') : s' =
   · rename_i hl
     exact ⟨by simpa using h.symm, hl⟩
 
-theorem countProbe_tree (s : Level3State α) (x : FreeMonoid α) : (countProbe read C s x).tree
-    = s.tree := rfl
-theorem countProbe_edges (s : Level3State α) (x : FreeMonoid α) : (countProbe read C s x).edges
-    = s.edges := rfl
-theorem countProbe_redirected (s : Level3State α) (x : FreeMonoid α) : (countProbe read C s
-    x).redirected = s.redirected := rfl
-theorem countProbe_records (s : Level3State α) (x : FreeMonoid α) : (countProbe read C s x).records
-    = s.records := rfl
-theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) : (countProbe read C s
-    x).probeCount = s.probeCount + 1 := rfl
+theorem countProbe_tree (s : Level3State α) (x : FreeMonoid α) :
+    (countProbe read C s x).tree = s.tree := rfl
+theorem countProbe_edges (s : Level3State α) (x : FreeMonoid α) :
+    (countProbe read C s x).edges = s.edges := rfl
+theorem countProbe_redirected (s : Level3State α) (x : FreeMonoid α) :
+    (countProbe read C s x).redirected = s.redirected := rfl
+theorem countProbe_records (s : Level3State α) (x : FreeMonoid α) :
+    (countProbe read C s x).records = s.records := rfl
+theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) :
+    (countProbe read C s x).probeCount = s.probeCount + 1 := rfl
 
 /-- The steps that keep the hypothesis: a look after counting the probe. -/
 theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read C s)
@@ -257,8 +255,8 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read C 
         C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
         redirectOrSplit read C s p c u t = .inl s')
     ∨ (s' = countProbe read C
-          { s with records := s.records ++ (recOf (probeOrAgree read s.tree s.edges C.walkStart
-              x)).toList } x
+          { s with records :=
+            s.records ++ (recOf (probeOrAgree read s.tree s.edges C.walkStart x)).toList } x
         ∧ runTests C s' = none
         ∧ ∀ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t →
           ¬ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t)) := by
@@ -287,9 +285,9 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read C 
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
 /-- A step that keeps the hypothesis counts one more probe. -/
-theorem step_same {s s' : Level3State α} (hs : Inv read C s)
-    {x : FreeMonoid α} (h : applyProbe read C s x = .inl s') (ht : s'.tree = s.tree)
-    (he : s'.edges = s.edges) : Inv read C s' ∧ Ψr C s' = Ψr C s
+theorem step_same {s s' : Level3State α} (hs : Inv read C s) {x : FreeMonoid α}
+    (h : applyProbe read C s x = .inl s') (ht : s'.tree = s.tree) (he : s'.edges = s.edges) :
+    Inv read C s' ∧ Ψr C s' = Ψr C s
         ∧ s'.probeCount = s.probeCount + 1 := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, -, hfix⟩ |
@@ -334,9 +332,8 @@ theorem step_same {s s' : Level3State α} (hs : Inv read C s)
 two reached. -/
 theorem split_reached {s : Level3State α} (hs : Inv read C s) {p t t₀ : List Bool} {c : α}
     {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
-    (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
-    (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
-    (hne : t₀ ≠ t) :
+    (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t) (hw₀ : s.tree.sift read w₀ = .inl p)
+    (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀) (hne : t₀ ≠ t) :
     Reached read (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) := by
   have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm hne)
   refine Ideal.reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
@@ -346,9 +343,8 @@ theorem split_reached {s : Level3State α} (hs : Inv read C s) {p t t₀ : List 
 
 /-- A split that fits keeps the invariant, the tree in the class, and lowers `Ψr`. -/
 theorem split_ok {s : Level3State α} (hs : Inv read C s) (hm : 1 ≤ C.recordsToMove)
-    {p t t₀ : List Bool} {c : α}
-    {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
-    (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
+    {p t t₀ : List Bool} {c : α} {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves)
+    (hu : s.tree.sift read u = .inl p) (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
     (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
     (hne : t₀ ≠ t)
     (hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length
@@ -373,17 +369,16 @@ theorem split_ok {s : Level3State α} (hs : Inv read C s) (hm : 1 ≤ C.recordsT
 
 /-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
 theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level3State α} (hs : Inv read C s)
-    {x : FreeMonoid α}
-    (h : applyProbe read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
+    {x : FreeMonoid α} (h : applyProbe read C s x = .inl s')
+    (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
     Inv read C s' ∧ s' = newHypothesis s'.tree s'.edges s'.redirected ∧ Ψr C s' < Ψr C s := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, hu, huc, hp, rfl⟩ |
     ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, hfix⟩ | ⟨rfl, -, -⟩
   · refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [newHypothesis]; omega,
-      hs.size,
-      hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-    exact Ideal.Ψ_lt_upd (level2Settings C) (s := Ideal.newHypothesis s.tree s.edges s.redirected)
-        hp _ _
+      hs.size, hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
+    exact Ideal.Ψ_lt_upd (level2Settings C)
+      (s := Ideal.newHypothesis s.tree s.edges s.redirected) hp _ _
       (by simp [Ideal.wt, Ideal.newHypothesis, Function.update_self, hE])
   · obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
     unfold redirectOrSplit at hfix
@@ -400,25 +395,22 @@ theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level3State α} (hs : I
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
       refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [newHypothesis]; omega,
-          hs.size,
-        hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-      exact Ideal.Ψ_lt_upd (level2Settings C) (s :=
-          Ideal.newHypothesis s.tree s.edges s.redirected) hp
-          _ _
+        hs.size, hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
+      exact Ideal.Ψ_lt_upd (level2Settings C)
+        (s := Ideal.newHypothesis s.tree s.edges s.redirected) hp _ _
         (by simp [Ideal.wt, Ideal.newHypothesis, Function.update_self, hE, hmv])
   · exact absurd ⟨rfl, rfl⟩ hne
 
 /-- The round ends too big only at a split, of an edge redirected since it was learned, at
-its `m`-th record of a new target. -/
+its `recordsToMove`-th record of a new target. -/
 theorem step_tooBig {s : Level3State α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inr .failed) :
     ∃ p c u t t₀ w₀, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
       s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
       s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
       s.redirected (p, c) = true ∧ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
-      C.maxLeaves < (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
-          p).leaves.length
-        := by
+      C.maxLeaves < (s.tree.splitAt
+        (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length := by
   have hOK := probeOrAgree_ok read hs.edges C.walkStart x
   have hlook : ∀ t : Level3State α, applyTests C t ≠ .inr .failed := by
     intro t ht

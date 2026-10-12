@@ -210,8 +210,8 @@ theorem searches_of_ptStr {o : Outcome α} (h : middleString o ≠ []) : searche
   · rfl
   · exact absurd rfl h
 
-theorem probeOrAgree_pt : ∀ z ∈ middleString (probeOrAgree read T E k x), z ∈ pot k x T
-    ∧ read z = .undecided := by
+theorem probeOrAgree_pt :
+    ∀ z ∈ middleString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
   unfold probeOrAgree at hz
   split_ifs at hz with hs
@@ -266,8 +266,7 @@ theorem undecidedAtEdge_sub (ch : List (List Bool × α × ℕ × Option (FreeMo
   exact ⟨e, (List.mem_filter.1 he).1, hez⟩
 
 theorem undecidedAtEdge_length (ch : List (List Bool × α × ℕ × Option (FreeMonoid α)))
-    (p : List Bool)
-    (c : α) : (undecidedAtEdge ch p c).length ≤ ch.length :=
+    (p : List Bool) (c : α) : (undecidedAtEdge ch p c).length ≤ ch.length :=
   (List.length_filterMap_le _ _).trans (List.length_filter_le _ _)
 
 end Random

@@ -29,8 +29,7 @@ variable {S X E : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonC
 /-- The chance of a bad step is at most the current segment's, plus `Ψ` times a fresh one's. -/
 theorem anyB_le
     (hsame : ∀ s x s', I s → step s x = .inl s' → same s s' → ¬ B s x → I s' ∧ Ψ s' = Ψ s)
-    (hchg : ∀ s x s', I s → step s x = .inl s' → ¬ same s s' → ¬ B s x →
-      I s' ∧ F s' ∧ Ψ s' < Ψ s)
+    (hchg : ∀ s x s', I s → step s x = .inl s' → ¬ same s s' → ¬ B s x → I s' ∧ F s' ∧ Ψ s' < Ψ s)
     (hseg : ∀ s, I s → F s → ∀ N, (Measure.pi fun _ : Fin N => D)
       {xs | SegB step B same s (List.ofFn xs)} ≤ b) :
     ∀ N s, I s → (Measure.pi fun _ : Fin N => D) {xs | AnyB step B s (List.ofFn xs)}
@@ -118,15 +117,13 @@ theorem ends_of_not_anyB (X : Level3State α → FreeMonoid α → Prop) (hm : 1
 theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabilityMeasure D]
     (L P N₁ : ℕ) (G θr εd' θpt' : ℝ) (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-      D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook)
-        (hN₁ : C.firstLook ≤ N₁)
-    (hN₁s : N₁ ≤ Ns) (hθ : 0 ≤ θ) (hG0 : 0 ≤ G) (hG1 : G ≤ 1) (ha : 0 ≤ C.testLevel)
-    (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
-        (hθpt0 : 0 ≤ C.middleRate)
+      D.real (PotGood M U θ C.walkStart read T) ≤ G) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
+    (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
+    (hθ : 0 ≤ θ) (hG0 : 0 ≤ G) (hG1 : G ≤ 1) (ha : 0 ≤ C.testLevel) (hθs0 : 0 ≤ C.startRate)
+    (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 ≤ C.middleRate)
     (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1)
-        (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr)
-    (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
+    (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
+    (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hP : stretches C (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
@@ -209,8 +206,8 @@ theorem finish_tree {s s' : Level3State α} (h : applyTests C s = .inl s') : s'.
   · injection h with h; rw [← h]
 
 theorem fix_root {s s' : Level3State α} {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool}
-    (h : redirectOrSplit read C s p c u t = .inl s') (hs : Ideal.RootOne s.tree) : Ideal.RootOne
-        s'.tree := by
+    (h : redirectOrSplit read C s p c u t = .inl s') (hs : Ideal.RootOne s.tree) :
+    Ideal.RootOne s'.tree := by
   unfold redirectOrSplit splitLeaf at h
   simp only at h
   repeat' (first | split_ifs at h | split at h)
