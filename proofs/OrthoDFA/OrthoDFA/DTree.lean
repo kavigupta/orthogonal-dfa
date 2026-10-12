@@ -40,16 +40,18 @@ def siftWithPath (cut : FreeMonoid α → Option Bool) :
 
 end DTree
 
-/-- Sifting `z` reads it followed by the midfix of each node on its way, the `i`th at the node the
-first `i` decided reads lead to, and no more of them than the tree is deep. A decided sift ends at
-a leaf, along the path its reads decide; an undecided one ends at its only undecided read. -/
 def SiftWithPathCorrect : Prop :=
   ∀ {α : Type*} (cut : FreeMonoid α → Option Bool) (T : DTree α) (z : FreeMonoid α),
-    let r := T.siftWithPath cut z
-    (∀ i (h : i < r.1.length), r.1[i] = z * T.midfixAt ((r.1.filterMap cut).take i))
-    ∧ r.1.length ≤ T.depth
-    ∧ (∀ p, r.2 = some p → p ∈ T.leaves ∧ p = r.1.filterMap cut ∧ ∀ w ∈ r.1, cut w ≠ none)
-    ∧ (r.2 = none →
-        ∃ w, r.1.getLast? = some w ∧ cut w = none ∧ ∀ w' ∈ r.1.dropLast, cut w' ≠ none)
+    let reads := (T.siftWithPath cut z).1
+    let path := (T.siftWithPath cut z).2
+    -- The `i`th read is `z` followed by the midfix of the node the first `i` answers lead to.
+    (∀ i (h : i < reads.length), reads[i] = z * T.midfixAt ((reads.filterMap cut).take i))
+    -- One read per level at most.
+    ∧ reads.length ≤ T.depth
+    -- A decided sift ends at a leaf, along the path its answers spell, with every read decided.
+    ∧ (∀ p, path = some p → p ∈ T.leaves ∧ p = reads.filterMap cut ∧ ∀ w ∈ reads, cut w ≠ none)
+    -- An undecided sift stops at its first undecided read.
+    ∧ (path = none →
+        ∃ w, reads.getLast? = some w ∧ cut w = none ∧ ∀ w' ∈ reads.dropLast, cut w' ≠ none)
 
 end OrthoDFA
