@@ -27,26 +27,23 @@ def SuffixFamily.readOracle {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     ReadOracle μ (fam.readModel θ) :=
   ⟨fun z ω => fam.read ω z, fam.read_measurable, fam.read_indep, fam.read_law⟩
 
-/-- `TallyRoundFamily`: read by a suffix family, the round over `C.budget` probes drawn from `D`,
-of length at most `L`, fails to end well with chance at most `roundRisk` of the family's read
+/-- `TallyRoundFamily`: read by a suffix family, the round over `C.budget` probes drawn from `P.D`
+fails to end well with chance at most `roundRisk` of the family's read
 model plus `exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`, its replay yielding as
 in `TallyRound`. -/
 def TallyRoundFamily : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (fam : SuffixFamily μ α σ)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (θ κs q : ℝ), 2 * fam.κ ≤ κs → 0 < q →
-    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
-      D.real {x | u.toList <+: x.toList} ≤ q) →
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
+    (P : PrefixDistribution α) (C : TallyCfg) (θ κs : ℝ), 2 * fam.κ ≤ κs →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C (fam.cut ω))
-          (TallyEndsWell (fam.readModel θ) D C L
-            (3 / 4 * θ * coverage D L fam.M (fun r => ¬ (fam.readModel θ).Good r)
-              / (L + 1 - startLength L : ℕ)) (fam.read ω))
+          (TallyEndsWell (fam.readModel θ) P.D C P.L
+            (3 / 4 * θ * coverage P.D P.L fam.M (fun r => ¬ (fam.readModel θ).Good r)
+              / (P.L + 1 - startLength P.L : ℕ)) (fam.read ω))
           tallyStart (List.ofFn xs)} ∂μ
-      ≤ roundRisk (fam.readModel θ) D L C κs
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L fam.M
-          (fun r => ¬ (fam.readModel θ).Good r)) / (16 * q)))
+      ≤ roundRisk (fam.readModel θ) P.D P.L C κs
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.L fam.M
+          (fun r => ¬ (fam.readModel θ).Good r)) / (16 * P.q)))
 
 end OrthoDFA
 

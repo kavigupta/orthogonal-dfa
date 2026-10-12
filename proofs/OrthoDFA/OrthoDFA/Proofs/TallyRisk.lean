@@ -75,7 +75,8 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
 theorem tally_round_holds : TallyRound := by
-  intro α _ _ σ _ Ω _ μ _ G R D _ L hlen C κs q hκ hq hpreq
+  intro α _ _ σ _ Ω _ μ _ G R P C κs hκ
+  obtain ⟨D, _, L, hlen, q, hq, hpreq⟩ := P
   obtain ⟨read, hmeas, hind, hlaw⟩ := R
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_

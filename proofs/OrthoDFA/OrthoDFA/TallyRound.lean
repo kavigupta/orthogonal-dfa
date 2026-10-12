@@ -294,61 +294,56 @@ def tallyLog (σ : Type*) [Fintype σ] (S : ℕ) (δ : ℝ) : ℝ :=
     * Real.log ((Fintype.card σ + S + 3) * Fintype.card α / δ)
 
 /-- `TallyRiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the read model,
-at `S` splits that are not genuine, with `Λ = tallyLog σ S δ`, `p₀ = prefixMax D C.k` and
+at `S` splits that are not genuine, with `Λ = tallyLog σ S δ`, `p₀ = prefixMax P.D C.k` and
 `lg = log (1 / C.a)`. -/
 def TallyRiskBound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ]
-    (G : ReadModel α σ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
-    (C : TallyCfg) (κs δ : ℝ) (S : ℕ),
+    (G : ReadModel α σ) (P : PrefixDistribution α) (C : TallyCfg) (κs δ : ℝ) (S : ℕ),
     let n : ℝ := Fintype.card σ + S
     let Λ := tallyLog (α := α) σ S δ
-    let p₀ := prefixMax D C.k
+    let p₀ := prefixMax P.D C.k
     let lg := Real.log (1 / C.a)
     let A : ℝ := Fintype.card α
-    0 < δ → δ ≤ 1 → 1 ≤ L → Fintype.card σ + S + 3 ≤ C.Lmax →
-    0 < G.κ → 2 * G.κ ≤ κs → 4 * κs * (L + 1) ≤ 1 →
-    0 ≤ G.ε → 4 * G.ε * ((L + 1) * (n + 1)) ≤ 1 →
-    0 ≤ G.θ → 24 * G.θ ≤ C.θe → 96 * ((L + 1) * (n + 1)) * G.θ ≤ C.θpt →
+    0 < δ → δ ≤ 1 → 1 ≤ P.L → Fintype.card σ + S + 3 ≤ C.Lmax →
+    0 < G.κ → 2 * G.κ ≤ κs → 4 * κs * (P.L + 1) ≤ 1 →
+    0 ≤ G.ε → 4 * G.ε * ((P.L + 1) * (n + 1)) ≤ 1 →
+    0 ≤ G.θ → 24 * G.θ ≤ C.θe → 96 * ((P.L + 1) * (n + 1)) * G.θ ≤ C.θpt →
     24 * (n + 1) * G.θ + 8 * p₀ * Λ ≤ C.θs → C.θs ≤ 1 →
-    32 * (L + 1) * p₀ * Λ ≤ C.φe * C.θe → 256 * p₀ * Λ ≤ C.θpt * C.φpt →
+    32 * (P.L + 1) * p₀ * Λ ≤ C.φe * C.θe → 256 * p₀ * Λ ≤ C.θpt * C.φpt →
     C.εd ≤ 1 → C.θpt ≤ 1 / 4 → C.φpt ≤ 3 / 4 * C.εd →
     32 * lg ≤ C.n₀ * C.θs ^ 2 → 32 * lg ≤ C.n₀ * C.θpt ^ 2 → 2 * lg ≤ C.n₀ * C.φpt ^ 2 →
-    (∀ j, 4 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg < C.exc j) →
-    (∀ j, C.exc j ≤ 8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) →
+    (∀ j, 4 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg < C.exc j) →
+    (∀ j, C.exc j ≤ 8 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) →
     0 < C.a → 4 * (2 ^ (C.Lmax + 1) * A + 7 * C.budget ^ 2) * C.a ≤ δ →
     (S + Fintype.card σ + 1) * ((2 * C.Lmax * A + 1)
         * (8 * lg / (C.εd ^ 2 * C.θpt ^ 2) + 4 * C.n₀ / (3 * C.εd) + 2)
         + 8 * (Fintype.card σ * A + S + 1) * C.m / C.εd + 32 * lg / C.εd ^ 2 + 1) ≤ C.budget →
     4 * Real.log (8 / δ) ≤ (S + 1) * C.m →
-    16 * κs * (2 * C.Lmax * A * (8 * (L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) + C.n₀)
+    16 * κs * (2 * C.Lmax * A * (8 * (P.L + 1) * (1 + 12 * G.θ * C.Lmax) * lg) + C.n₀)
       ≤ (S + 1) * C.m →
-    16 * κs * C.budget * (C.θe * ((L + 1) * C.Lmax) + 2 * C.θs + 2 * C.Lmax * A * C.φe)
+    16 * κs * C.budget * (C.θe * ((P.L + 1) * C.Lmax) + 2 * C.θs + 2 * C.Lmax * A * C.φe)
       ≤ (S + 1) * C.m →
-    16 * C.budget * (G.ε * ((L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
-    roundRisk G D L C κs ≤ ENNReal.ofReal δ
+    16 * C.budget * (G.ε * ((P.L + 1) * (n + 1)) + 3 * p₀ * Λ) ≤ (S + 1) * C.m →
+    roundRisk G P.D P.L C κs ≤ ENNReal.ofReal δ
 
 
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
-`C.budget` probes drawn from `D`, of length at most `L`, fails to end well with chance at most
-`roundRisk` plus `exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`. The harvest's
-replay yields `0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not
-good from `⌈L/2⌉` on, `n = L + 1 − ⌈L/2⌉` the anchors, and no string past `⌈L/2⌉` starts more
-than `q` of the draws. -/
+`C.budget` probes drawn from `P.D` fails to end well with chance at most `roundRisk` plus
+`exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`. The harvest's replay yields
+`0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not good from
+`⌈L/2⌉` on and `n = L + 1 − ⌈L/2⌉` the anchors. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
-    (R : ReadOracle μ G) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → ∀ (C : TallyCfg) (κs q : ℝ), 2 * G.κ ≤ κs → 0 < q →
-    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
-      D.real {x | u.toList <+: x.toList} ≤ q) →
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
+    (R : ReadOracle μ G) (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut)
-          (TallyEndsWell G D C L (3 / 4 * G.θ * coverage D L G.M (fun r => ¬ G.Good r)
-            / (L + 1 - startLength L : ℕ)) (R.read · ω))
+          (TallyEndsWell G P.D C P.L (3 / 4 * G.θ * coverage P.D P.L G.M (fun r => ¬ G.Good r)
+            / (P.L + 1 - startLength P.L : ℕ)) (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
-      ≤ roundRisk G D L C κs
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * G.θ * coverage D L G.M (fun r => ¬ G.Good r))
-          / (16 * q)))
+      ≤ roundRisk G P.D P.L C κs
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * G.θ * coverage P.D P.L G.M (fun r => ¬ G.Good r))
+          / (16 * P.q)))
 
 end OrthoDFA
 
