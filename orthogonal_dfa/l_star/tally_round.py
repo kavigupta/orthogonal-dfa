@@ -380,46 +380,35 @@ class TallyRound:
         return route(self.cut, self.tree.root, z)[1]
 
     def run(self, draw: Callable[[], bytes]) -> Ending:
-        """``step`` over the draws, warming a block's reads before any search together.
-
-        A block runs past a change or past where success could fire only at the
-        cost of reads the probes stepped alone would not make."""
-        block, queue, version = 1, [], self.version
-        for done in range(self.config.max_probes):
-            if not queue:
-                size = min(block, self.config.max_probes - done, self._before_success())
-                queue = [draw() for _ in range(size)]
-                version = self.version
-                self._warm(queue)
-            ending = self.step(queue.pop(0))
+        """``step`` over ``max_probes`` draws."""
+        for x in self._blocks(draw):
+            ending = self.step(x)
             if ending is not None:
                 return ending
-            if self.version != version:
-                block = 1
-            elif not queue:
-                block = min(2 * block, MAX_BLOCK)
         return Ending(OUT_OF_PROBES, [], None)
 
-    def _before_success(self) -> int:
-        more = 1
-        while not self._settles_below(self.n + more) and more < MAX_BLOCK:
-            more += 1
-        return more
+    def _blocks(self, draw: Callable[[], bytes]):
+        # Optimisation only: pre-reads, in batches, what the next probes will read.
+        # Not trajectory-neutral: it draws a block ahead, and a block that sees a
+        # change has read for its later probes under the old hypothesis.
+        block, done = 1, 0
+        while done < self.config.max_probes:
+            version = self.version
+            settle = next(
+                (m for m in range(1, MAX_BLOCK) if self._settles_below(self.n + m)),
+                MAX_BLOCK,
+            )
+            size = min(block, self.config.max_probes - done, settle)
+            xs = [draw() for _ in range(size)]
+            ends = [(x, e) for x in xs for e in [self.probe(x).ends()] if e]
+            self._warm([x[: e[0]] for x, e in ends])
+            decided = [(x, e) for x, e in ends if self.sift(x[: e[0]]) is not None]
+            self._warm([x[: e[1]] for x, e in decided if len(e) == 2])
+            yield from xs
+            done += size
+            block = min(2 * block, MAX_BLOCK) if self.version == version else 1
 
-    def _warm(self, xs: List[bytes]):
-        k = self.config.k
-        self._warm_routes([x[:k] for x in xs])
-        probes = [self.probe(x) for x in xs]
-        self._warm_routes([p.x[: p.ends()[0]] for p in probes if p.ends()])
-        self._warm_routes(
-            [
-                p.x[: p.ends()[1]]
-                for p in probes
-                if len(p.ends()) > 1 and p.leaf(p.ends()[0]) is not None
-            ]
-        )
-
-    def _warm_routes(self, strings: List[bytes]):
+    def _warm(self, strings: List[bytes]):
         active = [(z, self.tree.root) for z in strings]
         while active:
             active = [(z, node) for z, node in active if not isinstance(node, int)]
