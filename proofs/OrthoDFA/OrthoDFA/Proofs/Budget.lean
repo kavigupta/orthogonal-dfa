@@ -755,7 +755,10 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
     have key' : 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2 / pAP ^ 2 ≤ 16 * H / pAP ^ 2 := by
       rw [← add_div]
       exact div_le_div_of_nonneg_right key hp2pos.le
-    linarith only [key', hR2]
+    calc 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2
+        ≤ 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2 / pAP ^ 2 := by linarith only [hR2]
+      _ ≤ 16 * H / pAP ^ 2 := key'
+      _ = 16 * (H / pAP ^ 2) := by ring
   have h1 := ceil_le_of_le hA (div_nonneg (by linarith only [hPnn]) hpAP.le)
   have h2 := Nat.ceil_lt_add_one (show (0 : ℝ) ≤ Real.log (128 * c / δ)
     / (2 * (9 * pAP / 20) ^ 2) from div_nonneg (Real.log_nonneg (by
@@ -990,8 +993,7 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
     linarith
   have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit (collisionMass (D j)) 0
-      hN hM (hcollD _ htop j hj) (by nlinarith [(Nat.cast_nonneg _ : (0 : ℝ)
-        ≤ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ))])).1
+      hN hM (hcollD _ htop j hj) (by simp only [mul_zero]; positivity)).1
   have hcapsf : collisionMass Dsf
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit :=
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit 0 (collisionMass Dsf)

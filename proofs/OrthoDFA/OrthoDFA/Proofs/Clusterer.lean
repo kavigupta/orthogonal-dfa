@@ -50,7 +50,8 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
-          ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
+          ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p
+            (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
         (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
@@ -63,7 +64,8 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
-          ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
+          ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p
+            (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
         (certOf (prefixesAt populations B.npref x) j B.npref x) (oracleNoise x)}
