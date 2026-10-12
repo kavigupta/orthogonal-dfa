@@ -70,11 +70,12 @@ def EpsRoundCorrect : Prop :=
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) P.D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            P.L (replay (R.read · ω) r.1.tree r.1.edges)
-            (3 / 4 * θ * coverage P.D P.L M (BadAt U θ) / (P.L + 1 - startLength P.L : ℕ))
+            P.start P.L (replay (R.read · ω) r.1.tree r.1.edges)
+            (3 / 4 * θ * coverage P.D P.start P.L M (BadAt U θ) / (P.L + 1 - P.start : ℕ))
             (toRoundEnd r.2)} ∂μ
       ≤ epsRoundRisk (α := α) σ θ εw P.D P.L C ε
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.L M (BadAt U θ)) / (16 * P.q)))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.start P.L M (BadAt U θ))
+          / (16 * P.q)))
 
 end Random
 
