@@ -8,7 +8,7 @@ import scipy.stats
 from .mask_table import UNIFORM, MaskTable
 from .progress import counter
 from .sampler import Sampler
-from .statistics import binomial_side_of_boundary
+from .statistics import rate_side
 from .structures import Oracle
 
 #: Below this a signal is not worth sizing a population for.
@@ -221,9 +221,7 @@ class PrefixSuffixTracker:
             alive = [
                 row
                 for row, count in zip(alive, disagreements)
-                if not binomial_side_of_boundary(
-                    int(count), p, same_family_rate, failure_prob=alpha
-                )
+                if not rate_side(same_family_rate, alpha, 0, p, int(count))
             ]
         return alive
 

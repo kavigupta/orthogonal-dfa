@@ -22,6 +22,10 @@
   result says what `agrees` is where it points, the queries stay between the endpoints and number
   at most `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
+- `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate, and
+  `RateTestSound`: over independent draws it says above with chance at most its failure chance when
+  the true rate is at most the tested one, and below likewise when it is at least.
+  `statistics.rate_side` is the same test.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
