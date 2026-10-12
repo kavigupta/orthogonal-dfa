@@ -32,12 +32,16 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 the populations so far, runs level 4 with it, and adds a harvest's strings as a population.
 Within `|Q| + 1` rounds it stops at a round whose hypothesis's walk and tree part on at most `εd`
 of the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit + 2·slack` of
-the time, or meets a harvest too concentrated for the clustering, but for chance
-`(|Q| + 1)(δc + 2δ)`. The termination argument (`Proofs/LoopTermination.lean`) and the union over
-rounds are proved; three lemmas in `Proofs/LearnerLoop.lean` are `sorry`: one schedule serving
-every set of populations, with bands passing `BandPasses` (`clustering_schedule_exists`), and the
-clustering's and level 4's one-round claims on the loop's draws (`loop_cluster_round_le`,
-`loop_level4_round_le`).
+the time, but for chance `(|Q| + 1)(δc + 3δ)`, for probes whose length-`k` prefix mass is at most
+a `q₀` the theorem chooses. Level 4's settings make every harvest at least `⌈1/cap⌉` strings
+long (`harvest_length_ge`), and a harvest repeats a string only where two probes share their
+length-`k` prefix (`harvest_nodup`), so the clustering admits every harvest as a population.
+
+Everything is proved but three measurability lemmas in `Proofs/LearnerLoop.lean`, each a round's
+outcome as a function of its draws: the earlier rounds' harvests (`measurableSet_harvestsOf`),
+the state and family a round's clustering returns (`measurableSet_roundPick`), and where level 4
+fails its claim (`measurableSet_level4Fail`). Each depends on the noise through finitely many
+reads for given draws.
 
 ## The round, by refinement
 
