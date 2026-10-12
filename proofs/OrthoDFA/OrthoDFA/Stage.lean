@@ -5,8 +5,8 @@ import OrthoDFA.Hypothesis
 # Trees and their reads
 
 A family's cut reads a string accept, reject or undecided (`CutReads`). A discrimination tree
-places a string by reading it followed by each node's midfix (`route`, `siftCut`), and a hypothesis
-sets each leaf's edges by letter (`Hypothesis`).
+(`DTree`) places a string by reading it followed by each node's midfix, asking the cut at each
+(`route`, `siftCut`).
 -/
 
 namespace OrthoDFA

@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyClass
+import OrthoDFA.Proofs.Level4Class
 import OrthoDFA.Proofs.StartAtK
 
 /-!
@@ -157,7 +157,7 @@ chance at most the class's size times `exp(π (e^{λ p₀} − 1)/p₀ − λ θ
 theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k n : ℕ) {p₀ l θgs : ℝ}
     (hθ : 0 ≤ G.θ) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hl : 0 ≤ l) :
@@ -281,7 +281,8 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
         intro ω
         simp only [g, hcutOf]
         by_cases h : bad u fun z => (read z ω).cut
-        · rw [if_pos h, Set.indicator_of_mem (show ω ∈ E u from h), ENNReal.ofReal_sub _ zero_le_one,
+        · rw [if_pos h, Set.indicator_of_mem (show ω ∈ E u from h),
+            ENNReal.ofReal_sub _ zero_le_one,
             ENNReal.ofReal_one, add_tsub_cancel_of_le (by simpa using he1)]
         · rw [if_neg h, Set.indicator_of_notMem (show ω ∉ E u from h), add_zero]
       simp_rw [hpt]

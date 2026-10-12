@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyKeep
+import OrthoDFA.Proofs.Level4Keep
 
 /-!
 # Success is sound
@@ -19,30 +19,31 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Success
 
-variable (C : TallyCfg) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+variable (C : Level4Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
 /-- From `s`, at a hypothesis disagreeing on at least `εd` of the probes, the next `N + 1` probes
 stay in the stretch and search at most `h` times. -/
-def EvC : ℕ → ℕ → TState α → List (FreeMonoid α) → Prop
+def EvC : ℕ → ℕ → Level4State α → List (FreeMonoid α) → Prop
   | _, _, _, [] => False
-  | 0, h, s, x :: _ => C.εd ≤ disRate C D rd s ∧ dt C rd s x ≤ h
-  | N + 1, h, s, x :: xs => C.εd ≤ disRate C D rd s ∧ dt C rd s x ≤ h ∧
-    match tallyStep C (fun z => (rd z).cut) s x with
-    | .inl s' => s'.n ≠ 0 ∧ EvC N (h - dt C rd s x) s' xs
+  | 0, h, s, x :: _ => C.disagreementRate ≤ disRate C D rd s ∧ dt C rd s x ≤ h
+  | N + 1, h, s, x :: xs => C.disagreementRate ≤ disRate C D rd s ∧ dt C rd s x ≤ h ∧
+    match applyProbe C (fun z => (rd z).cut) s x with
+    | .inl s' => s'.stretchProbes ≠ 0 ∧ EvC N (h - dt C rd s x) s' xs
     | .inr _ => False
 
 /-- After `i` probes, the run is at a state from which `Q` holds of the remaining draws. -/
-def SkipC (Q : TState α → List (FreeMonoid α) → Prop) : ℕ → TState α → List (FreeMonoid α) → Prop
+def SkipC (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level4State α
+    → List (FreeMonoid α) → Prop
   | 0, s, l => Q s l
   | _ + 1, _, [] => False
-  | i + 1, s, x :: xs => match tallyStep C (fun z => (rd z).cut) s x with
+  | i + 1, s, x :: xs => match applyProbe C (fun z => (rd z).cut) s x with
     | .inl s' => SkipC Q i s' xs
     | .inr _ => False
 
-theorem skipC_le [IsProbabilityMeasure D] (Q : TState α → List (FreeMonoid α) → Prop)
-    {c : ENNReal} (hQ : ∀ (T : ℕ) (s : TState α),
+theorem skipC_le [IsProbabilityMeasure D] (Q : Level4State α → List (FreeMonoid α) → Prop)
+    {c : ENNReal} (hQ : ∀ (T : ℕ) (s : Level4State α),
       (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
-    ∀ (T i : ℕ) (s : TState α),
+    ∀ (T i : ℕ) (s : Level4State α),
       (Measure.pi fun _ : Fin T => D) {xs | SkipC C rd Q i s (List.ofFn xs)} ≤ c := by
   intro T
   induction T with
@@ -59,9 +60,10 @@ theorem skipC_le [IsProbabilityMeasure D] (Q : TState α → List (FreeMonoid α
     calc ∫⁻ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
           {xs : Fin (T + 1) → FreeMonoid α | SkipC C rd Q (i + 1) s (List.ofFn xs)}} ∂D
         ≤ ∫⁻ _, c ∂D := lintegral_mono fun x => by
-          rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | _
+          rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | _
           · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
-                SkipC C rd Q (i + 1) s (List.ofFn xs)}} = {xs | SkipC C rd Q i s' (List.ofFn xs)} := by
+                SkipC C rd Q (i + 1) s (List.ofFn xs)}}
+                    = {xs | SkipC C rd Q i s' (List.ofFn xs)} := by
               ext xs; simp only [Set.mem_ofPred_eq, List.ofFn_cons, SkipC, hst]
             rw [this]; exact ih i s'
           · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
@@ -72,23 +74,24 @@ theorem skipC_le [IsProbabilityMeasure D] (Q : TState α → List (FreeMonoid α
       _ = c := by rw [lintegral_const, measure_univ, mul_one]
 
 open scoped Classical in
-theorem tallyPre_dis_search (s : TState α) (x : FreeMonoid α) :
-    dt C rd s x = if x ∈ searchAt rd C.k s.tree s.edges then 1 else 0 :=
-  tallyPre_dis_sub C rd s x
+theorem recordProbe_dis_search (s : Level4State α) (x : FreeMonoid α) :
+    dt C rd s x = if x ∈ searchAt rd C.walkStart s.tree s.edges then 1 else 0 :=
+  recordProbe_dis_sub C rd s x
 
 /-- A stretch at a hypothesis disagreeing on at least `εd` of the probes searches at most `h`
 times in its next `N + 1` probes with chance at most `P(Bin(N + 1, εd) ≤ h)`. -/
-theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1) :
-    ∀ (T N h : ℕ) (s : TState α),
+theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
+    (hε1 : C.disagreementRate ≤ 1) :
+    ∀ (T N h : ℕ) (s : Level4State α),
       (Measure.pi fun _ : Fin T => D) {xs | EvC C D rd N h s (List.ofFn xs)}
-        ≤ ENNReal.ofReal (1 - binomSfGe (N + 1) C.εd (h + 1)) := by
+        ≤ ENNReal.ofReal (1 - binomSfGe (N + 1) C.disagreementRate (h + 1)) := by
   classical
   intro T
   induction T with
   | zero => intro N h s; simp [EvC]
   | succ T ih =>
     intro N h s
-    by_cases hd : C.εd ≤ disRate C D rd s
+    by_cases hd : C.disagreementRate ≤ disRate C D rd s
     swap
     · have : {xs : Fin (T + 1) → FreeMonoid α | EvC C D rd N h s (List.ofFn xs)} = ∅ := by
         ext xs
@@ -97,12 +100,12 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
         · exact fun h' => hd h'.1
         · exact fun h' => hd h'.1
       rw [this, measure_empty]; exact zero_le
-    set B := searchAt rd C.k s.tree s.edges
+    set B := searchAt rd C.walkStart s.tree s.edges
     have hB1 : D.real B ≤ 1 := by
       have := measureReal_mono (μ := D) (Set.subset_univ B)
       rwa [probReal_univ] at this
-    set A : ℝ := 1 - binomSfGe N C.εd h
-    set Cc : ℝ := 1 - binomSfGe N C.εd (h + 1)
+    set A : ℝ := 1 - binomSfGe N C.disagreementRate h
+    set Cc : ℝ := 1 - binomSfGe N C.disagreementRate (h + 1)
     have hA0 : 0 ≤ A := sub_nonneg.2 (binomSfGe_le_one hε0 hε1 _)
     have hAC : A ≤ Cc := by
       have := binomSfGe_antitone hε0 hε1 (n := N) h
@@ -113,7 +116,7 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
         ≤ B.indicator (fun _ => ENNReal.ofReal A) x
           + Bᶜ.indicator (fun _ => ENNReal.ofReal Cc) x := by
       intro x
-      have hdt := tallyPre_dis_search C rd s x
+      have hdt := recordProbe_dis_search C rd s x
       by_cases hx : x ∈ B
       · rw [Set.indicator_of_mem hx, Set.indicator_of_notMem (Set.notMem_compl_iff.2 hx), add_zero]
         rw [if_pos hx] at hdt
@@ -130,7 +133,7 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
             simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvC] at hxs
             have := hxs.2.1
             omega
-          rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | _
+          rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | _
           · refine le_trans (measure_mono fun xs hxs => ?_) (ih N h s')
             simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvC, hst] at hxs
             rw [hdt] at hxs
@@ -143,7 +146,7 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
         rcases N with _ | N
         · have : Cc = 1 := by simp [Cc, binomSfGe_zero_left]
           rw [this, ENNReal.ofReal_one]; exact prob_le_one
-        · rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | _
+        · rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | _
           · refine le_trans (measure_mono fun xs hxs => ?_) (ih N h s')
             simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvC, hst] at hxs
             rw [hdt, Nat.sub_zero] at hxs
@@ -162,15 +165,16 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1
       ← ENNReal.ofReal_mul hA0, ← ENNReal.ofReal_mul hC0,
       ← ENNReal.ofReal_add (mul_nonneg hA0 hB0) (mul_nonneg hC0 (by linarith))]
     refine ENNReal.ofReal_le_ofReal ?_
-    have hrec : 1 - binomSfGe (N + 1) C.εd (h + 1) = C.εd * A + (1 - C.εd) * Cc := by
+    have hrec : 1 - binomSfGe (N + 1) C.disagreementRate (h + 1)
+        = C.disagreementRate * A + (1 - C.disagreementRate) * Cc := by
       simp only [A, Cc, binomSfGe_succ]; ring
     rw [hrec]
-    have hdB : C.εd ≤ D.real B := hd
+    have hdB : C.disagreementRate ≤ D.real B := hd
     nlinarith
 
-theorem tallyLook_success' {s : TState α} (h : tallyLook C s = some .success) :
-    C.n₀ ≤ s.n ∧ 1 - binomSfGe s.n C.εd (s.dis + 1) < C.a := by
-  unfold tallyLook at h
+theorem runTests_success' {s : Level4State α} (h : runTests C s = some .success) :
+    C.firstLook ≤ s.stretchProbes ∧ 1 - binomSfGe s.stretchProbes C.disagreementRate (s.stretchDisagreements + 1) < C.testLevel := by
+  unfold runTests at h
   split_ifs at h with h1 h2 h3 h4 <;> simp at h
   unfold rateSide at h4
   split_ifs at h4 with h5 h6 h7 <;> simp_all
@@ -178,15 +182,16 @@ theorem tallyLook_success' {s : TState α} (h : tallyLook C s = some .success) :
 open scoped Classical in
 /-- A round ends in success at a hypothesis disagreeing on at least `εd` of the probes with chance
 at most `T² a`. -/
-theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.εd ≤ 1)
-    (ha1 : C.a ≤ 1) (T : ℕ) :
+theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
+    (hε1 : C.disagreementRate ≤ 1)
+    (ha1 : C.testLevel ≤ 1) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D)
-        {xs | RunEnds (tallyStep C fun z => (rd z).cut)
-          (fun e s' => e = .success ∧ C.εd ≤ disRate C D rd s') tallyStart (List.ofFn xs)}
-      ≤ ENNReal.ofReal (T * T * C.a) := by
-  set P : ℕ → ℕ → Prop := fun n h => 1 - binomSfGe n C.εd (h + 1) < C.a
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut)
+          (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState (List.ofFn xs)}
+      ≤ ENNReal.ofReal (T * T * C.testLevel) := by
+  set P : ℕ → ℕ → Prop := fun n h => 1 - binomSfGe n C.disagreementRate (h + 1) < C.testLevel
   set H : ℕ → ℕ := fun n => Nat.findGreatest (P n) n
-  set Q : ℕ → TState α → List (FreeMonoid α) → Prop := fun N s l =>
+  set Q : ℕ → Level4State α → List (FreeMonoid α) → Prop := fun N s l =>
     P (N + 1) (H (N + 1)) ∧ EvC C D rd N (H (N + 1)) s l
   have hfire : ∀ n d, P n d → d ≤ H n ∧ P n (H n) := by
     intro n d hP
@@ -196,27 +201,28 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.ε
       rw [binomSfGe_gt _ (by omega), sub_zero] at hP
       linarith
     exact ⟨Nat.le_findGreatest hdn hP, Nat.findGreatest_spec hdn hP⟩
-  have hev_ne : ∀ N h (s : TState α) (l : List (FreeMonoid α)), EvC C D rd N h s l →
-      C.εd ≤ disRate C D rd s ∧ l ≠ [] := by
+  have hev_ne : ∀ N h (s : Level4State α) (l : List (FreeMonoid α)), EvC C D rd N h s l →
+      C.disagreementRate ≤ disRate C D rd s ∧ l ≠ [] := by
     intro N h s l hl
     rcases l with _ | ⟨y, ys⟩
     · cases N <;> exact hl.elim
     · rcases N with _ | N
       · exact ⟨hl.1, by simp⟩
       · exact ⟨hl.1, by simp⟩
-  have hincl : ∀ (l : List (FreeMonoid α)) (s : TState α),
-      RunEnds (tallyStep C fun z => (rd z).cut)
-        (fun e s' => e = .success ∧ C.εd ≤ disRate C D rd s') s l →
+  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level4State α),
+      RunEnds (applyProbe C fun z => (rd z).cut)
+        (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') s l →
       (∃ i N, i < l.length ∧ N < l.length ∧ SkipC C rd (Q N) i s l)
-        ∨ ∃ N, N < l.length ∧ P (s.n + N + 1) (H (s.n + N + 1)) ∧ s.dis ≤ H (s.n + N + 1)
-          ∧ EvC C D rd N (H (s.n + N + 1) - s.dis) s l := by
+        ∨ ∃ N, N < l.length ∧ P (s.stretchProbes + N + 1) (H (s.stretchProbes + N + 1))
+            ∧ s.stretchDisagreements ≤ H (s.stretchProbes + N + 1)
+          ∧ EvC C D rd N (H (s.stretchProbes + N + 1) - s.stretchDisagreements) s l := by
     intro l
     induction l with
     | nil => intro s h; exact h.elim
     | cons x xs ih =>
       intro s h
       simp only [RunEnds] at h
-      rcases hst : tallyStep C (fun z => (rd z).cut) s x with s' | ⟨e, s''⟩ <;> rw [hst] at h
+      rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | ⟨e, s''⟩ <;> rw [hst] at h
       · rcases ih s' h with ⟨i, N, hi, hN, hk⟩ | ⟨N, hN, hP, hdis, hev⟩
         · refine .inl ⟨i + 1, N, by simp; omega, by simp; omega, ?_⟩
           simp only [SkipC, hst]
@@ -226,42 +232,43 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.ε
             rcases xs with _ | _
             · exact absurd rfl hxs
             · simp
-          rcases tallyStep_fresh C _ hst with ⟨hn0, hd0, -⟩ | ⟨hpre, hn, htr, hed⟩
+          rcases applyProbe_newStretch C _ hst with ⟨hn0, hd0, -⟩ | ⟨hpre, hn, htr, hed⟩
           · refine .inl ⟨1, N, by simp; omega, by simp; omega, ?_⟩
             simp only [SkipC, hst, Q]
             rw [hn0, zero_add] at hP hdis hev
             rw [hd0, Nat.sub_zero] at hev
             exact ⟨hP, hev⟩
           · subst hpre
-            have hdR : disRate C D rd (tallyPre C (fun z => (rd z).cut) s x)
+            have hdR : disRate C D rd (recordProbe C (fun z => (rd z).cut) s x)
                 = disRate C D rd s := by
               simp only [disRate, htr, hed]
-            have hdtv : (tallyPre C (fun z => (rd z).cut) s x).dis = s.dis + dt C rd s x := by
-              rcases (tallyPre_cases (fun z => (rd z).cut) C s x).2 with
+            have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements = s.stretchDisagreements + dt C rd s x := by
+              rcases (recordProbe_cases (fun z => (rd z).cut) C s x).2 with
                 ⟨-, -, -, -, hdis'⟩ | ⟨-, hn', -⟩
               · simp only [dt]; rw [hdis']; split_ifs <;> omega
               · omega
-            have hεs : C.εd ≤ disRate C D rd s := hdR ▸ (hev_ne _ _ _ _ hev).1
-            have he : s.n + (N + 1) + 1 = (tallyPre C (fun z => (rd z).cut) s x).n + N + 1 := by
+            have hεs : C.disagreementRate ≤ disRate C D rd s := hdR ▸ (hev_ne _ _ _ _ hev).1
+            have he : s.stretchProbes + (N + 1) + 1
+                = (recordProbe C (fun z => (rd z).cut) s x).stretchProbes + N + 1 := by
               omega
             refine .inr ⟨N + 1, by simp; omega, by rw [he]; exact hP, by rw [he]; omega, ?_⟩
             simp only [EvC]
             refine ⟨hεs, by rw [he]; omega, ?_⟩
             rw [hst]
             refine ⟨by omega, ?_⟩
-            rwa [show H (s.n + (N + 1) + 1) - s.dis - dt C rd s x
-              = H ((tallyPre C (fun z => (rd z).cut) s x).n + N + 1)
-                - (tallyPre C (fun z => (rd z).cut) s x).dis by rw [he]; omega]
+            rwa [show H (s.stretchProbes + (N + 1) + 1) - s.stretchDisagreements - dt C rd s x
+              = H ((recordProbe C (fun z => (rd z).cut) s x).stretchProbes + N + 1)
+                - (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements by rw [he]; omega]
       · obtain ⟨rfl, hd⟩ := h
-        obtain ⟨rfl, hl⟩ := tallyStep_inr_pre C _ hst (by simp)
-        obtain ⟨hn₀, hlt⟩ := tallyLook_success' C hl
-        have htr := (tallyPre_cases (fun z => (rd z).cut) C s x).1
-        rcases (tallyPre_cases (fun z => (rd z).cut) C s x).2 with
+        obtain ⟨rfl, hl⟩ := applyProbe_inr_pre C _ hst (by simp)
+        obtain ⟨hn₀, hlt⟩ := runTests_success' C hl
+        have htr := (recordProbe_cases (fun z => (rd z).cut) C s x).1
+        rcases (recordProbe_cases (fun z => (rd z).cut) C s x).2 with
           ⟨-, hed, hn, -, hdis'⟩ | ⟨-, hn0, hd0, -⟩
-        · have hdR : disRate C D rd (tallyPre C (fun z => (rd z).cut) s x)
+        · have hdR : disRate C D rd (recordProbe C (fun z => (rd z).cut) s x)
               = disRate C D rd s := by
             simp only [disRate, htr, hed]
-          have hdtv : (tallyPre C (fun z => (rd z).cut) s x).dis = s.dis + dt C rd s x := by
+          have hdtv : (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements = s.stretchDisagreements + dt C rd s x := by
             simp only [dt]; rw [hdis']; split_ifs <;> omega
           rw [hn] at hlt
           obtain ⟨hle, hPH⟩ := hfire _ _ hlt
@@ -270,10 +277,10 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.ε
           exact ⟨hdR ▸ hd, by simp only [add_zero]; omega⟩
         · rw [hn0, hd0, binomSfGe_zero_left, sub_zero] at hlt
           linarith
-  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (tallyStep C fun z => (rd z).cut)
-        (fun e s' => e = .success ∧ C.εd ≤ disRate C D rd s') tallyStart (List.ofFn xs)}
+  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (applyProbe C fun z => (rd z).cut)
+        (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') initialState (List.ofFn xs)}
       ⊆ ⋃ q ∈ Finset.range T ×ˢ Finset.range T,
-          {xs | SkipC C rd (Q q.2) q.1 tallyStart (List.ofFn xs)} := by
+          {xs | SkipC C rd (Q q.2) q.1 initialState (List.ofFn xs)} := by
     intro xs hxs
     rcases hincl _ _ hxs with ⟨i, N, hi, hN, h⟩ | ⟨N, hN, hP, -, h⟩
     · simp only [List.length_ofFn] at hi hN
@@ -283,20 +290,20 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.εd) (hε1 : C.ε
       refine Set.mem_biUnion (x := (0, N))
         (Finset.mem_product.2 ⟨Finset.mem_range.2 (by omega), Finset.mem_range.2 hN⟩) ?_
       simp only [Set.mem_ofPred_eq, SkipC, Q]
-      simp only [tallyStart, zero_add, Nat.sub_zero] at hP h
+      simp only [initialState, zero_add, Nat.sub_zero] at hP h
       exact ⟨hP, h⟩
   have hterm : ∀ q ∈ Finset.range T ×ˢ Finset.range T, (Measure.pi fun _ : Fin T => D)
-      {xs | SkipC C rd (Q q.2) q.1 tallyStart (List.ofFn xs)} ≤ ENNReal.ofReal C.a := by
+      {xs | SkipC C rd (Q q.2) q.1 initialState (List.ofFn xs)} ≤ ENNReal.ofReal C.testLevel := by
     intro q _
-    refine skipC_le C D rd (Q q.2) (fun T' s => ?_) T q.1 tallyStart
+    refine skipC_le C D rd (Q q.2) (fun T' s => ?_) T q.1 initialState
     by_cases hP : P (q.2 + 1) (H (q.2 + 1))
     · exact (measure_mono fun xs hxs => hxs.2).trans ((evC_le C D rd hε0 hε1 T' q.2 _ s).trans
         (ENNReal.ofReal_le_ofReal hP.le))
     · exact (measure_mono (t := ∅) fun xs hxs => hP hxs.1).trans (by simp)
   calc _ ≤ ∑ q ∈ Finset.range T ×ˢ Finset.range T, (Measure.pi fun _ : Fin T => D)
-        {xs | SkipC C rd (Q q.2) q.1 tallyStart (List.ofFn xs)} :=
+        {xs | SkipC C rd (Q q.2) q.1 initialState (List.ofFn xs)} :=
         (measure_mono hsub).trans (measure_biUnion_finset_le _ _)
-    _ ≤ ∑ _q ∈ Finset.range T ×ˢ Finset.range T, ENNReal.ofReal C.a := Finset.sum_le_sum hterm
+    _ ≤ ∑ _q ∈ Finset.range T ×ˢ Finset.range T, ENNReal.ofReal C.testLevel := Finset.sum_le_sum hterm
     _ = _ := by
         rw [Finset.sum_const, Finset.card_product, Finset.card_range, nsmul_eq_mul,
           ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_mul (by positivity)]

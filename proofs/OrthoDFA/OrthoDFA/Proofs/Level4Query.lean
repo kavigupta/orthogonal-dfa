@@ -1,15 +1,15 @@
 import OrthoDFA.Proofs.QueryTree
-import OrthoDFA.Proofs.TallyWalk
+import OrthoDFA.Proofs.Level4Walk
 
 /-!
 # A probe as a query tree
 
 One probe of `x` at a fixed hypothesis reads strings adaptively: the sift of its start, then the
 sifts its walk check and its bisection call for, each sift reading a node's string and going on by
-its read. `probeQ` is that computation as a query tree, each read labelled by the position sifted
-and the edge the position is charged to, which the start's sift fixes before; its run is `probeBy`
-(`run_probeQ`). `recordQ` then sifts the record's two positions again, so a record that is not true
-has a read on its state's rarer side among its reads (`untrue_minority`), and a read undecided
+its read. `probeQuery` is that computation as a query tree, each read labelled by the position
+sifted and the edge the position is charged to, which the start's sift fixes before; its run is
+`probeBy` (`run_probeQuery`). `recordQ` then sifts the record's two positions again, so a record
+that is not true has a read on its state's rarer side among its reads (`untrue_minority`), and a read undecided
 stops the sift of a position the tests charge it to (`und_twins`).
 -/
 
@@ -23,27 +23,27 @@ attribute [local instance] ARU.fintype
 
 section Sift
 
-theorem run_siftQ (ℓ : PLabel α) (rd : FreeMonoid α → ARU) :
+theorem run_siftQuery (ℓ : ReadLabel α) (rd : FreeMonoid α → ARU) :
     ∀ (T : DTree α) (u : FreeMonoid α),
-      (siftQ ℓ T u).run rd = T.siftCut (fun z => (rd z).cut) u
-  | .leaf, _ => by simp [siftQ, QTree.run, DTree.siftCut, DTree.route]
+      (siftQuery ℓ T u).run rd = T.siftCut (fun z => (rd z).cut) u
+  | .leaf, _ => by simp [siftQuery, QTree.run, DTree.siftCut, DTree.route]
   | .node m r a, u => by
-    simp only [siftQ, QTree.run, DTree.siftCut, DTree.route]
+    simp only [siftQuery, QTree.run, DTree.siftCut, DTree.route]
     rcases h : (rd (u * m)).cut with _ | _ | _ <;> simp only []
     · rfl
-    · rw [QTree.run_map, run_siftQ ℓ rd r u]; rfl
-    · rw [QTree.run_map, run_siftQ ℓ rd a u]; rfl
+    · rw [QTree.run_map, run_siftQuery ℓ rd r u]; rfl
+    · rw [QTree.run_map, run_siftQuery ℓ rd a u]; rfl
 
-theorem asks_siftQ (ℓ : PLabel α) (rd : FreeMonoid α → ARU) :
+theorem asks_siftQuery (ℓ : ReadLabel α) (rd : FreeMonoid α → ARU) :
     ∀ (T : DTree α) (u : FreeMonoid α),
-      (siftQ ℓ T u).asks rd = (T.route (fun z => (rd z).cut) u).1.map (ℓ, ·)
-  | .leaf, _ => by simp [siftQ, QTree.asks, DTree.route]
+      (siftQuery ℓ T u).asks rd = (T.route (fun z => (rd z).cut) u).1.map (ℓ, ·)
+  | .leaf, _ => by simp [siftQuery, QTree.asks, DTree.route]
   | .node m r a, u => by
-    simp only [siftQ, QTree.asks, DTree.route]
+    simp only [siftQuery, QTree.asks, DTree.route]
     rcases h : (rd (u * m)).cut with _ | _ | _ <;> simp only []
     · simp [QTree.asks]
-    · rw [QTree.asks_map, asks_siftQ ℓ rd r u]; simp
-    · rw [QTree.asks_map, asks_siftQ ℓ rd a u]; simp
+    · rw [QTree.asks_map, asks_siftQuery ℓ rd r u]; simp
+    · rw [QTree.asks_map, asks_siftQuery ℓ rd a u]; simp
 
 /-- A string read undecided on a sift's route is where the sift stops. -/
 theorem siftCut_of_route_und {cut : FreeMonoid α → Option Bool} :
@@ -104,19 +104,21 @@ end Sift
 
 section Bracket
 
-theorem run_agAt (agQ : ℕ → PQ α (Option Bool)) (rd : FreeMonoid α → ARU)
-    (agrees : ℕ → Option Bool) (h : ∀ i, (agQ i).run rd = agrees i) (lo hi p : ℕ) :
-    (agAt agQ lo hi p).run rd
+theorem run_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : FreeMonoid α → ARU)
+    (agrees : ℕ → Option Bool) (h : ∀ i, (agreementQuery i).run rd = agrees i) (lo hi p : ℕ) :
+    (agAt agreementQuery lo hi p).run rd
       = if p = lo then some true else if p = hi then some false else agrees p := by
   unfold agAt; split_ifs <;> simp [QTree.run, h]
 
-theorem run_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool))
-    (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool) (h : ∀ i, (agQ i).run rd = agrees i) :
-    ∀ fuel lo hi, (bracketQ agQ ps fuel lo hi).run rd = bracketAt agrees ps fuel lo hi
+theorem run_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool))
+    (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool)
+        (h : ∀ i, (agreementQuery i).run rd = agrees i) :
+    ∀ fuel lo hi, (bracketQuery agreementQuery ps fuel lo hi).run rd
+        = bracketAt agrees ps fuel lo hi
   | 0, _, _ => rfl
   | fuel + 1, lo, hi => by
-    have hag := run_agAt agQ rd agrees h lo hi
-    simp only [bracketQ, bracketAt]
+    have hag := run_agAt agreementQuery rd agrees h lo hi
+    simp only [bracketQuery, bracketAt]
     by_cases hlh : lo + 1 < hi
     swap
     · rw [if_neg hlh, if_neg hlh]; rfl
@@ -132,29 +134,31 @@ theorem run_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool))
       generalize (if (lo + hi) / 2 + 1 = lo then some true
         else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = vr
       rcases vr with _ | br <;> cases bl <;> (try cases br) <;> simp only [QTree.run] <;>
-        exact run_bracketQ agQ ps rd agrees h fuel _ _
-    · exact run_bracketQ agQ ps rd agrees h fuel _ _
-    · exact run_bracketQ agQ ps rd agrees h fuel _ _
+        exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
+    · exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
+    · exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
 
-theorem asks_agAt (agQ : ℕ → PQ α (Option Bool)) (rd : FreeMonoid α → ARU) (lo hi p : ℕ)
-    (q : PLabel α × FreeMonoid α) (hq : q ∈ (agAt agQ lo hi p).asks rd) :
-    p ≠ lo ∧ p ≠ hi ∧ q ∈ (agQ p).asks rd := by
+theorem asks_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : FreeMonoid α → ARU)
+    (lo hi p : ℕ)
+    (q : ReadLabel α × FreeMonoid α) (hq : q ∈ (agAt agreementQuery lo hi p).asks rd) :
+    p ≠ lo ∧ p ≠ hi ∧ q ∈ (agreementQuery p).asks rd := by
   unfold agAt at hq
   split_ifs at hq with h1 h2
   · simp [QTree.asks] at hq
   · simp [QTree.asks] at hq
   · exact ⟨h1, h2, hq⟩
 
-/-- The bisection reads only through `agQ`, at positions strictly inside its range that
+/-- The bisection reads only through `agreementQuery`, at positions strictly inside its range that
 `bracketSifts` lists. -/
-theorem asks_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool))
-    (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool) (h : ∀ i, (agQ i).run rd = agrees i) :
-    ∀ fuel lo hi q, q ∈ (bracketQ agQ ps fuel lo hi).asks rd →
-      ∃ i, i ∈ bracketSifts agrees fuel lo hi ∧ lo < i ∧ i < hi ∧ q ∈ (agQ i).asks rd
-  | 0, _, _, q, hq => by simp [bracketQ, QTree.asks] at hq
+theorem asks_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool))
+    (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool)
+        (h : ∀ i, (agreementQuery i).run rd = agrees i) :
+    ∀ fuel lo hi q, q ∈ (bracketQuery agreementQuery ps fuel lo hi).asks rd →
+      ∃ i, i ∈ bracketSifts agrees fuel lo hi ∧ lo < i ∧ i < hi ∧ q ∈ (agreementQuery i).asks rd
+  | 0, _, _, q, hq => by simp [bracketQuery, QTree.asks] at hq
   | fuel + 1, lo, hi, q, hq => by
-    have hag := run_agAt agQ rd agrees h lo hi
-    simp only [bracketQ] at hq
+    have hag := run_agAt agreementQuery rd agrees h lo hi
+    simp only [bracketQuery] at hq
     simp only [bracketSifts]
     by_cases hlh : lo + 1 < hi
     swap
@@ -162,16 +166,18 @@ theorem asks_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)
     rw [if_pos hlh] at hq
     rw [if_pos hlh]
     have hmid : lo < (lo + hi) / 2 ∧ (lo + hi) / 2 < hi := by omega
-    have hrec : ∀ lo' hi', lo ≤ lo' → hi' ≤ hi → q ∈ (bracketQ agQ ps fuel lo' hi').asks rd →
-        ∃ i, i ∈ bracketSifts agrees fuel lo' hi' ∧ lo < i ∧ i < hi ∧ q ∈ (agQ i).asks rd := by
+    have hrec : ∀ lo' hi', lo ≤ lo' → hi' ≤ hi → q ∈ (bracketQuery agreementQuery ps fuel lo'
+        hi').asks rd →
+        ∃ i, i ∈ bracketSifts agrees fuel lo' hi' ∧ lo < i ∧ i < hi
+            ∧ q ∈ (agreementQuery i).asks rd := by
       intro lo' hi' h1 h2 hq'
-      obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQ agQ ps rd agrees h fuel lo' hi' q hq'
+      obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel lo' hi' q hq'
       exact ⟨i, hi', by omega, by omega, hq'⟩
     rw [QTree.asks_bind, hag, List.mem_append] at hq
     generalize hvm : (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then
       some false else agrees ((lo + hi) / 2)) = vm at hq ⊢
     rcases hq with hq | hq
-    · obtain ⟨-, -, hq⟩ := asks_agAt agQ rd lo hi _ q hq
+    · obtain ⟨-, -, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
       refine ⟨(lo + hi) / 2, ?_, hmid.1, hmid.2, hq⟩
       rcases vm with _ | _ | _ <;> simp only [List.mem_cons, true_or]
       split <;> simp
@@ -181,7 +187,7 @@ theorem asks_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)
         else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = vl
         at hq ⊢
       rcases hq with hq | hq
-      · obtain ⟨h1, -, hq⟩ := asks_agAt agQ rd lo hi _ q hq
+      · obtain ⟨h1, -, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
         refine ⟨(lo + hi) / 2 - 1, ?_, by omega, by omega, hq⟩
         split <;> simp
       rcases vl with _ | bl <;> simp only [QTree.asks, List.not_mem_nil] at hq ⊢
@@ -190,7 +196,7 @@ theorem asks_bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)
         else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = vr
         at hq ⊢
       rcases hq with hq | hq
-      · obtain ⟨-, h2, hq⟩ := asks_agAt agQ rd lo hi _ q hq
+      · obtain ⟨-, h2, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
         refine ⟨(lo + hi) / 2 + 1, ?_, by omega, by omega, hq⟩
         cases bl <;> rcases vr with _ | _ | _ <;> simp
       cases bl <;> rcases vr with _ | _ | _ <;> simp only [QTree.asks, List.not_mem_nil] at hq ⊢
@@ -250,78 +256,81 @@ section Probe
 variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 /-- The probe, and then the sifts of its record's two positions again. -/
-def recordQ : PQ α (Outcome α) :=
-  (probeQ T edges k x).bind fun o => match o with
-  | .edge _ fd => (siftQ (fd - 1, none) T (prefixOf x (fd - 1))).bind fun _ =>
-      (siftQ (fd, none) T (prefixOf x fd)).map fun _ => o
+def recordQ : ProbeQuery α (Outcome α) :=
+  (probeQuery T edges k x).bind fun o => match o with
+  | .edge _ fd => (siftQuery (fd - 1, none) T (prefixOf x (fd - 1))).bind fun _ =>
+      (siftQuery (fd, none) T (prefixOf x fd)).map fun _ => o
   | _ => .done o
 
 variable (rd : FreeMonoid α → ARU)
 
-theorem run_agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) :
-    (agQ T edges k x p₀ walkAt i).run rd = agreesAtBy (fun z => (rd z).cut) T x walkAt i := by
-  simp only [agQ, QTree.run_map, run_siftQ, agreesAtBy]
+theorem run_agreementQuery (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) :
+    (agreementQuery T edges k x p₀ walkAt i).run rd
+        = agreesAtBy (fun z => (rd z).cut) T x walkAt i := by
+  simp only [agreementQuery, QTree.run_map, run_siftQuery, agreesAtBy]
 
 theorem walkToBy_of_sift {p₀ : List Bool}
     (hk : T.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inl p₀) (j : ℕ) :
     walkToBy (fun z => (rd z).cut) T edges k x j = walkFrom edges k x p₀ j := by
   simp only [walkToBy, hk, walkFrom]
 
-theorem run_probeQ : (probeQ T edges k x).run rd = probeBy (fun z => (rd z).cut) T edges k x := by
+theorem run_probeQuery : (probeQuery T edges k x).run rd
+    = probeBy (fun z => (rd z).cut) T edges k x := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  unfold probeQ probeBy walkCheckBy kWalkBy
+  unfold probeQuery probeBy walkCheckBy kWalkBy
   by_cases hshort : x.toList.length < k
   · simp only [if_pos hshort, QTree.run]
-  rw [if_neg hshort, if_neg hshort, QTree.run_bind, run_siftQ]
+  rw [if_neg hshort, if_neg hshort, QTree.run_bind, run_siftQuery]
   rcases hk : T.siftCut cut (prefixOf x k) with p₀ | b
   · simp only []
     rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i⟩
     · simp only []
-      rw [QTree.run_bind, run_siftQ, prefixOf_length]
+      rw [QTree.run_bind, run_siftQuery, prefixOf_length]
       rcases hx : T.siftCut cut x with a' | b'
       · simp only []
         split_ifs
         · rfl
         · simp only [Sum.elim_inr]
-          exact run_bracketQ _ _ rd _ (run_agQ T edges k x rd p₀ _) _ _ _
+          exact run_bracketQuery _ _ rd _ (run_agreementQuery T edges k x rd p₀ _) _ _ _
       · rfl
     · simp only []
-      rw [QTree.run_bind, run_siftQ]
+      rw [QTree.run_bind, run_siftQuery]
       rcases h1 : T.siftCut cut (prefixOf x (k + i + 1)) with q₁ | b₁
       · simp only []
-        rw [QTree.run_bind, run_siftQ]
+        rw [QTree.run_bind, run_siftQuery]
         rcases h2 : T.siftCut cut (prefixOf x (k + i)) with q₂ | b₂
         · simp only []
           split_ifs
           · rfl
           · simp only [Sum.elim_inr]
             rw [walkToBy_of_sift T edges k x rd hk]
-            exact run_bracketQ _ _ rd _ (run_agQ T edges k x rd p₀ _) _ _ _
+            exact run_bracketQuery _ _ rd _ (run_agreementQuery T edges k x rd p₀ _) _ _ _
         · rfl
       · rfl
   · rfl
 
-theorem mem_asks_siftQ {ℓ : PLabel α} {u : FreeMonoid α} {q : PLabel α × FreeMonoid α}
-    (hq : q ∈ (siftQ ℓ T u).asks rd) : q.1 = ℓ ∧ q.2 ∈ (T.route (fun z => (rd z).cut) u).1 := by
-  rw [asks_siftQ] at hq
+theorem mem_asks_siftQuery {ℓ : ReadLabel α} {u : FreeMonoid α} {q : ReadLabel α × FreeMonoid α}
+    (hq : q ∈ (siftQuery ℓ T u).asks rd) : q.1 = ℓ ∧ q.2 ∈ (T.route (fun z => (rd z).cut) u).1 := by
+  rw [asks_siftQuery] at hq
   obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hq
   exact ⟨rfl, hw⟩
 
 /-- A read of the probe is on the route of the position its label names: the start's prefix, or a
 position of `siftsBy` charged to the edge the label names. -/
-theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges k x).asks rd) :
+theorem asks_probeQuery (q : ReadLabel α × FreeMonoid α)
+    (hq : q ∈ (probeQuery T edges k x).asks rd) :
     q.2 ∈ (T.route (fun z => (rd z).cut) (prefixOf x q.1.1)).1
       ∧ (prefixOf x q.1.1 = prefixOf x k
         ∨ (q.1.1 ∈ siftsBy (fun z => (rd z).cut) T edges k x
           ∧ ∃ e, posEdgeBy (fun z => (rd z).cut) T edges k x q.1.1 = some e
             ∧ q.1.2 = some e)) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  unfold probeQ at hq
+  unfold probeQuery at hq
   split_ifs at hq with hshort
   · simp [QTree.asks] at hq
-  rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
+  rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
   rcases hq with hq | hq
-  · obtain ⟨h1, h2⟩ := mem_asks_siftQ T rd hq
+  · obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq
     have e1 : q.1.1 = k := by rw [h1]
     rw [e1]
     exact ⟨h2, .inl rfl⟩
@@ -329,13 +338,13 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
   swap
   · simp [QTree.asks] at hq
   simp only [] at hq
-  have hlab : ∀ i, q.1 = plab edges k x p₀ i → k < i → i ∈ siftsBy cut T edges k x →
+  have hlab : ∀ i, q.1 = readLabel edges k x p₀ i → k < i → i ∈ siftsBy cut T edges k x →
       (posEdgeFrom edges k x p₀ i).isSome →
       (q.1.1 ∈ siftsBy cut T edges k x ∧ ∃ e, posEdgeBy cut T edges k x q.1.1 = some e
         ∧ q.1.2 = some e) := by
     intro i hl _ hs hsome
     rw [hl]
-    simp only [plab]
+    simp only [readLabel]
     refine ⟨hs, (posEdgeFrom edges k x p₀ i).get hsome, ?_, by simp⟩
     rw [posEdgeBy_of_inl hk]; simp
   rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i₀⟩ <;> rw [hf] at hq <;>
@@ -343,9 +352,9 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
   · have hfull : follow edges p₀ ((x.toList.drop k).take (x.toList.drop k).length) = .inl ps := by
       rw [List.take_length]; exact hf
     have hkw : kWalkBy cut T edges k x = .reached ps := by simp [kWalkBy, hk, hf]
-    rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
+    rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
     rcases hq with hq | hq
-    · obtain ⟨h1, h2⟩ := mem_asks_siftQ T rd hq
+    · obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq
       have e1 : q.1.1 = x.toList.length := by rw [h1]; rfl
       refine ⟨by rw [e1]; exact h2, ?_⟩
       by_cases hlx : x.toList.length ≤ k
@@ -364,9 +373,10 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
       simp only [] at hq
     · split_ifs at hq with hag
       · simp [QTree.asks] at hq
-      obtain ⟨i, hi, hki, hix, hq'⟩ := asks_bracketQ _ ps rd _ (run_agQ T edges k x rd p₀ _) _ _ _ q hq
-      rw [agQ, QTree.asks_map] at hq'
-      obtain ⟨h1, h2⟩ := mem_asks_siftQ T rd hq'
+      obtain ⟨i, hi, hki, hix, hq'⟩ := asks_bracketQuery _ ps rd _ (run_agreementQuery T edges k x
+          rd p₀ _) _ _ _ q hq
+      rw [agreementQuery, QTree.asks_map] at hq'
+      obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq'
       have e1 : q.1.1 = i := by rw [h1]; rfl
       refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 hki ?_ (posEdgeFrom_isSome (i' := i) (.inl rfl) hix
         (by simp; omega) hfull))⟩
@@ -379,9 +389,9 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
   · obtain ⟨hi₀, -, -, ps', hps', hlast⟩ := follow_inr _ _ _ _ _ hf
     simp only [List.length_drop] at hi₀
     have hkw : kWalkBy cut T edges k x = .edge s c (k + i₀) := by simp [kWalkBy, hk, hf]
-    rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
+    rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
     rcases hq with hq | hq
-    · obtain ⟨h1, h2⟩ := mem_asks_siftQ T rd hq
+    · obtain ⟨h1, h2⟩ := mem_asks_siftQuery T rd hq
       have e1 : q.1.1 = k + i₀ + 1 := by rw [h1]; rfl
       refine ⟨by rw [e1]; exact h2, .inr (hlab _ h1 (by omega) ?_ (posEdgeFrom_isSome (i' := k + i₀) (.inr rfl)
         (by omega) (by omega) hps'))⟩
@@ -396,9 +406,9 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
       simp only [] at hq
     swap
     · simp [QTree.asks] at hq
-    rw [QTree.asks_bind, List.mem_append, run_siftQ] at hq
+    rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
     rcases hq with hq | hq
-    · obtain ⟨h1', h2⟩ := mem_asks_siftQ T rd hq
+    · obtain ⟨h1', h2⟩ := mem_asks_siftQuery T rd hq
       have e1 : q.1.1 = k + i₀ := by rw [h1']; rfl
       refine ⟨by rw [e1]; exact h2, ?_⟩
       rcases Nat.eq_zero_or_pos i₀ with rfl | hpos
@@ -417,9 +427,10 @@ theorem asks_probeQ (q : PLabel α × FreeMonoid α) (hq : q ∈ (probeQ T edges
     · simp [QTree.asks] at hq
     split_ifs at hq with hqs
     · simp [QTree.asks] at hq
-    obtain ⟨i, hi, hki, hij, hq'⟩ := asks_bracketQ _ _ rd _ (run_agQ T edges k x rd p₀ _) _ _ _ q hq
-    rw [agQ, QTree.asks_map] at hq'
-    obtain ⟨h1', h2'⟩ := mem_asks_siftQ T rd hq'
+    obtain ⟨i, hi, hki, hij, hq'⟩ := asks_bracketQuery _ _ rd _ (run_agreementQuery T edges k x rd
+        p₀ _) _ _ _ q hq
+    rw [agreementQuery, QTree.asks_map] at hq'
+    obtain ⟨h1', h2'⟩ := mem_asks_siftQuery T rd hq'
     have e1 : q.1.1 = i := by rw [h1']; rfl
     refine ⟨by rw [e1]; exact h2', .inr (hlab _ h1' hki ?_ (posEdgeFrom_isSome (i' := i) (.inl rfl) (by omega)
       (by omega) hps'))⟩
@@ -461,17 +472,17 @@ theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
       simp only [Sum.elim_inl, Sum.elim_inr, reduceCtorEq] at h2
     exact ⟨p, rfl⟩
 
-theorem asks_recordQ : (recordQ T edges k x).asks rd = (probeQ T edges k x).asks rd
+theorem asks_recordQ : (recordQ T edges k x).asks rd = (probeQuery T edges k x).asks rd
     ++ match probeBy (fun z => (rd z).cut) T edges k x with
       | .edge _ fd => (T.route (fun z => (rd z).cut) (prefixOf x (fd - 1))).1.map ((fd - 1, none), ·)
           ++ (T.route (fun z => (rd z).cut) (prefixOf x fd)).1.map ((fd, none), ·)
       | _ => [] := by
   unfold recordQ
-  rw [QTree.asks_bind, run_probeQ]
+  rw [QTree.asks_bind, run_probeQuery]
   congr 1
   rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;>
     simp only [QTree.asks]
-  rw [QTree.asks_bind, asks_siftQ, QTree.asks_map, asks_siftQ]
+  rw [QTree.asks_bind, asks_siftQuery, QTree.asks_map, asks_siftQuery]
 
 /-- A record that is not true read a string on its state's rarer side. -/
 theorem untrue_minority {σ : Type*} (G : ReadModel α σ) (hx : x ∈ G.untrueAt rd k T edges) :
@@ -520,9 +531,9 @@ theorem cut_minVal (r : σ) (v : ARU) : v.cut = some (!G.side r) ↔ v = G.minVa
   unfold ReadModel.minVal; cases v <;> cases G.side r <;> simp [ARU.cut]
 
 theorem dist_minVal (r : σ) :
-    G.dist r (G.minVal r) = min (G.dist r .accept) (G.dist r .reject) := by
+    G.readDist r (G.minVal r) = min (G.readDist r .accept) (G.readDist r .reject) := by
   unfold ReadModel.minVal ReadModel.side
-  by_cases h : G.dist r .reject < G.dist r .accept
+  by_cases h : G.readDist r .reject < G.readDist r .accept
   · simp [h, min_eq_right h.le]
   · simp [h, min_eq_left (not_lt.1 h)]
 
@@ -535,20 +546,20 @@ theorem lintegral_ite_read (hmeas : ∀ w, Measurable (read w)) (w : FreeMonoid 
 
 variable {read}
 
-theorem measure_read (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r)
+theorem measure_read (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r)
     (w : FreeMonoid α) (r : ARU) :
-    μ {ω | read w ω = r} = ENNReal.ofReal (G.dist (G.M.eval w.toList) r) := by
+    μ {ω | read w ω = r} = ENNReal.ofReal (G.readDist (G.M.eval w.toList) r) := by
   rw [← hlaw, measureReal_def, ENNReal.ofReal_toReal (measure_ne_top _ _)]
 
-theorem fsum_one {β : Type*} (rd : FreeMonoid α → ARU) (t : PQ α β) :
+theorem fsum_one {β : Type*} (rd : FreeMonoid α → ARU) (t : ProbeQuery α β) :
     QTree.fsum (fun _ _ _ => 1) rd ∅ t = (t.firsts rd ∅).length := by
   simp [QTree.fsum]
 
-/-- Over independent reads with laws `G.dist`, a query tree's first reads on their state's rarer
+/-- Over independent reads with laws `G.readDist`, a query tree's first reads on their state's rarer
 side average at most `κ` times its undecided first reads plus `ε` times its first reads. -/
 theorem minority_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
-    (t : PQ α β) :
+    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
+    (t : ProbeQuery α β) :
     ∫⁻ ω, QTree.fsum (fun _ w v => if v = G.minVal (G.M.eval w.toList) then 1 else 0)
         (fun y => read y ω) ∅ t ∂μ
       ≤ ∫⁻ ω, QTree.fsum (fun _ _ v => (if v = .undecided then ENNReal.ofReal G.κ else 0)
@@ -560,7 +571,7 @@ theorem minority_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : 
     lintegral_const, measure_univ, mul_one, one_mul, measure_read G hlaw, measure_read G hlaw,
     dist_minVal, ← ENNReal.ofReal_mul hκ]
   refine (ENNReal.ofReal_le_ofReal (G.rare _)).trans ?_
-  rcases le_total G.ε (G.κ * G.dist (G.M.eval w.toList) .undecided) with h | h
+  rcases le_total G.ε (G.κ * G.readDist (G.M.eval w.toList) .undecided) with h | h
   · rw [max_eq_right h]; exact le_add_right le_rfl
   · rw [max_eq_left h]; exact le_add_left le_rfl
 
@@ -569,14 +580,14 @@ tree's undecided first reads labelled `e` at read-states where undecided reads a
 average at most `θ'` times its first reads labelled `e`. -/
 theorem edge_first_mean {β : Type*} (hmeas : ∀ w, Measurable (read w))
     (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r)
-    (P : σ → Prop) [DecidablePred P] (θ' : ℝ) (hP : ∀ r, P r → G.dist r .undecided ≤ θ')
-    (e : List Bool × α) (t : PQ α β) :
+    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r)
+    (P : σ → Prop) [DecidablePred P] (θ' : ℝ) (hP : ∀ r, P r → G.readDist r .undecided ≤ θ')
+    (e : List Bool × α) (t : ProbeQuery α β) :
     ∫⁻ ω, (((t.firsts (fun y => read y ω) ∅).filter fun q =>
         q.1.2 = some e ∧ read q.2 ω = .undecided ∧ P (G.M.eval q.2.toList)).length : ENNReal) ∂μ
       ≤ ENNReal.ofReal θ' * ∫⁻ ω,
         (((t.firsts (fun y => read y ω) ∅).filter fun q => q.1.2 = some e).length : ENNReal) ∂μ := by
-  have hcount : ∀ (rd : FreeMonoid α → ARU) (f : PLabel α → FreeMonoid α → ARU → Prop)
+  have hcount : ∀ (rd : FreeMonoid α → ARU) (f : ReadLabel α → FreeMonoid α → ARU → Prop)
       [∀ ℓ w v, Decidable (f ℓ w v)] (c : ENNReal),
       QTree.fsum (fun ℓ w v => if f ℓ w v then c else 0) rd ∅ t
         = c * ((t.firsts rd ∅).filter fun q => f q.1 q.2 (rd q.2)).length := by

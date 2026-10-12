@@ -1,8 +1,8 @@
-import OrthoDFA.TallyRound
+import OrthoDFA.Proofs.Level4RiskDefs
 import OrthoDFA.Proofs.RoundEnd
 
 /-!
-# The tally replay is spread
+# Level 4's replay is spread
 
 Every string a probe walked from `k` reads is a prefix of the probe at least `k` long, extended by
 a midfix, in every branch of its query tree. So the replay, walked from its anchor, keeps a prefix
@@ -52,43 +52,44 @@ open QTree
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-theorem siftQ_allAsk (ℓ : PLabel α) : ∀ (T : DTree α) (u : FreeMonoid α),
-    AllAsk (fun z => ∃ m, z = u * m) (siftQ ℓ T u)
+theorem siftQuery_allAsk (ℓ : ReadLabel α) : ∀ (T : DTree α) (u : FreeMonoid α),
+    AllAsk (fun z => ∃ m, z = u * m) (siftQuery ℓ T u)
   | .leaf, _ => trivial
   | .node m r a, u => ⟨⟨m, rfl⟩, fun v => by
       simp only
       split
       · trivial
-      · exact (siftQ_allAsk ℓ a u).map _
-      · exact (siftQ_allAsk ℓ r u).map _⟩
+      · exact (siftQuery_allAsk ℓ a u).map _
+      · exact (siftQuery_allAsk ℓ r u).map _⟩
 
 /-- A read past `k`: a prefix of `x` at least `k` long, extended. -/
 def PastK (x : FreeMonoid α) (k : ℕ) (z : FreeMonoid α) : Prop :=
   ∃ i, k ≤ i ∧ ∃ m, z = prefixOf x i * m
 
-theorem siftQ_pastK (x : FreeMonoid α) {k i : ℕ} (hi : k ≤ i) (ℓ : PLabel α) (T : DTree α) :
-    AllAsk (PastK x k) (siftQ ℓ T (prefixOf x i)) :=
-  (siftQ_allAsk ℓ T _).mono fun _ ⟨m, hm⟩ => ⟨i, hi, m, hm⟩
+theorem siftQuery_pastK (x : FreeMonoid α) {k i : ℕ} (hi : k ≤ i) (ℓ : ReadLabel α) (T : DTree α) :
+    AllAsk (PastK x k) (siftQuery ℓ T (prefixOf x i)) :=
+  (siftQuery_allAsk ℓ T _).mono fun _ ⟨m, hm⟩ => ⟨i, hi, m, hm⟩
 
-theorem bracketQ_pastK (x : FreeMonoid α) (k : ℕ) (agQ : ℕ → PQ α (Option Bool))
+theorem bracketQuery_pastK (x : FreeMonoid α) (k : ℕ) (agreementQuery : ℕ
+    → ProbeQuery α (Option Bool))
     (ps : List (List Bool)) :
-    ∀ (fuel lo hi : ℕ), k ≤ lo → (∀ p, k ≤ p → AllAsk (PastK x k) (agQ p)) →
-      AllAsk (PastK x k) (bracketQ agQ ps fuel lo hi)
+    ∀ (fuel lo hi : ℕ), k ≤ lo → (∀ p, k ≤ p → AllAsk (PastK x k) (agreementQuery p)) →
+      AllAsk (PastK x k) (bracketQuery agreementQuery ps fuel lo hi)
   | 0, _, _, _, _ => trivial
   | fuel + 1, lo, hi, hk, hag => by
-    have hat : ∀ p, k ≤ p → AllAsk (PastK x k) (agAt agQ lo hi p) := by
+    have hat : ∀ p, k ≤ p → AllAsk (PastK x k) (agAt agreementQuery lo hi p) := by
       intro p hp
       unfold agAt
       split_ifs
       · trivial
       · trivial
       · exact hag p hp
-    simp only [bracketQ]
+    simp only [bracketQuery]
     split_ifs with hlt
     · refine (hat _ (by omega)).bind fun am => ?_
       split
-      · exact bracketQ_pastK x k agQ ps fuel _ hi (by omega) hag
-      · exact bracketQ_pastK x k agQ ps fuel lo _ hk hag
+      · exact bracketQuery_pastK x k agreementQuery ps fuel _ hi (by omega) hag
+      · exact bracketQuery_pastK x k agreementQuery ps fuel lo _ hk hag
       · refine (hat _ (by omega)).bind fun al => ?_
         split
         · trivial
@@ -96,48 +97,48 @@ theorem bracketQ_pastK (x : FreeMonoid α) (k : ℕ) (agQ : ℕ → PQ α (Optio
           split
           · trivial
           · trivial
-          · exact bracketQ_pastK x k agQ ps fuel _ hi (by omega) hag
-          · exact bracketQ_pastK x k agQ ps fuel lo _ hk hag
+          · exact bracketQuery_pastK x k agreementQuery ps fuel _ hi (by omega) hag
+          · exact bracketQuery_pastK x k agreementQuery ps fuel lo _ hk hag
     · trivial
 
-theorem probeQ_pastK (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
-    AllAsk (PastK x k) (probeQ T edges k x) := by
-  have hag : ∀ p₀ walkAt p, k ≤ p → AllAsk (PastK x k) (agQ T edges k x p₀ walkAt p) :=
-    fun p₀ walkAt p hp => (siftQ_pastK x hp _ T).map _
-  unfold probeQ
+theorem probeQuery_pastK (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
+    AllAsk (PastK x k) (probeQuery T edges k x) := by
+  have hag : ∀ p₀ walkAt p, k ≤ p → AllAsk (PastK x k) (agreementQuery T edges k x p₀ walkAt p) :=
+    fun p₀ walkAt p hp => (siftQuery_pastK x hp _ T).map _
+  unfold probeQuery
   split_ifs
   · trivial
-  refine (siftQ_pastK x le_rfl _ T).bind fun a => ?_
+  refine (siftQuery_pastK x le_rfl _ T).bind fun a => ?_
   split
   · trivial
   · split
-    · refine (siftQ_pastK x ?_ _ T).bind fun r => ?_
+    · refine (siftQuery_pastK x ?_ _ T).bind fun r => ?_
       · omega
       split
       · trivial
       · split_ifs
         · trivial
-        · exact bracketQ_pastK x k _ _ _ _ _ le_rfl (hag _ _)
-    · refine (siftQ_pastK x (by omega) _ T).bind fun r1 => ?_
+        · exact bracketQuery_pastK x k _ _ _ _ _ le_rfl (hag _ _)
+    · refine (siftQuery_pastK x (by omega) _ T).bind fun r1 => ?_
       split
       · trivial
-      · refine (siftQ_pastK x (by omega) _ T).bind fun r2 => ?_
+      · refine (siftQuery_pastK x (by omega) _ T).bind fun r2 => ?_
         split
         · trivial
         · split_ifs
           · trivial
-          · exact bracketQ_pastK x k _ _ _ _ _ le_rfl (hag _ _)
+          · exact bracketQuery_pastK x k _ _ _ _ _ le_rfl (hag _ _)
 
-theorem tallyReplay_prefix (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
-    (w : FreeMonoid α) (e : ℕ) (x : FreeMonoid α) (hx : x ∈ tallyReplay rd T edges w e) :
+theorem replayAt_prefix (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
+    (w : FreeMonoid α) (e : ℕ) (x : FreeMonoid α) (hx : x ∈ replayAt rd T edges w e) :
     ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i := by
-  unfold tallyReplay at hx
+  rw [replayAt_eq] at hx
   obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hx
   have hq' := (List.mem_filter.1 hq).1
   have hw : e ≤ w.toList.length := by
     by_contra hlt
-    simp [firstsBy, probeQ, show w.toList.length < e by omega, QTree.firsts] at hq'
-  obtain ⟨i, hei, m, hm⟩ := (probeQ_pastK T edges e w).firsts _ ∅ q hq'
+    simp [firstsBy, probeQuery, show w.toList.length < e by omega, QTree.firsts] at hq'
+  obtain ⟨i, hei, m, hm⟩ := (probeQuery_pastK T edges e w).firsts _ ∅ q hq'
   rw [hm]
   have hi : prefixOf w i = prefixOf w (min i w.toList.length) := by
     rcases le_total i w.toList.length with h | h
@@ -162,14 +163,14 @@ theorem splitAt_rootOne {T : DTree α} (hT : RootOne T) (d : FreeMonoid α) (p :
   · exact ⟨_, a, rfl⟩
   · exact ⟨r, _, rfl⟩
 
-theorem tallyPre_tree (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
-    (x : FreeMonoid α) : (tallyPre C cut s x).tree = s.tree := by
-  unfold tallyPre
+theorem recordProbe_tree (C : Level4Settings) (cut : FreeMonoid α → Option Bool) (s : Level4State α)
+    (x : FreeMonoid α) : (recordProbe C cut s x).tree = s.tree := by
+  unfold recordProbe
   simp only
   repeat' split
   all_goals rfl
 
-theorem fixEdge_rootOne (cut : FreeMonoid α → Option Bool) (m : ℕ) {s : TState α}
+theorem fixEdge_rootOne (cut : FreeMonoid α → Option Bool) (m : ℕ) {s : Level4State α}
     (hs : RootOne s.tree) (p : List Bool) (c : α) (t : List Bool) :
     RootOne (fixEdge cut m s p c t).tree := by
   unfold fixEdge
@@ -177,12 +178,13 @@ theorem fixEdge_rootOne (cut : FreeMonoid α → Option Bool) (m : ℕ) {s : TSt
   repeat' split
   all_goals first | exact splitAt_rootOne hs _ _ | exact hs
 
-theorem tallyStep_rootOne (C : TallyCfg) (cut : FreeMonoid α → Option Bool) {s : TState α}
+theorem applyProbe_rootOne (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+    {s : Level4State α}
     (hs : RootOne s.tree) (x : FreeMonoid α) :
-    (∀ s', tallyStep C cut s x = .inl s' → RootOne s'.tree)
-      ∧ ∀ e s', tallyStep C cut s x = .inr (e, s') → RootOne s'.tree := by
-  have h1 : RootOne (tallyPre C cut s x).tree := by rw [tallyPre_tree]; exact hs
-  unfold tallyStep settleOne
+    (∀ s', applyProbe C cut s x = .inl s' → RootOne s'.tree)
+      ∧ ∀ e s', applyProbe C cut s x = .inr (e, s') → RootOne s'.tree := by
+  have h1 : RootOne (recordProbe C cut s x).tree := by rw [recordProbe_tree]; exact hs
+  unfold applyProbe settleOne
   simp only
   constructor
   · intro s' h
@@ -210,17 +212,17 @@ theorem runEnds_inv {S X E : Type*} {step : S → X → S ⊕ (E × S)} {Q : E �
     · exact runEnds_inv I hI s' xs ((hI s x hs).1 s' hst) h
     · exact ⟨h, (hI s x hs).2 e s' hst⟩
 
-theorem tallyReplay_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T)
+theorem replayAt_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootOne T)
     (edges : EdgeTable α) {w : FreeMonoid α} {e : ℕ} (he : e ≤ w.toList.length)
-    (hu : rd (prefixOf w e) = .undecided) : tallyReplay rd T edges w e ≠ [] := by
+    (hu : rd (prefixOf w e) = .undecided) : replayAt rd T edges w e ≠ [] := by
   obtain ⟨r, a, rfl⟩ := hT
-  unfold tallyReplay firstsBy probeQ
+  rw [replayAt_eq]; unfold firstsBy probeQuery
   rw [if_neg (by omega)]
-  simp [siftQ, QTree.bind, QTree.firsts, hu, ARU.cut]
+  simp [siftQuery, QTree.bind, QTree.firsts, hu, ARU.cut]
 
-theorem tallyReplay_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
+theorem replayAt_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α)
     (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (s L : ℕ) :
-    Spread D s L (tallyReplay rd T edges) :=
-  spread_of_prefix D s L _ (tallyReplay_prefix rd T edges)
+    Spread D s L (replayAt rd T edges) :=
+  spread_of_prefix D s L _ (replayAt_prefix rd T edges)
 
 end OrthoDFA

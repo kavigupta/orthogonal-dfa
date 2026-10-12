@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyCongr
+import OrthoDFA.Proofs.Level4Congr
 
 /-!
 # Concentration over the probes' length-`k` prefixes

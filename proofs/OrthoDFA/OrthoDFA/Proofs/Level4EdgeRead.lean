@@ -1,5 +1,5 @@
-import OrthoDFA.Proofs.TallyFirsts
-import OrthoDFA.Proofs.TallyEdgeNoise
+import OrthoDFA.Proofs.Level4Firsts
+import OrthoDFA.Proofs.Level4EdgeNoise
 
 /-!
 # The noise event's edge field, per read
@@ -25,9 +25,9 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
 open scoped Classical in
 theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (d : List Bool × α) (x : FreeMonoid α) :
-    G.undecAt rd k T edges d G.Good x = (((probeQ T edges k x).firsts rd ∅).filter fun q =>
+    G.undecAt rd k T edges d G.Good x = (((probeQuery T edges k x).firsts rd ∅).filter fun q =>
       q.1.2 = some d ∧ rd q.2 = .undecided ∧ G.Good (G.M.eval q.2.toList)).length := by
-  unfold ReadModel.undecAt edgeHarvBy firstsBy
+  unfold ReadModel.undecAt edgeHarvestBy firstsBy
   rw [ofCut_rd, List.filter_map, List.length_map, List.filter_filter]
   congr 1
   refine List.filter_congr fun q _ => ?_
@@ -40,54 +40,54 @@ theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges 
   · simp [h1]
   · simp [h1]
 
-theorem travBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
+theorem edgeReadsBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (d : List Bool × α) (x : FreeMonoid α) :
-    travBy (fun z => (rd z).cut) T edges k x d
-      = (((probeQ T edges k x).firsts rd ∅).filter fun q => q.1.2 = some d).length := by
-  unfold travBy firstsBy
+    edgeReadsBy (fun z => (rd z).cut) T edges k x d
+      = (((probeQuery T edges k x).firsts rd ∅).filter fun q => q.1.2 = some d).length := by
+  unfold edgeReadsBy firstsBy
   rw [ofCut_rd]
 
 open scoped Classical in
 /-- The per-read edge field in mean at one probe, over real expectations. -/
 theorem undecAt_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hθ : 0 ≤ G.θ)
     (T : DTree α) (edges : EdgeTable α) (k : ℕ) (d : List Bool × α) (x : FreeMonoid α) :
     ∫ ω, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂μ
-      ≤ 3 / 2 * G.θ * ∫ ω, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ := by
+      ≤ 3 / 2 * G.θ * ∫ ω, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ := by
   have h := edge_first_mean G hmeas hind hlaw G.Good (3 / 2 * G.θ) (fun r h => h) d
-    (probeQ T edges k x)
+    (probeQuery T edges k x)
   have hmU : Measurable fun ω => (G.undecAt (read · ω) k T edges d G.Good x : ℝ) :=
     measurable_of_strings hmeas (prefStrings T x)
       (fun rd => (G.undecAt rd k T edges d G.Good x : ℝ)) fun rd rd' h => by
-        simp only [ReadModel.undecAt, edgeHarvBy_congr_pref (edges := edges) (k := k) (T := T)
+        simp only [ReadModel.undecAt, edgeHarvestBy_congr_pref (edges := edges) (k := k) (T := T)
           (x := x) (cut := fun z => (rd z).cut) (cut' := fun z => (rd' z).cut) fun z hz => by
             rw [h z hz]]
-  have hmN : Measurable fun ω => (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) :=
+  have hmN : Measurable fun ω => (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) :=
     measurable_of_strings hmeas (prefStrings T x)
-      (fun rd => (travBy (fun z => (rd z).cut) T edges k x d : ℝ)) fun rd rd' h => by
-        simp only [travBy_congr_pref (edges := edges) (k := k) (T := T) (x := x)
+      (fun rd => (edgeReadsBy (fun z => (rd z).cut) T edges k x d : ℝ)) fun rd rd' h => by
+        simp only [edgeReadsBy_congr_pref (edges := edges) (k := k) (T := T) (x := x)
           (cut := fun z => (rd z).cut) (cut' := fun z => (rd' z).cut) fun z hz => by
             rw [h z hz]]
-  have hbN : ∀ ω, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ)
+  have hbN : ∀ ω, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ)
       ≤ (x.toList.length + 1) * T.midfixes.card := fun ω => by
-    have := travBy_le (fun z => (read z ω).cut) T edges k x d
+    have := edgeReadsBy_le (fun z => (read z ω).cut) T edges k x d
     exact_mod_cast this
   have hbU : ∀ ω, (G.undecAt (read · ω) k T edges d G.Good x : ℝ)
       ≤ (x.toList.length + 1) * T.midfixes.card := fun ω => by
     have h1 : G.undecAt (read · ω) k T edges d G.Good x
-        ≤ (edgeHarvBy (fun z => (read z ω).cut) T edges k x d).length :=
+        ≤ (edgeHarvestBy (fun z => (read z ω).cut) T edges k x d).length :=
       List.length_filter_le _ _
-    have h2 := edgeHarvBy_le_travBy (fun z => (read z ω).cut) T edges k x d
-    have h3 := travBy_le (fun z => (read z ω).cut) T edges k x d
+    have h2 := edgeHarvestBy_le_edgeReadsBy (fun z => (read z ω).cut) T edges k x d
+    have h3 := edgeReadsBy_le (fun z => (read z ω).cut) T edges k x d
     have := h1.trans (h2.trans h3)
     exact_mod_cast this
   have hiU : Integrable (fun ω => (G.undecAt (read · ω) k T edges d G.Good x : ℝ)) μ :=
     Integrable.of_bound hmU.aestronglyMeasurable _ (Filter.Eventually.of_forall fun ω => by
       rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact hbU ω)
-  have hiN : Integrable (fun ω => (travBy (fun z => (read z ω).cut) T edges k x d : ℝ)) μ :=
+  have hiN : Integrable (fun ω => (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ)) μ :=
     Integrable.of_bound hmN.aestronglyMeasurable _ (Filter.Eventually.of_forall fun ω => by
       rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact hbN ω)
-  have e1 : ∫⁻ ω, (((((probeQ T edges k x).firsts (fun y => read y ω) ∅).filter fun q =>
+  have e1 : ∫⁻ ω, (((((probeQuery T edges k x).firsts (fun y => read y ω) ∅).filter fun q =>
       q.1.2 = some d ∧ read q.2 ω = .undecided ∧ G.Good (G.M.eval q.2.toList)).length : ℕ)
         : ENNReal) ∂μ
       = ENNReal.ofReal (∫ ω, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂μ) := by
@@ -95,15 +95,15 @@ theorem undecAt_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun
       (Filter.Eventually.of_forall fun ω => Nat.cast_nonneg _)]
     congr 1; funext ω
     rw [undecAt_eq G (read · ω), ENNReal.ofReal_natCast]
-  have e2 : ∫⁻ ω, (((((probeQ T edges k x).firsts (fun y => read y ω) ∅).filter fun q =>
+  have e2 : ∫⁻ ω, (((((probeQuery T edges k x).firsts (fun y => read y ω) ∅).filter fun q =>
       q.1.2 = some d).length : ℕ) : ENNReal) ∂μ
-      = ENNReal.ofReal (∫ ω, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ) := by
+      = ENNReal.ofReal (∫ ω, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ) := by
     rw [ofReal_integral_eq_lintegral_ofReal hiN
       (Filter.Eventually.of_forall fun ω => Nat.cast_nonneg _)]
     congr 1; funext ω
-    rw [travBy_eq (read · ω), ENNReal.ofReal_natCast]
+    rw [edgeReadsBy_eq (read · ω), ENNReal.ofReal_natCast]
   rw [e1, e2, ← ENNReal.ofReal_mul (by positivity)] at h
-  have hI : 0 ≤ ∫ ω, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ :=
+  have hI : 0 ≤ ∫ ω, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ :=
     integral_nonneg fun ω => Nat.cast_nonneg _
   exact (ENNReal.ofReal_le_ofReal_iff (by positivity)).1 h
 
@@ -117,19 +117,19 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
 /-- At one tree, edge map and edge, the good read-states' undecided first reads exceed `3θ` of the
 first reads by `η` with chance at most this. -/
 theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
     (edges : EdgeTable α) (d : List Bool × α) :
-    μ {ω | 2 * (3 / 2 * G.θ) * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η
+    μ {ω | 2 * (3 / 2 * G.θ) * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η
         < ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (L + 1)
           * (1 + 4 * (3 / 2 * G.θ) * T.midfixes.card))))) := by
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
     if k ≤ x.toList.length then (G.undecAt rd k T edges d G.Good x : ℝ) else 0
   set tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
-    if k ≤ x.toList.length then (travBy (fun z => (rd z).cut) T edges k x d : ℝ) else 0
+    if k ≤ x.toList.length then (edgeReadsBy (fun z => (rd z).cut) T edges k x d : ℝ) else 0
   have hagr : ∀ x, k ≤ x.toList.length → ∀ rd rd' : FreeMonoid α → ARU,
       (∀ z ∈ probeStrings T k x, rd z = rd' z) →
       ∀ z ∈ probeStrings T k x, (rd z).cut = (rd' z).cut := fun x _ rd rd' h z hz => by
@@ -138,12 +138,13 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
     · simp only [uf, if_pos hkx, ReadModel.undecAt,
-        edgeHarvBy_congr_strings (edges := edges) hkx (hagr x hkx rd rd' h)]
+        edgeHarvestBy_congr_strings (edges := edges) hkx (hagr x hkx rd rd' h)]
     · simp only [uf, if_neg hkx]
   have htf : ∀ x rd rd', (∀ z ∈ probeStrings T k x, rd z = rd' z) → tf rd x = tf rd' x := by
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
-    · simp only [tf, if_pos hkx, travBy_congr_strings (edges := edges) hkx (hagr x hkx rd rd' h)]
+    · simp only [tf, if_pos hkx, edgeReadsBy_congr_strings (edges := edges) hkx
+        (hagr x hkx rd rd' h)]
     · simp only [tf, if_neg hkx]
   have hub : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ uf rd x ∧ uf rd x ≤ L + 1 := by
     intro rd x hx
@@ -154,8 +155,8 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     simp only [uf, if_pos hkx]
     refine ⟨Nat.cast_nonneg _, ?_⟩
     have h1 : G.undecAt rd k T edges d G.Good x
-        ≤ (edgeHarvBy (fun z => (rd z).cut) T edges k x d).length := List.length_filter_le _ _
-    have h2 := edgeHarvBy_length_le (fun z => (rd z).cut) T edges k x d
+        ≤ (edgeHarvestBy (fun z => (rd z).cut) T edges k x d).length := List.length_filter_le _ _
+    have h2 := edgeHarvestBy_length_le (fun z => (rd z).cut) T edges k x d
     have : G.undecAt rd k T edges d G.Good x ≤ L + 1 := by omega
     exact_mod_cast this
   have htb : ∀ rd, ∀ x ∈ lenRange 0 L, 0 ≤ tf rd x
@@ -167,8 +168,8 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     · simp only [tf, if_neg hkx]; constructor <;> positivity
     simp only [tf, if_pos hkx]
     refine ⟨Nat.cast_nonneg _, ?_⟩
-    have h1 := travBy_le (fun z => (rd z).cut) T edges k x d
-    have : travBy (fun z => (rd z).cut) T edges k x d ≤ (L + 1) * T.midfixes.card :=
+    have h1 := edgeReadsBy_le (fun z => (rd z).cut) T edges k x d
+    have : edgeReadsBy (fun z => (rd z).cut) T edges k x d ≤ (L + 1) * T.midfixes.card :=
       h1.trans (Nat.mul_le_mul_right _ (by omega))
     exact_mod_cast this
   have hmean : ∀ x ∈ lenRange 0 L,
@@ -194,9 +195,9 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     rw [integral_eq_sum_len D hlen _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
       refine ⟨Nat.cast_nonneg _, ?_⟩
       have h1 : G.undecAt (read · ω) k T edges d G.Good x
-          ≤ (edgeHarvBy (fun z => (read z ω).cut) T edges k x d).length :=
+          ≤ (edgeHarvestBy (fun z => (read z ω).cut) T edges k x d).length :=
         List.length_filter_le _ _
-      have h2 := edgeHarvBy_length_le (fun z => (read z ω).cut) T edges k x d
+      have h2 := edgeHarvestBy_length_le (fun z => (read z ω).cut) T edges k x d
       have : (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ≤ L + 1 := by
         have : G.undecAt (read · ω) k T edges d G.Good x ≤ L + 1 := by omega
         exact_mod_cast this
@@ -205,23 +206,23 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     by_cases hkx : k ≤ x.toList.length
     · simp only [uf, if_pos hkx]
     · have hs' : x.toList.length < k := by omega
-      simp [uf, hkx, ReadModel.undecAt, edgeHarvBy_short _ T edges hs']
-  have hNs : ∀ ω, ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D
+      simp [uf, hkx, ReadModel.undecAt, edgeHarvestBy_short _ T edges hs']
+  have hNs : ∀ ω, ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D
       = ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x := by
     intro ω
     rw [integral_eq_sum_len D hlen _ ((L + 1) * (T.midfixes.card + 1)) (hM _ fun x hx => by
       refine ⟨Nat.cast_nonneg _, ?_⟩
-      have h1 := travBy_le (fun z => (read z ω).cut) T edges k x d
-      have : (travBy (fun z => (read z ω).cut) T edges k x d : ℝ)
+      have h1 := edgeReadsBy_le (fun z => (read z ω).cut) T edges k x d
+      have : (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ)
           ≤ (L + 1) * T.midfixes.card := by
-        have : travBy (fun z => (read z ω).cut) T edges k x d ≤ (L + 1) * T.midfixes.card :=
+        have : edgeReadsBy (fun z => (read z ω).cut) T edges k x d ≤ (L + 1) * T.midfixes.card :=
           h1.trans (Nat.mul_le_mul_right _ (by omega))
         exact_mod_cast this
       nlinarith)]
     refine Finset.sum_congr rfl fun x _ => ?_
     by_cases hkx : k ≤ x.toList.length
     · simp only [tf, if_pos hkx]
-    · simp [tf, hkx, travBy_short _ T edges (show x.toList.length < k by omega)]
+    · simp [tf, hkx, edgeReadsBy_short _ T edges (show x.toList.length < k by omega)]
   calc μ _ ≤ μ {ω | 2 * (3 / 2 * G.θ) * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
         refine measure_mono fun ω hω => ?_
@@ -242,14 +243,14 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [Measurabl
 `θg ≥ 3θ` of its first reads by `η` with chance at most the count of trees, edge maps and edges
 times `exp(−η / (2 p₀ (L + 1)(1 + 6θ (|Q| + S + 1))))`. -/
 theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θg : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
     (hθg : 2 * (3 / 2 * G.θ) ≤ θg) :
     μ {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,
         ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D
-          ≤ θg * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}
+          ≤ θg * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}
       ≤ ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
         * ((Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
           * ((Fintype.card σ + S + 2) * Fintype.card α))
@@ -258,11 +259,11 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
   set n := Fintype.card σ + S
   set ε : ℝ := Real.exp (-(η / (2 * p₀ * (L + 1) * (1 + 4 * (3 / 2 * G.θ) * (n + 1)))))
   set B : DTree α → EdgeTable α → List Bool × α → Set Ω := fun T e d => {ω |
-    2 * (3 / 2 * G.θ) * ∫ x, (travBy (fun z => (read z ω).cut) T e k x d : ℝ) ∂D + η
+    2 * (3 / 2 * G.θ) * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T e k x d : ℝ) ∂D + η
       < ∫ x, (G.undecAt (read · ω) k T e d G.Good x : ℝ) ∂D}
   have hsub : {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,
       ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D
-        ≤ θg * ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}
+        ≤ θg * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η}
       ⊆ ⋃ T ∈ (classSet n : Finset (DTree α)), ⋃ e ∈ edgeMaps T,
           ⋃ d ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α), B T e d := by
     intro ω hω
@@ -273,21 +274,21 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
         = G.undecAt (read · ω) k T e' d G.Good x := by
       intro x
       simp only [ReadModel.undecAt]
-      rw [edgeHarvBy_econgr (k := k) (x := x) he hagr (fun z => (read z ω).cut)]
-    have hN : ∀ x, travBy (fun z => (read z ω).cut) T edges k x d
-        = travBy (fun z => (read z ω).cut) T e' k x d := by
+      rw [edgeHarvestBy_econgr (k := k) (x := x) he hagr (fun z => (read z ω).cut)]
+    have hN : ∀ x, edgeReadsBy (fun z => (read z ω).cut) T edges k x d
+        = edgeReadsBy (fun z => (read z ω).cut) T e' k x d := by
       intro x
-      rw [travBy_econgr (k := k) (x := x) he hagr (fun z => (read z ω).cut)]
+      rw [edgeReadsBy_econgr (k := k) (x := x) he hagr (fun z => (read z ω).cut)]
     have hd : d.1 ∈ T.leaves := by
       by_contra hd
       have h0 : ∀ x, G.undecAt (read · ω) k T edges d G.Good x = 0 := by
         intro x
         simp only [ReadModel.undecAt]
-        have : edgeHarvBy (fun z => (read z ω).cut) T edges k x d = [] :=
-          by_contra fun hne => hd (edgeHarvBy_mem _ T k x he hne)
+        have : edgeHarvestBy (fun z => (read z ω).cut) T edges k x d = [] :=
+          by_contra fun hne => hd (edgeHarvestBy_mem _ T k x he hne)
         simp [this]
       simp only [h0, Nat.cast_zero, integral_zero] at hlt
-      have : 0 ≤ ∫ x, (travBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D :=
+      have : 0 ≤ ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D :=
         integral_nonneg fun x => Nat.cast_nonneg _
       have : 0 ≤ θg := le_trans (by positivity) hθg
       nlinarith
@@ -295,7 +296,7 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
       (Finset.mem_product.2 ⟨List.mem_toFinset.2 hd, Finset.mem_univ _⟩) ?_))
     simp only [B, Set.mem_setOf_eq]
     simp only [hU, hN] at hlt
-    have : 0 ≤ ∫ x, (travBy (fun z => (read z ω).cut) T e' k x d : ℝ) ∂D :=
+    have : 0 ≤ ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T e' k x d : ℝ) ∂D :=
       integral_nonneg fun x => Nat.cast_nonneg _
     nlinarith [mul_le_mul_of_nonneg_right hθg this]
   have hone : ∀ T ∈ (classSet n : Finset (DTree α)), ∀ e d, μ (B T e d) ≤ ENNReal.ofReal ε := by

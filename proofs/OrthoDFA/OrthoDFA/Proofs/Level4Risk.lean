@@ -1,15 +1,15 @@
-import OrthoDFA.Proofs.TallyEvent
-import OrthoDFA.Proofs.TallySpurNoise
-import OrthoDFA.Proofs.TallyKeep
-import OrthoDFA.Proofs.TallyRace
-import OrthoDFA.Proofs.TallySuccess
+import OrthoDFA.Proofs.Level4Event
+import OrthoDFA.Proofs.Level4SpurNoise
+import OrthoDFA.Proofs.Level4Keep
+import OrthoDFA.Proofs.Level4Race
+import OrthoDFA.Proofs.Level4Success
 import OrthoDFA.Proofs.Yield
 
 /-!
-# The tally round's risk
+# Level 4's risk
 
-`TallyRoundGiven` with its noise event's chance bounded by `tallyE_le` and `spurious_le`, the
-records field at the coefficient `κs` and the read model's own `κ`, gives `TallyRound` at every
+`RoundGiven` with its noise event's chance bounded by `noiseEvent_le` and `spurious_le`, the
+records field at the coefficient `κs` and the read model's own `κ`, gives `Level4RoundRisk` at every
 admissible choice of knobs.
 -/
 
@@ -41,7 +41,8 @@ theorem prefixMax_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k 
 
 omit [Fintype σ] in
 theorem leafOf_with (G : ReadModel α σ) (κ' : ℝ)
-    (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided)) :
+    (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
+        ≤ max G.ε (κ' * G.readDist r .undecided)) :
     ∀ (T : DTree α) (q : σ), ({ G with κ := κ', rare := h } : ReadModel α σ).leafOf T q
       = G.leafOf T q
   | .leaf, _ => rfl
@@ -52,7 +53,8 @@ theorem leafOf_with (G : ReadModel α σ) (κ' : ℝ)
 
 omit [Fintype σ] in
 theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
-    (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided))
+    (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
+        ≤ max G.ε (κ' * G.readDist r .undecided))
     {T : DTree α} {f : ℕ} (hg : ({ G with κ := κ', rare := h } : ReadModel α σ).Grown T f) :
     G.Grown T f := by
   induction hg with
@@ -68,46 +70,47 @@ theorem grown_of_with (G : ReadModel α σ) (κ' : ℝ)
 
 omit [Fintype σ] in
 theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
-    (h : ∀ r, min (G.dist r .accept) (G.dist r .reject) ≤ max G.ε (κ' * G.dist r .undecided))
+    (h : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
+        ≤ max G.ε (κ' * G.readDist r .undecided))
     (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     ({ G with κ := κ', rare := h } : ReadModel α σ).untrueAt rd k T edges
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
-/-- `TallyRoundRisk` over the proofs' view of the oracle. -/
-theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
+/-- `Level4RoundRisk` over the proofs' view of the oracle. -/
+theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r)
-    (P : PrefixDistribution α) (C : TallyCfg) (κs δ : ℝ) (hκ : 2 * G.κ ≤ κs) (hδ0 : 0 < δ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
+    (P : PrefixDistribution α) (C : Level4Settings) (κs δ : ℝ) (hκ : 2 * G.κ ≤ κs) (hδ0 : 0 < δ)
     (hδ1 : δ ≤ 1) :
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) P.D C P.firstAnchor P.L
-            ((undecidedCount P G.M G.dist
-              - 2 * Real.sqrt (P.prefixBound * undecidedCount P G.M G.dist * Real.log (1 / δ)))
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) P.D C P.firstAnchor P.L
+            ((undecidedCount P G.M G.readDist
+              - 2 * Real.sqrt (P.prefixBound * undecidedCount P G.M G.readDist * Real.log (1 / δ)))
               / (P.L + 1 - P.firstAnchor : ℕ)) (read · ω))
-          tallyStart (List.ofFn xs)} ∂μ
+          initialState (List.ofFn xs)} ∂μ
       ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs + ENNReal.ofReal δ := by
   obtain ⟨D, _, L, st, hst, hlen, q, hq, hpreq⟩ := P
   simp only [roundRisk, ENNReal.iInf_add]
   refine le_iInf₂ fun kn hA => ?_
-  have hold : ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-        (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
-        tallyStart (List.ofFn xs)} ∂μ ≤ roundBound σ G.κ G.ε G.θ D L C kn := by
-    have hp₀ := prefixMax_pos D C.k
-    have hpmax := le_prefixMax D C.k
-    have hrare : ∀ r, min (G.dist r .accept) (G.dist r .reject)
-        ≤ max G.ε (κs * G.dist r .undecided) := fun r =>
+  have hold : ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D)
+      {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+        (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+        initialState (List.ofFn xs)} ∂μ ≤ roundBound σ G.κ G.ε G.θ D L C kn := by
+    have hp₀ := prefixMax_pos D C.walkStart
+    have hpmax := le_prefixMax D C.walkStart
+    have hrare : ∀ r, min (G.readDist r .accept) (G.readDist r .reject)
+        ≤ max G.ε (κs * G.readDist r .undecided) := fun r =>
       (G.rare r).trans (max_le_max le_rfl (mul_le_mul_of_nonneg_right
         (by linarith [hA.κ_pos]) (G.nonneg r _)))
     set G₂ : ReadModel α σ := { G with κ := κs, rare := hrare }
     have hθg0 : 0 ≤ kn.θg := le_trans (by linarith [hA.θ_nonneg]) hA.θg_ge
     have hθgpt0 : 0 ≤ kn.θgpt := le_trans (by have := hA.θ_nonneg; positivity) hA.θgpt_ge
     have hρ0 : 0 ≤ kn.ρ := le_trans (by have := hA.ε_nonneg; positivity) hA.records_slack
-    have hTR := tally_round_of sub_round_holds fake_race_holds harvest_good_holds
-      success_sound_holds (μ := μ) G₂ read D C kn.S kn.nEnd kn.nRec kn.hP kn.hS L C.budget kn.ρ
+    have hTR := roundGiven_of sub_round_holds fake_race_holds harvest_good_holds
+      success_sound_holds (μ := μ) G₂ read D C kn.S kn.nEnd kn.nRec kn.hP kn.hS L C.probeBudget kn.ρ
       kn.θg kn.θgs kn.θgpt kn.θpt' kn.θr kn.εd' kn.Xe kn.θs' kn.Xs kn.η kn.ν
       hlen hρ0 hA.m_pos hA.Lmax_ge hA.n₀_le_nEnd hA.n₀_le_hS hA.θpt_nonneg hA.θpt_le
       hA.εd_nonneg hA.εd_le hA.θpt'_nonneg hA.θpt'_le hA.θr_nonneg hA.θr_le_one hA.εd'_nonneg
@@ -116,9 +119,9 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
       hθgpt0 hA.θgpt_le hA.pt_test hA.φpt_nonneg hA.φpt_le hA.φpt_test (by linarith [hA.θe_ge])
       hA.Xe_nonneg hA.exc_le hA.θs'_nonneg hA.n₀_le_Xs hA.start_lin hA.η_nonneg hA.ν_nonneg
       hA.race_side hA.budget_ge
-    have hE := tallyE_le (ρ := kn.ρ) (θgs := kn.θgs) G₂ read hmeas hind hlaw hA.θ_nonneg D C kn.S L
+    have hE := noiseEvent_le (ρ := kn.ρ) (θgs := kn.θgs) G₂ read hmeas hind hlaw hA.θ_nonneg D C kn.S L
       hlen hp₀ hpmax hA.l_nonneg hA.φe_nonneg hA.φpt_nonneg hA.θe_ge hA.θg_ge hA.θgpt_ge
-    have hSp := spurious_le G read hmeas hind hlaw hA.κ_pos hA.ε_nonneg D C.k L kn.S hlen hp₀ hpmax
+    have hSp := spurious_le G read hmeas hind hlaw hA.κ_pos hA.ε_nonneg D C.walkStart L kn.S hlen hp₀ hpmax
       hκ hA.records_slack
     have hcard : ((classSet (Fintype.card σ + kn.S) : Finset (DTree α)).card : ℝ)
         ≤ classCount (α := α) σ kn.S := by
@@ -143,7 +146,7 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
       gcongr ?_ * _ * _
   set n : ℝ := ((L + 1 - st : ℕ) : ℝ)
   have hn : (0 : ℝ) < n := by simp only [n]; exact_mod_cast anchorCount_pos hst
-  set V := undecidedCount ⟨D, inferInstance, L, st, hst, hlen, q, hq, hpreq⟩ G.M G.dist
+  set V := undecidedCount ⟨D, inferInstance, L, st, hst, hlen, q, hq, hpreq⟩ G.M G.readDist
   set lg := Real.log (1 / δ)
   have hlg : 0 ≤ lg := Real.log_nonneg (by rw [le_div_iff₀ hδ0]; linarith)
   set Y : Ω → ℝ := fun ω => (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
@@ -191,15 +194,15 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
       rw [this, measure_empty]
       exact zero_le
   set B := toMeasurable μ Ny
-  have hpt : ∀ ω, (Measure.pi fun _ : Fin C.budget => D)
-      {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
+  have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget => D)
+      {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
 
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C st L y (read · ω)) tallyStart
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C st L y (read · ω)) initialState
           (List.ofFn xs)}
-      ≤ (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
-          tallyStart (List.ofFn xs)} + B.indicator 1 ω := by
+      ≤ (Measure.pi fun _ : Fin C.probeBudget => D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+          initialState (List.ofFn xs)} + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
@@ -208,31 +211,32 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
       have hωY : ¬ ω ∈ Ny := fun h => hω (subset_toMeasurable _ _ h)
       simp only [Ny, Set.mem_ofPred_eq, not_lt] at hωY
       refine measure_mono fun xs hxs h => hxs ?_
-      have h' := runEnds_inv (fun s : TState α => RootOne s.tree)
-        (fun s x hs => tallyStep_rootOne C _ hs x) tallyStart _ ⟨_, _, rfl⟩ h
+      have h' := runEnds_inv (fun s : Level4State α => RootOne s.tree)
+        (fun s x hs => applyProbe_rootOne C _ hs x) initialState _ ⟨_, _, rfl⟩ h
       refine runEnds_mono (fun e s' hs => ?_) _ _ h'
       obtain ⟨hQ, hroot⟩ := hs
-      refine EndsWell.respread (tallyReplay_spread _ _ _ D st L) ?_ hQ
+      refine EndsWell.respread (replayAt_spread _ _ _ D st L) ?_ hQ
       refine hωY.trans (measureReal_mono ?_ (measure_ne_top _ _))
       rintro ⟨w, e⟩ ⟨he, hu⟩
-      exact tallyReplay_root _ hroot _ he hu
-  calc _ ≤ ∫⁻ ω, ((Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
-          tallyStart (List.ofFn xs)} + B.indicator 1 ω) ∂μ := lintegral_mono hpt
-    _ = ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
-        {xs | ¬ RunEnds (tallyStep C fun z => (read z ω).cut)
-          (TallyEndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
-          tallyStart (List.ofFn xs)} ∂μ + μ B := by
+      exact replayAt_root _ hroot _ he hu
+  calc _ ≤ ∫⁻ ω, ((Measure.pi fun _ : Fin C.probeBudget => D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+          initialState (List.ofFn xs)} + B.indicator 1 ω) ∂μ := lintegral_mono hpt
+    _ = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+          initialState (List.ofFn xs)} ∂μ + μ B := by
         rw [lintegral_add_right _ (measurable_one.indicator (measurableSet_toMeasurable _ _)),
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
     _ ≤ _ := by
         rw [measure_toMeasurable]
         exact add_le_add hold hNy
 
-theorem tally_round_holds : TallyRoundRisk := by
+theorem level4_round_risk_holds : Level4RoundRisk := by
   intro α _ _ σ _ Ω _ μ _ M O θ P C κs δ hκ hδ0 hδ1
-  exact tally_round_model ⟨M, O.dist, θ, O.κ, O.ε, O.nonneg, O.rare⟩ O.read O.measurable O.indep
-    O.law P C κs δ hκ hδ0 hδ1
+  exact level4_model ⟨M, O.readDist, θ, O.κ, O.ε, O.readDist_nonneg,
+      O.rarer_side_le⟩ O.read O.measurable O.indep
+    O.reads_by_state P C κs δ hκ hδ0 hδ1
 
 end OrthoDFA

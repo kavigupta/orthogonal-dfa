@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyNoise
+import OrthoDFA.Proofs.Level4Noise
 import OrthoDFA.Proofs.HarvestClasses
 import OrthoDFA.Proofs.TripleBound
 
@@ -62,9 +62,9 @@ theorem probeBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     probeBy cut T e k x = probeBy cut T e' k x := by
   simp only [probeBy, walkCheckBy_econgr (x := x) (k := k) (cut := cut) he h]
 
-theorem ptHarvBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
-    ptHarvBy cut T e k x = ptHarvBy cut T e' k x := by
-  simp only [ptHarvBy, probeBy_econgr (x := x) (k := k) (cut := cut) he h]
+theorem middleHarvestBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
+    middleHarvestBy cut T e k x = middleHarvestBy cut T e' k x := by
+  simp only [middleHarvestBy, probeBy_econgr (x := x) (k := k) (cut := cut) he h]
 
 open scoped Classical in
 /-- Edge maps out of the leaves into the leaves, each witness `1`. -/
@@ -164,7 +164,8 @@ theorem agreesAtBy_congrK (h : PrefAgreeK cut cut' t x k) (w : ℕ → List Bool
   intro i hi
   simp only [agreesAtBy, h i hi]
 
-theorem kWalkBy_edge_ge {s : List Bool} {c : α} {j : ℕ} (hk : kWalkBy cut t edges k x = .edge s c j) :
+theorem kWalkBy_edge_ge {s : List Bool} {c : α} {j : ℕ}
+    (hk : kWalkBy cut t edges k x = .edge s c j) :
     k ≤ j := by
   unfold kWalkBy at hk
   split at hk
@@ -194,9 +195,9 @@ theorem probeBy_congrK (h : PrefAgreeK cut cut' t x k) :
   · simp only [Sum.elim_inr]
     exact bracketAt_congr ps _ _ _ _ _ (agreesAtBy_congrK h _)
 
-theorem ptHarvBy_congrK (h : PrefAgreeK cut cut' t x k) :
-    ptHarvBy cut t edges k x = ptHarvBy cut' t edges k x := by
-  unfold ptHarvBy
+theorem middleHarvestBy_congrK (h : PrefAgreeK cut cut' t x k) :
+    middleHarvestBy cut t edges k x = middleHarvestBy cut' t edges k x := by
+  unfold middleHarvestBy
   rw [probeBy_congrK (edges := edges) h]
   rcases ho : probeBy cut' t edges k x with _ | _ | _ | j | _ | j | _
   · rfl

@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyTrue
+import OrthoDFA.Proofs.Level4True
 
 /-!
 # The class is finite
@@ -18,7 +18,8 @@ open scoped Classical in
 noncomputable def classSet : ℕ → Finset (DTree α)
   | 0 => {.node 1 .leaf .leaf}
   | n + 1 => classSet n ∪ (classSet n).biUnion fun T =>
-      (T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ T.leaves.toFinset).image
+      (T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
+          T.leaves.toFinset).image
         fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1
 
 theorem classSet_mono (n : ℕ) : (classSet n : Finset (DTree α)) ⊆ classSet (n + 1) := by

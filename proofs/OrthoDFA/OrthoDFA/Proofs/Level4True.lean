@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyWalk
+import OrthoDFA.Proofs.Level4Walk
 
 /-!
 # True leaves and genuine trees
@@ -153,7 +153,8 @@ theorem trueLeaves_splitAt_le [Fintype σ] {T : DTree α} {p : List Bool} (hp : 
 /-- The class's trees: each split adds a leaf, a genuine one a true leaf too, so the count of
 splits that are not genuine is fixed by the tree. -/
 theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
-    T.leaves.length + (G.trueLeaves (.node 1 .leaf .leaf)).card = (G.trueLeaves T).card + 2 + f := by
+    T.leaves.length + (G.trueLeaves (.node 1 .leaf .leaf)).card
+        = (G.trueLeaves T).card + 2 + f := by
   classical
   induction h with
   | start => simp [DTree.leaves]; omega

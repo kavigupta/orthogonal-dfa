@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.TallyNoise
+import OrthoDFA.Proofs.Level4Noise
 
 /-!
 # Adaptive reads

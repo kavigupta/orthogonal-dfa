@@ -1,6 +1,6 @@
-import OrthoDFA.Proofs.TallyEdgeNoise
-import OrthoDFA.Proofs.TallyFirsts
-import OrthoDFA.Proofs.TallyHarvest
+import OrthoDFA.Proofs.Level4EdgeNoise
+import OrthoDFA.Proofs.Level4Firsts
+import OrthoDFA.Proofs.Level4Harvest
 
 /-!
 # The noise event's middles field
@@ -158,7 +158,7 @@ open scoped Classical in
 /-- At one probe, a search stops at an undecided middle at a good read-state with chance at most
 its positions' and the midfixes' counts times `1.5θ` of its chance of searching. -/
 theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (T : DTree α) (edges : EdgeTable α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
     μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
       ≤ (x.toList.length + 1) * T.midfixes.card * (3 / 2 * G.θ)
@@ -172,7 +172,7 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
         Srch ∩ {ω | read (prefixOf x j * m) ω = .undecided} := by
     intro ω hω
     obtain ⟨b, hb, hg⟩ := hω
-    unfold ptHarvBy at hb
+    unfold middleHarvestBy at hb
     rcases ho : probeBy (fun y => (read y ω).cut) T edges k x with _ | _ | _ | j | _ | j | _ <;>
       rw [ho] at hb <;> simp only [reduceCtorEq] at hb
     all_goals first
@@ -241,7 +241,7 @@ open scoped Classical in
 read-state exceed twice `θ₀` of the probes that search by `η` with chance at most
 `exp(−η / (2 p₀ (1 + 4θ₀)))`, where `θ₀ ≥ (L + 1)` times the midfixes' count times `1.5θ`. -/
 theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
@@ -262,12 +262,12 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
     · simp only [uf, ReadModel.ptAt, Set.mem_setOf_eq,
-        ptHarvBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
+        middleHarvestBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
     · simp only [uf, hkx, false_and, if_false]
   have htf : ∀ x rd rd', (∀ z ∈ probeStrings T k x, rd z = rd' z) → tf rd x = tf rd' x := by
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
-    · simp only [tf, searchAt, Set.mem_setOf_eq,
+    · simp only [tf, searchAt_eq, Set.mem_setOf_eq,
         probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
     · simp only [tf, hkx, false_and, if_false]
   have hb01 : ∀ (P : Prop) [Decidable P], 0 ≤ (if P then (1 : ℝ) else 0)
@@ -290,13 +290,13 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
       have := measurable_of_strings hmeas (probeStrings T k x)
         (fun rd => decide (x ∈ G.ptAt rd k T edges G.Good)) fun rd rd' h => by
           simp only [ReadModel.ptAt, Set.mem_setOf_eq,
-            ptHarvBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
+            middleHarvestBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
       convert this (measurableSet_singleton true) using 1
       ext ω; simp
     have hmS : MeasurableSet {ω | x ∈ searchAt (read · ω) k T edges} := by
       have := measurable_of_strings hmeas (probeStrings T k x)
         (fun rd => decide (x ∈ searchAt rd k T edges)) fun rd rd' h => by
-          simp only [searchAt, Set.mem_setOf_eq,
+          simp only [searchAt_eq, Set.mem_setOf_eq,
             probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
       convert this (measurableSet_singleton true) using 1
       ext ω; simp
@@ -326,7 +326,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     · simp only [uf, hkx, true_and]
     · have hs' : x.toList.length < k := by omega
       have : x ∉ G.ptAt (read · ω) k T edges G.Good := by
-        simp [ReadModel.ptAt, ptHarvBy_short _ T edges hs']
+        simp [ReadModel.ptAt, middleHarvestBy_short _ T edges hs']
       simp [uf, hkx, this]
   have hSs : ∀ ω, ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x
       = D.real (searchAt (read · ω) k T edges) := by
@@ -337,7 +337,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     · simp only [tf, hkx, true_and]
     · have hs' : x.toList.length < k := by omega
       have : x ∉ searchAt (read · ω) k T edges := by
-        simp [searchAt, probeBy_short _ T edges hs']
+        simp [searchAt_eq, probeBy_short _ T edges hs']
       simp [tf, hkx, this]
   calc μ _ ≤ μ {ω | 2 * θ₀ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
@@ -356,7 +356,7 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*} [Measurabl
   {μ : Measure Ω} [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
 
 theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ) {p₀ η θgpt : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
@@ -387,10 +387,10 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
     have hP : G.ptAt (read · ω) k T edges G.Good = G.ptAt (read · ω) k T e' G.Good := by
       ext x
       simp only [ReadModel.ptAt, Set.mem_setOf_eq]
-      rw [ptHarvBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
+      rw [middleHarvestBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
     have hS : searchAt (read · ω) k T edges = searchAt (read · ω) k T e' := by
       ext x
-      simp only [searchAt, Set.mem_setOf_eq]
+      simp only [searchAt_eq, Set.mem_setOf_eq]
       rw [probeBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
     refine Set.mem_biUnion (inClass_mem G hT) (Set.mem_biUnion he'm ?_)
     simp only [B, Set.mem_setOf_eq]

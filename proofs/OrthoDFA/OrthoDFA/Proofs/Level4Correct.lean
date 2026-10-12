@@ -1,16 +1,17 @@
-import OrthoDFA.Proofs.TallyRiskBound
-import OrthoDFA.TallyFamily
+import OrthoDFA.Proofs.Level4RiskBound
+import OrthoDFA.Level4Family
 
 /-!
-# The tally round's claim
+# Level 4's claim
 
-`TallyRoundCorrect` from `TallyRoundRisk` at `κs = 2κ` and `TallyRiskBound` bounding its
+`Level4Correct` from `Level4RoundRisk` at `κs = 2κ` and `Level4RiskBound` bounding its
 `roundRisk` by `δ`, at settings chosen as formulas of the problem. With `N = |Q| + S + 3`,
-`L₁ = L + 1` and `s = √(|Σ| ρ/3)`: `Lmax = N`, `θpt = 1/4`, `θs = 1/2`, `φpt = 3εd/4`,
-`θe = 8s + 1/(L₁ N)`, `φe = 4s L₁/|Σ|`, `a = e^{−G}`, `n₀ = ⌈(512 + 32/(9εd²)) G⌉`,
-`exc = 6 L₁ G`, `m` the records the caps ask for, and the budget `TallyRiskBound` asks for.
-`θe` and `φe` balance the edges' share of the records cap against the prefix mass the edge field
-admits.
+`L₁ = L + 1` and `s = √(|Σ| ρ/3)`: `maxLeaves = N`, `middleUndecidedRate = 1/4`,
+`startUndecidedRate = 1/2`, `searchShare = 3εd/4`, `edgeUndecidedRate = 8s + 1/(L₁ N)`,
+`edgeTraffic = 4s L₁/|Σ|`, `testLevel = e^{−G}`, `firstLook = ⌈(512 + 32/(9εd²)) G⌉`,
+`edgeExcess = 6 L₁ G`, `recordsToMove` the records the caps ask for, and `probeBudget` the budget
+`Level4RiskBound` asks for. `edgeUndecidedRate` and `edgeTraffic` balance the edges' share of the
+records cap against the prefix mass the edge field admits.
 -/
 
 noncomputable section
@@ -220,14 +221,46 @@ theorem cap_half (X ρ b m N1 Z S1 εd B1 : ℝ) (hX : 0 ≤ X) (hXρ : X ≤ ρ
     field_simp
   linarith
 
+/-- A run's ending, as `RunEnds` checks it, is `runProbes`'s. -/
+theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
+    (C : Level4Settings) (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) :
+    ∀ (s : Level4State α) (xs : List (FreeMonoid α)),
+      RunEnds (applyProbe C fun z => (rd z).cut) (Level4EndsWell M bad D C a L y rd) s xs ↔
+        EndsWell M bad D C.disagreementRate
+          (searchingProbes rd C.walkStart ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) a L
+          (level4Replay rd ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) y
+          (runProbes C (fun z => (rd z).cut) s xs).2
+  | s, [] => by simp [RunEnds, runProbes, EndsWell]
+  | s, x :: xs => by
+    cases h : applyProbe C (fun z => (rd z).cut) s x with
+    | inl s' => simpa only [RunEnds, runProbes, h] using runEnds_iff M bad D C a L y rd s' xs
+    | inr es => obtain ⟨e, s'⟩ := es; simp only [RunEnds, runProbes, h]; rfl
+
+theorem lintegral_level4_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    (M : _root_.DFA α σ) (O : TriOracle μ M) (bad : σ → Prop) (P : PrefixDistribution α)
+    (C : Level4Settings) (y : ℝ) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel4 C (O.read · ω) draws
+          ¬ EndsWell M bad P.D C.disagreementRate
+            (searchingProbes (O.read · ω) C.walkStart result.hypothesis)
+            P.firstAnchor P.L (level4Replay (O.read · ω) result.hypothesis) y result.ending} ∂μ
+      = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
+          (Level4EndsWell M bad P.D C P.firstAnchor P.L y (O.read · ω))
+          initialState (List.ofFn xs)} ∂μ := by
+  congr 1; ext ω; congr 1; ext xs
+  simp only [Set.mem_setOf_eq, runEnds_iff, indecisiveLStarLevel4]
+
 section Guarantee
 
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
 set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition
-theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ εd : ℝ)
-    (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : TallyRoundGuarantee M O θ εd P δ S k := by
+theorem level4_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ εd : ℝ)
+    (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Level4Guarantee M O θ εd P δ S k := by
   intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hκc hε hεc
   generalize hρ : ((S : ℝ) + 1) * εd / (256 * ((Fintype.card σ : ℝ) + S + 1)
     * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) = ρ at hκc hεc
@@ -357,15 +390,15 @@ theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ ε
     ring
   -- shared facts
   have hp₀ : 0 < prefixMax P.D k := prefixMax_pos P.D k
-  have hΛ0 : 0 ≤ tallyLog (α := α) σ S δ := by
-    unfold tallyLog
+  have hΛ0 : 0 ≤ unionLog (α := α) σ S δ := by
+    unfold unionLog
     refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
     rw [le_div_iff₀ hδ0]
     have h3 : (3 : ℝ) ≤ Fintype.card σ + S + 3 := by linarith
     nlinarith only [h3, hA1, hδ1, hδ0]
-  have hpl0 : 0 ≤ prefixMax P.D k * tallyLog (α := α) σ S δ := mul_nonneg hp₀.le hΛ0
+  have hpl0 : 0 ≤ prefixMax P.D k * unionLog (α := α) σ S δ := mul_nonneg hp₀.le hΛ0
   have hεN0 : 0 ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε := by positivity
-  have hpl : 3 * (prefixMax P.D k * tallyLog (α := α) σ S δ) ≤ ρ := by linarith
+  have hpl : 3 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ ρ := by linarith
   have hερ : ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε ≤ ρ := by linarith
   have hsN : 0 ≤ 8 * ((Fintype.card σ : ℝ) + S + 3) * (P.L + 1) * s := by positivity
   have hκρ : 4 * O.κ ≤ ρ := by nlinarith only [hκc, hsN, hκ]
@@ -390,7 +423,7 @@ theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ ε
     8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, Real.exp (-G), n₀,
     fun _ => 6 * (P.L + 1) * G, 4 * s * (P.L + 1) / Fintype.card α, 3 * εd / 4, b⟩,
     rfl, rfl, hbK, ?_⟩
-  have hRB := tally_risk_bound_holds σ O.κ O.ε θ P.D P.L ⟨k, m, Fintype.card σ + S + 3, 1 / 2,
+  have hRB := level4_risk_bound_holds σ O.κ O.ε θ P.D P.L ⟨k, m, Fintype.card σ + S + 3, 1 / 2,
     8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, Real.exp (-G), n₀,
     fun _ => 6 * (P.L + 1) * G, 4 * s * (P.L + 1) / Fintype.card α, 3 * εd / 4, b⟩ (2 * O.κ) δ S
   dsimp only at hRB
@@ -398,7 +431,8 @@ theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ ε
   have hrisk := hRB hδ0 hδ1 hL le_rfl hκ le_rfl ?_ hε ?_ hθ ?_ ?_ ?_ (by norm_num) ?_ ?_ hεd1
     (by norm_num) (by linarith) ?_ ?_ ?_ ?_ ?_ (Real.exp_pos _) ?_
     (by rw [h8G] at hbl ⊢; exact hbl) ?_ ?_ ?_ ?_
-  · calc _ ≤ _ := tally_round_holds M O θ P _ (2 * O.κ) δ le_rfl hδ0 hδ1
+  · refine (lintegral_level4_eq M O _ P _ _).trans_le ?_
+    calc _ ≤ _ := level4_round_risk_holds M O θ P _ (2 * O.κ) δ le_rfl hδ0 hδ1
       _ ≤ ENNReal.ofReal δ + ENNReal.ofReal δ := add_le_add hrisk le_rfl
       _ = ENNReal.ofReal (2 * δ) := by rw [← ENNReal.ofReal_add hδ0.le hδ0.le]; ring_nf
   · -- κ against the length
@@ -431,7 +465,7 @@ theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ ε
     have : 0 ≤ 8 * s := by positivity
     linarith
   · linarith
-  · have : 8 * (prefixMax P.D k * tallyLog (α := α) σ S δ) ≤ 1 / 4 := by linarith
+  · have : 8 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ 1 / 4 := by linarith
     linarith
   · have t1 : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
         = 32 * ((P.L : ℝ) + 1) * ρ / 3 := by
@@ -515,17 +549,17 @@ theorem tally_round_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ ε
       (by positivity) hκc
     linarith
   · have := hcap (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε
-      + 3 * (prefixMax P.D k * tallyLog (α := α) σ S δ)) (by positivity) (by linarith)
+      + 3 * (prefixMax P.D k * unionLog (α := α) σ S δ)) (by positivity) (by linarith)
     linarith
 
 end Guarantee
 
-theorem tally_round_correct_holds : TallyRoundCorrect := by
+theorem level4_correct_holds : Level4Correct := by
   intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ S k
-  exact tally_round_guarantee M O θ εd P δ S k
+  exact level4_guarantee M O θ εd P δ S k
 
-theorem tally_round_family_holds : TallyRoundFamily := by
+theorem level4_family_correct_holds : Level4FamilyCorrect := by
   intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ S k
-  exact tally_round_guarantee fam.M fam.oracle θ εd P δ S k
+  exact level4_guarantee fam.M fam.oracle θ εd P δ S k
 
 end OrthoDFA

@@ -1,17 +1,19 @@
 import OrthoDFA.Loop
 import OrthoDFA.FamilyRead
+import OrthoDFA.RoundEnd
 
 /-!
-# The tally loop
+# Level 4 of indecisive L*: the counterexample search
 
 The family is the oracle: a read of a string is accept, reject or undecided, and a node of the
-tree reads `w·m` as one read. `rd` holds every string's read; its cut is the read's side, or
+tree reads `w·m` as one read. `read` holds every string's read; its cut is the read's side, or
 `none` where undecided.
 
-Probes are fresh draws, each walked from `k` along the learned edges and searched for its first
-disagreement as `sifting.read` does (`probeBy`, whose bisection steps past an undecided midpoint
-whose neighbours read alike). A clean disagreement records, at the edge it crosses, the probe's
-prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns it.
+Probes are fresh draws, each walked from `walkStart` along the learned edges and searched for its
+first disagreement as `sifting.read` does (`probeBy`, whose bisection steps past an undecided
+midpoint whose neighbours read alike). A clean disagreement records, at the edge it crosses, the
+probe's prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns
+it.
 
 Each place keeps its count over the whole round: the start, its undecided reads' strings, and
 each edge, the strings first read in a probe at positions charged to it and those of them read
@@ -19,18 +21,21 @@ undecided. Every position past the start is charged to an edge: the walk's edge 
 position, or, where there is none, the walk's last edge; every position a probe sifts, the
 bisection's stepped-past middles included, reads at its edge. The disagreement rate, and the
 undecided middles searches stop at, are counted over a stretch, which starts afresh whenever the
-tree or the edges change. After every probe:
-* the start-undecided rate above `θs`; an edge charged at least `φe` of the round's probes, its
-  undecided strings exceeding `θe` of its reads by `exc` of them; or a stretch searching on at
-  least `φpt` of its probes, the share of its searches stopping at an undecided middle (a pair or
-  a triple) above `θpt`, ends the round with a harvest there;
-* the disagreement rate settling below `εd` ends it in success;
-* otherwise one edge is fixed. Where an edge has `m` records at a target it does not point at,
-  its leaf splits on the letter and the midfix where that target and the current one part if the
-  current one also has `m`, and otherwise it is redirected there. A split drops every record,
-  clears the edges out of its leaf and re-sifts the witnesses of those into it.
+tree or the edges change. After every probe (`applyProbe`):
+* the start-undecided rate above `startUndecidedRate`; an edge charged at least `edgeTraffic` of
+  the round's probes, its undecided strings exceeding `edgeUndecidedRate` of its reads by
+  `edgeExcess` of them; or a stretch searching on at least `searchShare` of its probes, the share
+  of its searches stopping at an undecided middle (a pair or a triple) above
+  `middleUndecidedRate`, ends the round with a harvest there;
+* the disagreement rate settling below `disagreementRate` ends it in success;
+* otherwise one edge is fixed. Where an edge has `recordsToMove` records at a target it does not
+  point at, its leaf splits on the letter and the midfix where that target and the current one
+  part if the current one also has `recordsToMove`, and otherwise it is redirected there. A split
+  drops every record, clears the edges out of its leaf and re-sifts the witnesses of those into
+  it.
 
-A tree past `Lmax` leaves ends the round failed, and so does running out of probes.
+A tree past `maxLeaves` leaves ends the round failed, and so does running out of probes.
+`indecisiveLStarLevel4` runs the probes and returns the hypothesis and the ending.
 -/
 
 namespace OrthoDFA
@@ -158,13 +163,14 @@ def posEdgeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α
   (edgeAtBy cut t edges k x i).orElse fun _ => edgeAtBy cut t edges k x (i - 1)
 
 /-- The undecided middle its search stopped at, as a pair or a triple, if any. -/
-def ptHarvBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+def middleHarvestBy (t : DTree α) (edges : EdgeTable α) (k : ℕ)
+    (x : FreeMonoid α) : List (FreeMonoid α) :=
   match probeBy cut t edges k x with
   | .pair j | .triple j => (t.siftCut cut (prefixOf x j)).elim (fun _ => []) fun b => [b]
   | _ => []
 
 /-- The string it read undecided at its start, if any. -/
-def startHarvBy (t : DTree α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+def startHarvestBy (t : DTree α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
   if x.toList.length < k then [] else (t.siftCut cut (prefixOf x k)).elim (fun _ => []) fun b => [b]
 
 /-- `retarget` through `cut`. -/
@@ -236,74 +242,79 @@ def posEdgeFrom (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (p : List B
   (at' i).orElse fun _ => at' (i - 1)
 
 /-- A read's label: the position sifted, and the edge it is charged to. -/
-abbrev PLabel (α : Type*) := ℕ × Option (List Bool × α)
+abbrev ReadLabel (α : Type*) := ℕ × Option (List Bool × α)
 
 /-- A probe's query trees. -/
-abbrev PQ (α β : Type*) := QTree (PLabel α) (FreeMonoid α) ARU β
+abbrev ProbeQuery (α β : Type*) := QTree (ReadLabel α) (FreeMonoid α) ARU β
 
 /-- The sift of `u`, each node's string read under the label `ℓ`. -/
-def siftQ (ℓ : PLabel α) : DTree α → FreeMonoid α → PQ α (List Bool ⊕ FreeMonoid α)
+def siftQuery (ℓ : ReadLabel α) : DTree α → FreeMonoid α → ProbeQuery α (List Bool ⊕ FreeMonoid α)
   | .leaf, _ => .done (.inl [])
   | .node m r a, u => .ask ℓ (u * m) fun v => match v.cut with
     | none => .done (.inr (u * m))
-    | some true => (siftQ ℓ a u).map fun s => s.map (true :: ·) id
-    | some false => (siftQ ℓ r u).map fun s => s.map (false :: ·) id
+    | some true => (siftQuery ℓ a u).map fun s => s.map (true :: ·) id
+    | some false => (siftQuery ℓ r u).map fun s => s.map (false :: ·) id
 
 /-- The agreement at `p`, the range's ends known. -/
-def agAt (agQ : ℕ → PQ α (Option Bool)) (lo hi p : ℕ) : PQ α (Option Bool) :=
-  if p = lo then .done (some true) else if p = hi then .done (some false) else agQ p
+def agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool))
+    (lo hi p : ℕ) : ProbeQuery α (Option Bool) :=
+  if p = lo then .done (some true) else if p = hi then .done (some false) else agreementQuery p
 
-/-- `bracketAt`, each position's agreement read through `agQ`. -/
-def bracketQ (agQ : ℕ → PQ α (Option Bool)) (ps : List (List Bool)) :
-    ℕ → ℕ → ℕ → PQ α (Outcome α)
+/-- `bracketAt`, each position's agreement read through `agreementQuery`. -/
+def bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool)) :
+    ℕ → ℕ → ℕ → ProbeQuery α (Outcome α)
   | 0, _, hi => .done (.edge ps hi)
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
-      (agAt agQ lo hi ((lo + hi) / 2)).bind fun am => match am with
-      | some true => bracketQ agQ ps fuel ((lo + hi) / 2) hi
-      | some false => bracketQ agQ ps fuel lo ((lo + hi) / 2)
-      | none => (agAt agQ lo hi ((lo + hi) / 2 - 1)).bind fun al => match al with
+      (agAt agreementQuery lo hi ((lo + hi) / 2)).bind fun am => match am with
+      | some true => bracketQuery agreementQuery ps fuel ((lo + hi) / 2) hi
+      | some false => bracketQuery agreementQuery ps fuel lo ((lo + hi) / 2)
+      | none => (agAt agreementQuery lo hi ((lo + hi) / 2 - 1)).bind fun al => match al with
         | none => .done (.pair ((lo + hi) / 2 - 1))
-        | some bl => (agAt agQ lo hi ((lo + hi) / 2 + 1)).bind fun ar => match bl, ar with
+        | some bl => (agAt agreementQuery lo hi ((lo + hi) / 2
+            + 1)).bind fun ar => match bl, ar with
           | _, none => .done (.pair ((lo + hi) / 2))
           | true, some false => .done (.triple ((lo + hi) / 2))
-          | true, some true => bracketQ agQ ps fuel ((lo + hi) / 2 + 1) hi
-          | false, some _ => bracketQ agQ ps fuel lo ((lo + hi) / 2 - 1)
+          | true, some true => bracketQuery agreementQuery ps fuel ((lo + hi) / 2 + 1) hi
+          | false, some _ => bracketQuery agreementQuery ps fuel lo ((lo + hi) / 2 - 1)
     else .done (.edge ps hi)
 
 variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 /-- The label of position `i`'s reads, the start at the leaf `p₀`. -/
-def plab (p₀ : List Bool) (i : ℕ) : PLabel α := (i, posEdgeFrom edges k x p₀ i)
+def readLabel (p₀ : List Bool) (i : ℕ) : ReadLabel α := (i, posEdgeFrom edges k x p₀ i)
 
 /-- The agreement of position `i`'s sift with the walk. -/
-def agQ (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : PQ α (Option Bool) :=
-  (siftQ (plab edges k x p₀ i) T (prefixOf x i)).map fun s =>
+def agreementQuery (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : ProbeQuery α (Option Bool) :=
+  (siftQuery (readLabel edges k x p₀ i) T (prefixOf x i)).map fun s =>
     s.elim (fun q => some (decide (q = walkAt i))) fun _ => none
 
 /-- One probe of `x` from `k`, as a query tree. -/
-def probeQ : PQ α (Outcome α) :=
+def probeQuery : ProbeQuery α (Outcome α) :=
   if x.toList.length < k then .done .agree else
-  (siftQ (k, none) T (prefixOf x k)).bind fun a => match a with
+  (siftQuery (k, none) T (prefixOf x k)).bind fun a => match a with
   | .inr _ => .done (.startUndecided (prefixOf x k))
   | .inl p₀ => match follow edges p₀ (x.toList.drop k) with
     | .inl ps =>
-      (siftQ (plab edges k x p₀ x.toList.length) T (prefixOf x x.toList.length)).bind fun r =>
+      (siftQuery (readLabel edges k x p₀ x.toList.length) T
+          (prefixOf x x.toList.length)).bind fun r =>
         match r with
         | .inr _ => .done (.endUndecided x)
         | .inl a' => if some a' = ps.getLast? then .done .agree
-            else bracketQ (agQ T edges k x p₀ fun j => ps.getD (j - k) []) ps
+            else bracketQuery (agreementQuery T edges k x p₀ fun j => ps.getD (j - k) []) ps
               (x.toList.length - k) k x.toList.length
     | .inr (s, _, i) =>
-      (siftQ (plab edges k x p₀ (k + i + 1)) T (prefixOf x (k + i + 1))).bind fun r1 =>
+      (siftQuery (readLabel edges k x p₀ (k + i + 1)) T (prefixOf x (k + i + 1))).bind fun r1 =>
         match r1 with
         | .inr _ => .done (.endUndecided (prefixOf x (k + i + 1)))
-        | .inl _ => (siftQ (plab edges k x p₀ (k + i)) T (prefixOf x (k + i))).bind fun r2 =>
+        | .inl _ => (siftQuery (readLabel edges k x p₀ (k + i)) T (prefixOf x (k
+            + i))).bind fun r2 =>
           match r2 with
           | .inr _ => .done (.endUndecided (prefixOf x (k + i)))
           | .inl p => if p = s then .done (.member (prefixOf x (k + i)))
-              else bracketQ
-                (agQ T edges k x p₀ fun j => (walkFrom edges k x p₀ (k + i)).getD (j - k) [])
+              else bracketQuery
+                (agreementQuery T edges k x p₀ fun j =>
+                  (walkFrom edges k x p₀ (k + i)).getD (j - k) [])
                 (walkFrom edges k x p₀ (k + i)) (k + i - k) k (k + i)
 
 end ProbeQ
@@ -315,106 +326,108 @@ def ofCut (cut : FreeMonoid α → Option Bool) (z : FreeMonoid α) : ARU :=
   | some false => .reject
   | none => .undecided
 
-section Charge
+section FirstReads
 
 variable (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : EdgeTable α) (k : ℕ)
   (x : FreeMonoid α)
 
 /-- A probe's first read of each string, in order, with its label. -/
-def firstsBy : List (PLabel α × FreeMonoid α) := (probeQ t edges k x).firsts (ofCut cut) ∅
+def firstsBy : List (ReadLabel α × FreeMonoid α) := (probeQuery t edges k x).firsts (ofCut cut) ∅
 
 /-- How many strings a probe first reads at positions charged to the edge `e`. -/
-def travBy (e : List Bool × α) : ℕ :=
+def edgeReadsBy (e : List Bool × α) : ℕ :=
   ((firstsBy cut t edges k x).filter fun q => q.1.2 = some e).length
 
 /-- The strings among them read undecided. -/
-def edgeHarvBy (e : List Bool × α) : List (FreeMonoid α) :=
+def edgeHarvestBy (e : List Bool × α) : List (FreeMonoid α) :=
   ((firstsBy cut t edges k x).filter fun q => q.1.2 = some e ∧ cut q.2 = none).map Prod.snd
 
-end Charge
+end FirstReads
 
 /-- What the loop carries: the hypothesis, its version, each edge's records (the probe's prefix at
 the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
 its probes, the strings read undecided at the start, and for each edge how many strings probes
 first read at it and those of them read undecided. -/
-structure TState (α : Type*) where
+structure Level4State (α : Type*) where
   tree : DTree α
   edges : EdgeTable α
   version : ℕ
-  recs : List Bool → α → List (FreeMonoid α × List Bool)
-  n : ℕ
-  dis : ℕ
-  pt : List (FreeMonoid α)
+  records : List Bool → α → List (FreeMonoid α × List Bool)
+  stretchProbes : ℕ
+  stretchDisagreements : ℕ
+  stretchMiddles : List (FreeMonoid α)
   probes : ℕ
-  startH : List (FreeMonoid α)
-  trav : List Bool → α → ℕ
-  harv : List Bool → α → List (FreeMonoid α)
+  startUndecided : List (FreeMonoid α)
+  edgeReads : List Bool → α → ℕ
+  edgeUndecided : List Bool → α → List (FreeMonoid α)
 
 /-- `s` with a fresh stretch. -/
-def TState.fresh (s : TState α) : TState α := { s with n := 0, dis := 0, pt := [] }
+def Level4State.newStretch (s : Level4State α) : Level4State α :=
+  { s with stretchProbes := 0, stretchDisagreements := 0, stretchMiddles := [] }
 
 /-- The records of the edge `(p, c)` at the target `t`. -/
-def TState.tally (s : TState α) (p : List Bool) (c : α) (t : List Bool) : ℕ :=
-  ((s.recs p c).filter (·.2 = t)).length
+def Level4State.recordCount (s : Level4State α) (p : List Bool) (c : α) (t : List Bool) : ℕ :=
+  ((s.records p c).filter (·.2 = t)).length
 
 /-- The edge `(p, c)` out of a leaf has `m` records at a target it does not point at. -/
-def Violates (m : ℕ) (s : TState α) (p : List Bool) (c : α) (t : List Bool) : Prop :=
-  p ∈ s.tree.leaves ∧ (s.edges p c).map Prod.fst ≠ some t ∧ m ≤ s.tally p c t
+def Violates (m : ℕ) (s : Level4State α) (p : List Bool) (c : α) (t : List Bool) : Prop :=
+  p ∈ s.tree.leaves ∧ (s.edges p c).map Prod.fst ≠ some t ∧ m ≤ s.recordCount p c t
 
 /-- No edge has `m` records at a target it does not point at. -/
-def Settled (m : ℕ) (s : TState α) : Prop := ∀ p c t, ¬ Violates m s p c t
+def Settled (m : ℕ) (s : Level4State α) : Prop := ∀ p c t, ¬ Violates m s p c t
 
 /-- `s` with the edge `(p, c)` set to `e`, as a new version. -/
-def TState.setEdge (s : TState α) (p : List Bool) (c : α) (e : List Bool × FreeMonoid α) :
-    TState α :=
+def Level4State.setEdge (s : Level4State α) (p : List Bool) (c : α)
+    (e : List Bool × FreeMonoid α) : Level4State α :=
   let row := Function.update (s.edges p) c (some e)
-  { s.fresh with edges := Function.update s.edges p row, version := s.version + 1 }
+  { s.newStretch with edges := Function.update s.edges p row, version := s.version + 1 }
 
 /-- `s` with the record `r` added at the edge `(p, c)`. -/
-def TState.addRec (s : TState α) (p : List Bool) (c : α) (r : FreeMonoid α × List Bool) :
-    TState α :=
-  let row := Function.update (s.recs p) c (s.recs p c ++ [r])
-  { s with recs := Function.update s.recs p row }
+def Level4State.addRecord (s : Level4State α) (p : List Bool) (c : α)
+    (r : FreeMonoid α × List Bool) : Level4State α :=
+  let row := Function.update (s.records p) c (s.records p c ++ [r])
+  { s with records := Function.update s.records p row }
 
 /-- `s` with a probe counted and its reads charged to their places. -/
-def TState.charge (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : TState α)
-    (x : FreeMonoid α) : TState α :=
+def Level4State.countProbe (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : Level4State α)
+    (x : FreeMonoid α) : Level4State α :=
   { s with
-    n := s.n + 1
-    pt := s.pt ++ ptHarvBy cut s.tree s.edges k x
+    stretchProbes := s.stretchProbes + 1
+    stretchMiddles := s.stretchMiddles ++ middleHarvestBy cut s.tree s.edges k x
     probes := s.probes + 1
-    startH := s.startH ++ startHarvBy cut s.tree k x
-    trav := fun p c => s.trav p c + travBy cut s.tree s.edges k x (p, c)
-    harv := fun p c => s.harv p c ++ edgeHarvBy cut s.tree s.edges k x (p, c) }
+    startUndecided := s.startUndecided ++ startHarvestBy cut s.tree k x
+    edgeReads := fun p c => s.edgeReads p c + edgeReadsBy cut s.tree s.edges k x (p, c)
+    edgeUndecided := fun p c =>
+      s.edgeUndecided p c ++ edgeHarvestBy cut s.tree s.edges k x (p, c) }
 
 /-- The first state: the root reads at `ε`, no edge learned. -/
-def tallyStart : TState α :=
+def initialState : Level4State α :=
   ⟨.node 1 .leaf .leaf, fun _ _ => none, 0, fun _ _ => [], 0, 0, [], 0, [], fun _ _ => 0,
     fun _ _ => []⟩
 
 open scoped Classical in
 /-- Fix the edge `(p, c)` at the target `t` it has `m` records at: split where the current target
 also has `m`, else redirect, with a record's prefix as the witness. -/
-noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : TState α)
-    (p : List Bool) (c : α) (t : List Bool) : TState α :=
-  let w := (((s.recs p c).find? (·.2 = t)).map Prod.fst).getD 1
-  let redirect : TState α := s.setEdge p c (t, w)
+noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : Level4State α)
+    (p : List Bool) (c : α) (t : List Bool) : Level4State α :=
+  let w := (((s.records p c).find? (·.2 = t)).map Prod.fst).getD 1
+  let redirect : Level4State α := s.setEdge p c (t, w)
   match s.edges p c with
   | some (t₀, _) =>
-    if m ≤ s.tally p c t₀ then
+    if m ≤ s.recordCount p c t₀ then
       let d := FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)
       let t' := s.tree.splitAt d p
-      { s.fresh with
+      { s.newStretch with
         tree := t'
         version := s.version + 1
         edges := fun q e => if p <+: q then none else retargetBy cut t' p s.edges q e
-        recs := fun _ _ => [] }
+        records := fun _ _ => [] }
     else redirect
   | none => redirect
 
 /-- How the round ends: in success, a harvest at the start, at an edge or of the undecided
-middles, or the tree past `Lmax` leaves. -/
-inductive TEnd (α : Type*)
+middles, or the tree past `maxLeaves` leaves. -/
+inductive Level4Ending (α : Type*)
   | success
   | harvestStart
   | harvest (e : List Bool × α)
@@ -423,8 +436,8 @@ inductive TEnd (α : Type*)
 
 open scoped Classical in
 /-- One edge with `m` records at a target it does not point at is fixed, within `Lmax` leaves. -/
-noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ) (s : TState α) :
-    TState α ⊕ (TEnd α × TState α) :=
+noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
+    (s : Level4State α) : Level4State α ⊕ (Level4Ending α × Level4State α) :=
   if h : ∃ p c t, Violates m s p c t then
     if Lmax < (fixEdge cut m s h.choose h.choose_spec.choose
         h.choose_spec.choose_spec.choose).tree.leaves.length then
@@ -433,30 +446,31 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
     else .inl (fixEdge cut m s h.choose h.choose_spec.choose h.choose_spec.choose_spec.choose)
   else .inl s
 
-/-- The loop's settings: the start, the records a fix takes, the cap, the tests' thresholds, level
-and first look, the excess `exc r` an edge's undecided strings need after `r` reads, the traffic
-an edge test and the search rate a middles test need, and the probes a round may draw. -/
-structure TallyCfg where
-  k : ℕ
-  m : ℕ
-  Lmax : ℕ
-  θs : ℝ
-  θe : ℝ
-  θpt : ℝ
-  εd : ℝ
-  a : ℝ
-  n₀ : ℕ
-  exc : ℕ → ℝ
-  φe : ℝ
-  φpt : ℝ
-  budget : ℕ
+/-- Level 4's settings: the walk's start, the records a fix takes, the most leaves, the tests'
+rates, level and first look, the excess `edgeExcess r` an edge's undecided strings need after `r`
+reads, the share of the probes an edge test and the share of searches a middles test need, and
+the probes a round may draw. -/
+structure Level4Settings where
+  walkStart : ℕ
+  recordsToMove : ℕ
+  maxLeaves : ℕ
+  startUndecidedRate : ℝ
+  edgeUndecidedRate : ℝ
+  middleUndecidedRate : ℝ
+  disagreementRate : ℝ
+  testLevel : ℝ
+  firstLook : ℕ
+  edgeExcess : ℕ → ℝ
+  edgeTraffic : ℝ
+  searchShare : ℝ
+  probeBudget : ℕ
 
 open scoped Classical in
 /-- A probe's reads charged, and its outcome learned, recorded or counted. -/
-noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
-    (x : FreeMonoid α) : TState α :=
-  let s₁ := s.charge cut C.k x
-  match probeBy cut s.tree s.edges C.k x with
+noncomputable def recordProbe (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+    (s : Level4State α) (x : FreeMonoid α) : Level4State α :=
+  let s₁ := s.countProbe cut C.walkStart x
+  match probeBy cut s.tree s.edges C.walkStart x with
   | .member u =>
     match x.toList[u.toList.length]?, s.tree.siftCut cut u with
     | some c, .inl p =>
@@ -465,36 +479,68 @@ noncomputable def tallyPre (C : TallyCfg) (cut : FreeMonoid α → Option Bool) 
       | _, _ => s₁
     | _, _ => s₁
   | .edge _ _ =>
-    let s₂ := { s₁ with dis := s₁.dis + 1 }
-    match recordBy cut C.k (s.tree, s.edges) x with
-    | some ((p, c, t), sp) => s₂.addRec p c (sp, t)
+    let s₂ := { s₁ with stretchDisagreements := s₁.stretchDisagreements + 1 }
+    match recordBy cut C.walkStart (s.tree, s.edges) x with
+    | some ((p, c, t), sp) => s₂.addRecord p c (sp, t)
     | none => s₂
-  | .pair _ | .triple _ => { s₁ with dis := s₁.dis + 1 }
+  | .pair _ | .triple _ => { s₁ with stretchDisagreements := s₁.stretchDisagreements + 1 }
   | _ => s₁
 
 open scoped Classical in
-/-- The tests: the start's undecided rate above `θs` over the round; at an edge charged at least
-`φe` of the probes, its undecided strings exceeding `θe` of its reads by `exc`; at a stretch
-searching on at least `φpt` of its probes, the share of its searches stopping at an undecided
-middle above `θpt`; or its disagreement rate settling below `εd`. -/
-noncomputable def tallyLook (C : TallyCfg) (s : TState α) : Option (TEnd α) :=
-  if rateSide C.θs C.a C.n₀ s.probes s.startH.length = some true then some .harvestStart
+/-- The tests: the start's undecided rate over the round above `startUndecidedRate`; at an edge
+charged at least `edgeTraffic` of the probes, its undecided strings exceeding
+`edgeUndecidedRate` of its reads by `edgeExcess`; at a stretch searching on at least
+`searchShare` of its probes, the share of its searches stopping at an undecided middle above
+`middleUndecidedRate`; or its disagreement rate settling below `disagreementRate`. -/
+noncomputable def runTests (C : Level4Settings) (s : Level4State α) : Option (Level4Ending α) :=
+  if rateSide C.startUndecidedRate C.testLevel C.firstLook s.probes s.startUndecided.length
+      = some true then some .harvestStart
   else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
-      ∧ C.φe * s.probes ≤ s.trav e.1 e.2
-      ∧ C.exc (s.trav e.1 e.2) ≤ ((s.harv e.1 e.2).length : ℝ) - C.θe * s.trav e.1 e.2 then
+      ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
+      ∧ C.edgeExcess (s.edgeReads e.1 e.2)
+        ≤ ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2 then
     some (.harvest h.choose)
-  else if C.φpt * s.n ≤ s.dis ∧ rateSide C.θpt C.a C.n₀ s.dis s.pt.length = some true then
+  else if C.searchShare * s.stretchProbes ≤ s.stretchDisagreements ∧ rateSide
+      C.middleUndecidedRate C.testLevel C.firstLook s.stretchDisagreements
+      s.stretchMiddles.length = some true then
     some .harvestPT
-  else if rateSide C.εd C.a C.n₀ s.n s.dis = some false then some .success
+  else if rateSide C.disagreementRate C.testLevel C.firstLook s.stretchProbes
+      s.stretchDisagreements = some false then some .success
   else none
 
 /-- One probe: its reads are charged and its outcome learned, recorded or counted, the tests may
 end the round, and otherwise one edge is fixed. -/
-noncomputable def tallyStep (C : TallyCfg) (cut : FreeMonoid α → Option Bool) (s : TState α)
-    (x : FreeMonoid α) : TState α ⊕ (TEnd α × TState α) :=
-  let s₁ := tallyPre C cut s x
-  match tallyLook C s₁ with
+noncomputable def applyProbe (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+    (s : Level4State α) (x : FreeMonoid α) : Level4State α ⊕ (Level4Ending α × Level4State α) :=
+  let s₁ := recordProbe C cut s x
+  match runTests C s₁ with
   | some e => .inr (e, s₁)
-  | none => settleOne cut C.m C.Lmax s₁
+  | none => settleOne cut C.recordsToMove C.maxLeaves s₁
+
+/-- The ending, as every level states it: success is consistent, a harvest is its strings. -/
+def toRoundEnd : Level4Ending α → Level4State α → RoundEnd α
+  | .success, _ => .consistent
+  | .harvestStart, s => .harvest s.startUndecided
+  | .harvest e, s => .harvest (s.edgeUndecided e.1 e.2)
+  | .harvestPT, s => .harvest s.stretchMiddles
+  | .tooBig, _ => .failed
+
+/-- The state the probes end in, and how; `failed` where they ran out. -/
+noncomputable def runProbes (C : Level4Settings) (cut : FreeMonoid α → Option Bool) :
+    Level4State α → List (FreeMonoid α) → Level4State α × RoundEnd α
+  | s, [] => (s, .failed)
+  | s, x :: xs =>
+    match applyProbe C cut s x with
+    | .inl s' => runProbes C cut s' xs
+    | .inr (e, s') => (s', toRoundEnd e s')
+
+structure Level4Result (α : Type*) where
+  hypothesis : Hypothesis α
+  ending : RoundEnd α
+
+noncomputable def indecisiveLStarLevel4 (settings : Level4Settings) (read : FreeMonoid α → ARU)
+    {P : ℕ} (draws : Fin P → FreeMonoid α) : Level4Result α :=
+  let r := runProbes settings (fun z => (read z).cut) initialState (List.ofFn draws)
+  ⟨⟨r.1.tree, Function.uncurry r.1.edges⟩, r.2⟩
 
 end OrthoDFA

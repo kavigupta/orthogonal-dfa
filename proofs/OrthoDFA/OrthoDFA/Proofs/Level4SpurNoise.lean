@@ -1,6 +1,6 @@
-import OrthoDFA.Proofs.TallyFirsts
-import OrthoDFA.Proofs.TallyPTNoise
-import OrthoDFA.Proofs.TallyRace
+import OrthoDFA.Proofs.Level4Firsts
+import OrthoDFA.Proofs.Level4PTNoise
+import OrthoDFA.Proofs.Level4Race
 
 /-!
 # The noise event's records field
@@ -56,7 +56,7 @@ theorem recordQ_firsts_le :
   obtain ⟨q, hq, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hw)
   rw [asks_recordQ, List.mem_append] at hq
   rcases hq with hq | hq
-  · exact route_mem_prefStrings (asks_probeQ T edges k x rd q hq).1
+  · exact route_mem_prefStrings (asks_probeQuery T edges k x rd q hq).1
   · rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _
       <;> rw [ho] at hq <;> simp only [List.not_mem_nil] at hq
     simp only [List.mem_append, List.mem_map] at hq
@@ -80,7 +80,7 @@ theorem untrue_iff_congrK {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : F
 open scoped Classical in
 /-- The records field in mean at one probe, over real expectations. -/
 theorem untrue_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.dist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
+    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
     (hε : 0 ≤ G.ε) (T : DTree α) (edges : EdgeTable α) (he : EdgesInto T edges) {k : ℕ}
     {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
     μ.real {ω | x ∈ G.untrueAt (read · ω) k T edges}
@@ -145,7 +145,7 @@ open scoped Classical in
 /-- At one tree and edge map, records that are not true exceed twice `κ` times the undecided
 strings and twice `ε` times the most first reads a probe makes by `η` with chance at most this. -/
 theorem spurious_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η)
@@ -283,7 +283,7 @@ open scoped Classical in
 /-- The records field's tail over the class and its edge maps, at `κs ≥ 2κ` and
 `ρ ≥ 2ε (L + 1)(|Q| + S + 1)`. -/
 theorem spurious_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.dist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hκ : 0 < G.κ)
     (hε : 0 ≤ G.ε) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L S : ℕ)
     {p₀ ρ κs : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hp₀ : 0 < p₀) (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hκs : 2 * G.κ ≤ κs)

@@ -1,7 +1,7 @@
 import OrthoDFA.Proofs.FixTime
 import OrthoDFA.Proofs.Freedman
 import OrthoDFA.Proofs.Hoeffding
-import OrthoDFA.Proofs.TallyParts
+import OrthoDFA.Proofs.Level4Parts
 
 /-!
 # Rounds made of sub-rounds

@@ -1,9 +1,9 @@
-import OrthoDFA.Proofs.TallyParts
+import OrthoDFA.Proofs.Level4Parts
 import OrthoDFA.Proofs.StartAtK
 import OrthoDFA.Proofs.TreePaths
 
 /-!
-# The tally loop's walks
+# Level 4's walks
 
 A record's edge is out of a leaf on the walk and points elsewhere than the leaf its next prefix
 sifts to. The positions a probe sifts lie between its start and its end.

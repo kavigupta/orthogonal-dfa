@@ -2,26 +2,26 @@ import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
-import OrthoDFA.Proofs.TallyNoise
-import OrthoDFA.Proofs.TallyQuery
-import OrthoDFA.Proofs.TallyKeep
-import OrthoDFA.Proofs.TallyRace
-import OrthoDFA.Proofs.TallySuccess
-import OrthoDFA.Proofs.TallyEvent
-import OrthoDFA.Proofs.TallySpurNoise
-import OrthoDFA.Proofs.TallyCorrect
-import OrthoDFA.Proofs.TallyRisk
-import OrthoDFA.Proofs.TallyRiskBound
+import OrthoDFA.Proofs.Level4Noise
+import OrthoDFA.Proofs.Level4Query
+import OrthoDFA.Proofs.Level4Keep
+import OrthoDFA.Proofs.Level4Race
+import OrthoDFA.Proofs.Level4Success
+import OrthoDFA.Proofs.Level4Event
+import OrthoDFA.Proofs.Level4SpurNoise
+import OrthoDFA.Proofs.Level4Correct
+import OrthoDFA.Proofs.Level4Risk
+import OrthoDFA.Proofs.Level4RiskBound
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, the tally round's, stated in
-`OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
-`OrthoDFA.TallyFamily`. The tally round's detailed bound and its closed form, stated in
-`OrthoDFA.Proofs.TallyRiskDefs`, are internal: the claims above are derived from them.
+level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 4's, stated in
+`OrthoDFA.Level4Claim`, and level 4 read by the suffix family, stated in `OrthoDFA.Level4Family`.
+Level 4's detailed bound and its closed form, stated in `OrthoDFA.Proofs.Level4RiskDefs`, are
+internal: the claims above are derived from them.
 -/
 
 namespace OrthoDFA
@@ -41,7 +41,7 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms round_budget
 
-#print axioms tally_round_of
+#print axioms roundGiven_of
 
 #print axioms harvest_good_holds
 
@@ -55,29 +55,29 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms goodPT_le
 
-#print axioms tallyE_le
+#print axioms noiseEvent_le
 
 #print axioms spurious_le
 
 #print axioms success_sound_holds
 
-theorem tally_round_correct : TallyRoundCorrect := tally_round_correct_holds
+theorem level4_correct : Level4Correct := level4_correct_holds
 
-#print axioms tally_round_correct
+#print axioms level4_correct
 
-theorem tally_round_risk : TallyRoundRisk := tally_round_holds
+theorem level4_round_risk : Level4RoundRisk := level4_round_risk_holds
 
-#print axioms tally_round_risk
+#print axioms level4_round_risk
 
-theorem tally_risk_bound : TallyRiskBound := tally_risk_bound_holds
+theorem level4_risk_bound : Level4RiskBound := level4_risk_bound_holds
 
-#print axioms tally_risk_bound
+#print axioms level4_risk_bound
 
 #print axioms QTree.firsts_lintegral_le
 
-#print axioms run_probeQ
+#print axioms run_probeQuery
 
-#print axioms asks_probeQ
+#print axioms asks_probeQuery
 
 #print axioms untrue_minority
 
@@ -87,9 +87,9 @@ theorem tally_risk_bound : TallyRiskBound := tally_risk_bound_holds
 
 #print axioms edge_first_mean
 
-theorem tally_round_family : TallyRoundFamily := tally_round_family_holds
+theorem level4_family_correct : Level4FamilyCorrect := level4_family_correct_holds
 
-#print axioms tally_round_family
+#print axioms level4_family_correct
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

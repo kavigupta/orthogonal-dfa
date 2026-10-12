@@ -16,7 +16,7 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- Learned edges: each leaf's edge by a letter, its target and the member that voted for it. -/
+/-- `Edges`, curried: each leaf's edge by a letter, its target and the member that voted for it. -/
 abbrev EdgeTable (α : Type*) := List Bool → α → Option (List Bool × FreeMonoid α)
 
 /-- Following only learned edges from `p` along `cs`: the leaves visited, `p` first, or the leaf,
