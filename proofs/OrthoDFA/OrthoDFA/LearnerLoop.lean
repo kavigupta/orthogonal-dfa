@@ -246,6 +246,62 @@ def LearnerLoopCorrect : Prop :=
                   (2 * indecisionLimit + slack) εd)}
         ≤ (Fintype.card σ + 1) * (δc + δ)
 
+/-- The learner's loop at settings the theorem chooses, every hypothesis an explicit inequality.
+With probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose
+hypothesis's walk and tree part on at most `εd` of the probes, and whose family's read of a probe
+is decided against the target at most `εcov` of the time and undecided at most `εcov` of the
+time. Level 4 draws at most `Kp · G` probes a round.
+
+The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, no splits that are not
+genuine, `|Q| + 1` rounds and suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the
+rounds' clustering and level 4. `cap` is a closed form under the collision mass the clustering
+admits of a population (`PB` and `RB` bound its suffix pool and its prefix count), and `ρ` is
+what a harvest's sampler yields, so a population puts at most `prefixMax / ρ` on a string. The
+last hypothesis holds level 4's noise fields, which concentrate over the probes' length-`k`
+prefixes. -/
+def LearnerLoopSimple : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+    (η₀ εcov εd δ pAP : ℝ) (k : ℕ),
+  let Q : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let L : ℝ := P.L
+  let δ' : ℝ := δ / (2 * (Q + 1))
+  let ι : ℝ := min (εcov / 8) (1 / (1536 * (L + 1) * (Q + 1) * Q))
+  let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
+  let s : ℝ := 1 / 2 - η₀
+  let τ : ℝ := min (εcov / 2) (min s ι)
+  let J : ℝ := Q + 2
+  let PB : ℝ := 128 * (Real.log (2 / τ) + 4 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    + 16 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * pAP * τ))
+    / (s ^ 4 * τ ^ 3)
+  let cap : ℝ := min (δ' / 2 / (64 * (J + 3) ^ 3 * (RB ^ 2 + PB ^ 2 + 1)))
+    (min (ι ^ 2 / (64 * (J * RB + 1))) (δ' * ι ^ 2 / (16 * (RB + 2) * (J + 1))))
+  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
+    + 8 * (Q + 3) * A * (L + 1)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'
+  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 →
+  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L →
+  collisionMass P.D ≤ cap →
+  prefixMax P.D k ≤ cap * ρ →
+  24 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ ρ →
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level4.walkStart = k ∧ settings.level4.disagreementRate = εd ∧
+    (settings.level4.probeBudget : ℝ) ≤ Kp * G ∧
+    ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
+      Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      collisionMass Dsf ≤ cap →
+      (loopMeasure μ P.D Dsf (Fintype.card σ + 1) settings.level4.probeBudget).real
+          {draws | let rounds := indecisiveLStarLoop settings O P.D draws
+            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+                o.Agrees O P.D k εcov εcov εd)}
+        ≤ δ
+
 end OrthoDFA
 
 end

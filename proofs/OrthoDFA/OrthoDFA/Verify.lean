@@ -13,7 +13,7 @@ import OrthoDFA.Proofs.Level4Correct
 import OrthoDFA.Proofs.Level4Risk
 import OrthoDFA.Proofs.Level4RiskBound
 import OrthoDFA.Proofs.TripartiteSearch
-import OrthoDFA.Proofs.LearnerLoop
+import OrthoDFA.Proofs.LoopSimple
 
 /-!
 # The theorem
@@ -23,8 +23,9 @@ import OrthoDFA.Proofs.LearnerLoop
 `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, level 2's ideal-read claim, stated
 in `OrthoDFA.Level2Claim`, level 4's, stated in `OrthoDFA.Level4Claim`, and level 4 read by the
 suffix family, stated in `OrthoDFA.Level4Family`, and the learner's loop, stated in
-`OrthoDFA.LearnerLoop`. Level 4's detailed bound and its closed form,
-stated in `OrthoDFA.Proofs.Level4RiskDefs`, are internal: the claims above are derived from them.
+`OrthoDFA.LearnerLoop`, at free settings and at the theorem's own. Level 4's detailed bound and
+its closed form, stated in `OrthoDFA.Proofs.Level4RiskDefs`, are internal: the claims above are
+derived from them.
 -/
 
 namespace OrthoDFA
@@ -101,6 +102,10 @@ theorem level4_family_correct : Level4FamilyCorrect := level4_family_correct_hol
 theorem learner_loop_correct : LearnerLoopCorrect := learner_loop_correct_holds
 
 #print axioms learner_loop_correct
+
+theorem learner_loop_simple : LearnerLoopSimple := learner_loop_simple_holds
+
+#print axioms learner_loop_simple
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 
