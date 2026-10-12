@@ -3,14 +3,16 @@ import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.RandomRound
+import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead`, level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, and level 3's
-random-read claim, stated in `OrthoDFA.Level3Claim`.
+`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, level 2's
+ideal-read claim, stated in `OrthoDFA.Level2Claim`, and level 3's random-read claim, stated in
+`OrthoDFA.Level3Claim`.
 -/
 
 namespace OrthoDFA
@@ -27,6 +29,10 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms family_read_bound
+
+theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
+
+#print axioms tripartite_search_correct
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

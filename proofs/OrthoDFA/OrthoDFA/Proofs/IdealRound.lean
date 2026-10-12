@@ -296,7 +296,7 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   have h2 : 2 ≤ C.maxLeaves := by omega
   have hΘ : Θ C (initialState : Level2State α) < P := (Θ_start C hn h2).trans_le hP
   intro D _ ε s L hε
-  have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 read C draws
+  have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
         ¬ EndsWell M (AllUndecided read M) D ε
           {x | Disagrees read result.hypothesis C.walkStart x}
           s L (replay read result.hypothesis)

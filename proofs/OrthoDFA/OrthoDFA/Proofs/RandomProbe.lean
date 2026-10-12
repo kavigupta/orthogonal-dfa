@@ -12,8 +12,8 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (bisect siftAgrees probe Outcome locate undecidedAt SearchResult walk_cons
-  length_walk_le run_walk pre_of_le)
+open OrthoDFA.Ideal (siftAgrees probe Outcome searchOutcome undecidedAt walk_cons length_walk_le
+  run_walk pre_of_le agrees_inl)
 
 variable {α : Type*} (read : FreeMonoid α → ARU)
 
@@ -48,79 +48,75 @@ theorem pot_of_sift {T : DTree α} {k p : ℕ} {x z : FreeMonoid α} (h1 : k ≤
   obtain ⟨m, hm, rfl⟩ := sift_inr_mids read T _ z h
   exact ⟨mem_pot h1 h2 hm, DTree.sift_inr read T _ _ h⟩
 
-/-! ## The bisection's stopping points -/
-
-/-- Where the bisection's answer lies between `lo` and `hi`. -/
-def PosIn (lo hi : ℕ) : SearchResult → Prop
-  | .edge _ => True
-  | .triple p => lo ≤ p ∧ p ≤ hi
-  | .pair p => lo ≤ p ∧ p + 1 ≤ hi
-
-theorem PosIn.mono {lo hi lo' hi' : ℕ} {f : SearchResult} (h : PosIn lo' hi' f) (hlo : lo ≤ lo')
-    (hhi : hi' ≤ hi) : PosIn lo hi f := by
-  cases f with
-  | edge p => trivial
-  | triple p => obtain ⟨h1, h2⟩ := h; exact ⟨by omega, by omega⟩
-  | pair p => obtain ⟨h1, h2⟩ := h; exact ⟨by omega, by omega⟩
-
-theorem search_pos (ag : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n →
-    PosIn lo hi (bisect ag lo hi) := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro lo hi hn
-  rw [bisect]
-  split
-  · trivial
-  · rename_i hgap
-    split
-    · exact (ih _ (by omega) _ _ rfl).mono (by omega) le_rfl
-    · exact (ih _ (by omega) _ _ rfl).mono le_rfl (by omega)
-    · split
-      · exact ⟨by omega, by omega⟩
-      · exact ⟨by omega, by omega⟩
-      · exact ⟨by omega, by omega⟩
-      · exact (ih _ (by omega) _ _ rfl).mono le_rfl (by omega)
-      · exact (ih _ (by omega) _ _ rfl).mono (by omega) le_rfl
-
 variable (T : DTree α) (x : FreeMonoid α)
 
-theorem located_pt (st : ℕ → List Bool) (lo hi : ℕ) :
-    ∀ z ∈ middleString (locate read T x st lo hi), ∃ p, lo ≤ p ∧ p ≤ hi ∧
+theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)) (lo hi : ℕ)
+    (hle : lo ≤ hi) :
+    ∀ z ∈ middleString (searchOutcome read T x st un hi
+      (tripartiteSearch true (siftAgrees read T x st) lo hi).1), ∃ p, lo ≤ p ∧ p ≤ hi ∧
       T.sift read (prefixOf x p) = .inr z := by
-  have hpos := search_pos (siftAgrees read T x st) _ lo hi rfl
-  unfold locate
-  revert hpos
-  generalize bisect (siftAgrees read T x st) lo hi = f
-  intro hpos z hz
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hle
+  generalize (tripartiteSearch true (siftAgrees read T x st) lo hi).1 = r at hs
+  intro z hz
   have hst : ∀ p, z ∈ undecidedAt read T x p → T.sift read (prefixOf x p) = .inr z := by
     intro p h
     unfold undecidedAt at h
     rcases hs : T.sift read (prefixOf x p) with l | z' <;> rw [hs] at h <;> simp_all
-  cases f with
+  cases r with
   | edge p =>
-    simp only at hz
+    simp only [searchOutcome] at hz
+    split at hz <;> simp [middleString] at hz
+  | allAgree =>
+    simp only [searchOutcome] at hz
     split at hz <;> simp [middleString] at hz
   | triple p =>
-    simp only [middleString] at hz
-    exact ⟨p, hpos.1, hpos.2, hst p (List.mem_of_mem_take hz)⟩
+    simp only [searchOutcome, middleString] at hz
+    exact ⟨p, hs.1.le, hs.2.1.le, hst p (List.mem_of_mem_take hz)⟩
+  | undecidedMid p =>
+    simp only [searchOutcome, middleString] at hz
+    exact ⟨p, hs.2.1.le, hs.2.2.1.le, hst p (List.mem_of_mem_take hz)⟩
   | pair p =>
-    simp only [middleString] at hz
+    simp only [searchOutcome, middleString] at hz
+    obtain ⟨h1, h2, -⟩ := hs
     rcases List.mem_append.1 (List.mem_of_mem_take hz) with h | h
-    · exact ⟨p, hpos.1, by have := hpos.2; omega, hst p h⟩
-    · exact ⟨p + 1, by have := hpos.1; omega, hpos.2, hst _ h⟩
+    · exact ⟨p, h1, by omega, hst p h⟩
+    · exact ⟨p + 1, by omega, h2, hst _ h⟩
+  | undecidedHi => simp [searchOutcome, middleString] at hz
+  | undecidedLo => simp [searchOutcome, middleString] at hz
+  | disagreeLo => simp [searchOutcome, middleString] at hz
 
-theorem located_searches (st : ℕ → List Bool) (lo hi : ℕ) :
-    searches (locate read T x st lo hi) = true ∧ startString (locate read T x st lo hi) = [] := by
+theorem searchOutcome_startString (st : ℕ → List Bool) (un : Option (α × List Bool)) (hi : ℕ)
+    (r : SearchResult) : startString (searchOutcome read T x st un hi r) = [] := by
   have hs : ∀ p zs, startString (.undecided (Ideal.siteAt x st p) zs false) = [] := by
     intro p zs
     unfold Ideal.siteAt
     split <;> rfl
-  unfold locate
-  split
-  · split <;> exact ⟨rfl, rfl⟩
-  · exact ⟨rfl, hs _ _⟩
-  · exact ⟨rfl, hs _ _⟩
+  cases r with
+  | edge p => simp only [searchOutcome]; split <;> rfl
+  | allAgree => simp only [searchOutcome]; split <;> rfl
+  | triple p => exact hs _ _
+  | undecidedMid p => exact hs _ _
+  | pair p => exact hs _ _
+  | undecidedHi => rfl
+  | undecidedLo => rfl
+  | disagreeLo => rfl
+
+theorem searchOutcome_searches (st : ℕ → List Bool) (un : Option (α × List Bool)) (lo hi : ℕ)
+    (hle : lo ≤ hi) (hlo : siftAgrees read T x st lo = some true)
+    (hhi : siftAgrees read T x st hi = some false) :
+    searches (searchOutcome read T x st un hi
+      (tripartiteSearch true (siftAgrees read T x st) lo hi).1) = true := by
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hle
+  generalize (tripartiteSearch true (siftAgrees read T x st) lo hi).1 = r at hs
+  cases r with
+  | undecidedLo => simp [SearchOK, hlo] at hs
+  | disagreeLo => simp [SearchOK, hlo] at hs
+  | undecidedHi => simp [SearchOK, hhi] at hs
+  | allAgree => simp [SearchOK, hhi] at hs
+  | edge p => simp only [searchOutcome]; split <;> rfl
+  | triple p => rfl
+  | undecidedMid p => rfl
+  | pair p => rfl
 
 variable (E : Edges α) (k : ℕ)
 
@@ -134,6 +130,7 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
     generalize hcs : x.toList.drop k = cs
     generalize hss : walk E a cs = ss
     have hle : ss.length ≤ cs.length + 1 := hss ▸ length_walk_le E a cs
+    have hpos : 0 < ss.length := hss ▸ Ideal.length_walk_pos E a cs
     have hcsl : cs.length = x.toList.length - k := by rw [← hcs, List.length_drop]
     split
     · rename_i c hc
@@ -143,39 +140,25 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
         simp at hc
       split
       · simp [middleString]
-      · simp [middleString]
-      · split_ifs
-        · simp [middleString]
-        · intro z hz
-          obtain ⟨p, h1, h2, h3⟩ := located_pt read T x _ k _ z hz
-          exact ⟨p, h1, by omega, h3⟩
-    · split
-      · simp [middleString]
-      · split_ifs
-        · simp [middleString]
-        · intro z hz
-          obtain ⟨p, h1, h2, h3⟩ := located_pt read T x _ k _ z hz
-          exact ⟨p, h1, by omega, h3⟩
+      · intro z hz
+        obtain ⟨p, h1, h2, h3⟩ := searchOutcome_pt read T x _ _ k _ (by omega) z hz
+        exact ⟨p, h1, by omega, h3⟩
+    · intro z hz
+      obtain ⟨p, h1, h2, h3⟩ := searchOutcome_pt read T x _ _ k _ (by omega) z hz
+      exact ⟨p, h1, by omega, h3⟩
   · simp [middleString]
 
 /-- The undecided read a probe stops at at its start is its first `k` letters' sift's. -/
-theorem probe_start : ∀ z ∈ startString (probe read T E k x), T.sift read (prefixOf x k)
-    = .inr z := by
+theorem probe_start : ∀ z ∈ startString (probe read T E k x),
+    T.sift read (prefixOf x k) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · simp only
     split
     · split
       · simp [startString]
-      · simp [startString]
-      · split_ifs
-        · simp [startString]
-        · simp [(located_searches read T x _ k _).2]
-    · split
-      · simp [startString]
-      · split_ifs
-        · simp [startString]
-        · simp [(located_searches read T x _ k _).2]
+      · simp [searchOutcome_startString]
+    · simp [searchOutcome_startString]
   · simp [startString]
 
 /-- A probe the hypothesis disagrees on is long enough to walk, and searches. -/
@@ -193,12 +176,17 @@ theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
     generalize hss : walk E a cs = ss at hlen hlast
     have hcsl : cs.length = x.toList.length - k := by rw [← hcs, List.length_drop]
     have hj : k + ss.length - 1 = x.toList.length := by omega
-    rw [hj, List.getElem?_eq_none le_rfl, pre_of_le le_rfl] at *
-    simp only [he]
-    rw [if_neg]
-    · exact (located_searches read T x _ k _).1
-    · rw [show x.toList.length - k = cs.length by omega, hlast]
-      exact fun h => hne h.symm
+    have hst0 : ss.getD (k - k) [] = a := by
+      rw [Nat.sub_self, ← hss]
+      obtain ⟨l, hl⟩ := walk_cons E a cs
+      simp [hl]
+    rw [hj, List.getElem?_eq_none le_rfl]
+    refine searchOutcome_searches read T x _ _ k _ hkx ?_ ?_
+    · rw [agrees_inl read T x _ ha]
+      simp only [hst0, decide_true]
+    · rw [agrees_inl read T x _ (by rw [pre_of_le le_rfl]; exact he)]
+      rw [show x.toList.length - k = cs.length by omega, hlast]
+      simpa using fun h => hne h.symm
   · exfalso
     generalize hcs : x.toList.drop k = cs at hlen hlast
     have hcs0 : cs = [] := by rw [← hcs]; exact List.drop_eq_nil_of_le (by omega)
