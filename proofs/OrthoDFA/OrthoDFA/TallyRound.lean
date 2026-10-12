@@ -88,10 +88,10 @@ def tallyReplay (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α) (
 
 /-- The round ends well: consistent with the hypothesis disagreeing on at most `εd` of the probes,
 or a harvest more than half of whose strings are at read-states that are not good, its replay
-from an anchor drawn uniformly from `⌈L/2⌉, …, L` spread and yielding `y`. -/
+from an anchor drawn uniformly from `a, …, L` spread and yielding `y`. -/
 def TallyEndsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (C : TallyCfg)
-    (L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
-  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges) L
+    (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : TEnd α) (s : TState α) : Prop :=
+  EndsWell G.M (fun q => ¬ G.Good q) D C.εd (ReadModel.searchAt rd C.k s.tree s.edges) a L
     (tallyReplay rd s.tree s.edges) y (tallyEnd e s)
 
 /-- The largest mass the probes' law puts on one length-`k` prefix. -/
@@ -330,20 +330,21 @@ def TallyRiskBound : Prop :=
 /-- `TallyRound`: with an oracle reading every string with the read model's laws, the round over
 `C.budget` probes drawn from `P.D` fails to end well with chance at most `roundRisk` plus
 `exp(−1.5θ c/(16 q))`, at any records coefficient `κs ≥ 2κ`. The harvest's replay yields
-`0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not good from
-`⌈L/2⌉` on and `n = L + 1 − ⌈L/2⌉` the anchors. -/
+`0.75θ c / n`, where `c` is the share of draws visiting a read-state that is not good at a
+position from `start` to `L` and `n = L + 1 − start` the anchors. -/
 def TallyRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (R : ReadOracle μ G) (P : PrefixDistribution α) (C : TallyCfg) (κs : ℝ), 2 * G.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C fun z => (R.read z ω).cut)
-          (TallyEndsWell G P.D C P.L (3 / 4 * G.θ * coverage P.D P.L G.M (fun r => ¬ G.Good r)
-            / (P.L + 1 - startLength P.L : ℕ)) (R.read · ω))
+          (TallyEndsWell G P.D C P.start P.L
+            (3 / 4 * G.θ * coverage P.D P.start P.L G.M (fun r => ¬ G.Good r)
+              / (P.L + 1 - P.start : ℕ)) (R.read · ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk G P.D P.L C κs
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * G.θ * coverage P.D P.L G.M (fun r => ¬ G.Good r))
-          / (16 * P.q)))
+        + ENNReal.ofReal (Real.exp
+          (-(3 / 2 * G.θ * coverage P.D P.start P.L G.M (fun r => ¬ G.Good r)) / (16 * P.q)))
 
 end OrthoDFA
 

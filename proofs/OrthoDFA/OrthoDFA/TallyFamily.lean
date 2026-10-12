@@ -37,12 +37,12 @@ def TallyRoundFamily : Prop :=
     (P : PrefixDistribution α) (C : TallyCfg) (θ κs : ℝ), 2 * fam.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | ¬ RunEnds (tallyStep C (fam.cut ω))
-          (TallyEndsWell (fam.readModel θ) P.D C P.L
-            (3 / 4 * θ * coverage P.D P.L fam.M (fun r => ¬ (fam.readModel θ).Good r)
-              / (P.L + 1 - startLength P.L : ℕ)) (fam.read ω))
+          (TallyEndsWell (fam.readModel θ) P.D C P.start P.L
+            (3 / 4 * θ * coverage P.D P.start P.L fam.M (fun r => ¬ (fam.readModel θ).Good r)
+              / (P.L + 1 - P.start : ℕ)) (fam.read ω))
           tallyStart (List.ofFn xs)} ∂μ
       ≤ roundRisk (fam.readModel θ) P.D P.L C κs
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.L fam.M
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.start P.L fam.M
           (fun r => ¬ (fam.readModel θ).Good r)) / (16 * P.q)))
 
 end OrthoDFA

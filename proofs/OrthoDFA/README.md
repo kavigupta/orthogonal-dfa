@@ -29,20 +29,24 @@ the round ends well when it is consistent, the hypothesis and the tree parting o
 the probes, or ends in a harvest more than half of whose strings are at bad states and whose
 sampler is spread and yields. What makes a state bad is each level's own.
 
-The harvest's sampler replays the final hypothesis on a fresh draw from an anchor drawn uniformly
-from `⌈L/2⌉, …, L`, the positions from which #415's `covered_states` counts a visit (here
-`tallyReplay`: the strings a probe walked from the anchor first reads undecided).
+The probes' law is a `PrefixDistribution` (`OrthoDFA/RoundEnd.lean`): `D`, with lengths at most
+`L`, a first anchor `start ≤ L`, and `q`, the most `D` puts on starting with any one string of
+length from `start` to `L`. The harvest's sampler replays the final hypothesis on a fresh draw from
+an anchor drawn uniformly from `start, …, L` (here `tallyReplay`: the strings a probe walked from
+the anchor first reads undecided). No argument needs more of `start` than `start ≤ L`, which keeps
+the anchors nonempty. #415's `preconditions.start_length`, `⌈L/2⌉`, is one choice: there the
+anchors are the positions from which `covered_states` counts a visit.
 - `Spread`: it takes no string `t` more often than
-  `B(t) = ∑_{⌈L/2⌉ ≤ i ≤ |t|} (min(i, L) + 1 − ⌈L/2⌉)/(L + 1 − ⌈L/2⌉) · D(the draw's first i
+  `B(t) = ∑_{start ≤ i ≤ |t|} (min(i, L) + 1 − start)/(L + 1 − start) · D(the draw's first i
   letters are t's)`. Every string a probe walked from `e` reads extends a prefix of the draw at
   least `e` long, so this holds for any hypothesis (`Proofs/TallyReplay.lean`, by
   `spread_of_prefix` in `Proofs/RoundEnd.lean`).
 - `Yields y`: it finds something on at least `y` of its draws and anchors. A tree's root reads its
   string alone, so the replay finds the anchor's prefix whenever that reads undecided. Over the
   independent reads (`anchor_reads`, `Proofs/Yield.lean`, a Chernoff bound) that share is at
-  least `0.75θ · coverage(not good) / (L + 1 − ⌈L/2⌉)`, half its least mean, but for chance
-  `exp(−1.5θ · coverage(not good) / (16q))`, `coverage` being the share of draws visiting a read-state that is not good at a position from
-  `⌈L/2⌉` on, and `q` the most a draw puts on starting with any one string past `⌈L/2⌉`.
+  least `0.75θ · coverage(not good) / (L + 1 − start)`, half its least mean, but for chance
+  `exp(−1.5θ · coverage(not good) / (16q))`, `coverage` being the share of draws visiting a
+  read-state that is not good at a position from `start` to `L`.
 
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
 2. #419: indecision random, decided reads always right.
@@ -55,14 +59,13 @@ from `⌈L/2⌉, …, L`, the positions from which #415's `covered_states` count
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
 to be read:
 
-    TallyRound: ∀ G (R : ReadOracle μ G) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C κs q, 2κ ≤ κs →
-      0 < q → (no string past ⌈L/2⌉ starts more than q of D) →
-      ∫⁻ ω, P[the round over C.budget probes from D does not end well] ∂μ
-        ≤ roundRisk G D L C κs + exp(−1.5θ · coverage(not good) / (16q))
+    TallyRound: ∀ G (R : ReadOracle μ G) (P : PrefixDistribution α) C κs, 2κ ≤ κs →
+      ∫⁻ ω, P[the round over C.budget probes from P.D does not end well] ∂μ
+        ≤ roundRisk G P.D P.L C κs + exp(−1.5θ · coverage(not good) / (16 P.q))
 
-    TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) D L, (∀ᵐ x ∂D, |x| ≤ L) → ∀ C θ κs q,
-      2 · fam.κ ≤ κs → (as above) →
-      ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) D L C κs + exp(−1.5θ · coverage / (16q))
+    TallyRoundFamily: ∀ (fam : SuffixFamily μ α σ) (P : PrefixDistribution α) C θ κs,
+      2 · fam.κ ≤ κs →
+      ∫⁻ ω, P[...] ∂μ ≤ roundRisk (fam.readModel θ) P.D P.L C κs + exp(−1.5θ · coverage / (16 P.q))
 
 `roundRisk G D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
 `kn.Admissible G D L C κs`, of `roundBound G D L C kn`, the sum of:

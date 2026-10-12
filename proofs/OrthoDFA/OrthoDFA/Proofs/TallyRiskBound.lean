@@ -289,7 +289,7 @@ theorem mul_exp_le {K K₁ Λ x δ : ℝ} (hδ : 0 < δ) (hK0 : 0 ≤ K) (hK : K
 set_option maxHeartbeats 1000000 in -- every field of `Knobs.Admissible` and all seven terms
 theorem tally_risk_bound_holds : TallyRiskBound := by
   intro α _ _ _ σ _ G P C κs δ S
-  obtain ⟨D, _, L, -, -, -, -⟩ := P
+  obtain ⟨D, _, L, -, -, -, -, -, -⟩ := P
   dsimp only
   intro hδ0 hδ1 hL hLmax hκ hκs hκsL hε0 hεL hθ0 hθe hθpt hθs hθs1 hφe hφpt hεd1 hθpt4 hφεd
     hn₀s hn₀pt hn₀φ hexc_gt hexc_le ha0 ha hbudget hm1 hm2 hm3 hm4

@@ -219,8 +219,8 @@ theorem tallyReplay_root (rd : FreeMonoid α → ARU) {T : DTree α} (hT : RootO
   simp [siftQ, QTree.bind, QTree.firsts, hu, ARU.cut]
 
 theorem tallyReplay_spread (rd : FreeMonoid α → ARU) (T : DTree α) (edges : Edges α)
-    (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (L : ℕ) :
-    Spread D L (tallyReplay rd T edges) :=
-  spread_of_prefix D L _ (tallyReplay_prefix rd T edges)
+    (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (s L : ℕ) :
+    Spread D s L (tallyReplay rd T edges) :=
+  spread_of_prefix D s L _ (tallyReplay_prefix rd T edges)
 
 end OrthoDFA
