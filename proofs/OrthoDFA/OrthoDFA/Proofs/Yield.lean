@@ -6,8 +6,8 @@ import Mathlib.Probability.Moments.Basic
 
 Over reads independent across strings, the share of draws and anchors whose anchor prefix reads
 undecided is at least half of its mean `m`, but for chance `exp(−m n/(16 q))`, where `n` is the
-number of anchors and `q` the most a draw puts on starting with any one string at least `s` long: it is
-a weighted sum of independent reads with weights at most `q / n`, and Chernoff's bound at
+number of anchors and `q` the most a draw puts on starting with any one string at least `s` long:
+it is a weighted sum of independent reads with weights at most `q / n`, and Chernoff's bound at
 `λ = n/(4q)` holds its lower tail.
 -/
 
@@ -155,9 +155,10 @@ theorem one_sub_exp_neg_ge {x : ℝ} (hx : 0 ≤ x) : x * (1 - x) ≤ 1 - Real.e
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
 /-- Over reads independent across strings, each string satisfying `P` reading undecided with
-chance at least `c`, and no string at least `s` long starting more than `q` of the draws, the share of
-draws and anchors whose anchor prefix reads undecided falls below half of any `m₀` at most `c`
-times the share whose anchor prefix satisfies `P` with chance at most `exp(−m₀ n/(16 q))`. -/
+chance at least `c`, and no string at least `s` long starting more than `q` of the draws, the
+share of draws and anchors whose anchor prefix reads undecided falls below half of any `m₀` at
+most `c` times the share whose anchor prefix satisfies `P` with chance at most
+`exp(−m₀ n/(16 q))`. -/
 theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : iIndepFun read μ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {s L : ℕ}
     (hs : s ≤ L)
@@ -181,7 +182,8 @@ theorem anchor_reads (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measu
   have hlam : 0 < lam := by positivity
   have hw0 : ∀ u, 0 ≤ anchorWeight D s L u := anchorWeight_nonneg D s L
   set p : FreeMonoid α → ℝ := fun u => μ.real {ω | read u ω = .undecided}
-  let g : FreeMonoid α → ARU → ℝ := fun u a => anchorWeight D s L u * if a = .undecided then 1 else 0
+  let g : FreeMonoid α → ARU → ℝ := fun u a =>
+    anchorWeight D s L u * if a = .undecided then 1 else 0
   let Z : FreeMonoid α → Ω → ℝ := fun u => g u ∘ read u
   have hZm : ∀ u, Measurable (Z u) := fun u =>
     Measurable.comp (fun _ _ => trivial : Measurable (g u)) (hmeas u)
