@@ -11,7 +11,7 @@ from typing import Callable, List
 
 import numpy as np
 
-from .counterexample_probe import ProbeResult
+from .counterexample_probe import Charges
 from .counterexample_search import (
     HARVEST_EDGE,
     HARVEST_START,
@@ -94,13 +94,13 @@ class HarvestSource(RejectionSource):
         return "boundary"
 
 
-def harvest_reader(ending: Ending) -> Callable[[ProbeResult], List[bytes]]:
+def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
     """What a probe reads undecided where ``ending`` harvested."""
     if ending.kind == HARVEST_START:
-        return lambda result: result.start
+        return lambda charged: charged.start
     if ending.kind == HARVEST_EDGE:
-        return lambda result: result.undecided_by_edge.get(ending.edge, [])
-    return lambda result: result.middle
+        return lambda charged: charged.undecided_by_edge.get(ending.edge, [])
+    return lambda charged: charged.middle
 
 
 @dataclass(frozen=True, eq=False)
@@ -108,11 +108,11 @@ class Replay:
     """Fresh probes of a round's last hypothesis, kept as ``read`` reads them."""
 
     round: CounterexampleSearch
-    read: Callable[[ProbeResult], List[bytes]]
+    read: Callable[[Charges], List[bytes]]
     draw: Callable[[], bytes]
 
     def sample(self) -> List[bytes]:
-        return self.read(self.round.probe(self.draw()))
+        return self.read(self.round.probe(self.draw())[1])
 
 
 def aim_at(pst, dfa, leaf):

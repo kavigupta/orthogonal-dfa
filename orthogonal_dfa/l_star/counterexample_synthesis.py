@@ -244,7 +244,7 @@ def _next_harvest(pst, hypothesis, ending, blamed):
         return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
 
     return at_leaf(hypothesis.edge_harvest), Replay(
-        hypothesis, lambda result: at_leaf(result.undecided_by_edge), draw
+        hypothesis, lambda charged: at_leaf(charged.undecided_by_edge), draw
     )
 
 

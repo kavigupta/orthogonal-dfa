@@ -8,10 +8,21 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from automata.fa.dfa import DFA
 
 from .counterexample_config import CounterexampleSearchConfig
-from .counterexample_probe import Cut, Edge, Path, ProbeResult, probe
+from .counterexample_probe import (
+    Charges,
+    Cut,
+    Edge,
+    EdgeFound,
+    Member,
+    Outcome,
+    Pair,
+    Path,
+    Triple,
+    charges,
+    locate,
+)
 from .midfix_tree import MidfixTree
 from .statistics import rate_side
-from .tripartite_search import EDGE, PAIR, TRIPLE
 
 SUCCESS = "success"
 HARVEST_START = "harvest start"
@@ -55,8 +66,9 @@ class CounterexampleSearch:
         self.edge_harvest: Dict[Edge, List[bytes]] = {}
         self.paths = set(tree.leaf_paths())
 
-    def probe(self, x: bytes) -> ProbeResult:
-        return probe(self.cut, self.tree, self.edges, self.config.k, x)
+    def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
+        located = locate(self.cut, self.tree, self.edges, self.config.k, x)
+        return located.outcome, charges(located, self.config.k, x)
 
     def sift(self, z: bytes) -> Optional[Path]:
         return self.tree.route(self.cut, z)[1]
@@ -70,9 +82,9 @@ class CounterexampleSearch:
         return Ending(OUT_OF_PROBES, [], None)
 
     def step(self, x: bytes) -> Optional[Ending]:
-        result = self.probe(x)
-        self._charge(result)
-        self._act(result)
+        outcome, charged = self.probe(x)
+        self._charge(charged)
+        self._act(outcome)
         return self._look() or self._settle_one()
 
     def records_at(self, edge: Edge, target: Path) -> int:
@@ -99,23 +111,25 @@ class CounterexampleSearch:
         self.edges[edge] = value
         self.version += 1
 
-    def _charge(self, result: ProbeResult):
+    def _charge(self, charged: Charges):
         self.n += 1
-        self.middles += result.middle
+        self.middles += charged.middle
         self.probes += 1
-        self.start_harvest += result.start
-        self.charged.update(result.traversals)
-        for edge, strings in result.undecided_by_edge.items():
+        self.start_harvest += charged.start
+        self.charged.update(charged.traversals)
+        for edge, strings in charged.undecided_by_edge.items():
             self.edge_harvest.setdefault(edge, []).extend(strings)
 
-    def _act(self, result: ProbeResult):
-        if result.learned is not None:
-            self._set_edge(*result.learned)
-        elif result.outcome[0] in (EDGE, PAIR, TRIPLE):
+    def _act(self, outcome: Outcome):
+        if isinstance(outcome, Member):
+            self._set_edge(outcome.edge, (outcome.target, outcome.witness))
+        elif isinstance(outcome, (EdgeFound, Pair, Triple)):
             self.searches += 1
-            if result.record is not None:
-                (source, letter, target), prefix = result.record
-                self.records.setdefault((source, letter), []).append((prefix, target))
+            if isinstance(outcome, EdgeFound):
+                edge = (outcome.source, outcome.letter)
+                self.records.setdefault(edge, []).append(
+                    (outcome.prefix, outcome.target)
+                )
 
     def _above(self, theta, n, h) -> bool:
         return rate_side(theta, self.config.level, self.config.first_look, n, h) is True
