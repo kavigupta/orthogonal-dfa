@@ -1,4 +1,4 @@
-import OrthoDFA.RandomRound
+import OrthoDFA.Level3Claim
 import OrthoDFA.Proofs.IdealRound
 
 /-!
@@ -213,26 +213,29 @@ theorem binE_pvalue_le {a : ℝ} (ha : 0 ≤ a) (n : ℕ) :
 
 end Binomial
 
-theorem stretchRisk_nonneg (C : Cfg) (L Ns N₁ : ℕ) (G θr εd' θpt' : ℝ) (hG0 : 0 ≤ G)
-    (hG1 : G ≤ 1) (ha : 0 ≤ C.a) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
+theorem stretchRisk_nonneg (C : Level3Settings) (L Ns N₁ : ℕ) (G θr εd' θpt' : ℝ) (hG0 : 0 ≤ G)
+    (hG1 : G ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
     (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
     0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' := by
   unfold stretchRisk
   have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun _ P _ => by
     split_ifs <;> norm_num
-  have := binomSfGe_le_one hθr0 hθr1 Ns C.m
-  have := binomSfGe_le_one hεd'0 hεd'1 Ns (max C.n₀ ⌈C.qg * Ns⌉₊)
+  have := binomSfGe_le_one hθr0 hθr1 Ns C.recordsToMove
+  have := binomSfGe_le_one hεd'0 hεd'1 Ns (max C.firstLook ⌈C.searchShare * Ns⌉₊)
   have := binE_nonneg hεd'0 hεd'1 (n := N₁)
-    (f := fun s => if C.a ≤ 1 - binomSfGe N₁ C.εd (s + 1) ∨ binomSfGe N₁ C.εd s < C.a then 1
+    (f := fun s => if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
+        ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1
       else 0) fun j => h01 j _
-  have : 0 ≤ ∑ s ∈ Icc (max C.n₀ ⌈C.qg * Ns⌉₊) Ns,
-      binE s θpt' (fun j => if C.a ≤ binomSfGe s C.θpt j then 1 else 0) :=
+  have : 0 ≤ ∑ s ∈ Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
+      binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
     sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 j _
-  have : 0 ≤ ∑ n ∈ Icc C.n₀ Ns, (binomSfGe n G ((hFire C.θs C.a n + 1) / 2) + C.a) :=
+  have : 0 ≤ ∑ n ∈ Icc C.firstLook Ns, (binomSfGe n G ((hFire C.startRate C.testLevel n + 1) / 2)
+      + C.testLevel) :=
     sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _) ha
   have : 0 ≤ ∑ n ∈ Icc 1 Ns,
-      (binomSfGe n G ⌈(C.exc + C.θe * C.τe * n) / (2 * (L + 1))⌉₊
-        + binomSfGe n G ((hFire C.θpt C.a (max C.n₀ ⌈C.qg * n⌉₊) + 1) / 2)) :=
+      (binomSfGe n G ⌈(C.edgeExcess + C.edgeRate * C.edgeReadShare * n) / (2 * (L + 1))⌉₊
+        + binomSfGe n G ((hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊) + 1)
+            / 2)) :=
     sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _)
       (binomSfGe_nonneg hG0 hG1 _ _)
   linarith

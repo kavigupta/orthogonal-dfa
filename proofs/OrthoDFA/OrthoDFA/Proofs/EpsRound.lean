@@ -17,31 +17,31 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (DTree Edges Disagrees pre located search agrees probe Outcome walk
-  length_walk_le pre_of_le pre_succ agrees_inl walk_cons EdgesOK OutcomeOK)
+open OrthoDFA.Ideal (locate bisect siftAgrees probe Outcome length_walk_le pre_of_le pre_succ
+  agrees_inl walk_cons EdgesOK OutcomeOK)
 
-variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Cfg)
+variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool)
 
 /-! ## Where a record is made -/
 
 theorem located_edge (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool) (lo hi : ℕ)
-    (hle : lo ≤ hi) (hlo : agrees read T x st lo = some true)
-    (hhi : agrees read T x st hi = some false) {p : List Bool} {c : α} {u : FreeMonoid α}
-    {t : List Bool} (h : located read T x st lo hi = .edge p c u t) :
-    ∃ q, lo < q ∧ q ≤ hi ∧ u = pre x (q - 1) ∧ x.toList[q - 1]? = some c := by
-  have hf := Ideal.search_ok (agrees read T x st) _ lo hi rfl hle hlo hhi
-  unfold located at h
-  rcases hsr : search (agrees read T x st) lo hi with q | q | q
+    (hle : lo ≤ hi) (hlo : siftAgrees read T x st lo = some true)
+    (hhi : siftAgrees read T x st hi = some false) {p : List Bool} {c : α} {u : FreeMonoid α}
+    {t : List Bool} (h : locate read T x st lo hi = .wrongEdge p c u t) :
+    ∃ q, lo < q ∧ q ≤ hi ∧ u = prefixOf x (q - 1) ∧ x.toList[q - 1]? = some c := by
+  have hf := Ideal.search_ok (siftAgrees read T x st) _ lo hi rfl hle hlo hhi
+  unfold locate at h
+  rcases hsr : bisect (siftAgrees read T x st) lo hi with q | q | q
   · rw [hsr] at hf h
     have h1 := hf.1
     have h2 := hf.2.1
     simp only at h
     rcases hc : x.toList[q - 1]? with _ | c'
     · rw [hc] at h; simp at h
-    · rcases ht : T.sift read (pre x q) with t' | z
+    · rcases ht : T.sift read (prefixOf x q) with t' | z
       · rw [hc, ht] at h
-        simp only [Outcome.edge.injEq] at h
+        simp only [Outcome.wrongEdge.injEq] at h
         obtain ⟨-, rfl, rfl, -⟩ := h
         exact ⟨q, h1, h2, rfl, hc⟩
       · rw [hc, ht] at h; simp at h
@@ -51,10 +51,10 @@ theorem located_edge (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool)
 /-- A record's prefix and letter are the probe's, past its first `k` letters. -/
 theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α)
     (hk : k ≤ x.toList.length) {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool}
-    (h : probe read T E k x = .edge p c u t) :
-    ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = pre x i ∧ x.toList[i]? = some c := by
+    (h : probe read T E k x = .wrongEdge p c u t) :
+    ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = prefixOf x i ∧ x.toList[i]? = some c := by
   unfold probe at h
-  rcases ha : T.sift read (pre x k) with a | z₀
+  rcases ha : T.sift read (prefixOf x k) with a | z₀
   · rw [ha] at h
     simp only at h
     revert h
@@ -68,7 +68,7 @@ theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α)
       rw [Nat.sub_self, ← hss]
       obtain ⟨l, hl⟩ := walk_cons E a cs
       simp [hl]
-    have hagk : agrees read T x (fun p => ss.getD (p - k) []) k = some true := by
+    have hagk : siftAgrees read T x (fun p => ss.getD (p - k) []) k = some true := by
       rw [agrees_inl read T x _ ha]
       simp only [hst0, decide_true]
     split at h
@@ -109,23 +109,23 @@ def PotWrong (k : ℕ) (T : DTree α) : Set (FreeMonoid α) :=
 /-- A record at a target that is not real comes from a probe that can read a string wrong. -/
 theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
     {τ : List Bool × α × List Bool} {x : FreeMonoid α} (hx : fR read C T E τ x = true)
-    (hr : ¬ RealT M side T τ.1 τ.2.1 τ.2.2) : x ∈ PotWrong read M side C.k T := by
+    (hr : ¬ RealT M side T τ.1 τ.2.1 τ.2.2) : x ∈ PotWrong read M side C.walkStart T := by
   classical
   obtain ⟨p, c, t⟩ := τ
   simp only [fR, decide_eq_true_eq] at hx
-  have hOK := probeR_ok read hE C.k x
-  generalize ho : probeR read T E C.k x = o at hx hOK
+  have hOK := probeOrAgree_ok read hE C.walkStart x
+  generalize ho : probeOrAgree read T E C.walkStart x = o at hx hOK
   cases o with
-  | edge p' c' u t' =>
+  | wrongEdge p' c' u t' =>
     simp only [recOf, Option.some.injEq, Prod.mk.injEq] at hx
     obtain ⟨rfl, rfl, rfl⟩ := hx
     obtain ⟨-, hu, huc, -⟩ := hOK
-    have hk : C.k ≤ x.toList.length := by
+    have hk : C.walkStart ≤ x.toList.length := by
       by_contra hc
-      simp [probeR, show x.toList.length < C.k by omega] at ho
-    have ho' : probe read T E C.k x = .edge p' c' u t' := by
-      simpa [probeR, show ¬ x.toList.length < C.k by omega] using ho
-    obtain ⟨i, hi1, hi2, rfl, hc⟩ := probe_edge read T E C.k x hk ho'
+      simp [probeOrAgree, show x.toList.length < C.walkStart by omega] at ho
+    have ho' : probe read T E C.walkStart x = .wrongEdge p' c' u t' := by
+      simpa [probeOrAgree, show ¬ x.toList.length < C.walkStart by omega] using ho
+    obtain ⟨i, hi1, hi2, rfl, hc⟩ := probe_edge read T E C.walkStart x hk ho'
     by_contra hw
     simp only [PotWrong, Set.mem_ofPred_eq, not_exists, not_and] at hw
     have hp := sift_true M side read T _ p' hu fun m hm =>
@@ -135,15 +135,12 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
     have ht := sift_true M side read T _ t' huc fun m hm =>
       hw _ (mem_pot (by omega) (by omega) hm)
     apply hr
-    refine ⟨M.eval (pre x i).toList, hp.symm, ?_⟩
+    refine ⟨M.eval (prefixOf x i).toList, hp.symm, ?_⟩
     rw [ht, hsucc, eval_mul]
     rfl
   | agree => simp [recOf] at hx
-  | startU z => simp [recOf] at hx
-  | endU z => simp [recOf] at hx
-  | triple k zs => simp [recOf] at hx
-  | pair k zs => simp [recOf] at hx
-  | member p' c' u t' => simp [recOf] at hx
+  | undecided k zs cl => simp [recOf] at hx
+  | unlearnedEdge p' c' u t' => simp [recOf] at hx
 
 /-! ## Fake fixes in a stretch -/
 
@@ -153,26 +150,27 @@ noncomputable def recSet (T : DTree α) : Finset (List Bool × α × List Bool) 
 
 /-- `m` records over the stretch at an edge and a target that is not real. -/
 def FakeEv (T : DTree α) (E : Edges α) (zs : List (FreeMonoid α)) : Prop :=
-  ∃ τ ∈ recSet T, ¬ RealT M side T τ.1 τ.2.1 τ.2.2 ∧ C.m ≤ zs.countP (fR read C T E τ)
+  ∃ τ ∈ recSet T, ¬ RealT M side T τ.1 τ.2.1 τ.2.2 ∧ C.recordsToMove ≤ zs.countP (fR read C T E τ)
 
 theorem fakeEv_of_fix (U : σ → ℝ) (θ : ℝ) (L : ℕ) {T : DTree α} {E : Edges α}
-    {ys : List (FreeMonoid α)} {s : RState α} (hs : Inv read C s)
+    {ys : List (FreeMonoid α)} {s : Level3State α} (hs : Inv read C s)
     (hst : StInv read C M U θ T E L ys s) {x : FreeMonoid α} (hf : FakeFix M side read C s x) :
     FakeEv read C M side T E (ys ++ [x]) := by
   obtain ⟨p, c, u, t, ho, hc, hr⟩ := hf
-  have hOK := probeR_ok read hs.edges C.k x
+  have hOK := probeOrAgree_ok read hs.edges C.walkStart x
   rw [ho] at hOK
   obtain ⟨hp, -, huc, -⟩ := hOK
   have ht := DTree.sift_inl_mem read _ _ t huc
   rw [hst.tree] at hp ht hr
   refine ⟨(p, c, t), by simp [recSet, hp, ht], hr, ?_⟩
-  rw [countP_snoc, ← hst.recs, ← hst.tree, ← hst.edges]
+  rw [countP_snoc, ← hst.records, ← hst.tree, ← hst.edges]
   simp only [fR, ho, recOf, decide_true, if_true]
   simpa [List.count_append] using hc
 
 theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ} (Ns : ℕ)
-    {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) (hsz : T.leaves.length ≤ C.Lmax)
-    (hW : D.real (PotWrong read M side C.k T) ≤ Gw) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1) (N : ℕ) :
+    {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) (hsz : T.leaves.length ≤ C.maxLeaves)
+    (hW : D.real (PotWrong read M side C.walkStart T) ≤ Gw) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1)
+        (N : ℕ) :
     (Measure.pi fun _ : Fin N => D).real
         {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ FakeEv read C M side T E ((List.ofFn xs).take n)}
       ≤ fakeRisk C (Fintype.card α) Ns Gw := by
@@ -181,7 +179,7 @@ theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ
   set R := (recSet T).filter fun τ => ¬ RealT M side T τ.1 τ.2.1 τ.2.2
   have hsub : {xs : Fin N → FreeMonoid α |
       ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ FakeEv read C M side T E ((List.ofFn xs).take n)}
-      ⊆ ⋃ τ ∈ R, {xs | C.m ≤ cnt (fR read C T E τ) K (List.ofFn xs)} := by
+      ⊆ ⋃ τ ∈ R, {xs | C.recordsToMove ≤ cnt (fR read C T E τ) K (List.ofFn xs)} := by
     rintro xs ⟨n, hn, hnN, τ, hτ, hr, hc⟩
     refine Set.mem_biUnion (Finset.mem_coe.2 (Finset.mem_filter.2 ⟨hτ, hr⟩)) ?_
     simp only [Set.mem_ofPred_eq, cnt]
@@ -191,27 +189,29 @@ theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ
       rw [List.take_take, min_eq_left this]]
     exact List.take_sublist _ _
   have hτ : ∀ τ ∈ R, (Measure.pi fun _ : Fin N => D).real
-      {xs | C.m ≤ cnt (fR read C T E τ) K (List.ofFn xs)} ≤ binomSfGe Ns Gw C.m := by
+      {xs | C.recordsToMove ≤ cnt (fR read C T E τ) K (List.ofFn xs)}
+          ≤ binomSfGe Ns Gw C.recordsToMove := by
     intro τ hτ
     have hr := (Finset.mem_filter.1 hτ).2
     have hle : D.real {x | fR read C T E τ x} ≤ Gw :=
       (measureReal_mono fun x hx => untrue_wrong read C M side hE hx hr).trans hW
-    exact (pi_cnt_up D _ (min_le_left N Ns) hle hGw1 (fun j => C.m ≤ j)
-      (fun j j' h hj => hj.trans h) C.m fun j hj => hj).trans
+    exact (pi_cnt_up D _ (min_le_left N Ns) hle hGw1 (fun j => C.recordsToMove ≤ j)
+      (fun j j' h hj => hj.trans h) C.recordsToMove fun j hj => hj).trans
       (binomSfGe_mono_n hGw0 hGw1 (min_le_right N Ns) _)
-  have hR : (R.card : ℝ) ≤ (C.Lmax ^ 2 * Fintype.card α : ℕ) := by
-    have h1 : T.leaves.toFinset.card ≤ C.Lmax := (List.toFinset_card_le _).trans hsz
-    have : R.card ≤ C.Lmax ^ 2 * Fintype.card α := by
+  have hR : (R.card : ℝ) ≤ (C.maxLeaves ^ 2 * Fintype.card α : ℕ) := by
+    have h1 : T.leaves.toFinset.card ≤ C.maxLeaves := (List.toFinset_card_le _).trans hsz
+    have : R.card ≤ C.maxLeaves ^ 2 * Fintype.card α := by
       refine (Finset.card_filter_le _ _).trans ?_
       simp only [recSet, Finset.card_product, Finset.card_univ]
-      calc _ ≤ C.Lmax * (Fintype.card α * C.Lmax) := by gcongr
+      calc _ ≤ C.maxLeaves * (Fintype.card α * C.maxLeaves) := by gcongr
         _ = _ := by ring
     exact_mod_cast this
   calc _ ≤ _ := measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ∑ τ ∈ R, (Measure.pi fun _ : Fin N => D).real
-          {xs | C.m ≤ cnt (fR read C T E τ) K (List.ofFn xs)} := measureReal_biUnion_finset_le _ _
-    _ ≤ ∑ _τ ∈ R, binomSfGe Ns Gw C.m := Finset.sum_le_sum hτ
-    _ = R.card * binomSfGe Ns Gw C.m := by rw [Finset.sum_const, nsmul_eq_mul]
+          {xs | C.recordsToMove ≤ cnt (fR read C T E τ) K (List.ofFn xs)} :=
+              measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _τ ∈ R, binomSfGe Ns Gw C.recordsToMove := Finset.sum_le_sum hτ
+    _ = R.card * binomSfGe Ns Gw C.recordsToMove := by rw [Finset.sum_const, nsmul_eq_mul]
     _ ≤ _ := by
         unfold fakeRisk
         exact mul_le_mul_of_nonneg_right hR (binomSfGe_nonneg hGw0 hGw1 _ _)
@@ -220,8 +220,8 @@ theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ
 
 variable (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ)
 
-theorem gInv_same {s s' : RState α} (hg : GInv M side s) (ht : s'.tree = s.tree)
-    (he : s'.edges = s.edges) (hm : s'.moved = s.moved) : GInv M side s' := by
+theorem gInv_same {s s' : Level3State α} (hg : GInv M side s) (ht : s'.tree = s.tree)
+    (he : s'.edges = s.edges) (hm : s'.redirected = s.redirected) : GInv M side s' := by
   obtain ⟨h1, h2⟩ := hg
   refine ⟨by rw [ht]; exact h1, fun p c t₀ w hE hmv => ?_⟩
   rw [ht]
@@ -231,32 +231,36 @@ theorem gInv_same {s s' : RState α} (hg : GInv M side s) (ht : s'.tree = s.tree
 theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd' θpt' : ℝ)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-      D.real (PotGood M U θ C.k read T) ≤ G)
+      D.real (PotGood M U θ C.walkStart read T) ≤ G)
     (hNw : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-      D.real (PotWrong read M side C.k T) ≤ Gw)
-    (hcap : Fintype.card σ + 2 ≤ C.Lmax) (hm : 1 ≤ C.m) (hn₀ : 1 ≤ C.n₀) (hN₁ : C.n₀ ≤ N₁)
+      D.real (PotWrong read M side C.walkStart T) ≤ Gw)
+    (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook)
+        (hN₁ : C.firstLook ≤ N₁)
     (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G) (hG1 : G ≤ 1) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1)
-    (ha : 0 ≤ C.a) (hθs0 : 0 ≤ C.θs) (hθs1 : C.θs ≤ 1) (hθe : 0 ≤ C.θe) (hθpt0 : 0 ≤ C.θpt)
-    (hθpt1 : C.θpt ≤ 1) (hεd0 : 0 ≤ C.εd) (hεd1 : C.εd ≤ 1) (hεd : C.εd ≤ ε) (hθr0 : 0 ≤ θr)
+    (ha : 0 ≤ C.testLevel) (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
+        (hθpt0 : 0 ≤ C.middleRate)
+    (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1)
+        (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr)
     (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
-    (hsep : (C.Lmax : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
+    (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hP : stretches C (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
-        {xs | let r := round read C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-            0 0 (fun _ _ => []) 0 (toRoundEnd r.2)}
+        {xs | let r := runProbes read C initialState (List.ofFn xs)
+          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
+            0 0 (fun _ _ => []) 0 r.2}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α)
         * (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw)) := by
-  have h2 : 2 ≤ C.Lmax := by omega
+  have h2 : 2 ≤ C.maxLeaves := by omega
   have hNs : 0 < Ns := by omega
   have hst := inv_start read C hm h2 (α := α)
   have hΨ := Ψr_start C h2 (α := α)
   set X := FakeFix M side read C
   set b := ENNReal.ofReal (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw)
-  set I : RState α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.n < Ns
-  have hseg : ∀ s, I s → s = fresh s.tree s.edges s.moved → ∀ N,
+  set I : Level3State α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.probeCount < Ns
+  have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.redirected → ∀ N,
       (Measure.pi fun _ : Fin N => D)
-        {xs | SegB (step read C) (BadStep read C M U θ D ε Ns X) Same s (List.ofFn xs)} ≤ b := by
+        {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns X) Same s (List.ofFn xs)}
+            ≤ b := by
     rintro s ⟨hs, hg, -⟩ hf N
     have hT := gInv_cls M side read C hs hg
     exact seg_le read C M U θ D ε Ns X (FakeEv read C M side s.tree s.edges)
@@ -267,38 +271,40 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
       (fun N => fake_le read C M side D Ns hs.edges hs.size (hNw _ hT) hGw0 hGw1 N)
       hm hn₀ hN₁ hN₁s hG0 hG1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0
       hεd'1 hθpt'0 hθpt'1 hsep N
-  have hI0 : I start := ⟨hst, gInv_start M side, by simp only [start, fresh]; omega⟩
-  have hany := anyB_le (step read C) (BadStep read C M U θ D ε Ns X) Same D I
-    (fun s => s = fresh s.tree s.edges s.moved) (Ψr C) b
+  have hI0 : I initialState := ⟨hst, gInv_start M side,
+      by simp only [initialState, newHypothesis]; omega⟩
+  have hany := anyB_le (applyProbe read C) (BadStep read C M U θ D ε Ns X) Same D I
+    (fun s => s = newHypothesis s.tree s.edges s.redirected) (Ψr C) b
     (fun s x s' hI h hsm hb => by
       obtain ⟨hs, hg, hn⟩ := hI
       obtain ⟨h1, h2, h3⟩ := step_same read C hs h hsm.1 hsm.2
       obtain ⟨rfl, -, -⟩ := step_same_chg read C hs h hsm
       refine ⟨⟨h1, gInv_same M side hg rfl rfl rfl, ?_⟩, h2⟩
-      have : (chg read C s x).n ≠ Ns := fun hc => hb (Or.inr ⟨_, h, hsm, hc⟩)
+      have : (chg read C s x).probeCount ≠ Ns := fun hc => hb (Or.inr ⟨_, h, hsm, hc⟩)
       omega)
     (fun s x s' hI h hsm hb => by
       obtain ⟨hs, hg, hn⟩ := hI
       obtain ⟨h1, h2, h3⟩ := step_change read C hm hs h hsm
       have hnf : ¬ X s x := fun hx => hb (Or.inl ⟨hn, Or.inr hx⟩)
       refine ⟨⟨h1, gInv_change M side read C hs hg h hsm hnf, ?_⟩, h2, h3⟩
-      rw [h2]; simp only [fresh]; omega)
-    hseg P start hI0
+      rw [h2]; simp only [newHypothesis]; omega)
+    hseg P initialState hI0
   calc _ ≤ (Measure.pi fun _ : Fin P => D)
-        {xs | AnyB (step read C) (BadStep read C M U θ D ε Ns X) start (List.ofFn xs)} := by
+        {xs | AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns X) initialState
+            (List.ofFn xs)} := by
         refine measure_mono fun xs hxs => ?_
         by_contra hb
-        have hn0 : (start : RState α).n = 0 := rfl
-        refine hxs (ends_of_not_anyB read C M U θ D ε Ns X hm _ start hst
+        have hn0 : (initialState : Level3State α).probeCount = 0 := rfl
+        refine hxs (ends_of_not_anyB read C M U θ D ε Ns X hm _ initialState hst
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
-        have : (Ψr C (start : RState α) + 1) * Ns ≤ stretches C (Fintype.card α) * Ns :=
+        have : (Ψr C (initialState : Level3State α) + 1) * Ns ≤ stretches C (Fintype.card α) * Ns :=
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    _ ≤ b + Ψr C (start : RState α) * b :=
+    _ ≤ b + Ψr C (initialState : Level3State α) * b :=
         hany.trans (add_le_add (hseg _ hI0 rfl P) le_rfl)
-    _ = ((Ψr C (start : RState α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
+    _ = ((Ψr C (initialState : Level3State α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
     _ ≤ (stretches C (Fintype.card α) : ENNReal) * b := by gcongr
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
@@ -316,23 +322,24 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   simp only at hN₁ hN₁s hG0 hG1 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGw0 hGw1
   unfold epsRoundBound roundBound
   simp only
-  set P := C.budget
-  set p₀ := prefixMax D C.k
-  have hp₀ : 0 < p₀ := prefixMax_pos D C.k
-  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.k → D.real {x | pre x C.k = u} ≤ p₀ :=
-    fun u _ => le_prefixMax D C.k u
+  set P := C.probeBudget
+  set p₀ := prefixMax D C.walkStart
+  have hp₀ : 0 < p₀ := prefixMax_pos D C.walkStart
+  have hpre : ∀ u : FreeMonoid α, u.toList.length = C.walkStart
+      → D.real {x | prefixOf x C.walkStart = u} ≤ p₀ :=
+    fun u _ => le_prefixMax D C.walkStart u
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-    D.real (PotGood M U θ C.k (read · ω) T) ≤ G}
+    D.real (PotGood M U θ C.walkStart (read · ω) T) ≤ G}
   set Nw := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-    D.real (PotWrong (read · ω) M side C.k T) ≤ Gw}
-  have hNn := noise_le M U θ μ read D C.k L p₀ G hmeas hind hU hL hp₀ hpre hθ
+    D.real (PotWrong (read · ω) M side C.walkStart T) ≤ Gw}
+  have hNn := noise_le M U θ μ read D C.walkStart L p₀ G hmeas hind hU hL hp₀ hpre hθ
   set m₀ := 3 / 2 * θ * coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ)
-  set Ny := {ω | (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+  set Ny := {ω | (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
       read (FreeMonoid.ofList (r.1.toList.take r.2)) ω = .undecided} < m₀ / 2}
-  have hm₀ : m₀ ≤ 3 / 2 * θ * (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+  have hm₀ : m₀ ≤ 3 / 2 * θ * (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
       BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} := by
     have hcov : coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ)
-        ≤ (D.prod (anchorLaw st L)).real {r | r.2 ≤ r.1.toList.length ∧
+        ≤ (D.prod (uniformAnchor st L)).real {r | r.2 ≤ r.1.toList.length ∧
           BadAt U θ (M.eval (FreeMonoid.ofList (r.1.toList.take r.2)).toList)} :=
       coverage_le_anchor D st L M (BadAt U θ)
     simp only [m₀, mul_div_assoc]
@@ -348,18 +355,18 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
     congr 1
     field_simp
   have hNw : μ Nw ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw) :=
-    noise_hit μ read D C.k L (Fintype.card σ) p₀ Gw εw
+    noise_hit μ read D C.walkStart L (Fintype.card σ) p₀ Gw εw
       (fun z r => r = if side (M.eval z.toList) then .reject else .accept) hmeas hind hwrong hεw
       hL hp₀ hpre
   set c := ENNReal.ofReal (stretches C (Fintype.card α)
     * (stretchRisk C L Ns N₁ G θr εd' θpt' + fakeRisk C (Fintype.card α) Ns Gw))
   set B := toMeasurable μ (Nn ∪ Nw ∪ Ny)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
-      {xs | let r := round (read · ω) C start (List.ofFn xs)
-        ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) r.1.tree r.1.edges C.k x}
-          st L (Ideal.replay (read · ω) r.1.tree r.1.edges)
+      {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
+        ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
+          st L (Ideal.replay (read · ω) ⟨r.1.tree, r.1.edges⟩)
           (3 / 4 * θ * coverage D st L M (BadAt U θ) / (L + 1 - st : ℕ))
-          (toRoundEnd r.2)}
+          r.2}
         ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
@@ -376,7 +383,7 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
         hθpt0 hθpt1 hεd0 hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP)
       intro xs hxs h
       refine hxs (h.respread (Ideal.replay_spread (read · ω) _ _ D st L) ?_)
-      have hroot := round_root (read · ω) C (List.ofFn xs) start ⟨_, _, rfl⟩
+      have hroot := round_root (read · ω) C (List.ofFn xs) initialState ⟨_, _, rfl⟩
       refine le_trans (le_of_eq ?_) (hωY.trans (measureReal_mono ?_ (measure_ne_top _ _)))
       · simp only [m₀]; ring
       · rintro ⟨w, e⟩ ⟨he, hu⟩

@@ -19,8 +19,8 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (DTree Edges pre lcp probe Outcome located search agrees walk walk_cons
-  length_walk_le pre_of_le pre_succ Found OutcomeOK EdgesOK)
+open OrthoDFA.Ideal (probe Outcome locate bisect siftAgrees walk_cons length_walk_le pre_of_le
+  pre_succ SearchResult OutcomeOK EdgesOK)
 
 variable {α : Type*} {σ : Type*} (M : DFA α σ) (side : σ → Bool)
 
@@ -88,25 +88,26 @@ theorem sift_true (read : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : FreeM
 
 /-- Two states at different true leaves part at the node where their paths part. -/
 theorem leafOf_part : ∀ (T : DTree α) (q₁ q₂ : σ), leafOf M side T q₁ ≠ leafOf M side T q₂ →
-    side (M.evalFrom q₁ (T.midAt (lcp (leafOf M side T q₁) (leafOf M side T q₂))).toList)
-      ≠ side (M.evalFrom q₂ (T.midAt (lcp (leafOf M side T q₁) (leafOf M side T q₂))).toList)
+    side (M.evalFrom q₁ (T.midAt (commonPrefix (leafOf M side T q₁) (leafOf M side T q₂))).toList)
+      ≠ side (M.evalFrom q₂ (T.midAt (commonPrefix (leafOf M side T q₁)
+          (leafOf M side T q₂))).toList)
   | .leaf, q₁, q₂, h => by simp [leafOf] at h
   | .node m r a, q₁, q₂, h => by
     unfold leafOf at h ⊢
     by_cases h1 : side (M.evalFrom q₁ m.toList) <;> by_cases h2 : side (M.evalFrom q₂ m.toList)
     · rw [if_pos h1, if_pos h2] at h ⊢
       have h' : leafOf M side a q₁ ≠ leafOf M side a q₂ := fun e => h (by rw [e])
-      simpa [lcp, DTree.midAt] using leafOf_part a q₁ q₂ h'
-    · rw [if_pos h1, if_neg h2]; simp [lcp, DTree.midAt, h1, h2]
-    · rw [if_neg h1, if_pos h2]; simp [lcp, DTree.midAt, h1, h2]
+      simpa [commonPrefix, DTree.midAt] using leafOf_part a q₁ q₂ h'
+    · rw [if_pos h1, if_neg h2]; simp [commonPrefix, DTree.midAt, h1, h2]
+    · rw [if_neg h1, if_pos h2]; simp [commonPrefix, DTree.midAt, h1, h2]
     · rw [if_neg h1, if_neg h2] at h ⊢
       have h' : leafOf M side r q₁ ≠ leafOf M side r q₂ := fun e => h (by rw [e])
-      simpa [lcp, DTree.midAt] using leafOf_part r q₁ q₂ h'
+      simpa [commonPrefix, DTree.midAt] using leafOf_part r q₁ q₂ h'
 
 /-- A split between two real targets is genuine. -/
 theorem genuine_of_real {T : DTree α} {p t t₀ : List Bool} {c : α} (ht : RealT M side T p c t)
     (ht₀ : RealT M side T p c t₀) (hne : t ≠ t₀) :
-    GenuineSplit M side T p (FreeMonoid.of c * T.midAt (lcp t t₀)) := by
+    GenuineSplit M side T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) := by
   obtain ⟨q₁, h1, h1'⟩ := ht
   obtain ⟨q₂, h2, h2'⟩ := ht₀
   refine ⟨q₁, q₂, h1, h2, ?_⟩
@@ -206,45 +207,46 @@ theorem img_card_splitAt {T : DTree α} {p : List Bool} {d : FreeMonoid α} (hp 
   have := Finset.card_pos.2 ⟨p, hpimg⟩
   omega
 
-variable [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Cfg)
+variable [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- The tree has a true leaf for each leaf past the first, and every redirected edge has a real
 target. -/
-structure GInv (s : RState α) : Prop where
+structure GInv (s : Level3State α) : Prop where
   leaves : s.tree.leaves.length ≤ (img M side s.tree).card + 1
-  real : ∀ p c t₀ w, s.edges p c = some (t₀, w) → s.moved p c = true →
+  real : ∀ p c t₀ w, s.edges (p, c) = some (t₀, w) → s.redirected (p, c) = true →
     RealT M side s.tree p c t₀
 
 /-- A fix at a target that is not real. -/
-def FakeFix (s : RState α) (x : FreeMonoid α) : Prop :=
-  ∃ p c u t, probeR read s.tree s.edges C.k x = .edge p c u t ∧
-    C.m ≤ (s.recs ++ [(p, c, t)]).count (p, c, t) ∧ ¬ RealT M side s.tree p c t
+def FakeFix (s : Level3State α) (x : FreeMonoid α) : Prop :=
+  ∃ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧ ¬ RealT M side s.tree p c t
 
-theorem gInv_start : GInv M side (start : RState α) where
+theorem gInv_start : GInv M side (initialState : Level3State α) where
   leaves := by
-    have : 0 < (img M side (start : RState α).tree).card :=
+    have : 0 < (img M side (initialState : Level3State α).tree).card :=
       Finset.card_pos.2 ⟨_, Finset.mem_image_of_mem _ (Finset.mem_univ M.start)⟩
-    simp only [start, fresh, DTree.leaves] at this ⊢
+    simp only [initialState, newHypothesis, DTree.leaves] at this ⊢
     simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, List.length_cons,
       List.length_nil]
     omega
-  real := fun _ _ _ _ h => by simp [start, fresh] at h
+  real := fun _ _ _ _ h => by simp [initialState, newHypothesis] at h
 
-theorem gInv_leaves {s : RState α} (hg : GInv M side s) :
+theorem gInv_leaves {s : Level3State α} (hg : GInv M side s) :
     s.tree.leaves.length ≤ Fintype.card σ + 1 :=
   hg.leaves.trans (by have := img_card_le M side s.tree; omega)
 
-theorem gInv_cls {s : RState α} (hs : Inv read C s) (hg : GInv M side s) :
+theorem gInv_cls {s : Level3State α} (hs : Inv read C s) (hg : GInv M side s) :
     s.tree ∈ classSet (Fintype.card σ) :=
   classSet_mono' (by have := gInv_leaves M side hg; omega) hs.cls
 
 /-- A split of an edge redirected to a real target, at the `m`-th record of a real one, is
 genuine and keeps `GInv`'s count. -/
-theorem gInv_split {s : RState α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
-    {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges p c = some (t₀, w₀))
-    (hmv : s.moved p c = true) (ht : RealT M side s.tree p c t) (hne : t₀ ≠ t) :
-    (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p).leaves.length
-      ≤ (img M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p)).card + 1 := by
+theorem gInv_split {s : Level3State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
+    {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges (p, c) = some (t₀, w₀))
+    (hmv : s.redirected (p, c) = true) (ht : RealT M side s.tree p c t) (hne : t₀ ≠ t) :
+    (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length
+      ≤ (img M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p)).card
+          + 1 := by
   have hgen := genuine_of_real M side ht (hg.real p c t₀ w₀ hE hmv) (Ne.symm hne)
   have h1 := img_card_splitAt M side hp hgen
   rw [DTree.length_leaves_splitAt _ _ _ hp]
@@ -252,21 +254,21 @@ theorem gInv_split {s : RState α} (hg : GInv M side s) {p t t₀ : List Bool} {
   omega
 
 /-- Only a fake fix can make the tree too big. -/
-theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.Lmax) {s : RState α}
+theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) {s : Level3State α}
     (hs : Inv read C s) (hg : GInv M side s) {x : FreeMonoid α}
-    (hnf : ¬ FakeFix M side read C s x) : step read C s x ≠ .inr .tooBig := by
+    (hnf : ¬ FakeFix M side read C s x) : applyProbe read C s x ≠ .inr .failed := by
   intro h
   obtain ⟨p, c, u, t, t₀, w₀, ho, hE, htt, hp, -, -, hmv, hc, hlt⟩ := step_tooBig read C hs h
   have ht : RealT M side s.tree p c t := by
     by_contra hr
     exact hnf ⟨p, c, u, t, ho, hc, hr⟩
   have := gInv_split M side hg hp hE hmv ht htt
-  have := img_card_le M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (lcp t t₀)) p)
+  have := img_card_le M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p)
   omega
 
 /-- A step that changes the hypothesis without a fake fix keeps `GInv`. -/
-theorem gInv_change {s s' : RState α} (hs : Inv read C s) (hg : GInv M side s)
-    {x : FreeMonoid α} (h : step read C s x = .inl s')
+theorem gInv_change {s s' : Level3State α} (hs : Inv read C s) (hg : GInv M side s)
+    {x : FreeMonoid α} (h : applyProbe read C s x = .inl s')
     (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) (hnf : ¬ FakeFix M side read C s x) :
     GInv M side s' := by
   rcases step_cases read C hs h with
@@ -276,32 +278,33 @@ theorem gInv_change {s s' : RState α} (hs : Inv read C s) (hg : GInv M side s)
     by_cases hpc : (p', c') = (p, c)
     · simp only [Prod.mk.injEq] at hpc
       obtain ⟨rfl, rfl⟩ := hpc
-      simp [fresh, Ideal.upd2_same] at h2
-    · simp only [fresh, Ideal.upd2_ne _ _ hpc] at h1 h2
+      simp [newHypothesis, Function.update_self] at h2
+    · simp only [newHypothesis, Function.update_of_ne hpc] at h1 h2
       exact hg.real p' c' t₁ w h1 h2
   · have ht : RealT M side s.tree p c t := by
       by_contra hr
       exact hnf ⟨p, c, u, t, ho, hc, hr⟩
-    unfold fix at hfix
+    unfold redirectOrSplit at hfix
     rw [hE] at hfix
     simp only at hfix
     split_ifs at hfix with hmv
-    · unfold split at hfix
+    · unfold splitLeaf at hfix
       simp only at hfix
       split_ifs at hfix with hlt
       simp only [Sum.inl.injEq] at hfix
       subst hfix
-      exact ⟨gInv_split M side hg hp hE hmv ht htt, fun _ _ _ _ _ h2 => by simp [fresh] at h2⟩
+      exact ⟨gInv_split M side hg hp hE hmv ht htt,
+          fun _ _ _ _ _ h2 => by simp [newHypothesis] at h2⟩
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
       refine ⟨hg.leaves, fun p' c' t₁ w h1 h2 => ?_⟩
       by_cases hpc : (p', c') = (p, c)
       · simp only [Prod.mk.injEq] at hpc
         obtain ⟨rfl, rfl⟩ := hpc
-        simp only [fresh, Ideal.upd2_same, Option.some.injEq, Prod.mk.injEq] at h1
+        simp only [newHypothesis, Function.update_self, Option.some.injEq, Prod.mk.injEq] at h1
         rw [← h1.1]
         exact ht
-      · simp only [fresh, Ideal.upd2_ne _ _ hpc] at h1 h2
+      · simp only [newHypothesis, Function.update_of_ne hpc] at h1 h2
         exact hg.real p' c' t₁ w h1 h2
   · exact absurd ⟨rfl, rfl⟩ hne
 
