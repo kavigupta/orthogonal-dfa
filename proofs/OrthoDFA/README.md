@@ -17,6 +17,11 @@
   its rarer decided side at most `ε`, or at most `κ` times as often as it is undecided.  `BandPasses` is the
   check the band selection rule `evidence_margin_for_population_size` makes, at
   `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
+- `OrthoDFA/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns from
+  agreeing to disagreeing that steps past undecided positions, and `TripartiteSearchCorrect`: each
+  result says what `agrees` is where it points, the queries stay between the endpoints and number
+  at most `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
+  `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`), where a replay
   of one is anchored (`uniformAnchor`), and the share of draws visiting given states (`coverage`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
