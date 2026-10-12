@@ -202,7 +202,8 @@ theorem recordProbe_fresh {s : Level4State α} {x : FreeMonoid α} {xs : List (F
     · rw [hm]; exact Fresh.nil
 
 theorem applyProbe_fresh {s s' : Level4State α} {x : FreeMonoid α} {xs : List (FreeMonoid α)}
-    (h : applyProbe C cut s x = .inl s') (hr : HarvestFresh C.walkStart xs (recordProbe C cut s x)) :
+    (h : applyProbe C cut s x = .inl s')
+    (hr : HarvestFresh C.walkStart xs (recordProbe C cut s x)) :
     HarvestFresh C.walkStart xs s' := by
   obtain ⟨he, -, hs, -⟩ := applyProbe_counts C cut h
   refine ⟨?_, fun p c => ?_, ?_⟩
@@ -314,7 +315,8 @@ theorem prefix_collision_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure 
     obtain ⟨i, j, he, hne⟩ := hxs
     exact Set.mem_biUnion (x := (i, j)) (by simp [hne]) he
   calc ν.real _ ≤ ν.real (⋃ p ∈ (Finset.univ.filter fun p : Fin T × Fin T => p.1 ≠ p.2),
-        {xs | prefixOf (xs p.1) k = prefixOf (xs p.2) k}) := measureReal_mono hsub (measure_ne_top _ _)
+        {xs | prefixOf (xs p.1) k = prefixOf (xs p.2) k}) :=
+          measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ∑ p ∈ (Finset.univ.filter fun p : Fin T × Fin T => p.1 ≠ p.2),
         ν.real {xs | prefixOf (xs p.1) k = prefixOf (xs p.2) k} :=
         measureReal_biUnion_finset_le _ _

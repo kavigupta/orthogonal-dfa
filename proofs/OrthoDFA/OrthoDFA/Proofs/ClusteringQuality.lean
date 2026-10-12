@@ -484,7 +484,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
     with hstates
   refine ⟨fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct_bad O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
+  have hcc := clustering_correct_bad O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α
+    δ'
     ρ pAP crossLimit 6000 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
     hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
@@ -555,7 +556,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ Q : Run Ω S J → Prop, (∀ x, x ∈ {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+        ∀ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
@@ -566,7 +568,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
     intro Q hQ
     have hsub : {x | ¬ Q x} ⊆ {x | ¬ x ∈ {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+        ∀ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
@@ -576,7 +579,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
       intro x hx
       by_cases hg : x ∈ {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+        ∀ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
@@ -590,7 +594,8 @@ theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure �
     calc (runMeasure μ D Dsf).real {x | ¬ Q x}
         ≤ (runMeasure μ D Dsf).real ({x | ¬ x ∈ {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+        ∀ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}

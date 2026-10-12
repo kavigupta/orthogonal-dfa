@@ -25,8 +25,11 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   undecided.
 - `Level4FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
+- `LearnerLoopCorrect`: the learner's loop, clustering a family and running level 4 with it each
+  round, stops within `|Q| + 1` rounds at a round whose hypothesis and tree agree on all but `εd`
+  of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(δc + 3δ)` (below).
 
-## The loop, in progress
+## The loop
 
 `LearnerLoopCorrect` (`OrthoDFA/LearnerLoop.lean`): `indecisiveLStarLoop` clusters a family over
 the populations so far, runs level 4 with it, and adds a harvest's strings as a population.
@@ -37,11 +40,11 @@ a `q₀` the theorem chooses. Level 4's settings make every harvest at least `�
 long (`harvest_length_ge`), and a harvest repeats a string only where two probes share their
 length-`k` prefix (`harvest_nodup`), so the clustering admits every harvest as a population.
 
-Everything is proved but three measurability lemmas in `Proofs/LearnerLoop.lean`, each a round's
-outcome as a function of its draws: the earlier rounds' harvests (`measurableSet_harvestsOf`),
-the state and family a round's clustering returns (`measurableSet_roundPick`), and where level 4
-fails its claim (`measurableSet_level4Fail`). Each depends on the noise through finitely many
-reads for given draws.
+Proved with no `sorry`. The rounds' draws are independent, and given the earlier rounds a round's
+clustering run is drawn as `runMeasure` draws it at their harvests (`Proofs/LoopLaw.lean`,
+`Proofs/LoopIndep.lean`); a round's outcomes are measurable because, at fixed draws, each is fixed
+by the oracle's answers at finitely many strings (`Proofs/LoopMeasurable.lean`), level 4 reading
+only strings at most `L + 1 + maxLeaves` long (`Proofs/Level4Reads.lean`).
 
 ## The round, by refinement
 

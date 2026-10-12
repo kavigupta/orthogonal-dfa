@@ -86,7 +86,8 @@ theorem round_stage_le {K : ℕ} {X X₁ X₂ : Type*} [MeasurableSpace X] [Meas
         refine tsum_congr fun y => ?_
         rw [hΦ.measure_preimage ((hA y).prod (measurableSet_toMeasurable _ _)).nullMeasurableSet,
           Measure.prod_prod, measure_toMeasurable]
-    _ ≤ ∑' y, (π.prod ν₁) (A y) * δ := ENNReal.tsum_le_tsum fun y => mul_le_mul_of_nonneg_left (hBad y) zero_le
+    _ ≤ ∑' y, (π.prod ν₁) (A y) * δ :=
+        ENNReal.tsum_le_tsum fun y => mul_le_mul_of_nonneg_left (hBad y) zero_le
     _ = (π.prod ν₁) (⋃ y, A y) * δ := by
         rw [ENNReal.tsum_mul_right, measure_iUnion]
         · intro y y' hyy'

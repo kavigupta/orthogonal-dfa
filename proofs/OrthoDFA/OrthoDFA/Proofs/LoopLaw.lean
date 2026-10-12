@@ -138,11 +138,13 @@ lemma measurePreserving_popStreams (D : Measure (FreeMonoid α)) [IsProbabilityM
     (harvests : List (List (FreeMonoid α))) :
     MeasurePreserving (popStreams (K := K) harvests)
       ((Measure.infinitePi fun _ : ℕ => D).prod
-        (Measure.pi fun _ : Fin K => Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))
+        (Measure.pi fun _ : Fin K =>
+          Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))
       (Measure.pi fun j : Option (Fin K) =>
         Measure.infinitePi fun _ : ℕ => loopDistributions D harvests j) := by
   have hpick : MeasurePreserving
-      (fun U : Fin K → ℕ → unitInterval => fun (i : Fin K) n => pickFrom (harvests.getD i []) (U i n))
+      (fun U : Fin K → ℕ → unitInterval => fun (i : Fin K) n =>
+        pickFrom (harvests.getD i []) (U i n))
       (Measure.pi fun _ : Fin K => Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
       (Measure.pi fun i : Fin K =>
         Measure.infinitePi fun _ : ℕ => loopDistributions D harvests (some i)) := by

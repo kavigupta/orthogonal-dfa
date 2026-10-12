@@ -153,7 +153,8 @@ theorem applyProbe_short {L : ℕ} {s s' : Level4State α} {x : FreeMonoid α}
         · have := hm m hm'; omega
         · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
             List.length_singleton]
-          rcases midAt_mem_or_one (recordProbe C cut s x).tree (commonPrefix hv.choose_spec.choose_spec.choose t₀)
+          rcases midAt_mem_or_one (recordProbe C cut s x).tree
+              (commonPrefix hv.choose_spec.choose_spec.choose t₀)
             with h' | h'
           · have := hm _ h'; omega
           · rw [h']; simp; omega
