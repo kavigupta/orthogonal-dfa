@@ -1,4 +1,5 @@
 import OrthoDFA.Hypothesis
+import OrthoDFA.TripartiteSearch
 
 /-! Level 2's probe: a string walked along the edges and sifted, and where the two part. -/
 
@@ -7,30 +8,6 @@ namespace OrthoDFA
 namespace Ideal
 
 variable {α : Type*}
-
-inductive SearchResult
-  | edge (p : ℕ)
-  | triple (p : ℕ)
-  | pair (p : ℕ)
-
-/-- Bisection between `lo`, where the sift agrees with the walk, and `hi`, where it disagrees,
-on the decided reads of `ag`: an edge `p` agrees at `p - 1` and disagrees at `p`, a triple is
-undecided at `p` between the two, a pair undecided at `p` and `p + 1`. -/
-def bisect (ag : ℕ → Option Bool) (lo hi : ℕ) : SearchResult :=
-  if _h : hi ≤ lo + 1 then .edge hi
-  else
-    match ag ((lo + hi) / 2) with
-    | some true => bisect ag ((lo + hi) / 2) hi
-    | some false => bisect ag lo ((lo + hi) / 2)
-    | none =>
-      match ag ((lo + hi) / 2 - 1), ag ((lo + hi) / 2 + 1) with
-      | none, _ => .pair ((lo + hi) / 2 - 1)
-      | _, none => .pair ((lo + hi) / 2)
-      | some true, some false => .triple ((lo + hi) / 2)
-      | some false, _ => bisect ag lo ((lo + hi) / 2 - 1)
-      | some true, some true => bisect ag ((lo + hi) / 2 + 1) hi
-termination_by hi - lo
-decreasing_by all_goals omega
 
 /-- What undecided reads are charged to: the start, the stop, or an edge. -/
 inductive UndecidedSite (α : Type*)
@@ -67,20 +44,29 @@ def siteAt (p : ℕ) : UndecidedSite α :=
   | some c => .edge (st p) c
   | none => .stop
 
-/-- The bisection between `lo` and `hi`, against the walk's leaves `st`. -/
-def locate (lo hi : ℕ) : Outcome α :=
-  match bisect (siftAgrees read T x st) lo hi with
+/-- The search's result as an outcome, against the walk's leaves `st`, with `hi` the search's
+upper end. `unlearned` is the letter and the successor's leaf of the unlearned edge the walk
+stopped at, if it stopped at one. -/
+def searchOutcome (unlearned : Option (α × List Bool)) (hi : ℕ) : SearchResult → Outcome α
+  | .undecidedHi => .undecided .stop (undecidedAt read T x hi) true
+  | .allAgree =>
+    match unlearned with
+    | some (c, t) => .unlearnedEdge (st hi) c (prefixOf x hi) t
+    | none => .agree
   | .edge p =>
     match x.toList[p - 1]?, T.sift read (prefixOf x p) with
     | some c, .inl t => .wrongEdge (st (p - 1)) c (prefixOf x (p - 1)) t
     | _, _ => .undecided .stop [] false
-  | .triple p => .undecided (siteAt x st p) (undecidedAt read T x p) false
+  | .triple p | .undecidedMid p => .undecided (siteAt x st p) (undecidedAt read T x p) false
   | .pair p =>
     .undecided (siteAt x st p) (undecidedAt read T x p ++ undecidedAt read T x (p + 1)) false
+  | .undecidedLo | .disagreeLo => .undecided .start [] true
 
 end Probe
 
-/-- A probe of `x`: its first `k` letters sifted, then walked along the edges and sifted whole. -/
+/-- A probe of `x`: its first `k` letters sifted, then walked along the edges to `hi`, where the
+walk stops; the unlearned edge it stops at, if any, has its successor sifted; and the search
+finds where the sift and the walk part between `k` and `hi`. -/
 def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     Outcome α :=
   match T.sift read (prefixOf x k) with
@@ -88,18 +74,14 @@ def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
   | .inl a =>
     let ss := walk E a (x.toList.drop k)
     let st := fun p => ss.getD (p - k) []
-    let j := k + ss.length - 1
-    match x.toList[j]? with
+    let hi := k + ss.length - 1
+    let search := (tripartiteSearch true (siftAgrees read T x st) k hi).1
+    match x.toList[hi]? with
     | some c =>
-      match T.sift read (prefixOf x (j + 1)), T.sift read (prefixOf x j) with
-      | .inr z, _ => .undecided .stop [z] true
-      | _, .inr z => .undecided .stop [z] true
-      | .inl t, .inl s =>
-        if s = st j then .unlearnedEdge s c (prefixOf x j) t else locate read T x st k j
-    | none =>
-      match T.sift read x with
+      match T.sift read (prefixOf x (hi + 1)) with
       | .inr z => .undecided .stop [z] true
-      | .inl e => if e = st j then .agree else locate read T x st k j
+      | .inl t => searchOutcome read T x st (some (c, t)) hi search
+    | none => searchOutcome read T x st none hi search
 
 end Ideal
 

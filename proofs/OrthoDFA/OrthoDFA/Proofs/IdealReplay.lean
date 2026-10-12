@@ -18,26 +18,6 @@ namespace Ideal
 
 variable {α : Type*} (read : FreeMonoid α → ARU)
 
-theorem search_ge (ag : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n → ∀ p,
-    (bisect ag lo hi = .triple p ∨ bisect ag lo hi = .pair p) → lo ≤ p := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro lo hi hn p hp
-  rw [bisect] at hp
-  split at hp
-  · simp at hp
-  · rename_i hgap
-    split at hp
-    · exact (ih _ (by omega) _ _ rfl p hp).trans' (by omega)
-    · exact ih _ (by omega) _ _ rfl p hp
-    · split at hp
-      · simp only [reduceCtorEq, SearchResult.pair.injEq, false_or] at hp; omega
-      · simp only [reduceCtorEq, SearchResult.pair.injEq, false_or] at hp; omega
-      · simp only [SearchResult.triple.injEq, reduceCtorEq, or_false] at hp; omega
-      · exact ih _ (by omega) _ _ rfl p hp
-      · exact (ih _ (by omega) _ _ rfl p hp).trans' (by omega)
-
 variable (T : DTree α) (E : Edges α)
 
 /-- A string the probe turns up undecided starts as the probe does, up to `p ≥ lo`. -/
@@ -54,27 +34,33 @@ theorem stuckAt_pre (x : FreeMonoid α) (p : ℕ) :
     subst hz
     exact DTree.sift_inr_mul read T _ _ hs
 
-theorem located_pre (x : FreeMonoid α) (st : ℕ → List Bool) (lo hi : ℕ) :
-    ∀ z ∈ (locate read T x st lo hi).undecidedStrings, PreFrom x lo z := by
-  have hs := search_ge (siftAgrees read T x st) _ lo hi rfl
-  unfold locate
-  revert hs
-  generalize bisect (siftAgrees read T x st) lo hi = f
-  intro hs z hz
-  cases f with
-  | edge p =>
-    simp only at hz
+theorem searchOutcome_pre (x : FreeMonoid α) (st : ℕ → List Bool) (un : Option (α × List Bool))
+    (lo hi : ℕ) (hle : lo ≤ hi) :
+    ∀ z ∈ (searchOutcome read T x st un hi
+      (tripartiteSearch true (siftAgrees read T x st) lo hi).1).undecidedStrings,
+      PreFrom x lo z := by
+  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hle
+  generalize (tripartiteSearch true (siftAgrees read T x st) lo hi).1 = r at hs
+  intro z hz
+  have hat : ∀ p, lo ≤ p → z ∈ undecidedAt read T x p → PreFrom x lo z := fun p hp hz =>
+    have ⟨m, hm⟩ := stuckAt_pre read T x p z hz
+    ⟨p, hp, m, hm⟩
+  cases r with
+  | undecidedHi => exact hat hi hle hz
+  | allAgree =>
+    simp only [searchOutcome] at hz
     split at hz <;> simp [Outcome.undecidedStrings] at hz
-  | triple p =>
-    obtain ⟨m, hm⟩ := stuckAt_pre read T x p z hz
-    exact ⟨p, hs p (.inl rfl), m, hm⟩
+  | edge p =>
+    simp only [searchOutcome] at hz
+    split at hz <;> simp [Outcome.undecidedStrings] at hz
+  | triple p => exact hat p hs.1.le hz
+  | undecidedMid p => exact hat p hs.2.1.le hz
   | pair p =>
-    have hp := hs p (.inr rfl)
     rcases List.mem_append.1 hz with hz | hz
-    · obtain ⟨m, hm⟩ := stuckAt_pre read T x p z hz
-      exact ⟨p, hp, m, hm⟩
-    · obtain ⟨m, hm⟩ := stuckAt_pre read T x (p + 1) z hz
-      exact ⟨p + 1, by omega, m, hm⟩
+    · exact hat p hs.1 hz
+    · exact hat (p + 1) (by have := hs.1; omega) hz
+  | undecidedLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
+  | disagreeLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
 
 theorem probe_pre (k : ℕ) (x : FreeMonoid α) :
     ∀ z ∈ (probe read T E k x).undecidedStrings, PreFrom x k z := by
@@ -90,24 +76,8 @@ theorem probe_pre (k : ℕ) (x : FreeMonoid α) :
         subst hz
         obtain ⟨m, hm⟩ := DTree.sift_inr_mul read T _ _ hy
         exact ⟨_, by omega, m, hm⟩
-      · rename_i y hy _
-        simp only [Outcome.undecidedStrings, List.mem_singleton] at hz
-        subst hz
-        obtain ⟨m, hm⟩ := DTree.sift_inr_mul read T _ _ hy
-        exact ⟨_, by omega, m, hm⟩
-      · split at hz
-        · simp [Outcome.undecidedStrings] at hz
-        · exact (located_pre read T x _ _ _ z hz).imp fun p h => ⟨by omega, h.2⟩
-    · split at hz
-      · rename_i y hy
-        simp only [Outcome.undecidedStrings, List.mem_singleton] at hz
-        subst hz
-        obtain ⟨m, hm⟩ := DTree.sift_inr_mul read T _ _ hy
-        exact ⟨max k x.toList.length, le_max_left _ _, m, by
-          rw [pre_of_le (le_max_right _ _)]; exact hm⟩
-      · split at hz
-        · simp [Outcome.undecidedStrings] at hz
-        · exact (located_pre read T x _ _ _ z hz).imp fun p h => ⟨by omega, h.2⟩
+      · exact searchOutcome_pre read T x _ _ k _ (by omega) z hz
+    · exact searchOutcome_pre read T x _ _ k _ (by omega) z hz
   · simp only [Outcome.undecidedStrings, List.mem_singleton] at hz
     subst hz
     obtain ⟨m, hm⟩ := DTree.sift_inr_mul read T _ _ ha
