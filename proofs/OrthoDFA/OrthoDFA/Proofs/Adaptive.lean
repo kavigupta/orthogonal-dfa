@@ -8383,8 +8383,8 @@ ratio of, the screen's two margins at
 `screenMargin` (so the rate window is non-empty), then the prefix count large enough for
 every exponential — the share's own among them, and `α` at the gate's own tail
 `exp(−2·nlo·τ²)` at the decided count `nlo` —
-then the pool at `k/(pAP − t)`.  The collision masses enter as `m²ρ`, which is what
-`collisionCap` bounds. -/
+then the pool at `k/(pAP − t)`.  The samplers' redraws enter linearly in the draws, which is
+what `collisionCap` and `poolCollisionCap` bound. -/
 theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ)
@@ -8398,7 +8398,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
-    (hρsfcap : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    (hρsfcap : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ
       ∧ PassableAt O η₀ populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP B := by
   classical
@@ -8475,16 +8475,20 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   obtain ⟨hlowShift1, hhiShift1⟩ := vote_shifts O hηle hη₀ ((κ : ℝ) + 1)
   have hdSk : ((κ : ℝ) + 1) * (1 / (2 * ((κ : ℝ) + 1))) = 1 / 2 := by field_simp
   clear_value B b κ m x
+  have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hη₀ hεcov hindLim
+  obtain ⟨hcle, hceq⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hη₀ hεcov hindLim
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
-    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, pAP / 2,
+    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, 2 * pAP / 5,
     decSlack η₀ populations indecisionLimit εcov δ crossLimit,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
     3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32,
     flipBudget η₀ populations indecisionLimit εcov δ * flipFracOf O η₀ / flipFrac η₀,
-    cutBudget η₀ indecisionLimit εcov, flipFracOf O η₀,
+    cutBudget η₀ indecisionLimit εcov, flipFracOf O η₀, rejFrac η₀ indecisionLimit εcov,
+    rejCount η₀ indecisionLimit εcov m,
+    poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit),
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
   · rw [hBdef]
     exact solvedState_mem_schedule η₀ populations εcov δ α pAP
@@ -8492,18 +8496,14 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · rw [hBlo, hBhi]
     omega
   · rw [hBm]; exact hmpos
-  · have hκ1 : (1 : ℝ) ≤ (κ : ℝ) := by exact_mod_cast hκpos
-    have h := mul_le_mul_of_nonneg_right hMceil (by positivity : (0 : ℝ) ≤ pAP / 2)
-    have heq : 2 * ((κ : ℝ) + 1) / pAP * (pAP / 2) = (κ : ℝ) + 1 := by
-      field_simp
-    rw [heq] at h
-    linarith
+  · rw [hBM]
+    exact poolCount_found η₀ populations hη₀ hpAPPositive
   · have hval : δ * (m : ℝ) / (8 * (m : ℝ)) = δ / 8 := by
       rw [mul_comm (8 : ℝ) (m : ℝ), mul_comm δ (m : ℝ),
         mul_div_mul_left _ _ (ne_of_gt hmR)]
     rw [hBm, ← hmdef, hval, hBdef]
-    exact le_add_of_le_of_nonneg (solved_share η₀ populations hη₀ hεcov hindLim hδ hpAPPositive
-      hcard hρ0 hρsf0 hρcap hρsfcap) (by split_ifs <;> positivity)
+    exact le_add_of_le_of_nonneg (solved_share η₀ populations hη₀ hη0' hεcov hindLim hδ
+      hpAPPositive hcard hρ0 hρcap) (by split_ifs <;> positivity)
   -- PassableAt
   · rw [hBm]; exact hmpos
   · rw [hBk]; omega
@@ -8523,22 +8523,35 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · linarith
   · exact hcut
   · exact (cutBudget_le η₀ indecisionLimit εcov).2.2
+  · exact hc0.le
+  · rw [hBm]
+    exact Nat.floor_le (by positivity)
   · exact hpAPBound
   · exact hρsf
   -- the family's flips fit the cut budget
   · have hne : ((populations.card : ℝ)) ≠ 0 := ne_of_gt hcard
     have hsplit : ((populations.card : ℝ)
           * (flipBudget η₀ populations indecisionLimit εcov δ * flipFracOf O η₀ / flipFrac η₀)
+          + rejFrac η₀ indecisionLimit εcov
         + 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) / flipFracOf O η₀
         = (populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ / flipFrac η₀
+          + rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
           + 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFracOf O η₀ := by
-      rw [add_div]
-      congr 1
+      rw [add_div, add_div]
+      congr 2
       field_simp
     have hid : (populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ
-        / flipFrac η₀ = cutBudget η₀ indecisionLimit εcov * (7 / 8) := by
+        / flipFrac η₀ = cutBudget η₀ indecisionLimit εcov * (55 / 64) := by
       rw [flipBudget]
       field_simp
+    have hcf : rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
+        ≤ cutBudget η₀ indecisionLimit εcov / 128 := by
+      calc rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
+          ≤ rejFrac η₀ indecisionLimit εcov / flipFrac η₀ :=
+            div_le_div_of_nonneg_left hc0.le hff hfle
+        _ = cutBudget η₀ indecisionLimit εcov / 128 := by
+            rw [hceq]
+            field_simp
     have h2 : 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFracOf O η₀
         ≤ 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFrac η₀ :=
       div_le_div_of_nonneg_left (by positivity) hff hfle
@@ -8576,8 +8589,13 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · rw [hBk]
     have hceil := hMceil
     rw [div_le_iff₀ hpAPPositive] at hceil
+    have hrs : ((poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit)
+        : ℕ) : ℝ) ≤ pAP * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
+          / 20 := Nat.floor_le (by positivity)
+    rw [hBM] at hceil
+    rw [hBM]
     push_cast
-    linarith
+    nlinarith
   -- the thresholds decide, and decide right
   · rw [hBhi, hBk, hdS]
     push_cast
@@ -8639,9 +8657,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     exact solved_alpha η₀ populations hη₀ hεcov hε1 hδ hαpos hα hind1 hpAPPositive hcard
   · rw [hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, hκdef]
     exact famCount_tail_seed η₀ populations hη₀ hεcov hindLim
-  · rw [hBdef]
-    exact solved_roundFail η₀ populations hη₀ hεcov hε1 hδ hδ1 hpAPPositive hindLim hind1
-      hcard hρ0 hρsf0 hρcap hρsfcap
+  · rw [hBdef, hmdef]
+    exact solved_roundFail η₀ populations hη₀ hη0' hεcov hε1 hδ hδ1 hpAPPositive
+      (le_trans hpAPBound measureReal_le_one) hindLim hind1 hcard hρ0 hρsf0 hρcap hρsfcap
 
 set_option maxHeartbeats 1000000 in
 /-- Part 2 — the loop terminates: except with probability `δ/2`, some reachable state
