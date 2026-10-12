@@ -313,19 +313,19 @@ def REnd.toRoundEnd : Option (REnd α) → RoundEnd α
   | _ => .failed
 
 /-- With ideal reads and enough probes, the round fails to end well with chance at most
-`(P + 1)(1 − ε)^n`. Its harvest is replayed from an anchor drawn uniformly from `⌈L/2⌉, …, L`,
-and yields the share of draws visiting a bad state from `⌈L/2⌉` on, over `L + 1 − ⌈L/2⌉`. -/
+`(P + 1)(1 − ε)^n`. Its harvest is replayed from an anchor drawn uniformly from `s, …, L`, and
+yields the share of draws visiting a bad state at a position from `s` to `L`, over `L + 1 − s`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : RoundCfg) (P : ℕ),
     IdealReads read M side → 1 ≤ C.m → 1 ≤ C.h → 1 ≤ C.n → Fintype.card σ + 2 ≤ C.Lmax →
     budget C (Fintype.card α) ≤ P →
-    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (L : ℕ), ε ≤ 1 →
+    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (s L : ℕ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
           {xs | let r := round read C start (List.ofFn xs)
             ¬ EndsWell M (AllUndecided read M) D ε {x | Disagrees read r.1.tree r.1.edges C.k x}
-              L (replay read r.1.tree r.1.edges)
-              (coverage D L M (AllUndecided read M) / (L + 1 - startLength L : ℕ))
+              s L (replay read r.1.tree r.1.edges)
+              (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ))
               (REnd.toRoundEnd r.2)}
         ≤ (P + 1) * (1 - ε) ^ C.n
 
