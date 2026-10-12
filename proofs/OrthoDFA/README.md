@@ -26,6 +26,19 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 - `Level4FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
 
+## The loop, in progress
+
+`LearnerLoopCorrect` (`OrthoDFA/LearnerLoop.lean`): `indecisiveLStarLoop` clusters a family over
+the populations so far, runs level 4 with it, and adds a harvest's strings as a population.
+Within `|Q| + 1` rounds it stops at a round whose hypothesis's walk and tree part on at most `εd`
+of the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit + 2·slack` of
+the time, or meets a harvest too concentrated for the clustering, but for chance
+`(|Q| + 1)(δc + 2δ)`. The termination argument (`Proofs/LoopTermination.lean`) and the union over
+rounds are proved; three lemmas in `Proofs/LearnerLoop.lean` are `sorry`: one schedule serving
+every set of populations, with bands passing `BandPasses` (`clustering_schedule_exists`), and the
+clustering's and level 4's one-round claims on the loop's draws (`loop_cluster_round_le`,
+`loop_level4_round_le`).
+
 ## The round, by refinement
 
 Each level proves one L\* round correct and states its ending through `OrthoDFA/RoundEnd.lean`:

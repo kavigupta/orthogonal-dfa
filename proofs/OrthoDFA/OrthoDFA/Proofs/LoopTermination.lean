@@ -41,7 +41,8 @@ lemma readProb_eq_familyReadDist [IsProbabilityMeasure μ] (O : Oracle μ (FreeM
   have h : ∃ w' : FreeMonoid α, M.eval w'.toList = M.eval w.toList := ⟨w, rfl⟩
   simp only [familyReadDist, dif_pos h]
   funext rd
-  have key : ∀ x v : FreeMonoid α, x * v ∈ O.L ↔ M.evalFrom (M.eval x.toList) v.toList ∈ M.accept := by
+  have key : ∀ x v : FreeMonoid α,
+      x * v ∈ O.L ↔ M.evalFrom (M.eval x.toList) v.toList ∈ M.accept := by
     intro x v
     rw [hL, FreeMonoid.toList_mul]
     simp only [DFA.eval, DFA.evalFrom_of_append]
@@ -153,7 +154,8 @@ open scoped Classical in
 lemma exists_heavy_state (M : _root_.DFA α σ) [Fintype σ] (bad : σ → Prop)
     (zs : List (FreeMonoid α))
     (h : zs.length < 2 * (zs.filter fun z => bad (M.eval z.toList)).length) :
-    ∃ q, bad q ∧ zs.length < 2 * Fintype.card σ * (zs.filter fun z => M.eval z.toList = q).length := by
+    ∃ q, bad q
+      ∧ zs.length < 2 * Fintype.card σ * (zs.filter fun z => M.eval z.toList = q).length := by
   by_contra hno
   push Not at hno
   have hsum := sum_count_eq M bad zs

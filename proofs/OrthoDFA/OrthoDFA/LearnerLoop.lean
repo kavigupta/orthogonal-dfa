@@ -80,7 +80,8 @@ def clusterLaw (μ : Measure Ω) (D Dsf : Measure (FreeMonoid α)) (K : ℕ) :
   μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
     (((Measure.infinitePi fun _ : ℕ => D).prod (Measure.infinitePi fun _ : ℕ => D)).prod
       (Measure.prod
-        (Measure.pi fun _ : Fin K => Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
+        (Measure.pi fun _ : Fin K =>
+          Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
         (Measure.pi fun _ : Fin K =>
           Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))))
 
