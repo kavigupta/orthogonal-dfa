@@ -304,7 +304,8 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
 theorem epsRoundCorrect_holds : EpsRoundCorrect := by
-  intro α _ _ σ _ M side U θ εw Ω _ μ _ R D _ L C ε q hL hq hpreq
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C ε
+  obtain ⟨D, _, L, hL, q, hq, hpreq⟩ := P
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   have hεw : 0 ≤ εw := measureReal_nonneg.trans (hwrong 1)
   simp only [epsRoundRisk, ENNReal.iInf_add]

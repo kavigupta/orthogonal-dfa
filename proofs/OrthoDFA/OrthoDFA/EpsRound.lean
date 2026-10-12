@@ -65,19 +65,16 @@ structure EpsReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ 
 def EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (L : ℕ) (C : Cfg) (ε q : ℝ), (∀ᵐ x ∂D, x.toList.length ≤ L) →
-    0 < q →
-    (∀ u : FreeMonoid α, startLength L ≤ u.toList.length → u.toList.length ≤ L →
-      D.real {x | u.toList <+: x.toList} ≤ q) →
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => D)
+    [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α)
+    (C : Cfg) (ε : ℝ),
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.budget => P.D)
         {xs | let r := round (R.read · ω) C start (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
-            L (replay (R.read · ω) r.1.tree r.1.edges)
-            (3 / 4 * θ * coverage D L M (BadAt U θ) / (L + 1 - startLength L : ℕ))
+          ¬ EndsWell M (BadAt U θ) P.D ε {x | Disagrees (R.read · ω) r.1.tree r.1.edges C.k x}
+            P.L (replay (R.read · ω) r.1.tree r.1.edges)
+            (3 / 4 * θ * coverage P.D P.L M (BadAt U θ) / (P.L + 1 - startLength P.L : ℕ))
             (toRoundEnd r.2)} ∂μ
-      ≤ epsRoundRisk (α := α) σ θ εw D L C ε
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D L M (BadAt U θ)) / (16 * q)))
+      ≤ epsRoundRisk (α := α) σ θ εw P.D P.L C ε
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.L M (BadAt U θ)) / (16 * P.q)))
 
 end Random
 
