@@ -52,37 +52,6 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
                     ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc := by
   sorry
 
-/-- Level 4's settings depend only on the sizes, so one choice serves every family's oracle. -/
-theorem level4_settings_uniform [Nonempty α] (σ : Type*) [Fintype σ] (M : _root_.DFA α σ)
-    (P : PrefixDistribution α) (εd δ : ℝ) (S k : ℕ) :
-    let n : ℝ := Fintype.card σ + S
-    let A : ℝ := Fintype.card α
-    let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-    let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
-      + 8 * (n + 3) * A * (P.L + 1)
-    let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 4) * A + 7 * Kp ^ 2) / δ
-    let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
-    ∃ settings : Level4Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
-      (settings.probeBudget : ℝ) ≤ Kp * G ∧ settings.maxLeaves = Fintype.card σ + S + 3 ∧
-      ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-        (O : TriOracle μ M) (θ : ℝ),
-        let V := undecidedCount P M O.readDist
-        let bad := fun q => ¬ O.Good θ q
-        0 < δ → δ ≤ 1 → 0 < εd → εd ≤ 1 → 1 ≤ P.L → 0 ≤ θ →
-        384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
-        0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
-        0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
-        ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
-            {draws | let result := indecisiveLStarLevel4 settings (O.read · ω) draws
-              ¬ EndsWell M bad P.D settings.disagreementRate
-                (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-                P.firstAnchor P.L (level4Replay (O.read · ω) result.hypothesis)
-                ((V - 2 * Real.sqrt (P.prefixBound * V * Real.log (1 / δ)))
-                  / (P.L + 1 - P.firstAnchor : ℕ))
-                result.ending} ∂μ
-          ≤ ENNReal.ofReal (2 * δ) := by
-  sorry
-
 /-! ## The one-round claims on the loop's draws -/
 
 section Rounds
@@ -152,8 +121,7 @@ theorem loop_level4_round_le [Nonempty α] (M : _root_.DFA α σ) (O : Oracle μ
       let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
       let V := undecidedCount P M O'.readDist
       let bad := fun q => ¬ O'.Good θ q
-      0 < δ → δ ≤ 1 → 0 < εd → εd ≤ 1 → 1 ≤ P.L → 0 ≤ θ →
-      384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
+      0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
       0 < O'.κ → 4 * O'.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
       0 ≤ O'.ε → (P.L + 1) * (n + 1) * O'.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k
         ≤ ρ →
@@ -204,7 +172,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
     η₀ ι gate cross εcov δc slack pAP hη hη₀ (flat_of_length Ls) hpAP hι hι1 hg hg1 hcr hε hε1
     hδc hδc1 hsl
-  obtain ⟨s4, hwalk, hdis, hbud, hmax, hl4⟩ := level4_settings_uniform σ M P εd δ S k
+  obtain ⟨s4, hwalk, hdis, hbud, hmax, hl4⟩ :=
+    level4_guarantee_uniform (μ := μ) M εd P δ S k hδ hδ1 hεd hεd1 hL1
   set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
   refine ⟨cap, hcap, settings, rfl, rfl, hwalk, hdis, hbud, ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hcolD hcolSf
