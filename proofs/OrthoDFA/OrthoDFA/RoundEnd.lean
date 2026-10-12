@@ -1,4 +1,4 @@
-import OrthoDFA.FamilyRead
+import OrthoDFA.ProbeDistribution
 
 /-!
 # How a round ends well
@@ -21,7 +21,6 @@ are the positions from which `covered_states` counts a visit.
 namespace OrthoDFA
 
 open MeasureTheory
-open scoped ENNReal
 
 variable {α : Type*}
 
@@ -30,55 +29,28 @@ inductive RoundEnd (α : Type*)
   | harvest (zs : List (FreeMonoid α))
   | failed
 
-/-- Draws of length at most `L`, the replay's anchors running from `start`, and no draw starting
-more than `q` of the time with any one string at least `start` long. -/
-structure PrefixDistribution (α : Type*) [Countable α] where
-  D : Measure (FreeMonoid α)
-  prob : IsProbabilityMeasure D
-  L : ℕ
-  start : ℕ
-  start_le : start ≤ L
-  short : ∀ᵐ x ∂D, x.toList.length ≤ L
-  q : ℝ
-  q_pos : 0 < q
-  prefix_le : ∀ u : FreeMonoid α, start ≤ u.toList.length → u.toList.length ≤ L →
-    D.real {x | u.toList <+: x.toList} ≤ q
-
-instance [Countable α] (P : PrefixDistribution α) : IsProbabilityMeasure P.D := P.prob
-
-/-- The replay's anchor: uniform on `{s, …, L}`. -/
-noncomputable def uniformAnchor (s L : ℕ) : Measure ℕ :=
-  ((L + 1 - s : ℕ) : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.Icc s L, Measure.dirac k
-
-/-- `rp w e` is what the replay of a draw `w` from the anchor `e` harvests. -/
+/-- `replay w e` is what replaying a draw `w` from the anchor `e` harvests. -/
 def Spread [Countable α] (D : Measure (FreeMonoid α)) (s L : ℕ)
-    (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) : Prop :=
-  ∀ t : FreeMonoid α, (D.prod (uniformAnchor s L)).real {q | t ∈ rp q.1 q.2}
+    (replay : FreeMonoid α → ℕ → List (FreeMonoid α)) : Prop :=
+  ∀ t : FreeMonoid α, (D.prod (uniformAnchor s L)).real {we | t ∈ replay we.1 we.2}
     ≤ ∑ i ∈ Finset.Icc s t.toList.length,
         ((min i L + 1 - s : ℕ) : ℝ) / (L + 1 - s : ℕ)
           * D.real {p | p.toList.take i = t.toList.take i}
 
 /-- The replay finds something on at least `y` of its draws and anchors. -/
 def Yields [Countable α] (D : Measure (FreeMonoid α)) (s L : ℕ)
-    (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) (y : ℝ) : Prop :=
-  y ≤ (D.prod (uniformAnchor s L)).real {q | rp q.1 q.2 ≠ []}
-
-/-- The share of draws that visit a state satisfying `P` at some position from `s` to `L`. At
-`s = ⌈L/2⌉` this counts visits as #415's `covered_states` does: a state `q` is covered there when
-`coverage D s L M (· = q)` is at least `min_coverage`. -/
-noncomputable def coverage [Countable α] {σ : Type*} (D : Measure (FreeMonoid α)) (s L : ℕ)
-    (M : DFA α σ) (P : σ → Prop) : ℝ :=
-  D.real {x | ∃ i, s ≤ i ∧ i ≤ L ∧ i ≤ x.toList.length ∧ P (M.eval (x.toList.take i))}
+    (replay : FreeMonoid α → ℕ → List (FreeMonoid α)) (y : ℝ) : Prop :=
+  y ≤ (D.prod (uniformAnchor s L)).real {we | replay we.1 we.2 ≠ []}
 
 open scoped Classical in
-/-- `disagree` is where the hypothesis and the tree part; `rp` is the harvest's replay, from
-anchors `s, …, L`, and `y` what it must yield. -/
+/-- `disagree` is where the hypothesis and the tree part; `replay` is the harvest's, from anchors
+`s, …, L`, and `y` what it must yield. -/
 def EndsWell [Countable α] {σ : Type*} (M : DFA α σ) (bad : σ → Prop)
     (D : Measure (FreeMonoid α)) (ε : ℝ) (disagree : Set (FreeMonoid α)) (s L : ℕ)
-    (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) (y : ℝ) : RoundEnd α → Prop
+    (replay : FreeMonoid α → ℕ → List (FreeMonoid α)) (y : ℝ) : RoundEnd α → Prop
   | .consistent => D.real disagree ≤ ε
   | .harvest zs => zs.length < 2 * (zs.filter fun z => bad (M.eval z.toList)).length
-      ∧ Spread D s L rp ∧ Yields D s L rp y
+      ∧ Spread D s L replay ∧ Yields D s L replay y
   | .failed => False
 
 end OrthoDFA

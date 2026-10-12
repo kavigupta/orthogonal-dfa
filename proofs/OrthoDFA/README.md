@@ -17,6 +17,8 @@
   its rarer decided side at most `ε`, or at most `κ` times as often as it is undecided.  `BandPasses` is the
   check the band selection rule `evidence_margin_for_population_size` makes, at
   `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
+- `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`), where a replay
+  of one is anchored (`uniformAnchor`), and the share of draws visiting given states (`coverage`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest mostly at bad states whose replay is spread and yields.
 - `OrthoDFA/Hypothesis.lean` — the learner's hypothesis: a tree sifting strings to its leaves, and
