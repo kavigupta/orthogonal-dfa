@@ -43,7 +43,7 @@ def IdealRoundCorrect : Prop :=
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (s L : ℕ), ε ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
-            ¬ EndsWell M (AllUndecided read M) D ε
+            ¬ ReplayEndsWell M (AllUndecided read M) D ε
               {x | Disagrees read result.hypothesis C.walkStart x}
               s L (replay read result.hypothesis)
               (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ))

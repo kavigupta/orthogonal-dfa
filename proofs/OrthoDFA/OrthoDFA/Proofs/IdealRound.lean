@@ -89,14 +89,15 @@ theorem Θ_start (hn : 1 ≤ C.cleanProbesToEnd) (h2 : 2 ≤ C.maxLeaves) :
 
 /-- The round ends consistent or with a nonempty harvest of undecided states, and every leaf
 past the first two is reached by some string. -/
-def Sound {σ : Type*} [Fintype σ] (M : DFA α σ) (r : Level2State α × RoundEnd α) : Prop :=
+def Sound {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (r : Level2State α × RoundEnd (List (FreeMonoid α))) : Prop :=
   (r.2 = .consistent ∨ ∃ zs, r.2 = .harvest zs ∧ zs ≠ [] ∧
       ∀ z ∈ zs, ∀ w : FreeMonoid α, M.eval w.toList = M.eval z.toList → read w = .undecided)
   ∧ (∀ p ∈ r.1.tree.leaves, p = [false] ∨ p = [true] ∨ ∃ w, r.1.tree.sift read w = .inl p)
   ∧ r.1.tree.leaves.length ≤ Fintype.card σ + 2
 
 omit [DecidableEq α] [Fintype α] in
-theorem sound_of (hI : IdealReads read M side) {r : Level2State α × RoundEnd α}
+theorem sound_of (hI : IdealReads read M side) {r : Level2State α × RoundEnd (List (FreeMonoid α))}
     (hok : EndOK read r.2) (hr : Reached read r.1.tree) : Sound read M r := by
   refine ⟨?_, hr, leaves_le_of_reached read hI hr⟩
   rcases he : r.2 with _ | zs | _ <;> rw [he] at hok
@@ -118,7 +119,7 @@ section Chance
 
 /-- What a step does to the clean run: a clean probe extends it or ends the round, any other
 resets it. -/
-def CleanOK (s : Level2State α) (cl : Bool) : Level2State α ⊕ RoundEnd α → Prop
+def CleanOK (s : Level2State α) (cl : Bool) : Level2State α ⊕ RoundEnd (List (FreeMonoid α)) → Prop
   | .inl s' => if cl then s'.tree = s.tree ∧ s'.edges = s.edges ∧ s'.cleanRun = s.cleanRun + 1
       else s'.cleanRun = 0
   | .inr e => e = .consistent → cl = true ∧ C.cleanProbesToEnd ≤ s.cleanRun + 1
@@ -297,7 +298,7 @@ theorem idealRoundCorrect_holds : IdealRoundCorrect := by
   have hΘ : Θ C (initialState : Level2State α) < P := (Θ_start C hn h2).trans_le hP
   intro D _ ε s L hε
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
-        ¬ EndsWell M (AllUndecided read M) D ε
+        ¬ ReplayEndsWell M (AllUndecided read M) D ε
           {x | Disagrees read result.hypothesis C.walkStart x}
           s L (replay read result.hypothesis)
           (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ))

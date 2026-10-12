@@ -27,7 +27,7 @@ def Reached (T : DTree α) : Prop :=
   ∀ p ∈ T.leaves, p = [false] ∨ p = [true] ∨ ∃ w, T.sift read w = .inl p
 
 /-- What the end of a round promises. -/
-def EndOK : RoundEnd α → Prop
+def EndOK : RoundEnd (List (FreeMonoid α)) → Prop
   | .consistent => True
   | .harvest zs => zs ≠ [] ∧ ∀ z ∈ zs, read z = .undecided
   | .failed => False
@@ -388,7 +388,7 @@ theorem inv_fresh {T : DTree α} {E : Edges α} {mv : List Bool × α → Bool}
   size := hsz
 
 /-- What a step from `s` promises. -/
-def StepOK (s : Level2State α) : Level2State α ⊕ RoundEnd α → Prop
+def StepOK (s : Level2State α) : Level2State α ⊕ RoundEnd (List (FreeMonoid α)) → Prop
   | .inl s' => Inv read C s' ∧ Reached read s'.tree ∧ Θ C s' < Θ C s
   | .inr e => EndOK read e
 

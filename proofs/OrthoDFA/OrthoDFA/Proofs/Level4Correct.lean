@@ -1,4 +1,5 @@
-import OrthoDFA.Proofs.Level4Distinct
+import OrthoDFA.Proofs.Level4RiskBound
+import OrthoDFA.Proofs.Level4Law
 import OrthoDFA.Level4Family
 
 /-!
@@ -8,11 +9,11 @@ import OrthoDFA.Level4Family
 `roundRisk` by `δ`, at settings chosen as formulas of the problem. With `N = |Q| + S + 3`,
 `L₁ = L + 1` and `s = √(|Σ| ρ/3)`: `maxLeaves = N`, `middleUndecidedRate = 1/4`,
 `startUndecidedRate = 1/2`, `searchShare = 3εd/4`, `edgeUndecidedRate = 8s + 1/(L₁ N)`,
-`edgeTraffic = 4s L₁/|Σ|`, `testLevel = e^{−G'}`, `firstLook = ⌈(512 + 32/(9εd²)) G'⌉`,
-`edgeExcess = 6 L₁ G'`, `recordsToMove` the records the caps ask for, and `probeBudget` the budget
+`edgeTraffic = 4s L₁/|Σ|`, `testLevel = e^{−G}`, `firstLook = ⌈(512 + 32/(9εd²)) G⌉`,
+`edgeExcess = 6 L₁ G`, `recordsToMove` the records the caps ask for, and `probeBudget` the budget
 `Level4RiskBound` asks for. `edgeUndecidedRate` and `edgeTraffic` balance the edges' share of the
-records cap against the prefix mass the edge field admits. `G' = G + H` makes every harvest at
-least `H` strings long.
+records cap against the prefix mass the edge field admits, and the harvest's sampler yields at
+least `ρ`.
 -/
 
 noncomputable section
@@ -68,52 +69,6 @@ theorem level_le (P K b G δ : ℝ) (hP : 0 ≤ P) (hK : 100 ≤ K) (hδ0 : 0 < 
     nlinarith [mul_le_mul_of_nonneg_left (by nlinarith : (1 : ℝ) ≤ 4 * l ^ 2) hP]
   calc 4 * (P + 7 * b ^ 2) ≤ 4 * (P + 7 * K ^ 2) * (2 * l) ^ 2 := this
     _ = δ * (X * (2 * l) ^ 2) := by rw [← hδX]; ring
-
-/-- `level_le` at a level lowered by `e^{−H}`, the budget grown by `K H`. -/
-theorem level_le_add (P K b G H δ : ℝ) (hP : 0 ≤ P) (hK : 100 ≤ K) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1)
-    (hb0 : 0 ≤ b) (hH : 0 ≤ H)
-    (hG : G = Real.log (4 * (P + 7 * K ^ 2) / δ) + 2
-      * Real.log (2 * Real.log (4 * (P + 7 * K ^ 2) / δ))) (hb : b ≤ K * (G + H)) :
-    4 * (P + 7 * b ^ 2) * Real.exp (-(G + H)) ≤ δ := by
-  set X := 4 * (P + 7 * K ^ 2) / δ
-  have hX0 : 0 < X := by positivity
-  have he10 : Real.exp 10 ≤ X := by
-    have h1 : Real.exp 10 = Real.exp 1 ^ 10 := by rw [← Real.exp_nat_mul]; norm_num
-    have h2 : Real.exp 1 ^ 10 ≤ 3 ^ 10 :=
-      pow_le_pow_left₀ (Real.exp_pos 1).le Real.exp_one_lt_three.le 10
-    have h3 : (3 : ℝ) ^ 10 ≤ X := by
-      simp only [X]
-      rw [le_div_iff₀ hδ0]
-      nlinarith [sq_nonneg K]
-    linarith
-  have hl : 10 ≤ Real.log X := (Real.le_log_iff_exp_le hX0).2 he10
-  have hG2 : 2 ≤ G := by
-    rw [hG]
-    have := Real.log_nonneg (show (1 : ℝ) ≤ 2 * Real.log X by linarith)
-    linarith
-  have h0 := level_le P K (K * G) G δ hP hK hδ0 hδ1 (by positivity) hG le_rfl
-  have hE : Real.exp H * Real.exp (-H) = 1 := by rw [← Real.exp_add]; simp
-  have hE1 : 1 ≤ Real.exp H := Real.one_le_exp hH
-  have hs : Real.exp (H / 2) ^ 2 = Real.exp H := by
-    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
-  have hGH : G + H ≤ G * Real.exp (H / 2) := by
-    have := Real.add_one_le_exp (H / 2)
-    nlinarith
-  have hbK : b ≤ K * G * Real.exp (H / 2) := by
-    refine hb.trans ?_
-    rw [mul_assoc]
-    exact mul_le_mul_of_nonneg_left hGH (by linarith)
-  have hb2 : b ^ 2 ≤ (K * G) ^ 2 * Real.exp H := by
-    rw [← hs, ← mul_pow]
-    exact pow_le_pow_left₀ hb0 hbK 2
-  have hP' : P ≤ P * Real.exp H := le_mul_of_one_le_right hP hE1
-  calc 4 * (P + 7 * b ^ 2) * Real.exp (-(G + H))
-      ≤ 4 * ((P + 7 * (K * G) ^ 2) * Real.exp H) * (Real.exp (-G) * Real.exp (-H)) := by
-        rw [neg_add, Real.exp_add]
-        gcongr
-        nlinarith
-    _ = 4 * (P + 7 * (K * G) ^ 2) * Real.exp (-G) * (Real.exp H * Real.exp (-H)) := by ring
-    _ ≤ δ := by rw [hE, mul_one]; exact h0
 
 /-- The chosen budget is at most `K G`. -/
 theorem budget_le (N1 A L1 εd G lo S1 Z n₀ m b : ℝ) (hN1 : 2 ≤ N1) (hA : 1 ≤ A) (hεd0 : 0 < εd)
@@ -269,32 +224,32 @@ theorem cap_half (X ρ b m N1 Z S1 εd B1 : ℝ) (hX : 0 ≤ X) (hXρ : X ≤ ρ
 
 /-- A run's ending, as `RunEnds` checks it, is `runProbes`'s. -/
 theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (C : Level4Settings) (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) :
+    (C : Level4Settings) (rd : FreeMonoid α → ARU) :
     ∀ (s : Level4State α) (xs : List (FreeMonoid α)),
-      RunEnds (applyProbe C fun z => (rd z).cut) (Level4EndsWell M bad D C a L y rd) s xs ↔
+      RunEnds (applyProbe C fun z => (rd z).cut) (Level4EndsWell M bad D C rd) s xs ↔
         EndsWell M bad D C.disagreementRate
           (searchingProbes rd C.walkStart ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) a L
-          (level4Replay rd ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) y
+            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
+          (harvestLaw D (fun z => (rd z).cut) C.walkStart) C.harvestYield
           (runProbes C (fun z => (rd z).cut) s xs).2
   | s, [] => by simp [RunEnds, runProbes, EndsWell]
   | s, x :: xs => by
     cases h : applyProbe C (fun z => (rd z).cut) s x with
-    | inl s' => simpa only [RunEnds, runProbes, h] using runEnds_iff M bad D C a L y rd s' xs
+    | inl s' => simpa only [RunEnds, runProbes, h] using runEnds_iff M bad D C rd s' xs
     | inr es => obtain ⟨e, s'⟩ := es; simp only [RunEnds, runProbes, h]; rfl
 
 theorem lintegral_level4_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     (M : _root_.DFA α σ) (O : TriOracle μ M) (bad : σ → Prop) (P : PrefixDistribution α)
-    (C : Level4Settings) (y : ℝ) :
+    (C : Level4Settings) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel4 C (O.read · ω) draws
           ¬ EndsWell M bad P.D C.disagreementRate
-            (searchingProbes (O.read · ω) C.walkStart result.hypothesis)
-            P.firstAnchor P.L (level4Replay (O.read · ω) result.hypothesis) y result.ending} ∂μ
+            (searchingProbes (O.read · ω) C.walkStart result.hypothesis) C.walkStart
+            (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart) C.harvestYield
+            result.ending} ∂μ
       = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
-          (Level4EndsWell M bad P.D C P.firstAnchor P.L y (O.read · ω))
+          (Level4EndsWell M bad P.D C (O.read · ω))
           initialState (List.ofFn xs)} ∂μ := by
   congr 1; ext ω; congr 1; ext xs
   simp only [Set.mem_setOf_eq, runEnds_iff, indecisiveLStarLevel4]
@@ -306,20 +261,17 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace �
 
 /-- `Level4Guarantee` with the settings chosen before the oracle and the goodness level. -/
 def Level4Uniform {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k H : ℕ) : Prop :=
+    (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Prop :=
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
   let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
   let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
     + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 4) * A + 7 * K ^ 2) / δ
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K ^ 2) / δ
   let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
   ∃ settings : Level4Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
-    (settings.probeBudget : ℝ) ≤ K * (G + H) ∧ settings.maxLeaves = Fintype.card σ + S + 3 ∧
-    (∀ (read : FreeMonoid α → ARU) (draws : Fin settings.probeBudget → FreeMonoid α) zs,
-      (indecisiveLStarLevel4 settings read draws).ending = .harvest zs → H ≤ zs.length) ∧
+    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + S + 3 ∧
     ∀ (O : TriOracle μ M) (θ : ℝ),
-      let V := undecidedCount P M O.readDist
       let bad := fun q => ¬ O.Good θ q
       0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
       0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
@@ -328,24 +280,22 @@ def Level4Uniform {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
           {draws | let result := indecisiveLStarLevel4 settings (O.read · ω) draws
             ¬ EndsWell M bad P.D settings.disagreementRate
               (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-              P.firstAnchor P.L (level4Replay (O.read · ω) result.hypothesis)
-              ((V - 2 * Real.sqrt (P.prefixBound * V * Real.log (1 / δ)))
-                / (P.L + 1 - P.firstAnchor : ℕ))
-              result.ending} ∂μ
-        ≤ ENNReal.ofReal (2 * δ)
+              settings.walkStart (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart)
+              ρ result.ending} ∂μ
+        ≤ ENNReal.ofReal δ
 
 set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition
 theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixDistribution α)
-    (δ : ℝ) (S k H : ℕ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd ≤ 1)
-    (hL : 1 ≤ P.L) : Level4Uniform μ M εd P δ S k H := by
+    (δ : ℝ) (S k : ℕ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd ≤ 1)
+    (hL : 1 ≤ P.L) : Level4Uniform μ M εd P δ S k := by
   dsimp only [Level4Uniform]
   generalize hρ : ((S : ℝ) + 1) * εd / (256 * ((Fintype.card σ : ℝ) + S + 1)
     * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) = ρ
   generalize hK : ((Fintype.card σ : ℝ) + S + 1) * (2 * ((Fintype.card σ : ℝ) + S + 3)
     * Fintype.card α + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
     + 8 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α * (P.L + 1) = K
-  generalize hG : Real.log (4 * (2 ^ (Fintype.card σ + S + 4) * (Fintype.card α : ℝ) + 7 * K ^ 2)
-    / δ) + 2 * Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + S + 4) * (Fintype.card α : ℝ)
+  generalize hG : Real.log (4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ) + 7 * K ^ 2)
+    / δ) + 2 * Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ)
     + 7 * K ^ 2) / δ)) = G₀
   -- the problem's sizes
   have hA1 : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
@@ -387,27 +337,25 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
       positivity
     nlinarith only [mul_le_mul h1 h2 zero_le_one (by linarith), h3, h4,
       mul_le_mul (mul_le_mul h1 h2 zero_le_one (by linarith)) h3 (by norm_num) (by positivity)]
-  set Xl := 4 * (2 ^ (Fintype.card σ + S + 4) * (Fintype.card α : ℝ) + 7 * K ^ 2) / δ with hXl
+  set Xl := 4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ) + 7 * K ^ 2) / δ with hXl
   have hXl0 : 0 < Xl := by positivity
   have hlogX : 1 ≤ Real.log Xl := by
     rw [Real.le_log_iff_exp_le hXl0]
     refine Real.exp_one_lt_three.le.trans ?_
     rw [hXl, le_div_iff₀ hδ0]
     nlinarith only [hK100, hδ1, hδ0, sq_nonneg K,
-      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 4) * (Fintype.card α : ℝ))]
+      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ))]
   have hG1₀ : Real.log Xl ≤ G₀ := by
     rw [← hG]
     have : 0 ≤ Real.log (2 * Real.log Xl) := Real.log_nonneg (by linarith)
     linarith
-  obtain ⟨G, hGd⟩ : ∃ G : ℝ, G = G₀ + H := ⟨_, rfl⟩
-  have hH0 : (0 : ℝ) ≤ H := Nat.cast_nonneg _
+  obtain ⟨G, hGd⟩ : ∃ G : ℝ, G = G₀ := ⟨_, rfl⟩
   have hG1 : Real.log Xl ≤ G := by linarith
-  have hHG : (H : ℝ) ≤ G := by linarith
   have hlo : Real.log (8 / δ) ≤ G := by
     refine le_trans (Real.log_le_log (by positivity) ?_) hG1
     rw [hXl, div_le_div_iff_of_pos_right hδ0]
     nlinarith only [hK100, sq_nonneg K,
-      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 4) * (Fintype.card α : ℝ))]
+      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ))]
   have hlo0 : 0 ≤ Real.log (8 / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ0]; linarith)
   have hGge : 1 ≤ G := hlogX.trans hG1
@@ -495,20 +443,7 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
   refine ⟨⟨k, m, Fintype.card σ + S + 3, 1 / 2,
     8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, Real.exp (-G), n₀,
     fun _ => 6 * (P.L + 1) * G, 4 * s * (P.L + 1) / Fintype.card α, 3 * εd / 4, b⟩,
-    rfl, rfl, by rw [← hGd]; exact hbK, rfl, fun read draws zs hz => ?_,
-    fun O θ hθ hθc hκ hκc hε hεc => ?_⟩
-  · have ha : Real.exp (-G) ≤ 1 / 2 := by
-      have h1 : Real.exp (-G) ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
-      have h2 : Real.exp (-1) * Real.exp 1 = 1 := by rw [← Real.exp_add]; simp
-      have h3 := Real.exp_one_gt_d9
-      nlinarith [Real.exp_pos (-1)]
-    have hn5 : 512 * G ≤ (n₀ : ℝ) := by
-      have : 0 ≤ 32 / (9 * εd ^ 2) * G := by positivity
-      nlinarith only [hn₀l, this]
-    refine harvest_length_ge _ H (Real.exp_pos _) ha (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) ?_ ?_ ?_ ?_ (fun _ => ?_) (by positivity) read draws hz <;>
-      dsimp only <;> try rw [hlogG]
-    all_goals nlinarith only [hn5, hHG, hGge, hL1]
+    rfl, rfl, by rw [← hGd]; exact hbK, rfl, fun O θ hθ hθc hκ hκc hε hεc => ?_⟩
   rw [← hs] at hκc
   have hεN0 : 0 ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε := by positivity
   have hpl : 3 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ ρ := by linarith
@@ -523,12 +458,34 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
   dsimp only at hRB
   rw [hlogG] at hRB
   have hrisk := hRB hδ0 hδ1 hL le_rfl hκ le_rfl ?_ hε ?_ hθ ?_ ?_ ?_ (by norm_num) ?_ ?_ hεd1
-    (by norm_num) (by linarith) ?_ ?_ ?_ ?_ ?_ (Real.exp_pos _) ?_
+    (by norm_num) (by linarith) ?_ ?_ ?_ ?_ (Real.exp_pos _) ?_
     (by rw [h8G] at hbl ⊢; exact hbl) ?_ ?_ ?_ ?_
-  · refine (lintegral_level4_eq M O _ P _ _).trans_le ?_
-    calc _ ≤ _ := level4_round_risk_holds M O θ P _ (2 * O.κ) δ le_rfl hδ0 hδ1
-      _ ≤ ENNReal.ofReal δ + ENNReal.ofReal δ := add_le_add hrisk le_rfl
-      _ = ENNReal.ofReal (2 * δ) := by rw [← ENNReal.ofReal_add hδ0.le hδ0.le]; ring_nf
+  · -- the yield the tests certify is at least `ρ`
+    have t1 : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
+        = 32 * ((P.L : ℝ) + 1) * ρ / 3 := by
+      rw [show 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
+        = 32 * ((P.L : ℝ) + 1) * s ^ 2 / Fintype.card α by ring, hs2]
+      field_simp
+    have t2 : 0 ≤ 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
+        * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by positivity
+    have hy : ρ ≤ Level4Settings.harvestYield ⟨k, m, Fintype.card σ + S + 3, 1 / 2,
+        8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd,
+        Real.exp (-G), n₀, fun _ => 6 * (P.L + 1) * G, 4 * s * (P.L + 1) / Fintype.card α,
+        3 * εd / 4, b⟩ := by
+      unfold Level4Settings.harvestYield
+      dsimp only
+      refine le_min (by linarith) (le_min ?_ (by linarith))
+      have e : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
+          * (8 * s + 1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))))
+          = 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
+            + 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
+              * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by ring
+      rw [e, t1]
+      nlinarith only [t2, hρ0, hL1]
+    refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
+      (EndsWell.mono_yield hy h)) ?_
+    refine (lintegral_level4_eq M O _ P _).trans_le ?_
+    exact (level4_round_risk_holds M O θ P _ (2 * O.κ) le_rfl).trans hrisk
   · -- κ against the length
     have hs1 : 0 < s := by
       rcases hs0.lt_or_eq with h | h
@@ -552,14 +509,14 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
         = 4 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε) := by ring
     rw [e]; linarith
   · rw [hNr]
-    have h1 : 24 * θ ≤ 1 / (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1 + 2)) := by
+    have h1 : 48 * θ ≤ 1 / (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1 + 2)) := by
       rw [le_div_iff₀ (by positivity)]
       have : 0 ≤ θ * ((P.L : ℝ) + 1) := by positivity
       nlinarith only [hθc, this, hn1]
     have : 0 ≤ 8 * s := by positivity
     linarith
   · linarith
-  · have : 8 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ 1 / 4 := by linarith
+  · have : 16 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ 1 / 4 := by linarith
     linarith
   · have t1 : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
         = 32 * ((P.L : ℝ) + 1) * ρ / 3 := by
@@ -577,8 +534,6 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
     have := mul_le_mul_of_nonneg_left hpl (by positivity : (0 : ℝ) ≤ (P.L : ℝ) + 1)
     nlinarith only [this, t2]
   · linarith
-  · have : 0 ≤ 32 / (9 * εd ^ 2) * G := by positivity
-    nlinarith only [hn₀l, this, hGge]
   · have : 0 ≤ 32 / (9 * εd ^ 2) * G := by positivity
     nlinarith only [hn₀l, this, hGge]
   · have h1 : 32 / (9 * εd ^ 2) * G ≤ n₀ := by
@@ -599,9 +554,9 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
     have : 0 ≤ 12 * θ * ((Fintype.card σ : ℝ) + S + 1 + 2) := by positivity
     have hLG : 0 < ((P.L : ℝ) + 1) * G := by positivity
     nlinarith only [this, hLG]
-  · rw [show Fintype.card σ + S + 3 + 1 = Fintype.card σ + S + 4 by ring]
+  · rw [show Fintype.card σ + S + 3 + 2 = Fintype.card σ + S + 5 by ring]
     rw [hGd]
-    exact level_le_add _ K b G₀ H δ (by positivity) hK100 hδ0 hδ1 (Nat.cast_nonneg _) hH0 hG.symm
+    exact level_le _ K b G₀ δ (by positivity) hK100 hδ0 hδ1 (Nat.cast_nonneg _) hG.symm
       (hGd ▸ hbK)
   · have : 4 * Real.log (8 / δ) / (S + 1) ≤ m := by linarith
     rw [div_le_iff₀ (by positivity)] at this
@@ -652,9 +607,8 @@ theorem level4_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixD
 theorem level4_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ εd : ℝ)
     (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Level4Guarantee M O θ εd P δ S k := by
   intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hκc hε hεc
-  obtain ⟨settings, h1, h2, h3, -, -, h⟩ :=
-    level4_guarantee_uniform (μ := μ) M εd P δ S k 0 hδ0 hδ1 hεd0 hεd1 hL
-  rw [Nat.cast_zero, add_zero] at h3
+  obtain ⟨settings, h1, h2, h3, -, h⟩ :=
+    level4_guarantee_uniform (μ := μ) M εd P δ S k hδ0 hδ1 hεd0 hεd1 hL
   exact ⟨settings, h1, h2, h3, h O θ hθ hθc hκ hκc hε hεc⟩
 
 end Guarantee

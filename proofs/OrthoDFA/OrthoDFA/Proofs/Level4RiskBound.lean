@@ -48,36 +48,24 @@ theorem one_sub_binomSfGe_le (n j : ℕ) (p τ : ℝ) (hp0 : 0 ≤ p) (hp1 : p �
   rw [Nat.cast_sub hjn]
   linarith
 
-/-- A test at rate `p` that has not fired at `h` lets a rate `q ≤ p / 8` reach `(h + 1) / 2` at
-most `a` of the time. -/
-theorem binomSfGe_half_le (t h : ℕ) (p q a : ℝ) (hp1 : p ≤ 1) (hq0 : 0 ≤ q) (hpq : 8 * q ≤ p)
-    (ha0 : 0 < a) (ha : a ≤ 1 / 2) (ht : 32 * Real.log (1 / a) ≤ t * p ^ 2)
-    (hlt : binomSfGe t p h < a) : binomSfGe t q ((h + 1) / 2) ≤ a := by
-  have hp0 : 0 ≤ p := by linarith
+/-- A test at rate `p` firing at `h` of `t ≥ 32 log(1/a) / p²` has `h` above half its mean. -/
+theorem half_lt_of_binomSfGe_lt {t h : ℕ} {p a : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha0 : 0 < a)
+    (ha : a ≤ 1 / 2) (ht : 32 * Real.log (1 / a) ≤ t * p ^ 2) (hlt : binomSfGe t p h < a) :
+    (t : ℝ) * p / 2 < h := by
   have hlg : Real.log 2 ≤ Real.log (1 / a) :=
     Real.log_le_log (by norm_num) (by rw [le_div_iff₀ ha0]; linarith)
   have hl2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
-  have hexp : Real.exp (-Real.log (1 / a)) = a := by
-    rw [Real.exp_neg, Real.exp_log (by positivity)]; simp
-  have hh : (t : ℝ) * p / 2 < h := by
-    by_contra hc
-    push Not at hc
-    cases h with
-    | zero => rw [binomSfGe_zero_right] at hlt; linarith
-    | succ j =>
-      have hj := one_sub_binomSfGe_le t j p (p / 2) hp0 hp1 (by linarith) (by
-        push_cast at hc; nlinarith)
-      have : Real.exp (-2 * (t : ℝ) * (p / 2) ^ 2) ≤ 1 / 2 := by
-        rw [← Real.exp_log (show (0 : ℝ) < 1 / 2 by norm_num), one_div, Real.log_inv]
-        exact Real.exp_le_exp.2 (by nlinarith)
-      linarith
-  have hj : (h : ℝ) / 2 ≤ ((h + 1) / 2 : ℕ) := by
-    have : h ≤ 2 * ((h + 1) / 2) := by omega
-    have : (h : ℝ) ≤ 2 * ((h + 1) / 2 : ℕ) := by exact_mod_cast this
+  by_contra hc
+  push Not at hc
+  cases h with
+  | zero => rw [binomSfGe_zero_right] at hlt; linarith
+  | succ j =>
+    have hj := one_sub_binomSfGe_le t j p (p / 2) hp0 hp1 (by linarith) (by
+      push_cast at hc; nlinarith)
+    have : Real.exp (-2 * (t : ℝ) * (p / 2) ^ 2) ≤ 1 / 2 := by
+      rw [← Real.exp_log (show (0 : ℝ) < 1 / 2 by norm_num), one_div, Real.log_inv]
+      exact Real.exp_le_exp.2 (by nlinarith)
     linarith
-  refine (binomSfGe_le t _ q (p / 8) hq0 (by linarith) (by linarith) (by nlinarith)).trans ?_
-  rw [← hexp]
-  exact Real.exp_le_exp.2 (by nlinarith)
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
@@ -290,10 +278,10 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
   intro α _ _ _ σ _ κ ε θ D _ L C κs δ S
   dsimp only
   intro hδ0 hδ1 hL hLmax hκ hκs hκsL hε0 hεL hθ0 hθe hθpt hθs hθs1 hφe hφpt hεd1 hθpt4 hφεd
-    hn₀s hn₀pt hn₀φ hexc_gt hexc_le ha0 ha hbudget hm1 hm2 hm3 hm4
+    hn₀s hn₀φ hexc_gt hexc_le ha0 ha hbudget hm1 hm2 hm3 hm4
   generalize hp₀ : prefixMax D C.walkStart = p₀ at hθs hφe hφpt hm4
   generalize hΛ : unionLog (α := α) σ S δ = Λ at hθs hφe hφpt hm4
-  generalize hlg : Real.log (1 / C.testLevel) = lg at hn₀s hn₀pt hn₀φ hexc_gt hexc_le hbudget hm2
+  generalize hlg : Real.log (1 / C.testLevel) = lg at hn₀s hn₀φ hexc_gt hexc_le hbudget hm2
   have hp0 : 0 < p₀ := hp₀ ▸ prefixMax_pos D C.walkStart
   have hK := count_le_unionLog (α := α) σ S hδ0 hδ1
   rw [hΛ] at hK
@@ -309,10 +297,10 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
   have hpΛ : 0 < p₀ * Λ := mul_pos hp0 hΛ0
   have hL1 : (1 : ℝ) ≤ L := by exact_mod_cast hL
   have hb0 : (0 : ℝ) ≤ C.probeBudget := Nat.cast_nonneg _
-  have hpow : (2 : ℝ) ≤ 2 ^ (C.maxLeaves + 1) := by
+  have hpow : (2 : ℝ) ≤ 2 ^ (C.maxLeaves + 2) := by
     calc (2 : ℝ) = 2 ^ 1 := by norm_num
-      _ ≤ 2 ^ (C.maxLeaves + 1) := pow_le_pow_right₀ (by norm_num) (by omega)
-  have hpowA : (2 : ℝ) ≤ 2 ^ (C.maxLeaves + 1) * Fintype.card α := by nlinarith only [hpow, hA1]
+      _ ≤ 2 ^ (C.maxLeaves + 2) := pow_le_pow_right₀ (by norm_num) (by omega)
+  have hpowA : (2 : ℝ) ≤ 2 ^ (C.maxLeaves + 2) * Fintype.card α := by nlinarith only [hpow, hA1]
   have ha8 : 8 * C.testLevel ≤ δ := by
     nlinarith only [sq_nonneg (C.probeBudget : ℝ), ha, hpowA, ha0]
   have ha2 : C.testLevel ≤ 1 / 2 := by linarith
@@ -375,7 +363,7 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
   have hgs0 : 0 ≤ θgs := by
     rw [hθgs]; have : 0 ≤ θ * ((Fintype.card σ : ℝ) + S + 1) := mul_nonneg hθ0 (by positivity)
     linarith
-  have h8gs : 8 * θgs ≤ C.startUndecidedRate := by rw [hθgs]; linarith
+  have h8gs : 16 * θgs ≤ C.startUndecidedRate := by rw [hθgs]; linarith
   have hlgle : Real.log (1 / C.testLevel) ≤ lg := hlg.le
   obtain ⟨nEnd, hS, hP, hnE, hn₀E, hn₀S, hpt, hsucc, hreach, hφE, hterm⟩ :=
     exists_end_knobs C.firstLook C.disagreementRate C.middleUndecidedRate C.searchShare C.testLevel
@@ -463,18 +451,13 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
         φpt_nEnd := hφE
         exc_gt := fun j => by dsimp only; rw [hlg]; linarith [hexc_gt j]
         start_test := fun t h ht hlt => by
-          dsimp only
           have : (C.firstLook : ℝ) ≤ t := by exact_mod_cast ht
-          refine binomSfGe_half_le t h C.startUndecidedRate θgs C.testLevel hθs1 hgs0 h8gs ha0 ha2
-              ?_ hlt
+          refine half_lt_of_binomSfGe_lt hθs0 hθs1 ha0 ha2 ?_ hlt
           rw [hlg]; nlinarith only [hn₀s, this, sq_nonneg C.startUndecidedRate]
-        pt_test := fun t h ht hlt => by
-          dsimp only
-          have : (C.firstLook : ℝ) ≤ t := by exact_mod_cast ht
-          refine binomSfGe_half_le t h C.middleUndecidedRate (2
-              * θgpt) C.testLevel (by linarith) (by linarith)
-            (by linarith) ha0 ha2 ?_ hlt
-          rw [hlg]; nlinarith only [hn₀pt, this, sq_nonneg C.middleUndecidedRate]
+        start_room := by
+          rw [hlg]
+          have : (0 : ℝ) ≤ C.firstLook := Nat.cast_nonneg _
+          nlinarith only [hn₀s, this, hθs0, hθs1, hlg0]
         φpt_test := fun t ht => by
           have : (C.firstLook : ℝ) ≤ t := by exact_mod_cast ht
           refine (binomSfGe_le t _ (C.searchShare / 2) (C.searchShare / 2)
@@ -532,16 +515,18 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
     linarith
   have hT2 : classCount (α := α) σ S
       * (edgeMapCount (α := α) σ S * ((Fintype.card σ + S + 2) * Fintype.card α))
-      * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate / 2 - 2 * (3 * θ)) / 2 / (2 * p₀ * (L + 1)
+      * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate - 8 * (3 * θ)) / 4 / (2 * p₀ * (L + 1)
         * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + S + 1))))) ≤ δ / 8 := by
     refine mul_exp_le hδ0 (by positivity) le_rfl hK ?_
     rw [le_div_iff₀ (by positivity)]
     have e1 : 1 + 4 * (3 / 2 * θ) * ((Fintype.card σ : ℝ) + S + 1) ≤ 2 := by linarith
     have e2 := mul_le_mul_of_nonneg_left e1
       (show 0 ≤ 2 * p₀ * (L + 1) * Λ from mul_nonneg (by positivity) hΛ0.le)
-    have e3 : C.edgeTraffic * (C.edgeUndecidedRate / 4)
-        ≤ C.edgeTraffic * (C.edgeUndecidedRate / 2 - 2 * (3 * θ)) :=
-      mul_le_mul_of_nonneg_left (by linarith) hφe0
+    have e3 : C.edgeTraffic * (C.edgeUndecidedRate / 4) / 2
+        ≤ C.edgeTraffic * (C.edgeUndecidedRate - 8 * (3 * θ)) / 4 := by
+      have := mul_le_mul_of_nonneg_left (show C.edgeUndecidedRate / 2
+        ≤ C.edgeUndecidedRate - 8 * (3 * θ) by linarith) hφe0
+      linarith
     nlinarith only [e2, e3, hφe]
   have hT3 : classCount (α := α) σ S
       * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * θ)
@@ -617,7 +602,7 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
     gcongr
   have hTL : ((S : ℝ) + Fintype.card σ + 1) * ((2 * C.maxLeaves * Fintype.card α + 1)
       * (2 * C.testLevel) + C.testLevel)
-      + (2 ^ (C.maxLeaves + 1) * Fintype.card α + C.probeBudget
+      + (2 ^ (C.maxLeaves + 2) * Fintype.card α + 1
           + 3 * (C.probeBudget * C.probeBudget)) * C.testLevel
       ≤ δ / 4 := by
     have hP0 : (0 : ℝ) ≤ (S : ℝ) + Fintype.card σ + 1 := by positivity
@@ -638,7 +623,7 @@ theorem level4_risk_bound_holds : Level4RiskBound := by
   obtain ⟨Xs, hXs⟩ : ∃ x : ℝ, x = ((S : ℝ) + Fintype.card σ + 1)
       * ((2 * C.maxLeaves * Fintype.card α + 1) * (2 * C.testLevel) + C.testLevel) := ⟨_, rfl⟩
   obtain ⟨XT, hXT⟩ : ∃ x : ℝ,
-      x = (2 ^ (C.maxLeaves + 1) * Fintype.card α + C.probeBudget
+      x = (2 ^ (C.maxLeaves + 2) * Fintype.card α + 1
           + 3 * (C.probeBudget * C.probeBudget)) * C.testLevel :=
     ⟨_, rfl⟩
   rw [← hXs] at hsub hTL

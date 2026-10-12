@@ -175,7 +175,7 @@ theorem replay_root {T : DTree α} (hT : RootOne T) (E : Edges α) {w : FreeMono
 theorem replay_yields [Countable α] {T : DTree α} (hT : RootOne T) (E : Edges α)
     (D : MeasureTheory.Measure (FreeMonoid α)) [MeasureTheory.IsFiniteMeasure D] (s L : ℕ)
     {σ : Type*} (M : DFA α σ) :
-    Yields D s L (replay read ⟨T, E⟩)
+    ReplayYields D s L (replay read ⟨T, E⟩)
       (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ)) := by
   refine (coverage_le_anchor D s L M _).trans (MeasureTheory.measureReal_mono ?_
     (MeasureTheory.measure_ne_top _ _))
@@ -184,7 +184,7 @@ theorem replay_yields [Countable α] {T : DTree α} (hT : RootOne T) (E : Edges 
 
 theorem replay_spread [Countable α] (D : MeasureTheory.Measure (FreeMonoid α))
     [MeasureTheory.IsFiniteMeasure D]
-    (s L : ℕ) : Spread D s L (replay read ⟨T, E⟩) :=
+    (s L : ℕ) : ReplaySpread D s L (replay read ⟨T, E⟩) :=
   spread_of_prefix D s L _ (replay_prefix read T E)
 
 end Ideal

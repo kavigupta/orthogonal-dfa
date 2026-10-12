@@ -8,7 +8,7 @@ trust that claim.
 
 `Level4RoundRisk`: the round fails to end well with chance at most `roundRisk`, the least, over the
 proof's free parameters (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, a sum of named
-terms, plus the yield's term. `Level4RiskBound`: `roundRisk ≤ δ` under explicit conditions on the
+terms. `Level4RiskBound`: `roundRisk ≤ δ` under explicit conditions on the
 laws' `κ` and `ε`, the goodness level `θ` and the settings.
 -/
 
@@ -30,16 +30,6 @@ theorem searchAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges
       | .pair _ | .edge _ _ | .triple _ => True
       | _ => False} := rfl
 
-/-- `level4Replay` at a tree and curried edges. -/
-def replayAt (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α) (w : FreeMonoid α)
-    (e : ℕ) : List (FreeMonoid α) :=
-  level4Replay rd ⟨T, Function.uncurry edges⟩ w e
-
-theorem replayAt_eq (rd : FreeMonoid α → ARU) (T : DTree α) (edges : EdgeTable α) (w : FreeMonoid α)
-    (e : ℕ) : replayAt rd T edges w e =
-      ((firstsBy (fun z => (rd z).cut) T edges e w).filter fun q => (rd q.2).cut = none).map
-        Prod.snd := rfl
-
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
 def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S → Prop) :
     S → List X → Prop
@@ -48,12 +38,18 @@ def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S →
     | .inl s' => RunEnds step Q s' xs
     | .inr (e, s') => Q e s'
 
+/-- What a harvest's sampler must yield a version: the least of what the start's, an edge's and
+the middles' tests certify. -/
+noncomputable def Level4Settings.harvestYield (C : Level4Settings) : ℝ :=
+  min (C.startUndecidedRate / 8)
+    (min (C.edgeTraffic * C.edgeUndecidedRate / 2) (C.searchShare * C.middleUndecidedRate / 2))
+
 /-- The round ends well at the ending `e` and the state `s` it ends in. -/
 def Level4EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (C : Level4Settings) (a L : ℕ) (y : ℝ) (rd : FreeMonoid α → ARU) (e : Level4Ending α)
-    (s : Level4State α) : Prop :=
-  EndsWell M bad D C.disagreementRate (searchAt rd C.walkStart s.tree s.edges) a L
-    (replayAt rd s.tree s.edges) y (toRoundEnd e s)
+    (C : Level4Settings) (rd : FreeMonoid α → ARU) (e : Level4Ending α) (s : Level4State α) :
+    Prop :=
+  EndsWell M bad D C.disagreementRate (searchAt rd C.walkStart s.tree s.edges) C.walkStart
+    (harvestLaw D (fun z => (rd z).cut) C.walkStart) C.harvestYield (toRoundEnd e s)
 
 /-- A hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at most
 this: `θpt'` of its searches stopping at undecided middles but fewer than `hP` of the first
@@ -147,8 +143,8 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   l_nonneg : 0 ≤ kn.l
   θg_ge : 2 * (3 / 2 * θ) ≤ kn.θg
   θgpt_ge : 2 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * θ)) ≤ kn.θgpt
-  θgpt_le : 2 * kn.θgpt ≤ 1
-  θe_ge : 4 * kn.θg ≤ C.edgeUndecidedRate
+  θgpt_le : 4 * kn.θgpt ≤ C.middleUndecidedRate
+  θe_ge : 8 * kn.θg ≤ C.edgeUndecidedRate
   m_pos : 0 < C.recordsToMove
   Lmax_ge : Fintype.card σ + kn.S + 3 ≤ C.maxLeaves
   L_pos : 1 ≤ L
@@ -166,7 +162,7 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   εd'_le : kn.εd' ≤ 1
   θr_le : kn.θr ≤ (1 - kn.θpt') * kn.εd'
   θgs_nonneg : 0 ≤ kn.θgs
-  θgs_le : kn.θgs ≤ 1
+  θgs_le : 16 * kn.θgs ≤ C.startUndecidedRate
   φe_nonneg : 0 ≤ C.edgeTraffic
   φpt_nonneg : 0 ≤ C.searchShare
   φpt_le : C.searchShare ≤ 1
@@ -179,9 +175,8 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   exc_gt : ∀ j, 4 * (L + 1) * (1 + 4 * kn.θg * C.maxLeaves) * Real.log (1 / C.testLevel)
       < C.edgeExcess j
   start_test : ∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel →
-    binomSfGe t kn.θgs ((h + 1) / 2) ≤ C.testLevel
-  pt_test : ∀ t h, C.firstLook ≤ t → binomSfGe t C.middleUndecidedRate h < C.testLevel →
-    binomSfGe t (2 * kn.θgpt) ((h + 1) / 2) ≤ C.testLevel
+    t * C.startUndecidedRate / 2 < h
+  start_room : 8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate
   φpt_test : ∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊
       ≤ C.testLevel
   Xe_nonneg : 0 ≤ kn.Xe
@@ -212,8 +207,8 @@ edge test's slack, at some tree, edge map and edge. -/
 def edgeTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ kn.S
     * (edgeMapCount (α := α) σ kn.S * ((Fintype.card σ + kn.S + 2) * Fintype.card α))
-    * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate / 2
-        - 2 * kn.θg) / 2 / (2 * prefixMax D C.walkStart * (L + 1)
+    * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate
+        - 8 * kn.θg) / 4 / (2 * prefixMax D C.walkStart * (L + 1)
       * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + kn.S + 1))))))
 
 /-- Good read-states' undecided start reads exceeding `θgs` of the probes, at some tree. -/
@@ -231,7 +226,7 @@ def middlesTail : ENNReal :=
 
 /-- The harvests' and success's tests firing wrongly at some probe of the round. -/
 def testLevels : ENNReal :=
-  ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + C.probeBudget
+  ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1
       + 3 * (C.probeBudget * C.probeBudget)) * C.testLevel)
 
 /-- The round's failure chance at the knobs `kn`: the four noise fields' tails, the records that
@@ -269,18 +264,17 @@ def Level4RiskBound : Prop :=
     0 < δ → δ ≤ 1 → 1 ≤ L → Fintype.card σ + S + 3 ≤ C.maxLeaves →
     0 < κ → 2 * κ ≤ κs → 4 * κs * (L + 1) ≤ 1 →
     0 ≤ ε → 4 * ε * ((L + 1) * (n + 1)) ≤ 1 →
-    0 ≤ θ → 24 * θ ≤ C.edgeUndecidedRate → 96 * ((L + 1) * (n + 1)) * θ ≤ C.middleUndecidedRate →
-    24 * (n + 1) * θ + 8 * p₀ * Λ ≤ C.startUndecidedRate → C.startUndecidedRate ≤ 1 →
+    0 ≤ θ → 48 * θ ≤ C.edgeUndecidedRate → 96 * ((L + 1) * (n + 1)) * θ ≤ C.middleUndecidedRate →
+    48 * (n + 1) * θ + 16 * p₀ * Λ ≤ C.startUndecidedRate → C.startUndecidedRate ≤ 1 →
     32 * (L + 1) * p₀ * Λ ≤ C.edgeTraffic * C.edgeUndecidedRate
         → 256 * p₀ * Λ ≤ C.middleUndecidedRate * C.searchShare →
     C.disagreementRate ≤ 1 → C.middleUndecidedRate ≤ 1 / 4
         → C.searchShare ≤ 3 / 4 * C.disagreementRate →
     32 * lg ≤ C.firstLook * C.startUndecidedRate ^ 2
-        → 32 * lg ≤ C.firstLook * C.middleUndecidedRate ^ 2
         → 2 * lg ≤ C.firstLook * C.searchShare ^ 2 →
     (∀ j, 4 * (L + 1) * (1 + 12 * θ * C.maxLeaves) * lg < C.edgeExcess j) →
     (∀ j, C.edgeExcess j ≤ 8 * (L + 1) * (1 + 12 * θ * C.maxLeaves) * lg) →
-    0 < C.testLevel → 4 * (2 ^ (C.maxLeaves + 1) * A + 7 * C.probeBudget ^ 2) * C.testLevel ≤ δ →
+    0 < C.testLevel → 4 * (2 ^ (C.maxLeaves + 2) * A + 7 * C.probeBudget ^ 2) * C.testLevel ≤ δ →
     (S + Fintype.card σ + 1) * ((2 * C.maxLeaves * A + 1)
         * (8 * lg / (C.disagreementRate ^ 2 * C.middleUndecidedRate ^ 2)
             + 4 * C.firstLook / (3 * C.disagreementRate) + 2)
@@ -297,23 +291,18 @@ def Level4RiskBound : Prop :=
 
 
 /-- `Level4RoundRisk`: with an oracle reading every string with the read model's laws, the round
-over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk` plus
-`δ`, at any records coefficient `κs ≥ 2κ`. The harvest's replay yields `(V − 2√(q V log(1/δ))) / n`,
-where `V` is the mean count of positions from `start` to `L` at which a draw's prefix reads
-undecided and `n = L + 1 − start` the anchors. -/
+over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`, at
+any records coefficient `κs ≥ 2κ`. -/
 def Level4RoundRisk : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
-    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level4Settings) (κs δ : ℝ),
-    2 * O.κ ≤ κs → 0 < δ → δ ≤ 1 →
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level4Settings) (κs : ℝ),
+    2 * O.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
-          (Level4EndsWell M (fun q => ¬ O.Good θ q) P.D C P.firstAnchor P.L
-            ((undecidedCount P M O.readDist
-              - 2 * Real.sqrt (P.prefixBound * undecidedCount P M O.readDist * Real.log (1 / δ)))
-              / (P.L + 1 - P.firstAnchor : ℕ)) (O.read · ω))
+          (Level4EndsWell M (fun q => ¬ O.Good θ q) P.D C (O.read · ω))
           initialState (List.ofFn xs)} ∂μ
-      ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + ENNReal.ofReal δ
+      ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
 
 end OrthoDFA
 

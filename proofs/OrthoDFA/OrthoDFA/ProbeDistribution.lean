@@ -9,19 +9,12 @@ open scoped ENNReal
 
 variable {α : Type*}
 
-/-- Draws of length at most `L`, the replay's anchors running from `firstAnchor`, and no draw
-starting more than `prefixBound` of the time with any one string at least `firstAnchor` long. -/
+/-- Draws of length at most `L`. -/
 structure PrefixDistribution (α : Type*) [Countable α] where
   D : Measure (FreeMonoid α)
   isProbability : IsProbabilityMeasure D
   L : ℕ
-  firstAnchor : ℕ
-  firstAnchor_le : firstAnchor ≤ L
   length_le : ∀ᵐ x ∂D, x.toList.length ≤ L
-  prefixBound : ℝ
-  prefixBound_pos : 0 < prefixBound
-  prefix_mass_le : ∀ u : FreeMonoid α, firstAnchor ≤ u.toList.length → u.toList.length ≤ L →
-    D.real {x | u.toList <+: x.toList} ≤ prefixBound
 
 instance [Countable α] (P : PrefixDistribution α) : IsProbabilityMeasure P.D := P.isProbability
 

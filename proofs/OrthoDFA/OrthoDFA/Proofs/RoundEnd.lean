@@ -75,7 +75,7 @@ theorem spread_of_prefix (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (s L 
     (rp : FreeMonoid α → ℕ → List (FreeMonoid α))
     (h : ∀ w e x, x ∈ rp w e →
       ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i) :
-    Spread D s L rp := by
+    ReplaySpread D s L rp := by
   intro t
   set A := uniformAnchor s L
   have hsub : {q : FreeMonoid α × ℕ | t ∈ rp q.1 q.2} ⊆
@@ -111,15 +111,6 @@ theorem spread_of_prefix (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (s L 
         rw [measureReal_prod_prod, uniformAnchor_real_le]
         ring
 
-theorem spread_nil (D : Measure (FreeMonoid α)) (s L : ℕ) : Spread D s L fun _ _ => [] := by
-  intro t
-  simp only [List.not_mem_nil, Set.ofPred_false, measureReal_empty]
-  exact Finset.sum_nonneg fun i _ => mul_nonneg (by positivity) measureReal_nonneg
-
-theorem yields_zero (D : Measure (FreeMonoid α)) (s L : ℕ)
-    (rp : FreeMonoid α → ℕ → List (FreeMonoid α)) : Yields D s L rp 0 :=
-  measureReal_nonneg
-
 /-- An anchor lands on a position a draw visits a state satisfying `P` from with chance at least
 `1 / (L + 1 − s)`. -/
 theorem coverage_le_anchor {σ : Type*} (D : Measure (FreeMonoid α)) [IsFiniteMeasure D]
@@ -154,16 +145,5 @@ theorem coverage_le_anchor {σ : Type*} (D : Measure (FreeMonoid α)) [IsFiniteM
         rw [measureReal_def]
         ring
     _ ≤ (D.prod (uniformAnchor s L)).real S := ENNReal.toReal_mono (measure_ne_top _ _) hle
-
-/-- The ending is the same at any replay that is spread and yields. -/
-theorem EndsWell.respread {σ : Type*} {M : DFA α σ} {bad : σ → Prop}
-    {D : Measure (FreeMonoid α)} {ε : ℝ} {dis : Set (FreeMonoid α)} {s L s' L' : ℕ}
-    {rp rp' : FreeMonoid α → ℕ → List (FreeMonoid α)} {y y' : ℝ} (hs : Spread D s L rp)
-    (hy : Yields D s L rp y) {e : RoundEnd α}
-    (h : EndsWell M bad D ε dis s' L' rp' y' e) : EndsWell M bad D ε dis s L rp y e := by
-  cases e with
-  | consistent => exact h
-  | harvest zs => exact ⟨h.1, hs, hy⟩
-  | failed => exact h
 
 end OrthoDFA
