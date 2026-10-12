@@ -385,7 +385,8 @@ def RandomRoundCorrect : Prop :=
             (3 / 4 * θ * coverage P.D P.start P.L M (BadAt U θ) / (P.L + 1 - P.start : ℕ))
             (toRoundEnd r.2)} ∂μ
       ≤ roundRisk (α := α) σ θ P.D P.L C ε
-        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.start P.L M (BadAt U θ)) / (16 * P.q)))
+        + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage P.D P.start P.L M (BadAt U θ))
+          / (16 * P.q)))
 
 end Random
 

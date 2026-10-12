@@ -321,7 +321,8 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
         rw [measure_toMeasurable]
         exact (measure_union_le _ _).trans (by gcongr; exact measure_union_le _ _)
     _ ≤ c + (ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G)
-          + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D st L M (BadAt U θ)) / (16 * q)))) := by
+          + ENNReal.ofReal (Real.exp (-(3 / 2 * θ * coverage D st L M (BadAt U θ))
+            / (16 * q)))) := by
         rw [hW, zero_add]
         gcongr
     _ = _ := by
