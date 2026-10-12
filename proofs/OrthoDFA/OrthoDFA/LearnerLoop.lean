@@ -19,9 +19,10 @@ where the Python's noise is fixed per string. The strings two phases both read a
 string, which later rounds read again on its own (the seed's column) and after new suffixes, and
 a probe's prefix that is also one of the round's clustered prefixes.
 
-Known modelling gap. A harvest population draws its strings uniformly from the harvested list,
-repeats included. `_accumulate_harvest` keeps up to `target` distinct new strings, and
-`HarvestSource` draws more by replaying the round's hypothesis.
+Known modelling gap. A harvest population draws its strings uniformly from the harvested list.
+The list has no repeats unless two of the round's probes share their length-`k` prefix.
+`_accumulate_harvest` keeps up to `target` distinct new strings, and `HarvestSource` draws more
+by replaying the round's hypothesis.
 
 Known modelling gap. The Python reads the family with its seed, at `pst.accept_thresh` and
 `pst.reject_thresh`.
@@ -171,23 +172,23 @@ def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (Fre
 /-- The learner's loop terminates in agreement. Within `|Q| + 1` rounds, the loop stops at a
 round whose hypothesis's walk and tree part on at most `εd` of the probes, and whose family's
 read of a probe is decided against the target at most `εcov + 2·indecisionLimit + 2·slack` of the
-time and undecided at most `2·indecisionLimit + slack`; or some round harvests a list too
-concentrated for the clustering, its collision mass above `cap`. It fails to do either with
-probability at most `(|Q| + 1)(δc + 2δ)`: per round, the clustering's `δc` and level 4's `2δ`.
+time and undecided at most `2·indecisionLimit + slack`. It fails to with probability at most
+`(|Q| + 1)(δc + 3δ)`: per round, the clustering's `δc`, level 4's `2δ`, and `δ` for two of the
+round's probes sharing their length-`k` prefix, which is what can make a harvest repeat a string.
 
 The clustering's parameters are `ClusteringQualityGuarantee`'s, the uniform pool drawn from the
 probes' distribution, and the suffixes of one length `Ls`, longer than any string level 4 reads.
-Level 4's are `Level4Guarantee`'s: its `θ` is set so that a harvested state some later family
-leaves undecided more than `1.5θ` of the time holds more of the harvest than the FNR gate lets
-through, and its `ε` is the clustering's `crossLimit`. -/
+`cap` is the collision mass the clustering admits of a population; level 4's settings make every
+harvest at least `⌈1/cap⌉` strings long, which costs the budget `Kp ⌈1/cap⌉` probes. Level 4's
+`θ` is set so that a harvested state some later family leaves undecided more than `1.5θ` of the
+time holds more of the harvest than the FNR gate lets through. -/
 def LearnerLoopCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K S k Ls : ℕ) (η₀ indecisionLimit gateLevel crossLimit εcov δc slack pAP εd δ : ℝ),
+    (K S Ls : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ : ℝ),
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
   let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
     + 8 * (n + 3) * A * (P.L + 1)
   let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 4) * A + 7 * Kp ^ 2) / δ
@@ -196,7 +197,6 @@ def LearnerLoopCorrect : Prop :=
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
   0 < gateLevel → gateLevel < 1 / 2 →
-  0 < crossLimit →
   0 < εcov → εcov ≤ 1 →
   0 < δc → δc ≤ 1 →
   0 < slack → 0 < pAP →
@@ -204,23 +204,21 @@ def LearnerLoopCorrect : Prop :=
   Fintype.card σ + 1 ≤ K →
   P.L + Fintype.card σ + S + 3 ≤ Ls →
   512 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
-  (P.L + 1) * (n + 1) * crossLimit + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
-  ∃ cap : ℝ, 0 < cap ∧ ∃ settings : LoopSettings K,
+  ∃ cap : ℝ, 0 < cap ∧ ∃ q₀ : ℝ, 0 < q₀ ∧ ∀ k : ℕ, prefixMax P.D k ≤ q₀ →
+  ∃ settings : LoopSettings K,
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level4.walkStart = k ∧ settings.level4.disagreementRate = εd ∧
-    (settings.level4.probeBudget : ℝ) ≤ Kp * G ∧
+    (settings.level4.probeBudget : ℝ) ≤ Kp * (G + ⌈1 / cap⌉₊) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       collisionMass P.D ≤ cap → collisionMass Dsf ≤ cap →
       (loopMeasure μ P.D Dsf K settings.level4.probeBudget).real
           {draws | let rounds := indecisiveLStarLoop settings O draws
-            ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                  o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
-                    (2 * indecisionLimit + slack) εd)
-              ∨ ∃ o ∈ rounds, ∃ zs, o.result.ending = .harvest zs
-                  ∧ cap < collisionMass (harvestMeasure zs))}
-        ≤ (Fintype.card σ + 1) * (δc + 2 * δ)
+            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+                o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
+                  (2 * indecisionLimit + slack) εd)}
+        ≤ (Fintype.card σ + 1) * (δc + 3 * δ)
 
 end OrthoDFA
 
