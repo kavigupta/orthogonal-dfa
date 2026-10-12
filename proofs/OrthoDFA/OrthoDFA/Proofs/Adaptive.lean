@@ -8696,7 +8696,7 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
     (hρsf : collisionMass Dsf
-        ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+        ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     (runMeasure μ D Dsf).real {x | ∀ B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ},
       x ∉ retAll rule O.mq populations indecisionLimit α B.val} ≤ δ / 2 := by
@@ -8706,9 +8706,9 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     hind1
     hpAPPositive
     hpAPBound hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap hρsf
-  obtain ⟨τ, th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, f, hmpos, hkpos, hindLim,
+  obtain ⟨τ, th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, f, c, r, rs, hmpos, hkpos, hindLim,
     hind1', hε1, hτ, hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hf0, hpAP0, hlcut, hlcl,
-    hpAPBound, hρsf, hheavy, hscd, hscLow, hscHigh, hcount,
+    hc0, hr, hpAPBound, hρsf, hheavy, hscd, hscLow, hscHigh, hcount,
     hhiUp, hloUp, hhiLo, hloLo, hga, hnloPos, hα, hEhalf, hbudget⟩ := hpass
   set l : ℝ := indecisionLimit / 2 with hl
   have hlpos : 0 < l := by rw [hl]; linarith
@@ -8735,32 +8735,36 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
   have hper : ∀ j ∈ populations,
       (runMeasure μ D Dsf).real
           {x : Run Ω S J | x ∉ retAt rule O populations indecisionLimit α B j}
-        ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ B := by
+        ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) r rs
+          ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ B := by
     intro j hj
-    have hstall := measureReal_stalled_le (rule := rule) hflat O populations D Dsf hsupp hsuppSf B (by omega)
-      j₀ hj₀ γscr pAP tap (collisionMass Dsf) ρ hγscr hpAP0 htap hpAPBound hscd hsig.le hscLow
-      hcount hρsf hρsf0 (hρ j₀ hj₀) hρ0
-    have hdirtyI := measureReal_dirtyMember_le (rule := rule) hflat O populations D Dsf hsupp hsuppSf j hj B
-      hsig.le hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscd hscHigh
+    have hstall := measureReal_stalled_le (rule := rule) hflat O populations D Dsf hsupp hsuppSf B
+      (by omega) j₀ hj₀ γscr pAP tap (collisionMass Dsf) ρ rs r hγscr hpAP0 htap hpAPBound hscd
+      hsig.le hscLow hcount hρsf hρsf0 (hρ j₀ hj₀) hρ0
+    have hdirtyI := measureReal_dirtyMember_le (rule := rule) hflat O populations D Dsf hsupp
+      hsuppSf j hj B hsig.le hmpos Δ γdirty gdirty c ρ r hΔ hγdirty hgdirty hc0 hρ0 hr (hρ j hj)
+      hscd hscHigh
     have hnoclean := measureReal_noCleanRef_le D Dsf O populations B pAP tap
-      (collisionMass Dsf) hpAP0 htap hpAPBound le_rfl hρsf0
+      (collisionMass Dsf) rs hpAP0 htap hpAPBound le_rfl hρsf0
       (by
         have hk2 : (2 : ℝ) ≤ (B.k : ℝ) := by exact_mod_cast hkpos
         linarith [hcount, hk2])
+    have hcertBad := measureReal_certNotGood_le (μ := μ) D Dsf populations j B.npref r ρ hρ
+      (hρ j hj) hρ0
     have hdirty : (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
-          flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + gdirty}
-        ≤ ((B.npref : ℝ) ^ 2 * ρ
+          flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty}
+        ≤ (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
             + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
             + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * gdirty ^ 2))
           + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
-            + (B.nsuff : ℝ) ^ 2 * collisionMass Dsf) := by
+            + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))) := by
       have hcov : {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
-            flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + gdirty}
+            flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty}
           ⊆ ({x : Run Ω S J | ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
                 ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0}
               ∩ {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
-                flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + gdirty})
+                flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty})
             ∪ {x : Run Ω S J | ¬ ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
                 ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0} := by
         intro x hx
@@ -8813,13 +8817,11 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
       linarith [hfl]
     have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp hsuppSf j hj B
       hmpos hsig.le
-      α τ l lcut f E ((populations.card : ℝ) * Δ + gdirty) ρ th κ κ
+      α τ l lcut f E ((populations.card : ℝ) * Δ + c + gdirty) th c r κ κ
       ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ (by omega)
       (Real.exp_nonneg _) (by linarith) (by rw [hl]; exact hlcl) hτ
       hl1' hnloB'
-      hρ hρ0
-      (by positivity) hth hf0
-      hheavy _ hstall _ hdirty hdec hcut hga hnloPos hα
+      (by positivity) hth hf0 hr hheavy _ hcertBad _ hstall _ hdirty hdec hcut hga hnloPos hα
     rw [hl2] at hmain
     refine le_trans hmain (le_of_eq ?_)
     unfold roundFail
@@ -8827,7 +8829,8 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
   have hsum : ∑ j ∈ populations, (runMeasure μ D Dsf).real
         {x : Run Ω S J | x ∉ retAt rule O populations indecisionLimit α B j}
       ≤ (populations.card : ℝ)
-          * roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ B := by
+          * roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) r rs
+            ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ B := by
     refine le_trans (Finset.sum_le_sum hper) (le_of_eq ?_)
     rw [Finset.sum_const, nsmul_eq_mul]
   linarith [hsum, hbudget]
@@ -8855,16 +8858,14 @@ theorem clustering_correct : ClusteringCorrect := by
   have hfind : Real.exp (-2
       * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
       * (pAP / 2) ^ 2) ≤ δ / 16 :=
-    le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
+    le_trans (exp_tail_anti (Nat.cast_nonneg _) (by positivity) (by linarith))
+      (le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith))
   have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
-  have hcoll : (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) ^ 2
-      * collisionMass Dsf ≤ δ / 16 := by
-    obtain ⟨-, -, -, -, -, h2⟩ := solved_tails η₀ populations hη₀ hεcov hindLim hδ hpAPPositive
-      (by linarith) (le_trans (tsum_nonneg (fun a => sq_nonneg _))
-        (hρ hpop.choose hpop.choose_spec)) hρsf0 hρcap hρsf
-    have hnn : (0 : ℝ) ≤ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) ^ 2
-        * collisionMass Dsf := by positivity
-    nlinarith [mul_le_mul_of_nonneg_right hcard1 hnn]
+  have hcoll := le_trans (poolDraws_le_of_cap η₀ populations hpAPPositive
+      (le_trans hpAPBound measureReal_le_one) hδ hρsf0 hρsf)
+    (show δ / (128 * ((populations.card : ℝ) + 1)) ≤ δ / 16 by
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+      nlinarith)
   have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ} =>
