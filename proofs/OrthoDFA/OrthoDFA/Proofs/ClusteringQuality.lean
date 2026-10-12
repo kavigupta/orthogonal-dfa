@@ -1,5 +1,5 @@
 import OrthoDFA.ClusteringQuality
-import OrthoDFA.Proofs.Budget
+import OrthoDFA.Proofs.ClusteringBad
 
 /-!
 # The quality of the returned family
@@ -413,12 +413,47 @@ def ClusteringQualityAll : Prop :=
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
 
-theorem clustering_quality_all : ClusteringQualityAll := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+/-- `ClusteringQualityAll` at the states `stoppable … ρ`, as a bound on the runs that are not
+good. -/
+theorem clustering_quality_bad {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (huni : uni ∈ populations) (hflat : Flat Pre Suf)
+    (hpAP : 0 < pAP) (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2)
+    (hα : 0 < α) (hα1 : α < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
+    (hδ1 : δ ≤ 1) (hstr : 0 < crossLimit) (hslack : 0 < slack) :
+    ∃ cap : ℝ,
+      0 < cap ∧
+      ∀ (D : J → Measure S) (Dsf : Measure S),
+        (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+        (∀ j ∈ populations, D j Preᶜ = 0) →
+        Dsf Sufᶜ = 0 →
+        pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+        ∀ ρ : ℝ,
+        (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+        ρ ≤ cap →
+        collisionMass Dsf ≤ cap →
+        (∀ B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ,
+          ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+            (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+            ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit))
+        ∧ (runMeasure μ D Dsf).real
+          {x | ¬ ((∃ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+            ∧ ∀ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              ∀ j ∈ populations,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ εcov + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p ∂(D j)
+                  ≤ 2 * indecisionLimit + slack)} ≤ δ := by
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
-  simp only [ret_eq, familyAt_eq, clusterAt_eq]
+  simp only [ret_eq, familyAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
@@ -447,9 +482,9 @@ theorem clustering_quality_all : ClusteringQualityAll := by
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit ρ
     with hstates
-  refine ⟨states, fun B hB =>
+  refine ⟨fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
+  have hcc := clustering_correct_bad O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
     ρ pAP crossLimit 6000 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
     hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
@@ -518,7 +553,7 @@ theorem clustering_quality_all : ClusteringQualityAll := by
             div_le_iff₀ (by positivity)]
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
-  have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
+  have key : ∀ Q : Run Ω S J → Prop, (∀ x, x ∈ {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
         ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
@@ -526,14 +561,49 @@ theorem clustering_quality_all : ClusteringQualityAll := by
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
-              ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
-      1 - δ ≤ (runMeasure μ D Dsf).real T := by
-    intro T hT
-    have := le_trans hcc (le_trans (measureReal_mono hT (measure_ne_top _ _))
-      (measureReal_union_le T Bad))
-    linarith
+              ≤ 2 * indecisionLimit} → Q x ∨ x ∈ Bad) →
+      (runMeasure μ D Dsf).real {x | ¬ Q x} ≤ δ := by
+    intro Q hQ
+    have hsub : {x | ¬ Q x} ⊆ {x | ¬ x ∈ {x | (∃ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+          ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              ≤ 2 * indecisionLimit}} ∪ Bad := by
+      intro x hx
+      by_cases hg : x ∈ {x | (∃ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+          ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              ≤ 2 * indecisionLimit}
+      · rcases hQ x hg with h | h
+        · exact absurd h hx
+        · exact Or.inr h
+      · exact Or.inl hg
+    calc (runMeasure μ D Dsf).real {x | ¬ Q x}
+        ≤ (runMeasure μ D Dsf).real ({x | ¬ x ∈ {x | (∃ B : {B : State // B ∈ states},
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+          ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              ≤ 2 * indecisionLimit}} ∪ Bad) :=
+          measureReal_mono hsub (measure_ne_top _ _)
+      _ ≤ _ := measureReal_union_le _ _
+      _ ≤ δ' + δ / 2 := add_le_add hcc hBad
+      _ = δ := by rw [hδ'def]; ring
   apply key
   intro x hx
+  simp only [Set.mem_ofPred_eq] at hx
   by_cases hxb : x ∈ Bad
   · exact Or.inr hxb
   refine Or.inl ⟨hx.1, fun B hret => ?_⟩
@@ -595,6 +665,44 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   have := hFtail j
   have := hPmass j hj
   exact ⟨by linarith, by linarith⟩
+
+theorem clustering_quality_all : ClusteringQualityAll := by
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  obtain ⟨cap, hcap, h⟩ := clustering_quality_bad O populations uni Pre Suf η₀ indecisionLimit
+    εcov α δ pAP crossLimit slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr
+    hslack
+  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  have := hD
+  obtain ⟨h1, h2⟩ := h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
+  refine ⟨_, h1, ?_⟩
+  have hu := measureReal_union_le (μ := runMeasure μ D Dsf) {x | ¬ ((∃ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+            ∧ ∀ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              ∀ j ∈ populations,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ εcov + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p ∂(D j)
+                  ≤ 2 * indecisionLimit + slack)}ᶜ {x | ¬ ((∃ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+            ∧ ∀ B : {B : State //
+                B ∈ stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ρ},
+              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              ∀ j ∈ populations,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ εcov + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p ∂(D j)
+                  ≤ 2 * indecisionLimit + slack)}
+  rw [Set.compl_union_self, probReal_univ] at hu
+  rw [Set.compl_setOf] at hu
+  simp only [not_not] at hu
+  linarith
 
 /-- From `clustering_quality_all` at `min εcov (1/2)`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by

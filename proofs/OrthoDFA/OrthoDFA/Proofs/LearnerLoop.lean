@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.LoopTermination
 import OrthoDFA.Proofs.Level4Correct
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.BandWide
 
 /-!
 # The loop's theorem
@@ -52,7 +53,53 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
                     ≤ εcov + slack
                   ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc := by
-  sorry
+  classical
+  obtain ⟨c, hc⟩ : ∃ c : ℝ, c = Real.exp (-2 / crossLimit) := ⟨_, rfl⟩
+  have hc0 : 0 < c := hc ▸ Real.exp_pos _
+  choose capOf hcapOf using fun (pops : Finset (Option (Fin K))) (h : none ∈ pops) =>
+    clustering_quality_bad O pops none Pre Suf η₀ indecisionLimit εcov gateLevel δc pAP c slack
+      hη hη₀ h hflat hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0 hslack
+  set capAt : Finset (Option (Fin K)) → ℝ := fun pops =>
+    if h : none ∈ pops then capOf pops h else 1 with hcapAt
+  have hcapAt0 : ∀ pops, 0 < capAt pops := by
+    intro pops
+    simp only [hcapAt]
+    split_ifs with h
+    · exact (hcapOf pops h).1
+    · norm_num
+  obtain ⟨cap, hcapd⟩ : ∃ cap : ℝ,
+      cap = (Finset.univ : Finset (Finset (Option (Fin K)))).inf' ⟨∅, Finset.mem_univ _⟩ capAt :=
+    ⟨_, rfl⟩
+  have hcap0 : 0 < cap := by
+    rw [hcapd]; exact (Finset.lt_inf'_iff _).2 fun pops _ => hcapAt0 pops
+  have hcap_le : ∀ pops (h : none ∈ pops), cap ≤ capOf pops h := by
+    intro pops h
+    have := Finset.inf'_le capAt (Finset.mem_univ pops)
+    simp only [hcapAt, dif_pos h] at this
+    rw [hcapd]; exact this
+  refine ⟨cap, hcap0, fun pops =>
+    stoppable η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP c cap, ?_, ?_⟩
+  · intro pops B hB
+    obtain ⟨hlohi, -, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀
+      (Finset.mem_of_mem_filter _ hB)
+    refine ⟨hlohi, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ =>
+      bandPasses_of_wide hp0 hp1 hr0 hr1 hlohi ?_⟩
+    have hlog : Real.log (1 / c) = 2 / crossLimit := by
+      rw [hc, one_div, ← Real.exp_neg, Real.log_exp]; ring
+    rw [hlog, mul_div_assoc', div_le_iff₀ hcross] at hband
+    have hNk : (N : ℝ) + 1 ≤ B.k := by exact_mod_cast hN
+    have hlh : (B.lo : ℝ) ≤ B.hi := by exact_mod_cast hlohi
+    have h2 : ((B.hi : ℝ) - B.lo) ^ 2 ≤ ((B.hi : ℝ) + 1 - B.lo) ^ 2 := by nlinarith
+    nlinarith [mul_le_mul_of_nonneg_left h2 hcross.le]
+  · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolSf
+    obtain ⟨-, hbad⟩ := (hcapOf pops hpops).2 D Dsf hD hDsf hsupp hsuppSf hpAPDsf cap hcolD
+      (hcap_le pops hpops) (hcolSf.trans (hcap_le pops hpops))
+    refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hbad
+    intro x hx hgood
+    apply hx
+    obtain ⟨⟨B, hret⟩, hall⟩ := hgood
+    refine ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' => ?_⟩
+    exact ⟨(hall ⟨B', hB'⟩ hret' none hpops).1, fun j hj => (hall ⟨B', hB'⟩ hret' j hj).2⟩
 
 /-! ## The one-round claims on the loop's draws -/
 
