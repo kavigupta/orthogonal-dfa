@@ -1,4 +1,4 @@
-import OrthoDFA.TallyRound
+import OrthoDFA.Proofs.TallyRiskDefs
 
 /-!
 # The tally round's parts

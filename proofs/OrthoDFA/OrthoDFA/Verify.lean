@@ -9,7 +9,7 @@ import OrthoDFA.Proofs.TallyRace
 import OrthoDFA.Proofs.TallySuccess
 import OrthoDFA.Proofs.TallyEvent
 import OrthoDFA.Proofs.TallySpurNoise
-import OrthoDFA.Proofs.TallyFamily
+import OrthoDFA.Proofs.TallyCorrect
 import OrthoDFA.Proofs.TallyRisk
 import OrthoDFA.Proofs.TallyRiskBound
 
@@ -18,9 +18,10 @@ import OrthoDFA.Proofs.TallyRiskBound
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-the idealized round's, stated in `OrthoDFA.IdealRound`, the tally round's and its risk's closed
-form, stated in `OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
-`OrthoDFA.TallyFamily`.
+the idealized round's, stated in `OrthoDFA.IdealRound`, the tally round's, stated in
+`OrthoDFA.TallyRound`, and the tally round read by the suffix family, stated in
+`OrthoDFA.TallyFamily`. The tally round's detailed bound and its closed form, stated in
+`OrthoDFA.Proofs.TallyRiskDefs`, are internal: the claims above are derived from them.
 -/
 
 namespace OrthoDFA
@@ -60,9 +61,13 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 
 #print axioms success_sound_holds
 
-theorem tally_round : TallyRound := tally_round_holds
+theorem tally_round_correct : TallyRoundCorrect := tally_round_correct_holds
 
-#print axioms tally_round
+#print axioms tally_round_correct
+
+theorem tally_round_risk : TallyRoundRisk := tally_round_holds
+
+#print axioms tally_round_risk
 
 theorem tally_risk_bound : TallyRiskBound := tally_risk_bound_holds
 

@@ -74,7 +74,7 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
-/-- `TallyRound` over the proofs' view of the oracle. -/
+/-- `TallyRoundRisk` over the proofs' view of the oracle. -/
 theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
@@ -207,7 +207,7 @@ theorem tally_round_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpac
         rw [measure_toMeasurable]
         exact add_le_add hold hNy
 
-theorem tally_round_holds : TallyRound := by
+theorem tally_round_holds : TallyRoundRisk := by
   intro α _ _ σ _ Ω _ μ _ M O θ P C κs hκ
   exact tally_round_model ⟨M, O.dist, θ, O.κ, O.ε, O.nonneg, O.rare⟩ O.read O.measurable O.indep
     O.law P C κs hκ
