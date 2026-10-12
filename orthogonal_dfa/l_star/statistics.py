@@ -292,13 +292,18 @@ def denoise_sample_size(
     return lo
 
 
-def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
-    """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
+def binomial_side_of_boundary(
+    num_accepts, num_samples, boundary, *, failure_prob=1e-5, min_samples=0
+):
+    """Binomial test of num_accepts/num_samples against accept rate ``boundary``:
+    ``rateSide`` of ``OrthoDFA/RateTest.lean``, proved sound by ``RateTestSound``.
 
     Returns True if the count is significantly above ``boundary``, False if
     significantly below, and None if neither tail clears ``failure_prob`` (including
-    small ``num_samples``).
+    small ``num_samples``) or fewer than ``min_samples`` were drawn.
     """
+    if num_samples < min_samples:
+        return None
     above = 1 - binom_cdf(num_accepts - 1, num_samples, boundary)
     if above < failure_prob:
         return True
