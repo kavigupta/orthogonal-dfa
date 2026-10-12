@@ -14,13 +14,12 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   has one law its strings read with, and the band's check bounds each law.
 - `IdealRoundCorrect`: with every read fixed by its state, one L\* round ends well but for
   chance `(P + 1)(1 − ε)^n`.
-- `TallyRound`: with a `TriOracle` reading every string independently with its state's law, the
-  tally loop's round over `C.budget` probes from a `PrefixDistribution` fails to end well with
-  chance at most `roundRisk` and the yield's term.
-- `TallyRiskBound`: `roundRisk ≤ δ` under explicit conditions on the laws' `κ` and `ε`, the goodness
-  level `θ` and the loop's settings.
+- `TallyRoundCorrect`: with a `TriOracle` reading every string independently with its state's
+  law, settings chosen by the proof make the tally loop's round over at most `K · G` probes from a
+  `PrefixDistribution` fail to end well with chance at most `2δ`, once the laws' `κ` and `ε`, the
+  goodness level `θ` and the probes' prefix mass are small enough.
 - `TallyRoundFamily`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family and
-  a band passing `BandPasses`), at the family's read model.
+  a band passing `BandPasses`), at `fam.oracle`.
 
 ## The round, by refinement
 
@@ -51,19 +50,46 @@ anchors are the positions from which `covered_states` counts a visit.
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
 2. #419: indecision random, decided reads always right.
 3. #420: rare wrong reads at every state.
-4. This, `TallyRound` and `TallyRoundFamily`: the tally loop as `sifting.read` runs it, read by
+4. This, `TallyRoundCorrect` and `TallyRoundFamily`: the tally loop as `sifting.read` runs it, read by
    the suffix family; a state is bad where it reads undecided more than `1.5θ` of the time.
 
 ## The statements
 
 `OrthoDFA/TallyRound.lean` and `OrthoDFA/TallyFamily.lean` hold them, with everything they need
-to be read:
+to be read. With `n = |Q| + S`, `A = |Σ|`, `L = P.L`, `K = 2^18 (n + 1)² A / εd³`,
+`G = 2 log(64 (2^(n+3) A + 8K²)/δ)` and a read-state bad where it reads undecided more than `1.5θ`
+of the time:
 
-    TallyRound: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs, 2 · O.κ ≤ κs →
+    TallyRoundCorrect: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ S k,
+      0 < δ ≤ 1 → 0 < εd ≤ 1 → 1 ≤ L → 0 ≤ θ →
+      2^13 (L + 1)(n + 1) θ ≤ εd →
+      0 < O.κ → 2^14 (n + 1)² A² (L + 1)(n + 3) O.κ ≤ εd →
+      0 ≤ O.ε → 2^13 (L + 1)(n + 1)² A (O.ε (n + 1) + tallyLog σ S δ · prefixMax P.D k) ≤ εd →
+      11 P.q log(1/δ) ≤ θ · coverage P.D P.start P.L M bad →
+      ∃ C : TallyCfg, C.k = k ∧ C.εd = εd ∧ C.budget ≤ K · G ∧
+        P[the round over C.budget probes from P.D does not end well] ≤ 2δ
+
+    TallyRoundFamily: TallyRoundCorrect at fam.oracle : TriOracle μ fam.M.
+
+The proof chooses `Lmax = n + 3`, `θpt = 1/4`, `φpt = 3εd/4`, `θs = θe = 3εd/16`, `φe = 1`,
+`a = e^{−G}`, `n₀ = ⌈1000 G/εd²⌉`, `m = ⌈3100 G/εd²⌉`, `exc = 6(L + 1)(1 + 12θ Lmax) G` and the
+budget the records cap asks for (`Proofs/TallyCorrect.lean`).
+
+At `|Q| = 10`, `|Σ| = 2`, `S = 2`, `δ = 0.01` and `εd = 1`, the conditions ask for `θ ≤ 3e-7`,
+`κ ≤ 2e-10`, `ε ≤ 9e-10` and `prefixMax ≤ 1.3e-11`, so `k ≥ 37` for uniform binary probes, with a
+budget of at most `8.4e9` probes (`1.1e13` at `εd = 0.1`). At `L = 30` they cannot all hold:
+the prefix mass needs `k > L`, and the yield condition, with `q = 2^-15`, needs `θ ≥ 1.5e-3/c`.
+At `L = 60` (`q = 2^-30`) they hold for `k ≥ 37` and `θ ≤ 1.5e-7` once the bad read-states'
+coverage `c ≥ 0.3`. The constants are loose; the internal closed form below admits far more.
+
+## The internal bound
+
+`Proofs/TallyRiskDefs.lean` states what the claim is derived from; none of it needs to be read to
+trust the claim.
+
+    TallyRoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs, 2 · O.κ ≤ κs →
       ∫⁻ ω, P[the round over C.budget probes from P.D does not end well] ∂μ
         ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + exp(−1.5θ · coverage(not O.Good θ) / (16 P.q))
-
-    TallyRoundFamily: TallyRound at fam.oracle : TriOracle μ fam.M.
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
 `roundRisk σ κ ε θ D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
@@ -80,43 +106,17 @@ A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ
 * `(S + |Q| + 1) · subOpen`, a sub-round keeping its tree too long;
 * `testLevels`, `(2^(Lmax+1)|Σ| + budget + 3 budget²) a`, the harvests' and success's tests,
 
-where `n = |Q| + S`, `K = classCount` bounds the class of trees, `E = edgeMapCount` their edge
-maps, `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k` prefix.
-`Knobs.Admissible` lists the relations, among them `0 < κ`, `2ε(L + 1)(n + 1) ≤ ρ`, `θg ≥ 3θ`,
-`θe ≥ 4θg`, `θgpt ≥ 3(L + 1)(n + 1)θ`, `2θgpt ≤ 1`, `exc > 4(L + 1)(1 + 4θg Lmax) log(1/a)`,
-`(e^η − 1)κs(L + 1) ≤ 1 − e^{−ν(L+1)}`, the tests' binomial levels, and the budget covering
-`(S + |Q| + 1)` sub-rounds. A probe shorter than `k` agrees and reads nothing.
-
-## The closed form
-
-`TallyRiskBound` picks the knobs as explicit functions of the primitives and makes each of the
-four noise tails and `fakeRun` at most `δ/8`, and every test and termination term at most `a`.
-With `n = |Q| + S`, `p₀ = prefixMax D k`, `lg = log(1/a)` and
-`Λ = 4(n + 2)|Σ| log((n + 3)|Σ|/δ) ≥ log(8 K E (n + 2)|Σ| / δ)`, its conditions are:
-
-* the read model: `0 < κ`, `2κ ≤ κs`, `4κs(L + 1) ≤ 1`, `0 ≤ ε`, `4ε(L + 1)(n + 1) ≤ 1`, `0 ≤ θ`;
-* the tests' rates: `24θ ≤ θe`, `96(L + 1)(n + 1)θ ≤ θpt ≤ 1/4`, `24(n + 1)θ + 8p₀Λ ≤ θs ≤ 1`,
-  `φpt ≤ 3εd/4`, `εd ≤ 1`;
-* the prefix mass: `32(L + 1)p₀Λ ≤ φe θe` and `256 p₀Λ ≤ θpt φpt`;
-* the tests' counts: `n₀ ≥ 32 lg/θs²`, `32 lg/θpt²`, `2 lg/φpt²`, and
-  `4(L + 1)(1 + 12θ Lmax) lg < exc ≤ 8(L + 1)(1 + 12θ Lmax) lg`;
-* the level: `4(2^(Lmax+1)|Σ| + 7 budget²) a ≤ δ`;
-* the budget: `budget ≥ (n + 1)((4 Lmax|Σ| + 1)(8 lg/(εd² θpt²) + 4n₀/(3εd) + 2)
-  + 8(|Q||Σ| + S + 1)m/εd + 32 lg/εd² + 1)`;
-* the records cap: `(S + 1)m` at least `4 log(8/δ)`, `16κs(16(L + 1)(1 + 12θ Lmax) Lmax|Σ| lg + n₀)`,
-  `16κs budget (θe(L + 1)Lmax + 2θs + 2 Lmax|Σ| φe)` and `16 budget (ε(L + 1)(n + 1) + 3p₀Λ)`.
-
-Since the budget grows with `m`, the last two give, roughly,
-`κs ≲ (S + 1)εd / (128(n + 1)(|Q||Σ| + S + 1)(L + 1) Lmax θe)` and
-`p₀ ≲ (S + 1)εd / (384(n + 1)(|Q||Σ| + S + 1)Λ)`.
-
-At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 2`, `Lmax = 15`,
-`εd = θpt = θs = 1/4`, `φpt = 3/16`, `θe = 0.1`, `φe = 0.8`, `n₀ = 24215`, `m = 17826`,
-`budget = 3.5e8`, `a = 2.9e-21`, for any read model with `κ ≤ 5e-8`, `θ ≤ 6e-6`, `ε ≤ 1e-8`, and
-`p₀ = 2^-30`, which uniform length-30 binary probes give at `k = 30`. The shipped band's
-`κ = 4e-3` and `θ = 0.004` are far outside this; its `ε = 1e-10` is inside.
+where here `K = classCount` bounds the class of trees, `E = edgeMapCount` their edge maps,
+`θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k` prefix.
+`TallyRiskBound` (same file) is `roundRisk ≤ δ` under explicit conditions on `κ`, `ε`, `θ` and the
+settings; `TallyRoundCorrect` substitutes its chosen settings into those conditions. At
+`|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, `TallyRiskBound`'s conditions hold at hand-picked
+settings (`S = 2`, `εd = θpt = θs = 1/4`, `budget = 3.5e8`) for `κ ≤ 5e-8`, `θ ≤ 6e-6`,
+`ε ≤ 1e-8` and `p₀ = 2^-30`.
 
 ## Open
+
+- **The shipped Python uses fixed settings**, not the ones `TallyRoundCorrect` chooses.
 
 - **The middles field is per search.** A search makes up to `(L + 1)(n + 1)` first reads, and in a
   tree of depth `n + 1` at good read-states it stops undecided with chance near `1 − e^{−1.5θ R}`
@@ -158,8 +158,9 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/RoundEnd.lean` — `EndsWell`, the ending every level of the round claims.
 - `OrthoDFA/IdealRound.lean` — the round with ideal reads, and `IdealRoundCorrect`.
-- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop, `TallyRound` and
-  `TallyRiskBound`;
+- `OrthoDFA/TallyLoop.lean`, `OrthoDFA/TallyRound.lean` — the tally loop and `TallyRoundCorrect`.
+  `Proofs/TallyRiskDefs.lean` holds the internal bound (`TallyRoundRisk`, `TallyRiskBound`), and
+  `Proofs/TallyCorrect.lean` derives the claim from it at the chosen settings.
   `Proofs/TallyParts.lean` states its parts, as sub-rounds. Probes walk from `k` as `sifting.read`
   does; a clean disagreement records its prefix and target at its edge. Each place keeps its count
   over the round: the start's undecided read strings, and each edge's first reads and those of them
@@ -177,7 +178,7 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   records that are not true; `FakeRace` bounds the round's records that are not true reaching `(S +
   1) m`, given `TallyE`; `HarvestGood` bounds a harvest that is not mostly at read-states that are
   not good. Proved in `Proofs/TallyBudget.lean`: `round_budget` composes sub-rounds, and
-  `tally_round_of` gives `TallyRound` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`.
+  `tally_round_of` gives `TallyRoundRisk` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`.
   `HarvestGood` is proved in `Proofs/TallyHarvest.lean`: at each edge the good read-states'
   undecided reads less `2θg` of its reads exponentiate to a supermartingale while the tree is in the
   class, and at the start and over a stretch's undecided middles they are at most binomial.
@@ -201,12 +202,12 @@ At `|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01`, every condition holds at `S = 
   plus `ε` times its first reads (`spurious_mean`); and an edge's good undecided first reads average
   at most `1.5θ` of its first reads (`edge_first_mean`).
 - `OrthoDFA/SuffixFamily.lean`, `OrthoDFA/TallyFamily.lean` — `SuffixFamily`, its reads and laws,
-  `SuffixFamily.oracle`, and `TallyRoundFamily`. Proved in `Proofs/TallyFamily.lean` from
-  `TallyRound`, the family's reads being independent with its laws (`Proofs/SuffixFamily.lean`,
+  `SuffixFamily.oracle`, and `TallyRoundFamily`. Proved in `Proofs/TallyCorrect.lean` from
+  `TallyRoundCorrect`'s proof, the family's reads being independent with its laws (`Proofs/SuffixFamily.lean`,
   from `FamilyReadBound`).
 - `Proofs/TallyRiskBound.lean` — `TallyRiskBound`: explicit knobs, Hoeffding's lower binomial tail
   for the termination tests, and `tallyLog` bounding the unions' counts.
-- `Proofs/TallyRisk.lean` — `TallyRound` at each admissible choice of knobs: `TallyRoundGiven`
+- `Proofs/TallyRisk.lean` — `TallyRoundRisk` at each admissible choice of knobs: `TallyRoundGiven`
   (`Proofs/TallyParts.lean`, proved in `Proofs/TallyBudget.lean`) with its noise event's chance
   bounded by `tallyE_le` (`Proofs/TallyEvent.lean`), which unions the fields' tails:
   `spurious_le` (`Proofs/TallySpurNoise.lean`), `goodEdge_le` (`Proofs/TallyEdgeRead.lean`),
