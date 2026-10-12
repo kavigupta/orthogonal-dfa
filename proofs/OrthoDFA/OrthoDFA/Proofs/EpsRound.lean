@@ -138,7 +138,7 @@ theorem fakeEv_of_fix (U : σ → ℝ) (θ : ℝ) (L : ℕ) {T : DTree α} {E : 
 theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ} (Ns : ℕ)
     {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) (hsz : T.leaves.length ≤ C.maxLeaves)
     (hW : D.real (PotWrong read M side C.walkStart T) ≤ Gw) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1)
-        (N : ℕ) :
+    (N : ℕ) :
     (Measure.pi fun _ : Fin N => D).real
         {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ FakeEv read C M side T E ((List.ofFn xs).take n)}
       ≤ fakeRisk C (Fintype.card α) Ns Gw := by
@@ -201,15 +201,13 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
     (hNw : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-      D.real (PotWrong read M side C.walkStart T) ≤ Gw)
-    (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook)
-        (hN₁ : C.firstLook ≤ N₁)
-    (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G) (hG1 : G ≤ 1) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1)
-    (ha : 0 ≤ C.testLevel) (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
-        (hθpt0 : 0 ≤ C.middleRate)
-    (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1)
-        (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr)
-    (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
+      D.real (PotWrong read M side C.walkStart T) ≤ Gw) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
+    (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
+    (hG0 : 0 ≤ G) (hG1 : G ≤ 1) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1) (ha : 0 ≤ C.testLevel)
+    (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
+    (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
+    (hεd1 : C.disagreementRate ≤ 1) (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hP : stretches C (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
