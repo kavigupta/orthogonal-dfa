@@ -22,18 +22,23 @@
   result says what `agrees` is where it points, the queries stay between the endpoints and number
   at most `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
-- `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`), where a replay
-  of one is anchored (`uniformAnchor`), and the share of draws visiting given states (`coverage`).
+- `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
-  level: consistent, or a harvest mostly at bad states whose replay is spread and yields.
+  level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
+  bad states, it finds no string more often than the probes share its first `k` letters (spread),
+  and it finds `y` in all (yields).
 - `OrthoDFA/Hypothesis.lean` — the learner's hypothesis: a tree sifting strings to its leaves, and
   edges between the leaves.
 - `OrthoDFA/Level2Probe.lean` and `OrthoDFA/Level2.lean` — level 2 of indecisive L\*,
   `indecisiveLStarLevel2`. Its probe walks to where the walk stops, sifts the successor of an
-  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`.
+  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`;
+  a probe shorter than `walkStart` counts as agreeing. A harvest is the site whose undecided
+  strings reached `harvestSize`; its sampler (`harvestLaw`) draws a fresh probe, walks it under the
+  final hypothesis, and finds the probe's undecided strings at the site.
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
-  all on its side, level 2 on `P` probes ends well but for chance at most `(P + 1)(1 − ε)^n`, `n`
-  the clean probes in a row that end it.
+  all on its side, level 2 on `P` probes ends well, a harvest's sampler yielding `y`, but for
+  chance at most `(P + 1)(1 − ε)^n + P (2 + (|Q| + 2)|Σ|) y`, `n` the clean probes in a row that
+  end it.
 - `OrthoDFA/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
   random, its counts kept over the stretch since the hypothesis last changed and tested after
   every probe.
