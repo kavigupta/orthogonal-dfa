@@ -12,8 +12,8 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome searchOutcome undecidedAt walk_cons
-  length_walk_le run_walk pre_of_le agrees_inl)
+open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome searchOutcome undecidedAt
+  agrees_inl)
 
 variable {α : Type*} (read : FreeMonoid α → ARU)
 
@@ -142,7 +142,7 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
     generalize hcs : x.toList.drop k = cs
     generalize hss : walk E a cs = ss
     have hle : ss.length ≤ cs.length + 1 := hss ▸ length_walk_le E a cs
-    have hpos : 0 < ss.length := hss ▸ Ideal.length_walk_pos E a cs
+    have hpos : 0 < ss.length := hss ▸ length_walk_pos E a cs
     have hcsl : cs.length = x.toList.length - k := by rw [← hcs, List.length_drop]
     split
     · rename_i c hc
@@ -177,7 +177,7 @@ theorem probe_start : ∀ z ∈ startString (probe false read T E k x),
 theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
     k ≤ x.toList.length ∧ searches (probeOrAgree false read T E k x) = true := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
-  obtain ⟨hlen, hlast⟩ := run_walk E a _ q hq
+  obtain ⟨hlen, hlast⟩ := walkEnd_walk E a _ q hq
   by_cases hkx : k ≤ x.toList.length
   · refine ⟨hkx, ?_⟩
     unfold probeOrAgree
@@ -196,14 +196,14 @@ theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
     refine searchOutcome_searches read T x _ _ k _ hkx ?_ ?_
     · rw [agrees_inl read T x _ ha]
       simp only [hst0, decide_true]
-    · rw [agrees_inl read T x _ (by rw [pre_of_le le_rfl]; exact he)]
+    · rw [agrees_inl read T x _ (by rw [prefixOf_of_le le_rfl]; exact he)]
       rw [show x.toList.length - k = cs.length by omega, hlast]
       simpa using fun h => hne h.symm
   · exfalso
     generalize hcs : x.toList.drop k = cs at hlen hlast
     have hcs0 : cs = [] := by rw [← hcs]; exact List.drop_eq_nil_of_le (by omega)
     subst hcs0
-    rw [pre_of_le (by omega), he] at ha
+    rw [prefixOf_of_le (by omega), he] at ha
     cases ha
     simp [walk] at hlast
     exact hne hlast.symm

@@ -35,6 +35,7 @@ jobs:
           fi
           claims=$(grep -F "OrthoDFA/Verify.lean" build.log | grep -F "depends on axioms")
           [ -n "$claims" ] || { echo "::error::Verify.lean printed no axioms"; exit 1; }
-          if echo "$claims" | grep -vF "depends on axioms: [propext, Classical.choice, Quot.sound]"; then
+          if echo "$claims" | sed 's/.*depends on axioms: \[\(.*\)\]/\1/' | tr ',' '\n' \
+              | tr -d ' ' | grep -vxE "propext|Classical\.choice|Quot\.sound"; then
             echo "::error::a claim depends on more than the core axioms"; exit 1
           fi
