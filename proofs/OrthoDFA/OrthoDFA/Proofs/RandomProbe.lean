@@ -12,8 +12,8 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (siftAgrees probe Outcome searchOutcome undecidedAt walk_cons length_walk_le
-  run_walk pre_of_le agrees_inl)
+open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome searchOutcome undecidedAt walk_cons
+  length_walk_le run_walk pre_of_le agrees_inl)
 
 variable {α : Type*} (read : FreeMonoid α → ARU)
 
@@ -257,17 +257,22 @@ theorem positionReads_length : (positionReads read T E k x).length ≤ x.toList.
     simp only [decide_eq_true_eq] at this
     exact Finset.mem_Ioc.2 this.2
 
-variable [DecidableEq α]
+variable [DecidableEq α] [Fintype α]
 
 theorem undecidedAtEdge_sub (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool)
     (c : α) : ∀ z ∈ undecidedAtEdge ch p c, ∃ e ∈ ch, e.2.2.2 = some z := by
   intro z hz
-  obtain ⟨e, he, hez⟩ := List.mem_filterMap.1 hz
+  obtain ⟨e, he, hez⟩ := List.mem_filterMap.1 (List.mem_dedup.1 hz)
   exact ⟨e, (List.mem_filter.1 he).1, hez⟩
 
 theorem undecidedAtEdge_length (ch : List (List Bool × α × ℕ × Option (FreeMonoid α)))
     (p : List Bool) (c : α) : (undecidedAtEdge ch p c).length ≤ ch.length :=
-  (List.length_filterMap_le _ _).trans (List.length_filter_le _ _)
+  (List.dedup_sublist _).length_le.trans
+    ((List.length_filterMap_le _ _).trans (List.length_filter_le _ _))
+
+theorem undecidedAtEdge_nodup (ch : List (List Bool × α × ℕ × Option (FreeMonoid α)))
+    (p : List Bool) (c : α) : (undecidedAtEdge ch p c).Nodup :=
+  List.nodup_dedup _
 
 end Random
 

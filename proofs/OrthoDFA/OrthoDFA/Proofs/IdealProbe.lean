@@ -295,6 +295,13 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
     · exact searchOutcome_ok read T x _ E k _ (by omega) hmem hstep _ fun _ _ h => by cases h
   · exact outcomeOK_one (k := .start) trivial (DTree.sift_inr read T _ z ha)
 
+theorem probeOrAgree_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
+    OutcomeOK read T E (probeOrAgree read T E k x) := by
+  unfold probeOrAgree
+  split_ifs
+  · trivial
+  · exact probe_ok read T E k hE x
+
 theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
     (probe read T E k x).clean = false := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
@@ -326,6 +333,22 @@ theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) 
     rw [← hss] at hlast
     simp [walk] at hlast
     exact hne hlast.symm
+
+theorem disagrees_long {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
+    k ≤ x.toList.length := by
+  obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
+  by_contra hkx
+  dsimp only at ha hq he
+  rw [pre_of_le (by omega), he, Sum.inl.injEq] at ha
+  rw [List.drop_eq_nil_of_le (by omega)] at hq
+  simp only [walkEnd, Option.some.injEq] at hq
+  exact hne (hq.symm.trans ha.symm)
+
+theorem probeOrAgree_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
+    (probeOrAgree read T E k x).clean = false := by
+  unfold probeOrAgree
+  rw [if_neg (by have := disagrees_long read T E k h; omega)]
+  exact probe_disagrees read T E k h
 
 end Ideal
 

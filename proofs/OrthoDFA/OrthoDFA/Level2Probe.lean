@@ -83,6 +83,11 @@ def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
       | .inl t => searchOutcome read T x st (some (c, t)) hi search
     | none => searchOutcome read T x st none hi search
 
+/-- A probe, which counts as agreeing where it is shorter than `k`. -/
+def probeOrAgree (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
+    (x : FreeMonoid α) : Outcome α :=
+  if x.toList.length < k then .agree else probe read T E k x
+
 end Ideal
 
 end OrthoDFA

@@ -213,10 +213,10 @@ theorem binE_pvalue_le {a : ℝ} (ha : 0 ≤ a) (n : ℕ) :
 
 end Binomial
 
-theorem stretchRisk_nonneg (C : Level3Settings) (L Ns N₁ : ℕ) (G θr εd' θpt' : ℝ) (hG0 : 0 ≤ G)
-    (hG1 : G ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
-    (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
-    0 ≤ stretchRisk C L Ns N₁ G θr εd' θpt' := by
+theorem stretchRisk_nonneg (C : Level3Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
+    (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
+    0 ≤ stretchRisk C nα L Ns N₁ p θr εd' θpt' := by
   unfold stretchRisk
   have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun _ P _ => by
     split_ifs <;> norm_num
@@ -229,15 +229,13 @@ theorem stretchRisk_nonneg (C : Level3Settings) (L Ns N₁ : ℕ) (G θr εd' θ
   have : 0 ≤ ∑ s ∈ Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
       binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
     sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 j _
-  have : 0 ≤ ∑ n ∈ Icc C.firstLook Ns, (binomSfGe n G ((hFire C.startRate C.testLevel n + 1) / 2)
+  have : 0 ≤ ∑ n ∈ Icc C.firstLook Ns, (binomSfGe n p (hFire C.startRate C.testLevel n)
       + C.testLevel) :=
-    sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _) ha
+    sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hp0 hp1 _ _) ha
   have : 0 ≤ ∑ n ∈ Icc 1 Ns,
-      (binomSfGe n G ⌈(C.edgeExcess + C.edgeRate * C.edgeReadShare * n) / (2 * (L + 1))⌉₊
-        + binomSfGe n G
-          ((hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊) + 1) / 2)) :=
-    sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hG0 hG1 _ _)
-      (binomSfGe_nonneg hG0 hG1 _ _)
+      ((C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+        + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))) :=
+    sum_nonneg fun n _ => add_nonneg (by positivity) (binomSfGe_nonneg hp0 hp1 _ _)
   linarith
 
 /-! ## Counts over fresh draws -/
@@ -443,6 +441,113 @@ theorem pi_cnt_up (f : X → Bool) {N n : ℕ} (hn : n ≤ N) {G : ℝ} (hg : D.
           by_cases hj : Q j
           · rw [if_pos hj, if_pos (hc j hj)]
           · rw [if_neg hj]; split_ifs <;> norm_num
+
+/-- The sum of `g` over the first `n` draws. -/
+def sumFirst (g : X → ℝ) (n : ℕ) (xs : List X) : ℝ := ((xs.take n).map g).sum
+
+/-- Over fresh draws, a sum whose exponentiated step, at scale `K`, averages at most `1` reaches
+`a` with chance at most `exp(−a/K)`. -/
+theorem pi_sum_tail (g : X → ℝ) {K : ℝ} (hK : 0 < K)
+    (hg : ∫⁻ x, ENNReal.ofReal (Real.exp (g x / K)) ∂D ≤ 1) :
+    ∀ (N n : ℕ) (a : ℝ), (Measure.pi fun _ : Fin N => D) {xs | a ≤ sumFirst g n (List.ofFn xs)}
+      ≤ ENNReal.ofReal (Real.exp (-a / K)) := by
+  have hzero : ∀ (N : ℕ) (a : ℝ), (Measure.pi fun _ : Fin N => D) {_xs | a ≤ (0 : ℝ)}
+      ≤ ENNReal.ofReal (Real.exp (-a / K)) := by
+    intro N a
+    by_cases ha : a ≤ 0
+    · refine prob_le_one.trans ?_
+      rw [← ENNReal.ofReal_one]
+      exact ENNReal.ofReal_le_ofReal (Real.one_le_exp (div_nonneg (by linarith) hK.le))
+    · simp [ha]
+  intro N
+  induction N with
+  | zero =>
+    intro n a
+    simpa [sumFirst] using hzero 0 a
+  | succ N ih =>
+    intro n a
+    rcases n with _ | m
+    · simpa [sumFirst] using hzero (N + 1) a
+    rw [Ideal.pi_succ_apply]
+    have hsec : ∀ x, (Measure.pi fun _ : Fin N => D) {ys | Fin.cons x ys ∈
+        {xs : Fin (N + 1) → X | a ≤ sumFirst g (m + 1) (List.ofFn xs)}}
+        ≤ ENNReal.ofReal (Real.exp (-a / K)) * ENNReal.ofReal (Real.exp (g x / K)) := by
+      intro x
+      have : {ys : Fin N → X | Fin.cons x ys ∈
+          {xs : Fin (N + 1) → X | a ≤ sumFirst g (m + 1) (List.ofFn xs)}}
+          = {ys | a - g x ≤ sumFirst g m (List.ofFn ys)} := by
+        ext ys
+        simp only [Set.mem_ofPred_eq, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, sumFirst,
+          List.take_succ_cons, List.map_cons, List.sum_cons]
+        constructor <;> intro h <;> linarith
+      rw [this, ← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
+      refine (ih m (a - g x)).trans (le_of_eq ?_)
+      congr 2
+      ring
+    calc _ ≤ ∫⁻ x, ENNReal.ofReal (Real.exp (-a / K)) * ENNReal.ofReal (Real.exp (g x / K)) ∂D :=
+          lintegral_mono hsec
+      _ = ENNReal.ofReal (Real.exp (-a / K)) * ∫⁻ x, ENNReal.ofReal (Real.exp (g x / K)) ∂D :=
+          lintegral_const_mul _ (measurable_of_countable _)
+      _ ≤ ENNReal.ofReal (Real.exp (-a / K)) * 1 := by gcongr
+      _ = _ := mul_one _
+
+/-- A count at most `B` whose mean is at most `η` passes twice `η`, at scale `2B`, with an
+exponentiated step averaging at most `1`. -/
+theorem mgf_count (U : X → ℕ) {B η : ℝ} (hB : 0 < B) (hb : ∀ᵐ x ∂D, (U x : ℝ) ≤ B)
+    (hmean : ∫ x, (U x : ℝ) ∂D ≤ η) :
+    ∫⁻ x, ENNReal.ofReal (Real.exp (((U x : ℝ) - 2 * η) / (2 * B))) ∂D ≤ 1 := by
+  set r := ∫ x, (U x : ℝ) ∂D
+  have hUi : Integrable (fun x => (U x : ℝ)) D :=
+    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable B (by
+      filter_upwards [hb] with x hx
+      rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact hx)
+  have hr0 : 0 ≤ r := integral_nonneg fun _ => Nat.cast_nonneg _
+  have hpt : ∀ᵐ x ∂D, Real.exp ((U x : ℝ) / (2 * B)) ≤ 1 + 3 * (U x : ℝ) / (4 * B) := by
+    filter_upwards [hb] with x hx
+    have hU0 : (0 : ℝ) ≤ U x := Nat.cast_nonneg _
+    set t := (U x : ℝ) / (2 * B) with ht
+    have ht0 : 0 ≤ t := by positivity
+    have ht1 : t ≤ 1 / 2 := by rw [ht, div_le_iff₀ (by positivity)]; linarith
+    have habs : |t| ≤ 1 := by rw [abs_of_nonneg ht0]; linarith
+    have h1 := (abs_le.1 (Real.abs_exp_sub_one_sub_id_le habs)).2
+    have h3 : 3 * (U x : ℝ) / (4 * B) = 3 / 2 * t := by rw [ht]; field_simp; ring
+    rw [h3]
+    nlinarith
+  have hsplit : ∀ x, ENNReal.ofReal (Real.exp (((U x : ℝ) - 2 * η) / (2 * B)))
+      = ENNReal.ofReal (Real.exp (-η / B))
+        * ENNReal.ofReal (Real.exp ((U x : ℝ) / (2 * B))) := by
+    intro x
+    rw [← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
+    congr 2
+    field_simp
+    ring
+  simp_rw [hsplit]
+  rw [lintegral_const_mul _ (measurable_of_countable _)]
+  have hgi : Integrable (fun x => 1 + 3 * (U x : ℝ) / (4 * B)) D :=
+    (integrable_const 1).add ((hUi.const_mul 3).div_const _)
+  have hint : ∫ x, (1 + 3 * (U x : ℝ) / (4 * B)) ∂D = 1 + 3 * r / (4 * B) := by
+    rw [integral_add (integrable_const 1) ((hUi.const_mul 3).div_const _), integral_const,
+      integral_div, integral_const_mul]
+    simp [r]
+  calc ENNReal.ofReal (Real.exp (-η / B))
+        * ∫⁻ x, ENNReal.ofReal (Real.exp ((U x : ℝ) / (2 * B))) ∂D
+      ≤ ENNReal.ofReal (Real.exp (-η / B))
+        * ∫⁻ x, ENNReal.ofReal (1 + 3 * (U x : ℝ) / (4 * B)) ∂D :=
+        mul_le_mul' le_rfl (lintegral_mono_ae (by
+          filter_upwards [hpt] with x hx using ENNReal.ofReal_le_ofReal hx))
+    _ = ENNReal.ofReal (Real.exp (-η / B) * (1 + 3 * r / (4 * B))) := by
+        rw [← ofReal_integral_eq_lintegral_ofReal hgi (ae_of_all _ fun x => by positivity), hint,
+          ENNReal.ofReal_mul (Real.exp_pos _).le]
+    _ ≤ 1 := by
+        rw [← ENNReal.ofReal_one]
+        refine ENNReal.ofReal_le_ofReal ?_
+        have h1 := Real.add_one_le_exp (3 * r / (4 * B))
+        have h2 : Real.exp (3 * r / (4 * B)) ≤ Real.exp (η / B) :=
+          Real.exp_le_exp.2 (by rw [div_le_div_iff₀ (by positivity) hB]; nlinarith)
+        have h3 : Real.exp (-η / B) * Real.exp (η / B) = 1 := by
+          rw [← Real.exp_add]; simp [neg_div]
+        have h4 := (Real.exp_pos (-η / B)).le
+        nlinarith
 
 end Draws
 

@@ -27,9 +27,9 @@ def Reached (T : DTree α) : Prop :=
   ∀ p ∈ T.leaves, p = [false] ∨ p = [true] ∨ ∃ w, T.sift read w = .inl p
 
 /-- What the end of a round promises. -/
-def EndOK : RoundEnd α → Prop
+def EndOK : RoundEnd (UndecidedSite α) → Prop
   | .consistent => True
-  | .harvest zs => zs ≠ [] ∧ ∀ z ∈ zs, read z = .undecided
+  | .harvest _ => True
   | .failed => False
 
 /-! ## The tree's size -/
@@ -151,7 +151,6 @@ structure Inv (s : Level2State α) : Prop where
   recs_mem : ∀ r ∈ s.records, r.1 ∈ s.tree.leaves ∧ r.2.2 ∈ s.tree.leaves
   recs_lt : ∀ r, s.records.count r < C.recordsToMove
   und_lt : ∀ k, (s.undecided k).length < C.harvestSize
-  und_read : ∀ k, ∀ z ∈ s.undecided k, read z = .undecided
   clean_lt : s.cleanRun < C.cleanProbesToEnd
   size : s.tree.leaves.length ≤ C.maxLeaves
 
@@ -383,27 +382,21 @@ theorem inv_fresh {T : DTree α} {E : Edges α} {mv : List Bool × α → Bool}
   recs_mem := by simp [newHypothesis]
   recs_lt := by simp [newHypothesis]; omega
   und_lt := by simp [newHypothesis]; omega
-  und_read := by simp [newHypothesis]
   clean_lt := by simp [newHypothesis]; omega
   size := hsz
 
 /-- What a step from `s` promises. -/
-def StepOK (s : Level2State α) : Level2State α ⊕ RoundEnd α → Prop
+def StepOK (s : Level2State α) : Level2State α ⊕ RoundEnd (UndecidedSite α) → Prop
   | .inl s' => Inv read C s' ∧ Reached read s'.tree ∧ Θ C s' < Θ C s
-  | .inr e => EndOK read e
+  | .inr e => EndOK e
 
 /-- Undecided strings charged to a class of the tree. -/
 theorem charge_ok {s : Level2State α} (hs : Inv read C s) (hr : Reached read s.tree)
     {k : UndecidedSite α}
     {zs : List (FreeMonoid α)} {cl : Bool} (hk : SiteOK s.tree k)
-    (hzs : ∀ z ∈ zs, read z = .undecided) (hne : cl = false → zs ≠ []) :
+    (hne : cl = false → zs ≠ []) :
     StepOK read C s (addUndecided C s k zs cl) := by
   have hkc := mem_classes hk
-  have hund : ∀ z ∈ s.undecided k ++ zs, read z = .undecided := by
-    intro z hz
-    rcases List.mem_append.1 hz with hz | hz
-    · exact hs.und_read k z hz
-    · exact hzs z hz
   have hDc : ∀ c', Dc { s with
       undecided := Function.update s.undecided k (s.undecided k ++ zs), cleanRun := c' }
       = Dc s + zs.length := by
@@ -424,24 +417,15 @@ theorem charge_ok {s : Level2State α} (hs : Inv read C s) (hr : Reached read s.
       Inv read C { s with
         undecided := Function.update s.undecided k (s.undecided k ++ zs), cleanRun := c' } := by
     intro c' hc' hh
-    refine ⟨hs.edges, hs.recs_mem, hs.recs_lt, ?_, ?_, hc', hs.size⟩
-    · intro k'
-      by_cases hk' : k' = k
-      · subst hk'; simpa using hh
-      · simp only [ne_eq, hk', not_false_eq_true, Function.update_of_ne]; exact hs.und_lt k'
-    · intro k' z hz
-      by_cases hk' : k' = k
-      · subst hk'; simp only [Function.update_self] at hz; exact hund z hz
-      · simp only [ne_eq, hk', not_false_eq_true, Function.update_of_ne] at hz
-        exact hs.und_read k' z hz
+    refine ⟨hs.edges, hs.recs_mem, hs.recs_lt, ?_, hc', hs.size⟩
+    intro k'
+    by_cases hk' : k' = k
+    · subst hk'; simpa using hh
+    · simp only [ne_eq, hk', not_false_eq_true, Function.update_of_ne]; exact hs.und_lt k'
   unfold addUndecided extendCleanRun
   simp only [Function.update_self]
   split_ifs with hh hcl hc
-  · refine ⟨fun h0 => ?_, hund⟩
-    rw [h0] at hh
-    have := hs.und_lt k
-    simp only [List.length_nil] at hh
-    omega
+  · trivial
   · trivial
   · have hc' : s.cleanRun + 1 < C.cleanProbesToEnd := by omega
     have hi := hinv _ hc' (by omega)
@@ -457,9 +441,9 @@ theorem step_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.
     (hm : 1 ≤ C.recordsToMove) (hh : 1 ≤ C.harvestSize) (hn : 1 ≤ C.cleanProbesToEnd)
     {s : Level2State α} (hs : Inv read C s)
     (hr : Reached read s.tree) (x : FreeMonoid α) : StepOK read C s (applyProbe read C s x) := by
-  have hOK := probe_ok read s.tree s.edges C.walkStart hs.edges x
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe
-  generalize probe read s.tree s.edges C.walkStart x = o at hOK
+  generalize probeOrAgree read s.tree s.edges C.walkStart x = o at hOK
   cases o with
   | agree =>
     simp only
@@ -468,11 +452,10 @@ theorem step_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.
     · trivial
     · have hc' : s.cleanRun + 1 < C.cleanProbesToEnd := by omega
       have hinv : Inv read C { s with cleanRun := s.cleanRun + 1 } :=
-        ⟨hs.edges, hs.recs_mem, hs.recs_lt, hs.und_lt, hs.und_read, hc', hs.size⟩
+        ⟨hs.edges, hs.recs_mem, hs.recs_lt, hs.und_lt, hc', hs.size⟩
       exact ⟨hinv, hr, Θ_lt_same read C hs hinv rfl rfl rfl le_rfl (Or.inl rfl)⟩
   | undecided k zs cl =>
-    obtain ⟨hk, hzs, hu⟩ := hOK
-    exact charge_ok read C hs hr hk hu hzs
+    exact charge_ok read C hs hr hOK.1 hOK.2.1
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
     refine ⟨inv_fresh read C hm hh hn (edgesOK_upd read hs.edges hu huc) hs.size, hr, ?_⟩
@@ -507,7 +490,7 @@ theorem step_ok (hI : IdealReads read M side) (hcap : Fintype.card σ + 2 ≤ C.
       refine Θ_lt_change C hn _ _ _ (Ψ_lt_upd C hp _ _ ?_)
       simp [wt, newHypothesis, hE, hmv]
     · have hinv : Inv read C { s with records := s.records ++ [(p, c, t)], cleanRun := 0 } := by
-        refine ⟨hs.edges, ?_, ?_, hs.und_lt, hs.und_read,
+        refine ⟨hs.edges, ?_, ?_, hs.und_lt,
           show 0 < C.cleanProbesToEnd by have := hs.clean_lt; omega, hs.size⟩
         · intro r hr'
           rcases List.mem_append.1 hr' with hr' | hr'
