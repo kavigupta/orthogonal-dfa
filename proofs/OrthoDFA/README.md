@@ -150,9 +150,10 @@ settings.
 - **The middles field is per search.** A search makes up to `(L + 1)(n + 1)` first reads, and in a
   tree of depth `n + 1` at good read-states it stops undecided with chance near `1 − e^{−1.5θ R}`
   for `R` its reads, so the bound is the worst case, not slack. `pt_mean_le` unions over every
-  position a search could stop at; the bisection sifts at most `2 + 3⌈log₂ L⌉` of them, which
-  would raise `θ`'s cap by `(L + 1)/(2 + 3⌈log₂ L⌉)` (1.8× at `L = 30`, 3× at `L = 60`), but
-  needs an adaptive, first-read count of the middles like `edge_first_mean`'s.
+  position a search could stop at; the bisection, which stops at its first undecided midpoint,
+  sifts at most `⌈log₂ L⌉` of them, which would raise `θ`'s cap by `(L + 1)/⌈log₂ L⌉` (6× at
+  `L = 30`, 10× at `L = 60`), but needs an adaptive, first-read count of the middles like
+  `edge_first_mean`'s.
 - **`prefixMax` and `k`.** Every field concentrates over the probes' length-`k` prefixes, with a
   union over the class and its edge maps. The planned replacement (a): the tests count each string
   once, at its first read in the round, and a harvest is judged over those new strings; each new
@@ -231,7 +232,9 @@ settings.
   `Proofs/Level4RiskDefs.lean` holds the internal bound (`Level4RoundRisk`, `Level4RiskBound`),
   and `Proofs/Level4Correct.lean` derives the claim from it at the chosen settings.
   `Proofs/Level4Parts.lean` states its parts, as sub-rounds. Probes walk from `k` as `sifting.read`
-  does; a clean disagreement records its prefix and target at its edge. Each place keeps its count
+  does, and a disagreement is searched by main's bisection without recovery
+  (`bisectBoundary false`), which stops at its first undecided midpoint; a clean disagreement
+  records its prefix and target at its edge. Each place keeps its count
   over the round: the start's undecided read strings, and each edge's first reads and those of them
   read undecided; the start's undecided rate above `θs`, or an edge's undecided first reads
   exceeding `θe` of its first reads by `exc` of them, harvests; the stretch's rate of searches

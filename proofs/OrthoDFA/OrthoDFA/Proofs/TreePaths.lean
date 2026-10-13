@@ -1,7 +1,7 @@
 import OrthoDFA.StartAtK
 import OrthoDFA.Pass
 import Mathlib.Analysis.SpecialFunctions.Log.Base
-import OrthoDFA.Proofs.HarvestClasses
+import OrthoDFA.Proofs.MidBound
 
 /-!
 # Leaves' paths

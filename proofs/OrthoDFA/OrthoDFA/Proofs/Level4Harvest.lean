@@ -762,7 +762,7 @@ theorem recordProbe_stretch (s : Level4State α) (x : FreeMonoid α) :
         ∧ (recordProbe C cut s x).stretchDisagreements = 0
       ∧ ¬ (probeBy cut s.tree s.edges C.walkStart x).IsSearch) := by
   unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | j | u <;>
+  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
   · left; simp [Level4State.countProbe, Outcome.IsSearch]
   · left; simp [Level4State.countProbe, Outcome.IsSearch]
@@ -771,7 +771,6 @@ theorem recordProbe_stretch (s : Level4State α) (x : FreeMonoid α) :
   · left
     rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;>
       simp [Level4State.countProbe, Level4State.addRecord, Outcome.IsSearch]
-  · left; simp [Level4State.countProbe, Outcome.IsSearch]
   · rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · left; simp [Level4State.countProbe, Outcome.IsSearch]
     rcases s.tree.siftCut cut u with p | b <;> try dsimp only
@@ -806,7 +805,7 @@ theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edge
     {x : FreeMonoid α} :
     x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
   simp only [searchAt_eq, Set.mem_setOf_eq]
-  rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ | _ <;>
+  rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
     simp [Outcome.IsSearch]
 
 theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
@@ -814,7 +813,7 @@ theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) 
   rintro x ⟨b, hb, -⟩
   rw [mem_searchAt]
   unfold middleHarvestBy at hb
-  rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ | _ <;>
+  rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
     rw [ho] at hb <;> simp_all [Outcome.IsSearch]
 
 /-- From a state of the class, within the stretch, the undecided middles reach `k` more at the

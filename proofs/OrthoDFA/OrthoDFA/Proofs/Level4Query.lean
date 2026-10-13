@@ -104,12 +104,6 @@ end Sift
 
 section Bracket
 
-theorem run_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : FreeMonoid α → ARU)
-    (agrees : ℕ → Option Bool) (h : ∀ i, (agreementQuery i).run rd = agrees i) (lo hi p : ℕ) :
-    (agAt agreementQuery lo hi p).run rd
-      = if p = lo then some true else if p = hi then some false else agrees p := by
-  unfold agAt; split_ifs <;> simp [QTree.run, h]
-
 theorem run_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool))
     (rd : FreeMonoid α → ARU) (agrees : ℕ → Option Bool)
     (h : ∀ i, (agreementQuery i).run rd = agrees i) :
@@ -117,36 +111,15 @@ theorem run_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) 
         = bracketAt agrees ps fuel lo hi
   | 0, _, _ => rfl
   | fuel + 1, lo, hi => by
-    have hag := run_agAt agreementQuery rd agrees h lo hi
     simp only [bracketQuery, bracketAt]
     by_cases hlh : lo + 1 < hi
     swap
     · rw [if_neg hlh, if_neg hlh]; rfl
-    rw [if_pos hlh, if_pos hlh, QTree.run_bind, hag]
-    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
-      else agrees ((lo + hi) / 2)) = vm
-    rcases vm with _ | _ | _ <;> simp only []
-    · rw [QTree.run_bind, hag]
-      generalize (if (lo + hi) / 2 - 1 = lo then some true
-        else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = vl
-      rcases vl with _ | bl <;> simp only [QTree.run]
-      rw [QTree.run_bind, hag]
-      generalize (if (lo + hi) / 2 + 1 = lo then some true
-        else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = vr
-      rcases vr with _ | br <;> cases bl <;> (try cases br) <;> simp only [QTree.run] <;>
-        exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
+    rw [if_pos hlh, if_pos hlh, QTree.run_bind, h]
+    rcases agrees ((lo + hi) / 2) with _ | _ | _
+    · rfl
     · exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
     · exact run_bracketQuery agreementQuery ps rd agrees h fuel _ _
-
-theorem asks_agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (rd : FreeMonoid α → ARU)
-    (lo hi p : ℕ)
-    (q : ReadLabel α × FreeMonoid α) (hq : q ∈ (agAt agreementQuery lo hi p).asks rd) :
-    p ≠ lo ∧ p ≠ hi ∧ q ∈ (agreementQuery p).asks rd := by
-  unfold agAt at hq
-  split_ifs at hq with h1 h2
-  · simp [QTree.asks] at hq
-  · simp [QTree.asks] at hq
-  · exact ⟨h1, h2, hq⟩
 
 /-- The bisection reads only through `agreementQuery`, at positions strictly inside its range that
 `bracketSifts` lists. -/
@@ -157,7 +130,6 @@ theorem asks_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool))
       ∃ i, i ∈ bracketSifts agrees fuel lo hi ∧ lo < i ∧ i < hi ∧ q ∈ (agreementQuery i).asks rd
   | 0, _, _, q, hq => by simp [bracketQuery, QTree.asks] at hq
   | fuel + 1, lo, hi, q, hq => by
-    have hag := run_agAt agreementQuery rd agrees h lo hi
     simp only [bracketQuery] at hq
     simp only [bracketSifts]
     by_cases hlh : lo + 1 < hi
@@ -166,51 +138,16 @@ theorem asks_bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool))
     rw [if_pos hlh] at hq
     rw [if_pos hlh]
     have hmid : lo < (lo + hi) / 2 ∧ (lo + hi) / 2 < hi := by omega
-    have hrec : ∀ lo' hi', lo ≤ lo' → hi' ≤ hi → q ∈ (bracketQuery agreementQuery ps fuel lo'
-        hi').asks rd →
-        ∃ i, i ∈ bracketSifts agrees fuel lo' hi' ∧ lo < i ∧ i < hi
-            ∧ q ∈ (agreementQuery i).asks rd := by
-      intro lo' hi' h1 h2 hq'
-      obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel lo' hi' q
-          hq'
-      exact ⟨i, hi', by omega, by omega, hq'⟩
-    rw [QTree.asks_bind, hag, List.mem_append] at hq
-    generalize hvm : (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then
-      some false else agrees ((lo + hi) / 2)) = vm at hq ⊢
+    rw [QTree.asks_bind, List.mem_append, h] at hq
     rcases hq with hq | hq
-    · obtain ⟨-, -, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
-      refine ⟨(lo + hi) / 2, ?_, hmid.1, hmid.2, hq⟩
-      rcases vm with _ | _ | _ <;> simp only [List.mem_cons, true_or]
-      split <;> simp
-    rcases vm with _ | _ | _ <;> simp only [] at hq ⊢
-    · rw [QTree.asks_bind, hag, List.mem_append] at hq
-      generalize hvl : (if (lo + hi) / 2 - 1 = lo then some true
-        else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = vl
-        at hq ⊢
-      rcases hq with hq | hq
-      · obtain ⟨h1, -, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
-        refine ⟨(lo + hi) / 2 - 1, ?_, by omega, by omega, hq⟩
-        split <;> simp
-      rcases vl with _ | bl <;> simp only [QTree.asks, List.not_mem_nil] at hq ⊢
-      rw [QTree.asks_bind, hag, List.mem_append] at hq
-      generalize hvr : (if (lo + hi) / 2 + 1 = lo then some true
-        else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = vr
-        at hq ⊢
-      rcases hq with hq | hq
-      · obtain ⟨-, h2, hq⟩ := asks_agAt agreementQuery rd lo hi _ q hq
-        refine ⟨(lo + hi) / 2 + 1, ?_, by omega, by omega, hq⟩
-        cases bl <;> rcases vr with _ | _ | _ <;> simp
-      cases bl <;> rcases vr with _ | _ | _ <;> simp only [QTree.asks, List.not_mem_nil] at hq ⊢
-      · obtain ⟨i, hi', h3⟩ := hrec _ _ le_rfl (by omega) hq
-        exact ⟨i, by simp [hi'], h3⟩
-      · obtain ⟨i, hi', h3⟩ := hrec _ _ le_rfl (by omega) hq
-        exact ⟨i, by simp [hi'], h3⟩
-      · obtain ⟨i, hi', h3⟩ := hrec _ _ (by omega) le_rfl hq
-        exact ⟨i, by simp [hi'], h3⟩
-    · obtain ⟨i, hi', h3⟩ := hrec _ _ le_rfl (by omega) hq
-      exact ⟨i, by simp [hi'], h3⟩
-    · obtain ⟨i, hi', h3⟩ := hrec _ _ (by omega) le_rfl hq
-      exact ⟨i, by simp [hi'], h3⟩
+    · refine ⟨(lo + hi) / 2, ?_, hmid.1, hmid.2, hq⟩
+      rcases agrees ((lo + hi) / 2) with _ | _ | _ <;> simp
+    rcases hm : agrees ((lo + hi) / 2) with _ | _ | _ <;> simp only [hm, QTree.asks,
+      List.not_mem_nil] at hq ⊢
+    · obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel _ _ q hq
+      exact ⟨i, by simp [hi'], by omega, by omega, hq'⟩
+    · obtain ⟨i, hi', h3, h4, hq'⟩ := asks_bracketQuery agreementQuery ps rd agrees h fuel _ _ q hq
+      exact ⟨i, by simp [hi'], by omega, by omega, hq'⟩
 
 end Bracket
 
@@ -278,7 +215,8 @@ theorem walkToBy_of_sift {p₀ : List Bool}
 theorem run_probeQuery : (probeQuery T edges k x).run rd
     = probeBy (fun z => (rd z).cut) T edges k x := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  unfold probeQuery probeBy walkCheckBy kWalkBy
+  rw [probeBy_eq]
+  unfold probeQuery walkCheckBy kWalkBy
   by_cases hshort : x.toList.length < k
   · simp only [if_pos hshort, QTree.run]
   rw [if_neg hshort, if_neg hshort, QTree.run_bind, run_siftQuery]

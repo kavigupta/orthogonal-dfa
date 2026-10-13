@@ -100,8 +100,7 @@ theorem search_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
     show (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
     have hlong : ¬ x.toList.length < k := fun hs => by
       simp [S', probeBy, hs, Outcome.IsSearch] at hω
-    unfold probeBy
-    rw [if_neg hlong, hw']
+    rw [probeBy_eq, if_neg hlong, hw']
     exact bracketAt_isSearch _ _ _ _ _
   have heqset : {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
       ∧ read z ω = .undecided} = S' ∩ {ω | read z ω = .undecided} := by
@@ -173,7 +172,7 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
     intro ω hω
     obtain ⟨b, hb, hg⟩ := hω
     unfold middleHarvestBy at hb
-    rcases ho : probeBy (fun y => (read y ω).cut) T edges k x with _ | _ | _ | j | _ | j | _ <;>
+    rcases ho : probeBy (fun y => (read y ω).cut) T edges k x with _ | _ | _ | j | _ | _ <;>
       rw [ho] at hb <;> simp only [reduceCtorEq] at hb
     all_goals first
       | (simp at hb)
@@ -186,10 +185,7 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
       subst hb
       obtain ⟨m, hm, rfl, hcm⟩ := siftCut_inr T (prefixOf x j) b' hs
       obtain ⟨ps, hi, -, hbr⟩ := probeBy_search _ ho trivial
-      have hjk : k < j := by
-        first
-          | exact bracketAt_pair_gt _ _ _ _ _ _ hbr
-          | exact bracketAt_triple_gt _ _ _ _ _ _ hbr
+      have hjk : k < j := (bracketAt_mid _ _ _ _ _ _ hbr).1
       set j' := min j x.toList.length
       have hpj : prefixOf x j = prefixOf x j' := by
         simp only [prefixOf, j']

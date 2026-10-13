@@ -42,7 +42,7 @@ theorem recordProbe_cases (s : Level4State α) (x : FreeMonoid α) :
         ∧ ∀ q c', (recordProbe C cut s x).edges q c' = if (q, c') = (p, c) then some e
           else s.edges q c')) := by
   unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | j | u <;>
+  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
   · simp [Level4State.countProbe, Outcome.IsSearch]
   · simp [Level4State.countProbe, Outcome.IsSearch]
@@ -50,7 +50,6 @@ theorem recordProbe_cases (s : Level4State α) (x : FreeMonoid α) :
   · simp [Level4State.countProbe, Outcome.IsSearch]
   · rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;>
       simp [Level4State.countProbe, Level4State.addRecord, Outcome.IsSearch]
-  · simp [Level4State.countProbe, Outcome.IsSearch]
   · rcases hc : x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · simp [Level4State.countProbe, Outcome.IsSearch]
     rcases hp : s.tree.siftCut cut u with p | b <;> try dsimp only
@@ -76,10 +75,10 @@ theorem recordProbe_recs (s : Level4State α) (x : FreeMonoid α) :
     intro o ho hne
     unfold recordBy
     rw [ho]
-    rcases o with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _
+    rcases o with _ | _ | _ | _ | ⟨ps, fd⟩ | _
     all_goals first | rfl | exact absurd rfl (hne _ _)
   unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | j | u <;>
+  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
   all_goals first
     | (left; exact ⟨hn _ ho (by simp), rfl⟩)
@@ -460,48 +459,16 @@ section Outcomes
 
 variable (cut : FreeMonoid α → Option Bool)
 
-omit [Fintype α] [DecidableEq α] in
-/-- A search stopping at a pair or a triple stops at an undecided read. -/
-theorem bracketAt_none (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
-    ∀ fuel lo hi j, (bracketAt (α := α) agrees ps fuel lo hi = .pair j
-      ∨ bracketAt (α := α) agrees ps fuel lo hi = .triple j) → agrees j = none
-  | 0, _, _, _, h => by simp [bracketAt] at h
-  | fuel + 1, lo, hi, j, h => by
-    have key : ∀ q, (if q = lo then some true else if q = hi then some false else agrees q)
-        = none → agrees q = none := fun q hq => by split_ifs at hq; exact hq
-    simp only [bracketAt] at h
-    by_cases hlh : lo + 1 < hi
-    swap
-    · simp only [if_neg hlh] at h; simp at h
-    simp only [if_pos hlh] at h
-    have k1 := key ((lo + hi) / 2)
-    have k2 := key ((lo + hi) / 2 - 1)
-    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
-      else agrees ((lo + hi) / 2)) = v at h k1
-    generalize (if (lo + hi) / 2 - 1 = lo then some true
-      else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = l at h k2
-    generalize (if (lo + hi) / 2 + 1 = lo then some true
-      else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = r at h
-    rcases v with _ | _ | _
-    · rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;>
-        simp only [reduceCtorEq, or_false, false_or, Outcome.pair.injEq,
-          Outcome.triple.injEq] at h
-      all_goals first
-        | exact bracketAt_none agrees ps fuel _ _ j h
-        | (subst h; first | exact k2 rfl | exact k1 rfl)
-    · exact bracketAt_none agrees ps fuel _ _ j h
-    · exact bracketAt_none agrees ps fuel _ _ j h
-
 /-- A search ends at an undecided middle, or records. -/
 theorem search_cases {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     (h : (probeBy cut T E k x).IsSearch) :
     middleHarvestBy cut T E k x ≠ [] ∨ ∃ pct sp, recordBy cut k (T, E) x = some (pct, sp) := by
   obtain ⟨ps₀, hi, hw, hb⟩ := probeBy_search cut rfl h
   obtain ⟨p₀, hk, hf, hkh, hhx, hag⟩ := walkCheckBy_inr cut hw
-  rcases ho : probeBy cut T E k x with _ | _ | _ | j | ⟨ps, fd⟩ | j | _ <;> rw [ho] at h hb <;>
+  rcases ho : probeBy cut T E k x with _ | _ | _ | j | ⟨ps, fd⟩ | _ <;> rw [ho] at h hb <;>
     simp only [Outcome.IsSearch] at h
   · left
-    have := bracketAt_none _ ps₀ _ _ _ j (.inl hb)
+    have := (bracketAt_mid _ ps₀ _ _ _ j hb).2.2
     unfold middleHarvestBy
     rw [ho]
     simp only [agreesAtBy] at this
@@ -524,14 +491,6 @@ theorem search_cases {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid
     rcases ht : T.siftCut cut (prefixOf x fd) with t | b <;> rw [ht] at hfd
     · exact ⟨_, _, rfl⟩
     · simp at hfd
-  · left
-    have := bracketAt_none _ ps₀ _ _ _ j (.inr hb)
-    unfold middleHarvestBy
-    rw [ho]
-    simp only [agreesAtBy] at this
-    rcases hs : T.siftCut cut (prefixOf x j) with _ | b <;> rw [hs] at this
-    · simp at this
-    · simp [hs]
 
 /-- A record is at a leaf, out along an edge not already pointing at its target, a leaf. -/
 theorem rec_keys {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
@@ -757,7 +716,7 @@ def recAt (s : Level4State α) : Set (FreeMonoid α) :=
 theorem middleHarvestBy_search {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     (h : middleHarvestBy cut T E k x ≠ []) : (probeBy cut T E k x).IsSearch := by
   unfold middleHarvestBy at h
-  rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
+  rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
     simp_all [Outcome.IsSearch]
 
 open scoped Classical in

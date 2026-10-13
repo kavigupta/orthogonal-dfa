@@ -1,6 +1,6 @@
 import OrthoDFA.Proofs.Level4Noise
-import OrthoDFA.Proofs.HarvestClasses
-import OrthoDFA.Proofs.TripleBound
+import OrthoDFA.Proofs.MidBound
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # What a probe depends on
@@ -60,7 +60,7 @@ theorem walkCheckBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
 
 theorem probeBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     probeBy cut T e k x = probeBy cut T e' k x := by
-  simp only [probeBy, walkCheckBy_econgr (x := x) (k := k) (cut := cut) he h]
+  simp only [probeBy_eq, walkCheckBy_econgr (x := x) (k := k) (cut := cut) he h]
 
 theorem middleHarvestBy_econgr (he : EdgesInto T e) (h : TgtAgree T e e') :
     middleHarvestBy cut T e k x = middleHarvestBy cut T e' k x := by
@@ -142,12 +142,9 @@ theorem bracketAt_congr (ps : List (List Bool)) :
   | fuel + 1, lo, hi, ag, ag', h => by
     simp only [bracketAt]
     by_cases hlh : lo + 1 < hi
-    · rw [if_pos hlh, if_pos hlh, h ((lo + hi) / 2) (by omega), h ((lo + hi) / 2 - 1) (by omega),
-        h ((lo + hi) / 2 + 1) (by omega),
+    · rw [if_pos hlh, if_pos hlh, h ((lo + hi) / 2) (by omega),
         bracketAt_congr ps fuel ((lo + hi) / 2) hi ag ag' (fun i hi' => h i (by omega)),
-        bracketAt_congr ps fuel lo ((lo + hi) / 2) ag ag' h,
-        bracketAt_congr ps fuel ((lo + hi) / 2 + 1) hi ag ag' (fun i hi' => h i (by omega)),
-        bracketAt_congr ps fuel lo ((lo + hi) / 2 - 1) ag ag' h]
+        bracketAt_congr ps fuel lo ((lo + hi) / 2) ag ag' h]
     · rw [if_neg hlh, if_neg hlh]
 
 theorem kWalkBy_congrK (h : PrefAgreeK cut cut' t x k) :
@@ -186,7 +183,7 @@ theorem walkCheckBy_congrK (h : PrefAgreeK cut cut' t x k) :
 
 theorem probeBy_congrK (h : PrefAgreeK cut cut' t x k) :
     probeBy cut t edges k x = probeBy cut' t edges k x := by
-  unfold probeBy
+  rw [probeBy_eq, probeBy_eq]
   split_ifs
   · rfl
   rw [walkCheckBy_congrK (edges := edges) h]
@@ -199,17 +196,14 @@ theorem middleHarvestBy_congrK (h : PrefAgreeK cut cut' t x k) :
     middleHarvestBy cut t edges k x = middleHarvestBy cut' t edges k x := by
   unfold middleHarvestBy
   rw [probeBy_congrK (edges := edges) h]
-  rcases ho : probeBy cut' t edges k x with _ | _ | _ | j | _ | j | _
+  rcases ho : probeBy cut' t edges k x with _ | _ | _ | j | _ | _
   · rfl
   · rfl
   · rfl
   · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut' ho trivial
-    have := bracketAt_pair_gt _ _ _ _ _ _ hb
-    simp only [h j this.le]
+    have := bracketAt_mid _ _ _ _ _ _ hb
+    simp only [h j this.1.le]
   · rfl
-  · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut' ho trivial
-    have := bracketAt_triple_gt _ _ _ _ _ _ hb
-    simp only [h j this.le]
   · rfl
 
 end CutK

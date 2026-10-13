@@ -89,32 +89,9 @@ theorem bracketAt_edge (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
       ps' = ps ∧ lo < j ∧ j ≤ hi ∧ agrees (j - 1) = some true ∧ agrees j = some false
   | 0, lo, hi, ps', j, hlt, hf, _, _, _ => by omega
   | fuel + 1, lo, hi, ps', j, hlt, hf, hlo, hhi, h => by
-    have hag : ∀ p, (if p = lo then some true else if p = hi then some false else agrees p)
-        = agrees p := fun p => by split_ifs <;> simp_all
-    simp only [bracketAt, hag] at h
+    simp only [bracketAt] at h
     split_ifs at h with h1
-    · rcases hm : agrees ((lo + hi) / 2) with _ | _ | _ <;> simp only [hm] at h
-      · rcases hl : agrees ((lo + hi) / 2 - 1) with _ | _ | _ <;>
-          rcases hr : agrees ((lo + hi) / 2 + 1) with _ | _ | _ <;>
-          simp only [hl, hr, reduceCtorEq] at h
-        · have : lo < (lo + hi) / 2 - 1 := by
-            rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
-            · exact h'
-            · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
-          have := bracketAt_edge agrees ps fuel lo _ ps' j this (by omega) hlo hl h
-          exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
-        · have : lo < (lo + hi) / 2 - 1 := by
-            rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
-            · exact h'
-            · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
-          have := bracketAt_edge agrees ps fuel lo _ ps' j this (by omega) hlo hl h
-          exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
-        · have : (lo + hi) / 2 + 1 < hi := by
-            rcases Nat.lt_or_ge ((lo + hi) / 2 + 1) hi with h' | h'
-            · exact h'
-            · rw [show (lo + hi) / 2 + 1 = hi by omega, hhi] at hr; simp at hr
-          have := bracketAt_edge agrees ps fuel _ hi ps' j this (by omega) hr hhi h
-          exact ⟨this.1, by omega, this.2.2⟩
+    · rcases hm : agrees ((lo + hi) / 2) with _ | _ | _ <;> simp only [hm, reduceCtorEq] at h
       · have := bracketAt_edge agrees ps fuel lo _ ps' j (by omega) (by omega) hlo hm h
         exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
       · have := bracketAt_edge agrees ps fuel _ hi ps' j (by omega) (by omega) hm hhi h
@@ -123,9 +100,30 @@ theorem bracketAt_edge (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
       obtain rfl : hi = lo + 1 := by omega
       exact ⟨rfl, by omega, le_rfl, by simpa using hlo, hhi⟩
 
+omit [Fintype α] [DecidableEq α] in
+/-- Level 4's search is main's bisection without recovery. -/
+theorem bracketAt_eq_bisect (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
+    ∀ fuel lo hi, hi - lo ≤ fuel →
+      bracketAt (α := α) agrees ps fuel lo hi
+        = searchOutcome ps (bisectBoundary false agrees lo hi).1
+  | 0, lo, hi, h => by
+    rw [bisectBoundary, dif_pos (by omega)]
+    rfl
+  | fuel + 1, lo, hi, h => by
+    rw [bisectBoundary]
+    simp only [bracketAt]
+    by_cases h1 : lo + 1 < hi
+    · rw [if_pos h1, dif_neg (by omega)]
+      rcases hm : agrees ((lo + hi) / 2) with _ | _ | _
+      · rfl
+      · exact bracketAt_eq_bisect agrees ps fuel lo _ (by omega)
+      · exact bracketAt_eq_bisect agrees ps fuel _ hi (by omega)
+    · rw [if_neg h1, dif_pos (by omega)]
+      rfl
+
 /-- The outcomes a search ends at. -/
 def Outcome.IsSearch : Outcome α → Prop
-  | .pair _ | .edge _ _ | .triple _ => True
+  | .undecidedMid _ | .edge _ _ => True
   | _ => False
 
 omit [Fintype α] [DecidableEq α] in
@@ -135,11 +133,10 @@ theorem bracketAt_isSearch (agrees : ℕ → Option Bool) (ps : List (List Bool)
   | fuel + 1, lo, hi => by
     simp only [bracketAt]
     split
-    · split
+    · rcases agrees ((lo + hi) / 2) with _ | _ | _
+      · trivial
       · exact bracketAt_isSearch agrees ps fuel _ _
       · exact bracketAt_isSearch agrees ps fuel _ _
-      · split
-        all_goals first | trivial | exact bracketAt_isSearch agrees ps fuel _ _
     · trivial
 
 end Learned
