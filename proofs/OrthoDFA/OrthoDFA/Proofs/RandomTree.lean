@@ -16,7 +16,7 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (probe Outcome retarget EdgesOK Reached OutcomeOK)
+open OrthoDFA.Ideal (probe probeOrAgree Outcome retarget EdgesOK Reached OutcomeOK)
 
 variable {α : Type*}
 
@@ -214,13 +214,6 @@ theorem Ψr_start (h2 : 2 ≤ C.maxLeaves) :
   rw [hC]
   omega
 
-theorem probeOrAgree_ok {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) (k : ℕ)
-    (x : FreeMonoid α) : OutcomeOK read T E (probeOrAgree read T E k x) := by
-  unfold probeOrAgree
-  split_ifs
-  · trivial
-  · exact Ideal.probe_ok read T E k hE x
-
 theorem finish_inl {t s' : Level3State α} (h : applyTests C t = .inl s') : s' = t
     ∧ runTests C t = none := by
   unfold applyTests at h
@@ -260,7 +253,7 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read C 
         ∧ runTests C s' = none
         ∧ ∀ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t →
           ¬ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t)) := by
-  have hOK := probeOrAgree_ok read hs.edges C.walkStart x
+  have hOK := Ideal.probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
   generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
@@ -411,7 +404,7 @@ theorem step_tooBig {s : Level3State α} (hs : Inv read C s) {x : FreeMonoid α}
       s.redirected (p, c) = true ∧ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
       C.maxLeaves < (s.tree.splitAt
         (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length := by
-  have hOK := probeOrAgree_ok read hs.edges C.walkStart x
+  have hOK := Ideal.probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   have hlook : ∀ t : Level3State α, applyTests C t ≠ .inr .failed := by
     intro t ht
     unfold applyTests runTests at ht

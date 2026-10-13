@@ -41,11 +41,13 @@
   end it.
 - `OrthoDFA/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
   random, its counts kept over the stretch since the hypothesis last changed and tested after
-  every probe.
+  every probe. A probe's undecided strings at an edge are counted once. A harvest is the site whose
+  test fired.
 - `OrthoDFA/Level3Claim.lean` — `RandomRoundCorrect`: with every string's read drawn once,
   independently, undecided with its state's chance and never on its state's wrong side, level 3
-  on `C.probeBudget` probes fails to end well with chance at most `roundRisk` plus
-  `exp(−1.5θ c/(16 q))`, its harvest's replay yielding `0.75θ c / n`.
+  on `C.probeBudget` probes fails to end well, a harvest's sampler yielding `y`, with chance at
+  most `roundRisk`. The sampler (`harvestLaw`) draws a fresh probe, walks it under the final
+  hypothesis and finds the probe's undecided strings at the site, as the tests counted them.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

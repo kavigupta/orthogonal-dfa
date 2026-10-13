@@ -9,12 +9,11 @@ a clean disagreement records its edge and target, `recordsToMove` records redire
 once it has been redirected, split its leaf, and a probe at an unlearned edge learns it. A probe
 shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over the stretch
 since the hypothesis last changed, feed the tests of level 4, checked after every probe:
-* the start's undecided rate above `startRate` (`rateSide`) harvests the start's undecided
-  strings;
+* the start's undecided rate above `startRate` (`rateSide`) harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
-  its reads by `edgeExcess` harvests them;
+  its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
 * with searches at least `searchShare` of the probes, the searches stopping at an undecided middle
-  above `middleRate` of them harvest those middles;
+  above `middleRate` of them harvest the middles;
 * the disagreement rate settling below `disagreementRate` ends the round consistent.
 -/
 
@@ -22,7 +21,7 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (siftAgrees probe Outcome retarget)
+open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome retarget)
 
 variable {α : Type*}
 
@@ -71,9 +70,6 @@ def probePositions : (ℕ → List Bool) × List ℕ :=
       | .inl _ => (st, (hi + 1) :: searched)
     | none => (st, searched)
 
-/-- A probe, which counts as agreeing where it is shorter than `k`. -/
-def probeOrAgree : Outcome α := if x.toList.length < k then .agree else probe read T E k x
-
 /-- What each position the probe sifts past its start adds to its edge's counts: the reads, and
 the string read undecided, if any. -/
 def positionReads : List (List Bool × α × ℕ × Option (FreeMonoid α)) :=
@@ -89,13 +85,21 @@ end Probe
 
 variable [DecidableEq α]
 
+/-- Where a harvest's strings were read: the start, an edge, or the middles searches stop at. -/
+inductive Level3Site (α : Type*)
+  | start
+  | edge (p : List Bool) (c : α)
+  | middles
+
 def readsAtEdge (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool) (c : α) :
     ℕ :=
   ((ch.filter fun e => e.1 = p ∧ e.2.1 = c).map fun e => e.2.2.1).sum
 
-def undecidedAtEdge (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool)
-    (c : α) : List (FreeMonoid α) :=
-  (ch.filter fun e => e.1 = p ∧ e.2.1 = c).filterMap fun e => e.2.2.2
+/-- The strings read undecided at the edge `(p, c)`, each once. -/
+noncomputable def undecidedAtEdge [Fintype α]
+    (ch : List (List Bool × α × ℕ × Option (FreeMonoid α))) (p : List Bool) (c : α) :
+    List (FreeMonoid α) :=
+  ((ch.filter fun e => e.1 = p ∧ e.2.1 = c).filterMap fun e => e.2.2.2).dedup
 
 /-- The probe searched: its walk and its sift parted at decided reads. -/
 def searches : Outcome α → Bool
@@ -158,7 +162,7 @@ section
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- A probe counted into the stretch. -/
-def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
+noncomputable def countProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
   let o := probeOrAgree read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
@@ -172,27 +176,29 @@ def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
 open scoped Classical in
 /-- The tests, in turn: the start's undecided rate, an edge's undecided reads, the undecided
 middles among the searches, and the disagreement rate. -/
-noncomputable def runTests [Fintype α] (s : Level3State α) : Option (RoundEnd α) :=
+noncomputable def runTests [Fintype α] (s : Level3State α) : Option (RoundEnd (Level3Site α)) :=
   if rateSide C.startRate C.testLevel C.firstLook s.probeCount s.startUndecided.length = some true
-  then some (.harvest s.startUndecided)
+  then some (.harvest .start)
   else if h : ∃ e ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α),
       C.edgeReadShare * s.probeCount ≤ s.edgeReads e.1 e.2
         ∧ C.edgeExcess + C.edgeRate * s.edgeReads e.1 e.2 ≤ (s.edgeUndecided e.1 e.2).length then
-    some (.harvest (s.edgeUndecided h.choose.1 h.choose.2))
+    some (.harvest (.edge h.choose.1 h.choose.2))
   else if C.searchShare * s.probeCount ≤ s.searchCount
       ∧ rateSide C.middleRate C.testLevel C.firstLook s.searchCount s.middleUndecided.length
         = some true then
-    some (.harvest s.middleUndecided)
+    some (.harvest .middles)
   else if rateSide C.disagreementRate C.testLevel C.firstLook s.probeCount s.searchCount
       = some false then some .consistent
   else none
 
-noncomputable def applyTests [Fintype α] (s : Level3State α) : Level3State α ⊕ RoundEnd α :=
+noncomputable def applyTests [Fintype α] (s : Level3State α) :
+    Level3State α ⊕ RoundEnd (Level3Site α) :=
   match runTests C s with
   | some e => .inr e
   | none => .inl s
 
-def splitLeaf (s : Level3State α) (p : List Bool) (d : FreeMonoid α) : Level3State α ⊕ RoundEnd α :=
+def splitLeaf (s : Level3State α) (p : List Bool) (d : FreeMonoid α) :
+    Level3State α ⊕ RoundEnd (Level3Site α) :=
   let T' := s.tree.splitAt d p
   if C.maxLeaves < T'.leaves.length then .inr .failed
   else .inl (newHypothesis T' (retarget read T' p s.edges) fun _ => false)
@@ -200,7 +206,7 @@ def splitLeaf (s : Level3State α) (p : List Bool) (d : FreeMonoid α) : Level3S
 /-- The edge `(p, c)` has `recordsToMove` records at `t`, with `u` at `p`: split where it has
 been redirected, else redirect it. -/
 def redirectOrSplit (s : Level3State α) (p : List Bool) (c : α) (u : FreeMonoid α)
-    (t : List Bool) : Level3State α ⊕ RoundEnd α :=
+    (t : List Bool) : Level3State α ⊕ RoundEnd (Level3Site α) :=
   match s.edges (p, c) with
   | some (t₀, _) =>
     if s.redirected (p, c) then
@@ -210,7 +216,7 @@ def redirectOrSplit (s : Level3State α) (p : List Bool) (c : α) (u : FreeMonoi
   | none => .inl s
 
 noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) :
-    Level3State α ⊕ RoundEnd α :=
+    Level3State α ⊕ RoundEnd (Level3Site α) :=
   match probeOrAgree read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
@@ -223,7 +229,7 @@ noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid �
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
 noncomputable def runProbes [Fintype α] :
-    Level3State α → List (FreeMonoid α) → Level3State α × RoundEnd α
+    Level3State α → List (FreeMonoid α) → Level3State α × RoundEnd (Level3Site α)
   | s, [] => (s, .failed)
   | s, x :: xs =>
     match applyProbe read C s x with
@@ -232,7 +238,7 @@ noncomputable def runProbes [Fintype α] :
 
 structure Level3Result (α : Type*) where
   hypothesis : Hypothesis α
-  ending : RoundEnd α
+  ending : RoundEnd (Level3Site α)
 
 end
 
