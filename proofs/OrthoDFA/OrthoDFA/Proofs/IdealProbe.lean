@@ -142,7 +142,8 @@ theorem outcomeOK_one {read : FreeMonoid α → ARU} {T : DTree α} {E : Edges �
 
 section Located
 
-variable (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool)
+variable {recover : Bool} (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
+  (st : ℕ → List Bool)
 
 theorem agrees_inl {p : ℕ} {l : List Bool} (h : T.sift read (prefixOf x p) = .inl l) :
     siftAgrees read T x st p = some (decide (l = st p)) := by
@@ -176,9 +177,10 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     (hun : ∀ c t, un = some (c, t) → x.toList[j]? = some c
       ∧ T.sift read (prefixOf x (j + 1)) = .inl t ∧ E (st j, c) = none) :
     OutcomeOK read T E
-      (searchOutcome read T x st un j (tripartiteSearch true (siftAgrees read T x st) k j).1) := by
-  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hkj
-  generalize (tripartiteSearch true (siftAgrees read T x st) k j).1 = r at hs
+      (searchOutcome read T x st un j
+        (tripartiteSearch recover (siftAgrees read T x st) k j).1) := by
+  have hs := tripartiteSearch_ok (recover := recover) (agrees := siftAgrees read T x st) hkj
+  generalize (tripartiteSearch recover (siftAgrees read T x st) k j).1 = r at hs
   have hcell : ∀ p, k ≤ p → p ≤ j → SiteOK T (siteAt x st p) := by
     intro p h1 h2
     unfold siteAt
@@ -209,7 +211,10 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     obtain ⟨h1, h2, -, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
     exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
-  | undecidedMid p => exact absurd hs.1 (by simp)
+  | undecidedMid p =>
+    obtain ⟨-, h1, h2, h3⟩ := hs
+    obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
+    exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
   | pair p =>
     obtain ⟨h1, h2, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
@@ -219,9 +224,9 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
 theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k ≤ j)
     (hk : siftAgrees read T x st k = some true) (hj : siftAgrees read T x st j = some false) :
     (searchOutcome read T x st un j
-      (tripartiteSearch true (siftAgrees read T x st) k j).1).clean = false := by
-  have hs := tripartiteSearch_ok (recover := true) (agrees := siftAgrees read T x st) hkj
-  generalize (tripartiteSearch true (siftAgrees read T x st) k j).1 = r at hs
+      (tripartiteSearch recover (siftAgrees read T x st) k j).1).clean = false := by
+  have hs := tripartiteSearch_ok (recover := recover) (agrees := siftAgrees read T x st) hkj
+  generalize (tripartiteSearch recover (siftAgrees read T x st) k j).1 = r at hs
   cases r with
   | undecidedLo => simp [SearchOK, hk] at hs
   | disagreeLo => simp [SearchOK, hk] at hs
@@ -234,7 +239,7 @@ theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k
 
 end Located
 
-variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
+variable (recover : Bool) (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
 
 /-- Every learned edge out of a leaf is witnessed. -/
 def EdgesOK : Prop :=
@@ -242,7 +247,7 @@ def EdgesOK : Prop :=
     T.sift read w = .inl q ∧ T.sift read (w * FreeMonoid.of c) = .inl t
 
 theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
-    OutcomeOK read T E (probe read T E k x) := by
+    OutcomeOK read T E (probe recover read T E k x) := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z
   · simp only
@@ -291,14 +296,14 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
   · exact outcomeOK_one (k := .start) trivial (DTree.sift_inr read T _ z ha)
 
 theorem probeOrAgree_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
-    OutcomeOK read T E (probeOrAgree read T E k x) := by
+    OutcomeOK read T E (probeOrAgree recover read T E k x) := by
   unfold probeOrAgree
   split_ifs
   · trivial
-  · exact probe_ok read T E k hE x
+  · exact probe_ok recover read T E k hE x
 
 theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
-    (probe read T E k x).clean = false := by
+    (probe recover read T E k x).clean = false := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   dsimp only at ha hq he
   obtain ⟨hlen, hlast⟩ := run_walk E a _ q hq
@@ -340,10 +345,10 @@ theorem disagrees_long {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
   exact hne (hq.symm.trans ha.symm)
 
 theorem probeOrAgree_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
-    (probeOrAgree read T E k x).clean = false := by
+    (probeOrAgree recover read T E k x).clean = false := by
   unfold probeOrAgree
   rw [if_neg (by have := disagrees_long read T E k h; omega)]
-  exact probe_disagrees read T E k h
+  exact probe_disagrees recover read T E k h
 
 end Ideal
 

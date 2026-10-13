@@ -89,8 +89,9 @@ theorem sift_true (read : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : FreeM
 
 /-- Two states at different true leaves part at the node where their paths part. -/
 theorem leafOf_part : ∀ (T : DTree α) (q₁ q₂ : σ), leafOf M side T q₁ ≠ leafOf M side T q₂ →
-    side (M.evalFrom q₁ (T.midAt (commonPrefix (leafOf M side T q₁) (leafOf M side T q₂))).toList)
-      ≠ side (M.evalFrom q₂ (T.midAt (commonPrefix (leafOf M side T q₁)
+    side (M.evalFrom q₁
+        (T.midfixAt (commonPrefix (leafOf M side T q₁) (leafOf M side T q₂))).toList)
+      ≠ side (M.evalFrom q₂ (T.midfixAt (commonPrefix (leafOf M side T q₁)
           (leafOf M side T q₂))).toList)
   | .leaf, q₁, q₂, h => by simp [leafOf] at h
   | .node m r a, q₁, q₂, h => by
@@ -98,17 +99,17 @@ theorem leafOf_part : ∀ (T : DTree α) (q₁ q₂ : σ), leafOf M side T q₁ 
     by_cases h1 : side (M.evalFrom q₁ m.toList) <;> by_cases h2 : side (M.evalFrom q₂ m.toList)
     · rw [if_pos h1, if_pos h2] at h ⊢
       have h' : leafOf M side a q₁ ≠ leafOf M side a q₂ := fun e => h (by rw [e])
-      simpa [commonPrefix, DTree.midAt] using leafOf_part a q₁ q₂ h'
-    · rw [if_pos h1, if_neg h2]; simp [commonPrefix, DTree.midAt, h1, h2]
-    · rw [if_neg h1, if_pos h2]; simp [commonPrefix, DTree.midAt, h1, h2]
+      simpa [commonPrefix, DTree.midfixAt] using leafOf_part a q₁ q₂ h'
+    · rw [if_pos h1, if_neg h2]; simp [commonPrefix, DTree.midfixAt, h1, h2]
+    · rw [if_neg h1, if_pos h2]; simp [commonPrefix, DTree.midfixAt, h1, h2]
     · rw [if_neg h1, if_neg h2] at h ⊢
       have h' : leafOf M side r q₁ ≠ leafOf M side r q₂ := fun e => h (by rw [e])
-      simpa [commonPrefix, DTree.midAt] using leafOf_part r q₁ q₂ h'
+      simpa [commonPrefix, DTree.midfixAt] using leafOf_part r q₁ q₂ h'
 
 /-- A split between two real targets is genuine. -/
 theorem genuine_of_real {T : DTree α} {p t t₀ : List Bool} {c : α} (ht : RealT M side T p c t)
     (ht₀ : RealT M side T p c t₀) (hne : t ≠ t₀) :
-    GenuineSplit M side T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) := by
+    GenuineSplit M side T p (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) := by
   obtain ⟨q₁, h1, h1'⟩ := ht
   obtain ⟨q₂, h2, h2'⟩ := ht₀
   refine ⟨q₁, q₂, h1, h2, ?_⟩
@@ -219,7 +220,7 @@ structure GInv (s : Level3_5State α) : Prop where
 
 /-- A fix at a target that is not real. -/
 def FakeFix (s : Level3_5State α) (x : FreeMonoid α) : Prop :=
-  ∃ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+  ∃ p c u t, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
     C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧ ¬ RealT M side s.tree p c t
 
 theorem gInv_start : GInv M side (initialState : Level3_5State α) where
@@ -245,8 +246,8 @@ one, is genuine and keeps `GInv`'s count. -/
 theorem gInv_split {s : Level3_5State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
     {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges (p, c) = some (t₀, w₀))
     (hmv : s.redirected (p, c) = true) (ht : RealT M side s.tree p c t) (hne : t₀ ≠ t) :
-    (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p).leaves.length
-      ≤ (img M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p)).card
+    (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length
+      ≤ (img M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)).card
           + 1 := by
   have hgen := genuine_of_real M side ht (hg.real p c t₀ w₀ hE hmv) (Ne.symm hne)
   have h1 := img_card_splitAt M side hp hgen
@@ -264,7 +265,8 @@ theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) {s : Level
     by_contra hr
     exact hnf ⟨p, c, u, t, ho, hc, hr⟩
   have := gInv_split M side hg hp hE hmv ht htt
-  have := img_card_le M side (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p)
+  have := img_card_le M side
+    (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
   omega
 
 /-- A step that changes the hypothesis without a fake fix keeps `GInv`. -/

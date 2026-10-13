@@ -39,7 +39,7 @@ def BadStep (X : Level3_5State α → FreeMonoid α → Prop) (s : Level3_5State
 /-- The state a probe leaves before the tests look at it. -/
 noncomputable def chg (s : Level3_5State α) (x : FreeMonoid α) : Level3_5State α :=
   countProbe read C { s with records := s.records ++
-      (recOf (probeOrAgree read s.tree s.edges C.walkStart x)).toList } x
+      (recOf (probeOrAgree true read s.tree s.edges C.walkStart x)).toList } x
 
 section StepFacts
 
@@ -57,7 +57,7 @@ theorem mk_eta (s : Level3_5State α) :
       = s := rfl
 
 theorem chg_of_none {s : Level3_5State α} {x : FreeMonoid α}
-    (h : recOf (probeOrAgree read s.tree s.edges C.walkStart x) = none) :
+    (h : recOf (probeOrAgree true read s.tree s.edges C.walkStart x) = none) :
     chg read C s x = countProbe read C s x := by
   unfold chg
   rw [h]
@@ -69,7 +69,8 @@ theorem step_inr {s : Level3_5State α} {x : FreeMonoid α}
     runTests C (chg read C s x) = some e := by
   have h' := h
   unfold applyProbe at h
-  rcases ho : probeOrAgree read s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | ⟨p, c, u, t⟩
+  rcases ho : probeOrAgree true read s.tree s.edges C.walkStart x with
+    _ | ⟨p, c, u, t⟩ | ⟨p, c, u, t⟩
       | ⟨k, zs, cl⟩
   all_goals rw [ho] at h
   all_goals try (rw [chg_of_none read C (by rw [ho]; rfl)]; exact finish_inr C h)
@@ -164,11 +165,13 @@ section Counts
 
 variable (T : DTree α) (E : Edges α)
 
-def fS (x : FreeMonoid α) : Bool := searches (probeOrAgree read T E C.walkStart x)
+def fS (x : FreeMonoid α) : Bool := searches (probeOrAgree true read T E C.walkStart x)
 
-def fSt (x : FreeMonoid α) : Bool := !(startString (probeOrAgree read T E C.walkStart x)).isEmpty
+def fSt (x : FreeMonoid α) : Bool :=
+  !(startString (probeOrAgree true read T E C.walkStart x)).isEmpty
 
-def fP (x : FreeMonoid α) : Bool := !(middleString (probeOrAgree read T E C.walkStart x)).isEmpty
+def fP (x : FreeMonoid α) : Bool :=
+  !(middleString (probeOrAgree true read T E C.walkStart x)).isEmpty
 
 /-- The strings a probe charges to the edge `e`. -/
 noncomputable def edgeCount (e : List Bool × α) (x : FreeMonoid α) : ℕ :=
@@ -178,7 +181,7 @@ open scoped Classical in
 noncomputable def fDis (x : FreeMonoid α) : Bool := decide (Disagrees read ⟨T, E⟩ C.walkStart x)
 
 def fR (τ : List Bool × α × List Bool) (x : FreeMonoid α) : Bool :=
-  decide (recOf (probeOrAgree read T E C.walkStart x) = some τ)
+  decide (recOf (probeOrAgree true read T E C.walkStart x) = some τ)
 
 variable (N₁ : ℕ)
 
@@ -218,14 +221,14 @@ theorem stInv_chg {ys : List (FreeMonoid α)} {s : Level3_5State α}
   subst htree hedges
   refine ⟨rfl, rfl, by simp [chg, countProbe, hn], ?_, ?_, ?_, ?_, ?_⟩
   · simp only [chg, countProbe, hdis, countP_snoc]
-    cases hb : searches (probeOrAgree read s.tree s.edges C.walkStart x) <;> simp [fS, hb]
+    cases hb : searches (probeOrAgree true read s.tree s.edges C.walkStart x) <;> simp [fS, hb]
   · simp only [chg, countProbe, List.length_append, hst', countP_snoc]
     rw [length_le_one_eq _ (startString_length _)]
-    cases hb : (startString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
+    cases hb : (startString (probeOrAgree true read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fSt, hb]
   · simp only [chg, countProbe, List.length_append, hpt, countP_snoc]
     rw [length_le_one_eq _ (middleString_length _)]
-    cases hb : (middleString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
+    cases hb : (middleString (probeOrAgree true read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fP, hb]
   · intro p c
     simp only [chg, countProbe, List.length_append, hund, List.map_append, List.sum_append,
@@ -233,7 +236,7 @@ theorem stInv_chg {ys : List (FreeMonoid α)} {s : Level3_5State α}
     rfl
   · intro τ
     simp only [chg, countProbe, List.count_append, hrecs, countP_snoc]
-    cases hr : recOf (probeOrAgree read s.tree s.edges C.walkStart x) with
+    cases hr : recOf (probeOrAgree true read s.tree s.edges C.walkStart x) with
     | none => simp [fR, hr]
     | some τ' => by_cases h : τ' = τ <;> simp [fR, hr, h, List.count_singleton]
 
@@ -736,8 +739,8 @@ theorem surv_le {s : Level3_5State α} (hs : Inv read C s) (hT : s.tree = T) (hE
       ⊆ {x | fP read C T E x = true} ∪ ⋃ τ ∈ Rset, {x | fR read C T E τ x = true} := by
     intro x hx
     simp only [Set.mem_ofPred_eq, fS] at hx
-    have hOK := Ideal.probeOrAgree_ok read T E C.walkStart hEOK x
-    generalize hg : probeOrAgree read T E C.walkStart x = o at hx hOK
+    have hOK := Ideal.probeOrAgree_ok true read T E C.walkStart hEOK x
+    generalize hg : probeOrAgree true read T E C.walkStart x = o at hx hOK
     cases o with
     | wrongEdge p c u t =>
       obtain ⟨hp, -, huc, -⟩ := hOK

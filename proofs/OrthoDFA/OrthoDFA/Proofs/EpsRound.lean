@@ -50,7 +50,7 @@ theorem searchOutcome_edge (T : DTree α) (x : FreeMonoid α) (st : ℕ → List
 
 /-- A record's prefix and letter are the probe's, past its first `k` letters. -/
 theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) {p : List Bool} {c : α}
-    {u : FreeMonoid α} {t : List Bool} (h : probe read T E k x = .wrongEdge p c u t) :
+    {u : FreeMonoid α} {t : List Bool} (h : probe true read T E k x = .wrongEdge p c u t) :
     ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = prefixOf x i ∧ x.toList[i]? = some c := by
   unfold probe at h
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -82,8 +82,8 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
   classical
   obtain ⟨p, c, t⟩ := τ
   simp only [fR, decide_eq_true_eq] at hx
-  have hOK := Ideal.probeOrAgree_ok read T E C.walkStart hE x
-  generalize ho : probeOrAgree read T E C.walkStart x = o at hx hOK
+  have hOK := Ideal.probeOrAgree_ok true read T E C.walkStart hE x
+  generalize ho : probeOrAgree true read T E C.walkStart x = o at hx hOK
   cases o with
   | wrongEdge p' c' u t' =>
     simp only [recOf, Option.some.injEq, Prod.mk.injEq] at hx
@@ -92,7 +92,7 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
     have hk : C.walkStart ≤ x.toList.length := by
       by_contra hc
       simp [probeOrAgree, show x.toList.length < C.walkStart by omega] at ho
-    have ho' : probe read T E C.walkStart x = .wrongEdge p' c' u t' := by
+    have ho' : probe true read T E C.walkStart x = .wrongEdge p' c' u t' := by
       simpa [probeOrAgree, show ¬ x.toList.length < C.walkStart by omega] using ho
     obtain ⟨i, hi1, hi2, rfl, hc⟩ := probe_edge read T E C.walkStart x ho'
     by_contra hw
@@ -126,7 +126,7 @@ theorem fakeEv_of_fix {T : DTree α} {E : Edges α}
     (hst : StInv read C T E ys s) {x : FreeMonoid α} (hf : FakeFix M side read C s x) :
     FakeEv read C M side T E (ys ++ [x]) := by
   obtain ⟨p, c, u, t, ho, hc, hr⟩ := hf
-  have hOK := Ideal.probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
+  have hOK := Ideal.probeOrAgree_ok true read s.tree s.edges C.walkStart hs.edges x
   rw [ho] at hOK
   obtain ⟨hp, -, huc, -⟩ := hOK
   have ht := DTree.sift_inl_mem read _ _ t huc

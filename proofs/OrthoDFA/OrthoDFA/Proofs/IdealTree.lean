@@ -163,9 +163,9 @@ theorem length_leaves_splitAt (d : FreeMonoid α) : ∀ (T : DTree α) (p : List
 /-- Two strings at different leaves read decidedly apart at the node where the paths part. -/
 theorem sift_part : ∀ (T : DTree α) (z₁ z₂ : FreeMonoid α) (p₁ p₂ : List Bool),
     T.sift read z₁ = .inl p₁ → T.sift read z₂ = .inl p₂ → p₁ ≠ p₂ →
-    read (z₁ * T.midAt (commonPrefix p₁ p₂)) ≠ .undecided
-      ∧ read (z₂ * T.midAt (commonPrefix p₁ p₂)) ≠ .undecided
-      ∧ read (z₁ * T.midAt (commonPrefix p₁ p₂)) ≠ read (z₂ * T.midAt (commonPrefix p₁ p₂))
+    read (z₁ * T.midfixAt (commonPrefix p₁ p₂)) ≠ .undecided
+      ∧ read (z₂ * T.midfixAt (commonPrefix p₁ p₂)) ≠ .undecided
+      ∧ read (z₁ * T.midfixAt (commonPrefix p₁ p₂)) ≠ read (z₂ * T.midfixAt (commonPrefix p₁ p₂))
   | .leaf, z₁, z₂, p₁, p₂, h₁, h₂, hne => by
     simp only [sift, Sum.inl.injEq] at h₁ h₂; subst h₁ h₂; exact absurd rfl hne
   | .node m r a, z₁, z₂, p₁, p₂, h₁, h₂, hne => by
@@ -177,27 +177,27 @@ theorem sift_part : ∀ (T : DTree α) (z₁ z₂ : FreeMonoid α) (p₁ p₂ : 
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₂
       subst h₁ h₂
       have hq : q₁ ≠ q₂ := fun h => hne (by rw [h])
-      simpa [commonPrefix, midAt] using sift_part a z₁ z₂ q₁ q₂ hq₁ hq₂ hq
+      simpa [commonPrefix, midfixAt] using sift_part a z₁ z₂ q₁ q₂ hq₁ hq₂ hq
     · rcases hq₁ : a.sift read z₁ with q₁ | q₁ <;> rw [hq₁] at h₁ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₁
       rcases hq₂ : r.sift read z₂ with q₂ | q₂ <;> rw [hq₂] at h₂ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₂
       subst h₁ h₂
-      simp [commonPrefix, midAt, hr₁, hr₂]
+      simp [commonPrefix, midfixAt, hr₁, hr₂]
     · simp at h₂
     · rcases hq₁ : r.sift read z₁ with q₁ | q₁ <;> rw [hq₁] at h₁ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₁
       rcases hq₂ : a.sift read z₂ with q₂ | q₂ <;> rw [hq₂] at h₂ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₂
       subst h₁ h₂
-      simp [commonPrefix, midAt, hr₁, hr₂]
+      simp [commonPrefix, midfixAt, hr₁, hr₂]
     · rcases hq₁ : r.sift read z₁ with q₁ | q₁ <;> rw [hq₁] at h₁ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₁
       rcases hq₂ : r.sift read z₂ with q₂ | q₂ <;> rw [hq₂] at h₂ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₂
       subst h₁ h₂
       have hq : q₁ ≠ q₂ := fun h => hne (by rw [h])
-      simpa [commonPrefix, midAt] using sift_part r z₁ z₂ q₁ q₂ hq₁ hq₂ hq
+      simpa [commonPrefix, midfixAt] using sift_part r z₁ z₂ q₁ q₂ hq₁ hq₂ hq
     · simp at h₂
     · simp at h₁
     · simp at h₁
