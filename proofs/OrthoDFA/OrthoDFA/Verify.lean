@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.Level4Noise
@@ -12,17 +13,20 @@ import OrthoDFA.Proofs.Level4SpurNoise
 import OrthoDFA.Proofs.Level4Correct
 import OrthoDFA.Proofs.Level4Risk
 import OrthoDFA.Proofs.Level4RiskBound
+import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-`TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, level 2's ideal-read claim, stated
-in `OrthoDFA.Level2Claim`, level 4's, stated in `OrthoDFA.Level4Claim`, and level 4 read by the
-suffix family, stated in `OrthoDFA.Level4Family`. Level 4's detailed bound and its closed form,
-stated in `OrthoDFA.Proofs.Level4RiskDefs`, are internal: the claims above are derived from them.
+`OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
+`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
+`SiftWithPathCorrect`, stated in `OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
+level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 4's, stated in
+`OrthoDFA.Level4Claim`, and level 4 read by the suffix family, stated in `OrthoDFA.Level4Family`.
+Level 4's detailed bound and its closed form, stated in `OrthoDFA.Proofs.Level4RiskDefs`, are
+internal: the claims above are derived from them.
 -/
 
 namespace OrthoDFA
@@ -43,6 +47,14 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
 
 #print axioms tripartite_search_correct
+
+theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
+
+#print axioms sift_with_path_correct
+
+theorem rate_test_sound : RateTestSound := rateTestSound
+
+#print axioms rate_test_sound
 
 #print axioms round_budget
 

@@ -19,36 +19,47 @@ def IdealReads {σ : Type*} (M : DFA α σ) (side : σ → Bool) : Prop :=
   ∀ q, AllUndecided read M q ∨
     ∀ w : FreeMonoid α, M.eval w.toList = q → read w = if side q then .accept else .reject
 
-/-- Enough probes for the round to end. -/
-def probeBudget (C : Level2Settings) (nα : ℕ) : ℕ :=
-  (C.maxLeaves * (2 * C.maxLeaves * nα + 1) + 1)
-    * ((C.recordsToMove - 1) * C.maxLeaves ^ 2 * nα
-      + (C.harvestSize - 1) * (C.maxLeaves * nα + 2) + 1) * C.cleanProbesToEnd
+/-- At most this many hypotheses: each split adds a leaf, at most `|Q| + 2` of them, and between
+splits each of a leaf's edges is learned once. -/
+def stretches (nσ nα : ℕ) : ℕ := nσ * ((nσ + 2) * nα + 1) + 2 * nα + 1
 
-/-- The hypothesis `H` replayed on a draw `w` from the anchor `e`: a probe of `w` walked from
-`e`, harvesting the undecided strings it turns up, or nothing where `w` is shorter than `e`. -/
-def replay (H : Hypothesis α) (w : FreeMonoid α) (e : ℕ) : List (FreeMonoid α) :=
-  if w.toList.length < e then [] else (probe read H.tree H.edges e w).undecidedStrings
+variable [DecidableEq α]
 
-/-- With ideal reads and enough probes, level 2 fails to end well (`OrthoDFA.RoundEnd`), a state
-being bad where all its strings read undecided, with chance at most `(P + 1)(1 − ε)^n`, `n` the
-clean probes that end it. Its harvest is replayed from an anchor drawn uniformly from `s, …, L`,
-and yields the share of draws visiting a bad state at a position from `s` to `L`, over
-`L + 1 − s`. -/
+/-- The undecided string a probe of `x` walked from `k` under `H` stops at, if any. -/
+def stuckString (H : Hypothesis α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+  (probeOrAgree false read H.tree H.edges k x).undecidedStrings
+
+/-- The law of what the harvest's sampler finds: the undecided string a probe drawn from `D` and
+walked under `H` stops at. -/
+noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (H : Hypothesis α) :
+    Measure (FreeMonoid α) :=
+  D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
+
+/-- The fewest undecided reads out of `n` that the rate test calls above `y` at level `a`. -/
+noncomputable def fireCount (y a : ℝ) (n : ℕ) : ℕ := sInf {k | binomSfGe n y k < a}
+
+/-- With ideal reads and `stretches · probesToEnd ≤ P` probes, level 2 fails to end well
+(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with chance at most
+`S ((1 − ε)^n + P(Bin(n, r) < K)) + P a`: `S` the stretches, `n = probesToEnd`, `y` and `a` the
+rate test's rate and level, and `K` the fewest undecided reads out of `n` it calls above `y`. A
+consistent ending has its hypothesis and tree parting on at most `ε + r` of the probes, and a
+harvest's sampler yields `y`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2Settings) (P : ℕ),
-    IdealReads read M side → 1 ≤ C.recordsToMove → 1 ≤ C.harvestSize → 1 ≤ C.cleanProbesToEnd →
-    Fintype.card σ + 2 ≤ C.maxLeaves → probeBudget C (Fintype.card α) ≤ P →
-    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε : ℝ) (s L : ℕ), ε ≤ 1 →
+    IdealReads read M side → 1 ≤ C.probesToEnd → 0 < C.harvestRate → C.harvestRate ≤ 1 →
+    0 < C.harvestLevel → stretches (Fintype.card σ) (Fintype.card α) * C.probesToEnd ≤ P →
+    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε r : ℝ), ε ≤ 1 → 0 ≤ r → r ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
-            ¬ EndsWell M (AllUndecided read M) D ε
+            ¬ EndsWell M (AllUndecided read M) D (ε + r)
               {x | Disagrees read result.hypothesis C.walkStart x}
-              s L (replay read result.hypothesis)
-              (coverage D s L M (AllUndecided read M) / (L + 1 - s : ℕ))
-              result.ending}
-        ≤ (P + 1) * (1 - ε) ^ C.cleanProbesToEnd
+              C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis)
+              C.harvestRate result.ending}
+        ≤ stretches (Fintype.card σ) (Fintype.card α) * ((1 - ε) ^ C.probesToEnd
+            + (1 - binomSfGe C.probesToEnd r
+              (fireCount C.harvestRate C.harvestLevel C.probesToEnd)))
+          + P * C.harvestLevel
 
 end Ideal
 

@@ -57,31 +57,36 @@ def searchOutcome (unlearned : Option (α × List Bool)) (hi : ℕ) : SearchResu
     match x.toList[p - 1]?, T.sift read (prefixOf x p) with
     | some c, .inl t => .wrongEdge (st (p - 1)) c (prefixOf x (p - 1)) t
     | _, _ => .undecided .stop [] false
-  | .triple p | .undecidedMid p => .undecided (siteAt x st p) (undecidedAt read T x p) false
-  | .pair p =>
-    .undecided (siteAt x st p) (undecidedAt read T x p ++ undecidedAt read T x (p + 1)) false
+  | .pair p | .triple p | .undecidedMid p =>
+    .undecided (siteAt x st p) (undecidedAt read T x p) false
   | .undecidedLo | .disagreeLo => .undecided .start [] true
 
 end Probe
 
 /-- A probe of `x`: its first `k` letters sifted, then walked along the edges to `hi`, where the
-walk stops; the unlearned edge it stops at, if any, has its successor sifted; and the search
-finds where the sift and the walk part between `k` and `hi`. -/
-def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    Outcome α :=
+walk stops; the unlearned edge it stops at, if any, has its successor sifted; and the search,
+recovering past an undecided midpoint where `recover`, finds where the sift and the walk part
+between `k` and `hi`. -/
+def probe (recover : Bool) (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
+    (x : FreeMonoid α) : Outcome α :=
   match T.sift read (prefixOf x k) with
   | .inr z => .undecided .start [z] true
   | .inl a =>
     let ss := walk E a (x.toList.drop k)
     let st := fun p => ss.getD (p - k) []
     let hi := k + ss.length - 1
-    let search := (tripartiteSearch true (siftAgrees read T x st) k hi).1
+    let search := (tripartiteSearch recover (siftAgrees read T x st) k hi).1
     match x.toList[hi]? with
     | some c =>
       match T.sift read (prefixOf x (hi + 1)) with
       | .inr z => .undecided .stop [z] true
       | .inl t => searchOutcome read T x st (some (c, t)) hi search
     | none => searchOutcome read T x st none hi search
+
+/-- A probe, which counts as agreeing where it is shorter than `k`. -/
+def probeOrAgree (recover : Bool) (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α)
+    (k : ℕ) (x : FreeMonoid α) : Outcome α :=
+  if x.toList.length < k then .agree else probe recover read T E k x
 
 end Ideal
 

@@ -13,7 +13,7 @@ from orthogonal_dfa.l_star.learn import (
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.statistics import rate_side
 from orthogonal_dfa.l_star.structures import (
     AsymmetricBernoulli,
     NoisyOracle,
@@ -201,11 +201,12 @@ def _split_states(cuts):
     return [
         (state, accepted, rejected)
         for state, (accepted, rejected) in cuts.items()
-        if binomial_side_of_boundary(
-            min(accepted, rejected),
-            accepted + rejected,
+        if rate_side(
             round_verify_fpr,
-            failure_prob=round_verify_alpha,
+            round_verify_alpha,
+            0,
+            accepted + rejected,
+            min(accepted, rejected),
         )
     ]
 
@@ -245,11 +246,12 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
             )
 
         against, decided = _miscut(cuts, true_dfa)
-        if binomial_side_of_boundary(
-            against,
-            decided,
+        if rate_side(
             max_coverage_error,
-            failure_prob=round_check_run_fpr / len(per_round),
+            round_check_run_fpr / len(per_round),
+            0,
+            decided,
+            against,
         ):
             raise AssertionError(
                 f"a synthesis round decided {against} of {decided} prefixes against "
