@@ -248,23 +248,29 @@ theorem decodeReads_readGraph {N : ℕ} (rd : FreeMonoid α → ARU) {z : FreeMo
 
 /-! ## A round's population from its data -/
 
-/-- A harvest as finite data: its site, its hypotheses' trees and edge graphs, and reads. -/
+/-- A harvest as finite data: its site, its hypotheses' trees and edge graphs, and reads, and the
+prefixes and suffixes its round's clustering read. -/
 abbrev HarvestCode (α : Type*) :=
   Level5Site α × List (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
-    × Finset (FreeMonoid α × ARU)
+    × Finset (FreeMonoid α × ARU) × Finset (FreeMonoid α) × Finset (FreeMonoid α)
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
 /-- A round's harvest, with its reads of the strings at most `N` long. -/
 def popCode (N : ℕ) (o : LoopRound Ω α K) : Option (HarvestCode α) :=
   o.result.ending.harvested.map fun h =>
-    (h.site, h.versions.map fun v => (v.1, edgeGraph v.2), readGraph N o.read)
+    (h.site, h.versions.map fun v => (v.1, edgeGraph v.2), readGraph N o.read, o.prefs, o.suffs)
 
 /-- The population the data hand on. -/
 def decodePop (D : Measure (FreeMonoid α)) (k : ℕ) (c : HarvestCode α) :
     Measure (FreeMonoid α) :=
-  popLaw (harvestLaw D (fun z => (decodeReads c.2.2 z).cut) k
+  popLaw (harvestLaw D (fun z => (decodeReads c.2.2.1 z).cut) k
     ⟨c.1, c.2.1.map fun v => (v.1, decodeEdges v.2)⟩)
+
+/-- The history the data hand on. -/
+def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode α)) : LoopHist α :=
+  ⟨cs.map (decodePop D k), cs.foldr (fun c T => c.2.2.2.1 ∪ T) ∅,
+    cs.foldr (fun c T => c.2.2.2.2 ∪ T) ∅⟩
 
 omit [MeasurableSpace Ω] in
 /-- Over draws at most `L` long, reads that agree on the strings at most `L + M` long find the
@@ -346,5 +352,38 @@ theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ}
     rcases hp : popCode N o with _ | c <;> rw [hp] at h1 <;> simp only [Option.map] at h1
     · rw [← h1]; exact h2
     · rw [← h1, List.map_cons, h2]
+
+omit [MeasurableSpace Ω] in
+/-- Where every round harvested, the data hand on the rounds' history. -/
+theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ C.maxLeaves) (hN : L + C.maxLeaves ≤ N)
+    (k : ℕ) (rounds : List (LoopRound Ω α K))
+    (hr : ∀ o ∈ rounds, ∃ T, ∃ xs : Fin T → FreeMonoid α,
+      o.result = indecisiveLStarLevel5 C o.read xs)
+    (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
+    decodeHist D k (codesOf N rounds) = histOf D k rounds := by
+  have hp := codesOf_decode C hlen hC hN k rounds hr
+  unfold decodeHist histOf
+  congr 1
+  · induction rounds with
+    | nil => rfl
+    | cons o rounds ih =>
+      obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
+      have hc : popCode N o = some (h.site, h.versions.map fun v => (v.1, edgeGraph v.2),
+          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
+      simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
+      congr 1
+      exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
+        (codesOf_decode C hlen hC hN k rounds fun o' ho' => hr o' (by simp [ho']))
+  · induction rounds with
+    | nil => rfl
+    | cons o rounds ih =>
+      obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
+      have hc : popCode N o = some (h.site, h.versions.map fun v => (v.1, edgeGraph v.2),
+          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
+      simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
+      congr 1
+      exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
+        (codesOf_decode C hlen hC hN k rounds fun o' ho' => hr o' (by simp [ho']))
 
 end OrthoDFA

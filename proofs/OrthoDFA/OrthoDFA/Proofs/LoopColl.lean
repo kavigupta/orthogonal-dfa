@@ -1,11 +1,12 @@
 import OrthoDFA.Proofs.LoopE2Round
 
 /-!
-# Collisions across rounds
+# Rounds read new strings
 
-Round `r` repeats an earlier round's suffix with chance at most the pairs times `Dsf`'s largest
-atom, and an earlier round's prefix with chance at most the pairs times its populations' largest
-atom; a draw of the wrong length has chance zero (`loop_coll_le`).
+Each round draws its prefixes and suffixes off every one the earlier rounds read, by uniforms, and
+a uniform below `1` draws a string of positive mass off them (`drawFrom_offLaw`). So where every
+uniform is below `1`, which has chance one, no round reads a prefix or a suffix an earlier round
+read, and every string read has a length its distribution gives mass (`loop_coll_null`).
 -/
 
 noncomputable section
@@ -17,369 +18,380 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
 
-section Laws
+section Sets
 
-variable (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] [IsProbabilityMeasure Dsf]
+lemma mem_foldr_union {β γ : Type*} [DecidableEq γ] (f : β → Finset γ) (l : List β) (x : γ) :
+    x ∈ l.foldr (fun c T => f c ∪ T) ∅ ↔ ∃ c ∈ l, x ∈ f c := by
+  induction l with
+  | nil => simp
+  | cons a l ih => simp [ih]
 
-instance : IsProbabilityMeasure (restLaw D Dsf K) := by unfold restLaw; infer_instance
+variable (settings : LoopSettings K) (D : Measure (FreeMonoid α))
 
-instance (T : ℕ) : IsProbabilityMeasure (roundLaw D Dsf K T) := by unfold roundLaw; infer_instance
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
+lemma histAt_pops (c : List (HarvestCode α)) (i : ℕ) :
+    (histAt settings D c i).pops = (decodeHist D settings.level5.walkStart c).pops.take i := by
+  simp [histAt, decodeHist, List.map_take]
 
-instance (T : ℕ) : IsProbabilityMeasure (loopMeasure μ D Dsf K T) := by
-  unfold loopMeasure; infer_instance
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
+lemma histAt_prefs_sub (c : List (HarvestCode α)) (i : ℕ) :
+    (histAt settings D c i).prefs ⊆ (decodeHist D settings.level5.walkStart c).prefs := by
+  intro x hx
+  simp only [histAt, decodeHist] at hx ⊢
+  obtain ⟨a, ha, hx⟩ := (mem_foldr_union _ _ x).1 hx
+  exact (mem_foldr_union _ _ x).2 ⟨a, List.mem_of_mem_take ha, hx⟩
 
-lemma restLaw_prefDraw (H : List (Measure (FreeMonoid α))) (hpops : ∀ ν ∈ H, IsProbabilityMeasure ν)
-    (j : Option (Fin K)) (a : ℕ) (b : Bool) (A : Set (FreeMonoid α)) :
-    restLaw D Dsf K {c | prefDraw H c j a b ∈ A} = loopDistributions D H j A := by
-  have : ∀ j, IsProbabilityMeasure (loopDistributions (K := K) D H j) :=
-    isProbabilityMeasure_loopDistributions D H hpops
-  have hcr := measurePreserving_clusterRun (μ := Measure.dirac ()) (K := K) D Dsf H hpops
-  set L' := loopDistributions (K := K) D H
-  have hev : ∀ j : Option (Fin K), MeasurePreserving (fun f : Option (Fin K) → ℕ → FreeMonoid α =>
-      f j a) (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L' j) (L' j) := fun j =>
-    (show MeasurePreserving (fun g : ℕ → FreeMonoid α => g a)
-        (Measure.infinitePi fun _ : ℕ => L' j) (L' j) from
-      ⟨measurable_pi_apply a, Measure.infinitePi_map_eval _ a⟩).comp (measurePreserving_eval _ j)
-  set coord : Run Unit (FreeMonoid α) (Option (Fin K)) → FreeMonoid α := fun x =>
-    if b then x.2.2 j a else x.2.1.2 j a
-  have hcoord : MeasurePreserving coord (runMeasure (Measure.dirac ()) L' Dsf) (L' j) := by
-    cases b
-    · exact (hev j).comp (measurePreserving_snd.comp (measurePreserving_fst.comp
-        measurePreserving_snd))
-    · exact (hev j).comp (measurePreserving_snd.comp measurePreserving_snd)
-  have hA : MeasurableSet A := measurableSet_of_countable A
-  have hset : (Set.univ : Set Unit) ×ˢ {c : ClusterRest α K | prefDraw H c j a b ∈ A}
-      = clusterRun H ⁻¹' (coord ⁻¹' A) := by
-    ext ⟨u, c⟩
-    simp only [Set.mem_prod, Set.mem_univ, true_and, Set.mem_ofPred_eq, Set.mem_preimage]
-    cases b <;> rfl
-  calc restLaw D Dsf K {c | prefDraw H c j a b ∈ A}
-      = (clusterLaw (Measure.dirac ()) D Dsf K)
-          ((Set.univ : Set Unit) ×ˢ {c : ClusterRest α K | prefDraw H c j a b ∈ A}) := by
-        unfold clusterLaw
-        rw [Measure.prod_prod, measure_univ, one_mul]
-    _ = L' j A := by
-        rw [hset, hcr.measure_preimage (hcoord.measurable hA).nullMeasurableSet,
-          hcoord.measure_preimage hA.nullMeasurableSet]
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
+lemma histAt_suffs_sub (c : List (HarvestCode α)) (i : ℕ) :
+    (histAt settings D c i).suffs ⊆ (decodeHist D settings.level5.walkStart c).suffs := by
+  intro x hx
+  simp only [histAt, decodeHist] at hx ⊢
+  obtain ⟨a, ha, hx⟩ := (mem_foldr_union _ _ x).1 hx
+  exact (mem_foldr_union _ _ x).2 ⟨a, List.mem_of_mem_take ha, hx⟩
 
-lemma restLaw_suffix (a : ℕ) (A : Set (FreeMonoid α)) :
-    restLaw D Dsf K {c | c.1 a ∈ A} = Dsf A := by
-  have hev : MeasurePreserving (fun c : ClusterRest α K => c.1 a) (restLaw D Dsf K) Dsf :=
-    (show MeasurePreserving (fun f : ℕ → FreeMonoid α => f a)
-        (Measure.infinitePi fun _ : ℕ => Dsf) Dsf from
-      ⟨measurable_pi_apply a, Measure.infinitePi_map_eval _ a⟩).comp measurePreserving_fst
-  exact hev.measure_preimage (measurableSet_of_countable A).nullMeasurableSet
+lemma loopDistributions_take (pops : List (Measure (FreeMonoid α))) {i : ℕ} {j : Option (Fin K)}
+    (hj : j ∈ loopPopulations K i) :
+    loopDistributions D (pops.take i) j = loopDistributions D pops j := by
+  cases j with
+  | none => rfl
+  | some i' =>
+    have hi' := lt_of_some_mem_loopPops hj
+    simp only [loopDistributions, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi']
 
-end Laws
+lemma loopPopulations_mono {i r : ℕ} (h : i ≤ r) : loopPopulations K i ⊆ loopPopulations K r := by
+  intro j hj
+  cases j with
+  | none => exact Finset.mem_insert_self _ _
+  | some i' =>
+    have := lt_of_some_mem_loopPops hj
+    simp only [loopPopulations, Finset.mem_insert, reduceCtorEq, false_or, Finset.mem_image,
+      Finset.mem_filter, Finset.mem_univ, true_and, Option.some.injEq]
+    exact ⟨i', by omega, rfl⟩
 
-section Fresh
+end Sets
+
+section Draws
+
+variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
+/-- A prefix a round's clustering reads is a draw of one of its populations. -/
+lemma mem_prefsOf_draw {h : LoopHist α} {c : ClusterRest α K} {p : FreeMonoid α}
+    (hp : p ∈ prefsOf settings D Dsf h c) :
+    ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
+      p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.1 j n)
+        ∨ p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2 j n) := by
+  obtain ⟨B, -, hp⟩ := Finset.mem_biUnion.1 hp
+  rcases Finset.mem_union.1 hp with hp | hp
+  · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
+    obtain ⟨n, hn⟩ := mem_freshDraws hp
+    exact ⟨j, hj, n, Or.inl hn.symm⟩
+  · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
+    obtain ⟨e, -, hp⟩ := Finset.mem_biUnion.1 hp
+    obtain ⟨n, hn⟩ := mem_freshDraws hp
+    exact ⟨j, hj, n, Or.inr hn.symm⟩
+
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
+/-- A suffix a round's clustering reads, but `ε`, is a draw of the suffix distribution. -/
+lemma mem_suffsOf_draw {h : LoopHist α} {c : ClusterRest α K} {v : FreeMonoid α}
+    (hv : v ∈ suffsOf settings D Dsf h c) : ∃ n, v = drawFrom (offLaw Dsf h.suffs) (c.1 n) := by
+  obtain ⟨hv1, hv⟩ := Finset.mem_erase.1 hv
+  obtain ⟨B, -, hv⟩ := Finset.mem_biUnion.1 hv
+  rcases Finset.mem_insert.1 hv with h1 | hv
+  · exact absurd h1 hv1
+  · obtain ⟨n, hn⟩ := mem_freshDraws hv
+    exact ⟨n, hn.symm⟩
+
+/-- Through round `r`, every uniform the clusterings draw by is below `1`. -/
+def AllLt {T : ℕ} (x : Fin K → RoundDraws α K T) (r : ℕ) : Prop :=
+  ∀ i : Fin K, i.1 ≤ r → (∀ n, ((x i).1.1 n : ℝ) < 1) ∧ (∀ j n, ((x i).1.2.1 j n : ℝ) < 1)
+    ∧ ∀ j n, ((x i).1.2.2 j n : ℝ) < 1
+
+lemma volume_eq_one_unit : (volume : Measure unitInterval) {u | ¬ (u : ℝ) < 1} = 0 := by
+  have h := volume_Ico_unit (a := 0) (b := 1) le_rfl zero_le_one le_rfl
+  have hs : {u : unitInterval | ¬ (u : ℝ) < 1} = {u : unitInterval | 0 ≤ (u : ℝ) ∧ (u : ℝ) < 1}ᶜ := by
+    ext u
+    simp only [Set.mem_setOf_eq, Set.mem_compl_iff, not_and, not_lt]
+    exact ⟨fun h _ => h, fun h => h u.2.1⟩
+  have hm : MeasurableSet {u : unitInterval | 0 ≤ (u : ℝ) ∧ (u : ℝ) < 1} :=
+    (measurableSet_le measurable_const continuous_subtype_val.measurable).inter
+      (measurableSet_lt continuous_subtype_val.measurable measurable_const)
+  rw [hs, measure_compl hm (measure_ne_top _ _), h, measure_univ]
+  simp
+
+omit [DecidableEq α] in
+lemma allLt_ae {T : ℕ} (r : ℕ) :
+    (loopMeasure μ α K T) {p | ¬ AllLt p.2 r} = 0 := by
+  have hrest : ∀ i : Fin K, MeasurePreserving (fun p : Ω × (Fin K → RoundDraws α K T) =>
+      (p.2 i).1) (loopMeasure μ α K T)
+      ((Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
+        ((Measure.pi fun _ : Option (Fin K) =>
+            Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
+          (Measure.pi fun _ : Option (Fin K) =>
+            Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))) := fun i =>
+    measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)
+  have hev : ∀ n, MeasurePreserving (fun f : ℕ → unitInterval => f n)
+      (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun n =>
+    ⟨measurable_pi_apply n, Measure.infinitePi_map_eval _ n⟩
+  have hev2 : ∀ j n, MeasurePreserving (fun f : Option (Fin K) → ℕ → unitInterval => f j n)
+      (Measure.pi fun _ : Option (Fin K) =>
+        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun j n =>
+    (hev n).comp (measurePreserving_eval _ j)
+  have h1 : MeasurableSet {u : unitInterval | ¬ (u : ℝ) < 1} :=
+    (measurableSet_lt continuous_subtype_val.measurable measurable_const).compl
+  have hnull : ∀ {f : Ω × (Fin K → RoundDraws α K T) → unitInterval},
+      MeasurePreserving f (loopMeasure μ α K T) volume →
+        (loopMeasure μ α K T) {x | ¬ (f x : ℝ) < 1} = 0 := fun hf => by
+    rw [show {x | ¬ (_ : ℝ) < 1} = _ ⁻¹' {u : unitInterval | ¬ (u : ℝ) < 1} from rfl,
+      hf.measure_preimage h1.nullMeasurableSet, volume_eq_one_unit]
+  have hset : {p : Ω × (Fin K → RoundDraws α K T) | ¬ AllLt p.2 r}
+      ⊆ ⋃ i : Fin K, ⋃ n : ℕ, ({p | ¬ (((p.2 i).1.1 n : unitInterval) : ℝ) < 1}
+        ∪ ⋃ j : Option (Fin K), ({p | ¬ (((p.2 i).1.2.1 j n : unitInterval) : ℝ) < 1}
+          ∪ {p | ¬ (((p.2 i).1.2.2 j n : unitInterval) : ℝ) < 1})) := by
+    intro p hp
+    simp only [AllLt, not_forall, not_and_or] at hp
+    obtain ⟨i, -, hp⟩ := hp
+    simp only [Set.mem_iUnion, Set.mem_union, Set.mem_setOf_eq]
+    rcases hp with ⟨n, hn⟩ | ⟨j, n, hn⟩ | ⟨j, n, hn⟩
+    · exact ⟨i, n, Or.inl hn⟩
+    · exact ⟨i, n, Or.inr ⟨j, Or.inl hn⟩⟩
+    · exact ⟨i, n, Or.inr ⟨j, Or.inr hn⟩⟩
+  refine measure_mono_null hset (measure_iUnion_null fun i => measure_iUnion_null fun n =>
+    measure_union_null ?_ (measure_iUnion_null fun j => measure_union_null ?_ ?_))
+  · exact hnull ((hev n).comp (measurePreserving_fst.comp (hrest i)))
+  · exact hnull ((hev2 j n).comp (measurePreserving_fst.comp (measurePreserving_snd.comp
+      (hrest i))))
+  · exact hnull ((hev2 j n).comp (measurePreserving_snd.comp (measurePreserving_snd.comp
+      (hrest i))))
+
+end Draws
+
+section Codes
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  [IsProbabilityMeasure D] [IsProbabilityMeasure Dsf]
+  (N : ℕ)
 
-/-- Round `r`'s clustering draws land in a set the earlier rounds fix with chance at most the
-bound the set has under `restLaw`. -/
-theorem persist_rest_le (r : Fin K) {Y : Type*} [Countable Y]
-    (stage : Ω → (Fin K → RoundDraws α K settings.level5.probeBudget) → Y)
-    (hdep : ∀ ω (x x' : Fin K → RoundDraws α K settings.level5.probeBudget),
-      (∀ i, i < r → x i = x' i) → stage ω x = stage ω x')
-    (hmeas : ∀ y, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) |
-      stage p.1 p.2 = y})
-    (W : Y → (Fin K → RoundDraws α K settings.level5.probeBudget) → Finset (FreeMonoid α))
-    (G : Y → Prop)
-    (hW : ∀ y x ω ω', G y → stage ω x = y → (∀ w ∈ W y x, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
-      stage ω' x = y)
-    (Bad : Y → Set (ClusterRest α K)) (hG : ∀ y, ¬ G y → Bad y = ∅)
-    (hmBad : ∀ y, MeasurableSet (Bad y)) (δ : ENNReal)
-    (hBad : ∀ y, restLaw D Dsf K (Bad y) ≤ δ) :
-    loopMeasure μ D Dsf K settings.level5.probeBudget
-      {p | (p.2 r).1 ∈ Bad (stage p.1 p.2)} ≤ δ := by
-  have hσ : MeasurePreserving (fun d : RoundDraws α K settings.level5.probeBudget => (d.2, d.1))
-      (roundLaw D Dsf K settings.level5.probeBudget)
-      ((Measure.pi fun _ : Fin settings.level5.probeBudget => (volume : Measure unitInterval)).prod
-        (restLaw D Dsf K)) :=
-    Measure.measurePreserving_swap
-  have h := persist_stage_le O (roundLaw D Dsf K settings.level5.probeBudget)
-    (Measure.pi fun _ : Fin settings.level5.probeBudget => (volume : Measure unitInterval))
-    (restLaw D Dsf K)
-    (fun d => (d.2, d.1)) hσ (fun w => (w.2, w.1)) (measurable_snd.prodMk measurable_fst)
-    (fun w => rfl) r stage (fun ω x x' h _ => hdep ω x x' h) hmeas W G hW
-    (fun y => (Set.univ : Set Ω) ×ˢ Bad y) (fun y hy => by rw [hG y hy, Set.prod_empty])
-    (fun y => MeasurableSet.univ.prod (hmBad y)) (fun _ _ => ∅)
-    (fun y x₂ ω ω' _ h => ⟨Set.mem_univ _, h.2⟩) (fun _ => Set.univ) (fun _ => MeasurableSet.univ)
-    (fun y x _ _ => Finset.disjoint_empty_right _) δ
-    (fun y => by rw [Measure.prod_prod, measure_univ, one_mul]; exact hBad y)
-  refine le_trans (measure_mono fun p hp => ?_) h
-  exact ⟨⟨Set.mem_univ _, hp⟩, Set.mem_univ _⟩
+omit [IsProbabilityMeasure μ] in
+/-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
+lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hC : 2 ≤ settings.level5.maxLeaves) (hN : L + settings.level5.maxLeaves ≤ N) (ω : Ω)
+    (g : Fin K → RoundDraws α K settings.level5.probeBudget) :
+    ∀ r i, i < (histCodes settings O D Dsf N ω g r).length → ∃ hiK : i < K, ∃ code,
+      (histCodes settings O D Dsf N ω g r)[i]? = some code
+      ∧ code.2.2.2.1 = prefsOf settings D Dsf (histAt settings D (histCodes settings O D Dsf N ω g r) i)
+          (g ⟨i, hiK⟩).1
+      ∧ code.2.2.2.2 = roundSuffs (settings.schedule (loopPopulations K
+            (histAt settings D (histCodes settings O D Dsf N ω g r) i).pops.length))
+          (((), runOf D Dsf (histAt settings D (histCodes settings O D Dsf N ω g r) i)
+            (g ⟨i, hiK⟩).1) : Run Unit (FreeMonoid α) (Option (Fin K)))
+  | 0, i, hi => by simp [histCodes, loopRounds, codesOf] at hi
+  | r + 1, i, hi => by
+    by_cases hrK : r < K
+    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen hC hN (fun i => (ω, g i)) r hrK
+      set c := histCodes settings O D Dsf N ω g r with hcd
+      have hy' : histCodes settings O D Dsf N ω g (r + 1) = if c.length = r then
+          c ++ (popCode N (loopRound settings O D Dsf (decodeHist D settings.level5.walkStart c)
+            (ω, g ⟨r, hrK⟩))).toList else c := hy
+      have ih := histCodes_getElem hlen hC hN ω g r
+      by_cases hcl : c.length = r
+      · rw [if_pos hcl] at hy'
+        rw [hy'] at hi ⊢
+        by_cases hic : i < c.length
+        · obtain ⟨hiK, code, hget, h1, h2⟩ := ih i hic
+          have ht : ∀ l : List (HarvestCode α), histAt settings D (c ++ l) i
+              = histAt settings D c i := fun l => by
+            simp only [histAt, List.take_append_of_le_length hic.le]
+          refine ⟨hiK, code, ?_, ?_, ?_⟩
+          · rw [List.getElem?_append_left hic]; exact hget
+          · rw [ht]; exact h1
+          · rw [ht]; exact h2
+        · revert hi
+          rcases ho : popCode N (loopRound settings O D Dsf
+              (decodeHist D settings.level5.walkStart c) (ω, g ⟨r, hrK⟩)) with _ | code
+          · intro hi
+            simp only [Option.toList_none, List.append_nil] at hi
+            exact absurd hi hic
+          · intro hi
+            simp only [Option.toList_some, List.length_append, List.length_cons,
+              List.length_nil] at hi
+            have hir : i = r := by omega
+            subst hir
+            have ht : histAt settings D (c ++ [code]) i
+                = decodeHist D settings.level5.walkStart c := by
+              simp only [histAt, List.take_append_of_le_length (le_of_eq hcl.symm),
+                List.take_of_length_le (le_of_eq hcl)]
+            simp only [Option.toList_some, ht]
+            unfold popCode at ho
+            obtain ⟨hv, -, hcode⟩ := Option.map_eq_some_iff.1 ho
+            refine ⟨hrK, code, ?_, ?_, ?_⟩
+            · rw [List.getElem?_append_right (le_of_eq hcl)]
+              simp [hcl]
+            · rw [← hcode]; rfl
+            · rw [← hcode]; rfl
+      · rw [if_neg hcl] at hy'
+        rw [hy'] at hi ⊢
+        exact ih i hi
+    · have hst : histCodes settings O D Dsf N ω g (r + 1) = histCodes settings O D Dsf N ω g r := by
+        simp only [histCodes]
+        rw [loopRounds_succ, dif_neg (fun h' => hrK h'.1)]
+      rw [hst] at hi ⊢
+      exact histCodes_getElem hlen hC hN ω g r i hi
 
-end Fresh
+end Codes
 
 section Coll
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
 
-omit [DecidableEq α] in
-lemma measurePreserving_roundRest (i : Fin K) :
-    MeasurePreserving (fun p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) =>
-      (p.2 i).1) (loopMeasure μ P.D Dsf K settings.level5.probeBudget) (restLaw P.D Dsf K) :=
-  measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)
+omit [Fintype α] [DecidableEq α] in
+lemma mem_of_pos {ν : Measure (FreeMonoid α)} {A : Set (FreeMonoid α)} (hA : ν Aᶜ = 0)
+    {t : FreeMonoid α} (ht : 0 < ν.real {t}) : t ∈ A := by
+  by_contra h
+  have : ν {t} = 0 := measure_mono_null (fun z hz => by
+    rw [Set.mem_singleton_iff.1 hz]; exact h) hA
+  rw [measureReal_def, this, ENNReal.toReal_zero] at ht
+  exact lt_irrefl _ ht
 
-/-- Round `r` repeats a suffix or a prefix an earlier round drew, or a draw has the wrong length,
-with chance at most the pairs times the largest atoms. -/
-theorem loop_coll_le (Ls NS NP N : ℕ) (qsf qa : ℝ) (hC : 2 ≤ settings.level5.maxLeaves)
+omit [IsProbabilityMeasure μ] in
+/-- Where every uniform is below `1`, no round through `r` reads a string an earlier round read,
+and every string read has a length its distribution gives mass. -/
+theorem noColl_of_allLt (Ls N : ℕ) (hC : 2 ≤ settings.level5.maxLeaves)
     (hN : P.L + settings.level5.maxLeaves ≤ N) (hLs : P.L < Ls)
-    (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (hqsf : ∀ t, Dsf.real {t} ≤ qsf)
-    (hqD : ∀ t, P.D.real {t} ≤ qa) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ P.D Dsf K settings.level5.probeBudget).real
-      {p | HistOK settings O P.D N p.1 p.2 r
-        ∧ (histCodes settings O P.D N p.1 p.2 r).length = r
-        ∧ (∀ ν ∈ (histCodes settings O P.D N p.1 p.2 r).map
-            (decodePop P.D settings.level5.walkStart),
-          ν {q | Ls ≤ q.toList.length} = 0 ∧ ∀ t, ν.real {t} ≤ qa)
-        ∧ ¬ NoCollD settings P.D Ls NS NP (histCodes settings O P.D N p.1 p.2 r) p.2 r hr}
-      ≤ r * NS ^ 2 * qsf + 16 * r * (K + 1) ^ 2 * NP ^ 2 * qa := by
+    (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (ω : Ω)
+    (g : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (hr : r < K)
+    (hlen : (histCodes settings O P.D Dsf N ω g r).length = r)
+    (hsupp : ∀ ν ∈ (decodeHist P.D settings.level5.walkStart
+      (histCodes settings O P.D Dsf N ω g r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
+    (hpm : ∀ j ∈ loopPopulations K r, (loopDistributions P.D (decodeHist P.D
+      settings.level5.walkStart (histCodes settings O P.D Dsf N ω g r)).pops j).real
+        ↑(decodeHist P.D settings.level5.walkStart (histCodes settings O P.D Dsf N ω g r)).prefs
+        ≤ 1 / 2)
+    (hsm : Dsf.real ↑(decodeHist P.D settings.level5.walkStart
+      (histCodes settings O P.D Dsf N ω g r)).suffs ≤ 1 / 2)
+    (hlt : AllLt g r) :
+    NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N ω g r) g r hr := by
   classical
-  set T := settings.level5.probeBudget
-  set dec := decodePop P.D settings.level5.walkStart with hdec
-  set μL := loopMeasure μ P.D Dsf K T
-  obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
-  set rK : Fin K := ⟨r, hr⟩
-  have hqsf0 : 0 ≤ qsf := measureReal_nonneg.trans (hqsf 1)
-  have hqa0 : 0 ≤ qa := measureReal_nonneg.trans (hqD 1)
-  have hrest := measurePreserving_roundRest settings P Dsf (μ := μ)
-  have hnil : ∀ ν ∈ ([] : List (Measure (FreeMonoid α))), IsProbabilityMeasure ν := by simp
-  have hsuf : ∀ a, Measurable fun c : ClusterRest α K => c.1 a := fun a =>
-    (measurable_pi_apply a).comp measurable_fst
-  have hrr : ∀ i : Fin K, Measurable fun p : Ω × (Fin K → RoundDraws α K T) => (p.2 i).1 :=
-    fun i => measurable_fst.comp ((measurable_pi_apply i).comp measurable_snd)
-  -- draws of the wrong length
-  set Z0 : Set (Ω × (Fin K → RoundDraws α K T)) :=
-    (⋃ (i : Fin K) (a : ℕ), (fun p : Ω × (Fin K → RoundDraws α K T) => (p.2 i).1) ⁻¹'
-        {c : ClusterRest α K | c.1 a ∈ {v : FreeMonoid α | v.toList.length ≠ Ls}})
-      ∪ ⋃ (i : Fin K) (a : ℕ) (b : Bool), (fun p : Ω × (Fin K → RoundDraws α K T) => (p.2 i).1) ⁻¹'
-        {c : ClusterRest α K | prefDraw ([] : List (Measure (FreeMonoid α))) c none a b
-          ∈ {v : FreeMonoid α | P.L < v.toList.length}}
-  have hZ0 : μL Z0 = 0 := by
-    refine measure_union_null (measure_iUnion_null fun i => measure_iUnion_null fun a => ?_)
-      (measure_iUnion_null fun i => measure_iUnion_null fun a => measure_iUnion_null fun b => ?_)
-    · rw [(hrest i).measure_preimage (show MeasurableSet {c : ClusterRest α K | c.1 a ∈
-        {v : FreeMonoid α | v.toList.length ≠ Ls}} from
-          (hsuf a) (measurableSet_of_countable _)).nullMeasurableSet, restLaw_suffix, hDsf]
-    · rw [(hrest i).measure_preimage (show MeasurableSet {c : ClusterRest α K |
-        prefDraw ([] : List (Measure (FreeMonoid α))) c none a b
-          ∈ {v : FreeMonoid α | P.L < v.toList.length}} from
-          (measurable_prefDraw (K := K) [] hnil none a b)
-        (measurableSet_of_countable _)).nullMeasurableSet, restLaw_prefDraw P.D Dsf [] hnil]
-      exact measure_mono_null (fun x hx => by simpa using hx) (ae_iff.1 P.length_le)
-  -- suffix repeats
-  set SC : Fin r × Fin NS × Fin NS → Set (Ω × (Fin K → RoundDraws α K T)) := fun t =>
-    {p | (p.2 rK).1 ∈ {c : ClusterRest α K | c.1 t.2.2 ∈
-      ({(p.2 ⟨t.1, t.1.2.trans hr⟩).1.1 t.2.1} : Set (FreeMonoid α))}}
-  have hSC : ∀ t, μL (SC t) ≤ ENNReal.ofReal qsf := by
-    intro t
-    refine persist_rest_le settings O P.D Dsf rK
-      (fun _ x => (x ⟨t.1, t.1.2.trans hr⟩).1.1 t.2.1)
-      (fun ω x x' h => by
-        show (x _).1.1 _ = (x' _).1.1 _
-        rw [h ⟨t.1, t.1.2.trans hr⟩ (show t.1.1 < r from t.1.2)])
-      (fun s => measurableSet_setOfPred.2 ((measurable_of_countable (fun v : FreeMonoid α => v = s)).comp
-        ((hsuf t.2.1).comp (hrr _))))
-      (fun _ _ => ∅) (fun _ => True) (fun y x ω ω' _ h _ => h)
-      (fun s => {c : ClusterRest α K | c.1 t.2.2 ∈ ({s} : Set (FreeMonoid α))})
-      (fun _ h => absurd trivial h)
-      (fun _ => (hsuf _) (measurableSet_of_countable _)) (ENNReal.ofReal qsf) (fun s => ?_)
-    rw [restLaw_suffix, ← ofReal_measureReal]
-    exact ENNReal.ofReal_le_ofReal (hqsf s)
-  -- prefix repeats
-  set Idx := Fin r × Option (Fin K) × Fin (2 * NP) × Bool × Option (Fin K) × Fin (2 * NP) × Bool
-  set stP : Idx → Ω → (Fin K → RoundDraws α K T) → Option (List (HarvestCode α) × FreeMonoid α) :=
-    fun t ω x => (stageH settings O P.D N r ω x).map fun c =>
-      (c, prefDraw (popsAt settings P.D c t.1) (x ⟨t.1, t.1.2.trans hr⟩).1 t.2.1 t.2.2.1 t.2.2.2.1)
-  set BadP : Idx → Option (List (HarvestCode α) × FreeMonoid α) → Set (ClusterRest α K) :=
-    fun t y => match y with
-    | some (c, s) => if c.length = r ∧ (∀ ν ∈ c.map dec, ∀ u, ν.real {u} ≤ qa) then
-        {c1 | t.2.2.2.2.1 ∈ loopPopulations K (c.map dec).length
-          ∧ prefDraw (c.map dec) c1 t.2.2.2.2.1 t.2.2.2.2.2.1 t.2.2.2.2.2.2 ∈
-            ({s} : Set (FreeMonoid α))}
-        else ∅
-    | none => ∅
-  set PC : Idx → Set (Ω × (Fin K → RoundDraws α K T)) := fun t =>
-    {p | (p.2 rK).1 ∈ BadP t (stP t p.1 p.2)}
-  have hpopsP : ∀ (c : List (HarvestCode α)) (i : ℕ), ∀ ν ∈ popsAt settings P.D c i,
-      IsProbabilityMeasure ν := fun c i => decodePop_prob settings P.D (c.take i)
-  have hPC : ∀ t, μL (PC t) ≤ ENNReal.ofReal qa := by
-    intro t
-    obtain ⟨i, j, a, b, j', a', b'⟩ := t
-    refine persist_rest_le settings O P.D Dsf rK (stP (i, j, a, b, j', a', b'))
-      (fun ω x x' h => by
-        simp only [stP]
-        rw [stageH_congr_draws settings O P.D N r ω x x' fun i hi => h i hi,
-          h ⟨i, i.2.trans hr⟩ (show i.1 < r from i.2)])
-      (fun y => ?_)
-      (fun y x => match y with
-        | some (c, _) => histReads settings P.D N c x r ω₀
-        | none => ∅)
-      (fun y => y.isSome)
-      (fun y x ω ω' hG hs h => ?_)
-      (BadP (i, j, a, b, j', a', b')) (fun y hy => by
-        rcases y with _ | ⟨c, s⟩
-        · rfl
-        · exact absurd rfl hy)
-      (fun y => by
-        rcases y with _ | ⟨c, s⟩
-        · exact MeasurableSet.empty
-        · show MeasurableSet (if _ then _ else _)
-          split_ifs
-          · exact (MeasurableSet.const _).inter ((measurable_prefDraw _ (decodePop_prob settings
-              P.D c) _ _ _) (measurableSet_of_countable _))
-          · exact MeasurableSet.empty)
-      (ENNReal.ofReal qa) (fun y => ?_)
-    · -- the stage is measurable
-      rcases y with _ | ⟨c, s⟩
-      · have : {p : Ω × (Fin K → RoundDraws α K T) | stP (i, j, a, b, j', a', b') p.1 p.2 = none}
-            = {p | stageH settings O P.D N r p.1 p.2 = none} := by
-          ext p; simp [stP]
-        rw [this]
-        exact measurableSet_stageH settings O P.D N P.length_le hC hN r none
-      · have : {p : Ω × (Fin K → RoundDraws α K T) |
-            stP (i, j, a, b, j', a', b') p.1 p.2 = some (c, s)}
-            = {p | stageH settings O P.D N r p.1 p.2 = some c}
-              ∩ (fun p : Ω × (Fin K → RoundDraws α K T) => (p.2 ⟨i, i.2.trans hr⟩).1) ⁻¹'
-                {c1 | prefDraw (popsAt settings P.D c i) c1 j a b ∈ ({s} : Set (FreeMonoid α))} := by
-          ext p
-          simp only [stP, Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage,
-            Set.mem_singleton_iff, Option.map_eq_some_iff, Prod.mk.injEq]
-          constructor
-          · rintro ⟨c', h1, rfl, h2⟩
-            exact ⟨h1, h2⟩
-          · rintro ⟨h1, h2⟩
-            exact ⟨c, h1, rfl, h2⟩
-        rw [this]
-        exact (measurableSet_stageH settings O P.D N P.length_le hC hN r (some c)).inter
-          (hrr _ ((measurable_prefDraw _ (hpopsP c i) j a b) (measurableSet_of_countable _)))
-    · -- the stage is fixed by the earlier rounds' reads
-      rcases y with _ | ⟨c, s⟩
-      · exact absurd hG (by simp)
-      · simp only [stP, Option.map_eq_some_iff, Prod.mk.injEq] at hs ⊢
-        obtain ⟨c', h1, rfl, h2⟩ := hs
-        exact ⟨c', stageH_stop settings O P.D N P.length_le hC hN r c' x ω ω' ω₀ h1 h, rfl, h2⟩
-    · -- a draw from round `r`'s populations hits a given string with chance at most `qa`
-      rcases y with _ | ⟨c, s⟩
-      · show restLaw P.D Dsf K ∅ ≤ _
-        simp
-      · show restLaw P.D Dsf K (if _ then _ else _) ≤ _
-        split_ifs with hc
-        · by_cases hj' : j' ∈ loopPopulations K (c.map dec).length
-          · have hpm := decodePop_prob settings P.D c
-            have : ∀ j, IsProbabilityMeasure (loopDistributions (K := K) P.D (c.map dec) j) :=
-              isProbabilityMeasure_loopDistributions P.D _ hpm
-            refine (measure_mono (t := {c1 : ClusterRest α K | prefDraw (c.map dec) c1 j' a' b'
-              ∈ ({s} : Set (FreeMonoid α))}) fun c1 hc1 => hc1.2).trans ?_
-            rw [restLaw_prefDraw P.D Dsf _ hpm, ← ofReal_measureReal]
-            refine ENNReal.ofReal_le_ofReal ?_
-            cases j' with
-            | none => exact hqD s
-            | some i' =>
-              have hi' := lt_of_some_mem_loopPops hj'
-              show ((c.map dec).getD i' (Measure.dirac 1)).real {s} ≤ qa
-              rw [List.getD_eq_getElem (hn := hi')]
-              exact hc.2 _ (List.getElem_mem _) s
-          · rw [show {c1 : ClusterRest α K | j' ∈ loopPopulations K (c.map dec).length
-                ∧ prefDraw (c.map dec) c1 j' a' b' ∈ ({s} : Set (FreeMonoid α))} = ∅ from
-              Set.eq_empty_of_forall_notMem fun c1 hc1 => hj' hc1.1, measure_empty]
-            exact zero_le
-        · simp
-  -- every bad draw collides or has the wrong length
-  have hsub : {p : Ω × (Fin K → RoundDraws α K T) | HistOK settings O P.D N p.1 p.2 r
-        ∧ (histCodes settings O P.D N p.1 p.2 r).length = r
-        ∧ (∀ ν ∈ (histCodes settings O P.D N p.1 p.2 r).map dec,
-          ν {q | Ls ≤ q.toList.length} = 0 ∧ ∀ t, ν.real {t} ≤ qa)
-        ∧ ¬ NoCollD settings P.D Ls NS NP (histCodes settings O P.D N p.1 p.2 r) p.2 r hr}
-      ⊆ (Z0 ∪ ⋃ t, SC t) ∪ ⋃ t, PC t := by
-    rintro p ⟨hok, hlen, hgood, hnot⟩
-    by_contra hout
-    apply hnot
-    set c := histCodes settings O P.D N p.1 p.2 r
-    have hpop : popsAt settings P.D c r = c.map dec := by
-      simp only [popsAt, List.take_of_length_le (le_of_eq hlen)]
-      rfl
-    have hst : stageH settings O P.D N r p.1 p.2 = some c := by simp only [stageH, if_pos hok]; rfl
-    refine ⟨fun i hi a' ha => ?_, fun i hi j hj a' b ha => ?_, fun i hi a' ha a'' ha' heq => ?_,
-      fun i hi j hj a' b ha j' hj' a'' b' ha' heq => ?_⟩
-    · by_contra h
-      exact hout (Or.inl (Or.inl (Or.inl (Set.mem_iUnion₂.2 ⟨i, a', h⟩))))
-    · cases j with
-      | none =>
-        by_contra h
-        refine hout (Or.inl (Or.inl (Or.inr (Set.mem_iUnion.2 ⟨i, Set.mem_iUnion₂.2 ⟨a', b, ?_⟩⟩))))
-        show P.L < (prefDraw [] (p.2 i).1 none a' b).toList.length
-        have : prefDraw [] (p.2 i).1 none a' b
-            = prefDraw (popsAt settings P.D c i) (p.2 i).1 none a' b := by cases b <;> rfl
-        rw [this]
-        omega
-      | some i' =>
-        set H' := popsAt settings P.D c i
-        have hi' := lt_of_some_mem_loopPops hj
-        set ν := H'.getD i' (Measure.dirac 1)
-        have hνm : ν ∈ c.map dec := by
-          have h1 : ν ∈ H' := by
-            simp only [ν]
-            rw [List.getD_eq_getElem (hn := hi')]
-            exact List.getElem_mem _
-          obtain ⟨c', hc', hν⟩ := List.mem_map.1 h1
-          exact List.mem_map.2 ⟨c', List.mem_of_mem_take hc', hν⟩
-        have : IsProbabilityMeasure ν := hpopsP c i ν (by
-          simp only [ν]; rw [List.getD_eq_getElem (hn := hi')]; exact List.getElem_mem _)
-        have hdraw : prefDraw H' (p.2 i).1 (some i') a' b = drawFrom ν
-            (if b then (p.2 i).1.2.2.2 i' a' else (p.2 i).1.2.2.1 i' a') := by cases b <;> rfl
-        rw [hdraw]
-        rcases drawFrom_pos_or_one ν (if b then (p.2 i).1.2.2.2 i' a' else (p.2 i).1.2.2.1 i' a')
-          with h | h
-        · by_contra hl
-          have h0 : ν {drawFrom ν (if b then (p.2 i).1.2.2.2 i' a' else (p.2 i).1.2.2.1 i' a')} = 0 :=
-            measure_mono_null (fun z hz => by
-              rw [Set.mem_singleton_iff.1 hz]; exact (not_lt.1 hl)) (hgood ν hνm).1
-          rw [measureReal_def, h0, ENNReal.toReal_zero] at h
-          exact lt_irrefl _ h
-        · rw [h]; simp only [FreeMonoid.toList_one, List.length_nil]; omega
-    · exact hout (Or.inl (Or.inr (Set.mem_iUnion.2 ⟨(⟨i.1, hi⟩, ⟨a', ha⟩, ⟨a'', ha'⟩),
-        by show (p.2 rK).1.1 a'' = (p.2 ⟨i.1, _⟩).1.1 a'; exact heq.symm⟩)))
-    · refine hout (Or.inr (Set.mem_iUnion.2 ⟨(⟨i.1, hi⟩, j, ⟨a', ha⟩, b, j', ⟨a'', ha'⟩, b'), ?_⟩))
-      show (p.2 rK).1 ∈ BadP _ (stP _ p.1 p.2)
-      simp only [stP, hst, Option.map_some]
-      show (p.2 rK).1 ∈ (if _ then _ else _)
-      rw [if_pos ⟨hlen, fun ν hν => (hgood ν hν).2⟩]
-      refine ⟨by rw [← hpop]; exact hj', ?_⟩
-      show prefDraw (c.map dec) (p.2 rK).1 j' a'' b'
-        = prefDraw (popsAt settings P.D c i) (p.2 ⟨i.1, _⟩).1 j a' b
-      rw [← hpop]
-      exact heq.symm
-  -- the sum
-  have hcardI : (Fintype.card Idx : ℝ) = 16 * r * (K + 1) ^ 2 * NP ^ 2 := by
-    simp only [Idx, Fintype.card_prod, Fintype.card_fin, Fintype.card_option, Fintype.card_bool]
-    push_cast
-    ring
-  have hcardS : (Fintype.card (Fin r × Fin NS × Fin NS) : ℝ) = r * NS ^ 2 := by
-    simp only [Fintype.card_prod, Fintype.card_fin]
-    push_cast
-    ring
-  have hbound : μL ((Z0 ∪ ⋃ t, SC t) ∪ ⋃ t, PC t)
-      ≤ ENNReal.ofReal (r * NS ^ 2 * qsf + 16 * r * (K + 1) ^ 2 * NP ^ 2 * qa) := by
-    calc μL ((Z0 ∪ ⋃ t, SC t) ∪ ⋃ t, PC t)
-        ≤ μL Z0 + μL (⋃ t, SC t) + μL (⋃ t, PC t) :=
-          (measure_union_le _ _).trans (add_le_add (measure_union_le _ _) le_rfl)
-      _ ≤ 0 + ∑ t, ENNReal.ofReal qsf + ∑ t, ENNReal.ofReal qa := by
-          rw [hZ0]
-          gcongr
-          · exact (measure_iUnion_fintype_le _ _).trans (Finset.sum_le_sum fun t _ => hSC t)
-          · exact (measure_iUnion_fintype_le _ _).trans (Finset.sum_le_sum fun t _ => hPC t)
-      _ = ENNReal.ofReal (r * NS ^ 2 * qsf + 16 * r * (K + 1) ^ 2 * NP ^ 2 * qa) := by
-          rw [zero_add, Finset.sum_const, Finset.sum_const, Finset.card_univ, Finset.card_univ,
-            nsmul_eq_mul, nsmul_eq_mul, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
-            ← ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_mul (by positivity),
-            ← ENNReal.ofReal_add (by positivity) (by positivity), hcardS, hcardI]
-  exact ENNReal.toReal_le_of_le_ofReal (by positivity) ((measure_mono hsub).trans hbound)
+  set c := histCodes settings O P.D Dsf N ω g r
+  set H := decodeHist P.D settings.level5.walkStart c
+  have hpl : H.pops.length = r := by simp [H, decodeHist, hlen]
+  have hHr : histAt settings P.D c r = H := by
+    simp only [histAt, List.take_of_length_le (le_of_eq hlen), H]
+  have hpsH : ∀ i, (histAt settings P.D c i).pops.length ≤ r := fun i => by
+    rw [histAt_pops, List.length_take, hpl]; exact min_le_right _ _
+  -- each population a round through `r` reads is one of round `r`'s, and puts mass on short strings
+  have hdist : ∀ i, ∀ j ∈ loopPopulations K (histAt settings P.D c i).pops.length,
+      loopDistributions P.D (histAt settings P.D c i).pops j = loopDistributions P.D H.pops j
+        ∧ j ∈ loopPopulations K r := by
+    intro i j hj
+    have hj' : j ∈ loopPopulations K i := by
+      refine loopPopulations_mono ?_ hj
+      rw [histAt_pops]; exact List.length_take_le _ _
+    rw [histAt_pops]
+    exact ⟨loopDistributions_take P.D H.pops hj', loopPopulations_mono (hpsH i) hj⟩
+  have hshort : ∀ j ∈ loopPopulations K r, loopDistributions P.D H.pops j
+      {q | Ls ≤ q.toList.length} = 0 := by
+    intro j hj
+    cases j with
+    | none =>
+      refine measure_mono_null (fun x hx => ?_) (ae_iff.1 P.length_le)
+      simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
+      omega
+    | some i' =>
+      have hi' : i'.val < H.pops.length := by rw [hpl]; exact lt_of_some_mem_loopPops hj
+      show (H.pops.getD i' (Measure.dirac 1)) _ = 0
+      rw [List.getD_eq_getElem (hn := hi')]
+      exact hsupp _ (List.getElem_mem _)
+  have hprob : ∀ j, IsProbabilityMeasure (loopDistributions (K := K) P.D H.pops j) :=
+    isProbabilityMeasure_loopDistributions P.D H.pops (decodePop_prob settings P.D c)
+  -- the draws of round `i ≤ r`
+  have hpref : ∀ i : Fin K, i.1 ≤ r → ∀ p ∈ prefsOf settings P.D Dsf (histAt settings P.D c i)
+      (g i).1, p ∉ (histAt settings P.D c i).prefs ∧ p.toList.length < Ls := by
+    intro i hir p hp
+    obtain ⟨j, hj, n, hpn⟩ := mem_prefsOf_draw settings P.D Dsf hp
+    obtain ⟨hd, hjr⟩ := hdist i j hj
+    have hm : (loopDistributions P.D H.pops j).real ↑(histAt settings P.D c i).prefs ≤ 1 / 2 :=
+      (measureReal_mono (Finset.coe_subset.2 (histAt_prefs_sub settings P.D c i))).trans
+        (hpm j hjr)
+    have h0 := compl_ne_zero hm
+    rw [hd] at hpn
+    obtain ⟨u, hu, rfl⟩ : ∃ u : unitInterval, (u : ℝ) < 1 ∧
+        p = drawFrom (offLaw (loopDistributions P.D H.pops j) (histAt settings P.D c i).prefs) u := by
+      rcases hpn with h | h
+      · exact ⟨_, (hlt i hir).2.1 j n, h⟩
+      · exact ⟨_, (hlt i hir).2.2 j n, h⟩
+    obtain ⟨hT, hpos⟩ := drawFrom_offLaw h0 hu
+    refine ⟨hT, ?_⟩
+    have := mem_of_pos (A := {q : FreeMonoid α | q.toList.length < Ls})
+      (by
+        refine measure_mono_null (fun x hx => ?_) (hshort j hjr)
+        simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hx ⊢
+        exact hx) hpos
+    exact this
+  have hsuf : ∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf settings P.D Dsf (histAt settings P.D c i)
+      (g i).1, v ∉ (histAt settings P.D c i).suffs ∧ v.toList.length = Ls := by
+    intro i hir v hv
+    obtain ⟨n, rfl⟩ := mem_suffsOf_draw settings P.D Dsf hv
+    have hm : Dsf.real ↑(histAt settings P.D c i).suffs ≤ 1 / 2 :=
+      (measureReal_mono (Finset.coe_subset.2 (histAt_suffs_sub settings P.D c i))).trans hsm
+    obtain ⟨hT, hpos⟩ := drawFrom_offLaw (compl_ne_zero hm) ((hlt i hir).1 n)
+    refine ⟨hT, ?_⟩
+    have := mem_of_pos (A := {q : FreeMonoid α | q.toList.length = Ls})
+      (by
+        refine measure_mono_null (fun x hx => ?_) hDsf
+        simpa using hx) hpos
+    exact this
+  -- an earlier round's reads are in the history round `r` draws off
+  have hcons : ∀ i : Fin K, i.1 < r →
+      prefsOf settings P.D Dsf (histAt settings P.D c i) (g i).1 ⊆ H.prefs
+      ∧ suffsOf settings P.D Dsf (histAt settings P.D c i) (g i).1 ⊆ H.suffs := by
+    intro i hir
+    have hic : i.1 < c.length := by omega
+    obtain ⟨hiK, code, hget, h1, h2⟩ :=
+      histCodes_getElem settings O P.D Dsf N P.length_le hC hN ω g r i hic
+    have hmem : code ∈ c := List.mem_of_getElem? hget
+    refine ⟨fun p hp => ?_, fun v hv => ?_⟩
+    · simp only [H, decodeHist]
+      refine (mem_foldr_union _ _ p).2 ⟨code, hmem, ?_⟩
+      rw [h1]
+      exact hp
+    · simp only [H, decodeHist]
+      refine (mem_foldr_union _ _ v).2 ⟨code, hmem, ?_⟩
+      rw [h2]
+      exact Finset.mem_of_mem_erase hv
+  refine ⟨fun i hir v hv => (hsuf i hir v hv).2, fun i hir p hp => (hpref i hir p hp).2,
+    fun i hir => Finset.disjoint_left.2 fun v hv hv' => ?_,
+    fun i hir => Finset.disjoint_left.2 fun p hp hp' => ?_⟩
+  · have := (hsuf ⟨r, hr⟩ le_rfl v hv').1
+    rw [hHr] at this
+    exact this ((hcons i hir).2 hv)
+  · have := (hpref ⟨r, hr⟩ le_rfl p hp').1
+    rw [hHr] at this
+    exact this ((hcons i hir).1 hp)
+
+/-- Round `r` reads a prefix or a suffix an earlier round read, or a string of a length its
+distribution gives no mass, with chance zero. -/
+theorem loop_coll_null (Ls N : ℕ) (hC : 2 ≤ settings.level5.maxLeaves)
+    (hN : P.L + settings.level5.maxLeaves ≤ N) (hLs : P.L < Ls)
+    (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (r : ℕ) (hr : r < K) :
+    (loopMeasure μ α K settings.level5.probeBudget)
+      {p | (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
+        ∧ (∀ ν ∈ (decodeHist P.D settings.level5.walkStart
+            (histCodes settings O P.D Dsf N p.1 p.2 r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
+        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (decodeHist P.D
+            settings.level5.walkStart (histCodes settings O P.D Dsf N p.1 p.2 r)).pops j).real
+              ↑(decodeHist P.D settings.level5.walkStart
+                (histCodes settings O P.D Dsf N p.1 p.2 r)).prefs ≤ 1 / 2)
+        ∧ Dsf.real ↑(decodeHist P.D settings.level5.walkStart
+            (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ 1 / 2
+        ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
+      = 0 :=
+  measure_mono_null (by
+    intro p hp hlt
+    obtain ⟨hlen, hsupp, hpm, hsm, hnc⟩ := hp
+    exact hnc (noColl_of_allLt settings O P Dsf Ls N hC hN hLs hDsf p.1 p.2 r hr hlen hsupp hpm
+      hsm hlt))
+    (allLt_ae r)
 
 end Coll
 

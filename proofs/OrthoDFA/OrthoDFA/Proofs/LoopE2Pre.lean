@@ -4,8 +4,9 @@ import OrthoDFA.Proofs.LoopRenoise
 # Level 5's claim is fixed by the short reads
 
 Over probes at most `L` long, level 5's claim reads the family only at strings at most
-`max (L + maxLeaves) (probes + 1 + maxLeaves)` long (`endsWell_congr_reads`). The clustering's
-prefixes are at most three per population and count, and their set has measurable level sets.
+`max (L + maxLeaves) (probes + 1 + maxLeaves)` long (`endsWell_congr_reads`). The clustering
+reads at most three prefixes per population per prefix the schedule draws, and at most one suffix
+more than the pool.
 -/
 
 noncomputable section
@@ -103,44 +104,81 @@ end Reads
 
 section Prefs
 
-variable (settings : LoopSettings K)
+lemma freshDraws_mono {S : Type*} [Stringlike S] (T : Finset S) (y : ℕ → S) {m m' : ℕ}
+    (h : m ≤ m') (h' : ∃ n, m' ≤ (acceptedAt T y n).card) :
+    freshDraws T y m ⊆ freshDraws T y m' := by
+  have h'' : ∃ n, m ≤ (acceptedAt T y n).card := by
+    obtain ⟨n, hn⟩ := h'; exact ⟨n, h.trans hn⟩
+  rw [freshDraws_eq T y m h'', freshDraws_eq T y m' h']
+  exact acceptedAt_mono T y (Nat.find_mono fun n hn => h.trans hn)
 
-lemma card_prefsOf_le (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) {NP : ℕ}
-    (hNP : schedNP (settings.schedule (loopPopulations K harvests.length)) ≤ NP) :
-    (prefsOf settings harvests c).card ≤ 3 * (K + 1) * NP := by
+/-- Draws at the counts `n` to `2n` hold at most `2n` strings: the larger counts' draws extend the
+smaller's, and a count the stream cannot fill draws nothing. -/
+lemma card_biUnion_freshDraws_le {S : Type*} [Stringlike S] (T : Finset S) (y : ℕ → S) (n : ℕ) :
+    ((Finset.range (n + 1)).biUnion fun e => freshDraws T y (n + e)).card ≤ 2 * n := by
   classical
-  set pops := loopPopulations K harvests.length
-  have hpops : pops.card ≤ K + 1 := by
-    have := Finset.card_le_univ pops
-    simpa using this
-  unfold prefsOf schedPrefs
-  refine (Finset.card_union_le _ _).trans ?_
-  have h1 : (prefixesAt pops (schedNP (settings.schedule pops))
-      (((), runOf harvests c) : Run Unit (FreeMonoid α) (Option (Fin K)))).card
-      ≤ pops.card * schedNP (settings.schedule pops) := by
+  set P : ℕ → Prop := fun e => ∃ k, n + e ≤ (acceptedAt T y k).card
+  set E := Nat.findGreatest P n
+  by_cases hE : P E
+  · have hsub : ((Finset.range (n + 1)).biUnion fun e => freshDraws T y (n + e))
+        ⊆ freshDraws T y (n + E) := by
+      intro v hv
+      obtain ⟨e, he, hv⟩ := Finset.mem_biUnion.1 hv
+      by_cases hPe : P e
+      · have hle : e ≤ E := Nat.le_findGreatest (Nat.lt_succ_iff.1 (Finset.mem_range.1 he)) hPe
+        exact freshDraws_mono T y (by omega) hE hv
+      · rw [freshDraws_of_not T y _ hPe] at hv
+        simp at hv
+    refine (Finset.card_le_card hsub).trans ((card_freshDraws_le T y _).trans ?_)
+    have := Nat.findGreatest_le (P := P) n
+    omega
+  · have hnone : ∀ e ≤ n, ¬ P e := fun e he hPe => hE (Nat.findGreatest_spec he hPe)
+    have : ((Finset.range (n + 1)).biUnion fun e => freshDraws T y (n + e)) = ∅ := by
+      refine Finset.eq_empty_of_forall_notMem fun v hv => ?_
+      obtain ⟨e, he, hv⟩ := Finset.mem_biUnion.1 hv
+      rw [freshDraws_of_not T y _ (hnone e (Nat.lt_succ_iff.1 (Finset.mem_range.1 he)))] at hv
+      simp at hv
+    rw [this]
+    simp
+
+variable {Ω : Type*} [MeasurableSpace Ω]
+
+/-- The prefixes a round's clustering reads number at most three per population per prefix the
+schedule draws. -/
+lemma card_roundPrefs_le (sched : Finset State) (pops : Finset (Option (Fin K)))
+    (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
+    (roundPrefs sched pops x).card ≤ 3 * pops.card * ∑ B ∈ sched, B.npref := by
+  classical
+  unfold roundPrefs
+  refine Finset.card_biUnion_le.trans ?_
+  rw [Finset.mul_sum]
+  refine Finset.sum_le_sum fun B _ => (Finset.card_union_le _ _).trans ?_
+  have h1 : (prefixesAt pops B.npref x).card ≤ pops.card * B.npref := by
     unfold prefixesAt
     refine Finset.card_biUnion_le.trans ?_
-    calc ∑ j ∈ pops, (prefixesOf j (schedNP (settings.schedule pops))
-          (((), runOf harvests c) : Run Unit (FreeMonoid α) (Option (Fin K)))).card
-        ≤ ∑ _j ∈ pops, schedNP (settings.schedule pops) :=
-          Finset.sum_le_sum fun j _ => Finset.card_image_le.trans (by simp)
+    calc ∑ j ∈ pops, (prefixesOf j B.npref x).card ≤ ∑ _j ∈ pops, B.npref :=
+          Finset.sum_le_sum fun j _ => card_freshDraws_le _ _ _
       _ = _ := by rw [Finset.sum_const, smul_eq_mul]
-  have h2 : (pops.biUnion fun j => certOf j (2 * schedNP (settings.schedule pops))
-      (((), runOf harvests c) : Run Unit (FreeMonoid α) (Option (Fin K)))).card
-      ≤ pops.card * (2 * schedNP (settings.schedule pops)) := by
+  have h2 : (pops.biUnion fun j => (Finset.range (B.npref + 1)).biUnion fun e =>
+      certOf (prefixesAt pops B.npref x) j (B.npref + e) x).card ≤ pops.card * (2 * B.npref) := by
     refine Finset.card_biUnion_le.trans ?_
-    calc ∑ j ∈ pops, (certOf j (2 * schedNP (settings.schedule pops))
-          (((), runOf harvests c) : Run Unit (FreeMonoid α) (Option (Fin K)))).card
-        ≤ ∑ _j ∈ pops, 2 * schedNP (settings.schedule pops) :=
-          Finset.sum_le_sum fun j _ => Finset.card_image_le.trans (by simp)
+    calc ∑ j ∈ pops, ((Finset.range (B.npref + 1)).biUnion fun e =>
+          certOf (prefixesAt pops B.npref x) j (B.npref + e) x).card
+        ≤ ∑ _j ∈ pops, 2 * B.npref :=
+          Finset.sum_le_sum fun j _ => card_biUnion_freshDraws_le _ _ _
       _ = _ := by rw [Finset.sum_const, smul_eq_mul]
-  have h3 : pops.card * schedNP (settings.schedule pops) ≤ (K + 1) * NP :=
-    Nat.mul_le_mul hpops hNP
-  have h4 : pops.card * (2 * schedNP (settings.schedule pops)) ≤ 2 * ((K + 1) * NP) := by
-    nlinarith
-  refine le_trans (add_le_add h1 h2) ?_
-  rw [show 3 * (K + 1) * NP = 3 * ((K + 1) * NP) by ring]
-  omega
+  nlinarith
+
+/-- Where every state of the schedule draws `n` suffixes, the clustering reads at most `n + 1`. -/
+lemma card_roundSuffs_le (sched : Finset State) {n : ℕ} (hn : ∀ B ∈ sched, B.nsuff = n)
+    (x : Run Ω (FreeMonoid α) (Option (Fin K))) : (roundSuffs sched x).card ≤ n + 1 := by
+  classical
+  have hsub : roundSuffs sched x ⊆ poolAt n x := by
+    intro v hv
+    obtain ⟨B, hB, hv⟩ := Finset.mem_biUnion.1 hv
+    rwa [hn B hB] at hv
+  refine (Finset.card_le_card hsub).trans ((Finset.card_insert_le _ _).trans ?_)
+  exact Nat.succ_le_succ (card_freshDraws_le _ _ _)
 
 end Prefs
 

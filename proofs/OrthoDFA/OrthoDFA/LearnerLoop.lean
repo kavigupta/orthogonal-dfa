@@ -171,11 +171,12 @@ structure LoopRound (Ω α : Type*) (K : ℕ) where
 variable {μ : Measure Ω}
 
 /-- Every prefix the clustering reads at a state of `sched`: each population's draws, and its
-certification draws off them to twice the state's count. -/
+certification draws off them at every count the state's tests read. -/
 def roundPrefs {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   sched.biUnion fun B => prefixesAt pops B.npref x
-    ∪ pops.biUnion fun j => certOf (prefixesAt pops B.npref x) j (2 * B.npref) x
+    ∪ pops.biUnion fun j => (Finset.range (B.npref + 1)).biUnion fun e =>
+      certOf (prefixesAt pops B.npref x) j (B.npref + e) x
 
 /-- Every suffix the clustering reads at a state of `sched`. -/
 def roundSuffs (sched : Finset State) {J : Type*} (x : Run Ω (FreeMonoid α) J) :
@@ -265,15 +266,16 @@ def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (Fre
 round whose hypothesis's walk and tree part on at most `εd` of the probes, and whose family's
 read of a probe is decided against the target at most `εcov + 2·indecisionLimit + 2·slack` of the
 time and undecided at most `2·indecisionLimit + slack`. It fails to with probability at most
-`(|Q| + 1)(2δc + δ)`: per round, the clustering's `δc`, level 5's `δ`, and `δc` for a round
-repeating a suffix or prefix an earlier round drew.
+`(|Q| + 1)(δc + δ)`: per round, the clustering's `δc` and level 5's `δ`.
 
 The whole run reads one noise. The clustering's parameters are `ClusteringQualityGuarantee`'s,
 the uniform pool drawn from the probes' distribution, and the suffixes of one length `Ls`, longer
-than any string level 5 reads. Level 5 runs at disagreement rate `εd / 2` and draws its probes
-from `D` avoiding the first `k ≥ 1` letters of every prefix the round's clustering read. `cap`
-bounds the collision mass the clustering admits of a population, and is small against the
-schedule's suffix pool and prefix count. A harvest's sampler yields at least `ρ / 4`, and finds a
+than any string level 5 reads. Each round's clustering draws its prefixes and suffixes off every
+one the earlier rounds' clusterings read, so no two rounds read the same string. Level 5 runs at
+disagreement rate `εd / 2` and draws its probes from `D` avoiding the first `k ≥ 1` letters of
+every prefix the round's clustering read. `cap` bounds the atoms of the populations and the
+suffixes: against it the clustering's collision conditions hold, and what the earlier rounds read
+holds little of any population or of the suffixes. A harvest's sampler yields at least `ρ / 4`, and finds a
 string at most as often as the probes share its length-`k` prefix, so its population puts at most
 `4 prefixMax / ρ` on any one string. Level 5's `θ` is set so that a harvested state some later
 family leaves undecided more than `1.5θ` of the time holds more of the population than the FNR
@@ -316,7 +318,7 @@ def LearnerLoopCorrect : Prop :=
             ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) εd)}
-        ≤ (Fintype.card σ + 1) * (2 * δc + δ)
+        ≤ (Fintype.card σ + 1) * (δc + δ)
 
 /-- The learner's loop at settings the theorem chooses, every hypothesis an explicit inequality.
 With probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose
@@ -326,9 +328,10 @@ time. Level 5 draws at most `Kp · G` probes a round.
 
 The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, no splits that are not
 genuine, `|Q| + 1` rounds and suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the
-rounds' clustering, collisions and level 5. `cap` is a closed form under the collision mass the
-clustering admits of a population (`PB` and `RB` bound its suffix pool and its prefix count) and
-small against the prefixes and suffixes a round draws; `ρ / 4` is what a harvest's sampler
+rounds' clustering and level 5. The clustering runs at half of `εcov`, `ι` and `pAP`, the other
+halves paying for what the earlier rounds read. `PB` and `RB` bound its suffix pool and prefix
+count; `cap` is linear in them, and holds the clustering's collision conditions and what the
+earlier rounds read of any population or of the suffixes. `ρ / 4` is what a harvest's sampler
 yields, so a population puts at most `4 prefixMax / ρ` on a string. The last hypothesis holds
 level 5's noise fields, which concentrate over the probes' length-`k` prefixes. -/
 def LearnerLoopSimple : Prop :=
@@ -339,19 +342,20 @@ def LearnerLoopSimple : Prop :=
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
   let L : ℝ := P.L
-  let δ' : ℝ := δ / (3 * (Q + 1))
+  let δ' : ℝ := δ / (2 * (Q + 1))
   let ι : ℝ := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
   let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
   let s : ℝ := 1 / 2 - η₀
   let τ : ℝ := min (εcov / 2) (min s ι)
   let J : ℝ := Q + 2
-  let PB : ℝ := 128 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
-    + 16 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
-  let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * pAP * τ))
+  let PB : ℝ := 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 3)
-  let cap : ℝ := min (min (δ' / 2 / (64 * (J + 3) ^ 3 * (RB ^ 2 + PB ^ 2 + 1)))
-      (min (ι ^ 2 / (64 * (J * RB + 1))) (δ' * ι ^ 2 / (16 * (RB + 2) * (J + 1)))))
-    (min (1 / (3 * J * (RB + 1) * (L + 1))) (δ' / (J * (PB ^ 2 + 16 * J ^ 2 * RB ^ 2 + 1))))
+  let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
+      (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
   let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
     + 8 * (Q + 3) * A * (L + 1)
   let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'
@@ -390,15 +394,15 @@ def LearnerLoopUniform : Prop :=
   let A : ℝ := Fintype.card α
   let L : ℝ := P.L
   let s : ℝ := 1 / 2 - η₀
-  let δ' : ℝ := δ / (3 * (Q + 1))
+  let δ' : ℝ := δ / (2 * (Q + 1))
   let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
   let Θ : ℝ := 1 / s + 8 / εcov + 3072 * Q * (Q + 1)
-  let P₀ : ℝ := 128 * (2 * Θ + 8 * (Q + 1) / ρ) / (s ^ 2 * pAP)
-    + 16 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+  let P₀ : ℝ := 256 * (2 * Θ + 8 * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
-    * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * pAP)) / s ^ 4
-  let L₀ : ℝ := 2 + 8 * (Real.log (512 * (Q + 5) ^ 3 * (R₀ ^ 2 + P₀ ^ 2 + 1) / (δ' * ρ)) + 28)
-    / (7 * Real.log A)
+    * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4
+  let E : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 1) / pAP + A ^ 2) / (δ' * ρ)
+  let L₀ : ℝ := 2 + 28 * (Real.log E + 24) / (25 * Real.log A)
   let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
     + 8 * (Q + 3) * A * (L + 1)
   let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'

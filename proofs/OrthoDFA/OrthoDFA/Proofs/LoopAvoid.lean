@@ -17,35 +17,6 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
-lemma clusterKeys_eq {Ω : Type*} [MeasurableSpace Ω] (sched : Finset State) (pops : Finset (Option (Fin K))) (k : ℕ)
-    (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
-    clusterKeys sched pops k x = (schedPrefs sched pops x).image fun p => prefixOf p k := by
-  classical
-  unfold clusterKeys schedPrefs
-  congr 1
-  ext p
-  simp only [Finset.mem_biUnion, Finset.mem_union]
-  constructor
-  · rintro ⟨B, hB, hp | ⟨j, hj, hp⟩⟩
-    · exact Or.inl (prefixesAt_mono pops (Finset.le_sup (f := State.npref) hB) x hp)
-    · exact Or.inr ⟨j, hj, certOf_mono j (by
-        have := Finset.le_sup (f := State.npref) hB; unfold schedNP; omega) x hp⟩
-  · intro h
-    rcases sched.eq_empty_or_nonempty with hs | hs
-    · subst hs
-      simp only [schedNP, Finset.sup_empty, Nat.bot_eq_zero, mul_zero] at h
-      rcases h with h | ⟨j, -, h⟩
-      · obtain ⟨j, -, h⟩ := Finset.mem_biUnion.1 h
-        simp [prefixesOf] at h
-      · simp [certOf] at h
-    · obtain ⟨B, hB, hBmax⟩ := Finset.exists_mem_eq_sup sched hs State.npref
-      refine ⟨B, hB, ?_⟩
-      unfold schedNP at h
-      rw [hBmax] at h
-      rcases h with h | ⟨j, hj, h⟩
-      · exact Or.inl h
-      · exact Or.inr ⟨j, hj, h⟩
-
 lemma drawFrom_pos_or_one (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] (u : unitInterval) :
     0 < ν.real {drawFrom ν u} ∨ drawFrom ν u = 1 := by
   rcases (drawFrom_eq_iff ν u (drawFrom ν u)).1 rfl with ⟨h1, h2⟩ | ⟨h, -⟩

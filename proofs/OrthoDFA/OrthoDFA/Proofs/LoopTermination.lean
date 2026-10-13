@@ -274,8 +274,8 @@ lemma loopRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
             ((loopRound settings O D Dsf h d).state.hi + 1)
             (insert 1 (loopRound settings O D Dsf h d).family) p
           ∂(loopDistributions D' h.pops j) ≤ 2 * settings.indecisionLimit + slack := by
-  have hr := loopRound_returns settings O D harvests d h.1
-  exact ⟨hr.1, h.2 _ hr.1 hr.2⟩
+  have hr := loopRound_returns settings O D Dsf h d hs.1
+  exact ⟨hr.1, hs.2 _ hr.1 hr.2⟩
 
 end RoundFacts
 
@@ -328,8 +328,10 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O _ _ _ _ hs
-    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O _ _ _ _, hq⟩
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf (histOf P.D k (L.take i))
+      (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack) hs
+    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O P.D Dsf
+      (histOf P.D k (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →
@@ -463,7 +465,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       have := Fintype.card_le_of_injective _ hinj
       simp at this
     · -- fewer than `|Q| + 1` rounds, so the last did not harvest
-      have hst := loopRounds_stops settings O P.D draws
+      have hst := loopRounds_stops settings O P.D Dsf draws
       rw [← hLdef] at hst
       rcases hst with h | ⟨o, ho, hn⟩
       · omega
@@ -473,7 +475,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
   obtain ⟨i, hi, hiσ, hn⟩ := hstop
   have hlast : i + 1 = L.length := by
     by_contra hne
-    exact harvested_of_lt settings O P.D draws K i (by rw [← hLdef]; omega) hn
+    exact harvested_of_lt settings O P.D Dsf draws K i (by rw [← hLdef]; omega) hn
   refine ⟨by omega, L[i], ?_, hagree i hi hiσ hn⟩
   rw [List.getLast?_eq_getElem?, ← hlast]
   simp

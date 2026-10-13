@@ -412,7 +412,57 @@ def ClusteringQualityAll : Prop :=
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
-theorem clustering_quality_all : ClusteringQualityAll := by
+/-- `ClusteringQualityAll`, with the states among the ladder's. -/
+def ClusteringQualitySized : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  uni ∈ populations →
+  Flat Pre Suf →
+  0 < pAP →
+  0 < indecisionLimit →
+  indecisionLimit ≤ 1 / 2 →
+  0 < α →
+  α < 1 / 2 →
+  0 < εcov →
+  εcov ≤ 1 →
+  0 < δ →
+  δ ≤ 1 →
+  0 < crossLimit →
+  0 < slack →
+  ∃ states : Finset State,
+    (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+      (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+      ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+    states ⊆ schedule η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      (∀ B ∈ states, ∀ j ∈ populations,
+        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
+          ≤ δ * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2) →
+      (∀ B ∈ states, ∀ j ∈ populations,
+        2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
+          ≤ δ * slack ^ 2) →
+      (∀ B ∈ states,
+        2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        1 - δ ≤ (runMeasure μ D Dsf).real
+          {x | (∃ B : {B : State // B ∈ states},
+                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+            ∧ ∀ B : {B : State // B ∈ states},
+              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              ∀ j ∈ populations,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ εcov + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ 2 * indecisionLimit + slack}
+
+theorem clustering_quality_sized : ClusteringQualitySized := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
   have hpop : populations.Nonempty := ⟨uni, huni⟩
@@ -445,7 +495,8 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit ρ₀
     with hstates
   refine ⟨states, fun B hB =>
-    cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
+    cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB),
+    Finset.filter_subset _ _, ?_⟩
   intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hslackD hcollSf
   have := hD
   have := hDsf
@@ -668,6 +719,14 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   have := hFtail j
   have := hPmass j hj
   exact ⟨by linarith, by linarith⟩
+
+theorem clustering_quality_all : ClusteringQualityAll := by
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack
+  obtain ⟨states, h1, -, h⟩ := clustering_quality_sized O populations uni Pre Suf η₀
+    indecisionLimit εcov α δ pAP crossLimit slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε
+    hε1 hδ hδ1 hcr hslack
+  exact ⟨states, h1, h⟩
 
 /-- From `clustering_quality_all` at `min εcov (1/2)`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by

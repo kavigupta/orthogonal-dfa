@@ -270,6 +270,20 @@ lemma measurePreserving_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHi
   have hin := ((hS.prod hP).prod hP).comp hassoc
   exact (MeasurePreserving.id μ).prod hin
 
+omit [IsProbabilityMeasure μ] in
+lemma measurable_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
+    Measurable (clusterRun (Ω := Ω) (K := K) D Dsf h) := by
+  unfold clusterRun
+  refine measurable_fst.prodMk (Measurable.prodMk (Measurable.prodMk ?_ ?_) ?_)
+  · exact measurable_pi_lambda _ fun n => (measurable_drawFrom _).comp
+      ((measurable_pi_apply n).comp (measurable_fst.comp measurable_snd))
+  · exact measurable_pi_lambda _ fun j => measurable_pi_lambda _ fun n =>
+      (measurable_drawFrom _).comp ((measurable_pi_apply n).comp ((measurable_pi_apply j).comp
+        (measurable_fst.comp (measurable_snd.comp measurable_snd))))
+  · exact measurable_pi_lambda _ fun j => measurable_pi_lambda _ fun n =>
+      (measurable_drawFrom _).comp ((measurable_pi_apply n).comp ((measurable_pi_apply j).comp
+        (measurable_snd.comp (measurable_snd.comp measurable_snd))))
+
 end Run
 
 end OrthoDFA

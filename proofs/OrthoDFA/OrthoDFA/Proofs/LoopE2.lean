@@ -129,9 +129,9 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
           (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level5.maxLeaves))
           settings.level5.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
-      ∧ ∀ x₀ ω u, (ω, u) ∉ Bd →
+      ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
         Level5Spec M O P θ εd (y / 2) settings.level5.walkStart
-          (mkRound settings O P.D x₀ B F K₀ (ω, u)) := by
+          (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, u)) := by
   classical
   set C := settings.level5 with hCdef
   set k := C.walkStart
@@ -220,7 +220,7 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
       (probesOf settings P.D K₀ u) hread
     exact fun hE => hω (this.2 hE)
   · -- off the bad draws, the actual round meets its claim
-    intro x₀ ω u hnot
+    intro x₀ Pr Sf ω u hnot
     have hE : EndsWell M (fun q => ¬ fam'.oracle.Good θ q) D' C.disagreementRate
         (searchingProbes (fun z => fam'.read (ω, ω₀) z) k
           (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
