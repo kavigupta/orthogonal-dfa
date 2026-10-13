@@ -73,7 +73,7 @@ noncomputable def keep (s : Level2State α) (n : ℕ) : Level2State α ⊕ Round
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
 def splitLeaf (s : Level2State α) (p : List Bool) (c : α) (t t₀ : List Bool) : Level2State α :=
-  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
+  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
   newHypothesis T' (retarget read T' p s.edges)
 
 /-- At `wrongEdge p c u t`, `u·c` sifts to `t` while the edge `(p, c)` points at `t₀`, where its

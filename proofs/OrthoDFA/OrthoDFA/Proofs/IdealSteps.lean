@@ -329,7 +329,7 @@ theorem step_change [Fintype α] (hI : IdealReads read M side) (hn : 1 ≤ C.pro
     obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
     have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm ht₀)
     have hreach : Reached read
-        (s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) := by
+        (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) := by
       refine reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
       · simpa [mul_assoc] using hpart.1
       · simpa [mul_assoc] using hpart.2.1
