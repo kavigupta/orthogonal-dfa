@@ -3,6 +3,8 @@ import OrthoDFA.ClusteringQuality
 import OrthoDFA.FamilyRead
 import OrthoDFA.Proofs.Replay
 import Mathlib.Data.List.Basic
+import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.HypothesisDFA
 
 /-!
 # A family's cut as reads
@@ -27,9 +29,6 @@ abbrev rd (f : FreeMonoid α → ℝ) : CutReads α := ⟨B, F, f⟩
 def ext : Option α → FreeMonoid α
   | none => 1
   | some c => FreeMonoid.of c
-
-theorem prefixOf_length (w : FreeMonoid α) : prefixOf w w.toList.length = w := by
-  simp [prefixOf]
 
 end Congr
 

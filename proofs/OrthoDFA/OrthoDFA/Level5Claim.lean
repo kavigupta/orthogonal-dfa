@@ -47,7 +47,7 @@ def TriOracle.Good {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {σ : Typ
 
 /-- The probes that search: their walk from `k` along `H`'s edges and the sift disagree at a
 decided read. -/
-def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : Hypothesis α) :
+def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) :
     Set (FreeMonoid α) :=
   {x | match probeBy (fun z => (read z).cut) H.tree (Function.curry H.edges) k x with
     | .undecidedMid _ | .edge _ _ => True

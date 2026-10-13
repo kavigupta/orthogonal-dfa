@@ -1,5 +1,7 @@
 import OrthoDFA.Proofs.Level5True
 import OrthoDFA.Proofs.SubCompose
+import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.HypothesisDFA
 
 /-!
 # Sub-rounds' steps
@@ -18,23 +20,6 @@ open MeasureTheory ProbabilityTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 namespace DTree
-
-omit [Fintype α] [DecidableEq α] in
-theorem mem_paths_splitAt (d : FreeMonoid α) :
-    ∀ (T : DTree α) (p q : List Bool), q ∈ T.leaves → q ≠ p → q ∈ (T.splitAt d p).leaves
-  | .leaf, [], q, hq, hne => by simp [leaves] at hq; exact absurd hq hne
-  | .leaf, _ :: _, q, hq, _ => by simpa [splitAt] using hq
-  | .node _ _ _, [], q, hq, _ => by simpa [splitAt] using hq
-  | .node n r a, false :: p, q, hq, hne => by
-    simp only [splitAt, leaves, List.mem_append, List.mem_map] at hq ⊢
-    rcases hq with ⟨q', hq', rfl⟩ | ⟨q', hq', rfl⟩
-    · exact .inl ⟨q', mem_paths_splitAt d r p q' hq' (fun h => hne (by rw [h])), rfl⟩
-    · exact .inr ⟨q', hq', rfl⟩
-  | .node n r a, true :: p, q, hq, hne => by
-    simp only [splitAt, leaves, List.mem_append, List.mem_map] at hq ⊢
-    rcases hq with ⟨q', hq', rfl⟩ | ⟨q', hq', rfl⟩
-    · exact .inl ⟨q', hq', rfl⟩
-    · exact .inr ⟨q', mem_paths_splitAt d a p q' hq' (fun h => hne (by rw [h])), rfl⟩
 
 end DTree
 
@@ -151,7 +136,7 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level5State α} (he : EdgesInto
           · simp at h
         · simp only [Option.some.injEq, Prod.mk.injEq] at h
           obtain ⟨rfl, -⟩ := h
-          exact DTree.mem_paths_splitAt _ _ _ _ (he _ _ _ _ hq) hs'
+          exact DTree.mem_leaves_splitAt_of_ne _ _ _ _ (he _ _ _ _ hq) hs'
     · exact .inl ⟨rfl, setEdge_into he htp, hr⟩
 
 variable (C : Level5Settings)

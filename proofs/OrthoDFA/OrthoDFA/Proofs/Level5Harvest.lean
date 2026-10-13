@@ -1,5 +1,7 @@
 import OrthoDFA.Proofs.Level5Sub
 import OrthoDFA.Proofs.Level5Law
+import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.HypothesisDFA
 
 /-!
 # A harvest's sampler finds mostly strings at read-states that are not good
@@ -120,7 +122,6 @@ theorem applyProbe_inr_pre {s s' : Level5State α} {x : FreeMonoid α} {e : Leve
     split_ifs at h
     simp only [Sum.inr.injEq, Prod.mk.injEq] at h
     exact absurd h.1.symm he
-
 
 theorem recordProbe_versions (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C cut s x).versions = s.versions ++ [(s.tree, s.edges)] := by
@@ -1260,24 +1261,6 @@ theorem runTests_pt' (C : Level5Settings) {s : Level5State α} (h : runTests C s
   · rw [if_neg h3] at h
     split_ifs at h <;> simp at h
 
-theorem paths_length_pos : ∀ T : DTree α, 0 < T.leaves.length
-  | .leaf => by simp [DTree.leaves]
-  | .node _ r a => by
-    simp only [DTree.leaves, List.length_append, List.length_map]
-    have := paths_length_pos r
-    omega
-
-theorem path_length_lt : ∀ (T : DTree α) (p : List Bool), p ∈ T.leaves → p.length < T.leaves.length
-  | .leaf, p, h => by simp [DTree.leaves] at h; simp [h, DTree.leaves]
-  | .node _ r a, p, h => by
-    simp only [DTree.leaves, List.mem_append, List.mem_map, List.length_append,
-      List.length_map] at h ⊢
-    have hr := paths_length_pos r
-    have ha := paths_length_pos a
-    rcases h with ⟨q, hq, rfl⟩ | ⟨q, hq, rfl⟩
-    · have := path_length_lt r q hq; simp; omega
-    · have := path_length_lt a q hq; simp; omega
-
 /-- The leaves' paths of length at most `n`. -/
 def shortPaths (n : ℕ) : Finset (List Bool) :=
   (Finset.range (n + 1)).biUnion fun i => Finset.univ.image fun v : Fin i → Bool => List.ofFn v
@@ -1593,7 +1576,7 @@ theorem harvest_good_holds : HarvestGood := by
           rw [htr] at hp
           have he : e ∈ keys := by
             refine Finset.mem_product.2 ⟨mem_shortPaths ?_, Finset.mem_univ _⟩
-            have := path_length_lt _ _ hp
+            have := DTree.length_lt_of_mem_leaves _ _ hp
             have := class_paths G C S hcl hLmax
             omega
           by_cases h1 : 2 * (L + 1) * ℓ ≤ edgePot C D rd e

@@ -2,6 +2,7 @@ import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
+import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.Level5Noise
 import OrthoDFA.Proofs.Level5Query
@@ -22,11 +23,12 @@ import OrthoDFA.Proofs.TripartiteSearch
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
-`SiftWithPathCorrect`, stated in `OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
-level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated in
-`OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in `OrthoDFA.Level5Family`.
-Level 5's detailed bound and its closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are
-internal: the claims above are derived from them.
+`SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
+in `OrthoDFA.HypothesisDFA`, `RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read
+claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated in `OrthoDFA.Level5Claim`, and level 5
+read by the suffix family, stated in `OrthoDFA.Level5Family`. Level 5's detailed bound and its
+closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are internal: the claims above are derived
+from them.
 -/
 
 namespace OrthoDFA
@@ -51,6 +53,14 @@ theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.triparti
 theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
 
 #print axioms sift_with_path_correct
+
+theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
+
+#print axioms sift_and_split_correct
+
+theorem walk_correct : WalkCorrect := walkCorrect
+
+#print axioms walk_correct
 
 theorem rate_test_sound : RateTestSound := rateTestSound
 
