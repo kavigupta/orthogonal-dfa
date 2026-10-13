@@ -28,6 +28,8 @@ def Spread [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (ν : Measure 
     Prop :=
   ∀ t : FreeMonoid α, ν.real {t} ≤ D.real {p | p.toList.take k = t.toList.take k}
 
+/-- `ν` is a measure, not a distribution: its total mass is the strings one attempt finds, on
+average. -/
 def Yields [Countable α] (ν : Measure (FreeMonoid α)) (y : ℝ) : Prop := y ≤ ν.real Set.univ
 
 open scoped Classical in
