@@ -26,7 +26,10 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 /-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
 there, averaged over a population, decides a prefix the wrong way at most `εcov + slack` of the
 time on the uniform pool and at most `1/2 + slack` on any other, and leaves it undecided at most
-`2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
+`2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
+`ClusteringGuarantee`'s.  The collision masses are held as there, at `δ/2`, and the populations'
+also against `slack`: the table's own prefixes are read with the noise the family was chosen
+on. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -47,21 +50,23 @@ def ClusteringQualityGuarantee : Prop :=
   δ ≤ 1 →
   0 < crossLimit →
   0 < slack →
-  ∃ cap : ℝ,
-    0 < cap ∧
+  ∃ states : Finset State,
+    (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+      (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+      ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      ∀ ρ : ℝ,
-      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
-      ρ ≤ cap →
-      collisionMass Dsf ≤ cap →
-      ∃ states : Finset State,
-        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
-          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
-          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+      (∀ B ∈ states, ∀ j ∈ populations,
+        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
+          ≤ δ * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2) →
+      (∀ B ∈ states, ∀ j ∈ populations,
+        2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
+          ≤ δ * slack ^ 2) →
+      (∀ B ∈ states,
+        2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations uni indecisionLimit α B.val)
