@@ -8,7 +8,7 @@ the learned edges and sifted whole, and `tripartiteSearch`, with no recovery, fi
 part or stops at an undecided midpoint. A decided read is never on its state's wrong side, so as at
 level 2 a clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns
 it. A probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over
-the stretch since the hypothesis last changed, feed the tests of level 4, checked after every probe:
+the stretch since the hypothesis last changed, feed the tests of level 5, checked after every probe:
 * the start's undecided rate above `startRate` (`rateSide`) harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
   its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
