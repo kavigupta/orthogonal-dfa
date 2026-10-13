@@ -30,7 +30,7 @@ lemma loopRounds_succ (r : ℕ) :
     loopRounds settings O D draws (r + 1) =
       if h : r < K ∧ AllHarvested (loopRounds settings O D draws r) then
         loopRounds settings O D draws r
-          ++ [loopRound settings O
+          ++ [loopRound settings O D
             (harvestsOf D settings.level4.walkStart (loopRounds settings O D draws r))
             (draws ⟨r, h.1⟩)]
       else loopRounds settings O D draws r := by
@@ -86,7 +86,7 @@ lemma harvested_of_lt (r i : ℕ) (hi : i + 1 < (loopRounds settings O D draws r
 
 /-- Round `i` is run on the harvests of the rounds before it, from round `i`'s draws. -/
 lemma getElem_loopRounds (r i : ℕ) (hi : i < (loopRounds settings O D draws r).length) :
-    ∃ hK : i < K, (loopRounds settings O D draws r)[i] = loopRound settings O
+    ∃ hK : i < K, (loopRounds settings O D draws r)[i] = loopRound settings O D
       (harvestsOf D settings.level4.walkStart ((loopRounds settings O D draws r).take i))
         (draws ⟨i, hK⟩) := by
   induction r with

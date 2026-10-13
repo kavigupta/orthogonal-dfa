@@ -89,33 +89,51 @@ def loopDistributions {K : ℕ} (D : Measure (FreeMonoid α))
   | none => D
   | some i => pops.getD i (Measure.dirac 1)
 
-/-- The clustering's draws: its noise, the suffixes, the uniform pool's prefixes and certification
-prefixes, and the uniforms by which each harvest population draws its prefixes and certification
-prefixes. -/
-abbrev ClusterDraws (Ω α : Type*) (K : ℕ) :=
-  Ω × ((ℕ → FreeMonoid α) × (((ℕ → FreeMonoid α) × (ℕ → FreeMonoid α))
-    × ((Fin K → ℕ → unitInterval) × (Fin K → ℕ → unitInterval))))
+/-- The clustering's draws apart from the noise: the suffixes, the uniform pool's prefixes and
+certification prefixes, and the uniforms by which each harvest population draws its prefixes and
+certification prefixes. -/
+abbrev ClusterRest (α : Type*) (K : ℕ) :=
+  (ℕ → FreeMonoid α) × (((ℕ → FreeMonoid α) × (ℕ → FreeMonoid α))
+    × ((Fin K → ℕ → unitInterval) × (Fin K → ℕ → unitInterval)))
 
-/-- A round's draws: the clustering's, then level 4's noise and probes. -/
-abbrev LoopRoundDraws (Ω α : Type*) (K P : ℕ) :=
-  ClusterDraws Ω α K × (Ω × (Fin P → FreeMonoid α))
+/-- The clustering's draws: the noise and the rest. -/
+abbrev ClusterDraws (Ω α : Type*) (K : ℕ) := Ω × ClusterRest α K
 
-variable {Ω : Type*} [MeasurableSpace Ω]
+/-- A round's draws apart from the noise: the clustering's, and the uniforms by which level 4
+draws its probes. -/
+abbrev RoundDraws (α : Type*) (K P : ℕ) := ClusterRest α K × (Fin P → unitInterval)
 
-def clusterLaw (μ : Measure Ω) (D Dsf : Measure (FreeMonoid α)) (K : ℕ) :
-    Measure (ClusterDraws Ω α K) :=
-  μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
+/-- A round's draws with the noise it reads. -/
+abbrev LoopRoundDraws (Ω α : Type*) (K P : ℕ) := Ω × RoundDraws α K P
+
+def restLaw (D Dsf : Measure (FreeMonoid α)) (K : ℕ) : Measure (ClusterRest α K) :=
+  (Measure.infinitePi fun _ : ℕ => Dsf).prod
     (((Measure.infinitePi fun _ : ℕ => D).prod (Measure.infinitePi fun _ : ℕ => D)).prod
       (Measure.prod
         (Measure.pi fun _ : Fin K =>
           Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
         (Measure.pi fun _ : Fin K =>
-          Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))))
+          Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))))
 
-/-- `K` rounds' draws, independent, the probes and the uniform pool drawn from `D`. -/
+def roundLaw (D Dsf : Measure (FreeMonoid α)) (K P : ℕ) : Measure (RoundDraws α K P) :=
+  (restLaw D Dsf K).prod (Measure.pi fun _ : Fin P => (volume : Measure unitInterval))
+
+variable {Ω : Type*} [MeasurableSpace Ω]
+
+def clusterLaw (μ : Measure Ω) (D Dsf : Measure (FreeMonoid α)) (K : ℕ) :
+    Measure (ClusterDraws Ω α K) :=
+  μ.prod (restLaw D Dsf K)
+
+/-- One noise for the whole run, which every string's read keeps, and `K` rounds' other draws,
+independent: the probes and the uniform pool from `D`, the suffixes from `Dsf`. -/
 def loopMeasure (μ : Measure Ω) (D Dsf : Measure (FreeMonoid α)) (K P : ℕ) :
-    Measure (Fin K → LoopRoundDraws Ω α K P) :=
-  Measure.pi fun _ : Fin K => (clusterLaw μ D Dsf K).prod (μ.prod (Measure.pi fun _ : Fin P => D))
+    Measure (Ω × (Fin K → RoundDraws α K P)) :=
+  μ.prod (Measure.pi fun _ : Fin K => roundLaw D Dsf K P)
+
+/-- The rounds' draws, each read through the run's one noise. -/
+def persistDraws {K P : ℕ} (p : Ω × (Fin K → RoundDraws α K P)) :
+    Fin K → LoopRoundDraws Ω α K P :=
+  fun i => (p.1, p.2 i)
 
 /-- The clustering's run at the earlier harvests' populations `pops`. -/
 def clusterRun {K : ℕ} (pops : List (Measure (FreeMonoid α))) (c : ClusterDraws Ω α K) :
@@ -145,17 +163,32 @@ structure LoopRound (Ω α : Type*) (K : ℕ) where
 
 variable {μ : Measure Ω}
 
-/-- The round after the earlier harvests' populations `pops`. -/
+/-- The first `k` letters of every prefix the clustering reads at a state of `sched`: each
+population's draws, and its certification draws to twice the state's count. -/
+def clusterKeys {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K))) (k : ℕ)
+    (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
+  (sched.biUnion fun B => prefixesAt pops B.npref x
+    ∪ pops.biUnion fun j => certOf j (2 * B.npref) x).image fun p => prefixOf p k
+
+/-- `D` conditioned on the probes whose first `k` letters avoid `K₀`. -/
+def avoidLaw (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid α)) :
+    Measure (FreeMonoid α) :=
+  popLaw (D.restrict {x | k ≤ x.toList.length → prefixOf x k ∉ K₀})
+
+/-- The round after the earlier harvests' populations `pops`. Level 4 draws its probes from `D`
+avoiding the first `k` letters of the prefixes the clustering read. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (pops : List (Measure (FreeMonoid α)))
+    (D : Measure (FreeMonoid α)) (pops : List (Measure (FreeMonoid α)))
     (d : LoopRoundDraws Ω α K settings.level4.probeBudget) : LoopRound Ω α K :=
   let ps := loopPopulations K pops.length
-  let x := clusterRun pops d.1
+  let x := clusterRun pops (d.1, d.2.1)
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
     ∧ x ∈ ret O.mq ps none settings.indecisionLimit settings.gateLevel B
   let F := clusterAt O.mq ps x B
-  let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.2.1
-  ⟨x, B, F, read, indecisiveLStarLevel4 settings.level4 read d.2.2⟩
+  let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
+  let K₀ := clusterKeys (settings.schedule ps) ps settings.level4.walkStart x
+  ⟨x, B, F, read, indecisiveLStarLevel4 settings.level4 read
+    fun i => drawFrom (avoidLaw D settings.level4.walkStart K₀) (d.2.2 i)⟩
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
   | .harvest h => some h
@@ -176,7 +209,7 @@ def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
   | r + 1 =>
     if h : r < K ∧ ∀ o ∈ loopRounds settings O D draws r, o.result.ending.harvested ≠ none then
       loopRounds settings O D draws r
-        ++ [loopRound settings O ((loopRounds settings O D draws r).filterMap
+        ++ [loopRound settings O D ((loopRounds settings O D draws r).filterMap
           fun o => o.population D settings.level4.walkStart) (draws ⟨r, h.1⟩)]
     else loopRounds settings O D draws r
 
@@ -249,7 +282,7 @@ def LearnerLoopCorrect : Prop :=
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       collisionMass P.D ≤ cap → collisionMass Dsf ≤ cap →
       (loopMeasure μ P.D Dsf K settings.level4.probeBudget).real
-          {draws | let rounds := indecisiveLStarLoop settings O P.D draws
+          {p | let rounds := indecisiveLStarLoop settings O P.D (persistDraws p)
             ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) εd)}
@@ -306,7 +339,7 @@ def LearnerLoopSimple : Prop :=
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       collisionMass Dsf ≤ cap →
       (loopMeasure μ P.D Dsf (Fintype.card σ + 1) settings.level4.probeBudget).real
-          {draws | let rounds := indecisiveLStarLoop settings O P.D draws
+          {p | let rounds := indecisiveLStarLoop settings O P.D (persistDraws p)
             ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Agrees O P.D k εcov εcov εd)}
         ≤ δ
@@ -351,7 +384,7 @@ def LearnerLoopUniform : Prop :=
     (settings.level4.probeBudget : ℝ) ≤ Kp * G ∧
     (loopMeasure μ P.D (uniformStrings (P.L + Fintype.card σ + 3)) (Fintype.card σ + 1)
         settings.level4.probeBudget).real
-      {draws | let rounds := indecisiveLStarLoop settings O P.D draws
+      {p | let rounds := indecisiveLStarLoop settings O P.D (persistDraws p)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.Agrees O P.D (P.L - 1) εcov εcov εd)}
       ≤ δ

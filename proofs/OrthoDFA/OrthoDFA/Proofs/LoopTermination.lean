@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.LoopLaw
+import OrthoDFA.Proofs.LoopTransfer
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.Level4Law
 
@@ -7,11 +7,11 @@ import OrthoDFA.Proofs.Level4Law
 
 A round's claims are the clustering's (`ClusterSpec`) and level 4's (`Level4Spec`), the latter's
 bad states those the round's family leaves undecided more than `1.5θ` of the time. A harvest
-whose sampler finds more than half of what it finds at bad states hands on a population more than
-`1/(2|Q|)` of which is at one of them. Every later family is held by the FNR gate to
+whose sampler finds more than a quarter of what it finds at bad states hands on a population more
+than `1/(4|Q|)` of which is at one of them. Every later family is held by the FNR gate to
 `2·indecisionLimit + slack` undecided on that population, which at
 
-    1.5θ = 2|Q|·(2·indecisionLimit + slack)
+    1.5θ = 4|Q|·(2·indecisionLimit + slack)
 
 that state would exceed were it still bad. So each harvest makes a new state good for every later
 family, and one of the first `|Q| + 1` rounds does not harvest.
@@ -118,12 +118,12 @@ lemma integrable_of_unit (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν]
 /-! ## A population's heaviest bad state -/
 
 open scoped Classical in
-/-- More than half of a population at bad states puts more than `1/(2|Q|)` of it on one of
+/-- More than `1/a` of a population at bad states puts more than `1/(a|Q|)` of it on one of
 them. -/
 lemma exists_heavy_state (M : _root_.DFA α σ) [Fintype σ] (bad : σ → Prop)
-    (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν]
-    (h : 1 < 2 * ν.real {z | bad (M.eval z.toList)}) :
-    ∃ q, bad q ∧ 1 < 2 * Fintype.card σ * ν.real {z | M.eval z.toList = q} := by
+    (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] {a : ℝ} (ha : 0 ≤ a)
+    (h : 1 < a * ν.real {z | bad (M.eval z.toList)}) :
+    ∃ q, bad q ∧ 1 < a * Fintype.card σ * ν.real {z | M.eval z.toList = q} := by
   by_contra hno
   push Not at hno
   have hset : {z : FreeMonoid α | bad (M.eval z.toList)}
@@ -140,7 +140,7 @@ lemma exists_heavy_state (M : _root_.DFA α σ) [Fintype σ] (bad : σ → Prop)
     simp only [Set.mem_setOf_eq] at h1 h2
     rw [← h1, ← h2]
   have hle : ∑ q ∈ Finset.univ.filter bad,
-      2 * Fintype.card σ * ν.real {z : FreeMonoid α | M.eval z.toList = q}
+      a * Fintype.card σ * ν.real {z : FreeMonoid α | M.eval z.toList = q}
         ≤ ∑ _q ∈ Finset.univ.filter bad, (1 : ℝ) :=
     Finset.sum_le_sum fun q hq => hno q (Finset.mem_filter.1 hq).2
   rw [← Finset.mul_sum, ← hsum, Finset.sum_const, nsmul_eq_mul, mul_one] at hle
@@ -156,19 +156,20 @@ lemma exists_heavy_state (M : _root_.DFA α σ) [Fintype σ] (bad : σ → Prop)
         rw [hsum, Finset.sum_eq_zero]
         intro q hq
         exact absurd (Finset.mem_filter.1 hq).2 (this (Finset.mem_univ q))
+      rw [hz, mul_zero] at h
       linarith
     · exact_mod_cast h0
   nlinarith
 
 open scoped Classical in
-/-- A state holding more than `1/(2|Q|)` of a population is read undecided at most `1.5θ` of the
+/-- A state holding more than `1/(4|Q|)` of a population is read undecided at most `1.5θ` of the
 time by a family the FNR gate holds to `c` undecided on that population, where
-`1.5θ = 2|Q|·c`. -/
+`1.5θ = 4|Q|·c`. -/
 lemma good_of_heavy [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     {F : Finset (FreeMonoid α)} (hF : 1 ∉ F) (lo hi : ℕ) (ν : Measure (FreeMonoid α))
-    [IsProbabilityMeasure ν] (q : σ) {θ c : ℝ} (hθ : 3 / 2 * θ = 2 * Fintype.card σ * c)
-    (hheavy : 1 < 2 * Fintype.card σ * ν.real {z | M.eval z.toList = q})
+    [IsProbabilityMeasure ν] (q : σ) {θ c : ℝ} (hθ : 3 / 2 * θ = 4 * Fintype.card σ * c)
+    (hheavy : 1 < 4 * Fintype.card σ * ν.real {z | M.eval z.toList = q})
     (hgate : ∫ p, undecidedProb O lo (hi + 1) (insert 1 F) p ∂ν ≤ c) :
     familyReadDist O M F lo (hi + 1) q .undecided ≤ 3 / 2 * θ := by
   set u := familyReadDist O M F lo (hi + 1) q .undecided
@@ -223,56 +224,57 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
               (familyAt O.mq (loopPopulations K harvests.length) x B) p
             ∂(loopDistributions D harvests j) ≤ 2 * settings.indecisionLimit + slack
 
-/-- What level 4 claims of a round: it ends well, its harvest's sampler yielding `y`, a state
-being bad where the round's family leaves it undecided more than `1.5θ` of the time. -/
+/-- What the loop needs of level 4 at a round: it ends well, a quarter of its harvest's sampler at
+bad states and the sampler yielding `y`, a state being bad where the round's family leaves it
+undecided more than `1.5θ` of the time. -/
 def Level4Spec (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
     (θ εd y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
-  EndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D εd
+  QuarterEndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D εd
     (searchingProbes o.read k o.result.hypothesis) k (harvestLaw P.D (fun z => (o.read z).cut) k)
     y o.result.ending
 
 /-- The goodness level the loop runs level 4's claim at. -/
 def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
-  4 * Fintype.card σ * (2 * indecisionLimit + slack) / 3
+  8 * Fintype.card σ * (2 * indecisionLimit + slack) / 3
 
 /-! ## A round the clustering's claim holds of -/
 
 section RoundFacts
 
-variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
   (harvests : List (Measure (FreeMonoid α)))
   (d : LoopRoundDraws Ω α K settings.level4.probeBudget)
 
 lemma loopRound_returns
     (h : ∃ B ∈ settings.schedule (loopPopulations K harvests.length),
-      clusterRun harvests d.1 ∈ ret O.mq (loopPopulations K harvests.length) none
+      clusterRun harvests (d.1, d.2.1) ∈ ret O.mq (loopPopulations K harvests.length) none
         settings.indecisionLimit settings.gateLevel B) :
-    (loopRound settings O harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
-      ∧ (loopRound settings O harvests d).run ∈ ret O.mq (loopPopulations K harvests.length) none
-        settings.indecisionLimit settings.gateLevel (loopRound settings O harvests d).state := by
+    (loopRound settings O D harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
+      ∧ (loopRound settings O D harvests d).run ∈ ret O.mq (loopPopulations K harvests.length) none
+        settings.indecisionLimit settings.gateLevel (loopRound settings O D harvests d).state := by
   obtain ⟨B, hB, hr⟩ := h
   exact Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
-    (loopPopulations K harvests.length) ∧ clusterRun harvests d.1 ∈ ret O.mq
+    (loopPopulations K harvests.length) ∧ clusterRun harvests (d.1, d.2.1) ∈ ret O.mq
       (loopPopulations K harvests.length) none settings.indecisionLimit settings.gateLevel B)
     ⟨B, hB, hr⟩
 
-lemma one_notMem_loopRound_family : 1 ∉ (loopRound settings O harvests d).family :=
+lemma one_notMem_loopRound_family : 1 ∉ (loopRound settings O D harvests d).family :=
   Finset.notMem_erase _ _
 
 /-- The clustering's claim, at the state the round returned at. -/
-lemma loopRound_quality {D : Measure (FreeMonoid α)} {εcov slack : ℝ}
-    (h : ClusterSpec settings O D εcov slack harvests (loopRound settings O harvests d).run) :
-    (loopRound settings O harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
-    ∧ ∫ p, miscutProb O (loopRound settings O harvests d).state.lo
-          ((loopRound settings O harvests d).state.hi + 1)
-          (insert 1 (loopRound settings O harvests d).family) p ∂D ≤ εcov + slack
+lemma loopRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
+    (h : ClusterSpec settings O D' εcov slack harvests (loopRound settings O D harvests d).run) :
+    (loopRound settings O D harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
+    ∧ ∫ p, miscutProb O (loopRound settings O D harvests d).state.lo
+          ((loopRound settings O D harvests d).state.hi + 1)
+          (insert 1 (loopRound settings O D harvests d).family) p ∂D' ≤ εcov + slack
       ∧ ∀ j ∈ loopPopulations K harvests.length,
-        ∫ p, undecidedProb O (loopRound settings O harvests d).state.lo
-            ((loopRound settings O harvests d).state.hi + 1)
-            (insert 1 (loopRound settings O harvests d).family) p
-          ∂(loopDistributions D harvests j) ≤ 2 * settings.indecisionLimit + slack := by
-  have hr := loopRound_returns settings O harvests d h.1
+        ∫ p, undecidedProb O (loopRound settings O D harvests d).state.lo
+            ((loopRound settings O D harvests d).state.hi + 1)
+            (insert 1 (loopRound settings O D harvests d).family) p
+          ∂(loopDistributions D' harvests j) ≤ 2 * settings.indecisionLimit + slack := by
+  have hr := loopRound_returns settings O D harvests d h.1
   exact ⟨hr.1, h.2 _ hr.1 hr.2⟩
 
 end RoundFacts
@@ -311,7 +313,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
   unfold indecisiveLStarLoop
   set L := loopRounds settings O P.D draws K with hLdef
   set c := 2 * settings.indecisionLimit + slack with hc
-  have hθ : 3 / 2 * loopTheta σ settings.indecisionLimit slack = 2 * Fintype.card σ * c := by
+  have hθ : 3 / 2 * loopTheta σ settings.indecisionLimit slack = 4 * Fintype.card σ * c := by
     rw [loopTheta, hc]; ring
   -- each round, as the clustering's claim has it
   have hround : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
@@ -326,8 +328,8 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O _ _ hs
-    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O _ _, hq⟩
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O _ _ _ hs
+    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O _ _ _, hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →
@@ -341,7 +343,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       rcases hE : L[i].result.ending with _ | zs | _
       · rw [hE] at h4; exact ⟨rfl, h4⟩
       · rw [hE] at hn; simp [RoundEnd.harvested] at hn
-      · rw [hE] at h4; exact absurd h4 (by simp [EndsWell])
+      · rw [hE] at h4; exact absurd h4 (by simp [QuarterEndsWell])
     have hnone : none ∈ loopPopulations K (harvestsOf P.D k (L.take i)).length := by
       simp [loopPopulations]
     have hund' := hund none hnone
@@ -402,7 +404,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           ¬ familyReadDist O M (L[i]'(by omega)).family (L[i]'(by omega)).state.lo
             ((L[i]'(by omega)).state.hi + 1) q .undecided
               ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack
-          ∧ 1 < 2 * Fintype.card σ * (ν i hi).real {z | M.eval z.toList = q} := by
+          ∧ 1 < 4 * Fintype.card σ * (ν i hi).real {z | M.eval z.toList = q} := by
         intro i hi
         have h4 := (hspec i (by omega) hi).2
         simp only [Level4Spec] at h4
@@ -415,7 +417,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         set bad := fun q => ¬ familyReadDist O M (L[i]'(by omega)).family
           (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided
             ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack
-        have hmost : law.real Set.univ < 2 * law.real {z | bad (M.eval z.toList)} := h4.1
+        have hmost : law.real Set.univ < 4 * law.real {z | bad (M.eval z.toList)} := h4.1
         have htop : law Set.univ ≠ ⊤ :=
           harvestLaw_univ_ne_top P.D _ k P.length_le (hv i hi)
         have hle : law.real {z | bad (M.eval z.toList)} ≤ law.real Set.univ :=
@@ -425,11 +427,11 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           linarith
         have h0 : law Set.univ ≠ 0 := fun h0 => by
           rw [measureReal_def, h0, ENNReal.toReal_zero] at hpos; exact lt_irrefl _ hpos
-        have hpb : 1 < 2 * (ν i hi).real {z | bad (M.eval z.toList)} := by
-          change 1 < 2 * (popLaw law).real {z | bad (M.eval z.toList)}
+        have hpb : 1 < 4 * (ν i hi).real {z | bad (M.eval z.toList)} := by
+          change 1 < 4 * (popLaw law).real {z | bad (M.eval z.toList)}
           rw [popLaw_real h0 htop, mul_div_assoc', lt_div_iff₀ hpos]
           linarith
-        exact exists_heavy_state M bad (ν i hi) hpb
+        exact exists_heavy_state M bad (ν i hi) (by norm_num) hpb
       choose q hq using hbad
       have hgood : ∀ i j (hi : i ≤ Fintype.card σ) (hj : j ≤ Fintype.card σ), i < j →
           familyReadDist O M (L[j]'(by omega)).family (L[j]'(by omega)).state.lo
