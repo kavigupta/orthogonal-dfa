@@ -16,11 +16,13 @@ namespace OrthoDFA
 
 namespace Random
 
+namespace Eps
+
 open MeasureTheory
 open OrthoDFA.Ideal (searchOutcome siftAgrees probe probeOrAgree Outcome length_walk_le pre_of_le
   pre_succ agrees_inl walk_cons EdgesOK OutcomeOK)
 
-variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
+variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3_5Settings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool)
 
 /-! ## Where a record is made -/
@@ -120,7 +122,7 @@ def FakeEv (T : DTree α) (E : Edges α) (zs : List (FreeMonoid α)) : Prop :=
   ∃ τ ∈ recSet T, ¬ RealT M side T τ.1 τ.2.1 τ.2.2 ∧ C.recordsToMove ≤ zs.countP (fR read C T E τ)
 
 theorem fakeEv_of_fix {T : DTree α} {E : Edges α}
-    {ys : List (FreeMonoid α)} {s : Level3State α} (hs : Inv read C s)
+    {ys : List (FreeMonoid α)} {s : Level3_5State α} (hs : Inv read C s)
     (hst : StInv read C T E ys s) {x : FreeMonoid α} (hf : FakeFix M side read C s x) :
     FakeEv read C M side T E (ys ++ [x]) := by
   obtain ⟨p, c, u, t, ho, hc, hr⟩ := hf
@@ -187,7 +189,72 @@ theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ
 
 variable (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
-theorem gInv_same {s s' : Level3State α} (hg : GInv M side s) (ht : s'.tree = s.tree)
+open Finset in
+theorem stretchRisk_nonneg (C : Level3_5Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
+    (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
+    0 ≤ stretchRisk C nα L Ns N₁ p θr εd' θpt' := by
+  unfold stretchRisk
+  have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun _ P _ => by
+    split_ifs <;> norm_num
+  have := binomSfGe_le_one hθr0 hθr1 Ns C.recordsToMove
+  have := binomSfGe_le_one hεd'0 hεd'1 Ns (max C.firstLook ⌈C.searchShare * Ns⌉₊)
+  have := binE_nonneg hεd'0 hεd'1 (n := N₁)
+    (f := fun s => if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
+        ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1
+      else 0) fun j => h01 j _
+  have : 0 ≤ ∑ s ∈ Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
+      binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
+    sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 j _
+  have : 0 ≤ ∑ n ∈ Icc C.firstLook Ns, (binomSfGe n p (hFire C.startRate C.testLevel n)
+      + C.testLevel) :=
+    sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hp0 hp1 _ _) ha
+  have : 0 ≤ ∑ n ∈ Icc 1 Ns,
+      ((C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+        + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))) :=
+    sum_nonneg fun n _ => add_nonneg (by positivity) (binomSfGe_nonneg hp0 hp1 _ _)
+  linarith
+
+/-- A run with no bad step ends well, given enough probes. -/
+theorem ends_of_not_anyB (X : Level3_5State α → FreeMonoid α → Prop) (hm : 1 ≤ C.recordsToMove) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3_5State α), Inv read C s → s.probeCount < Ns →
+      Ψr C s * Ns + (Ns - s.probeCount) ≤ xs.length →
+      ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) s xs →
+      EndsWell M (BadAt U θ) D ε
+        {w | Disagrees read ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
+            C.walkStart w}
+        C.walkStart (harvestLaw read D C.walkStart
+          ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩) y
+        (runProbes read C s xs).2
+  | [], s, _, hn, hlen, _ => by simp at hlen; omega
+  | x :: xs, s, hs, hn, hlen, hb => by
+    simp only [AnyB, not_or, not_exists, not_and] at hb
+    obtain ⟨hb1, hb2⟩ := hb
+    rcases hst : applyProbe read C s x with s' | e
+    · simp only [runProbes, hst]
+      by_cases hsm : Same s s'
+      · obtain ⟨hs', hΨ, hn'⟩ := step_same read C hs hst hsm.1 hsm.2
+        have hlt : s'.probeCount < Ns := by
+          have : s'.probeCount ≠ Ns := fun h => hb1 (Or.inr ⟨s', hst, hsm, h⟩)
+          omega
+        refine ends_of_not_anyB X hm xs s' hs' hlt ?_ (hb2 s' hst)
+        rw [hΨ, hn']
+        simp only [List.length_cons] at hlen
+        omega
+      · obtain ⟨hs', hf, hΨ⟩ := step_change read C hm hs hst hsm
+        have h0 : s'.probeCount = 0 := by rw [hf]; rfl
+        refine ends_of_not_anyB X hm xs s' hs' (by omega) ?_ (hb2 s' hst)
+        rw [h0, Nat.sub_zero]
+        simp only [List.length_cons] at hlen
+        have : (Ψr C s' + 1) * Ns ≤ Ψr C s * Ns := Nat.mul_le_mul_right _ hΨ
+        rw [Nat.add_mul, one_mul] at this
+        omega
+    · simp only [runProbes, hst]
+      by_contra hne
+      exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
+
+
+theorem gInv_same {s s' : Level3_5State α} (hg : GInv M side s) (ht : s'.tree = s.tree)
     (he : s'.edges = s.edges) (hm : s'.redirected = s.redirected) : GInv M side s' := by
   obtain ⟨h1, h2⟩ := hg
   refine ⟨by rw [ht]; exact h1, fun p c t₀ w hE hmv => ?_⟩
@@ -226,7 +293,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
   set X := FakeFix M side read C
   set b := ENNReal.ofReal (stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt'
     + fakeRisk C (Fintype.card α) Ns Gw)
-  set I : Level3State α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.probeCount < Ns
+  set I : Level3_5State α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.probeCount < Ns
   have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.redirected → ∀ N,
       (Measure.pi fun _ : Fin N => D)
         {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
@@ -265,17 +332,18 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
             (List.ofFn xs)} := by
         refine measure_mono fun xs hxs => ?_
         by_contra hb
-        have hn0 : (initialState : Level3State α).probeCount = 0 := rfl
+        have hn0 : (initialState : Level3_5State α).probeCount = 0 := rfl
         refine hxs (ends_of_not_anyB read C M U θ D ε Ns y X hm _ initialState hst
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
-        have : (Ψr C (initialState : Level3State α) + 1) * Ns ≤ stretches C (Fintype.card α) * Ns :=
+        have : (Ψr C (initialState : Level3_5State α) + 1) * Ns
+            ≤ stretches C (Fintype.card α) * Ns :=
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    _ ≤ b + Ψr C (initialState : Level3State α) * b :=
+    _ ≤ b + Ψr C (initialState : Level3_5State α) * b :=
         hany.trans (add_le_add (hseg _ hI0 rfl P) le_rfl)
-    _ = ((Ψr C (initialState : Level3State α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
+    _ = ((Ψr C (initialState : Level3_5State α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
     _ ≤ (stretches C (Fintype.card α) : ENNReal) * b := by gcongr
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
@@ -353,6 +421,8 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
           (by positivity)]
         congr 1
         ring
+
+end Eps
 
 end Random
 

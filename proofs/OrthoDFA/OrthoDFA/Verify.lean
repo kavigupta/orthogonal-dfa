@@ -49,7 +49,7 @@ theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCo
 
 #print axioms random_round_correct
 
-theorem eps_round_correct : Random.EpsRoundCorrect := Random.epsRoundCorrect_holds
+theorem eps_round_correct : Random.Eps.EpsRoundCorrect := Random.Eps.epsRoundCorrect_holds
 
 #print axioms eps_round_correct
 
