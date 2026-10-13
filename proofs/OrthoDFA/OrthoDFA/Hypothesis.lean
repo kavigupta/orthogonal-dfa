@@ -1,3 +1,4 @@
+import OrthoDFA.DTree
 import OrthoDFA.FamilyRead
 
 /-! A hypothesis: a tree that sifts strings to its leaves, and edges between the leaves. -/
@@ -5,11 +6,6 @@ import OrthoDFA.FamilyRead
 namespace OrthoDFA
 
 variable {α : Type*}
-
-/-- A tree whose nodes read the string followed by their midfix. -/
-inductive DTree (α : Type*)
-  | leaf
-  | node (m : FreeMonoid α) (rej acc : DTree α)
 
 namespace DTree
 
@@ -22,22 +18,12 @@ def sift (read : FreeMonoid α → ARU) : DTree α → FreeMonoid α → List Bo
     | .reject => (r.sift read z).map (false :: ·) id
     | .undecided => .inr (z * m)
 
-def leaves : DTree α → List (List Bool)
-  | leaf => [[]]
-  | node _ r a => r.leaves.map (false :: ·) ++ a.leaves.map (true :: ·)
-
 /-- The leaf at `p` replaced by a node reading at `d`. -/
 def splitAt (d : FreeMonoid α) : DTree α → List Bool → DTree α
   | leaf, [] => node d leaf leaf
   | node m r a, false :: p => node m (r.splitAt d p) a
   | node m r a, true :: p => node m r (a.splitAt d p)
   | t, _ => t
-
-def midAt : DTree α → List Bool → FreeMonoid α
-  | leaf, _ => 1
-  | node m _ _, [] => m
-  | node _ r _, false :: p => r.midAt p
-  | node _ _ a, true :: p => a.midAt p
 
 end DTree
 

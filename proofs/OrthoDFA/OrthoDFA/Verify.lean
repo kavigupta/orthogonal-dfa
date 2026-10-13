@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.RandomRound
@@ -12,8 +13,9 @@ import OrthoDFA.Proofs.TripartiteSearch
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
-`RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read claim, stated in
-`OrthoDFA.Level2Claim`, and level 3's random-read claim, stated in `OrthoDFA.Level3Claim`.
+`SiftWithPathCorrect`, stated in `OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
+level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, and level 3's random-read claim,
+stated in `OrthoDFA.Level3Claim`.
 -/
 
 namespace OrthoDFA
@@ -34,6 +36,10 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
 
 #print axioms tripartite_search_correct
+
+theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
+
+#print axioms sift_with_path_correct
 
 theorem rate_test_sound : RateTestSound := rateTestSound
 
