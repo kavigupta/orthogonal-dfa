@@ -57,10 +57,7 @@ theorem searchOutcome_pre (x : FreeMonoid α) (st : ℕ → List Bool) (un : Opt
     split at hz <;> simp [Outcome.undecidedStrings] at hz
   | triple p => exact hat p hs.1.le hz
   | undecidedMid p => exact hat p hs.2.1.le hz
-  | pair p =>
-    rcases List.mem_append.1 hz with hz | hz
-    · exact hat p hs.1 hz
-    · exact hat (p + 1) (by have := hs.1; omega) hz
+  | pair p => exact hat p hs.1 hz
   | undecidedLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
   | disagreeLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
 

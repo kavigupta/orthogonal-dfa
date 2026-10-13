@@ -211,14 +211,9 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
   | undecidedMid p => exact absurd hs.1 (by simp)
   | pair p =>
-    obtain ⟨h1, h2, h3, h4⟩ := hs
+    obtain ⟨h1, h2, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
-    obtain ⟨_, u4⟩ := stuckAt_ok read T x st h4
-    refine ⟨hcell p (by omega) (by omega), by simp [searchOutcome, n3], ?_⟩
-    intro z hz
-    rcases List.mem_append.1 hz with hz | hz
-    · exact u3 z hz
-    · exact u4 z hz
+    exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
 
 /-- Where the walk agrees at `k` and disagrees at `j`, the search's outcome is not clean. -/
 theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k ≤ j)
