@@ -12,13 +12,12 @@ round ends on its probes, and never fails.
 The chance part (`anyStep_le`): a potential that pays for a step's event and, on average over the
 fresh probe, for its own value after the step bounds the chance that some step of the run is such
 an event. A hypothesis is kept for at most `ends` probes, and at most `Ψ` hypotheses follow,
-each starting its potential afresh. Three potentials:
-* a consistent ending at a hypothesis that changes on more than `ε` of the probes needs
-  `ends` probes in a row that keep it, chance `(1 − ε)^ends`, below the test's level;
-* a harvest at a hypothesis stopping at an undecided read on fewer than `y` of the probes: the
-  chance that each of the stretch's looks to come fires the rate test, at most `a` a look;
-* a consistent ending at one stopping at an undecided read on at least `r` of them: the chance
-  that the stretch's count at its last look leaves the test silent, `P(Bin(n, r) < K)`.
+each starting its potential afresh. Two potentials, each the chance that one of the stretch's looks
+to come errs, at most the test's level `a` a look (`OrthoDFA.RateTestSound`):
+* a consistent ending at a hypothesis that does not end clean on more than `disagreementRate` of
+  the probes: the disagreements' test calls them below;
+* a harvest at a hypothesis stopping at an undecided read on fewer than `harvestRate` of the
+  probes: the undecided reads' test calls them above.
 -/
 
 namespace OrthoDFA
@@ -85,11 +84,10 @@ theorem step_inv (hI : IdealReads read M side) (hC : TestsOK C)
     rw [he, Sum.inl.injEq] at h
     subst h
     exact ⟨hinv, Θ_lt_change C _ hs.probes_lt T E hΨ⟩
-  · rcases step_same read C hC hs.clean hc
-        with ⟨he, hlt, hnf⟩ | ⟨he, -⟩ | ⟨he, -, -⟩ <;> rw [he] at h
+  · rcases step_same read C hC hs hc with ⟨he, hinv, -⟩ | ⟨he, -⟩ | ⟨he, -, -⟩ <;> rw [he] at h
     · rw [Sum.inl.injEq] at h
       subst h
-      exact ⟨inv_counted read C hs _ hlt, Θ_lt_same C _ rfl rfl rfl hlt⟩
+      exact ⟨hinv, Θ_lt_same C _ rfl rfl rfl hinv.probes_lt⟩
     · cases h
     · cases h
 
@@ -105,6 +103,7 @@ theorem applyProbe_ne_failed (s : Level2State α) (x : FreeMonoid α) :
     · exact hkeep _ _
   · simp
   · exact hkeep _ _
+  · exact hkeep _ _
 
 end Ends
 
@@ -118,34 +117,12 @@ variable [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
 noncomputable def hitRate (s : Level2State α) : ℝ :=
   D.real {x | stuckString read ⟨s.tree, s.edges⟩ C.walkStart x ≠ []}
 
-/-- A probe that disagrees changes the hypothesis, or stops at an undecided read. -/
-theorem disagrees_le {s : Level2State α} (hs : Inv read C s) :
+/-- A probe that disagrees does not end clean: it changes the hypothesis, or its search stops at an
+undecided midpoint. -/
+theorem disagrees_le {s : Level2State α} :
     D.real {x | Disagrees read ⟨s.tree, s.edges⟩ C.walkStart x}
-      ≤ D.real {x | Changes (probeOrAgree false read s.tree s.edges C.walkStart x)}
-        + hitRate read C D s := by
-  classical
-  have hsub : {x | Disagrees read ⟨s.tree, s.edges⟩ C.walkStart x}
-      ⊆ {x | Changes (probeOrAgree false read s.tree s.edges C.walkStart x)}
-        ∪ {x | stuckString read ⟨s.tree, s.edges⟩ C.walkStart x ≠ []} := by
-    intro x hx
-    have hcl := probeOrAgree_disagrees false read s.tree s.edges C.walkStart hx
-    have hOK := probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
-    show Changes (probeOrAgree false read s.tree s.edges C.walkStart x)
-      ∨ (probeOrAgree false read s.tree s.edges C.walkStart x).undecidedStrings ≠ []
-    revert hcl hOK
-    generalize probeOrAgree false read s.tree s.edges C.walkStart x = o
-    intro hcl hOK
-    cases o with
-    | agree => simp [Outcome.clean] at hcl
-    | undecidedStart z => simp [Outcome.clean] at hcl
-    | wrongEdge => exact Or.inl trivial
-    | unlearnedEdge => exact Or.inl trivial
-    | undecided zs cl =>
-      simp only [Outcome.clean] at hcl
-      subst hcl
-      exact Or.inr (hOK.1 rfl)
-  calc _ ≤ _ := measureReal_mono hsub
-    _ ≤ _ := measureReal_union_le _ _
+      ≤ D.real {x | (probeOrAgree false read s.tree s.edges C.walkStart x).clean = false} :=
+  measureReal_mono fun x hx => probeOrAgree_disagrees false read s.tree s.edges C.walkStart hx
 
 end Rates
 
@@ -231,126 +208,49 @@ theorem pi_hits_zero (s : Level2State α) (Q : ℕ → Prop) (hQ : Q 0) :
     rwa [this]
   rw [this, measure_univ]
 
-open scoped Classical in
-/-- Over `n` fresh probes, `K` or more stop at an undecided read with chance `P(Bin(n, p) ≥ K)`. -/
-theorem pi_hits_ge (s : Level2State α) (n K : ℕ) :
-    (Measure.pi fun _ : Fin n => D).real {ys | K ≤ hits read C s ys}
-      = binomSfGe n (hitRate read C D s) K := by
-  have := pi_count_ge D (fun x => stuckString read ⟨s.tree, s.edges⟩ C.walkStart x ≠ [])
-    (univ : Finset (Fin n)) K
-  rw [card_univ, Fintype.card_fin] at this
-  exact this
-
 variable {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
-/-- The hypothesis of `s` changes on more than `ε` of the probes. -/
-def Bad (ε : ℝ) (s : Level2State α) : Prop :=
-  ε < D.real {x | Changes (probeOrAgree false read s.tree s.edges C.walkStart x)}
+/-- How many of the probes `ys` do not end clean under the hypothesis of `s`. -/
+noncomputable def dhits (s : Level2State α) {j : ℕ} (ys : Fin j → FreeMonoid α) : ℕ :=
+  countOf (fun x => (probeOrAgree false read s.tree s.edges C.walkStart x).clean = false) ys
 
-open scoped Classical in
-/-- A consistent ending at a hypothesis that changes on more than `ε` of the probes. -/
-theorem falseConsistent_le (hI : IdealReads read M side) (hC : TestsOK C) {ε : ℝ}
-    (hε : ε ≤ 1) (N : ℕ) :
-    (Measure.pi fun _ : Fin N => D) {xs | AnyStep read C
-        (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D ε s)
-        initialState (List.ofFn xs)}
-      ≤ ENNReal.ofReal (stretches (Fintype.card σ) (Fintype.card α) * (1 - ε) ^ C.ends) := by
-  set q := 1 - ε
-  have hq0 : 0 ≤ q := by linarith
-  set nσ := Fintype.card σ
-  let F : Level2State α → ℝ≥0∞ := fun s => ENNReal.ofReal
-    (Ψ nσ s * q ^ C.ends + if Bad read C D ε s then q ^ (C.ends - s.probes) else 0)
-  have hF : ∀ s, Inv read C s → ∫⁻ x, ((if (applyProbe read C s x = .inr .consistent
-      ∧ Bad read C D ε s) then 1 else 0) + Sum.elim F (fun _ => 0) (applyProbe read C s x)) ∂D
-      ≤ F s := by
-    intro s hs
-    set S := {x | ¬ Changes (probeOrAgree false read s.tree s.edges C.walkStart x)}
-    have hS : MeasurableSet S := (Set.to_countable _).measurableSet
-    set m := C.ends - s.probes
-    have hm : 1 ≤ m := by have := hs.probes_lt; omega
-    set c : ℝ := if Bad read C D ε s then q ^ (m - 1) else 0
-    have hc0 : 0 ≤ c := by positivity
-    have hpt : ∀ x, ((if (applyProbe read C s x = .inr .consistent ∧ Bad read C D ε s) then 1
-        else 0) + Sum.elim F (fun _ => 0) (applyProbe read C s x))
-        ≤ ENNReal.ofReal (Ψ nσ s * q ^ C.ends)
-          + S.indicator (fun _ => ENNReal.ofReal c) x := by
-      intro x
-      by_cases hc : Changes (probeOrAgree false read s.tree s.edges C.walkStart x)
-      · obtain ⟨T, E, he, -, hΨ⟩ := step_change read C hI (one_le_ends hC) hs hc
-        have hxS : x ∉ S := fun h => h hc
-        rw [he, Set.indicator_of_notMem hxS, add_zero]
-        simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
-        refine ENNReal.ofReal_le_ofReal ?_
-        have : ((Ψ nσ (newHypothesis T E) : ℕ) : ℝ) + 1 ≤ Ψ nσ s := by exact_mod_cast hΨ
-        have hb : (if Bad read C D ε (newHypothesis T E) then q ^ (C.ends -
-            (newHypothesis T E).probes) else 0) ≤ q ^ C.ends := by
-          split_ifs
-          · simp [newHypothesis]
-          · positivity
-        have := pow_nonneg hq0 C.ends
-        nlinarith
-      · have hxS : x ∈ S := hc
-        rw [Set.indicator_of_mem hxS]
-        rcases step_same read C hC hs.clean hc
-            with ⟨he, -, -⟩ | ⟨he, -⟩ | ⟨he, hN, -⟩ <;> rw [he]
-        · simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
-          rw [← ENNReal.ofReal_add (by positivity) hc0]
-          refine ENNReal.ofReal_le_ofReal ?_
-          have hp : C.ends
-              - (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)).probes
-              = m - 1 := by simp [counted, m]; omega
-          change Ψ nσ s * q ^ C.ends + (if Bad read C D ε s then q ^ (C.ends
-              - (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)).probes)
-              else 0) ≤ _
-          rw [hp]
-        · simp
-        · simp only [true_and, Sum.elim_inr, add_zero]
-          split_ifs with hb
-          · have : m = 1 := by simp [counted] at hN; omega
-            simp only [c, if_pos hb, this, Nat.sub_self, pow_zero, ENNReal.ofReal_one]
-            exact le_add_self
-          · exact bot_le
-    calc _ ≤ ∫⁻ x, ENNReal.ofReal (Ψ nσ s * q ^ C.ends)
-          + S.indicator (fun _ => ENNReal.ofReal c) x ∂D := lintegral_mono hpt
-      _ = ENNReal.ofReal (Ψ nσ s * q ^ C.ends) + ENNReal.ofReal c * D S := by
-          rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
-            lintegral_indicator_const hS]
-      _ ≤ F s := by
-          simp only [F]
-          rw [ENNReal.ofReal_add (by positivity) (by positivity)]
-          gcongr
-          simp only [c]
-          split_ifs with hb
-          · have hDS : D S ≤ ENNReal.ofReal q := by
-              rw [← ENNReal.ofReal_toReal (measure_ne_top D S)]
-              refine ENNReal.ofReal_le_ofReal ?_
-              have h1 : D.real S = 1 - D.real Sᶜ := by
-                rw [measureReal_compl hS, probReal_univ]; ring
-              have h2 : Sᶜ = {x | Changes (probeOrAgree false read s.tree s.edges C.walkStart x)} :=
-                by ext x; simp [S]
-              change D.real S ≤ q
-              rw [h1, h2]
-              unfold Bad at hb
-              simp only [q]
-              linarith
-            calc ENNReal.ofReal (q ^ (m - 1)) * D S
-                ≤ ENNReal.ofReal (q ^ (m - 1)) * ENNReal.ofReal q := by gcongr
-              _ = ENNReal.ofReal (q ^ m) := by
-                  rw [← ENNReal.ofReal_mul (by positivity), ← pow_succ]
-                  congr 2
-                  omega
-          · simp
-  refine (anyStep_le read C D _ (Inv read C) F (fun s x s' hs h => (step_inv read C hI hC hs h).1)
-    hF N initialState (inv_start read C (one_le_ends hC))).trans (ENNReal.ofReal_le_ofReal ?_)
-  have hΨ : (Ψ nσ (initialState : Level2State α) : ℝ) + 1 ≤ stretches nσ (Fintype.card α) := by
-    exact_mod_cast Ψ_start nσ (α := α)
-  have hb : (if Bad read C D ε initialState then q ^ (C.ends -
-      (initialState : Level2State α).probes) else 0) ≤ q ^ C.ends := by
-    split_ifs
-    · simp [initialState, newHypothesis]
-    · positivity
-  have := pow_nonneg hq0 C.ends
-  nlinarith
+theorem dhits_cons (s : Level2State α) {j : ℕ} (x : FreeMonoid α) (ys : Fin j → FreeMonoid α) :
+    dhits read C s (Fin.cons x ys : Fin (j + 1) → FreeMonoid α)
+      = (if (probeOrAgree false read s.tree s.edges C.walkStart x).clean then 0 else 1)
+        + dhits read C s ys := by
+  classical
+  unfold dhits countOf
+  rw [card_filter, card_filter, Fin.sum_univ_succ]
+  simp only [Fin.cons_zero, Fin.cons_succ]
+  congr 1
+  · cases (probeOrAgree false read s.tree s.edges C.walkStart x).clean <;> simp
+  · exact sum_congr rfl fun i _ => by congr
+
+theorem pi_dhits_succ (s : Level2State α) (j : ℕ) (Q : ℕ → Prop) :
+    (Measure.pi fun _ : Fin (j + 1) => D) {ys | Q (dhits read C s ys)}
+      = ∫⁻ x, (Measure.pi fun _ : Fin j => D)
+          {ys | Q ((if (probeOrAgree false read s.tree s.edges C.walkStart x).clean then 0 else 1)
+            + dhits read C s ys)} ∂D := by
+  rw [pi_succ_apply]
+  congr 1
+  funext x
+  congr 1
+  ext ys
+  simp only [Set.mem_ofPred_eq, dhits_cons]
+
+theorem pi_dhits_zero (s : Level2State α) (Q : ℕ → Prop) (hQ : Q 0) :
+    (Measure.pi fun _ : Fin 0 => D) {ys | Q (dhits read C s ys)} = 1 := by
+  have : {ys : Fin 0 → FreeMonoid α | Q (dhits read C s ys)} = Set.univ := by
+    ext ys
+    simp only [Set.mem_ofPred_eq, Set.mem_univ, iff_true]
+    have : dhits read C s ys = 0 := by simp [dhits, countOf]
+    rwa [this]
+  rw [this, measure_univ]
+
+/-- The hypothesis of `s` does not end clean on more than `disagreementRate` of the probes. -/
+def Bad (s : Level2State α) : Prop :=
+  C.disagreementRate
+    < D.real {x | (probeOrAgree false read s.tree s.edges C.walkStart x).clean = false}
 
 open scoped Classical in
 /-- Over a stretch's probes to come, the chance each look fires the rate test. -/
@@ -363,19 +263,6 @@ open scoped Classical in
 /-- What remains of a stretch's chance to fire the rate test at a rate below `y`. -/
 noncomputable def fireMass (s : Level2State α) : ℝ≥0∞ :=
   if hitRate read C D s < C.harvestRate then fireSum read C D s else 0
-
-open scoped Classical in
-/-- The chance that a stretch's count at its last look leaves the rate test silent. -/
-noncomputable def missSum (s : Level2State α) : ℝ≥0∞ :=
-  (Measure.pi fun _ : Fin (C.ends - s.probes) => D)
-    {ys | ¬ binomSfGe C.ends C.harvestRate (s.undecided + hits read C s ys)
-      < C.testLevel}
-
-open scoped Classical in
-/-- What remains of a stretch's chance to end with the rate test silent at a rate of at least
-`r`. -/
-noncomputable def missMass (r : ℝ) (s : Level2State α) : ℝ≥0∞ :=
-  if r ≤ hitRate read C D s then missSum read C D s else 0
 
 open scoped Classical in
 /-- A harvest at a hypothesis stopping at an undecided read on fewer than `y` of the probes. -/
@@ -451,7 +338,7 @@ theorem falseHarvest_le (hI : IdealReads read M side) (hC : TestsOK C)
         · have hp' : hitRate read C D
               (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)) < y := hp
           simp only [g, if_pos hp, hsplit x]
-          rcases step_same read C hC hs.clean hc
+          rcases step_same read C hC hs hc
               with ⟨he, -, -⟩ | ⟨he, hfire⟩ | ⟨he, -, -⟩ <;> rw [he]
           · simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
             rw [show fireMass read C D (counted s (probeOrAgree false read s.tree s.edges
@@ -466,7 +353,7 @@ theorem falseHarvest_le (hI : IdealReads read M side) (hC : TestsOK C)
             simpa [Fires, counted, stuckString] using hfire
           · simp
         · simp only [g, if_neg hp]
-          rcases step_same read C hC hs.clean hc
+          rcases step_same read C hC hs hc
               with ⟨he, -, -⟩ | ⟨he, -⟩ | ⟨he, -, -⟩ <;> rw [he]
           · have hp' : ¬ hitRate read C D
                 (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)) < y := hp
@@ -507,72 +394,70 @@ theorem falseHarvest_le (hI : IdealReads read M side) (hC : TestsOK C)
         nlinarith
 
 open scoped Classical in
-/-- A consistent ending at a hypothesis stopping at an undecided read on at least `r` of the
-probes. -/
-theorem missedHarvest_le (hI : IdealReads read M side) (hC : TestsOK C)
-    (hy0 : 0 ≤ C.harvestRate) (hy1 : C.harvestRate ≤ 1) (ha : 0 < C.testLevel) {r : ℝ}
-    (hr0 : 0 ≤ r) (hr1 : r ≤ 1) (N : ℕ) :
+/-- Over a stretch's probes to come, the chance each look calls the disagreements below. -/
+noncomputable def belowSum (s : Level2State α) : ℝ≥0∞ :=
+  ∑ j ∈ range (C.ends - s.probes), (Measure.pi fun _ : Fin (j + 1) => D)
+    {ys | rateSide C.disagreementRate C.testLevel 0 (s.probes + (j + 1))
+      (s.disagreements + dhits read C s ys) = some false}
+
+open scoped Classical in
+/-- What remains of a stretch's chance to call the disagreements below at a `Bad` hypothesis. -/
+noncomputable def belowMass (s : Level2State α) : ℝ≥0∞ :=
+  if Bad read C D s then belowSum read C D s else 0
+
+open scoped Classical in
+/-- A consistent ending at a hypothesis that does not end clean on more than `disagreementRate` of
+the probes. -/
+theorem falseConsistent_le (hI : IdealReads read M side) (hC : TestsOK C) (N : ℕ) :
     (Measure.pi fun _ : Fin N => D) {xs | AnyStep read C
-        (fun s x => applyProbe read C s x = .inr .consistent ∧ r ≤ hitRate read C D s)
-        initialState (List.ofFn xs)}
-      ≤ ENNReal.ofReal (stretches (Fintype.card σ) (Fintype.card α) * (1 - binomSfGe C.ends
-          r (fireCount C.harvestRate C.testLevel C.ends))) := by
+        (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D s) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (stretches (Fintype.card σ) (Fintype.card α) * C.ends
+          * C.testLevel) := by
   set nσ := Fintype.card σ
-  set K := fireCount C.harvestRate C.testLevel C.ends
-  set b := 1 - binomSfGe C.ends r K
-  have hK : binomSfGe C.ends C.harvestRate K < C.testLevel := by
-    have hne : {k | binomSfGe C.ends C.harvestRate k < C.testLevel}.Nonempty :=
-      ⟨C.ends + 1, by
-        simp only [Set.mem_ofPred_eq]
-        unfold binomSfGe
-        rw [Finset.Icc_eq_empty (by omega)]
-        simpa using ha⟩
-    exact Nat.sInf_mem hne
-  have hb : 0 ≤ b := by
-    have := binomSfGe_antitone' (n := C.ends) hr0 hr1 (Nat.zero_le K)
-    rw [binomSfGe_zero_right] at this
-    simp only [b]; linarith
-  have hfresh : ∀ T E, missMass read C D r (newHypothesis T E) ≤ ENNReal.ofReal b := by
+  set ε := C.disagreementRate
+  set a := C.testLevel
+  set n0 := C.ends
+  have ha : 0 ≤ a := hC.testLevel_pos.le
+  have hε0 : 0 ≤ ε := by linarith [hC.harvestRate_nonneg, hC.harvestRate_lt]
+  have hfresh : ∀ T E, belowMass read C D (newHypothesis T E) ≤ ENNReal.ofReal (n0 * a) := by
     intro T E
-    unfold missMass missSum
+    unfold belowMass belowSum
     split_ifs with hp
-    · set H := (newHypothesis T E : Level2State α)
-      have hsub : {ys : Fin (C.ends - H.probes) → FreeMonoid α | ¬ binomSfGe
-          C.ends C.harvestRate (H.undecided + hits read C H ys) < C.testLevel}
-          ⊆ {ys | K ≤ hits read C H ys}ᶜ := by
-        intro ys hys hK'
-        refine hys (lt_of_le_of_lt (binomSfGe_antitone' hy0 hy1 ?_) hK)
-        simp only [Set.mem_ofPred_eq] at hK'
-        simpa [H, newHypothesis] using hK'
-      have hc : (Measure.pi fun _ : Fin (C.ends - H.probes) => D).real
-          {ys | K ≤ hits read C H ys}ᶜ = 1 - binomSfGe C.ends (hitRate read C D H) K := by
-        rw [measureReal_compl (Set.to_countable _).measurableSet, probReal_univ,
-          pi_hits_ge read C D H _ K]
-        simp [H, newHypothesis]
-      have hmono : binomSfGe C.ends r K ≤ binomSfGe C.ends (hitRate read C D H) K :=
-        binomSfGe_mono hr0 measureReal_le_one hp _ _
-      refine (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _) hb).2 ?_
-      rw [← measureReal_def]
-      refine (measureReal_mono hsub).trans ?_
-      rw [hc]
-      change 1 - binomSfGe C.ends (hitRate read C D H) K ≤ 1 - binomSfGe C.ends r K
-      linarith
+    · simp only [newHypothesis, Nat.sub_zero, zero_add]
+      refine (sum_le_card_nsmul _ _ (ENNReal.ofReal a) fun j _ => ?_).trans (le_of_eq ?_)
+      · have := rateSide_below_le D
+          (fun x => (probeOrAgree false read T E C.walkStart x).clean = false) ε a 0
+          (j + 1) hε0 ha hp.le
+        rw [← ENNReal.ofReal_toReal (measure_ne_top _ _)]
+        exact ENNReal.ofReal_le_ofReal (le_trans (le_of_eq rfl) this)
+      · rw [card_range, nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg _),
+          ENNReal.ofReal_natCast]
     · exact bot_le
-  let F : Level2State α → ℝ≥0∞ := fun s => ENNReal.ofReal (b * Ψ nσ s) + missMass read C D r s
+  let F : Level2State α → ℝ≥0∞ := fun s =>
+    ENNReal.ofReal (n0 * a * Ψ nσ s) + belowMass read C D s
   have hF : ∀ s, Inv read C s → ∫⁻ x, ((if (applyProbe read C s x = .inr .consistent
-      ∧ r ≤ hitRate read C D s) then 1 else 0) + Sum.elim F (fun _ => 0) (applyProbe read C s x))
+      ∧ Bad read C D s) then 1 else 0) + Sum.elim F (fun _ => 0) (applyProbe read C s x))
       ∂D ≤ F s := by
     intro s hs
     have hlt := hs.probes_lt
+    let cl : FreeMonoid α → ℕ := fun x =>
+      if (probeOrAgree false read s.tree s.edges C.walkStart x).clean then 0 else 1
     let h : FreeMonoid α → ℝ≥0∞ := fun x =>
-      (Measure.pi fun _ : Fin (C.ends - s.probes - 1) => D)
-        {ys | ¬ binomSfGe C.ends C.harvestRate (s.undecided
-          + (stuckString read ⟨s.tree, s.edges⟩ C.walkStart x).length + hits read C s ys)
-            < C.testLevel}
-    let g : FreeMonoid α → ℝ≥0∞ := fun x => if r ≤ hitRate read C D s then h x else 0
-    have hpt : ∀ x, ((if (applyProbe read C s x = .inr .consistent ∧ r ≤ hitRate read C D s)
+      ∑ j ∈ range (n0 - s.probes), (Measure.pi fun _ : Fin j => D)
+        {ys | rateSide ε a 0 (s.probes + 1 + j) (s.disagreements + cl x + dhits read C s ys)
+          = some false}
+    let g : FreeMonoid α → ℝ≥0∞ := fun x => if Bad read C D s then h x else 0
+    have hsplit : ∀ x, h x = (Measure.pi fun _ : Fin 0 => D) {ys | rateSide ε a 0
+          (s.probes + 1 + 0) (s.disagreements + cl x + dhits read C s ys) = some false}
+        + belowSum read C D (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)) := by
+      intro x
+      simp only [h, belowSum]
+      rw [show n0 - s.probes = n0 - (s.probes + 1) + 1 by omega, sum_range_succ', add_comm]
+      rfl
+    have hpt : ∀ x, ((if (applyProbe read C s x = .inr .consistent ∧ Bad read C D s)
         then 1 else 0) + Sum.elim F (fun _ => 0) (applyProbe read C s x))
-        ≤ ENNReal.ofReal (b * Ψ nσ s) + g x := by
+        ≤ ENNReal.ofReal (n0 * a * Ψ nσ s) + g x := by
       intro x
       by_cases hc : Changes (probeOrAgree false read s.tree s.edges C.walkStart x)
       · obtain ⟨T, E, he, -, hΨ⟩ := step_change read C hI (one_le_ends hC) hs hc
@@ -580,77 +465,72 @@ theorem missedHarvest_le (hI : IdealReads read M side) (hC : TestsOK C)
         simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
         refine le_trans ?_ le_self_add
         have h1 : ((Ψ nσ (newHypothesis T E) : ℕ) : ℝ) + 1 ≤ Ψ nσ s := by exact_mod_cast hΨ
-        calc ENNReal.ofReal (b * Ψ nσ (newHypothesis T E)) + missMass read C D r (newHypothesis T E)
-            ≤ ENNReal.ofReal (b * Ψ nσ (newHypothesis T E)) + ENNReal.ofReal b := by
+        calc ENNReal.ofReal (n0 * a * Ψ nσ (newHypothesis T E))
+              + belowMass read C D (newHypothesis T E)
+            ≤ ENNReal.ofReal (n0 * a * Ψ nσ (newHypothesis T E)) + ENNReal.ofReal (n0 * a) := by
               gcongr; exact hfresh T E
-          _ ≤ ENNReal.ofReal (b * Ψ nσ s) := by
-              rw [← ENNReal.ofReal_add (by positivity) hb]
+          _ ≤ ENNReal.ofReal (n0 * a * Ψ nσ s) := by
+              rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
               refine ENNReal.ofReal_le_ofReal ?_
+              have : (0 : ℝ) ≤ n0 * a := by positivity
               nlinarith
-      · by_cases hp : r ≤ hitRate read C D s
-        · have hp' : r ≤ hitRate read C D
+      · by_cases hp : Bad read C D s
+        · have hp' : Bad read C D
               (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)) := hp
-          simp only [g, if_pos hp]
-          rcases step_same read C hC hs.clean hc
-              with ⟨he, -, -⟩ | ⟨he, -⟩ | ⟨he, hN, hnf⟩ <;> rw [he]
+          simp only [g, if_pos hp, hsplit x]
+          rcases step_same read C hC hs hc
+              with ⟨he, -, -⟩ | ⟨he, -⟩ | ⟨he, hbelow, -⟩ <;> rw [he]
           · simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
-            rw [show missMass read C D r (counted s (probeOrAgree false read s.tree s.edges
-              C.walkStart x)) = missSum read C D (counted s (probeOrAgree false read s.tree s.edges
-              C.walkStart x)) from if_pos hp']
-            refine add_le_add (le_of_eq rfl) (le_of_eq ?_)
-            show _ = (Measure.pi fun _ : Fin (C.ends - s.probes - 1) => D) _
-            rw [Nat.sub_sub]
-            rfl
+            rw [show belowMass read C D (counted s (probeOrAgree false read s.tree s.edges
+              C.walkStart x)) = belowSum read C D (counted s (probeOrAgree false read s.tree
+              s.edges C.walkStart x)) from if_pos hp']
+            exact add_le_add (le_of_eq rfl) le_add_self
           · simp
-          · simp only [hp, and_self, if_true, Sum.elim_inr, add_zero]
-            refine le_trans (le_of_eq ?_) le_add_self
-            have h0 : C.ends - s.probes - 1 = 0 := by simp [counted] at hN; omega
-            have hp1 : (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)).probes
-                = C.ends := by simp [counted] at hN ⊢; omega
-            show _ = (Measure.pi fun _ : Fin (C.ends - s.probes - 1) => D) _
-            rw [h0, eq_comm]
-            refine pi_hits_zero read C D s (fun m => ¬ binomSfGe C.ends C.harvestRate
-              (s.undecided + (stuckString read ⟨s.tree, s.edges⟩ C.walkStart x).length + m)
-                < C.testLevel) ?_
-            have := hnf
-            unfold Fires at this
-            rw [hp1] at this
-            simpa [counted, stuckString] using this
+          · simp only [hp, and_true, if_true, Sum.elim_inr, add_zero]
+            refine le_trans (le_of_eq ?_) (le_trans le_self_add le_add_self)
+            rw [eq_comm]
+            refine pi_dhits_zero read C D s (fun m => rateSide ε a 0 (s.probes + 1 + 0)
+              (s.disagreements + cl x + m) = some false) ?_
+            exact hbelow
         · simp only [g, if_neg hp]
-          rcases step_same read C hC hs.clean hc
+          rcases step_same read C hC hs hc
               with ⟨he, -, -⟩ | ⟨he, -⟩ | ⟨he, -, -⟩ <;> rw [he]
-          · have hp' : ¬ r ≤ hitRate read C D
+          · have hp' : ¬ Bad read C D
                 (counted s (probeOrAgree false read s.tree s.edges C.walkStart x)) := hp
             simp only [reduceCtorEq, false_and, if_false, Sum.elim_inl, zero_add, F]
-            rw [show missMass read C D r (counted s (probeOrAgree false read s.tree s.edges
+            rw [show belowMass read C D (counted s (probeOrAgree false read s.tree s.edges
               C.walkStart x)) = 0 from if_neg hp', add_zero, add_zero]
             exact le_rfl
           · simp
           · simp [hp]
-    calc _ ≤ ∫⁻ x, ENNReal.ofReal (b * Ψ nσ s) + g x ∂D := lintegral_mono hpt
-      _ = ENNReal.ofReal (b * Ψ nσ s) + ∫⁻ x, g x ∂D := by
+    calc _ ≤ ∫⁻ x, ENNReal.ofReal (n0 * a * Ψ nσ s) + g x ∂D := lintegral_mono hpt
+      _ = ENNReal.ofReal (n0 * a * Ψ nσ s) + ∫⁻ x, g x ∂D := by
           rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one]
       _ ≤ F s := by
           simp only [F]
           gcongr
-          simp only [g, missMass, missSum, h]
+          simp only [g, belowMass, belowSum, h]
           split_ifs with hp
-          · rw [show C.ends - s.probes = C.ends - s.probes - 1 + 1 by omega,
-              pi_hits_succ read C D s _
-              (fun m => ¬ binomSfGe C.ends C.harvestRate (s.undecided + m) < C.testLevel)]
-            refine le_of_eq (lintegral_congr fun x => ?_)
-            simp only [add_assoc]
-            rfl
+          · rw [lintegral_finset_sum _ fun _ _ => measurable_of_countable _]
+            refine le_of_eq (sum_congr rfl fun j _ => ?_)
+            rw [pi_dhits_succ read C D s j (fun m => rateSide ε a 0 (s.probes + (j + 1))
+              (s.disagreements + m) = some false)]
+            refine lintegral_congr fun x => ?_
+            congr 1
+            ext ys
+            simp only [Set.mem_ofPred_eq, cl]
+            constructor <;> intro hh <;> convert hh using 2 <;> ring
           · simp
   refine (anyStep_le read C D _ (Inv read C) F (fun s x s' hs h => (step_inv read C hI hC hs h).1)
     hF N initialState (inv_start read C (one_le_ends hC))).trans ?_
   have hΨ : (Ψ nσ (initialState : Level2State α) : ℝ) + 1 ≤ stretches nσ (Fintype.card α) := by
     exact_mod_cast Ψ_start nσ (α := α)
-  calc F initialState ≤ ENNReal.ofReal (b * Ψ nσ (initialState : Level2State α))
-        + ENNReal.ofReal b := add_le_add le_rfl (hfresh _ _)
+  calc F initialState ≤ ENNReal.ofReal (n0 * a * Ψ nσ (initialState : Level2State α))
+        + ENNReal.ofReal (n0 * a) := add_le_add le_rfl (hfresh _ _)
     _ ≤ _ := by
-        rw [← ENNReal.ofReal_add (by positivity) hb]
+        rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         refine ENNReal.ofReal_le_ofReal ?_
+        have : (0 : ℝ) ≤ n0 * a := by positivity
         nlinarith
 
 end Run
@@ -662,47 +542,41 @@ section Theorem
 variable [Fintype α] (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {σ : Type*} [Fintype σ]
   {M : DFA α σ} {side : σ → Bool}
 
-/-- A run that does not end well has a bad step: a consistent ending at a hypothesis that changes
-on more than `ε` of the probes or stops at an undecided read on at least `r` of them, or a harvest
-at one stopping at an undecided read on fewer than `y` of them. -/
-theorem bad_any (hI : IdealReads read M side) (hC : TestsOK C) (hy : 0 < C.harvestRate)
-    (ε r : ℝ) : ∀ (xs : List (FreeMonoid α)) (s : Level2State α), Inv read C s →
+/-- A run that does not end well has a bad step: a consistent ending at a hypothesis that does not
+end clean on more than `disagreementRate` of the probes, or a harvest at one stopping at an
+undecided read on fewer than `harvestRate` of them. -/
+theorem bad_any (hI : IdealReads read M side) (hC : TestsOK C) (hy : 0 < C.harvestRate) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level2State α), Inv read C s →
       Θ C (Fintype.card σ) s < xs.length →
-      ¬ EndsWell M (AllUndecided read M) D (ε + r)
+      ¬ EndsWell M (AllUndecided read M) D C.disagreementRate
           {x | Disagrees read ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
             C.walkStart x} C.walkStart (fun _ => harvestLaw read D C.walkStart
               ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩)
           C.harvestRate (runProbes read C s xs).2 →
-      AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D ε s)
-          s xs
+      AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D s) s xs
         ∨ AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
           ∧ hitRate read C D s < C.harvestRate) s xs
-        ∨ AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent
-          ∧ r ≤ hitRate read C D s) s xs
   | [], s, _, h, _ => by simp at h
   | x :: xs, s, hs, hΘ, hbad => by
     rcases hst : applyProbe read C s x with s' | e
     · obtain ⟨hs', hlt⟩ := step_inv read C hI hC hs hst
       simp only [runProbes, hst] at hbad
-      rcases bad_any hI hC hy ε r xs s' hs' (by simp only [List.length_cons] at hΘ; omega) hbad
-        with h | h | h
+      rcases bad_any hI hC hy xs s' hs' (by simp only [List.length_cons] at hΘ; omega) hbad
+        with h | h
       · exact Or.inl (Or.inr ⟨s', hst, h⟩)
-      · exact Or.inr (Or.inl (Or.inr ⟨s', hst, h⟩))
-      · exact Or.inr (Or.inr (Or.inr ⟨s', hst, h⟩))
+      · exact Or.inr (Or.inr ⟨s', hst, h⟩)
     · simp only [runProbes, hst] at hbad
       rcases e with _ | ⟨⟩ | _
       · by_contra hno
         simp only [AnyStep, hst, true_and, not_or] at hno
         apply hbad
         show D.real _ ≤ _
-        have hB : ¬ Bad read C D ε s := hno.1.1
-        have hr : hitRate read C D s < r := not_le.1 hno.2.2.1
+        have hB : ¬ Bad read C D s := hno.1.1
         unfold Bad at hB
-        have := disagrees_le read C D hs
-        linarith
+        exact (disagrees_le read C D).trans (not_lt.1 hB)
       · by_contra hno
         simp only [AnyStep, hst, true_and, not_or] at hno
-        have hle : C.harvestRate ≤ hitRate read C D s := not_lt.1 hno.2.1.1
+        have hle : C.harvestRate ≤ hitRate read C D s := not_lt.1 hno.2.1
         apply hbad
         refine endsWell_harvest read D ⟨s.tree, s.edges⟩ C.walkStart hI hs.edges _ _ hy
           (hle.trans ?_)
@@ -714,57 +588,33 @@ theorem bad_any (hI : IdealReads read M side) (hC : TestsOK C) (hy : 0 < C.harve
 end Theorem
 
 theorem idealRoundCorrect_holds : IdealRoundCorrect := by
-  intro α _ _ σ _ M read side C P hI hy hy1 hε0 hε1 ha ha1 hP D _ r hr0 hr1
-  have hC : TestsOK C := ⟨hε0, hε1, ha, ha1⟩
-  set ε := C.disagreementRate
+  intro α _ _ σ _ M read side C P hI hy hyε hε1 ha ha1 hP D _
+  have hC : TestsOK C := ⟨hy.le, hyε, hε1, ha, ha1⟩
   have hΘ : Θ C (Fintype.card σ) (initialState : Level2State α) < P :=
     (Θ_start C _ (one_le_ends hC)).trans_le hP
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
-        ¬ EndsWell M (AllUndecided read M) D (ε + r)
+        ¬ EndsWell M (AllUndecided read M) D C.disagreementRate
           {x | Disagrees read result.hypothesis C.walkStart x}
           C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis) C.harvestRate
           result.ending}
       ⊆ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent
-            ∧ Bad read C D ε s) initialState (List.ofFn xs)}
+            ∧ Bad read C D s) initialState (List.ofFn xs)}
         ∪ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
-            ∧ hitRate read C D s < C.harvestRate) initialState (List.ofFn xs)}
-        ∪ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent
-            ∧ r ≤ hitRate read C D s) initialState (List.ofFn xs)} := by
+            ∧ hitRate read C D s < C.harvestRate) initialState (List.ofFn xs)} := by
     intro xs hxs
-    rcases bad_any read C D hI hC hy ε r (List.ofFn xs) initialState
-      (inv_start read C (one_le_ends hC)) (by simpa using hΘ) hxs with h | h | h
-    · exact Or.inl (Or.inl h)
-    · exact Or.inl (Or.inr h)
-    · exact Or.inr h
-  have h1 := falseConsistent_le read C D hI hC hε1 P (σ := σ)
-  have h2 := falseHarvest_le read C D hI hC hy1 ha.le P (σ := σ)
-  have h3 := missedHarvest_le read C D hI hC hy.le hy1 ha hr0 hr1 P (σ := σ)
-  set S : ℝ := (stretches (Fintype.card σ) (Fintype.card α) : ℝ)
-  have hS : 0 ≤ S := Nat.cast_nonneg _
-  have hSP : S * C.ends * C.testLevel ≤ P * C.testLevel :=
-    mul_le_mul_of_nonneg_right (by simp only [S]; exact_mod_cast hP) ha.le
-  have hq : (1 - ε) ^ C.ends ≤ C.testLevel := ((pow_lt_iff_ends hC _).2 le_rfl).le
-  have hb : 0 ≤ 1 - binomSfGe C.ends r (fireCount C.harvestRate C.testLevel C.ends) := by
-    have := binomSfGe_antitone' (n := C.ends) hr0 hr1
-      (Nat.zero_le (fireCount C.harvestRate C.testLevel C.ends))
-    rw [binomSfGe_zero_right] at this
-    linarith
+    exact bad_any read C D hI hC hy (List.ofFn xs) initialState
+      (inv_start read C (one_le_ends hC)) (by simpa using hΘ) hxs
+  have h1 := falseConsistent_le read C D hI hC P (σ := σ)
+  have h2 := falseHarvest_le read C D hI hC (by linarith) ha.le P (σ := σ)
+  have hS : (0 : ℝ) ≤ stretches (Fintype.card σ) (Fintype.card α) * C.ends * C.testLevel := by
+    have := ha.le; positivity
   refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal (by positivity)
-    (((measure_union_le _ _).trans (add_le_add (measure_union_le _ _) le_rfl)).trans ?_))
-  calc _ ≤ ENNReal.ofReal (S * (1 - ε) ^ C.ends)
-        + ENNReal.ofReal (S * C.ends * C.testLevel)
-        + ENNReal.ofReal (S * (1 - binomSfGe C.ends r
-          (fireCount C.harvestRate C.testLevel C.ends))) :=
-        add_le_add (add_le_add h1 h2) h3
-    _ ≤ _ := by
-        have hq0 : 0 ≤ (1 - ε) ^ C.ends := pow_nonneg (by linarith) _
-        rw [← ENNReal.ofReal_add (by positivity) (by positivity),
-          ← ENNReal.ofReal_add (by positivity) (by positivity)]
-        refine ENNReal.ofReal_le_ofReal ?_
-        have : S * (1 - ε) ^ C.ends ≤ S * C.testLevel := mul_le_mul_of_nonneg_left hq hS
-        change _ ≤ _ * (C.testLevel + (1 - binomSfGe C.ends r
-          (fireCount C.harvestRate C.testLevel C.ends))) + _
-        nlinarith
+    ((measure_union_le _ _).trans ?_))
+  refine (add_le_add h1 h2).trans (le_of_eq ?_)
+  rw [← ENNReal.ofReal_add hS hS]
+  congr 1
+  simp only [Level2Settings.ends]
+  ring
 
 end Ideal
 

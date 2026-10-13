@@ -1,13 +1,14 @@
 import OrthoDFA.Proofs.IdealProbe
 import OrthoDFA.Proofs.BinomLaw
+import OrthoDFA.Proofs.Adaptive
 
 /-!
 # A round's steps under ideal reads
 
 The invariant `Inv`: every learned edge out of a leaf points where its witness's successor sifts,
-every leaf past the first two is reached by some string, the stretch has no disagreement and is
-shorter than `ends`, the probes after which the rate test calls no disagreement below
-`disagreementRate`.
+every leaf past the first two is reached by some string, the stretch's disagreements are at most
+its undecided reads and its probes, and it is shorter than `ends`, the look by which, with
+`harvestRate < disagreementRate`, one of the rate tests decides whatever the counts.
 
 A disagreement at decided reads at the edge `(p, c)` has two strings at `p`, the probe's prefix and
 the edge's witness, whose successors sift to different leaves. They read decidedly apart at `c`
@@ -158,63 +159,110 @@ theorem edgesOK_upd {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p t :
   · rw [Function.update_of_ne hqc] at h
     exact hE q hq c' t' w h
 
-/-- The rate tests' rates and level are chances, the disagreements' rate and the level positive. -/
+/-- The rates are chances, the undecided reads' below the disagreements', and the level strictly
+between 0 and 1. -/
 structure TestsOK : Prop where
-  disagreementRate_pos : 0 < C.disagreementRate
+  harvestRate_nonneg : 0 ≤ C.harvestRate
+  harvestRate_lt : C.harvestRate < C.disagreementRate
   disagreementRate_le : C.disagreementRate ≤ 1
   testLevel_pos : 0 < C.testLevel
-  testLevel_le : C.testLevel ≤ 1
+  testLevel_lt : C.testLevel < 1
 
-/-- The probes after which a stretch with no disagreement ends consistent. -/
-noncomputable def Level2Settings.ends : ℕ := consistentAfter C.disagreementRate C.testLevel
+/-- The probes by which a stretch ends. -/
+noncomputable def Level2Settings.ends : ℕ :=
+  stretchLength C.harvestRate C.disagreementRate C.testLevel
 
-theorem one_sub_binomSfGe_one (n : ℕ) (p : ℝ) : 1 - binomSfGe n p 1 = (1 - p) ^ n := by
+theorem one_sub_binomSfGe_succ {n d : ℕ} (hd : d ≤ n) (p : ℝ) :
+    1 - binomSfGe n p (d + 1) = binomSfGe n (1 - p) (n - d) := by
   have h := binomSfGe_zero_right n p
   unfold binomSfGe at h ⊢
-  rw [Finset.Icc_eq_cons_Ioc (Nat.zero_le n), Finset.sum_cons,
-    show Finset.Ioc 0 n = Finset.Icc 1 n by ext; simp; omega] at h
-  simp only [Nat.choose_zero_right, Nat.cast_one, pow_zero, one_mul, Nat.sub_zero] at h
+  rw [show Finset.Icc 0 n = Finset.Icc 0 d ∪ Finset.Icc (d + 1) n by ext i; simp; omega,
+    Finset.sum_union (by rw [Finset.disjoint_left]; intro i; simp; omega)] at h
+  rw [← eq_sub_of_add_eq h]
+  refine Finset.sum_nbij' (fun i => n - i) (fun j => n - j) ?_ ?_ ?_ ?_ ?_
+  · intro i hi; simp at hi ⊢; omega
+  · intro j hj; simp at hj ⊢; omega
+  · intro i hi; simp at hi; omega
+  · intro j hj; simp at hj; omega
+  · intro i hi
+    simp only [Finset.mem_Icc] at hi
+    rw [Nat.choose_symm (by omega), Nat.sub_sub_self (by omega), sub_sub_cancel]
+    ring
+
+/-- Hoeffding's lower tail. -/
+theorem one_sub_binomSfGe_le {n d : ℕ} {p τ : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (hτ : 0 ≤ τ)
+    (hd : d ≤ n) (h : (d : ℝ) + n * τ ≤ n * p) :
+    1 - binomSfGe n p (d + 1) ≤ Real.exp (-2 * n * τ ^ 2) := by
+  rw [one_sub_binomSfGe_succ hd]
+  refine binomSfGe_le n (n - d) (1 - p) τ (by linarith) (by linarith) hτ ?_
+  rw [Nat.cast_sub hd]
   linarith
 
 variable {C} in
-theorem pow_lt_iff_ends (hC : TestsOK C) (n : ℕ) :
-    (1 - C.disagreementRate) ^ n < C.testLevel ↔ C.ends ≤ n := by
-  have h0 : 0 ≤ 1 - C.disagreementRate := by linarith [hC.disagreementRate_le]
-  have h1 : 1 - C.disagreementRate < 1 := by linarith [hC.disagreementRate_pos]
-  have hne : {n | (1 - C.disagreementRate) ^ n < C.testLevel}.Nonempty :=
-    exists_pow_lt_of_lt_one hC.testLevel_pos h1
-  constructor
-  · exact fun h => Nat.sInf_le h
-  · intro h
-    exact lt_of_le_of_lt (pow_le_pow_of_le_one h0 h1.le h) (Nat.sInf_mem hne)
+/-- At look `ends`, whatever the disagreements counted, one of the tests decides. -/
+theorem ends_spec (hC : TestsOK C) :
+    ∀ d ≤ C.ends, binomSfGe C.ends C.harvestRate d < C.testLevel
+      ∨ rateSide C.disagreementRate C.testLevel 0 C.ends d = some false := by
+  have hy0 := hC.harvestRate_nonneg
+  have hε1 := hC.disagreementRate_le
+  have hyε := hC.harvestRate_lt
+  have ha0 := hC.testLevel_pos
+  have ha1 := hC.testLevel_lt
+  have hne : {n | ∀ d ≤ n, binomSfGe n C.harvestRate d < C.testLevel
+      ∨ rateSide C.disagreementRate C.testLevel 0 n d = some false}.Nonempty := by
+    set τ := (C.disagreementRate - C.harvestRate) / 2 with hτdef
+    have hτ : 0 < τ := by linarith
+    have hm : 0 < min C.testLevel (1 - C.testLevel) := lt_min ha0 (by linarith)
+    obtain ⟨n, hn⟩ := exists_nat_gt (-Real.log (min C.testLevel (1 - C.testLevel)) / (2 * τ ^ 2))
+    have hexp : Real.exp (-2 * n * τ ^ 2) < min C.testLevel (1 - C.testLevel) := by
+      rw [← Real.exp_log hm]
+      refine Real.exp_lt_exp.2 ?_
+      have h2 : 0 < 2 * τ ^ 2 := by positivity
+      rw [div_lt_iff₀ h2] at hn
+      linarith
+    have hexpa := hexp.trans_le (min_le_left _ _)
+    have hexpb := hexp.trans_le (min_le_right _ _)
+    refine ⟨n, fun d hd => ?_⟩
+    by_cases hdy : (n : ℝ) * (C.harvestRate + τ) ≤ d
+    · exact Or.inl ((binomSfGe_le n d C.harvestRate τ hy0 (by linarith) hτ.le hdy).trans_lt hexpa)
+    · push_neg at hdy
+      have hε : (n : ℝ) * C.disagreementRate = n * C.harvestRate + 2 * (n * τ) := by
+        rw [hτdef]; ring
+      have hlow := one_sub_binomSfGe_le (p := C.disagreementRate) (by linarith) hε1 hτ.le hd
+        (by nlinarith)
+      right
+      unfold rateSide
+      rw [if_pos (Nat.zero_le n), if_neg, if_pos (hlow.trans_lt hexpa)]
+      have := binomSfGe_antitone (n := n) (by linarith) hε1 d
+      linarith
+  intro d hd
+  exact Nat.sInf_mem hne d hd
 
 variable {C} in
 theorem one_le_ends (hC : TestsOK C) : 1 ≤ C.ends := by
   by_contra h
-  have := (pow_lt_iff_ends hC 0).2 (by omega)
-  rw [pow_zero] at this
-  linarith [hC.testLevel_le]
-
-variable {C} in
-/-- With no disagreement, the rate test calls the disagreements below `disagreementRate` from
-look `ends` on. -/
-theorem rateSide_clean (hC : TestsOK C) (n : ℕ) :
-    rateSide C.disagreementRate C.testLevel 0 n 0 = some false ↔ C.ends ≤ n := by
-  rw [← pow_lt_iff_ends hC, ← one_sub_binomSfGe_one]
-  unfold rateSide
-  have : ¬ binomSfGe n C.disagreementRate 0 < C.testLevel := by
-    rw [binomSfGe_zero_right]; linarith [hC.testLevel_le]
-  simp only [zero_le, if_true, this, if_false, zero_add]
-  split_ifs <;> simp [*]
+  have h0 : C.ends = 0 := by omega
+  rcases ends_spec hC 0 (by omega) with h1 | h1 <;> rw [h0] at h1
+  · rw [binomSfGe_zero_right] at h1
+    linarith [hC.testLevel_lt]
+  · unfold rateSide at h1
+    rw [if_pos le_rfl, binomSfGe_zero_right, if_neg (by linarith [hC.testLevel_lt]),
+      binomSfGe_zero_left, if_neg (by linarith [hC.testLevel_lt])] at h1
+    cases h1
 
 /-- The rate test calls the undecided reads counted above `harvestRate`. -/
 def Fires (s : Level2State α) : Prop :=
   binomSfGe s.probes C.harvestRate s.undecided < C.testLevel
 
+/-- The rate test calls the disagreements counted below `disagreementRate`. -/
+def Below (s : Level2State α) : Prop :=
+  rateSide C.disagreementRate C.testLevel 0 s.probes s.disagreements = some false
+
 structure Inv (s : Level2State α) : Prop where
   edges : EdgesOK read s.tree s.edges
   reached : Reached read s.tree
-  clean : s.disagreements = 0
+  dis_le_undecided : s.disagreements ≤ s.undecided
+  dis_le_probes : s.disagreements ≤ s.probes
   probes_lt : s.probes < C.ends
 
 /-- The probe disagrees at decided reads, or reaches an unlearned edge: it changes the
@@ -226,7 +274,8 @@ def Changes : Outcome α → Prop
 
 /-- `s` with an outcome that keeps the hypothesis counted. -/
 def counted (s : Level2State α) (o : Outcome α) : Level2State α :=
-  { s with undecided := s.undecided + o.undecidedStrings.length, probes := s.probes + 1 }
+  ⟨s.tree, s.edges, s.undecided + o.undecidedStrings.length,
+    s.disagreements + (if o.clean then 0 else 1), s.probes + 1⟩
 
 /-! ## The potential -/
 
@@ -351,7 +400,7 @@ variable {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
 theorem inv_fresh {T : DTree α} {E : Edges α} (hn : 1 ≤ C.ends) (hE : EdgesOK read T E)
     (hr : Reached read T) : Inv read C (newHypothesis T E) :=
-  ⟨hE, hr, rfl, by simp [newHypothesis]; omega⟩
+  ⟨hE, hr, le_rfl, le_rfl, by simp [newHypothesis]; omega⟩
 
 omit [DecidableEq α] in
 theorem leaves_le_two {T : DTree α} [Fintype α] (hI : IdealReads read M side)
@@ -398,43 +447,71 @@ theorem rateSide_zero (θ a : ℝ) (n h : ℕ) :
   simp only [zero_le, if_true]
   split_ifs with h1 h2 <;> simp [*]
 
-/-- A step that keeps the hypothesis counts the probe: the round goes on with the test silent,
-harvests with it firing, or ends consistent after `ends` probes with it silent. -/
-theorem step_same (hC : TestsOK C) {s : Level2State α} (hd : s.disagreements = 0)
-    {x : FreeMonoid α} (hc : ¬ Changes (probeOrAgree false read s.tree s.edges C.walkStart x)) :
+omit [DecidableEq α] in
+/-- Counting a probe that keeps the hypothesis keeps `Inv` where neither test decides. -/
+theorem inv_counted (hC : TestsOK C) {s : Level2State α} (hs : Inv read C s) {o : Outcome α}
+    (hok : OutcomeOK read s.tree s.edges o) (hc : ¬ Changes o) (hF : ¬ Fires C (counted s o))
+    (hB : ¬ Below C (counted s o)) : Inv read C (counted s o) := by
+  have hdu : s.disagreements + (if o.clean then 0 else 1)
+      ≤ s.undecided + o.undecidedStrings.length := by
+    have := hs.dis_le_undecided
+    cases o with
+    | wrongEdge => exact hc.elim trivial
+    | unlearnedEdge => exact hc.elim trivial
+    | agree => simp [Outcome.clean]; omega
+    | undecidedStart z => simp [Outcome.clean]; omega
+    | undecided zs cl =>
+      cases cl
+      · have : zs ≠ [] := hok.1 rfl
+        have := List.length_pos_iff.2 this
+        simp [Outcome.clean, Outcome.undecidedStrings]; omega
+      · simp [Outcome.clean]; omega
+  have hdp : s.disagreements + (if o.clean then 0 else 1) ≤ s.probes + 1 := by
+    have := hs.dis_le_probes; split_ifs <;> omega
+  refine ⟨hs.edges, hs.reached, hdu, hdp, ?_⟩
+  show s.probes + 1 < C.ends
+  have hlt := hs.probes_lt
+  by_contra hge
+  have heq : s.probes + 1 = C.ends := by omega
+  rcases ends_spec hC _ (heq ▸ hdp) with h | h
+  · apply hF
+    show binomSfGe (s.probes + 1) C.harvestRate (s.undecided + o.undecidedStrings.length)
+      < C.testLevel
+    rw [heq]
+    exact lt_of_le_of_lt (binomSfGe_antitone' hC.harvestRate_nonneg
+      (by linarith [hC.harvestRate_lt, hC.disagreementRate_le]) hdu) h
+  · exact hB (by show rateSide _ _ 0 (s.probes + 1) _ = some false; rw [heq]; exact h)
+
+/-- A step that keeps the hypothesis counts the probe: the round goes on with neither test
+deciding, harvests with the undecided reads' test firing, or ends consistent with the
+disagreements' test calling them below. -/
+theorem step_same (hC : TestsOK C) {s : Level2State α} (hs : Inv read C s) {x : FreeMonoid α}
+    (hc : ¬ Changes (probeOrAgree false read s.tree s.edges C.walkStart x)) :
     let s' := counted s (probeOrAgree false read s.tree s.edges C.walkStart x)
-    (applyProbe read C s x = .inl s' ∧ s'.probes < C.ends ∧ ¬ Fires C s')
+    (applyProbe read C s x = .inl s' ∧ Inv read C s' ∧ ¬ Fires C s')
       ∨ (applyProbe read C s x = .inr (.harvest ()) ∧ Fires C s')
-      ∨ (applyProbe read C s x = .inr .consistent ∧ C.ends ≤ s'.probes
-        ∧ ¬ Fires C s') := by
+      ∨ (applyProbe read C s x = .inr .consistent ∧ Below C s' ∧ ¬ Fires C s') := by
   intro s'
+  have hOK := probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
   have hs' : s' = counted s (probeOrAgree false read s.tree s.edges C.walkStart x) := rfl
   clear_value s'
   unfold applyProbe
-  revert hc hs'
+  revert hc hs' hOK
   generalize probeOrAgree false read s.tree s.edges C.walkStart x = o
-  intro hc hs'
+  intro hc hOK hs'
   subst hs'
-  cases o
-  case wrongEdge => exact absurd trivial hc
-  case unlearnedEdge => exact absurd trivial hc
+  rcases o with _ | _ | _ | z | ⟨zs, _ | _⟩
+  all_goals first | exact absurd trivial hc | skip
   all_goals
     simp only
     unfold keep
-    simp only [hd, add_zero]
+    dsimp only
     split_ifs with h1 h2
     · exact Or.inr (Or.inl ⟨rfl, (rateSide_zero _ _ _ _).1 h1⟩)
-    · exact Or.inr (Or.inr ⟨by simp [counted, hd], (rateSide_clean hC _).1 h2,
-        fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
-    · exact Or.inl ⟨by simp [counted, hd], by
-        simp only [counted]; exact not_le.1 fun h => h2 ((rateSide_clean hC _).2 h),
+    · exact Or.inr (Or.inr ⟨rfl, h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
+    · exact Or.inl ⟨rfl, inv_counted read C hC hs hOK hc
+        (fun h => h1 ((rateSide_zero _ _ _ _).2 h)) h2,
         fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
-
-omit [DecidableEq α] in
-/-- Counting a probe that keeps the hypothesis keeps `Inv` where the round goes on. -/
-theorem inv_counted {s : Level2State α} (hs : Inv read C s) (o : Outcome α)
-    (hlt : (counted s o).probes < C.ends) : Inv read C (counted s o) :=
-  ⟨hs.edges, hs.reached, hs.clean, hlt⟩
 
 end Step
 
