@@ -1,10 +1,10 @@
-import OrthoDFA.Proofs.Level4Risk
+import OrthoDFA.Proofs.Level5Risk
 import OrthoDFA.Proofs.Adaptive
 import OrthoDFA.Proofs.BinomLaw
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
-# A closed-form bound on level 4's risk
+# A closed-form bound on level 5's risk
 
 The knobs are explicit functions of the primitives, each of the four noise tails and the fake
 race is at most `δ / 8`, and every test and termination term is at most `C.testLevel`.
@@ -274,7 +274,7 @@ theorem mul_exp_le {K K₁ Λ x δ : ℝ} (hδ : 0 < δ) (hK0 : 0 ≤ K) (hK : K
   linarith
 
 set_option maxHeartbeats 1000000 in -- every field of `Knobs.Admissible` and all seven terms
-theorem level4_risk_bound_holds : Level4RiskBound := by
+theorem level5_risk_bound_holds : Level5RiskBound := by
   intro α _ _ _ σ _ κ ε θ D _ L C κs δ S
   dsimp only
   intro hδ0 hδ1 hL hLmax hκ hκs hκsL hε0 hεL hθ0 hθe hθpt hθs hθs1 hφe hφpt hεd1 hθpt4 hφεd

@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4Keep
+import OrthoDFA.Proofs.Level5Keep
 
 /-!
 # Success is sound
@@ -19,11 +19,11 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Success
 
-variable (C : Level4Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+variable (C : Level5Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
 /-- From `s`, at a hypothesis disagreeing on at least `εd` of the probes, the next `N + 1` probes
 stay in the stretch and search at most `h` times. -/
-def EvC : ℕ → ℕ → Level4State α → List (FreeMonoid α) → Prop
+def EvC : ℕ → ℕ → Level5State α → List (FreeMonoid α) → Prop
   | _, _, _, [] => False
   | 0, h, s, x :: _ => C.disagreementRate ≤ disRate C D rd s ∧ dt C rd s x ≤ h
   | N + 1, h, s, x :: xs => C.disagreementRate ≤ disRate C D rd s ∧ dt C rd s x ≤ h ∧
@@ -32,7 +32,7 @@ def EvC : ℕ → ℕ → Level4State α → List (FreeMonoid α) → Prop
     | .inr _ => False
 
 /-- After `i` probes, the run is at a state from which `Q` holds of the remaining draws. -/
-def SkipC (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level4State α
+def SkipC (Q : Level5State α → List (FreeMonoid α) → Prop) : ℕ → Level5State α
     → List (FreeMonoid α) → Prop
   | 0, s, l => Q s l
   | _ + 1, _, [] => False
@@ -40,11 +40,11 @@ def SkipC (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level
     | .inl s' => SkipC Q i s' xs
     | .inr _ => False
 
-theorem skipC_le [IsProbabilityMeasure D] (Q : Level4State α → List (FreeMonoid α) → Prop)
+theorem skipC_le [IsProbabilityMeasure D] (Q : Level5State α → List (FreeMonoid α) → Prop)
     {c : ENNReal}
-    (hQ : ∀ (T : ℕ) (s : Level4State α), (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)}
+    (hQ : ∀ (T : ℕ) (s : Level5State α), (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)}
       ≤ c) :
-    ∀ (T i : ℕ) (s : Level4State α),
+    ∀ (T i : ℕ) (s : Level5State α),
       (Measure.pi fun _ : Fin T => D) {xs | SkipC C rd Q i s (List.ofFn xs)} ≤ c := by
   intro T
   induction T with
@@ -75,7 +75,7 @@ theorem skipC_le [IsProbabilityMeasure D] (Q : Level4State α → List (FreeMono
       _ = c := by rw [lintegral_const, measure_univ, mul_one]
 
 open scoped Classical in
-theorem recordProbe_dis_search (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_dis_search (s : Level5State α) (x : FreeMonoid α) :
     dt C rd s x = if x ∈ searchAt rd C.walkStart s.tree s.edges then 1 else 0 :=
   recordProbe_dis_sub C rd s x
 
@@ -83,7 +83,7 @@ theorem recordProbe_dis_search (s : Level4State α) (x : FreeMonoid α) :
 times in its next `N + 1` probes with chance at most `P(Bin(N + 1, εd) ≤ h)`. -/
 theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
     (hε1 : C.disagreementRate ≤ 1) :
-    ∀ (T N h : ℕ) (s : Level4State α),
+    ∀ (T N h : ℕ) (s : Level5State α),
       (Measure.pi fun _ : Fin T => D) {xs | EvC C D rd N h s (List.ofFn xs)}
         ≤ ENNReal.ofReal (1 - binomSfGe (N + 1) C.disagreementRate (h + 1)) := by
   classical
@@ -173,7 +173,7 @@ theorem evC_le [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
     have hdB : C.disagreementRate ≤ D.real B := hd
     nlinarith
 
-theorem runTests_success' {s : Level4State α} (h : runTests C s = some .success) :
+theorem runTests_success' {s : Level5State α} (h : runTests C s = some .success) :
     C.firstLook ≤ s.stretchProbes ∧ 1 - binomSfGe s.stretchProbes C.disagreementRate
         (s.stretchDisagreements + 1) < C.testLevel := by
   unfold runTests at h
@@ -193,7 +193,7 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
       ≤ ENNReal.ofReal (T * T * C.testLevel) := by
   set P : ℕ → ℕ → Prop := fun n h => 1 - binomSfGe n C.disagreementRate (h + 1) < C.testLevel
   set H : ℕ → ℕ := fun n => Nat.findGreatest (P n) n
-  set Q : ℕ → Level4State α → List (FreeMonoid α) → Prop := fun N s l =>
+  set Q : ℕ → Level5State α → List (FreeMonoid α) → Prop := fun N s l =>
     P (N + 1) (H (N + 1)) ∧ EvC C D rd N (H (N + 1)) s l
   have hfire : ∀ n d, P n d → d ≤ H n ∧ P n (H n) := by
     intro n d hP
@@ -203,7 +203,7 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
       rw [binomSfGe_gt _ (by omega), sub_zero] at hP
       linarith
     exact ⟨Nat.le_findGreatest hdn hP, Nat.findGreatest_spec hdn hP⟩
-  have hev_ne : ∀ N h (s : Level4State α) (l : List (FreeMonoid α)), EvC C D rd N h s l →
+  have hev_ne : ∀ N h (s : Level5State α) (l : List (FreeMonoid α)), EvC C D rd N h s l →
       C.disagreementRate ≤ disRate C D rd s ∧ l ≠ [] := by
     intro N h s l hl
     rcases l with _ | ⟨y, ys⟩
@@ -211,7 +211,7 @@ theorem success_sound [IsProbabilityMeasure D] (hε0 : 0 ≤ C.disagreementRate)
     · rcases N with _ | N
       · exact ⟨hl.1, by simp⟩
       · exact ⟨hl.1, by simp⟩
-  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level4State α),
+  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level5State α),
       RunEnds (applyProbe C fun z => (rd z).cut)
         (fun e s' => e = .success ∧ C.disagreementRate ≤ disRate C D rd s') s l →
       (∃ i N, i < l.length ∧ N < l.length ∧ SkipC C rd (Q N) i s l)

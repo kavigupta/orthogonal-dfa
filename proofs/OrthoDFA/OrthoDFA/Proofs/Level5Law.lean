@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4Firsts
+import OrthoDFA.Proofs.Level5Firsts
 
 /-!
 # A harvest's sampler
@@ -72,7 +72,7 @@ theorem middleHarvestBy_fresh : (middleHarvestBy cut T E k x).Nodup
   · simp
   · simpa using key j b hj.le hs
 
-theorem siteHarvest_fresh (site : Level4Site α) (v : DTree α × EdgeTable α) :
+theorem siteHarvest_fresh (site : Level5Site α) (v : DTree α × EdgeTable α) :
     (siteHarvest cut k site v x).Nodup
       ∧ ∀ z ∈ siteHarvest cut k site v x, prefixOf z k = prefixOf x k := by
   cases site with
@@ -80,7 +80,7 @@ theorem siteHarvest_fresh (site : Level4Site α) (v : DTree α × EdgeTable α) 
   | edge e => exact edgeHarvestBy_fresh cut v.1 v.2 k x e
   | middles => exact middleHarvestBy_fresh cut v.1 v.2 k x
 
-theorem siteHarvest_length_le (site : Level4Site α) (v : DTree α × EdgeTable α) :
+theorem siteHarvest_length_le (site : Level5Site α) (v : DTree α × EdgeTable α) :
     (siteHarvest cut k site v x).length ≤ x.toList.length + 1 := by
   cases site with
   | start =>
@@ -112,7 +112,7 @@ theorem list_dirac_apply (l : List (FreeMonoid α)) (A : Set (FreeMonoid α))
     · simp [hz, add_comm]
     · simp [hz]
 
-theorem harvestLaw_apply (h : Level4Harvest α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
+theorem harvestLaw_apply (h : Level5Harvest α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     harvestLaw D cut k h A = (h.versions.length : ℝ≥0∞)⁻¹
       * (h.versions.map fun v => ∫⁻ x,
           (((siteHarvest cut k h.site v x).filter (· ∈ A)).length : ℝ≥0∞) ∂D).sum := by
@@ -127,7 +127,7 @@ theorem harvestLaw_apply (h : Level4Harvest α) (A : Set (FreeMonoid α)) [Decid
     simp only [list_dirac_apply]
 
 /-- The sampler finds a string at most as often as draws share its length-`k` prefix. -/
-theorem harvestLaw_spread [IsFiniteMeasure D] (h : Level4Harvest α) :
+theorem harvestLaw_spread [IsFiniteMeasure D] (h : Level5Harvest α) :
     Spread D k (harvestLaw D cut k h) := by
   intro t
   set B := {p : FreeMonoid α | p.toList.take k = t.toList.take k}
@@ -191,7 +191,7 @@ theorem list_sum_ofReal {β : Type*} (l : List β) (f : β → ℝ) (hf : ∀ b,
         obtain ⟨c, -, rfl⟩ := List.mem_map.1 ha; exact hf c)]
 
 theorem integrable_siteCount [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (site : Level4Site α) (v : DTree α × EdgeTable α) (P : FreeMonoid α → Bool) :
+    (site : Level5Site α) (v : DTree α × EdgeTable α) (P : FreeMonoid α → Bool) :
     Integrable (fun x => (((siteHarvest cut k site v x).filter P).length : ℝ)) D :=
   Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable (L + 1) (by
     filter_upwards [hlen] with x hx
@@ -203,7 +203,7 @@ theorem integrable_siteCount [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
 /-- Over draws of bounded length, the sampler's mass on `A` is the mean over the versions of a
 probe's harvested strings in `A`. -/
 theorem harvestLaw_real [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (h : Level4Harvest α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
+    (h : Level5Harvest α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     (harvestLaw D cut k h).real A = (h.versions.map fun v => ∫ x,
       (((siteHarvest cut k h.site v x).filter (· ∈ A)).length : ℝ) ∂D).sum
         / h.versions.length := by
@@ -224,7 +224,7 @@ theorem harvestLaw_real [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
 /-- `MixGood` makes the harvest end well, its sampler spread from `k`. -/
 theorem endsWell_of_mixGood {σ : Type*} (G : ReadModel α σ) [IsProbabilityMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (rd : FreeMonoid α → ARU) (ε : ℝ)
-    (dis : Set (FreeMonoid α)) (y : ℝ) (h : Level4Harvest α) (hm : MixGood G D rd k y h) :
+    (dis : Set (FreeMonoid α)) (y : ℝ) (h : Level5Harvest α) (hm : MixGood G D rd k y h) :
     EndsWell G.M (fun q => ¬ G.Good q) D ε dis k (harvestLaw D (fun z => (rd z).cut) k) y
       (.harvest h) := by
   classical
@@ -299,7 +299,7 @@ theorem EndsWell.mono_yield {σ H : Type*} {M : _root_.DFA α σ} {bad : σ → 
 
 /-- Over draws of bounded length the sampler's law is finite. -/
 theorem harvestLaw_univ_ne_top {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) [IsFiniteMeasure D]
-    (h : Level4Harvest α) : harvestLaw D cut k h Set.univ ≠ ⊤ := by
+    (h : Level5Harvest α) : harvestLaw D cut k h Set.univ ≠ ⊤ := by
   classical
   rw [harvestLaw_apply]
   rcases Nat.eq_zero_or_pos h.versions.length with h0 | hpos

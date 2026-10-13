@@ -1,14 +1,14 @@
-import OrthoDFA.Level4Claim
+import OrthoDFA.Level5Claim
 
 /-!
-# Level 4's detailed bound
+# Level 5's detailed bound
 
-Internal: `Level4Correct` is derived from what is here, and none of it needs to be read to
+Internal: `Level5Correct` is derived from what is here, and none of it needs to be read to
 trust that claim.
 
-`Level4RoundRisk`: the round fails to end well with chance at most `roundRisk`, the least, over the
+`Level5RoundRisk`: the round fails to end well with chance at most `roundRisk`, the least, over the
 proof's free parameters (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, a sum of named
-terms. `Level4RiskBound`: `roundRisk ≤ δ` under explicit conditions on the
+terms. `Level5RiskBound`: `roundRisk ≤ δ` under explicit conditions on the
 laws' `κ` and `ε`, the goodness level `θ` and the settings.
 -/
 
@@ -40,13 +40,13 @@ def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S →
 
 /-- What a harvest's sampler must yield a version: the least of what the start's, an edge's and
 the middles' tests certify. -/
-noncomputable def Level4Settings.harvestYield (C : Level4Settings) : ℝ :=
+noncomputable def Level5Settings.harvestYield (C : Level5Settings) : ℝ :=
   min (C.startUndecidedRate / 8)
     (min (C.edgeTraffic * C.edgeUndecidedRate / 2) (C.searchShare * C.middleUndecidedRate / 2))
 
 /-- The round ends well at the ending `e` and the state `s` it ends in. -/
-def Level4EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (C : Level4Settings) (rd : FreeMonoid α → ARU) (e : Level4Ending α) (s : Level4State α) :
+def Level5EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
+    (C : Level5Settings) (rd : FreeMonoid α → ARU) (e : Level5Ending α) (s : Level5State α) :
     Prop :=
   EndsWell M bad D C.disagreementRate (searchAt rd C.walkStart s.tree s.edges) C.walkStart
     (harvestLaw D (fun z => (rd z).cut) C.walkStart) C.harvestYield (toRoundEnd e s)
@@ -59,16 +59,16 @@ noncomputable def termLevel (nEnd hP hS : ℕ) (θpt' εd' : ℝ) : ℝ :=
   (1 - binomSfGe (hS + 1) θpt' hP) + binomSfGe nEnd εd' (hS + 1)
 
 /-- The most versions within a sub-round: each edge learned, and redirected, at most once. -/
-def subVersions (C : Level4Settings) (nα : ℕ) : ℕ := 2 * C.maxLeaves * nα
+def subVersions (C : Level5Settings) (nα : ℕ) : ℕ := 2 * C.maxLeaves * nα
 
 /-- A sub-round's probes: `nEnd` for each version, and `nRec` at hypotheses that record. -/
-def subT (C : Level4Settings) (nα nEnd nRec : ℕ) : ℕ := (subVersions C nα + 1) * nEnd + nRec
+def subT (C : Level5Settings) (nα nEnd nRec : ℕ) : ℕ := (subVersions C nα + 1) * nEnd + nRec
 
 /-- A sub-round's chance of keeping its tree over its `subT` probes with fewer than `B` records
 that are not true: some version keeping over `nEnd` probes, or `nRec` probes, each recording with
 chance `θr`, making no more than the `|Q| |Σ| m` records true edges and targets hold and the
 `B - 1` that are not true. -/
-noncomputable def subOpen (C : Level4Settings) (nα nσ nRec B : ℕ) (θr βt : ℝ) : ℝ :=
+noncomputable def subOpen (C : Level5Settings) (nα nσ nRec B : ℕ) (θr βt : ℝ) : ℝ :=
   (subVersions C nα + 1) * βt + (1 - binomSfGe nRec θr (nσ * nα * C.recordsToMove + B))
 
 /-- The chance that the round's records that are not true reach `(S + 1) m` within `W` probes:
@@ -76,7 +76,7 @@ a probe's are at most `κ` times its undecided strings plus `ρ`, which the star
 tests hold to `θs'` a probe past `Xs`, and at each of at most `2 Lmax |Σ|` edges to `θe` of its
 reads past `Xe` once charged `φe` of the probes, with at most `L + 1` undecided strings and
 `(L + 1) Lmax` first reads a probe. -/
-noncomputable def fakeRun (C : Level4Settings) (nα S L W : ℕ) (ρ Xe θs' Xs η ν : ℝ) : ℝ :=
+noncomputable def fakeRun (C : Level5Settings) (nα S L W : ℕ) (ρ Xe θs' Xs η ν : ℝ) : ℝ :=
   Real.exp (-η * ((S + 1) * C.recordsToMove) + ν * (2 * C.maxLeaves * nα * Xe + Xs)
     + W * (ν * (C.edgeUndecidedRate * ((L + 1) * C.maxLeaves) + θs'
         + 2 * C.maxLeaves * nα * C.edgeTraffic)
@@ -135,7 +135,7 @@ def edgeMapCount (σ : Type*) [Fintype σ] (S : ℕ) : ℝ :=
 goodness level `θ`, the probes' law `D` with lengths at most `L`, the loop's settings `C` and the
 records' coefficient `κs`. -/
 structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) (L : ℕ)
-    (C : Level4Settings) (κs : ℝ) (kn : Knobs) : Prop where
+    (C : Level5Settings) (κs : ℝ) (kn : Knobs) : Prop where
   κ_pos : 0 < κ
   ε_nonneg : 0 ≤ ε
   θ_nonneg : 0 ≤ θ
@@ -191,7 +191,7 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   budget_ge : (kn.S + Fintype.card σ + 1) * subT C (Fintype.card α) kn.nEnd kn.nRec ≤ C.probeBudget
 
 variable (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) (L : ℕ)
-    (C : Level4Settings)
+    (C : Level5Settings)
   (kn : Knobs)
 
 /-- Records that are not true exceeding `κs` times the undecided strings plus `ρ`, at some tree of
@@ -248,14 +248,14 @@ def roundRisk (κs : ℝ) : ENNReal :=
 
 end Bound
 
-/-- `Level4RiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the laws' `κ`
+/-- `Level5RiskBound`: `roundRisk ≤ δ` once the loop's settings are wide enough for the laws' `κ`
 and `ε` and the goodness level `θ`,
 at `S` splits that are not genuine, with `Λ = unionLog σ S δ`, `p₀ = prefixMax D C.walkStart` and
 `lg = log (1 / C.testLevel)`. -/
-def Level4RiskBound : Prop :=
+def Level5RiskBound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (σ : Type*) [Fintype σ]
     (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
-    (C : Level4Settings) (κs δ : ℝ) (S : ℕ),
+    (C : Level5Settings) (κs δ : ℝ) (S : ℕ),
     let n : ℝ := Fintype.card σ + S
     let Λ := unionLog (α := α) σ S δ
     let p₀ := prefixMax D C.walkStart
@@ -290,17 +290,17 @@ def Level4RiskBound : Prop :=
     roundRisk σ κ ε θ D L C κs ≤ ENNReal.ofReal δ
 
 
-/-- `Level4RoundRisk`: with an oracle reading every string with the read model's laws, the round
+/-- `Level5RoundRisk`: with an oracle reading every string with the read model's laws, the round
 over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`, at
 any records coefficient `κs ≥ 2κ`. -/
-def Level4RoundRisk : Prop :=
+def Level5RoundRisk : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
-    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level4Settings) (κs : ℝ),
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level5Settings) (κs : ℝ),
     2 * O.κ ≤ κs →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
-          (Level4EndsWell M (fun q => ¬ O.Good θ q) P.D C (O.read · ω))
+          (Level5EndsWell M (fun q => ¬ O.Good θ q) P.D C (O.read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
 

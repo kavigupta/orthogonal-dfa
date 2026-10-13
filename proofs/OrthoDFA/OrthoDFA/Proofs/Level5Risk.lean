@@ -1,14 +1,14 @@
-import OrthoDFA.Proofs.Level4Event
-import OrthoDFA.Proofs.Level4SpurNoise
-import OrthoDFA.Proofs.Level4Keep
-import OrthoDFA.Proofs.Level4Race
-import OrthoDFA.Proofs.Level4Success
+import OrthoDFA.Proofs.Level5Event
+import OrthoDFA.Proofs.Level5SpurNoise
+import OrthoDFA.Proofs.Level5Keep
+import OrthoDFA.Proofs.Level5Race
+import OrthoDFA.Proofs.Level5Success
 
 /-!
-# Level 4's risk
+# Level 5's risk
 
 `RoundGiven` with its noise event's chance bounded by `noiseEvent_le` and `spurious_le`, the
-records field at the coefficient `κs` and the read model's own `κ`, gives `Level4RoundRisk` at every
+records field at the coefficient `κs` and the read model's own `κ`, gives `Level5RoundRisk` at every
 admissible choice of knobs.
 -/
 
@@ -76,15 +76,15 @@ theorem untrueAt_with (G : ReadModel α σ) (κ' : ℝ)
       = G.untrueAt rd k T edges := by
   simp only [ReadModel.untrueAt, ReadModel.TrueRec, leafOf_with]
 
-/-- `Level4RoundRisk` over the proofs' view of the oracle. -/
-theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+/-- `Level5RoundRisk` over the proofs' view of the oracle. -/
+theorem level5_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] (G : ReadModel α σ) (read : FreeMonoid α → Ω → ARU)
     (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
-    (P : PrefixDistribution α) (C : Level4Settings) (κs : ℝ) (hκ : 2 * G.κ ≤ κs) :
+    (P : PrefixDistribution α) (C : Level5Settings) (κs : ℝ) (hκ : 2 * G.κ ≤ κs) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) P.D C (read · ω))
+          (Level5EndsWell G.M (fun q => ¬ G.Good q) P.D C (read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ roundRisk σ G.κ G.ε G.θ P.D P.L C κs := by
   obtain ⟨D, _, L, hlen⟩ := P
@@ -138,9 +138,9 @@ theorem level4_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
   · simp only [mul_one]
     gcongr ?_ * _ * _
 
-theorem level4_round_risk_holds : Level4RoundRisk := by
+theorem level5_round_risk_holds : Level5RoundRisk := by
   intro α _ _ σ _ Ω _ μ _ M O θ P C κs hκ
-  exact level4_model ⟨M, O.readDist, θ, O.κ, O.ε, O.readDist_nonneg,
+  exact level5_model ⟨M, O.readDist, θ, O.κ, O.ε, O.readDist_nonneg,
       O.rarer_side_le⟩ O.read O.measurable O.indep
     O.reads_by_state P C κs hκ
 
