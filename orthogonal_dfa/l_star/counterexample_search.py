@@ -17,6 +17,7 @@ class CounterexampleSearch:
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
+        self.probes = 0
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -28,9 +29,10 @@ class CounterexampleSearch:
 
     def step(self, x: bytes) -> Optional[Ending]:
         outcome, charged = self.probe(x)
+        self.probes += 1
         self.counts.add(charged, outcome)
         if isinstance(outcome, Member):
-            self.counts.reset_stretch()
+            self.counts = SiteCounts()
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
         hypothesis = self.hypothesis
         ending = ending_test(
@@ -51,7 +53,7 @@ class CounterexampleSearch:
         current = hypothesis.edges[(found.source, found.letter)][0]
         midfix = hypothesis.tree.midfix_at(_common_prefix(found.target, current))
         hypothesis.split_leaf(found.source, bytes([found.letter]) + midfix)
-        self.counts.reset_stretch()
+        self.counts = SiteCounts()
         if len(hypothesis.leaves) > self.config.max_leaves:
             return Ending(TOO_BIG, [], None)
         return None

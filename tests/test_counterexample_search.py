@@ -39,15 +39,16 @@ class TestCharging(unittest.TestCase):
 
 
 class TestLearningAndSplitting(unittest.TestCase):
-    def test_a_member_learns_its_edge_and_starts_a_stretch(self):
+    def test_a_member_learns_its_edge_and_starts_the_counts_afresh(self):
         search = quiet_search(parity_cut(()), {})
         search.step(b"\x01\x00")
         self.assertEqual({(EVEN, 1): (ODD, b"")}, search.hypothesis.edges)
         self.assertEqual(
-            (0, 1, 1),
+            (0, {}, 1, 1),
             (
-                search.counts.stretch_probes,
                 search.counts.probes,
+                dict(search.counts.traversals),
+                search.probes,
                 search.hypothesis.version,
             ),
         )
@@ -64,7 +65,7 @@ class TestLearningAndSplitting(unittest.TestCase):
         hypothesis = search.hypothesis
         self.assertEqual(b"\x01", hypothesis.tree.midfix_at(EVEN))
         self.assertEqual({(False, False), (False, True), ODD}, hypothesis.leaves)
-        self.assertEqual((8, 0), (hypothesis.version, search.counts.stretch_probes))
+        self.assertEqual((8, 0), (hypothesis.version, search.counts.probes))
         # Out of the split leaf: dropped.  Into it: its witness re-sifted, the empty
         # string reading 0 mod 3 at the root and 1 mod 3 behind a 1.
         self.assertEqual({(ODD, 1): ((False, False), b"")}, hypothesis.edges)
@@ -123,7 +124,7 @@ class TestTheTests(unittest.TestCase):
         )
         self.assertIsNone(search.step(b"\x01\x00"))
 
-    def test_undecided_middles_harvest_once_the_stretch_searches_enough(self):
+    def test_undecided_middles_harvest_once_the_hypothesis_searches_enough(self):
         cut = parity_cut([b"\x00\x01"])
         search = quiet_search(cut, WRONG_ODD_0, middle_rate=0.1, search_share=0.5)
         endings = [search.step(b"\x00\x01\x00\x00") for _ in range(3)]
@@ -141,13 +142,13 @@ class TestTheTests(unittest.TestCase):
             HARVEST_MIDDLES, search.step(b"\x00\x01\x00\x00").kind, "4 of 8 probes"
         )
 
-    def test_a_stretch_without_disagreement_succeeds(self):
+    def test_a_hypothesis_without_disagreement_succeeds(self):
         search = quiet_search(parity_cut(()), PARITY_EDGES, disagreement_rate=0.5)
         endings = [search.step(b"\x01\x00") for _ in range(7)]
         self.assertEqual([None] * 6, endings[:6])
         self.assertEqual(SUCCESS, endings[6].kind)
 
-    def test_a_change_starts_the_stretch_afresh(self):
+    def test_a_change_starts_the_counts_afresh(self):
         search = quiet_search(parity_cut(()), {**PARITY_EDGES}, disagreement_rate=0.5)
         del search.hypothesis.edges[(ODD, 0)]
         endings = [search.step(b"\x01\x01") for _ in range(6)]
@@ -155,12 +156,12 @@ class TestTheTests(unittest.TestCase):
         endings += [search.step(b"\x01\x01") for _ in range(6)]
         self.assertEqual([None] * 12, endings)
         self.assertEqual(SUCCESS, search.step(b"\x01\x01").kind)
-        self.assertEqual(14, search.counts.probes)
+        self.assertEqual(14, search.probes)
 
     def test_the_probes_running_out(self):
         search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=3)
         self.assertEqual(OUT_OF_PROBES, search.run(itertools.repeat(b"\x01")).kind)
-        self.assertEqual(3, search.counts.probes)
+        self.assertEqual(3, search.probes)
 
 
 class TestExport(unittest.TestCase):

@@ -329,7 +329,7 @@ def counterexample_driven_synthesis(
         tracker.on_search_ended(ending, index)
         dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
         print(
-            f"[round {index}] {ending.kind} after {search.counts.probes} probes: "
+            f"[round {index}] {ending.kind} after {search.probes} probes: "
             f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
             f"family of {len(vs)} suffixes ({sampled - started:.1f}s sampling, "
             f"{time.monotonic() - sampled:.1f}s probing)"

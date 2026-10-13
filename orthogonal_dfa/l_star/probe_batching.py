@@ -25,9 +25,7 @@ def warmed_draws(
             (
                 more
                 for more in range(1, MAX_BLOCK)
-                if succeeds_at(
-                    search.counts, config, search.counts.stretch_probes + more
-                )
+                if succeeds_at(search.counts, config, search.counts.probes + more)
             ),
             MAX_BLOCK,
         )
