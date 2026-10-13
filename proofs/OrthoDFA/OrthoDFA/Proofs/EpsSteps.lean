@@ -4,9 +4,11 @@ import OrthoDFA.Proofs.RandomTree
 /-!
 # Level 4's steps
 
-As at level 3 before its splits became immediate: a step that keeps the hypothesis counts one more
-probe into the stretch; one that changes it starts a fresh stretch and lowers `Ψr`, which counts
-the splits left and each edge's learnings and redirects.
+A step that keeps the hypothesis counts one more probe into the stretch; one that changes it
+starts a fresh stretch and lowers `Ψr`, which counts the splits left and each edge's learning and
+redirect. An edge's records are kept until a split, so an edge whose target has `recordsToMove`
+records was redirected there and is fixed next by a split; no record is at a target its edge does
+not point at `recordsToMove` times.
 -/
 
 namespace OrthoDFA
@@ -23,65 +25,102 @@ section Potential
 
 variable [Fintype α]
 
-/-- What an edge has left to change before the next split: learning and redirecting, or one. -/
+/-- What an edge has left to change before the next split: learning and redirecting, or
+redirecting; none once its target has `recordsToMove` records. -/
 def wt (s : Level4State α) (qc : List Bool × α) : ℕ :=
   match s.edges qc with
   | none => 2
-  | some _ => if s.redirected qc then 0 else 1
+  | some (t₀, _) => if C.recordsToMove ≤ s.records.count (qc.1, qc.2, t₀) then 0 else 1
 
-def Φ (s : Level4State α) : ℕ := ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt s qc
+def Φ (s : Level4State α) : ℕ := ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt C s qc
 
 def X : ℕ := 2 * C.maxLeaves * Fintype.card α + 1
 
 /-- The splits, learnings and redirects left. -/
-def Ψr (s : Level4State α) : ℕ := (C.maxLeaves - s.tree.leaves.length) * X (α := α) C + Φ s
+def Ψr (s : Level4State α) : ℕ := (C.maxLeaves - s.tree.leaves.length) * X (α := α) C + Φ C s
 
-omit [DecidableEq α] [Fintype α] in
-theorem wt_le (s : Level4State α) (qc : List Bool × α) : wt s qc ≤ 2 := by
+omit [Fintype α] in
+theorem wt_le (s : Level4State α) (qc : List Bool × α) : wt C s qc ≤ 2 := by
   unfold wt; split
   · exact le_rfl
   · split <;> omega
 
-omit [DecidableEq α] in
-theorem Φ_le (s : Level4State α) : Φ s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
+theorem Φ_le (s : Level4State α) : Φ C s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
   unfold Φ
-  calc ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt s qc
+  calc ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt C s qc
       ≤ (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).card • 2 :=
-        Finset.sum_le_card_nsmul _ _ _ fun qc _ => wt_le s qc
+        Finset.sum_le_card_nsmul _ _ _ fun qc _ => wt_le C s qc
     _ ≤ 2 * s.tree.leaves.length * Fintype.card α := by
       rw [Finset.card_product, Finset.card_univ, smul_eq_mul]
       have := List.toFinset_card_le s.tree.leaves
       nlinarith
 
-/-- Changing one edge of a leaf to a lower weight lowers `Ψr`. -/
-theorem Ψ_lt_upd {s : Level4State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
-    (v : Option (List Bool × FreeMonoid α)) (b : Bool)
-    (hlt : wt (newHypothesis s.tree (Function.update s.edges (p, c) v)
-      (Function.update s.redirected (p, c) b)) (p, c) < wt s (p, c)) :
-    Ψr C (newHypothesis s.tree (Function.update s.edges (p, c) v)
-      (Function.update s.redirected (p, c) b)) < Ψr C s := by
+/-- Lowering one edge's weight, the others kept, lowers `Ψr`. -/
+theorem Ψ_lt_upd {s s' : Level4State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
+    (ht : s'.tree = s.tree) (hwt : ∀ qc, qc ≠ (p, c) → wt C s' qc = wt C s qc)
+    (hlt : wt C s' (p, c) < wt C s (p, c)) : Ψr C s' < Ψr C s := by
   unfold Ψr
-  have : Φ (newHypothesis s.tree (Function.update s.edges (p, c) v)
-      (Function.update s.redirected (p, c) b)) < Φ s := by
+  have : Φ C s' < Φ C s := by
     unfold Φ
+    rw [ht]
     apply Finset.sum_lt_sum
     · intro qc _
       by_cases h : qc = (p, c)
       · subst h; exact hlt.le
-      · unfold wt
-        simp only [newHypothesis, Function.update_of_ne h, le_refl]
-    · exact ⟨(p, c), by simp [newHypothesis, hp], hlt⟩
-  simp only [newHypothesis] at this ⊢
+      · exact (hwt qc h).le
+    · exact ⟨(p, c), by simp [hp], hlt⟩
+  rw [ht]
   omega
 
-omit [DecidableEq α] in
+/-- Keeping every edge's weight keeps `Ψr`. -/
+theorem Ψr_eq {s s' : Level4State α} (ht : s'.tree = s.tree) (hwt : ∀ qc, wt C s' qc = wt C s qc) :
+    Ψr C s' = Ψr C s := by
+  unfold Ψr Φ
+  rw [ht]
+  simp only [hwt]
+
+omit [Fintype α] in
+theorem wt_none {s : Level4State α} {qc : List Bool × α} (h : s.edges qc = none) :
+    wt C s qc = 2 := by
+  unfold wt; rw [h]
+
+omit [Fintype α] in
+theorem wt_some {s : Level4State α} {qc : List Bool × α} {t₀ : List Bool} {w : FreeMonoid α}
+    (h : s.edges qc = some (t₀, w)) :
+    wt C s qc = if C.recordsToMove ≤ s.records.count (qc.1, qc.2, t₀) then 0 else 1 := by
+  unfold wt; rw [h]
+
+omit [Fintype α] in
+theorem wt_zero {s : Level4State α} {qc : List Bool × α} {t₀ : List Bool} {w : FreeMonoid α}
+    (h : s.edges qc = some (t₀, w)) (hle : C.recordsToMove ≤ s.records.count (qc.1, qc.2, t₀)) :
+    wt C s qc = 0 := by
+  rw [wt_some C h]; exact if_pos hle
+
+omit [Fintype α] in
+theorem wt_one {s : Level4State α} {qc : List Bool × α} {t₀ : List Bool} {w : FreeMonoid α}
+    (h : s.edges qc = some (t₀, w)) (hlt : s.records.count (qc.1, qc.2, t₀) < C.recordsToMove) :
+    wt C s qc = 1 := by
+  rw [wt_some C h]; exact if_neg (not_le.2 hlt)
+
+omit [Fintype α] in
+/-- An edge's weight depends on its target and the records there. -/
+theorem wt_congr {s s' : Level4State α} {qc : List Bool × α} (he : s'.edges qc = s.edges qc)
+    (hc : ∀ t₀ w, s.edges qc = some (t₀, w) →
+      s'.records.count (qc.1, qc.2, t₀) = s.records.count (qc.1, qc.2, t₀)) :
+    wt C s' qc = wt C s qc := by
+  unfold wt
+  rw [he]
+  rcases h0 : s.edges qc with _ | ⟨t₀, w⟩
+  · rfl
+  · simp only [hc t₀ w h0]
+
 theorem Ψ_lt_split {s : Level4State α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d : FreeMonoid α}
     (hsz : (s.tree.splitAt d p).leaves.length ≤ C.maxLeaves) (E : Edges α)
-    (mv : List Bool × α → Bool) :
-    Ψr C (newHypothesis (s.tree.splitAt d p) E mv) < Ψr C s := by
+    (rs : List (List Bool × α × List Bool)) :
+    Ψr C (newHypothesis (s.tree.splitAt d p) E rs) < Ψr C s := by
   unfold Ψr
   have hlen := DTree.length_leaves_splitAt d s.tree p hp
-  have hΦ := Φ_le (newHypothesis (s.tree.splitAt d p) E mv)
+  have hΦ := Φ_le C (newHypothesis (s.tree.splitAt d p) E rs)
   simp only [newHypothesis] at hΦ ⊢
   rw [hlen] at hΦ hsz ⊢
   have h1 : 2 * (s.tree.leaves.length + 1) * Fintype.card α + 1 ≤ X (α := α) C := by
@@ -95,9 +134,25 @@ theorem Ψ_lt_split {s : Level4State α} {p : List Bool} (hp : p ∈ s.tree.leav
 
 end Potential
 
+theorem count_append_other {rs : List (List Bool × α × List Bool)} {p q : List Bool} {c d : α}
+    {t t' : List Bool} (h : (q, d) ≠ (p, c)) :
+    (rs ++ [(p, c, t)]).count (q, d, t') = rs.count (q, d, t') := by
+  rw [List.count_append, List.count_singleton]
+  have : (p, c, t) ≠ (q, d, t') := fun he => h (by simp only [Prod.mk.injEq] at he ⊢; tauto)
+  simp [this]
+
+theorem count_append_target {rs : List (List Bool × α × List Bool)} {p : List Bool} {c : α}
+    {t t' : List Bool} (h : t' ≠ t) :
+    (rs ++ [(p, c, t)]).count (p, c, t') = rs.count (p, c, t') := by
+  rw [List.count_append, List.count_singleton]
+  have : (p, c, t) ≠ (p, c, t') := fun he =>
+    h (by simp only [Prod.mk.injEq] at he; exact he.2.2.symm)
+  simp [this]
+
 structure Inv [Fintype α] (s : Level4State α) : Prop where
   edges : EdgesOK read s.tree s.edges
-  recs_lt : ∀ r, s.records.count r < C.recordsToMove
+  recs_lt : ∀ p c t, (s.edges (p, c)).map Prod.fst ≠ some t →
+    s.records.count (p, c, t) < C.recordsToMove
   size : s.tree.leaves.length ≤ C.maxLeaves
   reached : Reached read s.tree
   cls : s.tree ∈ classSet (s.tree.leaves.length - 2)
@@ -110,7 +165,7 @@ variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → B
 theorem inv_start (hm : 1 ≤ C.recordsToMove) (h2 : 2 ≤ C.maxLeaves) :
     Inv read C (initialState : Level4State α) where
   edges := fun _ _ _ _ _ h => by simp [initialState, newHypothesis] at h
-  recs_lt := fun _ => by simp [initialState, newHypothesis]; omega
+  recs_lt := fun _ _ _ _ => by simp [initialState, newHypothesis]; omega
   size := by simp [initialState, newHypothesis, DTree.leaves]; omega
   reached := by
     intro p hp
@@ -128,7 +183,7 @@ theorem leaves_root : (DTree.node 1 .leaf .leaf : DTree α).leaves = [[false], [
 
 theorem Ψr_start (h2 : 2 ≤ C.maxLeaves) :
     Ψr C (initialState : Level4State α) + 1 ≤ stretches C (Fintype.card α) := by
-  have hΦ := Φ_le (initialState : Level4State α)
+  have hΦ := Φ_le C (initialState : Level4State α)
   unfold Ψr stretches
   simp only [initialState, newHypothesis] at hΦ ⊢
   rw [leaves_root] at hΦ ⊢
@@ -156,8 +211,6 @@ theorem countProbe_tree (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).tree = s.tree := rfl
 theorem countProbe_edges (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).edges = s.edges := rfl
-theorem countProbe_redirected (s : Level4State α) (x : FreeMonoid α) :
-    (countProbe read C s x).redirected = s.redirected := rfl
 theorem countProbe_records (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).records = s.records := rfl
 theorem countProbe_probeCount (s : Level4State α) (x : FreeMonoid α) :
@@ -170,13 +223,12 @@ theorem step_cases {s s' : Level4State α} {x : FreeMonoid α} (hs : Inv read C 
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
-        s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-          (Function.update s.redirected (p, c) false))
+        s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))) s.records)
     ∨ (∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
-        redirectOrSplit read C s p c u t = .inl s')
+        redirectOrSplit read C s (s.records ++ [(p, c, t)]) p c u t = .inl s')
     ∨ (s' = countProbe read C
           { s with records :=
             s.records ++ (recOf (probeOrAgree false read s.tree s.edges C.walkStart x)).toList } x
@@ -203,6 +255,37 @@ theorem step_cases {s s' : Level4State α} {x : FreeMonoid α} (hs : Inv read C 
   | agree | undecidedStart _ | undecided _ _ =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
+
+/-- A probe's record is at an edge out of a leaf, at a target the edge does not point at. -/
+theorem recOf_target {s : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
+    {p : List Bool} {c : α} {t : List Bool}
+    (h : recOf (probeOrAgree false read s.tree s.edges C.walkStart x) = some (p, c, t)) :
+    p ∈ s.tree.leaves ∧ (s.edges (p, c)).map Prod.fst ≠ some t := by
+  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
+  generalize probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
+  cases o with
+  | wrongEdge p' c' u t' =>
+    simp only [recOf, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    obtain ⟨hp, -, -, t₀, w₀, hE, hne⟩ := hOK
+    exact ⟨hp, by simp [hE, hne]⟩
+  | _ => simp [recOf] at h
+
+/-- Counting a probe that keeps the hypothesis keeps each edge's weight. -/
+theorem wt_counted {s : Level4State α} (hs : Inv read C s) (x : FreeMonoid α) (qc : List Bool × α) :
+    wt C (countProbe read C { s with records :=
+      s.records ++ (recOf (probeOrAgree false read s.tree s.edges C.walkStart x)).toList } x) qc
+      = wt C s qc := by
+  refine wt_congr C rfl fun t₀ w h0 => ?_
+  rw [countProbe_records]
+  rcases hr : recOf (probeOrAgree false read s.tree s.edges C.walkStart x) with _ | ⟨p, c, t⟩
+  · simp
+  · obtain ⟨-, hne⟩ := recOf_target read C hs hr
+    simp only [Option.toList_some]
+    by_cases hqc : qc = (p, c)
+    · subst hqc
+      exact count_append_target (fun h' => hne (by simp [h0, h']))
+    · exact count_append_other (by simpa using hqc)
 
 /-- A step that keeps the hypothesis counts one more probe. -/
 theorem step_same {s s' : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
@@ -235,18 +318,26 @@ theorem step_same {s s' : Level4State α} (hs : Inv read C s) {x : FreeMonoid α
       have := congrFun he (p, c)
       simp only [newHypothesis, Function.update_self, hE, Option.some.injEq, Prod.mk.injEq] at this
       exact hne this.1.symm
-  · refine ⟨⟨hs.edges, ?_, hs.size, hs.reached, hs.cls, hs.two⟩, rfl, rfl⟩
-    intro r
+  · refine ⟨⟨hs.edges, ?_, hs.size, hs.reached, hs.cls, hs.two⟩,
+      Ψr_eq C rfl (wt_counted read C hs x), rfl⟩
+    intro p c t hnt
     simp only [countProbe_records]
-    generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at hlt
-    cases o with
-    | wrongEdge p c u t =>
-      by_cases hr : r = (p, c, t)
-      · subst hr; have := hlt p c u t rfl; simp only [recOf, Option.toList_some]; omega
-      · simp only [recOf, Option.toList_some, List.count_append, List.count_singleton]
-        have := hs.recs_lt r
-        simp [Ne.symm hr, this]
-    | _ => simpa [recOf] using hs.recs_lt r
+    rcases hr : recOf (probeOrAgree false read s.tree s.edges C.walkStart x) with _ | ⟨p', c', t'⟩
+    · simpa using hs.recs_lt p c t hnt
+    · simp only [Option.toList_some]
+      by_cases heq : (p, c, t) = (p', c', t')
+      · simp only [Prod.mk.injEq] at heq
+        obtain ⟨rfl, rfl, rfl⟩ := heq
+        generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at hr hlt
+        cases o with
+        | wrongEdge p₁ c₁ u₁ t₁ =>
+          simp only [recOf, Option.some.injEq, Prod.mk.injEq] at hr
+          obtain ⟨rfl, rfl, rfl⟩ := hr
+          exact not_le.1 (hlt _ _ u₁ _ rfl)
+        | _ => simp [recOf] at hr
+      · have h1 : [(p', c', t')].count (p, c, t) = 0 := List.count_eq_zero.2 (by simpa using heq)
+        rw [List.count_append, h1, add_zero]
+        exact hs.recs_lt p c t hnt
 
 /-- A split on a letter and the midfix where its targets part keeps every leaf past the first
 two reached. -/
@@ -270,33 +361,45 @@ theorem split_ok {s : Level4State α} (hs : Inv read C s) (hm : 1 ≤ C.recordsT
     (hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length
       ≤ C.maxLeaves) :
     let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-    Inv read C (newHypothesis T' (retarget read T' p s.edges) fun _ => false)
-      ∧ Ψr C (newHypothesis T' (retarget read T' p s.edges) fun _ => false) < Ψr C s := by
+    Inv read C (newHypothesis T' (retarget read T' p s.edges) [])
+      ∧ Ψr C (newHypothesis T' (retarget read T' p s.edges) []) < Ψr C s := by
   intro T'
   have hreach := split_reached read C hs hp hu huc hw₀ hw₀c hne
   have hlen :=
     DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) s.tree p hp
   have ht := DTree.sift_inl_mem read _ _ t huc
   have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
-  refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, by simp [newHypothesis]; omega, hsz, hreach,
-    ?_, by simp only [newHypothesis, T']; rw [hlen]; have := hs.two; omega⟩, ?_⟩
+  refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, fun _ _ _ _ => by simp [newHypothesis]; omega,
+    hsz, hreach, ?_, by simp only [newHypothesis, T']; rw [hlen]; have := hs.two; omega⟩, ?_⟩
   · simp only [newHypothesis, T']
     rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
       have := hs.two; omega]
     exact classSet_split hs.cls hp ht ht₀
   · exact Ψ_lt_split C hp hsz _ _
 
-/-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
+/-- A step that changes the hypothesis starts a fresh stretch, keeping the records unless it
+splits, and lowers `Ψr`. -/
 theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} (hs : Inv read C s)
     {x : FreeMonoid α} (h : applyProbe read C s x = .inl s')
     (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
-    Inv read C s' ∧ s' = newHypothesis s'.tree s'.edges s'.redirected ∧ Ψr C s' < Ψr C s := by
+    Inv read C s' ∧ s' = newHypothesis s'.tree s'.edges s'.records ∧ Ψr C s' < Ψr C s := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, hu, huc, hp, rfl⟩ |
-    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, hfix⟩ | ⟨rfl, -, -⟩
-  · refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [newHypothesis]; omega,
+    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, hc, hfix⟩ | ⟨rfl, -, -⟩
+  · refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun p' c' t' hnt => ?_,
       hs.size, hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-    exact Ψ_lt_upd C hp _ _ (by simp [wt, newHypothesis, Function.update_self, hE])
+    · simp only [newHypothesis]
+      by_cases hpc : (p', c') = (p, c)
+      · simp only [Prod.mk.injEq] at hpc
+        obtain ⟨rfl, rfl⟩ := hpc
+        exact hs.recs_lt p' c' t' (by simp [hE])
+      · simp only [newHypothesis, Function.update_of_ne hpc] at hnt
+        exact hs.recs_lt p' c' t' hnt
+    · refine Ψ_lt_upd C (p := p) (c := c) hp rfl (fun qc hqc => ?_) ?_
+      · exact wt_congr C (by simp [newHypothesis, Function.update_of_ne hqc]) fun _ _ _ => rfl
+      · have := hs.recs_lt p c t (by simp [hE])
+        rw [wt_none C hE, wt_some C (t₀ := t) (w := u) (by simp [newHypothesis])]
+        split <;> omega
   · obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
     unfold redirectOrSplit at hfix
     rw [hE] at hfix
@@ -311,19 +414,38 @@ theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} (hs : I
       exact ⟨hinv, rfl, hΨ⟩
     · simp only [Sum.inl.injEq] at hfix
       subst hfix
-      refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun r => by simp [newHypothesis]; omega,
+      refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, fun p' c' t' hnt => ?_,
         hs.size, hs.reached, hs.cls, hs.two⟩, rfl, ?_⟩
-      exact Ψ_lt_upd C hp _ _ (by simp [wt, newHypothesis, Function.update_self, hE, hmv])
+      · simp only [newHypothesis] at hnt ⊢
+        by_cases hpc : (p', c') = (p, c)
+        · simp only [Prod.mk.injEq] at hpc
+          obtain ⟨rfl, rfl⟩ := hpc
+          simp only [Function.update_self, Option.map_some, ne_eq, Option.some.injEq] at hnt
+          by_cases ht₀ : t' = t₀
+          · subst ht₀; omega
+          · rw [count_append_target (Ne.symm hnt)]
+            exact hs.recs_lt p' c' t' (by simp [hE, Ne.symm ht₀])
+        · rw [Function.update_of_ne hpc] at hnt
+          rw [count_append_other (q := p') (d := c') hpc]
+          exact hs.recs_lt p' c' t' hnt
+      · refine Ψ_lt_upd C (p := p) (c := c) hp rfl (fun qc hqc => ?_) ?_
+        · exact wt_congr C (by simp [newHypothesis, Function.update_of_ne hqc]) fun _ _ _ =>
+            count_append_other (by simpa using hqc)
+        · have := count_append_target (rs := s.records) (p := p) (c := c) htt
+          rw [wt_one C hE (show s.records.count (p, c, t₀) < C.recordsToMove by omega),
+            wt_zero C (t₀ := t) (w := u) (by simp [newHypothesis]) hc]
+          omega
   · exact absurd ⟨rfl, rfl⟩ hne
 
-/-- The round ends too big only at a split, of an edge redirected since it was learned, at
-its `recordsToMove`-th record of a new target. -/
+/-- The round ends too big only at a split, of an edge whose target has `recordsToMove` records,
+at its `recordsToMove`-th record of a new target. -/
 theorem step_tooBig {s : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inr .failed) :
     ∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
       s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
       s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
-      s.redirected (p, c) = true ∧ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
+      C.recordsToMove ≤ s.records.count (p, c, t₀) ∧
+      C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
       C.maxLeaves < (s.tree.splitAt
         (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length := by
   have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
@@ -346,6 +468,7 @@ theorem step_tooBig {s : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
       · unfold splitLeaf at h
         dsimp only at h
         split_ifs at h with hlt
+        rw [count_append_target htt] at hmv
         exact ⟨p, c, u, t, t₀, w₀, rfl, hE, htt, hp, hu, huc, hmv, hc, hlt⟩
     · exact absurd h (hlook _)
   | agree | undecidedStart _ | undecided _ _ => exact absurd h (hlook _)

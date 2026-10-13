@@ -5,8 +5,11 @@ import OrthoDFA.Level3
 
 Level 3's probes, counts and tests, run where a read can fall on its state's wrong side. A wrong
 read can make a clean disagreement untrue, so one is not acted on at once: it records its edge and
-target, `recordsToMove` records redirect the edge or, once it has been redirected, split its leaf,
-and a split past `maxLeaves` leaves fails the round. A probe at an unlearned edge learns it.
+target, and the records are kept until the next split. `recordsToMove` records at a target the
+edge does not point at fix the edge, as level 5's `fixEdge` does: its leaf splits on the edge's
+letter and the midfix where the two targets part if its current target has `recordsToMove`
+records too, else the edge is redirected there, the probe's prefix its witness. A split past
+`maxLeaves` leaves fails the round. A probe at an unlearned edge learns it.
 -/
 
 namespace OrthoDFA
@@ -22,7 +25,7 @@ variable {α : Type*} [DecidableEq α]
 structure Level4Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
-  /-- Records of one edge and target that redirect the edge, or split its leaf once redirected. -/
+  /-- Records of one edge and target that fix the edge. -/
   recordsToMove : ℕ
   maxLeaves : ℕ
   /-- The count of trials before `rateSide` decides. -/
@@ -38,11 +41,10 @@ structure Level4Settings where
   disagreementRate : ℝ
   probeBudget : ℕ
 
-/-- `redirected` and the counts are since the edge, or the hypothesis, last changed. -/
+/-- The records are since the last split, the counts since the hypothesis last changed. -/
 structure Level4State (α : Type*) where
   tree : DTree α
   edges : Edges α
-  redirected : List Bool × α → Bool
   /-- Each clean disagreement's edge and the leaf the next prefix sifts to. -/
   records : List (List Bool × α × List Bool)
   probeCount : ℕ
@@ -52,13 +54,12 @@ structure Level4State (α : Type*) where
   edgeReads : List Bool → α → ℕ
   edgeUndecided : List Bool → α → List (FreeMonoid α)
 
-def newHypothesis (T : DTree α) (E : Edges α) (redirected : List Bool × α → Bool) :
+def newHypothesis (T : DTree α) (E : Edges α) (records : List (List Bool × α × List Bool)) :
     Level4State α :=
-  ⟨T, E, redirected, [], 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
+  ⟨T, E, records, 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def initialState : Level4State α :=
-  newHypothesis (.node 1 .leaf .leaf) (fun _ => none) fun _ => false
+def initialState : Level4State α := newHypothesis (.node 1 .leaf .leaf) (fun _ => none) []
 
 section
 
@@ -105,29 +106,27 @@ def splitLeaf (s : Level4State α) (p : List Bool) (d : FreeMonoid α) :
     Level4State α ⊕ RoundEnd (Level3Site α) :=
   let T' := s.tree.splitAt d p
   if C.maxLeaves < T'.leaves.length then .inr .failed
-  else .inl (newHypothesis T' (retarget read T' p s.edges) fun _ => false)
+  else .inl (newHypothesis T' (retarget read T' p s.edges) [])
 
-/-- The edge `(p, c)` has `recordsToMove` records at `t`, with `u` at `p`: split where it has
-been redirected, else redirect it. -/
-def redirectOrSplit (s : Level4State α) (p : List Bool) (c : α) (u : FreeMonoid α)
-    (t : List Bool) : Level4State α ⊕ RoundEnd (Level3Site α) :=
+/-- The edge `(p, c)` has `recordsToMove` of the records `rs` at `t`, with `u` at `p`: split
+where its current target has as many, else redirect it. -/
+def redirectOrSplit (s : Level4State α) (rs : List (List Bool × α × List Bool)) (p : List Bool)
+    (c : α) (u : FreeMonoid α) (t : List Bool) : Level4State α ⊕ RoundEnd (Level3Site α) :=
   match s.edges (p, c) with
   | some (t₀, _) =>
-    if s.redirected (p, c) then
+    if C.recordsToMove ≤ rs.count (p, c, t₀) then
       splitLeaf read C s p (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
-    else .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-      (Function.update s.redirected (p, c) true))
+    else .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))) rs)
   | none => .inl s
 
 noncomputable def applyProbe [Fintype α] (s : Level4State α) (x : FreeMonoid α) :
     Level4State α ⊕ RoundEnd (Level3Site α) :=
   match probeOrAgree false read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
-    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-      (Function.update s.redirected (p, c) false))
+    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))) s.records)
   | .wrongEdge p c u t =>
     if C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) then
-      redirectOrSplit read C s p c u t
+      redirectOrSplit read C s (s.records ++ [(p, c, t)]) p c u t
     else applyTests C (countProbe read C { s with records := s.records ++ [(p, c, t)] } x)
   | _ => applyTests C (countProbe read C s x)
 

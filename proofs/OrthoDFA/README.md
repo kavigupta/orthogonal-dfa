@@ -71,11 +71,14 @@
   hypothesis and finds the probe's undecided strings at the site, as the tests counted them.
 - `OrthoDFA/Level4.lean` — level 4, `indecisiveLStarLevel4`: level 3's probes, counts and
   tests, run where a read can fall on its state's wrong side. A clean disagreement records its edge
-  and target, `recordsToMove` records redirect the edge or, once it has been redirected, split its
-  leaf, and a split past `maxLeaves` leaves fails the round.
+  and target, and records are kept until the next split. `recordsToMove` records at a target the
+  edge does not point at fix it as level 5's `fixEdge` does: its leaf splits if its current target
+  has `recordsToMove` records too, else the edge is redirected there. A split past `maxLeaves`
+  leaves fails the round.
 - `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: `RandomRoundCorrect`, its yield included,
   with each read on its state's wrong side with chance at most `εw`, at `epsRoundRisk` in place of
-  `roundRisk`.
+  `roundRisk`. Its fake-fix term is `maxLeaves · P(Bin(probeBudget, Gw) ≥ recordsToMove)`: one race
+  per split, over the probes since the last one.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

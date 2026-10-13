@@ -5,13 +5,14 @@ import OrthoDFA.Level4
 # `EpsRoundCorrect`: level 4 ends well but for a small chance
 
 Level 4 (`indecisiveLStarLevel4`) runs with every read on its state's wrong side with chance
-at most `εw`. A wrong read can make a record untrue, and `recordsToMove` untrue records at
-one edge and a target that no state at the edge's leaf reaches under its letter redirect the edge
-there, or split its leaf where no two of its states part.
+at most `εw`. A wrong read can make a record untrue, and `recordsToMove` untrue records since the
+last split at one edge and a target that no state at the edge's leaf reaches under its letter
+redirect the edge there, or split its leaf where no two of its states part.
 
 `EpsRoundCorrect`: the chance of not ending well is at most `epsRoundRisk`, the least over the
 admissible knobs of `epsRoundBound`: `roundBound`, plus `noiseRisk` for the probes that can read a
-string wrong reaching `Gw` of the probes, and, for each stretch, `fakeRisk`.
+string wrong reaching `Gw` of the probes, and `fakeRisk`, a binomial tail over the round's probes
+for each split.
 -/
 
 namespace OrthoDFA
@@ -94,11 +95,11 @@ noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
       * stretchRisk C (Fintype.card α) L kn.Ns kn.N₁ (max (2 * kn.G) y) kn.θr kn.εd' kn.θpt'
 
 
-/-- What a stretch risks where reads can be wrong: `recordsToMove` records, over its first `Ns`
-probes, at one of the at most `maxLeaves² |Σ|` edges and targets, each from a probe that can read a
-string wrong, at most `Gw` of the probes. -/
-noncomputable def fakeRisk (C : Level4Settings) (nα Ns : ℕ) (Gw : ℝ) : ℝ :=
-  (C.maxLeaves ^ 2 * nα : ℕ) * binomSfGe Ns Gw C.recordsToMove
+/-- What the fake fixes risk where reads can be wrong: for each split, `recordsToMove` records
+since the last split at a target that is not real, each from a probe that can read a string
+wrong, at most `Gw` of the probes, over at most `probeBudget` probes. -/
+noncomputable def fakeRisk (C : Level4Settings) (Gw : ℝ) : ℝ :=
+  C.maxLeaves * binomSfGe C.probeBudget Gw C.recordsToMove
 
 /-- The proof's free parameters where reads can be wrong: `Knobs`, and the probes that can read a
 string wrong, as a share of the probes. -/
@@ -113,12 +114,12 @@ structure EpsKnobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) 
   Gw_le : kn.Gw ≤ 1
 
 /-- `roundBound`, plus `noiseRisk` for the probes that can read a string wrong reaching `Gw` of the
-probes, and, for each stretch, `fakeRisk`. -/
+probes, and `fakeRisk`. -/
 noncomputable def epsRoundBound (σ : Type*) [Fintype σ] [Fintype α] (θ εw : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level4Settings) (y : ℝ) (kn : EpsKnobs) : ℝ :=
   roundBound (α := α) σ θ D L C y kn.toKnobs
     + noiseRisk (Fintype.card σ) (Fintype.card α) L εw (prefixMax D C.walkStart) kn.Gw
-    + stretches C (Fintype.card α) * fakeRisk C (Fintype.card α) kn.Ns kn.Gw
+    + fakeRisk C kn.Gw
 
 /-- The least of `epsRoundBound` over the admissible knobs. -/
 noncomputable def epsRoundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ εw : ℝ)

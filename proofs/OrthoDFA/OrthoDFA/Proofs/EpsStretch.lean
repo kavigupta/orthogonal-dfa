@@ -5,8 +5,9 @@ import OrthoDFA.Proofs.RandomStretch
 # One stretch of level 4
 
 Level 3's stretch, with records: a stretch that reaches `Ns` probes has fewer than
-`recordsToMove` records at every edge and target, no success at look `N₁`, and no harvest of
-undecided middles at look `Ns`.
+`recordsToMove` records of its own at every edge and target, no success at look `N₁`, and no
+harvest of undecided middles at look `Ns`. A stretch here is cut short by a step `Z` (the fake
+fixes), which the round accounts for apart, over the probes since the last split.
 -/
 
 namespace OrthoDFA
@@ -17,6 +18,17 @@ namespace Eps
 
 open MeasureTheory
 open OrthoDFA.Ideal (Outcome EdgesOK OutcomeOK probeOrAgree)
+
+section Segments
+
+variable {S X E : Type*} (step : S → X → S ⊕ E) (B Z : S → X → Prop) (same : S → S → Prop)
+
+/-- Some step of the segment is bad, before any step `Z`. -/
+def SegBZ : S → List X → Prop
+  | _, [] => False
+  | s, x :: xs => ¬ Z s x ∧ (B s x ∨ ∃ s', step s x = .inl s' ∧ same s s' ∧ SegBZ s' xs)
+
+end Segments
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level4Settings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α))
@@ -52,7 +64,7 @@ theorem finish_inr {t : Level4State α} {e : RoundEnd (Level3Site α)}
   · simp at h
 
 theorem mk_eta (s : Level4State α) :
-    (⟨s.tree, s.edges, s.redirected, s.records, s.probeCount, s.searchCount, s.startUndecided,
+    (⟨s.tree, s.edges, s.records, s.probeCount, s.searchCount, s.startUndecided,
         s.middleUndecided, s.edgeReads, s.edgeUndecided⟩ : Level4State α)
       = s := rfl
 
@@ -183,10 +195,28 @@ noncomputable def fDis (x : FreeMonoid α) : Bool := decide (Disagrees read ⟨T
 def fR (τ : List Bool × α × List Bool) (x : FreeMonoid α) : Bool :=
   decide (recOf (probeOrAgree false read T E C.walkStart x) = some τ)
 
+/-- No probe records an edge at the target it points at. -/
+theorem fR_target (hE : EdgesOK read T E) {p : List Bool} {c : α} {t : List Bool}
+    (ht : (E (p, c)).map Prod.fst = some t) (x : FreeMonoid α) :
+    fR read C T E (p, c, t) x = false := by
+  have hOK := Ideal.probeOrAgree_ok false read T E C.walkStart hE x
+  unfold fR
+  generalize probeOrAgree false read T E C.walkStart x = o at hOK ⊢
+  cases o with
+  | wrongEdge p' c' u t' =>
+    obtain ⟨-, -, -, t₀, w₀, hE', hne⟩ := hOK
+    simp only [recOf, Option.some.injEq, Prod.mk.injEq, decide_eq_false_iff_not, not_and]
+    rintro rfl rfl rfl
+    simp [hE'] at ht
+    exact hne ht
+  | _ => simp [recOf]
+
 variable (N₁ : ℕ)
 
-/-- After the probes `ys` of a stretch at `(T, E)`, the counts are counts over `ys`. -/
-structure StInv (ys : List (FreeMonoid α)) (s : Level4State α) : Prop where
+/-- After the probes `ys` of a stretch at `(T, E)` that started with the records `R`, the counts
+are counts over `ys`. -/
+structure StInv (R : List (List Bool × α × List Bool)) (ys : List (FreeMonoid α))
+    (s : Level4State α) : Prop where
   tree : s.tree = T
   edges : s.edges = E
   probeCount : s.probeCount = ys.length
@@ -194,15 +224,15 @@ structure StInv (ys : List (FreeMonoid α)) (s : Level4State α) : Prop where
   startUndecided : s.startUndecided.length = ys.countP (fSt read C T E)
   middleUndecided : s.middleUndecided.length = ys.countP (fP read C T E)
   edgeUndecided : ∀ p c, (s.edgeUndecided p c).length = (ys.map (edgeCount read C T E (p, c))).sum
-  records : ∀ τ, s.records.count τ = ys.countP (fR read C T E τ)
+  records : ∀ τ, s.records.count τ = R.count τ + ys.countP (fR read C T E τ)
 
 /-- The stretch's success test did not fire at look `N₁`. -/
 def Look₁ (ys : List (FreeMonoid α)) : Prop :=
   N₁ ≤ ys.length → rateSide C.disagreementRate C.testLevel C.firstLook N₁
       ((ys.take N₁).countP (fS read C T E)) ≠ some false
 
-theorem stInv_fresh (mv : List Bool × α → Bool) :
-    StInv read C T E [] (newHypothesis T E mv) where
+theorem stInv_fresh (R : List (List Bool × α × List Bool)) :
+    StInv read C T E R [] (newHypothesis T E R) where
   tree := rfl
   edges := rfl
   probeCount := rfl
@@ -213,9 +243,9 @@ theorem stInv_fresh (mv : List Bool × α → Bool) :
   records := fun τ => by simp [newHypothesis]
 
 /-- A probe counted into a stretch whose counts are its probes' keeps them so. -/
-theorem stInv_chg {ys : List (FreeMonoid α)} {s : Level4State α}
-    (hst : StInv read C T E ys s) (x : FreeMonoid α) :
-    StInv read C T E (ys ++ [x]) (chg read C s x) := by
+theorem stInv_chg {R : List (List Bool × α × List Bool)} {ys : List (FreeMonoid α)}
+    {s : Level4State α} (hst : StInv read C T E R ys s) (x : FreeMonoid α) :
+    StInv read C T E R (ys ++ [x]) (chg read C s x) := by
   classical
   obtain ⟨htree, hedges, hn, hdis, hst', hpt, hund, hrecs⟩ := hst
   subst htree hedges
@@ -238,10 +268,11 @@ theorem stInv_chg {ys : List (FreeMonoid α)} {s : Level4State α}
     simp only [chg, countProbe, List.count_append, hrecs, countP_snoc]
     cases hr : recOf (probeOrAgree false read s.tree s.edges C.walkStart x) with
     | none => simp [fR, hr]
-    | some τ' => by_cases h : τ' = τ <;> simp [fR, hr, h, List.count_singleton]
+    | some τ' => by_cases h : τ' = τ <;> simp [fR, hr, h, List.count_singleton, add_assoc]
 
-theorem look₁_snoc {ys : List (FreeMonoid α)} {s : Level4State α} {x : FreeMonoid α}
-    (hst : StInv read C T E (ys ++ [x]) s) (h₀ : Look₁ read C T E N₁ ys)
+theorem look₁_snoc {R : List (List Bool × α × List Bool)} {ys : List (FreeMonoid α)}
+    {s : Level4State α} {x : FreeMonoid α} (hst : StInv read C T E R (ys ++ [x]) s)
+    (h₀ : Look₁ read C T E N₁ ys)
     (h₁ : N₁ = ys.length + 1 → rateSide C.disagreementRate C.testLevel C.firstLook N₁ s.searchCount
       ≠ some false) :
     Look₁ read C T E N₁ (ys ++ [x]) := by
@@ -294,7 +325,7 @@ theorem falseFire_of_end [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.
     (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
     (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
     (hεd1 : C.disagreementRate ≤ 1) {ys : List (FreeMonoid α)} {s : Level4State α}
-    (hst : StInv read C T E ys s) {x : FreeMonoid α}
+    {R : List (List Bool × α × List Bool)} (hst : StInv read C T E R ys s) {x : FreeMonoid α}
     (hnt : applyProbe read C s x ≠ .inr .failed) {e : RoundEnd (Level3Site α)}
     (he : applyProbe read C s x = .inr e)
     (hbad : ¬ EndsWell M (BadAt U θ) D ε {w | Disagrees read ⟨s.tree, s.edges⟩ C.walkStart w}
@@ -365,32 +396,31 @@ theorem falseFire_of_end [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.
 /-- A bad step in a stretch shows in its counts. -/
 theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
     (hG : D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (X : Level4State α → FreeMonoid α → Prop) (XEv : List (FreeMonoid α) → Prop)
-    (mv : List Bool × α → Bool)
-    (hX : ∀ ys s x, Inv read C s → StInv read C T E ys s → X s x → XEv (ys ++ [x]))
-    (hnt : ∀ ys s x, Inv read C s → StInv read C T E ys s → s.redirected = mv → ¬ X s x
+    (X Z : Level4State α → FreeMonoid α → Prop) (XEv : List (FreeMonoid α) → Prop)
+    (R : List (List Bool × α × List Bool)) (hm : 1 ≤ C.recordsToMove)
+    (hX : ∀ ys s x, Inv read C s → StInv read C T E R ys s → X s x → XEv (ys ++ [x]))
+    (hnt : ∀ ys s x, Inv read C s → StInv read C T E R ys s → ¬ X s x → ¬ Z s x
       → applyProbe read C s x ≠ .inr .failed) (hN₁s : N₁ ≤ Ns) (hθs0 : 0 ≤ C.startRate)
     (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 ≤ C.middleRate)
     (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) :
     ∀ (xs ys : List (FreeMonoid α)) (s : Level4State α), Inv read C s →
-      StInv read C T E ys s → Look₁ read C T E N₁ ys → s.redirected = mv
-          → s.probeCount < Ns →
-      SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s xs →
+      StInv read C T E R ys s → Look₁ read C T E N₁ ys → s.probeCount < Ns →
+      SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s xs →
       ∃ i, i < xs.length ∧ ys.length + i + 1 ≤ Ns ∧
         (FalseFire read C D ε T E L (max (2 * G) y) (max (2 * (L + 1) * G) y)
             (ys ++ xs.take (i + 1))
           ∨ (ys.length + i + 1 = Ns ∧ Survives read C T E N₁ (ys ++ xs.take (i + 1)))
           ∨ XEv (ys ++ xs.take (i + 1)))
-  | [], _, _, _, _, _, _, _, h => by simp [SegB] at h
-  | x :: xs, ys, s, hs, hst, h₁, hmv, hn, h => by
+  | [], _, _, _, _, _, _, h => by simp [SegBZ] at h
+  | x :: xs, ys, s, hs, hst, h₁, hn, ⟨hz, h⟩ => by
     have hn' : s.probeCount = ys.length := hst.probeCount
     have hsame : ∀ s', applyProbe read C s x = .inl s' → Same s s' →
-        Inv read C s' ∧ StInv read C T E (ys ++ [x]) s' ∧ Look₁ read C T E N₁ (ys ++ [x])
-          ∧ runTests C s' = none ∧ s'.probeCount = ys.length + 1 ∧ s'.redirected = mv := by
+        Inv read C s' ∧ StInv read C T E R (ys ++ [x]) s' ∧ Look₁ read C T E N₁ (ys ++ [x])
+          ∧ runTests C s' = none ∧ s'.probeCount = ys.length + 1 := by
       intro s' h' hsm
       obtain ⟨rfl, hl, hinv⟩ := step_same_chg read C hs h' hsm
       have hst' := stInv_chg read C T E hst x
-      refine ⟨hinv, hst', look₁_snoc read C T E N₁ hst' h₁ fun hN => ?_, hl, ?_, hmv⟩
+      refine ⟨hinv, hst', look₁_snoc read C T E N₁ hst' h₁ fun hN => ?_, hl, ?_⟩
       · have := (look_none C hl).1
         rwa [show (chg read C s x).probeCount = N₁ by rw [hst'.probeCount]; simp; omega] at this
       · rw [hst'.probeCount]; simp
@@ -401,24 +431,29 @@ theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length
       · by_cases hx : X s x
         · exact Or.inr (Or.inr (hX ys s x hs hst hx))
         · exact Or.inl (falseFire_of_end read C M U θ D ε y T E L hL hG hθs0 hθs1 hθe hθpt0
-            hθpt1 hεd0 hεd1 hst (hnt ys s x hs hst hmv hx) he hbad)
+            hθpt1 hεd0 hεd1 hst (hnt ys s x hs hst hx hz) he hbad)
       · exact Or.inr (Or.inr (hX ys s x hs hst hx))
-      · obtain ⟨hinv, hst', h₁', hl, hn'', -⟩ := hsame s' h' hsm
+      · obtain ⟨hinv, hst', h₁', hl, hn''⟩ := hsame s' h' hsm
         refine Or.inr (Or.inl ⟨by omega, ?_, ?_, ?_⟩)
-        · intro τ
-          rw [← hst'.records]
-          exact hinv.recs_lt τ
+        · rintro ⟨p, c, t⟩
+          by_cases ht : (E (p, c)).map Prod.fst = some t
+          · rw [List.countP_eq_zero.2 fun z _ => by
+              rw [fR_target read C T E (hst'.edges ▸ hst'.tree ▸ hinv.edges) ht z]; simp]
+            omega
+          · have := hinv.recs_lt p c t (by rwa [hst'.edges])
+            rw [hst'.records] at this
+            omega
         · exact h₁' (by simp; omega)
         · have := (look_none C hl).2
           rwa [hst'.probeCount, hst'.searchCount, hst'.middleUndecided] at this
     · rcases h with h | ⟨s', h', hsm, hseg⟩
       · exact absurd h hb
-      obtain ⟨hinv, hst', h₁', -, hn'', hmv'⟩ := hsame s' h' hsm
+      obtain ⟨hinv, hst', h₁', -, hn''⟩ := hsame s' h' hsm
       have hlt : s'.probeCount < Ns := by
         have : s'.probeCount ≠ Ns := fun hc => hb (Or.inr ⟨s', h', hsm, hc⟩)
         omega
-      obtain ⟨i, hi, hiN, hev⟩ := seg_reduce hL hG X XEv mv hX hnt hN₁s hθs0 hθs1 hθe hθpt0
-        hθpt1 hεd0 hεd1 xs (ys ++ [x]) s' hinv hst' h₁' hmv' hlt hseg
+      obtain ⟨i, hi, hiN, hev⟩ := seg_reduce hL hG X Z XEv R hm hX hnt hN₁s hθs0 hθs1 hθe hθpt0
+        hθpt1 hεd0 hεd1 xs (ys ++ [x]) s' hinv hst' h₁' hlt hseg
       refine ⟨i + 1, by simp; omega, by simp at hiN; omega, ?_⟩
       have heq : ys ++ (x :: xs).take (i + 1 + 1) = ys ++ [x] ++ xs.take (i + 1) := by simp
       rw [heq]
@@ -855,14 +890,15 @@ the steps `X`, which show in the counts as `XEv` with chance at most `bX`. -/
 theorem seg_le (X : Level4State α → FreeMonoid α → Prop) (XEv : List (FreeMonoid α) → Prop)
     (bX : ℝ)
     [IsProbabilityMeasure D] (L N₁ : ℕ) (G θr εd' θpt' : ℝ) (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    {s : Level4State α} (hs : Inv read C s) (hf : s = newHypothesis s.tree s.edges s.redirected)
+    (Z : Level4State α → FreeMonoid α → Prop)
+    {s : Level4State α} (hs : Inv read C s) (hf : s = newHypothesis s.tree s.edges s.records)
     (hT : s.tree ∈ (classSet (Fintype.card σ) : Finset (DTree α)))
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (hX : ∀ ys s' x, Inv read C s' → StInv read C s.tree s.edges ys s' → X s' x
+    (hX : ∀ ys s' x, Inv read C s' → StInv read C s.tree s.edges s.records ys s' → X s' x
       → XEv (ys ++ [x]))
-    (hnt : ∀ ys s' x, Inv read C s' → StInv read C s.tree s.edges ys s'
-      → s'.redirected = s.redirected → ¬ X s' x → applyProbe read C s' x ≠ .inr .failed)
+    (hnt : ∀ ys s' x, Inv read C s' → StInv read C s.tree s.edges s.records ys s'
+      → ¬ X s' x → ¬ Z s' x → applyProbe read C s' x ≠ .inr .failed)
     (hbX : ∀ N, (Measure.pi fun _ : Fin N => D).real
       {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ XEv ((List.ofFn xs).take n)} ≤ bX)
     (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
@@ -875,7 +911,7 @@ theorem seg_le (X : Level4State α → FreeMonoid α → Prop) (XEv : List (Free
     (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd') (N : ℕ) :
     (Measure.pi fun _ : Fin N => D)
-        {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
+        {xs | SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s (List.ofFn xs)}
       ≤ ENNReal.ofReal
           (stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt' + bX) := by
   classical
@@ -884,21 +920,21 @@ theorem seg_le (X : Level4State α → FreeMonoid α → Prop) (XEv : List (Free
   have hqt : 2 * max (2 * (L + 1) * G) y ≤ C.edgeRate * C.edgeReadShare := by
     rcases max_cases (2 * (L + 1) * G) y with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] <;> linarith
   have hsub : {xs : Fin N → FreeMonoid α |
-      SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
+      SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s (List.ofFn xs)}
       ⊆ ((⋃ n ∈ Finset.Icc 1 Ns, {xs | n ≤ N ∧
           FalseFire read C D ε s.tree s.edges L (max (2 * G) y) (max (2 * (L + 1) * G) y)
             ((List.ofFn xs).take n)})
         ∪ {xs | Ns ≤ N ∧ Survives read C s.tree s.edges N₁ ((List.ofFn xs).take Ns)})
         ∪ {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ XEv ((List.ofFn xs).take n)} := by
     intro xs hxs
-    have hst0 : StInv read C s.tree s.edges [] s := by
-      have := stInv_fresh read C s.tree s.edges s.redirected
+    have hst0 : StInv read C s.tree s.edges s.records [] s := by
+      have := stInv_fresh read C s.tree s.edges s.records
       rwa [← hf] at this
     have h₁0 : Look₁ read C s.tree s.edges N₁ [] := fun h => by simp at h; omega
     have hn0 : s.probeCount < Ns := by rw [hf]; simp only [newHypothesis]; omega
     obtain ⟨i, hi, hiN, h⟩ := seg_reduce read C M U θ D ε Ns y s.tree s.edges L N₁ hL (hN _ hT)
-      X XEv s.redirected (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hnt hN₁s hθs0 hθs1
-      hθe hθpt0 hθpt1 hεd0 hεd1 (List.ofFn xs) [] s hs hst0 h₁0 rfl hn0 hxs
+      X Z XEv s.records hm (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hnt hN₁s hθs0
+      hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 (List.ofFn xs) [] s hs hst0 h₁0 hn0 hxs
     simp only [List.nil_append, List.length_nil, zero_add, List.length_ofFn] at hi hiN h
     rcases h with h | ⟨hNs', h⟩ | h
     · exact Or.inl (Or.inl (Set.mem_biUnion (Finset.mem_coe.2 (Finset.mem_Icc.2 ⟨by omega, hiN⟩))
