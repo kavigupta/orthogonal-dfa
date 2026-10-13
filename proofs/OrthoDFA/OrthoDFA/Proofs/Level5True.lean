@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4Walk
+import OrthoDFA.Proofs.Level5Walk
 
 /-!
 # True leaves and genuine trees

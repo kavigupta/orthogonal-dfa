@@ -7,7 +7,7 @@ A round reads its prefixes alone, its prefixes followed by its pool's suffixes, 
 followed by its family's suffixes. With every suffix `Ls` long and every prefix shorter, two such
 strings of different rounds can only coincide where the rounds drew the same suffix or the same
 prefix (`NoColl`). So off a collision round `r` reads none of the strings the rounds before it
-read (`disjoint_of_noColl`), and level 4 reads none of the strings round `r`'s clustering read
+read (`disjoint_of_noColl`), and level 5 reads none of the strings round `r`'s clustering read
 but at its prefixes, which the re-noised read leaves to a second noise.
 -/
 
@@ -35,7 +35,7 @@ variable (settings : LoopSettings K) (D : Measure (FreeMonoid α))
 
 /-- Round `i`'s populations, given the earlier rounds' harvest data `c`. -/
 abbrev popsAt (c : List (HarvestCode α)) (i : ℕ) : List (Measure (FreeMonoid α)) :=
-  (c.take i).map (decodePop D settings.level4.walkStart)
+  (c.take i).map (decodePop D settings.level5.walkStart)
 
 /-- The prefixes a round's clustering reads, after `harvests`. -/
 def prefsOf (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) :
@@ -50,7 +50,7 @@ def suffsOf (NS : ℕ) (c : ClusterRest α K) : Finset (FreeMonoid α) := (Finse
 /-- Through round `r`, every suffix drawn is `Ls` long and every prefix read shorter, and round `r`
 draws no suffix and reads no prefix an earlier round did. -/
 def NoColl (Ls NS : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
+    (x : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
   (∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf NS (x i).1, v.toList.length = Ls)
     ∧ (∀ i : Fin K, i.1 ≤ r → ∀ p ∈ prefsOf settings (popsAt settings D c i) (x i).1,
       p.toList.length < Ls)
@@ -83,7 +83,7 @@ lemma mem_schedReads_shape {sched : Finset State} {pops : Finset (Option (Fin K)
 /-- A string the rounds before `r` read is one of their prefixes, or a string followed by one of
 their suffixes. -/
 lemma mem_histReads_shape (N NS : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (ω : Ω)
+    (x : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (ω : Ω)
     (hNS : ∀ i : Fin K, schedNS (settings.schedule
       (loopPopulations K (popsAt settings D c i).length)) ≤ NS)
     {w : FreeMonoid α} (hw : w ∈ histReads settings D N c x r ω) :
@@ -111,7 +111,7 @@ lemma mem_histReads_shape (N NS : ℕ) (c : List (HarvestCode α))
 
 /-- Off a collision, round `r` reads none of the strings the rounds before it read. -/
 theorem disjoint_hist_round (N Ls NS : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
+    (x : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
     (hNS : ∀ i : Fin K, schedNS (settings.schedule
       (loopPopulations K (popsAt settings D c i).length)) ≤ NS)
     (hnc : NoColl settings D Ls NS c x r hr) :
@@ -149,10 +149,10 @@ theorem disjoint_hist_round (N Ls NS : ℕ) (c : List (HarvestCode α))
       obtain ⟨hvv, -⟩ := suffix_eq_of_mul_eq h (hvl.trans hvl'.symm)
       exact Finset.disjoint_left.1 (hsd i hir) hv (hvv ▸ hva)
 
-/-- Off a collision, level 4 reads, through a family of round `r`'s suffixes, none of the strings
+/-- Off a collision, level 5 reads, through a family of round `r`'s suffixes, none of the strings
 the earlier rounds or round `r`'s clustering read but at round `r`'s prefixes. -/
-theorem disjoint_hist_level4 (N Ls NS N' : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
+theorem disjoint_hist_level5 (N Ls NS N' : ℕ) (c : List (HarvestCode α))
+    (x : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
     (hNS : ∀ i : Fin K, schedNS (settings.schedule
       (loopPopulations K (popsAt settings D c i).length)) ≤ NS)
     (hnc : NoColl settings D Ls NS c x r hr) (F : Finset (FreeMonoid α))
@@ -207,7 +207,7 @@ def prefDraw (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) 
 first `2 NP` prefix draws of its populations shorter, and round `r` repeats none of an earlier
 round's. -/
 def NoCollD (Ls NS NP : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
+    (x : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
   (∀ i : Fin K, i.1 ≤ r → ∀ a < NS, ((x i).1.1 a).toList.length = Ls)
     ∧ (∀ i : Fin K, i.1 ≤ r → ∀ j ∈ loopPopulations K (popsAt settings D c i).length, ∀ a b,
       a < 2 * NP → (prefDraw (popsAt settings D c i) (x i).1 j a b).toList.length < Ls)
@@ -230,7 +230,7 @@ lemma mem_prefsOf {harvests : List (Measure (FreeMonoid α))} {c : ClusterRest �
     exact ⟨j, hj, a, true, by have := Finset.mem_range.1 ha; omega, rfl⟩
 
 lemma noColl_of_noCollD {Ls NS NP : ℕ} {c : List (HarvestCode α)}
-    {x : Fin K → RoundDraws α K settings.level4.probeBudget} {r : ℕ} {hr : r < K}
+    {x : Fin K → RoundDraws α K settings.level5.probeBudget} {r : ℕ} {hr : r < K}
     (hNP : ∀ i : Fin K, schedNP (settings.schedule
       (loopPopulations K (popsAt settings D c i).length)) ≤ NP)
     (h : NoCollD settings D Ls NS NP c x r hr) : NoColl settings D Ls NS c x r hr := by

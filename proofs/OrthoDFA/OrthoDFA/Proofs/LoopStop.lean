@@ -5,7 +5,7 @@ import OrthoDFA.Proofs.LoopPersist
 
 Over its draws, a round's clustering reads the oracle only at its prefixes followed by its pool's
 suffixes or by nothing, `schedReads`: at every state of the schedule its tests read no further,
-since the gate's pool is capped. Its level 4 and the harvest data it hands on read only short
+since the gate's pool is capped. Its level 5 and the harvest data it hands on read only short
 strings followed by the pool's suffixes. So a round's harvest data are fixed by the answers at
 `roundReads` (`popCode_congr`), and the earlier rounds' harvest data by the answers at the union of
 their rounds' sets, `histReads` (`codes_congr`).
@@ -184,19 +184,19 @@ def runOf (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) :
   (clusterRun (Ω := Unit) harvests ((), c)).2
 
 /-- Every string a round after `harvests` reads: its clustering's, and through its pool's suffixes
-the strings at most `max N (probes + 1 + maxLeaves)` long, which its level 4 over its probes and the
+the strings at most `max N (probes + 1 + maxLeaves)` long, which its level 5 over its probes and the
 data it hands on read. -/
 def roundReads (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (N : ℕ)
     (harvests : List (Measure (FreeMonoid α))) (ω : Ω)
-    (d : RoundDraws α K settings.level4.probeBudget) : Finset (FreeMonoid α) :=
+    (d : RoundDraws α K settings.level5.probeBudget) : Finset (FreeMonoid α) :=
   schedReads (settings.schedule (loopPopulations K harvests.length))
       (loopPopulations K harvests.length) ((ω, runOf harvests d.1) :
         Run Ω (FreeMonoid α) (Option (Fin K)))
     ∪ readStrings (shortStrings (max N (probesLen (probesOf settings D
         (clusterKeys (settings.schedule (loopPopulations K harvests.length))
-          (loopPopulations K harvests.length) settings.level4.walkStart
+          (loopPopulations K harvests.length) settings.level5.walkStart
           ((ω, runOf harvests d.1) : Run Ω (FreeMonoid α) (Option (Fin K))))
-        d.2) + 1 + settings.level4.maxLeaves)))
+        d.2) + 1 + settings.level5.maxLeaves)))
       ((poolAt (schedNS (settings.schedule (loopPopulations K harvests.length)))
         ((ω, runOf harvests d.1) : Run Ω (FreeMonoid α) (Option (Fin K)))).erase 1)
 
@@ -243,9 +243,9 @@ theorem roundState_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
   rw [hp]
 
 theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (hC : 2 ≤ settings.level4.maxLeaves) (D : Measure (FreeMonoid α)) (N : ℕ)
+    (hC : 2 ≤ settings.level5.maxLeaves) (D : Measure (FreeMonoid α)) (N : ℕ)
     (harvests : List (Measure (FreeMonoid α))) {ω ω' : Ω}
-    (d : RoundDraws α K settings.level4.probeBudget)
+    (d : RoundDraws α K settings.level5.probeBudget)
     (hret : ∃ B ∈ settings.schedule (loopPopulations K harvests.length),
       clusterRun harvests (ω, d.1) ∈ ret O.mq (loopPopulations K harvests.length) none
         settings.indecisionLimit settings.gateLevel B)
@@ -284,16 +284,16 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
     rw [clusterAt_eq, clusterAt_eq_clusterOf] at hv
     exact Finset.mem_erase.2 ⟨hv1, poolAt_mono hns _ (clusterOf_subset O B.sc B.scd _ _ B.k ω
       (Finset.mem_insert_self _ _) hv)⟩
-  have hsub : ∀ M, M ≤ max N (probesLen xs + 1 + settings.level4.maxLeaves) →
+  have hsub : ∀ M, M ≤ max N (probesLen xs + 1 + settings.level5.maxLeaves) →
       readStrings (shortStrings M) F ⊆ roundReads settings D N harvests ω d := fun M hM =>
     ((readStrings_mono (shortStrings_mono hM) hFpool)).trans (by
       intro w hw
       exact Finset.mem_union_right _ hw)
-  have h1 : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + settings.level4.maxLeaves)) F,
+  have h1 : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + settings.level5.maxLeaves)) F,
       (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => h p (hsub _ (le_max_right _ _) hp)
   have h2 : ∀ p ∈ readStrings (shortStrings N) F, (O.mq p ω = 1 ↔ O.mq p ω' = 1) :=
     fun p hp => h p (hsub _ (le_max_left _ _) hp)
-  have hres := level4_result_congr O settings.level4 hC F B.lo (B.hi + 1) xs h1
+  have hres := level5_result_congr O settings.level5 hC F B.lo (B.hi + 1) xs h1
   have hgraph : readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
       = readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω') := by
     unfold readGraph
@@ -312,31 +312,31 @@ variable [IsProbabilityMeasure μ] (settings : LoopSettings K) (O : Oracle μ (F
   (D : Measure (FreeMonoid α)) (N : ℕ)
 
 /-- The earlier rounds' harvest data, at the noise `ω`. -/
-def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) :
+def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level5.probeBudget) (r : ℕ) :
     List (HarvestCode α) :=
   codesOf N (loopRounds settings O D (fun i => (ω, g i)) r)
 
 /-- Every earlier round's clustering, at the noise `ω`, returns at a state of its schedule. -/
-def HistOK (ω : Ω) (g : Fin K → RoundDraws α K settings.level4.probeBudget) : ℕ → Prop
+def HistOK (ω : Ω) (g : Fin K → RoundDraws α K settings.level5.probeBudget) : ℕ → Prop
   | 0 => True
   | r + 1 => HistOK ω g r ∧ ∀ h : r < K, (histCodes settings O D N ω g r).length = r →
       ∃ B ∈ settings.schedule (loopPopulations K ((histCodes settings O D N ω g r).map
-          (decodePop D settings.level4.walkStart)).length),
-        clusterRun ((histCodes settings O D N ω g r).map (decodePop D settings.level4.walkStart))
+          (decodePop D settings.level5.walkStart)).length),
+        clusterRun ((histCodes settings O D N ω g r).map (decodePop D settings.level5.walkStart))
           (ω, (g ⟨r, h⟩).1) ∈ ret O.mq (loopPopulations K ((histCodes settings O D N ω g r).map
-            (decodePop D settings.level4.walkStart)).length) none settings.indecisionLimit
+            (decodePop D settings.level5.walkStart)).length) none settings.indecisionLimit
             settings.gateLevel B
 
 /-- Every string the rounds before `r` read, given their harvest data `c`. -/
-def histReads (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level4.probeBudget)
+def histReads (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level5.probeBudget)
     (r : ℕ) (ω : Ω) : Finset (FreeMonoid α) :=
   (Finset.range r).biUnion fun i => if h : i < K ∧ i ≤ c.length then
-    roundReads settings D N ((c.take i).map (decodePop D settings.level4.walkStart)) ω
+    roundReads settings D N ((c.take i).map (decodePop D settings.level5.walkStart)) ω
       (g ⟨i, h.1⟩) else ∅
 
 omit [IsProbabilityMeasure μ] in
 lemma histReads_mono {c c' : List (HarvestCode α)} {r r' : ℕ}
-    (g : Fin K → RoundDraws α K settings.level4.probeBudget) (ω : Ω) (hr : r ≤ r')
+    (g : Fin K → RoundDraws α K settings.level5.probeBudget) (ω : Ω) (hr : r ≤ r')
     (hc : c <+: c') (hlen : ∀ i < r, i ≤ c.length → i ≤ c'.length) :
     histReads settings D N c g r ω ⊆ histReads settings D N c' g r' ω := by
   intro w hw
@@ -352,8 +352,8 @@ lemma histReads_mono {c c' : List (HarvestCode α)} {r r' : ℕ}
 
 /-- The earlier rounds are fixed by the answers at the strings they read. -/
 theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level4.maxLeaves) (hN : L + settings.level4.maxLeaves ≤ N)
-    (g : Fin K → RoundDraws α K settings.level4.probeBudget) :
+    (hC : 2 ≤ settings.level5.maxLeaves) (hN : L + settings.level5.maxLeaves ≤ N)
+    (g : Fin K → RoundDraws α K settings.level5.probeBudget) :
     ∀ (r : ℕ) (ω ω' : Ω), HistOK settings O D N ω g r →
       (∀ w ∈ histReads settings D N (histCodes settings O D N ω g r) g r ω,
         (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -361,7 +361,7 @@ theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   | 0, ω, ω', _, _ => ⟨trivial, rfl⟩
   | r + 1, ω, ω', hok, h => by
     obtain ⟨hok', hret⟩ := hok
-    set dec := decodePop D settings.level4.walkStart
+    set dec := decodePop D settings.level5.walkStart
     set c := histCodes settings O D N ω g r
     set y := histCodes settings O D N ω g (r + 1)
     -- the earlier codes extend to the later

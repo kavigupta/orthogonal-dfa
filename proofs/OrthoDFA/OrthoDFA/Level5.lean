@@ -3,7 +3,7 @@ import OrthoDFA.FamilyRead
 import OrthoDFA.RoundEnd
 
 /-!
-# Level 4 of indecisive L*: the counterexample search
+# Level 5 of indecisive L*: the counterexample search
 
 The family is the oracle: a read of a string is accept, reject or undecided, and a node of the
 tree reads `w·m` as one read. `read` holds every string's read; its cut is the read's side, or
@@ -35,7 +35,7 @@ tree or the edges change. After every probe (`applyProbe`):
   it.
 
 A tree past `maxLeaves` leaves ends the round failed, and so does running out of probes.
-`indecisiveLStarLevel4` runs the probes and returns the hypothesis and the ending.
+`indecisiveLStarLevel5` runs the probes and returns the hypothesis and the ending.
 
 A harvest is its site and the hypotheses the site's counts were taken under: one per probe of the
 round at the start and at an edge, the stretch's own for the middles. Its sampler (`harvestLaw`)
@@ -332,7 +332,7 @@ end FirstReads
 the edge and the target leaf), the stretch's probes and decided disagreements, and over the round
 its probes, the strings read undecided at the start, for each edge how many strings probes first
 read at it and those of them read undecided, and the hypothesis each probe ran under. -/
-structure Level4State (α : Type*) where
+structure Level5State (α : Type*) where
   tree : DTree α
   edges : EdgeTable α
   version : ℕ
@@ -347,35 +347,35 @@ structure Level4State (α : Type*) where
   versions : List (DTree α × EdgeTable α)
 
 /-- `s` with a fresh stretch. -/
-def Level4State.newStretch (s : Level4State α) : Level4State α :=
+def Level5State.newStretch (s : Level5State α) : Level5State α :=
   { s with stretchProbes := 0, stretchDisagreements := 0, stretchMiddles := [] }
 
 /-- The records of the edge `(p, c)` at the target `t`. -/
-def Level4State.recordCount (s : Level4State α) (p : List Bool) (c : α) (t : List Bool) : ℕ :=
+def Level5State.recordCount (s : Level5State α) (p : List Bool) (c : α) (t : List Bool) : ℕ :=
   ((s.records p c).filter (·.2 = t)).length
 
 /-- The edge `(p, c)` out of a leaf has `m` records at a target it does not point at. -/
-def Violates (m : ℕ) (s : Level4State α) (p : List Bool) (c : α) (t : List Bool) : Prop :=
+def Violates (m : ℕ) (s : Level5State α) (p : List Bool) (c : α) (t : List Bool) : Prop :=
   p ∈ s.tree.leaves ∧ (s.edges p c).map Prod.fst ≠ some t ∧ m ≤ s.recordCount p c t
 
 /-- No edge has `m` records at a target it does not point at. -/
-def Settled (m : ℕ) (s : Level4State α) : Prop := ∀ p c t, ¬ Violates m s p c t
+def Settled (m : ℕ) (s : Level5State α) : Prop := ∀ p c t, ¬ Violates m s p c t
 
 /-- `s` with the edge `(p, c)` set to `e`, as a new version. -/
-def Level4State.setEdge (s : Level4State α) (p : List Bool) (c : α)
-    (e : List Bool × FreeMonoid α) : Level4State α :=
+def Level5State.setEdge (s : Level5State α) (p : List Bool) (c : α)
+    (e : List Bool × FreeMonoid α) : Level5State α :=
   let row := Function.update (s.edges p) c (some e)
   { s.newStretch with edges := Function.update s.edges p row, version := s.version + 1 }
 
 /-- `s` with the record `r` added at the edge `(p, c)`. -/
-def Level4State.addRecord (s : Level4State α) (p : List Bool) (c : α)
-    (r : FreeMonoid α × List Bool) : Level4State α :=
+def Level5State.addRecord (s : Level5State α) (p : List Bool) (c : α)
+    (r : FreeMonoid α × List Bool) : Level5State α :=
   let row := Function.update (s.records p) c (s.records p c ++ [r])
   { s with records := Function.update s.records p row }
 
 /-- `s` with a probe counted and its reads charged to their places. -/
-def Level4State.countProbe (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : Level4State α)
-    (x : FreeMonoid α) : Level4State α :=
+def Level5State.countProbe (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : Level5State α)
+    (x : FreeMonoid α) : Level5State α :=
   { s with
     stretchProbes := s.stretchProbes + 1
     stretchMiddles := s.stretchMiddles ++ middleHarvestBy cut s.tree s.edges k x
@@ -387,17 +387,17 @@ def Level4State.countProbe (cut : FreeMonoid α → Option Bool) (k : ℕ) (s : 
     versions := s.versions ++ [(s.tree, s.edges)] }
 
 /-- The first state: the root reads at `ε`, no edge learned. -/
-def initialState : Level4State α :=
+def initialState : Level5State α :=
   ⟨.node 1 .leaf .leaf, fun _ _ => none, 0, fun _ _ => [], 0, 0, [], 0, [], fun _ _ => 0,
     fun _ _ => [], []⟩
 
 open scoped Classical in
 /-- Fix the edge `(p, c)` at the target `t` it has `m` records at: split where the current target
 also has `m`, else redirect, with a record's prefix as the witness. -/
-noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : Level4State α)
-    (p : List Bool) (c : α) (t : List Bool) : Level4State α :=
+noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : Level5State α)
+    (p : List Bool) (c : α) (t : List Bool) : Level5State α :=
   let w := (((s.records p c).find? (·.2 = t)).map Prod.fst).getD 1
-  let redirect : Level4State α := s.setEdge p c (t, w)
+  let redirect : Level5State α := s.setEdge p c (t, w)
   match s.edges p c with
   | some (t₀, _) =>
     if m ≤ s.recordCount p c t₀ then
@@ -413,7 +413,7 @@ noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : L
 
 /-- How the round ends: in success, a harvest at the start, at an edge or of the undecided
 middles, or the tree past `maxLeaves` leaves. -/
-inductive Level4Ending (α : Type*)
+inductive Level5Ending (α : Type*)
   | success
   | harvestStart
   | harvest (e : List Bool × α)
@@ -423,7 +423,7 @@ inductive Level4Ending (α : Type*)
 open scoped Classical in
 /-- One edge with `m` records at a target it does not point at is fixed, within `Lmax` leaves. -/
 noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
-    (s : Level4State α) : Level4State α ⊕ (Level4Ending α × Level4State α) :=
+    (s : Level5State α) : Level5State α ⊕ (Level5Ending α × Level5State α) :=
   if h : ∃ p c t, Violates m s p c t then
     if Lmax < (fixEdge cut m s h.choose h.choose_spec.choose
         h.choose_spec.choose_spec.choose).tree.leaves.length then
@@ -432,11 +432,11 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
     else .inl (fixEdge cut m s h.choose h.choose_spec.choose h.choose_spec.choose_spec.choose)
   else .inl s
 
-/-- Level 4's settings: the walk's start, the records a fix takes, the most leaves, the tests'
+/-- Level 5's settings: the walk's start, the records a fix takes, the most leaves, the tests'
 rates, level and first look, the excess `edgeExcess r` an edge's undecided strings need after `r`
 reads, the share of the probes an edge test and the share of searches a middles test need, and
 the probes a round may draw. -/
-structure Level4Settings where
+structure Level5Settings where
   walkStart : ℕ
   recordsToMove : ℕ
   maxLeaves : ℕ
@@ -453,8 +453,8 @@ structure Level4Settings where
 
 open scoped Classical in
 /-- A probe's reads charged, and its outcome learned, recorded or counted. -/
-noncomputable def recordProbe (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
-    (s : Level4State α) (x : FreeMonoid α) : Level4State α :=
+noncomputable def recordProbe (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+    (s : Level5State α) (x : FreeMonoid α) : Level5State α :=
   let s₁ := s.countProbe cut C.walkStart x
   match probeBy cut s.tree s.edges C.walkStart x with
   | .member u =>
@@ -478,7 +478,7 @@ charged at least `edgeTraffic` of the probes, its undecided strings exceeding
 `edgeUndecidedRate` of its reads by `edgeExcess`; at a stretch searching on at least
 `searchShare` of its probes, the share of its searches stopping at an undecided middle above
 `middleUndecidedRate`; or its disagreement rate settling below `disagreementRate`. -/
-noncomputable def runTests (C : Level4Settings) (s : Level4State α) : Option (Level4Ending α) :=
+noncomputable def runTests (C : Level5Settings) (s : Level5State α) : Option (Level5Ending α) :=
   if rateSide C.startUndecidedRate C.testLevel C.firstLook s.probes s.startUndecided.length
       = some true then some .harvestStart
   else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
@@ -496,26 +496,26 @@ noncomputable def runTests (C : Level4Settings) (s : Level4State α) : Option (L
 
 /-- One probe: its reads are charged and its outcome learned, recorded or counted, the tests may
 end the round, and otherwise one edge is fixed. -/
-noncomputable def applyProbe (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
-    (s : Level4State α) (x : FreeMonoid α) : Level4State α ⊕ (Level4Ending α × Level4State α) :=
+noncomputable def applyProbe (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+    (s : Level5State α) (x : FreeMonoid α) : Level5State α ⊕ (Level5Ending α × Level5State α) :=
   let s₁ := recordProbe C cut s x
   match runTests C s₁ with
   | some e => .inr (e, s₁)
   | none => settleOne cut C.recordsToMove C.maxLeaves s₁
 
 /-- Where a harvest's strings were read: the start, an edge, or the middles searches stop at. -/
-inductive Level4Site (α : Type*)
+inductive Level5Site (α : Type*)
   | start
   | edge (e : List Bool × α)
   | middles
 
-structure Level4Harvest (α : Type*) where
-  site : Level4Site α
+structure Level5Harvest (α : Type*) where
+  site : Level5Site α
   versions : List (DTree α × EdgeTable α)
 
 /-- The strings a probe of `x` walked under the hypothesis `v` reads undecided at the site. -/
 def siteHarvest (cut : FreeMonoid α → Option Bool) (k : ℕ) :
-    Level4Site α → DTree α × EdgeTable α → FreeMonoid α → List (FreeMonoid α)
+    Level5Site α → DTree α × EdgeTable α → FreeMonoid α → List (FreeMonoid α)
   | .start, v, x => startHarvestBy cut v.1 k x
   | .edge e, v, x => edgeHarvestBy cut v.1 v.2 k x e
   | .middles, v, x => middleHarvestBy cut v.1 v.2 k x
@@ -524,13 +524,13 @@ open MeasureTheory in
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 under a uniformly drawn version finds it. -/
 noncomputable def harvestLaw (D : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool)
-    (k : ℕ) (h : Level4Harvest α) : Measure (FreeMonoid α) :=
+    (k : ℕ) (h : Level5Harvest α) : Measure (FreeMonoid α) :=
   ((h.versions.length : ENNReal)⁻¹) • (h.versions.map fun v =>
     D.bind fun x => ((siteHarvest cut k h.site v x).map Measure.dirac).sum).sum
 
 /-- The ending, as every level states it: success is consistent, a harvest is its site and the
 hypotheses its counts were taken under. -/
-def toRoundEnd : Level4Ending α → Level4State α → RoundEnd (Level4Harvest α)
+def toRoundEnd : Level5Ending α → Level5State α → RoundEnd (Level5Harvest α)
   | .success, _ => .consistent
   | .harvestStart, s => .harvest ⟨.start, s.versions⟩
   | .harvest e, s => .harvest ⟨.edge e, s.versions⟩
@@ -538,20 +538,20 @@ def toRoundEnd : Level4Ending α → Level4State α → RoundEnd (Level4Harvest 
   | .tooBig, _ => .failed
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
-noncomputable def runProbes (C : Level4Settings) (cut : FreeMonoid α → Option Bool) :
-    Level4State α → List (FreeMonoid α) → Level4State α × RoundEnd (Level4Harvest α)
+noncomputable def runProbes (C : Level5Settings) (cut : FreeMonoid α → Option Bool) :
+    Level5State α → List (FreeMonoid α) → Level5State α × RoundEnd (Level5Harvest α)
   | s, [] => (s, .failed)
   | s, x :: xs =>
     match applyProbe C cut s x with
     | .inl s' => runProbes C cut s' xs
     | .inr (e, s') => (s', toRoundEnd e s')
 
-structure Level4Result (α : Type*) where
+structure Level5Result (α : Type*) where
   hypothesis : Hypothesis α
-  ending : RoundEnd (Level4Harvest α)
+  ending : RoundEnd (Level5Harvest α)
 
-noncomputable def indecisiveLStarLevel4 (settings : Level4Settings) (read : FreeMonoid α → ARU)
-    {P : ℕ} (draws : Fin P → FreeMonoid α) : Level4Result α :=
+noncomputable def indecisiveLStarLevel5 (settings : Level5Settings) (read : FreeMonoid α → ARU)
+    {P : ℕ} (draws : Fin P → FreeMonoid α) : Level5Result α :=
   let r := runProbes settings (fun z => (read z).cut) initialState (List.ofFn draws)
   ⟨⟨r.1.tree, Function.uncurry r.1.edges⟩, r.2⟩
 

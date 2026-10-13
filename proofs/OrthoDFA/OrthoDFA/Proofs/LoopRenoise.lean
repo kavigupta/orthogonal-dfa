@@ -2,11 +2,11 @@ import OrthoDFA.Proofs.LoopAvoid
 import OrthoDFA.Proofs.Renoise
 
 /-!
-# Level 4 read through a re-noised family
+# Level 5 read through a re-noised family
 
 `SuffixFamily.renoise` reads the family through `O.renoise R`: a suffix family on two copies of
 the noise, with the same read distributions, which agrees with the family off `R` at the first
-copy (`renoise_read_of_notMem`). Level 4's guarantee holds of it, and a second copy can be fixed at
+copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it, and a second copy can be fixed at
 a point where the bound still holds (`exists_noise_le`).
 -/
 
@@ -59,26 +59,26 @@ section Fail
 
 variable {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'} [IsProbabilityMeasure μ']
 
-/-- Where level 4, reading `fam` over probes from `D'`, fails its claim. -/
-def l4Fail (fam : SuffixFamily μ' α σ) (C : Level4Settings) (D' : Measure (FreeMonoid α))
+/-- Where level 5, reading `fam` over probes from `D'`, fails its claim. -/
+def l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings) (D' : Measure (FreeMonoid α))
     (θ y : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
-  {d | let result := indecisiveLStarLevel4 C (fun z => fam.read d.1 z) d.2
+  {d | let result := indecisiveLStarLevel5 C (fun z => fam.read d.1 z) d.2
     ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' C.disagreementRate
       (searchingProbes (fun z => fam.read d.1 z) C.walkStart result.hypothesis) C.walkStart
       (harvestLaw D' (fun z => (fam.read d.1 z).cut) C.walkStart) y result.ending}
 
-theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level4Settings)
+theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
     (hC : 2 ≤ C.maxLeaves) (D' : Measure (FreeMonoid α)) (θ y : ℝ) :
     MeasurableSet (l4Fail fam C D' θ y) := by
   classical
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ'
   refine measurableSet_prod_countable_right _ fun xs => ?_
   set A := readStrings (shortStrings (probesLen xs + 1 + C.maxLeaves)) fam.F
-  set res : Ω' → Level4Result α := fun ω =>
-    indecisiveLStarLevel4 C (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) xs
+  set res : Ω' → Level5Result α := fun ω =>
+    indecisiveLStarLevel5 C (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) xs
   have hres : ∀ ω ω', (∀ p ∈ A, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → res ω = res ω' :=
-    fun ω ω' h => level4_result_congr fam.O C hC fam.F _ _ xs h
-  set rep : Finset (FreeMonoid α) → Level4Result α := fun U =>
+    fun ω ω' h => level5_result_congr fam.O C hC fam.F _ _ xs h
+  set rep : Finset (FreeMonoid α) → Level5Result α := fun U =>
     if h : ∃ ω, A.filter (fun p => fam.O.mq p ω = 1) = U then res h.choose else res ω₀
   have hrepω : ∀ ω, res ω = rep (A.filter (fun p => fam.O.mq p ω = 1)) := by
     intro ω
@@ -117,7 +117,7 @@ theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level4Settings)
 
 end Fail
 
-/-- A second copy of the noise fixed at a point where level 4's failure, over the first copy and
+/-- A second copy of the noise fixed at a point where level 5's failure, over the first copy and
 the probes, is still at most its bound over both. -/
 theorem exists_noise_le {X : Type*} [MeasurableSpace X] (π : Measure X) [IsProbabilityMeasure π]
     (S : Set ((Ω × Ω) × X)) (hS : MeasurableSet S) :

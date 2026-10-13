@@ -1,5 +1,5 @@
-import OrthoDFA.Proofs.Level4Sub
-import OrthoDFA.Proofs.Level4Law
+import OrthoDFA.Proofs.Level5Sub
+import OrthoDFA.Proofs.Level5Law
 
 /-!
 # A harvest's sampler finds mostly strings at read-states that are not good
@@ -25,10 +25,10 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Counts
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- A probe's outcome adds its own charge to each place's counts. -/
-theorem recordProbe_countProbe (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_countProbe (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C cut s x).edgeUndecided =
       (fun p c => s.edgeUndecided p c ++ edgeHarvestBy cut s.tree s.edges C.walkStart x (p, c))
       ∧ (recordProbe C cut s x).edgeReads
@@ -39,12 +39,12 @@ theorem recordProbe_countProbe (s : Level4State α) (x : FreeMonoid α) :
   unfold recordProbe
   split
   · split
-    · split <;> simp [Level4State.countProbe, Level4State.setEdge, Level4State.newStretch]
-    · simp [Level4State.countProbe]
-  · split <;> simp [Level4State.countProbe, Level4State.addRecord]
-  all_goals simp [Level4State.countProbe]
+    · split <;> simp [Level5State.countProbe, Level5State.setEdge, Level5State.newStretch]
+    · simp [Level5State.countProbe]
+  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
+  all_goals simp [Level5State.countProbe]
 
-theorem settleOne_counts {m Lmax : ℕ} {s s' : Level4State α}
+theorem settleOne_counts {m Lmax : ℕ} {s s' : Level5State α}
     (h : settleOne cut m Lmax s = .inl s') :
     s'.edgeUndecided = s.edgeUndecided ∧ s'.edgeReads = s.edgeReads
         ∧ s'.startUndecided = s.startUndecided ∧ s'.probes = s.probes := by
@@ -55,13 +55,13 @@ theorem settleOne_counts {m Lmax : ℕ} {s s' : Level4State α}
     unfold fixEdge
     simp only []
     split
-    · split_ifs <;> simp [Level4State.setEdge, Level4State.newStretch]
-    · simp [Level4State.setEdge, Level4State.newStretch]
+    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
+    · simp [Level5State.setEdge, Level5State.newStretch]
   · simp only [Sum.inl.injEq] at h
     subst h
     exact ⟨rfl, rfl, rfl, rfl⟩
 
-theorem applyProbe_counts {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_counts {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inl s') :
     s'.edgeUndecided = (recordProbe C cut s x).edgeUndecided
         ∧ s'.edgeReads = (recordProbe C cut s x).edgeReads
@@ -75,7 +75,7 @@ theorem applyProbe_counts {s s' : Level4State α} {x : FreeMonoid α}
 
 /-- A step that continues starts a fresh stretch, or is the probe's outcome at the same hypothesis,
 one probe further into the stretch. -/
-theorem applyProbe_newStretch {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_newStretch {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inl s') :
     (s'.stretchProbes = 0 ∧ s'.stretchDisagreements = 0 ∧ s'.stretchMiddles = [])
       ∨ (s' = recordProbe C cut s x ∧ s'.stretchProbes = s.stretchProbes + 1 ∧ s'.tree = s.tree
@@ -92,21 +92,21 @@ theorem applyProbe_newStretch {s s' : Level4State α} {x : FreeMonoid α}
     unfold fixEdge
     simp only []
     split
-    · split_ifs <;> simp [Level4State.setEdge, Level4State.newStretch]
-    · simp [Level4State.setEdge, Level4State.newStretch]
+    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
+    · simp [Level5State.setEdge, Level5State.newStretch]
   · simp only [Sum.inl.injEq] at h
     subst h
     unfold recordProbe
     split
     · split
       · split
-        · left; simp [Level4State.setEdge, Level4State.newStretch]
-        · right; simp [Level4State.countProbe]
-      · right; simp [Level4State.countProbe]
-    · right; split <;> simp [Level4State.countProbe, Level4State.addRecord]
-    all_goals right; simp [Level4State.countProbe]
+        · left; simp [Level5State.setEdge, Level5State.newStretch]
+        · right; simp [Level5State.countProbe]
+      · right; simp [Level5State.countProbe]
+    · right; split <;> simp [Level5State.countProbe, Level5State.addRecord]
+    all_goals right; simp [Level5State.countProbe]
 
-theorem applyProbe_inr_pre {s s' : Level4State α} {x : FreeMonoid α} {e : Level4Ending α}
+theorem applyProbe_inr_pre {s s' : Level5State α} {x : FreeMonoid α} {e : Level5Ending α}
     (h : applyProbe C cut s x = .inr (e, s')) (he : e ≠ .tooBig) :
     s' = recordProbe C cut s x ∧ runTests C (recordProbe C cut s x) = some e := by
   unfold applyProbe at h
@@ -122,17 +122,17 @@ theorem applyProbe_inr_pre {s s' : Level4State α} {x : FreeMonoid α} {e : Leve
     exact absurd h.1.symm he
 
 
-theorem recordProbe_versions (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_versions (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C cut s x).versions = s.versions ++ [(s.tree, s.edges)] := by
   unfold recordProbe
   split
   · split
-    · split <;> simp [Level4State.countProbe, Level4State.setEdge, Level4State.newStretch]
-    · simp [Level4State.countProbe]
-  · split <;> simp [Level4State.countProbe, Level4State.addRecord]
-  all_goals simp [Level4State.countProbe]
+    · split <;> simp [Level5State.countProbe, Level5State.setEdge, Level5State.newStretch]
+    · simp [Level5State.countProbe]
+  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
+  all_goals simp [Level5State.countProbe]
 
-theorem settleOne_versions {m Lmax : ℕ} {s s' : Level4State α}
+theorem settleOne_versions {m Lmax : ℕ} {s s' : Level5State α}
     (h : settleOne cut m Lmax s = .inl s') : s'.versions = s.versions := by
   unfold settleOne at h
   split_ifs at h with hv
@@ -141,13 +141,13 @@ theorem settleOne_versions {m Lmax : ℕ} {s s' : Level4State α}
     unfold fixEdge
     simp only []
     split
-    · split_ifs <;> simp [Level4State.setEdge, Level4State.newStretch]
-    · simp [Level4State.setEdge, Level4State.newStretch]
+    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
+    · simp [Level5State.setEdge, Level5State.newStretch]
   · simp only [Sum.inl.injEq] at h
     subst h
     rfl
 
-theorem applyProbe_versions {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_versions {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inl s') : s'.versions = (recordProbe C cut s x).versions := by
   unfold applyProbe at h
   simp only [] at h
@@ -156,7 +156,7 @@ theorem applyProbe_versions {s s' : Level4State α} {x : FreeMonoid α}
   · exact settleOne_versions cut h
 
 /-- A probe that leaves its stretch going keeps the hypothesis. -/
-theorem recordProbe_keeps (s : Level4State α) (x : FreeMonoid α)
+theorem recordProbe_keeps (s : Level5State α) (x : FreeMonoid α)
     (h : (recordProbe C cut s x).stretchProbes ≠ 0) :
     (recordProbe C cut s x).tree = s.tree ∧ (recordProbe C cut s x).edges = s.edges := by
   revert h
@@ -164,33 +164,33 @@ theorem recordProbe_keeps (s : Level4State α) (x : FreeMonoid α)
   split
   · split
     · split
-      · simp [Level4State.setEdge, Level4State.newStretch]
-      · simp [Level4State.countProbe]
-    · simp [Level4State.countProbe]
-  · split <;> simp [Level4State.countProbe, Level4State.addRecord]
-  all_goals simp [Level4State.countProbe]
+      · simp [Level5State.setEdge, Level5State.newStretch]
+      · simp [Level5State.countProbe]
+    · simp [Level5State.countProbe]
+  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
+  all_goals simp [Level5State.countProbe]
 
 end Counts
 
 section Reach
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (cut : FreeMonoid α → Option Bool) (S : ℕ)
 
 /-- Reached by the loop: a tree of the class's shape, edges and records pointing at leaves, and a
 hypothesis kept for each probe, with edges into its leaves and at most the current tree's splits
 that are not genuine. -/
-def Reach (s : Level4State α) : Prop :=
+def Reach (s : Level5State α) : Prop :=
   (∃ f, G.Grown s.tree f) ∧ EdgesInto s.tree s.edges ∧ RecsInto s
       ∧ (s.stretchProbes = 0 → s.stretchMiddles = []) ∧ s.versions.length = s.probes
       ∧ ∀ v ∈ s.versions, EdgesInto v.1 v.2 ∧ ∀ f, G.Grown s.tree f → ∃ f' ≤ f, G.Grown v.1 f'
 
-theorem reach_start : Reach G (initialState : Level4State α) :=
+theorem reach_start : Reach G (initialState : Level5State α) :=
   ⟨⟨0, .start⟩, fun _ _ _ _ h => by simp [initialState] at h,
     fun _ _ _ h => by simp [initialState] at h, fun _ => rfl, rfl,
     fun _ h => by simp [initialState] at h⟩
 
-theorem reach_step (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
+theorem reach_step (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
     (hs : Reach G s) (h : applyProbe C cut s x = .inl s') :
     Reach G s' ∧ ∀ f f', G.Grown s.tree f → G.Grown s'.tree f' → f ≤ f' := by
   obtain ⟨⟨f, hf⟩, he, hr, -, hvl, hv⟩ := hs
@@ -233,7 +233,7 @@ theorem reach_step (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeM
     subst hvm
     exact ⟨he, fun f₂ h₂ => ⟨f, hmono f f₂ hf h₂, hf⟩⟩
 
-theorem notClass_step (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
+theorem notClass_step (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
     (hs : Reach G s) (hn : ¬ G.InClass S s.tree) (h : applyProbe C cut s x = .inl s') :
     ¬ G.InClass S s'.tree := by
   obtain ⟨f, hf⟩ := hs.1
@@ -252,7 +252,7 @@ theorem class_paths {T : DTree α} (hT : G.InClass S T) (hL : Fintype.card σ + 
 
 /-- At a reached state of the class, every hypothesis it kept is of the class, with edges into its
 leaves. -/
-theorem reach_versions {s : Level4State α} (hs : Reach G s) (hc : G.InClass S s.tree) :
+theorem reach_versions {s : Level5State α} (hs : Reach G s) (hc : G.InClass S s.tree) :
     ∀ v ∈ s.versions, G.InClass S v.1 ∧ EdgesInto v.1 v.2 := by
   intro v hv
   obtain ⟨f, hfS, hf⟩ := hc
@@ -264,7 +264,7 @@ end Reach
 
 section Potential
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (cut : FreeMonoid α → Option Bool) (S : ℕ)
 
 /-- One probe's exponentiated increment averages at most `1`. -/
@@ -444,15 +444,15 @@ theorem mgf_lower {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingl
 
 /-- At some probe from a state of the class, the potential after the probe's outcome reaches
 `thr`. -/
-def EvP (Φ : Level4State α → ℝ) (thr : ℝ) : Level4State α → List (FreeMonoid α) → Prop
+def EvP (Φ : Level5State α → ℝ) (thr : ℝ) : Level5State α → List (FreeMonoid α) → Prop
   | _, [] => False
   | s, x :: xs => (G.InClass S s.tree ∧ thr ≤ Φ (recordProbe C cut s x))
     ∨ match applyProbe C cut s x with
       | .inl s' => EvP Φ thr s' xs
       | .inr _ => False
 
-theorem evP_notClass (hm : 0 < C.recordsToMove) (Φ : Level4State α → ℝ) (thr : ℝ) :
-    ∀ (l : List (FreeMonoid α)) (s : Level4State α), Reach G s → ¬ G.InClass S s.tree →
+theorem evP_notClass (hm : 0 < C.recordsToMove) (Φ : Level5State α → ℝ) (thr : ℝ) :
+    ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reach G s → ¬ G.InClass S s.tree →
       ¬ EvP G C cut S Φ thr s l
   | [], _, _, _ => id
   | x :: xs, s, hs, hn => by
@@ -465,12 +465,12 @@ theorem evP_notClass (hm : 0 < C.recordsToMove) (Φ : Level4State α → ℝ) (t
 /-- A potential whose exponentiated step averages at most one at every reached state of the class
 reaches `thr` with chance at most `exp ((Φ s - thr) / K)`. -/
 theorem pot_super (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (Φ : Level4State α → ℝ) {K : ℝ} (hK : 0 < K)
+    (Φ : Level5State α → ℝ) {K : ℝ} (hK : 0 < K)
     (hkeep : ∀ s s' x, applyProbe C cut s x = .inl s' → Φ s' = Φ (recordProbe C cut s x))
     (hstep : ∀ s, Reach G s → G.InClass S s.tree →
       ∫⁻ x, ENNReal.ofReal (Real.exp ((Φ (recordProbe C cut s x) - Φ s) / K)) ∂D ≤ 1)
     (thr : ℝ) :
-    ∀ (T : ℕ) (s : Level4State α), Reach G s →
+    ∀ (T : ℕ) (s : Level5State α), Reach G s →
       (Measure.pi fun _ : Fin T => D) {xs | EvP G C cut S Φ thr s (List.ofFn xs)}
         ≤ ENNReal.ofReal (Real.exp ((Φ s - thr) / K)) := by
   intro T
@@ -531,15 +531,15 @@ end Potential
 
 section Sites
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
 /-- The start's undecided strings less twice the running sum of their means. -/
-noncomputable def startPot (s : Level4State α) : ℝ :=
+noncomputable def startPot (s : Level5State α) : ℝ :=
   s.startUndecided.length - 2 * (s.versions.map (siteTotal D rd C.walkStart .start)).sum
 
 /-- An edge's undecided strings less twice the running sum of their means. -/
-noncomputable def edgePot (e : List Bool × α) (s : Level4State α) : ℝ :=
+noncomputable def edgePot (e : List Bool × α) (s : Level5State α) : ℝ :=
   (s.edgeUndecided e.1 e.2).length
     - 2 * (s.versions.map (siteTotal D rd C.walkStart (.edge e))).sum
 
@@ -549,10 +549,10 @@ noncomputable def readMean (k : ℕ) (e : List Bool × α) (v : DTree α × Edge
   ∫ x, (edgeReadsBy (fun z => (rd z).cut) v.1 v.2 k x e : ℝ) ∂D
 
 /-- Half the running sum of an edge's reads' means less its reads. -/
-noncomputable def readPot (e : List Bool × α) (s : Level4State α) : ℝ :=
+noncomputable def readPot (e : List Bool × α) (s : Level5State α) : ℝ :=
   (s.versions.map (readMean D rd C.walkStart e)).sum / 2 - s.edgeReads e.1 e.2
 
-theorem startPot_pre (s : Level4State α) (x : FreeMonoid α) :
+theorem startPot_pre (s : Level5State α) (x : FreeMonoid α) :
     startPot C D rd (recordProbe C (fun z => (rd z).cut) s x) - startPot C D rd s
       = (startHarvestBy (fun z => (rd z).cut) s.tree C.walkStart x).length
         - 2 * siteTotal D rd C.walkStart .start (s.tree, s.edges) := by
@@ -562,7 +562,7 @@ theorem startPot_pre (s : Level4State α) (x : FreeMonoid α) :
   push_cast
   ring
 
-theorem edgePot_pre (e : List Bool × α) (s : Level4State α) (x : FreeMonoid α) :
+theorem edgePot_pre (e : List Bool × α) (s : Level5State α) (x : FreeMonoid α) :
     edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x) - edgePot C D rd e s
       = (edgeHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e).length
         - 2 * siteTotal D rd C.walkStart (.edge e) (s.tree, s.edges) := by
@@ -572,7 +572,7 @@ theorem edgePot_pre (e : List Bool × α) (s : Level4State α) (x : FreeMonoid �
   push_cast
   ring
 
-theorem readPot_pre (e : List Bool × α) (s : Level4State α) (x : FreeMonoid α) :
+theorem readPot_pre (e : List Bool × α) (s : Level5State α) (x : FreeMonoid α) :
     readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x) - readPot C D rd e s
       = readMean D rd C.walkStart e (s.tree, s.edges) / 2
         - edgeReadsBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e := by
@@ -582,22 +582,22 @@ theorem readPot_pre (e : List Bool × α) (s : Level4State α) (x : FreeMonoid �
   push_cast
   ring
 
-theorem startPot_keep {s s' : Level4State α} {x : FreeMonoid α}
+theorem startPot_keep {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
     startPot C D rd s' = startPot C D rd (recordProbe C (fun z => (rd z).cut) s x) := by
   simp only [startPot, (applyProbe_counts C _ h).2.2.1, applyProbe_versions C _ h]
 
-theorem edgePot_keep (e : List Bool × α) {s s' : Level4State α} {x : FreeMonoid α}
+theorem edgePot_keep (e : List Bool × α) {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
     edgePot C D rd e s' = edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x) := by
   simp only [edgePot, (applyProbe_counts C _ h).1, applyProbe_versions C _ h]
 
-theorem readPot_keep (e : List Bool × α) {s s' : Level4State α} {x : FreeMonoid α}
+theorem readPot_keep (e : List Bool × α) {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
     readPot C D rd e s' = readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x) := by
   simp only [readPot, (applyProbe_counts C _ h).2.1, applyProbe_versions C _ h]
 
-theorem startPot_step [IsProbabilityMeasure D] (s : Level4State α) :
+theorem startPot_step [IsProbabilityMeasure D] (s : Level5State α) :
     ∫⁻ x, ENNReal.ofReal (Real.exp ((startPot C D rd (recordProbe C (fun z => (rd z).cut) s x)
       - startPot C D rd s) / 2)) ∂D ≤ 1 := by
   have hU : ∀ x, (startHarvestBy (fun z => (rd z).cut) s.tree C.walkStart x).length ≤ 1 := by
@@ -621,7 +621,7 @@ theorem startPot_step [IsProbabilityMeasure D] (s : Level4State α) :
   ring
 
 theorem edgePot_step [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (e : List Bool × α) (s : Level4State α) :
+    (e : List Bool × α) (s : Level5State α) :
     ∫⁻ x, ENNReal.ofReal (Real.exp ((edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x)
       - edgePot C D rd e s) / (2 * (L + 1)))) ∂D ≤ 1 := by
   have h0 : 0 ≤ siteTotal D rd C.walkStart (.edge e) (s.tree, s.edges) :=
@@ -645,7 +645,7 @@ theorem edgePot_step [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x
   ring
 
 theorem readPot_step [IsProbabilityMeasure D] {L S : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hLmax : Fintype.card σ + S + 2 ≤ C.maxLeaves) (e : List Bool × α) (s : Level4State α)
+    (hLmax : Fintype.card σ + S + 2 ≤ C.maxLeaves) (e : List Bool × α) (s : Level5State α)
     (hc : G.InClass S s.tree) :
     ∫⁻ x, ENNReal.ofReal (Real.exp ((readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x)
       - readPot C D rd e s) / (2 * ((L + 1) * C.maxLeaves)))) ∂D ≤ 1 := by
@@ -738,11 +738,11 @@ theorem binomSfGe_gt {n j : ℕ} (p : ℝ) (h : n < j) : binomSfGe n p j = 0 := 
 
 section PT
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (cut : FreeMonoid α → Option Bool) (S : ℕ)
 
 /-- After `i` probes, the run is at a state from which `Q` holds of the remaining draws. -/
-def Skip (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level4State α → List (FreeMonoid α)
+def Skip (Q : Level5State α → List (FreeMonoid α) → Prop) : ℕ → Level5State α → List (FreeMonoid α)
     → Prop
   | 0, s, l => Q s l
   | _ + 1, _, [] => False
@@ -751,7 +751,7 @@ def Skip (Q : Level4State α → List (FreeMonoid α) → Prop) : ℕ → Level4
     | .inr _ => False
 
 open scoped Classical in
-theorem recordProbe_stretch (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_stretch (s : Level5State α) (x : FreeMonoid α) :
     ((recordProbe C cut s x).stretchProbes = s.stretchProbes + 1
       ∧ (recordProbe C cut s x).stretchMiddles = s.stretchMiddles
           ++ middleHarvestBy cut s.tree s.edges C.walkStart x
@@ -764,25 +764,25 @@ theorem recordProbe_stretch (s : Level4State α) (x : FreeMonoid α) :
   unfold recordProbe
   rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
-  · left; simp [Level4State.countProbe, Outcome.IsSearch]
-  · left; simp [Level4State.countProbe, Outcome.IsSearch]
-  · left; simp [Level4State.countProbe, Outcome.IsSearch]
-  · left; simp [Level4State.countProbe, Outcome.IsSearch]
+  · left; simp [Level5State.countProbe, Outcome.IsSearch]
+  · left; simp [Level5State.countProbe, Outcome.IsSearch]
+  · left; simp [Level5State.countProbe, Outcome.IsSearch]
+  · left; simp [Level5State.countProbe, Outcome.IsSearch]
   · left
     rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;>
-      simp [Level4State.countProbe, Level4State.addRecord, Outcome.IsSearch]
+      simp [Level5State.countProbe, Level5State.addRecord, Outcome.IsSearch]
   · rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
-    · left; simp [Level4State.countProbe, Outcome.IsSearch]
+    · left; simp [Level5State.countProbe, Outcome.IsSearch]
     rcases s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
-    · left; simp [Level4State.countProbe, Outcome.IsSearch]
+    · left; simp [Level5State.countProbe, Outcome.IsSearch]
     rcases s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
       try dsimp only
-    · right; simp [Level4State.setEdge, Level4State.newStretch, Outcome.IsSearch]
-    all_goals left; simp [Level4State.countProbe, Outcome.IsSearch]
+    · right; simp [Level5State.setEdge, Level5State.newStretch, Outcome.IsSearch]
+    all_goals left; simp [Level5State.countProbe, Outcome.IsSearch]
 
 open scoped Classical in
-theorem length_ptPre (rd : FreeMonoid α → ARU) (s : Level4State α) (x : FreeMonoid α) :
+theorem length_ptPre (rd : FreeMonoid α → ARU) (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C (fun z => (rd z).cut) s x).stretchMiddles.length
       ≤ s.stretchMiddles.length
         + if x ∈ G.ptAt rd C.walkStart s.tree s.edges (fun _ => True) then 1 else 0 := by
@@ -818,7 +818,7 @@ theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) 
 
 /-- From a state of the class, within the stretch, the undecided middles reach `k` more at the
 probe that brings the stretch's searches to `t` more. -/
-def EvR (ok : Level4State α → Prop) : ℕ → ℕ → Level4State α → List (FreeMonoid α) → Prop
+def EvR (ok : Level5State α → Prop) : ℕ → ℕ → Level5State α → List (FreeMonoid α) → Prop
   | _, _, _, [] => False
   | t, k, s, x :: xs => (G.InClass S s.tree ∧ ok s)
       ∧ (recordProbe C cut s x).stretchDisagreements - s.stretchDisagreements ≤ t ∧
@@ -831,12 +831,12 @@ def EvR (ok : Level4State α → Prop) : ℕ → ℕ → Level4State α → List
                 - s.stretchMiddles.length)) s' xs
         | .inr _ => False)
 
-theorem evR_ne_nil {ok : Level4State α → Prop} {t k : ℕ} {s : Level4State α}
+theorem evR_ne_nil {ok : Level5State α → Prop} {t k : ℕ} {s : Level5State α}
     {l : List (FreeMonoid α)} (h : EvR G C cut S ok t k s l) : l ≠ [] := by
   rintro rfl; exact h
 
-theorem evR_mono (ok : Level4State α → Prop) :
-    ∀ (l : List (FreeMonoid α)) (t : ℕ) (s : Level4State α) {k k' : ℕ}, k ≤ k' →
+theorem evR_mono (ok : Level5State α → Prop) :
+    ∀ (l : List (FreeMonoid α)) (t : ℕ) (s : Level5State α) {k k' : ℕ}, k ≤ k' →
       EvR G C cut S ok t k' s l → EvR G C cut S ok t k s l
   | [], _, _, _, _, _, h => h
   | x :: xs, t, s, k, k', hk, h => by
@@ -850,14 +850,14 @@ theorem evR_mono (ok : Level4State α → Prop) :
       · exact ⟨h.1, evR_mono ok xs _ s' (by omega) h.2⟩
       · exact h
 
-theorem evR_notClass (ok : Level4State α → Prop) :
-    ∀ (l : List (FreeMonoid α)) (t k : ℕ) (s : Level4State α),
+theorem evR_notClass (ok : Level5State α → Prop) :
+    ∀ (l : List (FreeMonoid α)) (t k : ℕ) (s : Level5State α),
       ¬ (G.InClass S s.tree ∧ ok s) → ¬ EvR G C cut S ok t k s l
   | [], _, _, _, _ => id
   | x :: xs, t, k, s, hn => fun h => hn h.1
 
 open scoped Classical in
-theorem recordProbe_dis_sub (rd : FreeMonoid α → ARU) (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_dis_sub (rd : FreeMonoid α → ARU) (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements - s.stretchDisagreements
       = if x ∈ searchAt rd C.walkStart s.tree s.edges then 1 else 0 := by
   rcases recordProbe_stretch C (fun z => (rd z).cut) s x with ⟨-, -, h⟩ | ⟨-, -, h, hn⟩
@@ -869,7 +869,7 @@ theorem recordProbe_dis_sub (rd : FreeMonoid α → ARU) (s : Level4State α) (x
 
 /-- At a hypothesis searching on at least `φpt/2` of the probes, at most `θpt` of whose searches
 stop at an undecided middle. -/
-def PTLow (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (s : Level4State α) : Prop :=
+def PTLow (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (s : Level5State α) : Prop :=
   C.searchShare / 2 ≤ D.real (searchAt rd C.walkStart s.tree s.edges)
     ∧ D.real (G.ptAt rd C.walkStart s.tree s.edges fun _ => True)
       ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)
@@ -880,7 +880,7 @@ binomial. -/
 theorem ptR_bin (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (rd : FreeMonoid α → ARU) (hθ0 : 0 ≤ C.middleUndecidedRate)
     (hθ1 : C.middleUndecidedRate ≤ 1) :
-    ∀ (T t k : ℕ) (s : Level4State α), Reach G s →
+    ∀ (T t k : ℕ) (s : Level5State α), Reach G s →
       (Measure.pi fun _ : Fin T => D)
           {xs | EvR G C (fun z => (rd z).cut) S
             (PTLow G C D rd) t k s
@@ -1056,10 +1056,10 @@ theorem ptR_bin (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProb
       nlinarith [mul_le_mul_of_nonneg_right hA (sub_nonneg.2 hmono)]
 
 theorem skip_le (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (Q : Level4State α → List (FreeMonoid α) → Prop) {c : ENNReal}
-    (hQ : ∀ (T : ℕ) (s : Level4State α), Reach G s
+    (Q : Level5State α → List (FreeMonoid α) → Prop) {c : ENNReal}
+    (hQ : ∀ (T : ℕ) (s : Level5State α), Reach G s
       → (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
-    ∀ (T i : ℕ) (s : Level4State α), Reach G s →
+    ∀ (T i : ℕ) (s : Level5State α), Reach G s →
       (Measure.pi fun _ : Fin T => D) {xs | Skip C cut Q i s (List.ofFn xs)} ≤ c := by
   intro T
   induction T with
@@ -1093,18 +1093,18 @@ end PT
 
 section Low
 
-variable (C : Level4Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+variable (C : Level5Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
 
 /-- The hypothesis's disagreement rate: the probes that search. -/
-noncomputable def disRate (s : Level4State α) : ℝ := D.real (searchAt rd C.walkStart s.tree s.edges)
+noncomputable def disRate (s : Level5State α) : ℝ := D.real (searchAt rd C.walkStart s.tree s.edges)
 
 /-- The searches a probe adds to the stretch's count. -/
-noncomputable def dt (s : Level4State α) (x : FreeMonoid α) : ℕ :=
+noncomputable def dt (s : Level5State α) (x : FreeMonoid α) : ℕ :=
   (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements - s.stretchDisagreements
 
 /-- From `s`, at a hypothesis searching on at most `φpt/2` of the probes, the next `N + 1` probes
 stay in the stretch and search at least `h` times. -/
-def EvH : ℕ → ℕ → Level4State α → List (FreeMonoid α) → Prop
+def EvH : ℕ → ℕ → Level5State α → List (FreeMonoid α) → Prop
   | _, _, _, [] => False
   | 0, h, s, x :: _ => disRate C D rd s ≤ C.searchShare / 2 ∧ h ≤ dt C rd s x
   | N + 1, h, s, x :: xs => disRate C D rd s ≤ C.searchShare / 2 ∧
@@ -1116,7 +1116,7 @@ open scoped Classical in
 /-- A stretch at a hypothesis searching on at most `φpt/2` of the probes searches at least `h`
 times in its next `N + 1` probes with chance at most `P(Bin(N + 1, φpt/2) ≥ h)`. -/
 theorem evH_le [IsProbabilityMeasure D] (hφ0 : 0 ≤ C.searchShare) (hφ1 : C.searchShare ≤ 1) :
-    ∀ (T N h : ℕ) (s : Level4State α),
+    ∀ (T N h : ℕ) (s : Level5State α),
       (Measure.pi fun _ : Fin T => D) {xs | EvH C D rd N h s (List.ofFn xs)}
         ≤ ENNReal.ofReal (binomSfGe (N + 1) (C.searchShare / 2) h) := by
   have hp0 : 0 ≤ C.searchShare / 2 := by linarith
@@ -1203,7 +1203,7 @@ end Low
 
 section Assemble
 
-theorem runTests_start' (C : Level4Settings) {s : Level4State α}
+theorem runTests_start' (C : Level5Settings) {s : Level5State α}
     (h : runTests C s = some .harvestStart) :
     C.firstLook ≤ s.probes ∧ binomSfGe s.probes C.startUndecidedRate s.startUndecided.length
         < C.testLevel := by
@@ -1215,7 +1215,7 @@ theorem runTests_start' (C : Level4Settings) {s : Level4State α}
   · rw [if_neg h1] at h
     split_ifs at h <;> simp at h
 
-theorem runTests_harvest' (C : Level4Settings) {s : Level4State α} {e : List Bool × α}
+theorem runTests_harvest' (C : Level5Settings) {s : Level5State α} {e : List Bool × α}
     (h : runTests C s = some (.harvest e)) :
     e.1 ∈ s.tree.leaves ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
         ∧ C.edgeExcess (s.edgeReads e.1 e.2)
@@ -1230,13 +1230,13 @@ theorem runTests_harvest' (C : Level4Settings) {s : Level4State α} {e : List Bo
         ∧ C.edgeExcess (s.edgeReads e.1 e.2) ≤ ((s.edgeUndecided e.1 e.2).length : ℝ)
             - C.edgeUndecidedRate * s.edgeReads e.1 e.2
     · rw [dif_pos h2] at h
-      simp only [Option.some.injEq, Level4Ending.harvest.injEq] at h
+      simp only [Option.some.injEq, Level5Ending.harvest.injEq] at h
       rw [← h]
       exact h2.choose_spec
     · rw [dif_neg h2] at h
       split_ifs at h <;> simp at h
 
-theorem runTests_pt' (C : Level4Settings) {s : Level4State α} (h : runTests C s = some .harvestPT) :
+theorem runTests_pt' (C : Level5Settings) {s : Level5State α} (h : runTests C s = some .harvestPT) :
     C.searchShare * s.stretchProbes ≤ s.stretchDisagreements ∧ C.firstLook ≤ s.stretchDisagreements
         ∧ binomSfGe s.stretchDisagreements C.middleUndecidedRate s.stretchMiddles.length
         < C.testLevel := by
@@ -1325,16 +1325,16 @@ theorem harvest_good_holds : HarvestGood := by
   set kp : ℕ → ℕ := fun t => if h : ∃ h', C.firstLook ≤ t
       ∧ binomSfGe t C.middleUndecidedRate h' < C.testLevel then Nat.find h else t + 1
   set hf : ℕ → ℕ := fun n => max ⌈C.searchShare * n⌉₊ C.firstLook
-  set ok : Level4State α → Prop := PTLow G C D rd
-  set Qp : ℕ → Level4State α → List (FreeMonoid α) → Prop := fun dd s l =>
+  set ok : Level5State α → Prop := PTLow G C D rd
+  set Qp : ℕ → Level5State α → List (FreeMonoid α) → Prop := fun dd s l =>
     EvR G C (fun z => (rd z).cut) S ok dd (kp dd) s l
-  set Qh : ℕ → Level4State α → List (FreeMonoid α) → Prop := fun N s l =>
+  set Qh : ℕ → Level5State α → List (FreeMonoid α) → Prop := fun N s l =>
     EvH C D rd N (hf (N + 1)) s l
-  set P : Level4Ending α → Level4State α → Prop := fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
+  set P : Level5Ending α → Level5State α → Prop := fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
     ∧ ¬ GoodEnd G D rd C.walkStart C.harvestYield e s'
-  have hok : ∀ s s' : Level4State α, s'.tree = s.tree → s'.edges = s.edges → (ok s' ↔ ok s) := by
+  have hok : ∀ s s' : Level5State α, s'.tree = s.tree → s'.edges = s.edges → (ok s' ↔ ok s) := by
     intro s s' h1 h2; simp only [ok, PTLow, h1, h2]
-  have hdr : ∀ s s' : Level4State α, s'.tree = s.tree → s'.edges = s.edges →
+  have hdr : ∀ s s' : Level5State α, s'.tree = s.tree → s'.edges = s.edges →
       disRate C D rd s' = disRate C D rd s := by
     intro s s' h1 h2; simp only [disRate, h1, h2]
   -- the hypotheses a probe from a state of the class leaves kept
@@ -1470,7 +1470,7 @@ theorem harvest_good_holds : HarvestGood := by
     · nlinarith [mul_le_mul_of_nonneg_left hq hθgpt0,
         mul_le_mul_of_nonneg_right hθgpt hq0]
     · nlinarith [mul_le_mul_of_nonneg_left hq hθpt0]
-  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level4State α), Reach G s →
+  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reach G s →
       RunEnds (applyProbe C fun z => (rd z).cut) P s l →
       (∃ e ∈ keys, EvP G C (fun z => (rd z).cut) S (edgePot C D rd e) (2 * (L + 1) * ℓ) s l)
         ∨ (∃ e ∈ keys, EvP G C (fun z => (rd z).cut) S (readPot C D rd e)
@@ -1681,7 +1681,7 @@ theorem harvest_good_holds : HarvestGood := by
         (Finset.mem_product.2 ⟨Finset.mem_range.2 (by omega), Finset.mem_range.2 hN⟩) ?_)
       simp only [Skip, Qh]
       simpa [initialState] using h
-  have hpot0 : ∀ (Φ : Level4State α → ℝ) (K : ℝ), 0 < K → Φ initialState = 0 →
+  have hpot0 : ∀ (Φ : Level5State α → ℝ) (K : ℝ), 0 < K → Φ initialState = 0 →
       ENNReal.ofReal (Real.exp ((Φ initialState - K * ℓ) / K)) = ENNReal.ofReal C.testLevel := by
     intro Φ K hK h0
     have : (0 - K * ℓ) / K = -ℓ := by field_simp; ring

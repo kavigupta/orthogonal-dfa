@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4Harvest
+import OrthoDFA.Proofs.Level5Harvest
 
 /-!
 # Sub-rounds end
@@ -24,10 +24,10 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Steps
 
-variable (cut : FreeMonoid α → Option Bool) (C : Level4Settings)
+variable (cut : FreeMonoid α → Option Bool) (C : Level5Settings)
 
 open scoped Classical in
-theorem recordProbe_cases (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_cases (s : Level5State α) (x : FreeMonoid α) :
     (recordProbe C cut s x).tree = s.tree
       ∧ (((recordProbe C cut s x).version = s.version ∧ (recordProbe C cut s x).edges = s.edges
         ∧ (recordProbe C cut s x).stretchProbes = s.stretchProbes + 1
@@ -44,27 +44,27 @@ theorem recordProbe_cases (s : Level4State α) (x : FreeMonoid α) :
   unfold recordProbe
   rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
-  · simp [Level4State.countProbe, Outcome.IsSearch]
-  · simp [Level4State.countProbe, Outcome.IsSearch]
-  · simp [Level4State.countProbe, Outcome.IsSearch]
-  · simp [Level4State.countProbe, Outcome.IsSearch]
+  · simp [Level5State.countProbe, Outcome.IsSearch]
+  · simp [Level5State.countProbe, Outcome.IsSearch]
+  · simp [Level5State.countProbe, Outcome.IsSearch]
+  · simp [Level5State.countProbe, Outcome.IsSearch]
   · rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;>
-      simp [Level4State.countProbe, Level4State.addRecord, Outcome.IsSearch]
+      simp [Level5State.countProbe, Level5State.addRecord, Outcome.IsSearch]
   · rcases hc : x.toList[u.toList.length]? with _ | c <;> try dsimp only
-    · simp [Level4State.countProbe, Outcome.IsSearch]
+    · simp [Level5State.countProbe, Outcome.IsSearch]
     rcases hp : s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
-    · simp [Level4State.countProbe, Outcome.IsSearch]
+    · simp [Level5State.countProbe, Outcome.IsSearch]
     rcases ht : s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> try dsimp only
     swap
-    · simp [Level4State.countProbe, Outcome.IsSearch]
+    · simp [Level5State.countProbe, Outcome.IsSearch]
     rcases he : s.edges p c with _ | e <;> try dsimp only
     · refine ⟨rfl, .inr ⟨rfl, rfl, rfl, p, c, (t, u), he, DTree.siftCut_mem_paths _ _ _ hp, ?_⟩⟩
       intro q c'
       exact setEdge_eq (s.countProbe cut C.walkStart x) p c (t, u) q c'
-    · simp [Level4State.countProbe, Outcome.IsSearch]
+    · simp [Level5State.countProbe, Outcome.IsSearch]
 
-theorem recordProbe_recs (s : Level4State α) (x : FreeMonoid α) :
+theorem recordProbe_recs (s : Level5State α) (x : FreeMonoid α) :
     (recordBy cut C.walkStart (s.tree, s.edges) x = none
         ∧ (recordProbe C cut s x).records = s.records)
       ∨ ∃ p c t sp, recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp)
@@ -86,7 +86,7 @@ theorem recordProbe_recs (s : Level4State α) (x : FreeMonoid α) :
   · rcases hr : recordBy cut C.walkStart (s.tree, s.edges) x with _
       | ⟨⟨p, c, t⟩, sp⟩ <;> try dsimp only
     · left; exact ⟨rfl, rfl⟩
-    · right; exact ⟨p, c, t, sp, rfl, by simp [Level4State.countProbe, Level4State.addRecord]⟩
+    · right; exact ⟨p, c, t, sp, rfl, by simp [Level5State.countProbe, Level5State.addRecord]⟩
   · have hr := hn _ ho (by simp)
     rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
     · left; exact ⟨hr, rfl⟩
@@ -98,7 +98,7 @@ theorem recordProbe_recs (s : Level4State α) (x : FreeMonoid α) :
     all_goals left; exact ⟨hr, rfl⟩
 
 /-- A fix is a new version: a redirect of the edge at the same tree, or a split. -/
-theorem fixEdge_cases {s : Level4State α} {p : List Bool} {c : α} {t : List Bool}
+theorem fixEdge_cases {s : Level5State α} {p : List Bool} {c : α} {t : List Bool}
     (hv : Violates C.recordsToMove s p c t) :
     (fixEdge cut C.recordsToMove s p c t).version = s.version + 1
       ∧ (((fixEdge cut C.recordsToMove s p c t).tree = s.tree
@@ -126,7 +126,7 @@ theorem fixEdge_cases {s : Level4State α} {p : List Bool} {c : α} {t : List Bo
       omega
 
 open scoped Classical in
-theorem settleOne_cases {s₁ : Level4State α} {r : Level4State α ⊕ (Level4Ending α × Level4State α)}
+theorem settleOne_cases {s₁ : Level5State α} {r : Level5State α ⊕ (Level5Ending α × Level5State α)}
     (h : settleOne cut C.recordsToMove C.maxLeaves s₁ = r) :
     (r = .inl s₁ ∧ ∀ p c t, ¬ Violates C.recordsToMove s₁ p c t)
       ∨ ∃ p c t, Violates C.recordsToMove s₁ p c t
@@ -141,8 +141,8 @@ theorem settleOne_cases {s₁ : Level4State α} {r : Level4State α ⊕ (Level4E
   · push_neg at hv
     exact .inl ⟨rfl, hv⟩
 
-theorem applyProbe_cases {s : Level4State α} {x : FreeMonoid α}
-    {r : Level4State α ⊕ (Level4Ending α × Level4State α)} (h : applyProbe C cut s x = r) :
+theorem applyProbe_cases {s : Level5State α} {x : FreeMonoid α}
+    {r : Level5State α ⊕ (Level5Ending α × Level5State α)} (h : applyProbe C cut s x = r) :
     (∃ e, runTests C (recordProbe C cut s x) = some e ∧ r = .inr (e, recordProbe C cut s x))
       ∨ (runTests C (recordProbe C cut s x) = none
           ∧ settleOne cut C.recordsToMove C.maxLeaves (recordProbe C cut s x)
@@ -156,7 +156,7 @@ theorem applyProbe_cases {s : Level4State α} {x : FreeMonoid α}
 
 /-- A step that keeps the version keeps the hypothesis: it is the probe's charge, its tests do not
 fire and no edge is violated. -/
-theorem applyProbe_same {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_same {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inl s') (hv : s'.version = s.version) :
     s' = recordProbe C cut s x ∧ runTests C (recordProbe C cut s x) = none
       ∧ (∀ p c t, ¬ Violates C.recordsToMove (recordProbe C cut s x) p c t)
@@ -174,7 +174,7 @@ theorem applyProbe_same {s s' : Level4State α} {x : FreeMonoid α}
   · cases he
 
 /-- A step past `Lmax` leaves splits a leaf. -/
-theorem applyProbe_tooBig {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_tooBig {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inr (.tooBig, s')) :
     C.maxLeaves < s'.tree.leaves.length ∧ s'.tree.leaves.length ≤ s.tree.leaves.length + 1 := by
   have htr := (recordProbe_cases cut C s x).1
@@ -197,21 +197,21 @@ end Steps
 
 section Fake
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (cut : FreeMonoid α → Option Bool) (S : ℕ)
 
 /-- The probes whose record at `pct` is not true. -/
-def untrueAt (s : Level4State α) (pct : List Bool × α × List Bool) : Set (FreeMonoid α) :=
+def untrueAt (s : Level5State α) (pct : List Bool × α × List Bool) : Set (FreeMonoid α) :=
   {x | ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x = some (pct, sp)
       ∧ ¬ G.TrueRec s.tree pct sp}
 
 open scoped Classical in
 /-- The records at `pct` that are not true. -/
-noncomputable def badRecs (s : Level4State α) (pct : List Bool × α × List Bool) : ℕ :=
+noncomputable def badRecs (s : Level5State α) (pct : List Bool × α × List Bool) : ℕ :=
   ((s.records pct.1 pct.2.1).filter fun r => r.2 = pct.2.2 ∧ ¬ G.TrueRec s.tree pct r.1).length
 
 open scoped Classical in
-theorem badRecs_pre (s : Level4State α) (x : FreeMonoid α) (pct : List Bool × α × List Bool) :
+theorem badRecs_pre (s : Level5State α) (x : FreeMonoid α) (pct : List Bool × α × List Bool) :
     badRecs G (recordProbe C cut s x) pct
       ≤ badRecs G s pct + if x ∈ untrueAt G C cut s pct then 1 else 0 := by
   have htr := (recordProbe_cases cut C s x).1
@@ -221,7 +221,7 @@ theorem badRecs_pre (s : Level4State α) (x : FreeMonoid α) (pct : List Bool ×
   · rw [h]; omega
   rw [h]
   obtain ⟨p', c', t'⟩ := pct
-  simp only [Level4State.addRecord]
+  simp only [Level5State.addRecord]
   by_cases hp : p' = p
   · subst hp
     by_cases hc : c' = c
@@ -239,7 +239,7 @@ theorem badRecs_pre (s : Level4State α) (x : FreeMonoid α) (pct : List Bool ×
   · simp [Function.update_of_ne hp]
 
 /-- A step at the same tree keeps the charge's records. -/
-theorem applyProbe_recs {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_recs {s s' : Level5State α} {x : FreeMonoid α}
     (h : applyProbe C cut s x = .inl s') (htr : s'.tree = s.tree) :
     s'.records = (recordProbe C cut s x).records := by
   have htr₁ := (recordProbe_cases cut C s x).1
@@ -255,7 +255,7 @@ theorem applyProbe_recs {s s' : Level4State α} {x : FreeMonoid α}
   · cases he
 
 /-- A step that changes the tree splits a leaf where two targets both have `m` records. -/
-theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
     (he : EdgesInto s.tree s.edges) (hr : RecsInto s) (h : applyProbe C cut s x = .inl s')
     (htr : s'.tree ≠ s.tree) :
     ∃ p c t t₀, p ∈ s.tree.leaves ∧ t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ t ≠ t₀
@@ -273,7 +273,7 @@ theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x :
     obtain ⟨hp, hne, htal⟩ := hvi
     have htp : t ∈ s.tree.leaves := by
       have : 0 < (((recordProbe C cut s x).records p c).filter (·.2 = t)).length := by
-        unfold Level4State.recordCount at htal; omega
+        unfold Level5State.recordCount at htal; omega
       obtain ⟨r, hr'⟩ := List.exists_mem_of_length_pos this
       obtain ⟨h1, h2⟩ := List.mem_filter.1 hr'
       simp only [decide_eq_true_eq] at h2
@@ -287,7 +287,7 @@ theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x :
 
 open scoped Classical in
 /-- A split that is not genuine has all of one target's records not true. -/
-theorem badRecs_of_fake {s₁ : Level4State α} {p : List Bool} {c : α} {t t₀ : List Bool}
+theorem badRecs_of_fake {s₁ : Level5State α} {p : List Bool} {c : α} {t t₀ : List Bool}
     (hne : t ≠ t₀) (hm₁ : C.recordsToMove ≤ s₁.recordCount p c t)
     (hm₂ : C.recordsToMove ≤ s₁.recordCount p c t₀)
     (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midfixAt (commonPrefix t t₀))) :
@@ -295,7 +295,7 @@ theorem badRecs_of_fake {s₁ : Level4State α} {p : List Bool} {c : α} {t t₀
   have hall : ∀ t', (¬ ∃ r ∈ s₁.records p c, r.2 = t' ∧ G.TrueRec s₁.tree (p, c, t') r.1) →
       badRecs G s₁ (p, c, t') = s₁.recordCount p c t' := by
     intro t' hn
-    unfold badRecs Level4State.recordCount
+    unfold badRecs Level5State.recordCount
     congr 1
     refine List.filter_congr fun r hr => ?_
     simp only [decide_eq_decide]
@@ -316,10 +316,10 @@ end Fake
 
 section Keep
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- The next `j` probes from `s` keep its version. -/
-def KeepV : Level4State α → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
+def KeepV : Level5State α → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
   | _, 0, _, _ => True
   | _, _ + 1, 0, _ => False
   | s, j + 1, T + 1, xs => ∃ s', applyProbe C cut s (xs 0) = .inl s' ∧ s'.version = s.version
@@ -341,13 +341,13 @@ theorem cnt_succ {X : Type*} (j : ℕ) (P : X → Prop) {T : ℕ} (xs : Fin (T +
 theorem cnt_zero {X : Type*} (P : X → Prop) {T : ℕ} (xs : Fin T → X) : cnt 0 P xs = 0 := by
   simp [cnt]
 
-theorem keepV_le : ∀ (j : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T → FreeMonoid α),
+theorem keepV_le : ∀ (j : ℕ) (s : Level5State α) (T : ℕ) (xs : Fin T → FreeMonoid α),
     KeepV C cut s j T xs → j ≤ T
   | 0, _, _, _, _ => Nat.zero_le _
   | _ + 1, _, 0, _, h => h.elim
   | j + 1, s, T + 1, xs, ⟨s', _, _, h⟩ => by have := keepV_le j s' T _ h; omega
 
-theorem keepV_mono : ∀ (j j' : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T → FreeMonoid α),
+theorem keepV_mono : ∀ (j j' : ℕ) (s : Level5State α) (T : ℕ) (xs : Fin T → FreeMonoid α),
     j' ≤ j → KeepV C cut s j T xs → KeepV C cut s j' T xs
   | _, 0, _, _, _, _, _ => trivial
   | 0, _ + 1, _, _, _, h, _ => absurd h (by omega)
@@ -356,19 +356,19 @@ theorem keepV_mono : ∀ (j j' : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T
     ⟨s', h1, h2, keepV_mono j j' s' T _ (by omega) h3⟩
 
 open scoped Classical in
-theorem recordCount_recordProbe (s : Level4State α) (x : FreeMonoid α) (p : List Bool) (c : α)
+theorem recordCount_recordProbe (s : Level5State α) (x : FreeMonoid α) (p : List Bool) (c : α)
     (t : List Bool) :
     s.recordCount p c t + (if ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x
         = some ((p, c, t), sp)
       then 1 else 0) ≤ (recordProbe C cut s x).recordCount p c t := by
-  unfold Level4State.recordCount
+  unfold Level5State.recordCount
   rcases recordProbe_recs cut C s x with ⟨hr, h⟩ | ⟨p', c', t', sp, hr, h⟩
   · rw [h, hr]; simp
   rw [h]
   by_cases hpc : p = p' ∧ c = c'
   · obtain ⟨hp, hc⟩ := hpc
     subst hp hc
-    simp only [Level4State.addRecord, Function.update_self, List.filter_append, List.length_append]
+    simp only [Level5State.addRecord, Function.update_self, List.filter_append, List.length_append]
     by_cases ht : t = t'
     · subst ht
       rw [if_pos ⟨sp, hr⟩]
@@ -386,7 +386,7 @@ theorem recordCount_recordProbe (s : Level4State α) (x : FreeMonoid α) (p : Li
       simp only [Option.some.injEq, Prod.mk.injEq] at h'
       exact hpc ⟨h'.1.1.symm, h'.1.2.1.symm⟩
     rw [if_neg this, add_zero]
-    simp only [Level4State.addRecord]
+    simp only [Level5State.addRecord]
     by_cases hp : p = p'
     · subst hp
       have hc : c ≠ c' := fun hc => hpc ⟨rfl, hc⟩
@@ -397,8 +397,8 @@ open scoped Classical in
 /-- Over a run that keeps its version, the counts grow by the outcomes of the fixed hypothesis,
 and the last charge's tests do not fire and no edge is violated. -/
 theorem keep_counts (T0 : DTree α) (E0 : EdgeTable α) :
-    ∀ (j : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T → FreeMonoid α), s.tree = T0 → s.edges = E0 →
-      KeepV C cut s (j + 1) T xs → ∃ s₁ : Level4State α, s₁.tree = T0 ∧ s₁.edges = E0
+    ∀ (j : ℕ) (s : Level5State α) (T : ℕ) (xs : Fin T → FreeMonoid α), s.tree = T0 → s.edges = E0 →
+      KeepV C cut s (j + 1) T xs → ∃ s₁ : Level5State α, s₁.tree = T0 ∧ s₁.edges = E0
         ∧ s₁.stretchProbes = s.stretchProbes + (j + 1)
         ∧ s₁.stretchMiddles.length = s.stretchMiddles.length + cnt (j + 1)
             (fun x => middleHarvestBy cut T0 E0 C.walkStart x ≠ []) xs
@@ -508,9 +508,9 @@ end Outcomes
 
 section KeepBound
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
-theorem look_none_pt {s : Level4State α} {hP : ℕ} (hl : runTests C s = none)
+theorem look_none_pt {s : Level5State α} {hP : ℕ} (hl : runTests C s = none)
     (hn₀ : C.firstLook ≤ s.stretchDisagreements) (hθ0 : 0 ≤ C.middleUndecidedRate)
     (hθ1 : C.middleUndecidedRate ≤ 1)
     (hhP : binomSfGe s.stretchDisagreements C.middleUndecidedRate hP < C.testLevel)
@@ -526,7 +526,7 @@ theorem look_none_pt {s : Level4State α} {hP : ℕ} (hl : runTests C s = none)
   split_ifs at hl with h1 h2 h3
   all_goals first | contradiction | exact absurd ⟨hg, hr⟩ h3
 
-theorem look_none_dis {s : Level4State α} {hS : ℕ} (hl : runTests C s = none)
+theorem look_none_dis {s : Level5State α} {hS : ℕ} (hl : runTests C s = none)
     (hn₀ : C.firstLook ≤ s.stretchProbes) (hε0 : 0 ≤ C.disagreementRate)
     (hε1 : C.disagreementRate ≤ 1)
     (hhS : 1 - binomSfGe s.stretchProbes C.disagreementRate (hS + 1) < C.testLevel)
@@ -707,10 +707,10 @@ end Trials
 
 section KeepLe
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- The probes that record against the hypothesis of `s`. -/
-def recAt (s : Level4State α) : Set (FreeMonoid α) :=
+def recAt (s : Level5State α) : Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy cut C.walkStart (s.tree, s.edges) x = some (pct, sp)}
 
 theorem middleHarvestBy_search {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
@@ -730,7 +730,7 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
     (hhP : binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel)
     (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
     (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
-    (hφn : C.searchShare * nEnd ≤ hS + 1) {s : Level4State α} (hrec : D.real (recAt C cut s) < θr)
+    (hφn : C.searchShare * nEnd ≤ hS + 1) {s : Level5State α} (hrec : D.real (recAt C cut s) < θr)
     (hn : s.stretchProbes = 0) (hd : s.stretchDisagreements = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
       ≤ ENNReal.ofReal (termLevel nEnd hP hS θpt' εd') := by
@@ -832,26 +832,26 @@ end KeepLe
 
 section Pot
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 open scoped Classical in
 /-- An edge's share of the potential: unlearned, learned at a target with fewer than `m` records,
 or neither. -/
-noncomputable def psi (s : Level4State α) (p : List Bool) (c : α) : ℕ :=
+noncomputable def psi (s : Level5State α) (p : List Bool) (c : α) : ℕ :=
   match s.edges p c with
   | none => 2
   | some (t₀, _) => if C.recordsToMove ≤ s.recordCount p c t₀ then 0 else 1
 
-noncomputable def pot (s : Level4State α) : ℕ :=
+noncomputable def pot (s : Level5State α) : ℕ :=
   ∑ pc ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α), psi C s pc.1 pc.2
 
-theorem psi_le_two (s : Level4State α) (p : List Bool) (c : α) : psi C s p c ≤ 2 := by
+theorem psi_le_two (s : Level5State α) (p : List Bool) (c : α) : psi C s p c ≤ 2 := by
   unfold psi
   rcases s.edges p c with _ | ⟨t₀, w⟩
   · exact le_rfl
   · simp only []; split_ifs <;> omega
 
-theorem pot_le (s : Level4State α) : pot C s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
+theorem pot_le (s : Level5State α) : pot C s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
   unfold pot
   refine (Finset.sum_le_card_nsmul _ _ 2 fun pc _ => psi_le_two C s pc.1 pc.2).trans ?_
   simp only [Finset.card_product, Finset.card_univ, smul_eq_mul]
@@ -860,7 +860,7 @@ theorem pot_le (s : Level4State α) : pot C s ≤ 2 * s.tree.leaves.length * Fin
     _ = _ := by ring
 
 /-- With the same edges and no fewer records, each share is no larger. -/
-theorem psi_mono {s s' : Level4State α} {p : List Bool} {c : α} (he : s'.edges p c = s.edges p c)
+theorem psi_mono {s s' : Level5State α} {p : List Bool} {c : α} (he : s'.edges p c = s.edges p c)
     (ht : ∀ t, s.recordCount p c t ≤ s'.recordCount p c t) : psi C s' p c ≤ psi C s p c := by
   unfold psi
   rw [he]
@@ -870,13 +870,13 @@ theorem psi_mono {s s' : Level4State α} {p : List Bool} {c : α} (he : s'.edges
     have := ht t₀
     split_ifs <;> omega
 
-theorem pot_mono {s s' : Level4State α} (htr : s'.tree = s.tree)
+theorem pot_mono {s s' : Level5State α} (htr : s'.tree = s.tree)
     (hle : ∀ p c, psi C s' p c ≤ psi C s p c) : pot C s' ≤ pot C s := by
   unfold pot
   rw [htr]
   exact Finset.sum_le_sum fun pc _ => hle pc.1 pc.2
 
-theorem pot_lt {s s' : Level4State α} (htr : s'.tree = s.tree)
+theorem pot_lt {s s' : Level5State α} (htr : s'.tree = s.tree)
     (hle : ∀ p c, psi C s' p c ≤ psi C s p c)
     (hlt : ∃ p ∈ s.tree.leaves, ∃ c, psi C s' p c < psi C s p c) : pot C s' < pot C s := by
   unfold pot
@@ -885,12 +885,12 @@ theorem pot_lt {s s' : Level4State α} (htr : s'.tree = s.tree)
   exact Finset.sum_lt_sum (fun pc _ => hle pc.1 pc.2)
     ⟨(p, c), by simp [hp], h⟩
 
-theorem recordCount_mono_recordProbe (s : Level4State α) (x : FreeMonoid α) (p : List Bool) (c : α)
+theorem recordCount_mono_recordProbe (s : Level5State α) (x : FreeMonoid α) (p : List Bool) (c : α)
     (t : List Bool) : s.recordCount p c t ≤ (recordProbe C cut s x).recordCount p c t := by
   have := recordCount_recordProbe C cut s x p c t
   omega
 
-theorem psi_pre (s : Level4State α) (x : FreeMonoid α) :
+theorem psi_pre (s : Level5State α) (x : FreeMonoid α) :
     (∀ p c, psi C (recordProbe C cut s x) p c ≤ psi C s p c)
       ∧ ((recordProbe C cut s x).version ≠ s.version →
         ∃ p ∈ s.tree.leaves, ∃ c, psi C (recordProbe C cut s x) p c < psi C s p c) := by
@@ -916,7 +916,7 @@ theorem psi_pre (s : Level4State α) (x : FreeMonoid α) :
     exact hat.le
   · exact hother q c' hq
 
-theorem psi_fix {s₁ : Level4State α} {p : List Bool} {c : α} {t : List Bool}
+theorem psi_fix {s₁ : Level5State α} {p : List Bool} {c : α} {t : List Bool}
     (hvi : Violates C.recordsToMove s₁ p c t)
     (hre : (fixEdge cut C.recordsToMove s₁ p c t).tree = s₁.tree) :
     (∀ q c', psi C (fixEdge cut C.recordsToMove s₁ p c t) q c' ≤ psi C s₁ q c')
@@ -926,7 +926,7 @@ theorem psi_fix {s₁ : Level4State α} {p : List Bool} {c : α} {t : List Bool}
   · rw [ht] at hre; exact absurd hre (DTree.splitAt_ne hvi.1)
   have htal : ∀ q c' t', (fixEdge cut C.recordsToMove s₁ p c t).recordCount q c' t'
       = s₁.recordCount q c' t' := by
-    intro q c' t'; unfold Level4State.recordCount; rw [hr]
+    intro q c' t'; unfold Level5State.recordCount; rw [hr]
   have hat : psi C (fixEdge cut C.recordsToMove s₁ p c t) p c < psi C s₁ p c := by
     have h0 : psi C (fixEdge cut C.recordsToMove s₁ p c t) p c = 0 := by
       unfold psi
@@ -948,7 +948,7 @@ theorem psi_fix {s₁ : Level4State α} {p : List Bool} {c : α} {t : List Bool}
   · exact psi_mono C (by rw [hed, if_neg hq]) fun t' => (htal q c' t').ge
 
 /-- A step at the same tree lowers no share, and a new version lowers the potential. -/
-theorem pot_step {s s' : Level4State α} {x : FreeMonoid α} (h : applyProbe C cut s x = .inl s')
+theorem pot_step {s s' : Level5State α} {x : FreeMonoid α} (h : applyProbe C cut s x = .inl s')
     (htr : s'.tree = s.tree) :
     pot C s' ≤ pot C s ∧ (s'.version ≠ s.version → pot C s' < pot C s
       ∧ s'.stretchProbes = 0 ∧ s'.stretchDisagreements = 0) := by
@@ -978,19 +978,19 @@ end Pot
 
 section Records
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 open scoped Classical in
-theorem recordCount_recordProbe_le (s : Level4State α) (x : FreeMonoid α) (p : List Bool) (c : α)
+theorem recordCount_recordProbe_le (s : Level5State α) (x : FreeMonoid α) (p : List Bool) (c : α)
     (t : List Bool) :
     (recordProbe C cut s x).recordCount p c t ≤ s.recordCount p c t
       + (if ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp) then 1 else
           0) := by
-  unfold Level4State.recordCount
+  unfold Level5State.recordCount
   rcases recordProbe_recs cut C s x with ⟨-, h⟩ | ⟨p', c', t', sp, hr, h⟩
   · rw [h]; omega
   rw [h]
-  simp only [Level4State.addRecord]
+  simp only [Level5State.addRecord]
   by_cases hpc : p = p' ∧ c = c'
   · obtain ⟨rfl, rfl⟩ := hpc
     simp only [Function.update_self, List.filter_append, List.length_append]
@@ -1011,7 +1011,7 @@ theorem recordCount_recordProbe_le (s : Level4State α) (x : FreeMonoid α) (p :
     · simp [Function.update_of_ne hp]
 
 /-- With no edge violated, a probe's charge violates only its record's edge and target. -/
-theorem pre_viol {s : Level4State α} (hs : Settled C.recordsToMove s) {x : FreeMonoid α}
+theorem pre_viol {s : Level5State α} (hs : Settled C.recordsToMove s) {x : FreeMonoid α}
     {p : List Bool} {c : α} {t : List Bool}
     (hv : Violates C.recordsToMove (recordProbe C cut s x) p c t) :
     ∃ sp, recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp) := by
@@ -1032,7 +1032,7 @@ theorem pre_viol {s : Level4State α} (hs : Settled C.recordsToMove s) {x : Free
     · rwa [hed, if_neg hq] at hne
 
 /-- A step at the same tree keeps every edge unviolated. -/
-theorem settled_step {s s' : Level4State α} {x : FreeMonoid α} (hs : Settled C.recordsToMove s)
+theorem settled_step {s s' : Level5State α} {x : FreeMonoid α} (hs : Settled C.recordsToMove s)
     (h : applyProbe C cut s x = .inl s') (htr : s'.tree = s.tree) : Settled C.recordsToMove s' := by
   have htr₁ := (recordProbe_cases cut C s x).1
   rcases applyProbe_cases cut C h with ⟨e, -, he⟩ | ⟨-, hst⟩
@@ -1056,7 +1056,7 @@ theorem settled_step {s s' : Level4State α} {x : FreeMonoid α} (hs : Settled C
     obtain ⟨hq, hne, hle⟩ := hv'
     have htal : (fixEdge cut C.recordsToMove (recordProbe C cut s x) p c t).recordCount q c' t'
         = (recordProbe C cut s x).recordCount q c' t' := by
-      unfold Level4State.recordCount; rw [hr]
+      unfold Level5State.recordCount; rw [hr]
     rw [htal] at hle
     rw [hft] at hq
     by_cases hqc : (q, c') = (p, c)
@@ -1082,15 +1082,15 @@ theorem settled_step {s s' : Level4State α} {x : FreeMonoid α} (hs : Settled C
   · cases he
 
 /-- The probes that record against the hypothesis of `s` at an edge and target of `K`. -/
-def recIn (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level4State α) :
+def recIn (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level5State α) :
     Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy cut C.walkStart (s.tree, s.edges) x = some (pct, sp) ∧ pct ∈ K s.tree}
 
 /-- The records the edges and targets of `K` hold, each counted up to `m`. -/
-noncomputable def phi (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level4State α) : ℕ :=
+noncomputable def phi (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level5State α) : ℕ :=
   ∑ pct ∈ K s.tree, min (s.recordCount pct.1 pct.2.1 pct.2.2) C.recordsToMove
 
-theorem phi_le (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level4State α) :
+theorem phi_le (K : DTree α → Finset (List Bool × α × List Bool)) (s : Level5State α) :
     phi C K s ≤ (K s.tree).card * C.recordsToMove := by
   unfold phi
   refine (Finset.sum_le_card_nsmul _ _ C.recordsToMove fun _ _ => min_le_right _ _).trans ?_
@@ -1099,12 +1099,12 @@ theorem phi_le (K : DTree α → Finset (List Bool × α × List Bool)) (s : Lev
 open scoped Classical in
 /-- A step at the same tree lowers no count, and its record at an edge and target of `K` raises
 one. -/
-theorem phi_step (K : DTree α → Finset (List Bool × α × List Bool)) {s s' : Level4State α}
+theorem phi_step (K : DTree α → Finset (List Bool × α × List Bool)) {s s' : Level5State α}
     {x : FreeMonoid α} (hs : Settled C.recordsToMove s) (he : EdgesInto s.tree s.edges)
     (h : applyProbe C cut s x = .inl s') (htr : s'.tree = s.tree) :
     phi C K s + (if x ∈ recIn C cut K s then 1 else 0) ≤ phi C K s' := by
   have htal : ∀ p c t, s'.recordCount p c t = (recordProbe C cut s x).recordCount p c t := by
-    intro p c t; unfold Level4State.recordCount; rw [applyProbe_recs C cut h htr]
+    intro p c t; unfold Level5State.recordCount; rw [applyProbe_recs C cut h htr]
   have hmono : ∀ pct : List Bool × α × List Bool, min (s.recordCount pct.1 pct.2.1
       pct.2.2) C.recordsToMove
       ≤ min (s'.recordCount pct.1 pct.2.1 pct.2.2) C.recordsToMove := fun pct =>
@@ -1137,7 +1137,7 @@ theorem phi_step (K : DTree α → Finset (List Bool × α × List Bool)) {s s' 
 /-- A step at the same tree keeps edges into its leaves, records at them and every edge
 unviolated, lowers no share of the potential, keeps the edges with the version, and otherwise
 lowers the potential with a fresh stretch. -/
-theorem same_step (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
+theorem same_step (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
     (he : EdgesInto s.tree s.edges) (hr : RecsInto s) (hs : Settled C.recordsToMove s)
     (h : applyProbe C cut s x = .inl s') (htr : s'.tree = s.tree) :
     EdgesInto s'.tree s'.edges ∧ RecsInto s' ∧ Settled C.recordsToMove s' ∧ pot C s' ≤ pot C s
@@ -1160,7 +1160,7 @@ end Records
 
 section TrueKeys
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
 
 /-- The edges and targets of true records: a state's true leaf, a letter, and the true leaf of
 its successor. -/
@@ -1173,7 +1173,7 @@ theorem trueKeys_card (T : DTree α) :
   Finset.card_image_le.trans (by simp)
 
 /-- A record is at an edge and target of a true record, or is not true. -/
-theorem rec_true (rd : FreeMonoid α → ARU) {s : Level4State α} {x : FreeMonoid α}
+theorem rec_true (rd : FreeMonoid α → ARU) {s : Level5State α} {x : FreeMonoid α}
     (h : x ∈ recAt C (fun z => (rd z).cut) s) :
     x ∈ recIn C (fun z => (rd z).cut) (trueKeys G) s
         ∨ x ∈ G.untrueAt rd C.walkStart s.tree s.edges := by
@@ -1187,7 +1187,7 @@ theorem rec_true (rd : FreeMonoid α → ARU) {s : Level4State α} {x : FreeMono
   · exact .inr ⟨_, sp, hr, ht⟩
 
 theorem subOpen_zero (rd : FreeMonoid α → ARU) :
-    ∀ (j : ℕ) (s : Level4State α) (T : ℕ) (xs : Fin T → FreeMonoid α), ¬ SubOpen G C rd s 0 j T xs
+    ∀ (j : ℕ) (s : Level5State α) (T : ℕ) (xs : Fin T → FreeMonoid α), ¬ SubOpen G C rd s 0 j T xs
   | 0, _, _, _ => by simp [SubOpen]
   | _ + 1, _, 0, _ => by simp [SubOpen]
   | j + 1, s, T + 1, xs => by
@@ -1199,7 +1199,7 @@ end TrueKeys
 
 section Open
 
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level4Settings)
+variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
   (cut : FreeMonoid α → Option Bool) (S : ℕ) (D : Measure (FreeMonoid α)) (θr : ℝ)
 
 open scoped Classical in
@@ -1207,8 +1207,8 @@ open scoped Classical in
 least `θr` of the time, and fewer than `B` records that are not true still allowed: it continues
 at the same version, or the stretch ends at a new version of the same tree (`some true`), with the
 sub-round or the allowance (`some false`), or out of probes (`none`). -/
-noncomputable def segR (rd : FreeMonoid α → ARU) : Level4State α × ℕ × ℕ × ℕ → FreeMonoid α →
-    (Level4State α × ℕ × ℕ × ℕ) ⊕ (Option Bool × (Level4State α × ℕ × ℕ × ℕ))
+noncomputable def segR (rd : FreeMonoid α → ARU) : Level5State α × ℕ × ℕ × ℕ → FreeMonoid α →
+    (Level5State α × ℕ × ℕ × ℕ) ⊕ (Option Bool × (Level5State α × ℕ × ℕ × ℕ))
   | (s, 0, r, B), _ => .inr (none, (s, 0, r, B))
   | (s, b + 1, r, B), x =>
     match applyProbe C (fun z => (rd z).cut) s x with
@@ -1264,7 +1264,7 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
     (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
     (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
     (hφn : C.searchShare * nEnd ≤ hS + 1) :
-    ∀ (v : ℕ) (s : Level4State α) (r B b T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
+    ∀ (v : ℕ) (s : Level5State α) (r B b T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
       RecsInto s → Settled C.recordsToMove s → s.stretchProbes = 0 → s.stretchDisagreements = 0
           → pot C s ≤ v →
       (v + 1) * nEnd + r ≤ b → b ≤ T →
@@ -1273,7 +1273,7 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
           + (1 - binomSfGe r θr ((trueKeys G s.tree).card * C.recordsToMove + B
               - phi C (trueKeys G) s))) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
+  set U : Level5State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
       with hU
   set τ := termLevel nEnd hP hS θpt' εd'
   have hτ0 : 0 ≤ τ := termLevel_nonneg hθpt'0 hθpt'1 hεd'0 hεd'1
@@ -1287,12 +1287,12 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
   have hh00 : ∀ k, 0 < k → h 0 k = 1 := fun k hk => by
     obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
     simp [h, binomSfGe_zero_left]
-  set kk : Level4State α → ℕ → ℕ := fun s' B => (trueKeys G s'.tree).card * C.recordsToMove + B
+  set kk : Level5State α → ℕ → ℕ := fun s' B => (trueKeys G s'.tree).card * C.recordsToMove + B
     - phi C (trueKeys G) s' with hkk
   have hkk_pos : ∀ s' B, 0 < B → 0 < kk s' B := fun s' B hB => by
     have := phi_le C (trueKeys G) s'
     simp only [kk]; omega
-  have hkk_step : ∀ {s' s'' : Level4State α} {x : FreeMonoid α}
+  have hkk_step : ∀ {s' s'' : Level5State α} {x : FreeMonoid α}
       (B : ℕ), Settled C.recordsToMove s' →
       EdgesInto s'.tree s'.edges → applyProbe C cut s' x = .inl s'' → s''.tree = s'.tree →
       (x ∈ U s' → 1 < B) →
@@ -1324,16 +1324,16 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
   · have : {xs : Fin T → FreeMonoid α | SubOpen G C rd s 0 b T xs} = ∅ := by
       ext xs; simpa using subOpen_zero G C rd b s T xs
     rw [this, measure_empty]; exact zero_le
-  set Inv : Level4State α → Prop := fun s' => G.InClass S s'.tree ∧ EdgesInto s'.tree s'.edges
+  set Inv : Level5State α → Prop := fun s' => G.InClass S s'.tree ∧ EdgesInto s'.tree s'.edges
     ∧ RecsInto s' ∧ Settled C.recordsToMove s' ∧ s'.stretchProbes = 0 ∧ s'.stretchDisagreements = 0
-  set w : Option Bool → Level4State α × ℕ × ℕ × ℕ → ℕ → ENNReal := fun k sb T' => match k with
+  set w : Option Bool → Level5State α × ℕ × ℕ × ℕ → ℕ → ENNReal := fun k sb T' => match k with
     | none => 1
     | some false => 0
     | some true => if Inv sb.1 ∧ pot C sb.1 < v ∧ v * nEnd + sb.2.2.1 ≤ sb.2.1 ∧ sb.2.1 ≤ T'
         then ENNReal.ofReal (v * τ + h sb.2.2.1 (kk sb.1 sb.2.2.2)) else 1
-  set F : Level4State α × ℕ × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
+  set F : Level5State α × ℕ × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
     fun sb T xs => SubOpen G C rd sb.1 sb.2.2.2 sb.2.1 T xs
-  set V : Option Bool → Level4State α × ℕ × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
+  set V : Option Bool → Level5State α × ℕ × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop :=
     fun k sb T xs => match k with
     | none => 0 < sb.2.2.2
     | some false => False
@@ -1371,13 +1371,13 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
           rw [Nat.cast_sub (by omega)]; push_cast; ring] at this
       · exact prob_le_one
   have hseg := fun j => seg_le D (segR G C D θr rd) F V w hF hV T (s, b, r, B) j
-  have hrecAt : ∀ s' : Level4State α, s'.tree = s.tree → s'.edges = s.edges →
+  have hrecAt : ∀ s' : Level5State α, s'.tree = s.tree → s'.edges = s.edges →
       recAt C cut s' = recAt C cut s := by
     intro s' htr hed; simp only [recAt, htr, hed]
   have hvn : (v + 1) * nEnd = v * nEnd + nEnd := by ring
   by_cases htype : θr ≤ D.real (recAt C cut s)
   swap
-  · have hpt : ∀ j (s' : Level4State α) (b' B' T' : ℕ) (xs : Fin T' → FreeMonoid α),
+  · have hpt : ∀ j (s' : Level5State α) (b' B' T' : ℕ) (xs : Fin T' → FreeMonoid α),
         s'.tree = s.tree → s'.edges = s.edges → EdgesInto s'.tree s'.edges → RecsInto s' →
         Settled C.recordsToMove s' → pot C s' ≤ v → kk s' B' ≤ kk s B → v * nEnd + r + j ≤ b'
             → b' ≤ T' →
@@ -1468,7 +1468,7 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
     have h1M : (1 : ENNReal) ≤ ENNReal.ofReal (v * τ + 1) := by
       have hvt : 0 ≤ (v : ℝ) * τ := by positivity
       rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (by linarith)
-    have key : ∀ j (s' : Level4State α) (b' r' B' T' : ℕ), s'.tree = s.tree → s'.edges = s.edges →
+    have key : ∀ j (s' : Level5State α) (b' r' B' T' : ℕ), s'.tree = s.tree → s'.edges = s.edges →
         EdgesInto s'.tree s'.edges → RecsInto s' → Settled C.recordsToMove s' → pot C s' ≤ v
             → 0 < B' →
         b' < j → (v + 1) * nEnd + r' ≤ b' → b' ≤ T' →
@@ -1495,7 +1495,7 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
         have hA0 : 0 ≤ A := hh0 _ _
         have hAB : A ≤ Bv := hhk r'' c₁ c (by omega)
         set E := recAt C cut s' with hE_def
-        have hcaseval : ∀ x (s'' : Level4State α), applyProbe C cut s' x = .inl s'' →
+        have hcaseval : ∀ x (s'' : Level5State α), applyProbe C cut s' x = .inl s'' →
             s''.tree = s'.tree → (x ∈ U s' → 1 < B') →
             ENNReal.ofReal (v * τ + h r'' (kk s'' (if x ∈ U s' then B' - 1 else B')))
               ≤ E.indicator (fun _ => ENNReal.ofReal (v * τ + A)) x
@@ -1601,9 +1601,9 @@ theorem sub_round_holds : SubRound := by
     gcongr
   have hset : Settled C.recordsToMove s := fun p c t hv => by
     have := hv.2.2
-    simp [Level4State.recordCount, hrecs] at this
+    simp [Level5State.recordCount, hrecs] at this
     omega
-  have hphi : phi C (trueKeys G) s = 0 := by simp [phi, Level4State.recordCount, hrecs]
+  have hphi : phi C (trueKeys G) s = 0 := by simp [phi, Level5State.recordCount, hrecs]
   refine (open_le G C S D θr rd hm hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
     hθr0 hθr1 hhP hhS hhS' hφn _ s nRec B _ T hc he hr hset hn hd hpot le_rfl hT).trans ?_
   refine ENNReal.ofReal_le_ofReal ?_

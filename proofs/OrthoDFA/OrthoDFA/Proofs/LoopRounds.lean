@@ -13,7 +13,7 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-  (D : Measure (FreeMonoid α)) (draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget)
+  (D : Measure (FreeMonoid α)) (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget)
 
 /-- The populations `rounds` harvested, in order, their samplers drawing from `D` walked from
 `k`. -/
@@ -31,7 +31,7 @@ lemma loopRounds_succ (r : ℕ) :
       if h : r < K ∧ AllHarvested (loopRounds settings O D draws r) then
         loopRounds settings O D draws r
           ++ [loopRound settings O D
-            (harvestsOf D settings.level4.walkStart (loopRounds settings O D draws r))
+            (harvestsOf D settings.level5.walkStart (loopRounds settings O D draws r))
             (draws ⟨r, h.1⟩)]
       else loopRounds settings O D draws r := by
   rw [loopRounds]; rfl
@@ -81,7 +81,7 @@ lemma harvested_of_lt (r i : ℕ) (hi : i + 1 < (loopRounds settings O D draws r
 /-- Round `i` is run on the harvests of the rounds before it, from round `i`'s draws. -/
 lemma getElem_loopRounds (r i : ℕ) (hi : i < (loopRounds settings O D draws r).length) :
     ∃ hK : i < K, (loopRounds settings O D draws r)[i] = loopRound settings O D
-      (harvestsOf D settings.level4.walkStart ((loopRounds settings O D draws r).take i))
+      (harvestsOf D settings.level5.walkStart ((loopRounds settings O D draws r).take i))
         (draws ⟨i, hK⟩) := by
   induction r with
   | zero => simp [loopRounds] at hi
@@ -121,7 +121,7 @@ lemma loopRounds_stops :
     simp
 
 /-- The first `r` rounds are run on the first `r` rounds' draws. -/
-lemma loopRounds_congr (draws' : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget) :
+lemma loopRounds_congr (draws' : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) :
     ∀ r : ℕ, (∀ i : Fin K, i.val < r → draws i = draws' i) →
       loopRounds settings O D draws r = loopRounds settings O D draws' r
   | 0, _ => rfl

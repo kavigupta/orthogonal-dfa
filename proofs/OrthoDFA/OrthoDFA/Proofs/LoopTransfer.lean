@@ -1,10 +1,10 @@
-import OrthoDFA.Proofs.Level4Avoid
+import OrthoDFA.Proofs.Level5Avoid
 import OrthoDFA.Proofs.LoopLaw
 
 /-!
 # From the avoiding probes back to all of them
 
-Level 4 draws its probes from `D` conditioned on avoiding a set `K₀` of first `k` letters, which
+Level 5 draws its probes from `D` conditioned on avoiding a set `K₀` of first `k` letters, which
 removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds search and harvest the same at every
 avoiding probe, so a claim about one read over the conditioned probes is a claim about the other
 over all of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks
@@ -31,13 +31,13 @@ def QuarterEndsWell {σ H : Type*} (M : _root_.DFA α σ) (bad : σ → Prop)
       ∧ Spread D k (law h) ∧ Yields (law h) y
   | .failed => False
 
-/-- The probes level 4 may draw. -/
+/-- The probes level 5 may draw. -/
 def avoiding (k : ℕ) (K₀ : Set (FreeMonoid α)) : Set (FreeMonoid α) := {x | Avoids k K₀ x}
 
 open scoped Classical in
 /-- Over the versions, the strings in `S` a probe harvests, summed over `ν`. -/
 def siteSum (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool) (k : ℕ)
-    (h : Level4Harvest α) (S : Set (FreeMonoid α)) : ℝ :=
+    (h : Level5Harvest α) (S : Set (FreeMonoid α)) : ℝ :=
   (h.versions.map fun v => ∫ x,
     (((siteHarvest cut k h.site v x).filter (· ∈ S)).length : ℝ) ∂ν).sum
 
@@ -52,7 +52,7 @@ lemma list_sum_map_add' {β : Type*} (l : List β) (f g : β → ℝ) :
 
 lemma harvestLaw_real_siteSum (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
     (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (h : Level4Harvest α) (S : Set (FreeMonoid α)) :
+    (h : Level5Harvest α) (S : Set (FreeMonoid α)) :
     (harvestLaw ν cut k h).real S = siteSum ν cut k h S / h.versions.length := by
   classical
   rw [harvestLaw_real ν cut k hlen h S]
@@ -60,7 +60,7 @@ lemma harvestLaw_real_siteSum (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν
 
 lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (h : Level4Harvest α) (S A : Set (FreeMonoid α)) :
+    (h : Level5Harvest α) (S A : Set (FreeMonoid α)) :
     siteSum D cut k h S = siteSum (D.restrict A) cut k h S + siteSum (D.restrict Aᶜ) cut k h S := by
   classical
   unfold siteSum
@@ -71,7 +71,7 @@ lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ}
     (integrable_siteCount D cut k hlen h.site v _)).symm
 
 lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {cut cut' : FreeMonoid α → Option Bool}
-    (hc : AgreeOff k K₀ cut cut') (h : Level4Harvest α) (S : Set (FreeMonoid α)) :
+    (hc : AgreeOff k K₀ cut cut') (h : Level5Harvest α) (S : Set (FreeMonoid α)) :
     siteSum (D.restrict (avoiding k K₀)) cut k h S
       = siteSum (D.restrict (avoiding k K₀)) cut' k h S := by
   classical
@@ -82,7 +82,7 @@ lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {cut cut' : FreeMonoi
   simp only [siteHarvest_congr_off hc h.site v hx]
 
 lemma siteSum_smul (ν : Measure (FreeMonoid α)) (c : ENNReal) (cut : FreeMonoid α → Option Bool)
-    (h : Level4Harvest α) (S : Set (FreeMonoid α)) :
+    (h : Level5Harvest α) (S : Set (FreeMonoid α)) :
     siteSum (c • ν) cut k h S = c.toReal * siteSum ν cut k h S := by
   classical
   unfold siteSum
@@ -92,14 +92,14 @@ lemma siteSum_smul (ν : Measure (FreeMonoid α)) (c : ENNReal) (cut : FreeMonoi
   | cons a l ih => simp [ih]; ring
 
 lemma siteSum_nonneg (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool)
-    (h : Level4Harvest α) (S : Set (FreeMonoid α)) : 0 ≤ siteSum ν cut k h S :=
+    (h : Level5Harvest α) (S : Set (FreeMonoid α)) : 0 ≤ siteSum ν cut k h S :=
   List.sum_nonneg fun a ha => by
     obtain ⟨v, -, rfl⟩ := List.mem_map.1 ha
     exact integral_nonneg fun _ => Nat.cast_nonneg _
 
 lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
     (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (h : Level4Harvest α) (S : Set (FreeMonoid α)) :
+    (h : Level5Harvest α) (S : Set (FreeMonoid α)) :
     siteSum ν cut k h S ≤ h.versions.length * ((L + 1) * ν.real Set.univ) := by
   classical
   unfold siteSum
@@ -134,7 +134,7 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
     {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) {read read' : FreeMonoid α → ARU}
     (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : Hypothesis α)
-    (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd (Level4Harvest α))
+    (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd (Level5Harvest α))
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
     (hmc : (L + 1) * D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
     (h : EndsWell M bad (popLaw (D.restrict (avoiding k K₀))) ε (searchingProbes read' k H) k
@@ -168,7 +168,7 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
   set cut := fun z => (read z).cut
   set cut' := fun z => (read' z).cut
   -- the sums at `D` against those at `D'`
-  have hsum : ∀ (hv : Level4Harvest α) (S : Set (FreeMonoid α)),
+  have hsum : ∀ (hv : Level5Harvest α) (S : Set (FreeMonoid α)),
       siteSum D cut k hv S = (1 - m) * siteSum D' cut' k hv S + siteSum (D.restrict Aᶜ) cut k hv S := by
     intro hv S
     have hc' : siteSum (D.restrict A) cut k hv S = siteSum (D.restrict A) cut' k hv S :=

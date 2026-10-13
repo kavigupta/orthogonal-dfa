@@ -1,15 +1,15 @@
 import OrthoDFA.Proofs.LoopE2Pre
-import OrthoDFA.Proofs.Level4Correct
+import OrthoDFA.Proofs.Level5Correct
 import OrthoDFA.Proofs.BandWide
 
 /-!
-# A round's level 4 on one noise
+# A round's level 5 on one noise
 
-Level 4 reads, at probes avoiding the clustering's prefixes, only strings the clustering did not.
+Level 5 reads, at probes avoiding the clustering's prefixes, only strings the clustering did not.
 Where the clustering's reads are re-noised it reads a fresh family on probes from `D` conditioned
-to avoid them, so its guarantee holds there (`level4_bad_exists`), and the actual run is the same
+to avoid them, so its guarantee holds there (`level5_bad_exists`), and the actual run is the same
 run. Transferred back to `D` it ends well, and off a collision it does so with the chance it has on
-fresh noise (`loop_level4_round_le_persist`).
+fresh noise (`loop_level5_round_le_persist`).
 -/
 
 noncomputable section
@@ -69,7 +69,7 @@ lemma unionLog_nonneg {σ : Type*} [Fintype σ] [Nonempty α] (S : ℕ) {δ : �
   rw [le_div_iff₀ hδ]
   nlinarith
 
-/-- The strings level 4 reads at a probe whose first `k` letters avoid `K₀`. -/
+/-- The strings level 5 reads at a probe whose first `k` letters avoid `K₀`. -/
 def offReads (k : ℕ) (K₀ F : Finset (FreeMonoid α)) : Set (FreeMonoid α) :=
   {w | ∃ z, KeyOff k ↑K₀ z ∧ ∃ v ∈ F, w = z * v}
 
@@ -91,49 +91,49 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
   (settings : LoopSettings K)
 
 include hL in
-/-- At a state and family, level 4's bad draws: where it fails at re-noised clustering reads.
-Its chance is at most `δ`, it is fixed by the answers at the strings level 4 reads off the
+/-- At a state and family, level 5's bad draws: where it fails at re-noised clustering reads.
+Its chance is at most `δ`, it is fixed by the answers at the strings level 5 reads off the
 clustering's prefixes, and off it the actual round meets its claim. -/
-theorem level4_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
-    (hmax : settings.level4.maxLeaves = Fintype.card σ + S + 3)
-    (hk : 1 ≤ settings.level4.walkStart) (hrec : 1 ≤ settings.level4.recordsToMove)
-    (hdis : settings.level4.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
+theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
+    (hmax : settings.level5.maxLeaves = Fintype.card σ + S + 3)
+    (hk : 1 ≤ settings.level5.walkStart) (hrec : 1 ≤ settings.level5.recordsToMove)
+    (hdis : settings.level5.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
     (hθ : 384 * (P.L + 1) * (Fintype.card σ + S + 1) * θ ≤ 1)
     (hε : (P.L + 1) * (Fintype.card σ + S + 1) * crossLimit
-      + 3 * unionLog (α := α) σ S δ * (2 * prefixMax P.D settings.level4.walkStart) ≤ y)
+      + 3 * unionLog (α := α) σ S δ * (2 * prefixMax P.D settings.level5.walkStart) ≤ y)
     (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 2) (hmc : (P.L + 1) * m ≤ y / 2)
-    (hlevel4 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
+    (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
       let n : ℝ := Fintype.card σ + S
       let A : ℝ := Fintype.card α
       let bad := fun q => ¬ O'.Good θ q
       0 ≤ θ → 384 * (P'.L + 1) * (n + 1) * θ ≤ 1 →
       0 < O'.κ → 4 * O'.κ * (8 * (n + 3) * (P'.L + 1) * Real.sqrt (A * y / 3) + 1) ≤ y →
       0 ≤ O'.ε → (P'.L + 1) * (n + 1) * O'.ε
-        + 3 * unionLog (α := α) σ S δ * prefixMax P'.D settings.level4.walkStart ≤ y →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level4.probeBudget => P'.D)
-          {draws | let result := indecisiveLStarLevel4 settings.level4 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D settings.level4.disagreementRate
-              (searchingProbes (O'.read · ω) settings.level4.walkStart result.hypothesis)
-              settings.level4.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level4.walkStart)
+        + 3 * unionLog (α := α) σ S δ * prefixMax P'.D settings.level5.walkStart ≤ y →
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
+          {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
+            ¬ EndsWell M bad P'.D settings.level5.disagreementRate
+              (searchingProbes (O'.read · ω) settings.level5.walkStart result.hypothesis)
+              settings.level5.walkStart
+              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart)
               y result.ending} ∂(μ.prod μ)
         ≤ ENNReal.ofReal δ)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
       BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
-    (hK₀ : K₀.card * prefixMax P.D settings.level4.walkStart ≤ m) :
-    ∃ Bd : Set (Ω × (Fin settings.level4.probeBudget → unitInterval)), MeasurableSet Bd
+    (hK₀ : K₀.card * prefixMax P.D settings.level5.walkStart ≤ m) :
+    ∃ Bd : Set (Ω × (Fin settings.level5.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal δ
-      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level4.maxLeaves)
-          (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level4.maxLeaves))
-          settings.level4.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
+      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level5.maxLeaves)
+          (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level5.maxLeaves))
+          settings.level5.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
       ∧ ∀ x₀ ω u, (ω, u) ∉ Bd →
-        Level4Spec M O P θ εd (y / 2) settings.level4.walkStart
+        Level5Spec M O P θ εd (y / 2) settings.level5.walkStart
           (mkRound settings O P.D x₀ B F K₀ (ω, u)) := by
   classical
-  set C := settings.level4 with hCdef
+  set C := settings.level5 with hCdef
   set k := C.walkStart
   set T := C.probeBudget
   have hC : 2 ≤ C.maxLeaves := by rw [hmax]; omega
@@ -181,7 +181,7 @@ theorem level4_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     have := mul_le_mul_of_nonneg_left hpm (by positivity : (0 : ℝ) ≤ 3 * unionLog (α := α) σ S δ)
     simp only [n] at this ⊢
     linarith
-  have h4 := hlevel4 P' rfl fam'.oracle θ hθ0 hθ hκ₀ hκ₀W hcross.le hε'
+  have h4 := hlevel5 P' rfl fam'.oracle θ hθ0 hθ hκ₀ hκ₀W hcross.le hε'
   set Sf := l4Fail fam' C D' θ y
   have hSm : MeasurableSet Sf := measurableSet_l4Fail fam' C hC D' θ y
   have hS : ((μ.prod μ).prod (Measure.pi fun _ : Fin T => D')) Sf ≤ ENNReal.ofReal δ := by
@@ -223,17 +223,17 @@ theorem level4_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     intro x₀ ω u hnot
     have hE : EndsWell M (fun q => ¬ fam'.oracle.Good θ q) D' C.disagreementRate
         (searchingProbes (fun z => fam'.read (ω, ω₀) z) k
-          (indecisiveLStarLevel4 C (fun z => fam'.read (ω, ω₀) z)
+          (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
             (probesOf settings P.D K₀ u)).hypothesis) k
         (harvestLaw D' (fun z => (fam'.read (ω, ω₀) z).cut) k) y
-        (indecisiveLStarLevel4 C (fun z => fam'.read (ω, ω₀) z)
+        (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
           (probesOf settings P.D K₀ u)).ending := by
       by_contra hc
       exact hnot hc
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
     have hoff : ∀ z, KeyOff k ↑K₀ z → read z = fam'.read (ω, ω₀) z := fun z hz =>
       (renoise_read_of_notMem fam R (fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩) (ω, ω₀)).symm
-    have hres := level4_congr_off C hrec (probesOf settings P.D K₀ u)
+    have hres := level5_congr_off C hrec (probesOf settings P.D K₀ u)
       (fun i => drawFrom_avoids P.D hk K₀ (u i)) hoff
     have hmc' : (P.L + 1) * m' ≤ (1 - m') * y := by
       have := mul_le_mul_of_nonneg_left hm' (by positivity : (0 : ℝ) ≤ P.L + 1)
@@ -241,8 +241,8 @@ theorem level4_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     have hq := quarterEndsWell_of_endsWell P.D P.length_le M (fun q => ¬ fam'.oracle.Good θ q)
       (k := k) (K₀ := ↑K₀) (read := read) (read' := fun z => fam'.read (ω, ω₀) z)
       (fun z hz => by dsimp only; rw [hoff z hz])
-      (indecisiveLStarLevel4 C read (probesOf settings P.D K₀ u)).hypothesis (εd / 2) y hy.le
-      (indecisiveLStarLevel4 C read (probesOf settings P.D K₀ u)).ending (by linarith) hmc'
+      (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis (εd / 2) y hy.le
+      (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).ending (by linarith) hmc'
       (by rw [hres]; rw [← hdis]; exact hE)
     have hq' := hq.mono (ε' := εd) (y' := y / 2) (by linarith) (by nlinarith)
     have hbad : (fun q => ¬ fam'.oracle.Good θ q)

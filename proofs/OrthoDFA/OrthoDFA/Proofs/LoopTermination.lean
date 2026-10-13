@@ -1,11 +1,11 @@
 import OrthoDFA.Proofs.LoopTransfer
 import OrthoDFA.Proofs.FamilyRead
-import OrthoDFA.Proofs.Level4Law
+import OrthoDFA.Proofs.Level5Law
 
 /-!
 # The loop stops in agreement once its rounds meet their claims
 
-A round's claims are the clustering's (`ClusterSpec`) and level 4's (`Level4Spec`), the latter's
+A round's claims are the clustering's (`ClusterSpec`) and level 5's (`Level5Spec`), the latter's
 bad states those the round's family leaves undecided more than `1.5θ` of the time. A harvest
 whose sampler finds more than a quarter of what it finds at bad states hands on a population more
 than `1/(4|Q|)` of which is at one of them. Every later family is held by the FNR gate to
@@ -224,17 +224,17 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
               (familyAt O.mq (loopPopulations K harvests.length) x B) p
             ∂(loopDistributions D harvests j) ≤ 2 * settings.indecisionLimit + slack
 
-/-- What the loop needs of level 4 at a round: it ends well, a quarter of its harvest's sampler at
+/-- What the loop needs of level 5 at a round: it ends well, a quarter of its harvest's sampler at
 bad states and the sampler yielding `y`, a state being bad where the round's family leaves it
 undecided more than `1.5θ` of the time. -/
-def Level4Spec (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+def Level5Spec (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
     (θ εd y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   QuarterEndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D εd
     (searchingProbes o.read k o.result.hypothesis) k (harvestLaw P.D (fun z => (o.read z).cut) k)
     y o.result.ending
 
-/-- The goodness level the loop runs level 4's claim at. -/
+/-- The goodness level the loop runs level 5's claim at. -/
 def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
   8 * Fintype.card σ * (2 * indecisionLimit + slack) / 3
 
@@ -244,7 +244,7 @@ section RoundFacts
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
   (harvests : List (Measure (FreeMonoid α)))
-  (d : LoopRoundDraws Ω α K settings.level4.probeBudget)
+  (d : LoopRoundDraws Ω α K settings.level5.probeBudget)
 
 lemma loopRound_returns
     (h : ∃ B ∈ settings.schedule (loopPopulations K harvests.length),
@@ -296,14 +296,14 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (settings : LoopSettings K)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget) (k : ℕ)
-    (hk : settings.level4.walkStart = k) (εcov slack εd y : ℝ) (hK : Fintype.card σ + 1 ≤ K)
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (k : ℕ)
+    (hk : settings.level5.walkStart = k) (εcov slack εd y : ℝ) (hK : Fintype.card σ + 1 ≤ K)
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
     (hspec : ∀ i (hi : i < (loopRounds settings O P.D draws K).length), i ≤ Fintype.card σ →
       ClusterSpec settings O P.D εcov slack
           (harvestsOf P.D k ((loopRounds settings O P.D draws K).take i))
           (loopRounds settings O P.D draws K)[i].run
-        ∧ Level4Spec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
+        ∧ Level5Spec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
           (loopRounds settings O P.D draws K)[i]) :
     (indecisiveLStarLoop settings O P.D draws).length ≤ Fintype.card σ + 1
       ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D draws).getLast?,
@@ -337,7 +337,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     intro i hi hiσ hn
     obtain ⟨hlh, h1, hmis, hund⟩ := hround i hi hiσ
     have h4 := (hspec i hi hiσ).2
-    simp only [Level4Spec] at h4
+    simp only [Level5Spec] at h4
     have hcons : L[i].result.ending = .consistent ∧
         P.D.real (searchingProbes L[i].read k L[i].result.hypothesis) ≤ εd := by
       rcases hE : L[i].result.ending with _ | zs | _
@@ -407,7 +407,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           ∧ 1 < 4 * Fintype.card σ * (ν i hi).real {z | M.eval z.toList = q} := by
         intro i hi
         have h4 := (hspec i (by omega) hi).2
-        simp only [Level4Spec] at h4
+        simp only [Level5Spec] at h4
         have he : (L[i]'(by omega)).result.ending = .harvest (hv i hi) := by
           have := hzs i hi
           revert this

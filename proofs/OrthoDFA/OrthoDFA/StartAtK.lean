@@ -64,7 +64,7 @@ noncomputable def midfixes : DTree α → Finset (FreeMonoid α)
 
 end DTree
 
-/-- Main's search result as level 4's outcome, over the walk `ps`. -/
+/-- Main's search result as level 5's outcome, over the walk `ps`. -/
 def searchOutcome (ps : List (List Bool)) : SearchResult → Outcome α
   | .undecidedMid j => .undecidedMid j
   | .edge j => .edge ps j

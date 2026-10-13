@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.QueryTree
-import OrthoDFA.Proofs.Level4Walk
+import OrthoDFA.Proofs.Level5Walk
 
 /-!
 # A probe as a query tree

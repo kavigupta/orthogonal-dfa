@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4True
+import OrthoDFA.Proofs.Level5True
 
 /-!
 # The class is finite

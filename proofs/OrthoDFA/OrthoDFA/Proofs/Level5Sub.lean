@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4True
+import OrthoDFA.Proofs.Level5True
 import OrthoDFA.Proofs.SubCompose
 
 /-!
@@ -43,11 +43,11 @@ section Steps
 variable (cut : FreeMonoid α → Option Bool)
 
 /-- Every record's target is a leaf. -/
-def RecsInto (s : Level4State α) : Prop := ∀ q c r, r ∈ s.records q c → r.2 ∈ s.tree.leaves
+def RecsInto (s : Level5State α) : Prop := ∀ q c r, r ∈ s.records q c → r.2 ∈ s.tree.leaves
 
-theorem setEdge_eq (s : Level4State α) (p : List Bool) (c : α) (e) (q : List Bool) (c' : α) :
+theorem setEdge_eq (s : Level5State α) (p : List Bool) (c : α) (e) (q : List Bool) (c' : α) :
     (s.setEdge p c e).edges q c' = if (q, c') = (p, c) then some e else s.edges q c' := by
-  unfold Level4State.setEdge
+  unfold Level5State.setEdge
   by_cases hq : q = p
   · subst hq
     by_cases hc : c' = c
@@ -55,7 +55,7 @@ theorem setEdge_eq (s : Level4State α) (p : List Bool) (c : α) (e) (q : List B
     · simp [hc]
   · simp [hq]
 
-theorem setEdge_into {s : Level4State α} (he : EdgesInto s.tree s.edges) {p : List Bool} {c : α}
+theorem setEdge_into {s : Level5State α} (he : EdgesInto s.tree s.edges) {p : List Bool} {c : α}
     {t : List Bool} {w : FreeMonoid α} (ht : t ∈ s.tree.leaves) :
     EdgesInto (s.setEdge p c (t, w)).tree (s.setEdge p c (t, w)).edges := by
   intro q e t' w' h
@@ -66,10 +66,10 @@ theorem setEdge_into {s : Level4State α} (he : EdgesInto s.tree s.edges) {p : L
     exact ht
   · exact he _ _ _ _ h
 
-theorem addRecord_into {s : Level4State α} (hr : RecsInto s) {p : List Bool} {c : α}
+theorem addRecord_into {s : Level5State α} (hr : RecsInto s) {p : List Bool} {c : α}
     {r : FreeMonoid α × List Bool} (ht : r.2 ∈ s.tree.leaves) : RecsInto (s.addRecord p c r) := by
   intro q e r' h
-  simp only [Level4State.addRecord] at h ⊢
+  simp only [Level5State.addRecord] at h ⊢
   by_cases hq : q = p
   · subst hq
     by_cases hce : e = c
@@ -84,7 +84,7 @@ theorem addRecord_into {s : Level4State α} (hr : RecsInto s) {p : List Bool} {c
     exact hr _ _ _ h
 
 /-- A probe's outcome keeps the tree, and the edges and records pointing at leaves. -/
-theorem recordProbe_into (C : Level4Settings) {s : Level4State α} (x : FreeMonoid α)
+theorem recordProbe_into (C : Level5Settings) {s : Level5State α} (x : FreeMonoid α)
     (he : EdgesInto s.tree s.edges) (hr : RecsInto s) :
     (recordProbe C cut s x).tree = s.tree ∧ EdgesInto (recordProbe C cut s x).tree
       (recordProbe C cut s x).edges ∧ RecsInto (recordProbe C cut s x) := by
@@ -110,7 +110,7 @@ theorem recordProbe_into (C : Level4Settings) {s : Level4State α} (x : FreeMono
 /-- A fix: a redirect keeps the tree, the edges and records pointing at leaves; a split is at a
 leaf, on a letter followed by the midfix where two leaves part, with edges into the new tree's
 leaves, no records and a fresh stretch. -/
-theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto s.tree s.edges)
+theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level5State α} (he : EdgesInto s.tree s.edges)
     (hr : RecsInto s) {p : List Bool} {c : α} {t : List Bool} (hv : Violates m s p c t) :
     let s' := fixEdge cut m s p c t
     (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
@@ -121,7 +121,7 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto
   obtain ⟨hp, -, ht⟩ := hv
   have htp : t ∈ s.tree.leaves := by
     have : 0 < ((s.records p c).filter (·.2 = t)).length := by
-      unfold Level4State.recordCount at ht; omega
+      unfold Level5State.recordCount at ht; omega
     obtain ⟨r, hr'⟩ := List.exists_mem_of_length_pos this
     obtain ⟨h1, h2⟩ := List.mem_filter.1 hr'
     simp only [decide_eq_true_eq] at h2
@@ -154,11 +154,11 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto
           exact DTree.mem_paths_splitAt _ _ _ _ (he _ _ _ _ hq) hs'
     · exact .inl ⟨rfl, setEdge_into he htp, hr⟩
 
-variable (C : Level4Settings)
+variable (C : Level5Settings)
 
 /-- A step that continues keeps the tree, the edges and records pointing at leaves, or splits as
 `fixEdge_spec` says; one that ends past `Lmax` leaves splits, and any other keeps the tree. -/
-theorem applyProbe_spec (hm : 0 < C.recordsToMove) {s : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_spec (hm : 0 < C.recordsToMove) {s : Level5State α} {x : FreeMonoid α}
     (he : EdgesInto s.tree s.edges) (hr : RecsInto s) :
     (∀ s', applyProbe C cut s x = .inl s' →
       (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
@@ -204,10 +204,10 @@ end Steps
 section Compose
 
 variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-  [IsProbabilityMeasure D] (C : Level4Settings) (cut : FreeMonoid α → Option Bool) (S : ℕ)
+  [IsProbabilityMeasure D] (C : Level5Settings) (cut : FreeMonoid α → Option Bool) (S : ℕ)
 
 /-- An ending that is not past `Lmax` leaves, at a tree of the class. -/
-def OkEnd (e : Level4Ending α) (s : Level4State α) : Prop := e ≠ .tooBig ∧ G.InClass S s.tree
+def OkEnd (e : Level5Ending α) (s : Level5State α) : Prop := e ≠ .tooBig ∧ G.InClass S s.tree
 
 omit [Fintype σ] [IsProbabilityMeasure D] in
 theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β] [MeasurableSingletonClass β]
@@ -219,7 +219,7 @@ theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β] [Meas
   simp [Set.indicator_apply]
 
 /-- A split from a sub-round's state lands at a start of the class, genuine or not. -/
-theorem split_lands {s s' : Level4State α} {f : ℕ} (hf : G.Grown s.tree f) {p : List Bool} {c : α}
+theorem split_lands {s s' : Level5State α} {f : ℕ} (hf : G.Grown s.tree f) {p : List Bool} {c : α}
     {t t₀ : List Bool} (ht : t ∈ s.tree.leaves) (ht₀ : t₀ ∈ s.tree.leaves) (hp : p ∈ s.tree.leaves)
     (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) :
     (∃ p d, s'.tree = s.tree.splitAt d p ∧ G.GenuineSplit s.tree p d) →

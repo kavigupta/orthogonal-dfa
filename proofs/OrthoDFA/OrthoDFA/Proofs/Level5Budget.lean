@@ -1,5 +1,5 @@
-import OrthoDFA.Proofs.Level4Keep
-import OrthoDFA.Proofs.Level4Law
+import OrthoDFA.Proofs.Level5Keep
+import OrthoDFA.Proofs.Level5Law
 
 /-!
 # The round from its sub-rounds, with its records that are not true as one budget
@@ -21,12 +21,12 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 section Budget
 
 variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-  [IsProbabilityMeasure D] (C : Level4Settings) (rd : FreeMonoid α → ARU) (S : ℕ)
+  [IsProbabilityMeasure D] (C : Level5Settings) (rd : FreeMonoid α → ARU) (S : ℕ)
 
 open scoped Classical in
 /-- The run from `s`, having made `u` records that are not true, fails to end at a tree of the
 class, with those records below `(S + 1) m` after each of its first `W` probes it goes on from. -/
-def FailB : Level4State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
+def FailB : Level5State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
   | _, _, _, 0, _ => True
   | s, u, W, T + 1, xs => match applyProbe C (fun z => (rd z).cut) s (xs 0) with
     | .inl s' =>
@@ -36,7 +36,7 @@ def FailB : Level4State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMono
           (Fin.tail xs)
     | .inr (e, s') => ¬ OkEnd G S e s'
 
-theorem failB_zero : ∀ (T : ℕ) (s : Level4State α) (u : ℕ) (xs : Fin T → FreeMonoid α),
+theorem failB_zero : ∀ (T : ℕ) (s : Level5State α) (u : ℕ) (xs : Fin T → FreeMonoid α),
     ¬ RunEnds (applyProbe C fun z => (rd z).cut) (OkEnd G S) s (List.ofFn xs) →
       FailB G C rd S s u 0 T xs
   | 0, _, _, _, _ => trivial
@@ -51,7 +51,7 @@ theorem failB_zero : ∀ (T : ℕ) (s : Level4State α) (u : ℕ) (xs : Fin T �
 open scoped Classical in
 /-- The round fails to end at a tree of the class only with its records that are not true below
 `(S + 1) m` over its first `W` probes, or reaching it there. -/
-theorem fail_split : ∀ (T : ℕ) (s : Level4State α) (u W : ℕ) (xs : Fin T → FreeMonoid α),
+theorem fail_split : ∀ (T : ℕ) (s : Level5State α) (u W : ℕ) (xs : Fin T → FreeMonoid α),
     u < (S + 1) * C.recordsToMove →
     ¬ RunEnds (applyProbe C fun z => (rd z).cut) (OkEnd G S) s (List.ofFn xs) →
     FailB G C rd S s u W T xs ∨ UntrueHit G C rd s ((S + 1) * C.recordsToMove - u) W T xs
@@ -87,7 +87,7 @@ theorem fail_split : ∀ (T : ℕ) (s : Level4State α) (u W : ℕ) (xs : Fin T 
 /-- A sub-round may start at `s`, the round having made `u` records that are not true, with `k`
 more splits that are not genuine within the budget, at most `g` genuine ones to come, and `W`
 probes of the window enough for `k + g + 1` sub-rounds. -/
-def AdmB (Tsub : ℕ) (s : Level4State α) (u k g W T : ℕ) : Prop :=
+def AdmB (Tsub : ℕ) (s : Level5State α) (u k g W T : ℕ) : Prop :=
   SubStart G S s ∧ (∃ f, G.Grown s.tree f ∧ f + k ≤ S)
     ∧ Fintype.card σ ≤ (G.trueLeaves s.tree).card + g ∧ u < (S + 1) * C.recordsToMove
     ∧ (S + 1) * C.recordsToMove ≤ u + (k + 1) * C.recordsToMove ∧ (k + g + 1) * Tsub ≤ W ∧ W ≤ T
@@ -96,8 +96,8 @@ open scoped Classical in
 /-- A probe of a sub-round: it continues at the same tree, or ends the round (`some (inl e)`), or
 the tree changes (`some (inr ())`), or the round's records that are not true reach the budget
 within the window (`none`). -/
-noncomputable def segB : Level4State α × ℕ × ℕ → FreeMonoid α →
-    (Level4State α × ℕ × ℕ) ⊕ (Option (Level4Ending α ⊕ Unit) × (Level4State α × ℕ × ℕ))
+noncomputable def segB : Level5State α × ℕ × ℕ → FreeMonoid α →
+    (Level5State α × ℕ × ℕ) ⊕ (Option (Level5Ending α ⊕ Unit) × (Level5State α × ℕ × ℕ))
   | (s, u, W), x =>
     match applyProbe C (fun z => (rd z).cut) s x with
     | .inr (e, s') => .inr (some (.inl e),
@@ -120,27 +120,27 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
     {δ' : ℝ} {Tsub : ℕ} (hδ' : 0 ≤ δ')
     (hsub : ∀ s B T, SubStart G S s → B ≤ (S + 1) * C.recordsToMove → Tsub ≤ T
       → (Measure.pi fun _ : Fin T => D) {xs | SubOpen G C rd s B Tsub T xs} ≤ ENNReal.ofReal δ') :
-    ∀ N (s : Level4State α) (u k g W T : ℕ), k + g = N → AdmB G C S Tsub s u k g W T →
+    ∀ N (s : Level5State α) (u k g W T : ℕ), k + g = N → AdmB G C S Tsub s u k g W T →
       (Measure.pi fun _ : Fin T => D) {xs | FailB G C rd S s u W T xs}
         ≤ ENNReal.ofReal ((k + g + 1) * δ') := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  set U : Level4State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
+  set U : Level5State α → Set (FreeMonoid α) := fun s' => G.untrueAt rd C.walkStart s'.tree s'.edges
       with hU
   intro N
   induction N using Nat.strong_induction_on with
   | _ N ih =>
   intro s u k g W T hN hadm
   obtain ⟨hs, ⟨f, hf, hfk⟩, hg, hu, hku, hW, hWT⟩ := hadm
-  set w : Option (Level4Ending α ⊕ Unit) → Level4State α × ℕ × ℕ → ℕ → ENNReal := fun kd sb T' =>
+  set w : Option (Level5Ending α ⊕ Unit) → Level5State α × ℕ × ℕ → ℕ → ENNReal := fun kd sb T' =>
     match kd with
     | none => 0
     | some (.inl e) => if OkEnd G S e sb.1 then 0 else 1
     | some (.inr _) => min 1 (⨅ (k' : ℕ) (g' : ℕ)
         (_ : k' + g' < N ∧ AdmB G C S Tsub sb.1 sb.2.1 k' g' sb.2.2 T'),
         ENNReal.ofReal ((k' + g' + 1) * δ'))
-  set F : Level4State α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop := fun sb T xs =>
+  set F : Level5State α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop := fun sb T xs =>
     FailB G C rd S sb.1 sb.2.1 sb.2.2 T xs
-  set V : Option (Level4Ending α ⊕ Unit) → Level4State α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α)
+  set V : Option (Level5Ending α ⊕ Unit) → Level5State α × ℕ × ℕ → (T : ℕ) → (Fin T → FreeMonoid α)
       → Prop :=
     fun kd sb T xs => match kd with
     | none => False
@@ -175,7 +175,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
   have hseg := seg_le D (segB G C rd S) F V w hF hV T (s, u, W) Tsub
   have hfpaths : s.tree.leaves.length ≤ Fintype.card σ + 2 + S := by
     have := G.grown_paths hf; omega
-  have hpt : ∀ j T' (s' : Level4State α) (u' W' : ℕ) (xs : Fin T' → FreeMonoid α), s'.tree
+  have hpt : ∀ j T' (s' : Level5State α) (u' W' : ℕ) (xs : Fin T' → FreeMonoid α), s'.tree
       = s.tree →
       EdgesInto s'.tree s'.edges → RecsInto s' → u ≤ u' → u' < (S + 1) * C.recordsToMove →
       (∀ pct, badRecs G s' pct ≤ u' - u) → (k + g) * Tsub + j ≤ W' → W' ≤ T' →
@@ -390,7 +390,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     positivity
   have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
       {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-        (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
+        (Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
         initialState (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
     intro ω
     by_cases hω : NoiseEvent G D C S ρ θg θgs θgpt (read · ω)
@@ -408,7 +408,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
           (show Fintype.card σ * Fintype.card α * C.recordsToMove + B
             ≤ Fintype.card σ * Fintype.card α * C.recordsToMove + U by omega)
         linarith
-      have hstart₀ : AdmB G C S Tsub (initialState : Level4State α) 0 S (Fintype.card σ) W T :=
+      have hstart₀ : AdmB G C S Tsub (initialState : Level5State α) 0 S (Fintype.card σ) W T :=
         ⟨⟨⟨0, Nat.zero_le _, .start⟩, fun _ _ _ _ h => by simp [initialState] at h,
           fun _ _ => rfl, rfl, rfl⟩, ⟨0, .start, by omega⟩, by omega,
           Nat.mul_pos (Nat.succ_pos _) hm, by simp [U], le_rfl, hT⟩
@@ -443,7 +443,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         · exact .inl hok
       have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
       have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω)) initialState
+          (Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω)) initialState
               (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (applyProbe C cut) (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
               initialState (List.ofFn xs)}
@@ -454,13 +454,13 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         intro xs hxs
         by_cases hg : RunEnds (applyProbe C cut) (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
             initialState (List.ofFn xs)
-        · rcases runEnds_or (Q := Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
+        · rcases runEnds_or (Q := Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
             _ _ hg with h | h
           · exact absurd h hxs
           · refine .inr (runEnds_mono (fun e s' h => ?_) _ _ h)
             obtain ⟨hge, hns⟩ := h
             rcases e with _ | _ | e | _ | _
-            · simp only [Level4EndsWell, toRoundEnd, EndsWell, not_le] at hns
+            · simp only [Level5EndsWell, toRoundEnd, EndsWell, not_le] at hns
               exact ⟨rfl, hns.le⟩
             · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
             · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
@@ -492,7 +492,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
       exact prob_le_one.trans le_self_add
   calc ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
+          (Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ ∫⁻ ω, (M.indicator 1 ω + c) ∂μ := lintegral_mono hpt
     _ = μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)} + c := by

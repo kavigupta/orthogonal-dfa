@@ -70,7 +70,7 @@ lemma measurable_prefDraw (harvests : List (Measure (FreeMonoid α)))
   · exact (measurable_cert j a).comp hrun
 
 lemma measurableSet_noCollD (Ls NS NP : ℕ) (c : List (HarvestCode α)) (r : ℕ) (hr : r < K) :
-    MeasurableSet {x : Fin K → RoundDraws α K settings.level4.probeBudget |
+    MeasurableSet {x : Fin K → RoundDraws α K settings.level5.probeBudget |
       NoCollD settings D Ls NS NP c x r hr} := by
   classical
   have hpops : ∀ i : ℕ, ∀ ν ∈ popsAt settings D c i, IsProbabilityMeasure ν := fun i ν h => by
@@ -78,18 +78,18 @@ lemma measurableSet_noCollD (Ls NS NP : ℕ) (c : List (HarvestCode α)) (r : �
     unfold decodePop
     infer_instance
   have hsf : ∀ (i : Fin K) (a : ℕ), Measurable fun x : Fin K → RoundDraws α K
-      settings.level4.probeBudget => (x i).1.1 a :=
+      settings.level5.probeBudget => (x i).1.1 a :=
     fun i a => (measurable_pi_apply a).comp (measurable_fst.comp (measurable_fst.comp
       (measurable_pi_apply i)))
   have hpd : ∀ (i : Fin K) (h : List (Measure (FreeMonoid α))), (∀ ν ∈ h, IsProbabilityMeasure ν) →
-      ∀ j a b, Measurable fun x : Fin K → RoundDraws α K settings.level4.probeBudget =>
+      ∀ j a b, Measurable fun x : Fin K → RoundDraws α K settings.level5.probeBudget =>
         prefDraw h (x i).1 j a b :=
     fun i h hh j a b => (measurable_prefDraw h hh j a b).comp (measurable_fst.comp
       (measurable_pi_apply i))
-  have hone : ∀ {f : (Fin K → RoundDraws α K settings.level4.probeBudget) → FreeMonoid α},
+  have hone : ∀ {f : (Fin K → RoundDraws α K settings.level5.probeBudget) → FreeMonoid α},
       Measurable f → ∀ P : FreeMonoid α → Prop, Measurable fun x => P (f x) :=
     fun hf P => (measurable_from_top (f := P)).comp hf
-  have htwo : ∀ {f g : (Fin K → RoundDraws α K settings.level4.probeBudget) → FreeMonoid α},
+  have htwo : ∀ {f g : (Fin K → RoundDraws α K settings.level5.probeBudget) → FreeMonoid α},
       Measurable f → Measurable g → Measurable fun x => f x ≠ g x :=
     fun hf hg => (measurable_of_countable (fun q : FreeMonoid α × FreeMonoid α => q.1 ≠ q.2)).comp
       (hf.prodMk hg)
@@ -128,7 +128,7 @@ instance (T : ℕ) : IsProbabilityMeasure (loopMeasure μ P.D Dsf K T) := by
 /-- Round `r`'s clustering, where every earlier clustering returned and nothing collides, fails
 its claim with chance at most `δc`. -/
 theorem loop_cluster_round_le_persist (Ls NS NP N : ℕ) (εcov δc slack cap : ℝ) (hδc : 0 ≤ δc)
-    (hC : 2 ≤ settings.level4.maxLeaves) (hN : P.L + settings.level4.maxLeaves ≤ N)
+    (hC : 2 ≤ settings.level5.maxLeaves) (hN : P.L + settings.level5.maxLeaves ≤ N)
     (hNS : ∀ pops, schedNS (settings.schedule pops) ≤ NS)
     (hNP : ∀ pops, schedNP (settings.schedule pops) ≤ NP)
     (hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
@@ -146,20 +146,20 @@ theorem loop_cluster_round_le_persist (Ls NS NP N : ℕ) (εcov δc slack cap : 
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
                   ∂(D j) ≤ 2 * settings.indecisionLimit + slack)} ≤ δc)
     (hLs : P.L < Ls) (hcolD : collisionMass P.D ≤ cap) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ P.D Dsf K settings.level4.probeBudget).real
+    (loopMeasure μ P.D Dsf K settings.level5.probeBudget).real
       {p | HistOK settings O P.D N p.1 p.2 r
         ∧ (histCodes settings O P.D N p.1 p.2 r).length = r
         ∧ (∀ ν' ∈ (histCodes settings O P.D N p.1 p.2 r).map
-            (decodePop P.D settings.level4.walkStart),
+            (decodePop P.D settings.level5.walkStart),
           collisionMass ν' ≤ cap ∧ ν' {q | Ls ≤ q.toList.length} = 0)
         ∧ ¬ ClusterSpec settings O P.D εcov slack ((histCodes settings O P.D N p.1 p.2 r).map
-            (decodePop P.D settings.level4.walkStart))
+            (decodePop P.D settings.level5.walkStart))
           (clusterRun ((histCodes settings O P.D N p.1 p.2 r).map
-            (decodePop P.D settings.level4.walkStart)) (p.1, (p.2 ⟨r, hr⟩).1))
+            (decodePop P.D settings.level5.walkStart)) (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoCollD settings P.D Ls NS NP (histCodes settings O P.D N p.1 p.2 r) p.2 r hr} ≤ δc := by
   classical
-  set T := settings.level4.probeBudget
-  set dec := decodePop P.D settings.level4.walkStart with hdec
+  set T := settings.level5.probeBudget
+  set dec := decodePop P.D settings.level5.walkStart with hdec
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set ν := roundLaw P.D Dsf K T
   have hσ : MeasurePreserving (fun d : RoundDraws α K T => ((() : Unit), d)) ν

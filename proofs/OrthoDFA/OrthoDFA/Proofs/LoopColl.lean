@@ -80,27 +80,27 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 /-- Round `r`'s clustering draws land in a set the earlier rounds fix with chance at most the
 bound the set has under `restLaw`. -/
 theorem persist_rest_le (r : Fin K) {Y : Type*} [Countable Y]
-    (stage : Ω → (Fin K → RoundDraws α K settings.level4.probeBudget) → Y)
-    (hdep : ∀ ω (x x' : Fin K → RoundDraws α K settings.level4.probeBudget),
+    (stage : Ω → (Fin K → RoundDraws α K settings.level5.probeBudget) → Y)
+    (hdep : ∀ ω (x x' : Fin K → RoundDraws α K settings.level5.probeBudget),
       (∀ i, i < r → x i = x' i) → stage ω x = stage ω x')
-    (hmeas : ∀ y, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level4.probeBudget) |
+    (hmeas : ∀ y, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) |
       stage p.1 p.2 = y})
-    (W : Y → (Fin K → RoundDraws α K settings.level4.probeBudget) → Finset (FreeMonoid α))
+    (W : Y → (Fin K → RoundDraws α K settings.level5.probeBudget) → Finset (FreeMonoid α))
     (G : Y → Prop)
     (hW : ∀ y x ω ω', G y → stage ω x = y → (∀ w ∈ W y x, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
       stage ω' x = y)
     (Bad : Y → Set (ClusterRest α K)) (hG : ∀ y, ¬ G y → Bad y = ∅)
     (hmBad : ∀ y, MeasurableSet (Bad y)) (δ : ENNReal)
     (hBad : ∀ y, restLaw D Dsf K (Bad y) ≤ δ) :
-    loopMeasure μ D Dsf K settings.level4.probeBudget
+    loopMeasure μ D Dsf K settings.level5.probeBudget
       {p | (p.2 r).1 ∈ Bad (stage p.1 p.2)} ≤ δ := by
-  have hσ : MeasurePreserving (fun d : RoundDraws α K settings.level4.probeBudget => (d.2, d.1))
-      (roundLaw D Dsf K settings.level4.probeBudget)
-      ((Measure.pi fun _ : Fin settings.level4.probeBudget => (volume : Measure unitInterval)).prod
+  have hσ : MeasurePreserving (fun d : RoundDraws α K settings.level5.probeBudget => (d.2, d.1))
+      (roundLaw D Dsf K settings.level5.probeBudget)
+      ((Measure.pi fun _ : Fin settings.level5.probeBudget => (volume : Measure unitInterval)).prod
         (restLaw D Dsf K)) :=
     Measure.measurePreserving_swap
-  have h := persist_stage_le O (roundLaw D Dsf K settings.level4.probeBudget)
-    (Measure.pi fun _ : Fin settings.level4.probeBudget => (volume : Measure unitInterval))
+  have h := persist_stage_le O (roundLaw D Dsf K settings.level5.probeBudget)
+    (Measure.pi fun _ : Fin settings.level5.probeBudget => (volume : Measure unitInterval))
     (restLaw D Dsf K)
     (fun d => (d.2, d.1)) hσ (fun w => (w.2, w.1)) (measurable_snd.prodMk measurable_fst)
     (fun w => rfl) r stage (fun ω x x' h _ => hdep ω x x' h) hmeas W G hW
@@ -121,27 +121,27 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : Prefix
 
 omit [DecidableEq α] in
 lemma measurePreserving_roundRest (i : Fin K) :
-    MeasurePreserving (fun p : Ω × (Fin K → RoundDraws α K settings.level4.probeBudget) =>
-      (p.2 i).1) (loopMeasure μ P.D Dsf K settings.level4.probeBudget) (restLaw P.D Dsf K) :=
+    MeasurePreserving (fun p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) =>
+      (p.2 i).1) (loopMeasure μ P.D Dsf K settings.level5.probeBudget) (restLaw P.D Dsf K) :=
   measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)
 
 /-- Round `r` repeats a suffix or a prefix an earlier round drew, or a draw has the wrong length,
 with chance at most the pairs times the largest atoms. -/
-theorem loop_coll_le (Ls NS NP N : ℕ) (qsf qa : ℝ) (hC : 2 ≤ settings.level4.maxLeaves)
-    (hN : P.L + settings.level4.maxLeaves ≤ N) (hLs : P.L < Ls)
+theorem loop_coll_le (Ls NS NP N : ℕ) (qsf qa : ℝ) (hC : 2 ≤ settings.level5.maxLeaves)
+    (hN : P.L + settings.level5.maxLeaves ≤ N) (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (hqsf : ∀ t, Dsf.real {t} ≤ qsf)
     (hqD : ∀ t, P.D.real {t} ≤ qa) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ P.D Dsf K settings.level4.probeBudget).real
+    (loopMeasure μ P.D Dsf K settings.level5.probeBudget).real
       {p | HistOK settings O P.D N p.1 p.2 r
         ∧ (histCodes settings O P.D N p.1 p.2 r).length = r
         ∧ (∀ ν ∈ (histCodes settings O P.D N p.1 p.2 r).map
-            (decodePop P.D settings.level4.walkStart),
+            (decodePop P.D settings.level5.walkStart),
           ν {q | Ls ≤ q.toList.length} = 0 ∧ ∀ t, ν.real {t} ≤ qa)
         ∧ ¬ NoCollD settings P.D Ls NS NP (histCodes settings O P.D N p.1 p.2 r) p.2 r hr}
       ≤ r * NS ^ 2 * qsf + 16 * r * (K + 1) ^ 2 * NP ^ 2 * qa := by
   classical
-  set T := settings.level4.probeBudget
-  set dec := decodePop P.D settings.level4.walkStart with hdec
+  set T := settings.level5.probeBudget
+  set dec := decodePop P.D settings.level5.walkStart with hdec
   set μL := loopMeasure μ P.D Dsf K T
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set rK : Fin K := ⟨r, hr⟩

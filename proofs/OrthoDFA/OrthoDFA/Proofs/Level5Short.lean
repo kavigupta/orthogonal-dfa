@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Level4RiskBound
+import OrthoDFA.Proofs.Level5RiskBound
 
 /-!
 # A harvest's strings are short
@@ -66,19 +66,19 @@ theorem route_short {cut : FreeMonoid α → Option Bool} {T : DTree α} {Lmax L
   omega
 
 /-- The tree's leaves within `maxLeaves`, and its midfixes two shorter than its leaves. -/
-def TreeShort (C : Level4Settings) (T : DTree α) : Prop :=
+def TreeShort (C : Level5Settings) (T : DTree α) : Prop :=
   2 ≤ T.leaves.length ∧ T.leaves.length ≤ C.maxLeaves
     ∧ ∀ m ∈ T.midfixes, m.toList.length + 2 ≤ T.leaves.length
 
 /-- The tree, and every hypothesis the round kept, short. -/
-def ShortInv (C : Level4Settings) (s : Level4State α) : Prop :=
+def ShortInv (C : Level5Settings) (s : Level5State α) : Prop :=
   TreeShort C s.tree ∧ ∀ v ∈ s.versions, TreeShort C v.1
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- A string a probe of at most `L` letters harvests under a short tree is at most
 `L + maxLeaves − 2` long. -/
-theorem siteHarvest_short {L k : ℕ} (site : Level4Site α) {v : DTree α × EdgeTable α}
+theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × EdgeTable α}
     (hv : TreeShort C v.1) {x : FreeMonoid α} (hx : x.toList.length ≤ L) :
     ∀ z ∈ siteHarvest cut k site v x, z.toList.length + 2 ≤ L + C.maxLeaves := by
   obtain ⟨-, hL, hm⟩ := hv
@@ -113,7 +113,7 @@ theorem siteHarvest_short {L k : ℕ} (site : Level4Site α) {v : DTree α × Ed
         subst hz
         exact hr (route_undecided cut _ _ _ hb).1
 
-theorem recordProbe_short {s : Level4State α} {x : FreeMonoid α} (h : ShortInv C s) :
+theorem recordProbe_short {s : Level5State α} {x : FreeMonoid α} (h : ShortInv C s) :
     ShortInv C (recordProbe C cut s x) := by
   have htree := (recordProbe_cases cut C s x).1
   refine ⟨htree ▸ h.1, fun v hv => ?_⟩
@@ -124,7 +124,7 @@ theorem recordProbe_short {s : Level4State α} {x : FreeMonoid α} (h : ShortInv
     subst hv
     exact h.1
 
-theorem applyProbe_short {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_short {s s' : Level5State α} {x : FreeMonoid α}
     (h : ShortInv C (recordProbe C cut s x)) (ha : applyProbe C cut s x = .inl s') :
     ShortInv C s' := by
   have hvers := applyProbe_versions C cut ha
@@ -163,7 +163,7 @@ theorem applyProbe_short {s s' : Level4State α} {x : FreeMonoid α}
     subst ha
     exact ⟨h2, hL, hm⟩
 
-theorem runProbes_short {s : Level4State α} {xs : List (FreeMonoid α)} {h : Level4Harvest α}
+theorem runProbes_short {s : Level5State α} {xs : List (FreeMonoid α)} {h : Level5Harvest α}
     (hs : ShortInv C s) (hz : (runProbes C cut s xs).2 = .harvest h) :
     ∀ v ∈ h.versions, TreeShort C v.1 := by
   induction xs generalizing s with
@@ -194,8 +194,8 @@ theorem runProbes_short {s : Level4State α} {xs : List (FreeMonoid α)} {h : Le
 
 /-- Every hypothesis a harvest kept is short. -/
 theorem harvest_short (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
-    (draws : Fin T → FreeMonoid α) {h : Level4Harvest α}
-    (hh : (indecisiveLStarLevel4 C read draws).ending = .harvest h) :
+    (draws : Fin T → FreeMonoid α) {h : Level5Harvest α}
+    (hh : (indecisiveLStarLevel5 C read draws).ending = .harvest h) :
     ∀ v ∈ h.versions, TreeShort C v.1 := by
   refine runProbes_short C (fun z => (read z).cut) (s := initialState) (xs := List.ofFn draws)
     ⟨⟨?_, ?_, ?_⟩, by simp [initialState]⟩ hh
@@ -208,7 +208,7 @@ open scoped Classical in
 /-- Over draws at most `L` long, a harvest whose hypotheses are short finds no string longer
 than `L + maxLeaves − 2`. -/
 theorem harvestLaw_short {D : Measure (FreeMonoid α)} {L : ℕ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) {h : Level4Harvest α}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) {h : Level5Harvest α}
     (hv : ∀ v ∈ h.versions, TreeShort C v.1) :
     harvestLaw D cut k h {z | L + C.maxLeaves < z.toList.length + 2} = 0 := by
   rw [harvestLaw_apply]

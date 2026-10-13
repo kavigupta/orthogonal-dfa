@@ -1,11 +1,11 @@
-import OrthoDFA.Proofs.Level4Short
-import OrthoDFA.Proofs.Level4Reads
+import OrthoDFA.Proofs.Level5Short
+import OrthoDFA.Proofs.Level5Reads
 import OrthoDFA.Proofs.LoopTermination
 
 /-!
 # A round's population from finite data
 
-Level 4's edge tables only ever hold finitely many edges, and a probe at most `L` long walked
+Level 5's edge tables only ever hold finitely many edges, and a probe at most `L` long walked
 under a short tree reads only strings at most `L + maxLeaves` long. So the population a round
 hands on is fixed by finite data: its harvest's site, the hypotheses' trees and edge graphs, and
 the round's reads of the strings at most `N` long (`decodePop_popCode`). The data range over a
@@ -71,8 +71,8 @@ end DTree
 
 instance : Countable (DTree α) := DTree.code_injective.countable
 
-instance : Countable (Level4Site α) :=
-  Function.Injective.countable (f := fun s : Level4Site α => match s with
+instance : Countable (Level5Site α) :=
+  Function.Injective.countable (f := fun s : Level5Site α => match s with
     | .start => (none : Option (Option (List Bool × α)))
     | .edge e => some (some e)
     | .middles => some none) fun a b h => by
@@ -91,9 +91,9 @@ theorem EdgesFin.mono {E E' : EdgeTable α} (hE : EdgesFin E) (pc : List Bool ×
   · exact .inl h
   · exact .inr h
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
-theorem fixEdge_edges (m : ℕ) (s : Level4State α) (p : List Bool) (c : α) (t : List Bool)
+theorem fixEdge_edges (m : ℕ) (s : Level5State α) (p : List Bool) (c : α) (t : List Bool)
     (q : List Bool) (e : α) (h : (fixEdge cut m s p c t).edges q e ≠ none) :
     s.edges q e ≠ none ∨ (q, e) = (p, c) := by
   unfold fixEdge at h
@@ -117,7 +117,7 @@ theorem fixEdge_edges (m : ℕ) (s : Level4State α) (p : List Bool) (c : α) (t
     · exact .inr hqc
     · exact .inl h
 
-theorem recordProbe_edgesFin {s : Level4State α} (hs : EdgesFin s.edges) (x : FreeMonoid α) :
+theorem recordProbe_edgesFin {s : Level5State α} (hs : EdgesFin s.edges) (x : FreeMonoid α) :
     EdgesFin (recordProbe C cut s x).edges := by
   rcases (recordProbe_cases cut C s x).2 with ⟨-, he, -⟩ | ⟨-, -, -, p, c, e, -, -, he⟩
   · rw [he]; exact hs
@@ -127,7 +127,7 @@ theorem recordProbe_edgesFin {s : Level4State α} (hs : EdgesFin s.edges) (x : F
     · exact .inr hqc
     · exact .inl h
 
-theorem applyProbe_edgesFin {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_edgesFin {s s' : Level5State α} {x : FreeMonoid α}
     (hs : EdgesFin (recordProbe C cut s x).edges) (ha : applyProbe C cut s x = .inl s') :
     EdgesFin s'.edges := by
   unfold applyProbe at ha
@@ -144,9 +144,9 @@ theorem applyProbe_edgesFin {s s' : Level4State α} {x : FreeMonoid α}
     exact hs
 
 /-- The table, and every hypothesis kept, hold finitely many edges. -/
-def FinInv (s : Level4State α) : Prop := EdgesFin s.edges ∧ ∀ v ∈ s.versions, EdgesFin v.2
+def FinInv (s : Level5State α) : Prop := EdgesFin s.edges ∧ ∀ v ∈ s.versions, EdgesFin v.2
 
-theorem runProbes_fin {s : Level4State α} {xs : List (FreeMonoid α)} {h : Level4Harvest α}
+theorem runProbes_fin {s : Level5State α} {xs : List (FreeMonoid α)} {h : Level5Harvest α}
     (hs : FinInv s) (hz : (runProbes C cut s xs).2 = .harvest h) :
     ∀ v ∈ h.versions, EdgesFin v.2 := by
   induction xs generalizing s with
@@ -185,7 +185,7 @@ theorem runProbes_fin {s : Level4State α} {xs : List (FreeMonoid α)} {h : Leve
 
 /-- Every hypothesis a harvest kept holds finitely many edges. -/
 theorem harvest_fin (read : FreeMonoid α → ARU) {T : ℕ} (draws : Fin T → FreeMonoid α)
-    {h : Level4Harvest α} (hh : (indecisiveLStarLevel4 C read draws).ending = .harvest h) :
+    {h : Level5Harvest α} (hh : (indecisiveLStarLevel5 C read draws).ending = .harvest h) :
     ∀ v ∈ h.versions, EdgesFin v.2 :=
   runProbes_fin C (fun z => (read z).cut) (s := initialState) (xs := List.ofFn draws)
     ⟨by simp [EdgesFin, initialState], by simp [initialState]⟩ hh
@@ -250,7 +250,7 @@ theorem decodeReads_readGraph {N : ℕ} (rd : FreeMonoid α → ARU) {z : FreeMo
 
 /-- A harvest as finite data: its site, its hypotheses' trees and edge graphs, and reads. -/
 abbrev HarvestCode (α : Type*) :=
-  Level4Site α × List (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
+  Level5Site α × List (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
     × Finset (FreeMonoid α × ARU)
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
@@ -272,7 +272,7 @@ same, under hypotheses whose midfixes are at most `M` long. -/
 theorem harvestLaw_congr_up {D : Measure (FreeMonoid α)} {L M N : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + M ≤ N)
     {cut' : FreeMonoid α → Option Bool} (hcut : AgreeUpTo N cut cut') (k : ℕ)
-    {h : Level4Harvest α} (hmid : ∀ v ∈ h.versions, MidLe M v.1) :
+    {h : Level5Harvest α} (hmid : ∀ v ∈ h.versions, MidLe M v.1) :
     harvestLaw D cut k h = harvestLaw D cut' k h := by
   unfold harvestLaw
   congr 2
@@ -299,12 +299,12 @@ omit [MeasurableSpace Ω] in
 theorem decodePop_popCode {D : Measure (FreeMonoid α)} {L N : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ C.maxLeaves) (hN : L + C.maxLeaves ≤ N)
     (k : ℕ) (o : LoopRound Ω α K) {T : ℕ} (xs : Fin T → FreeMonoid α)
-    (ho : o.result = indecisiveLStarLevel4 C o.read xs) :
+    (ho : o.result = indecisiveLStarLevel5 C o.read xs) :
     (popCode N o).map (decodePop D k) = o.population D k := by
   unfold popCode LoopRound.population
   rcases hh : o.result.ending.harvested with _ | h
   · rfl
-  have hend : (indecisiveLStarLevel4 C o.read xs).ending = .harvest h := by
+  have hend : (indecisiveLStarLevel5 C o.read xs).ending = .harvest h := by
     rw [← ho]
     revert hh
     cases o.result.ending <;> simp [RoundEnd.harvested]
@@ -333,7 +333,7 @@ theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ C.maxLeaves) (hN : L + C.maxLeaves ≤ N)
     (k : ℕ) (rounds : List (LoopRound Ω α K))
     (hr : ∀ o ∈ rounds, ∃ T, ∃ xs : Fin T → FreeMonoid α,
-      o.result = indecisiveLStarLevel4 C o.read xs) :
+      o.result = indecisiveLStarLevel5 C o.read xs) :
     (codesOf N rounds).map (decodePop D k) = harvestsOf D k rounds := by
   induction rounds with
   | nil => rfl

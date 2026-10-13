@@ -9,7 +9,7 @@ populations: the suffix pool and the prefix count are held by `poolCount_le` and
 `prefCount_le_poly`, and the ladder by the prefix count. `learner_loop_simple_holds` takes
 `LoopCore` at `S = 0`, `K = |Q| + 1`, suffixes of length `L + |Q| + 3`, the gate at `1/4`, half of
 `εcov` for the clustering, `indecisionLimit = slack = ι`, the cap at `capFloor` and the failure
-split evenly between the clustering's and level 4's `|Q| + 1` rounds.
+split evenly between the clustering's and level 5's `|Q| + 1` rounds.
 -/
 
 noncomputable section
@@ -202,7 +202,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
   swap
   · -- no suffix distribution finds that many absorbing suffixes
     obtain ⟨s4, hwalk, hdis, hbud, -, -, hl4⟩ :=
-      level4_guarantee_all M (εd / 2) P.L δ' 0 k hδ'0 hδ'1 (by positivity) (by linarith) hL1
+      level5_guarantee_all M (εd / 2) P.L δ' 0 k hδ'0 hδ'1 (by positivity) (by linarith) hL1
     have := hl4 μ
     clear this hl4
     refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, ?_⟩
@@ -328,7 +328,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
   · intro Dsf hDsf hlen hpAPD hatom
     have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
     have : IsProbabilityMeasure
-        (loopMeasure μ P.D Dsf (Fintype.card σ + 1) settings.level4.probeBudget) := by
+        (loopMeasure μ P.D Dsf (Fintype.card σ + 1) settings.level5.probeBudget) := by
       unfold loopMeasure; infer_instance
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans (le_of_eq ?_))
     · intro draws hd hgood

@@ -1,9 +1,9 @@
 import OrthoDFA.Proofs.LoopRenoise
 
 /-!
-# Level 4's claim is fixed by the short reads
+# Level 5's claim is fixed by the short reads
 
-Over probes at most `L` long, level 4's claim reads the family only at strings at most
+Over probes at most `L` long, level 5's claim reads the family only at strings at most
 `max (L + maxLeaves) (probes + 1 + maxLeaves)` long (`endsWell_congr_reads`). The clustering's
 prefixes are at most three per population and count, and their set has measurable level sets.
 -/
@@ -18,10 +18,10 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
 section Reads
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 theorem runProbes_readInv {Lx : ℕ} :
-    ∀ (s : Level4State α) (xs : List (FreeMonoid α)), ReadInv C Lx s →
+    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), ReadInv C Lx s →
       (∀ x ∈ xs, x.toList.length ≤ Lx) → (runProbes C cut s xs).2 ≠ .failed →
       ReadInv C Lx (runProbes C cut s xs).1
   | s, [], _, _, h => absurd rfl h
@@ -35,9 +35,9 @@ theorem runProbes_readInv {Lx : ℕ} :
       obtain ⟨rfl, -⟩ := applyProbe_inr_pre C cut ha he
       exact recordProbe_readInv C cut hs hx
 
-theorem level4_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
-    (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel4 C read xs).ending ≠ .failed) :
-    MidLe C.maxLeaves (indecisiveLStarLevel4 C read xs).hypothesis.tree := by
+theorem level5_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
+    (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel5 C read xs).ending ≠ .failed) :
+    MidLe C.maxLeaves (indecisiveLStarLevel5 C read xs).hypothesis.tree := by
   have hinv := runProbes_readInv C (fun z => (read z).cut) (Lx := probesLen xs) initialState
     (List.ofFn xs) ⟨by simp [initialState, DTree.leaves], by simpa [initialState, DTree.leaves]
       using hC, by simp [initialState, DTree.leaves, DTree.midfixes], by simp [initialState],
@@ -49,29 +49,29 @@ theorem level4_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU
   show m.toList.length ≤ C.maxLeaves
   omega
 
-/-- Over probes at most `L` long, level 4's claim reads only the short strings. -/
+/-- Over probes at most `L` long, level 5's claim reads only the short strings. -/
 theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L)
     (y : ℝ) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
     (h : ∀ z, z.toList.length ≤ max (L + C.maxLeaves) (probesLen xs + 1 + C.maxLeaves) →
       read z = read' z) :
     EndsWell M bad D' C.disagreementRate (searchingProbes read C.walkStart
-        (indecisiveLStarLevel4 C read xs).hypothesis) C.walkStart
+        (indecisiveLStarLevel5 C read xs).hypothesis) C.walkStart
         (harvestLaw D' (fun z => (read z).cut) C.walkStart) y
-        (indecisiveLStarLevel4 C read xs).ending
+        (indecisiveLStarLevel5 C read xs).ending
       ↔ EndsWell M bad D' C.disagreementRate (searchingProbes read' C.walkStart
-        (indecisiveLStarLevel4 C read' xs).hypothesis) C.walkStart
+        (indecisiveLStarLevel5 C read' xs).hypothesis) C.walkStart
         (harvestLaw D' (fun z => (read' z).cut) C.walkStart) y
-        (indecisiveLStarLevel4 C read' xs).ending := by
-  have hres : indecisiveLStarLevel4 C read xs = indecisiveLStarLevel4 C read' xs :=
-    level4_congr_up C hC xs (le_probesLen xs) fun z hz => h z (le_max_of_le_right hz)
+        (indecisiveLStarLevel5 C read' xs).ending := by
+  have hres : indecisiveLStarLevel5 C read xs = indecisiveLStarLevel5 C read' xs :=
+    level5_congr_up C hC xs (le_probesLen xs) fun z hz => h z (le_max_of_le_right hz)
   rw [← hres]
-  set res := indecisiveLStarLevel4 C read xs
+  set res := indecisiveLStarLevel5 C read xs
   have hcut : AgreeUpTo (L + C.maxLeaves) (fun z => (read z).cut) (fun z => (read' z).cut) :=
     fun z hz => by dsimp only; rw [h z (le_max_of_le_left hz)]
   rcases he : res.ending with _ | hv | _
   · -- consistent: the searching probes, at every short probe
-    have hmid := level4_tree_midLe C hC read xs (by rw [he]; simp)
+    have hmid := level5_tree_midLe C hC read xs (by rw [he]; simp)
     have hae : searchingProbes read C.walkStart res.hypothesis
         =ᵐ[D'] searchingProbes read' C.walkStart res.hypothesis := by
       filter_upwards [hlen] with x hx

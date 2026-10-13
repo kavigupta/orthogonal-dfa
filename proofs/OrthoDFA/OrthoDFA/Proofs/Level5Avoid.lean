@@ -1,12 +1,12 @@
-import OrthoDFA.Proofs.Level4Reads
+import OrthoDFA.Proofs.Level5Reads
 
 /-!
-# Level 4 reads only through its probes' first `k` letters
+# Level 5 reads only through its probes' first `k` letters
 
 A probe reads the cut only at strings that begin with its own first `k` letters and are at least
 `k` long, and an edge's witness followed by its letter is such a prefix of the probe that made it.
 So over probes whose first `k` letters avoid a set `K₀`, two cuts agreeing on every string at
-least `k` long whose first `k` letters avoid `K₀` give the same run (`level4_congr_off`), and the
+least `k` long whose first `k` letters avoid `K₀` give the same run (`level5_congr_off`), and the
 same search and harvest at every such probe.
 -/
 
@@ -18,7 +18,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 def KeyOff (k : ℕ) (K₀ : Set (FreeMonoid α)) (z : FreeMonoid α) : Prop :=
   k ≤ z.toList.length ∧ prefixOf z k ∉ K₀
 
-/-- A probe level 4 may draw: shorter than `k`, or its first `k` letters off `K₀`. -/
+/-- A probe level 5 may draw: shorter than `k`, or its first `k` letters off `K₀`. -/
 def Avoids (k : ℕ) (K₀ : Set (FreeMonoid α)) (x : FreeMonoid α) : Prop :=
   k ≤ x.toList.length → prefixOf x k ∉ K₀
 
@@ -117,7 +117,7 @@ theorem edgeHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E
   · funext e
     rw [edgeHarvestBy_short cut T E (by omega) e, edgeHarvestBy_short cut' T E (by omega) e]
 
-theorem siteHarvest_congr_off (h : AgreeOff k K₀ cut cut') (site : Level4Site α)
+theorem siteHarvest_congr_off (h : AgreeOff k K₀ cut cut') (site : Level5Site α)
     (v : DTree α × EdgeTable α) {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     siteHarvest cut k site v x = siteHarvest cut' k site v x := by
   cases site with
@@ -125,10 +125,10 @@ theorem siteHarvest_congr_off (h : AgreeOff k K₀ cut cut') (site : Level4Site 
   | edge e => exact congrFun (edgeHarvestBy_congr_off h v.1 v.2 hx) e
   | middles => exact middleHarvestBy_congr_off h v.1 v.2 hx
 
-theorem countProbe_congr_off (h : AgreeOff k K₀ cut cut') (s : Level4State α)
+theorem countProbe_congr_off (h : AgreeOff k K₀ cut cut') (s : Level5State α)
     {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     s.countProbe cut k x = s.countProbe cut' k x := by
-  unfold Level4State.countProbe
+  unfold Level5State.countProbe
   rw [middleHarvestBy_congr_off h s.tree s.edges hx, startHarvestBy_congr_off h s.tree hx,
     edgeReadsBy_congr_off h s.tree s.edges hx, edgeHarvestBy_congr_off h s.tree s.edges hx]
 
@@ -189,13 +189,13 @@ theorem recordBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Ed
 
 /-- What the run keeps that it reads through: every edge's witness followed by its letter, and
 every record's prefix followed by its edge's letter, is at least `k` long and off `K₀`. -/
-def OffInv (k : ℕ) (K₀ : Set (FreeMonoid α)) (s : Level4State α) : Prop :=
+def OffInv (k : ℕ) (K₀ : Set (FreeMonoid α)) (s : Level5State α) : Prop :=
   (∀ q c t w, s.edges q c = some (t, w) → KeyOff k K₀ (w * FreeMonoid.of c))
     ∧ ∀ q c, ∀ r ∈ s.records q c, KeyOff k K₀ (r.1 * FreeMonoid.of c)
 
-variable (C : Level4Settings)
+variable (C : Level5Settings)
 
-theorem recordProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') (s : Level4State α)
+theorem recordProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') (s : Level5State α)
     {x : FreeMonoid α} (hx : Avoids C.walkStart K₀ x) :
     recordProbe C cut s x = recordProbe C cut' s x := by
   unfold recordProbe
@@ -228,7 +228,7 @@ theorem retargetBy_congr_off (h : AgreeOff k K₀ cut cut') (t' : DTree α) (p :
     · rw [siftCut_congr_off h t' (hE q c t w he)]
     · rfl
 
-theorem fixEdge_congr_off (h : AgreeOff k K₀ cut cut') (m : ℕ) (s : Level4State α)
+theorem fixEdge_congr_off (h : AgreeOff k K₀ cut cut') (m : ℕ) (s : Level5State α)
     (hs : OffInv k K₀ s) (p : List Bool) (c : α) (t : List Bool) :
     fixEdge cut m s p c t = fixEdge cut' m s p c t := by
   unfold fixEdge
@@ -239,14 +239,14 @@ theorem fixEdge_congr_off (h : AgreeOff k K₀ cut cut') (m : ℕ) (s : Level4St
     · rw [retargetBy_congr_off h _ p hs.1]
     · rfl
 
-theorem settleOne_congr_off (h : AgreeOff k K₀ cut cut') (m L : ℕ) (s : Level4State α)
+theorem settleOne_congr_off (h : AgreeOff k K₀ cut cut') (m L : ℕ) (s : Level5State α)
     (hs : OffInv k K₀ s) : settleOne cut m L s = settleOne cut' m L s := by
   have hf : ∀ p c t, fixEdge cut m s p c t = fixEdge cut' m s p c t :=
     fixEdge_congr_off h m s hs
   unfold settleOne
   simp only [hf]
 
-theorem recordProbe_offInv {s : Level4State α} (hs : OffInv C.walkStart K₀ s)
+theorem recordProbe_offInv {s : Level5State α} (hs : OffInv C.walkStart K₀ s)
     {x : FreeMonoid α} (hx : Avoids C.walkStart K₀ x) :
     OffInv C.walkStart K₀ (recordProbe C cut s x) := by
   obtain ⟨hE, hR⟩ := hs
@@ -255,24 +255,24 @@ theorem recordProbe_offInv {s : Level4State α} (hs : OffInv C.walkStart K₀ s)
     unfold recordProbe at hqc
     rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | u <;>
       rw [ho] at hqc <;> try dsimp only at hqc
-    all_goals try (exact hE q c t w (by simpa [Level4State.countProbe] using hqc))
+    all_goals try (exact hE q c t w (by simpa [Level5State.countProbe] using hqc))
     · rcases hrb : recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c', t'⟩, sp⟩ <;>
         rw [hrb] at hqc <;> (try dsimp only at hqc) <;>
-        exact hE q c t w (by simpa [Level4State.countProbe, Level4State.addRecord] using hqc)
+        exact hE q c t w (by simpa [Level5State.countProbe, Level5State.addRecord] using hqc)
     · obtain ⟨j, hj, rfl⟩ := probeBy_member ho
       rcases hc : x.toList[(prefixOf x j).toList.length]? with _ | c' <;> rw [hc] at hqc <;>
         (try dsimp only at hqc)
-      · exact hE q c t w (by simpa [Level4State.countProbe] using hqc)
+      · exact hE q c t w (by simpa [Level5State.countProbe] using hqc)
       have hlen := (List.getElem?_eq_some_iff.1 hc).1
       have hkx : C.walkStart ≤ x.toList.length := by rw [length_prefixOf] at hlen; omega
       rcases hp : s.tree.siftCut cut (prefixOf x j) with p | b <;> rw [hp] at hqc <;>
         (try dsimp only at hqc)
       swap
-      · exact hE q c t w (by simpa [Level4State.countProbe] using hqc)
+      · exact hE q c t w (by simpa [Level5State.countProbe] using hqc)
       rcases ht : s.tree.siftCut cut (prefixOf x j * FreeMonoid.of c') with t'' | b <;>
         rw [ht] at hqc <;> (try dsimp only at hqc)
       swap
-      · exact hE q c t w (by simpa [Level4State.countProbe] using hqc)
+      · exact hE q c t w (by simpa [Level5State.countProbe] using hqc)
       rcases he : s.edges p c' with _ | e <;> rw [he] at hqc <;> (try dsimp only at hqc)
       · rw [setEdge_eq] at hqc
         split_ifs at hqc with hqc'
@@ -285,13 +285,13 @@ theorem recordProbe_offInv {s : Level4State α} (hs : OffInv C.walkStart K₀ s)
           rw [hjx] at hc
           rw [prefixOf_mul_of hc]
           exact keyOff_prefixOf (keyOff_of_avoids hx hkx) (by omega)
-        · exact hE q c t w (by simpa [Level4State.countProbe] using hqc)
-      · exact hE q c t w (by simpa [Level4State.countProbe] using hqc)
+        · exact hE q c t w (by simpa [Level5State.countProbe] using hqc)
+      · exact hE q c t w (by simpa [Level5State.countProbe] using hqc)
   · intro q c r hr
     rcases recordProbe_recs cut C s x with ⟨-, hrec⟩ | ⟨p, c', t, sp, hrb, hrec⟩
     · rw [hrec] at hr; exact hR q c r hr
     · rw [hrec] at hr
-      simp only [Level4State.addRecord] at hr
+      simp only [Level5State.addRecord] at hr
       by_cases hq : q = p
       · subst hq
         simp only [Function.update_self] at hr
@@ -319,7 +319,7 @@ theorem recordProbe_offInv {s : Level4State α} (hs : OffInv C.walkStart K₀ s)
         · rw [Function.update_of_ne hc] at hr; exact hR q c r hr
       · rw [Function.update_of_ne hq] at hr; exact hR q c r hr
 
-theorem applyProbe_offInv (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_offInv (hm : 1 ≤ C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
     (h : OffInv C.walkStart K₀ (recordProbe C cut s x)) (ha : applyProbe C cut s x = .inl s') :
     OffInv C.walkStart K₀ s' := by
   obtain ⟨hE, hR⟩ := h
@@ -339,7 +339,7 @@ theorem applyProbe_offInv (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} {
     -- the violating target has a record, so the fix's witness is a record's prefix
     have hfind : ∃ r ∈ s₁.records p c, r.2 = t := by
       have h1 : 1 ≤ s₁.recordCount p c t := hm.trans hvi.2.2
-      unfold Level4State.recordCount at h1
+      unfold Level5State.recordCount at h1
       obtain ⟨r, hr⟩ := List.exists_mem_of_length_pos (by omega : 0 < ((s₁.records p c).filter
         (·.2 = t)).length)
       obtain ⟨hr1, hr2⟩ := List.mem_filter.1 hr
@@ -390,7 +390,7 @@ theorem applyProbe_offInv (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} {
     subst ha
     exact ⟨hE, hR⟩
 
-theorem applyProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') {s : Level4State α}
+theorem applyProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') {s : Level5State α}
     (hs : OffInv C.walkStart K₀ s) {x : FreeMonoid α} (hx : Avoids C.walkStart K₀ x) :
     applyProbe C cut s x = applyProbe C cut' s x := by
   have hs' := recordProbe_offInv C (cut := cut') hs hx
@@ -403,7 +403,7 @@ theorem applyProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') {s : Level
   · exact settleOne_congr_off h _ _ _ hs'
 
 theorem runProbes_congr_off (hm : 1 ≤ C.recordsToMove) (h : AgreeOff C.walkStart K₀ cut cut') :
-    ∀ (s : Level4State α) (xs : List (FreeMonoid α)), OffInv C.walkStart K₀ s →
+    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), OffInv C.walkStart K₀ s →
       (∀ x ∈ xs, Avoids C.walkStart K₀ x) → runProbes C cut s xs = runProbes C cut' s xs
   | s, [], _, _ => rfl
   | s, x :: xs, hs, hxs => by
@@ -418,13 +418,13 @@ theorem runProbes_congr_off (hm : 1 ≤ C.recordsToMove) (h : AgreeOff C.walkSta
 
 end Congr
 
-/-- Level 4 over probes avoiding `K₀` reads only strings `KeyOff` holds of. -/
-theorem level4_congr_off (C : Level4Settings) (hm : 1 ≤ C.recordsToMove) {T : ℕ}
+/-- Level 5 over probes avoiding `K₀` reads only strings `KeyOff` holds of. -/
+theorem level5_congr_off (C : Level5Settings) (hm : 1 ≤ C.recordsToMove) {T : ℕ}
     (draws : Fin T → FreeMonoid α) (hd : ∀ i, Avoids C.walkStart K₀ (draws i))
     {read read' : FreeMonoid α → ARU}
     (h : ∀ z, KeyOff C.walkStart K₀ z → read z = read' z) :
-    indecisiveLStarLevel4 C read draws = indecisiveLStarLevel4 C read' draws := by
-  unfold indecisiveLStarLevel4
+    indecisiveLStarLevel5 C read draws = indecisiveLStarLevel5 C read' draws := by
+  unfold indecisiveLStarLevel5
   rw [runProbes_congr_off C (cut := fun z => (read z).cut) (cut' := fun z => (read' z).cut) hm
     (fun z hz => by simp only [h z hz]) initialState (List.ofFn draws)
     ⟨by simp [initialState], by simp [initialState]⟩

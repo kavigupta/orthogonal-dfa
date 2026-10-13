@@ -5,10 +5,10 @@ import OrthoDFA.Proofs.Lloyd
 # A round's outcomes are measurable
 
 An event the oracle's answers at finitely many strings fix is measurable
-(`measurableSet_of_reads`). Over given probes, level 4 reads only strings of bounded length, so its
+(`measurableSet_of_reads`). Over given probes, level 5 reads only strings of bounded length, so its
 result is fixed by finitely many answers; where it fails its claim also asks how much of the
 probes' distribution the round's reads make search or harvest, a countable sum of such events
-(`measurableSet_level4Fail`). A round's harvest data are fixed by finitely many answers too, so
+(`measurableSet_level5Fail`). A round's harvest data are fixed by finitely many answers too, so
 the earlier rounds' data are a measurable function of their draws (`measurableSet_codesOf`).
 -/
 
@@ -77,16 +77,16 @@ theorem le_probesLen {T : ℕ} (xs : Fin T → FreeMonoid α) (i : Fin T) :
   Finset.le_sup (f := fun i => (xs i).toList.length) (Finset.mem_univ i)
 
 omit [IsProbabilityMeasure μ] in
-/-- Level 4's result, over given probes, as a function of the oracle's answers, is fixed by its
+/-- Level 5's result, over given probes, as a function of the oracle's answers, is fixed by its
 answers at finitely many strings. -/
-theorem level4_result_congr (O : Oracle μ (FreeMonoid α)) (C : Level4Settings)
+theorem level5_result_congr (O : Oracle μ (FreeMonoid α)) (C : Level5Settings)
     (hC : 2 ≤ C.maxLeaves) (F : Finset (FreeMonoid α)) (kl kh : ℕ) {T : ℕ}
     (xs : Fin T → FreeMonoid α) {ω ω' : Ω}
     (h : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + C.maxLeaves)) F,
       (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    indecisiveLStarLevel4 C (fun z => familyRead O.mq F kl kh z ω) xs
-      = indecisiveLStarLevel4 C (fun z => familyRead O.mq F kl kh z ω') xs :=
-  level4_congr_up C hC xs (le_probesLen xs)
+    indecisiveLStarLevel5 C (fun z => familyRead O.mq F kl kh z ω) xs
+      = indecisiveLStarLevel5 C (fun z => familyRead O.mq F kl kh z ω') xs :=
+  level5_congr_up C hC xs (le_probesLen xs)
     (fun _ hz => familyRead_congr O h (mem_shortStrings.2 hz))
 
 /-- A measure's mass on a set the oracle's answers move, where each point's membership is
@@ -121,7 +121,7 @@ theorem measurableSet_mem_searchingProbes (O : Oracle μ (FreeMonoid α))
 
 omit [IsProbabilityMeasure μ] in
 theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α)}
-    {kl kh : ℕ} (k : ℕ) (site : Level4Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
+    {kl kh : ℕ} (k : ℕ) (site : Level5Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
     {ω ω' : Ω}
     (h : ∀ p ∈ readStrings (shortStrings (x.toList.length + midLen v.1)) F,
       (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
@@ -139,7 +139,7 @@ theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (Fre
   | middles => exact middleHarvestBy_congrK (prefAgreeK_up hagree (midLe_midLen v.1) le_rfl k)
 
 theorem measurable_siteCount (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (site : Level4Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
+    (kl kh k : ℕ) (site : Level5Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
     (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     Measurable fun ω =>
       ((siteHarvest (fun z => (familyRead O.mq F kl kh z ω).cut) k site v x).filter
@@ -150,7 +150,7 @@ theorem measurable_siteCount (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMo
     exact hω
 
 theorem measurable_harvestLaw (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (D : Measure (FreeMonoid α)) (h : Level4Harvest α) (A : Set (FreeMonoid α)) :
+    (kl kh k : ℕ) (D : Measure (FreeMonoid α)) (h : Level5Harvest α) (A : Set (FreeMonoid α)) :
     Measurable fun ω => harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k h A := by
   classical
   simp_rw [harvestLaw_apply]
@@ -184,36 +184,36 @@ def roundState (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     ∧ clusterRun harvests c ∈ ret O.mq (loopPopulations K harvests.length) none
       settings.indecisionLimit settings.gateLevel B
 
-/-- A round at the state `B` and family `F`, on level 4's noise and probes `d`. -/
+/-- A round at the state `B` and family `F`, on level 5's noise and probes `d`. -/
 def roundAt (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (x₀ : Run Ω (FreeMonoid α) (Option (Fin K))) (B : State) (F : Finset (FreeMonoid α))
-    (d : Ω × (Fin settings.level4.probeBudget → FreeMonoid α)) : LoopRound Ω α K :=
+    (d : Ω × (Fin settings.level5.probeBudget → FreeMonoid α)) : LoopRound Ω α K :=
   ⟨x₀, B, F, fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1,
-    indecisiveLStarLevel4 settings.level4 (fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1) d.2⟩
+    indecisiveLStarLevel5 settings.level5 (fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1) d.2⟩
 
-/-- Level 4's probes, drawn by uniforms from `D` avoiding `K₀`. -/
+/-- Level 5's probes, drawn by uniforms from `D` avoiding `K₀`. -/
 def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α))
-    (u : Fin settings.level4.probeBudget → unitInterval) :
-    Fin settings.level4.probeBudget → FreeMonoid α :=
-  fun i => drawFrom (avoidLaw D settings.level4.walkStart K₀) (u i)
+    (u : Fin settings.level5.probeBudget → unitInterval) :
+    Fin settings.level5.probeBudget → FreeMonoid α :=
+  fun i => drawFrom (avoidLaw D settings.level5.walkStart K₀) (u i)
 
-/-- A round at the state `B` and family `F`, its probes drawn from `D` avoiding `K₀`, on level 4's
+/-- A round at the state `B` and family `F`, its probes drawn from `D` avoiding `K₀`, on level 5's
 noise and uniforms `d`. -/
 def mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
     (x₀ : Run Ω (FreeMonoid α) (Option (Fin K))) (B : State) (F K₀ : Finset (FreeMonoid α))
-    (d : Ω × (Fin settings.level4.probeBudget → unitInterval)) : LoopRound Ω α K :=
+    (d : Ω × (Fin settings.level5.probeBudget → unitInterval)) : LoopRound Ω α K :=
   roundAt settings O x₀ B F (d.1, probesOf settings D K₀ d.2)
 
 /-- The first `k` letters of the prefixes a round's clustering reads. -/
 def roundKeys (settings : LoopSettings K) (harvests : List (Measure (FreeMonoid α)))
     (c : ClusterDraws Ω α K) : Finset (FreeMonoid α) :=
   clusterKeys (settings.schedule (loopPopulations K harvests.length))
-    (loopPopulations K harvests.length) settings.level4.walkStart (clusterRun harvests c)
+    (loopPopulations K harvests.length) settings.level5.walkStart (clusterRun harvests c)
 
 omit [IsProbabilityMeasure μ] in
 lemma loopRound_eq_mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) (harvests : List (Measure (FreeMonoid α)))
-    (d : LoopRoundDraws Ω α K settings.level4.probeBudget) :
+    (d : LoopRoundDraws Ω α K settings.level5.probeBudget) :
     loopRound settings O D harvests d = mkRound settings O D (clusterRun harvests (d.1, d.2.1))
       (roundState settings O harvests (d.1, d.2.1))
       (clusterAt O.mq (loopPopulations K harvests.length) (clusterRun harvests (d.1, d.2.1))
@@ -226,7 +226,7 @@ omit [Fintype σ] in
 oracle's answers. -/
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (ε y : ℝ) (H : Hypothesis α) (e : RoundEnd (Level4Harvest α)) :
+    (ε y : ℝ) (H : Hypothesis α) (e : RoundEnd (Level5Harvest α)) :
     MeasurableSet {ω | ¬ EndsWell M bad D ε
       (searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H) k
       (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k) y e} := by
@@ -524,8 +524,8 @@ theorem measurableSet_roundKeys (settings : LoopSettings K)
       × ({B // B ∈ sched} → pops → Finset (FreeMonoid α))) → Finset (FreeMonoid α) :=
     fun y => ((Finset.univ : Finset {B // B ∈ sched}).biUnion fun B =>
       y.1 B ∪ (Finset.univ : Finset pops).biUnion fun j => y.2 B j).image fun p =>
-        prefixOf p settings.level4.walkStart
-  have hG : ∀ x, clusterKeys sched pops settings.level4.walkStart x = G (dat x) := by
+        prefixOf p settings.level5.walkStart
+  have hG : ∀ x, clusterKeys sched pops settings.level5.walkStart x = G (dat x) := by
     intro x
     simp only [clusterKeys, G, dat]
     congr 1
@@ -554,7 +554,7 @@ theorem measurableSet_roundKeys (settings : LoopSettings K)
     exact (MeasurableSet.iInter fun B => measurableSet_prefixesAt pops _ _).inter
       (MeasurableSet.iInter fun B => MeasurableSet.iInter fun j => measurableSet_certOf _ _ _)
   have hx : MeasurableSet {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-      clusterKeys sched pops settings.level4.walkStart x = K₀} := by
+      clusterKeys sched pops settings.level5.walkStart x = K₀} := by
     have := measurableSet_of_data dat hdat (fun y => if G y = K₀ then Set.univ else ∅)
       (fun y => by split_ifs <;> simp)
     convert this using 1
@@ -573,30 +573,30 @@ theorem measurable_probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid
 
 /-- After given harvests, a round's harvest data are a measurable function of its draws. -/
 theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (hC : 2 ≤ settings.level4.maxLeaves) (N : ℕ) (D : Measure (FreeMonoid α))
+    (hC : 2 ≤ settings.level5.maxLeaves) (N : ℕ) (D : Measure (FreeMonoid α))
     (harvests : List (Measure (FreeMonoid α)))
     (hpops : ∀ ν ∈ harvests, IsProbabilityMeasure ν) (oc : Option (HarvestCode α)) :
-    MeasurableSet {d : LoopRoundDraws Ω α K settings.level4.probeBudget |
+    MeasurableSet {d : LoopRoundDraws Ω α K settings.level5.probeBudget |
       popCode N (loopRound settings O D harvests d) = oc} := by
   classical
   set pops := loopPopulations K harvests.length
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set x₀ : Run Ω (FreeMonoid α) (Option (Fin K)) := (ω₀, ((fun _ => 1, fun _ _ => 1), fun _ _ => 1))
-  have hcl : Measurable fun d : LoopRoundDraws Ω α K settings.level4.probeBudget =>
+  have hcl : Measurable fun d : LoopRoundDraws Ω α K settings.level5.probeBudget =>
       ((d.1, d.2.1) : ClusterDraws Ω α K) := measurable_fst.prodMk (measurable_fst.comp measurable_snd)
-  have hlv : Measurable fun d : LoopRoundDraws Ω α K settings.level4.probeBudget => (d.1, d.2.2) :=
+  have hlv : Measurable fun d : LoopRoundDraws Ω α K settings.level5.probeBudget => (d.1, d.2.2) :=
     measurable_fst.prodMk (measurable_snd.comp measurable_snd)
-  have hset : {d : LoopRoundDraws Ω α K settings.level4.probeBudget |
+  have hset : {d : LoopRoundDraws Ω α K settings.level5.probeBudget |
       popCode N (loopRound settings O D harvests d) = oc}
       = ⋃ BFK : State × Finset (FreeMonoid α) × Finset (FreeMonoid α),
-        ((fun d : LoopRoundDraws Ω α K settings.level4.probeBudget => ((d.1, d.2.1) : ClusterDraws Ω α K)) ⁻¹'
+        ((fun d : LoopRoundDraws Ω α K settings.level5.probeBudget => ((d.1, d.2.1) : ClusterDraws Ω α K)) ⁻¹'
           ({c | roundState settings O harvests c = BFK.1
             ∧ clusterAt O.mq pops (clusterRun harvests c) (roundState settings O harvests c) = BFK.2.1}
             ∩ {c | roundKeys settings harvests c = BFK.2.2}))
-        ∩ ((fun d : LoopRoundDraws Ω α K settings.level4.probeBudget => (d.1, d.2.2)) ⁻¹'
-          ((fun e : Ω × (Fin settings.level4.probeBudget → unitInterval) =>
+        ∩ ((fun d : LoopRoundDraws Ω α K settings.level5.probeBudget => (d.1, d.2.2)) ⁻¹'
+          ((fun e : Ω × (Fin settings.level5.probeBudget → unitInterval) =>
             (e.1, probesOf settings D BFK.2.2 e.2)) ⁻¹'
-            {d₂ : Ω × (Fin settings.level4.probeBudget → FreeMonoid α) |
+            {d₂ : Ω × (Fin settings.level5.probeBudget → FreeMonoid α) |
               popCode N (roundAt settings O x₀ BFK.1 BFK.2.1 d₂) = oc})) := by
     ext d
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage]
@@ -620,16 +620,16 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
         BFK.2.2)))
     (hlv ((measurable_fst.prodMk ((measurable_probesOf settings D BFK.2.2).comp measurable_snd))
       (measurableSet_prod_countable_right _ fun xs => ?_)))
-  set A := readStrings (shortStrings (probesLen xs + 1 + settings.level4.maxLeaves)) BFK.2.1
+  set A := readStrings (shortStrings (probesLen xs + 1 + settings.level5.maxLeaves)) BFK.2.1
     ∪ readStrings (shortStrings N) BFK.2.1
   refine measurableSet_of_reads O A _ fun ω ω' h hω => ?_
   simp only [Set.mem_setOf_eq] at hω ⊢
   rw [← hω]
-  have h1 : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + settings.level4.maxLeaves))
+  have h1 : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + settings.level5.maxLeaves))
       BFK.2.1, (O.mq p ω' = 1 ↔ O.mq p ω = 1) := fun p hp => (h p (Finset.mem_union_left _ hp)).symm
   have h2 : ∀ p ∈ readStrings (shortStrings N) BFK.2.1, (O.mq p ω' = 1 ↔ O.mq p ω = 1) :=
     fun p hp => (h p (Finset.mem_union_right _ hp)).symm
-  have hres := level4_result_congr O settings.level4 hC BFK.2.1 BFK.1.lo (BFK.1.hi + 1) xs h1
+  have hres := level5_result_congr O settings.level5 hC BFK.2.1 BFK.1.lo (BFK.1.hi + 1) xs h1
   have hgraph : readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω')
       = readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) := by
     unfold readGraph
@@ -671,9 +671,9 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
 omit [IsProbabilityMeasure μ] in
 lemma loopRounds_result (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget) (r : ℕ) :
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (r : ℕ) :
     ∀ o ∈ loopRounds settings O D draws r, ∃ T, ∃ xs : Fin T → FreeMonoid α,
-      o.result = indecisiveLStarLevel4 settings.level4 o.read xs := by
+      o.result = indecisiveLStarLevel5 settings.level5 o.read xs := by
   intro o ho
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
   obtain ⟨hK, e⟩ := getElem_loopRounds settings O D draws r i hi
@@ -683,18 +683,18 @@ lemma loopRounds_result (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
 omit [IsProbabilityMeasure μ] in
 lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level4.maxLeaves) (hN : L + settings.level4.maxLeaves ≤ N)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget) (r : ℕ) (hrK : r < K) :
+    (hC : 2 ≤ settings.level5.maxLeaves) (hN : L + settings.level5.maxLeaves ≤ N)
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (r : ℕ) (hrK : r < K) :
     codesOf N (loopRounds settings O D draws (r + 1))
       = if (codesOf N (loopRounds settings O D draws r)).length = r then
           codesOf N (loopRounds settings O D draws r)
             ++ (popCode N (loopRound settings O D
               ((codesOf N (loopRounds settings O D draws r)).map
-                (decodePop D settings.level4.walkStart)) (draws ⟨r, hrK⟩))).toList
+                (decodePop D settings.level5.walkStart)) (draws ⟨r, hrK⟩))).toList
         else codesOf N (loopRounds settings O D draws r) := by
-  have hdec := codesOf_decode settings.level4 hlen hC hN settings.level4.walkStart
+  have hdec := codesOf_decode settings.level5 hlen hC hN settings.level5.walkStart
     (loopRounds settings O D draws r) (loopRounds_result settings O D draws r)
-  have hlenc := length_codesOf N D settings.level4.walkStart (loopRounds settings O D draws r)
+  have hlenc := length_codesOf N D settings.level5.walkStart (loopRounds settings O D draws r)
   rw [loopRounds_succ]
   split_ifs with h1 h2 h2
   · rw [codesOf_append_single, hdec]
@@ -704,10 +704,10 @@ lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMo
     apply h1
     refine ⟨hrK, fun o ho => ?_⟩
     have hle := length_loopRounds_le settings O D draws r
-    have hlen' : (harvestsOf D settings.level4.walkStart (loopRounds settings O D draws r)).length
+    have hlen' : (harvestsOf D settings.level5.walkStart (loopRounds settings O D draws r)).length
         = (loopRounds settings O D draws r).length := by
       have := List.length_filterMap_le (fun o : LoopRound Ω α K =>
-        o.population D settings.level4.walkStart) (loopRounds settings O D draws r)
+        o.population D settings.level5.walkStart) (loopRounds settings O D draws r)
       unfold harvestsOf at hlenc this ⊢
       omega
     unfold harvestsOf at hlen'
@@ -721,9 +721,9 @@ lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMo
 /-- The earlier rounds' harvest data are a measurable function of the rounds' draws. -/
 theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level4.maxLeaves) (hN : L + settings.level4.maxLeaves ≤ N) (r : ℕ)
+    (hC : 2 ≤ settings.level5.maxLeaves) (hN : L + settings.level5.maxLeaves ≤ N) (r : ℕ)
     (c : List (HarvestCode α)) :
-    MeasurableSet {draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget |
+    MeasurableSet {draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget |
       codesOf N (loopRounds settings O D draws r) = c} := by
   classical
   induction r generalizing c with
@@ -732,13 +732,13 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
     exact MeasurableSet.const _
   | succ r ih =>
     by_cases hrK : r < K
-    · have hset : {draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget |
+    · have hset : {draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget |
           codesOf N (loopRounds settings O D draws (r + 1)) = c}
           = ⋃ c', {draws | codesOf N (loopRounds settings O D draws r) = c'}
-            ∩ (fun draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget =>
+            ∩ (fun draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget =>
               draws ⟨r, hrK⟩) ⁻¹' {d | (if c'.length = r then
                 c' ++ (popCode N (loopRound settings O D
-                  (c'.map (decodePop D settings.level4.walkStart)) d)).toList else c') = c} := by
+                  (c'.map (decodePop D settings.level5.walkStart)) d)).toList else c') = c} := by
         ext draws
         simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage,
           codesOf_loopRounds_succ settings O D hlen hC hN draws r hrK]
@@ -747,13 +747,13 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
       refine MeasurableSet.iUnion fun c' => (ih c').inter (measurable_pi_apply _ ?_)
       by_cases hc : c'.length = r
       · simp only [hc, if_true]
-        have : {d : LoopRoundDraws Ω α K settings.level4.probeBudget |
+        have : {d : LoopRoundDraws Ω α K settings.level5.probeBudget |
             c' ++ (popCode N (loopRound settings O D
-              (c'.map (decodePop D settings.level4.walkStart)) d)).toList = c}
+              (c'.map (decodePop D settings.level5.walkStart)) d)).toList = c}
             = ⋃ oc : Option (HarvestCode α),
               if c' ++ oc.toList = c then
                 {d | popCode N (loopRound settings O D
-                  (c'.map (decodePop D settings.level4.walkStart)) d) = oc} else ∅ := by
+                  (c'.map (decodePop D settings.level5.walkStart)) d) = oc} else ∅ := by
           ext d
           simp only [Set.mem_setOf_eq, Set.mem_iUnion]
           constructor
@@ -773,7 +773,7 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
         · exact MeasurableSet.empty
       · simp only [hc, if_false]
         exact MeasurableSet.const _
-    · have hst : ∀ draws : Fin K → LoopRoundDraws Ω α K settings.level4.probeBudget,
+    · have hst : ∀ draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget,
           loopRounds settings O D draws (r + 1) = loopRounds settings O D draws r := fun draws => by
         rw [loopRounds_succ, dif_neg (fun h => hrK h.1)]
       simp only [hst]

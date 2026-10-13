@@ -1,7 +1,7 @@
-import OrthoDFA.Proofs.Level4Short
+import OrthoDFA.Proofs.Level5Short
 
 /-!
-# Level 4 reads only short strings
+# Level 5 reads only short strings
 
 Over probes at most `Lx` long, a run reads the cut only at a probe's prefix, or one followed by a
 letter, then a midfix, and an edge's witness is a probe's prefix. The run keeps its midfixes
@@ -65,15 +65,15 @@ theorem startHarvestBy_congr_up (h : AgreeUpTo N cut cut') {T : DTree α} (hT : 
   unfold startHarvestBy
   rw [siftCut_congr_up h hT (u := prefixOf x k) (by have := length_prefixOf_le x k; omega)]
 
-theorem countProbe_congr_up (h : AgreeUpTo N cut cut') (s : Level4State α) (hT : MidLe M s.tree)
+theorem countProbe_congr_up (h : AgreeUpTo N cut cut') (s : Level5State α) (hT : MidLe M s.tree)
     {x : FreeMonoid α} (hx : x.toList.length + M ≤ N) (k : ℕ) :
     s.countProbe cut k x = s.countProbe cut' k x := by
-  unfold Level4State.countProbe
+  unfold Level5State.countProbe
   rw [middleHarvestBy_congrK (prefAgreeK_up h hT hx k), startHarvestBy_congr_up h hT hx k,
     edgeReadsBy_congr_pref (prefStrings_agree_up h hT hx),
     edgeHarvestBy_congr_pref (prefStrings_agree_up h hT hx)]
 
-theorem recordProbe_congr_up (h : AgreeUpTo N cut cut') (C : Level4Settings) (s : Level4State α)
+theorem recordProbe_congr_up (h : AgreeUpTo N cut cut') (C : Level5Settings) (s : Level5State α)
     (hT : MidLe M s.tree) {x : FreeMonoid α} (hx : x.toList.length + M ≤ N) :
     recordProbe C cut s x = recordProbe C cut' s x := by
   have hpb := probeBy_congr_up h hT hx s.edges C.walkStart
@@ -123,7 +123,7 @@ theorem midLe_splitAt {T : DTree α} (hT : ∀ m ∈ T.midfixes, m.toList.length
     · have := hT _ h'; omega
     · rw [h']; simp; omega
 
-theorem fixEdge_congr_up (h : AgreeUpTo N cut cut') (m : ℕ) (s : Level4State α)
+theorem fixEdge_congr_up (h : AgreeUpTo N cut cut') (m : ℕ) (s : Level5State α)
     (hT : ∀ m' ∈ s.tree.midfixes, m'.toList.length + 1 ≤ M) (hM : 1 ≤ M)
     (hE : ∀ q c t w, s.edges q c = some (t, w) → w.toList.length + 1 + M ≤ N)
     (p : List Bool) (c : α) (t : List Bool) :
@@ -136,7 +136,7 @@ theorem fixEdge_congr_up (h : AgreeUpTo N cut cut') (m : ℕ) (s : Level4State �
     · rw [retargetBy_congr_up h (midLe_splitAt hT hM c _ p) p hE]
     · rfl
 
-theorem settleOne_congr_up (h : AgreeUpTo N cut cut') (m L : ℕ) (s : Level4State α)
+theorem settleOne_congr_up (h : AgreeUpTo N cut cut') (m L : ℕ) (s : Level5State α)
     (hT : ∀ m' ∈ s.tree.midfixes, m'.toList.length + 1 ≤ M) (hM : 1 ≤ M)
     (hE : ∀ q c t w, s.edges q c = some (t, w) → w.toList.length + 1 + M ≤ N) :
     settleOne cut m L s = settleOne cut' m L s := by
@@ -149,13 +149,13 @@ end Congr
 
 /-- What a run keeps short: the tree's leaves within `maxLeaves` and its midfixes two shorter, and
 the edges' witnesses and the records' prefixes at most `Lx` long. -/
-def ReadInv (C : Level4Settings) (Lx : ℕ) (s : Level4State α) : Prop :=
+def ReadInv (C : Level5Settings) (Lx : ℕ) (s : Level5State α) : Prop :=
   2 ≤ s.tree.leaves.length ∧ s.tree.leaves.length ≤ C.maxLeaves
     ∧ (∀ m ∈ s.tree.midfixes, m.toList.length + 2 ≤ s.tree.leaves.length)
     ∧ (∀ q c t w, s.edges q c = some (t, w) → w.toList.length ≤ Lx)
     ∧ (∀ q c, ∀ r ∈ s.records q c, r.1.toList.length ≤ Lx)
 
-variable (C : Level4Settings) (cut : FreeMonoid α → Option Bool)
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 omit [Fintype α] [DecidableEq α] in
 theorem recordBy_prefix_len {k : ℕ} {T : DTree α} {E : EdgeTable α} {x : FreeMonoid α}
@@ -170,35 +170,35 @@ theorem recordBy_prefix_len {k : ℕ} {T : DTree α} {E : EdgeTable α} {x : Fre
     · cases h
   · cases h
 
-theorem recordProbe_edges (s : Level4State α) (x : FreeMonoid α) (q : List Bool) (c : α)
+theorem recordProbe_edges (s : Level5State α) (x : FreeMonoid α) (q : List Bool) (c : α)
     (t : List Bool) (w : FreeMonoid α) :
     (recordProbe C cut s x).edges q c = some (t, w) →
       s.edges q c = some (t, w) ∨ w.toList.length < x.toList.length := by
   unfold recordProbe
   rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
-  all_goals try (intro h; left; simpa [Level4State.countProbe] using h)
+  all_goals try (intro h; left; simpa [Level5State.countProbe] using h)
   · rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c', t'⟩, sp⟩ <;>
-      (intro h; left; simpa [Level4State.countProbe, Level4State.addRecord] using h)
+      (intro h; left; simpa [Level5State.countProbe, Level5State.addRecord] using h)
   · rcases hc : x.toList[u.toList.length]? with _ | c' <;> try dsimp only
-    · intro h; left; simpa [Level4State.countProbe] using h
+    · intro h; left; simpa [Level5State.countProbe] using h
     have hlen : u.toList.length < x.toList.length := (List.getElem?_eq_some_iff.1 hc).1
     rcases hp : s.tree.siftCut cut u with p | b <;> try dsimp only
     swap
-    · intro h; left; simpa [Level4State.countProbe] using h
+    · intro h; left; simpa [Level5State.countProbe] using h
     rcases ht : s.tree.siftCut cut (u * FreeMonoid.of c') with t'' | b <;> try dsimp only
     swap
-    · intro h; left; simpa [Level4State.countProbe] using h
+    · intro h; left; simpa [Level5State.countProbe] using h
     rcases he : s.edges p c' with _ | e <;> try dsimp only
     · intro h
       rw [setEdge_eq] at h
       split_ifs at h with hqc
       · simp only [Option.some.injEq, Prod.mk.injEq] at h
         right; rw [← h.2]; exact hlen
-      · left; simpa [Level4State.countProbe] using h
-    · intro h; left; simpa [Level4State.countProbe] using h
+      · left; simpa [Level5State.countProbe] using h
+    · intro h; left; simpa [Level5State.countProbe] using h
 
-theorem recordProbe_readInv {Lx : ℕ} {s : Level4State α} {x : FreeMonoid α}
+theorem recordProbe_readInv {Lx : ℕ} {s : Level5State α} {x : FreeMonoid α}
     (h : ReadInv C Lx s) (hx : x.toList.length ≤ Lx) : ReadInv C Lx (recordProbe C cut s x) := by
   obtain ⟨h2, hL, hm, hE, hR⟩ := h
   have htree := (recordProbe_cases cut C s x).1
@@ -211,7 +211,7 @@ theorem recordProbe_readInv {Lx : ℕ} {s : Level4State α} {x : FreeMonoid α}
     rcases recordProbe_recs cut C s x with ⟨-, hrec⟩ | ⟨p, c', t, sp, hrb, hrec⟩
     · rw [hrec] at hr; exact hR q c r hr
     · rw [hrec] at hr
-      simp only [Level4State.addRecord] at hr
+      simp only [Level5State.addRecord] at hr
       by_cases hq : q = p
       · subst hq
         simp only [Function.update_self] at hr
@@ -246,7 +246,7 @@ theorem retargetBy_witness {t' : DTree α} {p : List Bool} {E : EdgeTable α} {q
     · simp only [Option.some.injEq, Prod.mk.injEq] at h
       exact ⟨t₀, by rw [h.2]⟩
 
-theorem applyProbe_readInv {Lx : ℕ} {s s' : Level4State α} {x : FreeMonoid α}
+theorem applyProbe_readInv {Lx : ℕ} {s s' : Level5State α} {x : FreeMonoid α}
     (h : ReadInv C Lx (recordProbe C cut s x)) (ha : applyProbe C cut s x = .inl s') :
     ReadInv C Lx s' := by
   obtain ⟨h2, hL, hm, hE, hR⟩ := h
@@ -310,7 +310,7 @@ theorem applyProbe_readInv {Lx : ℕ} {s s' : Level4State α} {x : FreeMonoid α
     exact ⟨h2, hL, hm, hE, hR⟩
 
 theorem applyProbe_congr_up {Lx : ℕ} {cut cut' : FreeMonoid α → Option Bool}
-    (h : AgreeUpTo (Lx + 1 + C.maxLeaves) cut cut') {s : Level4State α} (hs : ReadInv C Lx s)
+    (h : AgreeUpTo (Lx + 1 + C.maxLeaves) cut cut') {s : Level5State α} (hs : ReadInv C Lx s)
     {x : FreeMonoid α} (hx : x.toList.length ≤ Lx) :
     applyProbe C cut s x = applyProbe C cut' s x := by
   have hs' := recordProbe_readInv C cut' hs hx
@@ -329,7 +329,7 @@ theorem applyProbe_congr_up {Lx : ℕ} {cut cut' : FreeMonoid α → Option Bool
 
 theorem runProbes_congr_up {Lx : ℕ} {cut cut' : FreeMonoid α → Option Bool}
     (h : AgreeUpTo (Lx + 1 + C.maxLeaves) cut cut') :
-    ∀ (s : Level4State α) (xs : List (FreeMonoid α)), ReadInv C Lx s →
+    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), ReadInv C Lx s →
       (∀ x ∈ xs, x.toList.length ≤ Lx) → runProbes C cut s xs = runProbes C cut' s xs
   | s, [], _, _ => rfl
   | s, x :: xs, hs, hxs => by
@@ -342,13 +342,13 @@ theorem runProbes_congr_up {Lx : ℕ} {cut cut' : FreeMonoid α → Option Bool}
       exact runProbes_congr_up h s' xs hinv (fun y hy => hxs y (List.mem_cons_of_mem _ hy))
     · rfl
 
-/-- Level 4 over probes at most `Lx` long reads only strings at most `Lx + 1 + maxLeaves`
+/-- Level 5 over probes at most `Lx` long reads only strings at most `Lx + 1 + maxLeaves`
 long. -/
-theorem level4_congr_up (hC : 2 ≤ C.maxLeaves) {T : ℕ} (draws : Fin T → FreeMonoid α) {Lx : ℕ}
+theorem level5_congr_up (hC : 2 ≤ C.maxLeaves) {T : ℕ} (draws : Fin T → FreeMonoid α) {Lx : ℕ}
     (hd : ∀ i, (draws i).toList.length ≤ Lx) {read read' : FreeMonoid α → ARU}
     (h : ∀ z : FreeMonoid α, z.toList.length ≤ Lx + 1 + C.maxLeaves → read z = read' z) :
-    indecisiveLStarLevel4 C read draws = indecisiveLStarLevel4 C read' draws := by
-  unfold indecisiveLStarLevel4
+    indecisiveLStarLevel5 C read draws = indecisiveLStarLevel5 C read' draws := by
+  unfold indecisiveLStarLevel5
   rw [runProbes_congr_up C (cut := fun z => (read z).cut) (cut' := fun z => (read' z).cut)
     (fun z hz => by simp only [h z hz]) initialState (List.ofFn draws)
     ⟨by simp [initialState, DTree.leaves], by simpa [initialState, DTree.leaves] using hC,

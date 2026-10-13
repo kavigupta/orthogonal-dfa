@@ -1,7 +1,7 @@
-import OrthoDFA.Proofs.Level4RiskDefs
+import OrthoDFA.Proofs.Level5RiskDefs
 
 /-!
-# Level 4's parts
+# Level 5's parts
 
 The family is the oracle: every string's read is accept, reject or undecided, independently
 across strings, with a law that depends only on the string's state in the target DFA
@@ -149,7 +149,7 @@ def EdgesInto (T : DTree α) (edges : EdgeTable α) : Prop :=
 at each edge and target, and good read-states' undecided reads are rare at each edge, at the start
 and at the middles searches stop at. -/
 structure NoiseEvent {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-    (C : Level4Settings) (S : ℕ) (ρ θg θgs θgpt : ℝ) (rd : FreeMonoid α → ARU) : Prop where
+    (C : Level5Settings) (S : ℕ) (ρ θg θgs θgpt : ℝ) (rd : FreeMonoid α → ARU) : Prop where
   spurious : ∀ T edges, G.InClass S T → EdgesInto T edges →
     D.real (G.untrueAt rd C.walkStart T edges)
       ≤ G.κ * ∫ x, (twinsBy (fun z => (rd z).cut) T edges C.walkStart x : ℝ) ∂D + ρ
@@ -166,27 +166,27 @@ open scoped Classical in
 /-- The mean count of the strings a probe walked from `k` under `v` reads undecided at the site,
 at read-states satisfying `P`. -/
 noncomputable def siteMean {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α))
-    (rd : FreeMonoid α → ARU) (k : ℕ) (site : Level4Site α) (P : σ → Prop)
+    (rd : FreeMonoid α → ARU) (k : ℕ) (site : Level5Site α) (P : σ → Prop)
     (v : DTree α × EdgeTable α) : ℝ :=
   ∫ x, (((siteHarvest (fun z => (rd z).cut) k site v x).filter
     fun b => P (G.M.eval b.toList)).length : ℝ) ∂D
 
 /-- The mean count of the strings a probe walked from `k` under `v` reads undecided at the site. -/
 noncomputable def siteTotal (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (k : ℕ)
-    (site : Level4Site α) (v : DTree α × EdgeTable α) : ℝ :=
+    (site : Level5Site α) (v : DTree α × EdgeTable α) : ℝ :=
   ∫ x, ((siteHarvest (fun z => (rd z).cut) k site v x).length : ℝ) ∂D
 
 /-- The harvest's sampler finds more strings at read-states that are not good than at good ones,
 and at least `y` a version in all. -/
 def MixGood {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
-    (k : ℕ) (y : ℝ) (h : Level4Harvest α) : Prop :=
+    (k : ℕ) (y : ℝ) (h : Level5Harvest α) : Prop :=
   2 * (h.versions.map (siteMean G D rd k h.site G.Good)).sum
       < (h.versions.map (siteTotal D rd k h.site)).sum
     ∧ y * h.versions.length ≤ (h.versions.map (siteTotal D rd k h.site)).sum
 
 /-- The endings the round claims: success, or a harvest whose sampler `MixGood` holds of. -/
 def GoodEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
-    (k : ℕ) (y : ℝ) (e : Level4Ending α) (s : Level4State α) : Prop :=
+    (k : ℕ) (y : ℝ) (e : Level5Ending α) (s : Level5State α) : Prop :=
   match toRoundEnd e s with
   | .consistent => True
   | .harvest h => MixGood G D rd k y h
@@ -194,15 +194,15 @@ def GoodEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd
 
 /-- Where a sub-round starts: a tree of the class, edges into its leaves, no records, a fresh
 stretch. -/
-def SubStart {σ : Type*} (G : ReadModel α σ) (S : ℕ) (s : Level4State α) : Prop :=
+def SubStart {σ : Type*} (G : ReadModel α σ) (S : ℕ) (s : Level5State α) : Prop :=
   G.InClass S s.tree ∧ EdgesInto s.tree s.edges ∧ (∀ q c, s.records q c = []) ∧ s.stretchProbes = 0
       ∧ s.stretchDisagreements = 0
 
 open scoped Classical in
 /-- The sub-round from `s` keeps its tree over its first `j` probes, making fewer than `B` records
 that are not true. -/
-def SubOpen {σ : Type*} (G : ReadModel α σ) (C : Level4Settings) (rd : FreeMonoid α → ARU) :
-    Level4State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
+def SubOpen {σ : Type*} (G : ReadModel α σ) (C : Level5Settings) (rd : FreeMonoid α → ARU) :
+    Level5State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
   | _, B, 0, _, _ => 0 < B
   | _, B, _ + 1, 0, _ => 0 < B
   | s, B, j + 1, T + 1, xs => ∃ s', applyProbe C (fun z => (rd z).cut) s (xs 0) = .inl s'
@@ -215,7 +215,7 @@ probes with fewer than `B` records that are not true with chance at most `subOpe
 def SubRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : Level4Settings) (S nEnd nRec hP hS B : ℕ) (θpt' θr εd' : ℝ),
+    (C : Level5Settings) (S nEnd nRec hP hS B : ℕ) (θpt' θr εd' : ℝ),
     0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.firstLook ≤ nEnd →
     C.firstLook ≤ hS + 1 → 0 ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1
         → 0 ≤ C.disagreementRate → C.disagreementRate ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
@@ -232,8 +232,8 @@ def SubRound : Prop :=
 open scoped Classical in
 /-- Over its first `W` probes the run from `s` makes `u` more records that are not true, each at a
 probe after which it goes on. -/
-def UntrueHit {σ : Type*} (G : ReadModel α σ) (C : Level4Settings) (rd : FreeMonoid α → ARU) :
-    Level4State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
+def UntrueHit {σ : Type*} (G : ReadModel α σ) (C : Level5Settings) (rd : FreeMonoid α → ARU) :
+    Level5State α → ℕ → ℕ → (T : ℕ) → (Fin T → FreeMonoid α) → Prop
   | _, 0, _, _, _ => True
   | _, _ + 1, 0, _, _ => False
   | _, _ + 1, _ + 1, 0, _ => False
@@ -248,7 +248,7 @@ round's records that are not true reach `(S + 1) m` within `W` probes with chanc
 def FakeRace : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : Level4Settings) (S L W : ℕ) (ρ θg θgs θgpt Xe θs' Xs η ν : ℝ),
+    (C : Level5Settings) (S L W : ℕ) (ρ θg θgs θgpt Xe θs' Xs η ν : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves
         → 0 ≤ C.edgeUndecidedRate →
     0 ≤ C.edgeTraffic → 0 ≤ ρ → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → C.firstLook ≤ Xs →
@@ -269,7 +269,7 @@ the round ends in a harvest at a tree of the class whose sampler fails `MixGood`
 def HarvestGood : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : Level4Settings) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
+    (C : Level5Settings) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.recordsToMove → 0 < C.testLevel
         → C.testLevel ≤ 1 → 0 ≤ θg →
     8 * θg ≤ C.edgeUndecidedRate → 0 ≤ C.edgeTraffic → Fintype.card σ + S + 2 ≤ C.maxLeaves →
@@ -293,7 +293,7 @@ def HarvestGood : Prop :=
 probes with chance at most `T² a`. -/
 def SuccessSound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (rd : FreeMonoid α → ARU)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : Level4Settings) (T : ℕ),
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : Level5Settings) (T : ℕ),
     0 ≤ C.disagreementRate → C.disagreementRate ≤ 1 → C.testLevel ≤ 1 →
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (applyProbe C fun z => (rd z).cut)
@@ -313,7 +313,7 @@ def RoundGiven : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
     (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (C : Level4Settings) (S nEnd nRec hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs η ν : ℝ),
+    (C : Level5Settings) (S nEnd nRec hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs η ν : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
     0 ≤ ρ → 0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.firstLook ≤ nEnd →
     C.firstLook ≤ hS + 1 → 0 ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1
@@ -339,7 +339,7 @@ def RoundGiven : Prop :=
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
+          (Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (fakeRun C (Fintype.card α) S L

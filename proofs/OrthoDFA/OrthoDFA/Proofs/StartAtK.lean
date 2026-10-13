@@ -101,7 +101,7 @@ theorem bracketAt_edge (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
       exact ⟨rfl, by omega, le_rfl, by simpa using hlo, hhi⟩
 
 omit [Fintype α] [DecidableEq α] in
-/-- Level 4's search is main's bisection without recovery. -/
+/-- Level 5's search is main's bisection without recovery. -/
 theorem bracketAt_eq_bisect (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
     ∀ fuel lo hi, hi - lo ≤ fuel →
       bracketAt (α := α) agrees ps fuel lo hi

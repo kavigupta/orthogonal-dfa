@@ -1,9 +1,9 @@
-import OrthoDFA.Proofs.Level4Parts
+import OrthoDFA.Proofs.Level5Parts
 import OrthoDFA.Proofs.StartAtK
 import OrthoDFA.Proofs.TreePaths
 
 /-!
-# Level 4's walks
+# Level 5's walks
 
 A record's edge is out of a leaf on the walk and points elsewhere than the leaf its next prefix
 sifts to. The positions a probe sifts lie between its start and its end.
