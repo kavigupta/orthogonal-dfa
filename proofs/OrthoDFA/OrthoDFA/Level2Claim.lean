@@ -38,28 +38,36 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
 /-- The fewest undecided reads out of `n` that the rate test calls above `y` at level `a`. -/
 noncomputable def fireCount (y a : ℝ) (n : ℕ) : ℕ := sInf {k | binomSfGe n y k < a}
 
-/-- With ideal reads and `stretches · probesToEnd ≤ P` probes, level 2 fails to end well
-(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with chance at most
-`S ((1 − ε)^n + P(Bin(n, r) < K)) + P a`: `S` the stretches, `n = probesToEnd`, `y` and `a` the
-rate test's rate and level, and `K` the fewest undecided reads out of `n` it calls above `y`. A
-consistent ending has its hypothesis and tree parting on at most `ε + r` of the probes, and a
-harvest's sampler yields `y`. -/
+/-- The fewest probes after which the rate test at level `a` calls no disagreement below `ε`:
+the least `n` with `(1 − ε)^n < a`. -/
+noncomputable def consistentAfter (ε a : ℝ) : ℕ := sInf {n | (1 - ε) ^ n < a}
+
+/-- With ideal reads and `stretches · n ≤ P` probes, `n = consistentAfter disagreementRate
+testLevel` the probes after which a stretch with no disagreement ends consistent, level 2 fails to
+end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with chance
+at most `S (a + P(Bin(n, r) < K)) + P a`: `S` the stretches, `y` and `a` the rate tests' rate for
+the undecided reads and their level, and `K` the fewest undecided reads out of `n` the test calls
+above `y`. A consistent ending has its hypothesis and tree parting on at most
+`disagreementRate + r` of the probes, and a harvest's sampler yields `y`. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2Settings) (P : ℕ),
-    IdealReads read M side → 1 ≤ C.probesToEnd → 0 < C.harvestRate → C.harvestRate ≤ 1 →
-    0 < C.harvestLevel → stretches (Fintype.card σ) (Fintype.card α) * C.probesToEnd ≤ P →
-    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (ε r : ℝ), ε ≤ 1 → 0 ≤ r → r ≤ 1 →
+    IdealReads read M side → 0 < C.harvestRate → C.harvestRate ≤ 1 →
+    0 < C.disagreementRate → C.disagreementRate ≤ 1 → 0 < C.testLevel → C.testLevel ≤ 1 →
+    stretches (Fintype.card σ) (Fintype.card α)
+        * consistentAfter C.disagreementRate C.testLevel ≤ P →
+    ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (r : ℝ), 0 ≤ r → r ≤ 1 →
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
-            ¬ EndsWell M (AllUndecided read M) D (ε + r)
+            ¬ EndsWell M (AllUndecided read M) D (C.disagreementRate + r)
               {x | Disagrees read result.hypothesis C.walkStart x}
               C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis)
               C.harvestRate result.ending}
-        ≤ stretches (Fintype.card σ) (Fintype.card α) * ((1 - ε) ^ C.probesToEnd
-            + (1 - binomSfGe C.probesToEnd r
-              (fireCount C.harvestRate C.harvestLevel C.probesToEnd)))
-          + P * C.harvestLevel
+        ≤ stretches (Fintype.card σ) (Fintype.card α) * (C.testLevel
+            + (1 - binomSfGe (consistentAfter C.disagreementRate C.testLevel) r
+              (fireCount C.harvestRate C.testLevel
+                (consistentAfter C.disagreementRate C.testLevel))))
+          + P * C.testLevel
 
 end Ideal
 

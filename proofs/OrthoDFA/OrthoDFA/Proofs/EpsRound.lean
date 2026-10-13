@@ -108,7 +108,7 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
     rw [ht, hsucc, eval_mul]
     rfl
   | agree => simp [recOf] at hx
-  | undecided k zs cl => simp [recOf] at hx
+  | undecidedStart _ | undecided _ _ => simp [recOf] at hx
   | unlearnedEdge p' c' u t' => simp [recOf] at hx
 
 /-! ## Fake fixes in a stretch -/

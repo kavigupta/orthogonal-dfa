@@ -200,10 +200,7 @@ theorem step_cases {s s' : Level3_5State α} {x : FreeMonoid α} (hs : Inv read 
       intro p' c' u' t' he
       cases he
       exact hc
-  | agree =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
-  | undecided k zs cl =>
+  | agree | undecidedStart _ | undecided _ _ =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
@@ -351,8 +348,7 @@ theorem step_tooBig {s : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid �
         split_ifs at h with hlt
         exact ⟨p, c, u, t, t₀, w₀, rfl, hE, htt, hp, hu, huc, hmv, hc, hlt⟩
     · exact absurd h (hlook _)
-  | agree => exact absurd h (hlook _)
-  | undecided k zs cl => exact absurd h (hlook _)
+  | agree | undecidedStart _ | undecided _ _ => exact absurd h (hlook _)
 
 theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
     {s : Level3_5State α} (hs : Inv read C s) (x : FreeMonoid α) :

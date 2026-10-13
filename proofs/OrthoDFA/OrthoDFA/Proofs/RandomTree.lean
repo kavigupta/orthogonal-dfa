@@ -227,10 +227,7 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     obtain ⟨hp, hu, huc, t₀, w₀, hE, hne⟩ := hOK
     simp only [hE, Sum.inl.injEq] at h
     exact Or.inr (Or.inl ⟨p, c, u, t, t₀, w₀, rfl, hE, hne, hp, hu, huc, h.symm⟩)
-  | agree =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨h1, h1 ▸ h2, rfl⟩)
-  | undecided k zs cl =>
+  | agree | undecidedStart _ | undecided _ _ =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨h1, h1 ▸ h2, rfl⟩)
 

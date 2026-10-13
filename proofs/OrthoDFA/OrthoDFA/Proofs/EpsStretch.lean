@@ -747,18 +747,17 @@ theorem surv_le {s : Level3_5State α} (hs : Inv read C s) (hT : s.tree = T) (hE
       refine Or.inr (Set.mem_biUnion (x := (p, c, t)) ?_ ?_)
       · simp [Rset, hp, DTree.sift_inl_mem read T _ t huc]
       · simp [fR, hg, recOf]
-    | undecided k zs cl =>
+    | undecided zs cl =>
       cases cl with
       | true => simp [searches] at hx
       | false =>
-        obtain ⟨-, hzs, -⟩ := hOK
+        obtain ⟨hzs, -⟩ := hOK
         refine Or.inl ?_
         simp only [Set.mem_ofPred_eq, fP, hg, middleString]
         cases zs with
         | nil => exact absurd rfl (hzs rfl)
         | cons z zs => simp
-    | agree => simp [searches] at hx
-    | unlearnedEdge p c u t => simp [searches] at hx
+    | agree | undecidedStart _ | unlearnedEdge _ _ _ _ => simp [searches] at hx
   have hRcard : (Rset.card : ℝ) ≤ (C.maxLeaves : ℝ) ^ 2 * Fintype.card α := by
     have h1 : T.leaves.toFinset.card ≤ C.maxLeaves :=
       (List.toFinset_card_le _).trans (hT ▸ hs.size)
