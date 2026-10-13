@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from orthogonal_dfa.l_star.counterexample_search import OUT_OF_PROBES, TOO_BIG
 from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import (
@@ -260,8 +261,20 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
             )
 
 
+def assert_searches_end_inside_the_proofs_budget(endings):
+    """No round's counterexample search ran out of probes or leaves."""
+    assert endings, "no rounds recorded -- did the tracker reach synthesis?"
+    for ending in endings:
+        assert ending.kind not in (OUT_OF_PROBES, TOO_BIG), (
+            f"a counterexample search ended {ending.kind}: if this assertion fires, it's "
+            "evidence that the gap between reality and the proof is less egregious "
+            "than we thought (the proof's huge probe budget, or its leaf cap, is "
+            "binding in practice)"
+        )
+
+
 def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+    """``learn_dfa``, asserting the per-round invariants."""
     tracker = RecordingTracker()
     dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
@@ -270,6 +283,7 @@ def learn_dfa_verified(oracle_creator, **kwargs):
         truth_oracle.target_dfa(),
         kwargs.get("max_coverage_error", DEFAULT_MAX_COVERAGE_ERROR),
     )
+    assert_searches_end_inside_the_proofs_budget(tracker.endings)
     return dfa
 
 

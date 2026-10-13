@@ -15,25 +15,3 @@ def pytest_collection_modifyitems(items):
     for item in items:
         if item.get_closest_marker("slow"):
             item.add_marker(pytest.mark.timeout(SLOW_TIMEOUT_SECONDS))
-
-
-@pytest.fixture(autouse=True)
-def _counterexample_searches_end_inside_the_proofs_budget(monkeypatch):
-    """Every round the learner runs ends without running out of probes or leaves."""
-    # pylint: disable=import-outside-toplevel,protected-access
-    from orthogonal_dfa.l_star import counterexample_synthesis
-    from orthogonal_dfa.l_star.counterexample_search import OUT_OF_PROBES, TOO_BIG
-
-    counterexample_search = counterexample_synthesis._counterexample_search
-
-    def checked(*args, **kwargs):
-        hypothesis, ending = counterexample_search(*args, **kwargs)
-        assert ending.kind not in (OUT_OF_PROBES, TOO_BIG), (
-            f"a counterexample search ended {ending.kind}: if this assertion fires, it's "
-            "evidence that the gap between reality and the proof is less egregious "
-            "than we thought (the proof's huge probe budget, or its leaf cap, is "
-            "binding in practice)"
-        )
-        return hypothesis, ending
-
-    monkeypatch.setattr(counterexample_synthesis, "_counterexample_search", checked)

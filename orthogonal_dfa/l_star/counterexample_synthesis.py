@@ -326,6 +326,7 @@ def counterexample_driven_synthesis(
         hypothesis, ending = _counterexample_search(
             pst, vs, acc_threshold=acc_threshold
         )
+        tracker.on_search_ended(ending, index)
         dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {hypothesis.probes} probes: "
