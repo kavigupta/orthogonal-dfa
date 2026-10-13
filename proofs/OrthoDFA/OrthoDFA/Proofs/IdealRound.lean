@@ -96,14 +96,15 @@ theorem step_inv (hI : IdealReads read M side) (hC : TestsOK C)
 theorem applyProbe_ne_failed (s : Level2State α) (x : FreeMonoid α) :
     applyProbe read C s x ≠ .inr .failed := by
   classical
+  have hkeep : ∀ n d, keep C s n d ≠ .inr .failed := by
+    intro n d; unfold keep; dsimp only; split_ifs <;> simp
   unfold applyProbe
   split
-  · unfold keep; dsimp only; split_ifs <;> simp
-  · unfold keep; dsimp only; split_ifs <;> simp
   · split
     · simp
-    · unfold keep; dsimp only; split_ifs <;> simp
+    · exact hkeep _ _
   · simp
+  · exact hkeep _ _
 
 end Ends
 
@@ -136,12 +137,13 @@ theorem disagrees_le {s : Level2State α} (hs : Inv read C s) :
     intro hcl hOK
     cases o with
     | agree => simp [Outcome.clean] at hcl
+    | undecidedStart z => simp [Outcome.clean] at hcl
     | wrongEdge => exact Or.inl trivial
     | unlearnedEdge => exact Or.inl trivial
-    | undecided k zs cl =>
+    | undecided zs cl =>
       simp only [Outcome.clean] at hcl
       subst hcl
-      exact Or.inr (hOK.2.1 rfl)
+      exact Or.inr (hOK.1 rfl)
   calc _ ≤ _ := measureReal_mono hsub
     _ ≤ _ := measureReal_union_le _ _
 

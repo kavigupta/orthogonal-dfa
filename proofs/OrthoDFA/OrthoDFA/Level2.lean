@@ -87,14 +87,13 @@ part. -/
 noncomputable def applyProbe (s : Level2State α) (x : FreeMonoid α) :
     Level2State α ⊕ RoundEnd Unit :=
   match probeOrAgree false read s.tree s.edges C.walkStart x with
-  | .agree => keep C s 0 0
-  | .undecided _ zs _ => keep C s zs.length 0
   | .wrongEdge p c _ t =>
     match s.edges (p, c) with
     | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
     | none => keep C s 0 1
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
+  | o => keep C s o.undecidedStrings.length 0
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
 noncomputable def runProbes :

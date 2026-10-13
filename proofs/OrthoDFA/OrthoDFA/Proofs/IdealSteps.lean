@@ -371,7 +371,8 @@ theorem step_change [Fintype α] (hI : IdealReads read M side) (hn : 1 ≤ C.end
   intro hc hOK
   cases o with
   | agree => exact hc.elim
-  | undecided k zs cl => exact hc.elim
+  | undecidedStart z => exact hc.elim
+  | undecided zs cl => exact hc.elim
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_upd read hs.edges hu huc) hs.reached,
@@ -414,31 +415,18 @@ theorem step_same (hC : TestsOK C) {s : Level2State α} (hd : s.disagreements = 
   generalize probeOrAgree false read s.tree s.edges C.walkStart x = o
   intro hc hs'
   subst hs'
-  cases o with
-  | wrongEdge => exact absurd trivial hc
-  | unlearnedEdge => exact absurd trivial hc
-  | agree =>
+  cases o
+  case wrongEdge => exact absurd trivial hc
+  case unlearnedEdge => exact absurd trivial hc
+  all_goals
     simp only
     unfold keep
-    simp only
     simp only [hd, add_zero]
     split_ifs with h1 h2
     · exact Or.inr (Or.inl ⟨rfl, (rateSide_zero _ _ _ _).1 h1⟩)
-    · exact Or.inr (Or.inr ⟨by simp [counted, hd, Outcome.undecidedStrings],
-        (rateSide_clean hC _).1 h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
-    · exact Or.inl ⟨by simp [counted, hd, Outcome.undecidedStrings], by
-        simp only [counted]; exact not_le.1 fun h => h2 ((rateSide_clean hC _).2 h),
-        fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
-  | undecided k zs cl =>
-    simp only
-    unfold keep
-    simp only
-    simp only [hd, add_zero]
-    split_ifs with h1 h2
-    · exact Or.inr (Or.inl ⟨rfl, (rateSide_zero _ _ _ _).1 h1⟩)
-    · exact Or.inr (Or.inr ⟨by simp [counted, hd, Outcome.undecidedStrings],
-        (rateSide_clean hC _).1 h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
-    · exact Or.inl ⟨by simp [counted, hd, Outcome.undecidedStrings], by
+    · exact Or.inr (Or.inr ⟨by simp [counted, hd], (rateSide_clean hC _).1 h2,
+        fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
+    · exact Or.inl ⟨by simp [counted, hd], by
         simp only [counted]; exact not_le.1 fun h => h2 ((rateSide_clean hC _).2 h),
         fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
 
