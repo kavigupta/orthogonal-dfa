@@ -1,13 +1,14 @@
 import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
 import OrthoDFA.FamilyRead
+import OrthoDFA.RateTest
 
 /-!
 # Walks and searches from position `k`
 
 A probe is walked from where the cut places its first `k` letters along learned edges (`follow`,
 `KWalk`); a disagreement is searched by bisection (`bracketAt`) to what the probe comes to
-(`Outcome`). `rateSide` is a test's verdict on a count against a rate.
+(`Outcome`).
 -/
 
 namespace OrthoDFA
@@ -84,15 +85,6 @@ def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → �
     else .edge ps hi
 
 variable (R : CutReads α)
-
-/-- `binomial_side_of_boundary` once `n₀` draws are in: above `θ` when `Bin(n, θ)` reaches `h`
-hits with chance below `a`, below when it stays at or under `h` with chance below `a`. -/
-noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
-  if n₀ ≤ n then
-    if binomSfGe n θ h < a then some true
-    else if 1 - binomSfGe n θ (h + 1) < a then some false
-    else none
-  else none
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
 

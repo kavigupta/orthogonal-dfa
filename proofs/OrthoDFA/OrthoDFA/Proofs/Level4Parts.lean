@@ -94,12 +94,12 @@ each at a leaf, on a letter followed by the midfix where two leaves part. -/
 inductive Grown : DTree α → ℕ → Prop
   | start : Grown (.node 1 .leaf .leaf) 0
   | real {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → t ∈ T.leaves →
-      t₀ ∈ T.leaves → G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) f
+      t₀ ∈ T.leaves → G.GenuineSplit T p (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) p) f
   | fake {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → p ∈ T.leaves →
       t ∈ T.leaves → t₀ ∈ T.leaves → ¬ G.GenuineSplit T p (FreeMonoid.of c
-          * T.midAt (commonPrefix t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) (f + 1)
+          * T.midfixAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) p) (f + 1)
 
 /-- Grown with at most `S` splits that are not genuine. -/
 def InClass (S : ℕ) (T : DTree α) : Prop := ∃ f ≤ S, G.Grown T f

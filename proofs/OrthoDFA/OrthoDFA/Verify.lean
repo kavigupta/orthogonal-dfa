@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.Level4Noise
@@ -12,6 +13,7 @@ import OrthoDFA.Proofs.Level4SpurNoise
 import OrthoDFA.Proofs.Level4Correct
 import OrthoDFA.Proofs.Level4Risk
 import OrthoDFA.Proofs.Level4RiskBound
+import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.TripartiteSearch
 import OrthoDFA.Proofs.LoopUniform
 
@@ -23,7 +25,8 @@ suffixes at least `L₀` long, the learner's loop succeeds but for chance `δ`.
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-`TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, level 2's ideal-read claim, stated
+`TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, `SiftWithPathCorrect`, stated in
+`OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read claim, stated
 in `OrthoDFA.Level2Claim`, level 4's, stated in `OrthoDFA.Level4Claim`, and level 4 read by the
 suffix family, stated in `OrthoDFA.Level4Family`, and the learner's loop, stated in
 `OrthoDFA.LearnerLoop`, at free settings and at the theorem's own. Level 4's detailed bound and
@@ -113,6 +116,14 @@ theorem learner_loop_correct : LearnerLoopCorrect := learner_loop_correct_holds
 theorem learner_loop_simple : LearnerLoopSimple := learner_loop_simple_holds
 
 #print axioms learner_loop_simple
+
+theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
+
+#print axioms sift_with_path_correct
+
+theorem rate_test_sound : RateTestSound := rateTestSound
+
+#print axioms rate_test_sound
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

@@ -113,13 +113,13 @@ theorem retargetBy_congr_up (h : AgreeUpTo N cut cut') {t' : DTree α} (ht : Mid
 
 theorem midLe_splitAt {T : DTree α} (hT : ∀ m ∈ T.midfixes, m.toList.length + 1 ≤ M)
     (hM : 1 ≤ M) (c : α) (t : List Bool) (p : List Bool) :
-    MidLe M (T.splitAt (FreeMonoid.of c * T.midAt t) p) := by
+    MidLe M (T.splitAt (FreeMonoid.of c * T.midfixAt t) p) := by
   intro m hm
   rcases midfixes_splitAt _ _ _ m hm with h' | rfl
   · have := hT m h'; omega
   · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
       List.length_singleton]
-    rcases midAt_mem_or_one T t with h' | h'
+    rcases midfixAt_mem_or_one T t with h' | h'
     · have := hT _ h'; omega
     · rw [h']; simp; omega
 
@@ -272,7 +272,7 @@ theorem applyProbe_readInv {Lx : ℕ} {s s' : Level4State α} {x : FreeMonoid α
         · have := hm m hm'; omega
         · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
             List.length_singleton]
-          rcases midAt_mem_or_one s₁.tree (commonPrefix hv.choose_spec.choose_spec.choose t₀)
+          rcases midfixAt_mem_or_one s₁.tree (commonPrefix hv.choose_spec.choose_spec.choose t₀)
             with h' | h'
           · have := hm _ h'; omega
           · rw [h']; simp; omega

@@ -14,17 +14,17 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-theorem midAt_mem_or_one : ∀ (T : DTree α) (p : List Bool), T.midAt p ∈ T.midfixes ∨ T.midAt p = 1
+theorem midfixAt_mem_or_one : ∀ (T : DTree α) (p : List Bool), T.midfixAt p ∈ T.midfixes ∨ T.midfixAt p = 1
   | .leaf, _ => .inr rfl
-  | .node m r a, [] => .inl (by simp [DTree.midAt, DTree.midfixes])
+  | .node m r a, [] => .inl (by simp [DTree.midfixAt, DTree.midfixes])
   | .node m r a, false :: p => by
-    rcases midAt_mem_or_one r p with h | h
-    · left; simp [DTree.midAt, DTree.midfixes, h]
-    · right; simpa [DTree.midAt] using h
+    rcases midfixAt_mem_or_one r p with h | h
+    · left; simp [DTree.midfixAt, DTree.midfixes, h]
+    · right; simpa [DTree.midfixAt] using h
   | .node m r a, true :: p => by
-    rcases midAt_mem_or_one a p with h | h
-    · left; simp [DTree.midAt, DTree.midfixes, h]
-    · right; simpa [DTree.midAt] using h
+    rcases midfixAt_mem_or_one a p with h | h
+    · left; simp [DTree.midfixAt, DTree.midfixes, h]
+    · right; simpa [DTree.midfixAt] using h
 
 theorem midfixes_splitAt (d : FreeMonoid α) : ∀ (T : DTree α) (p : List Bool) (m : FreeMonoid α),
     m ∈ (T.splitAt d p).midfixes → m ∈ T.midfixes ∨ m = d
@@ -154,7 +154,7 @@ theorem applyProbe_short {s s' : Level4State α} {x : FreeMonoid α}
         · have := hm m hm'; omega
         · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
             List.length_singleton]
-          rcases midAt_mem_or_one (recordProbe C cut s x).tree
+          rcases midfixAt_mem_or_one (recordProbe C cut s x).tree
               (commonPrefix hv'.choose_spec.choose_spec.choose t₀)
             with h' | h'
           · have := hm _ h'; omega

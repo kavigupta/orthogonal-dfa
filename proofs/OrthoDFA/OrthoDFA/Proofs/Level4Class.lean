@@ -20,7 +20,7 @@ noncomputable def classSet : ℕ → Finset (DTree α)
   | n + 1 => classSet n ∪ (classSet n).biUnion fun T =>
       (T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
           T.leaves.toFinset).image
-        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1
+        fun q => T.splitAt (FreeMonoid.of q.2.1 * T.midfixAt (commonPrefix q.2.2.1 q.2.2.2)) q.1
 
 theorem classSet_mono (n : ℕ) : (classSet n : Finset (DTree α)) ⊆ classSet (n + 1) := by
   classical
@@ -36,7 +36,7 @@ theorem classSet_mono' {n n' : ℕ} (h : n ≤ n') :
 
 theorem classSet_split {n : ℕ} {T : DTree α} (hT : T ∈ classSet n) {p t t₀ : List Bool} {c : α}
     (hp : p ∈ T.leaves) (ht : t ∈ T.leaves) (ht₀ : t₀ ∈ T.leaves) :
-    T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p ∈ classSet (n + 1) := by
+    T.splitAt (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) p ∈ classSet (n + 1) := by
   classical
   simp only [classSet]
   refine Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨T, hT, Finset.mem_image.2
@@ -68,7 +68,7 @@ theorem classSet_card : ∀ n : ℕ,
     have hstep : ∀ T ∈ (classSet n : Finset (DTree α)),
         ((T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
           T.leaves.toFinset).image fun q => T.splitAt (FreeMonoid.of q.2.1 *
-            T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
+            T.midfixAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
       intro T hT
       refine Finset.card_image_le.trans ?_
       have h := (List.toFinset_card_le T.leaves).trans (classSet_paths n T hT)

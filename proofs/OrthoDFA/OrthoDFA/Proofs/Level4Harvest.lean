@@ -212,7 +212,7 @@ theorem reach_step (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x : FreeM
       rw [ht] at h₂
       exact (G.grown_unique h₁ h₂).le
     · have hg : G.Grown s'.tree f ∨ G.Grown s'.tree (f + 1) := by
-        by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
+        by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
         · exact .inl (hT ▸ .real hf ht ht₀ hgen)
         · exact .inr (hT ▸ .fake hf hp ht ht₀ hgen)
       refine ⟨hg.elim (⟨_, ·⟩) (⟨_, ·⟩), he', ?_, fun f₁ f₂ h₁ h₂ => ?_⟩

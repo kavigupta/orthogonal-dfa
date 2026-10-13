@@ -267,12 +267,12 @@ theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
     · have h0 : ∀ pct, badRecs G s' pct = 0 := fun pct => by simp [badRecs, hrec]
       have htr' : s'.tree ≠ s.tree := fun h' => DTree.splitAt_ne hp (hT.symm.trans h')
       obtain ⟨p, c, t, t₀, hp, ht, ht₀, hne, hm₁, hm₂, hT⟩ := applyProbe_split C cut hm he hr h htr'
-      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
+      by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
       · refine ⟨f, hT ▸ .real hf ht ht₀ hgen, by omega, fun pct => ?_⟩
         rw [h0]
         omega
       · have hngP : ¬ G.GenuineSplit (recordProbe C cut s x).tree p
-            (FreeMonoid.of c * (recordProbe C cut s x).tree.midAt (commonPrefix t t₀)) := by
+            (FreeMonoid.of c * (recordProbe C cut s x).tree.midfixAt (commonPrefix t t₀)) := by
           rw [htr₁]; exact hgen
         have key : ∀ pct', C.recordsToMove ≤ badRecs G (recordProbe C cut s x) pct' →
             C.recordsToMove * (f + 1)

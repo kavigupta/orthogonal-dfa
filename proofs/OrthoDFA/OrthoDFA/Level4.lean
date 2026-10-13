@@ -422,7 +422,7 @@ noncomputable def fixEdge (cut : FreeMonoid α → Option Bool) (m : ℕ) (s : L
   match s.edges p c with
   | some (t₀, _) =>
     if m ≤ s.recordCount p c t₀ then
-      let d := FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)
+      let d := FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)
       let t' := s.tree.splitAt d p
       { s.newStretch with
         tree := t'

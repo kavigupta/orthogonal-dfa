@@ -263,7 +263,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
           have hg' : Fintype.card σ ≤ (G.trueLeaves s'.tree).card + g := htr ▸ hg
           have htrP := (recordProbe_cases cut C s' (xs 0)).1
           by_cases hgen : G.GenuineSplit s'.tree p (FreeMonoid.of c
-              * s'.tree.midAt (commonPrefix t t₀))
+              * s'.tree.midfixAt (commonPrefix t t₀))
           · obtain ⟨hg₂, hc₂⟩ := split_lands G hf' ht ht₀ hp hT ⟨_, _, hT, hgen⟩
             have hle := G.trueLeaves_card_le s''.tree
             have huu'' : u' ≤ u'' := by rw [hu'']; exact Nat.le_add_right _ _
@@ -280,7 +280,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
             push_cast at this ⊢
             rw [this]
           · have hngP : ¬ G.GenuineSplit (recordProbe C cut s' (xs 0)).tree p
-                (FreeMonoid.of c * (recordProbe C cut s' (xs 0)).tree.midAt
+                (FreeMonoid.of c * (recordProbe C cut s' (xs 0)).tree.midfixAt
                     (commonPrefix t t₀)) := by
               rw [htrP]; exact hgen
             have hbig : u + C.recordsToMove ≤ u'' := by
@@ -305,7 +305,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
               omega
             have hg₂ : G.Grown s''.tree (f + 1) := hT ▸ ReadModel.Grown.fake hf' hp ht ht₀ hgen
             have hc₂ := (G.trueLeaves_splitAt hp (FreeMonoid.of c
-                * s'.tree.midAt (commonPrefix t t₀))).1
+                * s'.tree.midfixAt (commonPrefix t t₀))).1
             rw [← hT] at hc₂
             have hadm : (k - 1) + g < N ∧ AdmB G C S Tsub s'' u'' (k - 1) g (W' - 1) T' := by
               refine ⟨by omega, hstart (f + 1) hg₂ (by omega), ⟨f + 1, hg₂, by omega⟩, by omega,
