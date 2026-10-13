@@ -111,17 +111,7 @@ theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)
 
 theorem searchOutcome_startString (st : ℕ → List Bool) (un : Option (α × List Bool)) (hi : ℕ)
     (r : SearchResult) : startString (searchOutcome read T x st un hi r) = [] := by
-  have hs : ∀ p zs, startString (.undecided (Ideal.siteAt x st p) zs false) = [] := by
-    intro p zs
-    unfold Ideal.siteAt
-    split <;> rfl
-  cases r with
-  | edge p => simp only [searchOutcome]; split <;> rfl
-  | allAgree => simp only [searchOutcome]; split <;> rfl
-  | undecidedMid p | pair p | triple p => exact hs _ _
-  | undecidedHi => rfl
-  | undecidedLo => rfl
-  | disagreeLo => rfl
+  cases r <;> simp only [searchOutcome] <;> (try split) <;> rfl
 
 theorem searchOutcome_searches (st : ℕ → List Bool) (un : Option (α × List Bool)) (lo hi : ℕ)
     (hle : lo ≤ hi) (hlo : siftAgrees read T x st lo = some true)

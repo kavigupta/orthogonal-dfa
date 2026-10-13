@@ -757,18 +757,17 @@ theorem surv_le {s : Level3State α} (hs : Inv read s) (hT : s.tree = T) (hE : s
     generalize hg : probeOrAgree false read T E C.walkStart x = o at hx hOK
     cases o with
     | wrongEdge p c u t => exact Or.inr (by simp [fW, hg, recOf])
-    | undecided k zs cl =>
+    | undecided zs cl =>
       cases cl with
       | true => simp [searches] at hx
       | false =>
-        obtain ⟨-, hzs, -⟩ := hOK
+        obtain ⟨hzs, -⟩ := hOK
         refine Or.inl ?_
         simp only [Set.mem_ofPred_eq, fP, hg, middleString]
         cases zs with
         | nil => exact absurd rfl (hzs rfl)
         | cons z zs => simp
-    | agree => simp [searches] at hx
-    | unlearnedEdge p c u t => simp [searches] at hx
+    | agree | undecidedStart _ | unlearnedEdge _ _ _ _ => simp [searches] at hx
   have hqle : q ≤ pP + θr :=
     (measureReal_mono hcov).trans ((measureReal_union_le _ _).trans (add_le_add le_rfl hB.le))
   have hq0 : 0 < q := lt_of_le_of_lt hεd'0 hC

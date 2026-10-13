@@ -95,16 +95,16 @@ noncomputable def undecidedAtEdge [Fintype α]
 /-- The probe searched: its walk and its sift parted at decided reads. -/
 def searches : Outcome α → Bool
   | .wrongEdge .. => true
-  | .undecided _ _ clean => !clean
+  | .undecided _ clean => !clean
   | _ => false
 
 def startString : Outcome α → List (FreeMonoid α)
-  | .undecided .start [z] _ => [z]
+  | .undecidedStart z => [z]
   | _ => []
 
 /-- The undecided middle the search stopped at. -/
 def middleString : Outcome α → List (FreeMonoid α)
-  | .undecided _ zs false => zs.take 1
+  | .undecided zs false => zs.take 1
   | _ => []
 
 structure Level3Settings where
