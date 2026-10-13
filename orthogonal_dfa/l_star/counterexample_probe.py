@@ -1,4 +1,4 @@
-"""One string probed against a hypothesis, as in ``OrthoDFA/TallyLoop.lean``."""
+"""One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
 
 from collections import Counter
 from dataclasses import dataclass

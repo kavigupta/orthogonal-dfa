@@ -1,4 +1,4 @@
-"""The counterexample search's config, as in ``OrthoDFA/TallyLoop.lean``, and the one shipped."""
+"""``Level5Settings`` of ``OrthoDFA/Level5.lean``, and the one shipped."""
 
 import math
 from dataclasses import dataclass

@@ -1,4 +1,4 @@
-"""The counterexample search of ``OrthoDFA/TallyLoop.lean``, read through the round's suffix family."""
+"""``indecisiveLStarLevel5`` of ``OrthoDFA/Level5.lean``, read through the round's suffix family."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -40,7 +40,7 @@ class Ending:
 
 
 class CounterexampleSearch:
-    """``TState``, over a tree it splits in place."""
+    """``Level5State``, over a tree it splits in place."""
 
     def __init__(self, config: CounterexampleSearchConfig, cut: Cut, tree: MidfixTree):
         self.config, self.cut, self.tree = config, cut, tree
