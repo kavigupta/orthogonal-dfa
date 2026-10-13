@@ -148,10 +148,13 @@ theorem stuckString_undecided (hE : EdgesOK read H.tree H.edges) (x : FreeMonoid
   intro z hz
   revert hOK hz
   generalize probeOrAgree false read H.tree H.edges k x = o
-  rcases o with _ | _ | _ | ⟨k', zs, cl⟩ <;>
+  rcases o with _ | _ | _ | z' | ⟨zs, cl⟩ <;>
     simp only [Outcome.undecidedStrings, List.not_mem_nil, false_imp_iff, imp_true_iff]
-  intro hOK hz
-  exact hOK.2.2 z hz
+  · intro hOK hz
+    rw [List.mem_singleton.1 hz]
+    exact hOK
+  · intro hOK hz
+    exact hOK.2 z hz
 
 theorem harvestLaw_apply (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     harvestLaw read D k H A

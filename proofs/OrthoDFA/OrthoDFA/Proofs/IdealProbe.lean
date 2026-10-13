@@ -114,12 +114,6 @@ theorem pre_of_le {x : FreeMonoid α} {p : ℕ} (h : x.toList.length ≤ p) : pr
 
 /-! ## The outcome -/
 
-/-- An undecided site at the start, the stop, or a leaf's edge. -/
-def SiteOK (T : DTree α) : UndecidedSite α → Prop
-  | .start => True
-  | .stop => True
-  | .edge s _ => s ∈ T.leaves
-
 /-- What an outcome promises against the hypothesis `(T, E)`. -/
 def OutcomeOK (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) : Outcome α → Prop
   | .agree => True
@@ -127,18 +121,19 @@ def OutcomeOK (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) : Out
       T.sift read (u * FreeMonoid.of c) = .inl t ∧ ∃ t₀ w₀, E (s, c) = some (t₀, w₀) ∧ t₀ ≠ t
   | .unlearnedEdge s c u t => s ∈ T.leaves ∧ T.sift read u = .inl s ∧
       T.sift read (u * FreeMonoid.of c) = .inl t ∧ E (s, c) = none
-  | .undecided k zs cl => SiteOK T k ∧ (cl = false → zs ≠ []) ∧ ∀ z ∈ zs, read z = .undecided
+  | .undecidedStart z => read z = .undecided
+  | .undecided zs cl => (cl = false → zs ≠ []) ∧ ∀ z ∈ zs, read z = .undecided
 
 /-- The outcomes that do not disagree. -/
 def Outcome.clean : Outcome α → Bool
   | .agree => true
-  | .undecided _ _ cl => cl
+  | .undecidedStart _ => true
+  | .undecided _ cl => cl
   | _ => false
 
-theorem outcomeOK_one {read : FreeMonoid α → ARU} {T : DTree α} {E : Edges α} {k : UndecidedSite α}
-    (hk : SiteOK T k) {z : FreeMonoid α} (h : read z = .undecided) :
-    OutcomeOK read T E (.undecided k [z] true) :=
-  ⟨hk, by simp, by simpa using h⟩
+theorem outcomeOK_one {read : FreeMonoid α → ARU} {T : DTree α} {E : Edges α}
+    {z : FreeMonoid α} (h : read z = .undecided) : OutcomeOK read T E (.undecided [z] true) :=
+  ⟨by simp, by simpa using h⟩
 
 section Located
 
@@ -181,17 +176,10 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
         (tripartiteSearch recover (siftAgrees read T x st) k j).1) := by
   have hs := tripartiteSearch_ok (recover := recover) (agrees := siftAgrees read T x st) hkj
   generalize (tripartiteSearch recover (siftAgrees read T x st) k j).1 = r at hs
-  have hcell : ∀ p, k ≤ p → p ≤ j → SiteOK T (siteAt x st p) := by
-    intro p h1 h2
-    unfold siteAt
-    split
-    · exact hmem p h1 h2
-    · trivial
   cases r with
-  | undecidedLo => exact ⟨trivial, by simp, by simp⟩
-  | disagreeLo => exact ⟨trivial, by simp, by simp⟩
-  | undecidedHi =>
-    exact ⟨trivial, (fun h => by cases h), (stuckAt_ok read T x st hs.2).2⟩
+  | undecidedLo => exact ⟨by simp, by simp⟩
+  | disagreeLo => exact ⟨by simp, by simp⟩
+  | undecidedHi => exact ⟨(fun h => by cases h), (stuckAt_ok read T x st hs.2).2⟩
   | allAgree =>
     rcases un with _ | ⟨c, t⟩
     · trivial
@@ -208,17 +196,17 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     · rw [← pre_succ hc, hp, ht]
     · rw [hp]; exact fun h => htne h.symm
   | triple p =>
-    obtain ⟨h1, h2, -, h3, -⟩ := hs
+    obtain ⟨-, -, -, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
-    exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
+    exact ⟨fun _ => n3, u3⟩
   | undecidedMid p =>
-    obtain ⟨-, h1, h2, h3⟩ := hs
+    obtain ⟨-, -, -, h3⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
-    exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
+    exact ⟨fun _ => n3, u3⟩
   | pair p =>
-    obtain ⟨h1, h2, h3, -⟩ := hs
+    obtain ⟨-, -, h3, -⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
-    exact ⟨hcell p (by omega) (by omega), fun _ => n3, u3⟩
+    exact ⟨fun _ => n3, u3⟩
 
 /-- Where the walk agrees at `k` and disagrees at `j`, the search's outcome is not clean. -/
 theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k ≤ j)
@@ -291,9 +279,9 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
       · refine searchOutcome_ok read T x _ E k _ (by omega) hmem hstep _ fun c' t' h => ?_
         cases h
         exact ⟨hc, ht, by rw [hj]; exact hE'⟩
-      · exact outcomeOK_one (k := .stop) trivial (DTree.sift_inr read T _ z ht)
+      · exact outcomeOK_one (DTree.sift_inr read T _ z ht)
     · exact searchOutcome_ok read T x _ E k _ (by omega) hmem hstep _ fun _ _ h => by cases h
-  · exact outcomeOK_one (k := .start) trivial (DTree.sift_inr read T _ z ha)
+  · exact DTree.sift_inr read T _ z ha
 
 theorem probeOrAgree_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
     OutcomeOK read T E (probeOrAgree recover read T E k x) := by
