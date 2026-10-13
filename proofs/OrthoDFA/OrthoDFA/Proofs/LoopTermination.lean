@@ -242,38 +242,38 @@ def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
 
 section RoundFacts
 
-variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
-  (harvests : List (Measure (FreeMonoid α)))
+variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+  (h : LoopHist α)
   (d : LoopRoundDraws Ω α K settings.level5.probeBudget)
 
 lemma loopRound_returns
-    (h : ∃ B ∈ settings.schedule (loopPopulations K harvests.length),
-      clusterRun harvests (d.1, d.2.1) ∈ ret O.mq (loopPopulations K harvests.length) none
+    (hB : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
+      clusterRun D Dsf h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
         settings.indecisionLimit settings.gateLevel B) :
-    (loopRound settings O D harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
-      ∧ (loopRound settings O D harvests d).run ∈ ret O.mq (loopPopulations K harvests.length) none
-        settings.indecisionLimit settings.gateLevel (loopRound settings O D harvests d).state := by
-  obtain ⟨B, hB, hr⟩ := h
+    (loopRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
+      ∧ (loopRound settings O D Dsf h d).run ∈ ret O.mq (loopPopulations K h.pops.length) none
+        settings.indecisionLimit settings.gateLevel (loopRound settings O D Dsf h d).state := by
+  obtain ⟨B, hB, hr⟩ := hB
   exact Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
-    (loopPopulations K harvests.length) ∧ clusterRun harvests (d.1, d.2.1) ∈ ret O.mq
-      (loopPopulations K harvests.length) none settings.indecisionLimit settings.gateLevel B)
+    (loopPopulations K h.pops.length) ∧ clusterRun D Dsf h (d.1, d.2.1) ∈ ret O.mq
+      (loopPopulations K h.pops.length) none settings.indecisionLimit settings.gateLevel B)
     ⟨B, hB, hr⟩
 
-lemma one_notMem_loopRound_family : 1 ∉ (loopRound settings O D harvests d).family :=
+lemma one_notMem_loopRound_family : 1 ∉ (loopRound settings O D Dsf h d).family :=
   Finset.notMem_erase _ _
 
 /-- The clustering's claim, at the state the round returned at. -/
 lemma loopRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
-    (h : ClusterSpec settings O D' εcov slack harvests (loopRound settings O D harvests d).run) :
-    (loopRound settings O D harvests d).state ∈ settings.schedule (loopPopulations K harvests.length)
-    ∧ ∫ p, miscutProb O (loopRound settings O D harvests d).state.lo
-          ((loopRound settings O D harvests d).state.hi + 1)
-          (insert 1 (loopRound settings O D harvests d).family) p ∂D' ≤ εcov + slack
-      ∧ ∀ j ∈ loopPopulations K harvests.length,
-        ∫ p, undecidedProb O (loopRound settings O D harvests d).state.lo
-            ((loopRound settings O D harvests d).state.hi + 1)
-            (insert 1 (loopRound settings O D harvests d).family) p
-          ∂(loopDistributions D' harvests j) ≤ 2 * settings.indecisionLimit + slack := by
+    (hs : ClusterSpec settings O D' εcov slack h.pops (loopRound settings O D Dsf h d).run) :
+    (loopRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
+    ∧ ∫ p, miscutProb O (loopRound settings O D Dsf h d).state.lo
+          ((loopRound settings O D Dsf h d).state.hi + 1)
+          (insert 1 (loopRound settings O D Dsf h d).family) p ∂D' ≤ εcov + slack
+      ∧ ∀ j ∈ loopPopulations K h.pops.length,
+        ∫ p, undecidedProb O (loopRound settings O D Dsf h d).state.lo
+            ((loopRound settings O D Dsf h d).state.hi + 1)
+            (insert 1 (loopRound settings O D Dsf h d).family) p
+          ∂(loopDistributions D' h.pops j) ≤ 2 * settings.indecisionLimit + slack := by
   have hr := loopRound_returns settings O D harvests d h.1
   exact ⟨hr.1, h.2 _ hr.1 hr.2⟩
 
@@ -295,23 +295,23 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
-    (P : PrefixDistribution α) (settings : LoopSettings K)
+    (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (k : ℕ)
     (hk : settings.level5.walkStart = k) (εcov slack εd y : ℝ) (hK : Fintype.card σ + 1 ≤ K)
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
-    (hspec : ∀ i (hi : i < (loopRounds settings O P.D draws K).length), i ≤ Fintype.card σ →
+    (hspec : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
       ClusterSpec settings O P.D εcov slack
-          (harvestsOf P.D k ((loopRounds settings O P.D draws K).take i))
-          (loopRounds settings O P.D draws K)[i].run
+          (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
+          (loopRounds settings O P.D Dsf draws K)[i].run
         ∧ Level5Spec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
-          (loopRounds settings O P.D draws K)[i]) :
-    (indecisiveLStarLoop settings O P.D draws).length ≤ Fintype.card σ + 1
-      ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D draws).getLast?,
+          (loopRounds settings O P.D Dsf draws K)[i]) :
+    (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
+      ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
         o.Agrees O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
           (2 * settings.indecisionLimit + slack) εd := by
   classical
   unfold indecisiveLStarLoop
-  set L := loopRounds settings O P.D draws K with hLdef
+  set L := loopRounds settings O P.D Dsf draws K with hLdef
   set c := 2 * settings.indecisionLimit + slack with hc
   have hθ : 3 / 2 * loopTheta σ settings.indecisionLimit slack = 4 * Fintype.card σ * c := by
     rw [loopTheta, hc]; ring
@@ -324,12 +324,12 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         ∫ p, undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
           ∂(loopDistributions P.D (harvestsOf P.D k (L.take i)) j) ≤ c := by
     intro i hi hiσ
-    obtain ⟨hiK, e⟩ := getElem_loopRounds settings O P.D draws K i hi
+    obtain ⟨hiK, e⟩ := getElem_loopRounds settings O P.D Dsf draws K i hi
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O _ _ _ hs
-    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O _ _ _, hq⟩
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O _ _ _ _ hs
+    exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O _ _ _ _, hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →

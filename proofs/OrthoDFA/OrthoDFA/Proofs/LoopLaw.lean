@@ -226,82 +226,49 @@ section Run
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
 
-/-- The populations' prefix streams: the probes' own, and each harvest population's draws. -/
-def popStreams (pops : List (Measure (FreeMonoid α)))
-    (w : (ℕ → FreeMonoid α) × (Fin K → ℕ → unitInterval)) : Option (Fin K) → ℕ → FreeMonoid α
-  | none => w.1
-  | some i => fun n => drawFrom (pops.getD i (Measure.dirac 1)) (w.2 i n)
-
-lemma measurePreserving_popStreams (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (pops : List (Measure (FreeMonoid α))) (hpops : ∀ ν ∈ pops, IsProbabilityMeasure ν) :
-    MeasurePreserving (popStreams (K := K) pops)
-      ((Measure.infinitePi fun _ : ℕ => D).prod
-        (Measure.pi fun _ : Fin K =>
-          Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))
-      (Measure.pi fun j : Option (Fin K) =>
-        Measure.infinitePi fun _ : ℕ => loopDistributions D pops j) := by
-  have hP : ∀ i : Fin K, IsProbabilityMeasure (pops.getD i (Measure.dirac 1)) := fun i =>
-    isProbabilityMeasure_loopDistributions D pops hpops (some i)
-  have hdraw : MeasurePreserving
-      (fun U : Fin K → ℕ → unitInterval => fun (i : Fin K) n =>
-        drawFrom (pops.getD i (Measure.dirac 1)) (U i n))
-      (Measure.pi fun _ : Fin K => Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
-      (Measure.pi fun i : Fin K =>
-        Measure.infinitePi fun _ : ℕ => loopDistributions D pops (some i)) := by
-    have hf : ∀ i : Fin K, Measurable fun u : ℕ → unitInterval =>
-        fun n => drawFrom (pops.getD i (Measure.dirac 1)) (u n) := fun i =>
-      measurable_pi_lambda _ fun n => (measurable_drawFrom _).comp (measurable_pi_apply n)
-    refine ⟨measurable_pi_lambda _ fun i => (hf i).comp (measurable_pi_apply i), ?_⟩
-    rw [Measure.pi_map_pi (fun i => (hf i).aemeasurable)]
-    congr 1
-    funext i
+/-- A stream of uniforms, each drawing from `ν`, is a stream of draws from `ν`. -/
+lemma measurePreserving_drawStream (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] :
+    MeasurePreserving (fun u : ℕ → unitInterval => fun n => drawFrom ν (u n))
+      (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
+      (Measure.infinitePi fun _ : ℕ => ν) :=
+  ⟨measurable_pi_lambda _ fun n => (measurable_drawFrom _).comp (measurable_pi_apply n), by
     rw [Measure.infinitePi_map_pi (μ := fun _ : ℕ => (volume : Measure unitInterval))
-      (hf := fun _ => measurable_drawFrom _), map_drawFrom]
-    rfl
-  have : ∀ j, IsProbabilityMeasure (loopDistributions (K := K) D pops j) :=
-    isProbabilityMeasure_loopDistributions D pops hpops
-  have he : MeasurePreserving
-      (MeasurableEquiv.piOptionEquivProd fun _ : Option (Fin K) => ℕ → FreeMonoid α).symm
-      ((Measure.pi fun i : Fin K =>
-        Measure.infinitePi fun _ : ℕ => loopDistributions D pops (some i)).prod
-        (Measure.infinitePi fun _ : ℕ => loopDistributions D pops none))
-      (Measure.pi fun j : Option (Fin K) =>
-        Measure.infinitePi fun _ : ℕ => loopDistributions D pops j) :=
-    ⟨(MeasurableEquiv.piOptionEquivProd _).symm.measurable, Measure.pi_map_piOptionEquivProd
-      (fun j : Option (Fin K) => Measure.infinitePi fun _ : ℕ => loopDistributions D pops j)⟩
-  have hc := he.comp ((hdraw.prod (MeasurePreserving.id _)).comp Measure.measurePreserving_swap)
-  convert hc using 1
-  all_goals first
-    | rfl
-    | (funext w j; cases j <;> rfl)
+      (hf := fun _ => measurable_drawFrom _), map_drawFrom]⟩
 
-/-- At given populations, a round's clustering draws give a run drawn by `runMeasure` at
-them. -/
-lemma measurePreserving_clusterRun (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    [IsProbabilityMeasure Dsf] (pops : List (Measure (FreeMonoid α)))
-    (hpops : ∀ ν ∈ pops, IsProbabilityMeasure ν) :
-    MeasurePreserving (clusterRun (Ω := Ω) (K := K) pops) (clusterLaw μ D Dsf K)
-      (runMeasure μ (loopDistributions D pops) Dsf) := by
-  have : ∀ j, IsProbabilityMeasure (loopDistributions (K := K) D pops j) :=
-    isProbabilityMeasure_loopDistributions D pops hpops
-  set Dp := Measure.infinitePi fun _ : ℕ => D
-  set PU := Measure.pi fun _ : Fin K => Measure.infinitePi fun _ : ℕ =>
-    (volume : Measure unitInterval)
-  set PL := Measure.pi fun j : Option (Fin K) =>
-    Measure.infinitePi fun _ : ℕ => loopDistributions D pops j
-  have hP := measurePreserving_popStreams (K := K) D pops hpops
-  have f1 := measurePreserving_prodAssoc Dp Dp (PU.prod PU)
-  have f2 := (MeasurePreserving.id Dp).prod (measurePreserving_prodAssoc Dp PU PU).symm
-  have f3 := (MeasurePreserving.id Dp).prod
-    ((Measure.measurePreserving_swap (μ := Dp) (ν := PU)).prod (MeasurePreserving.id PU))
-  have f4 := (MeasurePreserving.id Dp).prod (measurePreserving_prodAssoc PU Dp PU)
-  have f5 := (measurePreserving_prodAssoc Dp PU (Dp.prod PU)).symm
-  have hR := f5.comp (f4.comp (f3.comp (f2.comp f1)))
-  have hin := (MeasurePreserving.id (Measure.infinitePi fun _ : ℕ => Dsf)).prod
-    ((hP.prod hP).comp hR)
-  have hassoc := (measurePreserving_prodAssoc (Measure.infinitePi fun _ : ℕ => Dsf) PL PL).symm
-  have h := (MeasurePreserving.id μ).prod (hassoc.comp hin)
-  exact h
+/-- Each population's stream of uniforms drawing from its law. -/
+lemma measurePreserving_popDraws (L : Option (Fin K) → Measure (FreeMonoid α))
+    [∀ j, IsProbabilityMeasure (L j)] :
+    MeasurePreserving (fun U : Option (Fin K) → ℕ → unitInterval => fun j n => drawFrom (L j) (U j n))
+      (Measure.pi fun _ : Option (Fin K) =>
+        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval))
+      (Measure.pi fun j : Option (Fin K) => Measure.infinitePi fun _ : ℕ => L j) := by
+  refine ⟨measurable_pi_lambda _ fun j => (measurePreserving_drawStream (L j)).measurable.comp
+    (measurable_pi_apply j), ?_⟩
+  rw [Measure.pi_map_pi (fun j => (measurePreserving_drawStream (L j)).measurable.aemeasurable)]
+  congr 1
+  funext j
+  exact (measurePreserving_drawStream (L j)).map_eq
+
+instance (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) :
+    IsProbabilityMeasure (offLaw ν T) := by
+  unfold offLaw; infer_instance
+
+/-- After the history `h`, a round's clustering draws give a run drawn by `runMeasure` at the
+populations and suffixes conditioned off what the earlier rounds read. -/
+lemma measurePreserving_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
+    MeasurePreserving (clusterRun (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
+      (runMeasure μ (fun j => offLaw (loopDistributions D h.pops j) h.prefs)
+        (offLaw Dsf h.suffs)) := by
+  set L : Option (Fin K) → Measure (FreeMonoid α) :=
+    fun j => offLaw (loopDistributions D h.pops j) h.prefs
+  have hS := measurePreserving_drawStream (offLaw Dsf h.suffs)
+  have hP := measurePreserving_popDraws L
+  set US := Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
+  set UP := Measure.pi fun _ : Option (Fin K) =>
+    Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
+  have hassoc := (measurePreserving_prodAssoc US UP UP).symm
+  have hin := ((hS.prod hP).prod hP).comp hassoc
+  exact (MeasurePreserving.id μ).prod hin
 
 end Run
 
