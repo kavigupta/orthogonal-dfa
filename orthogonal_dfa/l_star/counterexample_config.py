@@ -20,10 +20,9 @@ class CounterexampleSearchConfig:
     level: float
     #: Probes a round draws before giving up.
     max_probes: int
-    #: Each harvest's undecided rate, as a multiple of ``acceptable_fnr``.
-    start_multiple: float
-    edge_multiple: float
-    middle_multiple: float
+    #: Each harvest test's threshold, as a multiple of its unit's undecided rate at a
+    #: good state: ``acceptable_fnr`` per read.
+    harvest_multiple: float
     #: Agreement the hypothesis is driven to.
     acc_threshold: float
     #: The share of prefixes the family may leave undecided.
@@ -45,17 +44,18 @@ class CounterexampleSearchConfig:
     def disagreement_rate(self) -> float:
         return 1 - self.acc_threshold
 
-    @property
-    def start_rate(self) -> float:
-        return self.start_multiple * self.acceptable_fnr
+    def start_rate(self, depth: int) -> float:
+        """Per probe, whose start sift reads up to ``depth`` nodes."""
+        return min(1.0, self.harvest_multiple * depth * self.acceptable_fnr)
 
     @property
     def edge_rate(self) -> float:
-        return self.edge_multiple * self.acceptable_fnr
+        return self.harvest_multiple * self.acceptable_fnr
 
-    @property
-    def middle_rate(self) -> float:
-        return self.middle_multiple * self.acceptable_fnr
+    def middle_rate(self, queries_per_search: float) -> float:
+        return min(
+            1.0, self.harvest_multiple * queries_per_search * self.acceptable_fnr
+        )
 
     @property
     def edge_excess(self) -> int:
@@ -79,9 +79,7 @@ def counterexample_search_config(
         m=5,
         level=1e-3,
         max_probes=50_000,
-        start_multiple=5,
-        edge_multiple=10,
-        middle_multiple=20,
+        harvest_multiple=5,
         acc_threshold=acc_threshold,
         acceptable_fnr=acceptable_fnr,
     )

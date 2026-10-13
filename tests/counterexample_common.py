@@ -52,7 +52,11 @@ def quiet_config(**changes):
         "search_share": 1e9,
         "max_probes": 100,
     }
-    return SimpleNamespace(**{**quiet, **changes})
+    config = {**quiet, **changes}
+    start_rate, middle_rate = config["start_rate"], config["middle_rate"]
+    config["start_rate"] = lambda depth: start_rate
+    config["middle_rate"] = lambda queries_per_search: middle_rate
+    return SimpleNamespace(**config)
 
 
 def quiet_search(cut, edges, **changes):

@@ -56,6 +56,7 @@ class CounterexampleSearch:
         self.stretch_probes = 0
         self.stretch_searches = 0
         self.stretch_middles: List[bytes] = []
+        self.stretch_search_queries = 0
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -80,6 +81,7 @@ class CounterexampleSearch:
         self.stretch_probes += 1
         self.start_harvest += charged.start
         self.stretch_middles += charged.middle
+        self.stretch_search_queries += charged.search_queries
         self.traversals.update(charged.traversals)
         for edge, strings in charged.undecided_by_edge.items():
             self.edge_harvest.setdefault(edge, []).extend(strings)
@@ -104,11 +106,13 @@ class CounterexampleSearch:
         self.stretch_probes = 0
         self.stretch_searches = 0
         self.stretch_middles = []
+        self.stretch_search_queries = 0
 
     def _ending_test(self) -> Optional[Ending]:
         """The harvest tests, then the success test."""
         config = self.config
-        if self._rate_above(config.start_rate, self.probes, len(self.start_harvest)):
+        start_rate = config.start_rate(self.tree.depth)
+        if self._rate_above(start_rate, self.probes, len(self.start_harvest)):
             return Ending(HARVEST_START, list(self.start_harvest), None)
         for edge, count in self.traversals.items():
             harvest = self.edge_harvest.get(edge, [])
@@ -118,9 +122,11 @@ class CounterexampleSearch:
                 and config.edge_excess <= len(harvest) - config.edge_rate * count
             ):
                 return Ending(HARVEST_EDGE, list(harvest), edge)
+        per_search = self.stretch_search_queries / max(self.stretch_searches, 1)
+        middle_rate = config.middle_rate(per_search)
         if config.search_share * self.stretch_probes <= self.stretch_searches and (
             self._rate_above(
-                config.middle_rate, self.stretch_searches, len(self.stretch_middles)
+                middle_rate, self.stretch_searches, len(self.stretch_middles)
             )
         ):
             return Ending(HARVEST_MIDDLES, list(self.stretch_middles), None)

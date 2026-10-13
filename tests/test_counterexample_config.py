@@ -11,9 +11,10 @@ class TestTheShippedConfig(unittest.TestCase):
         derived = (
             config.k,
             config.max_leaves,
-            config.start_rate,
+            config.start_rate(2),
             config.edge_rate,
-            config.middle_rate,
+            config.middle_rate(4),
+            config.middle_rate(30),
             config.disagreement_rate,
             config.first_look,
             config.edge_excess,
@@ -21,7 +22,7 @@ class TestTheShippedConfig(unittest.TestCase):
             config.search_share,
         )
         self.assertEqual(
-            (0, 100, 0.05, 0.1, 0.2, 1 - 0.98, 30, 10, 0.01, 0.01), derived
+            (0, 100, 0.1, 0.05, 0.2, 1.0, 1 - 0.98, 30, 10, 0.01, 0.01), derived
         )
 
 

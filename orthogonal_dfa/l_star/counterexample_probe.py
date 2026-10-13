@@ -64,6 +64,7 @@ class Located:
     walk: List[Path]
     #: Each position past ``k`` sifted, in order, with what it read undecided.
     sifts: Dict[int, Optional[bytes]]
+    search_queries: int
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ class Charges:
     undecided_by_edge: Dict[Edge, List[bytes]]
     start: List[bytes]
     middle: List[bytes]
+    search_queries: int
 
 
 def follow(edges, leaf: Optional[Path], letters: bytes):
@@ -111,14 +113,15 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
             routes[i] = path, reads[-1] if path is None else None
         return routes[i]
 
-    def located(outcome, positions):
-        return Located(outcome, walk, {i: sift(i)[1] for i in positions if k < i})
+    def located(outcome, positions, search_queries):
+        sifts = {i: sift(i)[1] for i in positions if k < i}
+        return Located(outcome, walk, sifts, search_queries)
 
     walk, unlearned_step = follow(edges, sift(k)[0], x[k:])
     hi = len(x) if unlearned_step is None else k + unlearned_step
     before = [] if unlearned_step is None else [hi + 1]
     if before and sift(hi + 1)[0] is None:
-        return located(End(sift(hi + 1)[1]), before)
+        return located(End(sift(hi + 1)[1]), before, 0)
 
     def agrees(i):
         here = sift(i)[0]
@@ -139,7 +142,7 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
     else:
         assert kind == UNDECIDED_MID, kind
         outcome = Middle(j, sift(j)[1])
-    return located(outcome, before + list(found.queried))
+    return located(outcome, before + list(found.queried), len(found.queried))
 
 
 def charges(located: Located, k: int, x: bytes) -> Charges:
@@ -164,4 +167,7 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
         undecided_by_edge=undecided_by_edge,
         start=[outcome.undecided] if isinstance(outcome, Start) else [],
         middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
+        search_queries=(
+            located.search_queries if isinstance(outcome, (EdgeFound, Middle)) else 0
+        ),
     )
