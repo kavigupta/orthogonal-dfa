@@ -54,7 +54,7 @@ theorem classSet_paths : ∀ (n : ℕ) (T : DTree α), T ∈ classSet n → T.le
     rcases h with h | ⟨T', hT', ⟨p, c, t, t₀⟩, hq, rfl⟩
     · have := classSet_paths n T h; omega
     · simp only [Finset.mem_product, List.mem_toFinset] at hq
-      rw [DTree.splitAt_paths_length _ _ _ hq.1]
+      rw [DTree.length_leaves_splitAt _ _ _ hq.1]
       have := classSet_paths n T' hT'
       omega
 
@@ -96,9 +96,9 @@ theorem grown_two {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h
     have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hgen
       exact hl ▸ G.leafOf_mem_paths _ _
-    rw [DTree.splitAt_paths_length _ _ _ hp]; omega
+    rw [DTree.length_leaves_splitAt _ _ _ hp]; omega
   | @fake T f p t t₀ c hg hp ht ht₀ hng ih =>
-    rw [DTree.splitAt_paths_length _ _ _ hp]; omega
+    rw [DTree.length_leaves_splitAt _ _ _ hp]; omega
 
 theorem grown_mem {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     T ∈ classSet (T.leaves.length - 2) := by
@@ -108,12 +108,12 @@ theorem grown_mem {σ : Type*} (G : ReadModel α σ) {T : DTree α} {f : ℕ} (h
     have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hgen
       exact hl ▸ G.leafOf_mem_paths _ _
-    rw [DTree.splitAt_paths_length _ _ _ hp]
+    rw [DTree.length_leaves_splitAt _ _ _ hp]
     have h2 := grown_two G hg
     rw [show T.leaves.length + 1 - 2 = T.leaves.length - 2 + 1 by omega]
     exact classSet_split ih hp ht ht₀
   | @fake T f p t t₀ c hg hp ht ht₀ hng ih =>
-    rw [DTree.splitAt_paths_length _ _ _ hp]
+    rw [DTree.length_leaves_splitAt _ _ _ hp]
     have h2 := grown_two G hg
     rw [show T.leaves.length + 1 - 2 = T.leaves.length - 2 + 1 by omega]
     exact classSet_split ih hp ht ht₀

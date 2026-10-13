@@ -121,7 +121,7 @@ theorem probe_length (k : ℕ) (x : FreeMonoid α) :
     · exact searchOutcome_length read T x _ _ _ _
   · simp [probe, ha, Outcome.undecidedStrings]
 
-variable [DecidableEq α] [Countable α] (D : Measure (FreeMonoid α)) (H : Hypothesis α) (k : ℕ)
+variable [DecidableEq α] [Countable α] (D : Measure (FreeMonoid α)) (H : HypothesisDFA α) (k : ℕ)
 
 theorem stuckString_fresh (x : FreeMonoid α) : (stuckString read H k x).Nodup
     ∧ ∀ z ∈ stuckString read H k x, z.toList.take k = x.toList.take k := by

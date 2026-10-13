@@ -122,7 +122,7 @@ lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
     nlinarith [hv a, ih]
 
 lemma searchingProbes_congr_off {read read' : FreeMonoid α → ARU}
-    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : Hypothesis α)
+    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
     {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) :
     x ∈ searchingProbes read k H ↔ x ∈ searchingProbes read' k H := by
   unfold searchingProbes
@@ -133,7 +133,7 @@ lemma searchingProbes_congr_off {read read' : FreeMonoid α → ARU}
 theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) {read read' : FreeMonoid α → ARU}
-    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : Hypothesis α)
+    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
     (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd (Level5Harvest α))
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
     (hmc : (L + 1) * D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)

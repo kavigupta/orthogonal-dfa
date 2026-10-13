@@ -109,7 +109,7 @@ theorem midLe_midLen (T : DTree α) : MidLe (midLen T) T := fun _ hm =>
   Finset.le_sup (f := fun m : FreeMonoid α => m.toList.length) hm
 
 theorem measurableSet_mem_searchingProbes (O : Oracle μ (FreeMonoid α))
-    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (H : Hypothesis α) (x : FreeMonoid α) :
+    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (H : HypothesisDFA α) (x : FreeMonoid α) :
     MeasurableSet {ω | x ∈ searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H} := by
   refine measurableSet_of_reads O
     (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_
@@ -226,7 +226,7 @@ omit [Fintype σ] in
 oracle's answers. -/
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (ε y : ℝ) (H : Hypothesis α) (e : RoundEnd (Level5Harvest α)) :
+    (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd (Level5Harvest α)) :
     MeasurableSet {ω | ¬ EndsWell M bad D ε
       (searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H) k
       (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k) y e} := by

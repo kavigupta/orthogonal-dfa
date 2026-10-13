@@ -263,10 +263,10 @@ theorem applyProbe_readInv {Lx : ℕ} {s s' : Level5State α} {x : FreeMonoid α
     refine ⟨?_, not_lt.1 hbig, ?_, ?_, ?_⟩
     · rcases (fixEdge_cases cut C hvi).2 with ⟨ht, -⟩ | ⟨t₀, w₀, -, -, ht⟩
       · rw [ht]; exact h2
-      · rw [ht, DTree.splitAt_paths_length _ _ _ hvi.1]; omega
+      · rw [ht, DTree.length_leaves_splitAt _ _ _ hvi.1]; omega
     · rcases (fixEdge_cases cut C hvi).2 with ⟨ht, -⟩ | ⟨t₀, w₀, -, -, ht⟩
       · rw [ht]; exact hm
-      · rw [ht, DTree.splitAt_paths_length _ _ _ hvi.1]
+      · rw [ht, DTree.length_leaves_splitAt _ _ _ hvi.1]
         intro m hmm
         rcases midfixes_splitAt _ _ _ m hmm with hm' | rfl
         · have := hm m hm'; omega

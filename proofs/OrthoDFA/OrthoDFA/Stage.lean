@@ -1,5 +1,5 @@
 import OrthoDFA.Clustering
-import OrthoDFA.Hypothesis
+import OrthoDFA.HypothesisDFA
 
 /-!
 # Trees and their reads

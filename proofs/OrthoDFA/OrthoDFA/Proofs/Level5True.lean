@@ -1,4 +1,6 @@
 import OrthoDFA.Proofs.Level5Walk
+import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.HypothesisDFA
 
 /-!
 # True leaves and genuine trees
@@ -34,7 +36,7 @@ theorem leafOf_splitAt (d : FreeMonoid α) :
     simp only [DTree.splitAt, leafOf, List.nil_append]
     split <;> simp_all
   | .leaf, _ :: _, h, _ => by simp [DTree.leaves] at h
-  | .node _ _ _, [], h, _ => absurd h DTree.paths_ne_nil_of_node
+  | .node _ _ _, [], h, _ => absurd h DTree.nil_not_mem_leaves_node
   | .node n r a, false :: p, h, q => by
     have hp : p ∈ r.leaves := by simpa [DTree.leaves] using h
     have ih := leafOf_splitAt d r p hp q
@@ -71,7 +73,7 @@ theorem trueLeaves_splitAt [Fintype σ] {T : DTree α} {p : List Bool} (hp : p �
   have hW : ∀ b, p ++ [b] ∉ G.trueLeaves T := by
     intro b hb
     obtain ⟨q, -, hq⟩ := Finset.mem_image.1 hb
-    exact DTree.append_not_mem_paths T p b hp (hq ▸ G.leafOf_mem_paths T q)
+    exact DTree.snoc_not_mem_leaves T p hp b (hq ▸ G.leafOf_mem_paths T q)
   have hrest : (G.trueLeaves T).erase p ⊆ G.trueLeaves (T.splitAt d p) := by
     intro r hr
     obtain ⟨hrp, hr⟩ := Finset.mem_erase.1 hr
@@ -165,13 +167,13 @@ theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))).2 hg
     have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))
     rw [if_pos hg] at h2
-    rw [DTree.splitAt_paths_length _ _ _ hp]
+    rw [DTree.length_leaves_splitAt _ _ _ hp]
     omega
   | @fake T f p t t₀ c hT hp ht ht₀ hg ih =>
     have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))).1
     have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))
     rw [if_neg hg] at h2
-    rw [DTree.splitAt_paths_length _ _ _ hp]
+    rw [DTree.length_leaves_splitAt _ _ _ hp]
     omega
 
 theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f) (h' : G.Grown T f') :
@@ -189,34 +191,6 @@ theorem grown_paths [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
 end ReadModel
 
 namespace DTree
-
-omit [Fintype α] [DecidableEq α] in
-theorem splitAt_ne {d : FreeMonoid α} {T : DTree α} {p : List Bool} (hp : p ∈ T.leaves) :
-    T.splitAt d p ≠ T := fun h => by
-  have := splitAt_paths_length d T p hp
-  rw [h] at this
-  omega
-
-omit [Fintype α] [DecidableEq α] in
-theorem splitAt_inj {d d' : FreeMonoid α} :
-    ∀ {T : DTree α} {p p' : List Bool}, p ∈ T.leaves → p' ∈ T.leaves →
-      T.splitAt d p = T.splitAt d' p' → p = p' ∧ d = d'
-  | .leaf, p, p', hp, hp', h => by
-    simp only [leaves, List.mem_singleton] at hp hp'
-    subst hp hp'
-    simp only [splitAt, node.injEq] at h
-    exact ⟨rfl, h.1⟩
-  | .node n r a, [], _, hp, _, _ => absurd hp paths_ne_nil_of_node
-  | .node n r a, _, [], _, hp', _ => absurd hp' paths_ne_nil_of_node
-  | .node n r a, b :: p, b' :: p', hp, hp', h => by
-    simp only [leaves, List.mem_append, List.mem_map, List.cons.injEq] at hp hp'
-    rcases hp with ⟨q, hq, rfl, rfl⟩ | ⟨q, hq, rfl, rfl⟩ <;>
-      rcases hp' with ⟨q', hq', rfl, rfl⟩ | ⟨q', hq', rfl, rfl⟩ <;>
-      simp only [splitAt, node.injEq, true_and, and_true] at h
-    · obtain ⟨rfl, rfl⟩ := splitAt_inj hq hq' h; exact ⟨rfl, rfl⟩
-    · exact absurd h.1 (splitAt_ne hq)
-    · exact absurd h.2 (splitAt_ne hq)
-    · obtain ⟨rfl, rfl⟩ := splitAt_inj hq hq' h; exact ⟨rfl, rfl⟩
 
 end DTree
 

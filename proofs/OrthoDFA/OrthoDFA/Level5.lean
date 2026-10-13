@@ -47,12 +47,6 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- A read's side, or `none` where undecided. -/
-def ARU.cut : ARU → Option Bool
-  | .accept => some true
-  | .reject => some false
-  | .undecided => none
-
 section Probe
 
 variable (cut : FreeMonoid α → Option Bool)
@@ -547,7 +541,7 @@ noncomputable def runProbes (C : Level5Settings) (cut : FreeMonoid α → Option
     | .inr (e, s') => (s', toRoundEnd e s')
 
 structure Level5Result (α : Type*) where
-  hypothesis : Hypothesis α
+  hypothesis : HypothesisDFA α
   ending : RoundEnd (Level5Harvest α)
 
 noncomputable def indecisiveLStarLevel5 (settings : Level5Settings) (read : FreeMonoid α → ARU)

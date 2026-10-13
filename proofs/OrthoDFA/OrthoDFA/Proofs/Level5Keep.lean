@@ -191,7 +191,7 @@ theorem applyProbe_tooBig {s s' : Level5State α} {x : FreeMonoid α}
     refine ⟨hL, ?_⟩
     rcases (fixEdge_cases cut C hvi).2 with ⟨ht, -⟩ | ⟨t₀, w₀, -, -, ht⟩
     · rw [ht, htr]; omega
-    · rw [ht, DTree.splitAt_paths_length _ _ _ hvi.1, htr]
+    · rw [ht, DTree.length_leaves_splitAt _ _ _ hvi.1, htr]
 
 end Steps
 

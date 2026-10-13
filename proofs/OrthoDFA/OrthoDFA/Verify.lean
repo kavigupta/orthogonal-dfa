@@ -2,6 +2,7 @@ import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
+import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.Level5Noise
 import OrthoDFA.Proofs.Level5Query
@@ -24,14 +25,15 @@ The headline: `LearnerLoopUniform`, stated in `OrthoDFA.LearnerLoop`, holds: on 
 suffixes at least `L₀` long, the learner's loop succeeds but for chance `δ`.
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
-`TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, `SiftWithPathCorrect`, stated in
-`OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read claim, stated
-in `OrthoDFA.Level2Claim`, level 5's, stated in `OrthoDFA.Level5Claim`, and level 5 read by the
-suffix family, stated in `OrthoDFA.Level5Family`, and the learner's loop, stated in
-`OrthoDFA.LearnerLoop`, at free settings and at the theorem's own. Level 5's detailed bound and
-its closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are internal: the claims above are
-derived from them.
+`OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
+`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
+`SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
+in `OrthoDFA.HypothesisDFA`, `RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read
+claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated in `OrthoDFA.Level5Claim`, and level 5
+read by the suffix family, stated in `OrthoDFA.Level5Family`, and the learner's loop, stated in
+`OrthoDFA.LearnerLoop`, at free settings and at the theorem's own. Level 5's detailed bound and its
+closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are internal: the claims above are derived
+from them.
 -/
 
 namespace OrthoDFA
@@ -56,6 +58,22 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
 
 #print axioms tripartite_search_correct
+
+theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
+
+#print axioms sift_with_path_correct
+
+theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
+
+#print axioms sift_and_split_correct
+
+theorem walk_correct : WalkCorrect := walkCorrect
+
+#print axioms walk_correct
+
+theorem rate_test_sound : RateTestSound := rateTestSound
+
+#print axioms rate_test_sound
 
 #print axioms round_budget
 
@@ -116,14 +134,6 @@ theorem learner_loop_correct : LearnerLoopCorrect := learner_loop_correct_holds
 theorem learner_loop_simple : LearnerLoopSimple := learner_loop_simple_holds
 
 #print axioms learner_loop_simple
-
-theorem sift_with_path_correct : SiftWithPathCorrect := siftWithPathCorrect
-
-#print axioms sift_with_path_correct
-
-theorem rate_test_sound : RateTestSound := rateTestSound
-
-#print axioms rate_test_sound
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 

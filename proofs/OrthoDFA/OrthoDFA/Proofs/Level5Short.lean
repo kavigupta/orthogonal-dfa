@@ -143,12 +143,12 @@ theorem applyProbe_short {s s' : Level5State α} {x : FreeMonoid α}
     · rcases (fixEdge_cases cut C hv'.choose_spec.choose_spec.choose_spec).2 with ⟨ht, -⟩ |
         ⟨t₀, w₀, -, -, ht⟩
       · rw [ht]; exact h2
-      · rw [ht, DTree.splitAt_paths_length _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
+      · rw [ht, DTree.length_leaves_splitAt _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
         omega
     · rcases (fixEdge_cases cut C hv'.choose_spec.choose_spec.choose_spec).2 with ⟨ht, -⟩ |
         ⟨t₀, w₀, -, -, ht⟩
       · rw [ht]; exact hm
-      · rw [ht, DTree.splitAt_paths_length _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
+      · rw [ht, DTree.length_leaves_splitAt _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
         intro m hmm
         rcases midfixes_splitAt _ _ _ m hmm with hm' | rfl
         · have := hm m hm'; omega
