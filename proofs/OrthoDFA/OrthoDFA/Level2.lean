@@ -9,13 +9,13 @@ first undecided read. A probe shorter than `walkStart` counts as agreeing.
 * A probe that the edges and the tree part on at decided reads splits the leaf the edge leaves,
   on the edge's letter and the midfix where the two leaves its strings' successors sift to part.
 * A probe that reaches an unlearned edge learns it.
-* The undecided reads probes stop at, and the disagreements at decided reads, since the hypothesis
-  last changed are counted, and after each probe that keeps the hypothesis the binomial rate test
-  (`rateSide`) at level `testLevel` checks them: the undecided reads against `harvestRate`, and
-  once it calls them above the round ends in a harvest; else the disagreements against
-  `disagreementRate`, and once it calls them below the round ends consistent. A disagreement at
-  decided reads changes the hypothesis, so the stretch's count of them stays 0, and the round ends
-  consistent once the stretch is long enough for no disagreement to be called below.
+* The undecided reads probes stop at, and the disagreements, since the hypothesis last changed
+  are counted, and after each probe that keeps the hypothesis the binomial rate test (`rateSide`)
+  at level `testLevel` checks them: the undecided reads against `harvestRate`, and once it calls
+  them above the round ends in a harvest; else the disagreements against `disagreementRate`, and
+  once it calls them below the round ends consistent. A disagreement at decided reads changes the
+  hypothesis, so the disagreements counted are the searches that stopped at an undecided midpoint,
+  as at level 3.
 -/
 
 namespace OrthoDFA
@@ -93,6 +93,7 @@ noncomputable def applyProbe (s : Level2State α) (x : FreeMonoid α) :
     | none => keep C s 0 1
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
+  | .undecided zs false => keep C s zs.length 1
   | o => keep C s o.undecidedStrings.length 0
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
