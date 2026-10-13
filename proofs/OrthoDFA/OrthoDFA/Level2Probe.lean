@@ -57,9 +57,8 @@ def searchOutcome (unlearned : Option (α × List Bool)) (hi : ℕ) : SearchResu
     match x.toList[p - 1]?, T.sift read (prefixOf x p) with
     | some c, .inl t => .wrongEdge (st (p - 1)) c (prefixOf x (p - 1)) t
     | _, _ => .undecided .stop [] false
-  | .triple p | .undecidedMid p => .undecided (siteAt x st p) (undecidedAt read T x p) false
-  | .pair p =>
-    .undecided (siteAt x st p) (undecidedAt read T x p ++ undecidedAt read T x (p + 1)) false
+  | .pair p | .triple p | .undecidedMid p =>
+    .undecided (siteAt x st p) (undecidedAt read T x p) false
   | .undecidedLo | .disagreeLo => .undecided .start [] true
 
 end Probe
