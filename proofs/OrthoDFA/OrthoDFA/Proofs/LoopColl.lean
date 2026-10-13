@@ -119,8 +119,8 @@ section Coll
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
 
-omit [IsProbabilityMeasure μ] in
-lemma measurePreserving_roundRest [IsProbabilityMeasure μ] (i : Fin K) :
+omit [DecidableEq α] in
+lemma measurePreserving_roundRest (i : Fin K) :
     MeasurePreserving (fun p : Ω × (Fin K → RoundDraws α K settings.level4.probeBudget) =>
       (p.2 i).1) (loopMeasure μ P.D Dsf K settings.level4.probeBudget) (restLaw P.D Dsf K) :=
   measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)

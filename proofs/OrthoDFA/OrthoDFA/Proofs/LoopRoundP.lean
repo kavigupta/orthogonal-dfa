@@ -184,11 +184,6 @@ lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
     exact (measurableSet_histOK settings O D N hlen hC hN r).inter
       (measurableSet_histCodes settings O D N hlen hC hN r c)
 
-omit [IsProbabilityMeasure μ] in
-lemma histReads_noise (c : List (HarvestCode α))
-    (g : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (ω ω' : Ω) :
-    histReads settings D N c g r ω = histReads settings D N c g r ω' := rfl
-
 /-- Where every earlier clustering returned, the answers at the strings the earlier rounds read
 fix the stage. -/
 lemma stageH_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)

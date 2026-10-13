@@ -126,6 +126,7 @@ lemma prefixMax_avoidLaw_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure 
   exact div_le_div_of_nonneg_right ((measureReal_mono Set.inter_subset_left
     (measure_ne_top _ _)).trans (le_prefixMax D k w)) hApos.le
 
+omit [DecidableEq α] in
 lemma QuarterEndsWell.mono {σ H : Type*} {M : _root_.DFA α σ} {bad : σ → Prop}
     {D : Measure (FreeMonoid α)} {ε ε' : ℝ} {dis : Set (FreeMonoid α)} {k : ℕ}
     {law : H → Measure (FreeMonoid α)} {y y' : ℝ} (hε : ε ≤ ε') (hy : y' ≤ y) {e : RoundEnd H}

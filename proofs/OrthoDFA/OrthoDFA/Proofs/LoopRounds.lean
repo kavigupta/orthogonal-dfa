@@ -64,12 +64,6 @@ lemma loopRounds_prefix (r : ℕ) :
   · exact List.prefix_append _ _
   · exact List.prefix_refl _
 
-lemma loopRounds_prefix_of_le {r s : ℕ} (h : r ≤ s) :
-    loopRounds settings O D draws r <+: loopRounds settings O D draws s := by
-  induction s, h using Nat.le_induction with
-  | base => exact List.prefix_refl _
-  | succ s _ ih => exact ih.trans (loopRounds_prefix settings O D draws s)
-
 /-- Every round but the last harvested. -/
 lemma harvested_of_lt (r i : ℕ) (hi : i + 1 < (loopRounds settings O D draws r).length) :
     (loopRounds settings O D draws r)[i].result.ending.harvested ≠ none := by

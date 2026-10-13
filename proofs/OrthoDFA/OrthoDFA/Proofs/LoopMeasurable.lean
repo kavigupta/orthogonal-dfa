@@ -89,14 +89,6 @@ theorem level4_result_congr (O : Oracle μ (FreeMonoid α)) (C : Level4Settings)
   level4_congr_up C hC xs (le_probesLen xs)
     (fun _ hz => familyRead_congr O h (mem_shortStrings.2 hz))
 
-theorem measurableSet_level4_result (O : Oracle μ (FreeMonoid α)) (C : Level4Settings)
-    (hC : 2 ≤ C.maxLeaves) (F : Finset (FreeMonoid α)) (kl kh : ℕ) {T : ℕ}
-    (xs : Fin T → FreeMonoid α) (Y : Set (Level4Result α)) :
-    MeasurableSet {ω | indecisiveLStarLevel4 C (fun z => familyRead O.mq F kl kh z ω) xs ∈ Y} :=
-  measurableSet_of_reads O _ _ fun ω ω' h hω => by
-    simp only [Set.mem_setOf_eq] at hω ⊢
-    rwa [← level4_result_congr O C hC F kl kh xs h]
-
 /-- A measure's mass on a set the oracle's answers move, where each point's membership is
 measurable. -/
 theorem measurable_measure_of_mem {X : Type*} [MeasurableSpace X] [Countable X]
@@ -309,12 +301,6 @@ lemma agreeCount_alike (O : Oracle μ (FreeMonoid α)) {lo hi : ℕ} {F P : Fins
     congr 1 <;> exact Finset.filter_congr fun p hp => by rw [hv p hp]
   unfold agreeCount
   rw [hc, Finset.filter_congr fun p hp => h2 p hp]
-
-lemma readSet_mono {P P' C C' : Finset (FreeMonoid α)} (hP : P ⊆ P') (hC : C ⊆ C') :
-    readSet P C ⊆ readSet P' C' := fun w hw => by
-  obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
-  obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
-  exact mem_readSet (hP hp) (hC hv)
 
 /-- Where a run returns at the state `B` is measurable. -/
 theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option (Fin K)))

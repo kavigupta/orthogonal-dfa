@@ -183,10 +183,6 @@ def runOf (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) :
       × (Option (Fin K) → ℕ → FreeMonoid α) :=
   (clusterRun (Ω := Unit) harvests ((), c)).2
 
-omit [IsProbabilityMeasure μ] in
-lemma clusterRun_eq (harvests : List (Measure (FreeMonoid α))) (ω : Ω) (c : ClusterRest α K) :
-    clusterRun harvests (ω, c) = (ω, runOf harvests c) := rfl
-
 /-- Every string a round after `harvests` reads: its clustering's, and through its pool's suffixes
 the strings at most `max N (probes + 1 + maxLeaves)` long, which its level 4 over its probes and the
 data it hands on read. -/
@@ -203,13 +199,6 @@ def roundReads (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (N : �
         d.2) + 1 + settings.level4.maxLeaves)))
       ((poolAt (schedNS (settings.schedule (loopPopulations K harvests.length)))
         ((ω, runOf harvests d.1) : Run Ω (FreeMonoid α) (Option (Fin K)))).erase 1)
-
-omit [IsProbabilityMeasure μ] in
-lemma schedReads_noise (sched : Finset State) (pops : Finset (Option (Fin K))) (ω ω' : Ω)
-    (dr : ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
-      × (Option (Fin K) → ℕ → FreeMonoid α)) :
-    schedReads sched pops ((ω, dr) : Run Ω (FreeMonoid α) (Option (Fin K)))
-      = schedReads sched pops ((ω', dr) : Run Ω (FreeMonoid α) (Option (Fin K))) := rfl
 
 theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D' : Measure (FreeMonoid α)) (εcov slack : ℝ) (harvests : List (Measure (FreeMonoid α)))

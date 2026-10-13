@@ -100,6 +100,7 @@ section Pops
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
+omit [MeasurableSpace Ω] in
 /-- A round's population is supported on strings shorter than `Ls`. -/
 lemma population_short (P : PrefixDistribution α) (C : Level4Settings) (hC : 2 ≤ C.maxLeaves)
     {Ls : ℕ} (hLs : P.L + C.maxLeaves ≤ Ls) (k : ℕ) (o : LoopRound Ω α K) {T : ℕ}
@@ -118,9 +119,9 @@ lemma population_short (P : PrefixDistribution α) (C : Level4Settings) (hC : 2 
   refine popLaw_null (measure_mono_null (fun p hp => ?_)
     (harvestLaw_short C (fun z => (o.read z).cut) P.length_le k
       (harvest_short C hC o.read xs hend))) ?_
-  · simp only [Set.mem_setOf_eq] at hp ⊢
+  · simp only [Set.mem_ofPred_eq] at hp ⊢
     omega
-  · simp only [Set.mem_setOf_eq, FreeMonoid.toList_one, List.length_nil, not_le]
+  · simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one, List.length_nil, not_le]
     omega
 
 end Pops
@@ -147,30 +148,6 @@ lemma le_prefixMax_of_spread {D : Measure (FreeMonoid α)} [IsProbabilityMeasure
     ν.real {t} ≤ prefixMax D k := by
   refine (h t).trans (le_of_eq_of_le ?_ (le_prefixMax D k (prefixOf t k)))
   congr 1
-
-/-- A population puts at most `q / y` on any string where its sampler finds a string at most `q`
-of the time and yields at least `y`. -/
-lemma collisionMass_popLaw_le {ν : Measure (FreeMonoid α)} {q y : ℝ} (hy : 0 < y)
-    (hyν : y ≤ ν.real Set.univ) (htop : ν Set.univ ≠ ∞) (hq : ∀ t, ν.real {t} ≤ q) :
-    collisionMass (popLaw ν) ≤ q / y := by
-  have hpos : 0 < ν.real Set.univ := lt_of_lt_of_le hy hyν
-  have h0 : ν Set.univ ≠ 0 := fun h => by
-    rw [measureReal_def, h, ENNReal.toReal_zero] at hpos; exact lt_irrefl _ hpos
-  have hq0 : 0 ≤ q := measureReal_nonneg.trans (hq 1)
-  have hat : ∀ t, (popLaw ν).real {t} ≤ q / y := by
-    intro t
-    rw [popLaw_real h0 htop]
-    calc ν.real {t} / ν.real Set.univ ≤ q / ν.real Set.univ :=
-          div_le_div_of_nonneg_right (hq t) hpos.le
-      _ ≤ q / y := div_le_div_of_nonneg_left hq0 hy hyν
-  unfold collisionMass
-  refine tsum_le_of_sum_le' (div_nonneg hq0 hy.le) fun s => ?_
-  calc ∑ t ∈ s, (popLaw ν).real {t} ^ 2 ≤ ∑ t ∈ s, q / y * (popLaw ν).real {t} :=
-        Finset.sum_le_sum fun t _ => by
-          rw [sq]; exact mul_le_mul_of_nonneg_right (hat t) measureReal_nonneg
-    _ = q / y * (popLaw ν).real s := by rw [← Finset.mul_sum, sum_measureReal_singleton]
-    _ ≤ q / y * 1 := mul_le_mul_of_nonneg_left measureReal_le_one (div_nonneg hq0 hy.le)
-    _ = q / y := mul_one _
 
 
 lemma real_singleton_le_prefixMax (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
@@ -209,6 +186,7 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
   {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ settings.level4.maxLeaves)
   (hN : L + settings.level4.maxLeaves ≤ N)
 
+omit [IsProbabilityMeasure μ] in
 include hlen hC hN in
 /-- Round `i` of the persistent run is the round after the data the rounds before it hand on. -/
 lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level4.probeBudget)) (i : ℕ)

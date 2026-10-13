@@ -208,7 +208,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, ?_⟩
     · refine hbud.trans (le_of_eq ?_)
       simp only [hKp]
-      simp only [Nat.cast_zero, add_zero]
+      simp only [add_zero]
       rfl
     · intro Dsf hDsf _ hpAPD _
       have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})

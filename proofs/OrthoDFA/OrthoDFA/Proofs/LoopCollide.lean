@@ -58,12 +58,6 @@ def NoColl (Ls NS : ℕ) (c : List (HarvestCode α))
     ∧ (∀ i : Fin K, i.1 < r → Disjoint (prefsOf settings (popsAt settings D c i) (x i).1)
       (prefsOf settings (popsAt settings D c r) (x ⟨r, hr⟩).1))
 
-lemma schedPrefs_noise (sched : Finset State) (pops : Finset (Option (Fin K))) (ω : Ω)
-    (dr : ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
-      × (Option (Fin K) → ℕ → FreeMonoid α)) :
-    schedPrefs sched pops ((ω, dr) : Run Ω (FreeMonoid α) (Option (Fin K)))
-      = schedPrefs sched pops (((), dr) : Run Unit (FreeMonoid α) (Option (Fin K))) := rfl
-
 @[simp] lemma runOf_suffix (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K)
     (a : ℕ) : (runOf harvests c).1.1 a = c.1 a := rfl
 

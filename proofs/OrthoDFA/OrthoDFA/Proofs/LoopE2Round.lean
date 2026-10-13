@@ -178,10 +178,6 @@ lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
       (hφ ((measurableSet_roundPick settings O H (decodePop_prob settings D c) B F).inter
         (measurableSet_roundKeys settings H hrun K₀))))
 
-omit [MeasurableSpace Ω] in
-lemma roundKeys_noise (harvests : List (Measure (FreeMonoid α))) (ω ω' : Ω) (c : ClusterRest α K) :
-    roundKeys (Ω := Ω) settings harvests (ω, c) = roundKeys settings harvests (ω', c) := rfl
-
 lemma roundKeys_eq_prefsOf (harvests : List (Measure (FreeMonoid α))) (ω : Ω)
     (c : ClusterRest α K) :
     roundKeys settings harvests (ω, c)

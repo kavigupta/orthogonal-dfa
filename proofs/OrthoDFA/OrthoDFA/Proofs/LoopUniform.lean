@@ -66,21 +66,6 @@ lemma uniformStrings_singleton_le (n : ℕ) (t : FreeMonoid α) :
     exact Subtype.ext (ofList_toList_injective n (hv.trans hw.symm))
   exact div_le_div_of_nonneg_right (by exact_mod_cast this) (by positivity)
 
-lemma collisionMass_uniformStrings_le [Nonempty α] (n : ℕ) :
-    collisionMass (uniformStrings (α := α) n) ≤ 1 / (Fintype.card α : ℝ) ^ n := by
-  have hq : (0 : ℝ) ≤ 1 / (Fintype.card α : ℝ) ^ n := by positivity
-  unfold collisionMass
-  refine tsum_le_of_sum_le' hq fun s => ?_
-  calc ∑ t ∈ s, (uniformStrings n).real {t} ^ 2
-        ≤ ∑ t ∈ s, 1 / (Fintype.card α : ℝ) ^ n * (uniformStrings n).real {t} :=
-        Finset.sum_le_sum fun t _ => by
-          rw [sq]
-          exact mul_le_mul_of_nonneg_right (uniformStrings_singleton_le n t) measureReal_nonneg
-    _ = 1 / (Fintype.card α : ℝ) ^ n * (uniformStrings n).real (s : Set (FreeMonoid α)) := by
-        rw [← Finset.mul_sum, sum_measureReal_singleton]
-    _ ≤ 1 / (Fintype.card α : ℝ) ^ n * 1 := mul_le_mul_of_nonneg_left measureReal_le_one hq
-    _ = 1 / (Fintype.card α : ℝ) ^ n := mul_one _
-
 lemma prefixMax_uniformStrings_le [Nonempty α] {n k : ℕ} (hk : k ≤ n) :
     prefixMax (uniformStrings (α := α) n) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
   have hA : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos

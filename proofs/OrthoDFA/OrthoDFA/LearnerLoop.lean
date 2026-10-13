@@ -17,12 +17,14 @@ state of the schedule at which `ret` returns. Level 4 reads the family without i
 gate's cut: a string reads accept at `hi + 1` or more of the family's votes and reject at `lo` or
 fewer. Without its seed the family is suffix draws of one length, so it is suffix-free.
 
-Known modelling gap. Every round, and within a round the clustering and level 4, read fresh noise,
-where the Python's noise is fixed per string. The route to closing it: let each round draw its
-suffixes at one fixed length, unused by earlier rounds, so that every string round `r` reads is
-new and the fixed-noise run equals the fresh-noise one but on a collision. The exception is the
-empty suffix's read of a kept uniform pool; a harvest is safe, since level 4 never reads a probe's
-prefix alone.
+The whole run reads one noise, fixed per string as the Python's is.
+
+Known modelling gap. Level 4 draws its probes from `D` conditioned on their first `walkStart`
+letters avoiding those of every prefix the round's clustering read, so that it never reads a string
+the clustering read. The Python draws them from `D`.
+
+Known modelling gap. The uniform pool is drawn afresh each round, where the Python keeps one pool
+across rounds; on one noise a kept pool's prefixes would be read again by every round.
 
 Known modelling gap. The Python's `Replay` replays the round's last hypothesis, where the sampler
 here mixes every hypothesis the harvest's counts were taken under. Closing it would key
@@ -36,9 +38,8 @@ Known modelling gap. The Python reads the family with its seed, at `pst.accept_t
 `pst.reject_thresh`.
 
 Known modelling gap. `counterexample_driven_synthesis` also runs the certificate, halves the FNR
-limit, stops on a stall or on certificate patience, adds per-state populations, keeps one uniform
-pool across rounds and returns the best round. Here the uniform pool is drawn afresh each round
-and none of the rest is modelled.
+limit, stops on a stall or on certificate patience, adds per-state populations and returns the
+best round. None of these is modelled.
 -/
 
 noncomputable section

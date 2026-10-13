@@ -97,7 +97,7 @@ theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level4Settings)
           (harvestLaw D' (fun z => (familyRead fam.O.mq fam.F fam.kl fam.kh z ω).cut) C.walkStart)
           y (rep U).ending}) := by
     ext ω
-    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_powerset,
+    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_powerset,
       exists_prop, l4Fail]
     constructor
     · intro h

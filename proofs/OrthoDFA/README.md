@@ -11,18 +11,18 @@ uniform over those of length `L + |Q| + 3`, of which at least `pAP` keep every s
 membership. Then if `L ≥ L₀`, the learner's loop, walking from `L − 1`, stops within `|Q| + 1`
 rounds at a round whose hypothesis's walk and tree part on at most `εd` of the probes and whose
 read is wrong at most `εcov` and undecided at most `εcov` of the time, with probability at least
-`1 − δ`, at most `Kp · G` probes a round. With `s = 1/2 − η₀`, `δ' = δ/(2(|Q|+1))`,
-`ρ = εd/(256(|Q|+1)(|Q||Σ|+1))`:
+`1 − δ`, at most `Kp · G` probes a round. The whole run reads one noise, fixed per string as the
+Python's is. With `s = 1/2 − η₀`, `δ' = δ/(3(|Q|+1))`, `ρ = εd/(256(|Q|+1)(|Q||Σ|+1))`:
 
-    Θ  = 1/s + 8/εcov + 1536 |Q|(|Q|+1)
-    P₀ = 128 (2Θ + 4(|Q|+1)/ρ)/(s² pAP) + 16 log((|Q|+4)/(δ'/2))/pAP²
+    Θ  = 1/s + 8/εcov + 3072 |Q|(|Q|+1)
+    P₀ = 128 (2Θ + 8(|Q|+1)/ρ)/(s² pAP) + 16 log((|Q|+4)/(δ'/2))/pAP²
     R₀ = 6000 (|Q|+2)² Θ³ log((|Q|+4) P₀ Θ/(δ' pAP/8))/s⁴
-    L₀ = 2 + 8 (log(128 (|Q|+5)³ (R₀² + P₀² + 1)/(δ' ρ)) + 28)/(7 log |Σ|)
+    L₀ = 2 + 8 (log(512 (|Q|+5)³ (R₀² + P₀² + 1)/(δ' ρ)) + 28)/(7 log |Σ|)
 
 Unfolded, `7/8 · L₀ log |Σ| ≈ 6 log Θ + 8 log(1/s) + log(1/δ) + log(1/εd) + 2 log log(…) +
 O(log |Q| + log |Σ|)`, logarithmic in `1/δ`, `1/εd`, `1/εcov`, `1/s`, `|Q|` and `1/pAP`.
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 257`; the least `L`
-at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 232.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 267`; the least `L`
+at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 241.
 
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
@@ -45,9 +45,9 @@ at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 232.
   and a band passing `BandPasses`), at `fam.oracle`.
 - `LearnerLoopCorrect`: the learner's loop, clustering a family and running level 4 with it each
   round, stops within `|Q| + 1` rounds at a round whose hypothesis and tree agree on all but `εd`
-  of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(δc + δ)` (below).
+  of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(2δc + δ)` (below).
 - `LearnerLoopSimple`: the general form of the headline, at settings the theorem chooses, every
-  hypothesis an explicit inequality on any probes and suffixes and any walk start `k < L`: with
+  hypothesis an explicit inequality on any probes and suffixes and any walk start `k ≥ 1`: with
   probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose hypothesis
   and tree part on at most `εd` of the probes and whose read is wrong at most `εcov` of the time
   and undecided at most `εcov`.
@@ -57,27 +57,33 @@ at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 232.
 
 `LearnerLoopCorrect` (`OrthoDFA/LearnerLoop.lean`): `indecisiveLStarLoop` clusters a family over
 the populations so far, runs level 4 with it, and adds a harvest's sampler, scaled to a
-probability, as a population of every later round. Within `|Q| + 1` rounds it stops at a round
-whose hypothesis's walk and tree part on at most `εd` of the probes and whose read is decided
-wrongly at most `εcov + 2·indecisionLimit + 2·slack` of the time, but for chance
-`(|Q| + 1)(δc + δ)`, for probes whose length-`k` prefix mass is at most `cap · ρ` and
-`ρ / (6 unionLog)`. A harvest's sampler yields at least `ρ` and finds a string at most as often as
-the probes share its length-`k` prefix, so a population puts at most `prefixMax / ρ` on a string,
-within the clustering's collision cap `cap`.
+probability, as a population of every later round. The whole run, every round's clustering and
+level 4, reads one noise. Level 4 runs at disagreement rate `εd / 2` and draws its probes from `D`
+conditioned on their first `k ≥ 1` letters avoiding those of every prefix the round's clustering
+read. Within `|Q| + 1` rounds the loop stops at a round whose hypothesis's walk and tree part on at
+most `εd` of the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit +
+2·slack` of the time, but for chance `(|Q| + 1)(2δc + δ)`, for probes whose length-`k` prefix mass
+is at most `cap · ρ / 4` and `ρ / (24 unionLog)`. A harvest's sampler yields at least `ρ / 4` and
+finds a string at most as often as the probes share its length-`k` prefix, so a population puts at
+most `4 prefixMax / ρ` on a string, within the clustering's collision cap `cap`; `cap` is also small
+against the schedule's suffix pool `NS` and prefix count `NP`, and bounds the suffixes' atoms.
 
 `LearnerLoopSimple` fixes everything the theorem may choose: `indecisionLimit = slack = ι` with
-`ι = min(εcov/8, 1/(1536 (L+1)(|Q|+1)|Q|))`, the FNR gate at `1/4`, half of `εcov` for the
+`ι = min(εcov/8, 1/(3072 (L+1)(|Q|+1)|Q|))`, the FNR gate at `1/4`, half of `εcov` for the
 clustering, no splits that are not genuine, `|Q| + 1` rounds, suffixes of length `L + |Q| + 3`, and
-`δ/(2(|Q| + 1))` for each round's clustering and level 4. Its cap is a closed form under the
-clustering's (`capFloor`, `Proofs/LoopSimple.lean`), from `poolCount_le` and `prefCount_le_poly`.
-`LearnerLoopUniform` takes probes and suffixes uniform at lengths `L` and `L + |Q| + 3` and
-`k = L − 1`, so `prefixMax = |Σ|^-k`. `cap_bound` (`Proofs/LoopUniform.lean`) shows the cap is its
-first term, `δ'/(128(|Q|+5)³(RB² + PB² + 1))`, and bounds the band's far side by `1/(Θ(L+1))`, `PB`
-by `(L+1) P₀` and `RB²` by `(L+1)⁷ R₀²`, so `1/(cap ρ) ≤ (L+1)⁷ e^Λ` with `Λ = log(128(|Q|+5)³(R₀² +
-P₀² + 1)/(δ' ρ))` free of `L`; `7 log(L+1) ≤ 28 + (L+1) log |Σ|/8` absorbs the `L`. The proved `L₀`
-is within 1.11–1.30× of the least `L` at which `LearnerLoopSimple`'s hypotheses hold (232 at the
-point above, 57 at `|Σ| = 16`, 298 at `εcov = 1e-9`): the absorption costs `8/7`, and at small
-`εcov` bounding `1/τ` by the sum `Θ(L+1)` costs the rest.
+`δ/(3(|Q| + 1))` for each round's clustering, collisions and level 4. Its cap is a closed form under
+the clustering's (`capFloor`, `Proofs/LoopSimple.lean`), from `poolCount_le` and
+`prefCount_le_poly`, and under `1/(3J(RB+1)(L+1))` and `δ'/(J(PB² + 16J²RB² + 1))` with `PB`, `RB`
+bounding the pool and the prefix count. `LearnerLoopUniform` takes probes and suffixes uniform at
+lengths `L` and `L + |Q| + 3` and `k = L − 1`, so `prefixMax = |Σ|^-k`. `cap_bound`
+(`Proofs/LoopUniform.lean`) shows the cap is its first term, `δ'/(128(|Q|+5)³(RB² + PB² + 1))`,
+and bounds the band's far side by `1/(Θ(L+1))`, `PB` by `(L+1) P₀` and `RB²` by `(L+1)⁷ R₀²`, so
+`4/(cap ρ) ≤ (L+1)⁷ e^Λ` with `Λ = log(512(|Q|+5)³(R₀² + P₀² + 1)/(δ' ρ))` free of `L`;
+`7 log(L+1) ≤ 28 + (L+1) log |Σ|/8` absorbs the `L`. The proved `L₀` is within 1.11–1.30× of the
+least `L` at which `LearnerLoopSimple`'s hypotheses hold (241 at the point above, 59 at
+`|Σ| = 16`, 300 at `εcov = 1e-9`): the absorption costs `8/7`, and at small `εcov` bounding `1/τ`
+by the sum `Θ(L+1)` costs the rest. One noise costs about ten letters at `|Σ| = 2` over fresh
+noise per round (257 then).
 
 Proved with no `sorry`. The rounds' draws are independent, and given the earlier rounds a round's
 clustering run is drawn as `runMeasure` draws it at their populations (`Proofs/LoopLaw.lean`,
@@ -86,6 +92,22 @@ population is fixed by finite data, its hypotheses' trees and edge graphs and it
 strings (`Proofs/LoopCodes.lean`). A round's outcomes are measurable because, at fixed draws, each
 is fixed by the oracle's answers at finitely many strings (`Proofs/LoopMeasurable.lean`), level 4
 reading only strings at most `L + 1 + maxLeaves` long (`Proofs/Level4Reads.lean`).
+
+On one noise, what the earlier rounds hand on is fixed by the answers at the strings they read, and
+a round's bad event by the answers at the strings it reads; off a collision the two sets are
+disjoint, so the two are independent (`persist_stage_le`, `Proofs/LoopPersist.lean`). A round's
+suffixes are `Ls` long and its prefixes shorter, so its clustering reads nothing an earlier round
+read unless it repeats a suffix or a prefix (`Proofs/LoopCollide.lean`), which has chance at most
+the pairs times the largest atom (`loop_coll_le`, `Proofs/LoopColl.lean`). Level 4 reads `z·v`
+with `v` a family suffix and `z`'s first `k` letters a probe's, so its avoiding probes never read a
+string the clustering read (`level4_congr_off`, `Proofs/Level4Avoid.lean`). Re-noising the
+clustering's strings with a second, independent noise (`Oracle.renoise`, `Proofs/Renoise.lean`)
+leaves a fresh family on which level 4's guarantee holds at the conditioned probes, whose prefix
+mass grows by at most `1/(1 − m)` for `m ≤ |keys| · prefixMax` the mass removed
+(`Proofs/LoopAvoid.lean`); the actual run is the same run, and its ending transfers back to `D`
+at disagreement `ε + m`, yield `(1 − m) y` and a quarter of the sampler bad
+(`quarterEndsWell_of_endsWell`, `Proofs/LoopTransfer.lean`), which still leaves a bad state with
+`1/(4|Q|)` of the population (`Proofs/LoopTermination.lean`).
 
 ## The round, by refinement
 
@@ -232,8 +254,11 @@ settings.
   tests let through, counted with their multiplicity; with each string counted once, a heavy
   string's undecided read is one count while its minority twin is a record at every probe through
   it.
-- Each theorem is per round, with the family, the seed and the band fixed, and treats the noise as
-  fresh. Reads made in earlier rounds, which pin bits a later round reads again, are not modelled.
+- Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
+  noise as fresh; the loop's theorem reads one noise across rounds (above).
+- **The model's loop differs from the Python's.** Level 4 draws its probes avoiding the first `k`
+  letters of the prefixes the round's clustering read, where the Python draws them from `D`. The
+  uniform pool is drawn afresh each round, where the Python keeps one pool across rounds.
 
 ## What to read
 
