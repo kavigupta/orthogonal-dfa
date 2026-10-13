@@ -16,8 +16,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
 `SiftWithPathCorrect`, stated in `OrthoDFA.DTree`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated
-in `OrthoDFA.Level3Claim`, and level 3.5's claim with rare wrong reads, stated in
-`OrthoDFA.Level3_5Claim`.
+in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong reads, stated in
+`OrthoDFA.Level4Claim`.
 -/
 
 namespace OrthoDFA

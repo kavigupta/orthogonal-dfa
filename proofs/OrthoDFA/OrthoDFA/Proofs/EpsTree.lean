@@ -209,23 +209,23 @@ theorem img_card_splitAt {T : DTree α} {p : List Bool} {d : FreeMonoid α} (hp 
   have := Finset.card_pos.2 ⟨p, hpimg⟩
   omega
 
-variable [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3_5Settings)
+variable [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level4Settings)
 
 /-- The tree has a true leaf for each leaf past the first, and every redirected edge has a real
 target. -/
-structure GInv (s : Level3_5State α) : Prop where
+structure GInv (s : Level4State α) : Prop where
   leaves : s.tree.leaves.length ≤ (img M side s.tree).card + 1
   real : ∀ p c t₀ w, s.edges (p, c) = some (t₀, w) → s.redirected (p, c) = true →
     RealT M side s.tree p c t₀
 
 /-- A fix at a target that is not real. -/
-def FakeFix (s : Level3_5State α) (x : FreeMonoid α) : Prop :=
+def FakeFix (s : Level4State α) (x : FreeMonoid α) : Prop :=
   ∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
     C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧ ¬ RealT M side s.tree p c t
 
-theorem gInv_start : GInv M side (initialState : Level3_5State α) where
+theorem gInv_start : GInv M side (initialState : Level4State α) where
   leaves := by
-    have : 0 < (img M side (initialState : Level3_5State α).tree).card :=
+    have : 0 < (img M side (initialState : Level4State α).tree).card :=
       Finset.card_pos.2 ⟨_, Finset.mem_image_of_mem _ (Finset.mem_univ M.start)⟩
     simp only [initialState, newHypothesis, DTree.leaves] at this ⊢
     simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, List.length_cons,
@@ -233,17 +233,17 @@ theorem gInv_start : GInv M side (initialState : Level3_5State α) where
     omega
   real := fun _ _ _ _ h => by simp [initialState, newHypothesis] at h
 
-theorem gInv_leaves {s : Level3_5State α} (hg : GInv M side s) :
+theorem gInv_leaves {s : Level4State α} (hg : GInv M side s) :
     s.tree.leaves.length ≤ Fintype.card σ + 1 :=
   hg.leaves.trans (by have := img_card_le M side s.tree; omega)
 
-theorem gInv_cls {s : Level3_5State α} (hs : Inv read C s) (hg : GInv M side s) :
+theorem gInv_cls {s : Level4State α} (hs : Inv read C s) (hg : GInv M side s) :
     s.tree ∈ classSet (Fintype.card σ) :=
   classSet_mono' (by have := gInv_leaves M side hg; omega) hs.cls
 
 /-- A split of an edge redirected to a real target, at the `recordsToMove`-th record of a real
 one, is genuine and keeps `GInv`'s count. -/
-theorem gInv_split {s : Level3_5State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
+theorem gInv_split {s : Level4State α} (hg : GInv M side s) {p t t₀ : List Bool} {c : α}
     {w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hE : s.edges (p, c) = some (t₀, w₀))
     (hmv : s.redirected (p, c) = true) (ht : RealT M side s.tree p c t) (hne : t₀ ≠ t) :
     (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length
@@ -256,7 +256,7 @@ theorem gInv_split {s : Level3_5State α} (hg : GInv M side s) {p t t₀ : List 
   omega
 
 /-- Only a fake fix can make the tree too big. -/
-theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) {s : Level3_5State α}
+theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) {s : Level4State α}
     (hs : Inv read C s) (hg : GInv M side s) {x : FreeMonoid α}
     (hnf : ¬ FakeFix M side read C s x) : applyProbe read C s x ≠ .inr .failed := by
   intro h
@@ -270,7 +270,7 @@ theorem step_ne_tooBig_g (hcap : Fintype.card σ + 2 ≤ C.maxLeaves) {s : Level
   omega
 
 /-- A step that changes the hypothesis without a fake fix keeps `GInv`. -/
-theorem gInv_change {s s' : Level3_5State α} (hs : Inv read C s) (hg : GInv M side s)
+theorem gInv_change {s s' : Level4State α} (hs : Inv read C s) (hg : GInv M side s)
     {x : FreeMonoid α} (h : applyProbe read C s x = .inl s')
     (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) (hnf : ¬ FakeFix M side read C s x) :
     GInv M side s' := by

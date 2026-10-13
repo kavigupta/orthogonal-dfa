@@ -1,7 +1,7 @@
 import OrthoDFA.Level3
 
 /-!
-# Level 3.5 of indecisive L*: rare wrong reads
+# Level 4 of indecisive L*: rare wrong reads
 
 Level 3's probes, counts and tests, run where a read can fall on its state's wrong side. A wrong
 read can make a clean disagreement untrue, so one is not acted on at once: it records its edge and
@@ -19,7 +19,7 @@ open OrthoDFA.Ideal (probeOrAgree retarget)
 
 variable {α : Type*} [DecidableEq α]
 
-structure Level3_5Settings where
+structure Level4Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
   /-- Records of one edge and target that redirect the edge, or split its leaf once redirected. -/
@@ -39,7 +39,7 @@ structure Level3_5Settings where
   probeBudget : ℕ
 
 /-- `redirected` and the counts are since the edge, or the hypothesis, last changed. -/
-structure Level3_5State (α : Type*) where
+structure Level4State (α : Type*) where
   tree : DTree α
   edges : Edges α
   redirected : List Bool × α → Bool
@@ -53,20 +53,20 @@ structure Level3_5State (α : Type*) where
   edgeUndecided : List Bool → α → List (FreeMonoid α)
 
 def newHypothesis (T : DTree α) (E : Edges α) (redirected : List Bool × α → Bool) :
-    Level3_5State α :=
+    Level4State α :=
   ⟨T, E, redirected, [], 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def initialState : Level3_5State α :=
+def initialState : Level4State α :=
   newHypothesis (.node 1 .leaf .leaf) (fun _ => none) fun _ => false
 
 section
 
-variable (read : FreeMonoid α → ARU) (C : Level3_5Settings)
+variable (read : FreeMonoid α → ARU) (C : Level4Settings)
 
 /-- A probe counted into the stretch. -/
-noncomputable def countProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid α) :
-    Level3_5State α :=
+noncomputable def countProbe [Fintype α] (s : Level4State α) (x : FreeMonoid α) :
+    Level4State α :=
   let o := probeOrAgree false read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
@@ -80,7 +80,7 @@ noncomputable def countProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid
 open scoped Classical in
 /-- The tests, in turn: the start's undecided rate, an edge's undecided reads, the undecided
 middles among the searches, and the disagreement rate. -/
-noncomputable def runTests [Fintype α] (s : Level3_5State α) : Option (RoundEnd (Level3Site α)) :=
+noncomputable def runTests [Fintype α] (s : Level4State α) : Option (RoundEnd (Level3Site α)) :=
   if rateSide C.startRate C.testLevel C.firstLook s.probeCount s.startUndecided.length = some true
   then some (.harvest .start)
   else if h : ∃ e ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α),
@@ -95,22 +95,22 @@ noncomputable def runTests [Fintype α] (s : Level3_5State α) : Option (RoundEn
       = some false then some .consistent
   else none
 
-noncomputable def applyTests [Fintype α] (s : Level3_5State α) :
-    Level3_5State α ⊕ RoundEnd (Level3Site α) :=
+noncomputable def applyTests [Fintype α] (s : Level4State α) :
+    Level4State α ⊕ RoundEnd (Level3Site α) :=
   match runTests C s with
   | some e => .inr e
   | none => .inl s
 
-def splitLeaf (s : Level3_5State α) (p : List Bool) (d : FreeMonoid α) :
-    Level3_5State α ⊕ RoundEnd (Level3Site α) :=
+def splitLeaf (s : Level4State α) (p : List Bool) (d : FreeMonoid α) :
+    Level4State α ⊕ RoundEnd (Level3Site α) :=
   let T' := s.tree.splitAt d p
   if C.maxLeaves < T'.leaves.length then .inr .failed
   else .inl (newHypothesis T' (retarget read T' p s.edges) fun _ => false)
 
 /-- The edge `(p, c)` has `recordsToMove` records at `t`, with `u` at `p`: split where it has
 been redirected, else redirect it. -/
-def redirectOrSplit (s : Level3_5State α) (p : List Bool) (c : α) (u : FreeMonoid α)
-    (t : List Bool) : Level3_5State α ⊕ RoundEnd (Level3Site α) :=
+def redirectOrSplit (s : Level4State α) (p : List Bool) (c : α) (u : FreeMonoid α)
+    (t : List Bool) : Level4State α ⊕ RoundEnd (Level3Site α) :=
   match s.edges (p, c) with
   | some (t₀, _) =>
     if s.redirected (p, c) then
@@ -119,8 +119,8 @@ def redirectOrSplit (s : Level3_5State α) (p : List Bool) (c : α) (u : FreeMon
       (Function.update s.redirected (p, c) true))
   | none => .inl s
 
-noncomputable def applyProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid α) :
-    Level3_5State α ⊕ RoundEnd (Level3Site α) :=
+noncomputable def applyProbe [Fintype α] (s : Level4State α) (x : FreeMonoid α) :
+    Level4State α ⊕ RoundEnd (Level3Site α) :=
   match probeOrAgree false read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
@@ -133,7 +133,7 @@ noncomputable def applyProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
 noncomputable def runProbes [Fintype α] :
-    Level3_5State α → List (FreeMonoid α) → Level3_5State α × RoundEnd (Level3Site α)
+    Level4State α → List (FreeMonoid α) → Level4State α × RoundEnd (Level3Site α)
   | s, [] => (s, .failed)
   | s, x :: xs =>
     match applyProbe read C s x with
@@ -142,7 +142,7 @@ noncomputable def runProbes [Fintype α] :
 
 end
 
-noncomputable def indecisiveLStarLevel3_5 [Fintype α] (settings : Level3_5Settings)
+noncomputable def indecisiveLStarLevel4 [Fintype α] (settings : Level4Settings)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
   let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩

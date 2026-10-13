@@ -69,11 +69,11 @@
   on `C.probeBudget` probes fails to end well, a harvest's sampler yielding `y`, with chance at
   most `roundRisk`. The sampler (`harvestLaw`) draws a fresh probe, walks it under the final
   hypothesis and finds the probe's undecided strings at the site, as the tests counted them.
-- `OrthoDFA/Level3_5.lean` — level 3.5, `indecisiveLStarLevel3_5`: level 3's probes, counts and
+- `OrthoDFA/Level4.lean` — level 4, `indecisiveLStarLevel4`: level 3's probes, counts and
   tests, run where a read can fall on its state's wrong side. A clean disagreement records its edge
   and target, `recordsToMove` records redirect the edge or, once it has been redirected, split its
   leaf, and a split past `maxLeaves` leaves fails the round.
-- `OrthoDFA/Level3_5Claim.lean` — `EpsRoundCorrect`: `RandomRoundCorrect`, its yield included,
+- `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: `RandomRoundCorrect`, its yield included,
   with each read on its state's wrong side with chance at most `εw`, at `epsRoundRisk` in place of
   `roundRisk`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should

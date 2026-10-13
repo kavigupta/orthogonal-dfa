@@ -1,8 +1,8 @@
-import OrthoDFA.Level3_5Claim
+import OrthoDFA.Level4Claim
 import OrthoDFA.Proofs.RandomTree
 
 /-!
-# Level 3.5's steps
+# Level 4's steps
 
 As at level 3 before its splits became immediate: a step that keeps the hypothesis counts one more
 probe into the stretch; one that changes it starts a fresh stretch and lowers `Ψr`, which counts
@@ -17,33 +17,33 @@ namespace Eps
 
 open OrthoDFA.Ideal (probe probeOrAgree Outcome retarget EdgesOK Reached OutcomeOK)
 
-variable {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3_5Settings)
+variable {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level4Settings)
 
 section Potential
 
 variable [Fintype α]
 
 /-- What an edge has left to change before the next split: learning and redirecting, or one. -/
-def wt (s : Level3_5State α) (qc : List Bool × α) : ℕ :=
+def wt (s : Level4State α) (qc : List Bool × α) : ℕ :=
   match s.edges qc with
   | none => 2
   | some _ => if s.redirected qc then 0 else 1
 
-def Φ (s : Level3_5State α) : ℕ := ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt s qc
+def Φ (s : Level4State α) : ℕ := ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt s qc
 
 def X : ℕ := 2 * C.maxLeaves * Fintype.card α + 1
 
 /-- The splits, learnings and redirects left. -/
-def Ψr (s : Level3_5State α) : ℕ := (C.maxLeaves - s.tree.leaves.length) * X (α := α) C + Φ s
+def Ψr (s : Level4State α) : ℕ := (C.maxLeaves - s.tree.leaves.length) * X (α := α) C + Φ s
 
 omit [DecidableEq α] [Fintype α] in
-theorem wt_le (s : Level3_5State α) (qc : List Bool × α) : wt s qc ≤ 2 := by
+theorem wt_le (s : Level4State α) (qc : List Bool × α) : wt s qc ≤ 2 := by
   unfold wt; split
   · exact le_rfl
   · split <;> omega
 
 omit [DecidableEq α] in
-theorem Φ_le (s : Level3_5State α) : Φ s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
+theorem Φ_le (s : Level4State α) : Φ s ≤ 2 * s.tree.leaves.length * Fintype.card α := by
   unfold Φ
   calc ∑ qc ∈ s.tree.leaves.toFinset ×ˢ Finset.univ, wt s qc
       ≤ (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).card • 2 :=
@@ -54,7 +54,7 @@ theorem Φ_le (s : Level3_5State α) : Φ s ≤ 2 * s.tree.leaves.length * Finty
       nlinarith
 
 /-- Changing one edge of a leaf to a lower weight lowers `Ψr`. -/
-theorem Ψ_lt_upd {s : Level3_5State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
+theorem Ψ_lt_upd {s : Level4State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
     (v : Option (List Bool × FreeMonoid α)) (b : Bool)
     (hlt : wt (newHypothesis s.tree (Function.update s.edges (p, c) v)
       (Function.update s.redirected (p, c) b)) (p, c) < wt s (p, c)) :
@@ -75,7 +75,7 @@ theorem Ψ_lt_upd {s : Level3_5State α} {p : List Bool} {c : α} (hp : p ∈ s.
   omega
 
 omit [DecidableEq α] in
-theorem Ψ_lt_split {s : Level3_5State α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d : FreeMonoid α}
+theorem Ψ_lt_split {s : Level4State α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d : FreeMonoid α}
     (hsz : (s.tree.splitAt d p).leaves.length ≤ C.maxLeaves) (E : Edges α)
     (mv : List Bool × α → Bool) :
     Ψr C (newHypothesis (s.tree.splitAt d p) E mv) < Ψr C s := by
@@ -95,7 +95,7 @@ theorem Ψ_lt_split {s : Level3_5State α} {p : List Bool} (hp : p ∈ s.tree.le
 
 end Potential
 
-structure Inv [Fintype α] (s : Level3_5State α) : Prop where
+structure Inv [Fintype α] (s : Level4State α) : Prop where
   edges : EdgesOK read s.tree s.edges
   recs_lt : ∀ r, s.records.count r < C.recordsToMove
   size : s.tree.leaves.length ≤ C.maxLeaves
@@ -108,7 +108,7 @@ section Steps
 variable [Fintype α] {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
 theorem inv_start (hm : 1 ≤ C.recordsToMove) (h2 : 2 ≤ C.maxLeaves) :
-    Inv read C (initialState : Level3_5State α) where
+    Inv read C (initialState : Level4State α) where
   edges := fun _ _ _ _ _ h => by simp [initialState, newHypothesis] at h
   recs_lt := fun _ => by simp [initialState, newHypothesis]; omega
   size := by simp [initialState, newHypothesis, DTree.leaves]; omega
@@ -127,8 +127,8 @@ theorem leaves_root : (DTree.node 1 .leaf .leaf : DTree α).leaves = [[false], [
   simp [DTree.leaves]
 
 theorem Ψr_start (h2 : 2 ≤ C.maxLeaves) :
-    Ψr C (initialState : Level3_5State α) + 1 ≤ stretches C (Fintype.card α) := by
-  have hΦ := Φ_le (initialState : Level3_5State α)
+    Ψr C (initialState : Level4State α) + 1 ≤ stretches C (Fintype.card α) := by
+  have hΦ := Φ_le (initialState : Level4State α)
   unfold Ψr stretches
   simp only [initialState, newHypothesis] at hΦ ⊢
   rw [leaves_root] at hΦ ⊢
@@ -144,7 +144,7 @@ theorem Ψr_start (h2 : 2 ≤ C.maxLeaves) :
     nlinarith
   omega
 
-theorem finish_inl {t s' : Level3_5State α} (h : applyTests C t = .inl s') : s' = t
+theorem finish_inl {t s' : Level4State α} (h : applyTests C t = .inl s') : s' = t
     ∧ runTests C t = none := by
   unfold applyTests at h
   split at h
@@ -152,19 +152,19 @@ theorem finish_inl {t s' : Level3_5State α} (h : applyTests C t = .inl s') : s'
   · rename_i hl
     exact ⟨by simpa using h.symm, hl⟩
 
-theorem countProbe_tree (s : Level3_5State α) (x : FreeMonoid α) :
+theorem countProbe_tree (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).tree = s.tree := rfl
-theorem countProbe_edges (s : Level3_5State α) (x : FreeMonoid α) :
+theorem countProbe_edges (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).edges = s.edges := rfl
-theorem countProbe_redirected (s : Level3_5State α) (x : FreeMonoid α) :
+theorem countProbe_redirected (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).redirected = s.redirected := rfl
-theorem countProbe_records (s : Level3_5State α) (x : FreeMonoid α) :
+theorem countProbe_records (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).records = s.records := rfl
-theorem countProbe_probeCount (s : Level3_5State α) (x : FreeMonoid α) :
+theorem countProbe_probeCount (s : Level4State α) (x : FreeMonoid α) :
     (countProbe read C s x).probeCount = s.probeCount + 1 := rfl
 
 /-- The steps that keep the hypothesis: a look after counting the probe. -/
-theorem step_cases {s s' : Level3_5State α} {x : FreeMonoid α} (hs : Inv read C s)
+theorem step_cases {s s' : Level4State α} {x : FreeMonoid α} (hs : Inv read C s)
     (h : applyProbe read C s x = .inl s') :
     (∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
         ∧ s.edges (p, c) = none ∧
@@ -205,7 +205,7 @@ theorem step_cases {s s' : Level3_5State α} {x : FreeMonoid α} (hs : Inv read 
     exact Or.inr (Or.inr ⟨by simpa [recOf] using h1, h1 ▸ h2, fun _ _ _ _ he => by cases he⟩)
 
 /-- A step that keeps the hypothesis counts one more probe. -/
-theorem step_same {s s' : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_same {s s' : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inl s') (ht : s'.tree = s.tree) (he : s'.edges = s.edges) :
     Inv read C s' ∧ Ψr C s' = Ψr C s
         ∧ s'.probeCount = s.probeCount + 1 := by
@@ -250,7 +250,7 @@ theorem step_same {s s' : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid 
 
 /-- A split on a letter and the midfix where its targets part keeps every leaf past the first
 two reached. -/
-theorem split_reached {s : Level3_5State α} (hs : Inv read C s) {p t t₀ : List Bool} {c : α}
+theorem split_reached {s : Level4State α} (hs : Inv read C s) {p t t₀ : List Bool} {c : α}
     {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves) (hu : s.tree.sift read u = .inl p)
     (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t) (hw₀ : s.tree.sift read w₀ = .inl p)
     (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀) (hne : t₀ ≠ t) :
@@ -262,7 +262,7 @@ theorem split_reached {s : Level3_5State α} (hs : Inv read C s) {p t t₀ : Lis
   · simpa [mul_assoc] using hpart.2.2
 
 /-- A split that fits keeps the invariant, the tree in the class, and lowers `Ψr`. -/
-theorem split_ok {s : Level3_5State α} (hs : Inv read C s) (hm : 1 ≤ C.recordsToMove)
+theorem split_ok {s : Level4State α} (hs : Inv read C s) (hm : 1 ≤ C.recordsToMove)
     {p t t₀ : List Bool} {c : α} {u w₀ : FreeMonoid α} (hp : p ∈ s.tree.leaves)
     (hu : s.tree.sift read u = .inl p) (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t)
     (hw₀ : s.tree.sift read w₀ = .inl p) (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀)
@@ -287,7 +287,7 @@ theorem split_ok {s : Level3_5State α} (hs : Inv read C s) (hm : 1 ≤ C.record
   · exact Ψ_lt_split C hp hsz _ _
 
 /-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
-theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level3_5State α} (hs : Inv read C s)
+theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level4State α} (hs : Inv read C s)
     {x : FreeMonoid α} (h : applyProbe read C s x = .inl s')
     (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
     Inv read C s' ∧ s' = newHypothesis s'.tree s'.edges s'.redirected ∧ Ψr C s' < Ψr C s := by
@@ -318,7 +318,7 @@ theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level3_5State α} (hs :
 
 /-- The round ends too big only at a split, of an edge redirected since it was learned, at
 its `recordsToMove`-th record of a new target. -/
-theorem step_tooBig {s : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_tooBig {s : Level4State α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inr .failed) :
     ∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
       s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
@@ -327,7 +327,7 @@ theorem step_tooBig {s : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid �
       C.maxLeaves < (s.tree.splitAt
         (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length := by
   have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
-  have hlook : ∀ t : Level3_5State α, applyTests C t ≠ .inr .failed := by
+  have hlook : ∀ t : Level4State α, applyTests C t ≠ .inr .failed := by
     intro t ht
     unfold applyTests runTests at ht
     split_ifs at ht <;> simp_all
@@ -351,7 +351,7 @@ theorem step_tooBig {s : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid �
   | agree | undecidedStart _ | undecided _ _ => exact absurd h (hlook _)
 
 theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
-    {s : Level3_5State α} (hs : Inv read C s) (x : FreeMonoid α) :
+    {s : Level4State α} (hs : Inv read C s) (x : FreeMonoid α) :
     applyProbe read C s x ≠ .inr .failed := by
   intro h
   obtain ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, -, -, hlt⟩ := step_tooBig read C hs h
@@ -359,7 +359,7 @@ theorem step_ne_tooBig (hW : NoWrong M side read) (hcap : Fintype.card σ + 2 �
   have := leaves_le_of_reached' read hW (split_reached read C hs hp hu huc hw₀ hw₀c htt)
   omega
 
-theorem cls_mem (hW : NoWrong M side read) {s : Level3_5State α} (hs : Inv read C s) :
+theorem cls_mem (hW : NoWrong M side read) {s : Level4State α} (hs : Inv read C s) :
     s.tree ∈ classSet (Fintype.card σ) :=
   classSet_mono' (by have := leaves_le_of_reached' read hW hs.reached; omega) hs.cls
 

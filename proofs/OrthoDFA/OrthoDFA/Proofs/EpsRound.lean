@@ -22,7 +22,7 @@ open MeasureTheory
 open OrthoDFA.Ideal (searchOutcome siftAgrees probe probeOrAgree Outcome length_walk_le pre_of_le
   pre_succ agrees_inl walk_cons EdgesOK OutcomeOK)
 
-variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3_5Settings)
+variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level4Settings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool)
 
 /-! ## Where a record is made -/
@@ -122,7 +122,7 @@ def FakeEv (T : DTree α) (E : Edges α) (zs : List (FreeMonoid α)) : Prop :=
   ∃ τ ∈ recSet T, ¬ RealT M side T τ.1 τ.2.1 τ.2.2 ∧ C.recordsToMove ≤ zs.countP (fR read C T E τ)
 
 theorem fakeEv_of_fix {T : DTree α} {E : Edges α}
-    {ys : List (FreeMonoid α)} {s : Level3_5State α} (hs : Inv read C s)
+    {ys : List (FreeMonoid α)} {s : Level4State α} (hs : Inv read C s)
     (hst : StInv read C T E ys s) {x : FreeMonoid α} (hf : FakeFix M side read C s x) :
     FakeEv read C M side T E (ys ++ [x]) := by
   obtain ⟨p, c, u, t, ho, hc, hr⟩ := hf
@@ -190,7 +190,7 @@ theorem fake_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {Gw : ℝ
 variable (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
 open Finset in
-theorem stretchRisk_nonneg (C : Level3_5Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
+theorem stretchRisk_nonneg (C : Level4Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
     (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
     0 ≤ stretchRisk C nα L Ns N₁ p θr εd' θpt' := by
@@ -216,8 +216,8 @@ theorem stretchRisk_nonneg (C : Level3_5Settings) (nα L Ns N₁ : ℕ) (p θr �
   linarith
 
 /-- A run with no bad step ends well, given enough probes. -/
-theorem ends_of_not_anyB (X : Level3_5State α → FreeMonoid α → Prop) (hm : 1 ≤ C.recordsToMove) :
-    ∀ (xs : List (FreeMonoid α)) (s : Level3_5State α), Inv read C s → s.probeCount < Ns →
+theorem ends_of_not_anyB (X : Level4State α → FreeMonoid α → Prop) (hm : 1 ≤ C.recordsToMove) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level4State α), Inv read C s → s.probeCount < Ns →
       Ψr C s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) s xs →
       EndsWell M (BadAt U θ) D ε
@@ -254,7 +254,7 @@ theorem ends_of_not_anyB (X : Level3_5State α → FreeMonoid α → Prop) (hm :
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
 
-theorem gInv_same {s s' : Level3_5State α} (hg : GInv M side s) (ht : s'.tree = s.tree)
+theorem gInv_same {s s' : Level4State α} (hg : GInv M side s) (ht : s'.tree = s.tree)
     (he : s'.edges = s.edges) (hm : s'.redirected = s.redirected) : GInv M side s' := by
   obtain ⟨h1, h2⟩ := hg
   refine ⟨by rw [ht]; exact h1, fun p c t₀ w hE hmv => ?_⟩
@@ -293,7 +293,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
   set X := FakeFix M side read C
   set b := ENNReal.ofReal (stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt'
     + fakeRisk C (Fintype.card α) Ns Gw)
-  set I : Level3_5State α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.probeCount < Ns
+  set I : Level4State α → Prop := fun s => Inv read C s ∧ GInv M side s ∧ s.probeCount < Ns
   have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.redirected → ∀ N,
       (Measure.pi fun _ : Fin N => D)
         {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
@@ -332,18 +332,18 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
             (List.ofFn xs)} := by
         refine measure_mono fun xs hxs => ?_
         by_contra hb
-        have hn0 : (initialState : Level3_5State α).probeCount = 0 := rfl
+        have hn0 : (initialState : Level4State α).probeCount = 0 := rfl
         refine hxs (ends_of_not_anyB read C M U θ D ε Ns y X hm _ initialState hst
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
-        have : (Ψr C (initialState : Level3_5State α) + 1) * Ns
+        have : (Ψr C (initialState : Level4State α) + 1) * Ns
             ≤ stretches C (Fintype.card α) * Ns :=
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    _ ≤ b + Ψr C (initialState : Level3_5State α) * b :=
+    _ ≤ b + Ψr C (initialState : Level4State α) * b :=
         hany.trans (add_le_add (hseg _ hI0 rfl P) le_rfl)
-    _ = ((Ψr C (initialState : Level3_5State α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
+    _ = ((Ψr C (initialState : Level4State α) + 1 : ℕ) : ENNReal) * b := by push_cast; ring
     _ ≤ (stretches C (Fintype.card α) : ENNReal) * b := by gcongr
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
