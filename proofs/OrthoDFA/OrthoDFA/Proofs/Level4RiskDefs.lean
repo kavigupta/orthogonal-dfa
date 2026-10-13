@@ -27,7 +27,7 @@ def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edge
 
 theorem searchAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     searchAt rd k T edges = {x | match probeBy (fun z => (rd z).cut) T edges k x with
-      | .pair _ | .edge _ _ | .triple _ => True
+      | .undecidedMid _ | .edge _ _ => True
       | _ => False} := rfl
 
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/

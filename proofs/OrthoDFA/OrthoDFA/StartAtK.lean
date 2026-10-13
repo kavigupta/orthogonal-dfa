@@ -2,13 +2,15 @@ import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
 import OrthoDFA.FamilyRead
 import OrthoDFA.RateTest
+import OrthoDFA.TripartiteSearch
 
 /-!
 # Walks and searches from position `k`
 
 A probe is walked from where the cut places its first `k` letters along learned edges (`follow`,
-`KWalk`); a disagreement is searched by bisection (`bracketAt`) to what the probe comes to
-(`Outcome`).
+`KWalk`); a disagreement is searched by main's bisection without recovery
+(`bisectBoundary false`) to what the probe comes to (`Outcome`). `bracketAt` is the same search
+by fuel, which the proofs induct on.
 -/
 
 namespace OrthoDFA
@@ -42,16 +44,15 @@ inductive KWalk (α : Type*)
 
 /-- What one probe comes to: the walk ends where the cut places the probe; the cut cannot place
 the first `k` letters, `w`; it cannot place the probe, or, at an unlearned edge at `j`, its first
-`j + 1` or `j` letters, `w`; the search of a decided disagreement ends at undecided reads at `j`
-and `j + 1`, at the edge into `fd` of the walk `ps`, or at an undecided read at `j` between an
-agreeing and a disagreeing one; or an unlearned edge's source is where the cut places `u`. -/
+`j + 1` or `j` letters, `w`; the search of a decided disagreement stops at its first undecided
+midpoint `j`, or ends at the edge into `fd` of the walk `ps`; or an unlearned edge's source is
+where the cut places `u`. -/
 inductive Outcome (α : Type*)
   | agree
   | startUndecided (w : FreeMonoid α)
   | endUndecided (w : FreeMonoid α)
-  | pair (j : ℕ)
+  | undecidedMid (j : ℕ)
   | edge (ps : List (List Bool)) (fd : ℕ)
-  | triple (j : ℕ)
   | member (u : FreeMonoid α)
 
 namespace DTree
@@ -63,25 +64,21 @@ noncomputable def midfixes : DTree α → Finset (FreeMonoid α)
 
 end DTree
 
-/-- `bracket` from `lo`, agreeing, to `hi`, disagreeing, over the walk `ps`, `agrees i` being
-`none` where the read of the first `i` letters is undecided: a decided middle narrows, an
-undecided one reads its neighbours. -/
+/-- Main's search result as level 4's outcome, over the walk `ps`. -/
+def searchOutcome (ps : List (List Bool)) : SearchResult → Outcome α
+  | .undecidedMid j => .undecidedMid j
+  | .edge j => .edge ps j
+  | _ => .agree
+
+/-- `bisectBoundary false` by fuel, over the walk `ps`. -/
 def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → ℕ → ℕ → Outcome α
   | 0, _, hi => .edge ps hi
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
-      let ag := fun p => if p = lo then some true else if p = hi then some false else agrees p
-      let mid := (lo + hi) / 2
-      match ag mid with
-      | some true => bracketAt agrees ps fuel mid hi
-      | some false => bracketAt agrees ps fuel lo mid
-      | none =>
-        match ag (mid - 1), ag (mid + 1) with
-        | none, _ => .pair (mid - 1)
-        | some _, none => .pair mid
-        | some true, some false => .triple mid
-        | some true, some true => bracketAt agrees ps fuel (mid + 1) hi
-        | some false, some _ => bracketAt agrees ps fuel lo (mid - 1)
+      match agrees ((lo + hi) / 2) with
+      | some true => bracketAt agrees ps fuel ((lo + hi) / 2) hi
+      | some false => bracketAt agrees ps fuel lo ((lo + hi) / 2)
+      | none => .undecidedMid ((lo + hi) / 2)
     else .edge ps hi
 
 variable (R : CutReads α)

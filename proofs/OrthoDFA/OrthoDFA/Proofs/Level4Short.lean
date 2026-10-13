@@ -104,7 +104,7 @@ theorem siteHarvest_short {L k : ℕ} (site : Level4Site α) {v : DTree α × Ed
   | middles =>
     change z ∈ middleHarvestBy cut v.1 v.2 k x at hz
     unfold middleHarvestBy at hz
-    rcases ho : probeBy cut v.1 v.2 k x with _ | _ | _ | j | _ | j | _ <;>
+    rcases ho : probeBy cut v.1 v.2 k x with _ | _ | _ | j | _ | _ <;>
       rw [ho] at hz <;> try simp at hz
     all_goals
       rcases hb : v.1.siftCut cut (prefixOf x j) with q | b <;> rw [hb] at hz

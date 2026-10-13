@@ -151,20 +151,16 @@ theorem bracketAt_ne_member (agrees : ℕ → Option Bool) (ps : List (List Bool
   | fuel + 1, lo, hi => by
     unfold bracketAt
     split_ifs
-    · dsimp only
-      split
+    · split
       · exact bracketAt_ne_member agrees ps u fuel _ _
       · exact bracketAt_ne_member agrees ps u fuel _ _
-      · split
-        all_goals first
-          | exact bracketAt_ne_member agrees ps u fuel _ _
-          | simp
+      · simp
     · simp
 
 /-- A member outcome is a prefix from `k` on. -/
 theorem probeBy_member {T : DTree α} {E : EdgeTable α} {x u : FreeMonoid α}
     (ho : probeBy cut T E k x = .member u) : ∃ j, k ≤ j ∧ u = prefixOf x j := by
-  unfold probeBy at ho
+  rw [probeBy_eq] at ho
   split_ifs at ho with hs
   rcases hw : walkCheckBy cut T E k x with o | ⟨ps, hi⟩ <;> rw [hw] at ho
   · simp only [Sum.elim_inl, id] at ho
@@ -205,7 +201,7 @@ theorem recordProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') (s : Leve
   unfold recordProbe
   rw [probeBy_congr_off h s.tree s.edges hx, recordBy_congr_off h s.tree s.edges hx,
     countProbe_congr_off h s hx]
-  rcases ho : probeBy cut' s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | j | u <;>
+  rcases ho : probeBy cut' s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try rfl
   try dsimp only
   obtain ⟨j, hj, rfl⟩ := probeBy_member ho
@@ -257,7 +253,7 @@ theorem recordProbe_offInv {s : Level4State α} (hs : OffInv C.walkStart K₀ s)
   refine ⟨?_, ?_⟩
   · intro q c t w hqc
     unfold recordProbe at hqc
-    rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | j | u <;>
+    rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | u <;>
       rw [ho] at hqc <;> try dsimp only at hqc
     all_goals try (exact hE q c t w (by simpa [Level4State.countProbe] using hqc))
     · rcases hrb : recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c', t'⟩, sp⟩ <;>

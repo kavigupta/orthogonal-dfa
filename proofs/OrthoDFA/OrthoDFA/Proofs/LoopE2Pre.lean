@@ -80,10 +80,10 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
       apply propext
       show (match probeBy (fun z => (read z).cut) res.hypothesis.tree
           (Function.curry res.hypothesis.edges) C.walkStart x with
-        | .pair _ | .edge _ _ | .triple _ => True
+        | .undecidedMid _ | .edge _ _ => True
         | _ => False) ↔ (match probeBy (fun z => (read' z).cut) res.hypothesis.tree
           (Function.curry res.hypothesis.edges) C.walkStart x with
-        | .pair _ | .edge _ _ | .triple _ => True
+        | .undecidedMid _ | .edge _ _ => True
         | _ => False)
       rw [hpb]
     simp only [EndsWell]

@@ -30,9 +30,6 @@ theorem middleHarvestBy_cases :
   · rcases T.siftCut cut _ with _ | b
     · exact .inl rfl
     · exact .inr ⟨b, rfl⟩
-  · rcases T.siftCut cut _ with _ | b
-    · exact .inl rfl
-    · exact .inr ⟨b, rfl⟩
   · exact .inl rfl
 
 theorem startHarvestBy_fresh : (startHarvestBy cut T k x).Nodup
@@ -66,20 +63,14 @@ theorem middleHarvestBy_fresh : (middleHarvestBy cut T E k x).Nodup
       prefixOf b k = prefixOf x k := fun j b hj hb =>
     probeStrings_prefix (route_mem_probeStrings hkx hj (route_undecided cut T _ b hb).1)
   unfold middleHarvestBy
-  rcases ho : probeBy cut T E k x with _ | _ | _ | j | _ | j | _
+  rcases ho : probeBy cut T E k x with _ | _ | _ | j | _ | _
   all_goals first | (simp; done) | skip
-  · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut ho trivial
-    have hj := bracketAt_pair_gt _ _ _ _ _ _ hb
-    dsimp only
-    rcases hs : T.siftCut cut (prefixOf x j) with p | b
-    · simp
-    · simpa using key j b hj.le hs
-  · obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut ho trivial
-    have hj := bracketAt_triple_gt _ _ _ _ _ _ hb
-    dsimp only
-    rcases hs : T.siftCut cut (prefixOf x j) with p | b
-    · simp
-    · simpa using key j b hj.le hs
+  obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut ho trivial
+  have hj := (bracketAt_mid _ _ _ _ _ _ hb).1
+  dsimp only
+  rcases hs : T.siftCut cut (prefixOf x j) with p | b
+  · simp
+  · simpa using key j b hj.le hs
 
 theorem siteHarvest_fresh (site : Level4Site α) (v : DTree α × EdgeTable α) :
     (siteHarvest cut k site v x).Nodup

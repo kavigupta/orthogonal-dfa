@@ -81,7 +81,7 @@ theorem recordProbe_congr_up (h : AgreeUpTo N cut cut') (C : Level4Settings) (s 
   have hcp := countProbe_congr_up h s hT hx C.walkStart
   unfold recordProbe
   rw [hpb, hrb, hcp]
-  rcases probeBy cut' s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | j | u <;>
+  rcases probeBy cut' s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
     try rfl
   try dsimp only
   rcases hc : x.toList[u.toList.length]? with _ | c
@@ -175,7 +175,7 @@ theorem recordProbe_edges (s : Level4State α) (x : FreeMonoid α) (q : List Boo
     (recordProbe C cut s x).edges q c = some (t, w) →
       s.edges q c = some (t, w) ∨ w.toList.length < x.toList.length := by
   unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | j | u <;>
+  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w' | w' | j | ⟨ps, fd⟩ | u <;>
     try dsimp only
   all_goals try (intro h; left; simpa [Level4State.countProbe] using h)
   · rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c', t'⟩, sp⟩ <;>

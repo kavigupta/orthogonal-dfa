@@ -50,7 +50,7 @@ decided read. -/
 def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : Hypothesis α) :
     Set (FreeMonoid α) :=
   {x | match probeBy (fun z => (read z).cut) H.tree (Function.curry H.edges) k x with
-    | .pair _ | .edge _ _ | .triple _ => True
+    | .undecidedMid _ | .edge _ _ => True
     | _ => False}
 
 /-- The largest mass the probes' distribution puts on one length-`k` prefix. -/

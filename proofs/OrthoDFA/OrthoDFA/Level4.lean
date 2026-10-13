@@ -10,22 +10,22 @@ tree reads `w·m` as one read. `read` holds every string's read; its cut is the 
 `none` where undecided.
 
 Probes are fresh draws, each walked from `walkStart` along the learned edges and searched for its
-first disagreement as `sifting.read` does (`probeBy`, whose bisection steps past an undecided
-midpoint whose neighbours read alike). A clean disagreement records, at the edge it crosses, the
+first disagreement by main's bisection (`probeBy`, through `bisectBoundary false`), which stops
+at the first undecided midpoint. A clean disagreement records, at the edge it crosses, the
 probe's prefix there and the leaf the next prefix sifts to; a probe at an unlearned edge learns
 it.
 
 Each place keeps its count over the whole round: the start, its undecided reads' strings, and
 each edge, the strings first read in a probe at positions charged to it and those of them read
 undecided. Every position past the start is charged to an edge: the walk's edge out of that
-position, or, where there is none, the walk's last edge; every position a probe sifts, the
-bisection's stepped-past middles included, reads at its edge. The disagreement rate, and the
+position, or, where there is none, the walk's last edge; every position a probe sifts reads at
+its edge. The disagreement rate, and the
 undecided middles searches stop at, are counted over a stretch, which starts afresh whenever the
 tree or the edges change. After every probe (`applyProbe`):
 * the start-undecided rate above `startUndecidedRate`; an edge charged at least `edgeTraffic` of
   the round's probes, its undecided strings exceeding `edgeUndecidedRate` of its reads by
   `edgeExcess` of them; or a stretch searching on at least `searchShare` of its probes, the share
-  of its searches stopping at an undecided middle (a pair or a triple) above
+  of its searches stopping at an undecided middle above
   `middleUndecidedRate`, ends the round with a harvest there;
 * the disagreement rate settling below `disagreementRate` ends it in success;
 * otherwise one edge is fixed. Where an edge has `recordsToMove` records at a target it does not
@@ -101,7 +101,8 @@ nothing. -/
 def probeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : Outcome α :=
   if x.toList.length < k then .agree
   else (walkCheckBy cut t edges k x).elim id fun d =>
-    bracketAt (agreesAtBy cut t x fun j => d.1.getD (j - k) []) d.1 (d.2 - k) k d.2
+    searchOutcome d.1
+      (bisectBoundary false (agreesAtBy cut t x fun j => d.1.getD (j - k) []) k d.2).1
 
 /-- The record a probe of `x` makes against the hypothesis `h`: at a clean disagreement, the edge
 it crosses, the leaf its next prefix sifts to, and its prefix at the edge. -/
@@ -121,25 +122,15 @@ def edgeAtBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
   | some p, some c => some (p, c)
   | _, _ => none
 
-/-- The positions `bracketAt` sifts: each middle, and its neighbours where it is undecided (the
-right one only where the left one is decided). -/
+/-- The positions `bracketAt` sifts: each middle. -/
 def bracketSifts (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → List ℕ
   | 0, _, _ => []
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
-      let ag := fun p => if p = lo then some true else if p = hi then some false else agrees p
-      let mid := (lo + hi) / 2
-      match ag mid with
-      | some true => mid :: bracketSifts agrees fuel mid hi
-      | some false => mid :: bracketSifts agrees fuel lo mid
-      | none =>
-        match ag (mid - 1), ag (mid + 1) with
-        | none, _ => [mid, mid - 1]
-        | some true, some true =>
-          mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel (mid + 1) hi
-        | some false, some _ =>
-          mid :: (mid - 1) :: (mid + 1) :: bracketSifts agrees fuel lo (mid - 1)
-        | some _, _ => [mid, mid - 1, mid + 1]
+      match agrees ((lo + hi) / 2) with
+      | some true => (lo + hi) / 2 :: bracketSifts agrees fuel ((lo + hi) / 2) hi
+      | some false => (lo + hi) / 2 :: bracketSifts agrees fuel lo ((lo + hi) / 2)
+      | none => [(lo + hi) / 2]
     else []
 
 /-- The positions a probe sifts past its start, as `probeBy` reads them. -/
@@ -167,11 +158,11 @@ def posEdgeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α
     Option (List Bool × α) :=
   (edgeAtBy cut t edges k x i).orElse fun _ => edgeAtBy cut t edges k x (i - 1)
 
-/-- The undecided middle its search stopped at, as a pair or a triple, if any. -/
+/-- The string its search read undecided at the midpoint it stopped at, if any. -/
 def middleHarvestBy (t : DTree α) (edges : EdgeTable α) (k : ℕ)
     (x : FreeMonoid α) : List (FreeMonoid α) :=
   match probeBy cut t edges k x with
-  | .pair j | .triple j => (t.siftCut cut (prefixOf x j)).elim (fun _ => []) fun b => [b]
+  | .undecidedMid j => (t.siftCut cut (prefixOf x j)).elim (fun _ => []) fun b => [b]
   | _ => []
 
 /-- The string it read undecided at its start, if any. -/
@@ -260,28 +251,16 @@ def siftQuery (ℓ : ReadLabel α) : DTree α → FreeMonoid α → ProbeQuery �
     | some true => (siftQuery ℓ a u).map fun s => s.map (true :: ·) id
     | some false => (siftQuery ℓ r u).map fun s => s.map (false :: ·) id
 
-/-- The agreement at `p`, the range's ends known. -/
-def agAt (agreementQuery : ℕ → ProbeQuery α (Option Bool))
-    (lo hi p : ℕ) : ProbeQuery α (Option Bool) :=
-  if p = lo then .done (some true) else if p = hi then .done (some false) else agreementQuery p
-
 /-- `bracketAt`, each position's agreement read through `agreementQuery`. -/
 def bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool)) :
     ℕ → ℕ → ℕ → ProbeQuery α (Outcome α)
   | 0, _, hi => .done (.edge ps hi)
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
-      (agAt agreementQuery lo hi ((lo + hi) / 2)).bind fun am => match am with
+      (agreementQuery ((lo + hi) / 2)).bind fun am => match am with
       | some true => bracketQuery agreementQuery ps fuel ((lo + hi) / 2) hi
       | some false => bracketQuery agreementQuery ps fuel lo ((lo + hi) / 2)
-      | none => (agAt agreementQuery lo hi ((lo + hi) / 2 - 1)).bind fun al => match al with
-        | none => .done (.pair ((lo + hi) / 2 - 1))
-        | some bl => (agAt agreementQuery lo hi ((lo + hi) / 2
-            + 1)).bind fun ar => match bl, ar with
-          | _, none => .done (.pair ((lo + hi) / 2))
-          | true, some false => .done (.triple ((lo + hi) / 2))
-          | true, some true => bracketQuery agreementQuery ps fuel ((lo + hi) / 2 + 1) hi
-          | false, some _ => bracketQuery agreementQuery ps fuel lo ((lo + hi) / 2 - 1)
+      | none => .done (.undecidedMid ((lo + hi) / 2))
     else .done (.edge ps hi)
 
 variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
@@ -490,7 +469,7 @@ noncomputable def recordProbe (C : Level4Settings) (cut : FreeMonoid α → Opti
     match recordBy cut C.walkStart (s.tree, s.edges) x with
     | some ((p, c, t), sp) => s₂.addRecord p c (sp, t)
     | none => s₂
-  | .pair _ | .triple _ => { s₁ with stretchDisagreements := s₁.stretchDisagreements + 1 }
+  | .undecidedMid _ => { s₁ with stretchDisagreements := s₁.stretchDisagreements + 1 }
   | _ => s₁
 
 open scoped Classical in

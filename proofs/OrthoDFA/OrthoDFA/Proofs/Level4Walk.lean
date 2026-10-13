@@ -33,11 +33,22 @@ theorem walkCheckBy_inl {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : Fre
     · split_ifs at h
       · obtain rfl := Sum.inl.inj h; exact id
 
+theorem probeBy_eq (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
+    probeBy cut t edges k x = if x.toList.length < k then .agree
+      else (walkCheckBy cut t edges k x).elim id fun d =>
+        bracketAt (agreesAtBy cut t x fun j => d.1.getD (j - k) []) d.1 (d.2 - k) k d.2 := by
+  unfold probeBy
+  split_ifs
+  · rfl
+  · congr 1
+    funext d
+    rw [bracketAt_eq_bisect _ _ _ _ _ le_rfl]
+
 theorem probeBy_search {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
     {o : Outcome α} (h : probeBy cut t edges k x = o) (ho : o.IsSearch) :
     ∃ ps hi, walkCheckBy cut t edges k x = .inr (ps, hi)
       ∧ bracketAt (agreesAtBy cut t x fun j => ps.getD (j - k) []) ps (hi - k) k hi = o := by
-  unfold probeBy at h
+  rw [probeBy_eq] at h
   split_ifs at h with hs
   · subst h; exact absurd ho (by simp [Outcome.IsSearch])
   rcases hw : walkCheckBy cut t edges k x with o' | ⟨ps, hi⟩ <;> rw [hw] at h
@@ -224,29 +235,14 @@ theorem bracketSifts_range (agrees : ℕ → Option Bool) :
   | fuel + 1, lo, hi, i, h => by
     unfold bracketSifts at h
     split_ifs at h with h1
-    · simp only [] at h
-      split at h
+    · split at h
       · rcases List.mem_cons.1 h with rfl | h
         · omega
         · have := bracketSifts_range agrees fuel _ _ i h; omega
       · rcases List.mem_cons.1 h with rfl | h
         · omega
         · have := bracketSifts_range agrees fuel _ _ i h; omega
-      · split at h
-        · simp only [List.mem_cons, List.not_mem_nil, or_false] at h; omega
-        · simp only [List.mem_cons] at h
-          rcases h with rfl | rfl | rfl | h
-          · omega
-          · omega
-          · omega
-          · have := bracketSifts_range agrees fuel _ _ i h; omega
-        · simp only [List.mem_cons] at h
-          rcases h with rfl | rfl | rfl | h
-          · omega
-          · omega
-          · omega
-          · have := bracketSifts_range agrees fuel _ _ i h; omega
-        · simp only [List.mem_cons, List.not_mem_nil, or_false] at h; omega
+      · simp only [List.mem_cons, List.not_mem_nil, or_false] at h; omega
     · simp at h
 
 /-- A probe sifts positions after its start and up to its end. -/
