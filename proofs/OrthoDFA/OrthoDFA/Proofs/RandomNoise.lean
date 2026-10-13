@@ -61,7 +61,8 @@ theorem classSet_card : ∀ n : ℕ,
     have hstep : ∀ T ∈ (classSet n : Finset (DTree α)),
         ((T.leaves.toFinset ×ˢ (Finset.univ : Finset α) ×ˢ T.leaves.toFinset ×ˢ
           T.leaves.toFinset).image fun q => T.splitAt (FreeMonoid.of q.2.1 *
-            T.midAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card ≤ (n + 2) ^ 3 * Fintype.card α := by
+            T.midfixAt (commonPrefix q.2.2.1 q.2.2.2)) q.1).card
+          ≤ (n + 2) ^ 3 * Fintype.card α := by
       intro T hT
       refine Finset.card_image_le.trans ?_
       have h := (List.toFinset_card_le T.leaves).trans (classSet_leaves n T hT)

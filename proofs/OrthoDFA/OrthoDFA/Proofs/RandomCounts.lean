@@ -213,14 +213,14 @@ theorem binE_pvalue_le {a : ℝ} (ha : 0 ≤ a) (n : ℕ) :
 
 end Binomial
 
-theorem stretchRisk_nonneg (C : Level3Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
+theorem stretchRisk_nonneg (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
     (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
-    0 ≤ stretchRisk C nα L Ns N₁ p θr εd' θpt' := by
+    0 ≤ stretchRisk C nσ nα L Ns N₁ p θr εd' θpt' := by
   unfold stretchRisk
   have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun _ P _ => by
     split_ifs <;> norm_num
-  have := binomSfGe_le_one hθr0 hθr1 Ns C.recordsToMove
+  have := binomSfGe_le_one hθr0 hθr1 Ns 1
   have := binomSfGe_le_one hεd'0 hεd'1 Ns (max C.firstLook ⌈C.searchShare * Ns⌉₊)
   have := binE_nonneg hεd'0 hεd'1 (n := N₁)
     (f := fun s => if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
@@ -233,7 +233,7 @@ theorem stretchRisk_nonneg (C : Level3Settings) (nα L Ns N₁ : ℕ) (p θr εd
       + C.testLevel) :=
     sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hp0 hp1 _ _) ha
   have : 0 ≤ ∑ n ∈ Icc 1 Ns,
-      ((C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+      (((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
         + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))) :=
     sum_nonneg fun n _ => add_nonneg (by positivity) (binomSfGe_nonneg hp0 hp1 _ _)
   linarith

@@ -3,12 +3,12 @@ import OrthoDFA.Level2Claim
 /-!
 # Level 3 of indecisive L*: random reads
 
-Level 2's probes, walk and search, with reads drawn at random. Each probe is walked from
-`walkStart` along the learned edges and sifted whole, `tripartiteSearch` finds where the two part,
-a clean disagreement records its edge and target, `recordsToMove` records redirect the edge or,
-once it has been redirected, split its leaf, and a probe at an unlearned edge learns it. A probe
-shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over the stretch
-since the hypothesis last changed, feed the tests of level 4, checked after every probe:
+Level 2's probes and walk, with reads drawn at random. Each probe is walked from `walkStart` along
+the learned edges and sifted whole, and `tripartiteSearch`, recovering past an undecided midpoint,
+finds where the two part. A decided read is never on its state's wrong side, so as at level 2 a
+clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns it. A
+probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over the
+stretch since the hypothesis last changed, feed the tests of level 4, checked after every probe:
 * the start's undecided rate above `startRate` (`rateSide`) harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
   its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
@@ -24,15 +24,6 @@ namespace Random
 open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome retarget)
 
 variable {α : Type*}
-
-/-- `binomial_side_of_boundary` once `n₀` draws are in: above `θ` when `Bin(n, θ)` reaches `h`
-hits with chance below `a`, below when it stays at or under `h` with chance below `a`. -/
-noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
-  if n₀ ≤ n then
-    if binomSfGe n θ h < a then some true
-    else if 1 - binomSfGe n θ (h + 1) < a then some false
-    else none
-  else none
 
 /-- How many reads the sift of `z` makes: one per node down to a leaf or an undecided read. -/
 def siftReads (read : FreeMonoid α → ARU) : DTree α → FreeMonoid α → ℕ
@@ -119,9 +110,6 @@ def middleString : Outcome α → List (FreeMonoid α)
 structure Level3Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
-  /-- Records of one edge and target that redirect the edge, or split its leaf once redirected. -/
-  recordsToMove : ℕ
-  maxLeaves : ℕ
   /-- The count of trials before `rateSide` decides. -/
   firstLook : ℕ
   /-- Each test's chance of firing falsely at one look. -/
@@ -135,13 +123,10 @@ structure Level3Settings where
   disagreementRate : ℝ
   probeBudget : ℕ
 
-/-- `redirected` and the counts are since the edge, or the hypothesis, last changed. -/
+/-- The counts are since the hypothesis last changed. -/
 structure Level3State (α : Type*) where
   tree : DTree α
   edges : Edges α
-  redirected : List Bool × α → Bool
-  /-- Each clean disagreement's edge and the leaf the next prefix sifts to. -/
-  records : List (List Bool × α × List Bool)
   probeCount : ℕ
   searchCount : ℕ
   startUndecided : List (FreeMonoid α)
@@ -149,13 +134,11 @@ structure Level3State (α : Type*) where
   edgeReads : List Bool → α → ℕ
   edgeUndecided : List Bool → α → List (FreeMonoid α)
 
-def newHypothesis (T : DTree α) (E : Edges α) (redirected : List Bool × α → Bool) :
-    Level3State α :=
-  ⟨T, E, redirected, [], 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
+def newHypothesis (T : DTree α) (E : Edges α) : Level3State α :=
+  ⟨T, E, 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def initialState : Level3State α :=
-  newHypothesis (.node 1 .leaf .leaf) (fun _ => none) fun _ => false
+def initialState : Level3State α := newHypothesis (.node 1 .leaf .leaf) fun _ => none
 
 section
 
@@ -163,7 +146,7 @@ variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- A probe counted into the stretch. -/
 noncomputable def countProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  let o := probeOrAgree read s.tree s.edges C.walkStart x
+  let o := probeOrAgree true read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
     probeCount := s.probeCount + 1
@@ -197,34 +180,21 @@ noncomputable def applyTests [Fintype α] (s : Level3State α) :
   | some e => .inr e
   | none => .inl s
 
-def splitLeaf (s : Level3State α) (p : List Bool) (d : FreeMonoid α) :
-    Level3State α ⊕ RoundEnd (Level3Site α) :=
-  let T' := s.tree.splitAt d p
-  if C.maxLeaves < T'.leaves.length then .inr .failed
-  else .inl (newHypothesis T' (retarget read T' p s.edges) fun _ => false)
-
-/-- The edge `(p, c)` has `recordsToMove` records at `t`, with `u` at `p`: split where it has
-been redirected, else redirect it. -/
-def redirectOrSplit (s : Level3State α) (p : List Bool) (c : α) (u : FreeMonoid α)
-    (t : List Bool) : Level3State α ⊕ RoundEnd (Level3Site α) :=
-  match s.edges (p, c) with
-  | some (t₀, _) =>
-    if s.redirected (p, c) then
-      splitLeaf read C s p (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀))
-    else .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-      (Function.update s.redirected (p, c) true))
-  | none => .inl s
+/-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
+def splitLeaf (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
+    Level3State α :=
+  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
+  newHypothesis T' (retarget read T' p s.edges)
 
 noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) :
     Level3State α ⊕ RoundEnd (Level3Site α) :=
-  match probeOrAgree read s.tree s.edges C.walkStart x with
+  match probeOrAgree true read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
-    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-      (Function.update s.redirected (p, c) false))
-  | .wrongEdge p c u t =>
-    if C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) then
-      redirectOrSplit read C s p c u t
-    else applyTests C (countProbe read C { s with records := s.records ++ [(p, c, t)] } x)
+    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
+  | .wrongEdge p c _ t =>
+    match s.edges (p, c) with
+    | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
+    | none => applyTests C (countProbe read C s x)
   | _ => applyTests C (countProbe read C s x)
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/

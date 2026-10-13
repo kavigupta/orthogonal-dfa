@@ -120,7 +120,7 @@ variable (E : Edges α) (k : ℕ)
 
 /-- The undecided middle a probe stops at was read at a prefix between `k` and `|x|`. -/
 theorem probe_pt (hk : k ≤ x.toList.length) :
-    ∀ z ∈ middleString (probe read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
+    ∀ z ∈ middleString (probe true read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
       T.sift read (prefixOf x p) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -147,7 +147,7 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
   · simp [middleString]
 
 /-- The undecided read a probe stops at at its start is its first `k` letters' sift's. -/
-theorem probe_start : ∀ z ∈ startString (probe read T E k x),
+theorem probe_start : ∀ z ∈ startString (probe true read T E k x),
     T.sift read (prefixOf x k) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -161,7 +161,7 @@ theorem probe_start : ∀ z ∈ startString (probe read T E k x),
 
 /-- A probe the hypothesis disagrees on is long enough to walk, and searches. -/
 theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
-    k ≤ x.toList.length ∧ searches (probeOrAgree read T E k x) = true := by
+    k ≤ x.toList.length ∧ searches (probeOrAgree true read T E k x) = true := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   obtain ⟨hlen, hlast⟩ := run_walk E a _ q hq
   by_cases hkx : k ≤ x.toList.length
@@ -209,7 +209,7 @@ theorem searches_of_ptStr {o : Outcome α} (h : middleString o ≠ []) : searche
   · exact absurd rfl h
 
 theorem probeOrAgree_pt :
-    ∀ z ∈ middleString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+    ∀ z ∈ middleString (probeOrAgree true read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
   unfold probeOrAgree at hz
   split_ifs at hz with hs
@@ -218,7 +218,7 @@ theorem probeOrAgree_pt :
     exact pot_of_sift read h1 h2 h3
 
 theorem probeOrAgree_start :
-    ∀ z ∈ startString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+    ∀ z ∈ startString (probeOrAgree true read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
   unfold probeOrAgree at hz
   split_ifs at hz with hs

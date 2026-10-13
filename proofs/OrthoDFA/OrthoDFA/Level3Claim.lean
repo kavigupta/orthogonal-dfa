@@ -31,9 +31,9 @@ variable {α : Type*}
 count them. -/
 noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
     (H : Hypothesis α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
-  | .start, x => startString (probeOrAgree read H.tree H.edges k x)
+  | .start, x => startString (probeOrAgree true read H.tree H.edges k x)
   | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
-  | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
+  | .middles, x => middleString (probeOrAgree true read H.tree H.edges k x)
 
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
@@ -52,11 +52,6 @@ noncomputable def binE (n : ℕ) (p : ℝ) (f : ℕ → ℝ) : ℝ :=
 /-- The least count at which `rateSide θ` calls a rate above `θ` after `n` trials. -/
 noncomputable def hFire (θ a : ℝ) (n : ℕ) : ℕ := sInf {h | binomSfGe n θ h < a}
 
-/-- Each split, and each edge's learning and redirect between splits, changes the hypothesis
-once; the stretches are one more than those changes. -/
-def stretches (C : Level3Settings) (nα : ℕ) : ℕ :=
-  C.maxLeaves * (2 * C.maxLeaves * nα + 1) + 1
-
 /-- The chance that the probes that can read a string with a read of chance at most `β` reach
 `G` of the probes, for some tree of at most `nQ + 2` leaves grown by splits on a letter and a
 midfix where two leaves part, with probes of length at most `L` and no length-`k` prefix above
@@ -66,18 +61,18 @@ noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
 
 /-- What one stretch risks over its first `Ns` probes: a test firing at one of its looks at a site
 whose harvest would not end well (at the start or the middles, whose sampler then finds at most
-`p`, a binomial tail; at one of the `maxLeaves |Σ|` edges, the count passing twice its mean by
+`p`, a binomial tail; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by
 `edgeExcess`), or a false success; and
-the stretch outliving `Ns` probes, though a record recurs at least `θr` of the time, or the
+the stretch outliving `Ns` probes, though clean disagreements are at least `θr` of them, or the
 searches are at most `εd'` of the probes yet success has not fired at look `N₁`, or they are more
 and the undecided middles at least `θpt'` of them yet their test has not fired. -/
-noncomputable def stretchRisk (C : Level3Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ) : ℝ :=
+noncomputable def stretchRisk (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ) : ℝ :=
   ∑ n ∈ Finset.Icc C.firstLook Ns,
       (binomSfGe n p (hFire C.startRate C.testLevel n) + C.testLevel)
     + ∑ n ∈ Finset.Icc 1 Ns,
-      ((C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+      (((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
         + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊)))
-    + (1 - binomSfGe Ns θr C.recordsToMove)
+    + (1 - binomSfGe Ns θr 1)
     + binE N₁ εd' (fun s =>
         if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
           ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1 else 0)
@@ -97,7 +92,7 @@ structure Knobs where
   N₁ : ℕ
   /-- The good read-states' undecided reads, as a share of the probes. -/
   G : ℝ
-  /-- The rate at which a record recurs. -/
+  /-- The clean disagreements' rate the stretch's risk tests against. -/
   θr : ℝ
   /-- The disagreement rate the stretch's risk tests against. -/
   εd' : ℝ
@@ -109,8 +104,6 @@ tolerance `ε` and the yield `y`: an edge's least traffic times its rate is at l
 yield, and twice what an edge's sampler can find at good read-states, `2 (L + 1) G`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
     (L : ℕ) (ε y : ℝ) (kn : Knobs) : Prop where
-  maxLeaves_ge : Fintype.card σ + 2 ≤ C.maxLeaves
-  recordsToMove_pos : 1 ≤ C.recordsToMove
   firstLook_pos : 1 ≤ C.firstLook
   firstLook_le : C.firstLook ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
@@ -131,8 +124,8 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   εd'_le : kn.εd' ≤ 1
   θpt'_nonneg : 0 ≤ kn.θpt'
   θpt'_le : kn.θpt' ≤ 1
-  sep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * kn.θr ≤ (1 - kn.θpt') * kn.εd'
-  probeBudget_ge : stretches C (Fintype.card α) * kn.Ns ≤ C.probeBudget
+  sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
+  probeBudget_ge : Ideal.stretches (Fintype.card σ) (Fintype.card α) * kn.Ns ≤ C.probeBudget
   G_le : 2 * kn.G ≤ 1
   yield_le_one : y ≤ 1
   noise_le_traffic : 4 * (L + 1) * kn.G ≤ C.edgeRate * C.edgeReadShare
@@ -144,8 +137,9 @@ read-state undecided reaching `G` of the probes for some tree, and `stretches` t
 noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (y : ℝ) (kn : Knobs) : ℝ :=
   noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.walkStart) kn.G
-    + stretches C (Fintype.card α)
-      * stretchRisk C (Fintype.card α) L kn.Ns kn.N₁ (max (2 * kn.G) y) kn.θr kn.εd' kn.θpt'
+    + Ideal.stretches (Fintype.card σ) (Fintype.card α)
+      * stretchRisk C (Fintype.card σ) (Fintype.card α) L kn.Ns kn.N₁ (max (2 * kn.G) y) kn.θr
+        kn.εd' kn.θpt'
 
 /-- The least of `roundBound` over the admissible knobs. -/
 noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
