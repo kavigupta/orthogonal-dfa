@@ -67,7 +67,7 @@ variable (read : FreeMonoid α → ARU) (C : Level3_5Settings)
 /-- A probe counted into the stretch. -/
 noncomputable def countProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid α) :
     Level3_5State α :=
-  let o := probeOrAgree true read s.tree s.edges C.walkStart x
+  let o := probeOrAgree false read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
     probeCount := s.probeCount + 1
@@ -121,7 +121,7 @@ def redirectOrSplit (s : Level3_5State α) (p : List Bool) (c : α) (u : FreeMon
 
 noncomputable def applyProbe [Fintype α] (s : Level3_5State α) (x : FreeMonoid α) :
     Level3_5State α ⊕ RoundEnd (Level3Site α) :=
-  match probeOrAgree true read s.tree s.edges C.walkStart x with
+  match probeOrAgree false read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
       (Function.update s.redirected (p, c) false))

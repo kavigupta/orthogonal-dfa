@@ -56,7 +56,7 @@
   `S ((1 − ε)^n + P(Bin(n, r) < K)) + P a`, `S` the stretches, `n = probesToEnd`, `a` the test's
   level and `K` the fewest undecided reads out of `n` the test calls above `y`.
 - `OrthoDFA/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
-  random, the search recovering past an undecided midpoint. As at level 2, a clean disagreement
+  random, the search stopping at an undecided midpoint, as at level 2. A clean disagreement
   splits the edge's leaf at once and an unlearned edge is learned. Its counts are kept over the
   stretch since the hypothesis last changed and tested after every probe. A probe's undecided
   strings at an edge are counted once. A harvest is the site whose test fired.

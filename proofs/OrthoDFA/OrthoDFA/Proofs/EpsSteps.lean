@@ -166,26 +166,26 @@ theorem countProbe_probeCount (s : Level3_5State α) (x : FreeMonoid α) :
 /-- The steps that keep the hypothesis: a look after counting the probe. -/
 theorem step_cases {s s' : Level3_5State α} {x : FreeMonoid α} (hs : Inv read C s)
     (h : applyProbe read C s x = .inl s') :
-    (∃ p c u t, probeOrAgree true read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
+    (∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
         s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
           (Function.update s.redirected (p, c) false))
-    ∨ (∃ p c u t t₀ w₀, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    ∨ (∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
         redirectOrSplit read C s p c u t = .inl s')
     ∨ (s' = countProbe read C
           { s with records :=
-            s.records ++ (recOf (probeOrAgree true read s.tree s.edges C.walkStart x)).toList } x
+            s.records ++ (recOf (probeOrAgree false read s.tree s.edges C.walkStart x)).toList } x
         ∧ runTests C s' = none
-        ∧ ∀ p c u t, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t →
+        ∧ ∀ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t →
           ¬ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t)) := by
-  have hOK := Ideal.probeOrAgree_ok true read s.tree s.edges C.walkStart hs.edges x
+  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
-  generalize hg : probeOrAgree true read s.tree s.edges C.walkStart x = o at h hOK
+  generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
@@ -241,7 +241,7 @@ theorem step_same {s s' : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid 
   · refine ⟨⟨hs.edges, ?_, hs.size, hs.reached, hs.cls, hs.two⟩, rfl, rfl⟩
     intro r
     simp only [countProbe_records]
-    generalize hg : probeOrAgree true read s.tree s.edges C.walkStart x = o at hlt
+    generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at hlt
     cases o with
     | wrongEdge p c u t =>
       by_cases hr : r = (p, c, t)
@@ -323,19 +323,19 @@ theorem step_change (hm : 1 ≤ C.recordsToMove) {s s' : Level3_5State α} (hs :
 its `recordsToMove`-th record of a new target. -/
 theorem step_tooBig {s : Level3_5State α} (hs : Inv read C s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inr .failed) :
-    ∃ p c u t t₀ w₀, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    ∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
       s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
       s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
       s.redirected (p, c) = true ∧ C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧
       C.maxLeaves < (s.tree.splitAt
         (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length := by
-  have hOK := Ideal.probeOrAgree_ok true read s.tree s.edges C.walkStart hs.edges x
+  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
   have hlook : ∀ t : Level3_5State α, applyTests C t ≠ .inr .failed := by
     intro t ht
     unfold applyTests runTests at ht
     split_ifs at ht <;> simp_all
   unfold applyProbe at h
-  generalize hg : probeOrAgree true read s.tree s.edges C.walkStart x = o at h hOK
+  generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t => simp at h
   | wrongEdge p c u t =>

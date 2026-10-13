@@ -220,7 +220,7 @@ structure GInv (s : Level3_5State α) : Prop where
 
 /-- A fix at a target that is not real. -/
 def FakeFix (s : Level3_5State α) (x : FreeMonoid α) : Prop :=
-  ∃ p c u t, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+  ∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
     C.recordsToMove ≤ (s.records ++ [(p, c, t)]).count (p, c, t) ∧ ¬ RealT M side s.tree p c t
 
 theorem gInv_start : GInv M side (initialState : Level3_5State α) where
