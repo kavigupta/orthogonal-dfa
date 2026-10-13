@@ -205,20 +205,20 @@ theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) :
 decided reads. -/
 theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     (h : applyProbe read C s x = .inl s') :
-    (∃ p c u t, probeOrAgree true read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
+    (∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
         s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
-    ∨ (∃ p c u t t₀ w₀, probeOrAgree true read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    ∨ (∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         s' = splitLeaf read s p c t t₀)
     ∨ (s' = countProbe read C s x ∧ runTests C s' = none
-        ∧ recOf (probeOrAgree true read s.tree s.edges C.walkStart x) = none) := by
-  have hOK := Ideal.probeOrAgree_ok true read s.tree s.edges C.walkStart hs.edges x
+        ∧ recOf (probeOrAgree false read s.tree s.edges C.walkStart x) = none) := by
+  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
-  generalize hg : probeOrAgree true read s.tree s.edges C.walkStart x = o at h hOK
+  generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK

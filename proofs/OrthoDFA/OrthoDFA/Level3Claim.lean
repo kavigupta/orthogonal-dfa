@@ -31,9 +31,9 @@ variable {α : Type*}
 count them. -/
 noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
     (H : Hypothesis α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
-  | .start, x => startString (probeOrAgree true read H.tree H.edges k x)
+  | .start, x => startString (probeOrAgree false read H.tree H.edges k x)
   | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
-  | .middles, x => middleString (probeOrAgree true read H.tree H.edges k x)
+  | .middles, x => middleString (probeOrAgree false read H.tree H.edges k x)
 
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/

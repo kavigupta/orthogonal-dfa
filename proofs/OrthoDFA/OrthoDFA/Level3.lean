@@ -4,11 +4,11 @@ import OrthoDFA.Level2Claim
 # Level 3 of indecisive L*: random reads
 
 Level 2's probes and walk, with reads drawn at random. Each probe is walked from `walkStart` along
-the learned edges and sifted whole, and `tripartiteSearch`, recovering past an undecided midpoint,
-finds where the two part. A decided read is never on its state's wrong side, so as at level 2 a
-clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns it. A
-probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over the
-stretch since the hypothesis last changed, feed the tests of level 4, checked after every probe:
+the learned edges and sifted whole, and `tripartiteSearch`, with no recovery, finds where the two
+part or stops at an undecided midpoint. A decided read is never on its state's wrong side, so as at
+level 2 a clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns
+it. A probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over
+the stretch since the hypothesis last changed, feed the tests of level 4, checked after every probe:
 * the start's undecided rate above `startRate` (`rateSide`) harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
   its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
@@ -53,7 +53,7 @@ def probePositions : (ℕ → List Bool) × List ℕ :=
     let ss := walk E a (x.toList.drop k)
     let st := fun p => ss.getD (p - k) []
     let hi := k + ss.length - 1
-    let searched := (tripartiteSearch true (siftAgrees read T x st) k hi).2
+    let searched := (tripartiteSearch false (siftAgrees read T x st) k hi).2
     match x.toList[hi]? with
     | some _ =>
       match T.sift read (prefixOf x (hi + 1)) with
@@ -146,7 +146,7 @@ variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- A probe counted into the stretch. -/
 noncomputable def countProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  let o := probeOrAgree true read s.tree s.edges C.walkStart x
+  let o := probeOrAgree false read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
     probeCount := s.probeCount + 1
@@ -188,7 +188,7 @@ def splitLeaf (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool)
 
 noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) :
     Level3State α ⊕ RoundEnd (Level3Site α) :=
-  match probeOrAgree true read s.tree s.edges C.walkStart x with
+  match probeOrAgree false read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
   | .wrongEdge p c _ t =>
