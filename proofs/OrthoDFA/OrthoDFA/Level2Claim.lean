@@ -41,11 +41,8 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
   D.bind fun x => ((siteHarvest read H k site x).map Measure.dirac).sum
 
 /-- With ideal reads and enough probes, level 2 fails to end well (`OrthoDFA.RoundEnd`), a state
-being bad where all its strings read undecided, with chance at most `(P + 1)(1 − ε)^n`, `n` the
-clean probes that end it, plus `P (2 + (|Q| + 2)|Σ|) y`. A harvest is a site of the final
-hypothesis, and its sampler yields `y`: each of the round's probes is charged at one of at most
-`2 + (|Q| + 2)|Σ|` sites, and is charged a string at a site whose sampler yields at most `y` with
-chance at most `y`. -/
+being bad where all its strings read undecided and a harvest's sampler yielding `y`, with chance
+at most `(P + 1)(1 − ε)^n + P (2 + (|Q| + 2)|Σ|) y`, `n` the clean probes that end it. -/
 def IdealRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2Settings) (P : ℕ),
