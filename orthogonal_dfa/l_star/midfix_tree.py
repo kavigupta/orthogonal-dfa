@@ -82,18 +82,12 @@ class MidfixTree:
 
         return find(self._root, ())
 
-    def _at(self, path: Tuple[bool, ...]) -> Node:
+    def midfix_at(self, path: Tuple[bool, ...]) -> bytes:
+        """The midfix of the internal node reached by following ``path``."""
         node = self._root
         for branch in path:
             node = node[1][branch]
-        return node
-
-    def midfix_at(self, path: Tuple[bool, ...]) -> bytes:
-        """The midfix of the internal node reached by following ``path``."""
-        return self._at(path)[0]
-
-    def leaf_at(self, path: Tuple[bool, ...]) -> int:
-        return self._at(path)
+        return node[0]
 
     def leaf_paths(self) -> List[Tuple[bool, ...]]:
         def paths(node: Node) -> List[Tuple[bool, ...]]:
@@ -131,11 +125,13 @@ class MidfixTree:
 
     # -- classification -----------------------------------------------------
 
-    def route(
+    def sift_with_path(
         self, cut: Callable[[bytes], Optional[bool]], seq: bytes
     ) -> Tuple[List[bytes], Optional[Tuple[bool, ...]]]:
-        """The strings sifting ``seq`` reads, and its leaf's path, ``None`` where the
-        last read is undecided."""
+        """``DTree.siftWithPath`` of ``OrthoDFA/DTree.lean``, proved by
+        ``SiftWithPathCorrect``: the
+        strings sifting ``seq`` reads, and its leaf's path, ``None`` where the last read
+        is undecided."""
         reads, path, node = [], (), self._root
         while not isinstance(node, int):
             midfix, lookup = node
@@ -147,6 +143,13 @@ class MidfixTree:
             node = lookup[side]
         return reads, path
 
+    def leaf_at(self, path: Tuple[bool, ...]) -> int:
+        """The leaf reached by following ``path`` from the root."""
+        node = self._root
+        for branch in path:
+            node = node[1][branch]
+        return node
+
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[bytes]]:
         """
         Route seq to a leaf: (state, None) when it lands decisively, or
@@ -156,14 +159,12 @@ class MidfixTree:
         seq + midfix + v, so it is seq + midfix that the family failed on and
         that a caller can force the next family to resolve.
         """
-        node = self._root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            decision = decide(seq, midfix)
-            if decision is None:
-                return None, seq + midfix
-            node = lookup[decision]
-        return node, None
+        reads, path = self.sift_with_path(
+            lambda read: decide(seq, read[len(seq) :]), seq
+        )
+        if path is None:
+            return None, reads[-1]
+        return self.leaf_at(path), None
 
     def classify(self, seq, decide: Decide) -> Optional[int]:
         """

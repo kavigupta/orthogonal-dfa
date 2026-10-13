@@ -32,17 +32,6 @@ def binom_sf(k, n, p):
     return scipy.special.bdtrc(k, n, p)
 
 
-def rate_side(theta, a, n0, n, h) -> Optional[bool]:
-    """``True`` where ``P(Bin(n, θ) ≥ h) < a``, ``False`` where ``P(Bin(n, θ) ≤ h) < a``."""
-    if n < n0:
-        return None
-    if binom_sf(h - 1, n, theta) < a:
-        return True
-    if binom_cdf(h, n, theta) < a:
-        return False
-    return None
-
-
 def population_size_and_evidence_margin(
     signal_strength, cross_limit, acceptable_fnr, *, center
 ) -> Tuple[int, float]:
@@ -258,7 +247,7 @@ DENOISE_FAILURE_PROB = 1e-5
 def _decides(num_samples, signal_strength, boundary, failure_prob):
     """Whether a state either side of the boundary reaches significance at this size.
 
-    ``isf``/``ppf`` invert the tails ``binomial_side_of_boundary`` tests, so
+    ``isf``/``ppf`` invert the tails ``rate_side`` tests, so
     ``high`` and ``low`` are exactly the counts it calls significant.  An off the
     end of the range gives a zero-probability tail, which decides nothing.
     """
@@ -303,17 +292,15 @@ def denoise_sample_size(
     return lo
 
 
-def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
-    """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
-
-    Returns True if the count is significantly above ``boundary``, False if
-    significantly below, and None if neither tail clears ``failure_prob`` (including
-    small ``num_samples``).
-    """
-    above = 1 - binom_cdf(num_accepts - 1, num_samples, boundary)
-    if above < failure_prob:
+def rate_side(theta, level, min_samples, trials, hits) -> Optional[bool]:
+    """``rateSide θ a n₀ n h`` of ``OrthoDFA/RateTest.lean``, proved sound by
+    ``RateTestSound``: ``True`` where ``P(Bin(trials, θ) ≥ hits) < level``, ``False``
+    where ``P(Bin(trials, θ) ≤ hits) < level``, and ``None`` otherwise or before
+    ``min_samples`` trials."""
+    if trials < min_samples:
+        return None
+    if binom_sf(hits - 1, trials, theta) < level:
         return True
-    below = binom_cdf(num_accepts, num_samples, boundary)
-    if below < failure_prob:
+    if binom_cdf(hits, trials, theta) < level:
         return False
     return None

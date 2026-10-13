@@ -100,7 +100,7 @@ def follow(edges, leaf: Optional[Path], letters: bytes):
 def ends(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> List[int]:
     """The positions ``walkCheckBy`` sifts before any search, the second only
     where the first is decided."""
-    walk, unlearned_step = follow(edges, tree.route(cut, x[:k])[1], x[k:])
+    walk, unlearned_step = follow(edges, tree.sift_with_path(cut, x[:k])[1], x[k:])
     if not walk:
         return []
     if unlearned_step is None:
@@ -114,7 +114,7 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
     def sift(i) -> Tuple[Optional[Path], Optional[bytes]]:
         """The leaf at ``i``, and the string read undecided there."""
         if i not in routes:
-            reads, path = tree.route(cut, x[:i])
+            reads, path = tree.sift_with_path(cut, x[:i])
             routes[i] = path, reads[-1] if path is None else None
         return routes[i]
 

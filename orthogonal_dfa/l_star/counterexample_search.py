@@ -202,7 +202,7 @@ class CounterexampleSearch:
         self.edges = edges
 
     def sift(self, z: bytes) -> Optional[Path]:
-        return self.tree.route(self.cut, z)[1]
+        return self.tree.sift_with_path(self.cut, z)[1]
 
     def to_dfa(self, alphabet_size: int, initial_state: int) -> DFA:
         """An unlearned edge loops on its leaf."""
