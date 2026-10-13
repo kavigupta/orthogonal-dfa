@@ -35,11 +35,9 @@ def mod3_cut(z):
 
 
 def quiet_config(**changes):
-    """What the round reads of a config, set so no test fires and a fix takes two
-    records."""
+    """What the round reads of a config, set so no test fires."""
     quiet = {
         "k": 0,
-        "m": 2,
         "max_leaves": 10,
         "start_rate": 1.0,
         "edge_rate": 0.0,

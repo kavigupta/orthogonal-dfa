@@ -14,8 +14,6 @@ FIRST_LOOK = 30
 class CounterexampleSearchConfig:
     """Only the values it does not derive are fields."""
 
-    #: Records at one target before the edge they are at is fixed.
-    m: int
     #: Chance a rate test errs at one look.
     level: float
     #: Probes a round draws before giving up.
@@ -76,7 +74,6 @@ def counterexample_search_config(
     acc_threshold: float, acceptable_fnr: float
 ) -> CounterexampleSearchConfig:
     return CounterexampleSearchConfig(
-        m=5,
         level=1e-3,
         max_probes=50_000,
         harvest_multiple=5,

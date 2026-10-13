@@ -38,7 +38,7 @@ class TestCharging(unittest.TestCase):
         self.assertEqual({(EVEN, 1): 1}, dict(search.counts.traversals))
 
 
-class TestLearningAndRecords(unittest.TestCase):
+class TestLearningAndSplitting(unittest.TestCase):
     def test_a_member_learns_its_edge_and_starts_a_stretch(self):
         search = quiet_search(parity_cut(()), {})
         search.step(b"\x01\x00")
@@ -52,66 +52,42 @@ class TestLearningAndRecords(unittest.TestCase):
             ),
         )
 
-    def test_a_clean_disagreement_records_at_its_edge(self):
-        search = quiet_search(parity_cut(()), WRONG_ODD_0, m=3)
-        search.step(b"\x01\x00\x00\x00")
-        self.assertEqual({(ODD, 0): [(b"\x01", ODD)]}, search.records)
-        self.assertEqual(
-            (1, 1), (search.counts.stretch_probes, search.counts.stretch_searches)
-        )
-
-    def test_m_records_at_another_target_redirect_the_edge(self):
-        search = quiet_search(parity_cut(()), WRONG_ODD_0)
-        search.step(b"\x01\x00\x00\x00")
-        search.step(b"\x01\x00\x01\x01")
-        self.assertEqual((ODD, b"\x01"), search.hypothesis.edges[(ODD, 0)])
-        self.assertEqual(2, len(search.records[(ODD, 0)]), "a redirect keeps them")
-        self.assertEqual(
-            (0, 0, 1),
-            (
-                search.counts.stretch_probes,
-                search.counts.stretch_searches,
-                search.hypothesis.version,
-            ),
-        )
-
-    def test_one_record_short_fixes_nothing(self):
-        search = quiet_search(parity_cut(()), WRONG_ODD_0)
-        search.step(b"\x01\x00\x00\x00")
-        self.assertEqual(WRONG_ODD_0, search.hypothesis.edges)
-
-    def test_m_records_at_two_targets_split_the_leaf(self):
+    def test_a_disagreement_splits_the_edges_source_at_once(self):
         # The even leaf holds counts 1 and 2 mod 3; by a 1, one goes to 2 and
         # the other to 0, so the leaf splits on the 1 and the root's midfix.
         search = quiet_search(
             mod3_cut, {(EVEN, 1): (ODD, b"\x01\x01"), (ODD, 1): (EVEN, b"")}
         )
-        search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x01", EVEN)] * 2
         search.hypothesis.version = 7
-        self.assertIsNone(search._fix_one_edge())  # pylint: disable=protected-access
+        self.assertIsNone(search.step(b"\x01\x01"))
 
-        self.assertEqual(b"\x01", search.hypothesis.tree.midfix_at(EVEN))
-        self.assertEqual({(False, False), (False, True), ODD}, search.hypothesis.leaves)
-        self.assertEqual({}, search.records)
-        self.assertEqual(8, search.hypothesis.version)
+        hypothesis = search.hypothesis
+        self.assertEqual(b"\x01", hypothesis.tree.midfix_at(EVEN))
+        self.assertEqual({(False, False), (False, True), ODD}, hypothesis.leaves)
+        self.assertEqual((8, 0), (hypothesis.version, search.counts.stretch_probes))
         # Out of the split leaf: dropped.  Into it: its witness re-sifted, the empty
         # string reading 0 mod 3 at the root and 1 mod 3 behind a 1.
-        self.assertEqual({(ODD, 1): ((False, False), b"")}, search.hypothesis.edges)
+        self.assertEqual({(ODD, 1): ((False, False), b"")}, hypothesis.edges)
 
     def test_an_edge_into_the_split_leaf_whose_witness_is_undecided_is_dropped(self):
         search = quiet_search(
             lambda z: None if z == b"\x01" else mod3_cut(z),
-            {(EVEN, 1): (ODD, b"\x01\x01"), (ODD, 1): (EVEN, b"")},
+            {
+                (EVEN, 1): (ODD, b"\x01\x01"),
+                (ODD, 1): (EVEN, b""),
+                (ODD, 0): (ODD, b""),
+            },
         )
-        search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x00", EVEN)] * 2
-        search._fix_one_edge()  # pylint: disable=protected-access
-        self.assertEqual({}, search.hypothesis.edges)
+        search.step(b"\x00\x01\x01")
+        self.assertEqual({(ODD, 0): (ODD, b"")}, search.hypothesis.edges)
 
     def test_a_tree_past_its_cap_ends_the_round(self):
-        search = quiet_search(mod3_cut, {(EVEN, 1): (ODD, b"")}, max_leaves=2)
-        search.records[(EVEN, 1)] = [(b"\x01\x01", ODD)] * 2 + [(b"\x01", EVEN)] * 2
-        ending = search._fix_one_edge()  # pylint: disable=protected-access
-        self.assertEqual(TOO_BIG, ending.kind)
+        search = quiet_search(
+            mod3_cut,
+            {(EVEN, 1): (ODD, b"\x01\x01"), (ODD, 1): (EVEN, b"")},
+            max_leaves=2,
+        )
+        self.assertEqual(TOO_BIG, search.step(b"\x01\x01").kind)
 
 
 class TestTheTests(unittest.TestCase):
