@@ -4,11 +4,14 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
+from orthogonal_dfa.l_star.lstar import (
+    ESTIMATE_FAILURE_PROB,
+    _batch_before_possible_stop,
+)
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
 from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree, oracle_decider
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.statistics import rate_side
 from orthogonal_dfa.l_star.structures import Oracle
 
 
@@ -149,8 +152,12 @@ class TestBatchBeforePossibleStop(unittest.TestCase):
 
     def _fires(self, agreements, valid, k):
         return (
-            binomial_side_of_boundary(agreements + k, valid + k, self.boundary) is True
-            or binomial_side_of_boundary(agreements, valid + k, self.boundary) is False
+            rate_side(
+                self.boundary, ESTIMATE_FAILURE_PROB, 0, valid + k, agreements + k
+            )
+            is True
+            or rate_side(self.boundary, ESTIMATE_FAILURE_PROB, 0, valid + k, agreements)
+            is False
         )
 
     def test_never_spans_the_stop(self):

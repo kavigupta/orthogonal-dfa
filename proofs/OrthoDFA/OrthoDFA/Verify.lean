@@ -4,6 +4,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.RandomRound
 import OrthoDFA.Proofs.EpsRound
+import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
@@ -11,10 +12,10 @@ import OrthoDFA.Proofs.TripartiteSearch
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`, level 2's
-ideal-read claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
-`OrthoDFA.Level3Claim`, and level 3.5's claim with rare wrong reads, stated in
-`OrthoDFA.Level3_5Claim`.
+`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
+`RateTestSound`, stated in `OrthoDFA.RateTest`, level 2's ideal-read claim, stated in
+`OrthoDFA.Level2Claim`, level 3's random-read claim, stated in `OrthoDFA.Level3Claim`, and level
+3.5's claim with rare wrong reads, stated in `OrthoDFA.Level3_5Claim`.
 -/
 
 namespace OrthoDFA
@@ -35,6 +36,10 @@ theorem family_read_bound : FamilyReadBound := family_read_bound_holds
 theorem tripartite_search_correct : TripartiteSearchCorrect := OrthoDFA.tripartiteSearch_correct
 
 #print axioms tripartite_search_correct
+
+theorem rate_test_sound : RateTestSound := rateTestSound
+
+#print axioms rate_test_sound
 
 theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
 
