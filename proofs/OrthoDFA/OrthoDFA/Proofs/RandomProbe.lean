@@ -78,9 +78,7 @@ theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)
   | pair p =>
     simp only [searchOutcome, middleString] at hz
     obtain ⟨h1, h2, -⟩ := hs
-    rcases List.mem_append.1 (List.mem_of_mem_take hz) with h | h
-    · exact ⟨p, h1, by omega, hst p h⟩
-    · exact ⟨p + 1, by omega, h2, hst _ h⟩
+    exact ⟨p, h1, by omega, hst p (List.mem_of_mem_take hz)⟩
   | undecidedHi => simp [searchOutcome, middleString] at hz
   | undecidedLo => simp [searchOutcome, middleString] at hz
   | disagreeLo => simp [searchOutcome, middleString] at hz
