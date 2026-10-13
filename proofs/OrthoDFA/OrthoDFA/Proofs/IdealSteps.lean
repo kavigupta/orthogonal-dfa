@@ -63,15 +63,6 @@ theorem leaves_le_of_reached {σ : Type*} [Fintype σ] {M : DFA α σ} {side : �
 
 /-! ## Splits -/
 
-theorem sift_splitAt_ne {T : DTree α} {d z : FreeMonoid α} {p q : List Bool}
-    (h : T.sift read z = .inl q) (hne : q ≠ p) : (T.splitAt d p).sift read z = .inl q := by
-  rw [DTree.sift_splitAt, h]; simp [hne]
-
-theorem sift_splitAt_eq {T : DTree α} {d z : FreeMonoid α} {p : List Bool}
-    (h : T.sift read z = .inl p) :
-    (T.splitAt d p).sift read z = ((DTree.node d .leaf .leaf).sift read z).map (p ++ ·) id := by
-  rw [DTree.sift_splitAt, h]; simp
-
 /-- A split whose leaf holds two strings reading decidedly apart at its midfix keeps every leaf
 past the first two reached. -/
 theorem reached_splitAt {T : DTree α} (hr : Reached read T) {p : List Bool} (hp : p ∈ T.leaves)
@@ -82,7 +73,7 @@ theorem reached_splitAt {T : DTree α} (hr : Reached read T) {p : List Bool} (hp
     have key : ∀ w, T.sift read w = .inl p → read (w * d) ≠ .undecided →
         (T.splitAt d p).sift read w = .inl (p ++ [decide (read (w * d) = .accept)]) := by
       intro w hw hu
-      rw [sift_splitAt_eq read hw]
+      rw [DTree.sift_splitAt_eq read hw]
       cases hrd : read (w * d) <;> simp_all [DTree.sift]
     intro b
     cases hb : decide (read (w₁ * d) = .accept) with
@@ -105,17 +96,9 @@ theorem reached_splitAt {T : DTree α} (hr : Reached read T) {p : List Bool} (hp
   · rcases hr q hq with h | h | ⟨w, hw⟩
     · exact Or.inl h
     · exact Or.inr (Or.inl h)
-    · exact Or.inr (Or.inr ⟨w, sift_splitAt_ne read hw hne⟩)
+    · exact Or.inr (Or.inr ⟨w, DTree.sift_splitAt_ne read hw hne⟩)
   · exact Or.inr (Or.inr (hchild false))
   · exact Or.inr (Or.inr (hchild true))
-
-theorem prefix_of_mem_leaves_splitAt {T : DTree α} {p q : List Bool} {d : FreeMonoid α}
-    (hp : p ∈ T.leaves) (hq : q ∈ (T.splitAt d p).leaves) (hpq : p.isPrefixOf q = false) :
-    q ∈ T.leaves ∧ q ≠ p := by
-  rcases (DTree.mem_leaves_splitAt d T p hp q).1 hq with h | rfl | rfl
-  · exact h
-  · rw [List.isPrefixOf_iff_prefix.2 (List.prefix_append _ _)] at hpq; simp at hpq
-  · rw [List.isPrefixOf_iff_prefix.2 (List.prefix_append _ _)] at hpq; simp at hpq
 
 theorem edgesOK_retarget {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p : List Bool}
     (hp : p ∈ T.leaves) (d : FreeMonoid α) :
@@ -123,7 +106,7 @@ theorem edgesOK_retarget {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {
   intro q hq c t w h
   unfold retarget at h
   cases hpq : p.isPrefixOf q
-  · obtain ⟨hq', hne⟩ := prefix_of_mem_leaves_splitAt hp hq hpq
+  · obtain ⟨hq', hne⟩ := DTree.prefix_of_mem_leaves_splitAt hp hq hpq
     simp only [hpq, Bool.false_eq_true, if_false] at h
     rcases hEq : E (q, c) with _ | ⟨t₁, w₁⟩ <;> rw [hEq] at h
     · simp at h
@@ -135,11 +118,11 @@ theorem edgesOK_retarget {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {
           rw [hs] at h <;> simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq,
             Prod.mk.injEq, reduceCtorEq] at h
         obtain ⟨rfl, rfl⟩ := h
-        exact ⟨sift_splitAt_ne read hw hne, hs⟩
+        exact ⟨DTree.sift_splitAt_ne read hw hne, hs⟩
       · rename_i ht₁
         simp only [Option.some.injEq, Prod.mk.injEq] at h
         obtain ⟨rfl, rfl⟩ := h
-        exact ⟨sift_splitAt_ne read hw hne, sift_splitAt_ne read hwc ht₁⟩
+        exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
   · simp [hpq] at h
 
 variable [DecidableEq α]

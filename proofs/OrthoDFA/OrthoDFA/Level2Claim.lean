@@ -26,12 +26,12 @@ def stretches (nσ nα : ℕ) : ℕ := nσ * ((nσ + 2) * nα + 1) + 2 * nα + 1
 variable [DecidableEq α]
 
 /-- The undecided string a probe of `x` walked from `k` under `H` stops at, if any. -/
-def stuckString (H : Hypothesis α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
+def stuckString (H : HypothesisDFA α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
   (probeOrAgree false read H.tree H.edges k x).undecidedStrings
 
 /-- The law of what the harvest's sampler finds: the undecided string a probe drawn from `D` and
 walked under `H` stops at. -/
-noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (H : Hypothesis α) :
+noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) :
     Measure (FreeMonoid α) :=
   D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
 
