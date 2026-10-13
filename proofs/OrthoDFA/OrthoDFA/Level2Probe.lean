@@ -1,4 +1,4 @@
-import OrthoDFA.Hypothesis
+import OrthoDFA.HypothesisDFA
 import OrthoDFA.TripartiteSearch
 
 /-! Level 2's probe: a string walked along the edges and sifted, and where the two part. -/

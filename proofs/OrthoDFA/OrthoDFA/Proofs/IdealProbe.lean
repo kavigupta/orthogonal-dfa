@@ -16,102 +16,6 @@ namespace Ideal
 
 variable {α : Type*}
 
-/-! ## The walk -/
-
-section Walk
-
-variable (E : Edges α)
-
-theorem walk_cons (s : List Bool) (cs : List α) : ∃ l, walk E s cs = s :: l := by
-  cases cs <;> simp [walk]
-
-theorem walk_getD_zero (s : List Bool) (cs : List α) : (walk E s cs).getD 0 [] = s := by
-  obtain ⟨l, hl⟩ := walk_cons E s cs; simp [hl]
-
-theorem length_walk_pos (s : List Bool) (cs : List α) : 0 < (walk E s cs).length := by
-  obtain ⟨l, hl⟩ := walk_cons E s cs; simp [hl]
-
-theorem length_walk_le : ∀ (s : List Bool) (cs : List α), (walk E s cs).length ≤ cs.length + 1
-  | s, [] => by simp [walk]
-  | s, c :: cs => by
-    simp only [walk, List.length_cons, add_le_add_iff_right]
-    split
-    · exact length_walk_le _ cs
-    · simp
-
-theorem walk_succ : ∀ (s : List Bool) (cs : List α) (i : ℕ), i + 1 < (walk E s cs).length →
-    ∃ c w, cs[i]? = some c ∧
-      E ((walk E s cs).getD i [], c) = some ((walk E s cs).getD (i + 1) [], w)
-  | s, [], i, h => by simp [walk] at h
-  | s, c :: cs, i, h => by
-    rcases hE : E (s, c) with _ | ⟨t, w⟩
-    · simp [walk, hE] at h
-    · have hw : walk E s (c :: cs) = s :: walk E t cs := by simp [walk, hE]
-      rw [hw] at h ⊢
-      rcases i with _ | i
-      · obtain ⟨l, hl⟩ := walk_cons E t cs
-        exact ⟨c, w, rfl, by simpa [hl] using hE⟩
-      · simp only [List.length_cons, add_lt_add_iff_right] at h
-        obtain ⟨c', w', h1, h2⟩ := walk_succ t cs i h
-        exact ⟨c', w', by simpa using h1, by simpa using h2⟩
-
-theorem walk_stop : ∀ (s : List Bool) (cs : List α), (walk E s cs).length ≤ cs.length →
-    ∃ c, cs[(walk E s cs).length - 1]? = some c ∧
-      E ((walk E s cs).getD ((walk E s cs).length - 1) [], c) = none
-  | s, [], h => by simp [walk] at h
-  | s, c :: cs, h => by
-    rcases hE : E (s, c) with _ | ⟨t, w⟩
-    · have hw : walk E s (c :: cs) = [s] := by simp [walk, hE]
-      rw [hw]
-      exact ⟨c, rfl, by simpa using hE⟩
-    · have hw : walk E s (c :: cs) = s :: walk E t cs := by simp [walk, hE]
-      rw [hw] at h ⊢
-      simp only [List.length_cons, add_le_add_iff_right] at h
-      obtain ⟨c', h1, h2⟩ := walk_stop t cs h
-      have hpos := length_walk_pos E t cs
-      refine ⟨c', ?_, ?_⟩
-      · simp only [List.length_cons, Nat.add_sub_cancel]
-        rw [show (walk E t cs).length = (walk E t cs).length - 1 + 1 by omega]
-        simpa using h1
-      · simp only [List.length_cons, Nat.add_sub_cancel]
-        rw [show (walk E t cs).length = (walk E t cs).length - 1 + 1 by omega]
-        simpa using h2
-
-theorem walk_mem {L : List (List Bool)} (hE : ∀ q ∈ L, ∀ c t w, E (q, c) = some (t, w) → t ∈ L) :
-    ∀ (s : List Bool) (cs : List α), s ∈ L → ∀ q ∈ walk E s cs, q ∈ L
-  | s, [], hs, q, hq => by simp only [walk, List.mem_singleton] at hq; rwa [hq]
-  | s, c :: cs, hs, q, hq => by
-    rcases hE' : E (s, c) with _ | ⟨t, w⟩
-    · simp only [walk, hE', List.mem_cons, List.not_mem_nil, or_false] at hq; rwa [hq]
-    · simp only [walk, hE', List.mem_cons] at hq
-      rcases hq with rfl | hq
-      · exact hs
-      · exact walk_mem hE t cs (hE s hs c t w hE') q hq
-
-theorem run_walk : ∀ (s : List Bool) (cs : List α) (q : List Bool), walkEnd E s cs = some q →
-    (walk E s cs).length = cs.length + 1 ∧ (walk E s cs).getD cs.length [] = q
-  | s, [], q, h => by simp only [walkEnd, Option.some.injEq] at h; simp [walk, h]
-  | s, c :: cs, q, h => by
-    rcases hE : E (s, c) with _ | ⟨t, w⟩
-    · simp [walkEnd, hE] at h
-    · simp only [walkEnd, hE, Option.bind_some] at h
-      have hw : walk E s (c :: cs) = s :: walk E t cs := by simp [walk, hE]
-      obtain ⟨h1, h2⟩ := run_walk t cs q h
-      rw [hw]
-      exact ⟨by simp [h1], by simpa using h2⟩
-
-end Walk
-
-/-! ## Prefixes -/
-
-theorem pre_succ {x : FreeMonoid α} {p : ℕ} {c : α} (h : x.toList[p]? = some c) :
-    prefixOf x (p + 1) = prefixOf x p * FreeMonoid.of c := by
-  simp only [prefixOf, List.take_add_one, h, Option.toList_some]
-  rfl
-
-theorem pre_of_le {x : FreeMonoid α} {p : ℕ} (h : x.toList.length ≤ p) : prefixOf x p = x := by
-  simp [prefixOf, List.take_of_length_le h]
-
 /-! ## The outcome -/
 
 /-- What an outcome promises against the hypothesis `(T, E)`. -/
@@ -185,7 +89,7 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     · trivial
     · obtain ⟨hc, ht, hE⟩ := hun c t rfl
       refine ⟨hmem j hkj le_rfl, agrees_true read T x st hs.2, ?_, hE⟩
-      rw [← pre_succ hc, ht]
+      rw [← prefixOf_succ hc, ht]
   | edge p =>
     obtain ⟨h1, h2, h3, h4⟩ := hs
     obtain ⟨c, w, hc, hE⟩ := hstep (p - 1) (by omega) (by omega)
@@ -193,7 +97,7 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     have hp : p - 1 + 1 = p := by omega
     simp only [searchOutcome, hc, ht]
     refine ⟨hmem _ (by omega) (by omega), agrees_true read T x st h3, ?_, st (p - 1 + 1), w, hE, ?_⟩
-    · rw [← pre_succ hc, hp, ht]
+    · rw [← prefixOf_succ hc, hp, ht]
     · rw [hp]; exact fun h => htne h.symm
   | triple p =>
     obtain ⟨-, -, -, h3, -⟩ := hs
@@ -294,7 +198,7 @@ theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) 
     (probe recover read T E k x).clean = false := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   dsimp only at ha hq he
-  obtain ⟨hlen, hlast⟩ := run_walk E a _ q hq
+  obtain ⟨hlen, hlast⟩ := walkEnd_walk E a _ q hq
   unfold probe
   simp only [ha]
   generalize hcs : x.toList.drop k = cs at hlen hlast
@@ -310,13 +214,13 @@ theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) 
     refine searchOutcome_clean read T x _ _ k _ hkx ?_ ?_
     · rw [agrees_inl read T x _ ha]
       simp only [hst0, decide_true]
-    · rw [agrees_inl read T x _ (by rw [pre_of_le le_rfl]; exact he)]
+    · rw [agrees_inl read T x _ (by rw [prefixOf_of_le le_rfl]; exact he)]
       rw [show x.toList.length - k = cs.length by omega, hlast]
       simpa using fun h => hne h.symm
   · exfalso
     have hcs0 : cs = [] := by rw [← hcs]; exact List.drop_eq_nil_of_le (by omega)
     subst hcs0
-    rw [pre_of_le (by omega), he] at ha
+    rw [prefixOf_of_le (by omega), he] at ha
     cases ha
     rw [← hss] at hlast
     simp [walk] at hlast
@@ -327,7 +231,7 @@ theorem disagrees_long {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   by_contra hkx
   dsimp only at ha hq he
-  rw [pre_of_le (by omega), he, Sum.inl.injEq] at ha
+  rw [prefixOf_of_le (by omega), he, Sum.inl.injEq] at ha
   rw [List.drop_eq_nil_of_le (by omega)] at hq
   simp only [walkEnd, Option.some.injEq] at hq
   exact hne (hq.symm.trans ha.symm)

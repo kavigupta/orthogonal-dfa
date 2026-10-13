@@ -30,7 +30,7 @@ variable {α : Type*}
 /-- The strings a probe of `x` walked from `k` under `H` reads undecided at the site, as the tests
 count them. -/
 noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
-    (H : Hypothesis α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
+    (H : HypothesisDFA α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
   | .start, x => startString (probeOrAgree false read H.tree H.edges k x)
   | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
   | .middles, x => middleString (probeOrAgree false read H.tree H.edges k x)
@@ -38,7 +38,7 @@ noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid �
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
 noncomputable def harvestLaw [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
-    (D : Measure (FreeMonoid α)) (k : ℕ) (H : Hypothesis α) (site : Level3Site α) :
+    (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) (site : Level3Site α) :
     Measure (FreeMonoid α) :=
   D.bind fun x => ((siteHarvest read k H site x).map Measure.dirac).sum
 

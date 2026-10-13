@@ -21,7 +21,7 @@ open scoped ENNReal
 open OrthoDFA.Ideal (probeOrAgree)
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
-  (D : Measure (FreeMonoid α)) (k : ℕ) (H : Hypothesis α)
+  (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
 
 theorem siteHarvest_pot (site : Level3Site α) (x : FreeMonoid α) :
     ∀ z ∈ siteHarvest read k H site x, z ∈ pot k x H.tree ∧ read z = .undecided := by

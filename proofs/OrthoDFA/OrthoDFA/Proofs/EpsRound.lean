@@ -23,8 +23,8 @@ namespace Eps
 
 open MeasureTheory
 open scoped ENNReal
-open OrthoDFA.Ideal (searchOutcome siftAgrees probe probeOrAgree Outcome length_walk_le pre_of_le
-  pre_succ agrees_inl walk_cons EdgesOK OutcomeOK)
+open OrthoDFA.Ideal (searchOutcome siftAgrees probe probeOrAgree Outcome
+  agrees_inl EdgesOK OutcomeOK)
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level4Settings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool)
@@ -60,7 +60,7 @@ theorem probe_edge (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) {
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · rw [ha] at h
     simp only at h
-    have hpos := Ideal.length_walk_pos E a (x.toList.drop k)
+    have hpos := length_walk_pos E a (x.toList.drop k)
     have hlt : ∀ q, x.toList[q - 1]? = some c → q - 1 < x.toList.length := fun q hc => by
       by_contra hcon
       rw [List.getElem?_eq_none (by omega)] at hc
@@ -103,7 +103,7 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
     simp only [PotWrong, Set.mem_ofPred_eq, not_exists, not_and] at hw
     have hp := sift_true M side read T _ p' hu fun m hm =>
       hw _ (mem_pot hi1 (by omega) hm)
-    have hsucc := pre_succ hc
+    have hsucc := prefixOf_succ hc
     rw [← hsucc] at huc
     have ht := sift_true M side read T _ t' huc fun m hm =>
       hw _ (mem_pot (by omega) (by omega) hm)

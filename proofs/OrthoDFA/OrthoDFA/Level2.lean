@@ -106,7 +106,7 @@ noncomputable def runProbes :
     | .inr e => (s, e)
 
 structure Level2Result (α : Type*) where
-  hypothesis : Hypothesis α
+  hypothesis : HypothesisDFA α
   ending : RoundEnd Unit
 
 end

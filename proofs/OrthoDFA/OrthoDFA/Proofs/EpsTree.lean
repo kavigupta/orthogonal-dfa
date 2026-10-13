@@ -22,8 +22,8 @@ namespace Random
 
 namespace Eps
 
-open OrthoDFA.Ideal (probe probeOrAgree Outcome siftAgrees walk_cons length_walk_le pre_of_le
-  pre_succ OutcomeOK EdgesOK)
+open OrthoDFA.Ideal (probe probeOrAgree Outcome siftAgrees
+  OutcomeOK EdgesOK)
 
 variable {α : Type*} {σ : Type*} (M : DFA α σ) (side : σ → Bool)
 
@@ -143,17 +143,6 @@ theorem leafOf_splitAt (d : FreeMonoid α) : ∀ (T : DTree α) (p : List Bool),
       split_ifs <;> simp
     · simp [hs]
 
-theorem leaves_snoc_not_mem : ∀ (T : DTree α) (p : List Bool), p ∈ T.leaves → ∀ b : Bool,
-    p ++ [b] ∉ T.leaves
-  | .leaf, p, hp, b => by simp [DTree.leaves] at hp ⊢
-  | .node m r a, [], hp, b => by simp [DTree.leaves] at hp
-  | .node m r a, false :: p, hp, b => by
-    have hp' : p ∈ r.leaves := by simpa [DTree.leaves] using hp
-    simpa [DTree.leaves] using leaves_snoc_not_mem r p hp' b
-  | .node m r a, true :: p, hp, b => by
-    have hp' : p ∈ a.leaves := by simpa [DTree.leaves] using hp
-    simpa [DTree.leaves] using leaves_snoc_not_mem a p hp' b
-
 variable [Fintype σ]
 
 open scoped Classical in
@@ -203,7 +192,7 @@ theorem img_card_splitAt {T : DTree α} {p : List Bool} {d : FreeMonoid α} (hp 
     obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hy
     have := leafOf_mem M side T q
     simp only [Finset.mem_insert, Finset.mem_singleton] at hy'
-    rcases hy' with h | h <;> rw [h] at this <;> exact leaves_snoc_not_mem T p hp _ this
+    rcases hy' with h | h <;> rw [h] at this <;> exact DTree.snoc_not_mem_leaves T p hp _ this
   have h2 : ({p ++ [true], p ++ [false]} : Finset (List Bool)).card = 2 := by
     rw [Finset.card_insert_of_notMem (by simp), Finset.card_singleton]
   have := Finset.card_le_card hsub
