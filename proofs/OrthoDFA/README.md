@@ -20,39 +20,32 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 - `Level4Correct`: with a `TriOracle` reading every string independently with its state's
   distribution, settings chosen by the proof make `indecisiveLStarLevel4`, the counterexample
   search, over at most `K · G` probes from a `PrefixDistribution` fail to end well with chance at
-  most `2δ`, once the reads' `κ` and `ε`, the goodness level `θ` and the probes' prefix mass are
-  small enough. A harvest's replay yields in proportion to how often the draws' prefixes read
-  undecided.
+  most `δ`, once the reads' `κ` and `ε`, the goodness level `θ` and the probes' prefix mass are
+  small enough. A harvest's sampler yields at least `ρ`.
 - `Level4FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
-
 ## The round, by refinement
 
 Each level proves one L\* round correct and states its ending through `OrthoDFA/RoundEnd.lean`:
 the round ends well when it is consistent, the hypothesis and the tree parting on at most `ε` of
-the probes, or ends in a harvest more than half of whose strings are at bad states and whose
-sampler is spread and yields. What makes a state bad is each level's own.
+the probes, or ends in a harvest whose sampler finds more than half of what it finds at bad
+states, is spread and yields. What makes a state bad is each level's own.
 
-The probes are drawn from a `PrefixDistribution` (`OrthoDFA/ProbeDistribution.lean`): `D`, with
-lengths at most `L`, a first anchor `start = firstAnchor ≤ L`, and `q = prefixBound`, the most `D`
-puts on starting with any one string of length from `start` to `L`. The harvest's sampler replays
-the final hypothesis on a fresh draw from an anchor drawn uniformly from `start, …, L` (here
-`level4Replay`: the strings a probe walked from the anchor first reads undecided). No argument needs more of `start` than `start ≤ L`, which keeps
-the anchors nonempty. #415's `preconditions.start_length`, `⌈L/2⌉`, is one choice: there the
-anchors are the positions from which `covered_states` counts a visit.
-- `Spread`: it takes no string `t` more often than
-  `B(t) = ∑_{start ≤ i ≤ |t|} (min(i, L) + 1 − start)/(L + 1 − start) · D(the draw's first i
-  letters are t's)`. Every string a probe walked from `e` reads extends a prefix of the draw at
-  least `e` long, so this holds for any hypothesis (`Proofs/Level4Replay.lean`, by
-  `spread_of_prefix` in `Proofs/RoundEnd.lean`).
-- `Yields y`: it finds something on at least `y` of its draws and anchors. A tree's root reads its
-  string alone, so the replay finds the anchor's prefix whenever that reads undecided. That share
-  has mean `V / (L + 1 − start)`, `V = undecidedCount` being the mean count of positions from
-  `start` to `L` at which a draw's prefix reads undecided. It is a sum of independent reads with
-  weights at most `q / (L + 1 − start)`, so Chernoff's bound (`anchor_reads`, `Proofs/Yield.lean`)
-  holds it at least `(V − 2√(q V log(1/δ))) / (L + 1 − start)` but for chance `δ`. Every state
-  that is not good reads undecided more than `1.5θ` of the time, so `V ≥ 1.5θ · coverage(not
-  good)`, but the yield does not depend on `θ`.
+Level 4's harvest is its site and the hypotheses the site's counts were taken under: one per
+probe of the round at the start and at an edge, the stretch's own for the middles. Its sampler
+(`harvestLaw`) picks one of those hypotheses uniformly, draws a fresh probe from `D`, walks it
+under that hypothesis and finds the probe's undecided first reads at the site, as the tests
+counted them. The tests are cumulative over the round, so this mixture is what they certify:
+every good read-state's undecided reads are rare under each hypothesis, whatever came before, and
+a count less twice the running sum of its means is a supermartingale.
+- `Spread`: it finds no string more often than draws share the string's length-`k` prefix, since
+  every string a probe walked from `k` reads extends the probe's length-`k` prefix and a probe
+  reads no string first twice (`Proofs/Level4Law.lean`).
+- `Yields y`: it finds at least `y`, `harvestYield`, the least of `θs/8`, `θe φe/2` and
+  `θpt φpt/2`, which the start's, an edge's and the middles' tests certify.
+
+Levels 2, 3 and 3.5 claim the same ending, each with its own sampler: level 2's draws a fresh probe
+under the final hypothesis and finds the undecided read it stops at.
 
 1. #417, `IdealRoundCorrect`: ideal reads; a state is bad where all its strings read undecided.
 2. #419: indecision random, decided reads always right.
@@ -67,8 +60,8 @@ anchors are the positions from which `covered_states` counts a visit.
 need to be read; the algorithm is `indecisiveLStarLevel4` in `OrthoDFA/Level4.lean`. With
 `n = |Q| + S`, `A = |Σ|`, `L = P.L`, `Z = |Q| A + S + 1`, `ρ = (S + 1) εd / (256 (n + 1) Z)`,
 `K = (n + 1)(2(n + 3)A + 1)(10/εd³ + 270/εd² + 1400/εd) + 8(n + 3) A (L + 1)`,
-`X = 4 (2^(n+4) A + 7K²)/δ`, `G = log X + 2 log(2 log X)`, `V = undecidedCount P M O.readDist`
-and a read-state bad where it reads undecided more than `1.5θ` of the time:
+`X = 4 (2^(n+5) A + 7K²)/δ`, `G = log X + 2 log(2 log X)` and a read-state bad where it reads
+undecided more than `1.5θ` of the time:
 
     Level4Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ S k,
       0 < δ ≤ 1 → 0 < εd ≤ 1 → 1 ≤ L → 0 ≤ θ →
@@ -80,8 +73,8 @@ and a read-state bad where it reads undecided more than `1.5θ` of the time:
         P[let result := indecisiveLStarLevel4 settings (O.read · ω) draws
           ¬ EndsWell M bad P.D settings.disagreementRate
             (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-            P.firstAnchor P.L (level4Replay (O.read · ω) result.hypothesis)
-            ((V − 2√(P.prefixBound V log(1/δ))) / (L + 1 − P.firstAnchor)) result.ending] ≤ 2δ
+            settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart) ρ
+            result.ending] ≤ δ
 
     Level4FamilyCorrect: Level4Guarantee at fam.oracle : TriOracle μ fam.M.
 
@@ -113,19 +106,18 @@ The chosen budget is within 5% of `K G`. Against the earlier constants (`2^13`, 
 is 21× more `θ` at `εd = 1` (213× at 0.1), about 2500× (7000×) more `κ`, 110× more `ε`, 1100× more
 prefix mass (`k ≥ 27` against 37), and a 140× (5000×) smaller budget. Every condition holds at
 `L = 30` for `k` from 27 to 30 at `εd = 1`; at `εd = 0.1` only `k = 30 = L` with `ε` near 0 is
-left. The yield is positive once `V > 4 q log(1/δ)`: at `L = 30` (`start = 15`, `q = 2^-15`)
-that is a mean undecided rate above `3.5e-5` over the 16 anchors, and at `L = 60` above `5.5e-10`.
+left.
 
 ## The internal bound
 
 `Proofs/Level4RiskDefs.lean` states what the claim is derived from; none of it needs to be read
 to trust the claim.
 
-    Level4RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs δ,
-      2 · O.κ ≤ κs → 0 < δ ≤ 1 →
+    Level4RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs,
+      2 · O.κ ≤ κs →
       ∫⁻ ω, P[the run of `applyProbe` over C.probeBudget probes from P.D does not end well, its
-          replay yielding (V − 2√(P.prefixBound V log(1/δ))) / (L + 1 − P.firstAnchor)] ∂μ
-        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs + δ
+          harvest's sampler yielding harvestYield] ∂μ
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
 `roundRisk σ κ ε θ D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
@@ -134,13 +126,13 @@ A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ
 * `recordsTail`, records that are not true exceeding `κs` times the undecided strings plus `ρ`:
   `K · E · exp(−(ρ − 2ε(L + 1)(n + 1)) / (2p₀(1 + 4(κ(L + 1) + ε(L + 1)(n + 1)))))`;
 * `edgeTail`, an edge's good undecided first reads past `θg` of its first reads:
-  `K · E · (n + 2)|Σ| · exp(−φe(θe/2 − 2θg)/2 / (2p₀(L + 1)(1 + 6θ(n + 1))))`;
+  `K · E · (n + 2)|Σ| · exp(−φe(θe − 8θg)/4 / (2p₀(L + 1)(1 + 6θ(n + 1))))`;
 * `startTail`, the good undecided start reads past `θgs`: `K · exp(θ₁(e^{l p₀} − 1)/p₀ − lθgs)`;
 * `middlesTail`, searches stopping at a good undecided middle past `θgpt`:
   `K · E · exp(−θgpt φpt/2 / (2p₀(1 + 4(L + 1)θ₁)))`;
 * `fakeRun`, the records that are not true racing the tests' allowances;
 * `(S + |Q| + 1) · subOpen`, a sub-round keeping its tree too long;
-* `testLevels`, `(2^(Lmax+1)|Σ| + budget + 3 budget²) a`, the harvests' and success's tests,
+* `testLevels`, `(2^(Lmax+2)|Σ| + 1 + 3 budget²) a`, the harvests' and success's tests,
 
 where here `K = classCount` bounds the class of trees, `E = edgeMapCount` their edge maps,
 `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k` prefix.
@@ -253,12 +245,16 @@ settings.
   sub-round, so while the round's such records stay below `(S + 1) m` its trees stay in the class.
   `SubRound` bounds a sub-round's chance of keeping its tree over `subT` probes with fewer than `B`
   records that are not true; `FakeRace` bounds the round's records that are not true reaching `(S +
-  1) m`, given `NoiseEvent`; `HarvestGood` bounds a harvest that is not mostly at read-states that are
-  not good. Proved in `Proofs/Level4Budget.lean`: `round_budget` composes sub-rounds, and
+  1) m`, given `NoiseEvent`; `HarvestGood` bounds a harvest whose sampler does not find mostly
+  read-states that are not good, or does not yield. Proved in `Proofs/Level4Budget.lean`: `round_budget` composes sub-rounds, and
   `roundGiven_of` gives `Level4RoundRisk` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`.
-  `HarvestGood` is proved in `Proofs/Level4Harvest.lean`: at each edge the good read-states'
-  undecided reads less `2θg` of its reads exponentiate to a supermartingale while the tree is in the
-  class, and at the start and over a stretch's undecided middles they are at most binomial.
+  `HarvestGood` is proved in `Proofs/Level4Harvest.lean`: the start's and an edge's undecided
+  strings less twice the running sum of their means under the hypotheses the round kept, and an
+  edge's reads' means' half-sum less its reads, exponentiate to supermartingales while the tree is
+  in the class, so a test that fires certifies the sampler's yield; `NoiseEvent` holds the good
+  read-states' share of it under every hypothesis of the class. A stretch keeps one hypothesis,
+  and where its searches stop at an undecided middle at most `θpt` of the time, the middles' count
+  over them is at most binomial.
   `SubRound` is proved in `Proofs/Level4Keep.lean`: a hypothesis recording less than `θr` of the time
   and keeping over `nEnd` probes has its middle-stopping searches rarer than `θpt'` of its searches,
   or its disagreements too many for success; each new hypothesis learns or redirects an edge,

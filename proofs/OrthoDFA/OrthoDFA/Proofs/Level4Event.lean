@@ -21,7 +21,7 @@ theorem noiseEvent_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : Level4Settings) (S L : ℕ)
     {p₀ ρ θg θgs θgpt l : ℝ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x C.walkStart = u} ≤ p₀) (hl : 0 ≤ l)
-    (hφe : 0 ≤ C.edgeTraffic) (hφpt : 0 ≤ C.searchShare) (hθe : 4 * θg ≤ C.edgeUndecidedRate)
+    (hφe : 0 ≤ C.edgeTraffic) (hφpt : 0 ≤ C.searchShare) (hθe : 8 * θg ≤ C.edgeUndecidedRate)
     (hθg : 2 * (3 / 2 * G.θ) ≤ θg)
     (hθgpt : 2 * ((L + 1) * (Fintype.card σ + S + 1) * (3 / 2 * G.θ)) ≤ θgpt) :
     μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}
@@ -31,7 +31,7 @@ theorem noiseEvent_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
         + ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
           * ((Fintype.card σ + S + 3) ^ ((Fintype.card σ + S + 2) * Fintype.card α)
             * ((Fintype.card σ + S + 2) * Fintype.card α))
-          * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate / 2 - 2 * θg) / 2 / (2 * p₀ * (L + 1)
+          * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate - 8 * θg) / 4 / (2 * p₀ * (L + 1)
             * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + S + 1))))))
         + ENNReal.ofReal ((classSet (Fintype.card σ + S) : Finset (DTree α)).card
           * Real.exp ((Fintype.card σ + S + 1) * (3 / 2 * G.θ) * (Real.exp (l * p₀) - 1) / p₀
@@ -44,7 +44,7 @@ theorem noiseEvent_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
   have hθg0 : 0 ≤ θg := le_trans (by positivity) hθg
   have hθgpt0 : 0 ≤ θgpt := le_trans (by positivity) hθgpt
   have hE := goodEdge_le G read hmeas hind hlaw hθ D C.walkStart L S hlen hp₀ hpmax
-    (η := C.edgeTraffic * (C.edgeUndecidedRate / 2 - 2 * θg) / 2)
+    (η := C.edgeTraffic * (C.edgeUndecidedRate - 8 * θg) / 4)
     (mul_nonneg (mul_nonneg hφe (by linarith)) (by norm_num)) hθg
   have hS := goodStart_le G read hmeas hind hlaw D C.walkStart (Fintype.card σ + S) (θgs := θgs) hθ
     hp₀ hpmax hl

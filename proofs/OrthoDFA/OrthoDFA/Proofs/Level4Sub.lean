@@ -115,7 +115,7 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto
     let s' := fixEdge cut m s p c t
     (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
     ∨ (∃ t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
-      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
+      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
       ∧ EdgesInto s'.tree s'.edges ∧ (∀ q e, s'.records q e = []) ∧ s'.stretchProbes = 0
           ∧ s'.stretchDisagreements = 0) := by
   obtain ⟨hp, -, ht⟩ := hv
@@ -134,7 +134,7 @@ theorem fixEdge_spec {m : ℕ} (hm : 0 < m) {s : Level4State α} (he : EdgesInto
   · simp only []
     split_ifs with hm
     · right
-      set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
+      set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
       refine ⟨t₀, htp, he _ _ _ _ he0, hp, rfl, ?_, fun _ _ => rfl, rfl, rfl⟩
       intro q e t' w h
       simp only [] at h
@@ -163,7 +163,7 @@ theorem applyProbe_spec (hm : 0 < C.recordsToMove) {s : Level4State α} {x : Fre
     (∀ s', applyProbe C cut s x = .inl s' →
       (s'.tree = s.tree ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s')
       ∨ (∃ p c t t₀, t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ p ∈ s.tree.leaves
-        ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p
+        ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
         ∧ EdgesInto s'.tree s'.edges ∧ (∀ q e, s'.records q e = []) ∧ s'.stretchProbes = 0
             ∧ s'.stretchDisagreements = 0))
     ∧ (∀ e s', applyProbe C cut s x = .inr (e, s') → e = .tooBig ∨ s'.tree = s.tree) := by
@@ -221,7 +221,7 @@ theorem lintegral_ite_one {β : Type*} [MeasurableSpace β] [Countable β] [Meas
 /-- A split from a sub-round's state lands at a start of the class, genuine or not. -/
 theorem split_lands {s s' : Level4State α} {f : ℕ} (hf : G.Grown s.tree f) {p : List Bool} {c : α}
     {t t₀ : List Bool} (ht : t ∈ s.tree.leaves) (ht₀ : t₀ ∈ s.tree.leaves) (hp : p ∈ s.tree.leaves)
-    (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) :
+    (hT : s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) :
     (∃ p d, s'.tree = s.tree.splitAt d p ∧ G.GenuineSplit s.tree p d) →
       G.Grown s'.tree f ∧ (G.trueLeaves s.tree).card + 1 ≤ (G.trueLeaves s'.tree).card := by
   rintro ⟨p', d', hT', hg⟩
@@ -254,14 +254,6 @@ theorem runEnds_or {S X E : Type*} {step : S → X → S ⊕ (E × S)} {P Q : E 
       by_cases hq : Q e s'
       · exact .inl hq
       · exact .inr ⟨hp, hq⟩
-
-theorem harvest_endsWell {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (ε : ℝ)
-    (dis : Set (FreeMonoid α)) (s L : ℕ) {rp : FreeMonoid α → ℕ → List (FreeMonoid α)} {y : ℝ}
-    (hs : Spread D s L rp) (hy : Yields D s L rp y) (l : List (FreeMonoid α)) :
-    EndsWell G.M (fun q => ¬ G.Good q) D ε dis s L rp y (.harvest l)
-      ↔ l.length < 2 * G.badCount l := by
-  simp only [EndsWell, ReadModel.badCount, hs, hy, and_true]
-  constructor <;> intro h <;> convert h using 5 <;> exact decide_eq_decide.2 Iff.rfl
 
 end Compose
 

@@ -111,7 +111,7 @@ theorem fixEdge_cases {s : Level4State α} {p : List Bool} {c : α} {t : List Bo
             = if (q, c') = (p, c) then some (t, w) else s.edges q c')
         ∨ ∃ t₀ w₀, s.edges p c = some (t₀, w₀) ∧ C.recordsToMove ≤ s.recordCount p c t₀
           ∧ (fixEdge cut C.recordsToMove s p c t).tree
-            = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p) := by
+            = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) := by
   unfold fixEdge
   simp only []
   rcases he0 : s.edges p c with _ | ⟨t₀, w₀⟩
@@ -262,7 +262,7 @@ theorem applyProbe_split (hm : 0 < C.recordsToMove) {s s' : Level4State α} {x :
     ∃ p c t t₀, p ∈ s.tree.leaves ∧ t ∈ s.tree.leaves ∧ t₀ ∈ s.tree.leaves ∧ t ≠ t₀
       ∧ C.recordsToMove ≤ (recordProbe C cut s x).recordCount p c t
           ∧ C.recordsToMove ≤ (recordProbe C cut s x).recordCount p c t₀
-      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midAt (commonPrefix t t₀)) p := by
+      ∧ s'.tree = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p := by
   obtain ⟨htr₁, he₁, hr₁⟩ := recordProbe_into cut C x he hr
   rcases applyProbe_cases cut C h with ⟨e, -, he'⟩ | ⟨-, hs⟩
   · cases he'
@@ -291,7 +291,7 @@ open scoped Classical in
 theorem badRecs_of_fake {s₁ : Level4State α} {p : List Bool} {c : α} {t t₀ : List Bool}
     (hne : t ≠ t₀) (hm₁ : C.recordsToMove ≤ s₁.recordCount p c t)
     (hm₂ : C.recordsToMove ≤ s₁.recordCount p c t₀)
-    (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midAt (commonPrefix t t₀))) :
+    (hng : ¬ G.GenuineSplit s₁.tree p (FreeMonoid.of c * s₁.tree.midfixAt (commonPrefix t t₀))) :
     C.recordsToMove ≤ badRecs G s₁ (p, c, t) ∨ C.recordsToMove ≤ badRecs G s₁ (p, c, t₀) := by
   have hall : ∀ t', (¬ ∃ r ∈ s₁.records p c, r.2 = t' ∧ G.TrueRec s₁.tree (p, c, t') r.1) →
       badRecs G s₁ (p, c, t') = s₁.recordCount p c t' := by

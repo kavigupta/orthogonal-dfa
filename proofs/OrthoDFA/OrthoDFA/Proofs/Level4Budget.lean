@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.Level4Keep
-import OrthoDFA.Proofs.Level4Replay
+import OrthoDFA.Proofs.Level4Law
 
 /-!
 # The round from its sub-rounds, with its records that are not true as one budget
@@ -263,7 +263,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
           have hg' : Fintype.card σ ≤ (G.trueLeaves s'.tree).card + g := htr ▸ hg
           have htrP := (recordProbe_cases cut C s' (xs 0)).1
           by_cases hgen : G.GenuineSplit s'.tree p (FreeMonoid.of c
-              * s'.tree.midAt (commonPrefix t t₀))
+              * s'.tree.midfixAt (commonPrefix t t₀))
           · obtain ⟨hg₂, hc₂⟩ := split_lands G hf' ht ht₀ hp hT ⟨_, _, hT, hgen⟩
             have hle := G.trueLeaves_card_le s''.tree
             have huu'' : u' ≤ u'' := by rw [hu'']; exact Nat.le_add_right _ _
@@ -280,7 +280,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
             push_cast at this ⊢
             rw [this]
           · have hngP : ¬ G.GenuineSplit (recordProbe C cut s' (xs 0)).tree p
-                (FreeMonoid.of c * (recordProbe C cut s' (xs 0)).tree.midAt
+                (FreeMonoid.of c * (recordProbe C cut s' (xs 0)).tree.midfixAt
                     (commonPrefix t t₀)) := by
               rw [htrP]; exact hgen
             have hbig : u + C.recordsToMove ≤ u'' := by
@@ -305,7 +305,7 @@ theorem round_budget (hm : 0 < C.recordsToMove) (hLmax : Fintype.card σ + S + 3
               omega
             have hg₂ : G.Grown s''.tree (f + 1) := hT ▸ ReadModel.Grown.fake hf' hp ht ht₀ hgen
             have hc₂ := (G.trueLeaves_splitAt hp (FreeMonoid.of c
-                * s'.tree.midAt (commonPrefix t t₀))).1
+                * s'.tree.midfixAt (commonPrefix t t₀))).1
             rw [← hT] at hc₂
             have hadm : (k - 1) + g < N ∧ AdmB G C S Tsub s'' u'' (k - 1) g (W' - 1) T' := by
               refine ⟨by omega, hstart (f + 1) hg₂ (by omega), ⟨f + 1, hg₂, by omega⟩, by omega,
@@ -370,7 +370,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     (hharv : HarvestGood.{u, v}) (hsucc : SuccessSound.{u}) : RoundGiven.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd nRec hP hS L T ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs
     η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond
-    hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1
+    hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs hroom hhalf hθgpt0 hθgpt hφ0 hφ1
     hlow hθe hXe0 hXe hθs' hXs hlin hη hν hside hT
   set Tsub := subT C (Fintype.card α) nEnd nRec
   set W := (S + Fintype.card σ + 1) * Tsub
@@ -378,7 +378,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
   set δ' := subOpen C (Fintype.card α) (Fintype.card σ) nRec U θr (termLevel nEnd hP hS θpt' εd')
   set φ := fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν
   set c := ENNReal.ofReal φ + ENNReal.ofReal ((S + Fintype.card σ + 1) * δ')
-    + ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + T + 3 * (T * T)) * C.testLevel)
+    + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T)) * C.testLevel)
   set M := toMeasurable μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}
   have hτ0 := termLevel_nonneg (nEnd := nEnd) (hP := hP) (hS := hS) hθpt'0 hθpt'1 hεd'0 hεd'1
   have hδ'0 : 0 ≤ δ' := by
@@ -390,7 +390,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     positivity
   have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
       {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-        (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+        (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
         initialState (List.ofFn xs)} ≤ M.indicator 1 ω + c := by
     intro ω
     by_cases hω : NoiseEvent G D C S ρ θg θgs θgpt (read · ω)
@@ -425,31 +425,36 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
           (Nat.mul_pos (Nat.succ_pos _) hm) hxs
         simpa [U] using this
       have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hφe0
-        (by omega) hexc hθgs0 hθgs1 hstart hθgpt0 hθgpt1 hstartpt hφ0 hφ1 hlow hω
-      have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut) (GoodEnd G)
+        (by omega) hexc hθgs0 hθgs hroom hhalf hθgpt0 hθgpt hθpt1 hφ0 hφ1 hlow hω
+      have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
+          (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
           initialState (List.ofFn xs)}
           ⊆ {xs | ¬ RunEnds (applyProbe C cut) (OkEnd G S) initialState (List.ofFn xs)}
             ∪ {xs | RunEnds (applyProbe C cut)
-              (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig ∧ ¬ GoodEnd G e s') initialState
+              (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
+                ∧ ¬ GoodEnd G D (read · ω) C.walkStart C.harvestYield e s') initialState
               (List.ofFn xs)} := by
         intro xs hxs
         by_cases hok : RunEnds (applyProbe C cut) (OkEnd G S) initialState (List.ofFn xs)
-        · rcases runEnds_or (Q := GoodEnd G) _ _ hok with h | h
+        · rcases runEnds_or (Q := GoodEnd G D (read · ω) C.walkStart C.harvestYield) _ _ hok
+            with h | h
           · exact absurd h hxs
           · exact .inr (runEnds_mono (fun e s' h => ⟨h.1.2, h.1.1, h.2⟩) _ _ h)
         · exact .inl hok
       have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
       have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω)) initialState
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω)) initialState
               (List.ofFn xs)}
-          ⊆ {xs | ¬ RunEnds (applyProbe C cut) (GoodEnd G) initialState (List.ofFn xs)}
+          ⊆ {xs | ¬ RunEnds (applyProbe C cut) (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
+              initialState (List.ofFn xs)}
             ∪ {xs | RunEnds (applyProbe C cut) (fun e s' => e = .success
               ∧ C.disagreementRate ≤ D.real (searchAt (read · ω) C.walkStart s'.tree s'.edges))
                   initialState
               (List.ofFn xs)} := by
         intro xs hxs
-        by_cases hg : RunEnds (applyProbe C cut) (GoodEnd G) initialState (List.ofFn xs)
-        · rcases runEnds_or (Q := Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+        by_cases hg : RunEnds (applyProbe C cut) (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
+            initialState (List.ofFn xs)
+        · rcases runEnds_or (Q := Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
             _ _ hg with h | h
           · exact absurd h hxs
           · refine .inr (runEnds_mono (fun e s' h => ?_) _ _ h)
@@ -457,18 +462,15 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
             rcases e with _ | _ | e | _ | _
             · simp only [Level4EndsWell, toRoundEnd, EndsWell, not_le] at hns
               exact ⟨rfl, hns.le⟩
-            · exact absurd ((harvest_endsWell G D _ _ _ _ (replayAt_spread _ _ _ D 0 L)
-                (yields_zero D 0 L _) _).2 hge) hns
-            · exact absurd ((harvest_endsWell G D _ _ _ _ (replayAt_spread _ _ _ D 0 L)
-                (yields_zero D 0 L _) _).2 hge) hns
-            · exact absurd ((harvest_endsWell G D _ _ _ _ (replayAt_spread _ _ _ D 0 L)
-                (yields_zero D 0 L _) _).2 hge) hns
+            · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
+            · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
+            · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
             · exact hge.elim
         · exact .inl hg
-      have hsplit : ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + T + 2 * (T * T))
+      have hsplit : ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * (T * T))
           * C.testLevel)
           + ENNReal.ofReal (T * T * C.testLevel)
-          = ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + T + 3 * (T * T))
+          = ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T))
               * C.testLevel) := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         congr 1
@@ -490,7 +492,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
       exact prob_le_one.trans le_self_add
   calc ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ ∫⁻ ω, (M.indicator 1 ω + c) ∂μ := lintegral_mono hpt
     _ = μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)} + c := by

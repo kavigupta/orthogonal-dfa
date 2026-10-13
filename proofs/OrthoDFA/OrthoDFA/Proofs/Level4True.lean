@@ -162,14 +162,14 @@ theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     have hp : p ∈ T.leaves := by
       obtain ⟨q₁, -, hl, -⟩ := hg
       exact hl ▸ G.leafOf_mem_paths T q₁
-    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))).2 hg
-    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))).2 hg
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))
     rw [if_pos hg] at h2
     rw [DTree.splitAt_paths_length _ _ _ hp]
     omega
   | @fake T f p t t₀ c hT hp ht ht₀ hg ih =>
-    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))).1
-    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midAt (commonPrefix t t₀))
+    have h1 := (G.trueLeaves_splitAt hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))).1
+    have h2 := G.trueLeaves_splitAt_le hp (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀))
     rw [if_neg hg] at h2
     rw [DTree.splitAt_paths_length _ _ _ hp]
     omega
@@ -227,19 +227,19 @@ variable {σ : Type*} (G : ReadModel α σ)
 /-- Two states at different true leaves read the midfix where their leaves part on different
 sides. -/
 theorem split_sides : ∀ (T : DTree α) (q₁ q₂ : σ), G.leafOf T q₁ ≠ G.leafOf T q₂ →
-    G.side (G.at' q₁ (T.midAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
-      ≠ G.side (G.at' q₂ (T.midAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
+    G.side (G.at' q₁ (T.midfixAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
+      ≠ G.side (G.at' q₂ (T.midfixAt (commonPrefix (G.leafOf T q₁) (G.leafOf T q₂))))
   | .leaf, _, _, h => absurd rfl h
   | .node m r a, q₁, q₂, hne => by
     simp only [leafOf] at hne ⊢
     by_cases s₁ : G.side (G.at' q₁ m) <;> by_cases s₂ : G.side (G.at' q₂ m)
     · simp only [s₁, s₂, if_true, ne_eq, List.cons.injEq, true_and] at hne ⊢
-      simpa [commonPrefix, DTree.midAt] using split_sides a q₁ q₂ hne
-    · simp [commonPrefix, DTree.midAt, s₁, s₂]
-    · simp [commonPrefix, DTree.midAt, s₁, s₂]
+      simpa [commonPrefix, DTree.midfixAt] using split_sides a q₁ q₂ hne
+    · simp [commonPrefix, DTree.midfixAt, s₁, s₂]
+    · simp [commonPrefix, DTree.midfixAt, s₁, s₂]
     · simp only [s₁, s₂, Bool.false_eq_true, if_false, ne_eq, List.cons.injEq, true_and]
         at hne ⊢
-      simpa [commonPrefix, DTree.midAt] using split_sides r q₁ q₂ hne
+      simpa [commonPrefix, DTree.midfixAt] using split_sides r q₁ q₂ hne
 
 theorem eval_mul_of (sp : FreeMonoid α) (c : α) :
     G.M.eval (sp * FreeMonoid.of c).toList = G.M.step (G.M.eval sp.toList) c := by
@@ -252,7 +252,7 @@ theorem at'_of_mul (q : σ) (c : α) (m : FreeMonoid α) :
 /-- True records at one edge with different targets make the split they trigger genuine. -/
 theorem genuineSplit_of_recs {T : DTree α} {p : List Bool} {c : α} {t t₀ : List Bool}
     {sp₁ sp₂ : FreeMonoid α} (h₁ : G.TrueRec T (p, c, t) sp₁) (h₂ : G.TrueRec T (p, c, t₀) sp₂)
-    (hne : t ≠ t₀) : G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) := by
+    (hne : t ≠ t₀) : G.GenuineSplit T p (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) := by
   obtain ⟨l₁, l₁'⟩ := h₁
   obtain ⟨l₂, l₂'⟩ := h₂
   simp only [G.eval_mul_of] at l₁' l₂'

@@ -35,12 +35,16 @@ targets a state and a letter lead to. `SubRound`: a sub-round keeps its tree ove
 probes with fewer than `B` records that are not true with chance at most `subOpen`.
 `FakeRace`: the round's records that are not true reach `(S + 1) m` within `W` probes with chance
 at most `fakeRun`, as the tests hold its undecided strings. `HarvestGood`: a harvest the round
-ends in at a tree of the class has most of its strings at read-states that are not good, but for
-chance `(2^(Lmax+1) |Σ| + T + T²) a`. `RoundGiven`: over `T ≥ (S + |Q| + 1) · subT` probes the
-round ends in success or such a harvest but for chance at most that of not `NoiseEvent`, `fakeRun`
-over its first `(S + |Q| + 1) · subT` probes (a split that is not genuine needs `m` records that are
-not true, so below `(S + 1) m` its trees stay in the class and at most `S + |Q|` sub-rounds end in
-a split), `(S + |Q| + 1) · subOpen`, and the harvests' and success's chances.
+ends in at a tree of the class has a sampler that finds more strings at read-states that are not
+good than at good ones and yields `harvestYield`, but for chance `(2^(Lmax+2) |Σ| + 1 + 2T²) a`.
+The sampler mixes the hypotheses the site's counts were taken under; under each of them a good
+read-state's undecided reads are rare whatever came before, and the counts, held against the
+running sum of their means, certify the mixture's yield. `RoundGiven`: over
+`T ≥ (S + |Q| + 1) · subT` probes the round ends in success or such a harvest but for chance at
+most that of not `NoiseEvent`, `fakeRun` over its first `(S + |Q| + 1) · subT` probes (a split
+that is not genuine needs `m` records that are not true, so below `(S + 1) m` its trees stay in
+the class and at most `S + |Q|` sub-rounds end in a split), `(S + |Q| + 1) · subOpen`, and the
+harvests' and success's chances.
 -/
 
 noncomputable section
@@ -90,12 +94,12 @@ each at a leaf, on a letter followed by the midfix where two leaves part. -/
 inductive Grown : DTree α → ℕ → Prop
   | start : Grown (.node 1 .leaf .leaf) 0
   | real {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → t ∈ T.leaves →
-      t₀ ∈ T.leaves → G.GenuineSplit T p (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) f
+      t₀ ∈ T.leaves → G.GenuineSplit T p (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) p) f
   | fake {T : DTree α} {f : ℕ} {p t t₀ : List Bool} {c : α} : Grown T f → p ∈ T.leaves →
       t ∈ T.leaves → t₀ ∈ T.leaves → ¬ G.GenuineSplit T p (FreeMonoid.of c
-          * T.midAt (commonPrefix t t₀)) →
-      Grown (T.splitAt (FreeMonoid.of c * T.midAt (commonPrefix t t₀)) p) (f + 1)
+          * T.midfixAt (commonPrefix t t₀)) →
+      Grown (T.splitAt (FreeMonoid.of c * T.midfixAt (commonPrefix t t₀)) p) (f + 1)
 
 /-- Grown with at most `S` splits that are not genuine. -/
 def InClass (S : ℕ) (T : DTree α) : Prop := ∃ f ≤ S, G.Grown T f
@@ -111,11 +115,6 @@ open scoped Classical in
 noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
     (e : List Bool × α) (P : σ → Prop) (x : FreeMonoid α) : ℕ :=
   ((edgeHarvestBy (fun z => (rd z).cut) T edges k x e).filter fun b => P (G.M.eval b.toList)).length
-
-open scoped Classical in
-/-- How many of the strings were read at a read-state that is not good. -/
-noncomputable def badCount (l : List (FreeMonoid α)) : ℕ :=
-  (l.filter fun b => ¬ G.Good (G.M.eval b.toList)).length
 
 /-- The probes whose start is undecided, at a read-state satisfying `P`. -/
 def startAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (P : σ → Prop) :
@@ -157,20 +156,41 @@ structure NoiseEvent {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid
   goodEdge : ∀ T edges, G.InClass S T → EdgesInto T edges → ∀ e,
     ∫ x, (G.undecAt rd C.walkStart T edges e G.Good x : ℝ) ∂D
       ≤ θg * ∫ x, (edgeReadsBy (fun z => (rd z).cut) T edges C.walkStart x e : ℝ) ∂D
-        + C.edgeTraffic * (C.edgeUndecidedRate / 2 - 2 * θg) / 2
+        + C.edgeTraffic * (C.edgeUndecidedRate - 8 * θg) / 4
   goodStart : ∀ T, G.InClass S T → D.real (G.startAt rd C.walkStart T G.Good) ≤ θgs
   goodPT : ∀ T edges, G.InClass S T → EdgesInto T edges →
     D.real (G.ptAt rd C.walkStart T edges G.Good)
       ≤ θgpt * D.real (searchAt rd C.walkStart T edges) + θgpt * C.searchShare / 2
 
-/-- The endings the round claims: success, or a harvest most of whose strings are at read-states
-that are not good. -/
-def GoodEnd {σ : Type*} (G : ReadModel α σ) : Level4Ending α → Level4State α → Prop
-  | .success, _ => True
-  | .harvestStart, s => s.startUndecided.length < 2 * G.badCount s.startUndecided
-  | .harvest e, s => (s.edgeUndecided e.1 e.2).length < 2 * G.badCount (s.edgeUndecided e.1 e.2)
-  | .harvestPT, s => s.stretchMiddles.length < 2 * G.badCount s.stretchMiddles
-  | .tooBig, _ => False
+open scoped Classical in
+/-- The mean count of the strings a probe walked from `k` under `v` reads undecided at the site,
+at read-states satisfying `P`. -/
+noncomputable def siteMean {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α))
+    (rd : FreeMonoid α → ARU) (k : ℕ) (site : Level4Site α) (P : σ → Prop)
+    (v : DTree α × EdgeTable α) : ℝ :=
+  ∫ x, (((siteHarvest (fun z => (rd z).cut) k site v x).filter
+    fun b => P (G.M.eval b.toList)).length : ℝ) ∂D
+
+/-- The mean count of the strings a probe walked from `k` under `v` reads undecided at the site. -/
+noncomputable def siteTotal (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (k : ℕ)
+    (site : Level4Site α) (v : DTree α × EdgeTable α) : ℝ :=
+  ∫ x, ((siteHarvest (fun z => (rd z).cut) k site v x).length : ℝ) ∂D
+
+/-- The harvest's sampler finds more strings at read-states that are not good than at good ones,
+and at least `y` a version in all. -/
+def MixGood {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+    (k : ℕ) (y : ℝ) (h : Level4Harvest α) : Prop :=
+  2 * (h.versions.map (siteMean G D rd k h.site G.Good)).sum
+      < (h.versions.map (siteTotal D rd k h.site)).sum
+    ∧ y * h.versions.length ≤ (h.versions.map (siteTotal D rd k h.site)).sum
+
+/-- The endings the round claims: success, or a harvest whose sampler `MixGood` holds of. -/
+def GoodEnd {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+    (k : ℕ) (y : ℝ) (e : Level4Ending α) (s : Level4State α) : Prop :=
+  match toRoundEnd e s with
+  | .consistent => True
+  | .harvest h => MixGood G D rd k y h
+  | .failed => False
 
 /-- Where a sub-round starts: a tree of the class, edges into its leaves, no records, a fresh
 stretch. -/
@@ -240,34 +260,34 @@ def FakeRace : Prop :=
         {xs | UntrueHit G C rd initialState ((S + 1) * C.recordsToMove) W T xs}
       ≤ ENNReal.ofReal (fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν)
 
-/-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 4θg`, every edge excess above
-`4 (L + 1)(1 + 4 θg Lmax) log(1/a)`, the start's and the middles' tests firing only where good
-read-states' undecided reads (at `2θgpt` of searches for the middles) reach half their count with
-chance at most `a`, and a stretch searching on at most `φpt/2` of its probes reaching `φpt` of
-`n ≥ n₀` with chance at most `a`, the round ends in a harvest at a tree of the class most of whose
-strings are at good read-states with chance at most `(2^(Lmax+1) |Σ| + T + 2T²) a`. -/
+/-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 8θg`, every edge excess above
+`4 (L + 1)(1 + 4 θg Lmax) log(1/a)`, the start's test firing at `h` of `t` probes only where
+`h > t θs / 2`, with `16 θgs ≤ θs` and `8 log(1/a) ≤ n₀ θs`, `4 θgpt ≤ θpt`, and a stretch
+searching on at most `φpt/2` of its probes reaching `φpt` of `n ≥ n₀` with chance at most `a`,
+the round ends in a harvest at a tree of the class whose sampler fails `MixGood` at the yield
+`harvestYield` with chance at most `(2^(Lmax+2) |Σ| + 1 + 2T²) a`. -/
 def HarvestGood : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : Level4Settings) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.recordsToMove → 0 < C.testLevel
         → C.testLevel ≤ 1 → 0 ≤ θg →
-    4 * θg ≤ C.edgeUndecidedRate → 0 ≤ C.edgeTraffic → Fintype.card σ + S + 2 ≤ C.maxLeaves →
+    8 * θg ≤ C.edgeUndecidedRate → 0 ≤ C.edgeTraffic → Fintype.card σ + S + 2 ≤ C.maxLeaves →
     (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.maxLeaves) * Real.log (1 / C.testLevel) < C.edgeExcess j)
-        → 0 ≤ θgs → θgs ≤ 1 →
+        → 0 ≤ θgs → 16 * θgs ≤ C.startUndecidedRate →
+    8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate →
     (∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel
-        → binomSfGe t θgs ((h + 1) / 2) ≤ C.testLevel) →
-    0 ≤ θgpt → 2 * θgpt ≤ 1 →
-    (∀ t h, C.firstLook ≤ t → binomSfGe t C.middleUndecidedRate h < C.testLevel
-        → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.testLevel) →
+        → t * C.startUndecidedRate / 2 < h) →
+    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1 →
     0 ≤ C.searchShare → C.searchShare ≤ 1 →
     (∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊ ≤ C.testLevel) →
     NoiseEvent G D C S ρ θg θgs θgpt rd →
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (applyProbe C fun z => (rd z).cut)
-          (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig ∧ ¬ GoodEnd G e s') initialState
+          (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
+            ∧ ¬ GoodEnd G D rd C.walkStart C.harvestYield e s') initialState
           (List.ofFn xs)}
-      ≤ ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + T + 2 * (T * T)) * C.testLevel)
+      ≤ ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * (T * T)) * C.testLevel)
 
 /-- `SuccessSound`: a round ends in success at a hypothesis disagreeing on at least `εd` of the
 probes with chance at most `T² a`. -/
@@ -284,8 +304,9 @@ def SuccessSound : Prop :=
 
 /-- `RoundGiven`: under `SubRound`'s, `FakeRace`'s and `HarvestGood`'s conditions, over
 `T ≥ (S + |Q| + 1) · subT` probes the round ends in success at a hypothesis disagreeing on fewer
-than `εd` of the probes, or in a harvest most of whose strings are at read-states that are not
-good, but for chance at most that of not `NoiseEvent`, `fakeRun` over `(S + |Q| + 1) · subT` probes,
+than `εd` of the probes, or in a harvest whose sampler finds more strings at read-states that are
+not good than at good ones and yields `harvestYield`, but for chance at most that of not
+`NoiseEvent`, `fakeRun` over `(S + |Q| + 1) · subT` probes,
 `(S + |Q| + 1) · subOpen` with an allowance of `(S + 1) m`, `HarvestGood`'s and
 `SuccessSound`'s. -/
 def RoundGiven : Prop :=
@@ -301,15 +322,14 @@ def RoundGiven : Prop :=
     binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel
         → 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel →
     C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS → C.searchShare * nEnd ≤ hS + 1 →
-    1 ≤ L → 0 < C.testLevel → C.testLevel ≤ 1 → 0 ≤ θg → 4 * θg ≤ C.edgeUndecidedRate
+    1 ≤ L → 0 < C.testLevel → C.testLevel ≤ 1 → 0 ≤ θg → 8 * θg ≤ C.edgeUndecidedRate
         → 0 ≤ C.edgeTraffic →
     (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.maxLeaves) * Real.log (1 / C.testLevel) < C.edgeExcess j)
-        → 0 ≤ θgs → θgs ≤ 1 →
+        → 0 ≤ θgs → 16 * θgs ≤ C.startUndecidedRate →
+    8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate →
     (∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel
-        → binomSfGe t θgs ((h + 1) / 2) ≤ C.testLevel) →
-    0 ≤ θgpt → 2 * θgpt ≤ 1 →
-    (∀ t h, C.firstLook ≤ t → binomSfGe t C.middleUndecidedRate h < C.testLevel
-        → binomSfGe t (2 * θgpt) ((h + 1) / 2) ≤ C.testLevel) →
+        → t * C.startUndecidedRate / 2 < h) →
+    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate →
     0 ≤ C.searchShare → C.searchShare ≤ 1 →
     (∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊ ≤ C.testLevel) →
     0 ≤ C.edgeUndecidedRate → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → C.firstLook ≤ Xs →
@@ -319,14 +339,14 @@ def RoundGiven : Prop :=
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
         {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
-          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C 0 L 0 (read · ω))
+          (Level4EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}
         + ENNReal.ofReal (fakeRun C (Fintype.card α) S L
           ((S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec) ρ Xe θs' Xs η ν)
         + ENNReal.ofReal ((S + Fintype.card σ + 1) * subOpen C (Fintype.card α) (Fintype.card σ)
           nRec ((S + 1) * C.recordsToMove) θr (termLevel nEnd hP hS θpt' εd'))
-        + ENNReal.ofReal ((2 ^ (C.maxLeaves + 1) * Fintype.card α + T + 3 * (T * T)) * C.testLevel)
+        + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T)) * C.testLevel)
 
 end OrthoDFA
 
