@@ -14,10 +14,9 @@ from .counterexample_probe import (
     Edge,
     EdgeFound,
     Member,
+    Middle,
     Outcome,
-    Pair,
     Path,
-    Triple,
     charges,
     locate,
 )
@@ -88,7 +87,7 @@ class CounterexampleSearch:
     def _apply_outcome(self, outcome: Outcome):
         if isinstance(outcome, Member):
             self._set_edge(outcome.edge, (outcome.target, outcome.witness))
-        elif isinstance(outcome, (EdgeFound, Pair, Triple)):
+        elif isinstance(outcome, (EdgeFound, Middle)):
             self.stretch_searches += 1
             if isinstance(outcome, EdgeFound):
                 edge = (outcome.source, outcome.letter)

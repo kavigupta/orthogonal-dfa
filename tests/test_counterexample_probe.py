@@ -7,9 +7,8 @@ from orthogonal_dfa.l_star.counterexample_probe import (
     EdgeFound,
     End,
     Member,
-    Pair,
+    Middle,
     Start,
-    Triple,
     charges,
     locate,
 )
@@ -59,28 +58,17 @@ class TestOutcomes(unittest.TestCase):
         self.assertEqual(EdgeFound(ODD, 0, ODD, b"\x01"), located.outcome)
         self.assertEqual([4, 2, 1], list(located.sifts))
 
-    def test_an_undecided_middle_between_agreement_and_disagreement_is_a_triple(self):
+    def test_an_undecided_midpoint_ends_the_search_as_a_middle(self):
         located = _locate(parity_cut([b"\x00\x01"]), WRONG_ODD_0, [0, 1, 0, 0])
-        self.assertEqual(Triple(2, b"\x00\x01"), located.outcome)
+        self.assertEqual(Middle(2, b"\x00\x01"), located.outcome)
+        self.assertEqual([4, 2], list(located.sifts))
         self.assertEqual([b"\x00\x01"], charges(located, 0, b"\x00\x01\x00\x00").middle)
 
-    def test_an_undecided_middle_and_left_neighbour_are_a_pair(self):
-        cut = parity_cut([b"\x00\x01", b"\x00"])
-        located = _locate(cut, WRONG_ODD_0, [0, 1, 0, 0])
-        self.assertEqual(Pair(1, b"\x00"), located.outcome)
-        self.assertEqual([4, 2, 1], list(located.sifts))
-
-    def test_an_undecided_middle_and_right_neighbour_are_a_pair_at_the_middle(self):
-        cut = parity_cut([b"\x00\x01", b"\x00\x01\x00"])
-        located = _locate(cut, WRONG_ODD_0, [0, 1, 0, 0])
-        self.assertEqual(Pair(2, b"\x00\x01"), located.outcome)
-        self.assertEqual([4, 2, 1, 3], list(located.sifts))
-
-    def test_the_search_steps_past_a_middle_whose_neighbours_read_alike(self):
+    def test_the_search_does_not_step_past_an_undecided_midpoint(self):
         cut = parity_cut([b"\x00\x00\x00"])
         located = _locate(cut, WRONG_ODD_0, [0, 0, 0, 1, 0, 0])
-        self.assertEqual(EdgeFound(ODD, 0, ODD, b"\x00\x00\x00\x01"), located.outcome)
-        self.assertEqual([6, 3, 2, 4, 5], list(located.sifts))
+        self.assertEqual(Middle(3, b"\x00\x00\x00"), located.outcome)
+        self.assertEqual([6, 3], list(located.sifts))
 
 
 class TestCharging(unittest.TestCase):

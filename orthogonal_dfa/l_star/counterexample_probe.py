@@ -7,11 +7,10 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 from .midfix_tree import MidfixTree
 from .tripartite_search import (
     ALL_AGREE,
-    DISAGREE_LO,
     EDGE,
-    PAIR,
     UNDECIDED_HI,
     UNDECIDED_LO,
+    UNDECIDED_MID,
     tripartite_search,
 )
 
@@ -51,18 +50,12 @@ class EdgeFound:
 
 
 @dataclass(frozen=True)
-class Pair:
+class Middle:
     position: int
     undecided: bytes
 
 
-@dataclass(frozen=True)
-class Triple:
-    position: int
-    undecided: bytes
-
-
-Outcome = Union[Agree, Start, End, Member, EdgeFound, Pair, Triple]
+Outcome = Union[Agree, Start, End, Member, EdgeFound, Middle]
 
 
 @dataclass(frozen=True)
@@ -131,9 +124,8 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
         here = sift(i)[0]
         return None if here is None else here == walk[max(i - k, 0)]
 
-    found = tripartite_search(agrees, k, hi, recover=True)
+    found = tripartite_search(agrees, k, hi, recover=False)
     kind, j = found.kind, found.position
-    assert kind != DISAGREE_LO
     if kind == UNDECIDED_LO:
         outcome = Start(sift(k)[1])
     elif kind == UNDECIDED_HI:
@@ -145,7 +137,8 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
     elif kind == EDGE:
         outcome = EdgeFound(walk[j - 1 - k], x[j - 1], sift(j)[0], x[: j - 1])
     else:
-        outcome = (Pair if kind == PAIR else Triple)(j, sift(j)[1])
+        assert kind == UNDECIDED_MID, kind
+        outcome = Middle(j, sift(j)[1])
     return located(outcome, before + list(found.queried))
 
 
@@ -170,5 +163,5 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
         ),
         undecided_by_edge=undecided_by_edge,
         start=[outcome.undecided] if isinstance(outcome, Start) else [],
-        middle=[outcome.undecided] if isinstance(outcome, (Pair, Triple)) else [],
+        middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
     )
