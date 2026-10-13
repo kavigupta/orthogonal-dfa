@@ -5,6 +5,25 @@
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
+The headline is `LearnerLoopUniform` (`OrthoDFA/LearnerLoop.lean`, proved in
+`Proofs/LoopUniform.lean`). Take probes uniform over the strings of length `L` and suffixes
+uniform over those of length `L + |Q| + 3`, of which at least `pAP` keep every string's
+membership. Then if `L ≥ L₀`, the learner's loop, walking from `L − 1`, stops within `|Q| + 1`
+rounds at a round whose hypothesis's walk and tree part on at most `εd` of the probes and whose
+read is wrong at most `εcov` and undecided at most `εcov` of the time, with probability at least
+`1 − δ`, at most `Kp · G` probes a round. With `s = 1/2 − η₀`, `δ' = δ/(2(|Q|+1))`,
+`ρ = εd/(256(|Q|+1)(|Q||Σ|+1))`:
+
+    Θ  = 1/s + 8/εcov + 1536 |Q|(|Q|+1)
+    P₀ = 128 (2Θ + 4(|Q|+1)/ρ)/(s² pAP) + 16 log((|Q|+4)/(δ'/2))/pAP²
+    R₀ = 6000 (|Q|+2)² Θ³ log((|Q|+4) P₀ Θ/(δ' pAP/8))/s⁴
+    L₀ = 2 + 8 (log(128 (|Q|+5)³ (R₀² + P₀² + 1)/(δ' ρ)) + 28)/(7 log |Σ|)
+
+Unfolded, `7/8 · L₀ log |Σ| ≈ 6 log Θ + 8 log(1/s) + log(1/δ) + log(1/εd) + 2 log log(…) +
+O(log |Q| + log |Σ|)`, logarithmic in `1/δ`, `1/εd`, `1/εcov`, `1/s`, `|Q|` and `1/pAP`.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 257`; the least `L`
+at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 232.
+
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
   polynomial number of queries.
@@ -27,10 +46,12 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 - `LearnerLoopCorrect`: the learner's loop, clustering a family and running level 4 with it each
   round, stops within `|Q| + 1` rounds at a round whose hypothesis and tree agree on all but `εd`
   of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(δc + δ)` (below).
-- `LearnerLoopSimple`: the same at settings the theorem chooses, every hypothesis an explicit
-  inequality: with probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round
-  whose hypothesis and tree part on at most `εd` of the probes and whose read is wrong at most
-  `εcov` of the time and undecided at most `εcov`.
+- `LearnerLoopSimple`: the general form of the headline, at settings the theorem chooses, every
+  hypothesis an explicit inequality on any probes and suffixes and any walk start `k < L`: with
+  probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose hypothesis
+  and tree part on at most `εd` of the probes and whose read is wrong at most `εcov` of the time
+  and undecided at most `εcov`.
+- `LearnerLoopUniform`: the headline above.
 
 ## The loop
 
@@ -49,16 +70,14 @@ within the clustering's collision cap `cap`.
 clustering, no splits that are not genuine, `|Q| + 1` rounds, suffixes of length `L + |Q| + 3`, and
 `δ/(2(|Q| + 1))` for each round's clustering and level 4. Its cap is a closed form under the
 clustering's (`capFloor`, `Proofs/LoopSimple.lean`), from `poolCount_le` and `prefCount_le_poly`.
-For probes and suffixes uniform at lengths `L` and `L + |Q| + 3`, `prefixMax = |Σ|^-k` and every
-hypothesis holds at a `k < L` once `L ≥ L₀`, where
-
-    (L₀ − 1) log |Σ| ≥ log(1/(cap ρ))
-        ≈ log(1/δ) + log(1/εd) + 8 log(1/(1/2 − η₀)) + 6 log L₀ + 20 log |Q| + log |Σ|
-          + 6 log⁺(1/(1536 (L₀+1)(|Q|+1)|Q| εcov/8)) + O(log log) + 90,
-
-so `L₀` is polylogarithmic, indeed logarithmic up to `log L₀`, in every parameter. `εcov` enters
-only once it is below `8/(1536 (L+1)(|Q|+1)|Q|)`, through `ι`. At `|Q| = 3`, `|Σ| = 2`,
-`η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 232` and `k = 231`; `|Σ| = 16` gives 57.
+`LearnerLoopUniform` takes probes and suffixes uniform at lengths `L` and `L + |Q| + 3` and
+`k = L − 1`, so `prefixMax = |Σ|^-k`. `cap_bound` (`Proofs/LoopUniform.lean`) shows the cap is its
+first term, `δ'/(128(|Q|+5)³(RB² + PB² + 1))`, and bounds the band's far side by `1/(Θ(L+1))`, `PB`
+by `(L+1) P₀` and `RB²` by `(L+1)⁷ R₀²`, so `1/(cap ρ) ≤ (L+1)⁷ e^Λ` with `Λ = log(128(|Q|+5)³(R₀² +
+P₀² + 1)/(δ' ρ))` free of `L`; `7 log(L+1) ≤ 28 + (L+1) log |Σ|/8` absorbs the `L`. The proved `L₀`
+is within 1.11–1.30× of the least `L` at which `LearnerLoopSimple`'s hypotheses hold (232 at the
+point above, 57 at `|Σ| = 16`, 298 at `εcov = 1e-9`): the absorption costs `8/7`, and at small
+`εcov` bounding `1/τ` by the sum `Θ(L+1)` costs the rest.
 
 Proved with no `sorry`. The rounds' draws are independent, and given the earlier rounds a round's
 clustering run is drawn as `runMeasure` draws it at their populations (`Proofs/LoopLaw.lean`,

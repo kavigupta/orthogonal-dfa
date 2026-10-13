@@ -149,7 +149,7 @@ lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [Measu
 set_option maxHeartbeats 1000000 in -- the settings and the cap meet `LoopCore`'s conditions
 theorem learner_loop_simple_holds : LearnerLoopSimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J PB RB cap Kp X G
-    hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 hcolD hk1 hk2
+    hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 _ hcolD hk1 hk2
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by

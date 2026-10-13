@@ -48,6 +48,11 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 instance : Nonempty State := ⟨⟨0, 0, 0, 0, 0, 0, 0⟩⟩
 
+/-- Uniform over the strings of length `n`. -/
+def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
+  ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
+    • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
+
 /-- `ν` scaled to a probability, or a point mass where it has no mass or infinite mass. -/
 def popLaw (ν : Measure (FreeMonoid α)) : Measure (FreeMonoid α) :=
   if ν Set.univ = 0 ∨ ν Set.univ = ∞ then Measure.dirac 1 else (ν Set.univ)⁻¹ • ν
@@ -285,7 +290,7 @@ def LearnerLoopSimple : Prop :=
   let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
-  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L →
+  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L → k < P.L →
   collisionMass P.D ≤ cap →
   prefixMax P.D k ≤ cap * ρ →
   24 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ ρ →
@@ -301,6 +306,51 @@ def LearnerLoopSimple : Prop :=
             ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Agrees O P.D k εcov εcov εd)}
         ≤ δ
+
+/-- The learner's loop on uniform probes and suffixes, once the probes are at least `L₀` long.
+With probes uniform over the strings of length `L` and suffixes uniform over those of length
+`L + |Q| + 3`, of which at least `pAP` keep every string's membership, `L ≥ L₀` makes the loop,
+walking from `L − 1`, stop within `|Q| + 1` rounds at a round whose hypothesis's walk and tree
+part on at most `εd` of the probes and whose read is wrong at most `εcov` and undecided at most
+`εcov` of the time, but for chance `δ`. `L₀` is logarithmic in `1/δ`, `1/εd`, `1/εcov`,
+`1/(1/2 − η₀)`, `|Q|` and `1/pAP`, over `log |Σ|`. -/
+def LearnerLoopUniform : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+    (η₀ εcov εd δ pAP : ℝ),
+  let Q : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let L : ℝ := P.L
+  let s : ℝ := 1 / 2 - η₀
+  let δ' : ℝ := δ / (2 * (Q + 1))
+  let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
+  let Θ : ℝ := 1 / s + 8 / εcov + 1536 * Q * (Q + 1)
+  let P₀ : ℝ := 128 * (2 * Θ + 4 * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    + 16 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+  let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
+    * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * pAP)) / s ^ 4
+  let L₀ : ℝ := 2 + 8 * (Real.log (128 * (Q + 5) ^ 3 * (R₀ ^ 2 + P₀ ^ 2 + 1) / (δ' * ρ)) + 28)
+    / (7 * Real.log A)
+  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
+    + 8 * (Q + 3) * A * (L + 1)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'
+  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 →
+  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 2 ≤ Fintype.card α →
+  P.D = uniformStrings P.L →
+  pAP ≤ (uniformStrings (P.L + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  L₀ ≤ L →
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level4.walkStart = P.L - 1 ∧ settings.level4.disagreementRate = εd ∧
+    (settings.level4.probeBudget : ℝ) ≤ Kp * G ∧
+    (loopMeasure μ P.D (uniformStrings (P.L + Fintype.card σ + 3)) (Fintype.card σ + 1)
+        settings.level4.probeBudget).real
+      {draws | let rounds := indecisiveLStarLoop settings O P.D draws
+        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            o.Agrees O P.D (P.L - 1) εcov εcov εd)}
+      ≤ δ
 
 end OrthoDFA
 

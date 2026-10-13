@@ -13,10 +13,13 @@ import OrthoDFA.Proofs.Level4Correct
 import OrthoDFA.Proofs.Level4Risk
 import OrthoDFA.Proofs.Level4RiskBound
 import OrthoDFA.Proofs.TripartiteSearch
-import OrthoDFA.Proofs.LoopSimple
+import OrthoDFA.Proofs.LoopUniform
 
 /-!
 # The theorem
+
+The headline: `LearnerLoopUniform`, stated in `OrthoDFA.LearnerLoop`, holds: on uniform probes and
+suffixes at least `L₀` long, the learner's loop succeeds but for chance `δ`.
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claim stated in `OrthoDFA.FamilyRead`,
@@ -29,6 +32,10 @@ derived from them.
 -/
 
 namespace OrthoDFA
+
+theorem learner_loop_uniform : LearnerLoopUniform := learner_loop_uniform_holds
+
+#print axioms learner_loop_uniform
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
