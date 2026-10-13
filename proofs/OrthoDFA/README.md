@@ -44,17 +44,20 @@
   with no recovery, stopping at the first undecided read; a probe shorter than `walkStart` counts
   as agreeing. A disagreement at decided reads splits the edge's leaf at once (Kearns–Vazirani:
   the probe's prefix and the edge's witness part at the edge's letter and the midfix where their
-  successors' leaves part), and an unlearned edge is learned. The undecided reads probes stop at
-  since the hypothesis last changed are counted together, and the binomial rate test (`rateSide`)
-  at `harvestRate` and level `harvestLevel` harvests once it calls them above; `probesToEnd`
-  probes under one hypothesis end the round consistent. A harvest's sampler (`harvestLaw`) draws
-  a fresh probe, walks it under the final hypothesis, and finds the undecided read it stops at.
+  successors' leaves part), and an unlearned edge is learned. The undecided reads probes stop at,
+  and the disagreements at decided reads, since the hypothesis last changed are counted, and after
+  each probe the binomial rate test (`rateSide`) at level `testLevel` checks them, as at every
+  level: the round harvests once it calls the undecided reads above `harvestRate`, and ends
+  consistent once it calls the disagreements below `disagreementRate`. A disagreement changes the
+  hypothesis, so their count stays 0, and the round ends consistent after
+  `n = consistentAfter disagreementRate testLevel` probes under one hypothesis, the least `n` with
+  `(1 − disagreementRate)^n < testLevel`. A harvest's sampler (`harvestLaw`) draws a fresh probe,
+  walks it under the final hypothesis, and finds the undecided read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
-  all on its side and `stretches · probesToEnd ≤ P`, level 2 ends well, consistent with its
-  hypothesis and tree parting on at most `ε + r` of the probes or a harvest whose sampler yields
-  `y = harvestRate`, but for chance at most
-  `S ((1 − ε)^n + P(Bin(n, r) < K)) + P a`, `S` the stretches, `n = probesToEnd`, `a` the test's
-  level and `K` the fewest undecided reads out of `n` the test calls above `y`.
+  all on its side and `stretches · n ≤ P`, level 2 ends well, consistent with its hypothesis and
+  tree parting on at most `disagreementRate + r` of the probes or a harvest whose sampler yields
+  `y = harvestRate`, but for chance at most `S (a + P(Bin(n, r) < K)) + P a`, `S` the stretches,
+  `a = testLevel` and `K` the fewest undecided reads out of `n` the test calls above `y`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

@@ -9,11 +9,13 @@ first undecided read. A probe shorter than `walkStart` counts as agreeing.
 * A probe that the edges and the tree part on at decided reads splits the leaf the edge leaves,
   on the edge's letter and the midfix where the two leaves its strings' successors sift to part.
 * A probe that reaches an unlearned edge learns it.
-* The undecided reads probes stop at since the hypothesis last changed are counted together, and
-  after each probe that keeps the hypothesis the binomial rate test (`rateSide`) at level
-  `harvestLevel` checks them against `harvestRate`; once it calls them above, the round ends in a
-  harvest.
-* `probesToEnd` probes under one hypothesis end the round consistent.
+* The undecided reads probes stop at, and the disagreements at decided reads, since the hypothesis
+  last changed are counted, and after each probe that keeps the hypothesis the binomial rate test
+  (`rateSide`) at level `testLevel` checks them: the undecided reads against `harvestRate`, and
+  once it calls them above the round ends in a harvest; else the disagreements against
+  `disagreementRate`, and once it calls them below the round ends consistent. A disagreement at
+  decided reads changes the hypothesis, so the stretch's count of them stays 0, and the round ends
+  consistent once the stretch is long enough for no disagreement to be called below.
 -/
 
 namespace OrthoDFA
@@ -27,19 +29,20 @@ structure Level2Settings where
   walkStart : ℕ
   /-- The rate the undecided reads are tested against. -/
   harvestRate : ℝ
-  /-- The rate test's level. -/
-  harvestLevel : ℝ
-  /-- Probes under one hypothesis that end the round consistent. -/
-  probesToEnd : ℕ
+  /-- The rate the disagreements are tested against. -/
+  disagreementRate : ℝ
+  /-- Each rate test's level. -/
+  testLevel : ℝ
 
 /-- The counts are since the hypothesis last changed. -/
 structure Level2State (α : Type*) where
   tree : DTree α
   edges : Edges α
   undecided : ℕ
+  disagreements : ℕ
   probes : ℕ
 
-def newHypothesis (T : DTree α) (E : Edges α) : Level2State α := ⟨T, E, 0, 0⟩
+def newHypothesis (T : DTree α) (E : Edges α) : Level2State α := ⟨T, E, 0, 0, 0⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
 def initialState : Level2State α := newHypothesis (.node 1 .leaf .leaf) fun _ => none
@@ -63,12 +66,14 @@ section
 
 variable (read : FreeMonoid α → ARU) (C : Level2Settings)
 
-/-- A probe that keeps the hypothesis, its `n` undecided reads counted. -/
-noncomputable def keep (s : Level2State α) (n : ℕ) : Level2State α ⊕ RoundEnd Unit :=
-  let s' : Level2State α := ⟨s.tree, s.edges, s.undecided + n, s.probes + 1⟩
-  if rateSide C.harvestRate C.harvestLevel 0 s'.probes s'.undecided = some true then
+/-- A probe that keeps the hypothesis, its `n` undecided reads and `d` disagreements counted. -/
+noncomputable def keep (s : Level2State α) (n d : ℕ) : Level2State α ⊕ RoundEnd Unit :=
+  let s' : Level2State α :=
+    ⟨s.tree, s.edges, s.undecided + n, s.disagreements + d, s.probes + 1⟩
+  if rateSide C.harvestRate C.testLevel 0 s'.probes s'.undecided = some true then
     .inr (.harvest ())
-  else if C.probesToEnd ≤ s'.probes then .inr .consistent
+  else if rateSide C.disagreementRate C.testLevel 0 s'.probes s'.disagreements = some false then
+    .inr .consistent
   else .inl s'
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
@@ -82,12 +87,12 @@ part. -/
 noncomputable def applyProbe (s : Level2State α) (x : FreeMonoid α) :
     Level2State α ⊕ RoundEnd Unit :=
   match probeOrAgree false read s.tree s.edges C.walkStart x with
-  | .agree => keep C s 0
-  | .undecided _ zs _ => keep C s zs.length
+  | .agree => keep C s 0 0
+  | .undecided _ zs _ => keep C s zs.length 0
   | .wrongEdge p c _ t =>
     match s.edges (p, c) with
     | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
-    | none => .inl s
+    | none => keep C s 0 1
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
 

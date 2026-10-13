@@ -1,18 +1,20 @@
 import OrthoDFA.Proofs.IdealProbe
+import OrthoDFA.Proofs.BinomLaw
 
 /-!
 # A round's steps under ideal reads
 
 The invariant `Inv`: every learned edge out of a leaf points where its witness's successor sifts,
-every leaf past the first two is reached by some string, and the stretch is shorter than
-`probesToEnd`.
+every leaf past the first two is reached by some string, the stretch has no disagreement and is
+shorter than `ends`, the probes after which the rate test calls no disagreement below
+`disagreementRate`.
 
 A disagreement at decided reads at the edge `(p, c)` has two strings at `p`, the probe's prefix and
 the edge's witness, whose successors sift to different leaves. They read decidedly apart at `c`
 and the midfix where those leaves part, so both new leaves of the split are reached, and with
 ideal reads the reached leaves are at most `|Q|`. Each step that does not end the round lowers
 `Θ`: a split or a learned edge lowers `Ψ`, which counts the splits left and the unlearned edges,
-and a probe that keeps the hypothesis adds to the stretch, which stays below `probesToEnd`.
+and a probe that keeps the hypothesis adds to the stretch, which stays below `ends`.
 -/
 
 namespace OrthoDFA
@@ -156,14 +158,64 @@ theorem edgesOK_upd {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p t :
   · rw [Function.update_of_ne hqc] at h
     exact hE q hq c' t' w h
 
+/-- The rate tests' rates and level are chances, the disagreements' rate and the level positive. -/
+structure TestsOK : Prop where
+  disagreementRate_pos : 0 < C.disagreementRate
+  disagreementRate_le : C.disagreementRate ≤ 1
+  testLevel_pos : 0 < C.testLevel
+  testLevel_le : C.testLevel ≤ 1
+
+/-- The probes after which a stretch with no disagreement ends consistent. -/
+noncomputable def Level2Settings.ends : ℕ := consistentAfter C.disagreementRate C.testLevel
+
+theorem one_sub_binomSfGe_one (n : ℕ) (p : ℝ) : 1 - binomSfGe n p 1 = (1 - p) ^ n := by
+  have h := binomSfGe_zero_right n p
+  unfold binomSfGe at h ⊢
+  rw [Finset.Icc_eq_cons_Ioc (Nat.zero_le n), Finset.sum_cons,
+    show Finset.Ioc 0 n = Finset.Icc 1 n by ext; simp; omega] at h
+  simp only [Nat.choose_zero_right, Nat.cast_one, pow_zero, one_mul, Nat.sub_zero] at h
+  linarith
+
+variable {C} in
+theorem pow_lt_iff_ends (hC : TestsOK C) (n : ℕ) :
+    (1 - C.disagreementRate) ^ n < C.testLevel ↔ C.ends ≤ n := by
+  have h0 : 0 ≤ 1 - C.disagreementRate := by linarith [hC.disagreementRate_le]
+  have h1 : 1 - C.disagreementRate < 1 := by linarith [hC.disagreementRate_pos]
+  have hne : {n | (1 - C.disagreementRate) ^ n < C.testLevel}.Nonempty :=
+    exists_pow_lt_of_lt_one hC.testLevel_pos h1
+  constructor
+  · exact fun h => Nat.sInf_le h
+  · intro h
+    exact lt_of_le_of_lt (pow_le_pow_of_le_one h0 h1.le h) (Nat.sInf_mem hne)
+
+variable {C} in
+theorem one_le_ends (hC : TestsOK C) : 1 ≤ C.ends := by
+  by_contra h
+  have := (pow_lt_iff_ends hC 0).2 (by omega)
+  rw [pow_zero] at this
+  linarith [hC.testLevel_le]
+
+variable {C} in
+/-- With no disagreement, the rate test calls the disagreements below `disagreementRate` from
+look `ends` on. -/
+theorem rateSide_clean (hC : TestsOK C) (n : ℕ) :
+    rateSide C.disagreementRate C.testLevel 0 n 0 = some false ↔ C.ends ≤ n := by
+  rw [← pow_lt_iff_ends hC, ← one_sub_binomSfGe_one]
+  unfold rateSide
+  have : ¬ binomSfGe n C.disagreementRate 0 < C.testLevel := by
+    rw [binomSfGe_zero_right]; linarith [hC.testLevel_le]
+  simp only [zero_le, if_true, this, if_false, zero_add]
+  split_ifs <;> simp [*]
+
 /-- The rate test calls the undecided reads counted above `harvestRate`. -/
 def Fires (s : Level2State α) : Prop :=
-  binomSfGe s.probes C.harvestRate s.undecided < C.harvestLevel
+  binomSfGe s.probes C.harvestRate s.undecided < C.testLevel
 
 structure Inv (s : Level2State α) : Prop where
   edges : EdgesOK read s.tree s.edges
   reached : Reached read s.tree
-  probes_lt : s.probes < C.probesToEnd
+  clean : s.disagreements = 0
+  probes_lt : s.probes < C.ends
 
 /-- The probe disagrees at decided reads, or reaches an unlearned edge: it changes the
 hypothesis. -/
@@ -192,7 +244,7 @@ def X : ℕ := (nσ + 2) * Fintype.card α + 1
 
 def Ψ (s : Level2State α) : ℕ := (nσ + 2 - s.tree.leaves.length) * X (α := α) nσ + unlearned s
 
-def Θ (s : Level2State α) : ℕ := Ψ nσ s * C.probesToEnd + (C.probesToEnd - 1 - s.probes)
+noncomputable def Θ (s : Level2State α) : ℕ := Ψ nσ s * C.ends + (C.ends - 1 - s.probes)
 
 omit [DecidableEq α] in
 theorem unlearned_le (s : Level2State α) : unlearned s ≤ s.tree.leaves.length * Fintype.card α := by
@@ -243,17 +295,17 @@ theorem Ψ_lt_split {s : Level2State α} {p : List Bool} (hp : p ∈ s.tree.leav
   omega
 
 theorem Θ_lt_same {s s' : Level2State α} (ht : s'.tree = s.tree) (he : s'.edges = s.edges)
-    (hp : s'.probes = s.probes + 1) (hlt : s'.probes < C.probesToEnd) : Θ C nσ s' < Θ C nσ s := by
+    (hp : s'.probes = s.probes + 1) (hlt : s'.probes < C.ends) : Θ C nσ s' < Θ C nσ s := by
   have hΨ : Ψ nσ s' = Ψ nσ s := by unfold Ψ unlearned; rw [ht, he]
   unfold Θ
   rw [hΨ]
   omega
 
-theorem Θ_lt_change {s : Level2State α} (hs : s.probes < C.probesToEnd) (T : DTree α)
+theorem Θ_lt_change {s : Level2State α} (hs : s.probes < C.ends) (T : DTree α)
     (E : Edges α) (hΨ : Ψ nσ (newHypothesis T E) < Ψ nσ s) :
     Θ C nσ (newHypothesis T E) < Θ C nσ s := by
   unfold Θ
-  have := Nat.mul_le_mul_right C.probesToEnd (show Ψ nσ (newHypothesis T E) + 1 ≤ Ψ nσ s by omega)
+  have := Nat.mul_le_mul_right C.ends (show Ψ nσ (newHypothesis T E) + 1 ≤ Ψ nσ s by omega)
   simp only [newHypothesis] at this ⊢
   rw [Nat.add_mul, one_mul] at this
   omega
@@ -271,8 +323,8 @@ theorem Ψ_start : Ψ nσ (initialState : Level2State α) + 1 ≤ stretches nσ 
   rw [show nσ + 2 - 2 = nσ by omega]
   omega
 
-theorem Θ_start (hn : 1 ≤ C.probesToEnd) :
-    Θ C nσ (initialState : Level2State α) < stretches nσ (Fintype.card α) * C.probesToEnd := by
+theorem Θ_start (hn : 1 ≤ C.ends) :
+    Θ C nσ (initialState : Level2State α) < stretches nσ (Fintype.card α) * C.ends := by
   have hu := unlearned_le (initialState : Level2State α)
   rw [leaves_start] at hu
   have hΨ : Ψ nσ (initialState : Level2State α) ≤ stretches nσ (Fintype.card α) - 1 := by
@@ -283,9 +335,9 @@ theorem Θ_start (hn : 1 ≤ C.probesToEnd) :
     omega
   have hs : 1 ≤ stretches nσ (Fintype.card α) := by unfold stretches; omega
   unfold Θ
-  have := Nat.mul_le_mul_right C.probesToEnd hΨ
+  have := Nat.mul_le_mul_right C.ends hΨ
   rw [Nat.sub_mul, one_mul] at this
-  have : C.probesToEnd ≤ stretches nσ (Fintype.card α) * C.probesToEnd :=
+  have : C.ends ≤ stretches nσ (Fintype.card α) * C.ends :=
     Nat.le_mul_of_pos_left _ hs
   omega
 
@@ -297,9 +349,9 @@ section Step
 
 variable {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
-theorem inv_fresh {T : DTree α} {E : Edges α} (hn : 1 ≤ C.probesToEnd) (hE : EdgesOK read T E)
+theorem inv_fresh {T : DTree α} {E : Edges α} (hn : 1 ≤ C.ends) (hE : EdgesOK read T E)
     (hr : Reached read T) : Inv read C (newHypothesis T E) :=
-  ⟨hE, hr, by simp [newHypothesis]; omega⟩
+  ⟨hE, hr, rfl, by simp [newHypothesis]; omega⟩
 
 omit [DecidableEq α] in
 theorem leaves_le_two {T : DTree α} [Fintype α] (hI : IdealReads read M side)
@@ -307,7 +359,7 @@ theorem leaves_le_two {T : DTree α} [Fintype α] (hI : IdealReads read M side)
   leaves_le_of_reached read hI hr
 
 /-- A step that changes the hypothesis: a split or a learned edge, keeping `Inv`, lowering `Ψ`. -/
-theorem step_change [Fintype α] (hI : IdealReads read M side) (hn : 1 ≤ C.probesToEnd)
+theorem step_change [Fintype α] (hI : IdealReads read M side) (hn : 1 ≤ C.ends)
     {s : Level2State α} (hs : Inv read C s) {x : FreeMonoid α}
     (hc : Changes (probeOrAgree false read s.tree s.edges C.walkStart x)) :
     ∃ T E, applyProbe read C s x = .inl (newHypothesis T E) ∧ Inv read C (newHypothesis T E)
@@ -346,13 +398,13 @@ theorem rateSide_zero (θ a : ℝ) (n h : ℕ) :
   split_ifs with h1 h2 <;> simp [*]
 
 /-- A step that keeps the hypothesis counts the probe: the round goes on with the test silent,
-harvests with it firing, or ends consistent after `probesToEnd` probes with it silent. -/
-theorem step_same {s : Level2State α} {x : FreeMonoid α}
-    (hc : ¬ Changes (probeOrAgree false read s.tree s.edges C.walkStart x)) :
+harvests with it firing, or ends consistent after `ends` probes with it silent. -/
+theorem step_same (hC : TestsOK C) {s : Level2State α} (hd : s.disagreements = 0)
+    {x : FreeMonoid α} (hc : ¬ Changes (probeOrAgree false read s.tree s.edges C.walkStart x)) :
     let s' := counted s (probeOrAgree false read s.tree s.edges C.walkStart x)
-    (applyProbe read C s x = .inl s' ∧ s'.probes < C.probesToEnd ∧ ¬ Fires C s')
+    (applyProbe read C s x = .inl s' ∧ s'.probes < C.ends ∧ ¬ Fires C s')
       ∨ (applyProbe read C s x = .inr (.harvest ()) ∧ Fires C s')
-      ∨ (applyProbe read C s x = .inr .consistent ∧ C.probesToEnd ≤ s'.probes
+      ∨ (applyProbe read C s x = .inr .consistent ∧ C.ends ≤ s'.probes
         ∧ ¬ Fires C s') := by
   intro s'
   have hs' : s' = counted s (probeOrAgree false read s.tree s.edges C.walkStart x) := rfl
@@ -369,24 +421,32 @@ theorem step_same {s : Level2State α} {x : FreeMonoid α}
     simp only
     unfold keep
     simp only
+    simp only [hd, add_zero]
     split_ifs with h1 h2
     · exact Or.inr (Or.inl ⟨rfl, (rateSide_zero _ _ _ _).1 h1⟩)
-    · exact Or.inr (Or.inr ⟨rfl, h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
-    · exact Or.inl ⟨rfl, by simp only [counted]; omega, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
+    · exact Or.inr (Or.inr ⟨by simp [counted, hd, Outcome.undecidedStrings],
+        (rateSide_clean hC _).1 h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
+    · exact Or.inl ⟨by simp [counted, hd, Outcome.undecidedStrings], by
+        simp only [counted]; exact not_le.1 fun h => h2 ((rateSide_clean hC _).2 h),
+        fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
   | undecided k zs cl =>
     simp only
     unfold keep
     simp only
+    simp only [hd, add_zero]
     split_ifs with h1 h2
     · exact Or.inr (Or.inl ⟨rfl, (rateSide_zero _ _ _ _).1 h1⟩)
-    · exact Or.inr (Or.inr ⟨rfl, h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
-    · exact Or.inl ⟨rfl, by simp only [counted]; omega, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
+    · exact Or.inr (Or.inr ⟨by simp [counted, hd, Outcome.undecidedStrings],
+        (rateSide_clean hC _).1 h2, fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩)
+    · exact Or.inl ⟨by simp [counted, hd, Outcome.undecidedStrings], by
+        simp only [counted]; exact not_le.1 fun h => h2 ((rateSide_clean hC _).2 h),
+        fun h => h1 ((rateSide_zero _ _ _ _).2 h)⟩
 
 omit [DecidableEq α] in
 /-- Counting a probe that keeps the hypothesis keeps `Inv` where the round goes on. -/
 theorem inv_counted {s : Level2State α} (hs : Inv read C s) (o : Outcome α)
-    (hlt : (counted s o).probes < C.probesToEnd) : Inv read C (counted s o) :=
-  ⟨hs.edges, hs.reached, hlt⟩
+    (hlt : (counted s o).probes < C.ends) : Inv read C (counted s o) :=
+  ⟨hs.edges, hs.reached, hs.clean, hlt⟩
 
 end Step
 
