@@ -35,14 +35,21 @@
   edges between the leaves.
 - `OrthoDFA/Level2Probe.lean` and `OrthoDFA/Level2.lean` — level 2 of indecisive L\*,
   `indecisiveLStarLevel2`. Its probe walks to where the walk stops, sifts the successor of an
-  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`;
-  a probe shorter than `walkStart` counts as agreeing. A harvest is the site whose undecided
-  strings reached `harvestSize`; its sampler (`harvestLaw`) draws a fresh probe, walks it under the
-  final hypothesis, and finds the probe's undecided strings at the site.
+  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`
+  with no recovery, stopping at the first undecided read; a probe shorter than `walkStart` counts
+  as agreeing. A disagreement at decided reads splits the edge's leaf at once (Kearns–Vazirani:
+  the probe's prefix and the edge's witness part at the edge's letter and the midfix where their
+  successors' leaves part), and an unlearned edge is learned. The undecided reads probes stop at
+  since the hypothesis last changed are counted together, and the binomial rate test (`rateSide`)
+  at `harvestRate` and level `harvestLevel` harvests once it calls them above; `probesToEnd`
+  probes under one hypothesis end the round consistent. A harvest's sampler (`harvestLaw`) draws
+  a fresh probe, walks it under the final hypothesis, and finds the undecided read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
-  all on its side, level 2 on `P` probes ends well, a harvest's sampler yielding `y`, but for
-  chance at most `(P + 1)(1 − ε)^n + P (2 + (|Q| + 2)|Σ|) y`, `n` the clean probes in a row that
-  end it.
+  all on its side and `stretches · probesToEnd ≤ P`, level 2 ends well, consistent with its
+  hypothesis and tree parting on at most `ε + r` of the probes or a harvest whose sampler yields
+  `y = harvestRate`, but for chance at most
+  `S ((1 − ε)^n + P(Bin(n, r) < K)) + P a`, `S` the stretches, `n = probesToEnd`, `a` the test's
+  level and `K` the fewest undecided reads out of `n` the test calls above `y`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
