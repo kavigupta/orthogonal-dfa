@@ -28,6 +28,10 @@ Known modelling gap. The Python's `Replay` replays the round's last hypothesis, 
 here mixes every hypothesis the harvest's counts were taken under. Closing it would key
 `HarvestSource` provenance on the hypothesis and the site.
 
+Known modelling gap. The gate draws its certification pool to at most twice its size. The
+Python caps each verdict's extra draws at `certification_budget`, but `sample_suffix_family`'s
+outer resampling loop is unbounded.
+
 Known modelling gap. The Python reads the family with its seed, at `pst.accept_thresh` and
 `pst.reject_thresh`.
 
