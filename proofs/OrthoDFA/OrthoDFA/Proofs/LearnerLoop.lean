@@ -291,9 +291,9 @@ def LoopCore : Prop :=
   0 < cap →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     cap ≤ qualityCap η₀ pops indecisionLimit εcov gateLevel δc pAP c slack) →
-  (∀ pops : Finset (Option (Fin K)),
+  (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP c ≤ NS) →
-  (∀ pops : Finset (Option (Fin K)),
+  (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP c ≤ NP) →
   3 * (K + 1) * NP * (P.L + 1) * cap ≤ 1 →
   K * (NS ^ 2 + 16 * (K + 1) ^ 2 * NP ^ 2) * cap ≤ δc →
@@ -340,10 +340,20 @@ theorem loop_core_holds : LoopCore := by
     rw [hcrossd]
     field_simp
     ring
-  obtain ⟨schedule, hband, hsize, hclust⟩ := clustering_schedule_exists O K
+  obtain ⟨schedule₀, hband₀, hsize₀, hclust₀⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
     η₀ ι gate cross εcov δc slack pAP hη hη₀ (flat_of_length Ls) hpAP hι hι1 hg hg1 hcr hε hε1
     hδc hδc1 hsl cap (fun pops hp => by rw [hc]; exact hcapq pops hp)
+  -- the loop's populations always hold `D`'s
+  set schedule : Finset (Option (Fin K)) → Finset State := fun pops =>
+    if none ∈ pops then schedule₀ pops else ∅ with hschedd
+  have hband : ∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
+      ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
+        BandPasses N B.lo (B.hi + 1) p r cross ε₂ κ := fun pops B hB => by
+    simp only [hschedd] at hB
+    split_ifs at hB
+    · exact hband₀ pops B hB
+    · simp at hB
   obtain ⟨s4, hwalk, hdis, hbud, hmax, hrec, hl4⟩ :=
     level4_guarantee_all M (εd / 2) P.L δ S k hδ hδ1 (by positivity) (by linarith) hL1
   set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
@@ -374,9 +384,17 @@ theorem loop_core_holds : LoopCore := by
       _ ≤ cap * 1 := mul_le_mul_of_nonneg_left hρ4 hcap.le
       _ = cap := mul_one _
   have hNS : ∀ pops, schedNS (settings.schedule pops) ≤ NS := fun pops =>
-    Finset.sup_le fun B hB => by rw [(hsize pops B hB).1, hc]; exact hNSb pops
+    Finset.sup_le fun B hB => by
+      simp only [hset, hschedd] at hB
+      split_ifs at hB with hp
+      · rw [(hsize₀ pops B hB).1, hc]; exact hNSb pops hp
+      · simp at hB
   have hNP : ∀ pops, schedNP (settings.schedule pops) ≤ NP := fun pops =>
-    Finset.sup_le fun B hB => (hsize pops B hB).2.trans (by rw [hc]; exact hNPb pops)
+    Finset.sup_le fun B hB => by
+      simp only [hset, hschedd] at hB
+      split_ifs at hB with hp
+      · exact (hsize₀ pops B hB).2.trans (by rw [hc]; exact hNPb pops hp)
+      · simp at hB
   have hcolSf : collisionMass Dsf ≤ cap := collisionMass_le_of_atoms hatom
   have hDat : ∀ t, P.D.real {t} ≤ cap := fun t =>
     (real_singleton_le_prefixMax P.D k t).trans (hk1.trans hcap4)
@@ -427,8 +445,9 @@ theorem loop_core_holds : LoopCore := by
           (clusterRun ((histCodes settings O P.D N p.1 p.2 r).map dec) (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoCollD settings P.D Ls NS NP (histCodes settings O P.D N p.1 p.2 r) p.2 r hr} ≤ δc :=
     fun r hr => loop_cluster_round_le_persist settings O P Dsf Ls NS NP N εcov δc slack cap
-      hδc.le hC hN hNS hNP (fun pops hpops D hD hDlen hDcol =>
-        hclust pops hpops D Dsf hD hDsf (fun j hj => by
+      hδc.le hC hN hNS hNP (fun pops hpops D hD hDlen hDcol => by
+        rw [show settings.schedule pops = schedule₀ pops from if_pos hpops]
+        exact hclust₀ pops hpops D Dsf hD hDsf (fun j hj => by
           refine measure_mono_null (fun p hp => ?_) (hDlen j hj)
           simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_lt] at hp ⊢
           exact hp)
@@ -637,9 +656,9 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
   exact loop_core_holds M O P K S Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap k hL hη hη₀ hι
     hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0
     (fun pops h => (min_le_left _ _).trans (hcapQq pops h))
-    (fun pops => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2) pAP c)
+    (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2) pAP c)
       (Finset.mem_univ pops))
-    (fun pops => Finset.le_sup (f := fun pops => prefCount η₀ pops ι εcov (δc / 2) gate pAP c)
+    (fun pops _ => Finset.le_sup (f := fun pops => prefCount η₀ pops ι εcov (δc / 2) gate pAP c)
       (Finset.mem_univ pops))
     hcapP hcapC hk0 hk1 hk2
 
