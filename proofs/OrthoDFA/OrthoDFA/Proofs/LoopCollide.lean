@@ -210,28 +210,30 @@ def prefDraw (harvests : List (Measure (FreeMonoid α))) (c : ClusterRest α K) 
   if b then (runOf harvests c).2 j a else (runOf harvests c).1.2 j a
 
 /-- `NoColl`, on the draws: through round `r` the first `NS` suffix draws are `Ls` long and the
-first `2 NP` prefix draws shorter, and round `r` repeats none of an earlier round's. -/
+first `2 NP` prefix draws of its populations shorter, and round `r` repeats none of an earlier
+round's. -/
 def NoCollD (Ls NS NP : ℕ) (c : List (HarvestCode α))
     (x : Fin K → RoundDraws α K settings.level4.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
   (∀ i : Fin K, i.1 ≤ r → ∀ a < NS, ((x i).1.1 a).toList.length = Ls)
-    ∧ (∀ i : Fin K, i.1 ≤ r → ∀ j a b, a < 2 * NP →
-      (prefDraw (popsAt settings D c i) (x i).1 j a b).toList.length < Ls)
+    ∧ (∀ i : Fin K, i.1 ≤ r → ∀ j ∈ loopPopulations K (popsAt settings D c i).length, ∀ a b,
+      a < 2 * NP → (prefDraw (popsAt settings D c i) (x i).1 j a b).toList.length < Ls)
     ∧ (∀ i : Fin K, i.1 < r → ∀ a < NS, ∀ a' < NS, (x i).1.1 a ≠ (x ⟨r, hr⟩).1.1 a')
-    ∧ (∀ i : Fin K, i.1 < r → ∀ j a b, a < 2 * NP → ∀ j' a' b', a' < 2 * NP →
-      prefDraw (popsAt settings D c i) (x i).1 j a b
+    ∧ (∀ i : Fin K, i.1 < r → ∀ j ∈ loopPopulations K (popsAt settings D c i).length, ∀ a b,
+      a < 2 * NP → ∀ j' ∈ loopPopulations K (popsAt settings D c r).length, ∀ a' b',
+      a' < 2 * NP → prefDraw (popsAt settings D c i) (x i).1 j a b
         ≠ prefDraw (popsAt settings D c r) (x ⟨r, hr⟩).1 j' a' b')
 
 lemma mem_prefsOf {harvests : List (Measure (FreeMonoid α))} {c : ClusterRest α K} {NP : ℕ}
     (hNP : schedNP (settings.schedule (loopPopulations K harvests.length)) ≤ NP)
     {p : FreeMonoid α} (hp : p ∈ prefsOf settings harvests c) :
-    ∃ j a b, a < 2 * NP ∧ p = prefDraw harvests c j a b := by
+    ∃ j ∈ loopPopulations K harvests.length, ∃ a b, a < 2 * NP ∧ p = prefDraw harvests c j a b := by
   rcases Finset.mem_union.1 hp with hp | hp
-  · obtain ⟨j, -, hp⟩ := Finset.mem_biUnion.1 hp
+  · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.1 hp
-    exact ⟨j, a, false, by have := Finset.mem_range.1 ha; omega, rfl⟩
-  · obtain ⟨j, -, hp⟩ := Finset.mem_biUnion.1 hp
+    exact ⟨j, hj, a, false, by have := Finset.mem_range.1 ha; omega, rfl⟩
+  · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.1 hp
-    exact ⟨j, a, true, by have := Finset.mem_range.1 ha; omega, rfl⟩
+    exact ⟨j, hj, a, true, by have := Finset.mem_range.1 ha; omega, rfl⟩
 
 lemma noColl_of_noCollD {Ls NS NP : ℕ} {c : List (HarvestCode α)}
     {x : Fin K → RoundDraws α K settings.level4.probeBudget} {r : ℕ} {hr : r < K}
@@ -242,15 +244,15 @@ lemma noColl_of_noCollD {Ls NS NP : ℕ} {c : List (HarvestCode α)}
   refine ⟨fun i hi v hv => ?_, fun i hi p hp => ?_, fun i hi => ?_, fun i hi => ?_⟩
   · obtain ⟨a, ha, rfl⟩ := Finset.mem_image.1 hv
     exact h1 i hi a (Finset.mem_range.1 ha)
-  · obtain ⟨j, a, b, ha, rfl⟩ := mem_prefsOf settings (hNP i) hp
-    exact h2 i hi j a b ha
+  · obtain ⟨j, hj, a, b, ha, rfl⟩ := mem_prefsOf settings (hNP i) hp
+    exact h2 i hi j hj a b ha
   · refine Finset.disjoint_left.2 fun v hv hv' => ?_
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.1 hv
     obtain ⟨a', ha', h'⟩ := Finset.mem_image.1 hv'
     exact h3 i hi a (Finset.mem_range.1 ha) a' (Finset.mem_range.1 ha') h'.symm
   · refine Finset.disjoint_left.2 fun p hp hp' => ?_
-    obtain ⟨j, a, b, ha, rfl⟩ := mem_prefsOf settings (hNP i) hp
-    obtain ⟨j', a', b', ha', h'⟩ := mem_prefsOf settings (hNP ⟨r, hr⟩) hp'
-    exact h4 i hi j a b ha j' a' b' ha' h'
+    obtain ⟨j, hj, a, b, ha, rfl⟩ := mem_prefsOf settings (hNP i) hp
+    obtain ⟨j', hj', a', b', ha', h'⟩ := mem_prefsOf settings (hNP ⟨r, hr⟩) hp'
+    exact h4 i hi j hj a b ha j' hj' a' b' ha' h'
 
 end OrthoDFA

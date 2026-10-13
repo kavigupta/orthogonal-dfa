@@ -98,16 +98,17 @@ lemma measurableSet_noCollD (Ls NS NP : ℕ) (c : List (HarvestCode α)) (r : �
   · exact Measurable.forall fun i => measurable_const.imp (Measurable.forall fun a =>
       measurable_const.imp (hone (hsf i a) (fun v => v.toList.length = Ls)))
   · exact Measurable.forall fun i => measurable_const.imp (Measurable.forall fun j =>
-      Measurable.forall fun a => Measurable.forall fun b => measurable_const.imp
-        (hone (hpd i _ (hpops i) j a b) (fun v => v.toList.length < Ls)))
+      measurable_const.imp (Measurable.forall fun a => Measurable.forall fun b =>
+        measurable_const.imp (hone (hpd i _ (hpops i) j a b) (fun v => v.toList.length < Ls))))
   · exact Measurable.forall fun i => measurable_const.imp (Measurable.forall fun a =>
       measurable_const.imp (Measurable.forall fun a' => measurable_const.imp
         (htwo (hsf i a) (hsf ⟨r, hr⟩ a'))))
   · exact Measurable.forall fun i => measurable_const.imp (Measurable.forall fun j =>
-      Measurable.forall fun a => Measurable.forall fun b => measurable_const.imp
-        (Measurable.forall fun j' => Measurable.forall fun a' => Measurable.forall fun b' =>
-          measurable_const.imp (htwo (hpd i _ (hpops i) j a b)
-            (hpd ⟨r, hr⟩ _ (hpops r) j' a' b'))))
+      measurable_const.imp (Measurable.forall fun a => Measurable.forall fun b =>
+        measurable_const.imp (Measurable.forall fun j' => measurable_const.imp
+          (Measurable.forall fun a' => Measurable.forall fun b' =>
+            measurable_const.imp (htwo (hpd i _ (hpops i) j a b)
+              (hpd ⟨r, hr⟩ _ (hpops r) j' a' b'))))))
 
 end Draws
 
