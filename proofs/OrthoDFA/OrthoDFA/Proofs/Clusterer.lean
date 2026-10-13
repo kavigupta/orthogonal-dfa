@@ -52,7 +52,7 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
           (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
+    ∧ ∃ e ≤ B.npref, admitted mq B.lo B.hi α
         (clusterBy rule mq populations x B) (certOf uni (B.npref + e) x) (oracleNoise x)}
 
 open scoped Classical in
@@ -71,6 +71,6 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
     {uni : J} (huni : uni ∈ populations) (indecisionLimit α : ℝ) (B : State) :
     retAll rule mq populations indecisionLimit α B ⊆ retBy rule mq populations uni indecisionLimit α B :=
-  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, by simpa using h3 uni huni⟩
+  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, Nat.zero_le _, by simpa using h3 uni huni⟩
 
 end OrthoDFA

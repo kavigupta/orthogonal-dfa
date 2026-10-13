@@ -363,15 +363,15 @@ theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option
           ∧ ∀ j ∈ pops, (((certOf j B.npref x).filter fun p => ¬ decided O.mq B.lo (B.hi + 1)
             (insert 1 (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x))) p
               (oracleNoise x)).card : ℝ) ≤ ι * (certOf j B.npref x).card}
-        ∩ ⋃ e : ℕ, {x | admitted O.mq B.lo B.hi a
+        ∩ ⋃ e : ℕ, ⋃ _ : e ≤ B.npref, {x | admitted O.mq B.lo B.hi a
           (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x))
           (certOf uni (B.npref + e) x) (oracleNoise x)} := by
     ext x
     simp only [ret, familyAt, clusterAt_eq, clusterAt_eq_clusterOf, cl, Set.mem_setOf_eq,
-      Set.mem_inter_iff, Set.mem_iUnion]
+      Set.mem_inter_iff, Set.mem_iUnion, exists_prop]
     tauto
   rw [hret]
-  refine MeasurableSet.inter ?_ (MeasurableSet.iUnion fun e => ?_)
+  refine MeasurableSet.inter ?_ (MeasurableSet.iUnion fun e => MeasurableSet.iUnion fun _ => ?_)
   · -- the size and the FNR test, at the table, the pool and the certificates
     refine measurableSet_of_data
       (fun x : Run Ω (FreeMonoid α) (Option (Fin K)) =>
