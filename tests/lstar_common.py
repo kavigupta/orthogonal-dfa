@@ -3,7 +3,6 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from orthogonal_dfa.l_star.counterexample_search import OUT_OF_PROBES, TOO_BIG
 from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import (
@@ -13,6 +12,7 @@ from orthogonal_dfa.l_star.learn import (
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
+from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES, TOO_BIG
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import rate_side
 from orthogonal_dfa.l_star.structures import (

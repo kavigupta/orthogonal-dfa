@@ -4,6 +4,8 @@ from typing import Callable, Iterator, List
 
 from .counterexample_probe import ends
 from .counterexample_search import CounterexampleSearch
+from .hypothesis_dfa import HypothesisDFA
+from .round_end import succeeds_at
 
 MAX_BLOCK = 64
 
@@ -15,15 +17,17 @@ def warmed_draws(
 ) -> Iterator[bytes]:
     # Not trajectory-neutral: a block is drawn ahead, and one that sees a change
     # has read for its later probes under the old hypothesis.
-    config = search.config
+    config, hypothesis = search.config, search.hypothesis
     block, done = 1, 0
     while done < config.max_probes:
-        version = search.version
+        version = hypothesis.version
         until_success = next(
             (
                 more
                 for more in range(1, MAX_BLOCK)
-                if search.succeeds_at(search.stretch_probes + more)
+                if succeeds_at(
+                    search.counts, config, search.counts.stretch_probes + more
+                )
             ),
             MAX_BLOCK,
         )
@@ -32,17 +36,17 @@ def warmed_draws(
         with_ends = [
             (x, positions)
             for x in xs
-            for positions in [ends(search.cut, search.tree, search.edges, config.k, x)]
+            for positions in [ends(hypothesis, config.k, x)]
             if positions
         ]
-        _warm(search, warm, [x[: positions[0]] for x, positions in with_ends])
+        _warm(hypothesis, warm, [x[: positions[0]] for x, positions in with_ends])
         first_decided = [
             (x, positions)
             for x, positions in with_ends
-            if search.sift(x[: positions[0]]) is not None
+            if hypothesis.sift(x[: positions[0]]) is not None
         ]
         _warm(
-            search,
+            hypothesis,
             warm,
             [
                 x[: positions[1]]
@@ -52,15 +56,15 @@ def warmed_draws(
         )
         yield from xs
         done += size
-        block = min(2 * block, MAX_BLOCK) if search.version == version else 1
+        block = min(2 * block, MAX_BLOCK) if hypothesis.version == version else 1
 
 
 def _warm(
-    search: CounterexampleSearch, warm: Callable[[List[bytes]], None], seqs: List[bytes]
+    hypothesis: HypothesisDFA, warm: Callable[[List[bytes]], None], seqs: List[bytes]
 ):
     def read(pairs):
         strings = [seq + midfix for seq, midfix in pairs]
         warm(strings)
-        return [search.cut(z) for z in strings]
+        return [hypothesis.cut(z) for z in strings]
 
-    search.tree.classify_many(seqs, read)
+    hypothesis.tree.classify_many(seqs, read)

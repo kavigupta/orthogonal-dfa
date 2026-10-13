@@ -17,7 +17,7 @@ from automata.fa.dfa import DFA
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .counterexample_config import counterexample_search_config
-from .counterexample_search import HARVESTS, SUCCESS, CounterexampleSearch
+from .counterexample_search import CounterexampleSearch
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -32,6 +32,7 @@ from .prefix_sources import (
 )
 from .probe_batching import warmed_draws
 from .progress import counter, track
+from .round_end import HARVESTS, SUCCESS
 from .suffix_family import SuffixFamily
 from .tracker import SynthesisTracker
 
@@ -232,19 +233,19 @@ def _certified(pst, dfa, *, index, tracker):
     return None, verdict.blamed
 
 
-def _next_harvest(pst, hypothesis, ending, blamed):
+def _next_harvest(pst, search, ending, blamed):
     """The strings the next family search is shown, and what draws more of them:
     a success the certificate refused shows the blamed state's undecided reads."""
     draw = UniformSource(pst).draw
     if blamed is None or ending.harvest:
-        return ending.harvest, Replay(hypothesis, harvest_reader(ending), draw)
-    leaf = hypothesis.tree.path_of(blamed)
+        return ending.harvest, Replay(search, harvest_reader(ending), draw)
+    leaf = search.hypothesis.tree.path_of(blamed)
 
     def at_leaf(by_edge):
         return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
 
-    return at_leaf(hypothesis.edge_harvest), Replay(
-        hypothesis, lambda charged: at_leaf(charged.undecided_by_edge), draw
+    return at_leaf(search.counts.edge_harvest), Replay(
+        search, lambda charged: at_leaf(charged.undecided_by_edge), draw
     )
 
 
@@ -260,21 +261,21 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
 
 
 def _counterexample_search(pst, vs, *, acc_threshold):
-    """The round's hypothesis and how it ended."""
+    """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
-    hypothesis = CounterexampleSearch(
+    search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
-    with counter(hypothesis.config.max_probes, "Probing") as pbar:
+    with counter(search.config.max_probes, "Probing") as pbar:
 
         def draw():
             pbar.update(1)
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
-        ending = hypothesis.run(warmed_draws(hypothesis, draw, family.read_many))
-    return hypothesis, ending
+        ending = search.run(warmed_draws(search, draw, family.read_many))
+    return search, ending
 
 
 def _hypothesis_dfa(pst, hypothesis):
@@ -323,13 +324,12 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        hypothesis, ending = _counterexample_search(
-            pst, vs, acc_threshold=acc_threshold
-        )
+        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        hypothesis = search.hypothesis
         tracker.on_search_ended(ending, index)
         dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
         print(
-            f"[round {index}] {ending.kind} after {hypothesis.probes} probes: "
+            f"[round {index}] {ending.kind} after {search.counts.probes} probes: "
             f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
             f"family of {len(vs)} suffixes ({sampled - started:.1f}s sampling, "
             f"{time.monotonic() - sampled:.1f}s probing)"
@@ -368,7 +368,7 @@ def counterexample_driven_synthesis(
         if _uncertified_too_long(index, uncertified_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        strings, provenance = _next_harvest(pst, hypothesis, ending, blamed)
+        strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
         if (
             _family_too_loose(ending, true_acc, acc_threshold, taken)

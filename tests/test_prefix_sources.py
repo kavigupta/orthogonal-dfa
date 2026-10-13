@@ -11,7 +11,6 @@ from types import SimpleNamespace
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.counterexample_search import HARVEST_EDGE, Ending
 from orthogonal_dfa.l_star.prefix_sources import (
     HarvestSource,
     Replay,
@@ -20,6 +19,7 @@ from orthogonal_dfa.l_star.prefix_sources import (
     state_source,
 )
 from orthogonal_dfa.l_star.rejection_source import SourceDry
+from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, Ending
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from tests.counterexample_common import ODD, PARITY_EDGES, parity_cut, quiet_search
 

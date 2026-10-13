@@ -7,7 +7,6 @@ from unittest import mock
 import numpy as np
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
-from orthogonal_dfa.l_star.counterexample_search import HARVEST_EDGE, SUCCESS, Ending
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_harvest,
@@ -16,6 +15,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
+from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
 
 #: What draws more like the harvest, which these tests never ask.
 _REPLAY = object()

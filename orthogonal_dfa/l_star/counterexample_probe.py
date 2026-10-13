@@ -2,9 +2,9 @@
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-from .midfix_tree import MidfixTree
+from .hypothesis_dfa import Edge, HypothesisDFA, Path
 from .tripartite_search import (
     ALL_AGREE,
     EDGE,
@@ -13,10 +13,6 @@ from .tripartite_search import (
     UNDECIDED_MID,
     tripartite_search,
 )
-
-Path = Tuple[bool, ...]
-Edge = Tuple[Path, int]
-Cut = Callable[[bytes], Optional[bool]]
 
 
 @dataclass(frozen=True)
@@ -92,10 +88,10 @@ def follow(edges, leaf: Optional[Path], letters: bytes):
     return visited, None
 
 
-def ends(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> List[int]:
+def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     """The positions ``walkCheckBy`` sifts before any search, the second only
     where the first is decided."""
-    walk, unlearned_step = follow(edges, tree.sift_with_path(cut, x[:k])[1], x[k:])
+    walk, unlearned_step = follow(hypothesis.edges, hypothesis.sift(x[:k]), x[k:])
     if not walk:
         return []
     if unlearned_step is None:
@@ -103,13 +99,13 @@ def ends(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> List[int]:
     return [k + unlearned_step + 1, k + unlearned_step]
 
 
-def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
+def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
     routes = {}
 
     def sift(i) -> Tuple[Optional[Path], Optional[bytes]]:
         """The leaf at ``i``, and the string read undecided there."""
         if i not in routes:
-            reads, path = tree.sift_with_path(cut, x[:i])
+            reads, path = hypothesis.tree.sift_with_path(hypothesis.cut, x[:i])
             routes[i] = path, reads[-1] if path is None else None
         return routes[i]
 
@@ -117,7 +113,7 @@ def locate(cut: Cut, tree: MidfixTree, edges, k: int, x: bytes) -> Located:
         sifts = {i: sift(i)[1] for i in positions if k < i}
         return Located(outcome, walk, sifts, search_queries)
 
-    walk, unlearned_step = follow(edges, sift(k)[0], x[k:])
+    walk, unlearned_step = follow(hypothesis.edges, sift(k)[0], x[k:])
     hi = len(x) if unlearned_step is None else k + unlearned_step
     before = [] if unlearned_step is None else [hi + 1]
     if before and sift(hi + 1)[0] is None:

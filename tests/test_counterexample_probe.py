@@ -12,12 +12,15 @@ from orthogonal_dfa.l_star.counterexample_probe import (
     charges,
     locate,
 )
+from orthogonal_dfa.l_star.hypothesis_dfa import HypothesisDFA
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from tests.counterexample_common import EVEN, ODD, PARITY_EDGES, WRONG_ODD_0, parity_cut
 
 
 def _locate(cut, edges, x):
-    return locate(cut, MidfixTree([]), edges, 0, bytes(x))
+    hypothesis = HypothesisDFA(cut, MidfixTree([]))
+    hypothesis.edges = dict(edges)
+    return locate(hypothesis, 0, bytes(x))
 
 
 def _charges(cut, edges, x):

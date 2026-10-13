@@ -61,5 +61,5 @@ def quiet_config(**changes):
 
 def quiet_search(cut, edges, **changes):
     search = CounterexampleSearch(quiet_config(**changes), cut, MidfixTree([]))
-    search.edges = dict(edges)
+    search.hypothesis.edges = dict(edges)
     return search

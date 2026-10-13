@@ -2,8 +2,8 @@
 
 import unittest
 
-from orthogonal_dfa.l_star.counterexample_search import OUT_OF_PROBES, SUCCESS
 from orthogonal_dfa.l_star.probe_batching import warmed_draws
+from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES, SUCCESS
 from tests.counterexample_common import PARITY_EDGES, parity_cut, quiet_search
 
 

@@ -12,18 +12,14 @@ from typing import Callable, List
 import numpy as np
 
 from .counterexample_probe import Charges
-from .counterexample_search import (
-    HARVEST_EDGE,
-    HARVEST_START,
-    CounterexampleSearch,
-    Ending,
-)
+from .counterexample_search import CounterexampleSearch
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
+from .round_end import HARVEST_EDGE, HARVEST_START, Ending
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
