@@ -34,7 +34,17 @@
 - `OrthoDFA/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its leaves,
   and the walk a string takes along them. `WalkCorrect`: the walk starts at its leaf, follows one
   learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
-  edges do; `walkEnd` is its last leaf when it follows every letter.
+  edges do; `walkEnd` is its last leaf when it follows every letter. `HypothesisDFA.split` splits a
+  leaf and re-sifts the witnesses of the edges into it (`hypothesis_dfa.HypothesisDFA.split_leaf`).
+  `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps every learned
+  edge witnessed (`EdgesOK`).
+- `OrthoDFA/Probe.lean` — `probe`: a string walked along the edges from its first `k` letters'
+  leaf and sifted, and where the two part, found by `tripartiteSearch` without recovery
+  (`counterexample_probe.locate`). `ProbeCorrect`: with the edges witnessed, a wrong edge is one the
+  probe crossed with a string whose successor sifts off its target, an unlearned edge is the one it
+  stopped at, the at most one undecided string it reports reads undecided and is a prefix of the
+  probe followed by a midfix, and a probe on which the walk and the sift part (`Disagrees`) never
+  comes out clean.
 - `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate, and
   `RateTestSound`: over independent draws it says above with chance at most its failure chance when
   the true rate is at most the tested one, and below likewise when it is at least.
