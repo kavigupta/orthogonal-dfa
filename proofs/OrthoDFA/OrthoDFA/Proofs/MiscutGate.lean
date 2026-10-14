@@ -1911,4 +1911,247 @@ theorem cut_live (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ) (hlohi : lo 
   unfold cutBound
   linarith
 
+open scoped Classical in
+/-- At a look of `m` certification draws: the references are nonempty, yet `cutBound` exceeds a
+multiple of the cut's wrong prefixes plus the deviations. -/
+noncomputable def liveFail (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (j : J) (B : State) (m : ℕ) (η₀ a t₁ t₂ : ℝ) : Set (Run Ω S J) :=
+  {x | (refsBy rule O.mq populations x B).Nonempty
+    ∧ ¬ (cutBound O.mq B.lo B.hi (clusterBy rule O.mq populations x B)
+          (refsBy rule O.mq populations x B) (certOf (prefixesAt populations B.npref x) j m x) a
+          (oracleNoise x)
+      ≤ (((certOf (prefixesAt populations B.npref x) j m x).filter (fun p =>
+          ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p (oracleNoise x))).card
+          : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + 2 * t₁ + 2 * hoeffDev (certOf (prefixesAt populations B.npref x) j m x).card a
+        + (2 * t₂ + 2 * hoeffDev (certOf (prefixesAt populations B.npref x) j m x).card a)
+          / (2 * (1 - 2 * η₀)))}
+
+open scoped Classical in
+noncomputable def liveFailOf (rule : Clusterer S) (O : Oracle μ S) (B : State) (η₀ a t₁ t₂ : ℝ)
+    (P C A : Finset S) (ω : Ω) : Prop :=
+  (C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)).Nonempty
+    ∧ ¬ (cutBound O.mq B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω)
+          (C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) A a ω
+      ≤ ((A.filter (fun p =>
+          ¬ cutCorrect O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) p ω)).card : ℝ)
+          * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + 2 * t₁ + 2 * hoeffDev A.card a + (2 * t₂ + 2 * hoeffDev A.card a) / (2 * (1 - 2 * η₀)))
+
+open scoped Classical in
+lemma liveFailOf_congr (O : Oracle μ S) (B : State) (η₀ a t₁ t₂ : ℝ) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet P C ∪ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    liveFailOf rule O B η₀ a t₁ t₂ P C A ω → liveFailOf rule O B η₀ a t₁ t₂ P C A ω' := by
+  have hfam : clusterOf rule O B.sc B.scd P C B.k ω = clusterOf rule O B.sc B.scd P C B.k ω' :=
+    clusterOf_congr_mq O B.sc B.scd P C B.k hone (fun w hw => h w (Finset.mem_union_left _ hw))
+  have hAC : ∀ p ∈ A, ∀ v ∈ C, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1) := fun p hp v hv =>
+    h _ (Finset.mem_union_right _ (mem_readSet hp hv))
+  have hA : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by
+    simpa using hAC p hp 1 hone
+  have hsub : clusterOf rule O B.sc B.scd P C B.k ω' ⊆ C :=
+    clusterOf_subset O B.sc B.scd P C B.k ω' hone
+  unfold liveFailOf
+  rw [hfam]
+  rintro ⟨hv, hnot⟩
+  refine ⟨hv, fun hle => hnot ?_⟩
+  rw [cutBound_congr O B.lo B.hi _ _ A a hA (fun p hp v hv => hAC p hp v (hsub hv))
+      (fun p hp v hv => hAC p hp v (Finset.mem_sdiff.1 hv).1),
+    Finset.filter_congr (fun p hp => by
+      rw [cutCorrect_congr O B.lo B.hi _ p (fun v hv => hAC p hp v (hsub hv))])]
+  exact hle
+
+open scoped Classical in
+lemma measurableSet_liveFail (O : Oracle μ S) (populations : Finset J) (j : J) (B : State)
+    (m : ℕ) (η₀ a t₁ t₂ : ℝ) : MeasurableSet (liveFail rule O populations j B m η₀ a t₁ t₂) := by
+  classical
+  have hR : ∀ P C A : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      oracleNoise ⁻¹' {ω | liveFailOf rule O B η₀ a t₁ t₂ P C A ω}
+      else (∅ : Set (Run Ω S J))) := by
+    intro P C A
+    split_ifs with hone
+    · exact measurable_nz (measurableSet_of_readCongr O _ _
+        (fun ω ω' h => liveFailOf_congr O B η₀ a t₁ t₂ P C A hone h))
+    · exact MeasurableSet.empty
+  have hrw : liveFail rule O populations j B m η₀ a t₁ t₂
+      = {x : Run Ω S J | x ∈ (fun P C A => if (1 : S) ∈ C then
+          oracleNoise ⁻¹' {ω | liveFailOf rule O B η₀ a t₁ t₂ P C A ω} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (certOf (prefixesAt populations B.npref x) j m x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage]
+    rfl
+  rw [hrw]
+  exact measurableSet_of_run_data_certAt populations j B m _ hR
+
+lemma card_poolAt_le (M : ℕ) (x : Run Ω S J) : (poolAt M x).card ≤ M + 1 :=
+  le_trans (Finset.card_insert_le _ _) (by have := card_freshDraws_le ∅ (fun i => suffixDraw i x) M; omega)
+
+open scoped Classical in
+/-- `cut_live` over the run, at a look of `m` draws. -/
+theorem measureReal_liveFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (B : State) (hlohi : B.lo ≤ B.hi) (m : ℕ) (hm : 0 < m)
+    {η₀ a t₁ t₂ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (ha0 : 0 < a) (ha1 : a ≤ 1)
+    (ht₁ : 0 ≤ t₁) (ht₂ : 0 ≤ t₂) :
+    (runMeasure μ D Dsf).real (liveFail rule O populations j B m η₀ a t₁ t₂)
+      ≤ 2 * (Real.exp (-2 * t₁ ^ 2 / m)
+        + ((B.nsuff : ℝ) + 1) * Real.exp (-2 * t₂ ^ 2 / m)) := by
+  classical
+  set E : ℝ := 2 * (Real.exp (-2 * t₁ ^ 2 / m) + ((B.nsuff : ℝ) + 1) * Real.exp (-2 * t₂ ^ 2 / m))
+    with hEdef
+  have hE0 : 0 ≤ E := by positivity
+  have hmR : (0 : ℝ) < m := by exact_mod_cast hm
+  have hEnn : runMeasure μ D Dsf (liveFail rule O populations j B m η₀ a t₁ t₂)
+      ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_liveFail O populations j B m η₀ a t₁ t₂) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+      with d hdP hdC hdS
+    set Pd : Finset S := populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
+    set Cd : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff) with hCd
+    set Ad : Finset S := freshDraws Pd (fun i => d.2 j i) m with hAd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
+    have hP : ∀ q ∈ Pd, q ∈ Pre := table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hdP
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, rfl⟩ := mem_freshDraws hp
+      exact hdC j hj i
+    have hone : (1 : S) ∈ Cd := Finset.mem_insert_self _ _
+    have hdisjPA : Disjoint Ad Pd := disjoint_freshDraws _ _ _
+    have hCdcard : (Cd.card : ℝ) ≤ B.nsuff + 1 := by
+      have h1 : Cd.card ≤ (freshDraws ∅ (fun i => d.1.1 i) B.nsuff).card + 1 :=
+        Finset.card_insert_le _ _
+      have := card_freshDraws_le ∅ (fun i => d.1.1 i) B.nsuff
+      have : Cd.card ≤ B.nsuff + 1 := by omega
+      exact_mod_cast this
+    have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ liveFail rule O populations j B m η₀ a t₁ t₂}
+        = {ω | liveFailOf rule O B η₀ a t₁ t₂ Pd Cd Ad ω} := rfl
+    rw [hsec]
+    rcases Nat.eq_zero_or_pos Ad.card with hA0 | hApos
+    · have hAe : Ad = ∅ := Finset.card_eq_zero.1 hA0
+      have hpos : 0 < 1 - 2 * η₀ := by linarith
+      have hz : {ω | liveFailOf rule O B η₀ a t₁ t₂ Pd Cd Ad ω} = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, liveFailOf, hAe]
+        rintro ⟨-, hc⟩
+        apply hc
+        simp only [cutBound, sideBound, hoeffDev, Finset.filter_empty, Finset.card_empty,
+          CharP.cast_eq_zero, zero_mul, Real.sqrt_zero, zero_add, zero_div, mul_zero, add_zero]
+        have : 0 ≤ 2 * t₂ / (2 * (1 - 2 * η₀)) := by positivity
+        linarith
+      rw [hz]; simp
+    have hAR : (0 : ℝ) < Ad.card := by exact_mod_cast hApos
+    have hAm : (Ad.card : ℝ) ≤ m := by exact_mod_cast card_freshDraws_le Pd (fun i => d.2 j i) m
+    have hexp : ∀ t : ℝ, Real.exp (-2 * t ^ 2 / Ad.card) ≤ Real.exp (-2 * t ^ 2 / m) := by
+      intro t
+      refine Real.exp_le_exp.2 ?_
+      have hle : 2 * t ^ 2 / m ≤ 2 * t ^ 2 / Ad.card :=
+        div_le_div_of_nonneg_left (by positivity) hAR hAm
+      have e1 : -2 * t ^ 2 / (Ad.card : ℝ) = -(2 * t ^ 2 / Ad.card) := by ring
+      have e2 : -2 * t ^ 2 / (m : ℝ) = -(2 * t ^ 2 / m) := by ring
+      rw [e1, e2]; linarith
+    set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
+    set Bad : Finset S → Set Ω := fun F => if F ⊆ Cd ∧ (1 : S) ∉ F then
+        {ω | (Cd \ insert 1 F).Nonempty
+          ∧ ¬ (cutBound O.mq B.lo B.hi F (Cd \ insert 1 F) Ad a ω
+            ≤ ((Ad.filter (fun p => ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ)
+                * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+              + 2 * t₁ + 2 * hoeffDev Ad.card a
+              + (2 * t₂ + 2 * hoeffDev Ad.card a) / (2 * (1 - 2 * η₀)))}
+      else ∅ with hBaddef
+    have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
+      rw [Finset.disjoint_coe, Finset.disjoint_left]
+      intro w hw hw'
+      obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hw'
+      obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+      obtain ⟨hq', hv'⟩ := Finset.mem_product.1 hqv
+      have := hflat q (hP q hq') p (hA p hp) v' (hV v' hv') v (hV v hv) hq
+      exact Finset.disjoint_left.1 hdisjPA hp (this ▸ hq')
+    have hmain := selection_congr_bound O (readSet Ad Cd) (readSet Pd Cd) hdisj Cd.powerset ∅
+      (Finset.empty_mem_powerset _) sel
+      (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone))
+      (fun ω ω' h => clusterOf_congr_mq O B.sc B.scd Pd Cd B.k hone
+        (fun w hw => by rw [mq_congr O (h w hw)]))
+      Bad (fun F ω ω' h hω => by
+        simp only [hBaddef] at hω ⊢
+        split_ifs at hω ⊢ with hF
+        · have hAC : ∀ p ∈ Ad, ∀ v ∈ Cd, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1) :=
+            fun p hp v hv => by rw [mq_congr O (h _ (mem_readSet hp hv))]
+          have hAA : ∀ p ∈ Ad, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by
+            simpa using hAC p hp 1 hone
+          obtain ⟨hv, hnot⟩ := hω
+          refine ⟨hv, fun hle => hnot ?_⟩
+          rw [cutBound_congr O B.lo B.hi F _ Ad a hAA (fun p hp v hv => hAC p hp v (hF.1 hv))
+              (fun p hp v hv => hAC p hp v (Finset.mem_sdiff.1 hv).1),
+            Finset.filter_congr (fun p hp => by
+              rw [cutCorrect_congr O B.lo B.hi F p (fun v hv => hAC p hp v (hF.1 hv))])]
+          exact hle
+        · exact hω)
+      E hE0 (fun F _ => by
+        simp only [hBaddef]
+        split_ifs with hF
+        · by_cases hex : (Cd \ insert 1 F).Nonempty
+          · refine le_trans (measureReal_mono (fun ω hω => hω.2) (measure_ne_top _ _)) ?_
+            refine le_trans (cut_live O Ad F (Cd \ insert 1 F) B.lo B.hi hlohi hex ?_
+              (Finset.disjoint_left.2 (fun u hu hu' =>
+                (Finset.mem_sdiff.1 hu').2 (Finset.mem_insert_of_mem hu)))
+              hF.2 (fun h1 => (Finset.mem_sdiff.1 h1).2 (Finset.mem_insert_self _ _))
+              hη hη₀ ha0 ha1 ht₁ ht₂) ?_
+            · intro p hp p' hp' u hu u' hu' heq
+              have hu1 : u ∈ insert 1 Suf := by
+                rcases Finset.mem_insert.1 hu with rfl | hu
+                · exact Set.mem_insert _ _
+                · rcases Finset.mem_union.1 hu with hu | hu
+                  · exact hV u (hF.1 hu)
+                  · exact hV u (Finset.mem_sdiff.1 hu).1
+              have hu1' : u' ∈ insert 1 Suf := by
+                rcases Finset.mem_insert.1 hu' with rfl | hu'
+                · exact Set.mem_insert _ _
+                · rcases Finset.mem_union.1 hu' with hu' | hu'
+                  · exact hV u' (hF.1 hu')
+                  · exact hV u' (Finset.mem_sdiff.1 hu').1
+              have hpp := hflat p (hA p hp) p' (hA p' hp') u hu1 u' hu1' heq
+              subst hpp
+              exact ⟨rfl, mul_left_cancel heq⟩
+            · have hRc : ((Cd \ insert 1 F).card : ℝ) ≤ B.nsuff + 1 :=
+                le_trans (by exact_mod_cast Finset.card_le_card Finset.sdiff_subset) hCdcard
+              rw [hEdef]
+              have h1 := hexp t₁
+              have h2 := hexp t₂
+              have := mul_le_mul hRc h2 (Real.exp_nonneg _) (by positivity)
+              nlinarith [Real.exp_nonneg (-2 * t₂ ^ 2 / Ad.card)]
+          · have hz : {ω | (Cd \ insert 1 F).Nonempty
+                ∧ ¬ (cutBound O.mq B.lo B.hi F (Cd \ insert 1 F) Ad a ω
+                  ≤ ((Ad.filter (fun p => ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ)
+                      * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+                    + 2 * t₁ + 2 * hoeffDev Ad.card a
+                    + (2 * t₂ + 2 * hoeffDev Ad.card a) / (2 * (1 - 2 * η₀)))}
+                = (∅ : Set Ω) := by
+              ext ω; simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+              exact fun h => hex h.1
+            rw [hz, measureReal_empty]
+            exact hE0
+        · rw [measureReal_empty]; exact hE0)
+    have hsub : {ω | liveFailOf rule O B η₀ a t₁ t₂ Pd Cd Ad ω} ⊆ {ω | ω ∈ Bad (sel ω)} := by
+      intro ω hω
+      change ω ∈ Bad (sel ω)
+      have hF : sel ω ⊆ Cd ∧ (1 : S) ∉ sel ω :=
+        ⟨clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone, Finset.notMem_erase _ _⟩
+      simp only [hBaddef, if_pos hF]
+      exact hω
+    calc μ {ω | liveFailOf rule O B η₀ a t₁ t₂ Pd Cd Ad ω} ≤ μ {ω | ω ∈ Bad (sel ω)} :=
+          measure_mono hsub
+      _ = ENNReal.ofReal (μ.real {ω | ω ∈ Bad (sel ω)}) :=
+          (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
+      _ ≤ ENNReal.ofReal E := ENNReal.ofReal_le_ofReal hmain
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (liveFail rule O populations j B m η₀ a t₁ t₂)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
 end OrthoDFA
