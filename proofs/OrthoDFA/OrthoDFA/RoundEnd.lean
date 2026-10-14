@@ -1,4 +1,4 @@
-import OrthoDFA.ProbeDistribution
+import OrthoDFA.FamilyRead
 
 /-!
 # How a round ends well

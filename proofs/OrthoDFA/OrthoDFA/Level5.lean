@@ -66,7 +66,7 @@ def walkToBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
 
 /-- `walkCheck` through `cut`. -/
 def walkCheckBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) :
-    Outcome α ⊕ (List (List Bool) × ℕ) :=
+    WalkOutcome α ⊕ (List (List Bool) × ℕ) :=
   match kWalkBy cut t edges k x with
   | .anchor => .inl (.startUndecided (prefixOf x k))
   | .edge s _ j =>
@@ -89,10 +89,10 @@ def agreesAtBy (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool) (
 
 /-- What one probe comes to, read through `cut`; a probe shorter than `k` agrees and reads
 nothing. -/
-def probeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : Outcome α :=
+def probeBy (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) : WalkOutcome α :=
   if x.toList.length < k then .agree
   else (walkCheckBy cut t edges k x).elim id fun d =>
-    searchOutcome d.1
+    bisectOutcome d.1
       (bisectBoundary false (agreesAtBy cut t x fun j => d.1.getD (j - k) []) k d.2).1
 
 /-- The record a probe of `x` makes against the hypothesis `h`: at a clean disagreement, the edge
@@ -244,7 +244,7 @@ def siftQuery (ℓ : ReadLabel α) : DTree α → FreeMonoid α → ProbeQuery �
 
 /-- `bracketAt`, each position's agreement read through `agreementQuery`. -/
 def bracketQuery (agreementQuery : ℕ → ProbeQuery α (Option Bool)) (ps : List (List Bool)) :
-    ℕ → ℕ → ℕ → ProbeQuery α (Outcome α)
+    ℕ → ℕ → ℕ → ProbeQuery α (WalkOutcome α)
   | 0, _, hi => .done (.edge ps hi)
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
@@ -265,7 +265,7 @@ def agreementQuery (p₀ : List Bool) (walkAt : ℕ → List Bool) (i : ℕ) : P
     s.elim (fun q => some (decide (q = walkAt i))) fun _ => none
 
 /-- One probe of `x` from `k`, as a query tree. -/
-def probeQuery : ProbeQuery α (Outcome α) :=
+def probeQuery : ProbeQuery α (WalkOutcome α) :=
   if x.toList.length < k then .done .agree else
   (siftQuery (k, none) T (prefixOf x k)).bind fun a => match a with
   | .inr _ => .done (.startUndecided (prefixOf x k))

@@ -22,19 +22,13 @@ theorem likelihoodRatio_pos (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < 
   have : 0 < p₁ / p₀ := div_pos hp₁ hp₀
   positivity
 
-theorem log_likelihoodRatio_of_le (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < p₁) (hp₁1 : p₁ < 1)
-    {n h : ℕ} (hh : h ≤ n) :
-    Real.log (likelihoodRatio p₀ p₁ n h)
-      = h * Real.log (p₁ / p₀) + (n - h : ℝ) * Real.log ((1 - p₁) / (1 - p₀)) :=
-  log_likelihoodRatio hp₀ hp₀1 hp₁ hp₁1 hh
-
 /-- For `h ≤ n` the test fires where the log of the ratio reaches `log (1/a)`. -/
 theorem seqRate_iff_log (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < p₁) (hp₁1 : p₁ < 1)
     (ha : 0 < a) {n h : ℕ} (hh : h ≤ n) :
     seqRate p₀ p₁ a n h ↔ Real.log (1 / a)
       ≤ h * Real.log (p₁ / p₀) + (n - h : ℝ) * Real.log ((1 - p₁) / (1 - p₀)) := by
   unfold seqRate
-  rw [← log_likelihoodRatio_of_le hp₀ hp₀1 hp₁ hp₁1 hh,
+  rw [← log_likelihoodRatio hp₀ hp₀1 hp₁ hp₁1 hh,
     Real.log_le_log_iff (by positivity) (likelihoodRatio_pos hp₀ hp₀1 hp₁ hp₁1 n h)]
 
 /-- Fewer hits lower the ratio where `p₁ ≤ p₀`. -/

@@ -20,6 +20,9 @@ class SynthesisTracker:
     def on_round_classified(self, classifier, round_index):
         """How that family cut the round's representative prefixes."""
 
+    def on_search_ended(self, ending, round_index):
+        """How the round's counterexample search ended."""
+
     def on_initial_dfa_found(self, dfa, tree, round_index):
         """The round's hypothesis, as discovery labelled it."""
 
@@ -48,6 +51,7 @@ class RecordingTracker(SynthesisTracker):
     def __init__(self):
         self.families = []
         self.classifiers = []
+        self.endings = []
         self.hypotheses = []
         self.consistency = []
         #: round -> whether it was certified, for the rounds that were asked.
@@ -61,6 +65,10 @@ class RecordingTracker(SynthesisTracker):
     def on_round_classified(self, classifier, round_index):
         assert len(self.classifiers) == round_index
         self.classifiers.append(classifier)
+
+    def on_search_ended(self, ending, round_index):
+        assert len(self.endings) == round_index
+        self.endings.append(ending)
 
     def on_initial_dfa_found(self, dfa, tree, round_index):
         assert len(self.hypotheses) == round_index

@@ -793,7 +793,7 @@ theorem loop_core_holds : LoopCore := by
         ring
 
 theorem learner_loop_correct_holds : LearnerLoopCorrect := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ V Kp G
+  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ V Kp G U
     hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
   classical
   set c : ℝ := Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))

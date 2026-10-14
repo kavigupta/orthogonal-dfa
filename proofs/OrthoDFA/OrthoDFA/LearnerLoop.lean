@@ -288,6 +288,7 @@ def LearnerLoopCorrect : Prop :=
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let U : ℝ := 4 * (n + 2) * A * Real.log ((n + 3) * A / δ)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -300,7 +301,7 @@ def LearnerLoopCorrect : Prop :=
   P.L + Fintype.card σ + 2 ≤ Ls →
   1024 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
   ∃ cap : ℝ, 0 < cap ∧ ∀ k : ℕ, 1 ≤ k → prefixMax P.D k ≤ cap * ρ / 4 →
-    4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
+    4096 * (P.L + 1) * U * prefixMax P.D k ≤ εd →
   ∃ settings : LoopSettings K,
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧

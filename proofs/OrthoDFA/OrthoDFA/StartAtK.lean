@@ -9,7 +9,7 @@ import OrthoDFA.TripartiteSearch
 
 A probe is walked from where the cut places its first `k` letters along learned edges (`follow`,
 `KWalk`); a disagreement is searched by main's bisection without recovery
-(`bisectBoundary false`) to what the probe comes to (`Outcome`). `bracketAt` is the same search
+(`bisectBoundary false`) to what the probe comes to (`WalkOutcome`). `bracketAt` is the same search
 by fuel, which the proofs induct on.
 -/
 
@@ -47,7 +47,7 @@ the first `k` letters, `w`; it cannot place the probe, or, at an unlearned edge 
 `j + 1` or `j` letters, `w`; the search of a decided disagreement stops at its first undecided
 midpoint `j`, or ends at the edge into `fd` of the walk `ps`; or an unlearned edge's source is
 where the cut places `u`. -/
-inductive Outcome (α : Type*)
+inductive WalkOutcome (α : Type*)
   | agree
   | startUndecided (w : FreeMonoid α)
   | endUndecided (w : FreeMonoid α)
@@ -65,13 +65,13 @@ noncomputable def midfixes : DTree α → Finset (FreeMonoid α)
 end DTree
 
 /-- Main's search result as level 5's outcome, over the walk `ps`. -/
-def searchOutcome (ps : List (List Bool)) : SearchResult → Outcome α
+def bisectOutcome (ps : List (List Bool)) : SearchResult → WalkOutcome α
   | .undecidedMid j => .undecidedMid j
   | .edge j => .edge ps j
   | _ => .agree
 
 /-- `bisectBoundary false` by fuel, over the walk `ps`. -/
-def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → ℕ → ℕ → Outcome α
+def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → ℕ → ℕ → WalkOutcome α
   | 0, _, hi => .edge ps hi
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then

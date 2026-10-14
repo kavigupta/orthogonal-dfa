@@ -280,7 +280,7 @@ theorem probeBy_member {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x u : Fr
     · split at hw
       · simp at hw
       · split_ifs at hw
-        · simp only [Sum.inl.injEq, Outcome.member.injEq] at hw
+        · simp only [Sum.inl.injEq, WalkOutcome.member.injEq] at hw
           subst hw
           refine ⟨j, kWalkBy_edge_ge hk, ?_, rfl⟩
           unfold kWalkBy at hk

@@ -18,7 +18,7 @@ section Walk
 variable (cut : FreeMonoid α → Option Bool)
 
 theorem walkCheckBy_inl {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    {o : Outcome α} (h : walkCheckBy cut t edges k x = .inl o) : ¬ o.IsSearch := by
+    {o : WalkOutcome α} (h : walkCheckBy cut t edges k x = .inl o) : ¬ o.IsSearch := by
   unfold walkCheckBy at h
   split at h
   · obtain rfl := Sum.inl.inj h; exact id
@@ -45,12 +45,12 @@ theorem probeBy_eq (t : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMono
     rw [bracketAt_eq_bisect _ _ _ _ _ le_rfl]
 
 theorem probeBy_search {t : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    {o : Outcome α} (h : probeBy cut t edges k x = o) (ho : o.IsSearch) :
+    {o : WalkOutcome α} (h : probeBy cut t edges k x = o) (ho : o.IsSearch) :
     ∃ ps hi, walkCheckBy cut t edges k x = .inr (ps, hi)
       ∧ bracketAt (agreesAtBy cut t x fun j => ps.getD (j - k) []) ps (hi - k) k hi = o := by
   rw [probeBy_eq] at h
   split_ifs at h with hs
-  · subst h; exact absurd ho (by simp [Outcome.IsSearch])
+  · subst h; exact absurd ho (by simp [WalkOutcome.IsSearch])
   rcases hw : walkCheckBy cut t edges k x with o' | ⟨ps, hi⟩ <;> rw [hw] at h
   · simp only [Sum.elim_inl, id] at h
     subst h
@@ -233,7 +233,7 @@ theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edge
     x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
   simp only [searchAt_eq, Set.mem_setOf_eq]
   rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
-    simp [Outcome.IsSearch]
+    simp [WalkOutcome.IsSearch]
 
 theorem bracketSifts_range (agrees : ℕ → Option Bool) :
     ∀ (fuel lo hi i : ℕ), i ∈ bracketSifts agrees fuel lo hi → lo ≤ i ∧ i ≤ hi

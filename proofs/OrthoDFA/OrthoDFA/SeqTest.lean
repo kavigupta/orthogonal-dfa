@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import Mathlib.MeasureTheory.Constructions.Pi
 
 /-! An anytime-valid sequential test of a count of hits against a rate, and what it promises. -/
 
@@ -13,15 +13,6 @@ noncomputable def likelihoodRatio (p₀ p₁ : ℝ) (n h : ℕ) : ℝ :=
 /-- The sequential test of a rate `p₀` against `p₁` at level `a` fires after `h` hits in `n`
 draws: the likelihood ratio has reached `1 / a`. -/
 def seqRate (p₀ p₁ a : ℝ) (n h : ℕ) : Prop := 1 / a ≤ likelihoodRatio p₀ p₁ n h
-
-/-- Where `p₀ < p₁ < p₀'`, the draws within which one of the tests of `p₀` and of `p₀'` against
-`p₁` at level `a` fires, whatever the count: `⌈(A₁ + B₁ + A₂ + B₂) log(1/a) / (A₁ A₂ − B₁ B₂)⌉`,
-the `A`s and `B`s the logs of the ratios' factors. -/
-noncomputable def stretchBound (p₀ p₁ p₀' a : ℝ) : ℕ :=
-  ⌈(Real.log (p₁ / p₀) + Real.log ((1 - p₀) / (1 - p₁)) + Real.log ((1 - p₁) / (1 - p₀'))
-      + Real.log (p₀' / p₁)) * Real.log (1 / a)
-    / (Real.log (p₁ / p₀) * Real.log ((1 - p₁) / (1 - p₀'))
-      - Real.log ((1 - p₀) / (1 - p₁)) * Real.log (p₀' / p₁))⌉₊
 
 open scoped Classical in
 /-- Over independent draws from `D`, testing how many of the first `n` satisfy `P` against `p₀`,
