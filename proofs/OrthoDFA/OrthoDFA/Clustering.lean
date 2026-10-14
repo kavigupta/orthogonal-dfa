@@ -340,8 +340,9 @@ def admitted (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 test per population on `certOf`, and the accept-preserving gate on the uniform pool `uni`,
-which may draw that pool further when the split reads uncertified.  The FNR reads the family
-with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
+which may draw that pool further when the split reads uncertified, to at most twice its size.
+The FNR reads the family with its seed; the gate reads it without, since the seed's read is the
+bit the gate scores. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
@@ -350,7 +351,7 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
           ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
-    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α (clusterAt mq populations x B)
+    ∧ ∃ e ≤ B.npref, admitted mq B.lo B.hi α (clusterAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/

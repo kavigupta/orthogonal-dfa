@@ -20,6 +20,11 @@ open MeasureTheory ProbabilityTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
+/-- A crude bound on `log (8 K / δ)`, `K` the most trees, edge maps and edges a tail is united
+over. -/
+def unionLog (σ : Type*) [Fintype σ] (δ : ℝ) : ℝ :=
+  4 * (Fintype.card σ + 2) * Fintype.card α * Real.log ((Fintype.card σ + 3) * Fintype.card α / δ)
+
 /-- `searchingProbes` at a tree and curried edges. -/
 def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     Set (FreeMonoid α) :=

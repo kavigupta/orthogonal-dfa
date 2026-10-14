@@ -96,7 +96,7 @@ theorem bracketAt_edge (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
         exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
       · have := bracketAt_edge agrees ps fuel _ hi ps' j (by omega) (by omega) hm hhi h
         exact ⟨this.1, by omega, this.2.2⟩
-    · obtain ⟨rfl, rfl⟩ := Outcome.edge.inj h
+    · obtain ⟨rfl, rfl⟩ := WalkOutcome.edge.inj h
       obtain rfl : hi = lo + 1 := by omega
       exact ⟨rfl, by omega, le_rfl, by simpa using hlo, hhi⟩
 
@@ -105,7 +105,7 @@ omit [Fintype α] [DecidableEq α] in
 theorem bracketAt_eq_bisect (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
     ∀ fuel lo hi, hi - lo ≤ fuel →
       bracketAt (α := α) agrees ps fuel lo hi
-        = searchOutcome ps (bisectBoundary false agrees lo hi).1
+        = bisectOutcome ps (bisectBoundary false agrees lo hi).1
   | 0, lo, hi, h => by
     rw [bisectBoundary, dif_pos (by omega)]
     rfl
@@ -122,7 +122,7 @@ theorem bracketAt_eq_bisect (agrees : ℕ → Option Bool) (ps : List (List Bool
       rfl
 
 /-- The outcomes a search ends at. -/
-def Outcome.IsSearch : Outcome α → Prop
+def WalkOutcome.IsSearch : WalkOutcome α → Prop
   | .undecidedMid _ | .edge _ _ => True
   | _ => False
 

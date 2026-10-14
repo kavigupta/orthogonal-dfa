@@ -444,7 +444,7 @@ theorem countInv_keep {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α)
       ≤ if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 := by
     rw [hmid]
     rcases probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | _ | _ <;>
-      simp [Outcome.IsSearch]
+      simp [WalkOutcome.IsSearch]
   have hi : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) ≤ 1 := by
     split <;> omega
   simp only [CountInv, keepProbe, Level5State.countProbe, List.length_append]
@@ -463,25 +463,25 @@ section Site
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- What every reached state keeps. -/
-def Reached (s : Level5State α) : Prop := VerInv C s ∧ CountInv s
+def RunInv (s : Level5State α) : Prop := VerInv C s ∧ CountInv s
 
-theorem reached_step {s s' : Level5State α} {x : FreeMonoid α} (hs : Reached C s)
-    (h : applyProbe C cut s x = .inl s') : Reached C s' :=
+theorem runInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : RunInv C s)
+    (h : applyProbe C cut s x = .inl s') : RunInv C s' :=
   ⟨verInv_step C cut hs.1 h, countInv_step C cut hs.2 h⟩
 
-theorem reached_start (h : 2 ≤ C.maxLeaves) : Reached C (initialState : Level5State α) :=
+theorem runInv_start (h : 2 ≤ C.maxLeaves) : RunInv C (initialState : Level5State α) :=
   ⟨verInv_start C h, countInv_fresh _ _ _⟩
 
-theorem skipV_reached (Q : Level5State α → List (FreeMonoid α) → Prop) (v : ℕ) :
-    ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reached C s → SkipV C cut Q v s l →
-      ∃ s' : Level5State α, Reached C s' ∧ s'.version = v
+theorem skipV_runInv (Q : Level5State α → List (FreeMonoid α) → Prop) (v : ℕ) :
+    ∀ (l : List (FreeMonoid α)) (s : Level5State α), RunInv C s → SkipV C cut Q v s l →
+      ∃ s' : Level5State α, RunInv C s' ∧ s'.version = v
   | [], s, hs, h => ⟨s, hs, h.1⟩
   | x :: xs, s, hs, h => by
     simp only [SkipV] at h
     split_ifs at h with hv
     · exact ⟨s, hs, hv⟩
     · rcases hst : applyProbe C cut s x with s' | _ <;> rw [hst] at h
-      · exact skipV_reached Q v xs s' (reached_step C cut hs hst) h
+      · exact skipV_runInv Q v xs s' (runInv_step C cut hs hst) h
       · exact h.elim
 
 /-- A test whose weight is one at a fresh hypothesis and multiplies by a probe's factor while the
@@ -507,7 +507,7 @@ theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 �
       (List.ofFn xs)} ⊆ ⋃ v ∈ Finset.range (versionBound C (Fintype.card α)),
         {xs | SkipV C cut Q v initialState (List.ofFn xs)} := by
     intro xs hxs
-    have key := bad_end_skip C cut (Reached C) (fun s s' x hs h => reached_step C cut hs h) W f ok
+    have key := bad_end_skip C cut (RunInv C) (fun s s' x hs h => runInv_step C cut hs h) W f ok
       C.testLevel Bad
       (fun s s' x hs h hv => by
         rcases applyProbe_inl_shape C cut h with ⟨-, T, E, he⟩ | he
@@ -522,7 +522,7 @@ theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 �
         · exact absurd hb (htoo _)
         · obtain ⟨hok, h1⟩ := hbad s x e hs.2 hb hr
           exact ⟨hok, by rw [← (hkeep s x hs.2).1]; exact h1⟩)
-      (List.ofFn xs) initialState (reached_start C hL) hxs
+      (List.ofFn xs) initialState (runInv_start C hL) hxs
     have hW : W initialState = 1 := hfresh _ _ _
     obtain ⟨v, hsk⟩ : ∃ v, SkipV C cut Q v initialState (List.ofFn xs) := by
       rcases key with ⟨v, -, hsk⟩ | hev
@@ -533,14 +533,14 @@ theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 �
         · exact hev.elim
         · simp only [SkipV, show (initialState : Level5State α).version = 0 from rfl, if_true]
           exact hev
-    obtain ⟨s', hs', hv⟩ := skipV_reached C cut Q v _ _ (reached_start C hL) hsk
+    obtain ⟨s', hs', hv⟩ := skipV_runInv C cut Q v _ _ (runInv_start C hL) hsk
     exact Set.mem_biUnion (Finset.mem_range.2 (hv ▸ version_lt C hs'.1 hL)) hsk
   refine (measure_mono hsub).trans ((measure_biUnion_finset_le _ _).trans ?_)
   have hQ : ∀ v ∈ Finset.range (versionBound C (Fintype.card α)),
       (Measure.pi fun _ : Fin T => D) {xs | SkipV C cut Q v initialState (List.ofFn xs)}
         ≤ ENNReal.ofReal C.testLevel := fun v _ =>
-    skipV_le C cut D (Reached C) (fun s s' x hs h => reached_step C cut hs h) Q v
-      (fun T' s _ _ => evL_le C cut D ok f hf0 hf T' C.testLevel s ha.le) T _ (reached_start C hL)
+    skipV_le C cut D (RunInv C) (fun s s' x hs h => runInv_step C cut hs h) Q v
+      (fun T' s _ _ => evL_le C cut D ok f hf0 hf T' C.testLevel s ha.le) T _ (runInv_start C hL)
   refine (Finset.sum_le_sum hQ).trans (le_of_eq ?_)
   rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
     ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
@@ -764,7 +764,7 @@ theorem ptSet_sub (T : DTree α) (E : EdgeTable α) : ptSet C rd T E ⊆ searchA
   have := middleHarvestBy_length (fun z => (rd z).cut) T E C.walkStart x
   simp only [ptSet, Set.mem_setOf_eq] at hx
   rcases ho : probeBy (fun z => (rd z).cut) T E C.walkStart x with _ | _ | _ | _ | _ | _ <;>
-    rw [ho] at this <;> simp_all [Outcome.IsSearch]
+    rw [ho] at this <;> simp_all [WalkOutcome.IsSearch]
 
 /-- At hits `A` among the active draws `B`, at most `p₀` of them, a factor `p₁/p₀` at a hit,
 `(1 − p₁)/(1 − p₀)` at another active draw and `1` elsewhere averages at most one. -/

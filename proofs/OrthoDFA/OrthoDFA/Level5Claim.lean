@@ -1,4 +1,5 @@
 import OrthoDFA.Level5
+import OrthoDFA.ProbeDistribution
 
 /-!
 # Level 5's claim
@@ -56,17 +57,13 @@ def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA 
 /-- The largest mass the probes' distribution puts on one length-`k` prefix. -/
 def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x | prefixOf x k = u}
 
-/-- A crude bound on `log (8 K / δ)`, `K` the most trees, edge maps and edges a tail is united
-over. -/
-def unionLog (σ : Type*) [Fintype σ] (δ : ℝ) : ℝ :=
-  4 * (Fintype.card σ + 2) * Fintype.card α * Real.log ((Fintype.card σ + 3) * Fintype.card α / δ)
-
 /-- `Level5Guarantee M O θ εd P δ k`: some settings, walking from `k`, with disagreement rate `εd`
 and a budget of at most `K · G` probes, make level 5 fail to end well, a harvest's sampler
 yielding `3εd/16`, with chance at most `δ`, once the goodness level `θ`, the reads' `κ` and `ε`
 and the probes' prefix mass at `k` are small enough for `n = |Q|`, `A = |Σ|` and the draws'
 length `L`. `V` bounds the hypotheses a round goes through, and a read on its state's rarer side
-anywhere a probe or a re-sift could read it, which `W` counts a probe, splits wrongly. -/
+anywhere a probe or a re-sift could read it, which `W` counts a probe, splits wrongly. `U` bounds
+the log of the trees, edge maps and edges a noise field is united over, over `δ`. -/
 def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
     (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k : ℕ) : Prop :=
@@ -76,11 +73,12 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   let K : ℝ := V * (112 / εd + 1)
   let W : ℝ := (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
+  let U : ℝ := 4 * (n + 2) * A * Real.log ((n + 3) * A / δ)
   let bad := fun q => ¬ O.Good θ q
   0 < δ → δ ≤ 1 → 0 < εd → εd < 1 → 1 ≤ P.L → 0 ≤ θ →
   384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
   0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
-  1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
+  1024 * (P.L + 1) * U * prefixMax P.D k ≤ εd →
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)

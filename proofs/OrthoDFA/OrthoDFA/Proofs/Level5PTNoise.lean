@@ -99,7 +99,7 @@ theorem search_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
     have hw' := walkCheckBy_without_inr hw
     show (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
     have hlong : ¬ x.toList.length < k := fun hs => by
-      simp [S', probeBy, hs, Outcome.IsSearch] at hω
+      simp [S', probeBy, hs, WalkOutcome.IsSearch] at hω
     rw [probeBy_eq, if_neg hlong, hw']
     exact bracketAt_isSearch _ _ _ _ _
   have heqset : {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch

@@ -107,21 +107,21 @@ theorem recordProbe_spec (s : Level5State α) (x : FreeMonoid α) :
   unfold recordProbe
   rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | j | ⟨ps, fd⟩ | u <;>
     simp only []
-  · left; simp [Outcome.IsSearch]; rfl
-  · left; simp [Outcome.IsSearch]; rfl
-  · left; simp [Outcome.IsSearch]; rfl
-  · left; simp [Outcome.IsSearch]; rfl
-  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
   rcases hc : x.toList[u.toList.length]? with _ | c
-  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
   rcases hp : s.tree.siftCut cut u with p | b
   swap
-  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [WalkOutcome.IsSearch]; rfl
   rcases ht : s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;>
     rcases he : s.edges p c with _ | e
   · right
     exact ⟨u, c, p, t, rfl, hp, hc, ht, he, by simp only [ht, he]⟩
-  all_goals left; simp [Outcome.IsSearch, ht, he]; rfl
+  all_goals left; simp [WalkOutcome.IsSearch, ht, he]; rfl
 
 theorem countProbe_hyp (s : Level5State α) (k : ℕ) (x : FreeMonoid α) :
     (s.countProbe cut k x).tree = s.tree ∧ (s.countProbe cut k x).edges = s.edges
@@ -455,12 +455,12 @@ theorem stretchOK_step {nEnd hS : ℕ} (hSq : C.SeqOK) (hn : 1 ≤ nEnd) (hSn : 
       have hsearch : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) = d := by
         rw [hmid]
         rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | ⟨ps, fd⟩ | _
-        · simp [Outcome.IsSearch]
-        · simp [Outcome.IsSearch]
-        · simp [Outcome.IsSearch]
-        · simp [Outcome.IsSearch]
+        · simp [WalkOutcome.IsSearch]
+        · simp [WalkOutcome.IsSearch]
+        · simp [WalkOutcome.IsSearch]
+        · simp [WalkOutcome.IsSearch]
         · exact absurd ho (hne ps fd)
-        · simp [Outcome.IsSearch]
+        · simp [WalkOutcome.IsSearch]
       have hd1 : d ≤ 1 := by
         rw [hmid]; split <;> omega
       have hP : (recordProbe C cut s x).probes = s.probes + 1 := by rw [h1]; rfl
