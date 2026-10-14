@@ -83,7 +83,7 @@ theorem drift_ge {y ε : ℝ} (hy : 0 < y) (hyε : y < ε) (hε : ε < 1) :
   have hW2 : s ≤ (1 + s) * W := by
     have := Real.one_sub_inv_le_log_of_pos (div_pos hεpos hm0)
     have e : 1 - (ε / m)⁻¹ = h / (m + h) := by
-      rw [inv_div, one_sub_div hεpos.ne']; congr 1 <;> linarith
+      rw [inv_div, one_sub_div hεpos.ne']; congr 1; linarith
     have e2 : (1 + s) * (h / (m + h)) = s := by rw [hs]; field_simp
     have : (1 + s) * (h / (m + h)) ≤ (1 + s) * W :=
       mul_le_mul_of_nonneg_left (by linarith) (by positivity)
