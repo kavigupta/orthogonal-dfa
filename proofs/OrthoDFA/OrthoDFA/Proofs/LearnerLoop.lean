@@ -159,17 +159,17 @@ lemma population_short (P : PrefixDistribution α) (C : Level5Settings) (hC : 2 
     {ν : Measure (FreeMonoid α)} (hν : o.population P.D k = some ν) :
     ν {p | Ls ≤ p.toList.length} = 0 := by
   unfold LoopRound.population at hν
-  rcases hh : o.result.ending.harvested with _ | h
+  rcases hh : o.result.ending.harvested with _ | site
   · rw [hh] at hν; cases hν
   rw [hh, Option.map_some, Option.some.injEq] at hν
   subst hν
-  have hend : (indecisiveLStarLevel5 C o.read xs).ending = .harvest h := by
+  have hend : (indecisiveLStarLevel5 C o.read xs).ending = .harvest site := by
     rw [← ho]
     revert hh
     cases o.result.ending <;> simp [RoundEnd.harvested]
   refine popLaw_null (measure_mono_null (fun p hp => ?_)
-    (harvestLaw_short C (fun z => (o.read z).cut) P.length_le k
-      (harvest_short C hC o.read xs hend))) ?_
+    (harvestLaw_short C (fun z => (o.read z).cut) P.length_le k (H := o.result.hypothesis) site
+      (by rw [ho]; exact harvest_short C hC o.read xs hend))) ?_
   · simp only [Set.mem_ofPred_eq] at hp ⊢
     omega
   · simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one, List.length_nil, not_le]
@@ -318,15 +318,14 @@ def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K S Ls NS NP : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ cap m ms : ℝ) (k : ℕ),
-  let n : ℝ := Fintype.card σ + S
+    (K Ls NS NP : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ cap m ms : ℝ) (k : ℕ),
+  let n : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
-    + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp) / δ
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
-  let c : ℝ := Real.exp (-(8 * (P.L + 1) * (n + 1) / ρ))
+  let ρ : ℝ := 3 * εd / 16
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let Kp : ℝ := V * (224 / εd + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let c : ℝ := Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -336,7 +335,7 @@ def LoopCore : Prop :=
   0 < slack → 0 < pAP →
   0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 1 ≤ P.L →
   Fintype.card σ + 1 ≤ K →
-  P.L + Fintype.card σ + S + 3 ≤ Ls →
+  P.L + Fintype.card σ + 2 ≤ Ls →
   1024 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
   0 < cap → m < slack → m ≤ 1 / 2 → ms < pAP → ms ≤ 1 / 2 →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
@@ -351,7 +350,7 @@ def LoopCore : Prop :=
   K * (NS + 1) * cap ≤ ms →
   6 * (K + 1) * NP * (P.L + 1) * cap ≤ 1 →
   1 ≤ k → prefixMax P.D k ≤ cap * ρ / 4 →
-  24 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
+  4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
   ∃ settings : LoopSettings K,
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
@@ -369,8 +368,8 @@ def LoopCore : Prop :=
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K S Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k n A ρ
-    Kp X G c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap
+  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k n A ρ
+    V Kp G c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap
     hmsl hm1 hmsp hms1 hNSb hNPb hq1 hq2 hq3 hqm hqms hcapP hk0 hk1 hk2
   classical
   have hA1 : (1 : ℝ) ≤ A := by
@@ -378,19 +377,28 @@ theorem loop_core_holds : LoopCore := by
     exact_mod_cast Fintype.card_pos
   have hn0 : (0 : ℝ) ≤ n := by positivity
   have hρ0 : 0 < ρ := by positivity
-  have hρ1 : ρ ≤ εd / 256 := by
-    have h1 : ((S : ℝ) + 1) ≤ (n + 1) * (Fintype.card σ * A + S + 1) := by
-      have : (0 : ℝ) ≤ Fintype.card σ * A := by positivity
-      nlinarith
-    show (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1)) ≤ εd / 256
-    rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+  have hρ1 : ρ ≤ 1 := by show 3 * εd / 16 ≤ 1; linarith
+  have hV1 : 1 ≤ V := by
+    change 1 ≤ (n + 2) * ((n + 2) * A + 1)
+    have h1 : 0 ≤ (n + 2) * ((n + 2) * A) := by positivity
     nlinarith
-  set cross : ℝ := ρ / (4 * (P.L + 1) * (n + 1)) with hcrossd
+  have hKp : 0 < Kp := by change 0 < V * (224 / εd + 1); positivity
+  have hG : 0 < G := by
+    refine Real.log_pos ?_
+    rw [one_lt_div hδ]
+    have h1 : (4 : ℝ) ≤ 2 * (n + 2) * A + 4 := by
+      have : 0 ≤ 2 * (n + 2) * A := by positivity
+      linarith
+    nlinarith
+  set W : ℝ := (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) with hWd
+  have hW : 0 < W := by positivity
+  set cross : ℝ := δ / (4 * Kp * G * W) with hcrossd
   have hcr : 0 < cross := by positivity
   have hc : Real.exp (-2 / cross) = c := by
-    show Real.exp (-2 / cross) = Real.exp (-(8 * (P.L + 1) * (n + 1) / ρ))
+    show Real.exp (-2 / cross)
+      = Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
     congr 1
-    rw [hcrossd]
+    rw [hcrossd, hWd]
     field_simp
     ring
   obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀⟩ := clustering_schedule_exists O K
@@ -408,19 +416,13 @@ theorem loop_core_holds : LoopCore := by
     split_ifs at hB
     · exact hband₀ pops B hB
     · simp at hB
-  obtain ⟨s4, hwalk, hdis, hbud, hmax, hrec, hl4⟩ :=
-    level5_guarantee_all M (εd / 2) P.L δ S k hδ hδ1 (by positivity) (by linarith) hL1
+  obtain ⟨s4, hwalk, hdis, hbud, hmax, hl4⟩ :=
+    level5_guarantee_all M (εd / 2) P.L δ k hδ hδ1 (by positivity) (by linarith) hL1
+  have e112 : (112 / (εd / 2) : ℝ) = 224 / εd := by field_simp; ring
   set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
   refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
-    have e : ((Fintype.card σ : ℝ) + S + 1) * (2 * ((Fintype.card σ : ℝ) + S + 3)
-        * Fintype.card α + 1) * (20 / (εd / 2) ^ 2 + 280 / (εd / 2))
-        + 8 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α * (P.L + 1) = Kp := by
-      simp only [Kp, n, A]
-      field_simp
-      ring
-    simp only [e]
-    rfl
+    rw [e112]
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   subst hwalk
   set k := s4.walkStart
@@ -461,10 +463,9 @@ theorem loop_core_holds : LoopCore := by
     have : ((pops.card : ℕ) : ℝ) ≤ K + 1 := by exact_mod_cast this
     linarith
   -- level 5's yield, at rate `εd / 2`
-  set y : ℝ := (S + 1) * (εd / 2) / (256 * ((Fintype.card σ : ℝ) + S + 1)
-    * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) with hyd
+  set y : ℝ := 3 * (εd / 2) / 16 with hyd
   have hyρ : y = ρ / 2 := by
-    simp only [hyd, ρ, n, A]
+    simp only [hyd, ρ]
     ring
   have hy0 : 0 < y := by rw [hyρ]; positivity
   set m5 : ℝ := 6 * (K + 1) * NP * prefixMax P.D k with hm5d
@@ -486,17 +487,24 @@ theorem loop_core_holds : LoopCore := by
   -- each round's bounds
   have hη1 : O.η ≤ 1 := by linarith
   have hθ0 : 0 ≤ θ := by unfold θ loopTheta; positivity
-  have hθ' : 384 * (P.L + 1) * (Fintype.card σ + S + 1) * θ ≤ 1 := by
-    have e : 384 * ((P.L : ℝ) + 1) * (Fintype.card σ + S + 1) * θ
+  have hθ' : 384 * (P.L + 1) * (Fintype.card σ + 1) * θ ≤ 1 := by
+    have e : 384 * ((P.L : ℝ) + 1) * (Fintype.card σ + 1) * θ
         = 1024 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * ι + slack) := by
       simp only [θ, loopTheta, n]; ring
     rw [e]; exact hθ
-  have hε' : (P.L + 1) * (Fintype.card σ + S + 1) * cross
-      + 3 * unionLog (α := α) σ S δ * (2 * prefixMax P.D k) ≤ y := by
-    have e1 : ((P.L : ℝ) + 1) * (Fintype.card σ + S + 1) * cross = ρ / 4 := by
-      rw [hcrossd]; simp only [n]; field_simp
-    rw [e1, hyρ]
+  have hU : 0 ≤ unionLog (α := α) σ δ := by
+    unfold unionLog
+    refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
+    rw [le_div_iff₀ hδ]
+    have : (1 : ℝ) ≤ Fintype.card α := hA1
+    nlinarith
+  have hpre : 1024 * (P.L + 1) * unionLog (α := α) σ δ * (2 * prefixMax P.D k) ≤ εd / 2 := by
+    have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * (2 * prefixMax P.D k)
+        = 4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k / 2 := by ring
+    rw [e]
     linarith
+  have hB5 : cross * (4 * Kp * G * W) ≤ δ := by
+    rw [hcrossd, div_mul_cancel₀ _ (by positivity)]
   have hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),
         (∀ j, IsProbabilityMeasure (L j)) → IsProbabilityMeasure Lsf →
@@ -637,10 +645,13 @@ theorem loop_core_holds : LoopCore := by
     loop_cluster_round_le_persist settings O P Dsf Ls N εcov δc slack cap cap m ms pAP hδc.le hC hN
       hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ := fun r hr =>
-    loop_level5_round_le_persist M O hL P Dsf settings S Ls NP N εd δ cross θ y m5
-      hmax hN hNPsum hband hk0 hrec hdis hη1 hδ hδ1 hy0 hcr hθ0 hθ' hε' le_rfl
-      (by linarith) (by linarith) (by rw [hyρ]; linarith)
-      (fun P' hP' O' θ' => hl4 (μ.prod μ) P' hP' O' θ') r hr
+    loop_level5_round_le_persist M O hL P Dsf settings Ls NP N εd δ cross θ y m5
+      (4 * Kp * G * W) (1024 * (P.L + 1) * unionLog (α := α) σ δ)
+      hC hN hNPsum hband hk0 hdis hη1 hδ hy0 hcr hθ0 hθ' hB5 (mul_nonneg (by positivity) hU) hpre
+      le_rfl (by linarith) (by linarith) (by rw [hyρ]; linarith)
+      (fun P' hP' O' θ' hθ0' hθ1' hκ hε hεκ hpre' => hl4 (μ.prod μ) P' hP' O' θ' hθ0' hθ1' hκ hε
+        (le_trans (le_of_eq (by simp only [Kp, G, V, n, A, hWd, e112]; ring)) hεκ)
+        (by rw [hP']; exact hpre')) r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hC hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -710,9 +721,9 @@ theorem loop_core_holds : LoopCore := by
           obtain ⟨-, hsp, hyl⟩ := h4
           have hy2 : y / 2 = ρ / 4 := by rw [hyρ]; ring
           have hatc : ∀ t, (popLaw (harvestLaw P.D (fun z => ((Lr[j]'(by omega)).read z).cut) k
-              h)).real {t} ≤ cap := fun t =>
+              (Lr[j]'(by omega)).result.hypothesis h)).real {t} ≤ cap := fun t =>
             (popLaw_atom_le (by positivity : (0 : ℝ) < y / 2) hyl
-              (harvestLaw_univ_ne_top P.D _ k P.length_le h) (le_prefixMax_of_spread hsp) t).trans
+              (harvestLaw_univ_ne_top P.D _ k P.length_le _ h) (le_prefixMax_of_spread hsp) t).trans
               (by rw [div_le_iff₀ (by positivity), hy2]; linarith)
           exact ⟨hatc, hsupp⟩
         have hpl : (dec cH).pops.length = i := by simp [hdecd, decodeHist, cH, hlen]
@@ -782,10 +793,11 @@ theorem loop_core_holds : LoopCore := by
         ring
 
 theorem learner_loop_correct_holds : LearnerLoopCorrect := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K S Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ Kp X G
+  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ V Kp G
     hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
   classical
-  set c : ℝ := Real.exp (-(8 * (P.L + 1) * (n + 1) / ρ)) with hc
+  set c : ℝ := Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
+    with hc
   set m : ℝ := min slack 1 / 2 with hmd
   set ms : ℝ := min pAP 1 / 2 with hmsd
   have hs1 := min_le_left slack 1
@@ -843,7 +855,7 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     key (b := 6 * ((K : ℝ) + 1) * (NP + 1) * (P.L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   refine ⟨cap, hcap0, fun k hk0 hk1 hk2 => ?_⟩
-  exact loop_core_holds M O P K S Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k hL hη hη₀
+  exact loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k hL hη hη₀
     hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0 hmsl hm1 hmsp
     hms1 (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c) (Finset.mem_univ pops))

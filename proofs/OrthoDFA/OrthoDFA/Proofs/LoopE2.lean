@@ -60,15 +60,6 @@ lemma renoise_mq_of_mem (O : Oracle μ (FreeMonoid α)) {R : Set (FreeMonoid α)
   classical
   simp only [Oracle.mq, Oracle.label, Oracle.renoise, renoiseNoise, if_pos hw]
 
-omit [DecidableEq α] in
-lemma unionLog_nonneg {σ : Type*} [Fintype σ] [Nonempty α] (S : ℕ) {δ : ℝ} (hδ : 0 < δ)
-    (hδ1 : δ ≤ 1) : 0 ≤ unionLog (α := α) σ S δ := by
-  unfold unionLog
-  have hA : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
-  refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
-  rw [le_div_iff₀ hδ]
-  nlinarith
-
 /-- The strings level 5 reads at a probe whose first `k` letters avoid `K₀`. -/
 def offReads (k : ℕ) (K₀ F : Finset (FreeMonoid α)) : Set (FreeMonoid α) :=
   {w | ∃ z, KeyOff k ↑K₀ z ∧ ∃ v ∈ F, w = z * v}
@@ -94,30 +85,26 @@ include hL in
 /-- At a state and family, level 5's bad draws: where it fails at re-noised clustering reads.
 Its chance is at most `δ`, it is fixed by the answers at the strings level 5 reads off the
 clustering's prefixes, and off it the actual round meets its claim. -/
-theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
-    (hmax : settings.level5.maxLeaves = Fintype.card σ + S + 3)
-    (hk : 1 ≤ settings.level5.walkStart) (hrec : 1 ≤ settings.level5.recordsToMove)
+theorem level5_bad_exists (εd δ crossLimit θ y m B5 U5 : ℝ)
+    (hC : 2 ≤ settings.level5.maxLeaves) (hk : 1 ≤ settings.level5.walkStart)
     (hdis : settings.level5.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
-    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
-    (hθ : 384 * (P.L + 1) * (Fintype.card σ + S + 1) * θ ≤ 1)
-    (hε : (P.L + 1) * (Fintype.card σ + S + 1) * crossLimit
-      + 3 * unionLog (α := α) σ S δ * (2 * prefixMax P.D settings.level5.walkStart) ≤ y)
+    (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
+    (hθ : 384 * (P.L + 1) * (Fintype.card σ + 1) * θ ≤ 1)
+    (hB5 : crossLimit * B5 ≤ δ) (hU5 : 0 ≤ U5)
+    (hpre : U5 * (2 * prefixMax P.D settings.level5.walkStart) ≤ εd / 2)
     (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 2) (hmc : (P.L + 1) * m ≤ y / 2)
     (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
-      let n : ℝ := Fintype.card σ + S
-      let A : ℝ := Fintype.card α
       let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → 384 * (P'.L + 1) * (n + 1) * θ ≤ 1 →
-      0 < O'.κ → 4 * O'.κ * (8 * (n + 3) * (P'.L + 1) * Real.sqrt (A * y / 3) + 1) ≤ y →
-      0 ≤ O'.ε → (P'.L + 1) * (n + 1) * O'.ε
-        + 3 * unionLog (α := α) σ S δ * prefixMax P'.D settings.level5.walkStart ≤ y →
+      0 ≤ θ → 384 * (P'.L + 1) * (Fintype.card σ + 1) * θ ≤ 1 →
+      0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
+      U5 * prefixMax P'.D settings.level5.walkStart ≤ εd / 2 →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
             ¬ EndsWell M bad P'.D settings.level5.disagreementRate
               (searchingProbes (O'.read · ω) settings.level5.walkStart result.hypothesis)
               settings.level5.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart)
-              y result.ending} ∂(μ.prod μ)
+              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart
+                result.hypothesis) y result.ending} ∂(μ.prod μ)
         ≤ ENNReal.ofReal δ)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
@@ -136,17 +123,6 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
   set C := settings.level5 with hCdef
   set k := C.walkStart
   set T := C.probeBudget
-  have hC : 2 ≤ C.maxLeaves := by rw [hmax]; omega
-  -- the band's `κ`
-  set n : ℝ := (Fintype.card σ : ℝ) + S
-  set A : ℝ := (Fintype.card α : ℝ)
-  set W : ℝ := 8 * (n + 3) * (P.L + 1) * Real.sqrt (A * y / 3) + 1
-  have hW : 0 < W := by positivity
-  set κ₀ : ℝ := y / (4 * W)
-  have hκ₀ : 0 < κ₀ := by positivity
-  have hκ₀W : 4 * κ₀ * W ≤ y := by
-    simp only [κ₀]
-    rw [show 4 * (y / (4 * W)) * W = y by field_simp]
   set Oc := O.clamped
   have hηIn : 0 ≤ 1 - Oc.ηIn ∧ 1 - Oc.ηIn ≤ 1 := by
     have h1 : O.ηIn ≤ O.η := le_max_left _ _
@@ -157,8 +133,8 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     have h1 : O.ηOut ≤ O.η := le_max_right _ _
     exact ⟨by simp only [Oc, Oracle.clamped]; exact le_max_right _ _,
       by simp only [Oc, Oracle.clamped]; exact max_le (by linarith) (by norm_num)⟩
-  have hb := hband F.card hcard (1 - Oc.ηIn) Oc.ηOut 0 κ₀ hηIn.1 hηIn.2 hηOut.1 hηOut.2 hκ₀.le
-  let fam : SuffixFamily μ α σ := ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit, 0, κ₀, hL, hsf, hb⟩
+  have hb := hband F.card hcard (1 - Oc.ηIn) Oc.ηOut 0 0 hηIn.1 hηIn.2 hηOut.1 hηOut.2 le_rfl
+  let fam : SuffixFamily μ α σ := ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit, 0, 0, hL, hsf, hb⟩
   set R : Set (FreeMonoid α) := (offReads k K₀ F)ᶜ
   let fam' := fam.renoise R
   -- the conditioned probes
@@ -173,15 +149,10 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     refine (prefixMax_avoidLaw_le P.D k K₀ (by linarith)).trans ?_
     rw [div_le_iff₀ (by linarith)]
     nlinarith
-  have hU := unionLog_nonneg (α := α) (σ := σ) S hδ hδ1
-  have hε' : (P'.L + 1) * (n + 1) * fam'.oracle.ε
-      + 3 * unionLog (α := α) σ S δ * prefixMax P'.D k ≤ y := by
-    refine le_trans ?_ hε
-    show (P.L + 1) * (n + 1) * crossLimit + 3 * unionLog (α := α) σ S δ * prefixMax D' k ≤ _
-    have := mul_le_mul_of_nonneg_left hpm (by positivity : (0 : ℝ) ≤ 3 * unionLog (α := α) σ S δ)
-    simp only [n] at this ⊢
-    linarith
-  have h4 := hlevel5 P' rfl fam'.oracle θ hθ0 hθ hκ₀ hκ₀W hcross.le hε'
+  have hpre' : U5 * prefixMax P'.D k ≤ εd / 2 :=
+    (mul_le_mul_of_nonneg_left hpm hU5).trans hpre
+  have h4 := hlevel5 P' rfl fam'.oracle θ hθ0 hθ (le_refl (0 : ℝ)) hcross.le
+    (by show (crossLimit + 0) * B5 ≤ δ; rw [add_zero]; exact hB5) hpre'
   set Sf := l4Fail fam' C D' θ y
   have hSm : MeasurableSet Sf := measurableSet_l4Fail fam' C hC D' θ y
   have hS : ((μ.prod μ).prod (Measure.pi fun _ : Fin T => D')) Sf ≤ ENNReal.ofReal δ := by
@@ -225,7 +196,9 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
         (searchingProbes (fun z => fam'.read (ω, ω₀) z) k
           (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
             (probesOf settings P.D K₀ u)).hypothesis) k
-        (harvestLaw D' (fun z => (fam'.read (ω, ω₀) z).cut) k) y
+        (harvestLaw D' (fun z => (fam'.read (ω, ω₀) z).cut) k
+          (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
+            (probesOf settings P.D K₀ u)).hypothesis) y
         (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
           (probesOf settings P.D K₀ u)).ending := by
       by_contra hc
@@ -233,7 +206,7 @@ theorem level5_bad_exists (S : ℕ) (εd δ crossLimit θ y m : ℝ)
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
     have hoff : ∀ z, KeyOff k ↑K₀ z → read z = fam'.read (ω, ω₀) z := fun z hz =>
       (renoise_read_of_notMem fam R (fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩) (ω, ω₀)).symm
-    have hres := level5_congr_off C hrec (probesOf settings P.D K₀ u)
+    have hres := level5_congr_off C (probesOf settings P.D K₀ u)
       (fun i => drawFrom_avoids P.D hk K₀ (u i)) hoff
     have hmc' : (P.L + 1) * m' ≤ (1 - m') * y := by
       have := mul_le_mul_of_nonneg_left hm' (by positivity : (0 : ℝ) ≤ P.L + 1)

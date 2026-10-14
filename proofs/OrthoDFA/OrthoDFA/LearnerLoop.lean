@@ -7,9 +7,8 @@ import Mathlib.MeasureTheory.Constructions.UnitInterval
 Each round of `indecisiveLStarLoop` clusters a suffix family over the populations so far, runs
 level 5 of indecisive L* reading that family, and stops at the first round that does not end in a
 harvest. A harvest's sampler, scaled to a probability, becomes a population of every later round:
-it picks one of the hypotheses the harvest's counts were taken under, draws a fresh probe from the
-probes' distribution `D`, walks it under that hypothesis and takes its undecided strings at the
-harvest's site, as the round reads them. The first population is `D` itself. A population's
+it draws a fresh probe from the probes' distribution `D`, walks it under the round's last
+hypothesis and takes its undecided strings at the harvest's site, as the round reads them. The first population is `D` itself. A population's
 draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about: the family is `clusterAt` at a
@@ -25,10 +24,6 @@ the clustering read. The Python draws them from `D`.
 
 Known modelling gap. The uniform pool is drawn afresh each round, where the Python keeps one pool
 across rounds; on one noise a kept pool's prefixes would be read again by every round.
-
-Known modelling gap. The Python's `Replay` replays the round's last hypothesis, where the sampler
-here mixes every hypothesis the harvest's counts were taken under. Closing it would key
-`HarvestSource` provenance on the hypothesis and the site.
 
 Known modelling gap. The gate draws its certification pool to at most twice its size. The
 Python caps each verdict's extra draws at `certification_budget`, but `sample_suffix_family`'s
@@ -218,7 +213,8 @@ def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
 from `k`, scaled to a probability. -/
 def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
     Option (Measure (FreeMonoid α)) :=
-  o.result.ending.harvested.map fun h => popLaw (harvestLaw D (fun z => (o.read z).cut) k h)
+  o.result.ending.harvested.map fun site =>
+    popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis site)
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
@@ -279,19 +275,19 @@ holds little of any population or of the suffixes. A harvest's sampler yields at
 string at most as often as the probes share its length-`k` prefix, so its population puts at most
 `4 prefixMax / ρ` on any one string. Level 5's `θ` is set so that a harvested state some later
 family leaves undecided more than `1.5θ` of the time holds more of the population than the FNR
-gate lets through. -/
+gate lets through, and the band's far side so that level 5 rarely reads a state on its rarer
+side. -/
 def LearnerLoopCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K S Ls : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ : ℝ),
-  let n : ℝ := Fintype.card σ + S
+    (K Ls : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ : ℝ),
+  let n : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
-    + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp) / δ
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
+  let ρ : ℝ := 3 * εd / 16
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let Kp : ℝ := V * (224 / εd + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -301,10 +297,10 @@ def LearnerLoopCorrect : Prop :=
   0 < slack → 0 < pAP →
   0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 1 ≤ P.L →
   Fintype.card σ + 1 ≤ K →
-  P.L + Fintype.card σ + S + 3 ≤ Ls →
+  P.L + Fintype.card σ + 2 ≤ Ls →
   1024 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
   ∃ cap : ℝ, 0 < cap ∧ ∀ k : ℕ, 1 ≤ k → prefixMax P.D k ≤ cap * ρ / 4 →
-    24 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
+    4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
   ∃ settings : LoopSettings K,
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
@@ -326,11 +322,12 @@ hypothesis's walk and tree part on at most `εd` of the probes, and whose family
 is decided against the target at most `εcov` of the time and undecided at most `εcov` of the
 time. Level 5 draws at most `Kp · G` probes a round.
 
-The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, no splits that are not
-genuine, `|Q| + 1` rounds and suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the
-rounds' clustering and level 5. The clustering runs at half of `εcov`, `ι` and `pAP`, the other
-halves paying for what the earlier rounds read. `PB` and `RB` bound its suffix pool and prefix
-count; `cap` is linear in them, and holds the clustering's collision conditions and what the
+The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, `|Q| + 1` rounds and
+suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the rounds' clustering and level 5.
+The clustering runs at half of `εcov`, `ι` and `pAP`, the other halves paying for what the earlier
+rounds read, and its band's far side at `δ' / (4 Kp G (L + 1)(|Q| + 3)|Σ|^(|Q|+2))`, so that level
+5 rarely reads a state on its rarer side. `PB` and `RB` bound its suffix pool and prefix count;
+`cap` is linear in them, and holds the clustering's collision conditions and what the
 earlier rounds read of any population or of the suffixes. `ρ / 4` is what a harvest's sampler
 yields, so a population puts at most `4 prefixMax / ρ` on a string. The last hypothesis holds
 level 5's noise fields, which concentrate over the probes' length-`k` prefixes. -/
@@ -344,11 +341,15 @@ def LearnerLoopSimple : Prop :=
   let L : ℝ := P.L
   let δ' : ℝ := δ / (2 * (Q + 1))
   let ι : ℝ := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
-  let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
+  let ρ : ℝ := 3 * εd / 16
   let s : ℝ := 1 / 2 - η₀
   let τ : ℝ := min (εcov / 2) (min s ι)
   let J : ℝ := Q + 2
-  let PB : ℝ := 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
+  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
+  let Kp : ℝ := V * (224 / εd + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+  let PB : ℝ := 256 * (Real.log (2 / τ)
+      + 8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ') / (s ^ 2 * pAP)
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 3)
@@ -356,15 +357,11 @@ def LearnerLoopSimple : Prop :=
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
-  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
-    + 8 * (Q + 3) * A * (L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ'
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L → 1 ≤ k →
   prefixMax P.D k ≤ cap * ρ / 4 →
-  96 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ ρ →
+  16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ εd →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
     (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
@@ -395,18 +392,18 @@ def LearnerLoopUniform : Prop :=
   let L : ℝ := P.L
   let s : ℝ := 1 / 2 - η₀
   let δ' : ℝ := δ / (2 * (Q + 1))
-  let ρ : ℝ := εd / (256 * (Q + 1) * (Q * A + 1))
+  let ρ : ℝ := 3 * εd / 16
+  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
+  let Kp : ℝ := V * (224 / εd + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
   let Θ : ℝ := 1 / s + 8 / εcov + 3072 * Q * (Q + 1)
-  let P₀ : ℝ := 256 * (2 * Θ + 8 * (Q + 1) / ρ) / (s ^ 2 * pAP)
+  let P₀ : ℝ := 256 * (2 * Θ + 8 * Kp * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+    / (s ^ 2 * pAP)
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
     * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4
   let E : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 1) / pAP + A ^ 2) / (δ' * ρ)
   let L₀ : ℝ := 2 + 28 * (Real.log E + 24) / (25 * Real.log A)
-  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
-    + 8 * (Q + 3) * A * (L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ'
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 2 ≤ Fintype.card α →

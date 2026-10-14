@@ -231,8 +231,8 @@ def Level5Spec (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : Prefi
     (θ εd y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   QuarterEndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D εd
-    (searchingProbes o.read k o.result.hypothesis) k (harvestLaw P.D (fun z => (o.read z).cut) k)
-    y o.result.ending
+    (searchingProbes o.read k o.result.hypothesis) k
+    (harvestLaw P.D (fun z => (o.read z).cut) k o.result.hypothesis) y o.result.ending
 
 /-- The goodness level the loop runs level 5's claim at. -/
 def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
@@ -286,7 +286,8 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
   | nil => rfl
   | cons o rounds ih =>
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 (h o (by simp))
-    have hpo : o.population D k = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k zo)) := by
+    have hpo : o.population D k
+        = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis zo)) := by
       simp [LoopRound.population, hzo]
     simp only [harvestsOf, List.filterMap_cons, hpo, List.length_cons] at ih ⊢
     rw [ih fun o' ho' => h o' (by simp [ho'])]
@@ -395,7 +396,8 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       choose hv hzs using hzs
       -- the population each harvest hands on
       set ν : ∀ i, i ≤ Fintype.card σ → Measure (FreeMonoid α) := fun i hi =>
-        popLaw (harvestLaw P.D (fun z => ((L[i]'(by omega)).read z).cut) k (hv i hi))
+        popLaw (harvestLaw P.D (fun z => ((L[i]'(by omega)).read z).cut) k
+          (L[i]'(by omega)).result.hypothesis (hv i hi))
       have hpop : ∀ i (hi : i ≤ Fintype.card σ), (L[i]'(by omega)).population P.D k
           = some (ν i hi) := by
         intro i hi
@@ -415,13 +417,14 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           revert this
           cases (L[i]'(by omega)).result.ending <;> simp [RoundEnd.harvested]
         rw [he] at h4
-        set law := harvestLaw P.D (fun z => ((L[i]'(by omega)).read z).cut) k (hv i hi)
+        set law := harvestLaw P.D (fun z => ((L[i]'(by omega)).read z).cut) k
+          (L[i]'(by omega)).result.hypothesis (hv i hi)
         set bad := fun q => ¬ familyReadDist O M (L[i]'(by omega)).family
           (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided
             ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack
         have hmost : law.real Set.univ < 4 * law.real {z | bad (M.eval z.toList)} := h4.1
         have htop : law Set.univ ≠ ⊤ :=
-          harvestLaw_univ_ne_top P.D _ k P.length_le (hv i hi)
+          harvestLaw_univ_ne_top P.D _ k P.length_le _ (hv i hi)
         have hle : law.real {z | bad (M.eval z.toList)} ≤ law.real Set.univ :=
           measureReal_mono (Set.subset_univ _) htop
         have hpos : 0 < law.real Set.univ := by

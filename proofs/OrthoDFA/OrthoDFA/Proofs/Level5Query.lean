@@ -8,9 +8,9 @@ One probe of `x` at a fixed hypothesis reads strings adaptively: the sift of its
 sifts its walk check and its bisection call for, each sift reading a node's string and going on by
 its read. `probeQuery` is that computation as a query tree, each read labelled by the position
 sifted and the edge the position is charged to, which the start's sift fixes before; its run is
-`probeBy` (`run_probeQuery`). `recordQ` then sifts the record's two positions again, so a record
-that is not true has a read on its state's rarer side among its reads (`untrue_minority`), and a
-read undecided stops the sift of a position the tests charge it to (`und_twins`).
+`probeBy` (`run_probeQuery`). A sift that lands off its string's true leaf read a string on its
+state's rarer side (`minority_of_sift`), and over independent reads a query tree's first reads
+are fresh (`edge_first_mean`).
 -/
 
 namespace OrthoDFA
@@ -192,13 +192,6 @@ end Walk
 section Probe
 
 variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
-
-/-- The probe, and then the sifts of its record's two positions again. -/
-def recordQ : ProbeQuery α (Outcome α) :=
-  (probeQuery T edges k x).bind fun o => match o with
-  | .edge _ fd => (siftQuery (fd - 1, none) T (prefixOf x (fd - 1))).bind fun _ =>
-      (siftQuery (fd, none) T (prefixOf x fd)).map fun _ => o
-  | _ => .done o
 
 variable (rd : FreeMonoid α → ARU)
 
@@ -388,10 +381,6 @@ section Record
 
 variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
 
-theorem siftCut_route_decided {cut : FreeMonoid α → Option Bool} {u : FreeMonoid α} {p : List Bool}
-    (h : T.siftCut cut u = .inl p) {w : FreeMonoid α} (hw : w ∈ (T.route cut u).1) : cut w ≠ none :=
-  fun hc => by rw [siftCut_of_route_und T u w hw hc] at h; exact Sum.inr_ne_inl h
-
 /-- A probe at an edge sifts the edge's two positions decided, the first to the walk. -/
 theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
     (h : probeBy (fun z => (rd z).cut) T edges k x = .edge ps fd) :
@@ -413,50 +402,6 @@ theorem probeBy_edge {ps : List (List Bool)} {fd : ℕ}
   · rcases hs : T.siftCut cut (prefixOf x fd) with p | b <;> rw [hs] at h2 <;>
       simp only [Sum.elim_inl, Sum.elim_inr, reduceCtorEq] at h2
     exact ⟨p, rfl⟩
-
-theorem asks_recordQ : (recordQ T edges k x).asks rd = (probeQuery T edges k x).asks rd
-    ++ match probeBy (fun z => (rd z).cut) T edges k x with
-      | .edge _ fd => (T.route (fun z => (rd z).cut) (prefixOf x (fd - 1))).1.map
-          ((fd - 1, none), ·)
-          ++ (T.route (fun z => (rd z).cut) (prefixOf x fd)).1.map ((fd, none), ·)
-      | _ => [] := by
-  unfold recordQ
-  rw [QTree.asks_bind, run_probeQuery]
-  congr 1
-  rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;>
-    simp only [QTree.asks]
-  rw [QTree.asks_bind, asks_siftQuery, QTree.asks_map, asks_siftQuery]
-
-/-- A record that is not true read a string on its state's rarer side. -/
-theorem untrue_minority {σ : Type*} (G : ReadModel α σ) (hx : x ∈ G.untrueAt rd k T edges) :
-    ∃ q ∈ (recordQ T edges k x).asks rd, (rd q.2).cut = some (!G.side (G.M.eval q.2.toList)) := by
-  obtain ⟨⟨p, c, t⟩, sp, hrec, hnt⟩ := hx
-  unfold recordBy at hrec
-  rw [asks_recordQ]
-  rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;>
-    rw [ho] at hrec <;> simp only [reduceCtorEq] at hrec
-  obtain ⟨hkf, hs1, -⟩ := probeBy_edge T edges k x rd ho
-  rcases hc : x.toList[fd - 1]? with _ | c₁ <;> rw [hc] at hrec
-  · simp at hrec
-  rcases ht : T.siftCut (fun z => (rd z).cut) (prefixOf x fd) with t' | b <;> rw [ht] at hrec
-  swap
-  · simp at hrec
-  simp only [Option.some.injEq, Prod.mk.injEq] at hrec
-  obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hrec
-  have hsc : prefixOf x (fd - 1) * FreeMonoid.of c₁ = prefixOf x fd := by
-    apply FreeMonoid.toList.injective
-    rw [List.getElem?_eq_some_iff] at hc
-    obtain ⟨hlt, hc⟩ := hc
-    simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_ofList, FreeMonoid.toList_of]
-    rw [show fd = fd - 1 + 1 by omega, List.take_add_one, List.getElem?_eq_getElem hlt, hc]
-    simp
-  simp only [ReadModel.TrueRec, not_and_or] at hnt
-  rcases hnt with hn | hn
-  · obtain ⟨w, hw, hcw⟩ := minority_of_sift G T _ _ hs1 hn
-    exact ⟨((fd - 1, none), w), by simp [hw], hcw⟩
-  · rw [hsc] at hn
-    obtain ⟨w, hw, hcw⟩ := minority_of_sift G T _ _ ht hn
-    exact ⟨((fd, none), w), by simp [hw], hcw⟩
 
 end Record
 
@@ -493,30 +438,6 @@ theorem measure_read (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist 
     (w : FreeMonoid α) (r : ARU) :
     μ {ω | read w ω = r} = ENNReal.ofReal (G.readDist (G.M.eval w.toList) r) := by
   rw [← hlaw, measureReal_def, ENNReal.ofReal_toReal (measure_ne_top _ _)]
-
-theorem fsum_one {β : Type*} (rd : FreeMonoid α → ARU) (t : ProbeQuery α β) :
-    QTree.fsum (fun _ _ _ => 1) rd ∅ t = (t.firsts rd ∅).length := by
-  simp [QTree.fsum]
-
-/-- Over independent reads with laws `G.readDist`, a query tree's first reads on their state's rarer
-side average at most `κ` times its undecided first reads plus `ε` times its first reads. -/
-theorem minority_mean {β : Type*} (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ)
-    (t : ProbeQuery α β) :
-    ∫⁻ ω, QTree.fsum (fun _ w v => if v = G.minVal (G.M.eval w.toList) then 1 else 0)
-        (fun y => read y ω) ∅ t ∂μ
-      ≤ ∫⁻ ω, QTree.fsum (fun _ _ v => (if v = .undecided then ENNReal.ofReal G.κ else 0)
-        + ENNReal.ofReal G.ε) (fun y => read y ω) ∅ t ∂μ := by
-  refine QTree.firsts_lintegral_le _ _ t read ∅ hmeas hind fun ℓ w _ => ?_
-  have hm : Measurable fun ω => if read w ω = .undecided then ENNReal.ofReal G.κ else 0 :=
-    Measurable.ite (hmeas w (measurableSet_singleton _)) measurable_const measurable_const
-  rw [lintegral_ite_read read hmeas, lintegral_add_left hm, lintegral_ite_read read hmeas,
-    lintegral_const, measure_univ, mul_one, one_mul, measure_read G hlaw, measure_read G hlaw,
-    dist_minVal, ← ENNReal.ofReal_mul hκ]
-  refine (ENNReal.ofReal_le_ofReal (G.rare _)).trans ?_
-  rcases le_total G.ε (G.κ * G.readDist (G.M.eval w.toList) .undecided) with h | h
-  · rw [max_eq_right h]; exact le_add_right le_rfl
-  · rw [max_eq_left h]; exact le_add_left le_rfl
 
 /-- The per-read edge field in mean, each string counted at its first read in the probe: a query
 tree's undecided first reads labelled `e` at read-states where undecided reads are at most `θ'`

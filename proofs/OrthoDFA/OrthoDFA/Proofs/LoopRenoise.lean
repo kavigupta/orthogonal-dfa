@@ -65,7 +65,8 @@ def l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings) (D' : Measure (Fr
   {d | let result := indecisiveLStarLevel5 C (fun z => fam.read d.1 z) d.2
     ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' C.disagreementRate
       (searchingProbes (fun z => fam.read d.1 z) C.walkStart result.hypothesis) C.walkStart
-      (harvestLaw D' (fun z => (fam.read d.1 z).cut) C.walkStart) y result.ending}
+      (harvestLaw D' (fun z => (fam.read d.1 z).cut) C.walkStart result.hypothesis) y
+      result.ending}
 
 theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
     (hC : 2 ≤ C.maxLeaves) (D' : Measure (FreeMonoid α)) (θ y : ℝ) :
@@ -94,8 +95,8 @@ theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
         ∩ {ω | ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' C.disagreementRate
           (searchingProbes (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) C.walkStart
             (rep U).hypothesis) C.walkStart
-          (harvestLaw D' (fun z => (familyRead fam.O.mq fam.F fam.kl fam.kh z ω).cut) C.walkStart)
-          y (rep U).ending}) := by
+          (harvestLaw D' (fun z => (familyRead fam.O.mq fam.F fam.kl fam.kh z ω).cut) C.walkStart
+            (rep U).hypothesis) y (rep U).ending}) := by
     ext ω
     simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_powerset,
       exists_prop, l4Fail]

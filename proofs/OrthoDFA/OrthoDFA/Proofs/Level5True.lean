@@ -8,7 +8,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 A split at `p` leaves every other state's true leaf where it was, and sends the states at `p` to
 the side their read of the new midfix is on. So no split lowers the count of true leaves, at most
 `|Q|`, and a genuine one raises it. Two true records at one edge with different targets make the
-split they trigger genuine. A split is fixed by its tree.
+split they trigger genuine.
 -/
 
 namespace OrthoDFA
@@ -175,12 +175,6 @@ theorem grown_count [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     rw [if_neg hg] at h2
     rw [DTree.length_leaves_splitAt _ _ _ hp]
     omega
-
-theorem grown_unique [Fintype σ] {T : DTree α} {f f' : ℕ} (h : G.Grown T f) (h' : G.Grown T f') :
-    f = f' := by
-  have := G.grown_count h
-  have := G.grown_count h'
-  omega
 
 theorem grown_paths [Fintype σ] {T : DTree α} {f : ℕ} (h : G.Grown T f) :
     T.leaves.length ≤ Fintype.card σ + 2 + f := by

@@ -32,19 +32,20 @@ theorem runProbes_readInv {Lx : ℕ} :
     rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> simp only [ha] at h ⊢
     · exact runProbes_readInv s' xs (applyProbe_readInv C cut (recordProbe_readInv C cut hs hx) ha)
         (fun y hy => hxs y (List.mem_cons_of_mem _ hy)) h
-    · have he : e ≠ .tooBig := by rintro rfl; simp [toRoundEnd] at h
-      obtain ⟨rfl, -⟩ := applyProbe_inr_pre C cut ha he
-      exact recordProbe_readInv C cut hs hx
+    · rcases applyProbe_inr C cut ha with ⟨-, rfl⟩ | ⟨rfl, -⟩
+      · exact recordProbe_readInv C cut hs hx
+      · simp [toRoundEnd] at h
 
 theorem level5_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
     (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel5 C read xs).ending ≠ .failed) :
     MidLe C.maxLeaves (indecisiveLStarLevel5 C read xs).hypothesis.tree := by
   have hinv := runProbes_readInv C (fun z => (read z).cut) (Lx := probesLen xs) initialState
-    (List.ofFn xs) ⟨by simp [initialState, DTree.leaves], by simpa [initialState, DTree.leaves]
-      using hC, by simp [initialState, DTree.leaves, DTree.midfixes], by simp [initialState],
-      by simp [initialState]⟩
+    (List.ofFn xs) ⟨by simp [initialState, freshState, DTree.leaves],
+      by simpa [initialState, freshState, DTree.leaves] using hC,
+      by simp [initialState, freshState, DTree.leaves, DTree.midfixes],
+      by simp [initialState, freshState]⟩
     (fun x hx => by obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx; exact le_probesLen xs i) h
-  obtain ⟨-, hL, hm, -, -⟩ := hinv
+  obtain ⟨-, hL, hm, -⟩ := hinv
   intro m hmm
   have := hm m hmm
   show m.toList.length ≤ C.maxLeaves
@@ -58,11 +59,13 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
       read z = read' z) :
     EndsWell M bad D' C.disagreementRate (searchingProbes read C.walkStart
         (indecisiveLStarLevel5 C read xs).hypothesis) C.walkStart
-        (harvestLaw D' (fun z => (read z).cut) C.walkStart) y
+        (harvestLaw D' (fun z => (read z).cut) C.walkStart
+          (indecisiveLStarLevel5 C read xs).hypothesis) y
         (indecisiveLStarLevel5 C read xs).ending
       ↔ EndsWell M bad D' C.disagreementRate (searchingProbes read' C.walkStart
         (indecisiveLStarLevel5 C read' xs).hypothesis) C.walkStart
-        (harvestLaw D' (fun z => (read' z).cut) C.walkStart) y
+        (harvestLaw D' (fun z => (read' z).cut) C.walkStart
+          (indecisiveLStarLevel5 C read' xs).hypothesis) y
         (indecisiveLStarLevel5 C read' xs).ending := by
   have hres : indecisiveLStarLevel5 C read xs = indecisiveLStarLevel5 C read' xs :=
     level5_congr_up C hC xs (le_probesLen xs) fun z hz => h z (le_max_of_le_right hz)
@@ -91,11 +94,11 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
     rw [measureReal_congr hae]
   · have hshort := harvest_short C hC read xs he
     have hlaw := harvestLaw_congr_up (fun z => (read z).cut) (L := L) (M := C.maxLeaves) hlen le_rfl
-      hcut C.walkStart (h := hv) fun v hvm m hm => by
-        obtain ⟨-, hL, hmid⟩ := hshort v hvm
+      hcut C.walkStart (H := res.hypothesis) (fun m hm => by
+        obtain ⟨-, hL, hmid⟩ := hshort
         have := hmid m hm
         show m.toList.length ≤ C.maxLeaves
-        omega
+        omega) hv
     simp only [EndsWell]
     rw [hlaw]
   · simp [EndsWell]

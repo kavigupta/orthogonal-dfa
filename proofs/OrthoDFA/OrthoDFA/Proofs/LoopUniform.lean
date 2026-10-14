@@ -126,15 +126,15 @@ lemma seven_log_le {A L : ℝ} (hA : 2 ≤ A) (hL : 0 < L) :
 set_option maxHeartbeats 2000000 in -- many small nonlinear steps
 /-- The simple claim's cap is at least its first or its third term, and is large once
 `L ≥ L₀`. -/
-lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} {n : ℕ}
+lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} {n : ℕ} (Bc cL : ℝ)
     (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hLn : L = n + 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
     (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hεd : 0 < εd) (hεd1 : εd ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1)
     (hs : s = 1 / 2 - η₀) (hδ' : δ' = δ / (2 * (Q + 1)))
     (hι : ι = min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q)))
-    (hρ : ρ = εd / (256 * (Q + 1) * (Q * A + 1)))
+    (hρ : ρ = 3 * εd / 16) (hBc : 1 ≤ Bc) (hcL : cL = (L + 1) * Bc)
     (hΘ : Θ = 1 / s + 8 / εcov + 3072 * Q * (Q + 1))
-    (hP₀ : P₀ = 256 * (2 * Θ + 8 * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    (hP₀ : P₀ = 256 * (2 * Θ + Bc) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2)
     (hR₀ : R₀ = 6000 * (Q + 2) ^ 2 * Θ ^ 3
       * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4)
@@ -142,7 +142,7 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
     (hL₀ : 2 + 28 * (Real.log E + 24) / (25 * Real.log A) ≤ L) :
     let τ := min (εcov / 2) (min s ι)
     let J := Q + 2
-    let PB := 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
+    let PB := 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 3)
@@ -150,7 +150,8 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
         (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
       (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
-    1 / A ^ n ≤ cap * ρ / 4 ∧ 96 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (1 / A ^ n) ≤ ρ := by
+    1 / A ^ n ≤ cap * ρ / 4
+      ∧ 16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (1 / A ^ n) ≤ εd := by
   intro τ J PB RB cap
   have hτ : τ = min (εcov / 2) (min s ι) := rfl
   have hJ : J = Q + 2 := rfl
@@ -161,12 +162,7 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
   have hδ'0 : 0 < δ' := by rw [hδ']; positivity
   have hδ'1 : δ' ≤ 1 := by rw [hδ', div_le_one (by positivity)]; linarith
   have hρ0 : 0 < ρ := by rw [hρ]; positivity
-  have hQA : A ≤ (Q + 1) * (Q * A + 1) := by
-    have h1 : A ≤ Q * A := le_mul_of_one_le_left hA0.le hQ
-    have h2 : Q * A + 1 ≤ (Q + 1) * (Q * A + 1) :=
-      le_mul_of_one_le_left (by positivity) (by linarith)
-    linarith
-  have hρ1 : ρ ≤ 1 := by rw [hρ, div_le_one (by positivity)]; linarith
+  have hρ1 : ρ ≤ 1 := by rw [hρ]; linarith
   have hL1 : 1 ≤ L := by rw [hLn]; linarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
   have hℓ0 : 0 < L + 1 := by linarith
   have h8ε : 0 < 8 / εcov := by positivity
@@ -203,7 +199,7 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
     exact le_min (by linarith) (le_min (by linarith) (le_min (by linarith) h4))
   -- the suffix pool's bound `PB`
   have hJ2 : J + 2 = Q + 4 := by rw [hJ]; ring
-  have hPB : PB = 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
+  have hPB : PB = 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by
     show _ + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 = _
     rw [hJ2]
@@ -220,35 +216,30 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
     nlinarith only [this, hp1, sq_nonneg s]
   have hsp0 : 0 < s ^ 2 * pAP := by positivity
   have hPBle : PB ≤ (L + 1) * P₀ := by
-    have e : (L + 1) * P₀ = 256 * (2 * (Θ * (L + 1)) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
-        + (L + 1) * (64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) := by rw [hP₀]; ring
+    have e : (L + 1) * P₀ = 256 * (2 * (Θ * (L + 1)) + cL) / (s ^ 2 * pAP)
+        + (L + 1) * (64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) := by rw [hP₀, hcL]; ring
     rw [e, hPB]
-    have h1 : 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP)
-        ≤ 256 * (2 * (Θ * (L + 1)) + 8 * (L + 1) * (Q + 1) / ρ) / (s ^ 2 * pAP) :=
+    have h1 : 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
+        ≤ 256 * (2 * (Θ * (L + 1)) + cL) / (s ^ 2 * pAP) :=
       div_le_div_of_nonneg_right (by linarith) hsp0.le
     have h2 : 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
         ≤ (L + 1) * (64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) :=
       le_mul_of_one_le_left (by positivity) (by linarith)
     linarith
-  have hPB0 : 0 ≤ PB := by rw [hPB]; positivity
-  have hPBc : 8 * (L + 1) * (Q + 1) / ρ ≤ PB := by
-    have h1 : 8 * (L + 1) * (Q + 1) / ρ ≤ 256 * (Real.log (2 / τ) + 8 * (L + 1) * (Q + 1) / ρ)
-        / (s ^ 2 * pAP) := by
+  have hcL1 : 1 ≤ cL := by rw [hcL]; nlinarith only [hBc, hL1]
+  have hPBc : cL ≤ PB := by
+    have h1 : cL ≤ 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP) := by
       rw [le_div_iff₀ hsp0]
-      have : 0 ≤ 8 * (L + 1) * (Q + 1) / ρ := by positivity
-      nlinarith only [this, hsp, hlτ0]
+      nlinarith only [hcL1, hsp, hlτ0]
     have h2 : 0 ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by positivity
     rw [hPB]; linarith
-  have hPB1 : 1 ≤ PB := by
-    refine le_trans ?_ hPBc
-    rw [le_div_iff₀ hρ0]
-    nlinarith only [hρ1, hρ0, hL1, hQ]
+  have hPB1 : 1 ≤ PB := hcL1.trans hPBc
+  have hPB0 : 0 ≤ PB := by linarith
   have hP₀1 : 1 ≤ P₀ := by
-    have hx : 0 ≤ 2 * Θ + 8 * (Q + 1) / ρ := by positivity
-    have h1 : 2 * Θ + 8 * (Q + 1) / ρ ≤ 256 * (2 * Θ + 8 * (Q + 1) / ρ) / (s ^ 2 * pAP) := by
+    have hx : 0 ≤ 2 * Θ + Bc := by linarith
+    have h1 : 2 * Θ + Bc ≤ 256 * (2 * Θ + Bc) / (s ^ 2 * pAP) := by
       rw [le_div_iff₀ hsp0]; nlinarith only [hx, hsp]
     have h2 : 0 ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by positivity
-    have h3 : 0 ≤ 8 * (Q + 1) / ρ := by positivity
     rw [hP₀]; linarith
   -- the prefix count's bound `RB`
   obtain ⟨Y₀, hY₀⟩ : ∃ Y₀, Y₀ = (Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2)) := ⟨_, rfl⟩
@@ -428,38 +419,44 @@ lemma cap_bound {Q A L η₀ εcov εd δ pAP δ' ι ρ s Θ P₀ R₀ E : ℝ} 
         have : 1 / (c3 * ρ / 4) = 4 / (c3 * ρ) := by field_simp
         rw [this]; exact hb3.trans hpow
     exact hm.trans (by gcongr)
-  · -- the noise fields' condition
+  · -- level 5's prefix condition
     have hlg0 : 0 < (Q + 3) * A / δ' := by positivity
     have hlg : Real.log ((Q + 3) * A / δ') ≤ (Q + 3) * A / δ' := by
       linarith [Real.log_le_sub_one_of_pos hlg0]
     have hlg1 : 0 ≤ Real.log ((Q + 3) * A / δ') :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ, hA])
-    have hEn : 96 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') / ρ ≤ E := by
+    have hEn : 3072 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') / ρ ≤ E := by
       rw [hE, div_le_div_iff₀ hρ0 (by positivity)]
-      have h1 : 96 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * δ'
-          ≤ 96 * (Q + 2) * (Q + 3) * A ^ 2 := by
-        have := mul_le_mul_of_nonneg_left hlg (by positivity : (0 : ℝ) ≤ 96 * (Q + 2) * A * δ')
-        have e : 96 * (Q + 2) * A * δ' * ((Q + 3) * A / δ') = 96 * (Q + 2) * (Q + 3) * A ^ 2 := by
+      have h1 : 3072 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * δ'
+          ≤ 3072 * (Q + 2) * (Q + 3) * A ^ 2 := by
+        have := mul_le_mul_of_nonneg_left hlg (by positivity : (0 : ℝ) ≤ 3072 * (Q + 2) * A * δ')
+        have e : 3072 * (Q + 2) * A * δ' * ((Q + 3) * A / δ')
+            = 3072 * (Q + 2) * (Q + 3) * A ^ 2 := by
           field_simp
         nlinarith only [this, e]
-      have h2 : 96 * (Q + 2) * (Q + 3) * A ^ 2 ≤ 2 ^ 24 * (Q + 3) ^ 2 * A ^ 2 := by
-        have : 96 * (Q + 2) * (Q + 3) ≤ 2 ^ 24 * (Q + 3) ^ 2 := by nlinarith only [hQ]
+      have h2 : 3072 * (Q + 2) * (Q + 3) * A ^ 2 ≤ 2 ^ 24 * (Q + 3) ^ 2 * A ^ 2 := by
+        have : 3072 * (Q + 2) * (Q + 3) ≤ 2 ^ 24 * (Q + 3) ^ 2 := by nlinarith only [hQ]
         exact mul_le_mul_of_nonneg_right this hw3
       have h3 : 2 ^ 24 * (Q + 3) ^ 2 * A ^ 2
           ≤ 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 1) / pAP + A ^ 2) :=
         mul_le_mul_of_nonneg_left (by linarith) (by positivity)
       have h4 := mul_le_mul_of_nonneg_right (h1.trans (h2.trans h3)) hρ0.le
       nlinarith only [h4]
-    have h5 : E ≤ A ^ n := (le_mul_of_one_le_left hEp.le hℓ6).trans hpow
-    rw [← mul_div_assoc, mul_one, div_le_iff₀ hAn]
-    have := (div_le_iff₀ hρ0).1 (hEn.trans h5)
-    linarith
+    have hℓ1 : L + 1 ≤ (L + 1) ^ 6 := le_self_pow₀ (by linarith) (by norm_num)
+    have h5 : (L + 1) * E ≤ A ^ n :=
+      (mul_le_mul_of_nonneg_right hℓ1 hEp.le).trans hpow
+    have h6 : 3072 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') ≤ E * ρ := (div_le_iff₀ hρ0).1 hEn
+    have h7 := mul_le_mul_of_nonneg_left h6 hℓ0.le
+    have h8 := mul_le_mul_of_nonneg_right h5 hρ0.le
+    have hεd' : εd = 16 * ρ / 3 := by rw [hρ]; ring
+    rw [← mul_div_assoc, mul_one, div_le_iff₀ hAn, hεd']
+    nlinarith only [h7, h8]
 
 end Cap
 
 set_option maxHeartbeats 1000000 in -- unfolding the simple claim's cap
 theorem learner_loop_uniform_holds : LearnerLoopUniform := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP Q A L s δ' ρ Θ P₀ R₀ E L₀ Kp X G
+  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP Q A L s δ' ρ V Kp G Θ P₀ R₀ E L₀
     hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hA2 hD hpAPD hL₀
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -472,13 +469,34 @@ theorem learner_loop_uniform_holds : LearnerLoopUniform := by
   have hδ'1 : δ' ≤ 1 := by
     show δ / (2 * (Q + 1)) ≤ 1
     rw [div_le_one (by positivity)]; linarith
-  have hρ0 : 0 < ρ := by show 0 < εd / (256 * (Q + 1) * (Q * A + 1)); positivity
-  have hρ1 : ρ ≤ 1 := by
-    show εd / (256 * (Q + 1) * (Q * A + 1)) ≤ 1
-    rw [div_le_one (by positivity)]
-    have : 1 ≤ (Q + 1) * (Q * A + 1) := one_le_mul_of_one_le_of_one_le (by linarith)
-      (by nlinarith only [hQ1, hA])
-    linarith
+  have hρ0 : 0 < ρ := by change 0 < 3 * εd / 16; positivity
+  have hρ1 : ρ ≤ 1 := by change 3 * εd / 16 ≤ 1; linarith
+  -- the band's far side, per `L + 1`
+  have hV1 : 1 ≤ V := by
+    change 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
+    have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
+    nlinarith
+  have hKp1 : 1 ≤ Kp := by
+    change 1 ≤ V * (224 / εd + 1)
+    have : 0 ≤ 224 / εd := by positivity
+    nlinarith
+  have hG1 : 1 ≤ G := by
+    change 1 ≤ Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+    have hX : 3 ≤ 4 * V * (2 * (Q + 2) * A + 4) / δ' := by
+      rw [le_div_iff₀ hδ'0]
+      have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
+      nlinarith
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    linarith [Real.exp_one_lt_d9]
+  set Bc : ℝ := 8 * Kp * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ' with hBcd
+  have hBc1 : 1 ≤ Bc := by
+    rw [hBcd, le_div_iff₀ hδ'0, one_mul]
+    have hA1 : 1 ≤ A ^ (Fintype.card σ + 2) := one_le_pow₀ (by linarith)
+    have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp1 hG1
+    have h2 : 1 ≤ (Q + 3) * A ^ (Fintype.card σ + 2) :=
+      one_le_mul_of_one_le_of_one_le (by linarith) hA1
+    have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
+    nlinarith
   -- the probes are at least 2 long
   have hL2 : 2 ≤ P.L := by
     have hs0' : 0 < 1 / 2 - η₀ := by linarith
@@ -493,11 +511,10 @@ theorem learner_loop_uniform_holds : LearnerLoopUniform := by
     have hlg : 0 ≤ Real.log ((Q + 4) / (δ' / 2)) :=
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
     have hP1 : 1 ≤ P₀ := by
-      show 1 ≤ 256 * (2 * Θ + 8 * (Q + 1) / ρ) / ((1 / 2 - η₀) ^ 2 * pAP)
+      change 1 ≤ 256 * (2 * Θ + Bc) / ((1 / 2 - η₀) ^ 2 * pAP)
         + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-      have h1 : 1 ≤ 256 * (2 * Θ + 8 * (Q + 1) / ρ) / ((1 / 2 - η₀) ^ 2 * pAP) := by
+      have h1 : 1 ≤ 256 * (2 * Θ + Bc) / ((1 / 2 - η₀) ^ 2 * pAP) := by
         rw [le_div_iff₀ (by positivity), one_mul]
-        have : 0 ≤ 8 * (Q + 1) / ρ := by positivity
         linarith
       have h2 : 0 ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by positivity
       linarith
@@ -534,7 +551,9 @@ theorem learner_loop_uniform_holds : LearnerLoopUniform := by
     show (P.L : ℝ) = _
     rw [Nat.cast_sub (by omega)]; ring
   obtain ⟨hcap, hnoise⟩ := cap_bound (ι := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q)))
-    hQ1 hA hLn hη0 hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hp1 rfl rfl rfl rfl rfl rfl rfl rfl hL₀
+    Bc (8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+    hQ1 hA hLn hη0 hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hp1 rfl rfl rfl rfl hBc1 (by rw [hBcd]; ring)
+    rfl rfl rfl rfl hL₀
   have hpre : prefixMax P.D (P.L - 1) ≤ 1 / A ^ (P.L - 1) := by
     rw [hD]; exact prefixMax_uniformStrings_le (Nat.sub_le _ _)
   obtain ⟨settings, hw, hd, hb, hmain⟩ := learner_loop_simple_holds M O P η₀ εcov εd δ pAP
@@ -545,6 +564,7 @@ theorem learner_loop_uniform_holds : LearnerLoopUniform := by
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ1, hA])
       have : (0 : ℝ) ≤ Q + 2 := by linarith
       have : (0 : ℝ) ≤ A := by linarith
+      have : (0 : ℝ) ≤ L + 1 := by positivity
       positivity)).trans hnoise)
   refine ⟨settings, hw, hd, hb, ?_⟩
   have hA0 : 0 < 1 / A ^ (P.L - 1) := by positivity

@@ -157,7 +157,8 @@ lemma harvestsOf_take_getD {k : ℕ} {rounds : List (LoopRound Ω α K)} {j i : 
     obtain ⟨j, rfl⟩ : ∃ j', j = j' + 1 := ⟨j - 1, by omega⟩
     have ho : o.result.ending.harvested ≠ none := hall o (by simp)
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 ho
-    have hpo : o.population D k = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k zo)) := by
+    have hpo : o.population D k
+        = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis zo)) := by
       simp [LoopRound.population, hzo]
     simp only [List.take_succ_cons, harvestsOf, List.filterMap_cons, hpo] at hν ⊢
     rcases i with _ | i

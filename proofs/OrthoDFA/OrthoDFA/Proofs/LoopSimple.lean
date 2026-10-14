@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Budget
 
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
 `poolCount_le` and `prefCount_le_poly` (`counts_le`). `learner_loop_simple_holds` takes `LoopCore`
-at `S = 0`, `K = |Q| + 1`, suffixes of length `L + |Q| + 3`, the gate at `1/4`, half of `εcov` for
+at `K = |Q| + 1`, suffixes of length `L + |Q| + 3`, the gate at `1/4`, half of `εcov` for
 the clustering, `indecisionLimit = slack = ι`, half of `ι` and of `pAP` for what the earlier
 rounds read, and the failure split evenly between the clustering's and level 5's `|Q| + 1`
 rounds.
@@ -112,7 +112,7 @@ lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [Measu
 
 set_option maxHeartbeats 2000000 in -- the settings and the cap meet `LoopCore`'s conditions
 theorem learner_loop_simple_holds : LearnerLoopSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J PB RB cap Kp X G
+  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J V Kp G PB RB cap
     hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 hk0 hk1 hk2
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -131,44 +131,43 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     exact lt_min (by positivity) (by positivity)
   have hι8 : ι ≤ εcov / 8 := min_le_left _ _
   have hιL : ι ≤ 1 / (3072 * (L + 1) * (Q + 1) * Q) := min_le_right _ _
-  have hρ0 : 0 < ρ := by show 0 < εd / (256 * (Q + 1) * (Q * A + 1)); positivity
-  have hKp : ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1) * (2 * ((Fintype.card σ : ℝ)
-      + ((0 : ℕ) : ℝ) + 3) * Fintype.card α + 1) * (20 / (εd / 2) ^ 2
-      + 280 / (εd / 2)) + 8 * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 3) * Fintype.card α
-      * (P.L + 1) = Kp := by
-    show _ = ((Fintype.card σ : ℝ) + 1) * (2 * ((Fintype.card σ : ℝ) + 3) * Fintype.card α + 1)
-      * (80 / εd ^ 2 + 560 / εd)
-      + 8 * ((Fintype.card σ : ℝ) + 3) * Fintype.card α * ((P.L : ℝ) + 1)
-    simp only [Nat.cast_zero, add_zero]
-    field_simp
-    ring
+  have hρ0 : 0 < ρ := by change 0 < 3 * εd / 16; positivity
+  have e112 : (112 / (εd / 2) : ℝ) = 224 / εd := by field_simp; ring
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    obtain ⟨s4, hwalk, hdis, hbud, -, -, hl4⟩ :=
-      level5_guarantee_all M (εd / 2) P.L δ' 0 k hδ'0 hδ'1 (by positivity) (by linarith) hL1
+    obtain ⟨s4, hwalk, hdis, hbud, -, hl4⟩ :=
+      level5_guarantee_all M (εd / 2) P.L δ' k hδ'0 hδ'1 (by positivity) (by linarith) hL1
     have := hl4 μ
     clear this hl4
     refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, ?_⟩
     · refine hbud.trans (le_of_eq ?_)
-      simp only [hKp]
-      simp only [add_zero]
-      rfl
+      rw [e112]
     · intro Dsf hDsf _ hpAPD _
       have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
       linarith
-  have eρ : ((0 : ℕ) + 1) * εd / (256 * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1)
-      * ((Fintype.card σ : ℝ) * Fintype.card α + ((0 : ℕ) : ℝ) + 1)) = ρ := by
-    show _ = εd / (256 * ((Fintype.card σ : ℝ) + 1) * ((Fintype.card σ : ℝ) * Fintype.card α + 1))
-    simp only [Nat.cast_zero, add_zero, zero_add, one_mul]
-  have hcl : (8 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1)
-      / (((0 : ℕ) + 1) * εd / (256 * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1)
-        * ((Fintype.card σ : ℝ) * Fintype.card α + ((0 : ℕ) : ℝ) + 1))))
-      = 8 * (L + 1) * (Q + 1) / ρ := by
-    rw [eρ]
-    show _ = 8 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) / ρ
-    simp only [Nat.cast_zero, add_zero]
-  set cLog : ℝ := 8 * (L + 1) * (Q + 1) / ρ with hcLog
+  set cLog : ℝ := 8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ' with hcLog
+  have hV1 : 1 ≤ V := by
+    change 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
+    have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
+    nlinarith
+  have hG0 : 0 ≤ G := by
+    refine Real.log_nonneg ?_
+    rw [le_div_iff₀ hδ'0, one_mul]
+    have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
+    nlinarith
+  have hcL0 : 0 ≤ cLog := by
+    have hK0 : 0 ≤ Kp := by
+      change 0 ≤ V * (224 / εd + 1)
+      exact mul_nonneg (by linarith) (by positivity)
+    have e : cLog = 8 * Kp * G * ((L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2)) / δ' := by
+      rw [hcLog]; ring
+    rw [e]
+    have hA0 : 0 ≤ A := by linarith
+    have hQ0 : 0 ≤ Q := by linarith
+    have hL0 : 0 ≤ L := by linarith
+    exact div_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (by norm_num) hK0) hG0) (by positivity))
+      hδ'0.le
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
     show _ = 256 * (Real.log (2 / min (εcov / 2) (min (1 / 2 - η₀) ι)) + cLog)
         / ((1 / 2 - η₀) ^ 2 * pAP) + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
@@ -192,7 +191,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
       exact_mod_cast h1
     have h := counts_le η₀ pops ι (εcov / 2) (1 / 4) δ' (pAP / 2) cLog J hη0 hη₀ ⟨none, hpops⟩
       hcard hι0 (by positivity) (by linarith) hδ'0 hδ'1 (by norm_num) (by norm_num)
-      (by positivity) (by linarith) (by positivity)
+      (by positivity) (by linarith) hcL0
     rw [hPBe, hRBe] at h
     exact h
   obtain ⟨hPB0', hRB0'⟩ := hcounts {none} (Finset.mem_singleton_self _)
@@ -208,15 +207,14 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
       (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
     positivity
-  have hθ : 1024 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1)
+  have hθ : 1024 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1)
       * Fintype.card σ * (2 * ι + ι) ≤ 1 := by
     have hpos : 0 < 3072 * (L + 1) * (Q + 1) * Q := by positivity
     have h := mul_le_mul_of_nonneg_left hιL hpos.le
     rw [mul_one_div_cancel hpos.ne'] at h
-    have e : 1024 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1)
+    have e : 1024 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1)
         * Fintype.card σ * (2 * ι + ι) = 3072 * (L + 1) * (Q + 1) * Q * ι := by
-      show _ = 3072 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * (Fintype.card σ : ℝ) * ι
-      simp only [Nat.cast_zero, add_zero]
+      change _ = 3072 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * (Fintype.card σ : ℝ) * ι
       ring
     rw [e]
     exact h
@@ -274,7 +272,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     rw [hK1]
     exact hmul (b := 6 * J * (RB + 1) * (L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
-  have hcore := loop_core_holds M O P (Fintype.card σ + 1) 0 (P.L + Fintype.card σ + 3)
+  have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k
   dsimp only at hcore
   obtain ⟨settings, -, -, hwalk, hdis, hbud, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
@@ -282,28 +280,23 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     hδ'1 hL1 (by omega) (by omega) hθ hcap0 (by linarith) (by linarith) (by linarith)
     (by linarith)
     (fun pops hpops => by
-      rw [hcl, show pAP - pAP / 2 = pAP / 2 by ring]
+      rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).1)
     (fun pops hpops => by
-      rw [hcl, show pAP - pAP / 2 = pAP / 2 by ring]
+      rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1 hq2 hq3 hqm hqms hcapP
-    hk0 (by rw [eρ]; exact hk1) (by
-      have e2 : 24 * unionLog (α := α) σ 0 δ' * prefixMax P.D k
-          = 96 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k := by
+    hk0 hk1 (by
+      have e2 : 4096 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ' * prefixMax P.D k
+          = 16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k := by
         unfold unionLog
-        show _ = 96 * ((Fintype.card σ : ℝ) + 2) * (Fintype.card α : ℝ)
+        change _ = 16384 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 2) * (Fintype.card α : ℝ)
           * Real.log (((Fintype.card σ : ℝ) + 3) * (Fintype.card α : ℝ) / δ') * prefixMax P.D k
-        simp only [Nat.cast_zero, add_zero]
         ring
-      rw [eρ, e2]
+      rw [e2]
       exact hk2)
   refine ⟨settings, hwalk, hdis, ?_, ?_⟩
-  · refine hbud.trans (le_of_eq ?_)
-    show _ = Kp * (Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ')
-      + Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ')))
-    simp only [Nat.cast_zero, add_zero]
-    rfl
+  · exact hbud
   · intro Dsf hDsf hlen hpAPD hatom
     have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans (le_of_eq ?_))

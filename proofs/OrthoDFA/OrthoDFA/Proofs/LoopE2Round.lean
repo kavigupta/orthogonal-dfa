@@ -246,36 +246,33 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 include hL in
 /-- Round `r`'s level 5, where every earlier clustering and this one returned and nothing
 collides, fails its claim with chance at most `δ`. -/
-theorem loop_level5_round_le_persist (S Ls NP N : ℕ) (εd δ crossLimit θ y m : ℝ)
-    (hmax : settings.level5.maxLeaves = Fintype.card σ + S + 3)
+theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B5 U5 : ℝ)
+    (hC : 2 ≤ settings.level5.maxLeaves)
     (hN : P.L + settings.level5.maxLeaves ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
-    (hk : 1 ≤ settings.level5.walkStart) (hrec : 1 ≤ settings.level5.recordsToMove)
+    (hk : 1 ≤ settings.level5.walkStart)
     (hdis : settings.level5.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
-    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
-    (hθ : 384 * (P.L + 1) * (Fintype.card σ + S + 1) * θ ≤ 1)
-    (hε : (P.L + 1) * (Fintype.card σ + S + 1) * crossLimit
-      + 3 * unionLog (α := α) σ S δ * (2 * prefixMax P.D settings.level5.walkStart) ≤ y)
+    (hδ : 0 < δ) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
+    (hθ : 384 * (P.L + 1) * (Fintype.card σ + 1) * θ ≤ 1)
+    (hB5 : crossLimit * B5 ≤ δ) (hU5 : 0 ≤ U5)
+    (hpre : U5 * (2 * prefixMax P.D settings.level5.walkStart) ≤ εd / 2)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level5.walkStart ≤ m)
     (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 2) (hmc : (P.L + 1) * m ≤ y / 2)
     (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
-      let n : ℝ := Fintype.card σ + S
-      let A : ℝ := Fintype.card α
       let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → 384 * (P'.L + 1) * (n + 1) * θ ≤ 1 →
-      0 < O'.κ → 4 * O'.κ * (8 * (n + 3) * (P'.L + 1) * Real.sqrt (A * y / 3) + 1) ≤ y →
-      0 ≤ O'.ε → (P'.L + 1) * (n + 1) * O'.ε
-        + 3 * unionLog (α := α) σ S δ * prefixMax P'.D settings.level5.walkStart ≤ y →
+      0 ≤ θ → 384 * (P'.L + 1) * (Fintype.card σ + 1) * θ ≤ 1 →
+      0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
+      U5 * prefixMax P'.D settings.level5.walkStart ≤ εd / 2 →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
             ¬ EndsWell M bad P'.D settings.level5.disagreementRate
               (searchingProbes (O'.read · ω) settings.level5.walkStart result.hypothesis)
               settings.level5.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart)
-              y result.ending} ∂(μ.prod μ)
+              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart
+                result.hypothesis) y result.ending} ∂(μ.prod μ)
         ≤ ENNReal.ofReal δ)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level5.probeBudget).real
@@ -292,7 +289,6 @@ theorem loop_level5_round_le_persist (S Ls NP N : ℕ) (εd δ crossLimit θ y m
   set T := settings.level5.probeBudget
   set k := settings.level5.walkStart
   set dec := decodeHist P.D k with hdec
-  have hC : 2 ≤ settings.level5.maxLeaves := by rw [hmax]; omega
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set rK : Fin K := ⟨r, hr⟩
   set ν := roundLaw α K T
@@ -314,8 +310,8 @@ theorem loop_level5_round_le_persist (S Ls NP N : ℕ) (εd δ crossLimit θ y m
       ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
         Level5Spec M O P θ εd (y / 2) k
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, u)) :=
-    fun t ht => level5_bad_exists M O hL P settings S εd δ crossLimit θ y m hmax hk hrec hdis hη1
-      hδ hδ1 hy hcross hθ0 hθ hε hm1 hmε hmc hlevel5 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+    fun t ht => level5_bad_exists M O hL P settings εd δ crossLimit θ y m B5 U5 hC hk hdis hη1
+      hy hcross hθ0 hθ hB5 hU5 hpre hm1 hmε hmc hlevel5 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
         exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)

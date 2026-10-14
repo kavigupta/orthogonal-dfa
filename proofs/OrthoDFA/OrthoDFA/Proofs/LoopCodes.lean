@@ -7,8 +7,8 @@ import OrthoDFA.Proofs.LoopTermination
 
 Level 5's edge tables only ever hold finitely many edges, and a probe at most `L` long walked
 under a short tree reads only strings at most `L + maxLeaves` long. So the population a round
-hands on is fixed by finite data: its harvest's site, the hypotheses' trees and edge graphs, and
-the round's reads of the strings at most `N` long (`decodePop_popCode`). The data range over a
+hands on is fixed by finite data: its harvest's site, its last hypothesis's tree and edge graph,
+and the round's reads of the strings at most `N` long (`decodePop_popCode`). The data range over a
 countable type, so a round can be split off from the rounds before it.
 -/
 
@@ -93,102 +93,45 @@ theorem EdgesFin.mono {E E' : EdgeTable α} (hE : EdgesFin E) (pc : List Bool ×
 
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
-theorem fixEdge_edges (m : ℕ) (s : Level5State α) (p : List Bool) (c : α) (t : List Bool)
-    (q : List Bool) (e : α) (h : (fixEdge cut m s p c t).edges q e ≠ none) :
-    s.edges q e ≠ none ∨ (q, e) = (p, c) := by
-  unfold fixEdge at h
-  simp only [] at h
-  split at h
-  · split_ifs at h
-    · dsimp only at h
-      split_ifs at h with hpq
-      · exact absurd rfl h
-      · left
-        unfold retargetBy at h
-        rcases hs : s.edges q e with _ | ⟨s0, w⟩
-        · rw [hs] at h; exact absurd rfl h
-        · simp
-    · rw [setEdge_eq] at h
-      split_ifs at h with hqc
-      · exact .inr hqc
-      · exact .inl h
-  · rw [setEdge_eq] at h
-    split_ifs at h with hqc
-    · exact .inr hqc
-    · exact .inl h
-
 theorem recordProbe_edgesFin {s : Level5State α} (hs : EdgesFin s.edges) (x : FreeMonoid α) :
     EdgesFin (recordProbe C cut s x).edges := by
-  rcases (recordProbe_cases cut C s x).2 with ⟨-, he, -⟩ | ⟨-, -, -, p, c, e, -, -, he⟩
-  · rw [he]; exact hs
-  · refine hs.mono (p, c) fun q c' h => ?_
-    rw [he q c'] at h
-    split_ifs at h with hqc
+  rcases recordProbe_spec C cut s x with h | ⟨u, c, p, t, -, -, -, -, -, h⟩ <;> rw [h]
+  · exact hs
+  · refine hs.mono (p, c) fun q c' h' => ?_
+    rw [setEdge_eq] at h'
+    split_ifs at h' with hqc
     · exact .inr hqc
-    · exact .inl h
+    · exact .inl h'
 
-theorem applyProbe_edgesFin {s s' : Level5State α} {x : FreeMonoid α}
-    (hs : EdgesFin (recordProbe C cut s x).edges) (ha : applyProbe C cut s x = .inl s') :
-    EdgesFin s'.edges := by
-  unfold applyProbe at ha
-  simp only [] at ha
-  split at ha
-  · cases ha
-  unfold settleOne at ha
-  split_ifs at ha with hv
-  · simp only [Sum.inl.injEq] at ha
-    subst ha
-    exact hs.mono _ fun q e h => fixEdge_edges cut _ _ _ _ _ q e h
-  · simp only [Sum.inl.injEq] at ha
-    subst ha
-    exact hs
+theorem splitState_edgesFin {s : Level5State α} (hs : EdgesFin s.edges) (p : List Bool) (c : α)
+    (t : List Bool) : EdgesFin (splitState cut s p c t).edges := by
+  refine hs.mono (p, c) fun q c' h' => .inl fun hn => ?_
+  rcases he : (splitState cut s p c t).edges q c' with _ | ⟨t', w⟩
+  · exact h' he
+  · obtain ⟨t₁, h₁⟩ := splitState_witness cut he
+    rw [hn] at h₁
+    cases h₁
 
-/-- The table, and every hypothesis kept, hold finitely many edges. -/
-def FinInv (s : Level5State α) : Prop := EdgesFin s.edges ∧ ∀ v ∈ s.versions, EdgesFin v.2
+theorem runProbes_fin : ∀ {s : Level5State α} {xs : List (FreeMonoid α)}, EdgesFin s.edges →
+    EdgesFin (runProbes C cut s xs).1.edges
+  | s, [], hs => hs
+  | s, x :: xs, hs => by
+    have hr := recordProbe_edgesFin C cut hs x
+    simp only [runProbes]
+    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> dsimp only
+    · refine runProbes_fin ?_
+      rcases (applyProbe_inl C cut ha).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, -, rfl, -⟩
+      · exact hr
+      · exact splitState_edgesFin cut hr p c t
+    · rcases applyProbe_inr C cut ha with ⟨-, rfl⟩ | ⟨-, p, c, t, sp, -, rfl, -⟩
+      · exact hr
+      · exact splitState_edgesFin cut hr p c t
 
-theorem runProbes_fin {s : Level5State α} {xs : List (FreeMonoid α)} {h : Level5Harvest α}
-    (hs : FinInv s) (hz : (runProbes C cut s xs).2 = .harvest h) :
-    ∀ v ∈ h.versions, EdgesFin v.2 := by
-  induction xs generalizing s with
-  | nil => simp [runProbes] at hz
-  | cons x xs ih =>
-    have hr : FinInv (recordProbe C cut s x) := by
-      refine ⟨recordProbe_edgesFin C cut hs.1 x, fun v hv => ?_⟩
-      rw [recordProbe_versions] at hv
-      rcases List.mem_append.1 hv with hv | hv
-      · exact hs.2 v hv
-      · rw [List.mem_singleton] at hv
-        subst hv
-        exact hs.1
-    simp only [runProbes] at hz
-    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> rw [ha] at hz
-    · exact ih ⟨applyProbe_edgesFin C cut hr.1 ha, by
-        rw [applyProbe_versions C cut ha]; exact hr.2⟩ hz
-    · have he : e ≠ .tooBig := by rintro rfl; simp [toRoundEnd] at hz
-      obtain ⟨rfl, -⟩ := applyProbe_inr_pre C cut ha he
-      cases e with
-      | success => simp [toRoundEnd] at hz
-      | tooBig => simp [toRoundEnd] at hz
-      | harvestStart =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]; exact hr.2
-      | harvestPT =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]
-        intro v hv
-        rw [List.mem_singleton] at hv
-        subst hv
-        exact hr.1
-      | harvest e =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]; exact hr.2
-
-/-- Every hypothesis a harvest kept holds finitely many edges. -/
-theorem harvest_fin (read : FreeMonoid α → ARU) {T : ℕ} (draws : Fin T → FreeMonoid α)
-    {h : Level5Harvest α} (hh : (indecisiveLStarLevel5 C read draws).ending = .harvest h) :
-    ∀ v ∈ h.versions, EdgesFin v.2 :=
+/-- A round's last hypothesis holds finitely many edges. -/
+theorem result_fin (read : FreeMonoid α → ARU) {T : ℕ} (draws : Fin T → FreeMonoid α) :
+    EdgesFin (Function.curry (indecisiveLStarLevel5 C read draws).hypothesis.edges) :=
   runProbes_fin C (fun z => (read z).cut) (s := initialState) (xs := List.ofFn draws)
-    ⟨by simp [EdgesFin, initialState], by simp [initialState]⟩ hh
+    (by simp [EdgesFin, initialState, freshState])
 
 /-! ## Graphs -/
 
@@ -248,24 +191,25 @@ theorem decodeReads_readGraph {N : ℕ} (rd : FreeMonoid α → ARU) {z : FreeMo
 
 /-! ## A round's population from its data -/
 
-/-- A harvest as finite data: its site, its hypotheses' trees and edge graphs, and reads, and the
+/-- A harvest as finite data: its site, its hypothesis's tree and edge graph, and reads, and the
 prefixes and suffixes its round's clustering read. -/
 abbrev HarvestCode (α : Type*) :=
-  Level5Site α × List (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
+  Level5Site α × (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
     × Finset (FreeMonoid α × ARU) × Finset (FreeMonoid α) × Finset (FreeMonoid α)
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
 /-- A round's harvest, with its reads of the strings at most `N` long. -/
 def popCode (N : ℕ) (o : LoopRound Ω α K) : Option (HarvestCode α) :=
-  o.result.ending.harvested.map fun h =>
-    (h.site, h.versions.map fun v => (v.1, edgeGraph v.2), readGraph N o.read, o.prefs, o.suffs)
+  o.result.ending.harvested.map fun site =>
+    (site, (o.result.hypothesis.tree, edgeGraph (Function.curry o.result.hypothesis.edges)),
+      readGraph N o.read, o.prefs, o.suffs)
 
 /-- The population the data hand on. -/
 def decodePop (D : Measure (FreeMonoid α)) (k : ℕ) (c : HarvestCode α) :
     Measure (FreeMonoid α) :=
   popLaw (harvestLaw D (fun z => (decodeReads c.2.2.1 z).cut) k
-    ⟨c.1, c.2.1.map fun v => (v.1, decodeEdges v.2)⟩)
+    ⟨c.2.1.1, Function.uncurry (decodeEdges c.2.1.2)⟩ c.1)
 
 /-- The history the data hand on. -/
 def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode α)) : LoopHist α :=
@@ -274,27 +218,25 @@ def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode �
 
 omit [MeasurableSpace Ω] in
 /-- Over draws at most `L` long, reads that agree on the strings at most `L + M` long find the
-same, under hypotheses whose midfixes are at most `M` long. -/
+same, under a hypothesis whose midfixes are at most `M` long. -/
 theorem harvestLaw_congr_up {D : Measure (FreeMonoid α)} {L M N : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + M ≤ N)
     {cut' : FreeMonoid α → Option Bool} (hcut : AgreeUpTo N cut cut') (k : ℕ)
-    {h : Level5Harvest α} (hmid : ∀ v ∈ h.versions, MidLe M v.1) :
-    harvestLaw D cut k h = harvestLaw D cut' k h := by
+    {H : HypothesisDFA α} (hT : MidLe M H.tree) (site : Level5Site α) :
+    harvestLaw D cut k H site = harvestLaw D cut' k H site := by
   unfold harvestLaw
-  congr 2
-  refine List.map_congr_left fun v hv => ?_
   ext A hA
   rw [Measure.bind_apply hA (measurable_of_countable _).aemeasurable,
     Measure.bind_apply hA (measurable_of_countable _).aemeasurable]
   refine lintegral_congr_ae ?_
   filter_upwards [hlen] with x hx
   have hxN : x.toList.length + M ≤ N := by omega
-  have hT := hmid v hv
-  have : siteHarvest cut k h.site v x = siteHarvest cut' k h.site v x := by
-    cases h.site with
+  have : siteHarvest cut k site (H.tree, Function.curry H.edges) x
+      = siteHarvest cut' k site (H.tree, Function.curry H.edges) x := by
+    cases site with
     | start => exact startHarvestBy_congr_up hcut hT hxN k
     | edge e =>
-      show edgeHarvestBy cut v.1 v.2 k x e = edgeHarvestBy cut' v.1 v.2 k x e
+      show edgeHarvestBy cut H.tree _ k x e = edgeHarvestBy cut' H.tree _ k x e
       rw [edgeHarvestBy_congr_pref (prefStrings_agree_up hcut hT hxN)]
     | middles => exact middleHarvestBy_congrK (prefAgreeK_up hcut hT hxN k)
   rw [this]
@@ -308,25 +250,27 @@ theorem decodePop_popCode {D : Measure (FreeMonoid α)} {L N : ℕ}
     (ho : o.result = indecisiveLStarLevel5 C o.read xs) :
     (popCode N o).map (decodePop D k) = o.population D k := by
   unfold popCode LoopRound.population
-  rcases hh : o.result.ending.harvested with _ | h
+  rcases hh : o.result.ending.harvested with _ | site
   · rfl
-  have hend : (indecisiveLStarLevel5 C o.read xs).ending = .harvest h := by
+  have hend : (indecisiveLStarLevel5 C o.read xs).ending = .harvest site := by
     rw [← ho]
     revert hh
     cases o.result.ending <;> simp [RoundEnd.harvested]
-  have hfin := harvest_fin C o.read xs hend
+  have hfin := result_fin C o.read xs
   have hshort := harvest_short C hC o.read xs hend
-  simp only [Option.map_some, decodePop, List.map_map, Function.comp_def]
+  rw [← ho] at hfin hshort
+  simp only [Option.map_some, decodePop]
   congr 1
-  have hv : (h.versions.map fun v => (v.1, decodeEdges (edgeGraph v.2))) = h.versions :=
-    (List.map_congr_left fun v hv => by rw [decodeEdges_edgeGraph (hfin v hv)]).trans
-      (List.map_id' _)
+  have hv : (⟨o.result.hypothesis.tree, Function.uncurry
+      (decodeEdges (edgeGraph (Function.curry o.result.hypothesis.edges)))⟩ : HypothesisDFA α)
+      = o.result.hypothesis := by
+    rw [decodeEdges_edgeGraph hfin, Function.uncurry_curry]
   rw [hv]
   refine congrArg popLaw (harvestLaw_congr_up _ hlen hN (fun z hz => ?_) k
-    (h := ⟨h.site, h.versions⟩) fun v hvm m hm => ?_)
+    (fun m hm => ?_) site)
   · show (decodeReads (readGraph N o.read) z).cut = (o.read z).cut
     rw [decodeReads_readGraph o.read hz]
-  · obtain ⟨-, hL, hmid⟩ := hshort v hvm
+  · obtain ⟨-, hL, hmid⟩ := hshort
     have := hmid m hm
     omega
 
@@ -369,7 +313,8 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ}
     | nil => rfl
     | cons o rounds ih =>
       obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h.site, h.versions.map fun v => (v.1, edgeGraph v.2),
+      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+          edgeGraph (Function.curry o.result.hypothesis.edges)),
           readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
       simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
       congr 1
@@ -379,7 +324,8 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ}
     | nil => rfl
     | cons o rounds ih =>
       obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h.site, h.versions.map fun v => (v.1, edgeGraph v.2),
+      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+          edgeGraph (Function.curry o.result.hypothesis.edges)),
           readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
       simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
       congr 1

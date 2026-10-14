@@ -150,24 +150,14 @@ theorem measurable_siteCount (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMo
     exact hω
 
 theorem measurable_harvestLaw (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (D : Measure (FreeMonoid α)) (h : Level5Harvest α) (A : Set (FreeMonoid α)) :
-    Measurable fun ω => harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k h A := by
+    (kl kh k : ℕ) (D : Measure (FreeMonoid α)) (H : HypothesisDFA α) (site : Level5Site α)
+    (A : Set (FreeMonoid α)) :
+    Measurable fun ω => harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k H site A := by
   classical
   simp_rw [harvestLaw_apply]
-  refine measurable_const.mul ?_
-  have hint : ∀ v : DTree α × EdgeTable α, Measurable fun ω => ∫⁻ x,
-      (((siteHarvest (fun z => (familyRead O.mq F kl kh z ω).cut) k h.site v x).filter
-        (· ∈ A)).length : ℝ≥0∞) ∂D := by
-    intro v
-    simp_rw [lintegral_countable']
-    exact Measurable.ennreal_tsum fun x =>
-      (measurable_from_nat.comp (measurable_siteCount O F kl kh k h.site v x A)).mul_const _
-  generalize h.versions = l
-  induction l with
-  | nil => simp
-  | cons v l ih =>
-    simp only [List.map_cons, List.sum_cons]
-    exact (hint v).add ih
+  simp_rw [lintegral_countable']
+  exact Measurable.ennreal_tsum fun x =>
+    (measurable_from_nat.comp (measurable_siteCount O F kl kh k site _ x A)).mul_const _
 
 end Reads
 
@@ -236,10 +226,10 @@ omit [Fintype σ] in
 oracle's answers. -/
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd (Level5Harvest α)) :
+    (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd (Level5Site α)) :
     MeasurableSet {ω | ¬ EndsWell M bad D ε
       (searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H) k
-      (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k) y e} := by
+      (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k H) y e} := by
   classical
   cases e with
   | consistent =>
@@ -250,8 +240,8 @@ theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (
     exact (measurableSet_le hf measurable_const).compl
   | harvest h =>
     have hm : ∀ A : Set (FreeMonoid α), Measurable fun ω =>
-        (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k h).real A := fun A =>
-      ENNReal.measurable_toReal.comp (measurable_harvestLaw O F kl kh k D h A)
+        (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k H h).real A := fun A =>
+      ENNReal.measurable_toReal.comp (measurable_harvestLaw O F kl kh k D H h A)
     simp only [EndsWell, Spread, Yields]
     exact measurableSet_setOf.2 (Measurable.not
       ((measurableSet_setOf.1 (measurableSet_lt (hm _) ((hm _).const_mul 2))).and
@@ -726,10 +716,11 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
     · have h1 : popCode N o = none := by simp [popCode, h]
       have h2 : o.population D k = none := by simp [LoopRound.population, h]
       rw [h1, h2]; exact ih
-    · have h1 : popCode N o = some (hv.site, hv.versions.map fun v => (v.1, edgeGraph v.2),
+    · have h1 : popCode N o = some (hv, (o.result.hypothesis.tree,
+          edgeGraph (Function.curry o.result.hypothesis.edges)),
           readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, h]
       have h2 : o.population D k
-          = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k hv)) := by
+          = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis hv)) := by
         simp [LoopRound.population, h]
       rw [h1, h2]
       simp [ih]

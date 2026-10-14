@@ -4,8 +4,8 @@ import OrthoDFA.Proofs.Level5RiskBound
 # A harvest's strings are short
 
 A split adds a midfix one letter longer than one already there, and a leaf, so a midfix is two
-shorter than the leaves count, which the round keeps within `maxLeaves`, at every hypothesis it
-keeps. A string a probe harvests is its prefix followed by a midfix, so it is at most
+shorter than the leaves count, which a round that does not end too big keeps within `maxLeaves`.
+A string a probe harvests is its prefix followed by a midfix, so it is at most
 `L + maxLeaves − 2` long where the probe is at most `L` long (`siteHarvest_short`), and so is
 every string a harvest's sampler finds over draws that short (`harvestLaw_short`).
 -/
@@ -13,40 +13,6 @@ every string a harvest's sampler finds over draws that short (`harvestLaw_short`
 namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
-
-theorem midfixAt_mem_or_one : ∀ (T : DTree α) (p : List Bool), T.midfixAt p ∈ T.midfixes ∨ T.midfixAt p = 1
-  | .leaf, _ => .inr rfl
-  | .node m r a, [] => .inl (by simp [DTree.midfixAt, DTree.midfixes])
-  | .node m r a, false :: p => by
-    rcases midfixAt_mem_or_one r p with h | h
-    · left; simp [DTree.midfixAt, DTree.midfixes, h]
-    · right; simpa [DTree.midfixAt] using h
-  | .node m r a, true :: p => by
-    rcases midfixAt_mem_or_one a p with h | h
-    · left; simp [DTree.midfixAt, DTree.midfixes, h]
-    · right; simpa [DTree.midfixAt] using h
-
-theorem midfixes_splitAt (d : FreeMonoid α) : ∀ (T : DTree α) (p : List Bool) (m : FreeMonoid α),
-    m ∈ (T.splitAt d p).midfixes → m ∈ T.midfixes ∨ m = d
-  | .leaf, [], m, h => by simp [DTree.splitAt, DTree.midfixes] at h; exact .inr h
-  | .leaf, _ :: _, m, h => .inl (by simpa [DTree.splitAt] using h)
-  | .node n r a, [], m, h => .inl (by simpa [DTree.splitAt] using h)
-  | .node n r a, false :: p, m, h => by
-    simp only [DTree.splitAt, DTree.midfixes, Finset.mem_insert, Finset.mem_union] at h
-    rcases h with h | h | h
-    · left; simp [DTree.midfixes, h]
-    · rcases midfixes_splitAt d r p m h with h' | h'
-      · left; simp [DTree.midfixes, h']
-      · exact .inr h'
-    · left; simp [DTree.midfixes, h]
-  | .node n r a, true :: p, m, h => by
-    simp only [DTree.splitAt, DTree.midfixes, Finset.mem_insert, Finset.mem_union] at h
-    rcases h with h | h | h
-    · left; simp [DTree.midfixes, h]
-    · left; simp [DTree.midfixes, h]
-    · rcases midfixes_splitAt d a p m h with h' | h'
-      · left; simp [DTree.midfixes, h']
-      · exact .inr h'
 
 omit [Fintype α] [DecidableEq α] in
 theorem length_prefixOf_le (x : FreeMonoid α) (j : ℕ) :
@@ -69,10 +35,6 @@ theorem route_short {cut : FreeMonoid α → Option Bool} {T : DTree α} {Lmax L
 def TreeShort (C : Level5Settings) (T : DTree α) : Prop :=
   2 ≤ T.leaves.length ∧ T.leaves.length ≤ C.maxLeaves
     ∧ ∀ m ∈ T.midfixes, m.toList.length + 2 ≤ T.leaves.length
-
-/-- The tree, and every hypothesis the round kept, short. -/
-def ShortInv (C : Level5Settings) (s : Level5State α) : Prop :=
-  TreeShort C s.tree ∧ ∀ v ∈ s.versions, TreeShort C v.1
 
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
@@ -113,110 +75,65 @@ theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × Ed
         subst hz
         exact hr (route_undecided cut _ _ _ hb).1
 
-theorem recordProbe_short {s : Level5State α} {x : FreeMonoid α} (h : ShortInv C s) :
-    ShortInv C (recordProbe C cut s x) := by
-  have htree := (recordProbe_cases cut C s x).1
-  refine ⟨htree ▸ h.1, fun v hv => ?_⟩
-  rw [recordProbe_versions] at hv
-  rcases List.mem_append.1 hv with hv | hv
-  · exact h.2 v hv
-  · rw [List.mem_singleton] at hv
-    subst hv
-    exact h.1
+theorem treeShort_step {s s' : Level5State α} {x : FreeMonoid α} (h : TreeShort C s.tree)
+    (ha : applyProbe C cut s x = .inl s') : TreeShort C s'.tree := by
+  rcases (applyProbe_inl C cut ha).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, hrb, rfl, hL'⟩
+  · rw [recordProbe_tree]; exact h
+  obtain ⟨h2, -, hm⟩ := h
+  obtain ⟨-, -, -, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrb
+  obtain ⟨fd, -, -, -, -, hsp, -⟩ := recordBy_parts cut hrb
+  have hp := DTree.siftCut_mem_paths _ _ _ hsp
+  have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by
+    rcases recordProbe_spec C cut s x with h1 | ⟨u, c', p', t', -, -, -, -, hn, h1⟩
+    · rw [h1]; exact hpe
+    · rw [h1, setEdge_eq]
+      split_ifs with hq
+      · simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        rw [hn] at hpe; cases hpe
+      · exact hpe
+  have htr := recordProbe_tree C cut s x
+  refine ⟨?_, hL', ?_⟩ <;> rw [splitState_of_some cut _ hpe'] <;> simp only [freshState] <;>
+    rw [htr]
+  · rw [DTree.length_leaves_splitAt _ _ _ hp]; omega
+  · exact shortMids_split hm h2 hp c _
 
-theorem applyProbe_short {s s' : Level5State α} {x : FreeMonoid α}
-    (h : ShortInv C (recordProbe C cut s x)) (ha : applyProbe C cut s x = .inl s') :
-    ShortInv C s' := by
-  have hvers := applyProbe_versions C cut ha
-  obtain ⟨⟨h2, hL, hm⟩, hv⟩ := h
-  refine ⟨?_, hvers ▸ hv⟩
-  -- the tree: kept, or split within `maxLeaves`
-  unfold applyProbe at ha
-  simp only [] at ha
-  split at ha
-  · cases ha
-  unfold settleOne at ha
-  split_ifs at ha with hv' hbig
-  · simp only [Sum.inl.injEq] at ha
-    subst ha
-    refine ⟨?_, not_lt.1 hbig, ?_⟩
-    · rcases (fixEdge_cases cut C hv'.choose_spec.choose_spec.choose_spec).2 with ⟨ht, -⟩ |
-        ⟨t₀, w₀, -, -, ht⟩
-      · rw [ht]; exact h2
-      · rw [ht, DTree.length_leaves_splitAt _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
-        omega
-    · rcases (fixEdge_cases cut C hv'.choose_spec.choose_spec.choose_spec).2 with ⟨ht, -⟩ |
-        ⟨t₀, w₀, -, -, ht⟩
-      · rw [ht]; exact hm
-      · rw [ht, DTree.length_leaves_splitAt _ _ _ hv'.choose_spec.choose_spec.choose_spec.1]
-        intro m hmm
-        rcases midfixes_splitAt _ _ _ m hmm with hm' | rfl
-        · have := hm m hm'; omega
-        · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
-            List.length_singleton]
-          rcases midfixAt_mem_or_one (recordProbe C cut s x).tree
-              (commonPrefix hv'.choose_spec.choose_spec.choose t₀)
-            with h' | h'
-          · have := hm _ h'; omega
-          · rw [h']; simp; omega
-  · simp only [Sum.inl.injEq] at ha
-    subst ha
-    exact ⟨h2, hL, hm⟩
-
-theorem runProbes_short {s : Level5State α} {xs : List (FreeMonoid α)} {h : Level5Harvest α}
-    (hs : ShortInv C s) (hz : (runProbes C cut s xs).2 = .harvest h) :
-    ∀ v ∈ h.versions, TreeShort C v.1 := by
+theorem runProbes_short {s : Level5State α} {xs : List (FreeMonoid α)} {site : Level5Site α}
+    (hs : TreeShort C s.tree) (hz : (runProbes C cut s xs).2 = .harvest site) :
+    TreeShort C (runProbes C cut s xs).1.tree := by
   induction xs generalizing s with
   | nil => simp [runProbes] at hz
   | cons x xs ih =>
-    have hr := recordProbe_short C cut (x := x) hs
-    simp only [runProbes] at hz
-    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> rw [ha] at hz
-    · exact ih (applyProbe_short C cut hr ha) hz
-    · have he : e ≠ .tooBig := by rintro rfl; simp [toRoundEnd] at hz
-      obtain ⟨rfl, -⟩ := applyProbe_inr_pre C cut ha he
-      cases e with
-      | success => simp [toRoundEnd] at hz
-      | tooBig => simp [toRoundEnd] at hz
-      | harvestStart =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]; exact hr.2
-      | harvestPT =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]
-        intro v hv
-        rw [List.mem_singleton] at hv
-        subst hv
-        exact hr.1
-      | harvest e =>
-        simp only [toRoundEnd, RoundEnd.harvest.injEq] at hz
-        rw [← hz]; exact hr.2
+    simp only [runProbes] at hz ⊢
+    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> rw [ha] at hz <;> dsimp only at hz ⊢
+    · exact ih (treeShort_step C cut hs ha) hz
+    · rcases applyProbe_inr C cut ha with ⟨-, rfl⟩ | ⟨rfl, -⟩
+      · rw [recordProbe_tree]; exact hs
+      · simp [toRoundEnd] at hz
 
-/-- Every hypothesis a harvest kept is short. -/
+/-- A harvest's hypothesis is short. -/
 theorem harvest_short (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
-    (draws : Fin T → FreeMonoid α) {h : Level5Harvest α}
-    (hh : (indecisiveLStarLevel5 C read draws).ending = .harvest h) :
-    ∀ v ∈ h.versions, TreeShort C v.1 := by
+    (draws : Fin T → FreeMonoid α) {site : Level5Site α}
+    (hh : (indecisiveLStarLevel5 C read draws).ending = .harvest site) :
+    TreeShort C (indecisiveLStarLevel5 C read draws).hypothesis.tree := by
   refine runProbes_short C (fun z => (read z).cut) (s := initialState) (xs := List.ofFn draws)
-    ⟨⟨?_, ?_, ?_⟩, by simp [initialState]⟩ hh
-  · simp [initialState, DTree.leaves]
-  · simpa [initialState, DTree.leaves] using hC
-  · simp [initialState, DTree.leaves, DTree.midfixes]
+    ⟨?_, ?_, ?_⟩ hh
+  · simp [initialState, freshState, DTree.leaves]
+  · simpa [initialState, freshState, DTree.leaves] using hC
+  · exact shortMids_start
 
 open MeasureTheory in
 open scoped Classical in
-/-- Over draws at most `L` long, a harvest whose hypotheses are short finds no string longer
-than `L + maxLeaves − 2`. -/
+/-- Over draws at most `L` long, a harvest under a short hypothesis finds no string longer than
+`L + maxLeaves − 2`. -/
 theorem harvestLaw_short {D : Measure (FreeMonoid α)} {L : ℕ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) {h : Level5Harvest α}
-    (hv : ∀ v ∈ h.versions, TreeShort C v.1) :
-    harvestLaw D cut k h {z | L + C.maxLeaves < z.toList.length + 2} = 0 := by
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) {H : HypothesisDFA α} (site : Level5Site α)
+    (hv : TreeShort C H.tree) :
+    harvestLaw D cut k H site {z | L + C.maxLeaves < z.toList.length + 2} = 0 := by
   rw [harvestLaw_apply]
-  refine mul_eq_zero_of_right _ (List.sum_eq_zero fun a ha => ?_)
-  obtain ⟨v, hvm, rfl⟩ := List.mem_map.1 ha
   refine lintegral_eq_zero_of_ae_eq_zero ?_
   filter_upwards [hlen] with x hx
   simp
-  exact fun a ha => siteHarvest_short C cut h.site (hv v hvm) hx a ha
+  exact fun a ha => siteHarvest_short C cut site hv hx a ha
 
 end OrthoDFA
