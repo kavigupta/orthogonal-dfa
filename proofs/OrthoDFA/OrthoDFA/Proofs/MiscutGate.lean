@@ -1305,4 +1305,365 @@ theorem measureReal_falseCertify_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O 
   have h2 := measureReal_rawShort_le (rule := rule) D Dsf O populations j B (lim := lim) ha0 ha1
   linarith
 
+/-! ### A clean family is certified -/
+
+/-- `disagreeRate` lies above its tangent at `x`, whose slope is `1/(2√(1 − 2x))`. -/
+lemma disagreeRate_tangent {x y : ℝ} (hx : x < 1 / 2) (hy : y ≤ 1 / 2) :
+    disagreeRate x + (y - x) / (2 * Real.sqrt (1 - 2 * x)) ≤ disagreeRate y := by
+  set u := Real.sqrt (1 - 2 * x) with hu
+  set v := Real.sqrt (1 - 2 * y) with hv
+  have hu0 : 0 < u := Real.sqrt_pos.2 (by linarith)
+  have hu2 : u ^ 2 = 1 - 2 * x := Real.sq_sqrt (by linarith)
+  have hv2 : v ^ 2 = 1 - 2 * y := Real.sq_sqrt (by linarith)
+  have hyx : y - x = (u ^ 2 - v ^ 2) / 2 := by rw [hu2, hv2]; ring
+  unfold disagreeRate
+  rw [← hu, ← hv, hyx, div_div, div_add_div _ _ (by norm_num : (2 : ℝ) ≠ 0) (by positivity),
+    div_le_div_iff₀ (by positivity) (by norm_num)]
+  nlinarith [sq_nonneg (u - v)]
+
+/-- The slope there is at most `1/(2(1 − 2η))` below `2η(1 − η)`. -/
+lemma sqrt_one_sub_two_mul_ge {x η : ℝ} (hη : η ≤ 1 / 2) (hx : x ≤ 2 * η * (1 - η)) :
+    1 - 2 * η ≤ Real.sqrt (1 - 2 * x) := by
+  rw [show 1 - 2 * η = Real.sqrt ((1 - 2 * η) ^ 2) from (Real.sqrt_sq (by linarith)).symm]
+  exact Real.sqrt_le_sqrt (by nlinarith)
+
+/-- Any reference disagrees with the seed at least as often as an accept-preserving one:
+reading the other class costs `(1 − 2r)(1 − r − r') ≥ 0` more. -/
+lemma apartVar_mean_ge (O : Oracle μ S) (hη : O.η ≤ 1 / 2) {v p : S} (hne : p * v ≠ p) :
+    2 * O.rate p * (1 - O.rate p) ≤ μ[apartVar O v p] := by
+  classical
+  set a : Set Ω := {ω | O.mq (p * v) ω = 1} with ha
+  set b : Set Ω := {ω | O.mq p ω = 1} with hb
+  have ham : MeasurableSet a := measurableSet_eq_fun (mq_meas O _) measurable_const
+  have hbm : MeasurableSet b := measurableSet_eq_fun (mq_meas O _) measurable_const
+  have hind : IndepFun (O.mq (p * v)) (O.mq p) μ := (mq_indep O).indepFun hne
+  have hprod : ∀ s t : Set ℝ, MeasurableSet s → MeasurableSet t →
+      μ.real (O.mq (p * v) ⁻¹' s ∩ O.mq p ⁻¹' t)
+        = μ.real (O.mq (p * v) ⁻¹' s) * μ.real (O.mq p ⁻¹' t) := by
+    intro s t hs ht
+    simp only [measureReal_def,
+      hind.measure_inter_preimage_eq_mul s t hs ht, ENNReal.toReal_mul]
+  have h1 := hprod {1} {1}ᶜ (measurableSet_singleton 1) (measurableSet_singleton 1).compl
+  have h2 := hprod {1}ᶜ {1} (measurableSet_singleton 1).compl (measurableSet_singleton 1)
+  have hset : apartVar O v p = ((a ∩ bᶜ) ∪ (aᶜ ∩ b)).indicator 1 := by
+    funext ω; unfold apartVar
+    by_cases h1 : O.mq (p * v) ω = 1 <;> by_cases h2 : O.mq p ω = 1 <;> simp [ha, hb, h1, h2]
+  have hdisj : Disjoint (a ∩ bᶜ) (aᶜ ∩ b) :=
+    Set.disjoint_left.2 (fun ω h h' => h'.1 h.1)
+  rw [hset, integral_indicator_one ((ham.inter hbm.compl).union (ham.compl.inter hbm)),
+    measureReal_union hdisj (ham.compl.inter hbm)]
+  have e1 : a ∩ bᶜ = O.mq (p * v) ⁻¹' {1} ∩ O.mq p ⁻¹' {1}ᶜ := rfl
+  have e2 : aᶜ ∩ b = O.mq (p * v) ⁻¹' {1}ᶜ ∩ O.mq p ⁻¹' {1} := rfl
+  rw [e1, e2, h1, h2]
+  have pa : μ.real (O.mq (p * v) ⁻¹' {1})
+      = O.rate (p * v) + (1 - 2 * O.rate (p * v)) * O.label (p * v) := prob_mq_one O (p * v)
+  have pb : μ.real (O.mq p ⁻¹' {1}) = O.rate p + (1 - 2 * O.rate p) * O.label p := prob_mq_one O p
+  have pa' : μ.real (O.mq (p * v) ⁻¹' {1}ᶜ) = 1 - μ.real (O.mq (p * v) ⁻¹' {1}) := by
+    rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
+      (mq_meas O _)), probReal_univ]
+  have pb' : μ.real (O.mq p ⁻¹' {1}ᶜ) = 1 - μ.real (O.mq p ⁻¹' {1}) := by
+    rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
+      (mq_meas O _)), probReal_univ]
+  rw [pa', pb', pa, pb]
+  have hr0 := O.rate_nonneg p
+  have hr1 : O.rate p ≤ 1 / 2 := le_trans (O.rate_le_eta p) hη
+  have hr1' : O.rate (p * v) ≤ 1 / 2 := le_trans (O.rate_le_eta _) hη
+  have key : 0 ≤ (1 - 2 * O.rate p) * (1 - O.rate p - O.rate (p * v)) :=
+    mul_nonneg (by linarith) (by linarith)
+  rcases O.label_bit (p * v) with hl | hl <;> rcases O.label_bit p with hl' | hl' <;>
+    rw [hl, hl']
+  · rw [O.rate_eq_of_label_eq (hl.trans hl'.symm)]; nlinarith
+  · nlinarith
+  · nlinarith
+  · rw [O.rate_eq_of_label_eq (hl.trans hl'.symm)]; nlinarith
+
+lemma disagreeRate_h {r : ℝ} (h0 : 0 ≤ r) (h1 : r ≤ 1 / 2) : disagreeRate (2 * r * (1 - r)) = r := by
+  unfold disagreeRate
+  rw [show 1 - 2 * (2 * r * (1 - r)) = (1 - 2 * r) ^ 2 by ring, Real.sqrt_sq (by linarith)]
+  ring
+
+open scoped Classical in
+set_option maxHeartbeats 1000000 in
+/-- One side of a fixed cut, the other way: unless the seed's count against the side rises
+`nτ₁` above its mean or some reference's count of disagreements falls `nτ₂` below its own,
+`sideBound` is at most a multiple of the side's wrong prefixes plus the deviations. -/
+theorem side_live (O : Oracle μ S) (A : Finset S) {c : ℝ} (hc : c = 0 ∨ c = 1) (R : Finset S)
+    (hRne : R.Nonempty) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p)
+    (hblk : ∀ v ∈ R, ∀ p ∈ A, ∀ p' ∈ A, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v})
+    {η₀ a τ₁ τ₂ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (ha0 : 0 < a)
+    (hτ₁ : 0 ≤ τ₁) (hτ₂ : 0 ≤ τ₂) :
+    μ.real {ω | ¬ (sideBound A.card (A.filter (fun p => ¬ ((O.mq p ω = 1) ↔ c = 1))).card
+        (refApart O.mq A R ω) a
+      ≤ ((A.filter (fun p => O.label p ≠ c)).card : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + A.card * τ₁ + hoeffDev A.card a
+        + (A.card * τ₂ + hoeffDev A.card a) / (2 * (1 - 2 * η₀)))}
+      ≤ Real.exp (-2 * (A.card : ℝ) * τ₁ ^ 2) + R.card * Real.exp (-2 * (A.card : ℝ) * τ₂ ^ 2) := by
+  classical
+  have hη2 : O.η ≤ 1 / 2 := by linarith
+  have hpos : 0 < 1 - 2 * η₀ := by linarith
+  have hr : ∀ p, O.rate p ≤ η₀ := fun p => le_trans (O.rate_le_eta p) hη
+  rcases Nat.eq_zero_or_pos A.card with hA0 | hApos
+  · have hAe : A = ∅ := Finset.card_eq_zero.1 hA0
+    have hz : {ω | ¬ (sideBound A.card (A.filter (fun p => ¬ ((O.mq p ω = 1) ↔ c = 1))).card
+        (refApart O.mq A R ω) a
+      ≤ ((A.filter (fun p => O.label p ≠ c)).card : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + A.card * τ₁ + hoeffDev A.card a
+        + (A.card * τ₂ + hoeffDev A.card a) / (2 * (1 - 2 * η₀)))} = (∅ : Set Ω) := by
+      ext ω
+      simp [hAe, sideBound, hoeffDev]
+    rw [hz, measureReal_empty]
+    positivity
+  set n : ℕ := A.card with hndef
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hApos
+  set d : ℝ := hoeffDev n a with hd
+  have hd0 : 0 ≤ d := Real.sqrt_nonneg _
+  set k : ℝ := ((A.filter (fun p => O.label p ≠ c)).card : ℝ) with hk
+  set X : A → Ω → ℝ := fun i => againstVar O c i.1 with hX
+  have hXind : iIndepFun X μ := by
+    refine iIndepFun_of_blocks O (fun i : A => ({i.1} : Finset S)) ?_ X (fun i => ?_)
+    · intro i j hij
+      simp only [Finset.disjoint_singleton]
+      exact fun h => hij (Subtype.ext h)
+    · exact againstVar_meas_alg O c (by simp)
+  have hYind : ∀ v ∈ R, iIndepFun (fun i : A => apartVar O v i.1) μ := by
+    intro v hv
+    refine iIndepFun_of_blocks O (fun i : A => ({i.1, i.1 * v} : Finset S)) ?_ _ (fun i => ?_)
+    · intro i j hij
+      exact hblk v hv i.1 i.2 j.1 j.2 (fun h => hij (Subtype.ext h))
+    · exact apartVar_meas_alg O (by simp) (by simp)
+  set EX : ℝ := ∑ p ∈ A, μ[againstVar O c p] with hEX
+  have hcard : ((Finset.univ : Finset A).card : ℝ) = n := by simp [hndef]
+  have hEXs : ∑ i : A, μ[X i] = EX := Finset.sum_coe_sort A (fun p => μ[againstVar O c p])
+  have hB1 : μ.real {ω | (n : ℝ) * (EX / n + τ₁) ≤ ∑ i : A, X i ω}
+      ≤ Real.exp (-2 * (n : ℝ) * τ₁ ^ 2) := by
+    have h := sumUpper_le X Finset.univ (EX / n) τ₁
+      (fun i => (againstVar_meas_alg O c (T := Set.univ) (Set.mem_univ _)).mono
+        (noiseAlg_le O _) le_rfl |>.aemeasurable)
+      hXind (fun i => Filter.Eventually.of_forall (fun ω => againstVar_icc O c _ ω))
+      (by rw [hcard, hEXs, mul_div_cancel₀ _ hnR.ne']) hτ₁
+    rwa [hcard] at h
+  have hB2 : ∀ v ∈ R, μ.real {ω | ∑ i : A, apartVar O v i.1 ω
+        ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - τ₂)}
+      ≤ Real.exp (-2 * (n : ℝ) * τ₂ ^ 2) := by
+    intro v hv
+    have h := sumLower_le (fun i : A => apartVar O v i.1) Finset.univ
+      ((∑ p ∈ A, μ[apartVar O v p]) / n) τ₂
+      (fun i => (apartVar_meas_alg O (T := Set.univ) (Set.mem_univ _) (Set.mem_univ _)).mono
+        (noiseAlg_le O _) le_rfl |>.aemeasurable)
+      (hYind v hv) (fun i => Filter.Eventually.of_forall (fun ω => apartVar_icc O v _ ω))
+      (by
+        have hs : ∑ i : A, μ[apartVar O v i.1] = ∑ p ∈ A, μ[apartVar O v p] :=
+          Finset.sum_coe_sort A (fun p => μ[apartVar O v p])
+        rw [hcard, hs, mul_div_cancel₀ _ hnR.ne']) hτ₂
+    rwa [hcard] at h
+  -- the deterministic step
+  set H : ℝ := ∑ p ∈ A, 2 * O.rate p * (1 - O.rate p) with hH
+  have hEXle : EX ≤ ∑ p ∈ A, O.rate p + k := by
+    have hEXeq : EX = ∑ p ∈ A, (if O.label p = c then O.rate p else 1 - O.rate p) :=
+      Finset.sum_congr rfl (fun p _ => againstVar_mean O hc p)
+    rw [hEXeq, ← Finset.sum_filter_add_sum_filter_not A (fun p => O.label p = c)
+        (fun p => if O.label p = c then O.rate p else 1 - O.rate p),
+      ← Finset.sum_filter_add_sum_filter_not A (fun p => O.label p = c) O.rate]
+    rw [Finset.sum_congr rfl (fun p hp => if_pos (Finset.mem_filter.1 hp).2),
+      Finset.sum_congr rfl (fun p hp => if_neg (Finset.mem_filter.1 hp).2)]
+    have h1 : ∑ p ∈ A.filter (fun p => ¬ O.label p = c), (1 - O.rate p)
+        ≤ ∑ p ∈ A.filter (fun p => ¬ O.label p = c), (O.rate p + 1) :=
+      Finset.sum_le_sum (fun p _ => by linarith [O.rate_nonneg p])
+    rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, mul_one] at h1
+    have : k = ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) := rfl
+    linarith
+  have hapart_ge : ∀ v ∈ R, H ≤ ∑ p ∈ A, μ[apartVar O v p] := fun v hv =>
+    Finset.sum_le_sum (fun p hp => apartVar_mean_ge O hη2 (hne v hv p hp))
+  have hx : H / n < 1 / 2 := by
+    rw [div_lt_iff₀ hnR]
+    have : H < ∑ _p ∈ A, (1 / 2 : ℝ) :=
+      Finset.sum_lt_sum_of_nonempty (Finset.card_pos.1 hApos)
+        (fun p _ => by nlinarith [sq_nonneg (1 - 2 * O.rate p), hr p])
+    rw [Finset.sum_const, nsmul_eq_mul] at this
+    linarith
+  have hxh : H / n ≤ 2 * η₀ * (1 - η₀) := by
+    rw [div_le_iff₀ hnR]
+    have : H ≤ ∑ _p ∈ A, 2 * η₀ * (1 - η₀) :=
+      Finset.sum_le_sum (fun p _ => by nlinarith [hr p, O.rate_nonneg p])
+    rw [Finset.sum_const, nsmul_eq_mul] at this
+    linarith
+  have hslope : 1 - 2 * η₀ ≤ Real.sqrt (1 - 2 * (H / n)) :=
+    sqrt_one_sub_two_mul_ge (by linarith) hxh
+  have hjensen := card_mul_disagreeRate_le A O.rate (fun p _ => lt_of_le_of_lt (hr p) hη₀)
+  -- the gap between the rates' sum and its Jensen bound
+  have hgap : ∑ p ∈ A, O.rate p ≤ n * disagreeRate (H / n) + k * (1 / 2 + 1 / (4 * (1 - 2 * η₀))) := by
+    by_cases hcor : ∃ p₀ ∈ A, O.label p₀ = c
+    · obtain ⟨p₀, hp₀, hl₀⟩ := hcor
+      set rc : ℝ := O.rate p₀ with hrc
+      have hrate : ∀ p ∈ A, O.label p = c → O.rate p = rc := fun p _ hl =>
+        O.rate_eq_of_label_eq (hl.trans hl₀.symm)
+      have hrc0 : 0 ≤ rc := O.rate_nonneg p₀
+      have hrc1 : rc ≤ η₀ := hr p₀
+      set hc' : ℝ := 2 * rc * (1 - rc) with hhc
+      have hsum_r : ∑ p ∈ A, O.rate p ≤ ((n : ℝ) - k) * rc + k / 2 := by
+        rw [← Finset.sum_filter_add_sum_filter_not A (fun p => O.label p = c)]
+        have e1 : ∑ p ∈ A.filter (fun p => O.label p = c), O.rate p
+            = ((A.filter (fun p => O.label p = c)).card : ℝ) * rc := by
+          rw [Finset.sum_congr rfl (fun p hp => hrate p (Finset.mem_filter.1 hp).1
+            (Finset.mem_filter.1 hp).2), Finset.sum_const, nsmul_eq_mul]
+        have e2 : ∑ p ∈ A.filter (fun p => ¬ O.label p = c), O.rate p
+            ≤ ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) * (1 / 2) := by
+          have := Finset.sum_le_card_nsmul (A.filter (fun p => ¬ O.label p = c)) O.rate (1 / 2)
+            (fun p _ => le_trans (hr p) hη₀.le)
+          rwa [nsmul_eq_mul] at this
+        have hcnt : ((A.filter (fun p => O.label p = c)).card : ℝ) = n - k := by
+          have := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = c)
+          have : ((A.filter (fun p => O.label p = c)).card : ℝ)
+              + ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) = n := by exact_mod_cast this
+          rw [hk]; linarith
+        rw [e1, hcnt]
+        have : ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) = k := rfl
+        linarith [e2]
+      have hHge : ((n : ℝ) - k) * hc' ≤ H := by
+        rw [hH, ← Finset.sum_filter_add_sum_filter_not A (fun p => O.label p = c)]
+        have e1 : ∑ p ∈ A.filter (fun p => O.label p = c), 2 * O.rate p * (1 - O.rate p)
+            = ((A.filter (fun p => O.label p = c)).card : ℝ) * hc' := by
+          rw [Finset.sum_congr rfl (fun p hp => by rw [hrate p (Finset.mem_filter.1 hp).1
+            (Finset.mem_filter.1 hp).2]), Finset.sum_const, nsmul_eq_mul]
+        have e2 : 0 ≤ ∑ p ∈ A.filter (fun p => ¬ O.label p = c), 2 * O.rate p * (1 - O.rate p) :=
+          Finset.sum_nonneg (fun p _ => by nlinarith [O.rate_nonneg p, hr p])
+        have hcnt : ((A.filter (fun p => O.label p = c)).card : ℝ) = n - k := by
+          have := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = c)
+          have : ((A.filter (fun p => O.label p = c)).card : ℝ)
+              + ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) = n := by exact_mod_cast this
+          rw [hk]; linarith
+        rw [e1, hcnt]; linarith
+      have hk0 : 0 ≤ k := Nat.cast_nonneg _
+      have hkn : k ≤ n := by
+        rw [hk]; exact_mod_cast Finset.card_le_card (Finset.filter_subset _ A)
+      have hhc0 : 0 ≤ hc' := by nlinarith
+      have hhc1 : hc' ≤ 1 / 2 := by nlinarith [sq_nonneg (1 - 2 * rc)]
+      have hhclt : hc' < 1 / 2 := by nlinarith [sq_nonneg (1 - 2 * rc)]
+      have hmono : disagreeRate (((n : ℝ) - k) * hc' / n) ≤ disagreeRate (H / n) :=
+        disagreeRate_mono (div_le_div_of_nonneg_right hHge hnR.le)
+      have htan := disagreeRate_tangent (x := hc') (y := ((n : ℝ) - k) * hc' / n) hhclt
+        (by rw [div_le_iff₀ hnR]; nlinarith)
+      have hsq : Real.sqrt (1 - 2 * hc') = 1 - 2 * rc := by
+        rw [hhc, show 1 - 2 * (2 * rc * (1 - rc)) = (1 - 2 * rc) ^ 2 by ring,
+          Real.sqrt_sq (by linarith)]
+      rw [hsq, hhc, disagreeRate_h hrc0 (by linarith)] at htan
+      have hstep : ((n : ℝ) - k) * hc' / n - hc' = - (k * hc' / n) := by field_simp; ring
+      rw [← hhc, hstep] at htan
+      have h1 : 0 < 1 - 2 * rc := by linarith
+      have h2 : k * hc' / n / (2 * (1 - 2 * rc)) ≤ k / (4 * (1 - 2 * η₀)) / n := by
+        rw [div_div, div_div, div_le_div_iff₀ (by positivity) (by positivity)]
+        have hle : (1 - 2 * η₀) ≤ (1 - 2 * rc) := by linarith
+        have e : k * hc' * (4 * (1 - 2 * η₀) * n) ≤ k * (1 / 2) * (4 * (1 - 2 * η₀) * n) :=
+          mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hhc1 hk0) (by positivity)
+        have e' : k * (1 / 2) * (4 * (1 - 2 * η₀) * n) ≤ k * (n * (2 * (1 - 2 * rc))) := by
+          have := mul_le_mul_of_nonneg_left hle (mul_nonneg hk0 hnR.le)
+          nlinarith
+        linarith
+      have h3 : rc - k / (4 * (1 - 2 * η₀)) / n ≤ disagreeRate (H / n) := by
+        have : - (k * hc' / n) / (2 * (1 - 2 * rc)) = -(k * hc' / n / (2 * (1 - 2 * rc))) := by
+          ring
+        linarith
+      have h4 : (n : ℝ) * rc - k / (4 * (1 - 2 * η₀)) ≤ n * disagreeRate (H / n) := by
+        have := mul_le_mul_of_nonneg_left h3 hnR.le
+        rw [mul_sub, mul_div_cancel₀ _ hnR.ne'] at this
+        exact this
+      have e : k * (1 / 2 + 1 / (4 * (1 - 2 * η₀))) = k / 2 + k / (4 * (1 - 2 * η₀)) := by ring
+      linarith [hsum_r, h4, mul_nonneg hk0 hrc0]
+    · push_neg at hcor
+      have hkn : k = n := by
+        rw [hk, Finset.filter_true_of_mem (fun p hp => hcor p hp)]
+      have h0 : 0 ≤ disagreeRate (H / n) := by
+        unfold disagreeRate
+        have : Real.sqrt (1 - 2 * (H / n)) ≤ 1 := by
+          rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+          exact Real.sqrt_le_sqrt (by
+            have : 0 ≤ H := Finset.sum_nonneg (fun p _ => by nlinarith [O.rate_nonneg p, hr p])
+            have : 0 ≤ H / n := div_nonneg this hnR.le
+            linarith)
+        linarith
+      have hsr : ∑ p ∈ A, O.rate p ≤ n * (1 / 2) := by
+        have := Finset.sum_le_card_nsmul A O.rate (1 / 2) (fun p _ => le_trans (hr p) hη₀.le)
+        rwa [nsmul_eq_mul] at this
+      have : 0 ≤ k * (1 / (4 * (1 - 2 * η₀))) := by positivity
+      nlinarith [mul_nonneg hnR.le h0]
+  have hsub : {ω | ¬ (sideBound A.card (A.filter (fun p => ¬ ((O.mq p ω = 1) ↔ c = 1))).card
+        (refApart O.mq A R ω) a
+      ≤ ((A.filter (fun p => O.label p ≠ c)).card : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + A.card * τ₁ + hoeffDev A.card a
+        + (A.card * τ₂ + hoeffDev A.card a) / (2 * (1 - 2 * η₀)))}
+      ⊆ {ω | (n : ℝ) * (EX / n + τ₁) ≤ ∑ i : A, X i ω}
+        ∪ ⋃ v ∈ R, {ω | ∑ i : A, apartVar O v i.1 ω
+            ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - τ₂)} := by
+    intro ω hω
+    by_contra hc'
+    simp only [Set.mem_union, Set.mem_setOf_eq, Set.mem_iUnion, not_or, not_exists,
+      not_le] at hc'
+    obtain ⟨h1, h2⟩ := hc'
+    apply hω
+    have e1 : (n : ℝ) * (EX / n + τ₁) = EX + n * τ₁ := by field_simp
+    rw [e1, Finset.sum_coe_sort A (fun p => againstVar O c p ω)] at h1
+    have hap : H - n * τ₂ ≤ (refApart O.mq A R ω : ℝ) := by
+      unfold refApart
+      rw [dif_pos hRne]
+      have : ∀ v ∈ R, H - n * τ₂ ≤
+          ((A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card : ℝ) := by
+        intro v hv
+        have h := h2 v hv
+        rw [Finset.sum_coe_sort A (fun p => apartVar O v p ω),
+          show (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - τ₂)
+            = (∑ p ∈ A, μ[apartVar O v p]) - n * τ₂ by field_simp,
+          ← card_filter_eq_sum_apartVar] at h
+        linarith [hapart_ge v hv]
+      obtain ⟨v, hv, hveq⟩ := Finset.exists_mem_eq_inf' hRne
+        (fun v => (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card)
+      rw [hveq]
+      exact this v hv
+    have hmax : max 0 (H / n - (n * τ₂ + d) / n) ≤ max 0 ((refApart O.mq A R ω : ℝ) - d) / n := by
+      rw [le_div_iff₀ hnR]
+      rcases le_total 0 (H / n - (n * τ₂ + d) / n) with hh | hh
+      · rw [max_eq_right hh]
+        refine le_trans ?_ (le_max_right _ _)
+        rw [sub_mul, div_mul_cancel₀ _ hnR.ne', div_mul_cancel₀ _ hnR.ne']
+        linarith
+      · rw [max_eq_left hh, zero_mul]
+        exact le_max_left _ _
+    have hg1 := disagreeRate_mono hmax
+    have htan := disagreeRate_tangent (x := H / n) (y := max 0 (H / n - (n * τ₂ + d) / n)) hx
+      (max_le (by norm_num) (by
+        have : 0 ≤ (n * τ₂ + d) / n := by positivity
+        linarith))
+    have hy : - ((n * τ₂ + d) / n) ≤ max 0 (H / n - (n * τ₂ + d) / n) - H / n := by
+      have := le_max_right 0 (H / n - (n * τ₂ + d) / n)
+      linarith
+    have hslope' : - ((n * τ₂ + d) / n) / (2 * (1 - 2 * η₀))
+        ≤ (max 0 (H / n - (n * τ₂ + d) / n) - H / n) / (2 * Real.sqrt (1 - 2 * (H / n))) := by
+      have hq : 0 ≤ (n * τ₂ + d) / n := by positivity
+      calc - ((n * τ₂ + d) / n) / (2 * (1 - 2 * η₀))
+          ≤ - ((n * τ₂ + d) / n) / (2 * Real.sqrt (1 - 2 * (H / n))) := by
+            rw [neg_div, neg_div, neg_le_neg_iff]
+            exact div_le_div_of_nonneg_left hq (by positivity) (by linarith)
+        _ ≤ _ := div_le_div_of_nonneg_right hy (by positivity)
+    have hfinal : n * disagreeRate (H / n) - (n * τ₂ + d) / (2 * (1 - 2 * η₀))
+        ≤ n * disagreeRate (max 0 ((refApart O.mq A R ω : ℝ) - d) / n) := by
+      have hlow : disagreeRate (H / n) - ((n * τ₂ + d) / n) / (2 * (1 - 2 * η₀))
+          ≤ disagreeRate (max 0 (H / n - (n * τ₂ + d) / n)) := by
+        have h' := add_le_add_left hslope' (disagreeRate (H / n))
+        have hn : -((n * τ₂ + d) / n) / (2 * (1 - 2 * η₀))
+            = -(((n * τ₂ + d) / n) / (2 * (1 - 2 * η₀))) := neg_div _ _
+        rw [hn] at h'
+        linarith
+      have := mul_le_mul_of_nonneg_left (le_trans hlow hg1) hnR.le
+      rw [mul_sub, show (n : ℝ) * ((n * τ₂ + d) / n / (2 * (1 - 2 * η₀)))
+        = (n * τ₂ + d) / (2 * (1 - 2 * η₀)) by field_simp] at this
+      exact this
+    unfold sideBound
+    rw [card_filter_eq_sum_againstVar, ← hndef, ← hd]
+    linarith
+  calc _ ≤ _ := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ _ := measureReal_union_le _ _
+    _ ≤ Real.exp (-2 * (n : ℝ) * τ₁ ^ 2) + ∑ v ∈ R, Real.exp (-2 * (n : ℝ) * τ₂ ^ 2) :=
+        add_le_add hB1 (le_trans (measureReal_biUnion_finset_le _ _)
+          (Finset.sum_le_sum (fun v hv => hB2 v hv)))
+    _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
+
 end OrthoDFA
