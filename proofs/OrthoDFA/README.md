@@ -47,7 +47,6 @@
   the true rate is on the far side of `p₀` from `p₁` (Ville's inequality). `stretchBound`: where
   `p₀ < p₁ < p₀'`, one of the tests of `p₀` and of `p₀'` against `p₁` fires within that many
   draws, whatever the count.
-- `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
   bad states, it finds no string more often than the probes share its first `k` letters (spread),
