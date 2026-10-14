@@ -49,6 +49,10 @@
   `RateTestSound`: over independent draws it says above with chance at most its failure chance when
   the true rate is at most the tested one, and below likewise when it is at least.
   `statistics.rate_side` is the same test.
+- `OrthoDFA/SeqTest.lean` — `seqRate`, the sequential likelihood-ratio test of a count of hits
+  against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
+  look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
+  from `p₁`. `statistics.seq_rate` is the same test.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

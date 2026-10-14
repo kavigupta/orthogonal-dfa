@@ -4,6 +4,7 @@ rate beyond it from the alternative, it ever fires at most ``level`` of the time
 import itertools
 import math
 import unittest
+from fractions import Fraction
 
 import numpy as np
 
@@ -48,6 +49,31 @@ class TestTheRatio(unittest.TestCase):
     def test_a_certain_alternative_fires_only_on_hits(self):
         self.assertTrue(seq_rate(0.5, 1.0, 0.01, 7, 7))
         self.assertFalse(seq_rate(0.5, 1.0, 0.01, 7, 6))
+
+
+def lean_seq_rate(p0, p1, level, trials, hits):
+    """``seqRate p₀ p₁ a n h`` of ``OrthoDFA/SeqTest.lean``, in exact arithmetic, and how far
+    the likelihood ratio is from ``1 / level`` relative to it."""
+    ratio = (p1 / p0) ** hits * ((1 - p1) / (1 - p0)) ** (trials - hits)
+    return 1 / level <= ratio, abs(ratio * level - 1)
+
+
+class TestIsSeqRate(unittest.TestCase):
+    def test_agrees_with_the_lean_definition(self):
+        nulls = [Fraction(i, 20) for i in range(1, 20)]
+        alternatives = [Fraction(i, 20) for i in range(21)]
+        levels = [Fraction(1, 100), Fraction(1, 20), Fraction(1, 2)]
+        checked = 0
+        grid = itertools.product(nulls, alternatives, levels, range(0, 21))
+        for p0, p1, level, n in grid:
+            for h in range(n + 1):
+                exact, gap = lean_seq_rate(p0, p1, level, n, h)
+                if gap <= 1e-9:
+                    continue
+                got = seq_rate(float(p0), float(p1), float(level), n, h)
+                self.assertEqual(exact, got, (p0, p1, level, n, h))
+                checked += 1
+        self.assertGreater(checked, 100000)
 
 
 class TestSoundness(unittest.TestCase):

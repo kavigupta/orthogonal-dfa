@@ -5,6 +5,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.RateTest
+import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
@@ -15,7 +16,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
 `SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
-`ProbeCorrect`, stated in `OrthoDFA.Probe`, and `RateTestSound`, stated in `OrthoDFA.RateTest`.
+`ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`, and
+`SeqRateSound`, stated in `OrthoDFA.SeqTest`.
 -/
 
 namespace OrthoDFA
@@ -60,5 +62,9 @@ theorem probe_correct : ProbeCorrect := probeCorrect
 theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms rate_test_sound
+
+theorem seq_rate_sound : SeqRateSound := seqRateSound
+
+#print axioms seq_rate_sound
 
 end OrthoDFA
