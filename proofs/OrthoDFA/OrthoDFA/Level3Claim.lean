@@ -1,4 +1,5 @@
 import OrthoDFA.Level3
+import OrthoDFA.ProbeDistribution
 
 /-!
 # `RandomRoundCorrect`: level 3 ends well but for a small chance
