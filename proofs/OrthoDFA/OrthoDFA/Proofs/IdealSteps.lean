@@ -100,31 +100,6 @@ theorem reached_splitAt {T : DTree α} (hr : Reached read T) {p : List Bool} (hp
   · exact Or.inr (Or.inr (hchild false))
   · exact Or.inr (Or.inr (hchild true))
 
-theorem edgesOK_retarget {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p : List Bool}
-    (hp : p ∈ T.leaves) (d : FreeMonoid α) :
-    EdgesOK read (T.splitAt d p) (retarget read (T.splitAt d p) p E) := by
-  intro q hq c t w h
-  unfold retarget at h
-  cases hpq : p.isPrefixOf q
-  · obtain ⟨hq', hne⟩ := DTree.prefix_of_mem_leaves_splitAt hp hq hpq
-    simp only [hpq, Bool.false_eq_true, if_false] at h
-    rcases hEq : E (q, c) with _ | ⟨t₁, w₁⟩ <;> rw [hEq] at h
-    · simp at h
-    · obtain ⟨hw, hwc⟩ := hE q hq' c t₁ w₁ hEq
-      simp only at h
-      split at h
-      · rename_i ht₁
-        rcases hs : (T.splitAt d p).sift read (w₁ * FreeMonoid.of c) with t' | z <;>
-          rw [hs] at h <;> simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq,
-            Prod.mk.injEq, reduceCtorEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        exact ⟨DTree.sift_splitAt_ne read hw hne, hs⟩
-      · rename_i ht₁
-        simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
-  · simp [hpq] at h
-
 variable [DecidableEq α]
 
 theorem edgesOK_upd {T : DTree α} {E : Edges α} (hE : EdgesOK read T E) {p t : List Bool} {c : α}

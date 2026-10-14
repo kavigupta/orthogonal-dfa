@@ -52,19 +52,6 @@ def initialState : Level2State α := newHypothesis (.node 1 .leaf .leaf) fun _ =
 
 variable [DecidableEq α]
 
-/-- The edges after the leaf `p` splits into `T'`: those into `p` sift their witness's successor
-again, those out of it are dropped. -/
-def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E : Edges α) :
-    Edges α := fun e =>
-  if p.isPrefixOf e.1 then none
-  else
-    match E e with
-    | some (t, w) =>
-      if t = p then
-        (T'.sift read (w * FreeMonoid.of e.2)).elim (fun t' => some (t', w)) fun _ => none
-      else some (t, w)
-    | none => none
-
 section
 
 variable (read : FreeMonoid α → ARU) (C : Level2Settings)
@@ -82,8 +69,9 @@ noncomputable def keep (s : Level2State α) (n d : ℕ) : Level2State α ⊕ Rou
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
 def splitLeaf (s : Level2State α) (p : List Bool) (c : α) (t t₀ : List Bool) : Level2State α :=
-  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-  newHypothesis T' (retarget read T' p s.edges)
+  let H := (HypothesisDFA.mk s.tree s.edges).split read
+    (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
+  newHypothesis H.tree H.edges
 
 /-- At `wrongEdge p c u t`, `u·c` sifts to `t` while the edge `(p, c)` points at `t₀`, where its
 witness's successor sifts, so the two strings at `p` part at `c` and the midfix where `t` and `t₀`

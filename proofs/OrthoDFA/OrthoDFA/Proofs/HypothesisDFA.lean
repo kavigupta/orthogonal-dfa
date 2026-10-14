@@ -1,5 +1,5 @@
 import OrthoDFA.HypothesisDFA
-import Mathlib.Tactic
+import OrthoDFA.Proofs.DTree
 
 /-!
 # The walk in a hypothesis DFA, and prefixes
@@ -144,5 +144,43 @@ theorem walkCorrect : WalkCorrect := by
         List.getElem?_eq_getElem (by omega), Option.getD_some]
     · rintro ⟨h1, h2⟩
       exact walk_walkEnd H.edges s cs q h1 h2
+
+section Edges
+
+variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α)
+
+/-- Every learned edge out of a leaf is witnessed. -/
+def EdgesOK : Prop :=
+  ∀ q ∈ T.leaves, ∀ c t w, E (q, c) = some (t, w) →
+    T.sift read w = .inl q ∧ T.sift read (w * FreeMonoid.of c) = .inl t
+
+variable {T E}
+
+theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
+    (hp : p ∈ T.leaves) (d : FreeMonoid α) :
+    EdgesOK read (T.splitAt d p) (retarget read (T.splitAt d p) p E) := by
+  intro q hq c t w h
+  unfold retarget at h
+  cases hpq : p.isPrefixOf q
+  · obtain ⟨hq', hne⟩ := DTree.prefix_of_mem_leaves_splitAt hp hq hpq
+    simp only [hpq, Bool.false_eq_true, if_false] at h
+    rcases hEq : E (q, c) with _ | ⟨t₁, w₁⟩ <;> rw [hEq] at h
+    · simp at h
+    · obtain ⟨hw, hwc⟩ := hE q hq' c t₁ w₁ hEq
+      simp only at h
+      split at h
+      · rename_i ht₁
+        rcases hs : (T.splitAt d p).sift read (w₁ * FreeMonoid.of c) with t' | z <;>
+          rw [hs] at h <;> simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq,
+            Prod.mk.injEq, reduceCtorEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact ⟨DTree.sift_splitAt_ne read hw hne, hs⟩
+      · rename_i ht₁
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
+  · simp [hpq] at h
+
+end Edges
 
 end OrthoDFA

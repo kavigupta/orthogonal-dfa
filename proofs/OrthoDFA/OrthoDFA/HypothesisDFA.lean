@@ -33,6 +33,28 @@ def Disagrees (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (k : ℕ) (x
   ∃ a q e, H.tree.sift read (prefixOf x k) = .inl a ∧
     walkEnd H.edges a (x.toList.drop k) = some q ∧ H.tree.sift read x = .inl e ∧ q ≠ e
 
+section Split
+
+/-- The edges after the leaf `p` splits into `T'`: those into `p` sift their witness's successor
+again, those out of it are dropped. -/
+def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E : Edges α) :
+    Edges α := fun e =>
+  if p.isPrefixOf e.1 then none
+  else
+    match E e with
+    | some (t, w) =>
+      if t = p then
+        (T'.sift read (w * FreeMonoid.of e.2)).elim (fun t' => some (t', w)) fun _ => none
+      else some (t, w)
+    | none => none
+
+/-- The leaf `p` split into a node reading at `d`, and the edges retargeted. -/
+def HypothesisDFA.split (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (d : FreeMonoid α)
+    (p : List Bool) : HypothesisDFA α :=
+  ⟨H.tree.splitAt d p, retarget read (H.tree.splitAt d p) p H.edges⟩
+
+end Split
+
 def WalkCorrect : Prop :=
   ∀ {α : Type*},
     (∀ (H : HypothesisDFA α) (s : List Bool) (cs : List α),

@@ -133,11 +133,6 @@ end Located
 
 variable (recover : Bool) (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
 
-/-- Every learned edge out of a leaf is witnessed. -/
-def EdgesOK : Prop :=
-  ∀ q ∈ T.leaves, ∀ c t w, E (q, c) = some (t, w) →
-    T.sift read w = .inl q ∧ T.sift read (w * FreeMonoid.of c) = .inl t
-
 theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
     OutcomeOK read T E (probe recover read T E k x) := by
   unfold probe
