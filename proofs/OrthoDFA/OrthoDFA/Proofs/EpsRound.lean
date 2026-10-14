@@ -121,29 +121,25 @@ theorem untrue_wrong {T : DTree α} {E : Edges α} (hE : EdgesOK read T E)
 variable (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
 open Finset in
-theorem stretchRisk_nonneg (C : Level4Settings) (nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ)
-    (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
-    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
-    0 ≤ stretchRisk C nα L Ns N₁ p θr εd' θpt' := by
+theorem stretchRisk_nonneg (C : Level4Settings) (nα L Ns N₁ : ℕ) (θr εd' θpt' : ℝ)
+    (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
+    0 ≤ stretchRisk C nα L Ns N₁ θr εd' θpt' := by
+  classical
   unfold stretchRisk
-  have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun _ P _ => by
+  have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 0 else 1 := fun _ P _ => by
     split_ifs <;> norm_num
   have := binomSfGe_le_one hθr0 hθr1 Ns C.recordsToMove
-  have := binomSfGe_le_one hεd'0 hεd'1 Ns (max C.firstLook ⌈C.searchShare * Ns⌉₊)
+  have := binomSfGe_le_one hεd'0 hεd'1 Ns ⌈C.searchShare * Ns⌉₊
   have := binE_nonneg hεd'0 hεd'1 (n := N₁)
-    (f := fun s => if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-        ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1
-      else 0) fun j => h01 j _
-  have : 0 ≤ ∑ s ∈ Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
-      binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
+    (f := fun s => if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0
+      else 1) fun j => h01 j _
+  have : 0 ≤ ∑ s ∈ Icc ⌈C.searchShare * Ns⌉₊ Ns,
+      binE s θpt' (fun j => if seqRate C.middleRate C.middleAlternative C.testLevel s j then 0
+        else 1) :=
     sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 j _
-  have : 0 ≤ ∑ n ∈ Icc C.firstLook Ns, (binomSfGe n p (hFire C.startRate C.testLevel n)
-      + C.testLevel) :=
-    sum_nonneg fun n _ => add_nonneg (binomSfGe_nonneg hp0 hp1 _ _) ha
-  have : 0 ≤ ∑ n ∈ Icc 1 Ns,
-      ((C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
-        + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))) :=
-    sum_nonneg fun n _ => add_nonneg (by positivity) (binomSfGe_nonneg hp0 hp1 _ _)
+  have : (0 : ℝ) ≤ (C.maxLeaves * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1))) := by
+    positivity
   linarith
 
 /-- A run with no bad step ends well, given enough probes. -/
@@ -508,14 +504,20 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
     (hNw : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotWrong read M side C.walkStart T) ≤ Gw) (hcap : Fintype.card σ + 2 ≤ C.maxLeaves)
-    (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
-    (hG0 : 0 ≤ G) (hG1 : 2 * G ≤ 1) (hy1 : y ≤ 1)
+    (hm : 1 ≤ C.recordsToMove) (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
     (hGt : 4 * (L + 1) * G ≤ C.edgeRate * C.edgeReadShare)
     (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (hGw0 : 0 ≤ Gw) (hGw1 : Gw ≤ 1)
-    (ha : 0 ≤ C.testLevel)
-    (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
-    (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
-    (hεd1 : C.disagreementRate ≤ 1) (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (ha : 0 < C.testLevel)
+    (hθs0 : 0 < C.startRate) (hθs : C.startRate < C.startAlternative)
+    (hθs1 : C.startAlternative < 1) (hps : max (2 * G) y ≤ C.startRate) (hθe : 0 ≤ C.edgeRate)
+    (hθpt0 : 0 < C.middleRate) (hθpt : C.middleRate < C.middleAlternative)
+    (hθpt1 : C.middleAlternative < 1)
+    (hfall : max (2 * G) y * (C.middleAlternative / C.middleRate)
+        * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
+      + (1 - max (2 * G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
+      ≤ 1)
+    (hεd0 : 0 < C.disagreementAlternative) (hεd : C.disagreementAlternative < C.disagreementRate)
+    (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd')
     (hP : stretches C (Fintype.card α) * Ns ≤ P) :
@@ -524,7 +526,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
             C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
       ≤ ENNReal.ofReal (stretches C (Fintype.card α)
-          * stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt'
+          * stretchRisk C (Fintype.card α) L Ns N₁ θr εd' θpt'
         + C.maxLeaves * binomSfGe P Gw C.recordsToMove) := by
   classical
   have h2 : 2 ≤ C.maxLeaves := by omega
@@ -533,7 +535,7 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
   have hΨ := Ψr_start C h2 (α := α)
   set Z := FakeFix M side read C
   set B := BadStep read C M U θ D ε Ns y (fun _ _ => False)
-  set b := ENNReal.ofReal (stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt')
+  set b := ENNReal.ofReal (stretchRisk C (Fintype.card α) L Ns N₁ θr εd' θpt')
   set I : Level4State α → Prop := fun s => Inv read C s ∧ GInv M side C s ∧ s.probeCount < Ns
   have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.records → ∀ N,
       (Measure.pi fun _ : Fin N => D)
@@ -544,8 +546,8 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
       hL Z hs hf hT hN (fun _ _ _ _ _ hx => hx)
       (fun ys s' x hs' hst' _ hx => step_ne_tooBig_g M side read C hcap hs'
         (gInv_stretch read C M side hs hg hst') hx)
-      (fun N => by simp) hm hn₀ hN₁ hN₁s hG0 hG1 hy1 hGt hyt ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0
-      hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep N
+      (fun N => by simp) hm hN₁ hN₁s hG0 hGt hyt ha hθs0 hθs hθs1 hps hθe hθpt0 hθpt hθpt1 hfall
+      hεd0 hεd hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep N
     rwa [add_zero] at this
   have hI0 : I initialState := ⟨hst, gInv_start M side C,
       by simp only [initialState, newHypothesis]; omega⟩
@@ -605,9 +607,8 @@ theorem probe_level_eps [IsProbabilityMeasure D] (L P N₁ : ℕ) (G Gw θr εd'
           + ENNReal.ofReal (C.maxLeaves * binomSfGe P Gw C.recordsToMove) := by
         gcongr
     _ = _ := by
-        have := stretchRisk_nonneg C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt'
-          (le_max_of_le_left (by positivity)) (max_le hG1 hy1) ha hθr0 hθr1 hεd'0 hεd'1 hθpt'0
-          hθpt'1
+        have := stretchRisk_nonneg C (Fintype.card α) L Ns N₁ θr εd' θpt' ha.le hθr0 hθr1 hεd'0
+          hεd'1 hθpt'0 hθpt'1
         rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity),
           ← ENNReal.ofReal_add (by positivity)
             (mul_nonneg (Nat.cast_nonneg _) (binomSfGe_nonneg hGw0 hGw1 _ _))]
@@ -620,9 +621,10 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   simp only [epsRoundRisk]
   refine le_iInf₂ fun kn hA => ?_
   obtain ⟨⟨Ns, N₁, G, θr, εd', θpt'⟩, Gw⟩ := kn
-  obtain ⟨⟨hcap, hm, hn₀, hN₁, hN₁s, hθ, hG0, ha, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
-    hεd, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP, hG1, hy1, hGt, hyt⟩, hGw0, hGw1⟩ := hA
-  simp only at hN₁ hN₁s hG0 hG1 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGw0 hGw1 hGt
+  obtain ⟨⟨hcap, hm, hN₁, hN₁s, hθ, hG0, ha, hθs0, hθs, hθs1, hθe, hθpt0, hθpt, hθpt1, hεd0, hεd,
+    hεd1, hε, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP, hGt, hyt, hps, hfall⟩, hGw0,
+    hGw1⟩ := hA
+  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGw0 hGw1 hGt hps hfall
   unfold epsRoundBound roundBound
   simp only
   set P := C.probeBudget
@@ -641,7 +643,7 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       (fun z r => r = if side (M.eval z.toList) then .reject else .accept) hmeas hind hwrong hεw
       hL hp₀ hpre
   set c := ENNReal.ofReal (stretches C (Fintype.card α)
-    * stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt' + fakeRisk C Gw)
+    * stretchRisk C (Fintype.card α) L Ns N₁ θr εd' θpt' + fakeRisk C Gw)
   set B := toMeasurable μ (Nn ∪ Nw)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
@@ -658,15 +660,14 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       obtain ⟨hωN, hωW⟩ := hω'
       simp only [Nn, Nw, Set.mem_ofPred_eq, not_not] at hωN hωW
       exact probe_level_eps (read · ω) C M side U θ D ε Ns y L P N₁ G Gw θr εd' θpt' hL hωN hωW
-        hcap hm hn₀ hN₁ hN₁s hG0 hG1 hy1 hGt hyt hGw0 hGw1 ha hθs0 hθs1 hθe hθpt0 hθpt1 hεd0
-        hεd1 hεd hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+        hcap hm hN₁ hN₁s hG0 hGt hyt hGw0 hGw1 ha hθs0 hθs hθs1 hps hθe hθpt0 hθpt hθpt1 hfall
+        hεd0 hεd hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
   have hf0 : 0 ≤ fakeRisk C Gw :=
     mul_nonneg (Nat.cast_nonneg _) (binomSfGe_nonneg hGw0 hGw1 _ _)
   have hnn : 0 ≤ stretches C (Fintype.card α)
-      * stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt' + fakeRisk C Gw :=
-    add_nonneg (mul_nonneg (Nat.cast_nonneg _) (stretchRisk_nonneg C (Fintype.card α) L Ns N₁ _ θr
-      εd' θpt' (le_max_of_le_left (by positivity)) (max_le hG1 hy1) ha hθr0 hθr1 hεd'0 hεd'1
-      hθpt'0 hθpt'1)) hf0
+      * stretchRisk C (Fintype.card α) L Ns N₁ θr εd' θpt' + fakeRisk C Gw :=
+    add_nonneg (mul_nonneg (Nat.cast_nonneg _) (stretchRisk_nonneg C (Fintype.card α) L Ns N₁ θr
+      εd' θpt' ha.le hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1)) hf0
   calc _ ≤ ∫⁻ ω, (c + B.indicator 1 ω) ∂μ := lintegral_mono hpt
     _ = c + μ B := by
         rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,

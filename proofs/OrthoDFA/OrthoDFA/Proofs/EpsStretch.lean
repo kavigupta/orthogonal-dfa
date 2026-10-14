@@ -7,7 +7,8 @@ import OrthoDFA.Proofs.RandomStretch
 Level 3's stretch, with records: a stretch that reaches `Ns` probes has fewer than
 `recordsToMove` records of its own at every edge and target, no success at look `N₁`, and no
 harvest of undecided middles at look `Ns`. A stretch here is cut short by a step `Z` (the fake
-fixes), which the round accounts for apart, over the probes since the last split.
+fixes), which the round accounts for apart, over the probes since the last split. As at level 3,
+each sequential test's false firing and each edge's threshold is paid once per stretch.
 -/
 
 namespace OrthoDFA
@@ -140,26 +141,26 @@ theorem step_same_chg {s s' : Level4State α} (hs : Inv read C s) {x : FreeMonoi
   · exact ⟨h1, h2, hinv⟩
 
 theorem look_none {t : Level4State α} (h : runTests C t = none) :
-    rateSide C.disagreementRate C.testLevel C.firstLook t.probeCount t.searchCount ≠ some false
+    ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel t.probeCount t.searchCount
       ∧ ¬ (C.searchShare * t.probeCount ≤ t.searchCount
-          ∧ rateSide C.middleRate C.testLevel C.firstLook t.searchCount t.middleUndecided.length
-          = some true) := by
+          ∧ seqRate C.middleRate C.middleAlternative C.testLevel t.searchCount
+            t.middleUndecided.length) := by
   unfold runTests at h
   split_ifs at h with h1 h2 h3 h4
   exact ⟨h4, h3⟩
 
 theorem look_some {t : Level4State α} {e : RoundEnd (Level3Site α)} (h : runTests C t = some e) :
-    (rateSide C.startRate C.testLevel C.firstLook t.probeCount t.startUndecided.length = some true
+    (seqRate C.startRate C.startAlternative C.testLevel t.probeCount t.startUndecided.length
         ∧ e = .harvest .start)
     ∨ (∃ p c, (p, c) ∈ t.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)
         ∧ C.edgeReadShare * t.probeCount ≤ t.edgeReads p c
         ∧ C.edgeExcess + C.edgeRate * t.edgeReads p c ≤ (t.edgeUndecided p c).length
         ∧ e = .harvest (.edge p c))
     ∨ (C.searchShare * t.probeCount ≤ t.searchCount
-        ∧ rateSide C.middleRate C.testLevel C.firstLook t.searchCount t.middleUndecided.length
-        = some true
+        ∧ seqRate C.middleRate C.middleAlternative C.testLevel t.searchCount
+          t.middleUndecided.length
         ∧ e = .harvest .middles)
-    ∨ (rateSide C.disagreementRate C.testLevel C.firstLook t.probeCount t.searchCount = some false
+    ∨ (seqRate C.disagreementRate C.disagreementAlternative C.testLevel t.probeCount t.searchCount
         ∧ e = .consistent) := by
   unfold runTests at h
   split_ifs at h with h1 h2 h3 h4
@@ -228,8 +229,8 @@ structure StInv (R : List (List Bool × α × List Bool)) (ys : List (FreeMonoid
 
 /-- The stretch's success test did not fire at look `N₁`. -/
 def Look₁ (ys : List (FreeMonoid α)) : Prop :=
-  N₁ ≤ ys.length → rateSide C.disagreementRate C.testLevel C.firstLook N₁
-      ((ys.take N₁).countP (fS read C T E)) ≠ some false
+  N₁ ≤ ys.length → ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁
+      ((ys.take N₁).countP (fS read C T E))
 
 theorem stInv_fresh (R : List (List Bool × α × List Bool)) :
     StInv read C T E R [] (newHypothesis T E R) where
@@ -273,8 +274,8 @@ theorem stInv_chg {R : List (List Bool × α × List Bool)} {ys : List (FreeMono
 theorem look₁_snoc {R : List (List Bool × α × List Bool)} {ys : List (FreeMonoid α)}
     {s : Level4State α} {x : FreeMonoid α} (hst : StInv read C T E R (ys ++ [x]) s)
     (h₀ : Look₁ read C T E N₁ ys)
-    (h₁ : N₁ = ys.length + 1 → rateSide C.disagreementRate C.testLevel C.firstLook N₁ s.searchCount
-      ≠ some false) :
+    (h₁ : N₁ = ys.length + 1 →
+      ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s.searchCount) :
     Look₁ read C T E N₁ (ys ++ [x]) := by
   intro hN
   by_cases hlt : N₁ ≤ ys.length
@@ -295,37 +296,35 @@ variable (T : DTree α) (E : Edges α) (L N₁ : ℕ)
 /-- A test fired at look `n` at the start or the middles, whose sampler finds at most `p`, or at an
 edge whose sampler finds at most `q`, or success fired falsely, or a probe is longer than `L`. -/
 def FalseFire (p q : ℝ) (zs : List (FreeMonoid α)) : Prop :=
-  (C.firstLook ≤ zs.length ∧ D.real {x | fSt read C T E x} ≤ p
-      ∧ binomSfGe zs.length C.startRate (zs.countP (fSt read C T E)) < C.testLevel)
+  (D.real {x | fSt read C T E x} ≤ p
+      ∧ seqRate C.startRate C.startAlternative C.testLevel zs.length (zs.countP (fSt read C T E)))
   ∨ (∃ w ∈ zs, L < w.toList.length)
   ∨ (∃ e ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α),
       ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q
       ∧ C.edgeExcess + C.edgeRate * C.edgeReadShare * zs.length
         ≤ (zs.map fun x => (edgeCount read C T E e x : ℝ)).sum)
-  ∨ (D.real {x | fP read C T E x} ≤ p
-      ∧ binomSfGe (max C.firstLook ⌈C.searchShare * zs.length⌉₊) C.middleRate
-        (zs.countP (fP read C T E)) < C.testLevel)
-  ∨ (ε < D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x} ∧ C.firstLook ≤ zs.length
-      ∧ 1 - binomSfGe zs.length C.disagreementRate (zs.countP (fDis read C T E) + 1) < C.testLevel)
+  ∨ (D.real {x | fP read C T E x} ≤ p ∧ C.searchShare * zs.length ≤ zs.countP (fS read C T E)
+      ∧ seqRate C.middleRate C.middleAlternative C.testLevel (zs.countP (fS read C T E))
+        (zs.countP (fP read C T E)))
+  ∨ (ε < D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x}
+      ∧ seqRate C.disagreementRate C.disagreementAlternative C.testLevel zs.length
+        (zs.countP (fS read C T E)))
 
 /-- The stretch reached `zs.length` probes: fewer than `recordsToMove` records at every edge and
 target, no success at look `N₁`, and no harvest of undecided middles at the last look. -/
 def Survives (zs : List (FreeMonoid α)) : Prop :=
   (∀ τ, zs.countP (fR read C T E τ) < C.recordsToMove)
-  ∧ rateSide C.disagreementRate C.testLevel C.firstLook N₁ ((zs.take N₁).countP (fS read C T E))
-      ≠ some false
+  ∧ ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁
+      ((zs.take N₁).countP (fS read C T E))
   ∧ ¬ (C.searchShare * zs.length ≤ zs.countP (fS read C T E)
-      ∧ rateSide C.middleRate C.testLevel C.firstLook (zs.countP (fS read C T E))
-          (zs.countP (fP read C T E))
-        = some true)
+      ∧ seqRate C.middleRate C.middleAlternative C.testLevel (zs.countP (fS read C T E))
+          (zs.countP (fP read C T E)))
 
 /-- A step that ends the round badly, not too big, fires a test falsely. -/
 theorem falseFire_of_end [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
-    (hG : D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate)
-    (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
-    (hεd1 : C.disagreementRate ≤ 1) {ys : List (FreeMonoid α)} {s : Level4State α}
-    {R : List (List Bool × α × List Bool)} (hst : StInv read C T E R ys s) {x : FreeMonoid α}
+    (hG : D.real (PotGood M U θ C.walkStart read T) ≤ G) (hθe : 0 ≤ C.edgeRate)
+    {ys : List (FreeMonoid α)} {s : Level4State α} {R : List (List Bool × α × List Bool)}
+    (hst : StInv read C T E R ys s) {x : FreeMonoid α}
     (hnt : applyProbe read C s x ≠ .inr .failed) {e : RoundEnd (Level3Site α)}
     (he : applyProbe read C s x = .inr e)
     (hbad : ¬ EndsWell M (BadAt U θ) D ε {w | Disagrees read ⟨s.tree, s.edges⟩ C.walkStart w}
@@ -346,13 +345,11 @@ theorem falseFire_of_end [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.
     have := htot site 1 (ae_of_all _ h1) h
     rwa [Nat.cast_one, mul_one] at this
   rcases look_some C hlook with ⟨hr, rfl⟩ | ⟨p, c, hpc, h1, h2, rfl⟩ | ⟨hq, hr, rfl⟩ | ⟨hr, rfl⟩
-  · obtain ⟨hn₀, hsf⟩ := rateSide_true hr
-    rw [hlen] at hn₀ hsf
-    have ht := hone .start (fun x => startString_length _) hbad
+  · have ht := hone .start (fun x => startString_length _) hbad
     rw [harvestLaw_real_univ read D C.walkStart ⟨T, E⟩ hL, integral_length_le_one D
       (siteHarvest read C.walkStart ⟨T, E⟩ .start) fun x => startString_length _] at ht
-    refine Or.inl ⟨hn₀, ht, ?_⟩
-    rwa [hst'.startUndecided] at hsf
+    refine Or.inl ⟨ht, ?_⟩
+    rwa [hlen, hst'.startUndecided] at hr
   · have ht := htot (.edge p c) (L + 1) (by
       filter_upwards [hL] with x hx
       exact siteHarvest_length read C.walkStart ⟨T, E⟩ (.edge p c) hx) hbad
@@ -369,29 +366,16 @@ theorem falseFire_of_end [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.
       rw [hst'.edgeUndecided p c, Nat.cast_list_sum, List.map_map]
       rfl
     linarith
-  · obtain ⟨hn₀, hsf⟩ := rateSide_true hr
-    have ht := hone .middles (fun x => middleString_length _) hbad
+  · have ht := hone .middles (fun x => middleString_length _) hbad
     rw [harvestLaw_real_univ read D C.walkStart ⟨T, E⟩ hL, integral_length_le_one D
       (siteHarvest read C.walkStart ⟨T, E⟩ .middles) fun x => middleString_length _] at ht
-    refine Or.inr (Or.inr (Or.inr (Or.inl ⟨ht, ?_⟩)))
-    have hceil : ⌈C.searchShare * ((ys ++ [x]).length : ℝ)⌉₊ ≤ (chg read C s x).searchCount := by
-      rw [Nat.ceil_le, ← hlen]; exact hq
-    calc _ ≤ binomSfGe (chg read C s x).searchCount C.middleRate
-            ((ys ++ [x]).countP (fP read C T E)) :=
-          binomSfGe_mono_n hθpt0 hθpt1 (max_le hn₀ hceil) _
-      _ < C.testLevel := by rwa [hst'.middleUndecided] at hsf
-  · obtain ⟨hn₀, hsf⟩ := rateSide_false hr
-    have hD : ε < D.real {w | Disagrees read ⟨T, E⟩ C.walkStart w} := by
+    rw [hlen, hst'.searchCount] at hq
+    rw [hst'.searchCount, hst'.middleUndecided] at hr
+    exact Or.inr (Or.inr (Or.inr (Or.inl ⟨ht, hq, hr⟩)))
+  · have hD : ε < D.real {w | Disagrees read ⟨T, E⟩ C.walkStart w} := by
       simpa [EndsWell] using hbad
-    rw [hlen] at hn₀ hsf
-    refine Or.inr (Or.inr (Or.inr (Or.inr ⟨hD, hn₀, ?_⟩)))
-    have hle : (ys ++ [x]).countP (fDis read C T E) ≤ (ys ++ [x]).countP (fS read C T E) :=
-      List.countP_mono_left fun w _ hw => by
-        simp only [fDis, decide_eq_true_eq] at hw
-        exact (disagrees_searches read T w E C.walkStart hw).2
-    rw [← hst'.searchCount] at hle
-    have := binomSfGe_anti hεd0 hεd1 (n := (ys ++ [x]).length) (Nat.succ_le_succ hle)
-    linarith
+    rw [hlen, hst'.searchCount] at hr
+    exact Or.inr (Or.inr (Or.inr (Or.inr ⟨hD, hr⟩)))
 
 /-- A bad step in a stretch shows in its counts. -/
 theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) {G : ℝ}
@@ -400,9 +384,7 @@ theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length
     (R : List (List Bool × α × List Bool)) (hm : 1 ≤ C.recordsToMove)
     (hX : ∀ ys s x, Inv read C s → StInv read C T E R ys s → X s x → XEv (ys ++ [x]))
     (hnt : ∀ ys s x, Inv read C s → StInv read C T E R ys s → ¬ X s x → ¬ Z s x
-      → applyProbe read C s x ≠ .inr .failed) (hN₁s : N₁ ≤ Ns) (hθs0 : 0 ≤ C.startRate)
-    (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 ≤ C.middleRate)
-    (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) :
+      → applyProbe read C s x ≠ .inr .failed) (hN₁s : N₁ ≤ Ns) (hθe : 0 ≤ C.edgeRate) :
     ∀ (xs ys : List (FreeMonoid α)) (s : Level4State α), Inv read C s →
       StInv read C T E R ys s → Look₁ read C T E N₁ ys → s.probeCount < Ns →
       SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s xs →
@@ -430,8 +412,8 @@ theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length
       rcases hb with ⟨-, ⟨e, he, hbad⟩ | hx⟩ | ⟨s', h', hsm, hNs⟩
       · by_cases hx : X s x
         · exact Or.inr (Or.inr (hX ys s x hs hst hx))
-        · exact Or.inl (falseFire_of_end read C M U θ D ε y T E L hL hG hθs0 hθs1 hθe hθpt0
-            hθpt1 hεd0 hεd1 hst (hnt ys s x hs hst hx hz) he hbad)
+        · exact Or.inl (falseFire_of_end read C M U θ D ε y T E L hL hG hθe hst
+            (hnt ys s x hs hst hx hz) he hbad)
       · exact Or.inr (Or.inr (hX ys s x hs hst hx))
       · obtain ⟨hinv, hst', h₁', hl, hn''⟩ := hsame s' h' hsm
         refine Or.inr (Or.inl ⟨by omega, ?_, ?_, ?_⟩)
@@ -452,8 +434,8 @@ theorem seg_reduce [IsProbabilityMeasure D] (hL : ∀ᵐ x ∂D, x.toList.length
       have hlt : s'.probeCount < Ns := by
         have : s'.probeCount ≠ Ns := fun hc => hb (Or.inr ⟨s', h', hsm, hc⟩)
         omega
-      obtain ⟨i, hi, hiN, hev⟩ := seg_reduce hL hG X Z XEv R hm hX hnt hN₁s hθs0 hθs1 hθe hθpt0
-        hθpt1 hεd0 hεd1 xs (ys ++ [x]) s' hinv hst' h₁' hlt hseg
+      obtain ⟨i, hi, hiN, hev⟩ := seg_reduce hL hG X Z XEv R hm hX hnt hN₁s hθe xs (ys ++ [x]) s'
+        hinv hst' h₁' hlt hseg
       refine ⟨i + 1, by simp; omega, by simp at hiN; omega, ?_⟩
       have heq : ys ++ (x :: xs).take (i + 1 + 1) = ys ++ [x] ++ xs.take (i + 1) := by simp
       rw [heq]
@@ -472,12 +454,12 @@ section Prob
 variable [IsProbabilityMeasure D] (T : DTree α) (E : Edges α) (L N₁ : ℕ)
 
 /-- At an edge whose sampler finds at most `q`, with `2q` at most the edge test's least rate per
-probe, the test's count passes `edgeExcess` beyond twice its mean with chance at most
+probe, the test's count passes `edgeExcess` beyond twice its mean at some look with chance at most
 `exp(−edgeExcess / (2 (L + 1)))`. -/
-theorem edge_fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (e : List Bool × α) {q : ℝ}
+theorem edge_any_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (e : List Bool × α) {q : ℝ}
     (hmean : ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q)
-    (hqt : 2 * q ≤ C.edgeRate * C.edgeReadShare) {N n : ℕ} (hn : n ≤ N) :
-    (Measure.pi fun _ : Fin N => D).real {xs |
+    (hqt : 2 * q ≤ C.edgeRate * C.edgeReadShare) (N : ℕ) :
+    (Measure.pi fun _ : Fin N => D).real {xs | ∃ n ≤ N,
         C.edgeExcess + C.edgeRate * C.edgeReadShare * n
           ≤ (((List.ofFn xs).take n).map fun x => (edgeCount read C T E e x : ℝ)).sum}
       ≤ Real.exp (-C.edgeExcess / (2 * (L + 1))) := by
@@ -488,104 +470,79 @@ theorem edge_fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (e : List Bool 
     have := (undecidedAtEdge_length _ e.1 e.2).trans (positionReads_length read T x E C.walkStart)
     have : edgeCount read C T E e x ≤ L + 1 := this.trans (by omega)
     exact_mod_cast this
-  have htail := pi_sum_tail D (fun x => (edgeCount read C T E e x : ℝ) - 2 * m)
+  have hany := pi_sum_any D (fun x => (edgeCount read C T E e x : ℝ) - 2 * m)
     (K := 2 * (L + 1)) (by positivity)
-    (mgf_count D (edgeCount read C T E e) (B := L + 1) (by positivity) hb le_rfl) N n
-    C.edgeExcess
-  have hsub : {xs : Fin N → FreeMonoid α |
+    (mgf_count D (edgeCount read C T E e) (B := L + 1) (by positivity) hb le_rfl) N C.edgeExcess
+  have hsub : {xs : Fin N → FreeMonoid α | ∃ n ≤ N,
       C.edgeExcess + C.edgeRate * C.edgeReadShare * n
         ≤ (((List.ofFn xs).take n).map fun x => (edgeCount read C T E e x : ℝ)).sum}
-      ⊆ {xs | C.edgeExcess ≤ sumFirst (fun x => (edgeCount read C T E e x : ℝ) - 2 * m) n
-          (List.ofFn xs)} := by
-    intro xs hxs
-    simp only [Set.mem_ofPred_eq, sumFirst] at hxs ⊢
+      ⊆ {xs | ∃ n ≤ N, C.edgeExcess
+          ≤ sumFirst (fun x => (edgeCount read C T E e x : ℝ) - 2 * m) n (List.ofFn xs)} := by
+    rintro xs ⟨n, hn, hxs⟩
+    refine ⟨n, hn, ?_⟩
+    simp only [sumFirst]
     rw [sum_map_sub_const, List.length_take, List.length_ofFn, min_eq_left hn]
     have : 2 * m * n ≤ C.edgeRate * C.edgeReadShare * n := by
       have : (0 : ℝ) ≤ n := Nat.cast_nonneg n
       nlinarith
     linarith
-  refine (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal (Real.exp_pos _).le ?_)
-  refine htail.trans (le_of_eq ?_)
-  congr 2
+  exact (measureReal_mono hsub).trans (ENNReal.toReal_le_of_le_ofReal (Real.exp_pos _).le hany)
 
-theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hT : T.leaves.length ≤ C.maxLeaves)
-    {p q : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (hqt : 2 * q ≤ C.edgeRate * C.edgeReadShare)
-    (ha : 0 ≤ C.testLevel) (hθs0 : 0 ≤ C.startRate) (hθs1 : C.startRate ≤ 1)
-    (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
-    (hεd1 : C.disagreementRate ≤ 1) (hεd : C.disagreementRate ≤ ε) (N n : ℕ) :
+/-- Over a stretch's first `Ns` probes, a test fires falsely at some look with chance at most a
+level per sequential test and `exp(−edgeExcess / (2 (L + 1)))` per edge. -/
+theorem fire_any_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hT : T.leaves.length ≤ C.maxLeaves) {p q : ℝ} (hp0 : 0 ≤ p)
+    (hqt : 2 * q ≤ C.edgeRate * C.edgeReadShare) (ha : 0 < C.testLevel)
+    (hθs0 : 0 < C.startRate) (hθs : C.startRate < C.startAlternative)
+    (hθs1 : C.startAlternative < 1) (hps : p ≤ C.startRate) (hθpt0 : 0 < C.middleRate)
+    (hθpt : C.middleRate < C.middleAlternative) (hθpt1 : C.middleAlternative < 1)
+    (hfall : p * (C.middleAlternative / C.middleRate)
+        * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
+      + (1 - p) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare ≤ 1)
+    (hεd0 : 0 < C.disagreementAlternative) (hεd : C.disagreementAlternative < C.disagreementRate)
+    (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε) (N : ℕ) :
     (Measure.pi fun _ : Fin N => D).real
-        {xs | n ≤ N ∧ FalseFire read C D ε T E L p q ((List.ofFn xs).take n)}
-      ≤ (if C.firstLook ≤ n then binomSfGe n p (hFire C.startRate C.testLevel n)
-          + C.testLevel else 0)
-        + ((C.maxLeaves * Fintype.card α : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
-          + binomSfGe n p (hFire C.middleRate C.testLevel
-              (max C.firstLook ⌈C.searchShare * n⌉₊))) := by
+        {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N
+          ∧ FalseFire read C D ε T E L p q ((List.ofFn xs).take n)}
+      ≤ 3 * C.testLevel + (C.maxLeaves * Fintype.card α : ℕ)
+          * Real.exp (-C.edgeExcess / (2 * (L + 1))) := by
   classical
   set ex := Real.exp (-C.edgeExcess / (2 * (L + 1)))
-  have hex : 0 ≤ ex := (Real.exp_pos _).le
-  have hRHS : 0 ≤ (if C.firstLook ≤ n then binomSfGe n p (hFire C.startRate C.testLevel n)
-      + C.testLevel else 0)
-      + ((C.maxLeaves * Fintype.card α : ℕ) * ex
-        + binomSfGe n p
-          (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))) := by
-    have := binomSfGe_nonneg hp0 hp1 n (hFire C.startRate C.testLevel n)
-    have := binomSfGe_nonneg hp0 hp1 n
-      (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊))
-    have : (0 : ℝ) ≤ (C.maxLeaves * Fintype.card α : ℕ) * ex := by positivity
-    split_ifs <;> linarith
-  by_cases hnN : n ≤ N
-  swap
-  · have : {xs : Fin N → FreeMonoid α | n ≤ N ∧
-        FalseFire read C D ε T E L p q ((List.ofFn xs).take n)} = ∅ := by
-      ext xs; simp [hnN]
-    rw [this, measureReal_empty]
-    exact hRHS
-  have hlen : ∀ xs : Fin N → FreeMonoid α, ((List.ofFn xs).take n).length = n := by
-    intro xs; simp [hnN]
   set F := T.leaves.toFinset ×ˢ (Finset.univ : Finset α)
-  set A1 := {xs : Fin N → FreeMonoid α | C.firstLook ≤ n ∧ D.real {x | fSt read C T E x} ≤ p
-    ∧ binomSfGe n C.startRate (cnt (fSt read C T E) n (List.ofFn xs)) < C.testLevel}
-  set A2 := {xs : Fin N → FreeMonoid α | ∃ w ∈ (List.ofFn xs).take n, L < w.toList.length}
+  set A1 := {xs : Fin N → FreeMonoid α | D.real {x | fSt read C T E x} ≤ p ∧ ∃ n ≤ N,
+    seqRate C.startRate C.startAlternative C.testLevel n (cnt (fSt read C T E) n (List.ofFn xs))}
+  set A2 := {xs : Fin N → FreeMonoid α | ∃ w ∈ (List.ofFn xs).take N, L < w.toList.length}
   set A3 := ⋃ e ∈ F.filter (fun e => ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q),
-    {xs : Fin N → FreeMonoid α | C.edgeExcess + C.edgeRate * C.edgeReadShare * n
+    {xs : Fin N → FreeMonoid α | ∃ n ≤ N, C.edgeExcess + C.edgeRate * C.edgeReadShare * n
       ≤ (((List.ofFn xs).take n).map fun x => (edgeCount read C T E e x : ℝ)).sum}
-  set A4 := {xs : Fin N → FreeMonoid α | D.real {x | fP read C T E x} ≤ p ∧
-    binomSfGe (max C.firstLook ⌈C.searchShare * n⌉₊) C.middleRate (cnt (fP read C T E) n
-      (List.ofFn xs)) < C.testLevel}
+  set A4 := {xs : Fin N → FreeMonoid α | D.real {x | fP read C T E x} ≤ p ∧ ∃ n ≤ N,
+    C.searchShare * n ≤ cnt (fS read C T E) n (List.ofFn xs)
+    ∧ seqRate C.middleRate C.middleAlternative C.testLevel (cnt (fS read C T E) n (List.ofFn xs))
+      (cnt (fP read C T E) n (List.ofFn xs))}
   set A5 := {xs : Fin N → FreeMonoid α | ε < D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x}
-      ∧ C.firstLook ≤ n ∧
-    1 - binomSfGe n C.disagreementRate (cnt (fDis read C T E) n (List.ofFn xs) + 1) < C.testLevel}
-  have hsub : {xs : Fin N → FreeMonoid α | n ≤ N ∧
-      FalseFire read C D ε T E L p q ((List.ofFn xs).take n)} ⊆ A1 ∪ A2 ∪ A3 ∪ A4 ∪ A5 := by
-    rintro xs ⟨-, h⟩
+    ∧ ∃ n ≤ N, seqRate C.disagreementRate C.disagreementAlternative C.testLevel n
+      (cnt (fS read C T E) n (List.ofFn xs))}
+  have hsub : {xs : Fin N → FreeMonoid α | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N
+      ∧ FalseFire read C D ε T E L p q ((List.ofFn xs).take n)} ⊆ A1 ∪ A2 ∪ A3 ∪ A4 ∪ A5 := by
+    rintro xs ⟨n, -, hnN, h⟩
+    have hlen : ((List.ofFn xs).take n).length = n := by simp [hnN]
     unfold FalseFire at h
-    rw [hlen xs] at h
-    rcases h with h | h | ⟨e, he, hm, hc⟩ | h | h
-    · exact Or.inl (Or.inl (Or.inl (Or.inl h)))
-    · exact Or.inl (Or.inl (Or.inl (Or.inr h)))
+    rw [hlen] at h
+    rcases h with ⟨h1, h2⟩ | ⟨w, hw, hw'⟩ | ⟨e, he, hm, hc⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2⟩
+    · exact Or.inl (Or.inl (Or.inl (Or.inl ⟨h1, n, hnN, h2⟩)))
+    · refine Or.inl (Or.inl (Or.inl (Or.inr ⟨w, ?_, hw'⟩)))
+      rw [List.take_of_length_le (by simp)]
+      exact List.mem_of_mem_take hw
     · exact Or.inl (Or.inl (Or.inr (Set.mem_biUnion (Finset.mem_coe.2
-        (Finset.mem_filter.2 ⟨he, hm⟩)) hc)))
-    · exact Or.inl (Or.inr h)
-    · exact Or.inr h
-  have h1 : (Measure.pi fun _ : Fin N => D).real A1
-      ≤ if C.firstLook ≤ n then binomSfGe n p (hFire C.startRate C.testLevel n) else 0 := by
-    by_cases hc : C.firstLook ≤ n ∧ D.real {x | fSt read C T E x} ≤ p
-    · rw [if_pos hc.1]
-      have : A1 = {xs | binomSfGe n C.startRate (cnt (fSt read C T E) n (List.ofFn xs))
-          < C.testLevel} := by
-        ext xs; simp [A1, hc.1, hc.2]
-      rw [this]
-      refine pi_cnt_up D (fSt read C T E) hnN hc.2 hp1
-        (fun j => binomSfGe n C.startRate j < C.testLevel) (fun j j' h hj => lt_of_le_of_lt
-        (binomSfGe_anti hθs0 hθs1 (by omega)) hj) _ fun j hj => ?_
-      have := Nat.sInf_le (s := {h | binomSfGe n C.startRate h < C.testLevel}) hj
-      unfold hFire; omega
-    · have : A1 = ∅ := by
-        ext xs
-        simp only [A1, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and]
-        exact fun h1 h2 => absurd ⟨h1, h2⟩ hc
-      rw [this, measureReal_empty]
-      split_ifs <;> simp [binomSfGe_nonneg hp0 hp1]
+        (Finset.mem_filter.2 ⟨he, hm⟩)) ⟨n, hnN, hc⟩)))
+    · exact Or.inl (Or.inr ⟨h1, n, hnN, h2, h3⟩)
+    · exact Or.inr ⟨h1, n, hnN, h2⟩
+  have h1 : (Measure.pi fun _ : Fin N => D).real A1 ≤ C.testLevel := by
+    by_cases hc : D.real {x | fSt read C T E x} ≤ p
+    · exact real_le_of_sub D ha.le (fun xs h => h.2) (seq_any_le D (fSt read C T E) hθs0
+        (by linarith) (by linarith) hθs1 ha (by nlinarith) N)
+    · exact real_le_of_not D ha.le hc fun xs h => h.1
+  have h2 := long_null D L hL N N
   have h3 : (Measure.pi fun _ : Fin N => D).real A3
       ≤ (C.maxLeaves * Fintype.card α : ℕ) * ex := by
     have hF : ((F.filter fun e => ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q).card : ℝ)
@@ -597,68 +554,29 @@ theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hT : T.leaves.lengt
         exact Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans hT)
       exact_mod_cast this
     calc _ ≤ ∑ e ∈ F.filter (fun e => ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q),
-          (Measure.pi fun _ : Fin N => D).real {xs : Fin N → FreeMonoid α |
+          (Measure.pi fun _ : Fin N => D).real {xs : Fin N → FreeMonoid α | ∃ n ≤ N,
             C.edgeExcess + C.edgeRate * C.edgeReadShare * n
               ≤ (((List.ofFn xs).take n).map fun x => (edgeCount read C T E e x : ℝ)).sum} :=
           measureReal_biUnion_finset_le _ _
       _ ≤ ∑ _e ∈ F.filter (fun e => ∫ x, (edgeCount read C T E e x : ℝ) ∂D ≤ q), ex :=
           Finset.sum_le_sum fun e he =>
-            edge_fire_le read C D T E L hL e (Finset.mem_filter.1 he).2 hqt hnN
+            edge_any_le read C D T E L hL e (Finset.mem_filter.1 he).2 hqt N
       _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
       _ ≤ _ := by gcongr
-  have h4 : (Measure.pi fun _ : Fin N => D).real A4
-      ≤ binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊)) := by
+  have h4 : (Measure.pi fun _ : Fin N => D).real A4 ≤ C.testLevel := by
     by_cases hc : D.real {x | fP read C T E x} ≤ p
-    · have : A4 = {xs | binomSfGe (max C.firstLook ⌈C.searchShare * n⌉₊) C.middleRate
-          (cnt (fP read C T E) n (List.ofFn xs)) < C.testLevel} := by
-        ext xs; simp [A4, hc]
-      rw [this]
-      refine pi_cnt_up D (fP read C T E) hnN hc hp1
-        (fun j => binomSfGe (max C.firstLook ⌈C.searchShare * n⌉₊) C.middleRate j < C.testLevel)
-        (fun j j' h hj => lt_of_le_of_lt
-        (binomSfGe_anti hθpt0 hθpt1 (by omega)) hj) _ fun j hj => ?_
-      have := Nat.sInf_le
-        (s := {h | binomSfGe (max C.firstLook ⌈C.searchShare * n⌉₊) C.middleRate h < C.testLevel})
-        hj
-      unfold hFire; omega
-    · have : A4 = ∅ := by
-        ext xs
-        simp only [A4, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and]
-        exact fun h => absurd h hc
-      rw [this, measureReal_empty]
-      exact binomSfGe_nonneg hp0 hp1 _ _
-  have h5 : (Measure.pi fun _ : Fin N => D).real A5
-      ≤ if C.firstLook ≤ n then C.testLevel else 0 := by
-    by_cases hc : ε < D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x} ∧ C.firstLook ≤ n
-    · rw [if_pos hc.2]
-      have : A5 = {xs | 1 - binomSfGe n C.disagreementRate
-          (cnt (fDis read C T E) n (List.ofFn xs) + 1)
-          < C.testLevel} := by
-        ext xs; simp [A5, hc.1, hc.2]
-      rw [this]
-      refine (le_of_eq (pi_cnt D (fDis read C T E) N n hnN
-        (fun j => 1 - binomSfGe n C.disagreementRate (j + 1) < C.testLevel))).trans ?_
-      have hp : D.real {x | fDis read C T E x} = D.real
-          {x | Disagrees read ⟨T, E⟩ C.walkStart x} := by
-        congr 1; ext x; simp [fDis]
-      rw [hp]
-      calc _ ≤ binE n C.disagreementRate (fun j => if 1 - binomSfGe n C.disagreementRate (j + 1)
-          < C.testLevel then 1 else 0) :=
-            binE_le_of_le_anti hεd0 (by linarith [hc.1]) (by
-              have := measureReal_le_one (μ := D) (s := {x | Disagrees read ⟨T, E⟩ C.walkStart x})
-              exact this) n _ fun i j h => by
-              have := binomSfGe_anti hεd0 hεd1 (n := n) (Nat.succ_le_succ h)
-              by_cases hj : 1 - binomSfGe n C.disagreementRate (j + 1) < C.testLevel
-              · rw [if_pos hj, if_pos (by linarith)]
-              · rw [if_neg hj]; split_ifs <;> norm_num
-        _ ≤ C.testLevel := binE_pvalue_le hεd0 hεd1 ha n
-    · have : A5 = ∅ := by
-        ext xs
-        simp only [A5, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and]
-        exact fun h1 h2 => absurd ⟨h1, h2⟩ hc
-      rw [this, measureReal_empty]
-      split_ifs <;> linarith
-  have h2 := long_null D L hL N n
+    · exact real_le_of_sub D ha.le (fun xs h => h.2) (mid_any_le D (fS read C T E)
+        (fP read C T E) (fun x hx => searches_of_ptStr (by simp only [fP] at hx; simpa using hx))
+        hθpt0 hθpt hθpt1 ha hp0 hc hfall N)
+    · exact real_le_of_not D ha.le hc fun xs h => h.1
+  have h5 : (Measure.pi fun _ : Fin N => D).real A5 ≤ C.testLevel := by
+    by_cases hc : ε < D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x}
+    · have hS : D.real {x | Disagrees read ⟨T, E⟩ C.walkStart x} ≤ D.real {x | fS read C T E x} :=
+        measureReal_mono fun w hw =>
+          show fS read C T E w = true from (disagrees_searches read T w E C.walkStart hw).2
+      exact real_le_of_sub D ha.le (fun xs h => h.2) (seq_any_le D (fS read C T E)
+        (by linarith) hεd1 hεd0 (by linarith) ha (by nlinarith) N)
+    · exact real_le_of_not D ha.le hc fun xs h => h.1
   calc _ ≤ (Measure.pi fun _ : Fin N => D).real (A1 ∪ A2 ∪ A3 ∪ A4 ∪ A5) := measureReal_mono hsub
     _ ≤ (Measure.pi fun _ : Fin N => D).real A1 + (Measure.pi fun _ : Fin N => D).real A2
         + (Measure.pi fun _ : Fin N => D).real A3 + (Measure.pi fun _ : Fin N => D).real A4
@@ -667,39 +585,39 @@ theorem fire_le (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hT : T.leaves.lengt
       refine (measureReal_union_le _ _).trans (add_le_add_left ?_ _)
       refine (measureReal_union_le _ _).trans (add_le_add_left ?_ _)
       exact measureReal_union_le _ _
-    _ ≤ _ := by
-      rw [h2]
-      split_ifs at h1 h5 ⊢ <;> linarith
+    _ ≤ _ := by rw [h2]; linarith
 
+open scoped Classical in
 theorem surv_le {s : Level4State α} (hs : Inv read C s) (hT : s.tree = T) (hE : s.edges = E)
-    (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
-    (hθpt0 : 0 ≤ C.middleRate) (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate)
-    (hεd1 : C.disagreementRate ≤ 1) {θr εd' θpt' : ℝ} (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hm : 1 ≤ C.recordsToMove) (hN₁s : N₁ ≤ Ns) (hθpt0 : 0 < C.middleRate)
+    (hθpt : C.middleRate < C.middleAlternative)
+    (hθpt1 : C.middleAlternative < 1) (hεd0 : 0 < C.disagreementAlternative)
+    (hεd : C.disagreementAlternative < C.disagreementRate) (hεd1 : C.disagreementRate < 1)
+    {θr εd' θpt' : ℝ} (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd') (N : ℕ) :
     (Measure.pi fun _ : Fin N => D).real
         {xs | Ns ≤ N ∧ Survives read C T E N₁ ((List.ofFn xs).take Ns)}
       ≤ (1 - binomSfGe Ns θr C.recordsToMove)
         + binE N₁ εd' (fun s =>
-            if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-                ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1 else 0)
-        + (1 - binomSfGe Ns εd' (max C.firstLook ⌈C.searchShare * Ns⌉₊))
-        + ∑ s ∈ Finset.Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
-            binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) := by
+            if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0 else 1)
+        + (1 - binomSfGe Ns εd' ⌈C.searchShare * Ns⌉₊)
+        + ∑ s ∈ Finset.Icc ⌈C.searchShare * Ns⌉₊ Ns,
+            binE s θpt' (fun j => if seqRate C.middleRate C.middleAlternative C.testLevel s j then 0
+              else 1) := by
   classical
-  set sm := max C.firstLook ⌈C.searchShare * Ns⌉₊ with hsm
-  have hsm1 : 1 ≤ sm := le_trans hn₀ (le_max_left _ _)
-  have h01 : ∀ (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 1 else 0 := fun P _ => by
+  set sm := ⌈C.searchShare * Ns⌉₊ with hsm
+  set silD := fun s : ℕ =>
+    if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then (0 : ℝ) else 1
+  set silM := fun s j : ℕ =>
+    if seqRate C.middleRate C.middleAlternative C.testLevel s j then (0 : ℝ) else 1
+  have h01 : ∀ (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 0 else 1 := fun P _ => by
     split_ifs <;> norm_num
   have hB0 : 0 ≤ 1 - binomSfGe Ns θr C.recordsToMove := by
     linarith [binomSfGe_le_one hθr0 hθr1 Ns C.recordsToMove]
-  have hC0 : 0 ≤ binE N₁ εd' (fun s =>
-      if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-          ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1 else 0) :=
-    binE_nonneg hεd'0 hεd'1 fun j => h01 _
+  have hC0 : 0 ≤ binE N₁ εd' silD := binE_nonneg hεd'0 hεd'1 fun j => h01 _
   have hD10 : 0 ≤ 1 - binomSfGe Ns εd' sm := by linarith [binomSfGe_le_one hεd'0 hεd'1 Ns sm]
-  have hD20 : 0 ≤ ∑ s ∈ Finset.Icc sm Ns,
-      binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
+  have hD20 : 0 ≤ ∑ s ∈ Finset.Icc sm Ns, binE s θpt' (silM s) :=
     Finset.sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 _
   by_cases hNs : Ns ≤ N
   swap
@@ -732,40 +650,31 @@ theorem surv_le {s : Level4State α} (hs : Inv read C s) (hT : s.tree = T) (hE :
       _ ≤ _ := by linarith
   push Not at hB
   set q := D.real {x | fS read C T E x}
-  set indC := fun s : ℕ =>
-    if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-        ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then (1 : ℝ) else 0
   by_cases hC : q ≤ εd'
   · have hsub : {xs : Fin N → FreeMonoid α | Ns ≤ N ∧
         Survives read C T E N₁ ((List.ofFn xs).take Ns)}
-        ⊆ {xs | C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate
-            (cnt (fS read C T E) N₁ (List.ofFn xs) + 1)
-            ∨ binomSfGe N₁ C.disagreementRate (cnt (fS read C T E) N₁ (List.ofFn xs))
-                < C.testLevel} := by
+        ⊆ {xs | ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁
+            (cnt (fS read C T E) N₁ (List.ofFn xs))} := by
       rintro xs ⟨-, -, h2, -⟩
       rw [htake] at h2
-      simp only [Set.mem_ofPred_eq]
-      unfold rateSide at h2
-      rw [if_pos hN₁] at h2
-      split_ifs at h2 with h3 h4
-      · exact Or.inr h3
-      · exact absurd rfl h2
-      · exact Or.inl (not_lt.1 h4)
+      exact h2
     calc _ ≤ _ := measureReal_mono hsub
-      _ = binE N₁ q indC := pi_cnt D _ N N₁ (hN₁s.trans hNs)
-          (fun j => C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (j + 1)
-              ∨ binomSfGe N₁ C.disagreementRate j < C.testLevel)
-      _ ≤ binE N₁ εd' indC := binE_le_of_le measureReal_nonneg hC hεd'1 N₁ _ fun i j h => by
-          simp only [indC]
-          have h1 := binomSfGe_anti hεd0 hεd1 (n := N₁) (Nat.succ_le_succ h)
-          have h2 := binomSfGe_anti hεd0 hεd1 (n := N₁) h
-          by_cases hi : C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (i + 1)
-              ∨ binomSfGe N₁ C.disagreementRate i < C.testLevel
-          · rw [if_pos hi, if_pos]
-            rcases hi with hi | hi
-            · exact Or.inl (by linarith)
-            · exact Or.inr (by linarith)
-          · rw [if_neg hi]; split_ifs <;> norm_num
+      _ = binE N₁ q (fun j => if ¬ seqRate C.disagreementRate C.disagreementAlternative
+            C.testLevel N₁ j then 1 else 0) := pi_cnt D _ N N₁ (hN₁s.trans hNs)
+          (fun j => ¬ seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ j)
+      _ = binE N₁ q silD := binE_congr fun j _ => by
+          by_cases h : seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ j <;>
+            simp [silD, h]
+      _ ≤ binE N₁ εd' silD := binE_le_of_le_on measureReal_nonneg hC hεd'1 N₁ _
+          fun i j hij hj => by
+            have := likelihoodRatio_anti (by linarith) hεd0.le hεd.le hεd1 hij hj
+            by_cases hfj : seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ j
+            · simp only [silD]
+              have hfi : seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ i :=
+                le_trans hfj this
+              rw [if_pos hfj, if_pos hfi]
+            · simp only [silD]
+              rw [if_neg hfj]; split_ifs <;> norm_num
       _ ≤ _ := by linarith
   push Not at hC
   set pP := D.real {x | fP read C T E x}
@@ -823,28 +732,18 @@ theorem surv_le {s : Level4State α} (hs : Inv read C s) (hT : s.tree = T) (hE :
   have hsub : {xs : Fin N → FreeMonoid α | Ns ≤ N ∧
       Survives read C T E N₁ ((List.ofFn xs).take Ns)}
       ⊆ {xs | cnt (fS read C T E) Ns (List.ofFn xs) < sm}
-        ∪ {xs | sm ≤ cnt (fS read C T E) Ns (List.ofFn xs) ∧ C.testLevel ≤ binomSfGe
-            (cnt (fS read C T E) Ns (List.ofFn xs)) C.middleRate
-            (cnt (fP read C T E) Ns (List.ofFn xs))} := by
+        ∪ {xs | sm ≤ cnt (fS read C T E) Ns (List.ofFn xs)
+          ∧ ¬ seqRate C.middleRate C.middleAlternative C.testLevel
+            (cnt (fS read C T E) Ns (List.ofFn xs)) (cnt (fP read C T E) Ns (List.ofFn xs))} := by
     rintro xs ⟨-, -, -, h3⟩
     rw [hlen] at h3
     by_cases hS : cnt (fS read C T E) Ns (List.ofFn xs) < sm
     · exact Or.inl hS
-    · refine Or.inr ⟨not_lt.1 hS, ?_⟩
-      push Not at hS
-      have hq' : C.searchShare * Ns ≤ cnt (fS read C T E) Ns (List.ofFn xs) :=
-        Nat.ceil_le.1 (le_trans (le_max_right _ _) hS)
-      have hn₀' : C.firstLook ≤ cnt (fS read C T E) Ns (List.ofFn xs) :=
-          le_trans (le_max_left _ _) hS
-      by_contra hlt
-      push Not at hlt
-      apply h3
-      refine ⟨hq', ?_⟩
-      exact rateSide_true_of hn₀' hlt
+    · refine Or.inr ⟨not_lt.1 hS, fun hf => h3 ⟨?_, hf⟩⟩
+      exact Nat.ceil_le.1 (not_lt.1 hS)
   calc _ ≤ _ := measureReal_mono hsub
     _ ≤ _ := measureReal_union_le _ _
-    _ ≤ (1 - binomSfGe Ns εd' sm) + ∑ s ∈ Finset.Icc sm Ns,
-          binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) := by
+    _ ≤ (1 - binomSfGe Ns εd' sm) + ∑ s ∈ Finset.Icc sm Ns, binE s θpt' (silM s) := by
       gcongr
       · calc _ = binE Ns q (fun j => if j < sm then 1 else 0) :=
             pi_cnt D _ N Ns hNs (fun j => j < sm)
@@ -853,28 +752,27 @@ theorem surv_le {s : Level4State α} (hs : Inv read C s) (hT : s.tree = T) (hE :
                 by_cases hj : j < sm
                 · rw [if_pos hj, if_pos (by omega)]
                 · rw [if_neg hj]; split_ifs <;> norm_num
-          _ = _ := (one_sub_binomSfGe' hεd'0 hεd'1 hsm1).symm
+          _ = _ := (one_sub_binomSfGe_lt hεd'0 hεd'1 Ns sm).symm
       · rw [pi_cnt2 D (fS read C T E) (fP read C T E) (fun x hx => searches_of_ptStr (by
             simp only [fP] at hx; simpa using hx)) N Ns hNs
-          (fun s j => sm ≤ s ∧ C.testLevel ≤ binomSfGe s C.middleRate j)]
-        calc _ ≤ binE Ns q (fun _ => ∑ s ∈ Finset.Icc sm Ns,
-              binE s θpt' (fun j =>
-                if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0)) := by
+          (fun s j => sm ≤ s ∧ ¬ seqRate C.middleRate C.middleAlternative C.testLevel s j)]
+        calc _ ≤ binE Ns q (fun _ => ∑ s ∈ Finset.Icc sm Ns, binE s θpt' (silM s)) := by
               refine binE_mono_le measureReal_nonneg measureReal_le_one fun s hs => ?_
               by_cases hss : sm ≤ s
-              · calc _ = binE s (pP / q) (fun j =>
-                      if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
-                      binE_congr fun j _ => by simp [hss]
-                  _ ≤ binE s θpt' (fun j =>
-                      if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0) :=
-                      binE_le_of_le_anti hθpt'0 hπ0 hπ1 s _ fun i j h => by
-                        have := binomSfGe_anti hθpt0 hθpt1 (n := s) h
-                        by_cases hj : C.testLevel ≤ binomSfGe s C.middleRate j
-                        · rw [if_pos hj, if_pos (by linarith)]
-                        · rw [if_neg hj]; split_ifs <;> norm_num
-                  _ ≤ _ := Finset.single_le_sum (f := fun s =>
-                        binE s θpt' (fun j =>
-                          if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0))
+              · calc _ = binE s (pP / q) (silM s) := binE_congr fun j _ => by
+                      by_cases h : seqRate C.middleRate C.middleAlternative C.testLevel s j <;>
+                        simp [silM, hss, h]
+                  _ ≤ binE s θpt' (silM s) :=
+                      binE_le_of_le_anti_on hθpt'0 hπ0 hπ1 s _ fun i j hij hj => by
+                        have := likelihoodRatio_mono hθpt0 (by linarith) hθpt.le hθpt1.le hij hj
+                        by_cases hfi : seqRate C.middleRate C.middleAlternative C.testLevel s i
+                        · simp only [silM]
+                          have hfj : seqRate C.middleRate C.middleAlternative C.testLevel s j :=
+                            le_trans hfi this
+                          rw [if_pos hfi, if_pos hfj]
+                        · simp only [silM]
+                          rw [if_neg hfi]; split_ifs <;> norm_num
+                  _ ≤ _ := Finset.single_le_sum (f := fun s => binE s θpt' (silM s))
                       (fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 _)
                       (Finset.mem_Icc.2 ⟨hss, hs⟩)
               · calc _ = binE s (pP / q) (fun _ => 0) := binE_congr fun j _ => by simp [hss]
@@ -901,29 +799,34 @@ theorem seg_le (X : Level4State α → FreeMonoid α → Prop) (XEv : List (Free
       → ¬ X s' x → ¬ Z s' x → applyProbe read C s' x ≠ .inr .failed)
     (hbX : ∀ N, (Measure.pi fun _ : Fin N => D).real
       {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ XEv ((List.ofFn xs).take n)} ≤ bX)
-    (hm : 1 ≤ C.recordsToMove) (hn₀ : 1 ≤ C.firstLook) (hN₁ : C.firstLook ≤ N₁) (hN₁s : N₁ ≤ Ns)
-    (hG0 : 0 ≤ G) (hG1 : 2 * G ≤ 1) (hy1 : y ≤ 1)
+    (hm : 1 ≤ C.recordsToMove) (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
     (hGt : 4 * (L + 1) * G ≤ C.edgeRate * C.edgeReadShare)
-    (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (ha : 0 ≤ C.testLevel) (hθs0 : 0 ≤ C.startRate)
-    (hθs1 : C.startRate ≤ 1) (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 ≤ C.middleRate)
-    (hθpt1 : C.middleRate ≤ 1) (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1)
-    (hεd : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd')
-    (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
+    (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (ha : 0 < C.testLevel)
+    (hθs0 : 0 < C.startRate) (hθs : C.startRate < C.startAlternative)
+    (hθs1 : C.startAlternative < 1) (hps : max (2 * G) y ≤ C.startRate) (hθe : 0 ≤ C.edgeRate)
+    (hθpt0 : 0 < C.middleRate) (hθpt : C.middleRate < C.middleAlternative)
+    (hθpt1 : C.middleAlternative < 1)
+    (hfall : max (2 * G) y * (C.middleAlternative / C.middleRate)
+        * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
+      + (1 - max (2 * G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
+      ≤ 1)
+    (hεd0 : 0 < C.disagreementAlternative) (hεd : C.disagreementAlternative < C.disagreementRate)
+    (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : (C.maxLeaves : ℝ) ^ 2 * Fintype.card α * θr ≤ (1 - θpt') * εd') (N : ℕ) :
     (Measure.pi fun _ : Fin N => D)
         {xs | SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s (List.ofFn xs)}
       ≤ ENNReal.ofReal
-          (stretchRisk C (Fintype.card α) L Ns N₁ (max (2 * G) y) θr εd' θpt' + bX) := by
+          (stretchRisk C (Fintype.card α) L Ns N₁ θr εd' θpt' + bX) := by
   classical
   have hp0 : 0 ≤ max (2 * G) y := le_max_of_le_left (by positivity)
-  have hp1 : max (2 * G) y ≤ 1 := max_le hG1 hy1
   have hqt : 2 * max (2 * (L + 1) * G) y ≤ C.edgeRate * C.edgeReadShare := by
     rcases max_cases (2 * (L + 1) * G) y with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] <;> linarith
   have hsub : {xs : Fin N → FreeMonoid α |
       SegBZ (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Z Same s (List.ofFn xs)}
-      ⊆ ((⋃ n ∈ Finset.Icc 1 Ns, {xs | n ≤ N ∧
+      ⊆ ({xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧
           FalseFire read C D ε s.tree s.edges L (max (2 * G) y) (max (2 * (L + 1) * G) y)
-            ((List.ofFn xs).take n)})
+            ((List.ofFn xs).take n)}
         ∪ {xs | Ns ≤ N ∧ Survives read C s.tree s.edges N₁ ((List.ofFn xs).take Ns)})
         ∪ {xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧ XEv ((List.ofFn xs).take n)} := by
     intro xs hxs
@@ -933,51 +836,37 @@ theorem seg_le (X : Level4State α → FreeMonoid α → Prop) (XEv : List (Free
     have h₁0 : Look₁ read C s.tree s.edges N₁ [] := fun h => by simp at h; omega
     have hn0 : s.probeCount < Ns := by rw [hf]; simp only [newHypothesis]; omega
     obtain ⟨i, hi, hiN, h⟩ := seg_reduce read C M U θ D ε Ns y s.tree s.edges L N₁ hL (hN _ hT)
-      X Z XEv s.records hm (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hnt hN₁s hθs0
-      hθs1 hθe hθpt0 hθpt1 hεd0 hεd1 (List.ofFn xs) [] s hs hst0 h₁0 hn0 hxs
+      X Z XEv s.records hm (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hnt hN₁s hθe
+      (List.ofFn xs) [] s hs hst0 h₁0 hn0 hxs
     simp only [List.nil_append, List.length_nil, zero_add, List.length_ofFn] at hi hiN h
     rcases h with h | ⟨hNs', h⟩ | h
-    · exact Or.inl (Or.inl (Set.mem_biUnion (Finset.mem_coe.2 (Finset.mem_Icc.2 ⟨by omega, hiN⟩))
-        ⟨by omega, h⟩))
+    · exact Or.inl (Or.inl ⟨i + 1, Finset.mem_Icc.2 ⟨by omega, hiN⟩, by omega, h⟩)
     · refine Or.inl (Or.inr ⟨by omega, ?_⟩)
       rwa [← hNs']
     · exact Or.inr ⟨i + 1, Finset.mem_Icc.2 ⟨by omega, hiN⟩, by omega, h⟩
   rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← measureReal_def]
   apply ENNReal.ofReal_le_ofReal
-  have hsum : ∀ f : ℕ → ℝ, ∑ n ∈ Finset.Icc 1 Ns, (if C.firstLook ≤ n then f n else 0)
-      = ∑ n ∈ Finset.Icc C.firstLook Ns, f n := by
-    intro f
-    rw [← Finset.sum_filter]
-    congr 1
-    ext n
-    simp only [Finset.mem_filter, Finset.mem_Icc]
-    omega
   calc _ ≤ _ := measureReal_mono hsub
     _ ≤ _ := measureReal_union_le _ _
-    _ ≤ _ := add_le_add ((measureReal_union_le _ _).trans
-        (add_le_add (measureReal_biUnion_finset_le _ _) le_rfl)) (hbX N)
-    _ ≤ (∑ n ∈ Finset.Icc 1 Ns,
-          ((if C.firstLook ≤ n then binomSfGe n (max (2 * G) y) (hFire C.startRate C.testLevel n)
-              + C.testLevel else 0)
-            + ((C.maxLeaves * Fintype.card α : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
-              + binomSfGe n (max (2 * G) y) (hFire C.middleRate C.testLevel
-                  (max C.firstLook ⌈C.searchShare * n⌉₊))))
+    _ ≤ _ := add_le_add (measureReal_union_le _ _) (hbX N)
+    _ ≤ (3 * C.testLevel + (C.maxLeaves * Fintype.card α : ℕ)
+            * Real.exp (-C.edgeExcess / (2 * (L + 1))))
         + ((1 - binomSfGe Ns θr C.recordsToMove)
           + binE N₁ εd' (fun s =>
-              if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-                  ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1 else 0)
-          + (1 - binomSfGe Ns εd' (max C.firstLook ⌈C.searchShare * Ns⌉₊))
-          + ∑ s ∈ Finset.Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
-              binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0)))
-                  + bX := by
-      gcongr with n hn
-      · exact fire_le read C D ε s.tree s.edges L hL (hs.size) hp0 hp1 hqt ha hθs0 hθs1 hθpt0
-          hθpt1 hεd0 hεd1 hεd N n
-      · exact surv_le read C D Ns s.tree s.edges N₁ hs rfl rfl hm hn₀ hN₁ hN₁s hθpt0 hθpt1 hεd0
+              if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0
+              else 1)
+          + (1 - binomSfGe Ns εd' ⌈C.searchShare * Ns⌉₊)
+          + ∑ s ∈ Finset.Icc ⌈C.searchShare * Ns⌉₊ Ns,
+              binE s θpt' (fun j => if seqRate C.middleRate C.middleAlternative C.testLevel s j
+                then 0 else 1))
+        + bX := by
+      gcongr
+      · exact fire_any_le read C D ε Ns s.tree s.edges L hL hs.size hp0 hqt ha hθs0 hθs hθs1 hps
+          hθpt0 hθpt hθpt1 hfall hεd0 hεd hεd1 hε N
+      · exact surv_le read C D Ns s.tree s.edges N₁ hs rfl rfl hm hN₁s hθpt0 hθpt hθpt1 hεd0 hεd
           hεd1 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep N
     _ = _ := by
       unfold stretchRisk
-      rw [Finset.sum_add_distrib, hsum]
       ring
 
 end Eps
