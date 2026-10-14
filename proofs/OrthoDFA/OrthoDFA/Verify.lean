@@ -3,6 +3,7 @@ import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
+import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
@@ -16,8 +17,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
 `SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
-`ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`, and
-`SeqRateSound`, stated in `OrthoDFA.SeqTest`.
+`ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
+`SeqRateSound`, stated in `OrthoDFA.SeqTest`, and level 2's claim, stated in `OrthoDFA.Level2Claim`.
 -/
 
 namespace OrthoDFA
@@ -66,5 +67,9 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
+
+theorem level2_correct : Level2.Correct := Level2.correct_holds
+
+#print axioms level2_correct
 
 end OrthoDFA
