@@ -1,5 +1,4 @@
 import OrthoDFA.Level2Claim
-import OrthoDFA.RateTest
 
 /-!
 # Level 3 of indecisive L*: random reads
@@ -9,8 +8,9 @@ the learned edges and sifted whole, and `tripartiteSearch`, with no recovery, fi
 part or stops at an undecided midpoint. A decided read is never on its state's wrong side, so as at
 level 2 a clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns
 it. A probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over
-the stretch since the hypothesis last changed, feed the tests of level 5, checked after every probe:
-* the start's undecided rate above `startRate` (`rateSide`) harvests the start;
+the stretch since the hypothesis last changed, feed the tests of level 5, checked after every probe,
+each rate tested by `seqRate` against an alternative:
+* the start's undecided rate above `startRate` harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
   its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
 * with searches at least `searchShare` of the probes, the searches stopping at an undecided middle
@@ -111,17 +111,21 @@ def middleString : Outcome α → List (FreeMonoid α)
 structure Level3Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
-  /-- The count of trials before `rateSide` decides. -/
-  firstLook : ℕ
-  /-- Each test's chance of firing falsely at one look. -/
+  /-- Each test's chance of ever firing falsely in a stretch. -/
   testLevel : ℝ
   startRate : ℝ
+  /-- Above `startRate`. -/
+  startAlternative : ℝ
   edgeRate : ℝ
   edgeReadShare : ℝ
   edgeExcess : ℝ
   middleRate : ℝ
+  /-- Above `middleRate`. -/
+  middleAlternative : ℝ
   searchShare : ℝ
   disagreementRate : ℝ
+  /-- Below `disagreementRate`. -/
+  disagreementAlternative : ℝ
   probeBudget : ℕ
 
 /-- The counts are since the hypothesis last changed. -/
@@ -161,18 +165,18 @@ open scoped Classical in
 /-- The tests, in turn: the start's undecided rate, an edge's undecided reads, the undecided
 middles among the searches, and the disagreement rate. -/
 noncomputable def runTests [Fintype α] (s : Level3State α) : Option (RoundEnd (Level3Site α)) :=
-  if rateSide C.startRate C.testLevel C.firstLook s.probeCount s.startUndecided.length = some true
-  then some (.harvest .start)
+  if seqRate C.startRate C.startAlternative C.testLevel s.probeCount s.startUndecided.length then
+    some (.harvest .start)
   else if h : ∃ e ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α),
       C.edgeReadShare * s.probeCount ≤ s.edgeReads e.1 e.2
         ∧ C.edgeExcess + C.edgeRate * s.edgeReads e.1 e.2 ≤ (s.edgeUndecided e.1 e.2).length then
     some (.harvest (.edge h.choose.1 h.choose.2))
   else if C.searchShare * s.probeCount ≤ s.searchCount
-      ∧ rateSide C.middleRate C.testLevel C.firstLook s.searchCount s.middleUndecided.length
-        = some true then
+      ∧ seqRate C.middleRate C.middleAlternative C.testLevel s.searchCount
+        s.middleUndecided.length then
     some (.harvest .middles)
-  else if rateSide C.disagreementRate C.testLevel C.firstLook s.probeCount s.searchCount
-      = some false then some .consistent
+  else if seqRate C.disagreementRate C.disagreementAlternative C.testLevel s.probeCount
+      s.searchCount then some .consistent
   else none
 
 noncomputable def applyTests [Fintype α] (s : Level3State α) :
