@@ -6,11 +6,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.IdealRound
 import OrthoDFA.Proofs.Level5Noise
 import OrthoDFA.Proofs.Level5Query
-import OrthoDFA.Proofs.Level5Keep
-import OrthoDFA.Proofs.Level5Race
-import OrthoDFA.Proofs.Level5Success
 import OrthoDFA.Proofs.Level5Event
-import OrthoDFA.Proofs.Level5SpurNoise
 import OrthoDFA.Proofs.Level5Correct
 import OrthoDFA.Proofs.Level5Risk
 import OrthoDFA.Proofs.Level5RiskBound
@@ -67,15 +63,13 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms rate_test_sound
 
-#print axioms round_budget
+#print axioms runEnds_of_budget
 
-#print axioms roundGiven_of
+#print axioms truthInv_step
 
-#print axioms harvest_good_holds
+#print axioms dirty_le
 
-#print axioms sub_round_holds
-
-#print axioms fake_race_holds
+#print axioms site_le
 
 #print axioms goodStart_le
 
@@ -84,10 +78,6 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 #print axioms goodPT_le
 
 #print axioms noiseEvent_le
-
-#print axioms spurious_le
-
-#print axioms success_sound_holds
 
 theorem level5_correct : Level5Correct := level5_correct_holds
 
@@ -106,12 +96,6 @@ theorem level5_risk_bound : Level5RiskBound := level5_risk_bound_holds
 #print axioms run_probeQuery
 
 #print axioms asks_probeQuery
-
-#print axioms untrue_minority
-
-#print axioms und_twins
-
-#print axioms spurious_mean
 
 #print axioms edge_first_mean
 

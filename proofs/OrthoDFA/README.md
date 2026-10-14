@@ -21,7 +21,7 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   distribution, settings chosen by the proof make `indecisiveLStarLevel5`, the counterexample
   search, over at most `K · G` probes from a `PrefixDistribution` fail to end well with chance at
   most `δ`, once the reads' `κ` and `ε`, the goodness level `θ` and the probes' prefix mass are
-  small enough. A harvest's sampler yields at least `ρ`.
+  small enough. A harvest's sampler yields at least `3εd/16`.
 - `Level5FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
 ## The round, by refinement
@@ -31,17 +31,14 @@ the round ends well when it is consistent, the hypothesis and the tree parting o
 the probes, or ends in a harvest whose sampler finds more than half of what it finds at bad
 states, is spread and yields. What makes a state bad is each level's own.
 
-Level 5's harvest is its site and the hypotheses the site's counts were taken under: one per
-probe of the round at the start and at an edge, the stretch's own for the middles. Its sampler
-(`harvestLaw`) picks one of those hypotheses uniformly, draws a fresh probe from `D`, walks it
-under that hypothesis and finds the probe's undecided first reads at the site, as the tests
-counted them. The tests are cumulative over the round, so this mixture is what they certify:
-every good read-state's undecided reads are rare under each hypothesis, whatever came before, and
-a count less twice the running sum of its means is a supermartingale.
+Level 5's harvest is its site. Every count starts afresh at each change of hypothesis, so the
+test that fired counted the final hypothesis alone, and the sampler (`harvestLaw`) draws a fresh
+probe from `D`, walks it under the final hypothesis and finds the probe's undecided first reads at
+the site, as the tests counted them.
 - `Spread`: it finds no string more often than draws share the string's length-`k` prefix, since
   every string a probe walked from `k` reads extends the probe's length-`k` prefix and a probe
   reads no string first twice (`Proofs/Level5Law.lean`).
-- `Yields y`: it finds at least `y`, `harvestYield`, the least of `θs/8`, `θe φe/2` and
+- `Yields y`: it finds at least `y`, `harvestYield`, the least of `θs`, `θe φe/2` and
   `θpt φpt/2`, which the start's, an edge's and the middles' tests certify.
 
 Levels 2, 3 and 4 claim the same ending, each with its own sampler: level 2's draws a fresh probe
@@ -58,94 +55,85 @@ under the final hypothesis and finds the undecided read it stops at.
 
 `OrthoDFA/Level5Claim.lean` and `OrthoDFA/Level5Family.lean` hold them, with everything they
 need to be read; the algorithm is `indecisiveLStarLevel5` in `OrthoDFA/Level5.lean`. With
-`n = |Q| + S`, `A = |Σ|`, `L = P.L`, `Z = |Q| A + S + 1`, `ρ = (S + 1) εd / (256 (n + 1) Z)`,
-`K = (n + 1)(2(n + 3)A + 1)(20/εd² + 280/εd) + 8(n + 3) A (L + 1)`,
-`X = 4 (2^(n+5) A + 7K)/δ`, `G = log X + log(2 log X)` and a read-state bad where it reads
-undecided more than `1.5θ` of the time:
+`n = |Q|`, `A = |Σ|`, `L = P.L`, `V = (n + 2)((n + 2)A + 1)`,
+`G = log (4 V (2(n + 2)A + 4) / δ)`, `K = V (112/εd + 1)`, `W = (L + 1)(n + 3) A^(n+2)` and a
+read-state bad where it reads undecided more than `1.5θ` of the time:
 
-    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ S k,
+    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ k,
       0 < δ ≤ 1 → 0 < εd < 1 → 1 ≤ L → 0 ≤ θ →
       384 (L + 1)(n + 1) θ ≤ 1 →
-      0 < O.κ → 4 O.κ (8 (n + 3)(L + 1) √(A ρ / 3) + 1) ≤ ρ →
-      0 ≤ O.ε → (L + 1)(n + 1) O.ε + 3 · unionLog σ S δ · prefixMax P.D k ≤ ρ →
+      0 ≤ O.κ → 0 ≤ O.ε → 4 (O.ε + O.κ) K G W ≤ δ →
+      1024 (L + 1) · unionLog σ δ · prefixMax P.D k ≤ εd →
       ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
         settings.probeBudget ≤ K · G ∧
         P[let result := indecisiveLStarLevel5 settings (O.read · ω) draws
           ¬ EndsWell M bad P.D settings.disagreementRate
             (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-            settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart) ρ
-            result.ending] ≤ δ
+            settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart
+              result.hypothesis) (3εd/16) result.ending] ≤ δ
 
     Level5FamilyCorrect: Level5Guarantee at fam.oracle : TriOracle μ fam.M.
 
 The settings (`Level5Settings`) are written below by their symbols: `Lmax = maxLeaves`,
-`m = recordsToMove`, `θs = startUndecidedRate`, `θe = edgeUndecidedRate`,
-`θpt = middleUndecidedRate`, `εd = disagreementRate`, `θs₁ = startAltRate`,
-`θpt₁ = middleAltRate`, `εd₁ = disagreementAltRate`, `φe = edgeTraffic`, `φpt = searchShare`,
-`a = testLevel`, `n₀ = firstLook`, `exc = edgeExcess`, `k = walkStart` and
-`budget = probeBudget`.
+`θs = startUndecidedRate`, `θe = edgeUndecidedRate`, `θpt = middleUndecidedRate`,
+`εd = disagreementRate`, `θs₁ = startAltRate`, `θpt₁ = middleAltRate`,
+`εd₁ = disagreementAltRate`, `φe = edgeTraffic`, `φpt = searchShare`, `a = testLevel`,
+`n₀ = firstLook`, `exc = edgeExcess`, `k = walkStart` and `budget = probeBudget`.
 
-`16ρ` is about the share of the probes at which the budget affords a record that is not true. The
-proof (`Proofs/Level5Correct.lean`) chooses, with `N = n + 3`, `L₁ = L + 1` and `s = √(A ρ/3)`:
-`Lmax = N`, `θpt = 1/4`, `θs = 1/2`, `φpt = 3εd/4`, `θs₁ = 3/5`, `θpt₁ = 3/8`, `εd₁ = 7εd/8`,
-`θe = 8s + 1/(L₁ N)`, `φe = 4s L₁/A`, `a = e^{−G}`, `n₀ = ⌈6G⌉`, `exc = 6 L₁ G`, `m` the records the caps ask for and
-the budget `Level5RiskBound` asks for. `θe φe ≥ 32 L₁ ρ/3` holds the edge field's prefix mass to the
-same cap as the records', and `θe L₁ N = 2 N A φe` then minimises the edges' share of `κ`'s cap.
-`θpt` is at its largest, since `θ` and the budget both scale with it.
+The proof (`Proofs/Level5Correct.lean`) chooses, with `N = n + 2` and `L₁ = L + 1`: `Lmax = N`,
+`θs = 1/2` against `θs₁ = 3/5`, `θpt = 1/2` against `θpt₁ = 3/4`, `εd₁ = 7εd/8`, `φpt = 3εd/4`,
+`θe = φe = 3/4`, `a = e^{−G}`, `n₀ = ⌈6G⌉`, `exc = 2 L₁ (1 + 3N/4) G + 1` and
+`budget = ⌈V (112 G/εd + 1)⌉`. A contradiction splits at once, so a hypothesis's searches but its
+last stop at undecided middles: past `nEnd = ⌈112 G/εd⌉` probes success fires, or before them the
+middles test does, and the round goes through fewer than `V` hypotheses.
 
-At `|Q| = 10`, `|Σ| = 2`, `S = 2`, `δ = 0.01`, with `ε` and the prefix mass each taking the
-whole of their shared cap (half each halves both):
+At `|Q| = 10`, `|Σ| = 2`, `δ = 0.01`, with `ε` and `κ`, and the prefix mass, each taking the whole
+of its cap:
 
-| | `θ ≤` | `κ ≤` | `ε ≤` | `prefixMax ≤` | uniform binary `k ≥` | budget `≤ K G` |
+| | `θ ≤` | `κ`, `ε ≤` | `prefixMax ≤` | uniform binary `k ≥` | budget `≤ K G` | yield |
 |---|---|---|---|---|---|---|
-| `L = 30`, `εd → 1` | 6.5e-6 | 4.9e-7 | 9.7e-8 | 1.5e-8 | 27 | 5.9e6 |
-| `L = 30`, `εd = 0.1` | 6.5e-6 | 1.4e-7 | 9.7e-9 | 1.5e-9 | 30 | 1.0e8 |
-| `L = 60`, `εd → 1` | 3.3e-6 | 2.6e-7 | 4.9e-8 | 1.5e-8 | 27 | 6.1e6 |
-| `L = 60`, `εd = 0.1` | 3.3e-6 | 7.6e-8 | 4.9e-9 | 1.5e-9 | 30 | 1.0e8 |
+| `L = 30`, `εd → 1` | 7.6e-6 | 2.9e-15 | 4.2e-8 | 25 | 5.3e5 | 0.19 |
+| `L = 30`, `εd = 0.1` | 7.6e-6 | 2.9e-16 | 4.2e-9 | 28 | 5.3e6 | 0.019 |
+| `L = 60`, `εd → 1` | 3.9e-6 | 1.4e-15 | 2.1e-8 | 26 | 5.3e5 | 0.19 |
+| `L = 60`, `εd = 0.1` | 3.9e-6 | 1.5e-16 | 2.1e-9 | 29 | 5.3e6 | 0.019 |
 
-The chosen budget is 79–88% of `K G`. The sequential tests cut `K G` 10× near `εd = 1` and 20× at
-0.1 against the per-look binomial tests (`6.0e7`, `2.1e9`), and the chosen budget 11× and 25×.
-Against the earlier constants (`2^13`, `2^14`, `2^18`) this is 21× more `θ` near `εd = 1` (213× at
-0.1), about 2500× (7000×) more `κ`, 110× more `ε`, 1100× more prefix mass (`k ≥ 27` against 37),
-and a 1400× (10⁵×) smaller budget. Every condition holds at `L = 30` for `k` from 27 to 30 near
-`εd = 1`; at `εd = 0.1` only `k = 30 = L` with `ε` near 0 is left.
+The chosen budget is within 1% of `K G`. Against the records level (`recordsToMove` records to fix
+an edge, `S = 2` splits that are not genuine), the budget is 11× smaller near `εd = 1` and 19× at
+0.1 (`5.9e6`, `1.0e8`), the yield `3εd/16` is about 4800× larger than its
+`(S + 1)εd/(256(n + 1)(|Q||Σ| + S + 1))`, and `θ` and the prefix mass are about the same; `κ` and
+`ε`, which there were held by the records cap at `4.9e-7` and `9.7e-8` (near `εd = 1`, `L = 30`),
+are now held by a single read on the rarer side, anywhere a probe or a re-sift could read it,
+splitting wrongly: `1.7e8×` and `3.3e7×` tighter.
 
 ## The internal bound
 
 `Proofs/Level5RiskDefs.lean` states what the claim is derived from; none of it needs to be read
 to trust the claim.
 
-    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C κs,
-      2 · O.κ ≤ κs →
+    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C,
       ∫⁻ ω, P[the run of `applyProbe` over C.probeBudget probes from P.D does not end well, its
           harvest's sampler yielding harvestYield] ∂μ
-        ≤ roundRisk σ O.κ O.ε θ P.D P.L C κs
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
-`roundRisk σ κ ε θ D L C κs` is the least, over the proof's free parameters `kn : Knobs` meeting
-`kn.Admissible σ κ ε θ D L C κs`, of `roundBound σ κ ε θ D L C kn`, the sum of:
+`roundRisk σ κ ε θ D L C` is the least, over the proof's free parameters `kn : Knobs` meeting
+`kn.Admissible σ κ ε θ D L C`, of `roundBound σ κ ε θ D L C kn`, the sum of:
 
-* `recordsTail`, records that are not true exceeding `κs` times the undecided strings plus `ρ`:
-  `K · E · exp(−(ρ − 2ε(L + 1)(n + 1)) / (2p₀(1 + 4(κ(L + 1) + ε(L + 1)(n + 1)))))`;
 * `edgeTail`, an edge's good undecided first reads past `θg` of its first reads:
   `K · E · (n + 2)|Σ| · exp(−φe(θe − 8θg)/4 / (2p₀(L + 1)(1 + 6θ(n + 1))))`;
 * `startTail`, the good undecided start reads past `θgs`: `K · exp(θ₁(e^{l p₀} − 1)/p₀ − lθgs)`;
 * `middlesTail`, searches stopping at a good undecided middle past `θgpt`:
   `K · E · exp(−θgpt φpt/2 / (2p₀(1 + 4(L + 1)θ₁)))`;
-* `fakeRun`, the records that are not true racing the tests' allowances;
-* `(S + |Q| + 1) · subOpen`, a sub-round keeping its tree too long;
-* `testLevels`, `(2^(Lmax+2)|Σ| + 1 + 3 budget) a`, the harvests' and success's tests, each
-  stretch's at most once,
+* `wrongTerm`, some probe reading a string on its state's rarer side, as itself or followed by a
+  word of at most `Lmax` letters: `budget · (L + 1)(Lmax + 1)|Σ|^Lmax · (ε + κ)`;
+* `testLevels`, `versionBound · (2 Lmax |Σ| + 4) · a`: at each of fewer than `versionBound`
+  hypotheses, the start's, the middles', their gate's and success's tests and two potentials at
+  each edge out of a leaf each err at most `a`,
 
-where here `K = classCount` bounds the class of trees, `E = edgeMapCount` their edge maps,
-`θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k` prefix.
-`Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit conditions on `κ`, `ε`, `θ` and the
-settings; `Level5Correct` substitutes its chosen settings into those conditions. At
-`|Q| = 10`, `|Σ| = 2`, `L = 30`, `δ = 0.01` and `εd = 1/4`, the chosen settings admit
-`κ ≤ 2.3e-7`, `θ ≤ 6.5e-6`, `ε ≤ 2.4e-8` and `p₀ ≤ 3.6e-9` at a budget of `2.5e7` (`3.9e8` with
-the per-look binomial tests), against
-`κ ≤ 5e-8`, `θ ≤ 6e-6`, `ε ≤ 1e-8` and `p₀ = 2^-30` at `3.5e8` for the earlier hand-picked
-settings.
+where here `K = classCount` bounds the class of trees (genuine splits only), `E = edgeMapCount`
+their edge maps, `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k`
+prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit conditions on `κ`, `ε`,
+`θ` and the settings; `Level5Correct` substitutes its chosen settings into those conditions.
 
 ## Open
 
@@ -164,15 +152,11 @@ settings.
   string's read is then fresh when charged, so the good read-states' undecided new strings at a
   place are at most binomial in the new strings read there, with no noise field, no union and no
   `prefixMax`.
-- **Reads per probe.** The edge test counts first reads (b1: a probe's first reads are fresh), so
-  its allowance is `θe ≥ 12θ` a read; `fakeRun` charges every probe the most first reads it can
-  make, `(L + 1) Lmax`, against it. A bound `R̄` on the mean first reads a probe makes would put
-  `R̄` there instead, and is not proved.
-- **`W` and `κ`.** `fakeRun` holds `ρ` to about `(S + 1)m/W`, and with it `κ` far below the
-  shipped band's. `FakeRace` races the records that are not true against the undecided strings the
-  tests let through, counted with their multiplicity; with each string counted once, a heavy
-  string's undecided read is one count while its minority twin is a record at every probe through
-  it.
+- **Reads on the rarer side.** A split is genuine unless a read on the rarer side made the
+  contradiction or the edge it contradicts untrue, and the re-sifts a split makes read strings no
+  probe has to, so the bound unions over every word of at most `Lmax` letters after every prefix of
+  every probe. A first-read count of the reads the round actually makes would replace
+  `(Lmax + 1)|Σ|^Lmax` by the reads a probe makes.
 - Each theorem is per round, with the family, the seed and the band fixed, and treats the noise as
   fresh. Reads made in earlier rounds, which pin bits a later round reads again, are not modelled.
 
@@ -252,72 +236,56 @@ settings.
 - `OrthoDFA/Level5.lean`, `OrthoDFA/Level5Claim.lean` — level 5, the counterexample search
   (`indecisiveLStarLevel5`, returning the hypothesis and the ending), and `Level5Correct`.
   `Proofs/Level5RiskDefs.lean` holds the internal bound (`Level5RoundRisk`, `Level5RiskBound`),
-  and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings.
-  `Proofs/Level5Parts.lean` states its parts, as sub-rounds. Probes walk from `k` as `sifting.read`
-  does, and a disagreement is searched by main's bisection without recovery
-  (`bisectBoundary false`), which stops at its first undecided midpoint; a clean disagreement
-  records its prefix and target at its edge. Each place keeps its count
-  over the round: the start's undecided read strings, and each edge's first reads and those of them
-  read undecided; the start's undecided rate above `θs`, or an edge's undecided first reads
-  exceeding `θe` of its first reads by `exc` of them, harvests; the stretch's rate of searches
-  stopping at an undecided middle above `θpt` harvests those middles; the stretch's disagreement
-  rate settling below `εd` succeeds. The start's, the middles' and success's rates are checked by
-  `seqRate`, against `θs₁`, `θpt₁` and `εd₁`. Otherwise one edge with `m` records at a target it does not
-  point at is redirected there, or its leaf splits where its own target also has `m`; a split drops
-  every record. A stretch starts afresh at every change of hypothesis. Each state reads its rarer
-  decided side at most `κ` times as often as it is undecided. A sub-round runs at one tree of the
-  class (genuine splits and at most `S` that are not) until a split, genuine (real) or not (fake),
-  or the round ends. A split that is not genuine needs `m` records that are not true made in its
-  sub-round, so while the round's such records stay below `(S + 1) m` its trees stay in the class.
-  `SubRound` bounds a sub-round's chance of keeping its tree over `subT` probes with fewer than `B`
-  records that are not true; `FakeRace` bounds the round's records that are not true reaching `(S +
-  1) m`, given `NoiseEvent`; `HarvestGood` bounds a harvest whose sampler does not find mostly
-  read-states that are not good, or does not yield. Proved in `Proofs/Level5Budget.lean`: `round_budget` composes sub-rounds, and
-  `roundGiven_of` gives `Level5RoundRisk` from `SubRound`, `FakeRace`, `HarvestGood` and `SuccessSound`.
-  `HarvestGood` is proved in `Proofs/Level5Harvest.lean`: the start's and an edge's undecided
-  strings less twice the running sum of their means under the hypotheses the round kept, and an
-  edge's reads' means' half-sum less its reads, exponentiate to supermartingales while the tree is
-  in the class, so a test that fires certifies the sampler's yield; `NoiseEvent` holds the good
-  read-states' share of it under every hypothesis of the class. A stretch keeps one hypothesis,
-  and where its searches stop at an undecided middle at most `θpt` of the time, the middles test's
-  likelihood ratio is a supermartingale over the stretch, so it fires there with chance at most `a`
-  (Ville's inequality); likewise the search gate's test of `φpt/2` against `φpt`, which a gate pass
-  past `firstLook ≥ 6 log(1/a)` searches makes fire, and the success test in `Proofs/Level5Success.lean`.
-  `SubRound` is proved in `Proofs/Level5Keep.lean`: a hypothesis recording less than `θr` of the time
-  and keeping over `nEnd` probes has its middle-stopping searches rarer than `θpt'` of its searches,
-  or its disagreements too many for success; each new hypothesis learns or redirects an edge,
-  lowering a potential of at most `2 Lmax |Σ|`; and every record raises its edge and target towards
-  the `m` at which it is fixed, a true one at one of `|Q| |Σ|` edges and targets, so with fewer than
-  `B` that are not true the sub-round holds at most `|Q| |Σ| m + B - 1` records and its probes at
-  hypotheses recording at least `θr` of the time are one binomial over `nRec`. `FakeRace` is proved
-  in `Proofs/Level5Race.lean`: `NoiseEvent.spurious` bounds a probe's record not being true by `κ` times
-  its undecided strings plus `ρ`, the edges' and the start's tests hold those strings over the round
-  to `θe` of an edge's first reads past `Xe` once the edge is charged `φe` of the probes (an edge
-  charged less holds them to that) and `θs'` of the probes past `Xs`, so the records that are not
-  true less `ν/η` times the strings' excess exponentiate to a supermartingale up to `ν (θe (L + 1)
-  Lmax + θs' + 2 Lmax |Σ| φe) + (e^η - 1) ρ` a probe. `Proofs/QueryTree.lean`,
-  `Proofs/Level5Query.lean` and `Proofs/Level5Firsts.lean` give the fields' per-probe means: a probe
-  is a query tree over independent reads (`run_probeQuery`), and a string's first read in it is fresh,
-  so a record not being true, which needs a read on its state's rarer side (`untrue_minority`), has
-  chance at most `κ` times the probe's undecided first reads, which the tests count (`und_twins`),
-  plus `ε` times its first reads (`spurious_mean`); and an edge's good undecided first reads average
-  at most `1.5θ` of its first reads (`edge_first_mean`).
+  and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings. Probes walk
+  from `k` as `sifting.read` does, and a disagreement is searched by main's bisection without
+  recovery (`bisectBoundary false`), which stops at its first undecided midpoint. Every count is
+  kept since the hypothesis last changed: the probes, the start's undecided read strings, each
+  edge's first reads and those of them read undecided, the searches and the undecided middles they
+  stop at. The start's undecided rate above `θs`, or an edge's undecided first reads exceeding `θe`
+  of its first reads by `exc` of them, harvests; the searches' rate of stopping at an undecided
+  middle above `θpt` harvests those middles; the searches' rate settling below `εd` succeeds. The
+  start's, the middles' and success's rates are checked by `seqRate`, against `θs₁`, `θpt₁` and
+  `εd₁`. Otherwise a contradiction (a clean disagreement at a learned edge) splits the edge's leaf
+  at once (Kearns–Vazirani), and an unlearned edge a probe stops at is learned; either is a new
+  hypothesis.
+  - `Proofs/Level5Steps.lean`: a step keeps the hypothesis, its counts the probe's, or moves to a
+    fresh one with the next version; each learned edge lowers the unlearned edges out of the
+    leaves and each split adds a leaf, so a round goes through fewer than `versionBound`
+    hypotheses (`version_lt`); within one every search but the last stops at an undecided middle,
+    so past `nEnd` probes success or the middles test fires, and a round over
+    `versionBound · nEnd` probes ends (`runEnds_of_budget`).
+  - `Proofs/Level5Clean.lean`: with no read on the rarer side among the strings a probe or a
+    re-sift could read (`Dirty`), every learned edge and every contradiction is a true record, so
+    every split is genuine and the tree stays within `|Q| + 2` leaves (`truthInv_step`); some
+    probe of the round is dirty with chance at most the probes times
+    `(L + 1)(Lmax + 1)|Σ|^Lmax (ε + κ)` (`dirty_le`).
+  - `Proofs/Level5Harvest.lean`: within a hypothesis its probes are fresh draws, so each test's
+    weight, its likelihood ratio or an edge's undecided strings less twice their running mean
+    (and its reads' half-mean less its reads) exponentiated, is a product of factors averaging at
+    most one where the hypothesis's sampler is not good; Ville's inequality bounds its passing
+    `1/a` within the hypothesis by `a`, and a round ending badly passed one (`site_le`,
+    `ratio_site_le`).
+  - `Proofs/Level5Risk.lean`: on the noise event, a clean round ends by a test firing at a true
+    hypothesis, and where that is not well one of the tests erred (`bad_of_clean`), which gives
+    `Level5RoundRisk`.
+  `Proofs/QueryTree.lean`, `Proofs/Level5Query.lean` and `Proofs/Level5Firsts.lean` give the
+  fields' per-probe means: a probe is a query tree over independent reads (`run_probeQuery`), and
+  a string's first read in it is fresh, so an edge's good undecided first reads average at most
+  `1.5θ` of its first reads (`edge_first_mean`).
 - `OrthoDFA/SuffixFamily.lean`, `OrthoDFA/Level5Family.lean` — `SuffixFamily`, its reads and
   their distributions (`readDist`), `SuffixFamily.oracle`, and `Level5FamilyCorrect`. Proved in
   `Proofs/Level5Correct.lean` from `Level5Correct`'s proof, the family's reads being independent
   with those distributions (`Proofs/SuffixFamily.lean`, from `FamilyReadBound`).
-- `Proofs/Level5RiskBound.lean` — `Level5RiskBound`: explicit knobs, at which the sequential tests
-  fire at the termination counts and Hoeffding's binomial tails bound a hypothesis surviving them,
-  and `unionLog` bounding the unions' counts.
+- `Proofs/Level5RiskBound.lean` — `Level5RiskBound`: explicit knobs, at which success fires at
+  `nEnd` probes with at most `hS` searches and the middles test at `hS + 1` middles in a row, and
+  `unionLog` bounding the unions' counts.
 - `Proofs/SeqRate.lean` — `seqRate` in log form, its monotonicity in the hits, and counts at which
-  it must fire (`seqRate_of_many`, `seqRate_share`).
-- `Proofs/Level5Risk.lean` — `Level5RoundRisk` at each admissible choice of knobs: `RoundGiven`
-  (`Proofs/Level5Parts.lean`, proved in `Proofs/Level5Budget.lean`) with its noise event's chance
-  bounded by `noiseEvent_le` (`Proofs/NoiseEventvent.lean`), which unions the fields' tails:
-  `spurious_le` (`Proofs/Level5SpurNoise.lean`), `goodEdge_le` (`Proofs/NoiseEventdgeRead.lean`),
-  `goodStart_le` (`Proofs/Level5Noise.lean`) and `goodPT_le` (`Proofs/Level5PTNoise.lean`), each by
-  `block_tail` (`Proofs/NoiseEventdgeNoise.lean`): per-probe quantities read only through strings
-  sharing the probe's length-`k` prefix are independent across prefixes.
+  it must fire (`seqRate_share`).
+- `Proofs/Level5Event.lean` — `noiseEvent_le`, which unions the noise fields' tails:
+  `goodEdge_le` (`Proofs/Level5EdgeRead.lean`), `goodStart_le` (`Proofs/Level5Noise.lean`) and
+  `goodPT_le` (`Proofs/Level5PTNoise.lean`), each by `block_tail` (`Proofs/Level5EdgeNoise.lean`):
+  per-probe quantities read only through strings sharing the probe's length-`k` prefix are
+  independent across prefixes.
 - `OrthoDFA/Stage.lean`, `StartAtK.lean`, `Loop.lean`, `Pass.lean`, `Automaton.lean` — the cut's
   sift down the shared tree (`siftCut`), curried edges (`EdgeTable`), walks and bisection, which
   level 5's statements build on.

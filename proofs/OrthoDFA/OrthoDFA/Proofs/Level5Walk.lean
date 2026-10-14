@@ -179,7 +179,7 @@ theorem recordBy_spec {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeM
     (h : recordBy cut k (T, edges) x = some ((p, c, t), sp)) :
     ∃ p₀ ps, T.siftCut cut (prefixOf x k) = .inl p₀
       ∧ follow edges p₀ ((x.toList.drop k).take (ps.length - 1)) = .inl ps ∧ p ∈ ps
-      ∧ T.siftCut cut (sp * FreeMonoid.of c) = .inl t ∧ (edges p c).map Prod.fst ≠ some t := by
+      ∧ T.siftCut cut (sp * FreeMonoid.of c) = .inl t ∧ ∃ t₀ w, edges p c = some (t₀, w) ∧ t₀ ≠ t := by
   unfold recordBy at h
   simp only [] at h
   rcases ho : probeBy cut T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;> rw [ho] at h <;>
@@ -222,12 +222,18 @@ theorem recordBy_spec {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeM
       rw [show fd = fd - 1 + 1 by omega, List.take_add_one, List.getElem?_eq_getElem hlt, hc]
       simp
     rw [this, ht]
-  · rw [hy]
-    simp only [Option.map_some, ne_eq, Option.some.injEq]
+  · refine ⟨_, _, hy, ?_⟩
     have h2 : fd - 1 - k + 1 = fd - k := by omega
     rw [h2]
     simp only [agreesAtBy, ht, Sum.elim_inl, Option.some.injEq, decide_eq_false_iff_not] at hfd
     exact fun he => hfd he.symm
+
+theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edges : EdgeTable α}
+    {x : FreeMonoid α} :
+    x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
+  simp only [searchAt_eq, Set.mem_setOf_eq]
+  rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
+    simp [Outcome.IsSearch]
 
 theorem bracketSifts_range (agrees : ℕ → Option Bool) :
     ∀ (fuel lo hi i : ℕ), i ∈ bracketSifts agrees fuel lo hi → lo ≤ i ∧ i ≤ hi

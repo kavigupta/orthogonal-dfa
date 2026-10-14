@@ -1,20 +1,16 @@
 import OrthoDFA.Proofs.Level5RiskBound
-import OrthoDFA.Proofs.Level5Law
 import OrthoDFA.Level5Family
 
 /-!
 # Level 5's claim
 
-`Level5Correct` from `Level5RoundRisk` at `κs = 2κ` and `Level5RiskBound` bounding its
-`roundRisk` by `δ`, at settings chosen as formulas of the problem. With `N = |Q| + S + 3`,
-`L₁ = L + 1` and `s = √(|Σ| ρ/3)`: `maxLeaves = N`, `middleUndecidedRate = 1/4`,
-`startUndecidedRate = 1/2`, `searchShare = 3εd/4`, the alternatives `3/5`, `3/8` and `7εd/8`,
-`edgeUndecidedRate = 8s + 1/(L₁ N)`, `edgeTraffic = 4s L₁/|Σ|`, `testLevel = e^{−G}`,
-`firstLook = ⌈6G⌉`,
-`edgeExcess = 6 L₁ G`, `recordsToMove` the records the caps ask for, and `probeBudget` the budget
-`Level5RiskBound` asks for. `edgeUndecidedRate` and `edgeTraffic` balance the edges' share of the
-records cap against the prefix mass the edge field admits, and the harvest's sampler yields at
-least `ρ`.
+`Level5Correct` from `Level5RoundRisk` and `Level5RiskBound` bounding its `roundRisk` by `δ`, at
+settings chosen as formulas of the problem. With `N = |Q| + 2`, `L₁ = L + 1`,
+`V = N (N |Σ| + 1)` and `G = log (4 V (2 N |Σ| + 4) / δ)`: `maxLeaves = N`,
+`startUndecidedRate = 1/2` against `3/5`, `middleUndecidedRate = 1/2` against `3/4`, `εd` against
+`7εd/8`, `searchShare = 3εd/4`, `edgeUndecidedRate = edgeTraffic = 3/4`, `testLevel = e^{−G}`,
+`firstLook = ⌈6G⌉`, `edgeExcess = 2 L₁ (1 + 3N/4) G + 1`, and `probeBudget = ⌈V (112 G / εd + 1)⌉`.
+The middles' test certifies the least yield, `3εd/16`.
 -/
 
 noncomputable section
@@ -25,187 +21,6 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-/-- The tests' level at `a = e^{−G}`. -/
-theorem level_le (P K b G δ : ℝ) (hP : 0 ≤ P) (hK : 100 ≤ K) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1)
-    (hG : G = Real.log (4 * (P + 7 * K) / δ) + Real.log (2 * Real.log (4 * (P + 7 * K) / δ)))
-    (hb : b ≤ K * G) :
-    4 * (P + 7 * b) * Real.exp (-G) ≤ δ := by
-  set X := 4 * (P + 7 * K) / δ
-  set l := Real.log X
-  have hX0 : 0 < X := by positivity
-  have hδX : δ * X = 4 * (P + 7 * K) := by simp only [X]; field_simp
-  have he4 : Real.exp 4 ≤ X := by
-    have h1 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
-    have h2 : Real.exp 1 ^ 4 ≤ 3 ^ 4 :=
-      pow_le_pow_left₀ (Real.exp_pos 1).le Real.exp_one_lt_three.le 4
-    have h3 : (3 : ℝ) ^ 4 ≤ X := by
-      simp only [X]
-      rw [le_div_iff₀ hδ0]
-      nlinarith
-    linarith
-  have hl : 4 ≤ l := (Real.le_log_iff_exp_le hX0).2 he4
-  have hXl : Real.exp l = X := Real.exp_log hX0
-  have h2 : 2 * l ≤ X := by
-    have h := Real.pow_div_factorial_le_exp (x := l) (by linarith) 2
-    rw [hXl] at h
-    have hf : ((Nat.factorial 2 : ℕ) : ℝ) = 2 := by norm_num [Nat.factorial]
-    rw [hf] at h
-    nlinarith
-  have h2l : 0 < 2 * l := by linarith
-  have hG2 : G ≤ 2 * l := by
-    have : Real.log (2 * l) ≤ l :=
-      (Real.log_le_log h2l h2).trans_eq rfl
-    rw [hG]; linarith
-  have hexpG : Real.exp G = X * (2 * l) := by
-    rw [hG, Real.exp_add, Real.exp_log hX0, Real.exp_log h2l]
-  have hb' : b ≤ K * (2 * l) := hb.trans (mul_le_mul_of_nonneg_left hG2 (by linarith))
-  rw [Real.exp_neg, hexpG, ← div_eq_mul_inv, div_le_iff₀ (by positivity)]
-  have : 4 * (P + 7 * b) ≤ 4 * (P + 7 * K) * (2 * l) := by
-    nlinarith [mul_le_mul_of_nonneg_left (show (1 : ℝ) ≤ 2 * l by linarith) hP]
-  calc 4 * (P + 7 * b) ≤ 4 * (P + 7 * K) * (2 * l) := this
-    _ = δ * (X * (2 * l)) := by rw [← hδX]; ring
-
-/-- The chosen budget is at most `K G`. -/
-theorem budget_le (N1 A L1 εd G lo S1 Z n₀ m b : ℝ) (hN1 : 2 ≤ N1) (hA : 1 ≤ A) (hεd0 : 0 < εd)
-    (hεd1 : εd ≤ 1) (hG : 1 ≤ G) (hlo0 : 0 ≤ lo) (hlo : lo ≤ G) (hS1 : 1 ≤ S1) (hZ0 : 0 < Z)
-    (hZ : Z ≤ N1 * A) (hn₀ : n₀ ≤ 6 * G + 1)
-    (hm : m ≤ εd * ((2 * (N1 + 2) * A + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * n₀ / εd + 1)
-      + 32 * G / εd ^ 2 + 2) / (8 * Z) + εd * (32 * (N1 + 2) * A * L1 * G + n₀) / (32 * N1 * Z)
-      + 4 * lo / S1 + 1)
-    (hb : b ≤ N1 * ((2 * (N1 + 2) * A + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * n₀ / εd + 1)
-      + 8 * Z * m / εd + 32 * G / εd ^ 2 + 1) + 1) :
-    b ≤ (N1 * (2 * (N1 + 2) * A + 1) * (20 / εd ^ 2 + 280 / εd)
-      + 8 * (N1 + 2) * A * L1) * G := by
-  obtain ⟨u, hu⟩ : ∃ u : ℝ, u = 1 / εd := ⟨_, rfl⟩
-  have hu0 : 0 < u := by rw [hu]; positivity
-  have hεd : εd = 1 / u := by rw [hu]; field_simp
-  have hu1 : 1 ≤ u := by rw [hu, le_div_iff₀ hεd0]; linarith
-  obtain ⟨N, hN⟩ : ∃ N : ℝ, N = N1 + 2 := ⟨_, rfl⟩
-  rw [← hN] at hm hb ⊢
-  subst hεd
-  obtain ⟨P1, hP1⟩ : ∃ x : ℝ, x = 6 * G * u ^ 2 + 112 * G * u + 2 * n₀ * u + 1 := ⟨_, rfl⟩
-  obtain ⟨B1, hB1⟩ : ∃ x : ℝ, x = (2 * N * A + 1) * P1 + 32 * G * u ^ 2 + 2 := ⟨_, rfl⟩
-  have hm' : m ≤ B1 / (8 * Z * u) + (32 * N * A * L1 * G + n₀) / (32 * N1 * Z * u)
-      + 4 * lo / S1 + 1 := by
-    convert hm using 3
-    rw [hB1, hP1]; field_simp
-  have hb2 : b ≤ N1 * (B1 - 1) + N1 * (8 * Z * m * u) + 1 := by
-    convert hb using 2
-    rw [hB1, hP1]; field_simp; ring
-  rw [show (20 / (1 / u) ^ 2 + 280 / (1 / u)) = 20 * u ^ 2 + 280 * u by field_simp]
-  -- the records' part of the budget
-  have hZm : 8 * Z * m * u ≤ B1 + (32 * N * A * L1 * G + n₀) / (4 * N1)
-      + 32 * Z * lo * u / S1 + 8 * Z * u := by
-    have h8 : 0 ≤ 8 * Z * u := by positivity
-    have := mul_le_mul_of_nonneg_left hm' h8
-    have e : 8 * Z * u * (B1 / (8 * Z * u) + (32 * N * A * L1 * G + n₀) / (32 * N1 * Z * u)
-        + 4 * lo / S1 + 1) = B1 + (32 * N * A * L1 * G + n₀) / (4 * N1)
-          + 32 * Z * lo * u / S1 + 8 * Z * u := by
-      field_simp; ring
-    linarith [this, e]
-  have hb' : b ≤ N1 * (B1 - 1) + N1 * (B1 + (32 * N * A * L1 * G + n₀) / (4 * N1)
-      + 32 * Z * lo * u / S1 + 8 * Z * u) + 1 := by
-    have : N1 * (8 * Z * m * u) ≤ N1 * (B1 + (32 * N * A * L1 * G + n₀) / (4 * N1)
-      + 32 * Z * lo * u / S1 + 8 * Z * u) := mul_le_mul_of_nonneg_left hZm (by linarith)
-    linarith
-  obtain ⟨W, hW⟩ : ∃ x : ℝ, x = N1 * (2 * N * A + 1) := ⟨_, rfl⟩
-  have hNA : N1 * A ≤ N * A := by rw [hN]; nlinarith only [hA]
-  have hW2 : 2 * N1 * (N1 * A) ≤ W := by
-    rw [hW]
-    nlinarith only [mul_le_mul_of_nonneg_left hNA (by linarith : (0 : ℝ) ≤ N1), hN1]
-  have hW9 : 9 * N1 ≤ W := by
-    have h4 : 4 ≤ N := by rw [hN]; linarith
-    have h8 : 8 ≤ 2 * N * A := by nlinarith only [h4, hA]
-    rw [hW]; nlinarith only [mul_le_mul_of_nonneg_left h8 (by linarith : (0 : ℝ) ≤ N1)]
-  have hW18 : 18 ≤ W := by linarith
-  have hu2 : u ≤ u ^ 2 := by nlinarith only [hu1]
-  have hGu : 0 ≤ G * u := by positivity
-  obtain ⟨T1, hT1⟩ : ∃ t, t = W * G * u := ⟨_, rfl⟩
-  obtain ⟨T2, hT2⟩ : ∃ t, t = W * G * u ^ 2 := ⟨_, rfl⟩
-  have hW0 : 0 ≤ W := by linarith
-  have hT12 : T1 ≤ T2 := by rw [hT1, hT2]; exact mul_le_mul_of_nonneg_left hu2 (by positivity)
-  have hT1W : W ≤ T1 := by
-    rw [hT1]; have : 1 ≤ G * u := by nlinarith only [hG, hu1]
-    nlinarith only [this, hW0]
-  have hn₀u : n₀ * u ≤ 6 * (G * u) + u := by
-    have := mul_le_mul_of_nonneg_right hn₀ hu0.le
-    linarith
-  have p1 : 2 * N1 * ((2 * N * A + 1) * P1) ≤ 12 * T2 + 248 * T1 + 4 * (W * u) + 2 * W := by
-    have e : 2 * N1 * ((2 * N * A + 1) * P1)
-        = W * (12 * (G * u ^ 2) + 224 * (G * u) + 4 * (n₀ * u) + 2) := by
-      rw [hW, hP1]; ring
-    have e2 : 12 * T2 + 248 * T1 + 4 * (W * u) + 2 * W
-        = W * (12 * (G * u ^ 2) + 224 * (G * u) + 4 * (6 * (G * u) + u) + 2) := by
-      rw [hT1, hT2]; ring
-    rw [e, e2]
-    exact mul_le_mul_of_nonneg_left (by linarith) hW0
-  have hGu2 : 0 ≤ G * u ^ 2 := by positivity
-  have p2 : 2 * N1 * (32 * G * u ^ 2) ≤ 64 / 9 * T2 := by
-    have := mul_le_mul_of_nonneg_right hW9 hGu2
-    rw [hT2]; nlinarith only [this]
-  have p3 : n₀ / 4 ≤ 3 / 2 * G + 1 / 4 := by linarith
-  have p4 : 3 / 2 * G ≤ 3 / 2 / 18 * T1 := by
-    have := mul_le_mul_of_nonneg_right hW18 hGu
-    have h1 : G * 1 ≤ G * u := mul_le_mul_of_nonneg_left hu1 (by linarith)
-    rw [hT1]; nlinarith only [this, h1]
-  have p6 : N1 * (32 * Z * lo * u / S1) ≤ 16 * T1 := by
-    have h1 : 32 * Z * lo * u / S1 ≤ 32 * Z * lo * u := by
-      have : 0 ≤ 32 * Z * lo * u := by positivity
-      rw [div_le_iff₀ (by linarith)]; nlinarith only [this, hS1]
-    have h2 : 32 * Z * lo * u ≤ 32 * (N1 * A) * (G * u) := by
-      have := mul_le_mul hZ hlo hlo0 (by nlinarith only [hN1, hA])
-      have e : 32 * (N1 * A) * (G * u) = 32 * u * ((N1 * A) * G) := by ring
-      rw [e, show 32 * Z * lo * u = 32 * u * (Z * lo) by ring]
-      exact mul_le_mul_of_nonneg_left this (by positivity)
-    have h3 : N1 * (32 * (N1 * A) * (G * u)) ≤ 16 * T1 := by
-      have := mul_le_mul_of_nonneg_right hW2 hGu
-      rw [hT1]; nlinarith only [this]
-    calc _ ≤ N1 * (32 * (N1 * A) * (G * u)) :=
-          mul_le_mul_of_nonneg_left (h1.trans h2) (by linarith)
-      _ ≤ _ := h3
-  have hWu : W * u ≤ T1 := by
-    rw [hT1]; nlinarith only [mul_le_mul_of_nonneg_left hG (by positivity : (0 : ℝ) ≤ W * u)]
-  have p7 : N1 * (8 * Z * u) ≤ 4 * T1 := by
-    have h1 : N1 * (8 * Z * u) ≤ N1 * (8 * (N1 * A) * u) :=
-      mul_le_mul_of_nonneg_left (by nlinarith only [hZ, hu0]) (by linarith)
-    have h2 : N1 * (8 * (N1 * A) * u) ≤ 4 * (W * u) := by
-      nlinarith only [mul_le_mul_of_nonneg_right hW2 hu0.le]
-    linarith
-  have p9 : 3 * N1 + 5 / 4 ≤ 5 / 12 * T2 := by
-    have : W ≤ T2 := hT1W.trans hT12
-    linarith
-  have hgoal : (N1 * (2 * N * A + 1) * (20 * u ^ 2 + 280 * u) + 8 * N * A * L1) * G
-      = 20 * T2 + 280 * T1 + 8 * N * A * L1 * G := by
-    rw [hT1, hT2, hW]; ring
-  have e2 : N1 * (B1 - 1) + N1 * (B1 + (32 * N * A * L1 * G + n₀) / (4 * N1)
-      + 32 * Z * lo * u / S1 + 8 * Z * u) + 1
-      = 2 * N1 * ((2 * N * A + 1) * P1) + 2 * N1 * (32 * G * u ^ 2) + 3 * N1 + 1
-        + 8 * N * A * L1 * G + n₀ / 4 + N1 * (32 * Z * lo * u / S1) + N1 * (8 * Z * u) := by
-    rw [hB1]; field_simp; ring
-  rw [hgoal]
-  linarith [hb'.trans_eq e2, hT1W.trans hT12, hWu]
-
-/-- A records cap, `16 X b ≤ (S + 1) m`, once `X ≤ ρ`. -/
-theorem cap_half (X ρ b m N1 Z S1 εd B1 : ℝ) (hX : 0 ≤ X) (hXρ : X ≤ ρ)
-    (hρ : 256 * ρ * N1 * Z = S1 * εd) (hεd : 0 < εd) (hZ : 0 < Z) (hN1 : 0 ≤ N1) (hm0 : 0 ≤ m)
-    (hb : b ≤ N1 * (B1 + 8 * Z * m / εd)) (hm : εd * B1 / (8 * Z) ≤ m) :
-    16 * X * b ≤ S1 * m := by
-  have hB : B1 ≤ 8 * Z * m / εd := by
-    rw [div_le_iff₀ (by positivity)] at hm
-    rw [le_div_iff₀ hεd]; linarith
-  have hb' : b ≤ N1 * (16 * Z * m / εd) := by
-    refine hb.trans (mul_le_mul_of_nonneg_left ?_ hN1)
-    have : 16 * Z * m / εd = 8 * Z * m / εd + 8 * Z * m / εd := by ring
-    linarith
-  have h1 : 16 * X * b ≤ 16 * X * (N1 * (16 * Z * m / εd)) :=
-    mul_le_mul_of_nonneg_left hb' (by positivity)
-  have h2 : 16 * X * (N1 * (16 * Z * m / εd)) ≤ 16 * ρ * (N1 * (16 * Z * m / εd)) :=
-    mul_le_mul_of_nonneg_right (by linarith) (by positivity)
-  have h3 : 16 * ρ * (N1 * (16 * Z * m / εd)) = S1 * m := by
-    rw [show 16 * ρ * (N1 * (16 * Z * m / εd)) = 256 * ρ * N1 * Z * m / εd by ring, hρ]
-    field_simp
-  linarith
-
 /-- A run's ending, as `RunEnds` checks it, is `runProbes`'s. -/
 theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
     (C : Level5Settings) (rd : FreeMonoid α → ARU) :
@@ -214,8 +29,10 @@ theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D :
         EndsWell M bad D C.disagreementRate
           (searchingProbes rd C.walkStart ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
             Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
-          (harvestLaw D (fun z => (rd z).cut) C.walkStart) C.harvestYield
-          (runProbes C (fun z => (rd z).cut) s xs).2
+          (harvestLaw D (fun z => (rd z).cut) C.walkStart
+            ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
+          C.harvestYield (runProbes C (fun z => (rd z).cut) s xs).2
   | s, [] => by simp [RunEnds, runProbes, EndsWell]
   | s, x :: xs => by
     cases h : applyProbe C (fun z => (rd z).cut) s x with
@@ -229,8 +46,8 @@ theorem lintegral_level5_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ :
         {draws | let result := indecisiveLStarLevel5 C (O.read · ω) draws
           ¬ EndsWell M bad P.D C.disagreementRate
             (searchingProbes (O.read · ω) C.walkStart result.hypothesis) C.walkStart
-            (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart) C.harvestYield
-            result.ending} ∂μ
+            (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart result.hypothesis)
+            C.harvestYield result.ending} ∂μ
       = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
           (Level5EndsWell M bad P.D C (O.read · ω))
@@ -240,403 +57,192 @@ theorem lintegral_level5_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ :
 
 section Guarantee
 
-variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-  [IsProbabilityMeasure μ]
-
-/-- `Level5Guarantee` with the settings chosen before the oracle and the goodness level. -/
-def Level5Uniform {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Prop :=
-  let n : ℝ := Fintype.card σ + S
-  let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (20 / εd ^ 2 + 280 / εd)
-    + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K) / δ
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
-  ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
-    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + S + 3 ∧
-    ∀ (O : TriOracle μ M) (θ : ℝ),
-      let bad := fun q => ¬ O.Good θ q
-      0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
-      0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
-      0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
-          {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-            ¬ EndsWell M bad P.D settings.disagreementRate
-              (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-              settings.walkStart (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart)
-              ρ result.ending} ∂μ
-        ≤ ENNReal.ofReal δ
+variable [Nonempty α] {σ : Type*} [Fintype σ]
 
 /-- `Level5Guarantee` with the settings chosen before the probability space, the probes'
 distribution of length `L`, the oracle and the goodness level. -/
-def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (S k : ℕ) : Prop :=
-  let n : ℝ := Fintype.card σ + S
+def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) : Prop :=
+  let n : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (20 / εd ^ 2 + 280 / εd)
-    + 8 * (n + 3) * A * (L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K) / δ
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let K : ℝ := V * (112 / εd + 1)
+  let W : ℝ := (L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
-    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + S + 3 ∧
-    1 ≤ settings.recordsToMove ∧
+    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
     ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
       (P : PrefixDistribution α), P.L = L → ∀ (O : TriOracle μ M) (θ : ℝ),
       let bad := fun q => ¬ O.Good θ q
       0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
-      0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
-      0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
+      0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
+      1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
             ¬ EndsWell M bad P.D settings.disagreementRate
               (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-              settings.walkStart (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart)
-              ρ result.ending} ∂μ
+              settings.walkStart
+              (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+              (3 * εd / 16) result.ending} ∂μ
         ≤ ENNReal.ofReal δ
 
-set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition
-theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ)
-    (δ : ℝ) (S k : ℕ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1)
-    (hL : 1 ≤ L) : Level5UniformAll M εd L δ S k := by
+set_option maxHeartbeats 1000000 in -- the chosen settings meet every condition
+theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
+    (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L) :
+    Level5UniformAll M εd L δ k := by
   dsimp only [Level5UniformAll]
-  generalize hρ : ((S : ℝ) + 1) * εd / (256 * ((Fintype.card σ : ℝ) + S + 1)
-    * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) = ρ
-  generalize hK : ((Fintype.card σ : ℝ) + S + 1) * (2 * ((Fintype.card σ : ℝ) + S + 3)
-    * Fintype.card α + 1) * (20 / εd ^ 2 + 280 / εd)
-    + 8 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α * (L + 1) = K
-  generalize hG : Real.log (4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ) + 7 * K)
-    / δ) + Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ)
-    + 7 * K) / δ)) = G₀
-  -- the problem's sizes
-  have hA1 : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ1 : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
-  have hS0 : (0 : ℝ) ≤ S := Nat.cast_nonneg _
-  have hL1 : (1 : ℝ) ≤ L := by exact_mod_cast hL
-  have hNr : (((Fintype.card σ + S + 3 : ℕ) : ℝ)) = ((Fintype.card σ : ℝ) + S + 1) + 2 := by
-    push_cast; ring
-  have hZ1 : (S : ℝ) + 1 ≤ (Fintype.card σ : ℝ) * Fintype.card α + S + 1 := by
-    have : (0 : ℝ) ≤ (Fintype.card σ : ℝ) * Fintype.card α := by positivity
+  set N : ℕ := Fintype.card σ + 2
+  set A : ℕ := Fintype.card α
+  have hA1 : (1 : ℝ) ≤ A := by exact_mod_cast Fintype.card_pos
+  have hc0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
+  have hNr : ((N : ℕ) : ℝ) = (Fintype.card σ : ℝ) + 2 := by simp only [N]; push_cast; ring
+  have hN2 : (2 : ℝ) ≤ N := by rw [hNr]; linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤ Fintype.card σ)]
+  set V : ℕ := N * (N * A + 1)
+  have hVr : (V : ℝ) = ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1) := by
+    simp only [V]; push_cast; rw [hNr]
+  have hV6 : (6 : ℝ) ≤ V := by
+    rw [hVr]
+    have h1 : (2 : ℝ) ≤ Fintype.card σ + 2 := by linarith
+    have h2 : (3 : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * A + 1 := by nlinarith
+    nlinarith [mul_le_mul h1 h2 (by norm_num) (by linarith)]
+  set G := Real.log (4 * ((Fintype.card σ + 2) * ((Fintype.card σ + 2) * (A : ℝ) + 1))
+    * (2 * (Fintype.card σ + 2) * A + 4) / δ) with hGd
+  have hX : 4 * ((V : ℝ) * (2 * N * A + 4)) / δ
+      = 4 * ((Fintype.card σ + 2) * ((Fintype.card σ + 2) * (A : ℝ) + 1))
+        * (2 * (Fintype.card σ + 2) * A + 4) / δ := by
+    rw [hVr, hNr]; ring
+  have hX0 : 0 < 4 * ((V : ℝ) * (2 * N * A + 4)) / δ := by positivity
+  have hX8 : 8 ≤ 4 * ((V : ℝ) * (2 * N * A + 4)) / δ := by
+    rw [le_div_iff₀ hδ0]
+    have h1 : (4 : ℝ) ≤ 2 * N * A + 4 := by nlinarith
+    have h2 : (24 : ℝ) ≤ (V : ℝ) * (2 * N * A + 4) := by nlinarith
+    nlinarith
+  have hG2 : 2 ≤ G := by
+    rw [hGd, ← hX]
+    have : Real.exp 2 ≤ 8 := by
+      have := Real.exp_one_lt_d9
+      have h2 : Real.exp 2 = Real.exp 1 ^ 2 := by rw [← Real.exp_nat_mul]; norm_num
+      rw [h2]; nlinarith [Real.exp_pos 1]
+    rw [Real.le_log_iff_exp_le hX0]
     linarith
-  have hZN : (Fintype.card σ : ℝ) * Fintype.card α + S + 1
-      ≤ ((Fintype.card σ : ℝ) + S + 1) * Fintype.card α := by nlinarith only [hA1, hS0]
-  have hρ0 : 0 < ρ := by rw [← hρ]; positivity
-  have hρe : 256 * ρ * ((Fintype.card σ : ℝ) + S + 1)
-      * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) = (S + 1) * εd := by
-    rw [← hρ]; field_simp
-  have hρεd : 512 * ρ ≤ εd := by
-    have h2 : (2 : ℝ) ≤ (Fintype.card σ : ℝ) + S + 1 := by linarith
-    have hZ0 : (0 : ℝ) < (Fintype.card σ : ℝ) * Fintype.card α + S + 1 := by positivity
-    nlinarith only [hρe, h2, hZ1, hρ0, hZ0, hεd0, mul_le_mul_of_nonneg_left hZ1 hρ0.le,
-      mul_le_mul_of_nonneg_left h2 (mul_pos hρ0 hZ0).le]
-  -- the edges' balance
-  obtain ⟨s, hs⟩ : ∃ x : ℝ, x = Real.sqrt (Fintype.card α * ρ / 3) := ⟨_, rfl⟩
-  have hs0 : 0 ≤ s := hs ▸ Real.sqrt_nonneg _
-  have hs2 : s ^ 2 = Fintype.card α * ρ / 3 := by rw [hs]; exact Real.sq_sqrt (by positivity)
-  -- the level and its logarithm
-  have hK100 : 100 ≤ K := by
-    rw [← hK]
-    have h1 : (1 : ℝ) ≤ (Fintype.card σ : ℝ) + S + 1 := by linarith
-    have h2 : (1 : ℝ) ≤ 2 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α + 1 := by
-      nlinarith only [hA1, hS0, hQ1]
-    have h3 : 280 ≤ 20 / εd ^ 2 + 280 / εd := by
-      have : 280 ≤ 280 / εd := by rw [le_div_iff₀ hεd0]; linarith
-      have : 0 ≤ 20 / εd ^ 2 := by positivity
-      linarith
-    have h4 : 0 ≤ 8 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α * (L + 1) := by
-      positivity
-    nlinarith only [mul_le_mul h1 h2 zero_le_one (by linarith), h3, h4,
-      mul_le_mul (mul_le_mul h1 h2 zero_le_one (by linarith)) h3 (by norm_num) (by positivity)]
-  set Xl := 4 * (2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ) + 7 * K) / δ with hXl
-  have hXl0 : 0 < Xl := by positivity
-  have hlogX : 1 ≤ Real.log Xl := by
-    rw [Real.le_log_iff_exp_le hXl0]
-    refine Real.exp_one_lt_three.le.trans ?_
-    rw [hXl, le_div_iff₀ hδ0]
-    nlinarith only [hK100, hδ1, hδ0, sq_nonneg K,
-      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ))]
-  have hG1₀ : Real.log Xl ≤ G₀ := by
-    rw [← hG]
-    have : 0 ≤ Real.log (2 * Real.log Xl) := Real.log_nonneg (by linarith)
-    linarith
-  obtain ⟨G, hGd⟩ : ∃ G : ℝ, G = G₀ := ⟨_, rfl⟩
-  have hG1 : Real.log Xl ≤ G := by linarith
-  have hlo : Real.log (8 / δ) ≤ G := by
-    refine le_trans (Real.log_le_log (by positivity) ?_) hG1
-    rw [hXl, div_le_div_iff_of_pos_right hδ0]
-    nlinarith only [hK100, sq_nonneg K,
-      (by positivity : (0 : ℝ) ≤ 2 ^ (Fintype.card σ + S + 5) * (Fintype.card α : ℝ))]
-  have hlo0 : 0 ≤ Real.log (8 / δ) :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ0]; linarith)
-  have hGge : 1 ≤ G := hlogX.trans hG1
+  have hexpG : Real.exp (-G) = δ / (4 * ((V : ℝ) * (2 * N * A + 4))) := by
+    rw [Real.exp_neg, hGd, ← hX, Real.exp_log hX0]
+    field_simp
   have hlogG : Real.log (1 / Real.exp (-G)) = G := by
     rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
-  -- the counts
   obtain ⟨n₀, hn₀d⟩ : ∃ x : ℕ, x = ⌈6 * G⌉₊ := ⟨_, rfl⟩
   have hn₀ : (n₀ : ℝ) ≤ 6 * G + 1 := by
     rw [hn₀d]; exact (Nat.ceil_lt_add_one (by positivity)).le
   have hn₀l : 6 * G ≤ (n₀ : ℝ) := by rw [hn₀d]; exact Nat.le_ceil _
-  obtain ⟨m, hmd⟩ : ∃ x : ℕ, x = ⌈εd * ((2 * (((Fintype.card σ : ℝ) + S + 1) + 2)
-      * Fintype.card α + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 32 * G / εd ^ 2 + 2) / (8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1))
-    + εd * (32 * (((Fintype.card σ : ℝ) + S + 1) + 2) * Fintype.card α * (L + 1) * G
-      + n₀) / (32 * ((Fintype.card σ : ℝ) + S + 1)
-        * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1))
-    + 4 * Real.log (8 / δ) / (S + 1)⌉₊ := ⟨_, rfl⟩
-  have hm0 : (0 : ℝ) ≤ εd * ((2 * (((Fintype.card σ : ℝ) + S + 1) + 2)
-      * Fintype.card α + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 32 * G / εd ^ 2 + 2) / (8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) := by
-    positivity
-  have hm1 : (0 : ℝ) ≤ εd * (32 * (((Fintype.card σ : ℝ) + S + 1) + 2) * Fintype.card α
-      * (L + 1) * G + n₀) / (32 * ((Fintype.card σ : ℝ) + S + 1)
-        * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) := by positivity
-  have hm2 : (0 : ℝ) ≤ 4 * Real.log (8 / δ) / (S + 1) := by positivity
-  have hmu := (Nat.ceil_lt_add_one (add_nonneg (add_nonneg hm0 hm1) hm2)).le
-  have hml := Nat.le_ceil (εd * ((2 * (((Fintype.card σ : ℝ) + S + 1) + 2)
-      * Fintype.card α + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 32 * G / εd ^ 2 + 2) / (8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1))
-    + εd * (32 * (((Fintype.card σ : ℝ) + S + 1) + 2) * Fintype.card α * (L + 1) * G
-      + n₀) / (32 * ((Fintype.card σ : ℝ) + S + 1)
-        * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1))
-    + 4 * Real.log (8 / δ) / (S + 1))
-  rw [← hmd] at hmu hml
-  obtain ⟨b, hbd⟩ : ∃ x : ℕ, x = ⌈((S : ℝ) + Fintype.card σ + 1)
-      * ((2 * (((Fintype.card σ + S + 3 : ℕ) : ℝ)) * Fintype.card α + 1)
-        * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) * (m : ℝ) / εd
-      + 32 * G / εd ^ 2 + 1)⌉₊ := ⟨_, rfl⟩
-  have hbl := Nat.le_ceil (((S : ℝ) + Fintype.card σ + 1)
-      * ((2 * (((Fintype.card σ + S + 3 : ℕ) : ℝ)) * Fintype.card α + 1)
-        * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) * (m : ℝ) / εd
-      + 32 * G / εd ^ 2 + 1))
-  have hbu := (Nat.ceil_lt_add_one (show (0 : ℝ) ≤ ((S : ℝ) + Fintype.card σ + 1)
-      * ((2 * (((Fintype.card σ + S + 3 : ℕ) : ℝ)) * Fintype.card α + 1)
-        * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-      + 8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) * (m : ℝ) / εd
-      + 32 * G / εd ^ 2 + 1) by positivity)).le
-  rw [← hbd] at hbl hbu
-  -- the budget's bound
-  have hbK : (b : ℝ) ≤ K * G := by
-    rw [← hK]
-    have := budget_le ((Fintype.card σ : ℝ) + S + 1) (Fintype.card α) (L + 1) εd G
-      (Real.log (8 / δ)) (S + 1) ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) n₀ m b
-      (by linarith) hA1 hεd0 hεd1.le hGge hlo0 hlo (by linarith) (by positivity) hZN hn₀ hmu
-      (by rw [hNr] at hbu; linarith)
-    convert this using 2
-    ring
-  -- shared facts
-  have hΛ0 : 0 ≤ unionLog (α := α) σ S δ := by
+  obtain ⟨b, hbd⟩ : ∃ x : ℕ, x = ⌈(V : ℝ) * (112 * G / εd + 1)⌉₊ := ⟨_, rfl⟩
+  have hbl : (V : ℝ) * (112 * G / εd + 1) ≤ b := by rw [hbd]; exact Nat.le_ceil _
+  have hbu : (b : ℝ) ≤ (V : ℝ) * (112 * G / εd + 1) + 1 := by
+    rw [hbd]; exact (Nat.ceil_lt_add_one (by positivity)).le
+  have hbK : (b : ℝ) ≤ (V : ℝ) * (112 / εd + 1) * G := by
+    have : (V : ℝ) * (112 * G / εd + 1) + 1 ≤ (V : ℝ) * (112 / εd + 1) * G := by
+      have e : (V : ℝ) * (112 / εd + 1) * G = V * (112 * G / εd) + V * G := by ring
+      rw [e]
+      have : (V : ℝ) + 1 ≤ V * G := by nlinarith
+      nlinarith
+    linarith
+  set C : Level5Settings := ⟨k, N, 1 / 2, 3 / 4, 1 / 2, εd, 3 / 5, 3 / 4, 7 / 8 * εd, Real.exp (-G),
+    n₀, fun _ => 2 * (L + 1) * (1 + 3 / 4 * N) * G + 1, 3 / 4, 3 / 4 * εd, b⟩ with hC
+  refine ⟨C, rfl, rfl, by rw [← hVr]; exact hbK, rfl, fun μ _ P hP O θ hθ hθc hκ hε hεc hpc => ?_⟩
+  subst hP
+  have hy : 3 * εd / 16 ≤ C.harvestYield := by
+    simp only [Level5Settings.harvestYield, hC]
+    refine le_min (by linarith) (le_min (by linarith) (by linarith))
+  refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
+    (EndsWell.mono_yield hy h)) ?_
+  refine (lintegral_level5_eq M O _ P C).trans_le ?_
+  refine (level5_round_risk_holds M O θ P C).trans ?_
+  have hRB := level5_risk_bound_holds σ O.κ O.ε θ P.D P.L C δ
+  dsimp only at hRB
+  have hp₀ : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
+  have hΛ0 : 0 ≤ unionLog (α := α) σ δ := by
     unfold unionLog
     refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
     rw [le_div_iff₀ hδ0]
-    have h3 : (3 : ℝ) ≤ Fintype.card σ + S + 3 := by linarith
-    nlinarith only [h3, hA1, hδ1, hδ0]
-  have hsN : 0 ≤ 8 * ((Fintype.card σ : ℝ) + S + 3) * (L + 1) * s := by positivity
-  have hn1 : (1 : ℝ) ≤ (Fintype.card σ : ℝ) + S + 1 := by linarith
-  have hZ0 : (0 : ℝ) < (Fintype.card σ : ℝ) * Fintype.card α + S + 1 := by positivity
-  have hm0' : (0 : ℝ) ≤ m := Nat.cast_nonneg _
-  have hcap : ∀ X : ℝ, 0 ≤ X → X ≤ ρ → 16 * X * b ≤ ((S : ℝ) + 1) * m := by
-    intro X hX hXρ
-    refine cap_half X ρ b m ((Fintype.card σ : ℝ) + S + 1)
-      ((Fintype.card σ : ℝ) * Fintype.card α + S + 1) ((S : ℝ) + 1) εd
-      ((2 * (((Fintype.card σ : ℝ) + S + 1) + 2) * Fintype.card α + 1)
-        * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1) + 32 * G / εd ^ 2 + 2)
-      hX hXρ hρe hεd0 hZ0 (by linarith) hm0' ?_ (by linarith)
-    rw [hNr] at hbu
-    have e : ((S : ℝ) + Fintype.card σ + 1) = (Fintype.card σ : ℝ) + S + 1 := by ring
-    rw [e] at hbu
-    nlinarith only [hbu, hn1]
-  refine ⟨⟨k, m, Fintype.card σ + S + 3, 1 / 2,
-    8 * s + 1 / ((L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, 3 / 5, 3 / 8,
-    7 / 8 * εd, Real.exp (-G), n₀, fun _ => 6 * (L + 1) * G, 4 * s * (L + 1) / Fintype.card α,
-    3 / 4 * εd, b⟩,
-    rfl, rfl, by rw [← hGd]; exact hbK, rfl, ?_, fun μ _ P hP O θ hθ hθc hκ hκc hε hεc => ?_⟩
-  · have hpos : (0 : ℝ) < εd * ((2 * (((Fintype.card σ : ℝ) + S + 1) + 2)
-        * Fintype.card α + 1) * (6 * G / εd ^ 2 + 112 * G / εd + 2 * (n₀ : ℝ) / εd + 1)
-        + 32 * G / εd ^ 2 + 2) / (8 * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) := by
-      positivity
-    have : (0 : ℝ) < m := by linarith
-    exact_mod_cast this
-  subst hP
-  have hp₀ : 0 < prefixMax P.D k := prefixMax_pos P.D k
-  have hpl0 : 0 ≤ prefixMax P.D k * unionLog (α := α) σ S δ := mul_nonneg hp₀.le hΛ0
-  rw [← hs] at hκc
-  have hεN0 : 0 ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε := by positivity
-  have hpl : 3 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ ρ := by linarith
-  have hερ : ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε ≤ ρ := by linarith
-  have hκρ : 4 * O.κ ≤ ρ := by nlinarith only [hκc, hsN, hκ]
-  have hθn : ((Fintype.card σ : ℝ) + S + 1) * θ ≤ 1 / 768 := by
-    have : 0 ≤ ((Fintype.card σ : ℝ) + S + 1) * θ := by positivity
-    nlinarith only [hθc, this, hL1]
-  have hRB := level5_risk_bound_holds σ O.κ O.ε θ P.D P.L ⟨k, m, Fintype.card σ + S + 3, 1 / 2,
-    8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, 3 / 5, 3 / 8,
-    7 / 8 * εd, Real.exp (-G), n₀, fun _ => 6 * (P.L + 1) * G,
-    4 * s * (P.L + 1) / Fintype.card α, 3 / 4 * εd, b⟩ (2 * O.κ) δ S
-  dsimp only at hRB
-  rw [hlogG] at hRB
-  have hrisk := hRB hδ0 hδ1 hL le_rfl hκ le_rfl ?_ hε ?_ hθ ?_ ?_ ?_ (by norm_num) ?_ ?_ hεd1
-    rfl rfl rfl rfl rfl rfl ?_ ?_ ?_ (Real.exp_pos _) ?_ hbl ?_ ?_ ?_ ?_
-  · -- the yield the tests certify is at least `ρ`
-    have t1 : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-        = 32 * ((P.L : ℝ) + 1) * ρ / 3 := by
-      rw [show 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-        = 32 * ((P.L : ℝ) + 1) * s ^ 2 / Fintype.card α by ring, hs2]
-      field_simp
-    have t2 : 0 ≤ 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-        * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by positivity
-    have hy : ρ ≤ Level5Settings.harvestYield ⟨k, m, Fintype.card σ + S + 3, 1 / 2,
-        8 * s + 1 / ((P.L + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))), 1 / 4, εd, 3 / 5, 3 / 8,
-        7 / 8 * εd, Real.exp (-G), n₀, fun _ => 6 * (P.L + 1) * G,
-        4 * s * (P.L + 1) / Fintype.card α, 3 / 4 * εd, b⟩ := by
-      unfold Level5Settings.harvestYield
-      dsimp only
-      refine le_min (by linarith) (le_min ?_ (by linarith))
-      have e : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-          * (8 * s + 1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))))
-          = 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-            + 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-              * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by ring
-      rw [e, t1]
-      nlinarith only [t2, hρ0, hL1]
-    refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
-      (EndsWell.mono_yield hy h)) ?_
-    refine (lintegral_level5_eq M O _ P _).trans_le ?_
-    exact (level5_round_risk_holds M O θ P _ (2 * O.κ) le_rfl).trans hrisk
-  · -- κ against the length
-    have hs1 : 0 < s := by
-      rcases hs0.lt_or_eq with h | h
-      · exact h
-      · rw [← h] at hs2; have : 0 < (Fintype.card α : ℝ) * ρ / 3 := by positivity
-        linarith
-    set N : ℝ := (Fintype.card σ : ℝ) + S + 3
-    have hN1 : 1 ≤ N := by simp only [N]; linarith
-    have hρN : ρ ≤ 4 * N * s := by
-      have h1 : ρ ^ 2 ≤ (4 * N * s) ^ 2 := by
-        rw [mul_pow, hs2]
-        have : ρ ≤ 16 * N ^ 2 / 3 * Fintype.card α := by
-          have : (1 : ℝ) ≤ N ^ 2 := one_le_pow₀ hN1
-          nlinarith only [this, hA1, hρεd, hεd1]
-        nlinarith only [this, hρ0]
-      exact (pow_le_pow_iff_left₀ hρ0.le (by positivity) (by norm_num)).1 h1
-    have : 4 * O.κ * (8 * N * (P.L + 1) * s) ≤ 4 * N * s := by nlinarith only [hκc, hρN, hκ]
-    have hNs : 0 < N * s := by positivity
-    nlinarith only [this, hNs]
-  · have e : 4 * O.ε * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1))
-        = 4 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε) := by ring
+    nlinarith
+  have hL1 : (1 : ℝ) ≤ P.L := by exact_mod_cast hL
+  have hpΛ : prefixMax P.D k * unionLog (α := α) σ δ ≤ εd / (1024 * (P.L + 1)) := by
+    rw [le_div_iff₀ (by positivity)]; nlinarith
+  have hθ' : ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 768 := by
+    have : 0 ≤ ((Fintype.card σ : ℝ) + 1) * θ := by positivity
+    nlinarith
+  have hLn1 : (1 : ℝ) ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) := by nlinarith
+  have hθL : ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 384 := by
+    have e : 384 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ
+        = 384 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
+    rw [e] at hθc
+    linarith
+  have hθ1 : θ ≤ 1 / 384 := le_trans (le_mul_of_one_le_left hθ hLn1) hθL
+  set pΛ := prefixMax P.D k * unionLog (α := α) σ δ
+  have hpΛ0 : 0 ≤ pΛ := mul_nonneg hp₀ hΛ0
+  have hpΛL : ((P.L : ℝ) + 1) * pΛ ≤ εd / 1024 := by
+    have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D k
+        = 1024 * (((P.L : ℝ) + 1) * pΛ) := by simp only [pΛ]; ring
+    rw [e] at hpc
+    linarith
+  have hpΛ1 : pΛ ≤ εd / 2048 := by
+    have : 2 * pΛ ≤ ((P.L : ℝ) + 1) * pΛ := by nlinarith
+    linarith
+  refine hRB hδ0 hδ1 hL (by simp [C, N]) hκ hε hθ ?_ ?_ ?_ ?_ ?_ hεd1 rfl rfl rfl rfl rfl rfl ?_ ?_
+    ?_ (Real.exp_pos _) ?_ ?_ ?_
+  · simp only [hC]; linarith
+  · simp only [hC]
+    have e : 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1)) * θ
+        = 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
     rw [e]; linarith
-  · rw [hNr]
-    have h1 : 48 * θ ≤ 1 / (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1 + 2)) := by
-      rw [le_div_iff₀ (by positivity)]
-      have : 0 ≤ θ * ((P.L : ℝ) + 1) := by positivity
-      nlinarith only [hθc, this, hn1]
-    have : 0 ≤ 8 * s := by positivity
+  · simp only [hC]
+    have e : 6 * ((Fintype.card σ : ℝ) + 1) * θ = 6 * (((Fintype.card σ : ℝ) + 1) * θ) := by ring
+    have e2 : 2 * prefixMax P.D k * unionLog (α := α) σ δ = 2 * pΛ := by simp only [pΛ]; ring
+    rw [e, e2]; linarith
+  · simp only [hC]
+    have e : 32 * ((P.L : ℝ) + 1) * prefixMax P.D k * unionLog (α := α) σ δ
+        = 32 * (((P.L : ℝ) + 1) * pΛ) := by simp only [pΛ]; ring
+    rw [e]; linarith
+  · simp only [hC]
+    have e : 256 * prefixMax P.D k * unionLog (α := α) σ δ = 256 * pΛ := by simp only [pΛ]; ring
+    rw [e]; linarith
+  · simp only [hC]; rw [hlogG]; exact hn₀l
+  · simp only [hC]; rw [hlogG]; linarith
+  · intro j
+    simp only [hC]
+    rw [hlogG]
     linarith
-  · linarith
-  · have : 16 * (prefixMax P.D k * unionLog (α := α) σ S δ) ≤ 1 / 4 := by linarith
+  · rw [show versionBound C (Fintype.card α) = V from rfl]
+    simp only [hC]
+    rw [hexpG]
+    have : (0 : ℝ) < 4 * ((V : ℝ) * (2 * N * A + 4)) := by positivity
+    rw [mul_div_assoc', div_le_iff₀ this]
+    nlinarith
+  · rw [show versionBound C (Fintype.card α) = V from rfl]
+    simp only [hC]
+    rw [hlogG]
+    exact hbl
+  · simp only [hC]
+    have hNA : ((N : ℝ) + 1) * (A : ℝ) ^ N
+        = ((Fintype.card σ : ℝ) + 3) * (A : ℝ) ^ (Fintype.card σ + 2) := by
+      rw [hNr]; ring
+    rw [hNA]
+    have hW0 : 0 ≤ ((P.L : ℝ) + 1) * (((Fintype.card σ : ℝ) + 3)
+        * (A : ℝ) ^ (Fintype.card σ + 2)) * (O.ε + O.κ) := by positivity
+    have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
+        * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
+    have := mul_le_mul_of_nonneg_right hbK' hW0
     linarith
-  · have t1 : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-        = 32 * ((P.L : ℝ) + 1) * ρ / 3 := by
-      rw [show 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-        = 32 * ((P.L : ℝ) + 1) * s ^ 2 / Fintype.card α by ring, hs2]
-      field_simp
-    have t2 : 0 ≤ 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-        * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by positivity
-    have e : 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-        * (8 * s + 1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))))
-        = 4 * s * ((P.L : ℝ) + 1) / Fintype.card α * (8 * s)
-          + 4 * s * ((P.L : ℝ) + 1) / Fintype.card α
-            * (1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ)))) := by ring
-    rw [e, t1]
-    have := mul_le_mul_of_nonneg_left hpl (by positivity : (0 : ℝ) ≤ (P.L : ℝ) + 1)
-    nlinarith only [this, t2]
-  · linarith
-  · exact hn₀l
-  · intro _
-    rw [hNr]
-    have h12 : 12 * θ * ((Fintype.card σ : ℝ) + S + 1 + 2) ≤ 1 / 8 := by
-      have : 0 ≤ θ := hθ
-      nlinarith only [hθn, this, hn1]
-    have hLG : 0 < ((P.L : ℝ) + 1) * G := by positivity
-    nlinarith only [h12, hLG]
-  · intro _
-    rw [hNr]
-    have : 0 ≤ 12 * θ * ((Fintype.card σ : ℝ) + S + 1 + 2) := by positivity
-    have hLG : 0 < ((P.L : ℝ) + 1) * G := by positivity
-    nlinarith only [this, hLG]
-  · rw [show Fintype.card σ + S + 3 + 2 = Fintype.card σ + S + 5 by ring]
-    rw [hGd]
-    exact level_le _ K b G₀ δ (by positivity) hK100 hδ0 hδ1 hG.symm (hGd ▸ hbK)
-  · have : 4 * Real.log (8 / δ) / (S + 1) ≤ m := by linarith
-    rw [div_le_iff₀ (by positivity)] at this
-    linarith
-  · rw [hNr]
-    have hY : 0 ≤ 32 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α * (P.L + 1) * G
-        + n₀ := by positivity
-    have h1 : εd * (32 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α * (P.L + 1) * G
-        + n₀) / (32 * ((Fintype.card σ : ℝ) + S + 1)
-          * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)) ≤ m := by linarith
-    have e : ((S : ℝ) + 1) * (εd * (32 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α
-        * (P.L + 1) * G + n₀) / (32 * ((Fintype.card σ : ℝ) + S + 1)
-          * ((Fintype.card σ : ℝ) * Fintype.card α + S + 1)))
-        = 8 * ρ * (32 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α * (P.L + 1) * G
-          + n₀) := by
-      rw [← hρ]; field_simp; ring
-    have h2 := mul_le_mul_of_nonneg_left h1 (by positivity : (0 : ℝ) ≤ (S : ℝ) + 1)
-    rw [e] at h2
-    have h12 : 12 * θ * ((Fintype.card σ : ℝ) + S + 1 + 2) ≤ 1 := by
-      have : 0 ≤ θ := hθ
-      nlinarith only [hθn, this, hn1]
-    have hW : 0 ≤ ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α * (P.L + 1) * G := by
-      positivity
-    have h3 : 2 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α
-        * (8 * (P.L + 1) * (1 + 12 * θ * ((Fintype.card σ : ℝ) + S + 1 + 2)) * G) + n₀
-        ≤ 32 * ((Fintype.card σ : ℝ) + S + 1 + 2) * Fintype.card α * (P.L + 1) * G + n₀ := by
-      nlinarith only [mul_le_mul_of_nonneg_left h12 hW]
-    have h4 := mul_le_mul (by linarith : 16 * (2 * O.κ) ≤ 8 * ρ) h3 (by positivity)
-      (by positivity)
-    linarith
-  · have hR : (8 * s + 1 / (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))))
-        * (((P.L : ℝ) + 1) * (((Fintype.card σ + S + 3 : ℕ) : ℝ))) + 2 * (1 / 2)
-        + 2 * (((Fintype.card σ + S + 3 : ℕ) : ℝ)) * Fintype.card α
-          * (4 * s * (P.L + 1) / Fintype.card α)
-        = 2 * (8 * ((Fintype.card σ : ℝ) + S + 3) * (P.L + 1) * s + 1) := by
-      push_cast
-      field_simp
-      ring
-    rw [hR]
-    have := hcap (4 * O.κ * (8 * ((Fintype.card σ : ℝ) + S + 3) * (P.L + 1) * s + 1))
-      (by positivity) hκc
-    linarith
-  · have := hcap (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + S + 1) * O.ε
-      + 3 * (prefixMax P.D k * unionLog (α := α) σ S δ)) (by positivity) (by linarith)
-    linarith
-
-
-
-theorem level5_guarantee_uniform (M : _root_.DFA α σ) (εd : ℝ) (P : PrefixDistribution α)
-    (δ : ℝ) (S k : ℕ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1)
-    (hL : 1 ≤ P.L) : Level5Uniform μ M εd P δ S k := by
-  obtain ⟨settings, h1, h2, h3, h4, -, h⟩ :=
-    level5_guarantee_all (σ := σ) M εd P.L δ S k hδ0 hδ1 hεd0 hεd1 hL
-  exact ⟨settings, h1, h2, h3, h4, fun O θ => h μ P rfl O θ⟩
-
-theorem level5_guarantee (M : _root_.DFA α σ) (O : TriOracle μ M) (θ εd : ℝ)
-    (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Level5Guarantee M O θ εd P δ S k := by
-  intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hκc hε hεc
-  obtain ⟨settings, h1, h2, h3, -, h⟩ :=
-    level5_guarantee_uniform (μ := μ) M εd P δ S k hδ0 hδ1 hεd0 hεd1 hL
-  exact ⟨settings, h1, h2, h3, h O θ hθ hθc hκ hκc hε hεc⟩
 
 end Guarantee
 
 theorem level5_correct_holds : Level5Correct := by
-  intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ S k
-  exact level5_guarantee M O θ εd P δ S k
+  intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ k
+  intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hε hεc hpc
+  obtain ⟨settings, h1, h2, h3, -, h⟩ :=
+    level5_guarantee_all (σ := σ) M εd P.L δ k hδ0 hδ1 hεd0 hεd1 hL
+  exact ⟨settings, h1, h2, h3, h μ P rfl O θ hθ hθc hκ hε hεc hpc⟩
 
 theorem level5_family_correct_holds : Level5FamilyCorrect := by
-  intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ S k
-  exact level5_guarantee fam.M fam.oracle θ εd P δ S k
+  intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ k
+  exact level5_correct_holds fam.M fam.oracle θ εd P δ k
 
 end OrthoDFA

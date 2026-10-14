@@ -1,26 +1,16 @@
-import OrthoDFA.Proofs.Level5Sub
-import OrthoDFA.Proofs.Level5Law
-import OrthoDFA.Proofs.DTree
-import OrthoDFA.Proofs.HypothesisDFA
-import OrthoDFA.Proofs.SeqRate
+import OrthoDFA.Proofs.Level5Clean
+import OrthoDFA.Proofs.FixTime
 
 /-!
-# A harvest's sampler finds mostly strings at read-states that are not good
+# A test errs at most once a hypothesis
 
-Each place's counts only grow, by the probe's own charge, and the round keeps the hypothesis each
-probe ran under. The sampler draws a fresh probe under one of them. Under every hypothesis of the
-class, whatever came before, `NoiseEvent` bounds the good read-states' undecided strings by `θgs` a
-probe at the start and by `θg` of an edge's reads there. What the tests certify is the mixture's
-own total: a count less twice the running sum of its means, exponentiated, is a supermartingale,
-and so is an edge's reads' means' half-sum less its reads, so each passes `log(1/a)` times its
-scale only with chance `a`. A start or edge harvest whose sampler fails `MixGood` has one of them
-past that. A stretch keeps one hypothesis: where its sampler fails `MixGood` while it searches on
-at least `φpt/2` of the probes, a search stops at an undecided middle at most `θpt` of the time,
-and the middles test, a likelihood ratio that is a supermartingale over the stretch, fires in it
-with chance at most `a`; the search gate's own test of `φpt/2` against `φpt`, which its pass and
-`firstLook ≥ 6 log(1/a)` make fire (`seqRate_share`), fires in a stretch searching on less than
-`φpt/2` with chance at most `a`. The class's trees only gain splits that are
-not genuine, so a run that ends in the class was in it throughout, at every hypothesis it kept.
+Every count starts afresh at each change of hypothesis, and within a hypothesis its probes are
+fresh draws at a fixed tree and edges. A test's weight, its likelihood ratio or an exponentiated
+count less twice its running mean, is a product of one factor a probe; where the factors average
+at most one, the weight times `a` passing one is Ville's event, of chance at most `a`
+(`evL_le`). A round that ends at a site where its hypothesis's sampler is not good has passed one
+such weight within the version it ends in (`bad_end_skip`), and the versions number at most
+`versionBound`, so each test errs with chance at most `versionBound · a` over the round.
 -/
 
 namespace OrthoDFA
@@ -29,259 +19,7 @@ open MeasureTheory ProbabilityTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-section Counts
-
-variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
-
-/-- A probe's outcome adds its own charge to each place's counts. -/
-theorem recordProbe_countProbe (s : Level5State α) (x : FreeMonoid α) :
-    (recordProbe C cut s x).edgeUndecided =
-      (fun p c => s.edgeUndecided p c ++ edgeHarvestBy cut s.tree s.edges C.walkStart x (p, c))
-      ∧ (recordProbe C cut s x).edgeReads
-        = (fun p c => s.edgeReads p c + edgeReadsBy cut s.tree s.edges C.walkStart x (p, c))
-      ∧ (recordProbe C cut s x).startUndecided = s.startUndecided
-          ++ startHarvestBy cut s.tree C.walkStart x
-      ∧ (recordProbe C cut s x).probes = s.probes + 1 := by
-  unfold recordProbe
-  split
-  · split
-    · split <;> simp [Level5State.countProbe, Level5State.setEdge, Level5State.newStretch]
-    · simp [Level5State.countProbe]
-  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
-  all_goals simp [Level5State.countProbe]
-
-theorem settleOne_counts {m Lmax : ℕ} {s s' : Level5State α}
-    (h : settleOne cut m Lmax s = .inl s') :
-    s'.edgeUndecided = s.edgeUndecided ∧ s'.edgeReads = s.edgeReads
-        ∧ s'.startUndecided = s.startUndecided ∧ s'.probes = s.probes := by
-  unfold settleOne at h
-  split_ifs at h with hv
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    unfold fixEdge
-    simp only []
-    split
-    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
-    · simp [Level5State.setEdge, Level5State.newStretch]
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    exact ⟨rfl, rfl, rfl, rfl⟩
-
-theorem applyProbe_counts {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C cut s x = .inl s') :
-    s'.edgeUndecided = (recordProbe C cut s x).edgeUndecided
-        ∧ s'.edgeReads = (recordProbe C cut s x).edgeReads
-      ∧ s'.startUndecided = (recordProbe C cut s x).startUndecided
-          ∧ s'.probes = (recordProbe C cut s x).probes := by
-  unfold applyProbe at h
-  simp only [] at h
-  split at h
-  · cases h
-  · exact settleOne_counts cut h
-
-/-- A step that continues starts a fresh stretch, or is the probe's outcome at the same hypothesis,
-one probe further into the stretch. -/
-theorem applyProbe_newStretch {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C cut s x = .inl s') :
-    (s'.stretchProbes = 0 ∧ s'.stretchDisagreements = 0 ∧ s'.stretchMiddles = [])
-      ∨ (s' = recordProbe C cut s x ∧ s'.stretchProbes = s.stretchProbes + 1 ∧ s'.tree = s.tree
-          ∧ s'.edges = s.edges) := by
-  unfold applyProbe at h
-  simp only [] at h
-  split at h
-  · cases h
-  unfold settleOne at h
-  split_ifs at h with hv
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    left
-    unfold fixEdge
-    simp only []
-    split
-    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
-    · simp [Level5State.setEdge, Level5State.newStretch]
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    unfold recordProbe
-    split
-    · split
-      · split
-        · left; simp [Level5State.setEdge, Level5State.newStretch]
-        · right; simp [Level5State.countProbe]
-      · right; simp [Level5State.countProbe]
-    · right; split <;> simp [Level5State.countProbe, Level5State.addRecord]
-    all_goals right; simp [Level5State.countProbe]
-
-theorem applyProbe_inr_pre {s s' : Level5State α} {x : FreeMonoid α} {e : Level5Ending α}
-    (h : applyProbe C cut s x = .inr (e, s')) (he : e ≠ .tooBig) :
-    s' = recordProbe C cut s x ∧ runTests C (recordProbe C cut s x) = some e := by
-  unfold applyProbe at h
-  simp only [] at h
-  split at h
-  · rename_i e' hl
-    simp only [Sum.inr.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨rfl, hl⟩
-  · unfold settleOne at h
-    split_ifs at h
-    simp only [Sum.inr.injEq, Prod.mk.injEq] at h
-    exact absurd h.1.symm he
-
-theorem recordProbe_versions (s : Level5State α) (x : FreeMonoid α) :
-    (recordProbe C cut s x).versions = s.versions ++ [(s.tree, s.edges)] := by
-  unfold recordProbe
-  split
-  · split
-    · split <;> simp [Level5State.countProbe, Level5State.setEdge, Level5State.newStretch]
-    · simp [Level5State.countProbe]
-  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
-  all_goals simp [Level5State.countProbe]
-
-theorem settleOne_versions {m Lmax : ℕ} {s s' : Level5State α}
-    (h : settleOne cut m Lmax s = .inl s') : s'.versions = s.versions := by
-  unfold settleOne at h
-  split_ifs at h with hv
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    unfold fixEdge
-    simp only []
-    split
-    · split_ifs <;> simp [Level5State.setEdge, Level5State.newStretch]
-    · simp [Level5State.setEdge, Level5State.newStretch]
-  · simp only [Sum.inl.injEq] at h
-    subst h
-    rfl
-
-theorem applyProbe_versions {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C cut s x = .inl s') : s'.versions = (recordProbe C cut s x).versions := by
-  unfold applyProbe at h
-  simp only [] at h
-  split at h
-  · cases h
-  · exact settleOne_versions cut h
-
-/-- A probe that leaves its stretch going keeps the hypothesis. -/
-theorem recordProbe_keeps (s : Level5State α) (x : FreeMonoid α)
-    (h : (recordProbe C cut s x).stretchProbes ≠ 0) :
-    (recordProbe C cut s x).tree = s.tree ∧ (recordProbe C cut s x).edges = s.edges := by
-  revert h
-  unfold recordProbe
-  split
-  · split
-    · split
-      · simp [Level5State.setEdge, Level5State.newStretch]
-      · simp [Level5State.countProbe]
-    · simp [Level5State.countProbe]
-  · split <;> simp [Level5State.countProbe, Level5State.addRecord]
-  all_goals simp [Level5State.countProbe]
-
-theorem middleHarvestBy_search {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    (h : middleHarvestBy cut T E k x ≠ []) : (probeBy cut T E k x).IsSearch := by
-  unfold middleHarvestBy at h
-  rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
-    simp_all [Outcome.IsSearch]
-
-theorem startHarvestBy_length_le (T : DTree α) (k : ℕ) (x : FreeMonoid α) :
-    (startHarvestBy cut T k x).length ≤ 1 := by
-  unfold startHarvestBy
-  split_ifs <;> [simp; (rcases T.siftCut cut (prefixOf x k) with _ | b <;> simp)]
-
-end Counts
-
-section Reach
-
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
-  (cut : FreeMonoid α → Option Bool) (S : ℕ)
-
-/-- Reached by the loop: a tree of the class's shape, edges and records pointing at leaves, and a
-hypothesis kept for each probe, with edges into its leaves and at most the current tree's splits
-that are not genuine. -/
-def Reach (s : Level5State α) : Prop :=
-  (∃ f, G.Grown s.tree f) ∧ EdgesInto s.tree s.edges ∧ RecsInto s
-      ∧ (s.stretchProbes = 0 → s.stretchMiddles = []) ∧ s.versions.length = s.probes
-      ∧ ∀ v ∈ s.versions, EdgesInto v.1 v.2 ∧ ∀ f, G.Grown s.tree f → ∃ f' ≤ f, G.Grown v.1 f'
-
-theorem reach_start : Reach G (initialState : Level5State α) :=
-  ⟨⟨0, .start⟩, fun _ _ _ _ h => by simp [initialState] at h,
-    fun _ _ _ h => by simp [initialState] at h, fun _ => rfl, rfl,
-    fun _ h => by simp [initialState] at h⟩
-
-theorem reach_step (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
-    (hs : Reach G s) (h : applyProbe C cut s x = .inl s') :
-    Reach G s' ∧ ∀ f f', G.Grown s.tree f → G.Grown s'.tree f' → f ≤ f' := by
-  obtain ⟨⟨f, hf⟩, he, hr, -, hvl, hv⟩ := hs
-  have hpt : s'.stretchProbes = 0 → s'.stretchMiddles = [] := fun h0 => by
-    rcases applyProbe_newStretch C cut h with ⟨-, -, h'⟩ | ⟨-, h', -⟩
-    · exact h'
-    · omega
-  have hvers : s'.versions = s.versions ++ [(s.tree, s.edges)] := by
-    rw [applyProbe_versions C cut h, recordProbe_versions]
-  have hvl' : s'.versions.length = s'.probes := by
-    rw [hvers, (applyProbe_counts C cut h).2.2.2, (recordProbe_countProbe C cut s x).2.2.2,
-      List.length_append, hvl]
-    rfl
-  have core : (∃ f', G.Grown s'.tree f') ∧ EdgesInto s'.tree s'.edges ∧ RecsInto s'
-      ∧ ∀ f₁ f₂, G.Grown s.tree f₁ → G.Grown s'.tree f₂ → f₁ ≤ f₂ := by
-    rcases (applyProbe_spec cut C hm he hr).1 s' h with ⟨ht, he', hr'⟩ |
-      ⟨p, c, t, t₀, ht, ht₀, hp, hT, he', hr', -, -⟩
-    · refine ⟨⟨f, ht ▸ hf⟩, he', hr', fun f₁ f₂ h₁ h₂ => ?_⟩
-      rw [ht] at h₂
-      exact (G.grown_unique h₁ h₂).le
-    · have hg : G.Grown s'.tree f ∨ G.Grown s'.tree (f + 1) := by
-        by_cases hgen : G.GenuineSplit s.tree p (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
-        · exact .inl (hT ▸ .real hf ht ht₀ hgen)
-        · exact .inr (hT ▸ .fake hf hp ht ht₀ hgen)
-      refine ⟨hg.elim (⟨_, ·⟩) (⟨_, ·⟩), he', ?_, fun f₁ f₂ h₁ h₂ => ?_⟩
-      · intro q e r hmem
-        rw [hr' q e] at hmem
-        cases hmem
-      · have := G.grown_unique hf h₁
-        rcases hg with hg | hg <;> have := G.grown_unique hg h₂ <;> omega
-  obtain ⟨hg', he', hr', hmono⟩ := core
-  refine ⟨⟨hg', he', hr', hpt, hvl', fun v hvm => ?_⟩, hmono⟩
-  rw [hvers] at hvm
-  rcases List.mem_append.1 hvm with hvm | hvm
-  · obtain ⟨hve, hvf⟩ := hv v hvm
-    refine ⟨hve, fun f₂ h₂ => ?_⟩
-    obtain ⟨f', hf'le, hf'⟩ := hvf f hf
-    exact ⟨f', hf'le.trans (hmono f f₂ hf h₂), hf'⟩
-  · rw [List.mem_singleton] at hvm
-    subst hvm
-    exact ⟨he, fun f₂ h₂ => ⟨f, hmono f f₂ hf h₂, hf⟩⟩
-
-theorem notClass_step (hm : 0 < C.recordsToMove) {s s' : Level5State α} {x : FreeMonoid α}
-    (hs : Reach G s) (hn : ¬ G.InClass S s.tree) (h : applyProbe C cut s x = .inl s') :
-    ¬ G.InClass S s'.tree := by
-  obtain ⟨f, hf⟩ := hs.1
-  have hfS : S < f := by
-    by_contra hle
-    exact hn ⟨f, by omega, hf⟩
-  rintro ⟨f', hf'S, hf'⟩
-  have := (reach_step G C cut hm hs h).2 f f' hf hf'
-  omega
-
-theorem class_paths {T : DTree α} (hT : G.InClass S T) (hL : Fintype.card σ + S + 2 ≤ C.maxLeaves) :
-    T.leaves.length ≤ C.maxLeaves := by
-  obtain ⟨f, hf, hg⟩ := hT
-  have := G.grown_paths hg
-  omega
-
-/-- At a reached state of the class, every hypothesis it kept is of the class, with edges into its
-leaves. -/
-theorem reach_versions {s : Level5State α} (hs : Reach G s) (hc : G.InClass S s.tree) :
-    ∀ v ∈ s.versions, G.InClass S v.1 ∧ EdgesInto v.1 v.2 := by
-  intro v hv
-  obtain ⟨f, hfS, hf⟩ := hc
-  obtain ⟨hve, hvf⟩ := hs.2.2.2.2.2 v hv
-  obtain ⟨f', hf'le, hf'⟩ := hvf f hf
-  exact ⟨⟨f', hf'le.trans hfS, hf'⟩, hve⟩
-
-end Reach
-
-section Potential
-
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
-  (cut : FreeMonoid α → Option Bool) (S : ℕ)
+section Mgf
 
 /-- One probe's exponentiated increment averages at most `1`. -/
 theorem mgf_step {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
@@ -458,410 +196,71 @@ theorem mgf_lower {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingl
         have h3 := (Real.exp_pos (r / (4 * B))).le
         nlinarith
 
-/-- At some probe from a state of the class, the potential after the probe's outcome reaches
-`thr`. -/
-def EvP (Φ : Level5State α → ℝ) (thr : ℝ) : Level5State α → List (FreeMonoid α) → Prop
-  | _, [] => False
-  | s, x :: xs => (G.InClass S s.tree ∧ thr ≤ Φ (recordProbe C cut s x))
-    ∨ match applyProbe C cut s x with
-      | .inl s' => EvP Φ thr s' xs
+end Mgf
+
+section Ville
+
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+
+/-- The run reaches version `v` from `s`, and `Q` holds there of the remaining draws. -/
+def SkipV (Q : Level5State α → List (FreeMonoid α) → Prop) (v : ℕ) :
+    Level5State α → List (FreeMonoid α) → Prop
+  | s, [] => s.version = v ∧ Q s []
+  | s, x :: xs => if s.version = v then Q s (x :: xs) else
+      match applyProbe C cut s x with
+      | .inl s' => SkipV Q v s' xs
       | .inr _ => False
 
-theorem evP_notClass (hm : 0 < C.recordsToMove) (Φ : Level5State α → ℝ) (thr : ℝ) :
-    ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reach G s → ¬ G.InClass S s.tree →
-      ¬ EvP G C cut S Φ thr s l
-  | [], _, _, _ => id
-  | x :: xs, s, hs, hn => by
-    simp only [EvP, hn, false_and, false_or]
-    rcases h : applyProbe C cut s x with s' | _
-    · exact evP_notClass hm Φ thr xs s' (reach_step G C cut hm hs h).1
-        (notClass_step G C cut S hm hs hn h)
-    · exact id
-
-/-- A potential whose exponentiated step averages at most one at every reached state of the class
-reaches `thr` with chance at most `exp ((Φ s - thr) / K)`. -/
-theorem pot_super (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (Φ : Level5State α → ℝ) {K : ℝ} (hK : 0 < K)
-    (hkeep : ∀ s s' x, applyProbe C cut s x = .inl s' → Φ s' = Φ (recordProbe C cut s x))
-    (hstep : ∀ s, Reach G s → G.InClass S s.tree →
-      ∫⁻ x, ENNReal.ofReal (Real.exp ((Φ (recordProbe C cut s x) - Φ s) / K)) ∂D ≤ 1)
-    (thr : ℝ) :
-    ∀ (T : ℕ) (s : Level5State α), Reach G s →
-      (Measure.pi fun _ : Fin T => D) {xs | EvP G C cut S Φ thr s (List.ofFn xs)}
-        ≤ ENNReal.ofReal (Real.exp ((Φ s - thr) / K)) := by
+theorem skipV_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : Level5State α → Prop)
+    (hP : ∀ s s' x, P s → applyProbe C cut s x = .inl s' → P s')
+    (Q : Level5State α → List (FreeMonoid α) → Prop) (v : ℕ) {c : ENNReal}
+    (hQ : ∀ (T : ℕ) (s : Level5State α), P s → s.version = v →
+      (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
+    ∀ (T : ℕ) (s : Level5State α), P s →
+      (Measure.pi fun _ : Fin T => D) {xs | SkipV C cut Q v s (List.ofFn xs)} ≤ c := by
   intro T
   induction T with
-  | zero => intro s _; simp [EvP]
+  | zero =>
+    intro s hs
+    by_cases hv : s.version = v
+    · refine (measure_mono fun xs hxs => ?_).trans (hQ 0 s hs hv)
+      simp only [Set.mem_ofPred_eq, List.ofFn_zero, SkipV] at hxs ⊢; exact hxs.2
+    · refine (measure_mono (t := ∅) fun xs hxs => ?_).trans (by simp)
+      simp only [Set.mem_ofPred_eq, List.ofFn_zero, SkipV] at hxs; exact hv hxs.1
   | succ T ih =>
     intro s hs
+    by_cases hv : s.version = v
+    · refine (measure_mono fun xs hxs => ?_).trans (hQ (T + 1) s hs hv)
+      simp only [Set.mem_ofPred_eq, List.ofFn_succ, SkipV, hv, if_true] at hxs ⊢
+      exact hxs
     rw [pi_succ_apply]
-    by_cases hc : G.InClass S s.tree
-    swap
-    · have : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
-          {xs : Fin (T + 1) → FreeMonoid α | EvP G C cut S Φ thr s (List.ofFn xs)}} = 0 := by
-        intro x
-        have hempty : {xs | Fin.cons x xs ∈
-            {xs : Fin (T + 1) → FreeMonoid α | EvP G C cut S Φ thr s (List.ofFn xs)}} = ∅ := by
-          ext xs
-          simp only [Set.mem_ofPred_eq, List.ofFn_cons, Set.mem_empty_iff_false, iff_false]
-          exact evP_notClass G C cut S hm Φ thr _ s hs hc
-        rw [hempty, measure_empty]
-      simp only [this, lintegral_zero]
-      exact zero_le
-    have hsec : ∀ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
-        {xs : Fin (T + 1) → FreeMonoid α | EvP G C cut S Φ thr s (List.ofFn xs)}}
-        ≤ ENNReal.ofReal (Real.exp ((Φ (recordProbe C cut s x) - thr) / K)) := by
-      intro x
-      by_cases hz : thr ≤ Φ (recordProbe C cut s x)
-      · refine prob_le_one.trans ?_
-        rw [← ENNReal.ofReal_one]
-        exact ENNReal.ofReal_le_ofReal (Real.one_le_exp (div_nonneg (by linarith) hK.le))
-      rcases hst : applyProbe C cut s x with s' | ⟨e', s'⟩
-      · have : {xs | Fin.cons x xs ∈
-            {xs : Fin (T + 1) → FreeMonoid α | EvP G C cut S Φ thr s (List.ofFn xs)}}
-            = {xs | EvP G C cut S Φ thr s' (List.ofFn xs)} := by
-          ext xs
-          simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hz, and_false, false_or, hst]
-        rw [this, ← hkeep s s' x hst]
-        exact ih s' (reach_step G C cut hm hs hst).1
-      · have : {xs | Fin.cons x xs ∈
-            {xs : Fin (T + 1) → FreeMonoid α | EvP G C cut S Φ thr s (List.ofFn xs)}} = ∅ := by
-          ext xs
-          simp only [Set.mem_ofPred_eq, List.ofFn_cons, EvP, hz, and_false, false_or, hst,
-            Set.mem_empty_iff_false]
-        rw [this, measure_empty]
-        exact zero_le
-    refine (lintegral_mono hsec).trans ?_
-    have hfac : ∀ x, ENNReal.ofReal (Real.exp ((Φ (recordProbe C cut s x) - thr) / K))
-        = ENNReal.ofReal (Real.exp ((Φ s - thr) / K))
-          * ENNReal.ofReal (Real.exp ((Φ (recordProbe C cut s x) - Φ s) / K)) := by
-      intro x
-      rw [← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
-      congr 2
-      ring
-    simp only [hfac]
-    rw [lintegral_const_mul _ (measurable_of_countable _)]
-    exact (mul_le_mul_right (hstep s hs hc) _).trans (le_of_eq (mul_one _))
+    calc ∫⁻ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
+          {xs : Fin (T + 1) → FreeMonoid α | SkipV C cut Q v s (List.ofFn xs)}} ∂D
+        ≤ ∫⁻ _, c ∂D := lintegral_mono fun x => by
+          rcases hst : applyProbe C cut s x with s' | _
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                SkipV C cut Q v s (List.ofFn xs)}} = {xs | SkipV C cut Q v s' (List.ofFn xs)} := by
+              ext xs; simp only [Set.mem_ofPred_eq, List.ofFn_cons, SkipV, hv, if_false, hst]
+            rw [this]; exact ih s' (hP s s' x hs hst)
+          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
+                SkipV C cut Q v s (List.ofFn xs)}} = ∅ := by
+              ext xs
+              simp only [Set.mem_ofPred_eq, List.ofFn_cons, SkipV, hv, if_false, hst,
+                Set.mem_empty_iff_false]
+            rw [this, measure_empty]; exact zero_le
+      _ = c := by rw [lintegral_const, measure_univ, mul_one]
 
-end Potential
-
-section Sites
-
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
-  (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
-
-/-- The start's undecided strings less twice the running sum of their means. -/
-noncomputable def startPot (s : Level5State α) : ℝ :=
-  s.startUndecided.length - 2 * (s.versions.map (siteTotal D rd C.walkStart .start)).sum
-
-/-- An edge's undecided strings less twice the running sum of their means. -/
-noncomputable def edgePot (e : List Bool × α) (s : Level5State α) : ℝ :=
-  (s.edgeUndecided e.1 e.2).length
-    - 2 * (s.versions.map (siteTotal D rd C.walkStart (.edge e))).sum
-
-/-- The mean count of the strings a probe walked from `k` under `v` first reads at the edge
-`e`. -/
-noncomputable def readMean (k : ℕ) (e : List Bool × α) (v : DTree α × EdgeTable α) : ℝ :=
-  ∫ x, (edgeReadsBy (fun z => (rd z).cut) v.1 v.2 k x e : ℝ) ∂D
-
-/-- Half the running sum of an edge's reads' means less its reads. -/
-noncomputable def readPot (e : List Bool × α) (s : Level5State α) : ℝ :=
-  (s.versions.map (readMean D rd C.walkStart e)).sum / 2 - s.edgeReads e.1 e.2
-
-theorem startPot_pre (s : Level5State α) (x : FreeMonoid α) :
-    startPot C D rd (recordProbe C (fun z => (rd z).cut) s x) - startPot C D rd s
-      = (startHarvestBy (fun z => (rd z).cut) s.tree C.walkStart x).length
-        - 2 * siteTotal D rd C.walkStart .start (s.tree, s.edges) := by
-  obtain ⟨-, -, h3, -⟩ := recordProbe_countProbe C (fun z => (rd z).cut) s x
-  simp only [startPot, h3, recordProbe_versions, List.length_append, List.map_append,
-    List.sum_append, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
-  push_cast
-  ring
-
-theorem edgePot_pre (e : List Bool × α) (s : Level5State α) (x : FreeMonoid α) :
-    edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x) - edgePot C D rd e s
-      = (edgeHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e).length
-        - 2 * siteTotal D rd C.walkStart (.edge e) (s.tree, s.edges) := by
-  obtain ⟨h1, -, -, -⟩ := recordProbe_countProbe C (fun z => (rd z).cut) s x
-  simp only [edgePot, h1, recordProbe_versions, List.length_append, List.map_append,
-    List.sum_append, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Prod.mk.eta]
-  push_cast
-  ring
-
-theorem readPot_pre (e : List Bool × α) (s : Level5State α) (x : FreeMonoid α) :
-    readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x) - readPot C D rd e s
-      = readMean D rd C.walkStart e (s.tree, s.edges) / 2
-        - edgeReadsBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e := by
-  obtain ⟨-, h2, -, -⟩ := recordProbe_countProbe C (fun z => (rd z).cut) s x
-  simp only [readPot, h2, recordProbe_versions, List.map_append, List.sum_append, List.map_cons,
-    List.map_nil, List.sum_cons, List.sum_nil, Prod.mk.eta]
-  push_cast
-  ring
-
-theorem startPot_keep {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
-    startPot C D rd s' = startPot C D rd (recordProbe C (fun z => (rd z).cut) s x) := by
-  simp only [startPot, (applyProbe_counts C _ h).2.2.1, applyProbe_versions C _ h]
-
-theorem edgePot_keep (e : List Bool × α) {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
-    edgePot C D rd e s' = edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x) := by
-  simp only [edgePot, (applyProbe_counts C _ h).1, applyProbe_versions C _ h]
-
-theorem readPot_keep (e : List Bool × α) {s s' : Level5State α} {x : FreeMonoid α}
-    (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
-    readPot C D rd e s' = readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x) := by
-  simp only [readPot, (applyProbe_counts C _ h).2.1, applyProbe_versions C _ h]
-
-theorem startPot_step [IsProbabilityMeasure D] (s : Level5State α) :
-    ∫⁻ x, ENNReal.ofReal (Real.exp ((startPot C D rd (recordProbe C (fun z => (rd z).cut) s x)
-      - startPot C D rd s) / 2)) ∂D ≤ 1 := by
-  have hU : ∀ x, (startHarvestBy (fun z => (rd z).cut) s.tree C.walkStart x).length ≤ 1 := by
-    intro x
-    unfold startHarvestBy
-    split_ifs
-    · simp
-    · rcases s.tree.siftCut _ (prefixOf x C.walkStart) with _ | _ <;> simp
-  have h0 : 0 ≤ siteTotal D rd C.walkStart .start (s.tree, s.edges) :=
-    integral_nonneg fun _ => Nat.cast_nonneg _
-  have := mgf_step D (fun x => (startHarvestBy (fun z => (rd z).cut) s.tree C.walkStart x).length)
-    (fun _ => 0) (θ := 0) (L := 1) (R := 0) le_rfl one_pos le_rfl
-    (ae_of_all _ fun x => ⟨by exact_mod_cast hU x, by simp⟩) h0
-    (by simp [siteTotal, siteHarvest])
-  refine le_trans (le_of_eq ?_) this
-  congr 1
-  funext x
-  rw [startPot_pre]
-  congr 2
-  push_cast
-  ring
-
-theorem edgePot_step [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (e : List Bool × α) (s : Level5State α) :
-    ∫⁻ x, ENNReal.ofReal (Real.exp ((edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x)
-      - edgePot C D rd e s) / (2 * (L + 1)))) ∂D ≤ 1 := by
-  have h0 : 0 ≤ siteTotal D rd C.walkStart (.edge e) (s.tree, s.edges) :=
-    integral_nonneg fun _ => Nat.cast_nonneg _
-  have := mgf_step D
-    (fun x => (edgeHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e).length)
-    (fun _ => 0) (θ := 0) (L := (L : ℝ) + 1) (R := 0) le_rfl (by positivity) le_rfl
-    (by
-      filter_upwards [hlen] with x hx
-      refine ⟨?_, by simp⟩
-      have := edgeHarvestBy_length_le (fun z => (rd z).cut) s.tree s.edges C.walkStart x e
-      exact_mod_cast (by omega :
-        (edgeHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e).length ≤ L + 1))
-    h0 (by simp [siteTotal, siteHarvest])
-  refine le_trans (le_of_eq ?_) this
-  congr 1
-  funext x
-  rw [edgePot_pre]
-  congr 2
-  push_cast
-  ring
-
-theorem readPot_step [IsProbabilityMeasure D] {L S : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hLmax : Fintype.card σ + S + 2 ≤ C.maxLeaves) (e : List Bool × α) (s : Level5State α)
-    (hc : G.InClass S s.tree) :
-    ∫⁻ x, ENNReal.ofReal (Real.exp ((readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x)
-      - readPot C D rd e s) / (2 * ((L + 1) * C.maxLeaves)))) ∂D ≤ 1 := by
-  have hpaths := class_paths G C S hc hLmax
-  have hB : (0 : ℝ) < (L + 1) * C.maxLeaves := by
-    have : (0 : ℝ) < C.maxLeaves := by exact_mod_cast (by omega : 0 < C.maxLeaves)
-    positivity
-  have := mgf_lower D (fun x => edgeReadsBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e)
-    hB (by
-      filter_upwards [hlen] with x hx
-      have h1 := edgeReadsBy_le (fun z => (rd z).cut) s.tree s.edges C.walkStart x e
-      have hm := midfixes_card s.tree
-      have : edgeReadsBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x e
-          ≤ (L + 1) * C.maxLeaves := h1.trans (Nat.mul_le_mul (by omega) (by omega))
-      exact_mod_cast this)
-  refine le_trans (le_of_eq ?_) this
-  congr 1
-  funext x
-  rw [readPot_pre]
-  rfl
-
-open scoped Classical in
-theorem startHarvest_indicator (k : ℕ) (T : DTree α) (P : σ → Prop) (x : FreeMonoid α) :
-    ((((startHarvestBy (fun z => (rd z).cut) T k x).filter
-        fun b => decide (P (G.M.eval b.toList))).length : ℕ) : ℝ)
-      = (G.startAt rd k T P).indicator 1 x := by
-  classical
-  unfold startHarvestBy ReadModel.startAt
-  by_cases hk : x.toList.length < k
-  · simp [hk, Set.indicator, not_le.2 hk]
-  · rcases hs : T.siftCut (fun z => (rd z).cut) (prefixOf x k) with p | b
-    · simp [hk, hs, Set.indicator]
-    · by_cases hg : P (G.M.eval b.toList) <;> simp [hk, hs, hg, Set.indicator, not_lt.1 hk]
-
-open scoped Classical in
-theorem siteMean_start (k : ℕ) (v : DTree α × EdgeTable α) (P : σ → Prop) :
-    siteMean G D rd k .start P v = D.real (G.startAt rd k v.1 P) := by
-  unfold siteMean
-  rw [← integral_indicator_one (measurableSet_of_countable _)]
-  exact integral_congr_ae (ae_of_all _ fun x => startHarvest_indicator G rd k v.1 P x)
-
-open scoped Classical in
-theorem middleHarvest_indicator (k : ℕ) (T : DTree α) (E : EdgeTable α) (P : σ → Prop)
-    (x : FreeMonoid α) :
-    ((((middleHarvestBy (fun z => (rd z).cut) T E k x).filter
-        fun b => decide (P (G.M.eval b.toList))).length : ℕ) : ℝ)
-      = (G.ptAt rd k T E P).indicator 1 x := by
-  classical
-  rcases middleHarvestBy_cases (fun z => (rd z).cut) T E k x with h | ⟨b, h⟩
-  · have hx : x ∉ G.ptAt rd k T E P := by
-      rintro ⟨b, hb, -⟩
-      rw [h] at hb
-      cases hb
-    rw [Set.indicator_of_notMem hx, h]
-    simp
-  · by_cases hg : P (G.M.eval b.toList)
-    · have hx : x ∈ G.ptAt rd k T E P := ⟨b, h, hg⟩
-      rw [Set.indicator_of_mem hx, h]
-      simp [hg]
-    · have hx : x ∉ G.ptAt rd k T E P := by
-        rintro ⟨b', hb', hg'⟩
-        rw [h, List.cons.injEq] at hb'
-        exact hg (hb'.1 ▸ hg')
-      rw [Set.indicator_of_notMem hx, h]
-      simp [hg]
-
-open scoped Classical in
-theorem siteMean_middles (k : ℕ) (v : DTree α × EdgeTable α) (P : σ → Prop) :
-    siteMean G D rd k .middles P v = D.real (G.ptAt rd k v.1 v.2 P) := by
-  unfold siteMean
-  rw [← integral_indicator_one (measurableSet_of_countable _)]
-  exact integral_congr_ae (ae_of_all _ fun x => middleHarvest_indicator G rd k v.1 v.2 P x)
-
-open scoped Classical in
-theorem siteTotal_middles (k : ℕ) (v : DTree α × EdgeTable α) :
-    siteTotal D rd k .middles v = D.real (G.ptAt rd k v.1 v.2 fun _ => True) := by
-  rw [← siteMean_middles G D rd k v]
-  unfold siteTotal siteMean
-  congr 1
-  funext x
-  congr 2
-  exact (List.filter_eq_self.2 (by simp)).symm
-
-end Sites
-
-section PT
-
-variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (C : Level5Settings)
-  (cut : FreeMonoid α → Option Bool) (S : ℕ)
-
-/-- After `i` probes, the run is at a state from which `Q` holds of the remaining draws. -/
-def Skip (Q : Level5State α → List (FreeMonoid α) → Prop) : ℕ → Level5State α → List (FreeMonoid α)
-    → Prop
-  | 0, s, l => Q s l
-  | _ + 1, _, [] => False
-  | i + 1, s, x :: xs => match applyProbe C cut s x with
-    | .inl s' => Skip Q i s' xs
-    | .inr _ => False
-
-open scoped Classical in
-theorem recordProbe_stretch (s : Level5State α) (x : FreeMonoid α) :
-    ((recordProbe C cut s x).stretchProbes = s.stretchProbes + 1
-      ∧ (recordProbe C cut s x).stretchMiddles = s.stretchMiddles
-          ++ middleHarvestBy cut s.tree s.edges C.walkStart x
-      ∧ (recordProbe C cut s x).stretchDisagreements
-        = s.stretchDisagreements
-          + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0)
-    ∨ ((recordProbe C cut s x).stretchProbes = 0 ∧ (recordProbe C cut s x).stretchMiddles = []
-        ∧ (recordProbe C cut s x).stretchDisagreements = 0
-      ∧ ¬ (probeBy cut s.tree s.edges C.walkStart x).IsSearch) := by
-  unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
-    try dsimp only
-  · left; simp [Level5State.countProbe, Outcome.IsSearch]
-  · left; simp [Level5State.countProbe, Outcome.IsSearch]
-  · left; simp [Level5State.countProbe, Outcome.IsSearch]
-  · left; simp [Level5State.countProbe, Outcome.IsSearch]
-  · left
-    rcases recordBy cut C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩ <;>
-      simp [Level5State.countProbe, Level5State.addRecord, Outcome.IsSearch]
-  · rcases x.toList[u.toList.length]? with _ | c <;> try dsimp only
-    · left; simp [Level5State.countProbe, Outcome.IsSearch]
-    rcases s.tree.siftCut cut u with p | b <;> try dsimp only
-    swap
-    · left; simp [Level5State.countProbe, Outcome.IsSearch]
-    rcases s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;> rcases s.edges p c with _ | e <;>
-      try dsimp only
-    · right; simp [Level5State.setEdge, Level5State.newStretch, Outcome.IsSearch]
-    all_goals left; simp [Level5State.countProbe, Outcome.IsSearch]
-
-theorem mem_searchAt {rd : FreeMonoid α → ARU} {k : ℕ} {T : DTree α} {edges : EdgeTable α}
-    {x : FreeMonoid α} :
-    x ∈ searchAt rd k T edges ↔ (probeBy (fun z => (rd z).cut) T edges k x).IsSearch := by
-  simp only [searchAt_eq, Set.mem_setOf_eq]
-  rcases probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
-    simp [Outcome.IsSearch]
-
-theorem ptAt_sub_searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
-    (P : σ → Prop) : G.ptAt rd k T edges P ⊆ searchAt rd k T edges := by
-  rintro x ⟨b, hb, -⟩
-  rw [mem_searchAt]
-  unfold middleHarvestBy at hb
-  rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | _ | _ <;>
-    rw [ho] at hb <;> simp_all [Outcome.IsSearch]
-
-/-- At a hypothesis searching on at least `φpt/2` of the probes, at most `θpt` of whose searches
-stop at an undecided middle. -/
-def PTLow (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (s : Level5State α) : Prop :=
-  C.searchShare / 2 ≤ D.real (searchAt rd C.walkStart s.tree s.edges)
-    ∧ D.real (G.ptAt rd C.walkStart s.tree s.edges fun _ => True)
-      ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)
-
-/-- The counts every reached state keeps in order: the start's undecided strings at most the
-probes, and a stretch's middles at most its searches, at most its probes. -/
-def CountInv (s : Level5State α) : Prop :=
-  s.startUndecided.length ≤ s.probes ∧ s.stretchMiddles.length ≤ s.stretchDisagreements
-    ∧ s.stretchDisagreements ≤ s.stretchProbes
-
-theorem countInv_start : CountInv (initialState : Level5State α) := by
-  simp [CountInv, initialState]
-
-open scoped Classical in
-theorem countInv_record {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α) :
-    CountInv (recordProbe C cut s x) := by
-  obtain ⟨h1, h2, h3⟩ := hs
-  obtain ⟨-, -, p3, p4⟩ := recordProbe_countProbe C cut s x
-  refine ⟨?_, ?_⟩
-  · rw [p3, p4, List.length_append]
-    have := startHarvestBy_length_le cut s.tree C.walkStart x
-    omega
-  rcases recordProbe_stretch C cut s x with ⟨hn, hm, hd⟩ | ⟨hn, hm, hd, -⟩
-  · rw [hn, hm, hd, List.length_append]
-    rcases middleHarvestBy_cases cut s.tree s.edges C.walkStart x with h0 | ⟨b, hb⟩
-    · rw [h0]
-      split_ifs <;> simp <;> omega
-    · have hsr := middleHarvestBy_search cut (by rw [hb]; simp)
-      rw [hb, if_pos hsr]
-      simp
-      omega
-  · rw [hn, hm, hd]
-    simp
-
-theorem countInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : CountInv s)
-    (h : applyProbe C cut s x = .inl s') : CountInv s' := by
-  have h1 := countInv_record C cut hs x
-  obtain ⟨-, -, c3, c4⟩ := applyProbe_counts C cut h
-  rcases applyProbe_newStretch C cut h with ⟨hn0, hd0, hm0⟩ | ⟨rfl, -, -, -⟩
-  · exact ⟨by rw [c3, c4]; exact h1.1, by rw [hm0, hd0]; simp, by rw [hd0, hn0]⟩
-  · exact h1
-
-/-- From `s`, within its stretch, the weight `r` times its probes' factors reaches `1`, every state
-on the way satisfying `ok`. -/
+/-- From `s`, within its version, the weight `r` times its probes' factors reaches `1`, every
+state on the way satisfying `ok`. -/
 def EvL (ok : Level5State α → Prop) (f : Level5State α → FreeMonoid α → ℝ) :
     ℝ → Level5State α → List (FreeMonoid α) → Prop
   | _, _, [] => False
   | r, s, x :: xs => ok s ∧ (1 ≤ r * f s x ∨ match applyProbe C cut s x with
-      | .inl s' => s'.stretchProbes ≠ 0 ∧ EvL ok f (r * f s x) s' xs
+      | .inl s' => s'.version = s.version ∧ EvL ok f (r * f s x) s' xs
       | .inr _ => False)
 
-/-- Ville's inequality along a stretch: where every probe's factor averages at most `1`, the
+/-- Ville's inequality along a version: where every probe's factor averages at most `1`, the
 weight `r` times the factors reaches `1` with chance at most `r`. -/
 theorem evL_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (ok : Level5State α → Prop) (f : Level5State α → FreeMonoid α → ℝ) (hf0 : ∀ s x, 0 ≤ f s x)
@@ -907,63 +306,487 @@ theorem evL_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
           gcongr; exact hf s hok
       _ = _ := mul_one _
 
-open scoped Classical in
-/-- A probe's factor in its stretch's middles test: a search stopping at an undecided middle
-`p₁/p₀`, any other search `(1 - p₁)/(1 - p₀)`, and a probe that does not search `1`. -/
-noncomputable def ptFactor (rd : FreeMonoid α → ARU) (s : Level5State α) (x : FreeMonoid α) : ℝ :=
-  if x ∈ searchAt rd C.walkStart s.tree s.edges then
-    ratioFactor C.middleUndecidedRate C.middleAltRate
-      (decide (x ∈ G.ptAt rd C.walkStart s.tree s.edges fun _ => True))
-  else 1
+/-- A round from `s` ending badly at a site whose weight, one at each new version and multiplied
+by a probe's factor within one, passed `1/a` at an `ok` hypothesis: then from some later version
+on, or within `s`'s version from the weight it holds, Ville's event happens. -/
+theorem bad_end_skip (P : Level5State α → Prop)
+    (hP : ∀ s s' x, P s → applyProbe C cut s x = .inl s' → P s')
+    (W : Level5State α → ℝ) (f : Level5State α → FreeMonoid α → ℝ) (ok : Level5State α → Prop)
+    (a : ℝ) (Bad : Level5Ending α → Level5State α → Prop)
+    (hnew : ∀ s s' x, P s → applyProbe C cut s x = .inl s' → s'.version ≠ s.version → W s' = 1)
+    (hkeep : ∀ s s' x, P s → applyProbe C cut s x = .inl s' → s'.version = s.version →
+      W s' = W s * f s x ∧ (ok s' ↔ ok s))
+    (hbad : ∀ s s' x e, P s → applyProbe C cut s x = .inr (e, s') → Bad e s' →
+      ok s ∧ 1 ≤ a * (W s * f s x)) :
+    ∀ (l : List (FreeMonoid α)) (s : Level5State α), P s →
+      RunEnds (applyProbe C cut) Bad s l →
+        (∃ v, s.version < v ∧ SkipV C cut (EvL C cut ok f a) v s l)
+          ∨ EvL C cut ok f (a * W s) s l
+  | [], _, _, h => h.elim
+  | x :: xs, s, hs, h => by
+    simp only [RunEnds] at h
+    rcases hst : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> rw [hst] at h
+    · have hs' := hP s s' x hs hst
+      rcases bad_end_skip P hP W f ok a Bad hnew hkeep hbad xs s' hs' h with ⟨v, hv, hsk⟩ | hev
+      · by_cases hver : s'.version = s.version
+        · refine .inl ⟨v, hver ▸ hv, ?_⟩
+          simp only [SkipV, show s.version ≠ v by omega, if_false, hst]
+          exact hsk
+        · have hlt : s.version < s'.version :=
+            lt_of_le_of_ne (applyProbe_version C cut hst) (Ne.symm hver)
+          refine .inl ⟨v, by omega, ?_⟩
+          simp only [SkipV, show s.version ≠ v by omega, if_false, hst]
+          exact hsk
+      · by_cases hver : s'.version = s.version
+        · obtain ⟨hW, hok⟩ := hkeep s s' x hs hst hver
+          refine .inr ⟨?_, .inr ?_⟩
+          · rcases xs with _ | ⟨y, ys⟩
+            · exact hev.elim
+            · exact hok.1 hev.1
+          · rw [hst]
+            refine ⟨hver, ?_⟩
+            rw [hW, ← mul_assoc] at hev
+            exact hev
+        · have hW := hnew s s' x hs hst hver
+          rw [hW, mul_one] at hev
+          refine .inl ⟨s'.version, lt_of_le_of_ne (applyProbe_version C cut hst) (Ne.symm hver), ?_⟩
+          · simp only [SkipV, show s.version ≠ s'.version from fun h => hver h.symm, if_false, hst]
+            rcases xs with _ | ⟨y, ys⟩
+            · exact hev.elim
+            · simp only [SkipV, if_true]
+              exact hev
+    · obtain ⟨hok, h1⟩ := hbad s s' x e hs hst h
+      exact .inr ⟨hok, .inl (by rw [mul_assoc]; exact h1)⟩
 
-theorem ptFactor_nonneg (rd : FreeMonoid α → ARU) (hS : C.SeqOK) (s : Level5State α)
-    (x : FreeMonoid α) : 0 ≤ ptFactor G C rd s x := by
-  have := hS.θpt_pos
-  have := hS.θpt_alt
-  have := hS.θpt_alt_lt
-  unfold ptFactor ratioFactor
-  split_ifs
-  · exact div_nonneg (by linarith) (by linarith)
-  · exact div_nonneg (by linarith) (by linarith)
-  · norm_num
+end Ville
+
+section Shape
+
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 open scoped Classical in
-/-- Where at most `θpt` of the searches stop at an undecided middle, the middles test's factor
-averages at most `1`. -/
-theorem lintegral_ptFactor_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (rd : FreeMonoid α → ARU) (hS : C.SeqOK) (s : Level5State α)
-    (hs : D.real (G.ptAt rd C.walkStart s.tree s.edges fun _ => True)
-      ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)) :
-    ∫⁻ x, ENNReal.ofReal (ptFactor G C rd s x) ∂D ≤ 1 := by
-  set p₀ := C.middleUndecidedRate
-  set p₁ := C.middleAltRate
-  have hp₀ : 0 < p₀ := hS.θpt_pos
-  have hp₀₁ : p₀ < p₁ := hS.θpt_alt
-  have hp₁1 : p₁ < 1 := hS.θpt_alt_lt
-  set A := G.ptAt rd C.walkStart s.tree s.edges fun _ => True
-  set B := searchAt rd C.walkStart s.tree s.edges
-  have hAB : A ⊆ B := ptAt_sub_searchAt G rd C.walkStart s.tree s.edges _
+/-- A probe that keeps the hypothesis: its counts added, its search counted. -/
+noncomputable def keepProbe (s : Level5State α) (x : FreeMonoid α) : Level5State α :=
+  { s.countProbe cut C.walkStart x with
+    searches := s.searches
+      + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 }
+
+/-- A step that goes on moves to a fresh hypothesis with a higher version, or keeps the
+hypothesis. -/
+theorem applyProbe_inl_shape {s s' : Level5State α} {x : FreeMonoid α}
+    (h : applyProbe C cut s x = .inl s') :
+    (s.version < s'.version ∧ ∃ T E, s' = freshState T E s'.version) ∨ s' = keepProbe C cut s x := by
+  rcases (applyProbe_inl C cut h).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, hrec, rfl, -⟩
+  · rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, -, -, -, -, h1⟩ <;> rw [h1]
+    · exact .inr rfl
+    · exact .inl ⟨Nat.lt_succ_self _, _, _, rfl⟩
+  · obtain ⟨-, -, -, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
+    have hrp := recordProbe_of_record C cut s x hrec
+    have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by rw [hrp]; exact hpe
+    rw [splitState_of_some cut _ hpe']
+    exact .inl ⟨by rw [hrp]; exact Nat.lt_succ_self _, _, _, rfl⟩
+
+open scoped Classical in
+/-- A fresh hypothesis's tests are silent. -/
+theorem runTests_fresh (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) (T : DTree α) (E : EdgeTable α) (v : ℕ) :
+    runTests C (freshState T E v) = none := by
+  have h1 := not_seqRate_zero (p₀ := C.startUndecidedRate) (p₁ := C.startAltRate) ha ha1
+  have h4 := not_seqRate_zero (p₀ := C.disagreementRate) (p₁ := C.disagreementAltRate) ha ha1
+  unfold runTests
+  rw [if_neg (by simpa [freshState] using h1), dif_neg, if_neg, if_neg (by simpa [freshState] using h4)]
+  · rintro ⟨-, h, -⟩
+    simp only [freshState, Nat.cast_le, Nat.le_zero] at h
+    omega
+  · rintro ⟨e, -, -, h⟩
+    have := hexc 0
+    simp only [freshState, List.length_nil, Nat.cast_zero, mul_zero, sub_zero] at h
+    linarith
+
+/-- A step that ends is past `maxLeaves` leaves, or its tests fired at a probe that kept the
+hypothesis. -/
+theorem applyProbe_inr_shape (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1)
+    (hn₀ : 1 ≤ C.firstLook) (hexc : ∀ j, 0 < C.edgeExcess j) {s s' : Level5State α}
+    {x : FreeMonoid α} {e : Level5Ending α} (h : applyProbe C cut s x = .inr (e, s')) :
+    e = .tooBig ∨ (s' = keepProbe C cut s x ∧ runTests C s' = some e) := by
+  rcases applyProbe_inr C cut h with ⟨hr, rfl⟩ | ⟨rfl, -⟩
+  · rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, -, -, -, -, h1⟩
+    · rw [h1] at hr ⊢
+      exact .inr ⟨rfl, hr⟩
+    · rw [h1] at hr
+      rw [Level5State.setEdge, runTests_fresh C ha ha1 hn₀ hexc] at hr
+      simp at hr
+  · exact .inl rfl
+
+theorem keepProbe_hyp (s : Level5State α) (x : FreeMonoid α) :
+    (keepProbe C cut s x).tree = s.tree ∧ (keepProbe C cut s x).edges = s.edges
+      ∧ (keepProbe C cut s x).version = s.version := ⟨rfl, rfl, rfl⟩
+
+/-- The counts every reached state keeps in order: the start's undecided strings and the
+searches at most the probes, the middles at most the searches. -/
+def CountInv (s : Level5State α) : Prop :=
+  s.startUndecided.length ≤ s.probes ∧ s.middles.length ≤ s.searches ∧ s.searches ≤ s.probes
+
+theorem countInv_fresh (T : DTree α) (E : EdgeTable α) (v : ℕ) : CountInv (freshState T E v) := by
+  simp [CountInv, freshState]
+
+open scoped Classical in
+theorem countInv_keep {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α) :
+    CountInv (keepProbe C cut s x) := by
+  obtain ⟨h1, h2, h3⟩ := hs
+  have hst : (startHarvestBy cut s.tree C.walkStart x).length ≤ 1 := by
+    unfold startHarvestBy
+    split_ifs
+    · simp
+    · rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | _ <;> simp
+  have hmid := middleHarvestBy_length cut s.tree s.edges C.walkStart x
+  have hd : (middleHarvestBy cut s.tree s.edges C.walkStart x).length
+      ≤ if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 := by
+    rw [hmid]
+    rcases probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | _ | _ <;>
+      simp [Outcome.IsSearch]
+  have hi : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) ≤ 1 := by
+    split <;> omega
+  simp only [CountInv, keepProbe, Level5State.countProbe, List.length_append]
+  omega
+
+theorem countInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : CountInv s)
+    (h : applyProbe C cut s x = .inl s') : CountInv s' := by
+  rcases applyProbe_inl_shape C cut h with ⟨-, T, E, he⟩ | he <;> rw [he]
+  · exact countInv_fresh _ _ _
+  · exact countInv_keep C cut hs x
+
+end Shape
+
+section Site
+
+variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+
+/-- What every reached state keeps. -/
+def Reached (s : Level5State α) : Prop := VerInv C s ∧ CountInv s
+
+theorem reached_step {s s' : Level5State α} {x : FreeMonoid α} (hs : Reached C s)
+    (h : applyProbe C cut s x = .inl s') : Reached C s' :=
+  ⟨verInv_step C cut hs.1 h, countInv_step C cut hs.2 h⟩
+
+theorem reached_start (h : 2 ≤ C.maxLeaves) : Reached C (initialState : Level5State α) :=
+  ⟨verInv_start C h, countInv_fresh _ _ _⟩
+
+theorem skipV_reached (Q : Level5State α → List (FreeMonoid α) → Prop) (v : ℕ) :
+    ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reached C s → SkipV C cut Q v s l →
+      ∃ s' : Level5State α, Reached C s' ∧ s'.version = v
+  | [], s, hs, h => ⟨s, hs, h.1⟩
+  | x :: xs, s, hs, h => by
+    simp only [SkipV] at h
+    split_ifs at h with hv
+    · exact ⟨s, hs, hv⟩
+    · rcases hst : applyProbe C cut s x with s' | _ <;> rw [hst] at h
+      · exact skipV_reached Q v xs s' (reached_step C cut hs hst) h
+      · exact h.elim
+
+/-- A test whose weight is one at a fresh hypothesis and multiplies by a probe's factor while the
+hypothesis keeps, at hypotheses where the factor averages at most one, ends the round badly
+with chance at most `versionBound · a`. -/
+theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 ≤ C.maxLeaves)
+    (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j)
+    (W : Level5State α → ℝ) (f : Level5State α → FreeMonoid α → ℝ) (ok : Level5State α → Prop)
+    (Bad : Level5Ending α → Level5State α → Prop)
+    (hf0 : ∀ s x, 0 ≤ f s x) (hf : ∀ s, ok s → ∫⁻ x, ENNReal.ofReal (f s x) ∂D ≤ 1)
+    (hfresh : ∀ T E v, W (freshState T E v) = 1)
+    (hkeep : ∀ s x, CountInv s → W (keepProbe C cut s x) = W s * f s x ∧ (ok (keepProbe C cut s x) ↔ ok s))
+    (htoo : ∀ s, ¬ Bad .tooBig s)
+    (hbad : ∀ s x e, CountInv s → Bad e (keepProbe C cut s x) →
+      runTests C (keepProbe C cut s x) = some e → ok s ∧ 1 ≤ C.testLevel * W (keepProbe C cut s x))
+    (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C cut) Bad initialState (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  set Q := EvL C cut ok f C.testLevel
+  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (applyProbe C cut) Bad initialState
+      (List.ofFn xs)} ⊆ ⋃ v ∈ Finset.range (versionBound C (Fintype.card α)),
+        {xs | SkipV C cut Q v initialState (List.ofFn xs)} := by
+    intro xs hxs
+    have key := bad_end_skip C cut (Reached C) (fun s s' x hs h => reached_step C cut hs h) W f ok
+      C.testLevel Bad
+      (fun s s' x hs h hv => by
+        rcases applyProbe_inl_shape C cut h with ⟨-, T, E, he⟩ | he
+        · rw [he]; exact hfresh _ _ _
+        · exact absurd (by rw [he]; rfl) hv)
+      (fun s s' x hs h hv => by
+        rcases applyProbe_inl_shape C cut h with ⟨hlt, -⟩ | he
+        · omega
+        · rw [he]; exact hkeep s x hs.2)
+      (fun s s' x e hs h hb => by
+        rcases applyProbe_inr_shape C cut ha ha1 hn₀ hexc h with rfl | ⟨rfl, hr⟩
+        · exact absurd hb (htoo _)
+        · obtain ⟨hok, h1⟩ := hbad s x e hs.2 hb hr
+          exact ⟨hok, by rw [← (hkeep s x hs.2).1]; exact h1⟩)
+      (List.ofFn xs) initialState (reached_start C hL) hxs
+    have hW : W initialState = 1 := hfresh _ _ _
+    obtain ⟨v, hsk⟩ : ∃ v, SkipV C cut Q v initialState (List.ofFn xs) := by
+      rcases key with ⟨v, -, hsk⟩ | hev
+      · exact ⟨v, hsk⟩
+      · rw [hW, mul_one] at hev
+        refine ⟨0, ?_⟩
+        rcases hl : List.ofFn xs with _ | ⟨y, ys⟩ <;> rw [hl] at hev
+        · exact hev.elim
+        · simp only [SkipV, show (initialState : Level5State α).version = 0 from rfl, if_true]
+          exact hev
+    obtain ⟨s', hs', hv⟩ := skipV_reached C cut Q v _ _ (reached_start C hL) hsk
+    exact Set.mem_biUnion (Finset.mem_range.2 (hv ▸ version_lt C hs'.1 hL)) hsk
+  refine (measure_mono hsub).trans ((measure_biUnion_finset_le _ _).trans ?_)
+  have hQ : ∀ v ∈ Finset.range (versionBound C (Fintype.card α)),
+      (Measure.pi fun _ : Fin T => D) {xs | SkipV C cut Q v initialState (List.ofFn xs)}
+        ≤ ENNReal.ofReal C.testLevel := fun v _ =>
+    skipV_le C cut D (Reached C) (fun s s' x hs h => reached_step C cut hs h) Q v
+      (fun T' s _ _ => evL_le C cut D ok f hf0 hf T' C.testLevel s ha.le) T _ (reached_start C hL)
+  refine (Finset.sum_le_sum hQ).trans (le_of_eq ?_)
+  rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
+
+/-- A sequential test whose counts start afresh at each hypothesis and, while it keeps, advance at
+the probes `act` picks, with a hit at those `hit` picks: where its factor averages at most one at
+`ok` hypotheses, it fires at one with chance at most `versionBound · a` over the round. -/
+theorem ratio_site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 ≤ C.maxLeaves)
+    (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) {p₀ p₁ : ℝ} (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < p₁)
+    (hp₁1 : p₁ < 1) (N H : Level5State α → ℕ) (act hit : Level5State α → FreeMonoid α → Bool)
+    (ok : Level5State α → Prop) (Bad : Level5Ending α → Level5State α → Prop)
+    (hf : ∀ s, ok s → ∫⁻ x, ENNReal.ofReal
+      (if act s x then ratioFactor p₀ p₁ (hit s x) else 1) ∂D ≤ 1)
+    (hfresh : ∀ T E v, N (freshState T E v) = 0 ∧ H (freshState T E v) = 0)
+    (hle : ∀ s, CountInv s → H s ≤ N s)
+    (hkeep : ∀ s x, CountInv s → N (keepProbe C cut s x) = N s + (if act s x then 1 else 0)
+      ∧ H (keepProbe C cut s x) = H s + (if hit s x then 1 else 0) ∧ (hit s x → act s x)
+      ∧ (ok (keepProbe C cut s x) ↔ ok s))
+    (htoo : ∀ s, ¬ Bad .tooBig s)
+    (hbad : ∀ s x e, CountInv s → Bad e (keepProbe C cut s x) →
+      runTests C (keepProbe C cut s x) = some e →
+        ok s ∧ seqRate p₀ p₁ C.testLevel (N (keepProbe C cut s x)) (H (keepProbe C cut s x)))
+    (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C cut) Bad initialState (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  have hrf : ∀ b, 0 ≤ ratioFactor p₀ p₁ b := fun b => by
+    unfold ratioFactor; split
+    · exact div_nonneg hp₁.le hp₀.le
+    · exact div_nonneg (by linarith) (by linarith)
+  refine site_le C cut D hL ha ha1 hn₀ hexc (fun s => likelihoodRatio p₀ p₁ (N s) (H s))
+    (fun s x => if act s x then ratioFactor p₀ p₁ (hit s x) else 1) ok Bad
+    (fun s x => by split <;> [exact hrf _; norm_num]) hf
+    (fun T E v => by simp only [(hfresh T E v).1, (hfresh T E v).2, likelihoodRatio_zero])
+    (fun s x hs => ⟨?_, (hkeep s x hs).2.2.2⟩) htoo (fun s x e hs hb hr => ?_) T
+  · obtain ⟨h1, h2, h3, -⟩ := hkeep s x hs
+    rw [h1, h2]
+    by_cases hact : act s x
+    · simp only [hact, if_true]
+      rw [likelihoodRatio_succ (hle s hs), mul_comm]
+    · have hh : hit s x = false := by
+        by_contra hc
+        exact hact (h3 (by simpa using hc))
+      simp [hact, hh]
+  · obtain ⟨hok, hs'⟩ := hbad s x e hs hb hr
+    refine ⟨hok, ?_⟩
+    unfold seqRate at hs'
+    rw [div_le_iff₀ ha] at hs'
+    linarith
+
+end Site
+
+
+
+section Tests
+
+open scoped Classical
+
+variable (C : Level5Settings) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+  (rd : FreeMonoid α → ARU)
+
+open scoped Classical in
+theorem runTests_start' {s : Level5State α} (h : runTests C s = some .harvestStart) :
+    seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes s.startUndecided.length := by
+  unfold runTests at h
+  split_ifs at h with h1 <;> first | exact h1 | simp at h
+
+open scoped Classical in
+theorem runTests_pt' {s : Level5State α} (h : runTests C s = some .harvestPT) :
+    C.searchShare * s.probes ≤ s.searches ∧ C.firstLook ≤ s.searches
+      ∧ seqRate C.middleUndecidedRate C.middleAltRate C.testLevel s.searches s.middles.length := by
+  unfold runTests at h
+  split_ifs at h with h1 h2 h3 <;> first | exact h3 | simp at h
+
+open scoped Classical in
+theorem runTests_success' {s : Level5State α} (h : runTests C s = some .success) :
+    seqRate C.disagreementRate C.disagreementAltRate C.testLevel s.probes s.searches := by
+  unfold runTests at h
+  split_ifs at h with h1 h2 h3 h4 <;> first | exact h4 | simp at h
+
+open scoped Classical in
+theorem runTests_harvest' {s : Level5State α} {e : List Bool × α}
+    (h : runTests C s = some (.harvest e)) :
+    e.1 ∈ s.tree.leaves ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
+      ∧ C.edgeExcess (s.edgeReads e.1 e.2)
+        ≤ ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2 := by
+  unfold runTests at h
+  split_ifs at h with h1 h2
+  · simp at h
+  · simp only [Option.some.injEq, Level5Ending.harvest.injEq] at h
+    subst h
+    exact h2.choose_spec
+  all_goals simp at h
+
+/-- The probes whose start reads undecided at `T`. -/
+def startSet (T : DTree α) : Set (FreeMonoid α) :=
+  {x | startHarvestBy (fun z => (rd z).cut) T C.walkStart x ≠ []}
+
+/-- A harvest at the start of a hypothesis whose start reads undecided at most `θs` of the
+time. -/
+def StartBad (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .harvestStart ∧ D.real (startSet C rd s.tree) ≤ C.startUndecidedRate
+
+theorem startHarvestBy_length (T : DTree α) (x : FreeMonoid α) :
+    (startHarvestBy (fun z => (rd z).cut) T C.walkStart x).length
+      = if decide (x ∈ startSet C rd T) then 1 else 0 := by
+  unfold startSet startHarvestBy
+  by_cases h1 : x.toList.length < C.walkStart
+  · simp [h1]
+  · rcases hs : T.siftCut (fun z => (rd z).cut) (prefixOf x C.walkStart) with p | b <;>
+      simp [h1, hs]
+
+theorem start_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (StartBad C D rd) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  have hp₁ : 0 < C.startAltRate := hSq.θs_pos.trans hSq.θs_alt
+  refine ratio_site_le C _ D hL hSq.a_pos hSq.a_lt hn₀ hexc hSq.θs_pos
+    (hSq.θs_alt.trans hSq.θs_alt_lt) hp₁ hSq.θs_alt_lt (fun s => s.probes)
+    (fun s => s.startUndecided.length) (fun _ _ => true)
+    (fun s x => decide (x ∈ startSet C rd s.tree))
+    (fun s => D.real (startSet C rd s.tree) ≤ C.startUndecidedRate) (StartBad C D rd)
+    (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.1)
+    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], ?_, fun _ => rfl, Iff.rfl⟩)
+    (fun s h => by simp [StartBad] at h) (fun s x e hs hb hr => ?_) T
+  · simp only [if_true]
+    refine lintegral_ratioFactor_le D (· ∈ startSet C rd s.tree) hSq.θs_pos
+      (hSq.θs_alt.trans hSq.θs_alt_lt) hp₁.le hSq.θs_alt_lt.le ?_
+    rw [Set.setOf_mem_eq]
+    exact mul_nonpos_of_nonpos_of_nonneg (by linarith) (by linarith [hSq.θs_alt])
+  · simp only [keepProbe, Level5State.countProbe, List.length_append]
+    rw [startHarvestBy_length]
+  · obtain ⟨rfl, hok⟩ := hb
+    exact ⟨hok, runTests_start' C hr⟩
+
+
+/-- A harvest's success at a hypothesis searching on at least `εd` of the probes. -/
+def SuccessBad (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .success ∧ C.disagreementRate ≤ D.real (searchAt rd C.walkStart s.tree s.edges)
+
+theorem keep_searches (s : Level5State α) (x : FreeMonoid α) :
+    (keepProbe C (fun z => (rd z).cut) s x).searches
+      = s.searches + if decide (x ∈ searchAt rd C.walkStart s.tree s.edges) then 1 else 0 := by
+  simp only [keepProbe]
+  congr 1
+  by_cases h : (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsSearch
+  · rw [if_pos h, if_pos (by simpa using mem_searchAt.2 h)]
+  · rw [if_neg h, if_neg (by simpa using fun h' => h (mem_searchAt.1 h'))]
+
+theorem success_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (SuccessBad C D rd) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  refine ratio_site_le C _ D hL hSq.a_pos hSq.a_lt hn₀ hexc hSq.εd_pos hSq.εd_lt hSq.εd_alt_pos
+    (hSq.εd_alt.trans hSq.εd_lt) (fun s => s.probes) (fun s => s.searches) (fun _ _ => true)
+    (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
+    (fun s => C.disagreementRate ≤ D.real (searchAt rd C.walkStart s.tree s.edges))
+    (SuccessBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
+    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
+      fun _ => rfl, Iff.rfl⟩)
+    (fun s h => by simp [SuccessBad] at h) (fun s x e hs hb hr => ?_) T
+  · simp only [if_true]
+    refine lintegral_ratioFactor_le D (· ∈ searchAt rd C.walkStart s.tree s.edges) hSq.εd_pos
+      hSq.εd_lt hSq.εd_alt_pos.le (hSq.εd_alt.trans hSq.εd_lt).le ?_
+    rw [Set.setOf_mem_eq]
+    exact mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith [hSq.εd_alt])
+  · obtain ⟨rfl, hok⟩ := hb
+    exact ⟨hok, runTests_success' C hr⟩
+
+/-- A harvest of the middles at a hypothesis searching on at most `φpt/2` of the probes. -/
+def GateBad (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .harvestPT ∧ D.real (searchAt rd C.walkStart s.tree s.edges) ≤ C.searchShare / 2
+
+theorem gate_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) (hgate : 6 * Real.log (1 / C.testLevel) ≤ C.firstLook)
+    (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (GateBad C D rd) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  have hφ := hSq.φ_pos
+  have hφ1 := hSq.φ_lt
+  refine ratio_site_le C _ D hL hSq.a_pos hSq.a_lt hn₀ hexc (p₀ := C.searchShare / 2)
+    (p₁ := C.searchShare) (by linarith) (by linarith) hφ hφ1 (fun s => s.probes)
+    (fun s => s.searches) (fun _ _ => true)
+    (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
+    (fun s => D.real (searchAt rd C.walkStart s.tree s.edges) ≤ C.searchShare / 2)
+    (GateBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
+    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
+      fun _ => rfl, Iff.rfl⟩)
+    (fun s h => by simp [GateBad] at h) (fun s x e hs hb hr => ?_) T
+  · simp only [if_true]
+    refine lintegral_ratioFactor_le D (· ∈ searchAt rd C.walkStart s.tree s.edges)
+      (by linarith) (by linarith) hφ.le hφ1.le ?_
+    rw [Set.setOf_mem_eq]
+    exact mul_nonpos_of_nonpos_of_nonneg (by linarith) (by linarith)
+  · obtain ⟨rfl, hok⟩ := hb
+    refine ⟨hok, ?_⟩
+    obtain ⟨hg, hf, -⟩ := runTests_pt' C hr
+    have hci := countInv_keep C (fun z => (rd z).cut) hs x
+    exact seqRate_share hφ hφ1 hSq.a_pos hgate hf hci.2.2 hg
+
+/-- The probes whose search stops at an undecided middle. -/
+def ptSet (T : DTree α) (E : EdgeTable α) : Set (FreeMonoid α) :=
+  {x | middleHarvestBy (fun z => (rd z).cut) T E C.walkStart x ≠ []}
+
+/-- A harvest of the middles at a hypothesis whose searches stop at an undecided middle at most
+`θpt` of the time. -/
+def MiddlesBad (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .harvestPT ∧ D.real (ptSet C rd s.tree s.edges)
+    ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)
+
+theorem ptSet_sub (T : DTree α) (E : EdgeTable α) : ptSet C rd T E ⊆ searchAt rd C.walkStart T E := by
+  intro x hx
+  rw [mem_searchAt]
+  have := middleHarvestBy_length (fun z => (rd z).cut) T E C.walkStart x
+  simp only [ptSet, Set.mem_setOf_eq] at hx
+  rcases ho : probeBy (fun z => (rd z).cut) T E C.walkStart x with _ | _ | _ | _ | _ | _ <;>
+    rw [ho] at this <;> simp_all [Outcome.IsSearch]
+
+/-- At hits `A` among the active draws `B`, at most `p₀` of them, a factor `p₁/p₀` at a hit,
+`(1 − p₁)/(1 − p₀)` at another active draw and `1` elsewhere averages at most one. -/
+theorem lintegral_actFactor_le {A B : Set (FreeMonoid α)} (hAB : A ⊆ B) {p₀ p₁ : ℝ}
+    (hp₀ : 0 < p₀) (hp₀₁ : p₀ < p₁) (hp₁1 : p₁ < 1) (hs : D.real A ≤ p₀ * D.real B) :
+    ∫⁻ x, ENNReal.ofReal (if decide (x ∈ B) then ratioFactor p₀ p₁ (decide (x ∈ A)) else 1) ∂D
+      ≤ 1 := by
   set a₁ : ℝ := p₁ / p₀
   set a₂ : ℝ := (1 - p₁) / (1 - p₀)
   have ha₁ : 0 ≤ a₁ := div_nonneg (by linarith) hp₀.le
   have ha₂ : 0 ≤ a₂ := div_nonneg (by linarith) (by linarith)
-  have hpt : ∀ x, ENNReal.ofReal (ptFactor G C rd s x)
+  have hpt : ∀ x, ENNReal.ofReal (if decide (x ∈ B) then ratioFactor p₀ p₁ (decide (x ∈ A)) else 1)
       = A.indicator (fun _ => ENNReal.ofReal a₁) x + (B \ A).indicator (fun _ => ENNReal.ofReal a₂) x
         + Bᶜ.indicator (fun _ => 1) x := by
     intro x
-    unfold ptFactor ratioFactor
+    unfold ratioFactor
     by_cases hxA : x ∈ A
     · have hxB := hAB hxA
-      rw [if_pos hxB, if_pos (by simpa [A] using hxA), Set.indicator_of_mem hxA,
-        Set.indicator_of_notMem (fun h => h.2 hxA), Set.indicator_of_notMem (by simp [hxB])]
-      simp [a₁] <;> rfl
+      simp [hxA, hxB, Set.indicator, a₁]
     by_cases hxB : x ∈ B
-    · rw [if_pos hxB, if_neg (by simpa [A] using hxA), Set.indicator_of_notMem hxA,
-        Set.indicator_of_mem (Set.mem_sdiff_of_mem hxB hxA), Set.indicator_of_notMem (by simp [hxB])]
-      simp [a₂] <;> rfl
-    · rw [if_neg hxB, Set.indicator_of_notMem hxA, Set.indicator_of_notMem (fun h => hxB h.1),
-        Set.indicator_of_mem hxB]
-      simp
+    · simp [hxA, hxB, Set.indicator, a₂]
+    · simp [hxA, hxB, Set.indicator]
   simp_rw [hpt]
   have hmeas : ∀ E : Set (FreeMonoid α), MeasurableSet E := fun E =>
     (Set.to_countable _).measurableSet
@@ -986,7 +809,6 @@ theorem lintegral_ptFactor_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasur
     simp only [a₁, a₂]
     rw [div_le_div_iff₀ (by linarith) hp₀]
     nlinarith
-  -- linear in `D A`, increasing, so at most its value at `p₀ D B`
   have h1 : D.real A * a₁ + (D.real B - D.real A) * a₂
       ≤ p₀ * D.real B * a₁ + (D.real B - p₀ * D.real B) * a₂ := by
     nlinarith [mul_le_mul_of_nonneg_right hs (sub_nonneg.2 hgap)]
@@ -996,638 +818,140 @@ theorem lintegral_ptFactor_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasur
     rw [this, e1, e2]; ring
   linarith
 
-theorem skip_le (hm : 0 < C.recordsToMove) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (Q : Level5State α → List (FreeMonoid α) → Prop) {c : ENNReal}
-    (hQ : ∀ (T : ℕ) (s : Level5State α), Reach G s
-      → (Measure.pi fun _ : Fin T => D) {xs | Q s (List.ofFn xs)} ≤ c) :
-    ∀ (T i : ℕ) (s : Level5State α), Reach G s →
-      (Measure.pi fun _ : Fin T => D) {xs | Skip C cut Q i s (List.ofFn xs)} ≤ c := by
-  intro T
-  induction T with
-  | zero =>
-    intro i s hs
-    rcases i with _ | i
-    · exact hQ 0 s hs
-    · simp [Skip]
-  | succ T ih =>
-    intro i s hs
-    rcases i with _ | i
-    · exact hQ _ s hs
-    rw [pi_succ_apply]
-    calc ∫⁻ x, (Measure.pi fun _ : Fin T => D) {xs | Fin.cons x xs ∈
-          {xs : Fin (T + 1) → FreeMonoid α | Skip C cut Q (i + 1) s (List.ofFn xs)}} ∂D
-        ≤ ∫⁻ _, c ∂D := lintegral_mono fun x => by
-          rcases hst : applyProbe C cut s x with s' | _
-          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
-                Skip C cut Q (i + 1) s (List.ofFn xs)}}
-                    = {xs | Skip C cut Q i s' (List.ofFn xs)} := by
-              ext xs; simp only [Set.mem_ofPred_eq, List.ofFn_cons, Skip, hst]
-            rw [this]; exact ih i s' (reach_step G C cut hm hs hst).1
-          · have : {xs | Fin.cons x xs ∈ {xs : Fin (T + 1) → FreeMonoid α |
-                Skip C cut Q (i + 1) s (List.ofFn xs)}} = ∅ := by
-              ext xs
-              simp only [Set.mem_ofPred_eq, List.ofFn_cons, Skip, hst, Set.mem_empty_iff_false]
-            rw [this, measure_empty]; exact zero_le
-      _ = c := by rw [lintegral_const, measure_univ, mul_one]
+theorem middles_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (MiddlesBad C D rd) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  refine ratio_site_le C _ D hL hSq.a_pos hSq.a_lt hn₀ hexc hSq.θpt_pos
+    (hSq.θpt_alt.trans hSq.θpt_alt_lt) (hSq.θpt_pos.trans hSq.θpt_alt) hSq.θpt_alt_lt
+    (fun s => s.searches) (fun s => s.middles.length)
+    (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
+    (fun s x => decide (x ∈ ptSet C rd s.tree s.edges))
+    (fun s => D.real (ptSet C rd s.tree s.edges)
+      ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges))
+    (MiddlesBad C D rd) (fun s hs => lintegral_actFactor_le D (ptSet_sub C rd _ _) hSq.θpt_pos
+      hSq.θpt_alt hSq.θpt_alt_lt hs) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.1)
+    (fun s x hs => ⟨keep_searches C rd s x, ?_, fun h => ?_, Iff.rfl⟩)
+    (fun s h => by simp [MiddlesBad] at h) (fun s x e hs hb hr => ?_) T
+  · simp only [keepProbe, Level5State.countProbe, List.length_append]
+    congr 1
+    have := middleHarvestBy_length (fun z => (rd z).cut) s.tree s.edges C.walkStart x
+    unfold ptSet
+    rcases middleHarvestBy_cases (fun z => (rd z).cut) s.tree s.edges C.walkStart x with h | ⟨b, h⟩ <;>
+      simp [h]
+  · simp only [decide_eq_true_eq] at h ⊢
+    exact ptSet_sub C rd _ _ h
+  · obtain ⟨rfl, hok⟩ := hb
+    exact ⟨hok, (runTests_pt' C hr).2.2⟩
 
-end PT
 
-section Low
+/-- The edge out of a tree's `i`-th leaf by `c`. -/
+def edgeOf (T : DTree α) (i : ℕ) (c : α) : List Bool × α := (T.leaves.getD i [], c)
 
-variable (C : Level5Settings) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
+/-- A probe's mean count of undecided strings at the edge `e`. -/
+noncomputable def undMean (T : DTree α) (E : EdgeTable α) (e : List Bool × α) : ℝ :=
+  ∫ x, ((edgeHarvestBy (fun z => (rd z).cut) T E C.walkStart x e).length : ℝ) ∂D
 
-/-- The hypothesis's disagreement rate: the probes that search. -/
-noncomputable def disRate (s : Level5State α) : ℝ := D.real (searchAt rd C.walkStart s.tree s.edges)
+/-- A probe's mean count of first reads at the edge `e`. -/
+noncomputable def readMean (T : DTree α) (E : EdgeTable α) (e : List Bool × α) : ℝ :=
+  ∫ x, (edgeReadsBy (fun z => (rd z).cut) T E C.walkStart x e : ℝ) ∂D
 
-open scoped Classical in
-/-- A probe's factor in a test of its stretch's searches: `p₁/p₀` where it searches, else
-`(1 - p₁)/(1 - p₀)`. -/
-noncomputable def searchFactor (p₀ p₁ : ℝ) (s : Level5State α) (x : FreeMonoid α) : ℝ :=
-  ratioFactor p₀ p₁ (decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
+/-- The `i`-th leaf's edge by `c`: its undecided strings less twice their running mean,
+exponentiated. -/
+noncomputable def undW (L i : ℕ) (c : α) (s : Level5State α) : ℝ :=
+  Real.exp ((((s.edgeUndecided (edgeOf s.tree i c).1 c).length : ℝ)
+    - 2 * s.probes * undMean C D rd s.tree s.edges (edgeOf s.tree i c)) / (2 * (L + 1)))
 
-theorem searchFactor_nonneg {p₀ p₁ : ℝ} (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁)
-    (hp₁1 : p₁ ≤ 1) (s : Level5State α) (x : FreeMonoid α) : 0 ≤ searchFactor C rd p₀ p₁ s x := by
-  unfold searchFactor ratioFactor
-  split_ifs
-  · positivity
-  · exact div_nonneg (by linarith) (by linarith)
+/-- Half its reads' running mean less its reads, exponentiated. -/
+noncomputable def readW (L i : ℕ) (c : α) (s : Level5State α) : ℝ :=
+  Real.exp ((s.probes * readMean C D rd s.tree s.edges (edgeOf s.tree i c) / 2
+    - s.edgeReads (edgeOf s.tree i c).1 c) / (2 * ((L + 1) * C.maxLeaves)))
 
-open scoped Classical in
-/-- On the far side of `p₀` from `p₁`, the factor averages at most `1`. -/
-theorem lintegral_searchFactor_le [IsProbabilityMeasure D] {p₀ p₁ : ℝ} (hp₀ : 0 < p₀)
-    (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁) (hp₁1 : p₁ ≤ 1) {s : Level5State α}
-    (hq : (disRate C D rd s - p₀) * (p₁ - p₀) ≤ 0) :
-    ∫⁻ x, ENNReal.ofReal (searchFactor C rd p₀ p₁ s x) ∂D ≤ 1 :=
-  lintegral_ratioFactor_le D (fun x => x ∈ searchAt rd C.walkStart s.tree s.edges) hp₀ hp₀1 hp₁
-    hp₁1 hq
+/-- A harvest at the `i`-th leaf's edge by `c`, its undecided strings past twice their running
+mean by `2 (L + 1) log (1/a)`. -/
+def UndBad (L i : ℕ) (c : α) (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .harvest (edgeOf s.tree i c) ∧ 1 ≤ C.testLevel * undW C D rd L i c s
 
-open scoped Classical in
-/-- A probe that carries the stretch on multiplies a test of its searches' ratio by its factor. -/
-theorem lr_search_step (p₀ p₁ : ℝ) {s : Level5State α} {x : FreeMonoid α} (hci : CountInv s)
-    (hn : (recordProbe C (fun z => (rd z).cut) s x).stretchProbes = s.stretchProbes + 1) :
-    likelihoodRatio p₀ p₁ (recordProbe C (fun z => (rd z).cut) s x).stretchProbes
-        (recordProbe C (fun z => (rd z).cut) s x).stretchDisagreements
-      = searchFactor C rd p₀ p₁ s x * likelihoodRatio p₀ p₁ s.stretchProbes
-        s.stretchDisagreements := by
-  rcases recordProbe_stretch C (fun z => (rd z).cut) s x with ⟨hn₁, -, hd⟩ | ⟨hn', -, -, -⟩
-  swap
-  · omega
-  unfold searchFactor
-  rw [hn₁, hd]
-  have e : (if (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0)
-      = if decide (x ∈ searchAt rd C.walkStart s.tree s.edges) then 1 else 0 := by
-    by_cases hx : x ∈ searchAt rd C.walkStart s.tree s.edges
-    · rw [if_pos (mem_searchAt.1 hx)]; simp [hx]
-    · rw [if_neg (fun h => hx (mem_searchAt.2 h))]; simp [hx]
-  rw [e]
-  exact likelihoodRatio_succ hci.2.2 _
+/-- A harvest at the `i`-th leaf's edge by `c`, its reads short of half their running mean by
+`2 (L + 1) maxLeaves log (1/a)`. -/
+def ReadBad (L i : ℕ) (c : α) (e : Level5Ending α) (s : Level5State α) : Prop :=
+  e = .harvest (edgeOf s.tree i c) ∧ s.tree.leaves.length ≤ C.maxLeaves
+    ∧ 1 ≤ C.testLevel * readW C D rd L i c s
 
-end Low
-
-section Assemble
-
-open scoped Classical in
-theorem runTests_start' (C : Level5Settings) {s : Level5State α}
-    (h : runTests C s = some .harvestStart) :
-    seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes s.startUndecided.length := by
-  unfold runTests at h
-  by_contra h1
-  rw [if_neg h1] at h
-  split_ifs at h <;> simp at h
-
-open scoped Classical in
-theorem runTests_harvest' (C : Level5Settings) {s : Level5State α} {e : List Bool × α}
-    (h : runTests C s = some (.harvest e)) :
-    e.1 ∈ s.tree.leaves ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
-        ∧ C.edgeExcess (s.edgeReads e.1 e.2)
-      ≤ ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2 := by
-  unfold runTests at h
-  by_cases h1 : seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes
-      s.startUndecided.length
-  · rw [if_pos h1] at h; simp at h
-  · rw [if_neg h1] at h
-    by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
-        ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
-        ∧ C.edgeExcess (s.edgeReads e.1 e.2) ≤ ((s.edgeUndecided e.1 e.2).length : ℝ)
-            - C.edgeUndecidedRate * s.edgeReads e.1 e.2
-    · rw [dif_pos h2] at h
-      simp only [Option.some.injEq, Level5Ending.harvest.injEq] at h
-      rw [← h]
-      exact h2.choose_spec
-    · rw [dif_neg h2] at h
-      split_ifs at h <;> simp at h
-
-open scoped Classical in
-theorem runTests_pt' (C : Level5Settings) {s : Level5State α} (h : runTests C s = some .harvestPT) :
-    C.searchShare * s.stretchProbes ≤ s.stretchDisagreements ∧ C.firstLook ≤ s.stretchDisagreements
-        ∧ seqRate C.middleUndecidedRate C.middleAltRate C.testLevel s.stretchDisagreements
-          s.stretchMiddles.length := by
-  unfold runTests at h
-  by_cases h1 : seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes
-      s.startUndecided.length
-  · rw [if_pos h1] at h; simp at h
-  rw [if_neg h1] at h
-  by_cases h2 : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
-      ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
-      ∧ C.edgeExcess (s.edgeReads e.1 e.2) ≤ ((s.edgeUndecided e.1 e.2).length : ℝ)
-          - C.edgeUndecidedRate * s.edgeReads e.1 e.2
-  · rw [dif_pos h2] at h; simp at h
-  rw [dif_neg h2] at h
-  by_cases h3 : C.searchShare * s.stretchProbes ≤ s.stretchDisagreements
-      ∧ C.firstLook ≤ s.stretchDisagreements ∧ seqRate C.middleUndecidedRate C.middleAltRate
-        C.testLevel s.stretchDisagreements s.stretchMiddles.length
-  · exact h3
-  · rw [if_neg h3] at h
-    split_ifs at h <;> simp at h
-
-/-- The leaves' paths of length at most `n`. -/
-def shortPaths (n : ℕ) : Finset (List Bool) :=
-  (Finset.range (n + 1)).biUnion fun i => Finset.univ.image fun v : Fin i → Bool => List.ofFn v
-
-theorem mem_shortPaths {n : ℕ} {p : List Bool} (h : p.length ≤ n) : p ∈ shortPaths n := by
-  simp only [shortPaths, Finset.mem_biUnion, Finset.mem_range, Finset.mem_image, Finset.mem_univ,
-    true_and]
-  exact ⟨p.length, by omega, p.get, List.ofFn_get p⟩
-
-theorem shortPaths_card (n : ℕ) : (shortPaths n).card ≤ 2 ^ (n + 1) := by
-  refine Finset.card_biUnion_le.trans ?_
-  have : ∀ i, (Finset.univ.image fun v : Fin i → Bool => List.ofFn v).card ≤ 2 ^ i := fun i =>
-    Finset.card_image_le.trans (by simp)
-  refine (Finset.sum_le_sum fun i _ => this i).trans ?_
-  induction n with
-  | zero => simp
-  | succ n ih => rw [Finset.sum_range_succ, pow_succ]; omega
-
-omit [Fintype α] [DecidableEq α] in
-theorem sum_map_le_affine {β : Type*} (l : List β) (f g : β → ℝ) (a c : ℝ)
-    (h : ∀ v ∈ l, f v ≤ a * g v + c) : (l.map f).sum ≤ a * (l.map g).sum + l.length * c := by
-  induction l with
-  | nil => simp
-  | cons v l ih =>
-    simp only [List.map_cons, List.sum_cons, List.length_cons]
-    have h1 := h v (by simp)
-    have h2 := ih fun w hw => h w (by simp [hw])
+theorem und_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (i : ℕ) (c : α)
+    (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (UndBad C D rd L i c) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
+  refine site_le C cut D hL hSq.a_pos hSq.a_lt hn₀ hexc (undW C D rd L i c)
+    (fun s x => Real.exp ((((edgeHarvestBy cut s.tree s.edges C.walkStart x
+      (edgeOf s.tree i c)).length : ℝ) - 2 * undMean C D rd s.tree s.edges (edgeOf s.tree i c)) / (2 * (L + 1))))
+    (fun _ => True) (UndBad C D rd L i c) (fun s x => (Real.exp_pos _).le) (fun s _ => ?_)
+    (fun T E v => by simp [undW, freshState]) (fun s x hs => ⟨?_, Iff.rfl⟩)
+    (fun s h => by simp [UndBad] at h) (fun s x e hs hb hr => ⟨trivial, hb.2⟩) T
+  · have h0 : 0 ≤ undMean C D rd s.tree s.edges (edgeOf s.tree i c) :=
+      integral_nonneg fun _ => Nat.cast_nonneg _
+    have := mgf_step D
+      (fun x => (edgeHarvestBy cut s.tree s.edges C.walkStart x (edgeOf s.tree i c)).length)
+      (fun _ => 0) (θ := 0) (L := (L : ℝ) + 1) (R := 0) le_rfl (by positivity) le_rfl
+      (by
+        filter_upwards [hlen] with x hx
+        refine ⟨?_, by simp⟩
+        have := edgeHarvestBy_length_le cut s.tree s.edges C.walkStart x (edgeOf s.tree i c)
+        exact_mod_cast (by omega : (edgeHarvestBy cut s.tree s.edges C.walkStart x
+          (edgeOf s.tree i c)).length ≤ L + 1))
+      h0 (by simp only [zero_mul, zero_add]; exact le_rfl)
+    refine le_trans (le_of_eq (lintegral_congr fun x => ?_)) this
+    congr 2
     push_cast
-    linarith
+    ring
+  · simp only [undW, keepProbe, Level5State.countProbe, List.length_append, Nat.cast_add,
+      Nat.cast_one]
+    rw [← Real.exp_add]
+    congr 1
+    simp only [edgeOf]
+    ring
 
-set_option maxHeartbeats 1000000 in -- the seven events and their sampler facts
-open scoped Classical in
-theorem harvest_good_holds : HarvestGood := by
-  intro α _ _ σ _ G rd D _ C S L T ρ θg θgs θgpt hlen hL1 hm hS hθg0 hθg hφe0 hLmax hexc
-    hθgs0 hθgs hhalf hθgpt0 hθgpt hgate hE
-  classical
-  have ha := hS.a_pos
-  have ha1 := hS.a_lt
-  set ℓ := Real.log (1 / C.testLevel) with hℓ
-  have hℓ0 : 0 ≤ ℓ := Real.log_nonneg (by rw [le_div_iff₀ ha]; linarith)
-  have hθpt0 : 0 ≤ C.middleUndecidedRate := hS.θpt_pos.le
-  have hθs0 : 0 ≤ C.startUndecidedRate := hS.θs_pos.le
-  have hθe0 : 0 ≤ C.edgeUndecidedRate := by linarith
-  have hφ0 := hS.φ_pos
-  have hφ1 := hS.φ_lt
-  have hLm : (0 : ℝ) < C.maxLeaves := by exact_mod_cast (by omega : 0 < C.maxLeaves)
-  have hK₁ : (0 : ℝ) < 2 * (L + 1) := by positivity
-  have hK₂ : (0 : ℝ) < 2 * ((L + 1) * C.maxLeaves) := by positivity
-  set keys := shortPaths C.maxLeaves ×ˢ (Finset.univ : Finset α)
-  set okP : Level5State α → Prop := PTLow G C D rd
-  set fP : Level5State α → FreeMonoid α → ℝ := ptFactor G C rd
-  set LP : Level5State α → ℝ := fun s => likelihoodRatio C.middleUndecidedRate C.middleAltRate
-    s.stretchDisagreements s.stretchMiddles.length
-  set okH : Level5State α → Prop := fun s => disRate C D rd s ≤ C.searchShare / 2
-  set fH : Level5State α → FreeMonoid α → ℝ := searchFactor C rd (C.searchShare / 2) C.searchShare
-  set LH : Level5State α → ℝ := fun s => likelihoodRatio (C.searchShare / 2) C.searchShare
-    s.stretchProbes s.stretchDisagreements
-  set Qp : Level5State α → List (FreeMonoid α) → Prop := fun s l =>
-    s.stretchDisagreements = 0 ∧ s.stretchMiddles = [] ∧ EvL C (fun z => (rd z).cut) okP fP C.testLevel s l
-  set Qh : Level5State α → List (FreeMonoid α) → Prop := fun s l =>
-    s.stretchProbes = 0 ∧ s.stretchDisagreements = 0 ∧ EvL C (fun z => (rd z).cut) okH fH C.testLevel s l
-  set P : Level5Ending α → Level5State α → Prop := fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
-    ∧ ¬ GoodEnd G D rd C.walkStart C.harvestYield e s'
-  have hokP : ∀ s s' : Level5State α, s'.tree = s.tree → s'.edges = s.edges →
-      (okP s' ↔ okP s) := by
-    intro s s' h1 h2; simp only [okP, PTLow, h1, h2]
-  have hdr : ∀ s s' : Level5State α, s'.tree = s.tree → s'.edges = s.edges →
-      disRate C D rd s' = disRate C D rd s := by
-    intro s s' h1 h2; simp only [disRate, h1, h2]
-  -- a probe that carries the stretch on multiplies each test's ratio by its factor
-  have hstepP : ∀ s x, CountInv s →
-      (recordProbe C (fun z => (rd z).cut) s x).stretchProbes = s.stretchProbes + 1 →
-      LP (recordProbe C (fun z => (rd z).cut) s x) = fP s x * LP s := by
-    intro s x hci hn
-    rcases recordProbe_stretch C (fun z => (rd z).cut) s x with ⟨-, hm, hd⟩ | ⟨hn', -, -, -⟩
-    swap
-    · omega
-    simp only [LP, fP, ptFactor]
-    rw [hm, hd, List.length_append]
-    by_cases hx : x ∈ searchAt rd C.walkStart s.tree s.edges
-    · have hxs := mem_searchAt.1 hx
-      rw [if_pos hxs, if_pos hx]
-      have hlen : (middleHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).length
-          = if decide (x ∈ G.ptAt rd C.walkStart s.tree s.edges fun _ => True) then 1 else 0 := by
-        rcases middleHarvestBy_cases (fun z => (rd z).cut) s.tree s.edges C.walkStart x with h0 | ⟨b, hb⟩
-        · have : x ∉ G.ptAt rd C.walkStart s.tree s.edges fun _ => True := by
-            rintro ⟨b, hb, -⟩
-            rw [h0] at hb
-            simp at hb
-          simp [h0, this]
-        · have : x ∈ G.ptAt rd C.walkStart s.tree s.edges fun _ => True := ⟨b, hb, trivial⟩
-          simp [hb, this]
-      rw [hlen]
-      exact likelihoodRatio_succ hci.2.1 _
-    · have hxs : ¬ (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsSearch :=
-        fun h => hx (mem_searchAt.2 h)
-      rw [if_neg hxs, if_neg hx, one_mul]
-      have h0 : middleHarvestBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x = [] := by
-        by_contra hne
-        exact hxs (middleHarvestBy_search (fun z => (rd z).cut) hne)
-      simp [h0]
-  have hstepH : ∀ s x, CountInv s →
-      (recordProbe C (fun z => (rd z).cut) s x).stretchProbes = s.stretchProbes + 1 →
-      LH (recordProbe C (fun z => (rd z).cut) s x) = fH s x * LH s := by
-    intro s x hci hn
-    rcases recordProbe_stretch C (fun z => (rd z).cut) s x with ⟨hn₁, -, hd⟩ | ⟨hn', -, -, -⟩
-    swap
-    · omega
-    simp only [LH, fH, searchFactor]
-    rw [hn₁, hd]
-    have e : (if (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0)
-        = if decide (x ∈ searchAt rd C.walkStart s.tree s.edges) then 1 else 0 := by
-      by_cases hx : x ∈ searchAt rd C.walkStart s.tree s.edges
-      · rw [if_pos (mem_searchAt.1 hx)]; simp [hx]
-      · rw [if_neg (fun h => hx (mem_searchAt.2 h))]; simp [hx]
-    rw [e]
-    exact likelihoodRatio_succ hci.2.2 _
-  -- the hypotheses a probe from a state of the class leaves kept
-  have hvers : ∀ s x, Reach G s → G.InClass S s.tree →
-      (∀ v ∈ (recordProbe C (fun z => (rd z).cut) s x).versions,
-        G.InClass S v.1 ∧ EdgesInto v.1 v.2)
-      ∧ (((recordProbe C (fun z => (rd z).cut) s x).versions.length : ℕ) : ℝ)
-        = (recordProbe C (fun z => (rd z).cut) s x).probes := by
-    intro s x hs hc
-    rw [recordProbe_versions, (recordProbe_countProbe C _ s x).2.2.2]
-    refine ⟨fun v hv => ?_, ?_⟩
-    · rcases List.mem_append.1 hv with hv | hv
-      · exact reach_versions G S hs hc v hv
-      · rw [List.mem_singleton] at hv
-        subst hv
-        exact ⟨hc, hs.2.1⟩
-    · rw [List.length_append, hs.2.2.2.2.1]
-      simp only [List.length_singleton]
-  -- a start harvest's sampler, its potential short of `2ℓ`
-  have hstartFin : ∀ s x, Reach G s → CountInv s → G.InClass S s.tree →
-      runTests C (recordProbe C (fun z => (rd z).cut) s x) = some .harvestStart →
-      startPot C D rd (recordProbe C (fun z => (rd z).cut) s x) < 2 * ℓ →
-      GoodEnd G D rd C.walkStart C.harvestYield .harvestStart
-        (recordProbe C (fun z => (rd z).cut) s x) := by
-    intro s x hs hci hc hrt hpot
-    obtain ⟨hcv, hN⟩ := hvers s x hs hc
-    have hlt := runTests_start' C hrt
-    have hle := (countInv_record C (fun z => (rd z).cut) hci x).1
-    have hh := hhalf _ _ hle hlt
-    show MixGood G D rd C.walkStart C.harvestYield
-      ⟨.start, (recordProbe C (fun z => (rd z).cut) s x).versions⟩
-    simp only [MixGood]
-    set N : ℝ := (((recordProbe C (fun z => (rd z).cut) s x).versions.length : ℕ) : ℝ)
-    set Tt := ((recordProbe C (fun z => (rd z).cut) s x).versions.map
-      (siteTotal D rd C.walkStart .start)).sum
-    have hG : ((recordProbe C (fun z => (rd z).cut) s x).versions.map
-        (siteMean G D rd C.walkStart .start G.Good)).sum ≤ 0 * 0 + N * θgs := by
-      have := sum_map_le_affine _ (siteMean G D rd C.walkStart .start G.Good) (fun _ => 0) 0 θgs
-        fun v hv => by
-          rw [siteMean_start]
-          have := hE.goodStart v.1 (hcv v hv).1
-          linarith
-      simpa using this
-    have hpot' : ((recordProbe C (fun z => (rd z).cut) s x).startUndecided.length : ℝ) - 2 * Tt
-        < 2 * ℓ := hpot
-    have hh' : N * C.startUndecidedRate / 4 + 2 * ℓ
-        ≤ ((recordProbe C (fun z => (rd z).cut) s x).startUndecided.length : ℝ) := by
-      rw [hN]; exact hh
-    have hT : N * C.startUndecidedRate / 8 < Tt := by linarith
-    have hy : C.harvestYield ≤ C.startUndecidedRate / 8 := min_le_left _ _
-    have hN0 : 0 ≤ N := Nat.cast_nonneg _
-    have h16 := mul_le_mul_of_nonneg_left hθgs hN0
-    refine ⟨by linarith, ?_⟩
-    nlinarith [mul_le_mul_of_nonneg_right hy hN0]
-  -- an edge harvest's sampler, both its potentials short
-  have hedgeFin : ∀ s x e, Reach G s → G.InClass S s.tree →
-      runTests C (recordProbe C (fun z => (rd z).cut) s x) = some (.harvest e) →
-      edgePot C D rd e (recordProbe C (fun z => (rd z).cut) s x) < 2 * (L + 1) * ℓ →
-      readPot C D rd e (recordProbe C (fun z => (rd z).cut) s x)
-        < 2 * ((L + 1) * C.maxLeaves) * ℓ →
-      GoodEnd G D rd C.walkStart C.harvestYield (.harvest e)
-        (recordProbe C (fun z => (rd z).cut) s x) := by
-    intro s x e hs hc hrt hp1 hp2
-    obtain ⟨hcv, hN⟩ := hvers s x hs hc
-    obtain ⟨-, hgate, hexc'⟩ := runTests_harvest' C hrt
-    show MixGood G D rd C.walkStart C.harvestYield
-      ⟨.edge e, (recordProbe C (fun z => (rd z).cut) s x).versions⟩
-    simp only [MixGood]
-    set N : ℝ := (((recordProbe C (fun z => (rd z).cut) s x).versions.length : ℕ) : ℝ)
-    set Tt := ((recordProbe C (fun z => (rd z).cut) s x).versions.map
-      (siteTotal D rd C.walkStart (.edge e))).sum
-    set Rm := ((recordProbe C (fun z => (rd z).cut) s x).versions.map
-      (readMean D rd C.walkStart e)).sum
-    set U : ℝ := (((recordProbe C (fun z => (rd z).cut) s x).edgeUndecided e.1 e.2).length : ℝ)
-    set R : ℝ := ((recordProbe C (fun z => (rd z).cut) s x).edgeReads e.1 e.2 : ℝ)
-    set η : ℝ := C.edgeTraffic * (C.edgeUndecidedRate - 8 * θg) / 4
-    have hG : ((recordProbe C (fun z => (rd z).cut) s x).versions.map
-        (siteMean G D rd C.walkStart (.edge e) G.Good)).sum ≤ θg * Rm + N * η :=
-      sum_map_le_affine _ _ _ _ _ fun v hv => hE.goodEdge v.1 v.2 (hcv v hv).1 (hcv v hv).2 e
-    have h1 : U - 2 * Tt < 2 * (L + 1) * ℓ := hp1
-    have h2 : Rm / 2 - R < 2 * ((L + 1) * C.maxLeaves) * ℓ := hp2
-    have hx := hexc ((recordProbe C (fun z => (rd z).cut) s x).edgeReads e.1 e.2)
-    have hgate' : C.edgeTraffic * N ≤ R := by rw [hN]; exact hgate
-    have hN0 : 0 ≤ N := Nat.cast_nonneg _
-    have hgap : 0 ≤ C.edgeUndecidedRate - 8 * θg := by linarith
-    have hη : 4 * (N * η) ≤ R * (C.edgeUndecidedRate - 8 * θg) := by
-      have := mul_le_mul_of_nonneg_right hgate' hgap
-      simp only [η]
-      nlinarith
-    have hRm : θg * Rm ≤ θg * (2 * R + 4 * ((L + 1) * C.maxLeaves) * ℓ) :=
-      mul_le_mul_of_nonneg_left (by linarith) hθg0
-    have hy : C.harvestYield ≤ C.edgeTraffic * C.edgeUndecidedRate / 2 :=
-      (min_le_right _ _).trans (min_le_left _ _)
-    have hTlow : C.edgeUndecidedRate * R / 2 + (L + 1) * ℓ
-        + 8 * θg * ((L + 1) * C.maxLeaves) * ℓ < Tt := by
-      have : 4 * (L + 1) * (1 + 4 * θg * C.maxLeaves) * ℓ
-          = 4 * (L + 1) * ℓ + 16 * θg * ((L + 1) * C.maxLeaves) * ℓ := by ring
-      linarith
-    have hL0 : 0 ≤ (L + 1) * ℓ := mul_nonneg (by positivity) hℓ0
-    have hg0 : 0 ≤ 8 * θg * ((L + 1) * C.maxLeaves) * ℓ := by positivity
-    refine ⟨?_, ?_⟩
-    · linarith
-    · have h3 := mul_le_mul_of_nonneg_right hy hN0
-      have h4 := mul_le_mul_of_nonneg_left hgate' hθe0
-      linarith
-  -- a middles harvest's sampler, at a hypothesis searching enough, not `PTLow`
-  have hptFin : ∀ s x, Reach G s → G.InClass S s.tree →
-      (recordProbe C (fun z => (rd z).cut) s x).stretchProbes ≠ 0 → ¬ okP s →
-      C.searchShare / 2 ≤ D.real (searchAt rd C.walkStart s.tree s.edges) →
-      GoodEnd G D rd C.walkStart C.harvestYield .harvestPT
-        (recordProbe C (fun z => (rd z).cut) s x) := by
-    intro s x hs hc hn hk hq
-    obtain ⟨htr, hed⟩ := recordProbe_keeps C _ s x hn
-    show MixGood G D rd C.walkStart C.harvestYield ⟨.middles,
-      [((recordProbe C (fun z => (rd z).cut) s x).tree,
-        (recordProbe C (fun z => (rd z).cut) s x).edges)]⟩
-    rw [htr, hed]
-    simp only [MixGood, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero,
-      List.length_singleton, Nat.cast_one, mul_one]
-    rw [siteMean_middles, siteTotal_middles G]
-    have hp : C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)
-        < D.real (G.ptAt rd C.walkStart s.tree s.edges fun _ => True) := by
-      by_contra hle
-      push Not at hle
-      exact hk ⟨hq, hle⟩
-    have hg := hE.goodPT s.tree s.edges hc hs.2.1
-    have hy : C.harvestYield ≤ C.searchShare * C.middleUndecidedRate / 2 :=
-      (min_le_right _ _).trans (min_le_right _ _)
-    have hq0 : 0 ≤ D.real (searchAt rd C.walkStart s.tree s.edges) := measureReal_nonneg
-    refine ⟨?_, ?_⟩
-    · nlinarith [mul_le_mul_of_nonneg_left hq hθgpt0,
-        mul_le_mul_of_nonneg_right hθgpt hq0]
-    · nlinarith [mul_le_mul_of_nonneg_left hq hθpt0]
-  have hincl : ∀ (l : List (FreeMonoid α)) (s : Level5State α), Reach G s → CountInv s →
-      RunEnds (applyProbe C fun z => (rd z).cut) P s l →
-      (∃ e ∈ keys, EvP G C (fun z => (rd z).cut) S (edgePot C D rd e) (2 * (L + 1) * ℓ) s l)
-        ∨ (∃ e ∈ keys, EvP G C (fun z => (rd z).cut) S (readPot C D rd e)
-            (2 * ((L + 1) * C.maxLeaves) * ℓ) s l)
-        ∨ EvP G C (fun z => (rd z).cut) S (startPot C D rd) (2 * ℓ) s l
-        ∨ (∃ i, i < l.length ∧ Skip C (fun z => (rd z).cut) Qp i s l)
-        ∨ EvL C (fun z => (rd z).cut) okP fP (C.testLevel * LP s) s l
-        ∨ (∃ i, i < l.length ∧ Skip C (fun z => (rd z).cut) Qh i s l)
-        ∨ EvL C (fun z => (rd z).cut) okH fH (C.testLevel * LH s) s l := by
-    intro l
-    induction l with
-    | nil => intro s _ _ h; exact h.elim
-    | cons x xs ih =>
-      intro s hs hci h
-      simp only [RunEnds] at h
-      rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | ⟨e, s''⟩ <;> rw [hst] at h
-      · rcases ih s' (reach_step G C _ hm hs hst).1 (countInv_step C _ hci hst) h with
-          ⟨e, he, hE'⟩ | ⟨e, he, hE'⟩ | hS' | ⟨i, hi, hk⟩ | hP | ⟨i, hi, hk⟩ | hH
-        · exact .inl ⟨e, he, .inr (by simp only [hst]; exact hE')⟩
-        · exact .inr (.inl ⟨e, he, .inr (by simp only [hst]; exact hE')⟩)
-        · exact .inr (.inr (.inl (.inr (by simp only [hst]; exact hS'))))
-        · refine .inr (.inr (.inr (.inl ⟨i + 1, by simp; omega, ?_⟩)))
-          simp only [Skip, hst]
-          exact hk
-        · have hne : xs ≠ [] := by rintro rfl; exact hP
-          rcases applyProbe_newStretch C _ hst with ⟨hn0, hd0, hpt0⟩ | ⟨hpre, hn, htr', hed'⟩
-          · refine .inr (.inr (.inr (.inl ⟨1, by
-              rcases xs with _ | _
-              · exact absurd rfl hne
-              · simp, ?_⟩)))
-            simp only [Skip, hst, Qp]
-            refine ⟨hd0, hpt0, ?_⟩
-            simpa [LP, hd0, hpt0, likelihoodRatio_zero] using hP
-          · subst hpre
-            have hok : okP s := by
-              rcases xs with _ | ⟨y, ys⟩
-              · exact hP.elim
-              · exact (hokP s _ htr' hed').1 hP.1
-            refine .inr (.inr (.inr (.inr (.inl ?_))))
-            simp only [EvL]
-            refine ⟨hok, .inr ?_⟩
-            rw [hst]
-            refine ⟨by omega, ?_⟩
-            rw [show C.testLevel * LP s * fP s x = C.testLevel * LP (recordProbe C (fun z => (rd z).cut) s x) by
-              rw [hstepP s x hci hn]; ring]
-            exact hP
-        · refine .inr (.inr (.inr (.inr (.inr (.inl ⟨i + 1, by simp; omega, ?_⟩)))))
-          simp only [Skip, hst]
-          exact hk
-        · have hne : xs ≠ [] := by rintro rfl; exact hH
-          rcases applyProbe_newStretch C _ hst with ⟨hn0, hd0, -⟩ | ⟨hpre, hn, htr', hed'⟩
-          · refine .inr (.inr (.inr (.inr (.inr (.inl ⟨1, by
-              rcases xs with _ | _
-              · exact absurd rfl hne
-              · simp, ?_⟩)))))
-            simp only [Skip, hst, Qh]
-            refine ⟨hn0, hd0, ?_⟩
-            simpa [LH, hn0, hd0, likelihoodRatio_zero] using hH
-          · subst hpre
-            have hok : okH s := by
-              rcases xs with _ | ⟨y, ys⟩
-              · exact hH.elim
-              · have := hH.1
-                simp only [okH] at this ⊢
-                rwa [hdr s _ htr' hed'] at this
-            refine .inr (.inr (.inr (.inr (.inr (.inr ?_)))))
-            simp only [EvL]
-            refine ⟨hok, .inr ?_⟩
-            rw [hst]
-            refine ⟨by omega, ?_⟩
-            rw [show C.testLevel * LH s * fH s x = C.testLevel * LH (recordProbe C (fun z => (rd z).cut) s x) by
-              rw [hstepH s x hci hn]; ring]
-            exact hH
-      · obtain ⟨hcl, hne, hng⟩ := h
-        obtain ⟨rfl, hl⟩ := applyProbe_inr_pre C _ hst hne
-        have htr : (recordProbe C (fun z => (rd z).cut) s x).tree = s.tree :=
-          (recordProbe_into _ C x hs.2.1 hs.2.2.1).1
-        rw [htr] at hcl
-        rcases e with _ | _ | e | _ | _
-        · exact absurd trivial hng
-        · by_cases hpot : 2 * ℓ ≤ startPot C D rd (recordProbe C (fun z => (rd z).cut) s x)
-          · exact .inr (.inr (.inl (.inl ⟨hcl, hpot⟩)))
-          · exact absurd (hstartFin s x hs hci hcl hl (not_le.1 hpot)) hng
-        · obtain ⟨hp, -, -⟩ := runTests_harvest' C hl
-          rw [htr] at hp
-          have he : e ∈ keys := by
-            refine Finset.mem_product.2 ⟨mem_shortPaths ?_, Finset.mem_univ _⟩
-            have := DTree.length_lt_of_mem_leaves _ _ hp
-            have := class_paths G C S hcl hLmax
-            omega
-          by_cases h1 : 2 * (L + 1) * ℓ ≤ edgePot C D rd e
-              (recordProbe C (fun z => (rd z).cut) s x)
-          · exact .inl ⟨e, he, .inl ⟨hcl, h1⟩⟩
-          by_cases h2 : 2 * ((L + 1) * C.maxLeaves) * ℓ ≤ readPot C D rd e
-              (recordProbe C (fun z => (rd z).cut) s x)
-          · exact .inr (.inl ⟨e, he, .inl ⟨hcl, h2⟩⟩)
-          exact absurd (hedgeFin s x e hs hcl hl (not_le.1 h1) (not_le.1 h2)) hng
-        · obtain ⟨hgate', hn₀, hlt⟩ := runTests_pt' C hl
-          rcases recordProbe_stretch C _ s x with ⟨hn, hpt, hdis⟩ | ⟨hn, hpt0, hd0, -⟩
-          · by_cases hk : okP s
-            · refine .inr (.inr (.inr (.inr (.inl ?_))))
-              simp only [EvL]
-              refine ⟨hk, .inl ?_⟩
-              have := hstepP s x hci hn
-              have hlt' : 1 / C.testLevel ≤ LP (recordProbe C (fun z => (rd z).cut) s x) := hlt
-              rw [this, div_le_iff₀ ha] at hlt'
-              linarith
-            · by_cases hq : C.searchShare / 2 ≤ D.real (searchAt rd C.walkStart s.tree s.edges)
-              · exact absurd (hptFin s x hs hcl (by omega) hk hq) hng
-              refine .inr (.inr (.inr (.inr (.inr (.inr ?_)))))
-              simp only [EvL]
-              refine ⟨le_of_lt (not_le.1 hq), .inl ?_⟩
-              have hci₁ := countInv_record C (fun z => (rd z).cut) hci x
-              have hfire := seqRate_share (a := C.testLevel) hφ0 hφ1 ha hgate hn₀ hci₁.2.2 hgate'
-              have := hstepH s x hci hn
-              have hlt' : 1 / C.testLevel ≤ LH (recordProbe C (fun z => (rd z).cut) s x) := hfire
-              rw [this, div_le_iff₀ ha] at hlt'
-              linarith
-          · rw [hd0, hpt0, List.length_nil] at hlt
-            exact absurd hlt (not_seqRate_zero ha ha1)
-        · exact absurd rfl hne
-  have hsub : {xs : Fin T → FreeMonoid α | RunEnds (applyProbe C fun z => (rd z).cut) P initialState
-      (List.ofFn xs)}
-      ⊆ ((((⋃ e ∈ keys, {xs | EvP G C (fun z => (rd z).cut) S (edgePot C D rd e)
-            (2 * (L + 1) * ℓ) initialState (List.ofFn xs)})
-          ∪ ⋃ e ∈ keys, {xs | EvP G C (fun z => (rd z).cut) S (readPot C D rd e)
-            (2 * ((L + 1) * C.maxLeaves) * ℓ) initialState (List.ofFn xs)})
-          ∪ {xs | EvP G C (fun z => (rd z).cut) S (startPot C D rd) (2 * ℓ) initialState
-            (List.ofFn xs)})
-        ∪ ⋃ i ∈ Finset.range T, {xs | Skip C (fun z => (rd z).cut) Qp i initialState (List.ofFn xs)})
-        ∪ ⋃ i ∈ Finset.range T, {xs | Skip C (fun z => (rd z).cut) Qh i initialState (List.ofFn xs)} := by
-    intro xs hxs
-    have hT0 : ∀ l : List (FreeMonoid α), l = List.ofFn xs → l ≠ [] → 0 < T := by
-      intro l hl hne
-      rcases T with _ | T
-      · simp at hl; exact absurd hl hne
-      · omega
-    rcases hincl _ _ (reach_start G) countInv_start hxs with ⟨e, he, h⟩ | ⟨e, he, h⟩ | h |
-      ⟨i, hi, h⟩ | h | ⟨i, hi, h⟩ | h
-    · exact .inl (.inl (.inl (.inl (Set.mem_biUnion he h))))
-    · exact .inl (.inl (.inl (.inr (Set.mem_biUnion he h))))
-    · exact .inl (.inl (.inr h))
-    · simp only [List.length_ofFn] at hi
-      exact .inl (.inr (Set.mem_biUnion (Finset.mem_range.2 hi) h))
-    · have hne : List.ofFn xs ≠ [] := by intro h0; rw [h0] at h; exact h
-      refine .inl (.inr (Set.mem_biUnion (x := 0) (Finset.mem_range.2 (hT0 _ rfl hne)) ?_))
-      simp only [Set.mem_ofPred_eq, Skip, Qp]
-      refine ⟨rfl, rfl, ?_⟩
-      simpa [LP, initialState, likelihoodRatio_zero] using h
-    · simp only [List.length_ofFn] at hi
-      exact .inr (Set.mem_biUnion (Finset.mem_range.2 hi) h)
-    · have hne : List.ofFn xs ≠ [] := by intro h0; rw [h0] at h; exact h
-      refine .inr (Set.mem_biUnion (x := 0) (Finset.mem_range.2 (hT0 _ rfl hne)) ?_)
-      simp only [Set.mem_ofPred_eq, Skip, Qh]
-      refine ⟨rfl, rfl, ?_⟩
-      simpa [LH, initialState, likelihoodRatio_zero] using h
-  have hpot0 : ∀ (Φ : Level5State α → ℝ) (K : ℝ), 0 < K → Φ initialState = 0 →
-      ENNReal.ofReal (Real.exp ((Φ initialState - K * ℓ) / K)) = ENNReal.ofReal C.testLevel := by
-    intro Φ K hK h0
-    have : (0 - K * ℓ) / K = -ℓ := by field_simp; ring
-    rw [h0, this, hℓ, one_div, Real.log_inv, neg_neg, Real.exp_log ha]
-  have h1 : ∀ e ∈ keys, (Measure.pi fun _ : Fin T => D)
-      {xs | EvP G C (fun z => (rd z).cut) S (edgePot C D rd e) (2 * (L + 1) * ℓ) initialState
-        (List.ofFn xs)} ≤ ENNReal.ofReal C.testLevel := by
-    intro e _
-    refine (pot_super G C _ S hm D (edgePot C D rd e) hK₁ (fun s s' x h => edgePot_keep C D rd e h)
-      (fun s _ _ => edgePot_step C D rd hlen e s) _ T initialState (reach_start G)).trans
-        (le_of_eq (hpot0 _ _ hK₁ (by simp [edgePot, initialState])))
-  have h2 : ∀ e ∈ keys, (Measure.pi fun _ : Fin T => D)
-      {xs | EvP G C (fun z => (rd z).cut) S (readPot C D rd e)
-        (2 * ((L + 1) * C.maxLeaves) * ℓ) initialState (List.ofFn xs)}
-        ≤ ENNReal.ofReal C.testLevel := by
-    intro e _
-    refine (pot_super G C _ S hm D (readPot C D rd e) hK₂ (fun s s' x h => readPot_keep C D rd e h)
-      (fun s _ hc => readPot_step G C D rd hlen hLmax e s hc) _ T initialState
-        (reach_start G)).trans
-        (le_of_eq (hpot0 _ _ hK₂ (by simp [readPot, initialState])))
-  have h2' : (Measure.pi fun _ : Fin T => D)
-      {xs | EvP G C (fun z => (rd z).cut) S (startPot C D rd) (2 * ℓ) initialState
-        (List.ofFn xs)} ≤ ENNReal.ofReal C.testLevel :=
-    (pot_super G C _ S hm D (startPot C D rd) two_pos (fun s s' x h => startPot_keep C D rd h)
-      (fun s _ _ => startPot_step C D rd s) _ T initialState (reach_start G)).trans
-        (le_of_eq (hpot0 _ _ two_pos (by simp [startPot, initialState])))
-  have hfP0 : ∀ s x, 0 ≤ fP s x := fun s x => ptFactor_nonneg G C rd hS s x
-  have hfH0 : ∀ s x, 0 ≤ fH s x := fun s x =>
-    searchFactor_nonneg C rd (by linarith) (by linarith) hφ0.le hφ1.le s x
-  have h3 : ∀ i ∈ Finset.range T, (Measure.pi fun _ : Fin T => D)
-      {xs | Skip C (fun z => (rd z).cut) Qp i initialState (List.ofFn xs)} ≤ ENNReal.ofReal C.testLevel := by
-    intro i _
-    refine skip_le G C _ hm D Qp (fun T' s _ => ?_) T i initialState (reach_start G)
-    refine (measure_mono fun xs hxs => hxs.2.2).trans ?_
-    exact evL_le C (fun z => (rd z).cut) D okP fP hfP0 (fun s hs => lintegral_ptFactor_le G C D rd hS s hs.2) T'
-      C.testLevel s ha.le
-  have h4 : ∀ i ∈ Finset.range T, (Measure.pi fun _ : Fin T => D)
-      {xs | Skip C (fun z => (rd z).cut) Qh i initialState (List.ofFn xs)} ≤ ENNReal.ofReal C.testLevel := by
-    intro i _
-    refine skip_le G C _ hm D Qh (fun T' s _ => ?_) T i initialState (reach_start G)
-    refine (measure_mono fun xs hxs => hxs.2.2).trans ?_
-    exact evL_le C (fun z => (rd z).cut) D okH fH hfH0 (fun s hs => lintegral_searchFactor_le C D rd (by linarith)
-      (by linarith) hφ0.le hφ1.le (by
-        have : 0 ≤ C.searchShare - C.searchShare / 2 := by linarith
-        nlinarith [hs])) T' C.testLevel s ha.le
-  have hU : ∀ A B E F H : Set (Fin T → FreeMonoid α),
-      (Measure.pi fun _ : Fin T => D) ((((A ∪ B) ∪ E) ∪ F) ∪ H)
-        ≤ (Measure.pi fun _ : Fin T => D) A + (Measure.pi fun _ : Fin T => D) B
-          + (Measure.pi fun _ : Fin T => D) E + (Measure.pi fun _ : Fin T => D) F
-          + (Measure.pi fun _ : Fin T => D) H := by
-    intro A B E F H
-    refine (measure_union_le _ _).trans (add_le_add ((measure_union_le _ _).trans
-      (add_le_add ((measure_union_le _ _).trans (add_le_add (measure_union_le _ _) le_rfl))
-        le_rfl)) le_rfl)
-  refine (measure_mono hsub).trans ((hU _ _ _ _ _).trans ?_)
-  calc _ ≤ ∑ e ∈ keys, ENNReal.ofReal C.testLevel + ∑ e ∈ keys, ENNReal.ofReal C.testLevel
-        + ENNReal.ofReal C.testLevel
-        + ∑ _i ∈ Finset.range T, ENNReal.ofReal C.testLevel
-        + ∑ _i ∈ Finset.range T, ENNReal.ofReal C.testLevel :=
-        add_le_add (add_le_add (add_le_add (add_le_add
-          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h1))
-          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h2))) h2')
-          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h3)))
-          ((measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum h4))
-    _ = (2 * keys.card + 1 + 2 * T) * ENNReal.ofReal C.testLevel := by
-        simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-        ring
-    _ ≤ ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * T)
-        * C.testLevel) := by
-        rw [ENNReal.ofReal_mul (by positivity)]
-        gcongr
-        rw [show ((2 : ℝ) ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * T)
-            = ((2 ^ (C.maxLeaves + 2)
-          * Fintype.card α + 1 + 2 * T : ℕ) : ℝ) by push_cast; ring,
-          ENNReal.ofReal_natCast]
-        have : keys.card ≤ 2 ^ (C.maxLeaves + 1) * Fintype.card α := by
-          simp only [keys, Finset.card_product, Finset.card_univ]
-          exact Nat.mul_le_mul_right _ (shortPaths_card _)
-        have h2 : 2 ^ (C.maxLeaves + 2) = 2 * 2 ^ (C.maxLeaves + 1) := by ring
-        exact_mod_cast (by rw [h2]; nlinarith : 2 * keys.card + 1 + 2 * T
-          ≤ 2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * T)
+theorem read_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
+    (hexc : ∀ j, 0 < C.edgeExcess j) {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (i : ℕ) (c : α)
+    (T : ℕ) :
+    (Measure.pi fun _ : Fin T => D)
+        {xs | RunEnds (applyProbe C fun z => (rd z).cut) (ReadBad C D rd L i c) initialState
+          (List.ofFn xs)}
+      ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
+  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
+  refine site_le C cut D hL hSq.a_pos hSq.a_lt hn₀ hexc (readW C D rd L i c)
+    (fun s x => Real.exp ((readMean C D rd s.tree s.edges (edgeOf s.tree i c) / 2
+      - edgeReadsBy cut s.tree s.edges C.walkStart x (edgeOf s.tree i c))
+        / (2 * ((L + 1) * C.maxLeaves))))
+    (fun s => s.tree.leaves.length ≤ C.maxLeaves) (ReadBad C D rd L i c)
+    (fun s x => (Real.exp_pos _).le) (fun s hs => ?_)
+    (fun T E v => by simp [readW, freshState]) (fun s x hs => ⟨?_, Iff.rfl⟩)
+    (fun s h => by simp [ReadBad] at h) (fun s x e hs hb hr => ⟨hb.2.1, hb.2.2⟩) T
+  · have hB : (0 : ℝ) < (L + 1) * C.maxLeaves := by
+      have : (0 : ℝ) < C.maxLeaves := by exact_mod_cast (by omega : 0 < C.maxLeaves)
+      positivity
+    have := mgf_lower D
+      (fun x => edgeReadsBy cut s.tree s.edges C.walkStart x (edgeOf s.tree i c)) hB (by
+        filter_upwards [hlen] with x hx
+        have h1 := edgeReadsBy_le cut s.tree s.edges C.walkStart x (edgeOf s.tree i c)
+        have hm := midfixes_card s.tree
+        have : edgeReadsBy cut s.tree s.edges C.walkStart x (edgeOf s.tree i c)
+            ≤ (L + 1) * C.maxLeaves := h1.trans (Nat.mul_le_mul (by omega) (by omega))
+        exact_mod_cast this)
+    refine le_trans (le_of_eq ?_) this
+    rfl
+  · simp only [readW, keepProbe, Level5State.countProbe, Nat.cast_add, Nat.cast_one]
+    rw [← Real.exp_add]
+    congr 1
+    simp only [edgeOf]
+    ring
 
-end Assemble
+end Tests
 
 end OrthoDFA

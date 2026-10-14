@@ -37,15 +37,6 @@ theorem seqRate_iff_log (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < p₁
   rw [← log_likelihoodRatio_of_le hp₀ hp₀1 hp₁ hp₁1 hh,
     Real.log_le_log_iff (by positivity) (likelihoodRatio_pos hp₀ hp₀1 hp₁ hp₁1 n h)]
 
-/-- Past all `n` draws, `h` hits fire the test once `h log (p₁/p₀)` reaches `log (1/a)`. -/
-theorem seqRate_of_many (hp₀ : 0 < p₀) (hp₁ : 0 < p₁) (ha : 0 < a) {n h : ℕ} (hnh : n < h)
-    (hl : Real.log (1 / a) ≤ h * Real.log (p₁ / p₀)) : seqRate p₀ p₁ a n h := by
-  unfold seqRate likelihoodRatio
-  rw [show n - h = 0 by omega, pow_zero, mul_one]
-  have hpos : 0 < p₁ / p₀ := div_pos hp₁ hp₀
-  rw [← Real.log_le_log_iff (by positivity) (by positivity), Real.log_pow]
-  exact hl
-
 /-- Fewer hits lower the ratio where `p₁ ≤ p₀`. -/
 theorem likelihoodRatio_anti (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁) (hp₁0 : p₁ ≤ p₀)
     {n h h' : ℕ} (hh : h ≤ h') (hh' : h' ≤ n) :
@@ -69,24 +60,6 @@ theorem seqRate_mono_up (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : p₀ ≤
     {n h h' : ℕ} (hs : seqRate p₀ p₁ a n h) (hh : h ≤ h') (hh' : h' ≤ n) :
     seqRate p₀ p₁ a n h' :=
   hs.trans (likelihoodRatio_mono hp₀ hp₀1 hp₁ hp₁1 hh hh')
-
-/-- Above `p₀`, more hits keep the test firing, past the draws too. -/
-theorem seqRate_mono_up' (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : p₀ ≤ p₁) (hp₁1 : p₁ ≤ 1)
-    {n h h' : ℕ} (hs : seqRate p₀ p₁ a n h) (hh : h ≤ h') (hhn : h ≤ n) :
-    seqRate p₀ p₁ a n h' := by
-  by_cases hn : h' ≤ n
-  · exact seqRate_mono_up hp₀ hp₀1 hp₁ hp₁1 hs hh hn
-  unfold seqRate likelihoodRatio at hs ⊢
-  rw [show n - h' = 0 by omega, pow_zero, mul_one]
-  have hA : 1 ≤ p₁ / p₀ := by rw [le_div_iff₀ hp₀]; linarith
-  have hB0 : 0 ≤ (1 - p₁) / (1 - p₀) := div_nonneg (by linarith) (by linarith)
-  have hB : (1 - p₁) / (1 - p₀) ≤ 1 := by rw [div_le_one (by linarith)]; linarith
-  have h1 : ((1 - p₁) / (1 - p₀)) ^ (n - h) ≤ 1 := pow_le_one₀ hB0 hB
-  have h2 : (p₁ / p₀) ^ h ≤ (p₁ / p₀) ^ h' := pow_le_pow_right₀ hA hh
-  have h3 : 0 ≤ (p₁ / p₀) ^ h := pow_nonneg (by linarith) _
-  calc 1 / a ≤ (p₁ / p₀) ^ h * ((1 - p₁) / (1 - p₀)) ^ (n - h) := hs
-    _ ≤ (p₁ / p₀) ^ h * 1 := mul_le_mul_of_nonneg_left h1 h3
-    _ ≤ _ := by rw [mul_one]; exact h2
 
 /-- Below `p₀`, fewer hits keep the test firing. -/
 theorem seqRate_anti_down (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁) (hp₁0 : p₁ ≤ p₀)

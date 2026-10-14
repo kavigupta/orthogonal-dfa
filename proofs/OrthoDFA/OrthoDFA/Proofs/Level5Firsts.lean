@@ -326,11 +326,6 @@ theorem edgeReadsBy_le (e : List Bool × α) :
     edgeReadsBy cut T edges k x e ≤ (x.toList.length + 1) * T.midfixes.card :=
   (List.length_filter_le _ _).trans (firstsBy_length_le cut T edges k x)
 
-theorem sum_edgeReadsBy_le (K : Finset (List Bool × α)) :
-    ∑ e ∈ K, edgeReadsBy cut T edges k x e ≤ (x.toList.length + 1) * T.midfixes.card :=
-  (sum_filter_some_le (fun q : ReadLabel α × FreeMonoid α => q.1.2) K _).trans
-    (firstsBy_length_le cut T edges k x)
-
 theorem edgeHarvestBy_eq (e : List Bool × α) : edgeHarvestBy cut T edges k x e
     = ((((firstsBy cut T edges k x).filter fun q => cut q.2 = none).filter
         fun q => q.1.2 = some e)).map Prod.snd := by
@@ -362,63 +357,6 @@ theorem edgeHarvestBy_le_edgeReadsBy (e : List Bool × α) :
 theorem firstsBy_short (h : x.toList.length < k) : firstsBy cut T edges k x = [] := by
   simp [firstsBy, probeQuery, h, QTree.firsts]
 
-theorem start_mem_firstsBy (hkx : ¬ x.toList.length < k) {b : FreeMonoid α}
-    (h : T.siftCut cut (prefixOf x k) = .inr b) :
-    ((k, none), b) ∈ firstsBy cut T edges k x := by
-  have hb := (route_undecided cut T _ b h).1
-  have ha : ((k, none), b) ∈ (siftQuery (k, none) T (prefixOf x k)).asks (ofCut cut) := by
-    rw [asks_siftQuery, cut_ofCut]
-    exact List.mem_map.2 ⟨b, hb, rfl⟩
-  have hk : b ∈ (((siftQuery (k, none) T (prefixOf x k)).firsts (ofCut cut) ∅).map
-      Prod.snd).toFinset := by
-    rw [(QTree.firsts_keys_eq _ _ _).2, Finset.sdiff_empty, List.mem_toFinset]
-    exact List.mem_map_of_mem ha
-  obtain ⟨q, hq, hqb⟩ := List.mem_map.1 (List.mem_toFinset.1 hk)
-  have hl := (mem_asks_siftQuery T (ofCut cut) (QTree.firsts_sub_asks _ _ _ q hq)).1
-  unfold firstsBy probeQuery
-  rw [if_neg hkx, QTree.firsts_bind]
-  refine List.mem_append_left _ ?_
-  have : q = ((k, none), b) := Prod.ext hl hqb
-  rw [← this]
-  exact hq
-
-/-- A probe's undecided strings at the start and at the edges number at most its positions. -/
-theorem twinsBy_le : twinsBy cut T edges k x ≤ x.toList.length + 1 := by
-  set U := (firstsBy cut T edges k x).filter fun q => cut q.2 = none
-  set U' := U.filter fun q => q.1.2 ≠ none
-  have hU : U.length ≤ x.toList.length + 1 := undFirsts_length_le cut T edges k x
-  have hsum : ∑ e ∈ T.leaves.toFinset ×ˢ (Finset.univ : Finset α),
-      (edgeHarvestBy cut T edges k x e).length ≤ U'.length := by
-    have : ∀ e : List Bool × α, (edgeHarvestBy cut T edges k x e).length
-        = (U'.filter fun q => q.1.2 = some e).length := by
-      intro e
-      unfold edgeHarvestBy
-      rw [List.length_map]
-      simp only [U', U, List.filter_filter]
-      congr 1
-      refine List.filter_congr fun q _ => ?_
-      by_cases h1 : q.1.2 = some e <;> by_cases h2 : cut q.2 = none <;> simp [h1, h2]
-    simp only [this]
-    exact sum_filter_some_le (fun q : ReadLabel α × FreeMonoid α => q.1.2) _ U'
-  have hsplit : U.length = U'.length + (U.filter fun q => ¬ q.1.2 ≠ none).length := by
-    rw [List.length_eq_length_filter_add (fun q => decide (q.1.2 ≠ none))]
-    simp only [U', decide_not]
-  unfold twinsBy
-  by_cases hshort : x.toList.length < k
-  · have : (startHarvestBy cut T k x).length = 0 := by simp [startHarvestBy, hshort]
-    omega
-  rcases hs : T.siftCut cut (prefixOf x k) with p | b
-  · have : (startHarvestBy cut T k x).length = 0 := by simp [startHarvestBy, hshort, hs]
-    omega
-  · have h1 : (startHarvestBy cut T k x).length = 1 := by simp [startHarvestBy, hshort, hs]
-    have hq₀ : ((k, none), b) ∈ U.filter fun q => ¬ q.1.2 ≠ none := by
-      refine List.mem_filter.2 ⟨List.mem_filter.2
-        ⟨start_mem_firstsBy cut T edges k x hshort hs, ?_⟩,
-        by simp⟩
-      simpa using (route_undecided cut T _ b hs).2
-    have h2 := List.length_pos_of_mem hq₀
-    omega
-
 theorem edgeReadsBy_mem {edges : EdgeTable α} (he : EdgesInto T edges) {e : List Bool × α}
     (h : edgeReadsBy cut T edges k x e ≠ 0) : e.1 ∈ T.leaves := by
   unfold edgeReadsBy at h
@@ -445,12 +383,6 @@ variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable
 
 theorem probeBy_short (h : x.toList.length < k) : probeBy cut T edges k x = .agree := by
   simp [probeBy, h]
-
-theorem recordBy_short (h : x.toList.length < k) : recordBy cut k (T, edges) x = none := by
-  simp [recordBy, probeBy_short cut T edges h]
-
-theorem twinsBy_short (h : x.toList.length < k) : twinsBy cut T edges k x = 0 := by
-  simp [twinsBy, startHarvestBy, h, edgeHarvestBy, firstsBy_short cut T edges k x h]
 
 theorem edgeReadsBy_short (h : x.toList.length < k) (e : List Bool × α) :
     edgeReadsBy cut T edges k x e = 0 := by
@@ -522,19 +454,6 @@ theorem edgeHarvestBy_congr_strings (hkx : k ≤ x.toList.length)
   refine List.filter_congr fun q hq => ?_
   rw [h q.2 (firstsBy_mem_probeStrings cut' T edges k x hkx hq)]
 
-theorem startHarvestBy_congr_strings (hkx : k ≤ x.toList.length)
-    (h : ∀ z ∈ probeStrings T k x, cut z = cut' z) :
-    startHarvestBy cut T k x = startHarvestBy cut' T k x := by
-  unfold startHarvestBy
-  rw [siftCut_congr_mid T _ fun m hm => h _ (Finset.mem_biUnion.2 ⟨k,
-    Finset.mem_Icc.2 ⟨le_rfl, hkx⟩, Finset.mem_image_of_mem _ hm⟩)]
-
-theorem twinsBy_congr_strings (hkx : k ≤ x.toList.length)
-    (h : ∀ z ∈ probeStrings T k x, cut z = cut' z) :
-    twinsBy cut T edges k x = twinsBy cut' T edges k x := by
-  unfold twinsBy
-  rw [startHarvestBy_congr_strings hkx h, edgeHarvestBy_congr_strings (edges := edges) hkx h]
-
 theorem firstsBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) : firstsBy cut T e k x = firstsBy cut T e' k x := by
   unfold firstsBy probeQuery
@@ -568,133 +487,6 @@ theorem edgeHarvestBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : Tg
   funext d
   simp only [edgeHarvestBy, firstsBy_econgr he hg cut]
 
-theorem twinsBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
-    (cut : FreeMonoid α → Option Bool) : twinsBy cut T e k x = twinsBy cut T e' k x := by
-  unfold twinsBy
-  rw [edgeHarvestBy_econgr he hg cut]
-
 end Congr
-
-section Record
-
-variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
-
-theorem und_firsts_recordQ {q : ReadLabel α × FreeMonoid α}
-    (hq : q ∈ (recordQ T edges k x).firsts rd ∅) (hu : (rd q.2).cut = none) :
-    q ∈ firstsBy (fun z => (rd z).cut) T edges k x := by
-  unfold recordQ at hq
-  rw [QTree.firsts_bind, List.mem_append] at hq
-  rcases hq with hq | hq
-  · unfold firstsBy; rw [ofCut_rd]; exact hq
-  exfalso
-  have ha := QTree.firsts_sub_asks _ _ _ q hq
-  rw [run_probeQuery] at ha
-  rcases ho : probeBy (fun z => (rd z).cut) T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;>
-    rw [ho] at ha <;> simp only [QTree.asks, List.not_mem_nil] at ha
-  obtain ⟨-, hs1, t, hs2⟩ := probeBy_edge T edges k x rd ho
-  rw [QTree.asks_bind, List.mem_append] at ha
-  rcases ha with ha | ha
-  · exact siftCut_route_decided T hs1 (mem_asks_siftQuery T rd ha).2 hu
-  · rw [QTree.asks_map] at ha
-    exact siftCut_route_decided T hs2 (mem_asks_siftQuery T rd ha).2 hu
-
-/-- The undecided first reads are at most the probe's undecided strings the tests count. -/
-theorem und_twins (he : EdgesInto T edges) :
-    (((recordQ T edges k x).firsts rd ∅).filter fun q => (rd q.2).cut = none).length
-      ≤ twinsBy (fun z => (rd z).cut) T edges k x := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  set L := startHarvestBy cut T k x
-      ++ (T.leaves.toFinset ×ˢ (Finset.univ : Finset α)).toList.flatMap
-        (edgeHarvestBy cut T edges k x)
-  have hL : L.length = twinsBy cut T edges k x := by
-    simp only [L, twinsBy, List.length_append, List.length_flatMap, Finset.sum_map_toList]
-  set F := ((recordQ T edges k x).firsts rd ∅).filter fun q => (rd q.2).cut = none
-  obtain ⟨hnd, -⟩ := QTree.firsts_keys_eq rd (recordQ T edges k x) ∅
-  have hnd' : (F.map Prod.snd).Nodup := hnd.sublist (List.filter_sublist.map _)
-  have hsub : F.map Prod.snd ⊆ L := by
-    intro w hw
-    obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hw
-    rw [List.mem_filter, decide_eq_true_eq] at hq
-    have hq' := und_firsts_recordQ T edges k x rd hq.1 hq.2
-    obtain ⟨hr, hp⟩ := firstsBy_pos cut T edges k x hq'
-    rcases hp with hp | ⟨-, e, hpe, hle⟩
-    · rw [hp] at hr
-      have hs := siftCut_of_route_und T _ _ hr hq.2
-      have hlong : ¬ x.toList.length < k := fun hsh => by
-        rw [firstsBy_short cut T edges k x hsh] at hq'; simp at hq'
-      refine List.mem_append_left _ ?_
-      simp [startHarvestBy, cut, hs, hlong]
-    · refine List.mem_append_right _ (List.mem_flatMap.2 ⟨e, ?_, ?_⟩)
-      · simp only [Finset.mem_toList, Finset.mem_product, List.mem_toFinset, Finset.mem_univ,
-          and_true]
-        exact posEdgeBy_mem_paths he hpe
-      · unfold edgeHarvestBy
-        exact List.mem_map.2 ⟨q, List.mem_filter.2 ⟨hq', by simp [hle, hq.2, cut]⟩, rfl⟩
-  rw [← hL, ← List.length_map (f := Prod.snd)]
-  exact (hnd'.subperm hsub).length_le
-
-end Record
-
-section Mean
-
-variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-  [IsProbabilityMeasure μ] {read : FreeMonoid α → Ω → ARU}
-
-/-- The coupled `spurious` field in mean, at one probe: its chance of a record that is not true
-is at most `κ` times its mean undecided strings plus `ε` times its mean first reads. -/
-theorem spurious_mean (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α)
-    (he : EdgesInto T edges) (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
-    (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hκ : 0 ≤ G.κ) :
-    ∫⁻ ω, (G.untrueAt (fun y => read y ω) k T edges).indicator 1 x ∂μ
-      ≤ ENNReal.ofReal G.κ * ∫⁻ ω, (twinsBy (fun z => (read z ω).cut) T edges k x : ENNReal) ∂μ
-        + ENNReal.ofReal G.ε
-          * ∫⁻ ω, (((recordQ T edges k x).firsts (fun y => read y ω) ∅).length : ENNReal) ∂μ := by
-  set t := recordQ T edges k x
-  have hfs : ∀ rd : FreeMonoid α → ARU,
-      QTree.fsum (fun _ _ v => (if v = .undecided then ENNReal.ofReal G.κ else 0)
-        + ENNReal.ofReal G.ε) rd ∅ t
-      = ENNReal.ofReal G.κ * ((t.firsts rd ∅).filter fun q => (rd q.2).cut = none).length
-        + ENNReal.ofReal G.ε * (t.firsts rd ∅).length := by
-    intro rd
-    unfold QTree.fsum
-    induction t.firsts rd ∅ with
-    | nil => simp
-    | cons q l ih =>
-      simp only [List.map_cons, List.sum_cons, ih, List.filter_cons, List.length_cons]
-      rcases h : rd q.2 <;> simp [ARU.cut, h] <;> push_cast <;> ring
-  calc ∫⁻ ω, (G.untrueAt (fun y => read y ω) k T edges).indicator 1 x ∂μ
-      ≤ ∫⁻ ω, QTree.fsum (fun _ w v => if v = G.minVal (G.M.eval w.toList) then 1 else 0)
-          (fun y => read y ω) ∅ t ∂μ := by
-        refine lintegral_mono fun ω => ?_
-        by_cases hx : x ∈ G.untrueAt (fun y => read y ω) k T edges
-        · rw [Set.indicator_of_mem hx, Pi.one_apply]
-          obtain ⟨q, hq, hc⟩ := untrue_minority T edges k x _ G hx
-          have hk : q.2 ∈ ((t.firsts (fun y => read y ω) ∅).map Prod.snd).toFinset := by
-            rw [(QTree.firsts_keys_eq _ t ∅).2, Finset.sdiff_empty, List.mem_toFinset]
-            exact List.mem_map_of_mem hq
-          obtain ⟨q', hq', heq⟩ := List.mem_map.1 (List.mem_toFinset.1 hk)
-          unfold QTree.fsum
-          refine le_trans ?_ (List.single_le_sum (fun _ _ => zero_le) _
-            (List.mem_map_of_mem hq'))
-          have hv := (cut_minVal G _ _).1 hc
-          simp only [heq, hv, if_true, le_refl]
-        · rw [Set.indicator_of_notMem hx]; exact zero_le
-    _ ≤ _ := minority_mean G hmeas hind hlaw hκ t
-    _ ≤ ∫⁻ ω, ENNReal.ofReal G.κ * (twinsBy (fun z => (read z ω).cut) T edges k x : ENNReal)
-          + ENNReal.ofReal G.ε * ((t.firsts (fun y => read y ω) ∅).length : ENNReal) ∂μ := by
-        refine lintegral_mono fun ω => ?_
-        rw [hfs]
-        gcongr
-        exact_mod_cast und_twins T edges k x (fun y => read y ω) he
-    _ = _ := by
-        have hm : Measurable fun ω =>
-            ENNReal.ofReal G.ε * ((t.firsts (fun y => read y ω) ∅).length : ENNReal) := by
-          refine Measurable.const_mul ?_ _
-          simp_rw [← fsum_one]
-          exact QTree.fsum_measurable _ read hmeas ∅ t
-        rw [lintegral_add_right _ hm, lintegral_const_mul' _ _ ENNReal.ofReal_ne_top,
-          lintegral_const_mul' _ _ ENNReal.ofReal_ne_top]
-
-end Mean
 
 end OrthoDFA

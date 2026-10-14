@@ -58,48 +58,47 @@ def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x 
 
 /-- A crude bound on `log (8 K / δ)`, `K` the most trees, edge maps and edges a tail is united
 over. -/
-def unionLog (σ : Type*) [Fintype σ] (S : ℕ) (δ : ℝ) : ℝ :=
-  4 * (Fintype.card σ + S + 2) * Fintype.card α
-    * Real.log ((Fintype.card σ + S + 3) * Fintype.card α / δ)
+def unionLog (σ : Type*) [Fintype σ] (δ : ℝ) : ℝ :=
+  4 * (Fintype.card σ + 2) * Fintype.card α * Real.log ((Fintype.card σ + 3) * Fintype.card α / δ)
 
-/-- `Level5Guarantee M O θ εd P δ S k`: some settings, walking from `k`, with disagreement rate
-`εd` and a budget of at most `K · G` probes, make level 5 fail to end well, a harvest's sampler
-yielding `ρ`, with chance at most `δ`, once the goodness level `θ`, the reads' `κ` and `ε` and the
-probes' prefix mass at `k` are small enough for `n = |Q| + S` (at most `S` splits that are not
-genuine), `A = |Σ|` and the draws' length `L`. `16ρ` is about the share of the probes at which the
-round affords a record that is not true. -/
+/-- `Level5Guarantee M O θ εd P δ k`: some settings, walking from `k`, with disagreement rate `εd`
+and a budget of at most `K · G` probes, make level 5 fail to end well, a harvest's sampler
+yielding `3εd/16`, with chance at most `δ`, once the goodness level `θ`, the reads' `κ` and `ε`
+and the probes' prefix mass at `k` are small enough for `n = |Q|`, `A = |Σ|` and the draws'
+length `L`. `V` bounds the hypotheses a round goes through, and a read on its state's rarer side
+anywhere a probe or a re-sift could read it, which `W` counts a probe, splits wrongly. -/
 def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
-    (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ) : Prop :=
-  let n : ℝ := Fintype.card σ + S
+    (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k : ℕ) : Prop :=
+  let n : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (20 / εd ^ 2 + 280 / εd)
-    + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K) / δ
-  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let K : ℝ := V * (112 / εd + 1)
+  let W : ℝ := (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
   let bad := fun q => ¬ O.Good θ q
   0 < δ → δ ≤ 1 → 0 < εd → εd < 1 → 1 ≤ P.L → 0 ≤ θ →
   384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
-  0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
-  0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →
+  0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
+  1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
           ¬ EndsWell M bad P.D settings.disagreementRate
             (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
-            settings.walkStart (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart) ρ
-            result.ending} ∂μ
+            settings.walkStart
+            (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+            (3 * εd / 16) result.ending} ∂μ
       ≤ ENNReal.ofReal δ
 
 /-- `Level5Guarantee` at every target, oracle, goodness level, disagreement rate, probe
-distribution, confidence, count of splits that are not genuine, and start `k`. -/
+distribution, confidence and start `k`. -/
 def Level5Correct : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
-    (O : TriOracle μ M) (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (S k : ℕ),
-    Level5Guarantee M O θ εd P δ S k
+    (O : TriOracle μ M) (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k : ℕ),
+    Level5Guarantee M O θ εd P δ k
 
 end OrthoDFA
 
