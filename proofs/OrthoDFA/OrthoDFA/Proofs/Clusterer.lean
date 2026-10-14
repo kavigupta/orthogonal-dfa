@@ -53,7 +53,7 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
           ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
-    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
+    ∧ ∃ e ≤ B.npref, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
         (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
 
 open scoped Classical in

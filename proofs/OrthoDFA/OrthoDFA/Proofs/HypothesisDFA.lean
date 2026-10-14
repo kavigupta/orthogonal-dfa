@@ -147,11 +147,6 @@ section Edges
 
 variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α)
 
-/-- Every learned edge out of a leaf is witnessed. -/
-def EdgesOK : Prop :=
-  ∀ q ∈ T.leaves, ∀ c t w, E (q, c) = some (t, w) →
-    T.sift read w = .inl q ∧ T.sift read (w * FreeMonoid.of c) = .inl t
-
 variable {T E}
 
 theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
@@ -197,5 +192,10 @@ theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}
     exact hE q hq c' t' w h
 
 end Edges
+
+theorem splitAndLearnCorrect : SplitAndLearnCorrect := by
+  intro α _ read H hE
+  exact ⟨fun d p hp => edgesOK_retarget read hE hp d,
+    fun u s t c hu huc => edgesOK_upd read hE hu huc⟩
 
 end OrthoDFA

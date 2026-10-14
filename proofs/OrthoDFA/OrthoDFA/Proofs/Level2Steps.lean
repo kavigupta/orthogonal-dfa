@@ -1,6 +1,7 @@
 import OrthoDFA.Level2Claim
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.Level2Reached
 
 /-!
 # Level 2's steps

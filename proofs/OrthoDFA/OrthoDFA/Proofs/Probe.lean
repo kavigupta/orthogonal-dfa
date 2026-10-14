@@ -30,13 +30,6 @@ def OutcomeOK (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) : Out
   | .undecidedStart z => read z = .undecided
   | .undecided zs cl => (cl = false → zs ≠ []) ∧ ∀ z ∈ zs, read z = .undecided
 
-/-- The outcomes that do not disagree. -/
-def Outcome.clean : Outcome α → Bool
-  | .agree => true
-  | .undecidedStart _ => true
-  | .undecided _ cl => cl
-  | _ => false
-
 theorem outcomeOK_one {read : FreeMonoid α → ARU} {T : DTree α} {E : Edges α}
     {z : FreeMonoid α} (h : read z = .undecided) : OutcomeOK read T E (.undecided [z] true) :=
   ⟨by simp, by simpa using h⟩
@@ -342,5 +335,22 @@ theorem probe_length (k : ℕ) (x : FreeMonoid α) :
   · simp [probe, ha, Outcome.undecidedStrings]
 
 end Strings
+
+theorem probeCorrect : ProbeCorrect := by
+  intro α read H k x hE
+  have hok := probe_ok read H.tree H.edges k hE x
+  refine ⟨fun s c u t h => by rw [h] at hok; exact hok,
+    fun s c u t h => by rw [h] at hok; exact hok,
+    fun z hz => ⟨?_, probe_pre read H.tree H.edges k x z hz⟩,
+    probe_length read H.tree H.edges k x, fun hd => probe_disagrees read H.tree H.edges k hd⟩
+  generalize probe read H.tree H.edges k x = o at hok hz
+  cases o with
+  | undecidedStart z' =>
+    simp only [Outcome.undecidedStrings, List.mem_singleton] at hz
+    subst hz; exact hok
+  | undecided zs cl => exact hok.2 z hz
+  | agree => simp [Outcome.undecidedStrings] at hz
+  | wrongEdge => simp [Outcome.undecidedStrings] at hz
+  | unlearnedEdge => simp [Outcome.undecidedStrings] at hz
 
 end OrthoDFA

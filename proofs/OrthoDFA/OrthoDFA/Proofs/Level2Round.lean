@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.Level2Harvest
-import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.Level2Stretch
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Analysis.Complex.ExponentialBounds
 

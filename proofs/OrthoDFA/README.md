@@ -34,27 +34,29 @@
 - `OrthoDFA/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its leaves,
   and the walk a string takes along them. `WalkCorrect`: the walk starts at its leaf, follows one
   learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
-  edges do; `walkEnd` is its last leaf when it follows every letter. `Disagrees` is where the walk
-  and the tree part. `HypothesisDFA.split` splits a leaf and re-sifts the edges into it at their
-  witnesses (`retarget`).
+  edges do; `walkEnd` is its last leaf when it follows every letter. `HypothesisDFA.split` splits a
+  leaf and re-sifts the witnesses of the edges into it (`hypothesis_dfa.HypothesisDFA.split_leaf`).
+  `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps every learned
+  edge witnessed (`EdgesOK`).
+- `OrthoDFA/Probe.lean` — `probe`: a string walked along the edges from its first `k` letters'
+  leaf and sifted, and where the two part, found by `tripartiteSearch` without recovery
+  (`counterexample_probe.locate`). `ProbeCorrect`: with the edges witnessed, a wrong edge is one the
+  probe crossed with a string whose successor sifts off its target, an unlearned edge is the one it
+  stopped at, the at most one undecided string it reports reads undecided and is a prefix of the
+  probe followed by a midfix, and a probe on which the walk and the sift part (`Disagrees`) never
+  comes out clean.
 - `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate, and
   `RateTestSound`: over independent draws it says above with chance at most its failure chance when
   the true rate is at most the tested one, and below likewise when it is at least.
   `statistics.rate_side` is the same test.
-- `OrthoDFA/SeqTest.lean` — `seqRate`, a sequential likelihood-ratio test of a count of hits:
-  against a rate `p₀` it fires once `(p₁/p₀)^h ((1 − p₁)/(1 − p₀))^(n − h) ≥ 1/a`, `h` hits in `n`
-  draws. `SeqRateSound`: over independent draws it fires at any look with chance at most `a` when
-  the true rate is on the far side of `p₀` from `p₁` (Ville's inequality). `stretchBound`: where
-  `p₀ < p₁ < p₀'`, one of the tests of `p₀` and of `p₀'` against `p₁` fires within that many
-  draws, whatever the count.
+- `OrthoDFA/SeqTest.lean` — `seqRate`, the sequential likelihood-ratio test of a count of hits
+  against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
+  look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
+  from `p₁`. `statistics.seq_rate` is the same test.
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
   bad states, it finds no string more often than the probes share its first `k` letters (spread),
   and it finds `y` in all (yields).
-- `OrthoDFA/Probe.lean` — a probe of a hypothesis: it walks to where the walk stops, sifts the
-  successor of an unlearned edge it stops at, and finds where the sift and the walk part with
-  `tripartiteSearch`, stopping at the first undecided read; a probe shorter than `walkStart`
-  counts as agreeing.
 - `OrthoDFA/Level2.lean` — level 2 of indecisive L\*, `indecisiveLStarLevel2`. A disagreement at
   decided reads splits the edge's leaf at once (Kearns–Vazirani: the probe's prefix and the edge's
   witness part at the edge's letter and the midfix where their successors' leaves part), and an
@@ -66,8 +68,7 @@
   disagreements' test of `disagreementRate` fires. Under the `j`-th hypothesis both run at level
   `δ / (2 (j + 1) (j + 2))`, so each test's levels sum to at most `δ / 2`. With
   `harvestRate < disagreementRate`, one of the tests fires within `stretchLength` probes under one
-  hypothesis, at most `stretchBound`, which is at most `12 ε / (ε − y)² · log(1/a) + 1`
-  (`stretchBound_mid_le`). A harvest's sampler
+  hypothesis, at most `12 ε / (ε − y)² · log(1/a) + 1` (`stretchBound_mid_le`). A harvest's sampler
   (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
   read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `Level2.Correct`: with every state's reads all undecided or all on

@@ -24,7 +24,10 @@ from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
-from tests.lstar_common import assert_rounds_accept_preserving
+from tests.lstar_common import (
+    assert_rounds_accept_preserving,
+    assert_searches_end_inside_the_proofs_budget,
+)
 
 # ACGT base alphabet: A=0, C=1, G=2, T=3.
 TAG, TGA, TAA = (3, 0, 2), (3, 2, 0), (3, 0, 0)
@@ -304,6 +307,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
         assert_rounds_accept_preserving(
             tracker.classifiers, oracle.target_dfa(), DEFAULT_MAX_COVERAGE_ERROR
         )
+        assert_searches_end_inside_the_proofs_budget(tracker.endings)
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)
         strings = [sampler.sample(rng, vocab.alphabet_size) for _ in range(3000)]

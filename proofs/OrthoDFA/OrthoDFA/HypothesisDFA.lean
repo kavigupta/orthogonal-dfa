@@ -53,6 +53,12 @@ def HypothesisDFA.split (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (d
     (p : List Bool) : HypothesisDFA α :=
   ⟨H.tree.splitAt d p, retarget read (H.tree.splitAt d p) p H.edges⟩
 
+/-- Every learned edge out of a leaf is witnessed: a string at the leaf whose successor sifts to
+the edge's target. -/
+def EdgesOK (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) : Prop :=
+  ∀ q ∈ T.leaves, ∀ c t w, E (q, c) = some (t, w) →
+    T.sift read w = .inl q ∧ T.sift read (w * FreeMonoid.of c) = .inl t
+
 end Split
 
 def WalkCorrect : Prop :=
@@ -76,5 +82,16 @@ def WalkCorrect : Prop :=
       -- A prefix grows by the next letter, and stops at the whole string.
       (∀ c, x.toList[i]? = some c → prefixOf x (i + 1) = prefixOf x i * FreeMonoid.of c)
       ∧ (x.toList.length ≤ i → prefixOf x i = x))
+
+def SplitAndLearnCorrect : Prop :=
+  ∀ {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (H : HypothesisDFA α),
+    EdgesOK read H.tree H.edges →
+    -- Splitting a leaf re-sifts the witnesses of the edges into it, so every learned edge stays
+    -- witnessed,
+    (∀ d p, p ∈ H.tree.leaves → EdgesOK read (H.split read d p).tree (H.split read d p).edges)
+    -- and so does learning an edge from a string at its leaf whose successor sifts to its target.
+    ∧ (∀ (u : FreeMonoid α) (s t : List Bool) (c : α), H.tree.sift read u = .inl s →
+        H.tree.sift read (u * FreeMonoid.of c) = .inl t →
+        EdgesOK read H.tree (Function.update H.edges (s, c) (some (t, u))))
 
 end OrthoDFA
