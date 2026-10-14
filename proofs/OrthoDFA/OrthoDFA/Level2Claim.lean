@@ -34,19 +34,22 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
   D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
 
 /-- With reads fixed by the target state, `0 < y < ε < 1` (`harvestRate`, `disagreementRate`),
-`0 < δ < 1`, and at least `64 K ε / (ε − y)² · log(4 K² / δ)` probes, `K = (|Q| + 2)² (|Σ| + 1)`,
-level 2 fails to end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read
-undecided, with chance at most `δ`. A consistent ending has its hypothesis and tree parting on at
-most `ε` of the probes, and a harvest's sampler yields `y`. -/
+`0 < δ < 1`, and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes, level 2 fails to
+end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with
+chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of them,
+and between splits each of a leaf's edges is learned once. A consistent ending has its hypothesis
+and tree parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
 def Correct : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Settings) (P : ℕ),
     let y := C.harvestRate
     let ε := C.disagreementRate
     let δ := C.δ
-    let K : ℕ := (Fintype.card σ + 2) ^ 2 * (Fintype.card α + 1)
+    let nQ := Fintype.card σ
+    let nα := Fintype.card α
+    let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     ReadsByState read M side → 0 < y → y < ε → ε < 1 → 0 < δ → δ < 1 →
-    64 * (K : ℝ) * ε / (ε - y) ^ 2 * Real.log (4 * (K : ℝ) ^ 2 / δ) ≤ P →
+    12 * (S : ℝ) * ε / (ε - y) ^ 2 * Real.log (2 * S * (S + 1) / δ) + S ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws

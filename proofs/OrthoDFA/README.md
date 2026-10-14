@@ -67,15 +67,16 @@
   disagreements' test of `disagreementRate` fires. Under the `j`-th hypothesis both run at level
   `δ / (2 (j + 1) (j + 2))`, so each test's levels sum to at most `δ / 2`. With
   `harvestRate < disagreementRate`, one of the tests fires within `stretchLength` probes under one
-  hypothesis, at most `stretchBound`, which is at most `32 ε / (ε − y)² · log(1/a) + 1`
+  hypothesis, at most `stretchBound`, which is at most `12 ε / (ε − y)² · log(1/a) + 1`
   (`stretchBound_mid_le`). A harvest's sampler
   (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
   read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `Level2.Correct`: with every state's reads all undecided or all on
   its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`, `disagreementRate`), `0 < δ < 1` and
-  at least `64 K ε / (ε − y)² · log(4 K² / δ)` probes, `K = (|Q| + 2)² (|Σ| + 1)`, level 2 ends
-  well, consistent with its hypothesis and tree parting on at most `ε` of the probes or a harvest
-  whose sampler yields `y`, but for chance at most `δ`.
+  at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes,
+  `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent with
+  its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler yields
+  `y`, but for chance at most `δ`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
