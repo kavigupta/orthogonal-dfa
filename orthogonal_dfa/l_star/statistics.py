@@ -293,8 +293,8 @@ def denoise_sample_size(
 
 
 def seq_rate(p0, p1, level, trials, hits) -> bool:
-    """``seqRate`` of ``OrthoDFA/SeqTest.lean``: whether the likelihood ratio of rate ``p1``
-    against ``p0`` reaches ``1 / level``,
+    """``seqRate`` of ``OrthoDFA/SeqTest.lean``, proved sound by ``SeqRateSound``: whether the
+    likelihood ratio of rate ``p1`` against ``p0`` reaches ``1 / level``,
 
         (p1 / p0)^hits ((1 - p1) / (1 - p0))^(trials - hits) >= 1 / level.
 
