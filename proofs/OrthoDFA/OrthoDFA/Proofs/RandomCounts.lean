@@ -711,6 +711,37 @@ theorem mid_any_le (fS fP : X → Bool) (hPS : ∀ x, fP x = true → fS x = tru
   refine (measure_mono hsub).trans ((pi_sum_any D g one_pos hg N _).trans (le_of_eq ?_))
   rw [div_one, Real.log_div one_ne_zero ha.ne', Real.log_one, zero_sub, neg_neg, Real.exp_log ha]
 
+/-- Some of the first `n` of `N` fresh draws falls in `S` with chance at most `n D(S)`. -/
+theorem pi_mem_le (S : Set X) (N n : ℕ) :
+    (Measure.pi fun _ : Fin N => D).real {xs | ∃ w ∈ (List.ofFn xs).take n, w ∈ S}
+      ≤ n * D.real S := by
+  classical
+  have hsub : {xs : Fin N → X | ∃ w ∈ (List.ofFn xs).take n, w ∈ S}
+      ⊆ ⋃ i ∈ (Finset.univ : Finset (Fin N)).filter (fun i => i.val < n),
+        Function.eval i ⁻¹' S := by
+    rintro xs ⟨w, hw, hwS⟩
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hw
+    simp only [List.length_take, List.length_ofFn] at hj
+    refine Set.mem_biUnion (x := ⟨j, by omega⟩) (by simp; omega) ?_
+    simpa using hwS
+  have hS : MeasurableSet S := (Set.to_countable S).measurableSet
+  calc _ ≤ _ := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ i ∈ (Finset.univ : Finset (Fin N)).filter (fun i => i.val < n),
+          (Measure.pi fun _ : Fin N => D).real (Function.eval i ⁻¹' S) :=
+        measureReal_biUnion_finset_le _ _
+    _ = ∑ _i ∈ (Finset.univ : Finset (Fin N)).filter (fun i => i.val < n), D.real S :=
+        Finset.sum_congr rfl fun i _ => by
+          rw [measureReal_def, measureReal_def,
+            (measurePreserving_eval (fun _ : Fin N => D) i).measure_preimage hS.nullMeasurableSet]
+    _ ≤ n * D.real S := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+        gcongr
+        calc ((Finset.univ : Finset (Fin N)).filter (fun i => i.val < n)).card
+            ≤ (Finset.range n).card :=
+              Finset.card_le_card_of_injOn (fun i => i.val)
+                (fun i hi => by simpa using hi) (fun a _ b _ h => Fin.ext h)
+          _ = n := Finset.card_range n
+
 end Draws
 
 end Random

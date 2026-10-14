@@ -36,10 +36,8 @@ theorem sift_inr_mids : ∀ (T : DTree α) (v z : FreeMonoid α), T.sift read v 
       exact ⟨m, by simp [mids], h.symm⟩
 
 theorem mem_pot {k p : ℕ} {x : FreeMonoid α} {T : DTree α} {m : FreeMonoid α} (h1 : k ≤ p)
-    (h2 : p ≤ x.toList.length) (hm : m ∈ mids T) : prefixOf x p * m ∈ pot k x T := by
-  classical
-  unfold pot
-  exact Finset.mem_biUnion.2 ⟨p, Finset.mem_Icc.2 ⟨h1, h2⟩, Finset.mem_image.2 ⟨m, hm, rfl⟩⟩
+    (h2 : p ≤ x.toList.length) (hm : m ∈ mids T) : prefixOf x p * m ∈ pot k x T :=
+  mem_potM h1 h2 hm
 
 /-- A string read undecided by the sift of a prefix of length between `k` and `|x|`. -/
 theorem pot_of_sift {T : DTree α} {k p : ℕ} {x z : FreeMonoid α} (h1 : k ≤ p)
