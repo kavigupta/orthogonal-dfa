@@ -133,11 +133,11 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
   have hιL : ι ≤ 1 / (3072 * (L + 1) * (Q + 1) * Q) := min_le_right _ _
   have hρ0 : 0 < ρ := by show 0 < εd / (256 * (Q + 1) * (Q * A + 1)); positivity
   have hKp : ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 1) * (2 * ((Fintype.card σ : ℝ)
-      + ((0 : ℕ) : ℝ) + 3) * Fintype.card α + 1) * (10 / (εd / 2) ^ 3 + 270 / (εd / 2) ^ 2
-      + 1400 / (εd / 2)) + 8 * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 3) * Fintype.card α
+      + ((0 : ℕ) : ℝ) + 3) * Fintype.card α + 1) * (20 / (εd / 2) ^ 2
+      + 280 / (εd / 2)) + 8 * ((Fintype.card σ : ℝ) + ((0 : ℕ) : ℝ) + 3) * Fintype.card α
       * (P.L + 1) = Kp := by
     show _ = ((Fintype.card σ : ℝ) + 1) * (2 * ((Fintype.card σ : ℝ) + 3) * Fintype.card α + 1)
-      * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
+      * (80 / εd ^ 2 + 560 / εd)
       + 8 * ((Fintype.card σ : ℝ) + 3) * Fintype.card α * ((P.L : ℝ) + 1)
     simp only [Nat.cast_zero, add_zero]
     field_simp
@@ -300,8 +300,8 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
       exact hk2)
   refine ⟨settings, hwalk, hdis, ?_, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
-    show _ = Kp * (Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ')
-      + 2 * Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ')))
+    show _ = Kp * (Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ')
+      + Real.log (2 * Real.log (4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ')))
     simp only [Nat.cast_zero, add_zero]
     rfl
   · intro Dsf hDsf hlen hpAPD hatom

@@ -36,7 +36,7 @@ probes with fewer than `B` records that are not true with chance at most `subOpe
 `FakeRace`: the round's records that are not true reach `(S + 1) m` within `W` probes with chance
 at most `fakeRun`, as the tests hold its undecided strings. `HarvestGood`: a harvest the round
 ends in at a tree of the class has a sampler that finds more strings at read-states that are not
-good than at good ones and yields `harvestYield`, but for chance `(2^(Lmax+2) |Σ| + 1 + 2T²) a`.
+good than at good ones and yields `harvestYield`, but for chance `(2^(Lmax+2) |Σ| + 1 + 2T) a`.
 The sampler mixes the hypotheses the site's counts were taken under; under each of them a good
 read-state's undecided reads are rare whatever came before, and the counts, held against the
 running sum of their means, certify the mixture's yield. `RoundGiven`: over
@@ -209,20 +209,19 @@ def SubOpen {σ : Type*} (G : ReadModel α σ) (C : Level5Settings) (rd : FreeMo
       ∧ s'.tree = s.tree ∧ SubOpen G C rd s'
         (if xs 0 ∈ G.untrueAt rd C.walkStart s.tree s.edges then B - 1 else B) j T (Fin.tail xs)
 
-/-- `SubRound`: with the middles test's threshold `hP` at `hS + 1` searches, the success test's
-`hS` at `nEnd` probes and `θr ≤ (1 - θpt') εd'`, a sub-round keeps its tree over its `subT`
+/-- `SubRound`: with the middles test firing at `hP` of `hS + 1` searches, the success test at
+`hS` of `nEnd` probes and `θr ≤ (1 - θpt') εd'`, a sub-round keeps its tree over its `subT`
 probes with fewer than `B` records that are not true with chance at most `subOpen`. -/
 def SubRound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : Level5Settings) (S nEnd nRec hP hS B : ℕ) (θpt' θr εd' : ℝ),
-    0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.firstLook ≤ nEnd →
-    C.firstLook ≤ hS + 1 → 0 ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1
-        → 0 ≤ C.disagreementRate → C.disagreementRate ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
+    0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.SeqOK →
+    C.firstLook ≤ hS + 1 → hS ≤ nEnd → 0 ≤ θpt' → θpt' ≤ 1 →
     0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
-    binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel
-        → 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel →
-    C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS → C.searchShare * nEnd ≤ hS + 1 →
+    seqRate C.middleUndecidedRate C.middleAltRate C.testLevel (hS + 1) hP →
+    seqRate C.disagreementRate C.disagreementAltRate C.testLevel nEnd hS →
+    C.searchShare * nEnd ≤ hS + 1 →
     ∀ s, SubStart G S s → ∀ T, subT C (Fintype.card α) nEnd nRec ≤ T →
       (Measure.pi fun _ : Fin T => D)
           {xs | SubOpen G C rd s B (subT C (Fintype.card α) nEnd nRec) T xs}
@@ -251,9 +250,8 @@ def FakeRace : Prop :=
     (C : Level5Settings) (S L W : ℕ) (ρ θg θgs θgpt Xe θs' Xs η ν : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) → 0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves
         → 0 ≤ C.edgeUndecidedRate →
-    0 ≤ C.edgeTraffic → 0 ≤ ρ → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → C.firstLook ≤ Xs →
-    (∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-        → binomSfGe n C.startUndecidedRate h < C.testLevel) →
+    0 ≤ C.edgeTraffic → 0 ≤ ρ → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → 0 ≤ Xs →
+    (∀ n h : ℕ, θs' * n + Xs ≤ h → seqRate C.startUndecidedRate C.startAltRate C.testLevel n h) →
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
     NoiseEvent G D C S ρ θg θgs θgpt rd →
     ∀ T, (Measure.pi fun _ : Fin T => D)
@@ -262,45 +260,42 @@ def FakeRace : Prop :=
 
 /-- `HarvestGood`: with draws of length at most `L`, `θe ≥ 8θg`, every edge excess above
 `4 (L + 1)(1 + 4 θg Lmax) log(1/a)`, the start's test firing at `h` of `t` probes only where
-`h > t θs / 2`, with `16 θgs ≤ θs` and `8 log(1/a) ≤ n₀ θs`, `4 θgpt ≤ θpt`, and a stretch
-searching on at most `φpt/2` of its probes reaching `φpt` of `n ≥ n₀` with chance at most `a`,
-the round ends in a harvest at a tree of the class whose sampler fails `MixGood` at the yield
-`harvestYield` with chance at most `(2^(Lmax+2) |Σ| + 1 + 2T²) a`. -/
+`h ≥ t θs / 4 + 2 log(1/a)`, with `16 θgs ≤ θs`, `4 θgpt ≤ θpt` and `n₀ ≥ 6 log(1/a)`, the round
+ends in a harvest at a tree of the class whose sampler fails `MixGood` at the yield
+`harvestYield` with chance at most `(2^(Lmax+2) |Σ| + 1 + 2T) a`: each potential once, and each
+stretch's middles test and search gate once a stretch. -/
 def HarvestGood : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (G : ReadModel α σ)
     (rd : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : Level5Settings) (S L T : ℕ) (ρ θg θgs θgpt : ℝ),
-    (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.recordsToMove → 0 < C.testLevel
-        → C.testLevel ≤ 1 → 0 ≤ θg →
+    (∀ᵐ x ∂D, x.toList.length ≤ L) → 1 ≤ L → 0 < C.recordsToMove → C.SeqOK → 0 ≤ θg →
     8 * θg ≤ C.edgeUndecidedRate → 0 ≤ C.edgeTraffic → Fintype.card σ + S + 2 ≤ C.maxLeaves →
     (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.maxLeaves) * Real.log (1 / C.testLevel) < C.edgeExcess j)
         → 0 ≤ θgs → 16 * θgs ≤ C.startUndecidedRate →
-    8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate →
-    (∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel
-        → t * C.startUndecidedRate / 2 < h) →
-    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1 →
-    0 ≤ C.searchShare → C.searchShare ≤ 1 →
-    (∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊ ≤ C.testLevel) →
+    (∀ t h, h ≤ t → seqRate C.startUndecidedRate C.startAltRate C.testLevel t h →
+        t * C.startUndecidedRate / 4 + 2 * Real.log (1 / C.testLevel) ≤ h) →
+    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate →
+    6 * Real.log (1 / C.testLevel) ≤ C.firstLook →
     NoiseEvent G D C S ρ θg θgs θgpt rd →
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (applyProbe C fun z => (rd z).cut)
           (fun e s' => G.InClass S s'.tree ∧ e ≠ .tooBig
             ∧ ¬ GoodEnd G D rd C.walkStart C.harvestYield e s') initialState
           (List.ofFn xs)}
-      ≤ ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * (T * T)) * C.testLevel)
+      ≤ ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * T) * C.testLevel)
 
 /-- `SuccessSound`: a round ends in success at a hypothesis disagreeing on at least `εd` of the
-probes with chance at most `T² a`. -/
+probes with chance at most `T a`, the success test erring at most `a` a stretch. -/
 def SuccessSound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (rd : FreeMonoid α → ARU)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (C : Level5Settings) (T : ℕ),
-    0 ≤ C.disagreementRate → C.disagreementRate ≤ 1 → C.testLevel ≤ 1 →
+    C.SeqOK →
     (Measure.pi fun _ : Fin T => D)
         {xs | RunEnds (applyProbe C fun z => (rd z).cut)
           (fun e s' => e = .success
             ∧ C.disagreementRate ≤ D.real (searchAt rd C.walkStart s'.tree s'.edges)) initialState
           (List.ofFn xs)}
-      ≤ ENNReal.ofReal (T * T * C.testLevel)
+      ≤ ENNReal.ofReal (T * C.testLevel)
 
 /-- `RoundGiven`: under `SubRound`'s, `FakeRace`'s and `HarvestGood`'s conditions, over
 `T ≥ (S + |Q| + 1) · subT` probes the round ends in success at a hypothesis disagreeing on fewer
@@ -315,26 +310,20 @@ def RoundGiven : Prop :=
     (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (C : Level5Settings) (S nEnd nRec hP hS L T : ℕ) (ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs η ν : ℝ),
     (∀ᵐ x ∂D, x.toList.length ≤ L) →
-    0 ≤ ρ → 0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.firstLook ≤ nEnd →
-    C.firstLook ≤ hS + 1 → 0 ≤ C.middleUndecidedRate → C.middleUndecidedRate ≤ 1
-        → 0 ≤ C.disagreementRate → C.disagreementRate ≤ 1 → 0 ≤ θpt' → θpt' ≤ 1 →
+    0 ≤ ρ → 0 < C.recordsToMove → Fintype.card σ + S + 3 ≤ C.maxLeaves → C.SeqOK →
+    C.firstLook ≤ hS + 1 → hS ≤ nEnd → 0 ≤ θpt' → θpt' ≤ 1 →
     0 ≤ θr → θr ≤ 1 → 0 ≤ εd' → εd' ≤ 1 → θr ≤ (1 - θpt') * εd' →
-    binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel
-        → 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel →
-    C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS → C.searchShare * nEnd ≤ hS + 1 →
-    1 ≤ L → 0 < C.testLevel → C.testLevel ≤ 1 → 0 ≤ θg → 8 * θg ≤ C.edgeUndecidedRate
-        → 0 ≤ C.edgeTraffic →
+    seqRate C.middleUndecidedRate C.middleAltRate C.testLevel (hS + 1) hP →
+    seqRate C.disagreementRate C.disagreementAltRate C.testLevel nEnd hS →
+    C.searchShare * nEnd ≤ hS + 1 →
+    1 ≤ L → 0 ≤ θg → 8 * θg ≤ C.edgeUndecidedRate → 0 ≤ C.edgeTraffic →
     (∀ j, 4 * (L + 1) * (1 + 4 * θg * C.maxLeaves) * Real.log (1 / C.testLevel) < C.edgeExcess j)
         → 0 ≤ θgs → 16 * θgs ≤ C.startUndecidedRate →
-    8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate →
-    (∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel
-        → t * C.startUndecidedRate / 2 < h) →
-    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate →
-    0 ≤ C.searchShare → C.searchShare ≤ 1 →
-    (∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊ ≤ C.testLevel) →
-    0 ≤ C.edgeUndecidedRate → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → C.firstLook ≤ Xs →
-    (∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-        → binomSfGe n C.startUndecidedRate h < C.testLevel) →
+    (∀ t h, h ≤ t → seqRate C.startUndecidedRate C.startAltRate C.testLevel t h →
+        t * C.startUndecidedRate / 4 + 2 * Real.log (1 / C.testLevel) ≤ h) →
+    0 ≤ θgpt → 4 * θgpt ≤ C.middleUndecidedRate → 6 * Real.log (1 / C.testLevel) ≤ C.firstLook →
+    0 ≤ C.edgeUndecidedRate → 0 ≤ Xe → (∀ j, C.edgeExcess j ≤ Xe) → 0 ≤ θs' → 0 ≤ Xs →
+    (∀ n h : ℕ, θs' * n + Xs ≤ h → seqRate C.startUndecidedRate C.startAltRate C.testLevel n h) →
     0 ≤ η → 0 ≤ ν → (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))) →
     (S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec ≤ T →
     ∫⁻ ω, (Measure.pi fun _ : Fin T => D)
@@ -346,7 +335,7 @@ def RoundGiven : Prop :=
           ((S + Fintype.card σ + 1) * subT C (Fintype.card α) nEnd nRec) ρ Xe θs' Xs η ν)
         + ENNReal.ofReal ((S + Fintype.card σ + 1) * subOpen C (Fintype.card α) (Fintype.card σ)
           nRec ((S + 1) * C.recordsToMove) θr (termLevel nEnd hP hS θpt' εd'))
-        + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T)) * C.testLevel)
+        + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * T) * C.testLevel)
 
 end OrthoDFA
 

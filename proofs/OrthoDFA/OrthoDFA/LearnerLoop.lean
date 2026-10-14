@@ -288,10 +288,10 @@ def LearnerLoopCorrect : Prop :=
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
   let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
+  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
     + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp ^ 2) / δ
-  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp) / δ
+  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -356,10 +356,10 @@ def LearnerLoopSimple : Prop :=
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
-  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
+  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
     + 8 * (Q + 3) * A * (L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'
-  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ'
+  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L → 1 ≤ k →
@@ -403,10 +403,10 @@ def LearnerLoopUniform : Prop :=
     * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4
   let E : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 1) / pAP + A ^ 2) / (δ' * ρ)
   let L₀ : ℝ := 2 + 28 * (Real.log E + 24) / (25 * Real.log A)
-  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
+  let Kp : ℝ := (Q + 1) * (2 * (Q + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
     + 8 * (Q + 3) * A * (L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp ^ 2) / δ'
-  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + 5) * A + 7 * Kp) / δ'
+  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 2 ≤ Fintype.card α →

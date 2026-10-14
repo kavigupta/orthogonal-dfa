@@ -38,6 +38,24 @@ def RunEnds {S X E : Type*} (step : S → X → S ⊕ (E × S)) (Q : E → S →
     | .inl s' => RunEnds step Q s' xs
     | .inr (e, s') => Q e s'
 
+/-- The sequential tests' settings: the level in `(0, 1)`, every test's rate in `(0, 1)` with its
+alternative on its far side, above it for the harvests' tests and below it for success's. -/
+structure Level5Settings.SeqOK (C : Level5Settings) : Prop where
+  a_pos : 0 < C.testLevel
+  a_lt : C.testLevel < 1
+  θs_pos : 0 < C.startUndecidedRate
+  θs_alt : C.startUndecidedRate < C.startAltRate
+  θs_alt_lt : C.startAltRate < 1
+  θpt_pos : 0 < C.middleUndecidedRate
+  θpt_alt : C.middleUndecidedRate < C.middleAltRate
+  θpt_alt_lt : C.middleAltRate < 1
+  εd_pos : 0 < C.disagreementRate
+  εd_lt : C.disagreementRate < 1
+  εd_alt_pos : 0 < C.disagreementAltRate
+  εd_alt : C.disagreementAltRate < C.disagreementRate
+  φ_pos : 0 < C.searchShare
+  φ_lt : C.searchShare < 1
+
 /-- What a harvest's sampler must yield a version: the least of what the start's, an edge's and
 the middles' tests certify. -/
 noncomputable def Level5Settings.harvestYield (C : Level5Settings) : ℝ :=
@@ -148,12 +166,7 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   m_pos : 0 < C.recordsToMove
   Lmax_ge : Fintype.card σ + kn.S + 3 ≤ C.maxLeaves
   L_pos : 1 ≤ L
-  a_pos : 0 < C.testLevel
-  a_le : C.testLevel ≤ 1
-  θpt_nonneg : 0 ≤ C.middleUndecidedRate
-  θpt_le : C.middleUndecidedRate ≤ 1
-  εd_nonneg : 0 ≤ C.disagreementRate
-  εd_le : C.disagreementRate ≤ 1
+  seq : C.SeqOK
   θpt'_nonneg : 0 ≤ kn.θpt'
   θpt'_le : kn.θpt' ≤ 1
   θr_nonneg : 0 ≤ kn.θr
@@ -164,27 +177,22 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
   θgs_nonneg : 0 ≤ kn.θgs
   θgs_le : 16 * kn.θgs ≤ C.startUndecidedRate
   φe_nonneg : 0 ≤ C.edgeTraffic
-  φpt_nonneg : 0 ≤ C.searchShare
-  φpt_le : C.searchShare ≤ 1
-  n₀_le_nEnd : C.firstLook ≤ kn.nEnd
   n₀_le_hS : C.firstLook ≤ kn.hS + 1
-  pt_level : binomSfGe (kn.hS + 1) C.middleUndecidedRate kn.hP < C.testLevel
-  success_level : 1 - binomSfGe kn.nEnd C.disagreementRate (kn.hS + 1) < C.testLevel
-  success_reach : C.testLevel ≤ binomSfGe kn.nEnd C.disagreementRate kn.hS
+  hS_le : kn.hS ≤ kn.nEnd
+  pt_level : seqRate C.middleUndecidedRate C.middleAltRate C.testLevel (kn.hS + 1) kn.hP
+  success_level : seqRate C.disagreementRate C.disagreementAltRate C.testLevel kn.nEnd kn.hS
   φpt_nEnd : C.searchShare * kn.nEnd ≤ kn.hS + 1
   exc_gt : ∀ j, 4 * (L + 1) * (1 + 4 * kn.θg * C.maxLeaves) * Real.log (1 / C.testLevel)
       < C.edgeExcess j
-  start_test : ∀ t h, C.firstLook ≤ t → binomSfGe t C.startUndecidedRate h < C.testLevel →
-    t * C.startUndecidedRate / 2 < h
-  start_room : 8 * Real.log (1 / C.testLevel) ≤ C.firstLook * C.startUndecidedRate
-  φpt_test : ∀ n, C.firstLook ≤ n → binomSfGe n (C.searchShare / 2) ⌈C.searchShare * n⌉₊
-      ≤ C.testLevel
+  start_test : ∀ t h, h ≤ t → seqRate C.startUndecidedRate C.startAltRate C.testLevel t h →
+    t * C.startUndecidedRate / 4 + 2 * Real.log (1 / C.testLevel) ≤ h
+  gate_test : 6 * Real.log (1 / C.testLevel) ≤ C.firstLook
   Xe_nonneg : 0 ≤ kn.Xe
   exc_le : ∀ j, C.edgeExcess j ≤ kn.Xe
   θs'_nonneg : 0 ≤ kn.θs'
-  n₀_le_Xs : C.firstLook ≤ kn.Xs
-  start_lin : ∀ n h : ℕ, C.firstLook ≤ n → kn.θs' * n + kn.Xs ≤ h
-      → binomSfGe n C.startUndecidedRate h < C.testLevel
+  Xs_nonneg : 0 ≤ kn.Xs
+  start_lin : ∀ n h : ℕ, kn.θs' * n + kn.Xs ≤ h
+      → seqRate C.startUndecidedRate C.startAltRate C.testLevel n h
   η_nonneg : 0 ≤ kn.η
   ν_nonneg : 0 ≤ kn.ν
   race_side : (Real.exp kn.η - 1) * κs * (L + 1) ≤ 1 - Real.exp (-(kn.ν * (L + 1)))
@@ -224,10 +232,11 @@ def middlesTail : ENNReal :=
     * Real.exp (-(kn.θgpt * C.searchShare / 2 / (2 * prefixMax D C.walkStart
       * (1 + 4 * ((L + 1) * (Fintype.card σ + kn.S + 1) * (3 / 2 * θ)))))))
 
-/-- The harvests' and success's tests firing wrongly at some probe of the round. -/
+/-- The harvests' and success's tests firing wrongly in the round: each potential at most once,
+and each stretch's tests at most once a stretch. -/
 def testLevels : ENNReal :=
-  ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1
-      + 3 * (C.probeBudget * C.probeBudget)) * C.testLevel)
+  ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * C.probeBudget)
+    * C.testLevel)
 
 /-- The round's failure chance at the knobs `kn`: the four noise fields' tails, the records that
 are not true racing the tests (`fakeRun`), a sub-round keeping its tree too long (`subOpen`), and
@@ -268,16 +277,16 @@ def Level5RiskBound : Prop :=
     48 * (n + 1) * θ + 16 * p₀ * Λ ≤ C.startUndecidedRate → C.startUndecidedRate ≤ 1 →
     32 * (L + 1) * p₀ * Λ ≤ C.edgeTraffic * C.edgeUndecidedRate
         → 256 * p₀ * Λ ≤ C.middleUndecidedRate * C.searchShare →
-    C.disagreementRate ≤ 1 → C.middleUndecidedRate ≤ 1 / 4
-        → C.searchShare ≤ 3 / 4 * C.disagreementRate →
-    32 * lg ≤ C.firstLook * C.startUndecidedRate ^ 2
-        → 2 * lg ≤ C.firstLook * C.searchShare ^ 2 →
+    C.disagreementRate < 1 → C.startUndecidedRate = 1 / 2 → C.startAltRate = 3 / 5 →
+    C.middleUndecidedRate = 1 / 4 → C.middleAltRate = 3 / 8 →
+    C.disagreementAltRate = 7 / 8 * C.disagreementRate →
+    C.searchShare = 3 / 4 * C.disagreementRate → 6 * lg ≤ C.firstLook →
     (∀ j, 4 * (L + 1) * (1 + 12 * θ * C.maxLeaves) * lg < C.edgeExcess j) →
     (∀ j, C.edgeExcess j ≤ 8 * (L + 1) * (1 + 12 * θ * C.maxLeaves) * lg) →
-    0 < C.testLevel → 4 * (2 ^ (C.maxLeaves + 2) * A + 7 * C.probeBudget ^ 2) * C.testLevel ≤ δ →
+    0 < C.testLevel → 4 * (2 ^ (C.maxLeaves + 2) * A + 7 * C.probeBudget) * C.testLevel ≤ δ →
     (S + Fintype.card σ + 1) * ((2 * C.maxLeaves * A + 1)
-        * (8 * lg / (C.disagreementRate ^ 2 * C.middleUndecidedRate ^ 2)
-            + 4 * C.firstLook / (3 * C.disagreementRate) + 2)
+        * (6 * lg / C.disagreementRate ^ 2 + 112 * lg / C.disagreementRate
+            + 2 * C.firstLook / C.disagreementRate + 1)
         + 8 * (Fintype.card σ * A + S + 1) * C.recordsToMove / C.disagreementRate
             + 32 * lg / C.disagreementRate ^ 2 + 1) ≤ C.probeBudget →
     4 * Real.log (8 / δ) ≤ (S + 1) * C.recordsToMove →

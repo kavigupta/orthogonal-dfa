@@ -322,10 +322,10 @@ def LoopCore : Prop :=
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
   let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 3 + 1080 / εd ^ 2 + 2800 / εd)
+  let Kp : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (80 / εd ^ 2 + 560 / εd)
     + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp ^ 2) / δ
-  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * Kp) / δ
+  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   let c : ℝ := Real.exp (-(8 * (P.L + 1) * (n + 1) / ρ))
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
@@ -414,7 +414,7 @@ theorem loop_core_holds : LoopCore := by
   refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
     have e : ((Fintype.card σ : ℝ) + S + 1) * (2 * ((Fintype.card σ : ℝ) + S + 3)
-        * Fintype.card α + 1) * (10 / (εd / 2) ^ 3 + 270 / (εd / 2) ^ 2 + 1400 / (εd / 2))
+        * Fintype.card α + 1) * (20 / (εd / 2) ^ 2 + 280 / (εd / 2))
         + 8 * ((Fintype.card σ : ℝ) + S + 3) * Fintype.card α * (P.L + 1) = Kp := by
       simp only [Kp, n, A]
       field_simp

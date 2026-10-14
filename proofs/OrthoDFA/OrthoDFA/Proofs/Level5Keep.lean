@@ -341,6 +341,15 @@ theorem cnt_succ {X : Type*} (j : ℕ) (P : X → Prop) {T : ℕ} (xs : Fin (T +
 theorem cnt_zero {X : Type*} (P : X → Prop) {T : ℕ} (xs : Fin T → X) : cnt 0 P xs = 0 := by
   simp [cnt]
 
+open scoped Classical in
+theorem cnt_mono {X : Type*} {P Q : X → Prop} (hPQ : ∀ x, P x → Q x) (j : ℕ) {T : ℕ}
+    (xs : Fin T → X) : cnt j P xs ≤ cnt j Q xs := by
+  unfold cnt
+  refine Finset.sum_le_sum fun i _ => ?_
+  by_cases h : (i : ℕ) < j ∧ P (xs i)
+  · rw [if_pos h, if_pos ⟨h.1, hPQ _ h.2⟩]
+  · rw [if_neg h]; exact Nat.zero_le _
+
 theorem keepV_le : ∀ (j : ℕ) (s : Level5State α) (T : ℕ) (xs : Fin T → FreeMonoid α),
     KeepV C cut s j T xs → j ≤ T
   | 0, _, _, _, _ => Nat.zero_le _
@@ -510,40 +519,27 @@ section KeepBound
 
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
-theorem look_none_pt {s : Level5State α} {hP : ℕ} (hl : runTests C s = none)
-    (hn₀ : C.firstLook ≤ s.stretchDisagreements) (hθ0 : 0 ≤ C.middleUndecidedRate)
-    (hθ1 : C.middleUndecidedRate ≤ 1)
-    (hhP : binomSfGe s.stretchDisagreements C.middleUndecidedRate hP < C.testLevel)
-    (hg : C.searchShare * s.stretchProbes ≤ s.stretchDisagreements) : s.stretchMiddles.length
-        < hP := by
+theorem look_none_pt {s : Level5State α} {hP : ℕ} (hl : runTests C s = none) (hSq : C.SeqOK)
+    (hn₀ : C.firstLook ≤ s.stretchDisagreements) (hhP : hP ≤ s.stretchDisagreements)
+    (hfire : seqRate C.middleUndecidedRate C.middleAltRate C.testLevel s.stretchDisagreements hP)
+    (hg : C.searchShare * s.stretchProbes ≤ s.stretchDisagreements) :
+    s.stretchMiddles.length < hP := by
   by_contra hge
-  push_neg at hge
-  have hr : rateSide C.middleUndecidedRate C.testLevel C.firstLook s.stretchDisagreements
-      s.stretchMiddles.length = some true := by
-    unfold rateSide
-    rw [if_pos hn₀, if_pos ((binomSfGe_antitone' hθ0 hθ1 hge).trans_lt hhP)]
+  push Not at hge
+  have hr := seqRate_mono_up' hSq.θpt_pos (hSq.θpt_alt.trans hSq.θpt_alt_lt) hSq.θpt_alt.le
+    hSq.θpt_alt_lt.le hfire hge hhP
   unfold runTests at hl
   split_ifs at hl with h1 h2 h3
-  all_goals first | contradiction | exact absurd ⟨hg, hr⟩ h3
+  all_goals first | contradiction | exact absurd ⟨hg, hn₀, hr⟩ h3
 
-theorem look_none_dis {s : Level5State α} {hS : ℕ} (hl : runTests C s = none)
-    (hn₀ : C.firstLook ≤ s.stretchProbes) (hε0 : 0 ≤ C.disagreementRate)
-    (hε1 : C.disagreementRate ≤ 1)
-    (hhS : 1 - binomSfGe s.stretchProbes C.disagreementRate (hS + 1) < C.testLevel)
-    (hhS' : C.testLevel ≤ binomSfGe s.stretchProbes C.disagreementRate hS) : hS + 1
-        ≤ s.stretchDisagreements := by
+theorem look_none_dis {s : Level5State α} {hS : ℕ} (hl : runTests C s = none) (hSq : C.SeqOK)
+    (hhS : hS ≤ s.stretchProbes)
+    (hfire : seqRate C.disagreementRate C.disagreementAltRate C.testLevel s.stretchProbes hS) :
+    hS + 1 ≤ s.stretchDisagreements := by
   by_contra hlt
-  push_neg at hlt
-  have h1 : ¬ binomSfGe s.stretchProbes C.disagreementRate s.stretchDisagreements < C.testLevel :=
-    not_lt.2 (hhS'.trans (binomSfGe_antitone' hε0 hε1 (by omega)))
-  have h3 := binomSfGe_antitone' (n := s.stretchProbes) hε0 hε1 (show s.stretchDisagreements + 1
-      ≤ hS + 1 by omega)
-  have h2 : 1 - binomSfGe s.stretchProbes C.disagreementRate (s.stretchDisagreements + 1)
-      < C.testLevel := by linarith
-  have hr : rateSide C.disagreementRate C.testLevel C.firstLook s.stretchProbes
-      s.stretchDisagreements = some false := by
-    unfold rateSide
-    rw [if_pos hn₀, if_neg h1, if_pos h2]
+  push Not at hlt
+  have hr := seqRate_anti_down hSq.εd_pos hSq.εd_lt hSq.εd_alt_pos.le hSq.εd_alt.le hfire
+    (show s.stretchDisagreements ≤ hS by omega) hhS
   unfold runTests at hl
   split_ifs at hl <;> contradiction
 
@@ -713,23 +709,15 @@ variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 def recAt (s : Level5State α) : Set (FreeMonoid α) :=
   {x | ∃ pct sp, recordBy cut C.walkStart (s.tree, s.edges) x = some (pct, sp)}
 
-theorem middleHarvestBy_search {T : DTree α} {E : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    (h : middleHarvestBy cut T E k x ≠ []) : (probeBy cut T E k x).IsSearch := by
-  unfold middleHarvestBy at h
-  rcases ho : probeBy cut T E k x with _ | _ | _ | _ | _ | _ <;> rw [ho] at h <;>
-    simp_all [Outcome.IsSearch]
-
 open scoped Classical in
 /-- A fresh hypothesis recording less than `θr` of the time keeps over `nEnd` probes with chance at
 most `termLevel`. -/
 theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP hS : ℕ}
-    {θpt' θr εd' : ℝ} (hn₀ : C.firstLook ≤ nEnd) (hn₀' : C.firstLook ≤ hS + 1)
-    (hθpt0 : 0 ≤ C.middleUndecidedRate) (hθpt1 : C.middleUndecidedRate ≤ 1)
-    (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) (hθpt'0 : 0 ≤ θpt')
-    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hcond : θr ≤ (1 - θpt') * εd')
-    (hhP : binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel)
-    (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
-    (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
+    {θpt' θr εd' : ℝ} (hSq : C.SeqOK) (hn₀' : C.firstLook ≤ hS + 1) (hSn : hS ≤ nEnd)
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hcond : θr ≤ (1 - θpt') * εd')
+    (hhP : seqRate C.middleUndecidedRate C.middleAltRate C.testLevel (hS + 1) hP)
+    (hhS : seqRate C.disagreementRate C.disagreementAltRate C.testLevel nEnd hS)
     (hφn : C.searchShare * nEnd ≤ hS + 1) {s : Level5State α} (hrec : D.real (recAt C cut s) < θr)
     (hn : s.stretchProbes = 0) (hd : s.stretchDisagreements = 0) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D) {xs | KeepV C cut s nEnd T xs}
@@ -748,9 +736,8 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
     rw [this, measure_empty]; exact zero_le
   rcases nEnd with _ | N
   · exfalso
-    rw [binomSfGe_zero_left] at hhS
-    have := binomSfGe_le_one (n := 0) hεd0 hεd1 hS
-    linarith
+    obtain rfl : hS = 0 := by omega
+    exact not_seqRate_zero hSq.a_pos hSq.a_lt hhS
   set T0 := s.tree
   set E0 := s.edges
   set ptO : FreeMonoid α → Prop := fun x => middleHarvestBy cut T0 E0 C.walkStart x ≠ []
@@ -764,8 +751,7 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
     rw [hn, zero_add] at h3
     rw [hd, zero_add] at h5
     have hdis : hS + 1 ≤ cnt (N + 1) disO xs := by
-      have := look_none_dis C h7 (by rw [h3]; exact hn₀) hεd0 hεd1 (by rw [h3]; exact hhS)
-        (by rw [h3]; exact hhS')
+      have := look_none_dis C (hS := hS) h7 hSq (by rw [h3]; exact hSn) (by rw [h3]; exact hhS)
       simp only [disO]
       omega
     refine ⟨?_, hdis⟩
@@ -794,12 +780,16 @@ theorem keep_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {nEnd hP 
       have hj : (j₀ : ℝ) ≤ N + 1 := by exact_mod_cast hj₀N
       push_cast at hφn ⊢
       rcases le_or_gt 0 C.searchShare with h | h <;> nlinarith
-    have hpt := look_none_pt C g7 (by rw [g5, heq]; exact hn₀') hθpt0 hθpt1
-      (by rw [g5, heq]; exact hhP) hgate
-    refine rr_incl hBA T j₀ (hS + 1) hP xs heq ?_
-    show cnt j₀ ptO xs < hP
-    simp only [ptO]
-    omega
+    have hcnt : cnt j₀ ptO xs < hP := by
+      rcases le_or_gt hP (hS + 1) with hPle | hPle
+      · have hpt := look_none_pt C (hP := hP) g7 hSq (by rw [g5, heq]; exact hn₀')
+          (by rw [g5, heq]; exact hPle) (by rw [g5, heq]; exact hhP) hgate
+        simp only [ptO]
+        omega
+      · have hmd : cnt j₀ ptO xs ≤ cnt j₀ disO xs :=
+          cnt_mono (fun x hx => middleHarvestBy_search cut hx) j₀ xs
+        omega
+    exact rr_incl hBA T j₀ (hS + 1) hP xs heq hcnt
   by_cases ha : θpt' * D.real {x | disO x} ≤ D.real {x | ptO x}
   · calc _ ≤ (Measure.pi fun _ : Fin T => D) {xs | RR {x | disO x} {x | ptO x} T (hS + 1) hP xs} :=
           measure_mono fun xs h => (hincl h).1
@@ -1255,14 +1245,11 @@ are not true allowed, keeps its tree over `(v + 1) nEnd + r` probes with chance 
 times `termLevel`, and that of fewer than the records the true edges and targets and the allowance
 still hold over `r` probes at rate `θr`. -/
 theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP hS : ℕ} {θpt' εd' : ℝ}
-    (hm : 0 < C.recordsToMove) (hn₀ : C.firstLook ≤ nEnd) (hn₀' : C.firstLook ≤ hS + 1)
-    (hθpt0 : 0 ≤ C.middleUndecidedRate) (hθpt1 : C.middleUndecidedRate ≤ 1)
-    (hεd0 : 0 ≤ C.disagreementRate) (hεd1 : C.disagreementRate ≤ 1) (hθpt'0 : 0 ≤ θpt')
-    (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hcond : θr ≤ (1 - θpt') * εd')
-    (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
-    (hhP : binomSfGe (hS + 1) C.middleUndecidedRate hP < C.testLevel)
-    (hhS : 1 - binomSfGe nEnd C.disagreementRate (hS + 1) < C.testLevel)
-    (hhS' : C.testLevel ≤ binomSfGe nEnd C.disagreementRate hS)
+    (hm : 0 < C.recordsToMove) (hSq : C.SeqOK) (hn₀' : C.firstLook ≤ hS + 1) (hSn : hS ≤ nEnd)
+    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hcond : θr ≤ (1 - θpt') * εd') (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
+    (hhP : seqRate C.middleUndecidedRate C.middleAltRate C.testLevel (hS + 1) hP)
+    (hhS : seqRate C.disagreementRate C.disagreementAltRate C.testLevel nEnd hS)
     (hφn : C.searchShare * nEnd ≤ hS + 1) :
     ∀ (v : ℕ) (s : Level5State α) (r B b T : ℕ), G.InClass S s.tree → EdgesInto s.tree s.edges →
       RecsInto s → Settled C.recordsToMove s → s.stretchProbes = 0 → s.stretchDisagreements = 0
@@ -1435,8 +1422,8 @@ theorem open_le (rd : FreeMonoid α → ARU) [IsProbabilityMeasure D] {nEnd hP h
             simp only [segR]; rw [hst]
           rw [hsv]
           simp [w]
-    have hkeep := keep_le C cut D hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
-      hhP hhS hhS' hφn (not_le.1 htype) hn hd T
+    have hkeep := keep_le C cut D hSq hn₀' hSn hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
+      hhP hhS hφn (not_le.1 htype) hn hd T
     have hB' : v * nEnd + r + nEnd ≤ b := by omega
     have hg := hh0 r (kk s B)
     calc (Measure.pi fun _ : Fin T => D) {xs | SubOpen G C rd s B b T xs}
@@ -1587,8 +1574,8 @@ end Open
 
 open scoped Classical in
 theorem sub_round_holds : SubRound := by
-  intro α _ _ σ _ G rd D _ C S nEnd nRec hP hS B θpt' θr εd' hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0
-    hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn s hs T hT
+  intro α _ _ σ _ G rd D _ C S nEnd nRec hP hS B θpt' θr εd' hm hLmax hSq hn₀' hSn hθpt'0
+    hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hφn s hs T hT
   obtain ⟨hc, he, hrecs, hn, hd⟩ := hs
   have hr : RecsInto s := fun q c r h => by rw [hrecs q c] at h; cases h
   have hpot : pot C s ≤ subVersions C (Fintype.card α) := by
@@ -1604,8 +1591,8 @@ theorem sub_round_holds : SubRound := by
     simp [Level5State.recordCount, hrecs] at this
     omega
   have hphi : phi C (trueKeys G) s = 0 := by simp [phi, Level5State.recordCount, hrecs]
-  refine (open_le G C S D θr rd hm hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
-    hθr0 hθr1 hhP hhS hhS' hφn _ s nRec B _ T hc he hr hset hn hd hpot le_rfl hT).trans ?_
+  refine (open_le G C S D θr rd hm hSq hn₀' hSn hθpt'0 hθpt'1 hεd'0 hεd'1 hcond
+    hθr0 hθr1 hhP hhS hφn _ s nRec B _ T hc he hr hset hn hd hpot le_rfl hT).trans ?_
   refine ENNReal.ofReal_le_ofReal ?_
   rw [hphi, Nat.sub_zero]
   unfold subOpen
