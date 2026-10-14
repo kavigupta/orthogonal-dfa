@@ -1666,4 +1666,249 @@ theorem side_live (O : Oracle μ S) (A : Finset S) {c : ℝ} (hc : c = 0 ∨ c =
           (Finset.sum_le_sum (fun v hv => hB2 v hv)))
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
+lemma hoeffDev_mono {n n' : ℕ} (h : n ≤ n') {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    hoeffDev n a ≤ hoeffDev n' a := by
+  have hl : 0 ≤ Real.log (1 / a) := Real.log_nonneg (by rw [le_div_iff₀ ha0]; linarith)
+  unfold hoeffDev
+  refine Real.sqrt_le_sqrt ?_
+  have : (n : ℝ) ≤ n' := by exact_mod_cast h
+  have := mul_le_mul_of_nonneg_right this hl
+  linarith
+
+open scoped Classical in
+/-- `side_live` with absolute deviations, read against any sample size at least the side's. -/
+theorem side_live_abs (O : Oracle μ S) (A : Finset S) {c : ℝ} (hc : c = 0 ∨ c = 1) (R : Finset S)
+    (hRne : R.Nonempty) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p)
+    (hblk : ∀ v ∈ R, ∀ p ∈ A, ∀ p' ∈ A, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v})
+    {η₀ a t₁ t₂ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (ha0 : 0 < a)
+    (ht₁ : 0 ≤ t₁) (ht₂ : 0 ≤ t₂) (N : ℕ) (hN : A.card ≤ N) :
+    μ.real {ω | ¬ (sideBound A.card (A.filter (fun p => ¬ ((O.mq p ω = 1) ↔ c = 1))).card
+        (refApart O.mq A R ω) a
+      ≤ ((A.filter (fun p => O.label p ≠ c)).card : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + t₁ + hoeffDev A.card a + (t₂ + hoeffDev A.card a) / (2 * (1 - 2 * η₀)))}
+      ≤ Real.exp (-2 * t₁ ^ 2 / N) + R.card * Real.exp (-2 * t₂ ^ 2 / N) := by
+  classical
+  rcases Nat.eq_zero_or_pos A.card with hA0 | hApos
+  · have hAe : A = ∅ := Finset.card_eq_zero.1 hA0
+    have hpos : 0 < 1 - 2 * η₀ := by linarith
+    have hz : {ω | ¬ (sideBound A.card (A.filter (fun p => ¬ ((O.mq p ω = 1) ↔ c = 1))).card
+        (refApart O.mq A R ω) a
+      ≤ ((A.filter (fun p => O.label p ≠ c)).card : ℝ) * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + t₁ + hoeffDev A.card a + (t₂ + hoeffDev A.card a) / (2 * (1 - 2 * η₀)))}
+        = (∅ : Set Ω) := by
+      ext ω
+      simp only [hAe, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not]
+      simp only [sideBound, hoeffDev, Finset.card_empty, Finset.filter_empty, CharP.cast_eq_zero,
+        zero_mul, Real.sqrt_zero, zero_add, zero_div, max_self, sub_zero, add_zero]
+      have : 0 ≤ t₂ / (2 * (1 - 2 * η₀)) := by positivity
+      linarith
+    rw [hz, measureReal_empty]
+    positivity
+  have hnR : (0 : ℝ) < A.card := by exact_mod_cast hApos
+  have hNR : (0 : ℝ) < N := lt_of_lt_of_le hnR (by exact_mod_cast hN)
+  have h := side_live (μ := μ) O A hc R hRne hne hblk hη hη₀ ha0 (τ₁ := t₁ / A.card)
+    (τ₂ := t₂ / A.card) (div_nonneg ht₁ hnR.le) (div_nonneg ht₂ hnR.le)
+  rw [mul_div_cancel₀ _ hnR.ne', mul_div_cancel₀ _ hnR.ne'] at h
+  refine le_trans h (add_le_add ?_ (mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)))
+  · refine Real.exp_le_exp.2 ?_
+    rw [div_pow, show -2 * (A.card : ℝ) * (t₁ ^ 2 / (A.card : ℝ) ^ 2) = -2 * t₁ ^ 2 / A.card by
+      field_simp]
+    have hle : 2 * t₁ ^ 2 / N ≤ 2 * t₁ ^ 2 / A.card :=
+      div_le_div_of_nonneg_left (by positivity) hnR (by exact_mod_cast hN)
+    have e1 : -2 * t₁ ^ 2 / (A.card : ℝ) = -(2 * t₁ ^ 2 / A.card) := by ring
+    have e2 : -2 * t₁ ^ 2 / (N : ℝ) = -(2 * t₁ ^ 2 / N) := by ring
+    rw [e1, e2]
+    linarith
+  · refine Real.exp_le_exp.2 ?_
+    rw [div_pow, show -2 * (A.card : ℝ) * (t₂ ^ 2 / (A.card : ℝ) ^ 2) = -2 * t₂ ^ 2 / A.card by
+      field_simp]
+    have hle : 2 * t₂ ^ 2 / N ≤ 2 * t₂ ^ 2 / A.card :=
+      div_le_div_of_nonneg_left (by positivity) hnR (by exact_mod_cast hN)
+    have e1 : -2 * t₂ ^ 2 / (A.card : ℝ) = -(2 * t₂ ^ 2 / A.card) := by ring
+    have e2 : -2 * t₂ ^ 2 / (N : ℝ) = -(2 * t₂ ^ 2 / N) := by ring
+    rw [e1, e2]
+    linarith
+
+open scoped Classical in
+/-- The gate's count bound the other way, with the sample, the voters and the references fixed
+and the cut chosen by the votes: `cutBound` exceeds a multiple of the cut's wrong prefixes plus
+the deviations with chance at most `2(e^{−2t₁²/#P} + #R·e^{−2t₂²/#P})`. -/
+theorem cut_live (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ) (hlohi : lo ≤ hi)
+    (hRne : R.Nonempty)
+    (hinj : ∀ p ∈ P, ∀ p' ∈ P, ∀ u ∈ insert 1 (F ∪ R), ∀ u' ∈ insert 1 (F ∪ R),
+      p * u = p' * u' → p = p' ∧ u = u')
+    (hFR : Disjoint F R) (h1F : (1 : S) ∉ F) (h1R : (1 : S) ∉ R)
+    {η₀ a t₁ t₂ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (ha0 : 0 < a) (ha1 : a ≤ 1)
+    (ht₁ : 0 ≤ t₁) (ht₂ : 0 ≤ t₂) :
+    μ.real {ω | ¬ (cutBound O.mq lo hi F R P a ω
+      ≤ ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
+          * (3 / 2 + 1 / (4 * (1 - 2 * η₀)))
+        + 2 * t₁ + 2 * hoeffDev P.card a
+        + (2 * t₂ + 2 * hoeffDev P.card a) / (2 * (1 - 2 * η₀)))}
+      ≤ 2 * (Real.exp (-2 * t₁ ^ 2 / P.card) + R.card * Real.exp (-2 * t₂ ^ 2 / P.card)) := by
+  classical
+  have h1mem : (1 : S) ∈ insert 1 (F ∪ R) := Finset.mem_insert_self _ _
+  have hpos : 0 < 1 - 2 * η₀ := by linarith
+  set K : ℝ := 3 / 2 + 1 / (4 * (1 - 2 * η₀)) with hK
+  have hK0 : 0 ≤ K := by positivity
+  set D : ℝ := hoeffDev P.card a with hD
+  set E : ℝ := Real.exp (-2 * t₁ ^ 2 / P.card) + R.card * Real.exp (-2 * t₂ ^ 2 / P.card) with hE
+  set C : Finset S := P ∪ (P ×ˢ R).image (fun q => q.1 * q.2) with hC
+  set Q : Finset S := (P ×ˢ F).image (fun q => q.1 * q.2) with hQ
+  have hdisj : Disjoint (↑C : Set S) (↑Q : Set S) := by
+    rw [Finset.disjoint_coe]
+    refine Finset.disjoint_left.2 (fun w hwC hwQ => ?_)
+    obtain ⟨⟨p', u⟩, hpu, rfl⟩ := Finset.mem_image.1 hwQ
+    obtain ⟨hp', hu⟩ := Finset.mem_product.1 hpu
+    have humem : u ∈ insert 1 (F ∪ R) := Finset.mem_insert_of_mem (Finset.mem_union_left _ hu)
+    rcases Finset.mem_union.1 hwC with hp | hw
+    · have := (hinj _ hp p' hp' 1 h1mem u humem (mul_one _)).2
+      exact h1F (this ▸ hu)
+    · obtain ⟨⟨p, r⟩, hpr, hpreq⟩ := Finset.mem_image.1 hw
+      obtain ⟨hp, hr⟩ := Finset.mem_product.1 hpr
+      have hrmem : r ∈ insert 1 (F ∪ R) := Finset.mem_insert_of_mem (Finset.mem_union_right _ hr)
+      have := (hinj p hp p' hp' r hrmem u humem hpreq).2
+      exact Finset.disjoint_left.1 hFR hu (this ▸ hr)
+  set T : Finset (Finset S × Finset S) := P.powerset ×ˢ P.powerset with hT
+  set sel : Ω → Finset S × Finset S := fun ω =>
+    (P.filter (fun p => hi < voteCount O.mq F p ω), P.filter (fun p => voteCount O.mq F p ω ≤ lo))
+    with hseldef
+  have hsel : ∀ ω, sel ω ∈ T := fun ω =>
+    Finset.mem_product.2 ⟨Finset.mem_powerset.2 (Finset.filter_subset _ _),
+      Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩
+  have hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sel ω = sel ω' := by
+    intro ω ω' h
+    have hvc : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+      voteCount_congr O F p (fun u hu => by
+        rw [mq_congr O (h _ (Finset.mem_image.2 ⟨(p, u), Finset.mem_product.2 ⟨hp, hu⟩, rfl⟩))])
+    exact Prod.ext (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+      (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+  set bound : Finset S × Finset S → Ω → ℝ := fun t ω =>
+    sideBound t.1.card (t.1.filter (fun p => ¬ O.mq p ω = 1)).card (refApart O.mq t.1 R ω) a
+      + sideBound t.2.card (t.2.filter (fun p => O.mq p ω = 1)).card (refApart O.mq t.2 R ω) a
+    with hbounddef
+  set Bad : Finset S × Finset S → Set Ω := fun t =>
+    if t.1 ⊆ P ∧ t.2 ⊆ P then
+      {ω | ¬ (bound t ω ≤ (((t.1.filter (fun p => O.label p ≠ 1)).card : ℝ)
+          + ((t.2.filter (fun p => O.label p ≠ 0)).card : ℝ)) * K
+        + 2 * t₁ + 2 * D + (2 * t₂ + 2 * D) / (2 * (1 - 2 * η₀)))}
+    else ∅ with hBaddef
+  have hBadcongr : ∀ t ω ω', (∀ w ∈ C, O.noise w ω = O.noise w ω') → ω ∈ Bad t → ω' ∈ Bad t := by
+    intro t ω ω' h hω
+    simp only [hBaddef] at hω ⊢
+    split_ifs at hω ⊢ with ht
+    · have hmq : ∀ p ∈ P, O.mq p ω = O.mq p ω' := fun p hp =>
+        mq_congr O (h p (Finset.mem_union_left _ hp))
+      have hmqR : ∀ p ∈ P, ∀ w ∈ R, O.mq (p * w) ω = O.mq (p * w) ω' := fun p hp w hw =>
+        mq_congr O (h _ (Finset.mem_union_right _
+          (Finset.mem_image.2 ⟨(p, w), Finset.mem_product.2 ⟨hp, hw⟩, rfl⟩)))
+      have hap' : ∀ A ⊆ P, refApart O.mq A R ω = refApart O.mq A R ω' := by
+        intro A hA
+        unfold refApart
+        rw [dif_pos hRne, dif_pos hRne]
+        exact Finset.inf'_congr hRne rfl (fun w hw => congrArg Finset.card
+          (Finset.filter_congr (fun p hp => by rw [hmq p (hA hp), hmqR p (hA hp) w hw])))
+      have hb : bound t ω = bound t ω' := by
+        simp only [hbounddef]
+        rw [hap' t.1 ht.1, hap' t.2 ht.2,
+          Finset.filter_congr (fun p hp => by rw [hmq p (ht.1 hp)] :
+            ∀ p ∈ t.1, (¬ O.mq p ω = 1) ↔ (¬ O.mq p ω' = 1)),
+          Finset.filter_congr (fun p hp => by rw [hmq p (ht.2 hp)] :
+            ∀ p ∈ t.2, (O.mq p ω = 1) ↔ (O.mq p ω' = 1))]
+      simpa [hb] using hω
+    · exact hω
+  have hbad : ∀ t ∈ T, μ.real (Bad t) ≤ 2 * E := by
+    rintro ⟨A₀, R₀⟩ ht
+    obtain ⟨hA, hR⟩ := Finset.mem_product.1 ht
+    have hAP := Finset.mem_powerset.1 hA
+    have hRP := Finset.mem_powerset.1 hR
+    have hside : ∀ D' ⊆ P, (∀ v ∈ R, ∀ p ∈ D', p * v ≠ p)
+        ∧ ∀ v ∈ R, ∀ p ∈ D', ∀ p' ∈ D', p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v} := by
+      intro D' hD'
+      have hvmem : ∀ v ∈ R, v ∈ insert 1 (F ∪ R) := fun v hv =>
+        Finset.mem_insert_of_mem (Finset.mem_union_right _ hv)
+      refine ⟨fun v hv p hp heq => h1R ?_, fun v hv p hp p' hp' hne => ?_⟩
+      · have := (hinj p (hD' hp) p (hD' hp) v (hvmem v hv) 1 h1mem (by rw [mul_one]; exact heq)).2
+        exact this ▸ hv
+      · rw [Finset.disjoint_left]
+        intro w hw hw'
+        simp only [Finset.mem_insert, Finset.mem_singleton] at hw hw'
+        rcases hw with rfl | rfl <;> rcases hw' with h | h
+        · exact hne h
+        · exact hne (hinj _ (hD' hp) p' (hD' hp') 1 h1mem v (hvmem v hv) (by rw [mul_one]; exact h)).1
+        · exact hne (hinj p (hD' hp) p' (hD' hp') v (hvmem v hv) 1 h1mem (by rw [mul_one]; exact h)).1
+        · exact hne (hinj p (hD' hp) p' (hD' hp') v (hvmem v hv) v (hvmem v hv) h).1
+    have hNA : A₀.card ≤ P.card := Finset.card_le_card hAP
+    have hNR : R₀.card ≤ P.card := Finset.card_le_card hRP
+    set E1 : Set Ω := {ω | ¬ (sideBound A₀.card
+        (A₀.filter (fun p => ¬ ((O.mq p ω = 1) ↔ (1 : ℝ) = 1))).card (refApart O.mq A₀ R ω) a
+      ≤ ((A₀.filter (fun p => O.label p ≠ 1)).card : ℝ) * K
+        + t₁ + hoeffDev A₀.card a + (t₂ + hoeffDev A₀.card a) / (2 * (1 - 2 * η₀)))} with hE1
+    set E2 : Set Ω := {ω | ¬ (sideBound R₀.card
+        (R₀.filter (fun p => ¬ ((O.mq p ω = 1) ↔ (0 : ℝ) = 1))).card (refApart O.mq R₀ R ω) a
+      ≤ ((R₀.filter (fun p => O.label p ≠ 0)).card : ℝ) * K
+        + t₁ + hoeffDev R₀.card a + (t₂ + hoeffDev R₀.card a) / (2 * (1 - 2 * η₀)))} with hE2
+    have hs1 : μ.real E1 ≤ E := side_live_abs (μ := μ) O A₀ (c := 1) (Or.inr rfl) R hRne
+      (hside A₀ hAP).1 (hside A₀ hAP).2 hη hη₀ ha0 ht₁ ht₂ P.card hNA
+    have hs2 : μ.real E2 ≤ E := side_live_abs (μ := μ) O R₀ (c := 0) (Or.inl rfl) R hRne
+      (hside R₀ hRP).1 (hside R₀ hRP).2 hη hη₀ ha0 ht₁ ht₂ P.card hNR
+    have hDA : hoeffDev A₀.card a ≤ D := hoeffDev_mono hNA ha0 ha1
+    have hDR : hoeffDev R₀.card a ≤ D := hoeffDev_mono hNR ha0 ha1
+    have hsub : Bad (A₀, R₀) ⊆ E1 ∪ E2 := by
+      intro ω hω
+      simp only [hBaddef, if_pos (And.intro hAP hRP), Set.mem_setOf_eq] at hω
+      by_contra hc
+      simp only [Set.mem_union, hE1, hE2, Set.mem_setOf_eq, not_or, not_not] at hc
+      obtain ⟨e1, e2⟩ := hc
+      simp only [iff_true] at e1
+      simp only [show ((0 : ℝ) = 1) ↔ False from by norm_num, iff_false, not_not] at e2
+      apply hω
+      simp only [hbounddef]
+      have : (2 * t₂ + 2 * D) / (2 * (1 - 2 * η₀))
+          ≥ (t₂ + hoeffDev A₀.card a) / (2 * (1 - 2 * η₀))
+            + (t₂ + hoeffDev R₀.card a) / (2 * (1 - 2 * η₀)) := by
+        rw [← add_div]
+        exact div_le_div_of_nonneg_right (by linarith) (by positivity)
+      nlinarith
+    exact le_trans (measureReal_mono hsub (measure_ne_top _ _))
+      (le_trans (measureReal_union_le _ _) (by linarith))
+  have hE0 : 0 ≤ E := by positivity
+  have hmain := selection_congr_bound O C Q hdisj T (∅, ∅)
+    (Finset.mem_product.2 ⟨Finset.empty_mem_powerset P, Finset.empty_mem_powerset P⟩)
+    sel hsel hcongr Bad hBadcongr (2 * E) (by positivity) hbad
+  refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) hmain
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  have hselP : (sel ω).1 ⊆ P ∧ (sel ω).2 ⊆ P := ⟨Finset.filter_subset _ _, Finset.filter_subset _ _⟩
+  simp only [hBaddef, if_pos hselP, Set.mem_setOf_eq]
+  intro hle
+  apply hω
+  have hcount : (((sel ω).1.filter (fun p => O.label p ≠ 1)).card : ℝ)
+        + (((sel ω).2.filter (fun p => O.label p ≠ 0)).card : ℝ)
+      ≤ ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) := by
+    have hdj : Disjoint ((sel ω).1.filter (fun p => O.label p ≠ 1))
+        ((sel ω).2.filter (fun p => O.label p ≠ 0)) := by
+      refine Finset.disjoint_left.2 (fun p h1 h2 => ?_)
+      have a1 := (Finset.mem_filter.1 (Finset.mem_filter.1 h1).1).2
+      have a2 := (Finset.mem_filter.1 (Finset.mem_filter.1 h2).1).2
+      omega
+    have hsub : (sel ω).1.filter (fun p => O.label p ≠ 1) ∪ (sel ω).2.filter (fun p => O.label p ≠ 0)
+        ⊆ P.filter (fun p => ¬ cutCorrect O lo hi F p ω) := by
+      intro p hp
+      rcases Finset.mem_union.1 hp with h | h
+      · obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 h
+        obtain ⟨hpP, hv⟩ := Finset.mem_filter.1 hpA
+        exact Finset.mem_filter.2 ⟨hpP, fun hc => hl (hc.1 hv)⟩
+      · obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 h
+        obtain ⟨hpP, hv⟩ := Finset.mem_filter.1 hpA
+        exact Finset.mem_filter.2 ⟨hpP, fun hc => hl (hc.2 hv)⟩
+    rw [← Nat.cast_add, ← Finset.card_union_of_disjoint hdj]
+    exact_mod_cast Finset.card_le_card hsub
+  have : ((((sel ω).1.filter (fun p => O.label p ≠ 1)).card : ℝ)
+        + (((sel ω).2.filter (fun p => O.label p ≠ 0)).card : ℝ)) * K
+      ≤ ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) * K :=
+    mul_le_mul_of_nonneg_right hcount hK0
+  simp only [hbounddef] at hle
+  unfold cutBound
+  linarith
+
 end OrthoDFA
