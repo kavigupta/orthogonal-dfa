@@ -94,7 +94,6 @@ theorem walkEnd_walk : ∀ (s : List Bool) (cs : List α) (q : List Bool), walkE
       rw [hw]
       exact ⟨by simp [h1], by simpa using h2⟩
 
-
 theorem walk_walkEnd : ∀ (s : List Bool) (cs : List α) (q : List Bool),
     (walk E s cs).length = cs.length + 1 → (walk E s cs).getLast? = some q →
       walkEnd E s cs = some q
@@ -123,7 +122,6 @@ theorem prefixOf_succ {x : FreeMonoid α} {p : ℕ} {c : α} (h : x.toList[p]? =
 
 theorem prefixOf_of_le {x : FreeMonoid α} {p : ℕ} (h : x.toList.length ≤ p) : prefixOf x p = x := by
   simp [prefixOf, List.take_of_length_le h]
-
 
 theorem prefixOf_length (w : FreeMonoid α) : prefixOf w w.toList.length = w := by
   simp [prefixOf]
@@ -180,6 +178,23 @@ theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
         obtain ⟨rfl, rfl⟩ := h
         exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
   · simp [hpq] at h
+
+variable [DecidableEq α]
+
+theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}
+    {u : FreeMonoid α} (hu : T.sift read u = .inl p)
+    (huc : T.sift read (u * FreeMonoid.of c) = .inl t) :
+    EdgesOK read T (Function.update E (p, c) (some (t, u))) := by
+  intro q hq c' t' w h
+  by_cases hqc : (q, c') = (p, c)
+  · simp only [Prod.mk.injEq] at hqc
+    obtain ⟨rfl, rfl⟩ := hqc
+    rw [Function.update_self] at h
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨hu, huc⟩
+  · rw [Function.update_of_ne hqc] at h
+    exact hE q hq c' t' w h
 
 end Edges
 

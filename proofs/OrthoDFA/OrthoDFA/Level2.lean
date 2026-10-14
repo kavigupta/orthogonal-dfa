@@ -1,31 +1,28 @@
-import OrthoDFA.Level2Probe
+import OrthoDFA.Probe
 import OrthoDFA.SeqTest
 import OrthoDFA.RoundEnd
 
 /-!
 Level 2 of indecisive L*. Each probe is walked from its prefix `walkStart` long along the learned
-edges, and a bisection with no recovery finds where the walk and the sift part, stopping at the
-first undecided read. A probe shorter than `walkStart` counts as agreeing.
+edges, and the search finds where the walk and the sift part, stopping at the first undecided
+read. A probe shorter than `walkStart` counts as agreeing.
 * A probe that the edges and the tree part on at decided reads splits the leaf the edge leaves,
   on the edge's letter and the midfix where the two leaves its strings' successors sift to part.
 * A probe that reaches an unlearned edge learns it.
-* The undecided reads probes stop at, and the disagreements, since the hypothesis last changed
-  are counted, and after each probe that keeps the hypothesis a sequential likelihood-ratio test
-  (`seqRate`) at level `testLevel` checks them, each against `alternativeRate`: the undecided
-  reads' rate `harvestRate`, and once the test fires the round ends in a harvest; else the
-  disagreements' rate `disagreementRate`, and once it fires the round ends consistent. The test is
-  anytime-valid: under its rate it ever fires with chance at most `testLevel`. A disagreement at
-  decided reads changes the hypothesis, so the disagreements counted are the searches that stopped
-  at an undecided midpoint, as at level 3.
+* The undecided reads probes stop at, and the searches that stopped at an undecided midpoint (the
+  disagreements), are counted since the hypothesis last changed. After each probe that keeps the
+  hypothesis a sequential likelihood-ratio test (`seqRate`) at level `testLevel` checks each count
+  against `alternativeRate`: once the undecided reads' test of `harvestRate` fires the round ends
+  in a harvest, and once the disagreements' test of `disagreementRate` fires it ends consistent.
 -/
 
 namespace OrthoDFA
 
-namespace Ideal
+namespace Level2
 
 variable {α : Type*}
 
-structure Level2Settings where
+structure Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
   /-- The rate the undecided reads are tested against. -/
@@ -34,32 +31,32 @@ structure Level2Settings where
   disagreementRate : ℝ
   /-- The rate each test weighs its rate against, between the two. -/
   alternativeRate : ℝ
-  /-- Each rate test's level. -/
+  /-- Each test's level. -/
   testLevel : ℝ
 
 /-- The counts are since the hypothesis last changed. -/
-structure Level2State (α : Type*) where
+structure State (α : Type*) where
   tree : DTree α
   edges : Edges α
   undecided : ℕ
   disagreements : ℕ
   probes : ℕ
 
-def newHypothesis (T : DTree α) (E : Edges α) : Level2State α := ⟨T, E, 0, 0, 0⟩
+def newHypothesis (T : DTree α) (E : Edges α) : State α := ⟨T, E, 0, 0, 0⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def initialState : Level2State α := newHypothesis (.node 1 .leaf .leaf) fun _ => none
+def initialState : State α := newHypothesis (.node 1 .leaf .leaf) fun _ => none
 
 variable [DecidableEq α]
 
 section
 
-variable (read : FreeMonoid α → ARU) (C : Level2Settings)
+variable (read : FreeMonoid α → ARU) (C : Settings)
 
 open scoped Classical in
 /-- A probe that keeps the hypothesis, its `n` undecided reads and `d` disagreements counted. -/
-noncomputable def keep (s : Level2State α) (n d : ℕ) : Level2State α ⊕ RoundEnd Unit :=
-  let s' : Level2State α :=
+noncomputable def keep (s : State α) (n d : ℕ) : State α ⊕ RoundEnd Unit :=
+  let s' : State α :=
     ⟨s.tree, s.edges, s.undecided + n, s.disagreements + d, s.probes + 1⟩
   if seqRate C.harvestRate C.alternativeRate C.testLevel s'.probes s'.undecided then
     .inr (.harvest ())
@@ -68,7 +65,7 @@ noncomputable def keep (s : Level2State α) (n d : ℕ) : Level2State α ⊕ Rou
   else .inl s'
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
-def splitLeaf (s : Level2State α) (p : List Bool) (c : α) (t t₀ : List Bool) : Level2State α :=
+def splitLeaf (s : State α) (p : List Bool) (c : α) (t t₀ : List Bool) : State α :=
   let H := (HypothesisDFA.mk s.tree s.edges).split read
     (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
   newHypothesis H.tree H.edges
@@ -76,9 +73,8 @@ def splitLeaf (s : Level2State α) (p : List Bool) (c : α) (t t₀ : List Bool)
 /-- At `wrongEdge p c u t`, `u·c` sifts to `t` while the edge `(p, c)` points at `t₀`, where its
 witness's successor sifts, so the two strings at `p` part at `c` and the midfix where `t` and `t₀`
 part. -/
-noncomputable def applyProbe (s : Level2State α) (x : FreeMonoid α) :
-    Level2State α ⊕ RoundEnd Unit :=
-  match probeOrAgree false read s.tree s.edges C.walkStart x with
+noncomputable def applyProbe (s : State α) (x : FreeMonoid α) : State α ⊕ RoundEnd Unit :=
+  match probeOrAgree read s.tree s.edges C.walkStart x with
   | .wrongEdge p c _ t =>
     match s.edges (p, c) with
     | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
@@ -89,25 +85,24 @@ noncomputable def applyProbe (s : Level2State α) (x : FreeMonoid α) :
   | o => keep C s o.undecidedStrings.length 0
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
-noncomputable def runProbes :
-    Level2State α → List (FreeMonoid α) → Level2State α × RoundEnd Unit
+noncomputable def runProbes : State α → List (FreeMonoid α) → State α × RoundEnd Unit
   | s, [] => (s, .failed)
   | s, x :: xs =>
     match applyProbe read C s x with
     | .inl s' => runProbes s' xs
     | .inr e => (s, e)
 
-structure Level2Result (α : Type*) where
+structure Result (α : Type*) where
   hypothesis : HypothesisDFA α
   ending : RoundEnd Unit
 
 end
 
-noncomputable def indecisiveLStarLevel2 (settings : Level2Settings) (read : FreeMonoid α → ARU)
-    {P : ℕ} (draws : Fin P → FreeMonoid α) : Level2Result α :=
+noncomputable def indecisiveLStarLevel2 (settings : Settings) (read : FreeMonoid α → ARU)
+    {P : ℕ} (draws : Fin P → FreeMonoid α) : Result α :=
   let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
-end Ideal
+end Level2
 
 end OrthoDFA

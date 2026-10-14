@@ -153,6 +153,23 @@ theorem bisectBoundary_mem : ∀ (n lo hi : ℕ), hi - lo = n →
             · have := ih _ (by omega) _ _ rfl p hp; omega
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp; omega
 
+omit recover in
+/-- Without recovery the bisection never reports a pair or a triple. -/
+theorem bisectBoundary_noRecovery : ∀ (n lo hi : ℕ), hi - lo = n → ∀ j,
+    (bisectBoundary false agrees lo hi).1 ≠ .pair j
+      ∧ (bisectBoundary false agrees lo hi).1 ≠ .triple j := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro lo hi hn j
+  rw [bisectBoundary]
+  split
+  · simp
+  · split
+    · exact ih _ (by omega) _ _ rfl j
+    · exact ih _ (by omega) _ _ rfl j
+    · simp
+
 /-! ## The search -/
 
 variable {recover agrees} {lo hi : ℕ}
@@ -181,6 +198,20 @@ theorem tripartiteSearch_ok (hle : lo ≤ hi) :
       generalize (bisectBoundary recover agrees lo hi).1 = r at this
       cases r <;> first | exact this.elim | exact this
     · simp [tripartiteSearch, hlo, hhi, SearchOK]
+
+omit recover in
+/-- Without recovery the search never reports a pair or a triple. -/
+theorem tripartiteSearch_noRecovery (j : ℕ) :
+    (tripartiteSearch false agrees lo hi).1 ≠ .pair j
+      ∧ (tripartiteSearch false agrees lo hi).1 ≠ .triple j := by
+  unfold tripartiteSearch
+  split
+  · simp
+  · simp
+  · split
+    · simp
+    · simp
+    · exact bisectBoundary_noRecovery agrees _ lo hi rfl j
 
 variable (recover agrees lo hi)
 

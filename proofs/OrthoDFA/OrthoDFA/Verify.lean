@@ -3,7 +3,7 @@ import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
-import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
@@ -16,7 +16,7 @@ import OrthoDFA.Proofs.TripartiteSearch
 `OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
 `SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
 in `OrthoDFA.HypothesisDFA`, `RateTestSound`, stated in `OrthoDFA.RateTest`, `SeqRateSound`,
-stated in `OrthoDFA.SeqTest`, and level 2's ideal-read claim, stated in `OrthoDFA.Level2Claim`.
+stated in `OrthoDFA.SeqTest`, and level 2's claim, stated in `OrthoDFA.Level2Claim`.
 -/
 
 namespace OrthoDFA
@@ -58,8 +58,8 @@ theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
 
-theorem ideal_round_correct : Ideal.IdealRoundCorrect := Ideal.idealRoundCorrect_holds
+theorem level2_correct : Level2.Level2Correct := Level2.level2Correct_holds
 
-#print axioms ideal_round_correct
+#print axioms level2_correct
 
 end OrthoDFA

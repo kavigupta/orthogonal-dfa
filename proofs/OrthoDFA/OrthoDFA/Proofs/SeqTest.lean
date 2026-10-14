@@ -218,6 +218,32 @@ theorem seqRateSound : SeqRateSound := by
   refine ENNReal.toReal_le_of_le_ofReal ha.le (le_trans (le_of_eq ?_) this)
   rfl
 
+/-- `a` times the ratio after one more draw averages at most `a` times the ratio now, on the far
+side of `p₀` from `p₁`. -/
+theorem lintegral_ratio_succ [DecidablePred P]
+    (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁) (hp₁1 : p₁ ≤ 1) (ha : 0 ≤ a)
+    (hq : (D.real {x | P x} - p₀) * (p₁ - p₀) ≤ 0) {n h : ℕ} (hh : h ≤ n) :
+    ∫⁻ x, ENNReal.ofReal (a * likelihoodRatio p₀ p₁ (n + 1)
+      (h + if decide (P x) then 1 else 0)) ∂D ≤ ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h) := by
+  have hl := likelihoodRatio_nonneg hp₀ hp₀1 hp₁ hp₁1 n h
+  have hr : ∀ x, 0 ≤ ratioFactor p₀ p₁ (decide (P x)) := by
+    intro x
+    unfold ratioFactor
+    split_ifs
+    · positivity
+    · exact div_nonneg (by linarith) (by linarith)
+  calc _ = ∫⁻ x, ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h)
+        * ENNReal.ofReal (ratioFactor p₀ p₁ (decide (P x))) ∂D := by
+        refine lintegral_congr fun x => ?_
+        rw [likelihoodRatio_succ hh, ← ENNReal.ofReal_mul (by positivity)]
+        ring_nf
+    _ = ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h)
+        * ∫⁻ x, ENNReal.ofReal (ratioFactor p₀ p₁ (decide (P x))) ∂D :=
+        lintegral_const_mul _ (measurable_of_countable _)
+    _ ≤ ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h) * 1 := by
+        gcongr; exact lintegral_ratioFactor_le D P hp₀ hp₀1 hp₁ hp₁1 hq
+    _ = _ := mul_one _
+
 end Sound
 
 section Decide

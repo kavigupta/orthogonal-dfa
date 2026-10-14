@@ -35,7 +35,8 @@
   and the walk a string takes along them. `WalkCorrect`: the walk starts at its leaf, follows one
   learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
   edges do; `walkEnd` is its last leaf when it follows every letter. `Disagrees` is where the walk
-  and the tree part.
+  and the tree part. `HypothesisDFA.split` splits a leaf and re-sifts the edges into it at their
+  witnesses (`retarget`).
 - `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate, and
   `RateTestSound`: over independent draws it says above with chance at most its failure chance when
   the true rate is at most the tested one, and below likewise when it is at least.
@@ -51,28 +52,28 @@
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
   bad states, it finds no string more often than the probes share its first `k` letters (spread),
   and it finds `y` in all (yields).
-- `OrthoDFA/Level2Probe.lean` and `OrthoDFA/Level2.lean` — level 2 of indecisive L\*,
-  `indecisiveLStarLevel2`. Its probe walks to where the walk stops, sifts the successor of an
-  unlearned edge it stops at, and finds where the sift and the walk part with `tripartiteSearch`
-  with no recovery, stopping at the first undecided read; a probe shorter than `walkStart` counts
-  as agreeing. A disagreement at decided reads splits the edge's leaf at once (Kearns–Vazirani:
-  the probe's prefix and the edge's witness part at the edge's letter and the midfix where their
-  successors' leaves part), and an unlearned edge is learned. The undecided reads probes stop at,
-  and the disagreements, since the hypothesis last changed are counted, and after each probe the
-  sequential test (`seqRate`) at level `testLevel` checks them, each against `alternativeRate`:
-  the round harvests once the undecided reads' test of `harvestRate` fires, and ends consistent
-  once the disagreements' test of `disagreementRate` fires. A decided disagreement changes the
-  hypothesis, so the disagreements counted are the searches that stopped at an undecided midpoint,
-  as at level 3. With `harvestRate < alternativeRate < disagreementRate`, one of the tests fires
-  by `n = stretchLength` probes under one hypothesis, at most `stretchBound`. A harvest's sampler
+- `OrthoDFA/Probe.lean` — a probe of a hypothesis: it walks to where the walk stops, sifts the
+  successor of an unlearned edge it stops at, and finds where the sift and the walk part with
+  `tripartiteSearch`, stopping at the first undecided read; a probe shorter than `walkStart`
+  counts as agreeing.
+- `OrthoDFA/Level2.lean` — level 2 of indecisive L\*, `indecisiveLStarLevel2`. A disagreement at
+  decided reads splits the edge's leaf at once (Kearns–Vazirani: the probe's prefix and the edge's
+  witness part at the edge's letter and the midfix where their successors' leaves part), and an
+  unlearned edge is learned. The undecided reads probes stop at, and the searches that stopped at
+  an undecided midpoint (the disagreements), are counted since the hypothesis last changed. After
+  each probe a sequential test (`seqRate`) at level `testLevel` checks each count against
+  `alternativeRate`: the round harvests once the undecided reads' test of `harvestRate` fires, and
+  ends consistent once the disagreements' test of `disagreementRate` fires. With
+  `harvestRate < alternativeRate < disagreementRate`, one of the tests fires within
+  `n = stretchLength` probes under one hypothesis, at most `stretchBound`. A harvest's sampler
   (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
   read it stops at.
-- `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
-  all on its side, `0 < harvestRate < alternativeRate < disagreementRate < 1`, `0 < a < 1` and
-  `stretches · n ≤ P`, level 2 ends well, consistent with its hypothesis and tree parting on at
-  most `disagreementRate` of the probes or a harvest whose sampler yields `harvestRate`, but for
-  chance at most `2 S a`, `S` the stretches and `a = testLevel`: each sequential test errs at most
-  `a` a stretch.
+- `OrthoDFA/Level2Claim.lean` — `Level2Correct`: with every state's reads all undecided or all on
+  its side (`ReadsByState`), `0 < harvestRate < alternativeRate < disagreementRate < 1`,
+  `0 < a < 1` and `stretches · n ≤ P`, level 2 ends well, consistent with its hypothesis and tree
+  parting on at most `disagreementRate` of the probes or a harvest whose sampler yields
+  `harvestRate`, but for chance at most `2 S a`, `S` the stretches and `a = testLevel`: each
+  sequential test errs at most `a` a stretch.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

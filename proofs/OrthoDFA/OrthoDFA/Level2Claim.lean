@@ -1,10 +1,11 @@
 import OrthoDFA.Level2
 
-/-! `IdealRoundCorrect`: with ideal reads, level 2 ends well but for a small chance. -/
+/-! `Level2Correct`: with reads fixed by the target state, level 2 ends well but for a small
+chance. -/
 
 namespace OrthoDFA
 
-namespace Ideal
+namespace Level2
 
 open MeasureTheory
 
@@ -15,7 +16,7 @@ def AllUndecided {σ : Type*} (M : DFA α σ) (q : σ) : Prop :=
   ∀ w : FreeMonoid α, M.eval w.toList = q → read w = .undecided
 
 /-- Every target state's strings all read undecided, or all read its side. -/
-def IdealReads {σ : Type*} (M : DFA α σ) (side : σ → Bool) : Prop :=
+def ReadsByState {σ : Type*} (M : DFA α σ) (side : σ → Bool) : Prop :=
   ∀ q, AllUndecided read M q ∨
     ∀ w : FreeMonoid α, M.eval w.toList = q → read w = if side q then .accept else .reject
 
@@ -27,7 +28,7 @@ variable [DecidableEq α]
 
 /-- The undecided string a probe of `x` walked from `k` under `H` stops at, if any. -/
 def stuckString (H : HypothesisDFA α) (k : ℕ) (x : FreeMonoid α) : List (FreeMonoid α) :=
-  (probeOrAgree false read H.tree H.edges k x).undecidedStrings
+  (probeOrAgree read H.tree H.edges k x).undecidedStrings
 
 /-- The law of what the harvest's sampler finds: the undecided string a probe drawn from `D` and
 walked under `H` stops at. -/
@@ -42,16 +43,17 @@ of the rate `y`, or the disagreements' of the rate `ε`. At most `stretchBound y
 noncomputable def stretchLength (y m ε a : ℝ) : ℕ :=
   sInf {n | ∀ d ≤ n, seqRate y m a n d ∨ seqRate ε m a n d}
 
-/-- With ideal reads, `0 < harvestRate < alternativeRate < disagreementRate < 1`, a level
-`0 < a < 1`, and `stretches · n ≤ P` probes, `n = stretchLength` the probes by which a stretch
-ends, level 2 fails to end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read
-undecided, with chance at most `2 S a`, `S` the stretches: each sequential test errs at most `a`
-over a stretch. A consistent ending has its hypothesis and tree parting on at most
-`disagreementRate` of the probes, and a harvest's sampler yields `harvestRate`. -/
-def IdealRoundCorrect : Prop :=
+/-- With reads fixed by the target state, `0 < harvestRate < alternativeRate <
+disagreementRate < 1`, a level `0 < a < 1`, and `stretches · n ≤ P` probes, `n = stretchLength`
+the probes by which a stretch ends, level 2 fails to end well (`OrthoDFA.RoundEnd`), a state being
+bad where all its strings read undecided, with chance at most `2 S a`, `S` the stretches: each
+sequential test errs at most `a` over a stretch. A consistent ending has its hypothesis and tree
+parting on at most `disagreementRate` of the probes, and a harvest's sampler yields
+`harvestRate`. -/
+def Level2Correct : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
-    (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2Settings) (P : ℕ),
-    IdealReads read M side → 0 < C.harvestRate → C.harvestRate < C.alternativeRate →
+    (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Settings) (P : ℕ),
+    ReadsByState read M side → 0 < C.harvestRate → C.harvestRate < C.alternativeRate →
     C.alternativeRate < C.disagreementRate → C.disagreementRate < 1 → 0 < C.testLevel →
     C.testLevel < 1 →
     stretches (Fintype.card σ) (Fintype.card α) * stretchLength C.harvestRate C.alternativeRate
@@ -65,6 +67,6 @@ def IdealRoundCorrect : Prop :=
               C.harvestRate result.ending}
         ≤ 2 * stretches (Fintype.card σ) (Fintype.card α) * C.testLevel
 
-end Ideal
+end Level2
 
 end OrthoDFA
