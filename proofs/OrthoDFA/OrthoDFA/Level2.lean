@@ -1,5 +1,5 @@
 import OrthoDFA.Level2Probe
-import OrthoDFA.RateTest
+import OrthoDFA.SeqTest
 import OrthoDFA.RoundEnd
 
 /-!
@@ -10,12 +10,13 @@ first undecided read. A probe shorter than `walkStart` counts as agreeing.
   on the edge's letter and the midfix where the two leaves its strings' successors sift to part.
 * A probe that reaches an unlearned edge learns it.
 * The undecided reads probes stop at, and the disagreements, since the hypothesis last changed
-  are counted, and after each probe that keeps the hypothesis the binomial rate test (`rateSide`)
-  at level `testLevel` checks them: the undecided reads against `harvestRate`, and once it calls
-  them above the round ends in a harvest; else the disagreements against `disagreementRate`, and
-  once it calls them below the round ends consistent. A disagreement at decided reads changes the
-  hypothesis, so the disagreements counted are the searches that stopped at an undecided midpoint,
-  as at level 3.
+  are counted, and after each probe that keeps the hypothesis a sequential likelihood-ratio test
+  (`seqRate`) at level `testLevel` checks them, each against `alternativeRate`: the undecided
+  reads' rate `harvestRate`, and once the test fires the round ends in a harvest; else the
+  disagreements' rate `disagreementRate`, and once it fires the round ends consistent. The test is
+  anytime-valid: under its rate it ever fires with chance at most `testLevel`. A disagreement at
+  decided reads changes the hypothesis, so the disagreements counted are the searches that stopped
+  at an undecided midpoint, as at level 3.
 -/
 
 namespace OrthoDFA
@@ -31,6 +32,8 @@ structure Level2Settings where
   harvestRate : ℝ
   /-- The rate the disagreements are tested against. -/
   disagreementRate : ℝ
+  /-- The rate each test weighs its rate against, between the two. -/
+  alternativeRate : ℝ
   /-- Each rate test's level. -/
   testLevel : ℝ
 
@@ -66,13 +69,14 @@ section
 
 variable (read : FreeMonoid α → ARU) (C : Level2Settings)
 
+open scoped Classical in
 /-- A probe that keeps the hypothesis, its `n` undecided reads and `d` disagreements counted. -/
 noncomputable def keep (s : Level2State α) (n d : ℕ) : Level2State α ⊕ RoundEnd Unit :=
   let s' : Level2State α :=
     ⟨s.tree, s.edges, s.undecided + n, s.disagreements + d, s.probes + 1⟩
-  if rateSide C.harvestRate C.testLevel 0 s'.probes s'.undecided = some true then
+  if seqRate C.harvestRate C.alternativeRate C.testLevel s'.probes s'.undecided then
     .inr (.harvest ())
-  else if rateSide C.disagreementRate C.testLevel 0 s'.probes s'.disagreements = some false then
+  else if seqRate C.disagreementRate C.alternativeRate C.testLevel s'.probes s'.disagreements then
     .inr .consistent
   else .inl s'
 

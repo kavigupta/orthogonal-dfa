@@ -40,6 +40,12 @@
   `RateTestSound`: over independent draws it says above with chance at most its failure chance when
   the true rate is at most the tested one, and below likewise when it is at least.
   `statistics.rate_side` is the same test.
+- `OrthoDFA/SeqTest.lean` — `seqRate`, a sequential likelihood-ratio test of a count of hits:
+  against a rate `p₀` it fires once `(p₁/p₀)^h ((1 − p₁)/(1 − p₀))^(n − h) ≥ 1/a`, `h` hits in `n`
+  draws. `SeqRateSound`: over independent draws it fires at any look with chance at most `a` when
+  the true rate is on the far side of `p₀` from `p₁` (Ville's inequality). `stretchBound`: where
+  `p₀ < p₁ < p₀'`, one of the tests of `p₀` and of `p₀'` against `p₁` fires within that many
+  draws, whatever the count.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
@@ -53,19 +59,20 @@
   the probe's prefix and the edge's witness part at the edge's letter and the midfix where their
   successors' leaves part), and an unlearned edge is learned. The undecided reads probes stop at,
   and the disagreements, since the hypothesis last changed are counted, and after each probe the
-  binomial rate test (`rateSide`) at level `testLevel` checks them, as at every level: the round
-  harvests once it calls the undecided reads above `harvestRate`, and ends consistent once it calls
-  the disagreements below `disagreementRate`. A decided disagreement changes the hypothesis, so
-  the disagreements counted are the searches that stopped at an undecided midpoint, as at level 3.
-  With `harvestRate < disagreementRate`, one of the tests decides by
-  `n = stretchLength harvestRate disagreementRate testLevel` probes under one hypothesis. A
-  harvest's sampler (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and
-  finds the undecided read it stops at.
+  sequential test (`seqRate`) at level `testLevel` checks them, each against `alternativeRate`:
+  the round harvests once the undecided reads' test of `harvestRate` fires, and ends consistent
+  once the disagreements' test of `disagreementRate` fires. A decided disagreement changes the
+  hypothesis, so the disagreements counted are the searches that stopped at an undecided midpoint,
+  as at level 3. With `harvestRate < alternativeRate < disagreementRate`, one of the tests fires
+  by `n = stretchLength` probes under one hypothesis, at most `stretchBound`. A harvest's sampler
+  (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
+  read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `IdealRoundCorrect`: with every state's reads all undecided or
-  all on its side, `harvestRate < disagreementRate` and `stretches · n ≤ P`, level 2 ends well,
-  consistent with its hypothesis and tree parting on at most `disagreementRate` of the probes or a
-  harvest whose sampler yields `harvestRate`, but for chance at most `2 S n a`, `S` the stretches
-  and `a = testLevel`: the rate tests' error at each look.
+  all on its side, `0 < harvestRate < alternativeRate < disagreementRate < 1`, `0 < a < 1` and
+  `stretches · n ≤ P`, level 2 ends well, consistent with its hypothesis and tree parting on at
+  most `disagreementRate` of the probes or a harvest whose sampler yields `harvestRate`, but for
+  chance at most `2 S a`, `S` the stretches and `a = testLevel`: each sequential test errs at most
+  `a` a stretch.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
