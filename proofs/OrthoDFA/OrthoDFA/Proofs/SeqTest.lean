@@ -1,5 +1,6 @@
 import OrthoDFA.SeqTest
 import Mathlib.Probability.ProductMeasure
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
 /-!
 # The sequential test is sound
@@ -27,7 +28,7 @@ theorem piFinSuccAbove_cons_zero {n : ℕ} (d : Fin (n + 1) → X) :
     MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => X) 0 d = (d 0, Fin.tail d) := by
   ext i
   · rfl
-  · simp [MeasurableEquiv.piFinSuccAbove_apply, Fin.removeNth, Fin.tail]
+  · simp [MeasurableEquiv.piFinSuccAbove_apply, Fin.tail]
 
 theorem pi_cons_apply (D : Measure X) [IsProbabilityMeasure D] (T : ℕ)
     (E : Set (Fin (T + 1) → X)) :
@@ -137,7 +138,7 @@ theorem lintegral_ratioFactor_le [DecidablePred P] (hp₀ : 0 < p₀) (hp₀1 : 
     ring
   have hpos : 0 < p₀ * (1 - p₀) := mul_pos hp₀ (by linarith)
   by_contra hc
-  push_neg at hc
+  push Not at hc
   have : 0 < (A * q + B * (1 - q) - 1) * (p₀ * (1 - p₀)) := mul_pos (by linarith) hpos
   linarith
 
@@ -218,6 +219,32 @@ theorem seqRateSound : SeqRateSound := by
   refine ENNReal.toReal_le_of_le_ofReal ha.le (le_trans (le_of_eq ?_) this)
   rfl
 
+/-- `a` times the ratio after one more draw averages at most `a` times the ratio now, on the far
+side of `p₀` from `p₁`. -/
+theorem lintegral_ratio_succ [DecidablePred P]
+    (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 ≤ p₁) (hp₁1 : p₁ ≤ 1) (ha : 0 ≤ a)
+    (hq : (D.real {x | P x} - p₀) * (p₁ - p₀) ≤ 0) {n h : ℕ} (hh : h ≤ n) :
+    ∫⁻ x, ENNReal.ofReal (a * likelihoodRatio p₀ p₁ (n + 1)
+      (h + if decide (P x) then 1 else 0)) ∂D ≤ ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h) := by
+  have hl := likelihoodRatio_nonneg hp₀ hp₀1 hp₁ hp₁1 n h
+  have hr : ∀ x, 0 ≤ ratioFactor p₀ p₁ (decide (P x)) := by
+    intro x
+    unfold ratioFactor
+    split_ifs
+    · positivity
+    · exact div_nonneg (by linarith) (by linarith)
+  calc _ = ∫⁻ x, ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h)
+        * ENNReal.ofReal (ratioFactor p₀ p₁ (decide (P x))) ∂D := by
+        refine lintegral_congr fun x => ?_
+        rw [likelihoodRatio_succ hh, ← ENNReal.ofReal_mul (by positivity)]
+        ring_nf
+    _ = ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h)
+        * ∫⁻ x, ENNReal.ofReal (ratioFactor p₀ p₁ (decide (P x))) ∂D :=
+        lintegral_const_mul _ (measurable_of_countable _)
+    _ ≤ ENNReal.ofReal (a * likelihoodRatio p₀ p₁ n h) * 1 := by
+        gcongr; exact lintegral_ratioFactor_le D P hp₀ hp₀1 hp₁ hp₁1 hq
+    _ = _ := mul_one _
+
 end Sound
 
 section Decide
@@ -233,6 +260,15 @@ theorem log_likelihoodRatio (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < 
   have h2 : 0 < (1 - p₁) / (1 - p₀) := div_pos (by linarith) (by linarith)
   rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow,
     Nat.cast_sub hd]
+
+/-- Where `p₀ < p₁ < p₀'`, the draws within which one of the tests of `p₀` and of `p₀'` against
+`p₁` at level `a` fires, whatever the count: `⌈(A₁ + B₁ + A₂ + B₂) log(1/a) / (A₁ A₂ − B₁ B₂)⌉`,
+the `A`s and `B`s the logs of the ratios' factors. -/
+noncomputable def stretchBound (p₀ p₁ p₀' a : ℝ) : ℕ :=
+  ⌈(Real.log (p₁ / p₀) + Real.log ((1 - p₀) / (1 - p₁)) + Real.log ((1 - p₁) / (1 - p₀'))
+      + Real.log (p₀' / p₁)) * Real.log (1 / a)
+    / (Real.log (p₁ / p₀) * Real.log ((1 - p₁) / (1 - p₀'))
+      - Real.log ((1 - p₀) / (1 - p₁)) * Real.log (p₀' / p₁))⌉₊
 
 /-- Where `p₀ < p₁ < p₀'`, at any look from `stretchBound` on one of the tests of `p₀` and of `p₀'`
 against `p₁` fires, whatever the count. -/
@@ -294,7 +330,7 @@ theorem seqRate_decides (hp₀ : 0 < p₀) (h01 : p₀ < p₁) (h12 : p₁ < p�
     (Nat.le_ceil _).trans (by exact_mod_cast hn)
   rw [div_le_iff₀ hK] at hn'
   by_contra hno
-  push_neg at hno
+  push Not at hno
   obtain ⟨h1, h2⟩ := hno
   have hlr1 : 0 < likelihoodRatio p₀ p₁ n d := by
     unfold likelihoodRatio

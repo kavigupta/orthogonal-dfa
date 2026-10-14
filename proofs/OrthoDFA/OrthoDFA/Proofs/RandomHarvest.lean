@@ -18,7 +18,6 @@ namespace Random
 
 open MeasureTheory
 open scoped ENNReal
-open OrthoDFA.Ideal (probeOrAgree)
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
   (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)

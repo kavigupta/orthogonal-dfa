@@ -1,5 +1,5 @@
 import OrthoDFA.Level3Claim
-import OrthoDFA.Proofs.IdealSteps
+import OrthoDFA.Proofs.Level2Steps
 
 /-!
 # The tree and the steps under reads that are never wrong
@@ -16,7 +16,6 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (probe probeOrAgree Outcome retarget EdgesOK Reached OutcomeOK)
 
 variable {α : Type*}
 
@@ -54,7 +53,7 @@ variable [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- The splits and learnings left, as #417 counts them, within `nσ + 2` leaves. -/
 def Ψr [Fintype α] (nσ : ℕ) (s : Level3State α) : ℕ :=
-  Ideal.Ψ nσ (Ideal.newHypothesis s.tree s.edges)
+  Level2.Ψ nσ (Level2.newHypothesis s.tree s.edges 0)
 
 structure Inv [Fintype α] (s : Level3State α) : Prop where
   edges : EdgesOK read s.tree s.edges
@@ -182,8 +181,8 @@ theorem inv_start : Inv read (initialState : Level3State α) where
   two := by simp [initialState, newHypothesis, DTree.leaves]
 
 theorem Ψr_start (nσ : ℕ) :
-    Ψr nσ (initialState : Level3State α) + 1 ≤ Ideal.stretches nσ (Fintype.card α) :=
-  Ideal.Ψ_start nσ
+    Ψr nσ (initialState : Level3State α) + 1 ≤ Level2.stretches nσ (Fintype.card α) :=
+  Level2.Ψ_start nσ
 
 omit [DecidableEq α] in
 theorem finish_inl {t s' : Level3State α} (h : applyTests C t = .inl s') : s' = t
@@ -205,20 +204,20 @@ theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) :
 decided reads. -/
 theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     (h : applyProbe read C s x = .inl s') :
-    (∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
+    (∃ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
         s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
-    ∨ (∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    ∨ (∃ p c u t t₀ w₀, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         s' = splitLeaf read s p c t t₀)
     ∨ (s' = countProbe read C s x ∧ runTests C s' = none
-        ∧ recOf (probeOrAgree false read s.tree s.edges C.walkStart x) = none) := by
-  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
+        ∧ recOf (probeOrAgree read s.tree s.edges C.walkStart x) = none) := by
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
-  generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
+  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
@@ -258,7 +257,7 @@ theorem split_reached {s : Level3State α} (hs : Inv read s) {p t t₀ : List Bo
     (hw₀c : s.tree.sift read (w₀ * FreeMonoid.of c) = .inl t₀) (hne : t₀ ≠ t) :
     Reached read (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) := by
   have hpart := DTree.sift_part read s.tree _ _ t t₀ huc hw₀c (Ne.symm hne)
-  refine Ideal.reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
+  refine reached_splitAt read hs.reached hp hu hw₀ ?_ ?_ ?_
   · simpa [mul_assoc] using hpart.1
   · simpa [mul_assoc] using hpart.2.1
   · simpa [mul_assoc] using hpart.2.2
@@ -276,14 +275,14 @@ theorem split_ok (hW : NoWrong M side read) {s : Level3State α} (hs : Inv read 
     DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) s.tree p hp
   have ht := DTree.sift_inl_mem read _ _ t huc
   have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
-  refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, hreach, ?_,
+  refine ⟨⟨edgesOK_retarget read hs.edges hp _, hreach, ?_,
     by simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.two; omega⟩, ?_⟩
   · simp only [splitLeaf, newHypothesis]
     rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
       have := hs.two; omega]
     exact classSet_split hs.cls hp ht ht₀
-  · exact Ideal.Ψ_lt_split _ (s := Ideal.newHypothesis s.tree s.edges) hp
-      (leaves_le_of_reached' read hW hreach) _
+  · exact Level2.Ψ_lt_split _ (s := Level2.newHypothesis s.tree s.edges 0) hp
+      (leaves_le_of_reached' read hW hreach) _ 0
 
 /-- A step that changes the hypothesis starts a fresh stretch and lowers `Ψr`. -/
 theorem step_change (hW : NoWrong M side read) {s s' : Level3State α} (hs : Inv read s)
@@ -294,8 +293,8 @@ theorem step_change (hW : NoWrong M side read) {s s' : Level3State α} (hs : Inv
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, hu, huc, hp, rfl⟩ |
     ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -⟩
-  · exact ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, hs.reached, hs.cls, hs.two⟩, rfl,
-      Ideal.Ψ_lt_learn _ (s := Ideal.newHypothesis s.tree s.edges) hp hE _⟩
+  · exact ⟨⟨edgesOK_upd read hs.edges hu huc, hs.reached, hs.cls, hs.two⟩, rfl,
+      Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
   · obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
     obtain ⟨hinv, hΨ⟩ := split_ok read hW hs hp hu huc hw₀ hw₀c htt
     exact ⟨hinv, rfl, hΨ⟩

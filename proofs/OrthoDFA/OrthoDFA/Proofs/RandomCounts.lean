@@ -1,5 +1,5 @@
 import OrthoDFA.Level3Claim
-import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.SeqTest
 
 /-!
@@ -267,7 +267,7 @@ theorem pi_cons_inter (N : ℕ) (E : Set (Fin (N + 1) → X)) (S : Set X) (F : S
     (h : ∀ x ∈ S, ∀ ys, Fin.cons x ys ∈ E ↔ ys ∈ F) :
     (Measure.pi fun _ : Fin (N + 1) => D) (E ∩ {xs | xs 0 ∈ S})
       = D S * (Measure.pi fun _ : Fin N => D) F := by
-  rw [Ideal.pi_succ_apply]
+  rw [pi_cons_apply]
   have : ∀ x, (Measure.pi fun _ : Fin N => D) {ys | Fin.cons x ys ∈ E ∩ {xs | xs 0 ∈ S}}
       = S.indicator (fun _ => (Measure.pi fun _ : Fin N => D) F) x := by
     intro x
@@ -512,7 +512,7 @@ theorem pi_sum_any (g : X → ℝ) {K : ℝ} (hK : 0 < K)
     intro a
     by_cases ha : a ≤ 0
     · exact hle (N + 1) a _ ha
-    rw [Ideal.pi_succ_apply]
+    rw [pi_cons_apply]
     have hsec : ∀ x, (Measure.pi fun _ : Fin N => D) {ys | Fin.cons x ys ∈
         {xs : Fin (N + 1) → X | ∃ n ≤ N + 1, a ≤ sumFirst g n (List.ofFn xs)}}
         ≤ ENNReal.ofReal (Real.exp (-a / K)) * ENNReal.ofReal (Real.exp (g x / K)) := by

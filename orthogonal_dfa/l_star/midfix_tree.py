@@ -89,21 +89,14 @@ class MidfixTree:
             node = node[1][branch]
         return node[0]
 
-    def midfixes(self) -> List[bytes]:
-        """Every internal node's midfix, deduplicated: two nodes can carry the
-        same one."""
-        found = {}
-
-        def walk(node: Node) -> None:
+    def leaf_paths(self) -> List[Tuple[bool, ...]]:
+        def paths(node: Node) -> List[Tuple[bool, ...]]:
             if isinstance(node, int):
-                return
-            midfix, lookup = node
-            found[midfix] = None
-            for child in lookup.values():
-                walk(child)
+                return [()]
+            _, lookup = node
+            return [(side,) + p for side in (False, True) for p in paths(lookup[side])]
 
-        walk(self._root)
-        return list(found)
+        return paths(self._root)
 
     def accepting_leaves(self) -> set:
         """
@@ -179,28 +172,6 @@ class MidfixTree:
         """
         return self.sift(seq, decide)[0]
 
-    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[bytes]:
-        """
-        The midfix separating s and sprime, or None.
-
-        s and sprime currently sift to the same leaf, but s + prefix and
-        sprime + prefix are known to reach different leaves. Walk down the branch
-        where they still agree; the first node where they disagree yields the
-        separating midfix prefix + node midfix. None when a needed classification
-        is indecisive, or when they agree all the way to a leaf.
-        """
-        node = self._root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            full = prefix + midfix
-            d, dprime = decide(s, full), decide(sprime, full)
-            if d is None or dprime is None:
-                return None
-            if d != dprime:
-                return full
-            node = lookup[d]
-        return None
-
     def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
         """
         Like [classify(s) for s in seqs] but with the reads batched one level at a
@@ -228,19 +199,6 @@ class MidfixTree:
                     nxt.append((lookup[decision], i))
             active = nxt
         return out
-
-    def render(self, render_midfix, indent=0) -> List[str]:
-        def recurse(node: Node, indent: int) -> List[str]:
-            pad = " " * indent
-            if isinstance(node, int):
-                return [f"{pad}State {node}"]
-            midfix, lookup = node
-            lines = [f"{pad}{render_midfix(midfix)}:"]
-            lines += recurse(lookup[False], indent + 4)
-            lines += recurse(lookup[True], indent + 4)
-            return lines
-
-        return recurse(self._root, indent)
 
 
 def oracle_decider(oracle, base_family: List[bytes], accept: float, reject: float):

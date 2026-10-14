@@ -13,8 +13,6 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome searchOutcome undecidedAt
-  agrees_inl)
 
 variable {α : Type*} (read : FreeMonoid α → ARU)
 
@@ -48,37 +46,6 @@ theorem pot_of_sift {T : DTree α} {k p : ℕ} {x z : FreeMonoid α} (h1 : k ≤
     z ∈ pot k x T ∧ read z = .undecided := by
   obtain ⟨m, hm, rfl⟩ := sift_inr_mids read T _ z h
   exact ⟨mem_pot h1 h2 hm, DTree.sift_inr read T _ _ h⟩
-
-/-- Without recovery a search stops at an edge or an undecided midpoint, never at a pair or a
-triple. -/
-def NoRecovery : SearchResult → Prop
-  | .pair _ | .triple _ => False
-  | _ => True
-
-theorem bisectBoundary_noRecovery (agrees : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n →
-    NoRecovery (bisectBoundary false agrees lo hi).1 := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro lo hi hn
-  rw [bisectBoundary]
-  split
-  · trivial
-  · split
-    · exact ih _ (by omega) _ _ rfl
-    · exact ih _ (by omega) _ _ rfl
-    · trivial
-
-theorem tripartiteSearch_noRecovery (agrees : ℕ → Option Bool) (lo hi : ℕ) :
-    NoRecovery (tripartiteSearch false agrees lo hi).1 := by
-  unfold tripartiteSearch
-  split
-  · trivial
-  · trivial
-  · split
-    · trivial
-    · trivial
-    · exact bisectBoundary_noRecovery agrees _ lo hi rfl
 
 theorem bisectBoundary_undecided (agrees : ℕ → Option Bool) : ∀ (n lo hi : ℕ), hi - lo = n →
     (bisectBoundary false agrees lo hi).2.countP (fun i => (agrees i).isNone) ≤ 1 := by
@@ -116,8 +83,7 @@ theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)
       (tripartiteSearch false (siftAgrees read T x st) lo hi).1), ∃ p, lo ≤ p ∧ p ≤ hi ∧
       T.sift read (prefixOf x p) = .inr z := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hle
-  have hn := tripartiteSearch_noRecovery (siftAgrees read T x st) lo hi
-  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs hn
+  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs
   intro z hz
   have hst : ∀ p, z ∈ undecidedAt read T x p → T.sift read (prefixOf x p) = .inr z := by
     intro p h
@@ -133,7 +99,7 @@ theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)
   | undecidedMid p =>
     simp only [searchOutcome, middleString] at hz
     exact ⟨p, hs.2.1.le, hs.2.2.1.le, hst p (List.mem_of_mem_take hz)⟩
-  | pair p | triple p => exact hn.elim
+  | pair p | triple p => simp [searchOutcome, middleString] at hz
   | undecidedHi => simp [searchOutcome, middleString] at hz
   | undecidedLo => simp [searchOutcome, middleString] at hz
   | disagreeLo => simp [searchOutcome, middleString] at hz
@@ -148,7 +114,7 @@ theorem searchOutcome_searches (st : ℕ → List Bool) (un : Option (α × List
     searches (searchOutcome read T x st un hi
       (tripartiteSearch false (siftAgrees read T x st) lo hi).1) = true := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hle
-  have hn := tripartiteSearch_noRecovery (siftAgrees read T x st) lo hi
+  have hn := tripartiteSearch_noRecovery (agrees := siftAgrees read T x st) (lo := lo) (hi := hi)
   generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs hn
   cases r with
   | undecidedLo => simp [SearchOK, hlo] at hs
@@ -157,13 +123,14 @@ theorem searchOutcome_searches (st : ℕ → List Bool) (un : Option (α × List
   | allAgree => simp [SearchOK, hhi] at hs
   | edge p => simp only [searchOutcome]; split <;> rfl
   | undecidedMid p => rfl
-  | pair p | triple p => exact hn.elim
+  | pair p => exact absurd rfl (hn p).1
+  | triple p => exact absurd rfl (hn p).2
 
 variable (E : Edges α) (k : ℕ)
 
 /-- The undecided middle a probe stops at was read at a prefix between `k` and `|x|`. -/
 theorem probe_pt (hk : k ≤ x.toList.length) :
-    ∀ z ∈ middleString (probe false read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
+    ∀ z ∈ middleString (probe read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
       T.sift read (prefixOf x p) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -190,7 +157,7 @@ theorem probe_pt (hk : k ≤ x.toList.length) :
   · simp [middleString]
 
 /-- The undecided read a probe stops at at its start is its first `k` letters' sift's. -/
-theorem probe_start : ∀ z ∈ startString (probe false read T E k x),
+theorem probe_start : ∀ z ∈ startString (probe read T E k x),
     T.sift read (prefixOf x k) = .inr z := by
   unfold probe
   rcases ha : T.sift read (prefixOf x k) with a | z₀
@@ -204,7 +171,7 @@ theorem probe_start : ∀ z ∈ startString (probe false read T E k x),
 
 /-- A probe the hypothesis disagrees on is long enough to walk, and searches. -/
 theorem disagrees_searches (h : Disagrees read ⟨T, E⟩ k x) :
-    k ≤ x.toList.length ∧ searches (probeOrAgree false read T E k x) = true := by
+    k ≤ x.toList.length ∧ searches (probeOrAgree read T E k x) = true := by
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   obtain ⟨hlen, hlast⟩ := walkEnd_walk E a _ q hq
   by_cases hkx : k ≤ x.toList.length
@@ -252,7 +219,7 @@ theorem searches_of_ptStr {o : Outcome α} (h : middleString o ≠ []) : searche
   · exact absurd rfl h
 
 theorem probeOrAgree_pt :
-    ∀ z ∈ middleString (probeOrAgree false read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+    ∀ z ∈ middleString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
   unfold probeOrAgree at hz
   split_ifs at hz with hs
@@ -261,7 +228,7 @@ theorem probeOrAgree_pt :
     exact pot_of_sift read h1 h2 h3
 
 theorem probeOrAgree_start :
-    ∀ z ∈ startString (probeOrAgree false read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
+    ∀ z ∈ startString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
   unfold probeOrAgree at hz
   split_ifs at hz with hs

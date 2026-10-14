@@ -16,7 +16,9 @@ Over `C.probeBudget` probes, level 3 fails to end well (`OrthoDFA.RoundEnd`), a 
 yielding `y`, with chance at most `roundRisk`: the least, over the proof's free parameters
 (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, which is `noiseRisk`, the chance that the
 probes that can read a good read-state undecided reach `G` of the probes for some tree level 3 can
-grow, plus `stretches` times `stretchRisk`, what one stretch risks over its first `Ns` probes.
+grow, plus `S` times `stretchRisk`, what one stretch risks over its first `Ns` probes, where
+`S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the hypotheses: each split adds a leaf, at most
+`|Q| + 2` of them, and between splits each of a leaf's edges is learned once.
 -/
 
 namespace OrthoDFA
@@ -24,7 +26,6 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (probeOrAgree)
 
 variable {α : Type*}
 
@@ -32,9 +33,9 @@ variable {α : Type*}
 count them. -/
 noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
     (H : HypothesisDFA α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
-  | .start, x => startString (probeOrAgree false read H.tree H.edges k x)
+  | .start, x => startString (probeOrAgree read H.tree H.edges k x)
   | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
-  | .middles, x => middleString (probeOrAgree false read H.tree H.edges k x)
+  | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
 
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
@@ -127,7 +128,8 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   θpt'_nonneg : 0 ≤ kn.θpt'
   θpt'_le : kn.θpt' ≤ 1
   sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
-  probeBudget_ge : Ideal.stretches (Fintype.card σ) (Fintype.card α) * kn.Ns ≤ C.probeBudget
+  probeBudget_ge : (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
+    + 2 * Fintype.card α + 1) * kn.Ns ≤ C.probeBudget
   noise_le_traffic : 4 * kn.G ≤ C.edgeRate * C.edgeReadShare
   yield_le_traffic : 2 * y ≤ C.edgeRate * C.edgeReadShare
   harvest_le_start : max (2 * kn.G) y ≤ C.startRate
@@ -137,12 +139,12 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
     ≤ 1
 
 /-- The round's failure chance at the knobs `kn`: `noiseRisk`, the probes that can read a good
-read-state undecided reaching `G` of the probes for some tree, and `stretches` times
-`stretchRisk`, what one stretch risks over its first `Ns` probes. -/
+read-state undecided reaching `G` of the probes for some tree, and `S` times `stretchRisk`, what
+one stretch risks over its first `Ns` probes, `S` the hypotheses' bound. -/
 noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (y : ℝ) (kn : Knobs) : ℝ :=
   noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.walkStart) kn.G
-    + Ideal.stretches (Fintype.card σ) (Fintype.card α)
+    + (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1)
       * stretchRisk C (Fintype.card σ) (Fintype.card α) kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
 
 /-- The least of `roundBound` over the admissible knobs. -/

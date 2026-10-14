@@ -1,6 +1,6 @@
 import OrthoDFA.Proofs.RandomStretch
 import OrthoDFA.Proofs.RandomNoise
-import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.Level2Round
 
 /-!
 # The random round: the proofs
@@ -17,7 +17,6 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (pi_succ_apply)
 
 section Compose
 
@@ -42,7 +41,7 @@ theorem anyB_le
     exact bot_le
   | succ N ih =>
     intro s hs
-    rw [pi_succ_apply, pi_succ_apply]
+    rw [pi_cons_apply, pi_cons_apply]
     calc ∫⁻ x, (Measure.pi fun _ : Fin N => D)
           {xs | Fin.cons x xs ∈ {xs : Fin (N + 1) → X | AnyB step B s (List.ofFn xs)}} ∂D
         ≤ ∫⁻ x, ((Measure.pi fun _ : Fin N => D)
@@ -136,12 +135,12 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : θr ≤ (1 - θpt') * εd')
-    (hP : Ideal.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
+    (hP : Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := runProbes read C initialState (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
             C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
-      ≤ ENNReal.ofReal (Ideal.stretches (Fintype.card σ) (Fintype.card α)
+      ≤ ENNReal.ofReal (Level2.stretches (Fintype.card σ) (Fintype.card α)
           * stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt') := by
   have hNs : 0 < Ns := by omega
   have hst := inv_start read (α := α)
@@ -175,7 +174,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
         have : (Ψr (Fintype.card σ) (initialState : Level3State α) + 1) * Ns
-            ≤ Ideal.stretches (Fintype.card σ) (Fintype.card α) * Ns :=
+            ≤ Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns :=
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
@@ -183,7 +182,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
         hany.trans (add_le_add (hseg _ hst rfl P) le_rfl)
     _ = ((Ψr (Fintype.card σ) (initialState : Level3State α) + 1 : ℕ) : ENNReal) * b := by
         push_cast; ring
-    _ ≤ (Ideal.stretches (Fintype.card σ) (Fintype.card α) : ENNReal) * b := by gcongr
+    _ ≤ (Level2.stretches (Fintype.card σ) (Fintype.card α) : ENNReal) * b := by gcongr
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
@@ -239,7 +238,7 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
       exact Set.mem_iUnion.2 ⟨z, hz⟩
     exact measure_mono_null this (measure_iUnion_null hwrong)
   have hNn := noise_le M U θ μ read D C.walkStart L p₀ G hmeas hind hU hL hp₀ hpre hθ
-  set c := ENNReal.ofReal (Ideal.stretches (Fintype.card σ) (Fintype.card α)
+  set c := ENNReal.ofReal (Level2.stretches (Fintype.card σ) (Fintype.card α)
     * stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt')
   set B := toMeasurable μ (W ∪ Nn)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
@@ -276,6 +275,9 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
         gcongr
     _ = _ := by
         rw [add_comm c, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity) (by positivity)]
+        unfold Level2.stretches
+        push_cast
+        ring_nf
 
 end Random
 
