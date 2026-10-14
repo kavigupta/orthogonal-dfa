@@ -337,6 +337,63 @@ def admitted (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (
   0 < (agreeCount mq lo hi F P ω).2
     ∧ binomSfGe (agreeCount mq lo hi F P ω).2 (1 / 2) (agreeCount mq lo hi F P ω).1 ≤ α
 
+/-- The inverse of `r ↦ 2r(1 − r)` on `[0, 1/2]`: two independent reads at rate `r` disagree
+with chance `2r(1 − r)`. -/
+noncomputable def disagreeRate (x : ℝ) : ℝ := (1 - Real.sqrt (1 - 2 * x)) / 2
+
+/-- Hoeffding's deviation for a sum of `n` independent reads in `[0, 1]`, exceeded with chance at
+most `a`. -/
+noncomputable def hoeffDev (n : ℕ) (a : ℝ) : ℝ := Real.sqrt (n * Real.log (1 / a) / 2)
+
+open scoped Classical in
+/-- The fewest prefixes of `A` on which any reference's read of `p · v` and the seed's read of
+`p` disagree. -/
+noncomputable def refApart (mq : S → Ω → ℝ) (A R : Finset S) (ω : Ω) : ℕ :=
+  if h : R.Nonempty then
+    R.inf' h (fun v => (A.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card)
+  else 0
+
+/-- `(1 − 2η₀)` times an upper bound on how many of a side's `n` prefixes the cut puts on it
+wrongly, from `against` of them reading the other way on the seed and `apart` the fewest on
+which a reference disagrees with the seed, each read at level `a`.  With `r_p` the noise rate at
+`p`, the seed reads against the side at `r_p` where the cut is right and `1 − r_p` where it is
+wrong, and an accept-preserving reference disagrees with the seed at `2r_p(1 − r_p)`, so by
+convexity of `disagreeRate`
+
+    ∑ r_p ≥ n · disagreeRate(∑ 2r_p(1 − r_p) / n). -/
+noncomputable def sideBound (n against apart : ℕ) (a : ℝ) : ℝ :=
+  against + hoeffDev n a - n * disagreeRate (max 0 (apart - hoeffDev n a) / n)
+
+open scoped Classical in
+/-- How many draws `freshDraws T y m` reads. -/
+noncomputable def drawsTaken (T : Finset S) (y : ℕ → S) (m : ℕ) : ℕ :=
+  if h : ∃ n, m ≤ ((Finset.range n).image y \ T).card then Nat.find h else 0
+
+/-- The level a test at sample size `n` spends out of `a`, so that every size together spends at
+most `a`. -/
+noncomputable def sizeLevel (a : ℝ) (n : ℕ) : ℝ := a / (((n : ℝ) + 1) * ((n : ℝ) + 2))
+
+/-- `(1 − 2η₀)` times an upper bound on how many of `P` the family's cut at `lo` and `hi` puts on
+the wrong side: `sideBound` on the accept side and on the reject side, against references `R`,
+each at level `a`. -/
+noncomputable def cutBound (mq : S → Ω → ℝ) (lo hi : ℕ) (F R P : Finset S) (a : ℝ) (ω : Ω) : ℝ :=
+  sideBound (P.filter (fun p => hi < voteCount mq F p ω)).card
+      ((P.filter (fun p => hi < voteCount mq F p ω)).filter (fun p => ¬ mq p ω = 1)).card
+      (refApart mq (P.filter (fun p => hi < voteCount mq F p ω)) R ω) a
+    + sideBound (P.filter (fun p => voteCount mq F p ω ≤ lo)).card
+      ((P.filter (fun p => voteCount mq F p ω ≤ lo)).filter (fun p => mq p ω = 1)).card
+      (refApart mq (P.filter (fun p => voteCount mq F p ω ≤ lo)) R ω) a
+
+/-- `drift_verdict`'s ADMITTED: the family's cut of the population at `lo` and `hi` misclassifies
+at most `lim` of it, at level `a`.  `P` is the sample, drawn as the first `N` draws without
+replacement, `R` the references, and `η₀` bounds the noise rate.  `cutBound` is read at
+`sizeLevel a #P`, and the passage from the `N` draws to the population at `sizeLevel a N`; the
+draws the sampler redrew count as misclassified. -/
+def certifies (mq : S → Ω → ℝ) (η₀ lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (N : ℕ)
+    (ω : Ω) : Prop :=
+  0 < N ∧ cutBound mq lo hi F R P (sizeLevel a P.card) ω / (1 - 2 * η₀) + ((N : ℝ) - P.card)
+    ≤ N * lim - hoeffDev N (sizeLevel a N)
+
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 test per population on `certOf`, and the accept-preserving gate on the uniform pool `uni`,
