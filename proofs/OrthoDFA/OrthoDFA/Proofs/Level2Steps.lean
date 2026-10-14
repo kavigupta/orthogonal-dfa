@@ -262,11 +262,6 @@ theorem inv_fresh {T : DTree α} {E : Edges α} (hn : 1 ≤ C.ends) (hE : EdgesO
     (hr : Reached read T) : Inv read C (newHypothesis T E) :=
   ⟨hE, hr, le_rfl, le_rfl, by simp [newHypothesis]; omega⟩
 
-omit [DecidableEq α] in
-theorem leaves_le_two {T : DTree α} [Fintype α] (hI : ReadsByState read M side)
-    (hr : Reached read T) : T.leaves.length ≤ Fintype.card σ + 2 :=
-  leaves_le_of_reached read hI hr
-
 /-- A step that changes the hypothesis: a split or a learned edge, keeping `Inv`, lowering `Ψ`. -/
 theorem step_change [Fintype α] (hI : ReadsByState read M side) (hn : 1 ≤ C.ends)
     {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
@@ -298,7 +293,7 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side) (hn : 1 ≤ C.e
       · simpa [mul_assoc] using hpart.2.2
     simp only [hE]
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_retarget read hs.edges hp _) hreach,
-      Ψ_lt_split _ hp (leaves_le_two read hI hreach) _⟩
+      Ψ_lt_split _ hp (leaves_le_of_reached read hI hreach) _⟩
 
 omit [DecidableEq α] in
 /-- Counting a probe that keeps the hypothesis keeps `Inv` where neither test fires. -/
