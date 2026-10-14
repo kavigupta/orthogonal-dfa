@@ -49,9 +49,6 @@ def BadAt {σ : Type*} (U : σ → ℝ) (θ : ℝ) (q : σ) : Prop := 3 / 2 * θ
 noncomputable def binE (n : ℕ) (p : ℝ) (f : ℕ → ℝ) : ℝ :=
   ∑ j ∈ Finset.range (n + 1), (n.choose j : ℝ) * p ^ j * (1 - p) ^ (n - j) * f j
 
-/-- The least count at which `rateSide θ` calls a rate above `θ` after `n` trials. -/
-noncomputable def hFire (θ a : ℝ) (n : ℕ) : ℕ := sInf {h | binomSfGe n θ h < a}
-
 /-- The chance that the probes that can read a string with a read of chance at most `β` reach
 `G` of the probes, for some tree of at most `nQ + 2` leaves grown by splits on a letter and a
 midfix where two leaves part, with probes of length at most `L` and no length-`k` prefix above
@@ -59,26 +56,23 @@ midfix where two leaves part, with probes of length at most `L` and no length-`k
 noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
   ((1 + (nQ + 1) ^ 3 * nα) ^ nQ : ℕ) * Real.exp (-(G - 2 * β * (L + 1) * (nQ + 1)) / p₀)
 
-/-- What one stretch risks over its first `Ns` probes: a test firing at one of its looks at a site
-whose harvest would not end well (at the start or the middles, whose sampler then finds at most
-`p`, a binomial tail; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by
-`edgeExcess`), or a false success; and
-the stretch outliving `Ns` probes, though clean disagreements are at least `θr` of them, or the
-searches are at most `εd'` of the probes yet success has not fired at look `N₁`, or they are more
-and the undecided middles at least `θpt'` of them yet their test has not fired. -/
-noncomputable def stretchRisk (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (p θr εd' θpt' : ℝ) : ℝ :=
-  ∑ n ∈ Finset.Icc C.firstLook Ns,
-      (binomSfGe n p (hFire C.startRate C.testLevel n) + C.testLevel)
-    + ∑ n ∈ Finset.Icc 1 Ns,
-      (((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
-        + binomSfGe n p (hFire C.middleRate C.testLevel (max C.firstLook ⌈C.searchShare * n⌉₊)))
+open scoped Classical in
+/-- What one stretch risks over its first `Ns` probes: a test firing at some look at a site whose
+harvest would not end well (at the start or the middles, each a sequential test at level
+`testLevel`; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by `edgeExcess`),
+or a false success; and the stretch outliving `Ns` probes, though clean disagreements are at least
+`θr` of them, or the searches are at most `εd'` of the probes yet success is silent at look `N₁`,
+or they are more and the undecided middles at least `θpt'` of them yet their test is silent at
+look `Ns`. -/
+noncomputable def stretchRisk (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
+  3 * C.testLevel + ((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
     + (1 - binomSfGe Ns θr 1)
     + binE N₁ εd' (fun s =>
-        if C.testLevel ≤ 1 - binomSfGe N₁ C.disagreementRate (s + 1)
-          ∨ binomSfGe N₁ C.disagreementRate s < C.testLevel then 1 else 0)
-    + (1 - binomSfGe Ns εd' (max C.firstLook ⌈C.searchShare * Ns⌉₊))
-    + ∑ s ∈ Finset.Icc (max C.firstLook ⌈C.searchShare * Ns⌉₊) Ns,
-        binE s θpt' (fun j => if C.testLevel ≤ binomSfGe s C.middleRate j then 1 else 0)
+        if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0 else 1)
+    + (1 - binomSfGe Ns εd' ⌈C.searchShare * Ns⌉₊)
+    + ∑ s ∈ Finset.Icc ⌈C.searchShare * Ns⌉₊ Ns,
+        binE s θpt' (fun j => if seqRate C.middleRate C.middleAlternative C.testLevel s j then 0
+          else 1)
 
 /-- The largest mass the probes' distribution puts on one length-`k` prefix. -/
 noncomputable def prefixMax [Fintype α] (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
@@ -101,22 +95,28 @@ structure Knobs where
 
 /-- The relations the knobs must meet, at the settings `C`, the probes' length `L`, the ending's
 tolerance `ε` and the yield `y`: an edge's least traffic times its rate is at least twice the
-yield, and twice what an edge's sampler can find at good read-states, `2 (L + 1) G`. -/
+yield, and twice what an edge's sampler can find at good read-states, `2 (L + 1) G`; the start's
+rate is at least what its sampler can find, `max (2G) y`; and against that rate of undecided
+middles per probe, with searches at least `searchShare` of the probes, the middles' test's
+likelihood ratio falls on average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)`
+at another search, `μ = middleRate` and `m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
     (L : ℕ) (ε y : ℝ) (kn : Knobs) : Prop where
-  firstLook_pos : 1 ≤ C.firstLook
-  firstLook_le : C.firstLook ≤ kn.N₁
+  N₁_pos : 1 ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
   θ_nonneg : 0 ≤ θ
   G_nonneg : 0 ≤ kn.G
-  testLevel_nonneg : 0 ≤ C.testLevel
-  startRate_nonneg : 0 ≤ C.startRate
-  startRate_le : C.startRate ≤ 1
+  testLevel_pos : 0 < C.testLevel
+  startRate_pos : 0 < C.startRate
+  startRate_lt : C.startRate < C.startAlternative
+  startAlternative_lt : C.startAlternative < 1
   edgeRate_nonneg : 0 ≤ C.edgeRate
-  middleRate_nonneg : 0 ≤ C.middleRate
-  middleRate_le : C.middleRate ≤ 1
-  disagreementRate_nonneg : 0 ≤ C.disagreementRate
-  disagreementRate_le : C.disagreementRate ≤ 1
+  middleRate_pos : 0 < C.middleRate
+  middleRate_lt : C.middleRate < C.middleAlternative
+  middleAlternative_lt : C.middleAlternative < 1
+  disagreementAlternative_pos : 0 < C.disagreementAlternative
+  disagreementAlternative_lt : C.disagreementAlternative < C.disagreementRate
+  disagreementRate_lt : C.disagreementRate < 1
   disagreementRate_le_ε : C.disagreementRate ≤ ε
   θr_nonneg : 0 ≤ kn.θr
   θr_le : kn.θr ≤ 1
@@ -126,10 +126,13 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   θpt'_le : kn.θpt' ≤ 1
   sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
   probeBudget_ge : Ideal.stretches (Fintype.card σ) (Fintype.card α) * kn.Ns ≤ C.probeBudget
-  G_le : 2 * kn.G ≤ 1
-  yield_le_one : y ≤ 1
   noise_le_traffic : 4 * (L + 1) * kn.G ≤ C.edgeRate * C.edgeReadShare
   yield_le_traffic : 2 * y ≤ C.edgeRate * C.edgeReadShare
+  harvest_le_start : max (2 * kn.G) y ≤ C.startRate
+  middles_fall : max (2 * kn.G) y * (C.middleAlternative / C.middleRate)
+      * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
+    + (1 - max (2 * kn.G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
+    ≤ 1
 
 /-- The round's failure chance at the knobs `kn`: `noiseRisk`, the probes that can read a good
 read-state undecided reaching `G` of the probes for some tree, and `stretches` times
@@ -138,8 +141,7 @@ noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (y : ℝ) (kn : Knobs) : ℝ :=
   noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.walkStart) kn.G
     + Ideal.stretches (Fintype.card σ) (Fintype.card α)
-      * stretchRisk C (Fintype.card σ) (Fintype.card α) L kn.Ns kn.N₁ (max (2 * kn.G) y) kn.θr
-        kn.εd' kn.θpt'
+      * stretchRisk C (Fintype.card σ) (Fintype.card α) L kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
 
 /-- The least of `roundBound` over the admissible knobs. -/
 noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
