@@ -34,6 +34,10 @@ def mod3_cut(z):
     return sum(z) % 3 == 0
 
 
+def _constant(value):
+    return lambda _: value
+
+
 def quiet_config(**changes):
     """What the round reads of a config, set so no test fires."""
     quiet = {
@@ -59,7 +63,7 @@ def quiet_config(**changes):
         "middle_rate",
         "middle_alternative",
     ):
-        config[per_unit] = (lambda value: lambda _: value)(config[per_unit])
+        config[per_unit] = _constant(config[per_unit])
     return SimpleNamespace(**config)
 
 
