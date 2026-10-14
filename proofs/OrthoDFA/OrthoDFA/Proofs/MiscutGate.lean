@@ -973,4 +973,336 @@ theorem measureReal_countFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
       ≤ (ENNReal.ofReal (4 * a)).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = 4 * a := ENNReal.toReal_ofReal (by positivity)
 
+/-! ### Spending a level over sample sizes -/
+
+lemma sizeLevel_nonneg {a : ℝ} (ha : 0 ≤ a) (n : ℕ) : 0 ≤ sizeLevel a n := by
+  unfold sizeLevel; have := ha; positivity
+
+lemma sizeLevel_pos {a : ℝ} (ha : 0 < a) (n : ℕ) : 0 < sizeLevel a n := by
+  unfold sizeLevel; positivity
+
+lemma sizeLevel_le {a : ℝ} (ha : 0 ≤ a) (ha1 : a ≤ 1) (n : ℕ) : sizeLevel a n ≤ 1 := by
+  unfold sizeLevel
+  rw [div_le_one (by positivity)]
+  nlinarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
+
+lemma sum_range_sizeLevel (a : ℝ) (n : ℕ) :
+    ∑ i ∈ Finset.range n, sizeLevel a i = a * (1 - 1 / ((n : ℝ) + 1)) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Finset.sum_range_succ, ih, sizeLevel]
+    push_cast
+    field_simp
+    ring
+
+/-- Sizes from `k` on spend at most `a` together. -/
+lemma sum_range_sizeLevel_shift_le {a : ℝ} (ha : 0 ≤ a) (k n : ℕ) :
+    ∑ i ∈ Finset.range n, sizeLevel a (k + i) ≤ a := by
+  have h := Finset.sum_range_add (fun i => sizeLevel a i) k n
+  rw [sum_range_sizeLevel] at h
+  have h0 : 0 ≤ ∑ i ∈ Finset.range k, sizeLevel a i :=
+    Finset.sum_nonneg (fun i _ => sizeLevel_nonneg ha i)
+  have : 0 ≤ a * (1 / ((((k + n : ℕ) : ℝ)) + 1)) := by positivity
+  linarith
+
+/-! ### From the draws to the population -/
+
+open scoped Classical in
+/-- The cut misclassifies more than `lim` of the population, and the first `N` certification
+draws show it at most `N·lim` less a deviation at `sizeLevel a N`. -/
+noncomputable def rawShortAt (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (Dj : Measure S) (j : J) (B : State) (lim a : ℝ) (N : ℕ) : Set (Run Ω S J) :=
+  {x | lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
+        (oracleNoise x)}
+    ∧ (((Finset.univ : Finset (Fin N)).filter (fun i =>
+        ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) (certPrefix j i.val x)
+          (oracleNoise x))).card : ℝ)
+      ≤ N * lim - hoeffDev N (sizeLevel a N)}
+
+open scoped Classical in
+lemma measurableSet_of_run_data_certN (populations : Finset J) (j : J) (B : State) (N : ℕ)
+    (R : Finset S → Finset S → (Fin N → S) → Set (Run Ω S J))
+    (hR : ∀ P C t, MeasurableSet (R P C t)) :
+    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+      (fun i : Fin N => certPrefix j i.val x)} := by
+  classical
+  have hcov : {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (fun i : Fin N => certPrefix j i.val x)}
+      = ⋃ z : Finset S × Finset S × (Fin N → S),
+          ((({x : Run Ω S J | prefixesAt populations B.npref x = z.1}
+            ∩ {x : Run Ω S J | poolAt B.nsuff x = z.2.1})
+            ∩ ⋂ i : Fin N, {x : Run Ω S J | certPrefix j i.val x = z.2.2 i})
+          ∩ R z.1 z.2.1 z.2.2) := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_iInter]
+    refine ⟨fun h => ⟨(prefixesAt populations B.npref x, poolAt B.nsuff x,
+      fun i : Fin N => certPrefix j i.val x), ⟨⟨rfl, rfl⟩, fun _ => rfl⟩, h⟩, ?_⟩
+    rintro ⟨⟨P, C, t⟩, ⟨⟨hP, hC⟩, ht⟩, hx⟩
+    simp only at hP hC ht
+    rw [hP, hC, show (fun i : Fin N => certPrefix j i.val x) = t from funext ht]
+    exact hx
+  rw [hcov]
+  exact MeasurableSet.iUnion (fun z =>
+    (((measurableSet_prefixesAt populations B.npref z.1).inter
+      (measurableSet_poolAt B.nsuff z.2.1)).inter
+        (MeasurableSet.iInter (fun i : Fin N =>
+          measurableSet_eq_fun (measurable_cert j i.val) measurable_const))).inter
+      (hR z.1 z.2.1 z.2.2))
+
+open scoped Classical in
+lemma measurableSet_rawShortAt (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
+    (j : J) (B : State) (lim a : ℝ) (N : ℕ) :
+    MeasurableSet (rawShortAt rule O populations Dj j B lim a N) := by
+  classical
+  have hR : ∀ (P C : Finset S) (tt : Fin N → S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi
+            (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p (oracleNoise x)}
+        ∧ (((Finset.univ : Finset (Fin N)).filter (fun i =>
+            ¬ cutCorrect O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x))
+                (tt i) (oracleNoise x))).card : ℝ)
+          ≤ N * lim - hoeffDev N (sizeLevel a N)} else ∅) := by
+    intro P C tt
+    split_ifs with hone
+    · have hω : MeasurableSet {ω : Ω |
+          lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi
+              (clusterOf rule O B.sc B.scd P C B.k ω) p ω}
+          ∧ (((Finset.univ : Finset (Fin N)).filter (fun i =>
+              ¬ cutCorrect O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) (tt i) ω)).card
+                : ℝ) ≤ N * lim - hoeffDev N (sizeLevel a N)} :=
+        measurableSet_of_fam (T := C.powerset)
+          (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd P C B.k ω hone))
+          (fun A₀ => measurableSet_clusterOf O B.sc B.scd P C B.k hone A₀)
+          (fun A₀ => {ω | lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi A₀ p ω}
+            ∧ (((Finset.univ : Finset (Fin N)).filter (fun i =>
+                ¬ cutCorrect O B.lo B.hi A₀ (tt i) ω)).card : ℝ)
+                  ≤ N * lim - hoeffDev N (sizeLevel a N)})
+          (fun A₀ => MeasurableSet.inter
+            (measurableSet_lt measurable_const (measurable_badMassReal O Dj B.lo B.hi A₀))
+            (measurableSet_card_filter_fin (fun i ω => ¬ cutCorrect O B.lo B.hi A₀ (tt i) ω)
+              (fun i => noiseAlg_le O Set.univ _ (measurableSet_cutCorrect' O B.lo B.hi A₀ (tt i)))
+              (fun n => (n : ℝ) ≤ N * lim - hoeffDev N (sizeLevel a N))))
+      exact measurable_nz hω
+    · exact MeasurableSet.empty
+  have hrw : rawShortAt rule O populations Dj j B lim a N
+      = {x : Run Ω S J | x ∈ (fun P C tt => if (1 : S) ∈ C then
+          {x : Run Ω S J | lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi
+                (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p (oracleNoise x)}
+            ∧ (((Finset.univ : Finset (Fin N)).filter (fun i =>
+                ¬ cutCorrect O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x))
+                    (tt i) (oracleNoise x))).card : ℝ)
+              ≤ N * lim - hoeffDev N (sizeLevel a N)} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (fun i : Fin N => certPrefix j i.val x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), rawShortAt,
+      ← clusterAt_eq_clusterOf O populations B x]
+  rw [hrw]
+  exact measurableSet_of_run_data_certN populations j B N _ hR
+
+open scoped Classical in
+/-- At one count of draws: the family is fixed before the draws, so Hoeffding applies. -/
+theorem measureReal_rawShortAt_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (populations : Finset J) (j : J) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1)
+    (N : ℕ) (hN : 0 < N) :
+    (runMeasure μ D Dsf).real (rawShortAt rule O populations (D j) j B lim a N)
+      ≤ sizeLevel a N := by
+  classical
+  set E : ℝ := sizeLevel a N with hEdef
+  have hE0 : 0 ≤ E := sizeLevel_nonneg ha0.le N
+  have hNR : (0 : ℝ) < N := by exact_mod_cast hN
+  have hEnn : runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a N)
+      ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_cert_le D Dsf _
+      (measurableSet_rawShortAt O populations (D j) j B lim a N) _ ?_
+    intro y
+    set F : Finset S :=
+      clusterBy rule O.mq populations ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J) B with hF
+    set W : Set S := {p | ¬ cutCorrect O B.lo B.hi F p y.1} with hW
+    have hFeq : ∀ c : J → ℕ → S,
+        clusterBy rule O.mq populations ((y.1, (y.2, c)) : Run Ω S J) B = F := fun c => rfl
+    by_cases hmass : lim < (D j).real W
+    · set t : ℝ := hoeffDev N (sizeLevel a N) / N with ht
+      have ht0 : 0 ≤ t := div_nonneg (Real.sqrt_nonneg _) hNR.le
+      have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+            ∈ rawShortAt rule O populations (D j) j B lim a N}
+          ⊆ {c | (((Finset.range N).filter (fun i => c j i ∈ W)).card : ℝ)
+            ≤ (N : ℝ) * ((D j).real W - t)} := by
+        rintro c ⟨-, hcount⟩
+        have h := card_filter_fin_eq N (fun p => p ∈ W) (fun i => c j i)
+        show (((Finset.range N).filter (fun i => c j i ∈ W)).card : ℝ)
+          ≤ (N : ℝ) * ((D j).real W - t)
+        rw [← h]
+        have e : (N : ℝ) * ((D j).real W - t) = N * (D j).real W - hoeffDev N (sizeLevel a N) := by
+          rw [ht]; field_simp
+        rw [e]
+        refine le_trans hcount ?_
+        nlinarith
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top
+          (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have hcert := cert_hits_wrongSet D j N W ((D j).real W) t measureReal_nonneg ht0 le_rfl
+      have hexp : Real.exp (-2 * (N : ℝ) * t ^ 2) = E :=
+        exp_hoeffDev N hN (sizeLevel_pos ha0 N) (sizeLevel_le ha0.le ha1 N)
+      rw [hexp] at hcert
+      convert hcert using 3
+      funext c
+      congr!
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+          ∈ rawShortAt rule O populations (D j) j B lim a N} = (∅ : Set (J → ℕ → S)) := by
+        ext c
+        simp only [Set.mem_empty_iff_false, iff_false]
+        rintro ⟨hm, -⟩
+        rw [hFeq c] at hm
+        exact hmass hm
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a N)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
+/-- Over every count of draws together. -/
+theorem measureReal_rawShort_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (populations : Finset J) (j : J) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (runMeasure μ D Dsf).real (⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1))
+      ≤ a := by
+  have hle : runMeasure μ D Dsf (⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1))
+      ≤ ENNReal.ofReal a := by
+    refine le_trans (measure_iUnion_le _) ?_
+    refine ENNReal.tsum_le_of_sum_range_le (fun n => ?_)
+    calc ∑ i ∈ Finset.range n, runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a (i + 1))
+        ≤ ∑ i ∈ Finset.range n, ENNReal.ofReal (sizeLevel a (1 + i)) := by
+          refine Finset.sum_le_sum (fun i _ => ?_)
+          rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← measureReal_def, add_comm 1 i]
+          exact ENNReal.ofReal_le_ofReal
+            (measureReal_rawShortAt_le D Dsf O populations j B ha0 ha1 (i + 1) (Nat.succ_pos i))
+      _ = ENNReal.ofReal (∑ i ∈ Finset.range n, sizeLevel a (1 + i)) :=
+          (ENNReal.ofReal_sum_of_nonneg (fun i _ => sizeLevel_nonneg ha0.le _)).symm
+      _ ≤ ENNReal.ofReal a := ENNReal.ofReal_le_ofReal (sum_range_sizeLevel_shift_le ha0.le 1 n)
+  rw [measureReal_def]
+  exact le_trans (ENNReal.toReal_mono ENNReal.ofReal_ne_top hle)
+    (le_of_eq (ENNReal.toReal_ofReal ha0.le))
+
+/-! ### The gate at one state and one population -/
+
+open scoped Classical in
+/-- A count over the first `N` draws is a count over the sample they gave, plus the draws the
+sampler redrew. -/
+lemma card_range_filter_le (T : Finset S) (y : ℕ → S) (Q : S → Prop) [DecidablePred Q] (N : ℕ) :
+    (((Finset.range N).filter (fun i => Q (y i))).card : ℝ)
+      ≤ ((acceptedAt T y N).filter Q).card
+        + ((N : ℝ) - (acceptedAt T y N).card) := by
+  have h := sum_range_le_sum_acceptedAt T y (fun p => if Q p then (1 : ℝ) else 0)
+    (fun a => by split_ifs <;> norm_num) (fun a => by split_ifs <;> norm_num) N
+  rw [Finset.natCast_card_filter, Finset.natCast_card_filter]
+  exact h
+
+open scoped Classical in
+/-- The gate certifies at some look a family that misclassifies more than `lim` of the
+population, though the references hold an accept-preserving suffix: chance at most `5a`.  Either
+some look's count bound failed (`countFail`, `4a` over the looks), or the bounds held and the
+draws undercounted the population (`rawShortAt`, `a` over the counts of draws). -/
+theorem measureReal_falseCertify_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (B : State) {η₀ lim a : ℝ}
+    (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (runMeasure μ D Dsf).real {x |
+      (∃ e ≤ B.npref, certifies O.mq η₀ lim a B.lo B.hi (clusterBy rule O.mq populations x B)
+        (refsBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
+        (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x)
+          (B.npref + e)) (oracleNoise x))
+      ∧ (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
+      ∧ lim < (D j).real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
+          (oracleNoise x)}}
+      ≤ 5 * a := by
+  classical
+  have hsub : {x : Run Ω S J |
+      (∃ e ≤ B.npref, certifies O.mq η₀ lim a B.lo B.hi (clusterBy rule O.mq populations x B)
+        (refsBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
+        (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x)
+          (B.npref + e)) (oracleNoise x))
+      ∧ (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
+      ∧ lim < (D j).real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
+          (oracleNoise x)}}
+      ⊆ (⋃ e ∈ Finset.range (B.npref + 1),
+          countFail rule O populations j B (B.npref + e) η₀ (sizeLevel a (B.npref + e)))
+        ∪ ⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1) := by
+    rintro x ⟨⟨e, he, hN, hineq⟩, hv, hmass⟩
+    set T : Finset S := prefixesAt populations B.npref x with hT
+    set y : ℕ → S := fun i => certPrefix j i x with hy
+    set m : ℕ := B.npref + e with hm
+    set F : Finset S := clusterBy rule O.mq populations x B with hF
+    set W : Set S := {p | ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)} with hW
+    by_cases hfail : x ∈ countFail rule O populations j B m η₀ (sizeLevel a m)
+    · exact Or.inl (Set.mem_biUnion (Finset.mem_range.2 (by omega)) hfail)
+    refine Or.inr ?_
+    have hex : ∃ n, m ≤ (acceptedAt T y n).card := by
+      by_contra hne
+      have hne' : ¬ ∃ n, m ≤ ((Finset.range n).image y \ T).card := hne
+      have h0 : drawsTaken T y m = 0 := by
+        unfold drawsTaken
+        rw [dif_neg hne']
+      rw [h0] at hN
+      exact lt_irrefl 0 hN
+    have hex' : ∃ n, m ≤ ((Finset.range n).image y \ T).card := hex
+    have hNeq : drawsTaken T y m = Nat.find hex := by
+      unfold drawsTaken
+      rw [dif_pos hex']
+      rfl
+    have hP : certOf T j m x = acceptedAt T y (Nat.find hex) := freshDraws_eq T y m hex
+    have hPcard : (certOf T j m x).card = m := card_freshDraws T y m hex
+    have hcount : (((certOf T j m x).filter (fun p => ¬ cutCorrect O B.lo B.hi F p
+          (oracleNoise x))).card : ℝ) * (1 - 2 * η₀)
+        ≤ cutBound O.mq B.lo B.hi F (refsBy rule O.mq populations x B) (certOf T j m x)
+          (sizeLevel a m) (oracleNoise x) := by
+      by_contra hc
+      exact hfail ⟨hv, hc⟩
+    have hpos : 0 < 1 - 2 * η₀ := by linarith
+    rw [hPcard] at hineq
+    have hcount' : (((certOf T j m x).filter (fun p => ¬ cutCorrect O B.lo B.hi F p
+          (oracleNoise x))).card : ℝ)
+        ≤ cutBound O.mq B.lo B.hi F (refsBy rule O.mq populations x B) (certOf T j m x)
+          (sizeLevel a m) (oracleNoise x) / (1 - 2 * η₀) := by
+      rw [le_div_iff₀ hpos]; exact hcount
+    set N : ℕ := Nat.find hex with hNdef
+    have hraw := card_range_filter_le T y
+      (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) N
+    rw [← hP, hPcard] at hraw
+    have hNpos : 0 < N := by rw [← hNeq]; exact hN
+    refine Set.mem_iUnion.2 ⟨N - 1, ?_⟩
+    rw [show N - 1 + 1 = N by omega]
+    refine ⟨hmass, ?_⟩
+    rw [hNeq] at hineq
+    have key : (((Finset.range N).filter
+          (fun i => ¬ cutCorrect O B.lo B.hi F (y i) (oracleNoise x))).card : ℝ)
+        ≤ N * lim - hoeffDev N (sizeLevel a N) := by linarith
+    have hfin := card_filter_fin_eq N (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) y
+    refine le_trans (le_of_eq ?_) key
+    rw [← hfin]
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_union_le _ _) ?_
+  have h1 : (runMeasure μ D Dsf).real (⋃ e ∈ Finset.range (B.npref + 1),
+      countFail rule O populations j B (B.npref + e) η₀ (sizeLevel a (B.npref + e)))
+      ≤ 4 * a := by
+    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+    calc ∑ e ∈ Finset.range (B.npref + 1), (runMeasure μ D Dsf).real
+          (countFail rule O populations j B (B.npref + e) η₀ (sizeLevel a (B.npref + e)))
+        ≤ ∑ e ∈ Finset.range (B.npref + 1), 4 * sizeLevel a (B.npref + e) :=
+          Finset.sum_le_sum (fun e _ => measureReal_countFail_le hflat O populations D Dsf
+            hsupp hsuppSf j hj B _ hη hη₀ (sizeLevel_pos ha0 _) (sizeLevel_le ha0.le ha1 _))
+      _ = 4 * ∑ e ∈ Finset.range (B.npref + 1), sizeLevel a (B.npref + e) := by
+          rw [Finset.mul_sum]
+      _ ≤ 4 * a := by
+          have := sum_range_sizeLevel_shift_le ha0.le B.npref (B.npref + 1)
+          linarith
+  have h2 := measureReal_rawShort_le (rule := rule) D Dsf O populations j B (lim := lim) ha0 ha1
+  linarith
+
 end OrthoDFA
