@@ -1,4 +1,5 @@
 import OrthoDFA.Level2Claim
+import OrthoDFA.RateTest
 
 /-!
 # Level 3 of indecisive L*: random reads

@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.EpsTree
+import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.RandomRound
 
 /-!
