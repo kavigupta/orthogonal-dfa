@@ -98,9 +98,9 @@ structure Knobs where
 yield `y`: an edge's least traffic times its rate is at least twice the yield, and twice what an
 edge's sampler can find at good read-states, `2G`; the start's rate is at least what its sampler
 can find, `max (2G) y`; and against that rate of undecided middles per probe, with searches at
-least `searchShare` of the probes, the middles' test's
-likelihood ratio falls on average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)`
-at another search, `μ = middleRate` and `m = middleAlternative`. -/
+least `searchShare` of the probes, the middles' test's likelihood ratio falls on average, its
+factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search, `μ = middleRate`
+and `m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
     (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
