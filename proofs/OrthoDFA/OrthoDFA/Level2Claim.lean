@@ -33,31 +33,20 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
     Measure (FreeMonoid α) :=
   D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
 
-/-- With reads fixed by the target state, `0 < y < m < ε < 1` (`harvestRate`, `alternativeRate`,
-`disagreementRate`), `0 < δ < 1`, and at least `∑_{j < S} n(δ / (2 (j + 1) (j + 2)))` probes,
+/-- With reads fixed by the target state, `0 < y < ε < 1` (`harvestRate`, `disagreementRate`),
+`0 < δ < 1`, and at least `64 K ε / (ε − y)² · log(4 K² / δ)` probes, `K = (|Q| + 2)² (|Σ| + 1)`,
 level 2 fails to end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read
-undecided, with chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most
-`|Q| + 2` of them, and between splits each of a leaf's edges is learned once. Under the `j`-th
-hypothesis the tests run at level `a = δ / (2 (j + 1) (j + 2))`, one of them fires within `n(a)`
-probes, and each errs with chance at most `a`. A consistent ending has its hypothesis and tree
-parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
+undecided, with chance at most `δ`. A consistent ending has its hypothesis and tree parting on at
+most `ε` of the probes, and a harvest's sampler yields `y`. -/
 def Correct : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Settings) (P : ℕ),
-    let nQ := Fintype.card σ
-    let nα := Fintype.card α
     let y := C.harvestRate
-    let m := C.alternativeRate
     let ε := C.disagreementRate
     let δ := C.δ
-    let A₁ := Real.log (m / y)
-    let B₁ := Real.log ((1 - y) / (1 - m))
-    let A₂ := Real.log ((1 - m) / (1 - ε))
-    let B₂ := Real.log (ε / m)
-    let S := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let n := fun a : ℝ => ⌈(A₁ + B₁ + A₂ + B₂) * Real.log (1 / a) / (A₁ * A₂ - B₁ * B₂)⌉₊
-    ReadsByState read M side → 0 < y → y < m → m < ε → ε < 1 → 0 < δ → δ < 1 →
-    ∑ j ∈ Finset.range S, n (δ / (2 * (j + 1) * (j + 2))) ≤ P →
+    let K : ℕ := (Fintype.card σ + 2) ^ 2 * (Fintype.card α + 1)
+    ReadsByState read M side → 0 < y → y < ε → ε < 1 → 0 < δ → δ < 1 →
+    64 * (K : ℝ) * ε / (ε - y) ^ 2 * Real.log (4 * (K : ℝ) ^ 2 / δ) ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws

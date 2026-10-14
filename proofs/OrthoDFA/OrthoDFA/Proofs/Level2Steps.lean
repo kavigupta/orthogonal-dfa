@@ -85,15 +85,22 @@ of the rate `y`, or the disagreements' of the rate `ε`. At most `stretchBound y
 noncomputable def stretchLength (y m ε a : ℝ) : ℕ :=
   sInf {n | ∀ d ≤ n, seqRate y m a n d ∨ seqRate ε m a n d}
 
-/-- The rates are chances, in the order `harvestRate < alternativeRate < disagreementRate`, and
-`δ` is strictly between 0 and 1. -/
+/-- The rates are chances, `harvestRate < disagreementRate`, and `δ` is strictly between 0 and
+1. -/
 structure TestsOK : Prop where
   harvestRate_pos : 0 < C.harvestRate
-  harvestRate_lt : C.harvestRate < C.alternativeRate
-  alternativeRate_lt : C.alternativeRate < C.disagreementRate
+  harvestRate_lt_disagreementRate : C.harvestRate < C.disagreementRate
   disagreementRate_lt : C.disagreementRate < 1
   δ_pos : 0 < C.δ
   δ_lt : C.δ < 1
+
+variable {C} in
+theorem TestsOK.harvestRate_lt (hC : TestsOK C) : C.harvestRate < C.alternativeRate := by
+  unfold Settings.alternativeRate; linarith [hC.harvestRate_lt_disagreementRate]
+
+variable {C} in
+theorem TestsOK.alternativeRate_lt (hC : TestsOK C) : C.alternativeRate < C.disagreementRate := by
+  unfold Settings.alternativeRate; linarith [hC.harvestRate_lt_disagreementRate]
 
 variable {C} in
 theorem level_pos (hC : TestsOK C) (j : ℕ) : 0 < C.level j := by

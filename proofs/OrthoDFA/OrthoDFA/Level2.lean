@@ -11,8 +11,8 @@ read. A probe shorter than `walkStart` counts as agreeing.
 * A probe that reaches an unlearned edge learns it.
 * The undecided reads probes stop at, and the searches that stopped at an undecided midpoint (the
   disagreements), are counted since the hypothesis last changed. After each probe that keeps the
-  hypothesis a sequential likelihood-ratio test (`seqRate`) checks each count against
-  `alternativeRate`: once the undecided reads' test of `harvestRate` fires the round ends in a
+  hypothesis a sequential likelihood-ratio test (`seqRate`) checks each count against the midpoint
+  of the two rates: once the undecided reads' test of `harvestRate` fires the round ends in a
   harvest, and once the disagreements' test of `disagreementRate` fires it ends consistent. Under
   the `j`-th hypothesis both tests run at level `δ / (2 (j + 1) (j + 2))`, so the levels over all
   hypotheses sum to at most `δ / 2` for each test.
@@ -31,10 +31,12 @@ structure Settings where
   harvestRate : ℝ
   /-- The rate the disagreements are tested against. -/
   disagreementRate : ℝ
-  /-- The rate each test weighs its rate against, between the two. -/
-  alternativeRate : ℝ
   /-- The chance the round may fail to end well. -/
   δ : ℝ
+
+/-- The rate each test weighs its rate against: the midpoint of the two. -/
+noncomputable def Settings.alternativeRate (C : Settings) : ℝ :=
+  (C.harvestRate + C.disagreementRate) / 2
 
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Settings.level (C : Settings) (j : ℕ) : ℝ := C.δ / (2 * (j + 1) * (j + 2))

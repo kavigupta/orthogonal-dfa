@@ -464,13 +464,86 @@ theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.har
 
 end Theorem
 
+/-- The budget's closed form: the at most `S ≤ K` stretches each end within
+`32 ε / (ε − y)² · log(4 K² / δ) + 1` probes, at most twice that. -/
+theorem budget_le (hC : TestsOK C) (nσ nα : ℕ) :
+    (∑ j ∈ range (stretches nσ nα),
+        stretchBound C.harvestRate C.alternativeRate C.disagreementRate (C.level j) : ℝ)
+      ≤ 64 * ((nσ + 2) ^ 2 * (nα + 1) : ℕ) * C.disagreementRate
+          / (C.disagreementRate - C.harvestRate) ^ 2
+        * Real.log (4 * ((nσ + 2) ^ 2 * (nα + 1) : ℕ) ^ 2 / C.δ) := by
+  set K := (nσ + 2) ^ 2 * (nα + 1)
+  set y := C.harvestRate
+  set ε := C.disagreementRate
+  set δ := C.δ
+  have hy := hC.harvestRate_pos
+  have hyε := hC.harvestRate_lt_disagreementRate
+  have hε := hC.disagreementRate_lt
+  have hδ := hC.δ_pos
+  have hδ1 := hC.δ_lt
+  have hSK : stretches nσ nα ≤ K := by
+    simp only [stretches, K]
+    nlinarith [Nat.zero_le (nσ * nα), Nat.zero_le nσ, Nat.zero_le nα]
+  have hK1 : (1 : ℝ) ≤ K := by
+    have : 1 ≤ K := Nat.one_le_iff_ne_zero.2 (by positivity)
+    exact_mod_cast this
+  set L := Real.log (4 * (K : ℝ) ^ 2 / δ)
+  set C₀ := 32 * ε / (ε - y) ^ 2
+  have hεy : 0 < ε - y := by linarith
+  have hC₀ : 32 ≤ C₀ := by
+    rw [le_div_iff₀ (by positivity)]
+    have : (ε - y) ^ 2 ≤ ε := by nlinarith
+    linarith
+  have hL : 1 ≤ L := by
+    have h4 : (4 : ℝ) ≤ 4 * (K : ℝ) ^ 2 / δ := by
+      rw [le_div_iff₀ hδ]; nlinarith
+    have hlog4 : 1 < Real.log 4 := by
+      rw [Real.lt_log_iff_exp_lt (by norm_num)]
+      have := Real.exp_one_lt_d9
+      norm_num at this ⊢
+      linarith
+    exact hlog4.le.trans (Real.log_le_log (by norm_num) h4)
+  have hterm : ∀ j < stretches nσ nα,
+      (stretchBound y C.alternativeRate ε (C.level j) : ℝ) ≤ 2 * C₀ * L := by
+    intro j hj
+    have hl0 := level_pos hC j
+    have hl1 := (level_lt hC j).le
+    have hb := stretchBound_mid_le hy hyε hε hl0 hl1
+    have hlog : Real.log (1 / C.level j) ≤ L := by
+      apply Real.log_le_log (by positivity)
+      have hjK : ((j : ℝ) + 1) ≤ K := by
+        have : j + 1 ≤ K := by omega
+        exact_mod_cast this
+      unfold Settings.level
+      rw [one_div_div, div_le_div_iff_of_pos_right hδ]
+      have hj0 : (0 : ℝ) ≤ j := Nat.cast_nonneg j
+      nlinarith
+    have : C₀ * Real.log (1 / C.level j) ≤ C₀ * L :=
+      mul_le_mul_of_nonneg_left hlog (by linarith)
+    have : 1 ≤ C₀ * L := by nlinarith
+    calc (stretchBound y C.alternativeRate ε (C.level j) : ℝ)
+        ≤ C₀ * Real.log (1 / C.level j) + 1 := hb
+      _ ≤ 2 * C₀ * L := by linarith
+  push_cast
+  calc ∑ j ∈ range (stretches nσ nα), (stretchBound y C.alternativeRate ε (C.level j) : ℝ)
+      ≤ ∑ _j ∈ range (stretches nσ nα), 2 * C₀ * L :=
+        sum_le_sum fun j hj => hterm j (mem_range.1 hj)
+    _ = (stretches nσ nα : ℝ) * (2 * C₀ * L) := by rw [sum_const, card_range, nsmul_eq_mul]
+    _ ≤ (K : ℝ) * (2 * C₀ * L) := by
+        have : (0 : ℝ) ≤ 2 * C₀ * L := by nlinarith
+        have hSK' : (stretches nσ nα : ℝ) ≤ K := by exact_mod_cast hSK
+        exact mul_le_mul_of_nonneg_right hSK' this
+    _ = _ := by simp only [C₀, K]; push_cast; ring
+
 theorem correct_holds : Correct := by
   intro α _ _ σ _ M read side C P
   simp only
-  intro hI hy hym hmε hε1 hδ hδ1 hP D _
-  have hC : TestsOK C := ⟨hy, hym, hmε, hε1, hδ, hδ1⟩
+  intro hI hy hyε hε1 hδ hδ1 hP D _
+  have hC : TestsOK C := ⟨hy, hyε, hε1, hδ, hδ1⟩
   have hP₀ : ∑ j ∈ range (stretches (Fintype.card σ) (Fintype.card α)),
-      stretchBound C.harvestRate C.alternativeRate C.disagreementRate (C.level j) ≤ P := hP
+      stretchBound C.harvestRate C.alternativeRate C.disagreementRate (C.level j) ≤ P := by
+    have := (budget_le C hC (Fintype.card σ) (Fintype.card α)).trans hP
+    exact_mod_cast this
   have hP' : ∑ j ∈ range (stretches (Fintype.card σ) (Fintype.card α)), C.ends j ≤ P :=
     (sum_le_sum fun j _ => ends_le hC j).trans hP₀
   have hΘ : Θ C (Fintype.card σ) (initialState : State α) < P :=
