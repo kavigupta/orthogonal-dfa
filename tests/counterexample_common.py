@@ -40,20 +40,26 @@ def quiet_config(**changes):
         "k": 0,
         "max_leaves": 10,
         "start_rate": 1.0,
+        "start_alternative": 1.0,
         "edge_rate": 0.0,
         "middle_rate": 1.0,
+        "middle_alternative": 1.0,
         "disagreement_rate": 0.0,
+        "disagreement_alternative": 0.0,
         "level": 0.01,
-        "first_look": 1,
         "edge_excess": 1e9,
         "edge_traffic": 0.0,
         "search_share": 1e9,
         "max_probes": 100,
     }
     config = {**quiet, **changes}
-    start_rate, middle_rate = config["start_rate"], config["middle_rate"]
-    config["start_rate"] = lambda depth: start_rate
-    config["middle_rate"] = lambda queries_per_search: middle_rate
+    for per_unit in (
+        "start_rate",
+        "start_alternative",
+        "middle_rate",
+        "middle_alternative",
+    ):
+        config[per_unit] = (lambda value: lambda _: value)(config[per_unit])
     return SimpleNamespace(**config)
 
 

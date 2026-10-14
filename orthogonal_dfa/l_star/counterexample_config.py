@@ -6,21 +6,22 @@ from dataclasses import dataclass
 #: Leaves past which a round gives up.
 MAX_LEAVES = 100
 
-#: Probes before a rate test may first decide, as the consistency estimate's.
-FIRST_LOOK = 30
-
 
 @dataclass(frozen=True)
 class CounterexampleSearchConfig:
     """Only the values it does not derive are fields."""
 
-    #: Chance a rate test errs at one look.
+    #: Chance a rate test ever errs.
     level: float
     #: Probes a round draws before giving up.
     max_probes: int
     #: Each harvest test's threshold, as a multiple of its unit's undecided rate at a
     #: good state: ``acceptable_fnr`` per read.
     harvest_multiple: float
+    #: Each sequential test's alternative, as a multiple of its rate.
+    start_alternative_ratio: float
+    middle_alternative_ratio: float
+    disagreement_alternative_ratio: float
     #: Agreement the hypothesis is driven to.
     acc_threshold: float
     #: The share of prefixes the family may leave undecided.
@@ -33,10 +34,6 @@ class CounterexampleSearchConfig:
     @property
     def max_leaves(self) -> int:
         return MAX_LEAVES
-
-    @property
-    def first_look(self) -> int:
-        return FIRST_LOOK
 
     @property
     def disagreement_rate(self) -> float:
@@ -54,6 +51,18 @@ class CounterexampleSearchConfig:
         return min(
             1.0, self.harvest_multiple * queries_per_search * self.acceptable_fnr
         )
+
+    def start_alternative(self, depth: int) -> float:
+        return min(1.0, self.start_alternative_ratio * self.start_rate(depth))
+
+    def middle_alternative(self, queries_per_search: float) -> float:
+        return min(
+            1.0, self.middle_alternative_ratio * self.middle_rate(queries_per_search)
+        )
+
+    @property
+    def disagreement_alternative(self) -> float:
+        return self.disagreement_alternative_ratio * self.disagreement_rate
 
     @property
     def edge_excess(self) -> int:
@@ -77,6 +86,9 @@ def counterexample_search_config(
         level=1e-3,
         max_probes=50_000,
         harvest_multiple=5,
+        start_alternative_ratio=2,
+        middle_alternative_ratio=1.25,
+        disagreement_alternative_ratio=0.1,
         acc_threshold=acc_threshold,
         acceptable_fnr=acceptable_fnr,
     )

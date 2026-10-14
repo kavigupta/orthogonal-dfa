@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set
 from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import Charges, EdgeFound, Middle, Outcome
 from .hypothesis_dfa import Edge, Path
-from .statistics import rate_side
+from .statistics import seq_rate
 
 SUCCESS = "success"
 HARVEST_START = "harvest start"
@@ -55,8 +55,13 @@ def ending_test(
     leaves: Set[Path],
 ) -> Optional[Ending]:
     """The harvest tests, then the success test."""
-    start_rate = config.start_rate(depth)
-    if _rate_above(config, start_rate, counts.probes, len(counts.start_harvest)):
+    if seq_rate(
+        config.start_rate(depth),
+        config.start_alternative(depth),
+        config.level,
+        counts.probes,
+        len(counts.start_harvest),
+    ):
         return Ending(HARVEST_START, list(counts.start_harvest), None)
     for edge, count in counts.traversals.items():
         harvest = counts.edge_harvest.get(edge, [])
@@ -67,9 +72,13 @@ def ending_test(
         ):
             return Ending(HARVEST_EDGE, list(harvest), edge)
     searches = counts.searches
-    middle_rate = config.middle_rate(counts.search_queries / max(searches, 1))
-    if config.search_share * counts.probes <= searches and _rate_above(
-        config, middle_rate, searches, len(counts.middles)
+    per_search = counts.search_queries / max(searches, 1)
+    if config.search_share * counts.probes <= searches and seq_rate(
+        config.middle_rate(per_search),
+        config.middle_alternative(per_search),
+        config.level,
+        searches,
+        len(counts.middles),
     ):
         return Ending(HARVEST_MIDDLES, list(counts.middles), None)
     if succeeds_at(counts, config, counts.probes):
@@ -81,15 +90,10 @@ def succeeds_at(
     counts: SiteCounts, config: CounterexampleSearchConfig, probes: int
 ) -> bool:
     """The success test, had the hypothesis held for ``probes`` probes."""
-    side = rate_side(
+    return seq_rate(
         config.disagreement_rate,
+        config.disagreement_alternative,
         config.level,
-        config.first_look,
         probes,
         counts.searches,
     )
-    return side is False
-
-
-def _rate_above(config: CounterexampleSearchConfig, theta, trials, hits) -> bool:
-    return rate_side(theta, config.level, config.first_look, trials, hits) is True

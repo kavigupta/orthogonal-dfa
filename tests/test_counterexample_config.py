@@ -16,13 +16,30 @@ class TestTheShippedConfig(unittest.TestCase):
             config.middle_rate(4),
             config.middle_rate(30),
             config.disagreement_rate,
-            config.first_look,
+            config.start_alternative(2),
+            config.middle_alternative(4),
+            config.disagreement_alternative,
             config.edge_excess,
             config.edge_traffic,
             config.search_share,
         )
         self.assertEqual(
-            (0, 100, 0.1, 0.05, 0.2, 1.0, 1 - 0.98, 30, 10, 0.01, 0.01), derived
+            (
+                0,
+                100,
+                0.1,
+                0.05,
+                0.2,
+                1.0,
+                1 - 0.98,
+                0.2,
+                0.25,
+                0.1 * (1 - 0.98),
+                10,
+                0.01,
+                0.01,
+            ),
+            derived,
         )
 
 

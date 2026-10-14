@@ -292,6 +292,25 @@ def denoise_sample_size(
     return lo
 
 
+def seq_rate(p0, p1, level, trials, hits) -> bool:
+    """``seqRate`` of ``OrthoDFA/SeqTest.lean``: whether the likelihood ratio of rate ``p1``
+    against ``p0`` reaches ``1 / level``,
+
+        (p1 / p0)^hits ((1 - p1) / (1 - p0))^(trials - hits) >= 1 / level.
+
+    Under rate ``p0``, or any rate on the far side of it from ``p1``, the chance it ever fires
+    over a stream of looks is at most ``level``."""
+    misses = trials - hits
+    if not 0 < p0 < 1 or (hits and p1 <= 0) or (misses and p1 >= 1):
+        return False
+    llr = 0.0
+    if hits:
+        llr += hits * math.log(p1 / p0)
+    if misses:
+        llr += misses * math.log((1 - p1) / (1 - p0))
+    return llr >= math.log(1 / level)
+
+
 def rate_side(theta, level, min_samples, trials, hits) -> Optional[bool]:
     """``rateSide θ a n₀ n h`` of ``OrthoDFA/RateTest.lean``, proved sound by
     ``RateTestSound``: ``True`` where ``P(Bin(trials, θ) ≥ hits) < level``, ``False``
