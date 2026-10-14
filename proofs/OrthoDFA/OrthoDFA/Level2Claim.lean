@@ -34,13 +34,13 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
   D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
 
 /-- With reads fixed by the target state, `0 < y < m < ε < 1` (`harvestRate`, `alternativeRate`,
-`disagreementRate`), a level `0 < a < 1`, and at least `S n` probes, level 2 fails to end well
-(`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with chance at most
-`2 S a`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of them, and between
-splits each of a leaf's edges is learned once. Under one hypothesis one of the two sequential tests
-fires within `n` probes, and each errs with chance at most `a` over that stretch. A consistent
-ending has its hypothesis and tree parting on at most `ε` of the probes, and a harvest's sampler
-yields `y`. -/
+`disagreementRate`), `0 < δ < 1`, and at least `∑_{j < S} n(δ / (2 (j + 1) (j + 2)))` probes,
+level 2 fails to end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read
+undecided, with chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most
+`|Q| + 2` of them, and between splits each of a leaf's edges is learned once. Under the `j`-th
+hypothesis the tests run at level `a = δ / (2 (j + 1) (j + 2))`, one of them fires within `n(a)`
+probes, and each errs with chance at most `a`. A consistent ending has its hypothesis and tree
+parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
 def Correct : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Settings) (P : ℕ),
@@ -49,14 +49,15 @@ def Correct : Prop :=
     let y := C.harvestRate
     let m := C.alternativeRate
     let ε := C.disagreementRate
-    let a := C.testLevel
+    let δ := C.δ
     let A₁ := Real.log (m / y)
     let B₁ := Real.log ((1 - y) / (1 - m))
     let A₂ := Real.log ((1 - m) / (1 - ε))
     let B₂ := Real.log (ε / m)
     let S := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let n := ⌈(A₁ + B₁ + A₂ + B₂) * Real.log (1 / a) / (A₁ * A₂ - B₁ * B₂)⌉₊
-    ReadsByState read M side → 0 < y → y < m → m < ε → ε < 1 → 0 < a → a < 1 → S * n ≤ P →
+    let n := fun a : ℝ => ⌈(A₁ + B₁ + A₂ + B₂) * Real.log (1 / a) / (A₁ * A₂ - B₁ * B₂)⌉₊
+    ReadsByState read M side → 0 < y → y < m → m < ε → ε < 1 → 0 < δ → δ < 1 →
+    ∑ j ∈ Finset.range S, n (δ / (2 * (j + 1) * (j + 2))) ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
@@ -64,7 +65,7 @@ def Correct : Prop :=
               {x | Disagrees read result.hypothesis C.walkStart x}
               C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis) y
               result.ending}
-        ≤ 2 * S * a
+        ≤ δ
 
 end Level2
 

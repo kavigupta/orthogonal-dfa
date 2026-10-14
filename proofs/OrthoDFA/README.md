@@ -61,22 +61,23 @@
   witness part at the edge's letter and the midfix where their successors' leaves part), and an
   unlearned edge is learned. The undecided reads probes stop at, and the searches that stopped at
   an undecided midpoint (the disagreements), are counted since the hypothesis last changed. After
-  each probe a sequential test (`seqRate`) at level `testLevel` checks each count against
-  `alternativeRate`: the round harvests once the undecided reads' test of `harvestRate` fires, and
-  ends consistent once the disagreements' test of `disagreementRate` fires. With
+  each probe a sequential test (`seqRate`) checks each count against `alternativeRate`: the round
+  harvests once the undecided reads' test of `harvestRate` fires, and ends consistent once the
+  disagreements' test of `disagreementRate` fires. Under the `j`-th hypothesis both run at level
+  `δ / (2 (j + 1) (j + 2))`, so each test's levels sum to at most `δ / 2`. With
   `harvestRate < alternativeRate < disagreementRate`, one of the tests fires within
-  `n = stretchLength` probes under one hypothesis, at most `stretchBound`. A harvest's sampler
+  `stretchLength` probes under one hypothesis, at most `stretchBound`. A harvest's sampler
   (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
   read it stops at.
 - `OrthoDFA/Level2Claim.lean` — `Level2.Correct`: with every state's reads all undecided or all on
   its side (`ReadsByState`), `0 < y < m < ε < 1` (`harvestRate`, `alternativeRate`,
-  `disagreementRate`), `0 < a < 1` and at least `S · n` probes, level 2 ends well, consistent with
-  its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler yields
-  `y`, but for chance at most `2 S a`. Here `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the
-  hypotheses and `n = ⌈(A₁ + B₁ + A₂ + B₂) log(1/a) / (A₁A₂ − B₁B₂)⌉`, with `A₁ = log(m/y)`,
-  `B₁ = log((1 − y)/(1 − m))`, `A₂ = log((1 − m)/(1 − ε))` and `B₂ = log(ε/m)`, bounds a
-  stretch: one of the two sequential tests fires within `n` probes, and each errs at most `a` a
-  stretch.
+  `disagreementRate`), `0 < δ < 1` and at least `∑_{j < S} n(δ / (2 (j + 1) (j + 2)))` probes,
+  level 2 ends well, consistent with its hypothesis and tree parting on at most `ε` of the probes
+  or a harvest whose sampler yields `y`, but for chance at most `δ`. Here
+  `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the hypotheses and
+  `n(a) = ⌈(A₁ + B₁ + A₂ + B₂) log(1/a) / (A₁A₂ − B₁B₂)⌉`, with `A₁ = log(m/y)`,
+  `B₁ = log((1 − y)/(1 − m))`, `A₂ = log((1 − m)/(1 − ε))` and `B₂ = log(ε/m)`, bounds the
+  `j`-th stretch, whose tests run at level `a = δ / (2 (j + 1) (j + 2))`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

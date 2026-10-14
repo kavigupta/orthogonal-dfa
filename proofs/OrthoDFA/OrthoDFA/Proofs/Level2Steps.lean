@@ -7,9 +7,9 @@ import OrthoDFA.Proofs.SeqTest
 
 The invariant `Inv`: every learned edge out of a leaf points where its witness's successor sifts,
 every leaf past the first two is reached by some string, the stretch's disagreements are at most
-its undecided reads, which are at most its probes, and it is shorter than `ends`, the look by
-which, with `harvestRate < alternativeRate < disagreementRate`, one of the sequential tests fires
-whatever the counts.
+its undecided reads, which are at most its probes, and it is shorter than `ends j` for the `j`-th
+hypothesis, the look by which, with `harvestRate < alternativeRate < disagreementRate`, one of the
+sequential tests at level `δ / (2 (j + 1) (j + 2))` fires whatever the counts.
 
 A disagreement at decided reads at the edge `(p, c)` has two strings at `p`, the probe's prefix and
 the edge's witness, whose successors sift to different leaves. They read decidedly apart at `c`
@@ -17,7 +17,7 @@ and the midfix where those leaves part, so both new leaves of the split are reac
 reads fixed by the target state the reached leaves are at most `|Q|`. Each step that does not end
 the round lowers `Θ`: a split or a learned edge lowers `Ψ`, which counts the splits left and the
 unlearned edges, and a probe that keeps the hypothesis adds to the stretch, which stays below
-`ends`.
+its `ends`.
 -/
 
 namespace OrthoDFA
@@ -85,61 +85,94 @@ of the rate `y`, or the disagreements' of the rate `ε`. At most `stretchBound y
 noncomputable def stretchLength (y m ε a : ℝ) : ℕ :=
   sInf {n | ∀ d ≤ n, seqRate y m a n d ∨ seqRate ε m a n d}
 
-/-- The rates are chances, in the order `harvestRate < alternativeRate < disagreementRate`, and the
-level is strictly between 0 and 1. -/
+/-- The rates are chances, in the order `harvestRate < alternativeRate < disagreementRate`, and
+`δ` is strictly between 0 and 1. -/
 structure TestsOK : Prop where
   harvestRate_pos : 0 < C.harvestRate
   harvestRate_lt : C.harvestRate < C.alternativeRate
   alternativeRate_lt : C.alternativeRate < C.disagreementRate
   disagreementRate_lt : C.disagreementRate < 1
-  testLevel_pos : 0 < C.testLevel
-  testLevel_lt : C.testLevel < 1
-
-/-- The probes by which a stretch ends. -/
-noncomputable def Settings.ends : ℕ :=
-  stretchLength C.harvestRate C.alternativeRate C.disagreementRate C.testLevel
+  δ_pos : 0 < C.δ
+  δ_lt : C.δ < 1
 
 variable {C} in
-/-- At look `ends`, whatever the disagreements counted, one of the tests fires. -/
-theorem ends_spec (hC : TestsOK C) :
-    ∀ d ≤ C.ends, seqRate C.harvestRate C.alternativeRate C.testLevel C.ends d
-      ∨ seqRate C.disagreementRate C.alternativeRate C.testLevel C.ends d := by
-  have hne : {n | ∀ d ≤ n, seqRate C.harvestRate C.alternativeRate C.testLevel n d
-      ∨ seqRate C.disagreementRate C.alternativeRate C.testLevel n d}.Nonempty :=
+theorem level_pos (hC : TestsOK C) (j : ℕ) : 0 < C.level j := by
+  have := hC.δ_pos
+  unfold Settings.level
+  positivity
+
+variable {C} in
+theorem level_lt (hC : TestsOK C) (j : ℕ) : C.level j < 1 := by
+  have := hC.δ_lt
+  have hj : (0 : ℝ) ≤ j := Nat.cast_nonneg j
+  unfold Settings.level
+  rw [div_lt_one (by positivity)]
+  nlinarith
+
+theorem sum_level (N : ℕ) :
+    ∑ j ∈ range N, C.level j = C.δ / 2 * (N / (N + 1)) := by
+  induction N with
+  | zero => simp
+  | succ N ih =>
+    rw [sum_range_succ, ih]
+    unfold Settings.level
+    push_cast
+    field_simp
+    ring
+
+variable {C} in
+/-- Each test's levels over all hypotheses sum to at most `δ / 2`. -/
+theorem sum_level_le (hC : TestsOK C) (N : ℕ) : ∑ j ∈ range N, C.level j ≤ C.δ / 2 := by
+  rw [sum_level]
+  have := hC.δ_pos
+  have h : (N : ℝ) / (N + 1) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
+  nlinarith
+
+/-- The probes by which the `j`-th stretch ends. -/
+noncomputable def Settings.ends (j : ℕ) : ℕ :=
+  stretchLength C.harvestRate C.alternativeRate C.disagreementRate (C.level j)
+
+variable {C} in
+/-- At look `ends j`, whatever the disagreements counted, one of the tests fires. -/
+theorem ends_spec (hC : TestsOK C) (j : ℕ) :
+    ∀ d ≤ C.ends j, seqRate C.harvestRate C.alternativeRate (C.level j) (C.ends j) d
+      ∨ seqRate C.disagreementRate C.alternativeRate (C.level j) (C.ends j) d := by
+  have hne : {n | ∀ d ≤ n, seqRate C.harvestRate C.alternativeRate (C.level j) n d
+      ∨ seqRate C.disagreementRate C.alternativeRate (C.level j) n d}.Nonempty :=
     ⟨_, seqRate_decides hC.harvestRate_pos hC.harvestRate_lt hC.alternativeRate_lt
-      hC.disagreementRate_lt hC.testLevel_pos hC.testLevel_lt le_rfl⟩
+      hC.disagreementRate_lt (level_pos hC j) (level_lt hC j) le_rfl⟩
   intro d hd
   exact Nat.sInf_mem hne d hd
 
 variable {C} in
-theorem ends_le (hC : TestsOK C) :
-    C.ends ≤ stretchBound C.harvestRate C.alternativeRate C.disagreementRate C.testLevel :=
+theorem ends_le (hC : TestsOK C) (j : ℕ) :
+    C.ends j ≤ stretchBound C.harvestRate C.alternativeRate C.disagreementRate (C.level j) :=
   Nat.sInf_le (seqRate_decides hC.harvestRate_pos hC.harvestRate_lt hC.alternativeRate_lt
-    hC.disagreementRate_lt hC.testLevel_pos hC.testLevel_lt le_rfl)
+    hC.disagreementRate_lt (level_pos hC j) (level_lt hC j) le_rfl)
 
 variable {C} in
-theorem one_le_ends (hC : TestsOK C) : 1 ≤ C.ends := by
+theorem one_le_ends (hC : TestsOK C) (j : ℕ) : 1 ≤ C.ends j := by
   by_contra h
-  have h0 : C.ends = 0 := by omega
-  have ha : 1 < 1 / C.testLevel := by
-    rw [lt_div_iff₀ hC.testLevel_pos]; linarith [hC.testLevel_lt]
-  rcases ends_spec hC 0 (by omega) with h1 | h1 <;> rw [h0] at h1 <;>
+  have h0 : C.ends j = 0 := by omega
+  have ha : 1 < 1 / C.level j := by
+    rw [lt_div_iff₀ (level_pos hC j)]; linarith [level_lt hC j]
+  rcases ends_spec hC j 0 (by omega) with h1 | h1 <;> rw [h0] at h1 <;>
     simp only [seqRate, likelihoodRatio_zero] at h1 <;> linarith
 
 /-- The undecided reads' test fires. -/
 def Fires (s : State α) : Prop :=
-  seqRate C.harvestRate C.alternativeRate C.testLevel s.probes s.undecided
+  seqRate C.harvestRate C.alternativeRate (C.level s.hypotheses) s.probes s.undecided
 
 /-- The disagreements' test fires. -/
 def Below (s : State α) : Prop :=
-  seqRate C.disagreementRate C.alternativeRate C.testLevel s.probes s.disagreements
+  seqRate C.disagreementRate C.alternativeRate (C.level s.hypotheses) s.probes s.disagreements
 
 structure Inv (s : State α) : Prop where
   edges : EdgesOK read s.tree s.edges
   reached : Reached read s.tree
   dis_le_undecided : s.disagreements ≤ s.undecided
   undecided_le_probes : s.undecided ≤ s.probes
-  probes_lt : s.probes < C.ends
+  probes_lt : s.probes < C.ends s.hypotheses
 
 /-- The probe disagrees at decided reads, or reaches an unlearned edge: it changes the
 hypothesis. -/
@@ -151,7 +184,7 @@ def Changes : Outcome α → Prop
 /-- `s` with an outcome that keeps the hypothesis counted. -/
 def counted (s : State α) (o : Outcome α) : State α :=
   ⟨s.tree, s.edges, s.undecided + o.undecidedStrings.length,
-    s.disagreements + (if o.clean then 0 else 1), s.probes + 1⟩
+    s.disagreements + (if o.clean then 0 else 1), s.probes + 1, s.hypotheses⟩
 
 /-! ## The potential -/
 
@@ -169,7 +202,10 @@ def X : ℕ := (nσ + 2) * Fintype.card α + 1
 
 def Ψ (s : State α) : ℕ := (nσ + 2 - s.tree.leaves.length) * X (α := α) nσ + unlearned s
 
-noncomputable def Θ (s : State α) : ℕ := Ψ nσ s * C.ends + (C.ends - 1 - s.probes)
+/-- The probes left: the current stretch's, and those of the `Ψ` hypotheses that can follow. -/
+noncomputable def Θ (s : State α) : ℕ :=
+  ∑ i ∈ Ico (s.hypotheses + 1) (s.hypotheses + 1 + Ψ nσ s), C.ends i
+    + (C.ends s.hypotheses - 1 - s.probes)
 
 omit [DecidableEq α] in
 theorem unlearned_le (s : State α) : unlearned s ≤ s.tree.leaves.length * Fintype.card α := by
@@ -180,8 +216,8 @@ theorem unlearned_le (s : State α) : unlearned s ≤ s.tree.leaves.length * Fin
 
 /-- Learning an edge of a leaf lowers `Ψ`. -/
 theorem Ψ_lt_learn {s : State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
-    (hE : s.edges (p, c) = none) (v : List Bool × FreeMonoid α) :
-    Ψ nσ (newHypothesis s.tree (Function.update s.edges (p, c) (some v))) < Ψ nσ s := by
+    (hE : s.edges (p, c) = none) (v : List Bool × FreeMonoid α) (j : ℕ) :
+    Ψ nσ (newHypothesis s.tree (Function.update s.edges (p, c) (some v)) j) < Ψ nσ s := by
   have : unlearnedOf s.tree (Function.update s.edges (p, c) (some v))
       < unlearnedOf s.tree s.edges := by
     unfold unlearnedOf
@@ -204,11 +240,11 @@ theorem Ψ_lt_learn {s : State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.l
 
 /-- A split within `|Q| + 2` leaves lowers `Ψ`, whatever the new edges. -/
 theorem Ψ_lt_split {s : State α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d : FreeMonoid α}
-    (hsz : (s.tree.splitAt d p).leaves.length ≤ nσ + 2) (E : Edges α) :
-    Ψ nσ (newHypothesis (s.tree.splitAt d p) E) < Ψ nσ s := by
+    (hsz : (s.tree.splitAt d p).leaves.length ≤ nσ + 2) (E : Edges α) (j : ℕ) :
+    Ψ nσ (newHypothesis (s.tree.splitAt d p) E j) < Ψ nσ s := by
   unfold Ψ
   have hlen := DTree.length_leaves_splitAt d s.tree p hp
-  have hu := unlearned_le (newHypothesis (s.tree.splitAt d p) E)
+  have hu := unlearned_le (newHypothesis (s.tree.splitAt d p) E j)
   simp only [newHypothesis] at hu ⊢
   rw [hlen] at hu hsz ⊢
   have h1 : (s.tree.leaves.length + 1) * Fintype.card α < X (α := α) nσ := by
@@ -219,20 +255,30 @@ theorem Ψ_lt_split {s : State α} {p : List Bool} (hp : p ∈ s.tree.leaves) {d
   rw [h2, Nat.add_mul, one_mul]
   omega
 
+/-- A sum over `j + 1` and the `k` after it is at most one over the `K ≥ k + 1` after `j`. -/
+theorem sum_Ico_succ_le {M : Type*} [AddCommMonoid M] [PartialOrder M]
+    [IsOrderedAddMonoid M] (f : ℕ → M) (hf : ∀ i, 0 ≤ f i) {j k K : ℕ} (hk : k + 1 ≤ K) :
+    f (j + 1) + ∑ i ∈ Ico (j + 2) (j + 2 + k), f i ≤ ∑ i ∈ Ico (j + 1) (j + 1 + K), f i := by
+  rw [← sum_eq_sum_Ico_succ_bot (by omega : j + 1 < j + 2 + k)]
+  exact sum_le_sum_of_subset_of_nonneg (Ico_subset_Ico le_rfl (by omega)) fun i _ _ => hf i
+
 theorem Θ_lt_same {s s' : State α} (ht : s'.tree = s.tree) (he : s'.edges = s.edges)
-    (hp : s'.probes = s.probes + 1) (hlt : s'.probes < C.ends) : Θ C nσ s' < Θ C nσ s := by
+    (hh : s'.hypotheses = s.hypotheses) (hp : s'.probes = s.probes + 1)
+    (hlt : s'.probes < C.ends s'.hypotheses) : Θ C nσ s' < Θ C nσ s := by
   have hΨ : Ψ nσ s' = Ψ nσ s := by unfold Ψ unlearned; rw [ht, he]
   unfold Θ
-  rw [hΨ]
+  rw [hΨ, hh]
+  rw [hh] at hlt
   omega
 
-theorem Θ_lt_change {s : State α} (hs : s.probes < C.ends) (T : DTree α)
-    (E : Edges α) (hΨ : Ψ nσ (newHypothesis T E) < Ψ nσ s) :
-    Θ C nσ (newHypothesis T E) < Θ C nσ s := by
+theorem Θ_lt_change {s : State α} (hs : s.probes < C.ends s.hypotheses) (T : DTree α)
+    (E : Edges α) (hn : 1 ≤ C.ends (s.hypotheses + 1))
+    (hΨ : Ψ nσ (newHypothesis T E (s.hypotheses + 1)) < Ψ nσ s) :
+    Θ C nσ (newHypothesis T E (s.hypotheses + 1)) < Θ C nσ s := by
+  have := sum_Ico_succ_le (C.ends) (fun _ => Nat.zero_le _) (j := s.hypotheses) hΨ
   unfold Θ
-  have := Nat.mul_le_mul_right C.ends (show Ψ nσ (newHypothesis T E) + 1 ≤ Ψ nσ s by omega)
   simp only [newHypothesis] at this ⊢
-  rw [Nat.add_mul, one_mul] at this
+  rw [show s.hypotheses + 1 + 1 = s.hypotheses + 2 by omega]
   omega
 
 omit [DecidableEq α] in
@@ -248,22 +294,16 @@ theorem Ψ_start : Ψ nσ (initialState : State α) + 1 ≤ stretches nσ (Finty
   rw [show nσ + 2 - 2 = nσ by omega]
   omega
 
-theorem Θ_start (hn : 1 ≤ C.ends) :
-    Θ C nσ (initialState : State α) < stretches nσ (Fintype.card α) * C.ends := by
-  have hu := unlearned_le (initialState : State α)
-  rw [leaves_start] at hu
-  have hΨ : Ψ nσ (initialState : State α) ≤ stretches nσ (Fintype.card α) - 1 := by
-    unfold Ψ stretches X
-    rw [leaves_start]
-    simp only [List.length_cons, List.length_nil, zero_add, Nat.reduceAdd] at hu ⊢
-    rw [show nσ + 2 - 2 = nσ by omega]
-    omega
-  have hs : 1 ≤ stretches nσ (Fintype.card α) := by unfold stretches; omega
+theorem Θ_start (hn : 1 ≤ C.ends 0) :
+    Θ C nσ (initialState : State α) < ∑ j ∈ range (stretches nσ (Fintype.card α)), C.ends j := by
+  have hΨ := Ψ_start nσ (α := α)
+  have key := sum_range_add_sum_Ico C.ends (show 1 ≤ 1 + Ψ nσ (initialState : State α) by omega)
+  have hsum : ∑ j ∈ range (1 + Ψ nσ (initialState : State α)), C.ends j
+      ≤ ∑ j ∈ range (stretches nσ (Fintype.card α)), C.ends j :=
+    sum_le_sum_of_subset (range_mono (by omega))
+  simp only [range_one, sum_singleton] at key
   unfold Θ
-  have := Nat.mul_le_mul_right C.ends hΨ
-  rw [Nat.sub_mul, one_mul] at this
-  have : C.ends ≤ stretches nσ (Fintype.card α) * C.ends :=
-    Nat.le_mul_of_pos_left _ hs
+  simp only [initialState, newHypothesis, Nat.zero_add] at hsum key ⊢
   omega
 
 end Potential
@@ -274,16 +314,17 @@ section Step
 
 variable {σ : Type*} [Fintype σ] {M : DFA α σ} {side : σ → Bool}
 
-theorem inv_fresh {T : DTree α} {E : Edges α} (hn : 1 ≤ C.ends) (hE : EdgesOK read T E)
-    (hr : Reached read T) : Inv read C (newHypothesis T E) :=
+theorem inv_fresh {T : DTree α} {E : Edges α} {j : ℕ} (hn : 1 ≤ C.ends j)
+    (hE : EdgesOK read T E) (hr : Reached read T) : Inv read C (newHypothesis T E j) :=
   ⟨hE, hr, le_rfl, le_rfl, by simp [newHypothesis]; omega⟩
 
 /-- A step that changes the hypothesis: a split or a learned edge, keeping `Inv`, lowering `Ψ`. -/
-theorem step_change [Fintype α] (hI : ReadsByState read M side) (hn : 1 ≤ C.ends)
-    {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_change [Fintype α] (hI : ReadsByState read M side)
+    {s : State α} (hn : 1 ≤ C.ends (s.hypotheses + 1)) (hs : Inv read C s) {x : FreeMonoid α}
     (hc : Changes (probeOrAgree read s.tree s.edges C.walkStart x)) :
-    ∃ T E, applyProbe read C s x = .inl (newHypothesis T E) ∧ Inv read C (newHypothesis T E)
-      ∧ Ψ (Fintype.card σ) (newHypothesis T E) < Ψ (Fintype.card σ) s := by
+    ∃ T E, applyProbe read C s x = .inl (newHypothesis T E (s.hypotheses + 1))
+      ∧ Inv read C (newHypothesis T E (s.hypotheses + 1))
+      ∧ Ψ (Fintype.card σ) (newHypothesis T E (s.hypotheses + 1)) < Ψ (Fintype.card σ) s := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe
   revert hc hOK
@@ -296,7 +337,7 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side) (hn : 1 ≤ C.e
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_upd read hs.edges hu huc) hs.reached,
-      Ψ_lt_learn _ hp hE _⟩
+      Ψ_lt_learn _ hp hE _ _⟩
   | wrongEdge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, ht₀⟩ := hOK
     obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
@@ -309,7 +350,7 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side) (hn : 1 ≤ C.e
       · simpa [mul_assoc] using hpart.2.2
     simp only [hE]
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_retarget read hs.edges hp _) hreach,
-      Ψ_lt_split _ hp (leaves_le_of_reached read hI hreach) _⟩
+      Ψ_lt_split _ hp (leaves_le_of_reached read hI hreach) _ _⟩
 
 omit [DecidableEq α] in
 /-- Counting a probe that keeps the hypothesis keeps `Inv` where neither test fires. -/
@@ -334,11 +375,11 @@ theorem inv_counted (hC : TestsOK C) {s : State α} (hs : Inv read C s) {o : Out
   have hup : s.undecided + o.undecidedStrings.length ≤ s.probes + 1 := by
     have := hs.undecided_le_probes; omega
   refine ⟨hs.edges, hs.reached, hdu, hup, ?_⟩
-  show s.probes + 1 < C.ends
+  show s.probes + 1 < C.ends s.hypotheses
   have hlt := hs.probes_lt
   by_contra hge
-  have heq : s.probes + 1 = C.ends := by omega
-  rcases ends_spec hC _ (heq ▸ hdu.trans hup) with h | h
+  have heq : s.probes + 1 = C.ends s.hypotheses := by omega
+  rcases ends_spec hC s.hypotheses _ (heq ▸ hdu.trans hup) with h | h
   · apply hF
     show seqRate _ _ _ (s.probes + 1) (s.undecided + o.undecidedStrings.length)
     rw [heq]
