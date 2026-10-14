@@ -440,11 +440,15 @@ theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.har
 
 end Theorem
 
-theorem level2Correct_holds : Level2Correct := by
-  intro α _ _ σ _ M read side C P hI hy hym hmε hε1 ha ha1 hP D _
+theorem correct_holds : Correct := by
+  intro α _ _ σ _ M read side C P
+  simp only
+  intro hI hy hym hmε hε1 ha ha1 hP D _
   have hC : TestsOK C := ⟨hy, hym, hmε, hε1, ha, ha1⟩
+  have hP' : stretches (Fintype.card σ) (Fintype.card α) * C.ends ≤ P :=
+    (Nat.mul_le_mul_left _ (ends_le hC)).trans hP
   have hΘ : Θ C (Fintype.card σ) (initialState : State α) < P :=
-    (Θ_start C _ (one_le_ends hC)).trans_le hP
+    (Θ_start C _ (one_le_ends hC)).trans_le hP'
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
         ¬ EndsWell M (AllUndecided read M) D C.disagreementRate
           {x | Disagrees read result.hypothesis C.walkStart x}
@@ -466,6 +470,8 @@ theorem level2Correct_holds : Level2Correct := by
   refine (add_le_add h1 h2).trans (le_of_eq ?_)
   rw [← ENNReal.ofReal_add hS hS]
   congr 1
+  simp only [stretches]
+  push_cast
   ring
 
 end Level2

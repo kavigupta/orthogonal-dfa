@@ -58,7 +58,7 @@ theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
 
-theorem level2_correct : Level2.Level2Correct := Level2.level2Correct_holds
+theorem level2_correct : Level2.Correct := Level2.correct_holds
 
 #print axioms level2_correct
 

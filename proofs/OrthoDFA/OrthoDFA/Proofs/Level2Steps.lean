@@ -75,6 +75,16 @@ theorem leaves_le_of_reached {σ : Type*} [Fintype σ] {M : DFA α σ} {side : �
 
 variable [DecidableEq α]
 
+/-- At most this many hypotheses: each split adds a leaf, at most `|Q| + 2` of them, and between
+splits each of a leaf's edges is learned once. -/
+def stretches (nσ nα : ℕ) : ℕ := nσ * ((nσ + 2) * nα + 1) + 2 * nα + 1
+
+/-- The fewest probes by which, whatever count `d` of disagreements and at least as many undecided
+reads they hold, one of the sequential tests at level `a` against `m` fires: the undecided reads'
+of the rate `y`, or the disagreements' of the rate `ε`. At most `stretchBound y m ε a`. -/
+noncomputable def stretchLength (y m ε a : ℝ) : ℕ :=
+  sInf {n | ∀ d ≤ n, seqRate y m a n d ∨ seqRate ε m a n d}
+
 /-- The rates are chances, in the order `harvestRate < alternativeRate < disagreementRate`, and the
 level is strictly between 0 and 1. -/
 structure TestsOK : Prop where
@@ -100,6 +110,12 @@ theorem ends_spec (hC : TestsOK C) :
       hC.disagreementRate_lt hC.testLevel_pos hC.testLevel_lt le_rfl⟩
   intro d hd
   exact Nat.sInf_mem hne d hd
+
+variable {C} in
+theorem ends_le (hC : TestsOK C) :
+    C.ends ≤ stretchBound C.harvestRate C.alternativeRate C.disagreementRate C.testLevel :=
+  Nat.sInf_le (seqRate_decides hC.harvestRate_pos hC.harvestRate_lt hC.alternativeRate_lt
+    hC.disagreementRate_lt hC.testLevel_pos hC.testLevel_lt le_rfl)
 
 variable {C} in
 theorem one_le_ends (hC : TestsOK C) : 1 ≤ C.ends := by
