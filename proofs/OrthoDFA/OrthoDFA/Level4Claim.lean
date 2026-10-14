@@ -38,8 +38,8 @@ structure EpsKnobs extends Knobs where
 
 /-- Level 3's `Knobs.Admissible`, and `Gw` nonnegative. -/
 structure EpsKnobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
-    (L : ℕ) (ε y : ℝ) (kn : EpsKnobs) : Prop where
-  base : kn.toKnobs.Admissible (σ := σ) (α := α) θ C L ε y
+    (ε y : ℝ) (kn : EpsKnobs) : Prop where
+  base : kn.toKnobs.Admissible (σ := σ) (α := α) θ C ε y
   Gw_nonneg : 0 ≤ kn.Gw
 
 /-- `roundBound`, plus `wrongRisk` and the chance that some probe of the round can read a string
@@ -53,7 +53,7 @@ noncomputable def epsRoundBound (σ : Type*) [Fintype σ] [Fintype α] (θ εw :
 /-- The least of `epsRoundBound` over the admissible knobs. -/
 noncomputable def epsRoundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ εw : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (ε y : ℝ) : ENNReal :=
-  ⨅ (kn : EpsKnobs) (_ : kn.Admissible (σ := σ) (α := α) θ C L ε y),
+  ⨅ (kn : EpsKnobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε y),
     ENNReal.ofReal (epsRoundBound (α := α) σ θ εw D L C y kn)
 
 /-- `ReadOracle` with each read on its state's wrong side with chance at most `εw`. -/

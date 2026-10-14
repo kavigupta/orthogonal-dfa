@@ -58,8 +58,8 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       ring
     rw [he] at h
     exact h
-  set c := ENNReal.ofReal (Ideal.stretches (Fintype.card σ) (Fintype.card α)
-    * stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' + P * Gw)
+  set c := ENNReal.ofReal ((Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1)
+    * stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' + P * Gw)
   set B := toMeasurable μ (Nn ∪ Nw)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
@@ -75,17 +75,18 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
       simp only [Set.mem_union, not_or] at hω'
       obtain ⟨hωN, hωW⟩ := hω'
       simp only [Nn, Nw, Set.mem_ofPred_eq, not_not, not_lt] at hωN hωW
-      refine (probe_level (read · ω) C M U θ D ε Ns y (side := side) L P N₁ G Gw θr εd' θpt' hL
+      refine (probe_level (read · ω) C M U θ D ε Ns y (side := side) P N₁ G Gw θr εd' θpt'
         hωN hωW hGw0 hN₁ hN₁s hG0 hGt hyt ha hθs0 hθs hθs1 hps hθe hθpt0 hθpt hθpt1 hfall hεd0
         hεd hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP).trans
         (ENNReal.ofReal_le_ofReal ?_)
-      have hP' : ((Ideal.stretches (Fintype.card σ) (Fintype.card α) * Ns : ℕ) : ℝ) ≤ P := by
+      have hP' : ((Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns : ℕ) : ℝ) ≤ P := by
         exact_mod_cast hP
-      push_cast at hP'
+      unfold Level2.stretches at hP' ⊢
+      push_cast at hP' ⊢
       nlinarith
   have hnn :
-      0 ≤ stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' :=
-    stretchRisk_nonneg C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' ha.le hθr0 hθr1
+      0 ≤ stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' :=
+    stretchRisk_nonneg C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' ha.le hθr0 hθr1
       hεd'0 hεd'1 hθpt'0 hθpt'1
   calc _ ≤ ∫⁻ ω, (c + B.indicator 1 ω) ∂μ := lintegral_mono hpt
     _ = c + μ B := by
@@ -103,8 +104,9 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
           unfold noiseRisk; positivity
         have h2 : 0 ≤ wrongRisk (Fintype.card σ) (Fintype.card α) L εw p₀ Gw := by
           unfold wrongRisk; positivity
-        have h3 : 0 ≤ Ideal.stretches (Fintype.card σ) (Fintype.card α)
-            * stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' + P * Gw := by
+        have h3 : 0 ≤ (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
+            + 2 * Fintype.card α + 1 : ℝ)
+            * stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' + P * Gw := by
           positivity
         rw [← ENNReal.ofReal_add h1 h2, ← ENNReal.ofReal_add h3 (by positivity)]
         congr 1

@@ -1,4 +1,5 @@
 import OrthoDFA.Level3
+import OrthoDFA.ProbeDistribution
 
 /-!
 # `RandomRoundCorrect`: level 3 ends well but for a small chance
@@ -15,7 +16,9 @@ Over `C.probeBudget` probes, level 3 fails to end well (`OrthoDFA.RoundEnd`), a 
 yielding `y`, with chance at most `roundRisk`: the least, over the proof's free parameters
 (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, which is `noiseRisk`, the chance that the
 probes that can read a good read-state undecided reach `G` of the probes for some tree level 3 can
-grow, plus `stretches` times `stretchRisk`, what one stretch risks over its first `Ns` probes.
+grow, plus `S` times `stretchRisk`, what one stretch risks over its first `Ns` probes, where
+`S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the hypotheses: each split adds a leaf, at most
+`|Q| + 2` of them, and between splits each of a leaf's edges is learned once.
 -/
 
 namespace OrthoDFA
@@ -23,7 +26,6 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (probeOrAgree)
 
 variable {α : Type*}
 
@@ -31,9 +33,9 @@ variable {α : Type*}
 count them. -/
 noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
     (H : HypothesisDFA α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
-  | .start, x => startString (probeOrAgree false read H.tree H.edges k x)
+  | .start, x => startString (probeOrAgree read H.tree H.edges k x)
   | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
-  | .middles, x => middleString (probeOrAgree false read H.tree H.edges k x)
+  | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
 
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
@@ -59,13 +61,14 @@ noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
 open scoped Classical in
 /-- What one stretch risks over its first `Ns` probes: a test firing at some look at a site whose
 harvest would not end well (at the start or the middles, each a sequential test at level
-`testLevel`; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by `edgeExcess`),
+`testLevel`; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by `edgeExcess`,
+a probe adding at most one to it),
 or a false success; and the stretch outliving `Ns` probes, though clean disagreements are at least
 `θr` of them, or the searches are at most `εd'` of the probes yet success is silent at look `N₁`,
 or they are more and the undecided middles at least `θpt'` of them yet their test is silent at
 look `Ns`. -/
-noncomputable def stretchRisk (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
-  3 * C.testLevel + ((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+noncomputable def stretchRisk (C : Level3Settings) (nσ nα Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
+  3 * C.testLevel + ((nσ + 2) * nα : ℕ) * Real.exp (-5 * C.edgeExcess / 4)
     + (1 - binomSfGe Ns θr 1)
     + binE N₁ εd' (fun s =>
         if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0 else 1)
@@ -93,15 +96,15 @@ structure Knobs where
   /-- The middles rate the stretch's risk tests against. -/
   θpt' : ℝ
 
-/-- The relations the knobs must meet, at the settings `C`, the probes' length `L`, the ending's
-tolerance `ε` and the yield `y`: an edge's least traffic times its rate is at least twice the
-yield, and twice what an edge's sampler can find at good read-states, `2 (L + 1) G`; the start's
-rate is at least what its sampler can find, `max (2G) y`; and against that rate of undecided
-middles per probe, with searches at least `searchShare` of the probes, the middles' test's
-likelihood ratio falls on average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)`
-at another search, `μ = middleRate` and `m = middleAlternative`. -/
+/-- The relations the knobs must meet, at the settings `C`, the ending's tolerance `ε` and the
+yield `y`: an edge's least traffic times its rate is at least twice the yield, and twice what an
+edge's sampler can find at good read-states, `2G`; the start's rate is at least what its sampler
+can find, `max (2G) y`; and against that rate of undecided middles per probe, with searches at
+least `searchShare` of the probes, the middles' test's likelihood ratio falls on average, its
+factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search, `μ = middleRate`
+and `m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
-    (L : ℕ) (ε y : ℝ) (kn : Knobs) : Prop where
+    (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
   θ_nonneg : 0 ≤ θ
@@ -125,8 +128,9 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   θpt'_nonneg : 0 ≤ kn.θpt'
   θpt'_le : kn.θpt' ≤ 1
   sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
-  probeBudget_ge : Ideal.stretches (Fintype.card σ) (Fintype.card α) * kn.Ns ≤ C.probeBudget
-  noise_le_traffic : 4 * (L + 1) * kn.G ≤ C.edgeRate * C.edgeReadShare
+  probeBudget_ge : (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
+    + 2 * Fintype.card α + 1) * kn.Ns ≤ C.probeBudget
+  noise_le_traffic : 4 * kn.G ≤ C.edgeRate * C.edgeReadShare
   yield_le_traffic : 2 * y ≤ C.edgeRate * C.edgeReadShare
   harvest_le_start : max (2 * kn.G) y ≤ C.startRate
   middles_fall : max (2 * kn.G) y * (C.middleAlternative / C.middleRate)
@@ -135,18 +139,18 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
     ≤ 1
 
 /-- The round's failure chance at the knobs `kn`: `noiseRisk`, the probes that can read a good
-read-state undecided reaching `G` of the probes for some tree, and `stretches` times
-`stretchRisk`, what one stretch risks over its first `Ns` probes. -/
+read-state undecided reaching `G` of the probes for some tree, and `S` times `stretchRisk`, what
+one stretch risks over its first `Ns` probes, `S` the hypotheses' bound. -/
 noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (y : ℝ) (kn : Knobs) : ℝ :=
   noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.walkStart) kn.G
-    + Ideal.stretches (Fintype.card σ) (Fintype.card α)
-      * stretchRisk C (Fintype.card σ) (Fintype.card α) L kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
+    + (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1)
+      * stretchRisk C (Fintype.card σ) (Fintype.card α) kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
 
 /-- The least of `roundBound` over the admissible knobs. -/
 noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (ε y : ℝ) : ENNReal :=
-  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C L ε y),
+  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε y),
     ENNReal.ofReal (roundBound (α := α) σ θ D L C y kn)
 
 /-- Reads of every string, independent across strings, each undecided with its state's chance `U`

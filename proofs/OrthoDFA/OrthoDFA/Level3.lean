@@ -22,7 +22,6 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (siftAgrees probe probeOrAgree Outcome retarget)
 
 variable {α : Type*}
 
@@ -151,7 +150,7 @@ variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- A probe counted into the stretch. -/
 noncomputable def countProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  let o := probeOrAgree false read s.tree s.edges C.walkStart x
+  let o := probeOrAgree read s.tree s.edges C.walkStart x
   let ch := positionReads read s.tree s.edges C.walkStart x
   { s with
     probeCount := s.probeCount + 1
@@ -193,7 +192,7 @@ def splitLeaf (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool)
 
 noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) :
     Level3State α ⊕ RoundEnd (Level3Site α) :=
-  match probeOrAgree false read s.tree s.edges C.walkStart x with
+  match probeOrAgree read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
     .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
   | .wrongEdge p c _ t =>

@@ -1,5 +1,5 @@
 import OrthoDFA.Level3Claim
-import OrthoDFA.Proofs.IdealSteps
+import OrthoDFA.Proofs.Level2Steps
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
@@ -23,7 +23,6 @@ namespace OrthoDFA
 
 namespace Random
 
-open OrthoDFA.Ideal (probe probeOrAgree Outcome retarget EdgesOK OutcomeOK searchOutcome siftAgrees)
 
 variable {α : Type*}
 
@@ -384,7 +383,7 @@ variable [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
 
 /-- The splits and learnings left, as #417 counts them, within `nσ + 2` leaves. -/
 def Ψr [Fintype α] (nσ : ℕ) (s : Level3State α) : ℕ :=
-  Ideal.Ψ nσ (Ideal.newHypothesis s.tree s.edges)
+  Level2.Ψ nσ (Level2.newHypothesis s.tree s.edges 0)
 
 structure Inv [Fintype α] (s : Level3State α) : Prop where
   edges : EdgesOK read s.tree s.edges
@@ -437,8 +436,8 @@ theorem inv_start : Inv read (initialState : Level3State α) where
   two := by simp [initialState, newHypothesis, DTree.leaves]
 
 theorem Ψr_start (nσ : ℕ) :
-    Ψr nσ (initialState : Level3State α) + 1 ≤ Ideal.stretches nσ (Fintype.card α) :=
-  Ideal.Ψ_start nσ
+    Ψr nσ (initialState : Level3State α) + 1 ≤ Level2.stretches nσ (Fintype.card α) :=
+  Level2.Ψ_start nσ
 
 omit [DecidableEq α] in
 theorem finish_inl {t s' : Level3State α} (h : applyTests C t = .inl s') : s' = t
@@ -460,20 +459,20 @@ theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) :
 decided reads. -/
 theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     (h : applyProbe read C s x = .inl s') :
-    (∃ p c u t, probeOrAgree false read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
+    (∃ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
         s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
-    ∨ (∃ p c u t t₀ w₀, probeOrAgree false read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
+    ∨ (∃ p c u t t₀ w₀, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         s' = splitLeaf read s p c t t₀)
     ∨ (s' = countProbe read C s x ∧ runTests C s' = none
-        ∧ recOf (probeOrAgree false read s.tree s.edges C.walkStart x) = none) := by
-  have hOK := Ideal.probeOrAgree_ok false read s.tree s.edges C.walkStart hs.edges x
+        ∧ recOf (probeOrAgree read s.tree s.edges C.walkStart x) = none) := by
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
-  generalize hg : probeOrAgree false read s.tree s.edges C.walkStart x = o at h hOK
+  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
@@ -589,14 +588,14 @@ omit [DecidableEq α] [Fintype α] [Fintype σ] in
 first `k` letters. -/
 theorem probe_prefix (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) {p : List Bool}
     {c : α} {u : FreeMonoid α} {t : List Bool}
-    (h : probeOrAgree false read T E k x = .wrongEdge p c u t
-      ∨ probeOrAgree false read T E k x = .unlearnedEdge p c u t) :
+    (h : probeOrAgree read T E k x = .wrongEdge p c u t
+      ∨ probeOrAgree read T E k x = .unlearnedEdge p c u t) :
     ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = prefixOf x i ∧ x.toList[i]? = some c := by
   have hk : k ≤ x.toList.length := by
     by_contra hc
     simp [probeOrAgree, show x.toList.length < k by omega] at h
-  have h' : probe false read T E k x = .wrongEdge p c u t
-      ∨ probe false read T E k x = .unlearnedEdge p c u t := by
+  have h' : probe read T E k x = .wrongEdge p c u t
+      ∨ probe read T E k x = .unlearnedEdge p c u t := by
     simpa [probeOrAgree, show ¬ x.toList.length < k by omega] using h
   clear h
   unfold probe at h'
@@ -631,8 +630,8 @@ disagrees at are clean. -/
 theorem clean_of_probe {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMonoid α}
     (hx : x ∉ PotWrong M side k (Fintype.card σ) read) {p : List Bool} {c : α} {u : FreeMonoid α}
     {t : List Bool}
-    (h : probeOrAgree false read T E k x = .wrongEdge p c u t
-      ∨ probeOrAgree false read T E k x = .unlearnedEdge p c u t) :
+    (h : probeOrAgree read T E k x = .wrongEdge p c u t
+      ∨ probeOrAgree read T E k x = .unlearnedEdge p c u t) :
     Clean M side (Fintype.card σ) read u
       ∧ Clean M side (Fintype.card σ) read (u * FreeMonoid.of c) := by
   obtain ⟨i, h1, h2, rfl, hc⟩ := probe_prefix read T E k x h
@@ -665,7 +664,7 @@ theorem split_ok {s : Level3State α} (hs : Inv read s) (hg : GInv read M side s
     simp only [splitLeaf, newHypothesis]
     have := hg.leaves
     omega
-  refine ⟨⟨Ideal.edgesOK_retarget read hs.edges hp _, ?_,
+  refine ⟨⟨edgesOK_retarget read hs.edges hp _, ?_,
     by simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.two; omega⟩,
     ⟨hleaves, fun p' c' t' w h => ?_⟩, ?_⟩
   · simp only [splitLeaf, newHypothesis]
@@ -688,12 +687,12 @@ theorem split_ok {s : Level3State α} (hs : Inv read s) (hg : GInv read M side s
         obtain ⟨-, rfl⟩ := h
         exact hc
     · simp at h
-  · exact Ideal.Ψ_lt_split _ (s := Ideal.newHypothesis s.tree s.edges) hp
+  · exact Level2.Ψ_lt_split _ (s := Level2.newHypothesis s.tree s.edges 0) hp
       (by
         have := img_card_le M side (splitLeaf read s p c t t₀).tree
         simp only [splitLeaf, newHypothesis] at this hleaves
-        simp only [Ideal.newHypothesis]
-        omega) _
+        simp only [Level2.newHypothesis]
+        omega) _ 0
 
 /-- A step that changes the hypothesis on a probe that cannot read a string wrong starts a fresh
 stretch, keeps the invariants and lowers `Ψr`. -/
@@ -706,9 +705,9 @@ theorem step_change {s s' : Level3State α} (hs : Inv read s) (hg : GInv read M 
     ⟨p, c, u, t, ho, hE, hu, huc, hp, rfl⟩ |
     ⟨p, c, u, t, t₀, w₀, ho, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -⟩
   · obtain ⟨hcu, hcuc⟩ := clean_of_probe read M side hx (Or.inr ho)
-    refine ⟨⟨Ideal.edgesOK_upd read hs.edges hu huc, hs.cls, hs.two⟩,
+    refine ⟨⟨edgesOK_upd read hs.edges hu huc, hs.cls, hs.two⟩,
       ⟨hg.leaves, fun p' c' t' w h => ?_⟩, rfl,
-      Ideal.Ψ_lt_learn _ (s := Ideal.newHypothesis s.tree s.edges) hp hE _⟩
+      Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
     simp only [newHypothesis] at h
     by_cases hpc : (p', c') = (p, c)
     · simp only [Prod.mk.injEq] at hpc

@@ -1,6 +1,6 @@
 import OrthoDFA.Proofs.RandomStretch
 import OrthoDFA.Proofs.RandomNoise
-import OrthoDFA.Proofs.IdealRound
+import OrthoDFA.Proofs.Level2Round
 
 /-!
 # The random round: the proofs
@@ -18,7 +18,6 @@ namespace OrthoDFA
 namespace Random
 
 open MeasureTheory
-open OrthoDFA.Ideal (pi_succ_apply)
 
 section Compose
 
@@ -43,7 +42,7 @@ theorem anyB_le
     exact bot_le
   | succ N ih =>
     intro s hs
-    rw [pi_succ_apply, pi_succ_apply]
+    rw [pi_cons_apply, pi_cons_apply]
     calc ∫⁻ x, (Measure.pi fun _ : Fin N => D)
           {xs | Fin.cons x xs ∈ {xs : Fin (N + 1) → X | AnyB step B s (List.ofFn xs)}} ∂D
         ≤ ∫⁻ x, ((Measure.pi fun _ : Fin N => D)
@@ -124,12 +123,12 @@ theorem ends_of_not_anyB {side : σ → Bool} :
 /-- Given the reads, the round fails to end well with chance at most `stretches` times what a
 stretch risks, where at most `Gw` of the probes can read a string wrong. -/
 theorem probe_level {side : σ → Bool} [IsProbabilityMeasure D]
-    (L P N₁ : ℕ) (G Gw θr εd' θpt' : ℝ) (hL : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (P N₁ : ℕ) (G Gw θr εd' θpt' : ℝ)
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
     (hNw : D.real (PotWrong M side C.walkStart (Fintype.card σ) read) ≤ Gw) (hGw0 : 0 ≤ Gw)
     (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
-    (hGt : 4 * (L + 1) * G ≤ C.edgeRate * C.edgeReadShare)
+    (hGt : 4 * G ≤ C.edgeRate * C.edgeReadShare)
     (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (ha : 0 < C.testLevel)
     (hθs0 : 0 < C.startRate) (hθs : C.startRate < C.startAlternative)
     (hθs1 : C.startAlternative < 1) (hps : max (2 * G) y ≤ C.startRate) (hθe : 0 ≤ C.edgeRate)
@@ -143,19 +142,19 @@ theorem probe_level {side : σ → Bool} [IsProbabilityMeasure D]
     (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1)
     (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1) (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : θr ≤ (1 - θpt') * εd')
-    (hP : Ideal.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
+    (hP : Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := runProbes read C initialState (List.ofFn xs)
           ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
             C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
-      ≤ ENNReal.ofReal (Ideal.stretches (Fintype.card σ) (Fintype.card α)
-          * (stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' + Ns * Gw)) := by
+      ≤ ENNReal.ofReal (Level2.stretches (Fintype.card σ) (Fintype.card α)
+          * (stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' + Ns * Gw)) := by
   have hNs : 0 < Ns := by omega
   have hΨ := Ψr_start (α := α) (Fintype.card σ)
   set PW := PotWrong M side C.walkStart (Fintype.card σ) read
   set X : Level3State α → FreeMonoid α → Prop := fun _ x => x ∈ PW
   set b := ENNReal.ofReal
-    (stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' + Ns * Gw)
+    (stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' + Ns * Gw)
   set I : Level3State α → Prop := fun s => Inv read s ∧ GInv read M side s ∧ s.probeCount < Ns
   have hI0 : I initialState := ⟨inv_start read, gInv_start read M side,
     by simp only [initialState, newHypothesis]; omega⟩
@@ -164,8 +163,8 @@ theorem probe_level {side : σ → Bool} [IsProbabilityMeasure D]
         {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
             ≤ b := by
     rintro s ⟨hs, hg, -⟩ hf N
-    refine seg_le read C M U θ D ε Ns y X (fun zs => ∃ w ∈ zs, w ∈ PW) (Ns * Gw) L N₁ G θr εd'
-      θpt' hL hs hf (cls_mem read M side hs hg) (by have := leaves_le read M side hg; omega) hN
+    refine seg_le read C M U θ D ε Ns y X (fun zs => ∃ w ∈ zs, w ∈ PW) (Ns * Gw) N₁ G θr εd'
+      θpt' hs hf (cls_mem read M side hs hg) (by have := leaves_le read M side hg; omega) hN
       (fun _ _ x _ _ hx => ⟨x, by simp, hx⟩) (fun N => ?_) hN₁ hN₁s hG0 hGt hyt ha hθs0 hθs
       hθs1 hps hθe hθpt0 hθpt hθpt1 hfall hεd0 hεd hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
       hsep N
@@ -202,7 +201,7 @@ theorem probe_level {side : σ → Bool} [IsProbabilityMeasure D]
           (by rw [hn0]; exact hNs) ?_ hb)
         rw [hn0, Nat.sub_zero, List.length_ofFn]
         have : (Ψr (Fintype.card σ) (initialState : Level3State α) + 1) * Ns
-            ≤ Ideal.stretches (Fintype.card σ) (Fintype.card α) * Ns :=
+            ≤ Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns :=
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
@@ -210,7 +209,7 @@ theorem probe_level {side : σ → Bool} [IsProbabilityMeasure D]
         hany.trans (add_le_add (hseg _ hI0 rfl P) le_rfl)
     _ = ((Ψr (Fintype.card σ) (initialState : Level3State α) + 1 : ℕ) : ENNReal) * b := by
         push_cast; ring
-    _ ≤ (Ideal.stretches (Fintype.card σ) (Fintype.card α) : ENNReal) * b := by gcongr
+    _ ≤ (Level2.stretches (Fintype.card σ) (Fintype.card α) : ENNReal) * b := by gcongr
     _ = _ := by
         rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_natCast]
 
@@ -266,8 +265,8 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
       exact Set.mem_iUnion.2 ⟨z, hz⟩
     exact measure_mono_null this (measure_iUnion_null hwrong)
   have hNn := noise_le M U θ μ read D C.walkStart L p₀ G hmeas hind hU hL hp₀ hpre hθ
-  set c := ENNReal.ofReal (Ideal.stretches (Fintype.card σ) (Fintype.card α)
-    * stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt')
+  set c := ENNReal.ofReal (Level2.stretches (Fintype.card σ) (Fintype.card α)
+    * stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt')
   set B := toMeasurable μ (W ∪ Nn)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
@@ -283,14 +282,14 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
       simp only [Set.mem_union, not_or] at hω'
       obtain ⟨hωW, hωN⟩ := hω'
       simp only [W, Nn, Set.mem_ofPred_eq, not_not] at hωW hωN
-      have := probe_level (read · ω) C M U θ D ε Ns y (side := side) L P N₁ G 0 θr εd' θpt' hL
+      have := probe_level (read · ω) C M U θ D ε Ns y (side := side) P N₁ G 0 θr εd' θpt'
         hωN (by rw [potWrong_empty hωW]; simp) le_rfl
         hN₁ hN₁s hG0 hGt hyt ha hθs0 hθs hθs1 hps hθe hθpt0 hθpt hθpt1 hfall hεd0 hεd hεd1 hε
         hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
       rwa [mul_zero, add_zero] at this
   have hnn :
-      0 ≤ stretchRisk C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' :=
-    stretchRisk_nonneg C (Fintype.card σ) (Fintype.card α) L Ns N₁ θr εd' θpt' ha.le hθr0 hθr1
+      0 ≤ stretchRisk C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' :=
+    stretchRisk_nonneg C (Fintype.card σ) (Fintype.card α) Ns N₁ θr εd' θpt' ha.le hθr0 hθr1
       hεd'0 hεd'1 hθpt'0 hθpt'1
   calc _ ≤ ∫⁻ ω, (c + B.indicator 1 ω) ∂μ := lintegral_mono hpt
     _ = c + μ B := by
@@ -305,6 +304,9 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
         gcongr
     _ = _ := by
         rw [add_comm c, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity) (by positivity)]
+        unfold Level2.stretches
+        push_cast
+        ring_nf
 
 end Random
 

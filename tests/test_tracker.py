@@ -25,6 +25,10 @@ class _OrderedRecorder(RecordingTracker):
         super().on_round_classified(classifier, round_index)
         self.calls.append(("classified", round_index))
 
+    def on_search_ended(self, ending, round_index):
+        super().on_search_ended(ending, round_index)
+        self.calls.append(("ended", round_index))
+
     def on_initial_dfa_found(self, dfa, tree, round_index):
         super().on_initial_dfa_found(dfa, tree, round_index)
         self.calls.append(("initial", round_index))
@@ -60,7 +64,7 @@ class TestSynthesisTracker(unittest.TestCase):
 
     def test_every_round_reports_once(self):
         rounds = 1 + max(r for _, r in self.tracker.calls)
-        for name in ("family", "classified", "initial", "consistency"):
+        for name in ("family", "classified", "ended", "initial", "consistency"):
             fired = [r for called, r in self.tracker.calls if called == name]
             self.assertEqual(fired, list(range(rounds)), name)
 
@@ -77,7 +81,9 @@ class TestSynthesisTracker(unittest.TestCase):
             for name, r in self.tracker.calls
             if r == 0 and name != "corrected"  # which may also name round 0
         ]
-        self.assertEqual(first, ["family", "classified", "initial", "consistency"])
+        self.assertEqual(
+            first, ["family", "classified", "ended", "initial", "consistency"]
+        )
 
     def test_corrected_names_the_most_consistent_round(self):
         consistency = self.tracker.consistency
@@ -88,6 +94,7 @@ class TestSynthesisTracker(unittest.TestCase):
         rounds = len(self.tracker.consistency)
         self.assertEqual(len(self.tracker.families), rounds)
         self.assertEqual(len(self.tracker.classifiers), rounds)
+        self.assertEqual(len(self.tracker.endings), rounds)
         self.assertEqual(len(self.tracker.hypotheses), rounds)
 
     def test_recording_tracker_pickles(self):
