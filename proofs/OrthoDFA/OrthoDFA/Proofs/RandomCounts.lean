@@ -166,10 +166,6 @@ theorem binomSfGe_le_one (n j : ℕ) : binomSfGe n p j ≤ 1 := by
   rw [binomSfGe_eq]
   exact binE_le_one hp0 hp1 fun i => by split_ifs <;> norm_num
 
-theorem binomSfGe_anti {n j j' : ℕ} (h : j ≤ j') : binomSfGe n p j' ≤ binomSfGe n p j := by
-  rw [binomSfGe_eq, binomSfGe_eq]
-  exact binE_mono hp0 hp1 fun i => by split_ifs <;> first | omega | norm_num
-
 theorem binomSfGe_succ_n (n j : ℕ) : binomSfGe n p j ≤ binomSfGe (n + 1) p j := by
   rw [binomSfGe_eq, binomSfGe_eq, binE_succ']
   exact binE_mono hp0 hp1 fun i => by
