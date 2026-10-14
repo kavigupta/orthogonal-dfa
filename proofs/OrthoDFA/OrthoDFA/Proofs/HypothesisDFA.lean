@@ -1,5 +1,5 @@
 import OrthoDFA.HypothesisDFA
-import Mathlib.Tactic
+import OrthoDFA.Proofs.DTree
 
 /-!
 # The walk in a hypothesis DFA, and prefixes
@@ -94,7 +94,6 @@ theorem walkEnd_walk : ∀ (s : List Bool) (cs : List α) (q : List Bool), walkE
       rw [hw]
       exact ⟨by simp [h1], by simpa using h2⟩
 
-
 theorem walk_walkEnd : ∀ (s : List Bool) (cs : List α) (q : List Bool),
     (walk E s cs).length = cs.length + 1 → (walk E s cs).getLast? = some q →
       walkEnd E s cs = some q
@@ -124,7 +123,6 @@ theorem prefixOf_succ {x : FreeMonoid α} {p : ℕ} {c : α} (h : x.toList[p]? =
 theorem prefixOf_of_le {x : FreeMonoid α} {p : ℕ} (h : x.toList.length ≤ p) : prefixOf x p = x := by
   simp [prefixOf, List.take_of_length_le h]
 
-
 theorem prefixOf_length (w : FreeMonoid α) : prefixOf w w.toList.length = w := by
   simp [prefixOf]
 
@@ -144,5 +142,60 @@ theorem walkCorrect : WalkCorrect := by
         List.getElem?_eq_getElem (by omega), Option.getD_some]
     · rintro ⟨h1, h2⟩
       exact walk_walkEnd H.edges s cs q h1 h2
+
+section Edges
+
+variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α)
+
+variable {T E}
+
+theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
+    (hp : p ∈ T.leaves) (d : FreeMonoid α) :
+    EdgesOK read (T.splitAt d p) (retarget read (T.splitAt d p) p E) := by
+  intro q hq c t w h
+  unfold retarget at h
+  cases hpq : p.isPrefixOf q
+  · obtain ⟨hq', hne⟩ := DTree.prefix_of_mem_leaves_splitAt hp hq hpq
+    simp only [hpq, Bool.false_eq_true, if_false] at h
+    rcases hEq : E (q, c) with _ | ⟨t₁, w₁⟩ <;> rw [hEq] at h
+    · simp at h
+    · obtain ⟨hw, hwc⟩ := hE q hq' c t₁ w₁ hEq
+      simp only at h
+      split at h
+      · rename_i ht₁
+        rcases hs : (T.splitAt d p).sift read (w₁ * FreeMonoid.of c) with t' | z <;>
+          rw [hs] at h <;> simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq,
+            Prod.mk.injEq, reduceCtorEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact ⟨DTree.sift_splitAt_ne read hw hne, hs⟩
+      · rename_i ht₁
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
+  · simp [hpq] at h
+
+variable [DecidableEq α]
+
+theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}
+    {u : FreeMonoid α} (hu : T.sift read u = .inl p)
+    (huc : T.sift read (u * FreeMonoid.of c) = .inl t) :
+    EdgesOK read T (Function.update E (p, c) (some (t, u))) := by
+  intro q hq c' t' w h
+  by_cases hqc : (q, c') = (p, c)
+  · simp only [Prod.mk.injEq] at hqc
+    obtain ⟨rfl, rfl⟩ := hqc
+    rw [Function.update_self] at h
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨hu, huc⟩
+  · rw [Function.update_of_ne hqc] at h
+    exact hE q hq c' t' w h
+
+end Edges
+
+theorem splitAndLearnCorrect : SplitAndLearnCorrect := by
+  intro α _ read H hE
+  exact ⟨fun d p hp => edgesOK_retarget read hE hp d,
+    fun u s t c hu huc => edgesOK_upd read hE hu huc⟩
 
 end OrthoDFA

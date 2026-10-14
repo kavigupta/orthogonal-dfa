@@ -100,6 +100,8 @@ def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
 
 
 def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
+    """``probe`` of ``OrthoDFA/Probe.lean``, proved by ``ProbeCorrect``, with the positions it
+    sifted."""
     routes = {}
 
     def sift(i) -> Tuple[Optional[Path], Optional[bytes]]:
