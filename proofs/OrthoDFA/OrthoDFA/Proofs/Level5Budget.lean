@@ -369,16 +369,16 @@ universe u v w in
 theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
     (hharv : HarvestGood.{u, v}) (hsucc : SuccessSound.{u}) : RoundGiven.{u, v, w} := by
   intro α _ _ σ _ Ω _ μ _ G read D _ C S nEnd nRec hP hS L T ρ θg θgs θgpt θpt' θr εd' Xe θs' Xs
-    η ν hlen hρ0 hm hLmax hn₀ hn₀' hθpt0 hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond
-    hhP hhS hhS' hφn hL1 ha ha1 hθg0 hθg hφe0 hexc hθgs0 hθgs hroom hhalf hθgpt0 hθgpt hφ0 hφ1
-    hlow hθe hXe0 hXe hθs' hXs hlin hη hν hside hT
+    η ν hlen hρ0 hm hLmax hSq hn₀' hSn hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond
+    hhP hhS hφn hL1 hθg0 hθg hφe0 hexc hθgs0 hθgs hstart hθgpt0 hθgpt hgate hθe hXe0 hXe hθs' hXs
+    hlin hη hν hside hT
   set Tsub := subT C (Fintype.card α) nEnd nRec
   set W := (S + Fintype.card σ + 1) * Tsub
   set U := (S + 1) * C.recordsToMove
   set δ' := subOpen C (Fintype.card α) (Fintype.card σ) nRec U θr (termLevel nEnd hP hS θpt' εd')
   set φ := fakeRun C (Fintype.card α) S L W ρ Xe θs' Xs η ν
   set c := ENNReal.ofReal φ + ENNReal.ofReal ((S + Fintype.card σ + 1) * δ')
-    + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T)) * C.testLevel)
+    + ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * T) * C.testLevel)
   set M := toMeasurable μ {ω | ¬ NoiseEvent G D C S ρ θg θgs θgpt (read · ω)}
   have hτ0 := termLevel_nonneg (nEnd := nEnd) (hP := hP) (hS := hS) hθpt'0 hθpt'1 hεd'0 hεd'1
   have hδ'0 : 0 ≤ δ' := by
@@ -400,9 +400,8 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
           (Measure.pi fun _ : Fin T' => D) {xs | SubOpen G C (read · ω) s B Tsub T' xs}
             ≤ ENNReal.ofReal δ' := by
         intro s B T' hs hB hT'
-        refine (hsub G (read · ω) D C S nEnd nRec hP hS B θpt' θr εd' hm hLmax hn₀ hn₀' hθpt0
-          hθpt1 hεd0 hεd1 hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hhS' hφn s hs T'
-          hT').trans (ENNReal.ofReal_le_ofReal ?_)
+        refine (hsub G (read · ω) D C S nEnd nRec hP hS B θpt' θr εd' hm hLmax hSq hn₀' hSn
+          hθpt'0 hθpt'1 hθr0 hθr1 hεd'0 hεd'1 hcond hhP hhS hφn s hs T' hT').trans (ENNReal.ofReal_le_ofReal ?_)
         simp only [δ', subOpen]
         have := binomSfGe_antitone' (n := nRec) hθr0 hθr1
           (show Fintype.card σ * Fintype.card α * C.recordsToMove + B
@@ -424,8 +423,8 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
         have := fail_split G C (read · ω) S T initialState 0 W xs
           (Nat.mul_pos (Nat.succ_pos _) hm) hxs
         simpa [U] using this
-      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm ha ha1 hθg0 hθg hφe0
-        (by omega) hexc hθgs0 hθgs hroom hhalf hθgpt0 hθgpt hθpt1 hφ0 hφ1 hlow hω
+      have h2 := hharv G (read · ω) D C S L T ρ θg θgs θgpt hlen hL1 hm hSq hθg0 hθg hφe0
+        (by omega) hexc hθgs0 hθgs hstart hθgpt0 hθgpt hgate hω
       have hsub' : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
           (GoodEnd G D (read · ω) C.walkStart C.harvestYield)
           initialState (List.ofFn xs)}
@@ -441,7 +440,7 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
           · exact absurd h hxs
           · exact .inr (runEnds_mono (fun e s' h => ⟨h.1.2, h.1.1, h.2⟩) _ _ h)
         · exact .inl hok
-      have h3 := hsucc (read · ω) D C T hεd0 hεd1 ha1
+      have h3 := hsucc (read · ω) D C T hSq
       have hsnd : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C cut)
           (Level5EndsWell G.M (fun q => ¬ G.Good q) D C (read · ω)) initialState
               (List.ofFn xs)}
@@ -467,10 +466,11 @@ theorem roundGiven_of (hsub : SubRound.{u, v}) (hrace : FakeRace.{u, v})
             · exact absurd (endsWell_of_mixGood D C.walkStart G hlen (read · ω) _ _ _ _ hge) hns
             · exact hge.elim
         · exact .inl hg
-      have hsplit : ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * (T * T))
+      have ha0 := hSq.a_pos.le
+      have hsplit : ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 2 * T)
           * C.testLevel)
-          + ENNReal.ofReal (T * T * C.testLevel)
-          = ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * (T * T))
+          + ENNReal.ofReal (T * C.testLevel)
+          = ENNReal.ofReal ((2 ^ (C.maxLeaves + 2) * Fintype.card α + 1 + 3 * T)
               * C.testLevel) := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         congr 1

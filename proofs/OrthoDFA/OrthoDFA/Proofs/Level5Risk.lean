@@ -103,16 +103,14 @@ theorem level5_model {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
   have hTR := roundGiven_of sub_round_holds fake_race_holds harvest_good_holds
     success_sound_holds (μ := μ) G₂ read D C kn.S kn.nEnd kn.nRec kn.hP kn.hS L C.probeBudget kn.ρ
     kn.θg kn.θgs kn.θgpt kn.θpt' kn.θr kn.εd' kn.Xe kn.θs' kn.Xs kn.η kn.ν
-    hlen hρ0 hA.m_pos hA.Lmax_ge hA.n₀_le_nEnd hA.n₀_le_hS hA.θpt_nonneg hA.θpt_le
-    hA.εd_nonneg hA.εd_le hA.θpt'_nonneg hA.θpt'_le hA.θr_nonneg hA.θr_le_one hA.εd'_nonneg
-    hA.εd'_le hA.θr_le hA.pt_level hA.success_level hA.success_reach hA.φpt_nEnd hA.L_pos
-    hA.a_pos hA.a_le hθg0 hA.θe_ge hA.φe_nonneg hA.exc_gt hA.θgs_nonneg hA.θgs_le hA.start_room
-    hA.start_test hθgpt0 hA.θgpt_le hA.φpt_nonneg hA.φpt_le hA.φpt_test
-    (by linarith [hA.θe_ge]) hA.Xe_nonneg hA.exc_le hA.θs'_nonneg hA.n₀_le_Xs hA.start_lin
-    hA.η_nonneg hA.ν_nonneg hA.race_side hA.budget_ge
+    hlen hρ0 hA.m_pos hA.Lmax_ge hA.seq hA.n₀_le_hS hA.hS_le hA.θpt'_nonneg hA.θpt'_le
+    hA.θr_nonneg hA.θr_le_one hA.εd'_nonneg hA.εd'_le hA.θr_le hA.pt_level hA.success_level
+    hA.φpt_nEnd hA.L_pos hθg0 hA.θe_ge hA.φe_nonneg hA.exc_gt hA.θgs_nonneg hA.θgs_le
+    hA.start_test hθgpt0 hA.θgpt_le hA.gate_test (by linarith [hA.θe_ge]) hA.Xe_nonneg hA.exc_le
+    hA.θs'_nonneg hA.Xs_nonneg hA.start_lin hA.η_nonneg hA.ν_nonneg hA.race_side hA.budget_ge
   have hE := noiseEvent_le (ρ := kn.ρ) (θgs := kn.θgs) G₂ read hmeas hind hlaw hA.θ_nonneg D C
       kn.S L
-    hlen hp₀ hpmax hA.l_nonneg hA.φe_nonneg hA.φpt_nonneg hA.θe_ge hA.θg_ge hA.θgpt_ge
+    hlen hp₀ hpmax hA.l_nonneg hA.φe_nonneg hA.seq.φ_pos.le hA.θe_ge hA.θg_ge hA.θgpt_ge
   have hSp := spurious_le G read hmeas hind hlaw hA.κ_pos hA.ε_nonneg D C.walkStart L kn.S hlen
       hp₀ hpmax
     hκ hA.records_slack

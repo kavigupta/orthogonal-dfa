@@ -74,12 +74,12 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
   let n : ℝ := Fintype.card σ + S
   let A : ℝ := Fintype.card α
   let ρ : ℝ := (S + 1) * εd / (256 * (n + 1) * (Fintype.card σ * A + S + 1))
-  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (10 / εd ^ 3 + 270 / εd ^ 2 + 1400 / εd)
+  let K : ℝ := (n + 1) * (2 * (n + 3) * A + 1) * (20 / εd ^ 2 + 280 / εd)
     + 8 * (n + 3) * A * (P.L + 1)
-  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K ^ 2) / δ
-  let G : ℝ := Real.log X + 2 * Real.log (2 * Real.log X)
+  let X : ℝ := 4 * (2 ^ (Fintype.card σ + S + 5) * A + 7 * K) / δ
+  let G : ℝ := Real.log X + Real.log (2 * Real.log X)
   let bad := fun q => ¬ O.Good θ q
-  0 < δ → δ ≤ 1 → 0 < εd → εd ≤ 1 → 1 ≤ P.L → 0 ≤ θ →
+  0 < δ → δ ≤ 1 → 0 < εd → εd < 1 → 1 ≤ P.L → 0 ≤ θ →
   384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
   0 < O.κ → 4 * O.κ * (8 * (n + 3) * (P.L + 1) * Real.sqrt (A * ρ / 3) + 1) ≤ ρ →
   0 ≤ O.ε → (P.L + 1) * (n + 1) * O.ε + 3 * unionLog (α := α) σ S δ * prefixMax P.D k ≤ ρ →

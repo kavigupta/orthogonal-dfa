@@ -69,8 +69,7 @@ end DTree
 no edge out of a leaf charged `φe` of the probes has its undecided strings past `θe` of its
 positions by `exc` of them. -/
 theorem runTests_none (C : Level5Settings) {s : Level5State α} (h : runTests C s = none) :
-    rateSide C.startUndecidedRate C.testLevel C.firstLook s.probes s.startUndecided.length
-        ≠ some true
+    ¬ seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes s.startUndecided.length
       ∧ ∀ e : List Bool × α, e.1 ∈ s.tree.leaves → C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2 →
         ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2
             < C.edgeExcess (s.edgeReads e.1 e.2) := by
@@ -211,9 +210,10 @@ theorem excess_le {s : Level5State α} {u : ℕ} (hs : RInv G C Xe θs' Xs s u) 
 open scoped Classical in
 theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
     (hφe : 0 ≤ C.edgeTraffic) (hXe0 : 0 ≤ Xe) (hθs' : 0 ≤ θs') (hXe : ∀ j, C.edgeExcess j ≤ Xe)
-    (hXs : C.firstLook ≤ Xs)
-    (hlin : ∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-      → binomSfGe n C.startUndecidedRate h < C.testLevel) {s s' : Level5State α} {x : FreeMonoid α}
+    (hXs : 0 ≤ Xs)
+    (hlin : ∀ n h : ℕ, θs' * n + Xs ≤ h
+      → seqRate C.startUndecidedRate C.startAltRate C.testLevel n h) {s s' : Level5State α}
+    {x : FreeMonoid α}
     {u : ℕ} (hs : RInv G C Xe θs' Xs s u) (h : applyProbe C (fun z => (rd z).cut) s x = .inl s') :
     RInv G C Xe θs' Xs s' (u + if x ∈ G.untrueAt rd C.walkStart s.tree s.edges then 1 else 0)
       ∧ (∀ q, q ∈ s.tree.nodes → q ∈ s'.tree.nodes) := by
@@ -340,26 +340,10 @@ theorem rinv_step (hm : 0 < C.recordsToMove) (hθe : 0 ≤ C.edgeUndecidedRate)
       unfold startHarvestBy
       split_ifs <;> [simp; (rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | b <;> simp)]
     rw [p3, p4] at hc hstart
-    by_cases hn : C.firstLook ≤ s.probes + 1
-    · have hh : θs' * ((s.probes + 1 : ℕ) : ℝ) + Xs
-          ≤ ((s.startUndecided ++ startHarvestBy cut s.tree C.walkStart x).length : ℕ) := by
-        push_cast at hc ⊢; linarith
-      have := hlin _ _ hn hh
-      apply hstart
-      unfold rateSide
-      rw [if_pos hn, if_pos this]
-    · have : ((s.startUndecided ++ startHarvestBy cut s.tree C.walkStart x).length : ℝ) ≤ Xs := by
-        rw [List.length_append]
-        have : s.startUndecided.length + (startHarvestBy cut s.tree C.walkStart x).length
-            < C.firstLook := by omega
-        have : ((s.startUndecided.length + (startHarvestBy cut s.tree C.walkStart
-            x).length : ℕ) : ℝ) < C.firstLook := by
-          exact_mod_cast this
-        push_cast at this ⊢
-        linarith
-      have : (0 : ℝ) ≤ θs' * ((s.probes + 1 : ℕ) : ℝ) := by positivity
-      push_cast at hc this
-      linarith
+    have hh : θs' * ((s.probes + 1 : ℕ) : ℝ) + Xs
+        ≤ ((s.startUndecided ++ startHarvestBy cut s.tree C.walkStart x).length : ℕ) := by
+      push_cast at hc ⊢; linarith
+    exact hstart (hlin _ _ hh)
   · rw [c3, c4, p3, p4, List.length_append]
     have : (startHarvestBy cut s.tree C.walkStart x).length ≤ 1 := by
       unfold startHarvestBy
@@ -453,9 +437,9 @@ have chance at most `exp (-η n + ν (allowance - excess) + j c)`. -/
 theorem race_le (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hm : 0 < C.recordsToMove)
     (hLmax : Fintype.card σ + S + 3 ≤ C.maxLeaves) (hθe : 0 ≤ C.edgeUndecidedRate)
     (hφe : 0 ≤ C.edgeTraffic) (hρ0 : 0 ≤ ρ) (hXe0 : 0 ≤ Xe) (hXe : ∀ j, C.edgeExcess j ≤ Xe)
-    (hθs' : 0 ≤ θs') (hXs : C.firstLook ≤ Xs)
-    (hlin : ∀ n h : ℕ, C.firstLook ≤ n → θs' * n + Xs ≤ h
-      → binomSfGe n C.startUndecidedRate h < C.testLevel) (hη : 0 ≤ η) (hν : 0 ≤ ν)
+    (hθs' : 0 ≤ θs') (hXs : 0 ≤ Xs)
+    (hlin : ∀ n h : ℕ, θs' * n + Xs ≤ h
+      → seqRate C.startUndecidedRate C.startAltRate C.testLevel n h) (hη : 0 ≤ η) (hν : 0 ≤ ν)
     (hside : (Real.exp η - 1) * G.κ * (L + 1) ≤ 1 - Real.exp (-(ν * (L + 1))))
     (hE : NoiseEvent G D C S ρ θg θgs θgpt rd) :
     ∀ (T : ℕ) (s : Level5State α) (u n j : ℕ), RInv G C Xe θs' Xs s u
@@ -595,8 +579,7 @@ theorem fake_race_holds : FakeRace := by
       fun _ _ _ _ h => by simp [initialState] at h, fun _ _ _ h => by simp [initialState] at h,
       fun q c h => by simp [initialState] at h, fun q c => by simp [initialState, hXe0], ?_,
       by simp [initialState], fun q c => by simp [initialState]⟩
-    have : (0 : ℝ) ≤ Xs := le_trans (Nat.cast_nonneg _) hXs
-    simp [initialState, this]
+    simp [initialState, hXs]
   have hex0 : excess C θs' (initialState : Level5State α) = 0 := by simp [excess, initialState]
   refine (race_le G D C rd S L ρ θg θgs θgpt Xe θs' Xs η ν hlen hm hLmax hθe hφe hρ0 hXe0 hXe
     hθs' hXs hlin hη hν hside hE T initialState 0 ((S + 1) * C.recordsToMove) W h0 (by omega)).trans

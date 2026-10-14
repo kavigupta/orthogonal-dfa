@@ -1,6 +1,7 @@
 import OrthoDFA.Loop
 import OrthoDFA.FamilyRead
 import OrthoDFA.RoundEnd
+import OrthoDFA.SeqTest
 
 /-!
 # Level 5 of indecisive L*: the counterexample search
@@ -21,13 +22,16 @@ undecided. Every position past the start is charged to an edge: the walk's edge 
 position, or, where there is none, the walk's last edge; every position a probe sifts reads at
 its edge. The disagreement rate, and the
 undecided middles searches stop at, are counted over a stretch, which starts afresh whenever the
-tree or the edges change. After every probe (`applyProbe`):
-* the start-undecided rate above `startUndecidedRate`; an edge charged at least `edgeTraffic` of
-  the round's probes, its undecided strings exceeding `edgeUndecidedRate` of its reads by
-  `edgeExcess` of them; or a stretch searching on at least `searchShare` of its probes, the share
-  of its searches stopping at an undecided middle above
-  `middleUndecidedRate`, ends the round with a harvest there;
-* the disagreement rate settling below `disagreementRate` ends it in success;
+tree or the edges change. The rates are checked by the anytime-valid sequential test (`seqRate`) at
+level `testLevel`, each against an alternative on its far side. After every probe (`applyProbe`):
+* the start's undecided reads' test of `startUndecidedRate` against `startAltRate` firing; an edge
+  charged at least `edgeTraffic` of the round's probes, its undecided strings exceeding
+  `edgeUndecidedRate` of its reads by `edgeExcess` of them; or a stretch searching on at least
+  `searchShare` of its probes, past `firstLook` searches, its middles' test of
+  `middleUndecidedRate` against `middleAltRate` over its searches firing, ends the round with a
+  harvest there;
+* the stretch's disagreements' test of `disagreementRate` against the lower
+  `disagreementAltRate` firing ends it in success;
 * otherwise one edge is fixed. Where an edge has `recordsToMove` records at a target it does not
   point at, its leaf splits on the letter and the midfix where that target and the current one
   part if the current one also has `recordsToMove`, and otherwise it is redirected there. A split
@@ -427,9 +431,9 @@ noncomputable def settleOne (cut : FreeMonoid α → Option Bool) (m Lmax : ℕ)
   else .inl s
 
 /-- Level 5's settings: the walk's start, the records a fix takes, the most leaves, the tests'
-rates, level and first look, the excess `edgeExcess r` an edge's undecided strings need after `r`
-reads, the share of the probes an edge test and the share of searches a middles test need, and
-the probes a round may draw. -/
+rates and their alternatives, the tests' level, the searches a middles test waits for, the excess
+`edgeExcess r` an edge's undecided strings need after `r` reads, the share of the probes an edge
+test and the share of searches a middles test need, and the probes a round may draw. -/
 structure Level5Settings where
   walkStart : ℕ
   recordsToMove : ℕ
@@ -438,6 +442,9 @@ structure Level5Settings where
   edgeUndecidedRate : ℝ
   middleUndecidedRate : ℝ
   disagreementRate : ℝ
+  startAltRate : ℝ
+  middleAltRate : ℝ
+  disagreementAltRate : ℝ
   testLevel : ℝ
   firstLook : ℕ
   edgeExcess : ℕ → ℝ
@@ -467,25 +474,26 @@ noncomputable def recordProbe (C : Level5Settings) (cut : FreeMonoid α → Opti
   | _ => s₁
 
 open scoped Classical in
-/-- The tests: the start's undecided rate over the round above `startUndecidedRate`; at an edge
-charged at least `edgeTraffic` of the probes, its undecided strings exceeding
+/-- The tests: the start's undecided reads over the round, tested above `startUndecidedRate`; at
+an edge charged at least `edgeTraffic` of the probes, its undecided strings exceeding
 `edgeUndecidedRate` of its reads by `edgeExcess`; at a stretch searching on at least
-`searchShare` of its probes, the share of its searches stopping at an undecided middle above
-`middleUndecidedRate`; or its disagreement rate settling below `disagreementRate`. -/
+`searchShare` of its probes and past `firstLook` searches, its searches stopping at an undecided
+middle, tested above `middleUndecidedRate`; or its disagreements, tested below
+`disagreementRate`. Each rate is tested by `seqRate` against its alternative. -/
 noncomputable def runTests (C : Level5Settings) (s : Level5State α) : Option (Level5Ending α) :=
-  if rateSide C.startUndecidedRate C.testLevel C.firstLook s.probes s.startUndecided.length
-      = some true then some .harvestStart
+  if seqRate C.startUndecidedRate C.startAltRate C.testLevel s.probes s.startUndecided.length
+      then some .harvestStart
   else if h : ∃ e : List Bool × α, e.1 ∈ s.tree.leaves
       ∧ C.edgeTraffic * s.probes ≤ s.edgeReads e.1 e.2
       ∧ C.edgeExcess (s.edgeReads e.1 e.2)
         ≤ ((s.edgeUndecided e.1 e.2).length : ℝ) - C.edgeUndecidedRate * s.edgeReads e.1 e.2 then
     some (.harvest h.choose)
-  else if C.searchShare * s.stretchProbes ≤ s.stretchDisagreements ∧ rateSide
-      C.middleUndecidedRate C.testLevel C.firstLook s.stretchDisagreements
-      s.stretchMiddles.length = some true then
+  else if C.searchShare * s.stretchProbes ≤ s.stretchDisagreements
+      ∧ C.firstLook ≤ s.stretchDisagreements ∧ seqRate C.middleUndecidedRate C.middleAltRate
+        C.testLevel s.stretchDisagreements s.stretchMiddles.length then
     some .harvestPT
-  else if rateSide C.disagreementRate C.testLevel C.firstLook s.stretchProbes
-      s.stretchDisagreements = some false then some .success
+  else if seqRate C.disagreementRate C.disagreementAltRate C.testLevel s.stretchProbes
+      s.stretchDisagreements then some .success
   else none
 
 /-- One probe: its reads are charged and its outcome learned, recorded or counted, the tests may
