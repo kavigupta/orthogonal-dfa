@@ -59,13 +59,14 @@ noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
 open scoped Classical in
 /-- What one stretch risks over its first `Ns` probes: a test firing at some look at a site whose
 harvest would not end well (at the start or the middles, each a sequential test at level
-`testLevel`; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by `edgeExcess`),
+`testLevel`; at one of the `(|Q| + 2)|Σ|` edges, the count passing twice its mean by `edgeExcess`,
+a probe adding at most one to it),
 or a false success; and the stretch outliving `Ns` probes, though clean disagreements are at least
 `θr` of them, or the searches are at most `εd'` of the probes yet success is silent at look `N₁`,
 or they are more and the undecided middles at least `θpt'` of them yet their test is silent at
 look `Ns`. -/
-noncomputable def stretchRisk (C : Level3Settings) (nσ nα L Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
-  3 * C.testLevel + ((nσ + 2) * nα : ℕ) * Real.exp (-C.edgeExcess / (2 * (L + 1)))
+noncomputable def stretchRisk (C : Level3Settings) (nσ nα Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
+  3 * C.testLevel + ((nσ + 2) * nα : ℕ) * Real.exp (-5 * C.edgeExcess / 4)
     + (1 - binomSfGe Ns θr 1)
     + binE N₁ εd' (fun s =>
         if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0 else 1)
@@ -93,15 +94,15 @@ structure Knobs where
   /-- The middles rate the stretch's risk tests against. -/
   θpt' : ℝ
 
-/-- The relations the knobs must meet, at the settings `C`, the probes' length `L`, the ending's
-tolerance `ε` and the yield `y`: an edge's least traffic times its rate is at least twice the
-yield, and twice what an edge's sampler can find at good read-states, `2 (L + 1) G`; the start's
-rate is at least what its sampler can find, `max (2G) y`; and against that rate of undecided
-middles per probe, with searches at least `searchShare` of the probes, the middles' test's
+/-- The relations the knobs must meet, at the settings `C`, the ending's tolerance `ε` and the
+yield `y`: an edge's least traffic times its rate is at least twice the yield, and twice what an
+edge's sampler can find at good read-states, `2G`; the start's rate is at least what its sampler
+can find, `max (2G) y`; and against that rate of undecided middles per probe, with searches at
+least `searchShare` of the probes, the middles' test's
 likelihood ratio falls on average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)`
 at another search, `μ = middleRate` and `m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
-    (L : ℕ) (ε y : ℝ) (kn : Knobs) : Prop where
+    (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
   θ_nonneg : 0 ≤ θ
@@ -126,7 +127,7 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   θpt'_le : kn.θpt' ≤ 1
   sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
   probeBudget_ge : Ideal.stretches (Fintype.card σ) (Fintype.card α) * kn.Ns ≤ C.probeBudget
-  noise_le_traffic : 4 * (L + 1) * kn.G ≤ C.edgeRate * C.edgeReadShare
+  noise_le_traffic : 4 * kn.G ≤ C.edgeRate * C.edgeReadShare
   yield_le_traffic : 2 * y ≤ C.edgeRate * C.edgeReadShare
   harvest_le_start : max (2 * kn.G) y ≤ C.startRate
   middles_fall : max (2 * kn.G) y * (C.middleAlternative / C.middleRate)
@@ -141,12 +142,12 @@ noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (y : ℝ) (kn : Knobs) : ℝ :=
   noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) (prefixMax D C.walkStart) kn.G
     + Ideal.stretches (Fintype.card σ) (Fintype.card α)
-      * stretchRisk C (Fintype.card σ) (Fintype.card α) L kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
+      * stretchRisk C (Fintype.card σ) (Fintype.card α) kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
 
 /-- The least of `roundBound` over the admissible knobs. -/
 noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
     (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (ε y : ℝ) : ENNReal :=
-  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C L ε y),
+  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ C ε y),
     ENNReal.ofReal (roundBound (α := α) σ θ D L C y kn)
 
 /-- Reads of every string, independent across strings, each undecided with its state's chance `U`
