@@ -22,6 +22,17 @@ def small_trees():
             yield tree
 
 
+def midfixes(tree):
+    """Every internal node's midfix, deduplicated."""
+    found, stack = {}, [tree.root]
+    while stack:
+        node = stack.pop()
+        if not isinstance(node, int):
+            found[node[0]] = None
+            stack.extend(node[1].values())
+    return list(found)
+
+
 def cuts(reads):
     """Every three-valued cut on ``reads``."""
     reads = sorted(set(reads))
@@ -60,7 +71,7 @@ class TestSiftWithPathCorrect(unittest.TestCase):
         checked = 0
         for tree in small_trees():
             for seq in (b"", bytes([1, 0])):
-                for cut in cuts(seq + m for m in tree.midfixes()):
+                for cut in cuts(seq + m for m in midfixes(tree)):
                     self.check(tree, cut, seq)
                     checked += 1
         self.assertGreater(checked, 10000)
@@ -70,7 +81,7 @@ class TestSiftRunsOnSiftWithPath(unittest.TestCase):
     def test_every_small_tree_and_cut(self):
         for tree in small_trees():
             for seq in (b"", bytes([1, 0])):
-                for cut in cuts(seq + m for m in tree.midfixes()):
+                for cut in cuts(seq + m for m in midfixes(tree)):
                     calls = ([], [])
 
                     def logged(log, cut=cut):
