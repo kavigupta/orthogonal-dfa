@@ -9,7 +9,9 @@ part or stops at an undecided midpoint. A decided read is never on its state's w
 level 2 a clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns
 it. A probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over
 the stretch since the hypothesis last changed, feed the tests of level 5, checked after every probe,
-each rate tested by `seqRate` against an alternative:
+each rate tested by `seqRate` against an alternative, twice the rate for the start and the middles
+and half of it for success. Under the `j`-th hypothesis each test runs at level
+`δ / (8 (j + 1) (j + 2))`, the edges' split evenly among the edges:
 * the start's undecided rate above `startRate` harvests the start;
 * an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
   its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
@@ -110,27 +112,37 @@ def middleString : Outcome α → List (FreeMonoid α)
 structure Level3Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
-  /-- Each test's chance of ever firing falsely in a stretch. -/
-  testLevel : ℝ
+  /-- The chance the round may fail to end well. -/
+  δ : ℝ
   startRate : ℝ
-  /-- Above `startRate`. -/
-  startAlternative : ℝ
   edgeRate : ℝ
   edgeReadShare : ℝ
-  edgeExcess : ℝ
   middleRate : ℝ
-  /-- Above `middleRate`. -/
-  middleAlternative : ℝ
   searchShare : ℝ
   disagreementRate : ℝ
-  /-- Below `disagreementRate`. -/
-  disagreementAlternative : ℝ
   probeBudget : ℕ
 
-/-- The counts are since the hypothesis last changed. -/
+/-- The tests' level under the `j`-th hypothesis. -/
+noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
+  C.δ / (8 * (j + 1) * (j + 2))
+
+noncomputable def Level3Settings.startAlternative (C : Level3Settings) : ℝ := 2 * C.startRate
+
+noncomputable def Level3Settings.middleAlternative (C : Level3Settings) : ℝ := 2 * C.middleRate
+
+noncomputable def Level3Settings.disagreementAlternative (C : Level3Settings) : ℝ :=
+  C.disagreementRate / 2
+
+/-- How far an edge's undecided reads must pass `edgeRate` of its reads, with `n` edges, under the
+`j`-th hypothesis: each edge's test at level `level j / n`. -/
+noncomputable def Level3Settings.edgeExcess (C : Level3Settings) (n j : ℕ) : ℝ :=
+  4 / 5 * Real.log (n / C.level j)
+
+/-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before. -/
 structure Level3State (α : Type*) where
   tree : DTree α
   edges : Edges α
+  hypotheses : ℕ
   probeCount : ℕ
   searchCount : ℕ
   startUndecided : List (FreeMonoid α)
@@ -138,11 +150,11 @@ structure Level3State (α : Type*) where
   edgeReads : List Bool → α → ℕ
   edgeUndecided : List Bool → α → List (FreeMonoid α)
 
-def newHypothesis (T : DTree α) (E : Edges α) : Level3State α :=
-  ⟨T, E, 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
+def newHypothesis (T : DTree α) (E : Edges α) (j : ℕ) : Level3State α :=
+  ⟨T, E, j, 0, 0, [], [], fun _ _ => 0, fun _ _ => []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
-def initialState : Level3State α := newHypothesis (.node 1 .leaf .leaf) fun _ => none
+def initialState : Level3State α := newHypothesis (.node 1 .leaf .leaf) (fun _ => none) 0
 
 section
 
@@ -164,18 +176,20 @@ open scoped Classical in
 /-- The tests, in turn: the start's undecided rate, an edge's undecided reads, the undecided
 middles among the searches, and the disagreement rate. -/
 noncomputable def runTests [Fintype α] (s : Level3State α) : Option (RoundEnd (Level3Site α)) :=
-  if seqRate C.startRate C.startAlternative C.testLevel s.probeCount s.startUndecided.length then
+  if seqRate C.startRate C.startAlternative (C.level s.hypotheses) s.probeCount
+      s.startUndecided.length then
     some (.harvest .start)
   else if h : ∃ e ∈ s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α),
       C.edgeReadShare * s.probeCount ≤ s.edgeReads e.1 e.2
-        ∧ C.edgeExcess + C.edgeRate * s.edgeReads e.1 e.2 ≤ (s.edgeUndecided e.1 e.2).length then
+        ∧ C.edgeExcess (s.tree.leaves.length * Fintype.card α) s.hypotheses
+            + C.edgeRate * s.edgeReads e.1 e.2 ≤ (s.edgeUndecided e.1 e.2).length then
     some (.harvest (.edge h.choose.1 h.choose.2))
   else if C.searchShare * s.probeCount ≤ s.searchCount
-      ∧ seqRate C.middleRate C.middleAlternative C.testLevel s.searchCount
+      ∧ seqRate C.middleRate C.middleAlternative (C.level s.hypotheses) s.searchCount
         s.middleUndecided.length then
     some (.harvest .middles)
-  else if seqRate C.disagreementRate C.disagreementAlternative C.testLevel s.probeCount
-      s.searchCount then some .consistent
+  else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.hypotheses)
+      s.probeCount s.searchCount then some .consistent
   else none
 
 noncomputable def applyTests [Fintype α] (s : Level3State α) :
@@ -188,13 +202,13 @@ noncomputable def applyTests [Fintype α] (s : Level3State α) :
 def splitLeaf (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
     Level3State α :=
   let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-  newHypothesis T' (retarget read T' p s.edges)
+  newHypothesis T' (retarget read T' p s.edges) (s.hypotheses + 1)
 
 noncomputable def applyProbe [Fintype α] (s : Level3State α) (x : FreeMonoid α) :
     Level3State α ⊕ RoundEnd (Level3Site α) :=
   match probeOrAgree read s.tree s.edges C.walkStart x with
   | .unlearnedEdge p c u t =>
-    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
+    .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))) (s.hypotheses + 1))
   | .wrongEdge p c _ t =>
     match s.edges (p, c) with
     | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
