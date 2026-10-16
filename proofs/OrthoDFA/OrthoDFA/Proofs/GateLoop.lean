@@ -2505,6 +2505,219 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     rw [← hBdef, ← hmdef] at h
     exact h
 
+set_option maxHeartbeats 2000000 in
+/-- Part 2 — the loop returns: except with probability `δ/2`, the top rung passes at every
+population, its gate read at the first look.  `iLtest` is the indecision rate the FNR test is
+run at, at least the one the schedule is solved at. -/
+theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (uni : J) (huni : uni ∈ populations) (D : J → Measure S)
+    (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (indecisionLimit iLtest εcov α : ℝ) (ρ pAP δ pBal : ℝ)
+    (hsig : O.η < 1 / 2) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (htest : indecisionLimit ≤ iLtest)
+    (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hpBal : 0 < pBal) (hpIn : pBal ≤ (D uni).real O.L) (hpOut : pBal ≤ (D uni).real O.Lᶜ)
+    (hiLp : indecisionLimit ≤ pBal * (1 / 2 - η₀) / 80) (hiLε : indecisionLimit ≤ εcov / 64)
+    (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hρsf : collisionMass Dsf
+        ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
+    (runMeasure μ D Dsf).real {x | ∀ B : {B : State //
+        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ},
+      x ∉ retAll rule O.mq populations uni η₀ iLtest εcov α B.val} ≤ δ / 2 := by
+  classical
+  have hpop : populations.Nonempty := ⟨uni, huni⟩
+  obtain ⟨B, hB, hpass⟩ := exists_passable (crossLimit := crossLimit) O populations D Dsf
+    indecisionLimit εcov α δ ρ (collisionMass Dsf) pAP pBal hsig hpop hηle hη₀ hεcov hε1 hδ hδ1
+    hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ hρ0 le_rfl
+    (tsum_nonneg (fun a => sq_nonneg _)) hρcap hρsf hpBal hiLp hiLε
+  obtain ⟨th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, f, c, t, r, rs, hmpos, hkpos, hindLim',
+    hind1', hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hf0, hpAP0, hlcut, hlcl,
+    hc0, hr, hpAPBound', hρsf', hheavy, hscd, hscLow, hscHigh, hcount, hpool,
+    hhiUp, hloUp, hhiLo, hloLo, hlohi, hpBal', hbal, hrp, ht, hdev, hgate, hEhalf,
+    hbudget⟩ := hpass
+  set l : ℝ := indecisionLimit / 2 with hl
+  have hl2 : 2 * l ≤ iLtest := by rw [hl]; linarith
+  set κ : ℕ := B.k - 1 with hκ
+  set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
+  have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
+  have hsub : {x : Run Ω S J | ∀ B' : {B : State //
+          B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ},
+        x ∉ retAll rule O.mq populations uni η₀ iLtest εcov α B'.val}
+      ⊆ ⋃ j ∈ populations,
+        {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ iLtest εcov α B j} := by
+    intro x hx
+    by_contra hc
+    simp only [Set.mem_iUnion, not_exists, exists_prop, Set.mem_setOf_eq, not_and] at hc
+    refine hx ⟨B, hB⟩ (mem_retAll_of_retAt O populations hpop uni η₀ iLtest εcov α B x
+      (fun j hj => ?_))
+    by_contra hcj
+    exact hc j hj hcj
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+  have hstall := measureReal_stalled_le (rule := rule) hflat O populations D Dsf hsupp hsuppSf B
+    (by omega) uni huni γscr pAP tap (collisionMass Dsf) ρ rs r hγscr hpAP0 htap hpAPBound' hscd
+    hsig.le hscLow hcount hρsf' hρsf0 (hρ uni huni) hρ0
+  have hdirtyAt : ∀ j ∈ populations, (runMeasure μ D Dsf).real
+      {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
+        flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty}
+      ≤ (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
+          + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
+          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * gdirty ^ 2))
+        + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
+          + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))) := by
+    intro j hj
+    have hdirtyI := measureReal_dirtyMember_le (rule := rule) hflat O populations D Dsf hsupp
+      hsuppSf j hj B hsig.le hmpos Δ γdirty gdirty c ρ r hΔ hγdirty hgdirty hc0 hρ0 hr (hρ j hj)
+      hscd hscHigh
+    have hnoclean := measureReal_noCleanRef_le D Dsf O populations B pAP tap
+      (collisionMass Dsf) rs hpAP0 htap hpAPBound' le_rfl hρsf0
+      (by
+        have hk2 : (2 : ℝ) ≤ (B.k : ℝ) := by exact_mod_cast hkpos
+        linarith [hcount, hk2])
+    have hcov : {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
+          flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty}
+        ⊆ ({x : Run Ω S J | ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+              ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0}
+            ∩ {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
+              flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + gdirty})
+          ∪ {x : Run Ω S J | ¬ ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+              ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0} := by
+      intro x hx
+      by_cases hc : ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+          ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0
+      · exact Or.inl ⟨hc, hx⟩
+      · exact Or.inr hc
+    refine le_trans (measureReal_mono hcov (measure_ne_top _ _)) ?_
+    refine le_trans (measureReal_union_le _ _) ?_
+    gcongr
+  have hdec : ∀ (F : Finset S) (p : S), (1 : S) ∉ F → flipCount O F p ≤ (F.card : ℝ) * f →
+      κ ≤ F.card → F.card ≤ κ →
+      μ.real {ω | ¬ decided O.mq B.lo (B.hi + 1) (insert 1 F) p ω} ≤ E := by
+    intro F p h1 hfl hmin hmax
+    have hcardF : F.card = κ := le_antisymm hmax hmin
+    have hcardI : ((insert 1 F).card : ℝ) = (B.k : ℝ) := by
+      rw [Finset.card_insert_of_notMem h1, hcardF, hκ]
+      have : 1 ≤ B.k := by omega
+      push_cast [this]
+      ring
+    have hcle : (F.card : ℝ) ≤ ((insert 1 F).card : ℝ) := by
+      exact_mod_cast Finset.card_le_card (Finset.subset_insert _ _)
+    have hflI : flipCount O (insert 1 F) p ≤ ((insert 1 F).card : ℝ) * f :=
+      le_trans (flipCount_insert_one O F p)
+        (le_trans hfl (mul_le_mul_of_nonneg_right hcle hf0.le))
+    refine le_trans (decided_whp O (insert 1 F) p B.lo (B.hi + 1) f γdec hγdec hsig.le hflI
+      ?_ ?_) ?_
+    · rw [hcardI]; push_cast; exact hhiUp
+    · rw [hcardI]; exact hloUp
+    · rw [hE, hcardI]
+      refine Real.exp_le_exp.2 ?_
+      have hk : (κ : ℝ) ≤ (B.k : ℝ) := by rw [hκ]; exact_mod_cast Nat.sub_le _ _
+      nlinarith [sq_nonneg γdec]
+  have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
+      κ ≤ F.card → F.card ≤ κ →
+      μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E := by
+    intro F p hfl hmin hmax
+    have hcardF : F.card = κ := le_antisymm hmax hmin
+    refine le_trans (cutCorrect_whp O F p B.lo B.hi f γdec hsig.le hfl hγdec ?_ ?_) ?_
+    · rw [hcardF]; linarith [hhiLo]
+    · rw [hcardF]; exact hloLo.le
+    · rw [hE, hcardF]
+  have hper : ∀ j ∈ populations,
+      (runMeasure μ D Dsf).real
+          {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ iLtest εcov α B j}
+        ≤ roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf) pBal t
+          r rs B := by
+    intro j hj
+    have hcertBad := measureReal_certNotGood_le (μ := μ) D Dsf populations j B.npref r ρ hρ
+      (hρ j hj) hρ0
+    have hcertBadu := measureReal_certNotGood_le (μ := μ) D Dsf populations uni B.npref r ρ hρ
+      (hρ uni huni) hρ0
+    have hmain := measureReal_notRetAt_le (indecisionLimit := iLtest) hflat O populations uni huni
+      D Dsf hsupp hsuppSf j hj B hmpos hηle hη₀ εcov α pBal hαpos (by linarith) hpIn hpOut
+      l lcut f E ((populations.card : ℝ) * Δ + c + gdirty) th c t (collisionMass Dsf) r rs κ κ
+      (by omega) (Real.exp_nonneg _) (by linarith) (by rw [hl]; exact hlcl) hl2
+      (by positivity) hth hf0 hr hheavy hlohi hpBal' hbal hrp ht (by omega) hpool hdev hgate
+      hρsf' hρsf0 _ _ hcertBad hcertBadu _ hstall _ _ (hdirtyAt j hj) (hdirtyAt uni huni)
+      hdec hcut
+    refine le_trans hmain (le_of_eq ?_)
+    unfold roundFail
+    ring
+  have hsum : ∑ j ∈ populations, (runMeasure μ D Dsf).real
+        {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ iLtest εcov α B j}
+      ≤ (populations.card : ℝ)
+          * roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf) pBal t
+            r rs B := by
+    refine le_trans (Finset.sum_le_sum hper) (le_of_eq ?_)
+    rw [Finset.sum_const, nsmul_eq_mul]
+  linarith [hsum, hbudget]
+
+#print axioms validity_of_returned
+#print axioms loop_terminates
+
 end Loop
+
+/-- `validity_of_returned` (whatever the loop returns is good, whenever it is returned, except
+w.p. `δ/2 + α`) and `loop_terminates` (it returns, except w.p. `δ/2`), glued by
+`sound_and_terminating`. -/
+theorem clustering_correct : ClusteringCorrect := by
+  intro Ω _ μ _ S _ J _ O rule populations uni D Dsf _ _ Pre Suf η₀ indecisionLimit εcov α δ ρ
+    pAP pBal crossLimit k
+    hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hpBal hpIn hpOut hindLim hind1
+    hαpos hα hεcov hε1 hδ _hbudget hρcap hρsf
+  have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
+  have hpop : populations.Nonempty := ⟨uni, huni⟩
+  rw [O.apSet_eq] at hpAPBound
+  by_cases hδ1 : δ ≤ 1
+  case neg =>
+    exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ - α ≤ 0) measureReal_nonneg
+  set iLc : ℝ := cutLimit η₀ indecisionLimit εcov pBal with hiLc
+  have hs : 0 < 1 / 2 - η₀ := by linarith
+  have hiLc0 : 0 < iLc := lt_min hindLim (lt_min (by positivity) (by positivity))
+  have hiLc1 : iLc ≤ indecisionLimit := min_le_left _ _
+  have hiLcp : iLc ≤ pBal * (1 / 2 - η₀) / 80 := (min_le_right _ _).trans (min_le_left _ _)
+  have hiLcε : iLc ≤ εcov / 64 := (min_le_right _ _).trans (min_le_right _ _)
+  have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
+    exact_mod_cast Finset.card_pos.2 hpop
+  have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
+  have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
+  have hcoll := le_trans (poolDraws_le_of_cap (indecisionLimit := iLc) (crossLimit := crossLimit)
+      η₀ populations hpAPPositive hpAP1 hδ hρsf0 hρsf)
+    (show δ / (128 * ((populations.card : ℝ) + 1)) ≤ δ / 16 by
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+      nlinarith)
+  have hvalid := validity_of_returned (rule := rule) (crossLimit := crossLimit) hflat O populations
+    uni huni D Dsf hsupp hsuppSf indecisionLimit εcov α pBal hindLim hηle hη₀ hαpos (by linarith)
+    hpBal ρ (collisionMass Dsf) hρ le_rfl hρsf0 hεcov δ hδ hδ1 pAP hpAPPositive hpAP1 hpAPBound
+    hcoll
+  have hterm := loop_terminates (rule := rule) (crossLimit := crossLimit) hflat O populations uni
+    huni D Dsf hsupp hsuppSf iLc indecisionLimit εcov α ρ pAP δ pBal hsig hηle hη₀ hεcov hε1 hδ
+    hδ1 hαpos hα hiLc0 (by linarith) hiLc1 hpAPPositive hpAPBound hpBal hpIn hpOut hiLcp hiLcε hρ
+    (le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ uni huni)) hρcap hρsf
+  have h := sound_and_terminating (runMeasure μ D Dsf)
+    (fun B : {B : State // B ∈ stoppable η₀ populations iLc εcov δ α pAP crossLimit ρ} =>
+      retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
+        ∩ FailAt rule O populations uni D indecisionLimit εcov B.val)
+    (fun B : {B : State // B ∈ stoppable η₀ populations iLc εcov δ α pAP crossLimit ρ} =>
+      retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) (δ / 2 + α) (δ / 2)
+    hvalid
+    (le_trans (measureReal_mono (fun x hx B hB => hx B
+        (retAll_subset_retBy rule O.mq η₀ indecisionLimit εcov α B.val hB)) (measure_ne_top _ _))
+      hterm)
+  rw [show (1 : ℝ) - (δ / 2 + α + δ / 2) = 1 - δ - α by ring] at h
+  refine le_trans h (measureReal_mono ?_ (measure_ne_top _ _))
+  intro x hx
+  simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, not_and, not_not] at hx ⊢
+  obtain ⟨hex, hall⟩ := hx
+  refine ⟨hex, fun B hB j hj => ?_⟩
+  obtain ⟨hcov, hund⟩ := hall B hB j hj
+  refine ⟨le_trans hcov (measureReal_mono (fun p hp => cutCorrect_insert_one O _ _ _
+    (Finset.notMem_erase _ _) p _ hp) (measure_ne_top _ _)), hund⟩
+
+#print axioms clustering_correct
 
 end OrthoDFA
