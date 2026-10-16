@@ -2394,4 +2394,217 @@ theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
       + 11 * (2 * t + d) / (4 * s ^ 2) := by ring
   linarith
 
+/-! ### Liveness over the run -/
+
+open scoped Classical in
+lemma sidesLive_congr_reads (O : Oracle μ S) (lo hi : ℕ) (F A C R : Finset S) (t tu : ℝ)
+    (hone : (1 : S) ∈ C) (hF : F ⊆ C) (hRC : R ⊆ C) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    sidesLive O lo hi F A R t tu ω → sidesLive O lo hi F A R t tu ω' := by
+  classical
+  have hAC : ∀ p ∈ A, ∀ u ∈ C, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) := fun p hp u hu =>
+    h _ (mem_readSet hp hu)
+  have hA : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by simpa using hAC p hp 1 hone
+  have hvc : ∀ p ∈ A, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+    voteCount_congr O F p (fun u hu => hAC p hp u (hF hu))
+  have hacc : acceptSide O.mq hi F A ω = acceptSide O.mq hi F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  have hrej : rejectSide O.mq lo F A ω = rejectSide O.mq lo F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  rintro ⟨h1, h2⟩
+  refine ⟨?_, ?_⟩
+  · rw [← hacc]
+    exact sideLive_congr_mq O true _ R t tu (fun p hp =>
+      ⟨hA p (Finset.mem_filter.1 hp).1, fun v hv => hAC p (Finset.mem_filter.1 hp).1 v (hRC hv)⟩) h1
+  · rw [← hrej]
+    exact sideLive_congr_mq O false _ R t tu (fun p hp =>
+      ⟨hA p (Finset.mem_filter.1 hp).1, fun v hv => hAC p (Finset.mem_filter.1 hp).1 v (hRC hv)⟩) h2
+
+open scoped Classical in
+/-- At a look of `m` certification draws of population `j`, a side of the sample is not live
+against the references. -/
+noncomputable def sidesDead (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (j : J) (B : State) (m : ℕ) (t : ℝ) : Set (Run Ω S J) :=
+  {x | ¬ sidesLive O B.lo B.hi (clusterBy rule O.mq populations x B)
+    (certOf (prefixesAt populations B.npref x) j m x) (refsBy rule O.mq populations x B) t t
+    (oracleNoise x)}
+
+open scoped Classical in
+noncomputable def sidesDeadOf (rule : Clusterer S) (O : Oracle μ S) (B : State) (t : ℝ)
+    (P C A : Finset S) (ω : Ω) : Prop :=
+  ¬ sidesLive O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) A
+    (C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) t t ω
+
+open scoped Classical in
+lemma sidesDeadOf_congr (O : Oracle μ S) (B : State) (t : ℝ) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet P C ∪ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    sidesDeadOf rule O B t P C A ω → sidesDeadOf rule O B t P C A ω' := by
+  have hfam : clusterOf rule O B.sc B.scd P C B.k ω = clusterOf rule O B.sc B.scd P C B.k ω' :=
+    clusterOf_congr_mq O B.sc B.scd P C B.k hone (fun w hw => h w (Finset.mem_union_left _ hw))
+  have hsub : clusterOf rule O B.sc B.scd P C B.k ω' ⊆ C :=
+    clusterOf_subset O B.sc B.scd P C B.k ω' hone
+  unfold sidesDeadOf
+  rw [hfam]
+  intro hdead hlive
+  exact hdead (sidesLive_congr_reads O B.lo B.hi _ A C _ t t hone hsub Finset.sdiff_subset
+    (fun w hw => (h w (Finset.mem_union_right _ hw)).symm) hlive)
+
+open scoped Classical in
+lemma measurableSet_sidesDead (O : Oracle μ S) (populations : Finset J) (j : J) (B : State)
+    (m : ℕ) (t : ℝ) : MeasurableSet (sidesDead rule O populations j B m t) := by
+  classical
+  have hR : ∀ P C A : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      oracleNoise ⁻¹' {ω | sidesDeadOf rule O B t P C A ω} else (∅ : Set (Run Ω S J))) := by
+    intro P C A
+    split_ifs with hone
+    · exact measurable_nz (measurableSet_of_readCongr O _ _
+        (fun ω ω' h => sidesDeadOf_congr O B t P C A hone h))
+    · exact MeasurableSet.empty
+  have hrw : sidesDead rule O populations j B m t
+      = {x : Run Ω S J | x ∈ (fun P C A => if (1 : S) ∈ C then
+          oracleNoise ⁻¹' {ω | sidesDeadOf rule O B t P C A ω} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (certOf (prefixesAt populations B.npref x) j m x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage]
+    rfl
+  rw [hrw]
+  exact measurableSet_of_run_data_certAt populations j B m _ hR
+
+open scoped Classical in
+/-- `sidesLive_whp` over the run, at a deviation `t` for every count. -/
+theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {t : ℝ} (ht : 0 ≤ t) :
+    (runMeasure μ D Dsf).real (sidesDead rule O populations j B m t)
+      ≤ 2 * (((B.nsuff : ℝ) + 3) * Real.exp (-2 * t ^ 2 / m)) := by
+  classical
+  set E : ℝ := 2 * (((B.nsuff : ℝ) + 3) * Real.exp (-2 * t ^ 2 / m)) with hEdef
+  have hE0 : 0 ≤ E := by positivity
+  have hEnn : runMeasure μ D Dsf (sidesDead rule O populations j B m t)
+      ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_sidesDead O populations j B m t) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+      with d hdP hdC hdS
+    set Pd : Finset S := populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
+    set Cd : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff) with hCd
+    set Ad : Finset S := freshDraws Pd (fun i => d.2 j i) m with hAd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
+    have hP : ∀ q ∈ Pd, q ∈ Pre := table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hdP
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, rfl⟩ := mem_freshDraws hp
+      exact hdC j hj i
+    have hone : (1 : S) ∈ Cd := Finset.mem_insert_self _ _
+    have hCdcard : (Cd.card : ℝ) ≤ (B.nsuff : ℝ) + 1 := by
+      have := le_trans (Finset.card_insert_le (1 : S) _)
+        (Nat.add_le_add_right (card_freshDraws_le ∅ (fun i => d.1.1 i) B.nsuff) 1)
+      exact_mod_cast this
+    have hdisjPA : Disjoint Ad Pd := disjoint_freshDraws _ _ _
+    have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ sidesDead rule O populations j B m t}
+        = {ω | sidesDeadOf rule O B t Pd Cd Ad ω} := rfl
+    rw [hsec]
+    set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
+    set Bad : Finset S → Set Ω := fun F =>
+      if F ⊆ Cd ∧ (1 : S) ∉ F then {ω | ¬ sidesLive O B.lo B.hi F Ad (Cd \ insert 1 F) t t ω}
+      else ∅ with hBaddef
+    have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
+      rw [Finset.disjoint_coe, Finset.disjoint_left]
+      intro w hw hw'
+      obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hw'
+      obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+      obtain ⟨hq', hv'⟩ := Finset.mem_product.1 hqv
+      have := hflat q (hP q hq') p (hA p hp) v' (hV v' hv') v (hV v hv) hq
+      exact Finset.disjoint_left.1 hdisjPA hp (this ▸ hq')
+    have hmain := selection_congr_bound O (readSet Ad Cd) (readSet Pd Cd) hdisj Cd.powerset ∅
+      (Finset.empty_mem_powerset _) sel
+      (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone))
+      (fun ω ω' h => clusterOf_congr_mq O B.sc B.scd Pd Cd B.k hone
+        (fun w hw => by rw [mq_congr O (h w hw)]))
+      Bad (fun F ω ω' h hω => by
+        simp only [hBaddef] at hω ⊢
+        split_ifs at hω ⊢ with hF
+        · intro hlive
+          exact hω (sidesLive_congr_reads O B.lo B.hi F Ad Cd _ t t hone hF.1 Finset.sdiff_subset
+            (fun w hw => by rw [mq_congr O (h w hw)]) hlive)
+        · exact hω)
+      E hE0 (fun F _ => by
+        simp only [hBaddef]
+        split_ifs with hF
+        · have hsub : insert 1 (F ∪ (Cd \ insert 1 F)) ⊆ Cd :=
+            Finset.insert_subset hone (Finset.union_subset hF.1 Finset.sdiff_subset)
+          refine le_trans (sidesLive_whp O Ad F (Cd \ insert 1 F) B.lo B.hi ?_
+            (Finset.disjoint_left.2 (fun v hv hv' =>
+              (Finset.mem_sdiff.1 hv').2 (Finset.mem_insert_of_mem hv)))
+            hF.2 (fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_insert_self _ _)) ht ht m
+            (card_freshDraws_le _ _ _)) ?_
+          · intro p hp p' hp' u hu u' hu' heq
+            have hpp := hflat p (hA p hp) p' (hA p' hp') u (hV u (hsub hu)) u' (hV u' (hsub hu'))
+              heq
+            subst hpp
+            exact ⟨rfl, mul_left_cancel heq⟩
+          · have hR : ((Cd \ insert 1 F).card : ℝ) ≤ (B.nsuff : ℝ) + 1 :=
+              le_trans (by exact_mod_cast Finset.card_le_card Finset.sdiff_subset) hCdcard
+            have he := Real.exp_nonneg (-2 * t ^ 2 / m)
+            rw [hEdef]
+            nlinarith
+        · rw [measureReal_empty]; exact hE0)
+    have hsub : {ω | sidesDeadOf rule O B t Pd Cd Ad ω} ⊆ {ω | ω ∈ Bad (sel ω)} := by
+      intro ω hω
+      change ω ∈ Bad (sel ω)
+      have hF : sel ω ⊆ Cd ∧ (1 : S) ∉ sel ω :=
+        ⟨clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone, Finset.notMem_erase _ _⟩
+      simp only [hBaddef, if_pos hF]
+      exact hω
+    calc μ {ω | sidesDeadOf rule O B t Pd Cd Ad ω} ≤ μ {ω | ω ∈ Bad (sel ω)} := measure_mono hsub
+      _ = ENNReal.ofReal (μ.real {ω | ω ∈ Bad (sel ω)}) :=
+          (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
+      _ ≤ ENNReal.ofReal E := ENNReal.ofReal_le_ofReal hmain
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (sidesDead rule O populations j B m t)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
+open scoped Classical in
+/-- At most `m(q − t)` of population `j`'s first `m` certification draws lie in `W`. -/
+def classShort (j : J) (m : ℕ) (W : Set S) (q t : ℝ) : Set (Run Ω S J) :=
+  {x | (((Finset.univ : Finset (Fin m)).filter (fun i => certPrefix j i.val x ∈ W)).card : ℝ)
+    ≤ m * (q - t)}
+
+open scoped Classical in
+theorem measureReal_classShort_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) (W : Set S)
+    {q t : ℝ} (hq : 0 ≤ q) (ht : 0 ≤ t) (hW : q ≤ (D j).real W) :
+    (runMeasure μ D Dsf).real (classShort (Ω := Ω) j m W q t)
+      ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
+  classical
+  set E : ℝ := Real.exp (-2 * (m : ℝ) * t ^ 2) with hEdef
+  have hmeas : MeasurableSet (classShort (Ω := Ω) j m W q t) :=
+    measurableSet_card_filter_fin (fun i x => certPrefix j i.val x ∈ W)
+      (fun i => measurable_cert j i.val (measurableSet_of_countable W))
+      (fun n => (n : ℝ) ≤ m * (q - t))
+  have hEnn : runMeasure μ D Dsf (classShort (Ω := Ω) j m W q t) ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_cert_le D Dsf _ hmeas _ (fun y => ?_)
+    have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J) ∈ classShort j m W q t}
+        ⊆ {c | (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)} := by
+      intro c hc
+      have h := card_filter_fin_eq m (fun p => p ∈ W) (fun i => c j i)
+      show (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)
+      rw [← h]
+      exact hc
+    refine le_trans (measure_mono hsec) ?_
+    rw [← ENNReal.ofReal_toReal (measure_ne_top
+        (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _), ← measureReal_def]
+    exact ENNReal.ofReal_le_ofReal (cert_hits_wrongSet D j m W q t hq ht hW)
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (classShort (Ω := Ω) j m W q t)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
+
 end OrthoDFA
