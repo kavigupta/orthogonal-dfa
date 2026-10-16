@@ -1291,6 +1291,116 @@ lemma card_range_filter_le (T : Finset S) (y : ℕ → S) (Q : S → Prop) [Deci
   rw [Finset.natCast_card_filter, Finset.natCast_card_filter]
   exact h
 
+open scoped Classical in
+/-- The gate certifies, at some look, a family that misclassifies more than `lim` of population
+`j`, though the references hold an accept-preserving suffix.  Then the calibration sample's
+sides failed, or some look's sides did, or the draws undercounted the population. -/
+theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (populations : Finset J) (Dj : Measure S) (uni j : J) (B : State) (lim a : ℝ) :
+    {x : Run Ω S J |
+      (∃ e ≤ B.npref, certifiesAt O.mq lim a B.lo B.hi (clusterBy rule O.mq populations x B)
+        (refsBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
+        (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x)
+          (B.npref + e))
+        (calibrate O.mq η₀ (sizeLevel a B.npref) B.lo B.hi (clusterBy rule O.mq populations x B)
+          (refsBy rule O.mq populations x B)
+          (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x))
+        (oracleNoise x))
+      ∧ (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
+      ∧ lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
+          (oracleNoise x)}}
+      ⊆ sidesBad rule O populations uni B B.npref (sizeLevel a B.npref)
+        ∪ ((⋃ e ∈ Finset.range (B.npref + 1),
+            sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
+          ∪ ⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1)) := by
+  classical
+  rintro x ⟨⟨e, he, hN, hineq⟩, hv, hmass⟩
+  set T : Finset S := prefixesAt populations B.npref x with hT
+  set y : ℕ → S := fun i => certPrefix j i x with hy
+  set m : ℕ := B.npref + e with hm
+  set F : Finset S := clusterBy rule O.mq populations x B with hF
+  set R : Finset S := refsBy rule O.mq populations x B with hR
+  by_cases hcal : x ∈ sidesBad rule O populations uni B B.npref (sizeLevel a B.npref)
+  · exact Or.inl hcal
+  by_cases hpop : x ∈ sidesBad rule O populations j B m (sizeLevel a m)
+  · exact Or.inr (Or.inl (Set.mem_biUnion (Finset.mem_range.2 (by omega)) hpop))
+  refine Or.inr (Or.inr ?_)
+  have hgood : ∀ {m' : ℕ} {j' : J} {a' : ℝ},
+      x ∉ sidesBad rule O populations j' B m' a' →
+      ∃ w ∈ R, (∀ p, O.label (p * w) = O.label p)
+        ∧ sidesGood O B.lo B.hi F (certOf T j' m' x) w a' (oracleNoise x) := by
+    intro m' j' a' hb
+    by_contra hc
+    push_neg at hc
+    exact hb ⟨hv, fun w hw hap => hc w hw hap⟩
+  obtain ⟨w, hwR, hapw, hgw⟩ := hgood hcal
+  obtain ⟨v, hvR, hapv, hgv⟩ := hgood hpop
+  have hne1 : ∀ u ∈ R, ∀ p : S, p * u ≠ p := fun u hu p h =>
+    (Finset.mem_sdiff.1 hu).2 (by
+      have : u = 1 := mul_left_cancel (a := p) (by rw [h, mul_one])
+      rw [this]; exact Finset.mem_insert_self _ _)
+  have hcount := miscut_le_miscutBound O hη hη₀ B.lo B.hi F R (certOf T j m x)
+    (certOf T uni B.npref x) hvR hwR hapv hapw (fun p _ => hne1 v hvR p) (fun p _ => hne1 w hwR p)
+    hgw hgv
+  have hex : ∃ n, m ≤ (acceptedAt T y n).card := by
+    by_contra hne
+    have hne' : ¬ ∃ n, m ≤ ((Finset.range n).image y \ T).card := hne
+    have h0 : drawsTaken T y m = 0 := by
+      unfold drawsTaken
+      rw [dif_neg hne']
+    rw [h0] at hN
+    exact lt_irrefl 0 hN
+  have hex' : ∃ n, m ≤ ((Finset.range n).image y \ T).card := hex
+  have hNeq : drawsTaken T y m = Nat.find hex := by
+    unfold drawsTaken
+    rw [dif_pos hex']
+    rfl
+  have hP : certOf T j m x = acceptedAt T y (Nat.find hex) := freshDraws_eq T y m hex
+  have hPcard : (certOf T j m x).card = m := card_freshDraws T y m hex
+  rw [hPcard] at hineq
+  set N : ℕ := Nat.find hex with hNdef
+  have hraw := card_range_filter_le T y
+    (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) N
+  rw [← hP, hPcard] at hraw
+  have hNpos : 0 < N := by rw [← hNeq]; exact hN
+  refine Set.mem_iUnion.2 ⟨N - 1, ?_⟩
+  rw [show N - 1 + 1 = N by omega]
+  refine ⟨hmass, ?_⟩
+  rw [hNeq] at hineq
+  have key : (((Finset.range N).filter
+        (fun i => ¬ cutCorrect O B.lo B.hi F (y i) (oracleNoise x))).card : ℝ)
+      ≤ N * lim - hoeffDev N (sizeLevel a N) := by linarith
+  have hfin := card_filter_fin_eq N (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) y
+  refine le_trans (le_of_eq ?_) key
+  rw [← hfin]
+
+/-- What one population's looks and draws cost the gate, beyond the calibration sample. -/
+theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (runMeasure μ D Dsf).real ((⋃ e ∈ Finset.range (B.npref + 1),
+        sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
+      ∪ ⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1)) ≤ 7 * a := by
+  refine le_trans (measureReal_union_le _ _) ?_
+  have h1 : (runMeasure μ D Dsf).real (⋃ e ∈ Finset.range (B.npref + 1),
+      sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e))) ≤ 6 * a := by
+    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+    calc ∑ e ∈ Finset.range (B.npref + 1), (runMeasure μ D Dsf).real
+          (sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
+        ≤ ∑ e ∈ Finset.range (B.npref + 1), 6 * sizeLevel a (B.npref + e) :=
+          Finset.sum_le_sum (fun e _ => measureReal_sidesBad_le hflat O populations D Dsf
+            hsupp hsuppSf j hj B _ (sizeLevel_pos ha0 _) (sizeLevel_le ha0.le ha1 _))
+      _ = 6 * ∑ e ∈ Finset.range (B.npref + 1), sizeLevel a (B.npref + e) := by
+          rw [Finset.mul_sum]
+      _ ≤ 6 * a := by
+          have := sum_range_sizeLevel_shift_le ha0.le B.npref (B.npref + 1)
+          linarith
+  have h2 := measureReal_rawShort_le (rule := rule) D Dsf O populations j B (lim := lim) ha0 ha1
+  linarith
+
 /-! ### A clean family is certified -/
 
 /-- Any reference disagrees with the seed at least as often as an accept-preserving one:
