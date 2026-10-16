@@ -1,6 +1,7 @@
 import OrthoDFA.LoopDFA
 import OrthoDFA.Proofs.LoopUniform
 import OrthoDFA.Proofs.DFABridge
+import OrthoDFA.Proofs.LoopDFAArith
 
 /-!
 # The learner's DFA: the proof
@@ -401,6 +402,40 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   · show (Q + 1) * (2 * (δ / (4 * (Q + 1))) + 128 * (δ * εd / (256 * (Q + 1))) / εd) = δ
     field_simp
     ring
+
+set_option maxHeartbeats 1000000 in -- unfolding the simple claim's settings
+theorem learner_loop_dfa_holds : LearnerLoopDFA := by
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP Q A k L₁ N εd δ' s V Kp G Ce Θ B₁ P₀ R₀ E₁ E L₀
+    hL hη hη₀ hc hδ hδ1 hpAP hA2 hpAPu hceil hL₀
+  classical
+  have : Nonempty σ := ⟨M.start⟩
+  have hQ1 : (1 : ℝ) ≤ Q := by
+    show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
+  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
+  have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
+  have hkr : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
+  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
+  have hN1 : 1 ≤ N := by show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith
+  have hNℓ : N ≤ (L₁ : ℝ) + 1 := by show (L₁ : ℝ) + 1 - k ≤ _; linarith
+  have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
+  have hpow : ((L₁ : ℝ) + 1) ^ 17 * E ≤ A ^ k :=
+    dfa_pow (L := (L : ℝ)) (Q := Q) hA (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring)
+      (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) hL₀
+  have hb := dfa_cap_bound (ℓ := (L₁ : ℝ) + 1) (Nn := N)
+    (εcov := δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2) * N ^ 3))
+    (ι := min (δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2) * N ^ 3) / 8)
+      (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))
+    (ρ := 3 * εd / 16)
+    (τ := min (δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2) * N ^ 3) / 2)
+      (min s (min (δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2)
+        * N ^ 3) / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))))
+    (m := Fintype.card σ + 2) (n := k) hQ1 hA hℓ1 hN1 hNℓ hη0 hη₀ hc hδ hδ1 hpAP hp1 rfl rfl rfl
+    rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl hpow
+  dsimp only at hb
+  exact learner_loop_dfa_simple_holds M O L η₀ c η δ pAP hL hη hη₀ hc hδ hδ1 hpAP hA2 hpAPu hceil
+    hb.1 hb.2
 
 end OrthoDFA
 

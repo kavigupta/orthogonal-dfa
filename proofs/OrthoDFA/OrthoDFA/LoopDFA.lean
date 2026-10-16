@@ -17,6 +17,14 @@ but `η` of the strings of length `L` as the target does, but for chance `δ`. A
 unlearned edge counts as wrong. The disagreement rate the loop runs level 5 at is `c/(2(|Σ|+1)N)`,
 `N` the probes' lengths: a covered state is visited `c` of the time across the window, so a wrong
 edge out of it is crossed `c/((|Σ|+1)N)` of the time at some length.
+
+Known modelling gap. The Python draws its probes at one length; here they are uniform over the
+window of lengths, so that every position a run can use an edge at is some probe's last step.
+
+Known modelling gap. The Python estimates `covered_states` and `covered_accuracy_ceiling` on 2000
+sampled strings; here they are exact probabilities.
+
+Known modelling gap. The claim shows a good start leaf exists; neither model chooses it.
 -/
 
 noncomputable section
@@ -96,6 +104,60 @@ def LearnerLoopDFASimple : Prop :=
   (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
   (A ^ k)⁻¹ ≤ cap * ρ / 4 →
   16384 * (L₁ + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ k)⁻¹ ≤ εd →
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
+    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
+    (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
+      {p | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws p)
+        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            o.result.ending = .consistent ∧ ∃ s ∈ o.result.hypothesis.tree.leaves,
+              (uniformStrings L).real {x | ¬ o.result.hypothesis.Classifies s x
+                (M.eval x.toList ∈ M.accept)} ≤ η)}
+      ≤ δ
+
+/-- The learner's DFA once the Python's length `L` is at least `L₀`. With the walk starting at
+`k = ⌈L/2⌉`, probes uniform over the lengths `k` to `L₁ = L + |Q| + 3` and suffixes uniform at length
+`L₁ + |Q| + 3`, of which at least `pAP` keep every string's membership: if some state that at
+least `c` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
+least `1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops
+within `|Q| + 1` rounds at a consistent round with a leaf from which its hypothesis classifies all
+but `η` of the strings of length `L` as the target does. Level 5 runs at `εd = c/(2(|Σ|+1)N)` and
+draws at most `Kp · G` probes a round, `N = L₁ + 1 − k` the probes' lengths.
+
+`L₀` is `|Q| + 4` plus `4 (log E + 64)/log |Σ|`, `E` free of `L`: the claim's `cap` is at least
+`1/((L₁ + 1)¹⁶ E₁)`, `ρ` at least `3c/(32(|Σ|+1)(L₁ + 1))`, and `17 log (L₁ + 1) ≤ 64 + (L₁ + 1) log |Σ| / 4`
+absorbs the length. -/
+def LearnerLoopDFA : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c η δ pAP : ℝ),
+  let Q : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let k : ℕ := (L + 1) / 2
+  let L₁ : ℕ := L + Fintype.card σ + 3
+  let N : ℝ := L₁ + 1 - k
+  let εd : ℝ := c / (2 * (A + 1) * N)
+  let δ' : ℝ := δ / (4 * (Q + 1))
+  let s : ℝ := 1 / 2 - η₀
+  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
+  let Kp : ℝ := V * (224 / εd + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+  let Ce : ℝ := 512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2) / (δ * c)
+  let Θ : ℝ := 1 / s + 8 * Ce + 3072 * Q * (Q + 1)
+  let B₁ : ℝ := 8 * V * (448 * (A + 1) / c + 1) * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'
+  let P₀ : ℝ := 256 * (2 * Θ + B₁) / (s ^ 2 * pAP) + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+  let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
+    * (Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) + 6) / s ^ 4
+  let E₁ : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+  let E : ℝ := 128 * (A + 1) * E₁ / (3 * c)
+    + 32768 * (Q + 2) * A * (A + 1) * Real.log ((Q + 3) * A / δ') / c
+  let L₀ : ℝ := Q + 4 + 4 * (Real.log E + 64) / Real.log A
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 2 ≤ Fintype.card α →
+  pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
+  L₀ ≤ L →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
     (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧

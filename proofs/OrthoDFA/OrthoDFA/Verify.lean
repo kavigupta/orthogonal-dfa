@@ -75,6 +75,10 @@ theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simpl
 
 #print axioms learner_loop_dfa_simple
 
+theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
+
+#print axioms learner_loop_dfa
+
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
 #print axioms split_and_learn_correct

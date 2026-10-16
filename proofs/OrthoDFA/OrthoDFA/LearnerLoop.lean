@@ -250,7 +250,7 @@ def misreadProb (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl
 
 /-- The round ended consistent; its read decides a draw from `D` against the target at most `εr`
 of the time and leaves it undecided at most `εu`, and its hypothesis's walk from `k` and its tree
-part on at most `εd` of `D`. -/
+part, or the walk stops at an edge it could learn, on at most `εd` of `D`. -/
 def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α)) (k : ℕ)
     (εr εu εd : ℝ) (o : LoopRound Ω α K) : Prop :=
   o.result.ending = .consistent
