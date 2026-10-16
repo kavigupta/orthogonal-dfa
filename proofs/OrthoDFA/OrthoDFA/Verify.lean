@@ -12,6 +12,7 @@ import OrthoDFA.Proofs.Level5Risk
 import OrthoDFA.Proofs.Level5RiskBound
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopUniform
+import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
@@ -69,6 +70,10 @@ theorem walk_correct : WalkCorrect := walkCorrect
 theorem learner_loop_uniform : LearnerLoopUniform := learner_loop_uniform_holds
 
 #print axioms learner_loop_uniform
+
+theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
+
+#print axioms learner_loop_dfa_simple
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 

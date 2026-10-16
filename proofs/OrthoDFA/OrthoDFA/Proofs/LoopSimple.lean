@@ -152,6 +152,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
       (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
+      settings.level5.maxLeaves = Fintype.card σ + 2 ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -181,11 +182,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    obtain ⟨s4, hwalk, hdis, hbud, -, hl4⟩ :=
+    obtain ⟨s4, hwalk, hdis, hbud, hmax4, hl4⟩ :=
       level5_guarantee_all M (εd / 2) P.L δ' k hδ'0 hδ'1 (by positivity) (by linarith) hL1
     have := hl4 μ
     clear this hl4
-    refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, ?_⟩
+    refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, hmax4, ?_⟩
     · refine hbud.trans (le_of_eq ?_)
       rw [e112]
     · intro Dsf hDsf _ hpAPD _
@@ -320,7 +321,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k Jl ū
   dsimp only at hcore
-  obtain ⟨settings, -, -, hwalk, hdis, hbud, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
+  obtain ⟨settings, -, -, hwalk, hdis, hbud, hmaxL, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
     (by norm_num) (by norm_num) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP hεd hεd1 hδ'0
     hδ'1 hL1 (by omega) (by omega) hθ hcap0 (by linarith) (by linarith) (by linarith)
     (by linarith)
@@ -340,7 +341,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         ring
       rw [e2]
       exact hk2) hū
-  refine ⟨settings, hwalk, hdis, ?_, ?_⟩
+  refine ⟨settings, hwalk, hdis, ?_, hmaxL, ?_⟩
   · exact hbud
   · intro Dsf hDsf hlen hpAPD hatom
     have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
@@ -363,7 +364,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
   have hδ'1 : δ' ≤ 1 := by
     have : δ / (2 * (Q + 1)) ≤ δ := div_le_self hδ.le (by linarith)
     exact this.trans hδ1
-  obtain ⟨settings, h1, h2, h3, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0 hL hη hη₀
+  obtain ⟨settings, h1, h2, h3, -, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0 hL hη hη₀
     hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 le_rfl
   refine ⟨settings, h1, h2, h3, fun Dsf hDsf hlen hpAPD hatom => ?_⟩
   refine (measureReal_mono ?_ (measure_ne_top _ _)).trans

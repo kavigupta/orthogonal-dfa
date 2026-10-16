@@ -358,6 +358,7 @@ def LoopCore : Prop :=
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
     (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
+    settings.level5.maxLeaves = Fintype.card σ + 2 ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -423,7 +424,7 @@ theorem loop_core_holds : LoopCore := by
     level5_guarantee_all M (εd / 2) P.L δ k hδ hδ1 (by positivity) (by linarith) hL1
   have e112 : (112 / (εd / 2) : ℝ) = 224 / εd := by field_simp; ring
   set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
-  refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, ?_⟩
+  refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, hmax, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
     rw [e112]
   intro Dsf hDsf hDsfLen hpAPDsf hatom
@@ -862,7 +863,7 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     key (b := 6 * ((K : ℝ) + 1) * (NP + 1) * (P.L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   refine ⟨cap, hcap0, fun k hk0 hk1 hk2 => ?_⟩
-  obtain ⟨settings, h1, h2, h3, h4, h5, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
+  obtain ⟨settings, h1, h2, h3, h4, h5, -, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
     slack pAP εd δ cap m ms k 0 0 hL hη hη₀
     hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0 hmsl hm1 hmsp
     hms1 (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2)

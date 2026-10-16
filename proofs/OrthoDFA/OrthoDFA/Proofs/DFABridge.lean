@@ -14,7 +14,7 @@ probes visit is read on its true side once the reads are rarely wrong or undecid
 (`sideOf_eq_of_mass`). Where every covered state's edges are true and it is read on its true side,
 the hypothesis from the covered start's leaf follows the re-rooted target along every run that
 stays covered (`classifies_of_matches`), so it misjudges at most what re-rooting does
-(`start_le`).
+(`classify_start_le`).
 -/
 
 noncomputable section
@@ -510,17 +510,13 @@ other, once the reads are wrong at most `εr` and undecided at most `εu` on ave
 `2εr + εu < b`. -/
 theorem sideOf_eq_of_mass (M : _root_.DFA α σ) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (dist : σ → ARU → ℝ) (h0 : ∀ r v, 0 ≤ dist r v)
-    (hsum : ∀ r, dist r .accept + dist r .reject + dist r .undecided = 1) (q : σ) {b εr εu : ℝ}
+    (hle1 : ∀ r v, dist r v ≤ 1) (q : σ)
+    (hsum : dist q .accept + dist q .reject + dist q .undecided = 1) {b εr εu : ℝ}
     (hmis : ∫ p, (if M.eval p.toList ∈ M.accept then dist (M.eval p.toList) .reject
       else dist (M.eval p.toList) .accept) ∂D ≤ εr)
     (hund : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εu)
     (hocc : b ≤ D.real {p | M.eval p.toList = q}) (hb : 2 * εr + εu < b) :
     sideOf (dist q) = decide (q ∈ M.accept) := by
-  have hle1 : ∀ r v, dist r v ≤ 1 := by
-    intro r v
-    have := hsum r
-    have := h0 r .accept; have := h0 r .reject; have := h0 r .undecided
-    cases v <;> linarith
   have hint : ∀ g : FreeMonoid α → ℝ, (∀ p, 0 ≤ g p) → (∀ p, g p ≤ 1) → Integrable g D :=
     fun g g0 g1 => Integrable.of_bound (measurable_of_countable g).aestronglyMeasurable 1
       (ae_of_all _ fun p => by rw [Real.norm_eq_abs, abs_of_nonneg (g0 p)]; exact g1 p)
@@ -550,7 +546,7 @@ theorem sideOf_eq_of_mass (M : _root_.DFA α σ) (D : Measure (FreeMonoid α))
     have := (integral_nonneg hw0).trans hmis
     have := (integral_nonneg (fun p : FreeMonoid α => h0 (M.eval p.toList) .undecided)).trans hund
     linarith
-  have hsq := hsum q
+  have hsq := hsum
   have hacc := h0 q .accept
   have hrej := h0 q .reject
   have hund0 := h0 q .undecided
@@ -618,7 +614,7 @@ theorem classifies_of_matches (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = 
 variable [Nonempty α]
 
 /-- The hypothesis from `q₀`'s true leaf misjudges at most what re-rooting at `q₀` does. -/
-theorem start_le (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .node 1 r a) (S : Set σ)
+theorem classify_start_le (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .node 1 r a) (S : Set σ)
     (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (G.leafOf H.tree q, a)
       = some (G.leafOf H.tree (G.M.step q a), w))
     (hside : ∀ q ∈ S, G.side q = decide (q ∈ G.M.accept)) (L : ℕ) (q₀ : σ) {η : ℝ}
