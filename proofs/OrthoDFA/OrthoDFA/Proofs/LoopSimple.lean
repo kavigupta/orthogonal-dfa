@@ -110,10 +110,59 @@ lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [Measu
     (h : o.Agrees O D k εr εu εd) : o.Agrees O D k εr' εu' εd :=
   ⟨h.1, h.2.1.trans hr, h.2.2.1.trans hu, h.2.2.2⟩
 
+lemma checks_mono {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} {M : _root_.DFA α σ} {O : Oracle μ (FreeMonoid α)}
+    {D : Measure (FreeMonoid α)} {k J : ℕ} {ū εr εu εd εr' εu' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu')
+    {o : LoopRound Ω α K} (h : o.Checks M O D k J ū εr εu εd) : o.Checks M O D k J ū εr' εu' εd :=
+  ⟨agrees_mono hr hu h.1, h.2⟩
+
 set_option maxHeartbeats 2000000 in -- the settings and the cap meet `LoopCore`'s conditions
-theorem learner_loop_simple_holds : LearnerLoopSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J V Kp G PB RB cap
-    hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 hk0 hk1 hk2
+/-- `LearnerLoopSimple` with each round's failure `δ'` free and the last round's checked probes at
+most `εd`, at `128ū/εd` more a round. -/
+theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
+    [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+    (η₀ εcov εd δ' pAP : ℝ) (k Jl : ℕ) (ū : ℝ) :
+    let Q : ℝ := Fintype.card σ
+    let A : ℝ := Fintype.card α
+    let L : ℝ := P.L
+    let ι : ℝ := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
+    let ρ : ℝ := 3 * εd / 16
+    let s : ℝ := 1 / 2 - η₀
+    let τ : ℝ := min (εcov / 2) (min s ι)
+    let J : ℝ := Q + 2
+    let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
+    let Kp : ℝ := V * (224 / εd + 1)
+    let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+    let PB : ℝ := 256 * (Real.log (2 / τ)
+        + 8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ') / (s ^ 2 * pAP)
+      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+    let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
+      / (s ^ 4 * τ ^ 3)
+    let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
+        (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
+      (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+        (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
+    (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+    O.η ≤ η₀ → η₀ < 1 / 2 →
+    0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ' → δ' ≤ 1 → 0 < pAP → 1 ≤ P.L → 1 ≤ k →
+    prefixMax P.D k ≤ cap * ρ / 4 →
+    16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ εd →
+    0 ≤ ū →
+    ∃ settings : LoopSettings (Fintype.card σ + 1),
+      settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
+      (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
+      ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
+        Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
+        pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+        (∀ v, Dsf.real {v} ≤ cap) →
+        (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
+            {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
+              ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+                  o.Checks M O P.D k Jl ū εcov εcov εd)}
+          ≤ (Q + 1) * (2 * δ' + 128 * ū / εd) := by
+  intro Q A L ι ρ s τ J V Kp G PB RB cap
+    hL hη hη₀ hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 hū
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
@@ -122,10 +171,6 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     show (1 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast Fintype.card_pos
   have hL1' : (1 : ℝ) ≤ L := by show (1 : ℝ) ≤ (P.L : ℝ); exact_mod_cast hL1
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-  have hδ'0 : 0 < δ' := by show 0 < δ / (2 * (Q + 1)); positivity
-  have hδ'1 : δ' ≤ 1 := by
-    have : δ / (2 * (Q + 1)) ≤ δ := div_le_self hδ.le (by linarith)
-    exact this.trans hδ1
   have hι0 : 0 < ι := by
     show 0 < min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
     exact lt_min (by positivity) (by positivity)
@@ -273,7 +318,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     exact hmul (b := 6 * J * (RB + 1) * (L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
-    ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k
+    ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k Jl ū
   dsimp only at hcore
   obtain ⟨settings, -, -, hwalk, hdis, hbud, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
     (by norm_num) (by norm_num) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP hεd hεd1 hδ'0
@@ -294,7 +339,7 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
           * Real.log (((Fintype.card σ : ℝ) + 3) * (Fintype.card α : ℝ) / δ') * prefixMax P.D k
         ring
       rw [e2]
-      exact hk2)
+      exact hk2) hū
   refine ⟨settings, hwalk, hdis, ?_, ?_⟩
   · exact hbud
   · intro Dsf hDsf hlen hpAPD hatom
@@ -303,12 +348,33 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
     · intro draws hd hgood
       apply hd
       obtain ⟨h1, o, ho, hag⟩ := hgood
-      refine ⟨h1, o, ho, agrees_mono ?_ ?_ hag⟩
+      refine ⟨h1, o, ho, checks_mono ?_ ?_ hag⟩
       · linarith
       · linarith
-    · show ((Fintype.card σ : ℝ) + 1) * (δ / (2 * ((Fintype.card σ : ℝ) + 1))
-        + δ / (2 * ((Fintype.card σ : ℝ) + 1))) = δ
-      field_simp
+    · show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' + 128 * ū / εd) = _
       ring
+
+set_option maxHeartbeats 400000 in -- unfolding the claim's settings
+theorem learner_loop_simple_holds : LearnerLoopSimple := by
+  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J V Kp G PB RB cap
+    hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 hk0 hk1 hk2
+  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
+  have hδ'0 : 0 < δ' := by show 0 < δ / (2 * (Q + 1)); positivity
+  have hδ'1 : δ' ≤ 1 := by
+    have : δ / (2 * (Q + 1)) ≤ δ := div_le_self hδ.le (by linarith)
+    exact this.trans hδ1
+  obtain ⟨settings, h1, h2, h3, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0 hL hη hη₀
+    hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 le_rfl
+  refine ⟨settings, h1, h2, h3, fun Dsf hDsf hlen hpAPD hatom => ?_⟩
+  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
+    ((h4 Dsf hDsf hlen hpAPD hatom).trans (le_of_eq ?_))
+  · intro p hp hgood
+    apply hp
+    obtain ⟨hl, o, ho, hc⟩ := hgood
+    exact ⟨hl, o, ho, hc.1⟩
+  · show ((Fintype.card σ : ℝ) + 1) * (2 * (δ / (2 * ((Fintype.card σ : ℝ) + 1))) + 128 * 0 / εd)
+      = δ
+    field_simp
+    ring
 
 end OrthoDFA

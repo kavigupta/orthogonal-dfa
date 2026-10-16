@@ -5,9 +5,9 @@ import OrthoDFA.Proofs.LoopLaw
 # From the avoiding probes back to all of them
 
 Level 5 draws its probes from `D` conditioned on avoiding a set `K₀` of first `k` letters, which
-removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds search and harvest the same at every
-avoiding probe, so a claim about one read over the conditioned probes is a claim about the other
-over all of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks
+removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds search, read on a rarer side, read
+undecided and harvest the same at every avoiding probe, so a claim about one read over the
+conditioned probes is a claim about the other over all of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks
 by the factor `1 − m`, and the removed probes, each harvesting at most `L + 1` strings, leave more
 than a quarter of the sampler at bad states once `(L + 1) m ≤ (1 − m) y`
 (`quarterEndsWell_of_endsWell`).
@@ -102,18 +102,83 @@ lemma searchingProbes_congr_off {read read' : FreeMonoid α → ARU}
   unfold searchingProbes
   simp only [Set.mem_setOf_eq, probeBy_congr_off hc H.tree (Function.curry H.edges) hx]
 
-/-- A claim at the avoiding probes, through a read agreeing off `K₀`, is a weaker claim at all of
-`D`. -/
+lemma keyOff_of_prefix {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) {j : ℕ} (hkj : k ≤ j)
+    (hj : j ≤ x.toList.length) (m : FreeMonoid α) : KeyOff k K₀ (prefixOf x j * m) :=
+  keyOff_mul (keyOff_prefixOf (keyOff_of_avoids hx (hkj.trans hj)) hkj) m
+
+lemma checkedProbes_sub_off {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
+    {D D' : Measure (FreeMonoid α)} {read read' : FreeMonoid α → ARU}
+    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
+    (n J : ℕ) {ū ū' : ℝ}
+    (hu : undecidedMass M dist D k n J ≤ ū → undecidedMass M dist D' k n J ≤ ū')
+    {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) (h : x ∈ checkedProbes M dist D read k n J ū H) :
+    x ∈ checkedProbes M dist D' read' k n J ū' H := by
+  rcases h with (hs | ⟨j, hkj, hjx, m, hm, hr⟩) | ⟨hu1, hJ, j, hkj, hjx, m, hm, hr⟩
+  · exact .inl (.inl ((searchingProbes_congr_off hc H hx).1 hs))
+  · refine .inl (.inr ⟨j, hkj, hjx, m, hm, ?_⟩)
+    have := hc _ (keyOff_of_prefix hx hkj hjx m)
+    dsimp only at this
+    rw [← this]
+    exact hr
+  · refine .inr ⟨hu hu1, hJ, j, hkj, hjx, m, hm, ?_⟩
+    have := hc _ (keyOff_of_prefix hx hkj hjx m)
+    dsimp only at this
+    rw [hr] at this
+    rcases h' : read' (prefixOf x j * m) <;> rw [h'] at this <;> simp_all [ARU.cut]
+
+/-- Conditioning on a set holding at least half of `D` at most doubles `undecidedMass`. -/
+lemma undecidedMass_popLaw_le {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
+    (h0 : ∀ r v, 0 ≤ dist r v) (h1 : ∀ r v, dist r v ≤ 1) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (A : Set (FreeMonoid α)) (hA : D.real Aᶜ ≤ 1 / 2) (k n J : ℕ) :
+    undecidedMass M dist (popLaw (D.restrict A)) k n J ≤ 2 * undecidedMass M dist D k n J := by
+  classical
+  set f : FreeMonoid α → ℝ := fun x => ∑ j ∈ Finset.Icc k (min x.toList.length J),
+    ∑ m ∈ shortWords n, dist (M.eval (prefixOf x j * m).toList) .undecided
+  have hf0 : ∀ x, 0 ≤ f x := fun x =>
+    Finset.sum_nonneg fun j _ => Finset.sum_nonneg fun m _ => h0 _ _
+  have hf1 : ∀ x, f x ≤ (J + 1) * (shortWords (α := α) n).card := fun x => by
+    refine (Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun m _ => h1 _ _).trans ?_
+    simp only [Finset.sum_const, nsmul_eq_mul, mul_one, Nat.card_Icc]
+    have : (min x.toList.length J + 1 - k : ℕ) ≤ J + 1 := by omega
+    have h' : ((min x.toList.length J + 1 - k : ℕ) : ℝ) ≤ J + 1 := by exact_mod_cast this
+    exact mul_le_mul_of_nonneg_right h' (Nat.cast_nonneg _)
+  have hint : Integrable f D :=
+    Integrable.of_bound (measurable_of_countable f).aestronglyMeasurable
+      ((J + 1) * (shortWords (α := α) n).card)
+      (ae_of_all _ fun x => by rw [Real.norm_eq_abs, abs_of_nonneg (hf0 x)]; exact hf1 x)
+  have hAr : D.real A = 1 - D.real Aᶜ := by
+    rw [probReal_compl_eq_one_sub (measurableSet_of_countable A)]; ring
+  have hApos : 1 / 2 ≤ D.real A := by linarith
+  have hA0 : D.restrict A Set.univ ≠ 0 := by
+    rw [Measure.restrict_apply_univ]
+    intro h
+    rw [measureReal_def, h, ENNReal.toReal_zero] at hApos
+    linarith
+  have hAtop : D.restrict A Set.univ ≠ ⊤ := measure_ne_top _ _
+  have hD' : popLaw (D.restrict A) = (D.restrict A Set.univ)⁻¹ • D.restrict A := by
+    unfold popLaw; rw [if_neg (by tauto)]
+  show ∫ x, f x ∂popLaw (D.restrict A) ≤ 2 * ∫ x, f x ∂D
+  rw [hD', integral_smul_measure, ENNReal.toReal_inv, Measure.restrict_apply_univ,
+    show (D A).toReal = D.real A from rfl, smul_eq_mul]
+  have hle : ∫ x, f x ∂(D.restrict A) ≤ ∫ x, f x ∂D :=
+    setIntegral_le_integral hint (ae_of_all _ hf0)
+  have hI0 : 0 ≤ ∫ x, f x ∂(D.restrict A) := integral_nonneg hf0
+  rw [inv_mul_le_iff₀ (by linarith)]
+  nlinarith
+
+/-- A claim at the avoiding probes, through a read agreeing off `K₀` and a set of probes `S'`
+holding every avoiding probe of `S`, is a weaker claim at all of `D`. -/
 theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) {read read' : FreeMonoid α → ARU}
     (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
+    (S S' : Set (FreeMonoid α)) (hS : ∀ x ∈ avoiding k K₀, x ∈ S → x ∈ S')
     (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd (Level5Site α))
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
     (hmc : (L + 1) * D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
-    (h : EndsWell M bad (popLaw (D.restrict (avoiding k K₀))) ε (searchingProbes read' k H) k
+    (h : EndsWell M bad (popLaw (D.restrict (avoiding k K₀))) ε S' k
       (harvestLaw (popLaw (D.restrict (avoiding k K₀))) (fun z => (read' z).cut) k H) y e) :
-    QuarterEndsWell M bad D (ε + D.real (avoiding k K₀)ᶜ) (searchingProbes read k H) k
+    QuarterEndsWell M bad D (ε + D.real (avoiding k K₀)ᶜ) S k
       (harvestLaw D (fun z => (read z).cut) k H) ((1 - D.real (avoiding k K₀)ᶜ) * y) e := by
   classical
   set A := avoiding (α := α) k K₀
@@ -153,24 +218,20 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
     field_simp [show (1 - m) ≠ 0 by linarith]
   cases e with
   | consistent =>
-    show D.real (searchingProbes read k H) ≤ ε + m
-    have h' : D'.real (searchingProbes read' k H) ≤ ε := h
+    show D.real S ≤ ε + m
+    have h' : D'.real S' ≤ ε := h
     rw [hD'eq] at h'
     simp only [measureReal_def, Measure.smul_apply, smul_eq_mul, ENNReal.toReal_mul] at h'
     rw [hinv, Measure.restrict_apply (measurableSet_of_countable _), ← measureReal_def] at h'
-    have hsplit := measureReal_inter_add_sdiff₀ (μ := D) (s := searchingProbes read k H)
+    have hsplit := measureReal_inter_add_sdiff₀ (μ := D) (s := S)
       (measurableSet_of_countable A).nullMeasurableSet (measure_ne_top _ _)
-    have hinter : searchingProbes read k H ∩ A = searchingProbes read' k H ∩ A := by
-      ext x
-      simp only [Set.mem_inter_iff]
-      exact ⟨fun ⟨h1, h2⟩ => ⟨(searchingProbes_congr_off hc H h2).1 h1, h2⟩,
-        fun ⟨h1, h2⟩ => ⟨(searchingProbes_congr_off hc H h2).2 h1, h2⟩⟩
-    have hdiff : D.real (searchingProbes read k H \ A) ≤ m :=
+    have hinter : D.real (S ∩ A) ≤ D.real (S' ∩ A) :=
+      measureReal_mono (fun x ⟨h1, h2⟩ => ⟨hS x h2 h1, h2⟩) (measure_ne_top _ _)
+    have hdiff : D.real (S \ A) ≤ m :=
       measureReal_mono (fun x hx => hx.2) (measure_ne_top _ _)
     have h1m : 0 < 1 - m := by linarith
-    rw [hinter] at hsplit
     have hε : 0 ≤ ε := le_trans (mul_nonneg (inv_nonneg.2 h1m.le) measureReal_nonneg) h'
-    have : D.real (searchingProbes read' k H ∩ A) ≤ ε * (1 - m) := by
+    have : D.real (S' ∩ A) ≤ ε * (1 - m) := by
       rw [inv_mul_le_iff₀ h1m] at h'
       linarith
     have hm0 : 0 ≤ m := measureReal_nonneg

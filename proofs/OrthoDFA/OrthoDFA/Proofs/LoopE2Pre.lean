@@ -53,16 +53,17 @@ theorem level5_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU
 
 /-- Over probes at most `L` long, level 5's claim reads only the short strings. -/
 theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.DFA α σ)
-    (bad : σ → Prop) (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L)
-    (y : ℝ) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
+    (bad : σ → Prop) (dist : σ → ARU → ℝ) (D' : Measure (FreeMonoid α)) {L : ℕ}
+    (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (ε y : ℝ) {n : ℕ} (hn : n ≤ C.maxLeaves) (J : ℕ)
+    (ū : ℝ) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
     (h : ∀ z, z.toList.length ≤ max (L + C.maxLeaves) (probesLen xs + 1 + C.maxLeaves) →
       read z = read' z) :
-    EndsWell M bad D' C.disagreementRate (searchingProbes read C.walkStart
+    EndsWell M bad D' ε (checkedProbes M dist D' read C.walkStart n J ū
         (indecisiveLStarLevel5 C read xs).hypothesis) C.walkStart
         (harvestLaw D' (fun z => (read z).cut) C.walkStart
           (indecisiveLStarLevel5 C read xs).hypothesis) y
         (indecisiveLStarLevel5 C read xs).ending
-      ↔ EndsWell M bad D' C.disagreementRate (searchingProbes read' C.walkStart
+      ↔ EndsWell M bad D' ε (checkedProbes M dist D' read' C.walkStart n J ū
         (indecisiveLStarLevel5 C read' xs).hypothesis) C.walkStart
         (harvestLaw D' (fun z => (read' z).cut) C.walkStart
           (indecisiveLStarLevel5 C read' xs).hypothesis) y
@@ -74,22 +75,42 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
   have hcut : AgreeUpTo (L + C.maxLeaves) (fun z => (read z).cut) (fun z => (read' z).cut) :=
     fun z hz => by dsimp only; rw [h z (le_max_of_le_left hz)]
   rcases he : res.ending with _ | hv | _
-  · -- consistent: the searching probes, at every short probe
+  · -- consistent: the checked probes, at every short probe
     have hmid := level5_tree_midLe C hC read xs (by rw [he]; simp)
-    have hae : searchingProbes read C.walkStart res.hypothesis
-        =ᵐ[D'] searchingProbes read' C.walkStart res.hypothesis := by
+    have hae : checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
+        =ᵐ[D'] checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis := by
       filter_upwards [hlen] with x hx
       have hpb := probeBy_congr_up hcut hmid (x := x) (by omega)
         (Function.curry res.hypothesis.edges) C.walkStart
+      have hpre : ∀ j ≤ x.toList.length, ∀ m ∈ shortWords n,
+          read (prefixOf x j * m) = read' (prefixOf x j * m) := fun j hj m hm => by
+        refine h _ (le_max_of_le_left ?_)
+        have := length_le_of_mem_shortWords hm
+        simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
+          List.length_take]
+        omega
       apply propext
-      show (match probeBy (fun z => (read z).cut) res.hypothesis.tree
-          (Function.curry res.hypothesis.edges) C.walkStart x with
-        | .undecidedMid _ | .edge _ _ => True
-        | _ => False) ↔ (match probeBy (fun z => (read' z).cut) res.hypothesis.tree
-          (Function.curry res.hypothesis.edges) C.walkStart x with
-        | .undecidedMid _ | .edge _ _ => True
-        | _ => False)
-      rw [hpb]
+      change x ∈ checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
+        ↔ x ∈ checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
+      simp only [checkedProbes, rarerProbes, undecidedProbes, Set.mem_union, Set.mem_setOf_eq]
+      have hs : x ∈ searchingProbes read C.walkStart res.hypothesis
+          ↔ x ∈ searchingProbes read' C.walkStart res.hypothesis := by
+        show (match probeBy (fun z => (read z).cut) res.hypothesis.tree
+            (Function.curry res.hypothesis.edges) C.walkStart x with
+          | .undecidedMid _ | .edge _ _ | .member _ => True
+          | _ => False) ↔ (match probeBy (fun z => (read' z).cut) res.hypothesis.tree
+            (Function.curry res.hypothesis.edges) C.walkStart x with
+          | .undecidedMid _ | .edge _ _ | .member _ => True
+          | _ => False)
+        rw [hpb]
+      rw [hs]
+      refine or_congr (or_congr Iff.rfl ?_) (and_congr Iff.rfl (and_congr Iff.rfl ?_))
+      · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
+          exists_congr fun m => and_congr_right fun hm => ?_
+        rw [hpre j hj m hm]
+      · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
+          exists_congr fun m => and_congr_right fun hm => ?_
+        rw [hpre j hj m hm]
     simp only [EndsWell]
     rw [measureReal_congr hae]
   · have hshort := harvest_short C hC read xs he

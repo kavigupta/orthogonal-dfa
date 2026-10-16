@@ -119,6 +119,40 @@ theorem measurableSet_mem_searchingProbes (O : Oracle μ (FreeMonoid α))
   simp only [Set.mem_setOf_eq, searchingProbes] at hω ⊢
   rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
 
+lemma length_le_of_mem_shortWords {n : ℕ} {m : FreeMonoid α} (h : m ∈ shortWords n) :
+    m.toList.length ≤ n := by
+  obtain ⟨⟨⟨i, hi⟩, v⟩, -, rfl⟩ := Finset.mem_image.1 h
+  simp only [FreeMonoid.toList_ofList, List.length_ofFn]
+  omega
+
+theorem measurableSet_mem_checkedProbes {σ : Type*} (O : Oracle μ (FreeMonoid α))
+    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
+    (Dm : Measure (FreeMonoid α)) (n J : ℕ) (ū : ℝ) (H : HypothesisDFA α) (x : FreeMonoid α) :
+    MeasurableSet {ω | x ∈ checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū
+      H} := by
+  refine measurableSet_of_reads O
+    (readStrings (shortStrings (x.toList.length + midLen H.tree + n)) F) _ fun ω ω' h hω => ?_
+  have hr : ∀ z : FreeMonoid α, z.toList.length ≤ x.toList.length + midLen H.tree + n →
+      familyRead O.mq F kl kh z ω = familyRead O.mq F kl kh z ω' := fun z hz =>
+    familyRead_congr O h (mem_shortStrings.2 hz)
+  have hagree : AgreeUpTo (x.toList.length + midLen H.tree)
+      (fun z => (familyRead O.mq F kl kh z ω).cut) (fun z => (familyRead O.mq F kl kh z ω').cut) :=
+    fun z hz => by dsimp only; rw [hr z (by omega)]
+  have hpre : ∀ j ≤ x.toList.length, ∀ m ∈ shortWords n,
+      familyRead O.mq F kl kh (prefixOf x j * m) ω
+        = familyRead O.mq F kl kh (prefixOf x j * m) ω' := fun j hj m hm => by
+    refine hr _ ?_
+    have := length_le_of_mem_shortWords hm
+    simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
+      List.length_take]
+    omega
+  rcases hω with (h1 | ⟨j, hkj, hjx, m, hm, hc⟩) | ⟨hu, hJ, j, hkj, hjx, m, hm, hc⟩
+  · refine .inl (.inl ?_)
+    simp only [Set.mem_setOf_eq, searchingProbes] at h1 ⊢
+    rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
+  · exact .inl (.inr ⟨j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpre j hjx m hm]; exact hc⟩)
+  · exact .inr ⟨hu, hJ, j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpre j hjx m hm]; exact hc⟩
+
 omit [IsProbabilityMeasure μ] in
 theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α)}
     {kl kh : ℕ} (k : ℕ) (site : Level5Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
@@ -225,18 +259,19 @@ omit [Fintype σ] in
 /-- Where a round ending at hypothesis `H` and ending `e` fails its claim is measurable in the
 oracle's answers. -/
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd (Level5Site α)) :
+    (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
+    (D Dm : Measure (FreeMonoid α)) (n J : ℕ) (ū ε y : ℝ) (H : HypothesisDFA α)
+    (e : RoundEnd (Level5Site α)) :
     MeasurableSet {ω | ¬ EndsWell M bad D ε
-      (searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H) k
+      (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H) k
       (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k H) y e} := by
   classical
   cases e with
   | consistent =>
     have hf : Measurable fun ω =>
-        D.real (searchingProbes (fun z => familyRead O.mq F kl kh z ω) k H) :=
+        D.real (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H) :=
       ENNReal.measurable_toReal.comp (measurable_measure_of_mem D _
-        fun x => measurableSet_mem_searchingProbes O F kl kh k H x)
+        fun x => measurableSet_mem_checkedProbes O F kl kh k M dist Dm n J ū H x)
     exact (measurableSet_le hf measurable_const).compl
   | harvest h =>
     have hm : ∀ A : Set (FreeMonoid α), Measurable fun ω =>

@@ -364,6 +364,88 @@ section Shape
 
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
+/-- A probe that stops at an unlearned edge it could learn. -/
+def WalkOutcome.IsMember : WalkOutcome α → Prop
+  | .member _ => True
+  | _ => False
+
+/-- A probe that stops at an unlearned edge stops where its prefix and the prefix's successor sift
+decidedly, the prefix to the edge's leaf. -/
+theorem probeBy_member_learns {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x u : FreeMonoid α}
+    (h : probeBy cut T edges k x = .member u) :
+    ∃ c p t, T.siftCut cut u = .inl p ∧ x.toList[u.toList.length]? = some c
+      ∧ T.siftCut cut (u * FreeMonoid.of c) = .inl t ∧ edges p c = none := by
+  rw [probeBy_eq] at h
+  split_ifs at h with hs
+  rcases hw : walkCheckBy cut T edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
+  swap
+  · simp only [Sum.elim_inr] at h
+    have := bracketAt_isSearch (α := α) (agreesAtBy cut T x fun j => ps.getD (j - k) []) ps
+      (hi - k) k hi
+    rw [h] at this
+    exact this.elim
+  simp only [Sum.elim_inl, id] at h
+  subst h
+  unfold walkCheckBy at hw
+  rcases hk : kWalkBy cut T edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hk] at hw
+  · simp at hw
+  · simp only [] at hw
+    rcases h1 : T.siftCut cut (prefixOf x (j + 1)) with t | b <;> rw [h1] at hw
+    · simp only [] at hw
+      rcases h2 : T.siftCut cut (prefixOf x j) with p | b <;> rw [h2] at hw
+      · simp only [] at hw
+        split_ifs at hw with hps
+        · simp only [Sum.inl.injEq, WalkOutcome.member.injEq] at hw
+          subst hw hps
+          unfold kWalkBy at hk
+          rcases h3 : T.siftCut cut (prefixOf x k) with p₀ | b <;> rw [h3] at hk
+          · simp only [] at hk
+            rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s', c', i⟩ <;> rw [hf] at hk
+            · simp at hk
+            · simp only [KWalk.edge.injEq] at hk
+              obtain ⟨rfl, rfl, rfl⟩ := hk
+              obtain ⟨hi, hc, hn, -⟩ := follow_inr _ _ _ _ _ hf
+              simp only [List.length_drop] at hi
+              have hlen : (prefixOf x (k + i)).toList.length = k + i := by
+                simp [prefixOf]; omega
+              have hxc : x.toList[k + i]? = some c' := by
+                rw [List.getElem?_eq_getElem (by omega)]
+                simp only [← hc, List.getElem_drop]
+              refine ⟨c', s', t, h2, by rw [hlen]; exact hxc, ?_, hn⟩
+              rw [← prefixOf_succ hxc]
+              exact h1
+          · simp at hk
+      · simp at hw
+    · simp at hw
+  · simp only [] at hw
+    split at hw
+    · simp at hw
+    · split_ifs at hw <;> simp at hw
+
+/-- A probe that learns an edge moves to a fresh hypothesis. -/
+theorem recordProbe_of_member (s : Level5State α) {x : FreeMonoid α}
+    (h : (probeBy cut s.tree s.edges C.walkStart x).IsMember) :
+    (recordProbe C cut s x).version = s.version + 1
+      ∧ ∃ T E, recordProbe C cut s x = freshState T E (s.version + 1) := by
+  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | _ | u <;>
+    rw [ho] at h <;> simp only [WalkOutcome.IsMember] at h
+  obtain ⟨c, p, t, hp, hc, ht, he⟩ := probeBy_member_learns cut ho
+  unfold recordProbe
+  simp only [ho, hc, hp, ht, he]
+  exact ⟨rfl, _, _, rfl⟩
+
+/-- A step that keeps the hypothesis learns no edge. -/
+theorem not_member_of_inl {s s' : Level5State α} {x : FreeMonoid α}
+    (h : applyProbe C cut s x = .inl s') (hv : s'.version = s.version) :
+    ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember := by
+  intro hm
+  obtain ⟨hv', T, E, hf⟩ := recordProbe_of_member C cut s hm
+  rcases (applyProbe_inl C cut h).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, hrec, rfl, -⟩
+  · omega
+  · have := splitState_version cut (recordProbe C cut s x) p c t
+    omega
+
+
 open scoped Classical in
 /-- A probe that keeps the hypothesis: its counts added, its search counted. -/
 noncomputable def keepProbe (s : Level5State α) (x : FreeMonoid α) : Level5State α :=
@@ -402,6 +484,18 @@ theorem runTests_fresh (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1) (hn₀ : 1
     have := hexc 0
     simp only [freshState, List.length_nil, Nat.cast_zero, mul_zero, sub_zero] at h
     linarith
+
+/-- A step whose tests fire learns no edge. -/
+theorem not_member_of_inr (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1)
+    (hn₀ : 1 ≤ C.firstLook) (hexc : ∀ j, 0 < C.edgeExcess j) {s s' : Level5State α}
+    {x : FreeMonoid α} {e : Level5Ending α} (h : applyProbe C cut s x = .inr (e, s'))
+    (he : e ≠ .tooBig) : ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember := by
+  intro hm
+  obtain ⟨-, T, E, hf⟩ := recordProbe_of_member C cut s hm
+  rcases applyProbe_inr C cut h with ⟨hr, -⟩ | ⟨rfl, -⟩
+  · rw [hf, runTests_fresh C ha ha1 hn₀ hexc] at hr
+    simp at hr
+  · exact he rfl
 
 /-- A step that ends is past `maxLeaves` leaves, or its tests fired at a probe that kept the
 hypothesis. -/
@@ -494,9 +588,11 @@ theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 �
     (Bad : Level5Ending α → Level5State α → Prop)
     (hf0 : ∀ s x, 0 ≤ f s x) (hf : ∀ s, ok s → ∫⁻ x, ENNReal.ofReal (f s x) ∂D ≤ 1)
     (hfresh : ∀ T E v, W (freshState T E v) = 1)
-    (hkeep : ∀ s x, CountInv s → W (keepProbe C cut s x) = W s * f s x ∧ (ok (keepProbe C cut s x) ↔ ok s))
+    (hkeep : ∀ s x, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+      W (keepProbe C cut s x) = W s * f s x ∧ (ok (keepProbe C cut s x) ↔ ok s))
     (htoo : ∀ s, ¬ Bad .tooBig s)
-    (hbad : ∀ s x e, CountInv s → Bad e (keepProbe C cut s x) →
+    (hbad : ∀ s x e, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+      Bad e (keepProbe C cut s x) →
       runTests C (keepProbe C cut s x) = some e → ok s ∧ 1 ≤ C.testLevel * W (keepProbe C cut s x))
     (T : ℕ) :
     (Measure.pi fun _ : Fin T => D)
@@ -514,14 +610,16 @@ theorem site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL : 2 �
         · rw [he]; exact hfresh _ _ _
         · exact absurd (by rw [he]; rfl) hv)
       (fun s s' x hs h hv => by
+        have hm := not_member_of_inl C cut h hv
         rcases applyProbe_inl_shape C cut h with ⟨hlt, -⟩ | he
         · omega
-        · rw [he]; exact hkeep s x hs.2)
+        · rw [he]; exact hkeep s x hs.2 hm)
       (fun s s' x e hs h hb => by
+        have hm := not_member_of_inr C cut ha ha1 hn₀ hexc h fun he => htoo _ (he ▸ hb)
         rcases applyProbe_inr_shape C cut ha ha1 hn₀ hexc h with rfl | ⟨rfl, hr⟩
         · exact absurd hb (htoo _)
-        · obtain ⟨hok, h1⟩ := hbad s x e hs.2 hb hr
-          exact ⟨hok, by rw [← (hkeep s x hs.2).1]; exact h1⟩)
+        · obtain ⟨hok, h1⟩ := hbad s x e hs.2 hm hb hr
+          exact ⟨hok, by rw [← (hkeep s x hs.2 hm).1]; exact h1⟩)
       (List.ofFn xs) initialState (runInv_start C hL) hxs
     have hW : W initialState = 1 := hfresh _ _ _
     obtain ⟨v, hsk⟩ : ∃ v, SkipV C cut Q v initialState (List.ofFn xs) := by
@@ -557,11 +655,13 @@ theorem ratio_site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL
       (if act s x then ratioFactor p₀ p₁ (hit s x) else 1) ∂D ≤ 1)
     (hfresh : ∀ T E v, N (freshState T E v) = 0 ∧ H (freshState T E v) = 0)
     (hle : ∀ s, CountInv s → H s ≤ N s)
-    (hkeep : ∀ s x, CountInv s → N (keepProbe C cut s x) = N s + (if act s x then 1 else 0)
+    (hkeep : ∀ s x, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+      N (keepProbe C cut s x) = N s + (if act s x then 1 else 0)
       ∧ H (keepProbe C cut s x) = H s + (if hit s x then 1 else 0) ∧ (hit s x → act s x)
       ∧ (ok (keepProbe C cut s x) ↔ ok s))
     (htoo : ∀ s, ¬ Bad .tooBig s)
-    (hbad : ∀ s x e, CountInv s → Bad e (keepProbe C cut s x) →
+    (hbad : ∀ s x e, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+      Bad e (keepProbe C cut s x) →
       runTests C (keepProbe C cut s x) = some e →
         ok s ∧ seqRate p₀ p₁ C.testLevel (N (keepProbe C cut s x)) (H (keepProbe C cut s x)))
     (T : ℕ) :
@@ -576,8 +676,8 @@ theorem ratio_site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL
     (fun s x => if act s x then ratioFactor p₀ p₁ (hit s x) else 1) ok Bad
     (fun s x => by split <;> [exact hrf _; norm_num]) hf
     (fun T E v => by simp only [(hfresh T E v).1, (hfresh T E v).2, likelihoodRatio_zero])
-    (fun s x hs => ⟨?_, (hkeep s x hs).2.2.2⟩) htoo (fun s x e hs hb hr => ?_) T
-  · obtain ⟨h1, h2, h3, -⟩ := hkeep s x hs
+    (fun s x hs hm => ⟨?_, (hkeep s x hs hm).2.2.2⟩) htoo (fun s x e hs hm hb hr => ?_) T
+  · obtain ⟨h1, h2, h3, -⟩ := hkeep s x hs hm
     rw [h1, h2]
     by_cases hact : act s x
     · simp only [hact, if_true]
@@ -586,7 +686,7 @@ theorem ratio_site_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hL
         by_contra hc
         exact hact (h3 (by simpa using hc))
       simp [hact, hh]
-  · obtain ⟨hok, hs'⟩ := hbad s x e hs hb hr
+  · obtain ⟨hok, hs'⟩ := hbad s x e hs hm hb hr
     refine ⟨hok, ?_⟩
     unfold seqRate at hs'
     rw [div_le_iff₀ ha] at hs'
@@ -667,8 +767,8 @@ theorem start_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.first
     (fun s x => decide (x ∈ startSet C rd s.tree))
     (fun s => D.real (startSet C rd s.tree) ≤ C.startUndecidedRate) (StartBad C D rd)
     (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.1)
-    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], ?_, fun _ => rfl, Iff.rfl⟩)
-    (fun s h => by simp [StartBad] at h) (fun s x e hs hb hr => ?_) T
+    (fun s x hs _ => ⟨by simp [keepProbe, Level5State.countProbe], ?_, fun _ => rfl, Iff.rfl⟩)
+    (fun s h => by simp [StartBad] at h) (fun s x e hs _ hb hr => ?_) T
   · simp only [if_true]
     refine lintegral_ratioFactor_le D (· ∈ startSet C rd s.tree) hSq.θs_pos
       (hSq.θs_alt.trans hSq.θs_alt_lt) hp₁.le hSq.θs_alt_lt.le ?_
@@ -680,9 +780,13 @@ theorem start_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.first
     exact ⟨hok, runTests_start' C hr⟩
 
 
-/-- A harvest's success at a hypothesis searching on at least `εd` of the probes. -/
+/-- The probes that search or learn, at a tree and curried edges. -/
+def missAt (T : DTree α) (edges : EdgeTable α) : Set (FreeMonoid α) :=
+  searchingProbes rd C.walkStart ⟨T, Function.uncurry edges⟩
+
+/-- A harvest's success at a hypothesis searching or learning on at least `εd` of the probes. -/
 def SuccessBad (e : Level5Ending α) (s : Level5State α) : Prop :=
-  e = .success ∧ C.disagreementRate ≤ D.real (searchAt rd C.walkStart s.tree s.edges)
+  e = .success ∧ C.disagreementRate ≤ D.real (missAt C rd s.tree s.edges)
 
 theorem keep_searches (s : Level5State α) (x : FreeMonoid α) :
     (keepProbe C (fun z => (rd z).cut) s x).searches
@@ -693,6 +797,17 @@ theorem keep_searches (s : Level5State α) (x : FreeMonoid α) :
   · rw [if_pos h, if_pos (by simpa using mem_searchAt.2 h)]
   · rw [if_neg h, if_neg (by simpa using fun h' => h (mem_searchAt.1 h'))]
 
+theorem keep_misses (s : Level5State α) (x : FreeMonoid α)
+    (hm : ¬ (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsMember) :
+    (keepProbe C (fun z => (rd z).cut) s x).searches
+      = s.searches + if decide (x ∈ missAt C rd s.tree s.edges) then 1 else 0 := by
+  rw [keep_searches]
+  congr 2
+  have e : Function.curry (Function.uncurry s.edges) = s.edges := rfl
+  simp only [missAt, searchingProbes, searchAt_eq, Set.mem_setOf_eq, e]
+  rcases ho : probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x with
+    _ | _ | _ | _ | _ | u <;> simp_all [WalkOutcome.IsMember]
+
 theorem success_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
     (hexc : ∀ j, 0 < C.edgeExcess j) (T : ℕ) :
     (Measure.pi fun _ : Fin T => D)
@@ -701,14 +816,14 @@ theorem success_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.fir
       ≤ ENNReal.ofReal (versionBound C (Fintype.card α) * C.testLevel) := by
   refine ratio_site_le C _ D hL hSq.a_pos hSq.a_lt hn₀ hexc hSq.εd_pos hSq.εd_lt hSq.εd_alt_pos
     (hSq.εd_alt.trans hSq.εd_lt) (fun s => s.probes) (fun s => s.searches) (fun _ _ => true)
-    (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
-    (fun s => C.disagreementRate ≤ D.real (searchAt rd C.walkStart s.tree s.edges))
+    (fun s x => decide (x ∈ missAt C rd s.tree s.edges))
+    (fun s => C.disagreementRate ≤ D.real (missAt C rd s.tree s.edges))
     (SuccessBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
-    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
+    (fun s x hs hm => ⟨by simp [keepProbe, Level5State.countProbe], keep_misses C rd s x hm,
       fun _ => rfl, Iff.rfl⟩)
-    (fun s h => by simp [SuccessBad] at h) (fun s x e hs hb hr => ?_) T
+    (fun s h => by simp [SuccessBad] at h) (fun s x e hs _ hb hr => ?_) T
   · simp only [if_true]
-    refine lintegral_ratioFactor_le D (· ∈ searchAt rd C.walkStart s.tree s.edges) hSq.εd_pos
+    refine lintegral_ratioFactor_le D (· ∈ missAt C rd s.tree s.edges) hSq.εd_pos
       hSq.εd_lt hSq.εd_alt_pos.le (hSq.εd_alt.trans hSq.εd_lt).le ?_
     rw [Set.setOf_mem_eq]
     exact mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith [hSq.εd_alt])
@@ -734,9 +849,9 @@ theorem gate_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstL
     (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
     (fun s => D.real (searchAt rd C.walkStart s.tree s.edges) ≤ C.searchShare / 2)
     (GateBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
-    (fun s x hs => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
+    (fun s x hs _ => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
       fun _ => rfl, Iff.rfl⟩)
-    (fun s h => by simp [GateBad] at h) (fun s x e hs hb hr => ?_) T
+    (fun s h => by simp [GateBad] at h) (fun s x e hs _ hb hr => ?_) T
   · simp only [if_true]
     refine lintegral_ratioFactor_le D (· ∈ searchAt rd C.walkStart s.tree s.edges)
       (by linarith) (by linarith) hφ.le hφ1.le ?_
@@ -833,8 +948,8 @@ theorem middles_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.fir
       ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges))
     (MiddlesBad C D rd) (fun s hs => lintegral_actFactor_le D (ptSet_sub C rd _ _) hSq.θpt_pos
       hSq.θpt_alt hSq.θpt_alt_lt hs) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.1)
-    (fun s x hs => ⟨keep_searches C rd s x, ?_, fun h => ?_, Iff.rfl⟩)
-    (fun s h => by simp [MiddlesBad] at h) (fun s x e hs hb hr => ?_) T
+    (fun s x hs _ => ⟨keep_searches C rd s x, ?_, fun h => ?_, Iff.rfl⟩)
+    (fun s h => by simp [MiddlesBad] at h) (fun s x e hs _ hb hr => ?_) T
   · simp only [keepProbe, Level5State.countProbe, List.length_append]
     congr 1
     have := middleHarvestBy_length (fun z => (rd z).cut) s.tree s.edges C.walkStart x
@@ -892,8 +1007,8 @@ theorem und_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLo
     (fun s x => Real.exp ((((edgeHarvestBy cut s.tree s.edges C.walkStart x
       (edgeOf s.tree i c)).length : ℝ) - 2 * undMean C D rd s.tree s.edges (edgeOf s.tree i c)) / (2 * (L + 1))))
     (fun _ => True) (UndBad C D rd L i c) (fun s x => (Real.exp_pos _).le) (fun s _ => ?_)
-    (fun T E v => by simp [undW, freshState]) (fun s x hs => ⟨?_, Iff.rfl⟩)
-    (fun s h => by simp [UndBad] at h) (fun s x e hs hb hr => ⟨trivial, hb.2⟩) T
+    (fun T E v => by simp [undW, freshState]) (fun s x hs _ => ⟨?_, Iff.rfl⟩)
+    (fun s h => by simp [UndBad] at h) (fun s x e hs _ hb hr => ⟨trivial, hb.2⟩) T
   · have h0 : 0 ≤ undMean C D rd s.tree s.edges (edgeOf s.tree i c) :=
       integral_nonneg fun _ => Nat.cast_nonneg _
     have := mgf_step D
@@ -931,8 +1046,8 @@ theorem read_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstL
         / (2 * ((L + 1) * C.maxLeaves))))
     (fun s => s.tree.leaves.length ≤ C.maxLeaves) (ReadBad C D rd L i c)
     (fun s x => (Real.exp_pos _).le) (fun s hs => ?_)
-    (fun T E v => by simp [readW, freshState]) (fun s x hs => ⟨?_, Iff.rfl⟩)
-    (fun s h => by simp [ReadBad] at h) (fun s x e hs hb hr => ⟨hb.2.1, hb.2.2⟩) T
+    (fun T E v => by simp [readW, freshState]) (fun s x hs _ => ⟨?_, Iff.rfl⟩)
+    (fun s h => by simp [ReadBad] at h) (fun s x e hs _ hb hr => ⟨hb.2.1, hb.2.2⟩) T
   · have hB : (0 : ℝ) < (L + 1) * C.maxLeaves := by
       have : (0 : ℝ) < C.maxLeaves := by exact_mod_cast (by omega : 0 < C.maxLeaves)
       positivity

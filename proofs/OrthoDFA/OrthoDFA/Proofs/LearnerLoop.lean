@@ -313,12 +313,15 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
     _ = T.card * q := by rw [Finset.sum_const, nsmul_eq_mul]
 
 /-- The loop's claim at a cap `cap` and walk start `k`, `NS` and `NP` bounding the schedule's
-suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. -/
+suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The last round's
+checked probes are at most `εd`, its reads undecided past the walk's start, up to `J`, counted
+once `undecidedMass` is at most `ū`, at `128ū/εd` more a round. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K Ls NS NP : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ cap m ms : ℝ) (k : ℕ),
+    (K Ls NS NP : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ cap m ms : ℝ) (k J : ℕ)
+    (ū : ℝ),
   let n : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
   let ρ : ℝ := 3 * εd / 16
@@ -350,7 +353,7 @@ def LoopCore : Prop :=
   K * (NS + 1) * cap ≤ ms →
   6 * (K + 1) * NP * (P.L + 1) * cap ≤ 1 →
   1 ≤ k → prefixMax P.D k ≤ cap * ρ / 4 →
-  4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
+  4096 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd → 0 ≤ ū →
   ∃ settings : LoopSettings K,
     settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
@@ -362,15 +365,15 @@ def LoopCore : Prop :=
       (loopMeasure μ α K settings.level5.probeBudget).real
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
             ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
+                o.Checks M O P.D k J ū (εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) εd)}
-        ≤ (Fintype.card σ + 1) * (δc + δ)
+        ≤ (Fintype.card σ + 1) * (δc + δ + 128 * ū / εd)
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k n A ρ
-    V Kp G c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap
-    hmsl hm1 hmsp hms1 hNSb hNPb hq1 hq2 hq3 hqm hqms hcapP hk0 hk1 hk2
+  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k J ū n A
+    ρ V Kp G c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap
+    hmsl hm1 hmsp hms1 hNSb hNPb hq1 hq2 hq3 hqm hqms hcapP hk0 hk1 hk2 hū
   classical
   have hA1 : (1 : ℝ) ≤ A := by
     show (1 : ℝ) ≤ Fintype.card α
@@ -628,7 +631,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ Level5Spec M O P θ εd (y / 2) k
+        ∧ ¬ Level5Spec M O P θ εd (y / 2) k J ū
             (loopRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -644,34 +647,38 @@ theorem loop_core_holds : LoopCore := by
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N εcov δc slack cap cap m ms pAP hδc.le hC hN
       hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
-  have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ := fun r hr =>
+  have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ + 128 * ū / εd := fun r hr =>
     loop_level5_round_le_persist M O hL P Dsf settings Ls NP N εd δ cross θ y m5
-      (4 * Kp * G * W) (1024 * (P.L + 1) * unionLog (α := α) σ δ)
-      hC hN hNPsum hband hk0 hdis hη1 hδ hy0 hcr hθ0 hθ' hB5 (mul_nonneg (by positivity) hU) hpre
-      le_rfl (by linarith) (by linarith) (by rw [hyρ]; linarith)
-      (fun P' hP' O' θ' hθ0' hθ1' hκ hε hεκ hpre' => hl4 (μ.prod μ) P' hP' O' θ' hθ0' hθ1' hκ hε
-        (le_trans (le_of_eq (by simp only [Kp, G, V, n, A, hWd, e112]; ring)) hεκ)
-        (by rw [hP']; exact hpre')) r hr
+      (4 * Kp * G * W) (1024 * (P.L + 1) * unionLog (α := α) σ δ) J ū hū
+      hC hmax hN hNPsum hband hk0 hdis hη1 hδ hy0 hcr hθ0 hθ' hB5 (mul_nonneg (by positivity) hU)
+      hpre le_rfl (by linarith) (by linarith) (by rw [hyρ]; linarith)
+      (fun P' hP' O' θ' hθ0' hθ1' hκ hε hεκ hpre' => (hl4 (μ.prod μ) P' hP' O' θ' J (2 * ū) hθ0'
+        hθ1' hκ hε (le_trans (le_of_eq (by simp only [Kp, G, V, n, A, hWd, e112]; ring)) hεκ)
+        (by rw [hP']; exact hpre') (by positivity)).trans (le_of_eq (by
+          congr 1
+          field_simp
+          ring))) r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hC hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
   set Ev : ℕ → Set (Ω × (Fin K → RoundDraws α K T)) := fun r =>
     if hr : r < K then (E1 r hr ∪ E2 r hr) ∪ E3 r hr else ∅ with hEvd
-  have hEv : ∀ r, μL.real (Ev r) ≤ δc + δ := by
+  have hEv : ∀ r, μL.real (Ev r) ≤ δc + (δ + 128 * ū / εd) := by
     intro r
     simp only [hEvd]
     split_ifs with hr
     · calc μL.real ((E1 r hr ∪ E2 r hr) ∪ E3 r hr)
           ≤ μL.real (E1 r hr) + μL.real (E2 r hr) + μL.real (E3 r hr) :=
             (measureReal_union_le _ _).trans (add_le_add (measureReal_union_le _ _) le_rfl)
-        _ ≤ δc + δ + 0 := add_le_add (add_le_add (h1 r hr) (h2 r hr)) (le_of_eq (h3 r hr))
-        _ = δc + δ := by ring
+        _ ≤ δc + (δ + 128 * ū / εd) + 0 :=
+            add_le_add (add_le_add (h1 r hr) (h2 r hr)) (le_of_eq (h3 r hr))
+        _ = δc + (δ + 128 * ū / εd) := by ring
     · rw [measureReal_empty]; positivity
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
   have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
       let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Agrees O P.D k (εcov + 2 * ι + 2 * slack) (2 * ι + slack) εd)}
+          o.Checks M O P.D k J ū (εcov + 2 * ι + 2 * slack) (2 * ι + slack) εd)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
@@ -679,7 +686,7 @@ theorem loop_core_holds : LoopCore := by
     set Lr := loopRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         ClusterSpec settings O P.D εcov slack (harvestsOf P.D k (Lr.take i)) Lr[i].run
-          ∧ Level5Spec M O P θ εd (y / 2) k Lr[i] := by
+          ∧ Level5Spec M O P θ εd (y / 2) k J ū Lr[i] := by
       intro i
       induction i using Nat.strong_induction_on with
       | _ i ih =>
@@ -774,20 +781,20 @@ theorem loop_core_holds : LoopCore := by
             (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
-        have h4 : Level5Spec M O P θ εd (y / 2) k
+        have h4 : Level5Spec M O P θ εd (y / 2) k J ū
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
         rw [← histOf_pops, ← hdec, e]
         exact ⟨hcs, h4⟩
-    exact hp (loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl εcov slack εd
+    exact hp (loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k J ū rfl εcov slack εd
       (y / 2) hK (fun pops B hB => (hband pops B hB).1) fun i hi hiσ => hspec i hiσ hi)
   calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
         measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) := measureReal_biUnion_finset_le _ _
-    _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + δ) :=
+    _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + (δ + 128 * ū / εd)) :=
         Finset.sum_le_sum fun r _ => hEv r
-    _ = (Fintype.card σ + 1) * (δc + δ) := by
+    _ = (Fintype.card σ + 1) * (δc + δ + 128 * ū / εd) := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
         push_cast
         ring
@@ -855,12 +862,20 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     key (b := 6 * ((K : ℝ) + 1) * (NP + 1) * (P.L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   refine ⟨cap, hcap0, fun k hk0 hk1 hk2 => ?_⟩
-  exact loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc slack pAP εd δ cap m ms k hL hη hη₀
+  obtain ⟨settings, h1, h2, h3, h4, h5, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
+    slack pAP εd δ cap m ms k 0 0 hL hη hη₀
     hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0 hmsl hm1 hmsp
     hms1 (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c) (Finset.mem_univ pops))
     (fun pops _ => Finset.le_sup (f := fun pops => prefCount η₀ pops ι εcov (δc / 2) gate
       (pAP - ms) c) (Finset.mem_univ pops))
-    hq1 hq2 hq3 hqm hqms hcapP hk0 hk1 hk2
+    hq1 hq2 hq3 hqm hqms hcapP hk0 hk1 hk2 le_rfl
+  refine ⟨settings, h1, h2, h3, h4, h5, fun Dsf hDsf hlen hpAPD hatom => ?_⟩
+  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
+    ((h6 Dsf hDsf hlen hpAPD hatom).trans (le_of_eq (by ring)))
+  intro p hp hgood
+  apply hp
+  obtain ⟨hl, o, ho, hc⟩ := hgood
+  exact ⟨hl, o, ho, hc.1⟩
 
 end OrthoDFA

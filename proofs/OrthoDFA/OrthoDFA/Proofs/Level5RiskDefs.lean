@@ -25,10 +25,12 @@ over. -/
 def unionLog (σ : Type*) [Fintype σ] (δ : ℝ) : ℝ :=
   4 * (Fintype.card σ + 2) * Fintype.card α * Real.log ((Fintype.card σ + 3) * Fintype.card α / δ)
 
-/-- `searchingProbes` at a tree and curried edges. -/
+/-- The probes that search, at a tree and curried edges. -/
 def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     Set (FreeMonoid α) :=
-  searchingProbes rd k ⟨T, Function.uncurry edges⟩
+  {x | match probeBy (fun z => (rd z).cut) T edges k x with
+    | .undecidedMid _ | .edge _ _ => True
+    | _ => False}
 
 theorem searchAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
     searchAt rd k T edges = {x | match probeBy (fun z => (rd z).cut) T edges k x with
@@ -67,11 +69,14 @@ noncomputable def Level5Settings.harvestYield (C : Level5Settings) : ℝ :=
   min C.startUndecidedRate
     (min (C.edgeTraffic * C.edgeUndecidedRate / 2) (C.searchShare * C.middleUndecidedRate / 2))
 
-/-- The round ends well at the ending `e` and the state `s` it ends in. -/
-def Level5EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (C : Level5Settings) (rd : FreeMonoid α → ARU) (e : Level5Ending α) (s : Level5State α) :
-    Prop :=
-  EndsWell M bad D C.disagreementRate (searchAt rd C.walkStart s.tree s.edges) C.walkStart
+/-- The round ends well at the ending `e` and the state `s` it ends in, the read distributions
+`dist` saying which side is rarer. -/
+def Level5EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
+    (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ) (rd : FreeMonoid α → ARU)
+    (e : Level5Ending α) (s : Level5State α) : Prop :=
+  EndsWell M bad D (17 / 16 * C.disagreementRate)
+    (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū ⟨s.tree, Function.uncurry s.edges⟩)
+    C.walkStart
     (harvestLaw D (fun z => (rd z).cut) C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
     C.harvestYield (toRoundEnd e)
 
@@ -214,16 +219,18 @@ def Level5RiskBound : Prop :=
     roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ
 
 /-- `Level5RoundRisk`: with an oracle reading every string with the read model's laws, the round
-over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`. -/
+over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`,
+and `32ū/εd` more for the undecided reads it answers for. -/
 def Level5RoundRisk : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
-    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level5Settings),
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level5Settings) (J : ℕ) (ū : ℝ),
+    0 ≤ ū → 32 ≤ C.disagreementRate * C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
-          (Level5EndsWell M (fun q => ¬ O.Good θ q) P.D C (O.read · ω))
+          (Level5EndsWell M (fun q => ¬ O.Good θ q) O.readDist P.D C J ū (O.read · ω))
           initialState (List.ofFn xs)} ∂μ
-      ≤ roundRisk σ O.κ O.ε θ P.D P.L C
+      ≤ roundRisk σ O.κ O.ε θ P.D P.L C + ENNReal.ofReal (32 * ū / C.disagreementRate)
 
 end OrthoDFA
 

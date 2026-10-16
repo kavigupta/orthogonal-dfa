@@ -226,13 +226,22 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
 
 /-- What the loop needs of level 5 at a round: it ends well, a quarter of its harvest's sampler at
 bad states and the sampler yielding `y`, a state being bad where the round's family leaves it
-undecided more than `1.5θ` of the time. -/
-def Level5Spec (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (θ εd y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
+undecided more than `1.5θ` of the time, and a consistent round checking at most `εd` of the
+probes. -/
+def Level5Spec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
+    (θ εd y : ℝ) (k J : ℕ) (ū : ℝ) (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   QuarterEndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D εd
-    (searchingProbes o.read k o.result.hypothesis) k
+    (checkedProbes M dist P.D o.read k (Fintype.card σ + 2) J ū o.result.hypothesis) k
     (harvestLaw P.D (fun z => (o.read z).cut) k o.result.hypothesis) y o.result.ending
+
+/-- The round agrees, and its probes checked against the family's read distributions are at most
+`εd` of `D`. -/
+def LoopRound.Checks [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) (k J : ℕ) (ū εr εu εd : ℝ) (o : LoopRound Ω α K) : Prop :=
+  o.Agrees O D k εr εu εd
+    ∧ D.real (checkedProbes M (familyReadDist O M o.family o.state.lo (o.state.hi + 1)) D o.read
+      k (Fintype.card σ + 2) J ū o.result.hypothesis) ≤ εd
 
 /-- The goodness level the loop runs level 5's claim at. -/
 def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
@@ -297,18 +306,18 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (k : ℕ)
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) (k J : ℕ) (ū : ℝ)
     (hk : settings.level5.walkStart = k) (εcov slack εd y : ℝ) (hK : Fintype.card σ + 1 ≤ K)
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
     (hspec : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
       ClusterSpec settings O P.D εcov slack
           (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
           (loopRounds settings O P.D Dsf draws K)[i].run
-        ∧ Level5Spec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
+        ∧ Level5Spec M O P (loopTheta σ settings.indecisionLimit slack) εd y k J ū
           (loopRounds settings O P.D Dsf draws K)[i]) :
     (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
       ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
-        o.Agrees O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
+        o.Checks M O P.D k J ū (εcov + 2 * settings.indecisionLimit + 2 * slack)
           (2 * settings.indecisionLimit + slack) εd := by
   classical
   unfold indecisiveLStarLoop
@@ -336,13 +345,15 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →
-      L[i].Agrees O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack) c εd := by
+      L[i].Checks M O P.D k J ū (εcov + 2 * settings.indecisionLimit + 2 * slack) c εd := by
     intro i hi hiσ hn
     obtain ⟨hlh, h1, hmis, hund⟩ := hround i hi hiσ
     have h4 := (hspec i hi hiσ).2
     simp only [Level5Spec] at h4
     have hcons : L[i].result.ending = .consistent ∧
-        P.D.real (searchingProbes L[i].read k L[i].result.hypothesis) ≤ εd := by
+        P.D.real (checkedProbes M (familyReadDist O M L[i].family L[i].state.lo
+          (L[i].state.hi + 1)) P.D L[i].read k (Fintype.card σ + 2) J ū
+            L[i].result.hypothesis) ≤ εd := by
       rcases hE : L[i].result.ending with _ | zs | _
       · rw [hE] at h4; exact ⟨rfl, h4⟩
       · rw [hE] at hn; simp [RoundEnd.harvested] at hn
@@ -356,7 +367,9 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       (fun _ => measureReal_le_one)).add (integrable_of_unit P.D (fun p => undecidedProb O
         L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p)
         (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one))
-    refine ⟨hcons.1, ?_, ?_, hcons.2⟩
+    have hsrch : P.D.real (searchingProbes L[i].read k L[i].result.hypothesis) ≤ εd :=
+      (measureReal_mono (fun x hx => .inl (.inl hx)) (measure_ne_top _ _)).trans hcons.2
+    refine ⟨⟨hcons.1, ?_, ?_, hsrch⟩, hcons.2⟩
     · calc ∫ p, misreadProb O L[i].family L[i].state.lo (L[i].state.hi + 1) p ∂P.D
           ≤ ∫ p, (miscutProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
               + undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p)

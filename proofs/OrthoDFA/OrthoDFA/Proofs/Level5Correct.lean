@@ -22,13 +22,14 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- A run's ending, as `RunEnds` checks it, is `runProbes`'s. -/
-theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D : Measure (FreeMonoid α))
-    (C : Level5Settings) (rd : FreeMonoid α → ARU) :
+theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
+    (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ) (rd : FreeMonoid α → ARU) :
     ∀ (s : Level5State α) (xs : List (FreeMonoid α)),
-      RunEnds (applyProbe C fun z => (rd z).cut) (Level5EndsWell M bad D C rd) s xs ↔
-        EndsWell M bad D C.disagreementRate
-          (searchingProbes rd C.walkStart ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
+      RunEnds (applyProbe C fun z => (rd z).cut) (Level5EndsWell M bad dist D C J ū rd) s xs ↔
+        EndsWell M bad D (17 / 16 * C.disagreementRate)
+          (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū
+            ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
           (harvestLaw D (fun z => (rd z).cut) C.walkStart
             ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
               Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
@@ -36,21 +37,22 @@ theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D :
   | s, [] => by simp [RunEnds, runProbes, EndsWell]
   | s, x :: xs => by
     cases h : applyProbe C (fun z => (rd z).cut) s x with
-    | inl s' => simpa only [RunEnds, runProbes, h] using runEnds_iff M bad D C rd s' xs
+    | inl s' => simpa only [RunEnds, runProbes, h] using runEnds_iff M bad dist D C J ū rd s' xs
     | inr es => obtain ⟨e, s'⟩ := es; simp only [RunEnds, runProbes, h]; rfl
 
 theorem lintegral_level5_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     (M : _root_.DFA α σ) (O : TriOracle μ M) (bad : σ → Prop) (P : PrefixDistribution α)
-    (C : Level5Settings) :
+    (C : Level5Settings) (J : ℕ) (ū : ℝ) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel5 C (O.read · ω) draws
-          ¬ EndsWell M bad P.D C.disagreementRate
-            (searchingProbes (O.read · ω) C.walkStart result.hypothesis) C.walkStart
+          ¬ EndsWell M bad P.D (17 / 16 * C.disagreementRate)
+            (checkedProbes M O.readDist P.D (O.read · ω) C.walkStart C.maxLeaves J ū
+              result.hypothesis) C.walkStart
             (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart result.hypothesis)
             C.harvestYield result.ending} ∂μ
       = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
-          (Level5EndsWell M bad P.D C (O.read · ω))
+          (Level5EndsWell M bad O.readDist P.D C J ū (O.read · ω))
           initialState (List.ofFn xs)} ∂μ := by
   congr 1; ext ω; congr 1; ext xs
   simp only [Set.mem_setOf_eq, runEnds_iff, indecisiveLStarLevel5]
@@ -71,19 +73,20 @@ def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k 
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
     ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-      (P : PrefixDistribution α), P.L = L → ∀ (O : TriOracle μ M) (θ : ℝ),
+      (P : PrefixDistribution α), P.L = L → ∀ (O : TriOracle μ M) (θ : ℝ) (J : ℕ) (ū : ℝ),
       let bad := fun q => ¬ O.Good θ q
       0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
       0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
-      1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd →
+      1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd → 0 ≤ ū →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-            ¬ EndsWell M bad P.D settings.disagreementRate
-              (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
+            ¬ EndsWell M bad P.D (17 / 16 * settings.disagreementRate)
+              (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+                (Fintype.card σ + 2) J ū result.hypothesis)
               settings.walkStart
               (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
               (3 * εd / 16) result.ending} ∂μ
-        ≤ ENNReal.ofReal δ
+        ≤ ENNReal.ofReal (δ + 32 * ū / εd)
 
 set_option maxHeartbeats 1000000 in -- the chosen settings meet every condition
 theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
@@ -146,15 +149,26 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
     linarith
   set C : Level5Settings := ⟨k, N, 1 / 2, 3 / 4, 1 / 2, εd, 3 / 5, 3 / 4, 7 / 8 * εd, Real.exp (-G),
     n₀, fun _ => 2 * (L + 1) * (1 + 3 / 4 * N) * G + 1, 3 / 4, 3 / 4 * εd, b⟩ with hC
-  refine ⟨C, rfl, rfl, by rw [← hVr]; exact hbK, rfl, fun μ _ P hP O θ hθ hθc hκ hε hεc hpc => ?_⟩
+  refine ⟨C, rfl, rfl, by rw [← hVr]; exact hbK, rfl, fun μ _ P hP O θ J ū hθ hθc hκ hε hεc hpc hū => ?_⟩
   subst hP
   have hy : 3 * εd / 16 ≤ C.harvestYield := by
     simp only [Level5Settings.harvestYield, hC]
     refine le_min (by linarith) (le_min (by linarith) (by linarith))
   refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
     (EndsWell.mono_yield hy h)) ?_
-  refine (lintegral_level5_eq M O _ P C).trans_le ?_
-  refine (level5_round_risk_holds M O θ P C).trans ?_
+  have hT : 32 ≤ C.disagreementRate * (C.probeBudget : ℝ) := by
+    show 32 ≤ εd * (b : ℝ)
+    have h1 := mul_le_mul_of_nonneg_left hbl hεd0.le
+    have e : εd * ((V : ℝ) * (112 * G / εd + 1)) = 112 * ((V : ℝ) * G) + εd * V := by
+      field_simp
+    have h3 : (6 : ℝ) * 2 ≤ V * G := mul_le_mul hV6 hG2 (by norm_num) (by linarith)
+    have h4 : 0 ≤ εd * (V : ℝ) := by positivity
+    linarith
+  refine (lintegral_level5_eq M O _ P C J ū).trans_le ?_
+  refine (level5_round_risk_holds M O θ P C J ū hū hT).trans ?_
+  rw [ENNReal.ofReal_add hδ0.le (by positivity)]
+  refine add_le_add ?_ le_rfl
+  clear hT hū
   have hRB := level5_risk_bound_holds σ O.κ O.ε θ P.D P.L C δ
   dsimp only at hRB
   have hp₀ : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
@@ -235,14 +249,14 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
 end Guarantee
 
 theorem level5_correct_holds : Level5Correct := by
-  intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ k
-  intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hε hεc hpc
+  intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ k J ū
+  intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hε hεc hpc hū
   obtain ⟨settings, h1, h2, h3, -, h⟩ :=
     level5_guarantee_all (σ := σ) M εd P.L δ k hδ0 hδ1 hεd0 hεd1 hL
-  exact ⟨settings, h1, h2, h3, h μ P rfl O θ hθ hθc hκ hε hεc hpc⟩
+  exact ⟨settings, h1, h2, h3, h μ P rfl O θ J ū hθ hθc hκ hε hεc hpc hū⟩
 
 theorem level5_family_correct_holds : Level5FamilyCorrect := by
-  intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ k
-  exact level5_correct_holds fam.M fam.oracle θ εd P δ k
+  intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ k J ū
+  exact level5_correct_holds fam.M fam.oracle θ εd P δ k J ū
 
 end OrthoDFA

@@ -21,10 +21,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Words
 
-/-- The words of at most `n` letters. -/
-noncomputable def shortWords (n : ℕ) : Finset (FreeMonoid α) :=
-  Finset.univ.image fun v : (Σ i : Fin (n + 1), Fin i → α) => FreeMonoid.ofList (List.ofFn v.2)
-
 theorem mem_shortWords {n : ℕ} {m : FreeMonoid α} (h : m.toList.length ≤ n) :
     m ∈ shortWords n := by
   refine Finset.mem_image.2 ⟨⟨⟨m.toList.length, by omega⟩, fun j => m.toList[j]⟩,

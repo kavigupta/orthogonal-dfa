@@ -60,17 +60,19 @@ section Fail
 variable {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'} [IsProbabilityMeasure μ']
 
 /-- Where level 5, reading `fam` over probes from `D'`, fails its claim. -/
-def l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings) (D' : Measure (FreeMonoid α))
-    (θ y : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
+def l4Fail [Fintype σ] (fam : SuffixFamily μ' α σ) (C : Level5Settings)
+    (D' : Measure (FreeMonoid α)) (θ y : ℝ) (J : ℕ) (ū : ℝ) :
+    Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
   {d | let result := indecisiveLStarLevel5 C (fun z => fam.read d.1 z) d.2
-    ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' C.disagreementRate
-      (searchingProbes (fun z => fam.read d.1 z) C.walkStart result.hypothesis) C.walkStart
+    ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' (17 / 16 * C.disagreementRate)
+      (checkedProbes fam.M fam.oracle.readDist D' (fun z => fam.read d.1 z) C.walkStart
+        (Fintype.card σ + 2) J ū result.hypothesis) C.walkStart
       (harvestLaw D' (fun z => (fam.read d.1 z).cut) C.walkStart result.hypothesis) y
       result.ending}
 
-theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
-    (hC : 2 ≤ C.maxLeaves) (D' : Measure (FreeMonoid α)) (θ y : ℝ) :
-    MeasurableSet (l4Fail fam C D' θ y) := by
+theorem measurableSet_l4Fail [Fintype σ] (fam : SuffixFamily μ' α σ) (C : Level5Settings)
+    (hC : 2 ≤ C.maxLeaves) (D' : Measure (FreeMonoid α)) (θ y : ℝ) (J : ℕ) (ū : ℝ) :
+    MeasurableSet (l4Fail fam C D' θ y J ū) := by
   classical
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ'
   refine measurableSet_prod_countable_right _ fun xs => ?_
@@ -90,11 +92,12 @@ theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
     have := Finset.ext_iff.1 h.choose_spec p
     simp only [Finset.mem_filter, hp, true_and] at this
     exact this.symm
-  have hset : {ω | (ω, xs) ∈ l4Fail fam C D' θ y}
+  have hset : {ω | (ω, xs) ∈ l4Fail fam C D' θ y J ū}
       = ⋃ U ∈ A.powerset, ({ω | A.filter (fun p => fam.O.mq p ω = 1) = U}
-        ∩ {ω | ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' C.disagreementRate
-          (searchingProbes (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) C.walkStart
-            (rep U).hypothesis) C.walkStart
+        ∩ {ω | ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' (17 / 16 * C.disagreementRate)
+          (checkedProbes fam.M fam.oracle.readDist D'
+            (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) C.walkStart
+            (Fintype.card σ + 2) J ū (rep U).hypothesis) C.walkStart
           (harvestLaw D' (fun z => (familyRead fam.O.mq fam.F fam.kl fam.kh z ω).cut) C.walkStart
             (rep U).hypothesis) y (rep U).ending}) := by
     ext ω
@@ -114,7 +117,7 @@ theorem measurableSet_l4Fail (fam : SuffixFamily μ' α σ) (C : Level5Settings)
       show A.filter _ = U
       rw [← hω]
       exact Finset.filter_congr fun p hp => (h p hp).symm
-  · exact measurableSet_not_endsWell fam.O fam.F _ _ C.walkStart fam.M _ D' _ y _ _
+  · exact measurableSet_not_endsWell fam.O fam.F _ _ C.walkStart fam.M _ _ D' D' _ J ū _ y _ _
 
 end Fail
 
