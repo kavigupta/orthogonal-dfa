@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+from .certificate import clopper_pearson
 from .mask_table import UNIFORM
 from .prefix_populations import grow_population, population_labels, prefixes_for_split
 from .statistics import (
@@ -144,13 +145,11 @@ def readable_size_and_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: P(admitting, at some family of a search, one whose cut misclassifies more than
-#: misclassification_limit of some population).
+#: P(admitting a family with E_j > misclassification_limit for some population j)
+#: over both of the gate's drift_verdict calls on it, E_j as in misclassified_bounds.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
-#: The tails a family spends per population: three counts on each side of the
-#: uniform pool's calibration sample, three on each side of a look at the
-#: population, and the passage from the draws to the population.
-GATE_TAILS = 13
+#: Each drift_verdict call's share of it.
+ACCEPT_PRESERVING_VERDICT_ERROR_RATE = ACCEPT_PRESERVING_ERROR_RATE / 2
 
 #: What the gate was able to conclude about a family.
 ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
@@ -160,326 +159,243 @@ class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def hoeffding_deviation(n, level) -> float:
-    """t with P(a sum of n independent reads in [0, 1] strays past its mean by t) <= level."""
-    return math.sqrt(n * math.log(1 / level) / 2)
+def certification_sample(pst, vs, by_population):
+    """``label -> (family means, split column)`` for prefixes read only to
+    settle the split, and never added to the table.
 
-
-def size_level(level, n) -> float:
-    """level / ((n + 1)(n + 2)), which sums to under level over every n."""
-    return level / ((n + 1) * (n + 2))
-
-
-@dataclass(frozen=True)
-class Side:
-    """The prefixes on one side of a family's cut: how many, how many the seed
-    reads against the side, and the fewest any reference disagrees with the seed
-    on."""
-
-    size: int
-    against: int
-    apart: int
-
-    def scaled(self, m):
-        return Side(m * self.size, m * self.against, m * self.apart)
-
-
-@dataclass(frozen=True)
-class Sample:
-    """A population's certification prefixes, read against a family: the side
-    its cut accepts, the side it rejects, and how many draws finding them took."""
-
-    accept: Side
-    reject: Side
-    drawn: int
-
-    @property
-    def size(self) -> int:
-        return self.accept.size + self.reject.size
-
-    def scaled(self, m):
-        return Sample(self.accept.scaled(m), self.reject.scaled(m), m * self.drawn)
-
-
-def certification_sample(pst, vs, refs, by_population):
-    """label -> (family means, split column, reference reads) for prefixes
-    read only to settle the split, and never added to the table.
-
-    Reading one costs a query per family member and per reference, plus the one
-    for the split itself.  Adding it to the table instead costs as much and
+    Reading one costs a query per family member, plus the one for the split
+    itself.  Adding it to the table instead costs a query per pooled
+    suffix -- an order of magnitude more once the pool has grown -- and it
     unsettles the FNR the round has only just met, which is bought back with a
     fresh cohort of suffixes that every later prefix is then read against.
     """
-    family = [pst.table.suffix(v) for v in vs]
-    references = [pst.table.suffix(v) for v in refs]
+    suffixes = [pst.table.suffix(v) for v in vs]
     out = {}
     for label, prefixes in by_population.items():
-        pairs = [p + sfx for p in prefixes for sfx in family]
-        ref_pairs = [p + sfx for sfx in references for p in prefixes]
-        read = pst.table.memo.membership_queries(pairs + ref_pairs + prefixes)
-        n_family, n_refs = len(pairs), len(ref_pairs)
-        out[label] = (
-            np.asarray(read[:n_family]).reshape(len(prefixes), len(family)).mean(1),
-            np.asarray(read[n_family + n_refs :]),
-            np.asarray(read[n_family : n_family + n_refs]).reshape(
-                len(references), len(prefixes)
-            ),
-        )
+        pairs = [p + sfx for p in prefixes for sfx in suffixes]
+        read = pst.table.memo.membership_queries(pairs + prefixes)
+        family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
+        out[label] = (family.mean(1), np.asarray(read[len(pairs) :]))
     return out
 
 
-def read_sample(pst, reads, drawn) -> Sample:
-    """The family's cut at the decision boundary, and each side's counts."""
-    decision, column, references = reads
-    accepted = decision >= pst.decision_boundary
+def _split_counts(pst, reads):
+    """
+    The family's classification of the prefixes when run in "decisive mode" where
+        there is no indecision band; jointly distributed with the oracle's labels.
 
-    def side(on, against):
-        apart = (references[:, on] != column[on]).sum(1)
-        return Side(
-            int(on.sum()),
-            int((column[on] == against).sum()),
-            int(apart.min()) if len(apart) else 0,
+    Returns label -> ((a_1, n_1), (a_0, n_0)).
+
+        n_i = # of prefixes the family places in class i, decisively
+        a_i = # of prefixes the family places in class i that the oracle assigns a 1 to
+    """
+    return {
+        label: tuple(
+            (int(column[side].sum()), int(side.sum()))
+            for side in (
+                decision >= pst.decision_boundary,
+                decision < pst.decision_boundary,
+            )
+        )
+        for label, (decision, column) in reads.items()
+    }
+
+
+def misclassified_bounds(pst, by_population, level):
+    """
+    Returns label j -> (bound_j, point_j) where for
+
+        E_j = P_{p ~ D_j}[ decisiveClassifyFamily(p) != noiselessOracle(p) ],
+
+    point_j is E_j assuming that the fractions a_i/n_i and n_i / (n_0 + n_1)
+    arising from _split_counts are exact expectations rather than samples, and
+    bound_j satisfies
+
+        P(E_j <= bound_j for every j) >= 1 - level
+
+    under only the condition that the oracle has exactly round_rates(pst) rates
+    (in particular, it does not assume the aforementioned fractions are exact
+    expectations).
+    """
+    drawn = {
+        label: counts
+        for label, counts in by_population.items()
+        if counts[0][1] + counts[1][1]
+    }
+    each = level / (4 * max(1, len(drawn)))
+    p_0, p_1 = round_rates(pst)
+
+    def wrong(accept, reject):
+        """For the accepting and rejecting sides reading 1 at rates accept and
+        reject, the share e of each in the other class, clipped to [0, 1], from
+
+            accept = p_1 - e (p_1 - p_0),   reject = p_0 + e (p_1 - p_0)."""
+        return np.clip(
+            [(p_1 - accept) / (p_1 - p_0), (reject - p_0) / (p_1 - p_0)], 0, 1
         )
 
-    return Sample(side(accepted, 0), side(~accepted, 1), drawn)
-
-
-def wrong_cap(side, deviation, rate) -> float:
-    """An upper bound on the share of side the cut puts there wrongly, the
-    wrong class's noise rate being at most rate and the side's two counts
-    within deviation of their means.  With t_p the chance the seed reads p
-    against the side, r_p p's noise rate and c the side's against share,
-
-        (1/n) sum_p (t_p - c)^2 = c (1 - c) + (1 - 2c)(mean t - c) - (1/n) sum_p r_p (1 - r_p),
-
-    a reference that preserves the classes disagrees with the seed at
-    2 r_p (1 - r_p), and a wrong prefix contributes at least (1 - rate - c)^2."""
-    n = side.size
-    if n == 0:
-        return 1.0
-    c = side.against / n
-    gap = 1 - rate - c
-    if gap <= 0:
-        return 1.0
-    centre = max(
-        (1 - 2 * c) * ((side.against - deviation) / n - c),
-        (1 - 2 * c) * ((side.against + deviation) / n - c),
-    )
-    spread = c * (1 - c) + centre - (side.apart - deviation) / (2 * n)
-    return min(1.0, max(0.0, spread) / gap**2)
-
-
-def rate_bound(side, deviation, eta, cap) -> float:
-    """An upper bound on the noise rate of the class side holds rightly, from
-    its against share and a cap on its wrong share; eta bounds both rates."""
-    if cap >= 1:
-        return eta
-    return min(eta, (side.against + deviation) / side.size / (1 - cap))
-
-
-def calibrate(pst, uniform, level):
-    """Upper bounds on the noise rates in and out of the language, read off the
-    uniform pool's sample: the side its cut accepts holds the language rightly,
-    the side it rejects the complement."""
-    eta = 1 / 2 - pst.config.min_signal_strength
-
-    def rate(side):
-        deviation = hoeffding_deviation(side.size, level)
-        return rate_bound(side, deviation, eta, wrong_cap(side, deviation, eta))
-
-    return rate(uniform.accept), rate(uniform.reject)
-
-
-def miscut_bound(sample, level, rates) -> float:
-    """An upper bound on how many of the sample the cut puts on the wrong side:
-    the accept side's wrong prefixes lie outside the language, at the rate out,
-    and the reject side's inside it, at the rate in."""
-    rate_in, rate_out = rates
-    return sum(
-        side.size * wrong_cap(side, hoeffding_deviation(side.size, level), rate)
-        for side, rate in ((sample.accept, rate_out), (sample.reject, rate_in))
-    )
-
-
-def misclassified_bound(sample, level, rates) -> float:
-    """What the gate holds against the limit: the miscut bound at the sample's
-    size, the draws that did not turn up a fresh prefix, and the passage from
-    the draws to the population, as a share of the draws."""
-    n, drawn = sample.size, sample.drawn
-    if drawn == 0:
-        return math.inf
-    return (
-        miscut_bound(sample, size_level(level, n), rates)
-        + (drawn - n)
-        + hoeffding_deviation(drawn, size_level(level, drawn))
-    ) / drawn
-
-
-def misclassified_point(sample, rates) -> float:
-    """The share of the sample's prefixes the cut misplaces, taking each side's
-    against share and the rates read as exact: a side with a share e wrong
-    reads against itself at its right class's rate plus e times the gap."""
-    rate_in, rate_out = rates
-    gap = 1 - rate_in - rate_out
-    if sample.size == 0 or gap <= 0:
-        return 0.0
-    wrong = sum(
-        side.size * min(1.0, max(0.0, (side.against / side.size - right) / gap))
-        for side, right in ((sample.accept, rate_in), (sample.reject, rate_out))
-        if side.size
-    )
-    return wrong / sample.size
+    out = {}
+    for label, ((hits_a, n_a), (hits_r, n_r)) in drawn.items():
+        sides = np.array([n_a, n_r])
+        ones = np.array([hits_a, hits_r])
+        mass_low, mass_high = clopper_pearson(sides, np.full(2, sides.sum()), each)
+        low, high = clopper_pearson(ones, sides, each)
+        worst = wrong(low[0], high[1])
+        # The total is linear in the accepting side's share, so it is largest at
+        # an end of what both sides' intervals allow that share.
+        ends = (max(mass_low[0], 1 - mass_high[1]), min(mass_high[0], 1 - mass_low[1]))
+        read = ones / np.maximum(sides, 1)
+        out[label] = (
+            float(max(a * worst[0] + (1 - a) * worst[1] for a in ends)),
+            float(sides / sides.sum() @ wrong(read[0], read[1])),
+        )
+    return out
 
 
 def misclassification_limit(pst, label) -> float:
     return pst.config.max_coverage_error if label == UNIFORM else 1 / 2
 
 
-def _population_verdict(pst, label, sample, level, rates):
-    """ADMITTED if the bound is within limit, else DRIFTED if the point is past
-    it, else UNCERTIFIED, for limit = misclassification_limit."""
+def _population_verdict(pst, label, bound, point):
+    """ADMITTED if bound <= limit, else DRIFTED if point > limit, else
+    UNCERTIFIED, for limit = misclassification_limit."""
     limit = misclassification_limit(pst, label)
-    if misclassified_bound(sample, level, rates) <= limit:
+    if bound <= limit:
         return ADMITTED
-    if misclassified_point(sample, rates) > limit:
+    if point > limit:
         return DRIFTED
     return UNCERTIFIED
 
 
-def uniform_rates(pst, calibration, level):
-    """The noise rates read off calibration, the uniform pool's sample, at
-    its size; None where it holds no prefix."""
-    if calibration is None or not calibration.size:
-        return None
-    return calibrate(pst, calibration, size_level(level, calibration.size))
-
-
-def drift_verdict(pst, samples, rates, level):
-    """(_population_verdict of j, j) for the j whose bound is furthest past its
-    limit; None for j when ADMITTED."""
-    if rates is None or not samples:
+def drift_verdict(pst, by_population, level):
+    """(_population_verdict of j, j) for j = argmax_j (bound_j - limit_j), with
+    (bound_j, point_j) from misclassified_bounds; None for j when ADMITTED."""
+    bounds = misclassified_bounds(pst, by_population, level)
+    if not bounds:
         return UNCERTIFIED, UNIFORM
     worst = max(
-        samples,
-        key=lambda label: misclassified_bound(samples[label], level, rates)
-        - misclassification_limit(pst, label),
+        bounds, key=lambda label: bounds[label][0] - misclassification_limit(pst, label)
     )
-    verdict = _population_verdict(pst, worst, samples[worst], level, rates)
+    verdict = _population_verdict(pst, worst, *bounds[worst])
     return verdict, None if verdict is ADMITTED else worst
 
 
-def family_level(populations, attempt) -> float:
-    """What a search's attempt-th family spends of ACCEPT_PRESERVING_ERROR_RATE
-    on each tail at each population."""
-    return size_level(
-        ACCEPT_PRESERVING_ERROR_RATE / (GATE_TAILS * populations), attempt
-    )
-
-
-def read_right(pst, size) -> Sample:
-    """A sample of size prefixes, half each side of a cut that misplaces
-    none, every count at its mean at the round's rates."""
-    p_0, p_1 = round_rates(pst)
-    half = size // 2
-
-    def side(rate):
-        return Side(half, round(rate * half), round(2 * rate * (1 - rate) * half))
-
-    return Sample(side(1 - p_1), side(p_0), 2 * half)
-
-
 def alignment_size(pst, populations, limit) -> int:
-    """Fewest prefixes, a power of 2, on which the first family of a search
-    certifies a population with limit `limit` when every sample, the uniform
-    pool's among them, is read right at its means.  `populations` is how many
-    populations share the error rate."""
-    level = family_level(populations, 0)
+    """
+    Fewest prefixes, a power of 2, on which a population with limit `limit`
+    would get _population_verdict = ADMITTED, for a family that satisfies the
+    below conditions
+        - perfectly classifies all populations, with half the prefixes on each
+          side of its cut
+        - every observed fraction equal to its expectation
+    `populations` is how many populations share the error rate
+    """
+
+    p_0, p_1 = round_rates(pst)
     size = 2
     while True:
-        sample = read_right(pst, size)
-        rates = calibrate(pst, sample, size_level(level, size))
-        if misclassified_bound(sample, level, rates) <= limit:
+        half = size // 2
+        counts = ((round(p_1 * half), half), (round(p_0 * half), half))
+        bound, _ = misclassified_bounds(
+            pst,
+            dict.fromkeys(range(populations), counts),
+            ACCEPT_PRESERVING_VERDICT_ERROR_RATE,
+        )[0]
+        if bound <= limit:
             return size
         size *= 2
 
 
-def prefixes_to_certify(pst, sample, rates, *, label, level, budget) -> int:
+def certification_budget(pst, vs) -> int:
+    """Never more prefixes than the round of pooled prefixes this stands in for
+    would have cost.  One of those spends a query on every pooled suffix, where
+    one read for the split spends a query per family member and one for the
+    split itself, so the budget in prefixes is the ratio between them.
+    """
+    columns = max(1, len(pst.suffix_pool))
+    return max(1, pst.config.num_addtl_prefixes * columns // (len(vs) + 1))
+
+
+def prefixes_to_certify(pst, counts, label, level, vs) -> int:
     """n (m - 1), n label's prefixes drawn, for the smallest m >= 2 at which
-    label's sample times m is not UNCERTIFIED by _population_verdict; at most
-    budget."""
-    if sample is None or not sample.drawn or rates is None:
+    label's counts times m are not UNCERTIFIED by _population_verdict; at most
+    certification_budget."""
+    budget = certification_budget(pst, vs)
+    (a_1, n_1), (a_0, n_0) = counts.get(label, ((0, 0), (0, 0)))
+    drawn = n_1 + n_0
+    if not drawn:
         return budget
-    for m in range(2, 2 + budget // sample.drawn):
-        scaled = sample.scaled(m)
-        if _population_verdict(pst, label, scaled, level, rates) is not UNCERTIFIED:
-            return sample.drawn * (m - 1)
+    for m in range(2, 2 + budget // drawn):
+        scaled = {**counts, label: ((m * a_1, m * n_1), (m * a_0, m * n_0))}
+        bound, point = misclassified_bounds(pst, scaled, level)[label]
+        if _population_verdict(pst, label, bound, point) is not UNCERTIFIED:
+            return drawn * (m - 1)
     return budget
 
 
 class AcceptPreservingGate:
     """Holds each suffix family to the accept-preserving split, across the loop
     that resamples until one passes.  Carries the give-up budget, spent on every
-    round that does not produce a family the split can be certified on, and the
-    count of families judged, which the error rate is spread over.
+    round that does not produce a family the split can be certified on.
 
-    Nothing resets either: admitting a family is the round returning, and the
-    gate is made afresh for the next search."""
+    Nothing resets that budget: admitting a family is the round returning, and
+    the gate is made afresh for the next search."""
 
     def __init__(self, config, state):
         self.enabled = config.require_accept_preserving
         self.refusals = 0
-        self.attempts = 0
         self._state = state
         self._drawn = None
-        self._raw = None
         self._sizes = None
 
-    def _certification_prefixes(self, pst):
+    def _certification_prefixes(self, pst, voters):
         """``label -> prefixes`` to certify a family over, drawn for the round
         and read by every family it tries."""
         if self._drawn is None:
             labels = population_labels(self._state)
+            budget = certification_budget(pst, voters)
             self._sizes = {
-                label: alignment_size(
-                    pst, len(labels), misclassification_limit(pst, label)
+                label: min(
+                    alignment_size(
+                        pst, len(labels), misclassification_limit(pst, label)
+                    ),
+                    budget,
                 )
                 for label in labels
             }
-            self._drawn, self._raw = {}, {}
-            for label in labels:
-                self._draw(pst, label)
+            drawn = {
+                label: prefixes_for_split(pst, self._state, label, self._sizes[label])
+                for label in labels
+            }
+            self._drawn = {label: held for label, held in drawn.items() if held}
         return self._drawn
 
-    def _draw(self, pst, label):
-        held, drawn = prefixes_for_split(
-            pst, self._state, label, self._sizes[label], ()
-        )
-        if held:
-            self._drawn[label], self._raw[label] = held, drawn
-        else:
-            self._drawn.pop(label, None)
-            self._raw.pop(label, None)
-
-    def _certify_further(self, pst, samples, label, *, rates, readers, level):
-        """samples with a further look at label's population added into it, to
-        at most twice its first; readers is the family and the references."""
+    def _certify_further(self, pst, counts, label, voters):
+        """counts with a further read of label's population added into it."""
         held = self._drawn.get(label, [])
-        wanted = prefixes_to_certify(
+        more = prefixes_for_split(
             pst,
-            samples.get(label),
-            rates,
-            label=label,
-            level=level,
-            budget=self._sizes[label],
+            self._state,
+            label,
+            prefixes_to_certify(
+                pst, counts, label, ACCEPT_PRESERVING_VERDICT_ERROR_RATE, voters
+            ),
         )
-        more, drawn = prefixes_for_split(pst, self._state, label, wanted, held)
         if not more:
-            return samples
+            return counts
         # Kept, so a later family is read on these rather than buying them again.
         self._drawn[label] = held + more
-        self._raw[label] = self._raw.get(label, 0) + drawn
-        reads = certification_sample(pst, *readers, {label: self._drawn[label]})
-        return {**samples, label: read_sample(pst, reads[label], self._raw[label])}
+        extra = _split_counts(pst, certification_sample(pst, voters, {label: more}))
+        empty = ((0, 0), (0, 0))
+        return {
+            **counts,
+            label: tuple(
+                (hits + grown_hits, n + grown_n)
+                for (hits, n), (grown_hits, grown_n) in zip(
+                    counts.get(label, empty), extra.get(label, empty)
+                )
+            ),
+        }
 
     def verdict(self, pst, seed_row, vs):
         """``(verdict, label)``: what the split says, and which population said
@@ -488,40 +404,39 @@ class AcceptPreservingGate:
             return ADMITTED, None
         # The family was clustered over the table's prefixes, and a large enough
         # pool fits their noise, so only prefixes it never saw can test it.  The
-        # seed votes on p with the very read of p being scored, so it sits out,
-        # and the references are the pool's suffixes outside the family.
+        # seed votes on p with the very read of p being scored, so it sits out.
         voters = [u for u in vs if u != seed_row]
-        refs = [u for u in pst.suffix_pool if u not in vs and u != seed_row]
-        prefixes = self._certification_prefixes(pst)
-        level = family_level(len(self._sizes), self.attempts)
-        self.attempts += 1
-        reads = certification_sample(pst, voters, refs, prefixes)
-        samples = {
-            label: read_sample(pst, read, self._raw[label])
-            for label, read in reads.items()
-        }
-        rates = uniform_rates(pst, samples.get(UNIFORM), level)
-        verdict, blamed = drift_verdict(pst, samples, rates, level)
-        if verdict is UNCERTIFIED and blamed in samples:
-            samples = self._certify_further(
-                pst, samples, blamed, rates=rates, readers=(voters, refs), level=level
+        prefixes = self._certification_prefixes(pst, voters)
+        counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
+        verdict, blamed = drift_verdict(
+            pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
+        )
+        if verdict is UNCERTIFIED:
+            counts = self._certify_further(pst, counts, blamed, voters)
+            verdict, blamed = drift_verdict(
+                pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
             )
-            verdict, blamed = drift_verdict(pst, samples, rates, level)
         if verdict is ADMITTED:
             return ADMITTED, None
         if verdict is DRIFTED:
             # A refusal scores the population's own reads, which every later family
             # would read again: kept, one unlucky sample refuses each sound family
             # in turn until the search gives up.
-            self._draw(pst, blamed)
+            redrawn = prefixes_for_split(pst, self._state, blamed, self._sizes[blamed])
+            if redrawn:
+                self._drawn[blamed] = redrawn
+            else:
+                self._drawn.pop(blamed, None)
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            if blamed in samples and rates is not None:
-                sample = samples[blamed]
+            bounds = misclassified_bounds(
+                pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
+            )
+            if blamed in bounds:
+                bound, point = bounds[blamed]
                 read = (
-                    f"misclassifies {misclassified_point(sample, rates):.0%} of "
-                    f"{blamed} at the rates read, at most "
-                    f"{misclassified_bound(sample, level, rates):.0%}, against "
+                    f"misclassifies {point:.0%} of {blamed} at the rates read, "
+                    f"at most {bound:.0%}, against "
                     f"{misclassification_limit(pst, blamed):.0%}"
                 )
             else:

@@ -5,10 +5,9 @@ reads and grows them, so they live apart from the round loop that fills them.
 """
 
 from collections import Counter
-from typing import Tuple
 
 from .mask_table import UNIFORM
-from .prefix_sources import UniformSource
+from .prefix_sources import UniformSource, draw_many
 
 
 class PoolState:
@@ -96,29 +95,14 @@ def population_labels(state) -> list:
     return [UNIFORM, *state.held]
 
 
-def prefixes_for_split(pst, state, label, wanted: int, held) -> Tuple[list, int]:
-    """Up to wanted prefixes of one population that neither the table nor
-    held holds, to read the split on and not to keep, and how many draws
-    finding them took.  A prefix the table holds was read by the clustering, and
-    one drawn twice is the same read twice, so the gate counts every draw that
-    did not turn up a fresh prefix against the family.
+def prefixes_for_split(pst, state, label, wanted: int) -> list:
+    """Prefixes for one population, to read the split on and not to keep.
 
-    Empty, with no draws, where nothing draws for it, so the split goes ahead
-    without it.  Gives up after twice wanted draws.
+    Empty where nothing draws for it, so the split goes ahead without it.
     """
     source = UniformSource(pst) if label == UNIFORM else state.sources.get(label)
     # Not proved here: proving costs a round's worth of probes, which the
     # split is not worth.
     if source is None or not source.proven:
-        return [], 0
-    seen = set(held)
-    fresh = []
-    drawn = 0
-    while len(fresh) < wanted and drawn < 2 * wanted:
-        prefix = source.draw()
-        drawn += 1
-        if prefix in seen or pst.table.contains_prefix(prefix):
-            continue
-        seen.add(prefix)
-        fresh.append(prefix)
-    return fresh, drawn
+        return []
+    return draw_many(source, wanted)
