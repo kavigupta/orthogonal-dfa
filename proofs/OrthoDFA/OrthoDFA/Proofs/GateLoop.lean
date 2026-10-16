@@ -1779,6 +1779,239 @@ theorem measureReal_notRetAt_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
   have := u E10 E10u
   linarith
 
+/-! ### What the gate's deviations ask of the prefix count -/
+
+/-- `n ≥ A·log(4n)` once `n ≥ 2A·log(8A)`. -/
+lemma mul_log_le {A n : ℝ} (hA : 1 ≤ A) (hn : 2 * A * Real.log (8 * A) ≤ n) :
+    A * Real.log (4 * n) ≤ n := by
+  have hl2 : (1 : ℝ) / 2 ≤ Real.log 2 := by
+    have h := Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2⁻¹)
+    rw [Real.log_inv] at h
+    linarith only [h]
+  have hl8A : 3 / 2 ≤ Real.log (8 * A) := by
+    have h8 : Real.log 8 = 3 * Real.log 2 := by
+      rw [show (8 : ℝ) = 2 ^ 3 by norm_num, Real.log_pow]; norm_num
+    have := Real.log_le_log (by norm_num) (by linarith : (8 : ℝ) ≤ 8 * A)
+    linarith
+  set n₀ : ℝ := 2 * A * Real.log (8 * A) with hn₀
+  have hn₀A : 3 * A ≤ n₀ := by rw [hn₀]; nlinarith
+  have hn₀pos : 0 < n₀ := by linarith
+  have hnpos : 0 < n := by linarith
+  have hy : 0 < Real.log (8 * A) := by linarith
+  have e : Real.log (4 * n) = Real.log (8 * A) + Real.log (Real.log (8 * A)) + Real.log (n / n₀) := by
+    rw [← Real.log_mul (by positivity) hy.ne', ← Real.log_mul (by positivity) (by positivity)]
+    congr 1
+    rw [hn₀]
+    field_simp
+    ring
+  have h1 : Real.log (n / n₀) ≤ n / n₀ - 1 := Real.log_le_sub_one_of_pos (by positivity)
+  have h2 : Real.log (Real.log (8 * A)) ≤ Real.log (8 * A) - 1 := Real.log_le_sub_one_of_pos hy
+  have h3 : A * Real.log (4 * n) ≤ n₀ - 2 * A + A * (n / n₀) := by
+    rw [e]
+    have : A * (Real.log (8 * A) + Real.log (Real.log (8 * A)) + Real.log (n / n₀))
+        ≤ A * (2 * Real.log (8 * A) - 1 + (n / n₀ - 1)) :=
+      mul_le_mul_of_nonneg_left (by linarith) (by linarith)
+    rw [hn₀] at this ⊢
+    nlinarith
+  have h4 : A * (n / n₀) ≤ n - n₀ + 2 * A := by
+    rw [mul_div_assoc', div_le_iff₀ hn₀pos]
+    nlinarith [mul_nonneg (by linarith : 0 ≤ n - n₀) (by linarith : 0 ≤ n₀ - A)]
+  linarith
+
+lemma hoeffDev_le_sqrt {n : ℕ} {a Λ : ℝ} (hlog : Real.log (1 / a) ≤ Λ) :
+    hoeffDev n a ≤ Real.sqrt (n * Λ / 2) := by
+  unfold hoeffDev
+  refine Real.sqrt_le_sqrt ?_
+  have := mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg n : (0 : ℝ) ≤ n)
+  linarith
+
+/-- The levels the gate reads at a look of `N ≤ 2m` draws at a state of `m` prefixes: none below
+`α/(13|J|(2m + 2)⁴)`. -/
+lemma log_sizeLevel_le {α c : ℝ} (hα : 0 < α) (hc : 0 < c) {m N : ℕ} (hNm : N ≤ 2 * m) :
+    Real.log (1 / sizeLevel (sizeLevel (α / (13 * c)) m) N)
+      ≤ Real.log (13 * c / α) + 4 * Real.log (2 * m + 2) := by
+  have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg _
+  have hN : (N : ℝ) ≤ 2 * m := by exact_mod_cast hNm
+  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
+  have e : 1 / sizeLevel (sizeLevel (α / (13 * c)) m) N
+      = 13 * c / α * (((m : ℝ) + 1) * ((m : ℝ) + 2) * (((N : ℝ) + 1) * ((N : ℝ) + 2))) := by
+    unfold sizeLevel
+    field_simp
+  rw [e, Real.log_mul (by positivity) (by positivity)]
+  have hle : ((m : ℝ) + 1) * ((m : ℝ) + 2) * (((N : ℝ) + 1) * ((N : ℝ) + 2)) ≤ (2 * m + 2) ^ 4 := by
+    have h1 : (m : ℝ) + 1 ≤ 2 * m + 2 := by linarith
+    have h2 : (m : ℝ) + 2 ≤ 2 * m + 2 := by linarith
+    have h3 : (N : ℝ) + 1 ≤ 2 * m + 2 := by linarith
+    have h4 : (N : ℝ) + 2 ≤ 2 * m + 2 := by linarith
+    calc ((m : ℝ) + 1) * ((m : ℝ) + 2) * (((N : ℝ) + 1) * ((N : ℝ) + 2))
+        ≤ (2 * m + 2) * (2 * m + 2) * ((2 * m + 2) * (2 * m + 2)) := by gcongr
+      _ = (2 * m + 2) ^ 4 := by ring
+  have := Real.log_le_log (by positivity) hle
+  rw [Real.log_pow] at this
+  push_cast at this
+  linarith
+
+set_option maxHeartbeats 2000000 in
+/-- The top rung's gate clears its deviations: the uniform pool's sides pin the rates, and a
+clean family's sample is certified at every count of draws its redraws allow. -/
+lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
+    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
+    (hind : 0 < indecisionLimit) (hcutε : cutBudget η₀ indecisionLimit εcov ≤ εcov / 128)
+    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α ≤ 1)
+    (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
+    5 * (2 * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+          (δ / (128 * populations.card
+            * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).nsuff : ℝ)
+              + 3)))
+        + hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+          (sizeLevel (gateLevel α populations
+            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit))
+            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref))
+      ≤ 4 * cutBudget η₀ indecisionLimit εcov * (1 / 2 - η₀) ^ 2
+        * (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+    ∧ ∀ N : ℕ, (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref ≤ N →
+      N ≤ (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+        + rejCount η₀ indecisionLimit εcov
+          (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref →
+      26 * cutBudget η₀ indecisionLimit εcov
+          * (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+        + 22 * (2 * hoeffDev
+            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+            (δ / (128 * populations.card
+              * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).nsuff : ℝ)
+                + 3)))
+          + hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref
+            (sizeLevel (gateLevel α populations
+              (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit))
+              (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref))
+          / (4 * (1 / 2 - η₀) ^ 2)
+        + ((N : ℝ) - (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref)
+      ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations
+          (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit)) N) := by
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
+  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref = m := rfl
+  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).nsuff = M := rfl
+  have hga : ∀ N : ℕ, sizeLevel (gateLevel α populations
+        (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit)) N
+      = sizeLevel (sizeLevel (α / (13 * (populations.card : ℝ))) m) N := fun N => rfl
+  rw [hBm, hBM]
+  simp only [hga]
+  set c : ℝ := (populations.card : ℝ) with hcdef
+  set cut : ℝ := cutBudget η₀ indecisionLimit εcov with hcutdef
+  have hcut : 0 < cut := cutBudget_pos η₀ hsig hε hind
+  have hcut8 : cut ≤ 1 / 8 := le_trans (cutBudget_le η₀ indecisionLimit εcov).1 (by linarith)
+  set sg : ℝ := 1 / 2 - η₀ with hsgdef
+  have hsg : 0 < sg := by rw [hsgdef]; linarith
+  have hsg2 : sg ≤ 1 / 2 := by rw [hsgdef]; linarith
+  have hsig' : sig η₀ = sg := rfl
+  set X : ℝ := cut ^ 2 * sg ^ 4 with hXdef
+  have hX0 : 0 < X := by positivity
+  have hX1 : X ≤ 1 / 64 / 16 := by
+    have h1 : cut ^ 2 ≤ 1 / 64 := by nlinarith
+    have h2 : sg ^ 4 ≤ 1 / 16 := by
+      have := pow_le_pow_left₀ hsg.le hsg2 4; norm_num at this; linarith
+    calc X = cut ^ 2 * sg ^ 4 := rfl
+      _ ≤ 1 / 64 * (1 / 16) := mul_le_mul h1 h2 (by positivity) (by norm_num)
+      _ = 1 / 64 / 16 := by norm_num
+  have hmR1 : (1 : ℝ) ≤ m := by
+    have := prefCount_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
+      populations εcov δ α pAP
+    exact_mod_cast this
+  have hm0 : (0 : ℝ) < m := by linarith
+  have hM0 : (0 : ℝ) ≤ M := Nat.cast_nonneg _
+  -- the two counts the gate's terms ask for
+  have hP1 : 16 * Real.log (1664 * c ^ 2 * ((M : ℝ) + 3) / (α * δ)) / X ≤ m := by
+    refine le_trans (Nat.le_ceil _) ?_
+    have : ⌈16 * Real.log (1664 * c ^ 2 * ((M : ℝ) + 3) / (α * δ)) / X⌉₊ ≤ m := by
+      rw [hmdef, prefCount, ← hMdef, ← hcutdef, hsig', ← hXdef, ← hcdef]; omega
+    exact_mod_cast this
+  have hP2 : 128 / X * Real.log (512 / X) ≤ m := by
+    refine le_trans (Nat.le_ceil _) ?_
+    have : ⌈128 / X * Real.log (512 / X)⌉₊ ≤ m := by
+      rw [hmdef, prefCount, ← hcutdef, hsig', ← hXdef]; omega
+    exact_mod_cast this
+  -- the logs
+  set L₁ : ℝ := Real.log (128 * c * ((M : ℝ) + 3) / δ) with hL₁
+  set L₂ : ℝ := Real.log (13 * c / α) with hL₂
+  have hL₁0 : 0 ≤ L₁ := Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
+  have hL₂0 : 0 ≤ L₂ := Real.log_nonneg (by rw [le_div_iff₀ hα]; nlinarith)
+  have hL₀ : Real.log (1664 * c ^ 2 * ((M : ℝ) + 3) / (α * δ)) = L₁ + L₂ := by
+    rw [hL₁, hL₂, ← Real.log_mul (by positivity) (by positivity)]
+    congr 1
+    field_simp
+    norm_num
+  rw [hL₀] at hP1
+  set Λ : ℝ := L₁ + (L₂ + 4 * Real.log (2 * m + 2)) with hΛ
+  have hlog2 : 0 ≤ Real.log (2 * (m : ℝ) + 2) := Real.log_nonneg (by linarith)
+  have hkey : 8 * Λ ≤ X * m := by
+    have hA : (1 : ℝ) ≤ 64 / X := by rw [le_div_iff₀ hX0]; linarith
+    have hml := mul_log_le (n := (m : ℝ)) hA (by
+      rw [show 2 * (64 / X) * Real.log (8 * (64 / X)) = 128 / X * Real.log (512 / X) by
+        rw [show 8 * (64 / X) = 512 / X by ring]; ring]
+      exact hP2)
+    have h4m : Real.log (2 * (m : ℝ) + 2) ≤ Real.log (4 * m) :=
+      Real.log_le_log (by linarith) (by linarith)
+    have h64 : 64 * Real.log (4 * (m : ℝ)) ≤ X * m := by
+      have := mul_le_mul_of_nonneg_left hml hX0.le
+      rw [← mul_assoc, mul_div_cancel₀ _ hX0.ne'] at this
+      exact this
+    have h16 : 16 * (L₁ + L₂) ≤ X * m := by
+      rw [div_le_iff₀ hX0] at hP1; linarith
+    rw [hΛ]; linarith
+  have hΛ0 : 0 ≤ Λ := by positivity
+  -- each deviation, against `Λ`
+  have hb : Real.log (1 / (δ / (128 * c * ((M : ℝ) + 3)))) ≤ Λ := by
+    rw [one_div_div, ← hL₁]; linarith
+  have hsl : ∀ N : ℕ, N ≤ 2 * m →
+      Real.log (1 / sizeLevel (sizeLevel (α / (13 * c)) m) N) ≤ Λ := by
+    intro N hN
+    have := log_sizeLevel_le (m := m) hα (by positivity : (0 : ℝ) < c) hN
+    rw [← hL₂] at this
+    linarith
+  have ht := hoeffDev_le_sqrt (n := m) hb
+  have hd := hoeffDev_le_sqrt (n := m) (hsl m (by omega))
+  have hsq : Real.sqrt (m * Λ / 2) ≤ 4 / 15 * cut * sg ^ 2 * m := by
+    rw [Real.sqrt_le_left (by positivity)]
+    have : (m : ℝ) * Λ ≤ X * m ^ 2 / 8 := by nlinarith
+    rw [hXdef] at this
+    nlinarith [sq_nonneg ((m : ℝ) * cut * sg ^ 2)]
+  have hi : 5 * (2 * hoeffDev m (δ / (128 * c * ((M : ℝ) + 3)))
+      + hoeffDev m (sizeLevel (sizeLevel (α / (13 * c)) m) m)) ≤ 4 * cut * sg ^ 2 * m := by
+    linarith
+  refine ⟨hi, fun N hN1 hN2 => ?_⟩
+  have hr : ((rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ) ≤ cut / 128 * m := by
+    have h1 : ((rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ)
+        ≤ rejFrac η₀ indecisionLimit εcov * m := Nat.floor_le (by
+      have := rejFrac_pos η₀ hsig hε hind; positivity)
+    have h2 := (rejFrac_le η₀ hsig hε hind).1
+    nlinarith
+  have hNR1 : (m : ℝ) ≤ N := by exact_mod_cast hN1
+  have hNR2 : (N : ℝ) ≤ m + cut / 128 * m := by
+    have : (N : ℝ) ≤ m + (rejCount η₀ indecisionLimit εcov m : ℕ) := by exact_mod_cast hN2
+    linarith
+  have hN2mR : (N : ℝ) ≤ 2 * m := by nlinarith
+  have hN2m : N ≤ 2 * m := by exact_mod_cast hN2mR
+  have hhN := hoeffDev_le_sqrt (n := N) (hsl N hN2m)
+  have hsqN : Real.sqrt (N * Λ / 2) ≤ cut * m := by
+    rw [Real.sqrt_le_left (by positivity)]
+    have hsg4 : sg ^ 4 ≤ 1 / 16 := by
+      have := pow_le_pow_left₀ hsg.le hsg2 4; norm_num at this; linarith
+    have : (N : ℝ) * Λ / 2 ≤ m * Λ := by nlinarith [mul_le_mul_of_nonneg_right hN2mR hΛ0]
+    have h2 : (m : ℝ) * Λ ≤ X * m ^ 2 / 8 := by nlinarith
+    rw [hXdef] at h2
+    nlinarith [mul_le_mul_of_nonneg_left hsg4 (by positivity : (0 : ℝ) ≤ cut ^ 2 * m ^ 2)]
+  have hmin : εcov / 2 ≤ min εcov (1 / 2) := le_min (by linarith) (by linarith)
+  have hNmin : (m : ℝ) * (εcov / 2) ≤ N * min εcov (1 / 2) :=
+    mul_le_mul hNR1 hmin (by positivity) (by positivity)
+  have h22 : 22 * (2 * hoeffDev m (δ / (128 * c * ((M : ℝ) + 3)))
+      + hoeffDev m (sizeLevel (sizeLevel (α / (13 * c)) m) m)) / (4 * sg ^ 2)
+      ≤ 22 / 5 * cut * m := by
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith
+  have hcm : 64 * cut * m ≤ m * (εcov / 2) := by nlinarith
+  linarith
+
 end Loop
 
 end OrthoDFA
