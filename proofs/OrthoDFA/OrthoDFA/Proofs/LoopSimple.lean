@@ -153,14 +153,17 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
       (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
       settings.level5.maxLeaves = Fintype.card σ + 2 ∧
+      (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ v, Dsf.real {v} ≤ cap) →
         (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
             {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
-              ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                  o.Checks M O P.D k Jl ū εcov εcov εd)}
+              ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+                  o.Checks M O P.D k Jl ū εcov εcov εd)
+                ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves)
+                  (P.L + Fintype.card σ + 3) p)}
           ≤ (Q + 1) * (2 * δ' + 128 * ū / εd) := by
   intro Q A L ι ρ s τ J V Kp G PB RB cap
     hL hη hη₀ hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 hū
@@ -186,7 +189,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       level5_guarantee_all M (εd / 2) P.L δ' k hδ'0 hδ'1 (by positivity) (by linarith) hL1
     have := hl4 μ
     clear this hl4
-    refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, hmax4, ?_⟩
+    refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, hmax4, fun _ => by simp, ?_⟩
     · refine hbud.trans (le_of_eq ?_)
       rw [e112]
     · intro Dsf hDsf _ hpAPD _
@@ -321,7 +324,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k Jl ū
   dsimp only at hcore
-  obtain ⟨settings, -, -, hwalk, hdis, hbud, hmaxL, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
+  obtain ⟨settings, -, -, hwalk, hdis, hbud, hmaxL, hnp, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
     (by norm_num) (by norm_num) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP hεd hεd1 hδ'0
     hδ'1 hL1 (by omega) (by omega) hθ hcap0 (by linarith) (by linarith) (by linarith)
     (by linarith)
@@ -341,15 +344,15 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         ring
       rw [e2]
       exact hk2) hū
-  refine ⟨settings, hwalk, hdis, ?_, hmaxL, ?_⟩
+  refine ⟨settings, hwalk, hdis, ?_, hmaxL, hnp, ?_⟩
   · exact hbud
   · intro Dsf hDsf hlen hpAPD hatom
     have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans (le_of_eq ?_))
     · intro draws hd hgood
       apply hd
-      obtain ⟨h1, o, ho, hag⟩ := hgood
-      refine ⟨h1, o, ho, checks_mono ?_ ?_ hag⟩
+      obtain ⟨⟨h1, o, ho, hag⟩, hfr⟩ := hgood
+      refine ⟨⟨h1, o, ho, checks_mono ?_ ?_ hag⟩, hfr⟩
       · linarith
       · linarith
     · show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' + 128 * ū / εd) = _
@@ -364,14 +367,14 @@ theorem learner_loop_simple_holds : LearnerLoopSimple := by
   have hδ'1 : δ' ≤ 1 := by
     have : δ / (2 * (Q + 1)) ≤ δ := div_le_self hδ.le (by linarith)
     exact this.trans hδ1
-  obtain ⟨settings, h1, h2, h3, -, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0 hL hη hη₀
-    hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 le_rfl
+  obtain ⟨settings, h1, h2, h3, -, -, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0 hL hη
+    hη₀ hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 le_rfl
   refine ⟨settings, h1, h2, h3, fun Dsf hDsf hlen hpAPD hatom => ?_⟩
   refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
     ((h4 Dsf hDsf hlen hpAPD hatom).trans (le_of_eq ?_))
   · intro p hp hgood
     apply hp
-    obtain ⟨hl, o, ho, hc⟩ := hgood
+    obtain ⟨⟨hl, o, ho, hc⟩, -⟩ := hgood
     exact ⟨hl, o, ho, hc.1⟩
   · show ((Fintype.card σ : ℝ) + 1) * (2 * (δ / (2 * ((Fintype.card σ : ℝ) + 1))) + 128 * 0 / εd)
       = δ

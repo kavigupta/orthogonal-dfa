@@ -39,29 +39,28 @@ lemma seventeen_log_le {A ℓ : ℝ} (hA : 2 ≤ A) (hℓ : 0 < ℓ) :
   linarith
 
 set_option maxHeartbeats 4000000 in -- many small nonlinear steps
-lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G Ce Θ B₁ P₀ R₀ E₁ E : ℝ}
+lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce Θ K₁ B₁ P₀ R₀ E₁ E : ℝ}
     {m n : ℕ}
     (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hℓ : 1 ≤ ℓ) (hN1 : 1 ≤ Nn) (hNℓ : Nn ≤ ℓ) (hη0 : 0 ≤ η₀)
-    (hη : η₀ < 1 / 2) (hc : 0 < c) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hp : 0 < pAP)
+    (hη : η₀ < 1 / 2) (hc : 0 < c) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1)
     (hεd : εd = c / (2 * (A + 1) * Nn))
-    (hεcov : εcov = δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ m * Nn ^ 3))
-    (hδ' : δ' = δ / (4 * (Q + 1)))
+    (hε0 : 0 < εcov) (hCe0 : 0 < Ce) (hεl : 1 / (Ce * ℓ ^ 3) ≤ εcov)
+    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1)
     (hι : ι = min (εcov / 8) (1 / (3072 * ℓ * (Q + 1) * Q)))
     (hρ : ρ = 3 * εd / 16) (hs : s = 1 / 2 - η₀) (hτ : τ = min (εcov / 2) (min s ι))
     (hV : V = (Q + 2) * ((Q + 2) * A + 1)) (hKp : Kp = V * (224 / εd + 1))
     (hG : G = Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ'))
-    (hCe : Ce = 512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ m / (δ * c))
     (hΘ : Θ = 1 / s + 8 * Ce + 3072 * Q * (Q + 1))
-    (hB₁ : B₁ = 8 * V * (448 * (A + 1) / c + 1) * G * (Q + 3) * A ^ m / δ')
+    (hK₁ : K₁ = V * (448 * (A + 1) / c + 1))
+    (hB₁ : B₁ = 8 * K₁ * G * (Q + 3) * A ^ m / δ')
     (hP₀ : P₀ = 256 * (2 * Θ + B₁) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2)
     (hR₀ : R₀ = 6000 * (Q + 2) ^ 2 * Θ ^ 3
       * (Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) + 6) / s ^ 4)
     (hE₁ : E₁ = 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ')
     (hE : E = 128 * (A + 1) * E₁ / (3 * c)
-      + 32768 * (Q + 2) * A * (A + 1) * Real.log ((Q + 3) * A / δ') / c)
-    (hpow : ℓ ^ 17 * E ≤ A ^ n) :
+      + 32768 * (Q + 2) * A * (A + 1) * Real.log ((Q + 3) * A / δ') / c) :
     let J := Q + 2
     let PB := 256 * (Real.log (2 / τ) + 8 * Kp * G * ℓ * (Q + 3) * A ^ m / δ') / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
@@ -71,8 +70,9 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
         (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
       (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * ℓ))))
-    (A ^ n)⁻¹ ≤ cap * ρ / 4
-      ∧ 16384 * ℓ * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ n)⁻¹ ≤ εd := by
+    RB ≤ ℓ ^ 10 * R₀ ∧ Kp ≤ ℓ * K₁ ∧ 0 ≤ R₀ ∧ 1 ≤ G ∧ 0 ≤ E
+      ∧ (ℓ ^ 17 * E ≤ A ^ n → (A ^ n)⁻¹ ≤ cap * ρ / 4
+        ∧ 16384 * ℓ * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ n)⁻¹ ≤ εd) := by
   intro J PB RB cap
   have hJ : J = Q + 2 := rfl
   have hs0 : 0 < s := by rw [hs]; linarith
@@ -80,24 +80,11 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
   have hA0 : 0 < A := by linarith
   have hN0 : 0 < Nn := by linarith
   have hℓ0 : 0 < ℓ := by linarith
-  have hδ'0 : 0 < δ' := by rw [hδ']; positivity
-  have hδ'1 : δ' ≤ 1 := by rw [hδ', div_le_one (by positivity)]; linarith
   have hεd0 : 0 < εd := by rw [hεd]; positivity
   have hρ0 : 0 < ρ := by rw [hρ]; positivity
   have hAm : 1 ≤ A ^ m := one_le_pow₀ (by linarith)
-  have hK0 : 0 < 512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ m := by positivity
-  have hCe0 : 0 < Ce := by rw [hCe]; positivity
   have hℓ3 : ℓ ≤ ℓ ^ 3 := le_self_pow₀ hℓ (by norm_num)
   have hℓ31 : 1 ≤ ℓ ^ 3 := one_le_pow₀ hℓ
-  -- the clustering's accuracy, per `ℓ³`
-  have hε0 : 0 < εcov := by rw [hεcov]; positivity
-  have hεl : 1 / (Ce * ℓ ^ 3) ≤ εcov := by
-    rw [hεcov, hCe]
-    have e : 1 / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ m / (δ * c) * ℓ ^ 3)
-        = δ * c / (512 * (Q + 1) * (Q + 3) * (A + 1) * A ^ m * ℓ ^ 3) := by field_simp
-    rw [e]
-    refine div_le_div_of_nonneg_left (by positivity) (by positivity) ?_
-    exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hN0.le hNℓ 3) hK0.le
   have h1s : 0 < 1 / s := by positivity
   have hQQ : 3072 ≤ 3072 * Q * (Q + 1) := by nlinarith only [hQ]
   have hΘs : 1 / s ≤ Θ := by rw [hΘ]; linarith
@@ -146,8 +133,7 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
       nlinarith
     rw [Real.le_log_iff_exp_le (by linarith)]
     linarith [Real.exp_one_lt_d9]
-  set K₁ := V * (448 * (A + 1) / c + 1) with hK₁
-  have hK₁0 : 0 ≤ K₁ := by positivity
+  have hK₁0 : 0 ≤ K₁ := by rw [hK₁]; positivity
   have hKpl : Kp ≤ ℓ * K₁ := by
     have e : 224 / εd = 448 * (A + 1) * Nn / c := by rw [hεd]; field_simp; ring
     rw [hKp, e, hK₁]
@@ -157,7 +143,11 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
     nlinarith only [h1, hV1, hℓ]
   have hKp0 : 0 ≤ Kp := by rw [hKp]; positivity
   set cL := 8 * Kp * G * ℓ * (Q + 3) * A ^ m / δ' with hcLd
-  have hB₀ : 0 ≤ B₁ := by rw [hB₁]; positivity
+  have hB₀ : 0 ≤ B₁ := by
+    rw [hB₁]
+    have : 0 ≤ 8 * K₁ * G * (Q + 3) * A ^ m := mul_nonneg (mul_nonneg (mul_nonneg
+      (mul_nonneg (by norm_num) hK₁0) (by linarith)) (by linarith)) (by positivity)
+    positivity
   have hcL : cL ≤ ℓ ^ 3 * B₁ := by
     have e : ℓ ^ 3 * B₁ = ℓ * (8 * (ℓ * K₁) * G * ℓ * (Q + 3) * A ^ m / δ') := by
       rw [hB₁, hK₁]; ring
@@ -359,6 +349,7 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
     rw [hE]; have : 0 ≤ 32768 * (Q + 2) * A * (A + 1) * Real.log ((Q + 3) * A / δ') / c := by
       positivity
     linarith
+  refine ⟨hRBle, hKpl, hR₀0, hG1, le_trans (by positivity) hEge, fun hpow => ?_⟩
   have hAn : 0 < A ^ n := by positivity
   have hfin : ∀ c' : ℝ, 0 < c' → 4 / c' ≤ ℓ ^ 16 * E₁ → (A ^ n)⁻¹ ≤ c' * ρ / 4 := by
     intro c' hc' h
@@ -409,6 +400,36 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c δ pAP εd εcov δ' ι ρ s τ V Kp G C
       nlinarith only [this, hW0]
     have h5 := mul_le_mul_of_nonneg_left hE2 hεd0.le
     linarith
+
+lemma dfa_collide_arith {Q A ℓ δ RB R₀ Kp K₁ G E₂ : ℝ} {n k : ℕ} (hQ : 0 ≤ Q) (hA : 0 < A)
+    (hℓ : 1 ≤ ℓ) (hδ : 0 < δ) (hR₀ : 0 ≤ R₀) (hK₁ : 0 ≤ K₁) (hG : 0 ≤ G)
+    (hRB : RB ≤ ℓ ^ 10 * R₀) (hKp : Kp ≤ ℓ * K₁)
+    (hE₂ : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ * G + n) / δ)
+    (hpow : ℓ ^ 17 * E₂ ≤ A ^ k) :
+    (Q + 1) * n * (6 * (Q + 2) * RB + Kp * G + n) * (A ^ k)⁻¹ ≤ δ / 4 := by
+  have hAk : 0 < A ^ k := by positivity
+  have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg _
+  have hℓ10 : ℓ ^ 10 ≤ ℓ ^ 17 := pow_le_pow_right₀ hℓ (by norm_num)
+  have hℓ1 : ℓ ≤ ℓ ^ 17 := le_self_pow₀ hℓ (by norm_num)
+  have hℓ17 : 1 ≤ ℓ ^ 17 := one_le_pow₀ hℓ
+  have h1 : 6 * (Q + 2) * RB + Kp * G + n ≤ ℓ ^ 17 * (6 * (Q + 2) * R₀ + K₁ * G + n) := by
+    have a1 : 6 * (Q + 2) * RB ≤ ℓ ^ 17 * (6 * (Q + 2) * R₀) := by
+      have : RB ≤ ℓ ^ 17 * R₀ := hRB.trans (mul_le_mul_of_nonneg_right hℓ10 hR₀)
+      nlinarith
+    have a2 : Kp * G ≤ ℓ ^ 17 * (K₁ * G) := by
+      have : Kp ≤ ℓ ^ 17 * K₁ := hKp.trans (mul_le_mul_of_nonneg_right hℓ1 hK₁)
+      nlinarith
+    have a3 : (n : ℝ) ≤ ℓ ^ 17 * n := le_mul_of_one_le_left hn hℓ17
+    nlinarith
+  rw [← div_eq_mul_inv, div_le_iff₀ hAk]
+  have h2 : ℓ ^ 17 * E₂ * δ / 4
+      = (Q + 1) * n * (ℓ ^ 17 * (6 * (Q + 2) * R₀ + K₁ * G + n)) := by
+    rw [hE₂]; field_simp
+  have h3 : (Q + 1) * n * (6 * (Q + 2) * RB + Kp * G + n)
+      ≤ (Q + 1) * n * (ℓ ^ 17 * (6 * (Q + 2) * R₀ + K₁ * G + n)) :=
+    mul_le_mul_of_nonneg_left h1 (by positivity)
+  have h4 : ℓ ^ 17 * E₂ * δ / 4 ≤ δ / 4 * A ^ k := by nlinarith
+  linarith
 
 lemma dfa_pow {A ℓ E L Q : ℝ} {k : ℕ} (hA : 2 ≤ A) (hℓ : ℓ = L + Q + 4)
     (hℓ0 : 0 < ℓ) (hk : L ≤ 2 * k) (hL₀ : Q + 4 + 4 * (Real.log E + 64) / Real.log A ≤ L) :

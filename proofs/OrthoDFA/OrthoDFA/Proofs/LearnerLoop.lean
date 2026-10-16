@@ -312,6 +312,17 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
   calc ∑ t ∈ T, ν.real {t} ≤ ∑ _t ∈ T, q := Finset.sum_le_sum fun t _ => hq t
     _ = T.card * q := by rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- Every round the loop runs follows rounds whose clusterings returned, returns itself, and
+reads no prefix or suffix an earlier round read. -/
+def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (N Ls : ℕ) (p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget)) : Prop :=
+  ∀ i < (indecisiveLStarLoop settings O D Dsf (persistDraws p)).length, ∃ hK : i < K,
+    HistOK settings O D Dsf N p.1 p.2 i
+      ∧ Returns settings O D Dsf (decodeHist D settings.level5.walkStart
+          (histCodes settings O D Dsf N p.1 p.2 i)) (p.1, (p.2 ⟨i, hK⟩).1)
+      ∧ NoColl settings D Dsf Ls (histCodes settings O D Dsf N p.1 p.2 i) p.2 i hK
+
 /-- The loop's claim at a cap `cap` and walk start `k`, `NS` and `NP` bounding the schedule's
 suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The last round's
 checked probes are at most `εd`, its reads undecided past the walk's start, up to `J`, counted
@@ -359,15 +370,17 @@ def LoopCore : Prop :=
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
     (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
     settings.level5.maxLeaves = Fintype.card σ + 2 ∧
+    (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ v, Dsf.real {v} ≤ cap) →
       (loopMeasure μ α K settings.level5.probeBudget).real
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
-            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D k J ū (εcov + 2 * indecisionLimit + 2 * slack)
-                  (2 * indecisionLimit + slack) εd)}
+                  (2 * indecisionLimit + slack) εd)
+              ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + δ + 128 * ū / εd)
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
@@ -424,9 +437,14 @@ theorem loop_core_holds : LoopCore := by
     level5_guarantee_all M (εd / 2) P.L δ k hδ hδ1 (by positivity) (by linarith) hL1
   have e112 : (112 / (εd / 2) : ℝ) = 224 / εd := by field_simp; ring
   set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
-  refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, hmax, ?_⟩
+  refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, hmax, ?_, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
     rw [e112]
+  · intro pops
+    simp only [hset, hschedd]
+    split_ifs with hp
+    · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
+    · simp
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   subst hwalk
   set k := s4.walkStart
@@ -678,16 +696,21 @@ theorem loop_core_holds : LoopCore := by
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
   have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
       let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
-      ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Checks M O P.D k J ū (εcov + 2 * ι + 2 * slack) (2 * ι + slack) εd)}
+      ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+          o.Checks M O P.D k J ū (εcov + 2 * ι + 2 * slack) (2 * ι + slack) εd)
+        ∧ RoundsFresh settings O P.D Dsf N Ls p)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
     simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hno
     set Lr := loopRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
-        ClusterSpec settings O P.D εcov slack (harvestsOf P.D k (Lr.take i)) Lr[i].run
-          ∧ Level5Spec M O P θ εd (y / 2) k J ū Lr[i] := by
+        (ClusterSpec settings O P.D εcov slack (harvestsOf P.D k (Lr.take i)) Lr[i].run
+          ∧ Level5Spec M O P θ εd (y / 2) k J ū Lr[i])
+        ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
+          ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
+            (p.1, (p.2 ⟨i, hK⟩).1)
+          ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 i) p.2 i hK := by
       intro i
       induction i using Nat.strong_induction_on with
       | _ i ih =>
@@ -700,7 +723,7 @@ theorem loop_core_holds : LoopCore := by
         set cH := histCodes settings O P.D Dsf N p.1 p.2 i
         have hok : HistOK settings O P.D Dsf N p.1 p.2 i :=
           histOK_of_specs settings O P.D Dsf P.length_le hC hN εcov slack p i hi.le
-            fun j hj hji => (ih j hji (by omega) hj).1
+            fun j hj hji => (ih j hji (by omega) hj).1.1
         have hpops : ∀ ν ∈ (dec cH).pops,
             (∀ t, ν.real {t} ≤ cap) ∧ ν {q | Ls ≤ q.toList.length} = 0 := by
           show ∀ ν ∈ (decodeHist P.D settings.level5.walkStart cH).pops, _
@@ -711,7 +734,7 @@ theorem loop_core_holds : LoopCore := by
           simp only [List.length_take] at hj
           rw [List.getElem_take] at hoν
           have hji : j < i := by omega
-          have h4 := (ih j hji (by omega) (by omega)).2
+          have h4 := (ih j hji (by omega) (by omega)).1.2
           obtain ⟨T', xs, hxs⟩ := loopRounds_result settings O P.D Dsf (persistDraws p) K _
             (List.getElem_mem (show j < Lr.length by omega))
           have hsupp := population_short P settings.level5 hC (Ls := Ls) (by rw [hmax]; omega)
@@ -786,10 +809,15 @@ theorem loop_core_holds : LoopCore := by
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
+        have hret := hcs.1
         rw [← histOf_pops, ← hdec, e]
-        exact ⟨hcs, h4⟩
-    exact hp (loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k J ū rfl εcov slack εd
-      (y / 2) hK (fun pops B hB => (hband pops B hB).1) fun i hi hiσ => hspec i hiσ hi)
+        exact ⟨⟨hcs, h4⟩, hK', hok, hret, hnc⟩
+    have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k J ū rfl εcov slack εd
+      (y / 2) hK (fun pops B hB => (hband pops B hB).1) fun i hi hiσ => (hspec i hiσ hi).1
+    refine hp ⟨hag, fun i hi => ?_⟩
+    have hle := hag.1
+    unfold indecisiveLStarLoop at hle hi
+    exact (hspec i (by omega) hi).2
   calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
         measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) := measureReal_biUnion_finset_le _ _
@@ -863,7 +891,7 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     key (b := 6 * ((K : ℝ) + 1) * (NP + 1) * (P.L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   refine ⟨cap, hcap0, fun k hk0 hk1 hk2 => ?_⟩
-  obtain ⟨settings, h1, h2, h3, h4, h5, -, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
+  obtain ⟨settings, h1, h2, h3, h4, h5, -, -, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
     slack pAP εd δ cap m ms k 0 0 hL hη hη₀
     hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0 hmsl hm1 hmsp
     hms1 (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2)
@@ -876,7 +904,7 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     ((h6 Dsf hDsf hlen hpAPD hatom).trans (le_of_eq (by ring)))
   intro p hp hgood
   apply hp
-  obtain ⟨hl, o, ho, hc⟩ := hgood
+  obtain ⟨⟨hl, o, ho, hc⟩, -⟩ := hgood
   exact ⟨hl, o, ho, hc.1⟩
 
 end OrthoDFA
