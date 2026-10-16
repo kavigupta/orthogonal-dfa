@@ -156,18 +156,14 @@ noncomputable def budgetLog (populations : Finset J)
 
 /-- What a budget of `k` buys.
 
-`sig` enters at the fourth power because the screen's tail binds: its margin is a rate times
-`sig²`, and a deviation bound squares the margin it is given.  The population count enters
-squared because that margin is divided by it.
-
-The scale enters at the *third* power, not the second: the coverage tails divide by `εcov`
-once before squaring a margin that already carries `εcov`, so they are cubic in it, and a
-cap quadratic in the scale is exceeded as `εcov → 0`. -/
+`sig` enters at the fourth power because the screen's tail and the gate's bind: their margins
+are a rate times `sig²`, and a deviation bound squares the margin it is given.  The population
+count enters squared because the screen's margin is divided by it. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
   k * (populations.card : ℝ) ^ 2
     * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-    / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 3)
+    / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
 
 /-- The counts the round's tails ask for, summed so each is met.  The gate's two read its
 deviations at levels that shrink with the prefix count `n`: with `X = cutBudget²·sig⁴` it needs

@@ -539,23 +539,23 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      6000
+      100000
       * (populations.card : ℝ) ^ 2
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
-        / (δ * α * pAP * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)))
+        / (δ * α * pAP * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal))
       )
-      / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) ^ 3)
+      / ((1 / 2 - η₀) ^ 4 * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) ^ 2)
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤
-      4 * Real.log (128 * ((populations.card : ℝ) + 1) / δ)
+      5 * Real.log (128 * (populations.card : ℝ) / δ)
         / cutLimit η₀ indecisionLimit εcov pBal ^ 2
     ) ∧
     (∀ B ∈ states,
-      (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀)
-          (cutLimit η₀ indecisionLimit εcov pBal)) * crossLimit)) / (1 / 2 - η₀) ^ 2
+      (B.k : ℝ) ≤ 64 * Real.log (2 / (min (1 / 2 - η₀)
+          (cutLimit η₀ indecisionLimit εcov pBal) * crossLimit)) / (1 / 2 - η₀) ^ 2
       ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-            (2 / (min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) * crossLimit))
+            (2 / (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) * crossLimit))
           / ((1 / 2 - η₀) ^ 2 * pAP)
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
     (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -570,7 +570,7 @@ def ClusteringGuarantee : Prop :=
       pBal ≤ (D uni).real O.Lᶜ →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-          ≤ δ * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) ^ 2) →
+          ≤ δ * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
@@ -581,9 +581,9 @@ def ClusteringGuarantee : Prop :=
             1 - εcov
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations x B.val) p (oracleNoise x)}
-            ∧ ∀ j ∈ populations, 1 / 2
+            ∧ ∀ j ∈ populations, (j ≠ uni → 1 / 2
               ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                  (familyAt O.mq populations x B.val) p (oracleNoise x)})
               ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations x B.val) p (oracleNoise x)}
                 ≤ 2 * indecisionLimit}
