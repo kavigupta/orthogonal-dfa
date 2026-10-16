@@ -1465,4 +1465,326 @@ lemma hoeffDev_mono {n n' : ℕ} (h : n ≤ n') {a : ℝ} (ha0 : 0 < a) (ha1 : a
 lemma card_poolAt_le (M : ℕ) (x : Run Ω S J) : (poolAt M x).card ≤ M + 1 :=
   le_trans (Finset.card_insert_le _ _) (by have := card_freshDraws_le ∅ (fun i => suffixDraw i x) M; omega)
 
+/-- The spread at the observed centre is near the true one. -/
+lemma spread_at_le (n k ag ap : ℕ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu : ℝ} (hd : 0 ≤ d)
+    (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
+    (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
+    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap)
+    (hc0 : 0 ≤ (ag : ℝ) / n) (hc1 : (ag : ℝ) / n ≤ 1) :
+    spreadBound n ag ap d ((ag : ℝ) / n)
+      ≤ (n - k) / n * (x - ag / n) ^ 2 + k / n * (1 - y - ag / n) ^ 2
+        + (t + 3 / 2 * d + tu / 2) / n := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  set c : ℝ := (ag : ℝ) / n with hc
+  set μ : ℝ := (((n : ℝ) - k) * x + k * (1 - y)) / n with hμ
+  have hid := spread_identity (n : ℝ) k hnR x y c
+  rw [← hμ] at hid
+  have hcμ : |μ - c| ≤ t / n := by
+    rw [hμ, hc, ← sub_div, abs_div, abs_of_pos hnR]
+    exact div_le_div_of_nonneg_right (abs_le.2 ⟨by linarith, by linarith⟩) hnR.le
+  have h12 : |1 - 2 * c| ≤ 1 := by rw [abs_le]; constructor <;> linarith
+  have hmax : max ((1 - 2 * c) * (((ag : ℝ) - d) / n - c)) ((1 - 2 * c) * (((ag : ℝ) + d) / n - c))
+      ≤ d / n := by
+    have e1 : ((ag : ℝ) - d) / n - c = -(d / n) := by rw [hc]; field_simp; ring
+    have e2 : ((ag : ℝ) + d) / n - c = d / n := by rw [hc]; field_simp; ring
+    rw [e1, e2]
+    have hdn : 0 ≤ d / n := div_nonneg hd hnR.le
+    refine max_le ?_ ?_ <;> nlinarith [abs_le.1 h12]
+  have hmid : -((1 - 2 * c) * (μ - c)) ≤ t / n := by
+    have := abs_mul (1 - 2 * c) (μ - c)
+    have h2 : |(1 - 2 * c) * (μ - c)| ≤ 1 * (t / n) :=
+      by rw [this]; exact mul_le_mul h12 hcμ (abs_nonneg _) (by norm_num)
+    have := neg_abs_le ((1 - 2 * c) * (μ - c))
+    linarith
+  have hfl : ((ap : ℝ) - d) / (2 * n)
+      ≥ (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n - (tu + d) / (2 * n) := by
+    have e : ((ap : ℝ) - d) / (2 * n)
+        - ((((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n - (tu + d) / (2 * n))
+        = ((ap : ℝ) - 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + tu) / (2 * n) := by
+      field_simp; ring
+    have : 0 ≤ ((ap : ℝ) - 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + tu)
+        / (2 * n) := div_nonneg (by linarith) (by positivity)
+    linarith
+  unfold spreadBound
+  have : (t + 3 / 2 * d + tu / 2) / n = t / n + d / n + (tu + d) / (2 * n) := by
+    field_simp; ring
+  rw [this]
+  linarith
+
+lemma wrongCap_le_one (n ag ap : ℕ) (d y : ℝ) : wrongCap n ag ap d y ≤ 1 := by
+  unfold wrongCap; split_ifs
+  · exact min_le_left _ _
+  · exact le_rfl
+
+lemma wrongCap_nonneg (n ag ap : ℕ) (d y : ℝ) : 0 ≤ wrongCap n ag ap d y := by
+  unfold wrongCap; split_ifs
+  · exact le_min (by norm_num) (div_nonneg (le_max_left _ _) (sq_nonneg _))
+  · norm_num
+
+
+lemma cap_algebra {n k t d tu G κ ε Sp cap : ℝ} (hn : 0 < n) (hk0 : 0 ≤ k) (hκ : n * κ = k)
+    (hε : n * ε = t) (hκ0 : 0 ≤ κ) (hκ4 : κ ≤ 1 / 4) (hε0 : 0 ≤ ε) (hε8 : ε ≤ G / 8) (hG : 0 < G)
+    (hG1 : G ≤ 1) (ht : 0 ≤ t) (hd : 0 ≤ d) (htu : 0 ≤ tu)
+    (hSp : Sp = (κ * G + ε) ^ 2 + κ * (9 * G / 8) ^ 2 + (t + 3 / 2 * d + tu / 2) / n)
+    (hcap : cap ≤ Sp / (9 * G ^ 2 / 64)) :
+    n * cap ≤ 13 * k + 11 * (t + d + tu) / G ^ 2 := by
+  have hG2 : 0 < G ^ 2 := by positivity
+  have e3 : n * ((t + 3 / 2 * d + tu / 2) / n) = t + 3 / 2 * d + tu / 2 := mul_div_cancel₀ _ hn.ne'
+  have hnSp : n * Sp ≤ 113 / 64 * k * G ^ 2 + (5 / 4 * t + 3 / 2 * d + tu / 2) := by
+    have hsq : (κ * G + ε) ^ 2 ≤ 2 * ((κ * G) ^ 2 + ε ^ 2) := by
+      nlinarith only [sq_nonneg (κ * G - ε)]
+    have h1 : n * (κ * G + ε) ^ 2 ≤ 2 * (k * κ) * G ^ 2 + 2 * t * ε := by
+      have := mul_le_mul_of_nonneg_left hsq hn.le
+      have e : n * (2 * ((κ * G) ^ 2 + ε ^ 2)) = 2 * ((n * κ) * κ) * G ^ 2 + 2 * (n * ε) * ε := by
+        ring
+      rw [e, hκ, hε] at this
+      exact this
+    have h2 : 2 * (k * κ) * G ^ 2 ≤ k * G ^ 2 / 2 := by
+      have := mul_le_mul_of_nonneg_left hκ4 (mul_nonneg hk0 hG2.le)
+      linarith only [this]
+    have h3 : 2 * t * ε ≤ t / 4 := by
+      have := mul_le_mul_of_nonneg_left hε8 ht
+      have := mul_le_mul_of_nonneg_left hG1 ht
+      linarith only [this, ‹t * ε ≤ t * (G / 8)›]
+    have e2 : n * (κ * (9 * G / 8) ^ 2) = 81 / 64 * k * G ^ 2 := by
+      calc n * (κ * (9 * G / 8) ^ 2) = (n * κ) * (9 * G / 8) ^ 2 := by ring
+        _ = 81 / 64 * k * G ^ 2 := by rw [hκ]; ring
+    have : n * Sp = n * (κ * G + ε) ^ 2 + n * (κ * (9 * G / 8) ^ 2)
+        + n * ((t + 3 / 2 * d + tu / 2) / n) := by rw [hSp]; ring
+    rw [this, e2, e3]
+    linarith only [h1, h2, h3]
+  have hfinal : n * cap ≤ 64 / 9 * (n * Sp) / G ^ 2 := by
+    have := mul_le_mul_of_nonneg_left hcap hn.le
+    calc n * cap ≤ n * (Sp / (9 * G ^ 2 / 64)) := this
+      _ = 64 / 9 * (n * Sp) / G ^ 2 := by field_simp
+  refine le_trans hfinal ?_
+  rw [div_le_iff₀ hG2]
+  have e : (13 * k + 11 * (t + d + tu) / G ^ 2) * G ^ 2 = 13 * k * G ^ 2 + 11 * (t + d + tu) := by
+    field_simp
+  rw [e]
+  have hk2 : 0 ≤ k * G ^ 2 := mul_nonneg hk0 hG2.le
+  linarith only [hnSp, hk2, ht, hd, htu]
+
+set_option maxHeartbeats 1000000 in
+/-- A side's cap the other way: once the other class's rate is known to within a quarter of
+the gap `G = 1 − x − y`, it is at most thirteen times the side's wrong count, plus the
+deviations over `G²`. -/
+theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) (hag : ag ≤ n) {x y yb d t tu : ℝ}
+    (hd : 0 ≤ d) (ht : 0 ≤ t) (htu : 0 ≤ tu) (hx0 : 0 ≤ x) (hy0 : 0 ≤ y)
+    (hG : 0 < 1 - x - y) (hyb : yb ≤ y + (1 - x - y) / 4)
+    (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
+    (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
+    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap) :
+    n * wrongCap n ag ap d yb ≤ 13 * k + 11 * (t + d + tu) / (1 - x - y) ^ 2 := by
+  set G : ℝ := 1 - x - y with hGdef
+  have hG1 : G ≤ 1 := by linarith
+  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
+  have hrest : 0 ≤ 11 * (t + d + tu) / G ^ 2 := by positivity
+  have hcap1 := wrongCap_le_one n ag ap d yb
+  have hcap0 := wrongCap_nonneg n ag ap d yb
+  rcases Nat.eq_zero_or_pos n with hn0 | hnpos
+  · subst hn0; simp only [CharP.cast_eq_zero, zero_mul]; positivity
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hnpos
+  have hle_n : (n : ℝ) * wrongCap n ag ap d yb ≤ n := by nlinarith
+  by_cases h1 : (n : ℝ) < 4 * k
+  · linarith
+  by_cases h2 : (n : ℝ) * G < 8 * t
+  · have : (n : ℝ) < 8 * t / G := by rw [lt_div_iff₀ hG]; linarith
+    have h3 : 8 * t / G ≤ 8 * t / G ^ 2 :=
+      div_le_div_of_nonneg_left (by positivity) (by positivity) (by nlinarith)
+    have h4 : 8 * t / G ^ 2 ≤ 11 * (t + d + tu) / G ^ 2 :=
+      div_le_div_of_nonneg_right (by linarith) (by positivity)
+    linarith
+  push_neg at h1 h2
+  set κ : ℝ := k / n with hκ
+  set ε : ℝ := t / n with hε
+  set c : ℝ := (ag : ℝ) / n with hc
+  have hκ0 : 0 ≤ κ := by positivity
+  have hκ4 : κ ≤ 1 / 4 := by rw [hκ, div_le_iff₀ hnR]; linarith
+  have hε0 : 0 ≤ ε := by positivity
+  have hε8 : ε ≤ G / 8 := by rw [hε, div_le_iff₀ hnR]; linarith
+  have hc0 : 0 ≤ c := by positivity
+  have hc1 : c ≤ 1 := by rw [hc, div_le_one hnR]; exact_mod_cast hag
+  have hcx : |c - (x + κ * G)| ≤ ε := by
+    have e : x + κ * G = (((n : ℝ) - k) * x + k * (1 - y)) / n := by
+      rw [hκ, hGdef]; field_simp; ring
+    rw [e, hc, hε, ← sub_div, abs_div, abs_of_pos hnR]
+    exact div_le_div_of_nonneg_right (abs_le.2 ⟨by linarith, by linarith⟩) hnR.le
+  obtain ⟨hcl, hcu⟩ := abs_le.1 hcx
+  have hκG : κ * G ≤ G / 4 := by nlinarith
+  have hκG0 : 0 ≤ κ * G := mul_nonneg hκ0 hG.le
+  have hden : 3 * G / 8 ≤ 1 - yb - c := by linarith
+  have hden0 : 0 < 1 - yb - c := by linarith
+  have hspread := spread_at_le n k ag ap hk hnpos hd hlo hhi hb hc0 hc1
+  rw [← hc] at hspread
+  have hW1 : (x - c) ^ 2 ≤ (κ * G + ε) ^ 2 := sq_le_sq' (by linarith) (by linarith)
+  have hW2 : (1 - y - c) ^ 2 ≤ (9 * G / 8) ^ 2 := sq_le_sq' (by linarith) (by linarith)
+  have hspread' : spreadBound n ag ap d c
+      ≤ (κ * G + ε) ^ 2 + κ * (9 * G / 8) ^ 2
+        + (t + 3 / 2 * d + tu / 2) / n := by
+    have e1 : ((n : ℝ) - k) / n = 1 - κ := by rw [hκ]; field_simp
+    rw [e1, ← hκ] at hspread
+    have : (1 - κ) * (x - c) ^ 2 ≤ (κ * G + ε) ^ 2 := by
+      have h0 : 0 ≤ κ * (x - c) ^ 2 := mul_nonneg hκ0 (sq_nonneg _)
+      nlinarith
+    have : κ * (1 - y - c) ^ 2 ≤ κ * (9 * G / 8) ^ 2 := mul_le_mul_of_nonneg_left hW2 hκ0
+    linarith
+  set Sp : ℝ := (κ * G + ε) ^ 2 + κ * (9 * G / 8) ^ 2 + (t + 3 / 2 * d + tu / 2) / n with hSp
+  have hSp0 : 0 ≤ Sp := by positivity
+  have hcapval : wrongCap n ag ap d yb ≤ max 0 (spreadBound n ag ap d c) / (1 - yb - c) ^ 2 := by
+    unfold wrongCap
+    rw [if_pos ⟨hnpos, by rw [← hc]; exact hden0⟩, ← hc]
+    exact min_le_right _ _
+  have hden2 : 9 * G ^ 2 / 64 ≤ (1 - yb - c) ^ 2 :=
+    calc 9 * G ^ 2 / 64 = (3 * G / 8) ^ 2 := by ring
+      _ ≤ (1 - yb - c) ^ 2 := pow_le_pow_left₀ (by positivity) hden 2
+  have hcapS : wrongCap n ag ap d yb ≤ Sp / (9 * G ^ 2 / 64) :=
+    le_trans hcapval (le_trans (div_le_div_of_nonneg_right (max_le hSp0 hspread') (sq_nonneg _))
+      (div_le_div_of_nonneg_left hSp0 (by positivity) hden2))
+  have hk' : (n : ℝ) * κ = k := by rw [hκ]; field_simp
+  have ht' : (n : ℝ) * ε = t := by rw [hε]; field_simp
+  exact cap_algebra hnR hk0 hk' ht' hκ0 hκ4 hε0 hε8 hG hG1 ht hd htu hSp hcapS
+
+lemma rateBound_le (η₀ m cap : ℝ) : rateBound η₀ m cap ≤ η₀ := by
+  unfold rateBound; split_ifs
+  · exact min_le_left _ _
+  · exact le_rfl
+
+
+lemma calib_spread {G κ ε δ τ : ℝ} (hG : 0 < G) (hG1 : G ≤ 1) (hκ0 : 0 ≤ κ) (hκ : κ ≤ G / 80)
+    (hε0 : 0 ≤ ε) (hδ0 : 0 ≤ δ) (hτ0 : 0 ≤ τ) (hd : 800 * (ε + δ + τ) ≤ G ^ 3) :
+    (κ * G + ε) ^ 2 + κ * (G + ε) ^ 2 + (ε + 3 / 2 * δ + τ / 2) ≤ 3 / 200 * G ^ 3 := by
+  have hG2 : G ^ 2 ≤ G := by nlinarith only [hG, hG1]
+  have hG32 : G ^ 3 ≤ G ^ 2 := by nlinarith only [hG, hG1, hG2]
+  have hG43 : G ^ 4 ≤ G ^ 3 := by nlinarith only [hG, hG1, pow_pos hG 3]
+  have hε : ε ≤ G ^ 3 / 800 := by linarith only [hd, hδ0, hτ0]
+  have h1 : κ * G + ε ≤ 11 / 800 * G ^ 2 := by
+    have : κ * G ≤ G / 80 * G := mul_le_mul_of_nonneg_right hκ hG.le
+    nlinarith only [this, hε, hG32]
+  have h1' : (κ * G + ε) ^ 2 ≤ (11 / 800 * G ^ 2) ^ 2 :=
+    pow_le_pow_left₀ (by positivity) h1 2
+  have h2 : (G + ε) ^ 2 ≤ (801 / 800 * G) ^ 2 :=
+    pow_le_pow_left₀ (by positivity) (by nlinarith only [hε, hG32, hG2, hG]) 2
+  have h2' : κ * (G + ε) ^ 2 ≤ G / 80 * (801 / 800 * G) ^ 2 :=
+    mul_le_mul hκ h2 (sq_nonneg _) (by positivity)
+  have h3 : ε + 3 / 2 * δ + τ / 2 ≤ 3 / 1600 * G ^ 3 := by linarith only [hd, hε0, hδ0, hτ0]
+  have e1 : (11 / 800 * G ^ 2) ^ 2 = 121 / 640000 * G ^ 4 := by ring
+  have e2 : G / 80 * (801 / 800 * G) ^ 2 = 641601 / 51200000 * G ^ 3 := by ring
+  linarith only [h1', h2', h3, e1, e2, hG43, pow_pos hG 3]
+
+lemma calib_cap_small {G u : ℝ} (hG : 0 < G) (hu : G / 4 < u) :
+    3 / 200 * G ^ 3 / (81 / 100 * u ^ 2) ≤ 3 / 10 * G := by
+  have hu2 : G ^ 2 / 16 ≤ u ^ 2 := by nlinarith only [hG, hu]
+  rw [div_le_iff₀ (by nlinarith only [hG, hu])]
+  nlinarith only [hu2, pow_pos hG 2, hG]
+
+lemma calib_prod {G u : ℝ} (hG : 0 < G) (hu : G / 4 < u) :
+    (1 / 2 - u + G / 4) * (3 / 200 * G ^ 3 / (81 / 100 * u ^ 2)) ≤ 1 / 5 * G := by
+  have hu2 : G ^ 2 / 16 ≤ u ^ 2 := by nlinarith only [hG, hu]
+  have hq : 0 ≤ 3 / 200 * G ^ 3 / (81 / 100 * u ^ 2) := by positivity
+  have h1 : (1 / 2 - u + G / 4) * (3 / 200 * G ^ 3 / (81 / 100 * u ^ 2))
+      ≤ 1 / 2 * (3 / 200 * G ^ 3 / (81 / 100 * u ^ 2)) :=
+    mul_le_mul_of_nonneg_right (by linarith only [hu]) hq
+  refine le_trans h1 ?_
+  rw [mul_div_assoc', div_le_iff₀ (by nlinarith only [hG, hu])]
+  nlinarith only [hu2, pow_pos hG 2, hG]
+
+set_option maxHeartbeats 1000000 in
+/-- The calibration the other way: a side wrong on at most `G/80` of its prefixes, whose
+deviations are small against `G³`, bounds its right class's rate to within `G/4`. -/
+theorem rateBound_le_add (n k ag ap : ℕ) (hk : k ≤ n) (hag : ag ≤ n) {x y η₀ d t tu : ℝ}
+    (hd : 0 ≤ d) (ht : 0 ≤ t) (htu : 0 ≤ tu) (hx0 : 0 ≤ x) (hy0 : 0 ≤ y)
+    (hxη : x ≤ η₀) (hyη : y ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
+    (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
+    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap)
+    (hκ : 80 * (k : ℝ) ≤ n * (1 - x - y)) (hdev : 800 * (t + d + tu) ≤ n * (1 - x - y) ^ 3)
+    (hnpos : 0 < n) :
+    rateBound η₀ ((ag + d) / n) (wrongCap n ag ap d η₀) ≤ x + (1 - x - y) / 4 := by
+  set G : ℝ := 1 - x - y with hGdef
+  have hG : 0 < G := by linarith
+  have hG1 : G ≤ 1 := by linarith
+  by_cases hA : η₀ ≤ x + G / 4
+  · exact le_trans (rateBound_le _ _ _) hA
+  push_neg at hA
+  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hnpos
+  set u : ℝ := η₀ - x with hu
+  have hu4 : G / 4 < u := by rw [hu]; linarith
+  set κ : ℝ := k / n with hκdef
+  set ε : ℝ := t / n with hεdef
+  set δ : ℝ := d / n with hδdef
+  set τ : ℝ := tu / n with hτdef
+  set c : ℝ := (ag : ℝ) / n with hc
+  have hκ80 : κ ≤ G / 80 := by rw [hκdef, div_le_iff₀ hnR]; linarith
+  have hκ0 : 0 ≤ κ := by positivity
+  have hG3 : G ^ 3 ≤ G := by nlinarith [pow_pos hG 2]
+  have hdevs : 800 * (ε + δ + τ) ≤ G ^ 3 := by
+    have : ε + δ + τ = (t + d + tu) / n := by rw [hεdef, hδdef, hτdef]; field_simp
+    rw [this, mul_div_assoc', div_le_iff₀ hnR]; linarith
+  have hε0 : 0 ≤ ε := by positivity
+  have hδ0 : 0 ≤ δ := by positivity
+  have hτ0 : 0 ≤ τ := by positivity
+  have hc0 : 0 ≤ c := by positivity
+  have hc1 : c ≤ 1 := by rw [hc, div_le_one hnR]; exact_mod_cast hag
+  have hcx : |c - (x + κ * G)| ≤ ε := by
+    have e : x + κ * G = (((n : ℝ) - k) * x + k * (1 - y)) / n := by
+      rw [hκdef, hGdef]; field_simp; ring
+    rw [e, hc, hεdef, ← sub_div, abs_div, abs_of_pos hnR]
+    exact div_le_div_of_nonneg_right (abs_le.2 ⟨by linarith, by linarith⟩) hnR.le
+  obtain ⟨hcl, hcu⟩ := abs_le.1 hcx
+  have hκG : κ * G ≤ G / 80 := by
+    have := mul_le_mul hκ80 hG1 hG.le (by positivity)
+    linarith only [this]
+  have hG3 : G ^ 3 ≤ G := by nlinarith only [hG, hG1, pow_pos hG 2]
+  have hε1 : ε ≤ G / 800 := by linarith only [hdevs, hδ0, hτ0, hG3]
+  have hδ1 : δ ≤ G / 800 := by linarith only [hdevs, hε0, hτ0, hG3]
+  have hκG0 : 0 ≤ κ * G := mul_nonneg hκ0 hG.le
+  have hden : 9 / 10 * u ≤ 1 - η₀ - c := by
+    rw [hu] at hu4 ⊢
+    linarith only [hcu, hκG, hε1, hη₀, hu4, hG]
+  have hden0 : 0 < 1 - η₀ - c := by linarith only [hden, hu4, hG]
+  have hspread := spread_at_le n k ag ap hk hnpos hd hlo hhi hb hc0 hc1
+  rw [← hc] at hspread
+  have e1 : ((n : ℝ) - k) / n = 1 - κ := by rw [hκdef]; field_simp
+  have e2 : (t + 3 / 2 * d + tu / 2) / n = ε + 3 / 2 * δ + τ / 2 := by
+    rw [hεdef, hδdef, hτdef]; field_simp
+  rw [e1, ← hκdef, e2] at hspread
+  have hW1 : (x - c) ^ 2 ≤ (κ * G + ε) ^ 2 := sq_le_sq' (by linarith) (by linarith)
+  have hW2 : (1 - y - c) ^ 2 ≤ (G + ε) ^ 2 := sq_le_sq' (by linarith) (by linarith)
+  have hsp : spreadBound n ag ap d c ≤ 3 / 200 * G ^ 3 := by
+    have a1 : (1 - κ) * (x - c) ^ 2 ≤ (κ * G + ε) ^ 2 := by
+      have h0 : 0 ≤ κ * (x - c) ^ 2 := mul_nonneg hκ0 (sq_nonneg _)
+      linarith only [hW1, h0]
+    have a2 : κ * (1 - y - c) ^ 2 ≤ κ * (G + ε) ^ 2 := mul_le_mul_of_nonneg_left hW2 hκ0
+    have := calib_spread hG hG1 hκ0 hκ80 hε0 hδ0 hτ0 hdevs
+    linarith only [hspread, a1, a2, this]
+  set cap : ℝ := wrongCap n ag ap d η₀ with hcapdef
+  have hcapv : cap ≤ 3 / 200 * G ^ 3 / (81 / 100 * u ^ 2) := by
+    have hcv : cap ≤ max 0 (spreadBound n ag ap d c) / (1 - η₀ - c) ^ 2 := by
+      rw [hcapdef]; unfold wrongCap
+      rw [if_pos ⟨hnpos, by rw [← hc]; exact hden0⟩, ← hc]
+      exact min_le_right _ _
+    have hu0 : 0 < u := by linarith only [hu4, hG]
+    have hd2 : 81 / 100 * u ^ 2 ≤ (1 - η₀ - c) ^ 2 :=
+      calc 81 / 100 * u ^ 2 = (9 / 10 * u) ^ 2 := by ring
+        _ ≤ (1 - η₀ - c) ^ 2 := pow_le_pow_left₀ (by positivity) hden 2
+    refine le_trans hcv (le_trans (div_le_div_of_nonneg_right (max_le (by positivity) hsp)
+      (sq_nonneg _)) (div_le_div_of_nonneg_left (by positivity) (by positivity) hd2))
+  have hcap_small : cap ≤ 3 / 10 * G := le_trans hcapv (calib_cap_small hG hu4)
+  have hcap1 : cap < 1 := by linarith only [hcap_small, hG1]
+  unfold rateBound
+  rw [if_pos hcap1]
+  refine le_trans (min_le_right _ _) ?_
+  have hm : ((ag : ℝ) + d) / n ≤ x + κ * G + ε + δ := by
+    have : ((ag : ℝ) + d) / n = c + δ := by rw [hc, hδdef]; field_simp
+    rw [this]; linarith only [hcu]
+  have hxG : x + G / 4 ≤ 1 / 2 - u + G / 4 := by rw [hu]; linarith only [hη₀]
+  have hprod : (x + G / 4) * cap ≤ 1 / 5 * G :=
+    le_trans (mul_le_mul hxG hcapv (wrongCap_nonneg _ _ _ _ _) (by linarith only [hη₀, hx0, hG, hu]))
+      (calib_prod hG hu4)
+  rw [div_le_iff₀ (by linarith only [hcap1])]
+  have e : (x + G / 4) * (1 - cap) = (x + G / 4) - (x + G / 4) * cap := by ring
+  linarith only [hm, hprod, hκG, hε1, hδ1, e, hG]
+
 end OrthoDFA
