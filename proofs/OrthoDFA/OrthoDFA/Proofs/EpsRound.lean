@@ -1,5 +1,5 @@
-import OrthoDFA.Level4Claim
-import OrthoDFA.Proofs.RandomRound
+import OrthoDFA.Proofs.EpsRisk
+import OrthoDFA.Proofs.RandomCorrect
 
 /-!
 # Level 3 with rare wrong reads: the proof
@@ -9,6 +9,9 @@ levels, a probe that can read a string wrong counted as a bad step, at most `Ns 
 Over the reads, the probes that can read a good read-state undecided are at most `G` of the
 probes but for `noiseRisk`, and those that can read a string wrong at most `Gw` but for
 `wrongRisk`.
+
+`EpsRoundCorrect` takes level 3's knobs at its `G`, with `Gw = δ / (16 · probeBudget)`: the noise
+risks `δ/8`, the stretches `3δ/4`, the wrong reads' share `δ/16` and some probe among them `δ/16`.
 -/
 
 namespace OrthoDFA
@@ -120,11 +123,91 @@ theorem eps_round_le_at {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} 
         unfold roundBoundAt Level2.stretches
         ring
 
-theorem epsRoundCorrect_holds : EpsRoundCorrect := by
+theorem epsRoundRiskBound_holds : EpsRoundRiskBound := by
   intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C ε y
   refine le_iInf₂ fun kn hA => ?_
   exact eps_round_le_at M side U θ εw μ R P C ε y _ kn hA (prefixMax_pos P.D C.walkStart)
     fun u _ => le_prefixMax P.D C.walkStart u
+
+theorem geom_le (n m : ℕ) :
+    ∑ j ∈ Finset.range (n + 1), (m : ℝ) ^ j ≤ (n + 1) * (max 1 m : ℕ) ^ n := by
+  have h1 : (1 : ℝ) ≤ (max 1 m : ℕ) := by exact_mod_cast le_max_left 1 m
+  calc _ ≤ ∑ _j ∈ Finset.range (n + 1), ((max 1 m : ℕ) : ℝ) ^ n :=
+        Finset.sum_le_sum fun j hj => by
+          have hm : (m : ℝ) ≤ (max 1 m : ℕ) := by exact_mod_cast le_max_right 1 m
+          calc (m : ℝ) ^ j ≤ ((max 1 m : ℕ) : ℝ) ^ j := pow_le_pow_left₀ (by positivity) hm j
+            _ ≤ _ := pow_le_pow_right₀ h1 (Nat.lt_succ_iff.1 (Finset.mem_range.1 hj))
+    _ = _ := by simp
+
+theorem epsRoundCorrect_holds : EpsRoundCorrect := by
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C y p₀
+  dsimp only
+  intro hpre hθ hδ hss hssρ hρ1 hμ hs1 he0 hps hpe hpm hP hw
+  set nQ := Fintype.card σ
+  set nα := Fintype.card α
+  set δ := C.δ
+  set S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1 with hS
+  set K : ℝ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ with hK
+  set G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (8 * K / δ) with hG
+  by_cases hδ1 : 1 ≤ δ
+  · calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
+      _ = 1 := by simp
+      _ ≤ _ := by rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal hδ1
+  push Not at hδ1
+  have hεw : 0 ≤ εw := measureReal_nonneg.trans (R.wrong 1)
+  have hp₀ : 0 < p₀ :=
+    (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
+  have hK1 : 1 ≤ K := one_le_pow₀ (by
+    have : (0 : ℝ) ≤ (nQ + 1) ^ 3 * nα := by positivity
+    linarith)
+  have hlogK : 0 < Real.log (8 * K / δ) :=
+    Real.log_pos (by rw [one_lt_div hδ]; linarith)
+  have hG0 : 0 < G := by
+    have : 0 ≤ 3 * θ * (P.L + 1) * (nQ + 1) := by positivity
+    have : 0 < p₀ * Real.log (8 * K / δ) := mul_pos hp₀ hlogK
+    linarith
+  have hS1 : (1 : ℝ) ≤ S := by
+    have : 1 ≤ S := by omega
+    exact_mod_cast this
+  have hBpos : (0 : ℝ) < C.probeBudget := by
+    have : 0 ≤ 8 * S / C.searchShare * Real.log (16 * S * (S + 1) / δ) :=
+      mul_nonneg (by positivity) (Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith))
+    linarith
+  obtain ⟨kn, hA, hkG, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ y G S hS hθ hδ hδ1 hss hssρ
+    hρ1 hμ hs1 he0 hG0 hps hpe hpm hP
+  set Gw := δ / (16 * C.probeBudget) with hGw
+  refine (eps_round_le_at M side U θ εw μ R P C _ y p₀ ⟨kn, Gw⟩ ⟨hA, by positivity⟩ hp₀
+    (fun u _ => hpre u)).trans (ENNReal.ofReal_le_ofReal ?_)
+  unfold roundBoundAt
+  have hnoise : noiseRisk nQ nα P.L (3 / 2 * θ) p₀ G = δ / 8 := by
+    unfold noiseRisk
+    have e : -(G - 2 * (3 / 2 * θ) * (P.L + 1) * (nQ + 1)) / p₀ = -Real.log (8 * K / δ) := by
+      rw [hG]; field_simp; ring
+    push_cast
+    rw [← hK, e, Real.exp_neg, Real.exp_log (by positivity)]
+    field_simp
+  have hwrong : wrongRisk nQ nα P.L εw p₀ Gw ≤ δ / 16 := by
+    unfold wrongRisk
+    have hg := geom_le nQ nα
+    have hL : (0 : ℝ) ≤ 2 * εw * (P.L + 1) := by positivity
+    have hle : -(Gw - 2 * εw * (P.L + 1) * ∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j) / p₀
+        ≤ -Real.log (16 / δ) := by
+      rw [div_le_iff₀ hp₀]
+      have := mul_le_mul_of_nonneg_left hg hL
+      have hw' : 2 * εw * (P.L + 1) * ((nQ + 1) * ((max 1 nα : ℕ) : ℝ) ^ nQ)
+          + p₀ * Real.log (16 / δ) ≤ Gw := by
+        rw [hGw]
+        convert hw using 2
+        push_cast
+        ring
+      nlinarith
+    calc _ ≤ Real.exp (-Real.log (16 / δ)) := Real.exp_le_exp.2 hle
+      _ = δ / 16 := by rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
+  have hPG : (C.probeBudget : ℝ) * Gw = δ / 16 := by
+    rw [hGw]; field_simp
+  change noiseRisk nQ nα P.L (3 / 2 * θ) p₀ kn.G + _ + _ + _ ≤ δ
+  rw [hkG, hnoise, hPG]
+  linarith
 
 end Eps
 

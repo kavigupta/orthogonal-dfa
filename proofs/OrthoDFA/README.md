@@ -101,11 +101,12 @@
   walks it under the final hypothesis and finds the probe's undecided strings at the site, as the
   tests counted them.
 - `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: level 3's algorithm, unchanged, with each read
-  on its state's wrong side with chance at most `εw`, fails to end well with chance at most
-  `epsRoundRisk`: `roundRisk`'s terms, plus `wrongRisk`, the chance that the probes that can read
-  wrong a prefix followed by a string of length at most `|Q|` exceed `Gw` of the probes, plus
-  `probeBudget · Gw`, the chance that some probe of the round is one. A probe that cannot splits
-  and learns only on real targets, so the tree stays within `|Q| + 1` leaves.
+  on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
+  under level 3's premises, `G`'s `log(4 …/δ)` becoming `log(8 …/δ)`, and
+  `2εw(L + 1)(|Q| + 1) max(1, |Σ|)^|Q| + p₀ log(16/δ) ≤ δ / (16 · probeBudget)`. A probe whose
+  reads, a prefix of length at least `walkStart` followed by a string of length at most `|Q|`, are
+  all right splits and learns only on real targets; the premise keeps such probes the only ones
+  drawn but for chance `δ/8`. The noise takes `δ/8` and the stretches `3δ/4`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
