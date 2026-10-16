@@ -557,6 +557,65 @@ theorem rightRate_le_sideRate (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η
   rw [if_neg (fun h => by omega)]
 
 
+open scoped Classical in
+/-- Both sides of a sample good for the reference `v`. -/
+def sidesGood (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (v : S) (a : ℝ) (ω : Ω) : Prop :=
+  sideGood O true (acceptSide O.mq hi F P ω) v a ω ∧ sideGood O false (rejectSide O.mq lo F P ω) v a ω
+
+omit [IsProbabilityMeasure μ] in
+open scoped Classical in
+/-- The cut's wrong prefixes are the accept side's outside the language and the reject side's
+inside it. -/
+lemma miscut_le_sides (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
+    ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
+      ≤ (((acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)).card : ℝ)
+        + (((rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)).card : ℝ) := by
+  classical
+  have hsub : P.filter (fun p => ¬ cutCorrect O lo hi F p ω)
+      ⊆ (acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)
+        ∪ (rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false) := by
+    intro p hp
+    obtain ⟨hpP, hcc⟩ := Finset.mem_filter.1 hp
+    by_contra hnot
+    apply hcc
+    constructor
+    · intro h1
+      by_contra hl
+      exact hnot (Finset.mem_union_left _
+        (Finset.mem_filter.2 ⟨Finset.mem_filter.2 ⟨hpP, h1⟩, by simpa [sideClass] using hl⟩))
+    · intro h2
+      by_contra hl
+      exact hnot (Finset.mem_union_right _
+        (Finset.mem_filter.2 ⟨Finset.mem_filter.2 ⟨hpP, h2⟩, by simpa [sideClass] using hl⟩))
+  have := le_trans (Finset.card_le_card hsub) (Finset.card_union_le _ _)
+  exact_mod_cast this
+
+open scoped Classical in
+/-- With both of the calibration sample's sides good and both of the sample's, the cut's wrong
+count on the sample is at most `miscutBound` at the calibrated rates. -/
+theorem miscut_le_miscutBound (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (lo hi : ℕ) (F R P C₀ : Finset S) {v w : S} (hvR : v ∈ R) (hwR : w ∈ R)
+    (hap : ∀ p, O.label (p * v) = O.label p) (hapw : ∀ p, O.label (p * w) = O.label p)
+    (hneP : ∀ p ∈ P, p * v ≠ p) (hneC : ∀ p ∈ C₀, p * w ≠ p) {a a₀ : ℝ} {ω : Ω}
+    (hcal : sidesGood O lo hi F C₀ w a₀ ω) (hP : sidesGood O lo hi F P v a ω) :
+    ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
+      ≤ miscutBound O.mq a lo hi F R P (calibrate O.mq η₀ a₀ lo hi F R C₀ ω) ω := by
+  have hsubA : ∀ p ∈ acceptSide O.mq hi F C₀ ω, p * w ≠ p := fun p hp =>
+    hneC p (Finset.mem_filter.1 hp).1
+  have hsubR : ∀ p ∈ rejectSide O.mq lo F C₀ ω, p * w ≠ p := fun p hp =>
+    hneC p (Finset.mem_filter.1 hp).1
+  have hin := rightRate_le_sideRate O hη hη₀ true _ R hwR hapw hsubA hcal.1
+  have hout := rightRate_le_sideRate O hη hη₀ false _ R hwR hapw hsubR hcal.2
+  have hA := wrong_le_sideCap O true (acceptSide O.mq hi F P ω) R hvR hap
+    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.1
+    (y := (calibrate O.mq η₀ a₀ lo hi F R C₀ ω).2) (by simpa [wrongRate, rightRate, calibrate] using hout)
+  have hR := wrong_le_sideCap O false (rejectSide O.mq lo F P ω) R hvR hap
+    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.2
+    (y := (calibrate O.mq η₀ a₀ lo hi F R C₀ ω).1) (by simpa [wrongRate, rightRate, calibrate] using hin)
+  refine le_trans (miscut_le_sides O lo hi F P ω) ?_
+  unfold miscutBound
+  linarith
+
 /-! ### Sides chosen by the votes -/
 
 /-- `selection_read_bound` for a score that is any event the scored strings' bits decide, not
@@ -631,6 +690,115 @@ theorem selection_congr_bound (O : Oracle μ S) (C Q : Finset S)
     _ = μ.real {ω | ω ∈ Bad' (sel' ω)} := by rw [noiseClean_ae O Q, noiseClean_ae O C]; ring
     _ ≤ E := hmain
 
+lemma sideGood_congr (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ) {ω ω' : Ω}
+    (h : ∀ p ∈ A, O.noise p ω = O.noise p ω' ∧ O.noise (p * v) ω = O.noise (p * v) ω') :
+    sideGood O accept A v a ω → sideGood O accept A v a ω' := by
+  classical
+  have h1 : ∀ p ∈ A, O.mq p ω = O.mq p ω' := fun p hp => mq_congr O (h p hp).1
+  have h2 : ∀ p ∈ A, O.mq (p * v) ω = O.mq (p * v) ω' := fun p hp => mq_congr O (h p hp).2
+  have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
+    unfold againstOn
+    exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [h1 p hp]))
+  have hb : (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
+      = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
+    congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [h1 p hp, h2 p hp]))
+  unfold sideGood
+  rw [ha, hb]
+  exact id
+
+open scoped Classical in
+/-- Both sides of a sample good, with the sample, the voters and the reference fixed and the cut
+chosen by the votes: chance at most `6a` they are not. -/
+theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
+    (hinj : ∀ p ∈ P, ∀ p' ∈ P, ∀ u ∈ insert 1 (insert v F), ∀ u' ∈ insert 1 (insert v F),
+      p * u = p' * u' → p = p' ∧ u = u')
+    (hvF : v ∉ F) (h1F : (1 : S) ∉ F) (hv1 : v ≠ 1) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    μ.real {ω | ¬ sidesGood O lo hi F P v a ω} ≤ 6 * a := by
+  classical
+  have h1mem : (1 : S) ∈ insert 1 (insert v F) := Finset.mem_insert_self _ _
+  have hvmem : v ∈ insert 1 (insert v F) := Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)
+  have humem : ∀ u ∈ F, u ∈ insert 1 (insert v F) := fun u hu =>
+    Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hu)
+  set C : Finset S := P ∪ P.image (fun p => p * v) with hC
+  set Q : Finset S := (P ×ˢ F).image (fun q => q.1 * q.2) with hQ
+  have hdisj : Disjoint (↑C : Set S) (↑Q : Set S) := by
+    rw [Finset.disjoint_coe]
+    refine Finset.disjoint_left.2 (fun w hwC hwQ => ?_)
+    obtain ⟨⟨p', u⟩, hpu, rfl⟩ := Finset.mem_image.1 hwQ
+    obtain ⟨hp', hu⟩ := Finset.mem_product.1 hpu
+    rcases Finset.mem_union.1 hwC with hp | hw
+    · have := (hinj _ hp p' hp' 1 h1mem u (humem u hu) (mul_one _)).2
+      exact h1F (this ▸ hu)
+    · obtain ⟨p, hp, hpeq⟩ := Finset.mem_image.1 hw
+      have := (hinj p hp p' hp' v hvmem u (humem u hu) hpeq).2
+      exact hvF (this ▸ hu)
+  set T : Finset (Finset S × Finset S) := P.powerset ×ˢ P.powerset with hT
+  set sel : Ω → Finset S × Finset S := fun ω =>
+    (acceptSide O.mq hi F P ω, rejectSide O.mq lo F P ω) with hseldef
+  have hsel : ∀ ω, sel ω ∈ T := fun ω =>
+    Finset.mem_product.2 ⟨Finset.mem_powerset.2 (Finset.filter_subset _ _),
+      Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩
+  have hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sel ω = sel ω' := by
+    intro ω ω' h
+    have hvc : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+      voteCount_congr O F p (fun u hu => by
+        rw [mq_congr O (h _ (Finset.mem_image.2 ⟨(p, u), Finset.mem_product.2 ⟨hp, hu⟩, rfl⟩))])
+    exact Prod.ext (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+      (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+  set Bad : Finset S × Finset S → Set Ω := fun t =>
+    if t.1 ⊆ P ∧ t.2 ⊆ P then
+      {ω | ¬ (sideGood O true t.1 v a ω ∧ sideGood O false t.2 v a ω)}
+    else ∅ with hBaddef
+  have hBadcongr : ∀ t ω ω', (∀ w ∈ C, O.noise w ω = O.noise w ω') → ω ∈ Bad t → ω' ∈ Bad t := by
+    intro t ω ω' h hω
+    simp only [hBaddef] at hω ⊢
+    split_ifs at hω ⊢ with ht
+    · have hpp : ∀ D ⊆ P, ∀ p ∈ D, O.noise p ω' = O.noise p ω
+          ∧ O.noise (p * v) ω' = O.noise (p * v) ω := fun D hD p hp =>
+        ⟨(h p (Finset.mem_union_left _ (hD hp))).symm,
+          (h _ (Finset.mem_union_right _ (Finset.mem_image_of_mem _ (hD hp)))).symm⟩
+      intro hgood
+      exact hω ⟨sideGood_congr O true t.1 v a (hpp t.1 ht.1) hgood.1,
+        sideGood_congr O false t.2 v a (hpp t.2 ht.2) hgood.2⟩
+    · exact hω
+  have hside : ∀ D ⊆ P, (∀ p ∈ D, p * v ≠ p)
+      ∧ ∀ p ∈ D, ∀ p' ∈ D, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v} := by
+    intro D hD
+    refine ⟨fun p hp heq => hv1 ?_, fun p hp p' hp' hne => ?_⟩
+    · exact (hinj p (hD hp) p (hD hp) v hvmem 1 h1mem (by rw [mul_one]; exact heq)).2
+    · rw [Finset.disjoint_left]
+      intro w hw hw'
+      simp only [Finset.mem_insert, Finset.mem_singleton] at hw hw'
+      rcases hw with rfl | rfl <;> rcases hw' with h | h
+      · exact hne h
+      · exact hne (hinj _ (hD hp) p' (hD hp') 1 h1mem v hvmem (by rw [mul_one]; exact h)).1
+      · exact hne (hinj p (hD hp) p' (hD hp') v hvmem 1 h1mem (by rw [mul_one]; exact h)).1
+      · exact hne (hinj p (hD hp) p' (hD hp') v hvmem v hvmem h).1
+  have hbad : ∀ t ∈ T, μ.real (Bad t) ≤ 6 * a := by
+    rintro ⟨A₀, R₀⟩ ht
+    obtain ⟨hA, hR⟩ := Finset.mem_product.1 ht
+    have hAP := Finset.mem_powerset.1 hA
+    have hRP := Finset.mem_powerset.1 hR
+    have hs1 := side_tails (μ := μ) O true A₀ (hside A₀ hAP).1 (hside A₀ hAP).2 ha0 ha1
+    have hs2 := side_tails (μ := μ) O false R₀ (hside R₀ hRP).1 (hside R₀ hRP).2 ha0 ha1
+    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ sideGood O true A₀ v a ω}
+        ∪ {ω | ¬ sideGood O false R₀ v a ω} := by
+      intro ω hω
+      simp only [hBaddef, if_pos (And.intro hAP hRP), Set.mem_setOf_eq] at hω
+      by_contra hc
+      simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hc
+      exact hω hc
+    exact le_trans (measureReal_mono hsub (measure_ne_top _ _))
+      (le_trans (measureReal_union_le _ _) (by linarith))
+  have hmain := selection_congr_bound O C Q hdisj T (∅, ∅)
+    (Finset.mem_product.2 ⟨Finset.empty_mem_powerset P, Finset.empty_mem_powerset P⟩)
+    sel hsel hcongr Bad hBadcongr (6 * a) (by positivity) hbad
+  refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) hmain
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  have hselP : (sel ω).1 ⊆ P ∧ (sel ω).2 ⊆ P := ⟨Finset.filter_subset _ _, Finset.filter_subset _ _⟩
+  simp only [hBaddef, if_pos hselP, Set.mem_setOf_eq]
+  exact hω
+
 /-! ### At one state, over the run -/
 
 open scoped Classical in
@@ -702,6 +870,199 @@ lemma refApart_congr (O : Oracle μ S) (A R : Finset S) {ω ω' : Ω}
   · exact Finset.inf'_congr hne rfl (fun v hv => congrArg Finset.card
       (Finset.filter_congr (fun p hp => by rw [h p hp, hR p hp v hv])))
   · rfl
+
+lemma sideGood_congr_mq (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ)
+    {ω ω' : Ω}
+    (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) ∧ (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
+    sideGood O accept A v a ω → sideGood O accept A v a ω' := by
+  classical
+  have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
+    unfold againstOn
+    exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1]))
+  have hb : (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
+      = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
+    congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1, (h p hp).2]))
+  unfold sideGood
+  rw [ha, hb]
+  exact id
+
+open scoped Classical in
+/-- The sides of a sample `A` read against the family `F`, decided by the reads of `A` and
+`A · C`, for `F` and `v` in the pool `C`. -/
+lemma sidesGood_congr_mq (O : Oracle μ S) (lo hi : ℕ) (F A C : Finset S) (hone : (1 : S) ∈ C)
+    (hF : F ⊆ C) {v : S} (hv : v ∈ C) (a : ℝ) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    sidesGood O lo hi F A v a ω → sidesGood O lo hi F A v a ω' := by
+  classical
+  have hAC : ∀ p ∈ A, ∀ u ∈ C, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) := fun p hp u hu =>
+    h _ (mem_readSet hp hu)
+  have hA : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by simpa using hAC p hp 1 hone
+  have hvc : ∀ p ∈ A, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+    voteCount_congr O F p (fun u hu => hAC p hp u (hF hu))
+  have hacc : acceptSide O.mq hi F A ω = acceptSide O.mq hi F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  have hrej : rejectSide O.mq lo F A ω = rejectSide O.mq lo F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  rintro ⟨h1, h2⟩
+  refine ⟨?_, ?_⟩
+  · rw [← hacc]
+    exact sideGood_congr_mq O true _ v a (fun p hp =>
+      ⟨hA p (Finset.mem_filter.1 hp).1, hAC p (Finset.mem_filter.1 hp).1 v hv⟩) h1
+  · rw [← hrej]
+    exact sideGood_congr_mq O false _ v a (fun p hp =>
+      ⟨hA p (Finset.mem_filter.1 hp).1, hAC p (Finset.mem_filter.1 hp).1 v hv⟩) h2
+
+open scoped Classical in
+/-- At a look of `m` certification draws of population `j`: the references hold an
+accept-preserving suffix, and for none of them are both of the sample's sides good. -/
+noncomputable def sidesBad (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (j : J) (B : State) (m : ℕ) (a : ℝ) : Set (Run Ω S J) :=
+  {x | (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
+    ∧ ∀ v ∈ refsBy rule O.mq populations x B, (∀ p, O.label (p * v) = O.label p) →
+      ¬ sidesGood O B.lo B.hi (clusterBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) j m x) v a (oracleNoise x)}
+
+open scoped Classical in
+noncomputable def sidesBadOf (rule : Clusterer S) (O : Oracle μ S) (B : State) (a : ℝ)
+    (P C A : Finset S) (ω : Ω) : Prop :=
+  (∃ v ∈ C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω), ∀ p, O.label (p * v) = O.label p)
+    ∧ ∀ v ∈ C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω),
+      (∀ p, O.label (p * v) = O.label p) →
+      ¬ sidesGood O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) A v a ω
+
+open scoped Classical in
+lemma sidesBadOf_congr (O : Oracle μ S) (B : State) (a : ℝ) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet P C ∪ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    sidesBadOf rule O B a P C A ω → sidesBadOf rule O B a P C A ω' := by
+  have hfam : clusterOf rule O B.sc B.scd P C B.k ω = clusterOf rule O B.sc B.scd P C B.k ω' :=
+    clusterOf_congr_mq O B.sc B.scd P C B.k hone (fun w hw => h w (Finset.mem_union_left _ hw))
+  have hsub : clusterOf rule O B.sc B.scd P C B.k ω' ⊆ C :=
+    clusterOf_subset O B.sc B.scd P C B.k ω' hone
+  unfold sidesBadOf
+  rw [hfam]
+  rintro ⟨hex, hall⟩
+  refine ⟨hex, fun v hv hap hgood => hall v hv hap ?_⟩
+  exact sidesGood_congr_mq O B.lo B.hi _ A C hone hsub (Finset.mem_sdiff.1 hv).1 a
+    (fun w hw => (h w (Finset.mem_union_right _ hw)).symm) hgood
+
+open scoped Classical in
+lemma measurableSet_sidesBad (O : Oracle μ S) (populations : Finset J) (j : J) (B : State)
+    (m : ℕ) (a : ℝ) : MeasurableSet (sidesBad rule O populations j B m a) := by
+  classical
+  have hR : ∀ P C A : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      oracleNoise ⁻¹' {ω | sidesBadOf rule O B a P C A ω} else (∅ : Set (Run Ω S J))) := by
+    intro P C A
+    split_ifs with hone
+    · exact measurable_nz (measurableSet_of_readCongr O _ _
+        (fun ω ω' h => sidesBadOf_congr O B a P C A hone h))
+    · exact MeasurableSet.empty
+  have hrw : sidesBad rule O populations j B m a
+      = {x : Run Ω S J | x ∈ (fun P C A => if (1 : S) ∈ C then
+          oracleNoise ⁻¹' {ω | sidesBadOf rule O B a P C A ω} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (certOf (prefixesAt populations B.npref x) j m x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage]
+    rfl
+  rw [hrw]
+  exact measurableSet_of_run_data_certAt populations j B m _ hR
+
+open scoped Classical in
+/-- `sidesGood_whp` over the run.  With the draws fixed the family is chosen by the table's
+bits, and the sides read only the sample's strings, which the table never reads. -/
+theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (runMeasure μ D Dsf).real (sidesBad rule O populations j B m a) ≤ 6 * a := by
+  classical
+  have hEnn : runMeasure μ D Dsf (sidesBad rule O populations j B m a)
+      ≤ ENNReal.ofReal (6 * a) := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_sidesBad O populations j B m a) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+      with d hdP hdC hdS
+    set Pd : Finset S := populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
+    set Cd : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff) with hCd
+    set Ad : Finset S := freshDraws Pd (fun i => d.2 j i) m with hAd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
+    have hP : ∀ q ∈ Pd, q ∈ Pre := table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hdP
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, rfl⟩ := mem_freshDraws hp
+      exact hdC j hj i
+    have hone : (1 : S) ∈ Cd := Finset.mem_insert_self _ _
+    have hdisjPA : Disjoint Ad Pd := disjoint_freshDraws _ _ _
+    have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ sidesBad rule O populations j B m a}
+        = {ω | sidesBadOf rule O B a Pd Cd Ad ω} := rfl
+    rw [hsec]
+    set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
+    set Bad : Finset S → Set Ω := fun F =>
+      if hF : F ⊆ Cd ∧ (1 : S) ∉ F ∧ ∃ v ∈ Cd \ insert 1 F, ∀ p, O.label (p * v) = O.label p then
+        {ω | ¬ sidesGood O B.lo B.hi F Ad hF.2.2.choose a ω}
+      else ∅ with hBaddef
+    have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
+      rw [Finset.disjoint_coe, Finset.disjoint_left]
+      intro w hw hw'
+      obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hw'
+      obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+      obtain ⟨hq', hv'⟩ := Finset.mem_product.1 hqv
+      have := hflat q (hP q hq') p (hA p hp) v' (hV v' hv') v (hV v hv) hq
+      exact Finset.disjoint_left.1 hdisjPA hp (this ▸ hq')
+    have hmain := selection_congr_bound O (readSet Ad Cd) (readSet Pd Cd) hdisj Cd.powerset ∅
+      (Finset.empty_mem_powerset _) sel
+      (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone))
+      (fun ω ω' h => clusterOf_congr_mq O B.sc B.scd Pd Cd B.k hone
+        (fun w hw => by rw [mq_congr O (h w hw)]))
+      Bad (fun F ω ω' h hω => by
+        simp only [hBaddef] at hω ⊢
+        split_ifs at hω ⊢ with hF
+        · intro hgood
+          exact hω (sidesGood_congr_mq O B.lo B.hi F Ad Cd hone hF.1
+            (Finset.mem_sdiff.1 hF.2.2.choose_spec.1).1 a
+            (fun w hw => by rw [mq_congr O (h w hw)]) hgood)
+        · exact hω)
+      (6 * a) (by positivity) (fun F _ => by
+        simp only [hBaddef]
+        split_ifs with hF
+        · obtain ⟨hvR, hap⟩ := hF.2.2.choose_spec
+          set v := hF.2.2.choose
+          have hvC := (Finset.mem_sdiff.1 hvR).1
+          have hvF : v ∉ insert 1 F := (Finset.mem_sdiff.1 hvR).2
+          refine sidesGood_whp O Ad F B.lo B.hi ?_ (fun h => hvF (Finset.mem_insert_of_mem h))
+            hF.2.1 (fun h => hvF (h ▸ Finset.mem_insert_self _ _)) ha0 ha1
+          intro p hp p' hp' u hu u' hu' heq
+          have hmem : ∀ u ∈ insert 1 (insert v F), u ∈ insert 1 Suf := by
+            intro u hu
+            rcases Finset.mem_insert.1 hu with rfl | hu
+            · exact Set.mem_insert _ _
+            · rcases Finset.mem_insert.1 hu with rfl | hu
+              · exact hV _ hvC
+              · exact hV u (hF.1 hu)
+          have hpp := hflat p (hA p hp) p' (hA p' hp') u (hmem u hu) u' (hmem u' hu') heq
+          subst hpp
+          exact ⟨rfl, mul_left_cancel heq⟩
+        · rw [measureReal_empty]; positivity)
+    have hsub : {ω | sidesBadOf rule O B a Pd Cd Ad ω} ⊆ {ω | ω ∈ Bad (sel ω)} := by
+      rintro ω ⟨hex, hall⟩
+      change ω ∈ Bad (sel ω)
+      have hF : sel ω ⊆ Cd ∧ (1 : S) ∉ sel ω
+          ∧ ∃ v ∈ Cd \ insert 1 (sel ω), ∀ p, O.label (p * v) = O.label p :=
+        ⟨clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone, Finset.notMem_erase _ _, hex⟩
+      simp only [hBaddef, dif_pos hF]
+      exact hall _ hF.2.2.choose_spec.1 hF.2.2.choose_spec.2
+    calc μ {ω | sidesBadOf rule O B a Pd Cd Ad ω} ≤ μ {ω | ω ∈ Bad (sel ω)} := measure_mono hsub
+      _ = ENNReal.ofReal (μ.real {ω | ω ∈ Bad (sel ω)}) :=
+          (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
+      _ ≤ ENNReal.ofReal (6 * a) := ENNReal.ofReal_le_ofReal hmain
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (sidesBad rule O populations j B m a)).toReal
+      ≤ (ENNReal.ofReal (6 * a)).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = 6 * a := ENNReal.toReal_ofReal (by positivity)
 
 /-! ### Spending a level over sample sizes -/
 
