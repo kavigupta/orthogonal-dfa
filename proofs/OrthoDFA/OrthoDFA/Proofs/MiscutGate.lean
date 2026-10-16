@@ -849,11 +849,6 @@ lemma measurableSet_of_run_data_certAt (populations : Finset J) (j : J) (B : Sta
       (measurableSet_poolAt B.nsuff z.2.1)).inter
       (measurableSet_certOf populations B.npref j m z.2.2)).inter (hR _ _ _))
 
-/-- The pool's suffixes outside the family: the gate's references. -/
-noncomputable def refsBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
-    (x : Run Ω S J) (B : State) : Finset S :=
-  poolAt B.nsuff x \ insert 1 (clusterBy rule mq populations x B)
-
 lemma cutCorrect_congr (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) {ω ω' : Ω}
     (h : ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
     (cutCorrect O lo hi F p ω ↔ cutCorrect O lo hi F p ω') := by
