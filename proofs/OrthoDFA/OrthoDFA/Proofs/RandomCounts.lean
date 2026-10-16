@@ -1,4 +1,4 @@
-import OrthoDFA.Level3Claim
+import OrthoDFA.Proofs.RandomRisk
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.SeqTest
 
@@ -215,25 +215,77 @@ theorem likelihoodRatio_anti {p₀ p₁ : ℝ} (hp₀ : 0 < p₀) (hp₁ : 0 ≤
       positivity
     nlinarith
 
-theorem stretchRisk_nonneg (C : Level3Settings) (nσ nα Ns N₁ : ℕ) (θr εd' θpt' : ℝ)
-    (ha : 0 ≤ C.testLevel) (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
-    (hθpt'0 : 0 ≤ θpt') (hθpt'1 : θpt' ≤ 1) :
-    0 ≤ stretchRisk C nσ nα Ns N₁ θr εd' θpt' := by
-  classical
-  unfold stretchRisk
-  have h01 : ∀ (j : ℕ) (P : Prop) [Decidable P], (0 : ℝ) ≤ if P then 0 else 1 := fun _ P _ => by
-    split_ifs <;> norm_num
-  have := binomSfGe_le_one hθr0 hθr1 Ns 1
-  have := binomSfGe_le_one hεd'0 hεd'1 Ns ⌈C.searchShare * Ns⌉₊
-  have := binE_nonneg hεd'0 hεd'1 (n := N₁)
-    (f := fun s => if seqRate C.disagreementRate C.disagreementAlternative C.testLevel N₁ s then 0
-      else 1) fun j => h01 j _
-  have : 0 ≤ ∑ s ∈ Icc ⌈C.searchShare * Ns⌉₊ Ns,
-      binE s θpt' (fun j => if seqRate C.middleRate C.middleAlternative C.testLevel s j then 0
-        else 1) :=
-    sum_nonneg fun s _ => binE_nonneg hθpt'0 hθpt'1 fun j => h01 j _
-  have : (0 : ℝ) ≤ ((nσ + 2) * nα : ℕ) * Real.exp (-5 * C.edgeExcess / 4) := by positivity
-  linarith
+/-! ## Closed-form tails -/
+
+section Tails
+
+theorem binE_pow (n : ℕ) (p u v : ℝ) :
+    binE n p (fun i => u ^ i * v ^ (n - i)) = (p * u + (1 - p) * v) ^ n := by
+  rw [add_pow]
+  unfold binE
+  refine sum_congr rfl fun i _ => ?_
+  rw [mul_pow, mul_pow]
+  ring
+
+theorem binE_mul_left (n : ℕ) (p c : ℝ) (f : ℕ → ℝ) :
+    binE n p (fun i => c * f i) = c * binE n p f := by
+  have := binE_lin n p c 0 f f
+  simp only [zero_mul, add_zero] at this
+  exact this
+
+/-- `P(Bin(n, q) = 0)`. -/
+theorem binE_lt_one (n : ℕ) (q : ℝ) :
+    binE n q (fun i => if i < 1 then 1 else 0) = (1 - q) ^ n := by
+  have := binE_pow n q 0 1
+  simp only [mul_zero, zero_add, mul_one, one_pow] at this
+  rw [← this]
+  exact binE_congr fun i _ => by rcases i with _ | i <;> simp
+
+/-- `P(Bin(n, q) < k) ≤ 2^(k − 1) (1 − q/2)^n`. -/
+theorem binE_lt_le {q : ℝ} (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (n k : ℕ) :
+    binE n q (fun i => if i < k then 1 else 0) ≤ 2 ^ (k - 1) * (1 - q / 2) ^ n := by
+  have e := binE_pow n q (1 / 2) 1
+  simp only [one_pow, mul_one] at e
+  rw [show q * (1 / 2) + (1 - q) = 1 - q / 2 by ring] at e
+  rw [← e, ← binE_mul_left]
+  refine binE_mono hq0 hq1 fun i => ?_
+  split_ifs with hi
+  · rw [show (2 : ℝ) ^ (k - 1) = 2 ^ (k - 1 - i) * 2 ^ i by
+      rw [← pow_add]; congr 1; omega]
+    rw [mul_assoc, ← mul_pow, show (2 : ℝ) * (1 / 2) = 1 by norm_num, one_pow, mul_one]
+    exact one_le_pow₀ (by norm_num)
+  · positivity
+
+open scoped Classical in
+/-- The sequential test of `p₀` against `p₁` at level `a` is silent after `n` draws at rate `q`
+with chance at most `(q p₀/p₁ + (1 − q)(1 − p₀)/(1 − p₁))^n / a`. -/
+theorem binE_silent_le {p₀ p₁ a q : ℝ} (hp₀ : 0 < p₀) (hp₀1 : p₀ < 1) (hp₁ : 0 < p₁)
+    (hp₁1 : p₁ < 1) (ha : 0 < a) (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (n : ℕ) :
+    binE n q (fun h => if seqRate p₀ p₁ a n h then 0 else 1)
+      ≤ (q * (p₀ / p₁) + (1 - q) * ((1 - p₀) / (1 - p₁))) ^ n / a := by
+  have h1p₀ : 0 < 1 - p₀ := by linarith
+  have h1p₁ : 0 < 1 - p₁ := by linarith
+  rw [← binE_pow, div_eq_mul_inv, mul_comm, ← binE_mul_left]
+  refine binE_mono_le hq0 hq1 fun h hh => ?_
+  have hR : 0 < (p₀ / p₁) ^ h * ((1 - p₀) / (1 - p₁)) ^ (n - h) := by positivity
+  split_ifs with hs
+  · positivity
+  · unfold seqRate likelihoodRatio at hs
+    push Not at hs
+    have hprod : (p₁ / p₀) ^ h * ((1 - p₁) / (1 - p₀)) ^ (n - h)
+        * ((p₀ / p₁) ^ h * ((1 - p₀) / (1 - p₁)) ^ (n - h)) = 1 := by
+      have e1 : p₁ / p₀ * (p₀ / p₁) = 1 := by field_simp
+      have e2 : (1 - p₁) / (1 - p₀) * ((1 - p₀) / (1 - p₁)) = 1 := by field_simp
+      rw [mul_mul_mul_comm, ← mul_pow, ← mul_pow, e1, e2, one_pow, one_pow, one_mul]
+    rw [inv_mul_eq_div, le_div_iff₀ ha, one_mul]
+    rw [one_div] at hs
+    have := mul_lt_mul_of_pos_right hs hR
+    rw [hprod] at this
+    rw [← div_eq_inv_mul] at this
+    rw [div_eq_mul_inv, mul_comm] at this
+    nlinarith [mul_inv_cancel₀ ha.ne']
+
+end Tails
 
 /-! ## Counts over fresh draws -/
 

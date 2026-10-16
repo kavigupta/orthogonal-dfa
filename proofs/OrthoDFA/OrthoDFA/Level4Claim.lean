@@ -1,4 +1,4 @@
-import OrthoDFA.Level3Claim
+import OrthoDFA.Proofs.RandomRisk
 
 /-!
 # `EpsRoundCorrect`: level 3 with rare wrong reads ends well but for a small chance

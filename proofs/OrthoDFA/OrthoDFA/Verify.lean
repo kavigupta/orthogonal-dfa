@@ -5,7 +5,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
-import OrthoDFA.Proofs.RandomRound
+import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest

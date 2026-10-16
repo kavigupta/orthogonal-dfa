@@ -1,4 +1,4 @@
-import OrthoDFA.Level3Claim
+import OrthoDFA.Proofs.RandomRisk
 import OrthoDFA.Proofs.Level2Steps
 import OrthoDFA.Proofs.TripartiteSearch
 
@@ -463,7 +463,7 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
         ∧ s.edges (p, c) = none ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         p ∈ s.tree.leaves ∧
-        s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))))
+        s' = newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u))) (s.hypotheses + 1))
     ∨ (∃ p c u t t₀ w₀, probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t ∧
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
@@ -488,7 +488,8 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
 /-- A step that keeps the hypothesis counts one more probe. -/
 theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inl s') (ht : s'.tree = s.tree) (he : s'.edges = s.edges) :
-    Inv read s' ∧ (∀ nσ, Ψr nσ s' = Ψr nσ s) ∧ s'.probeCount = s.probeCount + 1 := by
+    Inv read s' ∧ (∀ nσ, Ψr nσ s' = Ψr nσ s) ∧ s'.probeCount = s.probeCount + 1
+      ∧ s'.hypotheses = s.hypotheses := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, rfl⟩ |
     ⟨rfl, -, -⟩
@@ -501,7 +502,7 @@ theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     simp only [splitLeaf, newHypothesis] at this
     rw [DTree.length_leaves_splitAt _ _ _ hp] at this
     omega
-  · exact ⟨⟨hs.edges, hs.cls, hs.two⟩, fun _ => rfl, rfl⟩
+  · exact ⟨⟨hs.edges, hs.cls, hs.two⟩, fun _ => rfl, rfl, rfl⟩
 
 /-- The tree has a true leaf for each leaf past the first, and every learned edge a clean witness
 and successor. -/
@@ -699,14 +700,14 @@ stretch, keeps the invariants and lowers `Ψr`. -/
 theorem step_change {s s' : Level3State α} (hs : Inv read s) (hg : GInv read M side s)
     {x : FreeMonoid α} (hx : x ∉ PotWrong M side C.walkStart (Fintype.card σ) read)
     (h : applyProbe read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
-    Inv read s' ∧ GInv read M side s' ∧ s' = newHypothesis s'.tree s'.edges
-      ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s := by
+    Inv read s' ∧ GInv read M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
+      ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, ho, hE, hu, huc, hp, rfl⟩ |
     ⟨p, c, u, t, t₀, w₀, ho, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -⟩
   · obtain ⟨hcu, hcuc⟩ := clean_of_probe read M side hx (Or.inr ho)
     refine ⟨⟨edgesOK_upd read hs.edges hu huc, hs.cls, hs.two⟩,
-      ⟨hg.leaves, fun p' c' t' w h => ?_⟩, rfl,
+      ⟨hg.leaves, fun p' c' t' w h => ?_⟩, rfl, rfl,
       Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
     simp only [newHypothesis] at h
     by_cases hpc : (p', c') = (p, c)
@@ -719,7 +720,7 @@ theorem step_change {s s' : Level3State α} (hs : Inv read s) (hg : GInv read M 
       exact hg.clean p' c' t' w h
   · obtain ⟨hcu, hcuc⟩ := clean_of_probe read M side hx (Or.inl ho)
     obtain ⟨hinv, hg', hΨ⟩ := split_ok read M side hs hg hp hu huc hcu hcuc hE htt
-    exact ⟨hinv, hg', rfl, hΨ⟩
+    exact ⟨hinv, hg', rfl, rfl, hΨ⟩
   · exact absurd ⟨rfl, rfl⟩ hne
 
 omit [Fintype σ] in
