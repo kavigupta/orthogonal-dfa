@@ -2042,4 +2042,356 @@ theorem rateBound_le_add (n k ag ap : ℕ) (hk : k ≤ n) (hag : ag ≤ n) {x y 
   have e : (x + G / 4) * (1 - cap) = (x + G / 4) - (x + G / 4) * cap := by ring
   linarith only [hm, hprod, hκG, hε1, hδ1, e, hG]
 
+omit [IsProbabilityMeasure μ] in
+lemma rightRate_add_wrongRate (O : Oracle μ S) (accept : Bool) :
+    rightRate O accept + wrongRate O accept = O.ηIn + O.ηOut := by
+  cases accept <;> simp [rightRate, wrongRate, add_comm]
+
+open scoped Classical in
+/-- A live side's counts, read against its `n − k` right prefixes and `k` wrong ones. -/
+lemma live_counts (O : Oracle μ S) (hη : O.η ≤ 1 / 2) (accept : Bool) (A R : Finset S)
+    (hR : R.Nonempty) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu : ℝ} {ω : Ω}
+    (h : sideLive O accept A R t tu ω) :
+    ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
+          * rightRate O accept
+        + (A.filter (fun p => O.label p ≠ sideClass accept)).card * (1 - wrongRate O accept) - t
+      ≤ againstOn O.mq accept A ω
+    ∧ (againstOn O.mq accept A ω : ℝ)
+      ≤ ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
+          * rightRate O accept
+        + (A.filter (fun p => O.label p ≠ sideClass accept)).card * (1 - wrongRate O accept) + t
+    ∧ 2 * (((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
+            * (rightRate O accept * (1 - rightRate O accept))
+          + (A.filter (fun p => O.label p ≠ sideClass accept)).card
+            * (wrongRate O accept * (1 - wrongRate O accept))) - tu
+      ≤ refApart O.mq A R ω := by
+  classical
+  set c := sideClass accept with hc
+  set x := rightRate O accept with hx
+  set y := wrongRate O accept with hy
+  have hcnt : ((A.filter (fun p => O.label p = c)).card : ℝ)
+      = (A.card : ℝ) - (A.filter (fun p => ¬ O.label p = c)).card := by
+    have := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = c)
+    have : ((A.filter (fun p => O.label p = c)).card : ℝ)
+        + ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) = A.card := by exact_mod_cast this
+    linarith
+  have h1 : ∀ p ∈ A, μ[againstVar O c p] = if O.label p = c then x else 1 - y := by
+    intro p _
+    rw [againstVar_mean O (sideClass_bit accept) p, rate_of_label O accept p]
+    split_ifs <;> rfl
+  have hEa : ∑ p ∈ A, μ[againstVar O c p]
+      = ((A.card : ℝ) - (A.filter (fun p => ¬ O.label p = c)).card) * x
+        + (A.filter (fun p => ¬ O.label p = c)).card * (1 - y) := by
+    rw [Finset.sum_congr rfl h1, Finset.sum_ite, Finset.sum_const, Finset.sum_const,
+      nsmul_eq_mul, nsmul_eq_mul, hcnt]
+  obtain ⟨hag, hap⟩ := h
+  simp only [ne_eq]
+  rw [hEa] at hag
+  obtain ⟨hagl, hagh⟩ := abs_le.1 hag
+  refine ⟨by linarith, by linarith, ?_⟩
+  obtain ⟨v, hv, hveq⟩ := Finset.exists_mem_eq_inf' hR
+    (fun v => (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card)
+  have href : refApart O.mq A R ω
+      = (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card := by
+    unfold refApart; rw [dif_pos hR]; exact hveq
+  rw [href]
+  refine le_trans ?_ (hap v hv)
+  have h2 : ∀ p ∈ A, (if O.label p = c then 2 * (x * (1 - x)) else 2 * (y * (1 - y)))
+      ≤ μ[apartVar O v p] := by
+    intro p hp
+    have := apartVar_mean_ge O hη (hne v hv p hp)
+    rw [rate_of_label O accept p] at this
+    split_ifs at this ⊢ <;> linarith
+  have hsum := Finset.sum_le_sum h2
+  rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul, hcnt]
+    at hsum
+  linarith
+
+open scoped Classical in
+/-- A live side's cap the other way, once its wrong class's rate is known to within a quarter of
+the gap. -/
+theorem mul_sideCap_le (O : Oracle μ S) (hη : O.η < 1 / 2) (hIn : 0 ≤ O.ηIn) (hOut : 0 ≤ O.ηOut)
+    (accept : Bool) (A R : Finset S) (hR : R.Nonempty) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p)
+    {t tu a yb : ℝ} {ω : Ω} (ht : 0 ≤ t) (htu : 0 ≤ tu) (h : sideLive O accept A R t tu ω)
+    (hyb : yb ≤ wrongRate O accept + (1 - O.ηIn - O.ηOut) / 4) :
+    A.card * sideCap O.mq accept A R a yb ω
+      ≤ 13 * (A.filter (fun p => O.label p ≠ sideClass accept)).card
+        + 11 * (t + hoeffDev A.card a + tu) / (1 - O.ηIn - O.ηOut) ^ 2 := by
+  classical
+  obtain ⟨hlo, hhi, hb⟩ := live_counts O hη.le accept A R hR hne h
+  have hsum := rightRate_add_wrongRate O accept
+  have hG : 1 - rightRate O accept - wrongRate O accept = 1 - O.ηIn - O.ηOut := by linarith
+  have hIη : O.ηIn ≤ O.η := le_max_left _ _
+  have hOη : O.ηOut ≤ O.η := le_max_right _ _
+  have hx0 : 0 ≤ rightRate O accept := by unfold rightRate; split_ifs <;> assumption
+  have hy0 : 0 ≤ wrongRate O accept := by unfold wrongRate; split_ifs <;> assumption
+  have h := mul_wrongCap_le A.card (A.filter (fun p => O.label p ≠ sideClass accept)).card
+    (againstOn O.mq accept A ω) (refApart O.mq A R ω)
+    (Finset.card_le_card (Finset.filter_subset _ _))
+    (Finset.card_le_card (Finset.filter_subset _ _)) (d := hoeffDev A.card a) (yb := yb)
+    (Real.sqrt_nonneg _) ht htu hx0 hy0 (by rw [hG]; linarith) (by rw [hG]; exact hyb)
+    hlo hhi hb
+  rw [hG] at h
+  exact h
+
+open scoped Classical in
+/-- A live side wrong on at most `G/80` of its prefixes, `G` the gap, whose deviations are small
+against `G³`, bounds its right class's rate to within `G/4`. -/
+theorem sideRate_le_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hIn : 0 ≤ O.ηIn) (hOut : 0 ≤ O.ηOut) (accept : Bool) (A R : Finset S) (hR : R.Nonempty)
+    (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu a : ℝ} {ω : Ω} (ht : 0 ≤ t) (htu : 0 ≤ tu)
+    (h : sideLive O accept A R t tu ω)
+    (hκ : 80 * ((A.filter (fun p => O.label p ≠ sideClass accept)).card : ℝ)
+      ≤ A.card * (1 - O.ηIn - O.ηOut))
+    (hdev : 800 * (t + hoeffDev A.card a + tu) ≤ A.card * (1 - O.ηIn - O.ηOut) ^ 3)
+    (hpos : 0 < A.card) :
+    sideRate O.mq η₀ accept A R a ω ≤ rightRate O accept + (1 - O.ηIn - O.ηOut) / 4 := by
+  classical
+  obtain ⟨hlo, hhi, hb⟩ := live_counts O (by linarith) accept A R hR hne h
+  have hsum := rightRate_add_wrongRate O accept
+  have hG : 1 - rightRate O accept - wrongRate O accept = 1 - O.ηIn - O.ηOut := by linarith
+  have hIη : O.ηIn ≤ O.η := le_max_left _ _
+  have hOη : O.ηOut ≤ O.η := le_max_right _ _
+  have hx0 : 0 ≤ rightRate O accept := by unfold rightRate; split_ifs <;> assumption
+  have hy0 : 0 ≤ wrongRate O accept := by unfold wrongRate; split_ifs <;> assumption
+  have hxη : rightRate O accept ≤ η₀ := by unfold rightRate; split_ifs <;> linarith
+  have hyη : wrongRate O accept ≤ η₀ := by unfold wrongRate; split_ifs <;> linarith
+  have h := rateBound_le_add A.card (A.filter (fun p => O.label p ≠ sideClass accept)).card
+    (againstOn O.mq accept A ω) (refApart O.mq A R ω)
+    (Finset.card_le_card (Finset.filter_subset _ _))
+    (Finset.card_le_card (Finset.filter_subset _ _)) (d := hoeffDev A.card a)
+    (Real.sqrt_nonneg _) ht htu hx0 hy0 hxη hyη hη₀ hlo hhi hb (by rw [hG]; exact hκ)
+    (by rw [hG]; exact hdev) hpos
+  rw [hG] at h
+  unfold sideRate sideCap
+  exact h
+
+omit [IsProbabilityMeasure μ] in
+open scoped Classical in
+/-- With the band in order the two sides' wrong prefixes are distinct prefixes the cut gets
+wrong. -/
+lemma sides_wrong_le_miscut (O : Oracle μ S) (lo hi : ℕ) (hlohi : lo ≤ hi) (F P : Finset S)
+    (ω : Ω) :
+    ((((acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)).card
+        + ((rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)).card : ℕ)
+          : ℝ)
+      ≤ ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) := by
+  classical
+  have hdisj : Disjoint ((acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true))
+      ((rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)) := by
+    rw [Finset.disjoint_left]
+    intro p hp hp'
+    have h1 := (Finset.mem_filter.1 (Finset.mem_filter.1 hp).1).2
+    have h2 := (Finset.mem_filter.1 (Finset.mem_filter.1 hp').1).2
+    omega
+  have hsub : (acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)
+      ∪ (rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)
+      ⊆ P.filter (fun p => ¬ cutCorrect O lo hi F p ω) := by
+    intro p hp
+    rcases Finset.mem_union.1 hp with hp | hp
+    · obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 hp
+      obtain ⟨hpP, hv⟩ := Finset.mem_filter.1 hpA
+      exact Finset.mem_filter.2 ⟨hpP, fun hc => hl (by simpa [sideClass] using hc.1 hv)⟩
+    · obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 hp
+      obtain ⟨hpP, hv⟩ := Finset.mem_filter.1 hpA
+      exact Finset.mem_filter.2 ⟨hpP, fun hc => hl (by simpa [sideClass] using hc.2 hv)⟩
+  have := Finset.card_le_card hsub
+  rw [Finset.card_union_of_disjoint hdisj] at this
+  exact_mod_cast this
+
+omit [IsProbabilityMeasure μ] in
+open scoped Classical in
+/-- A class's prefixes the accept side misses are miscut or undecided. -/
+lemma class_le_acceptSide (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
+    ((P.filter (fun p => O.label p = 1)).card : ℝ)
+      ≤ (acceptSide O.mq hi F P ω).card + (P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card
+        + (P.filter (fun p => ¬ decided O.mq lo hi F p ω)).card := by
+  classical
+  have hsub : P.filter (fun p => O.label p = 1) ⊆ (acceptSide O.mq hi F P ω
+      ∪ P.filter (fun p => ¬ cutCorrect O lo hi F p ω))
+      ∪ P.filter (fun p => ¬ decided O.mq lo hi F p ω) := by
+    intro p hp
+    obtain ⟨hpP, hl⟩ := Finset.mem_filter.1 hp
+    by_cases h1 : hi < voteCount O.mq F p ω
+    · exact Finset.mem_union_left _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpP, h1⟩))
+    · by_cases h2 : voteCount O.mq F p ω ≤ lo
+      · refine Finset.mem_union_left _ (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpP, ?_⟩))
+        intro hc
+        have := hc.2 h2
+        rw [hl] at this; norm_num at this
+      · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpP, fun hd => by
+          rcases hd with hd | hd <;> contradiction⟩)
+  have h := le_trans (Finset.card_le_card hsub)
+    (le_trans (Finset.card_union_le _ _) (Nat.add_le_add_right (Finset.card_union_le _ _) _))
+  exact_mod_cast h
+
+omit [IsProbabilityMeasure μ] in
+open scoped Classical in
+lemma class_le_rejectSide (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
+    ((P.filter (fun p => O.label p = 0)).card : ℝ)
+      ≤ (rejectSide O.mq lo F P ω).card + (P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card
+        + (P.filter (fun p => ¬ decided O.mq lo hi F p ω)).card := by
+  classical
+  have hsub : P.filter (fun p => O.label p = 0) ⊆ (rejectSide O.mq lo F P ω
+      ∪ P.filter (fun p => ¬ cutCorrect O lo hi F p ω))
+      ∪ P.filter (fun p => ¬ decided O.mq lo hi F p ω) := by
+    intro p hp
+    obtain ⟨hpP, hl⟩ := Finset.mem_filter.1 hp
+    by_cases h2 : voteCount O.mq F p ω ≤ lo
+    · exact Finset.mem_union_left _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpP, h2⟩))
+    · by_cases h1 : hi < voteCount O.mq F p ω
+      · refine Finset.mem_union_left _ (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpP, ?_⟩))
+        intro hc
+        have := hc.1 h1
+        rw [hl] at this; norm_num at this
+      · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpP, fun hd => by
+          rcases hd with hd | hd <;> contradiction⟩)
+  have h := le_trans (Finset.card_le_card hsub)
+    (le_trans (Finset.card_union_le _ _) (Nat.add_le_add_right (Finset.card_union_le _ _) _))
+  exact_mod_cast h
+
+open scoped Classical in
+set_option maxHeartbeats 2000000 in
+/-- A family whose cut is wrong on at most `2·lcut` of both samples, and undecided on at most that
+of the uniform pool's, is certified once both samples' sides are live: the uniform pool's sides
+pin the rates to within a quarter of the gap, and the sample's caps are then at most thirteen
+times its wrong count. -/
+theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hIn : 0 ≤ O.ηIn) (hOut : 0 ≤ O.ηOut) (lo hi : ℕ) (hlohi : lo ≤ hi) (F R C Cu : Finset S)
+    (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) (hneU : ∀ v ∈ R, ∀ p ∈ Cu, p * v ≠ p)
+    {n N : ℕ} (hn : 0 < n) (hC : C.card = n) (hCu : Cu.card = n) (hnN : n ≤ N)
+    {lim a lcut pBal t : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t) (hlcut : 0 ≤ lcut)
+    (hpBal : 0 < pBal) (hbal : 160 * lcut ≤ pBal * (1 / 2 - η₀)) {ω : Ω}
+    (hlive : sidesLive O lo hi F C R t t ω) (hliveU : sidesLive O lo hi F Cu R t t ω)
+    (hmis : ((C.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) ≤ 2 * lcut * n)
+    (hmisU : ((Cu.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) ≤ 2 * lcut * n)
+    (hundU : ((Cu.filter (fun p => ¬ decided O.mq lo hi F p ω)).card : ℝ) ≤ 2 * lcut * n)
+    (hinU : 3 / 4 * pBal * n ≤ ((Cu.filter (fun p => O.label p = 1)).card : ℝ))
+    (houtU : 3 / 4 * pBal * n ≤ ((Cu.filter (fun p => O.label p = 0)).card : ℝ))
+    (hdev : 5 * (2 * t + hoeffDev n (sizeLevel a n)) ≤ 4 * lcut * (1 / 2 - η₀) ^ 2 * n)
+    (hgate : 26 * lcut * n + 22 * (2 * t + hoeffDev n (sizeLevel a n)) / (4 * (1 / 2 - η₀) ^ 2)
+        + ((N : ℝ) - n) ≤ N * lim - hoeffDev N (sizeLevel a N)) :
+    certifiesAt O.mq lim a lo hi F R C N (calibrate O.mq η₀ (sizeLevel a n) lo hi F R Cu ω) ω := by
+  classical
+  set s : ℝ := 1 / 2 - η₀ with hsdef
+  set G : ℝ := 1 - O.ηIn - O.ηOut with hGdef
+  have hIη : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
+  have hOη : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
+  have hηlt : O.η < 1 / 2 := lt_of_le_of_lt hη hη₀
+  have hs : 0 < s := by rw [hsdef]; linarith
+  have hs2 : s ≤ 1 / 2 := by rw [hsdef]; linarith
+  have hG2s : 2 * s ≤ G := by rw [hGdef, hsdef]; linarith
+  have hG : 0 < G := by linarith
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  set b : ℝ := sizeLevel a n with hbdef
+  have hb0 : 0 < b := sizeLevel_pos ha0 n
+  have hb1 : b ≤ 1 := sizeLevel_le ha0.le ha1 n
+  set d : ℝ := hoeffDev n b with hddef
+  have hd0 : 0 ≤ d := Real.sqrt_nonneg _
+  have hdle : ∀ A : Finset S, A.card ≤ n → hoeffDev A.card b ≤ d := fun A hA =>
+    hoeffDev_mono hA hb0 hb1
+  have hlp : lcut ≤ pBal / 320 := by nlinarith
+  have hdev' : 800 * (2 * t + d) ≤ 640 * lcut * s ^ 2 * n := by linarith
+  -- the uniform pool's sides
+  set Au := acceptSide O.mq hi F Cu ω with hAu
+  set Ru := rejectSide O.mq lo F Cu ω with hRu
+  have hAuC : Au.card ≤ n := hCu ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  have hRuC : Ru.card ≤ n := hCu ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  have hwU := sides_wrong_le_miscut O lo hi hlohi F Cu ω
+  rw [← hAu, ← hRu] at hwU
+  push_cast at hwU
+  have hkAu0 : (0 : ℝ) ≤ ((Au.filter (fun p => O.label p ≠ sideClass false)).card : ℝ) :=
+    Nat.cast_nonneg _
+  have hAubig : pBal * n / 2 ≤ (Au.card : ℝ) := by
+    have := class_le_acceptSide O lo hi F Cu ω
+    rw [← hAu] at this
+    nlinarith
+  have hRubig : pBal * n / 2 ≤ (Ru.card : ℝ) := by
+    have := class_le_rejectSide O lo hi F Cu ω
+    rw [← hRu] at this
+    nlinarith
+  have hsideG : 160 * lcut * n ≤ pBal * n / 2 * G := by
+    have h1 := mul_le_mul_of_nonneg_right hbal hnR.le
+    have h2 := mul_le_mul_of_nonneg_left hG2s (by positivity : (0 : ℝ) ≤ pBal * n / 2)
+    nlinarith
+  have hsideG3 : 640 * lcut * s ^ 2 * n ≤ pBal * n / 2 * G ^ 3 := by
+    have h8 : 8 * s ^ 3 ≤ G ^ 3 := by
+      have := pow_le_pow_left₀ (by linarith : (0 : ℝ) ≤ 2 * s) hG2s 3
+      nlinarith
+    have hpn : 0 ≤ pBal * n / 2 := by positivity
+    have h1 : 160 * lcut * s ^ 2 * n ≤ pBal * s * s ^ 2 * n / 1 := by
+      have := mul_le_mul_of_nonneg_right hbal (by positivity : (0 : ℝ) ≤ s ^ 2 * n)
+      nlinarith
+    nlinarith [mul_le_mul_of_nonneg_left h8 hpn]
+  have hrateIn : (calibrate O.mq η₀ b lo hi F R Cu ω).1 ≤ O.ηIn + G / 4 := by
+    have h := sideRate_le_live O hη hη₀ hIn hOut true Au R hR
+      (fun v hv p hp => hneU v hv p (Finset.mem_filter.1 hp).1) ht ht hliveU.1 (a := b)
+      (by
+        have : ((Au.filter (fun p => O.label p ≠ sideClass true)).card : ℝ) ≤ 2 * lcut * n := by
+          linarith
+        nlinarith)
+      (by
+        have h1 := hdle Au hAuC
+        have : 800 * (t + hoeffDev Au.card b + t) ≤ 640 * lcut * s ^ 2 * n := by linarith
+        have hmono : pBal * n / 2 * G ^ 3 ≤ Au.card * G ^ 3 :=
+          mul_le_mul_of_nonneg_right hAubig (by positivity)
+        linarith)
+      (by
+        have : (0 : ℝ) < Au.card := lt_of_lt_of_le (by positivity) hAubig
+        exact_mod_cast this)
+    simpa [calibrate, rightRate] using h
+  have hrateOut : (calibrate O.mq η₀ b lo hi F R Cu ω).2 ≤ O.ηOut + G / 4 := by
+    have h := sideRate_le_live O hη hη₀ hIn hOut false Ru R hR
+      (fun v hv p hp => hneU v hv p (Finset.mem_filter.1 hp).1) ht ht hliveU.2 (a := b)
+      (by
+        have : ((Ru.filter (fun p => O.label p ≠ sideClass false)).card : ℝ) ≤ 2 * lcut * n := by
+          have : (0 : ℝ) ≤ ((Au.filter (fun p => O.label p ≠ sideClass true)).card : ℝ) :=
+            Nat.cast_nonneg _
+          linarith
+        nlinarith)
+      (by
+        have h1 := hdle Ru hRuC
+        have : 800 * (t + hoeffDev Ru.card b + t) ≤ 640 * lcut * s ^ 2 * n := by linarith
+        have hmono : pBal * n / 2 * G ^ 3 ≤ Ru.card * G ^ 3 :=
+          mul_le_mul_of_nonneg_right hRubig (by positivity)
+        linarith)
+      (by
+        have : (0 : ℝ) < Ru.card := lt_of_lt_of_le (by positivity) hRubig
+        exact_mod_cast this)
+    simpa [calibrate, rightRate] using h
+  -- the sample's sides
+  set A := acceptSide O.mq hi F C ω with hA
+  set Rs := rejectSide O.mq lo F C ω with hRs
+  have hAC : A.card ≤ n := hC ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  have hRC : Rs.card ≤ n := hC ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  have hw := sides_wrong_le_miscut O lo hi hlohi F C ω
+  rw [← hA, ← hRs] at hw
+  push_cast at hw
+  have hcapA := mul_sideCap_le O hηlt hIn hOut true A R hR
+    (fun v hv p hp => hneC v hv p (Finset.mem_filter.1 hp).1) ht ht hlive.1 (a := b)
+    (yb := (calibrate O.mq η₀ b lo hi F R Cu ω).2) (by simpa [wrongRate] using hrateOut)
+  have hcapR := mul_sideCap_le O hηlt hIn hOut false Rs R hR
+    (fun v hv p hp => hneC v hv p (Finset.mem_filter.1 hp).1) ht ht hlive.2 (a := b)
+    (yb := (calibrate O.mq η₀ b lo hi F R Cu ω).1) (by simpa [wrongRate] using hrateIn)
+  rw [← hGdef] at hcapA hcapR
+  have hdiv : ∀ A' : Finset S, A'.card ≤ n →
+      11 * (t + hoeffDev A'.card b + t) / G ^ 2 ≤ 11 * (2 * t + d) / (4 * s ^ 2) := by
+    intro A' hA'
+    have h1 := hdle A' hA'
+    have hG2 : 4 * s ^ 2 ≤ G ^ 2 := by
+      have := pow_le_pow_left₀ (by linarith : (0 : ℝ) ≤ 2 * s) hG2s 2
+      nlinarith
+    calc 11 * (t + hoeffDev A'.card b + t) / G ^ 2 ≤ 11 * (2 * t + d) / G ^ 2 :=
+          div_le_div_of_nonneg_right (by linarith) (by positivity)
+      _ ≤ 11 * (2 * t + d) / (4 * s ^ 2) :=
+          div_le_div_of_nonneg_left (by positivity) (by positivity) hG2
+  have hdA := hdiv A hAC
+  have hdR := hdiv Rs hRC
+  refine ⟨lt_of_lt_of_le hn hnN, ?_⟩
+  unfold miscutBound
+  rw [hC, ← hbdef, ← hA, ← hRs]
+  have e : 22 * (2 * t + d) / (4 * s ^ 2) = 11 * (2 * t + d) / (4 * s ^ 2)
+      + 11 * (2 * t + d) / (4 * s ^ 2) := by ring
+  linarith
+
 end OrthoDFA
