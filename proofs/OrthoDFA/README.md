@@ -60,6 +60,41 @@ level 5's reads off the rarer side; it is `1e6`× tighter than under the records
   and tree part on at most `εd` of the probes and whose read is wrong at most `εcov` of the time
   and undecided at most `εcov`.
 - `LearnerLoopUniform`: the headline above.
+- `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the loop outputs a
+  DFA. See below.
+
+## The learner's DFA
+
+`LearnerLoopDFA` asks for what the Python's `satisfies_preconditions` checks of the target, at its
+length `L`: `coveredStates M L c` are the states at least `c` (`min_coverage`) of the strings of
+length `L` visit at some position from `⌈L/2⌉` to `L`, and `rerootAccuracy M L S q` is the share
+of those strings whose run from `q` stays in `S` and is classified as the target classifies them
+(`covered_accuracy_ceiling` at the start `q`). Where some covered `q` has accuracy at least
+`1 − η`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
+walked from `k`, stops within `|Q| + 1` rounds at a consistent round with a leaf from which its
+hypothesis classifies all but `η` of the strings of length `L` as the target does, but for chance
+`δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as wrong. With `N = L₁ + 1 − k`,
+level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round; `L₀` is
+`|Q| + 4 + 4(log E + 64)/log |Σ|`, `E` free of `L`, logarithmic in `1/δ`, `1/c`, `1/(1/2 − η₀)`,
+`1/pAP` and `|Σ|^(|Q|+2)`. At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`,
+`L₀ = 1435` and the budget is `8.5e10` probes a round (`εd = 2.3e-6`). `LearnerLoopDFASimple`
+states the same at explicit settings, every hypothesis an inequality.
+
+The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
+probe, so a probe and its extension by a letter that both agree, reading nothing on a rarer side
+and nothing undecided, cross a learned edge between their states' true leaves (`edge_of_pair`,
+`Proofs/DFABridge.lean`). A covered state is visited `c` of the time summed over the window, so an
+edge out of its true leaf that is wrong or unlearned leaves `c/((|Σ|+1)N)` of the probes checked
+(`edge_of_occupied`). Level 5's consistent ending answers for its checked probes
+(`checkedProbes`): those that search or could learn an edge, which the success test counts or
+which reset the hypothesis, those reading a prefix's extension on its state's rarer side, which is
+rare by the band, and, once `undecidedMass` is at most `ū`, those reading one undecided, by Markov.
+The clustering, run at `εcov = δc/(512(|Q|+1)(|Q|+3)(|Σ|+1)|Σ|^(|Q|+2)N³)`, holds the window's
+undecided rate, and so `undecidedMass`, under `ū`, and reads every covered state on its true side
+(`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as the target
+does, so the hypothesis from the covered start's true leaf tracks the re-rooted target on every
+run that stays covered (`classify_start_le`). The start is shown to exist; the algorithm does not
+choose it.
 
 ## The loop
 
@@ -162,18 +197,19 @@ need to be read; the algorithm is `indecisiveLStarLevel5` in `OrthoDFA/Level5.le
 `U = 4(n + 2)A log ((n + 3)A / δ)` and a
 read-state bad where it reads undecided more than `1.5θ` of the time:
 
-    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ k,
+    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ k J ū,
       0 < δ ≤ 1 → 0 < εd < 1 → 1 ≤ L → 0 ≤ θ →
       384 (L + 1)(n + 1) θ ≤ 1 →
       0 ≤ O.κ → 0 ≤ O.ε → 4 (O.ε + O.κ) K G W ≤ δ →
-      1024 (L + 1) · U · prefixMax P.D k ≤ εd →
+      1024 (L + 1) · U · prefixMax P.D k ≤ εd → 0 ≤ ū →
       ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
         settings.probeBudget ≤ K · G ∧
         P[let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-          ¬ EndsWell M bad P.D settings.disagreementRate
-            (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
+          ¬ EndsWell M bad P.D (17εd/16)
+            (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart (n + 2) J ū
+              result.hypothesis)
             settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart
-              result.hypothesis) (3εd/16) result.ending] ≤ δ
+              result.hypothesis) (3εd/16) result.ending] ≤ δ + 32ū/εd
 
     Level5FamilyCorrect: Level5Guarantee at fam.oracle : TriOracle μ fam.M.
 
@@ -213,10 +249,18 @@ splitting wrongly: `1.7e8×` and `3.3e7×` tighter.
 `Proofs/Level5RiskDefs.lean` states what the claim is derived from; none of it needs to be read
 to trust the claim.
 
-    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C,
+    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C J ū,
+      0 ≤ ū → 32 ≤ εd · budget →
       ∫⁻ ω, P[the run of `applyProbe` over C.probeBudget probes from P.D does not end well, its
-          harvest's sampler yielding harvestYield] ∂μ
-        ≤ roundRisk σ O.κ O.ε θ P.D P.L C
+          harvest's sampler yielding harvestYield and a consistent end checking at most 17εd/16
+          of the probes] ∂μ
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C + 32ū/εd
+
+The success test certifies the probes that search or could learn an unlearned edge, since such a
+probe resets the hypothesis (`success_le`, through `site_le` charging only probes that keep it).
+Where the probes reading a prefix's extension on a rarer side pass `εd/32 ≥ 1/budget`, the
+`wrongTerm` below already exceeds one, so they cost nothing more; the undecided ones cost
+`32 undecidedMass/εd` by Markov (`und_le_mass`), counted only where `undecidedMass ≤ ū`.
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
 `roundRisk σ κ ε θ D L C` is the least, over the proof's free parameters `kn : Knobs` meeting
