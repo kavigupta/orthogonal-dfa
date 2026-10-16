@@ -492,10 +492,11 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 /-! ## The theorem -/
 
 /-- The indecision rate the schedule solves its cut at: the claim's, or less where the uniform
-pool's thinner class asks for it.  The gate calibrates the noise rates on the uniform pool's two
-sides, which a cut wrong on more of either side than a fraction of `1/2 − η₀` cannot do. -/
-noncomputable def cutLimit (η₀ indecisionLimit pBal : ℝ) : ℝ :=
-  min indecisionLimit (pBal * (1 / 2 - η₀) / 80)
+pool's thinner class or the coverage asks for it.  The gate calibrates the noise rates on the
+uniform pool's two sides, which a cut wrong on more of either side than a fraction of `1/2 − η₀`
+cannot do, and charges each wrongly cut prefix of a sample up to thirteen times over. -/
+noncomputable def cutLimit (η₀ indecisionLimit εcov pBal : ℝ) : ℝ :=
+  min indecisionLimit (min (pBal * (1 / 2 - η₀) / 80) (εcov / 64))
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns there cuts
@@ -542,19 +543,19 @@ def ClusteringGuarantee : Prop :=
       * (populations.card : ℝ) ^ 2
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
-        / (δ * α * pAP * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit pBal)))
+        / (δ * α * pAP * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)))
       )
-      / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit pBal)) ^ 3)
+      / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) ^ 3)
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤
       4 * Real.log (128 * ((populations.card : ℝ) + 1) / δ)
-        / cutLimit η₀ indecisionLimit pBal ^ 2
+        / cutLimit η₀ indecisionLimit εcov pBal ^ 2
     ) ∧
     (∀ B ∈ states,
       (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀)
-          (cutLimit η₀ indecisionLimit pBal)) * crossLimit)) / (1 / 2 - η₀) ^ 2
+          (cutLimit η₀ indecisionLimit εcov pBal)) * crossLimit)) / (1 / 2 - η₀) ^ 2
       ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-            (2 / (min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit pBal)) * crossLimit))
+            (2 / (min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) * crossLimit))
           / ((1 / 2 - η₀) ^ 2 * pAP)
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
     (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -569,7 +570,7 @@ def ClusteringGuarantee : Prop :=
       pBal ≤ (D uni).real O.Lᶜ →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-          ≤ δ * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit pBal)) ^ 2) →
+          ≤ δ * min εcov (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal)) ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real

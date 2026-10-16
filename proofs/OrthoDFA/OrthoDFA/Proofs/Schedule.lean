@@ -169,7 +169,12 @@ noncomputable def budgetCap (populations : Finset J)
     * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
     / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 3)
 
-/-- The counts the round's tails ask for, summed so each is met. -/
+/-- The counts the round's tails ask for, summed so each is met.  The gate's two read its
+deviations at levels that shrink with the prefix count `n`: with `X = cutBudget²·sig⁴` it needs
+
+    n·X ≥ 8 (log(128|J|(M + 3)/δ) + log(13|J|/α) + 4 log(2n + 2))
+
+and the last of these is cleared by `n ≥ (128/X)·log(512/X)`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
   ⌈Real.log (128 * (populations.card : ℝ)
@@ -177,13 +182,14 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
         / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
-    + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
-    + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
-        / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
+    + ⌈16 * Real.log (1664 * (populations.card : ℝ) ^ 2
+          * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / (α * δ))
+        / (cutBudget η indecisionLimit εcov ^ 2 * sig η ^ 4)⌉₊
+    + ⌈128 / (cutBudget η indecisionLimit εcov ^ 2 * sig η ^ 4)
+        * Real.log (512 / (cutBudget η indecisionLimit εcov ^ 2 * sig η ^ 4))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
-    + ⌈64 / εcov⌉₊
     + 1
 
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
@@ -291,8 +297,8 @@ half elsewhere, and leaves at most `2·indecisionLimit` of each undecided.
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
 it, never from `O.η`.  The gate calibrates the rates it needs on the uniform pool's sample.  The
-schedule is solved at `cutLimit η₀ indecisionLimit pBal`, which `pBal`, the uniform pool's
-thinner class, can hold below `indecisionLimit`.
+schedule is solved at `cutLimit η₀ indecisionLimit εcov pBal`, which `pBal`, the uniform pool's
+thinner class, and `εcov` can hold below `indecisionLimit`.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
 which has signal; the uniform pool is a population; the populations and the suffix measure are
@@ -330,16 +336,16 @@ def ClusteringCorrect : Prop :=
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
   -- Derivable rather than assumed -- `prefCount_le_poly` discharges it -- and carried
   -- here so the statement says what the algorithm costs and not only that it works.
-  (prefCount η₀ populations (cutLimit η₀ indecisionLimit pBal) εcov δ α pAP crossLimit : ℝ)
-    ≤ budgetCap populations η₀ (cutLimit η₀ indecisionLimit pBal) εcov δ α pAP crossLimit k →
-  ρ ≤ collisionCap η₀ populations (cutLimit η₀ indecisionLimit pBal) εcov δ α pAP crossLimit →
+  (prefCount η₀ populations (cutLimit η₀ indecisionLimit εcov pBal) εcov δ α pAP crossLimit : ℝ)
+    ≤ budgetCap populations η₀ (cutLimit η₀ indecisionLimit εcov pBal) εcov δ α pAP crossLimit k →
+  ρ ≤ collisionCap η₀ populations (cutLimit η₀ indecisionLimit εcov pBal) εcov δ α pAP crossLimit →
   collisionMass Dsf
-    ≤ poolCollisionCap η₀ populations (cutLimit η₀ indecisionLimit pBal) εcov δ pAP crossLimit →
+    ≤ poolCollisionCap η₀ populations (cutLimit η₀ indecisionLimit εcov pBal) εcov δ pAP crossLimit →
   1 - δ - α ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations (cutLimit η₀ indecisionLimit pBal)
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations (cutLimit η₀ indecisionLimit εcov pBal)
         εcov δ α pAP crossLimit ρ},
         x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ populations (cutLimit η₀ indecisionLimit pBal) εcov δ
+      ∀ B : {B : State // B ∈ stoppable η₀ populations (cutLimit η₀ indecisionLimit εcov pBal) εcov δ
         α pAP crossLimit ρ},
         x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - gateLimit uni εcov j
