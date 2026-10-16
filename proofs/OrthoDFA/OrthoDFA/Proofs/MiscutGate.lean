@@ -133,14 +133,6 @@ open scoped Classical in
 noncomputable def apartVar (O : Oracle μ S) (v p : S) (ω : Ω) : ℝ :=
   if ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)) then 0 else 1
 
-lemma measurable_noise_of_mem (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T) :
-    Measurable[noiseAlg O T] (O.noise w) := fun _ hs => measurableSet_noise_preimage O hw hs
-
-lemma measurable_mq_of_mem (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T) :
-    Measurable[noiseAlg O T] (O.mq w) := by
-  have h := measurable_noise_of_mem O hw
-  exact (measurable_const.add (measurable_const.mul measurable_id)).comp h
-
 lemma againstVar_meas_alg (O : Oracle μ S) (c : ℝ) {T : Set S} {p : S} (hp : p ∈ T) :
     Measurable[noiseAlg O T] (againstVar O c p) := by
   classical
@@ -342,7 +334,6 @@ theorem le_rateBound (n k ag : ℕ) {x y η₀ d cap : ℝ} (hx : x ≤ η₀) (
       nlinarith [Nat.cast_nonneg (α := ℝ) k]
     nlinarith
   · exact hx
-
 
 /-- The class a side holds rightly, as a bit: `1` on the accept side. -/
 def sideClass (accept : Bool) : ℝ := if accept then 1 else 0
@@ -556,7 +547,6 @@ theorem rightRate_le_sideRate (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η
   unfold sideCap wrongCap
   rw [if_neg (fun h => by omega)]
 
-
 open scoped Classical in
 /-- Both sides of a sample good for the reference `v`. -/
 def sidesGood (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (v : S) (a : ℝ) (ω : Ω) : Prop :=
@@ -618,8 +608,7 @@ theorem miscut_le_miscutBound (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η
 
 /-! ### Sides chosen by the votes -/
 
-/-- `selection_read_bound` for a score that is any event the scored strings' bits decide, not
-only a condition on which of them read accept. -/
+/-- A bound at every fixed index survives an index the scored strings' bits do not decide. -/
 theorem selection_congr_bound (O : Oracle μ S) (C Q : Finset S)
     (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
     {β : Type*} [DecidableEq β] (T : Finset β) (t₀ : β) (ht₀ : t₀ ∈ T)
@@ -1101,23 +1090,6 @@ lemma measurableSet_of_run_data_certAt (populations : Finset J) (j : J) (B : Sta
     (((measurableSet_prefixesAt populations B.npref z.1).inter
       (measurableSet_poolAt B.nsuff z.2.1)).inter
       (measurableSet_certOf populations B.npref j m z.2.2)).inter (hR _ _ _))
-
-lemma cutCorrect_congr (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) {ω ω' : Ω}
-    (h : ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
-    (cutCorrect O lo hi F p ω ↔ cutCorrect O lo hi F p ω') := by
-  unfold cutCorrect
-  rw [voteCount_congr O F p h]
-
-open scoped Classical in
-lemma refApart_congr (O : Oracle μ S) (A R : Finset S) {ω ω' : Ω}
-    (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1))
-    (hR : ∀ p ∈ A, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
-    refApart O.mq A R ω = refApart O.mq A R ω' := by
-  unfold refApart
-  split_ifs with hne
-  · exact Finset.inf'_congr hne rfl (fun v hv => congrArg Finset.card
-      (Finset.filter_congr (fun p hp => by rw [h p hp, hR p hp v hv])))
-  · rfl
 
 lemma sideGood_congr_mq (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ)
     {ω ω' : Ω}
@@ -1717,9 +1689,6 @@ lemma hoeffDev_mono {n n' : ℕ} (h : n ≤ n') {a : ℝ} (ha0 : 0 < a) (ha1 : a
   have := mul_le_mul_of_nonneg_right this hl
   linarith
 
-lemma card_poolAt_le (M : ℕ) (x : Run Ω S J) : (poolAt M x).card ≤ M + 1 :=
-  le_trans (Finset.card_insert_le _ _) (by have := card_freshDraws_le ∅ (fun i => suffixDraw i x) M; omega)
-
 /-- The spread at the observed centre is near the true one. -/
 lemma spread_at_le (n k ag ap : ℕ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu : ℝ} (hd : 0 ≤ d)
     (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
@@ -1775,7 +1744,6 @@ lemma wrongCap_nonneg (n ag ap : ℕ) (d y : ℝ) : 0 ≤ wrongCap n ag ap d y :
   unfold wrongCap; split_ifs
   · exact le_min (by norm_num) (div_nonneg (le_max_left _ _) (sq_nonneg _))
   · norm_num
-
 
 lemma cap_algebra {n k t d tu G κ ε Sp cap : ℝ} (hn : 0 < n) (hk0 : 0 ≤ k) (hκ : n * κ = k)
     (hε : n * ε = t) (hκ0 : 0 ≤ κ) (hκ4 : κ ≤ 1 / 4) (hε0 : 0 ≤ ε) (hε8 : ε ≤ G / 8) (hG : 0 < G)
@@ -1904,7 +1872,6 @@ lemma rateBound_le (η₀ m cap : ℝ) : rateBound η₀ m cap ≤ η₀ := by
   unfold rateBound; split_ifs
   · exact min_le_left _ _
   · exact le_rfl
-
 
 lemma calib_spread {G κ ε δ τ : ℝ} (hG : 0 < G) (hG1 : G ≤ 1) (hκ0 : 0 ≤ κ) (hκ : κ ≤ G / 80)
     (hε0 : 0 ≤ ε) (hδ0 : 0 ≤ δ) (hτ0 : 0 ≤ τ) (hd : 800 * (ε + δ + τ) ≤ G ^ 3) :

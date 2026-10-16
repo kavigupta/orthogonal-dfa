@@ -75,27 +75,13 @@ theorem measureReal_stalled_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Ora
     (measureReal_smallScreen_le hflat O populations D Dsf hsupp hsuppSf B j₀ hj₀ γ pAP t ρsf ρ
       rs rt hγ hpAP0 ht hpAPBound hscd hsig hsc hcount hρsf hρsf0 hρj hρ0)
 
-
 lemma exp_tail_anti {m a b : ℝ} (hm : 0 ≤ m) (ha : 0 ≤ a) (hab : a ≤ b) :
     Real.exp (-2 * m * b ^ 2) ≤ Real.exp (-2 * m * a ^ 2) := by
   refine Real.exp_le_exp.2 ?_
   have h := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ ha hab 2) hm
   nlinarith
 
-/-! ### How `per_state_le` gets its bound
-
-Validity is read off how the family was built, not off the gate.  Where the noise rate
-depends on the class, a correct cut's agreement with the seed's column sits anywhere from
-`1 − η` to `1` according to the population's mix of classes, so no null separates it from a
-cut drifted on an `εcov` fraction.  What does bound the drift is the screen: it keeps no
-candidate that flips more than `validFlip`, scaled by `validFracOf/validFrac`, of the table,
-Markov over the family turns that
-into a bound on the mass where many members flip, and the vote is right elsewhere.
-
-`measureReal_validFail_le` carries that through the certification sample, which the family
-never saw: a cut wrong on `εcov` of the population is wrong on `15εcov/16` of the sample
-(`hitShort`), few of those can be prefixes the family flips (`heavyHits`), and few of the
-rest can be misread by a family that barely flips there (`validMiss`, Hoeffding). -/
+/-! ### The band -/
 
 /-- The vote's two clean means, pushed by a flipping `flipFracOf` of the family and read
 `voteSlack` in, meet the centre `κ/2` exactly. -/
@@ -400,7 +386,6 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
         (by linarith)
   nlinarith
 
-
 /-- The pool holds an accept-preserving draw beyond any family of the round's size and what
 its sampler redraws, at the findability `9pAP/20` is read at. -/
 lemma pool_holds_ref (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : ℝ} (hδ : 0 < δ) (hδ1 : δ ≤ 1)
@@ -651,16 +636,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       _ = α + 3 * δ / 8 := by field_simp; ring
   linarith
 
-
 /-! ### Part 2: the loop returns -/
-
-lemma mul_self_add_le_cube {x : ℝ} (hx : 0 ≤ x) : x * (x + 3) ≤ (x + 3) ^ 3 := by
-  have h : (x + 3) ^ 3 - x * (x + 3) = x ^ 3 + 8 * x ^ 2 + 24 * x + 27 := by ring
-  linarith [h, pow_nonneg hx 3, sq_nonneg x, hx]
-
-lemma le_cube_of_nonneg {x : ℝ} (hx : 0 ≤ x) : x ≤ (x + 3) ^ 3 := by
-  have h : (x + 3) ^ 3 - x = x ^ 3 + 9 * x ^ 2 + 26 * x + 27 := by ring
-  linarith [h, pow_nonneg hx 3, sq_nonneg x, hx]
 
 /-! ### What the solved budget's fields buy
 
@@ -1146,7 +1122,6 @@ theorem solvedState_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov 
   rw [hval]
   exact le_add_of_le_of_nonneg (solved_share η₀ populations hsig hη0 hε hind hδ hpAP hcard hρ0
     hρcap) (by split_ifs <;> positivity)
-
 
 open scoped Classical in
 /-- At a fixed table the state's two counts on a sample are within budget: on the prefixes the

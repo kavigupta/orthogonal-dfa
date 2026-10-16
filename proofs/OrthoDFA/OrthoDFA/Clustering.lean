@@ -313,30 +313,6 @@ def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) 
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
 
-/-- The prefixes the cut accepts, and all the prefixes it decides. -/
-noncomputable def cutSides (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
-    Finset S × Finset S :=
-  (P.filter (fun p => hi < voteCount mq F p ω),
-    P.filter (fun p => hi < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
-
-/-- The accept side's hits plus the reject side's misses. -/
-noncomputable def agreeOf (A Dset U : Finset S) : ℕ :=
-  (A ∩ U).card + ((Dset \ A) \ U).card
-
-/-- The gate's statistic, `(agreements, decided count)`: `p` agrees when the seed's column
-reads the way the cut calls it. -/
-noncomputable def agreeCount (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  (agreeOf (cutSides mq lo hi F P ω).1 (cutSides mq lo hi F P ω).2
-      (P.filter (fun p => mq p ω = 1)),
-    (cutSides mq lo hi F P ω).2.card)
-
-/-- `drift_verdict`'s ADMITTED at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE`): the cut
-decides some prefix, and agrees with the seed's read significantly more often than it would if
-every read came back 1 at the decision boundary, which is `1/2` for this oracle. -/
-def admitted (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
-  0 < (agreeCount mq lo hi F P ω).2
-    ∧ binomSfGe (agreeCount mq lo hi F P ω).2 (1 / 2) (agreeCount mq lo hi F P ω).1 ≤ α
-
 /-- Hoeffding's deviation for a sum of `n` independent reads in `[0, 1]`, exceeded with chance at
 most `a`. -/
 noncomputable def hoeffDev (n : ℕ) (a : ℝ) : ℝ := Real.sqrt (n * Real.log (1 / a) / 2)
