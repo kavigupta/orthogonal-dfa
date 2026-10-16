@@ -8,11 +8,10 @@ import Mathlib.Probability.Independence.InfinitePi
 Everything `ClusteringGuarantee` mentions is defined here, so auditing the claim means reading
 this file and no other.  Each definition's doc names the Python it models.
 
-Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
-`draw_many` on a `UniformSource`, which redraws neither a repeat nor a prefix the table holds,
-and a `RejectionSource` redraws only what it has served itself, not another population's
-prefixes.  `certOf` redraws both.  The pool's draws merge with the seed `ε` when one is `ε`,
-where `_draw_cohort` would redraw it.
+Known modelling gap.  `prefixes_for_split` redraws a repeat or a prefix the table holds and
+counts the draw, as `certOf` and `drawsTaken` do, but gives up after twice the prefixes it was
+asked for, where `certOf` draws until it has them.  The pool's draws merge with the seed `ε` when
+one is `ε`, where `_draw_cohort` would redraw it.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
@@ -36,23 +35,23 @@ by the seed's one read than the gate's cut over the family without it, where the
 at one rate.
 
 Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
-reads the uniform pool's first `npref + e`, for any `e`.  The Python reads the gate on
-`min(alignment_size, certification_budget)` draws from every population, then once more on as
-many as `prefixes_to_certify` asks for from the one left undecided.
+reads each population's first `npref + e`, for any `e ≤ npref`, calibrated on the uniform pool's
+first `npref`.  The Python reads the gate on `alignment_size` draws from every population, then
+once more, to at most twice that, on as many as `prefixes_to_certify` asks for from the one left
+undecided, and calibrates on the uniform pool's sample as it then stands, which an earlier
+family's further look or refusal may have grown or redrawn.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
 The table's votes are fitted to its noise and read as more decisive than they are, so the
 claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
-Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds` bounds the
-share of the uniform pool's distribution its cut at the boundary misclassifies by
-`max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
-side's share and on the seed's rate there, read at the rates `decision_boundary ∓
-min_signal_strength`.  `admitted` is the earlier test, the cut's agreement with the seed beating
-`1/2` on the uniform pool alone, so the claim here does not yet cover what the Python admits.  The
-Python's FNR also reads 1 for a family that decides no prefix one of the two ways, which `ret`
-does not.
+Known modelling gap.  `drift_verdict` reads the sides of the family's cut at the decision
+boundary, every prefix on one of them, where `certifiesAt` reads them at `lo` and `hi` and leaves
+the band's prefixes on neither.  It spends `ACCEPT_PRESERVING_ERROR_RATE` over a search's
+families in the order they are judged (`family_level`), where `gateLevel` spends `α` over the
+states by their prefix counts.  Its `η₀` is `1/2 − min_signal_strength`.  The Python's FNR also
+reads 1 for a family that decides no prefix one of the two ways, which `ret` does not.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
@@ -313,13 +312,13 @@ def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) 
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
 
-/-- Hoeffding's deviation for a sum of `n` independent reads in `[0, 1]`, exceeded with chance at
-most `a`. -/
+/-- `hoeffding_deviation`: Hoeffding's deviation for a sum of `n` independent reads in `[0, 1]`,
+exceeded with chance at most `a`. -/
 noncomputable def hoeffDev (n : ℕ) (a : ℝ) : ℝ := Real.sqrt (n * Real.log (1 / a) / 2)
 
 open scoped Classical in
-/-- The fewest prefixes of `A` on which any reference's read of `p · v` and the seed's read of
-`p` disagree. -/
+/-- `read_sample`'s `Side.apart`: the fewest prefixes of `A` on which any reference's read of
+`p · v` and the seed's read of `p` disagree. -/
 noncomputable def refApart (mq : S → Ω → ℝ) (A R : Finset S) (ω : Ω) : ℕ :=
   if h : R.Nonempty then
     R.inf' h (fun v => (A.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card)
@@ -330,8 +329,8 @@ open scoped Classical in
 noncomputable def drawsTaken (T : Finset S) (y : ℕ → S) (m : ℕ) : ℕ :=
   if h : ∃ n, m ≤ ((Finset.range n).image y \ T).card then Nat.find h else 0
 
-/-- The level a test at sample size `n` spends out of `a`, so that every size together spends at
-most `a`. -/
+/-- `size_level`: the level a test at sample size `n` spends out of `a`, so that every size
+together spends at most `a`. -/
 noncomputable def sizeLevel (a : ℝ) (n : ℕ) : ℝ := a / (((n : ℝ) + 1) * ((n : ℝ) + 2))
 
 /-- The prefixes the family's cut accepts. -/
@@ -354,8 +353,8 @@ noncomputable def spreadBound (n against apart : ℕ) (d c : ℝ) : ℝ :=
   c * (1 - c) + max ((1 - 2 * c) * ((against - d) / n - c)) ((1 - 2 * c) * ((against + d) / n - c))
     - (apart - d) / (2 * n)
 
-/-- An upper bound on the fraction of a side the cut puts there wrongly, given that the wrong
-class's noise rate is at most `y`.  A wrong prefix reads against the side at `1 − y` or more,
+/-- `wrong_cap`: an upper bound on the fraction of a side the cut puts there wrongly, given that
+the wrong class's noise rate is at most `y`.  A wrong prefix reads against the side at `1 − y` or more,
 so it contributes `(1 − y − c)²` to the spread. -/
 noncomputable def wrongCap (n against apart : ℕ) (d y : ℝ) : ℝ :=
   if 0 < n ∧ 0 < 1 - y - (against : ℝ) / n then
@@ -363,8 +362,8 @@ noncomputable def wrongCap (n against apart : ℕ) (d y : ℝ) : ℝ :=
       / (1 - y - (against : ℝ) / n) ^ 2)
   else 1
 
-/-- An upper bound on the noise rate of the class a side puts there rightly, from its
-against-fraction `m` and a cap on its wrong fraction. -/
+/-- `rate_bound`: an upper bound on the noise rate of the class a side puts there rightly, from
+its against-fraction `m` and a cap on its wrong fraction. -/
 noncomputable def rateBound (η₀ m cap : ℝ) : ℝ :=
   if cap < 1 then min η₀ (m / (1 - cap)) else η₀
 
@@ -385,22 +384,23 @@ noncomputable def sideRate (mq : S → Ω → ℝ) (η₀ : ℝ) (accept : Bool)
   rateBound η₀ ((againstOn mq accept A ω + hoeffDev A.card a) / A.card)
     (sideCap mq accept A R a η₀ ω)
 
-/-- The noise rates the uniform pool's sample bounds, `(ηIn, ηOut)`: the side its cut accepts
-holds the language rightly, the side it rejects its complement. -/
+/-- `calibrate`: the noise rates the uniform pool's sample bounds, `(ηIn, ηOut)`: the side its cut
+accepts holds the language rightly, the side it rejects its complement. -/
 noncomputable def calibrate (mq : S → Ω → ℝ) (η₀ a : ℝ) (lo hi : ℕ) (F R P : Finset S) (ω : Ω) :
     ℝ × ℝ :=
   (sideRate mq η₀ true (acceptSide mq hi F P ω) R a ω,
     sideRate mq η₀ false (rejectSide mq lo F P ω) R a ω)
 
-/-- An upper bound on how many of `P` the cut puts on the wrong side, given bounds `rates` on
-`(ηIn, ηOut)`: the accept side's wrong prefixes lie outside the language, at `ηOut`, and the
+/-- `miscut_bound`: an upper bound on how many of `P` the cut puts on the wrong side, given
+bounds `rates` on `(ηIn, ηOut)`: the accept side's wrong prefixes lie outside the language, at `ηOut`, and the
 reject side's inside it, at `ηIn`. -/
 noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S)
     (rates : ℝ × ℝ) (ω : Ω) : ℝ :=
   (acceptSide mq hi F P ω).card * sideCap mq true (acceptSide mq hi F P ω) R a rates.2 ω
     + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a rates.1 ω
 
-/-- `drift_verdict`'s ADMITTED: the family's cut misclassifies at most `lim` of the population.
+/-- `drift_verdict`'s ADMITTED, `misclassified_bound` within the limit: the family's cut
+misclassifies at most `lim` of the population.
 `P` is the sample, drawn as the first `N` draws without replacement, `R` the references and
 `rates` the noise rates' bounds.  `miscutBound` is read at `sizeLevel a #P`, and the passage
 from the `N` draws to the population at `sizeLevel a N`; the draws the sampler redrew count as
@@ -411,7 +411,8 @@ def certifiesAt (mq : S → Ω → ℝ) (lim a : ℝ) (lo hi : ℕ) (F R P : Fin
     ≤ N * lim - hoeffDev N (sizeLevel a N)
 
 open scoped Classical in
-/-- The pool's suffixes outside the family: the gate's references. -/
+/-- The pool's suffixes outside the family: the gate's references, `refs` in
+`AcceptPreservingGate.verdict`. -/
 noncomputable def refsAt (mq : S → Ω → ℝ) (populations : Finset J) (x : Run Ω S J) (B : State) :
     Finset S :=
   poolAt B.nsuff x \ familyAt mq populations x B
@@ -420,8 +421,8 @@ open scoped Classical in
 /-- `misclassification_limit`: `εcov` on the uniform pool, a half elsewhere. -/
 noncomputable def gateLimit (uni : J) (εcov : ℝ) (j : J) : ℝ := if j = uni then εcov else 1 / 2
 
-/-- The level the gate spends at a state: `α` over the gate's thirteen tails per population,
-and over the states by their prefix counts. -/
+/-- `family_level`: the level the gate spends at a state, `α` over the gate's thirteen tails per
+population (`GATE_TAILS`), and over the states by their prefix counts. -/
 noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
   sizeLevel (α / (13 * populations.card)) B.npref
 
