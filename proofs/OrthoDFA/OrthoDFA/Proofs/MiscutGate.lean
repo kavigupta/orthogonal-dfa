@@ -1072,6 +1072,13 @@ lemma sizeLevel_le {a : ℝ} (ha : 0 ≤ a) (ha1 : a ≤ 1) (n : ℕ) : sizeLeve
   rw [div_le_one (by positivity)]
   nlinarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
 
+lemma sizeLevel_le_self {a : ℝ} (ha : 0 ≤ a) (n : ℕ) : sizeLevel a n ≤ a := by
+  unfold sizeLevel
+  rw [div_le_iff₀ (by positivity)]
+  have h : (1 : ℝ) ≤ ((n : ℝ) + 1) * ((n : ℝ) + 2) := by
+    nlinarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
+  nlinarith
+
 lemma sum_range_sizeLevel (a : ℝ) (n : ℕ) :
     ∑ i ∈ Finset.range n, sizeLevel a i = a * (1 - 1 / ((n : ℝ) + 1)) := by
   induction n with
