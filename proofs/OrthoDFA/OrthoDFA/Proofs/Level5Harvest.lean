@@ -517,9 +517,11 @@ theorem keepProbe_hyp (s : Level5State α) (x : FreeMonoid α) :
       ∧ (keepProbe C cut s x).version = s.version := ⟨rfl, rfl, rfl⟩
 
 /-- The counts every reached state keeps in order: the start's undecided strings and the
-searches at most the probes, the middles at most the searches. -/
+searches at most the probes, the middles at most the searches, each edge's undecided strings at
+most its reads. -/
 def CountInv (s : Level5State α) : Prop :=
   s.startUndecided.length ≤ s.probes ∧ s.middles.length ≤ s.searches ∧ s.searches ≤ s.probes
+    ∧ ∀ p c, (s.edgeUndecided p c).length ≤ s.edgeReads p c
 
 theorem countInv_fresh (T : DTree α) (E : EdgeTable α) (v : ℕ) : CountInv (freshState T E v) := by
   simp [CountInv, freshState]
@@ -527,7 +529,7 @@ theorem countInv_fresh (T : DTree α) (E : EdgeTable α) (v : ℕ) : CountInv (f
 open scoped Classical in
 theorem countInv_keep {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α) :
     CountInv (keepProbe C cut s x) := by
-  obtain ⟨h1, h2, h3⟩ := hs
+  obtain ⟨h1, h2, h3, h4⟩ := hs
   have hst : (startHarvestBy cut s.tree C.walkStart x).length ≤ 1 := by
     unfold startHarvestBy
     split_ifs
@@ -542,6 +544,9 @@ theorem countInv_keep {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α)
   have hi : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) ≤ 1 := by
     split <;> omega
   simp only [CountInv, keepProbe, Level5State.countProbe, List.length_append]
+  refine ⟨by omega, by omega, by omega, fun p c => ?_⟩
+  have := edgeHarvestBy_le_edgeReadsBy cut s.tree s.edges C.walkStart x (p, c)
+  have := h4 p c
   omega
 
 theorem countInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : CountInv s)
@@ -818,7 +823,7 @@ theorem success_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.fir
     (hSq.εd_alt.trans hSq.εd_lt) (fun s => s.probes) (fun s => s.searches) (fun _ _ => true)
     (fun s x => decide (x ∈ missAt C rd s.tree s.edges))
     (fun s => C.disagreementRate ≤ D.real (missAt C rd s.tree s.edges))
-    (SuccessBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
+    (SuccessBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2.1)
     (fun s x hs hm => ⟨by simp [keepProbe, Level5State.countProbe], keep_misses C rd s x hm,
       fun _ => rfl, Iff.rfl⟩)
     (fun s h => by simp [SuccessBad] at h) (fun s x e hs _ hb hr => ?_) T
@@ -848,7 +853,7 @@ theorem gate_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstL
     (fun s => s.searches) (fun _ _ => true)
     (fun s x => decide (x ∈ searchAt rd C.walkStart s.tree s.edges))
     (fun s => D.real (searchAt rd C.walkStart s.tree s.edges) ≤ C.searchShare / 2)
-    (GateBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2)
+    (GateBad C D rd) (fun s hs => ?_) (fun T E v => ⟨rfl, rfl⟩) (fun s hs => hs.2.2.1)
     (fun s x hs _ => ⟨by simp [keepProbe, Level5State.countProbe], keep_searches C rd s x,
       fun _ => rfl, Iff.rfl⟩)
     (fun s h => by simp [GateBad] at h) (fun s x e hs _ hb hr => ?_) T
@@ -861,7 +866,7 @@ theorem gate_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstL
     refine ⟨hok, ?_⟩
     obtain ⟨hg, hf, -⟩ := runTests_pt' C hr
     have hci := countInv_keep C (fun z => (rd z).cut) hs x
-    exact seqRate_share hφ hφ1 hSq.a_pos hgate hf hci.2.2 hg
+    exact seqRate_share hφ hφ1 hSq.a_pos hgate hf hci.2.2.1 hg
 
 /-- The probes whose search stops at an undecided middle. -/
 def ptSet (T : DTree α) (E : EdgeTable α) : Set (FreeMonoid α) :=
