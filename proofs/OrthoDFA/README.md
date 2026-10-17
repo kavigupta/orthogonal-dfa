@@ -107,10 +107,10 @@
 - `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
   under level 3's premises, `G`'s `log(4 …/δ)` becoming `log(8 …/δ)`, and
-  `2εw(L + 1)(|Q| + 1) max(1, |Σ|)^|Q| + p₀ log(16/δ) ≤ δ / (16 · probeBudget)`. A probe whose
-  reads, a prefix of length at least `walkStart` followed by a string of length at most `|Q|`, are
-  all right splits and learns only on real targets; the premise keeps such probes the only ones
-  drawn but for chance `δ/8`. The noise takes `δ/8` and the stretches `3δ/4`.
+  `εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|) ≤ δ/8`. A step that reads no string wrong
+  splits and learns only on real targets. A probe's step reads at most `(L + 1)|Q|` strings and a
+  split re-sifts at most `(|Q| + 1)²|Σ|`, so by `AdaptiveReadsBound` the premise keeps every string
+  the round reads right but for chance `δ/8`. The noise takes `δ/8` and the stretches `3δ/4`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

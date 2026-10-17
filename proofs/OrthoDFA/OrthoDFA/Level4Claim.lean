@@ -4,12 +4,11 @@ import OrthoDFA.Level3Claim
 # `EpsRoundCorrect`: level 3 with rare wrong reads ends well but for a small chance
 
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
-most `εw` (`EpsReadOracle`), otherwise as `ReadOracle` says. A probe whose reads, a prefix of
-length at least `walkStart` followed by a string of length at most `|Q|`, are all right splits and
-learns only on real targets, and level 3's claim holds while every probe is such.
+most `εw` (`EpsReadOracle`), otherwise as `ReadOracle` says. A step that reads no string wrong
+splits and learns only on real targets, and level 3's claim holds while every step is such.
 
 `EpsRoundCorrect` asks level 3's premises, `G` holding but for chance `δ/8` rather than `δ/4`, and
-that wrong reads are rare enough that no probe of the round can read a string wrong but for chance
+that wrong reads are rare enough that no string the round reads is read wrong but for chance
 `δ/8`.
 -/
 
@@ -33,9 +32,9 @@ structure EpsReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ 
   wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} ≤ εw
 
 /-- `RandomRoundCorrect` for level 3's algorithm with each read wrong with chance at most `εw`, `G`
-holding but for chance `δ/8`. The last premise keeps the probes that can read a string wrong,
-`2εw(L + 1)(|Q| + 1) max(1, |Σ|)^|Q|` of them on average, within `δ / (16 · probeBudget)` but for
-chance `δ/16`, so that none is drawn but for chance `δ/8`. -/
+holding but for chance `δ/8`. A probe reads at most `(L + 1)|Q|` strings and a split re-sifts at
+most `(|Q| + 1)²|Σ|`, each read wrong with chance at most `εw` when first read, so the last premise
+keeps the chance that the round reads some string wrong within `δ/8`. -/
 def EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -53,8 +52,7 @@ def EpsRoundCorrect : Prop :=
     C.startRate < 1 / 2 → 0 ≤ C.edgeRate →
     p ≤ C.startRate → 2 * p ≤ C.edgeRate * C.edgeReadShare → 2 * p ≤ C.searchShare * C.middleRate →
     8 * S / C.searchShare * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
-    2 * εw * (P.L + 1) * (nQ + 1) * max 1 nα ^ nQ + p₀ * Real.log (16 / δ)
-      ≤ δ / (16 * C.probeBudget) →
+    εw * C.probeBudget * ((P.L + 1) * nQ + (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε
