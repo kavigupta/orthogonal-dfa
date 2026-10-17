@@ -108,7 +108,8 @@ theorem adaptiveReadsBound_holds : AdaptiveReadsBound := by
   intro Z Ω R _ _ _ _ _ μ _ read B ε Q b n hmeas hind hB hloc hb
   classical
   have hle : ∀ z,
-      MeasurableSpace.comap (read z) inferInstance ≤ (inferInstance : MeasurableSpace Ω) := fun z => (hmeas z).comap_le
+      MeasurableSpace.comap (read z) inferInstance ≤ (inferInstance : MeasurableSpace Ω) :=
+    fun z => (hmeas z).comap_le
   have hoth : ∀ z, others read z ≤ (inferInstance : MeasurableSpace Ω) :=
     fun z => iSup₂_le fun y _ => hle y
   set F : ℕ → Z → Set Ω := fun j z => {ω | First Q B j z (read · ω)}
