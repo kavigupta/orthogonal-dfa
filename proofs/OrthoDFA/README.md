@@ -53,6 +53,10 @@
   against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
   look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
   from `p₁`. `statistics.seq_rate` is the same test.
+- `OrthoDFA/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
+  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
+  reads bad with chance at most `ε` times the most strings they query while none has.
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
   bad states, it finds no string more often than the probes share its first `k` letters (spread),
