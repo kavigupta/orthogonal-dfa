@@ -891,8 +891,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     key (b := 6 * ((K : ℝ) + 1) * (NP + 1) * (P.L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   refine ⟨cap, hcap0, fun k hk0 hk1 hk2 => ?_⟩
-  obtain ⟨settings, h1, h2, h3, h4, h5, -, -, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate εcov δc
-    slack pAP εd δ cap m ms k 0 0 hL hη hη₀
+  obtain ⟨settings, h1, h2, h3, h4, h5, -, -, h6⟩ := loop_core_holds M O P K Ls NS NP η₀ ι gate
+    εcov δc slack pAP εd δ cap m ms k 0 0 hL hη hη₀
     hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ hcap0 hmsl hm1 hmsp
     hms1 (fun pops _ => Finset.le_sup (f := fun pops => poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c) (Finset.mem_univ pops))

@@ -13,6 +13,11 @@ bridge is deterministic (`dfa_of_checks`): the tree's root reads the string itse
 midfixes are short, so a covered state's edges are true (`edge_of_occupied`), it is read on its
 true side (`sideOf_eq_of_mass`), and the covered start's true leaf misjudges at most what
 re-rooting does (`start_le`).
+
+The family reads a string of length `L` wrongly, or leaves it undecided, at most `N εcov ≤ ξ/8` of
+the time, so off a stray score the picked leaf misjudges at most `ξ` more (`pickLeaf_le`). Each
+round that can be last strays or collides with chance at most `δ/(2(|Q|+1))`
+(`loop_select_round_le`), so the selection costs half of `δ` and the loop the other half.
 -/
 
 noncomputable section
@@ -273,6 +278,7 @@ theorem integral_uniform_le_window {k L L₁ : ℕ} (hk : k ≤ L) (hL : L ≤ L
   exact Finset.single_le_sum (f := fun n => uavg n g) (fun n _ => hu n)
     (Finset.mem_Icc.2 ⟨hk, hL⟩)
 
+omit [Nonempty α] in
 theorem level5_leaves_le (C : Level5Settings) (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU)
     {T : ℕ} (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel5 C read xs).ending ≠ .failed) :
     (indecisiveLStarLevel5 C read xs).hypothesis.tree.leaves.length ≤ C.maxLeaves := by
@@ -313,7 +319,7 @@ lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s 
 lemma dfa_select_arith {Q A δ ξ RB KpG T NPf : ℝ} {n k L : ℕ} (hQ : 0 ≤ Q) (hA : 2 ≤ A)
     (hδ : 0 < δ) (hξ : 0 < ξ) (hkL : k ≤ L)
     (hn : 32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2 ≤ n) (hT : T ≤ KpG)
-    (hNP : NPf ≤ RB) (hNP0 : 0 ≤ NPf) (hT0 : 0 ≤ T)
+    (hNP : NPf ≤ RB)
     (h3 : (Q + 1) * n * (6 * (Q + 2) * RB + KpG + n) * (A ^ k)⁻¹ ≤ δ / 4) :
     (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2)))
       + (n * (6 * (Q + 2) * NPf + T) / A ^ k + n ^ 2 / A ^ L) ≤ δ / (2 * (Q + 1)) := by
@@ -484,8 +490,9 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
       ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬ o.result.hypothesis.Classifies
-            (pickLeaf o.result.hypothesis o.read q.2) x (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+          o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
+            o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
+              (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
       ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Sel r := by
     intro q hq
     by_cases hlp : q.1 ∈ Bloop
@@ -549,11 +556,13 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         exact h
       have hu : ∫ x, readProb O o.family o.state.lo (o.state.hi + 1) x .undecided
           ∂(uniformStrings L) ≤ N * εcov := by
-        refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _ fun x => measureReal_nonneg).trans ?_
+        refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
+          fun x => measureReal_nonneg).trans ?_
         exact mul_le_mul_of_nonneg_left hch.1.2.2.1 (zero_le_one.trans hN1)
       have hm : ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(uniformStrings L)
           ≤ N * εcov := by
-        refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _ fun x => measureReal_nonneg).trans ?_
+        refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
+          fun x => measureReal_nonneg).trans ?_
         exact mul_le_mul_of_nonneg_left hch.1.2.1 (zero_le_one.trans hN1)
       have h := pickLeaf_le M O o.result.hypothesis o.family o.state.lo (o.state.hi + 1) hL L n hn
         t (N * εcov) (N * εcov) η q.1.1 q.2 hinj hgood hu hm hs
@@ -651,8 +660,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have e1 : ((Fintype.card σ + 2 : ℕ) : ℝ) = Q + 2 := by push_cast; rfl
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring
     rw [e1, e2, htd]
-    exact dfa_select_arith hQ0 hA2' hδ hξ hkL (Nat.le_ceil _) hbud (Nat.floor_le hRB0)
-      (Nat.cast_nonneg _) (Nat.cast_nonneg _) hk3
+    exact dfa_select_arith hQ0 hA2' hδ hξ hkL (Nat.le_ceil _) hbud (Nat.floor_le hRB0) hk3
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
   refine (measureReal_union_le _ _).trans ?_
   refine (add_le_add hBl ((measureReal_biUnion_finset_le _ _).trans

@@ -1,20 +1,12 @@
 import OrthoDFA.LoopDFA
 import OrthoDFA.Proofs.LoopPersist
-import OrthoDFA.Proofs.Hoeffding
-import OrthoDFA.Proofs.UniformStrings
 
 /-!
-# Picking a leaf on held-out strings
+# A stage of the run, and fresh draws read elsewhere
 
 `select_le`: where a stage of the run is fixed by the answers at `W`, and a bad event of fresh
 draws `b` by the answers at `Z`, the run lands at a stage whose bad event holds, or at one whose
 `W` and `Z` meet, with chance at most the bad event's bound plus the meeting's.
-
-A leaf's score sums `agreeAt` over the held-out strings. At distinct strings the family's reads are
-independent, so the score is within `n t/2` of its mean given the strings, and that mean within
-`n t/2` of `n · agreeMean` (`scoreBad_le`). Where every leaf's score is within `n t` of its mean,
-the leaf of highest score misjudges at most `2t` more than the best leaf, and the mean is within
-the family's misread and undecided shares of the leaf's accuracy (`pickLeaf_le`).
 -/
 
 noncomputable section
@@ -48,85 +40,132 @@ theorem select_le (O : Oracle μ (FreeMonoid α)) {X B Y : Type*} [MeasurableSpa
     ((μ.prod ν).prod β) {q | G (stage q.1.1 q.1.2) ∧ q.1.2 ∈ Ok (stage q.1.1 q.1.2)
       ∧ ((q.1.1, q.2) ∈ Bad (stage q.1.1 q.1.2) ∨ (q.1.2, q.2) ∉ Dj (stage q.1.1 q.1.2))}
       ≤ δ₁ + δ₂ := by
-  sorry
+  classical
+  set U : Y → Set (Ω × X) := fun y =>
+    if G y then {p | stage p.1 p.2 = y} ∩ Prod.snd ⁻¹' Ok y else ∅ with hUd
+  have hmU : ∀ y, MeasurableSet (U y) := fun y => by
+    simp only [hUd]
+    split_ifs with h
+    · exact (hmeas y h).inter (measurable_snd (hmOk y))
+    · exact MeasurableSet.empty
+  have hmemU : ∀ y p, p ∈ U y ↔ G y ∧ stage p.1 p.2 = y ∧ p.2 ∈ Ok y := fun y p => by
+    simp only [hUd]
+    split_ifs with h
+    · simp [h]
+    · simp [h]
+  set T₁ : Y → Set ((Ω × X) × B) := fun y =>
+    Prod.fst ⁻¹' U y ∩ {q | (q.1.1, q.2) ∈ Bad y} ∩ {q | (q.1.2, q.2) ∈ Dj y} with hT₁d
+  set T₂ : Y → Set ((Ω × X) × B) := fun y =>
+    Prod.fst ⁻¹' U y ∩ {q | (q.1.2, q.2) ∉ Dj y} with hT₂d
+  have hm1 : ∀ y, MeasurableSet (T₁ y) := fun y =>
+    ((measurable_fst (hmU y)).inter
+      (((measurable_fst.comp measurable_fst).prodMk measurable_snd) (hmBad y))).inter
+      (((measurable_snd.comp measurable_fst).prodMk measurable_snd) (hmDj y))
+  have hm2 : ∀ y, MeasurableSet (T₂ y) := fun y =>
+    (measurable_fst (hmU y)).inter
+      (((measurable_snd.comp measurable_fst).prodMk measurable_snd) (hmDj y)).compl
+  have hsub : {q : (Ω × X) × B | G (stage q.1.1 q.1.2) ∧ q.1.2 ∈ Ok (stage q.1.1 q.1.2)
+      ∧ ((q.1.1, q.2) ∈ Bad (stage q.1.1 q.1.2) ∨ (q.1.2, q.2) ∉ Dj (stage q.1.1 q.1.2))}
+      ⊆ (⋃ y, T₁ y) ∪ ⋃ y, T₂ y := by
+    rintro q ⟨hG, hOk, h⟩
+    have hU : q.1 ∈ U (stage q.1.1 q.1.2) := (hmemU _ _).2 ⟨hG, rfl, hOk⟩
+    by_cases hd : (q.1.2, q.2) ∈ Dj (stage q.1.1 q.1.2)
+    · rcases h with h | h
+      · exact Or.inl (Set.mem_iUnion.2 ⟨_, ⟨hU, h⟩, hd⟩)
+      · exact absurd hd h
+    · exact Or.inr (Set.mem_iUnion.2 ⟨_, hU, hd⟩)
+  -- the run's stage, fixed by the answers at `W`, and the bad event, by those at `Z`
+  have hb1 : ∀ y, ((μ.prod ν).prod β) (T₁ y) ≤ δ₁ * (μ.prod ν) (U y) := by
+    intro y
+    by_cases hG : ¬ G y
+    · have : T₁ y = ∅ := by
+        ext q
+        simp only [hT₁d, Set.mem_inter_iff, Set.mem_preimage, hmemU, Set.mem_empty_iff_false,
+          iff_false]
+        tauto
+      rw [this, measure_empty]
+      exact zero_le
+    push Not at hG
+    rw [Measure.prod_apply (hm1 y), lintegral_prod_symm _
+      (measurable_measure_prodMk_left (hm1 y)).aemeasurable,
+      Measure.prod_apply_symm (hmU y), ← lintegral_const_mul _
+        (measurable_measure_prodMk_right (hmU y))]
+    refine lintegral_mono fun x => ?_
+    have hsec : MeasurableSet ((fun z : Ω × B => ((z.1, x), z.2)) ⁻¹' T₁ y) :=
+      (measurable_fst.prodMk measurable_const).prodMk measurable_snd (hm1 y)
+    have e1 : ∫⁻ ω, β (Prod.mk (ω, x) ⁻¹' T₁ y) ∂μ
+        = ∫⁻ b, μ {ω | ((ω, x), b) ∈ T₁ y} ∂β := by
+      exact (Measure.prod_apply (μ := μ) (ν := β) hsec).symm.trans
+        (Measure.prod_apply_symm (μ := μ) (ν := β) hsec)
+    rw [e1]
+    have hb : ∀ b, μ {ω | ((ω, x), b) ∈ T₁ y}
+        ≤ μ {ω | (ω, x) ∈ U y} * μ {ω | (ω, b) ∈ Bad y} := by
+      intro b
+      by_cases hc : x ∈ Ok y ∧ (x, b) ∈ Dj y
+      · have hset : {ω | ((ω, x), b) ∈ T₁ y}
+            = {ω | stage ω x = y} ∩ {ω | (ω, b) ∈ Bad y} := by
+          ext ω
+          simp only [hT₁d, Set.mem_inter_iff, Set.mem_preimage, Set.mem_ofPred_eq, hmemU]
+          tauto
+        have hset' : {ω | (ω, x) ∈ U y} = {ω | stage ω x = y} := by
+          ext ω
+          simp only [Set.mem_ofPred_eq, hmemU]
+          tauto
+        rw [hset, hset']
+        exact (measure_inter_of_reads O (hDj y x b hG hc.1 hc.2) {ω | stage ω x = y}
+          {ω | (ω, b) ∈ Bad y} (fun ω ω' h hω => hW y x ω ω' hG hω h)
+          (fun ω ω' h hω => hZ y b ω ω' h hω)).le
+      · have : {ω | ((ω, x), b) ∈ T₁ y} = ∅ := by
+          ext ω
+          simp only [hT₁d, Set.mem_inter_iff, Set.mem_preimage, Set.mem_ofPred_eq, hmemU,
+            Set.mem_empty_iff_false, iff_false]
+          tauto
+        rw [this, measure_empty]
+        exact zero_le
+    calc ∫⁻ b, μ {ω | ((ω, x), b) ∈ T₁ y} ∂β
+        ≤ ∫⁻ b, μ {ω | (ω, x) ∈ U y} * μ {ω | (ω, b) ∈ Bad y} ∂β := lintegral_mono hb
+      _ = μ {ω | (ω, x) ∈ U y} * ∫⁻ b, μ {ω | (ω, b) ∈ Bad y} ∂β :=
+          lintegral_const_mul _ (measurable_measure_prodMk_right (hmBad y))
+      _ = μ {ω | (ω, x) ∈ U y} * (μ.prod β) (Bad y) := by
+          rw [Measure.prod_apply_symm (hmBad y)]
+          rfl
+      _ ≤ μ {ω | (ω, x) ∈ U y} * δ₁ := by gcongr; exact hBad y hG
+      _ = δ₁ * μ ((fun ω => (ω, x)) ⁻¹' U y) := mul_comm _ _
+  have hb2 : ∀ y, ((μ.prod ν).prod β) (T₂ y) ≤ δ₂ * (μ.prod ν) (U y) := by
+    intro y
+    rw [Measure.prod_apply (hm2 y), ← lintegral_indicator_const (hmU y)]
+    refine lintegral_mono fun p => ?_
+    by_cases hp : p ∈ U y
+    · rw [Set.indicator_of_mem hp]
+      obtain ⟨hG, -, hOk⟩ := (hmemU y p).1 hp
+      refine (measure_mono fun b hb => ?_).trans (hcoll y hG p.2 hOk)
+      exact hb.2
+    · rw [Set.indicator_of_notMem hp]
+      have : Prod.mk p ⁻¹' T₂ y = ∅ := by
+        ext b
+        simp only [hT₂d, Set.mem_preimage, Set.mem_inter_iff, Set.mem_empty_iff_false,
+          iff_false]
+        exact fun h => hp h.1
+      rw [this, measure_empty]
+  have hdisj : Pairwise (Function.onFun Disjoint U) := by
+    intro y y' hyy'
+    refine Set.disjoint_left.2 fun p hp hp' => hyy' ?_
+    exact ((hmemU y p).1 hp).2.1.symm.trans ((hmemU y' p).1 hp').2.1
+  have hsumU : ∑' y, (μ.prod ν) (U y) ≤ 1 := by
+    rw [← measure_iUnion hdisj hmU]
+    exact prob_le_one
+  calc ((μ.prod ν).prod β) _ ≤ ((μ.prod ν).prod β) ((⋃ y, T₁ y) ∪ ⋃ y, T₂ y) := measure_mono hsub
+    _ ≤ ((μ.prod ν).prod β) (⋃ y, T₁ y) + ((μ.prod ν).prod β) (⋃ y, T₂ y) := measure_union_le _ _
+    _ ≤ ∑' y, ((μ.prod ν).prod β) (T₁ y) + ∑' y, ((μ.prod ν).prod β) (T₂ y) :=
+        add_le_add (measure_iUnion_le _) (measure_iUnion_le _)
+    _ ≤ ∑' y, δ₁ * (μ.prod ν) (U y) + ∑' y, δ₂ * (μ.prod ν) (U y) :=
+        add_le_add (ENNReal.tsum_le_tsum hb1) (ENNReal.tsum_le_tsum hb2)
+    _ = δ₁ * ∑' y, (μ.prod ν) (U y) + δ₂ * ∑' y, (μ.prod ν) (U y) := by
+        rw [ENNReal.tsum_mul_left, ENNReal.tsum_mul_left]
+    _ ≤ δ₁ * 1 + δ₂ * 1 := by gcongr
+    _ = δ₁ + δ₂ := by rw [mul_one, mul_one]
 
 end Select
-
-section Score
-
-variable (O : Oracle μ (FreeMonoid α)) (H : HypothesisDFA α) (F : Finset (FreeMonoid α))
-  (kl kh : ℕ)
-
-open scoped Classical in
-/-- `1` where the read of `x` is decided and the run from `s` classifies `x` as it decides. -/
-def agreeAt (s : List Bool) (x : FreeMonoid α) (ω : Ω) : ℝ :=
-  if familyRead O.mq F kl kh x ω ≠ .undecided
-    ∧ H.Classifies s x (familyRead O.mq F kl kh x ω = .accept) then 1 else 0
-
-/-- `agreeAt`'s mean over the noise. -/
-def agreeProb (s : List Bool) (x : FreeMonoid α) : ℝ := ∫ ω, agreeAt O H F kl kh s x ω ∂μ
-
-/-- `agreeProb`'s mean over the strings of length `L`. -/
-def agreeMean (L : ℕ) (s : List Bool) : ℝ :=
-  ∫ x, agreeProb O H F kl kh s x ∂(uniformStrings L)
-
-/-- Distinct held-out strings at which some leaf's score strays `n t` from its mean. -/
-def scoreBad (L n : ℕ) (t : ℝ) : Set (Ω × (Fin n → FreeMonoid α)) :=
-  {p | Function.Injective p.2 ∧ ∃ s ∈ H.tree.leaves,
-    n * (agreeMean O H F kl kh L s + t) ≤ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1
-      ∨ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1 ≤ n * (agreeMean O H F kl kh L s - t)}
-
-theorem leafScore_eq (ω : Ω) {n : ℕ} (xs : Fin n → FreeMonoid α) (s : List Bool) :
-    (leafScore H (fun z => familyRead O.mq F kl kh z ω) xs s : ℝ)
-      = ∑ i, agreeAt O H F kl kh s (xs i) ω := by
-  sorry
-
-theorem measurableSet_scoreBad (L n : ℕ) (t : ℝ) :
-    MeasurableSet (scoreBad O H F kl kh L n t) := by
-  sorry
-
-theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht : 0 ≤ t) :
-    (μ.prod (Measure.pi fun _ : Fin n => uniformStrings L)) (scoreBad O H F kl kh L n t)
-      ≤ ENNReal.ofReal (H.tree.leaves.length * (4 * Real.exp (-(n * t ^ 2 / 2)))) := by
-  sorry
-
-end Score
-
-section Pick
-
-variable [Nonempty α] {σ : Type*} (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-  (H : HypothesisDFA α) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
-
-/-- Off `scoreBad`, the leaf of highest score misjudges at most `2t`, the family's undecided
-share `u` and twice its misread share `m` more than any leaf. -/
-theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L n : ℕ) (hn : 0 < n)
-    (t u m η : ℝ) (ω : Ω) (xs : Fin n → FreeMonoid α) (hxs : Function.Injective xs)
-    (hgood : (ω, xs) ∉ scoreBad O H F kl kh L n t)
-    (hu : ∫ x, readProb O F kl kh x .undecided ∂(uniformStrings L) ≤ u)
-    (hm : ∫ x, misreadProb O F kl kh x ∂(uniformStrings L) ≤ m)
-    (hs : ∃ s ∈ H.tree.leaves, (uniformStrings L).real
-      {x | ¬ H.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ η) :
-    (uniformStrings L).real {x | ¬ H.Classifies
-      (pickLeaf H (fun z => familyRead O.mq F kl kh z ω) xs) x (M.eval x.toList ∈ M.accept)}
-      ≤ η + 2 * t + u + 2 * m := by
-  sorry
-
-end Pick
-
-section Collide
-
-variable [Nonempty α]
-
-/-- Held-out strings uniform of length `L` repeat, or one's first `k` letters fall in `S`, with
-chance at most `n |S| / |Σ|^k + n² / |Σ|^L`. -/
-theorem batch_collide_le (L k n : ℕ) (hk : k ≤ L) (S : Finset (FreeMonoid α)) :
-    (Measure.pi fun _ : Fin n => uniformStrings (α := α) L)
-      {b | ¬ Function.Injective b ∨ ∃ i, prefixOf (b i) k ∈ S}
-      ≤ ENNReal.ofReal (n * S.card / (Fintype.card α : ℝ) ^ k
-        + n ^ 2 / (Fintype.card α : ℝ) ^ L) := by
-  sorry
-
-end Collide
 
 end OrthoDFA
 

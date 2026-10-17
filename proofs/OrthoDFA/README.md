@@ -71,14 +71,18 @@ length `L` visit at some position from `⌈L/2⌉` to `L`, and `rerootAccuracy M
 of those strings whose run from `q` stays in `S` and is classified as the target classifies them
 (`covered_accuracy_ceiling` at the start `q`). Where some covered `q` has accuracy at least
 `1 − η`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
-walked from `k`, stops within `|Q| + 1` rounds at a consistent round with a leaf from which its
-hypothesis classifies all but `η` of the strings of length `L` as the target does, but for chance
-`δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as wrong. With `N = L₁ + 1 − k`,
-level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round; `L₀` is
-`|Q| + 4 + 4(log E + 64)/log |Σ|`, `E` free of `L`, logarithmic in `1/δ`, `1/c`, `1/(1/2 − η₀)`,
-`1/pAP` and `|Σ|^(|Q|+2)`. At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`,
-`L₀ = 1435` and the budget is `8.5e10` probes a round (`εd = 2.3e-6`). `LearnerLoopDFASimple`
-states the same at explicit settings, every hypothesis an inequality.
+walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and the leaf it then picks
+classifies all but `η + ξ` of the strings of length `L` as the target does, but for chance `δ`,
+once `L ≥ L₀`. A run that reaches an unlearned edge counts as wrong. The pick (`pickLeaf`): after
+the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
+by the last round's family; each leaf scores the strings its run classifies as the family decides
+them, undecided reads scoring none, and the first leaf of highest score is the start. With
+`N = L₁ + 1 − k`, level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round;
+`L₀` is `|Q| + 4 + 4(log (E + E₂) + 64)/log |Σ|`, `E` and `E₂` free of `L`, logarithmic in `1/δ`,
+`1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP` and `|Σ|^(|Q|+2)`. At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`,
+`c = δ = 0.01`, `pAP = 1/3` and `ξ = 0.01`, `L₀ = 1460`, `n = 3.3e6` and the budget is `9.1e10`
+probes a round (`εd = 2.3e-6`). `LearnerLoopDFASimple` states the same at explicit settings,
+every hypothesis an inequality.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, reading nothing on a rarer side
@@ -89,12 +93,27 @@ edge out of its true leaf that is wrong or unlearned leaves `c/((|Σ|+1)N)` of t
 (`checkedProbes`): those that search or could learn an edge, which the success test counts or
 which reset the hypothesis, those reading a prefix's extension on its state's rarer side, which is
 rare by the band, and, once `undecidedMass` is at most `ū`, those reading one undecided, by Markov.
-The clustering, run at `εcov = δc/(512(|Q|+1)(|Q|+3)(|Σ|+1)|Σ|^(|Q|+2)N³)`, holds the window's
-undecided rate, and so `undecidedMass`, under `ū`, and reads every covered state on its true side
-(`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as the target
-does, so the hypothesis from the covered start's true leaf tracks the re-rooted target on every
-run that stays covered (`classify_start_le`). The start is shown to exist; the algorithm does not
-choose it.
+The clustering, run at `εcov = min(δc/(1024(|Q|+1)(|Q|+3)(|Σ|+1)|Σ|^(|Q|+2)N³), ξ/(8N))`, holds
+the window's undecided rate, and so `undecidedMass`, under `ū`, and reads every covered state on
+its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as
+the target does, so the hypothesis from the covered start's true leaf tracks the re-rooted target
+on every run that stays covered (`classify_start_le`).
+
+The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
+on and off the language may differ, and agreement with such a read weighs a leaf's errors by
+`1 − 2η` of the string's true label, which can rank a worse leaf first. The family's read of a
+string of length `L` is wrong, or undecided, at most `N εcov ≤ ξ/8` of the time, so a leaf's
+mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
+reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
+prefix the last round's clustering read or of one of its probes: level 5 reads only short strings
+beginning with some probe's first `k` letters (`level5_congr_zone`, `Proofs/LoopSelect.lean`), and
+the earlier rounds read other suffixes. That collision has chance at most
+`n(6(|Q|+2)RB + Kp·G + n)/|Σ|^k`, which `L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that
+can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
+strings, and that within `nξ/8` of `n` times its mean over the strings, but for chance
+`4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), so the picked leaf misjudges at most `η + ξ/2 + 3Nεcov ≤ η
++ ξ` (`pickLeaf_le`). `δ` splits half to the loop, a quarter to the scores and a quarter to
+collisions.
 
 ## The loop
 

@@ -3,10 +3,12 @@ import OrthoDFA.Proofs.LoopUniform
 /-!
 # The learner's DFA: its closed-form length
 
-`dfa_cap_bound` turns `ℓ¹⁷ E ≤ |Σ|^k` into the two inequalities `LearnerLoopDFASimple` asks of the
-probes' prefix mass: with `ℓ` the longest probe plus one, the band's far side is at least
-`1/(Θ ℓ³)`, the suffix pool at most `ℓ³ P₀`, the prefix count at most `ℓ¹⁰ R₀`, so `4/(cap ρ) ≤ ℓ¹⁷ E`
-with `E` free of `L`. `dfa_pow` gets `ℓ¹⁷ E ≤ |Σ|^k` from `L ≥ L₀`, the walk starting at half of `L`.
+`dfa_cap_bound` turns `ℓ¹⁷ E ≤ |Σ|^k` into the two inequalities `LearnerLoopDFASimple` asks of
+the probes' prefix mass: with `ℓ` the longest probe plus one, the band's far side is at least
+`1/(Θ ℓ³)`, the suffix pool at most `ℓ³ P₀`, the prefix count at most `ℓ¹⁰ R₀`, so
+`4/(cap ρ) ≤ ℓ¹⁷ E` with `E` free of `L`. With the prefix count and the budget per `ℓ`,
+`dfa_collide_arith` turns `ℓ¹⁷ E₂ ≤ |Σ|^k` into the held-out strings' collision bound. `dfa_pow`
+gets `ℓ¹⁷ (E + E₂) ≤ |Σ|^k` from `L ≥ L₀`, the walk starting at half of `L`.
 -/
 
 noncomputable section

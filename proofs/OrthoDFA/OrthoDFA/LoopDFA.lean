@@ -133,19 +133,20 @@ def LearnerLoopDFASimple : Prop :=
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-            o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬ o.result.hypothesis.Classifies
-              (pickLeaf o.result.hypothesis o.read q.2) x (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+            o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
+              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
+                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
       ≤ δ
 
 /-- The learner's DFA once the Python's length `L` is at least `L₀`. With the walk starting at
-`k = ⌈L/2⌉`, probes uniform over the lengths `k` to `L₁ = L + |Q| + 3` and suffixes uniform at length
-`L₁ + |Q| + 3`, of which at least `pAP` keep every string's membership: if some state that at
-least `c` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
+`k = ⌈L/2⌉`, probes uniform over the lengths `k` to `L₁ = L + |Q| + 3` and suffixes uniform at
+length `L₁ + |Q| + 3`, of which at least `pAP` keep every string's membership: if some state that
+at least `c` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
 least `1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops
 within `|Q| + 1` rounds at a consistent round, and the leaf `pickLeaf` picks on `n` held-out
 strings uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target
-does. Level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round, `N = L₁ + 1 − k`
-the probes' lengths.
+does. Level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round,
+`N = L₁ + 1 − k` the probes' lengths.
 
 `L₀` is `|Q| + 4` plus `4 (log (E + E₂) + 64)/log |Σ|`, `E` and `E₂` free of `L`: the claim's `cap`
 is at least `1/((L₁ + 1)¹⁶ E₁)`, `ρ` at least `3c/(32(|Σ|+1)(L₁ + 1))`, the prefix count at most
@@ -191,8 +192,9 @@ def LearnerLoopDFA : Prop :=
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-            o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬ o.result.hypothesis.Classifies
-              (pickLeaf o.result.hypothesis o.read q.2) x (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+            o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
+              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
+                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
       ≤ δ
 
 end OrthoDFA
