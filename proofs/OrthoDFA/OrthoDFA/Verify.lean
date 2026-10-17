@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
@@ -20,9 +21,10 @@ import OrthoDFA.Proofs.TripartiteSearch
 `SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
-`SeqRateSound`, stated in `OrthoDFA.SeqTest`, level 2's claim, stated in `OrthoDFA.Level2Claim`,
-level 3's random-read claim, stated in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong
-reads, stated in `OrthoDFA.Level4Claim`.
+`SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
+`OrthoDFA.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read
+claim, stated in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong reads, stated in
+`OrthoDFA.Level4Claim`.
 -/
 
 namespace OrthoDFA
@@ -75,6 +77,10 @@ theorem seq_rate_sound : SeqRateSound := seqRateSound
 theorem level2_correct : Level2.Correct := Level2.correct_holds
 
 #print axioms level2_correct
+
+theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
+
+#print axioms adaptive_reads_bound
 
 theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCorrect_holds
 
