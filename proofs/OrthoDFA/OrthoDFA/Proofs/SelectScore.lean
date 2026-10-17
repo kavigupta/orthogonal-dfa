@@ -2,6 +2,7 @@ import OrthoDFA.LoopDFA
 import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
+import OrthoDFA.Proofs.LoopMeasurable
 
 /-!
 # Scoring leaves on held-out strings
@@ -74,19 +75,10 @@ theorem agreeAt_mem (s : List Bool) (x : FreeMonoid α) (ω : Ω) :
   unfold agreeAt
   split_ifs <;> simp
 
-lemma measurableSet_of_sections {X Y : Type*} [MeasurableSpace X] [MeasurableSpace Y]
-    [Countable Y] [MeasurableSingletonClass Y] (E : Set (X × Y))
-    (h : ∀ y, MeasurableSet {x | (x, y) ∈ E}) : MeasurableSet E := by
-  have hset : E = ⋃ y, {x | (x, y) ∈ E} ×ˢ {y} := by
-    ext ⟨x, y⟩
-    simp
-  rw [hset]
-  exact MeasurableSet.iUnion fun y => (h y).prod (measurableSet_singleton y)
-
 theorem measurableSet_scoreBad (L n : ℕ) (t : ℝ) :
     MeasurableSet (scoreBad O H F kl kh L n t) := by
   classical
-  refine measurableSet_of_sections _ fun b => ?_
+  refine measurableSet_prod_countable_right _ fun b => ?_
   have hm : ∀ s, Measurable fun ω => ∑ i, agreeAt O H F kl kh s (b i) ω := fun s =>
     Finset.measurable_sum _ fun i _ => measurable_agreeAt O H F kl kh s (b i)
   have hset : {ω | (ω, b) ∈ scoreBad O H F kl kh L n t}
@@ -183,7 +175,7 @@ theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht 
       (∀ b, MeasurableSet {ω | (ω, b) ∈ S}) →
       (∀ b, μ {ω | (ω, b) ∈ S} ≤ ENNReal.ofReal e) → (μ.prod β) S ≤ ENNReal.ofReal e := by
     intro S hm hb
-    rw [Measure.prod_apply_symm (measurableSet_of_sections S hm)]
+    rw [Measure.prod_apply_symm (measurableSet_prod_countable_right S hm)]
     calc ∫⁻ b, μ ((fun x => (x, b)) ⁻¹' S) ∂β ≤ ∫⁻ _b, ENNReal.ofReal e ∂β :=
           lintegral_mono fun b => hb b
       _ = ENNReal.ofReal e := by rw [lintegral_const, measure_univ, mul_one]
