@@ -55,7 +55,7 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
     (hG : G = Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ'))
     (hΘ : Θ = 1 / s + 8 * Ce + 3072 * Q * (Q + 1))
     (hK₁ : K₁ = V * (448 * (A + 1) / c + 1))
-    (hB₁ : B₁ = 8 * K₁ * G * (Q + 3) * A ^ m / δ')
+    (hB₁ : B₁ = 4 * (2 + Real.log (4 * K₁ * G * (Q + 3) * A ^ m / δ')))
     (hP₀ : P₀ = 256 * (2 * Θ + B₁) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2)
     (hR₀ : R₀ = 6000 * (Q + 2) ^ 2 * Θ ^ 3
@@ -64,7 +64,8 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
     (hE : E = 128 * (A + 1) * E₁ / (3 * c)
       + 32768 * (Q + 2) * A * (A + 1) * Real.log ((Q + 3) * A / δ') / c) :
     let J := Q + 2
-    let PB := 256 * (Real.log (2 / τ) + 8 * Kp * G * ℓ * (Q + 3) * A ^ m / δ') / (s ^ 2 * pAP)
+    let PB := 256 * (Real.log (2 / τ) + 4 * Real.log (4 * Kp * G * ℓ * (Q + 3) * A ^ m / δ'))
+      / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 3)
@@ -144,21 +145,51 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
       nlinarith only [hNℓ, hA]
     nlinarith only [h1, hV1, hℓ]
   have hKp0 : 0 ≤ Kp := by rw [hKp]; positivity
-  set cL := 8 * Kp * G * ℓ * (Q + 3) * A ^ m / δ' with hcLd
-  have hB₀ : 0 ≤ B₁ := by
-    rw [hB₁]
-    have : 0 ≤ 8 * K₁ * G * (Q + 3) * A ^ m := mul_nonneg (mul_nonneg (mul_nonneg
-      (mul_nonneg (by norm_num) hK₁0) (by linarith)) (by linarith)) (by positivity)
-    positivity
+  set cL := 4 * Real.log (4 * Kp * G * ℓ * (Q + 3) * A ^ m / δ') with hcLd
+  have hKp1 : 1 ≤ Kp := by
+    rw [hKp]
+    have : 0 ≤ 224 / εd := by positivity
+    nlinarith
+  set X₁ := 4 * K₁ * G * (Q + 3) * A ^ m / δ' with hX₁d
+  have hK₁1 : 1 ≤ K₁ := by
+    rw [hK₁]
+    have : 0 ≤ 448 * (A + 1) / c := by positivity
+    nlinarith
+  have hX₁ : 1 ≤ X₁ := by
+    rw [hX₁d, le_div_iff₀ hδ'0, one_mul]
+    have h1 : 1 ≤ K₁ * G := one_le_mul_of_one_le_of_one_le hK₁1 hG1
+    have h2 : 1 ≤ (Q + 3) * A ^ m := one_le_mul_of_one_le_of_one_le (by linarith) hAm
+    have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
+    nlinarith
+  have hlX₁ : 0 ≤ Real.log X₁ := Real.log_nonneg hX₁
+  have hB₀ : 0 ≤ B₁ := by rw [hB₁]; positivity
+  have hcL0 : 0 ≤ cL := by
+    rw [hcLd]
+    refine mul_nonneg (by norm_num) (Real.log_nonneg ?_)
+    rw [le_div_iff₀ hδ'0, one_mul]
+    have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp1 hG1
+    have h2 : 1 ≤ ℓ * (Q + 3) * A ^ m :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hℓ (by linarith)) hAm
+    have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
+    nlinarith
   have hcL : cL ≤ ℓ ^ 3 * B₁ := by
-    have e : ℓ ^ 3 * B₁ = ℓ * (8 * (ℓ * K₁) * G * ℓ * (Q + 3) * A ^ m / δ') := by
-      rw [hB₁, hK₁]; ring
-    rw [e, hcLd]
-    have h1 : 8 * Kp * G * ℓ * (Q + 3) * A ^ m / δ' ≤ 8 * (ℓ * K₁) * G * ℓ * (Q + 3) * A ^ m / δ' := by
-      gcongr
-    have h2 : 0 ≤ 8 * (ℓ * K₁) * G * ℓ * (Q + 3) * A ^ m / δ' := by positivity
-    nlinarith only [h1, h2, hℓ]
-  have hcL0 : 0 ≤ cL := by rw [hcLd]; positivity
+    have h1 : cL ≤ 4 * Real.log (ℓ ^ 2 * X₁) := by
+      rw [hcLd]
+      refine mul_le_mul_of_nonneg_left (Real.log_le_log ?_ ?_) (by norm_num)
+      · have : 0 < Kp := by linarith
+        positivity
+      · rw [hX₁d]
+        have e : ℓ ^ 2 * (4 * K₁ * G * (Q + 3) * A ^ m / δ')
+            = 4 * (ℓ * K₁) * G * ℓ * (Q + 3) * A ^ m / δ' := by ring
+        rw [e]
+        gcongr
+    have h2 : Real.log (ℓ ^ 2 * X₁) = 2 * Real.log ℓ + Real.log X₁ := by
+      rw [Real.log_mul (by positivity) (by linarith), Real.log_pow]; push_cast; ring
+    have h3 : Real.log ℓ ≤ ℓ := by
+      have := Real.log_le_sub_one_of_pos hℓ0; linarith
+    have h4 : Real.log X₁ ≤ ℓ * Real.log X₁ := le_mul_of_one_le_left hlX₁ hℓ
+    have h5 : cL ≤ ℓ * B₁ := by rw [hB₁]; nlinarith
+    exact h5.trans (mul_le_mul_of_nonneg_right hℓ3 hB₀)
   have hJ2 : J + 2 = Q + 4 := by rw [hJ]; ring
   have hPB : PB = 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by

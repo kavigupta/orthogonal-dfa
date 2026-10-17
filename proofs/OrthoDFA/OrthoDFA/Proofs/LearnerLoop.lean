@@ -43,12 +43,12 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
       ∧ (∀ pops, ∀ B ∈ schedule pops,
-        B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (Real.exp (-2 / crossLimit))
+        B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
         ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
-          (Real.exp (-2 / crossLimit)))
+          (crossLimit ^ 4))
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
         ≤ 2 * prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
-          (Real.exp (-2 / crossLimit)))
+          (crossLimit ^ 4))
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
           (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
@@ -70,8 +70,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
                   ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc := by
   classical
-  obtain ⟨c, hc⟩ : ∃ c : ℝ, c = Real.exp (-2 / crossLimit) := ⟨_, rfl⟩
-  have hc0 : 0 < c := hc ▸ Real.exp_pos _
+  obtain ⟨c, hc⟩ : ∃ c : ℝ, c = crossLimit ^ 4 := ⟨_, rfl⟩
+  have hc0 : 0 < c := hc ▸ pow_pos hcross 4
   rw [← hc]
   have hq : ∀ pops : Finset (Option (Fin K)), none ∈ pops → _ := fun pops hpops =>
     clustering_quality_sized O pops none Pre Suf η₀ indecisionLimit εcov gateLevel δc pAP c slack
@@ -85,14 +85,17 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     obtain ⟨hlohi, hk2, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀ hs
     refine ⟨hlohi, hk2, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ =>
-      bandPasses_of_wide hp0 hp1 hr0 hr1 hlohi ?_⟩
-    have hlog : Real.log (1 / c) = 2 / crossLimit := by
-      rw [hc, one_div, ← Real.exp_neg, Real.log_exp]; ring
-    rw [hlog, mul_div_assoc', div_le_iff₀ hcross] at hband
+      bandPasses_of_wide hp0 hp1 hr0 hr1 hlohi hcross ?_⟩
+    have hlog : Real.log (1 / c) = 4 * Real.log (1 / crossLimit) := by
+      rw [hc, one_div, Real.log_inv, Real.log_pow, one_div, Real.log_inv]; push_cast; ring
+    rw [hlog] at hband
     have hNk : (N : ℝ) + 1 ≤ B.k := by exact_mod_cast hN
     have hlh : (B.lo : ℝ) ≤ B.hi := by exact_mod_cast hlohi
     have h2 : ((B.hi : ℝ) - B.lo) ^ 2 ≤ ((B.hi : ℝ) + 1 - B.lo) ^ 2 := by nlinarith
-    nlinarith [mul_le_mul_of_nonneg_left h2 hcross.le]
+    have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
+    rcases le_or_gt 0 (Real.log (1 / crossLimit)) with hl | hl
+    · nlinarith [mul_le_mul_of_nonneg_right hNk hl]
+    · nlinarith [mul_nonneg hN0 (le_of_lt (neg_pos.2 hl))]
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp
@@ -339,7 +342,8 @@ def LoopCore : Prop :=
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
-  let c : ℝ := Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
+  let c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
+    * A ^ (Fintype.card σ + 2) / δ)))
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -411,13 +415,14 @@ theorem loop_core_holds : LoopCore := by
   have hW : 0 < W := by positivity
   set cross : ℝ := δ / (4 * Kp * G * W) with hcrossd
   have hcr : 0 < cross := by positivity
-  have hc : Real.exp (-2 / cross) = c := by
-    show Real.exp (-2 / cross)
-      = Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
-    congr 1
-    rw [hcrossd, hWd]
-    field_simp
-    ring
+  have hc : cross ^ 4 = c := by
+    show cross ^ 4 = Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
+      * A ^ (Fintype.card σ + 2) / δ)))
+    have e : 4 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ = cross⁻¹ := by
+      rw [hcrossd, hWd, inv_div]; ring
+    have e2 : -(4 * Real.log cross⁻¹) = Real.log (cross ^ 4) := by
+      rw [Real.log_inv, Real.log_pow]; push_cast; ring
+    rw [e, e2, Real.exp_log (by positivity)]
   obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
     η₀ ι gate cross εcov δc (slack - m) (pAP - ms) hη hη₀ (flat_of_length Ls) (by linarith)
@@ -832,8 +837,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
   intro α _ _ _ σ _ Ω _ μ _ M O P K Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ V Kp G U
     hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
   classical
-  set c : ℝ := Real.exp (-(8 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ))
-    with hc
+  set c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
+    * A ^ (Fintype.card σ + 2) / δ))) with hc
   set m : ℝ := min slack 1 / 2 with hmd
   set ms : ℝ := min pAP 1 / 2 with hmsd
   have hs1 := min_le_left slack 1

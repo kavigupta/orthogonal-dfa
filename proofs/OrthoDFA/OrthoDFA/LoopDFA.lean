@@ -86,7 +86,11 @@ The theorem runs `LearnerLoopSimple`'s settings at disagreement rate `εd = c/(2
 clustering's accuracy at `εcov`, and splits `δ` into half for the loop, a quarter for the scores'
 deviation and a quarter for a held-out string whose reads some round read: one whose first `k`
 letters are those of a prefix the last round's clustering read or of one of its probes, or one
-drawn twice. -/
+drawn twice.
+
+`εcov` carries `|Σ|^(|Q|+2)` because the clustering's accuracy is an average over the window,
+while a sift reads `y·m` for a covered `y` and a midfix `m`, a state the window can visit
+`|Σ|^-|m|` as often. -/
 def LearnerLoopDFASimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -109,7 +113,8 @@ def LearnerLoopDFASimple : Prop :=
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
   let PB : ℝ := 256 * (Real.log (2 / τ)
-      + 8 * Kp * G * (L₁ + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ') / (s ^ 2 * pAP)
+      + 4 * Real.log (4 * Kp * G * (L₁ + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+      / (s ^ 2 * pAP)
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 3)
@@ -150,7 +155,8 @@ does. Level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes 
 
 `L₀` is `|Q| + 4` plus `4 (log (E + E₂) + 64)/log |Σ|`, `E` and `E₂` free of `L`: the claim's `cap`
 is at least `1/((L₁ + 1)¹⁶ E₁)`, `ρ` at least `3c/(32(|Σ|+1)(L₁ + 1))`, the prefix count at most
-`(L₁ + 1)¹⁰ R₀`, and `17 log (L₁ + 1) ≤ 64 + (L₁ + 1) log |Σ| / 4` absorbs the length. -/
+`(L₁ + 1)¹⁰ R₀`, and `17 log (L₁ + 1) ≤ 64 + (L₁ + 1) log |Σ| / 4` absorbs the length. `Ce`
+carries `|Σ|^(|Q|+2)` for the reason `LearnerLoopDFASimple` gives. -/
 def LearnerLoopDFA : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -170,7 +176,7 @@ def LearnerLoopDFA : Prop :=
   let Ce : ℝ := 1024 * (Q + 1) * (Q + 3) * (A + 1) * A ^ (Fintype.card σ + 2) / (δ * c) + 8 / ξ
   let Θ : ℝ := 1 / s + 8 * Ce + 3072 * Q * (Q + 1)
   let K₁ : ℝ := V * (448 * (A + 1) / c + 1)
-  let B₁ : ℝ := 8 * K₁ * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'
+  let B₁ : ℝ := 4 * (2 + Real.log (4 * K₁ * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
   let P₀ : ℝ := 256 * (2 * Θ + B₁) / (s ^ 2 * pAP) + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
     * (Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) + 6) / s ^ 4

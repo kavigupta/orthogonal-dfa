@@ -18,7 +18,7 @@ namespace OrthoDFA
 
 open MeasureTheory
 
-/-- A bound on the suffix pool, the band's far side at `exp (-cLog)`. -/
+/-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
   128 * (Real.log (2 / min εcov (min (1 / 2 - η₀) ι)) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
     + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
@@ -104,6 +104,21 @@ namespace OrthoDFA
 
 open MeasureTheory
 
+/-- The far side's argument is at least one. -/
+lemma one_le_farArg {Q A L Kp G δ' : ℝ} (m : ℕ) (hQ : 0 ≤ Q) (hA : 1 ≤ A) (hL : 0 ≤ L)
+    (hKp : 1 ≤ Kp) (hG : 1 ≤ G) (hδ' : 0 < δ') (hδ'1 : δ' ≤ 1) :
+    1 ≤ 4 * Kp * G * (L + 1) * (Q + 3) * A ^ m / δ' := by
+  rw [le_div_iff₀ hδ', one_mul]
+  have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp hG
+  have h2 : 1 ≤ (L + 1) * (Q + 3) * A ^ m :=
+    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith))
+      (one_le_pow₀ hA)
+  have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
+  have e : 4 * Kp * G * (L + 1) * (Q + 3) * A ^ m = 4 * (Kp * G * ((L + 1) * (Q + 3) * A ^ m)) := by
+    ring
+  rw [e]
+  linarith
+
 lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} {K : ℕ} {O : Oracle μ (FreeMonoid α)} {D : Measure (FreeMonoid α)} {k : ℕ}
     {εr εu εd εr' εu' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') {o : LoopRound Ω α K}
@@ -135,7 +150,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Kp : ℝ := V * (224 / εd + 1)
     let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
     let PB : ℝ := 256 * (Real.log (2 / τ)
-        + 8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ') / (s ^ 2 * pAP)
+        + 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+        / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 3)
@@ -195,28 +211,27 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     · intro Dsf hDsf _ hpAPD _
       have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
       linarith
-  set cLog : ℝ := 8 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ' with hcLog
+  set cLog : ℝ := 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+    with hcLog
   have hV1 : 1 ≤ V := by
     change 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
     have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
     nlinarith
-  have hG0 : 0 ≤ G := by
-    refine Real.log_nonneg ?_
-    rw [le_div_iff₀ hδ'0, one_mul]
-    have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
-    nlinarith
+  have hG1 : 1 ≤ G := by
+    change 1 ≤ Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+    have hX : 3 ≤ 4 * V * (2 * (Q + 2) * A + 4) / δ' := by
+      rw [le_div_iff₀ hδ'0]
+      have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
+      nlinarith
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    linarith [Real.exp_one_lt_d9]
   have hcL0 : 0 ≤ cLog := by
-    have hK0 : 0 ≤ Kp := by
-      change 0 ≤ V * (224 / εd + 1)
-      exact mul_nonneg (by linarith) (by positivity)
-    have e : cLog = 8 * Kp * G * ((L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2)) / δ' := by
-      rw [hcLog]; ring
-    rw [e]
-    have hA0 : 0 ≤ A := by linarith
-    have hQ0 : 0 ≤ Q := by linarith
-    have hL0 : 0 ≤ L := by linarith
-    exact div_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (by norm_num) hK0) hG0) (by positivity))
-      hδ'0.le
+    have hK1 : 1 ≤ Kp := by
+      change 1 ≤ V * (224 / εd + 1)
+      have : 0 ≤ 224 / εd := by positivity
+      nlinarith
+    exact mul_nonneg (by norm_num) (Real.log_nonneg
+      (one_le_farArg _ (by linarith) hA1 (by linarith) hK1 hG1 hδ'0 hδ'1))
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
     show _ = 256 * (Real.log (2 / min (εcov / 2) (min (1 / 2 - η₀) ι)) + cLog)
         / ((1 / 2 - η₀) ^ 2 * pAP) + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2

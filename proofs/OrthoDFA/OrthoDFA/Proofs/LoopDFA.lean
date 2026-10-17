@@ -651,9 +651,25 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         nlinarith
       have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
       nlinarith
-    have hKp0 : 0 ≤ Kp := by show 0 ≤ V * (224 / εd + 1); positivity
+    have hV1 : 1 ≤ V := by
+      show 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
+      have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
+      nlinarith
+    have hKp1 : 1 ≤ Kp := by
+      show 1 ≤ V * (224 / εd + 1)
+      have : 0 ≤ 224 / εd := by positivity
+      nlinarith
+    have hG1 : 1 ≤ G := by
+      show 1 ≤ Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+      have hX : 3 ≤ 4 * V * (2 * (Q + 2) * A + 4) / δ' := by
+        rw [le_div_iff₀ hδ'0]
+        have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
+        nlinarith
+      rw [Real.le_log_iff_exp_le (by linarith)]
+      linarith [Real.exp_one_lt_d9]
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
-      (by positivity : 0 ≤ 8 * Kp * G * ((L₁ : ℝ) + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+      (mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (L := (L₁ : ℝ)) _ hQ0
+        (by linarith) (Nat.cast_nonneg _) hKp1 hG1 hδ'0 hδ'1)))
     refine (loop_select_round_le settings O P Dsf Ls L n ⌊RB⌋₊ t (by positivity) hC (hwalk ▸ hkL)
       hnp r hr').trans ?_
     rw [hmaxL, hwalk]
