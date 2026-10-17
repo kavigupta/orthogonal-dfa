@@ -53,6 +53,10 @@
   against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
   look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
   from `p₁`. `statistics.seq_rate` is the same test.
+- `OrthoDFA/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
+  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
+  reads bad with chance at most `ε` times the most strings they query while none has.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
@@ -100,6 +104,13 @@
   undecided at good states but for chance `δ/4`. The sampler (`harvestLaw`) draws a fresh probe,
   walks it under the final hypothesis and finds the probe's undecided strings at the site, as the
   tests counted them.
+- `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: level 3's algorithm, unchanged, with each read
+  on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
+  under level 3's premises, `G`'s `log(4 …/δ)` becoming `log(8 …/δ)`, and
+  `εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|) ≤ δ/8`. A step that reads no string wrong
+  splits and learns only on real targets. A probe's step reads at most `(L + 1)|Q|` strings and a
+  split re-sifts at most `(|Q| + 1)²|Σ|`, so by `AdaptiveReadsBound` the premise keeps every string
+  the round reads right but for chance `δ/8`. The noise takes `δ/8` and the stretches `3δ/4`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

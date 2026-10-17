@@ -149,18 +149,86 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hss : 0 < C.searchShar
     nlinarith
   linarith
 
+/-- Under level 3's premises at `δ < 1` and a positive `G`, the knobs `RandomRoundCorrect` picks
+are admissible and their stretches risk at most `3δ/4` in all. -/
+theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Level3Settings)
+    (θ y G : ℝ) (S : ℕ)
+    (hS : S = Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1)
+    (hθ : 0 ≤ θ) (hδ : 0 < C.δ) (hδ1 : C.δ < 1) (hss : 0 < C.searchShare)
+    (hssρ : 8 * C.searchShare ≤ C.disagreementRate) (hρ1 : C.disagreementRate < 1)
+    (hμ : C.middleRate ≤ 1 / 4) (hs1 : C.startRate < 1 / 2) (he0 : 0 ≤ C.edgeRate) (hG0 : 0 < G)
+    (hps : max (2 * G) y ≤ C.startRate)
+    (hpe : 2 * max (2 * G) y ≤ C.edgeRate * C.edgeReadShare)
+    (hpm : 2 * max (2 * G) y ≤ C.searchShare * C.middleRate)
+    (hP : 8 * S / C.searchShare * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget) :
+    ∃ kn : Knobs, kn.Admissible (σ := σ) (α := α) θ C C.disagreementRate y ∧ kn.G = G ∧
+      ∑ j ∈ Finset.range S, stretchRisk C (C.level j) kn.Ns kn.N₁ kn.θr kn.εd' kn.θpt'
+        ≤ 3 * C.δ / 4 := by
+  set δ := C.δ
+  set ρ := C.disagreementRate
+  set p := max (2 * G) y with hp
+  have hpG : 2 * G ≤ p := le_max_left _ _
+  have hμ0 : 0 < C.middleRate := by
+    by_contra h
+    push Not at h
+    nlinarith
+  have hρ0 : 0 < ρ := by linarith
+  have hS1 : (1 : ℝ) ≤ S := by
+    have : 1 ≤ S := by omega
+    exact_mod_cast this
+  set Λ := Real.log (16 * S * (S + 1) / δ) with hΛ
+  have hΛ0 : 0 ≤ Λ := Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
+  set Ns := ⌈8 * Λ / C.searchShare⌉₊ with hNs
+  have hNs0 : 1 ≤ Ns := by
+    rw [hNs, Nat.one_le_ceil_iff]
+    have : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; nlinarith)
+    positivity
+  refine ⟨⟨Ns, Ns, G, ρ / 16, ρ / 4, 1 / 2 + C.middleRate⟩, ?_, rfl, ?_⟩
+  · refine ⟨hNs0, le_rfl, hθ, hG0.le, hδ, by linarith, hs1, he0, hμ0, by linarith, hρ0, hρ1,
+      le_rfl, show (0 : ℝ) ≤ ρ / 16 by positivity, show ρ / 16 ≤ 1 by linarith,
+      show (0 : ℝ) ≤ ρ / 4 by positivity, show ρ / 4 ≤ 1 by linarith,
+      show 2 * C.middleRate ≤ 1 / 2 + C.middleRate by linarith,
+      show 1 / 2 + C.middleRate ≤ 1 by linarith, ?_, ?_, show 4 * G ≤ _ by linarith,
+      by linarith [le_max_right (2 * G) y], hps, ?_⟩
+    · show ρ / 16 ≤ (1 - (1 / 2 + C.middleRate)) * (ρ / 4)
+      nlinarith
+    · show _ * Ns ≤ C.probeBudget
+      rw [← hS]
+      have hlt : (Ns : ℝ) < 8 * Λ / C.searchShare + 1 :=
+        Nat.ceil_lt_add_one (by positivity)
+      have : ((S * Ns : ℕ) : ℝ) ≤ C.probeBudget := by
+        push_cast
+        calc (S : ℝ) * Ns ≤ S * (8 * Λ / C.searchShare + 1) := by gcongr
+          _ = 8 * S / C.searchShare * Λ + S := by ring
+          _ ≤ _ := hP
+      exact_mod_cast this
+    · exact middles_fall_of (by linarith) hμ0 hμ hss.le hpm
+  calc _ ≤ ∑ j ∈ Finset.range S, 6 * C.level j := by
+        refine Finset.sum_le_sum fun j hj => ?_
+        refine stretch_le C hδ hss hssρ hρ1 hμ0 hμ hΛ0 ?_ (Nat.le_ceil _)
+        have hj : (j : ℝ) + 1 ≤ S := by
+          have : j + 1 ≤ S := Finset.mem_range.1 hj
+          exact_mod_cast this
+        have ha := level_pos C hδ j
+        apply Real.log_le_log (by positivity)
+        unfold Level3Settings.level
+        rw [div_div_eq_mul_div, div_le_div_iff_of_pos_right hδ]
+        have hj0 : (0 : ℝ) ≤ j := Nat.cast_nonneg j
+        nlinarith
+    _ = 6 * (δ / 8 * (S / (S + 1))) := by rw [← Finset.mul_sum, sum_level]
+    _ ≤ 3 * δ / 4 := by
+        have : (S : ℝ) / (S + 1) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
+        nlinarith
+
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   intro α _ _ σ _ M side U θ Ω _ μ _ R P C y p₀
   dsimp only
   intro hpre hθ hδ hss hssρ hρ1 hμ hs1 he0 hps hpe hpm hP
   set nQ := Fintype.card σ
   set nα := Fintype.card α
-  set S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1 with hS
   set δ := C.δ
-  set ρ := C.disagreementRate
   set K : ℝ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ with hK
   set G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (4 * K / δ) with hG
-  set p := max (2 * G) y with hp
   by_cases hδ1 : 1 ≤ δ
   · calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
       _ = 1 := by simp
@@ -177,44 +245,9 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
     have : 0 ≤ 3 * θ * (P.L + 1) * (nQ + 1) := by positivity
     have : 0 < p₀ * Real.log (4 * K / δ) := mul_pos hp₀ hlogK
     linarith
-  have hpG : 2 * G ≤ p := le_max_left _ _
-  have hpy : y ≤ p := le_max_right _ _
-  have hμ0 : 0 < C.middleRate := by
-    by_contra h
-    push Not at h
-    nlinarith
-  have hρ0 : 0 < ρ := by linarith
-  have hS1 : (1 : ℝ) ≤ S := by
-    have : 1 ≤ S := by omega
-    exact_mod_cast this
-  set Λ := Real.log (16 * S * (S + 1) / δ) with hΛ
-  have hΛ0 : 0 ≤ Λ := Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  set Ns := ⌈8 * Λ / C.searchShare⌉₊ with hNs
-  have hNs0 : 1 ≤ Ns := by
-    rw [hNs, Nat.one_le_ceil_iff]
-    have : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; nlinarith)
-    positivity
-  set kn : Knobs := ⟨Ns, Ns, G, ρ / 16, ρ / 4, 1 / 2 + C.middleRate⟩
-  have hA : kn.Admissible (σ := σ) (α := α) θ C ρ y := by
-    refine ⟨hNs0, le_rfl, hθ, hG0.le, hδ, by linarith, hs1, he0, hμ0, by linarith, hρ0, hρ1,
-      le_rfl, show (0 : ℝ) ≤ ρ / 16 by positivity, show ρ / 16 ≤ 1 by linarith,
-      show (0 : ℝ) ≤ ρ / 4 by positivity, show ρ / 4 ≤ 1 by linarith,
-      show 2 * C.middleRate ≤ 1 / 2 + C.middleRate by linarith,
-      show 1 / 2 + C.middleRate ≤ 1 by linarith, ?_, ?_, show 4 * G ≤ _ by linarith,
-      by linarith, hps, ?_⟩
-    · show ρ / 16 ≤ (1 - (1 / 2 + C.middleRate)) * (ρ / 4)
-      nlinarith
-    · show S * Ns ≤ C.probeBudget
-      have hlt : (Ns : ℝ) < 8 * Λ / C.searchShare + 1 :=
-        Nat.ceil_lt_add_one (by positivity)
-      have : ((S * Ns : ℕ) : ℝ) ≤ C.probeBudget := by
-        push_cast
-        calc (S : ℝ) * Ns ≤ S * (8 * Λ / C.searchShare + 1) := by gcongr
-          _ = 8 * S / C.searchShare * Λ + S := by ring
-          _ ≤ _ := hP
-      exact_mod_cast this
-    · exact middles_fall_of (by linarith) hμ0 hμ hss.le hpm
-  refine (round_le_at M side U θ μ R P C ρ y p₀ kn hA hp₀ (fun u _ => hpre u)).trans
+  obtain ⟨kn, hA, hkG, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ y G _ rfl hθ hδ hδ1 hss hssρ
+    hρ1 hμ hs1 he0 hG0 hps hpe hpm (by exact_mod_cast hP)
+  refine (round_le_at M side U θ μ R P C _ y p₀ kn hA hp₀ (fun u _ => hpre u)).trans
     (ENNReal.ofReal_le_ofReal ?_)
   unfold roundBoundAt
   have hnoise : noiseRisk nQ nα P.L (3 / 2 * θ) p₀ G = δ / 4 := by
@@ -224,26 +257,7 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
     push_cast
     rw [← hK, e, Real.exp_neg, Real.exp_log (by positivity)]
     field_simp
-  have hsum : ∑ j ∈ Finset.range S,
-      stretchRisk C (C.level j) Ns Ns (ρ / 16) (ρ / 4) (1 / 2 + C.middleRate) ≤ 3 * δ / 4 := by
-    calc _ ≤ ∑ j ∈ Finset.range S, 6 * C.level j := by
-          refine Finset.sum_le_sum fun j hj => ?_
-          refine stretch_le C hδ hss hssρ hρ1 hμ0 hμ hΛ0 ?_ (Nat.le_ceil _)
-          have hj : (j : ℝ) + 1 ≤ S := by
-            have : j + 1 ≤ S := Finset.mem_range.1 hj
-            exact_mod_cast this
-          have ha := level_pos C hδ j
-          apply Real.log_le_log (by positivity)
-          unfold Level3Settings.level
-          rw [div_div_eq_mul_div, div_le_div_iff_of_pos_right hδ]
-          have hj0 : (0 : ℝ) ≤ j := Nat.cast_nonneg j
-          nlinarith
-      _ = 6 * (δ / 8 * (S / (S + 1))) := by rw [← Finset.mul_sum, sum_level]
-      _ ≤ 3 * δ / 4 := by
-          have : (S : ℝ) / (S + 1) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
-          nlinarith
-  show noiseRisk nQ nα P.L (3 / 2 * θ) p₀ G + _ ≤ δ
-  rw [hnoise]
+  rw [hkG, hnoise]
   linarith
 
 end Random
