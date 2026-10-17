@@ -29,37 +29,28 @@ theorem mem_before {j : ℕ} {r : Z → R} {y : Z} : y ∈ before Q j r ↔ ∃ 
   classical
   simp [before]
 
+/-- The rounds' locality. -/
+def Local : Prop :=
+  ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z ∉ B z) → (∀ i < j, ∀ z ∈ Q i r, r z = r' z) →
+    Q j r = Q j r'
+
 variable {Q}
 
-/-- Reads agreeing on what the rounds before `j` query agree on rounds up to `j`. -/
-theorem Q_congr (hloc : ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z = r' z) → Q j r = Q j r')
-    {j : ℕ} {r r' : Z → R} (h : ∀ y ∈ before Q j r, r y = r' y) {i : ℕ} (hi : i ≤ j) :
-    Q i r = Q i r' :=
-  hloc i r r' fun l hl y hy => h y ((mem_before Q).2 ⟨l, by omega, hy⟩)
+/-- Reads agreeing with `r` on what the rounds before `j` query, where none of those read bad
+under `r`, agree with it on rounds up to `j`. -/
+theorem Q_congr (hloc : Local Q B) {j : ℕ} {r r' : Z → R} (hg : ∀ i < j, ∀ y ∈ Q i r, r y ∉ B y)
+    (h : ∀ y ∈ before Q j r, r y = r' y) {i : ℕ} (hi : i ≤ j) : Q i r = Q i r' :=
+  hloc i r r' (fun l hl => hg l (by omega)) fun l hl y hy =>
+    h y ((mem_before Q).2 ⟨l, by omega, hy⟩)
 
-theorem before_congr (hloc : ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z = r' z) → Q j r = Q j r')
-    {j : ℕ} {r r' : Z → R} (h : ∀ y ∈ before Q j r, r y = r' y) : before Q j r = before Q j r' := by
-  ext y
-  simp only [mem_before]
-  constructor <;> rintro ⟨i, hi, hy⟩ <;> refine ⟨i, hi, ?_⟩
-  · rwa [← Q_congr hloc h hi.le]
-  · rwa [Q_congr hloc h hi.le]
-
-theorem first_congr (hloc : ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z = r' z) → Q j r = Q j r')
-    {j : ℕ} {z : Z} {r r' : Z → R} (h : ∀ y ∈ before Q j r, r y = r' y) :
-    First Q B j z r ↔ First Q B j z r' := by
-  have hQ : ∀ i ≤ j, Q i r = Q i r' := fun i hi => Q_congr hloc h hi
-  unfold First
-  constructor
-  · rintro ⟨h1, h2, h3⟩
-    refine ⟨fun i hi y hy => ?_, hQ j le_rfl ▸ h2, fun i hi => hQ i hi.le ▸ h3 i hi⟩
-    rw [← hQ i hi.le] at hy
-    rw [← h y ((mem_before Q).2 ⟨i, hi, hy⟩)]
-    exact h1 i hi y hy
-  · rintro ⟨h1, h2, h3⟩
-    refine ⟨fun i hi y hy => ?_, (hQ j le_rfl).symm ▸ h2, fun i hi => (hQ i hi.le).symm ▸ h3 i hi⟩
-    rw [h y ((mem_before Q).2 ⟨i, hi, hy⟩)]
-    exact h1 i hi y (hQ i hi.le ▸ hy)
+theorem first_congr (hloc : Local Q B) {j : ℕ} {z : Z} {r r' : Z → R}
+    (h : ∀ y ∈ before Q j r, r y = r' y) (hF : First Q B j z r) : First Q B j z r' := by
+  obtain ⟨h1, h2, h3⟩ := hF
+  have hQ : ∀ i ≤ j, Q i r = Q i r' := fun i hi => Q_congr B hloc h1 h hi
+  refine ⟨fun i hi y hy => ?_, hQ j le_rfl ▸ h2, fun i hi => hQ i hi.le ▸ h3 i hi⟩
+  rw [← hQ i hi.le] at hy
+  rw [← h y ((mem_before Q).2 ⟨i, hi, hy⟩)]
+  exact h1 i hi y hy
 
 variable [Countable Z] {Ω : Type*} [MeasurableSpace Ω] [MeasurableSpace R] [Countable R]
   [MeasurableSingletonClass R]
@@ -71,7 +62,7 @@ abbrev others (read : Z → Ω → R) (z : Z) : MeasurableSpace Ω :=
 omit [MeasurableSpace Ω] in
 /-- That `z` is first queried in round `j` is fixed by the other strings' reads. -/
 theorem first_measurable (read : Z → Ω → R)
-    (hloc : ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z = r' z) → Q j r = Q j r') (j : ℕ) (z : Z) :
+    (hloc : Local Q B) (j : ℕ) (z : Z) :
     MeasurableSet[others read z] {ω | First Q B j z (read · ω)} := by
   classical
   set T : (S : Finset Z) → Set (S → R) := fun S =>
@@ -87,7 +78,7 @@ theorem first_measurable (read : Z → Ω → R)
       exact h.2.2 i hi hzi
     · rintro ⟨S, -, r, hr, hS, hF⟩
       have hag : ∀ y ∈ before Q j r, r y = read y ω := fun y hy => hr ⟨y, hS ▸ hy⟩
-      exact (first_congr B hloc hag).1 hF
+      exact first_congr B hloc hag hF
   rw [hset]
   refine MeasurableSet.iUnion fun S => MeasurableSet.iUnion fun hzS => ?_
   have hm : Measurable[others read z] fun ω (y : S) => read y ω := by
