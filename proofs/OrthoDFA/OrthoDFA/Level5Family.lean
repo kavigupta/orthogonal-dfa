@@ -25,8 +25,8 @@ def SuffixFamily.oracle {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 def Level5FamilyCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (fam : SuffixFamily μ α σ)
-    (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k : ℕ),
-    Level5Guarantee fam.M fam.oracle θ εd P δ k
+    (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k J : ℕ) (ū : ℝ),
+    Level5Guarantee fam.M fam.oracle θ εd P δ k J ū
 
 end OrthoDFA
 

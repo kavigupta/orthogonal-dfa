@@ -73,6 +73,6 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
     {uni : J} (huni : uni ∈ populations) (indecisionLimit α : ℝ) (B : State) :
     retAll rule mq populations indecisionLimit α B ⊆ retBy rule mq populations uni indecisionLimit α B :=
-  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, by simpa using h3 uni huni⟩
+  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, Nat.zero_le _, by simpa using h3 uni huni⟩
 
 end OrthoDFA

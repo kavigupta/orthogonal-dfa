@@ -5,6 +5,33 @@
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
+The headline is `LearnerLoopUniform` (`OrthoDFA/LearnerLoop.lean`, proved in
+`Proofs/LoopUniform.lean`). Take probes uniform over the strings of length `L` and suffixes
+uniform over those of length `L + |Q| + 3`, of which at least `pAP` keep every string's
+membership. Then if `L ≥ L₀`, the learner's loop, walking from `L − 1`, stops within `|Q| + 1`
+rounds at a round whose hypothesis's walk and tree part on at most `εd` of the probes and whose
+read is wrong at most `εcov` and undecided at most `εcov` of the time, with probability at least
+`1 − δ`, at most `Kp · G` probes a round. The whole run reads one noise, fixed per string as the
+Python's is. With `s = 1/2 − η₀`, `δ' = δ/(2(|Q|+1))`, `ρ = 3εd/16`, and level 5's
+`V = (|Q|+2)((|Q|+2)|Σ|+1)`, `Kp = V(224/εd + 1)` and `G = log(4V(2(|Q|+2)|Σ|+4)/δ')`:
+
+    Θ  = 1/s + 8/εcov + 3072 |Q|(|Q|+1)
+    P₀ = 256 (2Θ + 8 Kp G (|Q|+3)|Σ|^(|Q|+2)/δ')/(s² pAP) + 64 log((|Q|+4)/(δ'/2))/pAP²
+    R₀ = 6000 (|Q|+2)² Θ³ log((|Q|+4) P₀ Θ/(δ' pAP/16))/s⁴
+    E  = 2²⁴ (|Q|+3)² (Θ² (R₀ + 1) + (P₀ + 1)/pAP + |Σ|²)/(δ' ρ)
+    L₀ = 2 + 28 (log E + 24)/(25 log |Σ|)
+
+Unfolded, `25/28 · L₀ log |Σ| ≈ 5 log Θ + 4 log(1/s) + log(1/δ) + log(1/εd) + log log(…) +
+O(log |Q| + log |Σ|)`, logarithmic in `1/δ`, `1/εd`, `1/εcov`, `1/s`, `|Q|` and `1/pAP`.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 208` (`219` when level
+5 moved an edge on `recordsToMove` records and allowed splits that are not genuine); the least `L`
+at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 188 (was 199). A round's
+budget is `Kp · G`, free of `L`: at that point `1.9e6` probes (the chosen budget `1.88e6`), against
+`3.9e7` at `L = 219` (chosen `3.1e7`) under the records level and `1.1e9` when level 5 tested its
+rates at every look. The band's far side, `δ'/(4 Kp G (L+1)(|Q|+3)|Σ|^(|Q|+2))`, is what keeps
+level 5's reads off the rarer side; it is `1e6`× tighter than under the records level, but enters
+`L₀` only logarithmically, and the `1344`× larger yield `ρ` more than pays for it.
+
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
   polynomial number of queries.
@@ -24,6 +51,135 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   small enough. A harvest's sampler yields at least `3εd/16`.
 - `Level5FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
+- `LearnerLoopCorrect`: the learner's loop, clustering a family and running level 5 with it each
+  round, stops within `|Q| + 1` rounds at a round whose hypothesis and tree agree on all but `εd`
+  of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(δc + δ)` (below).
+- `LearnerLoopSimple`: the general form of the headline, at settings the theorem chooses, every
+  hypothesis an explicit inequality on any probes and suffixes and any walk start `k ≥ 1`: with
+  probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose hypothesis
+  and tree part on at most `εd` of the probes and whose read is wrong at most `εcov` of the time
+  and undecided at most `εcov`.
+- `LearnerLoopUniform`: the headline above.
+- `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the loop outputs a
+  DFA. See below.
+
+## The learner's DFA
+
+`LearnerLoopDFA` asks for what the Python's `satisfies_preconditions` checks of the target, at its
+length `L`: `coveredStates M L c` are the states at least `c` (`min_coverage`) of the strings of
+length `L` visit at some position from `⌈L/2⌉` to `L`, and `rerootAccuracy M L S q` is the share
+of those strings whose run from `q` stays in `S` and is classified as the target classifies them
+(`covered_accuracy_ceiling` at the start `q`). Where some covered `q` has accuracy at least
+`1 − η`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
+walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and the leaf it then picks
+classifies all but `η + ξ` of the strings of length `L` as the target does, but for chance `δ`,
+once `L ≥ L₀`. A run that reaches an unlearned edge counts as wrong. The pick (`pickLeaf`): after
+the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
+by the last round's family; each leaf scores the strings its run classifies as the family decides
+them, undecided reads scoring none, and the first leaf of highest score is the start. With
+`N = L₁ + 1 − k`, level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round;
+`L₀` is `|Q| + 4 + 4(log (E + E₂) + 64)/log |Σ|`, `E` and `E₂` free of `L`, logarithmic in `1/δ`,
+`1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP` and `|Σ|^(|Q|+2)`. At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`,
+`c = δ = 0.01`, `pAP = 1/3` and `ξ = 0.01`, `L₀ = 1460`, `n = 3.3e6` and the budget is `9.1e10`
+probes a round (`εd = 2.3e-6`). `LearnerLoopDFASimple` states the same at explicit settings,
+every hypothesis an inequality.
+
+The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
+probe, so a probe and its extension by a letter that both agree, reading nothing on a rarer side
+and nothing undecided, cross a learned edge between their states' true leaves (`edge_of_pair`,
+`Proofs/DFABridge.lean`). A covered state is visited `c` of the time summed over the window, so an
+edge out of its true leaf that is wrong or unlearned leaves `c/((|Σ|+1)N)` of the probes checked
+(`edge_of_occupied`). Level 5's consistent ending answers for its checked probes
+(`checkedProbes`): those that search or could learn an edge, which the success test counts or
+which reset the hypothesis, those reading a prefix's extension on its state's rarer side, which is
+rare by the band, and, once `undecidedMass` is at most `ū`, those reading one undecided, by Markov.
+The clustering, run at `εcov = min(δc/(1024(|Q|+1)(|Q|+3)(|Σ|+1)|Σ|^(|Q|+2)N³), ξ/(8N))`, holds
+the window's undecided rate, and so `undecidedMass`, under `ū`, and reads every covered state on
+its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as
+the target does, so the hypothesis from the covered start's true leaf tracks the re-rooted target
+on every run that stays covered (`classify_start_le`).
+
+The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
+on and off the language may differ, and agreement with such a read weighs a leaf's errors by
+`1 − 2η` of the string's true label, which can rank a worse leaf first. The family's read of a
+string of length `L` is wrong, or undecided, at most `N εcov ≤ ξ/8` of the time, so a leaf's
+mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
+reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
+prefix the last round's clustering read or of one of its probes: level 5 reads only short strings
+beginning with some probe's first `k` letters (`level5_congr_zone`, `Proofs/LoopSelect.lean`), and
+the earlier rounds read other suffixes. That collision has chance at most
+`n(6(|Q|+2)RB + Kp·G + n)/|Σ|^k`, which `L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that
+can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
+strings, and that within `nξ/8` of `n` times its mean over the strings, but for chance
+`4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), so the picked leaf misjudges at most `η + ξ/2 + 3Nεcov ≤ η
++ ξ` (`pickLeaf_le`). `δ` splits half to the loop, a quarter to the scores and a quarter to
+collisions.
+
+## The loop
+
+`LearnerLoopCorrect` (`OrthoDFA/LearnerLoop.lean`): `indecisiveLStarLoop` clusters a family over
+the populations so far, runs level 5 with it, and adds a harvest's sampler, scaled to a
+probability, as a population of every later round. The whole run, every round's clustering and
+level 5, reads one noise. Each round's clustering draws its prefixes, certification prefixes and
+suffixes off every one the earlier rounds' clusterings read (`offLaw`), so no two rounds read the
+same string. Level 5 runs at disagreement rate `εd / 2` and draws its probes from `D` conditioned
+on their first `k ≥ 1` letters avoiding those of every prefix the round's clustering read. Within
+`|Q| + 1` rounds the loop stops at a round whose hypothesis's walk and tree part on at most `εd` of
+the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit + 2·slack` of the
+time, but for chance `(|Q| + 1)(δc + δ)`, for probes whose length-`k` prefix mass is at most
+`cap · ρ / 4` and `εd / (4096 (L + 1) unionLog)`. The band's far side is
+`δ / (4 Kp G (L + 1)(|Q| + 3)|Σ|^(|Q|+2))`, so level 5 reads a state on its rarer side rarely
+enough that its splits are all genuine. A harvest's sampler yields at least `ρ / 4` and finds a
+string at most as often as the probes share its length-`k` prefix, so a population puts at most
+`4 prefixMax / ρ` on a string, within `cap`, which also bounds the suffixes' atoms. Against `cap`
+the clustering's collision conditions, linear in the schedule's prefix count `NP` and suffix pool
+`NS`, hold, and the earlier rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a
+round, hold at most `m` of any population and `ms` of the suffixes.
+
+`LearnerLoopSimple` fixes everything the theorem may choose: `indecisionLimit = slack = ι` with
+`ι = min(εcov/8, 1/(3072 (L+1)(|Q|+1)|Q|))`, the FNR gate at `1/4`, half of `εcov` for the
+clustering, `|Q| + 1` rounds, suffixes of length `L + |Q| + 3`,
+`δ/(2(|Q| + 1))` for each round's clustering and level 5, and `m = ι/2`, `ms = pAP/2`, so the
+clustering runs at slack `ι/2` and `pAP/2`. `PB` and `RB` bound the pool and the prefix count, from
+`poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`), and its cap is the
+least of six terms linear in them. `LearnerLoopUniform` takes probes and suffixes uniform at
+lengths `L` and `L + |Q| + 3` and `k = L − 1`, so `prefixMax = |Σ|^-k`. `cap_bound`
+(`Proofs/LoopUniform.lean`) shows the cap is at least its first term, `δ'τ²/(2²²(|Q|+3)²(RB+1))`,
+or its third, `δ' pAP/(2¹⁵(|Q|+3)(PB+1))`, and bounds the band's far side `τ` by `1/(Θ(L+1))`,
+`PB` by `(L+1) P₀` and `RB` by `(L+1)⁴ R₀`, so `4/(cap ρ) ≤ (L+1)⁶ E` with `E` free of `L`;
+`6 log(L+1) ≤ 24 + 3(L+1) log |Σ|/28` absorbs the `L`. `E`'s `|Σ|²` holds level 5's prefix
+condition. The proved `L₀` is within 1.10–1.28× of the least `L` at which `LearnerLoopSimple`'s
+hypotheses hold (188 at the point above, 46 at `|Σ| = 16`, 239 at `εcov = 1e-9`).
+
+Proved with no `sorry`. The rounds' draws are independent, and given the earlier rounds a round's
+clustering run is drawn as `runMeasure` draws it at their populations conditioned off what they
+read (`Proofs/LoopLaw.lean`, `Proofs/LoopIndep.lean`): a population's draws are made from uniforms
+(`drawFrom`), and a round's population and reads are fixed by finite data, its last hypothesis's tree
+and edge graphs, its reads of short strings and its clustering's prefixes and suffixes
+(`Proofs/LoopCodes.lean`). A round's outcomes are measurable because, at fixed draws, each is fixed
+by the oracle's answers at finitely many strings (`Proofs/LoopMeasurable.lean`), level 5 reading
+only strings at most `L + 1 + maxLeaves` long (`Proofs/Level5Reads.lean`).
+
+On one noise, what the earlier rounds hand on is fixed by the answers at the strings they read, and
+a round's bad event by the answers at the strings it reads; when no two rounds read the same prefix
+or suffix the two sets are disjoint, so the two are independent (`persist_stage_le`,
+`Proofs/LoopPersist.lean`, `Proofs/LoopCollide.lean`). A uniform below `1` draws a string of
+positive mass off the earlier rounds' reads (`drawFrom_offLaw`, `Proofs/LoopOff.lean`), so with
+chance one every suffix read is `Ls` long, every prefix shorter, and no round reads a prefix or a
+suffix an earlier one read (`loop_coll_null`, `Proofs/LoopColl.lean`). The clustering's guarantee
+holds of the conditioned laws, whose atoms are at most twice the unconditioned and whose `pAP`
+drops by at most what was removed, and a population's average under the conditioned law is within
+the removed mass `m` of its own (`integral_le_offLaw`), which the claim's slack pays
+(`loop_cluster_round_le_persist`, `Proofs/LoopE1.lean`). Level 5 reads `z·v` with `v` a family
+suffix and `z`'s first `k` letters a probe's, so its avoiding probes never read a string the
+clustering read (`level5_congr_off`, `Proofs/Level5Avoid.lean`). Re-noising the clustering's
+strings with a second, independent noise (`Oracle.renoise`, `Proofs/Renoise.lean`) leaves a fresh
+family on which level 5's guarantee holds at the conditioned probes, whose prefix mass grows by at
+most `1/(1 − m)` for `m ≤ |keys| · prefixMax` the mass removed (`Proofs/LoopAvoid.lean`); the actual
+run is the same run, and its ending transfers back to `D` at disagreement `ε + m`, yield `(1 − m) y`
+and a quarter of the sampler bad (`quarterEndsWell_of_endsWell`, `Proofs/LoopTransfer.lean`), which
+still leaves a bad state with `1/(4|Q|)` of the population (`Proofs/LoopTermination.lean`).
+
 ## The round, by refinement
 
 Each level proves one L\* round correct and states its ending through `OrthoDFA/RoundEnd.lean`:
@@ -60,18 +216,19 @@ need to be read; the algorithm is `indecisiveLStarLevel5` in `OrthoDFA/Level5.le
 `U = 4(n + 2)A log ((n + 3)A / δ)` and a
 read-state bad where it reads undecided more than `1.5θ` of the time:
 
-    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ k,
+    Level5Correct: ∀ M (O : TriOracle μ M) θ εd (P : PrefixDistribution α) δ k J ū,
       0 < δ ≤ 1 → 0 < εd < 1 → 1 ≤ L → 0 ≤ θ →
       384 (L + 1)(n + 1) θ ≤ 1 →
       0 ≤ O.κ → 0 ≤ O.ε → 4 (O.ε + O.κ) K G W ≤ δ →
-      1024 (L + 1) · U · prefixMax P.D k ≤ εd →
+      1024 (L + 1) · U · prefixMax P.D k ≤ εd → 0 ≤ ū →
       ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
         settings.probeBudget ≤ K · G ∧
         P[let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-          ¬ EndsWell M bad P.D settings.disagreementRate
-            (searchingProbes (O.read · ω) settings.walkStart result.hypothesis)
+          ¬ EndsWell M bad P.D (17εd/16)
+            (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart (n + 2) J ū
+              result.hypothesis)
             settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart
-              result.hypothesis) (3εd/16) result.ending] ≤ δ
+              result.hypothesis) (3εd/16) result.ending] ≤ δ + 32ū/εd
 
     Level5FamilyCorrect: Level5Guarantee at fam.oracle : TriOracle μ fam.M.
 
@@ -111,10 +268,18 @@ splitting wrongly: `1.7e8×` and `3.3e7×` tighter.
 `Proofs/Level5RiskDefs.lean` states what the claim is derived from; none of it needs to be read
 to trust the claim.
 
-    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C,
+    Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C J ū,
+      0 ≤ ū → 32 ≤ εd · budget →
       ∫⁻ ω, P[the run of `applyProbe` over C.probeBudget probes from P.D does not end well, its
-          harvest's sampler yielding harvestYield] ∂μ
-        ≤ roundRisk σ O.κ O.ε θ P.D P.L C
+          harvest's sampler yielding harvestYield and a consistent end checking at most 17εd/16
+          of the probes] ∂μ
+        ≤ roundRisk σ O.κ O.ε θ P.D P.L C + 32ū/εd
+
+The success test certifies the probes that search or could learn an unlearned edge, since such a
+probe resets the hypothesis (`success_le`, through `site_le` charging only probes that keep it).
+Where the probes reading a prefix's extension on a rarer side pass `εd/32 ≥ 1/budget`, the
+`wrongTerm` below already exceeds one, so they cost nothing more; the undecided ones cost
+`32 undecidedMass/εd` by Markov (`und_le_mass`), counted only where `undecidedMass ≤ ū`.
 
 A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ` of the time.
 `roundRisk σ κ ε θ D L C` is the least, over the proof's free parameters `kn : Knobs` meeting
@@ -158,8 +323,13 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   probe has to, so the bound unions over every word of at most `Lmax` letters after every prefix of
   every probe. A first-read count of the reads the round actually makes would replace
   `(Lmax + 1)|Σ|^Lmax` by the reads a probe makes.
-- Each theorem is per round, with the family, the seed and the band fixed, and treats the noise as
-  fresh. Reads made in earlier rounds, which pin bits a later round reads again, are not modelled.
+- Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
+  noise as fresh; the loop's theorem reads one noise across rounds (above).
+- **The model's loop differs from the Python's.** Level 5 draws its probes avoiding the first `k`
+  letters of the prefixes the round's clustering read, where the Python draws them from `D`. Each
+  round's clustering draws its prefixes, certification prefixes and suffixes off every one the
+  earlier rounds' clusterings read, where the Python does not avoid them. The uniform pool is drawn
+  afresh each round, where the Python keeps one pool across rounds.
 
 ## What to read
 

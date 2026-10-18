@@ -11,12 +11,17 @@ import OrthoDFA.Proofs.Level5Correct
 import OrthoDFA.Proofs.Level5Risk
 import OrthoDFA.Proofs.Level5RiskBound
 import OrthoDFA.Proofs.Probe
+import OrthoDFA.Proofs.LoopUniform
+import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
 # The theorem
+
+The headline: `LearnerLoopUniform`, stated in `OrthoDFA.LearnerLoop`, holds: on uniform probes and
+suffixes at least `L₀` long, the learner's loop succeeds but for chance `δ`.
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
@@ -26,7 +31,8 @@ in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.Hypothe
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, level 2's claim, stated in `OrthoDFA.Level2Claim`,
 level 5's, stated in `OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in
-`OrthoDFA.Level5Family`. Level 5's detailed bound and its closed form, stated in
+`OrthoDFA.Level5Family`, and the learner's loop, stated in `OrthoDFA.LearnerLoop`, at free settings
+and at the theorem's own. Level 5's detailed bound and its closed form, stated in
 `OrthoDFA.Proofs.Level5RiskDefs`, are internal: the claims above are derived from them.
 -/
 
@@ -60,6 +66,18 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
+
+theorem learner_loop_uniform : LearnerLoopUniform := learner_loop_uniform_holds
+
+#print axioms learner_loop_uniform
+
+theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
+
+#print axioms learner_loop_dfa_simple
+
+theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
+
+#print axioms learner_loop_dfa
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
@@ -116,6 +134,14 @@ theorem level5_family_correct : Level5FamilyCorrect := level5_family_correct_hol
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
+
+theorem learner_loop_correct : LearnerLoopCorrect := learner_loop_correct_holds
+
+#print axioms learner_loop_correct
+
+theorem learner_loop_simple : LearnerLoopSimple := learner_loop_simple_holds
+
+#print axioms learner_loop_simple
 
 theorem level2_correct : Level2.Correct := Level2.correct_holds
 

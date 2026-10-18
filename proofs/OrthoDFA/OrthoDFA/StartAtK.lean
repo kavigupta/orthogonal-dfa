@@ -81,4 +81,8 @@ def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → �
       | none => .undecidedMid ((lo + hi) / 2)
     else .edge ps hi
 
+variable (R : CutReads α)
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
+
 end OrthoDFA

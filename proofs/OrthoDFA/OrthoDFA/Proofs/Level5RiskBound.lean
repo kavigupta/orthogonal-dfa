@@ -168,7 +168,7 @@ set_option maxHeartbeats 1000000 in -- every field of `Knobs.Admissible` and all
 theorem level5_risk_bound_holds : Level5RiskBound := by
   intro α _ _ _ σ _ κ ε θ D _ L C δ
   dsimp only
-  intro hδ0 hδ1 hL hLmax hκ hε hθ0 hθe hθpt hθs hφe hφpt hεd1 hθs_eq hθs₁_eq hθpt_eq hθpt₁_eq
+  intro hδ0 hδ1 hL hLmax hκ hε hθ0 hθe hθpt hθs hφe hφpt hεd1 hθs_alt hθs₁_lt hθpt_eq hθpt₁_eq
     hεd₁_eq hφ_eq hn₀ hn₀7 hexc ha0 ha hbudget hwrong
   generalize hp₀ : prefixMax D C.walkStart = p₀ at hθs hφe hφpt
   generalize hΛ : unionLog (α := α) σ δ = Λ at hθs hφe hφpt
@@ -213,13 +213,16 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
     by_contra h
     push Not at h
     nlinarith only [h, hθe0, hφeθe]
-  have hθs0 : 0 ≤ C.startUndecidedRate := by rw [hθs_eq]; norm_num
+  have hθs0 : 0 < C.startUndecidedRate := by
+    have h1 : 0 ≤ 6 * ((Fintype.card σ : ℝ) + 1) * θ := by positivity
+    have h2 : 0 < 2 * p₀ * Λ := by positivity
+    linarith
   have hSq : C.SeqOK :=
     { a_pos := ha0
       a_lt := ha1
-      θs_pos := by rw [hθs_eq]; norm_num
-      θs_alt := by rw [hθs_eq, hθs₁_eq]; norm_num
-      θs_alt_lt := by rw [hθs₁_eq]; norm_num
+      θs_pos := hθs0
+      θs_alt := hθs_alt
+      θs_alt_lt := hθs₁_lt
       θpt_pos := hθpt_pos
       θpt_alt := by rw [hθpt_eq, hθpt₁_eq]; norm_num
       θpt_alt_lt := by rw [hθpt₁_eq]; norm_num
