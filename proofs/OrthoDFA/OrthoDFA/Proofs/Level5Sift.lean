@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.Level5Risk
+import OrthoDFA.Proofs.SiftSet
 
 /-!
 # A consistent round's sifts are decided
@@ -54,12 +55,6 @@ section Firsts
 
 variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α) (k : ℕ)
   (x : FreeMonoid α)
-
-/-- The probes whose start or end sift stops undecided. -/
-def undSiftSet : Set (FreeMonoid α) :=
-  {x | match probeBy cut T edges k x with
-    | .startUndecided _ | .endUndecided _ => True
-    | _ => False}
 
 /-- A sift whose route meets none of `P` and stops undecided has a first read, labelled as the
 sift is, that reads undecided. -/

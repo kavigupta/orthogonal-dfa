@@ -119,6 +119,18 @@ theorem measurableSet_mem_searchingProbes (O : Oracle μ (FreeMonoid α))
   simp only [Set.mem_setOf_eq, searchingProbes] at hω ⊢
   rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
 
+theorem measurableSet_mem_siftedProbes (O : Oracle μ (FreeMonoid α))
+    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (sift : Bool) (H : HypothesisDFA α)
+    (x : FreeMonoid α) :
+    MeasurableSet {ω | x ∈ siftedProbes sift (fun z => familyRead O.mq F kl kh z ω) k H} := by
+  refine measurableSet_of_reads O
+    (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_
+  have hagree : AgreeUpTo (x.toList.length + midLen H.tree)
+      (fun z => (familyRead O.mq F kl kh z ω).cut) (fun z => (familyRead O.mq F kl kh z ω').cut) :=
+    fun z hz => by dsimp only; rw [familyRead_congr O h (mem_shortStrings.2 hz)]
+  simp only [Set.mem_setOf_eq, siftedProbes, undSiftSet] at hω ⊢
+  rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
+
 lemma length_le_of_mem_shortWords {n : ℕ} {m : FreeMonoid α} (h : m ∈ shortWords n) :
     m.toList.length ≤ n := by
   obtain ⟨⟨⟨i, hi⟩, v⟩, -, rfl⟩ := Finset.mem_image.1 h
@@ -260,18 +272,21 @@ omit [Fintype σ] in
 oracle's answers. -/
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
-    (D Dm : Measure (FreeMonoid α)) (n J : ℕ) (ū ε y : ℝ) (H : HypothesisDFA α)
-    (e : RoundEnd (Level5Site α)) :
+    (D Dm : Measure (FreeMonoid α)) (n J : ℕ) (ū : ℝ) (sift : Bool) (ε y : ℝ)
+    (H : HypothesisDFA α) (e : RoundEnd (Level5Site α)) :
     MeasurableSet {ω | ¬ EndsWell M bad D ε
-      (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H) k
+      (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H
+        ∪ siftedProbes sift (fun z => familyRead O.mq F kl kh z ω) k H) k
       (harvestLaw D (fun z => (familyRead O.mq F kl kh z ω).cut) k H) y e} := by
   classical
   cases e with
   | consistent =>
     have hf : Measurable fun ω =>
-        D.real (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H) :=
+        D.real (checkedProbes M dist Dm (fun z => familyRead O.mq F kl kh z ω) k n J ū H
+          ∪ siftedProbes sift (fun z => familyRead O.mq F kl kh z ω) k H) :=
       ENNReal.measurable_toReal.comp (measurable_measure_of_mem D _
-        fun x => measurableSet_mem_checkedProbes O F kl kh k M dist Dm n J ū H x)
+        fun x => (measurableSet_mem_checkedProbes O F kl kh k M dist Dm n J ū H x).union
+          (measurableSet_mem_siftedProbes O F kl kh k sift H x))
     exact (measurableSet_le hf measurable_const).compl
   | harvest h =>
     have hm : ∀ A : Set (FreeMonoid α), Measurable fun ω =>

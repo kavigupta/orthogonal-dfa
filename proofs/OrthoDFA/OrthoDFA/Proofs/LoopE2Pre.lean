@@ -55,16 +55,20 @@ theorem level5_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU
 theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) (dist : σ → ARU → ℝ) (D' : Measure (FreeMonoid α)) {L : ℕ}
     (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (ε y : ℝ) {n : ℕ} (hn : n ≤ C.maxLeaves) (J : ℕ)
-    (ū : ℝ) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
+    (ū : ℝ) (sift : Bool) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
     (h : ∀ z, z.toList.length ≤ max (L + C.maxLeaves) (probesLen xs + 1 + C.maxLeaves) →
       read z = read' z) :
     EndsWell M bad D' ε (checkedProbes M dist D' read C.walkStart n J ū
-        (indecisiveLStarLevel5 C read xs).hypothesis) C.walkStart
+        (indecisiveLStarLevel5 C read xs).hypothesis
+        ∪ siftedProbes sift read C.walkStart (indecisiveLStarLevel5 C read xs).hypothesis)
+        C.walkStart
         (harvestLaw D' (fun z => (read z).cut) C.walkStart
           (indecisiveLStarLevel5 C read xs).hypothesis) y
         (indecisiveLStarLevel5 C read xs).ending
       ↔ EndsWell M bad D' ε (checkedProbes M dist D' read' C.walkStart n J ū
-        (indecisiveLStarLevel5 C read' xs).hypothesis) C.walkStart
+        (indecisiveLStarLevel5 C read' xs).hypothesis
+        ∪ siftedProbes sift read' C.walkStart (indecisiveLStarLevel5 C read' xs).hypothesis)
+        C.walkStart
         (harvestLaw D' (fun z => (read' z).cut) C.walkStart
           (indecisiveLStarLevel5 C read' xs).hypothesis) y
         (indecisiveLStarLevel5 C read' xs).ending := by
@@ -77,8 +81,10 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
   rcases he : res.ending with _ | hv | _
   · -- consistent: the checked probes, at every short probe
     have hmid := level5_tree_midLe C hC read xs (by rw [he]; simp)
-    have hae : checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
-        =ᵐ[D'] checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis := by
+    have hae : (checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
+        ∪ siftedProbes sift read C.walkStart res.hypothesis : Set (FreeMonoid α))
+        =ᵐ[D'] (checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
+          ∪ siftedProbes sift read' C.walkStart res.hypothesis : Set (FreeMonoid α)) := by
       filter_upwards [hlen] with x hx
       have hpb := probeBy_congr_up hcut hmid (x := x) (by omega)
         (Function.curry res.hypothesis.edges) C.walkStart
@@ -91,7 +97,15 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
         omega
       apply propext
       change x ∈ checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
+          ∪ siftedProbes sift read C.walkStart res.hypothesis
         ↔ x ∈ checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
+          ∪ siftedProbes sift read' C.walkStart res.hypothesis
+      have hsf : x ∈ siftedProbes sift read C.walkStart res.hypothesis
+          ↔ x ∈ siftedProbes sift read' C.walkStart res.hypothesis := by
+        simp only [siftedProbes, undSiftSet, Set.mem_setOf_eq]
+        rw [hpb]
+      rw [Set.mem_union, Set.mem_union, hsf]
+      refine or_congr ?_ Iff.rfl
       simp only [checkedProbes, rarerProbes, undecidedProbes, Set.mem_union, Set.mem_setOf_eq]
       have hs : x ∈ searchingProbes read C.walkStart res.hypothesis
           ↔ x ∈ searchingProbes read' C.walkStart res.hypothesis := by

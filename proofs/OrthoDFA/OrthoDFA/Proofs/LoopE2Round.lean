@@ -246,8 +246,9 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 include hL in
 /-- Round `r`'s level 5, where every earlier clustering and this one returned and nothing
 collides, fails its claim with chance at most `δ`. -/
-theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B5 U5 : ℝ) (J : ℕ)
-    (ū : ℝ) (hū : 0 ≤ ū) (hC : 2 ≤ settings.level5.maxLeaves)
+theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ)
+    (ū : ℝ) (hū : 0 ≤ ū) (sift : Bool) (us : ℝ) (Pre5 : ℝ → ℝ → Prop)
+    (hC : 2 ≤ settings.level5.maxLeaves)
     (hmaxL : settings.level5.maxLeaves = Fintype.card σ + 2)
     (hN : P.L + settings.level5.maxLeaves ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
@@ -257,21 +258,20 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
     (hk : 1 ≤ settings.level5.walkStart)
     (hdis : settings.level5.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
     (hδ : 0 < δ) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
-    (hθ : 384 * (P.L + 1) * (Fintype.card σ + 1) * θ ≤ 1)
-    (hB5 : crossLimit * B5 ≤ δ) (hU5 : 0 ≤ U5)
-    (hpre : U5 * (2 * prefixMax P.D settings.level5.walkStart) ≤ εd / 2)
+    (hB5 : crossLimit * B5 ≤ δ) (hεd0 : 0 ≤ εd)
+    (hPre : ∀ p, 0 ≤ p → p ≤ 2 * prefixMax P.D settings.level5.walkStart → Pre5 θ p)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level5.walkStart ≤ m)
     (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 4) (hmc : (P.L + 1) * m ≤ y / 2)
     (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
       let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → 384 * (P'.L + 1) * (Fintype.card σ + 1) * θ ≤ 1 →
+      0 ≤ θ → Pre5 θ (prefixMax P'.D settings.level5.walkStart) →
       0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
-      U5 * prefixMax P'.D settings.level5.walkStart ≤ εd / 2 →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (17 / 16 * settings.level5.disagreementRate)
+            ¬ EndsWell M bad P'.D (17 / 16 * settings.level5.disagreementRate + us)
               (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level5.walkStart
-                (Fintype.card σ + 2) J (2 * ū) result.hypothesis)
+                (Fintype.card σ + 2) J (2 * ū) result.hypothesis
+                ∪ siftedProbes sift (O'.read · ω) settings.level5.walkStart result.hypothesis)
               settings.level5.walkStart
               (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart
                 result.hypothesis) y result.ending} ∂(μ.prod μ)
@@ -282,7 +282,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (decodeHist P.D settings.level5.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ Level5Spec M O P θ εd (y / 2) settings.level5.walkStart J ū
+        ∧ ¬ Level5Spec M O P θ (εd + us) (y / 2) settings.level5.walkStart J ū sift
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level5.walkStart
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -310,11 +310,11 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
           k t.2.2.2 t.2.2.1, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
       ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
-        Level5Spec M O P θ εd (y / 2) k J ū
+        Level5Spec M O P θ (εd + us) (y / 2) k J ū sift
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, u)) :=
-    fun t ht => level5_bad_exists M O hL P settings εd δ crossLimit θ y m B5 U5 J ū hū hC hmaxL hk
-      hdis hη1
-      hy hcross hθ0 hθ hB5 hU5 hpre hm1 hmε hmc hlevel5 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+    fun t ht => level5_bad_exists M O hL P settings εd δ crossLimit θ y m B5 J ū hū sift us Pre5 hC
+      hmaxL hk hdis hη1
+      hy hcross hθ0 hB5 hPre hm1 hmε hmc hlevel5 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
         exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)
@@ -431,9 +431,6 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
         split_ifs with h
         · exact (Classical.choose_spec (hex t h)).2.1
         · simp)
-  have hεd0 : 0 ≤ εd := by
-    have := mul_nonneg hU5 (mul_nonneg zero_le_two hpm0)
-    linarith
   refine ENNReal.toReal_le_of_le_ofReal (by positivity) ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hret, hnot, hnc⟩
   set c := histCodes settings O P.D Dsf N p.1 p.2 r

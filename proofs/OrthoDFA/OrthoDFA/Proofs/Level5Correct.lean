@@ -95,16 +95,15 @@ def Level5Gates (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ
               (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
               (min θs (min (φe * θe / 2) (3 * εd / 16))) result.ending} ∂μ
         ≤ ENNReal.ofReal (δ + 32 * ū / εd))
-    ∧ ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-      (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D], (∀ᵐ x ∂D, x.toList.length ≤ L) →
-      ∀ (read : FreeMonoid α → Ω → ARU) (u : ℝ),
+    ∧ ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D], (∀ᵐ x ∂D, x.toList.length ≤ L) →
+      ∀ (read : FreeMonoid α → ARU) (u : ℝ),
       θs₁ = 2 * θs → θs ≤ 1 / 4 → εd ≤ 1 / 8 →
       2 * (3 * θs + (n + 2) * A * φe + 2 * θe * ((L + 1) * (n + 2)))
         + 2 * εd / 7 * (2 * (L + 2) + 2 + (n + 2) * A * Xc + 2 * θe * ((L + 1) * (n + 2))) ≤ u →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => D)
-          {draws | let result := indecisiveLStarLevel5 settings (read · ω) draws
-            result.ending = .consistent ∧ u ≤ D.real (undSiftSet (fun z => (read z ω).cut)
-              result.hypothesis.tree (Function.curry result.hypothesis.edges) k)} ∂μ
+      (Measure.pi fun _ : Fin settings.probeBudget => D)
+          {draws | let result := indecisiveLStarLevel5 settings read draws
+            result.ending = .consistent ∧ u ≤ D.real (undSiftSet (fun z => (read z).cut)
+              result.hypothesis.tree (Function.curry result.hypothesis.edges) k)}
         ≤ ENNReal.ofReal (δ / 8)
 
 set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition
@@ -172,7 +171,7 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
   refine ⟨C, rfl, rfl, by rw [← hVr]; exact hbK, rfl,
     fun μ _ P hP O θ J ū hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū => ?_, ?_⟩
   swap
-  · intro Ω _ μ _ D _ hlen read u halt hθs4 hp8 hu
+  · intro D _ hlen read u halt hθs4 hp8 hu
     have hSq : C.SeqOK :=
       { a_pos := Real.exp_pos _
         a_lt := by
@@ -201,7 +200,7 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
       rw [show C.testLevel = Real.exp (-G) from rfl, hlogG, hNr]
       have key : ∀ X : ℝ, X * G + 1 ≤ (X + 1) * G := fun X => by nlinarith
       exact key _
-    have hS := fun ω => sift_le C D (read · ω) hSq (by simp [C, N]) (by
+    have hS := sift_le C D read hSq (by simp [C, N]) (by
         show 1 ≤ n₀
         have : (0 : ℝ) < n₀ := by linarith
         exact_mod_cast this) (fun j => by
@@ -220,13 +219,9 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
           = δ / (2 * (2 * N * A + 4)) := by field_simp; ring
       rw [e]
       exact div_le_div_of_nonneg_left hδ0.le (by norm_num) (by nlinarith)
-    calc ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D) _ ∂μ
-        ≤ ∫⁻ _ω, ENNReal.ofReal (δ / 8) ∂μ := lintegral_mono fun ω => by
-          refine le_trans (measure_mono fun xs hxs => ?_) ((hS ω).trans (ENNReal.ofReal_le_ofReal hva))
-          obtain ⟨h1, h2⟩ := hxs
-          exact runEnds_of_consistent C _ _ _ _ h1 h2
-      _ ≤ ENNReal.ofReal (δ / 8) := by
-          rw [lintegral_const, measure_univ, mul_one]
+    refine le_trans (measure_mono fun xs hxs => ?_) (hS.trans (ENNReal.ofReal_le_ofReal hva))
+    obtain ⟨h1, h2⟩ := hxs
+    exact runEnds_of_consistent C _ _ _ _ h1 h2
   subst hP
   have hy : min θs (min (φe * θe / 2) (3 * εd / 16)) ≤ C.harvestYield := by
     simp only [Level5Settings.harvestYield, hC]
@@ -357,7 +352,7 @@ set_option maxHeartbeats 1000000 in -- the old settings meet the general conditi
 theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
     (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L) :
     Level5UniformAll M εd L δ k := by
-  obtain ⟨C, h1, h2, h3, h4, h5, -⟩ := level5_gates_all.{_, _, _, 0} M εd L δ k (1 / 2) (3 / 5) (3 / 4) (3 / 4)
+  obtain ⟨C, h1, h2, h3, h4, h5, -⟩ := level5_gates_all M εd L δ k (1 / 2) (3 / 5) (3 / 4) (3 / 4)
     hδ0 hδ1 hεd0 hεd1 hL (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hκ hε hεc hpc hū => ?_⟩
   have hp₀ : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
