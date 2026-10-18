@@ -158,11 +158,19 @@ theorem measurableSet_mem_checkedProbes {σ : Type*} (O : Oracle μ (FreeMonoid 
     simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
       List.length_take]
     omega
+  have hpreM : ∀ j ≤ x.toList.length, ∀ m ∈ H.tree.midfixes,
+      familyRead O.mq F kl kh (prefixOf x j * m) ω
+        = familyRead O.mq F kl kh (prefixOf x j * m) ω' := fun j hj m hm => by
+    refine hr _ ?_
+    have := midLe_midLen H.tree m hm
+    simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
+      List.length_take]
+    omega
   rcases hω with (h1 | ⟨j, hkj, hjx, m, hm, hc⟩) | ⟨hu, hJ, j, hkj, hjx, m, hm, hc⟩
   · refine .inl (.inl ?_)
     simp only [Set.mem_setOf_eq, searchingProbes] at h1 ⊢
     rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
-  · exact .inl (.inr ⟨j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpre j hjx m hm]; exact hc⟩)
+  · exact .inl (.inr ⟨j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpreM j hjx m hm]; exact hc⟩)
   · exact .inr ⟨hu, hJ, j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpre j hjx m hm]; exact hc⟩
 
 omit [IsProbabilityMeasure μ] in

@@ -196,13 +196,12 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
       * Real.log (1 / C.testLevel) < C.edgeExcess j)
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {e : Level5Ending α} {s : Level5State α}
     (hc : CleanEnd G C rd e s)
-    (hrare : D.real (rarerProbes G.M G.readDist rd C.walkStart C.maxLeaves)
-      ≤ C.disagreementRate / 32)
+    (hrare : D.real {x | G.Dirty rd C.walkStart C.maxLeaves x} ≤ C.disagreementRate / 32)
     (hund : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū →
       D.real (undecidedProbes rd C.walkStart C.maxLeaves J) ≤ C.disagreementRate / 32)
     (hn : ¬ Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd e s) :
     AnyBad D C rd L e s := by
-  obtain ⟨hne, hr, ⟨hg, he, -, -, hL⟩, -⟩ := hc
+  obtain ⟨hne, hr, ⟨hg, he, -, hsm, hL⟩, -⟩ := hc
   have hcl : G.InClass 0 s.tree := ⟨0, le_rfl, hg⟩
   have hy : C.harvestYield ≤ C.startUndecidedRate ∧ C.harvestYield
       ≤ C.edgeTraffic * C.edgeUndecidedRate / 2 ∧ C.harvestYield
@@ -231,12 +230,17 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
       · simpa [hcu] using hund hcu
       · simp only [hcu, false_and, Set.setOf_false, measureReal_empty]
         linarith [hSq.εd_pos]
-    have h1 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart
-      ⟨s.tree, Function.uncurry s.edges⟩ ∪ rarerProbes G.M G.readDist rd C.walkStart C.maxLeaves)
+    set H : HypothesisDFA α := ⟨s.tree, Function.uncurry s.edges⟩
+    have hr' : D.real (rarerProbes G.M G.readDist rd C.walkStart H) ≤ C.disagreementRate / 32 := by
+      refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hrare
+      rintro x ⟨j, hkj, hjx, m, hm, hc⟩
+      exact ⟨j, hkj, hjx, m, mem_shortWords (by have := hsm m hm; omega), hc⟩
+    have h1 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H
+      ∪ rarerProbes G.M G.readDist rd C.walkStart H)
       {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
         ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J}
-    have h2 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart
-      ⟨s.tree, Function.uncurry s.edges⟩) (rarerProbes G.M G.readDist rd C.walkStart C.maxLeaves)
+    have h2 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H)
+      (rarerProbes G.M G.readDist rd C.walkStart H)
     have h3 : D.real (searchingProbes rd C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
         < C.disagreementRate := hlt
     unfold checkedProbes at hn
@@ -551,14 +555,13 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
     · have hM : ω ∈ M := subset_toMeasurable _ _ hω
       rw [Set.indicator_of_mem hM, Pi.one_apply]
       exact prob_le_one.trans (le_self_add.trans (le_self_add.trans le_self_add))
-    by_cases hdr : D.real (rarerProbes G.M G.readDist (read · ω) C.walkStart C.maxLeaves)
+    by_cases hdr : D.real {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}
         ≤ C.disagreementRate / 32
     swap
     · refine prob_le_one.trans (le_trans ?_ (le_add_right (le_add_right le_add_self)))
       have hDs : D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}
-          = ENNReal.ofReal (D.real (rarerProbes G.M G.readDist (read · ω) C.walkStart
-            C.maxLeaves)) := by
-        rw [ofReal_measureReal (measure_ne_top _ _)]; rfl
+          = ENNReal.ofReal (D.real {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}) := by
+        rw [ofReal_measureReal (measure_ne_top _ _)]
       rw [hDs, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _),
         ← ENNReal.ofReal_one]
       refine ENNReal.ofReal_le_ofReal ?_

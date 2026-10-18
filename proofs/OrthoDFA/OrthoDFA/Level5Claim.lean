@@ -13,7 +13,7 @@ read-state is good where it reads undecided at most `1.5θ` of the time.
 checked, or a harvest whose sampler finds more than half of what it finds at read-states that are
 not good, is spread and yields) but for chance at most `δ + 32ū/εd`, at settings the proof
 chooses, once the reads' `κ` and `ε`, the goodness level and the probes' prefix mass are small
-enough. A checked probe searches or learns, reads a prefix's extension on its state's rarer side
+enough. A checked probe searches or learns, reads a prefix followed by a midfix of its tree on its state's rarer side
 or, where the states' undecided rates make `undecidedMass` at most `ū`, reads one undecided. It is derived from a detailed bound (`Proofs/Level5RiskDefs.lean`) that need not be
 read to trust it.
 -/
@@ -62,11 +62,11 @@ noncomputable def shortWords (n : ℕ) : Finset (FreeMonoid α) :=
 /-- The side a read distribution reads on more often. -/
 def sideOf (d : ARU → ℝ) : Bool := decide (d .reject < d .accept)
 
-/-- The probes a prefix of which from `k` on, followed by at most `n` letters, reads on its
+/-- The probes a prefix of which from `k` on, followed by a midfix of `H`'s tree, reads on its
 state's rarer side under `dist`. -/
 def rarerProbes {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
-    (read : FreeMonoid α → ARU) (k n : ℕ) : Set (FreeMonoid α) :=
-  {x | ∃ j, k ≤ j ∧ j ≤ x.toList.length ∧ ∃ m ∈ shortWords n,
+    (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : Set (FreeMonoid α) :=
+  {x | ∃ j, k ≤ j ∧ j ≤ x.toList.length ∧ ∃ m ∈ H.tree.midfixes,
     (read (prefixOf x j * m)).cut = some (!sideOf (dist (M.eval (prefixOf x j * m).toList)))}
 
 /-- The probes at most `J` long a prefix of which from `k` on, followed by at most `n` letters,
@@ -87,7 +87,7 @@ rarer side and, once `undecidedMass` is at most `ū`, those that read undecided.
 def checkedProbes {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
     (D : MeasureTheory.Measure (FreeMonoid α)) (read : FreeMonoid α → ARU) (k n J : ℕ) (ū : ℝ)
     (H : HypothesisDFA α) : Set (FreeMonoid α) :=
-  searchingProbes read k H ∪ rarerProbes M dist read k n
+  searchingProbes read k H ∪ rarerProbes M dist read k H
     ∪ {x | undecidedMass M dist D k n J ≤ ū ∧ x ∈ undecidedProbes read k n J}
 
 /-- The largest mass the probes' distribution puts on one length-`k` prefix. -/

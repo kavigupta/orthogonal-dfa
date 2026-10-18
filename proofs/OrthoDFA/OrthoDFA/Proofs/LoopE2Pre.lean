@@ -95,6 +95,13 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
         simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
           List.length_take]
         omega
+      have hpreM : ∀ j ≤ x.toList.length, ∀ m ∈ res.hypothesis.tree.midfixes,
+          read (prefixOf x j * m) = read' (prefixOf x j * m) := fun j hj m hm => by
+        refine h _ (le_max_of_le_left ?_)
+        have := hmid m hm
+        simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
+          List.length_take]
+        omega
       apply propext
       change x ∈ checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
           ∪ siftedProbes sift read C.walkStart res.hypothesis
@@ -121,7 +128,7 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
       refine or_congr (or_congr Iff.rfl ?_) (and_congr Iff.rfl (and_congr Iff.rfl ?_))
       · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
           exists_congr fun m => and_congr_right fun hm => ?_
-        rw [hpre j hj m hm]
+        rw [hpreM j hj m hm]
       · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
           exists_congr fun m => and_congr_right fun hm => ?_
         rw [hpre j hj m hm]

@@ -294,12 +294,11 @@ theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
 
 /-- A probe and its extension by a letter, both at most `J` long and neither checked, cross a
 learned edge between their states' true leaves. -/
-theorem edge_of_pair (H : HypothesisDFA α) {k n : ℕ}
-    (hmid : ∀ m ∈ H.tree.midfixes, m ∈ shortWords n) {y : FreeMonoid α} (a : α)
+theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : α)
     (hk : k ≤ y.toList.length)
-    (hy : y ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k n
+    (hy : y ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
       ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k)
-    (hya : y * FreeMonoid.of a ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k n
+    (hya : y * FreeMonoid.of a ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
       ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) :
     ∃ w, H.edges (G.leafOf H.tree (G.M.eval y.toList), a)
       = some (G.leafOf H.tree (G.M.eval (y * FreeMonoid.of a).toList), w) := by
@@ -319,10 +318,10 @@ theorem edge_of_pair (H : HypothesisDFA α) {k n : ℕ}
     rw [List.drop_append_of_le_length hk]
   rw [hdrop] at hf'
   obtain ⟨w, hw⟩ := follow_snoc _ a p ps ps' hf hf'
-  have hclean : ∀ z : FreeMonoid α, z ∉ rarerProbes G.M G.readDist rd k n →
+  have hclean : ∀ z : FreeMonoid α, z ∉ rarerProbes G.M G.readDist rd k H →
       k ≤ z.toList.length → ∀ m ∈ H.tree.midfixes, ¬ G.WrongRead rd (z * m) := by
     intro z hz hkz m hm hwr
-    refine hz ⟨z.toList.length, hkz, le_rfl, m, hmid m hm, ?_⟩
+    refine hz ⟨z.toList.length, hkz, le_rfl, m, hm, ?_⟩
     rw [prefixOf_length]
     exact hwr
   have h1 := leafOf_of_sift G rd (hclean y hy.1.2 hk) he
@@ -335,15 +334,14 @@ variable [Nonempty α]
 
 /-- A state visited `c` of the time over the window's lengths below `J` has every edge out of its
 true leaf learned and true, unless the checked probes hold `c/((|Σ|+1)N)` of the draws. -/
-theorem edge_of_occupied (H : HypothesisDFA α) {k n J L₁ : ℕ}
-    (hmid : ∀ m ∈ H.tree.midfixes, m ∈ shortWords n) (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
+theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
     {c β : ℝ}
-    (hbad : (windowStrings k L₁).real (searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k n
+    (hbad : (windowStrings k L₁).real (searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
       ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) ≤ β)
     (hocc : c ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings i).real {y | G.M.eval y.toList = q})
     (hβ : ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * β < c) :
     ∃ w, H.edges (G.leafOf H.tree q, a) = some (G.leafOf H.tree (G.M.step q a), w) := by
-  set Bad := searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k n
+  set Bad := searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
     ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k
   set A : ℝ := (Fintype.card α : ℝ) with hA
   by_contra hno
@@ -359,7 +357,7 @@ theorem edge_of_occupied (H : HypothesisDFA α) {k n J L₁ : ℕ}
       by_contra hc
       simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hc hy
       apply hno
-      obtain ⟨w, hw⟩ := edge_of_pair G rd H hmid a (by omega) hc.1.1 hc.1.2
+      obtain ⟨w, hw⟩ := edge_of_pair G rd H a (by omega) hc.1.1 hc.1.2
       rw [FreeMonoid.toList_mul, FreeMonoid.toList_of, DFA.eval_append_singleton, hy] at hw
       exact ⟨w, hw⟩
     have hnull : (uniformStrings (α := α) i).real {y | y.toList.length ≠ i} = 0 := by

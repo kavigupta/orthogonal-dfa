@@ -157,16 +157,10 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   let G : ReadModel α σ := ⟨M, dist, 0, 0, 1, hd0, fun r =>
     (min_le_left _ _).trans ((hd1 r .accept).trans (le_max_left _ _))⟩
   obtain ⟨⟨hcons, hmis, hund, -⟩, hchk⟩ := hch
-  -- the tree reads the string at its root, through short midfixes
+  -- the tree reads the string at its root
   obtain ⟨T, xs, hxs⟩ := hres
   have hroot : ∃ r a, H.tree = .node 1 r a := by
     rw [hHd, hxs]; exact rootOne_level5 C o.read xs
-  have hmid : ∀ m ∈ H.tree.midfixes, m ∈ shortWords (Fintype.card σ + 2) := by
-    have hC : 2 ≤ C.maxLeaves := by rw [hmaxL]; omega
-    have hle := level5_tree_midLe C hC o.read xs (by rw [← hxs, hcons]; simp)
-    intro m hm
-    rw [hHd, hxs] at hm
-    exact mem_shortWords (by have := hle m hm; omega)
   -- the family's reads over the window
   have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εcov := by
     refine le_trans (le_of_eq ?_) hund
@@ -188,8 +182,8 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   have hN0 : (0 : ℝ) < (L₁ : ℝ) + 1 - k := by
     have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     linarith
-  have hbad : D.real (searchingProbes o.read k H ∪ rarerProbes G.M G.readDist o.read k
-      (Fintype.card σ + 2) ∪ undSiftSet (fun z => (o.read z).cut) H.tree
+  have hbad : D.real (searchingProbes o.read k H ∪ rarerProbes G.M G.readDist o.read k H
+      ∪ undSiftSet (fun z => (o.read z).cut) H.tree
         (Function.curry H.edges) k) ≤ εd := by
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hchk
     rintro x ((h | h) | h)
@@ -223,7 +217,7 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     rwa [Finset.Ico_add_one_right_eq_Icc]
   have hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (G.leafOf H.tree q, a)
       = some (G.leafOf H.tree (G.M.step q a), w) := fun q hq a =>
-    edge_of_occupied G o.read H hmid (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) q a hbad
+    edge_of_occupied G o.read H (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) q a hbad
       (hocc q hq) hεd
   have hside : ∀ q ∈ S, G.side q = decide (q ∈ G.M.accept) := by
     intro q hq
