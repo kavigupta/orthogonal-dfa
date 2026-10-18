@@ -100,7 +100,7 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
       0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (17 / 16 * settings.level5.disagreementRate + us)
+            ¬ EndsWell M bad P'.D (3 / 2 * settings.level5.disagreementRate + us)
               (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level5.walkStart
                 (Fintype.card σ + 2) J (2 * ū) result.hypothesis
                 ∪ siftedProbes sift (O'.read · ω) settings.level5.walkStart result.hypothesis)
@@ -191,12 +191,12 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
         refine h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z, v), Finset.mem_product.2
           ⟨mem_shortStrings.2 hz, hv⟩, rfl⟩, not_not.1 hzv⟩)
     have := endsWell_congr_reads C hC M (fun q => ¬ fam'.oracle.Good θ q) fam'.oracle.readDist D'
-      hD'len (17 / 16 * C.disagreementRate + us) y (n := Fintype.card σ + 2) (by rw [hmaxL]) J
+      hD'len (3 / 2 * C.disagreementRate + us) y (n := Fintype.card σ + 2) (by rw [hmaxL]) J
       (2 * ū) sift (probesOf settings P.D K₀ u) hread
     exact fun hE => hω (this.2 hE)
   · -- off the bad draws, the actual round meets its claim
     intro x₀ Pr Sf ω u hnot
-    have hE : EndsWell M (fun q => ¬ fam'.oracle.Good θ q) D' (17 / 16 * C.disagreementRate + us)
+    have hE : EndsWell M (fun q => ¬ fam'.oracle.Good θ q) D' (3 / 2 * C.disagreementRate + us)
         (checkedProbes M fam'.oracle.readDist D' (fun z => fam'.read (ω, ω₀) z) k
           (Fintype.card σ + 2) J (2 * ū)
           (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
@@ -267,7 +267,7 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
           simp only [undSiftSet, Set.mem_setOf_eq] at h ⊢
           rw [← hpb]
           exact h)
-      (17 / 16 * (εd / 2) + us) y hy.le
+      (3 / 2 * (εd / 2) + us) y hy.le
       (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).ending (by linarith) hmc'
       (by rw [hres]; rw [← hdis]; exact hE)
     have hq' := hq.mono (ε' := εd + us) (y' := y / 2) (by linarith) (by nlinarith)

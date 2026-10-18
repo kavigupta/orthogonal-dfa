@@ -36,7 +36,7 @@ lemma twenty_log_le {A ℓ : ℝ} (hA : 2 ≤ A) (hℓ : 0 < ℓ) :
 
 set_option maxHeartbeats 4000000 in -- many small nonlinear steps
 lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce Θ K₁ B₁ P₀ R₀ E₁ E : ℝ}
-    {m n : ℕ}
+    {n : ℕ}
     (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hℓ : 1 ≤ ℓ) (hN1 : 1 ≤ Nn) (hNℓ : Nn ≤ ℓ) (hη0 : 0 ≤ η₀)
     (hη : η₀ < 1 / 2) (hc : 0 < c) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1)
@@ -49,7 +49,7 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
     (hG : G = Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ'))
     (hΘ : Θ = 1 / s + 8 * Ce + 3072 * Q * (Q + 1))
     (hK₁ : K₁ = V * (7616 * (A + 1) ^ 2 * (Q + 2) / c + 1))
-    (hB₁ : B₁ = 4 * (3 + Real.log (4 * K₁ * G * (Q + 3) * A ^ m / δ')))
+    (hB₁ : B₁ = 4 * (3 + Real.log (4 * K₁ * G * (Q + 2) * (1 + (Q + 2) * A) / δ')))
     (hP₀ : P₀ = 256 * (2 * Θ + B₁) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2)
     (hR₀ : R₀ = 6000 * (Q + 2) ^ 2 * Θ ^ 3
@@ -59,7 +59,8 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
       + 16384 * (Q + 2) ^ 2 * A ^ 2 * (34 * (A + 1) ^ 2 * (Q + 2) / c) ^ 2
         * Real.log ((Q + 3) * A / δ')) :
     let J := Q + 2
-    let PB := 256 * (Real.log (2 / τ) + 4 * Real.log (4 * Kp * G * ℓ * (Q + 3) * A ^ m / δ'))
+    let PB := 256 * (Real.log (2 / τ)
+        + 4 * Real.log (4 * Kp * G * (Q + 2) * (ℓ + (Q + 2) * A) / δ'))
       / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
@@ -80,7 +81,6 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
   have hℓ0 : 0 < ℓ := by linarith
   have hεd0 : 0 < εd := by rw [hεd]; positivity
   have hρ0 : 0 < ρ := by rw [hρ]; positivity
-  have hAm : 1 ≤ A ^ m := one_le_pow₀ (by linarith)
   have hℓ3 : ℓ ≤ ℓ ^ 3 := le_self_pow₀ hℓ (by norm_num)
   have hℓ31 : 1 ≤ ℓ ^ 3 := one_le_pow₀ hℓ
   have h1s : 0 < 1 / s := by positivity
@@ -146,12 +146,12 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
     have h2 : 0 ≤ 7616 * (A + 1) ^ 2 * (Q + 2) / c := by positivity
     nlinarith only [h1, hV1, hℓ2, h2]
   have hKp0 : 0 ≤ Kp := by rw [hKp]; positivity
-  set cL := 4 * Real.log (4 * Kp * G * ℓ * (Q + 3) * A ^ m / δ') with hcLd
+  set cL := 4 * Real.log (4 * Kp * G * (Q + 2) * (ℓ + (Q + 2) * A) / δ') with hcLd
   have hKp1 : 1 ≤ Kp := by
     rw [hKp]
     have : 0 ≤ 224 / εd := by positivity
     nlinarith
-  set X₁ := 4 * K₁ * G * (Q + 3) * A ^ m / δ' with hX₁d
+  set X₁ := 4 * K₁ * G * (Q + 2) * (1 + (Q + 2) * A) / δ' with hX₁d
   have hK₁1 : 1 ≤ K₁ := by
     rw [hK₁]
     have : 0 ≤ 7616 * (A + 1) ^ 2 * (Q + 2) / c := by positivity
@@ -159,7 +159,8 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
   have hX₁ : 1 ≤ X₁ := by
     rw [hX₁d, le_div_iff₀ hδ'0, one_mul]
     have h1 : 1 ≤ K₁ * G := one_le_mul_of_one_le_of_one_le hK₁1 hG1
-    have h2 : 1 ≤ (Q + 3) * A ^ m := one_le_mul_of_one_le_of_one_le (by linarith) hAm
+    have h2 : 1 ≤ (Q + 2) * (1 + (Q + 2) * A) :=
+      one_le_mul_of_one_le_of_one_le (by linarith) (by nlinarith)
     have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
     nlinarith
   have hlX₁ : 0 ≤ Real.log X₁ := Real.log_nonneg hX₁
@@ -169,8 +170,8 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
     refine mul_nonneg (by norm_num) (Real.log_nonneg ?_)
     rw [le_div_iff₀ hδ'0, one_mul]
     have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp1 hG1
-    have h2 : 1 ≤ ℓ * (Q + 3) * A ^ m :=
-      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hℓ (by linarith)) hAm
+    have h2 : 1 ≤ (Q + 2) * (ℓ + (Q + 2) * A) :=
+      one_le_mul_of_one_le_of_one_le (by linarith) (by nlinarith)
     have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
     nlinarith
   have hcL : cL ≤ ℓ ^ 3 * B₁ := by
@@ -180,10 +181,12 @@ lemma dfa_cap_bound {Q A ℓ Nn η₀ c pAP εd εcov δ' ι ρ s τ V Kp G Ce �
       · have : 0 < Kp := by linarith
         positivity
       · rw [hX₁d]
-        have e : ℓ ^ 3 * (4 * K₁ * G * (Q + 3) * A ^ m / δ')
-            = 4 * (ℓ ^ 2 * K₁) * G * ℓ * (Q + 3) * A ^ m / δ' := by ring
+        have e : ℓ ^ 3 * (4 * K₁ * G * (Q + 2) * (1 + (Q + 2) * A) / δ')
+            = 4 * (ℓ ^ 2 * K₁) * G * (Q + 2) * (ℓ * (1 + (Q + 2) * A)) / δ' := by ring
         rw [e]
+        have hqa : 0 ≤ (ℓ - 1) * ((Q + 2) * A) := mul_nonneg (by linarith) (by positivity)
         gcongr
+        all_goals nlinarith
     have h2 : Real.log (ℓ ^ 3 * X₁) = 3 * Real.log ℓ + Real.log X₁ := by
       rw [Real.log_mul (by positivity) (by linarith), Real.log_pow]; push_cast; ring
     have h3 : Real.log ℓ ≤ ℓ := by

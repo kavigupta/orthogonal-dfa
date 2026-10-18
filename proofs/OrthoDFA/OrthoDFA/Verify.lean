@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
@@ -29,11 +30,12 @@ suffixes at least `L₀` long, the learner's loop succeeds but for chance `δ`.
 `SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
-`SeqRateSound`, stated in `OrthoDFA.SeqTest`, level 2's claim, stated in `OrthoDFA.Level2Claim`,
-level 5's, stated in `OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in
-`OrthoDFA.Level5Family`, and the learner's loop, stated in `OrthoDFA.LearnerLoop`, at free settings
-and at the theorem's own. Level 5's detailed bound and its closed form, stated in
-`OrthoDFA.Proofs.Level5RiskDefs`, are internal: the claims above are derived from them.
+`SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
+`OrthoDFA.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated in
+`OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in `OrthoDFA.Level5Family`,
+and the learner's loop, stated in `OrthoDFA.LearnerLoop`, at free settings and at the theorem's
+own. Level 5's detailed bound and its closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are
+internal: the claims above are derived from them.
 -/
 
 namespace OrthoDFA
@@ -95,7 +97,7 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms truthInv_step
 
-#print axioms dirty_le
+#print axioms pi_wrong_le
 
 #print axioms site_le
 
@@ -146,5 +148,9 @@ theorem learner_loop_simple : LearnerLoopSimple := learner_loop_simple_holds
 theorem level2_correct : Level2.Correct := Level2.correct_holds
 
 #print axioms level2_correct
+
+theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
+
+#print axioms adaptive_reads_bound
 
 end OrthoDFA

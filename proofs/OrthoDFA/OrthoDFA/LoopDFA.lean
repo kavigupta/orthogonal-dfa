@@ -112,7 +112,7 @@ def LearnerLoopDFASimple : Prop :=
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
   let PB : ℝ := 256 * (Real.log (2 / τ)
-      + 4 * Real.log (4 * Kp * G * (L₁ + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+      + 4 * Real.log (4 * Kp * G * (Q + 2) * (L₁ + 1 + (Q + 2) * A) / δ'))
       / (s ^ 2 * pAP)
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
@@ -175,7 +175,7 @@ def LearnerLoopDFA : Prop :=
   let Ce : ℝ := 1632 * (Q + 1) ^ 2 * (A + 1) ^ 2 * (Q + 2) / c + 8 / ξ
   let Θ : ℝ := 1 / s + 8 * Ce + 3072 * Q * (Q + 1)
   let K₁ : ℝ := V * (7616 * (A + 1) ^ 2 * (Q + 2) / c + 1)
-  let B₁ : ℝ := 4 * (3 + Real.log (4 * K₁ * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+  let B₁ : ℝ := 4 * (3 + Real.log (4 * K₁ * G * (Q + 2) * (1 + (Q + 2) * A) / δ'))
   let P₀ : ℝ := 256 * (2 * Θ + B₁) / (s ^ 2 * pAP) + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
     * (Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) + 6) / s ^ 4

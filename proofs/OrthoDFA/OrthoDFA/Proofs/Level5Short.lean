@@ -14,6 +14,40 @@ namespace OrthoDFA
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
+/-- A node's midfix is at most the leaves less two letters long. -/
+def ShortMids (T : DTree α) : Prop := ∀ m ∈ T.midfixes, m.toList.length + 2 ≤ T.leaves.length
+
+theorem midfixAt_mem : ∀ (T : DTree α) (p : List Bool), T.midfixAt p = 1 ∨ T.midfixAt p ∈ T.midfixes
+  | .leaf, _ => .inl rfl
+  | .node m r a, [] => .inr (by simp [DTree.midfixAt, DTree.midfixes])
+  | .node m r a, false :: p => by
+    rcases midfixAt_mem r p with h | h
+    · exact .inl h
+    · exact .inr (by simp [DTree.midfixAt, DTree.midfixes, h])
+  | .node m r a, true :: p => by
+    rcases midfixAt_mem a p with h | h
+    · exact .inl h
+    · exact .inr (by simp [DTree.midfixAt, DTree.midfixes, h])
+
+theorem shortMids_start : ShortMids (.node 1 .leaf .leaf : DTree α) := by
+  intro m hm
+  simp [DTree.midfixes] at hm
+  subst hm
+  simp [DTree.leaves]
+
+theorem shortMids_split {T : DTree α} (hT : ShortMids T) (h2 : 2 ≤ T.leaves.length)
+    {p : List Bool} (hp : p ∈ T.leaves) (c : α) (q : List Bool) :
+    ShortMids (T.splitAt (FreeMonoid.of c * T.midfixAt q) p) := by
+  intro m hm
+  rw [DTree.length_leaves_splitAt _ _ _ hp]
+  rcases Finset.mem_insert.1 (midfixes_splitAt _ T p hm) with rfl | hm
+  · simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of, List.length_append,
+      List.length_singleton]
+    rcases midfixAt_mem T q with h | h
+    · rw [h]; simp; omega
+    · have := hT _ h; omega
+  · have := hT m hm; omega
+
 omit [Fintype α] [DecidableEq α] in
 theorem length_prefixOf_le (x : FreeMonoid α) (j : ℕ) :
     (prefixOf x j).toList.length ≤ x.toList.length := by

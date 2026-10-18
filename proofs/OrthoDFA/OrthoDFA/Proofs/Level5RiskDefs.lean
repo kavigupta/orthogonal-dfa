@@ -74,7 +74,7 @@ noncomputable def Level5Settings.harvestYield (C : Level5Settings) : ℝ :=
 def Level5EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
     (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ) (rd : FreeMonoid α → ARU)
     (e : Level5Ending α) (s : Level5State α) : Prop :=
-  EndsWell M bad D (17 / 16 * C.disagreementRate)
+  EndsWell M bad D (3 / 2 * C.disagreementRate)
     (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū ⟨s.tree, Function.uncurry s.edges⟩)
     C.walkStart
     (harvestLaw D (fun z => (rd z).cut) C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
@@ -136,6 +136,7 @@ structure Knobs.Admissible (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measu
       * Real.log (1 / C.testLevel) < C.edgeExcess j
   gate_test : 6 * Real.log (1 / C.testLevel) ≤ C.firstLook
   budget_ge : versionBound C (Fintype.card α) * kn.nEnd ≤ C.probeBudget
+  alt_eq : C.disagreementAltRate = 7 / 8 * C.disagreementRate
 
 variable (σ : Type*) [Fintype σ] (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) (L : ℕ)
     (C : Level5Settings)
@@ -163,18 +164,18 @@ def middlesTail : ENNReal :=
     * Real.exp (-(kn.θgpt * C.searchShare / 2 / (2 * prefixMax D C.walkStart
       * (1 + 4 * ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)))))))
 
-/-- Some probe reading a string on its state's rarer side, as itself or followed by a midfix of
-at most `maxLeaves` letters: `(L + 1) (maxLeaves + 1) |Σ|^maxLeaves` such strings a probe, each on
-its rarer side with chance at most `ε + κ`. -/
+/-- Some step reading a string on its state's rarer side: a step reads at most
+`(L + 1) maxLeaves` of its prefixes followed by midfixes and re-sifts at most `maxLeaves² |Σ|`,
+each on its rarer side with chance at most `ε + κ` when first read. -/
 def wrongTerm : ENNReal :=
-  ENNReal.ofReal (C.probeBudget * ((L + 1) * ((C.maxLeaves + 1) * Fintype.card α ^ C.maxLeaves))
-    * (ε + κ))
+  ENNReal.ofReal ((ε + κ) * (C.probeBudget
+    * ((L + 1) * C.maxLeaves + C.maxLeaves * Fintype.card α * C.maxLeaves)))
 
 /-- The harvests' and success's tests firing wrongly in some hypothesis: the start's, the
-middles', their gate's and success's tests and two potentials at each edge out of a leaf, each at
-most once a hypothesis. -/
+middles', their gate's and success's tests, two potentials at each edge out of a leaf, and the
+success test passing with the rarer probes heavy, each at most once a hypothesis. -/
 def testLevels : ENNReal :=
-  ENNReal.ofReal (versionBound C (Fintype.card α) * (2 * C.maxLeaves * Fintype.card α + 4)
+  ENNReal.ofReal (versionBound C (Fintype.card α) * (2 * C.maxLeaves * Fintype.card α + 5)
     * C.testLevel)
 
 /-- The round's failure chance at the knobs `kn`: the three noise fields' tails, a read on the
@@ -215,7 +216,7 @@ def Level5RiskBound : Prop :=
     0 < C.testLevel →
     4 * (versionBound C (Fintype.card α) * (2 * C.maxLeaves * A + 4)) * C.testLevel ≤ δ →
     (versionBound C (Fintype.card α) : ℝ) * (112 * lg / C.disagreementRate + 1) ≤ C.probeBudget →
-    4 * C.probeBudget * ((L + 1) * ((C.maxLeaves + 1) * A ^ C.maxLeaves)) * (ε + κ) ≤ δ →
+    4 * (ε + κ) * C.probeBudget * ((L + 1) * C.maxLeaves + C.maxLeaves * A * C.maxLeaves) ≤ δ →
     roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ
 
 /-- `Level5RoundRisk`: with an oracle reading every string with the read model's laws, the round

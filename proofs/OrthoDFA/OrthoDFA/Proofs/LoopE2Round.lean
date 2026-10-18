@@ -268,7 +268,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
       0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (17 / 16 * settings.level5.disagreementRate + us)
+            ¬ EndsWell M bad P'.D (3 / 2 * settings.level5.disagreementRate + us)
               (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level5.walkStart
                 (Fintype.card σ + 2) J (2 * ū) result.hypothesis
                 ∪ siftedProbes sift (O'.read · ω) settings.level5.walkStart result.hypothesis)

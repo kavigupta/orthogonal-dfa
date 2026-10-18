@@ -333,7 +333,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     (C : Level5Settings) (θ' : ℝ) (J : ℕ) (ū us δ₁ δs y : ℝ) (sift : Bool)
     (hA : ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D')
         {draws | let result := indecisiveLStarLevel5 C (O'.read · ω) draws
-          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (17 / 16 * C.disagreementRate)
+          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (3 / 2 * C.disagreementRate)
             (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
               (Fintype.card σ + 2) J ū result.hypothesis)
             C.walkStart
@@ -347,7 +347,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     (hus : 0 ≤ us) (hδ₁ : 0 ≤ δ₁) (hδs : 0 ≤ δs) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D')
         {draws | let result := indecisiveLStarLevel5 C (O'.read · ω) draws
-          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (17 / 16 * C.disagreementRate + us)
+          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (3 / 2 * C.disagreementRate + us)
             (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
               (Fintype.card σ + 2) J ū result.hypothesis
               ∪ siftedProbes sift (O'.read · ω) C.walkStart result.hypothesis) C.walkStart
@@ -356,7 +356,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
       ≤ ENNReal.ofReal (δ₁ + δs) := by
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget => D')
       {draws | let result := indecisiveLStarLevel5 C (O'.read · ω) draws
-        ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (17 / 16 * C.disagreementRate + us)
+        ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (3 / 2 * C.disagreementRate + us)
           (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
             (Fintype.card σ + 2) J ū result.hypothesis
             ∪ siftedProbes sift (O'.read · ω) C.walkStart result.hypothesis) C.walkStart
@@ -364,7 +364,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
           result.ending}
       ≤ (Measure.pi fun _ : Fin C.probeBudget => D')
         {draws | let result := indecisiveLStarLevel5 C (O'.read · ω) draws
-          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (17 / 16 * C.disagreementRate)
+          ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D' (3 / 2 * C.disagreementRate)
             (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
               (Fintype.card σ + 2) J ū result.hypothesis)
             C.walkStart
@@ -374,7 +374,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     set R := fun draws : Fin C.probeBudget → FreeMonoid α =>
       indecisiveLStarLevel5 C (O'.read · ω) draws
     refine (measure_mono (t := {draws | ¬ EndsWell M (fun q => ¬ O'.Good θ' q) D'
-        (17 / 16 * C.disagreementRate) (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
+        (3 / 2 * C.disagreementRate) (checkedProbes M O'.readDist D' (O'.read · ω) C.walkStart
           (Fintype.card σ + 2) J ū (R draws).hypothesis) C.walkStart
         (harvestLaw D' (fun z => (O'.read z ω).cut) C.walkStart (R draws).hypothesis) y
         (R draws).ending} ∪ {draws | sift = true ∧ (R draws).ending = .consistent
@@ -460,8 +460,8 @@ def LoopCore : Prop :=
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
-  let c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
-    * A ^ (Fintype.card σ + 2) / δ)))
+  let c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (n + 2)
+    * (P.L + 1 + (n + 2) * A) / δ)))
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -541,14 +541,14 @@ theorem loop_core_holds : LoopCore := by
       have : 0 ≤ 2 * (n + 2) * A := by positivity
       linarith
     nlinarith
-  set W : ℝ := (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) with hWd
+  set W : ℝ := (n + 2) * (P.L + 1 + (n + 2) * A) with hWd
   have hW : 0 < W := by positivity
   set cross : ℝ := δ / (4 * Kp * G * W) with hcrossd
   have hcr : 0 < cross := by positivity
   have hc : cross ^ 4 = c := by
-    show cross ^ 4 = Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
-      * A ^ (Fintype.card σ + 2) / δ)))
-    have e : 4 * Kp * G * (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2) / δ = cross⁻¹ := by
+    show cross ^ 4 = Real.exp (-(4 * Real.log (4 * Kp * G * (n + 2)
+      * (P.L + 1 + (n + 2) * A) / δ)))
+    have e : 4 * Kp * G * (n + 2) * (P.L + 1 + (n + 2) * A) / δ = cross⁻¹ := by
       rw [hcrossd, hWd, inv_div]; ring
     have e2 : -(4 * Real.log cross⁻¹) = Real.log (cross ^ 4) := by
       rw [Real.log_inv, Real.log_pow]; push_cast; ring
@@ -853,7 +853,7 @@ theorem loop_core_holds : LoopCore := by
       (O'.ε + O'.κ) * (4 * Kp * G * W) ≤ δ →
       ∫⁻ ω, (Measure.pi fun _ : Fin s4.probeBudget => P'.D)
           {draws | let result := indecisiveLStarLevel5 s4 (O'.read · ω) draws
-            ¬ EndsWell M (fun q => ¬ O'.Good θ' q) P'.D (17 / 16 * s4.disagreementRate + us)
+            ¬ EndsWell M (fun q => ¬ O'.Good θ' q) P'.D (3 / 2 * s4.disagreementRate + us)
               (checkedProbes M O'.readDist P'.D (O'.read · ω) k
                 (Fintype.card σ + 2) J (2 * ū) result.hypothesis
                 ∪ siftedProbes sift (O'.read · ω) k result.hypothesis) k
@@ -1055,8 +1055,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
   intro α _ _ _ σ _ Ω _ μ _ M O P K Ls η₀ ι gate εcov δc slack pAP εd δ n A ρ V Kp G U
     hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hεd hεd1 hδ hδ1 hL1 hK hLs hθ
   classical
-  set c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (P.L + 1) * (n + 3)
-    * A ^ (Fintype.card σ + 2) / δ))) with hc
+  set c : ℝ := Real.exp (-(4 * Real.log (4 * Kp * G * (n + 2)
+    * (P.L + 1 + (n + 2) * A) / δ))) with hc
   set m : ℝ := min slack 1 / 2 with hmd
   set ms : ℝ := min pAP 1 / 2 with hmsd
   have hs1 := min_le_left slack 1
@@ -1122,7 +1122,8 @@ theorem learner_loop_correct_holds : LearnerLoopCorrect := by
     have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
     nlinarith
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  obtain ⟨g1, g2, g3⟩ := old_gates (n := n) (Lp := P.L) (ι := ι) (slack := slack) (Λp := unionLog (α := α) σ δ * prefixMax P.D k)
+  obtain ⟨g1, g2, g3⟩ := old_gates (n := n) (Lp := P.L) (ι := ι) (slack := slack)
+    (Λp := unionLog (α := α) σ δ * prefixMax P.D k)
     (Nat.cast_nonneg _) (Nat.cast_nonneg _) (by positivity) (mul_nonneg hU0 hpm0) hεd1
     (by simpa [n] using hθ) (by
       have e : 4096 * ((P.L : ℝ) + 1) * (unionLog (α := α) σ δ * prefixMax P.D k)

@@ -28,7 +28,7 @@ theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dis
     (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ) (rd : FreeMonoid α → ARU) :
     ∀ (s : Level5State α) (xs : List (FreeMonoid α)),
       RunEnds (applyProbe C fun z => (rd z).cut) (Level5EndsWell M bad dist D C J ū rd) s xs ↔
-        EndsWell M bad D (17 / 16 * C.disagreementRate)
+        EndsWell M bad D (3 / 2 * C.disagreementRate)
           (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū
             ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
               Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
@@ -47,7 +47,7 @@ theorem lintegral_level5_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ :
     (C : Level5Settings) (J : ℕ) (ū : ℝ) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel5 C (O.read · ω) draws
-          ¬ EndsWell M bad P.D (17 / 16 * C.disagreementRate)
+          ¬ EndsWell M bad P.D (3 / 2 * C.disagreementRate)
             (checkedProbes M O.readDist P.D (O.read · ω) C.walkStart C.maxLeaves J ū
               result.hypothesis) C.walkStart
             (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart result.hypothesis)
@@ -75,7 +75,7 @@ def Level5Gates (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   let K : ℝ := V * (112 / εd + 1)
-  let W : ℝ := (L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
+  let W : ℝ := (n + 2) * (L + 1 + (n + 2) * A)
   let Xc : ℝ := 2 * (L + 1) * (1 + θe * (n + 2)) + 1
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
@@ -89,7 +89,7 @@ def Level5Gates (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ
       1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd → 0 ≤ ū →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-            ¬ EndsWell M bad P.D (17 / 16 * settings.disagreementRate)
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
               (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
                 (Fintype.card σ + 2) J ū result.hypothesis)
               settings.walkStart
@@ -304,22 +304,23 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
     rw [hexpG]
     have : (0 : ℝ) < 4 * ((V : ℝ) * (2 * N * A + 4)) := by positivity
     rw [mul_div_assoc', div_le_iff₀ this]
+    clear hεc
     nlinarith
   · rw [show versionBound C (Fintype.card α) = V from rfl]
     simp only [hC]
     rw [hlogG]
     exact hbl
   · simp only [hC]
-    have hNA : ((N : ℝ) + 1) * (A : ℝ) ^ N
-        = ((Fintype.card σ : ℝ) + 3) * (A : ℝ) ^ (Fintype.card σ + 2) := by
+    have hNW : ((P.L : ℝ) + 1) * N + N * A * N
+        = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
       rw [hNr]; ring
-    rw [hNA]
-    have hW0 : 0 ≤ ((P.L : ℝ) + 1) * (((Fintype.card σ : ℝ) + 3)
-        * (A : ℝ) ^ (Fintype.card σ + 2)) * (O.ε + O.κ) := by positivity
+    rw [hNW]
+    have hW0 : 0 ≤ (O.ε + O.κ) * (((Fintype.card σ : ℝ) + 2)
+        * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A)) := by positivity
     have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
         * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
     have := mul_le_mul_of_nonneg_right hbK' hW0
-    linarith
+    linarith only [this, hεc]
 
 
 /-- `Level5Guarantee` with the settings chosen before the probability space, the probes'
@@ -330,7 +331,7 @@ def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k 
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   let K : ℝ := V * (112 / εd + 1)
-  let W : ℝ := (L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
+  let W : ℝ := (n + 2) * (L + 1 + (n + 2) * A)
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
     ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
@@ -341,7 +342,7 @@ def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k 
       1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd → 0 ≤ ū →
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-            ¬ EndsWell M bad P.D (17 / 16 * settings.disagreementRate)
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
               (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
                 (Fintype.card σ + 2) J ū result.hypothesis)
               settings.walkStart

@@ -196,7 +196,8 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
     exact_mod_cast this
   have hLA : (0 : ℝ) ≤ 2 * C.maxLeaves * Fintype.card α := by positivity
   have ha1 : C.testLevel < 1 := by
-    have h4 : (4 : ℝ) ≤ versionBound C (Fintype.card α) * (2 * C.maxLeaves * Fintype.card α + 4) := by
+    have h4 : (4 : ℝ)
+        ≤ versionBound C (Fintype.card α) * (2 * C.maxLeaves * Fintype.card α + 4) := by
       nlinarith
     nlinarith
   have hlg0 : 0 < lg := by rw [← hlg]; exact Real.log_pos (by rw [lt_div_iff₀ ha0]; linarith)
@@ -278,7 +279,8 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
         have h1 : ((versionBound C (Fintype.card α) * nEnd : ℕ) : ℝ) ≤ C.probeBudget := by
           push_cast
           exact (mul_le_mul_of_nonneg_left hnE (by linarith)).trans hbudget
-        exact_mod_cast h1 }
+        exact_mod_cast h1
+      alt_eq := hεd₁_eq }
   unfold roundRisk
   refine (iInf₂_le _ hadm).trans ?_
   unfold roundBound edgeTail startTail middlesTail wrongTerm testLevels
@@ -342,20 +344,29 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
     have e3 : 0 ≤ 3 * ((L + 1) * ((Fintype.card σ : ℝ) + 1)) * θ * C.searchShare :=
       mul_nonneg (by positivity) hφpt_pos.le
     nlinarith only [e2, e3]
-  have hW : (C.probeBudget : ℝ) * ((L + 1) * ((C.maxLeaves + 1) * Fintype.card α ^ C.maxLeaves))
-      * (ε + κ) ≤ δ / 4 := by linarith
-  have hTL : (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 4)
-      * C.testLevel ≤ δ / 4 := by linarith
+  have hW : (ε + κ) * (C.probeBudget * ((L + 1) * C.maxLeaves
+      + C.maxLeaves * Fintype.card α * C.maxLeaves)) ≤ δ / 4 := by linarith
+  have hTL : (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 5)
+      * C.testLevel ≤ 5 * δ / 16 := by
+    have h2 : (2 : ℝ) ≤ C.maxLeaves := by exact_mod_cast (show 2 ≤ C.maxLeaves by omega)
+    have h8 : (8 : ℝ) ≤ 2 * C.maxLeaves * Fintype.card α + 4 := by
+      have := mul_le_mul h2 hA1 (by norm_num) (by linarith)
+      linarith only [this]
+    have hVa : 0 ≤ (versionBound C (Fintype.card α) : ℝ) * C.testLevel :=
+      mul_nonneg (by linarith only [hV1]) ha0.le
+    have hm := mul_le_mul_of_nonneg_left h8 hVa
+    linarith only [ha, hm, hδ0]
   have hd : 0 ≤ δ / 8 := by positivity
-  have hW0 : 0 ≤ (C.probeBudget : ℝ) * ((L + 1) * ((C.maxLeaves + 1)
-      * Fintype.card α ^ C.maxLeaves)) * (ε + κ) := by positivity
-  have hTL0 : 0 ≤ (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 4)
+  have hW0 : 0 ≤ (ε + κ) * (C.probeBudget * ((L + 1) * C.maxLeaves
+      + C.maxLeaves * Fintype.card α * C.maxLeaves)) := by positivity
+  have hTL0 : 0 ≤ (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 5)
       * C.testLevel := by positivity
   have hsum : ENNReal.ofReal (δ / 8) + ENNReal.ofReal (δ / 8) + ENNReal.ofReal (δ / 8)
-      + ENNReal.ofReal (δ / 4) + ENNReal.ofReal (δ / 4) ≤ ENNReal.ofReal δ := by
+      + ENNReal.ofReal (δ / 4) + ENNReal.ofReal (5 * δ / 16) ≤ ENNReal.ofReal δ := by
     have h4 : 0 ≤ δ / 4 := by positivity
     rw [← ENNReal.ofReal_add hd hd, ← ENNReal.ofReal_add (by positivity) hd,
-      ← ENNReal.ofReal_add (by positivity) h4, ← ENNReal.ofReal_add (by positivity) h4]
+      ← ENNReal.ofReal_add (by positivity) h4,
+      ← ENNReal.ofReal_add (by positivity) (by positivity : 0 ≤ 5 * δ / 16)]
     exact ENNReal.ofReal_le_ofReal (by linarith)
   exact le_trans (add_le_add (add_le_add (add_le_add (add_le_add (ENNReal.ofReal_le_ofReal hT2)
     (ENNReal.ofReal_le_ofReal hT3)) (ENNReal.ofReal_le_ofReal hT4)) (ENNReal.ofReal_le_ofReal hW))

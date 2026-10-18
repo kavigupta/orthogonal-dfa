@@ -326,8 +326,8 @@ time. Level 5 draws at most `Kp · G` probes a round.
 The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, `|Q| + 1` rounds and
 suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the rounds' clustering and level 5.
 The clustering runs at half of `εcov`, `ι` and `pAP`, the other halves paying for what the earlier
-rounds read, and its band's far side at `δ' / (4 Kp G (L + 1)(|Q| + 3)|Σ|^(|Q|+2))`, so that level
-5 rarely reads a state on its rarer side; the vote's Hoeffding tail puts only that side's log in
+rounds read, and its band's far side at `δ' / (4 Kp G (|Q| + 2)(L + 1 + (|Q| + 2)|Σ|))`, so that
+level 5 rarely reads a state on its rarer side; the vote's Hoeffding tail puts only that side's log in
 `PB`. `PB` and `RB` bound its suffix pool and prefix count;
 `cap` is linear in them, and holds the clustering's collision conditions and what the
 earlier rounds read of any population or of the suffixes. `ρ / 4` is what a harvest's sampler
@@ -351,7 +351,7 @@ def LearnerLoopSimple : Prop :=
   let Kp : ℝ := V * (224 / εd + 1)
   let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
   let PB : ℝ := 256 * (Real.log (2 / τ)
-      + 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+      + 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ'))
       / (s ^ 2 * pAP)
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
@@ -401,7 +401,7 @@ def LearnerLoopUniform : Prop :=
   let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
   let Θ : ℝ := 1 / s + 8 / εcov + 3072 * Q * (Q + 1)
   let P₀ : ℝ := 256 * (2 * Θ
-      + 4 * (1 + Real.log (4 * Kp * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))) / (s ^ 2 * pAP)
+      + 4 * (1 + Real.log (4 * Kp * G * (Q + 2) * (1 + (Q + 2) * A) / δ'))) / (s ^ 2 * pAP)
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
     * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4

@@ -65,7 +65,7 @@ def l4Fail [Fintype σ] (fam : SuffixFamily μ' α σ) (C : Level5Settings)
     (D' : Measure (FreeMonoid α)) (θ y : ℝ) (J : ℕ) (ū : ℝ) (sift : Bool) (us : ℝ) :
     Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
   {d | let result := indecisiveLStarLevel5 C (fun z => fam.read d.1 z) d.2
-    ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' (17 / 16 * C.disagreementRate + us)
+    ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D' (3 / 2 * C.disagreementRate + us)
       (checkedProbes fam.M fam.oracle.readDist D' (fun z => fam.read d.1 z) C.walkStart
         (Fintype.card σ + 2) J ū result.hypothesis
         ∪ siftedProbes sift (fun z => fam.read d.1 z) C.walkStart result.hypothesis) C.walkStart
@@ -97,7 +97,7 @@ theorem measurableSet_l4Fail [Fintype σ] (fam : SuffixFamily μ' α σ) (C : Le
   have hset : {ω | (ω, xs) ∈ l4Fail fam C D' θ y J ū sift us}
       = ⋃ U ∈ A.powerset, ({ω | A.filter (fun p => fam.O.mq p ω = 1) = U}
         ∩ {ω | ¬ EndsWell fam.M (fun q => ¬ fam.oracle.Good θ q) D'
-          (17 / 16 * C.disagreementRate + us)
+          (3 / 2 * C.disagreementRate + us)
           (checkedProbes fam.M fam.oracle.readDist D'
             (fun z => familyRead fam.O.mq fam.F fam.kl fam.kh z ω) C.walkStart
             (Fintype.card σ + 2) J ū (rep U).hypothesis

@@ -9,12 +9,13 @@ strings, with a distribution that depends only on the string's state in the targ
 read-state is good where it reads undecided at most `1.5θ` of the time.
 
 `Level5Correct`: over `settings.probeBudget` probes drawn from a `PrefixDistribution`,
-`indecisiveLStarLevel5` ends well (`EndsWell`: consistent with at most `17εd/16` of the probes
+`indecisiveLStarLevel5` ends well (`EndsWell`: consistent with at most `3εd/2` of the probes
 checked, or a harvest whose sampler finds more than half of what it finds at read-states that are
 not good, is spread and yields) but for chance at most `δ + 32ū/εd`, at settings the proof
 chooses, once the reads' `κ` and `ε`, the goodness level and the probes' prefix mass are small
-enough. A checked probe searches or learns, reads a prefix followed by a midfix of its tree on its state's rarer side
-or, where the states' undecided rates make `undecidedMass` at most `ū`, reads one undecided. It is derived from a detailed bound (`Proofs/Level5RiskDefs.lean`) that need not be
+enough. A checked probe searches or learns, reads a prefix followed by a midfix of its tree on its
+state's rarer side or, where the states' undecided rates make `undecidedMass` at most `ū`, reads
+one undecided. It is derived from a detailed bound (`Proofs/Level5RiskDefs.lean`) that need not be
 read to trust it.
 -/
 
@@ -95,12 +96,13 @@ def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ := ⨆ u, D.real {x 
 
 /-- `Level5Guarantee M O θ εd P δ k J ū`: some settings, walking from `k`, with disagreement rate
 `εd` and a budget of at most `K · G` probes, make level 5 fail to end well, a harvest's sampler
-yielding `3εd/16` and a consistent round checking at most `17εd/16` of the probes, with chance at
+yielding `3εd/16` and a consistent round checking at most `3εd/2` of the probes, with chance at
 most `δ + 32ū/εd`, once the goodness level `θ`, the reads' `κ` and `ε`
 and the probes' prefix mass at `k` are small enough for `n = |Q|`, `A = |Σ|` and the draws'
-length `L`. `V` bounds the hypotheses a round goes through, and a read on its state's rarer side
-anywhere a probe or a re-sift could read it, which `W` counts a probe, splits wrongly. `U` bounds
-the log of the trees, edge maps and edges a noise field is united over, over `δ`. -/
+length `L`. `V` bounds the hypotheses a round goes through. A read on its state's rarer side
+among the strings a step reads splits wrongly, and `W` bounds those strings: a probe's at most
+`(L + 1)(n + 2)` prefixes followed by midfixes, and a split's at most `(n + 2)² A` re-sifts. `U`
+bounds the log of the trees, edge maps and edges a noise field is united over, over `δ`. -/
 def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
     (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k J : ℕ) (ū : ℝ) : Prop :=
@@ -109,7 +111,7 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   let K : ℝ := V * (112 / εd + 1)
-  let W : ℝ := (P.L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
+  let W : ℝ := (n + 2) * (P.L + 1 + (n + 2) * A)
   let U : ℝ := 4 * (n + 2) * A * Real.log ((n + 3) * A / δ)
   let bad := fun q => ¬ O.Good θ q
   0 < δ → δ ≤ 1 → 0 < εd → εd < 1 → 1 ≤ P.L → 0 ≤ θ →
@@ -120,7 +122,7 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
     (settings.probeBudget : ℝ) ≤ K * G ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-          ¬ EndsWell M bad P.D (17 / 16 * settings.disagreementRate)
+          ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
             (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
               (Fintype.card σ + 2) J ū result.hypothesis)
             settings.walkStart

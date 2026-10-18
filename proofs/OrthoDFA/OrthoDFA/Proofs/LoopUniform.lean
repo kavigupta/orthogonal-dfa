@@ -403,31 +403,39 @@ theorem learner_loop_uniform_holds : LearnerLoopUniform := by
       nlinarith
     rw [Real.le_log_iff_exp_le (by linarith)]
     linarith [Real.exp_one_lt_d9]
-  set X : ℝ := 4 * Kp * G * (Q + 3) * A ^ (Fintype.card σ + 2) / δ' with hXd
+  set X : ℝ := 4 * Kp * G * (Q + 2) * (1 + (Q + 2) * A) / δ' with hXd
   have hX1 : 1 ≤ X := by
     rw [hXd, le_div_iff₀ hδ'0, one_mul]
-    have hA1 : 1 ≤ A ^ (Fintype.card σ + 2) := one_le_pow₀ (by linarith)
     have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp1 hG1
-    have h2 : 1 ≤ (Q + 3) * A ^ (Fintype.card σ + 2) :=
-      one_le_mul_of_one_le_of_one_le (by linarith) hA1
+    have h2 : 1 ≤ (Q + 2) * (1 + (Q + 2) * A) :=
+      one_le_mul_of_one_le_of_one_le (by linarith) (by nlinarith)
     have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
     nlinarith
   have hlX : 0 ≤ Real.log X := Real.log_nonneg hX1
   set Bc : ℝ := 4 * (1 + Real.log X) with hBcd
   have hBc1 : 1 ≤ Bc := by rw [hBcd]; linarith
   have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg _
-  set cL : ℝ := 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+  set cL : ℝ := 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ')
     with hcLd
-  have hcLX : cL = 4 * (Real.log (L + 1) + Real.log X) := by
+  have hcLX : cL ≤ 4 * (Real.log (L + 1) + Real.log X) := by
     rw [hcLd, ← Real.log_mul (by positivity) (by positivity)]
-    congr 2
-    rw [hXd]; ring
-  have hcL0 : 0 ≤ cL := by
-    rw [hcLX]
-    have : 0 ≤ Real.log (L + 1) := Real.log_nonneg (by linarith)
-    positivity
+    refine mul_le_mul_of_nonneg_left (Real.log_le_log (by positivity) ?_) (by norm_num)
+    rw [hXd, mul_div_assoc', div_le_div_iff_of_pos_right hδ'0]
+    have hQ0 : 0 ≤ Q + 2 := by linarith
+    have : (L + 1 + (Q + 2) * A) ≤ (L + 1) * (1 + (Q + 2) * A) := by
+      have : 0 ≤ L * ((Q + 2) * A) := mul_nonneg hL0 (by positivity)
+      nlinarith
+    have h4 : 0 ≤ 4 * Kp * G * (Q + 2) := by positivity
+    calc 4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A)
+        ≤ 4 * Kp * G * (Q + 2) * ((L + 1) * (1 + (Q + 2) * A)) :=
+          mul_le_mul_of_nonneg_left this h4
+      _ = (L + 1) * (4 * Kp * G * (Q + 2) * (1 + (Q + 2) * A)) := by ring
+  have hcL0 : 0 ≤ cL :=
+    mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (by linarith) (by linarith) hL0
+      hKp1 hG1 hδ'0 hδ'1))
   have hcLB : cL ≤ (L + 1) * Bc := by
-    rw [hcLX, hBcd]
+    refine hcLX.trans ?_
+    rw [hBcd]
     have h1 : Real.log (L + 1) ≤ L := by
       have := Real.log_le_sub_one_of_pos (by linarith : (0 : ℝ) < L + 1)
       linarith

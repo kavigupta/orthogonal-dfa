@@ -1,15 +1,18 @@
 import OrthoDFA.Proofs.Level5Event
 import OrthoDFA.Proofs.Level5Harvest
+import OrthoDFA.Proofs.Level5Rarer
 
 /-!
 # Level 5's risk
 
-On the noise event, a round none of whose probes reads a string on its state's rarer side ends,
+On the noise event, a round none of whose steps reads a string on its state's rarer side ends,
 within `versionBound · nEnd` probes, by a test firing at a hypothesis whose tree is grown by
 genuine splits alone. Where that ending is not well, the test fired at a hypothesis whose
 sampler is not good, so one of the tests' weights passed `1/a` within that version. The round's
 failure is at most the noise fields' tails (`noiseEvent_le`), the chance some probe reads on the
-rarer side (`dirty_le`), and every test's level at every version (`Level5RoundRisk`).
+rarer side (`pi_wrong_le`), the success test passing with the rarer probes heavy (`rarer_le`), the
+undecided probes' Markov term (`und_le_mass`), and every test's level at every version
+(`Level5RoundRisk`).
 -/
 
 namespace OrthoDFA
@@ -126,22 +129,22 @@ variable {σ : Type*} [Fintype σ] (G : ReadModel α σ) (D : Measure (FreeMonoi
 
 /-- A clean round's end: a test fired at a true hypothesis. -/
 def CleanEnd (e : Level5Ending α) (s : Level5State α) : Prop :=
-  e ≠ .tooBig ∧ runTests C s = some e ∧ TruthInv G rd C.maxLeaves s ∧ CountInv s
+  e ≠ .tooBig ∧ runTests C s = some e ∧ TruthInv G C.maxLeaves s ∧ CountInv s
 
 theorem runEnds_clean (hσ : Fintype.card σ + 2 ≤ C.maxLeaves) (hSq : C.SeqOK)
     (hn₀ : 1 ≤ C.firstLook) (hexc : ∀ j, 0 < C.edgeExcess j) :
-    ∀ (l : List (FreeMonoid α)) (s : Level5State α), TruthInv G rd C.maxLeaves s → CountInv s →
-      (∀ x ∈ l, ¬ G.Dirty rd C.walkStart C.maxLeaves x) →
+    ∀ (l : List (FreeMonoid α)) (s : Level5State α), TruthInv G C.maxLeaves s → CountInv s →
+      ¬ AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) s l →
       RunEnds (applyProbe C fun z => (rd z).cut) (fun _ _ => True) s l →
-      RunEnds (applyProbe C fun z => (rd z).cut) (CleanEnd G C rd) s l
+      RunEnds (applyProbe C fun z => (rd z).cut) (CleanEnd G C) s l
   | [], _, _, _, _, h => h.elim
   | x :: xs, s, ht, hc, hx, h => by
-    have hx0 := hx x (List.mem_cons_self ..)
+    have hx0 : ¬ WrongStep G rd C s x := fun h => hx (Or.inl h)
     obtain ⟨hinl, hinr⟩ := truthInv_step G rd C hσ ht hx0
     simp only [RunEnds] at h ⊢
     rcases hst : applyProbe C (fun z => (rd z).cut) s x with s' | ⟨e, s'⟩ <;> rw [hst] at h
     · exact runEnds_clean hσ hSq hn₀ hexc xs s' (hinl s' hst)
-        (countInv_step C _ hc hst) (fun y hy => hx y (List.mem_cons_of_mem _ hy)) h
+        (countInv_step C _ hc hst) (fun h' => hx (Or.inr ⟨s', hst, h'⟩)) h
     · obtain ⟨hne, htr⟩ := hinr e s' hst
       rcases applyProbe_inr_shape C _ hSq.a_pos hSq.a_lt hn₀ hexc hst with rfl | ⟨rfl, hr⟩
       · exact absurd rfl hne
@@ -195,13 +198,12 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
     (hexc : ∀ j, 2 * (L + 1) * (1 + C.edgeUndecidedRate * C.maxLeaves)
       * Real.log (1 / C.testLevel) < C.edgeExcess j)
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {e : Level5Ending α} {s : Level5State α}
-    (hc : CleanEnd G C rd e s)
-    (hrare : D.real {x | G.Dirty rd C.walkStart C.maxLeaves x} ≤ C.disagreementRate / 32)
+    (hc : CleanEnd G C e s)
     (hund : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū →
       D.real (undecidedProbes rd C.walkStart C.maxLeaves J) ≤ C.disagreementRate / 32)
     (hn : ¬ Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd e s) :
-    AnyBad D C rd L e s := by
-  obtain ⟨hne, hr, ⟨hg, he, -, hsm, hL⟩, -⟩ := hc
+    AnyBad D C rd L e s ∨ RarerBad G D C rd e s := by
+  obtain ⟨hne, hr, ⟨hg, he, -, hL⟩, -⟩ := hc
   have hcl : G.InClass 0 s.tree := ⟨0, le_rfl, hg⟩
   have hy : C.harvestYield ≤ C.startUndecidedRate ∧ C.harvestYield
       ≤ C.edgeTraffic * C.edgeUndecidedRate / 2 ∧ C.harvestYield
@@ -216,25 +218,34 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
     rw [hsite]
     exact endsWell_of_siteGood (D := D) (k := C.walkStart) G hlen rd _ _ _
       ⟨s.tree, Function.uncurry s.edges⟩ site hgood
+  refine (?_ : AnyBad D C rd L e s ∨ RarerBad G D C rd e s)
   cases e with
   | success =>
-    left
-    refine ⟨rfl, ?_⟩
+    set H : HypothesisDFA α := ⟨s.tree, Function.uncurry s.edges⟩
+    set p := C.disagreementRate
+    have hp := hSq.εd_pos
     unfold Level5EndsWell at hn
     simp only [toRoundEnd, EndsWell, not_le] at hn
+    by_cases hp3 : p < 2 / 3
+    swap
+    · exact absurd hn (not_lt.2 (measureReal_le_one.trans (by push Not at hp3; linarith)))
+    by_cases hR : p / (8 - 7 * p) ≤ D.real (rarerSet G C rd s)
+    · exact .inr ⟨rfl, hp3, hR⟩
+    left; left
+    refine ⟨rfl, ?_⟩
     by_contra hlt
     push Not at hlt
     have hu : D.real {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
-        ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J} ≤ C.disagreementRate / 32 := by
+        ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J} ≤ p / 32 := by
       by_cases hcu : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
       · simpa [hcu] using hund hcu
       · simp only [hcu, false_and, Set.setOf_false, measureReal_empty]
-        linarith [hSq.εd_pos]
-    set H : HypothesisDFA α := ⟨s.tree, Function.uncurry s.edges⟩
-    have hr' : D.real (rarerProbes G.M G.readDist rd C.walkStart H) ≤ C.disagreementRate / 32 := by
-      refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hrare
-      rintro x ⟨j, hkj, hjx, m, hm, hc⟩
-      exact ⟨j, hkj, hjx, m, mem_shortWords (by have := hsm m hm; omega), hc⟩
+        linarith
+    have hr' : D.real (rarerProbes G.M G.readDist rd C.walkStart H) ≤ 3 * p / 10 := by
+      push Not at hR
+      refine hR.le.trans ?_
+      rw [div_le_iff₀ (by linarith)]
+      nlinarith
     have h1 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H
       ∪ rarerProbes G.M G.readDist rd C.walkStart H)
       {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
@@ -242,11 +253,11 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
     have h2 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H)
       (rarerProbes G.M G.readDist rd C.walkStart H)
     have h3 : D.real (searchingProbes rd C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
-        < C.disagreementRate := hlt
+        < p := hlt
     unfold checkedProbes at hn
     linarith
   | harvestStart =>
-    right; left
+    left; right; left
     refine ⟨rfl, ?_⟩
     by_contra hlt
     push Not at hlt
@@ -259,7 +270,7 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
       dsimp only
       linarith [hy.1]
   | harvestPT =>
-    right; right
+    left; right; right
     by_contra hno
     simp only [not_or, GateBad, MiddlesBad, true_and, not_le] at hno
     obtain ⟨hdis, hpt⟩ := hno
@@ -267,7 +278,8 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
     refine hwell .middles ⟨?_, ?_⟩ rfl
     · rw [siteMean_middles, siteTotal_middles]
       dsimp only
-      have h1 : θgpt * (C.searchShare / 2) ≤ θgpt * D.real (searchAt rd C.walkStart s.tree s.edges) :=
+      have h1 : θgpt * (C.searchShare / 2)
+          ≤ θgpt * D.real (searchAt rd C.walkStart s.tree s.edges) :=
         mul_le_mul_of_nonneg_left hdis.le hθgpt0
       have h2 : 0 ≤ D.real (searchAt rd C.walkStart s.tree s.edges) := measureReal_nonneg
       nlinarith [mul_le_mul_of_nonneg_right hθgpt h2]
@@ -276,7 +288,7 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
       have h2 := hSq.θpt_pos
       nlinarith [hy.2.2, mul_lt_mul_of_pos_left hdis h2]
   | harvest e' =>
-    right; right; right; right
+    left; right; right; right; right
     obtain ⟨hmem, hf1, hf2⟩ := runTests_harvest' C hr
     obtain ⟨i, hi, hie⟩ := List.getElem_of_mem hmem
     have hedge : e' = edgeOf s.tree i e'.2 := by
@@ -292,7 +304,8 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hE : NoiseEvent G D 
     have hrates := edge_rates hSq.a_pos hSq.a_lt (by linarith) (Nat.cast_nonneg s.probes)
       (by positivity : (0 : ℝ) < 2 * (L + 1)) hK₂ hf1 hf2
       (by have := hexc (s.edgeReads e'.1 e'.2); nlinarith) (by
-        simp only [undW, ← hedge] at h1; exact h1) (by simp only [readW, ← hedge] at h2; exact fun h => h2 ⟨hL, h⟩)
+        simp only [undW, ← hedge] at h1; exact h1)
+      (by simp only [readW, ← hedge] at h2; exact fun h => h2 ⟨hL, h⟩)
     have hgd := hE.goodEdge s.tree s.edges hcl he e'
     refine hwell (.edge e') ⟨?_, ?_⟩ rfl
     · change 2 * (∫ x, (G.undecAt rd C.walkStart s.tree s.edges e' G.Good x : ℝ) ∂D)
@@ -531,15 +544,12 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
     · exact h0
   set T := C.probeBudget
   set V := versionBound C (Fintype.card α)
-  set c : ENNReal := ENNReal.ofReal (V * (2 * C.maxLeaves * Fintype.card α + 4) * C.testLevel)
+  set c : ENNReal := ENNReal.ofReal (V * (2 * C.maxLeaves * Fintype.card α + 5) * C.testLevel)
   set M := toMeasurable μ {ω | ¬ NoiseEvent G D C 0 kn.θg kn.θgs kn.θgpt (read · ω)}
+  set g : Ω → ENNReal := fun ω => (Measure.pi fun _ : Fin T => D)
+    {xs | AnyStep (applyProbe C fun z => (read z ω).cut) (WrongStep G (read · ω) C) initialState
+      (List.ofFn xs)}
   have hεd := hSq.εd_pos
-  have hT0 : (0 : ℝ) < T := by
-    by_contra h
-    push Not at h
-    have h0 : (T : ℝ) = 0 := le_antisymm h (Nat.cast_nonneg _)
-    rw [h0] at hT
-    linarith
   set cu := undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
   set ext : Ω → ENNReal := fun ω => ENNReal.ofReal (32 / C.disagreementRate)
     * if cu then D {x | x ∈ undecidedProbes (read · ω) C.walkStart C.maxLeaves J} else 0
@@ -547,26 +557,13 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
       {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
         (Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū (read · ω)) initialState
           (List.ofFn xs)}
-      ≤ M.indicator 1 ω + T * D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x} + c
-        + ext ω := by
+      ≤ M.indicator 1 ω + g ω + c + ext ω := by
     intro ω
     by_cases hω : NoiseEvent G D C 0 kn.θg kn.θgs kn.θgpt (read · ω)
     swap
     · have hM : ω ∈ M := subset_toMeasurable _ _ hω
       rw [Set.indicator_of_mem hM, Pi.one_apply]
       exact prob_le_one.trans (le_self_add.trans (le_self_add.trans le_self_add))
-    by_cases hdr : D.real {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}
-        ≤ C.disagreementRate / 32
-    swap
-    · refine prob_le_one.trans (le_trans ?_ (le_add_right (le_add_right le_add_self)))
-      have hDs : D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}
-          = ENNReal.ofReal (D.real {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x}) := by
-        rw [ofReal_measureReal (measure_ne_top _ _)]
-      rw [hDs, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _),
-        ← ENNReal.ofReal_one]
-      refine ENNReal.ofReal_le_ofReal ?_
-      push Not at hdr
-      nlinarith
     by_cases hcu : cu ∧ ¬ D.real (undecidedProbes (read · ω) C.walkStart C.maxLeaves J)
         ≤ C.disagreementRate / 32
     · refine prob_le_one.trans (le_trans ?_ le_add_self)
@@ -583,10 +580,8 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
         ≤ C.disagreementRate / 32 := fun h => by
       by_contra h'
       exact hcu ⟨h, h'⟩
-    refine le_trans ?_ (le_add_right (add_le_add (le_add_self (a := (T : ENNReal)
-      * D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x})) le_rfl))
+    refine le_trans ?_ (le_add_right (add_le_add (le_add_self (a := g ω)) le_rfl))
     set rd : FreeMonoid α → ARU := (read · ω)
-    set Dset := {x | G.Dirty rd C.walkStart C.maxLeaves x}
     set Q : Level5Ending α → Level5State α → Prop := fun e s =>
       ((SuccessBad C D rd e s ∨ StartBad C D rd e s) ∨ GateBad C D rd e s ∨ MiddlesBad C D rd e s)
         ∨ ∃ ic : ℕ × α, ic.1 < C.maxLeaves
@@ -594,18 +589,18 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
     have hsub : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C fun z => (rd z).cut)
         (Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd) initialState
           (List.ofFn xs)}
-        ⊆ (⋃ i : Fin T, {xs | xs i ∈ Dset})
-          ∪ {xs | RunEnds (applyProbe C fun z => (rd z).cut) Q initialState (List.ofFn xs)} := by
+        ⊆ {xs | AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+            (List.ofFn xs)}
+          ∪ ({xs | RunEnds (applyProbe C fun z => (rd z).cut) Q initialState (List.ofFn xs)}
+            ∪ {xs | ¬ AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+                (List.ofFn xs)
+              ∧ RunEnds (applyProbe C fun z => (rd z).cut) (RarerBad G D C rd) initialState
+                (List.ofFn xs)}) := by
       intro xs hxs
-      by_cases hd : ∃ i, xs i ∈ Dset
-      · obtain ⟨i, hi⟩ := hd
-        exact .inl (Set.mem_iUnion.2 ⟨i, hi⟩)
+      by_cases hall : AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+          (List.ofFn xs)
+      · exact .inl hall
       right
-      push Not at hd
-      have hall : ∀ x ∈ List.ofFn xs, ¬ G.Dirty rd C.walkStart C.maxLeaves x := by
-        intro x hx
-        obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-        exact hd i
       have hrun := runEnds_of_budget C (fun z => (rd z).cut) hSq hnEnd hA.hS_le hSq.φ_pos.le
         hA.φpt_nEnd hA.n₀_le_hS hA.pt_level hA.success_level hL (List.ofFn xs) initialState
         (verInv_start C hL) (stretchOK_start hnEnd) (by
@@ -613,27 +608,40 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
           have := hA.budget_ge
           simp [initialState, freshState]
           exact this)
-      have hcl := runEnds_clean G C rd hA.Lmax_ge hSq hn₀ hexc0 _ _ (truthInv_start G rd hL)
+      have hcl := runEnds_clean G C rd hA.Lmax_ge hSq hn₀ hexc0 _ _ (truthInv_start G hL)
         (countInv_fresh _ _ _) hall hrun
       rcases runEnds_or (Q := Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd)
         _ _ hcl with h | h
       · exact absurd h hxs
-      refine runEnds_mono (fun e s ⟨hc, hn⟩ => ?_) _ _ h
-      have := bad_of_clean G D C rd hω hSq hθg0 hA.θe_ge hA.φe_nonneg hA.θgs_le
-        (le_trans (by have := hA.θ_nonneg; positivity) hA.θgpt_ge) hA.θgpt_le hA.exc_gt hlen hc
-        hdr hund hn
-      rcases this with h1 | h1 | h1 | h1 | ⟨i, hi, cc, h1⟩
-      · exact .inl (.inl (.inl h1))
-      · exact .inl (.inl (.inr h1))
-      · exact .inl (.inr (.inl h1))
-      · exact .inl (.inr (.inr h1))
-      · exact .inr ⟨(i, cc), hi, h1⟩
-    refine (measure_mono hsub).trans ((measure_union_le _ _).trans (add_le_add ?_ ?_))
-    · refine (measure_iUnion_fintype_le _ _).trans (le_of_eq ?_)
-      have : ∀ i : Fin T, (Measure.pi fun _ : Fin T => D) {xs | xs i ∈ Dset} = D Dset := fun i =>
-        (measurePreserving_eval (fun _ : Fin T => D) i).measure_preimage
-          (measurableSet_of_countable _).nullMeasurableSet
-      simp only [this, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+      have h' : RunEnds (applyProbe C fun z => (rd z).cut)
+          (fun e s => Q e s ∨ RarerBad G D C rd e s) initialState (List.ofFn xs) := by
+        refine runEnds_mono (fun e s ⟨hc, hn⟩ => ?_) _ _ h
+        have := bad_of_clean G D C rd hω hSq hθg0 hA.θe_ge hA.φe_nonneg hA.θgs_le
+          (le_trans (by have := hA.θ_nonneg; positivity) hA.θgpt_ge) hA.θgpt_le hA.exc_gt hlen hc
+          hund hn
+        rcases this with (h1 | h1 | h1 | h1 | ⟨i, hi, cc, h1⟩) | h1
+        · exact .inl (.inl (.inl (.inl h1)))
+        · exact .inl (.inl (.inl (.inr h1)))
+        · exact .inl (.inl (.inr (.inl h1)))
+        · exact .inl (.inl (.inr (.inr h1)))
+        · exact .inl (.inr ⟨(i, cc), hi, h1⟩)
+        · exact .inr h1
+      rcases runEnds_split _ _ h' with h'' | h''
+      · exact .inl h''
+      · exact .inr ⟨hall, h''⟩
+    refine (measure_mono hsub).trans ((measure_union_le _ _).trans (add_le_add le_rfl ?_))
+    refine (measure_union_le _ _).trans ?_
+    have hR := rarer_le G D C rd hSq hL hn₀ hexc0 hA.alt_eq T
+    have hva0 : 0 ≤ (V : ℝ) * C.testLevel := mul_nonneg (Nat.cast_nonneg _) hSq.a_pos.le
+    have hc4 : c = ENNReal.ofReal (V * (2 * C.maxLeaves * Fintype.card α + 4) * C.testLevel)
+        + ENNReal.ofReal (V * C.testLevel) := by
+      rw [← ENNReal.ofReal_add (mul_nonneg (mul_nonneg (Nat.cast_nonneg _) (by positivity))
+        hSq.a_pos.le) hva0]
+      simp only [c]
+      congr 1
+      ring
+    rw [hc4]
+    refine add_le_add ?_ hR
     set step := applyProbe C fun z => (rd z).cut
     set w := ENNReal.ofReal (V * C.testLevel)
     set K := Finset.range C.maxLeaves ×ˢ (Finset.univ : Finset α)
@@ -690,10 +698,7 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
       ≤ classCount (α := α) σ 0 := by
     unfold classCount
     exact_mod_cast classSet_card (Fintype.card σ + 0)
-  have hD := dirty_le G hmeas hlaw hA.κ_nonneg hA.ε_nonneg D hlen C.walkStart C.maxLeaves
-  have hSW : ((shortWords (α := α) C.maxLeaves).card : ℝ)
-      ≤ (C.maxLeaves + 1) * Fintype.card α ^ C.maxLeaves := by
-    exact_mod_cast shortWords_card C.maxLeaves
+  have hD := pi_wrong_le G C hA.Lmax_ge hmeas hlaw hind hA.κ_nonneg hA.ε_nonneg D hlen
   have hM : Measurable (M.indicator (1 : Ω → ENNReal)) :=
     measurable_one.indicator (measurableSet_toMeasurable _ _)
   have hextm : Measurable ext := by
@@ -717,12 +722,10 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
   refine (lintegral_mono hpt).trans ?_
   rw [lintegral_add_right _ hextm]
   refine add_le_add ?_ hext
-  calc ∫⁻ ω, (M.indicator 1 ω + T * D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x} + c)
-          ∂μ
-      = μ M + T * ∫⁻ ω, D {x | G.Dirty (read · ω) C.walkStart C.maxLeaves x} ∂μ + c := by
+  calc ∫⁻ ω, (M.indicator 1 ω + g ω + c) ∂μ
+      = μ M + ∫⁻ ω, g ω ∂μ + c := by
         rw [lintegral_add_right _ measurable_const, lintegral_add_left hM,
-          lintegral_indicator_one (measurableSet_toMeasurable _ _),
-          lintegral_const_mul' _ _ (ENNReal.natCast_ne_top T), lintegral_const, measure_univ,
+          lintegral_indicator_one (measurableSet_toMeasurable _ _), lintegral_const, measure_univ,
           mul_one]
     _ ≤ (edgeTail σ G.θ D L C kn + startTail σ G.θ D C kn + middlesTail σ G.θ D L C kn)
         + wrongTerm (α := α) G.κ G.ε L C + testLevels (α := α) C := by
@@ -737,14 +740,8 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
           · simp only [mul_one]
             gcongr ?_ * _ * _
         · unfold wrongTerm
-          refine (mul_le_mul (le_refl (T : ENNReal)) hD zero_le zero_le).trans ?_
-          rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
-          refine ENNReal.ofReal_le_ofReal ?_
-          have hεκ : 0 ≤ G.ε + G.κ := add_nonneg hA.ε_nonneg hA.κ_nonneg
-          have hL0 : (0 : ℝ) ≤ L + 1 := by positivity
-          have := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hSW hεκ)
-            (mul_nonneg (Nat.cast_nonneg T) hL0)
-          nlinarith
+          refine hD.trans (ENNReal.ofReal_le_ofReal (le_of_eq ?_))
+          ring
     _ = roundBound σ G.κ G.ε G.θ D L C kn := by unfold roundBound; rfl
 
 end Model

@@ -105,17 +105,16 @@ namespace OrthoDFA
 open MeasureTheory
 
 /-- The far side's argument is at least one. -/
-lemma one_le_farArg {Q A L Kp G δ' : ℝ} (m : ℕ) (hQ : 0 ≤ Q) (hA : 1 ≤ A) (hL : 0 ≤ L)
+lemma one_le_farArg {Q A L Kp G δ' : ℝ} (hQ : 0 ≤ Q) (hA : 1 ≤ A) (hL : 0 ≤ L)
     (hKp : 1 ≤ Kp) (hG : 1 ≤ G) (hδ' : 0 < δ') (hδ'1 : δ' ≤ 1) :
-    1 ≤ 4 * Kp * G * (L + 1) * (Q + 3) * A ^ m / δ' := by
+    1 ≤ 4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ' := by
   rw [le_div_iff₀ hδ', one_mul]
   have h1 : 1 ≤ Kp * G := one_le_mul_of_one_le_of_one_le hKp hG
-  have h2 : 1 ≤ (L + 1) * (Q + 3) * A ^ m :=
-    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith))
-      (one_le_pow₀ hA)
+  have h2 : 1 ≤ (Q + 2) * (L + 1 + (Q + 2) * A) :=
+    one_le_mul_of_one_le_of_one_le (by linarith) (by nlinarith)
   have h3 := mul_le_mul h1 h2 zero_le_one (by linarith)
-  have e : 4 * Kp * G * (L + 1) * (Q + 3) * A ^ m = 4 * (Kp * G * ((L + 1) * (Q + 3) * A ^ m)) := by
-    ring
+  have e : 4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A)
+      = 4 * (Kp * G * ((Q + 2) * (L + 1 + (Q + 2) * A))) := by ring
   rw [e]
   linarith
 
@@ -151,7 +150,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Kp : ℝ := V * (224 / εd + 1)
     let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
     let PB : ℝ := 256 * (Real.log (2 / τ)
-        + 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ'))
+        + 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ'))
         / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
@@ -220,7 +219,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     · intro Dsf hDsf _ hpAPD _
       have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
       linarith
-  set cLog : ℝ := 4 * Real.log (4 * Kp * G * (L + 1) * (Q + 3) * A ^ (Fintype.card σ + 2) / δ')
+  set cLog : ℝ := 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ')
     with hcLog
   have hV1 : 1 ≤ V := by
     change 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
@@ -240,7 +239,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       have : 0 ≤ 224 / εd := by positivity
       nlinarith
     exact mul_nonneg (by norm_num) (Real.log_nonneg
-      (one_le_farArg _ (by linarith) hA1 (by linarith) hK1 hG1 hδ'0 hδ'1))
+      (one_le_farArg (by linarith) hA1 (by linarith) hK1 hG1 hδ'0 hδ'1))
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
     show _ = 256 * (Real.log (2 / min (εcov / 2) (min (1 / 2 - η₀) ι)) + cLog)
         / ((1 / 2 - η₀) ^ 2 * pAP) + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2

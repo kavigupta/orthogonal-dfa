@@ -16,7 +16,7 @@ Python's is. With `s = 1/2 − η₀`, `δ' = δ/(2(|Q|+1))`, `ρ = 3εd/16`, an
 `V = (|Q|+2)((|Q|+2)|Σ|+1)`, `Kp = V(224/εd + 1)` and `G = log(4V(2(|Q|+2)|Σ|+4)/δ')`:
 
     Θ  = 1/s + 8/εcov + 3072 |Q|(|Q|+1)
-    P₀ = 256 (2Θ + 8 Kp G (|Q|+3)|Σ|^(|Q|+2)/δ')/(s² pAP) + 64 log((|Q|+4)/(δ'/2))/pAP²
+    P₀ = 256 (2Θ + 4(1 + log(4 Kp G (|Q|+2)(1 + (|Q|+2)|Σ|)/δ')))/(s² pAP) + 64 log((|Q|+4)/(δ'/2))/pAP²
     R₀ = 6000 (|Q|+2)² Θ³ log((|Q|+4) P₀ Θ/(δ' pAP/16))/s⁴
     E  = 2²⁴ (|Q|+3)² (Θ² (R₀ + 1) + (P₀ + 1)/pAP + |Σ|²)/(δ' ρ)
     L₀ = 2 + 28 (log E + 24)/(25 log |Σ|)
@@ -28,7 +28,7 @@ At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`,
 at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 188 (was 199). A round's
 budget is `Kp · G`, free of `L`: at that point `1.9e6` probes (the chosen budget `1.88e6`), against
 `3.9e7` at `L = 219` (chosen `3.1e7`) under the records level and `1.1e9` when level 5 tested its
-rates at every look. The band's far side, `δ'/(4 Kp G (L+1)(|Q|+3)|Σ|^(|Q|+2))`, is what keeps
+rates at every look. The band's far side, `δ'/(4 Kp G (|Q|+2)(L+1+(|Q|+2)|Σ|))`, is what keeps
 level 5's reads off the rarer side; it is `1e6`× tighter than under the records level, but enters
 `L₀` only logarithmically, and the `1344`× larger yield `ρ` more than pays for it.
 
@@ -77,11 +77,11 @@ once `L ≥ L₀`. A run that reaches an unlearned edge counts as wrong. The pic
 the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
-`N = L₁ + 1 − k`, level 5 runs at `εd = c/(2(|Σ|+1)N)` and draws at most `Kp · G` probes a round;
-`L₀` is `|Q| + 4 + 4(log (E + E₂) + 64)/log |Σ|`, `E` and `E₂` free of `L`, logarithmic in `1/δ`,
-`1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP` and `|Σ|^(|Q|+2)`. At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`,
-`c = δ = 0.01`, `pAP = 1/3` and `ξ = 0.01`, `L₀ = 1460`, `n = 3.3e6` and the budget is `9.1e10`
-probes a round (`εd = 2.3e-6`). `LearnerLoopDFASimple` states the same at explicit settings,
+`N = L₁ + 1 − k`, level 5 runs at `εd = c/(34(|Σ|+1)²(|Q|+2)N(L₁+1))` and draws at most `Kp · G`
+probes a round; `L₀` is `|Q| + 4 + 4(log (E + E₂) + 100)/log |Σ|`, `E` and `E₂` free of `L`,
+logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`. At `|Q| = 3`,
+`|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3` and `ξ = 0.1`, `L₀ = 1618`, `n = 33196` and the
+budget is `4.2e16` probes a round (`εd = 4.9e-12`). `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
@@ -91,11 +91,13 @@ and nothing undecided, cross a learned edge between their states' true leaves (`
 edge out of its true leaf that is wrong or unlearned leaves `c/((|Σ|+1)N)` of the probes checked
 (`edge_of_occupied`). Level 5's consistent ending answers for its checked probes
 (`checkedProbes`): those that search or could learn an edge, which the success test counts or
-which reset the hypothesis, those reading a prefix's extension on its state's rarer side, which is
-rare by the band, and, once `undecidedMass` is at most `ū`, those reading one undecided, by Markov.
-The clustering, run at `εcov = min(δc/(1024(|Q|+1)(|Q|+3)(|Σ|+1)|Σ|^(|Q|+2)N³), ξ/(8N))`, holds
-the window's undecided rate, and so `undecidedMass`, under `ū`, and reads every covered state on
-its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as
+which reset the hypothesis, those reading a prefix's extension by one of the tree's midfixes on its
+state's rarer side, which the run certifies (`rarer_le`), those reading one undecided once
+`undecidedMass` is at most `ū`, by Markov, and those whose start or end sift stops undecided, which
+level 5's own start and edge tests certify (`sift_le`). So the bridge needs no average over the
+window: the clustering, run at `εcov = min(εd/(48(|Q|+1)²), ξ/(8N))`, keeps level 5's good states
+undecided rarely against its gates and reads every covered state on its true side
+(`sideOf_eq_of_mass`). Every covered state's edges are then true and it accepts as
 the target does, so the hypothesis from the covered start's true leaf tracks the re-rooted target
 on every run that stays covered (`classify_start_le`).
 
@@ -128,7 +130,7 @@ on their first `k ≥ 1` letters avoiding those of every prefix the round's clus
 the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit + 2·slack` of the
 time, but for chance `(|Q| + 1)(δc + δ)`, for probes whose length-`k` prefix mass is at most
 `cap · ρ / 4` and `εd / (4096 (L + 1) unionLog)`. The band's far side is
-`δ / (4 Kp G (L + 1)(|Q| + 3)|Σ|^(|Q|+2))`, so level 5 reads a state on its rarer side rarely
+`δ / (4 Kp G (|Q| + 2)(L + 1 + (|Q| + 2)|Σ|))`, so level 5 reads a state on its rarer side rarely
 enough that its splits are all genuine. A harvest's sampler yields at least `ρ / 4` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `4 prefixMax / ρ` on a string, within `cap`, which also bounds the suffixes' atoms. Against `cap`
@@ -212,7 +214,7 @@ under the final hypothesis and finds the undecided read it stops at.
 `OrthoDFA/Level5Claim.lean` and `OrthoDFA/Level5Family.lean` hold them, with everything they
 need to be read; the algorithm is `indecisiveLStarLevel5` in `OrthoDFA/Level5.lean`. With
 `n = |Q|`, `A = |Σ|`, `L = P.L`, `V = (n + 2)((n + 2)A + 1)`,
-`G = log (4 V (2(n + 2)A + 4) / δ)`, `K = V (112/εd + 1)`, `W = (L + 1)(n + 3) A^(n+2)`,
+`G = log (4 V (2(n + 2)A + 4) / δ)`, `K = V (112/εd + 1)`, `W = (n + 2)(L + 1 + (n + 2)A)`,
 `U = 4(n + 2)A log ((n + 3)A / δ)` and a
 read-state bad where it reads undecided more than `1.5θ` of the time:
 
@@ -224,7 +226,7 @@ read-state bad where it reads undecided more than `1.5θ` of the time:
       ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
         settings.probeBudget ≤ K · G ∧
         P[let result := indecisiveLStarLevel5 settings (O.read · ω) draws
-          ¬ EndsWell M bad P.D (17εd/16)
+          ¬ EndsWell M bad P.D (3εd/2)
             (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart (n + 2) J ū
               result.hypothesis)
             settings.walkStart (harvestLaw P.D (O.read · ω).cut settings.walkStart
@@ -271,7 +273,7 @@ to trust the claim.
     Level5RoundRisk: ∀ M (O : TriOracle μ M) θ (P : PrefixDistribution α) C J ū,
       0 ≤ ū → 32 ≤ εd · budget →
       ∫⁻ ω, P[the run of `applyProbe` over C.probeBudget probes from P.D does not end well, its
-          harvest's sampler yielding harvestYield and a consistent end checking at most 17εd/16
+          harvest's sampler yielding harvestYield and a consistent end checking at most 3εd/2
           of the probes] ∂μ
         ≤ roundRisk σ O.κ O.ε θ P.D P.L C + 32ū/εd
 
@@ -290,11 +292,13 @@ A read-state `q` is good (`O.Good θ q`) where it reads undecided at most `1.5θ
 * `startTail`, the good undecided start reads past `θgs`: `K · exp(θ₁(e^{l p₀} − 1)/p₀ − lθgs)`;
 * `middlesTail`, searches stopping at a good undecided middle past `θgpt`:
   `K · E · exp(−θgpt φpt/2 / (2p₀(1 + 4(L + 1)θ₁)))`;
-* `wrongTerm`, some probe reading a string on its state's rarer side, as itself or followed by a
-  word of at most `Lmax` letters: `budget · (L + 1)(Lmax + 1)|Σ|^Lmax · (ε + κ)`;
-* `testLevels`, `versionBound · (2 Lmax |Σ| + 4) · a`: at each of fewer than `versionBound`
-  hypotheses, the start's, the middles', their gate's and success's tests and two potentials at
-  each edge out of a leaf each err at most `a`,
+* `wrongTerm`, some step reading a string on its state's rarer side, a step reading at most
+  `(L + 1) Lmax` prefixes followed by midfixes and re-sifting at most `Lmax² |Σ|` strings:
+  `(ε + κ) · budget · ((L + 1) Lmax + Lmax² |Σ|)`;
+* `testLevels`, `versionBound · (2 Lmax |Σ| + 5) · a`: at each of fewer than `versionBound`
+  hypotheses, the start's, the middles', their gate's and success's tests, two potentials at
+  each edge out of a leaf, and the success test passing with the rarer probes heavy each err at
+  most `a`,
 
 where here `K = classCount` bounds the class of trees (genuine splits only), `E = edgeMapCount`
 their edge maps, `θ₁ = 1.5θ(n + 1)`, and `p₀ = prefixMax D k`, the largest mass of a length-`k`
@@ -384,6 +388,10 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
   look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
   from `p₁`. `statistics.seq_rate` is the same test.
+- `OrthoDFA/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
+  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
+  reads bad with chance at most `ε` times the most strings they query while none has.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
@@ -430,11 +438,16 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
     hypotheses (`version_lt`); within one every search but the last stops at an undecided middle,
     so past `nEnd` probes success or the middles test fires, and a round over
     `versionBound · nEnd` probes ends (`runEnds_of_budget`).
-  - `Proofs/Level5Clean.lean`: with no read on the rarer side among the strings a probe or a
-    re-sift could read (`Dirty`), every learned edge and every contradiction is a true record, so
-    every split is genuine and the tree stays within `|Q| + 2` leaves (`truthInv_step`); some
-    probe of the round is dirty with chance at most the probes times
-    `(L + 1)(Lmax + 1)|Σ|^Lmax (ε + κ)` (`dirty_le`).
+  - `Proofs/Level5Clean.lean`: a step reads its probe's prefixes followed by the tree's midfixes
+    and, where it splits, the learned edges' witness successors followed by the new tree's
+    midfixes; with none of those read on the rarer side (`WrongStep`), every learned edge and every
+    contradiction is a true record, judged by the strings' states, so every split is genuine and
+    the tree stays within `|Q| + 2` leaves (`truthInv_step`).
+  - `Proofs/Level5Reads.lean`: given the probes, the round's reads come in rounds, each fixed by
+    what earlier ones read while nothing has been read on the rarer side, a probe's at most
+    `(L + 1) Lmax` and a split's at most `Lmax² |Σ|`; by `AdaptiveReadsBound` some step reads a
+    string on the rarer side with chance at most the probes times
+    `((L + 1) Lmax + Lmax² |Σ|)(ε + κ)` (`pi_wrong_le`).
   - `Proofs/Level5Harvest.lean`: within a hypothesis its probes are fresh draws, so each test's
     weight, its likelihood ratio or an edge's undecided strings less twice their running mean
     (and its reads' half-mean less its reads) exponentiated, is a product of factors averaging at

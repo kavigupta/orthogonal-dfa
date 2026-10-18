@@ -747,7 +747,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       rw [Real.le_log_iff_exp_le (by linarith)]
       linarith [Real.exp_one_lt_d9]
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
-      (mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (L := (L₁ : ℝ)) _ hQ0
+      (mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (L := (L₁ : ℝ)) hQ0
         (by linarith) (Nat.cast_nonneg _) hKp1 hG1 hδ'0 hδ'1)))
     refine (loop_select_round_le settings O P Dsf Ls L n ⌊RB⌋₊ t (by positivity) hC (hwalk ▸ hkL)
       hnp r hr').trans ?_
@@ -831,7 +831,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     (ι := min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))
     (ρ := εd ^ 2 / ((Q + 2) * A))
     (τ := min (εcov / 2) (min s (min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))))
-    (m := Fintype.card σ + 2) (n := k) hQ1 hA hℓ1 hN1 hNℓ hη0 hη₀ hc hpAP hp1 rfl hε0 hCe0 hεl
+    (n := k) hQ1 hA hℓ1 hN1 hNℓ hη0 hη₀ hc hpAP hp1 rfl hε0 hCe0 hεl
     hδ'0 hδ'1 rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
   dsimp only at hb
   obtain ⟨hRB, hKp, hR₀, hG1, hE0, hcap⟩ := hb
