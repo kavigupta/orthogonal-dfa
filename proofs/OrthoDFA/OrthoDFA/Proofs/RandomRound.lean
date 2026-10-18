@@ -88,7 +88,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
 /-- A run with no bad step ends well, given enough probes. -/
 theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     (X : Level3State α → FreeMonoid α → Prop) :
-    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → s.probeCount < Ns →
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), RInv read s → s.probeCount < Ns →
       Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) s xs →
       EndsWell M (BadAt U θ) D ε
@@ -104,7 +104,8 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     rcases hst : applyProbe read C s x with s' | e
     · simp only [runProbes, hst]
       by_cases hsm : Same s s'
-      · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs hst hsm.1 hsm.2
+      · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs.1 hst hsm.1 hsm.2
+        replace hs' : RInv read s' := ⟨hs', hsm.1 ▸ hs.2⟩
         have hlt : s'.probeCount < Ns := by
           have : s'.probeCount ≠ Ns := fun h => hb1 (Or.inr ⟨s', hst, hsm, h⟩)
           omega
@@ -172,31 +173,31 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
           stretchRisk C (C.level j) Ns N₁ θr εd' θpt') := by
   have hNs : 0 < Ns := by omega
-  have hst := inv_start read (α := α)
+  have hst : RInv read (initialState : Level3State α) := ⟨inv_start read, reached_start read⟩
   have hΨ := Ψr_start (α := α) (Fintype.card σ)
   have hm : C.middleAlternative = 2 * C.middleRate := rfl
   have hd : C.disagreementAlternative = C.disagreementRate / 2 := rfl
   have hsa : C.startAlternative = 2 * C.startRate := rfl
   set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θpt')
   set X : Level3State α → FreeMonoid α → Prop := fun _ _ => False
-  have hseg : ∀ s, Inv read s → s = newHypothesis s.tree s.edges s.hypotheses → ∀ N,
+  have hseg : ∀ s, RInv read s → s = newHypothesis s.tree s.edges s.hypotheses → ∀ N,
       (Measure.pi fun _ : Fin N => D)
         {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
             ≤ b s.hypotheses := by
     intro s hs hf N
-    have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ G θr εd' θpt' hs hf
+    have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ G θr εd' θpt' hs.1 hf
       (cls_mem read hW hs) hN (fun _ _ _ _ _ h => h)
       (fun N => by simp) hN₁ hN₁s hG0 hGt hyt (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
       (by rw [hsa]; linarith) hps hθe hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
       (by rw [hd]; linarith) (by rw [hd]; linarith) hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
       hsep N
     rwa [add_zero] at this
-  have hany := anyB_le (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same D (Inv read)
+  have hany := anyB_le (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same D (RInv read)
     (fun s => s = newHypothesis s.tree s.edges s.hypotheses) (Ψr (Fintype.card σ))
     Level3State.hypotheses b
     (fun s x s' hs h hsm _ => by
-      obtain ⟨h1, h2, -, h4⟩ := step_same read C hs h hsm.1 hsm.2
-      exact ⟨h1, h2 _, h4⟩)
+      obtain ⟨h1, h2, -, h4⟩ := step_same read C hs.1 h hsm.1 hsm.2
+      exact ⟨⟨h1, hsm.1 ▸ hs.2⟩, h2 _, h4⟩)
     (fun s x s' hs h hsm _ => by
       obtain ⟨h1, h2, h3, h4⟩ := step_change read C hW hs h hsm
       exact ⟨h1, h2, h4, h3⟩) hseg P initialState hst
