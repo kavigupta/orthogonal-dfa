@@ -281,9 +281,10 @@ theorem level5_risk_bound_at_holds : Level5RiskBoundAt := by
           exact (mul_le_mul_of_nonneg_left hnE (by linarith)).trans hbudget
         exact_mod_cast h1
       alt_eq := hεd₁_eq }
-  unfold roundRisk
-  refine (iInf₂_le _ hadm).trans ?_
-  unfold roundBound edgeTail startTail middlesTail wrongTerm testLevels
+  suffices hbase : baseBound σ κ ε θ D L C ⟨nEnd, hS, 3 * θ, θgs, θgpt, 1 / p₀, K⟩
+      ≤ ENNReal.ofReal δ from
+    ⟨(iInf₂_le _ hadm).trans hbase, (iInf₂_le _ hadm).trans (add_le_add hbase le_rfl)⟩
+  unfold baseBound edgeTail startTail middlesTail wrongTerm testLevels
   dsimp only
   rw [hp₀]
   have hc1 : 1 ≤ classCount (α := α) σ 0 := by
@@ -368,9 +369,9 @@ theorem level5_risk_bound_at_holds : Level5RiskBoundAt := by
       ← ENNReal.ofReal_add (by positivity) h4,
       ← ENNReal.ofReal_add (by positivity) (by positivity : 0 ≤ 5 * δ / 16)]
     exact ENNReal.ofReal_le_ofReal (by linarith)
-  exact add_le_add (le_trans (add_le_add (add_le_add (add_le_add (add_le_add
+  exact le_trans (add_le_add (add_le_add (add_le_add (add_le_add
     (ENNReal.ofReal_le_ofReal hT2) (ENNReal.ofReal_le_ofReal hT3)) (ENNReal.ofReal_le_ofReal hT4))
-    (ENNReal.ofReal_le_ofReal hW)) (ENNReal.ofReal_le_ofReal hTL)) hsum) le_rfl
+    (ENNReal.ofReal_le_ofReal hW)) (ENNReal.ofReal_le_ofReal hTL)) hsum
 
 /-- At `K = walkStart` nothing is read before `K`. -/
 theorem level5_risk_bound_holds : Level5RiskBound := by
@@ -381,6 +382,6 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
   have h := level5_risk_bound_at_holds σ κ ε θ D L C δ C.walkStart hδ0 hδ1 hL hLmax hκ hε hθ0 hθe
     hθpt hθs hφe hφpt hεd1 hθs_alt hθs₁_lt hθpt_eq hθpt₁_eq hεd₁_eq hφ_eq hn₀ hn₀7 hexc ha0 ha
     hbudget hwrong
-  simpa [headTerm] using h
+  simpa [headTerm] using h.2
 
 end OrthoDFA

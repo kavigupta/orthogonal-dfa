@@ -421,7 +421,8 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   (`indecisiveLStarLevel5`, returning the hypothesis and the ending), and `Level5Correct`.
   `Level5CorrectAt` lets the noise concentrate over a depth `kd` past the walk's start `k`, as
   walking from `0` needs: each string read before `kd` at a good read-state is checked instead,
-  adding a chance linear in `θ`.
+  adding a chance linear in `θ` only of a harvest that is not well (a wasted round). Failing
+  other than by a harvest keeps the chance `δ + 32ū/εd` (`Level5ConsistentRisk`).
   `Proofs/Level5RiskDefs.lean` holds the internal bound (`Level5RoundRisk`, `Level5RiskBound`),
   and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings. Probes walk
   from `k` as `sifting.read` does, and a disagreement is searched by main's bisection without

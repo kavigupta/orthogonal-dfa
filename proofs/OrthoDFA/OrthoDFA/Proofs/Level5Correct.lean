@@ -59,6 +59,48 @@ theorem lintegral_level5_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ :
   congr 1; ext ω; congr 1; ext xs
   simp only [Set.mem_setOf_eq, runEnds_iff, indecisiveLStarLevel5]
 
+theorem runEnds_iff_harvest {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop)
+    (dist : σ → ARU → ℝ) (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ)
+    (rd : FreeMonoid α → ARU) :
+    ∀ (s : Level5State α) (xs : List (FreeMonoid α)),
+      RunEnds (applyProbe C fun z => (rd z).cut)
+          (fun e s => Level5EndsWell M bad dist D C J ū rd e s ∨ ∃ h, toRoundEnd e = .harvest h)
+          s xs ↔
+        EndsWell M bad D (3 / 2 * C.disagreementRate)
+          (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū
+            ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
+          (harvestLaw D (fun z => (rd z).cut) C.walkStart
+            ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
+              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
+          C.harvestYield (runProbes C (fun z => (rd z).cut) s xs).2
+        ∨ ∃ h, (runProbes C (fun z => (rd z).cut) s xs).2 = .harvest h
+  | s, [] => by simp [RunEnds, runProbes, EndsWell]
+  | s, x :: xs => by
+    cases h : applyProbe C (fun z => (rd z).cut) s x with
+    | inl s' =>
+      simpa only [RunEnds, runProbes, h] using runEnds_iff_harvest M bad dist D C J ū rd s' xs
+    | inr es => obtain ⟨e, s'⟩ := es; simp only [RunEnds, runProbes, h]; rfl
+
+theorem lintegral_level5_harvest_eq {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    (M : _root_.DFA α σ) (O : TriOracle μ M) (bad : σ → Prop) (P : PrefixDistribution α)
+    (C : Level5Settings) (J : ℕ) (ū : ℝ) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel5 C (O.read · ω) draws
+          ¬ EndsWell M bad P.D (3 / 2 * C.disagreementRate)
+            (checkedProbes M O.readDist P.D (O.read · ω) C.walkStart C.maxLeaves J ū
+              result.hypothesis) C.walkStart
+            (harvestLaw P.D (fun z => (O.read z ω).cut) C.walkStart result.hypothesis)
+            C.harvestYield result.ending ∧ ∀ h, result.ending ≠ .harvest h} ∂μ
+      = ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
+          (fun e s => Level5EndsWell M bad O.readDist P.D C J ū (O.read · ω) e s
+            ∨ ∃ h, toRoundEnd e = .harvest h)
+          initialState (List.ofFn xs)} ∂μ := by
+  congr 1; ext ω; congr 1; ext xs
+  simp only [Set.mem_setOf_eq, runEnds_iff_harvest, indecisiveLStarLevel5, not_or, not_exists,
+    ne_eq]
+
 section Guarantee
 
 variable [Nonempty α] {σ : Type*} [Fintype σ]
@@ -129,6 +171,16 @@ def Level5GatesAt (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : �
       32 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd ≤ φe * θe →
       0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
       1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd ≤ εd → 0 ≤ ū →
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+          {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+              (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+                (Fintype.card σ + 2) J ū result.hypothesis)
+              settings.walkStart
+              (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+              (min θs (min (φe * θe / 2) (3 * εd / 16))) result.ending
+              ∧ ∀ h, result.ending ≠ .harvest h} ∂μ
+        ≤ ENNReal.ofReal (δ + 32 * ū / εd) ∧
       ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
             ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
@@ -271,8 +323,6 @@ theorem level5_gates_at_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : �
     simp only [Level5Settings.harvestYield, hC]
     refine le_min (min_le_left _ _) (le_min ((min_le_right _ _).trans (min_le_left _ _))
       ((min_le_right _ _).trans ((min_le_right _ _).trans (by linarith))))
-  refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
-    (EndsWell.mono_yield hy h)) ?_
   have hT : 32 ≤ C.disagreementRate * (C.probeBudget : ℝ) := by
     show 32 ≤ εd * (b : ℝ)
     have h1 := mul_le_mul_of_nonneg_left hbl hεd0.le
@@ -281,113 +331,126 @@ theorem level5_gates_at_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : �
     have h3 : (6 : ℝ) * 2 ≤ V * G := mul_le_mul hV6 hG2 (by norm_num) (by linarith)
     have h4 : 0 ≤ εd * (V : ℝ) := by positivity
     linarith
-  refine (lintegral_level5_eq M O _ P C J ū).trans_le ?_
-  refine (level5_round_risk_holds M O θ P C J ū hū hT).trans ?_
-  have hκε : 0 ≤ O.ε + O.κ + 3 / 2 * θ := by positivity
-  rw [ENNReal.ofReal_add (by positivity) (by split_ifs <;> positivity),
-    ENNReal.ofReal_add hδ0.le (by positivity), add_right_comm]
-  refine add_le_add ?_ le_rfl
-  clear hT hū
-  refine le_trans ?_ (add_le_add (le_refl (ENNReal.ofReal δ))
-    (show headTerm (α := α) O.κ O.ε θ P.L C kd ≤ _ from ?_))
-  swap
-  · unfold headTerm
-    refine ENNReal.ofReal_le_ofReal ?_
-    show (if k < kd then _ else _) ≤ _
-    split_ifs with hk
-    · have hNW : ((P.L : ℝ) + 1) * N + N * A * N
+  have hrisk : baseRisk σ O.κ O.ε θ P.D P.L C ≤ ENNReal.ofReal δ
+      ∧ roundRisk σ O.κ O.ε θ P.D P.L C ≤ ENNReal.ofReal δ + headTerm (α := α) O.κ O.ε θ P.L C kd := by
+    clear hT hū
+    have hRB := level5_risk_bound_at_holds σ O.κ O.ε θ P.D P.L C δ kd
+    dsimp only at hRB
+    have hp₀ : 0 ≤ prefixMax P.D kd := (prefixMax_pos P.D kd).le
+    have hΛ0 : 0 ≤ unionLog (α := α) σ δ := by
+      unfold unionLog
+      refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
+      rw [le_div_iff₀ hδ0]
+      nlinarith
+    have hL1 : (1 : ℝ) ≤ P.L := by exact_mod_cast hL
+    have hpΛ : prefixMax P.D kd * unionLog (α := α) σ δ ≤ εd / (1024 * (P.L + 1)) := by
+      rw [le_div_iff₀ (by positivity)]; nlinarith
+    have hθ' : ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 768 := by
+      have : 0 ≤ ((Fintype.card σ : ℝ) + 1) * θ := by positivity
+      nlinarith
+    have hLn1 : (1 : ℝ) ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) := by nlinarith
+    have hθL : ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 384 := by
+      have e : 384 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ
+          = 384 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
+      rw [e] at hθc
+      linarith
+    have hθ1 : θ ≤ 1 / 384 := le_trans (le_mul_of_one_le_left hθ hLn1) hθL
+    set pΛ := prefixMax P.D kd * unionLog (α := α) σ δ
+    have hpΛ0 : 0 ≤ pΛ := mul_nonneg hp₀ hΛ0
+    have hpΛL : ((P.L : ℝ) + 1) * pΛ ≤ εd / 1024 := by
+      have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
+          = 1024 * (((P.L : ℝ) + 1) * pΛ) := by simp only [pΛ]; ring
+      rw [e] at hpc
+      linarith
+    have hpΛ1 : pΛ ≤ εd / 2048 := by
+      have : 2 * pΛ ≤ ((P.L : ℝ) + 1) * pΛ := by nlinarith
+      linarith
+    refine hRB hδ0 hδ1 hL (by simp [C, N]) hκ hε hθ ?_ ?_ ?_ ?_ ?_ hεd1 hθs₁ hθs₁1 rfl rfl rfl rfl ?_
+      ?_ ?_ (Real.exp_pos _) ?_ ?_ ?_
+    · simp only [hC]; linarith
+    · simp only [hC]
+      have e : 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1)) * θ
+          = 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
+      rw [e]; linarith
+    · simp only [hC]
+      have e2 : 2 * prefixMax P.D kd * unionLog (α := α) σ δ
+          = 2 * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
+      rw [e2]; exact hθs'
+    · simp only [hC]
+      have e : 32 * ((P.L : ℝ) + 1) * prefixMax P.D kd * unionLog (α := α) σ δ
+          = 32 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
+      rw [e]; exact hφe' 
+    · simp only [hC]
+      have e : 256 * prefixMax P.D kd * unionLog (α := α) σ δ = 256 * pΛ := by simp only [pΛ]; ring
+      rw [e]; linarith
+    · simp only [hC]; rw [hlogG]; exact hn₀l
+    · simp only [hC]; rw [hlogG]; linarith
+    · intro j
+      simp only [hC]
+      rw [hlogG]
+      have : (0 : ℝ) ≤ 2 * ((P.L : ℝ) + 1) * (1 + θe * N) * G := by positivity
+      linarith
+    · rw [show versionBound C (Fintype.card α) = V from rfl]
+      simp only [hC]
+      rw [hexpG]
+      have : (0 : ℝ) < 4 * ((V : ℝ) * (2 * N * A + 4)) := by positivity
+      rw [mul_div_assoc', div_le_iff₀ this]
+      clear hεc
+      nlinarith
+    · rw [show versionBound C (Fintype.card α) = V from rfl]
+      simp only [hC]
+      rw [hlogG]
+      exact hbl
+    · simp only [hC]
+      have hNW : ((P.L : ℝ) + 1) * N + N * A * N
           = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
         rw [hNr]; ring
+      rw [hNW]
+      have hW0 : 0 ≤ (O.ε + O.κ) * (((Fintype.card σ : ℝ) + 2)
+          * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A)) := by positivity
       have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
           * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
-      show 3 / 2 * θ * ((b : ℝ) * (((P.L : ℝ) + 1) * N + N * A * N))
-          + (O.ε + O.κ + 3 / 2 * θ) * (((∑ i ∈ Finset.Ico k kd, A ^ i : ℕ) : ℝ) * N) ≤ _
-      rw [hNW, hNr]
-      push_cast
-      have hW0 : 0 ≤ ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
-        positivity
       have := mul_le_mul_of_nonneg_right hbK' hW0
-      have hθ32 : 0 ≤ 3 / 2 * θ := by positivity
-      nlinarith [mul_le_mul_of_nonneg_left this hθ32]
-    · exact le_rfl
-  have hRB := level5_risk_bound_at_holds σ O.κ O.ε θ P.D P.L C δ kd
-  dsimp only at hRB
-  have hp₀ : 0 ≤ prefixMax P.D kd := (prefixMax_pos P.D kd).le
-  have hΛ0 : 0 ≤ unionLog (α := α) σ δ := by
-    unfold unionLog
-    refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
-    rw [le_div_iff₀ hδ0]
-    nlinarith
-  have hL1 : (1 : ℝ) ≤ P.L := by exact_mod_cast hL
-  have hpΛ : prefixMax P.D kd * unionLog (α := α) σ δ ≤ εd / (1024 * (P.L + 1)) := by
-    rw [le_div_iff₀ (by positivity)]; nlinarith
-  have hθ' : ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 768 := by
-    have : 0 ≤ ((Fintype.card σ : ℝ) + 1) * θ := by positivity
-    nlinarith
-  have hLn1 : (1 : ℝ) ≤ ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) := by nlinarith
-  have hθL : ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 384 := by
-    have e : 384 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ
-        = 384 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
-    rw [e] at hθc
-    linarith
-  have hθ1 : θ ≤ 1 / 384 := le_trans (le_mul_of_one_le_left hθ hLn1) hθL
-  set pΛ := prefixMax P.D kd * unionLog (α := α) σ δ
-  have hpΛ0 : 0 ≤ pΛ := mul_nonneg hp₀ hΛ0
-  have hpΛL : ((P.L : ℝ) + 1) * pΛ ≤ εd / 1024 := by
-    have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
-        = 1024 * (((P.L : ℝ) + 1) * pΛ) := by simp only [pΛ]; ring
-    rw [e] at hpc
-    linarith
-  have hpΛ1 : pΛ ≤ εd / 2048 := by
-    have : 2 * pΛ ≤ ((P.L : ℝ) + 1) * pΛ := by nlinarith
-    linarith
-  refine hRB hδ0 hδ1 hL (by simp [C, N]) hκ hε hθ ?_ ?_ ?_ ?_ ?_ hεd1 hθs₁ hθs₁1 rfl rfl rfl rfl ?_
-    ?_ ?_ (Real.exp_pos _) ?_ ?_ ?_
-  · simp only [hC]; linarith
-  · simp only [hC]
-    have e : 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1)) * θ
-        = 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
-    rw [e]; linarith
-  · simp only [hC]
-    have e2 : 2 * prefixMax P.D kd * unionLog (α := α) σ δ
-        = 2 * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
-    rw [e2]; exact hθs'
-  · simp only [hC]
-    have e : 32 * ((P.L : ℝ) + 1) * prefixMax P.D kd * unionLog (α := α) σ δ
-        = 32 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
-    rw [e]; exact hφe' 
-  · simp only [hC]
-    have e : 256 * prefixMax P.D kd * unionLog (α := α) σ δ = 256 * pΛ := by simp only [pΛ]; ring
-    rw [e]; linarith
-  · simp only [hC]; rw [hlogG]; exact hn₀l
-  · simp only [hC]; rw [hlogG]; linarith
-  · intro j
-    simp only [hC]
-    rw [hlogG]
-    have : (0 : ℝ) ≤ 2 * ((P.L : ℝ) + 1) * (1 + θe * N) * G := by positivity
-    linarith
-  · rw [show versionBound C (Fintype.card α) = V from rfl]
-    simp only [hC]
-    rw [hexpG]
-    have : (0 : ℝ) < 4 * ((V : ℝ) * (2 * N * A + 4)) := by positivity
-    rw [mul_div_assoc', div_le_iff₀ this]
-    clear hεc
-    nlinarith
-  · rw [show versionBound C (Fintype.card α) = V from rfl]
-    simp only [hC]
-    rw [hlogG]
-    exact hbl
-  · simp only [hC]
-    have hNW : ((P.L : ℝ) + 1) * N + N * A * N
-        = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
-      rw [hNr]; ring
-    rw [hNW]
-    have hW0 : 0 ≤ (O.ε + O.κ) * (((Fintype.card σ : ℝ) + 2)
-        * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A)) := by positivity
-    have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
-        * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
-    have := mul_le_mul_of_nonneg_right hbK' hW0
-    linarith only [this, hεc]
+      linarith only [this, hεc]
+  refine ⟨?_, ?_⟩
+  · refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs =>
+      And.imp_left (fun hn h => hn (EndsWell.mono_yield hy h)) hxs) ?_
+    refine (lintegral_level5_harvest_eq M O _ P C J ū).trans_le ?_
+    refine (level5_consistent_risk_holds M O θ P C J ū hū).trans ?_
+    rw [ENNReal.ofReal_add hδ0.le (by positivity)]
+    exact add_le_add hrisk.1 le_rfl
+  · refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
+      (EndsWell.mono_yield hy h)) ?_
+    refine (lintegral_level5_eq M O _ P C J ū).trans_le ?_
+    refine (level5_round_risk_holds M O θ P C J ū hū hT).trans ?_
+    have hκε : 0 ≤ O.ε + O.κ + 3 / 2 * θ := by positivity
+    rw [ENNReal.ofReal_add (by positivity) (by split_ifs <;> positivity),
+      ENNReal.ofReal_add hδ0.le (by positivity), add_right_comm]
+    refine add_le_add ?_ le_rfl
+    clear hT hū
+    refine le_trans ?_ (add_le_add (le_refl (ENNReal.ofReal δ))
+      (show headTerm (α := α) O.κ O.ε θ P.L C kd ≤ _ from ?_))
+    swap
+    · unfold headTerm
+      refine ENNReal.ofReal_le_ofReal ?_
+      show (if k < kd then _ else _) ≤ _
+      split_ifs with hk
+      · have hNW : ((P.L : ℝ) + 1) * N + N * A * N
+            = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
+          rw [hNr]; ring
+        have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
+            * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
+        show 3 / 2 * θ * ((b : ℝ) * (((P.L : ℝ) + 1) * N + N * A * N))
+            + (O.ε + O.κ + 3 / 2 * θ) * (((∑ i ∈ Finset.Ico k kd, A ^ i : ℕ) : ℝ) * N) ≤ _
+        rw [hNW, hNr]
+        push_cast
+        have hW0 : 0 ≤ ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
+          positivity
+        have := mul_le_mul_of_nonneg_right hbK' hW0
+        have hθ32 : 0 ≤ 3 / 2 * θ := by positivity
+        nlinarith [mul_le_mul_of_nonneg_left this hθ32]
+      · exact le_rfl
+    exact hrisk.2
 
 
 /-- At `kd = k` nothing is read before `kd`. -/
@@ -398,7 +461,7 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
   obtain ⟨C, h1, h2, h3, h4, h5, h6⟩ := level5_gates_at_all M εd L δ k θs θs₁ θe φe hδ0 hδ1 hεd0
     hεd1 hL hθs0 hθs₁ hθs₁1 hθe hφe
   refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū => ?_, h6⟩
-  simpa using h5 μ P hP O θ J ū k hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū
+  simpa using (h5 μ P hP O θ J ū k hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū).2
 
 /-- `Level5Guarantee` with the settings chosen before the probability space, the probes'
 distribution of length `L`, the oracle and the goodness level. -/
@@ -450,6 +513,16 @@ def Level5UniformAt (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k :
                 (Fintype.card σ + 2) J ū result.hypothesis)
               settings.walkStart
               (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+              (3 * εd / 16) result.ending
+              ∧ ∀ h, result.ending ≠ .harvest h} ∂μ
+        ≤ ENNReal.ofReal (δ + 32 * ū / εd) ∧
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+          {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+              (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+                (Fintype.card σ + 2) J ū result.hypothesis)
+              settings.walkStart
+              (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
               (3 * εd / 16) result.ending} ∂μ
         ≤ ENNReal.ofReal (δ + 32 * ū / εd + if k < kd then 3 / 2 * θ * (K * G * W)
           + (O.ε + O.κ + 3 / 2 * θ) * ((∑ i ∈ Finset.Ico k kd, A ^ i) * (n + 2)) else 0)
@@ -478,9 +551,11 @@ theorem level5_guarantee_at_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ
   have hθ0 : θ ≤ 1 / 768 := by nlinarith
   have hy : 3 * εd / 16 ≤ min (1 / 2) (min (3 / 4 * (3 / 4) / 2) (3 * εd / 16)) :=
     le_min (by linarith) (le_min (by linarith) le_rfl)
-  refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
-    (EndsWell.mono_yield hy h)) ?_
-  refine h5 μ P hP O θ J ū kd hθ hθc (by linarith) ?_ ?_ hκ hε hεc hpc hū
+  have h5' := h5 μ P hP O θ J ū kd hθ hθc (by linarith) ?_ ?_ hκ hε hεc hpc hū
+  · exact ⟨le_trans (lintegral_mono fun ω => measure_mono fun xs hxs =>
+        And.imp_left (fun hn h => hn (EndsWell.mono_yield hy h)) hxs) h5'.1,
+      le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
+        (EndsWell.mono_yield hy h)) h5'.2⟩
   · have : 2 * unionLog (α := α) σ δ * prefixMax P.D kd ≤ εd / 512 := by
       have e : 1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
           = 1024 * (P.L + 1) * (unionLog (α := α) σ δ * prefixMax P.D kd) := by ring
@@ -498,7 +573,7 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
     Level5UniformAll M εd L δ k := by
   obtain ⟨C, h1, h2, h3, h4, h5⟩ := level5_guarantee_at_all M εd L δ k hδ0 hδ1 hεd0 hεd1 hL
   refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hκ hε hεc hpc hū => ?_⟩
-  simpa using h5 μ P hP O θ J ū k hθ hθc hκ hε hεc hpc hū
+  simpa using (h5 μ P hP O θ J ū k hθ hθc hκ hε hεc hpc hū).2
 
 end Guarantee
 

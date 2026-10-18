@@ -9,7 +9,9 @@ trust that claim.
 `Level5RoundRisk`: the round fails to end well with chance at most `roundRisk`, the least, over the
 proof's free parameters (`Knobs`) meeting `Knobs.Admissible`, of `roundBound`, a sum of named
 terms. `Level5RiskBound`: `roundRisk ≤ δ` under explicit conditions on the
-laws' `κ` and `ε`, the goodness level `θ` and the settings.
+laws' `κ` and `ε`, the goodness level `θ` and the settings. `Level5ConsistentRisk`: the round
+fails other than by a harvest with chance at most `baseRisk`, which leaves out `headTerm`, the
+reads before the fields' depth.
 -/
 
 noncomputable section
@@ -194,15 +196,23 @@ def headTerm (K : ℕ) : ENNReal :=
         * ((∑ i ∈ Finset.Ico C.walkStart K, Fintype.card α ^ i : ℕ) * C.maxLeaves)
     else 0)
 
-/-- The round's failure chance at the knobs `kn`: the three noise fields' tails, a read on the
-rarer side splitting wrongly, the tests' levels, and a read before `depth` undecided. -/
-def roundBound : ENNReal :=
+/-- The three noise fields' tails, a read on the rarer side splitting wrongly, and the tests'
+levels. -/
+def baseBound : ENNReal :=
   edgeTail σ θ D L C kn + startTail σ θ D kn + middlesTail σ θ D L C kn
-    + wrongTerm (α := α) κ ε L C + testLevels (α := α) C + headTerm (α := α) κ ε θ L C kn.depth
+    + wrongTerm (α := α) κ ε L C + testLevels (α := α) C
+
+/-- The round's failure chance at the knobs `kn`. -/
+def roundBound : ENNReal :=
+  baseBound σ κ ε θ D L C kn + headTerm (α := α) κ ε θ L C kn.depth
 
 /-- The least of `roundBound` over the admissible knobs. -/
 def roundRisk : ENNReal :=
   ⨅ (kn : Knobs) (_ : kn.Admissible σ κ ε θ D L C), roundBound σ κ ε θ D L C kn
+
+/-- The least of `baseBound` over the admissible knobs. -/
+def baseRisk : ENNReal :=
+  ⨅ (kn : Knobs) (_ : kn.Admissible σ κ ε θ D L C), baseBound σ κ ε θ D L C kn
 
 end Bound
 
@@ -235,8 +245,8 @@ def Level5RiskBound : Prop :=
     4 * (ε + κ) * C.probeBudget * ((L + 1) * C.maxLeaves + C.maxLeaves * A * C.maxLeaves) ≤ δ →
     roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ
 
-/-- `Level5RiskBound` with the fields concentrating from `K`: `roundRisk ≤ δ + headTerm K`, with
-`p₀ = prefixMax D K`. -/
+/-- `Level5RiskBound` with the fields concentrating from `K`: `baseRisk ≤ δ` and
+`roundRisk ≤ δ + headTerm K`, with `p₀ = prefixMax D K`. -/
 def Level5RiskBoundAt : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (σ : Type*) [Fintype σ]
     (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
@@ -261,7 +271,8 @@ def Level5RiskBoundAt : Prop :=
     4 * (versionBound C (Fintype.card α) * (2 * C.maxLeaves * A + 4)) * C.testLevel ≤ δ →
     (versionBound C (Fintype.card α) : ℝ) * (112 * lg / C.disagreementRate + 1) ≤ C.probeBudget →
     4 * (ε + κ) * C.probeBudget * ((L + 1) * C.maxLeaves + C.maxLeaves * A * C.maxLeaves) ≤ δ →
-    roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ + headTerm (α := α) κ ε θ L C K
+    baseRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ
+      ∧ roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ + headTerm (α := α) κ ε θ L C K
 
 /-- `Level5RoundRisk`: with an oracle reading every string with the read model's laws, the round
 over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`,
@@ -276,6 +287,20 @@ def Level5RoundRisk : Prop :=
           (Level5EndsWell M (fun q => ¬ O.Good θ q) O.readDist P.D C J ū (O.read · ω))
           initialState (List.ofFn xs)} ∂μ
       ≤ roundRisk σ O.κ O.ε θ P.D P.L C + ENNReal.ofReal (32 * ū / C.disagreementRate)
+
+/-- `Level5ConsistentRisk`: the round fails to end well other than by a harvest with chance at
+most `baseRisk`, and `32ū/εd` more. -/
+def Level5ConsistentRisk : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
+    (O : TriOracle μ M) (θ : ℝ) (P : PrefixDistribution α) (C : Level5Settings) (J : ℕ) (ū : ℝ),
+    0 ≤ ū →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (O.read z ω).cut)
+          (fun e s => Level5EndsWell M (fun q => ¬ O.Good θ q) O.readDist P.D C J ū (O.read · ω) e s
+            ∨ ∃ h, toRoundEnd e = .harvest h)
+          initialState (List.ofFn xs)} ∂μ
+      ≤ baseRisk σ O.κ O.ε θ P.D P.L C + ENNReal.ofReal (32 * ū / C.disagreementRate)
 
 end OrthoDFA
 

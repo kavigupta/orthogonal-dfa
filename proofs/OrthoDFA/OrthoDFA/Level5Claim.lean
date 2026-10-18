@@ -20,7 +20,8 @@ read to trust it.
 
 `Level5CorrectAt` lets the walk start before the depth the noise concentrates from, as the Python's
 walk from `0` needs: the strings read before that depth are each checked instead, at a cost
-linear in `θ` added to the failure chance.
+linear in `θ`. That cost is only ever a harvest that is not well, a wasted round: failing to end
+well other than by a harvest keeps the chance `δ + 32ū/εd`.
 -/
 
 noncomputable section
@@ -135,11 +136,12 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
       ≤ ENNReal.ofReal (δ + 32 * ū / εd)
 
 /-- `Level5Guarantee` with the noise fields concentrating over the probes' first `kd` letters
-rather than their first `k`: the prefix mass is read at `kd`, and the round may also fail where a
-string it reads at a position before `kd`, at a good read-state, reads undecided. The steps read at
-most `K · G · W` strings, each undecided at a good read-state with chance at most `1.5θ`, and the
-final tree reads before `kd` at most `H (n + 2)`, each also on its rarer side with chance at most
-`ε + κ`, `H` the strings of length `k` to `kd − 1`. At `kd = k` it is `Level5Guarantee`. -/
+rather than their first `k`: the prefix mass is read at `kd`. The round fails to end well other
+than by a harvest with chance at most `δ + 32ū/εd`. It may also end in a harvest that is not well
+where a string it reads at a position before `kd`, at a good read-state, reads undecided: the steps
+read at most `K · G · W` strings, each undecided at a good read-state with chance at most `1.5θ`,
+and the final tree reads before `kd` at most `H (n + 2)`, each also on its rarer side with chance
+at most `ε + κ`, `H` the strings of length `k` to `kd − 1`. At `kd = k` it is `Level5Guarantee`. -/
 def Level5GuaranteeAt [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
     (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k kd J : ℕ) (ū : ℝ) : Prop :=
@@ -158,6 +160,16 @@ def Level5GuaranteeAt [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Meas
   1024 * (P.L + 1) * U * prefixMax P.D kd ≤ εd → 0 ≤ ū →
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧
+    ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+          ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+            (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+              (Fintype.card σ + 2) J ū result.hypothesis)
+            settings.walkStart
+            (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+            (3 * εd / 16) result.ending
+            ∧ ∀ h, result.ending ≠ .harvest h} ∂μ
+      ≤ ENNReal.ofReal (δ + 32 * ū / εd) ∧
     ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
           ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)

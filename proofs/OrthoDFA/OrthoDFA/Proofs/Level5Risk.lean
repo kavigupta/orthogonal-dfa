@@ -192,6 +192,49 @@ def AnyBad (L : ℕ) (e : Level5Ending α) (s : Level5State α) : Prop :=
   SuccessBad C D rd e s ∨ StartBad C D rd e s ∨ GateBad C D rd e s ∨ MiddlesBad C D rd e s
     ∨ ∃ i < C.maxLeaves, ∃ c : α, UndBad C D rd L i c e s ∨ ReadBad C D rd L i c e s
 
+/-- A consistent end that is not well has success's test erring, or passing with the rarer probes
+heavy. -/
+theorem successBad_of_clean {J : ℕ} {ū : ℝ} (hSq : C.SeqOK) {s : Level5State α}
+    (hund : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū →
+      D.real (undecidedProbes rd C.walkStart C.maxLeaves J) ≤ C.disagreementRate / 32)
+    (hn : ¬ Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd .success s) :
+    SuccessBad C D rd .success s ∨ RarerBad G D C rd .success s := by
+  set H : HypothesisDFA α := ⟨s.tree, Function.uncurry s.edges⟩
+  set p := C.disagreementRate
+  have hp := hSq.εd_pos
+  unfold Level5EndsWell at hn
+  simp only [toRoundEnd, EndsWell, not_le] at hn
+  by_cases hp3 : p < 2 / 3
+  swap
+  · exact absurd hn (not_lt.2 (measureReal_le_one.trans (by push Not at hp3; linarith)))
+  by_cases hR : p / (8 - 7 * p) ≤ D.real (rarerSet G C rd s)
+  · exact .inr ⟨rfl, hp3, hR⟩
+  left
+  refine ⟨rfl, ?_⟩
+  by_contra hlt
+  push Not at hlt
+  have hu : D.real {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
+      ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J} ≤ p / 32 := by
+    by_cases hcu : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
+    · simpa [hcu] using hund hcu
+    · simp only [hcu, false_and, Set.setOf_false, measureReal_empty]
+      linarith
+  have hr' : D.real (rarerProbes G.M G.readDist rd C.walkStart H) ≤ 3 * p / 10 := by
+    push Not at hR
+    refine hR.le.trans ?_
+    rw [div_le_iff₀ (by linarith)]
+    nlinarith
+  have h1 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H
+    ∪ rarerProbes G.M G.readDist rd C.walkStart H)
+    {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
+      ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J}
+  have h2 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H)
+    (rarerProbes G.M G.readDist rd C.walkStart H)
+  have h3 : D.real (searchingProbes rd C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
+      < p := hlt
+  unfold checkedProbes at hn
+  linarith
+
 /-- On the noise event, a clean end that is not well has a test erring at its hypothesis. -/
 theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hSq : C.SeqOK) (hθg0 : 0 ≤ θg) (hθe : 8 * θg ≤ C.edgeUndecidedRate)
     (hφe : 0 ≤ C.edgeTraffic) (hθgs : 2 * θgs ≤ C.startUndecidedRate) (hθgpt0 : 0 ≤ θgpt)
@@ -221,41 +264,9 @@ theorem bad_of_clean {L J : ℕ} {ū θg θgs θgpt : ℝ} (hSq : C.SeqOK) (hθg
   refine (?_ : AnyBad D C rd L e s ∨ RarerBad G D C rd e s)
   cases e with
   | success =>
-    set H : HypothesisDFA α := ⟨s.tree, Function.uncurry s.edges⟩
-    set p := C.disagreementRate
-    have hp := hSq.εd_pos
-    unfold Level5EndsWell at hn
-    simp only [toRoundEnd, EndsWell, not_le] at hn
-    by_cases hp3 : p < 2 / 3
-    swap
-    · exact absurd hn (not_lt.2 (measureReal_le_one.trans (by push Not at hp3; linarith)))
-    by_cases hR : p / (8 - 7 * p) ≤ D.real (rarerSet G C rd s)
-    · exact .inr ⟨rfl, hp3, hR⟩
-    left; left
-    refine ⟨rfl, ?_⟩
-    by_contra hlt
-    push Not at hlt
-    have hu : D.real {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
-        ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J} ≤ p / 32 := by
-      by_cases hcu : undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
-      · simpa [hcu] using hund hcu
-      · simp only [hcu, false_and, Set.setOf_false, measureReal_empty]
-        linarith
-    have hr' : D.real (rarerProbes G.M G.readDist rd C.walkStart H) ≤ 3 * p / 10 := by
-      push Not at hR
-      refine hR.le.trans ?_
-      rw [div_le_iff₀ (by linarith)]
-      nlinarith
-    have h1 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H
-      ∪ rarerProbes G.M G.readDist rd C.walkStart H)
-      {x | undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
-        ∧ x ∈ undecidedProbes rd C.walkStart C.maxLeaves J}
-    have h2 := measureReal_union_le (μ := D) (searchingProbes rd C.walkStart H)
-      (rarerProbes G.M G.readDist rd C.walkStart H)
-    have h3 : D.real (searchingProbes rd C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
-        < p := hlt
-    unfold checkedProbes at hn
-    linarith
+    rcases successBad_of_clean G D C rd hSq hund hn with h | h
+    · exact .inl (.inl h)
+    · exact .inr h
   | harvestStart =>
     left; right; left
     refine ⟨rfl, ?_⟩
@@ -774,12 +785,182 @@ theorem level5_model [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measu
           · gcongr ?_ * _
           · simp only [mul_one]
             gcongr ?_ * _ * _
-    _ = roundBound σ G.κ G.ε G.θ D L C kn := by unfold roundBound; ring
+    _ = roundBound σ G.κ G.ε G.θ D L C kn := by unfold roundBound baseBound; ring
+
+open scoped Classical in
+/-- `Level5ConsistentRisk` over the proofs' view of the oracle: away from a rarer-side read and
+the undecided probes' Markov term, a clean end that is neither well nor a harvest has success's
+test erring, so the noise fields are not needed. -/
+theorem level5_model_consistent [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (G : ReadModel α σ)
+    (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
+    (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r)
+    (hind : iIndepFun read μ) (P : PrefixDistribution α) (C : Level5Settings) (J : ℕ) (ū : ℝ)
+    (hū : 0 ≤ ū) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+          (fun e s => Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist P.D C J ū (read · ω) e s
+            ∨ ∃ h, toRoundEnd e = .harvest h)
+          initialState (List.ofFn xs)} ∂μ
+      ≤ baseRisk σ G.κ G.ε G.θ P.D P.L C + ENNReal.ofReal (32 * ū / C.disagreementRate) := by
+  obtain ⟨D, _, L, hlen⟩ := P
+  simp only [baseRisk]
+  rw [ENNReal.iInf_add]
+  refine le_iInf fun kn => ?_
+  rw [ENNReal.iInf_add]
+  refine le_iInf fun hA => ?_
+  have hSq := hA.seq
+  have hL : 2 ≤ C.maxLeaves := by have := hA.Lmax_ge; omega
+  have hn₀ : 1 ≤ C.firstLook := by
+    have := hA.gate_test
+    have hlg : 0 < Real.log (1 / C.testLevel) :=
+      Real.log_pos (by rw [lt_div_iff₀ hSq.a_pos]; linarith [hSq.a_lt])
+    have : (0 : ℝ) < C.firstLook := by linarith
+    exact_mod_cast this
+  have hexc0 : ∀ j, 0 < C.edgeExcess j := fun j => by
+    have := hA.exc_gt j
+    have : 0 ≤ 2 * ((L : ℝ) + 1) * (1 + C.edgeUndecidedRate * C.maxLeaves)
+      * Real.log (1 / C.testLevel) := by
+      have hlg : 0 < Real.log (1 / C.testLevel) :=
+        Real.log_pos (by rw [lt_div_iff₀ hSq.a_pos]; linarith [hSq.a_lt])
+      have : 0 ≤ C.edgeUndecidedRate := by linarith [hA.θe_ge, hA.θ_nonneg, hA.θg_ge]
+      positivity
+    linarith
+  have hnEnd : 1 ≤ kn.nEnd := by
+    rcases Nat.eq_zero_or_pos kn.nEnd with h0 | h0
+    · have hs := hA.success_level
+      have hS0 : kn.hS = 0 := by have := hA.hS_le; omega
+      rw [h0, hS0] at hs
+      exact absurd hs (not_seqRate_zero hSq.a_pos hSq.a_lt)
+    · exact h0
+  set T := C.probeBudget
+  set V := versionBound C (Fintype.card α)
+  set c : ENNReal := ENNReal.ofReal (V * (2 * C.maxLeaves * Fintype.card α + 5) * C.testLevel)
+  set g : Ω → ENNReal := fun ω => (Measure.pi fun _ : Fin T => D)
+    {xs | AnyStep (applyProbe C fun z => (read z ω).cut) (WrongStep G (read · ω) C) initialState
+      (List.ofFn xs)}
+  have hεd := hSq.εd_pos
+  set cu := undecidedMass G.M G.readDist D C.walkStart C.maxLeaves J ≤ ū
+  set ext : Ω → ENNReal := fun ω => ENNReal.ofReal (32 / C.disagreementRate)
+    * if cu then D {x | x ∈ undecidedProbes (read · ω) C.walkStart C.maxLeaves J} else 0
+  have hpt : ∀ ω, (Measure.pi fun _ : Fin T => D)
+      {xs | ¬ RunEnds (applyProbe C fun z => (read z ω).cut)
+        (fun e s => Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū (read · ω) e s
+          ∨ ∃ h, toRoundEnd e = .harvest h) initialState (List.ofFn xs)}
+      ≤ g ω + c + ext ω := by
+    intro ω
+    by_cases hcu : cu ∧ ¬ D.real (undecidedProbes (read · ω) C.walkStart C.maxLeaves J)
+        ≤ C.disagreementRate / 32
+    · refine prob_le_one.trans (le_trans ?_ le_add_self)
+      simp only [ext, if_pos hcu.1]
+      rw [← ofReal_measureReal (measure_ne_top _ _), ← ENNReal.ofReal_mul (by positivity),
+        ← ENNReal.ofReal_one]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have h2 := hcu.2
+      push Not at h2
+      simp only [Set.setOf_mem_eq]
+      rw [div_mul_eq_mul_div, le_div_iff₀ hεd]
+      linarith
+    have hund : cu → D.real (undecidedProbes (read · ω) C.walkStart C.maxLeaves J)
+        ≤ C.disagreementRate / 32 := fun h => by
+      by_contra h'
+      exact hcu ⟨h, h'⟩
+    refine le_trans ?_ (le_add_right le_rfl)
+    set rd : FreeMonoid α → ARU := (read · ω)
+    have hsub : {xs : Fin T → FreeMonoid α | ¬ RunEnds (applyProbe C fun z => (rd z).cut)
+        (fun e s => Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C J ū rd e s
+          ∨ ∃ h, toRoundEnd e = .harvest h) initialState (List.ofFn xs)}
+        ⊆ {xs | AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+            (List.ofFn xs)}
+          ∪ ({xs | RunEnds (applyProbe C fun z => (rd z).cut) (SuccessBad C D rd) initialState
+              (List.ofFn xs)}
+            ∪ {xs | ¬ AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+                (List.ofFn xs)
+              ∧ RunEnds (applyProbe C fun z => (rd z).cut) (RarerBad G D C rd) initialState
+                (List.ofFn xs)}) := by
+      intro xs hxs
+      by_cases hall : AnyStep (applyProbe C fun z => (rd z).cut) (WrongStep G rd C) initialState
+          (List.ofFn xs)
+      · exact .inl hall
+      right
+      have hrun := runEnds_of_budget C (fun z => (rd z).cut) hSq hnEnd hA.hS_le hSq.φ_pos.le
+        hA.φpt_nEnd hA.n₀_le_hS hA.pt_level hA.success_level hL (List.ofFn xs) initialState
+        (verInv_start C hL) (stretchOK_start hnEnd) (by
+          simp only [List.length_ofFn]
+          have := hA.budget_ge
+          simp [initialState, freshState]
+          exact this)
+      have hcl := runEnds_clean G C rd hA.Lmax_ge hSq hn₀ hexc0 _ _ (truthInv_start G hL)
+        (countInv_fresh _ _ _) hall hrun
+      rcases runEnds_or (Q := fun e s => Level5EndsWell G.M (fun q => ¬ G.Good q) G.readDist D C
+          J ū rd e s ∨ ∃ h, toRoundEnd e = .harvest h) _ _ hcl with h | h
+      · exact absurd h hxs
+      have h' : RunEnds (applyProbe C fun z => (rd z).cut)
+          (fun e s => SuccessBad C D rd e s ∨ RarerBad G D C rd e s) initialState
+          (List.ofFn xs) := by
+        refine runEnds_mono (fun e s ⟨hc, hn⟩ => ?_) _ _ h
+        obtain ⟨hn, hh⟩ := not_or.1 hn
+        cases e with
+        | success => exact successBad_of_clean G D C rd hSq hund hn
+        | tooBig => exact absurd rfl hc.1
+        | harvestStart => exact absurd ⟨_, rfl⟩ hh
+        | harvestPT => exact absurd ⟨_, rfl⟩ hh
+        | harvest e' => exact absurd ⟨_, rfl⟩ hh
+      rcases runEnds_split _ _ h' with h'' | h''
+      · exact .inl h''
+      · exact .inr ⟨hall, h''⟩
+    refine (measure_mono hsub).trans ((measure_union_le _ _).trans (add_le_add le_rfl ?_))
+    refine (measure_union_le _ _).trans ((add_le_add (success_le C D rd hSq hL hn₀ hexc0 T)
+      (rarer_le G D C rd hSq hL hn₀ hexc0 hA.alt_eq T)).trans ?_)
+    have hva : 0 ≤ (V : ℝ) * C.testLevel := mul_nonneg (Nat.cast_nonneg _) hSq.a_pos.le
+    rw [← ENNReal.ofReal_add hva hva]
+    refine ENNReal.ofReal_le_ofReal ?_
+    have : (2 : ℝ) ≤ 2 * C.maxLeaves * Fintype.card α + 5 := by
+      have : (0 : ℝ) ≤ 2 * C.maxLeaves * Fintype.card α := by positivity
+      linarith
+    have e : (V : ℝ) * (2 * C.maxLeaves * Fintype.card α + 5) * C.testLevel
+        = (2 * C.maxLeaves * Fintype.card α + 5) * (V * C.testLevel) := by ring
+    rw [e]
+    nlinarith
+  have hextm : Measurable ext := by
+    refine Measurable.const_mul ?_ _
+    split_ifs
+    · exact measurable_measure_of_mem' D _ fun x => und_measurable hmeas _ _ _ x
+    · exact measurable_const
+  have hext : ∫⁻ ω, ext ω ∂μ ≤ ENNReal.ofReal (32 * ū / C.disagreementRate) := by
+    rw [lintegral_const_mul _ (by
+      split_ifs
+      · exact measurable_measure_of_mem' D _ fun x => und_measurable hmeas _ _ _ x
+      · exact measurable_const)]
+    have e : ENNReal.ofReal (32 * ū / C.disagreementRate)
+        = ENNReal.ofReal (32 / C.disagreementRate) * ENNReal.ofReal ū := by
+      rw [← ENNReal.ofReal_mul (by positivity)]; ring_nf
+    rw [e]
+    gcongr
+    split_ifs with hc
+    · exact (und_le_mass G hmeas hlaw D _ _ _).trans (ENNReal.ofReal_le_ofReal hc)
+    · simp
+  refine (lintegral_mono hpt).trans ?_
+  rw [lintegral_add_right _ hextm]
+  refine add_le_add ?_ hext
+  rw [lintegral_add_right _ measurable_const, lintegral_const, measure_univ, mul_one]
+  calc ∫⁻ ω, g ω ∂μ + c ≤ wrongTerm (α := α) G.κ G.ε L C + testLevels (α := α) C :=
+        add_le_add (pi_wrong_le G C hA.Lmax_ge hmeas hlaw hind hA.κ_nonneg hA.ε_nonneg D hlen)
+          le_rfl
+    _ ≤ baseBound σ G.κ G.ε G.θ D L C kn := by
+        unfold baseBound
+        rw [add_assoc _ (wrongTerm _ _ _ _)]
+        exact le_add_self
 
 end Model
 theorem level5_round_risk_holds : Level5RoundRisk := by
   intro α _ _ _ σ _ Ω _ μ _ M O θ P C J ū hū hT
   exact level5_model ⟨M, O.readDist, θ, O.κ, O.ε, O.readDist_nonneg, O.rarer_side_le⟩ O.read
     O.measurable O.reads_by_state O.indep P C J ū hū hT
+
+theorem level5_consistent_risk_holds : Level5ConsistentRisk := by
+  intro α _ _ _ σ _ Ω _ μ _ M O θ P C J ū hū
+  exact level5_model_consistent ⟨M, O.readDist, θ, O.κ, O.ε, O.readDist_nonneg, O.rarer_side_le⟩
+    O.read O.measurable O.reads_by_state O.indep P C J ū hū
 
 end OrthoDFA
