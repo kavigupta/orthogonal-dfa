@@ -81,8 +81,17 @@
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
 Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to trust the claim.
-`OrthoDFA/Utils/` holds general lemmas, about probability rather than the algorithm, that the
-proofs use.
+
+## Utilities
+
+`OrthoDFA/Utils/` states general lemmas the proofs use, about probability rather than the
+algorithm. They are proved under `OrthoDFA/Proofs/` and named in `Verify.lean` like the claims, but
+need not be read to trust the claims above.
+
+- `OrthoDFA/Utils/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
+  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
+  reads bad with chance at most `ε` times the most strings they query while none has.
 
 ## Scope
 
