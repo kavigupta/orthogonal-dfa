@@ -69,108 +69,7 @@ theorem firsts_bind (rd : ι → V) (f : β → QTree Λ ι V γ) :
 
 end QTree
 
-section Cut
-
-omit [Fintype α] [DecidableEq α] in
-theorem ofCut_cut (cut : FreeMonoid α → Option Bool) (z : FreeMonoid α) :
-    (ofCut cut z).cut = cut z := by
-  unfold ofCut; rcases cut z with _ | _ | _ <;> rfl
-
-omit [Fintype α] [DecidableEq α] in
-theorem cut_ofCut (cut : FreeMonoid α → Option Bool) : (fun z => (ofCut cut z).cut) = cut :=
-  funext (ofCut_cut cut)
-
-omit [Fintype α] [DecidableEq α] in
-theorem ofCut_rd (rd : FreeMonoid α → ARU) : ofCut (fun z => (rd z).cut) = rd := by
-  funext z; unfold ofCut; rcases h : rd z <;> simp [h, ARU.cut]
-
-end Cut
-
-section Label
-
-variable (T : DTree α) (edges : EdgeTable α) (k : ℕ) (x : FreeMonoid α) (rd : FreeMonoid α → ARU)
-
-/-- A read of the probe is labelled by the start, or by its position and that position's edge. -/
-theorem asks_probeQuery_label (q : ReadLabel α × FreeMonoid α)
-    (hq : q ∈ (probeQuery T edges k x).asks rd) :
-    q.1 = (k, none) ∨ q.1.2 = posEdgeBy (fun z => (rd z).cut) T edges k x q.1.1 := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut with hcut
-  unfold probeQuery at hq
-  split_ifs at hq with hshort
-  · simp [QTree.asks] at hq
-  rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
-  rcases hq with hq | hq
-  · exact .inl (mem_asks_siftQuery T rd hq).1
-  rcases hk : T.siftCut cut (prefixOf x k) with p₀ | b <;> rw [hk] at hq
-  swap
-  · simp [QTree.asks] at hq
-  right
-  suffices h : ∃ i, q.1 = readLabel edges k x p₀ i by
-    obtain ⟨i, hi⟩ := h
-    rw [hi]
-    simp only [readLabel]
-    rw [posEdgeBy_of_inl hk]
-  have hbr : ∀ (ps : List (List Bool)) (walkAt : ℕ → List Bool) (fuel lo hi : ℕ),
-      q ∈ (bracketQuery (agreementQuery T edges k x p₀ walkAt) ps fuel lo hi).asks rd →
-      ∃ i, q.1 = readLabel edges k x p₀ i := by
-    intro ps walkAt fuel lo hi h
-    obtain ⟨i, -, -, -, h'⟩ := asks_bracketQuery _ ps rd _ (run_agreementQuery T edges k x rd p₀
-        walkAt) _ _ _ q h
-    rw [agreementQuery, QTree.asks_map] at h'
-    exact ⟨i, (mem_asks_siftQuery T rd h').1⟩
-  simp only [] at hq
-  rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i₀⟩ <;> rw [hf] at hq <;>
-    simp only [] at hq
-  · rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
-    rcases hq with hq | hq
-    · exact ⟨_, (mem_asks_siftQuery T rd hq).1⟩
-    rcases hx : T.siftCut cut (prefixOf x x.toList.length) with a' | b' <;> rw [hx] at hq <;>
-      simp only [] at hq
-    · split_ifs at hq
-      · simp [QTree.asks] at hq
-      · exact hbr _ _ _ _ _ hq
-    · simp [QTree.asks] at hq
-  · rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
-    rcases hq with hq | hq
-    · exact ⟨_, (mem_asks_siftQuery T rd hq).1⟩
-    rcases h1 : T.siftCut cut (prefixOf x (k + i₀ + 1)) with q₁ | b₁ <;> rw [h1] at hq <;>
-      simp only [] at hq
-    swap
-    · simp [QTree.asks] at hq
-    rw [QTree.asks_bind, List.mem_append, run_siftQuery] at hq
-    rcases hq with hq | hq
-    · exact ⟨_, (mem_asks_siftQuery T rd hq).1⟩
-    rcases h2 : T.siftCut cut (prefixOf x (k + i₀)) with q₂ | b₂ <;> rw [h2] at hq <;>
-      simp only [] at hq
-    swap
-    · simp [QTree.asks] at hq
-    split_ifs at hq
-    · simp [QTree.asks] at hq
-    · exact hbr _ _ _ _ _ hq
-
-end Label
-
 section Count
-
-theorem route_mid (cut : FreeMonoid α → Option Bool) :
-    ∀ (t : DTree α) (u q : FreeMonoid α), q ∈ (t.route cut u).1 → ∃ m ∈ t.midfixes, q = u * m
-  | .leaf, _, _, h => by simp [DTree.route] at h
-  | .node m r a, u, q, h => by
-    classical
-    simp only [DTree.route] at h
-    split at h
-    · simp only [List.mem_singleton] at h
-      exact ⟨m, by simp [DTree.midfixes], h⟩
-    · simp only [List.mem_cons] at h
-      rcases h with h | h
-      · exact ⟨m, by simp [DTree.midfixes], h⟩
-      · obtain ⟨m', hm', rfl⟩ := route_mid cut a u q h
-        exact ⟨m', by simp [DTree.midfixes, hm'], rfl⟩
-    · simp only [List.mem_cons] at h
-      rcases h with h | h
-      · exact ⟨m, by simp [DTree.midfixes], h⟩
-      · obtain ⟨m', hm', rfl⟩ := route_mid cut r u q h
-        exact ⟨m', by simp [DTree.midfixes, hm'], rfl⟩
 
 /-- The strings any sift of a prefix of `x` from `k` on reads. -/
 noncomputable def probeStrings (T : DTree α) (k : ℕ) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
@@ -188,8 +87,8 @@ theorem probeStrings_prefix {T : DTree α} {k : ℕ} {x z : FreeMonoid α}
 
 theorem route_mem_probeStrings {cut : FreeMonoid α → Option Bool} {T : DTree α} {k : ℕ}
     {x : FreeMonoid α} (hkx : k ≤ x.toList.length) {i : ℕ} (hi : k ≤ i) {q : FreeMonoid α}
-    (h : q ∈ (T.route cut (prefixOf x i)).1) : q ∈ probeStrings T k x := by
-  obtain ⟨m, hm, rfl⟩ := route_mid cut T _ q h
+    (h : q ∈ (T.siftWithPath cut (prefixOf x i)).1) : q ∈ probeStrings T k x := by
+  obtain ⟨m, hm, rfl⟩ := reads_mid cut T _ q h
   refine Finset.mem_biUnion.2 ⟨min i x.toList.length, Finset.mem_Icc.2 ⟨by omega, by omega⟩,
     Finset.mem_image.2 ⟨m, hm, ?_⟩⟩
   congr 1
@@ -213,9 +112,9 @@ theorem prefStrings_card (T : DTree α) (x : FreeMonoid α) :
     _ = _ := by simp
 
 theorem route_mem_prefStrings {cut : FreeMonoid α → Option Bool} {T : DTree α} {x : FreeMonoid α}
-    {i : ℕ} {q : FreeMonoid α} (h : q ∈ (T.route cut (prefixOf x i)).1) :
+    {i : ℕ} {q : FreeMonoid α} (h : q ∈ (T.siftWithPath cut (prefixOf x i)).1) :
     q ∈ prefStrings T x := by
-  obtain ⟨m, hm, rfl⟩ := route_mid cut T _ q h
+  obtain ⟨m, hm, rfl⟩ := reads_mid cut T _ q h
   refine Finset.mem_biUnion.2 ⟨min i x.toList.length, Finset.mem_range.2 (by omega),
     Finset.mem_image.2 ⟨m, hm, ?_⟩⟩
   congr 1
@@ -225,7 +124,7 @@ theorem route_mem_prefStrings {cut : FreeMonoid α → Option Bool} {T : DTree �
   · rw [min_eq_left h]
   · rw [min_eq_right h, List.take_of_length_le h, List.take_of_length_le le_rfl]
 
-variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α) (k : ℕ)
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α) (k : ℕ)
   (x : FreeMonoid α)
 
 theorem mem_firstsBy_asks {q : ReadLabel α × FreeMonoid α} (hq : q ∈ firstsBy cut T edges k x) :
@@ -235,26 +134,19 @@ theorem mem_firstsBy_asks {q : ReadLabel α × FreeMonoid α} (hq : q ∈ firsts
 theorem firstsBy_nodup : ((firstsBy cut T edges k x).map Prod.snd).Nodup :=
   (QTree.firsts_keys_eq _ _ _).1
 
-/-- A probe's first read is on its position's route, at the start or at a position it sifts. -/
+/-- A probe's first read is on the sift of a prefix from `k` to `x`'s end, labelled by the start or
+by its position and that position's edge. -/
 theorem firstsBy_pos {q : ReadLabel α × FreeMonoid α} (hq : q ∈ firstsBy cut T edges k x) :
-    q.2 ∈ (T.route cut (prefixOf x q.1.1)).1
-      ∧ (prefixOf x q.1.1 = prefixOf x k
-        ∨ (q.1.1 ∈ siftsBy cut T edges k x
-          ∧ ∃ e, posEdgeBy cut T edges k x q.1.1 = some e ∧ q.1.2 = some e)) := by
-  have := asks_probeQuery T edges k x (ofCut cut) q (mem_firstsBy_asks cut T edges k x hq)
-  simpa only [cut_ofCut] using this
-
-theorem firstsBy_label {q : ReadLabel α × FreeMonoid α} (hq : q ∈ firstsBy cut T edges k x) :
-    q.1 = (k, none) ∨ q.1.2 = posEdgeBy cut T edges k x q.1.1 := by
-  have := asks_probeQuery_label T edges k x (ofCut cut) q (mem_firstsBy_asks cut T edges k x hq)
+    q.2 ∈ (T.siftWithPath cut (prefixOf x q.1.1)).1 ∧ k ≤ q.1.1 ∧ q.1.1 ≤ x.toList.length
+      ∧ (q.1 = (k, none)
+        ∨ ∃ p₀, T.sift (ofCut cut) (prefixOf x k) = .inl p₀ ∧ q.1 = readLabel edges k x p₀ q.1.1) := by
+  have := asks_probeQuery (ofCut cut) T x k edges q (mem_firstsBy_asks cut T edges k x hq)
   simpa only [cut_ofCut] using this
 
 theorem firstsBy_mem_probeStrings (hkx : k ≤ x.toList.length) {q : ReadLabel α × FreeMonoid α}
     (hq : q ∈ firstsBy cut T edges k x) : q.2 ∈ probeStrings T k x := by
-  obtain ⟨hr, hp⟩ := firstsBy_pos cut T edges k x hq
-  rcases hp with hp | ⟨hs, -⟩
-  · rw [hp] at hr; exact route_mem_probeStrings hkx le_rfl hr
-  · exact route_mem_probeStrings hkx (siftsBy_range cut hs).1.le hr
+  obtain ⟨hr, hk, -⟩ := firstsBy_pos cut T edges k x hq
+  exact route_mem_probeStrings hkx hk hr
 
 theorem firstsBy_length_le :
     (firstsBy cut T edges k x).length ≤ (x.toList.length + 1) * T.midfixes.card := by
@@ -267,22 +159,22 @@ theorem firstsBy_length_le :
 /-- The strings the sifts of `x`'s prefixes stop at undecided. -/
 noncomputable def stopStrings : Finset (FreeMonoid α) :=
   (Finset.range (x.toList.length + 1)).biUnion fun i =>
-    (T.siftCut cut (prefixOf x i)).elim (fun _ => ∅) fun b => {b}
+    (T.sift (ofCut cut) (prefixOf x i)).elim (fun _ => ∅) fun b => {b}
 
 theorem stopStrings_card : (stopStrings cut T x).card ≤ x.toList.length + 1 := by
   unfold stopStrings
   refine Finset.card_biUnion_le.trans ?_
   calc ∑ i ∈ Finset.range (x.toList.length + 1),
-        ((T.siftCut cut (prefixOf x i)).elim (fun _ => ∅) fun b => {b} : Finset (FreeMonoid α)).card
+        ((T.sift (ofCut cut) (prefixOf x i)).elim (fun _ => ∅) fun b => {b} : Finset (FreeMonoid α)).card
       ≤ ∑ _i ∈ Finset.range (x.toList.length + 1), 1 := by
         refine Finset.sum_le_sum fun i _ => ?_
-        cases T.siftCut cut (prefixOf x i) <;> simp
+        cases T.sift (ofCut cut) (prefixOf x i) <;> simp
     _ = _ := by simp
 
 theorem und_mem_stopStrings {q : ReadLabel α × FreeMonoid α} (hq : q ∈ firstsBy cut T edges k x)
     (hu : cut q.2 = none) : q.2 ∈ stopStrings cut T x := by
   have hr := (firstsBy_pos cut T edges k x hq).1
-  have hs := siftCut_of_route_und T _ _ hr hu
+  have hs := sift_of_reads_und T _ _ hr hu
   refine Finset.mem_biUnion.2 ⟨min q.1.1 x.toList.length, Finset.mem_range.2 (by omega), ?_⟩
   have : prefixOf x (min q.1.1 x.toList.length) = prefixOf x q.1.1 := by
     apply FreeMonoid.toList.injective
@@ -357,17 +249,18 @@ theorem edgeHarvestBy_le_edgeReadsBy (e : List Bool × α) :
 theorem firstsBy_short (h : x.toList.length < k) : firstsBy cut T edges k x = [] := by
   simp [firstsBy, probeQuery, h, QTree.firsts]
 
-theorem edgeReadsBy_mem {edges : EdgeTable α} (he : EdgesInto T edges) {e : List Bool × α}
+theorem edgeReadsBy_mem {edges : Edges α} (he : EdgesInto T edges) {e : List Bool × α}
     (h : edgeReadsBy cut T edges k x e ≠ 0) : e.1 ∈ T.leaves := by
   unfold edgeReadsBy at h
   obtain ⟨q, hq⟩ := List.exists_mem_of_length_pos (Nat.pos_of_ne_zero h)
   rw [List.mem_filter, decide_eq_true_eq] at hq
-  rcases firstsBy_label cut T edges k x hq.1 with hl | hl
+  obtain ⟨-, -, -, hl | ⟨p₀, h₀, hl⟩⟩ := firstsBy_pos cut T edges k x hq.1
   · rw [hl] at hq; simp at hq
-  · rw [hq.2] at hl
-    exact posEdgeBy_mem_paths he hl.symm
+  · have h2 := hq.2
+    rw [hl] at h2
+    exact posEdgeFrom_mem_paths he (DTree.sift_inl_mem _ _ _ _ h₀) h2
 
-theorem edgeHarvestBy_mem {edges : EdgeTable α} (he : EdgesInto T edges) {e : List Bool × α}
+theorem edgeHarvestBy_mem {edges : Edges α} (he : EdgesInto T edges) {e : List Bool × α}
     (h : edgeHarvestBy cut T edges k x e ≠ []) : e.1 ∈ T.leaves := by
   refine edgeReadsBy_mem cut T k x he fun h0 => h ?_
   have := edgeHarvestBy_le_edgeReadsBy cut T edges k x e
@@ -378,11 +271,11 @@ end Count
 
 section Short
 
-variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α) {k : ℕ}
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α) {k : ℕ}
   {x : FreeMonoid α}
 
-theorem probeBy_short (h : x.toList.length < k) : probeBy cut T edges k x = .agree := by
-  simp [probeBy, h]
+theorem probeOrAgree_short (h : x.toList.length < k) : probeOrAgree (ofCut cut) T edges k x = .agree := by
+  simp [probeOrAgree, h]
 
 theorem edgeReadsBy_short (h : x.toList.length < k) (e : List Bool × α) :
     edgeReadsBy cut T edges k x e = 0 := by
@@ -393,20 +286,20 @@ theorem edgeHarvestBy_short (h : x.toList.length < k) (e : List Bool × α) :
   simp [edgeHarvestBy, firstsBy_short cut T edges k x h]
 
 theorem middleHarvestBy_short (h : x.toList.length < k) : middleHarvestBy cut T edges k x = [] := by
-  simp [middleHarvestBy, probeBy_short cut T edges h]
+  simp [middleHarvestBy, probeOrAgree_short cut T edges h]
 
 end Short
 
 section Congr
 
-variable {cut cut' : FreeMonoid α → Option Bool} {T : DTree α} {edges : EdgeTable α} {k : ℕ}
+variable {cut cut' : FreeMonoid α → Option Bool} {T : DTree α} {edges : Edges α} {k : ℕ}
   {x : FreeMonoid α}
 
 theorem firstsBy_congr_pref (h : ∀ z ∈ prefStrings T x, cut z = cut' z) :
     firstsBy cut T edges k x = firstsBy cut' T edges k x := by
   unfold firstsBy
   refine QTree.firsts_congr_asks _ _ fun q hq => ?_
-  have hp := (asks_probeQuery T edges k x (ofCut cut) q hq).1
+  have hp := (asks_probeQuery (ofCut cut) T x k edges q hq).1
   simp only [cut_ofCut] at hp
   simp only [ofCut, h q.2 (route_mem_prefStrings hp)]
 
@@ -429,13 +322,9 @@ theorem firstsBy_congr_strings (hkx : k ≤ x.toList.length)
     firstsBy cut T edges k x = firstsBy cut' T edges k x := by
   unfold firstsBy
   refine QTree.firsts_congr_asks _ _ fun q hq => ?_
-  have hp := asks_probeQuery T edges k x (ofCut cut) q hq
+  have hp := asks_probeQuery (ofCut cut) T x k edges q hq
   simp only [cut_ofCut] at hp
-  have hz : q.2 ∈ probeStrings T k x := by
-    obtain ⟨hr, hp⟩ := hp
-    rcases hp with hp | ⟨hs, -⟩
-    · rw [hp] at hr; exact route_mem_probeStrings hkx le_rfl hr
-    · exact route_mem_probeStrings hkx (siftsBy_range cut hs).1.le hr
+  have hz : q.2 ∈ probeStrings T k x := route_mem_probeStrings hkx hp.2.1 hp.1
   simp only [ofCut, h q.2 hz]
 
 theorem edgeReadsBy_congr_strings (hkx : k ≤ x.toList.length)
@@ -454,7 +343,7 @@ theorem edgeHarvestBy_congr_strings (hkx : k ≤ x.toList.length)
   refine List.filter_congr fun q hq => ?_
   rw [h q.2 (firstsBy_mem_probeStrings cut' T edges k x hkx hq)]
 
-theorem firstsBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
+theorem firstsBy_econgr {e e' : Edges α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) : firstsBy cut T e k x = firstsBy cut T e' k x := by
   unfold firstsBy probeQuery
   split_ifs
@@ -462,26 +351,22 @@ theorem firstsBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgre
   rw [QTree.firsts_bind, QTree.firsts_bind]
   congr 1
   rw [run_siftQuery]
-  rcases hs : T.siftCut (fun z => (ofCut cut z).cut) (prefixOf x k) with p₀ | b
-  · have hp₀ : p₀ ∈ T.leaves := DTree.siftCut_mem_paths _ _ _ hs
-    have hf : ∀ cs, follow e p₀ cs = follow e' p₀ cs := fun cs => follow_congr he hg cs p₀ hp₀
-    have hw : walkFrom e k x p₀ = walkFrom e' k x p₀ := by
-      funext j; simp only [walkFrom, hf]
+  rcases hs : T.sift (ofCut cut) (prefixOf x k) with p₀ | b
+  · have hw : walk e p₀ (x.toList.drop k) = walk e' p₀ (x.toList.drop k) :=
+      walk_congr he hg _ p₀ (DTree.sift_inl_mem _ _ _ _ hs)
     have hpos : posEdgeFrom e k x p₀ = posEdgeFrom e' k x p₀ := by
       funext i; simp only [posEdgeFrom, hw]
     have hpl : readLabel e k x p₀ = readLabel e' k x p₀ := by
       funext i; simp only [readLabel, hpos]
-    have hag : agreementQuery T e k x p₀ = agreementQuery T e' k x p₀ := by
-      funext wa i; simp only [agreementQuery, hpl]
-    simp only [hf, hw, hpl, hag]
+    simp only [hw, hpl]
   · rfl
 
-theorem edgeReadsBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
+theorem edgeReadsBy_econgr {e e' : Edges α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) : edgeReadsBy cut T e k x = edgeReadsBy cut T e' k x := by
   funext d
   simp only [edgeReadsBy, firstsBy_econgr he hg cut]
 
-theorem edgeHarvestBy_econgr {e e' : EdgeTable α} (he : EdgesInto T e) (hg : TgtAgree T e e')
+theorem edgeHarvestBy_econgr {e e' : Edges α} (he : EdgesInto T e) (hg : TgtAgree T e e')
     (cut : FreeMonoid α → Option Bool) : edgeHarvestBy cut T e k x
         = edgeHarvestBy cut T e' k x := by
   funext d

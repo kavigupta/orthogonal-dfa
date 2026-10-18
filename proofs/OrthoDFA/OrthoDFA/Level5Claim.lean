@@ -50,8 +50,8 @@ def TriOracle.Good {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {σ : Typ
 decided read. -/
 def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) :
     Set (FreeMonoid α) :=
-  {x | match probeBy (fun z => (read z).cut) H.tree (Function.curry H.edges) k x with
-    | .undecidedMid _ | .edge _ _ => True
+  {x | match probeOrAgree read H.tree H.edges k x with
+    | .wrongEdge _ _ _ _ | .undecided _ false => True
     | _ => False}
 
 /-- The largest mass the probes' distribution puts on one length-`k` prefix. -/

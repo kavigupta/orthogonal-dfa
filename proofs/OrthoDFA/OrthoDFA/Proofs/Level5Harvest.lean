@@ -369,7 +369,7 @@ open scoped Classical in
 noncomputable def keepProbe (s : Level5State α) (x : FreeMonoid α) : Level5State α :=
   { s.countProbe cut C.walkStart x with
     searches := s.searches
-      + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 }
+      + if (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0 }
 
 /-- A step that goes on moves to a fresh hypothesis with a higher version, or keeps the
 hypothesis. -/
@@ -380,16 +380,16 @@ theorem applyProbe_inl_shape {s s' : Level5State α} {x : FreeMonoid α}
   · rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, -, -, -, -, h1⟩ <;> rw [h1]
     · exact .inr rfl
     · exact .inl ⟨Nat.lt_succ_self _, _, _, rfl⟩
-  · obtain ⟨-, -, -, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
+  · obtain ⟨-, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
     have hrp := recordProbe_of_record C cut s x hrec
-    have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by rw [hrp]; exact hpe
+    have hpe' : (recordProbe C cut s x).edges (p, c) = some (t₀, w) := by rw [hrp]; exact hpe
     rw [splitState_of_some cut _ hpe']
     exact .inl ⟨by rw [hrp]; exact Nat.lt_succ_self _, _, _, rfl⟩
 
 open scoped Classical in
 /-- A fresh hypothesis's tests are silent. -/
 theorem runTests_fresh (ha : 0 < C.testLevel) (ha1 : C.testLevel < 1) (hn₀ : 1 ≤ C.firstLook)
-    (hexc : ∀ j, 0 < C.edgeExcess j) (T : DTree α) (E : EdgeTable α) (v : ℕ) :
+    (hexc : ∀ j, 0 < C.edgeExcess j) (T : DTree α) (E : Edges α) (v : ℕ) :
     runTests C (freshState T E v) = none := by
   have h1 := not_seqRate_zero (p₀ := C.startUndecidedRate) (p₁ := C.startAltRate) ha ha1
   have h4 := not_seqRate_zero (p₀ := C.disagreementRate) (p₁ := C.disagreementAltRate) ha ha1
@@ -427,7 +427,7 @@ searches at most the probes, the middles at most the searches. -/
 def CountInv (s : Level5State α) : Prop :=
   s.startUndecided.length ≤ s.probes ∧ s.middles.length ≤ s.searches ∧ s.searches ≤ s.probes
 
-theorem countInv_fresh (T : DTree α) (E : EdgeTable α) (v : ℕ) : CountInv (freshState T E v) := by
+theorem countInv_fresh (T : DTree α) (E : Edges α) (v : ℕ) : CountInv (freshState T E v) := by
   simp [CountInv, freshState]
 
 open scoped Classical in
@@ -438,14 +438,14 @@ theorem countInv_keep {s : Level5State α} (hs : CountInv s) (x : FreeMonoid α)
     unfold startHarvestBy
     split_ifs
     · simp
-    · rcases s.tree.siftCut cut (prefixOf x C.walkStart) with _ | _ <;> simp
+    · rcases s.tree.sift (ofCut cut) (prefixOf x C.walkStart) with _ | _ <;> simp
   have hmid := middleHarvestBy_length cut s.tree s.edges C.walkStart x
   have hd : (middleHarvestBy cut s.tree s.edges C.walkStart x).length
-      ≤ if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 := by
+      ≤ if (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0 := by
     rw [hmid]
-    rcases probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | _ | _ <;>
-      simp [WalkOutcome.IsSearch]
-  have hi : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) ≤ 1 := by
+    rcases probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x with
+      _ | _ | _ | _ | ⟨zs, _ | _⟩ <;> simp [Outcome.IsSearch]
+  have hi : (if (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0) ≤ 1 := by
     split <;> omega
   simp only [CountInv, keepProbe, Level5State.countProbe, List.length_append]
   omega
@@ -649,9 +649,10 @@ theorem startHarvestBy_length (T : DTree α) (x : FreeMonoid α) :
     (startHarvestBy (fun z => (rd z).cut) T C.walkStart x).length
       = if decide (x ∈ startSet C rd T) then 1 else 0 := by
   unfold startSet startHarvestBy
+  simp only [ofCut_rd, Set.mem_setOf_eq]
   by_cases h1 : x.toList.length < C.walkStart
   · simp [h1]
-  · rcases hs : T.siftCut (fun z => (rd z).cut) (prefixOf x C.walkStart) with p | b <;>
+  · rcases hs : T.sift rd (prefixOf x C.walkStart) with p | b <;>
       simp [h1, hs]
 
 theorem start_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstLook)
@@ -687,9 +688,9 @@ def SuccessBad (e : Level5Ending α) (s : Level5State α) : Prop :=
 theorem keep_searches (s : Level5State α) (x : FreeMonoid α) :
     (keepProbe C (fun z => (rd z).cut) s x).searches
       = s.searches + if decide (x ∈ searchAt rd C.walkStart s.tree s.edges) then 1 else 0 := by
-  simp only [keepProbe]
+  simp only [keepProbe, ofCut_rd]
   congr 1
-  by_cases h : (probeBy (fun z => (rd z).cut) s.tree s.edges C.walkStart x).IsSearch
+  by_cases h : (probeOrAgree rd s.tree s.edges C.walkStart x).IsSearch
   · rw [if_pos h, if_pos (by simpa using mem_searchAt.2 h)]
   · rw [if_neg h, if_neg (by simpa using fun h' => h (mem_searchAt.1 h'))]
 
@@ -749,7 +750,7 @@ theorem gate_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.firstL
     exact seqRate_share hφ hφ1 hSq.a_pos hgate hf hci.2.2 hg
 
 /-- The probes whose search stops at an undecided middle. -/
-def ptSet (T : DTree α) (E : EdgeTable α) : Set (FreeMonoid α) :=
+def ptSet (T : DTree α) (E : Edges α) : Set (FreeMonoid α) :=
   {x | middleHarvestBy (fun z => (rd z).cut) T E C.walkStart x ≠ []}
 
 /-- A harvest of the middles at a hypothesis whose searches stop at an undecided middle at most
@@ -758,13 +759,14 @@ def MiddlesBad (e : Level5Ending α) (s : Level5State α) : Prop :=
   e = .harvestPT ∧ D.real (ptSet C rd s.tree s.edges)
     ≤ C.middleUndecidedRate * D.real (searchAt rd C.walkStart s.tree s.edges)
 
-theorem ptSet_sub (T : DTree α) (E : EdgeTable α) : ptSet C rd T E ⊆ searchAt rd C.walkStart T E := by
+theorem ptSet_sub (T : DTree α) (E : Edges α) : ptSet C rd T E ⊆ searchAt rd C.walkStart T E := by
   intro x hx
   rw [mem_searchAt]
   have := middleHarvestBy_length (fun z => (rd z).cut) T E C.walkStart x
+  rw [ofCut_rd] at this
   simp only [ptSet, Set.mem_setOf_eq] at hx
-  rcases ho : probeBy (fun z => (rd z).cut) T E C.walkStart x with _ | _ | _ | _ | _ | _ <;>
-    rw [ho] at this <;> simp_all [WalkOutcome.IsSearch]
+  rcases ho : probeOrAgree rd T E C.walkStart x with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;>
+    rw [ho] at this <;> simp_all [Outcome.IsSearch]
 
 /-- At hits `A` among the active draws `B`, at most `p₀` of them, a factor `p₁/p₀` at a hit,
 `(1 − p₁)/(1 − p₀)` at another active draw and `1` elsewhere averages at most one. -/
@@ -851,11 +853,11 @@ theorem middles_le (hSq : C.SeqOK) (hL : 2 ≤ C.maxLeaves) (hn₀ : 1 ≤ C.fir
 def edgeOf (T : DTree α) (i : ℕ) (c : α) : List Bool × α := (T.leaves.getD i [], c)
 
 /-- A probe's mean count of undecided strings at the edge `e`. -/
-noncomputable def undMean (T : DTree α) (E : EdgeTable α) (e : List Bool × α) : ℝ :=
+noncomputable def undMean (T : DTree α) (E : Edges α) (e : List Bool × α) : ℝ :=
   ∫ x, ((edgeHarvestBy (fun z => (rd z).cut) T E C.walkStart x e).length : ℝ) ∂D
 
 /-- A probe's mean count of first reads at the edge `e`. -/
-noncomputable def readMean (T : DTree α) (E : EdgeTable α) (e : List Bool × α) : ℝ :=
+noncomputable def readMean (T : DTree α) (E : Edges α) (e : List Bool × α) : ℝ :=
   ∫ x, (edgeReadsBy (fun z => (rd z).cut) T E C.walkStart x e : ℝ) ∂D
 
 /-- The `i`-th leaf's edge by `c`: its undecided strings less twice their running mean,

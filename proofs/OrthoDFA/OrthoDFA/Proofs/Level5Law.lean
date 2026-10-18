@@ -19,17 +19,16 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Fresh
 
-variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (E : EdgeTable α) (k : ℕ)
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (E : Edges α) (k : ℕ)
   (x : FreeMonoid α)
 
-omit [Fintype α] [DecidableEq α] in
 theorem middleHarvestBy_cases :
     middleHarvestBy cut T E k x = [] ∨ ∃ b, middleHarvestBy cut T E k x = [b] := by
   unfold middleHarvestBy
   split
-  · rcases T.siftCut cut _ with _ | b
-    · exact .inl rfl
-    · exact .inr ⟨b, rfl⟩
+  · rename_i zs h
+    obtain ⟨-, b, -, -, -, rfl⟩ := probe_middle _ T E k x h
+    exact .inr ⟨b, rfl⟩
   · exact .inl rfl
 
 theorem startHarvestBy_fresh : (startHarvestBy cut T k x).Nodup
@@ -38,10 +37,10 @@ theorem startHarvestBy_fresh : (startHarvestBy cut T k x).Nodup
   split_ifs with hkx
   · simp
   · push Not at hkx
-    rcases hs : T.siftCut cut (prefixOf x k) with p | b
+    rcases hs : T.sift (ofCut cut) (prefixOf x k) with p | b
     · simp
     · simp only [Sum.elim_inr, List.nodup_singleton, List.mem_singleton, forall_eq, true_and]
-      exact probeStrings_prefix (route_mem_probeStrings hkx le_rfl (route_undecided cut T _ b hs).1)
+      exact probeStrings_prefix (route_mem_probeStrings hkx le_rfl (sift_inr_reads cut T _ b hs).1)
 
 theorem edgeHarvestBy_fresh (e : List Bool × α) : (edgeHarvestBy cut T E k x e).Nodup
     ∧ ∀ z ∈ edgeHarvestBy cut T E k x e, prefixOf z k = prefixOf x k := by
@@ -59,20 +58,17 @@ theorem middleHarvestBy_fresh : (middleHarvestBy cut T E k x).Nodup
   by_cases hkx : x.toList.length < k
   · simp [middleHarvestBy_short cut T E hkx]
   push Not at hkx
-  have key : ∀ j b, k ≤ j → T.siftCut cut (prefixOf x j) = .inr b →
+  have key : ∀ j b, k ≤ j → T.sift (ofCut cut) (prefixOf x j) = .inr b →
       prefixOf b k = prefixOf x k := fun j b hj hb =>
-    probeStrings_prefix (route_mem_probeStrings hkx hj (route_undecided cut T _ b hb).1)
+    probeStrings_prefix (route_mem_probeStrings hkx hj (sift_inr_reads cut T _ b hb).1)
   unfold middleHarvestBy
-  rcases ho : probeBy cut T E k x with _ | _ | _ | j | _ | _
-  all_goals first | (simp; done) | skip
-  obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut ho trivial
-  have hj := (bracketAt_mid _ _ _ _ _ _ hb).1
-  dsimp only
-  rcases hs : T.siftCut cut (prefixOf x j) with p | b
+  split
+  · rename_i zs h
+    obtain ⟨j, b, hj, -, hs, rfl⟩ := probe_middle _ T E k x h
+    simpa using key j b hj.le hs
   · simp
-  · simpa using key j b hj.le hs
 
-theorem siteHarvest_fresh (site : Level5Site α) (v : DTree α × EdgeTable α) :
+theorem siteHarvest_fresh (site : Level5Site α) (v : DTree α × Edges α) :
     (siteHarvest cut k site v x).Nodup
       ∧ ∀ z ∈ siteHarvest cut k site v x, prefixOf z k = prefixOf x k := by
   cases site with
@@ -80,7 +76,7 @@ theorem siteHarvest_fresh (site : Level5Site α) (v : DTree α × EdgeTable α) 
   | edge e => exact edgeHarvestBy_fresh cut v.1 v.2 k x e
   | middles => exact middleHarvestBy_fresh cut v.1 v.2 k x
 
-theorem siteHarvest_length_le (site : Level5Site α) (v : DTree α × EdgeTable α) :
+theorem siteHarvest_length_le (site : Level5Site α) (v : DTree α × Edges α) :
     (siteHarvest cut k site v x).length ≤ x.toList.length + 1 := by
   cases site with
   | start =>
@@ -88,7 +84,7 @@ theorem siteHarvest_length_le (site : Level5Site α) (v : DTree α × EdgeTable 
     unfold startHarvestBy
     split_ifs
     · simp
-    · rcases v.1.siftCut cut (prefixOf x k) with _ | _ <;> simp
+    · rcases v.1.sift (ofCut cut) (prefixOf x k) with _ | _ <;> simp
   | edge e => exact edgeHarvestBy_length_le cut v.1 v.2 k x e
   | middles =>
     show (middleHarvestBy cut v.1 v.2 k x).length ≤ _
@@ -115,7 +111,7 @@ theorem list_dirac_apply (l : List (FreeMonoid α)) (A : Set (FreeMonoid α))
 theorem harvestLaw_apply (H : HypothesisDFA α) (site : Level5Site α) (A : Set (FreeMonoid α))
     [DecidablePred (· ∈ A)] :
     harvestLaw D cut k H site A = ∫⁻ x,
-      (((siteHarvest cut k site (H.tree, Function.curry H.edges) x).filter (· ∈ A)).length
+      (((siteHarvest cut k site (H.tree, H.edges) x).filter (· ∈ A)).length
         : ℝ≥0∞) ∂D := by
   unfold harvestLaw
   rw [Measure.bind_apply (measurableSet_of_countable A) (measurable_of_countable _).aemeasurable]
@@ -125,7 +121,7 @@ theorem harvestLaw_apply (H : HypothesisDFA α) (site : Level5Site α) (A : Set 
 theorem harvestLaw_spread [IsFiniteMeasure D] (H : HypothesisDFA α) (site : Level5Site α) :
     Spread D k (harvestLaw D cut k H site) := by
   intro t
-  set v := (H.tree, Function.curry H.edges)
+  set v := (H.tree, H.edges)
   set B := {p : FreeMonoid α | p.toList.take k = t.toList.take k}
   have hle : ∫⁻ x, (((siteHarvest cut k site v x).filter (· ∈ ({t} : Set _))).length
       : ℝ≥0∞) ∂D ≤ D B := by
@@ -162,7 +158,7 @@ theorem harvestLaw_spread [IsFiniteMeasure D] (H : HypothesisDFA α) (site : Lev
   exact ENNReal.toReal_mono (measure_ne_top D B) hlaw
 
 theorem integrable_siteCount [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (site : Level5Site α) (v : DTree α × EdgeTable α) (P : FreeMonoid α → Bool) :
+    (site : Level5Site α) (v : DTree α × Edges α) (P : FreeMonoid α → Bool) :
     Integrable (fun x => (((siteHarvest cut k site v x).filter P).length : ℝ)) D :=
   Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable (L + 1) (by
     filter_upwards [hlen] with x hx
@@ -176,11 +172,11 @@ strings in `A`. -/
 theorem harvestLaw_real [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (H : HypothesisDFA α) (site : Level5Site α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     (harvestLaw D cut k H site).real A = ∫ x,
-      (((siteHarvest cut k site (H.tree, Function.curry H.edges) x).filter (· ∈ A)).length : ℝ)
+      (((siteHarvest cut k site (H.tree, H.edges) x).filter (· ∈ A)).length : ℝ)
         ∂D := by
   rw [measureReal_def, harvestLaw_apply]
   have := ofReal_integral_eq_lintegral_ofReal (integrable_siteCount D cut k hlen site
-    (H.tree, Function.curry H.edges) (fun x => decide (x ∈ A)))
+    (H.tree, H.edges) (fun x => decide (x ∈ A)))
     (ae_of_all _ fun _ => Nat.cast_nonneg _)
   simp only [ENNReal.ofReal_natCast] at this
   rw [← this, ENNReal.toReal_ofReal (integral_nonneg fun _ => Nat.cast_nonneg _)]
@@ -189,11 +185,11 @@ theorem harvestLaw_real [IsFiniteMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
 theorem endsWell_of_siteGood {σ : Type*} (G : ReadModel α σ) [IsProbabilityMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (rd : FreeMonoid α → ARU) (ε : ℝ)
     (dis : Set (FreeMonoid α)) (y : ℝ) (H : HypothesisDFA α) (site : Level5Site α)
-    (hm : SiteGood G D rd k y site (H.tree, Function.curry H.edges)) :
+    (hm : SiteGood G D rd k y site (H.tree, H.edges)) :
     EndsWell G.M (fun q => ¬ G.Good q) D ε dis k (harvestLaw D (fun z => (rd z).cut) k H) y
       (.harvest site) := by
   classical
-  set v := (H.tree, Function.curry H.edges)
+  set v := (H.tree, H.edges)
   have hsplit : siteTotal D rd k site v
       = siteMean G D rd k site G.Good v + siteMean G D rd k site (fun q => ¬ G.Good q) v := by
     unfold siteMean siteTotal
@@ -255,9 +251,9 @@ theorem harvestLaw_univ_ne_top {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length 
   refine lintegral_mono_ae ?_
   filter_upwards [hlen] with x hx
   have h1 := List.length_filter_le (· ∈ Set.univ)
-    (siteHarvest cut k site (H.tree, Function.curry H.edges) x)
-  have h2 := siteHarvest_length_le cut k x site (H.tree, Function.curry H.edges)
-  exact_mod_cast (by omega : ((siteHarvest cut k site (H.tree, Function.curry H.edges)
+    (siteHarvest cut k site (H.tree, H.edges) x)
+  have h2 := siteHarvest_length_le cut k x site (H.tree, H.edges)
+  exact_mod_cast (by omega : ((siteHarvest cut k site (H.tree, H.edges)
     x).filter (· ∈ Set.univ)).length ≤ L + 1)
 
 end Law

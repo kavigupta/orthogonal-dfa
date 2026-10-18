@@ -25,52 +25,19 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 section Probe
 
-variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α) (k : ℕ)
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α) (k : ℕ)
   (x : FreeMonoid α)
-
-/-- A search at an edge is a record. -/
-theorem recordBy_of_edge {ps : List (List Bool)} {fd : ℕ}
-    (h : probeBy cut T edges k x = .edge ps fd) :
-    ∃ p c t sp, recordBy cut k (T, edges) x = some ((p, c, t), sp) := by
-  obtain ⟨ps₀, hi, hw, hb⟩ := probeBy_search cut h trivial
-  obtain ⟨p₀, hk, hf, hkh, hhx, hag⟩ := walkCheckBy_inr cut hw
-  obtain ⟨hlen, hhead, hstep⟩ := follow_inl _ _ _ hf
-  have hlo : agreesAtBy cut T x (fun j => ps₀.getD (j - k) []) k = some true := by
-    simp [agreesAtBy, hk, ← hhead, List.getD_eq_getElem?_getD]
-  obtain ⟨rfl, hfd, hfdh, -, h2⟩ := bracketAt_edge _ ps₀ (hi - k) k hi ps fd hkh le_rfl hlo hag hb
-  unfold agreesAtBy at h2
-  rcases hs : T.siftCut cut (prefixOf x fd) with t | b <;> rw [hs] at h2 <;>
-    simp only [Sum.elim_inl, Sum.elim_inr, reduceCtorEq] at h2
-  have hc : ∃ c, x.toList[fd - 1]? = some c :=
-    ⟨x.toList[fd - 1]'(by omega), List.getElem?_eq_getElem (by omega)⟩
-  obtain ⟨c, hc⟩ := hc
-  refine ⟨ps.getD (fd - 1 - k) [], c, t, prefixOf x (fd - 1), ?_⟩
-  unfold recordBy
-  simp only [h, hc, hs]
-
-/-- A record's probe searched to an edge. -/
-theorem probeBy_of_record {p : List Bool} {c : α} {t : List Bool} {sp : FreeMonoid α}
-    (h : recordBy cut k (T, edges) x = some ((p, c, t), sp)) :
-    ∃ ps fd, probeBy cut T edges k x = .edge ps fd := by
-  unfold recordBy at h
-  rcases ho : probeBy cut T edges k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ <;> rw [ho] at h <;>
-    simp only [reduceCtorEq] at h
-  exact ⟨ps, fd, rfl⟩
 
 /-- The middles a probe adds: one where it stops at an undecided middle, none otherwise. -/
 theorem middleHarvestBy_length :
     (middleHarvestBy cut T edges k x).length
-      = match probeBy cut T edges k x with
-        | .undecidedMid _ => 1
+      = match probeOrAgree (ofCut cut) T edges k x with
+        | .undecided _ false => 1
         | _ => 0 := by
   unfold middleHarvestBy
-  rcases ho : probeBy cut T edges k x with _ | _ | _ | j | _ | _ <;> try rfl
-  obtain ⟨ps, hi, -, hb⟩ := probeBy_search cut ho trivial
-  obtain ⟨-, -, hj⟩ := bracketAt_mid _ ps (hi - k) k hi j hb
-  unfold agreesAtBy at hj
-  rcases hs : T.siftCut cut (prefixOf x j) with q | b <;> rw [hs] at hj <;>
-    simp only [Sum.elim_inl, Sum.elim_inr, reduceCtorEq] at hj
-  simp only [hs, Sum.elim_inr, List.length_singleton]
+  rcases ho : probeOrAgree (ofCut cut) T edges k x with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;> try rfl
+  obtain ⟨-, b, -, -, -, rfl⟩ := probe_middle _ T edges k x ho
+  rfl
 
 end Probe
 
@@ -78,20 +45,10 @@ section Steps
 
 variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
-theorem setEdge_fresh (s : Level5State α) (p : List Bool) (c : α) (e : List Bool × FreeMonoid α) :
-    s.setEdge p c e = freshState s.tree
-      (Function.update s.edges p (Function.update (s.edges p) c (some e))) (s.version + 1) :=
-  rfl
-
 theorem setEdge_eq (s : Level5State α) (p : List Bool) (c : α) (e) (q : List Bool) (c' : α) :
-    (s.setEdge p c e).edges q c' = if (q, c') = (p, c) then some e else s.edges q c' := by
+    (s.setEdge p c e).edges (q, c') = if (q, c') = (p, c) then some e else s.edges (q, c') := by
   unfold Level5State.setEdge freshState
-  by_cases hq : q = p
-  · subst hq
-    by_cases hc : c' = c
-    · subst hc; simp
-    · simp [hc]
-  · simp [hq]
+  simp only [Function.update_apply]
 
 open scoped Classical in
 /-- A probe keeps the hypothesis, adding to its counts, or learns an unlearned edge out of the
@@ -99,29 +56,24 @@ leaf its prefix sifts to. -/
 theorem recordProbe_spec (s : Level5State α) (x : FreeMonoid α) :
     recordProbe C cut s x = { s.countProbe cut C.walkStart x with
         searches := s.searches
-          + if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0 }
-    ∨ ∃ u c p t, probeBy cut s.tree s.edges C.walkStart x = .member u
-      ∧ s.tree.siftCut cut u = .inl p ∧ x.toList[u.toList.length]? = some c
-      ∧ s.tree.siftCut cut (u * FreeMonoid.of c) = .inl t ∧ s.edges p c = none
+          + if (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0 }
+    ∨ ∃ u c p t, probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
+      ∧ s.tree.sift (ofCut cut) u = .inl p ∧ x.toList[u.toList.length]? = some c
+      ∧ s.tree.sift (ofCut cut) (u * FreeMonoid.of c) = .inl t ∧ s.edges (p, c) = none
       ∧ recordProbe C cut s x = (s.countProbe cut C.walkStart x).setEdge p c (t, u) := by
   unfold recordProbe
-  rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | j | ⟨ps, fd⟩ | u <;>
-    simp only []
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  rcases hc : x.toList[u.toList.length]? with _ | c
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  rcases hp : s.tree.siftCut cut u with p | b
-  swap
-  · left; simp [WalkOutcome.IsSearch]; rfl
-  rcases ht : s.tree.siftCut cut (u * FreeMonoid.of c) with t | b <;>
-    rcases he : s.edges p c with _ | e
+  rcases ho : probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x with
+    _ | _ | ⟨p, c, u, t⟩ | _ | ⟨zs, _ | _⟩ <;> simp only []
+  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [Outcome.IsSearch]; rfl
   · right
-    exact ⟨u, c, p, t, rfl, hp, hc, ht, he, by simp only [ht, he]⟩
-  all_goals left; simp [WalkOutcome.IsSearch, ht, he]; rfl
+    obtain ⟨-, j, -, -, hjx, rfl, hc, -, -, hp, ht, hE⟩ := probe_unlearnedEdge _ _ _ _ _ ho
+    have hlen : (prefixOf x j).toList.length = j := by simp [prefixOf]; omega
+    refine ⟨prefixOf x j, c, p, t, rfl, hp, by rw [hlen]; exact hc, ?_, hE, rfl⟩
+    rw [← prefixOf_succ hc]; exact ht
+  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [Outcome.IsSearch]; rfl
+  · left; simp [Outcome.IsSearch]; rfl
 
 theorem countProbe_hyp (s : Level5State α) (k : ℕ) (x : FreeMonoid α) :
     (s.countProbe cut k x).tree = s.tree ∧ (s.countProbe cut k x).edges = s.edges
@@ -137,21 +89,21 @@ theorem recordProbe_of_record (s : Level5State α) (x : FreeMonoid α) {p : List
     (h : recordBy cut C.walkStart (s.tree, s.edges) x = some ((p, c, t), sp)) :
     recordProbe C cut s x
       = { s.countProbe cut C.walkStart x with searches := s.searches + 1 } := by
-  obtain ⟨ps, fd, ho⟩ := probeBy_of_record cut s.tree s.edges C.walkStart x h
   unfold recordProbe
-  rw [ho]
+  rw [(recordBy_eq_some cut).1 h]
   rfl
 
 /-- A split at a learned edge is a fresh hypothesis, the leaf split. -/
 theorem splitState_of_some (s : Level5State α) {p : List Bool} {c : α} {t t₀ : List Bool}
-    {w : FreeMonoid α} (he : s.edges p c = some (t₀, w)) :
+    {w : FreeMonoid α} (he : s.edges (p, c) = some (t₀, w)) :
     splitState cut s p c t = freshState
       (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
-      (fun q e => if p <+: q then none else retargetBy cut
-        (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) p s.edges q e)
+      (retarget (ofCut cut)
+        (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) p s.edges)
       (s.version + 1) := by
   unfold splitState
   rw [he]
+  rfl
 
 /-- A step that goes on keeps what the probe recorded, or splits at its contradiction. -/
 theorem applyProbe_inl {s s' : Level5State α} {x : FreeMonoid α}
@@ -243,27 +195,25 @@ theorem recordProbe_into {s : Level5State α} (x : FreeMonoid α) (he : EdgesInt
   rcases recordProbe_spec C cut s x with h | ⟨u, c, p, t, -, -, -, ht, -, h⟩ <;> rw [h]
   · exact he
   · exact setEdge_into (s := s.countProbe cut C.walkStart x) he
-      (DTree.siftCut_mem_paths _ _ _ ht)
+      (DTree.sift_inl_mem _ _ _ _ ht)
 
 theorem splitState_into {s : Level5State α} (he : EdgesInto s.tree s.edges) (p : List Bool) (c : α)
     (t : List Bool) : EdgesInto (splitState cut s p c t).tree (splitState cut s p c t).edges := by
-  unfold splitState
-  rcases he0 : s.edges p c with _ | ⟨t₀, w₀⟩
-  · exact he
-  simp only []
+  rcases he0 : s.edges (p, c) with _ | ⟨t₀, w₀⟩
+  · unfold splitState; rw [he0]; exact he
+  rw [splitState_of_some cut s he0]
   set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
   intro q e t' w h
-  simp only [freshState] at h
+  simp only [freshState, retarget] at h
   split_ifs at h
-  unfold retargetBy at h
-  rcases hq : s.edges q e with _ | ⟨s', w'⟩ <;> rw [hq] at h
+  rcases hq : s.edges (q, e) with _ | ⟨s', w'⟩ <;> rw [hq] at h
   · simp at h
   · simp only [] at h
     split_ifs at h with hs'
-    · rcases hsift : T'.siftCut cut (w' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at h
+    · rcases hsift : T'.sift (ofCut cut) (w' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at h
       · simp only [Sum.elim_inl, Option.some.injEq, Prod.mk.injEq] at h
         obtain ⟨rfl, -⟩ := h
-        exact DTree.siftCut_mem_paths _ _ _ hsift
+        exact DTree.sift_inl_mem _ _ _ _ hsift
       · simp at h
     · simp only [Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, -⟩ := h
@@ -286,7 +236,7 @@ open scoped Classical in
 /-- The unlearned edges out of the leaves. -/
 noncomputable def unlearned (s : Level5State α) : ℕ :=
   ((s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).filter
-    fun e => s.edges e.1 e.2 = none).card
+    fun e => s.edges e = none).card
 
 /-- The potential every change of hypothesis lowers. -/
 noncomputable def verPot (s : Level5State α) : ℕ :=
@@ -300,14 +250,14 @@ theorem unlearned_le (s : Level5State α) : unlearned s ≤ s.tree.leaves.length
   exact Nat.mul_le_mul_right _ (List.toFinset_card_le _)
 
 theorem unlearned_setEdge (s : Level5State α) {p : List Bool} {c : α} {e : List Bool × FreeMonoid α}
-    (hp : p ∈ s.tree.leaves) (hn : s.edges p c = none) :
+    (hp : p ∈ s.tree.leaves) (hn : s.edges (p, c) = none) :
     unlearned (s.setEdge p c e) + 1 = unlearned s := by
   classical
   unfold unlearned
   have hset : ((s.setEdge p c e).tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).filter
-      (fun e' => (s.setEdge p c e).edges e'.1 e'.2 = none)
+      (fun e' => (s.setEdge p c e).edges e' = none)
       = (((s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).filter
-        fun e' => s.edges e'.1 e'.2 = none)).erase (p, c) := by
+        fun e' => s.edges e' = none)).erase (p, c) := by
     ext ⟨q, c'⟩
     simp only [Finset.mem_filter, Finset.mem_product, List.mem_toFinset, Finset.mem_univ,
       and_true, Finset.mem_erase, ne_eq, setEdge_eq]
@@ -317,7 +267,7 @@ theorem unlearned_setEdge (s : Level5State α) {p : List Bool} {c : α} {e : Lis
     · simp [h]
   rw [hset, Finset.card_erase_of_mem (by simp [hp, hn])]
   have : 0 < ((s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).filter
-      fun e' => s.edges e'.1 e'.2 = none).card :=
+      fun e' => s.edges e' = none).card :=
     Finset.card_pos.2 ⟨(p, c), by simp [hp, hn]⟩
   omega
 
@@ -339,7 +289,7 @@ theorem verInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : VerInv C s
   rcases (applyProbe_inl C cut h).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, hrec, rfl, hL'⟩
   · rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, hp, -, -, hn, h1⟩ <;> rw [h1]
     · exact ⟨hL, hv⟩
-    · have hp' := DTree.siftCut_mem_paths _ _ _ hp
+    · have hp' := DTree.sift_inl_mem _ _ _ _ hp
       have := unlearned_setEdge (s.countProbe cut C.walkStart x) (e := (t, u)) hp' hn
       refine ⟨hL, ?_⟩
       unfold verPot at hv ⊢
@@ -349,16 +299,15 @@ theorem verInv_step {s s' : Level5State α} {x : FreeMonoid α} (hs : VerInv C s
       have e1 : unlearned (s.countProbe cut C.walkStart x) = unlearned s := rfl
       omega
   · refine ⟨hL', ?_⟩
-    obtain ⟨p₀, ps, hk, hf, hpm, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
-    have hp : p ∈ s.tree.leaves :=
-      follow_mem_paths he _ p₀ ps (DTree.siftCut_mem_paths _ _ _ hk) hf p hpm
+    obtain ⟨p₀, hk, hpm, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
+    have hp : p ∈ s.tree.leaves := walk_mem_leaves he (DTree.sift_inl_mem _ _ _ _ hk) _ p hpm
     have hrec' := recordProbe_of_record C cut s x hrec
-    have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by rw [hrec']; exact hpe
+    have hpe' : (recordProbe C cut s x).edges (p, c) = some (t₀, w) := by rw [hrec']; exact hpe
     rw [splitState_of_some cut _ hpe'] at hL' ⊢
     rw [hrec'] at hL' ⊢
     simp only [Level5State.countProbe] at hL' ⊢
     set T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-    set E' : EdgeTable α := fun q e => if p <+: q then none else retargetBy cut T' p s.edges q e
+    set E' : Edges α := retarget (ofCut cut) T' p s.edges
     have hlen : T'.leaves.length = s.tree.leaves.length + 1 :=
       DTree.length_leaves_splitAt _ s.tree p hp
     have hu := unlearned_le (freshState T' E' (s.version + 1))
@@ -423,7 +372,7 @@ undecided middle. -/
 def StretchOK (nEnd hS : ℕ) (s : Level5State α) : Prop :=
   s.probes < nEnd ∧ s.searches ≤ hS ∧ s.middles.length = s.searches
 
-theorem stretchOK_fresh {nEnd hS : ℕ} (hn : 1 ≤ nEnd) (T : DTree α) (E : EdgeTable α) (v : ℕ) :
+theorem stretchOK_fresh {nEnd hS : ℕ} (hn : 1 ≤ nEnd) (T : DTree α) (E : Edges α) (v : ℕ) :
     StretchOK nEnd hS (freshState T E v) :=
   ⟨by show 0 < nEnd; omega, Nat.zero_le _, rfl⟩
 
@@ -445,22 +394,23 @@ theorem stretchOK_step {nEnd hS : ℕ} (hSq : C.SeqOK) (hn : 1 ≤ nEnd) (hSn : 
   obtain ⟨hnone, hcases⟩ := applyProbe_inl C cut h
   rcases hcases with ⟨hrec, rfl⟩ | ⟨p, c, t, sp, hrec, rfl, -⟩
   · rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, -, -, -, -, h1⟩
-    · have hne : ∀ ps fd, probeBy cut s.tree s.edges C.walkStart x ≠ .edge ps fd := by
-        intro ps fd ho
-        obtain ⟨p, c, t, sp, h'⟩ := recordBy_of_edge cut s.tree s.edges C.walkStart x ho
-        rw [hrec] at h'
-        simp at h'
+    · have hne : ∀ p c u t, probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x
+          ≠ .wrongEdge p c u t := by
+        intro p c u t ho
+        rw [← recordBy_eq_some cut, hrec] at ho
+        simp at ho
       have hmid := middleHarvestBy_length cut s.tree s.edges C.walkStart x
       set d := (middleHarvestBy cut s.tree s.edges C.walkStart x).length with hd
-      have hsearch : (if (probeBy cut s.tree s.edges C.walkStart x).IsSearch then 1 else 0) = d := by
+      have hsearch : (if (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsSearch then 1 else 0) = d := by
         rw [hmid]
-        rcases ho : probeBy cut s.tree s.edges C.walkStart x with _ | _ | _ | _ | ⟨ps, fd⟩ | _
-        · simp [WalkOutcome.IsSearch]
-        · simp [WalkOutcome.IsSearch]
-        · simp [WalkOutcome.IsSearch]
-        · simp [WalkOutcome.IsSearch]
-        · exact absurd ho (hne ps fd)
-        · simp [WalkOutcome.IsSearch]
+        rcases ho : probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x with
+          _ | ⟨p, c, u, t⟩ | _ | _ | ⟨zs, _ | _⟩
+        · simp [Outcome.IsSearch]
+        · exact absurd ho (hne p c u t)
+        · simp [Outcome.IsSearch]
+        · simp [Outcome.IsSearch]
+        · simp [Outcome.IsSearch]
+        · simp [Outcome.IsSearch]
       have hd1 : d ≤ 1 := by
         rw [hmid]; split <;> omega
       have hP : (recordProbe C cut s x).probes = s.probes + 1 := by rw [h1]; rfl
@@ -496,9 +446,9 @@ theorem stretchOK_step {nEnd hS : ℕ} (hSq : C.SeqOK) (hn : 1 ≤ nEnd) (hSn : 
       · rw [hM, hSe]; omega
     · rw [h1]
       exact ⟨stretchOK_fresh hn _ _ _, .inl ⟨rfl, rfl⟩⟩
-  · obtain ⟨-, -, -, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
+  · obtain ⟨-, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrec
     have hrec' := recordProbe_of_record C cut s x hrec
-    have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by rw [hrec']; exact hpe
+    have hpe' : (recordProbe C cut s x).edges (p, c) = some (t₀, w) := by rw [hrec']; exact hpe
     rw [splitState_of_some cut _ hpe']
     refine ⟨stretchOK_fresh hn _ _ _, .inl ⟨?_, rfl⟩⟩
     simp only [freshState, hrec']

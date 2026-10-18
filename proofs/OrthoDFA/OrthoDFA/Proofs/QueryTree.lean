@@ -18,25 +18,6 @@ namespace QTree
 
 variable {Λ ι V β γ : Type*}
 
-theorem run_bind (rd : ι → V) (f : β → QTree Λ ι V γ) :
-    ∀ t : QTree Λ ι V β, (t.bind f).run rd = (f (t.run rd)).run rd
-  | done _ => rfl
-  | ask _ w next => run_bind rd f (next (rd w))
-
-theorem asks_bind (rd : ι → V) (f : β → QTree Λ ι V γ) :
-    ∀ t : QTree Λ ι V β, (t.bind f).asks rd = t.asks rd ++ (f (t.run rd)).asks rd
-  | done _ => rfl
-  | ask ℓ w next => by
-    simp only [bind, asks, run, List.cons_append]
-    rw [asks_bind rd f (next (rd w))]
-
-theorem run_map (rd : ι → V) (f : β → γ) (t : QTree Λ ι V β) :
-    (t.map f).run rd = f (t.run rd) := run_bind rd _ t
-
-theorem asks_map (rd : ι → V) (f : β → γ) (t : QTree Λ ι V β) :
-    (t.map f).asks rd = t.asks rd := by
-  simp [map, asks_bind, asks]
-
 variable [DecidableEq ι]
 
 /-- `rd` with the key `w` read as `v`. -/

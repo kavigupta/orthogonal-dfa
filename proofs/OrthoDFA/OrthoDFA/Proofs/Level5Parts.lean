@@ -86,26 +86,26 @@ def TrueRec (T : DTree α) (pct : List Bool × α × List Bool) (sp : FreeMonoid
 
 open scoped Classical in
 /-- The undecided reads a probe charges to `e` at read-states satisfying `P`. -/
-noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
+noncomputable def undecAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
     (e : List Bool × α) (P : σ → Prop) (x : FreeMonoid α) : ℕ :=
   ((edgeHarvestBy (fun z => (rd z).cut) T edges k x e).filter fun b => P (G.M.eval b.toList)).length
 
 /-- The probes whose start is undecided, at a read-state satisfying `P`. -/
 def startAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (P : σ → Prop) :
     Set (FreeMonoid α) :=
-  {x | k ≤ x.toList.length ∧ ∃ b, T.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inr b
+  {x | k ≤ x.toList.length ∧ ∃ b, T.sift rd (prefixOf x k) = .inr b
     ∧ P (G.M.eval b.toList)}
 
 /-- The probes whose search stops at an undecided middle, read at a read-state satisfying `P`. -/
-def ptAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) (P : σ → Prop) :
+def ptAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) (P : σ → Prop) :
     Set (FreeMonoid α) :=
   {x | ∃ b, middleHarvestBy (fun z => (rd z).cut) T edges k x = [b] ∧ P (G.M.eval b.toList)}
 
 end ReadModel
 
 /-- Every learned edge points at a leaf. -/
-def EdgesInto (T : DTree α) (edges : EdgeTable α) : Prop :=
-  ∀ q c t w, edges q c = some (t, w) → t ∈ T.leaves
+def EdgesInto (T : DTree α) (edges : Edges α) : Prop :=
+  ∀ q c t w, edges (q, c) = some (t, w) → t ∈ T.leaves
 
 /-- The noise event: over the class and edges into its leaves, good read-states' undecided reads
 are rare at each edge, at the start and at the middles searches stop at. -/
@@ -125,19 +125,19 @@ open scoped Classical in
 at read-states satisfying `P`. -/
 noncomputable def siteMean {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α))
     (rd : FreeMonoid α → ARU) (k : ℕ) (site : Level5Site α) (P : σ → Prop)
-    (v : DTree α × EdgeTable α) : ℝ :=
+    (v : DTree α × Edges α) : ℝ :=
   ∫ x, (((siteHarvest (fun z => (rd z).cut) k site v x).filter
     fun b => P (G.M.eval b.toList)).length : ℝ) ∂D
 
 /-- The mean count of the strings a probe walked from `k` under `v` reads undecided at the site. -/
 noncomputable def siteTotal (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU) (k : ℕ)
-    (site : Level5Site α) (v : DTree α × EdgeTable α) : ℝ :=
+    (site : Level5Site α) (v : DTree α × Edges α) : ℝ :=
   ∫ x, ((siteHarvest (fun z => (rd z).cut) k site v x).length : ℝ) ∂D
 
 /-- The harvest's sampler at the hypothesis `v` finds more strings at read-states that are not
 good than at good ones, and at least `y` in all. -/
 def SiteGood {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) (rd : FreeMonoid α → ARU)
-    (k : ℕ) (y : ℝ) (site : Level5Site α) (v : DTree α × EdgeTable α) : Prop :=
+    (k : ℕ) (y : ℝ) (site : Level5Site α) (v : DTree α × Edges α) : Prop :=
   2 * siteMean G D rd k site G.Good v < siteTotal D rd k site v ∧ y ≤ siteTotal D rd k site v
 
 end OrthoDFA

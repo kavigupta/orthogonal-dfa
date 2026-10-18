@@ -28,10 +28,10 @@ theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (D :
       RunEnds (applyProbe C fun z => (rd z).cut) (Level5EndsWell M bad D C rd) s xs ↔
         EndsWell M bad D C.disagreementRate
           (searchingProbes rd C.walkStart ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-            Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
+            (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
           (harvestLaw D (fun z => (rd z).cut) C.walkStart
             ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
+              (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
           C.harvestYield (runProbes C (fun z => (rd z).cut) s xs).2
   | s, [] => by simp [RunEnds, runProbes, EndsWell]
   | s, x :: xs => by

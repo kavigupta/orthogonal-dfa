@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.Level5Class
-import OrthoDFA.Proofs.StartAtK
+import OrthoDFA.Proofs.Level5Walk
 
 /-!
 # The noise event's start field
@@ -28,40 +28,6 @@ instance : Finite ARU :=
   Finite.of_injective ARU.toFin3 fun a b h => by cases a <;> cases b <;> simp_all [ARU.toFin3]
 
 section Sift
-
-theorem siftCut_congr_mid {cut cut' : FreeMonoid α → Option Bool} :
-    ∀ (T : DTree α) (u : FreeMonoid α), (∀ m ∈ T.midfixes, cut (u * m) = cut' (u * m)) →
-      T.siftCut cut u = T.siftCut cut' u
-  | .leaf, _, _ => rfl
-  | .node m r a, u, h => by
-    have hm := h m (by simp [DTree.midfixes])
-    have hr := siftCut_congr_mid r u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    have ha := siftCut_congr_mid a u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    simp only [DTree.siftCut, DTree.route] at hr ha ⊢
-    rw [hm]
-    rcases cut' (u * m) with _ | _ | _ <;> simp [hr, ha]
-
-theorem siftCut_inr {cut : FreeMonoid α → Option Bool} :
-    ∀ (T : DTree α) (u b : FreeMonoid α), T.siftCut cut u = .inr b →
-      ∃ m ∈ T.midfixes, b = u * m ∧ cut (u * m) = none
-  | .leaf, _, _, h => by simp [DTree.siftCut, DTree.route] at h
-  | .node m r a, u, b, h => by
-    simp only [DTree.siftCut, DTree.route] at h
-    rcases hc : cut (u * m) with _ | _ | _ <;> simp only [hc] at h
-    · simp only [Sum.inr.injEq] at h
-      exact ⟨m, by simp [DTree.midfixes], h.symm, hc⟩
-    · rcases hr : (r.route cut u).2 with q | b' <;> rw [hr] at h
-      · simp at h
-      · simp only [Sum.map_inr, id, Sum.inr.injEq] at h
-        subst h
-        obtain ⟨m', hm', h1, h2⟩ := siftCut_inr r u b' hr
-        exact ⟨m', by simp [DTree.midfixes, hm'], h1, h2⟩
-    · rcases ha : (a.route cut u).2 with q | b' <;> rw [ha] at h
-      · simp at h
-      · simp only [Sum.map_inr, id, Sum.inr.injEq] at h
-        subst h
-        obtain ⟨m', hm', h1, h2⟩ := siftCut_inr a u b' ha
-        exact ⟨m', by simp [DTree.midfixes, hm'], h1, h2⟩
 
 theorem midfixes_card : ∀ T : DTree α, T.midfixes.card + 1 ≤ T.leaves.length
   | .leaf => by simp [DTree.midfixes, DTree.leaves]
@@ -202,13 +168,13 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
     intro T hT
     set Sb : FreeMonoid α → Finset (FreeMonoid α) := fun u => T.midfixes.image (u * ·)
     set bad : FreeMonoid α → (FreeMonoid α → Option Bool) → Prop := fun u cut =>
-      ∃ b, T.siftCut cut u = .inr b ∧ G.Good (G.M.eval b.toList)
+      ∃ b, T.sift (ofCut cut) u = .inr b ∧ G.Good (G.M.eval b.toList)
     set cutOf : ∀ u, (Sb u → ARU) → FreeMonoid α → Option Bool := fun u v z =>
       if h : z ∈ Sb u then (v ⟨z, h⟩).cut else none
     have hcutOf : ∀ u ω, bad u (cutOf u fun z => read z ω) ↔ bad u fun z => (read z ω).cut := by
       intro u ω
       simp only [bad]
-      rw [siftCut_congr_mid (cut' := fun z => (read z ω).cut) T u fun m hm => by
+      rw [sift_congr_mid (cut' := fun z => (read z ω).cut) T u fun m hm => by
         simp only [cutOf]
         rw [dif_pos (show u * m ∈ Sb u from Finset.mem_image_of_mem (u * ·) hm)]]
     set E : FreeMonoid α → Set Ω := fun u => {ω | bad u fun z => (read z ω).cut}
@@ -225,7 +191,7 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
       have hsub : E u ⊆ ⋃ m ∈ T.midfixes.filter (fun m => G.Good (G.M.eval (u * m).toList)),
           {ω | read (u * m) ω = .undecided} := by
         rintro ω ⟨b, hb, hg⟩
-        obtain ⟨m, hm, rfl, hc⟩ := siftCut_inr T u b hb
+        obtain ⟨m, hm, rfl, hc⟩ := sift_inr_mid T u b hb
         refine Set.mem_biUnion (Finset.mem_filter.2 ⟨hm, hg⟩) ?_
         simp only [Set.mem_ofPred_eq]
         revert hc
@@ -258,6 +224,11 @@ theorem goodStart_le {σ : Type*} [Fintype σ] (G : ReadModel α σ) {Ω : Type*
     set Z : Ω → ℝ := fun ω => ∑ u ∈ U, w u * if ω ∈ E u then 1 else 0
     have hZ : ∀ ω, D.real (G.startAt (read · ω) k T G.Good) = Z ω := by
       intro ω
+      have hset : G.startAt (read · ω) k T G.Good
+          = {x | k ≤ x.toList.length ∧ bad (prefixOf x k) fun z => (read z ω).cut} := by
+        ext x
+        simp only [ReadModel.startAt, bad, ofCut_rd, Set.mem_setOf_eq]
+      rw [hset]
       exact hsplit fun u => bad u fun z => (read z ω).cut
     set g : ∀ u, (Sb u → ARU) → ENNReal := fun u v =>
       if bad u (cutOf u v) then ENNReal.ofReal (Real.exp (l * w u)) else 1

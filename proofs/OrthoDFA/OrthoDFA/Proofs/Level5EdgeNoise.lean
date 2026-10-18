@@ -24,16 +24,15 @@ def pathCond : DTree α → List Bool → Option (List (FreeMonoid α × Bool))
   | .node m _ a, true :: p => (pathCond a p).map ((m, true) :: ·)
   | _, _ => none
 
-theorem siftCut_inl_iff {cut : FreeMonoid α → Option Bool} (u : FreeMonoid α) :
-    ∀ (T : DTree α) (p : List Bool), T.siftCut cut u = .inl p ↔
+theorem sift_ofCut_inl_iff {cut : FreeMonoid α → Option Bool} (u : FreeMonoid α) :
+    ∀ (T : DTree α) (p : List Bool), T.sift (ofCut cut) u = .inl p ↔
       ∃ L, pathCond T p = some L ∧ ∀ mb ∈ L, cut (u * mb.1) = some mb.2
   | .leaf, p => by
-    rcases p with _ | ⟨b, p⟩ <;> simp [DTree.siftCut, DTree.route, pathCond]
+    rcases p with _ | ⟨b, p⟩ <;> simp [DTree.sift, pathCond]
   | .node m r a, p => by
-    have ihr := siftCut_inl_iff (cut := cut) u r
-    have iha := siftCut_inl_iff (cut := cut) u a
-    simp only [DTree.siftCut] at ihr iha ⊢
-    simp only [DTree.route]
+    have ihr := sift_ofCut_inl_iff (cut := cut) u r
+    have iha := sift_ofCut_inl_iff (cut := cut) u a
+    rw [sift_ofCut_node]
     rcases hc : cut (u * m) with _ | b
     · simp only [reduceCtorEq, false_iff, not_exists, not_and]
       intro L hL hall

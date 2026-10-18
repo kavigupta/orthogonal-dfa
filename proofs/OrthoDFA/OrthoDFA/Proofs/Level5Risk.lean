@@ -51,21 +51,22 @@ theorem startHarvest_indicator (k : ℕ) (T : DTree α) (P : σ → Prop) (x : F
       = (G.startAt rd k T P).indicator 1 x := by
   classical
   unfold startHarvestBy ReadModel.startAt
+  rw [ofCut_rd]
   by_cases hk : x.toList.length < k
   · simp [hk, Set.indicator, not_le.2 hk]
-  · rcases hs : T.siftCut (fun z => (rd z).cut) (prefixOf x k) with p | b
+  · rcases hs : T.sift rd (prefixOf x k) with p | b
     · simp [hk, hs, Set.indicator]
     · by_cases hg : P (G.M.eval b.toList) <;> simp [hk, hs, hg, Set.indicator, not_lt.1 hk]
 
 open scoped Classical in
-theorem siteMean_start (k : ℕ) (v : DTree α × EdgeTable α) (P : σ → Prop) :
+theorem siteMean_start (k : ℕ) (v : DTree α × Edges α) (P : σ → Prop) :
     siteMean G D rd k .start P v = D.real (G.startAt rd k v.1 P) := by
   unfold siteMean
   rw [← integral_indicator_one (measurableSet_of_countable _)]
   exact integral_congr_ae (ae_of_all _ fun x => startHarvest_indicator G rd k v.1 P x)
 
 open scoped Classical in
-theorem middleHarvest_indicator (k : ℕ) (T : DTree α) (E : EdgeTable α) (P : σ → Prop)
+theorem middleHarvest_indicator (k : ℕ) (T : DTree α) (E : Edges α) (P : σ → Prop)
     (x : FreeMonoid α) :
     ((((middleHarvestBy (fun z => (rd z).cut) T E k x).filter
         fun b => decide (P (G.M.eval b.toList))).length : ℕ) : ℝ)
@@ -90,7 +91,7 @@ theorem middleHarvest_indicator (k : ℕ) (T : DTree α) (E : EdgeTable α) (P :
       simp [hg]
 
 open scoped Classical in
-theorem siteMean_middles (k : ℕ) (v : DTree α × EdgeTable α) (P : σ → Prop) :
+theorem siteMean_middles (k : ℕ) (v : DTree α × Edges α) (P : σ → Prop) :
     siteMean G D rd k .middles P v = D.real (G.ptAt rd k v.1 v.2 P) := by
   unfold siteMean
   rw [← integral_indicator_one (measurableSet_of_countable _)]
@@ -98,7 +99,7 @@ theorem siteMean_middles (k : ℕ) (v : DTree α × EdgeTable α) (P : σ → Pr
 
 omit [IsProbabilityMeasure D] in
 open scoped Classical in
-theorem siteTotal_middles (v : DTree α × EdgeTable α) :
+theorem siteTotal_middles (v : DTree α × Edges α) :
     siteTotal D rd C.walkStart .middles v = D.real (ptSet C rd v.1 v.2) := by
   unfold siteTotal
   rw [← integral_indicator_one (measurableSet_of_countable _)]
@@ -109,7 +110,7 @@ theorem siteTotal_middles (v : DTree α × EdgeTable α) :
 
 omit [IsProbabilityMeasure D] in
 open scoped Classical in
-theorem siteTotal_start (v : DTree α × EdgeTable α) :
+theorem siteTotal_start (v : DTree α × Edges α) :
     siteTotal D rd C.walkStart .start v = D.real (startSet C rd v.1) := by
   unfold siteTotal
   rw [← integral_indicator_one (measurableSet_of_countable _)]
@@ -212,7 +213,7 @@ theorem bad_of_clean {L : ℕ} {θg θgs θgpt : ℝ} (hE : NoiseEvent G D C 0 �
     unfold Level5EndsWell
     rw [hsite]
     exact endsWell_of_siteGood (D := D) (k := C.walkStart) G hlen rd _ _ _
-      ⟨s.tree, Function.uncurry s.edges⟩ site hgood
+      ⟨s.tree, s.edges⟩ site hgood
   cases e with
   | success =>
     left
