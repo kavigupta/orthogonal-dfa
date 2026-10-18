@@ -84,7 +84,7 @@ the probes uniform over the `N = L₁ + 1 − k` lengths from `k` to `L₁`: if 
 uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target does.
 Level 5 draws at most `Kp · G` probes a round.
 
-The theorem runs `LearnerLoopSimple`'s settings at disagreement rate `εd/2`, with level 5's start
+The theorem runs the loop at disagreement rate `εd/2`, with level 5's start
 test at `εd` against `2εd` and its edges' at rate `εd` and traffic `εd/((|Q|+2)|Σ|)`, so that a
 harvest's sampler yields `ρ/2`. The clustering runs at accuracy `εcov`, small enough that level 5's
 good states are undecided rarely against those gates. `δ` splits into half for the loop, a quarter

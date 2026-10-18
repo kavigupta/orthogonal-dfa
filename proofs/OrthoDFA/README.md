@@ -5,32 +5,10 @@
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
-The headline is `LearnerLoopUniform` (`OrthoDFA/LearnerLoop.lean`, proved in
-`Proofs/LoopUniform.lean`). Take probes uniform over the strings of length `L` and suffixes
-uniform over those of length `L + |Q| + 3`, of which at least `pAP` keep every string's
-membership. Then if `L ≥ L₀`, the learner's loop, walking from `L − 1`, stops within `|Q| + 1`
-rounds at a round whose hypothesis's walk and tree part on at most `εd` of the probes and whose
-read is wrong at most `εcov` and undecided at most `εcov` of the time, with probability at least
-`1 − δ`, at most `Kp · G` probes a round. The whole run reads one noise, fixed per string as the
-Python's is. With `s = 1/2 − η₀`, `δ' = δ/(2(|Q|+1))`, `ρ = 3εd/16`, and level 5's
-`V = (|Q|+2)((|Q|+2)|Σ|+1)`, `Kp = V(224/εd + 1)` and `G = log(4V(2(|Q|+2)|Σ|+4)/δ')`:
-
-    Θ  = 1/s + 8/εcov + 3072 |Q|(|Q|+1)
-    P₀ = 256 (2Θ + 4(1 + log(4 Kp G (|Q|+2)(1 + (|Q|+2)|Σ|)/δ')))/(s² pAP) + 64 log((|Q|+4)/(δ'/2))/pAP²
-    R₀ = 6000 (|Q|+2)² Θ³ log((|Q|+4) P₀ Θ/(δ' pAP/16))/s⁴
-    E  = 2²⁴ (|Q|+3)² (Θ² (R₀ + 1) + (P₀ + 1)/pAP + |Σ|²)/(δ' ρ)
-    L₀ = 2 + 28 (log E + 24)/(25 log |Σ|)
-
-Unfolded, `25/28 · L₀ log |Σ| ≈ 5 log Θ + 4 log(1/s) + log(1/δ) + log(1/εd) + log log(…) +
-O(log |Q| + log |Σ|)`, logarithmic in `1/δ`, `1/εd`, `1/εcov`, `1/s`, `|Q|` and `1/pAP`.
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = εcov = εd = 0.1`, `δ = 0.01`, `pAP = 1/3`, `L₀ = 208` (`219` when level
-5 moved an edge on `recordsToMove` records and allowed splits that are not genuine); the least `L`
-at which `LearnerLoopSimple`'s hypotheses hold there, found numerically, is 188 (was 199). A round's
-budget is `Kp · G`, free of `L`: at that point `1.9e6` probes (the chosen budget `1.88e6`), against
-`3.9e7` at `L = 219` (chosen `3.1e7`) under the records level and `1.1e9` when level 5 tested its
-rates at every look. The band's far side, `δ'/(4 Kp G (|Q|+2)(L+1+(|Q|+2)|Σ|))`, is what keeps
-level 5's reads off the rarer side; it is `1e6`× tighter than under the records level, but enters
-`L₀` only logarithmically, and the `1344`× larger yield `ρ` more than pays for it.
+The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
+loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
+whole run reads one noise, fixed per string as the Python's is. One-step consistency at `L − 1` is not
+enough for this (`parity_toggle`, #438).
 
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
@@ -51,17 +29,7 @@ level 5's reads off the rarer side; it is `1e6`× tighter than under the records
   small enough. A harvest's sampler yields at least `3εd/16`.
 - `Level5FamilyCorrect`: the same, read by a `SuffixFamily` (a DFA target, a suffix-free family
   and a band passing `BandPasses`), at `fam.oracle`.
-- `LearnerLoopCorrect`: the learner's loop, clustering a family and running level 5 with it each
-  round, stops within `|Q| + 1` rounds at a round whose hypothesis and tree agree on all but `εd`
-  of the probes and whose read is rarely wrong, but for chance `(|Q| + 1)(δc + δ)` (below).
-- `LearnerLoopSimple`: the general form of the headline, at settings the theorem chooses, every
-  hypothesis an explicit inequality on any probes and suffixes and any walk start `k ≥ 1`: with
-  probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose hypothesis
-  and tree part on at most `εd` of the probes and whose read is wrong at most `εcov` of the time
-  and undecided at most `εcov`.
-- `LearnerLoopUniform`: the headline above.
-- `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the loop outputs a
-  DFA. See below.
+- `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
 
 ## The learner's DFA
 
@@ -119,39 +87,21 @@ collisions.
 
 ## The loop
 
-`LearnerLoopCorrect` (`OrthoDFA/LearnerLoop.lean`): `indecisiveLStarLoop` clusters a family over
-the populations so far, runs level 5 with it, and adds a harvest's sampler, scaled to a
-probability, as a population of every later round. The whole run, every round's clustering and
-level 5, reads one noise. Each round's clustering draws its prefixes, certification prefixes and
-suffixes off every one the earlier rounds' clusterings read (`offLaw`), so no two rounds read the
-same string. Level 5 runs at disagreement rate `εd / 2` and draws its probes from `D` conditioned
-on their first `k ≥ 1` letters avoiding those of every prefix the round's clustering read. Within
-`|Q| + 1` rounds the loop stops at a round whose hypothesis's walk and tree part on at most `εd` of
-the probes and whose read is decided wrongly at most `εcov + 2·indecisionLimit + 2·slack` of the
-time, but for chance `(|Q| + 1)(δc + δ)`, for probes whose length-`k` prefix mass is at most
-`cap · ρ / 4` and `εd / (4096 (L + 1) unionLog)`. The band's far side is
+`indecisiveLStarLoop` (`OrthoDFA/LearnerLoop.lean`) clusters a family over the populations so far,
+runs level 5 with it, and adds a harvest's sampler, scaled to a probability, as a population of
+every later round. The whole run, every round's clustering and level 5, reads one noise. Each
+round's clustering draws its prefixes, certification prefixes and suffixes off every one the
+earlier rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 5 runs at
+disagreement rate `εd / 2` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
+avoiding those of every prefix the round's clustering read. The band's far side is
 `δ / (4 Kp G (|Q| + 2)(L + 1 + (|Q| + 2)|Σ|))`, so level 5 reads a state on its rarer side rarely
 enough that its splits are all genuine. A harvest's sampler yields at least `ρ / 4` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `4 prefixMax / ρ` on a string, within `cap`, which also bounds the suffixes' atoms. Against `cap`
 the clustering's collision conditions, linear in the schedule's prefix count `NP` and suffix pool
 `NS`, hold, and the earlier rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a
-round, hold at most `m` of any population and `ms` of the suffixes.
-
-`LearnerLoopSimple` fixes everything the theorem may choose: `indecisionLimit = slack = ι` with
-`ι = min(εcov/8, 1/(3072 (L+1)(|Q|+1)|Q|))`, the FNR gate at `1/4`, half of `εcov` for the
-clustering, `|Q| + 1` rounds, suffixes of length `L + |Q| + 3`,
-`δ/(2(|Q| + 1))` for each round's clustering and level 5, and `m = ι/2`, `ms = pAP/2`, so the
-clustering runs at slack `ι/2` and `pAP/2`. `PB` and `RB` bound the pool and the prefix count, from
-`poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`), and its cap is the
-least of six terms linear in them. `LearnerLoopUniform` takes probes and suffixes uniform at
-lengths `L` and `L + |Q| + 3` and `k = L − 1`, so `prefixMax = |Σ|^-k`. `cap_bound`
-(`Proofs/LoopUniform.lean`) shows the cap is at least its first term, `δ'τ²/(2²²(|Q|+3)²(RB+1))`,
-or its third, `δ' pAP/(2¹⁵(|Q|+3)(PB+1))`, and bounds the band's far side `τ` by `1/(Θ(L+1))`,
-`PB` by `(L+1) P₀` and `RB` by `(L+1)⁴ R₀`, so `4/(cap ρ) ≤ (L+1)⁶ E` with `E` free of `L`;
-`6 log(L+1) ≤ 24 + 3(L+1) log |Σ|/28` absorbs the `L`. `E`'s `|Σ|²` holds level 5's prefix
-condition. The proved `L₀` is within 1.10–1.28× of the least `L` at which `LearnerLoopSimple`'s
-hypotheses hold (188 at the point above, 46 at `|Σ| = 16`, 239 at `εcov = 1e-9`).
+round, hold at most `m` of any population and `ms` of the suffixes. `NS` and `NP` are bounded by
+`poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`).
 
 Proved with no `sorry`. The rounds' draws are independent, and given the earlier rounds a round's
 clustering run is drawn as `runMeasure` draws it at their populations conditioned off what they

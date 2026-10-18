@@ -2,13 +2,11 @@ import OrthoDFA.Proofs.LearnerLoop
 import OrthoDFA.Proofs.Budget
 
 /-!
-# The loop's claim at the theorem's own settings
+# The loop's claim at explicit settings
 
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
-`poolCount_le` and `prefCount_le_poly` (`counts_le`). `learner_loop_simple_holds` takes `LoopCore`
-at `K = |Q| + 1`, suffixes of length `L + |Q| + 3`, the gate at `1/4`, half of `εcov` for
-the clustering, `indecisionLimit = slack = ι`, half of `ι` and of `pAP` for what the earlier
-rounds read, and the failure split evenly between the clustering's and level 5's `|Q| + 1`
+`poolCount_le` and `prefCount_le_poly` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
+`K = |Q| + 1`, with the failure split evenly between the clustering's and level 5's `|Q| + 1`
 rounds.
 -/
 
@@ -132,7 +130,7 @@ lemma checks_mono {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Finty
   ⟨agrees_mono hr hu h.1, h.2⟩
 
 set_option maxHeartbeats 2000000 in -- the settings and the cap meet `LoopCore`'s conditions
-/-- `LearnerLoopSimple` with each round's failure `δ'` free and the last round's checked probes at
+/-- The loop's claim with each round's failure `δ'` free and the last round's checked probes at
 most `εd`, at `128ū/εd` more a round. -/
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -381,67 +379,5 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       · linarith
     · show ((Fintype.card σ : ℝ) + 1) * (δ' + (δ' + δs) + 128 * ū / εd) = _
       ring
-
-set_option maxHeartbeats 400000 in -- unfolding the claim's settings
-theorem learner_loop_simple_holds : LearnerLoopSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P η₀ εcov εd δ pAP k Q A L δ' ι ρ s τ J V Kp G PB RB cap
-    hL hη hη₀ hε hε1 hεd hεd1 hδ hδ1 hpAP hL1 hk0 hk1 hk2
-  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
-  have hδ'0 : 0 < δ' := by show 0 < δ / (2 * (Q + 1)); positivity
-  have hδ'1 : δ' ≤ 1 := by
-    have : δ / (2 * (Q + 1)) ≤ δ := div_le_self hδ.le (by linarith)
-    exact this.trans hδ1
-  have hU0 : 0 ≤ unionLog (α := α) σ δ' := by
-    unfold unionLog
-    refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
-    rw [le_div_iff₀ hδ'0]
-    have : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
-    nlinarith
-  have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  have hι0 : 0 ≤ ι := le_min (by positivity) (by positivity)
-  obtain ⟨g1, g2, g3⟩ := old_gates (n := Q) (Lp := L) (ι := ι) (slack := ι)
-    (Λp := unionLog (α := α) σ δ' * prefixMax P.D k) hQ0 (Nat.cast_nonneg _) (by positivity)
-    (mul_nonneg hU0 hpm0) hεd1 (by
-      have h := min_le_right (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
-      have hpos : (0 : ℝ) ≤ 3072 * (L + 1) * (Q + 1) * Q := by positivity
-      have := mul_le_mul_of_nonneg_left h hpos
-      by_cases hQ : Q = 0
-      · rw [hQ]; simp
-      · rw [mul_one_div_cancel (by positivity : (3072 * (L + 1) * (Q + 1) * Q) ≠ 0)] at this
-        have e : 1024 * (L + 1) * (Q + 1) * Q * (2 * ι + ι)
-            = 3072 * (L + 1) * (Q + 1) * Q * ι := by ring
-        rw [e]; exact this) (by
-      have e2 : 4096 * ((P.L : ℝ) + 1) * (unionLog (α := α) σ δ' * prefixMax P.D k)
-          = 16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k := by
-        unfold unionLog
-        change _ = 16384 * ((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 2) * (Fintype.card α : ℝ)
-          * Real.log (((Fintype.card σ : ℝ) + 3) * (Fintype.card α : ℝ) / δ') * prefixMax P.D k
-        ring
-      rw [e2]; exact hk2)
-  obtain ⟨settings, h1, h2, h3, -, -, h4⟩ := loop_simple_checks M O P η₀ εcov εd δ' pAP k 0 0
-    (1 / 2) (3 / 5) (3 / 4) (3 / 4) 0 0 false hL hη
-    hη₀ hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 (by rw [rho_old hεd.le hεd1]; exact hk1) hk2 le_rfl
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) le_rfl le_rfl g1
-    (by
-      have e : 4 * unionLog (α := α) σ δ' * prefixMax P.D k
-          = 4 * (unionLog (α := α) σ δ' * prefixMax P.D k) := by ring
-      rw [e]; exact g2)
-    (by
-      have e : 64 * (L + 1) * unionLog (α := α) σ δ' * prefixMax P.D k
-          = 64 * (L + 1) * (unionLog (α := α) σ δ' * prefixMax P.D k) := by ring
-      rw [e]; exact g3)
-    (fun h => absurd h (by decide))
-  refine ⟨settings, h1, h2, h3, fun Dsf hDsf hlen hpAPD hatom => ?_⟩
-  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
-    ((h4 Dsf hDsf hlen hpAPD hatom).trans (le_of_eq ?_))
-  · intro p hp hgood
-    apply hp
-    obtain ⟨⟨hl, o, ho, hc⟩, -⟩ := hgood
-    rw [add_zero] at hc
-    exact ⟨hl, o, ho, hc.1⟩
-  · show ((Fintype.card σ : ℝ) + 1) * (2 * (δ / (2 * ((Fintype.card σ : ℝ) + 1))) + 0
-      + 128 * 0 / εd) = δ
-    field_simp
-    ring
 
 end OrthoDFA

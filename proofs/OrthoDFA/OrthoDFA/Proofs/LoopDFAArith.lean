@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.LoopUniform
+import OrthoDFA.Proofs.LoopSimple
 
 /-!
 # The learner's DFA: its closed-form length

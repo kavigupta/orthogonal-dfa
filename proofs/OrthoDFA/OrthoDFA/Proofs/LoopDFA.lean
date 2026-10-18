@@ -1,5 +1,6 @@
 import OrthoDFA.LoopDFA
-import OrthoDFA.Proofs.LoopUniform
+import OrthoDFA.Proofs.LoopSimple
+import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopSelect
