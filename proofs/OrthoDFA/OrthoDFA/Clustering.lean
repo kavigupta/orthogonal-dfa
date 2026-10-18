@@ -36,10 +36,9 @@ by the seed's one read than the gate's cut over the family without it, where the
 at one rate.
 
 Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
-reads each population's first `npref + e`, for any `e ≤ npref`, calibrated on the uniform pool's
-first `npref`.  The Python reads the gate on `min(alignment_size, certification_budget)` draws
-from every population, then once more on as many as `prefixes_to_certify` asks for from the one
-left undecided.
+reads each population's first `npref + e`, for any `e ≤ npref`.  The Python reads the gate on
+`min(alignment_size, certification_budget)` draws from every population, then once more on as
+many as `prefixes_to_certify` asks for from the one left undecided.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
@@ -50,9 +49,9 @@ Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds
 share of the uniform pool's distribution its cut at the boundary misclassifies by
 `max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
 side's share and on the seed's rate there, read at the rates `decision_boundary ∓
-min_signal_strength`, which it takes to be the oracle's.  `certifiesAt` reads the noise rates off
-the uniform pool's sample instead, through each side's spread against references outside the
-family, so it needs no rate to be known; the claim covers that test and not the Python's.  The
+min_signal_strength`, which it takes to be the oracle's.  `certifiesAt` bounds each side's wrong
+share through the side's spread against references outside the family, at the worst rate `η₀`,
+so it is sound whatever the rates are; the claim covers that test and not the Python's.  The
 Python's FNR also reads 1 for a family that decides no prefix one of the two ways, which `ret`
 does not.
 
@@ -365,12 +364,6 @@ noncomputable def wrongCap (n against apart : ℕ) (d y : ℝ) : ℝ :=
       / (1 - y - (against : ℝ) / n) ^ 2)
   else 1
 
-/-- An upper bound on the noise rate of the class a side puts there rightly, from its
-against-fraction `m` and a cap on its wrong fraction. -/
-noncomputable def rateBound (η₀ m cap : ℝ) : ℝ :=
-  if cap < 1 then min η₀ (m / (1 - cap)) else η₀
-
-open scoped Classical in
 /-- How many of a side the seed reads against it: `0` on the accept side, `1` on the reject
 side. -/
 noncomputable def againstOn (mq : S → Ω → ℝ) (accept : Bool) (A : Finset S) (ω : Ω) : ℕ :=
@@ -381,36 +374,22 @@ noncomputable def sideCap (mq : S → Ω → ℝ) (accept : Bool) (A R : Finset 
     ℝ :=
   wrongCap A.card (againstOn mq accept A ω) (refApart mq A R ω) (hoeffDev A.card a) y
 
-/-- `rateBound` on one side of the cut, from its cap at `η₀`. -/
-noncomputable def sideRate (mq : S → Ω → ℝ) (η₀ : ℝ) (accept : Bool) (A R : Finset S) (a : ℝ)
+/-- An upper bound on how many of `P` the cut puts on the wrong side: the accept side's wrong
+prefixes lie outside the language and the reject side's inside it, each class's rate at most
+`η₀`. -/
+noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S) (η₀ : ℝ)
     (ω : Ω) : ℝ :=
-  rateBound η₀ ((againstOn mq accept A ω + hoeffDev A.card a) / A.card)
-    (sideCap mq accept A R a η₀ ω)
-
-/-- The noise rates the uniform pool's sample bounds, `(ηIn, ηOut)`: the side its cut accepts
-holds the language rightly, the side it rejects its complement. -/
-noncomputable def calibrate (mq : S → Ω → ℝ) (η₀ a : ℝ) (lo hi : ℕ) (F R P : Finset S) (ω : Ω) :
-    ℝ × ℝ :=
-  (sideRate mq η₀ true (acceptSide mq hi F P ω) R a ω,
-    sideRate mq η₀ false (rejectSide mq lo F P ω) R a ω)
-
-/-- An upper bound on how many of `P` the cut puts on the wrong side, given bounds `rates` on
-`(ηIn, ηOut)`: the accept side's wrong prefixes lie outside the language, at `ηOut`, and the
-reject side's inside it, at `ηIn`. -/
-noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S)
-    (rates : ℝ × ℝ) (ω : Ω) : ℝ :=
-  (acceptSide mq hi F P ω).card * sideCap mq true (acceptSide mq hi F P ω) R a rates.2 ω
-    + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a rates.1 ω
+  (acceptSide mq hi F P ω).card * sideCap mq true (acceptSide mq hi F P ω) R a η₀ ω
+    + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a η₀ ω
 
 /-- `drift_verdict`'s ADMITTED, as modelled: the family's cut misclassifies at most `lim` of the
 population.
-`P` is the sample, drawn as the first `N` draws without replacement, `R` the references and
-`rates` the noise rates' bounds.  `miscutBound` is read at `sizeLevel a #P`, and the passage
-from the `N` draws to the population at `sizeLevel a N`; the draws the sampler redrew count as
-misclassified. -/
-def certifiesAt (mq : S → Ω → ℝ) (lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (N : ℕ)
-    (rates : ℝ × ℝ) (ω : Ω) : Prop :=
-  0 < N ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P rates ω + ((N : ℝ) - P.card)
+`P` is the sample, drawn as the first `N` draws without replacement, and `R` the references.
+`miscutBound` is read at `sizeLevel a #P`, and the passage from the `N` draws to the population at
+`sizeLevel a N`; the draws the sampler redrew count as misclassified. -/
+def certifiesAt (mq : S → Ω → ℝ) (η₀ lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (N : ℕ) (ω : Ω) :
+    Prop :=
+  0 < N ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P η₀ ω + ((N : ℝ) - P.card)
     ≤ N * lim - hoeffDev N (sizeLevel a N)
 
 open scoped Classical in
@@ -423,17 +402,16 @@ open scoped Classical in
 /-- `misclassification_limit`: `εcov` on the uniform pool, a half elsewhere. -/
 noncomputable def gateLimit (uni : J) (εcov : ℝ) (j : J) : ℝ := if j = uni then εcov else 1 / 2
 
-/-- The level the gate spends at a state: `α` over the gate's thirteen tails per population,
+/-- The level the gate spends at a state: `α` over the gate's seven tails per population,
 and over the states by their prefix counts. -/
 noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
-  sizeLevel (α / (13 * populations.card)) B.npref
+  sizeLevel (α / (7 * populations.card)) B.npref
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 test per population on `certOf`, and the gate per population, which may draw that population
-further when the split reads uncertified, to at most twice its size.  The gate's rates are
-calibrated on the uniform pool's first look.  The FNR reads the family with its seed; the gate
-reads it without, since the seed's read is the bit the gate scores. -/
+further when the split reads uncertified, to at most twice its size.  The FNR reads the family
+with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
@@ -443,13 +421,10 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∀ j ∈ populations, ∃ e ≤ B.npref,
-      certifiesAt mq (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
+      certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
         (clusterAt mq populations x B) (refsAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
         (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x) (B.npref + e))
-        (calibrate mq η₀ (sizeLevel (gateLevel α populations B) B.npref) B.lo B.hi
-          (clusterAt mq populations x B) (refsAt mq populations x B)
-          (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x))
         (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
@@ -470,12 +445,14 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 
 /-! ## The theorem -/
 
-/-- The indecision rate the schedule solves its cut at: the claim's, or less where the uniform
-pool's thinner class or the coverage asks for it.  The gate calibrates the noise rates on the
-uniform pool's two sides, which a cut wrong on more of either side than a fraction of `1/2 − η₀`
-cannot do, and charges each wrongly cut prefix of a sample up to thirteen times over. -/
-noncomputable def cutLimit (η₀ indecisionLimit εcov pBal : ℝ) : ℝ :=
-  min indecisionLimit (min (pBal * (1 / 2 - η₀) / 80) (εcov / 64))
+/-- The rate the counts resolve:
+
+    min(min(εcov, 1/2)·a², 1/2 − η₀, indecisionLimit),   a = (1 − 2η₀)/(1 − η₀)
+
+The gate charges each wrongly cut prefix at most `7/(3a²)` of a read, so the share a family may
+cut wrongly is held at a multiple of `min(εcov, 1/2)·a²`. -/
+noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
+  min (min εcov (1 / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) (min (1 / 2 - η₀) indecisionLimit)
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns there cuts
@@ -489,8 +466,7 @@ larger than its own, whose mean lies above the band, lands at or below `lo`, or 
 lies at or below `lo` lands above `hi`, at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
-the one population every prefix of the learner's distribution is drawn from, and `pBal`
-lower-bounds the share of it the language takes and the share it leaves.  `pAP` lower-bounds
+the one population every prefix of the learner's distribution is drawn from.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions, and a population need only have a collision mass small against
@@ -499,13 +475,12 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP pBal crossLimit : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
-  0 < pBal →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →
@@ -518,23 +493,21 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      100000
+      60000
       * (populations.card : ℝ) ^ 2
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
-        / (δ * α * pAP * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal))
+        / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
-      / ((1 / 2 - η₀) ^ 4 * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) ^ 2)
+      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤
-      5 * Real.log (128 * (populations.card : ℝ) / δ)
-        / cutLimit η₀ indecisionLimit εcov pBal ^ 2
+      5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2
     ) ∧
     (∀ B ∈ states,
-      (B.k : ℝ) ≤ 64 * Real.log (2 / (min (1 / 2 - η₀)
-          (cutLimit η₀ indecisionLimit εcov pBal) * crossLimit)) / (1 / 2 - η₀) ^ 2
-      ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-            (2 / (min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) * crossLimit))
+      (B.k : ℝ) ≤ 64 * Real.log (2 / (rateScale η₀ indecisionLimit εcov * crossLimit))
+          / (1 / 2 - η₀) ^ 2
+      ∧ (B.nsuff : ℝ) ≤ 128 * Real.log (2 / (rateScale η₀ indecisionLimit εcov * crossLimit))
           / ((1 / 2 - η₀) ^ 2 * pAP)
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
     (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -545,11 +518,9 @@ def ClusteringGuarantee : Prop :=
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      pBal ≤ (D uni).real O.L →
-      pBal ≤ (D uni).real O.Lᶜ →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-          ≤ δ * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) ^ 2) →
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real

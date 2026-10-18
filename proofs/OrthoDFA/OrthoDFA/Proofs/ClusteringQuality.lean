@@ -363,12 +363,12 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 /-! ## The theorem -/
 
 set_option maxHeartbeats 1000000 in
-/-- From `clustering_correct` at `δ/2`, with the schedule at `cutLimit`: the family's realized
+/-- From `clustering_correct` at `δ/2`: the family's realized
 miscut and undecided masses are within `slack/2` of their means off the table's prefixes, which
 carry little mass, except on an event the populations' collision masses hold to `δ/2`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ iL εcov α δ pAP pBal crossLimit
-    slack hηle hη₀ huni hflat hpAP hpBal hind' hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ iL εcov α δ pAP crossLimit
+    slack hηle hη₀ huni hflat hpAP hind' hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
@@ -377,12 +377,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  set indecisionLimit : ℝ := cutLimit η₀ iL εcov pBal with hiLc
-  have hs : 0 < 1 / 2 - η₀ := by linarith
-  have hind : 0 < indecisionLimit := lt_min hind' (lt_min (by positivity) (by positivity))
-  have hiLcε : indecisionLimit ≤ εcov / 64 := (min_le_right _ _).trans (min_le_right _ _)
-  have hmin : min εcov (min (1 / 2 - η₀) indecisionLimit) = min (1 / 2 - η₀) indecisionLimit :=
-    min_eq_right (le_trans (min_le_right _ _) (by linarith))
+  set indecisionLimit : ℝ := iL with hiLc
+  have hind : 0 < indecisionLimit := hind'
   set N : ℝ := (populations.card : ℝ)
     * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit : ℝ) with hNdef
   have hN0 : 0 ≤ N := by positivity
@@ -395,7 +391,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hm : (0 : ℝ) < m := by
     rw [hmdef]; exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
       (crossLimit := crossLimit) η₀ populations εcov δ' α pAP
-  have hscale : 0 < budgetScale η₀ indecisionLimit εcov := lt_min hε (lt_min hsig hind)
+  have hscale := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hη₀
   set ρ₀ : ℝ := collisionCap η₀ populations indecisionLimit εcov δ' α pAP crossLimit with hρ₀def
   have hρ₀0 : 0 ≤ ρ₀ := by
     rw [hρ₀def, collisionCap]
@@ -406,7 +402,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hpIn hpOut hcollD hslackD hcollSf
+  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hslackD hcollSf
   have := hD
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
@@ -421,8 +417,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
         have h := hcollD _ htop j hj
         rw [hδ'def]
         change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * collisionMass (D j)
-          ≤ δ * min (1 / 2 - η₀) indecisionLimit ^ 2 at h
-        rw [← hmdef, hmin]
+          ≤ δ * budgetScale η₀ indecisionLimit εcov ^ 2 at h
+        rw [← hmdef]
         linarith) (by simp only [mul_zero]; positivity)).1
   have hcapsf : collisionMass Dsf
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ' pAP crossLimit :=
@@ -481,8 +477,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       linarith only [h, mul_nonneg hJ1 hm.le]
     exact mul_le_mul_of_nonneg_left h' hs2
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ iL εcov α δ'
-    ρ₀ pAP pBal crossLimit 100000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound hpBal
-    hpIn hpOut hind' hind1 hα hα1 hε hε1 hδ'
+    ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound
+    hind' hind1 hα hα1 hε hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP hpAP1)
     le_rfl hcapsf

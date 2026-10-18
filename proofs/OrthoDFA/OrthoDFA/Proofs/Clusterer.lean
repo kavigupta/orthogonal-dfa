@@ -52,13 +52,10 @@ noncomputable def refsBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
 `rule`. -/
 def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ εcov α : ℝ) (B : State) (j : J) (e : ℕ) (x : Run Ω S J) : Prop :=
-  certifiesAt mq (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
+  certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
     (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
     (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
     (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x) (B.npref + e))
-    (calibrate mq η₀ (sizeLevel (gateLevel α populations B) B.npref) B.lo B.hi
-      (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
-      (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x))
     (oracleNoise x)
 
 open scoped Classical in

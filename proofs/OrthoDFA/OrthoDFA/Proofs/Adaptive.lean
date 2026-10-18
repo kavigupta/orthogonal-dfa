@@ -398,14 +398,21 @@ lemma cutBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 
     (hind : 0 < indecisionLimit) : 0 < cutBudget η₀ indecisionLimit εcov := by
   rw [cutBudget]
   exact lt_min (div_pos hε (by norm_num))
-    (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (by linarith))
+    (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (lt_min (by linarith) (by
+      have := gateKappa_pos hsig
+      have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
+      positivity)))
 
 lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
     cutBudget η₀ indecisionLimit εcov ≤ εcov / 8
     ∧ cutBudget η₀ indecisionLimit εcov ≤ sig η₀ / 10
     ∧ cutBudget η₀ indecisionLimit εcov ≤ indecisionLimit / 2 :=
   ⟨min_le_left _ _, (min_le_right _ _).trans (min_le_left _ _),
-    (min_le_right _ _).trans (min_le_right _ _)⟩
+    (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))⟩
+
+lemma cutBudget_le_gate (η₀ indecisionLimit εcov : ℝ) :
+    cutBudget η₀ indecisionLimit εcov ≤ 32 * gateKappa η₀ * min εcov (1 / 2) / 65 :=
+  (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
 
 lemma voteSlack_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSlack η₀ := by
   rw [voteSlack]

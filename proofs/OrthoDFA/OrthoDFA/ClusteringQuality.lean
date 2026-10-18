@@ -34,13 +34,12 @@ def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP pBal crossLimit slack : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
-  0 < pBal →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →
@@ -60,11 +59,9 @@ def ClusteringQualityGuarantee : Prop :=
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      pBal ≤ (D uni).real O.L →
-      pBal ≤ (D uni).real O.Lᶜ →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-          ≤ δ * min (1 / 2 - η₀) (cutLimit η₀ indecisionLimit εcov pBal) ^ 2) →
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
           ≤ δ * slack ^ 2) →
