@@ -25,16 +25,16 @@ over. -/
 def unionLog (σ : Type*) [Fintype σ] (δ : ℝ) : ℝ :=
   4 * (Fintype.card σ + 2) * Fintype.card α * Real.log ((Fintype.card σ + 3) * Fintype.card α / δ)
 
-/-- The probes that search, at a tree and curried edges. -/
-def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
+/-- The probes that search, at a tree and edges. -/
+def searchAt (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
     Set (FreeMonoid α) :=
-  {x | match probeBy (fun z => (rd z).cut) T edges k x with
-    | .undecidedMid _ | .edge _ _ => True
+  {x | match probeOrAgree rd T edges k x with
+    | .wrongEdge _ _ _ _ | .undecided _ false => True
     | _ => False}
 
-theorem searchAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α) :
-    searchAt rd k T edges = {x | match probeBy (fun z => (rd z).cut) T edges k x with
-      | .undecidedMid _ | .edge _ _ => True
+theorem searchAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α) :
+    searchAt rd k T edges = {x | match probeOrAgree rd T edges k x with
+      | .wrongEdge _ _ _ _ | .undecided _ false => True
       | _ => False} := rfl
 
 /-- The run from `s` over the draws ends with an ending satisfying `Q`. -/
@@ -75,9 +75,9 @@ def Level5EndsWell {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dist
     (D : Measure (FreeMonoid α)) (C : Level5Settings) (J : ℕ) (ū : ℝ) (rd : FreeMonoid α → ARU)
     (e : Level5Ending α) (s : Level5State α) : Prop :=
   EndsWell M bad D (3 / 2 * C.disagreementRate)
-    (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū ⟨s.tree, Function.uncurry s.edges⟩)
+    (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū ⟨s.tree, s.edges⟩)
     C.walkStart
-    (harvestLaw D (fun z => (rd z).cut) C.walkStart ⟨s.tree, Function.uncurry s.edges⟩)
+    (harvestLaw D (fun z => (rd z).cut) C.walkStart ⟨s.tree, s.edges⟩)
     C.harvestYield (toRoundEnd e)
 
 /-- The most hypotheses a round goes through: each split adds a leaf, and between splits each

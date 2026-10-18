@@ -27,37 +27,24 @@ variable {cut : FreeMonoid α → Option Bool} {z : FreeMonoid α}
 def cutWithout (cut : FreeMonoid α → Option Bool) (z : FreeMonoid α) : FreeMonoid α → Option Bool :=
   fun y => if y = z then none else cut y
 
-theorem siftCut_without_inl {T : DTree α} {u : FreeMonoid α} {p : List Bool}
-    (h : T.siftCut (cutWithout cut z) u = .inl p) : T.siftCut cut u = .inl p := by
-  obtain ⟨L, hL, hall⟩ := (siftCut_inl_iff u T p).1 h
-  refine (siftCut_inl_iff u T p).2 ⟨L, hL, fun mb hmb => ?_⟩
+theorem sift_without_inl {T : DTree α} {u : FreeMonoid α} {p : List Bool}
+    (h : T.sift (ofCut (cutWithout cut z)) u = .inl p) : T.sift (ofCut cut) u = .inl p := by
+  obtain ⟨L, hL, hall⟩ := (sift_ofCut_inl_iff u T p).1 h
+  refine (sift_ofCut_inl_iff u T p).2 ⟨L, hL, fun mb hmb => ?_⟩
   have := hall mb hmb
   simp only [cutWithout] at this
   split_ifs at this
   exact this
 
-theorem walkCheckBy_without_inr {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
-    {r : List (List Bool) × ℕ} (h : walkCheckBy (cutWithout cut z) T edges k x = .inr r) :
-    walkCheckBy cut T edges k x = .inr r := by
-  unfold walkCheckBy kWalkBy at h ⊢
-  rcases ha : T.siftCut (cutWithout cut z) (prefixOf x k) with p₀ | b
-  swap
-  · simp [ha] at h
-  have hw : walkToBy (cutWithout cut z) T edges k x = walkToBy cut T edges k x := by
-    funext j; simp only [walkToBy, ha, siftCut_without_inl ha]
-  rw [siftCut_without_inl ha]
-  simp only [ha] at h
-  rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i⟩ <;> simp only [hf] at h ⊢
-  · rcases hx : T.siftCut (cutWithout cut z) x with a | b <;> simp only [hx, reduceCtorEq] at h
-    · rw [siftCut_without_inl hx]; exact h
-  · rcases h1 : T.siftCut (cutWithout cut z) (prefixOf x (k + i + 1)) with q₁ | b <;>
-      simp only [h1, reduceCtorEq] at h
-    rw [siftCut_without_inl h1]
-    rcases h2 : T.siftCut (cutWithout cut z) (prefixOf x (k + i)) with q₂ | b <;>
-      simp only [h2, reduceCtorEq] at h
-    rw [siftCut_without_inl h2]
-    simp only []
-    rw [← hw]; exact h
+/-- Making `z` undecided can only stop a search, never start one. -/
+theorem isSearch_without {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : (probeOrAgree (ofCut (cutWithout cut z)) T edges k x).IsSearch) :
+    (probeOrAgree (ofCut cut) T edges k x).IsSearch := by
+  obtain ⟨hk, p₀, h₀, hc, l, hl, hne⟩ := (probe_isSearch_iff _ T edges k x).1 h
+  refine (probe_isSearch_iff _ T edges k x).2
+    ⟨hk, p₀, sift_without_inl h₀, fun c hc' => ?_, l, sift_without_inl hl, hne⟩
+  obtain ⟨t, ht⟩ := hc c hc'
+  exact ⟨t, sift_without_inl ht⟩
 
 end Update
 
@@ -78,31 +65,26 @@ theorem prefAgreeK_of_strings {cut cut' : FreeMonoid α → Option Bool} {T : DT
       rw [List.take_of_length_le (by omega), List.take_of_length_le le_rfl]
   obtain ⟨j', hj'm, hjj⟩ := hj'
   rw [hjj]
-  exact siftCut_congr_mid T _ fun m hm =>
+  exact sift_congr_mid T _ fun m hm =>
     h _ (Finset.mem_biUnion.2 ⟨j', hj'm, Finset.mem_image_of_mem _ hm⟩)
 
 open scoped Classical in
 /-- A probe searches with a given string undecided with no more than the chance it searches,
 times that string's chance of being undecided. -/
 theorem search_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (T : DTree α) (edges : EdgeTable α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length)
+    (T : DTree α) (edges : Edges α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length)
     (z : FreeMonoid α) :
-    μ.real {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
+    μ.real {ω | (probeOrAgree (read · ω) T edges k x).IsSearch
         ∧ read z ω = .undecided}
-      ≤ μ.real {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch}
+      ≤ μ.real {ω | (probeOrAgree (read · ω) T edges k x).IsSearch}
         * μ.real {ω | read z ω = .undecided} := by
   set R := (probeStrings T k x).erase z
-  set S' : Set Ω := {ω | (probeBy (cutWithout (fun y => (read y ω).cut) z) T edges k x).IsSearch}
-  have hS'sub : S' ⊆ {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch} := by
+  set S' : Set Ω := {ω | (probeOrAgree (ofCut (cutWithout (fun y => (read y ω).cut) z)) T edges k x).IsSearch}
+  have hS'sub : S' ⊆ {ω | (probeOrAgree (read · ω) T edges k x).IsSearch} := by
     intro ω hω
-    obtain ⟨ps, hi, hw, hb⟩ := probeBy_search _ rfl hω
-    have hw' := walkCheckBy_without_inr hw
-    show (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
-    have hlong : ¬ x.toList.length < k := fun hs => by
-      simp [S', probeBy, hs, WalkOutcome.IsSearch] at hω
-    rw [probeBy_eq, if_neg hlong, hw']
-    exact bracketAt_isSearch _ _ _ _ _
-  have heqset : {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
+    have := isSearch_without hω
+    rwa [ofCut_rd] at this
+  have heqset : {ω | (probeOrAgree (read · ω) T edges k x).IsSearch
       ∧ read z ω = .undecided} = S' ∩ {ω | read z ω = .undecided} := by
     ext ω
     simp only [Set.mem_setOf_eq, Set.mem_inter_iff, S']
@@ -113,18 +95,19 @@ theorem search_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
         funext y; simp only [cutWithout]; split_ifs with hy
         · subst hy; rw [h2]; rfl
         · rfl
-      rw [this]; exact h1
+      rw [this, ofCut_rd]; exact h1
     · rintro ⟨h1, h2⟩
       have : cutWithout (fun y => (read y ω).cut) z = fun y => (read y ω).cut := by
         funext y; simp only [cutWithout]; split_ifs with hy
         · subst hy; rw [h2]; rfl
         · rfl
-      rw [this] at h1; exact ⟨h1, h2⟩
-  have hS' : S' = (fun ω (i : R) => read i ω) ⁻¹' {v | (probeBy (fun y => (rdOf R v y).cut)
+      rw [this, ofCut_rd] at h1; exact ⟨h1, h2⟩
+  have hS' : S' = (fun ω (i : R) => read i ω) ⁻¹' {v | (probeOrAgree (rdOf R v)
       T edges k x).IsSearch} := by
     ext ω
     simp only [Set.mem_preimage, Set.mem_setOf_eq, S']
-    rw [probeBy_congrK (edges := edges) (prefAgreeK_of_strings hkx fun y hy => ?_)]
+    rw [← ofCut_rd (rdOf R fun i => read i ω),
+      probeOrAgree_congrK (edges := edges) (prefAgreeK_of_strings hkx fun y hy => ?_)]
     simp only [cutWithout, rdOf]
     by_cases hyz : y = z
     · rw [if_pos hyz, dif_neg (by simp [R, hyz])]; rfl
@@ -136,7 +119,7 @@ theorem search_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
   have hdisj : Disjoint R {z} := Finset.disjoint_singleton_right.2 (by simp [R])
   have hI := hind.indepFun_finset R {z} hdisj hmeas
   have heq := hI.measure_inter_preimage_eq_mul
-    {v : R → ARU | (probeBy (fun y => (rdOf R v y).cut) T edges k x).IsSearch}
+    {v : R → ARU | (probeOrAgree (rdOf R v) T edges k x).IsSearch}
     {v : ({z} : Finset (FreeMonoid α)) → ARU | v ⟨z, Finset.mem_singleton_self z⟩ = .undecided}
     (Set.to_countable _).measurableSet (Set.to_countable _).measurableSet
   rw [← hS', ← hB] at heq
@@ -158,12 +141,12 @@ open scoped Classical in
 its positions' and the midfixes' counts times `1.5θ` of its chance of searching. -/
 theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hlaw : ∀ z r, μ.real {ω | read z ω = r} = G.readDist (G.M.eval z.toList) r) (hθ : 0 ≤ G.θ)
-    (T : DTree α) (edges : EdgeTable α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
+    (T : DTree α) (edges : Edges α) {k : ℕ} {x : FreeMonoid α} (hkx : k ≤ x.toList.length) :
     μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
       ≤ (x.toList.length + 1) * T.midfixes.card * (3 / 2 * G.θ)
         * μ.real {ω | x ∈ searchAt (read · ω) k T edges} := by
   set J := Finset.Icc k x.toList.length
-  set Srch : Set Ω := {ω | (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch}
+  set Srch : Set Ω := {ω | (probeOrAgree (read · ω) T edges k x).IsSearch}
   have hsrch : {ω | x ∈ searchAt (read · ω) k T edges} = Srch := by
     ext ω; simp only [Set.mem_setOf_eq, Srch]; exact mem_searchAt
   have hsub : {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
@@ -172,34 +155,25 @@ theorem pt_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
     intro ω hω
     obtain ⟨b, hb, hg⟩ := hω
     unfold middleHarvestBy at hb
-    rcases ho : probeBy (fun y => (read y ω).cut) T edges k x with _ | _ | _ | j | _ | _ <;>
+    rw [ofCut_rd] at hb
+    rcases ho : probeOrAgree (read · ω) T edges k x with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;>
       rw [ho] at hb <;> simp only [reduceCtorEq] at hb
     all_goals first
       | (simp at hb)
       | skip
-    all_goals
-      rcases hs : T.siftCut (fun y => (read y ω).cut) (prefixOf x j) with q
-          | b' <;> rw [hs] at hb <;>
-        simp only [Sum.elim_inl, Sum.elim_inr, List.cons.injEq, reduceCtorEq, and_true,
-          List.nil_eq] at hb
-      subst hb
-      obtain ⟨m, hm, rfl, hcm⟩ := siftCut_inr T (prefixOf x j) b' hs
-      obtain ⟨ps, hi, -, hbr⟩ := probeBy_search _ ho trivial
-      have hjk : k < j := (bracketAt_mid _ _ _ _ _ _ hbr).1
-      set j' := min j x.toList.length
-      have hpj : prefixOf x j = prefixOf x j' := by
-        simp only [prefixOf, j']
-        rcases le_total j x.toList.length with h | h
-        · rw [min_eq_left h]
-        · rw [min_eq_right h, List.take_of_length_le h, List.take_of_length_le le_rfl]
-      have hj' : j' ∈ J := Finset.mem_Icc.2 ⟨le_min hjk.le hkx, min_le_right _ _⟩
-      rw [hpj] at hg hcm
-      refine Set.mem_biUnion hj' (Set.mem_biUnion (Finset.mem_filter.2 ⟨hm, hg⟩) ⟨?_, ?_⟩)
-      · show (probeBy (fun y => (read y ω).cut) T edges k x).IsSearch
-        rw [ho]; trivial
-      · simp only [Set.mem_setOf_eq]
-        revert hcm
-        cases read (prefixOf x j' * m) ω <;> simp [ARU.cut]
+    obtain ⟨j, b', hjk, hjx, hs, rfl⟩ := probe_middle _ T edges k x ho
+    simp only [List.cons.injEq, and_true] at hb
+    subst hb
+    have hs' : T.sift (ofCut fun y => (read y ω).cut) (prefixOf x j) = .inr b' := by
+      rw [ofCut_rd]; exact hs
+    obtain ⟨m, hm, rfl, hcm⟩ := sift_inr_mid T (prefixOf x j) b' hs'
+    have hj' : j ∈ J := Finset.mem_Icc.2 ⟨hjk.le, hjx.le⟩
+    refine Set.mem_biUnion hj' (Set.mem_biUnion (Finset.mem_filter.2 ⟨hm, hg⟩) ⟨?_, ?_⟩)
+    · show (probeOrAgree (read · ω) T edges k x).IsSearch
+      rw [ho]; trivial
+    · simp only [Set.mem_setOf_eq]
+      revert hcm
+      cases read (prefixOf x j * m) ω <;> simp [ARU.cut]
   rw [hsrch]
   calc μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good}
       ≤ μ.real (⋃ j ∈ J, ⋃ m ∈ T.midfixes.filter fun m =>
@@ -242,7 +216,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
-    (hT : (L + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀) (edges : EdgeTable α) :
+    (hT : (L + 1) * T.midfixes.card * (3 / 2 * G.θ) ≤ θ₀) (edges : Edges α) :
     μ {ω | 2 * θ₀ * D.real (searchAt (read · ω) k T edges) + η
         < D.real (G.ptAt (read · ω) k T edges G.Good)}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))) := by
@@ -265,7 +239,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     intro x rd rd' h
     by_cases hkx : k ≤ x.toList.length
     · simp only [tf, searchAt_eq, Set.mem_setOf_eq,
-        probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
+        probeOrAgree_congrK_rd (edges := edges) (hagr x hkx rd rd' h)]
     · simp only [tf, hkx, false_and, if_false]
   have hb01 : ∀ (P : Prop) [Decidable P], 0 ≤ (if P then (1 : ℝ) else 0)
       ∧ (if P then (1 : ℝ) else 0) ≤ 1 := by
@@ -294,7 +268,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
       have := measurable_of_strings hmeas (probeStrings T k x)
         (fun rd => decide (x ∈ searchAt rd k T edges)) fun rd rd' h => by
           simp only [searchAt_eq, Set.mem_setOf_eq,
-            probeBy_congrK (edges := edges) (hagr x hkx rd rd' h)]
+            probeOrAgree_congrK_rd (edges := edges) (hagr x hkx rd rd' h)]
       convert this (measurableSet_singleton true) using 1
       ext ω; simp
     have e1 : ∫ ω, uf (read · ω) x ∂μ = μ.real {ω | x ∈ G.ptAt (read · ω) k T edges G.Good} := by
@@ -334,7 +308,7 @@ theorem pt_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     · simp only [tf, hkx, true_and]
     · have hs' : x.toList.length < k := by omega
       have : x ∉ searchAt (read · ω) k T edges := by
-        simp [searchAt_eq, probeBy_short _ T edges hs']
+        simp [searchAt_eq, probeOrAgree, hs']
       simp [tf, hkx, this]
   calc μ _ ≤ μ {ω | 2 * θ₀ * ∑ x ∈ lenRange 0 L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ lenRange 0 L, D.real {x} * uf (read · ω) x} := by
@@ -370,7 +344,7 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
   have hθ₀ : 0 ≤ θ₀ := by positivity
   have h2θ : 2 * θ₀ ≤ θgpt := by simp only [θ₀, n]; push_cast; linarith
   set ε : ℝ := Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀ * 1))))
-  set B : DTree α → EdgeTable α → Set Ω := fun T e => {ω |
+  set B : DTree α → Edges α → Set Ω := fun T e => {ω |
     2 * θ₀ * D.real (searchAt (read · ω) k T e) + η
       < D.real (G.ptAt (read · ω) k T e G.Good)}
   have hsub : {ω | ¬ ∀ T edges, G.InClass S T → EdgesInto T edges →
@@ -388,7 +362,7 @@ theorem goodPT_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ
     have hS : searchAt (read · ω) k T edges = searchAt (read · ω) k T e' := by
       ext x
       simp only [searchAt_eq, Set.mem_setOf_eq]
-      rw [probeBy_econgr (cut := fun z => (read z ω).cut) (k := k) (x := x) he hagr]
+      rw [probe_econgr (read · ω) T k x he hagr]
     refine Set.mem_biUnion (inClass_mem G hT) (Set.mem_biUnion he'm ?_)
     simp only [B, Set.mem_setOf_eq]
     rw [hP, hS] at hlt

@@ -71,13 +71,13 @@ abbrev ResCode (α : Type*) :=
   DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)) × Bool
 
 def resCode (res : Level5Result α) : ResCode α :=
-  (res.hypothesis.tree, edgeGraph (Function.curry res.hypothesis.edges),
+  (res.hypothesis.tree, edgeGraph res.hypothesis.edges,
     match res.ending with
     | .consistent => true
     | _ => false)
 
 /-- The hypothesis a code holds. -/
-def ResCode.hyp (c : ResCode α) : HypothesisDFA α := ⟨c.1, Function.uncurry (decodeEdges c.2.1)⟩
+def ResCode.hyp (c : ResCode α) : HypothesisDFA α := ⟨c.1, decodeEdges c.2.1⟩
 
 /-- What reaches a round's level 5: the earlier rounds' data, the state, family and keys. -/
 abbrev Stage4 (α : Type*) :=
@@ -509,7 +509,7 @@ theorem stageSel_last (hC : 2 ≤ settings.level5.maxLeaves) (Ls : ℕ)
     rw [← hxs] at hfin
     unfold resCode ResCode.hyp
     dsimp only
-    rw [decodeEdges_edgeGraph hfin, Function.uncurry_curry]
+    rw [decodeEdges_edgeGraph hfin]
 
 end Last
 

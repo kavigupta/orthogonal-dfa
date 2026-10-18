@@ -342,7 +342,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     (hB : sift = true → ∀ read : FreeMonoid α → ARU, (Measure.pi fun _ : Fin C.probeBudget => D')
         {draws | let result := indecisiveLStarLevel5 C read draws
           result.ending = .consistent ∧ us ≤ D'.real (undSiftSet (fun z => (read z).cut)
-            result.hypothesis.tree (Function.curry result.hypothesis.edges) C.walkStart)}
+            result.hypothesis.tree result.hypothesis.edges C.walkStart)}
         ≤ ENNReal.ofReal δs)
     (hus : 0 ≤ us) (hδ₁ : 0 ≤ δ₁) (hδs : 0 ≤ δs) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => D')
@@ -379,7 +379,7 @@ theorem sifted_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
         (harvestLaw D' (fun z => (O'.read z ω).cut) C.walkStart (R draws).hypothesis) y
         (R draws).ending} ∪ {draws | sift = true ∧ (R draws).ending = .consistent
           ∧ us ≤ D'.real (undSiftSet (fun z => (O'.read z ω).cut) (R draws).hypothesis.tree
-            (Function.curry (R draws).hypothesis.edges) C.walkStart)}) ?_).trans
+            (R draws).hypothesis.edges C.walkStart)}) ?_).trans
       ((measure_union_le _ _).trans (add_le_add le_rfl ?_))
     · intro draws hd
       by_contra hno

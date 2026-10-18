@@ -52,8 +52,8 @@ def TriOracle.Good {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {σ : Typ
 at a decided read, or the walk stops at an unlearned edge it could learn. -/
 def searchingProbes (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) :
     Set (FreeMonoid α) :=
-  {x | match probeBy (fun z => (read z).cut) H.tree (Function.curry H.edges) k x with
-    | .undecidedMid _ | .edge _ _ | .member _ => True
+  {x | match probeOrAgree read H.tree H.edges k x with
+    | .wrongEdge _ _ _ _ | .undecided _ false | .unlearnedEdge _ _ _ _ => True
     | _ => False}
 
 /-- The words of at most `n` letters. -/

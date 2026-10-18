@@ -117,7 +117,7 @@ theorem measurableSet_mem_searchingProbes (O : Oracle μ (FreeMonoid α))
       (fun z => (familyRead O.mq F kl kh z ω).cut) (fun z => (familyRead O.mq F kl kh z ω').cut) :=
     fun z hz => by dsimp only; rw [familyRead_congr O h (mem_shortStrings.2 hz)]
   simp only [Set.mem_setOf_eq, searchingProbes] at hω ⊢
-  rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
+  rwa [← probeOrAgree_congr_up_rd hagree (midLe_midLen H.tree) le_rfl]
 
 theorem measurableSet_mem_siftedProbes (O : Oracle μ (FreeMonoid α))
     (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (sift : Bool) (H : HypothesisDFA α)
@@ -129,7 +129,7 @@ theorem measurableSet_mem_siftedProbes (O : Oracle μ (FreeMonoid α))
       (fun z => (familyRead O.mq F kl kh z ω).cut) (fun z => (familyRead O.mq F kl kh z ω').cut) :=
     fun z hz => by dsimp only; rw [familyRead_congr O h (mem_shortStrings.2 hz)]
   simp only [Set.mem_setOf_eq, siftedProbes, undSiftSet] at hω ⊢
-  rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
+  rwa [← probeOrAgree_congr_up hagree (midLe_midLen H.tree) le_rfl]
 
 lemma length_le_of_mem_shortWords {n : ℕ} {m : FreeMonoid α} (h : m ∈ shortWords n) :
     m.toList.length ≤ n := by
@@ -169,13 +169,13 @@ theorem measurableSet_mem_checkedProbes {σ : Type*} (O : Oracle μ (FreeMonoid 
   rcases hω with (h1 | ⟨j, hkj, hjx, m, hm, hc⟩) | ⟨hu, hJ, j, hkj, hjx, m, hm, hc⟩
   · refine .inl (.inl ?_)
     simp only [Set.mem_setOf_eq, searchingProbes] at h1 ⊢
-    rwa [← probeBy_congr_up hagree (midLe_midLen H.tree) le_rfl]
+    rwa [← probeOrAgree_congr_up_rd hagree (midLe_midLen H.tree) le_rfl]
   · exact .inl (.inr ⟨j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpreM j hjx m hm]; exact hc⟩)
   · exact .inr ⟨hu, hJ, j, hkj, hjx, m, hm, by beta_reduce at hc ⊢; rw [← hpre j hjx m hm]; exact hc⟩
 
 omit [IsProbabilityMeasure μ] in
 theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α)}
-    {kl kh : ℕ} (k : ℕ) (site : Level5Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
+    {kl kh : ℕ} (k : ℕ) (site : Level5Site α) (v : DTree α × Edges α) (x : FreeMonoid α)
     {ω ω' : Ω}
     (h : ∀ p ∈ readStrings (shortStrings (x.toList.length + midLen v.1)) F,
       (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
@@ -193,7 +193,7 @@ theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (Fre
   | middles => exact middleHarvestBy_congrK (prefAgreeK_up hagree (midLe_midLen v.1) le_rfl k)
 
 theorem measurable_siteCount (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (site : Level5Site α) (v : DTree α × EdgeTable α) (x : FreeMonoid α)
+    (kl kh k : ℕ) (site : Level5Site α) (v : DTree α × Edges α) (x : FreeMonoid α)
     (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     Measurable fun ω =>
       ((siteHarvest (fun z => (familyRead O.mq F kl kh z ω).cut) k site v x).filter
@@ -775,7 +775,7 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
       have h2 : o.population D k = none := by simp [LoopRound.population, h]
       rw [h1, h2]; exact ih
     · have h1 : popCode N o = some (hv, (o.result.hypothesis.tree,
-          edgeGraph (Function.curry o.result.hypothesis.edges)),
+          edgeGraph o.result.hypothesis.edges),
           readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, h]
       have h2 : o.population D k
           = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis hv)) := by

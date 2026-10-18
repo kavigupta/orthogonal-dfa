@@ -370,9 +370,9 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
 - `OrthoDFA/Level5.lean`, `OrthoDFA/Level5Claim.lean` — level 5, the counterexample search
   (`indecisiveLStarLevel5`, returning the hypothesis and the ending), and `Level5Correct`.
   `Proofs/Level5RiskDefs.lean` holds the internal bound (`Level5RoundRisk`, `Level5RiskBound`),
-  and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings. Probes walk
-  from `k` as `sifting.read` does, and a disagreement is searched by main's bisection without
-  recovery (`bisectBoundary false`), which stops at its first undecided midpoint. Every count is
+  and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings. Each probe
+  is main's (`probeOrAgree`): walked from `k` as `sifting.read` does, a disagreement searched
+  without recovery (`tripartiteSearch false`), which stops at its first undecided midpoint. Every count is
   kept since the hypothesis last changed: the probes, the start's undecided read strings, each
   edge's first reads and those of them read undecided, the searches and the undecided middles they
   stop at. The start's undecided rate above `θs`, or an edge's undecided first reads exceeding `θe`
@@ -426,8 +426,7 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   per-probe quantities read only through strings sharing the probe's length-`k` prefix are
   independent across prefixes.
 - `OrthoDFA/Stage.lean`, `StartAtK.lean`, `Loop.lean`, `Pass.lean`, `Automaton.lean` — the cut's
-  sift down the shared tree (`siftCut`), curried edges (`EdgeTable`), walks and bisection, which
-  level 5's statements build on.
+  reads, the tree's midfixes, and what else level 5's statements build on beside main's probe.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

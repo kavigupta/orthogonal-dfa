@@ -21,48 +21,27 @@ section Route
 
 variable {cut : FreeMonoid α → Option Bool}
 
-theorem route_of_inr : ∀ (T : DTree α) (u b : FreeMonoid α), T.siftCut cut u = .inr b →
-    b ∈ (T.route cut u).1
-  | .leaf, _, _, h => by simp [DTree.siftCut, DTree.route] at h
-  | .node m r a, u, b, h => by
-    simp only [DTree.siftCut, DTree.route] at h ⊢
-    rcases hc : cut (u * m) with _ | _ | _ <;> simp only [hc] at h ⊢
-    · simp only [Sum.inr.injEq] at h; simp [h]
-    · rcases hr : (r.route cut u).2 with p | b' <;> rw [hr] at h <;> simp only [Sum.map_inl,
-        Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h
-      subst h
-      exact List.mem_cons_of_mem _ (route_of_inr r u b' hr)
-    · rcases hr : (a.route cut u).2 with p | b' <;> rw [hr] at h <;> simp only [Sum.map_inl,
-        Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h
-      subst h
-      exact List.mem_cons_of_mem _ (route_of_inr a u b' hr)
-
-theorem cut_of_inr {T : DTree α} {u b : FreeMonoid α} (h : T.siftCut cut u = .inr b) :
-    cut b = none := by
-  obtain ⟨m, -, rfl, hc⟩ := siftCut_inr T u b h
-  exact hc
-
-/-- A decided sift read every string on its route decided. -/
+/-- A decided sift read every string on its way decided. -/
 theorem route_decided_of_inl {T : DTree α} {u : FreeMonoid α} {p : List Bool}
-    (h : T.siftCut cut u = .inl p) {w : FreeMonoid α} (hw : w ∈ (T.route cut u).1) :
+    (h : T.sift (ofCut cut) u = .inl p) {w : FreeMonoid α} (hw : w ∈ (T.siftWithPath cut u).1) :
     cut w ≠ none := fun hc => by
-  rw [siftCut_of_route_und T u w hw hc] at h
+  rw [sift_of_reads_und T u w hw hc] at h
   cases h
 
 end Route
 
 section Firsts
 
-variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : EdgeTable α) (k : ℕ)
+variable (cut : FreeMonoid α → Option Bool) (T : DTree α) (edges : Edges α) (k : ℕ)
   (x : FreeMonoid α)
 
-/-- A sift whose route meets none of `P` and stops undecided has a first read, labelled as the
+/-- A sift whose reads meet none of `P` and stops undecided has a first read, labelled as the
 sift is, that reads undecided. -/
 theorem firsts_siftQuery_und {ℓ : ReadLabel α} {u b : FreeMonoid α} (P : Finset (FreeMonoid α))
-    (hb : T.siftCut cut u = .inr b) (hP : b ∉ P) :
+    (hb : T.sift (ofCut cut) u = .inr b) (hP : b ∉ P) :
     (ℓ, b) ∈ (siftQuery ℓ T u).firsts (ofCut cut) P := by
-  have hr : b ∈ (T.route (fun z => (ofCut cut z).cut) u).1 := by
-    rw [cut_ofCut]; exact route_of_inr T u b hb
+  have hr : b ∈ (T.siftWithPath (fun z => (ofCut cut z).cut) u).1 := by
+    rw [cut_ofCut]; exact (sift_inr_reads cut T u b hb).1
   have hk := QTree.firsts_keys_eq (ofCut cut) (siftQuery ℓ T u) P
   have hmem : b ∈ (((siftQuery ℓ T u).firsts (ofCut cut) P).map Prod.snd).toFinset := by
     rw [hk.2, Finset.mem_sdiff, List.mem_toFinset, asks_siftQuery]
@@ -70,117 +49,106 @@ theorem firsts_siftQuery_und {ℓ : ReadLabel α} {u b : FreeMonoid α} (P : Fin
     simp only [List.map_map]
     exact List.mem_map.2 ⟨b, hr, rfl⟩
   obtain ⟨q, hq, hqb⟩ := List.mem_map.1 (List.mem_toFinset.1 hmem)
-  have h1 := (mem_asks_siftQuery T (ofCut cut) (QTree.firsts_sub_asks _ _ _ q hq)).1
+  have h1 := (mem_asks_siftQuery (QTree.firsts_sub_asks _ _ _ q hq)).1
   have : q = (ℓ, b) := Prod.ext h1 hqb
   rw [← this]; exact hq
 
+/-- A position of the walk, on a letter of `x`, is charged to an edge. -/
+theorem posEdgeFrom_some {p₀ : List Bool} {i : ℕ} (hk : k ≤ i)
+    (hw : i - k < (walk edges p₀ (x.toList.drop k)).length) {c : α} (hc : x.toList[i]? = some c) :
+    ∃ e, (readLabel edges k x p₀ i).2 = some e := by
+  simp only [readLabel, posEdgeFrom]
+  rw [List.getElem?_eq_getElem hw, hc]
+  exact ⟨_, rfl⟩
 
-/-- A probe that stops undecided at its end read that string first, charged to an edge. -/
-theorem firsts_of_endUndecided {w : FreeMonoid α}
-    (hx : probeBy cut T edges k x = .endUndecided w) :
+/-- The position after the walk's last, on a letter of `x`, is charged to an edge. -/
+theorem posEdgeFrom_some_pred {p₀ : List Bool} {i : ℕ} (hk : k + 1 ≤ i)
+    (hw : i - 1 - k < (walk edges p₀ (x.toList.drop k)).length) {c : α}
+    (hc : x.toList[i - 1]? = some c) : ∃ e, (readLabel edges k x p₀ i).2 = some e := by
+  simp only [readLabel, posEdgeFrom]
+  rcases (walk edges p₀ (x.toList.drop k))[i - k]? with _ | q <;>
+    rcases x.toList[i]? with _ | c' <;>
+    simp only [Option.orElse_some, Option.orElse_none] <;>
+    first | exact ⟨_, rfl⟩ | (rw [List.getElem?_eq_getElem hw, hc]; exact ⟨_, rfl⟩)
+
+/-- A probe that stops undecided at its end, with its search not stopping in the middle, read that
+string first, charged to an edge. -/
+theorem firsts_of_endUndecided {zs : List (FreeMonoid α)}
+    (hx : probeOrAgree (ofCut cut) T edges k x = .undecided zs true) :
     ∃ q ∈ firstsBy cut T edges k x, cut q.2 = none ∧ ∃ e, q.1.2 = some e := by
   have hkx : ¬ x.toList.length < k := fun h => by
-    rw [probeBy_short cut T edges h] at hx; cases hx
-  have hpe := probeBy_eq cut T edges k x
-  rw [if_neg hkx, hx] at hpe
+    rw [probeOrAgree_short cut T edges h] at hx; cases hx
   have hc : (fun z => (ofCut cut z).cut) = cut := cut_ofCut cut
-  unfold firstsBy probeQuery
-  rw [if_neg hkx, QTree.firsts_bind]
-  rw [run_siftQuery, hc]
+  rcases hk : T.sift (ofCut cut) (prefixOf x k) with p₀ | b
+  swap
+  · simp [probeOrAgree, probe, hk, hkx] at hx
+  obtain ⟨hpos, hhi, hst0, -, hnone, -⟩ := walk_facts edges k x (p₀ := p₀) (by omega)
+  have hlo : T.sift (ofCut cut) (prefixOf x k)
+      = .inl ((walk edges p₀ (x.toList.drop k)).getD (k - k) []) := by
+    rw [Nat.sub_self, hst0, hk]
   set P₀ := ((siftQuery ((k, none) : ReadLabel α) T (prefixOf x k)).asks (ofCut cut)).map
     Prod.snd |>.toFinset with hP₀
-  have hP₀m : ∀ z ∈ P₀, z ∈ (T.route cut (prefixOf x k)).1 := by
-    intro z hz
-    rw [hP₀, List.mem_toFinset, asks_siftQuery, hc, List.map_map] at hz
-    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hz
-    exact hy
-  rcases hk : T.siftCut cut (prefixOf x k) with p₀ | b
-  swap
-  · unfold walkCheckBy kWalkBy at hpe
-    rw [hk] at hpe
-    simp at hpe
   have hnP : ∀ b, cut b = none → b ∉ (∅ : Finset (FreeMonoid α)) ∪ P₀ := fun b hb hm => by
-    rw [Finset.empty_union] at hm
-    exact route_decided_of_inl hk (hP₀m b hm) hb
+    rw [Finset.empty_union, hP₀, List.mem_toFinset, asks_siftQuery, hc, List.map_map] at hm
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hm
+    exact route_decided_of_inl hk hy hb
+  unfold firstsBy probeQuery
+  rw [if_neg hkx, QTree.firsts_bind, run_siftQuery, hk]
   simp only []
-  rcases hf : follow edges p₀ (x.toList.drop k) with ps | ⟨s, c, i⟩
-  · simp only []
-    rw [QTree.firsts_bind, run_siftQuery, hc]
-    unfold walkCheckBy kWalkBy at hpe
-    rw [hk] at hpe
-    simp only [hf] at hpe
-    rw [prefixOf_length]
-    rcases he : T.siftCut cut x with a' | b'
-    · rw [he] at hpe
-      simp only [] at hpe
-      split_ifs at hpe
-      · simp at hpe
-      · simp only [Sum.elim_inr] at hpe
-        have := bracketAt_isSearch (α := α) (agreesAtBy cut T x fun j => ps.getD (j - k) []) ps
-          (x.toList.length - k) k x.toList.length
-        rw [← hpe] at this
-        exact this.elim
-    have hb' := cut_of_inr he
-    have hlen : k < x.toList.length := by
-      rcases Nat.lt_or_ge k x.toList.length with h | h
-      · exact h
-      · have hxk : prefixOf x k = x := by
-          have : k = x.toList.length := by omega
-          rw [this, prefixOf_length]
-        rw [hxk, he] at hk; cases hk
-    refine ⟨(readLabel edges k x p₀ x.toList.length, b'), List.mem_append_right _
-      (List.mem_append_left _ (firsts_siftQuery_und cut T _ he (hnP b' hb'))), hb', ?_⟩
-    have hs := posEdgeFrom_isSome (edges := edges) (k := k) (x := x) (p₀ := p₀)
-      (i := x.toList.length) (i' := x.toList.length - 1) (n := x.toList.length - k)
-      (.inr (by omega)) (by omega) (by omega)
-      (ps := ps) (by rw [List.take_of_length_le (by simp)]; exact hf)
-    obtain ⟨e, he'⟩ := Option.isSome_iff_exists.1 hs
-    exact ⟨e, he'⟩
-  · simp only []
-    rw [QTree.firsts_bind, run_siftQuery, hc]
-    obtain ⟨hi, -, -, ps, hps, -⟩ := follow_inr _ _ _ _ _ hf
-    simp only [List.length_drop] at hi
-    have hsome : ∀ j, (j = k + i + 1 ∨ j = k + i) → (posEdgeFrom edges k x p₀ j).isSome := by
-      rintro j (rfl | rfl)
-      · exact posEdgeFrom_isSome (i' := k + i) (n := i) (.inr rfl) (by omega) (by omega) hps
-      · exact posEdgeFrom_isSome (i' := k + i) (n := i) (.inl rfl) (by omega) (by omega) hps
-    unfold walkCheckBy kWalkBy at hpe
-    rw [hk] at hpe
-    simp only [hf] at hpe
-    rcases h1 : T.siftCut cut (prefixOf x (k + i + 1)) with q₁ | b₁
-    swap
-    · have hb₁ := cut_of_inr h1
-      refine ⟨(readLabel edges k x p₀ (k + i + 1), b₁), List.mem_append_right _
-        (List.mem_append_left _ (firsts_siftQuery_und cut T _ h1 (hnP b₁ hb₁))), hb₁, ?_⟩
-      obtain ⟨e, he'⟩ := Option.isSome_iff_exists.1 (hsome _ (.inl rfl))
-      exact ⟨e, he'⟩
-    rw [h1] at hpe
+  rcases probe_long_cases (ofCut cut) T edges k x (by omega) hk hx with
+    ⟨c, z, hxc, hz, -⟩ | ⟨un, hu1, hu2, h'⟩
+  · rw [hxc]
     simp only []
-    rw [QTree.firsts_bind, run_siftQuery, hc]
-    rcases h2 : T.siftCut cut (prefixOf x (k + i)) with q₂ | b₂
-    · rw [h2] at hpe
-      simp only [] at hpe
-      split_ifs at hpe
-      · simp at hpe
-      · simp only [Sum.elim_inr] at hpe
-        have := bracketAt_isSearch (α := α)
-          (agreesAtBy cut T x fun j => (walkToBy cut T edges k x (k + i)).getD (j - k) [])
-          (walkToBy cut T edges k x (k + i)) (k + i - k) k (k + i)
-        rw [← hpe] at this
-        exact this.elim
-    have hb₂ := cut_of_inr h2
-    have hn : b₂ ∉ (∅ ∪ P₀) ∪ (((siftQuery (readLabel edges k x p₀ (k + i + 1)) T
-        (prefixOf x (k + i + 1))).asks (ofCut cut)).map Prod.snd).toFinset := by
-      rw [Finset.mem_union, not_or]
-      refine ⟨hnP b₂ hb₂, fun hm => ?_⟩
-      rw [List.mem_toFinset, asks_siftQuery, hc, List.map_map] at hm
-      obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hm
-      exact route_decided_of_inl h1 hy hb₂
-    refine ⟨(readLabel edges k x p₀ (k + i), b₂), List.mem_append_right _
-      (List.mem_append_right _ (List.mem_append_left _ (firsts_siftQuery_und cut T _ h2 hn))),
-      hb₂, ?_⟩
-    obtain ⟨e, he'⟩ := Option.isSome_iff_exists.1 (hsome _ (.inr rfl))
-    exact ⟨e, he'⟩
+    rw [QTree.firsts_bind]
+    have hb := (sift_inr_reads cut T _ z hz).2
+    refine ⟨(readLabel edges k x p₀ (k + (walk edges p₀ (x.toList.drop k)).length - 1 + 1), z),
+      List.mem_append_right _ (List.mem_append_left _
+        (firsts_siftQuery_und cut T _ hz (hnP z hb))), hb, ?_⟩
+    exact posEdgeFrom_some_pred edges k x (by omega) (by omega) (c := c) (by simpa using hxc)
+  rcases searchOutcome_cases (ofCut cut) T k x _ un (by omega) hhi hlo h' with
+    ⟨z, hz, -⟩ | ⟨-, h''⟩ | ⟨-, ⟨p', c', t', -, -, -, -, -, -, h''⟩ | ⟨p', z, -, -, -, h''⟩⟩
+  rotate_left
+  · rcases un with _ | ⟨c, t⟩ <;> simp [searchOutcome] at h''
+  · cases h''
+  · cases h''
+  have hb := (sift_inr_reads cut T _ z hz).2
+  rcases un with _ | ⟨c, t⟩
+  · have hxn := hu2 rfl
+    rw [hxn]
+    simp only []
+    unfold searchQuery
+    rw [QTree.firsts_bind]
+    refine ⟨(readLabel edges k x p₀ (k + (walk edges p₀ (x.toList.drop k)).length - 1), z),
+      List.mem_append_right _ (List.mem_append_left _
+        (firsts_siftQuery_und cut T _ hz (hnP z hb))), hb, ?_⟩
+    have hend := hnone hxn
+    have hkh : k < k + (walk edges p₀ (x.toList.drop k)).length - 1 := by
+      by_contra hc'
+      have : k + (walk edges p₀ (x.toList.drop k)).length - 1 = k := by omega
+      rw [this, hk] at hz; cases hz
+    obtain ⟨c, hc'⟩ : ∃ c, x.toList[k + (walk edges p₀ (x.toList.drop k)).length - 1 - 1]? = some c :=
+      ⟨_, List.getElem?_eq_getElem (by omega)⟩
+    exact posEdgeFrom_some_pred edges k x (by omega) (by omega) hc'
+  · obtain ⟨hxc, ht⟩ := hu1 c t rfl
+    rw [hxc]
+    simp only []
+    rw [QTree.firsts_bind, run_siftQuery, ht]
+    simp only []
+    unfold searchQuery
+    rw [QTree.firsts_bind]
+    have hn : z ∉ ((∅ : Finset (FreeMonoid α)) ∪ P₀) ∪ (((siftQuery (readLabel edges k x p₀
+        (k + (walk edges p₀ (x.toList.drop k)).length - 1 + 1)) T (prefixOf x
+        (k + (walk edges p₀ (x.toList.drop k)).length - 1 + 1))).asks (ofCut cut)).map
+          Prod.snd).toFinset := fun hm => by
+      rcases Finset.mem_union.1 hm with hm | hm
+      · exact hnP z hb hm
+      · rw [List.mem_toFinset, asks_siftQuery, hc, List.map_map] at hm
+        obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hm
+        exact route_decided_of_inl ht hy hb
+    refine ⟨(readLabel edges k x p₀ (k + (walk edges p₀ (x.toList.drop k)).length - 1), z),
+      List.mem_append_right _ (List.mem_append_right _ (List.mem_append_left _
+        (firsts_siftQuery_und cut T _ hz hn))), hb, ?_⟩
+    exact posEdgeFrom_some edges k x (by omega) (by omega) hxc
 
 end Firsts
 
@@ -202,12 +170,12 @@ noncomputable def readSum (s : Level5State α) : ℕ :=
   ∑ e ∈ leafEdges s.tree, s.edgeReads e.1 e.2
 
 /-- A probe's undecided strings at the start and at the edges. -/
-noncomputable def undInc (T : DTree α) (E : EdgeTable α) (x : FreeMonoid α) : ℕ :=
+noncomputable def undInc (T : DTree α) (E : Edges α) (x : FreeMonoid α) : ℕ :=
   (startHarvestBy (fun z => (rd z).cut) T C.walkStart x).length
     + ∑ e ∈ leafEdges T, (edgeHarvestBy (fun z => (rd z).cut) T E C.walkStart x e).length
 
 /-- A probe's first reads at the edges. -/
-noncomputable def readInc (T : DTree α) (E : EdgeTable α) (x : FreeMonoid α) : ℕ :=
+noncomputable def readInc (T : DTree α) (E : Edges α) (x : FreeMonoid α) : ℕ :=
   ∑ e ∈ leafEdges T, edgeReadsBy (fun z => (rd z).cut) T E C.walkStart x e
 
 theorem undCount_keep (s : Level5State α) (x : FreeMonoid α) :
@@ -220,43 +188,32 @@ theorem readSum_keep (s : Level5State α) (x : FreeMonoid α) :
     readSum (keepProbe C (fun z => (rd z).cut) s x) = readSum s + readInc C rd s.tree s.edges x := by
   simp only [readSum, readInc, keepProbe, Level5State.countProbe, Finset.sum_add_distrib]
 
-theorem one_le_undInc {T : DTree α} {E : EdgeTable α} (he : EdgesInto T E) {x : FreeMonoid α}
+theorem one_le_undInc {T : DTree α} {E : Edges α} (he : EdgesInto T E) {x : FreeMonoid α}
     (hx : x ∈ undSiftSet (fun z => (rd z).cut) T E C.walkStart) : 1 ≤ undInc C rd T E x := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   simp only [undSiftSet, Set.mem_setOf_eq] at hx
-  rcases ho : probeBy cut T E C.walkStart x with _ | b | b | _ | _ | _ <;> rw [ho] at hx <;>
-    simp only at hx
+  rcases ho : probeOrAgree (ofCut cut) T E C.walkStart x with _ | _ | _ | b | ⟨zs, _ | _⟩ <;>
+    rw [ho] at hx <;> simp only at hx
   · have hkx : ¬ x.toList.length < C.walkStart := fun h => by
-      rw [probeBy_short cut T E h] at ho; cases ho
-    have hpe := probeBy_eq cut T E C.walkStart x
-    rw [if_neg hkx, ho] at hpe
+      rw [probeOrAgree_short cut T E h] at ho; cases ho
     have hs : startHarvestBy cut T C.walkStart x ≠ [] := by
       unfold startHarvestBy
       rw [if_neg hkx]
-      rcases hk : T.siftCut cut (prefixOf x C.walkStart) with p₀ | b'
+      rcases hk : T.sift (ofCut cut) (prefixOf x C.walkStart) with p₀ | b'
       · exfalso
-        rcases hw : walkCheckBy cut T E C.walkStart x with o | d <;> rw [hw] at hpe
-        · simp only [Sum.elim_inl, id] at hpe
-          subst hpe
-          unfold walkCheckBy at hw
-          rcases hkw : kWalkBy cut T E C.walkStart x with _ | ⟨s', c, j⟩ | ps <;> rw [hkw] at hw
-          · unfold kWalkBy at hkw
-            rw [hk] at hkw
-            simp only at hkw
-            split at hkw <;> simp at hkw
-          · simp only at hw
-            split at hw
-            · simp at hw
-            · split at hw
-              · simp at hw
-              · split_ifs at hw <;> simp at hw
-          · simp only at hw
-            split at hw <;> (try split_ifs at hw) <;> simp at hw
-        · simp only [Sum.elim_inr] at hpe
-          have := bracketAt_isSearch (α := α) (agreesAtBy cut T x fun j => d.1.getD (j - C.walkStart) [])
-            d.1 (d.2 - C.walkStart) C.walkStart d.2
-          rw [← hpe] at this
-          exact this.elim
+        rcases probe_long_cases (ofCut cut) T E C.walkStart x (by omega) hk ho with
+          ⟨c, z, -, -, h⟩ | ⟨un, -, -, h'⟩
+        · cases h
+        obtain ⟨hpos, hhi, hst0, -, -, -⟩ := walk_facts E C.walkStart x (p₀ := p₀) (by omega)
+        have hlo : T.sift (ofCut cut) (prefixOf x C.walkStart)
+            = .inl ((walk E p₀ (x.toList.drop C.walkStart)).getD (C.walkStart - C.walkStart) []) := by
+          rw [Nat.sub_self, hst0, hk]
+        rcases searchOutcome_cases (ofCut cut) T C.walkStart x _ un (by omega) hhi hlo h' with
+          ⟨z, -, h''⟩ | ⟨-, h''⟩ | ⟨-, ⟨p', c', t', -, -, -, -, -, -, h''⟩ | ⟨p', z, -, -, -, h''⟩⟩
+        · cases h''
+        · rcases un with _ | ⟨c, t⟩ <;> simp [searchOutcome] at h''
+        · cases h''
+        · cases h''
       · simp
     have := List.length_pos_of_ne_nil hs
     show 1 ≤ (startHarvestBy cut T C.walkStart x).length
@@ -276,18 +233,18 @@ theorem one_le_undInc {T : DTree α} {E : EdgeTable α} (he : EdgesInto T E) {x 
       + ∑ e ∈ leafEdges T, (edgeHarvestBy cut T E C.walkStart x e).length
     omega
 
-theorem undInc_le (T : DTree α) (E : EdgeTable α) (x : FreeMonoid α) :
+theorem undInc_le (T : DTree α) (E : Edges α) (x : FreeMonoid α) :
     undInc C rd T E x ≤ x.toList.length + 2 := by
   have h1 : (startHarvestBy (fun z => (rd z).cut) T C.walkStart x).length ≤ 1 := by
     unfold startHarvestBy
     split_ifs
     · simp
-    · rcases T.siftCut (fun z => (rd z).cut) (prefixOf x C.walkStart) with _ | _ <;> simp
+    · rcases T.sift (ofCut fun z => (rd z).cut) (prefixOf x C.walkStart) with _ | _ <;> simp
   have h2 := sum_edgeHarvestBy_le (fun z => (rd z).cut) T E C.walkStart x (leafEdges T)
   unfold undInc
   omega
 
-theorem readInc_le (T : DTree α) (E : EdgeTable α) (x : FreeMonoid α) :
+theorem readInc_le (T : DTree α) (E : Edges α) (x : FreeMonoid α) :
     readInc C rd T E x + 1 ≤ (x.toList.length + 1) * T.leaves.length + 1 := by
   have h1 : readInc C rd T E x ≤ (firstsBy (fun z => (rd z).cut) T E C.walkStart x).length :=
     sum_filter_some_le (fun q : ReadLabel α × FreeMonoid α => q.1.2) (leafEdges T) _
@@ -430,7 +387,7 @@ def SiftBad (u : ℝ) (e : Level5Ending α) (s : Level5State α) : Prop :=
   e = .success ∧ SiftOK C D rd u s ∧ runTests C s = some .success ∧ CountInv s
 
 /-- A probe's mean count of undecided strings at the start and the edges. -/
-noncomputable def siftMean (T : DTree α) (E : EdgeTable α) : ℝ :=
+noncomputable def siftMean (T : DTree α) (E : Edges α) : ℝ :=
   ∫ x, (undInc C rd T E x : ℝ) ∂D
 
 /-- The undecided strings counted: half their running mean less them, exponentiated. -/
@@ -538,7 +495,7 @@ theorem leafEdges_card (T : DTree α) :
 
 /-- The probes whose sifts stop undecided are at most the mean count of undecided strings. -/
 theorem undSift_le_siftMean {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {T : DTree α}
-    {E : EdgeTable α} (he : EdgesInto T E) :
+    {E : Edges α} (he : EdgesInto T E) :
     D.real (undSiftSet (fun z => (rd z).cut) T E C.walkStart) ≤ siftMean C D rd T E := by
   have hi : Integrable (fun x => (undInc C rd T E x : ℝ)) D :=
     Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable ((L : ℝ) + 2) (by

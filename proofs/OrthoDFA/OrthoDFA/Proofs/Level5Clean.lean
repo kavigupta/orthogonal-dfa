@@ -117,7 +117,7 @@ open scoped Classical in
 /-- Each learned edge's witness's successor followed by a midfix of `T'`. -/
 noncomputable def resifts (s : Level5State α) (T' : DTree α) : Finset (FreeMonoid α) :=
   (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).biUnion fun e =>
-    match s.edges e.1 e.2 with
+    match s.edges e with
     | some (_, w) => T'.midfixes.image ((w * FreeMonoid.of e.2) * ·)
     | none => ∅
 
@@ -126,7 +126,7 @@ noncomputable def splitReads (cut : FreeMonoid α → Option Bool) (s : Level5St
     (x : FreeMonoid α) : Finset (FreeMonoid α) :=
   match recordBy cut C.walkStart (s.tree, s.edges) x with
   | some ((p, c, t), _) =>
-    match s.edges p c with
+    match s.edges (p, c) with
     | some (t₀, _) =>
       resifts s (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
     | none => ∅
@@ -146,15 +146,15 @@ variable {σ : Type*} (G : ReadModel α σ) (rd : FreeMonoid α → ARU)
 /-- A sift through midfixes none of whose reads is on the rarer side lands at the true leaf. -/
 theorem leafOf_of_sift {T : DTree α} {z : FreeMonoid α} {p : List Bool}
     (hc : ∀ m ∈ T.midfixes, ¬ G.WrongRead rd (z * m))
-    (h : T.siftCut (fun z => (rd z).cut) z = .inl p) : G.leafOf T (G.M.eval z.toList) = p := by
+    (h : T.sift (ofCut fun z => (rd z).cut) z = .inl p) : G.leafOf T (G.M.eval z.toList) = p := by
   by_contra hne
   obtain ⟨w, hw, hcw⟩ := minority_of_sift G T z p h hne
-  obtain ⟨m, hm, rfl⟩ := route_mid _ T z w hw
+  obtain ⟨m, hm, rfl⟩ := reads_mid _ T z w hw
   exact hc m hm hcw
 
 /-- Every learned edge is a true record. -/
 def TrueEdges (s : Level5State α) : Prop :=
-  ∀ p c t w, s.edges p c = some (t, w) → G.TrueRec s.tree (p, c, t) w
+  ∀ p c t w, s.edges (p, c) = some (t, w) → G.TrueRec s.tree (p, c, t) w
 
 /-- A state of a round with no read on the rarer side: its tree grown by genuine splits alone,
 its edges into its leaves and true, its leaves at most `n`. -/
@@ -168,81 +168,24 @@ theorem truthInv_start {n : ℕ} (hn : 2 ≤ n) : TruthInv G n (initialState : L
 
 /-- Learned edges leave leaves. -/
 theorem edge_leaf {s : Level5State α} (ht : TrueEdges G s) {p : List Bool} {c : α}
-    {t : List Bool} {w : FreeMonoid α} (h : s.edges p c = some (t, w)) : p ∈ s.tree.leaves := by
+    {t : List Bool} {w : FreeMonoid α} (h : s.edges (p, c) = some (t, w)) : p ∈ s.tree.leaves := by
   have h1 : G.leafOf s.tree (G.M.eval w.toList) = p := (ht p c t w h).1
   rw [← h1]
   exact G.leafOf_mem_paths _ _
 
 variable (cut : FreeMonoid α → Option Bool)
 
-theorem probeBy_member {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x u : FreeMonoid α}
-    (h : probeBy cut T edges k x = .member u) :
-    ∃ j, k ≤ j ∧ j < x.toList.length ∧ u = prefixOf x j := by
-  rw [probeBy_eq] at h
-  split_ifs at h with hs
-  rcases hw : walkCheckBy cut T edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
-  swap
-  · simp only [Sum.elim_inr] at h
-    have := bracketAt_isSearch (α := α) (agreesAtBy cut T x fun j => ps.getD (j - k) []) ps
-      (hi - k) k hi
-    rw [h] at this
-    exact this.elim
-  simp only [Sum.elim_inl, id] at h
-  subst h
-  unfold walkCheckBy at hw
-  rcases hk : kWalkBy cut T edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hk] at hw
-  · simp at hw
-  · simp only [] at hw
-    split at hw
-    · simp at hw
-    · split at hw
-      · simp at hw
-      · split_ifs at hw
-        · simp only [Sum.inl.injEq, WalkOutcome.member.injEq] at hw
-          subst hw
-          refine ⟨j, kWalkBy_edge_ge hk, ?_, rfl⟩
-          unfold kWalkBy at hk
-          split at hk
-          · simp at hk
-          · split at hk
-            · simp at hk
-            · rename_i p₀ _ s' c' i hf
-              simp only [KWalk.edge.injEq] at hk
-              obtain ⟨rfl, rfl, rfl⟩ := hk
-              obtain ⟨hi, -⟩ := follow_inr _ _ _ _ _ hf
-              simp only [List.length_drop] at hi
-              omega
-  · simp only [] at hw
-    split at hw
-    · simp at hw
-    · split_ifs at hw <;> simp at hw
-
 /-- A record's parts: its probe searched to the edge it is at, its prefix the probe's before the
 edge, which its walk agrees with, and its target where the next prefix sifts. -/
-theorem recordBy_parts {T : DTree α} {edges : EdgeTable α} {k : ℕ} {x : FreeMonoid α}
+theorem recordBy_parts {T : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
     {p : List Bool} {c : α} {t : List Bool} {sp : FreeMonoid α}
     (h : recordBy cut k (T, edges) x = some ((p, c, t), sp)) :
     ∃ fd, k < fd ∧ fd ≤ x.toList.length ∧ sp = prefixOf x (fd - 1)
-      ∧ x.toList[fd - 1]? = some c ∧ T.siftCut cut sp = .inl p
-      ∧ T.siftCut cut (prefixOf x fd) = .inl t := by
-  obtain ⟨ps, fd, ho⟩ := probeBy_of_record cut T edges k x h
-  have h' := h
-  unfold recordBy at h'
-  rw [ho] at h'
-  simp only [] at h'
-  rcases hc : x.toList[fd - 1]? with _ | c' <;> rw [hc] at h'
-  · simp at h'
-  rcases ht : T.siftCut cut (prefixOf x fd) with t' | b <;> rw [ht] at h'
-  · simp only [Option.some.injEq, Prod.mk.injEq] at h'
-    obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := h'
-    have hlen : fd - 1 < x.toList.length := by
-      rw [List.getElem?_eq_some_iff] at hc; exact hc.1
-    have ho' : probeBy (fun z => (ofCut cut z).cut) T edges k x = .edge ps fd := by
-      rw [cut_ofCut]; exact ho
-    obtain ⟨hkf, hs1, -⟩ := probeBy_edge T edges k x (ofCut cut) ho'
-    rw [cut_ofCut] at hs1
-    exact ⟨fd, hkf, by omega, rfl, hc, hs1, ht⟩
-  · simp at h'
+      ∧ x.toList[fd - 1]? = some c ∧ T.sift (ofCut cut) sp = .inl p
+      ∧ T.sift (ofCut cut) (prefixOf x fd) = .inl t := by
+  obtain ⟨-, fd, -, hkf, hfx, rfl, hc, -, -, hs1, ht, -⟩ :=
+    probe_wrongEdge _ T edges k x ((recordBy_eq_some cut).1 h)
+  exact ⟨fd, hkf, hfx, rfl, hc, hs1, ht⟩
 
 variable (C : Level5Settings)
 
@@ -269,14 +212,14 @@ theorem truthInv_record {s : Level5State α} (hs : TruthInv G C.maxLeaves s) {x 
   rcases recordProbe_spec C cut s x with h | ⟨u, c, p, t, hm, hp, hc, ht, hn, h⟩ <;> rw [h]
   · exact truthInv_congr G rfl rfl hs
   obtain ⟨hg, he, htr, hL⟩ := hs
-  obtain ⟨j, hkj, hjx, rfl⟩ := probeBy_member cut hm
+  obtain ⟨-, j, -, hkj, hjx, rfl, -⟩ := probe_unlearnedEdge _ _ _ _ _ hm
   have hlen : (prefixOf x j).toList.length = j := by
     simp [prefixOf]; omega
   rw [hlen] at hc
   rw [← prefixOf_succ hc] at ht
   have hj1 : j + 1 ≤ x.toList.length := hjx
   refine ⟨hg, setEdge_into (s := s.countProbe cut C.walkStart x) he
-    (DTree.siftCut_mem_paths _ _ _ ht), fun q c' t' w' hq => ?_, hL⟩
+    (DTree.sift_inl_mem _ _ _ _ ht), fun q c' t' w' hq => ?_, hL⟩
   rw [setEdge_eq] at hq
   split_ifs at hq with hqc
   · simp only [Prod.mk.injEq] at hqc
@@ -299,7 +242,7 @@ theorem truthInv_split [Fintype σ] (hσ : Fintype.card σ + 2 ≤ C.maxLeaves) 
       (splitState (fun z => (rd z).cut) (recordProbe C (fun z => (rd z).cut) s x) p c t) := by
   set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   obtain ⟨hg, he, htr, hL⟩ := hs
-  obtain ⟨-, -, -, -, -, -, t₀, w, hpe, hne⟩ := recordBy_spec cut hrec
+  obtain ⟨-, -, -, -, t₀, w, hpe, hne⟩ := recordBy_spec cut hrec
   obtain ⟨fd, hkf, hfx, rfl, hcfd, hsp, ht⟩ := recordBy_parts cut hrec
   have hrec₁ : G.TrueRec s.tree (p, c, t) (prefixOf x (fd - 1)) := by
     refine ⟨leafOf_of_sift G rd (fun m hm => clean_of_step G rd C hx (by omega) hm) hsp, ?_⟩
@@ -311,11 +254,11 @@ theorem truthInv_split [Fintype σ] (hσ : Fintype.card σ + 2 ≤ C.maxLeaves) 
   have hp : p ∈ s.tree.leaves := by
     obtain ⟨q₁, -, hl, -⟩ := hgen
     exact hl ▸ G.leafOf_mem_paths _ _
-  have htl : t ∈ s.tree.leaves := DTree.siftCut_mem_paths _ _ _ ht
+  have htl : t ∈ s.tree.leaves := DTree.sift_inl_mem _ _ _ _ ht
   have ht₀l : t₀ ∈ s.tree.leaves := he _ _ _ _ hpe
   have hG' := ReadModel.Grown.real hg htl ht₀l hgen
   have hrp := recordProbe_of_record C cut s x hrec
-  have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by rw [hrp]; exact hpe
+  have hpe' : (recordProbe C cut s x).edges (p, c) = some (t₀, w) := by rw [hrp]; exact hpe
   rw [splitState_of_some cut _ hpe', hrp]
   simp only [Level5State.countProbe]
   set d := FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)
@@ -334,18 +277,17 @@ theorem truthInv_split [Fintype σ] (hσ : Fintype.card σ + 2 ≤ C.maxLeaves) 
     rw [splitState_of_some cut _ hpe] at this
     exact this
   intro q e t' w' hq
-  simp only [freshState] at hq ⊢
+  simp only [freshState, retarget] at hq ⊢
   split_ifs at hq with hpq
-  unfold retargetBy at hq
-  rcases hqe : s.edges q e with _ | ⟨s', w''⟩ <;> rw [hqe] at hq
+  rcases hqe : s.edges (q, e) with _ | ⟨s', w''⟩ <;> rw [hqe] at hq
   · simp at hq
   obtain ⟨hsrc, htgt⟩ := htr q e s' w'' hqe
-  have hqp : q ≠ p := fun h => hpq (h ▸ List.prefix_refl q)
+  have hqp : q ≠ p := fun h => hpq (by simp [h])
   have hsrc' : G.leafOf T' (G.M.eval w''.toList) = q := by
     rw [(G.leafOf_splitAt d s.tree p hp _).1 (by rw [hsrc]; exact hqp), hsrc]
   simp only [] at hq
   split_ifs at hq with hs'
-  · rcases hsift : T'.siftCut cut (w'' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at hq
+  · rcases hsift : T'.sift (ofCut cut) (w'' * FreeMonoid.of e) with s'' | b <;> rw [hsift] at hq
     · simp only [Sum.elim_inl, Option.some.injEq, Prod.mk.injEq] at hq
       obtain ⟨rfl, rfl⟩ := hq
       refine ⟨hsrc', leafOf_of_sift G rd (fun m hm => hR _ ?_) hsift⟩

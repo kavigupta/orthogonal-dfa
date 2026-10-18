@@ -31,10 +31,10 @@ theorem runEnds_iff {σ : Type*} (M : _root_.DFA α σ) (bad : σ → Prop) (dis
         EndsWell M bad D (3 / 2 * C.disagreementRate)
           (checkedProbes M dist D rd C.walkStart C.maxLeaves J ū
             ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
+              (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩) C.walkStart
           (harvestLaw D (fun z => (rd z).cut) C.walkStart
             ⟨(runProbes C (fun z => (rd z).cut) s xs).1.tree,
-              Function.uncurry (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
+              (runProbes C (fun z => (rd z).cut) s xs).1.edges⟩)
           C.harvestYield (runProbes C (fun z => (rd z).cut) s xs).2
   | s, [] => by simp [RunEnds, runProbes, EndsWell]
   | s, x :: xs => by
@@ -104,7 +104,7 @@ def Level5Gates (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ
       (Measure.pi fun _ : Fin settings.probeBudget => D)
           {draws | let result := indecisiveLStarLevel5 settings read draws
             result.ending = .consistent ∧ u ≤ D.real (undSiftSet (fun z => (read z).cut)
-              result.hypothesis.tree (Function.curry result.hypothesis.edges) k)}
+              result.hypothesis.tree result.hypothesis.edges k)}
         ≤ ENNReal.ofReal (δ / 8)
 
 set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition

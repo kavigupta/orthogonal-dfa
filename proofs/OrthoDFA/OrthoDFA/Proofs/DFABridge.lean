@@ -217,41 +217,24 @@ section Edges
 variable {σ : Type*} (G : ReadModel α σ) (rd : FreeMonoid α → ARU)
 
 omit [Fintype α] [DecidableEq α] in
-theorem follow_snoc {edges : EdgeTable α} :
-    ∀ (l : List α) (c : α) (p : List Bool) (ps ps' : List (List Bool)),
-      follow edges p l = .inl ps → follow edges p (l ++ [c]) = .inl ps' →
-        ∃ w, edges (ps.getLast?.getD []) c = some (ps'.getLast?.getD [], w)
-  | [], c, p, ps, ps', h, h' => by
-    simp only [follow, Sum.inl.injEq] at h
-    subst h
-    simp only [List.nil_append, follow] at h'
-    rcases he : edges p c with _ | ⟨q, y⟩ <;> rw [he] at h'
-    · cases h'
-    · simp only [Sum.inl.injEq] at h'
-      subst h'
-      exact ⟨y, by simp [he]⟩
-  | d :: l, c, p, ps, ps', h, h' => by
-    simp only [follow, List.cons_append] at h h'
-    rcases he : edges p d with _ | ⟨q, y⟩ <;> rw [he] at h h'
-    · cases h
-    simp only [] at h h'
-    rcases hf : follow edges q l with ps₁ | r <;> rw [hf] at h
-    · rcases hf' : follow edges q (l ++ [c]) with ps₁' | r' <;> rw [hf'] at h'
-      · simp only [Sum.inl.injEq] at h h'
-        subst h h'
-        obtain ⟨w, hw⟩ := follow_snoc l c q ps₁ ps₁' hf hf'
-        have h1 : ps₁ ≠ [] := by
-          intro h0; subst h0; obtain ⟨hl, -⟩ := follow_inl _ _ _ hf; simp at hl
-        have h2 : ps₁' ≠ [] := by
-          intro h0; subst h0; obtain ⟨hl, -⟩ := follow_inl _ _ _ hf'; simp at hl
-        refine ⟨w, ?_⟩
-        rw [List.getLast?_cons, List.getLast?_cons]
-        obtain ⟨a₁, ha₁⟩ := List.getLast?_isSome.2 h1 |> Option.isSome_iff_exists.1
-        obtain ⟨a₂, ha₂⟩ := List.getLast?_isSome.2 h2 |> Option.isSome_iff_exists.1
-        rw [ha₁, ha₂] at hw ⊢
-        simpa using hw
-      · cases h'
-    · cases h
+theorem walk_snoc (E : Edges α) : ∀ (l : List α) (c : α) (p : List Bool),
+    (walk E p (l ++ [c])).length = l.length + 2 →
+      ∃ w, E ((walk E p l).getLast?.getD [], c) = some ((walk E p (l ++ [c])).getLast?.getD [], w)
+  | [], c, p, h => by
+    simp only [List.nil_append, walk] at h ⊢
+    rcases he : E (p, c) with _ | ⟨q, y⟩ <;> simp only [he] at h ⊢
+    · simp at h
+    · exact ⟨y, he⟩
+  | d :: l, c, p, h => by
+    simp only [List.cons_append, walk] at h ⊢
+    rcases he : E (p, d) with _ | ⟨q, y⟩ <;> simp only [he] at h ⊢
+    · simp at h
+    · obtain ⟨w, hw⟩ := walk_snoc E l c q (by simpa using h)
+      obtain ⟨l₁, hl₁⟩ := walk_cons E q l
+      obtain ⟨l₂, hl₂⟩ := walk_cons E q (l ++ [c])
+      refine ⟨w, ?_⟩
+      rw [hl₁, hl₂] at hw ⊢
+      simpa [List.getLast?_cons] using hw
 
 theorem cut_none_iff (v : ARU) : v.cut = none ↔ v = .undecided := by
   cases v <;> simp [ARU.cut]
@@ -260,53 +243,61 @@ theorem cut_none_iff (v : ARU) : v.cut = none ↔ v = .undecided := by
 the way, from its start's sift to its own. -/
 theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
     (hk : k ≤ x.toList.length) (hx : x ∉ searchingProbes rd k H)
-    (hu : x ∉ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) :
-    ∃ p ps e, H.tree.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inl p
-      ∧ follow (Function.curry H.edges) p (x.toList.drop k) = .inl ps
-      ∧ H.tree.siftCut (fun z => (rd z).cut) x = .inl e ∧ ps.getLast? = some e := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  have hagree : probeBy cut H.tree (Function.curry H.edges) k x = .agree := by
-    simp only [searchingProbes, undSiftSet, Set.mem_setOf_eq] at hx hu
-    rcases ho : probeBy (fun z => (rd z).cut) H.tree (Function.curry H.edges) k x with
-      _ | _ | _ | _ | _ | _ <;> rw [ho] at hx hu <;> simp_all
-  have hpe := probeBy_eq cut H.tree (Function.curry H.edges) k x
-  rw [if_neg (by omega), hagree] at hpe
-  rcases hw : walkCheckBy cut H.tree (Function.curry H.edges) k x with o | d <;> rw [hw] at hpe
+    (hu : x ∉ undSiftSet (fun z => (rd z).cut) H.tree H.edges k) :
+    ∃ p e, H.tree.sift rd (prefixOf x k) = .inl p
+      ∧ (walk H.edges p (x.toList.drop k)).length = (x.toList.drop k).length + 1
+      ∧ H.tree.sift rd x = .inl e ∧ (walk H.edges p (x.toList.drop k)).getLast? = some e := by
+  have hagree : probeOrAgree rd H.tree H.edges k x = .agree := by
+    simp only [searchingProbes, undSiftSet, ofCut_rd, Set.mem_setOf_eq] at hx hu
+    rcases ho : probeOrAgree rd H.tree H.edges k x with
+      _ | _ | _ | _ | ⟨zs, _ | _⟩ <;> rw [ho] at hx hu <;> simp_all
+  rcases hp : H.tree.sift rd (prefixOf x k) with p | b
   swap
-  · simp only [Sum.elim_inr] at hpe
-    have := bracketAt_isSearch (α := α) (agreesAtBy cut H.tree x fun j => d.1.getD (j - k) [])
-      d.1 (d.2 - k) k d.2
-    rw [← hpe] at this
-    exact this.elim
-  simp only [Sum.elim_inl, id] at hpe
-  subst hpe
-  unfold walkCheckBy kWalkBy at hw
-  rcases hp : H.tree.siftCut cut (prefixOf x k) with p | b <;> rw [hp] at hw
-  · simp only at hw
-    rcases hf : follow (Function.curry H.edges) p (x.toList.drop k) with ps | ⟨s, c, i⟩ <;>
-      rw [hf] at hw <;> simp only at hw
-    · rcases he : H.tree.siftCut cut x with e | b <;> rw [he] at hw <;> simp only at hw
-      · split_ifs at hw with h
-        exact ⟨p, ps, e, rfl, hf, rfl, h.symm⟩
-      · simp at hw
-    · split at hw <;> (try split at hw) <;> (try split_ifs at hw) <;> simp at hw
-  · simp at hw
+  · simp [probeOrAgree, probe, hp, show ¬ x.toList.length < k by omega] at hagree
+  obtain ⟨hpos, hhi, hst0, -, hnone, -⟩ := walk_facts H.edges k x (p₀ := p) hk
+  have hlo : H.tree.sift rd (prefixOf x k)
+      = .inl ((walk H.edges p (x.toList.drop k)).getD (k - k) []) := by
+    rw [Nat.sub_self, hst0, hp]
+  rcases probe_long_cases rd H.tree H.edges k x hk hp hagree with
+    ⟨c, z, -, -, h⟩ | ⟨un, -, hu2, h'⟩
+  · cases h
+  rcases searchOutcome_cases rd H.tree k x _ un (by omega) hhi hlo h' with
+    ⟨z, -, h''⟩ | ⟨hsh, h''⟩ | ⟨-, ⟨p', c', t', -, -, -, -, -, -, h''⟩ | ⟨p', z, -, -, -, h''⟩⟩
+  · cases h''
+  swap
+  · cases h''
+  swap
+  · cases h''
+  rcases un with _ | ⟨c, t⟩
+  swap
+  · simp [searchOutcome] at h''
+  have hend := hnone (hu2 rfl)
+  have hlen : (walk H.edges p (x.toList.drop k)).length = (x.toList.drop k).length + 1 := by
+    simp only [List.length_drop]; omega
+  refine ⟨p, (walk H.edges p (x.toList.drop k)).getD
+    (k + (walk H.edges p (x.toList.drop k)).length - 1 - k) [], rfl, hlen, ?_, ?_⟩
+  · rwa [show prefixOf x (k + (walk H.edges p (x.toList.drop k)).length - 1) = x by
+      rw [hend, prefixOf_length]] at hsh
+  · rw [List.getLast?_eq_getElem?, List.getD_eq_getElem?_getD,
+      show k + (walk H.edges p (x.toList.drop k)).length - 1 - k
+        = (walk H.edges p (x.toList.drop k)).length - 1 by omega,
+      List.getElem?_eq_getElem (by omega)]
+    rfl
 
 /-- A probe and its extension by a letter, both at most `J` long and neither checked, cross a
 learned edge between their states' true leaves. -/
 theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : α)
     (hk : k ≤ y.toList.length)
     (hy : y ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k)
+      ∪ undSiftSet (fun z => (rd z).cut) H.tree H.edges k)
     (hya : y * FreeMonoid.of a ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) :
+      ∪ undSiftSet (fun z => (rd z).cut) H.tree H.edges k) :
     ∃ w, H.edges (G.leafOf H.tree (G.M.eval y.toList), a)
       = some (G.leafOf H.tree (G.M.eval (y * FreeMonoid.of a).toList), w) := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
   have hlen : (y * FreeMonoid.of a).toList.length = y.toList.length + 1 := by simp
   simp only [Set.mem_union, not_or] at hy hya
-  obtain ⟨p, ps, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1.1 hy.2
-  obtain ⟨p', ps', e', hp', hf', he', hl'⟩ :=
+  obtain ⟨p, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1.1 hy.2
+  obtain ⟨p', e', hp', hf', he', hl'⟩ :=
     agree_of_unchecked rd H (by omega) hya.1.1 hya.2
   have hpre : prefixOf (y * FreeMonoid.of a) k = prefixOf y k := by
     simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_of]
@@ -316,16 +307,16 @@ theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : �
   have hdrop : (y * FreeMonoid.of a).toList.drop k = y.toList.drop k ++ [a] := by
     simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of]
     rw [List.drop_append_of_le_length hk]
-  rw [hdrop] at hf'
-  obtain ⟨w, hw⟩ := follow_snoc _ a p ps ps' hf hf'
+  rw [hdrop] at hf' hl'
+  obtain ⟨w, hw⟩ := walk_snoc H.edges _ a p (by rw [hf']; simp)
   have hclean : ∀ z : FreeMonoid α, z ∉ rarerProbes G.M G.readDist rd k H →
       k ≤ z.toList.length → ∀ m ∈ H.tree.midfixes, ¬ G.WrongRead rd (z * m) := by
     intro z hz hkz m hm hwr
     refine hz ⟨z.toList.length, hkz, le_rfl, m, hm, ?_⟩
     rw [prefixOf_length]
     exact hwr
-  have h1 := leafOf_of_sift G rd (hclean y hy.1.2 hk) he
-  have h2 := leafOf_of_sift G rd (hclean _ hya.1.2 (by omega)) he'
+  have h1 := leafOf_of_sift G rd (hclean y hy.1.2 hk) (by rw [ofCut_rd]; exact he)
+  have h2 := leafOf_of_sift G rd (hclean _ hya.1.2 (by omega)) (by rw [ofCut_rd]; exact he')
   rw [hl, hl'] at hw
   rw [h1, h2]
   exact ⟨w, hw⟩
@@ -337,12 +328,12 @@ true leaf learned and true, unless the checked probes hold `c/((|Σ|+1)N)` of th
 theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
     {c β : ℝ}
     (hbad : (windowStrings k L₁).real (searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) ≤ β)
+      ∪ undSiftSet (fun z => (rd z).cut) H.tree H.edges k) ≤ β)
     (hocc : c ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings i).real {y | G.M.eval y.toList = q})
     (hβ : ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * β < c) :
     ∃ w, H.edges (G.leafOf H.tree q, a) = some (G.leafOf H.tree (G.M.step q a), w) := by
   set Bad := searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-    ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k
+    ∪ undSiftSet (fun z => (rd z).cut) H.tree H.edges k
   set A : ℝ := (Fintype.card α : ℝ) with hA
   by_contra hno
   have hkL : k ≤ L₁ := by omega

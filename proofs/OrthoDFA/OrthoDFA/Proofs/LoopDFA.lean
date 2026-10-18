@@ -185,7 +185,7 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     linarith
   have hbad : D.real (searchingProbes o.read k H ∪ rarerProbes G.M G.readDist o.read k H
       ∪ undSiftSet (fun z => (o.read z).cut) H.tree
-        (Function.curry H.edges) k) ≤ εd := by
+        H.edges k) ≤ εd := by
     refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hchk
     rintro x ((h | h) | h)
     · exact .inl (.inl (.inl h))

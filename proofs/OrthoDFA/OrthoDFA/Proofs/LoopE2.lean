@@ -258,11 +258,11 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
         · right
           obtain ⟨hs, h⟩ := h
           refine ⟨hs, ?_⟩
-          have hpb := probeBy_congr_off (cut := fun z => (read z).cut)
+          have hpb := probeOrAgree_congr_off (cut := fun z => (read z).cut)
             (cut' := fun z => (fam'.read (ω, ω₀) z).cut)
             (fun z hz => by dsimp only; rw [hoff z hz])
             (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis.tree
-            (Function.curry (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis.edges)
+            (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis.edges
             (show Avoids k (↑K₀) x from hx)
           simp only [undSiftSet, Set.mem_setOf_eq] at h ⊢
           rw [← hpb]

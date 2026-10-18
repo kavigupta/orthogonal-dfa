@@ -86,8 +86,8 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
         =ᵐ[D'] (checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
           ∪ siftedProbes sift read' C.walkStart res.hypothesis : Set (FreeMonoid α)) := by
       filter_upwards [hlen] with x hx
-      have hpb := probeBy_congr_up hcut hmid (x := x) (by omega)
-        (Function.curry res.hypothesis.edges) C.walkStart
+      have hpb := probeOrAgree_congr_up hcut hmid (x := x) (by omega)
+        res.hypothesis.edges C.walkStart
       have hpre : ∀ j ≤ x.toList.length, ∀ m ∈ shortWords n,
           read (prefixOf x j * m) = read' (prefixOf x j * m) := fun j hj m hm => by
         refine h _ (le_max_of_le_left ?_)
@@ -116,14 +116,8 @@ theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.D
       simp only [checkedProbes, rarerProbes, undecidedProbes, Set.mem_union, Set.mem_setOf_eq]
       have hs : x ∈ searchingProbes read C.walkStart res.hypothesis
           ↔ x ∈ searchingProbes read' C.walkStart res.hypothesis := by
-        show (match probeBy (fun z => (read z).cut) res.hypothesis.tree
-            (Function.curry res.hypothesis.edges) C.walkStart x with
-          | .undecidedMid _ | .edge _ _ | .member _ => True
-          | _ => False) ↔ (match probeBy (fun z => (read' z).cut) res.hypothesis.tree
-            (Function.curry res.hypothesis.edges) C.walkStart x with
-          | .undecidedMid _ | .edge _ _ | .member _ => True
-          | _ => False)
-        rw [hpb]
+        simp only [searchingProbes, Set.mem_setOf_eq]
+        rw [← ofCut_rd read, ← ofCut_rd read', hpb]
       rw [hs]
       refine or_congr (or_congr Iff.rfl ?_) (and_congr Iff.rfl (and_congr Iff.rfl ?_))
       · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>

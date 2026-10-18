@@ -67,9 +67,9 @@ section Congr
 
 variable {cut cut' : FreeMonoid α → Option Bool}
 
-theorem siftCut_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) {u : FreeMonoid α}
-    (hu : KeyOff k K₀ u) : T.siftCut cut u = T.siftCut cut' u :=
-  siftCut_congr_mid T u fun m _ => h _ (keyOff_mul hu m)
+theorem sift_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) {u : FreeMonoid α}
+    (hu : KeyOff k K₀ u) : T.sift (ofCut cut) u = T.sift (ofCut cut') u :=
+  sift_congr_mid T u fun m _ => h _ (keyOff_mul hu m)
 
 theorem probeStrings_agree_off (h : AgreeOff k K₀ cut cut') (T : DTree α) {x : FreeMonoid α}
     (hx : KeyOff k K₀ x) : ∀ z ∈ probeStrings T k x, cut z = cut' z := by
@@ -80,15 +80,16 @@ theorem probeStrings_agree_off (h : AgreeOff k K₀ cut cut') (T : DTree α) {x 
 
 theorem prefAgreeK_off (h : AgreeOff k K₀ cut cut') (T : DTree α) {x : FreeMonoid α}
     (hx : KeyOff k K₀ x) : PrefAgreeK cut cut' T x k :=
-  fun _ hj => siftCut_congr_off h T (keyOff_prefixOf hx hj)
+  fun _ hj => sift_congr_off h T (keyOff_prefixOf hx hj)
 
-theorem probeBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : EdgeTable α)
-    {x : FreeMonoid α} (hx : Avoids k K₀ x) : probeBy cut T E k x = probeBy cut' T E k x := by
+theorem probeOrAgree_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Edges α)
+    {x : FreeMonoid α} (hx : Avoids k K₀ x) :
+    probeOrAgree (ofCut cut) T E k x = probeOrAgree (ofCut cut') T E k x := by
   by_cases hk : k ≤ x.toList.length
-  · exact probeBy_congrK (prefAgreeK_off h T (keyOff_of_avoids hx hk))
-  · rw [probeBy_short cut T E (by omega), probeBy_short cut' T E (by omega)]
+  · exact probeOrAgree_congrK (prefAgreeK_off h T (keyOff_of_avoids hx hk))
+  · rw [probeOrAgree_short cut T E (by omega), probeOrAgree_short cut' T E (by omega)]
 
-theorem middleHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : EdgeTable α)
+theorem middleHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Edges α)
     {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     middleHarvestBy cut T E k x = middleHarvestBy cut' T E k x := by
   by_cases hk : k ≤ x.toList.length
@@ -99,7 +100,7 @@ theorem startHarvestBy_congr_strings {T : DTree α} {x : FreeMonoid α}
     (hkx : k ≤ x.toList.length) (h : ∀ z ∈ probeStrings T k x, cut z = cut' z) :
     startHarvestBy cut T k x = startHarvestBy cut' T k x := by
   unfold startHarvestBy
-  rw [siftCut_congr_mid T _ fun m hm => h _ (Finset.mem_biUnion.2 ⟨k,
+  rw [sift_congr_mid T _ fun m hm => h _ (Finset.mem_biUnion.2 ⟨k,
     Finset.mem_Icc.2 ⟨le_rfl, hkx⟩, Finset.mem_image_of_mem _ hm⟩)]
 
 theorem startHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α)
@@ -108,7 +109,7 @@ theorem startHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α)
   · exact startHarvestBy_congr_strings hk (probeStrings_agree_off h T (keyOff_of_avoids hx hk))
   · simp only [startHarvestBy, if_pos (show x.toList.length < k by omega)]
 
-theorem edgeReadsBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : EdgeTable α)
+theorem edgeReadsBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Edges α)
     {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     edgeReadsBy cut T E k x = edgeReadsBy cut' T E k x := by
   by_cases hk : k ≤ x.toList.length
@@ -116,7 +117,7 @@ theorem edgeReadsBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E :
   · funext e
     rw [edgeReadsBy_short cut T E (by omega) e, edgeReadsBy_short cut' T E (by omega) e]
 
-theorem edgeHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : EdgeTable α)
+theorem edgeHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Edges α)
     {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     edgeHarvestBy cut T E k x = edgeHarvestBy cut' T E k x := by
   by_cases hk : k ≤ x.toList.length
@@ -125,7 +126,7 @@ theorem edgeHarvestBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E
     rw [edgeHarvestBy_short cut T E (by omega) e, edgeHarvestBy_short cut' T E (by omega) e]
 
 theorem siteHarvest_congr_off (h : AgreeOff k K₀ cut cut') (site : Level5Site α)
-    (v : DTree α × EdgeTable α) {x : FreeMonoid α} (hx : Avoids k K₀ x) :
+    (v : DTree α × Edges α) {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     siteHarvest cut k site v x = siteHarvest cut' k site v x := by
   cases site with
   | start => exact startHarvestBy_congr_off h v.1 hx
@@ -139,31 +140,16 @@ theorem countProbe_congr_off (h : AgreeOff k K₀ cut cut') (s : Level5State α)
   rw [middleHarvestBy_congr_off h s.tree s.edges hx, startHarvestBy_congr_off h s.tree hx,
     edgeReadsBy_congr_off h s.tree s.edges hx, edgeHarvestBy_congr_off h s.tree s.edges hx]
 
-/-- A clean disagreement is past the walk's start. -/
-theorem probeBy_edge_gt {T : DTree α} {E : EdgeTable α} {x : FreeMonoid α}
-    {ps : List (List Bool)} {fd : ℕ} (ho : probeBy cut T E k x = .edge ps fd) :
-    k < fd ∧ fd ≤ x.toList.length := by
-  obtain ⟨ps₀, hi, hw, hb⟩ := probeBy_search cut ho trivial
-  obtain ⟨p₀, hk, hf, hkh, hhx, hag⟩ := walkCheckBy_inr cut hw
-  obtain ⟨-, hhead, -⟩ := follow_inl _ _ _ hf
-  have hlo : agreesAtBy cut T x (fun j => ps₀.getD (j - k) []) k = some true := by
-    simp [agreesAtBy, hk, ← hhead, List.getD_eq_getElem?_getD]
-  obtain ⟨-, hfd1, hfd2, -, -⟩ := bracketAt_edge _ ps₀ (hi - k) k hi ps fd hkh le_rfl hlo hag hb
-  exact ⟨hfd1, hfd2.trans hhx⟩
-
-theorem recordBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : EdgeTable α)
+theorem recordBy_congr_off (h : AgreeOff k K₀ cut cut') (T : DTree α) (E : Edges α)
     {x : FreeMonoid α} (hx : Avoids k K₀ x) :
     recordBy cut k (T, E) x = recordBy cut' k (T, E) x := by
   unfold recordBy
-  rw [probeBy_congr_off h T E hx]
-  rcases ho : probeBy cut' T E k x with _ | _ | _ | _ | ⟨ps, fd⟩ | _ | _ <;> try rfl
-  obtain ⟨hfd, hfdx⟩ := probeBy_edge_gt ho
-  simp only [siftCut_congr_off h T (keyOff_prefixOf (keyOff_of_avoids hx (by omega)) hfd.le)]
+  rw [probeOrAgree_congr_off h T E hx]
 
 /-- What the run keeps that it reads through: every edge's witness followed by its letter is at
 least `k` long and off `K₀`. -/
 def OffInv (k : ℕ) (K₀ : Set (FreeMonoid α)) (s : Level5State α) : Prop :=
-  ∀ q c t w, s.edges q c = some (t, w) → KeyOff k K₀ (w * FreeMonoid.of c)
+  ∀ q c t w, s.edges (q, c) = some (t, w) → KeyOff k K₀ (w * FreeMonoid.of c)
 
 variable (C : Level5Settings)
 
@@ -171,42 +157,31 @@ theorem recordProbe_congr_off (h : AgreeOff C.walkStart K₀ cut cut') (s : Leve
     {x : FreeMonoid α} (hx : Avoids C.walkStart K₀ x) :
     recordProbe C cut s x = recordProbe C cut' s x := by
   unfold recordProbe
-  rw [probeBy_congr_off h s.tree s.edges hx, countProbe_congr_off h s hx]
-  rcases ho : probeBy cut' s.tree s.edges C.walkStart x with _ | w | w | j | ⟨ps, fd⟩ | u <;>
-    try rfl
-  try dsimp only
-  obtain ⟨j, hj, -, rfl⟩ := probeBy_member cut' ho
-  rcases hc : x.toList[(prefixOf x j).toList.length]? with _ | c
-  · rfl
-  try dsimp only
-  have hlen := (List.getElem?_eq_some_iff.1 hc).1
-  have hkx : C.walkStart ≤ x.toList.length := by rw [length_prefixOf] at hlen; omega
-  have hkey := keyOff_prefixOf (keyOff_of_avoids hx hkx) hj
-  rw [siftCut_congr_off h s.tree hkey]
-  rcases s.tree.siftCut cut' (prefixOf x j) with p | b
-  · simp only [siftCut_congr_off h s.tree (keyOff_mul hkey (FreeMonoid.of c))]
-  · rfl
+  rw [probeOrAgree_congr_off h s.tree s.edges hx, countProbe_congr_off h s hx]
 
-theorem retargetBy_congr_off (h : AgreeOff k K₀ cut cut') (t' : DTree α) (p : List Bool)
-    {E : EdgeTable α} (hE : ∀ q c t w, E q c = some (t, w) → KeyOff k K₀ (w * FreeMonoid.of c)) :
-    retargetBy cut t' p E = retargetBy cut' t' p E := by
-  funext q c
-  unfold retargetBy
-  rcases he : E q c with _ | ⟨t, w⟩
+theorem retarget_congr_off (h : AgreeOff k K₀ cut cut') (t' : DTree α) (p : List Bool)
+    {E : Edges α}
+    (hE : ∀ q c t w, E (q, c) = some (t, w) → KeyOff k K₀ (w * FreeMonoid.of c)) :
+    retarget (ofCut cut) t' p E = retarget (ofCut cut') t' p E := by
+  funext ⟨q, c⟩
+  unfold retarget
+  split_ifs
+  · rfl
+  rcases he : E (q, c) with _ | ⟨t, w⟩
   · rfl
   · dsimp only
     split_ifs
-    · rw [siftCut_congr_off h t' (hE q c t w he)]
+    · rw [sift_congr_off h t' (hE q c t w he)]
     · rfl
 
 theorem splitState_congr_off (h : AgreeOff k K₀ cut cut') (s : Level5State α)
     (hs : OffInv k K₀ s) (p : List Bool) (c : α) (t : List Bool) :
     splitState cut s p c t = splitState cut' s p c t := by
   unfold splitState
-  rcases he : s.edges p c with _ | ⟨t₀, w₀⟩
+  rcases he : s.edges (p, c) with _ | ⟨t₀, w₀⟩
   · rfl
-  · dsimp only
-    rw [retargetBy_congr_off h _ p hs]
+  · simp only [HypothesisDFA.split]
+    rw [retarget_congr_off h _ p hs]
 
 theorem recordProbe_offInv {s : Level5State α} (hs : OffInv C.walkStart K₀ s)
     {x : FreeMonoid α} (hx : Avoids C.walkStart K₀ x) :
@@ -220,7 +195,7 @@ theorem recordProbe_offInv {s : Level5State α} (hs : OffInv C.walkStart K₀ s)
     obtain ⟨rfl, rfl⟩ := hpq
     simp only [Option.some.injEq, Prod.mk.injEq] at hqc
     rw [← hqc.2]
-    obtain ⟨j, hj, hjx, rfl⟩ := probeBy_member cut ho
+    obtain ⟨-, j, -, hj, hjx, rfl, -⟩ := probe_unlearnedEdge _ _ _ _ _ ho
     have hjl : (prefixOf x j).toList.length = j := by rw [length_prefixOf]; omega
     rw [hjl] at hc
     rw [prefixOf_mul_of hc]

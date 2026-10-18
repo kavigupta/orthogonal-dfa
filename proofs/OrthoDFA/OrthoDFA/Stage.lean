@@ -4,9 +4,7 @@ import OrthoDFA.HypothesisDFA
 /-!
 # Trees and their reads
 
-A family's cut reads a string accept, reject or undecided (`CutReads`). A discrimination tree
-(`DTree`) places a string by reading it followed by each node's midfix, asking the cut at each
-(`route`, `siftCut`).
+A family's cut reads a string accept, reject or undecided (`CutReads`).
 -/
 
 namespace OrthoDFA
@@ -38,27 +36,5 @@ noncomputable def CutReads.cut (R : CutReads α) (x : FreeMonoid α) : Option Bo
   else if acceptsOn R.F R.f x ≤ R.B.lo then some false else none
 
 end
-
-namespace DTree
-
-variable {α : Type*}
-
-/-- `x`'s way down the tree by `cut`: the strings it asks the cut about, root first (`x` followed
-by each node's midfix), and the path to its leaf (`true` for an accepting side) or the string a
-node could not place. -/
-def route (cut : FreeMonoid α → Option Bool) :
-    DTree α → FreeMonoid α → List (FreeMonoid α) × (List Bool ⊕ FreeMonoid α)
-  | .leaf, _ => ([], .inl [])
-  | .node m r a, x =>
-    match cut (x * m) with
-    | none => ([x * m], .inr (x * m))
-    | some true => (x * m :: (a.route cut x).1, (a.route cut x).2.map (true :: ·) id)
-    | some false => (x * m :: (r.route cut x).1, (r.route cut x).2.map (false :: ·) id)
-
-def siftCut (cut : FreeMonoid α → Option Bool) (t : DTree α) (x : FreeMonoid α) :
-    List Bool ⊕ FreeMonoid α :=
-  (t.route cut x).2
-
-end DTree
 
 end OrthoDFA

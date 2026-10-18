@@ -23,7 +23,7 @@ variable {σ : Type*} (G : ReadModel α σ) {Ω : Type*} [MeasurableSpace Ω] {�
   [IsProbabilityMeasure μ] {read : FreeMonoid α → Ω → ARU}
 
 open scoped Classical in
-theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
+theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
     (d : List Bool × α) (x : FreeMonoid α) :
     G.undecAt rd k T edges d G.Good x = (((probeQuery T edges k x).firsts rd ∅).filter fun q =>
       q.1.2 = some d ∧ rd q.2 = .undecided ∧ G.Good (G.M.eval q.2.toList)).length := by
@@ -40,7 +40,7 @@ theorem undecAt_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges 
   · simp [h1]
   · simp [h1]
 
-theorem edgeReadsBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : EdgeTable α)
+theorem edgeReadsBy_eq (rd : FreeMonoid α → ARU) (k : ℕ) (T : DTree α) (edges : Edges α)
     (d : List Bool × α) (x : FreeMonoid α) :
     edgeReadsBy (fun z => (rd z).cut) T edges k x d
       = (((probeQuery T edges k x).firsts rd ∅).filter fun q => q.1.2 = some d).length := by
@@ -51,7 +51,7 @@ open scoped Classical in
 /-- The per-read edge field in mean at one probe, over real expectations. -/
 theorem undecAt_mean_real (hmeas : ∀ w, Measurable (read w)) (hind : iIndepFun read μ)
     (hlaw : ∀ w r, μ.real {ω | read w ω = r} = G.readDist (G.M.eval w.toList) r) (hθ : 0 ≤ G.θ)
-    (T : DTree α) (edges : EdgeTable α) (k : ℕ) (d : List Bool × α) (x : FreeMonoid α) :
+    (T : DTree α) (edges : Edges α) (k : ℕ) (d : List Bool × α) (x : FreeMonoid α) :
     ∫ ω, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂μ
       ≤ 3 / 2 * G.θ * ∫ ω, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂μ := by
   have h := edge_first_mean G hmeas hind hlaw G.Good (3 / 2 * G.θ) (fun r h => h) d
@@ -121,7 +121,7 @@ theorem goodEdge_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η : ℝ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hη : 0 ≤ η) (T : DTree α)
-    (edges : EdgeTable α) (d : List Bool × α) :
+    (edges : Edges α) (d : List Bool × α) :
     μ {ω | 2 * (3 / 2 * G.θ) * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T edges k x d : ℝ) ∂D + η
         < ∫ x, (G.undecAt (read · ω) k T edges d G.Good x : ℝ) ∂D}
       ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * (L + 1)
@@ -257,7 +257,7 @@ theorem goodEdge_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
           * (1 + 4 * (3 / 2 * G.θ) * (Fintype.card σ + S + 1)))))) := by
   set n := Fintype.card σ + S
   set ε : ℝ := Real.exp (-(η / (2 * p₀ * (L + 1) * (1 + 4 * (3 / 2 * G.θ) * (n + 1)))))
-  set B : DTree α → EdgeTable α → List Bool × α → Set Ω := fun T e d => {ω |
+  set B : DTree α → Edges α → List Bool × α → Set Ω := fun T e d => {ω |
     2 * (3 / 2 * G.θ) * ∫ x, (edgeReadsBy (fun z => (read z ω).cut) T e k x d : ℝ) ∂D + η
       < ∫ x, (G.undecAt (read · ω) k T e d G.Good x : ℝ) ∂D}
   have hsub : {ω | ¬ ∀ T, G.InClass S T → ∀ edges, EdgesInto T edges → ∀ d,

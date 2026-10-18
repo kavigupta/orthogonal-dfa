@@ -37,7 +37,7 @@ def avoiding (k : ℕ) (K₀ : Set (FreeMonoid α)) : Set (FreeMonoid α) := {x 
 open scoped Classical in
 /-- The strings in `S` a probe walked under `v` harvests at the site, summed over `ν`. -/
 def siteSum (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool) (k : ℕ)
-    (v : DTree α × EdgeTable α) (site : Level5Site α) (S : Set (FreeMonoid α)) : ℝ :=
+    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) : ℝ :=
   ∫ x, (((siteHarvest cut k site v x).filter (· ∈ S)).length : ℝ) ∂ν
 
 variable {k : ℕ} {K₀ : Set (FreeMonoid α)}
@@ -46,14 +46,14 @@ lemma harvestLaw_real_siteSum (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν
     (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
     (H : HypothesisDFA α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
     (harvestLaw ν cut k H site).real S
-      = siteSum ν cut k (H.tree, Function.curry H.edges) site S := by
+      = siteSum ν cut k (H.tree, H.edges) site S := by
   classical
   rw [harvestLaw_real ν cut k hlen H site S]
   rfl
 
 lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × EdgeTable α) (site : Level5Site α) (S A : Set (FreeMonoid α)) :
+    (v : DTree α × Edges α) (site : Level5Site α) (S A : Set (FreeMonoid α)) :
     siteSum D cut k v site S
       = siteSum (D.restrict A) cut k v site S + siteSum (D.restrict Aᶜ) cut k v site S := by
   classical
@@ -61,7 +61,7 @@ lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ}
     (integrable_siteCount D cut k hlen site v _)).symm
 
 lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {cut cut' : FreeMonoid α → Option Bool}
-    (hc : AgreeOff k K₀ cut cut') (v : DTree α × EdgeTable α) (site : Level5Site α)
+    (hc : AgreeOff k K₀ cut cut') (v : DTree α × Edges α) (site : Level5Site α)
     (S : Set (FreeMonoid α)) :
     siteSum (D.restrict (avoiding k K₀)) cut k v site S
       = siteSum (D.restrict (avoiding k K₀)) cut' k v site S := by
@@ -70,19 +70,19 @@ lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {cut cut' : FreeMonoi
   simp only [siteHarvest_congr_off hc site v hx]
 
 lemma siteSum_smul (ν : Measure (FreeMonoid α)) (c : ENNReal) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × EdgeTable α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
+    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
     siteSum (c • ν) cut k v site S = c.toReal * siteSum ν cut k v site S := by
   unfold siteSum
   rw [integral_smul_measure, smul_eq_mul]
 
 lemma siteSum_nonneg (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × EdgeTable α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
+    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
     0 ≤ siteSum ν cut k v site S :=
   integral_nonneg fun _ => Nat.cast_nonneg _
 
 lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
     (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × EdgeTable α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
+    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
     siteSum ν cut k v site S ≤ (L + 1) * ν.real Set.univ := by
   classical
   have := integral_mono_ae (integrable_siteCount ν cut k hlen site v (· ∈ S))
@@ -100,7 +100,8 @@ lemma searchingProbes_congr_off {read read' : FreeMonoid α → ARU}
     {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) :
     x ∈ searchingProbes read k H ↔ x ∈ searchingProbes read' k H := by
   unfold searchingProbes
-  simp only [Set.mem_setOf_eq, probeBy_congr_off hc H.tree (Function.curry H.edges) hx]
+  simp only [Set.mem_setOf_eq]
+  rw [← ofCut_rd read, ← ofCut_rd read', probeOrAgree_congr_off hc H.tree H.edges hx]
 
 lemma keyOff_of_prefix {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) {j : ℕ} (hkj : k ≤ j)
     (hj : j ≤ x.toList.length) (m : FreeMonoid α) : KeyOff k K₀ (prefixOf x j * m) :=
@@ -207,7 +208,7 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
   set cut := fun z => (read z).cut
   set cut' := fun z => (read' z).cut
   -- the sums at `D` against those at `D'`
-  set v := (H.tree, Function.curry H.edges)
+  set v := (H.tree, H.edges)
   have hsum : ∀ (site : Level5Site α) (S : Set (FreeMonoid α)),
       siteSum D cut k v site S
         = (1 - m) * siteSum D' cut' k v site S + siteSum (D.restrict Aᶜ) cut k v site S := by

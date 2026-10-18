@@ -39,16 +39,6 @@ theorem asks_congr {rd rd' : ι → V} :
 
 end QTree
 
-theorem route_congr {cut cut' : FreeMonoid α → Option Bool} :
-    ∀ (T : DTree α) (u : FreeMonoid α), (∀ m ∈ T.midfixes, cut (u * m) = cut' (u * m)) →
-      T.route cut u = T.route cut' u
-  | .leaf, _, _ => rfl
-  | .node m r a, u, h => by
-    have hm := h m (by simp [DTree.midfixes])
-    have hr := route_congr r u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    have ha := route_congr a u fun m' hm' => h m' (by simp [DTree.midfixes, hm'])
-    simp only [DTree.route, hm, hr, ha]
-
 omit [Fintype α] [DecidableEq α] in
 theorem prefixOf_min (x : FreeMonoid α) (i : ℕ) :
     prefixOf x i = prefixOf x (min i x.toList.length) := by
@@ -61,17 +51,16 @@ section Congr
 
 variable {cut cut' : FreeMonoid α → Option Bool} {T : DTree α} {x : FreeMonoid α}
 
-theorem siftCut_prefix_congr (h : ∀ z ∈ potMid x T, cut z = cut' z) (i : ℕ) :
-    T.siftCut cut (prefixOf x i) = T.siftCut cut' (prefixOf x i) := by
+theorem sift_prefix_congr (h : ∀ z ∈ potMid x T, cut z = cut' z) (i : ℕ) :
+    T.sift (ofCut cut) (prefixOf x i) = T.sift (ofCut cut') (prefixOf x i) := by
   rw [prefixOf_min x i]
-  unfold DTree.siftCut
-  rw [route_congr T _ fun m hm => h _ (mem_potMid (min_le_right _ _) hm)]
+  exact sift_congr_mid T _ fun m hm => h _ (mem_potMid (min_le_right _ _) hm)
 
-theorem asks_potMid {E : EdgeTable α} {k : ℕ} {rd : FreeMonoid α → ARU}
+theorem asks_potMid {E : Edges α} {k : ℕ} {rd : FreeMonoid α → ARU}
     {q : ReadLabel α × FreeMonoid α} (hq : q ∈ (probeQuery T E k x).asks rd) :
     q.2 ∈ potMid x T := by
-  obtain ⟨h1, -⟩ := asks_probeQuery T E k x rd q hq
-  obtain ⟨m, hm, he⟩ := route_mid _ T _ q.2 h1
+  obtain ⟨h1, -⟩ := asks_probeQuery rd T x k E q hq
+  obtain ⟨m, hm, he⟩ := reads_mid _ T _ q.2 h1
   rw [he, prefixOf_min x q.1.1]
   exact mem_potMid (min_le_right _ _) hm
 
@@ -79,11 +68,11 @@ theorem ofCut_congr (h : ∀ z ∈ potMid x T, cut z = cut' z) {z : FreeMonoid �
     (hz : z ∈ potMid x T) : ofCut cut z = ofCut cut' z := by
   simp only [ofCut, h z hz]
 
-theorem firstsBy_congr {E : EdgeTable α} {k : ℕ} (h : ∀ z ∈ potMid x T, cut z = cut' z) :
+theorem firstsBy_congr {E : Edges α} {k : ℕ} (h : ∀ z ∈ potMid x T, cut z = cut' z) :
     firstsBy cut T E k x = firstsBy cut' T E k x :=
   QTree.asks_congr _ _ fun _ hq => ofCut_congr h (asks_potMid hq)
 
-theorem edgeHarvestBy_congr {E : EdgeTable α} {k : ℕ} (h : ∀ z ∈ potMid x T, cut z = cut' z)
+theorem edgeHarvestBy_congr {E : Edges α} {k : ℕ} (h : ∀ z ∈ potMid x T, cut z = cut' z)
     (e : List Bool × α) : edgeHarvestBy cut T E k x e = edgeHarvestBy cut' T E k x e := by
   unfold edgeHarvestBy
   rw [firstsBy_congr h]
@@ -92,40 +81,26 @@ theorem edgeHarvestBy_congr {E : EdgeTable α} {k : ℕ} (h : ∀ z ∈ potMid x
   rw [h q.2 (asks_potMid (QTree.firsts_sub_asks _ _ _ q hq))]
 
 theorem prefAgreeK_of (h : ∀ z ∈ potMid x T, cut z = cut' z) (k : ℕ) : PrefAgreeK cut cut' T x k :=
-  fun j _ => siftCut_prefix_congr h j
+  fun j _ => sift_prefix_congr h j
 
 variable (C : Level5Settings)
 
 theorem countProbe_congr {s : Level5State α} (h : ∀ z ∈ potMid x s.tree, cut z = cut' z) :
     s.countProbe cut C.walkStart x = s.countProbe cut' C.walkStart x := by
-  have hs := siftCut_prefix_congr h
+  have hs := sift_prefix_congr h
   simp only [Level5State.countProbe, startHarvestBy, edgeReadsBy, firstsBy_congr h,
     edgeHarvestBy_congr h, middleHarvestBy_congrK (edges := s.edges) (prefAgreeK_of h C.walkStart),
     hs]
 
 theorem recordProbe_congr {s : Level5State α} (h : ∀ z ∈ potMid x s.tree, cut z = cut' z) :
     recordProbe C cut s x = recordProbe C cut' s x := by
-  have hs := siftCut_prefix_congr h
-  have hP := probeBy_congrK (edges := s.edges) (prefAgreeK_of h C.walkStart)
   unfold recordProbe
-  rw [countProbe_congr C h, hP]
-  rcases hpo : probeBy cut' s.tree s.edges C.walkStart x with _ | _ | _ | _ | _ | u <;>
-    simp only
-  obtain ⟨j, -, hjx, rfl⟩ := probeBy_member cut' hpo
-  have hlen : (prefixOf x j).toList.length = j := by simp [prefixOf]; omega
-  rw [hlen, hs j]
-  rcases hc : x.toList[j]? with _ | c
-  · rfl
-  rcases hs' : DTree.siftCut cut' s.tree (prefixOf x j) with p | b
-  · simp only
-    rw [← prefixOf_succ hc, hs (j + 1)]
-  · rfl
+  rw [countProbe_congr C h, probeOrAgree_congrK (edges := s.edges) (prefAgreeK_of h C.walkStart)]
 
 theorem recordBy_congr {s : Level5State α} (h : ∀ z ∈ potMid x s.tree, cut z = cut' z) :
     recordBy cut C.walkStart (s.tree, s.edges) x
       = recordBy cut' C.walkStart (s.tree, s.edges) x := by
-  have hs := siftCut_prefix_congr h
-  simp only [recordBy, probeBy_congrK (edges := s.edges) (prefAgreeK_of h C.walkStart), hs]
+  simp only [recordBy, probeOrAgree_congrK (edges := s.edges) (prefAgreeK_of h C.walkStart)]
 
 theorem splitReads_congr {s : Level5State α} (h : ∀ z ∈ potMid x s.tree, cut z = cut' z) :
     splitReads C cut s x = splitReads C cut' s x := by
@@ -133,7 +108,7 @@ theorem splitReads_congr {s : Level5State α} (h : ∀ z ∈ potMid x s.tree, cu
 
 /-- Reads agreeing on what a step reads give the same step, its learned edges leaving leaves. -/
 theorem applyProbe_congr {s : Level5State α}
-    (hlv : ∀ q e t w, s.edges q e = some (t, w) → q ∈ s.tree.leaves)
+    (hlv : ∀ q e t w, s.edges (q, e) = some (t, w) → q ∈ s.tree.leaves)
     (h : ∀ z ∈ potMid x s.tree ∪ splitReads C cut s x, cut z = cut' z) :
     applyProbe C cut s x = applyProbe C cut' s x := by
   have hpot : ∀ z ∈ potMid x s.tree, cut z = cut' z := fun z hz => h z (Finset.mem_union_left _ hz)
@@ -152,20 +127,19 @@ theorem applyProbe_congr {s : Level5State α}
         { s.countProbe cut' C.walkStart x with searches := s.searches + 1 } p c t := by
     unfold splitState
     simp only [Level5State.countProbe]
-    rcases hpe : s.edges p c with _ | ⟨t₀, w₀⟩
+    rcases hpe : s.edges (p, c) with _ | ⟨t₀, w₀⟩
     · rfl
-    simp only
+    simp only [HypothesisDFA.split]
     congr 1
-    funext q e
+    funext ⟨q, e⟩
+    unfold retarget
     split_ifs
     · rfl
-    unfold retargetBy
-    rcases hqe : s.edges q e with _ | ⟨s', w⟩
+    rcases hqe : s.edges (q, e) with _ | ⟨s', w⟩
     · rfl
     simp only
     split_ifs
-    · unfold DTree.siftCut
-      rw [route_congr _ _ fun m hm => h _ (Finset.mem_union_right _ ?_)]
+    · rw [sift_congr_mid _ _ fun m hm => h _ (Finset.mem_union_right _ ?_)]
       unfold splitReads
       rw [hr]
       simp only [hpe]
@@ -353,7 +327,7 @@ theorem rounds_card (xs : List (FreeMonoid α)) (L : ℕ) (hL : ∀ x ∈ xs, x.
     rcases recordBy (fun z => (r z).cut) C.walkStart (s.tree, s.edges) x with _ | ⟨⟨p, c, t⟩, sp⟩
     · simp
     simp only
-    rcases s.edges p c with _ | ⟨t₀, w₀⟩
+    rcases s.edges (p, c) with _ | ⟨t₀, w₀⟩
     · simp
     simp only
     refine (resifts_card s _).trans ?_

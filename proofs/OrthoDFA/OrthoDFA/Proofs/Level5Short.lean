@@ -57,9 +57,9 @@ theorem length_prefixOf_le (x : FreeMonoid α) (j : ℕ) :
 theorem route_short {cut : FreeMonoid α → Option Bool} {T : DTree α} {Lmax L : ℕ}
     (hT : ∀ m ∈ T.midfixes, m.toList.length + 2 ≤ T.leaves.length)
     (hTL : T.leaves.length ≤ Lmax) {x : FreeMonoid α} (hx : x.toList.length ≤ L) {j : ℕ}
-    {z : FreeMonoid α} (hz : z ∈ (T.route cut (prefixOf x j)).1) :
+    {z : FreeMonoid α} (hz : z ∈ (T.siftWithPath cut (prefixOf x j)).1) :
     z.toList.length + 2 ≤ L + Lmax := by
-  obtain ⟨m, hm, rfl⟩ := route_mid cut T _ z hz
+  obtain ⟨m, hm, rfl⟩ := reads_mid cut T _ z hz
   have h1 := hT m hm
   have h2 := length_prefixOf_le x j
   simp only [FreeMonoid.toList_mul, List.length_append]
@@ -74,11 +74,11 @@ variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- A string a probe of at most `L` letters harvests under a short tree is at most
 `L + maxLeaves − 2` long. -/
-theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × EdgeTable α}
+theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × Edges α}
     (hv : TreeShort C v.1) {x : FreeMonoid α} (hx : x.toList.length ≤ L) :
     ∀ z ∈ siteHarvest cut k site v x, z.toList.length + 2 ≤ L + C.maxLeaves := by
   obtain ⟨-, hL, hm⟩ := hv
-  have hr : ∀ {j z}, z ∈ (v.1.route cut (prefixOf x j)).1 →
+  have hr : ∀ {j z}, z ∈ (v.1.siftWithPath cut (prefixOf x j)).1 →
       z.toList.length + 2 ≤ L + C.maxLeaves := fun hz => route_short hm hL hx hz
   intro z hz
   cases site with
@@ -87,11 +87,11 @@ theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × Ed
     unfold startHarvestBy at hz
     split_ifs at hz
     · simp at hz
-    rcases hb : v.1.siftCut cut (prefixOf x k) with q | b <;> rw [hb] at hz
+    rcases hb : v.1.sift (ofCut cut) (prefixOf x k) with q | b <;> rw [hb] at hz
     · simp at hz
     · simp only [Sum.elim_inr, List.mem_singleton] at hz
       subst hz
-      exact hr (route_undecided cut _ _ _ hb).1
+      exact hr (sift_inr_reads cut _ _ _ hb).1
   | edge e =>
     change z ∈ edgeHarvestBy cut v.1 v.2 k x e at hz
     unfold edgeHarvestBy at hz
@@ -100,24 +100,22 @@ theorem siteHarvest_short {L k : ℕ} (site : Level5Site α) {v : DTree α × Ed
   | middles =>
     change z ∈ middleHarvestBy cut v.1 v.2 k x at hz
     unfold middleHarvestBy at hz
-    rcases ho : probeBy cut v.1 v.2 k x with _ | _ | _ | j | _ | _ <;>
+    rcases ho : probeOrAgree (ofCut cut) v.1 v.2 k x with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;>
       rw [ho] at hz <;> try simp at hz
-    all_goals
-      rcases hb : v.1.siftCut cut (prefixOf x j) with q | b <;> rw [hb] at hz
-      · simp at hz
-      · simp only [Sum.elim_inr, List.mem_singleton] at hz
-        subst hz
-        exact hr (route_undecided cut _ _ _ hb).1
+    obtain ⟨j, b, -, -, hb, rfl⟩ := probe_middle _ v.1 v.2 k x ho
+    simp only [List.mem_singleton] at hz
+    subst hz
+    exact hr (sift_inr_reads cut _ _ _ hb).1
 
 theorem treeShort_step {s s' : Level5State α} {x : FreeMonoid α} (h : TreeShort C s.tree)
     (ha : applyProbe C cut s x = .inl s') : TreeShort C s'.tree := by
   rcases (applyProbe_inl C cut ha).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, hrb, rfl, hL'⟩
   · rw [recordProbe_tree]; exact h
   obtain ⟨h2, -, hm⟩ := h
-  obtain ⟨-, -, -, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrb
+  obtain ⟨-, -, -, -, t₀, w, hpe, -⟩ := recordBy_spec cut hrb
   obtain ⟨fd, -, -, -, -, hsp, -⟩ := recordBy_parts cut hrb
-  have hp := DTree.siftCut_mem_paths _ _ _ hsp
-  have hpe' : (recordProbe C cut s x).edges p c = some (t₀, w) := by
+  have hp := DTree.sift_inl_mem _ _ _ _ hsp
+  have hpe' : (recordProbe C cut s x).edges (p, c) = some (t₀, w) := by
     rcases recordProbe_spec C cut s x with h1 | ⟨u, c', p', t', -, -, -, -, hn, h1⟩
     · rw [h1]; exact hpe
     · rw [h1, setEdge_eq]

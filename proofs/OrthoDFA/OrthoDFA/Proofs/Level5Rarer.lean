@@ -85,10 +85,10 @@ theorem site_le_good (Wst : Level5State α → FreeMonoid α → Prop) (D : Meas
     (Bad : Level5Ending α → Level5State α → Prop)
     (hf0 : ∀ s x, 0 ≤ f s x) (hf : ∀ s, ok s → ∫⁻ x, ENNReal.ofReal (f s x) ∂D ≤ 1)
     (hfresh : ∀ T E v, W (freshState T E v) = 1)
-    (hkeep : ∀ s x, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+    (hkeep : ∀ s x, CountInv s → ¬ (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsMember →
       ¬ Wst s x → W (keepProbe C cut s x) = W s * f s x ∧ (ok (keepProbe C cut s x) ↔ ok s))
     (htoo : ∀ s, ¬ Bad .tooBig s)
-    (hbad : ∀ s x e, CountInv s → ¬ (probeBy cut s.tree s.edges C.walkStart x).IsMember →
+    (hbad : ∀ s x e, CountInv s → ¬ (probeOrAgree (ofCut cut) s.tree s.edges C.walkStart x).IsMember →
       ¬ Wst s x → Bad e (keepProbe C cut s x) →
       runTests C (keepProbe C cut s x) = some e → ok s ∧ 1 ≤ C.testLevel * W (keepProbe C cut s x))
     (T : ℕ) :
@@ -171,7 +171,7 @@ variable {σ : Type*} (G : ReadModel α σ) (D : Measure (FreeMonoid α)) [IsPro
 
 /-- The probes reading a prefix followed by one of the state's tree's midfixes on a rarer side. -/
 def rarerSet (s : Level5State α) : Set (FreeMonoid α) :=
-  rarerProbes G.M G.readDist rd C.walkStart ⟨s.tree, Function.uncurry s.edges⟩
+  rarerProbes G.M G.readDist rd C.walkStart ⟨s.tree, s.edges⟩
 
 /-- Success at a hypothesis whose fresh probes read so at least `εd/(8 − 7εd)` of the time. -/
 def RarerBad (e : Level5Ending α) (s : Level5State α) : Prop :=
