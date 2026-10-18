@@ -83,11 +83,38 @@ theorem classSet_card : ∀ n : ℕ,
 
 /-! ## Strings -/
 
+/-- The strings of length `k`. -/
+noncomputable def lenK (k : ℕ) : Finset (FreeMonoid α) :=
+  (Finset.univ : Finset (Fin k → α)).image fun v => FreeMonoid.ofList (List.ofFn v)
+
+theorem mem_lenK {k : ℕ} {u : FreeMonoid α} : u ∈ lenK k ↔ u.toList.length = k := by
+  constructor
+  · intro h
+    obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 h
+    simp
+  · intro h
+    refine Finset.mem_image.2 ⟨fun i => u.toList.get ⟨i, by omega⟩, Finset.mem_univ _, ?_⟩
+    apply FreeMonoid.toList.injective
+    simp only [FreeMonoid.toList_ofList]
+    apply List.ext_get (by simp [h])
+    intro i h1 h2
+    simp
+
+/-- The strings of length at most `L`. -/
+noncomputable def upTo (L : ℕ) : Finset (FreeMonoid α) := (Finset.range (L + 1)).biUnion lenK
+
+theorem mem_upTo {L : ℕ} {u : FreeMonoid α} : u ∈ upTo L ↔ u.toList.length ≤ L := by
+  classical
+  simp only [upTo, Finset.mem_biUnion, Finset.mem_range, mem_lenK]
+  constructor
+  · rintro ⟨j, hj, rfl⟩; omega
+  · intro h; exact ⟨_, by omega, rfl⟩
+
 /-- A string a probe of `x` can read has `x`'s length-`k` prefix. -/
-theorem pot_pre {k : ℕ} {x z : FreeMonoid α} {Ms : Finset (FreeMonoid α)} (h : z ∈ potM k x Ms) :
+theorem pot_pre {k : ℕ} {x z : FreeMonoid α} {T : DTree α} (h : z ∈ pot k x T) :
     k ≤ x.toList.length ∧ prefixOf z k = prefixOf x k := by
   classical
-  unfold potM at h
+  unfold pot at h
   obtain ⟨p, hp, hz⟩ := Finset.mem_biUnion.1 h
   obtain ⟨hkp, hpx⟩ := Finset.mem_Icc.1 hp
   obtain ⟨m, -, rfl⟩ := Finset.mem_image.1 hz
@@ -95,14 +122,14 @@ theorem pot_pre {k : ℕ} {x z : FreeMonoid α} {Ms : Finset (FreeMonoid α)} (h
   simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_ofList]
   rw [List.take_append_of_le_length (by simp; omega), List.take_take, min_eq_left hkp]
 
-theorem card_pot (k : ℕ) (x : FreeMonoid α) (Ms : Finset (FreeMonoid α)) :
-    (potM k x Ms).card ≤ (x.toList.length + 1) * Ms.card := by
+theorem card_pot (k : ℕ) (x : FreeMonoid α) (T : DTree α) :
+    (pot k x T).card ≤ (x.toList.length + 1) * (mids T).card := by
   classical
-  unfold potM
+  unfold pot
   refine Finset.card_biUnion_le.trans ?_
-  calc _ ≤ ∑ _p ∈ Finset.Icc k x.toList.length, Ms.card :=
+  calc _ ≤ ∑ _p ∈ Finset.Icc k x.toList.length, (mids T).card :=
         Finset.sum_le_sum fun p _ => Finset.card_image_le
-    _ = (Finset.Icc k x.toList.length).card * Ms.card := by
+    _ = (Finset.Icc k x.toList.length).card * (mids T).card := by
         rw [Finset.sum_const, smul_eq_mul]
     _ ≤ _ := by
         gcongr
@@ -187,13 +214,13 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
     (hind : iIndepFun read μ) (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
     (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
-    (Ms : Finset (FreeMonoid α)) (n : ℕ) (hT : Ms.card ≤ n + 1) :
-    μ {ω | G < D.real {x | ∃ z ∈ potM k x Ms, Ev z (read z ω)}}
+    (T : DTree α) (n : ℕ) (hT : (mids T).card ≤ n + 1) :
+    μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}
       ≤ ENNReal.ofReal (Real.exp (-(G - 2 * β * (L + 1) * (n + 1)) / p₀)) := by
   classical
-  set Zs := (upTo L).biUnion fun x => potM k x Ms
+  set Zs := (upTo L).biUnion fun x => pot k x T
   set c : FreeMonoid α → ℝ := fun z =>
-    ∑ x ∈ (upTo L).filter (fun x => z ∈ potM k x Ms), D.real {x}
+    ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), D.real {x}
   set ind : FreeMonoid α → Ω → ℝ := fun z ω => if Ev z (read z ω) then 1 else 0
   set W : Ω → ℝ := fun ω => ∑ z ∈ Zs, c z * ind z ω
   have hind01 : ∀ z ω, 0 ≤ ind z ω ∧ ind z ω ≤ 1 := fun z ω => by
@@ -205,14 +232,14 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
     obtain ⟨hkx, hpz⟩ := pot_pre hzx
     have hlen : (prefixOf z k).toList.length = k := by
       rw [hpz]; simp [prefixOf, hkx]
-    calc c z = D.real ↑((upTo L).filter fun x => z ∈ potM k x Ms) := sum_measureReal_singleton _
+    calc c z = D.real ↑((upTo L).filter fun x => z ∈ pot k x T) := sum_measureReal_singleton _
       _ ≤ D.real {y | prefixOf y k = prefixOf z k} := measureReal_mono fun y hy => by
           simp only [Finset.coe_filter, Set.mem_ofPred_eq] at hy
           exact ((pot_pre hy.2).2).symm
       _ ≤ p₀ := hpre _ hlen
   have hswap : ∀ f : FreeMonoid α → FreeMonoid α → ℝ,
-      ∑ x ∈ upTo L, ∑ z ∈ potM k x Ms, f x z
-        = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ potM k x Ms), f x z := by
+      ∑ x ∈ upTo L, ∑ z ∈ pot k x T, f x z
+        = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), f x z := by
     intro f
     refine Finset.sum_comm' fun x z => ?_
     simp only [Zs, Finset.mem_filter, Finset.mem_biUnion]
@@ -220,25 +247,25 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
     · rintro ⟨hx, hz⟩; exact ⟨⟨hx, hz⟩, x, hx, hz⟩
     · rintro ⟨⟨hx, hz⟩, -⟩; exact ⟨hx, hz⟩
   have hcsum : ∑ z ∈ Zs, c z ≤ (L + 1) * (n + 1) := by
-    have h2 : ∑ z ∈ Zs, c z = ∑ x ∈ upTo L, ∑ _z ∈ potM k x Ms, D.real {x} := (hswap _).symm
+    have h2 : ∑ z ∈ Zs, c z = ∑ x ∈ upTo L, ∑ _z ∈ pot k x T, D.real {x} := (hswap _).symm
     rw [h2]
-    calc ∑ x ∈ upTo L, ∑ _z ∈ potM k x Ms, D.real {x}
-        = ∑ x ∈ upTo L, ((potM k x Ms).card : ℝ) * D.real {x} := by
+    calc ∑ x ∈ upTo L, ∑ _z ∈ pot k x T, D.real {x}
+        = ∑ x ∈ upTo L, ((pot k x T).card : ℝ) * D.real {x} := by
           simp [Finset.sum_const, nsmul_eq_mul]
       _ ≤ ∑ x ∈ upTo L, ((L + 1) * (n + 1) : ℝ) * D.real {x} := by
           gcongr with x hx
-          have h1 := card_pot k x Ms
+          have h1 := card_pot k x T
           have h2 := mem_upTo.1 hx
-          have : (potM k x Ms).card ≤ (L + 1) * (n + 1) :=
+          have : (pot k x T).card ≤ (L + 1) * (n + 1) :=
             h1.trans (Nat.mul_le_mul (by omega) hT)
           exact_mod_cast this
       _ = (L + 1) * (n + 1) * D.real ((upTo L : Finset (FreeMonoid α)) : Set (FreeMonoid α)) := by
           rw [← Finset.mul_sum, sum_measureReal_singleton]
       _ ≤ (L + 1) * (n + 1) * 1 := by gcongr; exact measureReal_le_one
       _ = _ := mul_one _
-  have hW : ∀ ω, D.real {x | ∃ z ∈ potM k x Ms, Ev z (read z ω)} ≤ W ω := by
+  have hW : ∀ ω, D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)} ≤ W ω := by
     intro ω
-    set H := {x | ∃ z ∈ potM k x Ms, Ev z (read z ω)}
+    set H := {x | ∃ z ∈ pot k x T, Ev z (read z ω)}
     have hae : H =ᵐ[D] (H ∩ {x | x.toList.length ≤ L} : Set _) := by
       filter_upwards [hL] with x hx
       change (x ∈ H) = (x ∈ H ∧ _)
@@ -248,10 +275,10 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
           measureReal_mono fun x hx =>
             Finset.mem_coe.2 (Finset.mem_filter.2 ⟨mem_upTo.2 hx.2, hx.1⟩)
       _ = ∑ x ∈ (upTo L).filter (fun x => x ∈ H), D.real {x} := (sum_measureReal_singleton _).symm
-      _ ≤ ∑ x ∈ upTo L, ∑ z ∈ potM k x Ms, D.real {x} * ind z ω := by
+      _ ≤ ∑ x ∈ upTo L, ∑ z ∈ pot k x T, D.real {x} * ind z ω := by
           rw [Finset.sum_filter]
           gcongr with x hx
-          have hnn : ∀ z ∈ potM k x Ms, 0 ≤ D.real {x} * ind z ω :=
+          have hnn : ∀ z ∈ pot k x T, 0 ≤ D.real {x} * ind z ω :=
             fun z _ => mul_nonneg measureReal_nonneg (hind01 z ω).1
           split_ifs with hxg
           · obtain ⟨z, hz, he⟩ := hxg
@@ -259,7 +286,7 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
                   simp only [ind]; rw [if_pos he, mul_one]
               _ ≤ _ := Finset.single_le_sum hnn hz
           · exact Finset.sum_nonneg hnn
-      _ = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ potM k x Ms), D.real {x} * ind z ω :=
+      _ = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), D.real {x} * ind z ω :=
           hswap _
       _ = W ω := by
           simp only [W]
@@ -336,7 +363,7 @@ theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPro
         measurable_const
     exact ENNReal.measurable_ofReal.comp (Real.measurable_exp.comp (measurable_const.mul
       (Finset.measurable_sum _ fun z _ => measurable_const.mul (this z))))
-  calc μ {ω | G < D.real {x | ∃ z ∈ potM k x Ms, Ev z (read z ω)}}
+  calc μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}
       ≤ μ {ω | ENNReal.ofReal (Real.exp (l * G)) ≤ ENNReal.ofReal (Real.exp (l * W ω))} := by
         refine measure_mono fun ω hω => ?_
         simp only [Set.mem_ofPred_eq] at hω ⊢
@@ -378,7 +405,7 @@ theorem noise_hit {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
         measure_biUnion_finset_le _ _
     _ ≤ ∑ _T ∈ (classSet n : Finset (DTree α)), ENNReal.ofReal e :=
         Finset.sum_le_sum fun T hT => noise_hit_one μ read D k L p₀ G β Ev hmeas hind hEv hβ hL
-          hp₀ hpre (mids T) n (by have := mids_card T; have := classSet_leaves n T hT; omega)
+          hp₀ hpre T n (by have := mids_card T; have := classSet_leaves n T hT; omega)
     _ = (classSet n : Finset (DTree α)).card * ENNReal.ofReal e := by
         rw [Finset.sum_const, nsmul_eq_mul]
     _ ≤ ((1 + (n + 1) ^ 3 * Fintype.card α) ^ n : ℕ) * ENNReal.ofReal e := by

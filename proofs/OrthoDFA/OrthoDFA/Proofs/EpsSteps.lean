@@ -1,5 +1,6 @@
 import OrthoDFA.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
+import OrthoDFA.Proofs.EpsTrue
 
 /-!
 # Level 4's steps
@@ -60,7 +61,13 @@ def WrongStep (s : Level3State α) (x : FreeMonoid α) : Prop :=
 
 omit [DecidableEq α] in
 theorem witInv_start : WitInv M side (initialState : Level3State α) where
-  leaves := (gInv_start (fun _ => ARU.undecided) M side).leaves
+  leaves := by
+    have : 0 < (img M side (initialState : Level3State α).tree).card :=
+      Finset.card_pos.2 ⟨_, Finset.mem_image_of_mem _ (Finset.mem_univ M.start)⟩
+    simp only [initialState, newHypothesis, DTree.leaves] at this ⊢
+    simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, List.length_cons,
+      List.length_nil]
+    omega
   wit := fun _ _ _ _ h => by simp [initialState, newHypothesis] at h
 
 omit [DecidableEq α] in
