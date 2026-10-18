@@ -18,6 +18,11 @@ open MeasureTheory
 
 variable {α : Type*}
 
+/-- What a consistent ending certifies of the probes stopping undecided at their start or end
+sift. -/
+noncomputable def endsBound (C : Level3Settings) : ℝ :=
+  2 * C.endsRate + 2 * C.disagreementRate / (1 - C.disagreementRate)
+
 /-- `E[f(Bin(n, p))]`. -/
 noncomputable def binE (n : ℕ) (p : ℝ) (f : ℕ → ℝ) : ℝ :=
   ∑ j ∈ Finset.range (n + 1), (n.choose j : ℝ) * p ^ j * (1 - p) ^ (n - j) * f j
@@ -30,11 +35,12 @@ noncomputable def noiseRisk (nQ nα L : ℕ) (β p₀ G : ℝ) : ℝ :=
   ((1 + (nQ + 1) ^ 3 * nα) ^ nQ : ℕ) * Real.exp (-(G - 2 * β * (L + 1) * (nQ + 1)) / p₀)
 
 /-- What one stretch at tests' level `a` risks over its first `Ns` probes: a test firing at some
-look at a site whose harvest would not end well, or a false success, each at most `a`; and the
-stretch outliving `Ns` probes, though clean disagreements are at least `θr` of them, or the
-searches are at most `εd'` of the probes yet success is silent at look `N₁`, or they are more yet
-fewer than `searchShare` of the `Ns` probes, or the undecided middles are at least `θpt'` of them
-yet their test is silent. -/
+look at a site whose harvest would not end well, a false success, or a success with the ends'
+test silent though more than `endsBound` of the probes stop undecided at their ends, each at most
+`a`; and the stretch outliving `Ns` probes, though the probes changing the hypothesis are at least
+`θr` of them, or the searches are at most `εd'` of the probes yet success is silent at look `N₁`,
+or they are more yet fewer than `searchShare` of the `Ns` probes, or the undecided middles are at
+least `θpt'` of them yet their test is silent. -/
 noncomputable def stretchRisk (C : Level3Settings) (a : ℝ) (Ns N₁ : ℕ) (θr εd' θpt' : ℝ) : ℝ :=
   4 * a + (1 - θr) ^ Ns
     + (εd' * (C.disagreementRate / C.disagreementAlternative)
@@ -56,7 +62,7 @@ structure Knobs where
   N₁ : ℕ
   /-- The good read-states' undecided reads, as a share of the probes. -/
   G : ℝ
-  /-- The clean disagreements' rate the stretch's risk tests against. -/
+  /-- The rate of probes changing the hypothesis the stretch's risk tests against. -/
   θr : ℝ
   /-- The disagreement rate the stretch's risk tests against. -/
   εd' : ℝ
@@ -64,12 +70,11 @@ structure Knobs where
   θpt' : ℝ
 
 /-- The relations the knobs must meet, at the settings `C`, the ending's tolerance `ε` and the
-yield `y`: an edge's least traffic times its rate is at least twice the yield, and twice what an
-edge's sampler can find at good read-states, `2G`; the start's rate is at least what its sampler
-can find, `max (2G) y`; and against that rate of undecided middles per probe, with searches at
-least `searchShare` of the probes, the middles' test's likelihood ratio falls on average, its
-factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search, `μ = middleRate`
-and `m = middleAlternative`. -/
+yield `y`: the ends' rate is at least what its sampler can find, `max (2G) y`, `2G` bounding what
+it can find at good read-states; and against that rate of undecided middles per probe, with
+searches at least `searchShare` of the probes, the middles' test's likelihood ratio falls on
+average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search,
+`μ = middleRate` and `m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C : Level3Settings)
     (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
@@ -77,9 +82,8 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   θ_nonneg : 0 ≤ θ
   G_nonneg : 0 ≤ kn.G
   δ_pos : 0 < C.δ
-  startRate_pos : 0 < C.startRate
-  startRate_lt : C.startRate < 1 / 2
-  edgeRate_nonneg : 0 ≤ C.edgeRate
+  endsRate_pos : 0 < C.endsRate
+  endsRate_lt : C.endsRate < 1 / 2
   middleRate_pos : 0 < C.middleRate
   middleRate_lt : C.middleRate < 1 / 2
   disagreementRate_pos : 0 < C.disagreementRate
@@ -94,9 +98,7 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (C 
   sep : kn.θr ≤ (1 - kn.θpt') * kn.εd'
   probeBudget_ge : (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
     + 2 * Fintype.card α + 1) * kn.Ns ≤ C.probeBudget
-  noise_le_traffic : 4 * kn.G ≤ C.edgeRate * C.edgeReadShare
-  yield_le_traffic : 2 * y ≤ C.edgeRate * C.edgeReadShare
-  harvest_le_start : max (2 * kn.G) y ≤ C.startRate
+  harvest_le_ends : max (2 * kn.G) y ≤ C.endsRate
   middles_fall : max (2 * kn.G) y * (C.middleAlternative / C.middleRate)
       * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
     + (1 - max (2 * kn.G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
@@ -131,10 +133,8 @@ def RoundRiskBound : Prop :=
     (C : Level3Settings) (ε y : ℝ),
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          ¬ RandomEndsWell M (BadAt U θ) (R.read · ω) P.D C.walkStart result.hypothesis ε y
+            (endsBound C) result.ending} ∂μ
       ≤ roundRisk (α := α) σ θ P.D P.L C ε y
 
 end Random

@@ -299,16 +299,6 @@ theorem cnt_cons {X : Type*} (f : X → Bool) (n : ℕ) (x : X) (xs : List X) :
   simp only [cnt, List.take_succ_cons, List.countP_cons]
   cases f x <;> simp [add_comm]
 
-theorem exp_five_quarters_le : Real.exp (5 / 4) ≤ 7 / 2 := by
-  have h1 := Real.exp_bound' (x := 1 / 4) (by norm_num) (by norm_num) (n := 3) (by norm_num)
-  have h2 := Real.exp_one_lt_d9
-  have h3 : Real.exp (5 / 4) = Real.exp 1 * Real.exp (1 / 4) := by
-    rw [← Real.exp_add]; norm_num
-  norm_num [Finset.sum_range_succ, Nat.factorial] at h1
-  rw [h3]
-  have h5 := (Real.exp_pos (1 / 4 : ℝ)).le
-  nlinarith
-
 section Draws
 
 variable {X : Type*} [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X]
@@ -485,53 +475,6 @@ theorem pi_cnt (fB : X → Bool) (N n : ℕ) (hn : n ≤ N) (Q : ℕ → Prop) [
 
 /-- The sum of `g` over the first `n` draws. -/
 def sumFirst (g : X → ℝ) (n : ℕ) (xs : List X) : ℝ := ((xs.take n).map g).sum
-
-/-- A count at most `1` whose mean is at most `η` passes twice `η`, at scale `4/5`, with an
-exponentiated step averaging at most `1`. -/
-theorem mgf_bit (U : X → ℕ) {η : ℝ} (hb : ∀ x, U x ≤ 1) (hmean : ∫ x, (U x : ℝ) ∂D ≤ η) :
-    ∫⁻ x, ENNReal.ofReal (Real.exp (((U x : ℝ) - 2 * η) / (4 / 5))) ∂D ≤ 1 := by
-  set r := ∫ x, (U x : ℝ) ∂D
-  have hUi : Integrable (fun x => (U x : ℝ)) D :=
-    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable 1 (ae_of_all _ fun x => by
-      rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]; exact_mod_cast hb x)
-  have hr0 : 0 ≤ r := integral_nonneg fun _ => Nat.cast_nonneg _
-  have hpt : ∀ x, Real.exp ((U x : ℝ) / (4 / 5)) ≤ 1 + 5 / 2 * (U x : ℝ) := by
-    intro x
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (hb x) with h | h <;> rw [h]
-    · simp
-    · have := exp_five_quarters_le
-      norm_num at this ⊢; linarith
-  have hsplit : ∀ x, ENNReal.ofReal (Real.exp (((U x : ℝ) - 2 * η) / (4 / 5)))
-      = ENNReal.ofReal (Real.exp (-(5 / 2 * η)))
-        * ENNReal.ofReal (Real.exp ((U x : ℝ) / (4 / 5))) := by
-    intro x
-    rw [← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
-    congr 2
-    ring
-  simp_rw [hsplit]
-  rw [lintegral_const_mul _ (measurable_of_countable _)]
-  have hgi : Integrable (fun x => 1 + 5 / 2 * (U x : ℝ)) D :=
-    (integrable_const 1).add (hUi.const_mul _)
-  have hint : ∫ x, (1 + 5 / 2 * (U x : ℝ)) ∂D = 1 + 5 / 2 * r := by
-    rw [integral_add (integrable_const 1) (hUi.const_mul _), integral_const, integral_const_mul]
-    simp [r]
-  calc ENNReal.ofReal (Real.exp (-(5 / 2 * η)))
-        * ∫⁻ x, ENNReal.ofReal (Real.exp ((U x : ℝ) / (4 / 5))) ∂D
-      ≤ ENNReal.ofReal (Real.exp (-(5 / 2 * η)))
-        * ∫⁻ x, ENNReal.ofReal (1 + 5 / 2 * (U x : ℝ)) ∂D :=
-        mul_le_mul' le_rfl (lintegral_mono fun x => ENNReal.ofReal_le_ofReal (hpt x))
-    _ = ENNReal.ofReal (Real.exp (-(5 / 2 * η)) * (1 + 5 / 2 * r)) := by
-        rw [← ofReal_integral_eq_lintegral_ofReal hgi (ae_of_all _ fun x => by positivity), hint,
-          ENNReal.ofReal_mul (Real.exp_pos _).le]
-    _ ≤ 1 := by
-        rw [← ENNReal.ofReal_one]
-        refine ENNReal.ofReal_le_ofReal ?_
-        have h1 := Real.add_one_le_exp (5 / 2 * r)
-        have h2 : Real.exp (5 / 2 * r) ≤ Real.exp (5 / 2 * η) := Real.exp_le_exp.2 (by linarith)
-        have h3 : Real.exp (-(5 / 2 * η)) * Real.exp (5 / 2 * η) = 1 := by
-          rw [← Real.exp_add]; simp
-        have h4 := (Real.exp_pos (-(5 / 2 * η))).le
-        nlinarith
 
 /-- Ville's inequality: over fresh draws, a sum whose exponentiated step, at scale `K`, averages at
 most `1` reaches `a` at some look with chance at most `exp(−a/K)`. -/

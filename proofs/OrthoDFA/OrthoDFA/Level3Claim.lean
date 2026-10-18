@@ -12,10 +12,12 @@ A harvest is a site of the final hypothesis. Its sampler (`harvestLaw`) draws a 
 it under that hypothesis and finds the probe's undecided strings at the site, as the tests counted
 them; the reads are the round's own.
 
-Over `C.probeBudget` probes, level 3 fails to end well (`OrthoDFA.RoundEnd`), a harvest's sampler
-yielding `y`, with chance at most `δ`. `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the
-hypotheses: each split adds a leaf, at most `|Q| + 2` of them, and between splits each of a leaf's
-edges is learned once.
+Level 3 ends well (`RandomEndsWell`) where it ends well as `OrthoDFA.RoundEnd` says, the
+disagreements being the probes that search or change the hypothesis, and where, ending
+consistent, few probes stop undecided at their start or end sift. Over `C.probeBudget` probes, it
+fails to, a harvest's sampler yielding `y`, with chance at most `δ`.
+`S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the hypotheses: each split adds a leaf, at most
+`|Q| + 2` of them, and between splits each of a leaf's edges is learned once.
 -/
 
 namespace OrthoDFA
@@ -28,18 +30,36 @@ variable {α : Type*}
 
 /-- The strings a probe of `x` walked from `k` under `H` reads undecided at the site, as the tests
 count them. -/
-noncomputable def siteHarvest [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (k : ℕ)
-    (H : HypothesisDFA α) : Level3Site α → FreeMonoid α → List (FreeMonoid α)
-  | .start, x => startString (probeOrAgree read H.tree H.edges k x)
-  | .edge p c, x => undecidedAtEdge (positionReads read H.tree H.edges k x) p c
+noncomputable def siteHarvest (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) :
+    Level3Site → FreeMonoid α → List (FreeMonoid α)
+  | .ends, x => endsString (probeOrAgree read H.tree H.edges k x)
   | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
 
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
-noncomputable def harvestLaw [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
-    (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) (site : Level3Site α) :
+noncomputable def harvestLaw [Countable α] (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α))
+    (k : ℕ) (H : HypothesisDFA α) (site : Level3Site) :
     Measure (FreeMonoid α) :=
   D.bind fun x => ((siteHarvest read k H site x).map Measure.dirac).sum
+
+/-- The probes that, walked from `k` under `H`, cross a wrong edge, stop at an unlearned one, or
+part from their sift at decided reads. -/
+def searchSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : Set (FreeMonoid α) :=
+  {x | match probeOrAgree read H.tree H.edges k x with
+    | .wrongEdge .. | .unlearnedEdge .. | .undecided _ false => True
+    | _ => False}
+
+/-- The probes whose start or end sift, walked from `k` under `H`, stops undecided. -/
+def endsSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : Set (FreeMonoid α) :=
+  {x | endsString (probeOrAgree read H.tree H.edges k x) ≠ []}
+
+/-- `EndsWell` with the probes that search or change the hypothesis as its disagreements, and,
+ending consistent, at most `b` of the probes stopping undecided at their start or end sift. -/
+def RandomEndsWell [Countable α] {σ : Type*} (M : DFA α σ) (bad : σ → Prop)
+    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
+    (ε y b : ℝ) (e : RoundEnd Level3Site) : Prop :=
+  EndsWell M bad D ε (searchSet read k H) k (harvestLaw read D k H) y e
+    ∧ (e = .consistent → D.real (endsSet read k H) ≤ b)
 
 /-- A read-state is bad where it reads undecided more than `1.5θ` of the time. -/
 def BadAt {σ : Type*} (U : σ → ℝ) (θ : ℝ) (q : σ) : Prop := 3 / 2 * θ < U q
@@ -57,10 +77,11 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
 /-- With every string's read drawn once as `ReadOracle` says, every length-`walkStart` prefix
 of the probes at most `p₀` of them, `2G ≤ y ≤ ε/32` (`harvestRate`, `disagreementRate`), `ε < 1`,
 and `C.probeBudget` at least `28 S / ε · log(16 S (S + 1) / δ) + S`, `S` bounding the hypotheses,
-level 3 fails to end well (`OrthoDFA.RoundEnd`), a state being bad where it is undecided more than
-`1.5θ` of the time, with chance at most `δ`. A consistent ending has its hypothesis and tree
-parting on at most `ε` of the probes, and a harvest's sampler yields `y`. `G` bounds what the
-probes can find undecided at good states but for chance `δ / 4`. -/
+level 3 fails to end well, a state being bad where it is undecided more than `1.5θ` of the time,
+with chance at most `δ`. A consistent ending has at most `ε` of the probes searching or changing
+the hypothesis and at most `2y + 2ε / (1 − ε)` stopping undecided at their start or end sift, and
+a harvest's sampler yields `y`. `G` bounds what the probes can find undecided at good states but
+for chance `δ / 4`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -78,10 +99,8 @@ def RandomRoundCorrect : Prop :=
     28 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          ¬ RandomEndsWell M (BadAt U θ) (R.read · ω) P.D C.walkStart result.hypothesis ε y
+            (2 * y + 2 * ε / (1 - ε)) result.ending} ∂μ
       ≤ ENNReal.ofReal δ
 
 end Random

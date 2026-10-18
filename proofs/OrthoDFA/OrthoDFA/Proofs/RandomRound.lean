@@ -91,11 +91,8 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), RInv read s → s.probeCount < Ns →
       Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) s xs →
-      EndsWell M (BadAt U θ) D ε
-        {w | Disagrees read ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
-            C.walkStart w}
-        C.walkStart (harvestLaw read D C.walkStart
-          ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩) y
+      RandomEndsWell M (BadAt U θ) read D C.walkStart
+        ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩ ε y (endsBound C)
         (runProbes read C s xs).2
   | [], s, _, hn, hlen, _ => by simp at hlen; omega
   | x :: xs, s, hs, hn, hlen, hb => by
@@ -153,10 +150,9 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
     (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
-    (hGt : 4 * G ≤ C.edgeRate * C.edgeReadShare)
-    (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (hδ : 0 < C.δ)
-    (hθs0 : 0 < C.startRate) (hθs1 : C.startRate < 1 / 2) (hps : max (2 * G) y ≤ C.startRate)
-    (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2)
+    (hδ : 0 < C.δ)
+    (hθs0 : 0 < C.endsRate) (hθs1 : C.endsRate < 1 / 2) (hps : max (2 * G) y ≤ C.endsRate)
+    (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2)
     (hfall : max (2 * G) y * (C.middleAlternative / C.middleRate)
         * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
       + (1 - max (2 * G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
@@ -168,8 +164,8 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     (hP : Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := runProbes read C initialState (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
-            C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
+          ¬ RandomEndsWell M (BadAt U θ) read D C.walkStart ⟨r.1.tree, r.1.edges⟩ ε y
+            (endsBound C) r.2}
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
           stretchRisk C (C.level j) Ns N₁ θr εd' θpt') := by
   have hNs : 0 < Ns := by omega
@@ -177,7 +173,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
   have hΨ := Ψr_start (α := α) (Fintype.card σ)
   have hm : C.middleAlternative = 2 * C.middleRate := rfl
   have hd : C.disagreementAlternative = C.disagreementRate / 2 := rfl
-  have hsa : C.startAlternative = 2 * C.startRate := rfl
+  have hsa : C.endsAlternative = 2 * C.endsRate := rfl
   set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θpt')
   set X : Level3State α → FreeMonoid α → Prop := fun _ _ => False
   have hseg : ∀ s, RInv read s → s = newHypothesis s.tree s.edges s.hypotheses → ∀ N,
@@ -187,8 +183,8 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
     intro s hs hf N
     have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ G θr εd' θpt' hs.1 hf
       (cls_mem read hW hs) hN (fun _ _ _ _ _ h => h)
-      (fun N => by simp) hN₁ hN₁s hG0 hGt hyt (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
-      (by rw [hsa]; linarith) hps hθe hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
+      (fun N => by simp) hN₁ hN₁s hG0 (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
+      (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
       (by rw [hd]; linarith) (by rw [hd]; linarith) hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
       hsep N
     rwa [add_zero] at this
@@ -263,17 +259,15 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
       → P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          ¬ RandomEndsWell M (BadAt U θ) (R.read · ω) P.D C.walkStart result.hypothesis ε y
+            (endsBound C) result.ending} ∂μ
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ θ p₀ P.L C kn) := by
   obtain ⟨D, _, L, hL⟩ := P
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   obtain ⟨Ns, N₁, G, θr, εd', θpt'⟩ := kn
-  obtain ⟨hN₁, hN₁s, hθ, hG0, hδ, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
-    hε, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP, hGt, hyt, hps, hfall⟩ := hA
-  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGt hps hfall hpre ⊢
+  obtain ⟨hN₁, hN₁s, hθ, hG0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
+    hε, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP, hps, hfall⟩ := hA
+  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hps hfall hpre ⊢
   set P := C.probeBudget
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set W := {ω | ¬ NoWrong M side (read · ω)}
@@ -292,8 +286,8 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
   set B := toMeasurable μ (W ∪ Nn)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
-        ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees (read · ω) ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
-          C.walkStart (harvestLaw (read · ω) D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
+        ¬ RandomEndsWell M (BadAt U θ) (read · ω) D C.walkStart ⟨r.1.tree, r.1.edges⟩ ε y
+          (endsBound C) r.2}
         ≤ c + B.indicator 1 ω := by
     intro ω
     by_cases hω : ω ∈ B
@@ -305,7 +299,7 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
       obtain ⟨hωW, hωN⟩ := hω'
       simp only [W, Nn, Set.mem_ofPred_eq, not_not] at hωW hωN
       exact probe_level (read · ω) C M U θ D ε Ns y hωW P N₁ G θr εd' θpt' hωN
-        hN₁ hN₁s hG0 hGt hyt hδ hθs0 hθs1 hps hθe hθpt0 hθpt1 hfall hεd0 hεd1 hε
+        hN₁ hN₁s hG0 hδ hθs0 hθs1 hps hθpt0 hθpt1 hfall hεd0 hεd1 hε
         hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
   have hnn : 0 ≤ ∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
       stretchRisk C (C.level j) Ns N₁ θr εd' θpt' :=

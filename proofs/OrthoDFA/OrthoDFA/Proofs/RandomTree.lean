@@ -158,10 +158,10 @@ end Tree
 
 /-! ## The steps -/
 
-/-- Where a probe disagrees at decided reads: the edge and the target there. -/
-def recOf : Outcome α → Option (List Bool × α × List Bool)
-  | .wrongEdge p c _ t => some (p, c, t)
-  | _ => none
+/-- The probe changes the hypothesis: it crossed a wrong edge or stopped at an unlearned one. -/
+def changes : Outcome α → Bool
+  | .wrongEdge .. | .unlearnedEdge .. => true
+  | _ => false
 
 section Steps
 
@@ -218,7 +218,7 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         s' = splitLeaf read s p c t t₀)
     ∨ (s' = countProbe read C s x ∧ runTests C s' = none
-        ∧ recOf (probeOrAgree read s.tree s.edges C.walkStart x) = none) := by
+        ∧ changes (probeOrAgree read s.tree s.edges C.walkStart x) = false) := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe at h
   generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
@@ -233,6 +233,20 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
   | agree | undecidedStart _ | undecided _ _ =>
     obtain ⟨h1, h2⟩ := finish_inl C h
     exact Or.inr (Or.inr ⟨h1, h1 ▸ h2, rfl⟩)
+
+/-- A step that ends the round counts a probe that does not change the hypothesis. -/
+theorem changes_of_inr {s : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
+    {e : RoundEnd Level3Site} (h : applyProbe read C s x = .inr e) :
+    changes (probeOrAgree read s.tree s.edges C.walkStart x) = false := by
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
+  unfold applyProbe at h
+  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
+  cases o with
+  | unlearnedEdge p c u t => simp at h
+  | wrongEdge p c u t =>
+    obtain ⟨-, -, -, t₀, w₀, hE, -⟩ := hOK
+    simp [hE] at h
+  | agree | undecidedStart _ | undecided _ _ => rfl
 
 /-- A step that keeps the hypothesis counts one more probe. -/
 theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}

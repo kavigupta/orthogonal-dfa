@@ -87,7 +87,7 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
     rw [show -(2 * Λ) = -Λ + -Λ by ring, Real.exp_add]
     have := Real.exp_pos (-Λ)
     nlinarith
-  -- no clean disagreement
+  -- no change of hypothesis
   have h2 : (1 - ρ / 28) ^ Ns ≤ a / 2 := by
     refine (pow_le_exp (c := -(ρ / 28)) (by linarith)
       (by linarith [Real.add_one_le_exp (-(ρ / 28))]) Ns).trans
@@ -176,13 +176,12 @@ theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
     positivity
   refine ⟨⟨Ns, Ns, G, ρ / 28, 3 * ρ / 7, 7 / 8⟩, ?_, rfl, ?_⟩
   · refine ⟨hNs0, le_rfl, hθ, hG0.le, hδ, hy0, show y < 1 / 2 by linarith,
-      show (0 : ℝ) ≤ 1 / 4 by norm_num, show (0 : ℝ) < 1 / 4 by norm_num,
+      show (0 : ℝ) < 1 / 4 by norm_num,
       show (1 / 4 : ℝ) < 1 / 2 by norm_num, hρ0, hρ1, le_rfl,
       show (0 : ℝ) ≤ ρ / 28 by positivity, show ρ / 28 ≤ 1 by linarith,
       show (0 : ℝ) ≤ 3 * ρ / 7 by positivity, show 3 * ρ / 7 ≤ 1 by linarith,
       show 2 * (1 / 4 : ℝ) ≤ 7 / 8 by norm_num, show (7 / 8 : ℝ) ≤ 1 by norm_num,
       show ρ / 28 ≤ (1 - 7 / 8) * (3 * ρ / 7) by linarith, ?_,
-      show 4 * G ≤ 1 / 4 * (8 * y) by linarith, show 2 * y ≤ 1 / 4 * (8 * y) by linarith,
       show max (2 * G) y ≤ y from hpy.le, ?_⟩
     · change _ * Ns ≤ C.probeBudget
       rw [← hS]
