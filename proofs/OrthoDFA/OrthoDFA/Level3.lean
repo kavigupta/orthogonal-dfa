@@ -13,9 +13,10 @@ each rate tested by `seqRate` against an alternative, twice the rate for the end
 and half of it for success. Under the `j`-th hypothesis each test runs at level
 `δ / (8 (j + 1) (j + 2))`:
 * the probes whose start or end sift stops undecided above `endsRate = y` harvest the ends;
-* with searches at least `searchShare = ε/4` of the probes, the searches stopping at an undecided
+* with searches at least `searchShare = ε/6` of the probes, the searches stopping at an undecided
   middle above `middleRate = 1/4` of them harvest the middles;
-* the searches settling below `ε` of the probes end the round consistent.
+* the searches and the probes stopping undecided at their start or end, together, settling below
+  `ε` of the probes end the round consistent.
 
 Here `y = harvestRate` and `ε = disagreementRate`.
 -/
@@ -71,7 +72,7 @@ noncomputable def Level3Settings.endsRate (C : Level3Settings) : ℝ := C.harves
 
 noncomputable def Level3Settings.middleRate (_C : Level3Settings) : ℝ := 1 / 4
 
-noncomputable def Level3Settings.searchShare (C : Level3Settings) : ℝ := C.disagreementRate / 4
+noncomputable def Level3Settings.searchShare (C : Level3Settings) : ℝ := C.disagreementRate / 6
 
 noncomputable def Level3Settings.endsAlternative (C : Level3Settings) : ℝ := 2 * C.endsRate
 
@@ -111,7 +112,7 @@ def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start or end sift, the undecided
-middles among the searches, and the disagreement rate. -/
+middles among the searches, and the rate of both. -/
 noncomputable def runTests (s : Level3State α) : Option (RoundEnd Level3Site) :=
   if seqRate C.endsRate C.endsAlternative (C.level s.hypotheses) s.probeCount
       s.endsUndecided.length then
@@ -121,7 +122,7 @@ noncomputable def runTests (s : Level3State α) : Option (RoundEnd Level3Site) :
         s.middleUndecided.length then
     some (.harvest .middles)
   else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.hypotheses)
-      s.probeCount s.searchCount then some .consistent
+      s.probeCount (s.searchCount + s.endsUndecided.length) then some .consistent
   else none
 
 noncomputable def applyTests (s : Level3State α) :

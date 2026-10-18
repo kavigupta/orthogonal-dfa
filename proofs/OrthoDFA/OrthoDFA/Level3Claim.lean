@@ -12,10 +12,9 @@ A harvest is a site of the final hypothesis. Its sampler (`harvestLaw`) draws a 
 it under that hypothesis and finds the probe's undecided strings at the site, as the tests counted
 them; the reads are the round's own.
 
-Level 3 ends well (`RandomEndsWell`) where it ends well as `OrthoDFA.RoundEnd` says, the
-disagreements being the probes that search or change the hypothesis, and where, ending
-consistent, few probes stop undecided at their start or end sift. Over `C.probeBudget` probes, it
-fails to, a harvest's sampler yielding `y`, with chance at most `δ`.
+Level 3 ends well as `OrthoDFA.RoundEnd` says, the disagreements being the probes that search,
+change the hypothesis, or stop undecided at their start or end sift. Over `C.probeBudget` probes,
+it fails to, a harvest's sampler yielding `y`, with chance at most `δ`.
 `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` bounds the hypotheses: each split adds a leaf, at most
 `|Q| + 2` of them, and between splits each of a leaf's edges is learned once.
 -/
@@ -53,14 +52,6 @@ def searchSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : 
 def endsSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : Set (FreeMonoid α) :=
   {x | endsString (probeOrAgree read H.tree H.edges k x) ≠ []}
 
-/-- `EndsWell` with the probes that search or change the hypothesis as its disagreements, and,
-ending consistent, at most `b` of the probes stopping undecided at their start or end sift. -/
-def RandomEndsWell [Countable α] {σ : Type*} (M : DFA α σ) (bad : σ → Prop)
-    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
-    (ε y b : ℝ) (e : RoundEnd Level3Site) : Prop :=
-  EndsWell M bad D ε (searchSet read k H) k (harvestLaw read D k H) y e
-    ∧ (e = .consistent → D.real (endsSet read k H) ≤ b)
-
 /-- A read-state is bad where it reads undecided more than `1.5θ` of the time. -/
 def BadAt {σ : Type*} (U : σ → ℝ) (θ : ℝ) (q : σ) : Prop := 3 / 2 * θ < U q
 
@@ -75,12 +66,12 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
   wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
 
 /-- With every string's read drawn once as `ReadOracle` says, every length-`walkStart` prefix
-of the probes at most `p₀` of them, `2G ≤ y ≤ ε/32` (`harvestRate`, `disagreementRate`), `ε < 1`,
-and `C.probeBudget` at least `28 S / ε · log(16 S (S + 1) / δ) + S`, `S` bounding the hypotheses,
+of the probes at most `p₀` of them, `2G ≤ y ≤ ε/48` (`harvestRate`, `disagreementRate`), `ε < 1`,
+and `C.probeBudget` at least `36 S / ε · log(16 S (S + 1) / δ) + S`, `S` bounding the hypotheses,
 level 3 fails to end well, a state being bad where it is undecided more than `1.5θ` of the time,
-with chance at most `δ`. A consistent ending has at most `ε` of the probes searching or changing
-the hypothesis and at most `2y + 2ε / (1 − ε)` stopping undecided at their start or end sift, and
-a harvest's sampler yields `y`. `G` bounds what the probes can find undecided at good states but
+with chance at most `δ`. A consistent ending has at most `ε` of the probes searching, changing
+the hypothesis or stopping undecided at their start or end sift, and a harvest's sampler yields
+`y`. `G` bounds what the probes can find undecided at good states but
 for chance `δ / 4`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
@@ -95,12 +86,15 @@ def RandomRoundCorrect : Prop :=
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     let G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (4 * (1 + (nQ + 1) ^ 3 * nα) ^ nQ / δ)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    2 * G ≤ y → y ≤ ε / 32 → ε < 1 →
-    28 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
+    2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ RandomEndsWell M (BadAt U θ) (R.read · ω) P.D C.walkStart result.hypothesis ε y
-            (2 * y + 2 * ε / (1 - ε)) result.ending} ∂μ
+          ¬ EndsWell M (BadAt U θ) P.D ε
+            (searchSet (R.read · ω) C.walkStart result.hypothesis
+              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
+            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
+            result.ending} ∂μ
       ≤ ENNReal.ofReal δ
 
 end Random
