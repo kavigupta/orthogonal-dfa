@@ -462,6 +462,23 @@ lemma dfa_gate_conds {Q A l lg p e ι : ℝ} (hQ : 0 ≤ Q) (hA : 1 ≤ A) (hl :
     rw [e1]
     nlinarith
 
+lemma dfa_V_ge {Q A : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) : 1 ≤ (Q + 2) * ((Q + 2) * A + 1) := by
+  have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
+  nlinarith
+
+lemma dfa_B_ge {Q A : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) : 4 ≤ 2 * (Q + 2) * A + 4 := by
+  nlinarith
+
+lemma dfa_big_ge {V B : ℝ} (hV : 1 ≤ V) (hB : 4 ≤ B) : 3 ≤ 4 * V * B := by
+  nlinarith
+
+lemma dfa_Kp_ge {V e : ℝ} (hV : 1 ≤ V) (he : 0 < e) : 1 ≤ V * (224 / e + 1) := by
+  have : 0 ≤ 224 / e := by positivity
+  nlinarith
+
+lemma dfa_Q_sq {Q : ℝ} (hQ : 0 ≤ Q) : Q / (Q + 1) ^ 2 ≤ 1 := by
+  rw [div_le_one (by positivity)]; nlinarith
+
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
 theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N εd εcov δ' ι ρ s τ J V Kp G PB RB cap
@@ -539,8 +556,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     ring
   have hι0' : 0 ≤ min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)) :=
     le_min (by positivity) (by positivity)
-  have hQq : Q / (Q + 1) ^ 2 ≤ 1 := by
-    rw [div_le_one (by positivity)]; nlinarith
+  have hQq : Q / (Q + 1) ^ 2 ≤ 1 := dfa_Q_sq hQ0
   have hρ' : 2 * min εd (min (εd / ((Q + 2) * A) * εd / 2) (3 * (εd / 2) / 16)) = ρ :=
     rho_new hQ0 hA2' hεd0 (by linarith)
   obtain ⟨g1, g2, g3⟩ := dfa_gate_conds (l := (L₁ : ℝ) + 1) (p := prefixMax P.D k) hQ0
@@ -663,7 +679,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     · have hn : 0 < n := by
         refine Nat.ceil_pos.2 (div_pos (mul_pos (by norm_num) (Real.log_pos ?_)) (by positivity))
         rw [one_lt_div hδ]
-        nlinarith
+        nlinarith only [hQ0, hδ1, mul_nonneg hQ0 hQ0]
       have hNε : N * εcov ≤ ξ / 8 := by
         have h := mul_le_mul_of_nonneg_left hεcov_ξ (by linarith : (0 : ℝ) ≤ N)
         rw [show N * (ξ / (8 * N)) = ξ / 8 by field_simp] at h
@@ -721,31 +737,21 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have hτ0 : 0 < τ := lt_min (div_pos hεcov0 (by norm_num)) (lt_min hs0 hι0)
     have hτ1 : τ ≤ 1 := (min_le_left _ _).trans (by linarith)
     have hV0 : 0 ≤ V := by positivity
+    have hV1 : 1 ≤ V := dfa_V_ge hQ0 hA2'
+    have hB4 : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := dfa_B_ge hQ0 hA2'
+    have hbig : (3 : ℝ) ≤ 4 * V * (2 * (Q + 2) * A + 4) := dfa_big_ge hV1 hB4
     have hG0 : 0 ≤ G := by
       refine Real.log_nonneg ?_
       rw [le_div_iff₀ hδ'0, one_mul]
-      have hV1 : 1 ≤ V := by
-        show 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
-        have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
-        nlinarith
-      have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
-      nlinarith
-    have hV1 : 1 ≤ V := by
-      show 1 ≤ (Q + 2) * ((Q + 2) * A + 1)
-      have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
-      nlinarith
-    have hKp1 : 1 ≤ Kp := by
-      show 1 ≤ V * (224 / εd + 1)
-      have : 0 ≤ 224 / εd := by positivity
-      nlinarith
+      linarith only [hδ'1, hbig]
+    have hKp1 : 1 ≤ Kp := dfa_Kp_ge hV1 hεd0
     have hG1 : 1 ≤ G := by
       show 1 ≤ Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
       have hX : 3 ≤ 4 * V * (2 * (Q + 2) * A + 4) / δ' := by
         rw [le_div_iff₀ hδ'0]
-        have : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := by nlinarith
-        nlinarith
-      rw [Real.le_log_iff_exp_le (by linarith)]
-      linarith [Real.exp_one_lt_d9]
+        linarith only [hδ'1, hbig]
+      rw [Real.le_log_iff_exp_le (by linarith only [hX])]
+      linarith only [Real.exp_one_lt_d9, hX]
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
       (mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (L := (L₁ : ℝ)) hQ0
         (by linarith) (Nat.cast_nonneg _) hKp1 hG1 hδ'0 hδ'1)))
