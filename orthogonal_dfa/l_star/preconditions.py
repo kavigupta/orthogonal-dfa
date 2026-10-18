@@ -11,9 +11,9 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
-  state (all the learner can anchor to) still classifies almost every string,
-  without the re-rooted run leaving the covered states
+- dominated_accuracy_ceiling: re-rooting the target at some start state still
+  classifies almost every string, with the re-rooted run only passing through
+  states the sampled prefixes land in at a comparable rate
 """
 
 import math
@@ -29,9 +29,7 @@ from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
-#: Bar for coverage by prefixes of the given length before we consider a state
-#: "covered" by it.
-DEFAULT_MIN_COVERAGE = 0.01
+MAX_VISIT_RATIO = 2
 
 
 @lru_cache(maxsize=None)
@@ -133,62 +131,66 @@ def _run(dfa: DFA, string: bytes, start=None) -> list:
     return states
 
 
-def covered_states(
+def _window_visits(dfa: DFA, strings, length: int) -> Counter:
+    """Per state, how many of ``strings`` visit it, run from q0, somewhere from
+    ``start_length(length)`` on."""
+    k = start_length(length)
+    return Counter(q for s in strings for q in set(_run(dfa, s)[k:]))
+
+
+def _dominated(dfa: DFA, window: Counter, runs) -> set:
+    rerooted = Counter(q for run in runs for q in set(run))
+    return {q for q in dfa.states if rerooted[q] <= MAX_VISIT_RATIO * window[q]}
+
+
+def dominated_states(
     dfa: DFA,
+    start,
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> set:
     """
-    The states at least ``min_coverage`` of random length-``length`` strings visit
-    somewhere from ``start_length(length)`` on.
+    The states q' that runs from ``start`` visit at most ``MAX_VISIT_RATIO`` times
+    as often as runs from q0 do in the window:
+
+        r_start(q') <= MAX_VISIT_RATIO * w(q')
+
+    r counting a visit at any position, w one from ``start_length(length)`` on.
     """
-    k = start_length(length)
-    counts = Counter(
-        q
-        for s in _samples(dfa, length, num_samples, sampler)
-        for q in set(_run(dfa, s)[k:])
-    )
-    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    strings = _samples(dfa, length, num_samples, sampler)
+    runs = [_run(dfa, s, start) for s in strings]
+    return _dominated(dfa, _window_visits(dfa, strings, length), runs)
 
 
-def covered_accuracy_ceiling(
+def dominated_accuracy_ceiling(
     dfa: DFA,
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> float:
     """
-    Best accuracy reachable when the classifier may only be started from a
-    covered state, counting a string only if the run from there stays within the
-    covered states.
+    Best accuracy of re-rooting the target at some start state, counting a
+    string only if its run from there stays within ``dominated_states(start)``.
 
-    E-L* discovers states from where its sampled prefixes land, so it can only
-    anchor its automaton at covered state; if the true initial state is uncovered
-    it cannot represent it. Only the start is constrained, from there we follow
-    the target's true transitions and read off the endpoint's true accept label.
-    A run through an uncovered state uses transitions the learner never checks.
+    E-L* only sees a state through the prefixes that land in it, so whatever a
+    re-rooted run passes through has to be landed in, in the window, at a
+    comparable rate. Only the start is chosen; from there we follow the target's
+    true transitions and read off the endpoint's true accept label.
     """
     strings = _samples(dfa, length, num_samples, sampler)
+    window = _window_visits(dfa, strings, length)
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
-    covered = covered_states(
-        dfa,
-        length=length,
-        num_samples=num_samples,
-        min_coverage=min_coverage,
-        sampler=sampler,
-    )
     best = 0.0
-    for start in covered:
-        correct = 0
-        for s, t in zip(strings, truth):
-            run = _run(dfa, s, start)
-            if all(q in covered for q in run) and (run[-1] in dfa.final_states) == t:
-                correct += 1
+    for start in dfa.states:
+        runs = [_run(dfa, s, start) for s in strings]
+        dominated = _dominated(dfa, window, runs)
+        correct = sum(
+            all(q in dominated for q in run) and (run[-1] in dfa.final_states) == t
+            for run, t in zip(runs, truth)
+        )
         best = max(best, correct / num_samples)
     return best
 
@@ -205,10 +207,11 @@ class PreconditionReport:
     length: int
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
-    covered_accuracy_ceiling: Optional[float] = None
-    #: States no sampled prefix lands in, as strings -- populated when the
-    #: ceiling is measured, since that is the check they explain.
-    uncovered_states: Optional[List[str]] = None
+    dominated_accuracy_ceiling: Optional[float] = None
+    #: The states runs from q0 visit more than ``MAX_VISIT_RATIO`` times as often as
+    #: the window does, as strings -- populated when the ceiling is measured, since
+    #: that is the check they explain.
+    non_dominated_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
     reasons: Tuple[str, ...] = ()
@@ -226,7 +229,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_covered_accuracy: float = 0.99,
+    min_dominated_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -237,7 +240,7 @@ def satisfies_preconditions(
 
     - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - covered-accuracy ceiling at least ``min_covered_accuracy``
+    - dominated-accuracy ceiling at least ``min_dominated_accuracy``
 
     The acceptance-rate check only rejects degeneracy -- a language that is
     constant over the sampled strings, which E-L* cannot get signal from and
@@ -268,16 +271,20 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = covered_accuracy_ceiling(
+    ceiling = dominated_accuracy_ceiling(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    if ceiling < min_covered_accuracy:
+    if ceiling < min_dominated_accuracy:
         reasons.append(
-            f"covered-accuracy ceiling {ceiling:.3f} below "
-            f"{min_covered_accuracy} (an uncovered state carries a decision)"
+            f"dominated-accuracy ceiling {ceiling:.3f} below {min_dominated_accuracy} "
+            "(a decision rides on a state the window rarely lands in)"
         )
-    covered = covered_states(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
+    dominated = dominated_states(
+        dfa,
+        dfa.initial_state,
+        length=length,
+        num_samples=num_samples,
+        sampler=sampler,
     )
-    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
-    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))
+    non_dominated = sorted(str(q) for q in dfa.states if q not in dominated)
+    return PreconditionReport(length, rate, cp, ceiling, non_dominated, tuple(reasons))

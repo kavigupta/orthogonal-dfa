@@ -72,7 +72,7 @@ class TestArmedMergeTarget(unittest.TestCase):
         # Nothing about the sampler stops this being learned exactly, so the shortfall
         # below is the learner's and not the target's.
         self.assertAlmostEqual(
-            P.covered_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
+            P.dominated_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
             1.0,
         )
 
@@ -137,13 +137,14 @@ class TestTrapTargets(unittest.TestCase):
     def test_admitted_and_still_heavy(self, alphabet, arms, disarm):
         target = build_trap(alphabet, arms, disarm)
         # e1 is a one-step detour that half a percent of strings visit in their
-        # second half, so the ceiling's runs through it count as uncovered and it
-        # lands just under 0.99.  Close enough.
+        # second half and more than twice that over the whole string, so the
+        # ceiling's runs through it do not count and it lands just under 0.99.
+        # Close enough.
         report = P.satisfies_preconditions(
             target,
             length=TRAP_LENGTH,
             short_circuit=False,
-            min_covered_accuracy=0.985,
+            min_dominated_accuracy=0.985,
         )
         self.assertTrue(report.satisfied, report.reasons)
         # A merge only costs accuracy while the merged class carries mass, and is only
