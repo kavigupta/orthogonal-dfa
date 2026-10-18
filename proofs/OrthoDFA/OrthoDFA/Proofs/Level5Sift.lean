@@ -405,6 +405,21 @@ theorem undCount_success_le {s : Level5State α} (h : runTests C s = some .succe
 end Count
 
 
+theorem runEnds_of_consistent (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+    (P : Level5State α → Prop) :
+    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), (runProbes C cut s xs).2 = .consistent →
+      P (runProbes C cut s xs).1 → RunEnds (applyProbe C cut) (fun e s' => e = .success ∧ P s') s xs
+  | s, [] => by simp [runProbes]
+  | s, x :: xs => by
+    intro h1 h2
+    simp only [runProbes] at h1 h2
+    simp only [RunEnds]
+    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> rw [ha] at h1 h2
+    · exact runEnds_of_consistent C cut P s' xs h1 h2
+    · simp only [] at h1 h2 ⊢
+      refine ⟨?_, h2⟩
+      cases e <;> simp_all [toRoundEnd]
+
 section Site
 
 variable (C : Level5Settings) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]

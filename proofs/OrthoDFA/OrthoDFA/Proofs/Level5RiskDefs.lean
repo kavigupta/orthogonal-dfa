@@ -207,7 +207,7 @@ def Level5RiskBound : Prop :=
     6 * (n + 1) * θ + 2 * p₀ * Λ ≤ C.startUndecidedRate →
     32 * (L + 1) * p₀ * Λ ≤ C.edgeTraffic * C.edgeUndecidedRate
         → 256 * p₀ * Λ ≤ C.middleUndecidedRate * C.searchShare →
-    C.disagreementRate < 1 → C.startUndecidedRate = 1 / 2 → C.startAltRate = 3 / 5 →
+    C.disagreementRate < 1 → C.startUndecidedRate < C.startAltRate → C.startAltRate < 1 →
     C.middleUndecidedRate = 1 / 2 → C.middleAltRate = 3 / 4 →
     C.disagreementAltRate = 7 / 8 * C.disagreementRate →
     C.searchShare = 3 / 4 * C.disagreementRate → 6 * lg ≤ C.firstLook → C.firstLook ≤ 7 * lg →
