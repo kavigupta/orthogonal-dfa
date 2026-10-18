@@ -79,7 +79,7 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms truthInv_step
 
-#print axioms dirty_le
+#print axioms pi_wrong_le
 
 #print axioms site_le
 

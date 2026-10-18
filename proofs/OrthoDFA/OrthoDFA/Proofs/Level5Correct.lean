@@ -67,7 +67,7 @@ def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k 
   let V : ℝ := (n + 2) * ((n + 2) * A + 1)
   let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
   let K : ℝ := V * (112 / εd + 1)
-  let W : ℝ := (L + 1) * (n + 3) * A ^ (Fintype.card σ + 2)
+  let W : ℝ := (n + 2) * (L + 1 + (n + 2) * A)
   ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
     (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
     ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
@@ -215,22 +215,23 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
     rw [hexpG]
     have : (0 : ℝ) < 4 * ((V : ℝ) * (2 * N * A + 4)) := by positivity
     rw [mul_div_assoc', div_le_iff₀ this]
+    clear hεc
     nlinarith
   · rw [show versionBound C (Fintype.card α) = V from rfl]
     simp only [hC]
     rw [hlogG]
     exact hbl
   · simp only [hC]
-    have hNA : ((N : ℝ) + 1) * (A : ℝ) ^ N
-        = ((Fintype.card σ : ℝ) + 3) * (A : ℝ) ^ (Fintype.card σ + 2) := by
+    have hNW : ((P.L : ℝ) + 1) * N + N * A * N
+        = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
       rw [hNr]; ring
-    rw [hNA]
-    have hW0 : 0 ≤ ((P.L : ℝ) + 1) * (((Fintype.card σ : ℝ) + 3)
-        * (A : ℝ) ^ (Fintype.card σ + 2)) * (O.ε + O.κ) := by positivity
+    rw [hNW]
+    have hW0 : 0 ≤ (O.ε + O.κ) * (((Fintype.card σ : ℝ) + 2)
+        * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A)) := by positivity
     have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
         * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
     have := mul_le_mul_of_nonneg_right hbK' hW0
-    linarith
+    linarith only [this, hεc]
 
 end Guarantee
 

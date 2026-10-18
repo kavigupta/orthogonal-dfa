@@ -339,13 +339,13 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
     have e3 : 0 ≤ 3 * ((L + 1) * ((Fintype.card σ : ℝ) + 1)) * θ * C.searchShare :=
       mul_nonneg (by positivity) hφpt_pos.le
     nlinarith only [e2, e3]
-  have hW : (C.probeBudget : ℝ) * ((L + 1) * ((C.maxLeaves + 1) * Fintype.card α ^ C.maxLeaves))
-      * (ε + κ) ≤ δ / 4 := by linarith
+  have hW : (ε + κ) * (C.probeBudget * ((L + 1) * C.maxLeaves
+      + C.maxLeaves * Fintype.card α * C.maxLeaves)) ≤ δ / 4 := by linarith
   have hTL : (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 4)
       * C.testLevel ≤ δ / 4 := by linarith
   have hd : 0 ≤ δ / 8 := by positivity
-  have hW0 : 0 ≤ (C.probeBudget : ℝ) * ((L + 1) * ((C.maxLeaves + 1)
-      * Fintype.card α ^ C.maxLeaves)) * (ε + κ) := by positivity
+  have hW0 : 0 ≤ (ε + κ) * (C.probeBudget * ((L + 1) * C.maxLeaves
+      + C.maxLeaves * Fintype.card α * C.maxLeaves)) := by positivity
   have hTL0 : 0 ≤ (versionBound C (Fintype.card α) : ℝ) * (2 * C.maxLeaves * Fintype.card α + 4)
       * C.testLevel := by positivity
   have hsum : ENNReal.ofReal (δ / 8) + ENNReal.ofReal (δ / 8) + ENNReal.ofReal (δ / 8)

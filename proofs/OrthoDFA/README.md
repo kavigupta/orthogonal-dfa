@@ -56,7 +56,7 @@ under the final hypothesis and finds the undecided read it stops at.
 `OrthoDFA/Level5Claim.lean` and `OrthoDFA/Level5Family.lean` hold them, with everything they
 need to be read; the algorithm is `indecisiveLStarLevel5` in `OrthoDFA/Level5.lean`. With
 `n = |Q|`, `A = |Σ|`, `L = P.L`, `V = (n + 2)((n + 2)A + 1)`,
-`G = log (4 V (2(n + 2)A + 4) / δ)`, `K = V (112/εd + 1)`, `W = (L + 1)(n + 3) A^(n+2)`,
+`G = log (4 V (2(n + 2)A + 4) / δ)`, `K = V (112/εd + 1)`, `W = (n + 2)(L + 1 + (n + 2)A)`,
 `U = 4(n + 2)A log ((n + 3)A / δ)` and a
 read-state bad where it reads undecided more than `1.5θ` of the time:
 
@@ -264,11 +264,16 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
     hypotheses (`version_lt`); within one every search but the last stops at an undecided middle,
     so past `nEnd` probes success or the middles test fires, and a round over
     `versionBound · nEnd` probes ends (`runEnds_of_budget`).
-  - `Proofs/Level5Clean.lean`: with no read on the rarer side among the strings a probe or a
-    re-sift could read (`Dirty`), every learned edge and every contradiction is a true record, so
-    every split is genuine and the tree stays within `|Q| + 2` leaves (`truthInv_step`); some
-    probe of the round is dirty with chance at most the probes times
-    `(L + 1)(Lmax + 1)|Σ|^Lmax (ε + κ)` (`dirty_le`).
+  - `Proofs/Level5Clean.lean`: a step reads its probe's prefixes followed by the tree's midfixes
+    and, where it splits, the learned edges' witness successors followed by the new tree's
+    midfixes; with none of those read on the rarer side (`WrongStep`), every learned edge and every
+    contradiction is a true record, judged by the strings' states, so every split is genuine and
+    the tree stays within `|Q| + 2` leaves (`truthInv_step`).
+  - `Proofs/Level5Reads.lean`: given the probes, the round's reads come in rounds, each fixed by
+    what earlier ones read while nothing has been read on the rarer side, a probe's at most
+    `(L + 1) Lmax` and a split's at most `Lmax² |Σ|`; by `AdaptiveReadsBound` some step reads a
+    string on the rarer side with chance at most the probes times
+    `((L + 1) Lmax + Lmax² |Σ|)(ε + κ)` (`pi_wrong_le`).
   - `Proofs/Level5Harvest.lean`: within a hypothesis its probes are fresh draws, so each test's
     weight, its likelihood ratio or an edge's undecided strings less twice their running mean
     (and its reads' half-mean less its reads) exponentiated, is a product of factors averaging at
