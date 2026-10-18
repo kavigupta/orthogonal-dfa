@@ -12,12 +12,15 @@ the stretch since the hypothesis last changed, feed the tests of level 5, checke
 each rate tested by `seqRate` against an alternative, twice the rate for the start and the middles
 and half of it for success. Under the `j`-th hypothesis each test runs at level
 `δ / (8 (j + 1) (j + 2))`, the edges' split evenly among the edges:
-* the start's undecided rate above `startRate` harvests the start;
-* an edge read at least `edgeReadShare` times a probe whose undecided reads exceed `edgeRate` of
-  its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an edge counted once;
-* with searches at least `searchShare` of the probes, the searches stopping at an undecided middle
-  above `middleRate` of them harvest the middles;
-* the disagreement rate settling below `disagreementRate` ends the round consistent.
+* the start's undecided rate above `startRate = y` harvests the start;
+* an edge read at least `edgeReadShare = 8y` times a probe whose undecided reads exceed
+  `edgeRate = 1/4` of its reads by `edgeExcess` harvests the edge, a probe's undecided strings at an
+  edge counted once;
+* with searches at least `searchShare = ε/4` of the probes, the searches stopping at an undecided
+  middle above `middleRate = 1/4` of them harvest the middles;
+* the disagreement rate settling below `ε` ends the round consistent.
+
+Here `y = harvestRate` and `ε = disagreementRate`.
 -/
 
 namespace OrthoDFA
@@ -114,17 +117,25 @@ structure Level3Settings where
   walkStart : ℕ
   /-- The chance the round may fail to end well. -/
   δ : ℝ
-  startRate : ℝ
-  edgeRate : ℝ
-  edgeReadShare : ℝ
-  middleRate : ℝ
-  searchShare : ℝ
+  /-- The yield a harvest's sampler must have. -/
+  harvestRate : ℝ
+  /-- The rate of disagreements a consistent ending may have. -/
   disagreementRate : ℝ
   probeBudget : ℕ
 
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
   C.δ / (8 * (j + 1) * (j + 2))
+
+noncomputable def Level3Settings.startRate (C : Level3Settings) : ℝ := C.harvestRate
+
+noncomputable def Level3Settings.edgeRate (_C : Level3Settings) : ℝ := 1 / 4
+
+noncomputable def Level3Settings.edgeReadShare (C : Level3Settings) : ℝ := 8 * C.harvestRate
+
+noncomputable def Level3Settings.middleRate (_C : Level3Settings) : ℝ := 1 / 4
+
+noncomputable def Level3Settings.searchShare (C : Level3Settings) : ℝ := C.disagreementRate / 4
 
 noncomputable def Level3Settings.startAlternative (C : Level3Settings) : ℝ := 2 * C.startRate
 

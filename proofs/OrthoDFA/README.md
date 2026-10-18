@@ -83,19 +83,19 @@
   splits the edge's leaf at once and an unlearned edge is learned. Its counts are kept over the
   stretch since the hypothesis last changed and tested after every probe, the start, the middles
   and success each by `seqRate` against an alternative (twice `startRate`, twice `middleRate`,
-  half `disagreementRate`), an edge by a threshold. Under the `j`-th hypothesis each test runs at
+  half `disagreementRate`), an edge by a threshold. Its settings are the yield `y = harvestRate`
+  and the disagreement rate `ε = disagreementRate`; the tests' rates follow from them:
+  `startRate = y`, `edgeRate = 1/4`, `edgeReadShare = 8y`, `middleRate = 1/4` and
+  `searchShare = ε/4`. Under the `j`-th hypothesis each test runs at
   level `δ / (8 (j + 1) (j + 2))`, the edges' split evenly among them (`edgeExcess`). A probe's
   undecided strings at an edge are counted once. A harvest is the site whose test fired.
 - `OrthoDFA/Level3Claim.lean` — `RandomRoundCorrect`: with every string's read drawn once,
   independently, undecided with its state's chance and never on its state's wrong side, every
-  length-`walkStart` prefix at most `p₀` of the probes, and at least
-  `8 S / searchShare · log(16 S (S + 1) / δ) + S` probes, level 3 fails to end well, consistent
-  with its hypothesis and tree parting on at most `ε = disagreementRate` of the probes or a
-  harvest whose sampler yields `y`, a state being bad where it is undecided more than `1.5θ` of
-  the time, with chance at most `δ`. It asks `0 ≤ θ`, `0 < δ`, `0 < searchShare`,
-  `8 searchShare ≤ ε < 1`, `middleRate ≤ 1/4`, `startRate < 1/2`, `0 ≤ edgeRate`, and that
-  `p = max(2G, y)` is at most `startRate`, half of `edgeRate · edgeReadShare` and half of
-  `searchShare · middleRate`, where
+  length-`walkStart` prefix at most `p₀` of the probes, `2G ≤ y ≤ ε/32`, `ε < 1`, `0 ≤ θ`,
+  `0 < δ`, and at least `28 S / ε · log(16 S (S + 1) / δ) + S` probes, level 3 fails to end well,
+  consistent with its hypothesis and tree parting on at most `ε` of the probes or a harvest whose
+  sampler yields `y`, a state being bad where it is undecided more than `1.5θ` of the time, with
+  chance at most `δ`. Here
   `G = 3θ(L + 1)(|Q| + 1) + p₀ log(4 (1 + (|Q| + 1)³|Σ|)^|Q| / δ)` bounds what the probes can find
   undecided at good states but for chance `δ/4`. The sampler (`harvestLaw`) draws a fresh probe,
   walks it under the final hypothesis and finds the probe's undecided strings at the site, as the
