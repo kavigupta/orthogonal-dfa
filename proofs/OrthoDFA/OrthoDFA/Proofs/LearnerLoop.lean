@@ -442,9 +442,11 @@ theorem old_gates {n Lp ι slack Λp εd : ℝ} (hn : 0 ≤ n) (hL : 0 ≤ Lp) (
   nlinarith
 
 /-- The loop's claim at a cap `cap` and walk start `k`, `NS` and `NP` bounding the schedule's
-suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The last round's
-checked probes are at most `εd`, its reads undecided past the walk's start, up to `J`, counted
-once `undecidedMass` is at most `ū`, at `128ū/εd` more a round. -/
+suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`, level 5's start
+test at `θs` against `θs₁` and its edges' at `θe` with traffic `φe`. The last round's checked
+probes are at most `εd + us`, its reads undecided past the walk's start, up to `J`, counted once
+`undecidedMass` is at most `ū`, at `128ū/εd` more a round, and where `sift` those whose start or
+end sift stops undecided, at `δs` more a round. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]

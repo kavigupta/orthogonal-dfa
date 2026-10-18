@@ -11,7 +11,8 @@ settings chosen as formulas of the problem. With `N = |Q| + 2`, `L₁ = L + 1`,
 `startUndecidedRate = 1/2` against `3/5`, `middleUndecidedRate = 1/2` against `3/4`, `εd` against
 `7εd/8`, `searchShare = 3εd/4`, `edgeUndecidedRate = edgeTraffic = 3/4`, `testLevel = e^{−G}`,
 `firstLook = ⌈6G⌉`, `edgeExcess = 2 L₁ (1 + 3N/4) G + 1`, and `probeBudget = ⌈V (112 G / εd + 1)⌉`.
-The middles' test certifies the least yield, `3εd/16`.
+The middles' test certifies the least yield, `3εd/16`. `Level5Gates` frees the start's and the
+edges' rates and the edges' traffic, and adds the sift certificate (`sift_le`).
 -/
 
 noncomputable section
