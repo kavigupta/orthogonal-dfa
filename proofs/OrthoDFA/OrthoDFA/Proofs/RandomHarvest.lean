@@ -5,7 +5,7 @@ import OrthoDFA.Proofs.RoundEnd
 # Level 3's sampler
 
 Every string a probe harvests at a site is one it can read, undecided, so it starts as the probe
-does for `k` letters, and a probe harvests no string twice: the sampler is spread from `k`. A
+does for `k` letters, and a probe harvests at most one string: the sampler is spread from `k`. A
 probe that cannot read a good read-state undecided finds none at a good one, and finds at most
 one string at any site, so the sampler finds at most `G` at good read-states where those probes
 are at most `G`. A harvest that does not end well finds at most twice that, or less than the
@@ -19,56 +19,46 @@ namespace Random
 open MeasureTheory
 open scoped ENNReal
 
-variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
+variable {α : Type*} [Fintype α] (read : FreeMonoid α → ARU)
   (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
 
-theorem siteHarvest_pot (site : Level3Site α) (x : FreeMonoid α) :
+theorem siteHarvest_pot (site : Level3Site) (x : FreeMonoid α) :
     ∀ z ∈ siteHarvest read k H site x, z ∈ pot k x H.tree ∧ read z = .undecided := by
   cases site with
-  | start => exact probeOrAgree_start read H.tree x H.edges k
-  | edge p c =>
-    intro z hz
-    obtain ⟨e, he, hez⟩ := undecidedAtEdge_sub _ p c z hz
-    exact positionReads_und read H.tree x H.edges k e he z hez
+  | ends => exact probeOrAgree_ends read H.tree x H.edges k
   | middles => exact probeOrAgree_pt read H.tree x H.edges k
 
-theorem siteHarvest_nodup (site : Level3Site α) (x : FreeMonoid α) :
-    (siteHarvest read k H site x).Nodup := by
-  have h1 : ∀ l : List (FreeMonoid α), l.length ≤ 1 → l.Nodup := by
-    intro l hl
-    rcases l with _ | ⟨a, _ | ⟨b, l⟩⟩ <;> simp_all
-  cases site with
-  | start => exact h1 _ (startString_length _)
-  | edge p c => exact undecidedAtEdge_nodup _ p c
-  | middles => exact h1 _ (middleString_length _)
-
-theorem siteHarvest_length (site : Level3Site α) (x : FreeMonoid α) :
+theorem siteHarvest_length (site : Level3Site) (x : FreeMonoid α) :
     (siteHarvest read k H site x).length ≤ 1 := by
   cases site with
-  | start => exact startString_length _
-  | edge p c => exact undecidedAtEdge_positionReads read H.tree x H.edges k p c
+  | ends => exact endsString_length _
   | middles => exact middleString_length _
 
-theorem harvestLaw_apply (site : Level3Site α) (A : Set (FreeMonoid α))
+theorem siteHarvest_nodup (site : Level3Site) (x : FreeMonoid α) :
+    (siteHarvest read k H site x).Nodup := by
+  have hl := siteHarvest_length read k H site x
+  rcases h : siteHarvest read k H site x with _ | ⟨a, _ | ⟨b, l⟩⟩ <;> simp_all
+
+theorem harvestLaw_apply (site : Level3Site) (A : Set (FreeMonoid α))
     [DecidablePred (· ∈ A)] :
     harvestLaw read D k H site A
       = ∫⁻ x, (((siteHarvest read k H site x).filter (· ∈ A)).length : ℝ≥0∞) ∂D :=
   bind_diracSum_apply D _ A
 
-theorem harvestLaw_spread [IsFiniteMeasure D] (site : Level3Site α) :
+theorem harvestLaw_spread [IsFiniteMeasure D] (site : Level3Site) :
     Spread D k (harvestLaw read D k H site) :=
   spread_of_fresh D k _ (siteHarvest_nodup read k H site) fun x z hz =>
     congrArg FreeMonoid.toList (pot_pre (siteHarvest_pot read k H site x z hz).1).2
 
 /-- The sampler's mass on `A` is the mean count of a probe's harvested strings in `A`. -/
-theorem harvestLaw_real (site : Level3Site α) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
+theorem harvestLaw_real (site : Level3Site) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
     (harvestLaw read D k H site).real A
       = ∫ x, (((siteHarvest read k H site x).filter (· ∈ A)).length : ℝ) ∂D := by
   rw [measureReal_def, harvestLaw_apply, integral_eq_lintegral_of_nonneg_ae
     (ae_of_all _ fun _ => Nat.cast_nonneg _) (measurable_of_countable _).aestronglyMeasurable]
   simp only [ENNReal.ofReal_natCast]
 
-theorem harvestLaw_real_univ (site : Level3Site α) :
+theorem harvestLaw_real_univ (site : Level3Site) :
     (harvestLaw read D k H site).real Set.univ
       = ∫ x, ((siteHarvest read k H site x).length : ℝ) ∂D := by
   classical
@@ -79,7 +69,7 @@ theorem harvestLaw_real_univ (site : Level3Site α) :
 
 variable [IsProbabilityMeasure D]
 
-theorem integrable_siteCount (site : Level3Site α) (P : FreeMonoid α → Bool) :
+theorem integrable_siteCount (site : Level3Site) (P : FreeMonoid α → Bool) :
     Integrable (fun x => (((siteHarvest read k H site x).filter P).length : ℝ)) D :=
   Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable 1 (ae_of_all _ fun x => by
     rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]
@@ -90,7 +80,7 @@ theorem integrable_siteCount (site : Level3Site α) (P : FreeMonoid α → Bool)
 read-states: at most `G`, the probes that can read a good read-state undecided. -/
 theorem total_le_of_not_endsWell {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) {G y : ℝ}
     (hG : D.real (PotGood M U θ k read H.tree) ≤ G) (ε : ℝ) (dis : Set (FreeMonoid α))
-    (site : Level3Site α)
+    (site : Level3Site)
     (h : ¬ EndsWell M (BadAt U θ) D ε dis k (harvestLaw read D k H) y (.harvest site)) :
     (harvestLaw read D k H site).real Set.univ ≤ max (2 * G) y := by
   classical
