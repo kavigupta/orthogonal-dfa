@@ -87,10 +87,10 @@ every hypothesis an inequality.
 
 `LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
 rule too: some `q ∈ coveredStates M L c₀` has accuracy at least `1 − η` with
-`S = coveredStates M L c₀ ∪ dominatedStates M L C q`, `dominatedStates` being the states that a run
-from `q` visits with at most `C` times the chance that a string visits them from `⌈L/2⌉` on. It is
-`LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`. At the parameters above, `c₀ = 0.01` and
-`C = 4`, `L₀ = 1653` and `n = 132781`.
+`S = coveredStates M L c₀ ∪ dominatedStates M L R q`, `dominatedStates` being the states whose visit
+rate from `q` is at most `R` per position times that of a string from `⌈L/2⌉` on. With
+`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`. At the
+parameters above, `c₀ = 0.01` and `R = 2` (`C ≈ 4`), `L₀ = 1653` and `n = 132781`.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, reading nothing on a rarer side

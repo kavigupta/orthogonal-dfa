@@ -23,10 +23,10 @@ among them, must be fewer. Level 5's start and edge tests certify the undecided 
 `(L₁ + 1)(|Q| + 2)(|Σ| + 1)` times its disagreement rate.
 
 `LearnerLoopDFARelative` admits the target by a relative rule too: a covered start may re-root it
-through the states that a run from it visits with at most `C` times the chance that a string visits
-them from `⌈L/2⌉` on (`dominatedStates`), as well as the covered states. It is `LearnerLoopDFA` at
-`c = min c₀ (ξ/(2C|Q|))` and `ξ/2`: the dominated states that fewer than `c` of the strings visit
-from `⌈L/2⌉` on cost the other `ξ/2`.
+through the states whose per-position visit rate from it is at most `R` times that of a string from
+`⌈L/2⌉` on (`dominatedStates`), as well as the covered states. With `C = R(L+1)/(L+1−⌈L/2⌉)`, it
+is `LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`: the dominated states that fewer than `c`
+of the strings visit from `⌈L/2⌉` on cost the other `ξ/2`.
 
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
@@ -66,10 +66,11 @@ def windowVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q : σ) : ℝ
 def rerootVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q q' : σ) : ℝ :=
   (uniformStrings L).real {x : FreeMonoid α | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
 
-/-- The states that a string of length `L`, run from `q`, visits with at most `C` times the chance
-that it visits them from `⌈L/2⌉` on. -/
-def dominatedStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (C : ℝ) (q : σ) : Set σ :=
-  {q' | rerootVisitRate M L q q' ≤ C * windowVisitRate M L q'}
+/-- The states whose visit rate from `q` is at most `R` per position times that from `⌈L/2⌉` on:
+the factor is the run's `L + 1` positions over the window's. -/
+def dominatedStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (R : ℝ) (q : σ) : Set σ :=
+  {q' | rerootVisitRate M L q q' ≤
+    R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * windowVisitRate M L q'}
 
 /-- The share of the strings of length `L` on which the target re-rooted at `q` stays in `S` and
 classifies as the target does. -/
@@ -225,19 +226,20 @@ def LearnerLoopDFA : Prop :=
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` that at
 least `c₀` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
-least `1 − η` without leaving the union of such states and `dominatedStates M L C q`, then with
+least `1 − η` without leaving the union of such states and `dominatedStates M L R q`, then with
 probability at least `1 − δ` the loop stops within `|Q| + 1` rounds at a consistent round, and the
 leaf `pickLeaf` picks on `n` held-out strings uniform of length `L` classifies all but `η + ξ` of
 the strings of length `L` as the target does. The settings are `LearnerLoopDFASimple`'s at
-`c = min c₀ (ξ/(2C|Q|))`, with `ξ/2` in place of its `ξ`. -/
+`c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ C η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R η δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let k : ℕ := (L + 1) / 2
+  let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
+  let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let L₁ : ℕ := L + Fintype.card σ + 3
   let N : ℝ := L₁ + 1 - k
   let εd : ℝ := c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1))
@@ -263,10 +265,10 @@ def LearnerLoopDFARelativeSimple : Prop :=
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L₁ + 1)))))
   let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < C → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   (∃ q ∈ coveredStates M L c₀,
-    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L C q) q) →
+    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
   (A ^ k)⁻¹ ≤ cap * ρ / 4 →
   16384 * (L₁ + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ k)⁻¹ ≤ ρ →
   (Q + 1) * n * (6 * J * RB + Kp * G + n) * (A ^ k)⁻¹ ≤ δ / 4 →
@@ -285,15 +287,16 @@ def LearnerLoopDFARelativeSimple : Prop :=
 
 /-- `LearnerLoopDFA` with the target admitted by the relative rule, as in
 `LearnerLoopDFARelativeSimple`: its settings and `L₀` are `LearnerLoopDFA`'s at
-`c = min c₀ (ξ/(2C|Q|))`, with `ξ/2` in place of its `ξ`. -/
+`c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
 def LearnerLoopDFARelative : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ C η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R η δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let k : ℕ := (L + 1) / 2
+  let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
+  let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let L₁ : ℕ := L + Fintype.card σ + 3
   let N : ℝ := L₁ + 1 - k
   let εd : ℝ := c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1))
@@ -317,10 +320,10 @@ def LearnerLoopDFARelative : Prop :=
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ * G + n) / δ
   let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 100) / Real.log A
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < C → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   (∃ q ∈ coveredStates M L c₀,
-    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L C q) q) →
+    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
   L₀ ≤ L →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧

@@ -3,7 +3,7 @@ import OrthoDFA.Proofs.LoopDFA
 /-!
 # The learner's DFA under the relative rule: the proof
 
-At `c = min c₀ (ξ/(2C|Q|))` the states covered at `c₀` are covered. The dominated states visited
+At `c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−⌈L/2⌉)` the states covered at `c₀` are covered. The dominated states visited
 from `⌈L/2⌉` on by fewer than `c` of the strings are visited from `q` by at most `|Q| C c ≤ ξ/2` of
 them, and off those runs the relative rule's good strings are the covered rule's
 (`covered_of_dominated`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
@@ -20,8 +20,9 @@ variable {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
 
 omit [DecidableEq α] in
 theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L : ℕ)
-    {c₀ C η ξ : ℝ} (hc₀ : 0 < c₀) (hC : 0 < C) (hξ : 0 < ξ) {q : σ}
-    (hq : 1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L C q) q) :
+    {c₀ R C η ξ : ℝ} (hc₀ : 0 < c₀) (hC : 0 < C)
+    (hCR : C = R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ)) (hξ : 0 < ξ) {q : σ}
+    (hq : 1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) :
     1 - (η + ξ / 2)
       ≤ rerootAccuracy M L (coveredStates M L (min c₀ (ξ / (2 * C * Fintype.card σ)))) q := by
   classical
@@ -29,7 +30,7 @@ theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L
   have hQ : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
   set c := min c₀ (ξ / (2 * C * Fintype.card σ)) with hc
   have hc0 : 0 < c := lt_min hc₀ (div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith)))
-  set D := dominatedStates M L C q
+  set D := dominatedStates M L R q
   set μL : Measure (FreeMonoid α) := uniformStrings L
   let T : Finset σ := Finset.univ.filter fun q' => q' ∈ D ∧ windowVisitRate M L q' < c
   let B : Set (FreeMonoid α) :=
@@ -56,7 +57,9 @@ theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L
     calc ∑ q' ∈ T, μL.real {x | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
         ≤ ∑ _q' ∈ T, C * c := Finset.sum_le_sum fun q' hq' => by
           obtain ⟨-, hD', hlt⟩ := Finset.mem_filter.1 hq'
-          exact hD'.trans (mul_le_mul_of_nonneg_left hlt.le hC.le)
+          have hD'' : rerootVisitRate M L q q' ≤ C * windowVisitRate M L q' := by
+            rw [hCR]; exact hD'
+          exact hD''.trans (mul_le_mul_of_nonneg_left hlt.le hC.le)
       _ ≤ Fintype.card σ * (C * (ξ / (2 * C * Fintype.card σ))) := by
           rw [Finset.sum_const, nsmul_eq_mul]
           exact mul_le_mul (by exact_mod_cast Finset.card_le_univ T)
@@ -70,9 +73,12 @@ theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L
   linarith
 
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ C η δ pAP ξ Q A c k L₁ N εd εcov δ' ι ρ s τ J V Kp G PB
-    RB cap n hL hη hη₀ hc₀ hC hδ hδ1 hpAP hξ hA2 hpAPu hdom hk1 hk2 hk3
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N εd εcov δ' ι ρ s τ J V Kp G PB
+    RB cap n hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hk1 hk2 hk3
   obtain ⟨q, hcov, hq⟩ := hdom
+  have hC : 0 < C := by
+    have hk : 0 < L + 1 - k := by omega
+    exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
   have : Nonempty σ := ⟨M.start⟩
   have hQ : (1 : ℝ) ≤ Q := by
     change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
@@ -86,12 +92,15 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
     show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
     show η + ξ / 2 + ξ / 2 = η + ξ by ring] at h
   exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hq₁, covered_of_dominated M L hc₀ hC hξ hq⟩ hk1 hk2 hk3
+    ⟨q, hq₁, covered_of_dominated M L hc₀ hC rfl hξ hq⟩ hk1 hk2 hk3
 
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ C η δ pAP ξ Q A c k L₁ N εd δ' s V Kp G n Ce Θ K₁ B₁ P₀
-    R₀ E₁ E E₂ L₀ hL hη hη₀ hc₀ hC hδ hδ1 hpAP hξ hA2 hpAPu hdom hL₀
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N εd δ' s V Kp G n Ce Θ K₁ B₁ P₀
+    R₀ E₁ E E₂ L₀ hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hL₀
   obtain ⟨q, hcov, hq⟩ := hdom
+  have hC : 0 < C := by
+    have hk : 0 < L + 1 - k := by omega
+    exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
   have : Nonempty σ := ⟨M.start⟩
   have hQ : (1 : ℝ) ≤ Q := by
     change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
@@ -105,7 +114,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
     show η + ξ / 2 + ξ / 2 = η + ξ by ring] at h
   exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hq₁, covered_of_dominated M L hc₀ hC hξ hq⟩ hL₀
+    ⟨q, hq₁, covered_of_dominated M L hc₀ hC rfl hξ hq⟩ hL₀
 
 end OrthoDFA
 
