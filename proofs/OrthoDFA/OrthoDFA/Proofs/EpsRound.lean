@@ -73,8 +73,10 @@ theorem eps_ends_of_not_anyB :
       s.probeCount < Ns → Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y (WrongStep M side read C)) s xs →
       EndsWell M (BadAt U θ) D ε
-        {w | Disagrees read ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
-            C.walkStart w}
+        (searchSet read C.walkStart
+            ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
+          ∪ endsSet read C.walkStart
+            ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩)
         C.walkStart (harvestLaw read D C.walkStart
           ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩) y
         (runProbes read C s xs).2
@@ -110,29 +112,30 @@ theorem eps_ends_of_not_anyB :
 
 /-- Given the reads, the round fails to end well with chance at most what the stretches risk at
 their levels, plus the chance that some step reads a string wrong. -/
-theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ) (G θr εd' θpt' : ℝ)
+theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ) (G θr εd' θe' θpt' : ℝ)
     (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
       D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
-    (hGt : 4 * G ≤ C.edgeRate * C.edgeReadShare)
-    (hyt : 2 * y ≤ C.edgeRate * C.edgeReadShare) (hδ : 0 < C.δ)
-    (hθs0 : 0 < C.startRate) (hθs1 : C.startRate < 1 / 2) (hps : max (2 * G) y ≤ C.startRate)
-    (hθe : 0 ≤ C.edgeRate) (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2)
+    (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G) (hδ : 0 < C.δ)
+    (hθs0 : 0 < C.endsRate) (hθs1 : C.endsRate < 1 / 2) (hps : max (2 * G) y ≤ C.endsRate)
+    (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2)
     (hfall : max (2 * G) y * (C.middleAlternative / C.middleRate)
         * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
       + (1 - max (2 * G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
       ≤ 1)
     (hεd0 : 0 < C.disagreementRate) (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε)
     (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
+    (hθe'0 : 0 ≤ θe') (hθe'1 : θe' ≤ εd')
     (hθpt'0 : C.middleAlternative ≤ θpt') (hθpt'1 : θpt' ≤ 1)
-    (hsep : θr ≤ (1 - θpt') * εd')
+    (hsep : θr ≤ (1 - θpt') * (εd' - θe'))
     (hP : Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := runProbes read C initialState (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε {x | Disagrees read ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
+          ¬ EndsWell M (BadAt U θ) D ε
+            (searchSet read C.walkStart ⟨r.1.tree, r.1.edges⟩
+              ∪ endsSet read C.walkStart ⟨r.1.tree, r.1.edges⟩)
             C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
-          stretchRisk C (C.level j) Ns N₁ θr εd' θpt')
+          stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
         + (Measure.pi fun _ : Fin P => D)
           {xs | AnyB (applyProbe read C) (WrongStep M side read C) initialState
             (List.ofFn xs)} := by
@@ -140,11 +143,11 @@ theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ) (G θr εd' θpt
   have hΨ := Ψr_start (α := α) (Fintype.card σ)
   have hm : C.middleAlternative = 2 * C.middleRate := rfl
   have hd : C.disagreementAlternative = C.disagreementRate / 2 := rfl
-  have hsa : C.startAlternative = 2 * C.startRate := rfl
+  have hsa : C.endsAlternative = 2 * C.endsRate := rfl
   set W := WrongStep M side read C
-  set step₂ := stopAt (applyProbe read C) W (RoundEnd.failed : RoundEnd (Level3Site α))
+  set step₂ := stopAt (applyProbe read C) W (RoundEnd.failed : RoundEnd Level3Site)
   set B₁ := BadStep read C M U θ D ε Ns y fun _ _ => False
-  set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θpt')
+  set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set I : Level3State α → Prop := fun s => Inv read s ∧ WitInv M side s ∧ s.probeCount < Ns
   have hI0 : I initialState := ⟨inv_start read, witInv_start M side,
     by simp only [initialState, newHypothesis]; omega⟩
@@ -154,11 +157,11 @@ theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ) (G θr εd' θpt
     rintro s ⟨hs, hg, -⟩ hf N
     refine (measure_mono fun xs hxs => segB_stopAt _ _ _ _ _ _ _ hxs).trans ?_
     have := seg_le read C M U θ D ε Ns y (fun _ _ => False) (fun _ => False) 0 N₁ G θr εd'
-      θpt' hs hf (cls_mem' M side read hs hg) hN (fun _ _ _ _ _ h => h.elim) (fun N => by simp)
-      hN₁ hN₁s hG0 hGt hyt (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
-      (by rw [hsa]; linarith) hps hθe hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
-      (by rw [hd]; linarith) (by rw [hd]; linarith) hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1
-      hsep N
+      θe' θpt' hs hf (cls_mem' M side read hs hg) hN (fun _ _ _ _ _ h => h.elim) (fun N => by simp)
+      hN₁ hN₁s hG0 (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
+      (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
+      (by rw [hd]; linarith) (by rw [hd]; linarith) hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1
+      hθpt'0 hθpt'1 hsep N
     rw [add_zero] at this
     exact this
   have hany := anyB_le step₂ B₁ Same D I
@@ -179,9 +182,9 @@ theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ) (G θr εd' θpt
       rw [h3]; simp only [newHypothesis]; omega)
     hseg P initialState hI0
   have hnn : ∀ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
-      0 ≤ stretchRisk C (C.level j) Ns N₁ θr εd' θpt' := fun j _ =>
-    stretchRisk_nonneg C (level_pos C hδ j) hεd0 hεd1 hθpt0 hθpt1 Ns N₁ hθr1 hεd'0
-      hεd'1 (le_trans (by rw [hm]; linarith) hθpt'0) hθpt'1
+      0 ≤ stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt' := fun j _ =>
+    stretchRisk_nonneg C (level_pos C hδ j) hεd0 hεd1 hθpt0 hθpt1 hθs0 hθs1 Ns N₁ hθr1 hεd'0
+      hεd'1 hθe'0 hθe'1 (le_trans (by rw [hm]; linarith) hθpt'0) hθpt'1
   have h0 : (initialState : Level3State α).hypotheses = 0 := rfl
   calc _ ≤ (Measure.pi fun _ : Fin P => D)
         ({xs | AnyB step₂ B₁ initialState (List.ofFn xs)}
@@ -239,24 +242,25 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε
-            {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
+            (searchSet (R.read · ω) C.walkStart result.hypothesis
+              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
             C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
             result.ending} ∂μ
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ θ p₀ P.L C kn)
         + ENNReal.ofReal (εw * (C.probeBudget
           * ((P.L + 1) * Fintype.card σ + (Fintype.card σ + 1) * Fintype.card α
             * (Fintype.card σ + 1)))) := by
-  obtain ⟨Ns, N₁, G, θr, εd', θpt'⟩ := kn
-  obtain ⟨hN₁, hN₁s, hθ, hG0, hδ, hθs0, hθs1, hθe, hθpt0, hθpt1, hεd0, hεd1,
-    hε, hθr0, hθr1, hεd'0, hεd'1, hθpt'0, hθpt'1, hsep, hP, hGt, hyt, hps, hfall⟩ := hA
-  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP hGt hps hfall ⊢
+  obtain ⟨Ns, N₁, G, θr, εd', θe', θpt'⟩ := kn
+  obtain ⟨hN₁, hN₁s, hθ, hG0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
+    hε, hθr0, hθr1, hεd'0, hεd'1, hθe'0, hθe'1, hθpt'0, hθpt'1, hsep, hP, hps, hfall⟩ := hA
+  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps hfall ⊢
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
     P.D.real (PotGood M U θ C.walkStart (R.read · ω) T) ≤ G}
   have hNn := noise_le M U θ μ R.read P.D C.walkStart P.L p₀ G R.measurable R.indep R.undecided
     P.length_le hp₀ hpre hθ
   set c := ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
-    stretchRisk C (C.level j) Ns N₁ θr εd' θpt')
+    stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set B := toMeasurable μ Nn
   set g : Ω → ENNReal := fun ω => (Measure.pi fun _ : Fin C.probeBudget => P.D)
     {d | AnyB (applyProbe (R.read · ω) C) (WrongStep M side (R.read · ω) C) initialState
@@ -264,7 +268,8 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
       {xs | let r := runProbes (R.read · ω) C initialState (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) P.D ε
-          {x | Disagrees (R.read · ω) ⟨r.1.tree, r.1.edges⟩ C.walkStart x}
+          (searchSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
+            ∪ endsSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩)
           C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
         ≤ (c + B.indicator 1 ω) + g ω := by
     intro ω
@@ -274,13 +279,13 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     · have hω' : ω ∉ Nn := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
       simp only [Nn, Set.mem_ofPred_eq, not_not] at hω'
-      exact eps_probe_level (R.read · ω) C M side U θ P.D ε Ns y C.probeBudget N₁ G θr εd' θpt'
-        hω' hN₁ hN₁s hG0 hGt hyt hδ hθs0 hθs1 hps hθe hθpt0 hθpt1 hfall hεd0 hεd1 hε
-        hθr0 hθr1 hεd'0 hεd'1 hθpt'0 hθpt'1 hsep hP
+      exact eps_probe_level (R.read · ω) C M side U θ P.D ε Ns y C.probeBudget N₁ G θr εd' θe'
+        θpt' hω' hN₁ hN₁s hG0 hδ hθs0 hθs1 hps hθpt0 hθpt1 hfall hεd0 hεd1 hε
+        hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP
   have hnn : 0 ≤ ∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
-      stretchRisk C (C.level j) Ns N₁ θr εd' θpt' :=
+      stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt' :=
     Finset.sum_nonneg fun j _ => stretchRisk_nonneg C (level_pos C hδ j) hεd0 hεd1 hθpt0 hθpt1
-      Ns N₁ hθr1 hεd'0 hεd'1 (le_trans (by
+      hθs0 hθs1 Ns N₁ hθr1 hεd'0 hεd'1 hθe'0 hθe'1 (le_trans (by
         show 0 ≤ 2 * C.middleRate; linarith) hθpt'0) hθpt'1
   calc _ ≤ ∫⁻ ω, ((c + B.indicator 1 ω) + g ω) ∂μ := lintegral_mono hpt
     _ = c + μ B + ∫⁻ ω, g ω ∂μ := by

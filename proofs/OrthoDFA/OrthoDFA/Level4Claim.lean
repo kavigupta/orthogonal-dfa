@@ -48,13 +48,14 @@ def EpsRoundCorrect : Prop :=
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     let G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (8 * (1 + (nQ + 1) ^ 3 * nα) ^ nQ / δ)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    2 * G ≤ y → y ≤ ε / 32 → ε < 1 →
-    28 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
+    2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     εw * C.probeBudget * ((P.L + 1) * nQ + (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε
-            {x | Disagrees (R.read · ω) result.hypothesis C.walkStart x}
+            (searchSet (R.read · ω) C.walkStart result.hypothesis
+              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
             C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
             result.ending} ∂μ
       ≤ ENNReal.ofReal δ

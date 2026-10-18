@@ -219,21 +219,20 @@ theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M
 omit [DecidableEq α] in
 theorem sift_congr {r r' : FreeMonoid α → ARU} :
     ∀ (T : DTree α) (z : FreeMonoid α), (∀ m ∈ mids T, r (z * m) = r' (z * m)) →
-      T.sift r z = T.sift r' z ∧ siftReads r T z = siftReads r' T z
-  | .leaf, _, _ => ⟨rfl, rfl⟩
+      T.sift r z = T.sift r' z
+  | .leaf, _, _ => rfl
   | .node m a b, z, h => by
     classical
     have hm := h m (by simp [mids])
-    obtain ⟨ha1, ha2⟩ := sift_congr a z fun m' hm' => h m' (by simp [mids, hm'])
-    obtain ⟨hb1, hb2⟩ := sift_congr b z fun m' hm' => h m' (by simp [mids, hm'])
-    constructor <;> simp only [DTree.sift, siftReads, hm, ha1, ha2, hb1, hb2]
+    have ha := sift_congr a z fun m' hm' => h m' (by simp [mids, hm'])
+    have hb := sift_congr b z fun m' hm' => h m' (by simp [mids, hm'])
+    simp only [DTree.sift, hm, ha, hb]
 
 omit [DecidableEq α] in
 /-- Reads agreeing on the probe's prefixes followed by midfixes sift every prefix alike. -/
 theorem prefix_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {x : FreeMonoid α}
     (h : ∀ z ∈ pot 0 x T, r z = r' z) (i : ℕ) :
-    T.sift r (prefixOf x i) = T.sift r' (prefixOf x i)
-      ∧ siftReads r T (prefixOf x i) = siftReads r' T (prefixOf x i) := by
+    T.sift r (prefixOf x i) = T.sift r' (prefixOf x i) := by
   have hi : prefixOf x i = prefixOf x (min i x.toList.length) := by
     simp only [prefixOf]
     rcases le_total i x.toList.length with hl | hl
@@ -246,8 +245,7 @@ omit [DecidableEq α] in
 theorem probeOrAgree_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {E : Edges α} {k : ℕ}
     {x : FreeMonoid α} (h : ∀ z ∈ pot 0 x T, r z = r' z) :
     probeOrAgree r T E k x = probeOrAgree r' T E k x := by
-  have hs : ∀ i, T.sift r (prefixOf x i) = T.sift r' (prefixOf x i) :=
-    fun i => (prefix_congr h i).1
+  have hs : ∀ i, T.sift r (prefixOf x i) = T.sift r' (prefixOf x i) := prefix_congr h
   have hA : ∀ st, siftAgrees r T x st = siftAgrees r' T x st := fun st => by
     funext p
     simp only [siftAgrees, hs]
@@ -255,19 +253,10 @@ theorem probeOrAgree_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {E : Ed
     fun st un hi res => by cases res <;> simp only [searchOutcome, undecidedAt, hs]
   simp only [probeOrAgree, probe, hs, hA, hO]
 
+omit [DecidableEq α] in
 theorem countProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (h : ∀ z ∈ pot 0 x s.tree, r z = r' z) : countProbe r C s x = countProbe r' C s x := by
-  have hs : ∀ i, s.tree.sift r (prefixOf x i) = s.tree.sift r' (prefixOf x i) :=
-    fun i => (prefix_congr h i).1
-  have hr : ∀ i, siftReads r s.tree (prefixOf x i) = siftReads r' s.tree (prefixOf x i) :=
-    fun i => (prefix_congr h i).2
-  have hA : ∀ st, siftAgrees r s.tree x st = siftAgrees r' s.tree x st := fun st => by
-    funext p
-    simp only [siftAgrees, hs]
-  have hP : positionReads r s.tree s.edges C.walkStart x
-      = positionReads r' s.tree s.edges C.walkStart x := by
-    simp only [positionReads, probePositions, hs, hr, hA]
-  simp only [countProbe, probeOrAgree_congr h, hP]
+  simp only [countProbe, probeOrAgree_congr h]
 
 omit [DecidableEq α] in
 theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
@@ -310,7 +299,7 @@ theorem applyProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x 
       · simp [hlv e t₁ w₁ hEe]
       · simp only [hEe]
         exact Finset.mem_image.2 ⟨m, hm, rfl⟩
-    rw [(sift_congr _ _ fun m hm => h _ (hmem m hm)).1]
+    rw [sift_congr _ _ fun m hm => h _ (hmem m hm)]
   · rfl
 
 end Eps
