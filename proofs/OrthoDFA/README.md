@@ -81,25 +81,26 @@
 - `OrthoDFA/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
   random, the search stopping at an undecided midpoint, as at level 2. A clean disagreement
   splits the edge's leaf at once and an unlearned edge is learned. Its counts are kept over the
-  stretch since the hypothesis last changed and tested after every probe, the start, the middles
-  and success each by `seqRate` against an alternative (twice `startRate`, twice `middleRate`,
-  half `disagreementRate`), an edge by a threshold. Its settings are the yield `y = harvestRate`
-  and the disagreement rate `ε = disagreementRate`; the tests' rates follow from them:
-  `startRate = y`, `edgeRate = 1/4`, `edgeReadShare = 8y`, `middleRate = 1/4` and
-  `searchShare = ε/4`. Under the `j`-th hypothesis each test runs at
-  level `δ / (8 (j + 1) (j + 2))`, the edges' split evenly among them (`edgeExcess`). A probe's
-  undecided strings at an edge are counted once. A harvest is the site whose test fired.
+  stretch since the hypothesis last changed and tested after every probe: the ends (probes whose
+  start or end sift stops undecided) and the middles each by `seqRate` against an alternative
+  (twice `endsRate`, twice `middleRate`), and success, counting the searches and the ends together,
+  by `seqRate` against half `disagreementRate`. Its settings are the yield `y = harvestRate` and
+  the disagreement rate `ε = disagreementRate`; the tests' rates follow from them:
+  `endsRate = y`, `middleRate = 1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test
+  runs at level `δ / (8 (j + 1) (j + 2))`. A harvest is the site whose test fired, `ends` or
+  `middles`.
 - `OrthoDFA/Level3Claim.lean` — `RandomRoundCorrect`: with every string's read drawn once,
   independently, undecided with its state's chance and never on its state's wrong side, every
-  length-`walkStart` prefix at most `p₀` of the probes, `2G ≤ y ≤ ε/32`, `ε < 1`, `0 ≤ θ`,
-  `0 < δ`, and at least `28 S / ε · log(16 S (S + 1) / δ) + S` probes, level 3 fails to end well,
-  consistent with its hypothesis and tree parting on at most `ε` of the probes or a harvest whose
-  sampler yields `y`, a state being bad where it is undecided more than `1.5θ` of the time, with
-  chance at most `δ`. Here
+  length-`walkStart` prefix at most `p₀` of the probes, `2G ≤ y ≤ ε/48`, `ε < 1`, `0 ≤ θ`,
+  `0 < δ`, and at least `36 S / ε · log(16 S (S + 1) / δ) + S` probes, level 3 fails to end well,
+  consistent with its hypothesis and tree parting on at most `ε` of the probes (`EndsWell` over
+  `searchSet ∪ endsSet`, the probes that search or stop undecided at their start or end sift) or a
+  harvest whose sampler yields `y`, a state being bad where it is undecided more than `1.5θ` of
+  the time, with chance at most `δ`. Here
   `G = 3θ(L + 1)(|Q| + 1) + p₀ log(4 (1 + (|Q| + 1)³|Σ|)^|Q| / δ)` bounds what the probes can find
   undecided at good states but for chance `δ/4`. The sampler (`harvestLaw`) draws a fresh probe,
-  walks it under the final hypothesis and finds the probe's undecided strings at the site, as the
-  tests counted them.
+  walks it under the final hypothesis and finds the probe's undecided string at the site, as the
+  tests counted it.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
