@@ -11,9 +11,10 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- dominated_accuracy_ceiling: re-rooting the target at some start state still
-  classifies almost every string, with the re-rooted run only passing through
-  states the sampled prefixes land in at a comparable rate
+- dominated_accuracy_ceiling: re-rooting the target at the best *covered* start
+  state (all the learner can anchor to) still classifies almost every string,
+  with the re-rooted run only passing through covered states or states the
+  sampled prefixes land in at a rate comparable to the run's own
 """
 
 import math
@@ -29,9 +30,11 @@ from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
-MAX_VISIT_RATIO = 2
+#: Bar for coverage by prefixes of the given length before we consider a state
+#: "covered" by it.
+DEFAULT_MIN_COVERAGE = 0.01
 
-DEFAULT_MIN_DOMINATED_ACCURACY = 0.99
+MAX_VISIT_RATIO = 2
 
 
 @lru_cache(maxsize=None)
@@ -140,20 +143,32 @@ def _window_visits(dfa: DFA, strings, length: int) -> Counter:
     return Counter(q for s in strings for q in set(_run(dfa, s)[k:]))
 
 
+def covered_states(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
+) -> set:
+    """
+    The states at least ``min_coverage`` of random length-``length`` strings visit
+    somewhere from ``start_length(length)`` on.
+    """
+    window = _window_visits(dfa, _samples(dfa, length, num_samples, sampler), length)
+    return {q for q, c in window.items() if c / num_samples >= min_coverage}
+
+
 def _visit_ratio(length: int) -> float:
     """``MAX_VISIT_RATIO`` per position: a run has ``length + 1`` of them, the
     window ``length + 1 - start_length(length)``."""
     return MAX_VISIT_RATIO * (length + 1) / (length + 1 - start_length(length))
 
 
-def _start_floor(dfa: DFA, length: int, min_dominated_accuracy: float) -> float:
-    return (1 - min_dominated_accuracy) / (2 * _visit_ratio(length) * len(dfa.states))
-
-
-def _dominated(dfa: DFA, start, window: Counter, runs, length: int) -> set:
+def _dominated(dfa: DFA, covered: set, window: Counter, runs, length: int) -> set:
     rerooted = Counter(q for run in runs for q in set(run))
     ratio = _visit_ratio(length)
-    return {start} | {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
+    return covered | {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
 
 
 def dominated_states(
@@ -162,11 +177,12 @@ def dominated_states(
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> set:
     """
-    ``start`` and the states q' that runs from it visit at most C times as often
-    as runs from q0 do in the window:
+    The covered states, and those q' that runs from ``start`` visit at most C
+    times as often as runs from q0 do in the window:
 
         r_start(q') <= C * w(q'),   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - start_length(L))
 
@@ -174,57 +190,40 @@ def dominated_states(
     ``start_length(L)`` on, so C compares visits per position.
     """
     strings = _samples(dfa, length, num_samples, sampler)
-    runs = [_run(dfa, s, start) for s in strings]
-    return _dominated(dfa, start, _window_visits(dfa, strings, length), runs, length)
-
-
-def unsampled_states(
-    dfa: DFA,
-    *,
-    length: int,
-    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    sampler: Optional[Sampler] = None,
-) -> set:
-    """
-    The states too rarely in the window to start a re-rooted run from, those with
-
-        w(q) < (1 - min_dominated_accuracy) / (2 C |Q|)
-    """
-    strings = _samples(dfa, length, num_samples, sampler)
     window = _window_visits(dfa, strings, length)
-    floor = _start_floor(dfa, length, min_dominated_accuracy)
-    return {q for q in dfa.states if window[q] < floor * num_samples}
+    covered = {q for q, c in window.items() if c / num_samples >= min_coverage}
+    runs = [_run(dfa, s, start) for s in strings]
+    return _dominated(dfa, covered, window, runs, length)
 
 
 def dominated_accuracy_ceiling(
     dfa: DFA,
     *,
     length: int,
-    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
     num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> float:
     """
-    Best accuracy of re-rooting the target at a state not in ``unsampled_states``,
-    counting a string only if its run from there stays within
+    Best accuracy reachable when the classifier may only be started from a
+    covered state, counting a string only if the run from there stays within
     ``dominated_states(start)``.
 
-    E-L* only sees a state through the prefixes that land in it, so whatever a
-    re-rooted run passes through has to be landed in, in the window, at a
-    comparable rate. Only the start is chosen; from there we follow the target's
-    true transitions and read off the endpoint's true accept label.
+    E-L* discovers states from where its sampled prefixes land, so it can only
+    anchor its automaton at a covered state, and a run through a state it rarely
+    lands in uses transitions it rarely checks -- unless the window lands there
+    at a rate comparable to the run's own. Only the start is constrained; from
+    there we follow the target's true transitions and read off the endpoint's
+    true accept label.
     """
     strings = _samples(dfa, length, num_samples, sampler)
     window = _window_visits(dfa, strings, length)
-    floor = _start_floor(dfa, length, min_dominated_accuracy)
+    covered = {q for q, c in window.items() if c / num_samples >= min_coverage}
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
     best = 0.0
-    for start in dfa.states:
-        if window[start] < floor * num_samples:
-            continue
+    for start in covered:
         runs = [_run(dfa, s, start) for s in strings]
-        dominated = _dominated(dfa, start, window, runs, length)
+        dominated = _dominated(dfa, covered, window, runs, length)
         correct = sum(
             all(q in dominated for q in run) and (run[-1] in dfa.final_states) == t
             for run, t in zip(runs, truth)
@@ -246,9 +245,9 @@ class PreconditionReport:
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
     dominated_accuracy_ceiling: Optional[float] = None
-    #: ``unsampled_states``, as strings -- populated when the ceiling is measured,
-    #: since that is the check they explain.
-    unsampled_states: Optional[List[str]] = None
+    #: States no sampled prefix lands in, as strings -- populated when the
+    #: ceiling is measured, since that is the check they explain.
+    uncovered_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
     reasons: Tuple[str, ...] = ()
@@ -266,7 +265,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
+    min_dominated_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -309,23 +308,15 @@ def satisfies_preconditions(
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
     ceiling = dominated_accuracy_ceiling(
-        dfa,
-        length=length,
-        min_dominated_accuracy=min_dominated_accuracy,
-        num_samples=num_samples,
-        sampler=sampler,
+        dfa, length=length, num_samples=num_samples, sampler=sampler
     )
     if ceiling < min_dominated_accuracy:
         reasons.append(
             f"dominated-accuracy ceiling {ceiling:.3f} below {min_dominated_accuracy} "
             "(a decision rides on a state the window rarely lands in)"
         )
-    unsampled = unsampled_states(
-        dfa,
-        length=length,
-        min_dominated_accuracy=min_dominated_accuracy,
-        num_samples=num_samples,
-        sampler=sampler,
+    covered = covered_states(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    unsampled = sorted(str(q) for q in unsampled)
-    return PreconditionReport(length, rate, cp, ceiling, unsampled, tuple(reasons))
+    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
+    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))

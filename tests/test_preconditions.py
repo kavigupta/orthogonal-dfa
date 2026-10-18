@@ -1,8 +1,6 @@
 # pylint: disable=duplicate-code
 import unittest
-from collections import Counter
 
-import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star import preconditions as P
@@ -37,9 +35,9 @@ DIFFICULT09 = DFA(
 
 # The [336] false positive: every state is on a cycle (structurally recurrent),
 # yet length-40 strings only ever end in {1,3,4} -- states 0 and 2 get zero
-# prefix mass. The old infinite-reachability check admitted this (ceiling 1.0)
-# but E-L* only reaches ~0.75; the dominated-accuracy ceiling catches it. Guards
-# against reintroducing the structural check.
+# prefix mass, so they are uncovered. The old infinite-reachability check
+# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the dominated-accuracy
+# ceiling catches it. Guards against reintroducing the structural check.
 RECURRENT_BUT_UNCOVERED = DFA(
     states={0, 1, 2, 3, 4},
     input_symbols={0, 1},
@@ -140,8 +138,8 @@ def _thin_pockets(alphabet, pockets, depth):
     ).minify()
 
 
-# Every pocket state is landed in by under 1% of the window, but about half as
-# often as by whole runs, so it is dominated.
+# Every pocket state is uncovered, but whole runs land in it at about the window's
+# per-position rate, so it is dominated.
 THIN_POCKETS = _thin_pockets(alphabet=48, pockets=3, depth=2)
 
 
@@ -170,24 +168,27 @@ class TestMeasures(unittest.TestCase):
         self.assertTrue(0.0 <= frac <= 1.0)
 
 
-class TestUnsampledStates(unittest.TestCase):
-    def test_strongly_connected(self):
-        self.assertEqual(P.unsampled_states(MOD3, length=40, num_samples=500), set())
+class TestCoverability(unittest.TestCase):
+    def test_covered_states_strongly_connected(self):
+        # MOD3 is strongly connected and balanced: every state is a length-40
+        # endpoint often enough to be built.
+        self.assertEqual(
+            P.covered_states(MOD3, length=40, num_samples=500), set(MOD3.states)
+        )
 
-    def test_transient(self):
+    def test_covered_states_excludes_transient(self):
         # DIFFICULT09: length-40 strings only ever reach the two absorbing sinks.
         self.assertEqual(
-            P.unsampled_states(DIFFICULT09, length=40, num_samples=500), {0, 1, 2}
+            P.covered_states(DIFFICULT09, length=40, num_samples=500), {3, 4}
         )
 
-    def test_recurrent_but_unsampled(self):
-        # Structurally every state is on a cycle, but 2 gets no window mass -- the
-        # distinction structural reachability would miss. 0 gets about 2^-10 of
-        # it, from runs that alternate it with 2 through the first half.
-        unsampled = P.unsampled_states(
-            RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000
+    def test_covered_states_excludes_recurrent_but_uncovered(self):
+        # Structurally every state is on a cycle, but 0 and 2 get no length-40
+        # prefix mass -- the distinction structural reachability would miss.
+        self.assertEqual(
+            P.covered_states(RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000),
+            {1, 3, 4},
         )
-        self.assertTrue({2} <= unsampled <= {0, 2}, unsampled)
 
 
 class TestSatisfiesPreconditions(unittest.TestCase):
@@ -230,9 +231,9 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertLess(P.dominated_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
         self.assertFalse(P.satisfies_preconditions(DIFFICULT09, length=40))
 
-    def test_ceiling_catches_recurrent_but_unsampled_states(self):
+    def test_ceiling_catches_recurrent_but_uncovered_states(self):
         # The [336] regression: structural reachability admitted it (all states
-        # on cycles) but the decision lives in an unsampled state, so E-L* is
+        # on cycles) but the decision lives in an uncovered state, so E-L* is
         # capped well below 1.0 and the ceiling must reject it.
         self.assertLess(
             P.dominated_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
@@ -240,16 +241,8 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
     def test_thinly_sampled_but_dominated_states_pass(self):
-        window = Counter()
-        for string in np.random.default_rng(0).integers(48, size=(2000, 40)):
-            q, visited = THIN_POCKETS.initial_state, set()
-            for i, x in enumerate(string):
-                q = THIN_POCKETS.transitions[q][int(x)]
-                if i + 1 >= P.start_length(40):
-                    visited.add(q)
-            window.update(visited)
-        thin = [q for q in THIN_POCKETS.states if window[q] < 0.01 * 2000]
-        self.assertGreaterEqual(len(thin), 6)
+        uncovered = THIN_POCKETS.states - P.covered_states(THIN_POCKETS, length=40)
+        self.assertGreaterEqual(len(uncovered), 6)
         report = P.satisfies_preconditions(THIN_POCKETS, length=40, short_circuit=False)
         self.assertTrue(report, report.reasons)
 
