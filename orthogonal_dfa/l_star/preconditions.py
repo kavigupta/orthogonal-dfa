@@ -31,6 +31,8 @@ DEFAULT_NUM_SAMPLES = 2000
 
 MAX_VISIT_RATIO = 2
 
+DEFAULT_MIN_DOMINATED_ACCURACY = 0.99
+
 
 @lru_cache(maxsize=None)
 def _sample_strings(
@@ -138,9 +140,20 @@ def _window_visits(dfa: DFA, strings, length: int) -> Counter:
     return Counter(q for s in strings for q in set(_run(dfa, s)[k:]))
 
 
-def _dominated(dfa: DFA, window: Counter, runs) -> set:
+def _visit_ratio(length: int) -> float:
+    """``MAX_VISIT_RATIO`` per position: a run has ``length + 1`` of them, the
+    window ``length + 1 - start_length(length)``."""
+    return MAX_VISIT_RATIO * (length + 1) / (length + 1 - start_length(length))
+
+
+def _start_floor(dfa: DFA, length: int, min_dominated_accuracy: float) -> float:
+    return (1 - min_dominated_accuracy) / (2 * _visit_ratio(length) * len(dfa.states))
+
+
+def _dominated(dfa: DFA, start, window: Counter, runs, length: int) -> set:
     rerooted = Counter(q for run in runs for q in set(run))
-    return {q for q in dfa.states if rerooted[q] <= MAX_VISIT_RATIO * window[q]}
+    ratio = _visit_ratio(length)
+    return {start} | {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
 
 
 def dominated_states(
@@ -152,28 +165,50 @@ def dominated_states(
     sampler: Optional[Sampler] = None,
 ) -> set:
     """
-    The states q' that runs from ``start`` visit at most ``MAX_VISIT_RATIO`` times
-    as often as runs from q0 do in the window:
+    ``start`` and the states q' that runs from it visit at most C times as often
+    as runs from q0 do in the window:
 
-        r_start(q') <= MAX_VISIT_RATIO * w(q')
+        r_start(q') <= C * w(q'),   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - start_length(L))
 
-    r counting a visit at any position, w one from ``start_length(length)`` on.
+    r counting a visit at any of the L + 1 positions, w one at any from
+    ``start_length(L)`` on, so C compares visits per position.
     """
     strings = _samples(dfa, length, num_samples, sampler)
     runs = [_run(dfa, s, start) for s in strings]
-    return _dominated(dfa, _window_visits(dfa, strings, length), runs)
+    return _dominated(dfa, start, _window_visits(dfa, strings, length), runs, length)
+
+
+def unsampled_states(
+    dfa: DFA,
+    *,
+    length: int,
+    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    sampler: Optional[Sampler] = None,
+) -> set:
+    """
+    The states too rarely in the window to start a re-rooted run from, those with
+
+        w(q) < (1 - min_dominated_accuracy) / (2 C |Q|)
+    """
+    strings = _samples(dfa, length, num_samples, sampler)
+    window = _window_visits(dfa, strings, length)
+    floor = _start_floor(dfa, length, min_dominated_accuracy)
+    return {q for q in dfa.states if window[q] < floor * num_samples}
 
 
 def dominated_accuracy_ceiling(
     dfa: DFA,
     *,
     length: int,
+    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     sampler: Optional[Sampler] = None,
 ) -> float:
     """
-    Best accuracy of re-rooting the target at some start state, counting a
-    string only if its run from there stays within ``dominated_states(start)``.
+    Best accuracy of re-rooting the target at a state not in ``unsampled_states``,
+    counting a string only if its run from there stays within
+    ``dominated_states(start)``.
 
     E-L* only sees a state through the prefixes that land in it, so whatever a
     re-rooted run passes through has to be landed in, in the window, at a
@@ -182,11 +217,14 @@ def dominated_accuracy_ceiling(
     """
     strings = _samples(dfa, length, num_samples, sampler)
     window = _window_visits(dfa, strings, length)
+    floor = _start_floor(dfa, length, min_dominated_accuracy)
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
     best = 0.0
     for start in dfa.states:
+        if window[start] < floor * num_samples:
+            continue
         runs = [_run(dfa, s, start) for s in strings]
-        dominated = _dominated(dfa, window, runs)
+        dominated = _dominated(dfa, start, window, runs, length)
         correct = sum(
             all(q in dominated for q in run) and (run[-1] in dfa.final_states) == t
             for run, t in zip(runs, truth)
@@ -208,10 +246,9 @@ class PreconditionReport:
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
     dominated_accuracy_ceiling: Optional[float] = None
-    #: The states runs from q0 visit more than ``MAX_VISIT_RATIO`` times as often as
-    #: the window does, as strings -- populated when the ceiling is measured, since
-    #: that is the check they explain.
-    non_dominated_states: Optional[List[str]] = None
+    #: ``unsampled_states``, as strings -- populated when the ceiling is measured,
+    #: since that is the check they explain.
+    unsampled_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
     reasons: Tuple[str, ...] = ()
@@ -229,7 +266,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_dominated_accuracy: float = 0.99,
+    min_dominated_accuracy: float = DEFAULT_MIN_DOMINATED_ACCURACY,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -272,19 +309,23 @@ def satisfies_preconditions(
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
     ceiling = dominated_accuracy_ceiling(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
+        dfa,
+        length=length,
+        min_dominated_accuracy=min_dominated_accuracy,
+        num_samples=num_samples,
+        sampler=sampler,
     )
     if ceiling < min_dominated_accuracy:
         reasons.append(
             f"dominated-accuracy ceiling {ceiling:.3f} below {min_dominated_accuracy} "
             "(a decision rides on a state the window rarely lands in)"
         )
-    dominated = dominated_states(
+    unsampled = unsampled_states(
         dfa,
-        dfa.initial_state,
         length=length,
+        min_dominated_accuracy=min_dominated_accuracy,
         num_samples=num_samples,
         sampler=sampler,
     )
-    non_dominated = sorted(str(q) for q in dfa.states if q not in dominated)
-    return PreconditionReport(length, rate, cp, ceiling, non_dominated, tuple(reasons))
+    unsampled = sorted(str(q) for q in unsampled)
+    return PreconditionReport(length, rate, cp, ceiling, unsampled, tuple(reasons))

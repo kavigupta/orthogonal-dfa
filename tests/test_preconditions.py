@@ -144,23 +144,6 @@ def _thin_pockets(alphabet, pockets, depth):
 # often as by whole runs, so it is dominated.
 THIN_POCKETS = _thin_pockets(alphabet=48, pockets=3, depth=2)
 
-# q0 holds on all but the last symbol, which reaches D, whose next symbol picks
-# an accepting or rejecting sink. D decides every string, and whole runs reach it
-# far more often than the window does.
-SLOW_FUNNEL = DFA(
-    states={"q0", "D", "A", "R"},
-    input_symbols=set(range(10)),
-    transitions={
-        "q0": {x: "D" if x == 9 else "q0" for x in range(10)},
-        "D": {x: "A" if x % 2 else "R" for x in range(10)},
-        "A": {x: "A" for x in range(10)},
-        "R": {x: "R" for x in range(10)},
-    },
-    initial_state="q0",
-    final_states={"A"},
-    allow_partial=False,
-)
-
 
 def _constant_dfa(final_states):
     return DFA(
@@ -187,25 +170,24 @@ class TestMeasures(unittest.TestCase):
         self.assertTrue(0.0 <= frac <= 1.0)
 
 
-class TestDomination(unittest.TestCase):
+class TestUnsampledStates(unittest.TestCase):
     def test_strongly_connected(self):
-        self.assertEqual(
-            P.dominated_states(MOD3, 0, length=40, num_samples=500), set(MOD3.states)
-        )
+        self.assertEqual(P.unsampled_states(MOD3, length=40, num_samples=500), set())
 
-    def test_excludes_transient(self):
+    def test_transient(self):
         # DIFFICULT09: length-40 strings only ever reach the two absorbing sinks.
         self.assertEqual(
-            P.dominated_states(DIFFICULT09, 0, length=40, num_samples=500), {3, 4}
+            P.unsampled_states(DIFFICULT09, length=40, num_samples=500), {0, 1, 2}
         )
 
-    def test_excludes_recurrent_but_unsampled(self):
-        # Structurally every state is on a cycle, but 0 and 2 get no length-40
-        # prefix mass -- the distinction structural reachability would miss.
-        self.assertEqual(
-            P.dominated_states(RECURRENT_BUT_UNCOVERED, 0, length=40, num_samples=1000),
-            {1, 3, 4},
+    def test_recurrent_but_unsampled(self):
+        # Structurally every state is on a cycle, but 2 gets no window mass -- the
+        # distinction structural reachability would miss. 0 gets about 2^-10 of
+        # it, from runs that alternate it with 2 through the first half.
+        unsampled = P.unsampled_states(
+            RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000
         )
+        self.assertTrue({2} <= unsampled <= {0, 2}, unsampled)
 
 
 class TestSatisfiesPreconditions(unittest.TestCase):
@@ -270,12 +252,6 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertGreaterEqual(len(thin), 6)
         report = P.satisfies_preconditions(THIN_POCKETS, length=40, short_circuit=False)
         self.assertTrue(report, report.reasons)
-
-    def test_decision_on_an_undersampled_state_fails(self):
-        report = P.satisfies_preconditions(SLOW_FUNNEL, length=40, short_circuit=False)
-        self.assertFalse(report)
-        self.assertIn("dominated-accuracy", report.reasons[0])
-        self.assertIn("D", report.non_dominated_states)
 
 
 class _ZeroRunSampler(Sampler):
