@@ -1,10 +1,12 @@
-import OrthoDFA.AdaptiveReads
+import Mathlib.Probability.Independence.Basic
 
 /-!
-# A union bound over adaptively chosen reads: the proof
+# A union bound over adaptively chosen reads
 
-A bad query has a first round, and there a string no earlier round queried. That the string is
-first queried in round `j`, with no bad read before (`First`), is fixed by the reads of the
+Every string's read is drawn once, independently across strings, so reading a string again
+returns the same value. Round `j` reads the strings `Q j r`, chosen from what the earlier rounds
+read. A bad query has a first round, and there a string no earlier round queried. That the string
+is first queried in round `j`, with no bad read before (`First`), is fixed by the reads of the
 finitely many strings queried before, none of them the string itself, so it is independent of its
 read.
 -/
@@ -29,7 +31,8 @@ theorem mem_before {j : ℕ} {r : Z → R} {y : Z} : y ∈ before Q j r ↔ ∃ 
   classical
   simp [before]
 
-/-- The rounds' locality. -/
+/-- Round `j` queries the same strings under any reads agreeing on what the earlier rounds
+queried, where none of those read bad. -/
 def Local : Prop :=
   ∀ j r r', (∀ i < j, ∀ z ∈ Q i r, r z ∉ B z) → (∀ i < j, ∀ z ∈ Q i r, r z = r' z) →
     Q j r = Q j r'
@@ -95,8 +98,17 @@ end AdaptiveReads
 
 open MeasureTheory ProbabilityTheory AdaptiveReads
 
-theorem adaptiveReadsBound_holds : AdaptiveReadsBound := by
-  intro Z Ω R _ _ _ _ _ μ _ read B ε Q b n hmeas hind hB hloc hb
+/-- Reads `read z`, independent across the strings `z`, each in its bad set `B z` with chance at
+most `ε`. While no earlier query read bad, round `j` queries at most `b j` strings. Then some
+query of the first `n` rounds reads bad with chance at most `ε (b 0 + ⋯ + b (n − 1))`. -/
+theorem adaptive_reads_bound {Z Ω R : Type*} [Countable Z] [MeasurableSpace Ω] [MeasurableSpace R]
+    [Countable R] [MeasurableSingletonClass R] (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (read : Z → Ω → R) (B : Z → Set R) (ε : ℝ) (Q : ℕ → (Z → R) → Finset Z) (b : ℕ → ℕ) (n : ℕ)
+    (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
+    (hB : ∀ z, μ.real {ω | read z ω ∈ B z} ≤ ε) (hloc : Local Q B)
+    (hb : ∀ j r, (∀ i < j, ∀ z ∈ Q i r, r z ∉ B z) → (Q j r).card ≤ b j) :
+    μ {ω | ∃ j < n, ∃ z ∈ Q j (read · ω), read z ω ∈ B z}
+      ≤ ENNReal.ofReal (ε * ∑ j ∈ Finset.range n, (b j : ℝ)) := by
   classical
   have hle : ∀ z,
       MeasurableSpace.comap (read z) inferInstance ≤ (inferInstance : MeasurableSpace Ω) :=
