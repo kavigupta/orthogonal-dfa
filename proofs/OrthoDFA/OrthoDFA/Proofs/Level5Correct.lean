@@ -107,12 +107,55 @@ def Level5Gates (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ
               result.hypothesis.tree (Function.curry result.hypothesis.edges) k)}
         ≤ ENNReal.ofReal (δ / 8)
 
+/-- `Level5Gates` with the noise fields concentrating from `kd`: the prefix mass is read at `kd`,
+and the round may also fail where a string it reads before `kd` at a good read-state is undecided.
+-/
+def Level5GatesAt (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (θs θs₁ θe φe : ℝ) :
+    Prop :=
+  let n : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let K : ℝ := V * (112 / εd + 1)
+  let W : ℝ := (n + 2) * (L + 1 + (n + 2) * A)
+  let Xc : ℝ := 2 * (L + 1) * (1 + θe * (n + 2)) + 1
+  ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
+    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
+    (∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
+      (P : PrefixDistribution α), P.L = L → ∀ (O : TriOracle μ M) (θ : ℝ) (J : ℕ) (ū : ℝ) (kd : ℕ),
+      let bad := fun q => ¬ O.Good θ q
+      0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 → 48 * θ ≤ θe →
+      6 * (n + 1) * θ + 2 * unionLog (α := α) σ δ * prefixMax P.D kd ≤ θs →
+      32 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd ≤ φe * θe →
+      0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
+      1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd ≤ εd → 0 ≤ ū →
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+          {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+              (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+                (Fintype.card σ + 2) J ū result.hypothesis)
+              settings.walkStart
+              (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+              (min θs (min (φe * θe / 2) (3 * εd / 16))) result.ending} ∂μ
+        ≤ ENNReal.ofReal (δ + 32 * ū / εd + if k < kd then 3 / 2 * θ * (K * G * W)
+          + (O.ε + O.κ + 3 / 2 * θ) * ((∑ i ∈ Finset.Ico k kd, A ^ i) * (n + 2)) else 0))
+    ∧ ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D], (∀ᵐ x ∂D, x.toList.length ≤ L) →
+      ∀ (read : FreeMonoid α → ARU) (u : ℝ),
+      θs₁ = 2 * θs → θs ≤ 1 / 4 → εd ≤ 1 / 8 →
+      2 * (3 * θs + (n + 2) * A * φe + 2 * θe * ((L + 1) * (n + 2)))
+        + 2 * εd / 7 * (2 * (L + 2) + 2 + (n + 2) * A * Xc + 2 * θe * ((L + 1) * (n + 2))) ≤ u →
+      (Measure.pi fun _ : Fin settings.probeBudget => D)
+          {draws | let result := indecisiveLStarLevel5 settings read draws
+            result.ending = .consistent ∧ u ≤ D.real (undSiftSet (fun z => (read z).cut)
+              result.hypothesis.tree (Function.curry result.hypothesis.edges) k)}
+        ≤ ENNReal.ofReal (δ / 8)
+
 set_option maxHeartbeats 4000000 in -- the chosen settings meet every condition
-theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (θs θs₁ θe φe : ℝ)
-    (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L)
+theorem level5_gates_at_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ)
+    (θs θs₁ θe φe : ℝ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L)
     (hθs0 : 0 < θs) (hθs₁ : θs < θs₁) (hθs₁1 : θs₁ < 1) (hθe : 0 ≤ θe) (hφe : 0 ≤ φe) :
-    Level5Gates M εd L δ k θs θs₁ θe φe := by
-  dsimp only [Level5Gates]
+    Level5GatesAt M εd L δ k θs θs₁ θe φe := by
+  dsimp only [Level5GatesAt]
   set N : ℕ := Fintype.card σ + 2
   set A : ℕ := Fintype.card α
   have hA1 : (1 : ℝ) ≤ A := by exact_mod_cast Fintype.card_pos
@@ -170,7 +213,7 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
   set C : Level5Settings := ⟨k, N, θs, θe, 1 / 2, εd, θs₁, 3 / 4, 7 / 8 * εd, Real.exp (-G),
     n₀, fun _ => 2 * (L + 1) * (1 + θe * N) * G + 1, φe, 3 / 4 * εd, b⟩ with hC
   refine ⟨C, rfl, rfl, by rw [← hVr]; exact hbK, rfl,
-    fun μ _ P hP O θ J ū hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū => ?_, ?_⟩
+    fun μ _ P hP O θ J ū kd hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū => ?_, ?_⟩
   swap
   · intro D _ hlen read u halt hθs4 hp8 hu
     have hSq : C.SeqOK :=
@@ -240,19 +283,43 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
     linarith
   refine (lintegral_level5_eq M O _ P C J ū).trans_le ?_
   refine (level5_round_risk_holds M O θ P C J ū hū hT).trans ?_
-  rw [ENNReal.ofReal_add hδ0.le (by positivity)]
+  have hκε : 0 ≤ O.ε + O.κ + 3 / 2 * θ := by positivity
+  rw [ENNReal.ofReal_add (by positivity) (by split_ifs <;> positivity),
+    ENNReal.ofReal_add hδ0.le (by positivity), add_right_comm]
   refine add_le_add ?_ le_rfl
   clear hT hū
-  have hRB := level5_risk_bound_holds σ O.κ O.ε θ P.D P.L C δ
+  refine le_trans ?_ (add_le_add (le_refl (ENNReal.ofReal δ))
+    (show headTerm (α := α) O.κ O.ε θ P.L C kd ≤ _ from ?_))
+  swap
+  · unfold headTerm
+    refine ENNReal.ofReal_le_ofReal ?_
+    show (if k < kd then _ else _) ≤ _
+    split_ifs with hk
+    · have hNW : ((P.L : ℝ) + 1) * N + N * A * N
+          = ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
+        rw [hNr]; ring
+      have hbK' : (b : ℝ) ≤ ((Fintype.card σ : ℝ) + 2) * (((Fintype.card σ : ℝ) + 2) * A + 1)
+          * (112 / εd + 1) * G := by rw [← hVr]; exact hbK
+      show 3 / 2 * θ * ((b : ℝ) * (((P.L : ℝ) + 1) * N + N * A * N))
+          + (O.ε + O.κ + 3 / 2 * θ) * (((∑ i ∈ Finset.Ico k kd, A ^ i : ℕ) : ℝ) * N) ≤ _
+      rw [hNW, hNr]
+      push_cast
+      have hW0 : 0 ≤ ((Fintype.card σ : ℝ) + 2) * (P.L + 1 + ((Fintype.card σ : ℝ) + 2) * A) := by
+        positivity
+      have := mul_le_mul_of_nonneg_right hbK' hW0
+      have hθ32 : 0 ≤ 3 / 2 * θ := by positivity
+      nlinarith [mul_le_mul_of_nonneg_left this hθ32]
+    · exact le_rfl
+  have hRB := level5_risk_bound_at_holds σ O.κ O.ε θ P.D P.L C δ kd
   dsimp only at hRB
-  have hp₀ : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
+  have hp₀ : 0 ≤ prefixMax P.D kd := (prefixMax_pos P.D kd).le
   have hΛ0 : 0 ≤ unionLog (α := α) σ δ := by
     unfold unionLog
     refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
     rw [le_div_iff₀ hδ0]
     nlinarith
   have hL1 : (1 : ℝ) ≤ P.L := by exact_mod_cast hL
-  have hpΛ : prefixMax P.D k * unionLog (α := α) σ δ ≤ εd / (1024 * (P.L + 1)) := by
+  have hpΛ : prefixMax P.D kd * unionLog (α := α) σ δ ≤ εd / (1024 * (P.L + 1)) := by
     rw [le_div_iff₀ (by positivity)]; nlinarith
   have hθ' : ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 768 := by
     have : 0 ≤ ((Fintype.card σ : ℝ) + 1) * θ := by positivity
@@ -264,10 +331,10 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
     rw [e] at hθc
     linarith
   have hθ1 : θ ≤ 1 / 384 := le_trans (le_mul_of_one_le_left hθ hLn1) hθL
-  set pΛ := prefixMax P.D k * unionLog (α := α) σ δ
+  set pΛ := prefixMax P.D kd * unionLog (α := α) σ δ
   have hpΛ0 : 0 ≤ pΛ := mul_nonneg hp₀ hΛ0
   have hpΛL : ((P.L : ℝ) + 1) * pΛ ≤ εd / 1024 := by
-    have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D k
+    have e : 1024 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
         = 1024 * (((P.L : ℝ) + 1) * pΛ) := by simp only [pΛ]; ring
     rw [e] at hpc
     linarith
@@ -282,15 +349,15 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
         = 96 * (((P.L : ℝ) + 1) * ((Fintype.card σ : ℝ) + 1) * θ) := by ring
     rw [e]; linarith
   · simp only [hC]
-    have e2 : 2 * prefixMax P.D k * unionLog (α := α) σ δ
-        = 2 * unionLog (α := α) σ δ * prefixMax P.D k := by ring
+    have e2 : 2 * prefixMax P.D kd * unionLog (α := α) σ δ
+        = 2 * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
     rw [e2]; exact hθs'
   · simp only [hC]
-    have e : 32 * ((P.L : ℝ) + 1) * prefixMax P.D k * unionLog (α := α) σ δ
-        = 32 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D k := by ring
+    have e : 32 * ((P.L : ℝ) + 1) * prefixMax P.D kd * unionLog (α := α) σ δ
+        = 32 * ((P.L : ℝ) + 1) * unionLog (α := α) σ δ * prefixMax P.D kd := by ring
     rw [e]; exact hφe' 
   · simp only [hC]
-    have e : 256 * prefixMax P.D k * unionLog (α := α) σ δ = 256 * pΛ := by simp only [pΛ]; ring
+    have e : 256 * prefixMax P.D kd * unionLog (α := α) σ δ = 256 * pΛ := by simp only [pΛ]; ring
     rw [e]; linarith
   · simp only [hC]; rw [hlogG]; exact hn₀l
   · simp only [hC]; rw [hlogG]; linarith
@@ -323,6 +390,16 @@ theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ)
     linarith only [this, hεc]
 
 
+/-- At `kd = k` nothing is read before `kd`. -/
+theorem level5_gates_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ)
+    (θs θs₁ θe φe : ℝ) (hδ0 : 0 < δ) (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L)
+    (hθs0 : 0 < θs) (hθs₁ : θs < θs₁) (hθs₁1 : θs₁ < 1) (hθe : 0 ≤ θe) (hφe : 0 ≤ φe) :
+    Level5Gates M εd L δ k θs θs₁ θe φe := by
+  obtain ⟨C, h1, h2, h3, h4, h5, h6⟩ := level5_gates_at_all M εd L δ k θs θs₁ θe φe hδ0 hδ1 hεd0
+    hεd1 hL hθs0 hθs₁ hθs₁1 hθe hφe
+  refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū => ?_, h6⟩
+  simpa using h5 μ P hP O θ J ū k hθ hθc hθe' hθs' hφe' hκ hε hεc hpc hū
+
 /-- `Level5Guarantee` with the settings chosen before the probability space, the probes'
 distribution of length `L`, the oracle and the goodness level. -/
 def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) : Prop :=
@@ -350,14 +427,41 @@ def Level5UniformAll (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k 
               (3 * εd / 16) result.ending} ∂μ
         ≤ ENNReal.ofReal (δ + 32 * ū / εd)
 
+/-- `Level5UniformAll` with the noise fields concentrating from `kd`. -/
+def Level5UniformAt (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) : Prop :=
+  let n : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let K : ℝ := V * (112 / εd + 1)
+  let W : ℝ := (n + 2) * (L + 1 + (n + 2) * A)
+  ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
+    (settings.probeBudget : ℝ) ≤ K * G ∧ settings.maxLeaves = Fintype.card σ + 2 ∧
+    ∀ {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
+      (P : PrefixDistribution α), P.L = L → ∀ (O : TriOracle μ M) (θ : ℝ) (J : ℕ) (ū : ℝ) (kd : ℕ),
+      let bad := fun q => ¬ O.Good θ q
+      0 ≤ θ → 384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
+      0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
+      1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd ≤ εd → 0 ≤ ū →
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+          {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+            ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+              (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+                (Fintype.card σ + 2) J ū result.hypothesis)
+              settings.walkStart
+              (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+              (3 * εd / 16) result.ending} ∂μ
+        ≤ ENNReal.ofReal (δ + 32 * ū / εd + if k < kd then 3 / 2 * θ * (K * G * W)
+          + (O.ε + O.κ + 3 / 2 * θ) * ((∑ i ∈ Finset.Ico k kd, A ^ i) * (n + 2)) else 0)
+
 set_option maxHeartbeats 1000000 in -- the old settings meet the general conditions
-theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
+theorem level5_guarantee_at_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
     (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L) :
-    Level5UniformAll M εd L δ k := by
-  obtain ⟨C, h1, h2, h3, h4, h5, -⟩ := level5_gates_all M εd L δ k (1 / 2) (3 / 5) (3 / 4) (3 / 4)
+    Level5UniformAt M εd L δ k := by
+  obtain ⟨C, h1, h2, h3, h4, h5, -⟩ := level5_gates_at_all M εd L δ k (1 / 2) (3 / 5) (3 / 4) (3 / 4)
     hδ0 hδ1 hεd0 hεd1 hL (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hκ hε hεc hpc hū => ?_⟩
-  have hp₀ : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
+  refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū kd hθ hθc hκ hε hεc hpc hū => ?_⟩
+  have hp₀ : 0 ≤ prefixMax P.D kd := (prefixMax_pos P.D kd).le
   have hΛ0 : 0 ≤ unionLog (α := α) σ δ := by
     unfold unionLog
     refine mul_nonneg (by positivity) (Real.log_nonneg ?_)
@@ -366,7 +470,7 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
     nlinarith
   have hn0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
   have hL1 : (1 : ℝ) ≤ P.L := by rw [hP]; exact_mod_cast hL
-  have hpΛ : 0 ≤ unionLog (α := α) σ δ * prefixMax P.D k := mul_nonneg hΛ0 hp₀
+  have hpΛ : 0 ≤ unionLog (α := α) σ δ * prefixMax P.D kd := mul_nonneg hΛ0 hp₀
   have hθ1 : ((Fintype.card σ : ℝ) + 1) * θ ≤ 1 / 768 := by
     have h1 : (1 : ℝ) ≤ 2 * (P.L + 1) := by linarith
     have : 0 ≤ ((Fintype.card σ : ℝ) + 1) * θ := by positivity
@@ -376,17 +480,25 @@ theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : 
     le_min (by linarith) (le_min (by linarith) le_rfl)
   refine le_trans (lintegral_mono fun ω => measure_mono fun xs hxs h => hxs
     (EndsWell.mono_yield hy h)) ?_
-  refine h5 μ P hP O θ J ū hθ hθc (by linarith) ?_ ?_ hκ hε hεc hpc hū
-  · have : 2 * unionLog (α := α) σ δ * prefixMax P.D k ≤ εd / 512 := by
-      have e : 1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k
-          = 1024 * (P.L + 1) * (unionLog (α := α) σ δ * prefixMax P.D k) := by ring
+  refine h5 μ P hP O θ J ū kd hθ hθc (by linarith) ?_ ?_ hκ hε hεc hpc hū
+  · have : 2 * unionLog (α := α) σ δ * prefixMax P.D kd ≤ εd / 512 := by
+      have e : 1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
+          = 1024 * (P.L + 1) * (unionLog (α := α) σ δ * prefixMax P.D kd) := by ring
       rw [e] at hpc
       nlinarith
     nlinarith
-  · have e : 1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k
-        = 32 * (32 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D k) := by ring
+  · have e : 1024 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd
+        = 32 * (32 * (P.L + 1) * unionLog (α := α) σ δ * prefixMax P.D kd) := by ring
     rw [e] at hpc
     nlinarith
+
+/-- At `kd = k` nothing is read before `kd`. -/
+theorem level5_guarantee_all (M : _root_.DFA α σ) (εd : ℝ) (L : ℕ) (δ : ℝ) (k : ℕ) (hδ0 : 0 < δ)
+    (hδ1 : δ ≤ 1) (hεd0 : 0 < εd) (hεd1 : εd < 1) (hL : 1 ≤ L) :
+    Level5UniformAll M εd L δ k := by
+  obtain ⟨C, h1, h2, h3, h4, h5⟩ := level5_guarantee_at_all M εd L δ k hδ0 hδ1 hεd0 hεd1 hL
+  refine ⟨C, h1, h2, h3, h4, fun μ _ P hP O θ J ū hθ hθc hκ hε hεc hpc hū => ?_⟩
+  simpa using h5 μ P hP O θ J ū k hθ hθc hκ hε hεc hpc hū
 
 end Guarantee
 
@@ -398,6 +510,13 @@ theorem level5_correct_holds : Level5Correct := by
   obtain ⟨settings, h1, h2, h3, -, h⟩ :=
     level5_guarantee_all (σ := σ) M εd P.L δ k hδ0 hδ1 hεd0 hεd1 hL
   exact ⟨settings, h1, h2, h3, h μ P rfl O θ J ū hθ hθc hκ hε hεc hpc hū⟩
+
+theorem level5_correct_at_holds : Level5CorrectAt := by
+  intro α _ _ _ σ _ Ω _ μ _ M O θ εd P δ k kd J ū
+  intro hδ0 hδ1 hεd0 hεd1 hL hθ hθc hκ hε hεc hpc hū
+  obtain ⟨settings, h1, h2, h3, -, h⟩ :=
+    level5_guarantee_at_all (σ := σ) M εd P.L δ k hδ0 hδ1 hεd0 hεd1 hL
+  exact ⟨settings, h1, h2, h3, h μ P rfl O θ J ū kd hθ hθc hκ hε hεc hpc hū⟩
 
 theorem level5_family_correct_holds : Level5FamilyCorrect := by
   intro α _ _ _ σ _ Ω _ μ _ fam θ εd P δ k J ū

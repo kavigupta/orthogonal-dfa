@@ -419,6 +419,9 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   `y`, but for chance at most `δ`.
 - `OrthoDFA/Level5.lean`, `OrthoDFA/Level5Claim.lean` — level 5, the counterexample search
   (`indecisiveLStarLevel5`, returning the hypothesis and the ending), and `Level5Correct`.
+  `Level5CorrectAt` lets the noise concentrate over a depth `kd` past the walk's start `k`, as
+  walking from `0` needs: each string read before `kd` at a good read-state is checked instead,
+  adding a chance linear in `θ`.
   `Proofs/Level5RiskDefs.lean` holds the internal bound (`Level5RoundRisk`, `Level5RiskBound`),
   and `Proofs/Level5Correct.lean` derives the claim from it at the chosen settings. Probes walk
   from `k` as `sifting.read` does, and a disagreement is searched by main's bisection without

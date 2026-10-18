@@ -165,15 +165,15 @@ theorem mul_exp_le {K K₁ Λ x δ : ℝ} (hδ : 0 < δ) (hK0 : 0 ≤ K) (hK : K
   linarith
 
 set_option maxHeartbeats 1000000 in -- every field of `Knobs.Admissible` and all five terms
-theorem level5_risk_bound_holds : Level5RiskBound := by
-  intro α _ _ _ σ _ κ ε θ D _ L C δ
+theorem level5_risk_bound_at_holds : Level5RiskBoundAt := by
+  intro α _ _ _ σ _ κ ε θ D _ L C δ K
   dsimp only
   intro hδ0 hδ1 hL hLmax hκ hε hθ0 hθe hθpt hθs hφe hφpt hεd1 hθs_alt hθs₁_lt hθpt_eq hθpt₁_eq
     hεd₁_eq hφ_eq hn₀ hn₀7 hexc ha0 ha hbudget hwrong
-  generalize hp₀ : prefixMax D C.walkStart = p₀ at hθs hφe hφpt
+  generalize hp₀ : prefixMax D K = p₀ at hθs hφe hφpt
   generalize hΛ : unionLog (α := α) σ δ = Λ at hθs hφe hφpt
   generalize hlg : Real.log (1 / C.testLevel) = lg at hn₀ hn₀7 hexc hbudget
-  have hp0 : 0 < p₀ := hp₀ ▸ prefixMax_pos D C.walkStart
+  have hp0 : 0 < p₀ := hp₀ ▸ prefixMax_pos D K
   have hK := count_le_unionLog (α := α) σ hδ0 hδ1
   rw [hΛ] at hK
   have hA1 : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
@@ -248,7 +248,7 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
     have : 8 * p₀ * Λ / C.searchShare * 4 ≤ C.middleUndecidedRate / 2 := by
       rw [div_mul_eq_mul_div, div_le_iff₀ hφpt_pos]; linarith
     rw [hθgpt]; nlinarith
-  have hadm : Knobs.Admissible σ κ ε θ D L C ⟨nEnd, hS, 3 * θ, θgs, θgpt, 1 / p₀⟩ :=
+  have hadm : Knobs.Admissible σ κ ε θ D L C ⟨nEnd, hS, 3 * θ, θgs, θgpt, 1 / p₀, K⟩ :=
     { κ_nonneg := hκ
       ε_nonneg := hε
       θ_nonneg := hθ0
@@ -368,8 +368,19 @@ theorem level5_risk_bound_holds : Level5RiskBound := by
       ← ENNReal.ofReal_add (by positivity) h4,
       ← ENNReal.ofReal_add (by positivity) (by positivity : 0 ≤ 5 * δ / 16)]
     exact ENNReal.ofReal_le_ofReal (by linarith)
-  exact le_trans (add_le_add (add_le_add (add_le_add (add_le_add (ENNReal.ofReal_le_ofReal hT2)
-    (ENNReal.ofReal_le_ofReal hT3)) (ENNReal.ofReal_le_ofReal hT4)) (ENNReal.ofReal_le_ofReal hW))
-    (ENNReal.ofReal_le_ofReal hTL)) hsum
+  exact add_le_add (le_trans (add_le_add (add_le_add (add_le_add (add_le_add
+    (ENNReal.ofReal_le_ofReal hT2) (ENNReal.ofReal_le_ofReal hT3)) (ENNReal.ofReal_le_ofReal hT4))
+    (ENNReal.ofReal_le_ofReal hW)) (ENNReal.ofReal_le_ofReal hTL)) hsum) le_rfl
+
+/-- At `K = walkStart` nothing is read before `K`. -/
+theorem level5_risk_bound_holds : Level5RiskBound := by
+  intro α _ _ _ σ _ κ ε θ D _ L C δ
+  dsimp only
+  intro hδ0 hδ1 hL hLmax hκ hε hθ0 hθe hθpt hθs hφe hφpt hεd1 hθs_alt hθs₁_lt hθpt_eq hθpt₁_eq
+    hεd₁_eq hφ_eq hn₀ hn₀7 hexc ha0 ha hbudget hwrong
+  have h := level5_risk_bound_at_holds σ κ ε θ D L C δ C.walkStart hδ0 hδ1 hL hLmax hκ hε hθ0 hθe
+    hθpt hθs hφe hφpt hεd1 hθs_alt hθs₁_lt hθpt_eq hθpt₁_eq hεd₁_eq hφ_eq hn₀ hn₀7 hexc ha0 ha
+    hbudget hwrong
+  simpa [headTerm] using h
 
 end OrthoDFA

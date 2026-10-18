@@ -17,6 +17,10 @@ enough. A checked probe searches or learns, reads a prefix followed by a midfix 
 state's rarer side or, where the states' undecided rates make `undecidedMass` at most `ū`, reads
 one undecided. It is derived from a detailed bound (`Proofs/Level5RiskDefs.lean`) that need not be
 read to trust it.
+
+`Level5CorrectAt` lets the walk start before the depth the noise concentrates from, as the Python's
+walk from `0` needs: the strings read before that depth are each checked instead, at a cost
+linear in `θ` added to the failure chance.
 -/
 
 noncomputable section
@@ -130,6 +134,41 @@ def Level5Guarantee [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [Measur
             (3 * εd / 16) result.ending} ∂μ
       ≤ ENNReal.ofReal (δ + 32 * ū / εd)
 
+/-- `Level5Guarantee` with the noise fields concentrating over the probes' first `kd` letters
+rather than their first `k`: the prefix mass is read at `kd`, and the round may also fail where a
+string it reads at a position before `kd`, at a good read-state, reads undecided. The steps read at
+most `K · G · W` strings, each undecided at a good read-state with chance at most `1.5θ`, and the
+final tree reads before `kd` at most `H (n + 2)`, each also on its rarer side with chance at most
+`ε + κ`, `H` the strings of length `k` to `kd − 1`. At `kd = k` it is `Level5Guarantee`. -/
+def Level5GuaranteeAt [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω]
+    {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ) (O : TriOracle μ M)
+    (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k kd J : ℕ) (ū : ℝ) : Prop :=
+  let n : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
+  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
+  let K : ℝ := V * (112 / εd + 1)
+  let W : ℝ := (n + 2) * (P.L + 1 + (n + 2) * A)
+  let U : ℝ := 4 * (n + 2) * A * Real.log ((n + 3) * A / δ)
+  let H : ℝ := ∑ i ∈ Finset.Ico k kd, A ^ i
+  let bad := fun q => ¬ O.Good θ q
+  0 < δ → δ ≤ 1 → 0 < εd → εd < 1 → 1 ≤ P.L → 0 ≤ θ →
+  384 * (P.L + 1) * (n + 1) * θ ≤ 1 →
+  0 ≤ O.κ → 0 ≤ O.ε → 4 * (O.ε + O.κ) * K * G * W ≤ δ →
+  1024 * (P.L + 1) * U * prefixMax P.D kd ≤ εd → 0 ≤ ū →
+  ∃ settings : Level5Settings, settings.walkStart = k ∧ settings.disagreementRate = εd ∧
+    (settings.probeBudget : ℝ) ≤ K * G ∧
+    ∫⁻ ω, (Measure.pi fun _ : Fin settings.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel5 settings (O.read · ω) draws
+          ¬ EndsWell M bad P.D (3 / 2 * settings.disagreementRate)
+            (checkedProbes M O.readDist P.D (O.read · ω) settings.walkStart
+              (Fintype.card σ + 2) J ū result.hypothesis)
+            settings.walkStart
+            (harvestLaw P.D (fun z => (O.read z ω).cut) settings.walkStart result.hypothesis)
+            (3 * εd / 16) result.ending} ∂μ
+      ≤ ENNReal.ofReal (δ + 32 * ū / εd + if k < kd then
+          3 / 2 * θ * (K * G * W) + (O.ε + O.κ + 3 / 2 * θ) * (H * (n + 2)) else 0)
+
 /-- `Level5Guarantee` at every target, oracle, goodness level, disagreement rate, probe
 distribution, confidence, start `k`, length `J` and undecided mass `ū`. -/
 def Level5Correct : Prop :=
@@ -137,6 +176,14 @@ def Level5Correct : Prop :=
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
     (O : TriOracle μ M) (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k J : ℕ) (ū : ℝ),
     Level5Guarantee M O θ εd P δ k J ū
+
+/-- `Level5GuaranteeAt` at every target, oracle, goodness level, disagreement rate, probe
+distribution, confidence, start `k`, concentration depth `kd`, length `J` and undecided mass `ū`. -/
+def Level5CorrectAt : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
+    (O : TriOracle μ M) (θ εd : ℝ) (P : PrefixDistribution α) (δ : ℝ) (k kd J : ℕ) (ū : ℝ),
+    Level5GuaranteeAt M O θ εd P δ k kd J ū
 
 end OrthoDFA
 

@@ -98,6 +98,9 @@ structure Knobs where
   θgpt : ℝ
   /-- The start field's exponent. -/
   l : ℝ
+  /-- The positions from which the noise fields concentrate over the probes' prefixes; each string
+  read before them is checked instead. -/
+  depth : ℕ
 
 section Bound
 
@@ -148,20 +151,20 @@ def edgeTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ 0
     * (edgeMapCount (α := α) σ 0 * ((Fintype.card σ + 2) * Fintype.card α))
     * Real.exp (-(C.edgeTraffic * (C.edgeUndecidedRate
-        - 8 * kn.θg) / 4 / (2 * prefixMax D C.walkStart * (L + 1)
+        - 8 * kn.θg) / 4 / (2 * prefixMax D kn.depth * (L + 1)
       * (1 + 4 * (3 / 2 * θ) * (Fintype.card σ + 1))))))
 
 /-- Good read-states' undecided start reads exceeding `θgs` of the probes, at some tree. -/
 def startTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ 0
     * Real.exp ((Fintype.card σ + 1) * (3 / 2 * θ)
-      * (Real.exp (kn.l * prefixMax D C.walkStart) - 1) / prefixMax D C.walkStart - kn.l * kn.θgs))
+      * (Real.exp (kn.l * prefixMax D kn.depth) - 1) / prefixMax D kn.depth - kn.l * kn.θgs))
 
 /-- Searches stopping at an undecided middle at a good read-state exceeding `θgpt` of the
 searches past the middles test's slack, at some tree and edge map. -/
 def middlesTail : ENNReal :=
   ENNReal.ofReal (classCount (α := α) σ 0 * edgeMapCount (α := α) σ 0
-    * Real.exp (-(kn.θgpt * C.searchShare / 2 / (2 * prefixMax D C.walkStart
+    * Real.exp (-(kn.θgpt * C.searchShare / 2 / (2 * prefixMax D kn.depth
       * (1 + 4 * ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)))))))
 
 /-- Some step reading a string on its state's rarer side: a step reads at most
@@ -178,11 +181,24 @@ def testLevels : ENNReal :=
   ENNReal.ofReal (versionBound C (Fintype.card α) * (2 * C.maxLeaves * Fintype.card α + 5)
     * C.testLevel)
 
+/-- Where the fields concentrate from `K` past the walk's start, a string the end state's tree reads
+before `K` at a good read-state read undecided: each string a step reads and each of those,
+`H maxLeaves` of them with `H` the strings of length `walkStart` to `K − 1`, undecided at a
+good read-state with chance at most `1.5θ` when first read, and the latter on the rarer side with
+chance at most `ε + κ`. -/
+def headTerm (K : ℕ) : ENNReal :=
+  ENNReal.ofReal (if C.walkStart < K then
+    3 / 2 * θ * (C.probeBudget
+      * ((L + 1) * C.maxLeaves + C.maxLeaves * Fintype.card α * C.maxLeaves))
+      + (ε + κ + 3 / 2 * θ)
+        * ((∑ i ∈ Finset.Ico C.walkStart K, Fintype.card α ^ i : ℕ) * C.maxLeaves)
+    else 0)
+
 /-- The round's failure chance at the knobs `kn`: the three noise fields' tails, a read on the
-rarer side splitting wrongly, and the tests' levels. -/
+rarer side splitting wrongly, the tests' levels, and a read before `depth` undecided. -/
 def roundBound : ENNReal :=
-  edgeTail σ θ D L C kn + startTail σ θ D C kn + middlesTail σ θ D L C kn
-    + wrongTerm (α := α) κ ε L C + testLevels (α := α) C
+  edgeTail σ θ D L C kn + startTail σ θ D kn + middlesTail σ θ D L C kn
+    + wrongTerm (α := α) κ ε L C + testLevels (α := α) C + headTerm (α := α) κ ε θ L C kn.depth
 
 /-- The least of `roundBound` over the admissible knobs. -/
 def roundRisk : ENNReal :=
@@ -218,6 +234,34 @@ def Level5RiskBound : Prop :=
     (versionBound C (Fintype.card α) : ℝ) * (112 * lg / C.disagreementRate + 1) ≤ C.probeBudget →
     4 * (ε + κ) * C.probeBudget * ((L + 1) * C.maxLeaves + C.maxLeaves * A * C.maxLeaves) ≤ δ →
     roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ
+
+/-- `Level5RiskBound` with the fields concentrating from `K`: `roundRisk ≤ δ + headTerm K`, with
+`p₀ = prefixMax D K`. -/
+def Level5RiskBoundAt : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (σ : Type*) [Fintype σ]
+    (κ ε θ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ)
+    (C : Level5Settings) (δ : ℝ) (K : ℕ),
+    let n : ℝ := Fintype.card σ
+    let Λ := unionLog (α := α) σ δ
+    let p₀ := prefixMax D K
+    let lg := Real.log (1 / C.testLevel)
+    let A : ℝ := Fintype.card α
+    0 < δ → δ ≤ 1 → 1 ≤ L → Fintype.card σ + 2 ≤ C.maxLeaves →
+    0 ≤ κ → 0 ≤ ε → 0 ≤ θ → 48 * θ ≤ C.edgeUndecidedRate →
+    96 * ((L + 1) * (n + 1)) * θ ≤ C.middleUndecidedRate →
+    6 * (n + 1) * θ + 2 * p₀ * Λ ≤ C.startUndecidedRate →
+    32 * (L + 1) * p₀ * Λ ≤ C.edgeTraffic * C.edgeUndecidedRate
+        → 256 * p₀ * Λ ≤ C.middleUndecidedRate * C.searchShare →
+    C.disagreementRate < 1 → C.startUndecidedRate < C.startAltRate → C.startAltRate < 1 →
+    C.middleUndecidedRate = 1 / 2 → C.middleAltRate = 3 / 4 →
+    C.disagreementAltRate = 7 / 8 * C.disagreementRate →
+    C.searchShare = 3 / 4 * C.disagreementRate → 6 * lg ≤ C.firstLook → C.firstLook ≤ 7 * lg →
+    (∀ j, 2 * (L + 1) * (1 + C.edgeUndecidedRate * C.maxLeaves) * lg < C.edgeExcess j) →
+    0 < C.testLevel →
+    4 * (versionBound C (Fintype.card α) * (2 * C.maxLeaves * A + 4)) * C.testLevel ≤ δ →
+    (versionBound C (Fintype.card α) : ℝ) * (112 * lg / C.disagreementRate + 1) ≤ C.probeBudget →
+    4 * (ε + κ) * C.probeBudget * ((L + 1) * C.maxLeaves + C.maxLeaves * A * C.maxLeaves) ≤ δ →
+    roundRisk σ κ ε θ D L C ≤ ENNReal.ofReal δ + headTerm (α := α) κ ε θ L C K
 
 /-- `Level5RoundRisk`: with an oracle reading every string with the read model's laws, the round
 over `C.probeBudget` probes drawn from `P.D` fails to end well with chance at most `roundRisk`,
