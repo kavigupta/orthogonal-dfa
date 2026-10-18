@@ -3,9 +3,9 @@ import OrthoDFA.Proofs.LoopDFA
 /-!
 # The learner's DFA under the relative rule: the proof
 
-At `c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−⌈L/2⌉)` the states covered at `c₀` are covered. The dominated states visited
-from `⌈L/2⌉` on by fewer than `c` of the strings are visited from `q` by at most `|Q| C c ≤ ξ/2` of
-them, and off those runs the relative rule's good strings are the covered rule's
+At `c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−⌈L/2⌉)` the states covered at `c₀` are covered.
+The dominated states visited from `⌈L/2⌉` on by fewer than `c` of the strings are visited from `q`
+by at most `|Q| C c ≤ ξ/2` of them, and off those runs the relative rule's good strings are the covered rule's
 (`covered_of_dominated`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
 at `η + ξ/2` and `ξ/2`.
 -/
