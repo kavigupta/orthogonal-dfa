@@ -301,9 +301,9 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
         rfl
 
 theorem epsRoundCorrect_holds : EpsRoundCorrect := by
-  intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C y p₀
+  intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C p₀
   dsimp only
-  intro hpre hθ hδ hss hssρ hρ1 hμ hs1 he0 hps hpe hpm hP hw
+  intro hpre hθ hδ hGy hyρ hρ1 hP hw
   set nQ := Fintype.card σ
   set nα := Fintype.card α
   set δ := C.δ
@@ -326,9 +326,9 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
     have : 0 ≤ 3 * θ * (P.L + 1) * (nQ + 1) := by positivity
     have : 0 < p₀ * Real.log (8 * K / δ) := mul_pos hp₀ hlogK
     linarith
-  obtain ⟨kn, hA, hkG, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ y G S hS hθ hδ hδ1 hss hssρ
-    hρ1 hμ hs1 he0 hG0 hps hpe hpm hP
-  refine (eps_round_le_at C M side U θ _ μ εw R P y p₀ kn hA hp₀
+  obtain ⟨kn, hA, hkG, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ G S hS hθ hδ hδ1 hG0 hGy hyρ
+    hρ1 hP
+  refine (eps_round_le_at C M side U θ _ μ εw R P _ p₀ kn hA hp₀
     (fun u _ => hpre u)).trans ?_
   have hnoise : noiseRisk nQ nα P.L (3 / 2 * θ) p₀ G = δ / 8 := by
     unfold noiseRisk

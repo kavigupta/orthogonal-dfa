@@ -39,19 +39,17 @@ def EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α)
-    (C : Level3Settings) (y p₀ : ℝ),
+    (C : Level3Settings) (p₀ : ℝ),
+    let y := C.harvestRate
     let ε := C.disagreementRate
     let δ := C.δ
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     let G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (8 * (1 + (nQ + 1) ^ 3 * nα) ^ nQ / δ)
-    let p := max (2 * G) y
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    0 < C.searchShare → 8 * C.searchShare ≤ ε → ε < 1 → C.middleRate ≤ 1 / 4 →
-    C.startRate < 1 / 2 → 0 ≤ C.edgeRate →
-    p ≤ C.startRate → 2 * p ≤ C.edgeRate * C.edgeReadShare → 2 * p ≤ C.searchShare * C.middleRate →
-    8 * S / C.searchShare * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
+    2 * G ≤ y → y ≤ ε / 32 → ε < 1 →
+    28 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     εw * C.probeBudget * ((P.L + 1) * nQ + (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
