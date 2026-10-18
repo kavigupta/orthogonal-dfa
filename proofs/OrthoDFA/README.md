@@ -62,6 +62,7 @@ level 5's reads off the rarer side; it is `1e6`× tighter than under the records
 - `LearnerLoopUniform`: the headline above.
 - `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the loop outputs a
   DFA. See below.
+- `LearnerLoopDFARelative`: the same under a relative coverage rule. See below.
 
 ## The learner's DFA
 
@@ -83,6 +84,13 @@ logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|
 `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3` and `ξ = 0.1`, `L₀ = 1618`, `n = 33196` and the
 budget is `4.2e16` probes a round (`εd = 4.9e-12`). `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality.
+
+`LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
+rule too: some `q ∈ coveredStates M L c₀` has accuracy at least `1 − η` with
+`S = coveredStates M L c₀ ∪ dominatedStates M L C q`, `dominatedStates` being the states that a run
+from `q` visits with at most `C` times the chance that a string visits them from `⌈L/2⌉` on. It is
+`LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`. At the parameters above, `c₀ = 0.01` and
+`C = 4`, `L₀ = 1653` and `n = 132781`.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, reading nothing on a rarer side
