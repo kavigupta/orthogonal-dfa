@@ -19,7 +19,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
-from .round_end import HARVEST_EDGE, HARVEST_START, Ending
+from .round_end import HARVEST_ENDS, Ending
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -92,10 +92,8 @@ class HarvestSource(RejectionSource):
 
 def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
     """What a probe reads undecided where ``ending`` harvested."""
-    if ending.kind == HARVEST_START:
-        return lambda charged: charged.start
-    if ending.kind == HARVEST_EDGE:
-        return lambda charged: charged.undecided_by_edge.get(ending.edge, [])
+    if ending.kind == HARVEST_ENDS:
+        return lambda charged: charged.ends
     return lambda charged: charged.middle
 
 

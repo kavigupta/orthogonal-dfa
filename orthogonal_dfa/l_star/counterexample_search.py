@@ -25,7 +25,7 @@ class CounterexampleSearch:
             ending = self.step(x)
             if ending is not None:
                 return ending
-        return Ending(OUT_OF_PROBES, [], None)
+        return Ending(OUT_OF_PROBES, [])
 
     def step(self, x: bytes) -> Optional[Ending]:
         outcome, charged = self.probe(x)
@@ -39,10 +39,7 @@ class CounterexampleSearch:
             self.counts = SiteCounts()
             return None
         self.counts.add(charged, outcome)
-        hypothesis = self.hypothesis
-        return ending_test(
-            self.counts, self.config, hypothesis.tree.depth, hypothesis.leaves
-        )
+        return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x)

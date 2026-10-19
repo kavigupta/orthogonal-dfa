@@ -4,9 +4,8 @@ import itertools
 import unittest
 
 from orthogonal_dfa.l_star.round_end import (
-    HARVEST_EDGE,
+    HARVEST_ENDS,
     HARVEST_MIDDLES,
-    HARVEST_START,
     OUT_OF_PROBES,
     SUCCESS,
     Ending,
@@ -24,17 +23,17 @@ from tests.counterexample_common import (
 
 
 class TestCharging(unittest.TestCase):
-    def test_counted_by_position_a_string_counts_each_time(self):
+    def test_a_string_counts_each_time_it_is_read(self):
         search = quiet_search(parity_cut([b"\x01\x00"]), PARITY_EDGES)
         search.step(b"\x01\x00")
         search.step(b"\x01\x00")
-        self.assertEqual(4, search.counts.traversals[(ODD, 0)])
+        self.assertEqual([b"\x01\x00"] * 2, search.counts.ends)
         self.assertEqual([b"\x01\x00"] * 2, search.counts.edge_harvest[(ODD, 0)])
 
     def test_the_start_is_not_charged_to_an_edge(self):
-        search = quiet_search(parity_cut(()), PARITY_EDGES)
+        search = quiet_search(parity_cut([b""]), PARITY_EDGES)
         search.step(b"\x01")
-        self.assertEqual({(EVEN, 1): 1}, dict(search.counts.traversals))
+        self.assertEqual(([b""], {}), (search.counts.ends, search.counts.edge_harvest))
 
 
 class TestLearningAndSplitting(unittest.TestCase):
@@ -43,10 +42,9 @@ class TestLearningAndSplitting(unittest.TestCase):
         search.step(b"\x01\x00")
         self.assertEqual({(EVEN, 1): (ODD, b"")}, search.hypothesis.edges)
         self.assertEqual(
-            (0, {}, 1, 1),
+            (0, 1, 1),
             (
                 search.counts.probes,
-                dict(search.counts.traversals),
                 search.probes,
                 search.hypothesis.version,
             ),
@@ -93,32 +91,26 @@ class TestTheTests(unittest.TestCase):
         search = quiet_search(
             parity_cut([b""]),
             PARITY_EDGES,
-            start_rate=0.05,
-            start_alternative=0.1,
+            ends_rate=0.05,
+            ends_alternative=0.1,
             level=1e-4,
         )
         # 2^n reaches 1e4 at n = 14.
         endings = [search.step(b"\x01\x00") for _ in range(14)]
         self.assertEqual([None] * 13, endings[:13])
-        self.assertEqual(Ending(HARVEST_START, [b""] * 14, None), endings[13])
+        self.assertEqual(Ending(HARVEST_ENDS, [b""] * 14), endings[13])
 
-    def test_an_edge_reading_undecided_past_its_excess_harvests_its_strings(self):
-        search = quiet_search(
-            parity_cut([b"\x01\x00"]), PARITY_EDGES, edge_rate=0.25, edge_excess=1
-        )
-        self.assertIsNone(search.step(b"\x01\x00"), "1 undecided of 2 positions")
-        ending = search.step(b"\x01\x00")
-        self.assertEqual(Ending(HARVEST_EDGE, [b"\x01\x00"] * 2, (ODD, 0)), ending)
-
-    def test_the_edge_test_waits_for_its_traffic(self):
+    def test_an_undecided_end_harvests_it(self):
         search = quiet_search(
             parity_cut([b"\x01\x00"]),
             PARITY_EDGES,
-            edge_rate=0.0,
-            edge_excess=1,
-            edge_traffic=3.0,
+            ends_rate=0.05,
+            ends_alternative=0.1,
+            level=1e-4,
         )
-        self.assertIsNone(search.step(b"\x01\x00"))
+        endings = [search.step(b"\x01\x00") for _ in range(14)]
+        self.assertEqual([None] * 13, endings[:13])
+        self.assertEqual(Ending(HARVEST_ENDS, [b"\x01\x00"] * 14), endings[13])
 
     def test_undecided_middles_harvest_once_the_hypothesis_searches_enough(self):
         cut = parity_cut([b"\x00\x01"])
@@ -127,7 +119,7 @@ class TestTheTests(unittest.TestCase):
         )
         endings = [search.step(b"\x00\x01\x00\x00") for _ in range(3)]
         self.assertEqual([None, None], endings[:2])
-        self.assertEqual(Ending(HARVEST_MIDDLES, [b"\x00\x01"] * 3, None), endings[2])
+        self.assertEqual(Ending(HARVEST_MIDDLES, [b"\x00\x01"] * 3), endings[2])
 
     def test_the_middles_test_waits_for_searches(self):
         cut = parity_cut([b"\x00\x01"])
