@@ -8,8 +8,12 @@ import numpy as np
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
-    STALL_PATIENCE, _accumulate_harvest, _family_too_loose, _publish_pool,
-    _StallDetector)
+    STALL_PATIENCE,
+    _accumulate_harvest,
+    _family_too_loose,
+    _publish_pool,
+    _StallDetector,
+)
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
 
