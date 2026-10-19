@@ -47,7 +47,7 @@ def EpsRoundCorrect : Prop :=
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    let G := 9 * θ * (nQ + 1) + 6 * p₀ * Real.log (16 * K / δ)
+    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
     48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →

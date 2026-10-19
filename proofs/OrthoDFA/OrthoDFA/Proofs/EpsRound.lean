@@ -256,7 +256,7 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
           * ((P.L + 1) * Fintype.card σ + (Fintype.card σ + 1) * Fintype.card α
             * (Fintype.card σ + 1)))) := by
   obtain ⟨Ns, N₁, Ge, θgpt, ηm, pM, θr, εd', θe', θpt'⟩ := kn
-  obtain ⟨hN₁, hN₁s, hθ, hGe0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
+  obtain ⟨hN₁, hN₁s, hθ, hθs, hGe0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
     hε, hθr0, hθr1, hεd'0, hεd'1, hθe'0, hθe'1, hθpt'0, hθpt'1, hsep, hP, hps, hθg, hθg4,
     hpM0, hyM, hηm, hfall⟩ := hA
   simp only at hN₁ hN₁s hGe0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps hfall ⊢
@@ -269,10 +269,13 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     P.D.real (goodAt (R.read · ω) C.walkStart ⟨T, E⟩ M U θ .middles)
       ≤ θgpt * P.D.real {x | searches (probeOrAgree (R.read · ω) T E C.walkStart x) = true} + ηm}
   set Nn := Ne ∪ Nm
+  have hL0 : (0 : ℝ) ≤ P.L := Nat.cast_nonneg _
+  have hn0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
   have hNe := endsNoise_le M U θ R.measurable R.indep R.undecided hθ P.D C.walkStart
     (n := Fintype.card σ) (η := Ge - 9 * θ * (Fintype.card σ + 1)) P.length_le hp₀ hpre
+    (by nlinarith)
   have hNm := midNoise_le M U θ R.measurable R.indep R.undecided hθ P.D C.walkStart
-    (n := Fintype.card σ) (η := ηm) P.length_le hp₀ hpre hθg
+    (n := Fintype.card σ) (η := ηm) P.length_le hp₀ hpre (by nlinarith) hθg
   set c := ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
     stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set B := toMeasurable μ Nn
@@ -309,9 +312,8 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
           lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
     _ ≤ c + (ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
-            (3 * (Fintype.card σ + 1) * (3 / 2 * θ)) (Ge - 9 * θ * (Fintype.card σ + 1)))
-          + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
-            ((P.L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ηm))
+            (Ge - 9 * θ * (Fintype.card σ + 1)))
+          + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀ ηm))
           + ENNReal.ofReal (εw * (C.probeBudget
             * ((P.L + 1) * Fintype.card σ + (Fintype.card σ + 1) * Fintype.card α
               * (Fintype.card σ + 1)))) := by
@@ -348,18 +350,15 @@ theorem epsRoundCorrect_holds : EpsRoundCorrect := by
   have hΛ0 : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; linarith)
   have hΛ' : Λ = Real.log (8 * (K : ℝ) / (δ / 2)) := by
     rw [hΛ]; congr 1; field_simp; ring
-  have hL0 : (0 : ℝ) ≤ P.L := Nat.cast_nonneg _
-  have hn0 : (0 : ℝ) ≤ nQ := Nat.cast_nonneg _
   obtain ⟨kn, hA, hGe, hηm, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ p₀ Λ P.L S hS hθ hθL hp₀
     hΛ0 hδ hδ1 hGy hyρ hρ1 hP
   refine (eps_round_le_at C M side U θ _ μ εw R P _ p₀ kn hA hp₀ hpre).trans ?_
-  have h1 : tailRisk nQ nα p₀ (3 * (nQ + 1) * (3 / 2 * θ)) (kn.Ge - 9 * θ * (nQ + 1))
-      ≤ δ / 2 / 8 := by
-    rw [hGe, show 9 * θ * (nQ + 1) + 3 * p₀ * Λ - 9 * θ * (nQ + 1) = 3 * p₀ * Λ by ring, hΛ']
-    exact tailRisk_le nQ nα hp₀ (by positivity) (by positivity) (by nlinarith) (hΛ' ▸ hΛ0.le)
-  have h2 : tailRisk nQ nα p₀ ((P.L + 1) * (nQ + 1) * (3 / 2 * θ)) kn.ηm ≤ δ / 2 / 8 := by
+  have h1 : tailRisk nQ nα p₀ (kn.Ge - 9 * θ * (nQ + 1)) = δ / 2 / 8 := by
+    rw [hGe, show 9 * θ * (nQ + 1) + p₀ * Λ - 9 * θ * (nQ + 1) = p₀ * Λ by ring, hΛ']
+    exact tailRisk_eq nQ nα hp₀ (by positivity)
+  have h2 : tailRisk nQ nα p₀ kn.ηm = δ / 2 / 8 := by
     rw [hηm, hΛ']
-    exact tailRisk_le nQ nα hp₀ (by positivity) (by positivity) (by nlinarith) (hΛ' ▸ hΛ0.le)
+    exact tailRisk_eq nQ nα hp₀ (by positivity)
   have hround : roundBoundAt (α := α) σ θ p₀ P.L C kn ≤ 7 * δ / 8 := by
     unfold roundBoundAt
     linarith
