@@ -42,24 +42,20 @@ def quiet_config(**changes):
     """What the round reads of a config, set so no test fires."""
     quiet = {
         "k": 0,
-        "max_leaves": 10,
-        "start_rate": 1.0,
-        "start_alternative": 1.0,
-        "edge_rate": 0.0,
+        "ends_rate": 1.0,
+        "ends_alternative": 1.0,
         "middle_rate": 1.0,
         "middle_alternative": 1.0,
         "disagreement_rate": 0.0,
         "disagreement_alternative": 0.0,
         "level": 0.01,
-        "edge_excess": 1e9,
-        "edge_traffic": 0.0,
         "search_share": 1e9,
         "max_probes": 100,
     }
     config = {**quiet, **changes}
     for per_unit in (
-        "start_rate",
-        "start_alternative",
+        "ends_rate",
+        "ends_alternative",
         "middle_rate",
         "middle_alternative",
     ):

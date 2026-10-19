@@ -5,12 +5,10 @@ reads and grows them, so they live apart from the round loop that fills them.
 """
 
 from collections import Counter
+from hashlib import blake2b
 
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource, draw_many
-
-#: The share of a named population's draws kept back for certification.
-RESERVE_SHARE = 0.5
 
 
 class PoolState:
@@ -20,13 +18,15 @@ class PoolState:
     populations the rounds have made, with a ``seen`` set to dedup the boundary
     strings across them."""
 
-    def __init__(self, uniform):
+    def __init__(self, uniform, key: bytes):
         self.uniform = list(uniform)
+        #: Keys the hash that sends each string to the table or the reserve.
+        self.key = key
         self.held = {}
         #: What draws more of each population, for the round that asks.
         self.sources = {}
-        #: Draws of each named population kept out of the table, in draw order,
-        #: for the gate to certify on.
+        #: Reserve-side draws of each named population, in draw order, for the
+        #: gate to certify on.
         self.reserves = {}
         self.seen = set()
         #: Boundary populations named so far, which is what numbers them.
@@ -47,21 +47,33 @@ class PoolState:
             self.sources.pop(stale, None)
             self.reserves.pop(stale, None)
 
-    def hold(self, label, source, count, rng) -> None:
+    def hold(self, label, source, count) -> None:
         """Hold count draws of source as the population label, which source
         grows."""
         self.sources[label] = source
         self.reserves[label] = []
-        self.held[label] = sorted(self.split_draws(label, source, count, rng))
+        self.held[label] = sorted(self.split_draws(label, source, count))
 
-    def split_draws(self, label, source, count, rng) -> list:
-        """count draws of source for the table; each draw goes to the reserve
-        of label instead with probability RESERVE_SHARE, and is not counted."""
+    def in_reserve(self, string) -> bool:
+        """Whether string is held back for certification, in every population:
+        the low bit of its keyed hash."""
+        return bool(blake2b(string, key=self.key, digest_size=1).digest()[0] & 1)
+
+    def tabled(self) -> set:
+        """Every string some population's table holds."""
+        return self.seen.union(*self.held.values())
+
+    def split_draws(self, label, source, count) -> list:
+        """count table-side draws of source; reserve-side draws go to the
+        reserve of label and are not counted.  A reserve-side draw already in
+        a table (a harvested string, say) is dropped."""
         table_draws = []
+        tabled = self.tabled()
         while len(table_draws) < count:
             string = source.draw()
-            if rng.random() < RESERVE_SHARE:
-                self.reserves.setdefault(label, []).append(string)
+            if self.in_reserve(string):
+                if string not in tabled:
+                    self.reserves.setdefault(label, []).append(string)
             else:
                 table_draws.append(string)
         return table_draws
@@ -105,7 +117,7 @@ def grow_population(pst, state, label) -> bool:
         pst.table.drop_population(label)
         return False
     # As many as the uniform draw this stands in for adds.
-    drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes, pst.rng)
+    drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
     return True
@@ -131,4 +143,11 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
         return draw_many(source, wanted)
     reserve = state.reserves.get(label, [])
     taken, reserve[:] = reserve[:wanted], reserve[wanted:]
-    return taken + draw_many(source, wanted - len(taken))
+    # Table-side draws are discarded: they are in no table.
+    fresh = []
+    tabled = state.tabled()
+    while len(taken) + len(fresh) < wanted:
+        string = source.draw()
+        if state.in_reserve(string) and string not in tabled:
+            fresh.append(string)
+    return taken + sorted(fresh)
