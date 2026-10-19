@@ -14,6 +14,10 @@ ones.
 `KappaRoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
 each rather than `δ/8`, and that the strings the round reads, and those it reads undecided, are few
 enough against `εw` and `κ` that no string the round reads is read wrong but for chance `δ/8`.
+
+`KappaRoundCorrectAt` reads the probes' prefix mass at a depth `kd` past the walk's start, as a
+walk from `0` needs. A string read undecided at a good state before `kd` can then only cost a
+harvest that does not end well, a wasted round, never a consistent ending.
 -/
 
 namespace OrthoDFA
@@ -76,6 +80,66 @@ def KappaRoundCorrect : Prop :=
               yield := y,
               ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
+
+/-- `KappaRoundCorrect` with the probes' prefix mass read at a depth `kd` rather than at the walk's
+start `k`. A probe reads strings `u m`, `u` a prefix of it and `m` a midfix at most `|Q|` long;
+those with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one at a good state
+read undecided can only feed a harvest. The round fails to end well other than by a harvest with
+chance at most `δ`, and at all with chance at most
+
+    δ + 1.5θ H W,    H = Σ_{k ≤ i < kd} |Σ|^i,    W = Σ_{j ≤ |Q|} |Σ|^j,
+
+`H W` counting those strings. At `kd = k`, `H = 0`. -/
+def KappaRoundCorrectAt : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
+    (C : Level3Settings) (p₀ : ℝ) (kd : ℕ),
+    let y := C.harvestRate
+    let ε := C.disagreementRate
+    let δ := C.δ
+    let nQ := Fintype.card σ
+    let nα := Fintype.card α
+    let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+    let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
+    let H : ℝ := ∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i
+    let W : ℝ := ∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j
+    (∀ u, P.D.real {x | prefixOf x kd = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
+    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
+    0 ≤ εw → 0 ≤ κ →
+    εw * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+      + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }
+            ∧ ∀ h, result.ending ≠ .harvest h} ∂μ
+      ≤ ENNReal.ofReal δ ∧
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }} ∂μ
+      ≤ ENNReal.ofReal (δ + 3 / 2 * θ * H * W)
 
 end Kappa
 

@@ -285,6 +285,12 @@ states, is spread and yields. What makes a state bad is each level's own.
   hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
+  `KappaRoundCorrectAt` (same file) reads the prefix mass at a depth `kd` past the walk's start
+  `k`, as a walk from `0` needs. A probe reads strings `u m`, `u` its prefix and `m` a midfix at
+  most `|Q|` long; those with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one
+  at a good state read undecided can only feed a harvest. The round fails to end well other than
+  by a harvest with chance at most `δ`, and at all with chance at most `δ + 1.5θ H W`,
+  `H = Σ_{k ≤ i < kd} |Σ|^i`, `W = Σ_{j ≤ |Q|} |Σ|^j`; at `kd = k`, `H = 0`.
 - `OrthoDFA/FamilyOracle.lean` — `SuffixFamily.kappaOracle`: a suffix family's reads (a DFA
   target, a suffix-free family and a band passing `BandPasses`) as level 5's `KappaReadOracle`, each
   state's side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since
