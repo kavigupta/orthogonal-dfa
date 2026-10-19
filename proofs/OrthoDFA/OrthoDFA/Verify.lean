@@ -6,6 +6,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
+import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
@@ -20,7 +21,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.Utils.AdaptiveReads`, and level 2's claim, stated in `OrthoDFA.Level2Claim`.
+`OrthoDFA.Utils.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, and level 3's
+random-read claim, stated in `OrthoDFA.Level3Claim`.
 -/
 
 namespace OrthoDFA
@@ -73,6 +75,10 @@ theorem seq_rate_sound : SeqRateSound := seqRateSound
 theorem level2_correct : Level2.Correct := Level2.correct_holds
 
 #print axioms level2_correct
+
+theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCorrect_holds
+
+#print axioms random_round_correct
 
 theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
 
