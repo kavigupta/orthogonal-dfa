@@ -119,9 +119,6 @@ def roundLaw (α : Type*) (K P : ℕ) : Measure (RoundDraws α K P) :=
 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
-def clusterLaw (μ : Measure Ω) (α : Type*) (K : ℕ) : Measure (ClusterDraws Ω α K) :=
-  μ.prod (restLaw α K)
-
 /-- One noise for the whole run, which every string's read keeps, and `K` rounds' uniforms,
 independent. -/
 def loopMeasure (μ : Measure Ω) (α : Type*) (K P : ℕ) :
@@ -239,20 +236,6 @@ def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (Fr
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) : List (LoopRound Ω α K) :=
   loopRounds settings O D Dsf draws K
-
-open scoped Classical in
-/-- The chance `F`'s read of `p`, cut at `kl` and `kh`, is decided against `p`'s membership. -/
-def misreadProb (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
-    (p : FreeMonoid α) : ℝ :=
-  μ.real {ω | familyRead O.mq F kl kh p ω = if p ∈ O.L then .reject else .accept}
-
-/-- The round ended consistent, and its read decides a draw from `D` against the target at most
-`εr` of the time and leaves it undecided at most `εu`. -/
-def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
-    (εr εu : ℝ) (o : LoopRound Ω α K) : Prop :=
-  o.result.ending = .consistent
-    ∧ ∫ p, misreadProb O o.family o.state.lo (o.state.hi + 1) p ∂D ≤ εr
-    ∧ ∫ p, readProb O o.family o.state.lo (o.state.hi + 1) p .undecided ∂D ≤ εu
 
 end OrthoDFA
 
