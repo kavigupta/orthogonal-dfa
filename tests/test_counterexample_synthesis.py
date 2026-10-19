@@ -118,6 +118,14 @@ class TestWhatARoundTakes(unittest.TestCase):
 
         self.assertEqual(state.seen, set(_taken(state)))
 
+    def test_a_lone_harvested_string_is_held(self):
+        state = _state()
+
+        _take([b"a"], state, 1)
+
+        self.assertEqual({b"a"}, set(_taken(state)))
+        self.assertEqual([], state.reserves.get(("boundary", 1), []))
+
 
 class TestWhenARoundGivesUp(unittest.TestCase):
     def test_rounds_that_harvest_nothing_run_out_of_patience(self):
@@ -149,7 +157,7 @@ class TestWhatARoundPublishes(unittest.TestCase):
             cs, "state_source", lambda *_, **__: drawn
         ):
             cs._per_state_members(  # pylint: disable=protected-access
-                None,
+                SimpleNamespace(rng=np.random.default_rng(0)),
                 SimpleNamespace(
                     tree=SimpleNamespace(num_states=1, path_of=lambda _: ())
                 ),
