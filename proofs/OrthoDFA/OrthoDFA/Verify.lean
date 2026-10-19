@@ -90,8 +90,4 @@ theorem eps_round_correct : Random.Eps.EpsRoundCorrect := Random.Eps.epsRoundCor
 
 #print axioms eps_round_correct
 
-theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
-
-#print axioms adaptive_reads_bound
-
 end OrthoDFA
