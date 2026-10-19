@@ -86,14 +86,26 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
       ↔ x ∈ disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H
     simp only [disagreeSet, Set.mem_union, e1, e2, e3]
   have hsuff : ∀ E : RoundEnd Random.Level3Site,
-      EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
-        (C.disagreementRate + u)
-        (disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H) C.walkStart
-        (Random.harvestLaw (fun z => fam.read ω' z) D' C.walkStart H) C.harvestRate E →
-      EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
-        (C.disagreementRate + u)
-        (disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H) C.walkStart
-        (Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart H) C.harvestRate E := by
+      EndsWell
+        { target := fam.M,
+          badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+          probes := D',
+          disagreeRate := C.disagreementRate + u,
+          disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H,
+          walkStart := C.walkStart,
+          harvestLaw := Random.harvestLaw (fun z => fam.read ω' z) D' C.walkStart H,
+          yield := C.harvestRate,
+          ending := E } →
+      EndsWell
+        { target := fam.M,
+          badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+          probes := D',
+          disagreeRate := C.disagreementRate + u,
+          disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H,
+          walkStart := C.walkStart,
+          harvestLaw := Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart H,
+          yield := C.harvestRate,
+          ending := E } := by
     intro E hE
     rcases E with _ | site | _
     · show D'.real _ ≤ _

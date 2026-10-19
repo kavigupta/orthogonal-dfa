@@ -11,7 +11,11 @@ from types import SimpleNamespace
 import numpy as np
 
 from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
-from orthogonal_dfa.l_star.prefix_populations import PoolState, grow_population
+from orthogonal_dfa.l_star.prefix_populations import (
+    PoolState,
+    grow_population,
+    prefixes_for_split,
+)
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
 #: Anything: the table below is never asked a membership question.
@@ -114,6 +118,7 @@ class _Pst:
         self.drawn_uniformly = 0
         self.table = _Table()
         self.config = SimpleNamespace(num_addtl_prefixes=_A_DRAW)
+        self.rng = np.random.default_rng(0)
 
     def sample_more_prefixes(self):
         self.drawn_uniformly += 1
@@ -142,8 +147,10 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertTrue(grow_population(pst, state, ("state", 0)))
 
-        self.assertEqual(_words(_A_DRAW), state.held[("state", 0)])
-        self.assertEqual(_words(_A_DRAW), pst.table.added[("state", 0)])
+        self.assertEqual(_A_DRAW, len(state.held[("state", 0)]))
+        self.assertEqual(
+            sorted(state.held[("state", 0)]), pst.table.added[("state", 0)]
+        )
 
     def test_a_population_nothing_draws_for_is_retired(self):
         pst = _Pst()
@@ -170,6 +177,36 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
         self.assertEqual([("state", 9)], pst.table.dropped)
+
+
+class _ProvenSource(_Source):
+    proven = True
+
+
+class TestCertificationReserve(unittest.TestCase):
+    def test_the_table_and_the_reserve_split_one_run_of_draws(self):
+        pst = _Pst()
+        state = PoolState([])
+        label = ("state", 0)
+        state.hold(label, _ProvenSource(_words(1000), worth=True), _A_DRAW, pst.rng)
+        grow_population(pst, state, label)
+
+        in_table = set(state.held[label])
+        self.assertEqual(2 * _A_DRAW, len(in_table))
+        self.assertTrue(state.reserves[label])
+        self.assertFalse(in_table & set(state.reserves[label]))
+
+    def test_the_gate_is_served_from_the_reserve_first(self):
+        state = PoolState([])
+        label = ("state", 0)
+        state.sources[label] = _ProvenSource(_words(100), worth=True)
+        state.reserves[label] = _words(3, offset=500)
+
+        got = prefixes_for_split(None, state, label, 5)
+
+        self.assertEqual(_words(3, offset=500), got[:3])
+        self.assertEqual(_words(2), got[3:])
+        self.assertEqual([], state.reserves[label])
 
 
 if __name__ == "__main__":

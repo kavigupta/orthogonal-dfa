@@ -65,16 +65,7 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
   undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
   wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
 
-/-- With every string's read drawn once as `ReadOracle` says, every length-`walkStart` prefix
-of the probes at most `p₀` of them, `48 (L + 1)(|Q| + 1) θ ≤ 1`, `2G ≤ y ≤ ε/48` (`harvestRate`,
-`disagreementRate`), `ε < 1`, and `C.probeBudget` at least `36 S / ε · log(16 S (S + 1) / δ) + S`,
-`S` bounding the hypotheses, level 3 fails to end well, a state being bad where it is undecided
-more than `1.5θ` of the time, with chance at most `δ`. A consistent ending has at most `ε` of the
-probes searching, changing the hypothesis or stopping undecided at their start or end sift, and
-a harvest's sampler yields `y`. `K` counts the trees level 3 can grow with an edge map into each
-one's leaves; but for chance `δ / 8` each, the probes stopping undecided at their start or end at
-a good state are at most `G - p₀ log(8K/δ)`, and those stopping at an undecided middle at a good
-state at most `3 (L + 1)(|Q| + 1) θ` of the searches plus `p₀ log(8K/δ)`. -/
+/-- Level 3 fails to end well with chance at most `δ`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -85,19 +76,38 @@ def RandomRoundCorrect : Prop :=
     let δ := C.δ
     let nQ := Fintype.card σ
     let nα := Fintype.card α
+    -- Bounds the hypotheses: at most `|Q| + 2` leaves, each leaf's edges learned once between splits.
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+    -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+    -- Bounds, but for chance `δ/8`, the share of probes stopping undecided at their start or end
+    -- sift at a good state.
     let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (8 * K / δ)
+    -- No length-`walkStart` prefix holds more than `p₀` of the probes.
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    -- Good states' undecided middles stay under a quarter of the searches.
+    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 →
+    -- Good states' undecided ends stay under the ends test's rate.
+    2 * G ≤ y →
+    -- The middles test's yield fits under the success test's rate.
+    y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            (searchSet (R.read · ω) C.walkStart result.hypothesis
-              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
+          -- the probes searching, changing the hypothesis or stopping undecided at their start or
+          -- end sift; a harvest's sampler yields `y`.
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
 
 end Random

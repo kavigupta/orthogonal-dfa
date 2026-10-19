@@ -125,11 +125,18 @@ variable [Fintype σ]
 def level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
     (D' : Measure (FreeMonoid α)) (θ u : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
   {d | let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
-    ¬ (EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
-        (C.disagreementRate + u)
-        (disagreeSet fam.M fam.readDist (fun z => fam.read d.1 z) C.walkStart result.hypothesis)
-        C.walkStart (Random.harvestLaw (fun z => fam.read d.1 z) D' C.walkStart result.hypothesis)
-        C.harvestRate result.ending
+    ¬ (EndsWell
+      { target := fam.M,
+        badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+        probes := D',
+        disagreeRate := C.disagreementRate + u,
+        disagree := disagreeSet fam.M fam.readDist (fun z => fam.read d.1 z) C.walkStart
+          result.hypothesis,
+        walkStart := C.walkStart,
+        harvestLaw := Random.harvestLaw (fun z => fam.read d.1 z) D' C.walkStart
+          result.hypothesis,
+        yield := C.harvestRate,
+        ending := result.ending }
       ∧ result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))}
 
 /-- A property of the noise and level 3's result over the probes is measurable where it is at
@@ -181,11 +188,17 @@ theorem measurableSet_of_result (fam : SuffixFamily μ' α σ) (C : Random.Level
 theorem measurableSet_level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
     (D' : Measure (FreeMonoid α)) (θ u : ℝ) : MeasurableSet (level3Fail fam C D' θ u) := by
   classical
-  refine measurableSet_of_result fam C (fun ω result => ¬ (EndsWell fam.M
-    (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D' (C.disagreementRate + u)
-    (disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart result.hypothesis)
-    C.walkStart (Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart result.hypothesis)
-    C.harvestRate result.ending ∧ result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)))
+  refine measurableSet_of_result fam C (fun ω result => ¬ (EndsWell
+    { target := fam.M,
+      badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+      probes := D',
+      disagreeRate := C.disagreementRate + u,
+      disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart
+        result.hypothesis,
+      walkStart := C.walkStart,
+      harvestLaw := Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart result.hypothesis,
+      yield := C.harvestRate,
+      ending := result.ending } ∧ result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)))
     fun res => ?_
   simp only [not_and_or]
   exact (measurableSet_not_endsWell fam.O fam.F _ _ C.walkStart fam.M _ _ D' _ _ _ _).union
@@ -304,17 +317,28 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   -- the three events
   set E₁ := {d : Ω' × (Fin T → FreeMonoid α) |
     let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
-    ¬ EndsWell fam.M (Random.BadAt U θ) P.D C.disagreementRate
-      (Random.searchSet (fun z => fam.read d.1 z) k result.hypothesis
-        ∪ Random.endsSet (fun z => fam.read d.1 z) k result.hypothesis) k
-      (Random.harvestLaw (fun z => fam.read d.1 z) P.D k result.hypothesis) C.harvestRate
-      result.ending}
-  have hE₁ : MeasurableSet E₁ := measurableSet_of_result fam C (fun ω result => ¬ EndsWell fam.M
-    (Random.BadAt U θ) P.D C.disagreementRate
-    (Random.searchSet (fun z => fam.read ω z) k result.hypothesis
-      ∪ Random.endsSet (fun z => fam.read ω z) k result.hypothesis) k
-    (Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis) C.harvestRate
-    result.ending) fun res =>
+    ¬ EndsWell
+      { target := fam.M,
+        badStates := Random.BadAt U θ,
+        probes := P.D,
+        disagreeRate := C.disagreementRate,
+        disagree := Random.searchSet (fun z => fam.read d.1 z) k result.hypothesis
+          ∪ Random.endsSet (fun z => fam.read d.1 z) k result.hypothesis,
+        walkStart := k,
+        harvestLaw := Random.harvestLaw (fun z => fam.read d.1 z) P.D k result.hypothesis,
+        yield := C.harvestRate,
+        ending := result.ending }}
+  have hE₁ : MeasurableSet E₁ := measurableSet_of_result fam C (fun ω result => ¬ EndsWell
+    { target := fam.M,
+      badStates := Random.BadAt U θ,
+      probes := P.D,
+      disagreeRate := C.disagreementRate,
+      disagree := Random.searchSet (fun z => fam.read ω z) k result.hypothesis
+        ∪ Random.endsSet (fun z => fam.read ω z) k result.hypothesis,
+      walkStart := k,
+      harvestLaw := Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis,
+      yield := C.harvestRate,
+      ending := result.ending }) fun res =>
       measurableSet_not_endsWell_searchEnds fam.O fam.F _ _ k fam.M _ P.D _ _ _ _
   set E₂ := {d : Ω' × (Fin T → FreeMonoid α) |
     Random.AnyB (Random.applyProbe (fun z => fam.read d.1 z) C)
@@ -333,11 +357,17 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     have hM : ω ∉ Mk := fun h => h3 (by rw [if_pos h]; trivial)
     apply hxs
     set result := Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs
-    have hEW : EndsWell fam.M (Random.BadAt U θ) P.D C.disagreementRate
-        (Random.searchSet (fun z => fam.read ω z) k result.hypothesis
-          ∪ Random.endsSet (fun z => fam.read ω z) k result.hypothesis) k
-        (Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis) C.harvestRate
-        result.ending := by
+    have hEW : EndsWell
+      { target := fam.M,
+        badStates := Random.BadAt U θ,
+        probes := P.D,
+        disagreeRate := C.disagreementRate,
+        disagree := Random.searchSet (fun z => fam.read ω z) k result.hypothesis
+          ∪ Random.endsSet (fun z => fam.read ω z) k result.hypothesis,
+        walkStart := k,
+        harvestLaw := Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis,
+        yield := C.harvestRate,
+        ending := result.ending } := by
       by_contra h; exact h1 h
     have hcls : result.hypothesis.tree ∈ Random.classSet nQ :=
       Random.tree_classSet_of_good fam.M side (fun z => fam.read ω z) C xs h2

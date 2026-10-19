@@ -247,8 +247,16 @@ theorem measurableSet_not_endsWell_of (O : Oracle μ (FreeMonoid α)) (F : Finse
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (S : Ω → Set (FreeMonoid α))
     (hS : ∀ x, MeasurableSet {ω | x ∈ S ω})
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
-    MeasurableSet {ω | ¬ EndsWell M bad D ε (S ω) k
-      (Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H) y e} := by
+    MeasurableSet {ω | ¬ EndsWell
+      { target := M,
+        badStates := bad,
+        probes := D,
+        disagreeRate := ε,
+        disagree := S ω,
+        walkStart := k,
+        harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
+        yield := y,
+        ending := e }} := by
   classical
   cases e with
   | consistent =>
@@ -273,9 +281,16 @@ omit [Fintype σ] in
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
-    MeasurableSet {ω | ¬ EndsWell M bad D ε
-      (disagreeSet M dist (fun z => familyRead O.mq F kl kh z ω) k H) k
-      (Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H) y e} :=
+    MeasurableSet {ω | ¬ EndsWell
+      { target := M,
+        badStates := bad,
+        probes := D,
+        disagreeRate := ε,
+        disagree := disagreeSet M dist (fun z => familyRead O.mq F kl kh z ω) k H,
+        walkStart := k,
+        harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
+        yield := y,
+        ending := e }} :=
   measurableSet_not_endsWell_of O F kl kh k M bad _
     (fun x => measurableSet_mem_disagreeSet O F kl kh k M dist H x) D ε y H e
 
@@ -283,10 +298,17 @@ omit [Fintype σ] in
 theorem measurableSet_not_endsWell_searchEnds (O : Oracle μ (FreeMonoid α))
     (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop)
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
-    MeasurableSet {ω | ¬ EndsWell M bad D ε
-      (Random.searchSet (fun z => familyRead O.mq F kl kh z ω) k H
-        ∪ Random.endsSet (fun z => familyRead O.mq F kl kh z ω) k H) k
-      (Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H) y e} := by
+    MeasurableSet {ω | ¬ EndsWell
+      { target := M,
+        badStates := bad,
+        probes := D,
+        disagreeRate := ε,
+        disagree := Random.searchSet (fun z => familyRead O.mq F kl kh z ω) k H
+          ∪ Random.endsSet (fun z => familyRead O.mq F kl kh z ω) k H,
+        walkStart := k,
+        harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
+        yield := y,
+        ending := e }} := by
   refine measurableSet_not_endsWell_of O F kl kh k M bad _ (fun x => ?_) D ε y H e
   refine measurableSet_of_reads O
     (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_

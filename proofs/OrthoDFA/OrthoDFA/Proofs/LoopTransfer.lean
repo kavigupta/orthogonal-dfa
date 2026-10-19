@@ -108,8 +108,16 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
     (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd Level3Site)
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
     (hmc : D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
-    (h : EndsWell M bad (popLaw (D.restrict (avoiding k K₀))) ε S' k
-      (harvestLaw read' (popLaw (D.restrict (avoiding k K₀))) k H) y e) :
+    (h : EndsWell
+      { target := M,
+        badStates := bad,
+        probes := popLaw (D.restrict (avoiding k K₀)),
+        disagreeRate := ε,
+        disagree := S',
+        walkStart := k,
+        harvestLaw := harvestLaw read' (popLaw (D.restrict (avoiding k K₀))) k H,
+        yield := y,
+        ending := e }) :
     QuarterEndsWell M bad D (ε + D.real (avoiding k K₀)ᶜ) S k
       (harvestLaw read D k H) ((1 - D.real (avoiding k K₀)ᶜ) * y) e := by
   classical
