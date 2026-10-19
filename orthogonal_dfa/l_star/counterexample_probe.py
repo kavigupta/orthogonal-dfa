@@ -1,6 +1,5 @@
 """One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
 
-from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -67,9 +66,9 @@ class Located:
 class Charges:
     """What one probe adds to the harvest tests' counts."""
 
-    traversals: Counter
     undecided_by_edge: Dict[Edge, List[bytes]]
-    start: List[bytes]
+    #: The string the start or end sift stopped at.
+    ends: List[bytes]
     middle: List[bytes]
     search_queries: int
 
@@ -159,11 +158,8 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
         if undecided is not None and charged_edge(i) is not None:
             undecided_by_edge.setdefault(charged_edge(i), []).append(undecided)
     return Charges(
-        traversals=Counter(
-            e for e in map(charged_edge, range(k + 1, len(x) + 1)) if e is not None
-        ),
         undecided_by_edge=undecided_by_edge,
-        start=[outcome.undecided] if isinstance(outcome, Start) else [],
+        ends=[outcome.undecided] if isinstance(outcome, (Start, End)) else [],
         middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
         search_queries=(
             located.search_queries if isinstance(outcome, (EdgeFound, Middle)) else 0
