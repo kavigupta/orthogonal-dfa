@@ -21,8 +21,20 @@ from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
 _REPLAY = object()
 
 
+class _AlwaysTable:
+    """An rng whose every coin flip sends a string to the table."""
+
+    def random(self):
+        return 1.0
+
+
 def _take(strings, state, wanted):
-    return _accumulate_harvest(strings, _REPLAY, state, wanted)
+    return _accumulate_harvest(strings, _REPLAY, state, wanted, _AlwaysTable())
+
+
+class _AlwaysReserve:
+    def random(self):
+        return 0.0
 
 
 def _state(held=()):
@@ -118,6 +130,15 @@ class TestWhatARoundTakes(unittest.TestCase):
 
         self.assertEqual(state.seen, set(_taken(state)))
 
+    def test_a_string_sent_to_the_reserve_is_remembered_but_not_held(self):
+        state = _state()
+
+        _accumulate_harvest([b"a"], _REPLAY, state, 1, _AlwaysReserve())
+
+        self.assertEqual(set(), set(_taken(state)))
+        self.assertEqual([b"a"], state.reserves[("boundary", 1)])
+        self.assertEqual({b"a"}, state.seen)
+
 
 class TestWhenARoundGivesUp(unittest.TestCase):
     def test_rounds_that_harvest_nothing_run_out_of_patience(self):
@@ -149,7 +170,7 @@ class TestWhatARoundPublishes(unittest.TestCase):
             cs, "state_source", lambda *_, **__: drawn
         ):
             cs._per_state_members(  # pylint: disable=protected-access
-                None,
+                SimpleNamespace(rng=np.random.default_rng(0)),
                 SimpleNamespace(
                     tree=SimpleNamespace(num_states=1, path_of=lambda _: ())
                 ),

@@ -57,15 +57,20 @@ class PoolState:
     def split_draws(self, label, source, count, rng) -> list:
         """count draws of source for the table; each draw goes to the reserve
         of label instead with probability RESERVE_SHARE, and is not counted."""
-        reserve = self.reserves.setdefault(label, [])
         table_draws = []
         while len(table_draws) < count:
             string = source.draw()
-            if rng.random() < RESERVE_SHARE:
-                reserve.append(string)
-            else:
+            if self.to_table(label, string, rng):
                 table_draws.append(string)
         return table_draws
+
+    def to_table(self, label, string, rng) -> bool:
+        """Whether string goes to the table of label; if not, it goes to the
+        reserve."""
+        if rng.random() < RESERVE_SHARE:
+            self.reserves.setdefault(label, []).append(string)
+            return False
+        return True
 
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
@@ -81,11 +86,13 @@ class PoolState:
         self.harvesting = None
         self.harvest_reads = Counter()
 
-    def take(self, string, provenance) -> None:
+    def take(self, string, provenance, rng) -> None:
         """Take a string this round harvested into its boundary population, with
         what draws more like it."""
         self.seen.add(string)
-        self.harvest().append(string)
+        held = self.harvest()
+        if self.to_table(self.harvesting, string, rng):
+            held.append(string)
         self.harvest_reads[provenance] += 1
 
 
@@ -100,8 +107,8 @@ def grow_population(pst, state, label) -> bool:
         # Forgotten rather than held aside, so a later round that strands one
         # of these again can pool it behind a source that does draw.
         state.seen.difference_update(state.held.pop(label, ()))
+        state.seen.difference_update(state.reserves.pop(label, ()))
         state.sources.pop(label, None)
-        state.reserves.pop(label, None)
         pst.table.drop_population(label)
         return False
     # As many as the uniform draw this stands in for adds.

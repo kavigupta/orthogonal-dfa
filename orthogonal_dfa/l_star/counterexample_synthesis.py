@@ -86,7 +86,7 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 CERTIFICATE_ALPHA = 1e-3
 
 
-def _accumulate_harvest(strings, read, state, wanted) -> int:
+def _accumulate_harvest(strings, read, state, wanted, rng) -> int:
     """Take up to ``wanted`` of the harvested ``strings`` ``state`` does not
     already hold, returning how many.
 
@@ -96,7 +96,7 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
     taken = sorted(set(strings) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(string, read)
+        state.take(string, read, rng)
     return min(wanted, len(taken))
 
 
@@ -369,7 +369,7 @@ def counterexample_driven_synthesis(
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
-        taken = _accumulate_harvest(strings, provenance, state, target)
+        taken = _accumulate_harvest(strings, provenance, state, target, pst.rng)
         if (
             _family_too_loose(ending, true_acc, acc_threshold, taken)
             and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
