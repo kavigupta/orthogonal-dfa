@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Renoise
 
 `SuffixFamily.renoise` reads the family through `O.renoise R`: a suffix family on two copies of
 the noise, with the same read distributions, which agrees with the family off `R` at the first
-copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`roundFail_le`): level 3 fails
+copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`level3Fail_le`): level 3 fails
 to end well, a step reads some string wrong, or the probes some string of which, followed by at
 most `|Q|` letters, reads wrong weigh more than `u`, with chance at most
 `δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. A second copy can be fixed at a point
@@ -122,7 +122,7 @@ variable [Fintype σ]
 
 /-- Where level 3, reading `fam` over probes from `D'`, fails to end well at `ε + u` over
 `disagreeSet`, or its tree leaves `classSet |Q|`. -/
-def roundFail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
+def level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
     (D' : Measure (FreeMonoid α)) (θ u : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
   {d | let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
     ¬ (EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
@@ -178,8 +178,8 @@ theorem measurableSet_of_result (fam : SuffixFamily μ' α σ) (C : Random.Level
     rw [← hω]
     exact Finset.filter_congr fun p hp => (h p hp).symm
 
-theorem measurableSet_roundFail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) (θ u : ℝ) : MeasurableSet (roundFail fam C D' θ u) := by
+theorem measurableSet_level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
+    (D' : Measure (FreeMonoid α)) (θ u : ℝ) : MeasurableSet (level3Fail fam C D' θ u) := by
   classical
   refine measurableSet_of_result fam C (fun ω result => ¬ (EndsWell fam.M
     (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D' (C.disagreementRate + u)
@@ -225,7 +225,7 @@ open Random.Kappa in
 /-- Level 5's guarantee read through the family: level 3 fails to end well at `ε + u` over
 `disagreeSet`, or its tree leaves `classSet |Q|`, but for chance
 `δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. -/
-theorem roundFail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
+theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
     (P : PrefixDistribution α) (C : Random.Level3Settings) (θ p₀ u : ℝ) (hu : 0 < u) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
@@ -239,7 +239,7 @@ theorem roundFail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 
     fam.ε * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
       + fam.κ * (5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
         ≤ C.δ / 8 →
-    (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D)) (roundFail fam C P.D θ u)
+    (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D)) (level3Fail fam C P.D θ u)
       ≤ ENNReal.ofReal (C.δ + C.δ / 8
         + (shortStrings (α := α) (Fintype.card σ)).card * (fam.ε + fam.κ) / u) := by
   intro nQ nα S K G hpre hθ hδ hδ1 hθL hGy hyρ hρ1 hP hw
@@ -324,7 +324,7 @@ theorem roundFail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 
   have hbad : Random.BadAt U θ = fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ :=
     funext fun q => propext not_le.symm
   -- off the three, the round ends well
-  have hsub : ∀ ω, Prod.mk ω ⁻¹' roundFail fam C P.D θ u
+  have hsub : ∀ ω, Prod.mk ω ⁻¹' level3Fail fam C P.D θ u
       ⊆ Prod.mk ω ⁻¹' E₁ ∪ Prod.mk ω ⁻¹' E₂ ∪ (if ω ∈ Mk then Set.univ else ∅) := by
     intro ω xs hxs
     by_contra hno
@@ -362,8 +362,8 @@ theorem roundFail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 
     · rw [he] at hEW; exact hEW
     · rw [he] at hEW; exact hEW
   -- the integral
-  rw [Measure.prod_apply (measurableSet_roundFail fam C P.D θ u)]
-  calc ∫⁻ ω, π (Prod.mk ω ⁻¹' roundFail fam C P.D θ u) ∂μ'
+  rw [Measure.prod_apply (measurableSet_level3Fail fam C P.D θ u)]
+  calc ∫⁻ ω, π (Prod.mk ω ⁻¹' level3Fail fam C P.D θ u) ∂μ'
       ≤ ∫⁻ ω, (π (Prod.mk ω ⁻¹' E₁) + π (Prod.mk ω ⁻¹' E₂) + Mk.indicator 1 ω) ∂μ' := by
         refine lintegral_mono fun ω => (measure_mono (hsub ω)).trans
           ((measure_union_le _ _).trans (add_le_add (measure_union_le _ _) ?_))

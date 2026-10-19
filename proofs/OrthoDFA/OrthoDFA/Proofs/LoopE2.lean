@@ -1,15 +1,14 @@
 import OrthoDFA.Proofs.LoopE2Pre
-import OrthoDFA.Proofs.Level5Correct
 import OrthoDFA.Proofs.BandWide
 
 /-!
-# A round's level 5 on one noise
+# A round's level 3 on one noise
 
-Level 5 reads, at probes avoiding the clustering's prefixes, only strings the clustering did not.
+Level 3 reads, at probes avoiding the clustering's prefixes, only strings the clustering did not.
 Where the clustering's reads are re-noised it reads a fresh family on probes from `D` conditioned
-to avoid them, so its guarantee holds there (`level5_bad_exists`), and the actual run is the same
-run. Transferred back to `D` it ends well, and off a collision it does so with the chance it has on
-fresh noise (`loop_level5_round_le_persist`).
+to avoid them, so level 5's guarantee holds there (`round_bad_exists`), and the actual run is the
+same run. Transferred back to `D` it ends well, and off a collision it does so with the chance it
+has on fresh noise (`loop_level5_round_le_persist`).
 -/
 
 noncomputable section
@@ -56,7 +55,7 @@ lemma popLaw_null {ν : Measure (FreeMonoid α)} {A : Set (FreeMonoid α)} (hA :
   · rw [Measure.dirac_apply' _ (measurableSet_of_countable A), Set.indicator_of_notMem h1]
   · rw [Measure.smul_apply, hA, smul_zero]
 
-omit [Fintype α] [DecidableEq α] in
+omit [DecidableEq α] in
 lemma renoise_mq_of_mem (O : Oracle μ (FreeMonoid α)) {R : Set (FreeMonoid α)}
     {w : FreeMonoid α} (hw : w ∈ R) (p : Ω × Ω) : (O.renoise R).mq w p = O.mq w p.2 := by
   classical
@@ -79,51 +78,53 @@ lemma avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D
 
 section Bad
 
+/-- Level 5's premises for probes at most `L` long, at the goodness level `θ`, the walk's prefix
+mass `p₀` and the wrong-read rate `εw`. -/
+def RoundPremises (σ α : Type*) [Fintype σ] [Fintype α] (L : ℕ) (C : Random.Level3Settings)
+    (θ p₀ εw : ℝ) : Prop :=
+  let nQ := Fintype.card σ
+  let nα := Fintype.card α
+  let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+  let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+  let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / C.δ)
+  0 ≤ θ ∧ 0 < C.δ ∧ C.δ ≤ 1 ∧ 48 * (L + 1) * (nQ + 1) * θ ≤ 1 ∧ 2 * G ≤ C.harvestRate
+    ∧ C.harvestRate ≤ C.disagreementRate / 48 ∧ C.disagreementRate < 1
+    ∧ 36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget
+    ∧ 0 ≤ εw ∧ εw * (C.probeBudget * (L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα) ≤ C.δ / 8
+
 variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (P : PrefixDistribution α)
   (settings : LoopSettings K)
 
 include hL in
-/-- At a state and family, level 5's bad draws: where it fails at re-noised clustering reads.
-Its chance is at most `δ`, it is fixed by the answers at the strings level 5 reads off the
-clustering's prefixes, and off it the actual round meets its claim. -/
-theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : ℝ) (hū : 0 ≤ ū)
-    (sift : Bool) (us : ℝ) (Pre5 : ℝ → ℝ → Prop)
-    (hC : 2 ≤ settings.level3.probeBudget + 2)
-    (hmaxL : settings.level3.probeBudget + 2 = Fintype.card σ + 2) (hk : 1 ≤ settings.level3.walkStart)
-    (hdis : settings.level3.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
-    (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
-    (hB5 : crossLimit * B5 ≤ δ)
-    (hPre : ∀ p, 0 ≤ p → p ≤ 2 * prefixMax P.D settings.level3.walkStart → Pre5 θ p)
-    (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 4) (hmc : (P.L + 1) * m ≤ y / 2)
-    (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
-      let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → Pre5 θ (prefixMax P'.D settings.level3.walkStart) →
-      0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level3.probeBudget => P'.D)
-          {draws | let result := indecisiveLStarLevel5 settings.level3 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (3 / 2 * settings.level3.disagreementRate + us)
-              (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level3.walkStart
-                (Fintype.card σ + 2) J (2 * ū) result.hypothesis
-                ∪ siftedProbes sift (O'.read · ω) settings.level3.walkStart result.hypothesis)
-              settings.level3.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level3.walkStart
-                result.hypothesis) y result.ending} ∂(μ.prod μ)
-        ≤ ENNReal.ofReal (δ + 128 * ū / εd))
+/-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
+reads. Its chance is at most `δ + δ/8 + #(strings of at most |Q| letters) cross / u`, it is fixed
+by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
+round meets its claim. -/
+theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
+    (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
+    (hprem : RoundPremises σ α P.L settings.level3 θ
+      (2 * prefixMax P.D settings.level3.walkStart) crossLimit)
+    (hu : 0 < u) (hy0 : 0 < settings.level3.harvestRate) (hm1 : m ≤ 1 / 2)
+    (hmc : m ≤ (1 - m) * settings.level3.harvestRate)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
       BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
     (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
-      ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal (δ + 128 * ū / εd)
-      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
-          (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level3.probeBudget + 2))
+      ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
+        ≤ ENNReal.ofReal (settings.level3.δ + settings.level3.δ / 8
+          + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u)
+      ∧ (∀ v ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
+          (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
-        (ω, u) ∈ Bd → (ω', u) ∈ Bd)
-      ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
-        Level5Spec M O P θ (εd + us) (y / 2) settings.level3.walkStart J ū sift
-          (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, u)) := by
+        (ω, v) ∈ Bd → (ω', v) ∈ Bd)
+      ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
+        RoundSpec M O P θ (settings.level3.disagreementRate + u + m)
+          (settings.level3.harvestRate / 2) settings.level3.walkStart
+          (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
   classical
+  obtain ⟨hθ0, hδ0, hδ1, hθL, hGy, hyρ, hρ1, hP, hcr0, hcr⟩ := hprem
   set C := settings.level3 with hCdef
   set k := C.walkStart
   set T := C.probeBudget
@@ -153,16 +154,15 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
     refine (prefixMax_avoidLaw_le P.D k K₀ (by linarith)).trans ?_
     rw [div_le_iff₀ (by linarith)]
     nlinarith
-  have hpre' : Pre5 θ (prefixMax P'.D k) := hPre _ ((measureReal_nonneg).trans
-    (le_prefixMax P'.D k 1)) hpm
-  have h4 := hlevel5 P' rfl fam'.oracle θ hθ0 hpre' (le_refl (0 : ℝ)) hcross.le
-    (by show (crossLimit + 0) * B5 ≤ δ; rw [add_zero]; exact hB5)
-  set Sf := l4Fail fam' C D' θ y J (2 * ū) sift us
-  have hSm : MeasurableSet Sf := measurableSet_l4Fail fam' C hC D' θ y J (2 * ū) sift us
-  have hS : ((μ.prod μ).prod (Measure.pi fun _ : Fin T => D')) Sf
-      ≤ ENNReal.ofReal (δ + 128 * ū / εd) := by
-    rw [Measure.prod_apply hSm]
-    exact h4
+  have hpre' : ∀ v, P'.D.real {x | prefixOf x C.walkStart = v} ≤ 2 * prefixMax P.D k :=
+    fun v => (le_prefixMax D' k v).trans hpm
+  have h4 := level3Fail_le fam' (show (0 : ℝ) ≤ crossLimit from hcross.le) le_rfl P' C θ
+    (2 * prefixMax P.D k) u hu hpre' hθ0 hδ0 hδ1 hθL hGy hyρ hρ1 hP (by
+      show crossLimit * _ + 0 * _ ≤ C.δ / 8
+      rw [zero_mul, add_zero]
+      exact hcr)
+  set Sf := level3Fail fam' C D' θ u
+  have hSm : MeasurableSet Sf := measurableSet_level3Fail fam' C D' θ u
   obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D') Sf hSm
   have hpr : MeasurePreserving (probesOf settings P.D K₀)
       (Measure.pi fun _ : Fin T => (volume : Measure unitInterval)) (Measure.pi fun _ => D') :=
@@ -175,111 +175,81 @@ theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : �
   refine ⟨(fun q : Ω × (Fin T → unitInterval) => (q.1, probesOf settings P.D K₀ q.2)) ⁻¹'
     {q | ((q.1, ω₀), q.2) ∈ Sf}, hmp.measurable hSω, ?_, ?_, ?_⟩
   · rw [hmp.measure_preimage hSω.nullMeasurableSet]
-    exact hω₀.trans hS
+    refine hω₀.trans (h4.trans (le_of_eq ?_))
+    have e : fam'.ε + fam'.κ = crossLimit := by
+      show crossLimit + 0 = crossLimit
+      rw [add_zero]
+    rw [e]
   · -- the bad draws read only the zone
-    intro u ω ω' h hω
-    have hread : ∀ z : FreeMonoid α, z.toList.length ≤ max (P.L + C.maxLeaves)
-        (probesLen (probesOf settings P.D K₀ u) + 1 + C.maxLeaves) →
+    intro v ω ω' h hω
+    have hread : ∀ z : FreeMonoid α, z.toList.length ≤ max (P.L + T + 2)
+        (probesLen (probesOf settings P.D K₀ v) + 1 + T + 2) →
         fam'.read (ω, ω₀) z = fam'.read (ω', ω₀) z := by
       intro z hz
       unfold SuffixFamily.read familyRead voteCount
       congr 2
-      refine Finset.filter_congr fun v hv => ?_
-      by_cases hzv : z * v ∈ R
-      · show (Oc.renoise R).mq (z * v) (ω, ω₀) = 1 ↔ (Oc.renoise R).mq (z * v) (ω', ω₀) = 1
+      refine Finset.filter_congr fun v' hv => ?_
+      by_cases hzv : z * v' ∈ R
+      · show (Oc.renoise R).mq (z * v') (ω, ω₀) = 1 ↔ (Oc.renoise R).mq (z * v') (ω', ω₀) = 1
         rw [renoise_mq_of_mem Oc hzv, renoise_mq_of_mem Oc hzv]
-      · show (Oc.renoise R).mq (z * v) (ω, ω₀) = 1 ↔ (Oc.renoise R).mq (z * v) (ω', ω₀) = 1
+      · show (Oc.renoise R).mq (z * v') (ω, ω₀) = 1 ↔ (Oc.renoise R).mq (z * v') (ω', ω₀) = 1
         rw [renoise_mq_of_notMem Oc hzv, renoise_mq_of_notMem Oc hzv]
-        refine h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z, v), Finset.mem_product.2
+        refine h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z, v'), Finset.mem_product.2
           ⟨mem_shortStrings.2 hz, hv⟩, rfl⟩, not_not.1 hzv⟩)
-    have := endsWell_congr_reads C hC M (fun q => ¬ fam'.oracle.Good θ q) fam'.oracle.readDist D'
-      hD'len (3 / 2 * C.disagreementRate + us) y (n := Fintype.card σ + 2) (by rw [hmaxL]) J
-      (2 * ū) sift (probesOf settings P.D K₀ u) hread
-    exact fun hE => hω (this.2 hE)
+    exact level3Fail_congr_up fam' C D' hD'len θ u (probesOf settings P.D K₀ v) hread hω
   · -- off the bad draws, the actual round meets its claim
-    intro x₀ Pr Sf ω u hnot
-    have hE : EndsWell M (fun q => ¬ fam'.oracle.Good θ q) D' (3 / 2 * C.disagreementRate + us)
-        (checkedProbes M fam'.oracle.readDist D' (fun z => fam'.read (ω, ω₀) z) k
-          (Fintype.card σ + 2) J (2 * ū)
-          (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
-            (probesOf settings P.D K₀ u)).hypothesis
-          ∪ siftedProbes sift (fun z => fam'.read (ω, ω₀) z) k
-            (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
-              (probesOf settings P.D K₀ u)).hypothesis) k
-        (harvestLaw D' (fun z => (fam'.read (ω, ω₀) z).cut) k
-          (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
-            (probesOf settings P.D K₀ u)).hypothesis) y
-        (indecisiveLStarLevel5 C (fun z => fam'.read (ω, ω₀) z)
-          (probesOf settings P.D K₀ u)).ending := by
-      by_contra hc
-      exact hnot hc
+    intro x₀ Pr Sf' ω v hnot
+    set xs := probesOf settings P.D K₀ v
+    set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z
+    have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := hnot
+    obtain ⟨hE, hcls⟩ := not_not.1 hgood
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
-    have hoff : ∀ z, KeyOff k ↑K₀ z → read z = fam'.read (ω, ω₀) z := fun z hz =>
+    have hoff : ∀ z, KeyOff k ↑K₀ z → read z = read' z := fun z hz =>
       (renoise_read_of_notMem fam R (fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩) (ω, ω₀)).symm
-    have hres := level5_congr_off C (probesOf settings P.D K₀ u)
-      (fun i => drawFrom_avoids P.D hk K₀ (u i)) hoff
-    have hmc' : (P.L + 1) * m' ≤ (1 - m') * y := by
-      have := mul_le_mul_of_nonneg_left hm' (by positivity : (0 : ℝ) ≤ P.L + 1)
-      nlinarith
-    have hdist : fam'.oracle.readDist = familyReadDist O M F B.lo (B.hi + 1) := by
-      show fam'.readDist = _
+    have hxs : ∀ i, Avoids k ↑K₀ (xs i) := fun i => drawFrom_avoids P.D hk K₀ (v i)
+    have hres : Random.indecisiveLStarLevel3 C read xs = Random.indecisiveLStarLevel3 C read' xs :=
+      Random.level3_congr_zone C xs fun i j hj hjx m _ => hoff _ (keyOff_of_prefix (hxs i) hj hjx m)
+    have hdist : fam'.readDist = familyReadDist O M F B.lo (B.hi + 1) := by
       rw [SuffixFamily.renoise_readDist]
       rfl
-    have hd0 : ∀ r v, 0 ≤ familyReadDist O M F B.lo (B.hi + 1) r v := fun r v => by
-      unfold familyReadDist
-      split_ifs
-      · exact measureReal_nonneg
-      · exact le_rfl
-    have hd1 : ∀ r v, familyReadDist O M F B.lo (B.hi + 1) r v ≤ 1 := fun r v => by
-      unfold familyReadDist
-      split_ifs
-      · exact measureReal_le_one
-      · norm_num
-    have hu : undecidedMass M (familyReadDist O M F B.lo (B.hi + 1)) P.D k (Fintype.card σ + 2)
-        J ≤ ū → undecidedMass M (familyReadDist O M F B.lo (B.hi + 1)) D' k
-          (Fintype.card σ + 2) J ≤ 2 * ū := fun h =>
-      (undecidedMass_popLaw_le M _ hd0 hd1 P.D (avoiding k ↑K₀) (by linarith) k _ J).trans
-        (by linarith)
-    have hq := quarterEndsWell_of_endsWell P.D P.length_le M (fun q => ¬ fam'.oracle.Good θ q)
-      (k := k) (K₀ := ↑K₀) (read := read) (read' := fun z => fam'.read (ω, ω₀) z)
-      (fun z hz => by dsimp only; rw [hoff z hz])
-      (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis
-      (checkedProbes M (familyReadDist O M F B.lo (B.hi + 1)) P.D read k (Fintype.card σ + 2) J ū
-        (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis
-        ∪ siftedProbes sift read k (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis)
-      (checkedProbes M fam'.oracle.readDist D' (fun z => fam'.read (ω, ω₀) z) k
-        (Fintype.card σ + 2) J (2 * ū)
-        (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis
-        ∪ siftedProbes sift (fun z => fam'.read (ω, ω₀) z) k
-          (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis)
+    set H := (Random.indecisiveLStarLevel3 C read xs).hypothesis with hHd
+    have hmc' : m' ≤ (1 - m') * C.harvestRate := by
+      have h1 : (1 - m) * C.harvestRate ≤ (1 - m') * C.harvestRate := by nlinarith
+      linarith
+    have hq := quarterEndsWell_of_endsWell P.D M
+      (fun q => ¬ familyReadDist O M F B.lo (B.hi + 1) q .undecided ≤ 3 / 2 * θ)
+      (k := k) (K₀ := ↑K₀) (read := read) (read' := read') hoff H
+      (disagreeSet M (familyReadDist O M F B.lo (B.hi + 1)) read k H)
+      (disagreeSet M (familyReadDist O M F B.lo (B.hi + 1)) read' k H)
       (fun x hx h => by
-        rcases h with h | h
-        · left
-          rw [hdist]
-          exact checkedProbes_sub_off M _ (fun z hz => by dsimp only; rw [hoff z hz]) _ _ J hu hx h
-        · right
-          obtain ⟨hs, h⟩ := h
-          refine ⟨hs, ?_⟩
-          have hpb := probeOrAgree_congr_off (cut := fun z => (read z).cut)
-            (cut' := fun z => (fam'.read (ω, ω₀) z).cut)
-            (fun z hz => by dsimp only; rw [hoff z hz])
-            (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis.tree
-            (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).hypothesis.edges
-            (show Avoids k (↑K₀) x from hx)
-          simp only [undSiftSet, Set.mem_setOf_eq] at h ⊢
-          rw [← hpb]
-          exact h)
-      (3 / 2 * (εd / 2) + us) y hy.le
-      (indecisiveLStarLevel5 C read (probesOf settings P.D K₀ u)).ending (by linarith) hmc'
-      (by rw [hres]; rw [← hdis]; exact hE)
-    have hq' := hq.mono (ε' := εd + us) (y' := y / 2) (by linarith) (by nlinarith)
-    have hbad : (fun q => ¬ fam'.oracle.Good θ q)
-        = fun q => ¬ familyReadDist O M F B.lo (B.hi + 1) q .undecided ≤ 3 / 2 * θ := by
-      funext q
-      rw [SuffixFamily.renoise_good]
-      rfl
-    rw [hbad] at hq'
-    exact hq'
+        have hp : probeOrAgree read H.tree H.edges k x = probeOrAgree read' H.tree H.edges k x :=
+          Random.probeOrAgree_congr_zone H.edges k fun j hj hjx m _ =>
+            hoff _ (keyOff_of_prefix hx hj hjx m)
+        have e1 : x ∈ Random.searchSet read k H ↔ x ∈ Random.searchSet read' k H := by
+          simp only [Random.searchSet, Set.mem_ofPred_eq]; rw [hp]
+        have e2 : x ∈ Random.endsSet read k H ↔ x ∈ Random.endsSet read' k H := by
+          simp only [Random.endsSet, Set.mem_ofPred_eq]; rw [hp]
+        rcases h with (h | h) | ⟨hk', m, hm, hw⟩
+        · exact .inl (.inl (e1.1 h))
+        · exact .inl (.inr (e2.1 h))
+        · refine .inr ⟨hk', m, hm, ?_⟩
+          have := hoff _ (keyOff_of_prefix hx hk' le_rfl m)
+          rw [prefixOf_length] at this
+          beta_reduce at hw ⊢
+          rw [← this]
+          exact hw)
+      (C.disagreementRate + u) C.harvestRate hy0.le
+      (Random.indecisiveLStarLevel3 C read xs).ending (by linarith) hmc' (by
+        have hH : H = (Random.indecisiveLStarLevel3 C read' xs).hypothesis := by rw [hHd, hres]
+        rw [hres, hH, ← hdist]
+        exact hE)
+    refine ⟨?_, ?_⟩
+    · have hq' := hq.mono (ε' := C.disagreementRate + u + m) (y' := C.harvestRate / 2)
+        (by linarith) (by nlinarith)
+      exact hq'
+    · show (Random.indecisiveLStarLevel3 C read xs).hypothesis.tree ∈ _
+      rw [hres]
+      exact hcls
 
 end Bad
 

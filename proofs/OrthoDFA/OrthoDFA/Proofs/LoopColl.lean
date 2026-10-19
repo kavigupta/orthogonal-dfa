@@ -187,7 +187,7 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   | 0, i, hi => by simp [histCodes, loopRounds, codesOf] at hi
   | r + 1, i, hi => by
     by_cases hrK : r < K
-    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen (by omega) (fun i => (ω, g i)) r hrK
+    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf N ω g r with hcd
       have hy' : histCodes settings O D Dsf N ω g (r + 1) = if c.length = r then
           c ++ (popCode N (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
@@ -244,7 +244,7 @@ section Coll
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
 
-omit [Fintype α] [DecidableEq α] in
+omit [DecidableEq α] in
 lemma mem_of_pos {ν : Measure (FreeMonoid α)} {A : Set (FreeMonoid α)} (hA : ν Aᶜ = 0)
     {t : FreeMonoid α} (ht : 0 < ν.real {t}) : t ∈ A := by
   by_contra h

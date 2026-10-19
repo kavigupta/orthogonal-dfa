@@ -246,49 +246,41 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf] (settings : LoopSettings K)
 
 include hL in
-/-- Round `r`'s level 5, where every earlier clustering and this one returned and nothing
-collides, fails its claim with chance at most `δ`. -/
-theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ)
-    (ū : ℝ) (hū : 0 ≤ ū) (sift : Bool) (us : ℝ) (Pre5 : ℝ → ℝ → Prop)
-    (hC : 2 ≤ settings.level3.probeBudget + 2)
-    (hmaxL : settings.level3.probeBudget + 2 = Fintype.card σ + 2)
+/-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
+collides, fails its claim with chance at most `δ + δ/8 + #(strings of at most |Q| letters) cross/u`.
+-/
+theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
-    (hk : 1 ≤ settings.level3.walkStart)
-    (hdis : settings.level3.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
-    (hδ : 0 < δ) (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
-    (hB5 : crossLimit * B5 ≤ δ) (hεd0 : 0 ≤ εd)
-    (hPre : ∀ p, 0 ≤ p → p ≤ 2 * prefixMax P.D settings.level3.walkStart → Pre5 θ p)
+    (hk : 1 ≤ settings.level3.walkStart) (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
+    (hprem : RoundPremises σ α P.L settings.level3 θ
+      (2 * prefixMax P.D settings.level3.walkStart) crossLimit)
+    (hu : 0 < u) (hy0 : 0 < settings.level3.harvestRate)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
-    (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 4) (hmc : (P.L + 1) * m ≤ y / 2)
-    (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
-      let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → Pre5 θ (prefixMax P'.D settings.level3.walkStart) →
-      0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level3.probeBudget => P'.D)
-          {draws | let result := indecisiveLStarLevel5 settings.level3 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (3 / 2 * settings.level3.disagreementRate + us)
-              (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level3.walkStart
-                (Fintype.card σ + 2) J (2 * ū) result.hypothesis
-                ∪ siftedProbes sift (O'.read · ω) settings.level3.walkStart result.hypothesis)
-              settings.level3.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level3.walkStart
-                result.hypothesis) y result.ending} ∂(μ.prod μ)
-        ≤ ENNReal.ofReal (δ + 128 * ū / εd))
+    (hm1 : m ≤ 1 / 2) (hmc : m ≤ (1 - m) * settings.level3.harvestRate)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf N p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ Level5Spec M O P θ (εd + us) (y / 2) settings.level3.walkStart J ū sift
+        ∧ ¬ RoundSpec M O P θ (settings.level3.disagreementRate + u + m)
+            (settings.level3.harvestRate / 2) settings.level3.walkStart
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
-      ≤ δ + 128 * ū / εd := by
+      ≤ settings.level3.δ + settings.level3.δ / 8
+        + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by
+  have hC : 2 ≤ settings.level3.probeBudget + 2 := by omega
+  set δb := settings.level3.δ + settings.level3.δ / 8
+    + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u with hδb
+  have hδb0 : 0 ≤ δb := by
+    obtain ⟨-, hδ0, -⟩ := hprem
+    have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by positivity
+    linarith
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
@@ -306,17 +298,17 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
     with hGood
   have hpm0 : 0 ≤ prefixMax P.D k := (measureReal_nonneg).trans (le_prefixMax P.D k 1)
   have hex : ∀ t, Good t → ∃ Bd : Set (Ω × (Fin T → unitInterval)), MeasurableSet Bd
-      ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal (δ + 128 * ū / εd)
+      ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal δb
       ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D t.2.2.2 u) + 1 + settings.level3.probeBudget + 2))
           k t.2.2.2 t.2.2.1, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
-      ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
-        Level5Spec M O P θ (εd + us) (y / 2) k J ū sift
-          (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, u)) :=
-    fun t ht => level5_bad_exists M O hL P settings εd δ crossLimit θ y m B5 J ū hū sift us Pre5 hC
-      hmaxL hk hdis hη1
-      hy hcross hθ0 hB5 hPre hm1 hmε hmc hlevel5 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+      ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
+        RoundSpec M O P θ (settings.level3.disagreementRate + u + m)
+          (settings.level3.harvestRate / 2) k
+          (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
+    fun t ht => round_bad_exists M O hL P settings θ m u crossLimit hk hη1 hcross hprem hu hy0
+      hm1 hmc t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
         exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)
@@ -425,7 +417,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (εd δ crossLimit θ y m B
       dsimp only
       rw [hpop, hzp]
       exact Finset.mem_coe.2 (Finset.mem_image.2 ⟨p, hp, rfl⟩))
-    (ENNReal.ofReal (δ + 128 * ū / εd)) (fun y => by
+    (ENNReal.ofReal δb) (fun y => by
       rcases y with _ | t
       · show (μ.prod _) ∅ ≤ _
         simp
