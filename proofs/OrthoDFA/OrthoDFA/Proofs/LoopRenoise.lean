@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.LoopAvoid
 import OrthoDFA.Proofs.Renoise
 
@@ -259,9 +260,8 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   classical
   set side : σ → Bool := fun q => readSide (fam.readDist q)
   set U : σ → ℝ := fun q => fam.readDist q .undecided
-  obtain ⟨R, hR⟩ : ∃ R : KappaReadOracle μ' fam.M side U fam.ε fam.κ,
-      R = fam.kappaOracle hε hκ := ⟨_, rfl⟩
-  have hRr : ∀ z ω, R.read z ω = fam.read ω z := by subst hR; intro z ω; rfl
+  obtain ⟨R, hR⟩ := familyKappaOracle_holds fam hε hκ
+  have hRr : ∀ z ω, R.read z ω = fam.read ω z := fun z ω => congrFun (congrFun hR z) ω
   set k := C.walkStart
   set T := C.probeBudget
   set π := Measure.pi fun _ : Fin T => P.D

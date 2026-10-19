@@ -25,7 +25,7 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `Level2.Correct`, `RandomRoundCorrect`, `EpsRoundCorrect` and `KappaRoundCorrect`: one L\* round
   ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, and wrong
   reads scaling with indecision.
-- `SuffixFamily.kappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
+- `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
 
@@ -285,10 +285,12 @@ states, is spread and yields. What makes a state bad is each level's own.
   hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
-- `OrthoDFA/FamilyOracle.lean` — `SuffixFamily.kappaOracle`: a suffix family's reads (a DFA
-  target, a suffix-free family and a band passing `BandPasses`) as level 5's `KappaReadOracle`, each
-  state's side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since
-  the rarer side's `max ε (κ U)` is at most `ε + κ U`.
+- `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
+  suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
+  side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the
+  rarer side's `max ε (κ U)` is at most `ε + κ U`.
+- `OrthoDFA/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band, with its reads
+  and each state's read distribution.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
   reading the family at the gate's cut, and hands its harvest's sampler on as a population.
 - `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf`.
