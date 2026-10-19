@@ -37,11 +37,12 @@ class TestOutcomes(unittest.TestCase):
         self.assertEqual(
             Start(b""), _locate(parity_cut([b""]), PARITY_EDGES, [1, 0]).outcome
         )
-        self.assertEqual([b""], _charges(parity_cut([b""]), PARITY_EDGES, [1, 0]).start)
+        self.assertEqual([b""], _charges(parity_cut([b""]), PARITY_EDGES, [1, 0]).ends)
 
     def test_an_undecided_end(self):
-        outcome = _locate(parity_cut([b"\x01\x00"]), PARITY_EDGES, [1, 0]).outcome
-        self.assertEqual(End(b"\x01\x00"), outcome)
+        located = _locate(parity_cut([b"\x01\x00"]), PARITY_EDGES, [1, 0])
+        self.assertEqual(End(b"\x01\x00"), located.outcome)
+        self.assertEqual([b"\x01\x00"], charges(located, 0, b"\x01\x00").ends)
 
     def test_an_unlearned_edge_where_the_cut_places_its_prefix_is_a_member(self):
         outcome = _locate(parity_cut(()), {}, [1, 0]).outcome
@@ -75,14 +76,6 @@ class TestOutcomes(unittest.TestCase):
 
 
 class TestCharging(unittest.TestCase):
-    def test_a_position_is_charged_to_the_walks_edge_out_of_it_else_its_last(self):
-        charged = _charges(parity_cut(()), PARITY_EDGES, [1, 0])
-        self.assertEqual({(ODD, 0): 2}, dict(charged.traversals))
-
-    def test_positions_past_an_unlearned_edge_are_charged_nowhere(self):
-        charged = _charges(parity_cut(()), {(EVEN, 1): (ODD, b"")}, [1, 0, 0])
-        self.assertEqual({(ODD, 0): 2}, dict(charged.traversals))
-
     def test_an_edge_keeps_the_strings_read_undecided_at_its_positions(self):
         charged = _charges(parity_cut([b"\x01\x00"]), PARITY_EDGES, [1, 0])
         self.assertEqual({(ODD, 0): [b"\x01\x00"]}, charged.undecided_by_edge)

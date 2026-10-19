@@ -15,7 +15,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
+from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, SUCCESS, Ending
 
 #: What draws more like the harvest, which these tests never ask.
 _REPLAY = object()
@@ -191,17 +191,17 @@ class TestWhatARoundPublishes(unittest.TestCase):
 
 class TestWhenTheFamilyTightens(unittest.TestCase):
     def test_a_consistent_round_refused_with_nothing_new_tightens(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertTrue(_family_too_loose(success, 1.0, 0.98, 0))
 
     def test_one_that_carries_strings_does_not(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertFalse(_family_too_loose(success, 1.0, 0.98, 3))
 
     def test_one_short_of_the_target_does_not(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertFalse(_family_too_loose(success, 0.9, 0.98, 0))
 
     def test_a_harvest_tightens(self):
-        harvest = Ending(HARVEST_EDGE, [b"a"], ((True,), 0))
+        harvest = Ending(HARVEST_ENDS, [b"a"])
         self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
