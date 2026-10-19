@@ -150,6 +150,25 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(SUCCESS, search.step(b"\x01\x01").kind)
         self.assertEqual(14, search.probes)
 
+    def test_undecided_ends_count_against_success(self):
+        # Ends at the shipped config's cap on a deep tree, where they never harvest.
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]),
+            {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)},
+            ends_rate=0.5,
+            ends_alternative=1.0,
+            disagreement_rate=0.02,
+            disagreement_alternative=0.002,
+            level=1e-3,
+            max_probes=1000,
+        )
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertNotEqual(
+            SUCCESS,
+            ending.kind,
+            f"{len(search.counts.ends)} of {search.counts.probes} probes ended undecided",
+        )
+
     def test_the_probes_running_out(self):
         search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=3)
         self.assertEqual(OUT_OF_PROBES, search.run(itertools.repeat(b"\x01")).kind)
