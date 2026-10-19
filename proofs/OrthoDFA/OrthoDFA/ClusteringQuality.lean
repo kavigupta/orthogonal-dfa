@@ -25,7 +25,7 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 
 /-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns
 there, averaged over a population, decides a prefix the wrong way at most `εcov + slack` of the
-time on the uniform pool and at most `1/2 + slack` on any other, and leaves it undecided at most
+time on the uniform pool and at most `1/2 + slack` on any population, and leaves it undecided at most
 `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
 `ClusteringGuarantee`'s.  The collision masses are held as there, at `δ/2`, and the populations'
 also against `slack`: the table's own prefixes are read with the noise the family was chosen
@@ -45,7 +45,7 @@ def ClusteringQualityGuarantee : Prop :=
   0 < α →
   α < 1 / 2 →
   0 < εcov →
-  εcov ≤ 1 →
+  εcov ≤ 1 / 2 →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -75,8 +75,8 @@ def ClusteringQualityGuarantee : Prop :=
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                   ∂(D uni) ≤ εcov + slack
               ∧ ∀ j ∈ populations,
-                (j ≠ uni → ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p ∂(D j) ≤ 1 / 2 + slack)
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p ∂(D j) ≤ 1 / 2 + slack
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 

@@ -247,8 +247,7 @@ theorem prefCount_le_poly (populations : Finset J)
   clear_value B
   have hBε : B ≤ εcov := le_trans hBmn (min_le_left _ _)
   have hBs : B ≤ s := by
-    simp only [hBdef, budgetScale, ← hsdef]
-    exact le_trans (min_le_right _ _) (min_le_left _ _)
+    rw [hBdef, hsdef]; exact budgetScale_le_sig η indecisionLimit εcov hη hηlt
   have hB2 : B ≤ 1 / 2 := le_trans hBs hs2
   -- the gate's room is a fifth of the coverage, so at least a fifth of the scale
   set gR : ℝ := gateRoom η indecisionLimit εcov with hgRdef
@@ -597,8 +596,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   have hBpos := budgetScale_pos η indecisionLimit εcov hεcov hind hη hηlt
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
   have hBs : B ≤ s := by
-    simp only [hBdef, budgetScale, ← hsdef]
-    exact le_trans (min_le_right _ _) (min_le_left _ _)
+    rw [hBdef, hsdef]; exact budgetScale_le_sig η indecisionLimit εcov hη hηlt
   have hB2 : B ≤ 1 / 2 := le_trans hBs hs2
   set cut : ℝ := cutBudget η indecisionLimit εcov with hcutdef
   have hcutlb : B ≤ 10 * cut := by linarith only [hcutlb']
@@ -785,11 +783,11 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
-  have hscaleEq : budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := rfl
+  have hscaleEq : budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
+    unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
   have hscale : 0 < rateScale η₀ indecisionLimit εcov := by
     rw [← hscaleEq]; exact budgetScale_pos η₀ indecisionLimit εcov hεcov hindLim hη0 hη₀
-  have hscale1 : rateScale η₀ indecisionLimit εcov ≤ 1 / 2 :=
-    le_trans (min_le_right _ _) (le_trans (min_le_right _ _) hind1)
+  have hscale1 : rateScale η₀ indecisionLimit εcov ≤ 1 / 2 := le_trans (min_le_right _ _) hind1
   have hlog128 : 1 ≤ Real.log (128 * (populations.card : ℝ) / δ) := by
     have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
     have h : Real.exp 1 ≤ 128 * (populations.card : ℝ) / δ := by
@@ -833,7 +831,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have htop := solvedState_mem_stoppable (α := α) (crossLimit := crossLimit) η₀ populations hη0
     hη₀ hεcov hindLim hδ hpAPPositive hcard hρ₀0 le_rfl
   have hpoly := prefCount_le_poly populations η₀ indecisionLimit εcov δ α pAP crossLimit
-    hsig hη0 hpop hindLim hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
+    hsig hη0 hpop hindLim hεcov (by linarith) hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
   have hpoly' := hpoly
   simp only [budgetLog, hscaleEq, sig] at hpoly'
   refine ⟨stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ₀,
@@ -886,7 +884,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   haveI := hDsf
   have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0 hindLim
-      hεcov hε1 hpAPPositive hpAP1
+      hεcov (by linarith) hpAPPositive hpAP1
     linarith
   have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit (collisionMass (D j)) 0
@@ -897,13 +895,19 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       hN hM (by simp only [mul_zero]; positivity) (hcollSf _ htop)).2
   refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
     α δ ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAPPositive
-    hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ hpoly le_rfl hcapsf)
+    hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hδ hpoly le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
   rintro x ⟨hex, hall⟩
-  refine ⟨hex, fun B hB => ⟨?_, fun j hj => ⟨fun hne => ?_, (hall B hB j hj).2⟩⟩⟩
-  · have h := (hall B hB uni huni).1
-    simp only [gateLimit, if_pos rfl] at h
+  have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
+      crossLimit ρ₀}, x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
+      1 - εcov ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+        (familyBy rule O.mq populations x B.val) p (oracleNoise x)} := fun B hB => by
+    have h := (hall B hB uni huni).1
+    simp only [gateLimit, if_pos rfl, if_true] at h
     exact h
+  refine ⟨hex, fun B hB => ⟨huni' B hB, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
+  by_cases hne : j = uni
+  · subst hne; linarith [huni' B hB]
   · have h := (hall B hB j hj).1
     simp only [gateLimit, if_neg hne] at h
     linarith

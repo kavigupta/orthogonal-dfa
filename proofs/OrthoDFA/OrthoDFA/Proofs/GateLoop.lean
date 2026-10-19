@@ -638,8 +638,22 @@ definitions. -/
 /-- The cut budget is at least a tenth of the scale. -/
 lemma budgetScale_pos (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) : 0 < budgetScale η₀ indecisionLimit εcov :=
-  lt_min (mul_pos (lt_min hε (by norm_num)) (pow_pos (gateA_pos hη0 hsig) 2))
-    (lt_min (sig_pos η₀ hsig) hind)
+  lt_min (mul_pos (lt_min hε (by norm_num)) (pow_pos (gateA_pos hη0 hsig) 2)) hind
+
+/-- The scale sits under the signal: `a²/2 ≤ sig` since `a ≤ 1 − η₀`. -/
+lemma budgetScale_le_sig (η₀ indecisionLimit εcov : ℝ) (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
+    budgetScale η₀ indecisionLimit εcov ≤ sig η₀ := by
+  have ha := gateA_pos hη0 hsig
+  have hne : (1 - η₀) ≠ 0 := by intro h; linarith
+  have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by unfold gateA; field_simp
+  have ha1 : gateA η₀ ≤ 1 - η₀ := by nlinarith
+  have hmn : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
+  have h : min εcov (1 / 2) * gateA η₀ ^ 2 ≤ sig η₀ := by
+    rw [sig]
+    rcases le_or_gt 0 (min εcov (1 / 2)) with h0 | h0
+    · nlinarith [mul_le_mul_of_nonneg_left ha1 ha.le]
+    · nlinarith [sq_nonneg (gateA η₀)]
+  exact (min_le_left _ _).trans h
 
 lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
@@ -660,10 +674,8 @@ lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind :
     have hk := gateKappa_ge hη0 hsig
     have := mul_le_mul_of_nonneg_left hk hmn.le
     nlinarith
-  have h2 : budgetScale η₀ indecisionLimit εcov ≤ sig η₀ :=
-    (min_le_right _ _).trans (min_le_left _ _)
-  have h3 : budgetScale η₀ indecisionLimit εcov ≤ indecisionLimit :=
-    (min_le_right _ _).trans (min_le_right _ _)
+  have h2 := budgetScale_le_sig η₀ indecisionLimit εcov hη0 hsig
+  have h3 : budgetScale η₀ indecisionLimit εcov ≤ indecisionLimit := min_le_right _ _
   rw [cutBudget]
   refine le_min (by linarith) (le_min (by linarith) (le_min (by linarith) h4))
 
@@ -674,8 +686,7 @@ lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0
     7 * budgetScale η₀ indecisionLimit εcov ^ 2 / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
   have hs := sig_pos η₀ hsig
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hBs : budgetScale η₀ indecisionLimit εcov ≤ sig η₀ :=
-    (min_le_right _ _).trans (min_le_left _ _)
+  have hBs := budgetScale_le_sig η₀ indecisionLimit εcov hη0 hsig
   have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
   have hf : 7 * sig η₀ / 10 ≤ flipFrac η₀ := by
     rw [flipFrac, div_le_div_iff₀ (by norm_num) (by linarith)]

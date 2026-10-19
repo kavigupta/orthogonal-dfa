@@ -408,7 +408,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
-      hε hε1 hpAP hpAP1
+      hε (by linarith) hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
   have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
@@ -416,9 +416,11 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       (by rw [← hmdef]; exact hm) hM (by
         have h := hcollD _ htop j hj
         rw [hδ'def]
+        have hscaleEq : budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
+          unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
         change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * collisionMass (D j)
-          ≤ δ * budgetScale η₀ indecisionLimit εcov ^ 2 at h
-        rw [← hmdef]
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2 at h
+        rw [← hmdef, hscaleEq]
         linarith) (by simp only [mul_zero]; positivity)).1
   have hcapsf : collisionMass Dsf
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ' pAP crossLimit :=
@@ -478,9 +480,9 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     exact mul_le_mul_of_nonneg_left h' hs2
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ iL εcov α δ'
     ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound
-    hind' hind1 hα hα1 hε hε1 hδ'
+    hind' hind1 hα hα1 hε (by linarith) hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
-      hε hε1 hδ' (by linarith) hα (by linarith) hpAP hpAP1)
+      hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1)
     le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
@@ -628,10 +630,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have := hFtail j
     have := hPmass j hj
     exact ⟨by linarith, by linarith⟩
-  refine ⟨?_, fun j hj => ⟨fun hne => ?_, (hall j hj).2⟩⟩
-  · have h := (hall uni huni).1
+  have huni' : ∫ p, miscutProb O B.val.lo (B.val.hi + 1) G p ∂(D uni) ≤ εcov + slack := by
+    have h := (hall uni huni).1
     simp only [gateLimit, if_pos rfl] at h
     exact h
+  refine ⟨huni', fun j hj => ⟨?_, (hall j hj).2⟩⟩
+  by_cases hne : j = uni
+  · subst hne; linarith
   · have h := (hall j hj).1
     simp only [gateLimit, if_neg hne] at h
     exact h

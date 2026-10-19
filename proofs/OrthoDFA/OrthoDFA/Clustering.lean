@@ -447,17 +447,17 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 
 /-- The rate the counts resolve:
 
-    min(min(εcov, 1/2)·a², 1/2 − η₀, indecisionLimit),   a = (1 − 2η₀)/(1 − η₀)
+    min(εcov·a², indecisionLimit),   a = (1 − 2η₀)/(1 − η₀)
 
 The gate charges each wrongly cut prefix at most `7/(3a²)` of a read, so the share a family may
-cut wrongly is held at a multiple of `min(εcov, 1/2)·a²`. -/
+cut wrongly is held at a multiple of `εcov·a²`. -/
 noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
-  min (min εcov (1 / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) (min (1 / 2 - η₀) indecisionLimit)
+  min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) indecisionLimit
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns there cuts
-`≥ 1 − εcov` of the uniform pool the way the noiseless oracle does, reads no other population
-backwards (cuts at least half of it that way), and leaves at most `2·indecisionLimit` of each
+`≥ 1 − εcov` of the uniform pool the way the noiseless oracle does, reads no population
+backwards (cuts at least half of each that way), and leaves at most `2·indecisionLimit` of each
 undecided; no state draws more prefixes than the first count below, nor asks for a family or a
 suffix pool larger than the sizes below.  Some state draws no more than the second count, which
 is what validity alone costs, so a stop is covered from there; the first count is what the loop
@@ -486,7 +486,7 @@ def ClusteringGuarantee : Prop :=
   0 < α →
   α < 1 / 2 →
   0 < εcov →
-  εcov ≤ 1 →
+  εcov ≤ 1 / 2 →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -531,9 +531,9 @@ def ClusteringGuarantee : Prop :=
             1 - εcov
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations x B.val) p (oracleNoise x)}
-            ∧ ∀ j ∈ populations, (j ≠ uni → 1 / 2
+            ∧ ∀ j ∈ populations, 1 / 2
               ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                  (familyAt O.mq populations x B.val) p (oracleNoise x)})
+                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
               ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations x B.val) p (oracleNoise x)}
                 ≤ 2 * indecisionLimit}

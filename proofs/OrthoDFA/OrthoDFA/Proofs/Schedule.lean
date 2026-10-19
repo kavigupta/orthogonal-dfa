@@ -43,7 +43,7 @@ Stated in the rates themselves rather than in `cutBudget`, which is one particul
 taking their minimum.  What a reader checks is that the budget is polynomial in the rates
 asked for; which divisors the proof chose to hold each of them at is the proof's business. -/
 noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
-  min (min εcov (1 / 2) * gateA η ^ 2) (min (sig η) indecisionLimit)
+  min (min εcov (1 / 2) * gateA η ^ 2) indecisionLimit
 
 /-- What fraction of the family the vote absorbs flipping, at any rates under `η`.  A flip moves
 a member's mean by the gap between the classes, at most `1 − η`, and what is left is
