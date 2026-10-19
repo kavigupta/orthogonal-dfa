@@ -1,7 +1,7 @@
 import OrthoDFA.Level4Claim
 
 /-!
-# `KappaRoundCorrect`: level 3 with wrong reads that scale with indecision
+# `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision
 
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
 most `εw + κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`), otherwise as
@@ -11,7 +11,7 @@ first undecided read, so each probe reads at most one string undecided, and the 
 the tests bound the undecided reads a round makes, whatever the budget, and with them the wrong
 ones.
 
-`KappaRoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
+`Level5RoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
 each rather than `δ/8`, and that the strings the round reads, and those it reads undecided, are few
 enough against `εw` and `κ` that no string the round reads is read wrong but for chance `δ/8`.
 -/
@@ -36,9 +36,15 @@ structure KappaReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {�
   wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept}
     ≤ εw + κ * U (M.eval z.toList)
 
+end Kappa
+
+end Random
+
+open MeasureTheory Random Random.Kappa
+
 /-- Level 3's algorithm, with wrong reads that may scale with a state's indecision, fails to end
 well with chance at most `δ`. -/
-def KappaRoundCorrect : Prop :=
+def Level5RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
@@ -88,9 +94,5 @@ def KappaRoundCorrect : Prop :=
               yield := y,
               ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
-
-end Kappa
-
-end Random
 
 end OrthoDFA

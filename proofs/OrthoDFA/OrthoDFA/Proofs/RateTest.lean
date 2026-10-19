@@ -1,4 +1,4 @@
-import OrthoDFA.RateTest
+import OrthoDFA.Utils.RateTest
 import OrthoDFA.Proofs.BinomLaw
 
 /-!
