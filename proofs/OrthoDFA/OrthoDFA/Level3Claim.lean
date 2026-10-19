@@ -2,7 +2,7 @@ import OrthoDFA.Level3
 import OrthoDFA.ProbeDistribution
 
 /-!
-# `RandomRoundCorrect`: level 3 ends well but for a small chance
+# `Level3RoundCorrect`: level 3 ends well but for a small chance
 
 Every string's read is drawn once, independently across strings, from a distribution fixed by
 the string's target state: undecided with chance `U q`, otherwise on the state's side, never on
@@ -65,8 +65,12 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
   undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
   wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
 
+end Random
+
+open MeasureTheory Random
+
 /-- Level 3 fails to end well with chance at most `δ`. -/
-def RandomRoundCorrect : Prop :=
+def Level3RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α)
@@ -109,7 +113,5 @@ def RandomRoundCorrect : Prop :=
               yield := y,
               ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
-
-end Random
 
 end OrthoDFA

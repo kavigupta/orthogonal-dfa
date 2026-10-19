@@ -18,26 +18,16 @@
   check the band selection rule `evidence_margin_for_population_size` makes, at
   `ε = cross_limit`, `ε₂ = MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns from
-  agreeing to disagreeing that steps past undecided positions, and `TripartiteSearchCorrect`: each
-  result says what `agrees` is where it points, the queries stay between the endpoints and number
-  at most `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
+  agreeing to disagreeing that steps past undecided positions.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
 - `OrthoDFA/DTree.lean` — the discrimination tree, and `DTree.siftWithPath`, sifting a string
-  through it under a three-valued cut. `SiftWithPathCorrect`: the reads are the string followed by
-  each midfix on its way, no more than the tree is deep; a decided sift ends at a leaf, along the
-  path its reads decide, and an undecided one at its only undecided read.
-  `MidfixTree.sift_with_path` is the same function. It also holds `sift`, the same sift under a
-  read, and `splitAt`, which splits a leaf. `SiftAndSplitCorrect`: `sift` lands where
-  `siftWithPath` does, strings at different leaves read decidedly apart where their paths part,
-  and a split replaces its leaf by two children, reads its midfix there, and changes only the sifts
-  that landed on it. `MidfixTree.split` is the same split, naming the leaf by its state.
+  through it under a three-valued cut. `MidfixTree.sift_with_path` is the same function. It also
+  holds `sift`, the same sift under a read, and `splitAt`, which splits a leaf. `MidfixTree.split`
+  is the same split, naming the leaf by its state.
 - `OrthoDFA/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its leaves,
-  and the walk a string takes along them. `WalkCorrect`: the walk starts at its leaf, follows one
-  learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
-  edges do; `walkEnd` is its last leaf when it follows every letter. `HypothesisDFA.split` splits a
-  leaf and re-sifts the witnesses of the edges into it (`hypothesis_dfa.HypothesisDFA.split_leaf`).
-  `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps every learned
-  edge witnessed (`EdgesOK`).
+  and the walk a string takes along them; `walkEnd` is its last leaf when it follows every letter.
+  `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it
+  (`hypothesis_dfa.HypothesisDFA.split_leaf`).
 - `OrthoDFA/Probe.lean` — `probe`: a string walked along the edges from its first `k` letters'
   leaf and sifted, and where the two part, found by `tripartiteSearch` without recovery
   (`counterexample_probe.locate`). `ProbeCorrect`: with the edges witnessed, a wrong edge is one the
@@ -45,14 +35,10 @@
   stopped at, the at most one undecided string it reports reads undecided and is a prefix of the
   probe followed by a midfix, and a probe on which the walk and the sift part (`Disagrees`) never
   comes out clean.
-- `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate, and
-  `RateTestSound`: over independent draws it says above with chance at most its failure chance when
-  the true rate is at most the tested one, and below likewise when it is at least.
+- `OrthoDFA/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate.
   `statistics.rate_side` is the same test.
 - `OrthoDFA/SeqTest.lean` — `seqRate`, the sequential likelihood-ratio test of a count of hits
-  against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
-  look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
-  from `p₁`. `statistics.seq_rate` is the same test.
+  against a rate. `statistics.seq_rate` is the same test.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
@@ -72,7 +58,7 @@
   hypothesis, at most `12 ε / (ε − y)² · log(1/a) + 1` (`stretchBound_mid_le`). A harvest's sampler
   (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
   read it stops at.
-- `OrthoDFA/Level2Claim.lean` — `Level2.Correct`: with every state's reads all undecided or all on
+- `OrthoDFA/Level2Claim.lean` — `Level2RoundCorrect`: with every state's reads all undecided or all on
   its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`, `disagreementRate`), `0 < δ < 1` and
   at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes,
   `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent with
@@ -89,7 +75,7 @@
   `endsRate = y`, `middleRate = 1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test
   runs at level `δ / (8 (j + 1) (j + 2))`. A harvest is the site whose test fired, `ends` or
   `middles`.
-- `OrthoDFA/Level3Claim.lean` — `RandomRoundCorrect`: with every string's read drawn once,
+- `OrthoDFA/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn once,
   independently, undecided with its state's chance and never on its state's wrong side, every
   length-`walkStart` prefix at most `p₀` of the probes, `48 (L + 1)(|Q| + 1) θ ≤ 1`,
   `2G ≤ y ≤ ε/48`, `ε < 1`, `0 ≤ θ`,
@@ -106,7 +92,7 @@
   it might stop at. Only the ends tie `θ` to `ε`, and without `L`. The sampler (`harvestLaw`) draws a fresh probe,
   walks it under the final hypothesis and finds the probe's undecided string at the site, as the
   tests counted it.
-- `OrthoDFA/Level4Claim.lean` — `EpsRoundCorrect`: level 3's algorithm, unchanged, with each read
+- `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
   under level 3's premises, `G`'s `log(8K/δ)` becoming `log(16K/δ)`, and
   `εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|) ≤ δ/8`. A step that reads no string wrong
@@ -114,7 +100,7 @@
   split re-sifts at most `(|Q| + 1)²|Σ|`, so by `AdaptiveReadsBound` the premise keeps every string
   the round reads right but for chance `δ/8`. The good states' bounds take `δ/16` each and the
   stretches `3δ/4`.
-- `OrthoDFA/Level5Claim.lean` — `KappaRoundCorrect`: level 3's algorithm, unchanged, with each read
+- `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
   `εw (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`,
@@ -153,9 +139,33 @@ need not be read to trust the claims above.
 
 - `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
-  (`Random.leafOf`) misjudges at most `η` of the uniform strings of length `L` when re-rooting the
-  target at that state classifies `1 - η` of them with its run staying in `S`
+  (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the
+  target at that state classifies `1 - γ` of them with its run staying in `S`
   (`rerootAccuracy`). Also `uniformStrings`.
+
+- `OrthoDFA/Utils/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
+  `agrees` is where it points, the queries stay between the endpoints and number at most
+  `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
+
+- `OrthoDFA/Utils/DTree.lean` — `SiftWithPathCorrect`: the reads are the string followed by each
+  midfix on its way, no more than the tree is deep; a decided sift ends at a leaf, along the path
+  its reads decide, and an undecided one at its only undecided read. `SiftAndSplitCorrect`: `sift`
+  lands where `siftWithPath` does, strings at different leaves read decidedly apart where their
+  paths part, and a split replaces its leaf by two children, reads its midfix there, and changes
+  only the sifts that landed on it.
+
+- `OrthoDFA/Utils/HypothesisDFA.lean` — `WalkCorrect`: the walk starts at its leaf, follows one
+  learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
+  edges do. `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps
+  every learned edge witnessed (`EdgesOK`).
+
+- `OrthoDFA/Utils/RateTest.lean` — `RateTestSound`: over independent draws `rateSide` says above
+  with chance at most its failure chance when the true rate is at most the tested one, and below
+  likewise when it is at least.
+
+- `OrthoDFA/Utils/SeqTest.lean` — `SeqRateSound` (Ville's inequality): over independent draws,
+  testing with `seqRate` at every look fires at some look with chance at most `a` when the true
+  rate is on the far side of `p₀` from `p₁`.
 
 ## Scope
 

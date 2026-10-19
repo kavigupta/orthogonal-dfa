@@ -3,7 +3,7 @@ import OrthoDFA.Proofs.RandomRound
 /-!
 # Level 3's claim: the proofs
 
-`RandomRoundCorrect` is `round_le_at` at the knobs `Ns = N₁ = ⌈36Λ / ε⌉`,
+`Level3RoundCorrect` is `round_le_at` at the knobs `Ns = N₁ = ⌈36Λ / ε⌉`,
 `Λ = log(16 S (S + 1) / δ)`, `θr = ε/36`, `εd' = 4ε/9`, `θe' = 113ε/720`, `θpt' = 7/8`,
 `Ge = 9θ(|Q| + 1) + p₀ log(8K/δ)`, `θgpt = 3θ(L + 1)(|Q| + 1)`, `ηm = p₀ log(8K/δ)` and
 `pM = ε/48`. Then each `tailRisk` is `δ/8`, and under the `j`-th hypothesis each way a
@@ -176,7 +176,7 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
     nlinarith
   linarith
 
-/-- Under level 3's premises at `δ < 1`, `p₀ > 0` and `Λ > 0`, the knobs `RandomRoundCorrect`
+/-- Under level 3's premises at `δ < 1`, `p₀ > 0` and `Λ > 0`, the knobs `Level3RoundCorrect`
 picks are admissible and their stretches risk at most `3δ/4` in all. -/
 theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Level3Settings)
     (θ p₀ Λ : ℝ) (L S : ℕ)
@@ -270,7 +270,7 @@ theorem tailRisk_eq (nQ nα : ℕ) {p₀ δ : ℝ} (hp₀ : 0 < p₀) (hδ : 0 <
   rw [mul_div_cancel_left₀ _ hp₀.ne', Real.exp_neg, Real.exp_log (by positivity)]
   field_simp
 
-theorem randomRoundCorrect_holds : RandomRoundCorrect := by
+theorem level3RoundCorrect_holds : Level3RoundCorrect := by
   intro α _ _ σ _ M side U θ Ω _ μ _ R P C p₀
   dsimp only
   intro hpre hθ hδ hθL hGy hyρ hρ1 hP
