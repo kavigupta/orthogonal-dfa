@@ -22,9 +22,9 @@ import OrthoDFA.Proofs.TripartiteSearch
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read
-claim, stated in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong reads, stated in
-`OrthoDFA.Level4Claim`.
+`OrthoDFA.Utils.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 3's
+random-read claim, stated in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong reads,
+stated in `OrthoDFA.Level4Claim`.
 -/
 
 namespace OrthoDFA
@@ -89,5 +89,9 @@ theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCo
 theorem eps_round_correct : Random.Eps.EpsRoundCorrect := Random.Eps.epsRoundCorrect_holds
 
 #print axioms eps_round_correct
+
+theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
+
+#print axioms adaptive_reads_bound
 
 end OrthoDFA
