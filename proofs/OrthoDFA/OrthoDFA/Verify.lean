@@ -11,6 +11,7 @@ import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Proofs.KappaShort
 import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
@@ -34,7 +35,8 @@ claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
 `OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
 level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, whose
 oracle the clustering's family reads are (`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`),
-and `LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`.
+with its version reading the prefix mass past the walk's start (`KappaRoundCorrectAt`), and
+`LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`.
 -/
 
 namespace OrthoDFA
@@ -116,6 +118,11 @@ theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
   Random.Kappa.kappaRoundCorrect_holds
 
 #print axioms kappa_round_correct
+
+theorem kappa_round_correct_at : Random.Kappa.KappaRoundCorrectAt :=
+  Random.Kappa.kappaRoundCorrectAt_holds
+
+#print axioms kappa_round_correct_at
 
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 

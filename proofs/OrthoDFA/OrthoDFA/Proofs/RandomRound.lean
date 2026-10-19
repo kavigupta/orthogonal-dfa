@@ -212,7 +212,7 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
             ≤ b s.hypotheses := by
     intro s hs hf N
     have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ Ge θgpt ηm pM θr εd' θe' θpt'
-      hs.1 hf (cls_mem read hW hs) hNe hNm (fun _ _ _ _ _ h => h)
+      hs.1 hf (hNe _ (cls_mem read hW hs)) (hNm _ (cls_mem read hW hs)) (fun _ _ _ _ _ h => h)
       (fun N => by simp) hN₁ hN₁s (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
       (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hθg hpM0
       hyM hηm hfall
