@@ -123,7 +123,7 @@ def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
         source = state_source(lambda s, path=path: hypothesis.sift(s) == path, aim)
         if source is None:
             continue
-        state.hold(("state", leaf), source, per_state)
+        state.hold(("state", leaf), source, per_state, pst.rng)
 
 
 def _boundary_source(pst, state, *, acc_threshold) -> None:
