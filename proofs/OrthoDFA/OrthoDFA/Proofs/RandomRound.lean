@@ -285,7 +285,7 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
   obtain ⟨D, _, L, hL⟩ := P
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
   obtain ⟨Ns, N₁, Ge, θgpt, ηm, pM, θr, εd', θe', θpt'⟩ := kn
-  obtain ⟨hN₁, hN₁s, hθ, hGe0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
+  obtain ⟨hN₁, hN₁s, hθ, hθs, hGe0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
     hε, hθr0, hθr1, hεd'0, hεd'1, hθe'0, hθe'1, hθpt'0, hθpt'1, hsep, hP, hps, hθg, hθg4,
     hpM0, hyM, hηm, hfall⟩ := hA
   simp only at hN₁ hN₁s hGe0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps
@@ -307,10 +307,12 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
       obtain ⟨z, hz⟩ := hω
       exact Set.mem_iUnion.2 ⟨z, hz⟩
     exact measure_mono_null this (measure_iUnion_null hwrong)
+  have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg _
+  have hn0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
   have hNe := endsNoise_le M U θ hmeas hind hU hθ D C.walkStart (n := Fintype.card σ)
-    (η := Ge - 9 * θ * (Fintype.card σ + 1)) hL hp₀ hpre
+    (η := Ge - 9 * θ * (Fintype.card σ + 1)) hL hp₀ hpre (by simp only at hθs; nlinarith)
   have hNm := midNoise_le M U θ hmeas hind hU hθ D C.walkStart (n := Fintype.card σ) (η := ηm)
-    hL hp₀ hpre hθg
+    hL hp₀ hpre (by simp only at hθs; nlinarith) hθg
   set c := ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
     stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set B := toMeasurable μ (W ∪ (Ne ∪ Nm))
@@ -348,9 +350,8 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
         rw [measure_toMeasurable]
         exact (measure_union_le _ _).trans (add_le_add le_rfl (measure_union_le _ _))
     _ ≤ c + (ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
-            (3 * (Fintype.card σ + 1) * (3 / 2 * θ)) (Ge - 9 * θ * (Fintype.card σ + 1)))
-          + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
-            ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ηm)) := by
+            (Ge - 9 * θ * (Fintype.card σ + 1)))
+          + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀ ηm)) := by
         rw [hW, zero_add]
         gcongr
     _ = _ := by

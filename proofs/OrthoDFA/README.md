@@ -97,12 +97,12 @@
   consistent with its hypothesis and tree parting on at most `ε` of the probes (`EndsWell` over
   `searchSet ∪ endsSet`, the probes that search or stop undecided at their start or end sift) or a
   harvest whose sampler yields `y`, a state being bad where it is undecided more than `1.5θ` of
-  the time, with chance at most `δ`. Here `G = 9θ(|Q| + 1) + 6 p₀ log(8K / δ)`, with
+  the time, with chance at most `δ`. Here `G = 9θ(|Q| + 1) + 2 p₀ log(8K / δ)`, with
   `K = (1 + (|Q| + 1)³|Σ|)^|Q| (|Q| + 3)^((|Q| + 2)|Σ|)` counting the trees level 3 can grow with an
   edge map into each one's leaves. But for chance `δ/8` each, the probes stopping undecided at
-  their start or end at a good state are at most `9θ(|Q| + 1) + 3 p₀ log(8K / δ)`, and those
+  their start or end at a good state are at most `9θ(|Q| + 1) + p₀ log(8K / δ)`, and those
   stopping at an undecided middle at a good state at most `3θ(L + 1)(|Q| + 1)` of the searches
-  plus `3 p₀ log(8K / δ)`: a search reads only decided sifts, so it is independent of each string
+  plus `p₀ log(8K / δ)`: a search reads only decided sifts, so it is independent of each string
   it might stop at. Only the ends tie `θ` to `ε`, and without `L`. The sampler (`harvestLaw`) draws a fresh probe,
   walks it under the final hypothesis and finds the probe's undecided string at the site, as the
   tests counted it.

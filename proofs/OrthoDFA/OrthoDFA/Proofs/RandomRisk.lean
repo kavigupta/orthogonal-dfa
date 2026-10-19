@@ -25,10 +25,9 @@ noncomputable def binE (n : ℕ) (p : ℝ) (f : ℕ → ℝ) : ℝ :=
 
 /-- The chance that, for some tree of at most `nQ + 2` leaves grown by splits on a letter and a
 midfix where two leaves part, and some edge map into its leaves, a sum over the probes exceeds
-twice `θ₀` of its bound by `η`, each pair's tail at scale `2 p₀ (1 + 4θ₀)`. -/
-noncomputable def tailRisk (nQ nα : ℕ) (p₀ θ₀ η : ℝ) : ℝ :=
-  ((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ)
-    * Real.exp (-(η / (2 * p₀ * (1 + 4 * θ₀))))
+its bound by `η`, each pair's tail at scale `p₀`. -/
+noncomputable def tailRisk (nQ nα : ℕ) (p₀ η : ℝ) : ℝ :=
+  ((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ) * Real.exp (-(η / p₀))
 
 /-- What one stretch at tests' level `a` risks over its first `Ns` probes: a test firing at some
 look at a site whose harvest would not end well, the middles' twice, or a false success, each at
@@ -78,18 +77,20 @@ structure Knobs where
   θpt' : ℝ
 
 /-- The relations the knobs must meet, at the settings `C`, the probes' greatest length `L`, the
-ending's tolerance `ε` and the yield `y`: the ends' rate is at least `max (2Ge) y`, `Ge` bounding
-what the ends' sampler finds at good read-states; the middles' sampler finds there at most `θgpt`
-of the searches plus `ηm`, `θgpt` at least twice `(L + 1)(|Q| + 1) · 1.5θ` and at most a quarter
-of `middleRate`, and `4ηm ≤ pM`; and against a rate `pM ≥ y` of undecided middles per probe,
-with searches at least `searchShare` of the probes, the middles' test's likelihood ratio falls on
-average, its factor `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search,
-`μ = middleRate` and `m = middleAlternative`. -/
+ending's tolerance `ε` and the yield `y`: `36 (L + 1)(|Q| + 1) θ ≤ 1`, which the tails at scale
+`p₀` need; the ends' rate is at least `max (2Ge) y`, `Ge` bounding what the ends' sampler finds at
+good read-states; the middles' sampler finds there at most `θgpt` of the searches plus `ηm`,
+`θgpt` at least twice `(L + 1)(|Q| + 1) · 1.5θ` and at most a quarter of `middleRate`, and
+`4ηm ≤ pM`; and against a rate `pM ≥ y` of undecided middles per probe, with searches at least
+`searchShare` of the probes, the middles' test's likelihood ratio falls on average, its factor
+`m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search, `μ = middleRate` and
+`m = middleAlternative`. -/
 structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (L : ℕ) (C : Level3Settings)
     (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
   θ_nonneg : 0 ≤ θ
+  θ_small : 36 * (L + 1) * (Fintype.card σ + 1) * θ ≤ 1
   Ge_nonneg : 0 ≤ kn.Ge
   δ_pos : 0 < C.δ
   endsRate_pos : 0 < C.endsRate
@@ -126,10 +127,8 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (L 
 hypotheses' level. -/
 noncomputable def roundBoundAt (σ : Type*) [Fintype σ] [Fintype α] (θ p₀ : ℝ) (L : ℕ)
     (C : Level3Settings) (kn : Knobs) : ℝ :=
-  tailRisk (Fintype.card σ) (Fintype.card α) p₀ (3 * (Fintype.card σ + 1) * (3 / 2 * θ))
-      (kn.Ge - 9 * θ * (Fintype.card σ + 1))
-    + tailRisk (Fintype.card σ) (Fintype.card α) p₀ ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ))
-      kn.ηm
+  tailRisk (Fintype.card σ) (Fintype.card α) p₀ (kn.Ge - 9 * θ * (Fintype.card σ + 1))
+    + tailRisk (Fintype.card σ) (Fintype.card α) p₀ kn.ηm
     + ∑ j ∈ Finset.range (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
         + 2 * Fintype.card α + 1),
       stretchRisk C (C.level j) kn.Ns kn.N₁ kn.θr kn.εd' kn.θe' kn.θpt'

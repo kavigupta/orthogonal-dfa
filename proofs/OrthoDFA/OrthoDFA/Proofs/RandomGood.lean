@@ -204,14 +204,14 @@ omit x in
 open scoped Classical in
 /-- At one tree and edge map, the probes stopping at an undecided middle at a good read-state
 exceed twice `θ₀ = (L + 1)(|Q| + 1) · 1.5θ` of the searches by `η` with chance at most
-`exp(−η / (2 p₀ (1 + 4θ₀)))`. -/
+`exp(−η / p₀)`, where `θ₀ ≤ 1/8`. -/
 theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ) :
+    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ)
+    (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
           * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
         < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)}
-      ≤ ENNReal.ofReal
-        (Real.exp (-(η / (2 * p₀ * (1 + 4 * ((L + 1) * (n + 1) * (3 / 2 * θ))))))) := by
+      ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
   set θ₀ : ℝ := (L + 1) * (n + 1) * (3 / 2 * θ)
   have hθ₀ : 0 ≤ θ₀ := by positivity
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
@@ -220,11 +220,11 @@ theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
     if searches (probeOrAgree rd T E k x) = true then 1 else 0
   have h01 : ∀ (P : Prop) [Decidable P], 0 ≤ (if P then (1 : ℝ) else 0)
       ∧ (if P then (1 : ℝ) else 0) ≤ 1 := fun P _ => by split_ifs <;> norm_num
-  have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ one_pos zero_le_one (fun x => pot k x T)
+  have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ hθ8 (fun x => pot k x T)
     (fun x z hz => (pot_pre hz).2) uf tf
     (fun x rd rd' h => by simp only [uf, goodAt_congr M U θ T E k x .middles h])
     (fun x rd rd' h => by simp only [tf, probeOrAgree_congr rd T E k x h])
-    (fun rd x _ => h01 _) (fun rd x _ => by rw [mul_one]; exact h01 _) (η := η) (L := L)
+    (fun rd x _ => h01 _) (fun rd x _ => h01 _) (η := η) (L := L)
     fun x hx => by
       simp only [uf, tf]
       rw [integral_ite_strings read hmeas (pot k x T)
@@ -239,7 +239,7 @@ theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
       have h2 := mem_upTo.1 hx
       have : (pot k x T).card ≤ (L + 1) * (n + 1) := h1.trans (Nat.mul_le_mul (by omega) hT)
       exact mul_le_mul_of_nonneg_right (by exact_mod_cast this) (by positivity)
-  refine le_trans (measure_mono fun ω hω => ?_) (hTB.trans (le_of_eq (by ring_nf)))
+  refine le_trans (measure_mono fun ω hω => ?_) hTB
   simp only [Set.mem_ofPred_eq] at hω ⊢
   rw [measureReal_eq_sum_upTo D hL, measureReal_eq_sum_upTo D hL] at hω
   simpa only [uf, tf, Set.mem_ofPred_eq] using hω
@@ -247,19 +247,19 @@ theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
 omit x in
 open scoped Classical in
 /-- At one tree and edge map, the probes stopping undecided at their start or end at a good
-read-state exceed twice `3(|Q| + 1) · 1.5θ` by `η` with chance at most
-`exp(−η / (2 p₀ (1 + 4 · 3(|Q| + 1) · 1.5θ)))`. -/
+read-state exceed twice `θ₀ = 3(|Q| + 1) · 1.5θ` by `η` with chance at most `exp(−η / p₀)`, where
+`θ₀ ≤ 1/8`. -/
 theorem ends_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ) :
+    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ)
+    (hθ8 : 8 * (3 * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | 2 * (3 * (n + 1) * (3 / 2 * θ)) + η
         < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .ends)}
-      ≤ ENNReal.ofReal
-        (Real.exp (-(η / (2 * p₀ * (1 + 4 * (3 * (n + 1) * (3 / 2 * θ))))))) := by
+      ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
   set θ₀ : ℝ := 3 * (n + 1) * (3 / 2 * θ)
   have hθ₀ : 0 ≤ θ₀ := by positivity
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
     if x ∈ goodAt rd k ⟨T, E⟩ M U θ .ends then 1 else 0
-  have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ one_pos zero_le_one (fun x => pot k x T)
+  have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ hθ8 (fun x => pot k x T)
     (fun x z hz => (pot_pre hz).2) uf (fun _ _ => 1)
     (fun x rd rd' h => by simp only [uf, goodAt_congr M U θ T E k x .ends h])
     (fun _ _ _ _ => rfl) (fun rd x _ => by simp only [uf]; split_ifs <;> norm_num)
@@ -271,7 +271,7 @@ theorem ends_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
           goodAt_congr M U θ T E k x .ends h]
       simp only [integral_const, probReal_univ, smul_eq_mul, mul_one]
       exact ends_mean_le M U θ T E k x hmeas hind hU hθ hT
-  refine le_trans (measure_mono fun ω hω => ?_) (hTB.trans (le_of_eq (by ring_nf)))
+  refine le_trans (measure_mono fun ω hω => ?_) hTB
   simp only [Set.mem_ofPred_eq] at hω ⊢
   rw [measureReal_eq_sum_upTo D hL] at hω
   have hs : ∑ x ∈ upTo L, D.real {x} * (1 : ℝ) ≤ 1 := by
@@ -342,16 +342,17 @@ include hmeas hind hU hθ hL hp₀ hpre
 /-- Over every tree of `classSet n` and edge map into its leaves, the probes stopping at an
 undecided middle at a good read-state are at most `θgpt` of the searches plus `η`, but for
 `tailRisk`. -/
-theorem midNoise_le {θgpt : ℝ} (hθg : 2 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ θgpt) :
+theorem midNoise_le (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgpt : ℝ}
+    (hθg : 2 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ θgpt) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
         D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)
           ≤ θgpt * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η}
-      ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ ((L + 1) * (n + 1) * (3 / 2 * θ)) η) := by
+      ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ η) := by
   set B : DTree α → Edges α → Set Ω := fun T E => {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
       * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
     < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)}
   refine le_trans (measure_mono fun ω hω => ?_) ((union_le n B fun T hT E _ =>
-    mid_tail_one M U θ T E k D hL hp₀ hpre (mids_le_of_class hT) hmeas hind hU hθ).trans
+    mid_tail_one M U θ T E k D hL hp₀ hpre (mids_le_of_class hT) hmeas hind hU hθ hθ8).trans
     (le_of_eq (by unfold tailRisk; push_cast; ring_nf)))
   simp only [Set.mem_ofPred_eq, not_forall, not_le] at hω
   obtain ⟨T, hT, E, hE, hlt⟩ := hω
@@ -373,14 +374,14 @@ theorem midNoise_le {θgpt : ℝ} (hθg : 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
 
 /-- Over every tree of `classSet n` and edge map into its leaves, the probes stopping undecided
 at their start or end at a good read-state are at most `9(n + 1)θ + η`, but for `tailRisk`. -/
-theorem endsNoise_le :
+theorem endsNoise_le (hθ8 : 8 * (3 * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
         D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .ends) ≤ 9 * θ * (n + 1) + η}
-      ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ (3 * (n + 1) * (3 / 2 * θ)) η) := by
+      ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ η) := by
   set B : DTree α → Edges α → Set Ω := fun T E => {ω | 2 * (3 * (n + 1) * (3 / 2 * θ)) + η
     < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .ends)}
   refine le_trans (measure_mono fun ω hω => ?_) ((union_le n B fun T hT E _ =>
-    ends_tail_one M U θ T E k D hL hp₀ hpre (mids_le_of_class hT) hmeas hind hU hθ).trans
+    ends_tail_one M U θ T E k D hL hp₀ hpre (mids_le_of_class hT) hmeas hind hU hθ hθ8).trans
     (le_of_eq (by unfold tailRisk; push_cast; ring_nf)))
   simp only [Set.mem_ofPred_eq, not_forall, not_le] at hω
   obtain ⟨T, hT, E, hE, hlt⟩ := hω
