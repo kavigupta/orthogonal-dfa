@@ -12,7 +12,7 @@ from orthogonal_dfa.l_star.learn import (
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
-from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES, TOO_BIG
+from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import rate_side
 from orthogonal_dfa.l_star.structures import (
@@ -262,14 +262,13 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
 
 
 def assert_searches_end_inside_the_proofs_budget(endings):
-    """No round's counterexample search ran out of probes or leaves."""
+    """No round's counterexample search ran out of probes."""
     assert endings, "no rounds recorded -- did the tracker reach synthesis?"
     for ending in endings:
-        assert ending.kind not in (OUT_OF_PROBES, TOO_BIG), (
+        assert ending.kind != OUT_OF_PROBES, (
             f"a counterexample search ended {ending.kind}: if this assertion fires, it's "
             "evidence that the gap between reality and the proof is less egregious "
-            "than we thought (the proof's huge probe budget, or its leaf cap, is "
-            "binding in practice)"
+            "than we thought (the proof's huge probe budget is binding in practice)"
         )
 
 

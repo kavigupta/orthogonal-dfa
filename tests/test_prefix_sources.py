@@ -19,9 +19,9 @@ from orthogonal_dfa.l_star.prefix_sources import (
     state_source,
 )
 from orthogonal_dfa.l_star.rejection_source import SourceDry
-from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, Ending
+from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, Ending
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from tests.counterexample_common import ODD, PARITY_EDGES, parity_cut, quiet_search
+from tests.counterexample_common import PARITY_EDGES, parity_cut, quiet_search
 
 
 class _Pst:
@@ -199,7 +199,7 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
 class TestReplay(unittest.TestCase):
     def test_a_replay_reads_a_fresh_probe_where_the_round_harvested(self):
         search = quiet_search(parity_cut([b"\x01\x00"]), PARITY_EDGES)
-        ending = Ending(HARVEST_EDGE, [], (ODD, 0))
+        ending = Ending(HARVEST_ENDS, [])
         self.assertEqual(
             [b"\x01\x00"],
             Replay(search, harvest_reader(ending), lambda: b"\x01\x00").sample(),
