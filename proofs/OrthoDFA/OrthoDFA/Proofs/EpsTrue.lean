@@ -1,4 +1,4 @@
-import OrthoDFA.CoveredStart
+import OrthoDFA.Utils.CoveredStart
 import OrthoDFA.Proofs.RandomTree
 import OrthoDFA.Proofs.TripartiteSearch
 

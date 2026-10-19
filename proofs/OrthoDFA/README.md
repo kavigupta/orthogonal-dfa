@@ -129,11 +129,6 @@
   rarer side's `max ε (κ U)` is at most `ε + κ U`.
 - `OrthoDFA/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band, with its reads
   and each state's read distribution.
-- `OrthoDFA/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
-  edges learned and true and is read on its true side, the hypothesis from a state's true leaf
-  (`Random.leafOf`) misjudges at most `η` of the uniform strings of length `L` when re-rooting the
-  target at that state classifies `1 - η` of them with its run staying in `S`
-  (`rerootAccuracy`). Also `uniformStrings`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -155,6 +150,12 @@ need not be read to trust the claims above.
   queried in rounds, each fixed by what it and the earlier rounds read; some query of the first `n`
   rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
   most `b`, `m` of them reading in `V`.
+
+- `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
+  edges learned and true and is read on its true side, the hypothesis from a state's true leaf
+  (`Random.leafOf`) misjudges at most `η` of the uniform strings of length `L` when re-rooting the
+  target at that state classifies `1 - η` of them with its run staying in `S`
+  (`rerootAccuracy`). Also `uniformStrings`.
 
 ## Scope
 

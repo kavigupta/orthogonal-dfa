@@ -1,4 +1,4 @@
-import OrthoDFA.CoveredStart
+import OrthoDFA.Utils.CoveredStart
 import OrthoDFA.Proofs.RandomRisk
 
 /-! # Uniform strings of one length: their mass, and their prefixes' -/
