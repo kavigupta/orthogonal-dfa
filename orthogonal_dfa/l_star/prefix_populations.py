@@ -59,14 +59,21 @@ class PoolState:
         the low bit of its keyed hash."""
         return bool(blake2b(string, key=self.key, digest_size=1).digest()[0] & 1)
 
+    def tabled(self) -> set:
+        """Every string some population's table holds."""
+        return self.seen.union(*self.held.values())
+
     def split_draws(self, label, source, count) -> list:
         """count table-side draws of source; reserve-side draws go to the
-        reserve of label and are not counted."""
+        reserve of label and are not counted.  A reserve-side draw already in
+        a table (a harvested string, say) is dropped."""
         table_draws = []
+        tabled = self.tabled()
         while len(table_draws) < count:
             string = source.draw()
             if self.in_reserve(string):
-                self.reserves.setdefault(label, []).append(string)
+                if string not in tabled:
+                    self.reserves.setdefault(label, []).append(string)
             else:
                 table_draws.append(string)
         return table_draws
@@ -138,8 +145,9 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     taken, reserve[:] = reserve[:wanted], reserve[wanted:]
     # Table-side draws are discarded: they are in no table.
     fresh = []
+    tabled = state.tabled()
     while len(taken) + len(fresh) < wanted:
         string = source.draw()
-        if state.in_reserve(string):
+        if state.in_reserve(string) and string not in tabled:
             fresh.append(string)
     return taken + sorted(fresh)

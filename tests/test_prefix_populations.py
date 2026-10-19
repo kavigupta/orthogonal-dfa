@@ -199,6 +199,22 @@ class TestCertificationReserve(unittest.TestCase):
             self.assertTrue(all(state.in_reserve(w) for w in state.reserves[label]))
             self.assertFalse(any(state.in_reserve(w) for w in state.held[label]))
 
+    def test_a_tabled_string_never_enters_a_reserve(self):
+        state = PoolState([], _KEY)
+        words = _words(300)
+        reserve_side = [w for w in words if state.in_reserve(w)][:10]
+        state.take(reserve_side[0], None)
+        state.held[("state", 1)] = [reserve_side[1]]
+        label = ("state", 0)
+
+        state.hold(label, _ProvenSource(words, worth=True), 20)
+        self.assertFalse(set(reserve_side[:2]) & set(state.reserves[label]))
+        self.assertTrue(state.reserves[label])
+
+        state.sources[label] = _ProvenSource(list(words), worth=True)
+        got = prefixes_for_split(None, state, label, 20)
+        self.assertFalse(set(reserve_side[:2]) & set(got))
+
     def test_the_key_changes_the_sides(self):
         words = _words(200)
         a, b = PoolState([], b"a"), PoolState([], b"b")
