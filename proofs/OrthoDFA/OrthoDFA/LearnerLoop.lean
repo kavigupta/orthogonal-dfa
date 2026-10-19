@@ -7,17 +7,16 @@ import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 Each round of `indecisiveLStarLoop` clusters a suffix family over the populations so far, runs
 level 3's algorithm (`indecisiveLStarLevel3`) reading that family, and stops at the first round
-that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population of every later round:
-it draws a fresh probe from the probes' distribution `D`, walks it under the round's last
-hypothesis and takes its undecided strings at the harvest's site, as the round reads them. The first population is `D` itself. A population's
-draws are made from uniforms (`drawFrom`).
+that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population
+of every later round: it draws a fresh probe from the probes' distribution `D`, walks it under the
+round's last hypothesis and takes its undecided strings at the harvest's site, as the round reads
+them. The first population is `D` itself. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about: the family is `clusterAt` at a
 state of the schedule at which `ret` returns. The round reads the family without its seed, at the
 gate's cut: a string reads accept at `hi + 1` or more of the family's votes and reject at `lo` or
-fewer. Without its seed the family is suffix draws of one length, so it is suffix-free.
-
-The whole run reads one noise, fixed per string as the Python's is.
+fewer. Without its seed the family is suffix draws of one length, so it is suffix-free. The whole
+run reads one noise, fixed per string as the Python's is.
 
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string

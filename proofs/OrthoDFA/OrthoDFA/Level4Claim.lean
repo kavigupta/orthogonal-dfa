@@ -1,13 +1,13 @@
 import OrthoDFA.Level3Claim
 
 /-!
-# `EpsRoundCorrect`: level 3 with rare wrong reads ends well but for a small chance
+# `Level4RoundCorrect`: level 3 with rare wrong reads ends well but for a small chance
 
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
 most `εw` (`EpsReadOracle`), otherwise as `ReadOracle` says. A step that reads no string wrong
 splits and learns only on real targets, and level 3's claim holds while every step is such.
 
-`EpsRoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
+`Level4RoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
 each rather than `δ/8`, and that wrong reads are rare enough that no string the round reads is
 read wrong but for chance `δ/8`.
 -/
@@ -31,8 +31,14 @@ structure EpsReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ 
   undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
   wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} ≤ εw
 
+end Eps
+
+end Random
+
+open MeasureTheory Random Random.Eps
+
 /-- Level 3's algorithm, with reads sometimes wrong, fails to end well with chance at most `δ`. -/
-def EpsRoundCorrect : Prop :=
+def Level4RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α)
@@ -78,9 +84,5 @@ def EpsRoundCorrect : Prop :=
               yield := y,
               ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
-
-end Eps
-
-end Random
 
 end OrthoDFA

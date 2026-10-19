@@ -53,10 +53,10 @@ def CoveredStartCorrect : Prop :=
     ∀ (S : Set σ),
     (∀ q ∈ S, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
       = some (Random.leafOf M side H.tree (M.step q a), w)) →
-    (∀ q ∈ S, side q = decide (q ∈ M.accept)) → ∀ (L : ℕ) (q₀ : σ) {η : ℝ},
-    1 - η ≤ rerootAccuracy M L S q₀ →
+    (∀ q ∈ S, side q = decide (q ∈ M.accept)) → ∀ (L : ℕ) (q₀ : σ) {γ : ℝ},
+    1 - γ ≤ rerootAccuracy M L S q₀ →
     (uniformStrings L).real {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x
-      (M.eval x.toList ∈ M.accept)} ≤ η
+      (M.eval x.toList ∈ M.accept)} ≤ γ
 
 end OrthoDFA
 

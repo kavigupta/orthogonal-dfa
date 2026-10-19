@@ -67,10 +67,10 @@ variable [Nonempty α]
 theorem classify_start_le (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .node 1 r a) (S : Set σ)
     (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
       = some (Random.leafOf M side H.tree (M.step q a), w))
-    (hside : ∀ q ∈ S, side q = decide (q ∈ M.accept)) (L : ℕ) (q₀ : σ) {η : ℝ}
-    (hacc : 1 - η ≤ rerootAccuracy M L S q₀) :
+    (hside : ∀ q ∈ S, side q = decide (q ∈ M.accept)) (L : ℕ) (q₀ : σ) {γ : ℝ}
+    (hacc : 1 - γ ≤ rerootAccuracy M L S q₀) :
     (uniformStrings L).real {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x
-      (M.eval x.toList ∈ M.accept)} ≤ η := by
+      (M.eval x.toList ∈ M.accept)} ≤ γ := by
   set good := {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q₀ (prefixOf x i).toList ∈ S)
     ∧ (M.evalFrom q₀ x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
   have hsub : {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x (M.eval x.toList ∈ M.accept)}
@@ -84,13 +84,13 @@ theorem classify_start_le (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .nod
     rw [measureReal_def, uniformStrings_length, ENNReal.toReal_zero]
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ((measureReal_union_le _ _).trans ?_)
   rw [hnull, add_zero, measureReal_compl MeasurableSpace.measurableSet_top, probReal_univ]
-  have : 1 - η ≤ (uniformStrings L).real good := hacc
+  have : 1 - γ ≤ (uniformStrings L).real good := hacc
   linarith
 
 end Start
 
 theorem coveredStartCorrect_holds : CoveredStartCorrect := by
-  intro α _ _ _ σ M side H hroot S hE hside L q₀ η hacc
+  intro α _ _ _ σ M side H hroot S hE hside L q₀ γ hacc
   exact classify_start_le M side H hroot S hE hside L q₀ hacc
 
 end OrthoDFA
