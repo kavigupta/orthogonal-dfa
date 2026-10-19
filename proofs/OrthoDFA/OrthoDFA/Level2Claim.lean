@@ -53,9 +53,12 @@ def Correct : Prop :=
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
-            ¬ EndsWell M (AllUndecided read M) D ε
-              {x | Disagrees read result.hypothesis C.walkStart x}
-              C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis) y
+            ¬ EndsWell
+              { target := M, bad := AllUndecided read M, probes := D, disagreeRate := ε,
+                disagree := {x | Disagrees read result.hypothesis C.walkStart x},
+                spreadFrom := C.walkStart,
+                harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
+                yield := y }
               result.ending}
         ≤ δ
 
