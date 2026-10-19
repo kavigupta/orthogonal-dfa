@@ -32,8 +32,8 @@ def Spread [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (ν : Measure 
 average. -/
 def Yields [Countable α] (ν : Measure (FreeMonoid α)) (y : ℝ) : Prop := y ≤ ν.real Set.univ
 
-/-- What a round's ending is judged against. -/
-structure EndSpec (α σ H : Type*) [Countable α] where
+/-- A round's ending, with what it is judged against. -/
+structure RoundOutcome (α σ H : Type*) [Countable α] where
   target : DFA α σ
   /-- The states the reads handle poorly; a harvest must be mostly at them. -/
   badStates : σ → Prop
@@ -46,9 +46,11 @@ structure EndSpec (α σ H : Type*) [Countable α] where
   /-- What the harvest `h`'s sampler finds. -/
   harvestLaw : H → Measure (FreeMonoid α)
   yield : ℝ
+  ending : RoundEnd H
 
 open scoped Classical in
-def EndsWell [Countable α] {σ H : Type*} (s : EndSpec α σ H) : RoundEnd H → Prop
+def EndsWell [Countable α] {σ H : Type*} (s : RoundOutcome α σ H) : Prop :=
+  match s.ending with
   | .consistent => s.probes.real s.disagree ≤ s.disagreeRate
   | .harvest h =>
     (s.harvestLaw h).real Set.univ
