@@ -140,6 +140,23 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual([None] * 6, endings[:6])
         self.assertEqual(SUCCESS, endings[6].kind)
 
+    def test_an_undecided_end_delays_success(self):
+        def probes_to_success(undecided):
+            search = quiet_search(
+                parity_cut(undecided),
+                PARITY_EDGES,
+                disagreement_rate=0.5,
+                disagreement_alternative=0.1,
+                level=0.01,
+            )
+            search.step(b"\x01\x01\x01")
+            while search.step(b"\x01\x00") is None:
+                pass
+            return search.probes
+
+        self.assertEqual(8, probes_to_success([]))
+        self.assertEqual(12, probes_to_success([b"\x01\x01\x01"]))
+
     def test_a_change_starts_the_counts_afresh(self):
         search = quiet_search(parity_cut(()), {**PARITY_EDGES}, disagreement_rate=0.5)
         del search.hypothesis.edges[(ODD, 0)]

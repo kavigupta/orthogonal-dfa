@@ -74,11 +74,15 @@ def ending_test(
 def succeeds_at(
     counts: SiteCounts, config: CounterexampleSearchConfig, probes: int
 ) -> bool:
-    """The success test, had the hypothesis held for ``probes`` probes."""
+    """The success test, had the hypothesis held for ``probes`` probes.
+
+    Undecided ends count against success alongside searches, as in ``runTests``
+    of ``OrthoDFA/Level3.lean``.
+    """
     return seq_rate(
         config.disagreement_rate,
         config.disagreement_alternative,
         config.level,
         probes,
-        counts.searches,
+        counts.searches + len(counts.ends),
     )
