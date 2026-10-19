@@ -73,8 +73,8 @@ more than `1.5θ` of the time, with chance at most `δ`. A consistent ending has
 probes searching, changing the hypothesis or stopping undecided at their start or end sift, and
 a harvest's sampler yields `y`. `K` counts the trees level 3 can grow with an edge map into each
 one's leaves; but for chance `δ / 8` each, the probes stopping undecided at their start or end at
-a good state are at most `G - 3 p₀ log(8K/δ)`, and those stopping at an undecided middle at a good
-state at most `3 (L + 1)(|Q| + 1) θ` of the searches plus `3 p₀ log(8K/δ)`. -/
+a good state are at most `G - p₀ log(8K/δ)`, and those stopping at an undecided middle at a good
+state at most `3 (L + 1)(|Q| + 1) θ` of the searches plus `p₀ log(8K/δ)`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -87,7 +87,7 @@ def RandomRoundCorrect : Prop :=
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    let G := 9 * θ * (nQ + 1) + 6 * p₀ * Real.log (8 * K / δ)
+    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (8 * K / δ)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
     48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →

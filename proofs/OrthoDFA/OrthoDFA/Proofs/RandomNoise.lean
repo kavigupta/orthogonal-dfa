@@ -6,8 +6,8 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 
 The reads are independent across strings. A probe reads only strings sharing its length-`k`
 prefix (`pot_pre`), so per-probe quantities read through `pot` are independent across prefixes,
-and a bounded increment whose mean is at most `θ₀` of a bounded count's exceeds twice that by `η`
-with chance at most `exp(−η / (2 p₀ B (1 + 4θ₀R)))` (`block_tail`). An event of finitely many
+and an increment in `[0, 1]` whose mean is at most `θ₀ ≤ 1/8` of a count's exceeds twice that by
+`η` with chance at most `exp(−η / p₀)` (`block_tail`). An event of finitely many
 reads that making `z` undecided can only falsify is no likelier with `z` undecided (`forced_le`).
 `classSet` counts the trees level 3 can grow.
 -/
@@ -194,55 +194,69 @@ section Mgf
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-/-- A bounded increment whose mean is at most `θ` of a bounded count's, less twice that, has
-exponential moment at most `1` at any scale `c` with `c B (1 + 4θR) ≤ 1/2`. -/
-theorem mgf_real (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {θ B R c : ℝ} (hθ : 0 ≤ θ)
-    (hB : 0 ≤ B) (hR : 0 ≤ R) (hc : 0 < c) (hcB : c * B * (1 + 4 * θ * R) ≤ 1 / 2)
-    (hU : ∀ ω, 0 ≤ U ω ∧ U ω ≤ B) (hN : ∀ ω, 0 ≤ N ω ∧ N ω ≤ B * R)
+theorem exp_chord {t : ℝ} (ht0 : 0 ≤ t) (ht1 : t ≤ 1) (a : ℝ) :
+    Real.exp (a * t) ≤ 1 + (Real.exp a - 1) * t := by
+  have h := convexOn_exp.2 (Set.mem_univ a) (Set.mem_univ 0) ht0 (sub_nonneg.2 ht1) (by ring)
+  simp only [smul_eq_mul, mul_zero, add_zero, Real.exp_zero, mul_one] at h
+  rw [mul_comm a t]
+  linarith
+
+theorem exp_one_sub_mul_le {θ : ℝ} (hθ : 0 ≤ θ) (hθ8 : 8 * θ ≤ 1) :
+    (Real.exp 1 - 1) * θ ≤ 1 - Real.exp (-(2 * θ)) := by
+  have hq := Real.quadratic_le_exp_of_nonneg (show 0 ≤ 2 * θ by linarith)
+  have hpos : 0 < 1 + 2 * θ + (2 * θ) ^ 2 / 2 := by positivity
+  have hinv : Real.exp (-(2 * θ)) ≤ 1 / (1 + 2 * θ + (2 * θ) ^ 2 / 2) := by
+    rw [Real.exp_neg, ← one_div]
+    exact one_div_le_one_div_of_le hpos hq
+  have he : Real.exp 1 < 2.7182818286 := Real.exp_one_lt_d9
+  have hkey : 1 / (1 + 2 * θ + (2 * θ) ^ 2 / 2) ≤ 1 - (Real.exp 1 - 1) * θ := by
+    rw [div_le_iff₀ hpos]
+    nlinarith [mul_nonneg hθ hθ, mul_nonneg (mul_nonneg hθ hθ) hθ]
+  linarith
+
+/-- A count-bounded increment whose mean is at most `θ ≤ 1/8` of a bounded count's, less twice
+that, has exponential moment at most `1` at the scale `c` where `c` times the bound is at most
+`1`. -/
+theorem mgf_chord (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {θ B c : ℝ}
+    (hθ : 0 ≤ θ) (hθ8 : 8 * θ ≤ 1) (hc : 0 < c) (hcB : c * B ≤ 1)
+    (hU : ∀ ω, 0 ≤ U ω ∧ U ω ≤ B) (hN : ∀ ω, 0 ≤ N ω ∧ N ω ≤ B)
     (hmean : ∫ ω, U ω ∂μ ≤ θ * ∫ ω, N ω ∂μ) :
     ∫⁻ ω, ENNReal.ofReal (Real.exp (c * (U ω - 2 * θ * N ω))) ∂μ ≤ 1 := by
-  have hcBθR : 0 ≤ c * B * (θ * R) := mul_nonneg (mul_nonneg hc.le hB) (mul_nonneg hθ hR)
-  set A := c + c ^ 2 * B
-  set B' := 2 * θ * c - 4 * θ ^ 2 * c ^ 2 * B * R
-  set g : Ω → ℝ := fun ω => 1 + A * U ω - B' * N ω
+  set a := Real.exp 1 - 1
+  set b := 1 - Real.exp (-(2 * θ))
+  have ha : 0 ≤ a := by have := Real.add_one_le_exp (1 : ℝ); simp only [a]; linarith
+  have hb : 0 ≤ b := by
+    have := Real.exp_le_one_iff.2 (show -(2 * θ) ≤ 0 by linarith); simp only [b]; linarith
+  set g : Ω → ℝ := fun ω => 1 + a * c * U ω - b * c * N ω
   have hUi : Integrable U μ := Integrable.of_bound hUm.aestronglyMeasurable B
     (Filter.Eventually.of_forall fun ω => by
       rw [Real.norm_eq_abs, abs_of_nonneg (hU ω).1]; exact (hU ω).2)
-  have hNi : Integrable N μ := Integrable.of_bound hNm.aestronglyMeasurable (B * R)
+  have hNi : Integrable N μ := Integrable.of_bound hNm.aestronglyMeasurable B
     (Filter.Eventually.of_forall fun ω => by
       rw [Real.norm_eq_abs, abs_of_nonneg (hN ω).1]; exact (hN ω).2)
-  have hgi : Integrable g μ := ((integrable_const 1).add (hUi.const_mul A)).sub (hNi.const_mul B')
-  have hcBR : c * B ≤ 1 / 2 := by nlinarith
+  have hgi : Integrable g μ :=
+    ((integrable_const 1).add (hUi.const_mul (a * c))).sub (hNi.const_mul (b * c))
   have hpt : ∀ ω, Real.exp (c * (U ω - 2 * θ * N ω)) ≤ g ω := by
     intro ω
     obtain ⟨hU0, hU1⟩ := hU ω
     obtain ⟨hN0, hN1⟩ := hN ω
-    set y := c * (U ω - 2 * θ * N ω)
-    have hy1 : |y| ≤ 1 := by
-      rw [abs_le]
-      constructor
-      · have : c * (2 * θ * N ω) ≤ 1 := by
-          calc c * (2 * θ * N ω) ≤ c * (2 * θ * (B * R)) := by gcongr
-            _ ≤ c * B * (1 + 4 * θ * R) := by nlinarith
-            _ ≤ 1 := by linarith
-        nlinarith [mul_nonneg hc.le hU0]
-      · have : c * U ω ≤ 1 := by
-          calc c * U ω ≤ c * B := by gcongr
-            _ ≤ 1 := by linarith
-        nlinarith [mul_nonneg hc.le (mul_nonneg hθ hN0)]
-    have hexp := Real.abs_exp_sub_one_sub_id_le hy1
-    have hsq : y ^ 2 ≤ c ^ 2 * (B * U ω + 4 * θ ^ 2 * (B * R) * N ω) := by
-      simp only [y]
-      rw [mul_pow]
-      gcongr
-      nlinarith [mul_le_mul_of_nonneg_left hU1 hU0, mul_le_mul_of_nonneg_left hN1 hN0,
-        mul_nonneg hθ (mul_nonneg hU0 hN0)]
-    have h1 : Real.exp y ≤ 1 + y + y ^ 2 := by
-      have := (abs_le.1 hexp).2
-      linarith
-    have h2 : 1 + y + c ^ 2 * (B * U ω + 4 * θ ^ 2 * (B * R) * N ω) = g ω := by
-      simp only [g, A, B', y]; ring
-    linarith
+    have hu0 : 0 ≤ c * U ω := mul_nonneg hc.le hU0
+    have hu1 : c * U ω ≤ 1 := (mul_le_mul_of_nonneg_left hU1 hc.le).trans hcB
+    have hn0 : 0 ≤ c * N ω := mul_nonneg hc.le hN0
+    have hn1 : c * N ω ≤ 1 := (mul_le_mul_of_nonneg_left hN1 hc.le).trans hcB
+    have h1 := exp_chord hu0 hu1 1
+    have h2 := exp_chord hn0 hn1 (-(2 * θ))
+    rw [one_mul] at h1
+    have hsplit : Real.exp (c * (U ω - 2 * θ * N ω))
+        = Real.exp (c * U ω) * Real.exp (-(2 * θ) * (c * N ω)) := by
+      rw [← Real.exp_add]; ring_nf
+    rw [hsplit]
+    calc Real.exp (c * U ω) * Real.exp (-(2 * θ) * (c * N ω))
+        ≤ (1 + a * (c * U ω)) * (1 - b * (c * N ω)) := by
+          refine mul_le_mul h1 (by simp only [b]; linarith) (Real.exp_pos _).le (by positivity)
+      _ ≤ g ω := by
+          simp only [g]
+          nlinarith [mul_nonneg (mul_nonneg ha hb) (mul_nonneg hu0 hn0)]
   calc ∫⁻ ω, ENNReal.ofReal (Real.exp (c * (U ω - 2 * θ * N ω))) ∂μ
       ≤ ∫⁻ ω, ENNReal.ofReal (g ω) ∂μ := lintegral_mono fun ω => ENNReal.ofReal_le_ofReal (hpt ω)
     _ = ENNReal.ofReal (∫ ω, g ω ∂μ) := by
@@ -251,23 +265,20 @@ theorem mgf_real (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {�
     _ ≤ 1 := by
         rw [← ENNReal.ofReal_one]
         refine ENNReal.ofReal_le_ofReal ?_
-        have hint : ∫ ω, g ω ∂μ = 1 + A * ∫ ω, U ω ∂μ - B' * ∫ ω, N ω ∂μ := by
-          have e1 := integral_sub (μ := μ) (f := fun ω => 1 + A * U ω)
-            (g := fun ω => B' * N ω) ((integrable_const 1).add (hUi.const_mul A))
-            (hNi.const_mul B')
-          have e2 := integral_add (μ := μ) (f := fun _ => (1 : ℝ)) (g := fun ω => A * U ω)
-            (integrable_const 1) (hUi.const_mul A)
+        have hint : ∫ ω, g ω ∂μ = 1 + a * c * ∫ ω, U ω ∂μ - b * c * ∫ ω, N ω ∂μ := by
+          have e1 := integral_sub (μ := μ) (f := fun ω => 1 + a * c * U ω)
+            (g := fun ω => b * c * N ω) ((integrable_const 1).add (hUi.const_mul (a * c)))
+            (hNi.const_mul (b * c))
+          have e2 := integral_add (μ := μ) (f := fun _ => (1 : ℝ)) (g := fun ω => a * c * U ω)
+            (integrable_const 1) (hUi.const_mul (a * c))
           simp only [g]
           rw [e1, e2, integral_const_mul, integral_const_mul, integral_const]
           simp
         have hEN : 0 ≤ ∫ ω, N ω ∂μ := integral_nonneg fun ω => (hN ω).1
-        have hA : 0 ≤ A := by positivity
+        have hab : a * θ ≤ b := exp_one_sub_mul_le hθ hθ8
         rw [hint]
-        have h1 := mul_le_mul_of_nonneg_left hmean hA
-        have hkey : A * θ - B' ≤ 0 := by
-          simp only [A, B']
-          nlinarith [mul_nonneg (mul_nonneg hc.le hc.le) hθ, mul_nonneg hθ hc.le]
-        nlinarith
+        have h1 := mul_le_mul_of_nonneg_left hmean (mul_nonneg ha hc.le)
+        nlinarith [mul_nonneg (mul_nonneg hc.le hEN) (sub_nonneg.2 hab)]
 
 end Mgf
 
@@ -294,24 +305,24 @@ theorem measurable_of_strings {β : Type*} [MeasurableSpace β] (hmeas : ∀ z, 
   rw [this]
   exact (measurable_of_countable _).comp (measurable_pi_lambda _ fun i => hmeas i)
 
-/-- Probe quantities each read through strings sharing the probe's length-`k` prefix, the first's
-mean at most `θ₀` of the second's: their `D`-weighted sums exceed twice `θ₀` by `η` with chance at
-most `exp(−η / (2 p₀ B (1 + 4θ₀R)))`. -/
+/-- Probe quantities in `[0, 1]`, each read through strings sharing the probe's length-`k` prefix,
+the first's mean at most `θ₀ ≤ 1/8` of the second's: their `D`-weighted sums exceed twice `θ₀` by
+`η` with chance at most `exp(−η / p₀)`. -/
 theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ B R : ℝ} (hp₀ : 0 < p₀)
-    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hθ₀ : 0 ≤ θ₀) (hB : 0 < B)
-    (hR : 0 ≤ R) (Sx : FreeMonoid α → Finset (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ : ℝ} (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hθ₀ : 0 ≤ θ₀) (hθ8 : 8 * θ₀ ≤ 1)
+    (Sx : FreeMonoid α → Finset (FreeMonoid α))
     (hSx : ∀ x z, z ∈ Sx x → prefixOf z k = prefixOf x k)
     (uf tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ)
     (huf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → uf rd x = uf rd' x)
     (htf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → tf rd x = tf rd' x)
-    (hub : ∀ rd, ∀ x ∈ upTo L, 0 ≤ uf rd x ∧ uf rd x ≤ B)
-    (htb : ∀ rd, ∀ x ∈ upTo L, 0 ≤ tf rd x ∧ tf rd x ≤ B * R)
+    (hub : ∀ rd, ∀ x ∈ upTo L, 0 ≤ uf rd x ∧ uf rd x ≤ 1)
+    (htb : ∀ rd, ∀ x ∈ upTo L, 0 ≤ tf rd x ∧ tf rd x ≤ 1)
     (hmean : ∀ x ∈ upTo L, ∫ ω, uf (read · ω) x ∂μ ≤ θ₀ * ∫ ω, tf (read · ω) x ∂μ) :
     μ {ω | 2 * θ₀ * ∑ x ∈ upTo L, D.real {x} * tf (read · ω) x + η
         < ∑ x ∈ upTo L, D.real {x} * uf (read · ω) x}
-      ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * B * (1 + 4 * θ₀ * R))))) := by
-  set c : ℝ := 1 / (2 * p₀ * B * (1 + 4 * θ₀ * R))
+      ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
+  set c : ℝ := 1 / p₀
   have hc : 0 < c := by positivity
   set X : Finset (FreeMonoid α) := upTo L
   set U : Finset (FreeMonoid α) := X.image (prefixOf · k)
@@ -382,24 +393,21 @@ theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read �
       measurable_const.mul (hmf uf huf x)
     have hNm : Measurable Nf := Finset.measurable_sum _ fun x _ =>
       measurable_const.mul (hmf tf htf x)
-    refine mgf_real Uf Nf hUm hNm hθ₀ (by positivity : 0 ≤ p₀ * B) hR hc ?_ ?_ ?_ ?_
-    · simp only [c]; field_simp; linarith
+    refine mgf_chord Uf Nf hUm hNm hθ₀ hθ8 hc (B := p₀) (by simp only [c]; field_simp; exact le_rfl)
+      ?_ ?_ ?_
     · intro ω
       constructor
       · exact Finset.sum_nonneg fun x hx => mul_nonneg (hw0 x) (hub _ x (hXuX u x hx)).1
-      · calc Uf ω ≤ ∑ x ∈ Xu u, w x * B := Finset.sum_le_sum fun x hx =>
+      · calc Uf ω ≤ ∑ x ∈ Xu u, w x * 1 := Finset.sum_le_sum fun x hx =>
               mul_le_mul_of_nonneg_left (hub _ x (hXuX u x hx)).2 (hw0 x)
-          _ = (∑ x ∈ Xu u, w x) * B := by rw [Finset.sum_mul]
-          _ ≤ p₀ * B := mul_le_mul_of_nonneg_right (hwsum u) hB.le
+          _ ≤ p₀ := by simpa using hwsum u
     · intro ω
       constructor
       · exact Finset.sum_nonneg fun x hx => mul_nonneg (hw0 x) (htb _ x (hXuX u x hx)).1
-      · calc Nf ω ≤ ∑ x ∈ Xu u, w x * (B * R) := Finset.sum_le_sum fun x hx =>
+      · calc Nf ω ≤ ∑ x ∈ Xu u, w x * 1 := Finset.sum_le_sum fun x hx =>
               mul_le_mul_of_nonneg_left (htb _ x (hXuX u x hx)).2 (hw0 x)
-          _ = (∑ x ∈ Xu u, w x) * (B * R) := by rw [Finset.sum_mul]
-          _ ≤ p₀ * (B * R) := mul_le_mul_of_nonneg_right (hwsum u) (by positivity)
-          _ = p₀ * B * R := by ring
-    · rw [hint u uf B huf hub, hint u tf (B * R) htf htb, Finset.mul_sum]
+          _ ≤ p₀ := by simpa using hwsum u
+    · rw [hint u uf 1 huf hub, hint u tf 1 htf htb, Finset.mul_sum]
       exact Finset.sum_le_sum fun x hx => by
         have := hmean x (hXuX u x hx)
         nlinarith [hw0 x]
