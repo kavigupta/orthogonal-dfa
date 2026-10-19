@@ -1,7 +1,6 @@
 import OrthoDFA.LoopDFA
-import OrthoDFA.Proofs.Level5Clean
+import OrthoDFA.Proofs.LoopTermination
 import OrthoDFA.Proofs.UniformStrings
-import OrthoDFA.Proofs.SiftSet
 
 /-!
 # From a checked round to the learner's DFA
@@ -11,7 +10,7 @@ letter that both agree, read nothing on a rarer side and stop undecided at neith
 sift nor their own, walk to the true
 leaves of their states, so the edge between those leaves is learned and true (`edge_of_pair`).
 Summed over the window, a state visited `c` of the time has every edge out of it crossed by such
-pairs unless the checked probes hold `c/((|Σ|+1)N)` of the draws (`edge_of_occupied`). A state the
+pairs unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws (`edge_of_occupied`). A state the
 probes visit is read on its true side once the reads are rarely wrong or undecided
 (`sideOf_eq_of_mass`). Where every covered state's edges are true and it is read on its true side,
 the hypothesis from the covered start's leaf follows the re-rooted target along every run that
@@ -22,6 +21,8 @@ stays covered (`classifies_of_matches`), so it misjudges at most what re-rooting
 noncomputable section
 
 namespace OrthoDFA
+
+open Random (prefixMax le_prefixMax prefixMax_pos)
 
 open MeasureTheory
 open scoped ENNReal
@@ -214,100 +215,116 @@ end Window
 
 section Edges
 
-variable {σ : Type*} (G : ReadModel α σ) (rd : FreeMonoid α → ARU)
+variable {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ) (rd : FreeMonoid α → ARU)
 
 omit [Fintype α] [DecidableEq α] in
-theorem follow_snoc {edges : EdgeTable α} :
-    ∀ (l : List α) (c : α) (p : List Bool) (ps ps' : List (List Bool)),
-      follow edges p l = .inl ps → follow edges p (l ++ [c]) = .inl ps' →
-        ∃ w, edges (ps.getLast?.getD []) c = some (ps'.getLast?.getD [], w)
-  | [], c, p, ps, ps', h, h' => by
-    simp only [follow, Sum.inl.injEq] at h
-    subst h
-    simp only [List.nil_append, follow] at h'
-    rcases he : edges p c with _ | ⟨q, y⟩ <;> rw [he] at h'
-    · cases h'
-    · simp only [Sum.inl.injEq] at h'
-      subst h'
-      exact ⟨y, by simp [he]⟩
-  | d :: l, c, p, ps, ps', h, h' => by
-    simp only [follow, List.cons_append] at h h'
-    rcases he : edges p d with _ | ⟨q, y⟩ <;> rw [he] at h h'
-    · cases h
-    simp only [] at h h'
-    rcases hf : follow edges q l with ps₁ | r <;> rw [hf] at h
-    · rcases hf' : follow edges q (l ++ [c]) with ps₁' | r' <;> rw [hf'] at h'
-      · simp only [Sum.inl.injEq] at h h'
-        subst h h'
-        obtain ⟨w, hw⟩ := follow_snoc l c q ps₁ ps₁' hf hf'
-        have h1 : ps₁ ≠ [] := by
-          intro h0; subst h0; obtain ⟨hl, -⟩ := follow_inl _ _ _ hf; simp at hl
-        have h2 : ps₁' ≠ [] := by
-          intro h0; subst h0; obtain ⟨hl, -⟩ := follow_inl _ _ _ hf'; simp at hl
-        refine ⟨w, ?_⟩
-        rw [List.getLast?_cons, List.getLast?_cons]
-        obtain ⟨a₁, ha₁⟩ := List.getLast?_isSome.2 h1 |> Option.isSome_iff_exists.1
-        obtain ⟨a₂, ha₂⟩ := List.getLast?_isSome.2 h2 |> Option.isSome_iff_exists.1
-        rw [ha₁, ha₂] at hw ⊢
-        simpa using hw
-      · cases h'
-    · cases h
+theorem walk_snoc (E : Edges α) : ∀ (l : List α) (c : α) (p : List Bool),
+    (walk E p (l ++ [c])).length = l.length + 2 →
+      ∃ w, E ((walk E p l).getLast?.getD [], c) = some ((walk E p (l ++ [c])).getLast?.getD [], w)
+  | [], c, p, h => by
+    simp only [List.nil_append, walk] at h ⊢
+    rcases he : E (p, c) with _ | ⟨q, y⟩ <;> simp only [he] at h ⊢
+    · simp at h
+    · exact ⟨y, he⟩
+  | d :: l, c, p, h => by
+    simp only [List.cons_append, walk] at h ⊢
+    rcases he : E (p, d) with _ | ⟨q, y⟩ <;> simp only [he] at h ⊢
+    · simp at h
+    · obtain ⟨w, hw⟩ := walk_snoc E l c q (by simpa using h)
+      obtain ⟨l₁, hl₁⟩ := walk_cons E q l
+      obtain ⟨l₂, hl₂⟩ := walk_cons E q (l ++ [c])
+      refine ⟨w, ?_⟩
+      rw [hl₁, hl₂] at hw ⊢
+      simpa [List.getLast?_cons] using hw
 
 theorem cut_none_iff (v : ARU) : v.cut = none ↔ v = .undecided := by
   cases v <;> simp [ARU.cut]
 
+theorem walk_facts_full (E : Edges α) (k : ℕ) (x : FreeMonoid α) {p₀ : List Bool}
+    (hk : k ≤ x.toList.length) :
+    let ss := walk E p₀ (x.toList.drop k)
+    0 < ss.length ∧ k + ss.length - 1 ≤ x.toList.length ∧ ss.getD 0 [] = p₀
+      ∧ (∀ c, x.toList[k + ss.length - 1]? = some c → E (ss.getD (ss.length - 1) [], c) = none)
+      ∧ (x.toList[k + ss.length - 1]? = none → k + ss.length - 1 = x.toList.length) := by
+  intro ss
+  have hpos : 0 < ss.length := length_walk_pos E p₀ _
+  have hle : ss.length ≤ (x.toList.drop k).length + 1 := length_walk_le E p₀ _
+  simp only [List.length_drop] at hle
+  refine ⟨hpos, by omega, walk_getD_zero E p₀ _, fun c hc => ?_, fun hc => ?_⟩
+  · have hstop : ss.length ≤ (x.toList.drop k).length := by
+      by_contra hcon
+      simp only [List.length_drop] at hcon
+      rw [List.getElem?_eq_none (by omega)] at hc
+      cases hc
+    obtain ⟨c', hc', hE⟩ := walk_stop E p₀ _ hstop
+    rw [List.getElem?_drop, show k + (ss.length - 1) = k + ss.length - 1 by omega, hc] at hc'
+    cases hc'
+    exact hE
+  · by_contra hne
+    rw [List.getElem?_eq_getElem (by omega)] at hc
+    cases hc
+
 /-- A probe neither searching nor stopping undecided at its start or end sift walks, learned all
 the way, from its start's sift to its own. -/
 theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
-    (hk : k ≤ x.toList.length) (hx : x ∉ searchingProbes rd k H)
-    (hu : x ∉ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) :
-    ∃ p ps e, H.tree.siftCut (fun z => (rd z).cut) (prefixOf x k) = .inl p
-      ∧ follow (Function.curry H.edges) p (x.toList.drop k) = .inl ps
-      ∧ H.tree.siftCut (fun z => (rd z).cut) x = .inl e ∧ ps.getLast? = some e := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
-  have hagree : probeBy cut H.tree (Function.curry H.edges) k x = .agree := by
-    simp only [searchingProbes, undSiftSet, Set.mem_setOf_eq] at hx hu
-    rcases ho : probeBy (fun z => (rd z).cut) H.tree (Function.curry H.edges) k x with
-      _ | _ | _ | _ | _ | _ <;> rw [ho] at hx hu <;> simp_all
-  have hpe := probeBy_eq cut H.tree (Function.curry H.edges) k x
-  rw [if_neg (by omega), hagree] at hpe
-  rcases hw : walkCheckBy cut H.tree (Function.curry H.edges) k x with o | d <;> rw [hw] at hpe
+    (hk : k ≤ x.toList.length) (hx : x ∉ Random.searchSet rd k H)
+    (hu : x ∉ Random.endsSet rd k H) :
+    ∃ p e, H.tree.sift rd (prefixOf x k) = .inl p
+      ∧ (walk H.edges p (x.toList.drop k)).length = (x.toList.drop k).length + 1
+      ∧ H.tree.sift rd x = .inl e ∧ (walk H.edges p (x.toList.drop k)).getLast? = some e := by
+  simp only [Random.searchSet, Random.endsSet, Set.mem_ofPred_eq] at hx hu
+  push Not at hu
+  rcases hp : H.tree.sift rd (prefixOf x k) with p | z
   swap
-  · simp only [Sum.elim_inr] at hpe
-    have := bracketAt_isSearch (α := α) (agreesAtBy cut H.tree x fun j => d.1.getD (j - k) [])
-      d.1 (d.2 - k) k d.2
-    rw [← hpe] at this
-    exact this.elim
-  simp only [Sum.elim_inl, id] at hpe
-  subst hpe
-  unfold walkCheckBy kWalkBy at hw
-  rcases hp : H.tree.siftCut cut (prefixOf x k) with p | b <;> rw [hp] at hw
-  · simp only at hw
-    rcases hf : follow (Function.curry H.edges) p (x.toList.drop k) with ps | ⟨s, c, i⟩ <;>
-      rw [hf] at hw <;> simp only at hw
-    · rcases he : H.tree.siftCut cut x with e | b <;> rw [he] at hw <;> simp only at hw
-      · split_ifs at hw with h
-        exact ⟨p, ps, e, rfl, hf, rfl, h.symm⟩
-      · simp at hw
-    · split at hw <;> (try split at hw) <;> (try split_ifs at hw) <;> simp at hw
-  · simp at hw
+  · exfalso
+    have : probeOrAgree rd H.tree H.edges k x = .undecidedStart z := by
+      simp [probeOrAgree, probe, hp, show ¬ x.toList.length < k by omega]
+    rw [this] at hu
+    simp [Random.endsString] at hu
+  obtain ⟨hpos, hhi, hst0, -, hnone⟩ := walk_facts_full H.edges k x (p₀ := p) hk
+  have hlo : H.tree.sift rd (prefixOf x k)
+      = .inl ((walk H.edges p (x.toList.drop k)).getD (k - k) []) := by
+    rw [Nat.sub_self, hst0, hp]
+  rcases Random.probe_long_cases rd H.tree H.edges k x hk hp rfl with
+    ⟨c, z, -, -, h⟩ | ⟨un, -, hu2, h'⟩
+  · rw [h] at hu; simp [Random.endsString] at hu
+  rcases Random.searchOutcome_cases rd H.tree k x _ un (by omega) hhi hlo h' with
+    ⟨z, -, h''⟩ | ⟨hsh, h''⟩ | ⟨-, ⟨p', c', t', -, -, -, -, -, -, h''⟩ | ⟨p', z, -, -, -, h''⟩⟩
+  · rw [h''] at hu; simp [Random.endsString] at hu
+  swap
+  · rw [h''] at hx; simp at hx
+  swap
+  · rw [h''] at hx; simp at hx
+  rcases un with _ | ⟨c, t⟩
+  swap
+  · simp only [searchOutcome] at h''
+    rw [h''] at hx; simp at hx
+  have hend := hnone (hu2 rfl)
+  have hlen : (walk H.edges p (x.toList.drop k)).length = (x.toList.drop k).length + 1 := by
+    simp only [List.length_drop]; omega
+  refine ⟨p, (walk H.edges p (x.toList.drop k)).getD
+    (k + (walk H.edges p (x.toList.drop k)).length - 1 - k) [], rfl, hlen, ?_, ?_⟩
+  · rwa [show prefixOf x (k + (walk H.edges p (x.toList.drop k)).length - 1) = x by
+      rw [hend, prefixOf_length]] at hsh
+  · rw [List.getLast?_eq_getElem?, List.getD_eq_getElem?_getD,
+      show k + (walk H.edges p (x.toList.drop k)).length - 1 - k
+        = (walk H.edges p (x.toList.drop k)).length - 1 by omega,
+      List.getElem?_eq_getElem (by omega)]
+    rfl
 
-/-- A probe and its extension by a letter, both at most `J` long and neither checked, cross a
-learned edge between their states' true leaves. -/
+/-- A probe and its extension by a letter, neither disagreeing, cross a learned edge between
+their states' true leaves. -/
 theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : α)
-    (hk : k ≤ y.toList.length)
-    (hy : y ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k)
-    (hya : y * FreeMonoid.of a ∉ searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) :
-    ∃ w, H.edges (G.leafOf H.tree (G.M.eval y.toList), a)
-      = some (G.leafOf H.tree (G.M.eval (y * FreeMonoid.of a).toList), w) := by
-  set cut : FreeMonoid α → Option Bool := fun z => (rd z).cut
+    (hk : k ≤ y.toList.length) (hy : y ∉ disagreeSet M dist rd k H)
+    (hya : y * FreeMonoid.of a ∉ disagreeSet M dist rd k H) :
+    ∃ w, H.edges (Random.leafOf M (fun q => readSide (dist q)) H.tree (M.eval y.toList), a)
+      = some (Random.leafOf M (fun q => readSide (dist q)) H.tree
+        (M.eval (y * FreeMonoid.of a).toList), w) := by
   have hlen : (y * FreeMonoid.of a).toList.length = y.toList.length + 1 := by simp
-  simp only [Set.mem_union, not_or] at hy hya
-  obtain ⟨p, ps, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1.1 hy.2
-  obtain ⟨p', ps', e', hp', hf', he', hl'⟩ :=
-    agree_of_unchecked rd H (by omega) hya.1.1 hya.2
+  simp only [disagreeSet, Set.mem_union, not_or] at hy hya
+  obtain ⟨p, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1.1 hy.1.2
+  obtain ⟨p', e', hp', hf', he', hl'⟩ :=
+    agree_of_unchecked rd H (by omega) hya.1.1 hya.1.2
   have hpre : prefixOf (y * FreeMonoid.of a) k = prefixOf y k := by
     simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_of]
     rw [List.take_append_of_le_length hk]
@@ -316,16 +333,15 @@ theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : �
   have hdrop : (y * FreeMonoid.of a).toList.drop k = y.toList.drop k ++ [a] := by
     simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of]
     rw [List.drop_append_of_le_length hk]
-  rw [hdrop] at hf'
-  obtain ⟨w, hw⟩ := follow_snoc _ a p ps ps' hf hf'
-  have hclean : ∀ z : FreeMonoid α, z ∉ rarerProbes G.M G.readDist rd k H →
-      k ≤ z.toList.length → ∀ m ∈ H.tree.midfixes, ¬ G.WrongRead rd (z * m) := by
-    intro z hz hkz m hm hwr
-    refine hz ⟨z.toList.length, hkz, le_rfl, m, hm, ?_⟩
-    rw [prefixOf_length]
-    exact hwr
-  have h1 := leafOf_of_sift G rd (hclean y hy.1.2 hk) he
-  have h2 := leafOf_of_sift G rd (hclean _ hya.1.2 (by omega)) he'
+  rw [hdrop] at hf' hl'
+  obtain ⟨w, hw⟩ := walk_snoc H.edges _ a p (by rw [hf']; simp)
+  have hclean : ∀ z : FreeMonoid α, z ∉ rarerSet M dist rd k H.tree →
+      k ≤ z.toList.length → ∀ m ∈ Random.mids H.tree,
+        rd (z * m) ≠ if readSide (dist (M.eval (z * m).toList)) then .reject else .accept :=
+    fun z hz hkz m hm hwr => hz ⟨hkz, m, hm, hwr⟩
+  have h1 := Random.Eps.sift_true' M (fun q => readSide (dist q)) rd he (hclean y hy.2 hk)
+  have h2 := Random.Eps.sift_true' M (fun q => readSide (dist q)) rd he'
+    (hclean _ hya.2 (by omega))
   rw [hl, hl'] at hw
   rw [h1, h2]
   exact ⟨w, hw⟩
@@ -333,31 +349,30 @@ theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : �
 variable [Nonempty α]
 
 /-- A state visited `c` of the time over the window's lengths below `J` has every edge out of its
-true leaf learned and true, unless the checked probes hold `c/((|Σ|+1)N)` of the draws. -/
+true leaf learned and true, unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws. -/
 theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
     {c β : ℝ}
-    (hbad : (windowStrings k L₁).real (searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-      ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k) ≤ β)
-    (hocc : c ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings i).real {y | G.M.eval y.toList = q})
+    (hbad : (windowStrings k L₁).real (disagreeSet M dist rd k H) ≤ β)
+    (hocc : c ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings i).real {y | M.eval y.toList = q})
     (hβ : ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * β < c) :
-    ∃ w, H.edges (G.leafOf H.tree q, a) = some (G.leafOf H.tree (G.M.step q a), w) := by
-  set Bad := searchingProbes rd k H ∪ rarerProbes G.M G.readDist rd k H
-    ∪ undSiftSet (fun z => (rd z).cut) H.tree (Function.curry H.edges) k
+    ∃ w, H.edges (Random.leafOf M (fun q => readSide (dist q)) H.tree q, a)
+      = some (Random.leafOf M (fun q => readSide (dist q)) H.tree (M.step q a), w) := by
+  set Bad := disagreeSet M dist rd k H
   set A : ℝ := (Fintype.card α : ℝ) with hA
   by_contra hno
   have hkL : k ≤ L₁ := by omega
   have hU0 : ∀ i, 0 ≤ (uniformStrings (α := α) i).real Bad := fun _ => measureReal_nonneg
-  have hi : ∀ i ∈ Finset.Ico k J, (uniformStrings i).real {y | G.M.eval y.toList = q}
+  have hi : ∀ i ∈ Finset.Ico k J, (uniformStrings i).real {y | M.eval y.toList = q}
       ≤ (uniformStrings i).real Bad + A * (uniformStrings (i + 1)).real Bad := by
     intro i hi
     simp only [Finset.mem_Ico] at hi
-    have hsub : {y : FreeMonoid α | G.M.eval y.toList = q}
+    have hsub : {y : FreeMonoid α | M.eval y.toList = q}
         ⊆ (Bad ∪ {y | y * FreeMonoid.of a ∈ Bad}) ∪ {y | y.toList.length ≠ i} := by
       intro y hy
       by_contra hc
       simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hc hy
       apply hno
-      obtain ⟨w, hw⟩ := edge_of_pair G rd H a (by omega) hc.1.1 hc.1.2
+      obtain ⟨w, hw⟩ := edge_of_pair M dist rd H a (by omega) hc.1.1 hc.1.2
       rw [FreeMonoid.toList_mul, FreeMonoid.toList_of, DFA.eval_append_singleton, hy] at hw
       exact ⟨w, hw⟩
     have hnull : (uniformStrings (α := α) i).real {y | y.toList.length ≠ i} = 0 := by
@@ -410,7 +425,7 @@ theorem sideOf_eq_of_mass (M : _root_.DFA α σ) (D : Measure (FreeMonoid α))
       else dist (M.eval p.toList) .accept) ∂D ≤ εr)
     (hund : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εu)
     (hocc : b ≤ D.real {p | M.eval p.toList = q}) (hb : 2 * εr + εu < b) :
-    sideOf (dist q) = decide (q ∈ M.accept) := by
+    readSide (dist q) = decide (q ∈ M.accept) := by
   have hint : ∀ g : FreeMonoid α → ℝ, (∀ p, 0 ≤ g p) → (∀ p, g p ≤ 1) → Integrable g D :=
     fun g g0 g1 => Integrable.of_bound (measurable_of_countable g).aestronglyMeasurable 1
       (ae_of_all _ fun p => by rw [Real.norm_eq_abs, abs_of_nonneg (g0 p)]; exact g1 p)
@@ -448,13 +463,13 @@ theorem sideOf_eq_of_mass (M : _root_.DFA α σ) (D : Measure (FreeMonoid α))
   by_cases hq : q ∈ M.accept
   · have hm := hlow _ hw0 hw1 (dist q .reject) (fun p hp => by rw [if_pos (hp ▸ hq), hp]) hrej
     have hbr := mul_le_mul_of_nonneg_right hocc hrej
-    simp only [sideOf, hq, decide_true, decide_eq_true_eq]
+    simp only [readSide, hq, decide_true, decide_eq_true_eq]
     by_contra hlt
     push Not at hlt
     nlinarith
   · have hm := hlow _ hw0 hw1 (dist q .accept) (fun p hp => by rw [if_neg (hp ▸ hq), hp]) hacc
     have hba := mul_le_mul_of_nonneg_right hocc hacc
-    simp only [sideOf, hq, decide_false, decide_eq_false_iff_not]
+    simp only [readSide, hq, decide_false, decide_eq_false_iff_not]
     intro hlt
     nlinarith
 
@@ -464,21 +479,21 @@ section Start
 
 open scoped Classical
 
-variable {σ : Type*} (G : ReadModel α σ)
+variable {σ : Type*} (M : _root_.DFA α σ) (side : σ → Bool)
 
 /-- Where every state of `S` has its edges true and is read on its true side, the hypothesis from
 `q₀`'s true leaf classifies every string whose run from `q₀` stays in `S` as the re-rooted target
 does. -/
 theorem classifies_of_matches (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .node 1 r a)
     (S : Set σ)
-    (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (G.leafOf H.tree q, a)
-      = some (G.leafOf H.tree (G.M.step q a), w))
-    (hside : ∀ q ∈ S, G.side q = decide (q ∈ G.M.accept)) (q₀ : σ) (x : FreeMonoid α)
-    (hstay : ∀ i ≤ x.toList.length, G.M.evalFrom q₀ (prefixOf x i).toList ∈ S)
-    (hagree : G.M.evalFrom q₀ x.toList ∈ G.M.accept ↔ G.M.eval x.toList ∈ G.M.accept) :
-    H.Classifies (G.leafOf H.tree q₀) x (G.M.eval x.toList ∈ G.M.accept) := by
-  have track : ∀ (l : List α) (q : σ), (∀ i ≤ l.length, G.M.evalFrom q (l.take i) ∈ S) →
-      walkEnd H.edges (G.leafOf H.tree q) l = some (G.leafOf H.tree (G.M.evalFrom q l)) := by
+    (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
+      = some (Random.leafOf M side H.tree (M.step q a), w))
+    (hside : ∀ q ∈ S, side q = decide (q ∈ M.accept)) (q₀ : σ) (x : FreeMonoid α)
+    (hstay : ∀ i ≤ x.toList.length, M.evalFrom q₀ (prefixOf x i).toList ∈ S)
+    (hagree : M.evalFrom q₀ x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept) :
+    H.Classifies (Random.leafOf M side H.tree q₀) x (M.eval x.toList ∈ M.accept) := by
+  have track : ∀ (l : List α) (q : σ), (∀ i ≤ l.length, M.evalFrom q (l.take i) ∈ S) →
+      walkEnd H.edges (Random.leafOf M side H.tree q) l = some (Random.leafOf M side H.tree (M.evalFrom q l)) := by
     intro l
     induction l with
     | nil => intro q _; simp [walkEnd]
@@ -487,21 +502,19 @@ theorem classifies_of_matches (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = 
       have hq : q ∈ S := by simpa using hs 0 (by simp)
       obtain ⟨w, hw⟩ := hE q hq c
       simp only [walkEnd, hw, Option.bind_some]
-      rw [ih (G.M.step q c) fun i hi => by simpa using hs (i + 1) (by simp; omega)]
+      rw [ih (M.step q c) fun i hi => by simpa using hs (i + 1) (by simp; omega)]
       rfl
-  have hs : ∀ i ≤ x.toList.length, G.M.evalFrom q₀ (x.toList.take i) ∈ S := fun i hi => by
+  have hs : ∀ i ≤ x.toList.length, M.evalFrom q₀ (x.toList.take i) ∈ S := fun i hi => by
     simpa [prefixOf] using hstay i hi
   refine ⟨_, track x.toList q₀ hs, ?_⟩
   have hend := hs x.toList.length le_rfl
   rw [List.take_length] at hend
   obtain ⟨r, a, hT⟩ := hroot
-  have hhead : (G.leafOf H.tree (G.M.evalFrom q₀ x.toList)).head?
-      = some (G.side (G.M.evalFrom q₀ x.toList)) := by
-    have hat : G.at' (G.M.evalFrom q₀ x.toList) 1 = G.M.evalFrom q₀ x.toList := by
-      simp [ReadModel.at']
+  have hhead : (Random.leafOf M side H.tree (M.evalFrom q₀ x.toList)).head?
+      = some (side (M.evalFrom q₀ x.toList)) := by
     rw [hT]
-    simp only [ReadModel.leafOf, hat]
-    cases G.side (G.M.evalFrom q₀ x.toList) <;> rfl
+    simp only [Random.leafOf, FreeMonoid.toList_one, DFA.evalFrom_nil]
+    split_ifs with h <;> simp [h]
   rw [hhead, ← hagree, hside _ hend]
   simp
 
@@ -509,21 +522,21 @@ variable [Nonempty α]
 
 /-- The hypothesis from `q₀`'s true leaf misjudges at most what re-rooting at `q₀` does. -/
 theorem classify_start_le (H : HypothesisDFA α) (hroot : ∃ r a, H.tree = .node 1 r a) (S : Set σ)
-    (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (G.leafOf H.tree q, a)
-      = some (G.leafOf H.tree (G.M.step q a), w))
-    (hside : ∀ q ∈ S, G.side q = decide (q ∈ G.M.accept)) (L : ℕ) (q₀ : σ) {η : ℝ}
-    (hacc : 1 - η ≤ rerootAccuracy G.M L S q₀) :
-    (uniformStrings L).real {x | ¬ H.Classifies (G.leafOf H.tree q₀) x
-      (G.M.eval x.toList ∈ G.M.accept)} ≤ η := by
-  set good := {x : FreeMonoid α | (∀ i ≤ L, G.M.evalFrom q₀ (prefixOf x i).toList ∈ S)
-    ∧ (G.M.evalFrom q₀ x.toList ∈ G.M.accept ↔ G.M.eval x.toList ∈ G.M.accept)}
-  have hsub : {x | ¬ H.Classifies (G.leafOf H.tree q₀) x (G.M.eval x.toList ∈ G.M.accept)}
+    (hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
+      = some (Random.leafOf M side H.tree (M.step q a), w))
+    (hside : ∀ q ∈ S, side q = decide (q ∈ M.accept)) (L : ℕ) (q₀ : σ) {η : ℝ}
+    (hacc : 1 - η ≤ rerootAccuracy M L S q₀) :
+    (uniformStrings L).real {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x
+      (M.eval x.toList ∈ M.accept)} ≤ η := by
+  set good := {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q₀ (prefixOf x i).toList ∈ S)
+    ∧ (M.evalFrom q₀ x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
+  have hsub : {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x (M.eval x.toList ∈ M.accept)}
       ⊆ goodᶜ ∪ {x | x.toList.length ≠ L} := by
     intro x hx
     by_contra hc
     simp only [Set.mem_union, Set.mem_compl_iff, Set.mem_setOf_eq, not_or, not_not] at hc hx
     obtain ⟨⟨hst, hag⟩, hl⟩ := hc
-    exact hx (classifies_of_matches G H hroot S hE hside q₀ x (fun i hi => hst i (hl ▸ hi)) hag)
+    exact hx (classifies_of_matches M side H hroot S hE hside q₀ x (fun i hi => hst i (hl ▸ hi)) hag)
   have hnull : (uniformStrings (α := α) L).real {x | x.toList.length ≠ L} = 0 := by
     rw [measureReal_def, uniformStrings_length, ENNReal.toReal_zero]
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ((measureReal_union_le _ _).trans ?_)

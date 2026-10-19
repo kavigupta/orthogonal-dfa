@@ -13,7 +13,7 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-  (D Dsf : Measure (FreeMonoid α)) (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget)
+  (D Dsf : Measure (FreeMonoid α)) (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget)
 
 /-- The populations `rounds` harvested, in order, their samplers drawing from `D` walked from
 `k`. -/
@@ -34,7 +34,7 @@ lemma loopRounds_succ (r : ℕ) :
       if h : r < K ∧ AllHarvested (loopRounds settings O D Dsf draws r) then
         loopRounds settings O D Dsf draws r
           ++ [loopRound settings O D Dsf
-            (histOf D settings.level5.walkStart (loopRounds settings O D Dsf draws r))
+            (histOf D settings.level3.walkStart (loopRounds settings O D Dsf draws r))
             (draws ⟨r, h.1⟩)]
       else loopRounds settings O D Dsf draws r := by
   rw [loopRounds]
@@ -84,7 +84,7 @@ lemma harvested_of_lt (r i : ℕ) (hi : i + 1 < (loopRounds settings O D Dsf dra
 /-- Round `i` is run on the harvests of the rounds before it, from round `i`'s draws. -/
 lemma getElem_loopRounds (r i : ℕ) (hi : i < (loopRounds settings O D Dsf draws r).length) :
     ∃ hK : i < K, (loopRounds settings O D Dsf draws r)[i] = loopRound settings O D Dsf
-      (histOf D settings.level5.walkStart ((loopRounds settings O D Dsf draws r).take i))
+      (histOf D settings.level3.walkStart ((loopRounds settings O D Dsf draws r).take i))
         (draws ⟨i, hK⟩) := by
   induction r with
   | zero => simp [loopRounds] at hi
@@ -124,7 +124,7 @@ lemma loopRounds_stops :
     simp
 
 /-- The first `r` rounds are run on the first `r` rounds' draws. -/
-lemma loopRounds_congr (draws' : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) :
+lemma loopRounds_congr (draws' : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) :
     ∀ r : ℕ, (∀ i : Fin K, i.val < r → draws i = draws' i) →
       loopRounds settings O D Dsf draws r = loopRounds settings O D Dsf draws' r
   | 0, _ => rfl
@@ -158,7 +158,7 @@ lemma harvestsOf_take_getD {k : ℕ} {rounds : List (LoopRound Ω α K)} {j i : 
     have ho : o.result.ending.harvested ≠ none := hall o (by simp)
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 ho
     have hpo : o.population D k
-        = some (popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis zo)) := by
+        = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis zo)) := by
       simp [LoopRound.population, hzo]
     simp only [List.take_succ_cons, harvestsOf, List.filterMap_cons, hpo] at hν ⊢
     rcases i with _ | i

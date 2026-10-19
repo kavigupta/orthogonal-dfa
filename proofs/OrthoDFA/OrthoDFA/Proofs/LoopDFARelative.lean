@@ -73,8 +73,8 @@ theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L
   linarith
 
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N εd εcov δ' ι ρ s τ J V Kp G PB
-    RB cap n hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hk1 hk2 hk3
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N ε εcov δ' ι s τ J S B₃ W PB
+    RB cap Kc n hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hk1 hk2 hk3
   obtain ⟨q, hcov, hq⟩ := hdom
   have hC : 0 < C := by
     have hk : 0 < L + 1 - k := by omega
@@ -95,8 +95,8 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
     ⟨q, hq₁, covered_of_dominated M L hc₀ hC rfl hξ hq⟩ hk1 hk2 hk3
 
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N εd δ' s V Kp G n Ce Θ K₁ B₁ P₀
-    R₀ E₁ E E₂ L₀ hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hL₀
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c₀ R η δ pAP ξ Q A k C c L₁ N ε δ' s S B₃ n aε Ce Θ K₁ W₀ P₀
+    R₀ E₁ Kc E E₂ L₀ hL hη hη₀ hc₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hL₀
   obtain ⟨q, hcov, hq⟩ := hdom
   have hC : 0 < C := by
     have hk : 0 < L + 1 - k := by omega

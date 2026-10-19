@@ -43,36 +43,50 @@ noncomputable def familyBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populat
     (x : Run Ω S J) (B : State) : Finset S :=
   insert 1 (clusterBy rule mq populations x B)
 
+/-- `refsAt` with the family picked by `rule`. -/
+noncomputable def refsBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  poolAt B.nsuff x \ familyBy rule mq populations x B
+
+/-- The gate at population `j`, at a look of `npref + e` draws, with the family picked by
+`rule`. -/
+def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
+    (η₀ εcov α : ℝ) (B : State) (j : J) (e : ℕ) (x : Run Ω S J) : Prop :=
+  certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
+    (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
+    (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
+    (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x) (B.npref + e))
+    (oracleNoise x)
+
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/
 noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
+    (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
           ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
-    ∧ ∃ e ≤ B.npref, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
-        (certOf (prefixesAt populations B.npref x) uni (B.npref + e) x) (oracleNoise x)}
+    ∧ ∀ j ∈ populations, ∃ e ≤ B.npref, gateAt rule mq populations uni η₀ εcov α B j e x}
 
 open scoped Classical in
-/-- `retBy` with the gate read at every population, on its first `npref` draws: what the loop is
-shown to reach. -/
+/-- `retBy` with every population's gate read at its first `npref` draws: what the loop is shown
+to reach. -/
 noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
-    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
+    (uni : J) (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
           ¬ decided mq B.lo (B.hi + 1) (familyBy rule mq populations x B) p
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
-    ∧ ∀ j ∈ populations, admitted mq B.lo B.hi α (clusterBy rule mq populations x B)
-        (certOf (prefixesAt populations B.npref x) j B.npref x) (oracleNoise x)}
+    ∧ ∀ j ∈ populations, gateAt rule mq populations uni η₀ εcov α B j 0 x}
 
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
-    {uni : J} (huni : uni ∈ populations) (indecisionLimit α : ℝ) (B : State) :
-    retAll rule mq populations indecisionLimit α B ⊆ retBy rule mq populations uni indecisionLimit α B :=
-  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, Nat.zero_le _, by simpa using h3 uni huni⟩
+    {uni : J} (η₀ indecisionLimit εcov α : ℝ) (B : State) :
+    retAll rule mq populations uni η₀ indecisionLimit εcov α B
+      ⊆ retBy rule mq populations uni η₀ indecisionLimit εcov α B :=
+  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, fun j hj => ⟨0, Nat.zero_le _, h3 j hj⟩⟩
 
 end OrthoDFA
