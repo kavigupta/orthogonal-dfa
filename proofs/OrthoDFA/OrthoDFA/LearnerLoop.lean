@@ -1,24 +1,24 @@
-import OrthoDFA.Level5Family
+import OrthoDFA.Level5Claim
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
 # The learner's loop
 
 Each round of `indecisiveLStarLoop` clusters a suffix family over the populations so far, runs
-level 5 of indecisive L* reading that family, and stops at the first round that does not end in a
-harvest. A harvest's sampler, scaled to a probability, becomes a population of every later round:
+level 3's algorithm (`indecisiveLStarLevel3`) reading that family, and stops at the first round
+that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population of every later round:
 it draws a fresh probe from the probes' distribution `D`, walks it under the round's last
 hypothesis and takes its undecided strings at the harvest's site, as the round reads them. The first population is `D` itself. A population's
 draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about: the family is `clusterAt` at a
-state of the schedule at which `ret` returns. Level 5 reads the family without its seed, at the
+state of the schedule at which `ret` returns. The round reads the family without its seed, at the
 gate's cut: a string reads accept at `hi + 1` or more of the family's votes and reject at `lo` or
 fewer. Without its seed the family is suffix draws of one length, so it is suffix-free.
 
 The whole run reads one noise, fixed per string as the Python's is.
 
-Known modelling gap. Level 5 draws its probes from `D` conditioned on their first `walkStart`
+Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
 the clustering read. The Python draws them from `D`.
 
@@ -91,7 +91,7 @@ def offLaw (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) : Measure
 
 /-- What the earlier rounds hand on: their harvests' populations, and every prefix and suffix
 their clusterings read. -/
-structure LoopHist (α : Type*) where
+structure LoopHist (α : Type*) [Countable α] where
   pops : List (Measure (FreeMonoid α))
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
@@ -104,7 +104,7 @@ abbrev ClusterRest (α : Type*) (K : ℕ) :=
 /-- The clustering's draws: the noise and the rest. -/
 abbrev ClusterDraws (Ω α : Type*) (K : ℕ) := Ω × ClusterRest α K
 
-/-- A round's draws apart from the noise: the clustering's, and the uniforms by which level 5
+/-- A round's draws apart from the noise: the clustering's, and the uniforms by which the round
 draws its probes. -/
 abbrev RoundDraws (α : Type*) (K P : ℕ) := ClusterRest α K × (Fin P → unitInterval)
 
@@ -145,21 +145,23 @@ def clusterRun {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
       fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n)),
     fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.2 j n)))
 
-/-- The clustering's schedule, FNR limit and gate level, and level 5's settings. -/
+/-- The clustering's schedule, FNR limit and gate level, and level 3's settings. -/
 structure LoopSettings (K : ℕ) where
   schedule : Finset (Option (Fin K)) → Finset State
+  η₀ : ℝ
   indecisionLimit : ℝ
+  εcov : ℝ
   gateLevel : ℝ
-  level5 : Level5Settings
+  level3 : Random.Level3Settings
 
-/-- A round: the clustering's run, the state it returned at and its family, level 5's reads, what
-level 5 returned, and the prefixes and suffixes its clustering read. -/
+/-- A round: the clustering's run, the state it returned at and its family, the family's reads,
+what level 3 returned, and the prefixes and suffixes its clustering read. -/
 structure LoopRound (Ω α : Type*) (K : ℕ) where
   run : Run Ω (FreeMonoid α) (Option (Fin K))
   state : State
   family : Finset (FreeMonoid α)
   read : FreeMonoid α → ARU
-  result : Level5Result α
+  result : Random.Level3Result α
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
 
@@ -189,20 +191,20 @@ def avoidLaw (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid 
   popLaw (D.restrict {x | k ≤ x.toList.length → prefixOf x k ∉ K₀})
 
 /-- The round after the history `h`. Its clustering draws off what the earlier rounds read, and
-level 5 draws its probes from `D` avoiding the first `k` letters of the prefixes the clustering
+level 3 draws its probes from `D` avoiding the first `k` letters of the prefixes the clustering
 read. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
-    (d : LoopRoundDraws Ω α K settings.level5.probeBudget) : LoopRound Ω α K :=
+    (d : LoopRoundDraws Ω α K settings.level3.probeBudget) : LoopRound Ω α K :=
   let ps := loopPopulations K h.pops.length
   let x := clusterRun D Dsf h (d.1, d.2.1)
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
-    ∧ x ∈ ret O.mq ps none settings.indecisionLimit settings.gateLevel B
+    ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
   let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
-  let K₀ := clusterKeys (settings.schedule ps) ps settings.level5.walkStart x
-  ⟨x, B, F, read, indecisiveLStarLevel5 settings.level5 read
-    (fun i => drawFrom (avoidLaw D settings.level5.walkStart K₀) (d.2.2 i)),
+  let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
+  ⟨x, B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
+    (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)),
     roundPrefs (settings.schedule ps) ps x, roundSuffs (settings.schedule ps) x⟩
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
@@ -214,7 +216,7 @@ from `k`, scaled to a probability. -/
 def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
     Option (Measure (FreeMonoid α)) :=
   o.result.ending.harvested.map fun site =>
-    popLaw (harvestLaw D (fun z => (o.read z).cut) k o.result.hypothesis site)
+    popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
@@ -225,21 +227,21 @@ def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (Loo
 /-- The first `r` rounds, cut short at a round that does not end in a harvest. -/
 def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) :
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) :
     ℕ → List (LoopRound Ω α K)
   | 0 => []
   | r + 1 =>
     if h : r < K ∧ ∀ o ∈ loopRounds settings O D Dsf draws r, o.result.ending.harvested ≠ none then
       loopRounds settings O D Dsf draws r
         ++ [loopRound settings O D Dsf
-          (histOf D settings.level5.walkStart (loopRounds settings O D Dsf draws r))
+          (histOf D settings.level3.walkStart (loopRounds settings O D Dsf draws r))
           (draws ⟨r, h.1⟩)]
     else loopRounds settings O D Dsf draws r
 
 /-- The rounds the loop runs, at most `K`. -/
 def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level5.probeBudget) : List (LoopRound Ω α K) :=
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) : List (LoopRound Ω α K) :=
   loopRounds settings O D Dsf draws K
 
 open scoped Classical in
@@ -248,180 +250,13 @@ def misreadProb (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl
     (p : FreeMonoid α) : ℝ :=
   μ.real {ω | familyRead O.mq F kl kh p ω = if p ∈ O.L then .reject else .accept}
 
-/-- The round ended consistent; its read decides a draw from `D` against the target at most `εr`
-of the time and leaves it undecided at most `εu`, and its hypothesis's walk from `k` and its tree
-part, or the walk stops at an edge it could learn, on at most `εd` of `D`. -/
-def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α)) (k : ℕ)
-    (εr εu εd : ℝ) (o : LoopRound Ω α K) : Prop :=
+/-- The round ended consistent, and its read decides a draw from `D` against the target at most
+`εr` of the time and leaves it undecided at most `εu`. -/
+def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    (εr εu : ℝ) (o : LoopRound Ω α K) : Prop :=
   o.result.ending = .consistent
     ∧ ∫ p, misreadProb O o.family o.state.lo (o.state.hi + 1) p ∂D ≤ εr
     ∧ ∫ p, readProb O o.family o.state.lo (o.state.hi + 1) p .undecided ∂D ≤ εu
-    ∧ D.real (searchingProbes o.read k o.result.hypothesis) ≤ εd
-
-/-- The learner's loop terminates in agreement. Within `|Q| + 1` rounds, the loop stops at a
-round whose hypothesis's walk and tree part on at most `εd` of the probes, and whose family's
-read of a probe is decided against the target at most `εcov + 2·indecisionLimit + 2·slack` of the
-time and undecided at most `2·indecisionLimit + slack`. It fails to with probability at most
-`(|Q| + 1)(δc + δ)`: per round, the clustering's `δc` and level 5's `δ`.
-
-The whole run reads one noise. The clustering's parameters are `ClusteringQualityGuarantee`'s,
-the uniform pool drawn from the probes' distribution, and the suffixes of one length `Ls`, longer
-than any string level 5 reads. Each round's clustering draws its prefixes and suffixes off every
-one the earlier rounds' clusterings read, so no two rounds read the same string. Level 5 runs at
-disagreement rate `εd / 2` and draws its probes from `D` avoiding the first `k ≥ 1` letters of
-every prefix the round's clustering read. `cap` bounds the atoms of the populations and the
-suffixes: against it the clustering's collision conditions hold, and what the earlier rounds read
-holds little of any population or of the suffixes. A harvest's sampler yields at least `ρ / 4`, and finds a
-string at most as often as the probes share its length-`k` prefix, so its population puts at most
-`4 prefixMax / ρ` on any one string. Level 5's `θ` is set so that a harvested state some later
-family leaves undecided more than `1.5θ` of the time holds more of the population than the FNR
-gate lets through, and the band's far side so that level 5 rarely reads a state on its rarer
-side. -/
-def LearnerLoopCorrect : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K Ls : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP εd δ : ℝ),
-  let n : ℝ := Fintype.card σ
-  let A : ℝ := Fintype.card α
-  let ρ : ℝ := 3 * εd / 16
-  let V : ℝ := (n + 2) * ((n + 2) * A + 1)
-  let Kp : ℝ := V * (224 / εd + 1)
-  let G : ℝ := Real.log (4 * V * (2 * (n + 2) * A + 4) / δ)
-  let U : ℝ := 4 * (n + 2) * A * Real.log ((n + 3) * A / δ)
-  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 →
-  0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
-  0 < gateLevel → gateLevel < 1 / 2 →
-  0 < εcov → εcov ≤ 1 →
-  0 < δc → δc ≤ 1 →
-  0 < slack → 0 < pAP →
-  0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 1 ≤ P.L →
-  Fintype.card σ + 1 ≤ K →
-  P.L + Fintype.card σ + 2 ≤ Ls →
-  1024 * (P.L + 1) * (n + 1) * Fintype.card σ * (2 * indecisionLimit + slack) ≤ 1 →
-  ∃ cap : ℝ, 0 < cap ∧ ∀ k : ℕ, 1 ≤ k → prefixMax P.D k ≤ cap * ρ / 4 →
-    4096 * (P.L + 1) * U * prefixMax P.D k ≤ εd →
-  ∃ settings : LoopSettings K,
-    settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
-    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
-      Dsf {v | v.toList.length ≠ Ls} = 0 →
-      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α K settings.level5.probeBudget).real
-          {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
-            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                o.Agrees O P.D k (εcov + 2 * indecisionLimit + 2 * slack)
-                  (2 * indecisionLimit + slack) εd)}
-        ≤ (Fintype.card σ + 1) * (δc + δ)
-
-/-- The learner's loop at settings the theorem chooses, every hypothesis an explicit inequality.
-With probability at least `1 − δ`, within `|Q| + 1` rounds the loop stops at a round whose
-hypothesis's walk and tree part on at most `εd` of the probes, and whose family's read of a probe
-is decided against the target at most `εcov` of the time and undecided at most `εcov` of the
-time. Level 5 draws at most `Kp · G` probes a round.
-
-The theorem chooses `indecisionLimit = slack = ι`, the FNR gate at `1/4`, `|Q| + 1` rounds and
-suffixes of length `L + |Q| + 3`, and splits `δ` evenly over the rounds' clustering and level 5.
-The clustering runs at half of `εcov`, `ι` and `pAP`, the other halves paying for what the earlier
-rounds read, and its band's far side at `δ' / (4 Kp G (|Q| + 2)(L + 1 + (|Q| + 2)|Σ|))`, so that
-level 5 rarely reads a state on its rarer side; the vote's Hoeffding tail puts only that side's log in
-`PB`. `PB` and `RB` bound its suffix pool and prefix count;
-`cap` is linear in them, and holds the clustering's collision conditions and what the
-earlier rounds read of any population or of the suffixes. `ρ / 4` is what a harvest's sampler
-yields, so a population puts at most `4 prefixMax / ρ` on a string. The last hypothesis holds
-level 5's noise fields, which concentrate over the probes' length-`k` prefixes. -/
-def LearnerLoopSimple : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (η₀ εcov εd δ pAP : ℝ) (k : ℕ),
-  let Q : ℝ := Fintype.card σ
-  let A : ℝ := Fintype.card α
-  let L : ℝ := P.L
-  let δ' : ℝ := δ / (2 * (Q + 1))
-  let ι : ℝ := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
-  let ρ : ℝ := 3 * εd / 16
-  let s : ℝ := 1 / 2 - η₀
-  let τ : ℝ := min (εcov / 2) (min s ι)
-  let J : ℝ := Q + 2
-  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
-  let Kp : ℝ := V * (224 / εd + 1)
-  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
-  let PB : ℝ := 256 * (Real.log (2 / τ)
-      + 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ'))
-      / (s ^ 2 * pAP)
-    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
-  let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
-    / (s ^ 4 * τ ^ 3)
-  let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
-      (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
-      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L + 1)))))
-  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 →
-  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 1 ≤ P.L → 1 ≤ k →
-  prefixMax P.D k ≤ cap * ρ / 4 →
-  16384 * (L + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k ≤ εd →
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
-      Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
-      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
-          {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
-            ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                o.Agrees O P.D k εcov εcov εd)}
-        ≤ δ
-
-/-- The learner's loop on uniform probes and suffixes, once the probes are at least `L₀` long.
-With probes uniform over the strings of length `L` and suffixes uniform over those of length
-`L + |Q| + 3`, of which at least `pAP` keep every string's membership, `L ≥ L₀` makes the loop,
-walking from `L − 1`, stop within `|Q| + 1` rounds at a round whose hypothesis's walk and tree
-part on at most `εd` of the probes and whose read is wrong at most `εcov` and undecided at most
-`εcov` of the time, but for chance `δ`. `L₀` is logarithmic in `1/δ`, `1/εd`, `1/εcov`,
-`1/(1/2 − η₀)`, `|Q|` and `1/pAP`, over `log |Σ|`. -/
-def LearnerLoopUniform : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (η₀ εcov εd δ pAP : ℝ),
-  let Q : ℝ := Fintype.card σ
-  let A : ℝ := Fintype.card α
-  let L : ℝ := P.L
-  let s : ℝ := 1 / 2 - η₀
-  let δ' : ℝ := δ / (2 * (Q + 1))
-  let ρ : ℝ := 3 * εd / 16
-  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
-  let Kp : ℝ := V * (224 / εd + 1)
-  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
-  let Θ : ℝ := 1 / s + 8 / εcov + 3072 * Q * (Q + 1)
-  let P₀ : ℝ := 256 * (2 * Θ
-      + 4 * (1 + Real.log (4 * Kp * G * (Q + 2) * (1 + (Q + 2) * A) / δ'))) / (s ^ 2 * pAP)
-    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-  let R₀ : ℝ := 6000 * (Q + 2) ^ 2 * Θ ^ 3
-    * Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (1 / 4) * (pAP / 2))) / s ^ 4
-  let E : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 1) / pAP + A ^ 2) / (δ' * ρ)
-  let L₀ : ℝ := 2 + 28 * (Real.log E + 24) / (25 * Real.log A)
-  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 →
-  0 < εcov → εcov ≤ 1 → 0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 2 ≤ Fintype.card α →
-  P.D = uniformStrings P.L →
-  pAP ≤ (uniformStrings (P.L + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  L₀ ≤ L →
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level5.walkStart = P.L - 1 ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
-      {p | let rounds := indecisiveLStarLoop settings O P.D
-            (uniformStrings (P.L + Fintype.card σ + 3)) (persistDraws p)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-            o.Agrees O P.D (P.L - 1) εcov εcov εd)}
-      ≤ δ
 
 end OrthoDFA
 

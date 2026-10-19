@@ -1,10 +1,10 @@
 import OrthoDFA.Proofs.LoopRenoise
 
 /-!
-# Level 5's claim is fixed by the short reads
+# Level 3's claim is fixed by the short reads
 
-Over probes at most `L` long, level 5's claim reads the family only at strings at most
-`max (L + maxLeaves) (probes + 1 + maxLeaves)` long (`endsWell_congr_reads`). The clustering
+Over probes at most `L` long, level 3's claim reads the family only at strings at most
+`max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes (`level3Fail_congr_up`). The clustering
 reads at most three prefixes per population per prefix the schedule draws, and at most one suffix
 more than the pool.
 -/
@@ -19,131 +19,94 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
 section Reads
 
-variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
+variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
+  [IsProbabilityMeasure μ']
 
-theorem runProbes_readInv {Lx : ℕ} :
-    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), ReadInv C Lx s →
-      (∀ x ∈ xs, x.toList.length ≤ Lx) → (runProbes C cut s xs).2 ≠ .failed →
-      ReadInv C Lx (runProbes C cut s xs).1
-  | s, [], _, _, h => absurd rfl h
-  | s, x :: xs, hs, hxs, h => by
-    have hx := hxs x List.mem_cons_self
-    simp only [runProbes] at h ⊢
-    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩ <;> simp only [ha] at h ⊢
-    · exact runProbes_readInv s' xs (applyProbe_readInv C cut (recordProbe_readInv C cut hs hx) ha)
-        (fun y hy => hxs y (List.mem_cons_of_mem _ hy)) h
-    · rcases applyProbe_inr C cut ha with ⟨-, rfl⟩ | ⟨rfl, -⟩
-      · exact recordProbe_readInv C cut hs hx
-      · simp [toRoundEnd] at h
-
-theorem level5_tree_midLe (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU) {T : ℕ}
-    (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel5 C read xs).ending ≠ .failed) :
-    MidLe C.maxLeaves (indecisiveLStarLevel5 C read xs).hypothesis.tree := by
-  have hinv := runProbes_readInv C (fun z => (read z).cut) (Lx := probesLen xs) initialState
-    (List.ofFn xs) ⟨by simp [initialState, freshState, DTree.leaves],
-      by simpa [initialState, freshState, DTree.leaves] using hC,
-      by simp [initialState, freshState, DTree.leaves, DTree.midfixes],
-      by simp [initialState, freshState]⟩
-    (fun x hx => by obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx; exact le_probesLen xs i) h
-  obtain ⟨-, hL, hm, -⟩ := hinv
-  intro m hmm
-  have := hm m hmm
-  show m.toList.length ≤ C.maxLeaves
-  omega
-
-/-- Over probes at most `L` long, level 5's claim reads only the short strings. -/
-theorem endsWell_congr_reads (hC : 2 ≤ C.maxLeaves) {σ : Type*} (M : _root_.DFA α σ)
-    (bad : σ → Prop) (dist : σ → ARU → ℝ) (D' : Measure (FreeMonoid α)) {L : ℕ}
-    (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (ε y : ℝ) {n : ℕ} (hn : n ≤ C.maxLeaves) (J : ℕ)
-    (ū : ℝ) (sift : Bool) {T : ℕ} (xs : Fin T → FreeMonoid α) {read read' : FreeMonoid α → ARU}
-    (h : ∀ z, z.toList.length ≤ max (L + C.maxLeaves) (probesLen xs + 1 + C.maxLeaves) →
-      read z = read' z) :
-    EndsWell M bad D' ε (checkedProbes M dist D' read C.walkStart n J ū
-        (indecisiveLStarLevel5 C read xs).hypothesis
-        ∪ siftedProbes sift read C.walkStart (indecisiveLStarLevel5 C read xs).hypothesis)
-        C.walkStart
-        (harvestLaw D' (fun z => (read z).cut) C.walkStart
-          (indecisiveLStarLevel5 C read xs).hypothesis) y
-        (indecisiveLStarLevel5 C read xs).ending
-      ↔ EndsWell M bad D' ε (checkedProbes M dist D' read' C.walkStart n J ū
-        (indecisiveLStarLevel5 C read' xs).hypothesis
-        ∪ siftedProbes sift read' C.walkStart (indecisiveLStarLevel5 C read' xs).hypothesis)
-        C.walkStart
-        (harvestLaw D' (fun z => (read' z).cut) C.walkStart
-          (indecisiveLStarLevel5 C read' xs).hypothesis) y
-        (indecisiveLStarLevel5 C read' xs).ending := by
-  have hres : indecisiveLStarLevel5 C read xs = indecisiveLStarLevel5 C read' xs :=
-    level5_congr_up C hC xs (le_probesLen xs) fun z hz => h z (le_max_of_le_right hz)
+/-- Over probes at most `L` long, whether level 3 fails its claim is fixed by the family's reads
+of the strings at most `max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes. -/
+theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
+    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (θ u : ℝ)
+    (xs : Fin C.probeBudget → FreeMonoid α) {ω ω' : Ω'}
+    (h : ∀ z, z.toList.length ≤ max (L + C.probeBudget + 2)
+      (probesLen xs + 1 + C.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
+    (ω, xs) ∈ level3Fail fam C D' θ u → (ω', xs) ∈ level3Fail fam C D' θ u := by
+  classical
+  have hlenP : ∀ x : FreeMonoid α, ∀ j, j ≤ x.toList.length → ∀ m : FreeMonoid α,
+      (prefixOf x j * m).toList.length ≤ x.toList.length + m.toList.length := by
+    intro x j _ m
+    have : (prefixOf x j).toList.length ≤ x.toList.length := by simp [prefixOf]
+    simp only [FreeMonoid.toList_mul, List.length_append]
+    omega
+  have hres : Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs
+      = Random.indecisiveLStarLevel3 C (fun z => fam.read ω' z) xs :=
+    Random.level3_congr_zone C xs fun i j _ hj m hm => h _ (by
+      have := hlenP (xs i) j hj m
+      have := le_probesLen xs i
+      omega)
+  set H := (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis with hHd
+  have hmid : Random.MidsLe C.probeBudget H.tree := by
+    have := (Random.runProbes_tree (fun z => fam.read ω z) C (List.ofFn xs)).2.2
+    rwa [List.length_ofFn] at this
+  have hz : ∀ x : FreeMonoid α, x.toList.length ≤ L → ∀ j, j ≤ x.toList.length →
+      ∀ m ∈ Random.mids H.tree, fam.read ω (prefixOf x j * m) = fam.read ω' (prefixOf x j * m) :=
+    fun x hx j hj m hm => h _ (by
+      have := hlenP x j hj m
+      have := hmid m hm
+      omega)
+  have hnull : D' {x : FreeMonoid α | x.toList.length ≤ L}ᶜ = 0 := by
+    rw [ae_iff] at hlen; convert hlen using 2; ext x; simp
+  have hlaw := Random.harvestLaw_congr_zone (r := fun z => fam.read ω z)
+    (r' := fun z => fam.read ω' z) D' C.walkStart H {x | x.toList.length ≤ L} hnull
+    (fun x hx j _ hj m hm => hz x hx j hj m hm)
+  have hdis : disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H
+      =ᵐ[D'] disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H := by
+    filter_upwards [hlen] with x hx
+    have hp : probeOrAgree (fun z => fam.read ω z) H.tree H.edges C.walkStart x
+        = probeOrAgree (fun z => fam.read ω' z) H.tree H.edges C.walkStart x :=
+      Random.probeOrAgree_congr_zone H.edges C.walkStart fun j _ hj m hm => hz x hx j hj m hm
+    have hr : ∀ m ∈ Random.mids H.tree, fam.read ω (x * m) = fam.read ω' (x * m) := by
+      intro m hm
+      have := hz x hx x.toList.length le_rfl m hm
+      rwa [prefixOf_length] at this
+    have e1 : x ∈ Random.searchSet (fun z => fam.read ω z) C.walkStart H
+        ↔ x ∈ Random.searchSet (fun z => fam.read ω' z) C.walkStart H := by
+      simp only [Random.searchSet, Set.mem_ofPred_eq]; rw [hp]
+    have e2 : x ∈ Random.endsSet (fun z => fam.read ω z) C.walkStart H
+        ↔ x ∈ Random.endsSet (fun z => fam.read ω' z) C.walkStart H := by
+      simp only [Random.endsSet, Set.mem_ofPred_eq]; rw [hp]
+    have e3 : x ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H.tree
+        ↔ x ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H.tree := by
+      constructor
+      · rintro ⟨hk, m, hm, hw⟩
+        exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [← hr m hm]; exact hw⟩
+      · rintro ⟨hk, m, hm, hw⟩
+        exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [hr m hm]; exact hw⟩
+    apply propext
+    show x ∈ disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H
+      ↔ x ∈ disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H
+    simp only [disagreeSet, Set.mem_union, e1, e2, e3]
+  have hsuff : ∀ E : RoundEnd Random.Level3Site,
+      EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
+        (C.disagreementRate + u)
+        (disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H) C.walkStart
+        (Random.harvestLaw (fun z => fam.read ω' z) D' C.walkStart H) C.harvestRate E →
+      EndsWell fam.M (fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ) D'
+        (C.disagreementRate + u)
+        (disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H) C.walkStart
+        (Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart H) C.harvestRate E := by
+    intro E hE
+    rcases E with _ | site | _
+    · show D'.real _ ≤ _
+      rw [measureReal_congr hdis]
+      exact hE
+    · simp only [EndsWell] at hE ⊢
+      rw [hlaw site]
+      exact hE
+    · exact (show False from hE).elim
+  intro hω
+  simp only [level3Fail, Set.mem_ofPred_eq] at hω ⊢
   rw [← hres]
-  set res := indecisiveLStarLevel5 C read xs
-  have hcut : AgreeUpTo (L + C.maxLeaves) (fun z => (read z).cut) (fun z => (read' z).cut) :=
-    fun z hz => by dsimp only; rw [h z (le_max_of_le_left hz)]
-  rcases he : res.ending with _ | hv | _
-  · -- consistent: the checked probes, at every short probe
-    have hmid := level5_tree_midLe C hC read xs (by rw [he]; simp)
-    have hae : (checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
-        ∪ siftedProbes sift read C.walkStart res.hypothesis : Set (FreeMonoid α))
-        =ᵐ[D'] (checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
-          ∪ siftedProbes sift read' C.walkStart res.hypothesis : Set (FreeMonoid α)) := by
-      filter_upwards [hlen] with x hx
-      have hpb := probeBy_congr_up hcut hmid (x := x) (by omega)
-        (Function.curry res.hypothesis.edges) C.walkStart
-      have hpre : ∀ j ≤ x.toList.length, ∀ m ∈ shortWords n,
-          read (prefixOf x j * m) = read' (prefixOf x j * m) := fun j hj m hm => by
-        refine h _ (le_max_of_le_left ?_)
-        have := length_le_of_mem_shortWords hm
-        simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
-          List.length_take]
-        omega
-      have hpreM : ∀ j ≤ x.toList.length, ∀ m ∈ res.hypothesis.tree.midfixes,
-          read (prefixOf x j * m) = read' (prefixOf x j * m) := fun j hj m hm => by
-        refine h _ (le_max_of_le_left ?_)
-        have := hmid m hm
-        simp only [FreeMonoid.toList_mul, List.length_append, prefixOf, FreeMonoid.toList_ofList,
-          List.length_take]
-        omega
-      apply propext
-      change x ∈ checkedProbes M dist D' read C.walkStart n J ū res.hypothesis
-          ∪ siftedProbes sift read C.walkStart res.hypothesis
-        ↔ x ∈ checkedProbes M dist D' read' C.walkStart n J ū res.hypothesis
-          ∪ siftedProbes sift read' C.walkStart res.hypothesis
-      have hsf : x ∈ siftedProbes sift read C.walkStart res.hypothesis
-          ↔ x ∈ siftedProbes sift read' C.walkStart res.hypothesis := by
-        simp only [siftedProbes, undSiftSet, Set.mem_setOf_eq]
-        rw [hpb]
-      rw [Set.mem_union, Set.mem_union, hsf]
-      refine or_congr ?_ Iff.rfl
-      simp only [checkedProbes, rarerProbes, undecidedProbes, Set.mem_union, Set.mem_setOf_eq]
-      have hs : x ∈ searchingProbes read C.walkStart res.hypothesis
-          ↔ x ∈ searchingProbes read' C.walkStart res.hypothesis := by
-        show (match probeBy (fun z => (read z).cut) res.hypothesis.tree
-            (Function.curry res.hypothesis.edges) C.walkStart x with
-          | .undecidedMid _ | .edge _ _ | .member _ => True
-          | _ => False) ↔ (match probeBy (fun z => (read' z).cut) res.hypothesis.tree
-            (Function.curry res.hypothesis.edges) C.walkStart x with
-          | .undecidedMid _ | .edge _ _ | .member _ => True
-          | _ => False)
-        rw [hpb]
-      rw [hs]
-      refine or_congr (or_congr Iff.rfl ?_) (and_congr Iff.rfl (and_congr Iff.rfl ?_))
-      · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
-          exists_congr fun m => and_congr_right fun hm => ?_
-        rw [hpreM j hj m hm]
-      · refine exists_congr fun j => and_congr_right fun _ => and_congr_right fun hj =>
-          exists_congr fun m => and_congr_right fun hm => ?_
-        rw [hpre j hj m hm]
-    simp only [EndsWell]
-    rw [measureReal_congr hae]
-  · have hshort := harvest_short C hC read xs he
-    have hlaw := harvestLaw_congr_up (fun z => (read z).cut) (L := L) (M := C.maxLeaves) hlen le_rfl
-      hcut C.walkStart (H := res.hypothesis) (fun m hm => by
-        obtain ⟨-, hL, hmid⟩ := hshort
-        have := hmid m hm
-        show m.toList.length ≤ C.maxLeaves
-        omega) hv
-    simp only [EndsWell]
-    rw [hlaw]
-  · simp [EndsWell]
+  exact fun hg => hω ⟨hsuff _ hg.1, hg.2⟩
 
 end Reads
 
