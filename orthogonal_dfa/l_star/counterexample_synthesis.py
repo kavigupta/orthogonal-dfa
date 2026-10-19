@@ -22,14 +22,8 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
 from .prefix_populations import PoolState
-from .prefix_sources import (
-    HarvestSource,
-    Replay,
-    UniformSource,
-    aim_at,
-    harvest_reader,
-    state_source,
-)
+from .prefix_sources import (HarvestSource, Replay, UniformSource, aim_at,
+                             harvest_reader, state_source)
 from .probe_batching import warmed_draws
 from .progress import counter, track
 from .round_end import HARVESTS, SUCCESS
@@ -86,7 +80,7 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 CERTIFICATE_ALPHA = 1e-3
 
 
-def _accumulate_harvest(strings, read, state, wanted, rng) -> int:
+def _accumulate_harvest(strings, read, state, wanted) -> int:
     """Take up to ``wanted`` of the harvested ``strings`` ``state`` does not
     already hold, returning how many.
 
@@ -96,7 +90,7 @@ def _accumulate_harvest(strings, read, state, wanted, rng) -> int:
     taken = sorted(set(strings) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(string, read, rng)
+        state.take(string, read)
     return min(wanted, len(taken))
 
 
@@ -369,7 +363,7 @@ def counterexample_driven_synthesis(
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
-        taken = _accumulate_harvest(strings, provenance, state, target, pst.rng)
+        taken = _accumulate_harvest(strings, provenance, state, target)
         if (
             _family_too_loose(ending, true_acc, acc_threshold, taken)
             and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit

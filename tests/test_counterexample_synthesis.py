@@ -8,12 +8,8 @@ import numpy as np
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
-    STALL_PATIENCE,
-    _accumulate_harvest,
-    _family_too_loose,
-    _publish_pool,
-    _StallDetector,
-)
+    STALL_PATIENCE, _accumulate_harvest, _family_too_loose, _publish_pool,
+    _StallDetector)
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
 
@@ -21,20 +17,8 @@ from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
 _REPLAY = object()
 
 
-class _AlwaysTable:
-    """An rng whose every coin flip sends a string to the table."""
-
-    def random(self):
-        return 1.0
-
-
 def _take(strings, state, wanted):
-    return _accumulate_harvest(strings, _REPLAY, state, wanted, _AlwaysTable())
-
-
-class _AlwaysReserve:
-    def random(self):
-        return 0.0
+    return _accumulate_harvest(strings, _REPLAY, state, wanted)
 
 
 def _state(held=()):
@@ -130,14 +114,13 @@ class TestWhatARoundTakes(unittest.TestCase):
 
         self.assertEqual(state.seen, set(_taken(state)))
 
-    def test_a_string_sent_to_the_reserve_is_remembered_but_not_held(self):
+    def test_a_lone_harvested_string_is_held(self):
         state = _state()
 
-        _accumulate_harvest([b"a"], _REPLAY, state, 1, _AlwaysReserve())
+        _take([b"a"], state, 1)
 
-        self.assertEqual(set(), set(_taken(state)))
-        self.assertEqual([b"a"], state.reserves[("boundary", 1)])
-        self.assertEqual({b"a"}, state.seen)
+        self.assertEqual({b"a"}, set(_taken(state)))
+        self.assertEqual([], state.reserves.get(("boundary", 1), []))
 
 
 class TestWhenARoundGivesUp(unittest.TestCase):

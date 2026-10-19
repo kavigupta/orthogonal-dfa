@@ -60,17 +60,11 @@ class PoolState:
         table_draws = []
         while len(table_draws) < count:
             string = source.draw()
-            if self.to_table(label, string, rng):
+            if rng.random() < RESERVE_SHARE:
+                self.reserves.setdefault(label, []).append(string)
+            else:
                 table_draws.append(string)
         return table_draws
-
-    def to_table(self, label, string, rng) -> bool:
-        """Whether string goes to the table of label; if not, it goes to the
-        reserve."""
-        if rng.random() < RESERVE_SHARE:
-            self.reserves.setdefault(label, []).append(string)
-            return False
-        return True
 
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
@@ -86,13 +80,12 @@ class PoolState:
         self.harvesting = None
         self.harvest_reads = Counter()
 
-    def take(self, string, provenance, rng) -> None:
+    def take(self, string, provenance) -> None:
         """Take a string this round harvested into its boundary population, with
-        what draws more like it."""
+        what draws more like it.  Never into the reserve: a round may harvest a
+        single string, and one held back would be marked seen and never read."""
         self.seen.add(string)
-        held = self.harvest()
-        if self.to_table(self.harvesting, string, rng):
-            held.append(string)
+        self.harvest().append(string)
         self.harvest_reads[provenance] += 1
 
 
