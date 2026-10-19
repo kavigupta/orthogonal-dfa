@@ -90,8 +90,10 @@ theorem endsWell_harvest {σ : Type*} {M : DFA α σ} {side : σ → Bool}
     (hI : ReadsByState read M side) [IsProbabilityMeasure D] (hE : EdgesOK read H.tree H.edges)
     (ε : ℝ) (dis : Set (FreeMonoid α)) {y : ℝ} (hy : 0 < y)
     (hlaw : y ≤ (harvestLaw read D k H).real Set.univ) :
-    EndsWell M (AllUndecided read M) D ε dis k (fun _ => harvestLaw read D k H) y
-      (.harvest ()) := by
+    EndsWell
+      { target := M, badStates := AllUndecided read M, probes := D, disagreeRate := ε, disagree := dis,
+        walkStart := k, harvestLaw := fun _ => harvestLaw read D k H, yield := y,
+        ending := .harvest () } := by
   classical
   have hbad : harvestLaw read D k H {z | AllUndecided read M (M.eval z.toList)}
       = harvestLaw read D k H Set.univ := by
