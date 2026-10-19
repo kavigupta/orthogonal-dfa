@@ -1,5 +1,4 @@
-import OrthoDFA.Proofs.KappaRound
-import OrthoDFA.Proofs.RandomShort
+import OrthoDFA.Proofs.KappaHead
 
 /-!
 # Level 5 with the prefix mass read past the walk's start: the proof
@@ -7,9 +6,10 @@ import OrthoDFA.Proofs.RandomShort
 The good states' bounds feed only a harvest's ending; a consistent ending's test reads nothing
 of them, so with no state good (`fun _ => 1` undecided, `θ = 0`) the round fails other than by a
 harvest with chance at most what the stretches and the wrong reads risk
-(`eps_round_consistent_le`). With the prefix mass read at `kd`, `NoiseBad` has chance at most the
-two tails at `kd` plus the chance that some string of `headStrings k kd |Q|` at a good state reads
-undecided (`noiseBad_le_at`), at most `1.5θ` for each.
+(`eps_round_consistent_le`). Otherwise a step at a tree with a string of `headOf k kd` at a good
+read-state reading undecided counts as bad (`HeadUnd`): off such trees the good states' bounds
+hold but for the two tails at `kd` (`noiseBad_le_at`), and such a step, before any wrong read,
+has chance at most `1.5θ (Mb + H (|Q| + 1))` (`head_le`).
 -/
 
 namespace OrthoDFA
@@ -33,8 +33,8 @@ theorem not_endsWell_of_not_harvest [Countable α] {H : Type*} (s : RoundOutcome
   | harvest h' => exact absurd rfl (hh h')
   | failed => exact h
 
-/-- `NoiseBad` with the prefix mass read at `kd`: the two tails, plus `1.5θ` for each string of
-`headStrings k kd |Q|`. -/
+/-- `NoiseBad` off the trees with a string of `headOf k kd` at a good read-state reading
+undecided, with the prefix mass read at `kd`: the two tails. -/
 theorem noiseBad_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : ProbabilityTheory.iIndepFun read μ)
@@ -45,54 +45,85 @@ theorem noiseBad_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsPr
     (hθ8 : 8 * ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ≤ 1)
     (hθ8e : 8 * (3 * (Fintype.card σ + 1) * (3 / 2 * θ)) ≤ 1)
     (hθg : 2 * ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ≤ θgpt) :
-    μ {ω | NoiseBad (read · ω) M U θ D k Ge θgpt ηm}
+    μ {ω | NoiseBad (read · ω) M U θ D k (HeadUnd M U θ k kd (read · ω)) Ge θgpt ηm}
       ≤ ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
           (Ge - 9 * θ * (Fintype.card σ + 1)))
-        + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀ ηm)
-        + ENNReal.ofReal (3 / 2 * θ * ((∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i)
-          * ∑ j ∈ Finset.range (Fintype.card σ + 1), (Fintype.card α : ℝ) ^ j)) := by
+        + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀ ηm) := by
   classical
   set n := Fintype.card σ
-  set Z : Finset (FreeMonoid α) := headStrings k kd n
-  set good : FreeMonoid α → Prop := fun z => ¬ BadAt U θ (M.eval z.toList)
-  set Sh := {ω | ∃ z ∈ Z, good z ∧ read z ω = .undecided}
   have hNe := endsNoise_off M U θ hmeas hind hund hθ D k kd (n := n)
     (η := Ge - 9 * θ * (n + 1)) hL hp₀ hpre hθ8e
   have hNm := midNoise_off M U θ hmeas hind hund hθ D k kd (n := n) (η := ηm) hL hp₀ hpre hθ8 hθg
-  have hSh : μ Sh ≤ ENNReal.ofReal (3 / 2 * θ * ((∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i)
-      * ∑ j ∈ Finset.range (n + 1), (Fintype.card α : ℝ) ^ j)) := by
-    calc μ Sh ≤ ∑ z ∈ Z.filter good, μ {ω | read z ω = .undecided} := by
-          refine (measure_mono ?_).trans (measure_biUnion_finset_le _ _)
-          rintro ω ⟨z, hz, hg, hu⟩
-          exact Set.mem_biUnion (Finset.mem_filter.2 ⟨hz, hg⟩) hu
-      _ = ENNReal.ofReal (∑ z ∈ Z.filter good, μ.real {ω | read z ω = .undecided}) := by
-          rw [ENNReal.ofReal_sum_of_nonneg fun _ _ => measureReal_nonneg]
-          exact Finset.sum_congr rfl fun z _ => (ofReal_measureReal (measure_ne_top _ _)).symm
-      _ ≤ _ := by
-          refine ENNReal.ofReal_le_ofReal ?_
-          calc _ ≤ ∑ _z ∈ Z.filter good, 3 / 2 * θ := Finset.sum_le_sum fun z hz =>
-                undecided_le_of_good M U θ hund (Finset.mem_filter.1 hz).2
-            _ = (Z.filter good).card * (3 / 2 * θ) := by rw [Finset.sum_const, nsmul_eq_mul]
-            _ ≤ Z.card * (3 / 2 * θ) := mul_le_mul_of_nonneg_right
-                (by exact_mod_cast Finset.card_filter_le _ _) (by positivity)
-            _ ≤ _ := by
-                rw [mul_comm]
-                exact mul_le_mul_of_nonneg_left (card_headStrings k kd n) (by positivity)
-  refine (measure_mono fun ω hω => ?_).trans ((measure_union_le _ _).trans
-    (add_le_add ((measure_union_le _ _).trans (add_le_add hNe hNm)) hSh))
-  by_cases hs : ω ∈ Sh
-  · exact Or.inr hs
-  have hsub : ∀ H site, goodAt (read · ω) k H M U θ site ⊆ goodOff M U θ (read · ω) k H Z site :=
-    fun H site => goodAt_subset_off M U θ _ k H Z site fun z hz hg hu => hs ⟨z, hz, hg, hu⟩
+  refine (measure_mono fun ω hω => ?_).trans ((measure_union_le _ _).trans (add_le_add hNe hNm))
+  have hsub : ∀ T, ¬ HeadUnd M U θ k kd (read · ω) T → ∀ E site,
+      goodAt (read · ω) k ⟨T, E⟩ M U θ site
+        ⊆ goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) site :=
+    fun T hT E site => goodAt_subset_off M U θ _ k _ _ site fun z hz hg hu => hT ⟨z, hz, hg, hu⟩
   simp only [NoiseBad, Set.mem_ofPred_eq] at hω
   simp only [Set.mem_union, Set.mem_ofPred_eq]
-  left
   rcases hω with h | h
-  · refine Or.inl fun hall => h fun T hT E hE => ?_
+  · refine Or.inl fun hall => h fun T hT hsp E hE => ?_
     have := hall T hT E hE
-    exact (measureReal_mono (hsub _ _) (measure_ne_top _ _)).trans (by linarith)
-  · refine Or.inr fun hall => h fun T hT E hE => ?_
-    exact (measureReal_mono (hsub _ _) (measure_ne_top _ _)).trans (hall T hT E hE)
+    exact (measureReal_mono (hsub T hsp E _) (measure_ne_top _ _)).trans (by linarith)
+  · refine Or.inr fun hall => h fun T hT hsp E hE => ?_
+    exact (measureReal_mono (hsub T hsp E _) (measure_ne_top _ _)).trans (hall T hT E hE)
+
+/-- Over the probes and the reads, some step reads a string wrong, or is at a tree with a
+string of `headOf k kd` at a good read-state reading undecided, with chance at most
+`εw Mb + κ Mu`, plus `1.5θ (Mb + H (|Q| + 1))` where `k < kd`. -/
+theorem pi_wrong_head_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (εw κ : ℝ) (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α) (k kd : ℕ)
+    (hεw : 0 ≤ εw) (hκ : 0 ≤ κ) (hθ : 0 ≤ θ) (hy0 : 0 < C.harvestRate)
+    (hyε : C.harvestRate ≤ C.disagreementRate / 48) (hε1 : C.disagreementRate < 1)
+    (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {d | AnyB (applyProbe (R.read · ω) C) (fun s x => ReadsWrong M side (R.read · ω) C s x
+          ∨ HeadUnd M U θ k kd (R.read · ω) s.tree) initialState (List.ofFn d)} ∂μ
+      ≤ ENNReal.ofReal (εw * Mb (Fintype.card σ) (Fintype.card α) P.L C.probeBudget
+        + κ * Mu (Fintype.card σ) (Fintype.card α) C)
+        + ENNReal.ofReal (if k < kd then 3 / 2 * θ
+          * (Mb (Fintype.card σ) (Fintype.card α) P.L C.probeBudget
+          + (∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i) * (Fintype.card σ + 1))
+        else 0) := by
+  have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
+  refine lintegral_le_of_points μ _ _ _ fun d hd => ?_
+  have hL : ∀ x ∈ List.ofFn d, x.toList.length ≤ P.L := by
+    intro x hx
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
+    by_contra hlt
+    apply hd
+    have hpi : (Measure.pi fun _ : Fin C.probeBudget => P.D) {d} = ∏ j, P.D {d j} := by
+      rw [← Measure.pi_pi]
+      congr 1
+      ext d'
+      simp [funext_iff]
+    rw [hpi]
+    refine Finset.prod_eq_zero (Finset.mem_univ i) (measure_mono_null ?_
+      (ae_iff.1 P.length_le))
+    intro x hx
+    rw [Set.mem_singleton_iff] at hx
+    subst hx
+    exact hlt
+  have hw := wrong_le' M side C μ U εw κ R (List.ofFn d) P.L hL hεw hκ hy0 hyε hε1 hδ0 hδ1
+  rw [List.length_ofFn] at hw
+  have hh : μ {ω | ∃ j < (List.ofFn d).length, Good' M side C (List.ofFn d) (R.read · ω) (2 * j)
+      ∧ HeadUnd M U θ k kd (R.read · ω) (treeAt C (List.ofFn d) (R.read · ω) j)}
+      ≤ ENNReal.ofReal (if k < kd then 3 / 2 * θ
+        * (Mb (Fintype.card σ) (Fintype.card α) P.L C.probeBudget
+          + (∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i) * (Fintype.card σ + 1)) else 0) := by
+    by_cases hk : k < kd
+    · rw [if_pos hk]
+      have := head_le M side U θ C μ εw κ R k kd (List.ofFn d) P.L hL hθ hy0 hyε hε1 hδ0 hδ1
+      rw [List.length_ofFn] at this ⊢
+      exact this
+    · rw [if_neg hk]
+      refine le_of_eq_of_le (measure_mono_null (fun ω hω => ?_) measure_empty) bot_le
+      obtain ⟨j, -, -, z, hz, -⟩ := hω
+      simp only [headOf, Finset.mem_biUnion, Finset.mem_Ico] at hz
+      obtain ⟨i, hi, -⟩ := hz
+      omega
+  refine (measure_mono fun ω hω => anyB_head U θ (R.read · ω) k kd (List.ofFn d) hω).trans
+    ((measure_union_le _ _).trans (add_le_add hw hh))
 
 /-- Over the reads, the round fails to end well other than by a harvest with chance at most what
 the stretches risk at admissible knobs, plus the chance some step is `W`. -/
@@ -153,9 +184,10 @@ theorem eps_round_consistent_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure 
     refine (measure_mono fun d hd => not_endsWell_of_not_harvest _ (BadAt (fun _ => (1 : ℝ)) 0)
       hd.1 hd.2).trans ?_
     exact eps_probe_level (read · ω) C M side (fun _ => 1) 0 P.D ε Ns y (W (read · ω))
-      (hW (read · ω)) C.probeBudget N₁ Ge θgpt ηm pM θr εd' θe' θpt'
-      (fun T _ E _ => by rw [hnone, measureReal_empty]; exact hGe0)
-      (fun T _ E _ => by rw [hnone, measureReal_empty]; positivity)
+      (hW (read · ω)) (fun _ => False) (fun _ _ h => h.elim) C.probeBudget N₁ Ge θgpt ηm pM θr
+      εd' θe' θpt'
+      (fun T _ _ E _ => by rw [hnone, measureReal_empty]; exact hGe0)
+      (fun T _ _ E _ => by rw [hnone, measureReal_empty]; positivity)
       hN₁ hN₁s hδ hθs0 hθs1 hps hθpt0 hθpt1 hθg4 hpM0 hyM hηm' hfall hεd0 hεd1 hε
       hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP
   calc _ ≤ ∫⁻ ω, (c + g ω) ∂μ := lintegral_mono hpt
@@ -171,16 +203,16 @@ theorem kappaRoundCorrectAt_holds : KappaRoundCorrectAt := by
   set S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1 with hS
   set K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) with hK
   set Λ := Real.log (16 * (K : ℝ) / δ) with hΛ
-  have hHW : 0 ≤ 3 / 2 * θ * ((∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i)
-      * ∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j) := by positivity
+  set ex : ℝ := if C.walkStart < kd then 3 / 2 * θ * (C.probeBudget * (P.L + 1) * nQ
+    + nQ * (nQ + 1) ^ 2 * nα + (∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i) * (nQ + 1)) else 0
+  have hHW : 0 ≤ ex := by simp only [ex]; split_ifs <;> positivity
   by_cases hδ1 : 1 ≤ δ
   · have h1 : ∀ F : Ω → Set (Fin C.probeBudget → FreeMonoid α),
         ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D) (F ω) ∂μ ≤ ENNReal.ofReal δ :=
       fun F => calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
         _ = 1 := by simp
         _ ≤ _ := by rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal hδ1
-    refine ⟨h1 _, (h1 _).trans (ENNReal.ofReal_le_ofReal ?_)⟩
-    nlinarith
+    exact ⟨h1 _, (h1 _).trans (ENNReal.ofReal_le_ofReal (by linarith only [hHW]))⟩
   push Not at hδ1
   have hp₀ : 0 < p₀ := (prefixMax_pos P.D kd).trans_le (ciSup_le hpre)
   have hK1 : (1 : ℝ) ≤ K := by
@@ -229,8 +261,12 @@ theorem kappaRoundCorrectAt_holds : KappaRoundCorrectAt := by
       rw [← ENNReal.ofReal_add a4 a6]
       exact ENNReal.ofReal_le_ofReal (by linarith only [hδ])
     exact (hc.trans (add_le_add e1 e2)).trans hfin
-  · refine (eps_round_le_noise C M side U θ _ μ R.read (fun rd => ReadsWrong M side rd C) hW' P _
-      kn hA).trans ?_
+  · have hW'' : ∀ rd, KeepsInv rd C M side (fun s x => ReadsWrong M side rd C s x
+        ∨ HeadUnd M U θ C.walkStart kd rd s.tree) :=
+      fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg (fun hr => hx (Or.inl hr))
+        h hne
+    refine (eps_round_le_noise C M side U θ _ μ R.read _ hW''
+      (fun rd T => HeadUnd M U θ C.walkStart kd rd T) (fun _ _ _ h => Or.inr h) P _ kn hA).trans ?_
     have hθs := hA.θ_small
     have hL0 : (0 : ℝ) ≤ P.L := Nat.cast_nonneg _
     have hn0 : (0 : ℝ) ≤ nQ := Nat.cast_nonneg _
@@ -244,24 +280,26 @@ theorem kappaRoundCorrectAt_holds : KappaRoundCorrectAt := by
       rw [hηm, hΛ']
       exact tailRisk_eq nQ nα hp₀ (by positivity)
     rw [h1, h2] at hN
-    calc _ ≤ ENNReal.ofReal (3 * δ / 4)
-            + (ENNReal.ofReal (δ / 2 / 8) + ENNReal.ofReal (δ / 2 / 8)
-              + ENNReal.ofReal (3 / 2 * θ * ((∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i)
-                * ∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j)))
-            + ENNReal.ofReal (δ / 8) := by
-          gcongr
-          exact hwrong.trans (ENNReal.ofReal_le_ofReal hwr)
-      _ = _ := by
-          have a1 : (0 : ℝ) ≤ δ / 2 / 8 := by positivity
-          have a4 : (0 : ℝ) ≤ 3 * δ / 4 := by positivity
-          have a6 : (0 : ℝ) ≤ δ / 8 := by positivity
-          have a3 := add_nonneg (add_nonneg a1 a1) hHW
-          rw [← ENNReal.ofReal_add a1 a1, ← ENNReal.ofReal_add (add_nonneg a1 a1) hHW,
-            ← ENNReal.ofReal_add a4 a3, ← ENNReal.ofReal_add (add_nonneg a4 a3) a6]
-          generalize (∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i) = A
-          generalize (∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j) = B
-          rw [show 3 * δ / 4 + (δ / 2 / 8 + δ / 2 / 8 + 3 / 2 * θ * (A * B)) + δ / 8
-            = δ + 3 / 2 * θ * A * B by ring]
+    have hH := pi_wrong_head_le M side U θ C μ εw κ R P C.walkStart kd hεw hκ hθ hy0 hyρ hρ1 hδ
+      hδ1.le
+    have hex : (if C.walkStart < kd then 3 / 2 * θ * (Mb nQ nα P.L C.probeBudget
+        + (∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i) * (nQ + 1)) else 0) = ex := by
+      simp only [ex, hMb]
+    rw [hex] at hH
+    have hH' := hH.trans (add_le_add (ENNReal.ofReal_le_ofReal hwr) le_rfl)
+    have e1 := ENNReal.ofReal_le_ofReal hstr
+    have a1 : (0 : ℝ) ≤ δ / 2 / 8 := by positivity
+    have a4 : (0 : ℝ) ≤ 3 * δ / 4 := by positivity
+    have a5 : (0 : ℝ) ≤ δ / 8 := by positivity
+    have a6 : (0 : ℝ) ≤ δ / 8 + ex := add_nonneg a5 hHW
+    have hfin : ENNReal.ofReal (3 * δ / 4)
+        + (ENNReal.ofReal (δ / 2 / 8) + ENNReal.ofReal (δ / 2 / 8))
+        + (ENNReal.ofReal (δ / 8) + ENNReal.ofReal ex) = ENNReal.ofReal (δ + ex) := by
+      rw [← ENNReal.ofReal_add a1 a1, ← ENNReal.ofReal_add a4 (add_nonneg a1 a1),
+        ← ENNReal.ofReal_add a5 hHW, ← ENNReal.ofReal_add (add_nonneg a4 (add_nonneg a1 a1)) a6]
+      generalize ex = A
+      rw [show 3 * δ / 4 + (δ / 2 / 8 + δ / 2 / 8) + (δ / 8 + A) = δ + A by ring]
+    exact ((add_le_add (add_le_add e1 hN) hH').trans (le_of_eq hfin))
 
 end Kappa
 

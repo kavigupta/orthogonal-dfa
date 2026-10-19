@@ -82,14 +82,16 @@ def KappaRoundCorrect : Prop :=
       ≤ ENNReal.ofReal δ
 
 /-- `KappaRoundCorrect` with the probes' prefix mass read at a depth `kd` rather than at the walk's
-start `k`. A probe reads strings `u m`, `u` a prefix of it and `m` a midfix at most `|Q|` long;
-those with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one at a good state
-read undecided can only feed a harvest. The round fails to end well other than by a harvest with
-chance at most `δ`, and at all with chance at most
+start `k`. A probe reads strings `u m`, `u` a prefix of it and `m` a midfix of the tree; those
+with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one at a good state read
+undecided can only feed a harvest. A tree holds at most `|Q| + 1` midfixes and each step's tree
+those of the one before, so the trees a round reaches have at most `H (|Q| + 1)` such strings,
+`H = Σ_{k ≤ i < kd} |Σ|^i`. The round fails to end well other than by a harvest with chance at
+most `δ`, and at all with chance at most
 
-    δ + 1.5θ H W,    H = Σ_{k ≤ i < kd} |Σ|^i,    W = Σ_{j ≤ |Q|} |Σ|^j,
+    δ + [k < kd] · 1.5θ (N (L + 1)|Q| + |Q|(|Q| + 1)²|Σ| + H (|Q| + 1)),
 
-`H W` counting those strings. At `kd = k`, `H = 0`. -/
+`N` the budget, the first two terms bounding what the round reads besides. -/
 def KappaRoundCorrectAt : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -104,7 +106,6 @@ def KappaRoundCorrectAt : Prop :=
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
     let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
     let H : ℝ := ∑ i ∈ Finset.Ico C.walkStart kd, (nα : ℝ) ^ i
-    let W : ℝ := ∑ j ∈ Finset.range (nQ + 1), (nα : ℝ) ^ j
     (∀ u, P.D.real {x | prefixOf x kd = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
     48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
@@ -139,7 +140,8 @@ def KappaRoundCorrectAt : Prop :=
               harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
               ending := result.ending }} ∂μ
-      ≤ ENNReal.ofReal (δ + 3 / 2 * θ * H * W)
+      ≤ ENNReal.ofReal (δ + if C.walkStart < kd then 3 / 2 * θ * (C.probeBudget * (P.L + 1) * nQ
+        + nQ * (nQ + 1) ^ 2 * nα + H * (nQ + 1)) else 0)
 
 end Kappa
 

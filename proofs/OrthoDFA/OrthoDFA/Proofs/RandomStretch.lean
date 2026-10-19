@@ -780,12 +780,10 @@ theorem seg_le (X : Level3State α → FreeMonoid α → Prop) (XEv : List (Free
     (bX : ℝ)
     [IsProbabilityMeasure D] (N₁ : ℕ) (Ge θgpt ηm pM θr εd' θe' θpt' : ℝ)
     {s : Level3State α} (hs : Inv read s) (hf : s = newHypothesis s.tree s.edges s.hypotheses)
-    (hT : s.tree ∈ (classSet (Fintype.card σ) : Finset (DTree α)))
-    (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
-      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
-    (hNm : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
-      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
-        ≤ θgpt * D.real {x | searches (probeOrAgree read T E C.walkStart x) = true} + ηm)
+    (hNe : ∀ E, EdgesInto s.tree E → D.real (goodAt read C.walkStart ⟨s.tree, E⟩ M U θ .ends) ≤ Ge)
+    (hNm : ∀ E, EdgesInto s.tree E →
+      D.real (goodAt read C.walkStart ⟨s.tree, E⟩ M U θ .middles)
+        ≤ θgpt * D.real {x | searches (probeOrAgree read s.tree E C.walkStart x) = true} + ηm)
     (hX : ∀ ys s' x, Inv read s' → StInv read C s.tree s.edges s.hypotheses ys s' → X s' x
       → XEv (ys ++ [x]))
     (hbX : ∀ N, (Measure.pi fun _ : Fin N => D).real
@@ -824,7 +822,7 @@ theorem seg_le (X : Level3State α → FreeMonoid α → Prop) (XEv : List (Free
     have hn0 : s.probeCount < Ns := by rw [hf]; simp only [newHypothesis]; omega
     have hE := edgesInto_of_ok hs.edges
     obtain ⟨i, hi, hiN, h⟩ := seg_reduce read C M U θ D ε Ns y s.tree s.edges s.hypotheses N₁
-      (hNe _ hT _ hE) (hNm _ hT _ hE) hyM hηm hθg X XEv
+      (hNe _ hE) (hNm _ hE) hyM hηm hθg X XEv
       (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hN₁s (List.ofFn xs) []
       s hs hst0 h₁0 (by simp) hn0 hxs
     simp only [List.nil_append, List.length_nil, zero_add, List.length_ofFn] at hi hiN h

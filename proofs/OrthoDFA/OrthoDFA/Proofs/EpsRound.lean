@@ -44,6 +44,17 @@ theorem segB_stopAt (B : S → X → Prop) (same : S → S → Prop) :
   | _, _ :: xs, h => h.elim Or.inl fun ⟨s', hs', hsm, h⟩ =>
       Or.inr ⟨s', (stopAt_inl step B₂ e₀ hs').2, hsm, segB_stopAt B same s' xs h⟩
 
+theorem stopAt_inr {s : S} {x : X} (h : B₂ s x) : stopAt step B₂ e₀ s x = .inr e₀ := by
+  classical
+  unfold stopAt
+  rw [if_pos h]
+
+theorem segB_mono (B B' : S → X → Prop) (same : S → S → Prop) (h : ∀ s x, B s x → B' s x) :
+    ∀ s xs, SegB step B same s xs → SegB step B' same s xs
+  | _, [], hs => hs.elim
+  | s, x :: xs, hs => hs.elim (fun hb => Or.inl (h s x hb)) fun ⟨s', hs', hsm, hr⟩ =>
+      Or.inr ⟨s', hs', hsm, segB_mono B B' same h s' xs hr⟩
+
 /-- A run with a bad step, each bad step `B₁` or `B₂`, has a `B₁` step before any `B₂`, or a `B₂`
 step. -/
 theorem anyB_split (B B₁ : S → X → Prop) (hB : ∀ s x, B s x → B₁ s x ∨ B₂ s x) :
@@ -125,13 +136,15 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
 /-- Given the reads, the round fails to end well with chance at most what the stretches risk at
-their levels, plus the chance that some step is `W`. -/
+their levels, plus the chance that some step is `W`; the good states' bounds are needed only at
+the trees off `Sp`, every step at a tree of `Sp` being `W`. -/
 theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C M side W)
+    (Sp : DTree α → Prop) (hSp : ∀ s x, Sp s.tree → W s x)
     [IsProbabilityMeasure D] (P N₁ : ℕ)
     (Ge θgpt ηm pM θr εd' θe' θpt' : ℝ)
-    (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+    (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ¬ Sp T → ∀ E, EdgesInto T E →
       D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
-    (hNm : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+    (hNm : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ¬ Sp T → ∀ E, EdgesInto T E →
       D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
         ≤ θgpt * D.real {x | searches (probeOrAgree read T E C.walkStart x) = true} + ηm)
     (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hδ : 0 < C.δ)
@@ -170,7 +183,8 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
   have hd : C.disagreementAlternative = C.disagreementRate / 2 := rfl
   have hsa : C.endsAlternative = 2 * C.endsRate := rfl
   set step₂ := stopAt (applyProbe read C) W (RoundEnd.failed : RoundEnd Level3Site)
-  set B₁ := BadStep read C M U θ D ε Ns y fun _ _ => False
+  set B₀ := BadStep read C M U θ D ε Ns y fun _ _ => False
+  set B₁ : Level3State α → FreeMonoid α → Prop := fun s x => B₀ s x ∧ ¬ W s x
   set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set I : Level3State α → Prop := fun s => Inv read s ∧ WitInv M side s ∧ s.probeCount < Ns
   have hI0 : I initialState := ⟨inv_start read, witInv_start M side,
@@ -179,9 +193,21 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
       (Measure.pi fun _ : Fin N => D) {xs | SegB step₂ B₁ Same s (List.ofFn xs)}
         ≤ b s.hypotheses := by
     rintro s ⟨hs, hg, -⟩ hf N
-    refine (measure_mono fun xs hxs => segB_stopAt _ _ _ _ _ _ _ hxs).trans ?_
+    by_cases hsp : Sp s.tree
+    · refine le_of_eq_of_le (measure_mono_null (fun xs hxs => ?_) measure_empty) bot_le
+      change SegB step₂ B₁ Same s (List.ofFn xs) at hxs
+      rcases hl : List.ofFn xs with _ | ⟨x, l⟩
+      · rw [hl] at hxs; exact hxs.elim
+      · rw [hl] at hxs
+        rcases hxs with h | ⟨s', h, -⟩
+        · exact h.2 (hSp s x hsp)
+        · have h' : step₂ s x = .inr .failed := stopAt_inr _ _ _ (hSp s x hsp)
+          rw [h'] at h; cases h
+    refine (measure_mono fun xs hxs => segB_stopAt _ _ _ _ _ _ _
+      (segB_mono _ B₁ B₀ Same (fun _ _ h => h.1) _ _ hxs)).trans ?_
+    have hT := cls_mem' M side read hs hg
     have := seg_le read C M U θ D ε Ns y (fun _ _ => False) (fun _ => False) 0 N₁ Ge θgpt ηm pM
-      θr εd' θe' θpt' hs hf (cls_mem' M side read hs hg) hNe hNm (fun _ _ _ _ _ h => h.elim)
+      θr εd' θe' θpt' hs hf (hNe _ hT hsp) (hNm _ hT hsp) (fun _ _ _ _ _ h => h.elim)
       (fun N => by simp) hN₁ hN₁s (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
       (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hθg hpM0
       hyM hηm hfall
@@ -194,10 +220,10 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
     Level3State.hypotheses b
     (fun s x s' hI h hsm hb => by
       obtain ⟨hs, hg, hn⟩ := hI
-      have h := (stopAt_inl _ _ _ h).2
+      obtain ⟨hW', h⟩ := stopAt_inl _ _ _ h
       obtain ⟨h1, h2, h3, h4⟩ := step_same read C hs h hsm.1 hsm.2
       refine ⟨⟨h1, witInv_congr M side hg hsm.1 hsm.2, ?_⟩, h2 _, h4⟩
-      have : s'.probeCount ≠ Ns := fun hc => hb (Or.inr ⟨s', h, hsm, hc⟩)
+      have : s'.probeCount ≠ Ns := fun hc => hb ⟨Or.inr ⟨s', h, hsm, hc⟩, hW'⟩
       omega)
     (fun s x s' hI h hsm hb => by
       obtain ⟨hs, hg, hn⟩ := hI
@@ -228,10 +254,12 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
           rw [Nat.add_mul, one_mul] at this
           omega
         refine anyB_split (applyProbe read C) W _ _ B₁ (fun s x h => ?_) _ _ hb
+        by_cases hw : W s x
+        · exact Or.inr hw
         rcases h with ⟨hn, h | h⟩ | h
-        · exact Or.inl (Or.inl ⟨hn, Or.inl h⟩)
-        · exact Or.inr h
-        · exact Or.inl (Or.inr h)
+        · exact Or.inl ⟨Or.inl ⟨hn, Or.inl h⟩, hw⟩
+        · exact absurd h hw
+        · exact Or.inl ⟨Or.inr h, hw⟩
     _ ≤ (Measure.pi fun _ : Fin P => D) {xs | AnyB step₂ B₁ initialState (List.ofFn xs)}
           + (Measure.pi fun _ : Fin P => D)
             {xs | AnyB (applyProbe read C) W initialState (List.ofFn xs)} :=
@@ -257,21 +285,24 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
               Finset.sum_le_sum_of_subset (Finset.range_subset_range.2 (by omega))
           _ = _ := (ENNReal.ofReal_sum_of_nonneg hnn).symm
 
-/-- For some tree of `classSet |Q|` and edge map into its leaves, the probes harvesting at a good
-read-state exceed `Ge` at the ends, or `θgpt` of the searches plus `ηm` at the middles. -/
-def NoiseBad (k : ℕ) (Ge θgpt ηm : ℝ) : Prop :=
-  (¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+/-- For some tree of `classSet |Q|` off `Sp` and edge map into its leaves, the probes harvesting
+at a good read-state exceed `Ge` at the ends, or `θgpt` of the searches plus `ηm` at the
+middles. -/
+def NoiseBad (k : ℕ) (Sp : DTree α → Prop) (Ge θgpt ηm : ℝ) : Prop :=
+  (¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ¬ Sp T → ∀ E, EdgesInto T E →
       D.real (goodAt read k ⟨T, E⟩ M U θ .ends) ≤ Ge)
-  ∨ ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+  ∨ ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ¬ Sp T → ∀ E, EdgesInto T E →
       D.real (goodAt read k ⟨T, E⟩ M U θ .middles)
         ≤ θgpt * D.real {x | searches (probeOrAgree read T E k x) = true} + ηm
 
 /-- The round's failure chance is at most what the stretches risk at admissible knobs, plus the
-chance of `NoiseBad`, plus the chance some step is `W`. -/
+chance of `NoiseBad` off `Sp`, plus the chance some step is `W`, every step at a tree of `Sp`
+being `W`. -/
 theorem eps_round_le_noise {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
     (W : (FreeMonoid α → ARU) → Level3State α → FreeMonoid α → Prop)
-    (hW : ∀ rd, KeepsInv rd C M side (W rd)) (P : PrefixDistribution α) (y : ℝ) (kn : Knobs)
+    (hW : ∀ rd, KeepsInv rd C M side (W rd)) (Sp : (FreeMonoid α → ARU) → DTree α → Prop)
+    (hSp : ∀ rd s x, Sp rd s.tree → W rd s x) (P : PrefixDistribution α) (y : ℝ) (kn : Knobs)
     (hA : kn.Admissible (σ := σ) (α := α) θ P.L C ε y) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (read · ω) draws
@@ -288,7 +319,7 @@ theorem eps_round_le_noise {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
               ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
           stretchRisk C (C.level j) kn.Ns kn.N₁ kn.θr kn.εd' kn.θe' kn.θpt')
-        + μ {ω | NoiseBad (read · ω) M U θ P.D C.walkStart kn.Ge kn.θgpt kn.ηm}
+        + μ {ω | NoiseBad (read · ω) M U θ P.D C.walkStart (Sp (read · ω)) kn.Ge kn.θgpt kn.ηm}
         + ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {d | AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn d)} ∂μ := by
   obtain ⟨Ns, N₁, Ge, θgpt, ηm, pM, θr, εd', θe', θpt'⟩ := kn
@@ -298,7 +329,7 @@ theorem eps_round_le_noise {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
   simp only at hN₁ hN₁s hGe0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps hfall ⊢
   simp only at hθg hθg4 hpM0 hyM hηm
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
-  set Nn := {ω | NoiseBad (read · ω) M U θ P.D C.walkStart Ge θgpt ηm}
+  set Nn := {ω | NoiseBad (read · ω) M U θ P.D C.walkStart (Sp (read · ω)) Ge θgpt ηm}
   set c := ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
     stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set B := toMeasurable μ Nn
@@ -326,7 +357,7 @@ theorem eps_round_le_noise {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
       rw [Set.indicator_of_notMem hω, add_zero]
       simp only [Nn, NoiseBad, Set.mem_ofPred_eq, not_or, not_not] at hω'
       exact eps_probe_level (read · ω) C M side U θ P.D ε Ns y (W (read · ω)) (hW (read · ω))
-        C.probeBudget N₁ Ge θgpt ηm pM θr εd' θe' θpt' hω'.1 hω'.2
+        (Sp (read · ω)) (hSp (read · ω)) C.probeBudget N₁ Ge θgpt ηm pM θr εd' θe' θpt' hω'.1 hω'.2
         hN₁ hN₁s hδ hθs0 hθs1 hps hθpt0 hθpt1 hθg4 hpM0 hyM hηm hfall hεd0 hεd1 hε
         hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP
   calc _ ≤ ∫⁻ ω, ((c + B.indicator 1 ω) + g ω) ∂μ := lintegral_mono hpt
@@ -363,7 +394,8 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ θ p₀ P.L C kn)
         + ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {d | AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn d)} ∂μ := by
-  refine (eps_round_le_noise C M side U θ ε μ read W hW P y kn hA).trans ?_
+  refine (eps_round_le_noise C M side U θ ε μ read W hW (fun _ _ => False)
+    (fun _ _ _ h => h.elim) P y kn hA).trans ?_
   have hθs := hA.θ_small
   have hθg := hA.θgpt_ge
   have hL0 : (0 : ℝ) ≤ P.L := Nat.cast_nonneg _
@@ -380,12 +412,12 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
       hA.endsRate_pos hA.endsRate_lt kn.Ns kn.N₁ hA.θr_le hA.εd'_nonneg hA.εd'_le hA.θe'_nonneg
       hA.θe'_le (le_trans (by show 0 ≤ 2 * C.middleRate; linarith [hA.middleRate_pos])
         hA.θpt'_ge) hA.θpt'_le
-  have hN : μ {ω | NoiseBad (read · ω) M U θ P.D C.walkStart kn.Ge kn.θgpt kn.ηm}
+  have hN : μ {ω | NoiseBad (read · ω) M U θ P.D C.walkStart (fun _ => False) kn.Ge kn.θgpt kn.ηm}
       ≤ ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
           (kn.Ge - 9 * θ * (Fintype.card σ + 1)))
         + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀ kn.ηm) := by
     refine (measure_mono fun ω hω => ?_).trans ((measure_union_le _ _).trans (add_le_add hNe hNm))
-    simp only [NoiseBad, Set.mem_ofPred_eq] at hω
+    simp only [NoiseBad, Set.mem_ofPred_eq, not_false_eq_true, forall_const] at hω
     rcases hω with h | h
     · exact Or.inl (by simpa only [Set.mem_ofPred_eq, add_sub_cancel] using h)
     · exact Or.inr h

@@ -286,11 +286,13 @@ states, is spread and yields. What makes a state bad is each level's own.
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
   `KappaRoundCorrectAt` (same file) reads the prefix mass at a depth `kd` past the walk's start
-  `k`, as a walk from `0` needs. A probe reads strings `u m`, `u` its prefix and `m` a midfix at
-  most `|Q|` long; those with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one
-  at a good state read undecided can only feed a harvest. The round fails to end well other than
-  by a harvest with chance at most `δ`, and at all with chance at most `δ + 1.5θ H W`,
-  `H = Σ_{k ≤ i < kd} |Σ|^i`, `W = Σ_{j ≤ |Q|} |Σ|^j`; at `kd = k`, `H = 0`.
+  `k`, as a walk from `0` needs. A probe reads strings `u m`, `u` its prefix and `m` a midfix of
+  the tree; those with `k ≤ |u| < kd` are shared across the length-`kd` prefixes, and one at a
+  good state read undecided can only feed a harvest. The round fails to end well other than by a
+  harvest with chance at most `δ`, and at all with chance at most
+  `δ + [k < kd] · 1.5θ (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ| + H(|Q| + 1))`, `H = Σ_{k ≤ i < kd} |Σ|^i`:
+  by `RaceReadsBound`, over what the round reads and, before each step, the strings before `kd`
+  its tree adds, at most `H(|Q| + 1)` in all.
 - `OrthoDFA/FamilyOracle.lean` — `SuffixFamily.kappaOracle`: a suffix family's reads (a DFA
   target, a suffix-free family and a band passing `BandPasses`) as level 5's `KappaReadOracle`, each
   state's side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since

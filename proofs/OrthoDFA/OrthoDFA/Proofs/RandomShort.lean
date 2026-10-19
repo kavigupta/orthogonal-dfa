@@ -1,15 +1,15 @@
-import OrthoDFA.Proofs.LoopRuns
+import OrthoDFA.Proofs.RandomGood
 
 /-!
 # What the probes harvest at good read-states, past a depth `kd`
 
-A probe walked from `k` reads strings `u m`, `u` a prefix of it and `m` a midfix, at most `n`
-long in a tree of `classSet n` (`mids_classSet`). Those with `|u| < kd` (`headStrings`) are shared
-by probes of different length-`kd` prefixes. An event has at most its chance at the worst fixing
-of their reads, the rest staying independent (`measure_le_of_fixed`); with them fixed, what the
-probes harvest at good read-states off them (`goodOff`) concentrates over the length-`kd`
-prefixes as `block_tail` says. Where none of them at a good read-state reads undecided, that is
-all they harvest there (`goodAt_subset_off`).
+A probe walked from `k` under `T` reads strings `u m`, `u` a prefix of it and `m` a midfix of
+`T`. Those with `|u| < kd` (`headOf k kd T`) are shared by probes of different length-`kd`
+prefixes. An event has at most its chance at the worst fixing of their reads, the rest staying
+independent (`measure_le_of_fixed`); with them fixed, what the probes harvest at good read-states
+off them (`goodOff`) concentrates over the length-`kd` prefixes as `block_tail` says. Where none
+of them at a good read-state reads undecided, that is all they harvest there
+(`goodAt_subset_off`).
 -/
 
 namespace OrthoDFA
@@ -116,57 +116,46 @@ end Fix
 
 section Head
 
-variable [Fintype α] [DecidableEq α]
+variable [Fintype α]
 
-/-- The strings `u m` with `k ≤ |u| < kd` and `|m| ≤ n`. -/
-noncomputable def headStrings (k kd n : ℕ) : Finset (FreeMonoid α) :=
-  (Finset.Ico k kd).biUnion fun i => (lenK i).biUnion fun u => (upTo n).image (u * ·)
+/-- The strings `u m` with `k ≤ |u| < kd` and `m` a midfix of `T`. -/
+noncomputable def headOf (k kd : ℕ) (T : DTree α) : Finset (FreeMonoid α) :=
+  (Finset.Ico k kd).biUnion fun i => (lenK i).biUnion fun u => (mids T).image (u * ·)
 
-omit [DecidableEq α] in
 theorem card_lenK (i : ℕ) : (lenK i : Finset (FreeMonoid α)).card ≤ Fintype.card α ^ i := by
   unfold lenK
   exact Finset.card_image_le.trans (by simp)
 
-omit [DecidableEq α] in
-theorem card_headStrings (k kd n : ℕ) :
-    ((headStrings k kd n : Finset (FreeMonoid α)).card : ℝ)
-      ≤ (∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i)
-        * ∑ j ∈ Finset.range (n + 1), (Fintype.card α : ℝ) ^ j := by
-  have hup : (upTo n : Finset (FreeMonoid α)).card
-      ≤ ∑ j ∈ Finset.range (n + 1), Fintype.card α ^ j :=
-    Finset.card_biUnion_le.trans (Finset.sum_le_sum fun j _ => card_lenK j)
-  have h : (headStrings k kd n : Finset (FreeMonoid α)).card
-      ≤ (∑ i ∈ Finset.Ico k kd, Fintype.card α ^ i)
-        * ∑ j ∈ Finset.range (n + 1), Fintype.card α ^ j := by
-    unfold headStrings
+theorem card_headOf (k kd : ℕ) (T : DTree α) :
+    ((headOf k kd T).card : ℝ)
+      ≤ (∑ i ∈ Finset.Ico k kd, (Fintype.card α : ℝ) ^ i) * (mids T).card := by
+  have h : (headOf k kd T).card ≤ (∑ i ∈ Finset.Ico k kd, Fintype.card α ^ i) * (mids T).card := by
+    unfold headOf
     refine Finset.card_biUnion_le.trans ?_
     rw [Finset.sum_mul]
     refine Finset.sum_le_sum fun i _ => Finset.card_biUnion_le.trans ?_
-    calc _ ≤ ∑ _u ∈ lenK i, (upTo n : Finset (FreeMonoid α)).card :=
-          Finset.sum_le_sum fun u _ => Finset.card_image_le
-      _ = (lenK i : Finset (FreeMonoid α)).card * (upTo n : Finset (FreeMonoid α)).card := by
+    calc _ ≤ ∑ _u ∈ lenK i, (mids T).card := Finset.sum_le_sum fun u _ => Finset.card_image_le
+      _ = (lenK i : Finset (FreeMonoid α)).card * (mids T).card := by
           rw [Finset.sum_const, smul_eq_mul]
-      _ ≤ _ := Nat.mul_le_mul (card_lenK i) hup
+      _ ≤ _ := Nat.mul_le_mul_right _ (card_lenK i)
   exact_mod_cast h
 
-omit [DecidableEq α] in
-theorem head_mem {k kd n p : ℕ} {x m : FreeMonoid α} (hkp : k ≤ p) (hpd : p < kd)
-    (hpx : p ≤ x.toList.length) (hm : m.toList.length ≤ n) :
-    prefixOf x p * m ∈ headStrings k kd n :=
+theorem head_mem {k kd p : ℕ} {x m : FreeMonoid α} {T : DTree α} (hkp : k ≤ p) (hpd : p < kd)
+    (hpx : p ≤ x.toList.length) (hm : m ∈ mids T) : prefixOf x p * m ∈ headOf k kd T :=
   Finset.mem_biUnion.2 ⟨p, Finset.mem_Ico.2 ⟨hkp, hpd⟩, Finset.mem_biUnion.2 ⟨prefixOf x p,
-    mem_lenK.2 (by simp [prefixOf]; omega), Finset.mem_image.2 ⟨m, mem_upTo.2 hm, rfl⟩⟩⟩
+    mem_lenK.2 (by simp [prefixOf]; omega), Finset.mem_image.2 ⟨m, hm, rfl⟩⟩⟩
 
-/-- A string a probe of `x` walked from `k` can read under a tree of `classSet n`, off
-`headStrings k kd n`, has `x`'s length-`kd` prefix. -/
-theorem pot_deep {k kd n : ℕ} {x z : FreeMonoid α} {T : DTree α} (hT : T ∈ classSet n)
-    (hz : z ∈ pot k x T) (hzh : z ∉ headStrings k kd n) : prefixOf z kd = prefixOf x kd := by
+/-- A string a probe of `x` walked from `k` can read under `T`, off `headOf k kd T`, has `x`'s
+length-`kd` prefix. -/
+theorem pot_deep {k kd : ℕ} {x z : FreeMonoid α} {T : DTree α} (hz : z ∈ pot k x T)
+    (hzh : z ∉ headOf k kd T) : prefixOf z kd = prefixOf x kd := by
   classical
   unfold pot at hz
   obtain ⟨p, hp, hz⟩ := Finset.mem_biUnion.1 hz
   obtain ⟨hkp, hpx⟩ := Finset.mem_Icc.1 hp
   obtain ⟨m, hm, rfl⟩ := Finset.mem_image.1 hz
   by_cases hpd : p < kd
-  · exact absurd (head_mem hkp hpd hpx ((classSet_props n T hT).1 m hm)) hzh
+  · exact absurd (head_mem hkp hpd hpx hm) hzh
   simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_ofList]
   rw [List.take_append_of_le_length (by simp; omega), List.take_take, min_eq_left (by omega)]
 
@@ -332,16 +321,16 @@ include hL hp₀ hpre hT
 
 omit x Z in
 open scoped Classical in
-/-- `mid_tail_one` off `headStrings k kd n`, the tail at scale `p₀` bounding the length-`kd`
+/-- `mid_tail_one` off `headOf k kd T`, the tail at scale `p₀` bounding the length-`kd`
 prefixes. -/
 theorem mid_tail_off (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ)
     (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
           * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
-        < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .middles)}
+        < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .middles)}
       ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
-  set Z : Finset (FreeMonoid α) := headStrings k kd n
+  set Z : Finset (FreeMonoid α) := headOf k kd T
   set θ₀ : ℝ := (L + 1) * (n + 1) * (3 / 2 * θ)
   have hθ₀ : 0 ≤ θ₀ := by positivity
   have h01 : ∀ (P : Prop) [Decidable P], 0 ≤ (if P then (1 : ℝ) else 0)
@@ -417,7 +406,7 @@ theorem mid_tail_off (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
           exact mul_le_mul_of_nonneg_right hcard (by positivity)
       _ = θ₀ * ∫ ω, tf (read · ω) x ∂μ := by rw [← e2]
   have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ hθ8 (fun x => pot k x T \ Z)
-    (fun x z hz => pot_deep hT (Finset.mem_sdiff.1 hz).1 (Finset.mem_sdiff.1 hz).2) uf tf
+    (fun x z hz => pot_deep (Finset.mem_sdiff.1 hz).1 (Finset.mem_sdiff.1 hz).2) uf tf
     (fun x rd rd' h => by simp only [uf, goodOff_congr M U θ T E k x Z .middles (hovr x rd rd' h)])
     (fun x rd rd' h => by
       simp only [tf, probeOrAgree_congr (ovr Z rd c) T E k x (hovr x rd rd' h)])
@@ -427,15 +416,15 @@ theorem mid_tail_off (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
 
 omit x Z in
 open scoped Classical in
-/-- `ends_tail_one` off `headStrings k kd n`, the tail at scale `p₀` bounding the length-`kd`
+/-- `ends_tail_one` off `headOf k kd T`, the tail at scale `p₀` bounding the length-`kd`
 prefixes. -/
 theorem ends_tail_off (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ)
     (hθ8 : 8 * (3 * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | 2 * (3 * (n + 1) * (3 / 2 * θ)) + η
-        < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .ends)}
+        < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .ends)}
       ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
-  set Z : Finset (FreeMonoid α) := headStrings k kd n
+  set Z : Finset (FreeMonoid α) := headOf k kd T
   set θ₀ : ℝ := 3 * (n + 1) * (3 / 2 * θ)
   have hθ₀ : 0 ≤ θ₀ := by positivity
   have hs : ∑ x ∈ upTo L, D.real {x} * (1 : ℝ) ≤ 1 := by
@@ -492,7 +481,7 @@ theorem ends_tail_off (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun rea
             .ends} := e1
       _ ≤ θ₀ := ends_mean_off M U θ T E k x Z hmeas' hind' hgood hθ (mids_le_of_class hT)
   have hTB := block_tail hmeas hind D hp₀ hpre hθ₀ hθ8 (fun x => pot k x T \ Z)
-    (fun x z hz => pot_deep hT (Finset.mem_sdiff.1 hz).1 (Finset.mem_sdiff.1 hz).2) uf
+    (fun x z hz => pot_deep (Finset.mem_sdiff.1 hz).1 (Finset.mem_sdiff.1 hz).2) uf
     (fun _ _ => 1)
     (fun x rd rd' h => by simp only [uf, goodOff_congr M U θ T E k x Z .ends (hovr x rd rd' h)])
     (fun _ _ _ _ => rfl) (fun rd x _ => by simp only [uf]; split_ifs <;> norm_num)
@@ -514,16 +503,16 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
   (hpre : ∀ u, D.real {x | prefixOf x kd = u} ≤ p₀)
 include hmeas hind hU hθ hL hp₀ hpre
 
-/-- `midNoise_le` off `headStrings k kd n`, the prefix mass read at `kd`. -/
+/-- `midNoise_le` off `headOf k kd T`, the prefix mass read at `kd`. -/
 theorem midNoise_off (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgpt : ℝ}
     (hθg : 2 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ θgpt) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
-        D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .middles)
+        D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .middles)
           ≤ θgpt * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η}
       ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ η) := by
   set B : DTree α → Edges α → Set Ω := fun T E => {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
       * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
-    < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .middles)}
+    < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .middles)}
   refine le_trans (measure_mono fun ω hω => ?_) ((union_le n B fun T hT E _ =>
     mid_tail_off M U θ T E k D kd hL hp₀ hpre hT hmeas hind hU hθ hθ8).trans
     (le_of_eq (by unfold tailRisk; push_cast; ring_nf)))
@@ -533,8 +522,8 @@ theorem midNoise_off (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgp
   refine Set.mem_biUnion hT (Set.mem_biUnion hE' ?_)
   have he : ∀ x, probeOrAgree (read · ω) T E k x = probeOrAgree (read · ω) T E' k x :=
     fun x => probe_econgr _ T k x hE hag
-  have h1 : goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .middles
-      = goodOff M U θ (read · ω) k ⟨T, E'⟩ (headStrings k kd n) .middles := by
+  have h1 : goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .middles
+      = goodOff M U θ (read · ω) k ⟨T, E'⟩ (headOf k kd T) .middles := by
     ext x; simp only [goodOff, siteHarvest, Set.mem_ofPred_eq, he]
   have h2 : {x | searches (probeOrAgree (read · ω) T E k x) = true}
       = {x | searches (probeOrAgree (read · ω) T E' k x) = true} := by
@@ -545,14 +534,14 @@ theorem midNoise_off (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgp
   have := mul_le_mul_of_nonneg_right hθg this
   linarith
 
-/-- `endsNoise_le` off `headStrings k kd n`, the prefix mass read at `kd`. -/
+/-- `endsNoise_le` off `headOf k kd T`, the prefix mass read at `kd`. -/
 theorem endsNoise_off (hθ8 : 8 * (3 * (n + 1) * (3 / 2 * θ)) ≤ 1) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
-        D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .ends)
+        D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .ends)
           ≤ 9 * θ * (n + 1) + η}
       ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ η) := by
   set B : DTree α → Edges α → Set Ω := fun T E => {ω | 2 * (3 * (n + 1) * (3 / 2 * θ)) + η
-    < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .ends)}
+    < D.real (goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .ends)}
   refine le_trans (measure_mono fun ω hω => ?_) ((union_le n B fun T hT E _ =>
     ends_tail_off M U θ T E k D kd hL hp₀ hpre hT hmeas hind hU hθ hθ8).trans
     (le_of_eq (by unfold tailRisk; push_cast; ring_nf)))
@@ -562,8 +551,8 @@ theorem endsNoise_off (hθ8 : 8 * (3 * (n + 1) * (3 / 2 * θ)) ≤ 1) :
   refine Set.mem_biUnion hT (Set.mem_biUnion hE' ?_)
   have he : ∀ x, probeOrAgree (read · ω) T E k x = probeOrAgree (read · ω) T E' k x :=
     fun x => probe_econgr _ T k x hE hag
-  have h1 : goodOff M U θ (read · ω) k ⟨T, E⟩ (headStrings k kd n) .ends
-      = goodOff M U θ (read · ω) k ⟨T, E'⟩ (headStrings k kd n) .ends := by
+  have h1 : goodOff M U θ (read · ω) k ⟨T, E⟩ (headOf k kd T) .ends
+      = goodOff M U θ (read · ω) k ⟨T, E'⟩ (headOf k kd T) .ends := by
     ext x; simp only [goodOff, siteHarvest, Set.mem_ofPred_eq, he]
   simp only [B, Set.mem_ofPred_eq]
   rw [← h1]
