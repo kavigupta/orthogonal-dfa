@@ -699,6 +699,118 @@ theorem mid_any_le (fS fP : X → Bool) (hPS : ∀ x, fP x = true → fS x = tru
   refine (measure_mono hsub).trans ((pi_sum_any D g one_pos hg N _).trans (le_of_eq ?_))
   rw [div_one, Real.log_div one_ne_zero ha.ne', Real.log_one, zero_sub, neg_neg, Real.exp_log ha]
 
+theorem sum_map_ite3 (fS fP : X → Bool) (hPS : ∀ x, fP x = true → fS x = true) (A B : ℝ)
+    (l : List X) :
+    (l.map fun x => if fP x then A else if fS x then B else 0).sum
+      = l.countP fP * A + ((l.countP fS - l.countP fP : ℕ) : ℝ) * B := by
+  induction l with
+  | nil => simp
+  | cons x l ih =>
+    have hc : l.countP fP ≤ l.countP fS := List.countP_mono_left fun x _ h => hPS x h
+    simp only [List.map_cons, List.sum_cons, ih, List.countP_cons]
+    cases hp : fP x
+    · cases hs : fS x
+      · simp
+      · simp only [Bool.false_eq_true, if_false, if_true, add_zero]
+        rw [show l.countP fS + 1 - l.countP fP = l.countP fS - l.countP fP + 1 by omega]
+        push_cast; ring
+    · have hs := hPS x hp
+      simp only [hs, if_true]
+      rw [show l.countP fS + 1 - (l.countP fP + 1) = l.countP fS - l.countP fP by omega]
+      push_cast; ring
+
+theorem integral_ite_one (f : X → Bool) :
+    ∫ x, (if f x then (1 : ℝ) else 0) ∂D = D.real {x | f x} := by
+  rw [← integral_indicator_one (Set.to_countable _).measurableSet]
+  congr 1
+  funext x
+  by_cases h : f x <;> simp [h]
+
+/-- The middles' sequential test, ungated, with the undecided middles at most `μ` of the searches:
+it fires at some look with chance at most `a`. -/
+theorem mid_rel_le (fS fP : X → Bool) (hPS : ∀ x, fP x = true → fS x = true) {μ m a : ℝ}
+    (hμ : 0 < μ) (hμm : μ < m) (hm1 : m < 1) (ha : 0 < a)
+    (hp : D.real {x | fP x} ≤ μ * D.real {x | fS x}) (N : ℕ) :
+    (Measure.pi fun _ : Fin N => D) {xs | ∃ n ≤ N,
+        seqRate μ m a (cnt fS n (List.ofFn xs)) (cnt fP n (List.ofFn xs))}
+      ≤ ENNReal.ofReal a := by
+  set κ := (1 - m) / (1 - μ)
+  have hκ0 : 0 < κ := div_pos (by linarith) (by linarith)
+  set lk := Real.log κ
+  set lA := Real.log (m / μ)
+  set g : X → ℝ := fun x => if fP x then lA else if fS x then lk else 0
+  have hsub : {xs : Fin N → X | ∃ n ≤ N,
+        seqRate μ m a (cnt fS n (List.ofFn xs)) (cnt fP n (List.ofFn xs))}
+      ⊆ {xs | ∃ n ≤ N, Real.log (1 / a) ≤ sumFirst g n (List.ofFn xs)} := by
+    rintro xs ⟨n, hn, hfire⟩
+    refine ⟨n, hn, ?_⟩
+    set sc := cnt fS n (List.ofFn xs)
+    set mid := cnt fP n (List.ofFn xs)
+    have hms : mid ≤ sc := List.countP_mono_left fun x _ h => hPS x h
+    have hlr : 0 < likelihoodRatio μ m sc mid := by
+      unfold likelihoodRatio
+      have : 0 < m / μ := div_pos (by linarith) hμ
+      positivity
+    unfold seqRate at hfire
+    rw [← Real.log_le_log_iff (by positivity) hlr,
+      log_likelihoodRatio hμ (by linarith) (by linarith) hm1 hms] at hfire
+    have hsum : sumFirst g n (List.ofFn xs) = mid * lA + ((sc - mid : ℕ) : ℝ) * lk := by
+      simp only [sumFirst, g]
+      rw [sum_map_ite3 fS fP hPS]
+      rfl
+    rw [hsum, Nat.cast_sub hms]
+    exact hfire
+  have hg : ∫⁻ x, ENNReal.ofReal (Real.exp (g x / 1)) ∂D ≤ 1 := by
+    set h : X → ℝ := fun x => 1 + (κ - 1) * (if fS x then 1 else 0)
+      + (m / μ - κ) * (if fP x then 1 else 0)
+    have hpt : ∀ x, Real.exp (g x / 1) = h x := by
+      intro x
+      simp only [g, h, div_one]
+      cases hp : fP x
+      · cases hs : fS x
+        · simp
+        · simp [lk, Real.exp_log hκ0]
+      · simp [hPS x hp, lA, Real.exp_log (div_pos (by linarith : 0 < m) hμ)]
+    have hh0 : ∀ x, 0 ≤ h x := fun x => by rw [← hpt]; exact (Real.exp_pos _).le
+    have hint : Integrable h D :=
+      Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable
+      (1 + |κ - 1| + |m / μ - κ|) (ae_of_all _ fun x => by
+        simp only [h, Real.norm_eq_abs]
+        refine (abs_add_le _ _).trans ?_
+        refine add_le_add ((abs_add_le _ _).trans (add_le_add (by simp) ?_)) ?_ <;>
+          · rw [abs_mul]; split_ifs <;> simp)
+    simp_rw [hpt]
+    rw [← ofReal_integral_eq_lintegral_ofReal hint (ae_of_all _ hh0), ← ENNReal.ofReal_one]
+    refine ENNReal.ofReal_le_ofReal ?_
+    have hI : ∫ x, h x ∂D = 1 + (κ - 1) * D.real {x | fS x} + (m / μ - κ) * D.real {x | fP x} := by
+      have hb : ∀ (c : ℝ) (f : X → Bool),
+          Integrable (fun x => c * (if f x then (1 : ℝ) else 0)) D :=
+        fun c f => Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable |c|
+          (ae_of_all _ fun x => by by_cases hf : f x <;> simp [hf])
+      have h1 : Integrable (fun x => (1 : ℝ) + (κ - 1) * (if fS x then 1 else 0)) D :=
+        (integrable_const 1).add (hb _ _)
+      simp only [h]
+      rw [integral_add h1 (hb _ _),
+        integral_add (integrable_const _) (hb _ _), integral_const_mul, integral_const_mul,
+        integral_ite_one, integral_ite_one]
+      simp
+    rw [hI]
+    have h1μ : 0 < 1 - μ := by linarith
+    have hκ : κ = (1 - m) / (1 - μ) := rfl
+    have hc1 : m / μ - κ = (m - μ) / (μ * (1 - μ)) := by
+      rw [hκ]; field_simp; ring
+    have hc2 : 1 - κ = (m - μ) / (1 - μ) := by rw [hκ]; field_simp; ring
+    have hpos : 0 ≤ (m - μ) / (μ * (1 - μ)) := div_nonneg (by linarith) (by positivity)
+    have key : (m / μ - κ) * D.real {x | fP x} ≤ (1 - κ) * D.real {x | fS x} := by
+      rw [hc1, hc2]
+      calc (m - μ) / (μ * (1 - μ)) * D.real {x | fP x}
+          ≤ (m - μ) / (μ * (1 - μ)) * (μ * D.real {x | fS x}) :=
+            mul_le_mul_of_nonneg_left hp hpos
+        _ = (m - μ) / (1 - μ) * D.real {x | fS x} := by field_simp
+    linarith
+  refine (measure_mono hsub).trans ((pi_sum_any D g one_pos hg N _).trans (le_of_eq ?_))
+  rw [div_one, Real.log_div one_ne_zero ha.ne', Real.log_one, zero_sub, neg_neg, Real.exp_log ha]
+
 end Draws
 
 end Random

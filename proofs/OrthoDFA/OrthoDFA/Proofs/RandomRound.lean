@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.RandomStretch
-import OrthoDFA.Proofs.RandomNoise
+import OrthoDFA.Proofs.RandomGood
 import OrthoDFA.Proofs.Level2Round
 
 /-!
@@ -8,8 +8,8 @@ import OrthoDFA.Proofs.Level2Round
 A run with no bad step ends well within `stretches · Ns` probes: each stretch is shorter than
 `Ns` probes, and each change of hypothesis lowers `Ψr`. The chance of a bad step is at most what
 the current stretch risks plus what each of the at most `Ψr` fresh ones that can follow does, at
-its own level (`anyB_le`). Over the reads, the wrong ones are null and the read field is good but
-for `noiseRisk`.
+its own level (`anyB_le`). Over the reads, the wrong ones are null and the probes harvest at good
+read-states within their bounds but for `tailRisk` at the ends and at the middles.
 -/
 
 namespace OrthoDFA
@@ -157,17 +157,20 @@ theorem level_pos (hδ : 0 < C.δ) (j : ℕ) : 0 < C.level j := by
   positivity
 
 theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabilityMeasure D]
-    (P N₁ : ℕ) (G θr εd' θe' θpt' : ℝ)
-    (hN : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-      D.real (PotGood M U θ C.walkStart read T) ≤ G)
-    (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns) (hG0 : 0 ≤ G)
+    (P N₁ : ℕ) (Ge θgpt ηm pM θr εd' θe' θpt' : ℝ)
+    (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
+    (hNm : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
+        ≤ θgpt * D.real {x | searches (probeOrAgree read T E C.walkStart x) = true} + ηm)
+    (hN₁ : 1 ≤ N₁) (hN₁s : N₁ ≤ Ns)
     (hδ : 0 < C.δ)
-    (hθs0 : 0 < C.endsRate) (hθs1 : C.endsRate < 1 / 2) (hps : max (2 * G) y ≤ C.endsRate)
-    (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2)
-    (hfall : max (2 * G) y * (C.middleAlternative / C.middleRate)
+    (hθs0 : 0 < C.endsRate) (hθs1 : C.endsRate < 1 / 2) (hps : max (2 * Ge) y ≤ C.endsRate)
+    (hθpt0 : 0 < C.middleRate) (hθpt1 : C.middleRate < 1 / 2) (hθg : 4 * θgpt ≤ C.middleRate)
+    (hpM0 : 0 ≤ pM) (hyM : y ≤ pM) (hηm : 4 * ηm ≤ pM)
+    (hfall : pM * (C.middleAlternative / C.middleRate)
         * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ (C.searchShare - 1)
-      + (1 - max (2 * G) y) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare
-      ≤ 1)
+      + (1 - pM) * ((1 - C.middleAlternative) / (1 - C.middleRate)) ^ C.searchShare ≤ 1)
     (hεd0 : 0 < C.disagreementRate) (hεd1 : C.disagreementRate < 1) (hε : C.disagreementRate ≤ ε)
     (hθr0 : 0 ≤ θr) (hθr1 : θr ≤ 1) (hεd'0 : 0 ≤ εd') (hεd'1 : εd' ≤ 1)
     (hθe'0 : 0 ≤ θe') (hθe'1 : θe' ≤ εd')
@@ -195,10 +198,11 @@ theorem probe_level {side : σ → Bool} (hW : NoWrong M side read) [IsProbabili
         {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
             ≤ b s.hypotheses := by
     intro s hs hf N
-    have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ G θr εd' θe' θpt' hs.1 hf
-      (cls_mem read hW hs) hN (fun _ _ _ _ _ h => h)
-      (fun N => by simp) hN₁ hN₁s hG0 (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
-      (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hfall
+    have := seg_le read C M U θ D ε Ns y X (fun _ => False) 0 N₁ Ge θgpt ηm pM θr εd' θe' θpt'
+      hs.1 hf (cls_mem read hW hs) hNe hNm (fun _ _ _ _ _ h => h)
+      (fun N => by simp) hN₁ hN₁s (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
+      (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hθg hpM0
+      hyM hηm hfall
       (by rw [hd]; linarith) (by rw [hd]; linarith) hεd1 hε hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1
       hθpt'0 hθpt'1 hsep N
     rwa [add_zero] at this
@@ -268,9 +272,8 @@ length-`walkStart` prefix above `p₀`. -/
 theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (θ : ℝ)
     {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (R : ReadOracle μ M side U) (P : PrefixDistribution α) (C : Level3Settings) (ε y p₀ : ℝ)
-    (kn : Knobs) (hA : kn.Admissible (σ := σ) (α := α) θ C ε y) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = C.walkStart
-      → P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) :
+    (kn : Knobs) (hA : kn.Admissible (σ := σ) (α := α) θ P.L C ε y) (hp₀ : 0 < p₀)
+    (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε
@@ -281,16 +284,22 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ θ p₀ P.L C kn) := by
   obtain ⟨D, _, L, hL⟩ := P
   obtain ⟨read, hmeas, hind, hU, hwrong⟩ := R
-  obtain ⟨Ns, N₁, G, θr, εd', θe', θpt'⟩ := kn
-  obtain ⟨hN₁, hN₁s, hθ, hG0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
-    hε, hθr0, hθr1, hεd'0, hεd'1, hθe'0, hθe'1, hθpt'0, hθpt'1, hsep, hP, hps, hfall⟩ := hA
-  simp only at hN₁ hN₁s hG0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps
+  obtain ⟨Ns, N₁, Ge, θgpt, ηm, pM, θr, εd', θe', θpt'⟩ := kn
+  obtain ⟨hN₁, hN₁s, hθ, hGe0, hδ, hθs0, hθs1, hθpt0, hθpt1, hεd0, hεd1,
+    hε, hθr0, hθr1, hεd'0, hεd'1, hθe'0, hθe'1, hθpt'0, hθpt'1, hsep, hP, hps, hθg, hθg4,
+    hpM0, hyM, hηm, hfall⟩ := hA
+  simp only at hN₁ hN₁s hGe0 hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP hps
+  simp only at hθg hθg4 hpM0 hyM hηm
   simp only at hfall hpre ⊢
   set P := C.probeBudget
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set W := {ω | ¬ NoWrong M side (read · ω)}
-  set Nn := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-    D.real (PotGood M U θ C.walkStart (read · ω) T) ≤ G}
+  set Ne := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+    D.real (goodAt (read · ω) C.walkStart ⟨T, E⟩ M U θ .ends)
+      ≤ 9 * θ * (Fintype.card σ + 1) + (Ge - 9 * θ * (Fintype.card σ + 1))}
+  set Nm := {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
+    D.real (goodAt (read · ω) C.walkStart ⟨T, E⟩ M U θ .middles)
+      ≤ θgpt * D.real {x | searches (probeOrAgree (read · ω) T E C.walkStart x) = true} + ηm}
   have hW : μ W = 0 := by
     have : W ⊆ ⋃ z, {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} := by
       intro ω hω
@@ -298,10 +307,13 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
       obtain ⟨z, hz⟩ := hω
       exact Set.mem_iUnion.2 ⟨z, hz⟩
     exact measure_mono_null this (measure_iUnion_null hwrong)
-  have hNn := noise_le M U θ μ read D C.walkStart L p₀ G hmeas hind hU hL hp₀ hpre hθ
+  have hNe := endsNoise_le M U θ hmeas hind hU hθ D C.walkStart (n := Fintype.card σ)
+    (η := Ge - 9 * θ * (Fintype.card σ + 1)) hL hp₀ hpre
+  have hNm := midNoise_le M U θ hmeas hind hU hθ D C.walkStart (n := Fintype.card σ) (η := ηm)
+    hL hp₀ hpre hθg
   set c := ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
     stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
-  set B := toMeasurable μ (W ∪ Nn)
+  set B := toMeasurable μ (W ∪ (Ne ∪ Nm))
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
       {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
         ¬ EndsWell M (BadAt U θ) D ε
@@ -313,13 +325,14 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans le_add_self
-    · have hω' : ω ∉ W ∪ Nn := fun h => hω (subset_toMeasurable _ _ h)
+    · have hω' : ω ∉ W ∪ (Ne ∪ Nm) := fun h => hω (subset_toMeasurable _ _ h)
       rw [Set.indicator_of_notMem hω, add_zero]
       simp only [Set.mem_union, not_or] at hω'
-      obtain ⟨hωW, hωN⟩ := hω'
-      simp only [W, Nn, Set.mem_ofPred_eq, not_not] at hωW hωN
-      exact probe_level (read · ω) C M U θ D ε Ns y hωW P N₁ G θr εd' θe' θpt' hωN
-        hN₁ hN₁s hG0 hδ hθs0 hθs1 hps hθpt0 hθpt1 hfall hεd0 hεd1 hε
+      obtain ⟨hωW, hωE, hωM⟩ := hω'
+      simp only [W, Ne, Nm, Set.mem_ofPred_eq, not_not] at hωW hωE hωM
+      exact probe_level (read · ω) C M U θ D ε Ns y hωW P N₁ Ge θgpt ηm pM θr εd' θe' θpt'
+        (fun T hT E hE => (hωE T hT E hE).trans (by linarith)) hωM
+        hN₁ hN₁s hδ hθs0 hθs1 hps hθpt0 hθpt1 hθg4 hpM0 hyM hηm hfall hεd0 hεd1 hε
         hθr0 hθr1 hεd'0 hεd'1 hθe'0 hθe'1 hθpt'0 hθpt'1 hsep hP
   have hnn : 0 ≤ ∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
       stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt' :=
@@ -330,22 +343,27 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
     _ = c + μ B := by
         rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
           lintegral_indicator_one (measurableSet_toMeasurable _ _)]
-    _ ≤ c + (μ W + μ Nn) := by
+    _ ≤ c + (μ W + (μ Ne + μ Nm)) := by
         gcongr
         rw [measure_toMeasurable]
-        exact measure_union_le _ _
-    _ ≤ c + ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G) := by
+        exact (measure_union_le _ _).trans (add_le_add le_rfl (measure_union_le _ _))
+    _ ≤ c + (ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
+            (3 * (Fintype.card σ + 1) * (3 / 2 * θ)) (Ge - 9 * θ * (Fintype.card σ + 1)))
+          + ENNReal.ofReal (tailRisk (Fintype.card σ) (Fintype.card α) p₀
+            ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ηm)) := by
         rw [hW, zero_add]
         gcongr
     _ = _ := by
-        rw [add_comm c, ← ENNReal.ofReal_add (by unfold noiseRisk; positivity) hnn]
+        rw [add_comm c, ← ENNReal.ofReal_add (by unfold tailRisk; positivity)
+          (by unfold tailRisk; positivity),
+          ← ENNReal.ofReal_add (by unfold tailRisk; positivity) hnn]
         rfl
 
 theorem roundRiskBound_holds : RoundRiskBound := by
   intro α _ _ σ _ M side U θ Ω _ μ _ R P C ε y
   refine le_iInf₂ fun kn hA => ?_
   exact round_le_at M side U θ μ R P C ε y _ kn hA (prefixMax_pos P.D C.walkStart)
-    fun u _ => le_prefixMax P.D C.walkStart u
+    fun u => le_prefixMax P.D C.walkStart u
 
 
 end Random
