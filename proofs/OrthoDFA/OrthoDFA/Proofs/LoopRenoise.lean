@@ -386,7 +386,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
 
 end Fail
 
-/-- A second copy of the noise fixed at a point where level 5's failure, over the first copy and
+/-- A second copy of the noise fixed at a point where level 3's failure, over the first copy and
 the probes, is still at most its bound over both. -/
 theorem exists_noise_le {X : Type*} [MeasurableSpace X] (π : Measure X) [IsProbabilityMeasure π]
     (S : Set ((Ω × Ω) × X)) (hS : MeasurableSet S) :

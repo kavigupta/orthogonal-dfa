@@ -10,7 +10,7 @@ letter that both agree, read nothing on a rarer side and stop undecided at neith
 sift nor their own, walk to the true
 leaves of their states, so the edge between those leaves is learned and true (`edge_of_pair`).
 Summed over the window, a state visited `c` of the time has every edge out of it crossed by such
-pairs unless the checked probes hold `c/((|Σ|+1)N)` of the draws (`edge_of_occupied`). A state the
+pairs unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws (`edge_of_occupied`). A state the
 probes visit is read on its true side once the reads are rarely wrong or undecided
 (`sideOf_eq_of_mass`). Where every covered state's edges are true and it is read on its true side,
 the hypothesis from the covered start's leaf follows the re-rooted target along every run that
@@ -349,7 +349,7 @@ theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : �
 variable [Nonempty α]
 
 /-- A state visited `c` of the time over the window's lengths below `J` has every edge out of its
-true leaf learned and true, unless the checked probes hold `c/((|Σ|+1)N)` of the draws. -/
+true leaf learned and true, unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws. -/
 theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
     {c β : ℝ}
     (hbad : (windowStrings k L₁).real (disagreeSet M dist rd k H) ≤ β)

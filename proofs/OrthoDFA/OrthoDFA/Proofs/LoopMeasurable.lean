@@ -5,10 +5,10 @@ import OrthoDFA.Proofs.Lloyd
 # A round's outcomes are measurable
 
 An event the oracle's answers at finitely many strings fix is measurable
-(`measurableSet_of_reads`). Over given probes, level 5 reads only strings of bounded length, so its
+(`measurableSet_of_reads`). Over given probes, level 3 reads only strings of bounded length, so its
 result is fixed by finitely many answers; where it fails its claim also asks how much of the
 probes' distribution the round's reads make search or harvest, a countable sum of such events
-(`measurableSet_level5Fail`). A round's harvest data are fixed by finitely many answers too, so
+(`measurableSet_level3Fail`). A round's harvest data are fixed by finitely many answers too, so
 the earlier rounds' data are a measurable function of their draws (`measurableSet_codesOf`).
 -/
 

@@ -1,7 +1,7 @@
 import OrthoDFA.Proofs.LoopE1
 
 /-!
-# Level 5's probes avoid the clustering's prefixes
+# The round's probes avoid the clustering's prefixes
 
 The probes are drawn from `D` conditioned on their first `k` letters avoiding those of the
 clustering's prefixes: each draw avoids them (`drawFrom_avoids`), the conditioning removes at most

@@ -249,7 +249,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
         · rintro ⟨ht, he⟩
           exact ⟨t', ht, by simp only [Prod.mk.injEq]; exact ⟨trivial, he⟩⟩
       rw [hset]
-      refine (measurableSet_stage4 settings O P.D Dsf N P.length_le (by omega) hN r hr _).inter ?_
+      refine (measurableSet_stage4 settings O P.D Dsf N P.length_le hN r hr _).inter ?_
       refine (measurable_fst.prodMk ((measurable_probesOf settings P.D _).comp
         (measurable_snd.comp ((measurable_pi_apply rK).comp measurable_snd)))) ?_
       refine measurableSet_prod_countable_right _ fun xs => ?_
@@ -273,7 +273,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
       simp only [Prod.mk.injEq] at he
       obtain ⟨rfl, he⟩ := he
       obtain ⟨c, B, F, K₀⟩ := t''
-      have h4 := stage4_stop settings O P.D Dsf N P.length_le (by omega) hN r hr c B F K₀ x ω ω' ω₀ ht4
+      have h4 := stage4_stop settings O P.D Dsf N P.length_le hN r hr c B F K₀ x ω ω' ω₀ ht4
         (fun w hw => h w (Finset.mem_union_left _ hw))
       have hres : stageRes settings O P.D (c, B, F, K₀) ω (x rK).2
           = stageRes settings O P.D (c, B, F, K₀) ω' (x rK).2 :=
@@ -327,7 +327,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
         simp only [histAt, List.take_of_length_le (le_of_eq hlen)]
         rfl
       have hlenF : ∀ v ∈ F, v.toList.length = Ls := fun v hv => hnc.1 rK le_rfl v (hF hv)
-      have hd1 := disjoint_hist_level5 settings P.D Dsf N Ls L c x r hr ω₀ hnc F hF
+      have hd1 := disjoint_hist_family settings P.D Dsf N Ls L c x r hr ω₀ hnc F hF
       rw [hpop] at hd1 hK
       show Disjoint ((histReads settings P.D Dsf N c x r ω₀
           ∪ schedReads (settings.schedule (loopPopulations K (dec c).pops.length))

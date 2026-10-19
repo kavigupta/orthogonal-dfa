@@ -174,7 +174,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 omit [IsProbabilityMeasure μ] in
 /-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
 lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (ω : Ω)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     ∀ r i, i < (histCodes settings O D Dsf N ω g r).length → ∃ hiK : i < K, ∃ code,
       (histCodes settings O D Dsf N ω g r)[i]? = some code
@@ -192,7 +192,7 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
       have hy' : histCodes settings O D Dsf N ω g (r + 1) = if c.length = r then
           c ++ (popCode N (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
             (ω, g ⟨r, hrK⟩))).toList else c := hy
-      have ih := histCodes_getElem hlen hC hN ω g r
+      have ih := histCodes_getElem hlen hN ω g r
       by_cases hcl : c.length = r
       · rw [if_pos hcl] at hy'
         rw [hy'] at hi ⊢
@@ -235,7 +235,7 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
         simp only [histCodes]
         rw [loopRounds_succ, dif_neg (fun h' => hrK h'.1)]
       rw [hst] at hi ⊢
-      exact histCodes_getElem hlen hC hN ω g r i hi
+      exact histCodes_getElem hlen hN ω g r i hi
 
 end Codes
 
@@ -256,7 +256,7 @@ lemma mem_of_pos {ν : Measure (FreeMonoid α)} {A : Set (FreeMonoid α)} (hA : 
 omit [IsProbabilityMeasure μ] in
 /-- Where every uniform is below `1`, no round through `r` reads a string an earlier round read,
 and every string read has a length its distribution gives mass. -/
-theorem noColl_of_allLt (Ls N : ℕ) (hC : 2 ≤ settings.level3.probeBudget + 2)
+theorem noColl_of_allLt (Ls N : ℕ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N) (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (hr : r < K)
@@ -348,7 +348,7 @@ theorem noColl_of_allLt (Ls N : ℕ) (hC : 2 ≤ settings.level3.probeBudget + 2
     intro i hir
     have hic : i.1 < c.length := by omega
     obtain ⟨hiK, code, hget, h1, h2⟩ :=
-      histCodes_getElem settings O P.D Dsf N P.length_le hC hN ω g r i hic
+      histCodes_getElem settings O P.D Dsf N P.length_le hN ω g r i hic
     have hmem : code ∈ c := List.mem_of_getElem? hget
     refine ⟨fun p hp => ?_, fun v hv => ?_⟩
     · simp only [H, decodeHist]
@@ -371,7 +371,7 @@ theorem noColl_of_allLt (Ls N : ℕ) (hC : 2 ≤ settings.level3.probeBudget + 2
 
 /-- Round `r` reads a prefix or a suffix an earlier round read, or a string of a length its
 distribution gives no mass, with chance zero. -/
-theorem loop_coll_null (Ls N : ℕ) (hC : 2 ≤ settings.level3.probeBudget + 2)
+theorem loop_coll_null (Ls N : ℕ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N) (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget)
@@ -389,7 +389,7 @@ theorem loop_coll_null (Ls N : ℕ) (hC : 2 ≤ settings.level3.probeBudget + 2)
   measure_mono_null (by
     intro p hp hlt
     obtain ⟨hlen, hsupp, hpm, hsm, hnc⟩ := hp
-    exact hnc (noColl_of_allLt settings O P Dsf Ls N hC hN hLs hDsf p.1 p.2 r hr hlen hsupp hpm
+    exact hnc (noColl_of_allLt settings O P Dsf Ls N hN hLs hDsf p.1 p.2 r hr hlen hsupp hpm
       hsm hlt))
     (allLt_ae r)
 

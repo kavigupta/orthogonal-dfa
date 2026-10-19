@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Budget
 
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
 `poolCount_le` and `prefCount_le_poly` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
-`K = |Q| + 1`, with the failure split evenly between the clustering's and level 5's `|Q| + 1`
+`K = |Q| + 1`, with the failure split evenly between the clustering's and level 3's `|Q| + 1`
 rounds.
 -/
 

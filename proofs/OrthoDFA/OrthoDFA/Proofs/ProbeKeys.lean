@@ -16,7 +16,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 def KeyOff (k : ℕ) (K₀ : Set (FreeMonoid α)) (z : FreeMonoid α) : Prop :=
   k ≤ z.toList.length ∧ prefixOf z k ∉ K₀
 
-/-- A probe level 5 may draw: shorter than `k`, or its first `k` letters off `K₀`. -/
+/-- A probe the round may draw: shorter than `k`, or its first `k` letters off `K₀`. -/
 def Avoids (k : ℕ) (K₀ : Set (FreeMonoid α)) (x : FreeMonoid α) : Prop :=
   k ≤ x.toList.length → prefixOf x k ∉ K₀
 

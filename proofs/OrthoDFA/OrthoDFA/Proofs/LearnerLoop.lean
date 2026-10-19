@@ -10,7 +10,7 @@ read, so no round reads a string an earlier round read but with chance zero (`lo
 Round `r` fails the clustering's claim, given the earlier rounds, but for chance `δc`
 (`loop_cluster_round_le_persist`): off what the earlier rounds read the clustering meets its
 claim at `slack - m`, and a population's average moves by at most the `m` the earlier rounds'
-prefixes hold of it. It fails level 5's but for chance `δ` (`loop_level5_round_le_persist`). A
+prefixes hold of it. It fails level 5's but for chance `δ` (`loop_round_le_persist`). A
 round meeting level 5's claim hands on a population putting at most `prefixMax / (ρ/4)` on any
 string, within the cap. Where every one of the first `|Q| + 1` rounds meets both claims, the loop
 stops in agreement (`loop_agrees_of_specs`).
@@ -533,7 +533,7 @@ theorem loop_core_holds : LoopCore := by
     intro ω g r code hcode
     obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hcode
     obtain ⟨hiK, code', hget', h1, h2⟩ :=
-      histCodes_getElem settings O P.D Dsf N P.length_le (by omega) hN ω g r i hi
+      histCodes_getElem settings O P.D Dsf N P.length_le hN ω g r i hi
     rw [List.getElem?_eq_getElem hi, hget, Option.some.injEq] at hget'
     subst hget'
     set h := histAt settings P.D (histCodes settings O P.D Dsf N ω g r) i
@@ -594,15 +594,15 @@ theorem loop_core_holds : LoopCore := by
         ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N εcov (δc + gate) slack cap cap m ms pAP
-      (by linarith) (by omega) hN
+      (by linarith) hN
       hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
   set δ3 : ℝ := C.δ + C.δ / 8 + (shortStrings (α := α) (Fintype.card σ)).card * cross / u
     with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_level5_round_le_persist M O hL P Dsf settings Ls NP N θ mr u cross hN hNPsum hband hk0 hη1
+    loop_round_le_persist M O hL P Dsf settings Ls NP N θ mr u cross hN hNPsum hband hk0 hη1
       hcr hprem hu hy0 hmr hmr1 hmrc r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
-    rw [measureReal_def, loop_coll_null settings O P Dsf Ls N (by omega) hN hLs' hDsfLen r hr,
+    rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
   set Ev : ℕ → Set (Ω × (Fin K → RoundDraws α K T)) := fun r =>
     if hr : r < K then (E1 r hr ∪ E2 r hr) ∪ E3 r hr else ∅ with hEvd

@@ -166,7 +166,7 @@ most `m` of each population and `ms` of the suffixes, and nothing collides, fail
 chance at most `δc`: off what the earlier rounds read it fails its claim at `slack - m` with that
 chance, and a population's average moves by at most `m` off them. -/
 theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m ms pAP : ℝ)
-    (hδc : 0 ≤ δc) (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
+    (hδc : 0 ≤ δc) (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hm : m ≤ 1 / 2) (hms : ms ≤ 1 / 2)
     (hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),
@@ -242,10 +242,10 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
   have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
     measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf N r)
     (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf N r ω x x' fun i hi => hxx' i hi)
-    (measurableSet_stageH settings O P.D Dsf N P.length_le hC hN r) W G
+    (measurableSet_stageH settings O P.D Dsf N P.length_le hN r) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨c, rfl, -⟩ := hG
-      exact stageH_stop settings O P.D Dsf N P.length_le hC hN r c x ω ω' ω₀ hs h)
+      exact stageH_stop settings O P.D Dsf N P.length_le hN r c x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | c
       · rfl

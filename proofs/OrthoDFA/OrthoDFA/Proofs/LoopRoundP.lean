@@ -72,7 +72,7 @@ lemma measurable_persist :
   measurable_pi_lambda _ fun i => measurable_fst.prodMk ((measurable_pi_apply i).comp measurable_snd)
 
 lemma measurableSet_histCodes {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (c : List (HarvestCode α)) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       histCodes settings O D Dsf N p.1 p.2 r = c} :=
@@ -94,14 +94,14 @@ lemma decodePop_prob (c : List (HarvestCode α)) :
   infer_instance
 
 lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) :
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) :
     ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       HistOK settings O D Dsf N p.1 p.2 r}
   | 0 => by simp only [HistOK, Set.setOf_true]; exact MeasurableSet.univ
   | r + 1 => by
     classical
     simp only [HistOK, Set.setOf_and]
-    refine (measurableSet_histOK hlen hC hN r).inter ?_
+    refine (measurableSet_histOK hlen hN r).inter ?_
     by_cases hr : r < K
     · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
           ∀ h : r < K, (histCodes settings O D Dsf N p.1 p.2 r).length = r →
@@ -137,7 +137,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
           exact ⟨B, hB, hrB⟩
       rw [hset]
       refine MeasurableSet.iUnion fun c =>
-        (measurableSet_histCodes settings O D Dsf N hlen hC hN r c).inter ?_
+        (measurableSet_histCodes settings O D Dsf N hlen hN r c).inter ?_
       split_ifs
       · exact Finset.measurableSet_biUnion _ fun B _ =>
           measurable_clusterRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
@@ -158,7 +158,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
       exact MeasurableSet.univ
 
 lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (y : Option (List (HarvestCode α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       stageH settings O D Dsf N r p.1 p.2 = y} := by
@@ -170,7 +170,7 @@ lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
       simp only [stageH, Set.mem_setOf_eq, Set.mem_compl_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf N hlen hC hN r).compl
+    exact (measurableSet_histOK settings O D Dsf N hlen hN r).compl
   · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
         stageH settings O D Dsf N r p.1 p.2 = some c}
         = {p | HistOK settings O D Dsf N p.1 p.2 r} ∩ {p | histCodes settings O D Dsf N p.1 p.2 r = c} := by
@@ -178,13 +178,13 @@ lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
       simp only [stageH, Set.mem_setOf_eq, Set.mem_inter_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf N hlen hC hN r).inter
-      (measurableSet_histCodes settings O D Dsf N hlen hC hN r c)
+    exact (measurableSet_histOK settings O D Dsf N hlen hN r).inter
+      (measurableSet_histCodes settings O D Dsf N hlen hN r c)
 
 /-- Where every earlier clustering returned, the answers at the strings the earlier rounds read
 fix the stage. -/
 lemma stageH_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level3.probeBudget)
     (ω ω' ω₀ : Ω) (hs : stageH settings O D Dsf N r ω g = some c)
     (h : ∀ w ∈ histReads settings D Dsf N c g r ω₀, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :

@@ -7,7 +7,7 @@ A round reads its prefixes alone, its prefixes followed by its pool's suffixes, 
 followed by its family's suffixes. With every suffix `Ls` long and every prefix shorter, two such
 strings of different rounds can only coincide where the rounds read the same suffix or the same
 prefix (`NoColl`). So off a collision round `r` reads none of the strings the rounds before it
-read (`disjoint_of_noColl`), and level 5 reads none of the strings round `r`'s clustering read
+read (`disjoint_of_noColl`), and level 3 reads none of the strings round `r`'s clustering read
 but at its prefixes, which the re-noised read leaves to a second noise.
 -/
 
@@ -135,9 +135,9 @@ theorem disjoint_hist_round (N Ls : ℕ) (c : List (HarvestCode α))
       obtain ⟨hvv, -⟩ := suffix_eq_of_mul_eq h (hvl.trans hvl'.symm)
       exact Finset.disjoint_left.1 (hsd i hir) hv (hvv ▸ hv')
 
-/-- Off a collision, level 5 reads, through a family of round `r`'s suffixes, none of the strings
+/-- Off a collision, level 3 reads, through a family of round `r`'s suffixes, none of the strings
 the earlier rounds or round `r`'s clustering read but at round `r`'s prefixes. -/
-theorem disjoint_hist_level5 (N Ls N' : ℕ) (c : List (HarvestCode α))
+theorem disjoint_hist_family (N Ls N' : ℕ) (c : List (HarvestCode α))
     (x : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
     (hnc : NoColl settings D Dsf Ls c x r hr) (F : Finset (FreeMonoid α))
     (hF : F ⊆ suffsOf settings D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1) :

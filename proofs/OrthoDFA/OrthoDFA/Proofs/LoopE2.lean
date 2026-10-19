@@ -8,7 +8,7 @@ Level 3 reads, at probes avoiding the clustering's prefixes, only strings the cl
 Where the clustering's reads are re-noised it reads a fresh family on probes from `D` conditioned
 to avoid them, so level 5's guarantee holds there (`round_bad_exists`), and the actual run is the
 same run. Transferred back to `D` it ends well, and off a collision it does so with the chance it
-has on fresh noise (`loop_level5_round_le_persist`).
+has on fresh noise (`loop_round_le_persist`).
 -/
 
 noncomputable section
@@ -61,13 +61,13 @@ lemma renoise_mq_of_mem (O : Oracle μ (FreeMonoid α)) {R : Set (FreeMonoid α)
   classical
   simp only [Oracle.mq, Oracle.label, Oracle.renoise, renoiseNoise, if_pos hw]
 
-/-- The strings level 5 reads at a probe whose first `k` letters avoid `K₀`. -/
+/-- The strings level 3 reads at a probe whose first `k` letters avoid `K₀`. -/
 def offReads (k : ℕ) (K₀ F : Finset (FreeMonoid α)) : Set (FreeMonoid α) :=
   {w | ∃ z, KeyOff k ↑K₀ z ∧ ∃ v ∈ F, w = z * v}
 
 open Classical in
 /-- Of them, those at strings at most `N'` long. -/
-def l4Zone (N' k : ℕ) (K₀ F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
+def roundZone (N' k : ℕ) (K₀ F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
   (readStrings (shortStrings N') F).filter (· ∈ offReads k K₀ F)
 
 lemma avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
@@ -115,7 +115,7 @@ theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.w
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ + settings.level3.δ / 8
           + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u)
-      ∧ (∀ v ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
+      ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, v) ∈ Bd → (ω', v) ∈ Bd)

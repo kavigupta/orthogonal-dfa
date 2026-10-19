@@ -1,12 +1,12 @@
 import OrthoDFA.Proofs.LoopE2
 
 /-!
-# Round `r`'s level 5, given the rounds before it
+# Round `r`'s level 3, given the rounds before it
 
-What reaches round `r`'s level 5 is the earlier rounds' data and its clustering's state, family
+What reaches round `r`'s level 3 is the earlier rounds' data and its clustering's state, family
 and keys (`stage4`), fixed by the answers the earlier rounds and the clustering read. Off a
-collision level 5 reads none of those strings, so it fails its claim with chance at most `δ`
-(`loop_level5_round_le_persist`).
+collision level 3 reads none of those strings, so it fails its claim with chance at most `δ`
+(`loop_round_le_persist`).
 -/
 
 noncomputable section
@@ -32,7 +32,7 @@ def Returns (h : LoopHist α) (c : ClusterDraws Ω α K) : Prop :=
       settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
 
 open Classical in
-/-- What reaches round `r`'s level 5: the earlier rounds' data and the round's state, family and
+/-- What reaches round `r`'s level 3: the earlier rounds' data and the round's state, family and
 keys, where every earlier clustering and this one returned. -/
 def stage4 (r : ℕ) (hr : r < K) (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α)) :=
@@ -114,14 +114,14 @@ lemma measurableSet_returns (r : ℕ) (hr : r < K) (h : LoopHist α) :
     measurable_clusterRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
 
 lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (hr : r < K)
     (y : Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       stage4 settings O D Dsf N r hr p.1 p.2 = y} := by
   classical
-  have hhc := measurableSet_histCodes settings O D Dsf N hlen hC hN r
-  have hok := measurableSet_histOK settings O D Dsf N hlen hC hN r
+  have hhc := measurableSet_histCodes settings O D Dsf N hlen hN r
+  have hok := measurableSet_histOK settings O D Dsf N hlen hN r
   set dec := decodeHist D settings.level3.walkStart
   rcases y with _ | ⟨c, B, F, K₀⟩
   · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
@@ -176,9 +176,9 @@ lemma roundKeys_eq_prefsOf (h : LoopHist α) (ω : Ω) (c : ClusterRest α K) :
   rfl
 
 /-- Where the clustering's state test returned, the answers at the strings the earlier rounds and
-it read fix what reaches level 5. -/
+it read fix what reaches level 3. -/
 lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (hr : r < K) (c : List (HarvestCode α)) (B : State) (F K₀ : Finset (FreeMonoid α))
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) (ω ω' ω₀ : Ω)
     (hs : stage4 settings O D Dsf N r hr ω g = some (c, B, F, K₀))
@@ -195,7 +195,7 @@ lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (stage4_eq_some settings O D Dsf N r hr ω g c B F K₀).1 hs
   have hst : stageH settings O D Dsf N r ω g = some c := by
     simp only [stageH, if_pos h1, h2]
-  have hst' := stageH_stop settings O D Dsf N hlen hC hN r c g ω ω' ω₀ hst
+  have hst' := stageH_stop settings O D Dsf N hlen hN r c g ω ω' ω₀ hst
     fun w hw => h w (Finset.mem_union_left _ hw)
   have hok' : HistOK settings O D Dsf N ω' g r := by
     by_contra hn
@@ -249,7 +249,7 @@ include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
 collides, fails its claim with chance at most `δ + δ/8 + #(strings of at most |Q| letters) cross/u`.
 -/
-theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
+theorem loop_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
@@ -274,7 +274,6 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ + settings.level3.δ / 8
         + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by
-  have hC : 2 ≤ settings.level3.probeBudget + 2 := by omega
   set δb := settings.level3.δ + settings.level3.δ / 8
     + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u with hδb
   have hδb0 : 0 ≤ δb := by
@@ -299,7 +298,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
   have hpm0 : 0 ≤ prefixMax P.D k := (measureReal_nonneg).trans (le_prefixMax P.D k 1)
   have hex : ∀ t, Good t → ∃ Bd : Set (Ω × (Fin T → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal δb
-      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
+      ∧ (∀ u ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D t.2.2.2 u) + 1 + settings.level3.probeBudget + 2))
           k t.2.2.2 t.2.2.1, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
@@ -323,7 +322,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
     | none => ∅
   set G : Y → Prop := fun y => ∃ t, y = some t ∧ t.1.length = r
   set Z : Y → (Fin T → unitInterval) → Finset (FreeMonoid α) := fun y u => match y with
-    | some t => l4Zone (max (P.L + settings.level3.probeBudget + 2)
+    | some t => roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D t.2.2.2 u) + 1 + settings.level3.probeBudget + 2))
           k t.2.2.2 t.2.2.1
     | none => ∅
@@ -338,10 +337,10 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
     (fun w => rfl) rK (stage4 settings O P.D Dsf N r hr)
     (fun ω x x' hxx' h1 => stage4_congr_draws settings O P.D Dsf N r hr ω x x'
       (fun i hi => hxx' i hi) h1)
-    (measurableSet_stage4 settings O P.D Dsf N P.length_le hC hN r hr) W G
+    (measurableSet_stage4 settings O P.D Dsf N P.length_le hN r hr) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨⟨c, B, F, K₀⟩, rfl, -⟩ := hG
-      exact stage4_stop settings O P.D Dsf N P.length_le hC hN r hr c B F K₀ x ω ω' ω₀ hs h)
+      exact stage4_stop settings O P.D Dsf N P.length_le hN r hr c B F K₀ x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | t
       · rfl
@@ -399,7 +398,7 @@ theorem loop_level5_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
       obtain ⟨hnc, hF, hK⟩ := hx
       have hpop : histAt settings P.D c r = dec c := by
         simp only [histAt, List.take_of_length_le (le_of_eq hcr), hdec] <;> rfl
-      have hdis := disjoint_hist_level5 settings P.D Dsf N Ls
+      have hdis := disjoint_hist_family settings P.D Dsf N Ls
         (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ (x rK).2) + 1 + settings.level3.probeBudget + 2))
         c x r hr ω₀ hnc F hF

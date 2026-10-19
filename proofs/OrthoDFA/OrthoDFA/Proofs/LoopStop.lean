@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.LoopOff
 
 Over its draws, a round's clustering reads the oracle only at its prefixes followed by its pool's
 suffixes or by nothing, `schedReads`: at every state of the schedule its tests read no further,
-since the gate's pool is capped. Its level 5 and the harvest data it hands on read only short
+since the gate's pool is capped. Its level 3 run and the harvest data it hands on read only short
 strings followed by the pool's suffixes. So a round's harvest data are fixed by the answers at
 `roundReads` (`popCode_congr`), and the earlier rounds' harvest data by the answers at the union of
 their rounds' sets, `histReads` (`codes_congr`).
