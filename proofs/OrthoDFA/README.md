@@ -114,6 +114,15 @@
   split re-sifts at most `(|Q| + 1)²|Σ|`, so by `AdaptiveReadsBound` the premise keeps every string
   the round reads right but for chance `δ/8`. The good states' bounds take `δ/16` each and the
   stretches `3δ/4`.
+- `OrthoDFA/Level5Claim.lean` — `KappaRoundCorrect`: level 3's algorithm, unchanged, with each read
+  on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
+  with chance at most `δ` under level 4's premises with the last replaced by
+  `εw (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`,
+  `N` the budget. A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
+  probe's sifts stop at their first undecided read, and the tests count it: under the `j`-th
+  hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
+  whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
+  wrong with chance at most `δ/8`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -129,6 +138,12 @@ need not be read to trust the claims above.
   independently across strings, each bad with chance at most `ε`, and queried in rounds, each
   round choosing its strings from what earlier rounds read; some query of the first `n` rounds
   reads bad with chance at most `ε` times the most strings they query while none has.
+
+- `OrthoDFA/Utils/RaceReads.lean` — `RaceReadsBound`: reads drawn once per string, independently
+  across strings, each bad with chance at most `ε` plus `κ` times its chance of reading in `V`, and
+  queried in rounds, each fixed by what it and the earlier rounds read; some query of the first `n`
+  rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
+  most `b`, `m` of them reading in `V`.
 
 ## Scope
 

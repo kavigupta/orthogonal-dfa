@@ -149,17 +149,23 @@ theorem wit_retarget {s : Level3State α} (hg : WitInv M side s) {p : List Bool}
     refine ⟨hsrc, ?_⟩
     rw [leafOf_splitAt M side d s.tree p hp, h2, if_neg ht]
 
-/-- A step that changes the hypothesis and reads nothing wrong starts a fresh stretch, keeps the
-invariants and lowers `Ψr`. -/
-theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M side s)
-    {x : FreeMonoid α} (hx : ¬ WrongStep M side read C s x)
+/-- A step that changes the hypothesis, its edge's two strings at their true leaves and its
+split re-sifting nothing wrong, starts a fresh stretch, keeps the invariants and lowers `Ψr`. -/
+theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M side s)
+    {x : FreeMonoid α}
+    (htrue : ∀ {p c u t}, (probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t
+        ∨ probeOrAgree read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t) →
+      s.tree.sift read u = .inl p → s.tree.sift read (u * FreeMonoid.of c) = .inl t →
+      leafOf M side s.tree (M.eval u.toList) = p
+        ∧ leafOf M side s.tree (M.eval (u * FreeMonoid.of c).toList) = t)
+    (hR : ∀ z ∈ splitReads read C s x, read z ≠ if side (M.eval z.toList) then .reject else .accept)
     (h : applyProbe read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
     Inv read s' ∧ WitInv M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
       ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s := by
   rcases step_cases read C hs h with
     ⟨p, c, u, t, ho, hE, hu, huc, hp, rfl⟩ |
     ⟨p, c, u, t, t₀, w₀, ho, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -⟩
-  · obtain ⟨hcu, hcuc⟩ := true_of_probe M side read C hx (Or.inr ho) hu huc
+  · obtain ⟨hcu, hcuc⟩ := htrue (Or.inr ho) hu huc
     refine ⟨⟨edgesOK_upd read hs.edges hu huc, hs.cls, hs.two⟩,
       ⟨hg.leaves, fun p' c' t' w h => ?_⟩, rfl, rfl,
       Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
@@ -172,7 +178,7 @@ theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M
       exact ⟨hcu, hcuc⟩
     · rw [Function.update_of_ne hpc] at h
       exact hg.wit p' c' t' w h
-  · obtain ⟨hcu, hcuc⟩ := true_of_probe M side read C hx (Or.inl ho) hu huc
+  · obtain ⟨hcu, hcuc⟩ := htrue (Or.inl ho) hu huc
     have hw₀ := hg.wit p c t₀ w₀ hE
     have ht : RealT M side s.tree p c t := ⟨M.eval u.toList, hcu, by rw [← hcuc, eval_mul]; rfl⟩
     have ht₀ : RealT M side s.tree p c t₀ :=
@@ -191,8 +197,8 @@ theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M
     have hR : ∀ z ∈ resifts s
         (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p),
         read z ≠ if side (M.eval z.toList) then .reject else .accept := by
-      intro z hz hw
-      refine hx ⟨z, Finset.mem_union_right _ ?_, hw⟩
+      intro z hz
+      refine hR z ?_
       unfold splitReads
       rw [ho]
       simp only [hE]
@@ -213,6 +219,16 @@ theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M
           simp only [Level2.newHypothesis]
           omega) _ 0
   · exact absurd ⟨rfl, rfl⟩ hne
+
+/-- A step that changes the hypothesis and reads nothing wrong starts a fresh stretch, keeps the
+invariants and lowers `Ψr`. -/
+theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M side s)
+    {x : FreeMonoid α} (hx : ¬ WrongStep M side read C s x)
+    (h : applyProbe read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
+    Inv read s' ∧ WitInv M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
+      ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s :=
+  eps_step_change_of M side read C hs hg (fun ho hu huc => true_of_probe M side read C hx ho hu huc)
+    (fun z hz hw => hx ⟨z, Finset.mem_union_right _ hz, hw⟩) h hne
 
 /-! ## Reads that agree on what a step reads -/
 
@@ -263,14 +279,15 @@ theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x 
     (h : ∀ z ∈ pot 0 x s.tree, r z = r' z) : splitReads r C s x = splitReads r' C s x := by
   simp only [splitReads, probeOrAgree_congr h]
 
-/-- Reads agreeing on what a step reads give the same step, its learned edges leaving leaves. -/
-theorem applyProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
+/-- Reads giving the same probe and agreeing on what its split re-sifts give the same step, its
+learned edges leaving leaves. -/
+theorem applyProbe_congr_of {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (hlv : ∀ e t w, s.edges e = some (t, w) → e.1 ∈ s.tree.leaves)
-    (h : ∀ z ∈ pot 0 x s.tree ∪ splitReads r C s x, r z = r' z) :
+    (ho : probeOrAgree r s.tree s.edges C.walkStart x
+      = probeOrAgree r' s.tree s.edges C.walkStart x)
+    (h : ∀ z ∈ splitReads r C s x, r z = r' z) :
     applyProbe r C s x = applyProbe r' C s x := by
-  have hpot : ∀ z ∈ pot 0 x s.tree, r z = r' z := fun z hz => h z (Finset.mem_union_left _ hz)
-  have ho := probeOrAgree_congr (E := s.edges) (k := C.walkStart) hpot
-  have hc := countProbe_congr C hpot
+  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]
   unfold applyProbe
   rw [← ho, hc]
   rcases hpo : probeOrAgree r s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;>
@@ -289,9 +306,8 @@ theorem applyProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x 
   split_ifs with ht
   · have hmem : ∀ m ∈ mids (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt
         (commonPrefix t t₀)) p),
-        w₁ * FreeMonoid.of e.2 * m ∈ pot 0 x s.tree ∪ splitReads r C s x := by
+        w₁ * FreeMonoid.of e.2 * m ∈ splitReads r C s x := by
       intro m hm
-      refine Finset.mem_union_right _ ?_
       unfold splitReads
       rw [hpo]
       simp only [hE]
@@ -301,6 +317,14 @@ theorem applyProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x 
         exact Finset.mem_image.2 ⟨m, hm, rfl⟩
     rw [sift_congr _ _ fun m hm => h _ (hmem m hm)]
   · rfl
+
+/-- Reads agreeing on what a step reads give the same step, its learned edges leaving leaves. -/
+theorem applyProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
+    (hlv : ∀ e t w, s.edges e = some (t, w) → e.1 ∈ s.tree.leaves)
+    (h : ∀ z ∈ pot 0 x s.tree ∪ splitReads r C s x, r z = r' z) :
+    applyProbe r C s x = applyProbe r' C s x :=
+  applyProbe_congr_of C hlv (probeOrAgree_congr fun z hz => h z (Finset.mem_union_left _ hz))
+    fun z hz => h z (Finset.mem_union_right _ hz)
 
 end Eps
 
