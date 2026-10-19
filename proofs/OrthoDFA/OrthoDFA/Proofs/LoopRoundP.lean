@@ -111,7 +111,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
                 (histCodes settings O D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, h⟩).1)
                 ∈ ret O.mq (loopPopulations K (decodeHist D settings.level5.walkStart
                   (histCodes settings O D Dsf N p.1 p.2 r)).pops.length) none
-                  settings.indecisionLimit settings.gateLevel B}
+                  settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B}
           = ⋃ c : List (HarvestCode α), {p | histCodes settings O D Dsf N p.1 p.2 r = c}
             ∩ (if c.length = r then ⋃ B ∈ settings.schedule (loopPopulations K
                 (decodeHist D settings.level5.walkStart c).pops.length),
@@ -119,7 +119,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
                 clusterRun D Dsf (decodeHist D settings.level5.walkStart c)
                   ((p.1, (p.2 ⟨r, hr⟩).1) : ClusterDraws Ω α K)) ⁻¹'
                 (ret O.mq (loopPopulations K (decodeHist D settings.level5.walkStart c).pops.length)
-                  none settings.indecisionLimit settings.gateLevel B : Set _)
+                  none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B : Set _)
               else Set.univ) := by
         ext p
         simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff]
@@ -140,7 +140,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
         (measurableSet_histCodes settings O D Dsf N hlen hC hN r c).inter ?_
       split_ifs
       · exact Finset.measurableSet_biUnion _ fun B _ =>
-          measurable_clusterRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ B)
+          measurable_clusterRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
       · exact MeasurableSet.univ
     · have : {p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) |
           ∀ h : r < K, (histCodes settings O D Dsf N p.1 p.2 r).length = r →
@@ -150,7 +150,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
                 (histCodes settings O D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, h⟩).1)
                 ∈ ret O.mq (loopPopulations K (decodeHist D settings.level5.walkStart
                   (histCodes settings O D Dsf N p.1 p.2 r)).pops.length) none
-                  settings.indecisionLimit settings.gateLevel B} = Set.univ := by
+                  settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B} = Set.univ := by
         ext p
         simp only [Set.mem_setOf_eq, Set.mem_univ, iff_true]
         intro h; exact absurd h hr

@@ -213,11 +213,9 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) (εcov slack : ℝ) (harvests : List (Measure (FreeMonoid α)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
   (∃ B ∈ settings.schedule (loopPopulations K harvests.length),
-      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.indecisionLimit
-        settings.gateLevel B)
+      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     ∧ ∀ B ∈ settings.schedule (loopPopulations K harvests.length),
-      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.indecisionLimit
-        settings.gateLevel B →
+      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
       ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq (loopPopulations K harvests.length) x B) p
           ∂D ≤ εcov + slack
         ∧ ∀ j ∈ loopPopulations K harvests.length,
@@ -262,14 +260,14 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 lemma loopRound_returns
     (hB : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       clusterRun D Dsf h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
-        settings.indecisionLimit settings.gateLevel B) :
+        settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) :
     (loopRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
       ∧ (loopRound settings O D Dsf h d).run ∈ ret O.mq (loopPopulations K h.pops.length) none
-        settings.indecisionLimit settings.gateLevel (loopRound settings O D Dsf h d).state := by
+        settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel (loopRound settings O D Dsf h d).state := by
   obtain ⟨B, hB, hr⟩ := hB
   exact Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
     (loopPopulations K h.pops.length) ∧ clusterRun D Dsf h (d.1, d.2.1) ∈ ret O.mq
-      (loopPopulations K h.pops.length) none settings.indecisionLimit settings.gateLevel B)
+      (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     ⟨B, hB, hr⟩
 
 lemma one_notMem_loopRound_family : 1 ∉ (loopRound settings O D Dsf h d).family :=

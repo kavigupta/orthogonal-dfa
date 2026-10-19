@@ -148,7 +148,9 @@ def clusterRun {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
 /-- The clustering's schedule, FNR limit and gate level, and level 5's settings. -/
 structure LoopSettings (K : ℕ) where
   schedule : Finset (Option (Fin K)) → Finset State
+  η₀ : ℝ
   indecisionLimit : ℝ
+  εcov : ℝ
   gateLevel : ℝ
   level5 : Level5Settings
 
@@ -197,7 +199,7 @@ def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
   let ps := loopPopulations K h.pops.length
   let x := clusterRun D Dsf h (d.1, d.2.1)
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
-    ∧ x ∈ ret O.mq ps none settings.indecisionLimit settings.gateLevel B
+    ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
   let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
   let K₀ := clusterKeys (settings.schedule ps) ps settings.level5.walkStart x

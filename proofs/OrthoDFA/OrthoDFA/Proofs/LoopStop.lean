@@ -75,14 +75,14 @@ variable [IsProbabilityMeasure μ]
 /-- The clustering's state test at `B`, at two noises the reads of `schedReads` cannot tell
 apart. -/
 lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
-    (pops : Finset (Option (Fin K))) (uni : Option (Fin K)) (huni : uni ∈ pops) (ι a : ℝ)
+    (pops : Finset (Option (Fin K))) (uni : Option (Fin K)) (huni : uni ∈ pops) (η₀ ι εc a : ℝ)
     {B : State} (hB : B ∈ sched) {ω ω' : Ω}
     (dr : ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
       × (Option (Fin K) → ℕ → FreeMonoid α))
     (h : ∀ w ∈ schedReads sched pops ((ω, dr) : Run Ω (FreeMonoid α) (Option (Fin K))),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    ((ω, dr) : Run Ω (FreeMonoid α) (Option (Fin K))) ∈ ret O.mq pops uni ι a B
-      ↔ ((ω', dr) : Run Ω (FreeMonoid α) (Option (Fin K))) ∈ ret O.mq pops uni ι a B := by
+    ((ω, dr) : Run Ω (FreeMonoid α) (Option (Fin K))) ∈ ret O.mq pops uni η₀ ι εc a B
+      ↔ ((ω', dr) : Run Ω (FreeMonoid α) (Option (Fin K))) ∈ ret O.mq pops uni η₀ ι εc a B := by
   classical
   set x : Run Ω (FreeMonoid α) (Option (Fin K)) := (ω, dr)
   set P := prefixesAt pops B.npref x
@@ -109,12 +109,15 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
       have := hread Q hQ p hp 1 (Finset.mem_insert_self _ _)
       simpa using this
   have hret : ∀ ω'' : Ω, ((ω'', dr) : Run Ω (FreeMonoid α) (Option (Fin K)))
-      ∈ ret O.mq pops uni ι a B ↔ (B.k ≤ (cl ω'').card + 1
+      ∈ ret O.mq pops uni η₀ ι εc a B ↔ (B.k ≤ (cl ω'').card + 1
         ∧ (∀ j ∈ pops, (((certOf P j B.npref x).filter fun p => ¬ decided O.mq B.lo (B.hi + 1)
           (insert 1 (cl ω'')) p ω'').card : ℝ) ≤ ι * (certOf P j B.npref x).card)
-        ∧ ∃ e ≤ B.npref, admitted O.mq B.lo B.hi a (cl ω'') (certOf P uni (B.npref + e) x) ω'') := by
+        ∧ ∀ j ∈ pops, ∃ e ≤ B.npref, certifiesAt O.mq η₀ (gateLimit uni εc j)
+          (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
+          (certOf P j (B.npref + e) x)
+          (drawsTaken P (fun i => certPrefix j i x) (B.npref + e)) ω'') := by
     intro ω''
-    simp only [ret, familyAt, clusterAt_eq, clusterAt_eq_clusterOf, Set.mem_setOf_eq]
+    simp only [ret, familyAt, refsAt, clusterAt_eq, clusterAt_eq_clusterOf, Set.mem_setOf_eq]
     rfl
   rw [hret ω, hret ω', ← hcl]
   refine and_congr Iff.rfl (and_congr ?_ ?_)
@@ -129,13 +132,12 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
         rw [decided, decided, voteCount_alike O (ω := ω) (ω' := ω')
           fun v hv => hread _ hc p hp v hv]
     rw [hf]
-  · refine exists_congr fun e => and_congr_right fun he => ?_
-    have hc := hcert uni huni e he
-    unfold admitted
-    rw [agreeCount_alike O (lo := B.lo) (hi := B.hi) (F := cl ω) (P := certOf P uni (B.npref + e) x)
-      (ω := ω) (ω' := ω')
+  · refine forall₂_congr fun j hj => exists_congr fun e => and_congr_right fun he => ?_
+    have hc := hcert j hj e he
+    exact certifiesAt_alike O
       (fun p hp v hv => hread _ hc p hp v (Finset.mem_insert_of_mem hv))
-      (fun p hp => hseed _ hc p hp)]
+      (fun p hp v hv => h _ (mem_readSet (hc hp) (hCs (Finset.mem_sdiff.1 hv).1)))
+      (fun p hp => hseed _ hc p hp)
 
 lemma clusterAt_congr_sched (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
     (pops : Finset (Option (Fin K))) {B : State} (hB : B ∈ sched) {ω ω' : Ω}
@@ -201,9 +203,9 @@ theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
   set sched := settings.schedule pops
   have hnone : none ∈ pops := Finset.mem_insert_self _ _
   have hret : ∀ B ∈ sched, (clusterRun D Dsf h (ω, c) ∈ ret O.mq pops none
-      settings.indecisionLimit settings.gateLevel B ↔ clusterRun D Dsf h (ω', c) ∈ ret O.mq pops
-        none settings.indecisionLimit settings.gateLevel B) := fun B hB =>
-    ret_congr O sched pops none hnone _ _ hB (runOf D Dsf h c) hr
+      settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B ↔ clusterRun D Dsf h (ω', c) ∈ ret O.mq pops
+        none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) := fun B hB =>
+    ret_congr O sched pops none hnone _ _ _ _ hB (runOf D Dsf h c) hr
   have hfam : ∀ B ∈ sched, familyAt O.mq pops (clusterRun D Dsf h (ω, c)) B
       = familyAt O.mq pops (clusterRun D Dsf h (ω', c)) B := fun B hB => by
     unfold familyAt
@@ -222,12 +224,12 @@ theorem roundState_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
     roundState settings O D Dsf h (ω, c) = roundState settings O D Dsf h (ω', c) := by
   have hp : (fun B => B ∈ settings.schedule (loopPopulations K h.pops.length)
       ∧ clusterRun D Dsf h (ω, c) ∈ ret O.mq (loopPopulations K h.pops.length) none
-        settings.indecisionLimit settings.gateLevel B)
+        settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
       = (fun B => B ∈ settings.schedule (loopPopulations K h.pops.length)
       ∧ clusterRun D Dsf h (ω', c) ∈ ret O.mq (loopPopulations K h.pops.length) none
-        settings.indecisionLimit settings.gateLevel B) :=
+        settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) :=
     funext fun B => propext (and_congr_right fun hB =>
-      ret_congr O _ _ none (Finset.mem_insert_self _ _) _ _ hB (runOf D Dsf h c) hr)
+      ret_congr O _ _ none (Finset.mem_insert_self _ _) _ _ _ _ hB (runOf D Dsf h c) hr)
   show Classical.epsilon _ = Classical.epsilon _
   rw [hp]
 
@@ -236,7 +238,7 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
     (h : LoopHist α) {ω ω' : Ω} (d : RoundDraws α K settings.level5.probeBudget)
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       clusterRun D Dsf h (ω, d.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
-        settings.indecisionLimit settings.gateLevel B)
+        settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     (hr : ∀ w ∈ roundReads settings D Dsf N h ω d, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
     popCode N (loopRound settings O D Dsf h (ω, d))
       = popCode N (loopRound settings O D Dsf h (ω', d)) := by
@@ -248,7 +250,7 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   have hst := roundState_congr settings O D Dsf h d.1 hs
   have hmem : roundState settings O D Dsf h (ω, d.1) ∈ sched :=
     (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ clusterRun D Dsf h (ω, d.1) ∈ ret O.mq pops
-      none settings.indecisionLimit settings.gateLevel B) (by
+      none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) (by
         obtain ⟨B, hB, hrB⟩ := hret; exact ⟨B, hB, hrB⟩)).1
   set B := roundState settings O D Dsf h (ω, d.1)
   have hF := clusterAt_congr_sched O sched pops hmem (runOf D Dsf h d.1) hs
@@ -321,8 +323,7 @@ def HistOK (ω : Ω) (g : Fin K → RoundDraws α K settings.level5.probeBudget)
         clusterRun D Dsf (decodeHist D settings.level5.walkStart (histCodes settings O D Dsf N ω g r))
           (ω, (g ⟨r, h⟩).1) ∈ ret O.mq (loopPopulations K
             (decodeHist D settings.level5.walkStart
-              (histCodes settings O D Dsf N ω g r)).pops.length) none settings.indecisionLimit
-            settings.gateLevel B
+              (histCodes settings O D Dsf N ω g r)).pops.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
 
 /-- Every string the rounds before `r` read, given their harvest data `c`. -/
 def histReads (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level5.probeBudget)
@@ -406,7 +407,7 @@ theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
           have hs : ∀ w ∈ schedReads (settings.schedule (loopPopulations K (dec c).pops.length))
               (loopPopulations K (dec c).pops.length) (clusterRun D Dsf (dec c) (ω, (g ⟨r, hrK⟩).1)),
               (O.mq w ω = 1 ↔ O.mq w ω' = 1) := fun w hw => hround w (Finset.mem_union_left _ hw)
-          exact (ret_congr O _ _ none (Finset.mem_insert_self _ _) _ _ hB
+          exact (ret_congr O _ _ none (Finset.mem_insert_self _ _) _ _ _ _ hB
             (runOf D Dsf (dec c) (g ⟨r, hrK⟩).1) hs).1 hrB
         · rw [hy', hy, if_pos hcl, if_pos hcl, hpc]
       · refine ⟨⟨hokω', fun h' hl' => by rw [hc'] at hl'; exact absurd hl' hcl⟩, ?_⟩

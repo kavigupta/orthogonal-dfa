@@ -27,7 +27,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 def Returns (h : LoopHist α) (c : ClusterDraws Ω α K) : Prop :=
   ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
     clusterRun D Dsf h c ∈ ret O.mq (loopPopulations K h.pops.length) none
-      settings.indecisionLimit settings.gateLevel B
+      settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
 
 open Classical in
 /-- What reaches round `r`'s level 5: the earlier rounds' data and the round's state, family and
@@ -104,12 +104,12 @@ lemma measurableSet_returns (r : ℕ) (hr : r < K) (h : LoopHist α) :
         (fun p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget) =>
           clusterRun D Dsf h (p.1, (p.2 ⟨r, hr⟩).1)) ⁻¹'
         ret O.mq (loopPopulations K h.pops.length) none
-          settings.indecisionLimit settings.gateLevel B := by
+          settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B := by
     ext p
     simp [Returns]
   rw [hset]
   exact Finset.measurableSet_biUnion _ fun B _ =>
-    measurable_clusterRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ B)
+    measurable_clusterRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
 
 lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hC : 2 ≤ settings.level5.maxLeaves) (hN : L + settings.level5.maxLeaves ≤ N) (r : ℕ)
@@ -209,7 +209,7 @@ lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   have hret' : Returns settings O D Dsf H (ω', (g ⟨r, hr⟩).1) := by
     obtain ⟨B', hB', hret⟩ := h4
     exact ⟨B', hB', (ret_congr O sched (loopPopulations K H.pops.length) none
-      (Finset.mem_insert_self _ _) _ _ hB' _ hsr).1 hret⟩
+      (Finset.mem_insert_self _ _) _ _ _ _ hB' _ hsr).1 hret⟩
   have hrs : roundState settings O D Dsf H (ω', (g ⟨r, hr⟩).1) = B := by
     rw [← h5]
     exact (roundState_congr settings O D Dsf H _ hsr).symm

@@ -226,7 +226,7 @@ def roundState (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) (c : ClusterDraws Ω α K) : State :=
   Classical.epsilon fun B => B ∈ settings.schedule (loopPopulations K h.pops.length)
     ∧ clusterRun D Dsf h c ∈ ret O.mq (loopPopulations K h.pops.length) none
-      settings.indecisionLimit settings.gateLevel B
+      settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
 
 /-- A round at the state `B` and family `F`, its clustering having read the prefixes `Pr` and the
 suffixes `Sf`, on level 5's noise and probes `d`. -/
@@ -336,39 +336,136 @@ lemma voteCount_alike (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α
   rw [Finset.filter_congr fun v hv => h v hv]
 
 omit [IsProbabilityMeasure μ] in
-lemma agreeCount_alike (O : Oracle μ (FreeMonoid α)) {lo hi : ℕ} {F P : Finset (FreeMonoid α)}
-    {ω ω' : Ω} (h1 : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
-    (h2 : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    agreeCount O.mq lo hi F P ω = agreeCount O.mq lo hi F P ω' := by
+lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a η₀ : ℝ} {lo hi : ℕ}
+    {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
+    (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
+    (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
+    (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
+    miscutBound O.mq a lo hi F R P η₀ ω = miscutBound O.mq a lo hi F R P η₀ ω' := by
+  classical
   have hv : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
-    voteCount_alike O (h1 p hp)
-  have hc : cutSides O.mq lo hi F P ω = cutSides O.mq lo hi F P ω' := by
-    unfold cutSides
-    congr 1 <;> exact Finset.filter_congr fun p hp => by rw [hv p hp]
-  unfold agreeCount
-  rw [hc, Finset.filter_congr fun p hp => h2 p hp]
+    voteCount_alike O (hF p hp)
+  have hacc : acceptSide O.mq hi F P ω = acceptSide O.mq hi F P ω' := by
+    unfold acceptSide
+    exact Finset.filter_congr fun p hp => by rw [hv p hp]
+  have hrej : rejectSide O.mq lo F P ω = rejectSide O.mq lo F P ω' := by
+    unfold rejectSide
+    exact Finset.filter_congr fun p hp => by rw [hv p hp]
+  have hside : ∀ (accept : Bool) (A : Finset (FreeMonoid α)), A ⊆ P →
+      sideCap O.mq accept A R a η₀ ω = sideCap O.mq accept A R a η₀ ω' := by
+    intro accept A hA
+    unfold sideCap
+    have h1 : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
+      unfold againstOn
+      congr 1
+      exact Finset.filter_congr fun p hp => by rw [hs p (hA hp)]
+    have h2 : refApart O.mq A R ω = refApart O.mq A R ω' := by
+      unfold refApart
+      split_ifs with h
+      · refine Finset.inf'_congr h rfl fun v hv => ?_
+        congr 1
+        exact Finset.filter_congr fun p hp => by rw [hR p (hA hp) v hv, hs p (hA hp)]
+      · rfl
+    rw [h1, h2]
+  unfold miscutBound
+  have hA : acceptSide O.mq hi F P ω' ⊆ P := by unfold acceptSide; exact Finset.filter_subset _ _
+  have hR' : rejectSide O.mq lo F P ω' ⊆ P := by unfold rejectSide; exact Finset.filter_subset _ _
+  rw [hacc, hrej, hside true _ hA, hside false _ hR']
+
+omit [IsProbabilityMeasure μ] in
+lemma certifiesAt_alike (O : Oracle μ (FreeMonoid α)) {η₀ lim a : ℝ} {lo hi N : ℕ}
+    {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
+    (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
+    (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
+    (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
+    certifiesAt O.mq η₀ lim a lo hi F R P N ω ↔ certifiesAt O.mq η₀ lim a lo hi F R P N ω' := by
+  unfold certifiesAt
+  rw [miscutBound_alike O hF hR hs]
+
+omit [IsProbabilityMeasure μ] in
+lemma measurableSet_drawsTaken {J : Type*} [Fintype J] (P : Finset (FreeMonoid α)) (j : J) (m N : ℕ) :
+    MeasurableSet {x : Run Ω (FreeMonoid α) J |
+      drawsTaken P (fun i => certPrefix j i x) m = N} := by
+  classical
+  have hg : ∀ n, MeasurableSet {x : Run Ω (FreeMonoid α) J |
+      m ≤ (((Finset.range n).image (fun i => certPrefix j i x)) \ P).card} := by
+    intro n
+    have hm : Measurable (fun x : Run Ω (FreeMonoid α) J => (fun i : Fin n => certPrefix j i x)) :=
+      measurable_pi_lambda _ (fun i => measurable_cert j i)
+    have : {x : Run Ω (FreeMonoid α) J |
+        m ≤ (((Finset.range n).image (fun i => certPrefix j i x)) \ P).card}
+        = (fun x : Run Ω (FreeMonoid α) J => (fun i : Fin n => certPrefix j i x)) ⁻¹'
+          {t : Fin n → FreeMonoid α | m ≤ ((Finset.univ.image t) \ P).card} := by
+      ext x
+      have : (Finset.range n).image (fun i => certPrefix j i x)
+          = Finset.univ.image (fun i : Fin n => certPrefix j i x) := by
+        ext s
+        simp only [Finset.mem_image, Finset.mem_range, Finset.mem_univ, true_and]
+        exact ⟨fun ⟨a, ha, h⟩ => ⟨⟨a, ha⟩, h⟩, fun ⟨a, h⟩ => ⟨a, a.2, h⟩⟩
+      simp only [Set.mem_setOf_eq, Set.mem_preimage, this]
+    rw [this]
+    exact hm (Set.to_countable _).measurableSet
+  have key : {x : Run Ω (FreeMonoid α) J | drawsTaken P (fun i => certPrefix j i x) m = N}
+      = ({x | m ≤ (((Finset.range N).image (fun i => certPrefix j i x)) \ P).card}
+          ∩ ⋂ k ∈ Finset.range N, {x | ¬ m ≤ (((Finset.range k).image
+            (fun i => certPrefix j i x)) \ P).card})
+        ∪ ({x | N = 0} ∩ ⋂ n : ℕ, {x | ¬ m ≤ (((Finset.range n).image
+            (fun i => certPrefix j i x)) \ P).card}) := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff, Set.mem_iInter,
+      Finset.mem_range]
+    unfold drawsTaken
+    split_ifs with h
+    · rw [Nat.find_eq_iff]
+      constructor
+      · rintro ⟨a, b⟩
+        exact Or.inl ⟨a, fun k hk => b k hk⟩
+      · rintro (⟨a, b⟩ | ⟨-, h'⟩)
+        · exact ⟨a, fun k hk => b k hk⟩
+        · exact absurd h (not_exists.2 h')
+    · push Not at h
+      constructor
+      · rintro rfl
+        exact Or.inr ⟨rfl, fun n => not_le.2 (h n)⟩
+      · rintro (⟨a, -⟩ | ⟨h0, -⟩)
+        · exact absurd a (not_le.2 (h N))
+        · exact h0.symm
+  rw [key]
+  refine MeasurableSet.union (MeasurableSet.inter (hg N)
+    (MeasurableSet.biInter (Finset.range N).countable_toSet fun k _ => (hg k).compl)) ?_
+  by_cases hN : N = 0
+  · simp only [hN, Set.setOf_true, Set.univ_inter]
+    exact MeasurableSet.iInter fun n => (hg n).compl
+  · simp only [hN, Set.setOf_false, Set.empty_inter]
+    exact MeasurableSet.empty
 
 /-- Where a run returns at the state `B` is measurable. -/
 theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option (Fin K)))
-    (uni : Option (Fin K)) (ι a : ℝ) (B : State) :
-    MeasurableSet (ret O.mq pops uni ι a B : Set (Run Ω (FreeMonoid α) (Option (Fin K)))) := by
+    (uni : Option (Fin K)) (η₀ ι εcov a : ℝ) (B : State) :
+    MeasurableSet (ret O.mq pops uni η₀ ι εcov a B : Set (Run Ω (FreeMonoid α) (Option (Fin K)))) := by
   classical
   set cl : Finset (FreeMonoid α) → Finset (FreeMonoid α) → Ω → Finset (FreeMonoid α) :=
     fun P C ω => clusterOf lloydClusterer O B.sc B.scd P C B.k ω
-  have hret : (ret O.mq pops uni ι a B : Set (Run Ω (FreeMonoid α) (Option (Fin K))))
+  have hret : (ret O.mq pops uni η₀ ι εcov a B : Set (Run Ω (FreeMonoid α) (Option (Fin K))))
       = {x | B.k ≤ (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x)).card + 1
           ∧ ∀ j ∈ pops, (((certOf (prefixesAt pops B.npref x) j B.npref x).filter fun p => ¬ decided O.mq B.lo (B.hi + 1)
             (insert 1 (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x))) p
               (oracleNoise x)).card : ℝ) ≤ ι * (certOf (prefixesAt pops B.npref x) j B.npref x).card}
-        ∩ ⋃ e : ℕ, ⋃ _ : e ≤ B.npref, {x | admitted O.mq B.lo B.hi a
+        ∩ ⋂ j ∈ pops, ⋃ e : ℕ, ⋃ _ : e ≤ B.npref, {x | certifiesAt O.mq η₀ (gateLimit uni εcov j)
+          (gateLevel a pops B) B.lo B.hi
           (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x))
-          (certOf (prefixesAt pops B.npref x) uni (B.npref + e) x) (oracleNoise x)} := by
+          (poolAt B.nsuff x \ insert 1 (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x)
+            (oracleNoise x)))
+          (certOf (prefixesAt pops B.npref x) j (B.npref + e) x)
+          (drawsTaken (prefixesAt pops B.npref x) (fun i => certPrefix j i x) (B.npref + e))
+          (oracleNoise x)} := by
     ext x
-    simp only [ret, familyAt, clusterAt_eq, clusterAt_eq_clusterOf, cl, Set.mem_setOf_eq,
-      Set.mem_inter_iff, Set.mem_iUnion, exists_prop]
+    simp only [ret, familyAt, refsAt, clusterAt_eq, clusterAt_eq_clusterOf, cl, Set.mem_setOf_eq,
+      Set.mem_inter_iff, Set.mem_iUnion, Set.mem_iInter, exists_prop]
     tauto
   rw [hret]
-  refine MeasurableSet.inter ?_ (MeasurableSet.iUnion fun e => MeasurableSet.iUnion fun _ => ?_)
+  refine MeasurableSet.inter ?_ (MeasurableSet.biInter pops.countable_toSet fun j hj =>
+    MeasurableSet.iUnion fun e => MeasurableSet.iUnion fun _ => ?_)
   · -- the size and the FNR test, at the table, the pool and the certificates
     refine measurableSet_of_data
       (fun x : Run Ω (FreeMonoid α) (Option (Fin K)) =>
@@ -417,29 +514,41 @@ theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option
         rw [hf]
         exact hω.2 j hj
       · exact MeasurableSet.empty
-  · -- the gate, at the table, the pool and the uniform pool's certificates
+  · -- the gate, at the table, the pool and population `j`'s certificates
     refine measurableSet_of_data
       (fun x : Run Ω (FreeMonoid α) (Option (Fin K)) =>
-        (prefixesAt pops B.npref x, poolAt B.nsuff x, certOf (prefixesAt pops B.npref x) uni (B.npref + e) x))
+        (prefixesAt pops B.npref x, poolAt B.nsuff x,
+          certOf (prefixesAt pops B.npref x) j (B.npref + e) x,
+          drawsTaken (prefixesAt pops B.npref x) (fun i => certPrefix j i x) (B.npref + e)))
       (fun y => ?_)
       (fun y => if (1 : FreeMonoid α) ∈ y.2.1 then Prod.fst ⁻¹'
-          {ω | admitted O.mq B.lo B.hi a (cl y.1 y.2.1 ω) y.2.2 ω} else ∅)
+          {ω | certifiesAt O.mq η₀ (gateLimit uni εcov j) (gateLevel a pops B) B.lo B.hi
+            (cl y.1 y.2.1 ω) (y.2.1 \ insert 1 (cl y.1 y.2.1 ω)) y.2.2.1 y.2.2.2 ω} else ∅)
       (fun y => ?_) |> fun h => by
         convert h using 1
         ext x
         simp only [Set.mem_setOf_eq, one_mem_poolAt, if_true, Set.mem_preimage]
         rfl
-    · obtain ⟨P, C, Q⟩ := y
+    · obtain ⟨P, C, Q, N⟩ := y
       have : {x : Run Ω (FreeMonoid α) (Option (Fin K)) | (prefixesAt pops B.npref x,
-          poolAt B.nsuff x, certOf (prefixesAt pops B.npref x) uni (B.npref + e) x) = (P, C, Q)}
+          poolAt B.nsuff x, certOf (prefixesAt pops B.npref x) j (B.npref + e) x,
+          drawsTaken (prefixesAt pops B.npref x) (fun i => certPrefix j i x) (B.npref + e))
+            = (P, C, Q, N)}
           = {x | prefixesAt pops B.npref x = P} ∩ ({x | poolAt B.nsuff x = C}
-            ∩ {x | certOf (prefixesAt pops B.npref x) uni (B.npref + e) x = Q}) := by
+            ∩ ({x | certOf (prefixesAt pops B.npref x) j (B.npref + e) x = Q}
+              ∩ {x | drawsTaken P (fun i => certPrefix j i x) (B.npref + e) = N})) := by
         ext x
         simp only [Set.mem_setOf_eq, Set.mem_inter_iff, Prod.mk.injEq]
+        constructor
+        · rintro ⟨h1, h2, h3, h4⟩
+          exact ⟨h1, h2, h3, by rw [← h1]; exact h4⟩
+        · rintro ⟨h1, h2, h3, h4⟩
+          exact ⟨h1, h2, h3, by rw [h1]; exact h4⟩
       rw [this]
       exact (measurableSet_prefixesAt pops B.npref P).inter ((measurableSet_poolAt B.nsuff C).inter
-        (measurableSet_certOf pops B.npref uni (B.npref + e) Q))
-    · obtain ⟨P, C, Q⟩ := y
+        ((measurableSet_certOf pops B.npref j (B.npref + e) Q).inter
+          (measurableSet_drawsTaken P j (B.npref + e) N)))
+    · obtain ⟨P, C, Q, N⟩ := y
       dsimp only
       split_ifs with hone
       · refine measurable_fst (measurableSet_of_reads O
@@ -448,15 +557,16 @@ theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option
           fun w hw => h w (Finset.mem_union_left _ hw)
         simp only [Set.mem_setOf_eq] at hω ⊢
         rw [← hcl]
-        unfold admitted at hω ⊢
-        rw [← agreeCount_alike O (lo := B.lo) (hi := B.hi) (F := cl P C ω) (P := Q)
-          (fun p hp v hv => h _ (Finset.mem_union_right _ (mem_readSet hp
-            (Finset.mem_insert_of_mem (clusterOf_subset O B.sc B.scd P C B.k ω hone hv)))))
-          (fun p hp => by
-            have := h p (Finset.mem_union_right _ (by
-              simpa using mem_readSet (cands := insert 1 C) hp (Finset.mem_insert_self 1 C)))
-            exact this)]
-        exact hω
+        have hins : ∀ v ∈ insert 1 (cl P C ω), v ∈ insert 1 C := fun v hv => by
+          rcases Finset.mem_insert.1 hv with rfl | hv
+          · exact Finset.mem_insert_self _ _
+          · exact Finset.mem_insert_of_mem (clusterOf_subset O B.sc B.scd P C B.k ω hone hv)
+        have hrd : ∀ p ∈ Q, ∀ v ∈ insert 1 C, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1) :=
+          fun p hp v hv => h _ (Finset.mem_union_right _ (mem_readSet hp hv))
+        exact (certifiesAt_alike O (fun p hp v hv => hrd p hp v (Finset.mem_insert_of_mem
+            (clusterOf_subset O B.sc B.scd P C B.k ω hone hv)))
+          (fun p hp v hv => hrd p hp v (Finset.mem_insert_of_mem (Finset.mem_sdiff.1 hv).1))
+          (fun p hp => by simpa using hrd p hp 1 (Finset.mem_insert_self 1 C))).1 hω
       · exact MeasurableSet.empty
 
 /-- A run's family at the state `B` is a measurable function of the run. -/
@@ -500,7 +610,7 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
   set Sc : ClusterDraws Ω α K → Finset State := fun c => sched.filter fun B' =>
-    clusterRun D Dsf h c ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B'
+    clusterRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
   have hstate : ∀ c, roundState settings O D Dsf h c = Classical.epsilon (· ∈ Sc c) := by
     intro c
     unfold roundState
@@ -527,7 +637,7 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
   refine Finset.measurableSet_biUnion _ fun T hT => MeasurableSet.inter ?_ ?_
   · have hT' : T ⊆ sched := Finset.mem_powerset.1 hT
     have : {c : ClusterDraws Ω α K | Sc c = T} = ⋂ B' ∈ sched, {c |
-        (clusterRun D Dsf h c ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B'
+        (clusterRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
           ↔ B' ∈ T)} := by
       ext c
       simp only [Set.mem_setOf_eq, Set.mem_iInter, Finset.ext_iff, Sc, Finset.mem_filter]
@@ -544,9 +654,9 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
     refine Finset.measurableSet_biInter _ fun B' _ => ?_
     by_cases hB' : B' ∈ T
     · simp only [hB', iff_true]
-      exact hrun (measurableSet_ret O pops none _ _ B')
+      exact hrun (measurableSet_ret O pops none _ _ _ _ B')
     · simp only [hB', iff_false]
-      exact (hrun (measurableSet_ret O pops none _ _ B')).compl
+      exact (hrun (measurableSet_ret O pops none _ _ _ _ B')).compl
   · by_cases hB : Classical.epsilon (· ∈ T) = B
     · simp only [hB, true_and]
       exact hrun (measurableSet_clusterAt O pops B F)

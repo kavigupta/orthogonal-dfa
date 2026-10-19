@@ -36,7 +36,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     (η₀ indecisionLimit gateLevel crossLimit εcov δc slack pAP : ℝ)
     (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hflat : Flat Pre Suf) (hpAP : 0 < pAP)
     (hι : 0 < indecisionLimit) (hι1 : indecisionLimit ≤ 1 / 2) (hg : 0 < gateLevel)
-    (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
+    (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1 / 2)
     (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) :
     ∃ schedule : Finset (Option (Fin K)) → Finset State,
       (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ,
@@ -56,19 +56,19 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
           (∀ B ∈ schedule pops, ∀ j ∈ pops,
             2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-              ≤ δc * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2) →
+              ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops,
             2 ^ 8 * ((pops.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
               ≤ δc * slack ^ 2) →
           (∀ B ∈ schedule pops,
             2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
           (runMeasure μ D Dsf).real
-            {x | ¬ ((∃ B ∈ schedule pops, x ∈ ret O.mq pops none indecisionLimit gateLevel B)
-              ∧ ∀ B ∈ schedule pops, x ∈ ret O.mq pops none indecisionLimit gateLevel B →
+            {x | ¬ ((∃ B ∈ schedule pops, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
+              ∧ ∀ B ∈ schedule pops, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
                 ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(D none)
                     ≤ εcov + slack
                   ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
-                    ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc := by
+                    ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc + gateLevel := by
   classical
   obtain ⟨c, hc⟩ : ∃ c : ℝ, c = crossLimit ^ 4 := ⟨_, rfl⟩
   have hc0 : 0 < c := hc ▸ pow_pos hcross 4
@@ -120,32 +120,35 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hslD hcolSf
     set Spec := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-      (∃ B ∈ states, x ∈ ret O.mq pops none indecisionLimit gateLevel B)
-        ∧ ∀ B ∈ states, x ∈ ret O.mq pops none indecisionLimit gateLevel B →
+      (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
+        ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
           ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(D none)
               ≤ εcov + slack
             ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
               ∂(D j) ≤ 2 * indecisionLimit + slack}
-    have hSm : MeasurableSet Spec := measurableSet_specAt O pops states indecisionLimit gateLevel
+    have hSm : MeasurableSet Spec := measurableSet_specAt O pops states η₀ indecisionLimit εcov gateLevel
       (fun B F => ∫ p, miscutProb O B.lo (B.hi + 1) F p ∂(D none) ≤ εcov + slack
         ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂(D j)
           ≤ 2 * indecisionLimit + slack)
     have hsub : {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-        (∃ B : {B : State // B ∈ states}, x ∈ ret O.mq pops none indecisionLimit gateLevel B.val)
+        (∃ B : {B : State // B ∈ states},
+          x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val)
           ∧ ∀ B : {B : State // B ∈ states},
-            x ∈ ret O.mq pops none indecisionLimit gateLevel B.val →
-            ∀ j ∈ pops,
+            x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
+            ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
+                ∂(D none) ≤ εcov + slack
+            ∧ ∀ j ∈ pops,
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
-                  ∂(D j) ≤ εcov + slack
+                  ∂(D j) ≤ 1 / 2 + slack
               ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
                   ∂(D j) ≤ 2 * indecisionLimit + slack} ⊆ Spec := by
       rintro x ⟨⟨B, hret⟩, hall⟩
       exact ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' =>
-        ⟨(hall ⟨B', hB'⟩ hret' none hpops).1, fun j hj => (hall ⟨B', hB'⟩ hret' j hj).2⟩⟩
+        ⟨(hall ⟨B', hB'⟩ hret').1, fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
     have hmono := measureReal_mono (μ := runMeasure μ D Dsf) hsub (measure_ne_top _ _)
     have hcompl : (runMeasure μ D Dsf).real Specᶜ = 1 - (runMeasure μ D Dsf).real Spec :=
       probReal_compl_eq_one_sub hSm
-    show (runMeasure μ D Dsf).real Specᶜ ≤ δc
+    show (runMeasure μ D Dsf).real Specᶜ ≤ δc + gateLevel
     linarith
 
 /-! ## The theorem -/
@@ -431,7 +434,7 @@ def LoopCore : Prop :=
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
   0 < gateLevel → gateLevel < 1 / 2 →
-  0 < εcov → εcov ≤ 1 →
+  0 < εcov → εcov ≤ 1 / 2 →
   0 < δc → δc ≤ 1 →
   0 < slack → 0 < pAP →
   0 < εd → εd ≤ 1 → 0 < δ → δ ≤ 1 → 1 ≤ P.L →
@@ -444,7 +447,7 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c ≤ NP) →
   2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap
-    ≤ δc * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2 →
+    ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2 →
   2 ^ 9 * ((K : ℝ) + 2) * NP * cap ≤ δc * (slack - m) ^ 2 →
   2 ^ 14 * ((K : ℝ) + 2) * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
@@ -462,7 +465,8 @@ def LoopCore : Prop :=
       + 2 * (εd / 2) / 7 * (2 * (P.L + 2) + 2 + (n + 2) * A * Xc
         + 2 * θe * ((P.L + 1) * (n + 2))) ≤ us) →
   ∃ settings : LoopSettings K,
-    settings.indecisionLimit = indecisionLimit ∧ settings.gateLevel = gateLevel ∧
+    settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
+    settings.gateLevel = gateLevel ∧
     settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
     (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
     settings.level5.maxLeaves = Fintype.card σ + 2 ∧
@@ -477,7 +481,7 @@ def LoopCore : Prop :=
                 o.Checks M O P.D k J ū sift (εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (εd + us))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves) Ls p)}
-        ≤ (Fintype.card σ + 1) * (δc + (δ + δs) + 128 * ū / εd)
+        ≤ (Fintype.card σ + 1) * (δc + gateLevel + (δ + δs) + 128 * ū / εd)
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
@@ -537,8 +541,8 @@ theorem loop_core_holds : LoopCore := by
     level5_gates_all M (εd / 2) P.L δ k θs θs₁ θe φe hδ hδ1 (by positivity) (by linarith) hL1
       hθs0 hθs₁ hθs₁1 hθe0 hφe0
   have e112 : (112 / (εd / 2) : ℝ) = 224 / εd := by field_simp; ring
-  set settings : LoopSettings K := ⟨schedule, ι, gate, s4⟩ with hset
-  refine ⟨settings, rfl, rfl, hwalk, hdis, ?_, hmax, ?_, ?_⟩
+  set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, s4⟩ with hset
+  refine ⟨settings, rfl, rfl, rfl, rfl, hwalk, hdis, ?_, hmax, ?_, ?_⟩
   · refine hbud.trans (le_of_eq ?_)
     rw [e112]
   · intro pops
@@ -652,13 +656,13 @@ theorem loop_core_holds : LoopCore := by
         (∀ t, Lsf.real {t} ≤ 2 * cap) →
         (runMeasure μ L Lsf).real
           {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B)
+                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
             ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B →
+              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
               ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
                   ≤ εcov + (slack - m)
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
-                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc := by
+                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc + gate := by
     intro pops hpops L Lsf hLp hLsfp hLs hLat hLsfLen hpAPL hLsfat
     have hs : settings.schedule pops = schedule₀ pops := if_pos hpops
     rw [hs]
@@ -779,8 +783,9 @@ theorem loop_core_holds : LoopCore := by
               ↑(dec (histCodes settings O P.D Dsf N p.1 p.2 r)).prefs ≤ 1 / 2)
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ 1 / 2
         ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
-  have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc := fun r hr =>
-    loop_cluster_round_le_persist settings O P Dsf Ls N εcov δc slack cap cap m ms pAP hδc.le hC hN
+  have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
+    loop_cluster_round_le_persist settings O P Dsf Ls N εcov (δc + gate) slack cap cap m ms pAP
+      (by linarith) hC hN
       hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
   -- level 5's conditions at a goodness level and a prefix mass
   set Pre5 : ℝ → ℝ → Prop := fun θ' p => 384 * (P.L + 1) * (Fintype.card σ + 1) * θ' ≤ 1
@@ -869,16 +874,16 @@ theorem loop_core_holds : LoopCore := by
       ENNReal.toReal_zero]
   set Ev : ℕ → Set (Ω × (Fin K → RoundDraws α K T)) := fun r =>
     if hr : r < K then (E1 r hr ∪ E2 r hr) ∪ E3 r hr else ∅ with hEvd
-  have hEv : ∀ r, μL.real (Ev r) ≤ δc + ((δ + δs) + 128 * ū / εd) := by
+  have hEv : ∀ r, μL.real (Ev r) ≤ δc + gate + ((δ + δs) + 128 * ū / εd) := by
     intro r
     simp only [hEvd]
     split_ifs with hr
     · calc μL.real ((E1 r hr ∪ E2 r hr) ∪ E3 r hr)
           ≤ μL.real (E1 r hr) + μL.real (E2 r hr) + μL.real (E3 r hr) :=
             (measureReal_union_le _ _).trans (add_le_add (measureReal_union_le _ _) le_rfl)
-        _ ≤ δc + ((δ + δs) + 128 * ū / εd) + 0 :=
+        _ ≤ δc + gate + ((δ + δs) + 128 * ū / εd) + 0 :=
             add_le_add (add_le_add (h1 r hr) (h2 r hr)) (le_of_eq (h3 r hr))
-        _ = δc + ((δ + δs) + 128 * ū / εd) := by ring
+        _ = δc + gate + ((δ + δs) + 128 * ū / εd) := by ring
     · rw [measureReal_empty]; positivity
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
   have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
@@ -1008,9 +1013,9 @@ theorem loop_core_holds : LoopCore := by
   calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
         measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) := measureReal_biUnion_finset_le _ _
-    _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + ((δ + δs) + 128 * ū / εd)) :=
+    _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + gate + ((δ + δs) + 128 * ū / εd)) :=
         Finset.sum_le_sum fun r _ => hEv r
-    _ = (Fintype.card σ + 1) * (δc + (δ + δs) + 128 * ū / εd) := by
+    _ = (Fintype.card σ + 1) * (δc + gate + (δ + δs) + 128 * ū / εd) := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
         push_cast
         ring

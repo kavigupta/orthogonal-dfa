@@ -271,9 +271,9 @@ theorem level5_leaves_le (C : Level5Settings) (hC : 2 ≤ C.maxLeaves) (read : F
 lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hcL : 0 ≤ cL) :
-    0 ≤ 6000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * (256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
+    0 ≤ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * (256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2)
-        / (δ' / 2 * (1 / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 3) := by
+        / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 2) := by
   have hl2 := Real.log_two_gt_d9
   have hlτ : Real.log 2 ≤ Real.log (2 / τ) :=
     Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hτ0]; linarith)
@@ -288,8 +288,8 @@ lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s 
     rw [le_div_iff₀ (by positivity)]
     linarith
   refine div_nonneg (mul_nonneg (by positivity) (Real.log_nonneg ?_)) (by positivity)
-  have hD1 : δ' / 2 * (1 / 4) * (pAP / 2) * τ ≤ 1 := by
-    have : δ' / 2 * (1 / 4) * (pAP / 2) ≤ 1 := by nlinarith
+  have hD1 : δ' / 2 * (δ' / 4) * (pAP / 2) * τ ≤ 1 := by
+    have : δ' / 2 * (δ' / 4) * (pAP / 2) ≤ 1 := by nlinarith
     nlinarith
   rw [le_div_iff₀ (by positivity), one_mul]
   nlinarith
@@ -485,6 +485,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N εd εcov δ' ι ρ s τ J V Kp G PB RB cap
     n hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hk1 hk2 hk3
   classical
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
   have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
   have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
@@ -716,9 +717,10 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         mul_one]
     rw [e]
     refine hD.trans ?_
-    show (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 8 + 128 * 0 / εd) ≤ δ / 2
-    have e : (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 8 + 128 * 0 / εd)
-        = 17 * δ / 64 := by field_simp; ring
+    show (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 4 + δ / (8 * (Q + 1)) / 8
+      + 128 * 0 / εd) ≤ δ / 2
+    have e : (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 4 + δ / (8 * (Q + 1)) / 8
+        + 128 * 0 / εd) = 19 * δ / 64 := by field_simp; ring
     rw [e]; linarith
   have hsel : ∀ r ∈ Finset.range (Fintype.card σ + 1), (μL.prod β).real (Sel r)
       ≤ δ / (2 * (Q + 1)) := by
@@ -735,8 +737,9 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
     have hι0 : 0 < ι := lt_min (div_pos hεcov0 (by norm_num))
       (one_div_pos.2 (mul_pos (by positivity) (by linarith)))
-    have hτ0 : 0 < τ := lt_min (div_pos hεcov0 (by norm_num)) (lt_min hs0 hι0)
-    have hτ1 : τ ≤ 1 := (min_le_left _ _).trans (by linarith)
+    have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεcov0 (by norm_num))
+      (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
+    have hτ1 : τ ≤ 1 := (min_le_right _ _).trans ((min_le_left _ _).trans (by linarith))
     have hV0 : 0 ≤ V := by positivity
     have hV1 : 1 ≤ V := dfa_V_ge hQ0 hA2'
     have hB4 : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := dfa_B_ge hQ0 hA2'
@@ -837,7 +840,8 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hb := dfa_cap_bound (ℓ := (L₁ : ℝ) + 1) (Nn := N) (εcov := εcov)
     (ι := min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))
     (ρ := εd ^ 2 / ((Q + 2) * A))
-    (τ := min (εcov / 2) (min s (min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))))
+    (τ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2)
+      (min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q))))
     (n := k) hQ1 hA hℓ1 hN1 hNℓ hη0 hη₀ hc hpAP hp1 rfl hε0 hCe0 hεl
     hδ'0 hδ'1 rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
   dsimp only at hb

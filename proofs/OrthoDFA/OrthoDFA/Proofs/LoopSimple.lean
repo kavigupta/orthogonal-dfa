@@ -18,14 +18,14 @@ open MeasureTheory
 
 /-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
-  128 * (Real.log (2 / min εcov (min (1 / 2 - η₀) ι)) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
+  128 * (Real.log (2 / budgetScale η₀ ι εcov) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
     + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
 
 /-- A bound on the prefix count. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
-  6000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
-    / (δ / 2 * α * pAP * min εcov (min (1 / 2 - η₀) ι)))
-    / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) ι) ^ 3)
+  60000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
+    / (δ / 2 * α * pAP * budgetScale η₀ ι εcov))
+    / ((1 / 2 - η₀) ^ 4 * budgetScale η₀ ι εcov ^ 2)
 
 theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     (ι εcov α δ pAP cLog Jm : ℝ) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
@@ -43,10 +43,10 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
   set s := 1 / 2 - η₀ with hs
   have hs0 : 0 < s := by linarith
   have hsig' : sig η₀ = s := rfl
-  set τ := min εcov (min s ι) with hτ
+  set τ := budgetScale η₀ ι εcov with hτ
   have hτ' : budgetScale η₀ ι εcov = τ := rfl
-  have hτ0 : 0 < τ := lt_min hε (lt_min hs0 hι)
-  have hτ1 : τ ≤ 1 := (min_le_left _ _).trans hε1
+  have hτ0 : 0 < τ := budgetScale_pos η₀ ι εcov hε hι hη0 hη
+  have hτ1 : τ ≤ 1 := (budgetScale_le_sig η₀ ι εcov hη0 hη).trans (by unfold sig; linarith)
   have hcross : 0 < Real.exp (-cLog) := Real.exp_pos _
   have hcross1 : Real.exp (-cLog) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
   set PB := capPB η₀ ι εcov δ pAP cLog Jm with hPB
@@ -89,11 +89,11 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     refine Real.log_le_log (by linarith) (div_le_div_of_nonneg_right ?_ (by positivity))
     exact mul_le_mul (by linarith) hpoolB (by positivity) (by linarith)
   have hsq : (pops.card : ℝ) ^ 2 ≤ Jm ^ 2 := pow_le_pow_left₀ (by positivity) hcard 2
-  calc 6000 * (pops.card : ℝ) ^ 2
+  calc 60000 * (pops.card : ℝ) ^ 2
         * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ))
-      ≤ 6000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
+      ≤ 60000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
         gcongr
-    _ ≤ 6000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
+    _ ≤ 60000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
         gcongr
 
 end OrthoDFA
@@ -142,7 +142,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let ι : ℝ := min (εcov / 8) (1 / (3072 * (L + 1) * (Q + 1) * Q))
     let ρ : ℝ := 2 * min θs (min (φe * θe / 2) (3 * (εd / 2) / 16))
     let s : ℝ := 1 / 2 - η₀
-    let τ : ℝ := min (εcov / 2) (min s ι)
+    let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
     let J : ℝ := Q + 2
     let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
     let Kp : ℝ := V * (224 / εd + 1)
@@ -151,8 +151,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         + 4 * Real.log (4 * Kp * G * (Q + 2) * (L + 1 + (Q + 2) * A) / δ'))
         / (s ^ 2 * pAP)
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
-    let RB : ℝ := 6000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (1 / 4) * (pAP / 2) * τ))
-      / (s ^ 4 * τ ^ 3)
+    let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+      / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
         (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
       (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
@@ -186,7 +186,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   o.Checks M O P.D k Jl ū sift εcov εcov (εd + us))
                 ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves)
                   (P.L + Fintype.card σ + 3) p)}
-          ≤ (Q + 1) * (2 * δ' + δs + 128 * ū / εd) := by
+          ≤ (Q + 1) * (2 * δ' + δ' / 4 + δs + 128 * ū / εd) := by
   intro Q A L ι ρ s τ J V Kp G PB RB cap
     hL hη hη₀ hε hε1 hεd hεd1 hδ'0 hδ'1 hpAP hL1 hk0 hk1 hk2 hū hθs0 hθs₁ hθs₁1 hθe0 hφe0 hus0
     hδs0 hθe hθs hφe hsift
@@ -211,7 +211,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       level5_guarantee_all M (εd / 2) P.L δ' k hδ'0 hδ'1 (by positivity) (by linarith) hL1
     have := hl4 μ
     clear this hl4
-    refine ⟨⟨fun _ => ∅, ι, 1 / 4, s4⟩, hwalk, hdis, ?_, hmax4, fun _ => by simp, ?_⟩
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, s4⟩, hwalk, hdis, ?_, hmax4, fun _ => by simp, ?_⟩
     · refine hbud.trans (le_of_eq ?_)
       rw [e112]
     · intro Dsf hDsf _ hpAPD _
@@ -238,20 +238,25 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       nlinarith
     exact mul_nonneg (by norm_num) (Real.log_nonneg
       (one_le_farArg (by linarith) hA1 (by linarith) hK1 hG1 hδ'0 hδ'1))
+  have hτb : budgetScale η₀ ι (εcov / 2) = τ := by
+    show min (min (εcov / 2) (1 / 2) * gateA η₀ ^ 2) ι = min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+    rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
+    rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
-    show _ = 256 * (Real.log (2 / min (εcov / 2) (min (1 / 2 - η₀) ι)) + cLog)
-        / ((1 / 2 - η₀) ^ 2 * pAP) + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+    show _ = 256 * (Real.log (2 / τ) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
+      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     unfold capPB
+    rw [hτb]
     field_simp
     ring
-  have hRBe : capRB η₀ ι (εcov / 2) (1 / 4) δ' (pAP / 2) cLog J = RB := by
+  have hRBe : capRB η₀ ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J = RB := by
     unfold capRB
-    rw [hPBe]
+    rw [hPBe, hτb]
   have hJ : (((Fintype.card σ + 1 + 1 : ℕ)) : ℝ) = J := by
     push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
   have hcounts : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))), none ∈ pops →
       (poolCount η₀ pops ι (εcov / 2) (δ' / 2) (pAP / 2) (Real.exp (-cLog)) : ℝ) ≤ PB
-        ∧ (prefCount η₀ pops ι (εcov / 2) (δ' / 2) (1 / 4) (pAP / 2) (Real.exp (-cLog)) : ℝ)
+        ∧ (prefCount η₀ pops ι (εcov / 2) (δ' / 2) (δ' / 4) (pAP / 2) (Real.exp (-cLog)) : ℝ)
           ≤ RB := by
     intro pops hpops
     have hcard : (pops.card : ℝ) ≤ J := by
@@ -259,8 +264,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       simp only [Fintype.card_option, Fintype.card_fin] at h1
       rw [← hJ]
       exact_mod_cast h1
-    have h := counts_le η₀ pops ι (εcov / 2) (1 / 4) δ' (pAP / 2) cLog J hη0 hη₀ ⟨none, hpops⟩
-      hcard hι0 (by positivity) (by linarith) hδ'0 hδ'1 (by norm_num) (by norm_num)
+    have h := counts_le η₀ pops ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J hη0 hη₀ ⟨none, hpops⟩
+      hcard hι0 (by positivity) (by linarith) hδ'0 hδ'1 (by positivity) (by linarith)
       (by positivity) (by linarith) hcL0
     rw [hPBe, hRBe] at h
     exact h
@@ -269,8 +274,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hRB0 : 0 ≤ RB := (Nat.cast_nonneg _).trans hRB0'
   have hJ0 : 0 < J := by show 0 < Q + 2; linarith
   have hτ0 : 0 < τ := by
-    show 0 < min (εcov / 2) (min (1 / 2 - η₀) ι)
-    exact lt_min (by positivity) (lt_min (by linarith) hι0)
+    have ha : 0 < (1 - 2 * η₀) / (1 - η₀) := gateA_pos hη0 hη₀
+    exact lt_min (mul_pos (by positivity) (pow_pos ha 2)) hι0
   have hcap0 : 0 < cap := by
     show 0 < min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
@@ -301,8 +306,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hKJ : (((Fintype.card σ + 1 : ℕ) : ℝ)) ≤ J := by linarith
   have hK0 : (0 : ℝ) ≤ ((Fintype.card σ + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
   have hq1 : 2 ^ 22 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 2) ^ 2 * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
-      ≤ δ' * min (εcov / 2) (min (1 / 2 - η₀) ι) ^ 2 := by
+      ≤ δ' * rateScale η₀ ι (εcov / 2) ^ 2 := by
     rw [hK2]
+    change _ ≤ δ' * τ ^ 2
     exact hmul (b := 2 ^ 22 * (J + 1) ^ 2 * (RB + 1)) (by positivity) (by gcongr; linarith)
       ((min_le_left _ _).trans (min_le_left _ _))
   have hq2 : 2 ^ 9 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 2) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
@@ -343,11 +349,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     exact hmul (b := 6 * J * (RB + 1) * (L + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
-    ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (1 / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k Jl ū
+    ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP εd δ' cap (ι / 2) (pAP / 2) k Jl ū
     θs θs₁ θe φe us δs sift
   dsimp only at hcore
-  obtain ⟨settings, -, -, hwalk, hdis, hbud, hmaxL, hnp, hmain⟩ := hcore hL hη hη₀ hι0 (by linarith)
-    (by norm_num) (by norm_num) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP hεd hεd1 hδ'0
+  obtain ⟨settings, -, -, -, -, hwalk, hdis, hbud, hmaxL, hnp, hmain⟩ := hcore hL hη hη₀ hι0
+    (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP hεd hεd1 hδ'0
     hδ'1 hL1 (by omega) (by omega) hθ hcap0 (by linarith) (by linarith) (by linarith)
     (by linarith)
     (fun pops hpops => by
@@ -377,7 +383,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       refine ⟨⟨h1, o, ho, checks_mono ?_ ?_ hag⟩, hfr⟩
       · linarith
       · linarith
-    · show ((Fintype.card σ : ℝ) + 1) * (δ' + (δ' + δs) + 128 * ū / εd) = _
+    · show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ' + δs) + 128 * ū / εd) = _
       ring
 
 end OrthoDFA

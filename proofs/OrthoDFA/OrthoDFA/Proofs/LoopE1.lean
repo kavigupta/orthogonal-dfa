@@ -39,8 +39,8 @@ theorem measurableSet_clusterSpec (settings : LoopSettings K) (O : Oracle μ (Fr
     split_ifs with h <;> simp [h]
   have hset : {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       ClusterSpec settings O D' εcov slack harvests x}
-      = (⋃ B ∈ sched, (ret O.mq pops none settings.indecisionLimit settings.gateLevel B : Set _))
-        ∩ ⋂ B ∈ sched, ((ret O.mq pops none settings.indecisionLimit settings.gateLevel B : Set _)ᶜ
+      = (⋃ B ∈ sched, (ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B : Set _))
+        ∩ ⋂ B ∈ sched, ((ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B : Set _)ᶜ
           ∪ {x | Q B (familyAt O.mq pops x B)}) := by
     ext x
     simp only [ClusterSpec, Set.mem_setOf_eq, Set.mem_inter_iff, Set.mem_iUnion, Set.mem_iInter,
@@ -48,15 +48,15 @@ theorem measurableSet_clusterSpec (settings : LoopSettings K) (O : Oracle μ (Fr
     refine and_congr Iff.rfl (forall₂_congr fun B hB => ?_)
     tauto
   rw [hset]
-  exact (Finset.measurableSet_biUnion _ fun B _ => measurableSet_ret O pops none _ _ B).inter
+  exact (Finset.measurableSet_biUnion _ fun B _ => measurableSet_ret O pops none _ _ _ _ B).inter
     (Finset.measurableSet_biInter _ fun B _ =>
-      (measurableSet_ret O pops none _ _ B).compl.union (hQ B))
+      (measurableSet_ret O pops none _ _ _ _ B).compl.union (hQ B))
 
 theorem measurableSet_specAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option (Fin K)))
-    (sched : Finset State) (ι a : ℝ) (Q : State → Finset (FreeMonoid α) → Prop) :
+    (sched : Finset State) (η₀ ι εc a : ℝ) (Q : State → Finset (FreeMonoid α) → Prop) :
     MeasurableSet {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-      (∃ B ∈ sched, x ∈ ret O.mq pops none ι a B)
-        ∧ ∀ B ∈ sched, x ∈ ret O.mq pops none ι a B → Q B (familyAt O.mq pops x B)} := by
+      (∃ B ∈ sched, x ∈ ret O.mq pops none η₀ ι εc a B)
+        ∧ ∀ B ∈ sched, x ∈ ret O.mq pops none η₀ ι εc a B → Q B (familyAt O.mq pops x B)} := by
   classical
   have hQ : ∀ B, MeasurableSet {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       Q B (familyAt O.mq pops x B)} := fun B => by
@@ -68,19 +68,19 @@ theorem measurableSet_specAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (Opt
     simp only [Set.mem_setOf_eq, familyAt]
     split_ifs with h <;> simp [h]
   have hset : {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-      (∃ B ∈ sched, x ∈ ret O.mq pops none ι a B)
-        ∧ ∀ B ∈ sched, x ∈ ret O.mq pops none ι a B → Q B (familyAt O.mq pops x B)}
-      = (⋃ B ∈ sched, (ret O.mq pops none ι a B : Set _))
-        ∩ ⋂ B ∈ sched, ((ret O.mq pops none ι a B : Set _)ᶜ ∪ {x | Q B (familyAt O.mq pops x B)}) := by
+      (∃ B ∈ sched, x ∈ ret O.mq pops none η₀ ι εc a B)
+        ∧ ∀ B ∈ sched, x ∈ ret O.mq pops none η₀ ι εc a B → Q B (familyAt O.mq pops x B)}
+      = (⋃ B ∈ sched, (ret O.mq pops none η₀ ι εc a B : Set _))
+        ∩ ⋂ B ∈ sched, ((ret O.mq pops none η₀ ι εc a B : Set _)ᶜ ∪ {x | Q B (familyAt O.mq pops x B)}) := by
     ext x
     simp only [Set.mem_setOf_eq, Set.mem_inter_iff, Set.mem_iUnion, Set.mem_iInter,
       Set.mem_union, Set.mem_compl_iff, exists_prop]
     refine and_congr Iff.rfl (forall₂_congr fun B hB => ?_)
     tauto
   rw [hset]
-  exact (Finset.measurableSet_biUnion _ fun B _ => measurableSet_ret O pops none _ _ B).inter
+  exact (Finset.measurableSet_biUnion _ fun B _ => measurableSet_ret O pops none _ _ _ _ B).inter
     (Finset.measurableSet_biInter _ fun B _ =>
-      (measurableSet_ret O pops none _ _ B).compl.union (hQ B))
+      (measurableSet_ret O pops none _ _ _ _ B).compl.union (hQ B))
 
 section Draws
 
@@ -178,9 +178,9 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
         (∀ t, Lsf.real {t} ≤ 2 * capSf) →
         (runMeasure μ L Lsf).real
           {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B)
+                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
             ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B →
+              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
               ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
                   ≤ εcov + (slack - m)
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
@@ -329,9 +329,9 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
             ((q.1, q.2.1) : ClusterDraws Ω α K)) (μ.prod ν) (clusterLaw μ α K) :=
           (MeasurePreserving.id μ).prod measurePreserving_fst
         have hsub : Tset ⊆ {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B)
+                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
             ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B →
+              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
               ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
                   ≤ εcov + (slack - m)
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
@@ -361,9 +361,9 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
           _ = runMeasure μ L (offLaw Dsf h.suffs) Tset :=
               hcr'.measure_preimage hTm.nullMeasurableSet
           _ ≤ runMeasure μ L (offLaw Dsf h.suffs) {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B)
+                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
             ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.indecisionLimit settings.gateLevel B →
+              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
               ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
                   ≤ εcov + (slack - m)
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
