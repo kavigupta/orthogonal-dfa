@@ -97,11 +97,17 @@ def RandomRoundCorrect : Prop :=
           -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
           -- the probes searching, changing the hypothesis or stopping undecided at their start or
           -- end sift; a harvest's sampler yields `y`.
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            (searchSet (R.read · ω) C.walkStart result.hypothesis
-              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal δ
 
 end Random

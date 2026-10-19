@@ -48,9 +48,17 @@ def Same (s s' : Level3State α) : Prop := s'.tree = s.tree ∧ s'.edges = s.edg
 yielding `y`, or is one of the steps `X`, or its stretch reaches `Ns` probes. -/
 def BadStep (X : Level3State α → FreeMonoid α → Prop) (s : Level3State α) (x : FreeMonoid α) :
     Prop :=
-  (s.probeCount < Ns ∧ ((∃ e, applyProbe read C s x = .inr e ∧ ¬ EndsWell M (BadAt U θ) D ε
-      (searchSet read C.walkStart ⟨s.tree, s.edges⟩ ∪ endsSet read C.walkStart ⟨s.tree, s.edges⟩)
-      C.walkStart (harvestLaw read D C.walkStart ⟨s.tree, s.edges⟩) y e)
+  (s.probeCount < Ns ∧ ((∃ e, applyProbe read C s x = .inr e ∧ ¬ EndsWell
+    { target := M,
+      badStates := BadAt U θ,
+      probes := D,
+      disagreeRate := ε,
+      disagree := searchSet read C.walkStart ⟨s.tree, s.edges⟩
+        ∪ endsSet read C.walkStart ⟨s.tree, s.edges⟩,
+      walkStart := C.walkStart,
+      harvestLaw := harvestLaw read D C.walkStart ⟨s.tree, s.edges⟩,
+      yield := y,
+      ending := e })
       ∨ X s x))
   ∨ ∃ s', applyProbe read C s x = .inl s' ∧ Same s s' ∧ s'.probeCount = Ns
 
@@ -300,9 +308,17 @@ theorem falseFire_of_end [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
     {ys : List (FreeMonoid α)} {s : Level3State α} (hs : Inv read s)
     (hst : StInv read C T E j ys s) (hcl : ys.countP (fW read C T E) = 0) {x : FreeMonoid α}
     {e : RoundEnd Level3Site} (he : applyProbe read C s x = .inr e)
-    (hbad : ¬ EndsWell M (BadAt U θ) D ε
-      (searchSet read C.walkStart ⟨s.tree, s.edges⟩ ∪ endsSet read C.walkStart ⟨s.tree, s.edges⟩)
-      C.walkStart (harvestLaw read D C.walkStart ⟨s.tree, s.edges⟩) y e) :
+    (hbad : ¬ EndsWell
+      { target := M,
+        badStates := BadAt U θ,
+        probes := D,
+        disagreeRate := ε,
+        disagree := searchSet read C.walkStart ⟨s.tree, s.edges⟩
+          ∪ endsSet read C.walkStart ⟨s.tree, s.edges⟩,
+        walkStart := C.walkStart,
+        harvestLaw := harvestLaw read D C.walkStart ⟨s.tree, s.edges⟩,
+        yield := y,
+        ending := e }) :
     FalseFire read C D ε T E j (max (2 * Ge) y) pM (ys ++ [x]) := by
   classical
   have hlook := step_inr read C he
