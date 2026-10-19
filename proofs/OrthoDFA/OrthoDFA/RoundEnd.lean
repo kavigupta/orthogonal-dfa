@@ -35,13 +35,14 @@ def Yields [Countable α] (ν : Measure (FreeMonoid α)) (y : ℝ) : Prop := y �
 /-- What a round's ending is judged against. -/
 structure EndSpec (α σ H : Type*) [Countable α] where
   target : DFA α σ
-  bad : σ → Prop
+  /-- The states the reads handle poorly; a harvest must be mostly at them. -/
+  badStates : σ → Prop
   probes : Measure (FreeMonoid α)
   disagreeRate : ℝ
   /-- Where the hypothesis and the tree part. -/
   disagree : Set (FreeMonoid α)
   /-- The prefix length a harvest must be spread from. -/
-  spreadFrom : ℕ
+  walkStart : ℕ
   /-- What the harvest `h`'s sampler finds. -/
   harvestLaw : H → Measure (FreeMonoid α)
   yield : ℝ
@@ -51,8 +52,8 @@ def EndsWell [Countable α] {σ H : Type*} (s : EndSpec α σ H) : RoundEnd H �
   | .consistent => s.probes.real s.disagree ≤ s.disagreeRate
   | .harvest h =>
     (s.harvestLaw h).real Set.univ
-        < 2 * (s.harvestLaw h).real {z | s.bad (s.target.eval z.toList)}
-      ∧ Spread s.probes s.spreadFrom (s.harvestLaw h) ∧ Yields (s.harvestLaw h) s.yield
+        < 2 * (s.harvestLaw h).real {z | s.badStates (s.target.eval z.toList)}
+      ∧ Spread s.probes s.walkStart (s.harvestLaw h) ∧ Yields (s.harvestLaw h) s.yield
   | .failed => False
 
 end OrthoDFA
