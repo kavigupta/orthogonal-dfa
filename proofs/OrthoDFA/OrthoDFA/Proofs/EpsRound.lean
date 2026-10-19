@@ -73,14 +73,20 @@ theorem eps_ends_of_not_anyB :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → WitInv M side s →
       s.probeCount < Ns → Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U θ D ε Ns y (WrongStep M side read C)) s xs →
-      EndsWell M (BadAt U θ) D ε
-        (searchSet read C.walkStart
+      EndsWell
+        { target := M,
+          badStates := BadAt U θ,
+          probes := D,
+          disagreeRate := ε,
+          disagree := searchSet read C.walkStart
             ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
-          ∪ endsSet read C.walkStart
-            ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩)
-        C.walkStart (harvestLaw read D C.walkStart
-          ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩) y
-        (runProbes read C s xs).2
+            ∪ endsSet read C.walkStart
+            ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩,
+          walkStart := C.walkStart,
+          harvestLaw := harvestLaw read D C.walkStart
+            ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩,
+          yield := y,
+          ending := (runProbes read C s xs).2 }
   | [], s, _, _, hn, hlen, _ => by simp at hlen; omega
   | x :: xs, s, hs, hg, hn, hlen, hb => by
     simp only [AnyB, not_or, not_exists, not_and] at hb
@@ -135,10 +141,17 @@ theorem eps_probe_level [IsProbabilityMeasure D] (P N₁ : ℕ)
     (hP : Level2.stretches (Fintype.card σ) (Fintype.card α) * Ns ≤ P) :
     (Measure.pi fun _ : Fin P => D)
         {xs | let r := runProbes read C initialState (List.ofFn xs)
-          ¬ EndsWell M (BadAt U θ) D ε
-            (searchSet read C.walkStart ⟨r.1.tree, r.1.edges⟩
-              ∪ endsSet read C.walkStart ⟨r.1.tree, r.1.edges⟩)
-            C.walkStart (harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := D,
+              disagreeRate := ε,
+              disagree := searchSet read C.walkStart ⟨r.1.tree, r.1.edges⟩
+                ∪ endsSet read C.walkStart ⟨r.1.tree, r.1.edges⟩,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩,
+              yield := y,
+              ending := r.2 }}
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
           stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
         + (Measure.pi fun _ : Fin P => D)
@@ -246,11 +259,17 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell M (BadAt U θ) P.D ε
-            (searchSet (R.read · ω) C.walkStart result.hypothesis
-              ∪ endsSet (R.read · ω) C.walkStart result.hypothesis)
-            C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis) y
-            result.ending} ∂μ
+          ¬ EndsWell
+            { target := M,
+              badStates := BadAt U θ,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }} ∂μ
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ θ p₀ P.L C kn)
         + ENNReal.ofReal (εw * (C.probeBudget
           * ((P.L + 1) * Fintype.card σ + (Fintype.card σ + 1) * Fintype.card α
@@ -284,10 +303,17 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
       (List.ofFn d)}
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
       {xs | let r := runProbes (R.read · ω) C initialState (List.ofFn xs)
-        ¬ EndsWell M (BadAt U θ) P.D ε
-          (searchSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
-            ∪ endsSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩)
-          C.walkStart (harvestLaw (R.read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩) y r.2}
+        ¬ EndsWell
+          { target := M,
+            badStates := BadAt U θ,
+            probes := P.D,
+            disagreeRate := ε,
+            disagree := searchSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
+              ∪ endsSet (R.read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            walkStart := C.walkStart,
+            harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            yield := y,
+            ending := r.2 }}
         ≤ (c + B.indicator 1 ω) + g ω := by
     intro ω
     by_cases hω : ω ∈ B
