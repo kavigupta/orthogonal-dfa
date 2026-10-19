@@ -1,4 +1,4 @@
-import Mathlib.Probability.ProductMeasure
+import OrthoDFA.Clustering
 import Mathlib.Probability.ConditionalProbability
 import Mathlib.Data.List.GetD
 
@@ -14,19 +14,9 @@ namespace OrthoDFA.Thin
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
+variable {S : Type*} [Stringlike S]
+
 section Lists
-
-variable {S : Type*}
-
-open scoped Classical in
-/-- The draws among the first `n` that fall in `A`, in draw order. -/
-noncomputable def drawsIn (A : Set S) (w : ℕ → S) (n : ℕ) : List S :=
-  ((List.range n).map w).filter (fun s => decide (s ∈ A))
-
-open scoped Classical in
-/-- The `k`-th draw of `w` in `A`, or `d` when there are not that many. -/
-noncomputable def nthDrawIn (A : Set S) (d : S) (w : ℕ → S) (k : ℕ) : S :=
-  if h : ∃ n, k < (drawsIn A w n).length then (drawsIn A w (Nat.find h)).getD k d else d
 
 /-- `s`, then `y`. -/
 def consStream (s : S) (y : ℕ → S) : ℕ → S := fun n => Nat.casesOn n s y
@@ -124,7 +114,6 @@ end Lists
 
 section Measure
 
-variable {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S] [Countable S]
 
 /-- The law of an i.i.d. stream. -/
 noncomputable abbrev iidS (D : Measure S) : Measure (ℕ → S) := Measure.infinitePi fun _ : ℕ => D
@@ -133,10 +122,11 @@ lemma measurableSet_of_countable' (W : Set S) : MeasurableSet W :=
   (Set.to_countable W).measurableSet
 
 /-- Every event about the first `n` draws is measurable: they take countably many values. -/
-lemma measurableSet_firstN (n : ℕ) (P : (Fin n → S) → Prop) :
-    MeasurableSet {w : ℕ → S | P (fun i : Fin n => w i.val)} := by
-  have hmeas : Measurable (fun (w : ℕ → S) (i : Fin n) => w i.val) := by fun_prop
-  exact hmeas (Set.to_countable {t : Fin n → S | P t}).measurableSet
+lemma measurableSet_firstN {X : Type*} [MeasurableSpace X] [MeasurableSingletonClass X]
+    [Countable X] (n : ℕ) (P : (Fin n → X) → Prop) :
+    MeasurableSet {w : ℕ → X | P (fun i : Fin n => w i.val)} := by
+  have hmeas : Measurable (fun (w : ℕ → X) (i : Fin n) => w i.val) := by fun_prop
+  exact hmeas (Set.to_countable {t : Fin n → X | P t}).measurableSet
 
 lemma entries_congr (A : Set S) {w w' : ℕ → S} {n : ℕ} (h : ∀ k < n, w k = w' k) :
     drawsIn A w n = drawsIn A w' n := by
@@ -644,7 +634,7 @@ theorem map_sub_pair (D : Measure S) [IsProbabilityMeasure D] (A R : Set S)
       = Measure.map e.symm ((iidS (D[|A])).prod (iidS (D[|R]))) := by
     refine eq_of_prefix _ _ (fun n t => ?_)
     have hset : MeasurableSet {z : ℕ → S × S | ∀ i : Fin n, z i = t i} :=
-      measurableSet_firstN (S := S × S) n (fun u => ∀ i, u i = t i)
+      measurableSet_firstN (X := S × S) n (fun u => ∀ i, u i = t i)
     rw [Measure.map_apply e.symm.measurable hset, Measure.map_apply e.symm.measurable hset,
       Measure.map_apply hF (e.symm.measurable hset)]
     have e1 : (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w)) ⁻¹' (e.symm ⁻¹' {z | ∀ i : Fin n, z i = t i})

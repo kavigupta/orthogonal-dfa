@@ -13,9 +13,6 @@ open MeasureTheory Thin
 
 variable {S : Type*} [Stringlike S]
 
-/-- The strings the hash `g` puts on side `b`, outside `H`. -/
-def onSide (H : Finset S) (b : Bool) (g : S → Bool) : Set S := {s | g s = b ∧ s ∉ H}
-
 lemma entries_congr_set {A A' : Set S} {w : ℕ → S} {n : ℕ} (h : ∀ i < n, (w i ∈ A ↔ w i ∈ A')) :
     drawsIn A w n = drawsIn A' w n := by
   classical

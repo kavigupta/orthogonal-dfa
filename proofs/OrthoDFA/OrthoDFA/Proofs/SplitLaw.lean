@@ -15,14 +15,6 @@ open scoped ENNReal
 
 variable {S : Type*} [Stringlike S]
 
-/-- The table sequence: `L`, then the draws in `A`, then a repeat of `L`'s first string or of the
-first draw in `A`, or the spare draw `z 0` when there is neither. -/
-noncomputable def tableSeqOf (L : List S) (A : Set S) (w z : ℕ → S) : ℕ → S :=
-  prependStream L (nthDrawIn A (L.headD (nthDrawIn A (z 0) w 0)) w)
-
-/-- The reserve sequence: the draws in `R`, then a repeat of the first, or the spare `z 1`. -/
-noncomputable def reserveSeqOf (R : Set S) (w z : ℕ → S) : ℕ → S := nthDrawIn R (nthDrawIn R (z 1) w 0) w
-
 lemma sub_eq_of_unbounded (A : Set S) (w : ℕ → S) (h : ∀ k, ∃ n, k < (drawsIn A w n).length)
     (d d' : S) : nthDrawIn A d w = nthDrawIn A d' w := by
   funext k
@@ -45,13 +37,6 @@ lemma measurable_sub_pad (A : Set S) : Measurable (fun p : S × (ℕ → S) => n
   have h : Measurable (fun p : (ℕ → S) × S => nthDrawIn A p.2 p.1) :=
     measurable_from_prod_countable_left (fun d => measurable_sub A d)
   exact h.comp measurable_swap
-
-lemma measurable_prependStream (L : List S) : Measurable (prependStream L) := by
-  refine measurable_pi_lambda _ (fun k => ?_)
-  unfold prependStream
-  by_cases hk : k < L.length
-  · simp only [dif_pos hk]; exact measurable_const
-  · simp only [dif_neg hk]; exact measurable_pi_apply _
 
 lemma measurable_tableSeqOf (L : List S) (A : Set S) :
     Measurable (fun p : (ℕ → S) × (ℕ → S) => tableSeqOf L A p.1 p.2) := by

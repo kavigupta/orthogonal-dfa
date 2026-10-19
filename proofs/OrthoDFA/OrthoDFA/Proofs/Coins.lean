@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.Hoeffding
+import OrthoDFA.Clustering
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
@@ -14,10 +15,6 @@ namespace OrthoDFA.Thin
 
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal NNReal
-
-/-- A fair coin. -/
-noncomputable def fairCoin : Measure Bool :=
-  (2 : ℝ≥0∞)⁻¹ • Measure.dirac true + (2 : ℝ≥0∞)⁻¹ • Measure.dirac false
 
 instance : IsProbabilityMeasure fairCoin := by
   constructor

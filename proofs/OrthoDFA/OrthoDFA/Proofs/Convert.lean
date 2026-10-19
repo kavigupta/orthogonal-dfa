@@ -14,7 +14,7 @@ namespace OrthoDFA.Thin
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
-variable {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S] [Countable S]
+variable {S : Type*} [Stringlike S]
 
 lemma measureReal_eq_tsum (D : Measure S) [IsFiniteMeasure D] (X : Set S) :
     D.real X = ∑' s, X.indicator (fun s => D.real {s}) s := by
@@ -46,9 +46,6 @@ lemma exists_finset_compl_le (D : Measure S) [IsFiniteMeasure D] {ε : ℝ} (hε
   rw [measureReal_compl (Finset.measurableSet F), huniv, ← sum_measureReal_singleton]
   rw [abs_lt] at h1
   linarith
-
-/-- The strings the hash `g` puts on side `b`, outside `H`. -/
-def onSide (H : Finset S) (b : Bool) (g : S → Bool) : Set S := {s | g s = b ∧ s ∉ H}
 
 open scoped Classical in
 /-- On a set the coins on `U` choose, the population's table side and reserve side hold the same

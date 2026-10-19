@@ -85,9 +85,12 @@ lemma acceptedAt_sub (Q : Set S) (d : S) (w : ℕ → S) (T : Finset S) (n : ℕ
     refine ⟨k, hk, ?_⟩
     rw [sub_eq_getD Q d w hk, List.getD_eq_getElem _ _ hk, he]
 
-/-- `L`, then `y`. -/
-def prependStream (L : List S) (y : ℕ → S) (k : ℕ) : S :=
-  if h : k < L.length then L.get ⟨k, h⟩ else y (k - L.length)
+lemma measurable_prependStream (L : List S) : Measurable (prependStream L) := by
+  refine measurable_pi_lambda _ (fun k => ?_)
+  unfold prependStream
+  by_cases hk : k < L.length
+  · simp only [dif_pos hk]; exact measurable_const
+  · simp only [dif_neg hk]; exact measurable_pi_apply _
 
 /-- The first `|L| + k` drawsIn of `L ++ y`: `L`, and `y`'s first `k` outside it. -/
 lemma acceptedAt_prepend (L : List S) (y : ℕ → S) (k : ℕ) :

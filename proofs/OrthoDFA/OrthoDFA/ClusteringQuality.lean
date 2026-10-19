@@ -33,13 +33,14 @@ against `slack`: the table's own prefixes are read with the noise the family was
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (populations tame : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
+    (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ tame →
   tame ⊆ populations →
   Flat Pre Suf →
+  (∀ j, ∀ p ∈ H j, p ∈ Pre) →
   0 < pAP →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
@@ -69,16 +70,19 @@ def ClusteringQualityGuarantee : Prop :=
       (∀ B ∈ states,
         2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
         1 - δ - α ≤ (runMeasure μ D Dsf).real
-          {x | ((∀ j ∈ populations, j ∈ tame) → ∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+          {x | (∃ B : {B : State // B ∈ states},
+                streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
-              ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
-                  ∂(D uni) ≤ 513 / 512 * εcov + slack
+              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
+              ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations (streams H uni x) B.val) p ∂(D uni)
+                ≤ 513 / 512 * εcov + slack
               ∧ ∀ j ∈ tame,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p ∂(D j) ≤ 1 / 2 + εcov / 512 + slack
-                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
-                    ∂(D j) ≤ 2 * indecisionLimit + slack}
+                    (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
+                  ≤ 1 / 2 + εcov / 512 + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
+                  ≤ 2 * indecisionLimit + slack}
 
 end OrthoDFA

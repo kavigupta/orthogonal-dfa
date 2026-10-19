@@ -3,6 +3,7 @@ import OrthoDFA.Proofs.Schedule
 import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.Proofs.Grouping
 import OrthoDFA.Proofs.FreshDraws
+import OrthoDFA.Proofs.Windows
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
@@ -209,16 +210,6 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
 noncomputable abbrev iidStream (D : Measure S) : Measure (ℕ → S) :=
   Measure.infinitePi fun _ : ℕ => D
 
-/-- `L`, then `y`: a population's table stream, its harvested strings first. -/
-def prependStream (L : List S) (y : ℕ → S) (k : ℕ) : S :=
-  if h : k < L.length then L.get ⟨k, h⟩ else y (k - L.length)
-
-lemma measurable_prependStream (L : List S) : Measurable (prependStream L) := by
-  refine measurable_pi_lambda _ (fun k => ?_)
-  unfold prependStream
-  by_cases h : k < L.length
-  · simp only [dif_pos h]; exact measurable_const
-  · simp only [dif_neg h]; exact measurable_pi_apply _
 
 /-- `L`, then an i.i.d. stream of law `D`. -/
 noncomputable def prependMeasure (L : List S) (D : Measure S) : Measure (ℕ → S) :=
@@ -263,6 +254,7 @@ variable {J : Type*} [Fintype J]
 variable {η₀ : ℝ}
 variable {indecisionLimit : ℝ}
 variable {crossLimit : ℝ}
+variable {hsz : ℕ}
 
 /-- The run's law when population `j`'s table stream has law `Pp j` and its certification
 stream `Pc j`. -/
@@ -274,10 +266,6 @@ instance (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S) [∀ j, IsProbabi
     [∀ j, IsProbabilityMeasure (Pc j)] [IsProbabilityMeasure Dsf] :
     IsProbabilityMeasure (streamMeasure μ Pp Pc Dsf) := by
   unfold streamMeasure; infer_instance
-
-lemma runMeasure_eq_streamMeasure (D : J → Measure S) (Dsf : Measure S) :
-    runMeasure μ D Dsf
-      = streamMeasure μ (fun j => iidStream (D j)) (fun j => iidStream (D j)) Dsf := rfl
 
 /-! The whole blocks of a run, as opposed to `suffixDraw`/`prefixDraw`/`certPrefix`, which pick out one draw.
 The marginal arguments slice the product at these boundaries. -/
@@ -328,43 +316,43 @@ union bound still closes. -/
 
 /-- The budget the loop is heading for: the top of the ladder. -/
 noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : State :=
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : State :=
   solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
 
 lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
+    0 < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
   rw [ladderLen]; omega
 
 lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) :
-    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
-      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
+    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
+      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
   rw [schedule, solvedState]
   refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
   norm_num
 
 /-- Every rung draws the same pool: only the prefix count halves along the ladder. -/
 lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
     B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
   rw [schedule] at hB
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   rfl
 
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
+    0 < prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
   rw [prefCount]; omega
 
 /-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
 the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
 lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) := by
+    ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
   classical
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
-  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit with hLdef
-  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit, (B.npref : ℝ)
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hLdef
+  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz, (B.npref : ℝ)
       ≤ ∑ i ∈ Finset.range L,
           ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
             (m / 2 ^ i)).npref : ℝ) := by
@@ -424,7 +412,7 @@ lemma ladder_inv_sum_le (m V : ℕ) (n : ℕ) :
 
 /-- `ladder_inv_sum_le` over the rungs themselves. -/
 lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) (V : ℕ)
-    (s : Finset State) (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    (s : Finset State) (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
     ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2 := by
   classical
   have hnn : ∀ B : State, 0 ≤ (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
@@ -433,8 +421,8 @@ lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pA
   rw [schedule]
   refine le_trans (sum_image_le_sum _ hnn _ _) ?_
   have hL := ladderLen_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
-    η₀ populations εcov δ α pAP
-  obtain ⟨n, hn⟩ : ∃ n, ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit = n + 1 :=
+    (hsz := hsz) η₀ populations εcov δ α pAP
+  obtain ⟨n, hn⟩ : ∃ n, ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz = n + 1 :=
     ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
   rw [hn]
   exact (ladder_inv_sum_le _ V n).1
@@ -1597,8 +1585,8 @@ lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : F
 
 lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ : ℝ) :
-    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) := by
+    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
   classical
   refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
     (schedule_npref_sum_le η₀ populations εcov δ α pAP)
@@ -1607,9 +1595,9 @@ lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
 
 lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ : ℝ} {B : State}
-    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ) :
-    Capped η₀ populations indecisionLimit εcov δ ρ pAP
-      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ) :
+    Capped η₀ populations indecisionLimit εcov δ (3 * ρ) pAP
+      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
