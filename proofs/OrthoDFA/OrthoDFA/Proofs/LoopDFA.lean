@@ -588,9 +588,111 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   field_simp
   ring
 
-set_option maxHeartbeats 1000000 in -- unfolding the simple claim's settings
+set_option maxHeartbeats 4000000 in -- unfolding the simple claim's settings
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  sorry
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ W₀ P₀ R₀
+    E₁ Kc E E₂ L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
+  classical
+  have : Nonempty σ := ⟨M.start⟩
+  have hQ1 : (1 : ℝ) ≤ Q := by
+    show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
+  have hQ0 : (0 : ℝ) ≤ Q := by linarith
+  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
+  have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
+  have hkr : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
+  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
+  have hN1 : 1 ≤ N := by show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith
+  have hNℓ : N ≤ (L₁ : ℝ) + 1 := by show (L₁ : ℝ) + 1 - k ≤ _; linarith
+  have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
+  have hc1 : c ≤ 1 := by
+    obtain ⟨q₀, hq₀, -⟩ := hceil
+    exact hq₀.trans measureReal_le_one
+  have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
+  have hδ'1 : δ' ≤ 1 := by
+    show δ / (8 * (Q + 1)) ≤ 1
+    rw [div_le_one (by positivity)]
+    linarith
+  have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
+  have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
+  set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
+  set εcov : ℝ := min ε (ξ / (8 * N)) with hεcd
+  set ι : ℝ := min (εcov / 8) (ε / (13824 * Q * (Q + 1))) with hιd
+  set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
+  set J : ℝ := Q + 2 with hJd
+  set W : ℝ := B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
+  set PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
+  set RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+    / (s ^ 4 * τ ^ 2) with hRBd
+  set cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
+      (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
+  obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
+    dfa_rate_bounds (ℓ := ℓ) hQ1 hA hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀ rfl rfl rfl rfl rfl rfl rfl rfl
+  have hτ1 : τ ≤ 1 := by
+    have h1 : ι ≤ εcov / 8 := min_le_left _ _
+    have h2 : εcov ≤ ε := min_le_left _ _
+    have h3 : ε ≤ 1 := rate_le_one hc1 hA hN1
+    exact (min_le_right _ _).trans (by linarith)
+  have hS1 : 1 ≤ S := by
+    show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
+    have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
+    linarith
+  have hlS : 0 ≤ Real.log (16 * S * (S + 1) / δ') := log_budget_nonneg hS1 hδ'0 hδ'1
+  have hB₃ : B₃ ≤ K₁ * ℓ := budget_le (by linarith) hε0 hinvε hℓ1 hlS
+  have hB₃0 : 0 ≤ B₃ := by
+    show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+    positivity
+  have hK₁0 : 0 ≤ K₁ := by
+    show 0 ≤ 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
+    positivity
+  have hWW : W ≤ W₀ * ℓ ^ 2 := far_le hB₃ hB₃0 hQ0 (by positivity) (by positivity) hε0 hinvε hℓ1
+  have hc3 : 1 ≤ Q * (Q + 1) ^ 2 * A := by
+    have h1 : (1 : ℝ) ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith)
+    exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ1 h1) (by linarith)
+  have hW1 : 1 ≤ W := by
+    show 1 ≤ B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+    have : 0 ≤ B₃ * ℓ * Q := by positivity
+    have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
+    linarith
+  have hW₀1 : 1 ≤ W₀ := by
+    show 1 ≤ K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
+    have : 0 ≤ K₁ * Q := by positivity
+    have : 0 ≤ (Q + 1) * A ^ Fintype.card σ * aε := by positivity
+    linarith
+  obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
+    hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1
+  have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ0 hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
+  have hPBJ : PB = 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+      + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := rfl
+  obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1
+    (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
+  have hR₀ : 0 ≤ R₀ := by
+    have := log_count_nonneg hQ0 hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
+    show 0 ≤ 60000 * (Q + 2) ^ 2 * Θ ^ 2
+      * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
+    positivity
+  have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hτ0
+    hinvτ hι0 hinvι hΘ1 hℓ1 hRB0 (by rw [hRBd]; exact hRB) (by linarith) (by rw [hPBJ]; exact hPB)
+    (by linarith) hR₀ hδ'0 hδ'1 hpAP hp1 rfl
+  have hE₁0 : 0 < E₁ := by
+    show 0 < 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+    positivity
+  have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
+  have hlg : 0 ≤ Real.log (16 * Kc / δ') :=
+    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
+  have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
+    dfa_pow (L := (L : ℝ)) (Q := Q) hA
+      (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring)
+      (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) hL₀
+  obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) (J := J) (RB := RB) (B₃ := B₃) (by positivity)
+    hℓ1 hε0 hinvε haε0 hcap hE₁0 hlg rfl rfl hQ0 (Nat.cast_nonneg n) hδ rfl hRB0
+    (by rw [hRBd]; exact hRB) hB₃0 hB₃ hpow
+  exact learner_loop_dfa_simple_holds M O L η₀ c η δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
+    hceil h1 h2 h3
 
 end OrthoDFA
 
