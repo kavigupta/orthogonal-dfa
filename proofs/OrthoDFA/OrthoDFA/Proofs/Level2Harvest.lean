@@ -92,8 +92,8 @@ theorem endsWell_harvest {σ : Type*} {M : DFA α σ} {side : σ → Bool}
     (hlaw : y ≤ (harvestLaw read D k H).real Set.univ) :
     EndsWell
       { target := M, badStates := AllUndecided read M, probes := D, disagreeRate := ε, disagree := dis,
-        walkStart := k, harvestLaw := fun _ => harvestLaw read D k H, yield := y }
-      (.harvest ()) := by
+        walkStart := k, harvestLaw := fun _ => harvestLaw read D k H, yield := y,
+        ending := .harvest () } := by
   classical
   have hbad : harvestLaw read D k H {z | AllUndecided read M (M.eval z.toList)}
       = harvestLaw read D k H Set.univ := by

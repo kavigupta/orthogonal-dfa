@@ -58,8 +58,7 @@ def Correct : Prop :=
                 disagree := {x | Disagrees read result.hypothesis C.walkStart x},
                 walkStart := C.walkStart,
                 harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
-                yield := y }
-              result.ending}
+                yield := y, ending := result.ending }}
         ≤ δ
 
 end Level2

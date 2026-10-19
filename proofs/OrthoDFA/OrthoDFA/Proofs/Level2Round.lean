@@ -433,8 +433,7 @@ theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.har
             walkStart := C.walkStart,
             harvestLaw := fun _ => harvestLaw read D C.walkStart
               ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩,
-            yield := C.harvestRate }
-          (runProbes read C s xs).2 →
+            yield := C.harvestRate, ending := (runProbes read C s xs).2 } →
       AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D s) s xs
         ∨ AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
           ∧ hitRate read C D s < C.harvestRate) s xs
@@ -532,8 +531,7 @@ theorem correct_holds : Correct := by
             disagree := {x | Disagrees read result.hypothesis C.walkStart x},
             walkStart := C.walkStart,
             harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
-            yield := C.harvestRate }
-          result.ending}
+            yield := C.harvestRate, ending := result.ending }}
       ⊆ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent
             ∧ Bad read C D s) initialState (List.ofFn xs)}
         ∪ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
