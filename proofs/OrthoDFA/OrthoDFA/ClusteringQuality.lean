@@ -23,10 +23,10 @@ noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p :
 noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ decided O.mq lo hi F p ω}
 
-/-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
+/-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns
 there, averaged over a population, decides a prefix the wrong way at most `εcov + slack` of the
-time on the uniform pool and at most `1/2 + slack` on any other, and leaves it undecided at most
-`2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
+time on the uniform pool and at most `1/2 + slack` on any population, and leaves it undecided at
+most `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
 `ClusteringGuarantee`'s.  The collision masses are held as there, at `δ/2`, and the populations'
 also against `slack`: the table's own prefixes are read with the noise the family was chosen
 on. -/
@@ -45,7 +45,7 @@ def ClusteringQualityGuarantee : Prop :=
   0 < α →
   α < 1 / 2 →
   0 < εcov →
-  εcov ≤ 1 →
+  εcov ≤ 1 / 2 →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -61,22 +61,22 @@ def ClusteringQualityGuarantee : Prop :=
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
-          ≤ δ * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 2) →
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
       (∀ B ∈ states, ∀ j ∈ populations,
         2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
           ≤ δ * slack ^ 2) →
       (∀ B ∈ states,
         2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
-        1 - δ ≤ (runMeasure μ D Dsf).real
+        1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                   ∂(D uni) ≤ εcov + slack
               ∧ ∀ j ∈ populations,
-                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
-                    ∂(D j) ≤ 1 / 2 + slack
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p ∂(D j) ≤ 1 / 2 + slack
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
