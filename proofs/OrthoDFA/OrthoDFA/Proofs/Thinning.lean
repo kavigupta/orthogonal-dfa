@@ -630,21 +630,24 @@ theorem map_sub_pair (D : Measure S) [IsProbabilityMeasure D] (A R : Set S)
   set e := MeasurableEquiv.arrowProdEquivProdArrow S S ℕ with he
   have hF : Measurable (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w)) :=
     (measurable_sub A d₁).prodMk (measurable_sub R d₂)
-  have key : Measure.map e.symm (Measure.map (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w)) (iidS D))
+  have key : Measure.map e.symm
+      (Measure.map (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w)) (iidS D))
       = Measure.map e.symm ((iidS (D[|A])).prod (iidS (D[|R]))) := by
     refine eq_of_prefix _ _ (fun n t => ?_)
     have hset : MeasurableSet {z : ℕ → S × S | ∀ i : Fin n, z i = t i} :=
       measurableSet_firstN (X := S × S) n (fun u => ∀ i, u i = t i)
     rw [Measure.map_apply e.symm.measurable hset, Measure.map_apply e.symm.measurable hset,
       Measure.map_apply hF (e.symm.measurable hset)]
-    have e1 : (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w)) ⁻¹' (e.symm ⁻¹' {z | ∀ i : Fin n, z i = t i})
+    have e1 : (fun w => (nthDrawIn A d₁ w, nthDrawIn R d₂ w))
+        ⁻¹' (e.symm ⁻¹' {z | ∀ i : Fin n, z i = t i})
         = {w | ∀ i : Fin n, nthDrawIn A d₁ w i = (t i).1 ∧ nthDrawIn R d₂ w i = (t i).2} := by
       ext w
       simp [he, MeasurableEquiv.arrowProdEquivProdArrow, Equiv.arrowProdEquivProdArrow,
         Prod.ext_iff]
     have e2 : e.symm ⁻¹' {z | ∀ i : Fin n, z i = t i}
         = Set.pi ↑(Finset.range n) (fun k => if h : k < n then {(t ⟨k, h⟩).1} else Set.univ)
-          ×ˢ Set.pi ↑(Finset.range n) (fun k => if h : k < n then {(t ⟨k, h⟩).2} else Set.univ) := by
+          ×ˢ Set.pi ↑(Finset.range n)
+            (fun k => if h : k < n then {(t ⟨k, h⟩).2} else Set.univ) := by
       ext ⟨u, v⟩
       simp only [he, MeasurableEquiv.arrowProdEquivProdArrow, Equiv.arrowProdEquivProdArrow,
         Set.mem_preimage, Set.mem_setOf_eq, Set.mem_prod, Set.mem_pi, Finset.coe_range,

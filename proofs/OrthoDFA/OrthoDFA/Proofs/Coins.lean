@@ -27,7 +27,8 @@ lemma fairCoin_real (b : Bool) : fairCoin.real {b} = 1 / 2 := by
 variable {S : Type*}
 
 /-- One fair coin per string. -/
-noncomputable abbrev coins (S : Type*) : Measure (S → Bool) := Measure.infinitePi fun _ : S => fairCoin
+noncomputable abbrev coins (S : Type*) : Measure (S → Bool) :=
+  Measure.infinitePi fun _ : S => fairCoin
 
 /-- `+1` for a table-side coin, `-1` for a reserve-side one. -/
 def sgn (b : Bool) : ℝ := if b then 1 else -1
@@ -121,7 +122,8 @@ theorem coins_weighted_tail (F : Finset S) (a : S → ℝ) {t : ℝ} (ht : 0 < t
   have hsplit : {g : S → Bool | t ≤ |∑ s ∈ F, a s * sgn (g s)|}
       ⊆ {g | t ≤ ∑ s ∈ F, 1 * (a s * sgn (g s))} ∪ {g | t ≤ ∑ s ∈ F, -1 * (a s * sgn (g s))} := by
     intro g hg
-    simp only [Set.mem_setOf_eq, Set.mem_union, one_mul, neg_one_mul, Finset.sum_neg_distrib] at hg ⊢
+    simp only [Set.mem_setOf_eq, Set.mem_union, one_mul, neg_one_mul,
+      Finset.sum_neg_distrib] at hg ⊢
     rcases le_abs'.1 hg with h | h
     · right; linarith
     · left; exact h

@@ -276,7 +276,8 @@ lemma measurableSet_winIdx_eq (Q : Set S) (K n : ℕ) :
         = {w | K ≤ (rawIn Q w m).card} ∪ ⋂ n', {w | rawIn Q w n' ⊆ rawIn Q w m} := by
       ext w; simp
     rw [this]
-    refine (measurableSet_rawIn Q m (fun z => K ≤ z.card)).union (MeasurableSet.iInter (fun n' : ℕ => ?_))
+    refine (measurableSet_rawIn Q m (fun z => K ≤ z.card)).union
+      (MeasurableSet.iInter (fun n' : ℕ => ?_))
     refine measurableSet_of_firstN (max n' m) _ (fun w w' h => ?_)
     have h1 : rawIn Q w n' = rawIn Q w' n' := by
       unfold rawIn; congr 1
@@ -289,7 +290,8 @@ lemma measurableSet_winIdx_eq (Q : Set S) (K n : ℕ) :
     rw [h1, h2]
   have hrw : {w : ℕ → S | winIdx Q K w = n}
       = {w | K ≤ (rawIn Q w n).card ∨ ∀ n', rawIn Q w n' ⊆ rawIn Q w n}
-        ∩ ⋂ m ∈ Finset.range n, {w | K ≤ (rawIn Q w m).card ∨ ∀ n', rawIn Q w n' ⊆ rawIn Q w m}ᶜ := by
+        ∩ ⋂ m ∈ Finset.range n,
+          {w | K ≤ (rawIn Q w m).card ∨ ∀ n', rawIn Q w n' ⊆ rawIn Q w m}ᶜ := by
     ext w
     simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_iInter, Finset.mem_range,
       Set.mem_compl_iff, winIdx]

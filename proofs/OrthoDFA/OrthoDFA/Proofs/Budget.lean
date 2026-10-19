@@ -7,10 +7,10 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 
 `prefCount` is the count the round's tails ask for, and `ClusteringCorrect` quantifies over
 the states the schedule built from it.  Written out it is a sum of six ceilings, each a log
-over some margin, and one for the harvested strings, and nothing in the statement says how those margins depend on
-the rates they resolve.  This file says it: every term is bounded by one polynomial in the
-reciprocals of `sig η` and `budgetScale`, so the budget is `log` in the failure probability and
-polynomial in everything else.
+over some margin, and one for the harvested strings, and nothing in the statement says how
+those margins depend on the rates they resolve.  This file says it: every term is bounded by
+one polynomial in the reciprocals of `sig η` and `budgetScale`, so the budget is `log` in the
+failure probability and polynomial in everything else.
 
 The two scales are not independent.  `screenMargin` carries `cutBudget · sig²`, and the tail
 it sits in squares it, so `sig` enters at the fourth power — and `cutBudget` is itself a minimum
@@ -847,7 +847,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     · intro D Dsf hD hDsf _ _ hpAPBound
       exact absurd (le_trans hpAPBound measureReal_le_one) hpAP1
   set ρ₀ : ℝ := collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hz with hρ₀
-  have hN : (0 : ℝ) < (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hz : ℝ) := by
+  have hN : (0 : ℝ)
+      < (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hz : ℝ) := by
     exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
       (crossLimit := crossLimit) η₀ populations εcov δ α pAP
   have hρ₀0 : 0 ≤ ρ₀ := by

@@ -392,12 +392,14 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   set N : ℝ := (populations.card : ℝ)
     * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ) with hNdef
   have hN0 : 0 ≤ N := by positivity
-  set L : ℝ := (ladderLen η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ) with hLdef
+  set L : ℝ := (ladderLen η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
+    with hLdef
   set Jc : ℝ := (populations.card : ℝ) with hJcdef
   have hL0 : 0 ≤ L := Nat.cast_nonneg _
   have hJc0 : 0 ≤ Jc := Nat.cast_nonneg _
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
-  set m : ℝ := (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ) with hmdef
+  set m : ℝ := (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
+    with hmdef
   have hm : (0 : ℝ) < m := by
     rw [hmdef]; exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
       (crossLimit := crossLimit) η₀ populations εcov δ' α pAP
@@ -624,7 +626,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have hcard : (P.card : ℝ) ≤ N := by
       have h1 := card_prefixesAt_le populations B.val.npref (streams H uni x)
       have h2 : populations.card * B.val.npref
-          ≤ populations.card * prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz :=
+          ≤ populations.card
+            * prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz :=
         Nat.mul_le_mul_left _ hnpref
       have h3 : ((prefixesAt populations B.val.npref (streams H uni x)).card : ℝ)
           ≤ (populations.card : ℝ)
@@ -666,7 +669,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
       (devAt rule O populations B.val (D j) (F j) (EvC B.val) (streams H uni x)) rfl
     have hU := integral_le_realized (D j) (hsupp j (htame hj)) (F j) P
-      (fun p => EvU B.val G p (oracleNoise x.1)) (fun p => undecidedProb O B.val.lo (B.val.hi + 1) G p)
+      (fun p => EvU B.val G p (oracleNoise x.1))
+      (fun p => undecidedProb O B.val.lo (B.val.hi + 1) G p)
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
       (devAt rule O populations B.val (D j) (F j) (EvU B.val) (streams H uni x)) rfl
     have hdevC : devAt rule O populations B.val (D j) (F j) (EvC B.val) (streams H uni x)

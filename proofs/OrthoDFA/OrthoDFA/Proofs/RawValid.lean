@@ -617,7 +617,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     have h1 : (tame.card : ℝ) * X + st.card * (tame.card * (2 * X))
         = tame.card * (1 + 2 * st.card) * X := by ring
     rw [h1]
-    have h2 : (tame.card : ℝ) * (1 + 2 * st.card) ≤ populations.card * (3 + 2 * (Nat.log 2 N : ℝ)) :=
+    have h2 : (tame.card : ℝ) * (1 + 2 * st.card)
+        ≤ populations.card * (3 + 2 * (Nat.log 2 N : ℝ)) :=
       mul_le_mul htc (by linarith) (by positivity) (by positivity)
     exact mul_le_mul h2 hX hX0 (by positivity)
   show (runMeasure μ D Dsf).real E ≤ δ / 2 + α

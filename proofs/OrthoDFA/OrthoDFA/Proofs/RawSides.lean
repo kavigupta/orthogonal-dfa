@@ -262,7 +262,9 @@ lemma famSet_congr (K N : ℕ) (b : Bool) (B : State) (hB : B.npref ≤ N) (r : 
 open scoped Classical in
 /-- The family's set where every window is full, and nothing elsewhere. -/
 noncomputable def famSetF (K N : ℕ) (b : Bool) (B : State) (x : Draws Ω S J) : Set S :=
-  if fillOK H uni populations K N x then famSet (rule := rule) O populations b (streams H uni x) B else ∅
+  if fillOK H uni populations K N x then
+    famSet (rule := rule) O populations b (streams H uni x) B
+  else ∅
 
 lemma famSetF_congr (K N : ℕ) (b : Bool) (B : State) (hB : B.npref ≤ N) (r : Run Ω S J)
     {g g' : S → Bool} (hagree : ∀ s ∈ winAll H populations K r, g s = g' s) :
@@ -380,7 +382,8 @@ lemma measurableSet_sideBad (D : Measure S) (Hs : Finset S) (e : ℝ) :
   classical
   have hm : ∀ side : Bool, Measurable (fun g : S → Bool => D.real (onSide Hs side g)) := by
     intro side
-    have hBad : ∀ s, MeasurableSet {g : S → Bool | g ∈ {g' : S → Bool | s ∈ onSide Hs side g'}} := by
+    have hBad : ∀ s,
+        MeasurableSet {g : S → Bool | g ∈ {g' : S → Bool | s ∈ onSide Hs side g'}} := by
       intro s
       have : {g : S → Bool | g ∈ {g' : S → Bool | s ∈ onSide Hs side g'}}
           = (fun g : S → Bool => g s) ⁻¹' {side} ∩ {_g | s ∉ Hs} := by

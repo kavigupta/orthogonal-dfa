@@ -8,17 +8,17 @@ import Mathlib.Probability.Independence.InfinitePi
 Everything `ClusteringGuarantee` mentions is defined here, so auditing the claim means reading
 this file and no other.  Each definition's doc names the Python it models.
 
-Known modelling gap.  `prefixes_for_split` draws the certification prefixes with `draw_many`,
-which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and a
-`RejectionSource` redraws only what it has served itself, not another population's prefixes.
-`certOf` redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where
-`_draw_cohort` would redraw it.
+Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
+`draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
+a named population's from its reserve and then its reserve-side draws, which skip the strings a
+named population's table holds but keep repeats and the uniform pool's prefixes.  `certOf`
+redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where `_draw_cohort`
+would redraw it.
 
-Known modelling gap.  For a named population, `split_draws` sends each draw to a held-out
-reserve with chance `RESERVE_SHARE` and `prefixes_for_split` certifies on that reserve first, in
-draw order, then on fresh draws; `take` puts a round's harvested strings in the table.  Here
-every population's certification sample is drawn from a stream of its own, outside the tables,
-and no population holds harvested strings.
+Known modelling gap.  A named population's table here skips every string any population
+harvested, and counts its own harvested strings toward the state's `npref`; `split_draws` keeps
+a table-side draw that some population harvested, and the count it is asked for is of its fresh
+draws alone.
 
 Known modelling gap.  `grow_population` retires a population whose source fails its yield
 test, and `prefixes_for_split` reads a split without a population whose source draws nothing;
@@ -156,12 +156,14 @@ def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
 
 /-! ### What the round draws
 
-A named population draws one stream, and `prefix_populations.py` hashes every string to the table
-side or the reserve side: `hold` and `grow_population` put a draw in the table or the reserve by
-its side, and `prefixes_for_split` certifies on the reserve side.  The table sequence is the
+A named population draws one stream, and `in_reserve` sends every string to the table side or the
+reserve side by a bit of its keyed hash, the same bit in every population and at every draw; the
+key is drawn once per run, so each string's side is a fair coin independent of the draws.
+`split_draws` puts a draw in the table or the reserve by its side, and `prefixes_for_split`
+certifies on the reserve, then on fresh reserve-side draws.  The table sequence is the
 population's harvested strings, which `take` puts in the table, then its table-side draws; the
-certification sequence its reserve-side draws.  No named population reads a harvested string
-again.  The uniform pool reads its draws as its table and certifies on a stream of its own. -/
+certification sequence its reserve-side draws.  The uniform pool reads its draws as its table and
+certifies on a stream of its own. -/
 
 open scoped Classical in
 /-- The draws among `w`'s first `n` that fall in `A`, in draw order. -/
@@ -526,9 +528,9 @@ noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
   min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) indecisionLimit
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
-`≥ 1 − δ − α` the loop stops at one of `states` when every population is tame, and whenever it
-stops, the family it returns there cuts `≥ 1 − (513/512)·εcov` of the uniform pool the way the
-noiseless oracle does, reads no tame population backwards (cuts at least `1/2 − εcov/512` of each
+`≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the family it returns
+there cuts `≥ 1 − (513/512)·εcov` of the uniform pool the way the noiseless oracle does, reads
+no tame population backwards (cuts at least `1/2 − εcov/512` of each
 that way), and leaves at most `2·indecisionLimit` of each tame population undecided; no state
 draws more prefixes than the first count below, nor asks for a family or a suffix pool larger
 than the sizes below.  Some state draws no more than the second count, which
@@ -543,7 +545,8 @@ the share of suffixes that preserve membership for every prefix.  `α` is what t
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
 prefixes a state draws, and the suffix measure a collision mass small against the suffixes;
-the other populations are arbitrary.  A population is read only while `keptAt` keeps it. -/
+the other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j`
+are the strings population `j` harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]

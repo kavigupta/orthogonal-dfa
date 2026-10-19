@@ -160,7 +160,8 @@ theorem map_sides (D : Measure S) [IsProbabilityMeasure D] (L : List S) (A R : S
         (hmΨ.comp hmG)
     · filter_upwards [hT, hC] with w hw1 hw2
       exact Filter.Eventually.of_forall (fun z => by
-        show (tableSeqOf L A w z, reserveSeqOf R w z) = (Φ₁ (nthDrawIn A d w, z 0), Φ₂ (nthDrawIn R d w, z 1))
+        show (tableSeqOf L A w z, reserveSeqOf R w z)
+          = (Φ₁ (nthDrawIn A d w, z 0), Φ₂ (nthDrawIn R d w, z 1))
         rw [hw1 z, hw2 z])
   -- the pieces' law
   have hz : Measure.map (fun z : ℕ → S => (z 0, z 1)) (iidS D) = D.prod D := by
@@ -174,8 +175,10 @@ theorem map_sides (D : Measure S) [IsProbabilityMeasure D] (L : List S) (A R : S
       Finset.prod_pair (by norm_num)]
     simp
   have hGlaw : Measure.map G ((iidS D).prod (iidS D)) = (μu.prod μv).prod (D.prod D) := by
-    rw [hG, show (fun p : (ℕ → S) × (ℕ → S) => ((nthDrawIn A d p.1, nthDrawIn R d p.1), (p.2 0, p.2 1)))
-        = Prod.map (fun w => (nthDrawIn A d w, nthDrawIn R d w)) (fun z : ℕ → S => (z 0, z 1)) from rfl,
+    rw [hG, show (fun p : (ℕ → S) × (ℕ → S) =>
+          ((nthDrawIn A d p.1, nthDrawIn R d p.1), (p.2 0, p.2 1)))
+        = Prod.map (fun w => (nthDrawIn A d w, nthDrawIn R d w)) (fun z : ℕ → S => (z 0, z 1))
+          from rfl,
       ← Measure.map_prod_map _ _ ((measurable_sub A d).prodMk (measurable_sub R d))
         (by fun_prop), hlaw, hz]
   refine ⟨Measure.map Φ₁ (μu.prod D), Measure.map Φ₂ (μv.prod D),

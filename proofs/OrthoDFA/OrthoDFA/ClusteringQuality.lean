@@ -23,10 +23,10 @@ noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p :
 noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ decided O.mq lo hi F p ω}
 
-/-- With probability `≥ 1 − δ − α` the loop stops at one of `states` when every population is
-tame, and whenever it stops, the family it returns there, averaged over a tame population,
-decides a prefix the wrong way at most `(513/512)·εcov + slack` of the time on the uniform pool
-and at most `1/2 + εcov/512 + slack` on any tame population, and leaves it undecided at most
+/-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the
+family it returns there, averaged over a tame population, decides a prefix the wrong way at
+most `(513/512)·εcov + slack` of the time on the uniform pool and at most
+`1/2 + εcov/512 + slack` on any tame population, and leaves it undecided at most
 `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
 `ClusteringGuarantee`'s.  The tame populations' atoms are held as there, at `δ/2`, and also
 against `slack`: the table's own prefixes are read with the noise the family was chosen on. -/

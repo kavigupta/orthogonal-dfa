@@ -52,7 +52,8 @@ lemma card_sdiff_acceptedAt_le (T : Finset S) (y : ℕ → S) (m k : ℕ)
 
 lemma card_sdiff_le_of_comparable (T : Finset S) (y : ℕ → S) (m k : ℕ)
     (hF : (freshDraws T y m).card = m) :
-    ((freshDraws T y m \ acceptedAt T y k).card : ℝ) ≤ max 0 ((m : ℝ) - (acceptedAt T y k).card) := by
+    ((freshDraws T y m \ acceptedAt T y k).card : ℝ)
+      ≤ max 0 ((m : ℝ) - (acceptedAt T y k).card) := by
   rcases acceptedAt_comparable T y m k hF with h | h
   · have hle : (acceptedAt T y k).card ≤ m := hF ▸ Finset.card_le_card h
     rw [Finset.card_sdiff_of_subset h, hF, Nat.cast_sub hle]

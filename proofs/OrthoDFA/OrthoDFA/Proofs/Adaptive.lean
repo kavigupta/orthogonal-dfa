@@ -412,7 +412,8 @@ lemma ladder_inv_sum_le (m V : ℕ) (n : ℕ) :
 
 /-- `ladder_inv_sum_le` over the rungs themselves. -/
 lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) (V : ℕ)
-    (s : Finset State) (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
     ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2 := by
   classical
   have hnn : ∀ B : State, 0 ≤ (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
@@ -422,7 +423,8 @@ lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pA
   refine le_trans (sum_image_le_sum _ hnn _ _) ?_
   have hL := ladderLen_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     (hsz := hsz) η₀ populations εcov δ α pAP
-  obtain ⟨n, hn⟩ : ∃ n, ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz = n + 1 :=
+  obtain ⟨n, hn⟩ :
+      ∃ n, ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz = n + 1 :=
     ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
   rw [hn]
   exact (ladder_inv_sum_le _ V n).1
@@ -2688,7 +2690,8 @@ lemma map_prefixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
       = Measure.pi (fun _ : Fin m => Dj) := by
   rw [show (fun x : Run Ω S J => (fun i : Fin m => prefixDraw j i.val x))
       = (fun s : ℕ → S => (fun i : Fin m => s i.val))
-        ∘ (fun x : Run Ω S J => (fun i => prefixDraw j i x)) from rfl, ← Measure.map_map (by fun_prop) (measurable_prefixStream j),
+        ∘ (fun x : Run Ω S J => (fun i => prefixDraw j i x)) from rfl,
+      ← Measure.map_map (by fun_prop) (measurable_prefixStream j),
     map_prefixStream Pp Pc Dsf j, hPp]
   exact (measurePreserving_finRestrict Dj m).map_eq
 

@@ -449,7 +449,8 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       (fun x => ?_)
     exact coins_window_card_le (winAt H K j x) N G hNpos
       (le_trans (window_card_le _ K _) (by omega))
-  have bt : (runMeasure μ D Dsf).real (Y ⁻¹' Et) ≤ ((N + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1)) :=
+  have bt : (runMeasure μ D Dsf).real (Y ⁻¹' Et)
+      ≤ ((N + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_notTabGood uni N r) (fun g =>
       measureReal_tabBad_le _ _ Dsf uni (D uni) (sideLawT_uni H uni D g) N r ρ hρc hρ0)
   have bh : (runMeasure μ D Dsf).real Eh ≤ 2 * ((N + r : ℕ) : ℝ) * ρ / θ := by
@@ -473,7 +474,8 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     runMeasure_streams_le H uni D Dsf _ (measurableSet_sidesDead O populations j B N t)
       (fun g => measureReal_sidesDead_le hflat O populations _ _ Dsf (hsT g) (hsC g) hsuppSf j hj
         B N ht)
-  have bp : (runMeasure μ D Dsf).real (Y ⁻¹' Ep) ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
+  have bp : (runMeasure μ D Dsf).real (Y ⁻¹' Ep)
+      ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_notPoolGood M rs) (fun g =>
       measureReal_poolBad_le _ _ Dsf M rs ρsf hρsf hρsf0)
   set ν := runMeasure μ D Dsf with hν
@@ -609,7 +611,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       (D uni) (sideLawT_uni H uni D g) γscr pAP tap (collisionMass Dsf) ρ rs r hγscr hpAP0 htap
       hpAPBound' hscd hsigle hscLow hcount hρsf' hρsf0 hρc hρ0
   have huniB : ν.real {x | Y x ∉ retAtK rule O populations uni η₀ indecisionLimit εcov α B uni}
-      ≤ roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf) t r rs B := by
+      ≤ roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf) t r rs
+        B := by
     refine le_trans (measureReal_mono hsubU (measure_ne_top _ _)) ?_
     refine runMeasure_streams_le H uni D Dsf U hUm (fun g => ?_)
     set Pp := sideLawT H uni D g

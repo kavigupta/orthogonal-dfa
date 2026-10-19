@@ -496,9 +496,9 @@ open scoped Classical in
 set_option maxHeartbeats 2000000 in
 /-- Part 1 — whatever is returned is valid, whenever it is returned.
 
-Except with probability `δ/2 + α`, no rung the loop may stop at returns an invalid family.  The
-pool's findability and its redraws are one event for the whole ladder; each rung carries its
-share of `δ/2`, and the gate spends `α` over all of them. -/
+Except with probability `7δ/16 + α`, no rung the loop may stop at returns an invalid family.
+The pool's findability and its redraws are one event for the whole ladder, at `δ/16`; each rung
+carries its share of `3δ/8`, and the gate spends `α` over all of them. -/
 theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations tame : Finset J) (uni : J) (huni : uni ∈ tame) (htame : tame ⊆ populations)
     (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
@@ -622,7 +622,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   refine le_trans (measureReal_mono hsplit (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
   have hNpos : (0 : ℝ) < N := by exact_mod_cast prefCount_pos _ _ _ _ _ _
-  have hsumN := stoppable_npref_sum_le (indecisionLimit := iLc) (crossLimit := crossLimit) (hsz := hsz) η₀
+  have hsumN := stoppable_npref_sum_le (indecisionLimit := iLc) (crossLimit := crossLimit)
+    (hsz := hsz) η₀
     populations εcov δ α pAP ρ
   have hinv := schedule_inv_sum_le (indecisionLimit := iLc) (crossLimit := crossLimit) η₀
     populations εcov δ α pAP V st (by rw [hst, stoppable]; exact Finset.filter_subset _ _)
@@ -978,7 +979,8 @@ lemma rung_draws_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ :
     {m : ℝ} (hm : 0 ≤ m) :
     (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 5) * m * ρ
         / rejFrac η₀ indecisionLimit εcov)
-      ≤ δ / (64 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)) * m := by
+      ≤ δ / (64 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
+        * m := by
   have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hsig hε hind
   have hdraws := draws_le_of_cap η₀ populations hη0 hsig hε hind hδ hρ0 hρcap
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
@@ -1040,7 +1042,8 @@ proportional to its count, its tail from the one inversely proportional. -/
 theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
-    (hρ0 : 0 ≤ ρ) (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρ0 : 0 ≤ ρ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
     (i : ℕ) (hi : i < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
     (hV : validCount η₀ populations indecisionLimit εcov δ pAP crossLimit
       ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i) :
@@ -1114,7 +1117,8 @@ whose count is still at or above it, or any rung when the top is already below i
 theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
-    (hρ0 : 0 ≤ ρ) (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρ0 : 0 ≤ ρ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
     (hne : (stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ).Nonempty) :
     ∃ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ,
       (B.npref : ℝ) ≤ 2 * (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
@@ -1166,7 +1170,8 @@ theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ 
 theorem solvedState_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
-    (hρ0 : 0 ≤ ρ) (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (hρ0 : 0 ≤ ρ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
     solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
       ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ := by
   classical
@@ -1871,12 +1876,14 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
           * (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref
           / gateKappa η₀
         + 2 * ((gateDevT η₀ + gateDevU η₀)
-            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref
+            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+              hsz).npref
               (δ / (128 * populations.card
                 * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff
                   : ℝ) + 3)))
           + gateDevD η₀
-            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref
+            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+              hsz).npref
               (sizeLevel (gateLevel α populations
                 (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz))
                 (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref))
@@ -1885,8 +1892,10 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
           (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)) N) := by
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref = m := rfl
-  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff = M := rfl
+  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref = m :=
+    rfl
+  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff = M :=
+    rfl
   have hga : ∀ N : ℕ, sizeLevel (gateLevel α populations
         (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)) N
       = sizeLevel (sizeLevel (α / (7 * (populations.card : ℝ))) m) N := fun N => rfl
@@ -1901,7 +1910,8 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊ ≤ m := by
     rw [hmdef, prefCount]; omega
   have hmR1 : (1 : ℝ) ≤ m := by
-    have := prefCount_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) (hsz := hsz) η₀
+    have := prefCount_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      (hsz := hsz) η₀
       populations εcov δ α pAP
     exact_mod_cast this
   have hm0 : (0 : ℝ) < m := by linarith
@@ -2577,7 +2587,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
     have : 1 ≤ populations.card := by exact_mod_cast hcard
     exact_mod_cast this
-  have hgate := solved_gate (crossLimit := crossLimit) (hsz := hsz) (pAP := pAP) (δ := δ) η₀ populations hη₀
+  have hgate := solved_gate (crossLimit := crossLimit) (hsz := hsz) (pAP := pAP) (δ := δ) η₀
+    populations hη₀
     hη0' hεcov
     hindLim hαpos (by linarith) hcard1
   rw [← hBdef] at hgate
