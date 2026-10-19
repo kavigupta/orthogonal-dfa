@@ -425,11 +425,15 @@ undecided read on fewer than `harvestRate` of them. -/
 theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.harvestRate) :
     ∀ (xs : List (FreeMonoid α)) (s : State α), Inv read C s →
       Θ C (Fintype.card σ) s < xs.length →
-      ¬ EndsWell M (AllUndecided read M) D C.disagreementRate
-          {x | Disagrees read ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩
-            C.walkStart x} C.walkStart (fun _ => harvestLaw read D C.walkStart
-              ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩)
-          C.harvestRate (runProbes read C s xs).2 →
+      ¬ EndsWell
+          { target := M, badStates := AllUndecided read M, probes := D,
+            disagreeRate := C.disagreementRate,
+            disagree := {x | Disagrees read
+              ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩ C.walkStart x},
+            walkStart := C.walkStart,
+            harvestLaw := fun _ => harvestLaw read D C.walkStart
+              ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩,
+            yield := C.harvestRate, ending := (runProbes read C s xs).2 } →
       AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent ∧ Bad read C D s) s xs
         ∨ AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
           ∧ hitRate read C D s < C.harvestRate) s xs
@@ -521,10 +525,13 @@ theorem correct_holds : Correct := by
   have hΘ : Θ C (Fintype.card σ) (initialState : State α) < P :=
     (Θ_start C _ (one_le_ends hC 0)).trans_le hP'
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
-        ¬ EndsWell M (AllUndecided read M) D C.disagreementRate
-          {x | Disagrees read result.hypothesis C.walkStart x}
-          C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis) C.harvestRate
-          result.ending}
+        ¬ EndsWell
+          { target := M, badStates := AllUndecided read M, probes := D,
+            disagreeRate := C.disagreementRate,
+            disagree := {x | Disagrees read result.hypothesis C.walkStart x},
+            walkStart := C.walkStart,
+            harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
+            yield := C.harvestRate, ending := result.ending }}
       ⊆ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr .consistent
             ∧ Bad read C D s) initialState (List.ofFn xs)}
         ∪ {xs | AnyStep read C (fun s x => applyProbe read C s x = .inr (.harvest ())
