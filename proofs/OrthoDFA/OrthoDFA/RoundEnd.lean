@@ -32,15 +32,30 @@ def Spread [Countable α] (D : Measure (FreeMonoid α)) (k : ℕ) (ν : Measure 
 average. -/
 def Yields [Countable α] (ν : Measure (FreeMonoid α)) (y : ℝ) : Prop := y ≤ ν.real Set.univ
 
+/-- A round's ending, with what it is judged against. -/
+structure RoundOutcome (α σ H : Type*) [Countable α] where
+  target : DFA α σ
+  /-- The states the reads handle poorly; a harvest must be mostly at them. -/
+  badStates : σ → Prop
+  probes : Measure (FreeMonoid α)
+  disagreeRate : ℝ
+  /-- Where the hypothesis and the tree part. -/
+  disagree : Set (FreeMonoid α)
+  /-- The prefix length a harvest must be spread from. -/
+  walkStart : ℕ
+  /-- What the harvest `h`'s sampler finds. -/
+  harvestLaw : H → Measure (FreeMonoid α)
+  yield : ℝ
+  ending : RoundEnd H
+
 open scoped Classical in
-/-- `disagree` is where the hypothesis and the tree part; `law h` is what the harvest `h`'s
-sampler finds, spread from `k`, and `y` what it must yield. -/
-def EndsWell [Countable α] {σ H : Type*} (M : DFA α σ) (bad : σ → Prop)
-    (D : Measure (FreeMonoid α)) (ε : ℝ) (disagree : Set (FreeMonoid α)) (k : ℕ)
-    (law : H → Measure (FreeMonoid α)) (y : ℝ) : RoundEnd H → Prop
-  | .consistent => D.real disagree ≤ ε
-  | .harvest h => (law h).real Set.univ < 2 * (law h).real {z | bad (M.eval z.toList)}
-      ∧ Spread D k (law h) ∧ Yields (law h) y
+def EndsWell [Countable α] {σ H : Type*} (s : RoundOutcome α σ H) : Prop :=
+  match s.ending with
+  | .consistent => s.probes.real s.disagree ≤ s.disagreeRate
+  | .harvest h =>
+    (s.harvestLaw h).real Set.univ
+        < 2 * (s.harvestLaw h).real {z | s.badStates (s.target.eval z.toList)}
+      ∧ Spread s.probes s.walkStart (s.harvestLaw h) ∧ Yields (s.harvestLaw h) s.yield
   | .failed => False
 
 end OrthoDFA
