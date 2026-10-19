@@ -5,14 +5,9 @@ import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
-import OrthoDFA.Proofs.Level5Noise
-import OrthoDFA.Proofs.Level5Query
-import OrthoDFA.Proofs.Level5Event
-import OrthoDFA.Proofs.Level5Correct
-import OrthoDFA.Proofs.Level5Risk
-import OrthoDFA.Proofs.Level5RiskBound
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.FamilyOracle
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -37,10 +32,9 @@ in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.Hypothe
 `OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`, level 2's
 claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
 `OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
-level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, the
-old level 5, stated in `OrthoDFA.Level5OldClaim`, read by the suffix family in
-`OrthoDFA.Level5Family`, and `LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`. The old level
-5's detailed bound, stated in `OrthoDFA.Proofs.Level5RiskDefs`, is internal.
+level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, whose
+oracle the clustering's family reads are (`SuffixFamily.kappaOracle`, in `OrthoDFA.FamilyOracle`),
+and `LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`.
 -/
 
 namespace OrthoDFA
@@ -93,46 +87,6 @@ theorem probe_correct : ProbeCorrect := probeCorrect
 theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms rate_test_sound
-
-#print axioms runEnds_of_budget
-
-#print axioms truthInv_step
-
-#print axioms pi_wrong_le
-
-#print axioms site_le
-
-#print axioms goodStart_le
-
-#print axioms goodEdge_le
-
-#print axioms goodPT_le
-
-#print axioms noiseEvent_le
-
-theorem level5_correct : Level5Correct := level5_correct_holds
-
-#print axioms level5_correct
-
-theorem level5_round_risk : Level5RoundRisk := level5_round_risk_holds
-
-#print axioms level5_round_risk
-
-theorem level5_risk_bound : Level5RiskBound := level5_risk_bound_holds
-
-#print axioms level5_risk_bound
-
-#print axioms QTree.firsts_lintegral_le
-
-#print axioms run_probeQuery
-
-#print axioms asks_probeQuery
-
-#print axioms edge_first_mean
-
-theorem level5_family_correct : Level5FamilyCorrect := level5_family_correct_holds
-
-#print axioms level5_family_correct
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 

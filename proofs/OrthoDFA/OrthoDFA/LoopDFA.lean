@@ -18,9 +18,9 @@ strings of length `L`, drawn after the loop: each leaf is scored by how many of 
 classifies as the last round's family reads them, the undecided ones counting for none. A run that
 reaches an unlearned edge counts as wrong. A covered state is visited `c` of the time across the
 window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the time at some
-length; the probes a consistent round answers for, those whose start or end sift stops undecided
-among them, must be fewer. Level 5's start and edge tests certify the undecided sifts, at a rate
-`(L₁ + 1)(|Q| + 2)(|Σ| + 1)` times its disagreement rate.
+length; the probes that disagree in a consistent round, searching, stopping undecided at their
+start or end sift, or reading a string on its state's rarer side, must be fewer. Level 3's own
+success test bounds the first two at its disagreement rate.
 
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
@@ -82,15 +82,14 @@ the probes uniform over the `N = L₁ + 1 − k` lengths from `k` to `L₁`: if 
 `1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops within
 `|Q| + 1` rounds at a consistent round, and the leaf `pickLeaf` picks on `n` held-out strings
 uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target does.
-Level 5 draws at most `Kp · G` probes a round.
+Each round runs level 3 at disagreement rate `ε` and yield `ε/48`, drawing at most `B₃` probes.
 
-The theorem runs the loop at disagreement rate `εd/2`, with level 5's start
-test at `εd` against `2εd` and its edges' at rate `εd` and traffic `εd/((|Q|+2)|Σ|)`, so that a
-harvest's sampler yields `ρ/2`. The clustering runs at accuracy `εcov`, small enough that level 5's
-good states are undecided rarely against those gates. `δ` splits into half for the loop, a quarter
-for the scores' deviation and a quarter for a held-out string whose reads some round read: one
-whose first `k` letters are those of a prefix the last round's clustering read or of one of its
-probes, or one drawn twice. -/
+The clustering runs at accuracy `εcov` and its band passes at `δ'/(8W)`, small enough that its
+wrong reads fit level 3's premises and the probes reading wrong past a short midfix weigh more
+than `ε` with chance at most `δ'/8`. `δ` splits into half for the loop, a quarter for the scores'
+deviation and a quarter for a held-out string whose reads some round read: one whose first `k`
+letters are those of a prefix the last round's clustering read or of one of its probes, or one
+drawn twice. -/
 def LearnerLoopDFASimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -100,38 +99,37 @@ def LearnerLoopDFASimple : Prop :=
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card σ + 3
   let N : ℝ := L₁ + 1 - k
-  let εd : ℝ := c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1))
-  let εcov : ℝ := min (εd / (48 * (Q + 1) ^ 2)) (ξ / (8 * N))
+  let ε : ℝ := c / (4 * (A + 1) * N)
+  let εcov : ℝ := min ε (ξ / (8 * N))
   let δ' : ℝ := δ / (8 * (Q + 1))
-  let ι : ℝ := min (εcov / 8) (1 / (3072 * (L₁ + 1) * (Q + 1) * Q))
-  let ρ : ℝ := εd ^ 2 / ((Q + 2) * A)
+  let ι : ℝ := min (εcov / 8) (ε / (13824 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
   let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
   let J : ℝ := Q + 2
-  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
-  let Kp : ℝ := V * (224 / εd + 1)
-  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
-  let PB : ℝ := 256 * (Real.log (2 / τ)
-      + 4 * Real.log (4 * Kp * G * (Q + 2) * (L₁ + 1 + (Q + 2) * A) / δ'))
-      / (s ^ 2 * pAP)
+  let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+  let PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
-      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1) * (L₁ + 1)))))
+      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
+  let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
+    * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
-  (A ^ k)⁻¹ ≤ cap * ρ / 4 →
-  16384 * (L₁ + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ k)⁻¹ ≤ ρ →
-  (Q + 1) * n * (6 * J * RB + Kp * G + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  (A ^ k)⁻¹ ≤ cap * ε / 96 →
+  768 * Real.log (16 * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
+  (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
-    (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
@@ -149,13 +147,12 @@ at least `c` of the strings of length `L` visit from `k` on re-roots the target 
 least `1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops
 within `|Q| + 1` rounds at a consistent round, and the leaf `pickLeaf` picks on `n` held-out
 strings uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target
-does. Level 5 runs at `εd/2`, `εd = c/(34(|Σ|+1)²(|Q|+2)N(L₁+1))`, and draws at most `Kp · G`
-probes a round, `N = L₁ + 1 − k` the probes' lengths.
+does. Each round runs level 3 at `ε = c/(4(|Σ|+1)N)`, `N = L₁ + 1 − k` the probes' lengths, and
+draws at most `B₃` probes.
 
-`L₀` is `|Q| + 4` plus `4 (log (E + E₂) + 100)/log |Σ|`, `E` and `E₂` free of `L`: the claim's
-`cap` is at least `1/((L₁ + 1)¹⁶ E₁)`, `ρ` at least `1/((L₁ + 1)⁴ (|Q|+2)|Σ| c₂²)` with
-`c₂ = 34(|Σ|+1)²(|Q|+2)/c`, the prefix count at most `(L₁ + 1)¹⁰ R₀`, and
-`20 log (L₁ + 1) ≤ 100 + (L₁ + 1) log |Σ| / 4` absorbs the length. -/
+`L₀` is `|Q| + 4` plus `4 (log (E + E₂) + 30)/log |Σ|`, `E` and `E₂` free of `L`: with
+`ℓ = L₁ + 1`, `1/cap` is at most `ℓ⁵ E₁`, `1/ε` at most `ℓ aε`, the prefix count at most `ℓ³ R₀`
+and the budget at most `ℓ K₁`, and `6 log ℓ ≤ 30 + ℓ log |Σ| / 4` absorbs the length. -/
 def LearnerLoopDFA : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -165,34 +162,35 @@ def LearnerLoopDFA : Prop :=
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card σ + 3
   let N : ℝ := L₁ + 1 - k
-  let εd : ℝ := c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1))
+  let ε : ℝ := c / (4 * (A + 1) * N)
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
-  let V : ℝ := (Q + 2) * ((Q + 2) * A + 1)
-  let Kp : ℝ := V * (224 / εd + 1)
-  let G : ℝ := Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
+  let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
-  let Ce : ℝ := 1632 * (Q + 1) ^ 2 * (A + 1) ^ 2 * (Q + 2) / c + 8 / ξ
-  let Θ : ℝ := 8 * Ce / s ^ 2 + 3072 * Q * (Q + 1)
-  let K₁ : ℝ := V * (7616 * (A + 1) ^ 2 * (Q + 2) / c + 1)
-  let B₁ : ℝ := 4 * (3 + Real.log (4 * K₁ * G * (Q + 2) * (1 + (Q + 2) * A) / δ'))
-  let P₀ : ℝ := 256 * (2 * Θ + B₁) / (s ^ 2 * pAP) + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+  let aε : ℝ := 4 * (A + 1) / c
+  let Ce : ℝ := aε + 8 / ξ
+  let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 13824 * Q * (Q + 1) * aε
+  let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
+  let P₀ : ℝ := 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 60000 * (Q + 2) ^ 2 * Θ ^ 2
-    * (Real.log ((Q + 4) * P₀ * Θ / (δ' / 2 * (δ' / 4) * (pAP / 2))) + 6) / s ^ 4
-  let E₁ : ℝ := 2 ^ 24 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
-  let E : ℝ := 4 * (Q + 2) * A * (34 * (A + 1) ^ 2 * (Q + 2) / c) ^ 2 * E₁
-    + 16384 * (Q + 2) ^ 2 * A ^ 2 * (34 * (A + 1) ^ 2 * (Q + 2) / c) ^ 2
-      * Real.log ((Q + 3) * A / δ')
-  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ * G + n) / δ
-  let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 100) / Real.log A
+    * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
+  let E₁ : ℝ := 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+  let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
+    * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+  let E : ℝ := 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε
+  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 30) / Real.log A
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
   L₀ ≤ L →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
-    (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)

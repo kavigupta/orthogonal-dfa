@@ -8,12 +8,12 @@ import OrthoDFA.Proofs.LoopSelect
 /-!
 # The learner's DFA: the proof
 
-`loop_simple_checks` at the window's probes, level 5's start and edge tests gated at its rate,
-leaves a last round whose checked probes, those whose start or end sift stops undecided among them,
-are at most `εd + us`. From there the bridge is deterministic (`dfa_of_checks`): the tree's root
-reads the string itself and its midfixes are short, so a covered state's edges are true
-(`edge_of_occupied`), it is read on its true side (`sideOf_eq_of_mass`), and the covered start's
-true leaf misjudges at most what re-rooting does (`start_le`).
+`loop_simple_checks` at the window's probes leaves a last round with at most `2ε + ε/96` of the
+probes disagreeing: searching, stopping undecided at their start or end sift, or reading a string
+on its state's rarer side. From there the bridge is deterministic (`dfa_of_checks`): the tree's
+root reads the string itself, so a covered state's edges are true (`edge_of_occupied`), it is read
+on its true side (`sideOf_eq_of_mass`), and the covered start's true leaf misjudges at most what
+re-rooting does (`classify_start_le`).
 
 The family reads a string of length `L` wrongly, or leaves it undecided, at most `N εcov ≤ ξ/8` of
 the time, so off a stray score the picked leaf misjudges at most `ξ` more (`pickLeaf_le`). Each
@@ -25,15 +25,11 @@ noncomputable section
 
 namespace OrthoDFA
 
-open Random (prefixMax le_prefixMax prefixMax_pos)
-
 open MeasureTheory
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 variable {α : Type*} [Fintype α] [DecidableEq α]
-
-section Root
-
-variable (C : Level5Settings) (cut : FreeMonoid α → Option Bool)
 
 /-- The tree's root reads the string itself. -/
 def RootOne (T : DTree α) : Prop := ∃ r a, T = .node 1 r a
@@ -43,41 +39,17 @@ theorem rootOne_splitAt {T : DTree α} (h : RootOne T) (d : FreeMonoid α) (p : 
   obtain ⟨r, a, rfl⟩ := h
   rcases p with _ | ⟨_ | _, p⟩ <;> exact ⟨_, _, rfl⟩
 
-theorem rootOne_recordProbe {s : Level5State α} (h : RootOne s.tree) (x : FreeMonoid α) :
-    RootOne (recordProbe C cut s x).tree := by
-  rcases recordProbe_spec C cut s x with h1 | ⟨u, c, p, t, -, -, -, -, -, h1⟩ <;> rw [h1]
-  · exact h
-  · simpa [Level5State.setEdge, freshState, Level5State.countProbe] using h
-
-theorem rootOne_splitState {s : Level5State α} (h : RootOne s.tree) (p : List Bool) (c : α)
-    (t : List Bool) : RootOne (splitState cut s p c t).tree := by
-  unfold splitState
-  split
-  · exact rootOne_splitAt h _ _
-  · exact h
-
-theorem rootOne_runProbes :
-    ∀ (s : Level5State α) (xs : List (FreeMonoid α)), RootOne s.tree →
-      RootOne (runProbes C cut s xs).1.tree
-  | s, [], h => h
-  | s, x :: xs, h => by
-    simp only [runProbes]
-    rcases ha : applyProbe C cut s x with s' | ⟨e, s'⟩
-    · simp only []
-      refine rootOne_runProbes s' xs ?_
-      rcases (applyProbe_inl C cut ha).2 with ⟨-, rfl⟩ | ⟨p, c, t, sp, -, rfl, -⟩
-      · exact rootOne_recordProbe C cut h x
-      · exact rootOne_splitState cut (rootOne_recordProbe C cut h x) p c t
-    · simp only []
-      rcases applyProbe_inr C cut ha with ⟨-, rfl⟩ | ⟨-, p, c, t, sp, -, rfl, -⟩
-      · exact rootOne_recordProbe C cut h x
-      · exact rootOne_splitState cut (rootOne_recordProbe C cut h x) p c t
-
-theorem rootOne_level5 (read : FreeMonoid α → ARU) {T : ℕ} (xs : Fin T → FreeMonoid α) :
-    RootOne (indecisiveLStarLevel5 C read xs).hypothesis.tree :=
-  rootOne_runProbes C _ initialState _ ⟨.leaf, .leaf, rfl⟩
-
-end Root
+theorem rootOne_of_classSet : ∀ (n : ℕ) (T : DTree α), T ∈ Random.classSet n → RootOne T
+  | 0, T, h => by
+    classical
+    simp only [Random.classSet, Finset.mem_singleton] at h
+    exact ⟨_, _, h⟩
+  | n + 1, T, h => by
+    classical
+    simp only [Random.classSet, Finset.mem_union, Finset.mem_biUnion, Finset.mem_image] at h
+    rcases h with h | ⟨T₀, hT₀, _, _, rfl⟩
+    · exact rootOne_of_classSet n T h
+    · exact rootOne_splitAt (rootOne_of_classSet n T₀ hT₀) _ _
 
 section Reads
 
@@ -131,18 +103,16 @@ section Bridge
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
-/-- A consistent last round whose checked probes over the window are at most `εd`, small enough
-against the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting
-at a covered start does. -/
+/-- A last round whose disagreeing probes over the window are at most `εB`, small enough against
+the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting at a
+covered start does. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (C : Level5Settings)
-    (o : LoopRound Ω α K)
-    (hres : ∃ T, ∃ xs : Fin T → FreeMonoid α, o.result = indecisiveLStarLevel5 C o.read xs)
-    (hmaxL : C.maxLeaves = Fintype.card σ + 2) (L : ℕ) {c εcov εd ū η : ℝ}
+    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
+    (L : ℕ) {c εcov εB η : ℝ}
     (hch : o.Checks M O (windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3)) ((L + 1) / 2)
-      (L + 1) ū true εcov εcov εd)
-    (hεd : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
-      * εd < c)
+      εcov εcov εB)
+    (hεB : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
+      * εB < c)
     (hcov : 3 * εcov * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
     (hceil : ∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) :
     ∃ s ∈ o.result.hypothesis.tree.leaves, (uniformStrings L).real
@@ -155,15 +125,11 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   haveI : IsProbabilityMeasure D := windowStrings_isProbability hkL₁
   set H := o.result.hypothesis with hHd
   set dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1) with hdistd
+  set side : σ → Bool := fun q => readSide (dist q)
   have hd0 := familyReadDist_nonneg O M o.family o.state.lo (o.state.hi + 1)
   have hd1 := familyReadDist_le_one O M o.family o.state.lo (o.state.hi + 1)
-  let G : ReadModel α σ := ⟨M, dist, 0, 0, 1, hd0, fun r =>
-    (min_le_left _ _).trans ((hd1 r .accept).trans (le_max_left _ _))⟩
-  obtain ⟨⟨hcons, hmis, hund, -⟩, hchk⟩ := hch
-  -- the tree reads the string at its root
-  obtain ⟨T, xs, hxs⟩ := hres
-  have hroot : ∃ r a, H.tree = .node 1 r a := by
-    rw [hHd, hxs]; exact rootOne_level5 C o.read xs
+  obtain ⟨⟨hcons, hmis, hund⟩, hchk, hcls⟩ := hch
+  have hroot : ∃ r a, H.tree = .node 1 r a := rootOne_of_classSet _ _ hcls
   -- the family's reads over the window
   have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εcov := by
     refine le_trans (le_of_eq ?_) hund
@@ -185,23 +151,10 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   have hN0 : (0 : ℝ) < (L₁ : ℝ) + 1 - k := by
     have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     linarith
-  have hbad : D.real (searchingProbes o.read k H ∪ rarerProbes G.M G.readDist o.read k H
-      ∪ undSiftSet (fun z => (o.read z).cut) H.tree
-        H.edges k) ≤ εd := by
-    refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hchk
-    rintro x ((h | h) | h)
-    · exact .inl (.inl (.inl h))
-    · exact .inl (.inl (.inr h))
-    · exact .inr ⟨rfl, h⟩
-  have hεd0 : 0 ≤ εd := measureReal_nonneg.trans hbad
-  have hc0 : 0 < c := by
-    have : 0 ≤ ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εd := by positivity
-    have e : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
-        * εd = ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εd := rfl
-    linarith
+  have hεB0 : 0 ≤ εB := measureReal_nonneg.trans hchk
   -- the covered states
-  set S := coveredStates M L c with hSd
-  have hreach : ∀ q ∈ S, ∃ w : FreeMonoid α, M.eval w.toList = q := by
+  set Sc := coveredStates M L c with hSd
+  have hreach : ∀ q ∈ Sc, ∃ w : FreeMonoid α, M.eval w.toList = q := by
     intro q hq
     by_contra hno
     push Not at hno
@@ -212,17 +165,23 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
       exact fun j _ _ => hno _
     have h := hq
     simp only [hSd, coveredStates, Set.mem_setOf_eq, hempty, measureReal_empty] at h
+    have hc0 : 0 < c := by
+      have : 0 ≤ ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εB := by positivity
+      have e : ((Fintype.card α : ℝ) + 1)
+          * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εB
+          = ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εB := rfl
+      linarith
     linarith
-  have hocc : ∀ q ∈ S, c ≤ ∑ i ∈ Finset.Ico k (L + 1),
+  have hocc : ∀ q ∈ Sc, c ≤ ∑ i ∈ Finset.Ico k (L + 1),
       (uniformStrings i).real {y : FreeMonoid α | M.eval y.toList = q} := by
     intro q hq
     have := occupancy_of_covered M hq
     rwa [Finset.Ico_add_one_right_eq_Icc]
-  have hE : ∀ q ∈ S, ∀ a, ∃ w, H.edges (G.leafOf H.tree q, a)
-      = some (G.leafOf H.tree (G.M.step q a), w) := fun q hq a =>
-    edge_of_occupied G o.read H (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) q a hbad
-      (hocc q hq) hεd
-  have hside : ∀ q ∈ S, G.side q = decide (q ∈ G.M.accept) := by
+  have hE : ∀ q ∈ Sc, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
+      = some (Random.leafOf M side H.tree (M.step q a), w) := fun q hq a =>
+    edge_of_occupied M dist o.read H (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) q a hchk
+      (hocc q hq) hεB
+  have hside : ∀ q ∈ Sc, side q = decide (q ∈ M.accept) := by
     intro q hq
     refine sideOf_eq_of_mass M D dist hd0 hd1 q
       (familyReadDist_sum O M _ _ _ q (hreach q hq)) hmis' hund' (b := c / ((L₁ : ℝ) + 1 - k))
@@ -237,8 +196,8 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
           = 3 * εcov * ((L₁ : ℝ) + 1 - k) := rfl
       linarith
   obtain ⟨q₀, -, hacc⟩ := hceil
-  exact ⟨G.leafOf H.tree q₀, G.leafOf_mem_paths _ _,
-    classify_start_le G H hroot S hE hside L q₀ hacc⟩
+  exact ⟨Random.leafOf M side H.tree q₀, Random.leafOf_mem M side _ _,
+    classify_start_le M side H hroot Sc hE hside L q₀ hacc⟩
 
 end Bridge
 
@@ -257,18 +216,6 @@ theorem integral_uniform_le_window {k L L₁ : ℕ} (hk : k ≤ L) (hL : L ≤ L
     div_nonneg (Finset.sum_nonneg fun v _ => hg _) (by positivity)
   exact Finset.single_le_sum (f := fun n => uavg n g) (fun n _ => hu n)
     (Finset.mem_Icc.2 ⟨hk, hL⟩)
-
-omit [Nonempty α] in
-theorem level5_leaves_le (C : Level5Settings) (hC : 2 ≤ C.maxLeaves) (read : FreeMonoid α → ARU)
-    {T : ℕ} (xs : Fin T → FreeMonoid α) (h : (indecisiveLStarLevel5 C read xs).ending ≠ .failed) :
-    (indecisiveLStarLevel5 C read xs).hypothesis.tree.leaves.length ≤ C.maxLeaves := by
-  have hinv := runProbes_readInv C (fun z => (read z).cut) (Lx := probesLen xs) initialState
-    (List.ofFn xs) ⟨by simp [initialState, freshState, DTree.leaves],
-      by simpa [initialState, freshState, DTree.leaves] using hC,
-      by simp [initialState, freshState, DTree.leaves, DTree.midfixes],
-      by simp [initialState, freshState]⟩
-    (fun x hx => by obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx; exact le_probesLen xs i) h
-  exact hinv.2.1
 
 lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
@@ -343,196 +290,103 @@ lemma dfa_select_arith {Q A δ ξ RB KpG T NPf : ℝ} {n k L : ℕ} (hQ : 0 ≤ 
 
 end Select
 
-/-- The undecided sifts' certified bound fits in `16 εd a (|Q|+2)(|Σ|+1)`. -/
-lemma dfa_us_le {Q A a e : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) (ha : 1 ≤ a) (he : 0 ≤ e)
-    (heq : e * (Q + 2) ≤ 1) :
-    2 * (3 * e + (Q + 2) * A * (e / ((Q + 2) * A)) + 2 * e * (a * (Q + 2)))
-      + 2 * (e / 2) / 7 * (2 * (a + 1) + 2 + (Q + 2) * A * (2 * a * (1 + e * (Q + 2)) + 1)
-        + 2 * e * (a * (Q + 2))) ≤ 16 * e * a * (Q + 2) * (A + 1) := by
-  have hq : (2 : ℝ) ≤ Q + 2 := by linarith
-  have e1 : (Q + 2) * A * (e / ((Q + 2) * A)) = e := by field_simp
-  rw [e1]
-  set q := Q + 2
-  have h1 : 2 * a * (1 + e * q) ≤ 4 * a := by nlinarith
-  have h2 : e * (a * q) ≤ a := by nlinarith
-  have hB : 2 * (a + 1) + 2 + q * A * (2 * a * (1 + e * q) + 1) + 2 * e * (a * q)
-      ≤ 8 * a + 5 * (q * A * a) := by
-    have : q * A * (2 * a * (1 + e * q) + 1) ≤ q * A * (4 * a + 1) :=
-      mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-    have h3 : q * A ≤ q * A * a := le_mul_of_one_le_right (by positivity) ha
-    linarith
-  have hC := mul_le_mul_of_nonneg_left hB (show (0 : ℝ) ≤ 2 * (e / 2) / 7 by positivity)
-  have haq : 2 ≤ a * q := by nlinarith
-  have hX1 : 8 * e ≤ 4 * e * (a * q) := by nlinarith
-  have hX2 : e * a ≤ e * (a * q) / 2 := by nlinarith
-  have hX3 : 0 ≤ e * (q * A * a) := by positivity
-  have e2 : 2 * (e / 2) / 7 * (8 * a + 5 * (q * A * a)) = 8 * (e * a) / 7 + 5 * (e * (q * A * a)) / 7 := by
-    ring
-  have e3 : 16 * e * a * q * (A + 1) = 16 * (e * (q * A * a)) + 16 * (e * (a * q)) := by ring
-  have e4 : 2 * (3 * e + e + 2 * e * (a * q)) = 8 * e + 4 * (e * (a * q)) := by ring
-  rw [e3, e4]
-  linarith
-
-/-- At the edges' traffic `εd/((|Q|+2)|Σ|)`, the sampler's yield is `εd²/((|Q|+2)|Σ|)`. -/
-lemma rho_new {Q A e : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) (he : 0 < e) (he1 : e ≤ 1 / 2) :
-    2 * min e (min (e / ((Q + 2) * A) * e / 2) (3 * (e / 2) / 16)) = e ^ 2 / ((Q + 2) * A) := by
-  have hqA : 4 ≤ (Q + 2) * A := by nlinarith
-  have h1 : e / ((Q + 2) * A) * e / 2 ≤ 3 * (e / 2) / 16 := by
-    rw [div_mul_eq_mul_div, div_div, div_le_div_iff₀ (by positivity) (by norm_num)]
-    nlinarith
-  have h2 : e / ((Q + 2) * A) * e / 2 ≤ e := by
-    rw [div_mul_eq_mul_div, div_div, div_le_iff₀ (by positivity)]
-    nlinarith
-  rw [min_eq_left h1, min_eq_right h2]
-  field_simp
-
 /-- The claim's rates, from the coverage `c`. -/
-lemma dfa_rates {Q A N l c e : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N) (hl : 1 ≤ l)
-    (hc : 0 < c) (hc1 : c ≤ 1) (he : e = c / (34 * (A + 1) ^ 2 * (Q + 2) * N * l)) :
-    0 < e ∧ e * 612 ≤ 1 ∧ e * (Q + 2) ≤ 1 ∧ e ^ 2 / ((Q + 2) * A) ≤ e
-      ∧ (A + 1) * N * (e + 16 * e * l * (Q + 2) * (A + 1)) < c ∧ 3 * e * N * 204 ≤ c := by
-  have hX : 0 < 34 * (A + 1) ^ 2 * (Q + 2) * N * l := by positivity
-  have hq : e * (34 * (A + 1) ^ 2 * (Q + 2) * N * l) = c := by rw [he]; field_simp
-  have he0 : 0 < e := by rw [he]; positivity
-  have h9 : (9 : ℝ) ≤ (A + 1) ^ 2 := by nlinarith
-  have hNl : 1 ≤ N * l := one_le_mul_of_one_le_of_one_le hN hl
-  have hbig : (306 : ℝ) * (Q + 2) ≤ 34 * (A + 1) ^ 2 * (Q + 2) * N * l := by
-    have e1 : 34 * (A + 1) ^ 2 * (Q + 2) * N * l = 34 * (Q + 2) * ((A + 1) ^ 2 * (N * l)) := by
-      ring
-    rw [e1]
-    have : (9 : ℝ) ≤ (A + 1) ^ 2 * (N * l) := by nlinarith
-    have := mul_le_mul_of_nonneg_left this (show (0 : ℝ) ≤ 34 * (Q + 2) by positivity)
+lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N)
+    (hℓ : 0 ≤ ℓ) (hNℓ : ℓ ≤ 2 * N) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
+    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
+    (hι : ι = min (εcov / 8) (ε / (13824 * Q * (Q + 1)))) :
+    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ ε ∧ 0 < ι ∧ ι ≤ εcov / 8
+      ∧ (A + 1) * N * (ε + ε + ε / 96) < c ∧ 3 * εcov * N < c
+      ∧ 384 * ℓ * (Q + 1) * Q * ι ≤ 1 := by
+  have hX : 0 < 4 * (A + 1) * N := by positivity
+  have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
+  have he0 : 0 < ε := by rw [he]; positivity
+  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min he0 (by positivity)
+  have hεcε : εcov ≤ ε := by rw [hεc]; exact min_le_left _ _
+  have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
+  have hι8 : ι ≤ εcov / 8 := by rw [hι]; exact min_le_left _ _
+  have hιε : ι ≤ ε / (13824 * Q * (Q + 1)) := by rw [hι]; exact min_le_right _ _
+  have h12 : 12 ≤ 4 * (A + 1) * N := by nlinarith
+  refine ⟨he0, ?_, hεc0, hεcε, hι0, hι8, ?_, ?_, ?_⟩
+  · have : ε * 12 ≤ 1 := by nlinarith
     linarith
-  have h1 : e * (306 * (Q + 2)) ≤ 1 := by
-    have := mul_le_mul_of_nonneg_left hbig he0.le
+  · have e : (A + 1) * N * (ε + ε + ε / 96) = 193 / 384 * (ε * (4 * (A + 1) * N)) := by ring
+    rw [e, hq]
     linarith
-  have hqA : 1 ≤ (Q + 2) * A := by nlinarith
-  refine ⟨he0, by nlinarith, by nlinarith, ?_, ?_, ?_⟩
-  · rw [div_le_iff₀ (by positivity)]
-    have : e ≤ 1 := by nlinarith
+  · have h3 : 3 * εcov * N ≤ 3 * ε * N := by gcongr
+    have e : 3 * ε * N * (4 * (A + 1)) = 3 * c := by rw [← hq]; ring
+    have hA1 : (12 : ℝ) ≤ 4 * (A + 1) := by linarith
+    have : 3 * ε * N * 12 ≤ 3 * c := by
+      rw [← e]
+      exact mul_le_mul_of_nonneg_left hA1 (by positivity)
     nlinarith
-  · have hs : e + 16 * e * l * (Q + 2) * (A + 1) ≤ 17 * e * l * (Q + 2) * (A + 1) := by
-      have : 1 ≤ l * (Q + 2) * (A + 1) := by
-        have : (1 : ℝ) ≤ l * (Q + 2) := one_le_mul_of_one_le_of_one_le hl (by linarith)
-        exact one_le_mul_of_one_le_of_one_le this (by linarith)
-      nlinarith
-    have h2 : (A + 1) * N * (17 * e * l * (Q + 2) * (A + 1)) = c / 2 := by rw [← hq]; ring
-    have h3 := mul_le_mul_of_nonneg_left hs (show (0 : ℝ) ≤ (A + 1) * N by positivity)
-    linarith
-  · rw [← hq]
-    have h5 : (18 : ℝ) ≤ (A + 1) ^ 2 * (Q + 2) := by nlinarith
-    have h6 : (18 : ℝ) ≤ (A + 1) ^ 2 * (Q + 2) * l := by nlinarith
-    have h4 : 0 ≤ e * N := by positivity
-    have h7 := mul_le_mul_of_nonneg_left h6 h4
-    have e2 : e * (34 * (A + 1) ^ 2 * (Q + 2) * N * l) = 34 * (e * N * ((A + 1) ^ 2 * (Q + 2) * l)) := by
-      ring
-    rw [e2]
+  · have hQQ : 0 < 13824 * Q * (Q + 1) := by positivity
+    have h1 : 384 * ℓ * (Q + 1) * Q * ι ≤ 384 * ℓ * (Q + 1) * Q * (ε / (13824 * Q * (Q + 1))) :=
+      mul_le_mul_of_nonneg_left hιε (by positivity)
+    have e : 384 * ℓ * (Q + 1) * Q * (ε / (13824 * Q * (Q + 1))) = ℓ * ε / 36 := by
+      field_simp; ring
+    rw [e] at h1
+    have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
+    have h3 : 2 * N * ε * (4 * (A + 1)) = 2 * c := by rw [← hq]; ring
+    have h4 : 2 * N * ε * 12 ≤ 2 * c := by
+      rw [← h3]
+      exact mul_le_mul_of_nonneg_left (by linarith) (by positivity)
     nlinarith
-
-/-- Level 5's gates meet the core's conditions once the clustering is that accurate. -/
-lemma dfa_gate_conds {Q A l lg p e ι : ℝ} (hQ : 0 ≤ Q) (hA : 1 ≤ A) (hl : 1 ≤ l) (hlg : 0 ≤ lg)
-    (hp : 0 ≤ p) (he : 0 ≤ e) (hι0 : 0 ≤ ι) (hι : ι ≤ e / (384 * (Q + 1) ^ 2))
-    (hΛ : 16384 * l * (Q + 2) * A * lg * p ≤ e ^ 2 / ((Q + 2) * A))
-    (hρe : e ^ 2 / ((Q + 2) * A) ≤ e) :
-    128 * Q * (2 * ι + ι) ≤ e
-      ∧ 16 * (Q + 1) * Q * (2 * ι + ι) + 4 * (4 * (Q + 2) * A * lg) * p ≤ e
-      ∧ 64 * l * (4 * (Q + 2) * A * lg) * p ≤ e / ((Q + 2) * A) * e := by
-  have hQ1 : 0 < Q + 1 := by linarith
-  have h1 : 384 * Q * ι ≤ e * (Q / (Q + 1) ^ 2) := by
-    have := mul_le_mul_of_nonneg_left hι (show (0 : ℝ) ≤ 384 * Q by positivity)
-    refine this.trans (le_of_eq ?_)
-    field_simp
-  have hQq : Q / (Q + 1) ^ 2 ≤ 1 := by rw [div_le_one (by positivity)]; nlinarith
-  have h2 : 48 * (Q + 1) * Q * ι ≤ e * (Q / (Q + 1)) / 8 := by
-    have := mul_le_mul_of_nonneg_left hι (show (0 : ℝ) ≤ 48 * (Q + 1) * Q by positivity)
-    refine this.trans (le_of_eq ?_)
-    field_simp
-    ring
-  have hQ' : Q / (Q + 1) ≤ 1 := by rw [div_le_one hQ1]; linarith
-  have hlgp : 0 ≤ l * (Q + 2) * A * lg * p := by positivity
-  have h3 : 16 * (Q + 2) * A * lg * p ≤ e / 1024 := by
-    have : 16 * (Q + 2) * A * lg * p ≤ 16 * (l * (Q + 2) * A * lg * p) := by
-      have : (Q + 2) * A * lg * p ≤ l * ((Q + 2) * A * lg * p) :=
-        le_mul_of_one_le_left (by positivity) hl
-      nlinarith
-    nlinarith
-  refine ⟨?_, ?_, ?_⟩
-  · have : e * (Q / (Q + 1) ^ 2) ≤ e := by nlinarith
-    linarith
-  · have : e * (Q / (Q + 1)) / 8 ≤ e / 8 := by nlinarith
-    nlinarith
-  · have e1 : e / ((Q + 2) * A) * e = e ^ 2 / ((Q + 2) * A) := by ring
-    rw [e1]
-    nlinarith
-
-lemma dfa_V_ge {Q A : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) : 1 ≤ (Q + 2) * ((Q + 2) * A + 1) := by
-  have : 0 ≤ (Q + 2) * ((Q + 2) * A) := mul_nonneg (by linarith) (by nlinarith)
-  nlinarith
-
-lemma dfa_B_ge {Q A : ℝ} (hQ : 0 ≤ Q) (hA : 2 ≤ A) : 4 ≤ 2 * (Q + 2) * A + 4 := by
-  nlinarith
-
-lemma dfa_big_ge {V B : ℝ} (hV : 1 ≤ V) (hB : 4 ≤ B) : 3 ≤ 4 * V * B := by
-  nlinarith
-
-lemma dfa_Kp_ge {V e : ℝ} (hV : 1 ≤ V) (he : 0 < e) : 1 ≤ V * (224 / e + 1) := by
-  have : 0 ≤ 224 / e := by positivity
-  nlinarith
-
-lemma dfa_Q_sq {Q : ℝ} (hQ : 0 ≤ Q) : Q / (Q + 1) ^ 2 ≤ 1 := by
-  rw [div_le_one (by positivity)]; nlinarith
 
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
 theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N εd εcov δ' ι ρ s τ J V Kp G PB RB cap
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ W PB RB cap Kc
     n hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hk1 hk2 hk3
   classical
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
+  have : Nonempty σ := ⟨M.start⟩
+  have hQ1 : (1 : ℝ) ≤ Q := by
+    show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
+  have hQ0 : (0 : ℝ) ≤ Q := by linarith
   have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
   have hNe : N = ((L₁ : ℕ) : ℝ) + 1 - k := rfl
   have hN1 : (1 : ℝ) ≤ N := by
     have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     rw [hNe]; linarith
+  have hℓN : ((L₁ : ℝ) + 1) ≤ 2 * N := by
+    rw [hNe]
+    have : (2 * k : ℕ) ≤ L₁ + 1 := by show 2 * ((L + 1) / 2) ≤ L + Fintype.card σ + 3 + 1; omega
+    have : (2 : ℝ) * k ≤ L₁ + 1 := by exact_mod_cast this
+    linarith
   obtain ⟨q₀, hq₀, hq₀acc⟩ := hceil
   have hc1 : c ≤ 1 := hq₀.trans measureReal_le_one
-  have hL₁1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
-  obtain ⟨hεd0, hεd34, hεdq, hρd, hbad, hcN⟩ := dfa_rates (e := εd) hQ0 hA2' hN1 hL₁1 hc hc1 rfl
-  have hεd1 : εd ≤ 1 := by linarith
-  have hεcov_d : εcov ≤ εd / (48 * (Q + 1) ^ 2) := min_le_left _ _
-  have hεcov_ξ : εcov ≤ ξ / (8 * N) := min_le_right _ _
-  have hεcov0 : 0 < εcov := lt_min (by positivity) (by positivity)
-  have hεd48 : εd / (48 * (Q + 1) ^ 2) ≤ εd := by
-    have h1 : (1 : ℝ) ≤ 48 * (Q + 1) ^ 2 := by nlinarith
-    exact div_le_self hεd0.le h1
-  have hεcov1 : εcov ≤ 1 := hεcov_d.trans (hεd48.trans hεd1)
+  obtain ⟨hε0, hε12, hεc0, hεcε, hι0, hι8, hbad, hcN, hιL⟩ :=
+    dfa_rates (ℓ := (L₁ : ℝ) + 1) hQ1 hA2' hN1 (by positivity) hℓN hc hc1 hξ rfl rfl rfl
+  have hεcov1 : εcov ≤ 1 := by linarith
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1 : δ' ≤ 1 := by
     show δ / (8 * (Q + 1)) ≤ 1
     rw [div_le_one (by positivity)]
     linarith
-  have hlog : 0 ≤ Real.log ((Q + 3) * A / δ') := by
-    refine Real.log_nonneg ?_
-    rw [le_div_iff₀ hδ'0, one_mul]
+  have hKc1 : (1 : ℝ) ≤ Kc := by
+    show (1 : ℝ) ≤ (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
+      * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+    have h1 : (1 : ℝ) ≤ (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ :=
+      one_le_pow₀ (by nlinarith [pow_nonneg (show (0 : ℝ) ≤ Q + 1 by linarith) 3])
+    have h2 : (1 : ℝ) ≤ (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) :=
+      one_le_pow₀ (by linarith)
     nlinarith
-  have hρ0 : 0 < ρ := by show 0 < εd ^ 2 / ((Q + 2) * A); positivity
+  have hlogK : 2 ≤ Real.log (16 * Kc / δ') := by
+    rw [Real.le_log_iff_exp_le (by positivity)]
+    have he := Real.exp_one_lt_d9
+    have : Real.exp 2 ≤ 16 := by
+      calc Real.exp 2 = Real.exp 1 * Real.exp 1 := by rw [← Real.exp_add]; norm_num
+        _ ≤ 3 * 3 := by gcongr <;> linarith
+        _ ≤ 16 := by norm_num
+    refine this.trans ?_
+    rw [le_div_iff₀ hδ'0]
+    nlinarith
   -- the walk starts after at least one letter
   have hk0 : 1 ≤ k := by
     by_contra h
     have hk : k = 0 := by omega
     rw [hk, pow_zero, inv_one, mul_one] at hk2
-    have hlog1 : 1 ≤ Real.log ((Q + 3) * A / δ') := by
-      rw [Real.le_log_iff_exp_le (by positivity)]
-      have he : Real.exp 1 ≤ 3 := by
-        have := Real.exp_one_lt_d9; linarith
-      refine he.trans ?_
-      rw [le_div_iff₀ hδ'0]
-      nlinarith
-    have hL₁ : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
-    have hQ2 : (2 : ℝ) ≤ Q + 2 := by linarith
-    have hbig : (16384 : ℝ) * 1 * 2 * 2 * 1
-        ≤ 16384 * ((L₁ : ℝ) + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') := by gcongr
     linarith
   have hkL : k ≤ L := by
     have : (L + 1) / 2 ≤ L ∨ L = 0 := by omega
@@ -542,52 +396,21 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       omega
   let P : PrefixDistribution α := ⟨windowStrings k L₁, windowStrings_isProbability hkL₁, L₁,
     (windowStrings_length k L₁).mono fun x hx => hx.2⟩
-  set us : ℝ := 16 * εd * ((L₁ : ℝ) + 1) * (Q + 2) * (A + 1) with husd
   have hpm : prefixMax P.D k ≤ (A ^ k)⁻¹ := by
     have := prefixMax_windowStrings_le (α := α) (le_refl k) hkL₁
     rwa [one_div] at this
   have : IsProbabilityMeasure P.D := windowStrings_isProbability hkL₁
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  have hΛ : 16384 * ((L₁ : ℝ) + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * prefixMax P.D k
-      ≤ ρ := le_trans (mul_le_mul_of_nonneg_left hpm (by positivity)) hk2
-  have hU : unionLog (α := α) σ δ' = 4 * (Q + 2) * A * Real.log ((Q + 3) * A / δ') := rfl
-  have hιd : min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q))
-      ≤ εd / (384 * (Q + 1) ^ 2) := by
-    refine (min_le_left _ _).trans ?_
-    have : εcov / 8 ≤ εd / (48 * (Q + 1) ^ 2) / 8 := by linarith
-    refine this.trans (le_of_eq ?_)
-    field_simp
-    ring
-  have hι0' : 0 ≤ min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)) :=
-    le_min (by positivity) (by positivity)
-  have hQq : Q / (Q + 1) ^ 2 ≤ 1 := dfa_Q_sq hQ0
-  have hρ' : 2 * min εd (min (εd / ((Q + 2) * A) * εd / 2) (3 * (εd / 2) / 16)) = ρ :=
-    rho_new hQ0 hA2' hεd0 (by linarith)
-  obtain ⟨g1, g2, g3⟩ := dfa_gate_conds (l := (L₁ : ℝ) + 1) (p := prefixMax P.D k) hQ0
-    (by linarith) hL₁1 hlog hpm0 hεd0.le hι0' hιd hΛ hρd
-  obtain ⟨settings, hwalk, hdis, hbud, hmaxL, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov εd δ'
-    pAP k (L + 1) 0 εd (2 * εd) εd (εd / ((Q + 2) * A)) us (δ' / 8) true hL hη hη₀ hεcov0 hεcov1
-    hεd0 hεd1 hδ'0 hδ'1 hpAP
-    (by show 1 ≤ L + Fintype.card σ + 3; omega) hk0 (by rw [hρ']; exact hpm.trans hk1)
-    (hΛ.trans hρd) le_rfl hεd0 (by linarith) (by linarith) hεd0.le (by positivity)
-    (by positivity) (by positivity)
-    g1 (by rw [hU]; exact g2) (by rw [hU]; exact g3)
-    (fun _ => ⟨rfl, by linarith, by linarith, le_rfl, by
-      have h := dfa_us_le hQ0 hA2' hL₁1 hεd0.le hεdq
-      have e1 : (2 : ℝ) * ((L₁ : ℝ) + 2) = 2 * (((L₁ : ℝ) + 1) + 1) := by ring
-      show 2 * (3 * εd + (Q + 2) * A * (εd / ((Q + 2) * A)) + 2 * εd * (((L₁ : ℝ) + 1) * (Q + 2)))
-        + 2 * (εd / 2) / 7 * (2 * ((L₁ : ℝ) + 2) + 2 + (Q + 2) * A * (2 * ((L₁ : ℝ) + 1)
-          * (1 + εd * (Q + 2)) + 1) + 2 * εd * (((L₁ : ℝ) + 1) * (Q + 2))) ≤ us
-      rw [e1, husd]
-      linarith⟩)
+  obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov ε δ' pAP k
+    hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1 hpAP (by show 1 ≤ L + Fintype.card σ + 3; omega) hk0
+    hιL (hpm.trans hk1) ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk2)
   refine ⟨settings, hwalk, hdis, hbud, ?_⟩
-  have hρ : ρ ≤ 4 := by linarith
   have hcap0 : 0 < cap := by
     have h1 : 0 < (A ^ k)⁻¹ := by positivity
     by_contra hc0
     push Not at hc0
-    have : cap * ρ / 4 ≤ 0 := by
-      have := mul_nonpos_of_nonpos_of_nonneg hc0 hρ0.le
+    have : cap * ε / 96 ≤ 0 := by
+      have := mul_nonpos_of_nonpos_of_nonneg hc0 hε0.le
       linarith
     linarith
   have hatom : ∀ v : FreeMonoid α,
@@ -597,25 +420,25 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       rw [one_div]
       exact inv_anti₀ (by positivity) (pow_le_pow_right₀ (by linarith) (by omega))
     refine h1.trans (hk1.trans ?_)
-    have : cap * ρ ≤ cap * 4 := mul_le_mul_of_nonneg_left hρ hcap0.le
+    have : cap * ε ≤ cap * 1 := mul_le_mul_of_nonneg_left (by linarith) hcap0.le
     linarith
   set Dsf : Measure (FreeMonoid α) := uniformStrings (L₁ + Fintype.card σ + 3) with hDsfd
   have hD := hmain Dsf inferInstance (uniformStrings_length _) hpAPu hatom
   set T := settings.level3.probeBudget
   set μL := loopMeasure μ α (Fintype.card σ + 1) T
   set β := Measure.pi fun _ : Fin n => uniformStrings (α := α) L
-  set Nn := P.L + settings.level3.probeBudget + 2
+  set Nn := P.L + T + 2
   set Ls := P.L + Fintype.card σ + 3
   set t : ℝ := ξ / 4 with htd
-  have hC : 2 ≤ settings.level3.probeBudget + 2 := by rw [hmaxL]; omega
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T)) :=
     {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Checks M O P.D k (L + 1) 0 true εcov εcov (εd + us))
+          o.Checks M O P.D k εcov εcov (ε + ε + ε / 96))
         ∧ RoundsFresh settings O P.D Dsf Nn Ls p)} with hBloopd
   set Sel : ℕ → Set ((Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
       × (Fin n → FreeMonoid α)) := fun r =>
-    if hr : r < Fintype.card σ + 1 then selFail settings O P.D Dsf Nn Ls L n t r hr else ∅
+    if hr : r < Fintype.card σ + 1 then
+      selFail settings O P.D Dsf Nn Ls L n (Fintype.card σ + 2) t r hr else ∅
     with hSeld
   -- the loop's last round, consistent and fresh, picks well unless its scores stray or a
   -- held-out string collides
@@ -636,13 +459,13 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     obtain ⟨⟨hlen, o, ho, hch⟩, hfr⟩ := hlp'
     have hcons : o.result.ending = .consistent := hch.1.1
     obtain ⟨r, hr, -, tt, hst, hG, hOk, hB, hF, hread, hhyp⟩ :=
-      stageSel_last settings O P Dsf hC Ls q.1 hfr o ho hcons
+      stageSel_last settings O P Dsf Ls q.1 hfr o ho hcons
     refine Set.mem_iUnion₂.2 ⟨r, Finset.mem_range.2 hr, ?_⟩
     simp only [hSeld, dif_pos hr]
     by_contra hnot
     apply hq
     refine ⟨hlen, o, ho, hcons, ?_⟩
-    have hnot' : (q.1.1, q.2) ∉ SelBad settings O L n t (some (tt, resCode o.result))
+    have hnot' : (q.1.1, q.2) ∉ SelBad O L n (Fintype.card σ + 2) t (some (tt, resCode o.result))
         ∧ (q.1.2, q.2) ∈ SelDk settings P.D L n r hr (some (tt, resCode o.result)) := by
       constructor
       · intro h
@@ -657,33 +480,30 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         exact ⟨hG, hOk, Or.inr h⟩
     obtain ⟨hnb, hdk⟩ := hnot'
     obtain ⟨hinj, -⟩ := hdk
-    obtain ⟨T', xs, hres⟩ := loopRounds_result settings O P.D Dsf (persistDraws q.1) _ o
-      (List.mem_of_getLast? ho)
     have hsf : SuffixFree o.family := by
       have hlenF : ∀ v ∈ o.family, v.toList.length = Ls := fun v hv =>
         hOk.1.1 ⟨r, hr⟩ le_rfl v (hOk.2.1 (hF ▸ hv))
       intro v hv v' hv' hsuf
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
-    have hleaves : o.result.hypothesis.tree.leaves.length ≤ settings.level3.probeBudget + 2 := by
-      rw [hres]
-      exact level5_leaves_le settings.level3 hC o.read xs (by rw [← hres, hcons]; simp)
+    have hleaves : o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2 :=
+      (Random.classSet_props _ _ hch.2.2).2
     have hgood : (q.1.1, q.2) ∉ scoreBad O o.result.hypothesis o.family o.state.lo
         (o.state.hi + 1) L n t := by
       intro h
       apply hnb
       show (q.1.1, q.2) ∈ (if SuffixFree tt.2.2.1
-          ∧ (resCode o.result).hyp.tree.leaves.length ≤ settings.level3.probeBudget + 2
+          ∧ (resCode o.result).hyp.tree.leaves.length ≤ Fintype.card σ + 2
         then scoreBad O (resCode o.result).hyp tt.2.2.1 tt.2.1.lo (tt.2.1.hi + 1) L n t else ∅)
       rw [hF, hB, hhyp, if_pos ⟨hsf, hleaves⟩]
       exact h
     -- the best leaf, and the family's reads on the strings of length `L`
-    have hs := dfa_of_checks M O hL settings.level3 o ⟨T', xs, hres⟩ hmaxL L hch ?_ ?_
-      ⟨q₀, hq₀, hq₀acc⟩
+    have hs := dfa_of_checks M O hL o L hch ?_ ?_ ⟨q₀, hq₀, hq₀acc⟩
     · have hn : 0 < n := by
         refine Nat.ceil_pos.2 (div_pos (mul_pos (by norm_num) (Real.log_pos ?_)) (by positivity))
         rw [one_lt_div hδ]
         nlinarith only [hQ0, hδ1, mul_nonneg hQ0 hQ0]
+      have hεcov_ξ : εcov ≤ ξ / (8 * N) := min_le_right _ _
       have hNε : N * εcov ≤ ξ / 8 := by
         have h := mul_le_mul_of_nonneg_left hεcov_ξ (by linarith : (0 : ℝ) ≤ N)
         rw [show N * (ξ / (8 * N)) = ξ / 8 by field_simp] at h
@@ -692,7 +512,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
           ∂(uniformStrings L) ≤ N * εcov := by
         refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
           fun x => measureReal_nonneg).trans ?_
-        exact mul_le_mul_of_nonneg_left hch.1.2.2.1 (zero_le_one.trans hN1)
+        exact mul_le_mul_of_nonneg_left hch.1.2.2 (zero_le_one.trans hN1)
       have hm : ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(uniformStrings L)
           ≤ N * εcov := by
         refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
@@ -704,14 +524,10 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       have : η + 2 * t + N * εcov + 2 * (N * εcov) ≤ η + ξ := by
         rw [htd]; linarith
       exact h.trans this
-    · show (A + 1) * N * (εd + us) < c
+    · show (A + 1) * N * (ε + ε + ε / 96) < c
       exact hbad
     · show 3 * εcov * N < c
-      have h2 : 3 * εcov * N ≤ 3 * εd * N := by
-        have := hεcov_d.trans hεd48
-        gcongr
-      have : (0 : ℝ) ≤ 3 * εd * N := by positivity
-      linarith
+      exact hcN
   -- the loop's failure, and each round's selection
   have hBl : (μL.prod β).real (Prod.fst ⁻¹' Bloop) ≤ δ / 2 := by
     have e : (μL.prod β).real (Prod.fst ⁻¹' Bloop) = μL.real Bloop := by
@@ -719,10 +535,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         mul_one]
     rw [e]
     refine hD.trans ?_
-    show (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 4 + δ / (8 * (Q + 1)) / 8
-      + 128 * 0 / εd) ≤ δ / 2
-    have e : (Q + 1) * (2 * (δ / (8 * (Q + 1))) + δ / (8 * (Q + 1)) / 4 + δ / (8 * (Q + 1)) / 8
-        + 128 * 0 / εd) = 19 * δ / 64 := by field_simp; ring
+    show (Q + 1) * (5 * (δ / (8 * (Q + 1))) / 2) ≤ δ / 2
+    have e : (Q + 1) * (5 * (δ / (8 * (Q + 1))) / 2) = 5 * δ / 16 := by field_simp; ring
     rw [e]; linarith
   have hsel : ∀ r ∈ Finset.range (Fintype.card σ + 1), (μL.prod β).real (Sel r)
       ≤ δ / (2 * (Q + 1)) := by
@@ -732,38 +546,34 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
     have hs1 : s ≤ 1 / 2 := by
       show 1 / 2 - η₀ ≤ 1 / 2
-      linarith [le_trans (eta_nonneg O) hη]
+      linarith
     have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-    have : Nonempty σ := ⟨M.start⟩
-    have hQ1 : (1 : ℝ) ≤ Q := by
-      show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-    have hι0 : 0 < ι := lt_min (div_pos hεcov0 (by norm_num))
-      (one_div_pos.2 (mul_pos (by positivity) (by linarith)))
-    have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεcov0 (by norm_num))
+    have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))
       (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
-    have hτ1 : τ ≤ 1 := (min_le_right _ _).trans ((min_le_left _ _).trans (by linarith))
-    have hV0 : 0 ≤ V := by positivity
-    have hV1 : 1 ≤ V := dfa_V_ge hQ0 hA2'
-    have hB4 : (4 : ℝ) ≤ 2 * (Q + 2) * A + 4 := dfa_B_ge hQ0 hA2'
-    have hbig : (3 : ℝ) ≤ 4 * V * (2 * (Q + 2) * A + 4) := dfa_big_ge hV1 hB4
-    have hG0 : 0 ≤ G := by
-      refine Real.log_nonneg ?_
-      rw [le_div_iff₀ hδ'0, one_mul]
-      linarith only [hδ'1, hbig]
-    have hKp1 : 1 ≤ Kp := dfa_Kp_ge hV1 hεd0
-    have hG1 : 1 ≤ G := by
-      show 1 ≤ Real.log (4 * V * (2 * (Q + 2) * A + 4) / δ')
-      have hX : 3 ≤ 4 * V * (2 * (Q + 2) * A + 4) / δ' := by
-        rw [le_div_iff₀ hδ'0]
-        linarith only [hδ'1, hbig]
-      rw [Real.le_log_iff_exp_le (by linarith only [hX])]
-      linarith only [Real.exp_one_lt_d9, hX]
+    have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
+    have hW1 : 1 ≤ W := by
+      show 1 ≤ B₃ * ((L₁ : ℝ) + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+      have hB0 : 0 ≤ B₃ := by
+        show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+        have hS : 1 ≤ S := by
+          show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
+          have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
+          linarith
+        have : 0 ≤ Real.log (16 * S * (S + 1) / δ') := Real.log_nonneg (by
+          rw [le_div_iff₀ hδ'0]; nlinarith)
+        positivity
+      have : 1 ≤ Q * (Q + 1) ^ 2 * A := by
+        have h1 : (1 : ℝ) ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith)
+        exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ1 h1) (by linarith)
+      have : 0 ≤ B₃ * ((L₁ : ℝ) + 1) * Q := by positivity
+      have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
+      linarith
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
-      (mul_nonneg (by norm_num) (Real.log_nonneg (one_le_farArg (L := (L₁ : ℝ)) hQ0
-        (by linarith) (Nat.cast_nonneg _) hKp1 hG1 hδ'0 hδ'1)))
-    refine (loop_select_round_le settings O P Dsf Ls L n ⌊RB⌋₊ t (by positivity) hC (hwalk ▸ hkL)
-      hnp r hr').trans ?_
-    rw [hmaxL, hwalk]
+      (mul_nonneg (by norm_num) (Real.log_nonneg (by
+        rw [le_div_iff₀ hδ'0]; nlinarith)))
+    refine (loop_select_round_le settings O P Dsf Ls L n (Fintype.card σ + 2) ⌊RB⌋₊ t
+      (by positivity) (hwalk ▸ hkL) hnp r hr').trans ?_
+    rw [hwalk]
     have e1 : ((Fintype.card σ + 2 : ℕ) : ℝ) = Q + 2 := by push_cast; rfl
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring
     rw [e1, e2, htd]
@@ -780,85 +590,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 
 set_option maxHeartbeats 1000000 in -- unfolding the simple claim's settings
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N εd δ' s V Kp G n Ce Θ K₁ B₁ P₀ R₀
-    E₁ E E₂ L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
-  classical
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ1 : (1 : ℝ) ≤ Q := by
-    show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-  have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
-  have hkr : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
-  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
-  have hN1 : 1 ≤ N := by show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith
-  have hNℓ : N ≤ (L₁ : ℝ) + 1 := by show (L₁ : ℝ) + 1 - k ≤ _; linarith
-  have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
-  have hc1 : c ≤ 1 := by
-    obtain ⟨q₀, hq₀, -⟩ := hceil
-    exact hq₀.trans measureReal_le_one
-  have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
-  have hδ'1 : δ' ≤ 1 := by
-    show δ / (8 * (Q + 1)) ≤ 1
-    rw [div_le_one (by positivity)]
-    linarith
-  have hεd : 0 < εd := by show 0 < c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1)); positivity
-  have hV0 : 0 ≤ V := by positivity
-  have hK₁0 : 0 ≤ K₁ := by show 0 ≤ V * (7616 * (A + 1) ^ 2 * (Q + 2) / c + 1); positivity
-  -- `E` and `E₂` are positive, so `L₀` holds both
-  have hpow : ((L₁ : ℝ) + 1) ^ 20 * (E + E₂) ≤ A ^ k :=
-    dfa_pow (L := (L : ℝ)) (Q := Q) hA
-      (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring)
-      (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) hL₀
-  set εcov : ℝ := min (εd / (48 * (Q + 1) ^ 2)) (ξ / (8 * N)) with hεcovd
-  set a : ℝ := 1632 * (Q + 1) ^ 2 * (A + 1) ^ 2 * (Q + 2) / c with had
-  have ha0 : 0 < a := by positivity
-  have hCe0 : 0 < Ce := by show 0 < a + 8 / ξ; positivity
-  have hε0 : 0 < εcov := lt_min (by positivity) (by positivity)
-  have hεl : 1 / (Ce * ((L₁ : ℝ) + 1) ^ 3) ≤ εcov := by
-    have hℓ23 : ((L₁ : ℝ) + 1) ^ 2 ≤ ((L₁ : ℝ) + 1) ^ 3 := pow_le_pow_right₀ hℓ1 (by norm_num)
-    have hNℓ2 : N * ((L₁ : ℝ) + 1) ≤ ((L₁ : ℝ) + 1) ^ 3 := by nlinarith
-    have hCe : Ce = a + 8 / ξ := rfl
-    refine le_min ?_ ?_
-    · have e : εd / (48 * (Q + 1) ^ 2) = 1 / (a * (N * ((L₁ : ℝ) + 1))) := by
-        show c / (34 * (A + 1) ^ 2 * (Q + 2) * N * (L₁ + 1)) / (48 * (Q + 1) ^ 2) = _
-        rw [had]; field_simp; ring
-      rw [e]
-      refine one_div_le_one_div_of_le (by positivity) ?_
-      rw [hCe]
-      have : a * (N * ((L₁ : ℝ) + 1)) ≤ a * ((L₁ : ℝ) + 1) ^ 3 :=
-        mul_le_mul_of_nonneg_left hNℓ2 ha0.le
-      have : 0 ≤ 8 / ξ * ((L₁ : ℝ) + 1) ^ 3 := by positivity
-      nlinarith
-    · have e : ξ / (8 * N) = 1 / (8 / ξ * N) := by field_simp
-      rw [e]
-      refine one_div_le_one_div_of_le (by positivity) ?_
-      rw [hCe]
-      have h1 : N ≤ ((L₁ : ℝ) + 1) ^ 3 := hNℓ.trans (le_self_pow₀ hℓ1 (by norm_num))
-      have : 8 / ξ * N ≤ 8 / ξ * ((L₁ : ℝ) + 1) ^ 3 := mul_le_mul_of_nonneg_left h1 (by positivity)
-      have : 0 ≤ a * ((L₁ : ℝ) + 1) ^ 3 := by positivity
-      nlinarith
-  have hb := dfa_cap_bound (ℓ := (L₁ : ℝ) + 1) (Nn := N) (εcov := εcov)
-    (ι := min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q)))
-    (ρ := εd ^ 2 / ((Q + 2) * A))
-    (τ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2)
-      (min (εcov / 8) (1 / (3072 * ((L₁ : ℝ) + 1) * (Q + 1) * Q))))
-    (n := k) hQ1 hA hℓ1 hN1 hNℓ hη0 hη₀ hc hpAP hp1 rfl hε0 hCe0 hεl
-    hδ'0 hδ'1 rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-  dsimp only at hb
-  obtain ⟨hRB, hKp, hR₀, hG1, hE0, hcap⟩ := hb
-  have hℓ17 : 0 ≤ ((L₁ : ℝ) + 1) ^ 20 := by positivity
-  have hE₂0 : 0 ≤ E₂ := by
-    show 0 ≤ 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ * G + n) / δ
-    have : 0 ≤ K₁ * G := mul_nonneg hK₁0 (zero_le_one.trans hG1)
-    positivity
-  obtain ⟨hb1, hb2⟩ := hcap
-    (le_trans (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right hE₂0) hℓ17) hpow)
-  exact learner_loop_dfa_simple_holds M O L η₀ c η δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
-    hceil hb1 hb2 (dfa_collide_arith (by positivity) (by positivity) hℓ1 hδ hR₀ hK₁0
-      (zero_le_one.trans hG1) hRB hKp rfl
-      (le_trans (mul_le_mul_of_nonneg_left (le_add_of_nonneg_left hE0) hℓ17) hpow))
+  sorry
 
 end OrthoDFA
 
