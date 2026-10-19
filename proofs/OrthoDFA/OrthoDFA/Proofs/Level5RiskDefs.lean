@@ -1,4 +1,4 @@
-import OrthoDFA.Level5Claim
+import OrthoDFA.Level5OldClaim
 
 /-!
 # Level 5's detailed bound

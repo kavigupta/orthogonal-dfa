@@ -1,6 +1,6 @@
 import OrthoDFA.FamilyRead
 
-/-! How probes are drawn. -/
+/-! How level 3's probes are drawn: from a distribution whose draws have length at most `L`. -/
 
 namespace OrthoDFA
 
