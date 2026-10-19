@@ -26,7 +26,7 @@ def _take(strings, state, wanted):
 
 
 def _state(held=()):
-    state = PoolState([])
+    state = PoolState([], b"key")
     for string in held:
         state.seen.add(string)
         state.harvest().append(string)
@@ -151,7 +151,8 @@ class TestWhatARoundPublishes(unittest.TestCase):
     def test_the_round_draws_over_last_rounds_states(self):
         state = _state()
         state.held[("state", 7)] = [b"x"]
-        drawn = SimpleNamespace(draw=lambda: b"y")
+        words = iter(range(1000))
+        drawn = SimpleNamespace(draw=lambda: bytes([next(words) % 256, 1]))
 
         with mock.patch.object(cs, "aim_at", lambda *_: object()), mock.patch.object(
             cs, "state_source", lambda *_, **__: drawn
