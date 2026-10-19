@@ -1,3 +1,4 @@
+import OrthoDFA.Utils.CoveredStart
 import OrthoDFA.Proofs.RandomTree
 import OrthoDFA.Proofs.TripartiteSearch
 
@@ -61,12 +62,6 @@ theorem mids_splitAt (d : FreeMonoid α) :
 section True
 
 variable {σ : Type*} (M : DFA α σ) (side : σ → Bool)
-
-/-- The leaf a state's strings sift to where no read on the way is undecided or wrong. -/
-def leafOf : DTree α → σ → List Bool
-  | .leaf, _ => []
-  | .node m r a, q =>
-    if side (M.evalFrom q m.toList) then true :: leafOf a q else false :: leafOf r q
 
 /-- Some state at the leaf `p` reaches the target `t` under `c`. -/
 def RealT (T : DTree α) (p : List Bool) (c : α) (t : List Bool) : Prop :=

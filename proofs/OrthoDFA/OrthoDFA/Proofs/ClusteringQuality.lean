@@ -371,11 +371,69 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 /-! ## The theorem -/
 
+/-- `ClusteringQualityGuarantee`, with the states among the ladder's. -/
+def ClusteringQualitySized : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  uni ∈ tame →
+  tame ⊆ populations →
+  Flat Pre Suf →
+  (∀ j, ∀ p ∈ H j, p ∈ Pre) →
+  0 < pAP →
+  0 < indecisionLimit →
+  indecisionLimit ≤ 1 / 2 →
+  0 < α →
+  α < 1 / 2 →
+  0 < εcov →
+  εcov ≤ 1 / 2 →
+  0 < δ →
+  δ ≤ 1 →
+  0 < crossLimit →
+  0 < slack →
+  ∃ states : Finset State,
+    (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+      (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+      ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+    states ⊆ schedule η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit
+      (allHarvest H).card ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * (D j).real {t}
+          ≤ δ * slack ^ 2) →
+      (∀ B ∈ states,
+        2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        1 - δ - α ≤ (runMeasure μ D Dsf).real
+          {x | (∃ B : {B : State // B ∈ states},
+                streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+            ∧ ∀ B : {B : State // B ∈ states},
+              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
+              ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations (streams H uni x) B.val) p ∂(D uni)
+                ≤ 513 / 512 * εcov + slack
+              ∧ ∀ j ∈ tame,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
+                  ≤ 1 / 2 + εcov / 512 + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
+                  ≤ 2 * indecisionLimit + slack}
+
 set_option maxHeartbeats 1000000 in
 /-- From `clustering_correct` at `δ/2`: the family's realized
 miscut and undecided masses are within `slack/2` of their means off the table's prefixes, which
 carry little mass, except on an event the populations' collision masses hold to `δ/2`. -/
-theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
+theorem clustering_quality_sized : ClusteringQualitySized := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ iL εcov α δ pAP crossLimit
     slack hηle hη₀ huni htame hflat hH hpAP hind' hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
   set hsz : ℕ := (allHarvest H).card with hhsz
@@ -413,7 +471,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz ρ₀
     with hstates
   refine ⟨states, fun B hB =>
-    cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
+    cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB),
+    Finset.filter_subset _ _, ?_⟩
   intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hslackD hcollSf
   have := hD
   have := hDsf
@@ -696,5 +755,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   · have h := (hall j hj).1
     simp only [gateLimit, if_neg hne] at h
     linarith
+
+theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
+  intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov α δ pAP
+    crossLimit slack hηle hη₀ huni htame hflat hH hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack
+  obtain ⟨states, h1, -, h⟩ := clustering_quality_sized O populations tame uni H Pre Suf η₀
+    indecisionLimit εcov α δ pAP crossLimit slack hηle hη₀ huni htame hflat hH hpAP hind hind1 hα
+    hα1 hε hε1 hδ hδ1 hcr hslack
+  exact ⟨states, h1, h⟩
 
 end OrthoDFA

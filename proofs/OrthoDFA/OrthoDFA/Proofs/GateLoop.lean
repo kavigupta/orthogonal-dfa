@@ -1943,7 +1943,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
   have hsqt : 5 * W * Real.sqrt (m * L₁ / 2) ≤ gR * m := by
     have h25 : (5 * W) ^ 2 * (m * L₁ / 2) ≤ (gR * m) ^ 2 := by
       have := mul_le_mul_of_nonneg_left hP1 hm0.le
-      nlinarith
+      linarith only [this]
     calc 5 * W * Real.sqrt (m * L₁ / 2) = Real.sqrt ((5 * W) ^ 2 * (m * L₁ / 2)) := by
           rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)]
       _ ≤ Real.sqrt ((gR * m) ^ 2) := Real.sqrt_le_sqrt h25
@@ -1961,10 +1961,14 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     rw [hkkdef]; linarith
   have hK4 : 4 ≤ K := by
     rw [hKdef, le_div_iff₀ (by positivity)]
-    nlinarith
+    have h1 : gR ^ 2 ≤ 1 / 4 := by nlinarith only [hgR0, hgR1]
+    have h2 : 1 ≤ (D + 1) ^ 2 := by nlinarith only [hD0]
+    linarith only [h1, h2]
   have hy : 2 ≤ Real.log (4 * K * kk) := by
     have h64 : Real.log 64 ≤ Real.log (4 * K * kk) :=
-      Real.log_le_log (by norm_num) (by nlinarith)
+      Real.log_le_log (by norm_num) (by
+        have := mul_le_mul hK4 hkk4 (by norm_num) (by linarith)
+        linarith only [this])
     have e64 : Real.log 64 = 6 * Real.log 2 := by
       rw [show (64 : ℝ) = 2 ^ 6 by norm_num, Real.log_pow]; norm_num
     linarith [Real.log_two_gt_d9]
@@ -1984,7 +1988,9 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
       exact Real.log_le_log (by linarith) (by linarith)
     rw [hΛ, e]; linarith
   have hKΛ : 50 * (D + 1) ^ 2 * Λ ≤ 9 * gR ^ 2 * m := by
-    have h1 : K * Λ ≤ m := by nlinarith
+    have h1 : K * Λ ≤ m := by
+      have := mul_le_mul_of_nonneg_left hΛkk (by linarith : 0 ≤ K)
+      linarith only [this, hP2]
     rw [hKdef] at h1
     have e : 50 / 9 * (D + 1) ^ 2 / gR ^ 2 * Λ * (9 * gR ^ 2) = 50 * (D + 1) ^ 2 * Λ := by
       field_simp
@@ -2003,7 +2009,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
   have hss : 10 * (D + 1) * s ≤ 3 * (gR * m) := by
     have h : (10 * (D + 1)) ^ 2 * (m * Λ / 2) ≤ (3 * (gR * m)) ^ 2 := by
       have := mul_le_mul_of_nonneg_left hKΛ hm0.le
-      nlinarith
+      linarith only [this]
     calc 10 * (D + 1) * s = Real.sqrt ((10 * (D + 1)) ^ 2 * (m * Λ / 2)) := by
           rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)]
       _ ≤ Real.sqrt ((3 * (gR * m)) ^ 2) := Real.sqrt_le_sqrt h
@@ -2014,7 +2020,8 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
         ≤ rejFrac η₀ indecisionLimit εcov * m := Nat.floor_le (by
       have := rejFrac_pos η₀ hsig hε hind; positivity)
     have h2 := (rejFrac_le η₀ hsig hε hind).1
-    nlinarith
+    have := mul_le_mul_of_nonneg_right h2 hm0.le
+    linarith only [h1, this]
   have hNR1 : (m : ℝ) ≤ N := by exact_mod_cast hN1
   have hNR2 : (N : ℝ) ≤ m + cut / 128 * m := by
     have : (N : ℝ) ≤ m + (rejCount η₀ indecisionLimit εcov m : ℕ) := by exact_mod_cast hN2
@@ -2023,12 +2030,17 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     have := (cutBudget_le η₀ indecisionLimit εcov).2.1
     have : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
     linarith
-  have hN2mR : (N : ℝ) ≤ 2 * m := by nlinarith
+  have hN2mR : (N : ℝ) ≤ 2 * m := by
+    have := mul_le_mul_of_nonneg_right hcut1 hm0.le
+    linarith only [hNR2, this, hm0]
   have hN2m : N ≤ 2 * m := by exact_mod_cast hN2mR
   have hdN : hoeffDev N (sizeLevel (sizeLevel (α / (7 * c)) m) N) ≤ 2 * s := by
     refine le_trans (hoeffDev_le_sqrt (hsl N hN2m)) ?_
     calc Real.sqrt (N * Λ / 2) ≤ Real.sqrt (2 ^ 2 * (m * Λ / 2)) :=
-          Real.sqrt_le_sqrt (by nlinarith)
+          Real.sqrt_le_sqrt (by
+            have := mul_le_mul_of_nonneg_right hN2mR hΛ0
+            have := mul_nonneg hm0.le hΛ0
+            linarith only [this, ‹(N : ℝ) * Λ ≤ 2 * m * Λ›])
       _ = 2 * s := by rw [Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]
   have hDd : D * hoeffDev m (sizeLevel (sizeLevel (α / (7 * c)) m) m) ≤ D * s :=
     mul_le_mul_of_nonneg_left hdm hD0.le
@@ -2229,7 +2241,8 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
       have : 1 ≤ populations.card := by exact_mod_cast hcard
       exact_mod_cast this
     rw [div_le_one (by positivity)]
-    nlinarith
+    have := mul_le_mul hc1 (show (1 : ℝ) ≤ (M : ℝ) + 3 by linarith) zero_le_one (by linarith)
+    linarith only [this, hδ1]
   have tlive : ((M : ℝ) + 3) * Real.exp (-2 * hoeffDev m
       (δ / (128 * (populations.card : ℝ) * ((M : ℝ) + 3))) ^ 2 / m) = ε₀ := by
     have h := exp_hoeffDev m (by exact_mod_cast hmpos) hb0 hb1
@@ -2331,7 +2344,8 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
             field_simp]
       have : (populations.card : ℝ) / ((populations.card : ℝ) + 1) ≤ 1 :=
         (div_le_one (by positivity)).2 (by linarith)
-      nlinarith
+      have := mul_le_mul_of_nonneg_left this (by positivity : (0 : ℝ) ≤ 3 * δ / 128)
+      linarith only [this, hδ]
     linarith
   -- the hash's two tails
   set L : ℝ := Real.log (128 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ) with hLdef
@@ -2733,11 +2747,15 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     rw [hBM] at hceil
     rw [hBM]
     push_cast
-    nlinarith
+    linarith only [hceil, hrs]
   · rw [hBk]
     have hceil := hMceil
     rw [div_le_iff₀ hpAPPositive] at hceil
-    have : ((κ + 1 : ℕ) : ℝ) < (B.nsuff : ℝ) := by push_cast; nlinarith
+    have : ((κ + 1 : ℕ) : ℝ) < (B.nsuff : ℝ) := by
+      push_cast
+      have h1 := mul_le_mul_of_nonneg_left hpAP1 (Nat.cast_nonneg B.nsuff : (0 : ℝ) ≤ B.nsuff)
+      have h2 : (0 : ℝ) ≤ κ := Nat.cast_nonneg _
+      linarith only [hceil, h1, h2]
     exact_mod_cast this
   -- the thresholds decide, and decide right
   · rw [hBhi, hBk, hdS]

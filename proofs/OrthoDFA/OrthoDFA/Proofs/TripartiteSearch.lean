@@ -1,4 +1,4 @@
-import OrthoDFA.TripartiteSearch
+import OrthoDFA.Utils.TripartiteSearch
 import Mathlib.Tactic
 
 /-!
