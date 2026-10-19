@@ -34,11 +34,6 @@ open scoped Classical in
 noncomputable def pot (k : ℕ) (x : FreeMonoid α) (T : DTree α) : Finset (FreeMonoid α) :=
   (Finset.Icc k x.toList.length).biUnion fun p => (mids T).image (prefixOf x p * ·)
 
-/-- The probes that can read a string at a good read-state undecided. -/
-def PotGood {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (k : ℕ) (read : FreeMonoid α → ARU)
-    (T : DTree α) : Set (FreeMonoid α) :=
-  {x | ∃ z ∈ pot k x T, ¬ BadAt U θ (M.eval z.toList) ∧ read z = .undecided}
-
 open scoped Classical in
 /-- The trees at most `n` splits reach, each at a leaf on a letter and the midfix where two
 leaves part. -/

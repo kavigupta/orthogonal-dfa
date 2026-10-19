@@ -4,9 +4,10 @@ import OrthoDFA.Proofs.RandomRound
 # Level 3's claim: the proofs
 
 `RandomRoundCorrect` is `round_le_at` at the knobs `Ns = N₁ = ⌈36Λ / ε⌉`,
-`Λ = log(16 S (S + 1) / δ)`, `θr = ε/36`, `εd' = 4ε/9`, `θe' = 113ε/720`, `θpt' = 7/8`, and the
-claim's `G`. Then `noiseRisk` is `δ/4`, and under the `j`-th hypothesis each way a stretch
-outlives `Ns` probes has chance at most half its tests' level `a_j` (`stretch_le`), as
+`Λ = log(16 S (S + 1) / δ)`, `θr = ε/36`, `εd' = 4ε/9`, `θe' = 113ε/720`, `θpt' = 7/8`,
+`Ge = 9θ(|Q| + 1) + 3 p₀ log(8K/δ)`, `θgpt = 3θ(L + 1)(|Q| + 1)`, `ηm = 3 p₀ log(8K/δ)` and
+`pM = ε/48`. Then each `tailRisk` is at most `δ/8`, and under the `j`-th hypothesis each way a
+stretch outlives `Ns` probes has chance at most half its tests' level `a_j` (`stretch_le`), as
 `Λ ≥ log(2 / a_j)`, so a stretch risks at most `6 a_j`, and these sum to at most `3δ/4`.
 -/
 
@@ -66,7 +67,8 @@ theorem pow_le_exp {b c : ℝ} (hb : 0 ≤ b) (h : b ≤ Real.exp c) (n : ℕ) :
   exact pow_le_pow_left₀ hb h n
 
 /-- Where `Λ ≥ log(2 / a_j)`, `Ns ≥ 36Λ / ε` and `y ≤ ε/48`, a stretch at the `j`-th hypothesis
-risks at most `6 a_j` at the knobs `θr = ε/36`, `εd' = 4ε/9`, `θe' = 113ε/720` and `θpt' = 7/8`. -/
+risks at most `6 a_j` at the knobs `θr = ε/36`, `εd' = 4ε/9`, `θe' = 113ε/720` and `θpt' = 7/8`:
+its tests `4 a_j`, its silences at most `a_j/2` or `a_j/4` each. -/
 theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreementRate)
     (hρ1 : C.disagreementRate < 1) (hy0 : 0 < C.harvestRate)
     (hy : C.harvestRate ≤ C.disagreementRate / 48) {Λ : ℝ} {Ns j : ℕ} (hΛ0 : 0 ≤ Λ)
@@ -110,7 +112,7 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
     have : 0 ≤ 1 - 4 * ρ / 9 := by linarith
     positivity
   have h3 : (4 * ρ / 9 * (ρ / (ρ / 2)) + (1 - 4 * ρ / 9) * ((1 - ρ) / (1 - ρ / 2))) ^ Ns / a
-      ≤ a / 2 := by
+      ≤ a / 4 := by
     rw [div_le_iff₀ ha]
     refine (pow_le_exp (c := -(ρ / 18)) hBD0
       (hBD.trans (by linarith [Real.add_one_le_exp (-(ρ / 18))])) Ns).trans
@@ -134,7 +136,7 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
     have : 0 ≤ 1 - 113 * ρ / 720 := by linarith
     positivity
   have h3e : (113 * ρ / 720 * (t / (2 * t)) + (1 - 113 * ρ / 720) * ((1 - t) / (1 - 2 * t))) ^ Ns
-      / a ≤ a / 2 := by
+      / a ≤ a / 4 := by
     rw [div_le_iff₀ ha]
     refine (pow_le_exp (c := -(ρ / 18)) hBE0
       (hBE.trans (by linarith [Real.add_one_le_exp (-(ρ / 18))])) Ns).trans
@@ -165,7 +167,7 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
   have hBM : (7 / 8 : ℝ) * (1 / 4 / (2 * (1 / 4)))
       + (1 - 7 / 8) * ((1 - 1 / 4) / (1 - 2 * (1 / 4))) = 5 / 8 := by norm_num
   have h5 : ((7 / 8 : ℝ) * (1 / 4 / (2 * (1 / 4)))
-      + (1 - 7 / 8) * ((1 - 1 / 4) / (1 - 2 * (1 / 4)))) ^ k / a ≤ a / 2 := by
+      + (1 - 7 / 8) * ((1 - 1 / 4) / (1 - 2 * (1 / 4)))) ^ k / a ≤ a / 4 := by
     rw [hBM, div_le_iff₀ ha]
     have hk : ρ / 6 * Ns ≤ k := Nat.le_ceil _
     refine (pow_le_exp (c := -(3 / 8)) (by norm_num)
@@ -174,35 +176,40 @@ theorem stretch_le (C : Level3Settings) (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreem
     nlinarith
   linarith
 
-/-- Under level 3's premises at `δ < 1` and a positive `G`, the knobs `RandomRoundCorrect` picks
-are admissible and their stretches risk at most `3δ/4` in all. -/
+/-- Under level 3's premises at `δ < 1`, `p₀ > 0` and `Λ > 0`, the knobs `RandomRoundCorrect`
+picks are admissible and their stretches risk at most `3δ/4` in all. -/
 theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Level3Settings)
-    (θ G : ℝ) (S : ℕ)
+    (θ p₀ Λ : ℝ) (L S : ℕ)
     (hS : S = Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1)
-    (hθ : 0 ≤ θ) (hδ : 0 < C.δ) (hδ1 : C.δ < 1) (hG0 : 0 < G) (hGy : 2 * G ≤ C.harvestRate)
+    (hθ : 0 ≤ θ) (hθL : 48 * (L + 1) * (Fintype.card σ + 1) * θ ≤ 1) (hp₀ : 0 < p₀)
+    (hΛ : 0 < Λ) (hδ : 0 < C.δ) (hδ1 : C.δ < 1)
+    (hGy : 2 * (9 * θ * (Fintype.card σ + 1) + 6 * p₀ * Λ) ≤ C.harvestRate)
     (hyρ : C.harvestRate ≤ C.disagreementRate / 48) (hρ1 : C.disagreementRate < 1)
     (hP : 36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget) :
-    ∃ kn : Knobs, kn.Admissible (σ := σ) (α := α) θ C C.disagreementRate C.harvestRate
-      ∧ kn.G = G
+    ∃ kn : Knobs, kn.Admissible (σ := σ) (α := α) θ L C C.disagreementRate C.harvestRate
+      ∧ kn.Ge = 9 * θ * (Fintype.card σ + 1) + 3 * p₀ * Λ ∧ kn.ηm = 3 * p₀ * Λ
       ∧ ∑ j ∈ Finset.range S, stretchRisk C (C.level j) kn.Ns kn.N₁ kn.θr kn.εd' kn.θe' kn.θpt'
         ≤ 3 * C.δ / 4 := by
   set δ := C.δ
   set ρ := C.disagreementRate
   set y := C.harvestRate
+  set nQ : ℝ := (Fintype.card σ : ℝ)
+  have hpΛ : 0 < p₀ * Λ := mul_pos hp₀ hΛ
+  have hθn : 0 ≤ θ * (nQ + 1) := by positivity
   have hy0 : 0 < y := by linarith
   have hρ0 : 0 < ρ := by linarith
-  have hpy : max (2 * G) y = y := max_eq_right hGy
   have hS1 : (1 : ℝ) ≤ S := by
     have : 1 ≤ S := by omega
     exact_mod_cast this
-  set Λ := Real.log (16 * S * (S + 1) / δ) with hΛ
-  have hΛ0 : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; nlinarith)
-  set Ns := ⌈36 * Λ / ρ⌉₊ with hNs
+  set Λs := Real.log (16 * S * (S + 1) / δ) with hΛs
+  have hΛs0 : 0 < Λs := Real.log_pos (by rw [one_lt_div hδ]; nlinarith)
+  set Ns := ⌈36 * Λs / ρ⌉₊ with hNs
   have hNs0 : 1 ≤ Ns := by
     rw [hNs, Nat.one_le_ceil_iff]
     positivity
-  refine ⟨⟨Ns, Ns, G, ρ / 36, 4 * ρ / 9, 113 * ρ / 720, 7 / 8⟩, ?_, rfl, ?_⟩
-  · refine ⟨hNs0, le_rfl, hθ, hG0.le, hδ, hy0, show y < 1 / 2 by linarith,
+  refine ⟨⟨Ns, Ns, 9 * θ * (nQ + 1) + 3 * p₀ * Λ, 3 * θ * (L + 1) * (nQ + 1), 3 * p₀ * Λ, ρ / 48,
+    ρ / 36, 4 * ρ / 9, 113 * ρ / 720, 7 / 8⟩, ?_, rfl, rfl, ?_⟩
+  · refine ⟨hNs0, le_rfl, hθ, by positivity, hδ, hy0, show y < 1 / 2 by linarith,
       show (0 : ℝ) < 1 / 4 by norm_num,
       show (1 / 4 : ℝ) < 1 / 2 by norm_num, hρ0, hρ1, le_rfl,
       show (0 : ℝ) ≤ ρ / 36 by positivity, show ρ / 36 ≤ 1 by linarith,
@@ -210,26 +217,31 @@ theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
       show (0 : ℝ) ≤ 113 * ρ / 720 by positivity, show 113 * ρ / 720 ≤ 4 * ρ / 9 by linarith,
       show 2 * (1 / 4 : ℝ) ≤ 7 / 8 by norm_num, show (7 / 8 : ℝ) ≤ 1 by norm_num,
       show ρ / 36 ≤ (1 - 7 / 8) * (4 * ρ / 9 - 113 * ρ / 720) by linarith, ?_,
-      show max (2 * G) y ≤ y from hpy.le, ?_⟩
+      show max (2 * (9 * θ * (nQ + 1) + 3 * p₀ * Λ)) y ≤ y from max_le (by linarith) le_rfl,
+      show 2 * ((L + 1) * (nQ + 1) * (3 / 2 * θ)) ≤ 3 * θ * (L + 1) * (nQ + 1) from le_of_eq
+        (by ring),
+      show 4 * (3 * θ * (L + 1) * (nQ + 1)) ≤ 1 / 4 by linarith,
+      show (0 : ℝ) ≤ ρ / 48 by positivity, hyρ,
+      show 4 * (3 * p₀ * Λ) ≤ ρ / 48 by linarith, ?_⟩
     · change _ * Ns ≤ C.probeBudget
       rw [← hS]
-      have hlt : (Ns : ℝ) < 36 * Λ / ρ + 1 :=
+      have hlt : (Ns : ℝ) < 36 * Λs / ρ + 1 :=
         Nat.ceil_lt_add_one (by positivity)
       have : ((S * Ns : ℕ) : ℝ) ≤ C.probeBudget := by
         push_cast
-        calc (S : ℝ) * Ns ≤ S * (36 * Λ / ρ + 1) := by gcongr
-          _ = 36 * S / ρ * Λ + S := by ring
+        calc (S : ℝ) * Ns ≤ S * (36 * Λs / ρ + 1) := by gcongr
+          _ = 36 * S / ρ * Λs + S := by ring
           _ ≤ _ := hP
       exact_mod_cast this
     · exact middles_fall_of (μ := C.middleRate) (s := C.searchShare) (by positivity)
         (show (0 : ℝ) < 1 / 4 by norm_num) (show (1 / 4 : ℝ) ≤ 1 / 4 from le_rfl)
         (show 0 ≤ ρ / 6 by positivity)
-        (show 2 * max (2 * G) y ≤ ρ / 6 * (1 / 4) by rw [hpy]; linarith)
+        (show 2 * (ρ / 48) ≤ ρ / 6 * (1 / 4) by linarith)
   · change ∑ j ∈ Finset.range S,
         stretchRisk C (C.level j) Ns Ns (ρ / 36) (4 * ρ / 9) (113 * ρ / 720) (7 / 8) ≤ 3 * δ / 4
     calc _ ≤ ∑ j ∈ Finset.range S, 6 * C.level j := by
           refine Finset.sum_le_sum fun j hj => ?_
-          refine stretch_le C hδ hρ0 hρ1 hy0 hyρ hΛ0.le ?_ (Nat.le_ceil _)
+          refine stretch_le C hδ hρ0 hρ1 hy0 hyρ hΛs0.le ?_ (Nat.le_ceil _)
           have hj : (j : ℝ) + 1 ≤ S := by
             have : j + 1 ≤ S := Finset.mem_range.1 hj
             exact_mod_cast this
@@ -244,15 +256,39 @@ theorem knobs_exist {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
           have : (S : ℝ) / (S + 1) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
           nlinarith
 
+/-- Each pair's tail at scale at most `3 p₀`, against `3 p₀ log(8K/δ)`, `K` the pairs' count,
+risks at most `δ/8`. -/
+theorem tailRisk_le (nQ nα : ℕ) {p₀ θ₀ δ : ℝ} (hp₀ : 0 < p₀) (hδ : 0 < δ) (hθ₀ : 0 ≤ θ₀)
+    (h8 : 8 * θ₀ ≤ 1)
+    (hΛ : 0 ≤ Real.log (8 * ((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ) / δ)) :
+    tailRisk nQ nα p₀ θ₀
+      (3 * p₀ * Real.log (8 * ((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ) / δ))
+      ≤ δ / 8 := by
+  set K : ℝ := (((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ) : ℝ)
+  have hK : 0 < K := by
+    have : 0 < (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) := by positivity
+    exact Nat.cast_pos.2 this
+  set Λ := Real.log (8 * K / δ)
+  unfold tailRisk
+  have hexp : Real.exp (-(3 * p₀ * Λ / (2 * p₀ * (1 + 4 * θ₀)))) ≤ Real.exp (-Λ) := by
+    refine Real.exp_le_exp.2 (neg_le_neg ?_)
+    rw [le_div_iff₀ (by positivity)]
+    nlinarith [mul_nonneg (mul_nonneg hΛ hp₀.le) (sub_nonneg.2 h8)]
+  calc K * Real.exp (-(3 * p₀ * Λ / (2 * p₀ * (1 + 4 * θ₀)))) ≤ K * Real.exp (-Λ) :=
+        mul_le_mul_of_nonneg_left hexp hK.le
+    _ = δ / 8 := by
+        rw [Real.exp_neg, Real.exp_log (by positivity)]
+        field_simp
+
 theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   intro α _ _ σ _ M side U θ Ω _ μ _ R P C p₀
   dsimp only
-  intro hpre hθ hδ hGy hyρ hρ1 hP
+  intro hpre hθ hδ hθL hGy hyρ hρ1 hP
   set nQ := Fintype.card σ
   set nα := Fintype.card α
   set δ := C.δ
-  set K : ℝ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ with hK
-  set G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (4 * K / δ) with hG
+  set K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) with hK
+  set Λ := Real.log (8 * (K : ℝ) / δ) with hΛ
   by_cases hδ1 : 1 ≤ δ
   · calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
       _ = 1 := by simp
@@ -260,28 +296,23 @@ theorem randomRoundCorrect_holds : RandomRoundCorrect := by
   push Not at hδ1
   have hp₀ : 0 < p₀ :=
     (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
-  have hK1 : 1 ≤ K := one_le_pow₀ (by
-    have : (0 : ℝ) ≤ (nQ + 1) ^ 3 * nα := by positivity
-    linarith)
-  have hlogK : 0 < Real.log (4 * K / δ) :=
-    Real.log_pos (by rw [one_lt_div hδ]; linarith)
-  have hG0 : 0 < G := by
-    have : 0 ≤ 3 * θ * (P.L + 1) * (nQ + 1) := by positivity
-    have : 0 < p₀ * Real.log (4 * K / δ) := mul_pos hp₀ hlogK
-    linarith
-  obtain ⟨kn, hA, hkG, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ G _ rfl hθ hδ hδ1 hG0 hGy hyρ
-    hρ1 (by exact_mod_cast hP)
-  refine (round_le_at M side U θ μ R P C _ _ p₀ kn hA hp₀ (fun u _ => hpre u)).trans
+  have hK1 : (1 : ℝ) ≤ K := by
+    have : 1 ≤ K := Nat.one_le_iff_ne_zero.2 (by positivity)
+    exact_mod_cast this
+  have hΛ0 : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; linarith)
+  have hL0 : (0 : ℝ) ≤ P.L := Nat.cast_nonneg _
+  have hn0 : (0 : ℝ) ≤ nQ := Nat.cast_nonneg _
+  obtain ⟨kn, hA, hGe, hηm, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ p₀ Λ P.L _ rfl hθ hθL hp₀
+    hΛ0 hδ hδ1 hGy hyρ hρ1 (by exact_mod_cast hP)
+  refine (round_le_at M side U θ μ R P C _ _ p₀ kn hA hp₀ hpre).trans
     (ENNReal.ofReal_le_ofReal ?_)
   unfold roundBoundAt
-  have hnoise : noiseRisk nQ nα P.L (3 / 2 * θ) p₀ G = δ / 4 := by
-    unfold noiseRisk
-    have e : -(G - 2 * (3 / 2 * θ) * (P.L + 1) * (nQ + 1)) / p₀ = -Real.log (4 * K / δ) := by
-      rw [hG]; field_simp; ring
-    push_cast
-    rw [← hK, e, Real.exp_neg, Real.exp_log (by positivity)]
-    field_simp
-  rw [hkG, hnoise]
+  have h1 : tailRisk nQ nα p₀ (3 * (nQ + 1) * (3 / 2 * θ)) (kn.Ge - 9 * θ * (nQ + 1)) ≤ δ / 8 := by
+    rw [hGe, show 9 * θ * (nQ + 1) + 3 * p₀ * Λ - 9 * θ * (nQ + 1) = 3 * p₀ * Λ by ring]
+    exact tailRisk_le nQ nα hp₀ hδ (by positivity) (by nlinarith) hΛ0.le
+  have h2 : tailRisk nQ nα p₀ ((P.L + 1) * (nQ + 1) * (3 / 2 * θ)) kn.ηm ≤ δ / 8 := by
+    rw [hηm]
+    exact tailRisk_le nQ nα hp₀ hδ (by positivity) (by nlinarith) hΛ0.le
   linarith
 
 end Random

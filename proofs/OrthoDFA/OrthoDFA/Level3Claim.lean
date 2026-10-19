@@ -66,13 +66,15 @@ structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : T
   wrong : ∀ z, μ {ω | read z ω = if side (M.eval z.toList) then .reject else .accept} = 0
 
 /-- With every string's read drawn once as `ReadOracle` says, every length-`walkStart` prefix
-of the probes at most `p₀` of them, `2G ≤ y ≤ ε/48` (`harvestRate`, `disagreementRate`), `ε < 1`,
-and `C.probeBudget` at least `36 S / ε · log(16 S (S + 1) / δ) + S`, `S` bounding the hypotheses,
-level 3 fails to end well, a state being bad where it is undecided more than `1.5θ` of the time,
-with chance at most `δ`. A consistent ending has at most `ε` of the probes searching, changing
-the hypothesis or stopping undecided at their start or end sift, and a harvest's sampler yields
-`y`. `G` bounds what the probes can find undecided at good states but
-for chance `δ / 4`. -/
+of the probes at most `p₀` of them, `48 (L + 1)(|Q| + 1) θ ≤ 1`, `2G ≤ y ≤ ε/48` (`harvestRate`,
+`disagreementRate`), `ε < 1`, and `C.probeBudget` at least `36 S / ε · log(16 S (S + 1) / δ) + S`,
+`S` bounding the hypotheses, level 3 fails to end well, a state being bad where it is undecided
+more than `1.5θ` of the time, with chance at most `δ`. A consistent ending has at most `ε` of the
+probes searching, changing the hypothesis or stopping undecided at their start or end sift, and
+a harvest's sampler yields `y`. `K` counts the trees level 3 can grow with an edge map into each
+one's leaves; but for chance `δ / 8` each, the probes stopping undecided at their start or end at
+a good state are at most `G - 3 p₀ log(8K/δ)`, and those stopping at an undecided middle at a good
+state at most `3 (L + 1)(|Q| + 1) θ` of the searches plus `3 p₀ log(8K/δ)`. -/
 def RandomRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -84,9 +86,10 @@ def RandomRoundCorrect : Prop :=
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let G := 3 * θ * (P.L + 1) * (nQ + 1) + p₀ * Real.log (4 * (1 + (nQ + 1) ^ 3 * nα) ^ nQ / δ)
+    let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+    let G := 9 * θ * (nQ + 1) + 6 * p₀ * Real.log (8 * K / δ)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws

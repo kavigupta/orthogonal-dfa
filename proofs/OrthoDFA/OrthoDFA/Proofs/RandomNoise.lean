@@ -1,16 +1,15 @@
-import OrthoDFA.Proofs.RandomProbe
+import OrthoDFA.Proofs.RandomSearch
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
-# The read field
+# Concentration over the probes' prefixes
 
-The reads are independent across strings, each undecided with its state's chance. For a fixed
-tree, the mass of probes that can read a good read-state undecided is at most a weighted sum of
-independent indicators, one per string `z` at a good read-state, of `z` reading undecided. A
-probe can read `z` only where it shares `z`'s length-`k` prefix, so `z`'s weight, the mass of the
-probes that can read it, is at most `p₀`; the weights sum to at most `(L + 1)(|Q| + 1)`, the most
-strings one probe can read. The exponential moment bounds the sum's upper tail, and `noise_le`
-takes the union over `classSet |Q|`.
+The reads are independent across strings. A probe reads only strings sharing its length-`k`
+prefix (`pot_pre`), so per-probe quantities read through `pot` are independent across prefixes,
+and a bounded increment whose mean is at most `θ₀` of a bounded count's exceeds twice that by `η`
+with chance at most `exp(−η / (2 p₀ B (1 + 4θ₀R)))` (`block_tail`). An event of finitely many
+reads that making `z` undecided can only falsify is no likelier with `z` undecided (`forced_le`).
+`classSet` counts the trees level 3 can grow.
 -/
 
 namespace OrthoDFA
@@ -191,250 +190,337 @@ theorem lintegral_prod_blocks (hmeas : ∀ z, Measurable (read z)) (hind : iInde
 
 end Blocks
 
-theorem exp_sub_one_le {w p₀ l : ℝ} (hp₀ : 0 < p₀) (hw0 : 0 ≤ w) (hw : w ≤ p₀) (hl : 0 ≤ l) :
-    Real.exp (l * w) - 1 ≤ w / p₀ * (Real.exp (l * p₀) - 1) := by
-  have ht0 : 0 ≤ w / p₀ := div_nonneg hw0 hp₀.le
-  have ht1 : w / p₀ ≤ 1 := (div_le_one hp₀).2 hw
-  have h := convexOn_exp.2 (Set.mem_univ (l * p₀)) (Set.mem_univ 0) ht0 (sub_nonneg.2 ht1)
-    (by ring)
-  simp only [smul_eq_mul, mul_zero, add_zero, Real.exp_zero, mul_one] at h
-  have : w / p₀ * (l * p₀) = l * w := by field_simp
-  rw [this] at h
-  linarith
+section Mgf
 
-/-! ## One tree -/
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-variable [DecidableEq α]
-
-/-- Over the reads, the mass of probes that can read a string `z` with a read in `Ev z`, each
-with chance at most `β`, exceeds `G` with chance at most `exp(-(G - 2β(L + 1)(n + 1))/p₀)`. -/
-theorem noise_hit_one {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L : ℕ)
-    (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop) (hmeas : ∀ z, Measurable (read z))
-    (hind : iIndepFun read μ) (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
-    (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
-    (T : DTree α) (n : ℕ) (hT : (mids T).card ≤ n + 1) :
-    μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}
-      ≤ ENNReal.ofReal (Real.exp (-(G - 2 * β * (L + 1) * (n + 1)) / p₀)) := by
-  classical
-  set Zs := (upTo L).biUnion fun x => pot k x T
-  set c : FreeMonoid α → ℝ := fun z =>
-    ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), D.real {x}
-  set ind : FreeMonoid α → Ω → ℝ := fun z ω => if Ev z (read z ω) then 1 else 0
-  set W : Ω → ℝ := fun ω => ∑ z ∈ Zs, c z * ind z ω
-  have hind01 : ∀ z ω, 0 ≤ ind z ω ∧ ind z ω ≤ 1 := fun z ω => by
-    simp only [ind]; split_ifs <;> norm_num
-  have hc0 : ∀ z, 0 ≤ c z := fun z => Finset.sum_nonneg fun _ _ => measureReal_nonneg
-  have hcp : ∀ z ∈ Zs, c z ≤ p₀ := by
-    intro z hz
-    obtain ⟨x, -, hzx⟩ := Finset.mem_biUnion.1 hz
-    obtain ⟨hkx, hpz⟩ := pot_pre hzx
-    have hlen : (prefixOf z k).toList.length = k := by
-      rw [hpz]; simp [prefixOf, hkx]
-    calc c z = D.real ↑((upTo L).filter fun x => z ∈ pot k x T) := sum_measureReal_singleton _
-      _ ≤ D.real {y | prefixOf y k = prefixOf z k} := measureReal_mono fun y hy => by
-          simp only [Finset.coe_filter, Set.mem_ofPred_eq] at hy
-          exact ((pot_pre hy.2).2).symm
-      _ ≤ p₀ := hpre _ hlen
-  have hswap : ∀ f : FreeMonoid α → FreeMonoid α → ℝ,
-      ∑ x ∈ upTo L, ∑ z ∈ pot k x T, f x z
-        = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), f x z := by
-    intro f
-    refine Finset.sum_comm' fun x z => ?_
-    simp only [Zs, Finset.mem_filter, Finset.mem_biUnion]
-    constructor
-    · rintro ⟨hx, hz⟩; exact ⟨⟨hx, hz⟩, x, hx, hz⟩
-    · rintro ⟨⟨hx, hz⟩, -⟩; exact ⟨hx, hz⟩
-  have hcsum : ∑ z ∈ Zs, c z ≤ (L + 1) * (n + 1) := by
-    have h2 : ∑ z ∈ Zs, c z = ∑ x ∈ upTo L, ∑ _z ∈ pot k x T, D.real {x} := (hswap _).symm
-    rw [h2]
-    calc ∑ x ∈ upTo L, ∑ _z ∈ pot k x T, D.real {x}
-        = ∑ x ∈ upTo L, ((pot k x T).card : ℝ) * D.real {x} := by
-          simp [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ ∑ x ∈ upTo L, ((L + 1) * (n + 1) : ℝ) * D.real {x} := by
-          gcongr with x hx
-          have h1 := card_pot k x T
-          have h2 := mem_upTo.1 hx
-          have : (pot k x T).card ≤ (L + 1) * (n + 1) :=
-            h1.trans (Nat.mul_le_mul (by omega) hT)
-          exact_mod_cast this
-      _ = (L + 1) * (n + 1) * D.real ((upTo L : Finset (FreeMonoid α)) : Set (FreeMonoid α)) := by
-          rw [← Finset.mul_sum, sum_measureReal_singleton]
-      _ ≤ (L + 1) * (n + 1) * 1 := by gcongr; exact measureReal_le_one
-      _ = _ := mul_one _
-  have hW : ∀ ω, D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)} ≤ W ω := by
+/-- A bounded increment whose mean is at most `θ` of a bounded count's, less twice that, has
+exponential moment at most `1` at any scale `c` with `c B (1 + 4θR) ≤ 1/2`. -/
+theorem mgf_real (U N : Ω → ℝ) (hUm : Measurable U) (hNm : Measurable N) {θ B R c : ℝ} (hθ : 0 ≤ θ)
+    (hB : 0 ≤ B) (hR : 0 ≤ R) (hc : 0 < c) (hcB : c * B * (1 + 4 * θ * R) ≤ 1 / 2)
+    (hU : ∀ ω, 0 ≤ U ω ∧ U ω ≤ B) (hN : ∀ ω, 0 ≤ N ω ∧ N ω ≤ B * R)
+    (hmean : ∫ ω, U ω ∂μ ≤ θ * ∫ ω, N ω ∂μ) :
+    ∫⁻ ω, ENNReal.ofReal (Real.exp (c * (U ω - 2 * θ * N ω))) ∂μ ≤ 1 := by
+  have hcBθR : 0 ≤ c * B * (θ * R) := mul_nonneg (mul_nonneg hc.le hB) (mul_nonneg hθ hR)
+  set A := c + c ^ 2 * B
+  set B' := 2 * θ * c - 4 * θ ^ 2 * c ^ 2 * B * R
+  set g : Ω → ℝ := fun ω => 1 + A * U ω - B' * N ω
+  have hUi : Integrable U μ := Integrable.of_bound hUm.aestronglyMeasurable B
+    (Filter.Eventually.of_forall fun ω => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hU ω).1]; exact (hU ω).2)
+  have hNi : Integrable N μ := Integrable.of_bound hNm.aestronglyMeasurable (B * R)
+    (Filter.Eventually.of_forall fun ω => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hN ω).1]; exact (hN ω).2)
+  have hgi : Integrable g μ := ((integrable_const 1).add (hUi.const_mul A)).sub (hNi.const_mul B')
+  have hcBR : c * B ≤ 1 / 2 := by nlinarith
+  have hpt : ∀ ω, Real.exp (c * (U ω - 2 * θ * N ω)) ≤ g ω := by
     intro ω
-    set H := {x | ∃ z ∈ pot k x T, Ev z (read z ω)}
-    have hae : H =ᵐ[D] (H ∩ {x | x.toList.length ≤ L} : Set _) := by
-      filter_upwards [hL] with x hx
-      change (x ∈ H) = (x ∈ H ∧ _)
-      simp [hx]
-    rw [measureReal_congr hae]
-    calc _ ≤ D.real ↑((upTo L).filter fun x => x ∈ H) :=
-          measureReal_mono fun x hx =>
-            Finset.mem_coe.2 (Finset.mem_filter.2 ⟨mem_upTo.2 hx.2, hx.1⟩)
-      _ = ∑ x ∈ (upTo L).filter (fun x => x ∈ H), D.real {x} := (sum_measureReal_singleton _).symm
-      _ ≤ ∑ x ∈ upTo L, ∑ z ∈ pot k x T, D.real {x} * ind z ω := by
-          rw [Finset.sum_filter]
-          gcongr with x hx
-          have hnn : ∀ z ∈ pot k x T, 0 ≤ D.real {x} * ind z ω :=
-            fun z _ => mul_nonneg measureReal_nonneg (hind01 z ω).1
-          split_ifs with hxg
-          · obtain ⟨z, hz, he⟩ := hxg
-            calc D.real {x} = D.real {x} * ind z ω := by
-                  simp only [ind]; rw [if_pos he, mul_one]
-              _ ≤ _ := Finset.single_le_sum hnn hz
-          · exact Finset.sum_nonneg hnn
-      _ = ∑ z ∈ Zs, ∑ x ∈ (upTo L).filter (fun x => z ∈ pot k x T), D.real {x} * ind z ω :=
-          hswap _
-      _ = W ω := by
-          simp only [W]
-          refine Finset.sum_congr rfl fun z _ => ?_
-          rw [← Finset.sum_mul]
-  set l := 1 / p₀
-  have hl : 0 ≤ l := by positivity
-  have hlp : l * p₀ = 1 := one_div_mul_cancel hp₀.ne'
-  set gz : ∀ z : FreeMonoid α, (({z} : Finset (FreeMonoid α)) → ARU) → ENNReal := fun z v =>
-    ENNReal.ofReal (Real.exp (l * (c z * if Ev z (v ⟨z, Finset.mem_singleton_self z⟩)
-      then 1 else 0)))
-  have hexpW : ∀ ω, ENNReal.ofReal (Real.exp (l * W ω)) = ∏ z ∈ Zs, gz z fun y => read y ω := by
-    intro ω
-    rw [show l * W ω = ∑ z ∈ Zs, l * (c z * ind z ω) by simp only [W, Finset.mul_sum],
-      Real.exp_sum, ENNReal.ofReal_prod_of_nonneg fun z _ => (Real.exp_pos _).le]
-  have hfac : ∀ z ∈ Zs, ∫⁻ ω, gz z (fun y => read y ω) ∂μ
-      ≤ ENNReal.ofReal (Real.exp (β * (c z / p₀ * (Real.exp 1 - 1)))) := by
-    intro z hz
-    set A := {ω | Ev z (read z ω)}
-    have hA : MeasurableSet A := hmeas z (MeasurableSpace.measurableSet_top)
-    have hA0 : 0 ≤ μ.real A := measureReal_nonneg
-    have he1 : 1 ≤ Real.exp (l * c z) := Real.one_le_exp (mul_nonneg hl (hc0 z))
-    have hpt : ∀ ω, gz z (fun y => read y ω)
-        = 1 + A.indicator (fun _ => ENNReal.ofReal (Real.exp (l * c z) - 1)) ω := by
+    obtain ⟨hU0, hU1⟩ := hU ω
+    obtain ⟨hN0, hN1⟩ := hN ω
+    set y := c * (U ω - 2 * θ * N ω)
+    have hy1 : |y| ≤ 1 := by
+      rw [abs_le]
+      constructor
+      · have : c * (2 * θ * N ω) ≤ 1 := by
+          calc c * (2 * θ * N ω) ≤ c * (2 * θ * (B * R)) := by gcongr
+            _ ≤ c * B * (1 + 4 * θ * R) := by nlinarith
+            _ ≤ 1 := by linarith
+        nlinarith [mul_nonneg hc.le hU0]
+      · have : c * U ω ≤ 1 := by
+          calc c * U ω ≤ c * B := by gcongr
+            _ ≤ 1 := by linarith
+        nlinarith [mul_nonneg hc.le (mul_nonneg hθ hN0)]
+    have hexp := Real.abs_exp_sub_one_sub_id_le hy1
+    have hsq : y ^ 2 ≤ c ^ 2 * (B * U ω + 4 * θ ^ 2 * (B * R) * N ω) := by
+      simp only [y]
+      rw [mul_pow]
+      gcongr
+      nlinarith [mul_le_mul_of_nonneg_left hU1 hU0, mul_le_mul_of_nonneg_left hN1 hN0,
+        mul_nonneg hθ (mul_nonneg hU0 hN0)]
+    have h1 : Real.exp y ≤ 1 + y + y ^ 2 := by
+      have := (abs_le.1 hexp).2
+      linarith
+    have h2 : 1 + y + c ^ 2 * (B * U ω + 4 * θ ^ 2 * (B * R) * N ω) = g ω := by
+      simp only [g, A, B', y]; ring
+    linarith
+  calc ∫⁻ ω, ENNReal.ofReal (Real.exp (c * (U ω - 2 * θ * N ω))) ∂μ
+      ≤ ∫⁻ ω, ENNReal.ofReal (g ω) ∂μ := lintegral_mono fun ω => ENNReal.ofReal_le_ofReal (hpt ω)
+    _ = ENNReal.ofReal (∫ ω, g ω ∂μ) := by
+        rw [ofReal_integral_eq_lintegral_ofReal hgi]
+        exact Filter.Eventually.of_forall fun ω => (Real.exp_pos _).le.trans (hpt ω)
+    _ ≤ 1 := by
+        rw [← ENNReal.ofReal_one]
+        refine ENNReal.ofReal_le_ofReal ?_
+        have hint : ∫ ω, g ω ∂μ = 1 + A * ∫ ω, U ω ∂μ - B' * ∫ ω, N ω ∂μ := by
+          have e1 := integral_sub (μ := μ) (f := fun ω => 1 + A * U ω)
+            (g := fun ω => B' * N ω) ((integrable_const 1).add (hUi.const_mul A))
+            (hNi.const_mul B')
+          have e2 := integral_add (μ := μ) (f := fun _ => (1 : ℝ)) (g := fun ω => A * U ω)
+            (integrable_const 1) (hUi.const_mul A)
+          simp only [g]
+          rw [e1, e2, integral_const_mul, integral_const_mul, integral_const]
+          simp
+        have hEN : 0 ≤ ∫ ω, N ω ∂μ := integral_nonneg fun ω => (hN ω).1
+        have hA : 0 ≤ A := by positivity
+        rw [hint]
+        have h1 := mul_le_mul_of_nonneg_left hmean hA
+        have hkey : A * θ - B' ≤ 0 := by
+          simp only [A, B']
+          nlinarith [mul_nonneg (mul_nonneg hc.le hc.le) hθ, mul_nonneg hθ hc.le]
+        nlinarith
+
+end Mgf
+
+open scoped Classical in
+/-- The read of `z` from the reads of the block `S`, undecided off it. -/
+noncomputable def rdOf (S : Finset (FreeMonoid α)) (v : S → ARU) (z : FreeMonoid α) : ARU :=
+  if h : z ∈ S then v ⟨z, h⟩ else .undecided
+
+
+section Tail
+
+variable [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+  {read : FreeMonoid α → Ω → ARU}
+
+omit [DecidableEq α] in
+theorem measurable_of_strings {β : Type*} [MeasurableSpace β] (hmeas : ∀ z, Measurable (read z))
+    (S : Finset (FreeMonoid α)) (f : (FreeMonoid α → ARU) → β)
+    (hf : ∀ rd rd', (∀ z ∈ S, rd z = rd' z) → f rd = f rd') :
+    Measurable fun ω => f (read · ω) := by
+  have : (fun ω => f (read · ω))
+      = (fun v : S → ARU => f (rdOf S v)) ∘ fun ω (i : S) => read i ω := by
+    funext ω
+    exact hf _ _ fun z hz => by simp only [rdOf, dif_pos hz]
+  rw [this]
+  exact (measurable_of_countable _).comp (measurable_pi_lambda _ fun i => hmeas i)
+
+/-- Probe quantities each read through strings sharing the probe's length-`k` prefix, the first's
+mean at most `θ₀` of the second's: their `D`-weighted sums exceed twice `θ₀` by `η` with chance at
+most `exp(−η / (2 p₀ B (1 + 4θ₀R)))`. -/
+theorem block_tail (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} {p₀ η θ₀ B R : ℝ} (hp₀ : 0 < p₀)
+    (hpmax : ∀ u, D.real {x | prefixOf x k = u} ≤ p₀) (hθ₀ : 0 ≤ θ₀) (hB : 0 < B)
+    (hR : 0 ≤ R) (Sx : FreeMonoid α → Finset (FreeMonoid α))
+    (hSx : ∀ x z, z ∈ Sx x → prefixOf z k = prefixOf x k)
+    (uf tf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ)
+    (huf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → uf rd x = uf rd' x)
+    (htf : ∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → tf rd x = tf rd' x)
+    (hub : ∀ rd, ∀ x ∈ upTo L, 0 ≤ uf rd x ∧ uf rd x ≤ B)
+    (htb : ∀ rd, ∀ x ∈ upTo L, 0 ≤ tf rd x ∧ tf rd x ≤ B * R)
+    (hmean : ∀ x ∈ upTo L, ∫ ω, uf (read · ω) x ∂μ ≤ θ₀ * ∫ ω, tf (read · ω) x ∂μ) :
+    μ {ω | 2 * θ₀ * ∑ x ∈ upTo L, D.real {x} * tf (read · ω) x + η
+        < ∑ x ∈ upTo L, D.real {x} * uf (read · ω) x}
+      ≤ ENNReal.ofReal (Real.exp (-(η / (2 * p₀ * B * (1 + 4 * θ₀ * R))))) := by
+  set c : ℝ := 1 / (2 * p₀ * B * (1 + 4 * θ₀ * R))
+  have hc : 0 < c := by positivity
+  set X : Finset (FreeMonoid α) := upTo L
+  set U : Finset (FreeMonoid α) := X.image (prefixOf · k)
+  set Xu : FreeMonoid α → Finset (FreeMonoid α) := fun u => X.filter fun x => prefixOf x k = u
+  set w : FreeMonoid α → ℝ := fun x => D.real {x}
+  set Sb : FreeMonoid α → Finset (FreeMonoid α) := fun u => (Xu u).biUnion Sx
+  have hmapsto : ∀ x ∈ X, prefixOf x k ∈ U := fun x hx => Finset.mem_image_of_mem _ hx
+  have hsum : ∀ f : FreeMonoid α → ℝ, ∑ x ∈ X, w x * f x = ∑ u ∈ U, ∑ x ∈ Xu u, w x * f x :=
+    fun f => (Finset.sum_fiberwise_of_maps_to hmapsto _).symm
+  have hblk : ∀ u, ∀ x ∈ Xu u, ∀ rd rd' : FreeMonoid α → ARU, (∀ z ∈ Sb u, rd z = rd' z) →
+      ∀ z ∈ Sx x, rd z = rd' z := fun u x hx rd rd' h z hz =>
+    h z (Finset.mem_biUnion.2 ⟨x, hx, hz⟩)
+  have hrd : ∀ u ω, ∀ z ∈ Sb u, (read z ω) = rdOf (Sb u) (fun i => read i ω) z := by
+    intro u ω z hz
+    simp only [rdOf, dif_pos hz]
+  have hmf : ∀ (f : (FreeMonoid α → ARU) → FreeMonoid α → ℝ),
+      (∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → f rd x = f rd' x) →
+      ∀ x, Measurable fun ω => f (read · ω) x := fun f hf x =>
+    measurable_of_strings hmeas (Sx x) (fun rd => f rd x) fun rd rd' h => hf x rd rd' h
+  have hw0 : ∀ x, 0 ≤ w x := fun x => measureReal_nonneg
+  have hwsum : ∀ u, ∑ x ∈ Xu u, w x ≤ p₀ := by
+    intro u
+    refine le_trans ?_ (hpmax u)
+    rw [← measureReal_biUnion_finset (fun x _ x' _ h => Set.disjoint_singleton.2 h)
+      (fun x _ => measurableSet_singleton x)]
+    refine measureReal_mono ?_
+    intro y hy
+    simp only [Set.mem_iUnion, Set.mem_singleton_iff, exists_prop] at hy
+    obtain ⟨x, hx, rfl⟩ := hy
+    exact (Finset.mem_filter.1 hx).2
+  set Y : FreeMonoid α → Ω → ℝ := fun u ω =>
+    ∑ x ∈ Xu u, w x * (uf (read · ω) x - 2 * θ₀ * tf (read · ω) x)
+  have hev : {ω | 2 * θ₀ * ∑ x ∈ X, w x * tf (read · ω) x + η < ∑ x ∈ X, w x * uf (read · ω) x}
+      ⊆ {ω | η < ∑ u ∈ U, Y u ω} := by
+    intro ω hω
+    simp only [Set.mem_ofPred_eq] at hω ⊢
+    rw [hsum, hsum] at hω
+    have : ∑ u ∈ U, Y u ω = ∑ u ∈ U, ∑ x ∈ Xu u, w x * uf (read · ω) x
+        - 2 * θ₀ * ∑ u ∈ U, ∑ x ∈ Xu u, w x * tf (read · ω) x := by
+      simp only [Y, Finset.mul_sum, ← Finset.sum_sub_distrib]
+      refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun x _ => ?_
+      ring
+    rw [this]
+    linarith
+  have hXuX : ∀ u, ∀ x ∈ Xu u, x ∈ X := fun u x hx => (Finset.mem_filter.1 hx).1
+  have hint : ∀ (u : FreeMonoid α) (f : (FreeMonoid α → ARU) → FreeMonoid α → ℝ) (M : ℝ),
+      (∀ x rd rd', (∀ z ∈ Sx x, rd z = rd' z) → f rd x = f rd' x) →
+      (∀ rd, ∀ x ∈ X, 0 ≤ f rd x ∧ f rd x ≤ M) →
+      ∫ ω, ∑ x ∈ Xu u, w x * f (read · ω) x ∂μ = ∑ x ∈ Xu u, w x * ∫ ω, f (read · ω) x ∂μ := by
+    intro u f M hf hfb
+    rw [integral_finsetSum _ fun x hx => (Integrable.of_bound (hmf f hf x).aestronglyMeasurable
+      M (Filter.Eventually.of_forall fun ω => by
+        rw [Real.norm_eq_abs, abs_of_nonneg (hfb _ x (hXuX u x hx)).1]
+        exact (hfb _ x (hXuX u x hx)).2)).const_mul _]
+    exact Finset.sum_congr rfl fun x _ => integral_const_mul _ _
+  have hblock : ∀ u, ∫⁻ ω, ENNReal.ofReal (Real.exp (c * Y u ω)) ∂μ ≤ 1 := by
+    intro u
+    set Uf : Ω → ℝ := fun ω => ∑ x ∈ Xu u, w x * uf (read · ω) x
+    set Nf : Ω → ℝ := fun ω => ∑ x ∈ Xu u, w x * tf (read · ω) x
+    have hY : ∀ ω, c * Y u ω = c * (Uf ω - 2 * θ₀ * Nf ω) := by
       intro ω
-      simp only [gz]
-      by_cases h : Ev z (read z ω)
-      · rw [if_pos h, Set.indicator_of_mem (show ω ∈ A from h), mul_one,
-          ENNReal.ofReal_sub _ zero_le_one, ENNReal.ofReal_one,
-          add_tsub_cancel_of_le (by simpa using he1)]
-      · rw [if_neg h, Set.indicator_of_notMem (show ω ∉ A from h), mul_zero, mul_zero,
-          Real.exp_zero, ENNReal.ofReal_one, add_zero]
-    simp_rw [hpt]
-    rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
-      lintegral_indicator hA, setLIntegral_const, ← ofReal_measureReal,
-      ← ENNReal.ofReal_mul (by linarith), ← ENNReal.ofReal_one,
-      ← ENNReal.ofReal_add zero_le_one (mul_nonneg (by linarith) hA0)]
-    refine ENNReal.ofReal_le_ofReal ?_
-    have h1 := exp_sub_one_le hp₀ (hc0 z) (hcp z hz) hl
-    rw [hlp] at h1
-    have h2 := Real.add_one_le_exp (μ.real A * (Real.exp (l * c z) - 1))
-    have h3 : μ.real A * (Real.exp (l * c z) - 1) ≤ β * (c z / p₀ * (Real.exp 1 - 1)) := by
-      have : 0 ≤ Real.exp (l * c z) - 1 := by linarith
-      calc _ ≤ β * (Real.exp (l * c z) - 1) := mul_le_mul_of_nonneg_right (hEv z) this
-        _ ≤ _ := mul_le_mul_of_nonneg_left h1 hβ
-    calc 1 + (Real.exp (l * c z) - 1) * μ.real A
-        = μ.real A * (Real.exp (l * c z) - 1) + 1 := by ring
-      _ ≤ _ := h2
-      _ ≤ _ := Real.exp_le_exp.2 h3
-  have hmom : ∫⁻ ω, ENNReal.ofReal (Real.exp (l * W ω)) ∂μ
-      ≤ ENNReal.ofReal (Real.exp (2 * β * (L + 1) * (n + 1) / p₀)) := by
-    simp_rw [hexpW]
-    rw [lintegral_prod_blocks read hmeas hind (fun z => {z}) gz Zs fun u _ u' _ h =>
-      Finset.disjoint_singleton.2 h]
-    have he : Real.exp 1 - 1 ≤ 2 := by
-      have := Real.exp_one_lt_d9; linarith
-    have he0 : 0 ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp 1]
-    calc _ ≤ ∏ z ∈ Zs, ENNReal.ofReal (Real.exp (β * (c z / p₀ * (Real.exp 1 - 1)))) :=
-          Finset.prod_le_prod' hfac
-      _ = ENNReal.ofReal (Real.exp (∑ z ∈ Zs, β * (c z / p₀ * (Real.exp 1 - 1)))) := by
-          rw [Real.exp_sum, ENNReal.ofReal_prod_of_nonneg fun z _ => (Real.exp_pos _).le]
-      _ ≤ _ := by
-          refine ENNReal.ofReal_le_ofReal (Real.exp_le_exp.2 ?_)
-          rw [show ∑ z ∈ Zs, β * (c z / p₀ * (Real.exp 1 - 1))
-              = β * (Real.exp 1 - 1) / p₀ * ∑ z ∈ Zs, c z by
-            rw [Finset.mul_sum]; refine Finset.sum_congr rfl fun z _ => ?_; ring]
-          rw [div_mul_eq_mul_div, div_le_div_iff_of_pos_right hp₀]
-          calc β * (Real.exp 1 - 1) * ∑ z ∈ Zs, c z ≤ β * 2 * ((L + 1) * (n + 1)) := by
-                gcongr
-            _ = _ := by ring
-  have hWm : Measurable fun ω => ENNReal.ofReal (Real.exp (l * W ω)) := by
-    have : ∀ z, Measurable fun ω => ind z ω := fun z =>
-      Measurable.ite (hmeas z (MeasurableSpace.measurableSet_top)) measurable_const
-        measurable_const
-    exact ENNReal.measurable_ofReal.comp (Real.measurable_exp.comp (measurable_const.mul
-      (Finset.measurable_sum _ fun z _ => measurable_const.mul (this z))))
-  calc μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}
-      ≤ μ {ω | ENNReal.ofReal (Real.exp (l * G)) ≤ ENNReal.ofReal (Real.exp (l * W ω))} := by
+      have : Y u ω = Uf ω - 2 * θ₀ * Nf ω := by
+        simp only [Y, Uf, Nf, Finset.mul_sum, ← Finset.sum_sub_distrib]
+        exact Finset.sum_congr rfl fun x _ => by ring
+      rw [this]
+    simp_rw [hY]
+    have hUm : Measurable Uf := Finset.measurable_sum _ fun x _ =>
+      measurable_const.mul (hmf uf huf x)
+    have hNm : Measurable Nf := Finset.measurable_sum _ fun x _ =>
+      measurable_const.mul (hmf tf htf x)
+    refine mgf_real Uf Nf hUm hNm hθ₀ (by positivity : 0 ≤ p₀ * B) hR hc ?_ ?_ ?_ ?_
+    · simp only [c]; field_simp; linarith
+    · intro ω
+      constructor
+      · exact Finset.sum_nonneg fun x hx => mul_nonneg (hw0 x) (hub _ x (hXuX u x hx)).1
+      · calc Uf ω ≤ ∑ x ∈ Xu u, w x * B := Finset.sum_le_sum fun x hx =>
+              mul_le_mul_of_nonneg_left (hub _ x (hXuX u x hx)).2 (hw0 x)
+          _ = (∑ x ∈ Xu u, w x) * B := by rw [Finset.sum_mul]
+          _ ≤ p₀ * B := mul_le_mul_of_nonneg_right (hwsum u) hB.le
+    · intro ω
+      constructor
+      · exact Finset.sum_nonneg fun x hx => mul_nonneg (hw0 x) (htb _ x (hXuX u x hx)).1
+      · calc Nf ω ≤ ∑ x ∈ Xu u, w x * (B * R) := Finset.sum_le_sum fun x hx =>
+              mul_le_mul_of_nonneg_left (htb _ x (hXuX u x hx)).2 (hw0 x)
+          _ = (∑ x ∈ Xu u, w x) * (B * R) := by rw [Finset.sum_mul]
+          _ ≤ p₀ * (B * R) := mul_le_mul_of_nonneg_right (hwsum u) (by positivity)
+          _ = p₀ * B * R := by ring
+    · rw [hint u uf B huf hub, hint u tf (B * R) htf htb, Finset.mul_sum]
+      exact Finset.sum_le_sum fun x hx => by
+        have := hmean x (hXuX u x hx)
+        nlinarith [hw0 x]
+  have hdisj : ∀ u ∈ U, ∀ u' ∈ U, u ≠ u' → Disjoint (Sb u) (Sb u') := by
+    intro u _ u' _ hne
+    rw [Finset.disjoint_left]
+    intro z h1 h2
+    apply hne
+    have key : ∀ v, z ∈ Sb v → prefixOf z k = v := by
+      intro v hz
+      obtain ⟨x, hx, hz⟩ := Finset.mem_biUnion.1 hz
+      obtain ⟨hxX, hxv⟩ := Finset.mem_filter.1 hx
+      rw [← hxv]
+      exact hSx x z hz
+    rw [← key u h1, key u' h2]
+  set gb : ∀ u, (Sb u → ARU) → ENNReal := fun u v => ENNReal.ofReal (Real.exp (c *
+    ∑ x ∈ Xu u, w x * (uf (rdOf (Sb u) v) x - 2 * θ₀ * tf (rdOf (Sb u) v) x)))
+  have hgb : ∀ u, ∀ ω, gb u (fun i => read i ω) = ENNReal.ofReal (Real.exp (c * Y u ω)) := by
+    intro u ω
+    simp only [gb, Y]
+    congr 3
+    refine Finset.sum_congr rfl fun x hx => ?_
+    rw [huf x _ _ (hblk u x hx _ _ fun z hz => hrd u ω z hz),
+      htf x _ _ (hblk u x hx _ _ fun z hz => hrd u ω z hz)]
+  have hprod : ∫⁻ ω, ENNReal.ofReal (Real.exp (c * ∑ u ∈ U, Y u ω)) ∂μ ≤ 1 := by
+    have he : ∀ ω, ENNReal.ofReal (Real.exp (c * ∑ u ∈ U, Y u ω))
+        = ∏ u ∈ U, gb u (fun i => read i ω) := by
+      intro ω
+      rw [Finset.mul_sum, Real.exp_sum, ENNReal.ofReal_prod_of_nonneg fun u _ =>
+        (Real.exp_pos _).le]
+      exact Finset.prod_congr rfl fun u _ => (hgb u ω).symm
+    simp_rw [he]
+    rw [lintegral_prod_blocks read hmeas hind Sb gb U hdisj]
+    calc ∏ u ∈ U, ∫⁻ ω, gb u (fun i => read i ω) ∂μ ≤ ∏ _u ∈ U, (1 : ENNReal) := by
+          refine Finset.prod_le_prod' fun u _ => ?_
+          simp_rw [hgb]
+          exact hblock u
+      _ = 1 := Finset.prod_const_one
+  have hYm : Measurable fun ω => ENNReal.ofReal (Real.exp (c * ∑ u ∈ U, Y u ω)) := by
+    refine ENNReal.measurable_ofReal.comp (Real.measurable_exp.comp (measurable_const.mul
+      (Finset.measurable_sum _ fun u _ => Finset.measurable_sum _ fun x _ =>
+        measurable_const.mul ((hmf uf huf x).sub (measurable_const.mul (hmf tf htf x))))))
+  calc μ _ ≤ μ {ω | η < ∑ u ∈ U, Y u ω} := measure_mono hev
+    _ ≤ μ {ω | ENNReal.ofReal (Real.exp (c * η))
+          ≤ ENNReal.ofReal (Real.exp (c * ∑ u ∈ U, Y u ω))} := by
         refine measure_mono fun ω hω => ?_
         simp only [Set.mem_ofPred_eq] at hω ⊢
         exact ENNReal.ofReal_le_ofReal (Real.exp_le_exp.2
-          (mul_le_mul_of_nonneg_left (hω.le.trans (hW ω)) hl))
-    _ ≤ (∫⁻ ω, ENNReal.ofReal (Real.exp (l * W ω)) ∂μ) / ENNReal.ofReal (Real.exp (l * G)) :=
-        meas_ge_le_lintegral_div hWm.aemeasurable (by simp [Real.exp_pos])
-          ENNReal.ofReal_ne_top
-    _ ≤ ENNReal.ofReal (Real.exp (2 * β * (L + 1) * (n + 1) / p₀))
-          / ENNReal.ofReal (Real.exp (l * G)) := by gcongr
+          (mul_le_mul_of_nonneg_left hω.le hc.le))
+    _ ≤ (∫⁻ ω, ENNReal.ofReal (Real.exp (c * ∑ u ∈ U, Y u ω)) ∂μ)
+          / ENNReal.ofReal (Real.exp (c * η)) :=
+        meas_ge_le_lintegral_div hYm.aemeasurable (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+    _ ≤ 1 / ENNReal.ofReal (Real.exp (c * η)) := by gcongr
     _ = _ := by
-        rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+        rw [← ENNReal.ofReal_one, ← ENNReal.ofReal_div_of_pos (Real.exp_pos _), one_div,
+          ← Real.exp_neg]
         congr 2
-        simp only [l]
+        simp only [c]
         field_simp
-        ring
 
-/-- Over `classSet n`, the union of `noise_hit_one`. -/
-theorem noise_hit {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (read : FreeMonoid α → Ω → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k L n : ℕ) (p₀ G β : ℝ) (Ev : FreeMonoid α → ARU → Prop) (hmeas : ∀ z, Measurable (read z))
-    (hind : iIndepFun read μ) (hEv : ∀ z, μ.real {ω | Ev z (read z ω)} ≤ β) (hβ : 0 ≤ β)
-    (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀) :
-    μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
-        D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)} ≤ G}
-      ≤ ENNReal.ofReal (noiseRisk n (Fintype.card α) L β p₀ G) := by
-  set e := Real.exp (-(G - 2 * β * (L + 1) * (n + 1)) / p₀)
-  calc μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)),
-        D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)} ≤ G}
-      ≤ μ (⋃ T ∈ (classSet n : Finset (DTree α)),
-          {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}}) := by
-        refine measure_mono fun ω hω => ?_
-        simp only [Set.mem_ofPred_eq, not_forall, not_le] at hω
-        obtain ⟨T, hT, h⟩ := hω
-        exact Set.mem_biUnion hT h
-    _ ≤ ∑ T ∈ (classSet n : Finset (DTree α)),
-          μ {ω | G < D.real {x | ∃ z ∈ pot k x T, Ev z (read z ω)}} :=
-        measure_biUnion_finset_le _ _
-    _ ≤ ∑ _T ∈ (classSet n : Finset (DTree α)), ENNReal.ofReal e :=
-        Finset.sum_le_sum fun T hT => noise_hit_one μ read D k L p₀ G β Ev hmeas hind hEv hβ hL
-          hp₀ hpre T n (by have := mids_card T; have := classSet_leaves n T hT; omega)
-    _ = (classSet n : Finset (DTree α)).card * ENNReal.ofReal e := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ ((1 + (n + 1) ^ 3 * Fintype.card α) ^ n : ℕ) * ENNReal.ofReal e := by
-        gcongr
-        exact_mod_cast classSet_card n
-    _ = _ := by
-        rw [noiseRisk, ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast]
-
-theorem noise_le {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) {Ω : Type*}
-    [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L : ℕ) (p₀ G : ℝ)
-    (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList))
-    (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, u.toList.length = k → D.real {x | prefixOf x k = u} ≤ p₀)
-    (hθ : 0 ≤ θ) :
-    μ {ω | ¬ ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)),
-        D.real (PotGood M U θ k (read · ω) T) ≤ G}
-      ≤ ENNReal.ofReal (noiseRisk (Fintype.card σ) (Fintype.card α) L (3 / 2 * θ) p₀ G) := by
+omit [DecidableEq α] in
+theorem measureReal_eq_sum_upTo (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
+    (hL : ∀ᵐ x ∂D, x.toList.length ≤ L) (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
+    D.real A = ∑ x ∈ upTo L, D.real {x} * if x ∈ A then 1 else 0 := by
+  have hae : A =ᵐ[D] (A ∩ {x | x.toList.length ≤ L} : Set _) := by
+    filter_upwards [hL] with x hx
+    change (x ∈ A) = (x ∈ A ∧ _)
+    simp [hx]
+  rw [measureReal_congr hae]
+  have : A ∩ {x | x.toList.length ≤ L} = ↑((upTo L).filter fun x => x ∈ A) := by
+    ext x; simp [mem_upTo, and_comm]
   classical
-  refine noise_hit μ read D k L _ p₀ G _
-    (fun z r => ¬ BadAt U θ (M.eval z.toList) ∧ r = .undecided) hmeas hind (fun z => ?_)
-    (by positivity) hL hp₀ hpre
-  by_cases hb : BadAt U θ (M.eval z.toList)
-  · simp [hb]; positivity
-  · have : {ω | ¬ BadAt U θ (M.eval z.toList) ∧ read z ω = .undecided}
-        = {ω | read z ω = .undecided} := by ext ω; simp [hb]
-    rw [this, hU z]
-    simpa [BadAt] using hb
+  rw [this, ← sum_measureReal_singleton, Finset.sum_filter]
+  exact Finset.sum_congr rfl fun x _ => by split_ifs <;> simp
+
+omit [DecidableEq α] in
+open scoped Classical in
+/-- An event of finitely many reads that making `z` undecided can only falsify: it and `z` read
+undecided have chance at most the product of theirs. -/
+theorem forced_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
+    (S : Finset (FreeMonoid α)) (Ev : (FreeMonoid α → ARU) → Prop)
+    (hEv : ∀ rd rd', (∀ w ∈ S, rd w = rd' w) → (Ev rd ↔ Ev rd')) (z : FreeMonoid α)
+    (hmono : ∀ rd, Ev (Function.update rd z .undecided) → Ev rd) :
+    μ.real {ω | Ev (read · ω) ∧ read z ω = .undecided}
+      ≤ μ.real {ω | Ev (read · ω)} * μ.real {ω | read z ω = .undecided} := by
+  set R := S.erase z
+  set A : Set Ω := {ω | Ev (Function.update (read · ω) z .undecided)}
+  have hA : A = (fun ω (i : R) => read i ω) ⁻¹'
+      {v | Ev (Function.update (rdOf R v) z .undecided)} := by
+    ext ω
+    simp only [A, Set.mem_preimage, Set.mem_ofPred_eq]
+    refine hEv _ _ fun w hw => ?_
+    by_cases hwz : w = z
+    · subst hwz; simp
+    · rw [Function.update_of_ne hwz, Function.update_of_ne hwz]
+      simp only [rdOf]
+      rw [dif_pos (Finset.mem_erase.2 ⟨hwz, hw⟩)]
+  have hB : {ω | read z ω = .undecided}
+      = (fun ω (i : ({z} : Finset (FreeMonoid α))) => read i ω) ⁻¹'
+        {v | v ⟨z, Finset.mem_singleton_self z⟩ = .undecided} := by
+    ext ω; simp
+  have hI := hind.indepFun_finset R {z} (Finset.disjoint_singleton_right.2 (by simp [R])) hmeas
+  have heq := hI.measure_inter_preimage_eq_mul
+    {v : R → ARU | Ev (Function.update (rdOf R v) z .undecided)}
+    {v : ({z} : Finset (FreeMonoid α)) → ARU | v ⟨z, Finset.mem_singleton_self z⟩ = .undecided}
+    (Set.to_countable _).measurableSet (Set.to_countable _).measurableSet
+  rw [← hA, ← hB] at heq
+  have hset : {ω | Ev (read · ω) ∧ read z ω = .undecided} = A ∩ {ω | read z ω = .undecided} := by
+    ext ω
+    simp only [A, Set.mem_ofPred_eq, Set.mem_inter_iff]
+    constructor <;> rintro ⟨h1, h2⟩ <;> refine ⟨?_, h2⟩
+    · have : Function.update (read · ω) z ARU.undecided = (read · ω) := by
+        rw [← h2]; exact Function.update_eq_self z _
+      rwa [this]
+    · have : Function.update (read · ω) z ARU.undecided = (read · ω) := by
+        rw [← h2]; exact Function.update_eq_self z _
+      rwa [this] at h1
+  rw [hset, measureReal_def, heq, ENNReal.toReal_mul, ← measureReal_def, ← measureReal_def]
+  exact mul_le_mul_of_nonneg_right (measureReal_mono fun ω hω => hmono _ hω) measureReal_nonneg
+
+end Tail
 
 end Random
 

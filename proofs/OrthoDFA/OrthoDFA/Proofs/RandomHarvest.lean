@@ -5,11 +5,9 @@ import OrthoDFA.Proofs.RoundEnd
 # Level 3's sampler
 
 Every string a probe harvests at a site is one it can read, undecided, so it starts as the probe
-does for `k` letters, and a probe harvests at most one string: the sampler is spread from `k`. A
-probe that cannot read a good read-state undecided finds none at a good one, and finds at most
-one string at any site, so the sampler finds at most `G` at good read-states where those probes
-are at most `G`. A harvest that does not end well finds at most twice that, or less than the
-yield.
+does for `k` letters, and a probe harvests at most one string: the sampler is spread from `k`, and
+finds at good read-states at most the probes harvesting one there (`goodAt`). A harvest that does
+not end well finds at most twice that, or less than the yield.
 -/
 
 namespace OrthoDFA
@@ -76,38 +74,41 @@ theorem integrable_siteCount (site : Level3Site) (P : FreeMonoid α → Bool) :
     have := (List.length_filter_le P _).trans (siteHarvest_length read k H site x)
     exact_mod_cast this)
 
-/-- A harvest that does not end well finds at most `y`, or twice what its sampler can find at good
-read-states: at most `G`, the probes that can read a good read-state undecided. -/
-theorem total_le_of_not_endsWell {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) {G y : ℝ}
-    (hG : D.real (PotGood M U θ k read H.tree) ≤ G) (ε : ℝ) (dis : Set (FreeMonoid α))
-    (site : Level3Site)
+/-- The probes that harvest a string at a good read-state at the site. -/
+def goodAt {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (site : Level3Site) :
+    Set (FreeMonoid α) :=
+  {x | ∃ z ∈ siteHarvest read k H site x, ¬ BadAt U θ (M.eval z.toList)}
+
+/-- A harvest that does not end well finds at most `y`, or twice what its sampler finds at good
+read-states, at most `g` where the probes harvesting one are at most `g`. -/
+theorem total_le_of_not_endsWell {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) {g y : ℝ}
+    (site : Level3Site) (hG : D.real (goodAt read k H M U θ site) ≤ g) (ε : ℝ)
+    (dis : Set (FreeMonoid α))
     (h : ¬ EndsWell M (BadAt U θ) D ε dis k (harvestLaw read D k H) y (.harvest site)) :
-    (harvestLaw read D k H site).real Set.univ ≤ max (2 * G) y := by
+    (harvestLaw read D k H site).real Set.univ ≤ max (2 * g) y := by
   classical
   set ν := harvestLaw read D k H site
   set B := {z : FreeMonoid α | BadAt U θ (M.eval z.toList)}
   by_contra hlt
   push Not at hlt
   refine h ⟨?_, harvestLaw_spread read D k H site, (le_max_right _ _).trans hlt.le⟩
-  have hgood : ν.real Bᶜ ≤ G := by
+  have hgood : ν.real Bᶜ ≤ g := by
     rw [harvestLaw_real read D k H]
-    calc _ ≤ ∫ x, (PotGood M U θ k read H.tree).indicator (fun _ => (1 : ℝ)) x ∂D := by
+    calc _ ≤ ∫ x, (goodAt read k H M U θ site).indicator (fun _ => (1 : ℝ)) x ∂D := by
           refine integral_mono (integrable_siteCount read D k H site _)
             ((integrable_const _).indicator (Set.to_countable _).measurableSet) fun x => ?_
-          by_cases hp : x ∈ PotGood M U θ k read H.tree
+          by_cases hp : x ∈ goodAt read k H M U θ site
           · rw [Set.indicator_of_mem hp]
             exact Nat.cast_le_one.2
               ((List.length_filter_le _ _).trans (siteHarvest_length read k H site x))
           · rw [Set.indicator_of_notMem hp]
-            have : (siteHarvest read k H site x).filter (· ∈ Bᶜ) = [] := by
-              refine List.filter_eq_nil_iff.2 fun z hz hzB => hp ?_
-              have hz' := siteHarvest_pot read k H site x z hz
-              exact ⟨z, hz'.1, by simpa [B] using hzB, hz'.2⟩
+            have : (siteHarvest read k H site x).filter (· ∈ Bᶜ) = [] :=
+              List.filter_eq_nil_iff.2 fun z hz hzB => hp ⟨z, hz, by simpa [B] using hzB⟩
             rw [this]
             simp
-      _ = D.real (PotGood M U θ k read H.tree) := by
+      _ = D.real (goodAt read k H M U θ site) := by
           rw [integral_indicator_const _ (Set.to_countable _).measurableSet, smul_eq_mul, mul_one]
-      _ ≤ G := hG
+      _ ≤ g := hG
   have hsplit : ν.real Set.univ = ν.real B + ν.real Bᶜ := by
     have hfin : ν Set.univ ≠ ⊤ := by
       rw [harvestLaw_apply]
