@@ -151,6 +151,12 @@ need not be read to trust the claims above.
   rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
   most `b`, `m` of them reading in `V`.
 
+- `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
+  edges learned and true and is read on its true side, the hypothesis from a state's true leaf
+  (`Random.leafOf`) misjudges at most `η` of the uniform strings of length `L` when re-rooting the
+  target at that state classifies `1 - η` of them with its run staying in `S`
+  (`rerootAccuracy`). Also `uniformStrings`.
+
 ## Scope
 
 This proves the clustering step (`sample_suffix_family` and its gate) correct. It does not prove
