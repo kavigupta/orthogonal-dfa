@@ -9,6 +9,9 @@ from collections import Counter
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource, draw_many
 
+#: The share of a named population's draws kept back for certification.
+RESERVE_SHARE = 0.5
+
 
 class PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
@@ -22,6 +25,9 @@ class PoolState:
         self.held = {}
         #: What draws more of each population, for the round that asks.
         self.sources = {}
+        #: Draws of each named population kept out of the table, in draw order,
+        #: for the gate to certify on.
+        self.reserves = {}
         self.seen = set()
         #: Boundary populations named so far, which is what numbers them.
         self.named = 0
@@ -39,12 +45,27 @@ class PoolState:
         for stale in [label for label in self.held if label[0] == kind]:
             self.held.pop(stale)
             self.sources.pop(stale, None)
+            self.reserves.pop(stale, None)
 
-    def hold(self, label, source, count) -> None:
+    def hold(self, label, source, count, rng) -> None:
         """Hold count draws of source as the population label, which source
         grows."""
-        self.held[label] = sorted(source.draw() for _ in range(count))
         self.sources[label] = source
+        self.reserves[label] = []
+        self.held[label] = sorted(self.split_draws(label, source, count, rng))
+
+    def split_draws(self, label, source, count, rng) -> list:
+        """count draws of source for the table; each draw goes to the reserve
+        of label instead with probability RESERVE_SHARE, and is not counted."""
+        reserve = self.reserves.setdefault(label, [])
+        table_draws = []
+        while len(table_draws) < count:
+            string = source.draw()
+            if rng.random() < RESERVE_SHARE:
+                reserve.append(string)
+            else:
+                table_draws.append(string)
+        return table_draws
 
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
@@ -80,10 +101,11 @@ def grow_population(pst, state, label) -> bool:
         # of these again can pool it behind a source that does draw.
         state.seen.difference_update(state.held.pop(label, ()))
         state.sources.pop(label, None)
+        state.reserves.pop(label, None)
         pst.table.drop_population(label)
         return False
     # As many as the uniform draw this stands in for adds.
-    drawn = [source.draw() for _ in range(pst.config.num_addtl_prefixes)]
+    drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes, pst.rng)
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
     return True
@@ -105,4 +127,8 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     # split is not worth.
     if source is None or not source.proven:
         return []
-    return draw_many(source, wanted)
+    if label == UNIFORM:
+        return draw_many(source, wanted)
+    reserve = state.reserves.get(label, [])
+    taken, reserve[:] = reserve[:wanted], reserve[wanted:]
+    return taken + draw_many(source, wanted - len(taken))
