@@ -123,7 +123,7 @@ def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
         source = state_source(lambda s, path=path: hypothesis.sift(s) == path, aim)
         if source is None:
             continue
-        state.hold(("state", leaf), source, per_state, pst.rng)
+        state.hold(("state", leaf), source, per_state)
 
 
 def _boundary_source(pst, state, *, acc_threshold) -> None:
@@ -309,7 +309,7 @@ def counterexample_driven_synthesis(
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    state = PoolState(uniform)
+    state = PoolState(uniform, pst.rng.bytes(16))
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
