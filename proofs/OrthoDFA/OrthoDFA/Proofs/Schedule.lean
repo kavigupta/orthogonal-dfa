@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Clusterer
 import OrthoDFA.Proofs.GateCharge
+import OrthoDFA.Proofs.Coins
 
 /-!
 # The schedule, and what it is solved from
@@ -20,6 +21,7 @@ open scoped ENNReal
 variable {S : Type*} [Stringlike S]
 variable {rule : Clusterer S}
 variable {J : Type*} [Fintype J]
+variable {hsz : ℕ}
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
@@ -169,6 +171,11 @@ noncomputable def budgetCap (populations : Finset J)
     * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
     / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
 
+/-- What the harvested strings add to the budget: the table holds them in its count, so the
+count must be large against them. -/
+noncomputable def harvestCap (η indecisionLimit εcov : ℝ) (hsz : ℕ) : ℝ :=
+  128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov + 1
+
 /-- `4K (log(4Kk) + 2 log log(4Kk))`, past which `n ≥ 4K log(kn)`. -/
 noncomputable def gateLogCount (K k : ℝ) : ℝ :=
   4 * K * (Real.log (4 * K * k) + 2 * Real.log (Real.log (4 * K * k)))
@@ -182,7 +189,7 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
 which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
@@ -197,6 +204,10 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
+    + ⌈2900 * Real.log (128 * (populations.card : ℝ)
+        * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
+        / (cutBudget η indecisionLimit εcov * flipFrac η)⌉₊
+    + ⌈128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov⌉₊
     + 1
 
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
@@ -223,15 +234,15 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
 noncomputable def ladderLen (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
-  Nat.log 2 (prefCount η populations indecisionLimit εcov δ α pAP crossLimit) + 1
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
+  Nat.log 2 (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz) + 1
 
 /-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
 noncomputable def schedule (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : Finset State :=
-  (Finset.range (ladderLen η populations indecisionLimit εcov δ α pAP crossLimit)).image
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : Finset State :=
+  (Finset.range (ladderLen η populations indecisionLimit εcov δ α pAP crossLimit hsz)).image
     (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
-      (prefCount η populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i))
+      (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i))
 
 /-- What one tested state may cost, summed over the populations: the samplers redrawing more
 than `rejCount` of the state's draws, priced by Markov's inequality at `ρ` a chance so linearly in
@@ -239,7 +250,7 @@ the draws, and the draws missing the undecided set.  The gate's own tails are no
 are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * ((2 * (populations.card : ℝ) + 3) * (B.npref : ℝ) * ρ
+  (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 5) * (B.npref : ℝ) * ρ
       / rejFrac η₀ indecisionLimit εcov
     + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
 
@@ -272,22 +283,23 @@ structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov �
 open scoped Classical in
 
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
-a finite sum and no summable weight over all budgets is needed. -/
+a finite sum and no summable weight over all budgets is needed.  A side of the hash holds at
+least a third of a tame population, so its draws' atoms are at most `3ρ`. -/
 noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit ρ : ℝ) : Finset State :=
-  (schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit).filter
-    (Capped η₀ populations indecisionLimit εcov δ ρ pAP
-      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) (ρ : ℝ) : Finset State :=
+  (schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).filter
+    (Capped η₀ populations indecisionLimit εcov δ (3 * ρ) pAP
+      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
 
 /-- How much collision mass the populations may carry.  A state redraws `m·ρ/rejFrac` of its
 `m` draws in expectation, which its share `δ·m/(8N)` pays for, so the cap is linear in the top
 count `N`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℝ :=
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
   δ * budgetScale η indecisionLimit εcov ^ 2
     / (2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2
-      * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit : ℝ))
+      * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
 
 /-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
 draws, a twentieth of the findable share. -/
@@ -296,34 +308,39 @@ noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
   δ * pAP / (2 ^ 12 * ((populations.card : ℝ) + 1)
     * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
+open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop
-terminates, and the family it returns — at whatever state it stops — cuts each prefix population
+terminates, and the family it returns — at whatever state it stops — cuts each tame population
 the way the noiseless oracle does on all but its gate's limit, `εcov` on the uniform pool and a
-half elsewhere, and leaves at most `2·indecisionLimit` of each undecided.
+half elsewhere, twice the redraw fraction, and on a named population `εcov/1024` for reading it
+through one side of the hash, and leaves at most `2·indecisionLimit` of each undecided.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
 it, never from `O.η`.  The gate reads each class's rate at `η₀`, so it needs none of them.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; the uniform pool is a population; the populations and the suffix measure are
-supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
-the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
-and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits `poolCollisionCap`. -/
+which has signal; the uniform pool is a population; the populations, the harvested strings and
+the suffix measure are supported on a `Flat` pair of sets; no string has more than `ρ` of a tame
+population and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`
+and `δ` are in range; and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits
+`poolCollisionCap`. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
-    (D : J → Measure S)
+    (O : Oracle μ S) (rule : Clusterer S) (populations tame : Finset J) (uni : J)
+    (H : J → Finset S) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  uni ∈ populations →
+  uni ∈ tame →
+  tame ⊆ populations →
   Flat Pre Suf →
+  (∀ j, ∀ p ∈ H j, p ∈ Pre) →
   (∀ j ∈ populations, D j Preᶜ = 0) →
   Dsf Sufᶜ = 0 →
-  (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+  (∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ) →
   0 < pAP →
   pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   0 < indecisionLimit →
@@ -337,23 +354,25 @@ def ClusteringCorrect : Prop :=
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
   -- Derivable rather than assumed -- `prefCount_le_poly` discharges it -- and carried
   -- here so the statement says what the algorithm costs and not only that it works.
-  (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
-    ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k →
-  ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
+  (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card : ℝ)
+    ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k
+      + harvestCap η₀ indecisionLimit εcov (allHarvest H).card →
+  ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card →
   collisionMass Dsf
     ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit →
   1 - δ - α ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit
-        εcov δ α pAP crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations
+        indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card ρ},
+        streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ
-        α pAP crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
-        ∀ j ∈ populations, 1 - gateLimit uni εcov j
+        α pAP crossLimit (allHarvest H).card ρ},
+        streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
+        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov
+            - (if j = uni then 0 else εcov / 1024)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA

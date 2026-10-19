@@ -8,11 +8,22 @@ import Mathlib.Probability.Independence.InfinitePi
 Everything `ClusteringGuarantee` mentions is defined here, so auditing the claim means reading
 this file and no other.  Each definition's doc names the Python it models.
 
-Known modelling gap.  `prefixes_for_split` draws the certification prefixes with `draw_many`,
-which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and a
-`RejectionSource` redraws only what it has served itself, not another population's prefixes.
-`certOf` redraws both, and `certifiesAt` counts each redraw as misclassified.  The pool's draws
-merge with the seed `ε` when one is `ε`, where `_draw_cohort` would redraw it.
+Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
+`draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
+a named population's from its reserve and then its reserve-side draws, which skip the strings a
+named population's table holds but keep repeats and the uniform pool's prefixes.  `certOf`
+redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where `_draw_cohort`
+would redraw it.
+
+Known modelling gap.  A named population's table here skips every string any population
+harvested, and counts its own harvested strings toward the state's `npref`; `split_draws` keeps
+a table-side draw that some population harvested, and the count it is asked for is of its fresh
+draws alone.
+
+Known modelling gap.  `grow_population` retires a population whose source fails its yield
+test, and `prefixes_for_split` reads a split without a population whose source draws nothing;
+`keptAt` drops a population from the tests only when its table or its certification sample
+cannot be filled at all.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
@@ -121,31 +132,96 @@ variable {J : Type*} [Fintype J]
 
 /-! ## The run space
 
-`runMeasure` is a concrete measure, so the independence the proof uses is a lemma about it
-rather than a hypothesis. -/
+What the round reads: the oracle's noise, the suffix draws, and for each population a table
+sequence and a certification sequence.  `streams` reads them off what the round draws, and
+`runMeasure` is the law of the draws, a concrete measure, so the independence the proof uses is
+a lemma about it rather than a hypothesis. -/
 
 abbrev Run (Ω S J : Type*) :=
   Ω ×                       -- the oracle's persistent noise
   (((ℕ → S) ×               -- the suffix draws
-    (J → ℕ → S)) ×          -- the prefix draws, one stream per population
-   (J → ℕ → S))             -- the certification draws, one stream per population
-
-/-- The three components jointly independent, each stream i.i.d. -/
-noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
-    Measure (Run Ω S J) :=
-  μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
-      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
-    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))
+    (J → ℕ → S)) ×          -- each population's table sequence
+   (J → ℕ → S))             -- each population's certification sequence
 
 def oracleNoise (x : Run Ω S J) : Ω := x.1
 
 def suffixDraw (i : ℕ) (x : Run Ω S J) : S := x.2.1.1 i
 
+/-- The `i`-th entry of population `j`'s table sequence. -/
 def prefixDraw (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.1.2 j i
 
-/-- The `i`-th `certification_sample` draw: read only by the gate, never added to the
-table. -/
+/-- The `i`-th entry of population `j`'s certification sequence: read only by the gate, never
+added to the table. -/
 def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
+
+/-! ### What the round draws
+
+A named population draws one stream, and `in_reserve` sends every string to the table side or the
+reserve side by a bit of its keyed hash, the same bit in every population and at every draw; the
+key is drawn once per run, so each string's side is a fair coin independent of the draws.
+`split_draws` puts a draw in the table or the reserve by its side, and `prefixes_for_split`
+certifies on the reserve, then on fresh reserve-side draws.  The table sequence is the
+population's harvested strings, which `take` puts in the table, then its table-side draws; the
+certification sequence its reserve-side draws.  The uniform pool reads its draws as its table and
+certifies on a stream of its own. -/
+
+open scoped Classical in
+/-- The draws among `w`'s first `n` that fall in `A`, in draw order. -/
+noncomputable def drawsIn (A : Set S) (w : ℕ → S) (n : ℕ) : List S :=
+  ((List.range n).map w).filter (fun s => decide (s ∈ A))
+
+open scoped Classical in
+/-- The `k`-th draw of `w` in `A`, or `d` past the last. -/
+noncomputable def nthDrawIn (A : Set S) (d : S) (w : ℕ → S) (k : ℕ) : S :=
+  if h : ∃ n, k < (drawsIn A w n).length then (drawsIn A w (Nat.find h)).getD k d else d
+
+/-- `L`, then `y`. -/
+def prependStream (L : List S) (y : ℕ → S) (k : ℕ) : S :=
+  if h : k < L.length then L.get ⟨k, h⟩ else y (k - L.length)
+
+/-- The strings the hash `g` puts on side `b`, `true` the table and `false` the reserve,
+those in `H` excepted. -/
+def onSide (H : Finset S) (b : Bool) (g : S → Bool) : Set S := {s | g s = b ∧ s ∉ H}
+
+/-- A table sequence: `L`, then the draws of `w` in `A`.  Past them it repeats a string it has
+already given, or reads the spare draw `z 0` when it has given none. -/
+noncomputable def tableSeqOf (L : List S) (A : Set S) (w z : ℕ → S) : ℕ → S :=
+  prependStream L (nthDrawIn A (L.headD (nthDrawIn A (z 0) w 0)) w)
+
+/-- A certification sequence: the draws of `w` in `R`, then a repeat of the first, or the spare
+draw `z 1` when there is none. -/
+noncomputable def reserveSeqOf (R : Set S) (w z : ℕ → S) : ℕ → S :=
+  nthDrawIn R (nthDrawIn R (z 1) w 0) w
+
+/-- Every population's harvested strings. -/
+def allHarvest (H : J → Finset S) : Finset S := Finset.univ.biUnion H
+
+/-- What a round draws: a `Run` whose table sequences are each population's draws and whose
+certification sequences are the uniform pool's certification draws and the named populations'
+spare draws, and the side each string hashes to. -/
+abbrev Draws (Ω S J : Type*) := Run Ω S J × (S → Bool)
+
+open scoped Classical in
+/-- The sequences the round reads off its draws, population `j ≠ uni` holding the harvested
+strings `H j`. -/
+noncomputable def streams (H : J → Finset S) (uni : J) (x : Draws Ω S J) : Run Ω S J :=
+  (x.1.1, ((x.1.2.1.1, fun j => if j = uni then x.1.2.1.2 j
+      else tableSeqOf (H j).toList (onSide (allHarvest H) true x.2) (x.1.2.1.2 j) (x.1.2.2 j)),
+    fun j => if j = uni then x.1.2.2 j
+      else reserveSeqOf (onSide (allHarvest H) false x.2) (x.1.2.1.2 j) (x.1.2.2 j)))
+
+/-- A fair coin: a string's side under a hash seeded at random. -/
+noncomputable def fairCoin : Measure Bool :=
+  (2 : ENNReal)⁻¹ • Measure.dirac true + (2 : ENNReal)⁻¹ • Measure.dirac false
+
+/-- The noise, the suffix draws and every population's two streams independent, each stream
+i.i.d., and every string's side an independent fair coin. -/
+noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
+    Measure (Draws Ω S J) :=
+  (μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
+  (Measure.infinitePi fun _ : S => fairCoin)
 
 /-! ## The loop's state -/
 
@@ -326,11 +402,6 @@ noncomputable def refApart (mq : S → Ω → ℝ) (A R : Finset S) (ω : Ω) : 
     R.inf' h (fun v => (A.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card)
   else 0
 
-open scoped Classical in
-/-- How many draws `freshDraws T y m` reads. -/
-noncomputable def drawsTaken (T : Finset S) (y : ℕ → S) (m : ℕ) : ℕ :=
-  if h : ∃ n, m ≤ ((Finset.range n).image y \ T).card then Nat.find h else 0
-
 /-- The level a test at sample size `n` spends out of `a`, so that every size together spends at
 most `a`. -/
 noncomputable def sizeLevel (a : ℝ) (n : ℕ) : ℝ := a / (((n : ℝ) + 1) * ((n : ℝ) + 2))
@@ -383,14 +454,17 @@ noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F
     + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a η₀ ω
 
 /-- `drift_verdict`'s ADMITTED, as modelled: the family's cut misclassifies at most `lim` of the
-population.
-`P` is the sample, drawn as the first `N` draws without replacement, and `R` the references.
-`miscutBound` is read at `sizeLevel a #P`, and the passage from the `N` draws to the population at
-`sizeLevel a N`; the draws the sampler redrew count as misclassified. -/
-def certifiesAt (mq : S → Ω → ℝ) (η₀ lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (N : ℕ) (ω : Ω) :
+population.  `P` is the sample, drawn without replacement, and `R` the references; `miscutBound`
+and the passage from the sample to the population are both read at `sizeLevel a #P`. -/
+def certifiesAt (mq : S → Ω → ℝ) (η₀ lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (ω : Ω) :
     Prop :=
-  0 < N ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P η₀ ω + ((N : ℝ) - P.card)
-    ≤ N * lim - hoeffDev N (sizeLevel a N)
+  0 < P.card ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P η₀ ω
+    ≤ P.card * lim - hoeffDev P.card (sizeLevel a P.card)
+
+/-- Population `j` is read at a state of `m` prefixes: its table and its certification sample
+both find their `m` strings. -/
+def keptAt (populations : Finset J) (j : J) (m : ℕ) (x : Run Ω S J) : Prop :=
+  (prefixesOf j m x).card = m ∧ (certOf (prefixesAt populations m x) j m x).card = m
 
 open scoped Classical in
 /-- The pool's suffixes outside the family: the gate's references. -/
@@ -409,23 +483,22 @@ noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : �
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-test per population on `certOf`, and the gate per population, which may draw that population
-further when the split reads uncertified, to at most twice its size.  The FNR reads the family
-with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
+test on `certOf`, and the gate, at each population `keptAt` keeps, the gate drawing that
+population further when the split reads uncertified, to at most twice its size.  The FNR reads
+the family with its seed; the gate reads it without, since the seed's read is the bit the gate
+scores. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
-    ∧ (∀ j ∈ populations,
+    ∧ (∀ j ∈ populations, keptAt populations j B.npref x →
       (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
           ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
-    ∧ ∀ j ∈ populations, ∃ e ≤ B.npref,
+    ∧ ∀ j ∈ populations, keptAt populations j B.npref x → ∃ e ≤ B.npref,
       certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
         (clusterAt mq populations x B) (refsAt mq populations x B)
-        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
-        (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x) (B.npref + e))
-        (oracleNoise x)}
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -455,11 +528,12 @@ noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
   min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) indecisionLimit
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
-`≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns there cuts
-`≥ 1 − εcov` of the uniform pool the way the noiseless oracle does, reads no population
-backwards (cuts at least half of each that way), and leaves at most `2·indecisionLimit` of each
-undecided; no state draws more prefixes than the first count below, nor asks for a family or a
-suffix pool larger than the sizes below.  Some state draws no more than the second count, which
+`≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the family it returns
+there cuts `≥ 1 − (513/512)·εcov` of the uniform pool the way the noiseless oracle does, reads
+no tame population backwards (cuts at least `1/2 − εcov/512` of each
+that way), and leaves at most `2·indecisionLimit` of each tame population undecided; no state
+draws more prefixes than the first count below, nor asks for a family or a suffix pool larger
+than the sizes below.  Some state draws no more than the second count, which
 is what validity alone costs, so a stop is covered from there; the first count is what the loop
 may need before a round passes.  Every state's band is wide enough that a vote over a family no
 larger than its own, whose mean lies above the band, lands at or below `lo`, or one whose mean
@@ -469,17 +543,21 @@ The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is t
 the one population every prefix of the learner's distribution is drawn from.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
-on none of the distributions, and a population need only have a collision mass small against
-the prefixes a state draws, and the suffix measure against the suffixes. -/
+on none of the distributions.  A tame population need only have no string heavy against the
+prefixes a state draws, and the suffix measure a collision mass small against the suffixes;
+the other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j`
+are the strings population `j` harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
+    (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  uni ∈ populations →
+  uni ∈ tame →
+  tame ⊆ populations →
   Flat Pre Suf →
+  (∀ j, ∀ p ∈ H j, p ∈ Pre) →
   0 < pAP →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
@@ -500,6 +578,7 @@ def ClusteringGuarantee : Prop :=
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
       / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤
       5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2
@@ -518,24 +597,24 @@ def ClusteringGuarantee : Prop :=
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-      (∀ B ∈ states, ∀ j ∈ populations,
-        2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
           ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
           ∧ ∀ B : {B : State // B ∈ states},
-            x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
-            1 - εcov
+            streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
+            1 - 513 / 512 * εcov
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
-            ∧ ∀ j ∈ populations, 1 / 2
+                  (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+            ∧ ∀ j ∈ tame, 1 / 2 - εcov / 512
               ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                  (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
               ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-                  (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                  (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
                 ≤ 2 * indecisionLimit}
 
 end OrthoDFA
