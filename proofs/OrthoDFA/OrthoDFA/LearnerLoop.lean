@@ -11,16 +11,26 @@ it draws a fresh probe from the probes' distribution `D`, walks it under the rou
 hypothesis and takes its undecided strings at the harvest's site, as the round reads them. The first population is `D` itself. A population's
 draws are made from uniforms (`drawFrom`).
 
-The clustering is the one `ClusteringQualityGuarantee` is about: the family is `clusterAt` at a
-state of the schedule at which `ret` returns. The round reads the family without its seed, at the
-gate's cut: a string reads accept at `hi + 1` or more of the family's votes and reject at `lo` or
-fewer. Without its seed the family is suffix draws of one length, so it is suffix-free.
+The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
+harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
+returns, on the sequences `streams` reads off the round's draws. The round reads the family
+without its seed, at the gate's cut: a string reads accept at `hi + 1` or more of the family's
+votes and reject at `lo` or fewer. Without its seed the family is suffix draws of one length, so
+it is suffix-free.
 
 The whole run reads one noise, fixed per string as the Python's is.
 
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
 the clustering read. The Python draws them from `D`.
+
+Known modelling gap. Each round draws its hash's sides afresh, where the Python's key
+(`PrefixPopulations.key`) is drawn once per run. With one key, a later round could draw a string
+whose side an earlier round's hash read without tabling or certifying it, and that side would not
+be fresh.
+
+Known modelling gap. A harvest's table here is drawn from its population's law, where the Python
+first puts the strings the round harvested into it (`take`).
 
 Known modelling gap. The uniform pool is drawn afresh each round, where the Python keeps one pool
 across rounds; on one noise a kept pool's prefixes would be read again by every round.
@@ -96,10 +106,11 @@ structure LoopHist (α : Type*) [Countable α] where
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
 
-/-- The uniforms by which the clustering draws its suffixes, and each population its prefixes and
-certification prefixes. -/
+/-- The uniforms by which the clustering draws its suffixes, and each population its two streams,
+and the side of the hash each string falls on. -/
 abbrev ClusterRest (α : Type*) (K : ℕ) :=
-  (ℕ → unitInterval) × ((Option (Fin K) → ℕ → unitInterval) × (Option (Fin K) → ℕ → unitInterval))
+  (ℕ → unitInterval) × ((Option (Fin K) → ℕ → unitInterval)
+    × ((Option (Fin K) → ℕ → unitInterval) × (FreeMonoid α → Bool)))
 
 /-- The clustering's draws: the noise and the rest. -/
 abbrev ClusterDraws (Ω α : Type*) (K : ℕ) := Ω × ClusterRest α K
@@ -115,8 +126,9 @@ def restLaw (α : Type*) (K : ℕ) : Measure (ClusterRest α K) :=
   (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
     ((Measure.pi fun _ : Option (Fin K) =>
         Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
-      (Measure.pi fun _ : Option (Fin K) =>
-        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))
+      ((Measure.pi fun _ : Option (Fin K) =>
+        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
+        (Measure.infinitePi fun _ : FreeMonoid α => fairCoin)))
 
 def roundLaw (α : Type*) (K P : ℕ) : Measure (RoundDraws α K P) :=
   (restLaw α K).prod (Measure.pi fun _ : Fin P => (volume : Measure unitInterval))
@@ -137,13 +149,19 @@ def persistDraws {K P : ℕ} (p : Ω × (Fin K → RoundDraws α K P)) :
     Fin K → LoopRoundDraws Ω α K P :=
   fun i => (p.1, p.2 i)
 
-/-- The clustering's run after the history `h`: suffixes from `Dsf` and each population's
-prefixes, all off what the earlier rounds read. -/
+/-- The clustering's draws after the history `h`: suffixes from `Dsf` and each population's two
+streams, all off what the earlier rounds read, and the hash's sides. -/
+def clusterDraws {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (c : ClusterDraws Ω α K) : Draws Ω (FreeMonoid α) (Option (Fin K)) :=
+  ((c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n),
+      fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n)),
+    fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.2.1 j n))),
+    c.2.2.2.2)
+
+/-- The clustering's run: no population harvests strings into its table. -/
 def clusterRun {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (c : ClusterDraws Ω α K) : Run Ω (FreeMonoid α) (Option (Fin K)) :=
-  (c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n),
-      fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n)),
-    fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.2 j n)))
+  streams (fun _ => ∅) none (clusterDraws D Dsf h c)
 
 /-- The clustering's schedule, FNR limit and gate level, and level 3's settings. -/
 structure LoopSettings (K : ℕ) where

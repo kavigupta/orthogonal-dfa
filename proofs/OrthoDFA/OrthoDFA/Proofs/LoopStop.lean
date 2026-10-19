@@ -110,18 +110,18 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
       simpa using this
   have hret : ∀ ω'' : Ω, ((ω'', dr) : Run Ω (FreeMonoid α) (Option (Fin K)))
       ∈ ret O.mq pops uni η₀ ι εc a B ↔ (B.k ≤ (cl ω'').card + 1
-        ∧ (∀ j ∈ pops, (((certOf P j B.npref x).filter fun p => ¬ decided O.mq B.lo (B.hi + 1)
-          (insert 1 (cl ω'')) p ω'').card : ℝ) ≤ ι * (certOf P j B.npref x).card)
-        ∧ ∀ j ∈ pops, ∃ e ≤ B.npref, certifiesAt O.mq η₀ (gateLimit uni εc j)
-          (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
-          (certOf P j (B.npref + e) x)
-          (drawsTaken P (fun i => certPrefix j i x) (B.npref + e)) ω'') := by
+        ∧ (∀ j ∈ pops, keptAt pops j B.npref x → (((certOf P j B.npref x).filter fun p =>
+          ¬ decided O.mq B.lo (B.hi + 1) (insert 1 (cl ω'')) p ω'').card : ℝ)
+            ≤ ι * (certOf P j B.npref x).card)
+        ∧ ∀ j ∈ pops, keptAt pops j B.npref x → ∃ e ≤ B.npref, certifiesAt O.mq η₀
+          (gateLimit uni εc j) (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
+          (certOf P j (B.npref + e) x) ω'') := by
     intro ω''
     simp only [ret, familyAt, refsAt, clusterAt_eq, clusterAt_eq_clusterOf, Set.mem_setOf_eq]
     rfl
   rw [hret ω, hret ω', ← hcl]
   refine and_congr Iff.rfl (and_congr ?_ ?_)
-  · refine forall₂_congr fun j hj => ?_
+  · refine forall₂_congr fun j hj => imp_congr_right fun _ => ?_
     have hc : (certOf P j B.npref x) ⊆ roundPrefs sched pops x := by
       have := hcert j hj 0 (Nat.zero_le _); simpa using this
     have hf : (certOf P j B.npref x).filter (fun p => ¬ decided O.mq B.lo (B.hi + 1)
@@ -132,7 +132,8 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
         rw [decided, decided, voteCount_alike O (ω := ω) (ω' := ω')
           fun v hv => hread _ hc p hp v hv]
     rw [hf]
-  · refine forall₂_congr fun j hj => exists_congr fun e => and_congr_right fun he => ?_
+  · refine forall₂_congr fun j hj => imp_congr_right fun _ =>
+      exists_congr fun e => and_congr_right fun he => ?_
     have hc := hcert j hj e he
     exact certifiesAt_alike O
       (fun p hp v hv => hread _ hc p hp v (Finset.mem_insert_of_mem hv))
