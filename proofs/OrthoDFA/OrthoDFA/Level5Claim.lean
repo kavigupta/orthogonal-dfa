@@ -39,11 +39,10 @@ structure KappaReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {�
 /-- `RandomRoundCorrect` for level 3's algorithm with each read wrong with chance at most
 `εw + κ U q`, the good states' bounds holding but for chance `δ/16` each. A probe reads at most
 `(L + 1)|Q|` strings and a split re-sifts at most `(|Q| + 1)²|Σ|`, at most `|Q|` times. Under the
-`j`-th hypothesis, until a test fires, the probes stopping undecided at their start or end number
-below `(log(1/a_j) + 2yn)/log 2` after `n` probes, `a_j` the tests' level, and those stopping at an
-undecided middle below `log(1/a_j)/log 2 + εn/6`; so the round reads at most
-`3 S log(8S(S + 1)/δ) + (3y + ε/6) · probeBudget + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and the
-last premise keeps the chance that it reads some string wrong within `δ/8`. -/
+`j`-th hypothesis, until a test fires, the probes stopping undecided number at most
+`5 log(1/a_j)`, `a_j` the tests' level, whatever the stretch's length; so the round reads at most
+`5 S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and the last premise keeps the
+chance that it reads some string wrong within `δ/8`. -/
 def KappaRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -62,8 +61,7 @@ def KappaRoundCorrect : Prop :=
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     0 ≤ εw → 0 ≤ κ →
     εw * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + κ * (3 * S * Real.log (8 * S * (S + 1) / δ) + (3 * y + ε / 6) * C.probeBudget + 1
-        + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+      + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           ¬ EndsWell M (BadAt U θ) P.D ε

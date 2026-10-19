@@ -10,7 +10,7 @@ where some step reads a string wrong among what it reads (`ReadsWrong`), as at l
 (`eps_round_le_of`). Given the probes, the rounds of what the steps read are each fixed by what
 they and the earlier ones read, and while nothing read is wrong they read at most `Mb` strings,
 `Mu` of them undecided (`count_le`); so by `RaceReadsBound` some step reads a string wrong with
-chance at most `εw Mb + κ Mu` (`kappa_wrong_le`).
+chance at most `εw Mb + κ Mu` (`pi_wrong_le'`).
 -/
 
 namespace OrthoDFA
@@ -45,11 +45,11 @@ theorem anyB_rounds' (read : FreeMonoid α → ARU) :
 theorem wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (U : σ → ℝ) (εw κ : ℝ) (R : KappaReadOracle μ M side U εw κ) (xs : List (FreeMonoid α))
     (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) (hεw : 0 ≤ εw) (hκ : 0 ≤ κ)
-    (hy0 : 0 < C.harvestRate) (hy1 : C.harvestRate ≤ 1 / 4) (hε : 0 ≤ C.disagreementRate)
-    (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
+    (hy0 : 0 < C.harvestRate) (hyε : C.harvestRate ≤ C.disagreementRate / 48)
+    (hε1 : C.disagreementRate < 1) (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
     μ {ω | AnyB (applyProbe (R.read · ω) C) (ReadsWrong M side (R.read · ω) C) initialState xs}
       ≤ ENNReal.ofReal (εw * Mb (Fintype.card σ) (Fintype.card α) L xs.length
-        + κ * Mu (Fintype.card σ) (Fintype.card α) C xs.length) := by
+        + κ * Mu (Fintype.card σ) (Fintype.card α) C) := by
   classical
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   set B : FreeMonoid α → Set ARU := fun z => {if side (M.eval z.toList) then .reject else .accept}
@@ -58,7 +58,7 @@ theorem wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
     intro r j; simp [Good', B]
   have hmain := raceReadsBound_holds μ R.read B V εw κ (fun i r => rounds' C xs i r)
     (Mb (Fintype.card σ) (Fintype.card α) L xs.length)
-    (Mu (Fintype.card σ) (Fintype.card α) C xs.length) (2 * xs.length) R.measurable R.indep
+    (Mu (Fintype.card σ) (Fintype.card α) C) (2 * xs.length) R.measurable R.indep
     hεw hκ (fun z => by
       have h1 := R.wrong z
       have h2 := R.undecided z
@@ -66,12 +66,12 @@ theorem wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
       rw [h2]; exact h1)
     (fun i r r' hg ha => rounds'_local M side C xs i r r' ((hG r i).1 hg) ha)
     (fun r => by
-      have := (count_le M side xs r L hL hy0 hy1 hε hδ0 hδ1).2
+      have := (count_le M side xs r L hL hy0 hyε hε1 hδ0 hδ1).2
       unfold readCount at this
       convert this using 2
       ext j; simp only [Finset.mem_filter]; exact and_congr_right fun _ => hG r j)
     (fun r => by
-      have := (count_le M side xs r L hL hy0 hy1 hε hδ0 hδ1).1
+      have := (count_le M side xs r L hL hy0 hyε hε1 hδ0 hδ1).1
       unfold undCount at this
       convert this using 2 with j
       · ext j; simp only [Finset.mem_filter]; exact and_congr_right fun _ => hG r j
@@ -87,13 +87,14 @@ theorem wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
 `εw Mb + κ Mu`. -/
 theorem pi_wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (U : σ → ℝ) (εw κ : ℝ) (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
-    (hεw : 0 ≤ εw) (hκ : 0 ≤ κ) (hy0 : 0 < C.harvestRate) (hy1 : C.harvestRate ≤ 1 / 4)
-    (hε : 0 ≤ C.disagreementRate) (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
+    (hεw : 0 ≤ εw) (hκ : 0 ≤ κ) (hy0 : 0 < C.harvestRate)
+    (hyε : C.harvestRate ≤ C.disagreementRate / 48) (hε1 : C.disagreementRate < 1)
+    (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {d | AnyB (applyProbe (R.read · ω) C) (ReadsWrong M side (R.read · ω) C) initialState
           (List.ofFn d)} ∂μ
       ≤ ENNReal.ofReal (εw * Mb (Fintype.card σ) (Fintype.card α) P.L C.probeBudget
-        + κ * Mu (Fintype.card σ) (Fintype.card α) C C.probeBudget) := by
+        + κ * Mu (Fintype.card σ) (Fintype.card α) C) := by
   have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
   refine lintegral_le_of_points μ _ _ _ fun d hd => ?_
   have hL : ∀ x ∈ List.ofFn d, x.toList.length ≤ P.L := by
@@ -114,7 +115,7 @@ theorem pi_wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProb
     rw [Set.mem_singleton_iff] at hx
     subst hx
     exact hlt
-  have := wrong_le' M side C μ U εw κ R (List.ofFn d) P.L hL hεw hκ hy0 hy1 hε hδ0 hδ1
+  have := wrong_le' M side C μ U εw κ R (List.ofFn d) P.L hL hεw hκ hy0 hyε hε1 hδ0 hδ1
   rw [List.length_ofFn] at this
   exact this
 
@@ -146,13 +147,11 @@ theorem kappaRoundCorrect_holds : KappaRoundCorrect := by
   have hy0 : 0 < C.harvestRate := by
     have : 0 < 2 * (9 * θ * (nQ + 1) + 2 * p₀ * Λ) := by positivity
     linarith
-  have hε0 : 0 ≤ C.disagreementRate := by linarith
-  have hy1 : C.harvestRate ≤ 1 / 4 := by linarith
   refine (eps_round_le_of C M side U θ _ μ R.read R.measurable R.indep R.undecided
     (fun rd => ReadsWrong M side rd C)
     (fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg hx h hne) P _ p₀ kn hA
     hp₀ hpre).trans ?_
-  refine (add_le_add le_rfl (pi_wrong_le' M side C μ U εw κ R P hεw hκ hy0 hy1 hε0 hδ
+  refine (add_le_add le_rfl (pi_wrong_le' M side C μ U εw κ R P hεw hκ hy0 hyρ hρ1 hδ
     hδ1.le)).trans ?_
   have h1 : tailRisk nQ nα p₀ (kn.Ge - 9 * θ * (nQ + 1)) = δ / 2 / 8 := by
     rw [hGe, show 9 * θ * (nQ + 1) + p₀ * Λ - 9 * θ * (nQ + 1) = p₀ * Λ by ring, hΛ']
@@ -165,8 +164,7 @@ theorem kappaRoundCorrect_holds : KappaRoundCorrect := by
     linarith
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1.le
-  have hMu : Mu nQ nα C C.probeBudget ≤ 3 * S * Real.log (8 * S * (S + 1) / δ)
-      + (3 * C.harvestRate + C.disagreementRate / 6) * C.probeBudget + 1
+  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]
@@ -177,7 +175,7 @@ theorem kappaRoundCorrect_holds : KappaRoundCorrect := by
     unfold Mb wSplit
     push_cast
     ring
-  have hwr : εw * Mb nQ nα P.L C.probeBudget + κ * Mu nQ nα C C.probeBudget ≤ δ / 8 := by
+  have hwr : εw * Mb nQ nα P.L C.probeBudget + κ * Mu nQ nα C ≤ δ / 8 := by
     rw [hMb]
     have := mul_le_mul_of_nonneg_left hMu hκ
     linarith

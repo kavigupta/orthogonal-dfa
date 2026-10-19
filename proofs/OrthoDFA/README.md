@@ -117,13 +117,12 @@
 - `OrthoDFA/Level5Claim.lean` — `KappaRoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
-  `εw (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ|) + κ (3S log(8S(S + 1)/δ) + (3y + ε/6)N + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`,
+  `εw (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`,
   `N` the budget. A string is read undecided `1/κ` times as often as wrong, a probe's sifts stop at
   their first undecided read, and the tests count it: under the `j`-th hypothesis, until a test
-  fires, the probes stopping undecided at their start or end number below
-  `(log(1/a_j) + 2yn)/log 2` after `n` probes and those at an undecided middle below
-  `log(1/a_j)/log 2 + εn/6`. So by `RaceReadsBound` over the strings each step reads, the round
-  reads some string wrong with chance at most `δ/8`.
+  fires, the probes stopping undecided number at most `5 log(1/a_j)`, whatever the stretch's
+  length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
+  wrong with chance at most `δ/8`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
