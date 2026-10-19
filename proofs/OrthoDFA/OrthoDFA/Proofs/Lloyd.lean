@@ -375,9 +375,9 @@ lemma familyAt_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J)
   rw [familyAt, familyBy, clusterAt_eq]
 
 lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (indecisionLimit α : ℝ) (B : State) :
-    ret (Ω := Ω) mq populations uni indecisionLimit α B
-      = retBy lloydClusterer mq populations uni indecisionLimit α B := by
+    (η₀ indecisionLimit εcov α : ℝ) (B : State) :
+    ret (Ω := Ω) mq populations uni η₀ indecisionLimit εcov α B
+      = retBy lloydClusterer mq populations uni η₀ indecisionLimit εcov α B := by
   have h : clusterAt (Ω := Ω) mq populations
       = fun x B => clusterBy lloydClusterer mq populations x B := by
     funext x B
@@ -386,7 +386,12 @@ lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni :
       = fun x B => familyBy lloydClusterer mq populations x B := by
     funext x B
     exact familyAt_eq mq populations x B
+  have h'' : refsAt (Ω := Ω) mq populations
+      = fun x B => refsBy lloydClusterer mq populations x B := by
+    funext x B
+    unfold refsAt refsBy
+    rw [familyAt_eq]
   unfold ret
-  rw [h, h']
+  rw [h, h', h'']
   rfl
 end OrthoDFA
