@@ -8,7 +8,7 @@ twice, the chance that for some tree level 3 can grow and some edge map the prob
 a good read-state exceed their bound, at the ends `Ge` and at the middles `θgpt` of the searches
 plus `ηm`, plus, for each of the at most `S` hypotheses, `stretchRisk` at its tests' level, what
 one stretch risks over its first `Ns` probes. `RoundRiskBound` bounds the round
-by the least of it over the knobs meeting `Knobs.Admissible`; `RandomRoundCorrect` picks knobs.
+by the least of it over the knobs meeting `Knobs.Admissible`; `Level3RoundCorrect` picks knobs.
 -/
 
 namespace OrthoDFA

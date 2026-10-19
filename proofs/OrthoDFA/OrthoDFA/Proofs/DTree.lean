@@ -1,4 +1,4 @@
-import OrthoDFA.DTree
+import OrthoDFA.Utils.DTree
 import Mathlib.Tactic
 
 /-!
