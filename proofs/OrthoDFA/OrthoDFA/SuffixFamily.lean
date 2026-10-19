@@ -1,4 +1,4 @@
-import OrthoDFA.Level5OldClaim
+import OrthoDFA.DTree
 
 /-!
 # A suffix family read against a DFA target

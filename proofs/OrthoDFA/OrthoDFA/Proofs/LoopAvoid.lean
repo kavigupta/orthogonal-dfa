@@ -13,6 +13,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}

@@ -1,23 +1,22 @@
-import OrthoDFA.Proofs.Level5Avoid
+import OrthoDFA.Proofs.LoopRuns
 import OrthoDFA.Proofs.LoopLaw
 
 /-!
 # From the avoiding probes back to all of them
 
-Level 5 draws its probes from `D` conditioned on avoiding a set `K₀` of first `k` letters, which
-removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds search, read on a rarer side, read
-undecided and harvest the same at every avoiding probe, so a claim about one read over the
-conditioned probes is a claim about the other over all of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks
-by the factor `1 − m`, and the removed probes, each harvesting at most `L + 1` strings, leave more
-than a quarter of the sampler at bad states once `(L + 1) m ≤ (1 − m) y`
-(`quarterEndsWell_of_endsWell`).
+The round draws its probes from `D` conditioned on avoiding a set `K₀` of first `k` letters, which
+removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds harvest the same at every avoiding
+probe, so a claim about one read over the conditioned probes is a claim about the other over all
+of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks by the
+factor `1 − m`, and the removed probes, each harvesting at most one string, leave more than a
+quarter of the sampler at bad states once `m ≤ (1 − m) y` (`quarterEndsWell_of_endsWell`).
 -/
 
 noncomputable section
 
 namespace OrthoDFA
 
-open MeasureTheory
+open MeasureTheory Random
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
@@ -31,156 +30,88 @@ def QuarterEndsWell {σ H : Type*} (M : _root_.DFA α σ) (bad : σ → Prop)
       ∧ Spread D k (law h) ∧ Yields (law h) y
   | .failed => False
 
-/-- The probes level 5 may draw. -/
+/-- The probes the round may draw. -/
 def avoiding (k : ℕ) (K₀ : Set (FreeMonoid α)) : Set (FreeMonoid α) := {x | Avoids k K₀ x}
 
 open scoped Classical in
-/-- The strings in `S` a probe walked under `v` harvests at the site, summed over `ν`. -/
-def siteSum (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool) (k : ℕ)
-    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) : ℝ :=
-  ∫ x, (((siteHarvest cut k site v x).filter (· ∈ S)).length : ℝ) ∂ν
+/-- The strings in `S` a probe walked under `H` harvests at the site, summed over `ν`. -/
+def siteSum (ν : Measure (FreeMonoid α)) (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α)
+    (site : Level3Site) (S : Set (FreeMonoid α)) : ℝ :=
+  ∫ x, (((siteHarvest read k H site x).filter (· ∈ S)).length : ℝ) ∂ν
 
 variable {k : ℕ} {K₀ : Set (FreeMonoid α)}
 
-lemma harvestLaw_real_siteSum (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
-    (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (H : HypothesisDFA α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
-    (harvestLaw ν cut k H site).real S
-      = siteSum ν cut k (H.tree, H.edges) site S := by
+lemma harvestLaw_real_siteSum (ν : Measure (FreeMonoid α)) (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (site : Level3Site) (S : Set (FreeMonoid α)) :
+    (harvestLaw read ν k H site).real S = siteSum ν read k H site S := by
   classical
-  rw [harvestLaw_real ν cut k hlen H site S]
+  rw [harvestLaw_real]
   rfl
 
-lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ}
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × Edges α) (site : Level5Site α) (S A : Set (FreeMonoid α)) :
-    siteSum D cut k v site S
-      = siteSum (D.restrict A) cut k v site S + siteSum (D.restrict Aᶜ) cut k v site S := by
+open scoped Classical in
+lemma integrable_siteCount' (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν]
+    (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (site : Level3Site) (S : Set (FreeMonoid α)) :
+    Integrable (fun x => (((siteHarvest read k H site x).filter (· ∈ S)).length : ℝ)) ν := by
   classical
-  exact (integral_add_compl (measurableSet_of_countable A)
-    (integrable_siteCount D cut k hlen site v _)).symm
+  refine Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable 1
+    (ae_of_all _ fun x => ?_)
+  rw [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg _)]
+  have := (List.length_filter_le (· ∈ S) _).trans (siteHarvest_length read k H site x)
+  exact_mod_cast this
 
-lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {cut cut' : FreeMonoid α → Option Bool}
-    (hc : AgreeOff k K₀ cut cut') (v : DTree α × Edges α) (site : Level5Site α)
+lemma siteSum_split (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (site : Level3Site) (S A : Set (FreeMonoid α)) :
+    siteSum D read k H site S
+      = siteSum (D.restrict A) read k H site S + siteSum (D.restrict Aᶜ) read k H site S :=
+  (integral_add_compl (measurableSet_of_countable A)
+    (integrable_siteCount' (k := k) D read H site S)).symm
+
+lemma siteSum_restrict_congr (D : Measure (FreeMonoid α)) {read read' : FreeMonoid α → ARU}
+    (hc : ∀ z, KeyOff k K₀ z → read z = read' z) (H : HypothesisDFA α) (site : Level3Site)
     (S : Set (FreeMonoid α)) :
-    siteSum (D.restrict (avoiding k K₀)) cut k v site S
-      = siteSum (D.restrict (avoiding k K₀)) cut' k v site S := by
+    siteSum (D.restrict (avoiding k K₀)) read k H site S
+      = siteSum (D.restrict (avoiding k K₀)) read' k H site S := by
   classical
   refine setIntegral_congr_fun (measurableSet_of_countable _) fun x hx => ?_
-  simp only [siteHarvest_congr_off hc site v hx]
+  have : probeOrAgree read H.tree H.edges k x = probeOrAgree read' H.tree H.edges k x :=
+    probeOrAgree_congr_zone H.edges k fun j hj hjx m _ => hc _ (keyOff_of_prefix hx hj hjx m)
+  cases site <;> simp only [siteHarvest, this]
 
-lemma siteSum_smul (ν : Measure (FreeMonoid α)) (c : ENNReal) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
-    siteSum (c • ν) cut k v site S = c.toReal * siteSum ν cut k v site S := by
+lemma siteSum_smul (ν : Measure (FreeMonoid α)) (c : ENNReal) (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (site : Level3Site) (S : Set (FreeMonoid α)) :
+    siteSum (c • ν) read k H site S = c.toReal * siteSum ν read k H site S := by
   unfold siteSum
   rw [integral_smul_measure, smul_eq_mul]
 
-lemma siteSum_nonneg (ν : Measure (FreeMonoid α)) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
-    0 ≤ siteSum ν cut k v site S :=
+lemma siteSum_nonneg (ν : Measure (FreeMonoid α)) (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (site : Level3Site) (S : Set (FreeMonoid α)) :
+    0 ≤ siteSum ν read k H site S :=
   integral_nonneg fun _ => Nat.cast_nonneg _
 
-lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
-    (hlen : ∀ᵐ x ∂ν, x.toList.length ≤ L) (cut : FreeMonoid α → Option Bool)
-    (v : DTree α × Edges α) (site : Level5Site α) (S : Set (FreeMonoid α)) :
-    siteSum ν cut k v site S ≤ (L + 1) * ν.real Set.univ := by
+lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (site : Level3Site) (S : Set (FreeMonoid α)) :
+    siteSum ν read k H site S ≤ ν.real Set.univ := by
   classical
-  have := integral_mono_ae (integrable_siteCount ν cut k hlen site v (· ∈ S))
-    (integrable_const ((L : ℝ) + 1)) (by
-      filter_upwards [hlen] with x hx
-      have h1 := List.length_filter_le (· ∈ S) (siteHarvest cut k site v x)
-      have h2 := siteHarvest_length_le cut k x site v
-      exact_mod_cast (by omega : ((siteHarvest cut k site v x).filter (· ∈ S)).length ≤ L + 1))
-  rw [integral_const, smul_eq_mul] at this
-  unfold siteSum
-  linarith
-
-lemma searchingProbes_congr_off {read read' : FreeMonoid α → ARU}
-    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
-    {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) :
-    x ∈ searchingProbes read k H ↔ x ∈ searchingProbes read' k H := by
-  unfold searchingProbes
-  simp only [Set.mem_setOf_eq]
-  rw [← ofCut_rd read, ← ofCut_rd read', probeOrAgree_congr_off hc H.tree H.edges hx]
-
-lemma keyOff_of_prefix {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) {j : ℕ} (hkj : k ≤ j)
-    (hj : j ≤ x.toList.length) (m : FreeMonoid α) : KeyOff k K₀ (prefixOf x j * m) :=
-  keyOff_mul (keyOff_prefixOf (keyOff_of_avoids hx (hkj.trans hj)) hkj) m
-
-lemma checkedProbes_sub_off {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
-    {D D' : Measure (FreeMonoid α)} {read read' : FreeMonoid α → ARU}
-    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
-    (n J : ℕ) {ū ū' : ℝ}
-    (hu : undecidedMass M dist D k n J ≤ ū → undecidedMass M dist D' k n J ≤ ū')
-    {x : FreeMonoid α} (hx : x ∈ avoiding k K₀) (h : x ∈ checkedProbes M dist D read k n J ū H) :
-    x ∈ checkedProbes M dist D' read' k n J ū' H := by
-  rcases h with (hs | ⟨j, hkj, hjx, m, hm, hr⟩) | ⟨hu1, hJ, j, hkj, hjx, m, hm, hr⟩
-  · exact .inl (.inl ((searchingProbes_congr_off hc H hx).1 hs))
-  · refine .inl (.inr ⟨j, hkj, hjx, m, hm, ?_⟩)
-    have := hc _ (keyOff_of_prefix hx hkj hjx m)
-    dsimp only at this
-    rw [← this]
-    exact hr
-  · refine .inr ⟨hu hu1, hJ, j, hkj, hjx, m, hm, ?_⟩
-    have := hc _ (keyOff_of_prefix hx hkj hjx m)
-    dsimp only at this
-    rw [hr] at this
-    rcases h' : read' (prefixOf x j * m) <;> rw [h'] at this <;> simp_all [ARU.cut]
-
-/-- Conditioning on a set holding at least half of `D` at most doubles `undecidedMass`. -/
-lemma undecidedMass_popLaw_le {σ : Type*} (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
-    (h0 : ∀ r v, 0 ≤ dist r v) (h1 : ∀ r v, dist r v ≤ 1) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (A : Set (FreeMonoid α)) (hA : D.real Aᶜ ≤ 1 / 2) (k n J : ℕ) :
-    undecidedMass M dist (popLaw (D.restrict A)) k n J ≤ 2 * undecidedMass M dist D k n J := by
-  classical
-  set f : FreeMonoid α → ℝ := fun x => ∑ j ∈ Finset.Icc k (min x.toList.length J),
-    ∑ m ∈ shortWords n, dist (M.eval (prefixOf x j * m).toList) .undecided
-  have hf0 : ∀ x, 0 ≤ f x := fun x =>
-    Finset.sum_nonneg fun j _ => Finset.sum_nonneg fun m _ => h0 _ _
-  have hf1 : ∀ x, f x ≤ (J + 1) * (shortWords (α := α) n).card := fun x => by
-    refine (Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun m _ => h1 _ _).trans ?_
-    simp only [Finset.sum_const, nsmul_eq_mul, mul_one, Nat.card_Icc]
-    have : (min x.toList.length J + 1 - k : ℕ) ≤ J + 1 := by omega
-    have h' : ((min x.toList.length J + 1 - k : ℕ) : ℝ) ≤ J + 1 := by exact_mod_cast this
-    exact mul_le_mul_of_nonneg_right h' (Nat.cast_nonneg _)
-  have hint : Integrable f D :=
-    Integrable.of_bound (measurable_of_countable f).aestronglyMeasurable
-      ((J + 1) * (shortWords (α := α) n).card)
-      (ae_of_all _ fun x => by rw [Real.norm_eq_abs, abs_of_nonneg (hf0 x)]; exact hf1 x)
-  have hAr : D.real A = 1 - D.real Aᶜ := by
-    rw [probReal_compl_eq_one_sub (measurableSet_of_countable A)]; ring
-  have hApos : 1 / 2 ≤ D.real A := by linarith
-  have hA0 : D.restrict A Set.univ ≠ 0 := by
-    rw [Measure.restrict_apply_univ]
-    intro h
-    rw [measureReal_def, h, ENNReal.toReal_zero] at hApos
-    linarith
-  have hAtop : D.restrict A Set.univ ≠ ⊤ := measure_ne_top _ _
-  have hD' : popLaw (D.restrict A) = (D.restrict A Set.univ)⁻¹ • D.restrict A := by
-    unfold popLaw; rw [if_neg (by tauto)]
-  show ∫ x, f x ∂popLaw (D.restrict A) ≤ 2 * ∫ x, f x ∂D
-  rw [hD', integral_smul_measure, ENNReal.toReal_inv, Measure.restrict_apply_univ,
-    show (D A).toReal = D.real A from rfl, smul_eq_mul]
-  have hle : ∫ x, f x ∂(D.restrict A) ≤ ∫ x, f x ∂D :=
-    setIntegral_le_integral hint (ae_of_all _ hf0)
-  have hI0 : 0 ≤ ∫ x, f x ∂(D.restrict A) := integral_nonneg hf0
-  rw [inv_mul_le_iff₀ (by linarith)]
-  nlinarith
+  have := integral_mono (integrable_siteCount' (k := k) ν read H site S) (integrable_const (1 : ℝ))
+    fun x => Nat.cast_le_one.2 ((List.length_filter_le _ _).trans
+      (siteHarvest_length read k H site x))
+  rw [integral_const, smul_eq_mul, mul_one] at this
+  exact this
 
 /-- A claim at the avoiding probes, through a read agreeing off `K₀` and a set of probes `S'`
 holding every avoiding probe of `S`, is a weaker claim at all of `D`. -/
 theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) {σ : Type*} (M : _root_.DFA α σ)
+    {σ : Type*} (M : _root_.DFA α σ)
     (bad : σ → Prop) {read read' : FreeMonoid α → ARU}
-    (hc : AgreeOff k K₀ (fun z => (read z).cut) (fun z => (read' z).cut)) (H : HypothesisDFA α)
+    (hc : ∀ z, KeyOff k K₀ z → read z = read' z) (H : HypothesisDFA α)
     (S S' : Set (FreeMonoid α)) (hS : ∀ x ∈ avoiding k K₀, x ∈ S → x ∈ S')
-    (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd (Level5Site α))
+    (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd Level3Site)
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
-    (hmc : (L + 1) * D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
+    (hmc : D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
     (h : EndsWell M bad (popLaw (D.restrict (avoiding k K₀))) ε S' k
-      (harvestLaw (popLaw (D.restrict (avoiding k K₀))) (fun z => (read' z).cut) k H) y e) :
+      (harvestLaw read' (popLaw (D.restrict (avoiding k K₀))) k H) y e) :
     QuarterEndsWell M bad D (ε + D.real (avoiding k K₀)ᶜ) S k
-      (harvestLaw D (fun z => (read z).cut) k H) ((1 - D.real (avoiding k K₀)ᶜ) * y) e := by
+      (harvestLaw read D k H) ((1 - D.real (avoiding k K₀)ᶜ) * y) e := by
   classical
   set A := avoiding (α := α) k K₀
   set m := D.real Aᶜ with hmd
@@ -200,22 +131,14 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
   have hinv : ((D.restrict A Set.univ)⁻¹).toReal = (1 - m)⁻¹ := by
     rw [ENNReal.toReal_inv, Measure.restrict_apply_univ]
     rw [show (D A).toReal = D.real A from rfl, hA]
-  have hlen' : ∀ᵐ x ∂D', x.toList.length ≤ L := by
-    rw [hD'eq]
-    exact Measure.ae_smul_measure (ae_restrict_of_ae hlen) _
-  have hlenA : ∀ᵐ x ∂(D.restrict A), x.toList.length ≤ L := ae_restrict_of_ae hlen
-  have hlenC : ∀ᵐ x ∂(D.restrict Aᶜ), x.toList.length ≤ L := ae_restrict_of_ae hlen
-  set cut := fun z => (read z).cut
-  set cut' := fun z => (read' z).cut
   -- the sums at `D` against those at `D'`
-  set v := (H.tree, H.edges)
-  have hsum : ∀ (site : Level5Site α) (S : Set (FreeMonoid α)),
-      siteSum D cut k v site S
-        = (1 - m) * siteSum D' cut' k v site S + siteSum (D.restrict Aᶜ) cut k v site S := by
+  have hsum : ∀ (site : Level3Site) (S : Set (FreeMonoid α)),
+      siteSum D read k H site S
+        = (1 - m) * siteSum D' read' k H site S + siteSum (D.restrict Aᶜ) read k H site S := by
     intro site S
-    have hc' : siteSum (D.restrict A) cut k v site S = siteSum (D.restrict A) cut' k v site S :=
-      siteSum_restrict_congr D hc v site S
-    rw [siteSum_split D hlen cut v site S A, hc', hD'eq, siteSum_smul, hinv]
+    have hc' : siteSum (D.restrict A) read k H site S = siteSum (D.restrict A) read' k H site S :=
+      siteSum_restrict_congr D hc H site S
+    rw [siteSum_split D read H site S A, hc', hD'eq, siteSum_smul, hinv]
     field_simp [show (1 - m) ≠ 0 by linarith]
   cases e with
   | consistent =>
@@ -242,28 +165,28 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
     obtain ⟨hbad, -, hyield⟩ := h
     unfold Yields at hyield
     set Bset := {z : FreeMonoid α | bad (M.eval z.toList)}
-    rw [harvestLaw_real_siteSum D' hlen' cut' H site Set.univ,
-      harvestLaw_real_siteSum D' hlen' cut' H site Bset] at hbad
-    rw [harvestLaw_real_siteSum D' hlen' cut' H site Set.univ] at hyield
-    set U' := siteSum D' cut' k v site Set.univ
-    set B' := siteSum D' cut' k v site Bset
-    have hRU := siteSum_le (k := k) (D.restrict Aᶜ) hlenC cut v site Set.univ
+    rw [harvestLaw_real_siteSum D' read' H site Set.univ,
+      harvestLaw_real_siteSum D' read' H site Bset] at hbad
+    rw [harvestLaw_real_siteSum D' read' H site Set.univ] at hyield
+    set U' := siteSum D' read' k H site Set.univ
+    set B' := siteSum D' read' k H site Bset
+    have hRU := siteSum_le (k := k) (D.restrict Aᶜ) read H site Set.univ
     rw [measureReal_restrict_apply_univ] at hRU
-    have hRB := siteSum_nonneg (k := k) (D.restrict Aᶜ) cut v site Bset
-    set RU := siteSum (D.restrict Aᶜ) cut k v site Set.univ
-    set RB := siteSum (D.restrict Aᶜ) cut k v site Bset
+    have hRB := siteSum_nonneg (k := k) (D.restrict Aᶜ) read H site Bset
+    set RU := siteSum (D.restrict Aᶜ) read k H site Set.univ
+    set RB := siteSum (D.restrict Aᶜ) read k H site Bset
     have h1m : 0 < 1 - m := by linarith
     -- the removed probes harvest no more than the kept ones' share
-    have hRU0' := siteSum_nonneg (k := k) (D.restrict Aᶜ) cut v site Set.univ
+    have hRU0' := siteSum_nonneg (k := k) (D.restrict Aᶜ) read H site Set.univ
     have e2 : (1 - m) * y ≤ (1 - m) * U' := mul_le_mul_of_nonneg_left hyield h1m.le
     have hR : RU ≤ (1 - m) * U' := by linarith
     have hB2 : (1 - m) * U' < (1 - m) * (2 * B') := mul_lt_mul_of_pos_left hbad h1m
-    show (harvestLaw D cut k H site).real Set.univ < 4 * (harvestLaw D cut k H site).real Bset
-      ∧ Spread D k (harvestLaw D cut k H site)
-      ∧ (1 - m) * y ≤ (harvestLaw D cut k H site).real Set.univ
-    rw [harvestLaw_real_siteSum D hlen cut H site Set.univ,
-      harvestLaw_real_siteSum D hlen cut H site Bset, hsum, hsum]
-    refine ⟨?_, harvestLaw_spread D cut k H site, ?_⟩
+    show (harvestLaw read D k H site).real Set.univ < 4 * (harvestLaw read D k H site).real Bset
+      ∧ Spread D k (harvestLaw read D k H site)
+      ∧ (1 - m) * y ≤ (harvestLaw read D k H site).real Set.univ
+    rw [harvestLaw_real_siteSum D read H site Set.univ,
+      harvestLaw_real_siteSum D read H site Bset, hsum, hsum]
+    refine ⟨?_, harvestLaw_spread read D k H site, ?_⟩
     · nlinarith only [hR, hB2, hRB]
     · nlinarith only [e2, hRU0', hRB]
   | failed => exact h

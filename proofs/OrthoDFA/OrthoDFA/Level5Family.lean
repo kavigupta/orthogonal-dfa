@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.SuffixFamily
+import OrthoDFA.Level5OldClaim
 
 /-!
 # Level 5's claim, read by a suffix family

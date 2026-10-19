@@ -20,6 +20,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
@@ -240,21 +242,21 @@ section Bridge
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
   (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ settings.level5.maxLeaves)
-  (hN : L + settings.level5.maxLeaves ≤ N)
+  {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hC : 2 ≤ settings.level3.probeBudget + 2)
+  (hN : L + settings.level3.probeBudget + 2 ≤ N)
 
 omit [IsProbabilityMeasure μ] in
 include hlen hC hN in
 /-- Round `i` of the persistent run is the round after the history the rounds before it hand
 on. -/
-lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget)) (i : ℕ)
+lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget)) (i : ℕ)
     (hi : i < (loopRounds settings O D Dsf (persistDraws p) K).length) :
     ∃ hK : i < K, (histCodes settings O D Dsf N p.1 p.2 i).length = i
-      ∧ decodeHist D settings.level5.walkStart (histCodes settings O D Dsf N p.1 p.2 i)
-        = histOf D settings.level5.walkStart
+      ∧ decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N p.1 p.2 i)
+        = histOf D settings.level3.walkStart
           ((loopRounds settings O D Dsf (persistDraws p) K).take i)
       ∧ (loopRounds settings O D Dsf (persistDraws p) K)[i] = loopRound settings O D Dsf
-        (decodeHist D settings.level5.walkStart (histCodes settings O D Dsf N p.1 p.2 i))
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N p.1 p.2 i))
         (p.1, p.2 ⟨i, hK⟩) := by
   set draws := persistDraws p
   obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws K i hi
@@ -267,12 +269,12 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level5.probe
     rw [List.getElem_take]
     simp only [List.length_take] at hj
     exact harvested_of_lt settings O D Dsf draws K j (by omega)
-  have hdec := decodeHist_codesOf settings.level5 hlen hC hN settings.level5.walkStart
+  have hdec := decodeHist_codesOf settings.level3 hlen hC hN settings.level3.walkStart
     (loopRounds settings O D Dsf draws i) (loopRounds_result settings O D Dsf draws i) hall
   have hc : histCodes settings O D Dsf N p.1 p.2 i
       = codesOf N (loopRounds settings O D Dsf draws i) := rfl
   refine ⟨hK, ?_, ?_, ?_⟩
-  · rw [hc, length_codesOf N D settings.level5.walkStart, length_harvestsOf hall,
+  · rw [hc, length_codesOf N D settings.level3.walkStart, length_harvestsOf hall,
       length_eq_of_allHarvested settings O D Dsf draws hiK hall]
   · rw [hc, hdec, htake]
   · rw [e, hc, hdec, htake]
@@ -281,10 +283,10 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level5.probe
 include hlen hC hN in
 /-- Every earlier clustering returned, where each met its claim. -/
 lemma histOK_of_specs (εcov slack : ℝ)
-    (p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget)) :
+    (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget)) :
     ∀ i, i ≤ (loopRounds settings O D Dsf (persistDraws p) K).length →
       (∀ j (hj : j < (loopRounds settings O D Dsf (persistDraws p) K).length), j < i →
-        ClusterSpec settings O D εcov slack (harvestsOf D settings.level5.walkStart
+        ClusterSpec settings O D εcov slack (harvestsOf D settings.level3.walkStart
           ((loopRounds settings O D Dsf (persistDraws p) K).take j))
           (loopRounds settings O D Dsf (persistDraws p) K)[j].run) →
       HistOK settings O D Dsf N p.1 p.2 i
@@ -322,10 +324,10 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
 reads no prefix or suffix an earlier round read. -/
 def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (N Ls : ℕ) (p : Ω × (Fin K → RoundDraws α K settings.level5.probeBudget)) : Prop :=
+    (N Ls : ℕ) (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget)) : Prop :=
   ∀ i < (indecisiveLStarLoop settings O D Dsf (persistDraws p)).length, ∃ hK : i < K,
     HistOK settings O D Dsf N p.1 p.2 i
-      ∧ Returns settings O D Dsf (decodeHist D settings.level5.walkStart
+      ∧ Returns settings O D Dsf (decodeHist D settings.level3.walkStart
           (histCodes settings O D Dsf N p.1 p.2 i)) (p.1, (p.2 ⟨i, hK⟩).1)
       ∧ NoColl settings D Dsf Ls (histCodes settings O D Dsf N p.1 p.2 i) p.2 i hK
 
@@ -467,20 +469,20 @@ def LoopCore : Prop :=
   ∃ settings : LoopSettings K,
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
     settings.gateLevel = gateLevel ∧
-    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    settings.level5.maxLeaves = Fintype.card σ + 2 ∧
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
+    (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+    settings.level3.probeBudget + 2 = Fintype.card σ + 2 ∧
     (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α K settings.level5.probeBudget).real
+      (loopMeasure μ α K settings.level3.probeBudget).real
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D k J ū sift (εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (εd + us))
-              ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves) Ls p)}
+              ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel + (δ + δs) + 128 * ū / εd)
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
@@ -556,7 +558,7 @@ theorem loop_core_holds : LoopCore := by
   set T := s4.probeBudget
   set N := P.L + s4.maxLeaves
   have hC : 2 ≤ s4.maxLeaves := by rw [hmax]; omega
-  have hN : P.L + settings.level5.maxLeaves ≤ N := le_rfl
+  have hN : P.L + settings.level3.probeBudget + 2 ≤ N := le_rfl
   set dec := decodeHist P.D k with hdecd
   set θ := loopTheta σ ι slack
   set μL := loopMeasure μ α K T
@@ -918,7 +920,7 @@ theorem loop_core_holds : LoopCore := by
             fun j hj hji => (ih j hji (by omega) hj).1.1
         have hpops : ∀ ν ∈ (dec cH).pops,
             (∀ t, ν.real {t} ≤ cap) ∧ ν {q | Ls ≤ q.toList.length} = 0 := by
-          show ∀ ν ∈ (decodeHist P.D settings.level5.walkStart cH).pops, _
+          show ∀ ν ∈ (decodeHist P.D settings.level3.walkStart cH).pops, _
           rw [hdec, histOf_pops]
           intro ν hν
           obtain ⟨o, ho, hoν⟩ := List.mem_filterMap.1 hν
@@ -929,7 +931,7 @@ theorem loop_core_holds : LoopCore := by
           have h4 := (ih j hji (by omega) (by omega)).1.2
           obtain ⟨T', xs, hxs⟩ := loopRounds_result settings O P.D Dsf (persistDraws p) K _
             (List.getElem_mem (show j < Lr.length by omega))
-          have hsupp := population_short P settings.level5 hC (Ls := Ls) (by rw [hmax]; omega)
+          have hsupp := population_short P settings.level3 hC (Ls := Ls) (by rw [hmax]; omega)
             k _ xs hxs hoν
           unfold LoopRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h

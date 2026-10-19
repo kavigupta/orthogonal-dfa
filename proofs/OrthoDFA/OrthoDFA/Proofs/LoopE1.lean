@@ -114,16 +114,16 @@ lemma measurableSet_suffsOf (h : LoopHist α) (Q : Finset (FreeMonoid α)) :
 
 omit [IsProbabilityMeasure μ] in
 lemma measurableSet_noColl (Ls : ℕ) (c : List (HarvestCode α)) (r : ℕ) (hr : r < K) :
-    MeasurableSet {x : Fin K → RoundDraws α K settings.level5.probeBudget |
+    MeasurableSet {x : Fin K → RoundDraws α K settings.level3.probeBudget |
       NoColl settings D Dsf Ls c x r hr} := by
   classical
-  set dat : (Fin K → RoundDraws α K settings.level5.probeBudget) →
+  set dat : (Fin K → RoundDraws α K settings.level3.probeBudget) →
       Fin K → Finset (FreeMonoid α) × Finset (FreeMonoid α) := fun x i =>
     (prefsOf settings D Dsf (histAt settings D c i) (x i).1,
       suffsOf settings D Dsf (histAt settings D c i) (x i).1)
   have hdat : ∀ y, MeasurableSet {x | dat x = y} := by
     intro y
-    have : {x | dat x = y} = ⋂ i, ((fun x : Fin K → RoundDraws α K settings.level5.probeBudget =>
+    have : {x | dat x = y} = ⋂ i, ((fun x : Fin K → RoundDraws α K settings.level3.probeBudget =>
         (x i).1) ⁻¹' ({c' | prefsOf settings D Dsf (histAt settings D c i) c' = (y i).1}
           ∩ {c' | suffsOf settings D Dsf (histAt settings D c i) c' = (y i).2})) := by
       ext x
@@ -166,7 +166,7 @@ most `m` of each population and `ms` of the suffixes, and nothing collides, fail
 chance at most `δc`: off what the earlier rounds read it fails its claim at `slack - m` with that
 chance, and a population's average moves by at most `m` off them. -/
 theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m ms pAP : ℝ)
-    (hδc : 0 ≤ δc) (hC : 2 ≤ settings.level5.maxLeaves) (hN : P.L + settings.level5.maxLeaves ≤ N)
+    (hδc : 0 ≤ δc) (hC : 2 ≤ settings.level3.probeBudget + 2) (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hm : m ≤ 1 / 2) (hms : ms ≤ 1 / 2)
     (hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),
@@ -188,27 +188,27 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
     (hLs : P.L < Ls) (hDat : ∀ t, P.D.real {t} ≤ cap) (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
     (hpAP : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}) (hsfat : ∀ t, Dsf.real {t} ≤ capSf)
     (r : ℕ) (hr : r < K) :
-    (loopMeasure μ α K settings.level5.probeBudget).real
+    (loopMeasure μ α K settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf N p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
-        ∧ (∀ ν' ∈ (decodeHist P.D settings.level5.walkStart
+        ∧ (∀ ν' ∈ (decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)).pops,
           (∀ t, ν'.real {t} ≤ cap) ∧ ν' {q | Ls ≤ q.toList.length} = 0)
         ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (decodeHist P.D
-            settings.level5.walkStart (histCodes settings O P.D Dsf N p.1 p.2 r)).pops j).real
-              ↑(decodeHist P.D settings.level5.walkStart
+            settings.level3.walkStart (histCodes settings O P.D Dsf N p.1 p.2 r)).pops j).real
+              ↑(decodeHist P.D settings.level3.walkStart
                 (histCodes settings O P.D Dsf N p.1 p.2 r)).prefs ≤ m)
-        ∧ Dsf.real ↑(decodeHist P.D settings.level5.walkStart
+        ∧ Dsf.real ↑(decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ ms
-        ∧ ¬ ClusterSpec settings O P.D εcov slack (decodeHist P.D settings.level5.walkStart
+        ∧ ¬ ClusterSpec settings O P.D εcov slack (decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)).pops
-          (clusterRun P.D Dsf (decodeHist P.D settings.level5.walkStart
+          (clusterRun P.D Dsf (decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ δc := by
   classical
-  set T := settings.level5.probeBudget
-  set dec := decodeHist P.D settings.level5.walkStart with hdec
+  set T := settings.level3.probeBudget
+  set dec := decodeHist P.D settings.level3.walkStart with hdec
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set ν := roundLaw α K T
   have hσ : MeasurePreserving (fun d : RoundDraws α K T => ((() : Unit), d)) ν

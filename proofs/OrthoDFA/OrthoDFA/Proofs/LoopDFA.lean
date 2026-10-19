@@ -25,6 +25,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
@@ -599,13 +601,13 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     linarith
   set Dsf : Measure (FreeMonoid α) := uniformStrings (L₁ + Fintype.card σ + 3) with hDsfd
   have hD := hmain Dsf inferInstance (uniformStrings_length _) hpAPu hatom
-  set T := settings.level5.probeBudget
+  set T := settings.level3.probeBudget
   set μL := loopMeasure μ α (Fintype.card σ + 1) T
   set β := Measure.pi fun _ : Fin n => uniformStrings (α := α) L
-  set Nn := P.L + settings.level5.maxLeaves
+  set Nn := P.L + settings.level3.probeBudget + 2
   set Ls := P.L + Fintype.card σ + 3
   set t : ℝ := ξ / 4 with htd
-  have hC : 2 ≤ settings.level5.maxLeaves := by rw [hmaxL]; omega
+  have hC : 2 ≤ settings.level3.probeBudget + 2 := by rw [hmaxL]; omega
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T)) :=
     {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
@@ -663,20 +665,20 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       intro v hv v' hv' hsuf
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
-    have hleaves : o.result.hypothesis.tree.leaves.length ≤ settings.level5.maxLeaves := by
+    have hleaves : o.result.hypothesis.tree.leaves.length ≤ settings.level3.probeBudget + 2 := by
       rw [hres]
-      exact level5_leaves_le settings.level5 hC o.read xs (by rw [← hres, hcons]; simp)
+      exact level5_leaves_le settings.level3 hC o.read xs (by rw [← hres, hcons]; simp)
     have hgood : (q.1.1, q.2) ∉ scoreBad O o.result.hypothesis o.family o.state.lo
         (o.state.hi + 1) L n t := by
       intro h
       apply hnb
       show (q.1.1, q.2) ∈ (if SuffixFree tt.2.2.1
-          ∧ (resCode o.result).hyp.tree.leaves.length ≤ settings.level5.maxLeaves
+          ∧ (resCode o.result).hyp.tree.leaves.length ≤ settings.level3.probeBudget + 2
         then scoreBad O (resCode o.result).hyp tt.2.2.1 tt.2.1.lo (tt.2.1.hi + 1) L n t else ∅)
       rw [hF, hB, hhyp, if_pos ⟨hsf, hleaves⟩]
       exact h
     -- the best leaf, and the family's reads on the strings of length `L`
-    have hs := dfa_of_checks M O hL settings.level5 o ⟨T', xs, hres⟩ hmaxL L hch ?_ ?_
+    have hs := dfa_of_checks M O hL settings.level3 o ⟨T', xs, hres⟩ hmaxL L hch ?_ ?_
       ⟨q₀, hq₀, hq₀acc⟩
     · have hn : 0 < n := by
         refine Nat.ceil_pos.2 (div_pos (mul_pos (by norm_num) (Real.log_pos ?_)) (by positivity))

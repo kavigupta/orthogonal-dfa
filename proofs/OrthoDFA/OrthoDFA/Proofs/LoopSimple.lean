@@ -14,6 +14,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory
 
 /-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
@@ -172,19 +174,19 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         + 2 * (εd / 2) / 7 * (2 * (L + 2) + 2 + (Q + 2) * A * (2 * (L + 1) * (1 + θe * (Q + 2)) + 1)
           + 2 * θe * ((L + 1) * (Q + 2))) ≤ us) →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
-      settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-      (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-      settings.level5.maxLeaves = Fintype.card σ + 2 ∧
+      settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
+      (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+      settings.level3.probeBudget + 2 = Fintype.card σ + 2 ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ v, Dsf.real {v} ≤ cap) →
-        (loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).real
+        (loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).real
             {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k Jl ū sift εcov εcov (εd + us))
-                ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level5.maxLeaves)
+                ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2)
                   (P.L + Fintype.card σ + 3) p)}
           ≤ (Q + 1) * (2 * δ' + δ' / 4 + δs + 128 * ū / εd) := by
   intro Q A L ι ρ s τ J V Kp G PB RB cap

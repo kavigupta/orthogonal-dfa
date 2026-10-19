@@ -20,6 +20,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 

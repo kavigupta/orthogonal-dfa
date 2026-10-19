@@ -1,4 +1,5 @@
 import OrthoDFA.LearnerLoop
+import OrthoDFA.Proofs.RandomRisk
 
 /-! # Uniform strings of one length: their mass, and their prefixes' -/
 
@@ -61,9 +62,9 @@ lemma uniformStrings_singleton_le (n : ℕ) (t : FreeMonoid α) :
   exact div_le_div_of_nonneg_right (by exact_mod_cast this) (by positivity)
 
 lemma prefixMax_uniformStrings_le [Nonempty α] {n k : ℕ} (hk : k ≤ n) :
-    prefixMax (uniformStrings (α := α) n) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
+    Random.prefixMax (uniformStrings (α := α) n) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
   have hA : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
-  unfold prefixMax
+  unfold Random.prefixMax
   refine ciSup_le fun u => ?_
   rw [uniformStrings_real]
   have hinj : Function.Injective fun v : {v : List.Vector α n //

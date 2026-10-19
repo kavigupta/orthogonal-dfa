@@ -130,9 +130,9 @@ def LearnerLoopDFASimple : Prop :=
   16384 * (L₁ + 1) * (Q + 2) * A * Real.log ((Q + 3) * A / δ') * (A ^ k)⁻¹ ≤ ρ →
   (Q + 1) * n * (6 * J * RB + Kp * G + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).prod
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
+    (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
@@ -191,9 +191,9 @@ def LearnerLoopDFA : Prop :=
   (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
   L₀ ≤ L →
   ∃ settings : LoopSettings (Fintype.card σ + 1),
-    settings.level5.walkStart = k ∧ settings.level5.disagreementRate = εd / 2 ∧
-    (settings.level5.probeBudget : ℝ) ≤ Kp * G ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level5.probeBudget).prod
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = εd / 2 ∧
+    (settings.level3.probeBudget : ℝ) ≤ Kp * G ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)

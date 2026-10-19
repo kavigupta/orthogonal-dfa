@@ -16,6 +16,8 @@ noncomputable section
 
 namespace OrthoDFA
 
+open Random (prefixMax le_prefixMax prefixMax_pos)
+
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
@@ -87,42 +89,42 @@ Its chance is at most `δ`, it is fixed by the answers at the strings level 5 re
 clustering's prefixes, and off it the actual round meets its claim. -/
 theorem level5_bad_exists (εd δ crossLimit θ y m B5 : ℝ) (J : ℕ) (ū : ℝ) (hū : 0 ≤ ū)
     (sift : Bool) (us : ℝ) (Pre5 : ℝ → ℝ → Prop)
-    (hC : 2 ≤ settings.level5.maxLeaves)
-    (hmaxL : settings.level5.maxLeaves = Fintype.card σ + 2) (hk : 1 ≤ settings.level5.walkStart)
-    (hdis : settings.level5.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
+    (hC : 2 ≤ settings.level3.probeBudget + 2)
+    (hmaxL : settings.level3.probeBudget + 2 = Fintype.card σ + 2) (hk : 1 ≤ settings.level3.walkStart)
+    (hdis : settings.level3.disagreementRate = εd / 2) (hη1 : O.η ≤ 1)
     (hy : 0 < y) (hcross : 0 < crossLimit) (hθ0 : 0 ≤ θ)
     (hB5 : crossLimit * B5 ≤ δ)
-    (hPre : ∀ p, 0 ≤ p → p ≤ 2 * prefixMax P.D settings.level5.walkStart → Pre5 θ p)
+    (hPre : ∀ p, 0 ≤ p → p ≤ 2 * prefixMax P.D settings.level3.walkStart → Pre5 θ p)
     (hm1 : m ≤ 1 / 2) (hmε : m ≤ εd / 4) (hmc : (P.L + 1) * m ≤ y / 2)
     (hlevel5 : ∀ (P' : PrefixDistribution α), P'.L = P.L → ∀ (O' : TriOracle (μ.prod μ) M) (θ : ℝ),
       let bad := fun q => ¬ O'.Good θ q
-      0 ≤ θ → Pre5 θ (prefixMax P'.D settings.level5.walkStart) →
+      0 ≤ θ → Pre5 θ (prefixMax P'.D settings.level3.walkStart) →
       0 ≤ O'.κ → 0 ≤ O'.ε → (O'.ε + O'.κ) * B5 ≤ δ →
-      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level5.probeBudget => P'.D)
-          {draws | let result := indecisiveLStarLevel5 settings.level5 (O'.read · ω) draws
-            ¬ EndsWell M bad P'.D (3 / 2 * settings.level5.disagreementRate + us)
-              (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level5.walkStart
+      ∫⁻ ω, (Measure.pi fun _ : Fin settings.level3.probeBudget => P'.D)
+          {draws | let result := indecisiveLStarLevel5 settings.level3 (O'.read · ω) draws
+            ¬ EndsWell M bad P'.D (3 / 2 * settings.level3.disagreementRate + us)
+              (checkedProbes M O'.readDist P'.D (O'.read · ω) settings.level3.walkStart
                 (Fintype.card σ + 2) J (2 * ū) result.hypothesis
-                ∪ siftedProbes sift (O'.read · ω) settings.level5.walkStart result.hypothesis)
-              settings.level5.walkStart
-              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level5.walkStart
+                ∪ siftedProbes sift (O'.read · ω) settings.level3.walkStart result.hypothesis)
+              settings.level3.walkStart
+              (harvestLaw P'.D (fun z => (O'.read z ω).cut) settings.level3.walkStart
                 result.hypothesis) y result.ending} ∂(μ.prod μ)
         ≤ ENNReal.ofReal (δ + 128 * ū / εd))
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
       BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
-    (hK₀ : K₀.card * prefixMax P.D settings.level5.walkStart ≤ m) :
-    ∃ Bd : Set (Ω × (Fin settings.level5.probeBudget → unitInterval)), MeasurableSet Bd
+    (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
+    ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd ≤ ENNReal.ofReal (δ + 128 * ū / εd)
-      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level5.maxLeaves)
-          (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level5.maxLeaves))
-          settings.level5.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
+      ∧ (∀ u ω ω', (∀ w ∈ l4Zone (max (P.L + settings.level3.probeBudget + 2)
+          (probesLen (probesOf settings P.D K₀ u) + 1 + settings.level3.probeBudget + 2))
+          settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
       ∧ ∀ x₀ Pr Sf ω u, (ω, u) ∉ Bd →
-        Level5Spec M O P θ (εd + us) (y / 2) settings.level5.walkStart J ū sift
+        Level5Spec M O P θ (εd + us) (y / 2) settings.level3.walkStart J ū sift
           (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, u)) := by
   classical
-  set C := settings.level5 with hCdef
+  set C := settings.level3 with hCdef
   set k := C.walkStart
   set T := C.probeBudget
   set Oc := O.clamped

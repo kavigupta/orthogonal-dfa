@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.LoopRounds
-import OrthoDFA.Proofs.Replay
+import OrthoDFA.Proofs.Adaptive
 import Mathlib.Probability.ProductMeasure
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 import Mathlib.MeasureTheory.Function.Floor
