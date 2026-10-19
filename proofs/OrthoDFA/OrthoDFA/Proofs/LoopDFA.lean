@@ -15,8 +15,9 @@ root reads the string itself, so a covered state's edges are true (`edge_of_occu
 on its true side (`sideOf_eq_of_mass`), and the covered start's true leaf misjudges at most what
 re-rooting does (`classify_start_le`).
 
-The family reads a string of length `L` wrongly, or leaves it undecided, at most `N εcov ≤ ξ/8` of
-the time, so off a stray score the picked leaf misjudges at most `ξ` more (`pickLeaf_le`). Each
+The family reads a string of length `L` wrongly at most `(1025/1024) N εcov` of the time and
+leaves it undecided at most `(3/8) N εcov`, with `N εcov ≤ ξ/8`, so off a stray score the picked
+leaf misjudges at most `ξ` more (`pickLeaf_le`). Each
 round that can be last strays or collides with chance at most `δ/(2(|Q|+1))`
 (`loop_select_round_le`), so the selection costs half of `δ` and the loop the other half.
 -/
@@ -108,12 +109,12 @@ the coverage `c`, has a leaf from which its hypothesis misjudges at most what re
 covered start does. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
-    (L : ℕ) {c εcov εB γ : ℝ}
+    (L : ℕ) {c εr εu εB γ : ℝ}
     (hch : o.Checks M O (windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3)) ((L + 1) / 2)
-      εcov εcov εB)
+      εr εu εB)
     (hεB : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
       * εB < c)
-    (hcov : 3 * εcov * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
+    (hcov : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
     (hceil : ∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) :
     ∃ s ∈ o.result.hypothesis.tree.leaves, (uniformStrings L).real
       {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ := by
@@ -131,13 +132,13 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   obtain ⟨⟨hcons, hmis, hund⟩, hchk, hcls⟩ := hch
   have hroot : ∃ r a, H.tree = .node 1 r a := rootOne_of_classSet _ _ hcls
   -- the family's reads over the window
-  have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εcov := by
+  have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εu := by
     refine le_trans (le_of_eq ?_) hund
     congr 1
     funext p
     rw [readProb_eq_familyReadDist O M hL]
   have hmis' : ∫ p, (if M.eval p.toList ∈ M.accept then dist (M.eval p.toList) .reject
-      else dist (M.eval p.toList) .accept) ∂D ≤ εcov := by
+      else dist (M.eval p.toList) .accept) ∂D ≤ εr := by
     refine le_trans (le_of_eq ?_) hmis
     congr 1
     funext p
@@ -192,8 +193,8 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
       exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.Icc_subset_Icc le_rfl (by omega))
         fun _ _ _ => measureReal_nonneg
     · rw [lt_div_iff₀ hN0]
-      have e : 3 * εcov * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
-          = 3 * εcov * ((L₁ : ℝ) + 1 - k) := rfl
+      have e : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
+          = (2 * εr + εu) * ((L₁ : ℝ) + 1 - k) := rfl
       linarith
   obtain ⟨q₀, -, hacc⟩ := hceil
   exact ⟨Random.leafOf M side H.tree q₀, Random.leafOf_mem M side _ _,
@@ -433,7 +434,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T)) :=
     {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Checks M O P.D k εcov εcov (ε + ε + ε / 96))
+          o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 96))
         ∧ RoundsFresh settings O P.D Dsf Nn Ls p)} with hBloopd
   set Sel : ℕ → Set ((Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
       × (Fin n → FreeMonoid α)) := fun r =>
@@ -509,25 +510,29 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         rw [show N * (ξ / (8 * N)) = ξ / 8 by field_simp] at h
         exact h
       have hu : ∫ x, readProb O o.family o.state.lo (o.state.hi + 1) x .undecided
-          ∂(uniformStrings L) ≤ N * εcov := by
+          ∂(uniformStrings L) ≤ 3 / 8 * (N * εcov) := by
         refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
           fun x => measureReal_nonneg).trans ?_
-        exact mul_le_mul_of_nonneg_left hch.1.2.2 (zero_le_one.trans hN1)
+        exact (mul_le_mul_of_nonneg_left hch.1.2.2 (zero_le_one.trans hN1)).trans
+          (le_of_eq (by ring))
       have hm : ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(uniformStrings L)
-          ≤ N * εcov := by
+          ≤ 1025 / 1024 * (N * εcov) := by
         refine (integral_uniform_le_window (L₁ := L₁) hkL (by omega) _
           fun x => measureReal_nonneg).trans ?_
-        exact mul_le_mul_of_nonneg_left hch.1.2.1 (zero_le_one.trans hN1)
+        exact (mul_le_mul_of_nonneg_left hch.1.2.1 (zero_le_one.trans hN1)).trans
+          (le_of_eq (by ring))
       have h := pickLeaf_le M O o.result.hypothesis o.family o.state.lo (o.state.hi + 1) hL L n hn
-        t (N * εcov) (N * εcov) γ q.1.1 q.2 hinj hgood hu hm hs
+        t (3 / 8 * (N * εcov)) (1025 / 1024 * (N * εcov)) γ q.1.1 q.2 hinj hgood hu hm hs
       rw [hread]
-      have : γ + 2 * t + N * εcov + 2 * (N * εcov) ≤ γ + ξ := by
+      have : γ + 2 * t + 3 / 8 * (N * εcov) + 2 * (1025 / 1024 * (N * εcov)) ≤ γ + ξ := by
+        have h0 : 0 ≤ N * εcov := mul_nonneg (zero_le_one.trans hN1) hεc0.le
         rw [htd]; linarith
       exact h.trans this
     · show (A + 1) * N * (ε + ε + ε / 96) < c
       exact hbad
-    · show 3 * εcov * N < c
-      exact hcN
+    · show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
+      have h0 : 0 ≤ εcov * N := mul_nonneg hεc0.le (zero_le_one.trans hN1)
+      linarith only [hcN, h0]
   -- the loop's failure, and each round's selection
   have hBl : (μL.prod β).real (Prod.fst ⁻¹' Bloop) ≤ δ / 2 := by
     have e : (μL.prod β).real (Prod.fst ⁻¹' Bloop) = μL.real Bloop := by

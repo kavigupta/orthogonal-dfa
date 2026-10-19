@@ -70,7 +70,8 @@ re-rooted target on every run that stays covered (`classify_start_le`).
 The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
 on and off the language may differ, and agreement with such a read weighs a leaf's errors by
 `1 − 2η` of the string's true label, which can rank a worse leaf first. The family's read of a
-string of length `L` is wrong, or undecided, at most `N εcov ≤ ξ/8` of the time, so a leaf's
+string of length `L` is wrong at most `(1025/1024) N εcov` of the time and undecided at most
+`(3/8) N εcov`, with `N εcov ≤ ξ/8`, so a leaf's
 mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
 reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
 prefix the last round's clustering read or of one of its probes: level 3 reads only short strings
@@ -80,8 +81,8 @@ the earlier rounds read other suffixes. That collision has chance at most
 can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
 strings, and that within `nξ/8` of `n` times its mean over the strings, but for chance
 `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most `|Q| + 2` leaves, so the picked leaf
-misjudges at most `γ + ξ/2 + 3Nεcov ≤ γ + ξ` (`pickLeaf_le`). `δ` splits half to the loop, a
-quarter to the scores and a quarter to collisions.
+misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ` (`pickLeaf_le`). `δ` splits half to
+the loop, a quarter to the scores and a quarter to collisions.
 
 ## The loop
 
@@ -100,14 +101,15 @@ the event that some step reads a string wrong (`pi_wrong_le'`), and the Markov b
 (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `96 prefixMax / ε` on a string, within `cap`, which also bounds the suffixes' atoms; its strings are
-at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's collision
-conditions, linear in the schedule's prefix count `NP` and suffix pool `NS`, hold, and the earlier
-rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any
-population and `ms` of the suffixes. `NS` and `NP` are bounded by `poolCount_le` and
-`prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`).
+at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's atom
+conditions, every population tame, linear in the schedule's prefix count `NP` and suffix pool
+`NS`, hold, and the earlier rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a
+round, hold at most `m` of any population and `ms` of the suffixes. `NS` and `NP` are bounded by
+`poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`).
 
-The rounds' draws are independent, and given the earlier rounds a round's clustering run is drawn
-as `runMeasure` draws it at their populations conditioned off what they read
+The rounds' draws are independent, and given the earlier rounds a round's clustering draws, the
+hash's sides included, are drawn as `runMeasure` draws them at their populations conditioned off
+what they read
 (`Proofs/LoopLaw.lean`, `Proofs/LoopIndep.lean`): a population's draws are made from uniforms
 (`drawFrom`), and a round's population and reads are fixed by finite data, its last hypothesis's
 tree and edge graph, its reads of short strings and its clustering's prefixes and suffixes
@@ -161,7 +163,9 @@ states, is spread and yields. What makes a state bad is each level's own.
   letters of the prefixes the round's clustering read, where the Python draws them from `D`. Each
   round's clustering draws its prefixes, certification prefixes and suffixes off every one the
   earlier rounds' clusterings read, where the Python does not avoid them. The uniform pool is drawn
-  afresh each round, where the Python keeps one pool across rounds.
+  afresh each round, where the Python keeps one pool across rounds. The hash's sides are fair coins
+  drawn afresh each round, where the Python draws its key once per run, and a harvest's table is
+  drawn from its law, where the Python first puts the harvested strings in it.
 
 ## What to read
 
