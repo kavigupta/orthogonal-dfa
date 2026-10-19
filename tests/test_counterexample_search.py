@@ -9,7 +9,6 @@ from orthogonal_dfa.l_star.round_end import (
     HARVEST_START,
     OUT_OF_PROBES,
     SUCCESS,
-    TOO_BIG,
     Ending,
 )
 from orthogonal_dfa.l_star.statistics import rate_side
@@ -81,14 +80,6 @@ class TestLearningAndSplitting(unittest.TestCase):
         )
         search.step(b"\x00\x01\x01")
         self.assertEqual({(ODD, 0): (ODD, b"")}, search.hypothesis.edges)
-
-    def test_a_tree_past_its_cap_ends_the_round(self):
-        search = quiet_search(
-            mod3_cut,
-            {(EVEN, 1): (ODD, b"\x01\x01"), (ODD, 1): (EVEN, b"")},
-            max_leaves=2,
-        )
-        self.assertEqual(TOO_BIG, search.step(b"\x01\x01").kind)
 
 
 class TestTheTests(unittest.TestCase):

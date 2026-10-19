@@ -7,7 +7,7 @@ from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import Charges, EdgeFound, Member, Outcome, charges, locate
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
-from .round_end import OUT_OF_PROBES, TOO_BIG, Ending, SiteCounts, ending_test
+from .round_end import OUT_OF_PROBES, Ending, SiteCounts, ending_test
 
 
 class CounterexampleSearch:
@@ -30,33 +30,31 @@ class CounterexampleSearch:
     def step(self, x: bytes) -> Optional[Ending]:
         outcome, charged = self.probe(x)
         self.probes += 1
-        self.counts.add(charged, outcome)
         if isinstance(outcome, Member):
-            self.counts = SiteCounts()
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
+            self.counts = SiteCounts()
+            return None
+        if isinstance(outcome, EdgeFound):
+            self._split(outcome)
+            self.counts = SiteCounts()
+            return None
+        self.counts.add(charged, outcome)
         hypothesis = self.hypothesis
-        ending = ending_test(
+        return ending_test(
             self.counts, self.config, hypothesis.tree.depth, hypothesis.leaves
         )
-        if ending is None and isinstance(outcome, EdgeFound):
-            return self._split(outcome)
-        return ending
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x)
         return located.outcome, charges(located, self.config.k, x)
 
-    def _split(self, found: EdgeFound) -> Optional[Ending]:
+    def _split(self, found: EdgeFound):
         """Split the edge's source on its letter and the midfix where the probe's
         target and the edge's part."""
         hypothesis = self.hypothesis
         current = hypothesis.edges[(found.source, found.letter)][0]
         midfix = hypothesis.tree.midfix_at(_common_prefix(found.target, current))
         hypothesis.split_leaf(found.source, bytes([found.letter]) + midfix)
-        self.counts = SiteCounts()
-        if len(hypothesis.leaves) > self.config.max_leaves:
-            return Ending(TOO_BIG, [], None)
-        return None
 
 
 def _common_prefix(a: Path, b: Path) -> Path:

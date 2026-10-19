@@ -3,9 +3,6 @@
 import math
 from dataclasses import dataclass
 
-#: Leaves past which a round gives up.
-MAX_LEAVES = 100
-
 
 @dataclass(frozen=True)
 class CounterexampleSearchConfig:
@@ -30,10 +27,6 @@ class CounterexampleSearchConfig:
     @property
     def k(self) -> int:
         return 0
-
-    @property
-    def max_leaves(self) -> int:
-        return MAX_LEAVES
 
     @property
     def disagreement_rate(self) -> float:

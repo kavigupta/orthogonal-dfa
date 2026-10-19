@@ -10,7 +10,6 @@ class TestTheShippedConfig(unittest.TestCase):
         config = counterexample_search_config(0.98, 0.01)
         derived = (
             config.k,
-            config.max_leaves,
             config.start_rate(2),
             config.edge_rate,
             config.middle_rate(4),
@@ -26,7 +25,6 @@ class TestTheShippedConfig(unittest.TestCase):
         self.assertEqual(
             (
                 0,
-                100,
                 0.1,
                 0.05,
                 0.2,

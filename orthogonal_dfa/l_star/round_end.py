@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
 from .counterexample_config import CounterexampleSearchConfig
-from .counterexample_probe import Charges, EdgeFound, Middle, Outcome
+from .counterexample_probe import Charges, Middle, Outcome
 from .hypothesis_dfa import Edge, Path
 from .statistics import seq_rate
 
@@ -13,7 +13,6 @@ SUCCESS = "success"
 HARVEST_START = "harvest start"
 HARVEST_EDGE = "harvest edge"
 HARVEST_MIDDLES = "harvest middles"
-TOO_BIG = "too big"
 OUT_OF_PROBES = "out of probes"
 HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 
@@ -42,7 +41,7 @@ class SiteCounts:
         self.start_harvest += charged.start
         self.middles += charged.middle
         self.search_queries += charged.search_queries
-        self.searches += isinstance(outcome, (EdgeFound, Middle))
+        self.searches += isinstance(outcome, Middle)
         self.traversals.update(charged.traversals)
         for edge, strings in charged.undecided_by_edge.items():
             self.edge_harvest.setdefault(edge, []).extend(strings)
