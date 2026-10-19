@@ -323,14 +323,14 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       ((min_le_left _ _).trans (min_le_right _ _))
     have e : δ' * (ι - ι / 2) ^ 2 = δ' * ι ^ 2 / 4 := by ring
     rw [e]
-    nlinarith
+    linarith only [h]
   have hq3 : 2 ^ 14 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 2) * ((⌊PB⌋₊ : ℕ) : ℝ) * cap
       ≤ δ' * (pAP - pAP / 2) := by
     rw [hK2]
     have h := hmul (x := 2 ^ 15 * (J + 1) * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := δ' * pAP)
       (b := 2 ^ 15 * (J + 1) * (PB + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
-    nlinarith
+    linarith only [h]
   have hqm : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
       * ((⌊RB⌋₊ : ℕ) : ℝ) * cap ≤ ι / 2 := by
     rw [hK1]
@@ -341,12 +341,12 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
             ≤ 12 * J * J * (RB + 1) := by gcongr; linarith
           _ = 12 * J ^ 2 * (RB + 1) := by ring)
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
-    nlinarith
+    linarith only [h]
   have hqms : (((Fintype.card σ + 1 : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) * cap ≤ pAP / 2 := by
     have h := hmul (x := 2 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1))
       (a := pAP) (b := 2 * J * (PB + 2)) (by positivity) (by gcongr <;> linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_left _ _))
-    nlinarith
+    linarith only [h]
   have hcapP : 6 * J * (RB + 1) * cap ≤ 1 :=
     hmul (b := 6 * J * (RB + 1)) (by positivity) le_rfl
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))

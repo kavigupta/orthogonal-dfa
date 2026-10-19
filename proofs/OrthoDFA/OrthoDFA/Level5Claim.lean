@@ -40,13 +40,8 @@ structure KappaReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {�
   wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept}
     ≤ εw + κ * U (M.eval z.toList)
 
-/-- `RandomRoundCorrect` for level 3's algorithm with each read wrong with chance at most
-`εw + κ U q`, the good states' bounds holding but for chance `δ/16` each. A probe reads at most
-`(L + 1)|Q|` strings and a split re-sifts at most `(|Q| + 1)²|Σ|`, at most `|Q|` times. Under the
-`j`-th hypothesis, until a test fires, the probes stopping undecided number at most
-`5 log(1/a_j)`, `a_j` the tests' level, whatever the stretch's length; so the round reads at most
-`5 S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and the last premise keeps the
-chance that it reads some string wrong within `δ/8`. -/
+/-- Level 3's algorithm, with wrong reads that may scale with a state's indecision, fails to end
+well with chance at most `δ`. -/
 def KappaRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -57,17 +52,34 @@ def KappaRoundCorrect : Prop :=
     let δ := C.δ
     let nQ := Fintype.card σ
     let nα := Fintype.card α
+    -- Bounds the hypotheses: at most `|Q| + 2` leaves, each leaf's edges learned once between splits.
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+    -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+    -- Bounds, but for chance `δ/16`, the share of probes stopping undecided at their start or end
+    -- sift at a good state.
     let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
+    -- No length-`walkStart` prefix holds more than `p₀` of the probes.
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ y → y ≤ ε / 48 → ε < 1 →
+    -- Good states' undecided middles stay under a quarter of the searches.
+    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 →
+    -- Good states' undecided ends stay under the ends test's rate.
+    2 * G ≤ y →
+    -- The middles test's yield fits under the success test's rate.
+    y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     0 ≤ εw → 0 ≤ κ →
+    -- The round reads some string wrong with chance at most `δ/8`. A probe reads at most
+    -- `(L + 1)|Q|` strings and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test
+    -- fires, a hypothesis's probes stop undecided at most `5 log(1/a_j)` times however long the
+    -- stretch, so the `κ` term does not grow with the budget.
     εw * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
       + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
+          -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
+          -- the probes searching, changing the hypothesis or stopping undecided at their start or
+          -- end sift; a harvest's sampler yields `y`.
           ¬ EndsWell
             { target := M,
               badStates := BadAt U θ,
