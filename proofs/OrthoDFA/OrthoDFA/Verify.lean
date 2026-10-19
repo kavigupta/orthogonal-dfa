@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
@@ -107,5 +108,9 @@ theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 
 #print axioms family_kappa_oracle
+
+theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
+
+#print axioms covered_start_correct
 
 end OrthoDFA
