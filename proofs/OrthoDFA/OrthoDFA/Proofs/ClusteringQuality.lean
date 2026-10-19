@@ -367,9 +367,9 @@ set_option maxHeartbeats 1000000 in
 miscut and undecided masses are within `slack/2` of their means off the table's prefixes, which
 carry little mass, except on an event the populations' collision masses hold to `δ/2`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ iL εcov α δ pAP crossLimit
-    slack hηle hη₀ huni hflat hpAP hind' hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
-  have hpop : populations.Nonempty := ⟨uni, huni⟩
+  intro Ω _ μ _ S _ J _ O populations tame uni Pre Suf η₀ iL εcov α δ pAP crossLimit
+    slack hηle hη₀ huni htame hflat hpAP hind' hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
@@ -411,15 +411,15 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       hε (by linarith) hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
-  have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
-    (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit (collisionMass (D j)) 0
+  have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
+    (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit ((D j).real {t}) 0
       (by rw [← hmdef]; exact hm) hM (by
-        have h := hcollD _ htop j hj
+        have h := hcollD _ htop j hj t
         rw [hδ'def]
         have hscaleEq :
             budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
           unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
-        change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * collisionMass (D j)
+        change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * (D j).real {t}
           ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2 at h
         rw [← hmdef, hscaleEq]
         linarith) (by simp only [mul_zero]; positivity)).1
@@ -435,16 +435,18 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
         linarith)).2
   -- and against `slack`, which the table's own mass and the deviation tail need
   set ρs : ℝ := δ * slack ^ 2 / (2 ^ 8 * (Jc + 1) * m) with hρsdef
-  have hslackj : ∀ j ∈ populations, collisionMass (D j) ≤ ρs := by
-    intro j hj
-    have h := hslackD _ htop j hj
-    change 2 ^ 8 * ((populations.card : ℝ) + 1) * m * collisionMass (D j) ≤ δ * slack ^ 2 at h
+  have hslackj : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρs := by
+    intro j hj t
+    have h := hslackD _ htop j hj t
+    change 2 ^ 8 * ((populations.card : ℝ) + 1) * m * (D j).real {t} ≤ δ * slack ^ 2 at h
     rw [hρsdef, le_div_iff₀ (by positivity)]
     rw [← hJcdef] at h
     linarith
   obtain ⟨ρ, hρdef⟩ : ∃ ρ : ℝ, ρ = min ρ₀ ρs := ⟨_, rfl⟩
-  have hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ := fun j hj =>
-    hρdef ▸ le_min (hcaps j hj) (hslackj j hj)
+  have hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ := fun j hj t =>
+    hρdef ▸ le_min (hcaps j hj t) (hslackj j hj t)
+  have hρc : ∀ j ∈ tame, collisionMass (D j) ≤ ρ := fun j hj =>
+    collisionMass_le_of_atoms (D j) (hρ j hj)
   have hρ0 : 0 ≤ ρ := hρdef ▸ le_min hρ₀0 (by rw [hρsdef]; positivity)
   have hρs : ρ ≤ ρs := hρdef ▸ min_le_right _ _
   have hm1 : (1 : ℝ) ≤ m := by
@@ -479,8 +481,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 8 * (Jc + 1) * m := by
       linarith only [h, mul_nonneg hJ1 hm.le]
     exact mul_le_mul_of_nonneg_left h' hs2
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ iL εcov α δ'
-    ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound
+  have hcc := clustering_correct O rule populations tame uni D Dsf Pre Suf η₀ iL εcov α δ'
+    ρ₀ pAP crossLimit 60000 hηle hη₀ huni htame hflat hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1)
@@ -506,17 +508,17 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     fun B j => {x | slack / 2 ≤ devAt rule O populations B (D j) (F j) (EvC B) x} with hbadC
   set badU : State → J → Set (Run Ω S J) :=
     fun B j => {x | slack / 2 ≤ devAt rule O populations B (D j) (F j) (EvU B) x} with hbadU
-  set Bad : Set (Run Ω S J) := ⋃ B ∈ states, ⋃ j ∈ populations, (badC B j ∪ badU B j)
+  set Bad : Set (Run Ω S J) := ⋃ B ∈ states, ⋃ j ∈ tame, (badC B j ∪ badU B j)
     with hBaddef
-  have hsq : ∀ j ∈ populations, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ ρ := fun j hj =>
-    le_trans (sum_sq_le_collisionMass (D j) (F j)) (hρ j hj)
-  have hper : ∀ B, ∀ j ∈ populations,
+  have hsq : ∀ j ∈ tame, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ ρ := fun j hj =>
+    le_trans (sum_sq_le_collisionMass (D j) (F j)) (hρc j hj)
+  have hper : ∀ B, ∀ j ∈ tame,
       (runMeasure μ D Dsf).real (badC B j ∪ badU B j) ≤ 8 * ρ / slack ^ 2 := by
     intro B j hj
-    have h1 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
-      (EvC B) (hEvCm B) (slack / 2) (by positivity) ρ (hsq j hj)
-    have h2 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
-      (EvU B) (hEvUm B) (slack / 2) (by positivity) ρ (hsq j hj)
+    have h1 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j)
+      (F j) (hFPre j) (EvC B) (hEvCm B) (slack / 2) (by positivity) ρ (hsq j hj)
+    have h2 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j)
+      (F j) (hFPre j) (EvU B) (hEvUm B) (slack / 2) (by positivity) ρ (hsq j hj)
     have e : ρ / (slack / 2) ^ 2 = 4 * ρ / slack ^ 2 := by field_simp; ring
     calc (runMeasure μ D Dsf).real (badC B j ∪ badU B j)
         ≤ (runMeasure μ D Dsf).real (badC B j) + (runMeasure μ D Dsf).real (badU B j) :=
@@ -535,13 +537,17 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       linarith
     calc (runMeasure μ D Dsf).real Bad
         ≤ ∑ B ∈ states, (runMeasure μ D Dsf).real
-            (⋃ j ∈ populations, (badC B j ∪ badU B j)) := measureReal_biUnion_finset_le _ _
-      _ ≤ ∑ B ∈ states, ∑ j ∈ populations, (runMeasure μ D Dsf).real (badC B j ∪ badU B j) :=
+            (⋃ j ∈ tame, (badC B j ∪ badU B j)) := measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ B ∈ states, ∑ j ∈ tame, (runMeasure μ D Dsf).real (badC B j ∪ badU B j) :=
           Finset.sum_le_sum (fun B _ => measureReal_biUnion_finset_le _ _)
-      _ ≤ ∑ _B ∈ states, ∑ _j ∈ populations, 8 * ρ / slack ^ 2 :=
+      _ ≤ ∑ _B ∈ states, ∑ _j ∈ tame, 8 * ρ / slack ^ 2 :=
           Finset.sum_le_sum (fun B _ => Finset.sum_le_sum (fun j hj => hper B j hj))
-      _ = (states.card : ℝ) * (Jc * (8 * ρ / slack ^ 2)) := by
-          simp only [Finset.sum_const, nsmul_eq_mul, hJcdef]
+      _ = (states.card : ℝ) * ((tame.card : ℝ) * (8 * ρ / slack ^ 2)) := by
+          simp only [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ (states.card : ℝ) * (Jc * (8 * ρ / slack ^ 2)) := by
+          have htc : (tame.card : ℝ) ≤ Jc := by
+            rw [hJcdef]; exact_mod_cast Finset.card_le_card htame
+          gcongr
       _ ≤ L * (Jc * (8 * ρ / slack ^ 2)) := mul_le_mul_of_nonneg_right hcardst (by positivity)
       _ ≤ δ / 2 := by
           rw [show L * (Jc * (8 * ρ / slack ^ 2)) = 8 * L * Jc * ρ / slack ^ 2 by ring,
@@ -550,10 +556,11 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           rw [le_div_iff₀ (by positivity)] at h2
           have hLJ : L * Jc ≤ (L + 1) * (Jc + 1) := by linarith only [hL0, hJc0]
           linarith only [h2, mul_le_mul_of_nonneg_right hLJ hρ0]
-  have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
+  have key : ∀ T : Set (Run Ω S J), {x | ((∀ j ∈ populations, j ∈ tame) →
+          ∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni η₀ iL εcov α B.val) ∧
         ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni η₀ iL εcov α B.val →
-          ∀ j ∈ populations, 1 - gateLimit uni εcov j
+          ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ iL εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
@@ -570,14 +577,14 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   · exact Or.inr hxb
   refine Or.inl ⟨hx.1, fun B hret => ?_⟩
   have hgood := hx.2 B hret
-  have hnb : ∀ j ∈ populations, x ∉ badC B.val j ∧ x ∉ badU B.val j := by
+  have hnb : ∀ j ∈ tame, x ∉ badC B.val j ∧ x ∉ badU B.val j := by
     intro j hj
     have : x ∉ badC B.val j ∪ badU B.val j := fun h =>
       hxb (Set.mem_biUnion B.property (Set.mem_biUnion hj h))
     exact ⟨fun h => this (Or.inl h), fun h => this (Or.inr h)⟩
   set G := familyBy rule O.mq populations x B.val with hG
   set P := prefixesAt populations B.val.npref x with hP
-  have hPmass : ∀ j ∈ populations, (D j).real ↑P ≤ slack / 4 := by
+  have hPmass : ∀ j ∈ tame, (D j).real ↑P ≤ slack / 4 := by
     intro j hj
     have hnpref :
         B.val.npref ≤ prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit := by
@@ -603,19 +610,24 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith
     have a2 : collisionMass (D j) / τ ≤ slack / 8 := by
       rw [div_le_iff₀ hτ0]
-      calc collisionMass (D j) ≤ ρ := hρ j hj
+      calc collisionMass (D j) ≤ ρ := hρc j hj
         _ ≤ slack ^ 2 / (64 * (N + 1)) := hρ1
         _ = slack / 8 * τ := by rw [hτ]; field_simp; ring
     linarith [measureReal_finset_le (D j) P hτ0]
-  have hall : ∀ j ∈ populations,
-      ∫ p, miscutProb O B.val.lo (B.val.hi + 1) G p ∂(D j) ≤ gateLimit uni εcov j + slack
+  have hrej : 2 * rejFrac η₀ iL εcov ≤ εcov / 512 := by
+    have h1 := (rejFrac_le (indecisionLimit := iL) η₀ hη₀ hε hind').1
+    have h2 := (cutBudget_le η₀ iL εcov).1
+    linarith
+  have hall : ∀ j ∈ tame,
+      ∫ p, miscutProb O B.val.lo (B.val.hi + 1) G p ∂(D j)
+        ≤ gateLimit uni εcov j + εcov / 512 + slack
       ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) G p ∂(D j) ≤ 2 * iL + slack := by
     intro j hj
-    have hC := integral_le_realized (D j) (hsupp j hj) (F j) P
+    have hC := integral_le_realized (D j) (hsupp j (htame hj)) (F j) P
       (fun p => EvC B.val G p (oracleNoise x)) (fun p => miscutProb O B.val.lo (B.val.hi + 1) G p)
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
       (devAt rule O populations B.val (D j) (F j) (EvC B.val) x) rfl
-    have hU := integral_le_realized (D j) (hsupp j hj) (F j) P
+    have hU := integral_le_realized (D j) (hsupp j (htame hj)) (F j) P
       (fun p => EvU B.val G p (oracleNoise x)) (fun p => undecidedProb O B.val.lo (B.val.hi + 1) G p)
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
       (devAt rule O populations B.val (D j) (F j) (EvU B.val) x) rfl
@@ -624,22 +636,23 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have hdevU : devAt rule O populations B.val (D j) (F j) (EvU B.val) x < slack / 2 :=
       not_le.1 (hnb j hj).2
     have hrealC : (D j).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1) G p (oracleNoise x)}
-        ≤ gateLimit uni εcov j := by
+        ≤ gateLimit uni εcov j + εcov / 512 := by
       rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _), probReal_univ]
       linarith [(hgood j hj).1]
     have hrealU := (hgood j hj).2
     have := hFtail j
     have := hPmass j hj
     exact ⟨by linarith, by linarith⟩
-  have huni' : ∫ p, miscutProb O B.val.lo (B.val.hi + 1) G p ∂(D uni) ≤ εcov + slack := by
+  have huni' : ∫ p, miscutProb O B.val.lo (B.val.hi + 1) G p ∂(D uni)
+      ≤ 513 / 512 * εcov + slack := by
     have h := (hall uni huni).1
-    simp only [gateLimit, if_pos rfl] at h
-    exact h
+    simp only [gateLimit, if_pos rfl, if_true] at h
+    linarith
   refine ⟨huni', fun j hj => ⟨?_, (hall j hj).2⟩⟩
   by_cases hne : j = uni
   · subst hne; linarith
   · have h := (hall j hj).1
     simp only [gateLimit, if_neg hne] at h
-    exact h
+    linarith
 
 end OrthoDFA

@@ -774,10 +774,10 @@ witnesses, `prefCount_le_poly` for the prefix count, `validCount_le` for the low
 carry their share at the collision cap, which the top rung always does; the statement's
 hypotheses at the top rung are the caps. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
+  intro Ω _ μ _ S _ J _ O populations tame uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    hηle hη₀ huni htame hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
   classical
-  have hpop : populations.Nonempty := ⟨uni, huni⟩
+  have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   simp only [ret_eq, familyAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -886,25 +886,31 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0 hindLim
       hεcov (by linarith) hpAPPositive hpAP1
     linarith
-  have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
-    (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit (collisionMass (D j)) 0
-      hN hM (by rw [hscaleEq]; exact hcollD _ htop j hj) (by simp only [mul_zero]; positivity)).1
+  have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
+    (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit ((D j).real {t}) 0
+      hN hM (by rw [hscaleEq]; exact hcollD _ htop j hj t)
+      (by simp only [mul_zero]; positivity)).1
   have hcapsf : collisionMass Dsf
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit :=
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit 0 (collisionMass Dsf)
       hN hM (by simp only [mul_zero]; positivity) (hcollSf _ htop)).2
-  refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
-    α δ ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAPPositive
-    hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hδ hpoly le_rfl hcapsf)
+  refine le_trans (clustering_correct O rule populations tame uni D Dsf Pre Suf η₀
+    indecisionLimit εcov α δ ρ₀ pAP crossLimit 60000 hηle hη₀ huni htame hflat hsupp hsuppSf
+    hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hδ hpoly le_rfl
+    hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
+  have hrej : 2 * rejFrac η₀ indecisionLimit εcov ≤ εcov / 512 := by
+    have h1 := (rejFrac_le (indecisionLimit := indecisionLimit) η₀ hη₀ hεcov hindLim).1
+    have h2 := (cutBudget_le η₀ indecisionLimit εcov).1
+    linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ₀}, x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
-      1 - εcov ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+      1 - 513 / 512 * εcov ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
         (familyBy rule O.mq populations x B.val) p (oracleNoise x)} := fun B hB => by
     have h := (hall B hB uni huni).1
     simp only [gateLimit, if_pos rfl, if_true] at h
-    exact h
+    linarith
   refine ⟨hex, fun B hB => ⟨huni' B hB, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
   by_cases hne : j = uni
   · subst hne; linarith [huni' B hB]

@@ -1451,27 +1451,35 @@ lemma card_range_filter_le (T : Finset S) (y : ℕ → S) (Q : S → Prop) [Deci
   rw [Finset.natCast_card_filter, Finset.natCast_card_filter]
   exact h
 
+/-- A sample found within its first `n + r` draws finds every smaller one within its first
+`L + r`. -/
+lemma le_card_acceptedAt_of_le (T : Finset S) (y : ℕ → S) {L n r : ℕ} (hL : L ≤ n)
+    (h : n ≤ (acceptedAt T y (n + r)).card) : L ≤ (acceptedAt T y (L + r)).card := by
+  have := card_acceptedAt_add_le T y (show L + r ≤ n + r by omega)
+  omega
+
 open scoped Classical in
-/-- The gate certifies, at some look, a family that misclassifies more than `lim` of population
-`j`, though the references hold an accept-preserving suffix.  Then some look's sides failed, or
-the draws undercounted the population. -/
+/-- The gate certifies, at some look, a family that misclassifies more than `lim + s` of
+population `j`, though the references hold an accept-preserving suffix and the certification
+draws redraw at most `r ≤ s·npref` times before their largest look.  Then some look's sides
+failed, or the draws undercounted the population. -/
 theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀)
-    (populations : Finset J) (Dj : Measure S) (j : J) (B : State) (lim a : ℝ) :
+    (populations : Finset J) (Dj : Measure S) (j : J) (B : State) (lim s a : ℝ) (r : ℕ)
+    (hs : 0 ≤ s) (hr : (r : ℝ) ≤ s * B.npref) :
     {x : Run Ω S J |
       (∃ e ≤ B.npref, certifiesAt O.mq η₀ lim a B.lo B.hi (clusterBy rule O.mq populations x B)
         (refsBy rule O.mq populations x B)
-        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x)
-        (drawsTaken (prefixesAt populations B.npref x) (fun i => certPrefix j i x)
-          (B.npref + e))
-        (oracleNoise x))
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x))
       ∧ (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
-      ∧ lim < Dj.real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
-          (oracleNoise x)}}
+      ∧ lim + s < Dj.real {p | ¬ cutCorrect O B.lo B.hi (clusterBy rule O.mq populations x B) p
+          (oracleNoise x)}
+      ∧ 2 * B.npref ≤ (acceptedAt (prefixesAt populations B.npref x)
+          (fun i => certPrefix j i x) (2 * B.npref + r)).card}
       ⊆ (⋃ e ∈ Finset.range (B.npref + 1),
             sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
-          ∪ ⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1) := by
+          ∪ ⋃ N : ℕ, rawShortAt rule O populations Dj j B (lim + s) a (N + 1) := by
   classical
-  rintro x ⟨⟨e, he, hN, hineq⟩, hv, hmass⟩
+  rintro x ⟨⟨e, he, hpos, hineq⟩, hv, hmass, hdraws⟩
   set T : Finset S := prefixesAt populations B.npref x with hT
   set y : ℕ → S := fun i => certPrefix j i x with hy
   set m : ℕ := B.npref + e with hm
@@ -1495,37 +1503,37 @@ theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
       rw [this]; exact Finset.mem_insert_self _ _)
   have hcount := miscut_le_miscutBound O hη B.lo B.hi F R (certOf T j m x) hvR hapv
     (fun p _ => hne1 v hvR p) hgv
-  have hex : ∃ n, m ≤ (acceptedAt T y n).card := by
-    by_contra hne
-    have hne' : ¬ ∃ n, m ≤ ((Finset.range n).image y \ T).card := hne
-    have h0 : drawsTaken T y m = 0 := by
-      unfold drawsTaken
-      rw [dif_neg hne']
-    rw [h0] at hN
-    exact lt_irrefl 0 hN
-  have hex' : ∃ n, m ≤ ((Finset.range n).image y \ T).card := hex
-  have hNeq : drawsTaken T y m = Nat.find hex := by
-    unfold drawsTaken
-    rw [dif_pos hex']
-    rfl
+  have hmr : m ≤ (acceptedAt T y (m + r)).card :=
+    le_card_acceptedAt_of_le T y (show m ≤ 2 * B.npref by omega) hdraws
+  have hex : ∃ n, m ≤ (acceptedAt T y n).card := ⟨m + r, hmr⟩
   have hP : certOf T j m x = acceptedAt T y (Nat.find hex) := freshDraws_eq T y m hex
   have hPcard : (certOf T j m x).card = m := card_freshDraws T y m hex
-  rw [hPcard] at hineq
   set N : ℕ := Nat.find hex with hNdef
+  have hNle : N ≤ m + r := Nat.find_min' hex hmr
+  have hmN : m ≤ N := le_trans (Nat.find_spec hex) (card_acceptedAt_le T y N)
   have hraw := card_range_filter_le T y
     (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) N
   rw [← hP, hPcard] at hraw
-  have hNpos : 0 < N := by rw [← hNeq]; exact hN
-  refine Set.mem_iUnion.2 ⟨N - 1, ?_⟩
-  rw [show N - 1 + 1 = N by omega]
-  refine ⟨hmass, ?_⟩
-  rw [hNeq] at hineq
-  have key : (((Finset.range N).filter
+  have hsubN : (((Finset.range m).filter
         (fun i => ¬ cutCorrect O B.lo B.hi F (y i) (oracleNoise x))).card : ℝ)
-      ≤ N * lim - hoeffDev N (sizeLevel a N) := by linarith
-  have hfin := card_filter_fin_eq N (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) y
-  refine le_trans (le_of_eq ?_) key
-  rw [← hfin]
+      ≤ ((Finset.range N).filter
+        (fun i => ¬ cutCorrect O B.lo B.hi F (y i) (oracleNoise x))).card := by
+    exact_mod_cast Finset.card_le_card (Finset.filter_subset_filter _
+      (Finset.range_subset_range.2 hmN))
+  rw [hPcard] at hineq hpos
+  have hNR : (N : ℝ) ≤ m + r := by exact_mod_cast hNle
+  have hrm : (r : ℝ) ≤ s * m := by
+    have : (B.npref : ℝ) ≤ m := by rw [hm]; push_cast; linarith [(Nat.cast_nonneg e : (0 : ℝ) ≤ e)]
+    nlinarith [mul_le_mul_of_nonneg_left this hs]
+  refine Set.mem_iUnion.2 ⟨m - 1, ?_⟩
+  rw [show m - 1 + 1 = m by omega]
+  refine ⟨hmass, ?_⟩
+  have hfin := card_filter_fin_eq m (fun p => ¬ cutCorrect O B.lo B.hi F p (oracleNoise x)) y
+  rw [hfin]
+  have : ((m : ℕ) : ℝ) * (lim + s) - hoeffDev m (sizeLevel a m)
+      = m * lim - hoeffDev m (sizeLevel a m) + s * m := by ring
+  rw [this]
+  linarith
 
 /-- What one population's looks and draws cost the gate. -/
 theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
@@ -1770,17 +1778,17 @@ theorem mul_sideCap_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (h
 
 open scoped Classical in
 /-- A family whose cut is wrong on at most `M` of the sample is certified once the sample's sides
-are live and `M/gateKappa`, the deviations and the redraws fit under the limit. -/
+are live and `M/gateKappa` and the deviations fit under the limit. -/
 theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
     (lo hi : ℕ) (hlohi : lo ≤ hi) (F R C : Finset S)
-    (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) {n N : ℕ} (hn : 0 < n)
-    (hC : C.card = n) (hnN : n ≤ N) {lim a t M : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t)
+    (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) {n : ℕ} (hn : 0 < n)
+    (hC : C.card = n) {lim a t M : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t)
     {ω : Ω} (hlive : sidesLive O lo hi F C R t t ω)
     (hmis : ((C.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) ≤ M)
     (hgate : M / gateKappa η₀
         + 2 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
-        + ((N : ℝ) - n) ≤ N * lim - hoeffDev N (sizeLevel a N)) :
-    certifiesAt O.mq η₀ lim a lo hi F R C N ω := by
+        ≤ n * lim - hoeffDev n (sizeLevel a n)) :
+    certifiesAt O.mq η₀ lim a lo hi F R C ω := by
   classical
   have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hκ := (gateKappa_facts h0 hη₀).1
@@ -1811,7 +1819,7 @@ theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     have := mul_le_mul_of_nonneg_left hdA hD.le
     have := mul_le_mul_of_nonneg_left hdR hD.le
     linarith
-  refine ⟨lt_of_lt_of_le hn hnN, ?_⟩
+  refine ⟨hC ▸ hn, ?_⟩
   unfold miscutBound
   rw [hC, ← hbdef, ← hA, ← hRs]
   linarith

@@ -239,7 +239,7 @@ the draws, and the draws missing the undecided set.  The gate's own tails are no
 are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * ((2 * (populations.card : ℝ) + 3) * (B.npref : ℝ) * ρ
+  (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 4) * (B.npref : ℝ) * ρ
       / rejFrac η₀ indecisionLimit εcov
     + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
 
@@ -297,9 +297,10 @@ noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
     * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop
-terminates, and the family it returns — at whatever state it stops — cuts each prefix population
-the way the noiseless oracle does on all but its gate's limit, `εcov` on the uniform pool and a
-half elsewhere, and leaves at most `2·indecisionLimit` of each undecided.
+terminates when every population is tame, and the family it returns — at whatever state it
+stops — cuts each tame population the way the noiseless oracle does on all but its gate's limit,
+`εcov` on the uniform pool and a half elsewhere, and twice the redraw fraction, and leaves at most
+`2·indecisionLimit` of each undecided.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
@@ -307,23 +308,24 @@ it, never from `O.η`.  The gate reads each class's rate at `η₀`, so it needs
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
 which has signal; the uniform pool is a population; the populations and the suffix measure are
-supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
-the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
+supported on a `Flat` pair of sets; no string has more than `ρ` of a tame population and `pAP`
+of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
 and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits `poolCollisionCap`. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
+    (O : Oracle μ S) (rule : Clusterer S) (populations tame : Finset J) (uni : J)
     (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  uni ∈ populations →
+  uni ∈ tame →
+  tame ⊆ populations →
   Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
   Dsf Sufᶜ = 0 →
-  (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+  (∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ) →
   0 < pAP →
   pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   0 < indecisionLimit →
@@ -343,13 +345,13 @@ def ClusteringCorrect : Prop :=
   collisionMass Dsf
     ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit →
   1 - δ - α ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit
-        εcov δ α pAP crossLimit ρ},
+    {x | ((∀ j ∈ populations, j ∈ tame) → ∃ B : {B : State // B ∈ stoppable η₀ populations
+        indecisionLimit εcov δ α pAP crossLimit ρ},
         x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ
         α pAP crossLimit ρ},
         x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
-        ∀ j ∈ populations, 1 - gateLimit uni εcov j
+        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)

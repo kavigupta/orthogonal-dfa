@@ -469,6 +469,56 @@ lemma rejTerm_le {c : ℝ} (hc0 : 0 < c) (hc : c ≤ 1 / 4) (m : ℕ) :
     nlinarith [mul_le_mul_of_nonneg_left hc hm0]
   nlinarith [mul_le_mul_of_nonneg_right hsq hc0.le, mul_le_mul_of_nonneg_left hr2.le hm0]
 
+/-- A tame population's redraws at a state of `m` prefixes, its table's and its certification
+sample's, against `(3P + 4)·m·ρ/c`. -/
+lemma redrawCost_le {c : ℝ} (hc0 : 0 < c) (hc : c ≤ 1 / 4) (m : ℕ) {P ρ : ℝ} (hP : 0 ≤ P)
+    (hρ : 0 ≤ ρ) :
+    ((m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / (2 * ((⌊c * m⌋₊ : ℝ) + 1))
+      + (((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) * (P * m * ρ)
+        + ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / 2) / ((⌊c * m⌋₊ : ℝ) + 1)
+      ≤ (3 * P + 4) * m * ρ / c := by
+  have hm0 : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
+  set r : ℝ := ((⌊c * m⌋₊ : ℕ) : ℝ) with hrdef
+  have hr1 : r ≤ c * m := Nat.floor_le (by positivity)
+  have hr2 : c * m < r + 1 := Nat.lt_floor_add_one _
+  have hr0 : 0 ≤ r := Nat.cast_nonneg _
+  have h1 := rejTerm_le hc0 hc m
+  rw [← hrdef] at h1
+  have t1 : ((m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / (2 * (r + 1)) ≤ m * ρ / c := by
+    rw [show ((m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / (2 * (r + 1))
+        = ρ / 2 * (((m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 / (r + 1)) by
+          have : r + 1 ≠ 0 := by linarith
+          field_simp]
+    calc ρ / 2 * (((m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 / (r + 1)) ≤ ρ / 2 * (2 * (m : ℝ) / c) :=
+          mul_le_mul_of_nonneg_left h1 (by positivity)
+      _ = m * ρ / c := by ring
+  have h2m : ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) ≤ 9 / 4 * m := by
+    push_cast
+    rw [← hrdef]
+    nlinarith
+  have h2m0 : (0 : ℝ) ≤ ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) := Nat.cast_nonneg _
+  have hnum : ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) * (P * m * ρ)
+        + ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / 2
+      ≤ (9 / 4 * P + 81 / 32) * ((m : ℝ) ^ 2 * ρ) := by
+    have hPm : 0 ≤ P * m * ρ := by positivity
+    have e1 := mul_le_mul_of_nonneg_right h2m hPm
+    have e2 : ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 ≤ (9 / 4 * m) ^ 2 :=
+      pow_le_pow_left₀ h2m0 h2m 2
+    have e3 := mul_le_mul_of_nonneg_right e2 (by positivity : (0 : ℝ) ≤ ρ / 2)
+    nlinarith
+  have t2 : (((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) * (P * m * ρ)
+        + ((2 * m + ⌊c * m⌋₊ : ℕ) : ℝ) ^ 2 * ρ / 2) / (r + 1)
+      ≤ (9 / 4 * P + 81 / 32) * (m * ρ / c) := by
+    rw [div_le_iff₀ (by linarith)]
+    have hk : 0 ≤ (9 / 4 * P + 81 / 32) * (m * ρ / c) := by positivity
+    have e : (9 / 4 * P + 81 / 32) * (m * ρ / c) * (c * m)
+        = (9 / 4 * P + 81 / 32) * ((m : ℝ) ^ 2 * ρ) := by field_simp
+    nlinarith [mul_le_mul_of_nonneg_left hr2.le hk]
+  have hmc : 0 ≤ (m : ℝ) * ρ / c := by positivity
+  have e : (3 * P + 4) * m * ρ / c = (3 * P + 4) * (m * ρ / c) := by ring
+  rw [e]
+  nlinarith
+
 /-- The fraction of the family the vote absorbs flipping, at this oracle's own rates.  A flip
 moves a member's mean by `gap`, and the worse class's clean mean sits `sig O.η` from the centre:
 
@@ -3081,10 +3131,6 @@ def certGood (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S J) : Pro
 def poolGood (M r : ℕ) (x : Run Ω S J) : Prop :=
   M ≤ (acceptedAt ∅ (fun i => suffixDraw i x) (M + r)).card
 
-/-- Every table and every certification sample at a state finds its draws in time. -/
-def drawsGood (populations : Finset J) (m r : ℕ) (x : Run Ω S J) : Prop :=
-  (∀ j ∈ populations, tabGood j m r x) ∧ ∀ j ∈ populations, certGood populations j m r x
-
 open scoped Classical in
 /-- A sampler that falls short redraws `r + 1` times, and drawing nothing from `T` each redraw
 is a repeated pair. -/
@@ -3241,53 +3287,6 @@ theorem measureReal_certBad_le (D : J → Measure S) (Dsf : Measure S)
       nlinarith [mul_le_mul_of_nonneg_right hIcard hρ0]
     linarith
   exact div_le_div_of_nonneg_right hnum (by positivity)
-
-open scoped Classical in
-/-- A state's draws all arrive in time, except on a set linear in the collision mass. -/
-theorem measureReal_drawsBad_le (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (populations : Finset J)
-    (m r : ℕ) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ drawsGood populations m r x}
-      ≤ (populations.card : ℝ) * ((populations.card : ℝ) + 1)
-          * ((m + r : ℕ) : ℝ) ^ 2 * ρ / ((r : ℝ) + 1) := by
-  classical
-  have hsub : {x : Run Ω S J | ¬ drawsGood populations m r x}
-      ⊆ (⋃ j ∈ populations, {x : Run Ω S J | ¬ tabGood j m r x})
-        ∪ ⋃ j ∈ populations, {x : Run Ω S J |
-            (∀ j' ∈ populations, tabGood j' m r x) ∧ ¬ certGood populations j m r x} := by
-    intro x hx
-    simp only [drawsGood, not_and_or, not_forall, Set.mem_setOf_eq] at hx
-    by_cases htab : ∀ j' ∈ populations, tabGood j' m r x
-    · rcases hx with ⟨j, hj, hc⟩ | ⟨j, hj, hc⟩
-      · exact absurd (htab j hj) hc
-      · exact Or.inr (Set.mem_biUnion hj ⟨htab, hc⟩)
-    · push_neg at htab
-      obtain ⟨j, hj, hc⟩ := htab
-      exact Or.inl (Set.mem_biUnion hj hc)
-  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-  refine le_trans (measureReal_union_le _ _) ?_
-  have h1 : (runMeasure μ D Dsf).real (⋃ j ∈ populations, {x : Run Ω S J | ¬ tabGood j m r x})
-      ≤ (populations.card : ℝ) * (((m + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))) := by
-    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
-    refine le_trans (Finset.sum_le_sum (fun j hj =>
-      measureReal_tabBad_le D Dsf j m r ρ (hρ j hj) hρ0)) ?_
-    rw [Finset.sum_const, nsmul_eq_mul]
-  have h2 : (runMeasure μ D Dsf).real (⋃ j ∈ populations, {x : Run Ω S J |
-        (∀ j' ∈ populations, tabGood j' m r x) ∧ ¬ certGood populations j m r x})
-      ≤ (populations.card : ℝ) * (((m + r : ℕ) : ℝ) ^ 2 * ((populations.card : ℝ) + 1 / 2)
-          * ρ / ((r : ℝ) + 1)) := by
-    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
-    refine le_trans (Finset.sum_le_sum (fun j hj =>
-      measureReal_certBad_le D Dsf populations j m r ρ hρ (hρ j hj) hρ0)) ?_
-    rw [Finset.sum_const, nsmul_eq_mul]
-  have e : (populations.card : ℝ) * (((m + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1)))
-      + (populations.card : ℝ) * (((m + r : ℕ) : ℝ) ^ 2 * ((populations.card : ℝ) + 1 / 2)
-          * ρ / ((r : ℝ) + 1))
-      = (populations.card : ℝ) * ((populations.card : ℝ) + 1)
-          * ((m + r : ℕ) : ℝ) ^ 2 * ρ / ((r : ℝ) + 1) := by
-    field_simp
-    ring
-  linarith
 
 open scoped Classical in
 /-- A certification sample is found in time unless some table is not, or it redraws too much
@@ -5074,6 +5073,191 @@ lemma certOf_of_good (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S 
     exact_mod_cast hfin
   rw [hfinR]
   exact hc
+
+lemma collisionMass_le_of_atoms (Dj : Measure S) [IsProbabilityMeasure Dj] {ρ : ℝ}
+    (h : ∀ t : S, Dj.real {t} ≤ ρ) : collisionMass Dj ≤ ρ := by
+  classical
+  have hs := summable_singleton_real Dj
+  have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (h 1)
+  have h1 : ∑' t : S, Dj.real {t} ≤ 1 :=
+    hs.tsum_le_of_sum_le (fun Q => by
+      rw [sum_measureReal_singleton]; exact measureReal_le_one' Dj _)
+  unfold collisionMass
+  calc ∑' t : S, Dj.real {t} ^ 2 ≤ ∑' t : S, ρ * Dj.real {t} :=
+        (summable_singleton_sq Dj).tsum_le_tsum (fun t => by
+          have := measureReal_nonneg (μ := Dj) (s := ({t} : Set S))
+          nlinarith [h t]) (hs.mul_left ρ)
+    _ = ρ * ∑' t : S, Dj.real {t} := tsum_mul_left
+    _ ≤ ρ := by nlinarith
+
+lemma measurableSet_cert_mem_table (populations : Finset J) (j : J) (m a : ℕ) :
+    MeasurableSet {x : Run Ω S J | certPrefix j a x ∈ prefixesAt populations m x} := by
+  classical
+  have hcov : {x : Run Ω S J | certPrefix j a x ∈ prefixesAt populations m x}
+      = ⋃ Q : Finset S, {x : Run Ω S J | prefixesAt populations m x = Q}
+          ∩ {x | certPrefix j a x ∈ (Q : Set S)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe]
+    exact ⟨fun h => ⟨_, rfl, h⟩, fun ⟨Q, hQ, h⟩ => hQ ▸ h⟩
+  rw [hcov]
+  exact MeasurableSet.iUnion (fun Q => (measurableSet_prefixesAt populations m Q).inter
+    (measurable_cert j a (measurableSet_of_countable _)))
+
+/-- A certification draw lands among a state's table prefixes, drawn independently of it, with
+chance at most `|populations|·m·ρ` when no string has more than `ρ` of its population. -/
+lemma measureReal_cert_mem_table_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (populations : Finset J)
+    (j : J) (m a : ℕ) {ρ : ℝ} (hρ : ∀ t, (D j).real {t} ≤ ρ) :
+    (runMeasure μ D Dsf).real {x : Run Ω S J | certPrefix j a x ∈ prefixesAt populations m x}
+      ≤ (populations.card : ℝ) * m * ρ := by
+  classical
+  have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρ 1)
+  set ν : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j
+    with hν
+  have hmp : MeasurePreserving (fun c : J → ℕ → S => c j a) ν (D j) :=
+    (measurePreserving_eval_infinitePi _ a).comp
+      (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j)
+  have hE : runMeasure μ D Dsf {x : Run Ω S J | certPrefix j a x ∈ prefixesAt populations m x}
+      ≤ ENNReal.ofReal ((populations.card : ℝ) * m * ρ) := by
+    refine runMeasure_slice_cert_le D Dsf _ (measurableSet_cert_mem_table populations j m a) _ ?_
+    intro y
+    set T : Finset S := prefixesAt populations m ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J)
+      with hT
+    have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+          ∈ {x : Run Ω S J | certPrefix j a x ∈ prefixesAt populations m x}}
+        = (fun c : J → ℕ → S => c j a) ⁻¹' (T : Set S) := by
+      ext c
+      rfl
+    rw [hsec, hmp.measure_preimage (measurableSet_of_countable _).nullMeasurableSet,
+      ← ENNReal.ofReal_toReal (measure_ne_top _ _), ← measureReal_def]
+    refine ENNReal.ofReal_le_ofReal ?_
+    rw [← sum_measureReal_singleton]
+    have hcard : (T.card : ℝ) ≤ (populations.card : ℝ) * m := by
+      exact_mod_cast card_prefixesAt_le populations m _
+    calc ∑ t ∈ T, (D j).real {t} ≤ ∑ _t ∈ T, ρ := Finset.sum_le_sum (fun t _ => hρ t)
+      _ = (T.card : ℝ) * ρ := by rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ (populations.card : ℝ) * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
+  rw [measureReal_def]
+  exact le_trans (ENNReal.toReal_mono ENNReal.ofReal_ne_top hE)
+    (le_of_eq (ENNReal.toReal_ofReal (by positivity)))
+
+/-- Population `j`'s certification sample finds `2m` strings outside the state's tables within
+its first `2m + r` draws, so every look up to twice the state's count is found in time. -/
+def certGood2 (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S J) : Prop :=
+  2 * m ≤ (acceptedAt (prefixesAt populations m x) (fun i => certPrefix j i x) (2 * m + r)).card
+
+lemma certGood_of_certGood2 (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S J)
+    (h : certGood2 populations j m r x) : certGood populations j m r x := by
+  have := card_acceptedAt_add_le (prefixesAt populations m x) (fun i => certPrefix j i x)
+    (show m + r ≤ 2 * m + r by omega)
+  unfold certGood2 at h
+  unfold certGood
+  omega
+
+open scoped Classical in
+set_option maxHeartbeats 1000000 in
+/-- A certification sample that is not found in time redraws `r + 1` times at repeats or at
+table prefixes; only `j`'s own atoms enter. -/
+theorem measureReal_certBad2_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (populations : Finset J)
+    (j : J) (m r : ℕ) (ρ : ℝ) (hρj : ∀ t, (D j).real {t} ≤ ρ) :
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ certGood2 populations j m r x}
+      ≤ (((2 * m + r : ℕ) : ℝ) * ((populations.card : ℝ) * m * ρ)
+          + ((2 * m + r : ℕ) : ℝ) ^ 2 * ρ / 2) / ((r : ℝ) + 1) := by
+  classical
+  have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρj 1)
+  have hcm := collisionMass_le_of_atoms (D j) hρj
+  set n : ℕ := 2 * m + r with hn
+  set I : Finset (ℕ × ℕ) :=
+    ((Finset.range n) ×ˢ (Finset.range n)).filter (fun q => q.1 < q.2) with hI
+  set A : ℕ → Set (Run Ω S J) :=
+    fun a => {x | certPrefix j a x ∈ prefixesAt populations m x} with hA
+  set Bq : ℕ × ℕ → Set (Run Ω S J) :=
+    fun q => {x | certPrefix j q.1 x = certPrefix j q.2 x} with hBq
+  have hsub : {x : Run Ω S J | ¬ certGood2 populations j m r x}
+      ⊆ {x | ((r : ℝ) + 1) ≤ (((Finset.range n).filter (fun a => x ∈ A a)).card : ℝ)
+          + ((I.filter (fun q => x ∈ Bq q)).card : ℝ)} := by
+    intro x hx
+    set y : ℕ → S := fun i => certPrefix j i x with hy
+    set T : Finset S := prefixesAt populations m x with hT
+    have h1 := le_card_acceptedAt_add T y n
+    have hshort : (acceptedAt T y n).card < 2 * m := not_le.1 hx
+    have hhits : ((Finset.range n).filter (fun i => y i ∈ T)).card
+        = ((Finset.range n).filter (fun a => x ∈ A a)).card := rfl
+    have hpairs : (repeatPairs y n).card = (I.filter (fun q => x ∈ Bq q)).card := by
+      congr 1
+      ext q
+      simp only [repeatPairs, hI, hBq, Finset.mem_filter, Set.mem_setOf_eq, and_assoc, hy]
+    have : r + 1 ≤ ((Finset.range n).filter (fun a => x ∈ A a)).card
+        + (I.filter (fun q => x ∈ Bq q)).card := by omega
+    show ((r : ℝ) + 1) ≤ (((Finset.range n).filter (fun a => x ∈ A a)).card : ℝ)
+      + ((I.filter (fun q => x ∈ Bq q)).card : ℝ)
+    exact_mod_cast this
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_count_ge_le (runMeasure μ D Dsf) (Finset.range n) A
+    (fun a => measurableSet_cert_mem_table populations j m a)
+    I Bq (fun q => measurableSet_eq_fun (measurable_cert j q.1) (measurable_cert j q.2))
+    (by positivity)) ?_
+  have hAsum : ∑ a ∈ Finset.range n, (runMeasure μ D Dsf).real (A a)
+      ≤ (n : ℝ) * ((populations.card : ℝ) * m * ρ) := by
+    calc ∑ a ∈ Finset.range n, (runMeasure μ D Dsf).real (A a)
+        ≤ ∑ _a ∈ Finset.range n, (populations.card : ℝ) * m * ρ :=
+          Finset.sum_le_sum (fun a _ => measureReal_cert_mem_table_le D Dsf populations j m a hρj)
+      _ = (n : ℝ) * ((populations.card : ℝ) * m * ρ) := by
+          rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  have hIsum : ∑ q ∈ I, (runMeasure μ D Dsf).real (Bq q) ≤ (I.card : ℝ) * ρ := by
+    calc ∑ q ∈ I, (runMeasure μ D Dsf).real (Bq q) ≤ ∑ _q ∈ I, ρ := by
+          refine Finset.sum_le_sum (fun q hq => ?_)
+          simp only [hI, Finset.mem_filter, Finset.mem_product, Finset.mem_range] at hq
+          have hY : Measurable (fun x : Run Ω S J => fun i : Fin n => certPrefix j i.val x) :=
+            measurable_pi_lambda _ (fun i => measurable_cert j i.val)
+          have h := block_pair_eq (runMeasure μ D Dsf) (D j)
+            (fun x : Run Ω S J => fun i : Fin n => certPrefix j i.val x) hY
+            (map_certBlock D Dsf j n) (a := ⟨q.1, hq.1.1⟩) (b := ⟨q.2, hq.1.2⟩)
+            (fun h => absurd (congrArg Fin.val h) (ne_of_lt hq.2))
+          simp only at h
+          rw [show Bq q = {x | certPrefix j q.1 x = certPrefix j q.2 x} from rfl, h]
+          exact hcm
+      _ = (I.card : ℝ) * ρ := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hIcard : 2 * (I.card : ℝ) ≤ (n : ℝ) ^ 2 := by
+    have h := card_repeatPairs_le (fun _ : ℕ => (1 : S)) n
+    have hI' : repeatPairs (fun _ : ℕ => (1 : S)) n = I := by
+      ext q
+      simp [repeatPairs, hI]
+    rw [hI'] at h
+    have : ((2 * I.card : ℕ) : ℝ) ≤ ((n * n : ℕ) : ℝ) := by exact_mod_cast h
+    push_cast at this
+    nlinarith
+  refine div_le_div_of_nonneg_right ?_ (by positivity)
+  nlinarith [mul_le_mul_of_nonneg_right hIcard hρ0]
+
+/-- The tame populations' tables and certification samples are all found in time. -/
+def drawsGoodOn (populations tame : Finset J) (m r : ℕ) (x : Run Ω S J) : Prop :=
+  (∀ j ∈ tame, tabGood j m r x) ∧ ∀ j ∈ tame, certGood2 populations j m r x
+
+open scoped Classical in
+theorem measureReal_drawsBadOn_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (populations tame : Finset J)
+    (m r : ℕ) (ρ : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ drawsGoodOn populations tame m r x}
+      ≤ (tame.card : ℝ) * (((m + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
+        + (((2 * m + r : ℕ) : ℝ) * ((populations.card : ℝ) * m * ρ)
+          + ((2 * m + r : ℕ) : ℝ) ^ 2 * ρ / 2) / ((r : ℝ) + 1)) := by
+  classical
+  have hsub : {x : Run Ω S J | ¬ drawsGoodOn populations tame m r x}
+      ⊆ ⋃ j ∈ tame, ({x : Run Ω S J | ¬ tabGood j m r x}
+        ∪ {x : Run Ω S J | ¬ certGood2 populations j m r x}) := by
+    intro x hx
+    simp only [drawsGoodOn, not_and_or, not_forall, Set.mem_setOf_eq] at hx
+    rcases hx with ⟨j, hj, hc⟩ | ⟨j, hj, hc⟩
+    · exact Set.mem_biUnion hj (Or.inl hc)
+    · exact Set.mem_biUnion hj (Or.inr hc)
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+  rw [← nsmul_eq_mul, ← Finset.sum_const]
+  refine Finset.sum_le_sum (fun j hj => le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_))
+  · exact measureReal_tabBad_le D Dsf j m r ρ (collisionMass_le_of_atoms (D j) (hρ j hj)) hρ0
+  · exact measureReal_certBad2_le D Dsf populations j m r ρ (hρ j hj)
 
 end Loop
 
