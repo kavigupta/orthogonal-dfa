@@ -426,11 +426,11 @@ theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.har
     ∀ (xs : List (FreeMonoid α)) (s : State α), Inv read C s →
       Θ C (Fintype.card σ) s < xs.length →
       ¬ EndsWell
-          { target := M, bad := AllUndecided read M, probes := D,
+          { target := M, badStates := AllUndecided read M, probes := D,
             disagreeRate := C.disagreementRate,
             disagree := {x | Disagrees read
               ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩ C.walkStart x},
-            spreadFrom := C.walkStart,
+            walkStart := C.walkStart,
             harvestLaw := fun _ => harvestLaw read D C.walkStart
               ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩,
             yield := C.harvestRate }
@@ -527,10 +527,10 @@ theorem correct_holds : Correct := by
     (Θ_start C _ (one_le_ends hC 0)).trans_le hP'
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
         ¬ EndsWell
-          { target := M, bad := AllUndecided read M, probes := D,
+          { target := M, badStates := AllUndecided read M, probes := D,
             disagreeRate := C.disagreementRate,
             disagree := {x | Disagrees read result.hypothesis C.walkStart x},
-            spreadFrom := C.walkStart,
+            walkStart := C.walkStart,
             harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
             yield := C.harvestRate }
           result.ending}
