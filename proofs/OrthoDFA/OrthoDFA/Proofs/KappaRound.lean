@@ -119,7 +119,7 @@ theorem pi_wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProb
   rw [List.length_ofFn] at this
   exact this
 
-theorem kappaRoundCorrect_holds : KappaRoundCorrect := by
+theorem level5RoundCorrect_holds : Level5RoundCorrect := by
   intro α _ _ σ _ M side U θ εw κ Ω _ μ _ R P C p₀
   dsimp only
   intro hpre hθ hδ hθL hGy hyρ hρ1 hP hεw hκ hw

@@ -300,15 +300,15 @@ variable [Nonempty α] {σ : Type*} (M : _root_.DFA α σ) (O : Oracle μ (FreeM
 /-- Off `scoreBad`, the leaf of highest score misjudges at most `2t`, the family's undecided
 share `u` and twice its misread share `m` more than any leaf. -/
 theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L n : ℕ) (hn : 0 < n)
-    (t u m η : ℝ) (ω : Ω) (xs : Fin n → FreeMonoid α) (hxs : Function.Injective xs)
+    (t u m γ : ℝ) (ω : Ω) (xs : Fin n → FreeMonoid α) (hxs : Function.Injective xs)
     (hgood : (ω, xs) ∉ scoreBad O H F kl kh L n t)
     (hu : ∫ x, readProb O F kl kh x .undecided ∂(uniformStrings L) ≤ u)
     (hm : ∫ x, misreadProb O F kl kh x ∂(uniformStrings L) ≤ m)
     (hs : ∃ s ∈ H.tree.leaves, (uniformStrings L).real
-      {x | ¬ H.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ η) :
+      {x | ¬ H.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) :
     (uniformStrings L).real {x | ¬ H.Classifies
       (pickLeaf H (fun z => familyRead O.mq F kl kh z ω) xs) x (M.eval x.toList ∈ M.accept)}
-      ≤ η + 2 * t + u + 2 * m := by
+      ≤ γ + 2 * t + u + 2 * m := by
   classical
   set U := uniformStrings (α := α) L with hUd
   set tgt : FreeMonoid α → Prop := fun x => M.eval x.toList ∈ M.accept
@@ -465,7 +465,7 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L 
   rw [hpick]
   have a1 := hmlo s₀
   have a2 := hmhi sh
-  show err sh ≤ η + 2 * t + u + 2 * m
+  show err sh ≤ γ + 2 * t + u + 2 * m
   linarith
 
 end Pick

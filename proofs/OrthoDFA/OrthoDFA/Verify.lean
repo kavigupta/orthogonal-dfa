@@ -1,13 +1,14 @@
 import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
-import OrthoDFA.FamilyOracle
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -23,20 +24,17 @@ import OrthoDFA.Proofs.TripartiteSearch
 The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LoopDFA`, holds: the learner's loop outputs a
 hypothesis that agrees with the target DFA but for chance `δ`.
 
-`ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, hold, and so do the family-read claims stated in
-`OrthoDFA.FamilyRead`, `TripartiteSearchCorrect`, stated in `OrthoDFA.TripartiteSearch`,
-`SiftWithPathCorrect` and `SiftAndSplitCorrect`, stated in `OrthoDFA.DTree`, `WalkCorrect`, stated
-in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
-`ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
-`SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`, level 2's
-claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
-`OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
-level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, whose
-oracle the clustering's family reads are (`SuffixFamily.kappaOracle`, in `OrthoDFA.FamilyOracle`),
-with its version reading the prefix mass past the walk's start (`KappaRoundCorrectAt`), and
-`LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`.
+The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
+`ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
+in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
+in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim` (with `KappaRoundCorrectAt`, which reads the prefix mass past the walk's start), and
+`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
+with the simpler premises.
+
+The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
+`CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
 namespace OrthoDFA
@@ -94,32 +92,40 @@ theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
 
-theorem level2_correct : Level2.Correct := Level2.correct_holds
+theorem level2_round_correct : Level2RoundCorrect := Level2.level2RoundCorrect_holds
 
-#print axioms level2_correct
+#print axioms level2_round_correct
 
 theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
 
 #print axioms adaptive_reads_bound
 
-theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCorrect_holds
+theorem level3_round_correct : Level3RoundCorrect := Random.level3RoundCorrect_holds
 
-#print axioms random_round_correct
+#print axioms level3_round_correct
 
-theorem eps_round_correct : Random.Eps.EpsRoundCorrect := Random.Eps.epsRoundCorrect_holds
+theorem level4_round_correct : Level4RoundCorrect := Random.Eps.level4RoundCorrect_holds
 
-#print axioms eps_round_correct
+#print axioms level4_round_correct
 
 theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
 
 #print axioms race_reads_bound
 
-theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
-  Random.Kappa.kappaRoundCorrect_holds
+theorem level5_round_correct : Level5RoundCorrect :=
+  Random.Kappa.level5RoundCorrect_holds
 
-#print axioms kappa_round_correct
+#print axioms level5_round_correct
 
-theorem kappa_round_correct_at : Random.Kappa.KappaRoundCorrectAt :=
+theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
+
+#print axioms family_kappa_oracle
+
+theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
+
+#print axioms covered_start_correct
+
+theorem kappa_round_correct_at : KappaRoundCorrectAt :=
   Random.Kappa.kappaRoundCorrectAt_holds
 
 #print axioms kappa_round_correct_at

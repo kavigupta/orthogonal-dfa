@@ -1,4 +1,5 @@
 import OrthoDFA.Level5Claim
+import OrthoDFA.Utils.CoveredStart
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -6,17 +7,16 @@ import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 Each round of `indecisiveLStarLoop` clusters a suffix family over the populations so far, runs
 level 3's algorithm (`indecisiveLStarLevel3`) reading that family, and stops at the first round
-that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population of every later round:
-it draws a fresh probe from the probes' distribution `D`, walks it under the round's last
-hypothesis and takes its undecided strings at the harvest's site, as the round reads them. The first population is `D` itself. A population's
-draws are made from uniforms (`drawFrom`).
+that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population
+of every later round: it draws a fresh probe from the probes' distribution `D`, walks it under the
+round's last hypothesis and takes its undecided strings at the harvest's site, as the round reads
+them. The first population is `D` itself. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about: the family is `clusterAt` at a
 state of the schedule at which `ret` returns. The round reads the family without its seed, at the
 gate's cut: a string reads accept at `hi + 1` or more of the family's votes and reject at `lo` or
-fewer. Without its seed the family is suffix draws of one length, so it is suffix-free.
-
-The whole run reads one noise, fixed per string as the Python's is.
+fewer. Without its seed the family is suffix draws of one length, so it is suffix-free. The whole
+run reads one noise, fixed per string as the Python's is.
 
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
@@ -47,11 +47,6 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 instance : Nonempty State := ⟨⟨0, 0, 0, 0, 0, 0, 0⟩⟩
-
-/-- Uniform over the strings of length `n`. -/
-def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
-  ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
-    • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
 
 /-- `ν` scaled to a probability, or a point mass where it has no mass or infinite mass. -/
 def popLaw (ν : Measure (FreeMonoid α)) : Measure (FreeMonoid α) :=
@@ -122,9 +117,6 @@ def roundLaw (α : Type*) (K P : ℕ) : Measure (RoundDraws α K P) :=
   (restLaw α K).prod (Measure.pi fun _ : Fin P => (volume : Measure unitInterval))
 
 variable {Ω : Type*} [MeasurableSpace Ω]
-
-def clusterLaw (μ : Measure Ω) (α : Type*) (K : ℕ) : Measure (ClusterDraws Ω α K) :=
-  μ.prod (restLaw α K)
 
 /-- One noise for the whole run, which every string's read keeps, and `K` rounds' uniforms,
 independent. -/
@@ -243,20 +235,6 @@ def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (Fr
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) : List (LoopRound Ω α K) :=
   loopRounds settings O D Dsf draws K
-
-open scoped Classical in
-/-- The chance `F`'s read of `p`, cut at `kl` and `kh`, is decided against `p`'s membership. -/
-def misreadProb (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
-    (p : FreeMonoid α) : ℝ :=
-  μ.real {ω | familyRead O.mq F kl kh p ω = if p ∈ O.L then .reject else .accept}
-
-/-- The round ended consistent, and its read decides a draw from `D` against the target at most
-`εr` of the time and leaves it undecided at most `εu`. -/
-def LoopRound.Agrees {K : ℕ} (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
-    (εr εu : ℝ) (o : LoopRound Ω α K) : Prop :=
-  o.result.ending = .consistent
-    ∧ ∫ p, misreadProb O o.family o.state.lo (o.state.hi + 1) p ∂D ≤ εr
-    ∧ ∫ p, readProb O o.family o.state.lo (o.state.hi + 1) p .undecided ∂D ≤ εu
 
 end OrthoDFA
 
