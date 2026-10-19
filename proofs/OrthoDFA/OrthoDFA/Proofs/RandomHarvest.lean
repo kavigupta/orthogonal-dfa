@@ -84,7 +84,16 @@ read-states, at most `g` where the probes harvesting one are at most `g`. -/
 theorem total_le_of_not_endsWell {σ : Type*} (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) {g y : ℝ}
     (site : Level3Site) (hG : D.real (goodAt read k H M U θ site) ≤ g) (ε : ℝ)
     (dis : Set (FreeMonoid α))
-    (h : ¬ EndsWell M (BadAt U θ) D ε dis k (harvestLaw read D k H) y (.harvest site)) :
+    (h : ¬ EndsWell
+      { target := M,
+        badStates := BadAt U θ,
+        probes := D,
+        disagreeRate := ε,
+        disagree := dis,
+        walkStart := k,
+        harvestLaw := harvestLaw read D k H,
+        yield := y,
+        ending := .harvest site }) :
     (harvestLaw read D k H site).real Set.univ ≤ max (2 * g) y := by
   classical
   set ν := harvestLaw read D k H site
