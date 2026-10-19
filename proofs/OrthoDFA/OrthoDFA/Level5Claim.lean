@@ -6,7 +6,7 @@ import OrthoDFA.Level4Claim
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
 most `εw + κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`), otherwise as
 `ReadOracle` says. A wrong read can steer the round only once the round reads its string, and a
-string at a state is read undecided `1/κ` times as often as wrong. A probe's sifts stop at their
+string is read wrong at most `κ` times as often as undecided, beyond `εw`. A probe's sifts stop at their
 first undecided read, so each probe reads at most one string undecided, and the tests count it:
 the tests bound the undecided reads a round makes, whatever the budget, and with them the wrong
 ones.
