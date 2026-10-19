@@ -25,8 +25,8 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 
 /-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and the family it returns
 there, averaged over a population, decides a prefix the wrong way at most `εcov + slack` of the
-time on the uniform pool and at most `1/2 + slack` on any population, and leaves it undecided at most
-`2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
+time on the uniform pool and at most `1/2 + slack` on any population, and leaves it undecided at
+most `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
 `ClusteringGuarantee`'s.  The collision masses are held as there, at `δ/2`, and the populations'
 also against `slack`: the table's own prefixes are read with the noise the family was chosen
 on. -/

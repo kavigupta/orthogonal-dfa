@@ -416,7 +416,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       (by rw [← hmdef]; exact hm) hM (by
         have h := hcollD _ htop j hj
         rw [hδ'def]
-        have hscaleEq : budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
+        have hscaleEq :
+            budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
           unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
         change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * collisionMass (D j)
           ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2 at h
