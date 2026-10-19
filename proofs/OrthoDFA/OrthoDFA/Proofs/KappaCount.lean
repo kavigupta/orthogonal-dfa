@@ -145,7 +145,7 @@ section Step
 variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
   (side : σ → Bool) (read : FreeMonoid α → ARU) (C : Level3Settings)
 
-omit [Fintype σ] in
+omit [Fintype σ] [DecidableEq α] in
 theorem splitReads_empty {s : Level3State α} {x : FreeMonoid α}
     (h : ∀ p c u t, probeOrAgree read s.tree s.edges C.walkStart x ≠ .wrongEdge p c u t) :
     splitReads read C s x = ∅ := by
@@ -155,9 +155,11 @@ theorem splitReads_empty {s : Level3State α} {x : FreeMonoid α}
   · exact absurd ho (h p c u t)
   all_goals rfl
 
+omit [DecidableEq α] in
 /-- A split re-sifts at most `(|Q| + 1)²|Σ|` strings. -/
 theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMonoid α) :
-    (splitReads read C s x).card ≤ (Fintype.card σ + 1) * Fintype.card α * (Fintype.card σ + 1) := by
+    (splitReads read C s x).card
+      ≤ (Fintype.card σ + 1) * Fintype.card α * (Fintype.card σ + 1) := by
   have hlv : s.tree.leaves.length ≤ Fintype.card σ + 1 := by
     have := hW.leaves; have := img_card_le M side s.tree; omega
   have hmid : (mids s.tree).card ≤ Fintype.card σ := by
@@ -178,6 +180,7 @@ theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMon
     · simp
   all_goals simp
 
+omit [DecidableEq α] in
 /-- A probe reads at most `(L + 1)|Q|` strings. -/
 theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMonoid α} {L : ℕ}
     (hx : x.toList.length ≤ L) :
@@ -190,9 +193,9 @@ theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMon
     _ ≤ (x.toList.length + 1) * (mids s.tree).card := card_pot _ x _
     _ ≤ _ := Nat.mul_le_mul (by omega) hmid
 
+omit [Fintype α] [DecidableEq α] in
 theorem ends_mid_le_one (o : Outcome α) : (endsString o).length + (middleString o).length ≤ 1 := by
-  rcases o with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;>
-    simp [endsString, middleString, List.length_take] <;> omega
+  rcases o with _ | _ | _ | _ | ⟨zs, _ | _⟩ <;> simp [endsString, middleString, List.length_take]
 
 omit [Fintype α] [DecidableEq α] in
 /-- A probe reads undecided at most the strings it stops at. -/
@@ -209,6 +212,7 @@ theorem probeReads_und_card (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMon
         exact probeReads_undecided E k hz hu
     _ ≤ _ := (List.toFinset_card_le _).trans (by simp)
 
+omit [DecidableEq α] in
 /-- A counted probe searches exactly where it stops at an undecided middle. -/
 theorem counted_search {s : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     (hc : changes (probeOrAgree read s.tree s.edges C.walkStart x) = false) :
@@ -424,7 +428,8 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
   rcases h with ⟨hg, s, hs, hI, hu, hb⟩ | ⟨hstop, hu, hb⟩
   swap
   · -- stopped: nothing more is counted
-    have hz : ∀ i, i = 2 * n ∨ i = 2 * n + 1 → (¬ Good' M side C xs r i ∨ rounds' C xs i r = ∅) := by
+    have hz : ∀ i, i = 2 * n ∨ i = 2 * n + 1 →
+        (¬ Good' M side C xs r i ∨ rounds' C xs i r = ∅) := by
       rintro i hi
       rcases hstop with hstop | hstop
       · exact Or.inl fun hgi => hstop (good'_mono M side C xs r hgi (by omega))
@@ -499,10 +504,10 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
   generalize ((probeReads r s.tree s.edges C.walkStart x).card : ℝ) = B0 at hB hb0r
   generalize ((splitReads r C s x).card : ℝ) = B1 at hB hb1r hu1r hs0B
   obtain ⟨hpu, hpb⟩ := phi_le M side r hI (n := n) (N := xs.length) (by omega) L hc hδ0 hδ1
-  have hstopU : undCount M side C xs r (n + 1) ≤ Mu (Fintype.card σ) (Fintype.card α) C xs.length :=
-    by linarith
-  have hstopB : readCount M side C xs r (n + 1) ≤ Mb (Fintype.card σ) (Fintype.card α) L xs.length :=
-    by linarith
+  have hstopU : undCount M side C xs r (n + 1)
+      ≤ Mu (Fintype.card σ) (Fintype.card α) C xs.length := by linarith
+  have hstopB : readCount M side C xs r (n + 1)
+      ≤ Mb (Fintype.card σ) (Fintype.card α) L xs.length := by linarith
   rcases hap : applyProbe r C s x with s' | e
   swap
   · refine Or.inr ⟨Or.inr ?_, hstopU, hstopB⟩

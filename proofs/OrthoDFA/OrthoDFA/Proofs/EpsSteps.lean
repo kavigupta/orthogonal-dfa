@@ -283,7 +283,8 @@ theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x 
 learned edges leaving leaves. -/
 theorem applyProbe_congr_of {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (hlv : ∀ e t w, s.edges e = some (t, w) → e.1 ∈ s.tree.leaves)
-    (ho : probeOrAgree r s.tree s.edges C.walkStart x = probeOrAgree r' s.tree s.edges C.walkStart x)
+    (ho : probeOrAgree r s.tree s.edges C.walkStart x
+      = probeOrAgree r' s.tree s.edges C.walkStart x)
     (h : ∀ z ∈ splitReads r C s x, r z = r' z) :
     applyProbe r C s x = applyProbe r' C s x := by
   have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]

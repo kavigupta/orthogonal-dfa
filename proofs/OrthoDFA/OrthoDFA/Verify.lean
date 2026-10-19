@@ -8,6 +8,8 @@ import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
+import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.TripartiteSearch
@@ -22,9 +24,10 @@ import OrthoDFA.Proofs.TripartiteSearch
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.Utils.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 3's
-random-read claim, stated in `OrthoDFA.Level3Claim`, and level 4's claim with rare wrong reads,
-stated in `OrthoDFA.Level4Claim`.
+`OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`, level 2's
+claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
+`OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
+and level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`.
 -/
 
 namespace OrthoDFA
@@ -89,5 +92,14 @@ theorem random_round_correct : Random.RandomRoundCorrect := Random.randomRoundCo
 theorem eps_round_correct : Random.Eps.EpsRoundCorrect := Random.Eps.epsRoundCorrect_holds
 
 #print axioms eps_round_correct
+
+theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
+
+#print axioms race_reads_bound
+
+theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
+  Random.Kappa.kappaRoundCorrect_holds
+
+#print axioms kappa_round_correct
 
 end OrthoDFA
