@@ -14,6 +14,12 @@ which on a `UniformSource` redraws neither a repeat nor a prefix the table holds
 `certOf` redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where
 `_draw_cohort` would redraw it.
 
+Known modelling gap.  For a named population, `split_draws` sends each draw to a held-out
+reserve with chance `RESERVE_SHARE` and `prefixes_for_split` certifies on that reserve first, in
+draw order, then on fresh draws; `take` puts a round's harvested strings in the table.  Here
+every population's certification sample is drawn from a stream of its own, outside the tables,
+and no population holds harvested strings.
+
 Known modelling gap.  `grow_population` retires a population whose source fails its yield
 test, and `prefixes_for_split` reads a split without a population whose source draws nothing;
 `keptAt` drops a population from the tests only when its table or its certification sample
