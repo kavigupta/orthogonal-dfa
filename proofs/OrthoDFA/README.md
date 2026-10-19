@@ -338,10 +338,6 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   against a rate, and `SeqRateSound` (Ville's inequality): over independent draws, testing at every
   look fires at some look with chance at most `a` when the true rate is on the far side of `p₀`
   from `p₁`. `statistics.seq_rate` is the same test.
-- `OrthoDFA/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
-  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
-  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
-  reads bad with chance at most `ε` times the most strings they query while none has.
 - `OrthoDFA/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
 - `OrthoDFA/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
   level: consistent, or a harvest. A harvest is a sampler; more than half of what it finds is at
@@ -431,6 +427,17 @@ prefix. `Level5RiskBound` (same file) is `roundRisk ≤ δ` under explicit condi
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
 Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to trust the claim.
+
+## Utilities
+
+`OrthoDFA/Utils/` states general lemmas the proofs use, about probability rather than the
+algorithm. They are proved under `OrthoDFA/Proofs/` and named in `Verify.lean` like the claims, but
+need not be read to trust the claims above.
+
+- `OrthoDFA/Utils/AdaptiveReads.lean` — `AdaptiveReadsBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε`, and queried in rounds, each
+  round choosing its strings from what earlier rounds read; some query of the first `n` rounds
+  reads bad with chance at most `ε` times the most strings they query while none has.
 
 ## Scope
 

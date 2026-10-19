@@ -30,9 +30,10 @@ hypothesis that agrees with the target DFA but for chance `δ`.
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated in
-`OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in `OrthoDFA.Level5Family`,
-and `LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`. Level 5's detailed bound and its closed form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are
+`OrthoDFA.Utils.AdaptiveReads`, level 2's claim, stated in `OrthoDFA.Level2Claim`, level 5's, stated
+in `OrthoDFA.Level5Claim`, and level 5 read by the suffix family, stated in `OrthoDFA.Level5Family`,
+and `LearnerLoopDFASimple`, stated in `OrthoDFA.LoopDFA`. Level 5's detailed bound and its closed
+form, stated in `OrthoDFA.Proofs.Level5RiskDefs`, are
 internal: the claims above are derived from them.
 -/
 

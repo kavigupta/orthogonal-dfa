@@ -4,6 +4,7 @@ super-string alone, which is what lets these assert equality rather than a rate.
 """
 
 import unittest
+from unittest import mock
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -20,6 +21,7 @@ from orthogonal_dfa.l_star.structures import (
     SymmetricBernoulli,
 )
 from orthogonal_dfa.l_star.tracker import RecordingTracker
+from orthogonal_dfa.superlanguage import oracle as lifted_oracle
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
@@ -102,6 +104,16 @@ class TestLiftedOracle(unittest.TestCase):
         a = self.oracle.membership_queries(query)
         b = self.oracle.membership_queries(query)
         np.testing.assert_array_equal(a, b)
+
+    def test_chunks_answer_as_one_batch(self):
+        sampler = SuperSampler(self.vocab, 20)
+        rng = np.random.default_rng(3)
+        strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(50)]
+        whole = self.oracle.membership_queries(strings)
+        with mock.patch.object(lifted_oracle, "_CHUNK", 7):
+            np.testing.assert_array_equal(
+                self.oracle.membership_queries(strings), whole
+            )
 
     def test_the_noise_model_reaches_the_answer(self):
         # p_correct=0 inverts every label, so a noised oracle must contradict a
