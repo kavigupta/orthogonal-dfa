@@ -190,16 +190,17 @@ noncomputable def devAt (rule : Clusterer S) (O : Oracle μ S) (populations : Fi
         (fun p => Ev (familyBy rule O.mq populations x B) p (oracleNoise x)), Dj.real {p}
 
 open scoped Classical in
-theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
-    (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
-    [IsProbabilityMeasure Dsf] (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (hsuppSf : Dsf Sufᶜ = 0)
+theorem streamMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (Pp j)]
+    [∀ j, IsProbabilityMeasure (Pc j)] [IsProbabilityMeasure Dsf] (populations : Finset J)
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (B : State) (Dj : Measure S) (F : Finset S) (hF : ∀ p ∈ F, p ∈ Pre)
     (Ev : Finset S → S → Ω → Prop)
     (hEv : ∀ (A₀ : Finset S) (p : S) (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
       MeasurableSet[noiseAlg O U] {ω | Ev A₀ p ω})
     (t : ℝ) (ht : 0 < t) (ρ : ℝ) (hρ : ∑ p ∈ F, Dj.real {p} ^ 2 ≤ ρ) :
-    (runMeasure μ D Dsf).real {x | t ≤ devAt rule O populations B Dj F Ev x} ≤ ρ / t ^ 2 := by
+    (streamMeasure μ Pp Pc Dsf).real {x | t ≤ devAt rule O populations B Dj F Ev x}
+      ≤ ρ / t ^ 2 := by
   classical
   have hR' : ∀ (P : Finset S) (A₀ : Finset S), MeasurableSet {ω : Ω | t ≤
       ∑ p ∈ F \ P, Dj.real {p} * μ.real {ω' | Ev A₀ p ω'}
@@ -230,11 +231,11 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
     ext x
     simp only [Set.mem_ofPred_eq, if_pos (one_mem_poolAt B.nsuff x)]
     rfl
-  have hEnn : runMeasure μ D Dsf {x | t ≤ devAt rule O populations B Dj F Ev x}
+  have hEnn : streamMeasure μ Pp Pc Dsf {x | t ≤ devAt rule O populations B Dj F Ev x}
       ≤ ENNReal.ofReal (ρ / t ^ 2) := by
-    refine runMeasure_slice_le D Dsf _ hmeas _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_sfx_mem_Suf D Dsf Suf hsuppSf] with d hd hdS
+    refine streamMeasure_slice_le Pp Pc Dsf _ hmeas _ ?_
+    filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
+      ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf] with d hd hdS
     set P : Finset S :=
       populations.biUnion
       (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPdef
@@ -515,10 +516,15 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hper : ∀ B, ∀ j ∈ tame,
       (runMeasure μ D Dsf).real (badC B j ∪ badU B j) ≤ 8 * ρ / slack ^ 2 := by
     intro B j hj
-    have h1 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j)
+    have h1 := streamMeasure_dev_le (rule := rule) hflat O (fun j => iidStream (D j))
+      (fun j => iidStream (D j)) Dsf populations (fun j hj => ae_iidStream_mem (D j) (hsupp j hj))
+      hsuppSf B (D j)
       (F j) (hFPre j) (EvC B) (hEvCm B) (slack / 2) (by positivity) ρ (hsq j hj)
-    have h2 := runMeasure_dev_le (rule := rule) hflat O D Dsf populations hsupp hsuppSf B (D j)
+    have h2 := streamMeasure_dev_le (rule := rule) hflat O (fun j => iidStream (D j))
+      (fun j => iidStream (D j)) Dsf populations (fun j hj => ae_iidStream_mem (D j) (hsupp j hj))
+      hsuppSf B (D j)
       (F j) (hFPre j) (EvU B) (hEvUm B) (slack / 2) (by positivity) ρ (hsq j hj)
+    rw [← runMeasure_eq_streamMeasure] at h1 h2
     have e : ρ / (slack / 2) ^ 2 = 4 * ρ / slack ^ 2 := by field_simp; ring
     calc (runMeasure μ D Dsf).real (badC B j ∪ badU B j)
         ≤ (runMeasure μ D Dsf).real (badC B j) + (runMeasure μ D Dsf).real (badU B j) :=

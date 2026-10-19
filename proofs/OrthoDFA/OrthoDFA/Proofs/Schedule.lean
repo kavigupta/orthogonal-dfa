@@ -239,7 +239,7 @@ the draws, and the draws missing the undecided set.  The gate's own tails are no
 are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 4) * (B.npref : ℝ) * ρ
+  (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 5) * (B.npref : ℝ) * ρ
       / rejFrac η₀ indecisionLimit εcov
     + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
 

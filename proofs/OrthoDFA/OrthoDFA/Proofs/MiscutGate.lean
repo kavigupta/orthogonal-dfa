@@ -1132,17 +1132,19 @@ open scoped Classical in
 /-- `sidesGood_whp` over the run.  With the draws fixed the family is chosen by the table's
 bits, and the sides read only the sample's strings, which the table never reads. -/
 theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
+    (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
-    (runMeasure μ D Dsf).real (sidesBad rule O populations j B m a) ≤ 6 * a := by
+    (streamMeasure μ Pp Pc Dsf).real (sidesBad rule O populations j B m a) ≤ 6 * a := by
   classical
-  have hEnn : runMeasure μ D Dsf (sidesBad rule O populations j B m a)
+  have hEnn : streamMeasure μ Pp Pc Dsf (sidesBad rule O populations j B m a)
       ≤ ENNReal.ofReal (6 * a) := by
-    refine runMeasure_slice_le D Dsf _ (measurableSet_sidesBad O populations j B m a) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+    refine streamMeasure_slice_le Pp Pc Dsf _ (measurableSet_sidesBad O populations j B m a) _ ?_
+    filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
+      ae_cert_mem_Pre Pp Pc Dsf Pre populations hsuppC, ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf]
       with d hdP hdC hdS
     set Pd : Finset S := populations.biUnion
       (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
@@ -1220,7 +1222,7 @@ theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
           (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
       _ ≤ ENNReal.ofReal (6 * a) := ENNReal.ofReal_le_ofReal hmain
   rw [measureReal_def]
-  calc (runMeasure μ D Dsf (sidesBad rule O populations j B m a)).toReal
+  calc (streamMeasure μ Pp Pc Dsf (sidesBad rule O populations j B m a)).toReal
       ≤ (ENNReal.ofReal (6 * a)).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = 6 * a := ENNReal.toReal_ofReal (by positivity)
 
@@ -1353,48 +1355,50 @@ lemma measurableSet_rawShortAt (O : Oracle μ S) (populations : Finset J) (Dj : 
 
 open scoped Classical in
 /-- At one count of draws: the family is fixed before the draws, so Hoeffding applies. -/
-theorem measureReal_rawShortAt_le (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
-    (populations : Finset J) (j : J) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1)
+theorem measureReal_rawShortAt_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (O : Oracle μ S) (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
+    (hPc : Pc j = iidStream Dj) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1)
     (N : ℕ) (hN : 0 < N) :
-    (runMeasure μ D Dsf).real (rawShortAt rule O populations (D j) j B lim a N)
+    (streamMeasure μ Pp Pc Dsf).real (rawShortAt rule O populations Dj j B lim a N)
       ≤ sizeLevel a N := by
   classical
   set E : ℝ := sizeLevel a N with hEdef
   have hE0 : 0 ≤ E := sizeLevel_nonneg ha0.le N
   have hNR : (0 : ℝ) < N := by exact_mod_cast hN
-  have hEnn : runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a N)
+  have hEnn : streamMeasure μ Pp Pc Dsf (rawShortAt rule O populations Dj j B lim a N)
       ≤ ENNReal.ofReal E := by
-    refine runMeasure_slice_cert_le D Dsf _
-      (measurableSet_rawShortAt O populations (D j) j B lim a N) _ ?_
+    refine streamMeasure_slice_cert_le Pp Pc Dsf _
+      (measurableSet_rawShortAt O populations Dj j B lim a N) _ ?_
     intro y
     set F : Finset S :=
       clusterBy rule O.mq populations ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J) B with hF
     set W : Set S := {p | ¬ cutCorrect O B.lo B.hi F p y.1} with hW
     have hFeq : ∀ c : J → ℕ → S,
         clusterBy rule O.mq populations ((y.1, (y.2, c)) : Run Ω S J) B = F := fun c => rfl
-    by_cases hmass : lim < (D j).real W
+    by_cases hmass : lim < Dj.real W
     · set t : ℝ := hoeffDev N (sizeLevel a N) / N with ht
       have ht0 : 0 ≤ t := div_nonneg (Real.sqrt_nonneg _) hNR.le
       have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-            ∈ rawShortAt rule O populations (D j) j B lim a N}
+            ∈ rawShortAt rule O populations Dj j B lim a N}
           ⊆ {c | (((Finset.range N).filter (fun i => c j i ∈ W)).card : ℝ)
-            ≤ (N : ℝ) * ((D j).real W - t)} := by
+            ≤ (N : ℝ) * (Dj.real W - t)} := by
         rintro c ⟨-, hcount⟩
         have h := card_filter_fin_eq N (fun p => p ∈ W) (fun i => c j i)
         show (((Finset.range N).filter (fun i => c j i ∈ W)).card : ℝ)
-          ≤ (N : ℝ) * ((D j).real W - t)
+          ≤ (N : ℝ) * (Dj.real W - t)
         rw [← h]
-        have e : (N : ℝ) * ((D j).real W - t) = N * (D j).real W - hoeffDev N (sizeLevel a N) := by
+        have e : (N : ℝ) * (Dj.real W - t) = N * Dj.real W - hoeffDev N (sizeLevel a N) := by
           rw [ht]; field_simp
         rw [e]
         refine le_trans hcount ?_
         nlinarith
       refine le_trans (measure_mono hsec) ?_
       rw [← ENNReal.ofReal_toReal (measure_ne_top
-          (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _), ← measureReal_def]
+          (Measure.pi Pc) _), ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
-      have hcert := cert_hits_wrongSet D j N W ((D j).real W) t measureReal_nonneg ht0 le_rfl
+      have hcert := cert_hits_wrongSet Pc j Dj hPc N W (Dj.real W) t measureReal_nonneg ht0 le_rfl
       have hexp : Real.exp (-2 * (N : ℝ) * t ^ 2) = E :=
         exp_hoeffDev N hN (sizeLevel_pos ha0 N) (sizeLevel_le ha0.le ha1 N)
       rw [hexp] at hcert
@@ -1402,7 +1406,7 @@ theorem measureReal_rawShortAt_le (D : J → Measure S) (Dsf : Measure S)
       funext c
       congr!
     · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-          ∈ rawShortAt rule O populations (D j) j B lim a N} = (∅ : Set (J → ℕ → S)) := by
+          ∈ rawShortAt rule O populations Dj j B lim a N} = (∅ : Set (J → ℕ → S)) := by
         ext c
         simp only [Set.mem_empty_iff_false, iff_false]
         rintro ⟨hm, -⟩
@@ -1410,26 +1414,30 @@ theorem measureReal_rawShortAt_le (D : J → Measure S) (Dsf : Measure S)
         exact hmass hm
       simp [hsec]
   rw [measureReal_def]
-  calc (runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a N)).toReal
+  calc (streamMeasure μ Pp Pc Dsf (rawShortAt rule O populations Dj j B lim a N)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
 /-- Over every count of draws together. -/
-theorem measureReal_rawShort_le (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
-    (populations : Finset J) (j : J) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
-    (runMeasure μ D Dsf).real (⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1))
+theorem measureReal_rawShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (O : Oracle μ S) (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
+    (hPc : Pc j = iidStream Dj) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (streamMeasure μ Pp Pc Dsf).real (⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1))
       ≤ a := by
-  have hle : runMeasure μ D Dsf (⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1))
+  have hle : streamMeasure μ Pp Pc Dsf (⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1))
       ≤ ENNReal.ofReal a := by
     refine le_trans (measure_iUnion_le _) ?_
     refine ENNReal.tsum_le_of_sum_range_le (fun n => ?_)
-    calc ∑ i ∈ Finset.range n, runMeasure μ D Dsf (rawShortAt rule O populations (D j) j B lim a (i + 1))
+    calc ∑ i ∈ Finset.range n,
+          streamMeasure μ Pp Pc Dsf (rawShortAt rule O populations Dj j B lim a (i + 1))
         ≤ ∑ i ∈ Finset.range n, ENNReal.ofReal (sizeLevel a (1 + i)) := by
           refine Finset.sum_le_sum (fun i _ => ?_)
           rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← measureReal_def, add_comm 1 i]
           exact ENNReal.ofReal_le_ofReal
-            (measureReal_rawShortAt_le D Dsf O populations j B ha0 ha1 (i + 1) (Nat.succ_pos i))
+            (measureReal_rawShortAt_le Pp Pc Dsf O populations j Dj hPc B ha0 ha1 (i + 1)
+              (Nat.succ_pos i))
       _ = ENNReal.ofReal (∑ i ∈ Finset.range n, sizeLevel a (1 + i)) :=
           (ENNReal.ofReal_sum_of_nonneg (fun i _ => sizeLevel_nonneg ha0.le _)).symm
       _ ≤ ENNReal.ofReal a := ENNReal.ofReal_le_ofReal (sum_range_sizeLevel_shift_le ha0.le 1 n)
@@ -1537,28 +1545,32 @@ theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
 
 /-- What one population's looks and draws cost the gate. -/
 theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
-    (j : J) (hj : j ∈ populations) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
-    (runMeasure μ D Dsf).real ((⋃ e ∈ Finset.range (B.npref + 1),
+    (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
+    (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
+    (j : J) (hj : j ∈ populations) (Dj : Measure S) [IsProbabilityMeasure Dj]
+    (hPc : Pc j = iidStream Dj) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (streamMeasure μ Pp Pc Dsf).real ((⋃ e ∈ Finset.range (B.npref + 1),
         sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
-      ∪ ⋃ N : ℕ, rawShortAt rule O populations (D j) j B lim a (N + 1)) ≤ 7 * a := by
+      ∪ ⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1)) ≤ 7 * a := by
   refine le_trans (measureReal_union_le _ _) ?_
-  have h1 : (runMeasure μ D Dsf).real (⋃ e ∈ Finset.range (B.npref + 1),
+  have h1 : (streamMeasure μ Pp Pc Dsf).real (⋃ e ∈ Finset.range (B.npref + 1),
       sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e))) ≤ 6 * a := by
     refine le_trans (measureReal_biUnion_finset_le _ _) ?_
-    calc ∑ e ∈ Finset.range (B.npref + 1), (runMeasure μ D Dsf).real
+    calc ∑ e ∈ Finset.range (B.npref + 1), (streamMeasure μ Pp Pc Dsf).real
           (sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
         ≤ ∑ e ∈ Finset.range (B.npref + 1), 6 * sizeLevel a (B.npref + e) :=
-          Finset.sum_le_sum (fun e _ => measureReal_sidesBad_le hflat O populations D Dsf
-            hsupp hsuppSf j hj B _ (sizeLevel_pos ha0 _) (sizeLevel_le ha0.le ha1 _))
+          Finset.sum_le_sum (fun e _ => measureReal_sidesBad_le hflat O populations Pp Pc Dsf
+            hsuppP hsuppC hsuppSf j hj B _ (sizeLevel_pos ha0 _) (sizeLevel_le ha0.le ha1 _))
       _ = 6 * ∑ e ∈ Finset.range (B.npref + 1), sizeLevel a (B.npref + e) := by
           rw [Finset.mul_sum]
       _ ≤ 6 * a := by
           have := sum_range_sizeLevel_shift_le ha0.le B.npref (B.npref + 1)
           linarith
-  have h2 := measureReal_rawShort_le (rule := rule) D Dsf O populations j B (lim := lim) ha0 ha1
+  have h2 := measureReal_rawShort_le (rule := rule) Pp Pc Dsf O populations j Dj hPc B (lim := lim)
+    ha0 ha1
   linarith
 
 /-! ### A clean family is certified -/
@@ -1905,20 +1917,22 @@ lemma measurableSet_sidesDead (O : Oracle μ S) (populations : Finset J) (j : J)
 open scoped Classical in
 /-- `sidesLive_whp` over the run, at a deviation `t` for every count. -/
 theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
+    (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {t : ℝ} (ht : 0 ≤ t) :
-    (runMeasure μ D Dsf).real (sidesDead rule O populations j B m t)
+    (streamMeasure μ Pp Pc Dsf).real (sidesDead rule O populations j B m t)
       ≤ 2 * (((B.nsuff : ℝ) + 3) * Real.exp (-2 * t ^ 2 / m)) := by
   classical
   set E : ℝ := 2 * (((B.nsuff : ℝ) + 3) * Real.exp (-2 * t ^ 2 / m)) with hEdef
   have hE0 : 0 ≤ E := by positivity
-  have hEnn : runMeasure μ D Dsf (sidesDead rule O populations j B m t)
+  have hEnn : streamMeasure μ Pp Pc Dsf (sidesDead rule O populations j B m t)
       ≤ ENNReal.ofReal E := by
-    refine runMeasure_slice_le D Dsf _ (measurableSet_sidesDead O populations j B m t) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+    refine streamMeasure_slice_le Pp Pc Dsf _ (measurableSet_sidesDead O populations j B m t) _ ?_
+    filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
+      ae_cert_mem_Pre Pp Pc Dsf Pre populations hsuppC, ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf]
       with d hdP hdC hdS
     set Pd : Finset S := populations.biUnion
       (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
@@ -1997,7 +2011,7 @@ theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
           (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
       _ ≤ ENNReal.ofReal E := ENNReal.ofReal_le_ofReal hmain
   rw [measureReal_def]
-  calc (runMeasure μ D Dsf (sidesDead rule O populations j B m t)).toReal
+  calc (streamMeasure μ Pp Pc Dsf (sidesDead rule O populations j B m t)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
