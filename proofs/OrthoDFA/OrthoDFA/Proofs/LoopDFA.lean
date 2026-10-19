@@ -596,7 +596,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 set_option maxHeartbeats 4000000 in -- unfolding the simple claim's settings
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ W₀ P₀ R₀
-    E₁ Kc E E₂ L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
+    E₁ Kc E E₂ T L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
@@ -689,10 +689,29 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
   have hlg : 0 ≤ Real.log (16 * Kc / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
+  have hEE : 1 ≤ E + E₂ := by
+    have hE₁ : 1 ≤ E₁ := by
+      show 1 ≤ 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+      rw [le_div_iff₀ hδ'0]
+      have h1 : 1 ≤ Θ ^ 2 * (R₀ + 1) :=
+        one_le_mul_of_one_le_of_one_le (one_le_pow₀ hΘ1) (by linarith)
+      have h2 : 0 ≤ (P₀ + 2) / pAP := by positivity
+      have h3 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith)
+      nlinarith
+    have haε : 1 ≤ aε := by
+      show 1 ≤ 4 * (A + 1) / c
+      rw [le_div_iff₀ hc]
+      linarith
+    have hE₂ : 0 ≤ E₂ := by
+      show 0 ≤ 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+      positivity
+    have : 0 ≤ 768 * Real.log (16 * Kc / δ') * aε := by positivity
+    show 1 ≤ 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε + E₂
+    nlinarith
   have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
     dfa_pow (L := (L : ℝ)) (Q := Q) hA
-      (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring)
-      (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) hL₀
+      (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hQ0
+      (Nat.cast_nonneg L) hEE (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
   obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) (J := J) (RB := RB) (B₃ := B₃) (by positivity)
     hℓ1 hε0 hinvε haε0 hcap hE₁0 hlg rfl rfl hQ0 (Nat.cast_nonneg n) hδ rfl hRB0
     (by rw [hRBd]; exact hRB) hB₃0 hB₃ hpow

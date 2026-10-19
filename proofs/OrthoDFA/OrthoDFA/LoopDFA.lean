@@ -192,7 +192,10 @@ def LearnerLoopDFA : Prop :=
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
-  let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 30) / Real.log A
+  -- `log ℓ` is bounded by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂) + 12) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂) + 6 * Real.log T) / Real.log A
+    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
