@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
@@ -29,7 +30,8 @@ hypothesis that agrees with the target DFA but for chance `δ`.
 in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.HypothesisDFA`,
 `ProbeCorrect`, stated in `OrthoDFA.Probe`, `RateTestSound`, stated in `OrthoDFA.RateTest`,
 `SeqRateSound`, stated in `OrthoDFA.SeqTest`, `AdaptiveReadsBound`, stated in
-`OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`, level 2's
+`OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`,
+`CoveredStartCorrect`, stated in `OrthoDFA.Utils.CoveredStart`, level 2's
 claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
 `OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
 level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, whose
@@ -120,5 +122,9 @@ theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 
 #print axioms family_kappa_oracle
+
+theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
+
+#print axioms covered_start_correct
 
 end OrthoDFA

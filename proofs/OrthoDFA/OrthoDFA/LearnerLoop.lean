@@ -1,4 +1,5 @@
 import OrthoDFA.Level5Claim
+import OrthoDFA.Utils.CoveredStart
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -47,11 +48,6 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 instance : Nonempty State := ⟨⟨0, 0, 0, 0, 0, 0, 0⟩⟩
-
-/-- Uniform over the strings of length `n`. -/
-def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
-  ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
-    • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
 
 /-- `ν` scaled to a probability, or a point mass where it has no mass or infinite mass. -/
 def popLaw (ν : Measure (FreeMonoid α)) : Measure (FreeMonoid α) :=

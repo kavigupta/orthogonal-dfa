@@ -51,18 +51,6 @@ def coveredStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) : Set 
   {q | c ≤ (uniformStrings L).real
     {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L ∧ M.eval (prefixOf x j).toList = q}}
 
-/-- The share of the strings of length `L` on which the target re-rooted at `q` stays in `S` and
-classifies as the target does. -/
-def rerootAccuracy {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (S : Set σ) (q : σ) : ℝ :=
-  (uniformStrings L).real {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ S)
-    ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
-
-/-- From the leaf `s`, `H` follows learned edges along all of `x` to a leaf, which is on the root's
-accept side exactly when `b`. -/
-def HypothesisDFA.Classifies (H : HypothesisDFA α) (s : List Bool) (x : FreeMonoid α) (b : Prop) :
-    Prop :=
-  ∃ p, walkEnd H.edges s x.toList = some p ∧ (p.head? = some true ↔ b)
-
 open scoped Classical in
 /-- How many of `xs` the hypothesis, run from the leaf `s`, classifies as `read` decides them. -/
 def leafScore (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
