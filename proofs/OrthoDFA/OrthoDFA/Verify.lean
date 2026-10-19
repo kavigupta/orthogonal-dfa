@@ -8,6 +8,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
+import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -19,12 +20,16 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline claims are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
+The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LoopDFA`, holds: the learner's loop outputs a
+hypothesis that agrees with the target DFA but for chance `δ`.
+
+The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`.
+`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
+with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
@@ -61,6 +66,14 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
+
+theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
+
+#print axioms learner_loop_dfa_simple
+
+theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
+
+#print axioms learner_loop_dfa
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
