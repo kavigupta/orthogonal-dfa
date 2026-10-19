@@ -123,6 +123,12 @@
   hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
+- `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
+  suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
+  side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the
+  rarer side's `max ε (κ U)` is at most `ε + κ U`.
+- `OrthoDFA/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band, with its reads
+  and each state's read distribution.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

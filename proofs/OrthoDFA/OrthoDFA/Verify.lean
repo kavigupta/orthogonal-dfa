@@ -2,6 +2,7 @@ import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.DTree
+import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
@@ -27,7 +28,8 @@ in `OrthoDFA.HypothesisDFA`, `SplitAndLearnCorrect`, stated in `OrthoDFA.Hypothe
 `OrthoDFA.Utils.AdaptiveReads`, `RaceReadsBound`, stated in `OrthoDFA.Utils.RaceReads`, level 2's
 claim, stated in `OrthoDFA.Level2Claim`, level 3's random-read claim, stated in
 `OrthoDFA.Level3Claim`, level 4's claim with rare wrong reads, stated in `OrthoDFA.Level4Claim`,
-and level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`.
+level 5's claim with wrong reads scaling with indecision, stated in `OrthoDFA.Level5Claim`, and
+`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`.
 -/
 
 namespace OrthoDFA
@@ -101,5 +103,9 @@ theorem kappa_round_correct : Random.Kappa.KappaRoundCorrect :=
   Random.Kappa.kappaRoundCorrect_holds
 
 #print axioms kappa_round_correct
+
+theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
+
+#print axioms family_kappa_oracle
 
 end OrthoDFA
