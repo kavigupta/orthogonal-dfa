@@ -15,47 +15,49 @@ noncomputable section
 
 namespace OrthoDFA
 
-lemma six_log_le {A ℓ : ℝ} (hA : 2 ≤ A) (hℓ : 0 < ℓ) :
-    6 * Real.log ℓ ≤ 30 + ℓ * Real.log A / 4 := by
-  have hl2 := Real.log_two_gt_d9
-  have hlA : Real.log 2 ≤ Real.log A := Real.log_le_log (by norm_num) hA
-  have ha : 0 < Real.log 2 / 24 := by positivity
-  have h1 := Real.log_le_sub_one_of_pos (mul_pos hℓ ha)
-  rw [Real.log_mul hℓ.ne' ha.ne'] at h1
-  have h2 : -Real.log (Real.log 2 / 24) ≤ 4 := by
-    rw [← Real.log_inv, inv_div, Real.log_le_iff_le_exp (by positivity)]
-    have he := Real.exp_one_gt_d9
-    have e : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
-    rw [e, div_le_iff₀ (by positivity)]
-    have h4 : (2.7 : ℝ) ^ 4 ≤ Real.exp 1 ^ 4 := pow_le_pow_left₀ (by norm_num) (by linarith) 4
-    nlinarith
-  have h3 : ℓ * Real.log 2 ≤ ℓ * Real.log A := mul_le_mul_of_nonneg_left hlA hℓ.le
-  have e : ℓ * (Real.log 2 / 24) = ℓ * Real.log 2 / 24 := by ring
-  rw [e] at h1
-  nlinarith
-
-lemma dfa_pow {A ℓ E L Q : ℝ} {k : ℕ} (hA : 2 ≤ A) (hℓ : ℓ = L + Q + 4)
-    (hℓ0 : 0 < ℓ) (hk : L ≤ 2 * k) (hL₀ : Q + 4 + 4 * (Real.log E + 30) / Real.log A ≤ L) :
+/-- `6 log ℓ` lies under its tangent at `T`, so `L ≥ L₀` gives `6 log ℓ + log E ≤ (L/2) log A`. -/
+lemma dfa_pow {A ℓ E L Q T : ℝ} {k : ℕ} (hA : 2 ≤ A) (hℓ : ℓ = L + Q + 4) (hQ : 0 ≤ Q)
+    (hL : 0 ≤ L) (hE : 1 ≤ E) (hk : L ≤ 2 * k)
+    (hT : T = 2 * (Real.log E + 12) / Real.log A + Q + 4)
+    (hL₀ : 2 * (Real.log E + 6 * Real.log T) / Real.log A
+      + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12)) ≤ L) :
     ℓ ^ 6 * E ≤ A ^ k := by
-  rcases le_or_gt E 0 with hE | hE
-  · have : ℓ ^ 6 * E ≤ 0 := mul_nonpos_of_nonneg_of_nonpos (by positivity) hE
-    exact this.trans (by positivity)
-  have hlA : 0 < Real.log A := Real.log_pos (by linarith)
-  have h1 := six_log_le hA hℓ0
-  have h2 : 4 * (Real.log E + 30) ≤ (L - Q - 4) * Real.log A := by
-    have := sub_le_sub_right hL₀ (Q + 4)
-    rw [add_sub_cancel_left, div_le_iff₀ hlA] at this
+  have ha : 0 < Real.log A := Real.log_pos (by linarith)
+  have hx : 0 ≤ Real.log E := Real.log_nonneg hE
+  have hTa : T * Real.log A = 2 * (Real.log E + 12) + (Q + 4) * Real.log A := by
+    rw [hT]; field_simp; ring
+  have hT0 : 0 < T := by rw [hT]; positivity
+  have hd : 0 < T * Real.log A - 12 := by nlinarith
+  have hℓ0 : 0 < ℓ := by rw [hℓ]; linarith
+  have htan : Real.log ℓ ≤ Real.log T + ℓ / T - 1 := by
+    have := Real.log_le_sub_one_of_pos (div_pos hℓ0 hT0)
+    rw [Real.log_div hℓ0.ne' hT0.ne'] at this
     linarith
-  have h3 : Real.log (ℓ ^ 6 * E) ≤ Real.log (A ^ k) := by
-    rw [Real.log_mul (pow_pos hℓ0 6).ne' hE.ne', Real.log_pow, Real.log_pow]
+  have h1 : 2 * (Real.log E + 6 * Real.log T) * (T * Real.log A - 12)
+      + 144 * (Real.log T - 2) ≤ L * Real.log A * (T * Real.log A - 12) := by
+    have e : 2 * (Real.log E + 6 * Real.log T) / Real.log A
+        + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+        = (2 * (Real.log E + 6 * Real.log T) * (T * Real.log A - 12) + 144 * (Real.log T - 2))
+          / (Real.log A * (T * Real.log A - 12)) := by
+      rw [eq_div_iff (mul_pos ha hd).ne', add_mul, div_mul_cancel₀ _ (mul_pos ha hd).ne']
+      field_simp
+    rw [e, div_le_iff₀ (mul_pos ha hd)] at hL₀
+    linarith
+  have h2 : 2 * T * (Real.log E + 6 * Real.log T - 6) + 12 * (Q + 4)
+      ≤ L * (T * Real.log A - 12) := by
+    refine le_of_mul_le_mul_left ?_ ha
+    linear_combination h1 - 12 * hTa
+  have h3 : 6 * Real.log ℓ + Real.log E ≤ L * Real.log A / 2 := by
+    have e : ℓ / T * T = ℓ := div_mul_cancel₀ ℓ hT0.ne'
+    have h4 : 2 * T * (6 * Real.log ℓ + Real.log E) ≤ T * (L * Real.log A) := by
+      nlinarith
+    nlinarith
+  have h5 : Real.log (ℓ ^ 6 * E) ≤ Real.log (A ^ k) := by
+    rw [Real.log_mul (pow_pos hℓ0 6).ne' (by linarith), Real.log_pow, Real.log_pow]
+    have : L * Real.log A ≤ 2 * k * Real.log A := mul_le_mul_of_nonneg_right hk ha.le
     push_cast
-    have : L * Real.log A ≤ 2 * k * Real.log A := mul_le_mul_of_nonneg_right hk hlA.le
-    have e1 : ℓ * Real.log A = L * Real.log A + Q * Real.log A + 4 * Real.log A := by
-      rw [hℓ]; ring
-    have e2 : (L - Q - 4) * Real.log A = L * Real.log A - Q * Real.log A - 4 * Real.log A := by
-      ring
     linarith
-  exact (Real.log_le_log_iff (by positivity) (by positivity)).1 h3
+  exact (Real.log_le_log_iff (by positivity) (by positivity)).1 h5
 
 /-- The rates' inverses grow at most linearly in `ℓ`. -/
 lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
