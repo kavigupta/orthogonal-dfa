@@ -89,18 +89,28 @@ def _representative_columns(table, prefixes) -> List[int]:
     return [position[table.prefixes.index(p)] for p in prefixes]
 
 
-def _undecided_beyond_limit(pst, vs, label) -> List[bytes]:
-    """The fewest of label's prefixes vs reads undecided that, read decided,
-    bring its undecided rate to pst.fnr_limit, first in table order."""
+def _anchorable(pst, state, judged, anchored) -> Optional[bytes]:
+    """The one prefix of the blamed population that, read decided, would bring
+    its undecided rate to pst.fnr_limit, when it is a boundary population not
+    yet anchored that nothing draws for; else None."""
+    label = judged.blamed
+    if not (
+        judged.verdict is ADMITTED
+        and isinstance(label, tuple)
+        and label[0] == BOUNDARY
+        and label not in anchored
+        and not can_grow(state, label)
+    ):
+        return None
     rep = pst.table.representative
-    decision = pst.compute_decision(vs, rep)
+    decision = pst.compute_decision(judged.vs, rep)
     members = pst.table.population_masks()[label]
-    undecided = (
+    undecided = np.flatnonzero(
         members & (decision >= pst.reject_thresh) & (decision < pst.accept_thresh)
     )
-    excess = int(undecided.sum()) - math.floor(pst.fnr_limit * members.sum())
-    prefixes = [p for p, kept in zip(pst.table.prefixes, rep) if kept]
-    return [prefixes[i] for i in np.flatnonzero(undecided)[:excess]]
+    if len(undecided) - math.floor(pst.fnr_limit * members.sum()) != 1:
+        return None
+    return [p for p, kept in zip(pst.table.prefixes, rep) if kept][undecided[0]]
 
 
 def round_rates(pst):
@@ -549,7 +559,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         read_rates(pst, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config, state)
-    anchored = []
+    anchored = {}
 
     if v not in pst.suffix_pool:
         pst.suffix_pool.append(v)
@@ -561,7 +571,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         # queries on suffixes to cover a handful.
         for _ in range(2):
             vs, decision_boundary = identify_cluster_around(
-                pst, v, family_size, decision_boundary, anchored
+                pst, v, family_size, decision_boundary, list(anchored.values())
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
@@ -601,19 +611,14 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         elif judged.blamed is None:
             pst.sample_more_prefixes()
-        elif (
-            judged.verdict is ADMITTED
-            and isinstance(judged.blamed, tuple)
-            and judged.blamed[0] == BOUNDARY
-            and not can_grow(state, judged.blamed)
-        ):
-            newly = _undecided_beyond_limit(pst, judged.vs, judged.blamed)
-            anchored += newly
+        elif (newly := _anchorable(pst, state, judged, anchored)) is not None:
+            anchored[judged.blamed] = newly
             print(
-                f"  nothing draws for {judged.blamed}; anchored {len(newly)} of its "
-                f"prefixes, {len(anchored)} in all"
+                f"  nothing draws for {judged.blamed}; anchored its undecided prefix, "
+                f"{len(anchored)} in all"
             )
         elif not grow_population(pst, state, judged.blamed):
+            anchored.pop(judged.blamed, None)
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
             # results do not follow the theory.
