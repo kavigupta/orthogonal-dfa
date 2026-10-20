@@ -1,10 +1,6 @@
 """``Level5Settings`` of ``OrthoDFA/Level5.lean``, and the one shipped."""
 
-import math
 from dataclasses import dataclass
-
-#: Leaves past which a round gives up.
-MAX_LEAVES = 100
 
 
 @dataclass(frozen=True)
@@ -18,8 +14,11 @@ class CounterexampleSearchConfig:
     #: Each harvest test's threshold, as a multiple of its unit's undecided rate at a
     #: good state: ``acceptable_fnr`` per read.
     harvest_multiple: float
+    #: The stuck test's rate, as a multiple of ``disagreement_rate``.
+    stuck_ratio: float
     #: Each sequential test's alternative, as a multiple of its rate.
-    start_alternative_ratio: float
+    ends_alternative_ratio: float
+    stuck_alternative_ratio: float
     middle_alternative_ratio: float
     disagreement_alternative_ratio: float
     #: Agreement the hypothesis is driven to.
@@ -32,28 +31,21 @@ class CounterexampleSearchConfig:
         return 0
 
     @property
-    def max_leaves(self) -> int:
-        return MAX_LEAVES
-
-    @property
     def disagreement_rate(self) -> float:
         return 1 - self.acc_threshold
 
-    def start_rate(self, depth: int) -> float:
-        """Per probe, whose start sift reads up to ``depth`` nodes."""
-        return min(1.0, self.harvest_multiple * depth * self.acceptable_fnr)
-
-    @property
-    def edge_rate(self) -> float:
-        return self.harvest_multiple * self.acceptable_fnr
+    def ends_rate(self, depth: int) -> float:
+        """Per probe, whose start and end sifts read up to ``depth`` nodes each;
+        at most a half, so its alternative is a rate."""
+        return min(0.5, self.harvest_multiple * 2 * depth * self.acceptable_fnr)
 
     def middle_rate(self, queries_per_search: float) -> float:
         return min(
             1.0, self.harvest_multiple * queries_per_search * self.acceptable_fnr
         )
 
-    def start_alternative(self, depth: int) -> float:
-        return min(1.0, self.start_alternative_ratio * self.start_rate(depth))
+    def ends_alternative(self, depth: int) -> float:
+        return min(1.0, self.ends_alternative_ratio * self.ends_rate(depth))
 
     def middle_alternative(self, queries_per_search: float) -> float:
         return min(
@@ -61,18 +53,16 @@ class CounterexampleSearchConfig:
         )
 
     @property
+    def stuck_rate(self) -> float:
+        return self.stuck_ratio * self.disagreement_rate
+
+    @property
+    def stuck_alternative(self) -> float:
+        return self.stuck_alternative_ratio * self.stuck_rate
+
+    @property
     def disagreement_alternative(self) -> float:
         return self.disagreement_alternative_ratio * self.disagreement_rate
-
-    @property
-    def edge_excess(self) -> int:
-        """An edge undecided at most ln 2 times ``edge_rate`` reaches it with
-        chance under ``level``."""
-        return math.ceil(math.log2(1 / self.level))
-
-    @property
-    def edge_traffic(self) -> float:
-        return self.acceptable_fnr
 
     @property
     def search_share(self) -> float:
@@ -86,7 +76,9 @@ def counterexample_search_config(
         level=1e-3,
         max_probes=50_000,
         harvest_multiple=5,
-        start_alternative_ratio=2,
+        stuck_ratio=0.1,
+        ends_alternative_ratio=2,
+        stuck_alternative_ratio=2,
         middle_alternative_ratio=1.25,
         disagreement_alternative_ratio=0.1,
         acc_threshold=acc_threshold,

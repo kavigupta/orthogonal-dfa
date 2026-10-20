@@ -129,7 +129,7 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
 
 
 #: (alphabet, arms, disarm).
-TRAPS = [(200, 4, 170), (200, 4, 180)]
+TRAPS = [(200, 4, 173), (200, 4, 180)]
 
 
 class TestTrapTargets(unittest.TestCase):
@@ -154,7 +154,7 @@ TRAP_SEEDS = 3
 
 @pytest.mark.slow
 class TestTrapLearned(unittest.TestCase):
-    """Q is rejecting and carries 7% of the endpoint mass, so a family that votes it
+    """Q is rejecting and carries 8% of the endpoint mass, so a family that votes it
     into accepting A costs that much accuracy at the distribution the DFA is graded
     on -- unlike e1, which merges into a rejecting state and costs only its own
     routing."""

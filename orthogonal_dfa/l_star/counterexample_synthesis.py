@@ -309,7 +309,7 @@ def counterexample_driven_synthesis(
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    state = PoolState(uniform)
+    state = PoolState(uniform, pst.rng.bytes(16))
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.

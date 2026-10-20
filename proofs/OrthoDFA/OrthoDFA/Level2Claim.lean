@@ -1,6 +1,6 @@
 import OrthoDFA.Level2
 
-/-! `Level2.Correct`: with reads fixed by the target state, level 2 ends well but for a small
+/-! `Level2RoundCorrect`: with reads fixed by the target state, level 2 ends well but for a small
 chance. -/
 
 namespace OrthoDFA
@@ -33,13 +33,17 @@ noncomputable def harvestLaw [Countable α] (D : Measure (FreeMonoid α)) (k : �
     Measure (FreeMonoid α) :=
   D.bind fun x => ((stuckString read H k x).map Measure.dirac).sum
 
+end Level2
+
+open MeasureTheory Level2
+
 /-- With reads fixed by the target state, `0 < y < ε < 1` (`harvestRate`, `disagreementRate`),
 `0 < δ < 1`, and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes, level 2 fails to
 end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with
 chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of them,
 and between splits each of a leaf's edges is learned once. A consistent ending has its hypothesis
 and tree parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
-def Correct : Prop :=
+def Level2RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Settings) (P : ℕ),
     let y := C.harvestRate
@@ -53,12 +57,12 @@ def Correct : Prop :=
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
-            ¬ EndsWell M (AllUndecided read M) D ε
-              {x | Disagrees read result.hypothesis C.walkStart x}
-              C.walkStart (fun _ => harvestLaw read D C.walkStart result.hypothesis) y
-              result.ending}
+            ¬ EndsWell
+              { target := M, badStates := AllUndecided read M, probes := D, disagreeRate := ε,
+                disagree := {x | Disagrees read result.hypothesis C.walkStart x},
+                walkStart := C.walkStart,
+                harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,
+                yield := y, ending := result.ending }}
         ≤ δ
-
-end Level2
 
 end OrthoDFA
