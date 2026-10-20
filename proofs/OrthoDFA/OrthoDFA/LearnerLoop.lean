@@ -33,6 +33,10 @@ be fresh.
 Known modelling gap. A harvest's table here is drawn from its population's law, where the Python
 first puts the strings the round harvested into it (`take`).
 
+Known modelling gap. A harvest's population here keeps only the strings shorter than the
+suffixes its round's clustering read, so that a later clustering reads every prefix followed by a
+suffix as a string no other prefix and suffix make. The Python keeps every harvested string.
+
 Known modelling gap. The uniform pool is drawn afresh each round, where the Python keeps one pool
 across rounds; on one noise a kept pool's prefixes would be read again by every round.
 
@@ -224,12 +228,17 @@ def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
   | .harvest h => some h
   | _ => none
 
+/-- The strings shorter than every string of `S` but `ε`. -/
+def shorterThan (S : Finset (FreeMonoid α)) : Set (FreeMonoid α) :=
+  {z | ∀ v ∈ S, v ≠ 1 → z.toList.length < v.toList.length}
+
 /-- The population a round's harvest hands on: its sampler's law over probes from `D`, walked
-from `k`, scaled to a probability. -/
+from `k`, on the strings shorter than the suffixes its clustering read, scaled to a
+probability. -/
 def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
     Option (Measure (FreeMonoid α)) :=
   o.result.ending.harvested.map fun site =>
-    popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
+    popLaw ((Random.harvestLaw o.read D k o.result.hypothesis site).restrict (shorterThan o.suffs))
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :

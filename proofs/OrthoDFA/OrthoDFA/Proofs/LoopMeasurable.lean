@@ -714,7 +714,8 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
           edgeGraph o.result.hypothesis.edges),
           readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, h]
       have h2 : o.population D k
-          = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis hv)) := by
+          = some (popLaw ((Random.harvestLaw o.read D k o.result.hypothesis hv).restrict
+            (shorterThan o.suffs))) := by
         simp [LoopRound.population, h]
       rw [h1, h2]
       simp [ih]

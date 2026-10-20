@@ -193,12 +193,28 @@ lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls
   · rw [hh] at hν; cases hν
   rw [hh, Option.map_some, Option.some.injEq] at hν
   subst hν
-  refine popLaw_null (measure_mono_null (fun p hp => ?_)
-    (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)) ?_
-  · simp only [Set.mem_ofPred_eq] at hp ⊢
-    omega
+  have h0 : Random.harvestLaw o.read P.D k o.result.hypothesis site {p | Ls ≤ p.toList.length}
+      = 0 :=
+    measure_mono_null (fun p hp => by simp only [Set.mem_ofPred_eq] at hp ⊢; omega)
+      (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)
+  refine popLaw_null (le_antisymm ((Measure.restrict_apply_le _ _).trans h0.le) bot_le) ?_
   · simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one, List.length_nil, not_le]
     omega
+
+omit [MeasurableSpace Ω] in
+/-- A round whose tree is in `classSet |Q|` and whose suffixes are longer than `L + |Q|` finds no
+string its population drops. -/
+lemma harvestLaw_shorter {σ : Type*} [Fintype σ] (P : PrefixDistribution α) (k : ℕ)
+    (o : LoopRound Ω α K) (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
+    (hs : ∀ v ∈ o.suffs, v ≠ 1 → P.L + Fintype.card σ < v.toList.length) (site : Random.Level3Site) :
+    Random.harvestLaw o.read P.D k o.result.hypothesis site (shorterThan o.suffs)ᶜ = 0 := by
+  refine measure_mono_null (fun z hz => ?_)
+    (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)
+  simp only [shorterThan, Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_lt] at hz
+  obtain ⟨v, hv, hv1, hle⟩ := hz
+  have := hs v hv hv1
+  simp only [Set.mem_ofPred_eq]
+  omega
 
 end Pops
 
@@ -644,7 +660,9 @@ theorem loop_core_holds : LoopCore := by
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
             Lr[i].run
-          ∧ RoundSpec M O P θ (C.disagreementRate + u + mr) (C.harvestRate / 2) k Lr[i])
+          ∧ RoundSpec M O P θ (C.disagreementRate + u + mr) (C.harvestRate / 2) k Lr[i]
+          ∧ ∀ site, Random.harvestLaw Lr[i].read P.D k Lr[i].result.hypothesis site
+            (shorterThan Lr[i].suffs)ᶜ = 0)
         ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
             (p.1, (p.2 ⟨i, hK⟩).1)
@@ -672,12 +690,13 @@ theorem loop_core_holds : LoopCore := by
           simp only [List.length_take] at hj
           rw [List.getElem_take] at hoν
           have hji : j < i := by omega
-          obtain ⟨h4, hcls⟩ := (ih j hji (by omega) (by omega)).1.2
+          obtain ⟨⟨h4, hcls⟩, hshj⟩ := (ih j hji (by omega) (by omega)).1.2
           have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hoν
           unfold LoopRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
           · rw [hh] at hoν; cases hoν
-          rw [hh, Option.map_some, Option.some.injEq] at hoν
+          rw [hh, Option.map_some, Option.some.injEq,
+            Measure.restrict_eq_self_of_ae_mem (ae_iff.2 (hshj h))] at hoν
           subst hoν
           have he : (Lr[j]'(by omega)).result.ending = .harvest h := by
             revert hh
@@ -743,12 +762,28 @@ theorem loop_core_holds : LoopCore := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
         have hret := hcs.1
+        have hhist : histAt settings P.D cH i = dec cH := by
+          simp only [histAt, List.take_of_length_le (le_of_eq hlen), hdecd]
+          rfl
+        have hsh : ∀ site, Random.harvestLaw
+            (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)).read P.D k
+            (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)).result.hypothesis site
+            (shorterThan (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)).suffs)ᶜ
+              = 0 := fun site =>
+          harvestLaw_shorter P k _ h4.2 (fun v hv hv1 => by
+            have hvs : v ∈ suffsOf settings P.D Dsf (histAt settings P.D cH i)
+                (p.2 ⟨i, hK'⟩).1 := by
+              rw [hhist]
+              exact Finset.mem_erase.2 ⟨hv1, hv⟩
+            have := hnc.1 ⟨i, hK'⟩ le_rfl v hvs
+            omega) site
         rw [← histOf_pops, ← hdec, e]
-        exact ⟨⟨hcs, h4⟩, hK', hok, hret, hnc⟩
+        exact ⟨⟨hcs, h4, hsh⟩, hK', hok, hret, hnc⟩
     have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl (513 / 512 * εcov)
       slack (C.disagreementRate + u + mr) (C.harvestRate / 2) hK
       (fun pops B hB => (hband pops B hB).1)
-      fun i hi hiσ => (hspec i hiσ hi).1
+      (fun i hi hiσ => ⟨(hspec i hiσ hi).1.1, (hspec i hiσ hi).1.2.1⟩)
+      fun i hi hiσ => (hspec i hiσ hi).1.2.2
     refine hp ⟨hag, fun i hi => ?_⟩
     have hle := hag.1
     unfold indecisiveLStarLoop at hle hi

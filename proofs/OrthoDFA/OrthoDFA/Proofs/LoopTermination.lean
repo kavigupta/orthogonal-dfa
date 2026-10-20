@@ -311,7 +311,8 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
   | cons o rounds ih =>
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 (h o (by simp))
     have hpo : o.population D k
-        = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis zo)) := by
+        = some (popLaw ((Random.harvestLaw o.read D k o.result.hypothesis zo).restrict
+          (shorterThan o.suffs))) := by
       simp [LoopRound.population, hzo]
     simp only [harvestsOf, List.filterMap_cons, hpo, List.length_cons] at ih ⊢
     rw [ih fun o' ho' => h o' (by simp [ho'])]
@@ -329,7 +330,11 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
           (loopRounds settings O P.D Dsf draws K)[i].run
         ∧ RoundSpec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
-          (loopRounds settings O P.D Dsf draws K)[i]) :
+          (loopRounds settings O P.D Dsf draws K)[i])
+    (hshort : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
+      ∀ site, Random.harvestLaw (loopRounds settings O P.D Dsf draws K)[i].read P.D k
+        (loopRounds settings O P.D Dsf draws K)[i].result.hypothesis site
+          (shorterThan (loopRounds settings O P.D Dsf draws K)[i].suffs)ᶜ = 0) :
     (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
       ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
         o.Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
@@ -426,8 +431,8 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           = some (ν i hi) := by
         intro i hi
         unfold LoopRound.population
-        rw [hzs i hi]
-        rfl
+        rw [hzs i hi, Option.map_some, Measure.restrict_eq_self_of_ae_mem
+          (ae_iff.2 (hshort i (by omega) hi (hv i hi)))]
       have hbad : ∀ i (hi : i ≤ Fintype.card σ), ∃ q,
           ¬ familyReadDist O M (L[i]'(by omega)).family (L[i]'(by omega)).state.lo
             ((L[i]'(by omega)).state.hi + 1) q .undecided

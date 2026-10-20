@@ -179,7 +179,8 @@ def popCode (N : ℕ) (o : LoopRound Ω α K) : Option (HarvestCode α) :=
 /-- The population the data hand on. -/
 def decodePop (D : Measure (FreeMonoid α)) (k : ℕ) (c : HarvestCode α) :
     Measure (FreeMonoid α) :=
-  popLaw (Random.harvestLaw (decodeReads c.2.2.1) D k ⟨c.2.1.1, decodeEdges c.2.1.2⟩ c.1)
+  popLaw ((Random.harvestLaw (decodeReads c.2.2.1) D k ⟨c.2.1.1, decodeEdges c.2.1.2⟩ c.1).restrict
+    (shorterThan c.2.2.2.2))
 
 /-- The history the data hand on. -/
 def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode α)) : LoopHist α :=
@@ -208,7 +209,8 @@ theorem decodePop_popCode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.
       = o.result.hypothesis := by
     rw [decodeEdges_edgeGraph hfin]
   rw [hv]
-  refine congrArg popLaw (Random.harvestLaw_congr_zone D k _ {x | x.toList.length ≤ L}
+  refine congrArg (fun ν => popLaw (ν.restrict (shorterThan o.suffs)))
+    (Random.harvestLaw_congr_zone D k _ {x | x.toList.length ≤ L}
     (by rw [ae_iff] at hlen; convert hlen using 2; ext x; simp) (fun x hx j _ hj m hm => ?_)
     site)
   have hmT : m.toList.length ≤ C.probeBudget := by
