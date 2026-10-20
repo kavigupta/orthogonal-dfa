@@ -237,9 +237,9 @@ def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
   | .harvest h => some h
   | _ => none
 
-/-- The strings shorter than every string of `S` but `ε`. -/
+/-- The strings shorter than every string of `S` but `ε`, where `S` has one; none otherwise. -/
 def shorterThan (S : Finset (FreeMonoid α)) : Set (FreeMonoid α) :=
-  {z | ∀ v ∈ S, v ≠ 1 → z.toList.length < v.toList.length}
+  {z | (∃ v ∈ S, v ≠ 1) ∧ ∀ v ∈ S, v ≠ 1 → z.toList.length < v.toList.length}
 
 /-- The population a round's harvest hands on: its sampler's law over probes from `D`, walked
 from `k`, on the strings shorter than the suffixes its clustering read, scaled to a

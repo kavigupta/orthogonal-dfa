@@ -255,12 +255,14 @@ omit [MeasurableSpace Ω] in
 string its population drops. -/
 lemma harvestLaw_shorter {σ : Type*} [Fintype σ] (P : PrefixDistribution α) (k : ℕ)
     (o : LoopRound Ω α K) (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
+    (hex : ∃ v ∈ o.suffs, v ≠ 1)
     (hs : ∀ v ∈ o.suffs, v ≠ 1 → P.L + Fintype.card σ < v.toList.length) (site : Random.Level3Site) :
     Random.harvestLaw o.read P.D k o.result.hypothesis site (shorterThan o.suffs)ᶜ = 0 := by
   refine measure_mono_null (fun z hz => ?_)
     (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)
-  simp only [shorterThan, Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_lt] at hz
-  obtain ⟨v, hv, hv1, hle⟩ := hz
+  simp only [shorterThan, Set.mem_compl_iff, Set.mem_ofPred_eq, not_and, not_forall,
+    not_lt] at hz
+  obtain ⟨v, hv, hv1, hle⟩ := hz hex
   have := hs v hv hv1
   simp only [Set.mem_ofPred_eq]
   omega
@@ -819,7 +821,17 @@ theorem loop_core_holds : LoopCore := by
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)).result.hypothesis site
             (shorterThan (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)).suffs)ᶜ
               = 0 := fun site =>
-          harvestLaw_shorter P k _ h4.2 (fun v hv hv1 => by
+          harvestLaw_shorter P k _ h4.2 (by
+            obtain ⟨B, hB, hrB⟩ := hret
+            have hk2 := (hband _ B hB).2.1
+            have hcard := hrB.1
+            obtain ⟨v, hv⟩ : (clusterAt O.mq (loopPopulations K (dec cH).pops.length)
+                (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) B).Nonempty := by
+              rw [← Finset.card_pos]; omega
+            have hvs := clusterAt_subset_suffsOf settings O P.D Dsf (dec cH) p.1 (p.2 ⟨i, hK'⟩).1
+              hB hv
+            exact ⟨v, (Finset.mem_erase.1 hvs).2, (Finset.mem_erase.1 hvs).1⟩)
+            (fun v hv hv1 => by
             have hvs : v ∈ suffsOf settings P.D Dsf (histAt settings P.D cH i)
                 (p.2 ⟨i, hK'⟩).1 := by
               rw [hhist]
