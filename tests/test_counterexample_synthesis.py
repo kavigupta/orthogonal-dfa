@@ -15,7 +15,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, SUCCESS, Ending
+from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, SUCCESS, Ending
 
 #: What draws more like the harvest, which these tests never ask.
 _REPLAY = object()
@@ -203,5 +203,6 @@ class TestWhenTheFamilyTightens(unittest.TestCase):
         self.assertFalse(_family_too_loose(success, 0.9, 0.98, 0))
 
     def test_a_harvest_tightens(self):
-        harvest = Ending(HARVEST_ENDS, [b"a"])
-        self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
+        for kind in (HARVEST_ENDS, HARVEST_STUCK):
+            harvest = Ending(kind, [b"a"])
+            self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
