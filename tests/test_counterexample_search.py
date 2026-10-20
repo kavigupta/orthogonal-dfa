@@ -194,6 +194,35 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(3, search.probes)
 
 
+class TestFeedback(unittest.TestCase):
+    def test_it_walks_from_the_start_until_it_changes_nothing(self):
+        search = quiet_search(parity_cut(()), {}, k=2)
+        search.feedback = [b"\x01\x00"]
+        self.assertEqual(OUT_OF_PROBES, search.run(iter([])).kind)
+        self.assertEqual(
+            {(EVEN, 1): (ODD, b""), (ODD, 0): (ODD, b"\x01")}, search.hypothesis.edges
+        )
+        self.assertEqual((3, 0), (search.probes, search.counts.probes))
+
+    def test_its_undecided_reads_are_kept_out_of_the_counts(self):
+        search = quiet_search(
+            parity_cut([b""]), PARITY_EDGES, ends_rate=0.05, ends_alternative=0.1
+        )
+        search.feedback = [b"\x01\x00"] * 20
+        self.assertEqual(OUT_OF_PROBES, search.run(iter([])).kind)
+        self.assertEqual([], search.counts.ends)
+        self.assertEqual([[b""]] * 20, [c.ends for c in search.settled])
+
+    def test_a_probes_change_settles_it_again(self):
+        search = quiet_search(parity_cut(()), {})
+        search.feedback = [b"\x01"]
+        search.run(iter([b"\x00"]))
+        self.assertEqual(
+            {(EVEN, 1): (ODD, b""), (EVEN, 0): (EVEN, b"")}, search.hypothesis.edges
+        )
+        self.assertEqual(4, search.probes, "two to settle, one draw, one to resettle")
+
+
 class TestExport(unittest.TestCase):
     def test_an_unlearned_edge_loops(self):
         search = quiet_search(parity_cut(()), {(EVEN, 1): (ODD, b"")})

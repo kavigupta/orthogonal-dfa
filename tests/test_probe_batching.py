@@ -28,6 +28,15 @@ class TestWarming(unittest.TestCase):
         self.assertTrue(warmed)
         self.assertLessEqual(warmed, read)
 
+    def test_the_start_sifts_are_warmed(self):
+        warmed = set()
+        draws = iter(self.DRAWS)
+        search = quiet_search(
+            parity_cut(()), PARITY_EDGES, k=2, max_probes=len(self.DRAWS)
+        )
+        search.run(warmed_draws(search, lambda: next(draws), warmed.update))
+        self.assertLessEqual({x[:2] for x in self.DRAWS}, warmed)
+
     def test_the_block_stops_where_success_could_fire(self):
         drawn = []
 

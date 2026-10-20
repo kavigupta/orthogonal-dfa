@@ -207,6 +207,8 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     provably cannot fire (``_batch_before_possible_stop``), so batching draws no
     sample past the stopping point -- same queries as the sequential loop, just
     grouped -- and needs no chunk-size constant.
+
+    Returns the rate and the samples on which the DFA disagrees with the tree.
     """
     boundary = pst.decision_boundary
     # The one caller that needs the batched read too, so it keeps both closures.
@@ -220,13 +222,14 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     min_valid = 30
     agreements = 0
     valid = 0
+    disagreeing = []
     # Every sample classifies from the empty prefix, so classify([]) is constant
     # across the loop; compute it once instead of re-querying the oracle on each
     # sample.  On multi-iteration benchmarks this empty-prefix reclassification was
     # ~24% of all oracle queries (it recurs on up to num_samples draws per call).
     s0 = classify(b"")
     if s0 is None:
-        return 0.0  # every sample would fail to classify
+        return 0.0, []  # every sample would fail to classify
     drawn = 0
     with counter(num_samples, "Estimating DFA/DT consistency") as pbar:
         while drawn < num_samples:
@@ -246,6 +249,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
                     valid += 1
                 elif prefix is not None:
                     valid += 1
+                    disagreeing.append(y)
                 else:
                     # Could-not-classify samples leave the decision unchanged;
                     # don't test.
@@ -258,5 +262,5 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
                     )
                     is not None
                 ):
-                    return agreements / valid
-    return agreements / valid if valid else 0.0
+                    return agreements / valid, disagreeing
+    return (agreements / valid if valid else 0.0), disagreeing

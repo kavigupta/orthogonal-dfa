@@ -238,13 +238,20 @@ def _next_harvest(pst, search, ending, blamed):
     a success the certificate refused shows the blamed state's undecided reads."""
     draw = UniformSource(pst).draw
     if blamed is None or ending.harvest:
-        return ending.harvest, Replay(search, harvest_reader(ending), draw)
+        read = harvest_reader(ending)
+        settled = (
+            [z for c in search.settled for z in read(c)]
+            if ending.kind in HARVESTS
+            else []
+        )
+        return ending.harvest + settled, Replay(search, read, draw)
     leaf = search.hypothesis.tree.path_of(blamed)
 
     def at_leaf(by_edge):
         return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
 
-    return at_leaf(search.counts.edge_harvest), Replay(
+    settled = [z for c in search.settled for z in at_leaf(c.undecided_by_edge)]
+    return at_leaf(search.counts.edge_harvest) + settled, Replay(
         search, lambda charged: at_leaf(charged.undecided_by_edge), draw
     )
 
@@ -260,7 +267,7 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-def _counterexample_search(pst, vs, *, acc_threshold):
+def _counterexample_search(pst, vs, *, acc_threshold, feedback):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
     search = CounterexampleSearch(
@@ -269,6 +276,7 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         ),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
+        feedback,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -278,6 +286,25 @@ def _counterexample_search(pst, vs, *, acc_threshold):
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
     return search, ending
+
+
+def _start_check(pst, search, ending, dfa, *, index, acc_threshold):
+    """The DFA's agreement with the tree from ε, and the samples it disagreed on
+    where that is below acc_threshold."""
+    true_acc, disagreeing = estimate_agreement_rate(
+        pst,
+        pst.sampler,
+        pst.oracle,
+        search.hypothesis.tree,
+        dfa,
+        num_samples=2000,
+        acc_threshold=acc_threshold,
+    )
+    print(
+        f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f} "
+        f"after {ending.kind}, {len(search.feedback)} failures probed from ε"
+    )
+    return true_acc, disagreeing if true_acc < acc_threshold else []
 
 
 def _hypothesis_dfa(pst, hypothesis):
@@ -316,6 +343,8 @@ def counterexample_driven_synthesis(
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
+    # Where the last round's start check failed, for this round to probe from ε.
+    failures = []
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
@@ -326,7 +355,9 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        search, ending = _counterexample_search(
+            pst, vs, acc_threshold=acc_threshold, feedback=failures
+        )
         hypothesis = search.hypothesis
         tracker.on_search_ended(ending, index)
         dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
@@ -339,16 +370,9 @@ def counterexample_driven_synthesis(
         assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
+        true_acc, failures = _start_check(
+            pst, search, ending, dfa, index=index, acc_threshold=acc_threshold
         )
-        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
         output, blamed = None, None
