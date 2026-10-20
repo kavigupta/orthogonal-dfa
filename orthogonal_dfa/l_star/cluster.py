@@ -5,8 +5,13 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from .certificate import clopper_pearson
-from .mask_table import UNIFORM
-from .prefix_populations import grow_population, population_labels, prefixes_for_split
+from .mask_table import BOUNDARY, UNIFORM
+from .prefix_populations import (
+    can_grow,
+    grow_population,
+    population_labels,
+    prefixes_for_split,
+)
 from .statistics import (
     cross_limit_for_coverage_error,
     evidence_margin_for_population_size,
@@ -16,10 +21,11 @@ from .suffix_groups import nearest_to_anchor_group
 
 
 def identify_cluster_around(
-    pst, seed: int, count: int, decision_boundary: float
+    pst, seed: int, count: int, decision_boundary: float, anchored: List[bytes]
 ) -> Tuple[List[int], float]:
     """The first count of the rest of the pool in nearest_to_anchor_group's
-    order, anchored on seed's reads.  The seed anchors but does not vote: with
+    order, anchored on seed's reads, among the suffixes that read every prefix
+    in anchored as seed does.  The seed anchors but does not vote: with
     the empty seed voting, reading z at a midfix m would read the very string
     the read of z·m reads at the root, so node reads would share noise."""
     # Restrict to representative prefix columns: the suffix family and the
@@ -31,7 +37,11 @@ def identify_cluster_around(
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
     signal = pst.config.min_signal_strength
-    others = np.flatnonzero(np.arange(len(reads)) != seed_local)
+    others = np.arange(len(reads)) != seed_local
+    if anchored:
+        columns = _representative_columns(pst.table, anchored)
+        others &= (reads[:, columns] == reads[seed_local, columns]).all(1)
+    others = np.flatnonzero(others)
     cluster = []
     if len(others):
         order = nearest_to_anchor_group(
@@ -69,6 +79,28 @@ def identify_cluster_around(
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
+
+
+def _representative_columns(table, prefixes) -> List[int]:
+    """Each prefix's position among the representative prefixes."""
+    position = {
+        column: i for i, column in enumerate(np.flatnonzero(table.representative))
+    }
+    return [position[table.prefixes.index(p)] for p in prefixes]
+
+
+def _undecided_beyond_limit(pst, vs, label) -> List[bytes]:
+    """The fewest of label's prefixes vs reads undecided that, read decided,
+    bring its undecided rate to pst.fnr_limit, first in table order."""
+    rep = pst.table.representative
+    decision = pst.compute_decision(vs, rep)
+    members = pst.table.population_masks()[label]
+    undecided = (
+        members & (decision >= pst.reject_thresh) & (decision < pst.accept_thresh)
+    )
+    excess = int(undecided.sum()) - math.floor(pst.fnr_limit * members.sum())
+    prefixes = [p for p, kept in zip(pst.table.prefixes, rep) if kept]
+    return [prefixes[i] for i in np.flatnonzero(undecided)[:excess]]
 
 
 def round_rates(pst):
@@ -517,6 +549,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         read_rates(pst, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config, state)
+    anchored = []
 
     if v not in pst.suffix_pool:
         pst.suffix_pool.append(v)
@@ -528,7 +561,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         # queries on suffixes to cover a handful.
         for _ in range(2):
             vs, decision_boundary = identify_cluster_around(
-                pst, v, family_size, decision_boundary
+                pst, v, family_size, decision_boundary, anchored
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
@@ -568,6 +601,18 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         elif judged.blamed is None:
             pst.sample_more_prefixes()
+        elif (
+            judged.verdict is ADMITTED
+            and isinstance(judged.blamed, tuple)
+            and judged.blamed[0] == BOUNDARY
+            and not can_grow(state, judged.blamed)
+        ):
+            newly = _undecided_beyond_limit(pst, judged.vs, judged.blamed)
+            anchored += newly
+            print(
+                f"  nothing draws for {judged.blamed}; anchored {len(newly)} of its "
+                f"prefixes, {len(anchored)} in all"
+            )
         elif not grow_population(pst, state, judged.blamed):
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
