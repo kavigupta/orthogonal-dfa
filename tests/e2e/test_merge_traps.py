@@ -129,21 +129,15 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
 
 
 #: (alphabet, arms, disarm).
-TRAPS = [(200, 4, 170), (200, 4, 180)]
+TRAPS = [(200, 4, 173), (200, 4, 180)]
 
 
 class TestTrapTargets(unittest.TestCase):
     @parameterized.expand(list(TRAPS))
     def test_admitted_and_still_heavy(self, alphabet, arms, disarm):
         target = build_trap(alphabet, arms, disarm)
-        # e1 is a one-step detour that half a percent of strings visit in their
-        # second half, so the ceiling's runs through it count as uncovered and it
-        # lands just under 0.99.  Close enough.
         report = P.satisfies_preconditions(
-            target,
-            length=TRAP_LENGTH,
-            short_circuit=False,
-            min_covered_accuracy=0.985,
+            target, length=TRAP_LENGTH, short_circuit=False
         )
         self.assertTrue(report.satisfied, report.reasons)
         # A merge only costs accuracy while the merged class carries mass, and is only
@@ -160,7 +154,7 @@ TRAP_SEEDS = 3
 
 @pytest.mark.slow
 class TestTrapLearned(unittest.TestCase):
-    """Q is rejecting and carries 7% of the endpoint mass, so a family that votes it
+    """Q is rejecting and carries 8% of the endpoint mass, so a family that votes it
     into accepting A costs that much accuracy at the distribution the DFA is graded
     on -- unlike e1, which merges into a rejecting state and costs only its own
     routing."""
