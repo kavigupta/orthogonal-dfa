@@ -20,7 +20,8 @@ open MeasureTheory
 
 /-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
-  128 * (Real.log (2 / budgetScale η₀ ι εcov) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
+  2 * (25 * max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog / (8 * (1 / 2 - η₀) ^ 2)
+      + 5 / (1 / 2 - η₀) + 7) / pAP
     + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
 
 /-- A bound on the prefix count. -/
@@ -32,7 +33,7 @@ def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
 theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     (ι εcov α δ pAP cLog Jm : ℝ) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
     (hpop : pops.Nonempty) (hcard : (pops.card : ℝ) ≤ Jm) (hι : 0 < ι) (hε : 0 < εcov)
-    (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) (hpAP : 0 < pAP)
+    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) (hpAP : 0 < pAP)
     (hpAP1 : pAP ≤ 1) (hc : 0 ≤ cLog) :
     (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ)
         ≤ capPB η₀ ι εcov δ pAP cLog Jm
@@ -59,8 +60,8 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hpop hδ2
       hδ21 hpAP hpAP1 hcross hcross1
     rw [hsig', hτ'] at h
-    have e : Real.log (2 / (τ * Real.exp (-cLog))) = Real.log (2 / τ) + cLog := by
-      rw [div_mul_eq_div_div, Real.log_div (by positivity) hcross.ne', Real.log_exp]; ring
+    have e : Real.log (1 / Real.exp (-cLog)) = cLog := by
+      rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
     rw [e] at h
     refine h.trans (add_le_add le_rfl ?_)
     refine div_le_div_of_nonneg_right ?_ (by positivity)
@@ -69,7 +70,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
   -- the prefix count
   have hlogarg : 1 ≤ ((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ) := by
     have hpool256 : (256 : ℝ) ≤ pool :=
-      poolCount_ge pops η₀ ι εcov (δ / 2) pAP _ hsig hη0 hι hε hε1 hpAP hpAP1
+      poolCount_ge pops η₀ ι εcov (δ / 2) pAP _ hsig hη0 hι hε hpAP hpAP1
     rw [le_div_iff₀ (by positivity)]
     have h1 : δ / 2 * α * pAP * τ ≤ 1 := by
       have : δ / 2 * α ≤ 1 := by nlinarith
@@ -78,7 +79,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     nlinarith
   refine ⟨hpoolB, ?_⟩
   have h := prefCount_le_poly pops η₀ ι εcov (δ / 2) α pAP (Real.exp (-cLog)) hsig hη0 hpop hι
-    hε hε1 hδ2 hδ21 hα hα1 hpAP hpAP1
+    hε hδ2 hδ21 hα hα1 hpAP hpAP1
   rw [hsig', hτ'] at h
   refine h.trans ?_
   unfold budgetLog capRB
@@ -155,7 +156,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let W : ℝ := B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-    let PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
@@ -258,10 +259,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
-    show _ = 256 * (Real.log (2 / τ) + cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
+    show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     unfold capPB
-    rw [hτb]
+    rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
     field_simp
     ring
   have hRBe : capRB η₀ ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J = RB := by
@@ -280,7 +281,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       rw [← hJ]
       exact_mod_cast h1
     have h := counts_le η₀ pops ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J hη0 hη₀ ⟨none, hpops⟩
-      hcard hι0 (by positivity) (by linarith) hδ'0 hδ'1 (by positivity) (by linarith)
+      hcard hι0 (by positivity) hδ'0 hδ'1 (by positivity) (by linarith)
       (by positivity) (by linarith) hcL0
     rw [hPBe, hRBe] at h
     exact h

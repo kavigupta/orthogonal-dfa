@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.AdaptiveReads
+import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
@@ -32,7 +33,7 @@ stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Cla
 with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`BitSumTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
@@ -86,6 +87,10 @@ theorem probe_correct : ProbeCorrect := probeCorrect
 theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms rate_test_sound
+
+theorem bit_sum_tails : BitSumTails := bitSumTails
+
+#print axioms bit_sum_tails
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 

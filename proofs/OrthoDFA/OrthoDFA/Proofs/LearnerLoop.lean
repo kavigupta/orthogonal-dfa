@@ -85,19 +85,29 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     swap
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
-    obtain ⟨hlohi, hk2, hband⟩ := band_of_mem_schedule (le_trans (eta_nonneg O) hη) hη₀ hs
-    refine ⟨hlohi, hk2, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ =>
-      bandPasses_of_wide hp0 hp1 hr0 hr1 hlohi hcross ?_⟩
-    have hlog : Real.log (1 / c) = 4 * Real.log (1 / crossLimit) := by
-      rw [hc, one_div, Real.log_inv, Real.log_pow, one_div, Real.log_inv]; push_cast; ring
-    rw [hlog] at hband
-    have hNk : (N : ℝ) + 1 ≤ B.k := by exact_mod_cast hN
-    have hlh : (B.lo : ℝ) ≤ B.hi := by exact_mod_cast hlohi
-    have h2 : ((B.hi : ℝ) - B.lo) ^ 2 ≤ ((B.hi : ℝ) + 1 - B.lo) ^ 2 := by nlinarith
-    have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
-    rcases le_or_gt 0 (Real.log (1 / crossLimit)) with hl | hl
-    · nlinarith [mul_le_mul_of_nonneg_right hNk hl]
-    · nlinarith [mul_nonneg hN0 (le_of_lt (neg_pos.2 hl))]
+    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+    obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hs
+    obtain ⟨-, hhalf, hb1⟩ := famCount_cross (indecisionLimit := indecisionLimit) (crossLimit := c)
+      η₀ pops εcov (δc / 2) hη0 hη₀ hc0
+    have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := c)
+      η₀ pops εcov (δc / 2)
+    have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := c)
+      η₀ pops εcov (δc / 2) hη₀
+    rw [bandHalf] at hb1
+    set κc : ℕ := famCount η₀ pops indecisionLimit εcov (δc / 2) c with hκc
+    obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
+    have hb1R : (1 : ℝ) ≤ bandAt η₀ κc := by exact_mod_cast hb1
+    have hsum : loAt η₀ κc + hiAt η₀ κc + 1 = κc := by
+      have : ((loAt η₀ κc + hiAt η₀ κc + 1 : ℕ) : ℝ) = κc := by push_cast; rw [hlo, hhi]; ring
+      exact_mod_cast this
+    have hlo3 : loAt η₀ κc + 3 ≤ hiAt η₀ κc := by
+      have : ((loAt η₀ κc + 3 : ℕ) : ℝ) ≤ hiAt η₀ κc := by push_cast; rw [hlo, hhi]; linarith
+      exact_mod_cast this
+    have hhalf' : halfTail η₀ κc ≤ crossLimit :=
+      (pow_le_pow_iff_left₀ (halfTail_nonneg η₀ κc) hcross.le (by norm_num)).1 (hhalf.trans_eq hc)
+    refine ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ => ?_⟩
+    rw [hBlo, hBhi]
+    exact bandPasses_of_halfTail hp0 hp1 hr0 hr1 (by omega) hsum hlo3 hhalf'
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp

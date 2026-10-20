@@ -220,18 +220,17 @@ theorem integral_uniform_le_window {k L L₁ : ℕ} (hk : k ≤ L) (hL : L ≤ L
 lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hcL : 0 ≤ cL) :
-    0 ≤ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * (256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP)
+    0 ≤ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
+        * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2)
         / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 2) := by
-  have hl2 := Real.log_two_gt_d9
-  have hlτ : Real.log 2 ≤ Real.log (2 / τ) :=
-    Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hτ0]; linarith)
-  have hsp : s ^ 2 * pAP ≤ 1 / 4 := by
-    have : s ^ 2 ≤ 1 / 4 := by nlinarith
-    nlinarith [sq_nonneg s]
-  have h1 : 1 ≤ 256 * (Real.log (2 / τ) + cL) / (s ^ 2 * pAP) := by
-    rw [le_div_iff₀ (by positivity)]
-    nlinarith
+  have hm0 : 0 ≤ max (Real.log (20 / τ)) cL := le_max_of_le_right hcL
+  have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) cL / s ^ 2 :=
+    div_nonneg (mul_nonneg (by norm_num) hm0) (sq_nonneg s)
+  have hN1 : 0 ≤ 20 / s := by positivity
+  have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP := by
+    rw [le_div_iff₀ hp]
+    linarith
   have h2 : 0 ≤ 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := by
     refine div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg ?_)) (by positivity)
     rw [le_div_iff₀ (by positivity)]
@@ -569,8 +568,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
       linarith
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
-      (mul_nonneg (by norm_num) (Real.log_nonneg (by
-        rw [le_div_iff₀ hδ'0]; nlinarith)))
+      (Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith))
     refine (loop_select_round_le settings O P Dsf Ls L n (Fintype.card σ + 2) ⌊RB⌋₊ t
       (by positivity) (hwalk ▸ hkL) hnp r hr').trans ?_
     rw [hwalk]
@@ -622,7 +620,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
-  set PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+  set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
   set RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2) with hRBd
@@ -666,7 +664,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
     hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ0 hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
-  have hPBJ : PB = 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+  have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := rfl
   obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1
     (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1

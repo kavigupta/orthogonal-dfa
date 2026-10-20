@@ -102,7 +102,7 @@ def LearnerLoopDFASimple : Prop :=
   -- The strings a round can read wrong; the clustering's band must keep them right.
   let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
   -- The clustering's suffix pool.
-  let PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+  let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   -- The clustering's prefix count.
   let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -176,7 +176,7 @@ def LearnerLoopDFA : Prop :=
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 13824 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
-  let P₀ : ℝ := 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 60000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
