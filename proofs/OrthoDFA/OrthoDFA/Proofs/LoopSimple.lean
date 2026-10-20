@@ -20,7 +20,8 @@ open MeasureTheory
 
 /-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
-  (80 * Real.log (2 / budgetScale η₀ ι εcov) + 8 * cLog) / ((1 / 2 - η₀) ^ 2 * pAP)
+  2 * (25 * max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog / (8 * (1 / 2 - η₀) ^ 2)
+      + 5 / (1 / 2 - η₀) + 7) / pAP
     + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
 
 /-- A bound on the prefix count. -/
@@ -155,7 +156,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let W : ℝ := B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-    let PB : ℝ := (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
@@ -258,10 +259,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
-    show _ = (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / ((1 / 2 - η₀) ^ 2 * pAP)
+    show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     unfold capPB
-    rw [hτb, hcLog]
+    rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
     field_simp
     ring
   have hRBe : capRB η₀ ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J = RB := by

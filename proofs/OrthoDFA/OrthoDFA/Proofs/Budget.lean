@@ -547,14 +547,13 @@ theorem validCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP 
   linarith
 
 omit [Fintype J] in
-/-- The family, seed included.  The cut budget is only `≥ B/10`, so its log carries a `log 10`,
-which `log (2/B) ≥ log 4` pays for; the crossing term is `log (1/crossLimit)` alone. -/
+/-- The family, seed included.  The cut budget is only `≥ B/10`, which `20/B` pays for. -/
 theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ crossLimit : ℝ)
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
     (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1
-      ≤ (40 * Real.log (2 / budgetScale η indecisionLimit εcov)
-        + 4 * Real.log (1 / crossLimit)) / sig η ^ 2 := by
+      ≤ 25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+          (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7 := by
   have hfcval := famHoeff_eq (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η populations εcov δ
   have hle : (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
@@ -572,63 +571,38 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   set cut : ℝ := cutBudget η indecisionLimit εcov with hcutdef
   have hcutlb : B ≤ 10 * cut := by linarith only [hcutlb']
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
-  -- `G = log (2/B)` is at least `log 4`, and `1000 ≤ 4⁵` makes `log 10 ≤ (5/3)·log 4`
-  set G : ℝ := Real.log (2 / B) with hGdef
-  have hl2 := half_le_log_two
-  have hG4 : 2 * Real.log 2 ≤ G := by
-    have h : Real.log 4 ≤ G :=
-      Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hBpos]; linarith only [hB2])
-    rwa [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow, Nat.cast_ofNat] at h
-  have hcutG : Real.log (2 / cut) ≤ 8 / 3 * G := by
-    have h1 : Real.log (2 / cut) ≤ Real.log (10 * (2 / B)) :=
-      Real.log_le_log (div_pos (by norm_num) hcutpos)
-        (by rw [← mul_div_assoc, div_le_div_iff₀ hcutpos hBpos]; linarith only [hcutlb])
-    rw [Real.log_mul (by norm_num) (div_pos (by norm_num) hBpos).ne'] at h1
-    have h10 : 3 * Real.log 10 ≤ 5 * (2 * Real.log 2) := by
-      have h := Real.log_le_log (by norm_num : (0 : ℝ) < 10 ^ 3) (by norm_num : (10 : ℝ) ^ 3 ≤ 2 ^ 10)
-      rw [Real.log_pow, Real.log_pow] at h
-      push_cast at h
-      linarith only [h]
-    linarith only [h1, hG4, h10]
+  set G : ℝ := Real.log (20 / B) with hGdef
+  have hG0 : 0 ≤ G :=
+    Real.log_nonneg (by rw [le_div_iff₀ hBpos]; linarith only [hB2])
+  have hcutG : Real.log (2 / cut) ≤ G :=
+    Real.log_le_log (div_pos (by norm_num) hcutpos)
+      (by rw [div_le_div_iff₀ hcutpos hBpos]; linarith only [hcutlb])
   set Z : ℝ := Real.log (1 / crossLimit) with hZdef
   have hZ0 : 0 ≤ Z := Real.log_nonneg (by rw [le_div_iff₀ hζ]; linarith only [hζ1])
   have hs2pos : (0 : ℝ) < s ^ 2 := pow_pos hsig 2
-  have hGs : 0 ≤ G / s ^ 2 := div_nonneg (by linarith only [hG4, hl2]) hs2pos.le
-  have hZs : 0 ≤ Z / s ^ 2 := div_nonneg hZ0 hs2pos.le
+  set M : ℝ := max (4 * G) Z with hMdef
+  have hM0 : 0 ≤ M := le_max_of_le_right hZ0
+  have hMs : 0 ≤ 25 * M / (16 * s ^ 2) := by positivity
   have hvote : voteSlack η ^ 2 = 4 * s ^ 2 / 25 := by
     simp only [voteSlack, ← hsdef]; ring
-  have hzA : Real.log (2 / cut) / voteSlack η ^ 2 ≤ 50 / 3 * (G / s ^ 2) := by
-    have e : 50 / 3 * (G / s ^ 2) * (4 * s ^ 2 / 25) = 8 / 3 * G := by
-      field_simp; ring
-    rw [hvote, div_le_iff₀ (by positivity), e]
-    exact hcutG
-  have hzC : Z / (4 * voteSlack η ^ 2) ≤ 25 / 16 * (Z / s ^ 2) := by
-    have e : 25 / 16 * (Z / s ^ 2) * (4 * (4 * s ^ 2 / 25)) = Z := by
-      field_simp; ring
-    rw [hvote, div_le_iff₀ (by positivity), e]
-  -- the seed's term: `1/voteSlack = 5/(2s) ≤ (5/4)/s²`, and `G ≥ 2·log 2 ≥ 4/3`
-  have hG43 : 4 / 3 ≤ G := by linarith [Real.log_two_gt_d9, hG4]
-  have hzS : 1 / voteSlack η ≤ 15 / 16 * (G / s ^ 2) := by
-    have e : 1 / voteSlack η = 5 / (2 * s) := by
-      simp only [voteSlack, ← hsdef]; field_simp
-    rw [e, div_le_iff₀ (by positivity : (0 : ℝ) < 2 * s)]
-    have : 15 / 16 * (G / s ^ 2) * (2 * s) = 15 / 8 * G / s := by field_simp; ring
-    rw [this, le_div_iff₀ hsig]
-    nlinarith [hG43, hs2, hsig]
-  have hcA := ceil_le_of_le hzA (by positivity)
-  have hcC := ceil_le_of_le hzC (by positivity)
-  have hcS := ceil_le_of_le hzS (by positivity)
-  have hmax := max_le (le_trans hcA (by linarith only [hZs] :
-      50 / 3 * (G / s ^ 2) + 1 ≤ 50 / 3 * (G / s ^ 2) + 25 / 16 * (Z / s ^ 2) + 1))
-    (le_trans hcC (by linarith only [hGs] :
-      25 / 16 * (Z / s ^ 2) + 1 ≤ 50 / 3 * (G / s ^ 2) + 25 / 16 * (Z / s ^ 2) + 1))
-  have hGbig : 16 / 3 ≤ G / s ^ 2 := by
-    rw [le_div_iff₀ hs2pos]
-    nlinarith [hs2, hsig]
-  have e : (40 * G + 4 * Z) / s ^ 2 = 40 * (G / s ^ 2) + 4 * (Z / s ^ 2) := by ring
-  rw [e]
+  have hzA : Real.log (2 / cut) / voteSlack η ^ 2 ≤ 25 * M / (16 * s ^ 2) := by
+    calc Real.log (2 / cut) / voteSlack η ^ 2 ≤ G / voteSlack η ^ 2 :=
+          div_le_div_of_nonneg_right hcutG (by positivity)
+      _ = 25 * (4 * G) / (16 * s ^ 2) := by rw [hvote]; field_simp; ring
+      _ ≤ 25 * M / (16 * s ^ 2) := by gcongr; exact le_max_left _ _
+  have hzC : Z / (4 * voteSlack η ^ 2) ≤ 25 * M / (16 * s ^ 2) := by
+    calc Z / (4 * voteSlack η ^ 2) = 25 * Z / (16 * s ^ 2) := by rw [hvote]; field_simp; ring
+      _ ≤ 25 * M / (16 * s ^ 2) := by gcongr; exact le_max_right _ _
+  have hzS : 1 / voteSlack η = 5 / (2 * s) := by
+    simp only [voteSlack, ← hsdef]; field_simp
+  have hcA := ceil_le_of_le hzA hMs
+  have hcC := ceil_le_of_le hzC hMs
+  have hcS := ceil_le_of_le (le_of_eq hzS) (by positivity)
+  have hmax := max_le hcA hcC
+  have e1 : 25 * M / (8 * s ^ 2) = 2 * (25 * M / (16 * s ^ 2)) := by ring
+  have e2 : 5 / s = 2 * (5 / (2 * s)) := by ring
   rw [hfcval] at hle
-  linarith only [hle, hmax, hcS, hGs, hZs, hGbig]
+  linarith only [hle, hmax, hcS, e1, e2]
 
 omit [Fintype J] in
 /-- The suffix pool: the family over `pAP`, and the findability tail over `pAP²`. -/
@@ -637,16 +611,16 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
     (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ (80 * Real.log (2 / budgetScale η indecisionLimit εcov) + 8 * Real.log (1 / crossLimit))
-          / (sig η ^ 2 * pAP)
+      ≤ 2 * (25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+            (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7) / pAP
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2 := by
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   set c : ℝ := (populations.card : ℝ) with hcdef
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
   have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hεcov
     hζ hζ1
-  set P : ℝ := (40 * Real.log (2 / budgetScale η indecisionLimit εcov)
-    + 4 * Real.log (1 / crossLimit)) / sig η ^ 2 with hPdef
+  set P : ℝ := 25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+    (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7 with hPdef
   have hPnn : 0 ≤ P := le_trans (by positivity) hf
   have hA : 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP
       ≤ 2 * P / pAP := div_le_div_of_nonneg_right (by linarith only [hf]) hpAP.le
@@ -706,11 +680,7 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
     rw [hcdef, poolCount]
     push_cast
     ring
-  have hPe : 2 * P / pAP
-      = (80 * Real.log (2 / budgetScale η indecisionLimit εcov) + 8 * Real.log (1 / crossLimit))
-        / (sig η ^ 2 * pAP) := by
-    rw [hPdef]; field_simp; ring
-  rw [hpoolval, ← hPe, mul_div_assoc 16]
+  rw [hpoolval, mul_div_assoc 16]
   linarith only [h1, h2, hC]
 
 /-- The statement's hypotheses at the top rung are the collision caps. -/
