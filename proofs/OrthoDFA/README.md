@@ -46,17 +46,17 @@ by the last round's family; each leaf scores the strings its run classifies as t
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
 `N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
 `ε/48`, drawing at most `B₃ = 36 S/ε · log(16 S(S+1)/δ') + S + 1` probes,
-`S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. The premises follow from `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k`, `E` and
-`E₂` free of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`;
-bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂) + 12)/log |Σ| + |Q| + 4`, this holds
-from
+`S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
+every hypothesis an inequality; they follow from `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k`, `E` and `E₂` free
+of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`. Bounding
+`log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂) + 12)/log |Σ| + |Q| + 4`, that holds once
+`L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)),
+    L₀ = 2(log (E + E₂) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
 
-(`dfa_pow`, `Proofs/LoopDFAArith.lean`). At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`,
-`pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 505.3`; the least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 505, and
-the least meeting `LearnerLoopDFASimple`'s premises 475.
-`LearnerLoopDFASimple` states the same at explicit settings, every hypothesis an inequality.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 505.3`; the
+least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 505, and the least meeting `LearnerLoopDFASimple`'s
+hypotheses 475.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side

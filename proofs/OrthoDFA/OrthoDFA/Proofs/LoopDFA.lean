@@ -692,22 +692,25 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hEE : 1 ≤ E + E₂ := by
     have hE₁ : 1 ≤ E₁ := by
       show 1 ≤ 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
-      rw [le_div_iff₀ hδ'0]
+      rw [le_div_iff₀ hδ'0, one_mul]
       have h1 : 1 ≤ Θ ^ 2 * (R₀ + 1) :=
-        one_le_mul_of_one_le_of_one_le (one_le_pow₀ hΘ1) (by linarith)
+        one_le_mul_of_one_le_of_one_le (one_le_pow₀ hΘ1) (by linarith only [hR₀])
       have h2 : 0 ≤ (P₀ + 2) / pAP := by positivity
-      have h3 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith)
-      nlinarith
+      have h3 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith only [hQ0])
+      exact hδ'1.trans (one_le_mul_of_one_le_of_one_le
+        (one_le_mul_of_one_le_of_one_le (by norm_num) h3) (le_add_of_le_of_nonneg h1 h2))
     have haε : 1 ≤ aε := by
       show 1 ≤ 4 * (A + 1) / c
-      rw [le_div_iff₀ hc]
-      linarith
+      rw [le_div_iff₀ hc, one_mul]
+      linarith only [hA, hc1]
     have hE₂ : 0 ≤ E₂ := by
       show 0 ≤ 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
       positivity
-    have : 0 ≤ 768 * Real.log (16 * Kc / δ') * aε := by positivity
+    have h1 : 0 ≤ 768 * Real.log (16 * Kc / δ') * aε := by positivity
+    have h2 : 1 ≤ 96 * aε * E₁ :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
     show 1 ≤ 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε + E₂
-    nlinarith
+    exact le_add_of_le_of_nonneg (le_add_of_le_of_nonneg h2 h1) hE₂
   have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
     dfa_pow (L := (L : ℝ)) (Q := Q) hA
       (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hQ0
