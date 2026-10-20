@@ -241,7 +241,8 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y η₀ d t tu : ℝ
       have h4 : 9 / 4 / (H * w) ≤ 9 / 4 / (H * w) / (H * w) := by
         rw [le_div_iff₀ hHw]
         have : 0 ≤ 9 / 4 / (H * w) := by positivity
-        nlinarith
+        have h7 := mul_le_mul_of_nonneg_left hHw1 this
+        linarith only [h7]
       have h5 : 4 / (H * w) = 16 / 5 / (H * w) + 4 / 5 / (H * w) := by ring
       have h6 : 4 / 5 / (H * w) ≤ 9 / 4 / (H * w) :=
         div_le_div_of_nonneg_right (by norm_num) hHw.le
@@ -251,12 +252,16 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y η₀ d t tu : ℝ
   -- a side mostly wrong is charged by its size
   by_cases hA : κl * n ≤ k
   · have : (n : ℝ) ≤ k / κl := by rw [le_div_iff₀ hκ0]; linarith
-    nlinarith
+    have h1 : (n : ℝ) * wrongCap n ag ap d η₀ ≤ n * 1 :=
+      mul_le_mul_of_nonneg_left hcap1 hnR.le
+    linarith only [h1, this, hdevT0, hdev0]
   push Not at hA
   -- a side too small for its deviations
   by_cases hC : n * (H * w) < 4 * t
   · have : (n : ℝ) ≤ 4 * t / (H * w) := by rw [le_div_iff₀ hHw]; linarith
-    nlinarith
+    have h1 : (n : ℝ) * wrongCap n ag ap d η₀ ≤ n * 1 :=
+      mul_le_mul_of_nonneg_left hcap1 hnR.le
+    linarith only [h1, this, hdevC, hkdiv0, hdev0]
   push Not at hC
   set κ : ℝ := k / n with hκ
   set Δ : ℝ := 1 - x - y with hΔ
@@ -291,14 +296,20 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y η₀ d t tu : ℝ
     have h1 : a * (1 - x) ≤ 1 - η₀ - x := by
       have e : a * (1 - x) = (1 - 2 * η₀) - a * x + η₀ * a := by
         have : a = (1 - 2 * η₀) + a * η₀ := by linarith
-        nlinarith
-      have : a * x ≥ x * (1 - 2 * η₀) := by nlinarith [le_gateA h0 hη₀]
-      nlinarith
+        linarith only [this]
+      have : a * x ≥ x * (1 - 2 * η₀) := by
+        have := mul_le_mul_of_nonneg_left (le_gateA h0 hη₀) hx0
+        linarith only [this]
+      have := mul_nonneg (sub_nonneg.2 hxη) (sub_nonneg.2 ha1)
+      linarith only [e, this]
     have h2 : a * Δ ≤ a * (1 - x) := mul_le_mul_of_nonneg_left (by rw [hΔ]; linarith) ha.le
-    rw [hD₁, hz]; nlinarith
+    rw [hD₁, hz]
+    linarith only [h1, h2]
   have hD₁H : H * z ≤ D₁ := by
     have e : D₁ - H * z = (η₀ - x) * (1 - κ) + κ * y := by
-      rw [hD₁, hz, hHdef, hΔ]; nlinarith
+      rw [hD₁, hz, hHdef, hΔ]
+      rw [hHdef] at haH
+      linear_combination (-1 : ℝ) * haH
     have : 0 ≤ (η₀ - x) * (1 - κ) + κ * y := by
       have := mul_nonneg (show 0 ≤ η₀ - x by linarith) (show 0 ≤ 1 - κ by linarith)
       have := mul_nonneg hκ0' hy0

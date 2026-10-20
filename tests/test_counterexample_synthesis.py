@@ -15,7 +15,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.round_end import HARVEST_EDGE, SUCCESS, Ending
+from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, SUCCESS, Ending
 
 #: What draws more like the harvest, which these tests never ask.
 _REPLAY = object()
@@ -26,7 +26,7 @@ def _take(strings, state, wanted):
 
 
 def _state(held=()):
-    state = PoolState([])
+    state = PoolState([], b"key")
     for string in held:
         state.seen.add(string)
         state.harvest().append(string)
@@ -151,7 +151,8 @@ class TestWhatARoundPublishes(unittest.TestCase):
     def test_the_round_draws_over_last_rounds_states(self):
         state = _state()
         state.held[("state", 7)] = [b"x"]
-        drawn = SimpleNamespace(draw=lambda: b"y")
+        words = iter(range(1000))
+        drawn = SimpleNamespace(draw=lambda: bytes([next(words) % 256, 1]))
 
         with mock.patch.object(cs, "aim_at", lambda *_: object()), mock.patch.object(
             cs, "state_source", lambda *_, **__: drawn
@@ -190,17 +191,18 @@ class TestWhatARoundPublishes(unittest.TestCase):
 
 class TestWhenTheFamilyTightens(unittest.TestCase):
     def test_a_consistent_round_refused_with_nothing_new_tightens(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertTrue(_family_too_loose(success, 1.0, 0.98, 0))
 
     def test_one_that_carries_strings_does_not(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertFalse(_family_too_loose(success, 1.0, 0.98, 3))
 
     def test_one_short_of_the_target_does_not(self):
-        success = Ending(SUCCESS, [], None)
+        success = Ending(SUCCESS, [])
         self.assertFalse(_family_too_loose(success, 0.9, 0.98, 0))
 
     def test_a_harvest_tightens(self):
-        harvest = Ending(HARVEST_EDGE, [b"a"], ((True,), 0))
-        self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
+        for kind in (HARVEST_ENDS, HARVEST_STUCK):
+            harvest = Ending(kind, [b"a"])
+            self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))

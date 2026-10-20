@@ -4,7 +4,7 @@ import unittest
 
 from orthogonal_dfa.l_star.probe_batching import warmed_draws
 from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES, SUCCESS
-from tests.counterexample_common import PARITY_EDGES, parity_cut, quiet_search
+from tests.counterexample_common import EVEN, PARITY_EDGES, parity_cut, quiet_search
 
 
 class TestWarming(unittest.TestCase):
@@ -40,6 +40,25 @@ class TestWarming(unittest.TestCase):
             SUCCESS, search.run(warmed_draws(search, draw, lambda _: None)).kind
         )
         self.assertEqual(7, len(drawn))
+
+    def test_the_block_counts_a_stuck_end_against_success(self):
+        drawn = []
+
+        def draw():
+            drawn.append(b"\x00" if drawn else b"\x00\x01")
+            return drawn[-1]
+
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]),
+            edges,
+            disagreement_rate=0.5,
+            disagreement_alternative=0.05,
+        )
+        self.assertEqual(
+            SUCCESS, search.run(warmed_draws(search, draw, lambda _: None)).kind
+        )
+        self.assertEqual((search.probes, 1), (len(drawn), len(search.counts.stuck)))
 
 
 if __name__ == "__main__":

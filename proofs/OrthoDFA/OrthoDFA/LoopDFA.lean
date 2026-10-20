@@ -10,13 +10,13 @@ covered starts, of the strings whose re-rooted run stays in the covered states a
 as the target classifies them. `coveredStates` and `rerootAccuracy` are the same quantities, as
 probabilities rather than shares of a sample.
 
-`LearnerLoopDFA`: where some covered start re-roots with accuracy at least `1 − η`, the loop, its
+`LearnerLoopDFA`: where some covered start re-roots with accuracy at least `1 − γ`, the loop, its
 probes uniform over the lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within
-`|Q| + 1` rounds at a consistent round, and the leaf it then picks classifies all but `η + ξ` of the
-strings of length `L` as the target does, but for chance `δ`. The leaf is picked on `n` held-out
-strings of length `L`, drawn after the loop: each leaf is scored by how many of them its run
-classifies as the last round's family reads them, the undecided ones counting for none. A run that
-reaches an unlearned edge counts as wrong. A covered state is visited `c` of the time across the
+`|Q| + 1` rounds at a consistent round, and its re-rooted DFA (`rerootedDFA`) misclassifies at most
+`γ + ξ` of the strings of length `L`, but for chance `δ`. The final hypothesis is started at the
+leaf that scores best on `n` held-out strings of length `L`, drawn after the loop: each leaf is
+scored by how many of them its run classifies as the last round's family reads them, the undecided
+ones counting for none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the time across the
 window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the time at some
 length; the probes that disagree in a consistent round, searching, stopping undecided at their
 start or end sift, or reading a string on its state's rarer side, must be fewer. Level 3's own
@@ -72,18 +72,6 @@ def dominatedStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (R : ℝ) (q :
   {q' | rerootVisitRate M L q q' ≤
     R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * windowVisitRate M L q'}
 
-/-- The share of the strings of length `L` on which the target re-rooted at `q` stays in `S` and
-classifies as the target does. -/
-def rerootAccuracy {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (S : Set σ) (q : σ) : ℝ :=
-  (uniformStrings L).real {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ S)
-    ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
-
-/-- From the leaf `s`, `H` follows learned edges along all of `x` to a leaf, which is on the root's
-accept side exactly when `b`. -/
-def HypothesisDFA.Classifies (H : HypothesisDFA α) (s : List Bool) (x : FreeMonoid α) (b : Prop) :
-    Prop :=
-  ∃ p, walkEnd H.edges s x.toList = some p ∧ (p.head? = some true ↔ b)
-
 open scoped Classical in
 /-- How many of `xs` the hypothesis, run from the leaf `s`, classifies as `read` decides them. -/
 def leafScore (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
@@ -96,58 +84,76 @@ def pickLeaf (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
     (xs : Fin n → FreeMonoid α) : List Bool :=
   (H.tree.leaves.argmax (leafScore H read xs)).getD []
 
-/-- The loop's DFA at settings the theorem chooses, every hypothesis an explicit inequality. With
-`L` the Python's length, `k = ⌈L/2⌉` the walk's start and `L₁ = L + |Q| + 3` the longest probe,
-the probes uniform over the `N = L₁ + 1 − k` lengths from `k` to `L₁`: if some state that at least
-`c` of the strings of length `L` visit from `k` on re-roots the target with accuracy at least
-`1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops within
-`|Q| + 1` rounds at a consistent round, and the leaf `pickLeaf` picks on `n` held-out strings
-uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target does.
-Each round runs level 3 at disagreement rate `ε` and yield `ε/48`, drawing at most `B₃` probes.
+/-- The final hypothesis, started at the leaf that scores best on `xs`, classifies `x` as `b`. -/
+def HypothesisDFA.rerootedDFA (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
+    (xs : Fin n → FreeMonoid α) (x : FreeMonoid α) (b : Prop) : Prop :=
+  H.Classifies (pickLeaf H read xs) x b
 
-The clustering runs at accuracy `εcov` and its band passes at `δ'/(8W)`, small enough that its
-wrong reads fit level 3's premises and the probes reading wrong past a short midfix weigh more
-than `ε` with chance at most `δ'/8`. `δ` splits into half for the loop, a quarter for the scores'
-deviation and a quarter for a held-out string whose reads some round read: one whose first `k`
-letters are those of a prefix the last round's clustering read or of one of its probes, or one
-drawn twice. -/
+/-- The loop's re-rooted DFA misclassifies at most `γ + ξ` of the strings of length `L`, but for
+chance `δ`; every premise an explicit inequality. -/
 def LearnerLoopDFASimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c γ δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
+  -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card σ + 3
+  -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
+  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
+  -- The clustering's accuracy.
   let εcov : ℝ := min ε (ξ / (8 * N))
+  -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
+  -- The clustering's indecision limit: good states' undecided reads, over every round and state,
+  -- stay under `ε`.
   let ι : ℝ := min (εcov / 8) (ε / (13824 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
+  -- The clustering gate's rate scale.
   let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  -- The clustering's populations.
   let J : ℝ := Q + 2
+  -- Bounds the hypotheses a round goes through.
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The strings a round can read wrong; the clustering's band must keep them right.
   let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-  let PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+  -- The clustering's suffix pool.
+  let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  -- The clustering's prefix count.
   let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
+  -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
+  -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+  -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
+  -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) →
+  -- The walk start's prefixes are spread thinly enough for the clustering's collisions,
   (A ^ k)⁻¹ ≤ cap * ε / 96 →
+  -- for each round's good-state noise to concentrate,
   768 * Real.log (16 * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
+  -- and for the held-out strings to read only fresh strings.
   (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
+  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
+  -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -157,58 +163,66 @@ def LearnerLoopDFASimple : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
-/-- The learner's DFA once the Python's length `L` is at least `L₀`. With the walk starting at
-`k = ⌈L/2⌉`, probes uniform over the lengths `k` to `L₁ = L + |Q| + 3` and suffixes uniform at
-length `L₁ + |Q| + 3`, of which at least `pAP` keep every string's membership: if some state that
-at least `c` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
-least `1 − η` without leaving such states, then with probability at least `1 − δ` the loop stops
-within `|Q| + 1` rounds at a consistent round, and the leaf `pickLeaf` picks on `n` held-out
-strings uniform of length `L` classifies all but `η + ξ` of the strings of length `L` as the target
-does. Each round runs level 3 at `ε = c/(4(|Σ|+1)N)`, `N = L₁ + 1 − k` the probes' lengths, and
-draws at most `B₃` probes.
-
-`L₀` is `|Q| + 4` plus `4 (log (E + E₂) + 30)/log |Σ|`, `E` and `E₂` free of `L`: with
-`ℓ = L₁ + 1`, `1/cap` is at most `ℓ⁵ E₁`, `1/ε` at most `ℓ aε`, the prefix count at most `ℓ³ R₀`
-and the budget at most `ℓ K₁`, and `6 log ℓ ≤ 30 + ℓ log |Σ| / 4` absorbs the length. -/
+/-- `LearnerLoopDFASimple` once the Python's length `L` is at least `L₀`. -/
 def LearnerLoopDFA : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c γ δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
+  -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card σ + 3
+  -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
+  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
+  -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
+  -- Bounds the hypotheses a round goes through.
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
+  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 13824 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
-  let P₀ : ℝ := 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 60000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+  -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
-  let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 30) / Real.log A
+  -- `log ℓ` is bounded by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂) + 12) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂) + 6 * Real.log T) / Real.log A
+    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  (∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) →
+  -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) →
+  -- The Python's length is long enough.
   L₀ ≤ L →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
+  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
+  -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -218,57 +232,83 @@ def LearnerLoopDFA : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` that at
 least `c₀` of the strings of length `L` visit from `k` on re-roots the target with accuracy at
-least `1 − η` without leaving the union of such states and `dominatedStates M L R q`, then with
-probability at least `1 − δ` the loop stops within `|Q| + 1` rounds at a consistent round, and the
-leaf `pickLeaf` picks on `n` held-out strings uniform of length `L` classifies all but `η + ξ` of
-the strings of length `L` as the target does. The settings are `LearnerLoopDFASimple`'s at
-`c = min c₀ (ξ/(2C|Q|))` for `C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
+least `1 − γ` without leaving the union of such states and `dominatedStates M L R q`, the
+conclusion is `LearnerLoopDFASimple`'s. The settings are its at `c = min c₀ (ξ/(2C|Q|))` for
+`C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R γ δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
+  -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
+  -- The covered rule's threshold, low enough that the dominated states below it cost `ξ/2`.
   let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let L₁ : ℕ := L + Fintype.card σ + 3
+  -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
+  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
+  -- The clustering's accuracy.
   let εcov : ℝ := min ε (ξ / (16 * N))
+  -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
+  -- The clustering's indecision limit: good states' undecided reads, over every round and state,
+  -- stay under `ε`.
   let ι : ℝ := min (εcov / 8) (ε / (13824 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
+  -- The clustering gate's rate scale.
   let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  -- The clustering's populations.
   let J : ℝ := Q + 2
+  -- Bounds the hypotheses a round goes through.
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The strings a round can read wrong; the clustering's band must keep them right.
   let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-  let PB : ℝ := 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+  -- The clustering's suffix pool.
+  let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  -- The clustering's prefix count.
   let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
+  -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
+  -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+  -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
+  2 ≤ Fintype.card α →
+  -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
   (∃ q ∈ coveredStates M L c₀,
-    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
+    1 - γ ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
+  -- The walk start's prefixes are spread thinly enough for the clustering's collisions,
   (A ^ k)⁻¹ ≤ cap * ε / 96 →
+  -- for each round's good-state noise to concentrate,
   768 * Real.log (16 * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
+  -- and for the held-out strings to read only fresh strings.
   (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
+  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
+  -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -278,8 +318,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
 /-- `LearnerLoopDFA` with the target admitted by the relative rule, as in
@@ -288,41 +328,63 @@ def LearnerLoopDFARelativeSimple : Prop :=
 def LearnerLoopDFARelative : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R η δ pAP ξ : ℝ),
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c₀ R γ δ pAP ξ : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
+  -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
+  -- The covered rule's threshold, low enough that the dominated states below it cost `ξ/2`.
   let c : ℝ := min c₀ (ξ / (2 * C * Q))
   let L₁ : ℕ := L + Fintype.card σ + 3
+  -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
+  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
+  -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
+  -- Bounds the hypotheses a round goes through.
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
+  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 16 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 13824 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
-  let P₀ : ℝ := 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
   let R₀ : ℝ := 60000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+  -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
-  let L₀ : ℝ := Q + 4 + 4 * (Real.log (E + E₂) + 30) / Real.log A
+  -- `log ℓ` is bounded by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂) + 12) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂) + 6 * Real.log T) / Real.log A
+    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c₀ → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
+  2 ≤ Fintype.card α →
+  -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
   (∃ q ∈ coveredStates M L c₀,
-    1 - η ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
+    1 - γ ≤ rerootAccuracy M L (coveredStates M L c₀ ∪ dominatedStates M L R q) q) →
+  -- The Python's length is long enough.
   L₀ ≤ L →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
+  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
+  -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -332,8 +394,8 @@ def LearnerLoopDFARelative : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
 end OrthoDFA
