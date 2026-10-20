@@ -18,10 +18,6 @@ beyond its oracle and its suffixes. That the loop reaches a consistent round is 
 
 `LearnerLoopSound` states the same once `L ≥ L₀`.
 
-Known modelling gap. The Python walks each probe from its first decided prefix; here from 0. They
-differ only in a round where `ε` sifts undecided, which neither can end with a DFA: the Python's
-final check needs `ε` to classify.
-
 Known modelling gap. The Python's success test counts the searches and the probes stuck at an
 unlearned edge; level 3 also counts the probes stopping undecided at their start or end sift.
 -/
