@@ -25,11 +25,11 @@ variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Me
 /-- Over probes at most `L` long, whether level 3 fails its claim is fixed by the family's reads
 of the strings at most `max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes. -/
 theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (θ u : ℝ)
+    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (A sl u : ℝ)
     (xs : Fin C.probeBudget → FreeMonoid α) {ω ω' : Ω'}
     (h : ∀ z, z.toList.length ≤ max (L + C.probeBudget + 2)
       (probesLen xs + 1 + C.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
-    (ω, xs) ∈ level3Fail fam C D' θ u → (ω', xs) ∈ level3Fail fam C D' θ u := by
+    (ω, xs) ∈ level3Fail fam C D' A sl u → (ω', xs) ∈ level3Fail fam C D' A sl u := by
   classical
   have hlenP : ∀ x : FreeMonoid α, ∀ j, j ≤ x.toList.length → ∀ m : FreeMonoid α,
       (prefixOf x j * m).toList.length ≤ x.toList.length + m.toList.length := by
@@ -88,7 +88,9 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
   have hsuff : ∀ E : RoundEnd Random.Level3Site,
       EndsWell
         { target := fam.M,
-          badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+          undecided := fun q => fam.readDist q .undecided,
+          harvestSlope := A,
+          harvestSlack := sl,
           probes := D',
           disagreeRate := C.disagreementRate + u,
           disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H,
@@ -98,7 +100,9 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
           ending := E } →
       EndsWell
         { target := fam.M,
-          badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+          undecided := fun q => fam.readDist q .undecided,
+          harvestSlope := A,
+          harvestSlack := sl,
           probes := D',
           disagreeRate := C.disagreementRate + u,
           disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H,

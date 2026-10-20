@@ -11,9 +11,10 @@ first undecided read, so each probe reads at most one string undecided, and the 
 the tests bound the undecided reads a round makes, whatever the budget, and with them the wrong
 ones.
 
-`Level5RoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
-each rather than `δ/8`, and that the strings the round reads, and those it reads undecided, are few
-enough against `εw` and `κ` that no string the round reads is read wrong but for chance `δ/8`.
+`Level5RoundCorrect` asks level 3's premises, the sampler's bounds holding but for chance `δ/16` at
+each site rather than `δ/8`, and that the strings the round reads, and those it reads undecided,
+are few enough against `εw` and `κ` that no string the round reads is read wrong but for chance
+`δ/8`.
 -/
 
 namespace OrthoDFA
@@ -46,7 +47,7 @@ open MeasureTheory Random Random.Kappa
 well with chance at most `δ`. -/
 def Level5RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
-    (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
     (C : Level3Settings) (p₀ : ℝ),
     let y := C.harvestRate
@@ -58,15 +59,12 @@ def Level5RoundCorrect : Prop :=
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    -- Bounds, but for chance `δ/16`, the share of probes stopping undecided at their start or end
-    -- sift at a good state.
-    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
+    -- As at level 3.
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (P.L + 1))
+    -- As at level 3, at chance `δ/16` at each site.
+    let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    -- Good states' undecided middles stay under a quarter of the searches.
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 →
-    -- Good states' undecided ends stay under the ends test's rate.
-    2 * G ≤ y →
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → 0 < y →
     -- The middles test's yield fits under the success test's rate.
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
@@ -79,12 +77,12 @@ def Level5RoundCorrect : Prop :=
       + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
-          -- the probes searching, changing the hypothesis or stopping undecided at their start or
-          -- end sift; a harvest's sampler yields `y`.
+          -- As at level 3.
           ¬ EndsWell
             { target := M,
-              badStates := BadAt U θ,
+              undecided := U,
+              harvestSlope := A,
+              harvestSlack := η / y,
               probes := P.D,
               disagreeRate := ε,
               disagree := searchSet (R.read · ω) C.walkStart result.hypothesis

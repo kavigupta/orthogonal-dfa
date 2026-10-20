@@ -249,25 +249,26 @@ include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
 collides, fails its claim with chance at most `δ + δ/8 + #(strings of at most |Q| letters) cross/u`.
 -/
-theorem loop_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
+theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
     (hk : 1 ≤ settings.level3.walkStart) (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : RoundPremises σ α P.L settings.level3 θ
-      (2 * prefixMax P.D settings.level3.walkStart) crossLimit)
-    (hu : 0 < u) (hy0 : 0 < settings.level3.harvestRate)
+    (hprem : RoundPremises σ α P.L settings.level3 crossLimit)
+    (hu : 0 < u)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
-    (hm1 : m ≤ 1 / 2) (hmc : m ≤ (1 - m) * settings.level3.harvestRate)
+    (hm1 : m ≤ 1 / 2)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf N p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
             (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ RoundSpec M O P θ (settings.level3.disagreementRate + u + m)
+        ∧ ¬ RoundSpec M O P (roundSlope σ P.L settings.level3)
+            (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
+            (settings.level3.disagreementRate + u + m)
             (settings.level3.harvestRate / 2) settings.level3.walkStart
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
@@ -277,7 +278,7 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
   set δb := settings.level3.δ + settings.level3.δ / 8
     + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u with hδb
   have hδb0 : 0 ≤ δb := by
-    obtain ⟨-, hδ0, -⟩ := hprem
+    obtain ⟨hδ0, -⟩ := hprem
     have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by positivity
     linarith
   classical
@@ -303,11 +304,12 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (θ m u crossLimit : ℝ)
           k t.2.2.2 t.2.2.1, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, u) ∈ Bd → (ω', u) ∈ Bd)
       ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
-        RoundSpec M O P θ (settings.level3.disagreementRate + u + m)
-          (settings.level3.harvestRate / 2) k
+        RoundSpec M O P (roundSlope σ P.L settings.level3)
+          (roundSlack σ α settings.level3 (2 * prefixMax P.D k)) m
+          (settings.level3.disagreementRate + u + m) (settings.level3.harvestRate / 2) k
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
-    fun t ht => round_bad_exists M O hL P settings θ m u crossLimit hk hη1 hcross hprem hu hy0
-      hm1 hmc t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+    fun t ht => round_bad_exists M O hL P settings m u crossLimit hk hη1 hcross hprem hu
+      hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
         exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)
