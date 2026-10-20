@@ -91,6 +91,13 @@ def follow(edges, leaf: Optional[Path], letters: bytes):
     return visited, None
 
 
+def first_decided(hypothesis: HypothesisDFA, x: bytes) -> int:
+    """The least i with x[:i] sifted decided, or len(x) if none is."""
+    return next(
+        (i for i in range(len(x)) if hypothesis.sift(x[:i]) is not None), len(x)
+    )
+
+
 def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     """The positions ``walkCheckBy`` sifts before any search, the second only
     where the first is decided."""
