@@ -46,8 +46,8 @@ class TestWalkedFromHalfway(unittest.TestCase):
 
 class TestWalkedFromAQuarter(unittest.TestCase):
     def test_a_saturated_tree_terminates(self):
-        # Walked from ⌈L/2⌉ its start check fails after a success, and a
-        # success the check refuses takes nothing new, doubling k to DEEPEST.
+        # Its start check fails after a success, and a success the check
+        # refuses takes nothing new, which doubles k to DEEPEST.
         oracle_creator = lambda nm, s, _d=_target(): NoisyOracle(DFAOracle(_d), nm, s)
         assert_terminates(
             lambda: learn_dfa(
