@@ -264,7 +264,9 @@ def _counterexample_search(pst, vs, *, acc_threshold):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
     search = CounterexampleSearch(
-        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
+        counterexample_search_config(
+            acc_threshold, pst.config.acceptable_fnr, pst.sampler.length
+        ),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
