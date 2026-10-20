@@ -8,6 +8,7 @@ import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
+import OrthoDFA.Proofs.Level3Sound
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RandomCorrect
@@ -28,7 +29,8 @@ The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`,
+`Level3ConsistentSound`, stated in `OrthoDFA.Level3Sound`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
@@ -107,6 +109,10 @@ theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
 theorem level3_round_correct : Level3RoundCorrect := Random.level3RoundCorrect_holds
 
 #print axioms level3_round_correct
+
+theorem level3_consistent_sound : Level3ConsistentSound := level3ConsistentSound_holds
+
+#print axioms level3_consistent_sound
 
 theorem level4_round_correct : Level4RoundCorrect := Random.Eps.level4RoundCorrect_holds
 
