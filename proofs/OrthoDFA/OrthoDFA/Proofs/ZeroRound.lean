@@ -83,6 +83,15 @@ open Classical in
 def zeroZone (N' a nQ : ℕ) (K₀ F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
   (readStrings (shortStrings N') F).filter (· ∈ zeroReads a nQ K₀ F)
 
+/-- The round ended consistent, at most `ε` of `D` disagrees against its family's read
+distributions, and its tree is in `classSet |Q|`. -/
+def ZeroSpec {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
+    (P : PrefixDistribution α) (ε : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
+  o.result.ending = .consistent
+    ∧ P.D.real (disagreeSet M (familyReadDist O M o.family o.state.lo (o.state.hi + 1)) o.read k
+      o.result.hypothesis) ≤ ε
+    ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
+
 section Bad
 
 variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
@@ -119,12 +128,8 @@ theorem round_bad_zero (θ m u crossLimit : ℝ) (kd : ℕ) (ha : 1 ≤ settings
           settings.avoidDepth (Fintype.card σ) K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, v) ∈ Bd → (ω', v) ∈ Bd)
       ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
-        let o := mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)
-        o.result.ending = .consistent
-          ∧ P.D.real (disagreeSet M (familyReadDist O M F B.lo (B.hi + 1)) o.read
-            settings.level3.walkStart o.result.hypothesis)
-            ≤ settings.level3.disagreementRate + u + m
-          ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ) := by
+        ZeroSpec M O P (settings.level3.disagreementRate + u + m) settings.level3.walkStart
+          (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
   classical
   obtain ⟨hθ0, hδ0, hδ1, hθL, hGy, hyρ, hρ1, hP, hcr0, hcr⟩ := hprem
   set C := settings.level3 with hCdef
