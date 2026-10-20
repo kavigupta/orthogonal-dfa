@@ -9,6 +9,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.ZeroMain
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -30,7 +31,8 @@ in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2Rou
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim` (with `KappaRoundCorrectAt`, which reads the prefix mass past the walk's start), and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises.
+with the simpler premises, and `LearnerLoopDFAFromZeroSimple` the claim for the loop walked from
+`0`.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
@@ -75,6 +77,11 @@ theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simpl
 theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
 
 #print axioms learner_loop_dfa
+
+theorem learner_loop_dfa_from_zero_simple : LearnerLoopDFAFromZeroSimple :=
+  learner_loop_dfa_from_zero_simple_holds
+
+#print axioms learner_loop_dfa_from_zero_simple
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 

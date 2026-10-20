@@ -212,6 +212,99 @@ def LearnerLoopDFA : Prop :=
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
+/-- `LearnerLoopDFASimple` for the loop walked from `0`, as the Python walks. Where re-rooting at a
+covered start is accurate to `1 − η` at every length up to `2L` and `η |Σ|^|Q| < 1`, so that the
+start is equivalent to that covered state, the loop ends within `|Q| + 1` rounds at a consistent
+round, and the picked leaf misjudges at most `η + ξ` of the strings of length `L`, but for chance
+`δ`; every premise an explicit inequality. -/
+def LearnerLoopDFAFromZeroSimple : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c η δ pAP ξ : ℝ),
+  let Q : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  -- The probes' lengths start at half the Python's length.
+  let k : ℕ := (L + 1) / 2
+  let L₁ : ℕ := L + Fintype.card σ + 3
+  -- Probes are uniform over the `N` lengths `k` to `L₁`.
+  let N : ℝ := L₁ + 1 - k
+  -- The round's disagreement rate, low enough to catch a wrong edge out of any covered state.
+  let ε : ℝ := c / (4 * (A + 1) * N)
+  -- The clustering's accuracy.
+  let εcov : ℝ := min ε (ξ / (8 * N))
+  -- The round's share of `δ`.
+  let δ' : ℝ := δ / 16
+  let s : ℝ := 1 / 2 - η₀
+  -- Bounds the hypotheses the round goes through.
+  let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- The round's level-3 probe budget.
+  let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The strings the round can read wrong; the clustering's band must keep them right.
+  let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+  -- Counts the trees the round can grow, with an edge map into each one's leaves.
+  let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
+    * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+  -- The depth level 5's good states' bounds concentrate at, and the strings before it.
+  let kd : ℕ := Nat.clog (Fintype.card α) ⌈768 * Real.log (16 * Kc / δ') / ε⌉₊
+  let H : ℝ := ∑ i ∈ Finset.range kd, A ^ i
+  -- The clustering's indecision limit, low enough that no state reads undecided more than
+  -- `1.5 V ι` of the time.
+  let V : ℝ := 2 * N * A ^ Fintype.card σ / c
+  let ι : ℝ := min (min (εcov / 8) (ε / (1728 * V * (Q + 1))))
+    (min (1 / (48 * V * (L₁ + 1) * (Q + 1)))
+      (δ' / (12 * V * (B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + H * (Q + 1)))))
+  -- The clustering gate's rate scale.
+  let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  -- The clustering's populations.
+  let J : ℝ := Q + 2
+  -- The clustering's suffix pool.
+  let PB : ℝ := 128 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+    + 16 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  -- The clustering's prefix count.
+  let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * pAP * τ))
+    / (s ^ 4 * τ ^ 2)
+  -- No string may hold more than this of the window or of the suffixes.
+  let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
+      (δ' * ι ^ 2 / (2 ^ 9 * (J + 1) * (RB + 1))))
+    (min (δ' * pAP / (2 ^ 14 * (J + 1) * (PB + 1))) (1 / (6 * J * (RB + 1))))
+  -- The probes avoid the first `a` letters of the clustering's prefixes.
+  let a : ℕ := k - Fintype.card σ - 1
+  -- The held-out strings the start leaf is picked on.
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The oracle's language is the target's.
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  -- At least `pAP` of the suffixes keep every string's membership.
+  pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  -- The Python's precondition: some covered state re-roots the target with error at most `η` at
+  -- every length up to `2L`,
+  (∃ q ∈ coveredStates M L c, ∀ ℓ ≤ 2 * L,
+    1 - η ≤ rerootAccuracy M ℓ (coveredStates M L c) q) →
+  -- with every word of at most `|Q|` letters weighing more than `η`.
+  η * A ^ Fintype.card σ < 1 →
+  -- The window leaves room for the depths,
+  kd + Fintype.card σ + 2 ≤ k →
+  -- its strings are spread thinly enough for the clustering's collisions,
+  (A ^ k)⁻¹ ≤ cap →
+  -- the probes avoid little,
+  6 * J * (RB + 1) * (A ^ a)⁻¹ ≤ ε / 96 →
+  -- and the held-out strings read only fresh strings.
+  (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ a)⁻¹ ≤ δ / 4 →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and the picked leaf misclassifies at most
+  -- `η + ξ`, but for chance `δ`.
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level3.walkStart = 0 ∧ settings.level3.disagreementRate = ε ∧
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+        (Measure.pi fun _ : Fin n => uniformStrings L)).real
+      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
+        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+      ≤ δ
+
 end OrthoDFA
 
 end
