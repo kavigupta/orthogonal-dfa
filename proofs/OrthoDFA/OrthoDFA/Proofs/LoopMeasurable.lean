@@ -207,7 +207,7 @@ def roundAt (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
 def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α))
     (u : Fin settings.level3.probeBudget → unitInterval) :
     Fin settings.level3.probeBudget → FreeMonoid α :=
-  fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (u i)
+  fun i => drawFrom (avoidLaw D settings.avoidDepth K₀) (u i)
 
 /-- A round at the state `B` and family `F`, its probes drawn from `D` avoiding `K₀`, on the
 noise and uniforms `d`. -/
@@ -220,7 +220,7 @@ def mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Mea
 def roundKeys (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (c : ClusterDraws Ω α K) : Finset (FreeMonoid α) :=
   clusterKeys (settings.schedule (loopPopulations K h.pops.length))
-    (loopPopulations K h.pops.length) settings.level3.walkStart (clusterRun D Dsf h c)
+    (loopPopulations K h.pops.length) settings.avoidDepth (clusterRun D Dsf h c)
 
 /-- The prefixes and suffixes a round's clustering reads. -/
 def roundSets (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
@@ -585,7 +585,7 @@ theorem measurableSet_roundKeys (settings : LoopSettings K) (D Dsf : Measure (Fr
       = ⋃ P : Finset (FreeMonoid α), clusterRun D Dsf h ⁻¹'
         ({x | roundPrefs (settings.schedule (loopPopulations K h.pops.length))
           (loopPopulations K h.pops.length) x = P}
-          ∩ {_x | P.image (fun p => prefixOf p settings.level3.walkStart) = K₀}) := by
+          ∩ {_x | P.image (fun p => prefixOf p settings.avoidDepth) = K₀}) := by
     ext c
     simp only [roundKeys, clusterKeys, Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_preimage,
       Set.mem_inter_iff]

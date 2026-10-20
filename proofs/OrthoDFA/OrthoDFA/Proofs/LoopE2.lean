@@ -102,6 +102,7 @@ reads. Its chance is at most `δ + δ/8 + #(strings of at most |Q| letters) cros
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
 theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
+    (hz : settings.avoidDepth = settings.level3.walkStart)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : RoundPremises σ α P.L settings.level3 θ
       (2 * prefixMax P.D settings.level3.walkStart) crossLimit)
@@ -127,6 +128,7 @@ theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.w
   obtain ⟨hθ0, hδ0, hδ1, hθL, hGy, hyρ, hρ1, hP, hcr0, hcr⟩ := hprem
   set C := settings.level3 with hCdef
   set k := C.walkStart
+  have hzk : settings.avoidDepth = k := hz
   set T := C.probeBudget
   set Oc := O.clamped
   have hηIn : 0 ≤ 1 - Oc.ηIn ∧ 1 - Oc.ηIn ≤ 1 := by
@@ -166,7 +168,10 @@ theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.w
   obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D') Sf hSm
   have hpr : MeasurePreserving (probesOf settings P.D K₀)
       (Measure.pi fun _ : Fin T => (volume : Measure unitInterval)) (Measure.pi fun _ => D') :=
-    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
+    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, by
+      show (volume : Measure unitInterval).map (drawFrom (avoidLaw P.D settings.avoidDepth K₀)) = D'
+      rw [hzk]
+      exact map_drawFrom _⟩
   have hmp : MeasurePreserving (fun q : Ω × (Fin T → unitInterval) =>
       (q.1, probesOf settings P.D K₀ q.2)) (μ.prod (Measure.pi fun _ => volume))
       (μ.prod (Measure.pi fun _ => D')) := (MeasurePreserving.id μ).prod hpr
@@ -206,7 +211,10 @@ theorem round_bad_exists (θ m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.w
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
     have hoff : ∀ z, KeyOff k ↑K₀ z → read z = read' z := fun z hz =>
       (renoise_read_of_notMem fam R (fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩) (ω, ω₀)).symm
-    have hxs : ∀ i, Avoids k ↑K₀ (xs i) := fun i => drawFrom_avoids P.D hk K₀ (v i)
+    have hxs : ∀ i, Avoids k ↑K₀ (xs i) := fun i => by
+      show Avoids k ↑K₀ (drawFrom (avoidLaw P.D settings.avoidDepth K₀) (v i))
+      rw [hzk]
+      exact drawFrom_avoids P.D hk K₀ (v i)
     have hres : Random.indecisiveLStarLevel3 C read xs = Random.indecisiveLStarLevel3 C read' xs :=
       Random.level3_congr_zone C xs fun i j hj hjx m _ => hoff _ (keyOff_of_prefix (hxs i) hj hjx m)
     have hdist : fam'.readDist = familyReadDist O M F B.lo (B.hi + 1) := by
