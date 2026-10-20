@@ -63,9 +63,15 @@ theorem learnerLoopSoundSimple_holds : LearnerLoopSoundSimple := by
   have hPBe : capPB η₀ ι εcov δc (pAP / 2) 0 J = PB := by
     unfold capPB
     rw [hτb]
-    show _ = 256 * Real.log (2 / τ) / ((1 / 2 - η₀) ^ 2 * pAP)
+    have hτι : τ ≤ ι := min_le_right _ _
+    have hlog : 0 ≤ Real.log (20 / τ) :=
+      Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith)
+    rw [max_eq_left (by linarith)]
+    show _ = (50 * Real.log (20 / τ) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δc / 2)) / pAP ^ 2
     have : (1 / 2 - η₀) ≠ 0 := by linarith
+    have hs : s = 1 / 2 - η₀ := rfl
+    rw [hs]
     field_simp
     ring
   have hRBe : capRB η₀ ι εcov δc δc (pAP / 2) 0 J = RB := by
@@ -76,7 +82,7 @@ theorem learnerLoopSoundSimple_holds : LearnerLoopSoundSimple := by
         ∧ (prefCount η₀ pops ι εcov (δc / 2) δc (pAP / 2) (Real.exp (-0)) 0 : ℝ) ≤ RB := by
     intro pops hpops
     have h := counts_le η₀ pops ι εcov δc δc (pAP / 2) 0 J hη0 hη₀ ⟨none, hpops⟩ (hJ pops) hι0 hc0
-      (by linarith) hδc0 (by linarith) hδc0 (by linarith) (by positivity) (by linarith) le_rfl
+      hδc0 (by linarith) hδc0 (by linarith) (by positivity) (by linarith) le_rfl
     rw [hPBe, hRBe] at h
     exact h
   obtain ⟨hPB0', hRB0'⟩ := hcounts {none} (Finset.mem_singleton_self _)

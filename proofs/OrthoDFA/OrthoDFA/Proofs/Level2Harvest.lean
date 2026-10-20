@@ -7,7 +7,8 @@ import OrthoDFA.Proofs.RoundEnd
 Every undecided string a probe walked from `k` turns up is a prefix of the probe at least `k`
 long, extended by a midfix, so the sampler is spread from `k`, whatever the hypothesis. It finds at
 most one string a probe, read undecided, so with reads fixed by the target state all it finds is
-at bad states, and it finds one exactly when the round would count one.
+at states whose strings all read undecided, and it finds one exactly when the round would count
+one.
 -/
 
 namespace OrthoDFA
@@ -84,16 +85,16 @@ theorem stuck_le_harvestLaw :
   · rw [Set.indicator_of_mem hx, Pi.one_apply, List.filter_eq_self.2 (by simp)]
     exact Nat.one_le_cast.2 (List.length_pos_iff.2 hx)
 
-/-- With reads fixed by the target state, all the sampler finds is at bad states, so the harvest
-ends well once the sampler yields at least `y > 0`. -/
+/-- With reads fixed by the target state, all the sampler finds is at states whose strings all read
+undecided, so the harvest ends well once the sampler yields at least `y > 0`. -/
 theorem endsWell_harvest {σ : Type*} {M : DFA α σ} {side : σ → Bool}
     (hI : ReadsByState read M side) [IsProbabilityMeasure D] (hE : EdgesOK read H.tree H.edges)
     (ε : ℝ) (dis : Set (FreeMonoid α)) {y : ℝ} (hy : 0 < y)
     (hlaw : y ≤ (harvestLaw read D k H).real Set.univ) :
     EndsWell
-      { target := M, badStates := AllUndecided read M, probes := D, disagreeRate := ε, disagree := dis,
-        walkStart := k, harvestLaw := fun _ => harvestLaw read D k H, yield := y,
-        ending := .harvest () } := by
+      { target := M, undecided := undecidedOf read M, harvestSlope := 1, harvestSlack := 0,
+        probes := D, disagreeRate := ε, disagree := dis, walkStart := k,
+        harvestLaw := fun _ => harvestLaw read D k H, yield := y, ending := .harvest () } := by
   classical
   have hbad : harvestLaw read D k H {z | AllUndecided read M (M.eval z.toList)}
       = harvestLaw read D k H Set.univ := by
@@ -103,10 +104,29 @@ theorem endsWell_harvest {σ : Type*} {M : DFA α σ} {side : σ → Bool}
     · have := h z rfl
       rw [stuckString_undecided read H k hE x z hz] at this
       split_ifs at this
-  refine ⟨?_, harvestLaw_spread read D H k, hlaw⟩
-  rw [measureReal_def, measureReal_def, hbad]
-  rw [measureReal_def] at hlaw
-  linarith
+  refine ⟨fun T hT => ?_, harvestLaw_spread read D H k, hlaw⟩
+  have htop : harvestLaw read D k H Set.univ ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top (harvestLaw_univ_le read D H k)
+  rcases le_or_gt 1 T with h1 | h1
+  · calc _ ≤ (harvestLaw read D k H).real Set.univ := measureReal_mono (Set.subset_univ _) htop
+      _ ≤ (1 * T + 0) * (harvestLaw read D k H).real Set.univ := by
+          have := (measureReal_nonneg : 0 ≤ (harvestLaw read D k H).real Set.univ)
+          nlinarith
+  · have hsub : {z : FreeMonoid α | undecidedOf read M (M.eval z.toList) ≤ T}
+        ⊆ {z | AllUndecided read M (M.eval z.toList)}ᶜ := by
+      intro z hz hall
+      simp only [Set.mem_setOf_eq, Set.mem_compl_iff] at hz hall
+      rw [undecidedOf, if_pos hall] at hz
+      linarith
+    have hc : harvestLaw read D k H {z | AllUndecided read M (M.eval z.toList)}ᶜ = 0 := by
+      rw [measure_compl (Set.to_countable _).measurableSet (by rw [hbad]; exact htop), hbad,
+        tsub_self]
+    have h0 : (harvestLaw read D k H).real
+        {z : FreeMonoid α | undecidedOf read M (M.eval z.toList) ≤ T} = 0 := by
+      rw [measureReal_def, measure_mono_null hsub hc, ENNReal.toReal_zero]
+    rw [h0]
+    have := (measureReal_nonneg : 0 ≤ (harvestLaw read D k H).real Set.univ)
+    nlinarith
 
 end Level2
 

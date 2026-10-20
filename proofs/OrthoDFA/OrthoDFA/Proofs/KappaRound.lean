@@ -120,15 +120,13 @@ theorem pi_wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProb
   exact this
 
 theorem level5RoundCorrect_holds : Level5RoundCorrect := by
-  intro α _ _ σ _ M side U θ εw κ Ω _ μ _ R P C p₀
+  intro α _ _ σ _ M side U εw κ Ω _ μ _ R P C p₀
   dsimp only
-  intro hpre hθ hδ hθL hGy hyρ hρ1 hP hεw hκ hw
+  intro hpre hδ hy0 hyρ hρ1 hP hεw hκ hw
   set nQ := Fintype.card σ
   set nα := Fintype.card α
   set δ := C.δ
   set S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1 with hS
-  set K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) with hK
-  set Λ := Real.log (16 * (K : ℝ) / δ) with hΛ
   by_cases hδ1 : 1 ≤ δ
   · calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
       _ = 1 := by simp
@@ -136,32 +134,14 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
   push Not at hδ1
   have hp₀ : 0 < p₀ :=
     (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
-  have hK1 : (1 : ℝ) ≤ K := by
-    have : 1 ≤ K := Nat.one_le_iff_ne_zero.2 (by positivity)
-    exact_mod_cast this
-  have hΛ0 : 0 < Λ := Real.log_pos (by rw [one_lt_div hδ]; linarith)
-  have hΛ' : Λ = Real.log (8 * (K : ℝ) / (δ / 2)) := by
-    rw [hΛ]; congr 1; field_simp; ring
-  obtain ⟨kn, hA, hGe, hηm, hsum⟩ := knobs_exist (σ := σ) (α := α) C θ p₀ Λ P.L S hS hθ hθL hp₀
-    hΛ0 hδ hδ1 hGy hyρ hρ1 hP
-  have hy0 : 0 < C.harvestRate := by
-    have : 0 < 2 * (9 * θ * (nQ + 1) + 2 * p₀ * Λ) := by positivity
-    linarith
-  refine (eps_round_le_of C M side U θ _ μ R.read R.measurable R.indep R.undecided
+  obtain ⟨kn, hA, hθg, hηm0, hη0, hAe, hAm, hround⟩ := round_knobs (σ := σ) (α := α) C P.L p₀ hp₀
+    hδ hδ1 hy0 hyρ hρ1 (by exact_mod_cast hP)
+  refine (eps_round_le_of C M side U _ _ _ μ R.read R.measurable R.indep R.undecided
     (fun rd => ReadsWrong M side rd C)
-    (fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg hx h hne) P _ p₀ kn hA
-    hp₀ hpre).trans ?_
+    (fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg hx h hne) P _ p₀ _ kn hA
+    hp₀ hpre hy0 (by linarith) hη0 hAe hAm le_rfl hθg hηm0).trans ?_
   refine (add_le_add le_rfl (pi_wrong_le' M side C μ U εw κ R P hεw hκ hy0 hyρ hρ1 hδ
     hδ1.le)).trans ?_
-  have h1 : tailRisk nQ nα p₀ (kn.Ge - 9 * θ * (nQ + 1)) = δ / 2 / 8 := by
-    rw [hGe, show 9 * θ * (nQ + 1) + p₀ * Λ - 9 * θ * (nQ + 1) = p₀ * Λ by ring, hΛ']
-    exact tailRisk_eq nQ nα hp₀ (by positivity)
-  have h2 : tailRisk nQ nα p₀ kn.ηm = δ / 2 / 8 := by
-    rw [hηm, hΛ']
-    exact tailRisk_eq nQ nα hp₀ (by positivity)
-  have hround : roundBoundAt (α := α) σ θ p₀ P.L C kn ≤ 7 * δ / 8 := by
-    unfold roundBoundAt
-    linarith
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1.le
   have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / δ) + 1

@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.AdaptiveReads
+import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
@@ -37,7 +38,7 @@ loop walked from `0` that ends consistent has its DFA from where `ε` sifts with
 chance `δ`. They rest on `Level3ConsistentSound`, stated in `OrthoDFA.Level3Sound`.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`CoveredStartCorrect`, `ProbeAgreeCorrect`, `RateTestSound`, `SeqRateSound`,
+`BitSumTails`, `CoveredStartCorrect`, `ProbeAgreeCorrect`, `RateTestSound`, `SeqRateSound`,
 `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and
 `SplitAndLearnCorrect`.
 -/
@@ -108,6 +109,10 @@ theorem probe_correct : ProbeCorrect := probeCorrect
 theorem rate_test_sound : RateTestSound := rateTestSound
 
 #print axioms rate_test_sound
+
+theorem bit_sum_tails : BitSumTails := bitSumTails
+
+#print axioms bit_sum_tails
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 

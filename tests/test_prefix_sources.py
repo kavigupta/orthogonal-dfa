@@ -19,9 +19,9 @@ from orthogonal_dfa.l_star.prefix_sources import (
     state_source,
 )
 from orthogonal_dfa.l_star.rejection_source import SourceDry
-from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, Ending
+from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from tests.counterexample_common import PARITY_EDGES, parity_cut, quiet_search
+from tests.counterexample_common import EVEN, PARITY_EDGES, parity_cut, quiet_search
 
 
 class _Pst:
@@ -207,6 +207,15 @@ class TestReplay(unittest.TestCase):
         self.assertEqual(
             [], Replay(search, harvest_reader(ending), lambda: b"\x01\x01").sample()
         )
+
+    def test_a_stuck_harvest_reads_only_what_sticks_at_an_unlearned_edge(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
+        search = quiet_search(parity_cut([b"\x00\x01", b"\x00"]), edges)
+        read = harvest_reader(Ending(HARVEST_STUCK, []))
+        self.assertEqual(
+            [b"\x00\x01"], Replay(search, read, lambda: b"\x00\x01").sample()
+        )
+        self.assertEqual([], Replay(search, read, lambda: b"\x00").sample())
 
 
 if __name__ == "__main__":

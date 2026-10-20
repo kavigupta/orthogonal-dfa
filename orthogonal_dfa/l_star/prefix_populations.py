@@ -101,6 +101,11 @@ class PoolState:
         self.harvest_reads[provenance] += 1
 
 
+def can_grow(state, label) -> bool:
+    source = state.sources.get(label)
+    return source is not None and source.worth_drawing()
+
+
 def grow_population(pst, state, label) -> bool:
     """Draw more prefixes for one population, or retire it, table and all, when
     nothing draws for it any more."""
@@ -108,7 +113,7 @@ def grow_population(pst, state, label) -> bool:
         pst.sample_more_prefixes()
         return True
     source = state.sources.get(label)
-    if source is None or not source.worth_drawing():
+    if not can_grow(state, label):
         # Forgotten rather than held aside, so a later round that strands one
         # of these again can pool it behind a source that does draw.
         state.seen.difference_update(state.held.pop(label, ()))

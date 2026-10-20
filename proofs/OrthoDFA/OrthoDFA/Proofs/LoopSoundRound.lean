@@ -64,7 +64,8 @@ theorem measurableSet_falseConsistent (O : Oracle μ (FreeMonoid α)) (C : Rando
     intro R
     by_cases he : R.ending = .consistent
     · have := measurableSet_not_endsWell_searchEnds (σ := Unit) O F kl kh C.walkStart
-        (_root_.DFA.mk (fun _ _ => ()) () ∅) (fun _ => False) D' C.disagreementRate 0
+        (_root_.DFA.mk (fun _ _ => ()) () ∅) (fun _ => 0) (fun _ => le_rfl) (le_refl (0 : ℝ))
+        (le_refl (0 : ℝ)) D' C.disagreementRate 0
         R.hypothesis .consistent
       simp only [EndsWell, not_le] at this
       simp only [he, true_and]
