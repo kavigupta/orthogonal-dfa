@@ -46,9 +46,9 @@ def LearnerLoopSoundSimple : Prop :=
   let s : ℝ := 1 / 2 - η₀
   let τ : ℝ := min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
   -- The clustering's suffix pool and prefix count.
-  let PB : ℝ := 256 * Real.log (2 / τ) / (s ^ 2 * pAP)
+  let PB : ℝ := (50 * Real.log (20 / τ) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δc / 2)) / pAP ^ 2
-  let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δc / 2 * δc * (pAP / 2) * τ))
+  let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δc / 2 * δc * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- The prefixes a round reads.
   let NP : ℝ := 6 * J * RB
@@ -91,9 +91,9 @@ def LearnerLoopSound : Prop :=
   let δc : ℝ := δ / (4 * R)
   let s : ℝ := 1 / 2 - η₀
   let τ : ℝ := min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
-  let PB : ℝ := 256 * Real.log (2 / τ) / (s ^ 2 * pAP)
+  let PB : ℝ := (50 * Real.log (20 / τ) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δc / 2)) / pAP ^ 2
-  let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δc / 2 * δc * (pAP / 2) * τ))
+  let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δc / 2 * δc * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   let NP : ℝ := 6 * J * RB
   -- What `|Σ|^a` must clear: each of `LearnerLoopSoundSimple`'s inequalities on lengths.

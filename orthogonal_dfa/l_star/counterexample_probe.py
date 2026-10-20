@@ -27,6 +27,8 @@ class Start:
 @dataclass(frozen=True)
 class End:
     undecided: bytes
+    #: Read just past the walk's unlearned edge, so the walk was never searched.
+    stuck: bool
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ class Charges:
     undecided_by_edge: Dict[Edge, List[bytes]]
     #: The string the start or end sift stopped at.
     ends: List[bytes]
+    #: The ``ends`` that are stuck.
+    stuck: List[bytes]
     middle: List[bytes]
     search_queries: int
 
@@ -118,7 +122,7 @@ def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
     hi = len(x) if unlearned_step is None else k + unlearned_step
     before = [] if unlearned_step is None else [hi + 1]
     if before and sift(hi + 1)[0] is None:
-        return located(End(sift(hi + 1)[1]), before, 0)
+        return located(End(sift(hi + 1)[1], True), before, 0)
 
     def agrees(i):
         here = sift(i)[0]
@@ -129,7 +133,7 @@ def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
     if kind == UNDECIDED_LO:
         outcome = Start(sift(k)[1])
     elif kind == UNDECIDED_HI:
-        outcome = End(sift(hi)[1])
+        outcome = End(sift(hi)[1], False)
     elif kind == ALL_AGREE and unlearned_step is None:
         outcome = Agree()
     elif kind == ALL_AGREE:
@@ -160,6 +164,7 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
     return Charges(
         undecided_by_edge=undecided_by_edge,
         ends=[outcome.undecided] if isinstance(outcome, (Start, End)) else [],
+        stuck=[outcome.undecided] if isinstance(outcome, End) and outcome.stuck else [],
         middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
         search_queries=(
             located.search_queries if isinstance(outcome, (EdgeFound, Middle)) else 0

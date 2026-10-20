@@ -513,7 +513,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
     have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
       have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
-        hε (by linarith) hpAP hpAP1
+        hε hpAP hpAP1
       linarith
     have hcaps : ∀ j ∈ ({uni} : Finset J), ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t => by
       rw [Finset.mem_singleton.1 hj]
@@ -536,14 +536,14 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
             * collisionMass Dsf ≤ δ * pAP at h
           linarith)).2
     have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov δ' α pAP
-      crossLimit hsig hη0 hpop hind hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1
+      crossLimit hsig hη0 hpop hind hε hδ' (by linarith) hα (by linarith) hpAP hpAP1
     have hbudget : (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
-        ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 60000
+        ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 64000
           + harvestCap η₀ indecisionLimit εcov hsz := by
       rw [budgetCap, harvestCap]
       linarith [hpoly]
     have hcc := clustering_correct O rule populations {uni} uni H D Dsf Pre Suf η₀ iL εcov α δ'
-      ρ₀ pAP crossLimit 60000 hηle hη₀ (Finset.mem_singleton_self uni)
+      ρ₀ pAP crossLimit 64000 hηle hη₀ (Finset.mem_singleton_self uni)
       (Finset.singleton_subset_iff.2 (htame huni)) hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
       hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
     refine le_trans (by linarith) (le_trans hcc (measureReal_mono (fun x hx => ?_)
@@ -560,7 +560,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
-      hε (by linarith) hpAP hpAP1
+      hε hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
@@ -634,14 +634,14 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       linarith only [h, mul_nonneg hJ1 hm.le]
     exact mul_le_mul_of_nonneg_left h' hs2
   have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov δ' α pAP
-    crossLimit hsig hη0 hpop hind hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1
+    crossLimit hsig hη0 hpop hind hε hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 60000
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 64000
         + harvestCap η₀ indecisionLimit εcov hsz := by
     rw [budgetCap, harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O rule populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
-    ρ₀ pAP crossLimit 60000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+    ρ₀ pAP crossLimit 64000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=

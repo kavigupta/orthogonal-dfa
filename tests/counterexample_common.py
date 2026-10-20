@@ -44,6 +44,8 @@ def quiet_config(**changes):
         "k": 0,
         "ends_rate": 1.0,
         "ends_alternative": 1.0,
+        "stuck_rate": 1.0,
+        "stuck_alternative": 1.0,
         "middle_rate": 1.0,
         "middle_alternative": 1.0,
         "disagreement_rate": 0.0,

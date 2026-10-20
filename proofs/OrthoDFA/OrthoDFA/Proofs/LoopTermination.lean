@@ -6,16 +6,18 @@ import OrthoDFA.ClusteringQuality
 /-!
 # The loop stops in agreement once its rounds meet their claims
 
-A round's claims are the clustering's (`ClusterSpec`) and level 3's (`RoundSpec`), the latter's
-bad states those the round's family leaves undecided more than `1.5θ` of the time. A harvest
-whose sampler finds more than a quarter of what it finds at bad states hands on a population more
-than `1/(4|Q|)` of which is at one of them. Every later family is held by the FNR gate to
-`2·indecisionLimit + slack` undecided on that population, which at
+A round's claims are the clustering's (`ClusterSpec`) and level 3's (`RoundSpec`), the latter
+putting at most `A·T + sl` of a harvest's law, past `m`, on the states the round's family leaves
+undecided at most `T` of the time. Every later family is held by the FNR gate to
+`c = 2·indecisionLimit + slack` undecided on each earlier harvest's population, so a state with
+more than `c/T` of that population is read undecided at most `T` of the time by every later
+family (`good_of_heavy`). Where
 
-    1.5θ = 4|Q|·(2·indecisionLimit + slack)
+    A·T + sl + m/y + |Q|·c/T < 1,
 
-that state would exceed were it still bad. So each harvest makes a new state good for every later
-family, and one of the first `|Q| + 1` rounds does not harvest.
+the population puts more than `|Q|·c/T` on the states read undecided more than `T` of the time,
+so more than `c/T` on one of them: each harvest has such a state, never again read undecided more
+than `T` of the time, and one of the first `|Q| + 1` rounds does not harvest.
 -/
 
 noncomputable section
@@ -163,16 +165,15 @@ lemma exists_heavy_state (M : _root_.DFA α σ) [Fintype σ] (bad : σ → Prop)
   nlinarith
 
 open scoped Classical in
-/-- A state holding more than `1/(4|Q|)` of a population is read undecided at most `1.5θ` of the
-time by a family the FNR gate holds to `c` undecided on that population, where
-`1.5θ = 4|Q|·c`. -/
-lemma good_of_heavy [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
+/-- A state holding more than `c/T` of a population is read undecided at most `T` of the time by a
+family the FNR gate holds to `c` undecided on that population. -/
+lemma good_of_heavy [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     {F : Finset (FreeMonoid α)} (hF : 1 ∉ F) (lo hi : ℕ) (ν : Measure (FreeMonoid α))
-    [IsProbabilityMeasure ν] (q : σ) {θ c : ℝ} (hθ : 3 / 2 * θ = 4 * Fintype.card σ * c)
-    (hheavy : 1 < 4 * Fintype.card σ * ν.real {z | M.eval z.toList = q})
+    [IsProbabilityMeasure ν] (q : σ) {T c : ℝ}
+    (hheavy : c < T * ν.real {z | M.eval z.toList = q})
     (hgate : ∫ p, undecidedProb O lo (hi + 1) (insert 1 F) p ∂ν ≤ c) :
-    familyReadDist O M F lo (hi + 1) q .undecided ≤ 3 / 2 * θ := by
+    familyReadDist O M F lo (hi + 1) q .undecided ≤ T := by
   set u := familyReadDist O M F lo (hi + 1) q .undecided
   set Sq := {z : FreeMonoid α | M.eval z.toList = q}
   set g := fun p => undecidedProb O lo (hi + 1) (insert 1 F) p
@@ -192,13 +193,10 @@ lemma good_of_heavy [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ
       _ ≤ ∫ p, g p ∂ν := integral_mono
           ((integrable_const u).indicator (measurableSet_of_countable _))
           (integrable_of_unit ν g hg0 fun _ => measureReal_le_one) hlow
+  have hc0 : 0 ≤ c := le_trans (integral_nonneg hg0) hgate
+  have hS0 : 0 ≤ ν.real Sq := measureReal_nonneg
   by_contra hbad
   push Not at hbad
-  rw [hθ] at hbad
-  have hc0 : 0 ≤ c := le_trans (integral_nonneg hg0) hgate
-  have hQ0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
-  have hu : 0 < u := lt_of_le_of_lt (by positivity) hbad
-  have h1 := mul_lt_mul_of_pos_left hheavy hu
   nlinarith
 
 /-! ## The rounds' claims -/
@@ -237,14 +235,14 @@ def disagreeSet (M : _root_.DFA α σ) (dist : σ → ARU → ℝ) (read : FreeM
     (H : HypothesisDFA α) : Set (FreeMonoid α) :=
   Random.searchSet read k H ∪ Random.endsSet read k H ∪ rarerSet M dist read k H.tree
 
-/-- What the loop needs of level 3 at a round: it ends well, a quarter of its harvest's sampler at
-bad states and the sampler yielding `y`, a state being bad where the round's family leaves it
-undecided more than `1.5θ` of the time, and a consistent round with at most `ε` of the probes in
+/-- What the loop needs of level 3 at a round: it ends well, its harvest's sampler yielding `y`
+and putting at most `A·T + sl` of its law, past `m`, on the states the round's family leaves
+undecided at most `T` of the time, and a consistent round with at most `ε` of the probes in
 `disagreeSet`; and its tree is in `classSet |Q|`. -/
 def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (P : PrefixDistribution α) (θ ε y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
+    (P : PrefixDistribution α) (A sl m ε y : ℝ) (k : ℕ) (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
-  QuarterEndsWell M (fun q => ¬ dist q .undecided ≤ 3 / 2 * θ) P.D ε
+  LooseEndsWell M (fun q => dist q .undecided) A sl m P.D ε
     (disagreeSet M dist o.read k o.result.hypothesis) k
     (Random.harvestLaw o.read P.D k o.result.hypothesis) y o.result.ending
   ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
@@ -257,10 +255,6 @@ def LoopRound.Checks [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMon
     ∧ D.real (disagreeSet M (familyReadDist O M o.family o.state.lo (o.state.hi + 1)) o.read k
       o.result.hypothesis) ≤ εd
     ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
-
-/-- The goodness level the loop runs level 3's claim at. -/
-def loopTheta (σ : Type*) [Fintype σ] (indecisionLimit slack : ℝ) : ℝ :=
-  8 * Fintype.card σ * (2 * indecisionLimit + slack) / 3
 
 /-! ## A round the clustering's claim holds of -/
 
@@ -323,14 +317,17 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (k : ℕ)
-    (hk : settings.level3.walkStart = k) (εcov slack εd y : ℝ) (hK : Fintype.card σ + 1 ≤ K)
+    (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
+    (hK : Fintype.card σ + 1 ≤ K) (hT : 0 < T) (hy : 0 < y) (hm0 : 0 ≤ m)
+    (hc : 0 < 2 * settings.indecisionLimit + slack)
+    (hcond : A * T + sl + m / y
+      + Fintype.card σ * (2 * settings.indecisionLimit + slack) / T < 1)
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
     (hspec : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
       ClusterSpec settings O P.D εcov slack
           (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
           (loopRounds settings O P.D Dsf draws K)[i].run
-        ∧ RoundSpec M O P (loopTheta σ settings.indecisionLimit slack) εd y k
-          (loopRounds settings O P.D Dsf draws K)[i])
+        ∧ RoundSpec M O P A sl m εd y k (loopRounds settings O P.D Dsf draws K)[i])
     (hshort : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
       ∀ site, Random.harvestLaw (loopRounds settings O P.D Dsf draws K)[i].read P.D k
         (loopRounds settings O P.D Dsf draws K)[i].result.hypothesis site
@@ -342,9 +339,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
   classical
   unfold indecisiveLStarLoop
   set L := loopRounds settings O P.D Dsf draws K with hLdef
-  set c := 2 * settings.indecisionLimit + slack with hc
-  have hθ : 3 / 2 * loopTheta σ settings.indecisionLimit slack = 4 * Fintype.card σ * c := by
-    rw [loopTheta, hc]; ring
+  set c := 2 * settings.indecisionLimit + slack with hcd
   -- each round, as the clustering's claim has it
   have hround : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].state.lo ≤ L[i].state.hi ∧ 1 ∉ L[i].family
@@ -375,7 +370,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       rcases hE : L[i].result.ending with _ | zs | _
       · rw [hE] at h4; exact ⟨rfl, h4⟩
       · rw [hE] at hn; simp [RoundEnd.harvested] at hn
-      · rw [hE] at h4; exact absurd h4 (by simp [QuarterEndsWell])
+      · rw [hE] at h4; exact absurd h4 (by simp [LooseEndsWell])
     have hnone : none ∈ loopPopulations K (harvestsOf P.D k (L.take i)).length := by
       simp [loopPopulations]
     have hund' := hund none hnone
@@ -433,11 +428,13 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         unfold LoopRound.population
         rw [hzs i hi, Option.map_some, Measure.restrict_eq_self_of_ae_mem
           (ae_iff.2 (hshort i (by omega) hi (hv i hi)))]
+      have hQ : (0 : ℝ) < Fintype.card σ := by
+        have : Nonempty σ := ⟨M.start⟩
+        exact_mod_cast Fintype.card_pos
       have hbad : ∀ i (hi : i ≤ Fintype.card σ), ∃ q,
           ¬ familyReadDist O M (L[i]'(by omega)).family (L[i]'(by omega)).state.lo
-            ((L[i]'(by omega)).state.hi + 1) q .undecided
-              ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack
-          ∧ 1 < 4 * Fintype.card σ * (ν i hi).real {z | M.eval z.toList = q} := by
+            ((L[i]'(by omega)).state.hi + 1) q .undecided ≤ T
+          ∧ c < T * (ν i hi).real {z | M.eval z.toList = q} := by
         intro i hi
         have h4 := (hspec i (by omega) hi).2.1
         have he : (L[i]'(by omega)).result.ending = .harvest (hv i hi) := by
@@ -447,29 +444,53 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         rw [he] at h4
         set law := Random.harvestLaw (L[i]'(by omega)).read P.D k
           (L[i]'(by omega)).result.hypothesis (hv i hi)
-        set bad := fun q => ¬ familyReadDist O M (L[i]'(by omega)).family
+        set U := fun q => familyReadDist O M (L[i]'(by omega)).family
           (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided
-            ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack
-        have hmost : law.real Set.univ < 4 * law.real {z | bad (M.eval z.toList)} := h4.1
+        set bad := fun q => ¬ U q ≤ T
+        have hlow : law.real {z | U (M.eval z.toList) ≤ T}
+            ≤ (A * T + sl) * law.real Set.univ + m := h4.1 T hT.le
+        have hyl : y ≤ law.real Set.univ := h4.2.2
         have htop : law Set.univ ≠ ⊤ :=
           Random.harvestLaw_univ_ne_top _ P.D k _ (hv i hi)
-        have hle : law.real {z | bad (M.eval z.toList)} ≤ law.real Set.univ :=
-          measureReal_mono (Set.subset_univ _) htop
-        have hpos : 0 < law.real Set.univ := by
-          have : 0 ≤ law.real {z | bad (M.eval z.toList)} := measureReal_nonneg
-          linarith
+        have hpos : 0 < law.real Set.univ := lt_of_lt_of_le hy hyl
         have h0 : law Set.univ ≠ 0 := fun h0 => by
           rw [measureReal_def, h0, ENNReal.toReal_zero] at hpos; exact lt_irrefl _ hpos
-        have hpb : 1 < 4 * (ν i hi).real {z | bad (M.eval z.toList)} := by
-          change 1 < 4 * (popLaw law).real {z | bad (M.eval z.toList)}
-          rw [popLaw_real h0 htop, mul_div_assoc', lt_div_iff₀ hpos]
+        have hsplit : law.real {z | bad (M.eval z.toList)}
+            = law.real Set.univ - law.real {z | U (M.eval z.toList) ≤ T} := by
+          have hc' : {z : FreeMonoid α | bad (M.eval z.toList)}
+              = {z | U (M.eval z.toList) ≤ T}ᶜ := by ext z; simp [bad]
+          have hu := measureReal_union (μ := law) (disjoint_compl_right (a := {z : FreeMonoid α |
+            U (M.eval z.toList) ≤ T})) (Set.to_countable _).measurableSet
+            (measure_ne_top_of_subset (Set.subset_univ _) htop)
+            (measure_ne_top_of_subset (Set.subset_univ _) htop)
+          rw [Set.union_compl_self] at hu
+          rw [hc']
           linarith
-        exact exists_heavy_state M bad (ν i hi) (by norm_num) hpb
+        have hmy : m / law.real Set.univ ≤ m / y := div_le_div_of_nonneg_left hm0 hy hyl
+        have hpb : Fintype.card σ * c / T < (popLaw law).real {z | bad (M.eval z.toList)} := by
+          rw [popLaw_real h0 htop, hsplit, sub_div, div_self hpos.ne']
+          have : law.real {z | U (M.eval z.toList) ≤ T} / law.real Set.univ
+              ≤ A * T + sl + m / law.real Set.univ := by
+            rw [div_le_iff₀ hpos, add_mul, div_mul_cancel₀ _ hpos.ne']
+            exact hlow
+          linarith
+        have hQc : 0 < Fintype.card σ * c := mul_pos hQ hc
+        have hpb' : 1 < T / (Fintype.card σ * c) * (ν i hi).real {z | bad (M.eval z.toList)} := by
+          change 1 < T / (Fintype.card σ * c) * (popLaw law).real {z | bad (M.eval z.toList)}
+          calc (1 : ℝ) = T / (Fintype.card σ * c) * (Fintype.card σ * c / T) := by
+                field_simp
+            _ < _ := mul_lt_mul_of_pos_left hpb (by positivity)
+        obtain ⟨q, hqb, hq⟩ := exists_heavy_state M bad (ν i hi) (by positivity) hpb'
+        refine ⟨q, hqb, ?_⟩
+        have e : T / (Fintype.card σ * c) * Fintype.card σ * (ν i hi).real {z | M.eval z.toList = q}
+            = T * (ν i hi).real {z | M.eval z.toList = q} / c := by
+          field_simp
+        rw [e, lt_div_iff₀ hc] at hq
+        linarith
       choose q hq using hbad
       have hgood : ∀ i j (hi : i ≤ Fintype.card σ) (hj : j ≤ Fintype.card σ), i < j →
           familyReadDist O M (L[j]'(by omega)).family (L[j]'(by omega)).state.lo
-            ((L[j]'(by omega)).state.hi + 1) (q i hi) .undecided
-              ≤ 3 / 2 * loopTheta σ settings.indecisionLimit slack := by
+            ((L[j]'(by omega)).state.hi + 1) (q i hi) .undecided ≤ T := by
         intro i j hi hj hij
         obtain ⟨-, h1, -, hund⟩ := hround j (by omega) hj
         have hlenj : (harvestsOf P.D k (L.take j)).length = j := by
@@ -480,7 +501,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         have hg := hund _ hmem
         simp only [loopDistributions] at hg
         rw [harvestsOf_take_getD P.D hij (by omega) (hall j hj) (hpop i hi)] at hg
-        exact good_of_heavy M O hL h1 _ _ (ν i hi) (q i hi) hθ (hq i hi).2 hg
+        exact good_of_heavy M O hL h1 _ _ (ν i hi) (q i hi) (hq i hi).2 hg
       have hinj : Function.Injective fun i : Fin (Fintype.card σ + 1) =>
           q i.val (Nat.lt_succ_iff.1 i.isLt) := by
         intro a b hab
