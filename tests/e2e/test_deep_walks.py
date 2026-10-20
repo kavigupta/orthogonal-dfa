@@ -10,7 +10,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
 from orthogonal_dfa.l_star.preconditions import start_length
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from tests.e2e.test_basic import ANOTHER_POOR_CASE_TARGET
-from tests.e2e.test_walk_parity import build_parity_toggle
+from tests.e2e.test_saturated_tree import _target
 from tests.lstar_common import DEFAULT_SAMPLER, assert_terminates, assertDFA
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
@@ -45,13 +45,17 @@ class TestWalkedFromHalfway(unittest.TestCase):
 
 
 class TestWalkedFromAQuarter(unittest.TestCase):
-    def test_parity_toggle_is_learned(self):
-        target = build_parity_toggle()
-        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=1, initial_k=DEEPEST // 2
+    def test_a_saturated_tree_terminates(self):
+        # Walked from ⌈L/2⌉ its start check fails after a success, and a
+        # success the check refuses takes nothing new, doubling k to DEEPEST.
+        oracle_creator = lambda nm, s, _d=_target(): NoisyOracle(DFAOracle(_d), nm, s)
+        assert_terminates(
+            lambda: learn_dfa(
+                oracle_creator, min_signal_strength=0.3, seed=0, initial_k=DEEPEST // 2
+            ),
+            seconds=300,
+            message="synthesis did not stop on a saturated tree",
         )
-        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
 if __name__ == "__main__":
