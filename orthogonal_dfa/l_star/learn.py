@@ -58,7 +58,7 @@ def build_pst(
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
-    oracle = CountingOracle(oracle_creator(noise_model, seed))
+    oracle = oracle_creator(noise_model, seed)
     config = SearchConfig(
         suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
             0.01, effective_p_acc
@@ -104,8 +104,14 @@ def learn_dfa(
     `SynthesisTracker`) to receive each round's family, hypothesis and
     consistency as they are made; the default one discards them.
     """
+    oracles = []
+
+    def counted(noise_model, seed):
+        oracles.append(CountingOracle(oracle_creator(noise_model, seed)))
+        return oracles[-1]
+
     pst = build_pst(
-        oracle_creator,
+        counted,
         min_signal_strength=min_signal_strength,
         seed=seed,
         noise_model=noise_model,
@@ -119,7 +125,5 @@ def learn_dfa(
     dfa = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker
     )
-    oracle = pst.oracle
-    assert isinstance(oracle, CountingOracle)
-    print(f"learn_dfa: {oracle.queries} membership queries")
+    print(f"learn_dfa: {sum(o.queries for o in oracles)} membership queries")
     return dfa
