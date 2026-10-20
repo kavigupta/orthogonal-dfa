@@ -308,6 +308,8 @@ class _ClusterTable:
     def __init__(self, masks):
         self._masks = masks
         self.representative = np.ones(masks.shape[1], dtype=bool)
+        #: Each prefix is its column.
+        self.prefixes = tuple(range(masks.shape[1]))
 
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]

@@ -121,14 +121,26 @@ theorem wrongSet_markov (read : FreeMonoid α → Ω' → ARU) (hmeas : ∀ z, M
 
 variable [Fintype σ]
 
+/-- Level 5's harvest slope at probes at most `L` long. -/
+def roundSlope (σ : Type*) [Fintype σ] (L : ℕ) (C : Random.Level3Settings) : ℝ :=
+  (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (L + 1))
+
+/-- Level 5's harvest slack at the prefix mass `p₀`. -/
+def roundSlack (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (p₀ : ℝ) : ℝ :=
+  p₀ * Real.log (16 * (Fintype.card σ + 1) * ((1 + (Fintype.card σ + 1) ^ 3 * Fintype.card α)
+    ^ Fintype.card σ * (Fintype.card σ + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) : ℕ)
+      / C.δ) / C.harvestRate
+
 /-- Where level 3, reading `fam` over probes from `D'`, fails to end well at `ε + u` over
 `disagreeSet`, or its tree leaves `classSet |Q|`. -/
 def level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) (θ u : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
+    (D' : Measure (FreeMonoid α)) (A sl u : ℝ) : Set (Ω' × (Fin C.probeBudget → FreeMonoid α)) :=
   {d | let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
     ¬ (EndsWell
       { target := fam.M,
-        badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+        undecided := fun q => fam.readDist q .undecided,
+        harvestSlope := A,
+        harvestSlack := sl,
         probes := D',
         disagreeRate := C.disagreementRate + u,
         disagree := disagreeSet fam.M fam.readDist (fun z => fam.read d.1 z) C.walkStart
@@ -187,11 +199,14 @@ theorem measurableSet_of_result (fam : SuffixFamily μ' α σ) (C : Random.Level
     exact Finset.filter_congr fun p hp => (h p hp).symm
 
 theorem measurableSet_level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) (θ u : ℝ) : MeasurableSet (level3Fail fam C D' θ u) := by
+    (D' : Measure (FreeMonoid α)) {A sl : ℝ} (hA : 0 ≤ A) (hsl : 0 ≤ sl) (u : ℝ) :
+    MeasurableSet (level3Fail fam C D' A sl u) := by
   classical
   refine measurableSet_of_result fam C (fun ω result => ¬ (EndsWell
     { target := fam.M,
-      badStates := fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ,
+      undecided := fun q => fam.readDist q .undecided,
+      harvestSlope := A,
+      harvestSlack := sl,
       probes := D',
       disagreeRate := C.disagreementRate + u,
       disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart
@@ -202,7 +217,8 @@ theorem measurableSet_level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Leve
       ending := result.ending } ∧ result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)))
     fun res => ?_
   simp only [not_and_or]
-  exact (measurableSet_not_endsWell fam.O fam.F _ _ C.walkStart fam.M _ _ D' _ _ _ _).union
+  exact (measurableSet_not_endsWell fam.O fam.F _ _ C.walkStart fam.M _
+    (fun q => fam.readDist_nonneg q _) hA hsl _ D' _ _ _ _).union
     (MeasurableSet.const _)
 
 /-- Whether some step reads a string wrong is measurable. -/
@@ -240,23 +256,21 @@ open Random.Kappa in
 `disagreeSet`, or its tree leaves `classSet |Q|`, but for chance
 `δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. -/
 theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
-    (P : PrefixDistribution α) (C : Random.Level3Settings) (θ p₀ u : ℝ) (hu : 0 < u) :
+    (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u : ℝ) (hu : 0 < u) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / C.δ)
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < C.δ → C.δ ≤ 1 →
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 → 2 * G ≤ C.harvestRate →
-    C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ ≤ 1 →
+    0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
     fam.ε * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
       + fam.κ * (5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
         ≤ C.δ / 8 →
-    (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D)) (level3Fail fam C P.D θ u)
+    (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
+        (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
       ≤ ENNReal.ofReal (C.δ + C.δ / 8
         + (shortStrings (α := α) (Fintype.card σ)).card * (fam.ε + fam.κ) / u) := by
-  intro nQ nα S K G hpre hθ hδ hδ1 hθL hGy hyρ hρ1 hP hw
+  intro nQ nα S hpre hδ hδ1 hy0 hyρ hρ1 hP hw
   classical
   set side : σ → Bool := fun q => readSide (fam.readDist q)
   set U : σ → ℝ := fun q => fam.readDist q .undecided
@@ -267,22 +281,10 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   set π := Measure.pi fun _ : Fin T => P.D
   set wrong : FreeMonoid α → ARU := fun z => if side (fam.M.eval z.toList) then .reject else .accept
   -- level 3 ends well
-  have hK := Random.Kappa.level5RoundCorrect_holds fam.M side U θ fam.ε fam.κ μ' R P C p₀ hpre hθ
-    hδ hθL hGy hyρ hρ1 hP hε hκ hw
+  have hK := Random.Kappa.level5RoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ hpre
+    hδ hy0 hyρ hρ1 hP hε hκ hw
   -- no step reads wrong
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)
-  have hK1 : (1 : ℝ) ≤ K := by
-    have : 1 ≤ K := Nat.one_le_iff_ne_zero.2 (by positivity)
-    exact_mod_cast this
-  have hΛ0 : 0 < Real.log (16 * (K : ℝ) / C.δ) := Real.log_pos (by
-    rw [one_lt_div hδ]; linarith)
-  have hy0 : 0 < C.harvestRate := by
-    have : 0 < 2 * G := by
-      have : 0 ≤ 9 * θ * ((nQ : ℝ) + 1) := by positivity
-      have : 0 < 2 * p₀ * Real.log (16 * (K : ℝ) / C.δ) := by positivity
-      show 0 < 2 * (9 * θ * ((nQ : ℝ) + 1) + 2 * p₀ * Real.log (16 * (K : ℝ) / C.δ))
-      linarith
-    linarith
   have hW := pi_wrong_le' fam.M side C μ' U fam.ε fam.κ R P hε hκ hy0 hyρ hρ1 hδ hδ1
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1
@@ -319,7 +321,9 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
     ¬ EndsWell
       { target := fam.M,
-        badStates := Random.BadAt U θ,
+        undecided := U,
+        harvestSlope := roundSlope σ P.L C,
+        harvestSlack := roundSlack σ α C p₀,
         probes := P.D,
         disagreeRate := C.disagreementRate,
         disagree := Random.searchSet (fun z => fam.read d.1 z) k result.hypothesis
@@ -328,9 +332,20 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
         harvestLaw := Random.harvestLaw (fun z => fam.read d.1 z) P.D k result.hypothesis,
         yield := C.harvestRate,
         ending := result.ending }}
+  have hA0 : 0 ≤ roundSlope σ P.L C := by unfold roundSlope; positivity
+  have hsl0 : 0 ≤ roundSlack σ α C p₀ := by
+    unfold roundSlack
+    refine div_nonneg (mul_nonneg hp₀.le (Real.log_nonneg ?_)) hy0.le
+    rw [le_div_iff₀ hδ]
+    have : (1 : ℝ) ≤ ((1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα) : ℕ) := by
+      exact_mod_cast Nat.one_le_iff_ne_zero.2 (by positivity)
+    have : (0 : ℝ) ≤ nQ := Nat.cast_nonneg _
+    nlinarith
   have hE₁ : MeasurableSet E₁ := measurableSet_of_result fam C (fun ω result => ¬ EndsWell
     { target := fam.M,
-      badStates := Random.BadAt U θ,
+      undecided := U,
+      harvestSlope := roundSlope σ P.L C,
+      harvestSlack := roundSlack σ α C p₀,
       probes := P.D,
       disagreeRate := C.disagreementRate,
       disagree := Random.searchSet (fun z => fam.read ω z) k result.hypothesis
@@ -339,16 +354,15 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
       harvestLaw := Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis,
       yield := C.harvestRate,
       ending := result.ending }) fun res =>
-      measurableSet_not_endsWell_searchEnds fam.O fam.F _ _ k fam.M _ P.D _ _ _ _
+      measurableSet_not_endsWell_searchEnds fam.O fam.F _ _ k fam.M _
+        (fun q => fam.readDist_nonneg q _) hA0 hsl0 P.D _ _ _ _
   set E₂ := {d : Ω' × (Fin T → FreeMonoid α) |
     Random.AnyB (Random.applyProbe (fun z => fam.read d.1 z) C)
       (Random.Kappa.ReadsWrong fam.M side (fun z => fam.read d.1 z) C) Random.initialState
       (List.ofFn d.2)}
   have hE₂ : MeasurableSet E₂ := measurableSet_anyB fam C side
-  have hbad : Random.BadAt U θ = fun q => ¬ fam.readDist q .undecided ≤ 3 / 2 * θ :=
-    funext fun q => propext not_le.symm
   -- off the three, the round ends well
-  have hsub : ∀ ω, Prod.mk ω ⁻¹' level3Fail fam C P.D θ u
+  have hsub : ∀ ω, Prod.mk ω ⁻¹' level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u
       ⊆ Prod.mk ω ⁻¹' E₁ ∪ Prod.mk ω ⁻¹' E₂ ∪ (if ω ∈ Mk then Set.univ else ∅) := by
     intro ω xs hxs
     by_contra hno
@@ -359,7 +373,9 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     set result := Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs
     have hEW : EndsWell
       { target := fam.M,
-        badStates := Random.BadAt U θ,
+        undecided := U,
+        harvestSlope := roundSlope σ P.L C,
+        harvestSlack := roundSlack σ α C p₀,
         probes := P.D,
         disagreeRate := C.disagreementRate,
         disagree := Random.searchSet (fun z => fam.read ω z) k result.hypothesis
@@ -372,7 +388,6 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     have hcls : result.hypothesis.tree ∈ Random.classSet nQ :=
       Random.tree_classSet_of_good fam.M side (fun z => fam.read ω z) C xs h2
     refine ⟨?_, hcls⟩
-    rw [← hbad]
     rcases he : result.ending with _ | site | _
     · rw [he] at hEW
       show P.D.real (disagreeSet fam.M fam.readDist (fun z => fam.read ω z) k result.hypothesis)
@@ -392,8 +407,9 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     · rw [he] at hEW; exact hEW
     · rw [he] at hEW; exact hEW
   -- the integral
-  rw [Measure.prod_apply (measurableSet_level3Fail fam C P.D θ u)]
-  calc ∫⁻ ω, π (Prod.mk ω ⁻¹' level3Fail fam C P.D θ u) ∂μ'
+  rw [Measure.prod_apply (measurableSet_level3Fail fam C P.D hA0 hsl0 u)]
+  calc ∫⁻ ω, π (Prod.mk ω ⁻¹' level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
+        ∂μ'
       ≤ ∫⁻ ω, (π (Prod.mk ω ⁻¹' E₁) + π (Prod.mk ω ⁻¹' E₂) + Mk.indicator 1 ω) ∂μ' := by
         refine lintegral_mono fun ω => (measure_mono (hsub ω)).trans
           ((measure_union_le _ _).trans (add_le_add (measure_union_le _ _) ?_))

@@ -3,12 +3,12 @@ import OrthoDFA.Level3Claim
 /-!
 # The round's risk at the proof's free parameters
 
-`roundBound` is the round's failure chance at the proof's free parameters (`Knobs`): `tailRisk`
-twice, the chance that for some tree level 3 can grow and some edge map the probes harvesting at
-a good read-state exceed their bound, at the ends `Ge` and at the middles `θgpt` of the searches
-plus `ηm`, plus, for each of the at most `S` hypotheses, `stretchRisk` at its tests' level, what
-one stretch risks over its first `Ns` probes. `RoundRiskBound` bounds the round
-by the least of it over the knobs meeting `Knobs.Admissible`; `Level3RoundCorrect` picks knobs.
+`roundBoundAt` is the round's failure chance at the proof's free parameters (`Knobs`): `tailRisk`
+at each state's rate and at each site, the chance that for some tree level 3 can grow and some
+edge map the probes harvesting at the states read undecided at most that rate exceed their mean
+by `η`, plus, for each of the at most `S` hypotheses, `stretchRisk` at its tests' level, what one
+stretch risks over its first `Ns` probes. `Level3RoundCorrect` picks knobs meeting
+`Knobs.Admissible`.
 -/
 
 namespace OrthoDFA
@@ -58,10 +58,9 @@ structure Knobs where
   Ns : ℕ
   /-- The look at which the success test must have fired. -/
   N₁ : ℕ
-  /-- What the ends' sampler finds at good read-states, as a share of the probes. -/
+  /-- Half the least yield of an ends harvest that ends well. -/
   Ge : ℝ
-  /-- What the middles' sampler finds at good read-states, as a share of the searches, past
-  `ηm`. -/
+  /-- Half the least share of the searches a middles harvest that ends well yields, past `ηm`. -/
   θgpt : ℝ
   ηm : ℝ
   /-- The rate of undecided middles per probe below which the middles' test is checked against
@@ -76,21 +75,16 @@ structure Knobs where
   /-- The middles rate the stretch's risk tests against. -/
   θpt' : ℝ
 
-/-- The relations the knobs must meet, at the settings `C`, the probes' greatest length `L`, the
-ending's tolerance `ε` and the yield `y`: `36 (L + 1)(|Q| + 1) θ ≤ 1`, which the tails at scale
-`p₀` need; the ends' rate is at least `max (2Ge) y`, `Ge` bounding what the ends' sampler finds at
-good read-states; the middles' sampler finds there at most `θgpt` of the searches plus `ηm`,
-`θgpt` at least twice `(L + 1)(|Q| + 1) · 1.5θ` and at most a quarter of `middleRate`, and
-`4ηm ≤ pM`; and against a rate `pM ≥ y` of undecided middles per probe, with searches at least
+/-- The relations the knobs must meet, at the settings `C`, the ending's tolerance `ε` and the
+yield `y`: the ends' rate is at least `max (2Ge) y`; `θgpt` is at most a quarter of `middleRate`,
+and `4ηm ≤ pM`; and against a rate `pM ≥ y` of undecided middles per probe, with searches at least
 `searchShare` of the probes, the middles' test's likelihood ratio falls on average, its factor
 `m/μ` at an undecided middle and `(1 − m)/(1 − μ)` at another search, `μ = middleRate` and
 `m = middleAlternative`. -/
-structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (L : ℕ) (C : Level3Settings)
+structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (C : Level3Settings)
     (ε y : ℝ) (kn : Knobs) : Prop where
   N₁_pos : 1 ≤ kn.N₁
   N₁_le : kn.N₁ ≤ kn.Ns
-  θ_nonneg : 0 ≤ θ
-  θ_small : 36 * (L + 1) * (Fintype.card σ + 1) * θ ≤ 1
   Ge_nonneg : 0 ≤ kn.Ge
   δ_pos : 0 < C.δ
   endsRate_pos : 0 < C.endsRate
@@ -112,7 +106,6 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (L 
   probeBudget_ge : (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
     + 2 * Fintype.card α + 1) * kn.Ns ≤ C.probeBudget
   harvest_le_ends : max (2 * kn.Ge) y ≤ C.endsRate
-  θgpt_ge : 2 * ((L + 1) * (Fintype.card σ + 1) * (3 / 2 * θ)) ≤ kn.θgpt
   θgpt_le : 4 * kn.θgpt ≤ C.middleRate
   pM_nonneg : 0 ≤ kn.pM
   y_le_pM : y ≤ kn.pM
@@ -123,48 +116,14 @@ structure Knobs.Admissible {σ : Type*} [Fintype σ] [Fintype α] (θ : ℝ) (L 
     ≤ 1
 
 /-- The round's failure chance at the knobs `kn`, with no length-`walkStart` prefix above `p₀`:
-`tailRisk` at the ends and at the middles, and `stretchRisk` at each of the at most `S`
-hypotheses' level. -/
-noncomputable def roundBoundAt (σ : Type*) [Fintype σ] [Fintype α] (θ p₀ : ℝ) (L : ℕ)
+`tailRisk` at each state's rate and at each site, past `η`, and `stretchRisk` at each of the at
+most `S` hypotheses' level. -/
+noncomputable def roundBoundAt (σ : Type*) [Fintype σ] [Fintype α] (η p₀ : ℝ)
     (C : Level3Settings) (kn : Knobs) : ℝ :=
-  tailRisk (Fintype.card σ) (Fintype.card α) p₀ (kn.Ge - 9 * θ * (Fintype.card σ + 1))
-    + tailRisk (Fintype.card σ) (Fintype.card α) p₀ kn.ηm
+  2 * (Fintype.card σ + 1) * tailRisk (Fintype.card σ) (Fintype.card α) p₀ η
     + ∑ j ∈ Finset.range (Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1)
         + 2 * Fintype.card α + 1),
       stretchRisk C (C.level j) kn.Ns kn.N₁ kn.θr kn.εd' kn.θe' kn.θpt'
-
-/-- `roundBoundAt` at the probes' largest prefix mass. -/
-noncomputable def roundBound (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
-    (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (_y : ℝ) (kn : Knobs) : ℝ :=
-  roundBoundAt (α := α) σ θ (prefixMax D C.walkStart) L C kn
-
-/-- The least of `roundBound` over the admissible knobs. -/
-noncomputable def roundRisk (σ : Type*) [Fintype σ] [Fintype α] (θ : ℝ)
-    (D : Measure (FreeMonoid α)) (L : ℕ) (C : Level3Settings) (ε y : ℝ) : ENNReal :=
-  ⨅ (kn : Knobs) (_ : kn.Admissible (σ := σ) (α := α) θ L C ε y),
-    ENNReal.ofReal (roundBound (α := α) σ θ D L C y kn)
-
-/-- Over `C.probeBudget` probes drawn from `P.D`, level 3 fails to end well with chance at most
-`roundRisk`. -/
-def RoundRiskBound : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
-    (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α)
-    (C : Level3Settings) (ε y : ℝ),
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
-        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell
-            { target := M,
-              badStates := BadAt U θ,
-              probes := P.D,
-              disagreeRate := ε,
-              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
-                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
-              walkStart := C.walkStart,
-              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
-              yield := y,
-              ending := result.ending }} ∂μ
-      ≤ roundRisk (α := α) σ θ P.D P.L C ε y
 
 end Random
 

@@ -529,47 +529,46 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   obtain ⟨B, hB, hpass⟩ := exists_passable (crossLimit := crossLimit) (hsz := (allHarvest H).card)
     O populations Dsf indecisionLimit εcov α δ ρ (collisionMass Dsf) pAP hsig hpop hηle hη₀
     hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap hρsf
-  obtain ⟨th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, f, c, t, L, θ, r, rs, G, hmpos, hkpos,
-    hindLim', hind1', hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hf0, hpAP0, hlcut, hlcl,
+  obtain ⟨th, tap, q, E, γscr, γdirty, gdirty, Δ, lcut, f, c, t, L, θ, r, rs, G, hmpos, hkpos,
+    hindLim', hind1', hth, htap, hγscr, hγdirty, hgdirty, hΔ, hf0, hpAP0, hlcut, hlcl,
     hc0, hr, hpAPBound', hρsf', hheavy, hL, hθ, hN2, hszG, hheavyN, hscd, hscLow, hscHigh,
-    hcount, hpool, hhiUp, hloUp, hhiLo, hloLo, hlohi, ht, hgate, hEhalf, hbudget⟩ := hpass
+    hcount, hpool, hq0, hq1, hqa, hqr, hhiUp, hloUp, hhiLo, hloLo, hhiκ, hlohi, ht, hgate, hE0,
+    hEhalf, hEa, hEb, hEc, hEd, hbudget⟩ := hpass
   set l : ℝ := indecisionLimit / 2 with hl
   have hl2 : 2 * l ≤ indecisionLimit := by rw [hl]; linarith
   set κ : ℕ := B.k - 1 with hκ
-  set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
-  have hE0 : 0 ≤ E := Real.exp_nonneg _
   have hdec : ∀ (F : Finset S) (p : S), (1 : S) ∉ F → flipCount O F p ≤ (F.card : ℝ) * f →
       κ ≤ F.card → F.card ≤ κ →
       μ.real {ω | ¬ decided O.mq B.lo (B.hi + 1) (insert 1 F) p ω} ≤ E := by
     intro F p h1 hfl hmin hmax
     have hcardF : F.card = κ := le_antisymm hmax hmin
-    have hcardI : ((insert 1 F).card : ℝ) = (B.k : ℝ) := by
+    have hcardI : (insert 1 F).card = B.k := by
       rw [Finset.card_insert_of_notMem h1, hcardF, hκ]
-      have : 1 ≤ B.k := by omega
-      push_cast [this]
-      ring
+      omega
     have hcle : (F.card : ℝ) ≤ ((insert 1 F).card : ℝ) := by
       exact_mod_cast Finset.card_le_card (Finset.subset_insert _ _)
     have hflI : flipCount O (insert 1 F) p ≤ ((insert 1 F).card : ℝ) * f :=
       le_trans (flipCount_insert_one O F p)
         (le_trans hfl (mul_le_mul_of_nonneg_right hcle hf0.le))
-    refine le_trans (decided_whp O (insert 1 F) p B.lo (B.hi + 1) f γdec hγdec hsigle hflI
-      ?_ ?_) ?_
-    · rw [hcardI]; push_cast; exact hhiUp
-    · rw [hcardI]; exact hloUp
-    · rw [hE, hcardI]
-      refine Real.exp_le_exp.2 ?_
-      have hk : (κ : ℝ) ≤ (B.k : ℝ) := by rw [hκ]; exact_mod_cast Nat.sub_le _ _
-      nlinarith [sq_nonneg γdec]
+    refine decided_exact O (insert 1 F) p B.lo (B.hi + 1) f q E hsigle hflI hq0 hq1 hqa hqr
+      ?_ ?_ ?_ ?_ ?_ <;> rw [hcardI]
+    · push_cast; exact hhiUp
+    · exact hloUp
+    · omega
+    · exact hEa
+    · exact hEb
   have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
       κ ≤ F.card → F.card ≤ κ →
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E := by
     intro F p hfl hmin hmax
     have hcardF : F.card = κ := le_antisymm hmax hmin
-    refine le_trans (cutCorrect_whp O F p B.lo B.hi f γdec hsigle hfl hγdec ?_ ?_) ?_
-    · rw [hcardF]; linarith [hhiLo]
-    · rw [hcardF]; exact hloLo.le
-    · rw [hE, hcardF]
+    refine cutCorrect_exact O F p B.lo B.hi f q E hsigle hfl hq0 hq1 hqa hqr ?_ ?_ ?_ ?_ ?_
+      <;> rw [hcardF]
+    · exact hhiLo
+    · exact hloLo
+    · exact hhiκ
+    · exact hEc
+    · exact hEd
   set Y := streams (Ω := Ω) H uni with hY
   set ν := runMeasure μ D Dsf with hν
   have hsT : ∀ g, ∀ j ∈ populations, ∀ᵐ y ∂(sideLawT H uni D g j), ∀ i, y i ∈ Pre :=

@@ -479,7 +479,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
-      hε (by linarith) hpAP hpAP1
+      hε hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
