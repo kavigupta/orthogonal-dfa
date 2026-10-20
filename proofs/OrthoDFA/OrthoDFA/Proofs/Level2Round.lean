@@ -426,7 +426,8 @@ theorem bad_any (hI : ReadsByState read M side) (hC : TestsOK C) (hy : 0 < C.har
     ∀ (xs : List (FreeMonoid α)) (s : State α), Inv read C s →
       Θ C (Fintype.card σ) s < xs.length →
       ¬ EndsWell
-          { target := M, badStates := AllUndecided read M, probes := D,
+          { target := M, undecided := undecidedOf read M, harvestSlope := 1, harvestSlack := 0,
+            probes := D,
             disagreeRate := C.disagreementRate,
             disagree := {x | Disagrees read
               ⟨(runProbes read C s xs).1.tree, (runProbes read C s xs).1.edges⟩ C.walkStart x},
@@ -526,7 +527,8 @@ theorem level2RoundCorrect_holds : Level2RoundCorrect := by
     (Θ_start C _ (one_le_ends hC 0)).trans_le hP'
   have hsub : {draws : Fin P → FreeMonoid α | let result := indecisiveLStarLevel2 C read draws
         ¬ EndsWell
-          { target := M, badStates := AllUndecided read M, probes := D,
+          { target := M, undecided := undecidedOf read M, harvestSlope := 1, harvestSlack := 0,
+            probes := D,
             disagreeRate := C.disagreementRate,
             disagree := {x | Disagrees read result.hypothesis C.walkStart x},
             walkStart := C.walkStart,

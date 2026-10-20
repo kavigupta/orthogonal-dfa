@@ -240,16 +240,19 @@ lemma loopRound_eq_mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
       (roundSets settings D Dsf h (d.1, d.2.1)).2 (d.1, d.2.2) := rfl
 
 
-omit [Fintype σ] in
 /-- Where a round ending at hypothesis `H` and ending `e` fails to end well is measurable in the
-oracle's answers, where whether each probe disagrees is. -/
+oracle's answers, where whether each probe disagrees is. A harvest's bound at every rate holds
+where it holds at each state's own (`Random.sublevel_of_states`), so it is a countable
+intersection. -/
 theorem measurableSet_not_endsWell_of (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (S : Ω → Set (FreeMonoid α))
-    (hS : ∀ x, MeasurableSet {ω | x ∈ S ω})
+    (kl kh k : ℕ) (M : _root_.DFA α σ) (U : σ → ℝ) (hU : ∀ q, 0 ≤ U q) {A s : ℝ} (hA : 0 ≤ A)
+    (hs : 0 ≤ s) (S : Ω → Set (FreeMonoid α)) (hS : ∀ x, MeasurableSet {ω | x ∈ S ω})
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
     MeasurableSet {ω | ¬ EndsWell
       { target := M,
-        badStates := bad,
+        undecided := U,
+        harvestSlope := A,
+        harvestSlack := s,
         probes := D,
         disagreeRate := ε,
         disagree := S ω,
@@ -264,12 +267,38 @@ theorem measurableSet_not_endsWell_of (O : Oracle μ (FreeMonoid α)) (F : Finse
       ENNReal.measurable_toReal.comp (measurable_measure_of_mem D _ hS)
     exact (measurableSet_le hf measurable_const).compl
   | harvest h =>
-    have hm : ∀ A : Set (FreeMonoid α), Measurable fun ω =>
-        (Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H h).real A := fun A =>
+    set ν : Ω → Measure (FreeMonoid α) := fun ω =>
+      Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H h
+    have hm : ∀ A : Set (FreeMonoid α), Measurable fun ω => (ν ω).real A := fun A =>
       ENNReal.measurable_toReal.comp (measurable_harvestLaw O F kl kh k D H h A)
-    simp only [EndsWell, Spread, Yields]
+    have hlaw : ∀ ω, (∀ T, 0 ≤ T → (ν ω).real {z | U (M.eval z.toList) ≤ T}
+          ≤ (A * T + s) * (ν ω).real Set.univ)
+        ↔ ∀ q, (ν ω).real {z | U (M.eval z.toList) ≤ U q} ≤ (A * U q + s) * (ν ω).real Set.univ :=
+      fun ω => ⟨fun h q => h (U q) (hU q), fun h => Random.sublevel_of_states M U (ν ω) hA hs
+        (fun z => hU _) fun q _ => h q⟩
+    have hset : {ω | ¬ EndsWell
+        { target := M,
+          undecided := U,
+          harvestSlope := A,
+          harvestSlack := s,
+          probes := D,
+          disagreeRate := ε,
+          disagree := S ω,
+          walkStart := k,
+          harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
+          yield := y,
+          ending := .harvest h }}
+        = {ω | ¬ ((∀ q, (ν ω).real {z | U (M.eval z.toList) ≤ U q}
+            ≤ (A * U q + s) * (ν ω).real Set.univ)
+          ∧ Spread D k (ν ω) ∧ Yields (ν ω) y)} := by
+      ext ω
+      simp only [Set.mem_setOf_eq, EndsWell]
+      rw [hlaw ω]
+    rw [hset]
+    simp only [Spread, Yields]
     exact measurableSet_setOf.2 (Measurable.not
-      ((measurableSet_setOf.1 (measurableSet_lt (hm _) ((hm _).const_mul 2))).and
+      ((Measurable.forall fun q => measurableSet_setOf.1
+          (measurableSet_le (hm _) ((hm _).const_mul _))).and
         ((Measurable.forall fun t =>
             measurableSet_setOf.1 (measurableSet_le (hm _) measurable_const)).and
           (measurableSet_setOf.1 (measurableSet_le measurable_const (hm _))))))
@@ -277,13 +306,15 @@ theorem measurableSet_not_endsWell_of (O : Oracle μ (FreeMonoid α)) (F : Finse
     simp only [EndsWell, not_false_eq_true, Set.setOf_true]
     exact MeasurableSet.univ
 
-omit [Fintype σ] in
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop) (dist : σ → ARU → ℝ)
+    (kl kh k : ℕ) (M : _root_.DFA α σ) (U : σ → ℝ) (hU : ∀ q, 0 ≤ U q) {A s : ℝ} (hA : 0 ≤ A)
+    (hs : 0 ≤ s) (dist : σ → ARU → ℝ)
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
     MeasurableSet {ω | ¬ EndsWell
       { target := M,
-        badStates := bad,
+        undecided := U,
+        harvestSlope := A,
+        harvestSlack := s,
         probes := D,
         disagreeRate := ε,
         disagree := disagreeSet M dist (fun z => familyRead O.mq F kl kh z ω) k H,
@@ -291,16 +322,18 @@ theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (
         harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
         yield := y,
         ending := e }} :=
-  measurableSet_not_endsWell_of O F kl kh k M bad _
+  measurableSet_not_endsWell_of O F kl kh k M U hU hA hs _
     (fun x => measurableSet_mem_disagreeSet O F kl kh k M dist H x) D ε y H e
 
-omit [Fintype σ] in
 theorem measurableSet_not_endsWell_searchEnds (O : Oracle μ (FreeMonoid α))
-    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (bad : σ → Prop)
+    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (U : σ → ℝ)
+    (hU : ∀ q, 0 ≤ U q) {A s : ℝ} (hA : 0 ≤ A) (hs : 0 ≤ s)
     (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
     MeasurableSet {ω | ¬ EndsWell
       { target := M,
-        badStates := bad,
+        undecided := U,
+        harvestSlope := A,
+        harvestSlack := s,
         probes := D,
         disagreeRate := ε,
         disagree := Random.searchSet (fun z => familyRead O.mq F kl kh z ω) k H
@@ -309,7 +342,7 @@ theorem measurableSet_not_endsWell_searchEnds (O : Oracle μ (FreeMonoid α))
         harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
         yield := y,
         ending := e }} := by
-  refine measurableSet_not_endsWell_of O F kl kh k M bad _ (fun x => ?_) D ε y H e
+  refine measurableSet_not_endsWell_of O F kl kh k M U hU hA hs _ (fun x => ?_) D ε y H e
   refine measurableSet_of_reads O
     (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_
   have hp := probeOrAgree_congr_reads O (kl := kl) (kh := kh) k H x h

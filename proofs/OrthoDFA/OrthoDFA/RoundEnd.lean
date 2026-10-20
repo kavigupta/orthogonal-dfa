@@ -5,8 +5,8 @@ import OrthoDFA.FamilyRead
 
 Every level of the round's proof claims the same ending: consistent, with the hypothesis and the
 tree parting on at most `ε` of the probes, or a harvest. A harvest is a sampler, and `law h` the
-law of what it finds: more than half of that law is at bad states, it is spread and it yields.
-What makes a state bad is each level's own.
+law of what it finds: it puts little on states the reads rarely leave undecided, it is spread and
+it yields. Each level says what a state's chance of reading undecided is.
 
 The sampler is spread from `k` when it finds no string more often than draws share its first `k`
 letters, and yields `y` when it finds `y` in all.
@@ -35,8 +35,12 @@ def Yields [Countable α] (ν : Measure (FreeMonoid α)) (y : ℝ) : Prop := y �
 /-- A round's ending, with what it is judged against. -/
 structure RoundOutcome (α σ H : Type*) [Countable α] where
   target : DFA α σ
-  /-- The states the reads handle poorly; a harvest must be mostly at them. -/
-  badStates : σ → Prop
+  /-- Each state's chance of reading undecided. -/
+  undecided : σ → ℝ
+  /-- A harvest puts at most `harvestSlope * T + harvestSlack` of its law on the states read
+  undecided at most `T` of the time. -/
+  harvestSlope : ℝ
+  harvestSlack : ℝ
   probes : Measure (FreeMonoid α)
   disagreeRate : ℝ
   /-- Where the hypothesis and the tree part. -/
@@ -53,8 +57,8 @@ def EndsWell [Countable α] {σ H : Type*} (s : RoundOutcome α σ H) : Prop :=
   match s.ending with
   | .consistent => s.probes.real s.disagree ≤ s.disagreeRate
   | .harvest h =>
-    (s.harvestLaw h).real Set.univ
-        < 2 * (s.harvestLaw h).real {z | s.badStates (s.target.eval z.toList)}
+    (∀ T, 0 ≤ T → (s.harvestLaw h).real {z | s.undecided (s.target.eval z.toList) ≤ T}
+        ≤ (s.harvestSlope * T + s.harvestSlack) * (s.harvestLaw h).real Set.univ)
       ∧ Spread s.probes s.walkStart (s.harvestLaw h) ∧ Yields (s.harvestLaw h) s.yield
   | .failed => False
 
