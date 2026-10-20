@@ -214,11 +214,11 @@ lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) 
     (hWW : W ≤ W₀ * ℓ ^ 2)
     (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1) :
-    1 ≤ 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+    1 ≤ (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
-      ∧ 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+      ∧ (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
-      ≤ (256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+      ≤ ((160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') + 288) / (s ^ 2 * pAP)
         + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) * ℓ := by
   have hℓ0 : 0 < ℓ := by linarith
   have hW₀ : 0 < W₀ := by linarith
@@ -238,7 +238,7 @@ lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) 
     linarith
   have hsp0 : 0 < s ^ 2 * pAP := by positivity
   constructor
-  · have h1 : 1 ≤ 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP) := by
+  · have h1 : 1 ≤ (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / (s ^ 2 * pAP) := by
       rw [le_div_iff₀ hsp0]
       nlinarith
     linarith
@@ -252,18 +252,18 @@ lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) 
     log_le_mul_of_le (by positivity) hℓ
       (by rw [show 8 * W₀ / δ' * ℓ ^ 2 = 8 * (W₀ * ℓ ^ 2) / δ' by ring]; gcongr) (by positivity)
       le_rfl
-  have hX : 0 ≤ Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') := by
+  have hX : 0 ≤ 160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') := by
     have : 0 ≤ Real.log (2 * Θ) := Real.log_nonneg (by linarith)
     have : 0 ≤ Real.log (8 * W₀ / δ') :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
     linarith
-  have hsum : Real.log (2 / τ) + 4 * Real.log (8 * W / δ')
-      ≤ (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) * ℓ := by
-    have := add_log_le hX hℓ (show (0 : ℝ) ≤ 9 by norm_num)
+  have hsum : 160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')
+      ≤ (160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') + 288) * ℓ := by
+    have := add_log_le hX hℓ (show (0 : ℝ) ≤ 288 by norm_num)
     linarith
-  have hterm : 256 * (Real.log (2 / τ) + 4 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
-      ≤ 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP) * ℓ := by
-    rw [div_mul_eq_mul_div, mul_assoc]
+  have hterm : (160 * Real.log (2 / τ) + 64 * Real.log (8 * W / δ')) / (s ^ 2 * pAP)
+      ≤ (160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') + 288) / (s ^ 2 * pAP) * ℓ := by
+    rw [div_mul_eq_mul_div]
     gcongr
   have hZℓ : 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
       ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 * ℓ := le_mul_of_one_le_right hZ hℓ
@@ -592,7 +592,7 @@ lemma log_count_nonneg {Q P₀ Θ δ' pAP : ℝ} (hQ : 0 ≤ Q) (hP₀ : 1 ≤ P
 lemma pool_ge_one {Q s pAP Θ W₀ δ' : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hΘ : 1 ≤ Θ) (hW₀ : 1 ≤ W₀) (hδ'0 : 0 < δ')
     (hδ'1 : δ' ≤ 1) :
-    1 ≤ 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP)
+    1 ≤ (160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') + 288) / (s ^ 2 * pAP)
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by
   have h1 : 0 ≤ Real.log (2 * Θ) := Real.log_nonneg (by linarith)
   have h2 : 0 ≤ Real.log (8 * W₀ / δ') := Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
@@ -602,7 +602,7 @@ lemma pool_ge_one {Q s pAP Θ W₀ δ' : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 
   have hsp : s ^ 2 * pAP ≤ 1 := by
     have : s ^ 2 ≤ 1 := by nlinarith
     nlinarith
-  have h4 : 1 ≤ 256 * (Real.log (2 * Θ) + 4 * Real.log (8 * W₀ / δ') + 9) / (s ^ 2 * pAP) := by
+  have h4 : 1 ≤ (160 * Real.log (2 * Θ) + 64 * Real.log (8 * W₀ / δ') + 288) / (s ^ 2 * pAP) := by
     rw [le_div_iff₀ (by positivity)]; nlinarith
   linarith
 

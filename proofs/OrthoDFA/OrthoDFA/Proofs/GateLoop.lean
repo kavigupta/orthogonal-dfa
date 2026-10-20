@@ -168,6 +168,8 @@ lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
     η₀ populations εcov δ hη0 hη₀
   have hL := famCount_cross (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) η₀ populations εcov δ hη₀
+  have hseed := famCount_seed (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ hη₀
   set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ crossLimit with hbdef
   set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   set c : ℕ := ⌈(κ : ℝ) / 2⌉₊ with hcdef
@@ -182,7 +184,7 @@ lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
   rw [Nat.sub_sub, Nat.cast_sub hb1]
   push_cast
   have hκ0 : (0 : ℝ) ≤ κ := Nat.cast_nonneg _
-  have hy : 0 ≤ (κ : ℝ) * voteSlack η₀ / 2 := by positivity
+  have hy : 0 ≤ (κ : ℝ) * voteSlack η₀ - 1 := by linarith
   have hsq := pow_le_pow_left₀ hy hb 2
   nlinarith [mul_le_mul_of_nonneg_left hL hκ0]
 
@@ -680,20 +682,20 @@ lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind :
   refine le_min (by linarith) (le_min (by linarith) (le_min (by linarith) h4))
 
 /-- The redraw fraction is at least a constant times the scale squared: the cut budget is a tenth
-of the scale, and the flip fraction seven tenths of the signal. -/
+of the scale, and the flip fraction three fifths of the signal. -/
 lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
-    7 * budgetScale η₀ indecisionLimit εcov ^ 2 / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
+    6 * budgetScale η₀ indecisionLimit εcov ^ 2 / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
   have hs := sig_pos η₀ hsig
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
   have hBs := budgetScale_le_sig η₀ indecisionLimit εcov hη0 hsig
   have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hf : 7 * sig η₀ / 10 ≤ flipFrac η₀ := by
+  have hf : 6 * sig η₀ / 10 ≤ flipFrac η₀ := by
     rw [flipFrac, div_le_div_iff₀ (by norm_num) (by linarith)]
     nlinarith
   rw [rejFrac]
-  have := mul_le_mul hcut (le_trans (by linarith : 7 * budgetScale η₀ indecisionLimit εcov / 10
-    ≤ 7 * sig η₀ / 10) hf) (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
+  have := mul_le_mul hcut (le_trans (by linarith : 6 * budgetScale η₀ indecisionLimit εcov / 10
+    ≤ 6 * sig η₀ / 10) hf) (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
   nlinarith
 
 /-- What the collision cap buys: a state's redraws, at `|J|(3|J| + 3)ρ/rejFrac` per draw, are a

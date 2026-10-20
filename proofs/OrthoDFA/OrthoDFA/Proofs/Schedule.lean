@@ -51,12 +51,15 @@ a member's mean by the gap between the classes, at most `1 − η`, and what is 
 
     (1 − η) · flipFrac η + voteSlack η = sig η
 
+Only termination needs this: the gate certifies the miscut itself, but a family it can pass
+has to be found among members the screen admits flipping up to `flipBudget`.
+
 An oracle with a narrower gap absorbs proportionally more flips, and its screen sees each one
 proportionally less; `screenMargin` is solved at that pairing, not at this fraction. -/
-noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
+noncomputable def flipFrac (η : ℝ) : ℝ := 3 * sig η / (5 * (1 - η))
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
-noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
+noncomputable def voteSlack (η : ℝ) : ℝ := 2 * sig η / 5
 
 /-- The share of a population a round lets its family cut wrongly.  `εcov/8` and `s/10` hold the
 vote's misfire rate and the screen's cutoff, `indecisionLimit/2` is what the FNR test tolerates,
@@ -79,17 +82,20 @@ takes half of the rest.  That rate only has to sit under half the cut budget: th
 the certification sample are independent given the family, so their count concentrates below
 the budget.
 
-The second term makes the band, about `κ·voteSlack` wide, at least `√(κ·log(1/crossLimit)/2)`.
-The third pays for the seed: the family returned is one member larger than the band is centred
-for, which its vote pays for out of the slack, at `decSlack`.
+The band is about `κ·voteSlack` wide and a crossing vote travels all of it, so its tail is
+`exp (-2κ·voteSlack²)`, which the second term puts under `crossLimit`.  Each tail asks for its
+own size, and the family takes the larger.  The third pays for the seed: the family
+returned is one member larger than the band is centred for, which its vote pays for out of the
+slack, at `decSlack`.
 
 The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
 the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
 `voteSlack` has left to pay with. -/
 noncomputable def famCount (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
-  2 * (⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
-    + ⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ + ⌈1 / voteSlack η⌉₊ + 1)
+  2 * (max ⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
+      ⌈Real.log (1 / crossLimit) / (4 * voteSlack η ^ 2)⌉₊
+    + ⌈1 / voteSlack η⌉₊ + 1)
 
 /-- How far the vote of the family returned, seed included, clears its cut at `lo` and `hi + 1`:
 the band's `voteSlack/2`, less the half read the extra member costs spread over all of them. -/
