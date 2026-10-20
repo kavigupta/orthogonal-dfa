@@ -322,18 +322,20 @@ def _run(pst, search, family):
         return search.run(warmed_draws(search, draw, family.read_many))
 
 
-def _walk_deeper(pst, state, k, harvested, strings, *, index) -> int:
-    """k + 1, at most start_length(L), where strings repeats one of harvested.
-    Reaching start_length(L) drops every population holding a shorter string."""
+def _walk_deeper(pst, state, k, harvested, strings, *, taken, index) -> int:
+    """Double k, from 0 to 1 and at most start_length(L), after a round that
+    took no new strings or repeated one of harvested.  Reaching
+    start_length(L) drops every population holding a shorter string."""
     deepest = start_length(pst.sampler.length)
     repeats = not harvested.isdisjoint(strings)
     harvested.update(strings)
-    if k >= deepest or not repeats:
+    if k >= deepest or (taken > 0 and not repeats):
         return k
-    print(f"[round {index}] harvest repeats an earlier round's; k now {k + 1}")
-    if k + 1 == deepest:
+    deeper = min(max(2 * k, 1), deepest)
+    print(f"[round {index}] k now {deeper}")
+    if deeper == deepest:
         _drop_shallow_populations(state, deepest, index=index)
-    return k + 1
+    return deeper
 
 
 def _drop_shallow_populations(state, depth, *, index) -> None:
@@ -371,6 +373,7 @@ def counterexample_driven_synthesis(
     *,
     acc_threshold: float,
     tracker: SynthesisTracker,
+    initial_k: int,
     max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
@@ -393,9 +396,7 @@ def counterexample_driven_synthesis(
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
-    # Where the probes walk from: raised a step at each round whose harvest
-    # repeats an earlier round's.
-    k = 0
+    k = initial_k
     harvested = set()
     index = 0
     while True:
@@ -441,10 +442,13 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
-        taken = _accumulate_harvest(strings, provenance, state, target)
-        k = _walk_deeper(pst, state, k, harvested, strings, index=index)
+        taken = _accumulate_harvest(
+            strings,
+            provenance,
+            state,
+            max(int(indecisive_fraction * pst.num_prefixes), min_indecisive),
+        )
         if (
             _family_too_loose(ending, true_acc, acc_threshold, taken)
             and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
@@ -452,14 +456,22 @@ def counterexample_driven_synthesis(
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
-        # Rounds after a refusal have their own patience, so they are not
-        # weighed for a stall.
-        if uncertified_since is None and stall.stalled(progressed=taken > 0):
+        deeper = _walk_deeper(
+            pst, state, k, harvested, strings, taken=taken, index=index
+        )
+        # Rounds after a refusal have their own patience, and a round that
+        # walks deeper is progress, so neither is weighed for a stall.
+        if (
+            deeper == k
+            and uncertified_since is None
+            and stall.stalled(progressed=taken > 0)
+        ):
             print(
                 f"[round {index}] no new strings harvested in {STALL_PATIENCE} "
                 "rounds; stopping synthesis"
             )
             return best
+        k = deeper
         _boundary_source(pst, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
@@ -473,10 +485,10 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float, tracker: SynthesisTracker
+    pst, *, acc_threshold: float, tracker: SynthesisTracker, initial_k: int
 ) -> Optional[DFA]:
     best = counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold, tracker=tracker
+        pst, acc_threshold=acc_threshold, tracker=tracker, initial_k=initial_k
     )
     if best.dfa is None:
         return None

@@ -94,6 +94,7 @@ def learn_dfa(
     acceptable_fnr: float = 0.01,
     max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
     tracker: SynthesisTracker = SynthesisTracker(),
+    initial_k: int = 0,
 ):
     """Learn a DFA from `oracle_creator`.  Failure raises
     `NoAcceptPreservingFamily` rather than returning.
@@ -123,7 +124,7 @@ def learn_dfa(
         max_coverage_error=max_coverage_error,
     )
     dfa = do_counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold, tracker=tracker
+        pst, acc_threshold=acc_threshold, tracker=tracker, initial_k=initial_k
     )
     print(f"learn_dfa: {sum(o.queries for o in oracles)} membership queries")
     return dfa

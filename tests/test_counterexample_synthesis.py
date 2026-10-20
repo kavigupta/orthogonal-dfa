@@ -145,25 +145,28 @@ class TestWhenARoundGivesUp(unittest.TestCase):
 
 
 class TestWhereTheProbesWalkFrom(unittest.TestCase):
-    PST = SimpleNamespace(sampler=SimpleNamespace(length=5))
+    PST = SimpleNamespace(sampler=SimpleNamespace(length=8))
 
-    def _deeper(self, k, harvested, strings, state=None):
+    def _deeper(self, k, strings, taken, state=None):
         state = _state() if state is None else state
-        return _walk_deeper(self.PST, state, k, set(harvested), strings, index=0)
+        return _walk_deeper(self.PST, state, k, {b"a"}, strings, taken=taken, index=0)
 
-    def test_a_repeated_harvest_raises_it_a_step(self):
-        self.assertEqual(2, self._deeper(1, {b"a"}, [b"b", b"a"]))
+    def test_a_round_that_takes_nothing_doubles_it(self):
+        self.assertEqual([1, 2, 4], [self._deeper(k, [], 0) for k in (0, 1, 2)])
 
-    def test_a_new_harvest_does_not(self):
-        self.assertEqual(1, self._deeper(1, {b"a"}, [b"b"]))
+    def test_so_does_one_that_repeats_a_harvested_string(self):
+        self.assertEqual(2, self._deeper(1, [b"b", b"a"], 2))
+
+    def test_one_that_takes_new_strings_does_not(self):
+        self.assertEqual(1, self._deeper(1, [b"b"], 1))
 
     def test_it_stops_at_half_the_length(self):
-        self.assertEqual(3, self._deeper(3, {b"a"}, [b"a"]))
+        self.assertEqual([4, 4], [self._deeper(k, [], 0) for k in (3, 4)])
 
     def test_reaching_it_drops_the_populations_with_shorter_strings(self):
         state = _state([b"ab", b"abcd"])
         state.hold(("state", 0), SimpleNamespace(draw=lambda: b"abcde"), 1)
-        self.assertEqual(3, self._deeper(2, {b"a"}, [b"a"], state))
+        self.assertEqual(4, self._deeper(2, [], 0, state))
         self.assertEqual([("state", 0)], list(state.held))
         self.assertEqual((set(), None), (state.seen, state.harvesting))
 
