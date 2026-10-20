@@ -180,7 +180,7 @@ union-bounds over its pairs and the flip tail over its members, and nothing else
 arbitrarily large, and the `sig ^ 4` in the denominator sends the bound below the count.
 
 The terms are bounded one at a time here, each at its worst with `sig η` and the scale at
-`1/2`, and their bounds sum to under 60000; the gate's log of its own count is most of it. -/
+`1/2`, and their bounds sum to under 64000; the gate's log of its own count is most of it. -/
 theorem prefCount_le_poly (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit : ℝ)
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hpop : populations.Nonempty)
@@ -188,7 +188,7 @@ theorem prefCount_le_poly (populations : Finset J)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
-      ≤ 60000 * (populations.card : ℝ) ^ 2
+      ≤ 64000 * (populations.card : ℝ) ^ 2
         * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
         / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
         + 128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov := by
@@ -517,7 +517,7 @@ theorem prefCount_le_poly (populations : Finset J)
     have hcf2 : 0 ≤ (cut * flipFrac η) ^ 2 := sq_nonneg _
     nlinarith only [h, mul_le_mul_of_nonneg_right hs2sq (by positivity : (0 : ℝ) ≤ s ^ 2 * B ^ 2),
       mul_le_mul_of_nonneg_right hc2 hcf2, hcf2]
-  have t6 : 2900 * Real.log (128 * c * (M + 1) / δ) / (cut * flipFrac η) ≤ 5200 * Q := by
+  have t6 : 2900 * Real.log (128 * c * (M + 1) / δ) / (cut * flipFrac η) ≤ 6100 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
     refine tail_le (w := 5800) (by linarith only [hY]) hL0 (mul_pos hcutpos hfpos) hD ?_
     have hsB : s ^ 3 * B ≤ 1 / 16 := by
@@ -550,7 +550,7 @@ theorem prefCount_le_poly (populations : Finset J)
   have hh : max (128 * (hsz : ℝ) / cut) 0 = 128 * (hsz : ℝ) / cut :=
     max_eq_left (by positivity)
   rw [hh] at hbound
-  rw [hLeq, show 60000 * c ^ 2 * L / (s ^ 4 * B ^ 2) = 60000 * Q by rw [hQdef]; ring]
+  rw [hLeq, show 64000 * c ^ 2 * L / (s ^ 4 * B ^ 2) = 64000 * Q by rw [hQdef]; ring]
   linarith only [hbound, m1, m2, m3, m4, m5, m6, t7, hQnn]
 
 /-- `validCount` is its one tail, rounded up, and the ladder's rung. -/
@@ -859,12 +859,12 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit 0 (collisionMass Dsf)
       hN hM (by simp only [mul_zero]; positivity) (hcollSf _ htop)).2
   have hbudget : (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit 60000
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit 64000
         + harvestCap η₀ indecisionLimit εcov hz := by
     rw [budgetCap, harvestCap]
     linarith [hpoly]
   refine le_trans (clustering_correct O rule populations tame uni H D Dsf Pre Suf η₀
-    indecisionLimit εcov α δ ρ₀ pAP crossLimit 60000 hηle hη₀ huni htame hflat hH hsupp hsuppSf
+    indecisionLimit εcov α δ ρ₀ pAP crossLimit 64000 hηle hη₀ huni htame hflat hH hsupp hsuppSf
     hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hδ hbudget le_rfl
     hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))

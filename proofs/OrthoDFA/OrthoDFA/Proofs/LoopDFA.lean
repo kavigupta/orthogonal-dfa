@@ -221,7 +221,7 @@ theorem integral_uniform_le_window {k L L₁ : ℕ} (hk : k ≤ L) (hL : L ≤ L
 lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hcL : 0 ≤ cL) :
-    0 ≤ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
+    0 ≤ 64000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
         * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2)
         / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 2) := by
@@ -621,7 +621,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set W : ℝ := B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
-  set RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  set RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2) with hRBd
   set cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
       (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
@@ -669,7 +669,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
   have hR₀ : 0 ≤ R₀ := by
     have := log_count_nonneg hQ0 hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
-    show 0 ≤ 60000 * (Q + 2) ^ 2 * Θ ^ 2
+    show 0 ≤ 64000 * (Q + 2) ^ 2 * Θ ^ 2
       * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
     positivity
   have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hτ0

@@ -26,7 +26,7 @@ def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
 
 /-- A bound on the prefix count. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
-  60000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
+  64000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
     / (δ / 2 * α * pAP * budgetScale η₀ ι εcov))
     / ((1 / 2 - η₀) ^ 4 * budgetScale η₀ ι εcov ^ 2)
 
@@ -79,7 +79,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     nlinarith
   refine ⟨hpoolB, ?_⟩
   have h := prefCount_le_poly (hsz := 0) pops η₀ ι εcov (δ / 2) α pAP (Real.exp (-cLog)) hsig
-    hη0 hpop hι hε hε1 hδ2 hδ21 hα hα1 hpAP hpAP1
+    hη0 hpop hι hε hδ2 hδ21 hα hα1 hpAP hpAP1
   rw [Nat.cast_zero, mul_zero, zero_div, add_zero] at h
   rw [hsig', hτ'] at h
   refine h.trans ?_
@@ -93,11 +93,11 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     refine Real.log_le_log (by linarith) (div_le_div_of_nonneg_right ?_ (by positivity))
     exact mul_le_mul (by linarith) hpoolB (by positivity) (by linarith)
   have hsq : (pops.card : ℝ) ^ 2 ≤ Jm ^ 2 := pow_le_pow_left₀ (by positivity) hcard 2
-  calc 60000 * (pops.card : ℝ) ^ 2
+  calc 64000 * (pops.card : ℝ) ^ 2
         * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ))
-      ≤ 60000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
+      ≤ 64000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
         gcongr
-    _ ≤ 60000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
+    _ ≤ 64000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
         gcongr
 
 end OrthoDFA
@@ -160,7 +160,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let W : ℝ := B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
-    let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+    let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
         (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
@@ -464,7 +464,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   · intro draws hd hgood
     apply hd
     obtain ⟨⟨h1, o, ho, hag⟩, hfr⟩ := hgood
-    have hag' : o.Checks M O P.D k εcov εcov (ε + ε + ε / 1536) :=
+    have hag' : o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 1536) :=
       checks_mono (by linarith) (by linarith) hag
     exact ⟨⟨h1, o, ho, ⟨hag'.1, hag'.2.1.trans (by linarith), hag'.2.2⟩⟩, hfr⟩
   · have hδ8 := hshort

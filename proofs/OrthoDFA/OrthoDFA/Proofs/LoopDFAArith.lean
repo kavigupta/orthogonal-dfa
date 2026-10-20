@@ -298,11 +298,11 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ P₀ * ℓ)
     (hP₀ : 1 ≤ P₀) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1) :
-    0 ≤ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+    0 ≤ 64000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
         / (s ^ 4 * τ ^ 2)
-      ∧ 60000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+      ∧ 64000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
         / (s ^ 4 * τ ^ 2)
-      ≤ 60000 * (Q + 2) ^ 2 * Θ ^ 2
+      ≤ 64000 * (Q + 2) ^ 2 * Θ ^ 2
         * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4 * ℓ ^ 3 := by
   have hℓ0 : 0 < ℓ := by linarith
   have hD : δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 := by ring
@@ -344,13 +344,13 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
     exact pow_le_pow_left₀ (by positivity) hinvτ 2
   constructor
   · positivity
-  · have e : 60000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+  · have e : 64000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
         / (s ^ 4 * τ ^ 2)
-        = 60000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+        = 64000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
           * (1 / τ ^ 2)) := by field_simp
     rw [e]
-    have e2 : 60000 * (Q + 2) ^ 2 * Θ ^ 2 * (Real.log y + 2) / s ^ 4 * ℓ ^ 3
-        = 60000 * (Q + 2) ^ 2 / s ^ 4 * ((Real.log y + 2) * ℓ * (Θ ^ 2 * ℓ ^ 2)) := by ring
+    have e2 : 64000 * (Q + 2) ^ 2 * Θ ^ 2 * (Real.log y + 2) / s ^ 4 * ℓ ^ 3
+        = 64000 * (Q + 2) ^ 2 / s ^ 4 * ((Real.log y + 2) * ℓ * (Θ ^ 2 * ℓ ^ 2)) := by ring
     rw [e2]
     gcongr
 
