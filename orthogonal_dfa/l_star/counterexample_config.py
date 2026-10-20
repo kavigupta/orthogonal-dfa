@@ -2,8 +2,6 @@
 
 from dataclasses import dataclass
 
-from .preconditions import start_length
-
 
 @dataclass(frozen=True)
 class CounterexampleSearchConfig:
@@ -27,12 +25,8 @@ class CounterexampleSearchConfig:
     acc_threshold: float
     #: The share of prefixes the family may leave undecided.
     acceptable_fnr: float
-    #: Symbols per probe.
-    length: int
-
-    @property
-    def k(self) -> int:
-        return start_length(self.length)
+    #: Where the probes' walks start.
+    k: int
 
     @property
     def disagreement_rate(self) -> float:
@@ -74,7 +68,7 @@ class CounterexampleSearchConfig:
 
 
 def counterexample_search_config(
-    acc_threshold: float, acceptable_fnr: float, length: int
+    acc_threshold: float, acceptable_fnr: float, k: int
 ) -> CounterexampleSearchConfig:
     return CounterexampleSearchConfig(
         level=1e-3,
@@ -87,5 +81,5 @@ def counterexample_search_config(
         disagreement_alternative_ratio=0.1,
         acc_threshold=acc_threshold,
         acceptable_fnr=acceptable_fnr,
-        length=length,
+        k=k,
     )

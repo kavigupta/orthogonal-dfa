@@ -13,6 +13,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _family_too_loose,
     _publish_pool,
     _StallDetector,
+    _walk_deeper,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, SUCCESS, Ending
@@ -141,6 +142,30 @@ class TestWhenARoundGivesUp(unittest.TestCase):
         stall.stalled(progressed=True)
 
         self.assertFalse(stall.stalled(progressed=False))
+
+
+class TestWhereTheProbesWalkFrom(unittest.TestCase):
+    PST = SimpleNamespace(sampler=SimpleNamespace(length=5))
+
+    def _deeper(self, k, harvested, strings, state=None):
+        state = _state() if state is None else state
+        return _walk_deeper(self.PST, state, k, set(harvested), strings, index=0)
+
+    def test_a_repeated_harvest_raises_it_a_step(self):
+        self.assertEqual(2, self._deeper(1, {b"a"}, [b"b", b"a"]))
+
+    def test_a_new_harvest_does_not(self):
+        self.assertEqual(1, self._deeper(1, {b"a"}, [b"b"]))
+
+    def test_it_stops_at_half_the_length(self):
+        self.assertEqual(3, self._deeper(3, {b"a"}, [b"a"]))
+
+    def test_reaching_it_drops_the_populations_with_shorter_strings(self):
+        state = _state([b"ab", b"abcd"])
+        state.hold(("state", 0), SimpleNamespace(draw=lambda: b"abcde"), 1)
+        self.assertEqual(3, self._deeper(2, {b"a"}, [b"a"], state))
+        self.assertEqual([("state", 0)], list(state.held))
+        self.assertEqual((set(), None), (state.seen, state.harvesting))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from orthogonal_dfa.l_star.round_end import (
     OUT_OF_PROBES,
     SUCCESS,
     Ending,
+    SiteCounts,
 )
 from orthogonal_dfa.l_star.statistics import rate_side
 from tests.counterexample_common import (
@@ -194,33 +195,25 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(3, search.probes)
 
 
-class TestFeedback(unittest.TestCase):
+class TestSettling(unittest.TestCase):
     def test_it_walks_from_the_start_until_it_changes_nothing(self):
         search = quiet_search(parity_cut(()), {}, k=2)
-        search.feedback = [b"\x01\x00"]
-        self.assertEqual(OUT_OF_PROBES, search.run(iter([])).kind)
+        search.settle([b"\x01\x00"])
         self.assertEqual(
             {(EVEN, 1): (ODD, b""), (ODD, 0): (ODD, b"\x01")}, search.hypothesis.edges
         )
         self.assertEqual((3, 0), (search.probes, search.counts.probes))
 
     def test_its_undecided_reads_are_kept_out_of_the_counts(self):
-        search = quiet_search(
-            parity_cut([b""]), PARITY_EDGES, ends_rate=0.05, ends_alternative=0.1
-        )
-        search.feedback = [b"\x01\x00"] * 20
-        self.assertEqual(OUT_OF_PROBES, search.run(iter([])).kind)
-        self.assertEqual([], search.counts.ends)
-        self.assertEqual([[b""]] * 20, [c.ends for c in search.settled])
+        search = quiet_search(parity_cut([b""]), PARITY_EDGES)
+        search.settle([b"\x01\x00"] * 20)
+        self.assertEqual(SiteCounts(), search.counts)
 
-    def test_a_probes_change_settles_it_again(self):
-        search = quiet_search(parity_cut(()), {})
-        search.feedback = [b"\x01"]
-        search.run(iter([b"\x00"]))
-        self.assertEqual(
-            {(EVEN, 1): (ODD, b""), (EVEN, 0): (EVEN, b"")}, search.hypothesis.edges
-        )
-        self.assertEqual(4, search.probes, "two to settle, one draw, one to resettle")
+    def test_a_resumed_run_counts_afresh(self):
+        search = quiet_search(parity_cut(()), PARITY_EDGES, disagreement_rate=0.5)
+        self.assertEqual(SUCCESS, search.run(itertools.repeat(b"\x01\x00")).kind)
+        self.assertEqual(SUCCESS, search.run(itertools.repeat(b"\x01\x00")).kind)
+        self.assertEqual((14, 7), (search.probes, search.counts.probes))
 
 
 class TestExport(unittest.TestCase):

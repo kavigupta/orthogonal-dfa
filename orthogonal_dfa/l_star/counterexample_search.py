@@ -13,34 +13,19 @@ from .round_end import OUT_OF_PROBES, Ending, SiteCounts, ending_test
 class CounterexampleSearch:
     """``Level5State``, splitting at every contradiction (Kearns–Vazirani)."""
 
-    def __init__(
-        self,
-        config: CounterexampleSearchConfig,
-        cut: Cut,
-        tree: MidfixTree,
-        feedback: List[bytes],
-    ):
+    def __init__(self, config: CounterexampleSearchConfig, cut: Cut, tree: MidfixTree):
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
         self.probes = 0
-        #: Probed from the start, and never counted by the rate tests: they were
-        #: chosen for failing, so they are not draws.
-        self.feedback = list(feedback)
-        #: Each feedback string's charges at the current hypothesis.
-        self.settled: List[Charges] = []
 
     def run(self, draws: Iterable[bytes]) -> Ending:
-        """``step`` over the first ``max_probes`` of ``draws``, settling the
-        feedback first and after every change."""
-        self.settle()
+        """step over the first max_probes of draws, counting afresh."""
+        self.counts = SiteCounts()
         for x in islice(draws, self.config.max_probes):
-            version = self.hypothesis.version
             ending = self.step(x)
             if ending is not None:
                 return ending
-            if self.hypothesis.version != version:
-                self.settle()
         return Ending(OUT_OF_PROBES, [])
 
     def step(self, x: bytes) -> Optional[Ending]:
@@ -51,26 +36,25 @@ class CounterexampleSearch:
         self.counts.add(charged, outcome)
         return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
 
-    def settle(self):
-        """Probe the feedback until a pass over it changes nothing."""
-        version = None
+    def settle(self, xs: List[bytes]):
+        """Probe xs from ε until a pass over them changes nothing, using
+        only their outcomes: they were chosen for failing, so no rate test may
+        count them."""
+        start, version = self.probes, None
         while version != self.hypothesis.version and (
-            self.probes < self.config.max_probes
+            self.probes - start < self.config.max_probes
         ):
             version = self.hypothesis.version
-            self.settled = []
-            for x in self.feedback:
-                located = locate(self.hypothesis, 0, x)
+            for x in xs:
                 self.probes += 1
-                self._learn(located.outcome)
-                self.settled.append(charges(located, 0, x))
+                self._learn(locate(self.hypothesis, 0, x).outcome)
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x)
         return located.outcome, charges(located, self.config.k, x)
 
     def _learn(self, outcome: Outcome) -> bool:
-        """Whether ``outcome`` changed the hypothesis, which starts the counts
+        """Whether outcome changed the hypothesis, which starts the counts
         afresh."""
         if isinstance(outcome, Member):
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
