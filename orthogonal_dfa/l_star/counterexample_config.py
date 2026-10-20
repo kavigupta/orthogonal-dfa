@@ -14,8 +14,11 @@ class CounterexampleSearchConfig:
     #: Each harvest test's threshold, as a multiple of its unit's undecided rate at a
     #: good state: ``acceptable_fnr`` per read.
     harvest_multiple: float
+    #: The stuck test's rate, as a multiple of ``disagreement_rate``.
+    stuck_ratio: float
     #: Each sequential test's alternative, as a multiple of its rate.
     ends_alternative_ratio: float
+    stuck_alternative_ratio: float
     middle_alternative_ratio: float
     disagreement_alternative_ratio: float
     #: Agreement the hypothesis is driven to.
@@ -50,6 +53,14 @@ class CounterexampleSearchConfig:
         )
 
     @property
+    def stuck_rate(self) -> float:
+        return self.stuck_ratio * self.disagreement_rate
+
+    @property
+    def stuck_alternative(self) -> float:
+        return self.stuck_alternative_ratio * self.stuck_rate
+
+    @property
     def disagreement_alternative(self) -> float:
         return self.disagreement_alternative_ratio * self.disagreement_rate
 
@@ -65,7 +76,9 @@ def counterexample_search_config(
         level=1e-3,
         max_probes=50_000,
         harvest_multiple=5,
+        stuck_ratio=0.1,
         ends_alternative_ratio=2,
+        stuck_alternative_ratio=2,
         middle_alternative_ratio=1.25,
         disagreement_alternative_ratio=0.1,
         acc_threshold=acc_threshold,

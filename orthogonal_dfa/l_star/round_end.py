@@ -10,9 +10,10 @@ from .statistics import seq_rate
 
 SUCCESS = "success"
 HARVEST_ENDS = "harvest ends"
+HARVEST_STUCK = "harvest stuck"
 HARVEST_MIDDLES = "harvest middles"
 OUT_OF_PROBES = "out of probes"
-HARVESTS = (HARVEST_ENDS, HARVEST_MIDDLES)
+HARVESTS = (HARVEST_ENDS, HARVEST_STUCK, HARVEST_MIDDLES)
 
 
 @dataclass
@@ -27,6 +28,7 @@ class SiteCounts:
 
     probes: int = 0
     ends: List[bytes] = field(default_factory=list)
+    stuck: List[bytes] = field(default_factory=list)
     edge_harvest: Dict[Edge, List[bytes]] = field(default_factory=dict)
     searches: int = 0
     middles: List[bytes] = field(default_factory=list)
@@ -35,6 +37,7 @@ class SiteCounts:
     def add(self, charged: Charges, outcome: Outcome):
         self.probes += 1
         self.ends += charged.ends
+        self.stuck += charged.stuck
         self.middles += charged.middle
         self.search_queries += charged.search_queries
         self.searches += isinstance(outcome, Middle)
@@ -56,6 +59,14 @@ def ending_test(
         len(counts.ends),
     ):
         return Ending(HARVEST_ENDS, list(counts.ends))
+    if seq_rate(
+        config.stuck_rate,
+        config.stuck_alternative,
+        config.level,
+        counts.probes,
+        len(counts.stuck),
+    ):
+        return Ending(HARVEST_STUCK, list(counts.stuck))
     searches = counts.searches
     per_search = counts.search_queries / max(searches, 1)
     if config.search_share * counts.probes <= searches and seq_rate(
@@ -80,5 +91,5 @@ def succeeds_at(
         config.disagreement_alternative,
         config.level,
         probes,
-        counts.searches,
+        counts.searches + len(counts.stuck),
     )
