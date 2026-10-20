@@ -8,8 +8,8 @@ The round draws its probes from `D` conditioned on avoiding a set `K₀` of firs
 removes `m` of `D`. Two reads agreeing wherever `KeyOff` holds harvest the same at every avoiding
 probe, so a claim about one read over the conditioned probes is a claim about the other over all
 of `D` up to the removed mass: the disagreement grows by `m`, the sampler's yield shrinks by the
-factor `1 − m`, and the removed probes, each harvesting at most one string, leave more than a
-quarter of the sampler at bad states once `m ≤ (1 − m) y` (`quarterEndsWell_of_endsWell`).
+factor `1 − m`, and the removed probes, each harvesting at most one string, add at most `m` to
+what it finds at any set of states (`looseEndsWell_of_endsWell`).
 -/
 
 noncomputable section
@@ -20,13 +20,14 @@ open MeasureTheory Random
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-open scoped Classical in
-/-- `EndsWell` with a quarter of the sampler's law at bad states, rather than a half. -/
-def QuarterEndsWell {σ H : Type*} (M : _root_.DFA α σ) (bad : σ → Prop)
+/-- `EndsWell` with `m` more allowed of the sampler's law at every set of the states read
+undecided at most `T` of the time. -/
+def LooseEndsWell {σ H : Type*} (M : _root_.DFA α σ) (U : σ → ℝ) (A sl m : ℝ)
     (D : Measure (FreeMonoid α)) (ε : ℝ) (disagree : Set (FreeMonoid α)) (k : ℕ)
     (law : H → Measure (FreeMonoid α)) (y : ℝ) : RoundEnd H → Prop
   | .consistent => D.real disagree ≤ ε
-  | .harvest h => (law h).real Set.univ < 4 * (law h).real {z | bad (M.eval z.toList)}
+  | .harvest h => (∀ T, 0 ≤ T → (law h).real {z | U (M.eval z.toList) ≤ T}
+        ≤ (A * T + sl) * (law h).real Set.univ + m)
       ∧ Spread D k (law h) ∧ Yields (law h) y
   | .failed => False
 
@@ -100,17 +101,18 @@ lemma siteSum_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] (read : Fre
 
 /-- A claim at the avoiding probes, through a read agreeing off `K₀` and a set of probes `S'`
 holding every avoiding probe of `S`, is a weaker claim at all of `D`. -/
-theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+theorem looseEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     {σ : Type*} (M : _root_.DFA α σ)
-    (bad : σ → Prop) {read read' : FreeMonoid α → ARU}
+    (U : σ → ℝ) {a sl : ℝ} (ha : 0 ≤ a) (hsl : 0 ≤ sl) {read read' : FreeMonoid α → ARU}
     (hc : ∀ z, KeyOff k K₀ z → read z = read' z) (H : HypothesisDFA α)
     (S S' : Set (FreeMonoid α)) (hS : ∀ x ∈ avoiding k K₀, x ∈ S → x ∈ S')
     (ε y : ℝ) (hy : 0 ≤ y) (e : RoundEnd Level3Site)
     (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
-    (hmc : D.real (avoiding k K₀)ᶜ ≤ (1 - D.real (avoiding k K₀)ᶜ) * y)
     (h : EndsWell
       { target := M,
-        badStates := bad,
+        undecided := U,
+        harvestSlope := a,
+        harvestSlack := sl,
         probes := popLaw (D.restrict (avoiding k K₀)),
         disagreeRate := ε,
         disagree := S',
@@ -118,7 +120,7 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
         harvestLaw := harvestLaw read' (popLaw (D.restrict (avoiding k K₀))) k H,
         yield := y,
         ending := e }) :
-    QuarterEndsWell M bad D (ε + D.real (avoiding k K₀)ᶜ) S k
+    LooseEndsWell M U a sl (D.real (avoiding k K₀)ᶜ) D (ε + D.real (avoiding k K₀)ᶜ) S k
       (harvestLaw read D k H) ((1 - D.real (avoiding k K₀)ᶜ) * y) e := by
   classical
   set A := avoiding (α := α) k K₀
@@ -170,33 +172,32 @@ theorem quarterEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbability
     have hεm : ε * (1 - m) ≤ ε := by nlinarith
     linarith
   | harvest site =>
-    obtain ⟨hbad, -, hyield⟩ := h
+    obtain ⟨hlaw, -, hyield⟩ := h
     unfold Yields at hyield
-    set Bset := {z : FreeMonoid α | bad (M.eval z.toList)}
-    rw [harvestLaw_real_siteSum D' read' H site Set.univ,
-      harvestLaw_real_siteSum D' read' H site Bset] at hbad
     rw [harvestLaw_real_siteSum D' read' H site Set.univ] at hyield
-    set U' := siteSum D' read' k H site Set.univ
-    set B' := siteSum D' read' k H site Bset
+    have h1m : 0 < 1 - m := by linarith
     have hRU := siteSum_le (k := k) (D.restrict Aᶜ) read H site Set.univ
     rw [measureReal_restrict_apply_univ] at hRU
-    have hRB := siteSum_nonneg (k := k) (D.restrict Aᶜ) read H site Bset
-    set RU := siteSum (D.restrict Aᶜ) read k H site Set.univ
-    set RB := siteSum (D.restrict Aᶜ) read k H site Bset
-    have h1m : 0 < 1 - m := by linarith
-    -- the removed probes harvest no more than the kept ones' share
-    have hRU0' := siteSum_nonneg (k := k) (D.restrict Aᶜ) read H site Set.univ
-    have e2 : (1 - m) * y ≤ (1 - m) * U' := mul_le_mul_of_nonneg_left hyield h1m.le
-    have hR : RU ≤ (1 - m) * U' := by linarith
-    have hB2 : (1 - m) * U' < (1 - m) * (2 * B') := mul_lt_mul_of_pos_left hbad h1m
-    show (harvestLaw read D k H site).real Set.univ < 4 * (harvestLaw read D k H site).real Bset
-      ∧ Spread D k (harvestLaw read D k H site)
-      ∧ (1 - m) * y ≤ (harvestLaw read D k H site).real Set.univ
-    rw [harvestLaw_real_siteSum D read H site Set.univ,
-      harvestLaw_real_siteSum D read H site Bset, hsum, hsum]
-    refine ⟨?_, harvestLaw_spread read D k H site, ?_⟩
-    · nlinarith only [hR, hB2, hRB]
-    · nlinarith only [e2, hRU0', hRB]
+    have hRU0 := siteSum_nonneg (k := k) (D.restrict Aᶜ) read H site Set.univ
+    refine ⟨fun T hT => ?_, harvestLaw_spread read D k H site, ?_⟩
+    · set B := {z : FreeMonoid α | U (M.eval z.toList) ≤ T}
+      have hB := hlaw T hT
+      rw [harvestLaw_real_siteSum D' read' H site Set.univ,
+        harvestLaw_real_siteSum D' read' H site B] at hB
+      rw [harvestLaw_real_siteSum D read H site Set.univ,
+        harvestLaw_real_siteSum D read H site B, hsum, hsum]
+      have hRB := siteSum_le (k := k) (D.restrict Aᶜ) read H site B
+      rw [measureReal_restrict_apply_univ] at hRB
+      have hRB' : siteSum (D.restrict Aᶜ) read k H site B ≤ m := hRB
+      have hAT : 0 ≤ a * T + sl := by positivity
+      have hU'0 := siteSum_nonneg (k := k) D' read' H site Set.univ
+      have e1 : (1 - m) * siteSum D' read' k H site B
+          ≤ (1 - m) * ((a * T + sl) * siteSum D' read' k H site Set.univ) :=
+        mul_le_mul_of_nonneg_left hB h1m.le
+      nlinarith [mul_nonneg hAT hRU0]
+    · show (1 - m) * y ≤ (harvestLaw read D k H site).real Set.univ
+      rw [harvestLaw_real_siteSum D read H site Set.univ, hsum]
+      nlinarith only [mul_le_mul_of_nonneg_left hyield h1m.le, hRU0]
   | failed => exact h
 
 end OrthoDFA
