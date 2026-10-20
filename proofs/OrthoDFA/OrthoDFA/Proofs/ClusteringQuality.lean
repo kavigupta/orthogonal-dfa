@@ -461,7 +461,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
     have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
-      hε (by linarith) hpAP hpAP1
+      hε hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
   have hcaps : ∀ j ∈ populations, collisionMass (D j) ≤ ρ₀ := fun j hj =>
@@ -536,7 +536,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
-      hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1)
+      hε hδ' (by linarith) hα (by linarith) hpAP hpAP1)
     le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=

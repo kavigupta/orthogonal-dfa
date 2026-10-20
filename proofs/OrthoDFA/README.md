@@ -303,6 +303,10 @@ need not be read to trust the claims above.
   rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
   most `b`, `m` of them reading in `V`.
 
+- `OrthoDFA/Utils/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits at
+  any rates lands at or below a count at least two under its mean no more often than a binomial
+  with as many trials or more at a rate the mean clears, and likewise above.
+
 - `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
   (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the

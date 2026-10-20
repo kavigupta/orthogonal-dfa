@@ -32,7 +32,7 @@ def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
 theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     (ι εcov α δ pAP cLog Jm : ℝ) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
     (hpop : pops.Nonempty) (hcard : (pops.card : ℝ) ≤ Jm) (hι : 0 < ι) (hε : 0 < εcov)
-    (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) (hpAP : 0 < pAP)
+    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) (hpAP : 0 < pAP)
     (hpAP1 : pAP ≤ 1) (hc : 0 ≤ cLog) :
     (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ)
         ≤ capPB η₀ ι εcov δ pAP cLog Jm
@@ -69,7 +69,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
   -- the prefix count
   have hlogarg : 1 ≤ ((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ) := by
     have hpool256 : (256 : ℝ) ≤ pool :=
-      poolCount_ge pops η₀ ι εcov (δ / 2) pAP _ hsig hη0 hι hε hε1 hpAP hpAP1
+      poolCount_ge pops η₀ ι εcov (δ / 2) pAP _ hsig hη0 hι hε hpAP hpAP1
     rw [le_div_iff₀ (by positivity)]
     have h1 : δ / 2 * α * pAP * τ ≤ 1 := by
       have : δ / 2 * α ≤ 1 := by nlinarith
@@ -78,7 +78,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     nlinarith
   refine ⟨hpoolB, ?_⟩
   have h := prefCount_le_poly pops η₀ ι εcov (δ / 2) α pAP (Real.exp (-cLog)) hsig hη0 hpop hι
-    hε hε1 hδ2 hδ21 hα hα1 hpAP hpAP1
+    hε hδ2 hδ21 hα hα1 hpAP hpAP1
   rw [hsig', hτ'] at h
   refine h.trans ?_
   unfold budgetLog capRB
@@ -280,7 +280,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       rw [← hJ]
       exact_mod_cast h1
     have h := counts_le η₀ pops ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog J hη0 hη₀ ⟨none, hpops⟩
-      hcard hι0 (by positivity) (by linarith) hδ'0 hδ'1 (by positivity) (by linarith)
+      hcard hι0 (by positivity) hδ'0 hδ'1 (by positivity) (by linarith)
       (by positivity) (by linarith) hcL0
     rw [hPBe, hRBe] at h
     exact h
