@@ -6,8 +6,9 @@ import OrthoDFA.Level3
 Each of level 3's draws is a probe and a block of check strings. Level 3 runs its probes, walked
 from `walkStart`; where its success test would end the round consistent, the round checks the
 hypothesis from `ε` on that draw's block instead. It walks each string of the block from `0` and
-counts those whose probe does not come out `agree` (`startFails`), testing the count by `seqRate`
-against half the check's rate, the `j`-th hypothesis's check at level `δ / (8 (j + 1) (j + 2))`.
+counts those whose probe parts from its sift or stops undecided (`startFails`), testing the count
+by `seqRate` against half the check's rate, the `j`-th hypothesis's check at level
+`δ / (8 (j + 1) (j + 2))`.
 A passing check ends the round consistent. A failing one takes the first string of the block
 whose probe from `0` crosses a wrong learned edge or stops at an unlearned one and changes the
 hypothesis as level 3 does for such a probe, never counting it; level 3 goes on from there on its
@@ -54,10 +55,13 @@ section
 
 variable (read : FreeMonoid α → ARU)
 
-/-- Walked from `0` under the hypothesis, the string's probe does not come out `agree`. -/
+/-- Walked from `0` under the hypothesis, the string's probe parts from its sift or stops
+undecided: it does not come out `agree`, or undecided with no undecided string and no
+disagreement. -/
 def startFails (T : DTree α) (E : Edges α) (x : FreeMonoid α) : Bool :=
   match probe read T E 0 x with
   | .agree => false
+  | .undecided [] true => false
   | _ => true
 
 /-- After some number of its strings the check's test fires below its rate. -/
