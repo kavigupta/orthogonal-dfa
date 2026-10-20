@@ -28,6 +28,9 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
+- `LearnerLoopDFAFromZeroSimple`: the loop walked from `0`, as the Python walks, outputs a DFA
+  where some covered start re-roots with error at most `γ` at every length up to `2L` and
+  `γ |Σ|^|Q| < 1`. See "The walk from 0".
 
 ## The learner's DFA
 
@@ -147,6 +150,42 @@ ending transfers back to `D` at disagreement `ε + m`, yield `(1 − m) y` and a
 bad (`quarterEndsWell_of_endsWell`, `Proofs/LoopTransfer.lean`), which still leaves a bad state with
 `1/(4|Q|)` of the population (`Proofs/LoopTermination.lean`).
 
+## The walk from 0
+
+`LearnerLoopDFAFromZeroSimple` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/ZeroMain.lean`) runs
+the loop with level 3's probes walked from `0`. The probes still avoid the clustering's prefixes,
+now at their own depth `a = ⌈L/2⌉ − |Q| − 1` (`LoopSettings.avoidDepth`); level 3 also reads
+strings `u m` with `u` a probe's prefix shorter than `a`, at most `a + |Q|` long while its tree
+keeps at most `|Q| + 2` leaves, shorter than every prefix the first round's clustering reads.
+
+- **The start.** Accuracy at least `1 − γ` at every length up to `|Q|`, with `γ |Σ|^|Q| < 1`, gets
+  every word of at most `|Q|` letters right, one word weighing `|Σ|^(−ℓ)`; two states of an
+  `|Q|`-state DFA agreeing on every such word agree on every word (`agree_of_agreeUpTo`), so the
+  start is equivalent to the covered start (`Proofs/ZeroStart.lean`).
+- **No bad state.** A reachable state is reached in fewer than `|Q|` letters, so it reads as the
+  state the covered start reaches by the same word, which the window visits `c |Σ|^(−|Q|)/N` of the
+  time. The clustering's bound on the window's undecided reads then bounds every state's by
+  `3ι N |Σ|^|Q|/c = 1.5θ` (`undecided_le_of_start`), and no harvest can end well.
+- **The first round** (`Proofs/ZeroRound.lean`, `ZeroLoop.lean`, `ZeroCore.lean`). Re-noising
+  everything outside the strings level 3 reads, level 5 holds with its good states' bounds read at
+  a depth `kd` (`KappaRoundCorrectAt`, `level3Fail_le_at`), and the actual run is the re-noised
+  one where the re-noised tree keeps at most `|Q| + 2` leaves (`level3_congr_small`,
+  `Proofs/ZeroRuns.lean`). So the first round ends consistent but for chance
+  `δ' + 1.5θ(B(L₁+1)|Q| + |Q|(|Q|+1)²|Σ| + H(|Q|+1)) + δ'/8 + …`, `H = Σ_{i<kd} |Σ|^i`, which the
+  choice of `ι` keeps within `δ'/8`; no round is wasted.
+- **The DFA and the pick.** `dfa_of_checks_at` and `loop_select_zero` are the walk-from-`k`
+  arguments with the walk's start below the window and the held-out strings longer than the short
+  reads.
+
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, the least `L` meeting
+the explicit premises is 765, against 475 for `LearnerLoopDFASimple`'s.
+
+The premise `γ |Σ|^|Q| < 1` is needed in some form: where the start is transient and a word `w`
+leads, through a state only it reaches, into a part of the target whose suffixes split on the
+letter after `w`, the clustering never reads `w`, the family's vote there is a fair coin count,
+and with probability near one every round reads `w` undecided and harvests it; such a target meets
+the every-length check at `γ ≥ |Σ|^(−|w|)/2`.
+
 ## The round, by refinement
 
 Each level proves one L\* round correct and states its ending through `OrthoDFA/RoundEnd.lean`:
@@ -167,8 +206,9 @@ states, is spread and yields. What makes a state bad is each level's own.
   `(|Q|+1)|Σ|^|Q|` of them, which enters only the band's far side, through its log.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
-- **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
-  letters of the prefixes the round's clustering read, where the Python draws them from `D`. Each
+- **The model's loop differs from the Python's.** The round draws its probes avoiding the first
+  `avoidDepth` letters of the prefixes the round's clustering read, where the Python draws them
+  from `D`. Each
   round's clustering draws its prefixes, certification prefixes and suffixes off every one the
   earlier rounds' clusterings read, where the Python does not avoid them. The uniform pool is drawn
   afresh each round, where the Python keeps one pool across rounds. The hash's sides are fair coins
@@ -300,7 +340,8 @@ states, is spread and yields. What makes a state bad is each level's own.
   and each state's read distribution.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
   reading the family at the gate's cut, and hands its harvest's sampler on as a population.
-- `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA`.
+- `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA`, `LearnerLoopDFASimple` and
+  `LearnerLoopDFAFromZeroSimple`, `pickLeaf` and `rerootedDFA`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

@@ -339,7 +339,8 @@ theorem zero_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : Pr
       · rw [hd1]; simp
     have hcs : ClusterSpec settings O P.D (513 / 512 * εcov) slack
         (dec (histCodes settings O P.D Dsf N p.1 p.2 0)).pops
-        (clusterRun P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 0)) (p.1, (p.2 rK).1)) := by
+        (clusterRun P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 0))
+          (p.1, (p.2 rK).1)) := by
       by_contra h
       refine hn1 ⟨hok, hlen, fun ν hν => ?_, fun j _ => ?_, ?_, h, hnc⟩
       · rw [hd0] at hν; simp at hν

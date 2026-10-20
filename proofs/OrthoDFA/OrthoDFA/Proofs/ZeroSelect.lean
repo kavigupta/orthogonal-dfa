@@ -142,7 +142,8 @@ theorem loop_select_zero (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
           = {p | stage4 settings O P.D Dsf N r hr p.1 p.2 = some t'}
             ∩ (fun p : Ω × (Fin K → RoundDraws α K T) =>
                 (p.1, probesOf settings P.D t'.2.2.2 (p.2 rK).2)) ⁻¹'
-              {e : Ω × (Fin T → FreeMonoid α) | resCode (Random.indecisiveLStarLevel3 settings.level3
+              {e : Ω × (Fin T → FreeMonoid α) | resCode (Random.indecisiveLStarLevel3
+                settings.level3
                 (fun z => familyRead O.mq t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) z e.1) e.2) = h'} := by
         ext p
         simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage, stage, stageSel,

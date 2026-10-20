@@ -65,7 +65,8 @@ variable [Fintype σ]
 
 open scoped Classical in
 theorem card_agree_lt {n : ℕ} (hn : ¬ ∀ p q, AgreeUpTo M n p q → AgreeUpTo M (n + 1) p q) :
-    Fintype.card (Quotient (agreeSetoid M n)) < Fintype.card (Quotient (agreeSetoid M (n + 1))) := by
+    Fintype.card (Quotient (agreeSetoid M n))
+      < Fintype.card (Quotient (agreeSetoid M (n + 1))) := by
   push Not at hn
   obtain ⟨p, q, hpq, hnot⟩ := hn
   set f : Quotient (agreeSetoid M (n + 1)) → Quotient (agreeSetoid M n) :=

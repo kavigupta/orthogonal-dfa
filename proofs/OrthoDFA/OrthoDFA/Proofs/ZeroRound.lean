@@ -62,7 +62,8 @@ lemma real_le_avoidLaw (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k
     (measurableSet_of_countable A).nullMeasurableSet (measure_ne_top _ _)
   have hinter : D.real (S ∩ A) ≤ D.real (S' ∩ A) :=
     measureReal_mono (fun x ⟨h1, h2⟩ => ⟨hS x h2 h1, h2⟩) (measure_ne_top _ _)
-  have hdiff : D.real (S \ A) ≤ D.real Aᶜ := measureReal_mono (fun x hx => hx.2) (measure_ne_top _ _)
+  have hdiff : D.real (S \ A) ≤ D.real Aᶜ :=
+    measureReal_mono (fun x hx => hx.2) (measure_ne_top _ _)
   have hcond : (avoidLaw D k K₀).real S' = D.real (S' ∩ A) / D.real A := by
     rw [avoidLaw_eq, popLaw_real h0 (measure_ne_top _ _), measureReal_restrict_apply_univ,
       measureReal_restrict_apply (measurableSet_of_countable _)]

@@ -282,7 +282,8 @@ theorem loop_round_zero (Ls NP N ℓ₀ kd : ℕ) (θ m u crossLimit : ℝ)
     · obtain ⟨-, hk2, -⟩ := hband _ B hBs
       have h1 := clusterAt_card_add_one (rule := lloydClusterer) O
         (loopPopulations K H.pops.length) B (clusterRun P.D Dsf H cd)
-      have h2 := lloydClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun P.D Dsf H cd)) = 1)
+      have h2 := lloydClusterer.card_le
+        (fun w => O.mq w (oracleNoise (clusterRun P.D Dsf H cd)) = 1)
         (prefixesAt (loopPopulations K H.pops.length) B.npref (clusterRun P.D Dsf H cd))
         (screenedAt O.mq (loopPopulations K H.pops.length) B (clusterRun P.D Dsf H cd)) B.k
         (by omega)

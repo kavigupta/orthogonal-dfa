@@ -22,6 +22,14 @@ length; the probes that disagree in a consistent round, searching, stopping unde
 start or end sift, or reading a string on its state's rarer side, must be fewer. Level 3's own
 success test bounds the first two at its disagreement rate.
 
+`LearnerLoopDFAFromZeroSimple`: the same loop with its probes walked from `0`, as the Python walks,
+and avoiding the first `⌈L/2⌉ − |Q| − 1` letters of the clustering's prefixes. It asks the Python's
+every-length check, some covered start re-rooting with accuracy at least `1 − γ` at every length
+up to `2L`, and `γ |Σ|^|Q| < 1`: every word of at most `|Q|` letters then weighs more than `γ`, so
+the start is equivalent to that covered start, every reachable state reads as one the window
+visits, and no state reads undecided often enough for a harvest to end well. The first round ends
+consistent, and the conclusion is `LearnerLoopDFASimple`'s.
+
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
 
