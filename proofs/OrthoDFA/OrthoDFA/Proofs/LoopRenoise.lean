@@ -267,7 +267,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   set π := Measure.pi fun _ : Fin T => P.D
   set wrong : FreeMonoid α → ARU := fun z => if side (fam.M.eval z.toList) then .reject else .accept
   -- level 3 ends well
-  have hK := Random.Kappa.kappaRoundCorrect_holds fam.M side U θ fam.ε fam.κ μ' R P C p₀ hpre hθ
+  have hK := Random.Kappa.level5RoundCorrect_holds fam.M side U θ fam.ε fam.κ μ' R P C p₀ hpre hθ
     hδ hθL hGy hyρ hρ1 hP hε hκ hw
   -- no step reads wrong
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)

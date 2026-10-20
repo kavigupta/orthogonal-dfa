@@ -1,4 +1,4 @@
-import OrthoDFA.LearnerLoop
+import OrthoDFA.Proofs.LoopAux
 
 /-!
 # The loop's rounds

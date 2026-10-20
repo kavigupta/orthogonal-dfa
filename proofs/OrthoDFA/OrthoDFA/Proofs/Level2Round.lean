@@ -511,7 +511,7 @@ theorem budget_le (hC : TestsOK C) (nσ nα : ℕ) :
     _ = (S : ℝ) * (C₀ * L + 1) := by rw [sum_const, card_range, nsmul_eq_mul]
     _ = _ := by simp only [C₀]; ring
 
-theorem correct_holds : Correct := by
+theorem level2RoundCorrect_holds : Level2RoundCorrect := by
   intro α _ _ σ _ M read side C P
   simp only
   intro hI hy hyε hε1 hδ hδ1 hP D _

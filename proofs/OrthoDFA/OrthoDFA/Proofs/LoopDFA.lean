@@ -109,15 +109,15 @@ the coverage `c`, has a leaf from which its hypothesis misjudges at most what re
 covered start does. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
-    (L : ℕ) {c εr εu εB η : ℝ}
+    (L : ℕ) {c εr εu εB γ : ℝ}
     (hch : o.Checks M O (windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3)) ((L + 1) / 2)
       εr εu εB)
     (hεB : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
       * εB < c)
     (hcov : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
-    (hceil : ∃ q ∈ coveredStates M L c, 1 - η ≤ rerootAccuracy M L (coveredStates M L c) q) :
+    (hceil : ∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) :
     ∃ s ∈ o.result.hypothesis.tree.leaves, (uniformStrings L).real
-      {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ η := by
+      {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ := by
   classical
   set k := (L + 1) / 2 with hkd
   set L₁ := L + Fintype.card σ + 3 with hL₁d
@@ -336,7 +336,7 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
 
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
 theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ W PB RB cap Kc
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ W PB RB cap Kc
     n hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hk1 hk2 hk3
   classical
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
@@ -450,7 +450,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
             o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-              (M.eval x.toList ∈ M.accept)} ≤ η + ξ)}
+              (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Sel r := by
     intro q hq
     by_cases hlp : q.1 ∈ Bloop
@@ -522,9 +522,9 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         exact (mul_le_mul_of_nonneg_left hch.1.2.1 (zero_le_one.trans hN1)).trans
           (le_of_eq (by ring))
       have h := pickLeaf_le M O o.result.hypothesis o.family o.state.lo (o.state.hi + 1) hL L n hn
-        t (3 / 8 * (N * εcov)) (1025 / 1024 * (N * εcov)) η q.1.1 q.2 hinj hgood hu hm hs
+        t (3 / 8 * (N * εcov)) (1025 / 1024 * (N * εcov)) γ q.1.1 q.2 hinj hgood hu hm hs
       rw [hread]
-      have : η + 2 * t + 3 / 8 * (N * εcov) + 2 * (1025 / 1024 * (N * εcov)) ≤ η + ξ := by
+      have : γ + 2 * t + 3 / 8 * (N * εcov) + 2 * (1025 / 1024 * (N * εcov)) ≤ γ + ξ := by
         have h0 : 0 ≤ N * εcov := mul_nonneg (zero_le_one.trans hN1) hεc0.le
         rw [htd]; linarith
       exact h.trans this
@@ -595,7 +595,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 
 set_option maxHeartbeats 4000000 in -- unfolding the simple claim's settings
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c η δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ W₀ P₀ R₀
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ W₀ P₀ R₀
     E₁ Kc E E₂ L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -696,7 +696,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) (J := J) (RB := RB) (B₃ := B₃) (by positivity)
     hℓ1 hε0 hinvε haε0 hcap hE₁0 hlg rfl rfl hQ0 (Nat.cast_nonneg n) hδ rfl hRB0
     (by rw [hRBd]; exact hRB) hB₃0 hB₃ hpow
-  exact learner_loop_dfa_simple_holds M O L η₀ c η δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
+  exact learner_loop_dfa_simple_holds M O L η₀ c γ δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
     hceil h1 h2 h3
 
 end OrthoDFA

@@ -11,7 +11,7 @@ harvest at good read-states within their bounds but for `tailRisk` at the ends a
 and some step reads a string wrong with chance at most
 `εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|)` (`pi_wrong_le`).
 
-`EpsRoundCorrect` takes level 3's knobs at `log(16K/δ)`: each `tailRisk` risks `δ/16`, the
+`Level4RoundCorrect` takes level 3's knobs at `log(16K/δ)`: each `tailRisk` risks `δ/16`, the
 stretches `3δ/4` and the wrong reads `δ/8`.
 -/
 
@@ -463,7 +463,7 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (fun rd _ _ _ hs hg hx h hne => eps_step_change M side rd C hs hg hx h hne) P y p₀ kn hA hp₀
     hpre).trans (by gcongr; exact pi_wrong_le M side C μ U εw R P)
 
-theorem epsRoundCorrect_holds : EpsRoundCorrect := by
+theorem level4RoundCorrect_holds : Level4RoundCorrect := by
   intro α _ _ σ _ M side U θ εw Ω _ μ _ R P C p₀
   dsimp only
   intro hpre hθ hδ hθL hGy hyρ hρ1 hP hw
