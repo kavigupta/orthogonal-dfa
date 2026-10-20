@@ -293,10 +293,10 @@ end Select
 lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N)
     (hℓ : 0 ≤ ℓ) (hNℓ : ℓ ≤ 2 * N) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
     (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
-    (hι : ι = min (εcov / 8) (ε / (13824 * Q * (Q + 1)))) :
+    (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) :
     0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ ε ∧ 0 < ι ∧ ι ≤ εcov / 8
       ∧ (A + 1) * N * (ε + ε + ε / 96) < c ∧ 3 * εcov * N < c
-      ∧ 384 * ℓ * (Q + 1) * Q * ι ≤ 1 := by
+      ∧ ℓ * ε < 3 / 8 := by
   have hX : 0 < 4 * (A + 1) * N := by positivity
   have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
   have he0 : 0 < ε := by rw [he]; positivity
@@ -304,7 +304,6 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
   have hεcε : εcov ≤ ε := by rw [hεc]; exact min_le_left _ _
   have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
   have hι8 : ι ≤ εcov / 8 := by rw [hι]; exact min_le_left _ _
-  have hιε : ι ≤ ε / (13824 * Q * (Q + 1)) := by rw [hι]; exact min_le_right _ _
   have h12 : 12 ≤ 4 * (A + 1) * N := by nlinarith
   refine ⟨he0, ?_, hεc0, hεcε, hι0, hι8, ?_, ?_, ?_⟩
   · have : ε * 12 ≤ 1 := by nlinarith
@@ -319,13 +318,7 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
       rw [← e]
       exact mul_le_mul_of_nonneg_left hA1 (by positivity)
     nlinarith
-  · have hQQ : 0 < 13824 * Q * (Q + 1) := by positivity
-    have h1 : 384 * ℓ * (Q + 1) * Q * ι ≤ 384 * ℓ * (Q + 1) * Q * (ε / (13824 * Q * (Q + 1))) :=
-      mul_le_mul_of_nonneg_left hιε (by positivity)
-    have e : 384 * ℓ * (Q + 1) * Q * (ε / (13824 * Q * (Q + 1))) = ℓ * ε / 36 := by
-      field_simp; ring
-    rw [e] at h1
-    have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
+  · have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
     have h3 : 2 * N * ε * (4 * (A + 1)) = 2 * c := by rw [← hq]; ring
     have h4 : 2 * N * ε * 12 ≤ 2 * c := by
       rw [← h3]
@@ -371,7 +364,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have h2 : (1 : ℝ) ≤ (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) :=
       one_le_pow₀ (by linarith)
     nlinarith
-  have hlogK : 2 ≤ Real.log (16 * Kc / δ') := by
+  have hlogK : 2 ≤ Real.log (16 * (Q + 1) * Kc / δ') := by
     rw [Real.le_log_iff_exp_le (by positivity)]
     have he := Real.exp_one_lt_d9
     have : Real.exp 2 ≤ 16 := by
@@ -402,13 +395,14 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
   obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1 hpAP (by show 1 ≤ L + Fintype.card σ + 3; omega) hk0
-    hιL (hpm.trans hk1) ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk2)
+    hιL (hpm.trans hk1)
+    ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) (by linarith [hlogK]))).trans hk2)
   refine ⟨settings, hwalk, hdis, hbud, ?_⟩
   have hcap0 : 0 < cap := by
     have h1 : 0 < (A ^ k)⁻¹ := by positivity
     by_contra hc0
     push Not at hc0
-    have : cap * ε / 96 ≤ 0 := by
+    have : cap * ε / 1536 ≤ 0 := by
       have := mul_nonpos_of_nonpos_of_nonneg hc0 hε0.le
       linarith
     linarith
@@ -616,7 +610,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
   set εcov : ℝ := min ε (ξ / (8 * N)) with hεcd
-  set ι : ℝ := min (εcov / 8) (ε / (13824 * Q * (Q + 1))) with hιd
+  set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
@@ -680,8 +674,8 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     show 0 < 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
     positivity
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
-  have hlg : 0 ≤ Real.log (16 * Kc / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
+  have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
+    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
   have hEE : 1 ≤ E + E₂ := by
     have hE₁ : 1 ≤ E₁ := by
       show 1 ≤ 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
@@ -699,10 +693,10 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     have hE₂ : 0 ≤ E₂ := by
       show 0 ≤ 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
       positivity
-    have h1 : 0 ≤ 768 * Real.log (16 * Kc / δ') * aε := by positivity
-    have h2 : 1 ≤ 96 * aε * E₁ :=
+    have h1 : 0 ≤ 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε := by positivity
+    have h2 : 1 ≤ 1536 * aε * E₁ :=
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
-    show 1 ≤ 96 * aε * E₁ + 768 * Real.log (16 * Kc / δ') * aε + E₂
+    show 1 ≤ 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε + E₂
     exact le_add_of_le_of_nonneg (le_add_of_le_of_nonneg h2 h1) hE₂
   have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
     dfa_pow (L := (L : ℝ)) (Q := Q) hA

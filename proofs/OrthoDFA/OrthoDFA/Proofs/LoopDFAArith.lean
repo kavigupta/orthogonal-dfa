@@ -64,10 +64,10 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
     (hℓ : 1 ≤ ℓ) (hN1 : 1 ≤ N) (hNℓ : N ≤ ℓ) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
     (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
     (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
-    (hι : ι = min (εcov / 8) (ε / (13824 * Q * (Q + 1)))) (hs : s = 1 / 2 - η₀)
+    (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) (hs : s = 1 / 2 - η₀)
     (hτ : τ = min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι)
     (haε : aε = 4 * (A + 1) / c) (hCe : Ce = aε + 8 / ξ)
-    (hΘ : Θ = Ce / (2 * s ^ 2) + 8 * Ce + 13824 * Q * (Q + 1) * aε) :
+    (hΘ : Θ = Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε) :
     0 < ε ∧ 1 / ε ≤ aε * ℓ ∧ 0 < ι ∧ 1 / ι ≤ Θ * ℓ ∧ 0 < τ ∧ 1 / τ ≤ Θ * ℓ ∧ 1 ≤ Θ
       ∧ 0 < aε := by
   have hs0 : 0 < s := by rw [hs]; linarith
@@ -93,32 +93,32 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
       calc 8 * N / ξ ≤ 8 * ℓ / ξ := by gcongr
         _ = 8 / ξ * ℓ := by ring
         _ ≤ Ce * ℓ := mul_le_mul_of_nonneg_right h8Ce (by linarith)
-  have hQQ : 0 < 13824 * Q * (Q + 1) := by positivity
+  have hQQ : 0 < 4608 * Q * (Q + 1) := by positivity
   have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
-  have hΘ1 : 8 * Ce + 13824 * Q * (Q + 1) * aε ≤ Θ := by
+  have hΘ1 : 8 * Ce + 4608 * Q * (Q + 1) * aε ≤ Θ := by
     rw [hΘ]; have : 0 ≤ Ce / (2 * s ^ 2) := by positivity
     linarith
   have hinvι : 1 / ι ≤ Θ * ℓ := by
     rw [hι]
-    rcases min_choice (εcov / 8) (ε / (13824 * Q * (Q + 1))) with h | h <;> rw [h]
+    rcases min_choice (εcov / 8) (ε / (4608 * Q * (Q + 1))) with h | h <;> rw [h]
     · rw [one_div_div]
       have h1 : 8 / εcov = 8 * (1 / εcov) := by ring
       have h2 : 8 * (1 / εcov) ≤ 8 * (Ce * ℓ) := by linarith
       have h3 : 8 * (Ce * ℓ) ≤ Θ * ℓ := by
         have : 8 * Ce ≤ Θ := by
-          have : 0 ≤ 13824 * Q * (Q + 1) * aε := by positivity
+          have : 0 ≤ 4608 * Q * (Q + 1) * aε := by positivity
           linarith
         nlinarith
       linarith
     · rw [one_div_div]
-      have h1 : 13824 * Q * (Q + 1) / ε = 13824 * Q * (Q + 1) * (1 / ε) := by ring
-      have h2 : 13824 * Q * (Q + 1) * (1 / ε) ≤ 13824 * Q * (Q + 1) * (aε * ℓ) :=
+      have h1 : 4608 * Q * (Q + 1) / ε = 4608 * Q * (Q + 1) * (1 / ε) := by ring
+      have h2 : 4608 * Q * (Q + 1) * (1 / ε) ≤ 4608 * Q * (Q + 1) * (aε * ℓ) :=
         mul_le_mul_of_nonneg_left hinvε hQQ.le
-      have h3 : 13824 * Q * (Q + 1) * (aε * ℓ) ≤ Θ * ℓ := by
-        have : 13824 * Q * (Q + 1) * aε ≤ Θ := by
+      have h3 : 4608 * Q * (Q + 1) * (aε * ℓ) ≤ Θ * ℓ := by
+        have : 4608 * Q * (Q + 1) * aε ≤ Θ := by
           have : 0 ≤ 8 * Ce := by positivity
           linarith
-        have e : 13824 * Q * (Q + 1) * (aε * ℓ) = 13824 * Q * (Q + 1) * aε * ℓ := by ring
+        have e : 4608 * Q * (Q + 1) * (aε * ℓ) = 4608 * Q * (Q + 1) * aε * ℓ := by ring
         rw [e]
         exact mul_le_mul_of_nonneg_right this (by linarith)
       linarith
@@ -131,7 +131,7 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
     rw [hτ]
     exact lt_min (mul_pos (by positivity) (pow_pos (div_pos (by linarith) (by linarith)) 2)) hι0
   have hΘ2 : Ce / (2 * s ^ 2) ≤ Θ := by
-    rw [hΘ]; have : 0 ≤ 8 * Ce + 13824 * Q * (Q + 1) * aε := by positivity
+    rw [hΘ]; have : 0 ≤ 8 * Ce + 4608 * Q * (Q + 1) * aε := by positivity
     linarith
   have hinvτ : 1 / τ ≤ Θ * ℓ := by
     rw [hτ]
@@ -155,7 +155,7 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
     have hCe1 : 1 ≤ Ce := by
       rw [hCe, haε]; exact h1.trans (le_add_of_nonneg_right (by positivity))
     calc (1 : ℝ) ≤ 8 * Ce := by linarith
-      _ ≤ 8 * Ce + 13824 * Q * (Q + 1) * aε := le_add_of_nonneg_right (by positivity)
+      _ ≤ 8 * Ce + 4608 * Q * (Q + 1) * aε := le_add_of_nonneg_right (by positivity)
       _ ≤ Θ := hΘ1
   exact ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘge, haε0⟩
 
@@ -507,11 +507,11 @@ lemma cap_ge {Q τ ι Θ ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 0 ≤ Q) 
 lemma dfa_final {Ak ℓ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ : ℝ} (hAk : 0 < Ak)
     (hℓ : 1 ≤ ℓ) (hε0 : 0 < ε) (hinvε : 1 / ε ≤ aε * ℓ) (haε : 0 < aε)
     (hcap : 1 / (E₁ * ℓ ^ 5) ≤ cap) (hE₁ : 0 < E₁) (hlg : 0 ≤ lg)
-    (hE : E = 96 * aε * E₁ + 768 * lg * aε)
+    (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂ : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ) (hQ : 0 ≤ Q) (hn : 0 ≤ n)
     (hδ : 0 < δ) (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * ℓ ^ 3) (hB₃0 : 0 ≤ B₃)
     (hB₃ : B₃ ≤ K₁ * ℓ) (hpow : ℓ ^ 6 * (E + E₂) ≤ Ak) :
-    Ak⁻¹ ≤ cap * ε / 96 ∧ 768 * lg * Ak⁻¹ ≤ ε
+    Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
       ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4 := by
   have hℓ0 : 0 < ℓ := by linarith
   have hR₀ : 0 ≤ R₀ := hRB0.trans hRB |> fun h => by
@@ -535,8 +535,8 @@ lemma dfa_final {Ak ℓ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ : �
     linarith
   refine ⟨?_, ?_, ?_⟩
   · -- the cap
-    have hc : 1 / (96 * aε * E₁ * ℓ ^ 6) ≤ cap * ε / 96 := by
-      have h1 : 1 / (96 * aε * E₁ * ℓ ^ 6) = 1 / (E₁ * ℓ ^ 5) * (1 / (aε * ℓ)) / 96 := by
+    have hc : 1 / (1536 * aε * E₁ * ℓ ^ 6) ≤ cap * ε / 1536 := by
+      have h1 : 1 / (1536 * aε * E₁ * ℓ ^ 6) = 1 / (E₁ * ℓ ^ 5) * (1 / (aε * ℓ)) / 1536 := by
         field_simp
       rw [h1]
       have hcap0 : 0 ≤ cap := (by positivity : (0 : ℝ) ≤ 1 / (E₁ * ℓ ^ 5)).trans hcap
@@ -544,27 +544,27 @@ lemma dfa_final {Ak ℓ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ : �
     refine le_trans ?_ hc
     rw [one_div]
     refine inv_anti₀ (by positivity) (le_trans ?_ hpow)
-    have : 96 * aε * E₁ ≤ E + E₂ := by
-      rw [hE]; have : 0 ≤ 768 * lg * aε := by positivity
+    have : 1536 * aε * E₁ ≤ E + E₂ := by
+      rw [hE]; have : 0 ≤ 1536 * lg * aε := by positivity
       linarith
     have := mul_le_mul_of_nonneg_left this (show 0 ≤ ℓ ^ 6 by positivity)
     linarith
   · -- the prefix mass against the noise's tails
     rcases eq_or_lt_of_le hlg with h0 | hlg0
     · rw [← h0]; simp [hε0.le]
-    have h1 : 768 * lg * aε * ℓ ≤ ℓ ^ 6 * (E + E₂) := by
-      have : 768 * lg * aε ≤ E + E₂ := by
-        rw [hE]; have : 0 ≤ 96 * aε * E₁ := by positivity
+    have h1 : 1536 * lg * aε * ℓ ≤ ℓ ^ 6 * (E + E₂) := by
+      have : 1536 * lg * aε ≤ E + E₂ := by
+        rw [hE]; have : 0 ≤ 1536 * aε * E₁ := by positivity
         linarith
       have h2 : ℓ ≤ ℓ ^ 6 := le_self_pow₀ hℓ (by norm_num)
-      calc 768 * lg * aε * ℓ ≤ (E + E₂) * ℓ ^ 6 :=
+      calc 1536 * lg * aε * ℓ ≤ (E + E₂) * ℓ ^ 6 :=
             mul_le_mul this h2 hℓ0.le (by positivity)
         _ = ℓ ^ 6 * (E + E₂) := by ring
-    have h3 : 768 * lg * Ak⁻¹ ≤ 1 / (aε * ℓ) := by
+    have h3 : 1536 * lg * Ak⁻¹ ≤ 1 / (aε * ℓ) := by
       rw [le_div_iff₀ (by positivity)]
       have : Ak⁻¹ * Ak = 1 := inv_mul_cancel₀ hAk.ne'
-      have h4 : 768 * lg * aε * ℓ ≤ Ak := h1.trans hpow
-      calc 768 * lg * Ak⁻¹ * (aε * ℓ) = (768 * lg * aε * ℓ) * Ak⁻¹ := by ring
+      have h4 : 1536 * lg * aε * ℓ ≤ Ak := h1.trans hpow
+      calc 1536 * lg * Ak⁻¹ * (aε * ℓ) = (1536 * lg * aε * ℓ) * Ak⁻¹ := by ring
         _ ≤ Ak * Ak⁻¹ := mul_le_mul_of_nonneg_right h4 (by positivity)
         _ = 1 := mul_inv_cancel₀ hAk.ne'
     exact h3.trans hε
