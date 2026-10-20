@@ -16,7 +16,7 @@ from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
 from .statistics import compute_suffix_size_counterexample_gen
-from .structures import SymmetricBernoulli
+from .structures import CountingOracle, SymmetricBernoulli
 from .tracker import SynthesisTracker
 
 #: All of E-L*'s signal comes from words drawn at this length.
@@ -58,7 +58,7 @@ def build_pst(
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
-    oracle = oracle_creator(noise_model, seed)
+    oracle = CountingOracle(oracle_creator(noise_model, seed))
     config = SearchConfig(
         suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
             0.01, effective_p_acc
@@ -119,4 +119,7 @@ def learn_dfa(
     dfa = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker
     )
+    oracle = pst.oracle
+    assert isinstance(oracle, CountingOracle)
+    print(f"learn_dfa: {oracle.queries} membership queries")
     return dfa

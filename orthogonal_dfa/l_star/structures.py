@@ -162,3 +162,30 @@ class NoisyOracle(Oracle):
 
     def target_dfa(self):
         return self.inner.target_dfa()
+
+
+class CountingOracle(Oracle):
+    """``inner``, counting the strings it is asked about."""
+
+    def __init__(self, inner: Oracle):
+        self.inner = inner
+        self.queries = 0
+
+    @property
+    def alphabet_size(self) -> int:
+        return self.inner.alphabet_size
+
+    @property
+    def string_length(self) -> int:
+        return self.inner.string_length
+
+    def membership_query(self, string: bytes) -> bool:
+        self.queries += 1
+        return self.inner.membership_query(string)
+
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
+        self.queries += len(strings)
+        return self.inner.membership_queries(strings)
+
+    def target_dfa(self):
+        return self.inner.target_dfa()
