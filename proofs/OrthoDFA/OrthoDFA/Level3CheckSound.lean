@@ -4,14 +4,14 @@ import OrthoDFA.Utils.SeqTest
 /-!
 # `Level3CheckSound`: a passing check certifies its rate, whatever the reads
 
-The round (`indecisiveLStarCheck`) runs on any fixed reads, each block's probes drawn
-independently from `D` and its check's strings from `Dc`. It ends consistent at a hypothesis whose
+The round (`indecisiveLStarCheck`) runs on any fixed reads, each draw's probe drawn independently
+from `D` and its check strings from `Dc`. It ends consistent at a hypothesis whose
 probes from `0` fail to agree with chance above the check's rate with chance at most `δ/8`:
 
     P(ending = consistent ∧ rate < Dc(startFails H)) ≤ δ/8
 
-The round ends consistent only where a check passes, at the hypothesis it checked, and the `i`-th
-check reads fresh strings at level `δ/(8(i + 1)(i + 2))`.
+The round ends consistent only where a check passes, at the hypothesis it checked, and the `j`-th
+hypothesis is checked once, on fresh strings, at level `δ/(8(j + 1)(j + 2))`.
 -/
 
 namespace OrthoDFA
@@ -25,9 +25,8 @@ def Level3CheckSound : Prop :=
     (D Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure D] [IsProbabilityMeasure Dc]
     (C : Level3Settings) (K : CheckSettings),
     0 < K.δ → 0 < K.rate → K.rate < 1 →
-    (Measure.pi fun _ : Fin K.runs =>
-        (Measure.pi fun _ : Fin C.probeBudget => D).prod (Measure.pi fun _ : Fin K.size => Dc)).real
-        {blocks | let result := indecisiveLStarCheck C K read blocks
+    (Measure.pi fun _ : Fin C.probeBudget => D.prod (Measure.pi fun _ : Fin K.size => Dc)).real
+        {draws | let result := indecisiveLStarCheck C K read draws
           result.ending = .consistent
             ∧ K.rate < Dc.real {x | startFails read result.hypothesis.tree
               result.hypothesis.edges x = true}}

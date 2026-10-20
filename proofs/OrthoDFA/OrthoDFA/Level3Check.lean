@@ -3,14 +3,15 @@ import OrthoDFA.Level3
 /-!
 # Level 3 with the start check
 
-Level 3 (`runProbes`) runs its probes, walked from `walkStart`. Where it would end consistent the
-round checks the hypothesis from `ε` instead: it walks each of a fresh block of strings from `0`
-and counts those whose probe does not come out `agree` (`startFails`), testing that count by
-`seqRate` against half the check's rate. The `i`-th check runs at level `δ / (8 (i + 1) (i + 2))`.
-A passing check ends the round consistent. A failing one takes the first of its strings whose
-probe from `0` crosses a wrong learned edge or stops at an unlearned one, changes the hypothesis as
-level 3 does for such a probe, never counting it, and runs level 3 again from there on a fresh
-block of probes. Where no string does, or the blocks run out, the round fails.
+Each of level 3's draws is a probe and a block of check strings. Level 3 runs its probes, walked
+from `walkStart`; where its success test would end the round consistent, the round checks the
+hypothesis from `ε` on that draw's block instead. It walks each string of the block from `0` and
+counts those whose probe does not come out `agree` (`startFails`), testing the count by `seqRate`
+against half the check's rate, the `j`-th hypothesis's check at level `δ / (8 (j + 1) (j + 2))`.
+A passing check ends the round consistent. A failing one takes the first string of the block
+whose probe from `0` crosses a wrong learned edge or stops at an unlearned one and changes the
+hypothesis as level 3 does for such a probe, never counting it; level 3 goes on from there on its
+next draws. Where no string does, the round fails.
 
 Known modelling gap. The Python leaves the strings whose sift is undecided out of the check's
 denominator; here they fail it. Counting them makes the check certify a rate for every string, but
@@ -41,12 +42,13 @@ structure CheckSettings where
   δ : ℝ
   /-- The strings each check reads. -/
   size : ℕ
-  /-- The level-3 runs a round may make. -/
-  runs : ℕ
 
-/-- The `i`-th check's level. -/
-noncomputable def CheckSettings.level (K : CheckSettings) (i : ℕ) : ℝ :=
-  K.δ / (8 * (i + 1) * (i + 2))
+/-- The `j`-th hypothesis's check's level. -/
+noncomputable def CheckSettings.level (K : CheckSettings) (j : ℕ) : ℝ :=
+  K.δ / (8 * (j + 1) * (j + 2))
+
+/-- A draw: a probe and a block of check strings. -/
+abbrev CheckDraw (α : Type*) (K : CheckSettings) := FreeMonoid α × (Fin K.size → FreeMonoid α)
 
 section
 
@@ -59,10 +61,10 @@ def startFails (T : DTree α) (E : Edges α) (x : FreeMonoid α) : Bool :=
   | _ => true
 
 /-- After some number of its strings the check's test fires below its rate. -/
-def checkPasses (K : CheckSettings) (i : ℕ) (T : DTree α) (E : Edges α)
+def checkPasses (K : CheckSettings) (j : ℕ) (T : DTree α) (E : Edges α)
     (xs : List (FreeMonoid α)) : Prop :=
   ∃ n ≤ xs.length,
-    seqRate K.rate (K.rate / 2) (K.level i) n ((xs.take n).countP (startFails read T E))
+    seqRate K.rate (K.rate / 2) (K.level j) n ((xs.take n).countP (startFails read T E))
 
 /-- The change level 3 makes for a probe of `x` from `0` that crosses a wrong learned edge or
 stops at an unlearned one. -/
@@ -84,33 +86,35 @@ def firstFix (s : Level3State α) : List (FreeMonoid α) → Option (Level3State
 variable (C : Level3Settings) (K : CheckSettings)
 
 open scoped Classical in
-/-- Level 3's runs from the `i`-th on, one per block: the block's probes, then its check
-strings. -/
-noncomputable def checkedRun :
-    List (List (FreeMonoid α) × List (FreeMonoid α)) → ℕ → Level3State α
-      → Level3State α × RoundEnd Level3Site
-  | [], _, s => (s, .failed)
-  | b :: bs, i, s =>
-    let r := runProbes read C s b.1
-    match r.2 with
-    | .consistent =>
-      if checkPasses read K i r.1.tree r.1.edges b.2 then r
-      else match firstFix read r.1 b.2 with
-        | some s' => checkedRun bs (i + 1) s'
-        | none => (r.1, .failed)
-    | e => (r.1, e)
+/-- The check of the hypothesis on a block. -/
+noncomputable def checkStep (s : Level3State α) (b : Fin K.size → FreeMonoid α) :
+    Level3State α ⊕ RoundEnd Level3Site :=
+  if checkPasses read K s.hypotheses s.tree s.edges (List.ofFn b) then .inr .consistent
+  else match firstFix read s (List.ofFn b) with
+    | some s' => .inl s'
+    | none => .inr .failed
+
+/-- Level 3's step on the draw's probe, the check on its block where the success test fires. -/
+noncomputable def applyCheck (s : Level3State α) (d : CheckDraw α K) :
+    Level3State α ⊕ RoundEnd Level3Site :=
+  match applyProbe read C s d.1 with
+  | .inr .consistent => checkStep read K s d.2
+  | r => r
+
+/-- The state the draws end in, and how; `failed` where they ran out. -/
+noncomputable def runChecked :
+    Level3State α → List (CheckDraw α K) → Level3State α × RoundEnd Level3Site
+  | s, [] => (s, .failed)
+  | s, d :: ds =>
+    match applyCheck read C K s d with
+    | .inl s' => runChecked s' ds
+    | .inr e => (s, e)
 
 end
 
-/-- A block of the round's draws: a run's probes and its check's strings. -/
-abbrev CheckBlock (α : Type*) (C : Level3Settings) (K : CheckSettings) :=
-  (Fin C.probeBudget → FreeMonoid α) × (Fin K.size → FreeMonoid α)
-
-/-- The round: at most `K.runs` runs of level 3, one per block. -/
 noncomputable def indecisiveLStarCheck (C : Level3Settings) (K : CheckSettings)
-    (read : FreeMonoid α → ARU) (blocks : Fin K.runs → CheckBlock α C K) : Level3Result α :=
-  let r := checkedRun read C K
-    (List.ofFn fun i => (List.ofFn (blocks i).1, List.ofFn (blocks i).2)) 0 initialState
+    (read : FreeMonoid α → ARU) (draws : Fin C.probeBudget → CheckDraw α K) : Level3Result α :=
+  let r := runChecked read C K initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
 end Random

@@ -1,13 +1,14 @@
 import OrthoDFA.Level3CheckSound
-import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.Level3Sound
 
 /-!
 # A passing check certifies its rate: the proof
 
-Given the first block's probes, the first run's hypothesis is fixed, and its check passes it while
-it fails more than the rate with chance at most its level (`seqRateSound`). The round goes on only
-through a fix, at the next index, so the chance from the `i`-th check on is at most the levels from
-`i` on, `δ/(8(i + 1))` (`checked_le`).
+A step is bad where its probe fires the success test and its block's check passes a hypothesis
+failing more than the rate. Within a stretch the hypothesis is fixed and a firing ends it, so the
+stretch's chance of a bad step is at most its check's level, the block being fresh
+(`seg_check_le`). A change opens a fresh stretch at the next index, as at level 3
+(`anyB_le_tail`).
 -/
 
 namespace OrthoDFA
@@ -17,157 +18,243 @@ namespace Random
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
-  (D Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure D] [IsProbabilityMeasure Dc]
-  (C : Level3Settings) (K : CheckSettings)
-
-/-- The law of a block: its probes from `D`, its check's strings from `Dc`. -/
-noncomputable def blockLaw : Measure (CheckBlock α C K) :=
-  (Measure.pi fun _ : Fin C.probeBudget => D).prod (Measure.pi fun _ : Fin K.size => Dc)
-
-instance : IsProbabilityMeasure (blockLaw D Dc C K) := by
-  unfold blockLaw; infer_instance
-
-/-- The blocks as the round's lists. -/
-def blockList {n : ℕ} (bs : Fin n → CheckBlock α C K) :
-    List (List (FreeMonoid α) × List (FreeMonoid α)) :=
-  List.ofFn fun i => (List.ofFn (bs i).1, List.ofFn (bs i).2)
-
-omit [Fintype α] [DecidableEq α] in
-theorem blockList_cons {n : ℕ} (b : CheckBlock α C K) (bs : Fin n → CheckBlock α C K) :
-    blockList C K (Fin.cons b bs : Fin (n + 1) → CheckBlock α C K)
-      = (List.ofFn b.1, List.ofFn b.2) :: blockList C K bs := by
-  simp [blockList, List.ofFn_succ]
+  (D Dc : Measure (FreeMonoid α)) (C : Level3Settings) (K : CheckSettings)
 
 /-- The hypothesis fails more than the check's rate from `0`. -/
 def CheckBad (s : Level3State α) : Prop :=
   K.rate < Dc.real {x | startFails read s.tree s.edges x = true}
 
+/-- The probe fires the success test and the block's check passes a bad hypothesis. -/
+def FalseCheck (s : Level3State α) (d : CheckDraw α K) : Prop :=
+  applyProbe read C s d.1 = .inr .consistent
+    ∧ checkPasses read K s.hypotheses s.tree s.edges (List.ofFn d.2) ∧ CheckBad read Dc K s
+
+omit [Fintype α] in
+theorem fixOf_hyp {s s' : Level3State α} {x : FreeMonoid α} (h : fixOf read s x = some s') :
+    s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1) := by
+  unfold fixOf at h
+  split at h
+  · simp only [Option.some.injEq] at h
+    rw [← h]; rfl
+  · split at h
+    · simp only [Option.some.injEq] at h
+      rw [← h]; rfl
+    · simp at h
+  · simp at h
+
+omit [Fintype α] in
+theorem firstFix_hyp {s s' : Level3State α} :
+    ∀ {xs : List (FreeMonoid α)}, firstFix read s xs = some s' →
+      s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1)
+  | [], h => by simp [firstFix] at h
+  | x :: xs, h => by
+    simp only [firstFix] at h
+    rcases hf : fixOf read s x with _ | t
+    · rw [hf] at h
+      exact firstFix_hyp h
+    · rw [hf] at h
+      simp only [Option.elim, Option.some.injEq] at h
+      subst h
+      exact fixOf_hyp read hf
+
+omit [Fintype α] in
+theorem checkStep_inl {s s' : Level3State α} {b : Fin K.size → FreeMonoid α}
+    (h : checkStep read K s b = .inl s') :
+    s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1) := by
+  classical
+  unfold checkStep at h
+  split_ifs at h
+  rcases hf : firstFix read s (List.ofFn b) with _ | t <;> rw [hf] at h
+  · simp at h
+  · simp only [Sum.inl.injEq] at h
+    subst h
+    exact firstFix_hyp read hf
+
+omit [Fintype α] in
+theorem checkStep_inr_consistent {s : Level3State α} {b : Fin K.size → FreeMonoid α}
+    (h : checkStep read K s b = .inr .consistent) :
+    checkPasses read K s.hypotheses s.tree s.edges (List.ofFn b) := by
+  classical
+  unfold checkStep at h
+  split_ifs at h with hp
+  · exact hp
+  · rcases hf : firstFix read s (List.ofFn b) with _ | t <;> rw [hf] at h <;> simp at h
+
+omit [Fintype α] in
+/-- A step that keeps the hypothesis is level 3's counted probe, at a probe that does not fire;
+any other keeps nothing but opens the next hypothesis. -/
+theorem applyCheck_inl {s s' : Level3State α} {d : CheckDraw α K}
+    (h : applyCheck read C K s d = .inl s') :
+    (applyProbe read C s d.1 = .inl s' ∧ (s' = countProbe read C s d.1
+      ∨ s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1)))
+    ∨ (applyProbe read C s d.1 = .inr .consistent
+      ∧ s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1)) := by
+  unfold applyCheck at h
+  rcases ha : applyProbe read C s d.1 with t | e
+  · rw [ha] at h
+    simp only [Sum.inl.injEq] at h
+    subst h
+    refine Or.inl ⟨rfl, ?_⟩
+    rcases applyProbe_inl read C ha with ⟨h1, -⟩ | h1
+    · exact Or.inl h1
+    · exact Or.inr h1
+  · rw [ha] at h
+    rcases e with _ | e | _
+    · exact Or.inr ⟨rfl, checkStep_inl read K h⟩
+    · simp at h
+    · simp at h
+
+omit [Fintype α] in
+theorem applyCheck_same {s s' : Level3State α} {d : CheckDraw α K}
+    (h : applyCheck read C K s d = .inl s') (hsm : SameHyp s s') :
+    applyProbe read C s d.1 = .inl s' ∧ s'.tree = s.tree ∧ s'.edges = s.edges := by
+  have hne : ¬ s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1) := fun hn => by
+    have := congrArg Level3State.hypotheses hn
+    simp only [newHypothesis, SameHyp] at this hsm
+    omega
+  rcases applyCheck_inl read C K h with ⟨ha, h1 | h1⟩ | ⟨-, h1⟩
+  · exact ⟨ha, by rw [h1]; rfl, by rw [h1]; rfl⟩
+  · exact absurd h1 hne
+  · exact absurd h1 hne
+
+variable [IsProbabilityMeasure D] [IsProbabilityMeasure Dc]
+
 omit [DecidableEq α] [IsProbabilityMeasure D] in
 /-- A check that passes a bad hypothesis is its level's risk. -/
-theorem check_pass_le (hK : 0 < K.δ) (hr0 : 0 < K.rate) (hr1 : K.rate < 1) (i : ℕ)
+theorem check_pass_le (hr0 : 0 < K.rate) (hr1 : K.rate < 1) (hK : 0 < K.δ) (j : ℕ)
     (s : Level3State α) (hs : CheckBad read Dc K s) :
     (Measure.pi fun _ : Fin K.size => Dc)
-        {c | checkPasses read K i s.tree s.edges (List.ofFn c)}
-      ≤ ENNReal.ofReal (K.level i) := by
+        {b | checkPasses read K j s.tree s.edges (List.ofFn b)}
+      ≤ ENNReal.ofReal (K.level j) := by
   classical
   have h := seqRateSound Dc (fun x => startFails read s.tree s.edges x = true) K.rate (K.rate / 2)
-    (K.level i) K.size hr0 hr1 (by linarith) (by linarith)
+    (K.level j) K.size hr0 hr1 (by linarith) (by linarith)
     (by unfold CheckSettings.level; positivity)
     (by
       have : 0 ≤ Dc.real {x | startFails read s.tree s.edges x = true} - K.rate := by
         unfold CheckBad at hs; linarith
       nlinarith)
   rw [← ENNReal.ofReal_toReal (measure_ne_top _ _), ← measureReal_def]
-  refine ENNReal.ofReal_le_ofReal ((measureReal_mono fun c hc => ?_).trans h)
-  obtain ⟨n, hn, hf⟩ := hc
+  refine ENNReal.ofReal_le_ofReal ((measureReal_mono fun b hb => ?_).trans h)
+  obtain ⟨n, hn, hf⟩ := hb
   rw [List.length_ofFn] at hn
   exact ⟨n, hn, by simpa using hf⟩
 
-omit [IsProbabilityMeasure D] in
-/-- Given its probes, a run's check passes a bad hypothesis at most its level's risk. -/
-theorem pass_bad_le (hK : 0 < K.δ) (hr0 : 0 < K.rate) (hr1 : K.rate < 1) (i : ℕ)
-    (s : Level3State α) (p : Fin C.probeBudget → FreeMonoid α) :
-    (Measure.pi fun _ : Fin K.size => Dc)
-        {c | (runProbes read C s (List.ofFn p)).2 = .consistent
-          ∧ checkPasses read K i (runProbes read C s (List.ofFn p)).1.tree
-            (runProbes read C s (List.ofFn p)).1.edges (List.ofFn c)
-          ∧ CheckBad read Dc K (runProbes read C s (List.ofFn p)).1}
-      ≤ ENNReal.ofReal (K.level i) := by
-  set r := runProbes read C s (List.ofFn p)
-  by_cases hb : CheckBad read Dc K r.1
-  · exact (measure_mono fun c hc => hc.2.1).trans (check_pass_le read Dc K hK hr0 hr1 i _ hb)
-  · have : {c : Fin K.size → FreeMonoid α | r.2 = .consistent
-        ∧ checkPasses read K i r.1.tree r.1.edges (List.ofFn c) ∧ CheckBad read Dc K r.1} = ∅ := by
-      ext c
-      simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-      exact fun h => hb h.2.2
-    rw [this, measure_empty]
-    exact bot_le
-
-theorem checked_le (hK : 0 < K.δ) (hr0 : 0 < K.rate) (hr1 : K.rate < 1) :
-    ∀ (n i : ℕ) (s : Level3State α),
-      (Measure.pi fun _ : Fin n => blockLaw D Dc C K)
-          {bs | (checkedRun read C K (blockList C K bs) i s).2 = .consistent
-            ∧ CheckBad read Dc K (checkedRun read C K (blockList C K bs) i s).1}
-        ≤ ENNReal.ofReal (K.δ / (8 * (i + 1))) := by
+/-- Within a stretch, a bad step has chance at most the check's level. -/
+theorem seg_check_le (hr0 : 0 < K.rate) (hr1 : K.rate < 1) (hK : 0 < K.δ) (N : ℕ) :
+    ∀ s : Level3State α,
+      (Measure.pi fun _ : Fin N => D.prod (Measure.pi fun _ : Fin K.size => Dc))
+          {ds | SegB (applyCheck read C K) (FalseCheck read Dc C K) SameHyp s (List.ofFn ds)}
+        ≤ ENNReal.ofReal (K.level s.hypotheses) := by
   classical
-  intro n
-  induction n with
+  induction N with
   | zero =>
-    intro i s
-    have : {bs : Fin 0 → CheckBlock α C K |
-        (checkedRun read C K (blockList C K bs) i s).2 = .consistent
-          ∧ CheckBad read Dc K (checkedRun read C K (blockList C K bs) i s).1} = ∅ := by
-      ext bs
-      simp [blockList, checkedRun]
+    intro s
+    have : {ds : Fin 0 → CheckDraw α K | SegB (applyCheck read C K) (FalseCheck read Dc C K)
+        SameHyp s (List.ofFn ds)} = ∅ := by ext ds; simp [SegB]
     rw [this, measure_empty]
     exact bot_le
-  | succ n ih =>
-    intro i s
+  | succ N ih =>
+    intro s
     rw [pi_cons_apply]
-    set E : CheckBlock α C K → Set (Fin n → CheckBlock α C K) := fun b =>
-      {bs | (Fin.cons b bs : Fin (n + 1) → CheckBlock α C K) ∈
-        {bs : Fin (n + 1) → CheckBlock α C K |
-          (checkedRun read C K (blockList C K bs) i s).2 = .consistent
-            ∧ CheckBad read Dc K (checkedRun read C K (blockList C K bs) i s).1}}
-    set P : CheckBlock α C K → Prop := fun b =>
-      (runProbes read C s (List.ofFn b.1)).2 = .consistent
-        ∧ checkPasses read K i (runProbes read C s (List.ofFn b.1)).1.tree
-          (runProbes read C s (List.ofFn b.1)).1.edges (List.ofFn b.2)
-        ∧ CheckBad read Dc K (runProbes read C s (List.ofFn b.1)).1
-    have hb : ∀ b, (Measure.pi fun _ : Fin n => blockLaw D Dc C K) (E b)
-        ≤ Set.indicator {b | P b} 1 b + ENNReal.ofReal (K.δ / (8 * (i + 1 + 1))) := by
-      intro b
-      by_cases hP : P b
-      · rw [Set.indicator_of_mem (show b ∈ {b | P b} from hP)]
-        exact le_add_right prob_le_one
-      rw [Set.indicator_of_notMem (show b ∉ {b | P b} from hP), zero_add]
-      simp only [E, Set.mem_ofPred_eq, blockList_cons]
-      set r := runProbes read C s (List.ofFn b.1) with hr
-      simp only [checkedRun, ← hr]
-      rcases hr2 : r.2 with _ | e | _
-      · simp only
-        by_cases hpass : checkPasses read K i r.1.tree r.1.edges (List.ofFn b.2)
-        · simp only [hpass, ↓reduceIte]
-          have : {bs : Fin n → CheckBlock α C K | r.2 = .consistent ∧ CheckBad read Dc K r.1}
-              = ∅ := by
-            ext bs
-            simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_and]
-            exact fun h1 h2 => hP ⟨h1, hpass, h2⟩
-          rw [this, measure_empty]
+    set lv := ENNReal.ofReal (K.level s.hypotheses)
+    set fire : FreeMonoid α → Prop := fun x => applyProbe read C s x = .inr .consistent
+    have hpt : ∀ d : CheckDraw α K,
+        (Measure.pi fun _ : Fin N => D.prod (Measure.pi fun _ : Fin K.size => Dc))
+          {ds | (Fin.cons d ds : Fin (N + 1) → CheckDraw α K) ∈ {ds : Fin (N + 1) → CheckDraw α K |
+            SegB (applyCheck read C K) (FalseCheck read Dc C K) SameHyp s (List.ofFn ds)}}
+        ≤ Set.indicator {d | FalseCheck read Dc C K s d} 1 d
+          + Set.indicator {d | ¬ fire d.1} (fun _ => lv) d := by
+      intro d
+      simp only [Set.mem_ofPred_eq, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, SegB]
+      by_cases hB : FalseCheck read Dc C K s d
+      · simp only [hB, true_or, Set.ofPred_true, measure_univ]
+        rw [Set.indicator_of_mem (show d ∈ {d | FalseCheck read Dc C K s d} from hB)]
+        exact le_add_right le_rfl
+      simp only [hB, false_or]
+      rw [Set.indicator_of_notMem (show d ∉ {d | FalseCheck read Dc C K s d} from hB), zero_add]
+      rcases hst : applyCheck read C K s d with s' | e
+      · simp only [Sum.inl.injEq, exists_eq_left']
+        by_cases hsm : SameHyp s s'
+        · simp only [hsm, true_and]
+          obtain ⟨ha, -, -⟩ := applyCheck_same read C K hst hsm
+          have hnf : ¬ fire d.1 := fun hf => by
+            simp only [fire] at hf
+            rw [hf] at ha
+            cases ha
+          rw [Set.indicator_of_mem (show d ∈ {d | ¬ fire d.1} from hnf)]
+          have := ih s'
+          rwa [show s'.hypotheses = s.hypotheses from hsm] at this
+        · simp only [hsm, false_and, Set.ofPred_false, measure_empty]
           exact bot_le
-        · simp only [hpass, ↓reduceIte]
-          rcases hfix : firstFix read r.1 (List.ofFn b.2) with _ | s'
-          · simp
-          · simp only
-            have := ih (i + 1) s'
-            push_cast at this
-            exact this
-      · simp
-      · simp
-    calc ∫⁻ b, (Measure.pi fun _ : Fin n => blockLaw D Dc C K) (E b) ∂blockLaw D Dc C K
-        ≤ ∫⁻ b, (Set.indicator {b | P b} 1 b + ENNReal.ofReal (K.δ / (8 * (i + 1 + 1))))
-            ∂blockLaw D Dc C K := lintegral_mono hb
-      _ = blockLaw D Dc C K {b | P b} + ENNReal.ofReal (K.δ / (8 * (i + 1 + 1))) := by
-          rw [lintegral_add_right _ measurable_const, lintegral_const, measure_univ, mul_one,
-            lintegral_indicator_one (Set.to_countable _).measurableSet]
-      _ ≤ ENNReal.ofReal (K.level i) + ENNReal.ofReal (K.δ / (8 * (i + 1 + 1))) := by
+      · simp only [reduceCtorEq, false_and, exists_false, Set.ofPred_false, measure_empty]
+        exact bot_le
+    calc ∫⁻ d, _ ∂(D.prod (Measure.pi fun _ : Fin K.size => Dc))
+        ≤ ∫⁻ d, (Set.indicator {d | FalseCheck read Dc C K s d} 1 d
+            + Set.indicator {d | ¬ fire d.1} (fun _ => lv) d)
+            ∂(D.prod (Measure.pi fun _ : Fin K.size => Dc)) := lintegral_mono hpt
+      _ = (D.prod (Measure.pi fun _ : Fin K.size => Dc)) {d | FalseCheck read Dc C K s d}
+            + lv * (D.prod (Measure.pi fun _ : Fin K.size => Dc)) {d | ¬ fire d.1} := by
+          rw [lintegral_add_left (measurable_one.indicator (Set.to_countable _).measurableSet),
+            lintegral_indicator_one (Set.to_countable _).measurableSet,
+            lintegral_indicator_const (Set.to_countable _).measurableSet]
+      _ ≤ lv * D {x | fire x} + lv * D {x | ¬ fire x} := by
           gcongr
-          unfold blockLaw
-          rw [Measure.prod_apply (Set.to_countable _).measurableSet]
-          calc ∫⁻ p, (Measure.pi fun _ : Fin K.size => Dc) (Prod.mk p ⁻¹' {b | P b})
-                ∂(Measure.pi fun _ : Fin C.probeBudget => D)
-              ≤ ∫⁻ _, ENNReal.ofReal (K.level i) ∂(Measure.pi fun _ : Fin C.probeBudget => D) :=
-                lintegral_mono fun p => pass_bad_le read Dc C K hK hr0 hr1 i s p
-            _ = _ := by rw [lintegral_const, measure_univ, mul_one]
-      _ ≤ _ := by
-          rw [← ENNReal.ofReal_add (by unfold CheckSettings.level; positivity) (by positivity)]
-          apply ENNReal.ofReal_le_ofReal
-          unfold CheckSettings.level
-          rw [div_add_div _ _ (by positivity) (by positivity), div_le_div_iff₀ (by positivity)
-            (by positivity)]
-          ring_nf
-          nlinarith [sq_nonneg (i : ℝ), hK]
+          · rw [Measure.prod_apply (Set.to_countable _).measurableSet]
+            calc ∫⁻ x, (Measure.pi fun _ : Fin K.size => Dc)
+                  (Prod.mk x ⁻¹' {d | FalseCheck read Dc C K s d}) ∂D
+                ≤ ∫⁻ x, Set.indicator {x | fire x} (fun _ => lv) x ∂D := lintegral_mono fun x => by
+                  by_cases hf : fire x
+                  · rw [Set.indicator_of_mem (show x ∈ {x | fire x} from hf)]
+                    by_cases hb : CheckBad read Dc K s
+                    · exact (measure_mono fun b hb' => hb'.2.1).trans
+                        (check_pass_le read Dc K hr0 hr1 hK _ s hb)
+                    · have : Prod.mk x ⁻¹' {d | FalseCheck read Dc C K s d} = ∅ := by
+                        ext b
+                        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false,
+                          iff_false]
+                        exact fun h => hb h.2.2
+                      rw [this, measure_empty]
+                      exact bot_le
+                  · rw [Set.indicator_of_notMem (show x ∉ {x | fire x} from hf)]
+                    have : Prod.mk x ⁻¹' {d | FalseCheck read Dc C K s d} = ∅ := by
+                      ext b
+                      simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false,
+                        iff_false]
+                      exact fun h => hf h.1
+                    rw [this, measure_empty]
+              _ = lv * D {x | fire x} := by
+                  rw [lintegral_indicator_const (Set.to_countable _).measurableSet]
+          · have : {d : CheckDraw α K | ¬ fire d.1} = {x | ¬ fire x} ×ˢ Set.univ := by
+              ext d; simp
+            rw [this, Measure.prod_prod, measure_univ, mul_one]
+      _ = lv := by
+          rw [← mul_add, show {x | ¬ fire x} = {x | fire x}ᶜ from rfl,
+            measure_add_measure_compl (Set.to_countable _).measurableSet, measure_univ, mul_one]
+
+omit [IsProbabilityMeasure D] [IsProbabilityMeasure Dc] in
+/-- A run ending consistent at a bad hypothesis has a bad step. -/
+theorem anyB_of_check :
+    ∀ (ds : List (CheckDraw α K)) (s : Level3State α),
+      (runChecked read C K s ds).2 = .consistent → CheckBad read Dc K (runChecked read C K s ds).1 →
+      AnyB (applyCheck read C K) (FalseCheck read Dc C K) s ds
+  | [], s, h, _ => by simp [runChecked] at h
+  | d :: ds, s, h, hb => by
+    simp only [AnyB]
+    rcases hst : applyCheck read C K s d with s' | e
+    · simp only [runChecked, hst] at h hb
+      exact Or.inr ⟨s', rfl, anyB_of_check ds s' h hb⟩
+    · simp only [runChecked, hst] at h hb
+      subst h
+      refine Or.inl ?_
+      unfold applyCheck at hst
+      rcases ha : applyProbe read C s d.1 with t | e
+      · rw [ha] at hst; cases hst
+      · rw [ha] at hst
+        rcases e with _ | e | _
+        · exact ⟨ha, checkStep_inr_consistent read K hst, hb⟩
+        · cases hst
+        · cases hst
 
 end Random
 
@@ -176,19 +263,51 @@ open MeasureTheory Random
 theorem level3CheckSound_holds : Level3CheckSound := by
   intro α _ _ read D Dc _ _ C K hK hr0 hr1
   classical
-  have h := checked_le read D Dc C K hK hr0 hr1 K.runs 0 initialState
-  have hsub : {blocks : Fin K.runs → CheckBlock α C K |
-      (indecisiveLStarCheck C K read blocks).ending = .consistent
-        ∧ K.rate < Dc.real {x | startFails read (indecisiveLStarCheck C K read blocks).hypothesis.tree
-          (indecisiveLStarCheck C K read blocks).hypothesis.edges x = true}}
-      = {bs | (checkedRun read C K (blockList C K bs) 0 initialState).2 = .consistent
-          ∧ CheckBad read Dc K (checkedRun read C K (blockList C K bs) 0 initialState).1} := rfl
-  rw [show (Measure.pi fun _ : Fin K.runs => (Measure.pi fun _ : Fin C.probeBudget => D).prod
-      (Measure.pi fun _ : Fin K.size => Dc)) = Measure.pi fun _ : Fin K.runs => blockLaw D Dc C K
-    from rfl, measureReal_def, hsub]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (h.trans (le_of_eq ?_))
-  congr 1
-  push_cast
-  ring
+  set T : ℕ → ENNReal := fun m => ENNReal.ofReal (K.δ / (8 * (m + 1))) with hT
+  have htel : ∀ m : ℕ, ENNReal.ofReal (K.level m) + T (m + 1) ≤ T m := by
+    intro m
+    simp only [hT, CheckSettings.level]
+    rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
+    apply ENNReal.ofReal_le_ofReal
+    push_cast
+    rw [div_add_div _ _ (by positivity) (by positivity), div_le_div_iff₀ (by positivity)
+      (by positivity)]
+    ring_nf
+    nlinarith [sq_nonneg (m : ℝ), hK]
+  have hmain := anyB_le_tail (applyCheck read C K) (FalseCheck read Dc C K) SameHyp
+    (D.prod (Measure.pi fun _ : Fin K.size => Dc)) (fun _ => True) Level3State.hypotheses
+    (fun m => ENNReal.ofReal (K.level m)) T htel (fun s x s' hs hsm => hsm)
+    (fun s x s' hs hsm => by
+      refine ⟨trivial, ?_⟩
+      rcases applyCheck_inl read C K hs with ⟨-, h1 | h1⟩ | ⟨-, h1⟩
+      · exact absurd (by rw [h1]; rfl) hsm
+      · have := congrArg Level3State.hypotheses h1
+        simpa [newHypothesis] using this
+      · have := congrArg Level3State.hypotheses h1
+        simpa [newHypothesis] using this)
+    (fun s _ N => seg_check_le read D Dc C K hr0 hr1 hK N s)
+    C.probeBudget initialState
+  have hseg0 := seg_check_le read D Dc C K hr0 hr1 hK C.probeBudget initialState
+  have hsub : {draws : Fin C.probeBudget → CheckDraw α K |
+      (indecisiveLStarCheck C K read draws).ending = .consistent
+        ∧ K.rate < Dc.real {x | startFails read (indecisiveLStarCheck C K read draws).hypothesis.tree
+          (indecisiveLStarCheck C K read draws).hypothesis.edges x = true}}
+      ⊆ {ds | AnyB (applyCheck read C K) (FalseCheck read Dc C K) initialState
+          (List.ofFn ds)} := fun draws h =>
+    anyB_of_check read Dc C K (List.ofFn draws) initialState h.1 h.2
+  have hfin : (Measure.pi fun _ : Fin C.probeBudget => D.prod (Measure.pi fun _ : Fin K.size => Dc))
+      {ds | AnyB (applyCheck read C K) (FalseCheck read Dc C K) initialState (List.ofFn ds)}
+      ≤ ENNReal.ofReal (K.δ / 8) := by
+    refine hmain.trans ?_
+    have h0 : (initialState : Level3State α).hypotheses = 0 := rfl
+    rw [h0] at hseg0 ⊢
+    refine (add_le_add hseg0 le_rfl).trans ((htel 0).trans (le_of_eq ?_))
+    simp [hT]
+  calc _ ≤ (Measure.pi fun _ : Fin C.probeBudget => D.prod (Measure.pi fun _ : Fin K.size => Dc)).real
+        {ds | AnyB (applyCheck read C K) (FalseCheck read Dc C K) initialState (List.ofFn ds)} :=
+        measureReal_mono hsub
+    _ ≤ K.δ / 8 := by
+        rw [measureReal_def]
+        exact ENNReal.toReal_le_of_le_ofReal (by positivity) hfin
 
 end OrthoDFA
