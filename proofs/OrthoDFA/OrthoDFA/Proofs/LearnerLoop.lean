@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.LoopColl
+import OrthoDFA.Proofs.LoopUniSpec
 import OrthoDFA.Proofs.ClusteringQuality
 import Mathlib.Data.List.GetD
 
@@ -51,7 +52,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
         ≤ 2 * prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
-      ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
+      ∧ (∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
           (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
           (∀ j ∈ pops, D j Preᶜ = 0) → Dsf Sufᶜ = 0 →
@@ -74,7 +75,20 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
                     ≤ 513 / 512 * εcov + slack
                   ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
                     (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
-                    ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc + gateLevel := by
+                    ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc + gateLevel)
+      ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
+        ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
+          (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+          (∀ j ∈ pops, D j Preᶜ = 0) → Dsf Sufᶜ = 0 →
+          pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+          (∀ B ∈ schedule pops, ∀ t,
+            2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D none).real {t}
+              ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2) →
+          (∀ B ∈ schedule pops,
+            2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
+          (runMeasure μ D Dsf).real
+            {x | ¬ UniSpec O pops (schedule pops) η₀ indecisionLimit εcov gateLevel (D none)
+              (streams (fun _ => ∅) none x)} ≤ δc + gateLevel := by
   classical
   obtain ⟨c, hc⟩ : ∃ c : ℝ, c = crossLimit ^ 4 := ⟨_, rfl⟩
   have hc0 : 0 < c := hc ▸ pow_pos hcross 4
@@ -87,7 +101,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
       (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0
       hslack
-  refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
+  refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_,
+    ?_⟩
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp
@@ -133,7 +148,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hslD hcolSf
     simp only [dif_pos hpops] at hcolD hslD hcolSf ⊢
     set states := Classical.choose (hq pops hpops)
-    obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
+    obtain ⟨-, -, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hslD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -172,6 +187,40 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         = 1 - (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR) :=
       probReal_compl_eq_one_sub hSm
     show (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR)ᶜ ≤ δc + gateLevel
+    linarith
+  · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolU hcolSf
+    simp only [dif_pos hpops] at hcolU hcolSf ⊢
+    set states := Classical.choose (hq pops hpops)
+    obtain ⟨-, -, hgood, -⟩ := Classical.choose_spec (hq pops hpops)
+    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolU hcolSf
+    have : IsProbabilityMeasure (D none) := hD none
+    have hSm : MeasurableSet (streams (Ω := Ω) (fun _ => ∅) none ⁻¹'
+        {x | UniSpec O pops states η₀ indecisionLimit εcov gateLevel (D none) x}) :=
+      measurable_streams _ none (measurableSet_uniSpec O pops states η₀ indecisionLimit εcov
+        gateLevel (D none))
+    have hsub : {x : Draws Ω (FreeMonoid α) (Option (Fin K)) |
+        (∃ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
+          ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val)
+          ∧ ∀ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
+            ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
+            (D none).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1)
+                (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p (oracleNoise x.1)}
+              ≤ 513 / 512 * εcov
+            ∧ (D none).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p (oracleNoise x.1)}
+              ≤ 2 * indecisionLimit}
+        ⊆ streams (fun _ => ∅) none ⁻¹'
+          {x | UniSpec O pops states η₀ indecisionLimit εcov gateLevel (D none) x} := by
+      rintro x ⟨⟨B, hret⟩, hall⟩
+      exact ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' => hall ⟨B', hB'⟩ hret'⟩
+    have hmono := measureReal_mono (μ := runMeasure μ D Dsf) hsub (measure_ne_top _ _)
+    have hcompl : (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹'
+          {x | UniSpec O pops states η₀ indecisionLimit εcov gateLevel (D none) x})ᶜ
+        = 1 - (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹'
+          {x | UniSpec O pops states η₀ indecisionLimit εcov gateLevel (D none) x}) :=
+      probReal_compl_eq_one_sub hSm
+    show (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹'
+      {x | UniSpec O pops states η₀ indecisionLimit εcov gateLevel (D none) x})ᶜ ≤ δc + gateLevel
     linarith
 
 /-! ## The theorem -/
@@ -417,7 +466,7 @@ theorem loop_core_holds : LoopCore := by
   classical
   have hδ : 0 < C.δ := hprem.2.1
   have hc : cross ^ 4 = c := rfl
-  obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀⟩ := clustering_schedule_exists O K
+  obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀, -⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
     η₀ ι gate cross εcov δc (slack - m) (pAP - ms) hη hη₀ (flat_of_length Ls) (by linarith)
     hι hι1 hg hg1 hcr hε hε1 hδc hδc1 (by linarith)

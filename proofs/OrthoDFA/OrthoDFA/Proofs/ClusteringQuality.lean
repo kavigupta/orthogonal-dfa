@@ -400,6 +400,28 @@ def ClusteringQualitySized : Prop :=
       ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
     states ⊆ schedule η₀ populations indecisionLimit εcov (δ / 2) α pAP crossLimit
       (allHarvest H).card ∧
+    -- Holding the uniform pool alone tame, the family's realized cut of it.
+    (∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      (∀ B ∈ states, ∀ t : S,
+        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D uni).real {t}
+          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
+      (∀ B ∈ states,
+        2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        1 - δ - α ≤ (runMeasure μ D Dsf).real
+          {x | (∃ B : {B : State // B ∈ states},
+                streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+            ∧ ∀ B : {B : State // B ∈ states},
+              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
+              (D uni).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+                ≤ 513 / 512 * εcov
+              ∧ (D uni).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+                ≤ 2 * indecisionLimit}) ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
@@ -470,9 +492,68 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     populations hη0 hη₀ hε hind hδ' hpAP hcard hρ₀0 le_rfl
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz ρ₀
     with hstates
+  have hff : flipFrac η₀ ≤ 7 / 20 := by
+    rw [flipFrac, sig, div_le_iff₀ (by linarith)]
+    nlinarith
+  have hrej : 2 * rejFrac η₀ iL εcov ≤ εcov / 1024 := by
+    obtain ⟨-, h1⟩ := rejFrac_le (indecisionLimit := iL) η₀ hη₀ hε hind'
+    have h2 := (cutBudget_le η₀ iL εcov).1
+    have hcut0 := (cutBudget_pos η₀ hη₀ hε hind').le
+    have hf0 := (flipFrac_pos η₀ hη₀).le
+    rw [h1]
+    nlinarith [mul_le_mul h2 hff hf0 (by linarith)]
+  have hscaleEq : budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
+    unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB),
-    Finset.filter_subset _ _, ?_⟩
+    Finset.filter_subset _ _, ?_, ?_⟩
+  · intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollU hcollSf
+    have := hD
+    have := hDsf
+    have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
+    have hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ) := by
+      have h := poolCount_ge populations η₀ indecisionLimit εcov δ' pAP crossLimit hsig hη0 hind
+        hε (by linarith) hpAP hpAP1
+      linarith
+    have hcaps : ∀ j ∈ ({uni} : Finset J), ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t => by
+      rw [Finset.mem_singleton.1 hj]
+      exact (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit ((D uni).real {t})
+        0 (by rw [← hmdef]; exact hm) hM (by
+          have h := hcollU _ htop t
+          rw [hδ'def]
+          change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * (D uni).real {t}
+            ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2 at h
+          rw [← hmdef, hscaleEq]
+          linarith) (by simp only [mul_zero]; positivity)).1
+    have hcapsf : collisionMass Dsf
+        ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ' pAP crossLimit :=
+      (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit 0 (collisionMass Dsf)
+        (by rw [← hmdef]; exact hm) hM (by simp only [mul_zero]; positivity) (by
+          have h := hcollSf _ htop
+          rw [hδ'def]
+          change 2 ^ 13 * ((populations.card : ℝ) + 1)
+            * (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ)
+            * collisionMass Dsf ≤ δ * pAP at h
+          linarith)).2
+    have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov δ' α pAP
+      crossLimit hsig hη0 hpop hind hε (by linarith) hδ' (by linarith) hα (by linarith) hpAP hpAP1
+    have hbudget : (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
+        ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 60000
+          + harvestCap η₀ indecisionLimit εcov hsz := by
+      rw [budgetCap, harvestCap]
+      linarith [hpoly]
+    have hcc := clustering_correct O rule populations {uni} uni H D Dsf Pre Suf η₀ iL εcov α δ'
+      ρ₀ pAP crossLimit 60000 hηle hη₀ (Finset.mem_singleton_self uni)
+      (Finset.singleton_subset_iff.2 (htame huni)) hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+      hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
+    refine le_trans (by linarith) (le_trans hcc (measureReal_mono (fun x hx => ?_)
+      (measure_ne_top _ _)))
+    refine ⟨hx.1, fun B hret => ?_⟩
+    obtain ⟨h1, h2⟩ := hx.2 B hret uni (Finset.mem_singleton_self uni)
+    refine ⟨?_, h2⟩
+    rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _), probReal_univ]
+    simp only [gateLimit, if_pos rfl, if_true] at h1
+    linarith
   intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hslackD hcollSf
   have := hD
   have := hDsf
@@ -706,16 +787,6 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
         _ ≤ slack ^ 2 / (64 * (N + 1)) := hρ1
         _ = slack / 8 * τ := by rw [hτ]; field_simp; ring
     linarith [measureReal_finset_le (D j) P hτ0]
-  have hff : flipFrac η₀ ≤ 7 / 20 := by
-    rw [flipFrac, sig, div_le_iff₀ (by linarith)]
-    nlinarith
-  have hrej : 2 * rejFrac η₀ iL εcov ≤ εcov / 1024 := by
-    obtain ⟨-, h1⟩ := rejFrac_le (indecisionLimit := iL) η₀ hη₀ hε hind'
-    have h2 := (cutBudget_le η₀ iL εcov).1
-    have hcut0 := (cutBudget_pos η₀ hη₀ hε hind').le
-    have hf0 := (flipFrac_pos η₀ hη₀).le
-    rw [h1]
-    nlinarith [mul_le_mul h2 hff hf0 (by linarith)]
   have hsj : ∀ j, (if j = uni then (0 : ℝ) else εcov / 1024) ≤ εcov / 1024 := by
     intro j; split_ifs <;> linarith
   have hall : ∀ j ∈ tame,
@@ -759,7 +830,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov α δ pAP
     crossLimit slack hηle hη₀ huni htame hflat hH hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack
-  obtain ⟨states, h1, -, h⟩ := clustering_quality_sized O populations tame uni H Pre Suf η₀
+  obtain ⟨states, h1, -, -, h⟩ := clustering_quality_sized O populations tame uni H Pre Suf η₀
     indecisionLimit εcov α δ pAP crossLimit slack hηle hη₀ huni htame hflat hH hpAP hind hind1 hα
     hα1 hε hε1 hδ hδ1 hcr hslack
   exact ⟨states, h1, h⟩
