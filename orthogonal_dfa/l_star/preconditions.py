@@ -14,7 +14,8 @@ the learner will draw from:
 - covered_accuracy_ceiling: re-rooting the target at the best *covered* start
   state (all the learner can anchor to) still classifies almost every string,
   without the re-rooted run leaving the covered states -- at every string
-  length from 0 to twice ``length``, taking the worst length for each start
+  length from ``ceil(length / 2)`` to twice ``length``, taking the worst length for
+  each start
 """
 
 import copy
@@ -269,15 +270,15 @@ def covered_accuracy_ceiling(
     the target's true transitions and read off the endpoint's true accept label.
     A run through an uncovered state uses transitions the learner never checks.
 
-    A start's accuracy is its minimum over string lengths 0 to 2 * ``length``;
-    the ceiling is the best start's. A custom ``sampler`` is asked for the other
-    lengths by changing only its ``length``, and is always sampled, never
-    enumerated.
+    A start's accuracy is its minimum over string lengths ``ceil(length / 2)`` to
+    2 * ``length``; the ceiling is the best start's. A custom ``sampler`` is asked
+    for the other lengths by changing only its ``length``, and is always sampled,
+    never enumerated.
     """
     worst = _worst_start_accuracies(
         dfa,
         length=length,
-        string_lengths=range(2 * length + 1),
+        string_lengths=range((length + 1) // 2, 2 * length + 1),
         num_samples=num_samples,
         min_coverage=min_coverage,
         sampler=sampler,
