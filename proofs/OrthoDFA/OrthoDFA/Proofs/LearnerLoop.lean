@@ -378,7 +378,7 @@ def LoopCore : Prop :=
     (2 * prefixMax P.D C.walkStart) cross →
   ∃ settings : LoopSettings K,
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
-    settings.gateLevel = gateLevel ∧ settings.level3 = C ∧
+    settings.gateLevel = gateLevel ∧ settings.level3 = C ∧ settings.avoidDepth = C.walkStart ∧
     (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
@@ -416,8 +416,8 @@ theorem loop_core_holds : LoopCore := by
     split_ifs at hB
     · exact hband₀ pops B hB
     · simp at hB
-  set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, C⟩ with hset
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
+  set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, C, C.walkStart⟩ with hset
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
   · intro pops
     simp only [hset, hschedd]
     split_ifs with hp
@@ -608,7 +608,7 @@ theorem loop_core_holds : LoopCore := by
   set δ3 : ℝ := C.δ + C.δ / 8 + (shortStrings (α := α) (Fintype.card σ)).card * cross / u
     with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_round_le_persist M O hL P Dsf settings Ls NP N θ mr u cross hN hNPsum hband hk0 hη1
+    loop_round_le_persist M O hL P Dsf settings Ls NP N θ mr u cross hN hNPsum hband hk0 rfl hη1
       hcr hprem hu hy0 hmr hmr1 hmrc r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,

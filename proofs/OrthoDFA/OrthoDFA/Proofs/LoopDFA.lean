@@ -402,7 +402,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     rwa [one_div] at this
   have : IsProbabilityMeasure P.D := windowStrings_isProbability hkL₁
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov ε δ' pAP k
+  obtain ⟨settings, hwalk, hdis, hbud, hzd, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1 hpAP (by show 1 ≤ L + Fintype.card σ + 3; omega) hk0
     hιL (hpm.trans hk1) ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk2)
   refine ⟨settings, hwalk, hdis, hbud, ?_⟩
@@ -577,7 +577,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       (mul_nonneg (by norm_num) (Real.log_nonneg (by
         rw [le_div_iff₀ hδ'0]; nlinarith)))
     refine (loop_select_round_le settings O P Dsf Ls L n (Fintype.card σ + 2) ⌊RB⌋₊ t
-      (by positivity) (hwalk ▸ hkL) hnp r hr').trans ?_
+      (by positivity) (hwalk ▸ hkL) (hzd.trans hwalk.symm) hnp r hr').trans ?_
     rw [hwalk]
     have e1 : ((Fintype.card σ + 2 : ℕ) : ℝ) = Q + 2 := by push_cast; rfl
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring

@@ -175,7 +175,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     768 * Real.log (16 * Kc / δ') * prefixMax P.D k ≤ ε →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-      (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
+      (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ settings.avoidDepth = k ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
@@ -250,7 +250,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp, ?_⟩
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C, C.walkStart⟩, rfl, rfl, hbud, rfl,
+      fun _ => by simp, ?_⟩
     intro Dsf hDsf _ hpAPD _
     have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
     linarith
@@ -430,7 +431,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 96) ε cross C
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hnp, hmain⟩ := hcore hL hη hη₀ hι0
+  obtain ⟨settings, -, -, -, -, hC3, hzd, hnp, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
     (fun pops hpops => by
@@ -446,7 +447,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       have h1 : (1 : ℝ) / 2 ≤ 1 - ε / 96 := by linarith
       have := mul_le_mul_of_nonneg_right h1 (show (0 : ℝ) ≤ ε / 48 by positivity)
       linarith) hcr hprem
-  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, ?_⟩
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hzd, hnp, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

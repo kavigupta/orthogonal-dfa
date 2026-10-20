@@ -108,7 +108,7 @@ def SelOk : Option (Stage4 α × ResCode α) → Set (Fin K → RoundDraws α K 
   | some (t, _) => {x | NoColl settings D Dsf Ls t.1 x r hr
       ∧ t.2.2.1 ⊆ suffsOf settings D Dsf (histAt settings D t.1 r) (x ⟨r, hr⟩).1
       ∧ t.2.2.2 = (prefsOf settings D Dsf (histAt settings D t.1 r) (x ⟨r, hr⟩).1).image
-          fun p => prefixOf p settings.level3.walkStart}
+          fun p => prefixOf p settings.avoidDepth}
   | none => Set.univ
 
 /-- Held-out strings, distinct, of length `L`, whose first `k` letters are neither a key of round
@@ -181,7 +181,7 @@ theorem measurableSet_selOk (settings : LoopSettings K) (D Dsf : Measure (FreeMo
     ((hlev (fun x => suffsOf settings D Dsf (histAt settings D c r) (x rK).1) (F ⊆ ·)
       fun Q => hx (measurableSet_suffsOf settings D Dsf _ Q)).inter
     (hlev (fun x => prefsOf settings D Dsf (histAt settings D c r) (x rK).1)
-      (fun Q => K₀ = Q.image fun p => prefixOf p settings.level3.walkStart)
+      (fun Q => K₀ = Q.image fun p => prefixOf p settings.avoidDepth)
       fun Q => hx (measurableSet_prefsOf settings D Dsf _ Q)))
 
 end Meas
@@ -194,6 +194,7 @@ set_option maxHeartbeats 1000000 in -- the selection's many obligations
 theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
     (Ls L n nL NP : ℕ) (t : ℝ) (ht : 0 ≤ t) (hkL : settings.level3.walkStart ≤ L)
+    (hz : settings.avoidDepth = settings.level3.walkStart)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) (r : ℕ) (hr : r < K) :
     ((loopMeasure μ α K settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -205,6 +206,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
+  have hzk : settings.avoidDepth = k := hz
   set N := P.L + settings.level3.probeBudget + 2
   have hN : P.L + settings.level3.probeBudget + 2 ≤ N := le_rfl
   set rK : Fin K := ⟨r, hr⟩
@@ -349,7 +351,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
         apply (hbi i).2
         refine Finset.mem_union_left _ ?_
         rw [hK]
-        exact Finset.mem_image.2 ⟨p, hp, by rw [hzp]⟩
+        exact Finset.mem_image.2 ⟨p, hp, by rw [hzp, hzk]⟩
       · refine Finset.disjoint_left.2 fun w hw hw' => ?_
         obtain ⟨⟨z, v⟩, hzv, rfl⟩ := Finset.mem_image.1 hw
         obtain ⟨hz, hv⟩ := Finset.mem_product.1 hzv

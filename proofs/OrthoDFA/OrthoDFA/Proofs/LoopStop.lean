@@ -186,7 +186,7 @@ def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (N 
         Run Ω (FreeMonoid α) (Option (Fin K)))
     ∪ readStrings (shortStrings (max N (probesLen (probesOf settings D
         (clusterKeys (settings.schedule (loopPopulations K h.pops.length))
-          (loopPopulations K h.pops.length) settings.level3.walkStart
+          (loopPopulations K h.pops.length) settings.avoidDepth
           ((ω, runOf D Dsf h d.1) : Run Ω (FreeMonoid α) (Option (Fin K))))
         d.2) + 1 + settings.level3.probeBudget + 2)))
       ((roundSuffs (settings.schedule (loopPopulations K h.pops.length))

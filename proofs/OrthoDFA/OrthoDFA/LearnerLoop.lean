@@ -21,7 +21,7 @@ it is suffix-free.
 
 The whole run reads one noise, fixed per string as the Python's is.
 
-Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
+Known modelling gap. The round draws its probes from `D` conditioned on their first `avoidDepth`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
 the clustering read. The Python draws them from `D`.
 
@@ -164,6 +164,8 @@ structure LoopSettings (K : ℕ) where
   εcov : ℝ
   gateLevel : ℝ
   level3 : Random.Level3Settings
+  /-- The probes' first `avoidDepth` letters avoid those of the clustering's prefixes. -/
+  avoidDepth : ℕ
 
 /-- A round: the clustering's run, the state it returned at and its family, the family's reads,
 what level 3 returned, and the prefixes and suffixes its clustering read. -/
@@ -202,8 +204,8 @@ def avoidLaw (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid 
   popLaw (D.restrict {x | k ≤ x.toList.length → prefixOf x k ∉ K₀})
 
 /-- The round after the history `h`. Its clustering draws off what the earlier rounds read, and
-level 3 draws its probes from `D` avoiding the first `k` letters of the prefixes the clustering
-read. -/
+level 3 draws its probes from `D` avoiding the first `avoidDepth` letters of the prefixes the
+clustering read. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.probeBudget) : LoopRound Ω α K :=
@@ -213,9 +215,9 @@ def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
     ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
   let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
-  let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
+  let K₀ := clusterKeys (settings.schedule ps) ps settings.avoidDepth x
   ⟨x, B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
-    (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)),
+    (fun i => drawFrom (avoidLaw D settings.avoidDepth K₀) (d.2.2 i)),
     roundPrefs (settings.schedule ps) ps x, roundSuffs (settings.schedule ps) x⟩
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
