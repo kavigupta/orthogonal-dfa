@@ -28,6 +28,38 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
+- `LearnerLoopSound` and `LearnerLoopSoundSimple` (`OrthoDFA/LoopSound.lean`): the loop's rate
+  test certifies its DFA the way the Python argues it. See "The rate test's DFA".
+- `Level3ConsistentSound` (`OrthoDFA/Level3Sound.lean`): whatever the reads, level 3 ends
+  consistent at a hypothesis whose probes search or stop undecided at their start or end sift more
+  than the disagreement rate of the time with chance at most `δ/8`.
+
+## The rate test's DFA
+
+`LearnerLoopSound` (`OrthoDFA/LoopSound.lean`, proved in `Proofs/LoopSoundMain.lean`) runs the loop
+with probes uniform over the strings of length `L`, walked from `0` as the Python walks, avoiding
+the first `a = ⌈L/2⌉` letters of the prefixes each round's clustering read. Every round that ends
+consistent at rate `ε` has its DFA started where `ε` sifts (the Python's start) misjudge at most
+`ε + ε/96 + (513/512) εcov + 2ι` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`,
+whatever level 3's yield and budget. It asks nothing of the populations the harvests hand on, and
+nothing of the target but its oracle and its suffixes; whether the loop reaches a consistent round
+is not claimed.
+
+- A consistent ending certifies its rate for any fixed reads (`Level3ConsistentSound`), and the
+  round's reads are fixed by its noise and its clustering, independent of its probes
+  (`loop_consistent_round_le`, `Proofs/LoopSoundRound.lean`).
+- A probe walked from `0` outside the probes that search or stop undecided at their ends is
+  classified as read by the DFA from where `ε` sifts (`ProbeAgreeCorrect`), and a decided read on
+  the wrong side is the seeded family's miscut or indecision (`misread_cut`,
+  `Proofs/LoopSoundDFA.lean`).
+- The clustering's guarantee on the uniform pool alone holds at the run's own noise
+  (`UniSpec`, `Proofs/LoopUniSpec.lean`); given the earlier rounds it is fixed by the answers at
+  what the round's clustering reads and at the pool's strings off the earlier prefixes, followed by
+  nothing or by the round's suffixes, none of which an earlier round read
+  (`loop_uni_round_le_persist`, `Proofs/LoopUniRound.lean`).
+
+At `|Σ| = 2`, `η₀ = 0.1`, `ε = εcov = δ = 0.01`, `ι = εcov/8`, `pAP = 1/3` and `R = 4` rounds,
+`L₀ ≈ 215`.
 
 ## The learner's DFA
 

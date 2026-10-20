@@ -9,6 +9,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.LoopSoundMain
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -31,9 +32,14 @@ stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Cla
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
+`LearnerLoopSound` and `LearnerLoopSoundSimple`, stated in `OrthoDFA.LoopSound`: every round of the
+loop walked from `0` that ends consistent has its DFA from where `ε` sifts within its rate, but for
+chance `δ`. They rest on `Level3ConsistentSound`, stated in `OrthoDFA.Level3Sound`.
+
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+`CoveredStartCorrect`, `ProbeAgreeCorrect`, `RateTestSound`, `SeqRateSound`,
+`TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and
+`SplitAndLearnCorrect`.
 -/
 
 namespace OrthoDFA
@@ -74,6 +80,22 @@ theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simpl
 theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
 
 #print axioms learner_loop_dfa
+
+theorem learner_loop_sound_simple : LearnerLoopSoundSimple := learnerLoopSoundSimple_holds
+
+#print axioms learner_loop_sound_simple
+
+theorem learner_loop_sound : LearnerLoopSound := learnerLoopSound_holds
+
+#print axioms learner_loop_sound
+
+theorem level3_consistent_sound : Level3ConsistentSound := level3ConsistentSound_holds
+
+#print axioms level3_consistent_sound
+
+theorem probe_agree_correct : ProbeAgreeCorrect := probeAgreeCorrect
+
+#print axioms probe_agree_correct
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
