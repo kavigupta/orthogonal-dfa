@@ -313,14 +313,18 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
           cases j with
           | none => exact hDat t
           | some i => exact (hpg _ (hgetD i hj)).1 t
-        set L : Option (Fin K) → Measure (FreeMonoid α) := fun j =>
-          offLaw (loopDistributions P.D h.pops j) h.prefs
+        set L : Option (Fin K) → Measure (FreeMonoid α) := fun j => popOff P.D h.pops j h.prefs
+        have hLj : ∀ j ∈ pops, L j = offLaw (loopDistributions P.D h.pops j) h.prefs := fun j hj =>
+          popOff_of_ne (compl_ne_zero ((hpm' j hj).trans hm))
         have hsm' : Dsf.real ↑h.suffs ≤ 1 / 2 := hsm.trans hms
         have hc := hclust pops (Finset.mem_insert_self _ _) L (offLaw Dsf h.suffs)
           (fun j => inferInstance) inferInstance
-          (fun j hj => offLaw_null (compl_ne_zero ((hpm' j hj).trans hm)) (hsupp j hj))
-          (fun j hj t => (offLaw_atom_le ((hpm' j hj).trans hm) t).trans (by
-            linarith [hat j hj t]))
+          (fun j hj => by
+            rw [hLj j hj]
+            exact offLaw_null (compl_ne_zero ((hpm' j hj).trans hm)) (hsupp j hj))
+          (fun j hj t => by
+            rw [hLj j hj]
+            exact (offLaw_atom_le ((hpm' j hj).trans hm) t).trans (by linarith [hat j hj t]))
           (offLaw_null (compl_ne_zero hsm') hDsf)
           (by linarith [le_offLaw_real hsm' {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}])
           (fun t => (offLaw_atom_le hsm' t).trans (by linarith [hsfat t]))
@@ -354,6 +358,7 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
               (f := miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B))
               (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
             have h2 := (hs.2 B hB hret).1
+            rw [hLj none (Finset.mem_insert_self _ _)] at h2
             have h3 := hpm' none (Finset.mem_insert_self _ _)
             show ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
               ∂(loopDistributions (K := K) P.D h.pops none) ≤ εcov + slack
@@ -362,6 +367,7 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
               (f := undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B))
               (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
             have h2 := (hs.2 B hB hret).2 j hj
+            rw [hLj j hj] at h2
             have h3 := hpm' j hj
             linarith
         calc (μ.prod ν) (Bad (some c))

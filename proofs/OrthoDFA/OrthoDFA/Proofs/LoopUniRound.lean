@@ -370,13 +370,20 @@ theorem loop_uni_round_le_persist (Ls N : ℕ) (δc capU capSf m ms pAP : ℝ)
             simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
             omega
           | some i => exact hpg _ (hgetD i hj)
-        set L : Option (Fin K) → Measure (FreeMonoid α) := fun j =>
-          offLaw (loopDistributions P.D h.pops j) h.prefs
+        set L : Option (Fin K) → Measure (FreeMonoid α) := fun j => popOff P.D h.pops j h.prefs
+        have hLn : L none = offLaw P.D h.prefs := popOff_of_ne (compl_ne_zero (hpm.trans hm))
         have hsm' : Dsf.real ↑h.suffs ≤ 1 / 2 := hsm.trans hms
         have hc := huni pops (Finset.mem_insert_self _ _) L (offLaw Dsf h.suffs)
           (fun j => inferInstance) inferInstance
-          (fun j hj => offLaw_long_null _ (by omega) (hsupp j hj))
-          (fun t => (offLaw_atom_le (hpm.trans hm) t).trans (by linarith [hDat t]))
+          (fun j hj => by
+            show popOff P.D h.pops j h.prefs _ = 0
+            unfold popOff
+            split_ifs
+            · exact offLaw_long_null _ (by omega) (hsupp none (Finset.mem_insert_self _ _))
+            · exact offLaw_long_null _ (by omega) (hsupp j hj))
+          (fun t => by
+            rw [hLn]
+            exact (offLaw_atom_le (hpm.trans hm) t).trans (by linarith [hDat t]))
           (offLaw_null (compl_ne_zero hsm') hDsf)
           (by linarith [le_offLaw_real hsm' {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}])
           (fun t => (offLaw_atom_le hsm' t).trans (by linarith [hsfat t]))
@@ -397,6 +404,7 @@ theorem loop_uni_round_le_persist (Ls N : ℕ) (δc capU capSf m ms pAP : ℝ)
               hcr'.measure_preimage hTm.nullMeasurableSet
           _ ≤ ENNReal.ofReal δc := by
               rw [← ofReal_measureReal]
+              rw [hLn] at hc
               exact ENNReal.ofReal_le_ofReal hc)
   refine ENNReal.toReal_le_of_le_ofReal hδc ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hpg, hpm, hsm, hspec, hnc, hpre⟩

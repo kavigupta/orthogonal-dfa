@@ -33,6 +33,9 @@ be fresh.
 Known modelling gap. A harvest's table here is drawn from its population's law, where the Python
 first puts the strings the round harvested into it (`take`).
 
+Known modelling gap. A population all of whose strings the earlier rounds' clusterings read is
+drawn here as the probes' distribution, off those strings; the Python reads it again.
+
 Known modelling gap. A harvest's population here keeps only the strings shorter than the
 suffixes its round's clustering read, so that a later clustering reads every prefix followed by a
 suffix as a string no other prefix and suffix make. The Python keeps every harvested string.
@@ -99,6 +102,11 @@ def loopDistributions {K : ℕ} (D : Measure (FreeMonoid α))
 def offLaw (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) : Measure (FreeMonoid α) :=
   popLaw (ν.restrict (↑T)ᶜ)
 
+/-- Population `j`'s law off `T`, or `D`'s off `T` where population `j` has no mass off `T`. -/
+def popOff (D : Measure (FreeMonoid α)) {K : ℕ} (pops : List (Measure (FreeMonoid α)))
+    (j : Option (Fin K)) (T : Finset (FreeMonoid α)) : Measure (FreeMonoid α) :=
+  if loopDistributions D pops j (↑T)ᶜ = 0 then offLaw D T else offLaw (loopDistributions D pops j) T
+
 /-- What the earlier rounds hand on: their harvests' populations, and every prefix and suffix
 their clusterings read. -/
 structure LoopHist (α : Type*) [Countable α] where
@@ -147,12 +155,13 @@ def persistDraws {K P : ℕ} (p : Ω × (Fin K → RoundDraws α K P)) :
   fun i => (p.1, p.2 i)
 
 /-- The clustering's draws after the history `h`: suffixes from `Dsf` and each population's two
-streams, all off what the earlier rounds read, and the hash's sides. -/
+streams, all off what the earlier rounds read, and the hash's sides. A population the earlier
+rounds read all of is drawn as `D`. -/
 def clusterDraws {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (c : ClusterDraws Ω α K) : Draws Ω (FreeMonoid α) (Option (Fin K)) :=
   ((c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n),
-      fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n)),
-    fun j n => drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.2.1 j n))),
+      fun j n => drawFrom (popOff D h.pops j h.prefs) (c.2.2.1 j n)),
+    fun j n => drawFrom (popOff D h.pops j h.prefs) (c.2.2.2.1 j n))),
     c.2.2.2.2)
 
 /-- The clustering's run: no population harvests strings into its table. -/

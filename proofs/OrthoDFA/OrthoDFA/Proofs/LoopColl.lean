@@ -119,8 +119,8 @@ omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 lemma mem_prefsOf_draw {h : LoopHist α} {c : ClusterRest α K} {p : FreeMonoid α}
     (hp : p ∈ prefsOf settings D Dsf h c) :
     ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
-      p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.1 j n)
-        ∨ p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n) := by
+      p = drawFrom (popOff D h.pops j h.prefs) (c.2.1 j n)
+        ∨ p = drawFrom (popOff D h.pops j h.prefs) (c.2.2.1 j n) := by
   obtain ⟨B, -, hp⟩ := Finset.mem_biUnion.1 hp
   rcases Finset.mem_union.1 hp with hp | hp
   · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
@@ -306,8 +306,7 @@ theorem noColl_of_allLt (Ls N : ℕ)
     (hlen : (histCodes settings O P.D Dsf N ω g r).length = r)
     (hsupp : ∀ ν ∈ (decodeHist P.D settings.level3.walkStart
       (histCodes settings O P.D Dsf N ω g r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
-    (hpm : ∀ j ∈ loopPopulations K r, (loopDistributions P.D (decodeHist P.D
-      settings.level3.walkStart (histCodes settings O P.D Dsf N ω g r)).pops j).real
+    (hpm : P.D.real
         ↑(decodeHist P.D settings.level3.walkStart (histCodes settings O P.D Dsf N ω g r)).prefs
         ≤ 1 / 2)
     (hsm : Dsf.real ↑(decodeHist P.D settings.level3.walkStart
@@ -353,24 +352,33 @@ theorem noColl_of_allLt (Ls N : ℕ)
     intro i hir p hp
     obtain ⟨j, hj, n, hpn⟩ := mem_prefsOf_draw settings P.D Dsf hp
     obtain ⟨hd, hjr⟩ := hdist i j hj
-    have hm : (loopDistributions P.D H.pops j).real ↑(histAt settings P.D c i).prefs ≤ 1 / 2 :=
-      (measureReal_mono (Finset.coe_subset.2 (histAt_prefs_sub settings P.D c i))).trans
-        (hpm j hjr)
-    have h0 := compl_ne_zero hm
-    rw [hd] at hpn
     obtain ⟨u, hu, rfl⟩ : ∃ u : unitInterval, (u : ℝ) < 1 ∧
-        p = drawFrom (offLaw (loopDistributions P.D H.pops j) (histAt settings P.D c i).prefs) u := by
+        p = drawFrom (popOff P.D (histAt settings P.D c i).pops j
+          (histAt settings P.D c i).prefs) u := by
       rcases hpn with h | h
       · exact ⟨_, (hlt i hir).2.1 j n, h⟩
       · exact ⟨_, (hlt i hir).2.2 j n, h⟩
-    obtain ⟨hT, hpos⟩ := drawFrom_offLaw h0 hu
-    refine ⟨hT, ?_⟩
-    have := mem_of_pos (A := {q : FreeMonoid α | q.toList.length < Ls})
-      (by
-        refine measure_mono_null (fun x hx => ?_) (hshort j hjr)
-        simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hx ⊢
-        exact hx) hpos
-    exact this
+    unfold popOff
+    split_ifs with hdeg
+    · have hm : P.D.real ↑(histAt settings P.D c i).prefs ≤ 1 / 2 :=
+        (measureReal_mono (Finset.coe_subset.2 (histAt_prefs_sub settings P.D c i))).trans hpm
+      obtain ⟨hT, hpos⟩ := drawFrom_offLaw (compl_ne_zero hm) hu
+      refine ⟨hT, ?_⟩
+      have := mem_of_pos (A := {q : FreeMonoid α | q.toList.length < Ls})
+        (by
+          refine measure_mono_null (fun x hx => ?_) (hshort none (Finset.mem_insert_self _ _))
+          simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hx ⊢
+          exact hx) hpos
+      exact this
+    · rw [hd] at hdeg ⊢
+      obtain ⟨hT, hpos⟩ := drawFrom_offLaw hdeg hu
+      refine ⟨hT, ?_⟩
+      have := mem_of_pos (A := {q : FreeMonoid α | q.toList.length < Ls})
+        (by
+          refine measure_mono_null (fun x hx => ?_) (hshort j hjr)
+          simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hx ⊢
+          exact hx) hpos
+      exact this
   have hsuf : ∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf settings P.D Dsf (histAt settings P.D c i)
       (g i).1, v ∉ (histAt settings P.D c i).suffs ∧ v.toList.length = Ls := by
     intro i hir v hv
@@ -432,7 +440,8 @@ theorem loop_coll_null (Ls N : ℕ)
   measure_mono_null (by
     intro p hp hlt
     obtain ⟨hlen, hsupp, hpm, hsm, hnc⟩ := hp
-    exact hnc (noColl_of_allLt settings O P Dsf Ls N hN hLs hDsf p.1 p.2 r hr hlen hsupp hpm
+    exact hnc (noColl_of_allLt settings O P Dsf Ls N hN hLs hDsf p.1 p.2 r hr hlen hsupp
+      (hpm none (Finset.mem_insert_self _ _))
       hsm hlt))
     (allLt_ae r)
 

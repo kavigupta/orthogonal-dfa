@@ -202,6 +202,16 @@ instance (ν : Measure (FreeMonoid α)) : IsProbabilityMeasure (popLaw ν) := by
     constructor
     rw [Measure.smul_apply, smul_eq_mul, ENNReal.inv_mul_cancel h.1 h.2]
 
+instance {K : ℕ} (D : Measure (FreeMonoid α)) (pops : List (Measure (FreeMonoid α)))
+    (j : Option (Fin K)) (T : Finset (FreeMonoid α)) : IsProbabilityMeasure (popOff D pops j T) := by
+  unfold popOff offLaw
+  split_ifs <;> infer_instance
+
+lemma popOff_of_ne {K : ℕ} {D : Measure (FreeMonoid α)} {pops : List (Measure (FreeMonoid α))}
+    {j : Option (Fin K)} {T : Finset (FreeMonoid α)} (h0 : loopDistributions D pops j (↑T)ᶜ ≠ 0) :
+    popOff D pops j T = offLaw (loopDistributions D pops j) T :=
+  if_neg h0
+
 lemma popLaw_real {ν : Measure (FreeMonoid α)} (h0 : ν Set.univ ≠ 0) (htop : ν Set.univ ≠ ∞)
     (A : Set (FreeMonoid α)) : (popLaw ν).real A = ν.real A / ν.real Set.univ := by
   unfold popLaw
@@ -258,10 +268,10 @@ instance (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) :
 populations and suffixes conditioned off what the earlier rounds read. -/
 lemma measurePreserving_clusterDraws (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
     MeasurePreserving (clusterDraws (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
-      (runMeasure μ (fun j => offLaw (loopDistributions D h.pops j) h.prefs)
+      (runMeasure μ (fun j => popOff D h.pops j h.prefs)
         (offLaw Dsf h.suffs)) := by
   set L : Option (Fin K) → Measure (FreeMonoid α) :=
-    fun j => offLaw (loopDistributions D h.pops j) h.prefs
+    fun j => popOff D h.pops j h.prefs
   have hS := measurePreserving_drawStream (offLaw Dsf h.suffs)
   have hP := measurePreserving_popDraws L
   set US := Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
