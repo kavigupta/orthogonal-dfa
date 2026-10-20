@@ -12,6 +12,7 @@ import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Proofs.KappaShort
 import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
@@ -27,7 +28,7 @@ The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim` (with `KappaRoundCorrectAt`, which reads the prefix mass past the walk's start), and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
@@ -123,5 +124,10 @@ theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
 
 #print axioms covered_start_correct
+
+theorem kappa_round_correct_at : KappaRoundCorrectAt :=
+  Random.Kappa.kappaRoundCorrectAt_holds
+
+#print axioms kappa_round_correct_at
 
 end OrthoDFA
