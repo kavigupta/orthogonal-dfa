@@ -6,6 +6,7 @@ import unittest
 from orthogonal_dfa.l_star.round_end import (
     HARVEST_ENDS,
     HARVEST_MIDDLES,
+    HARVEST_STUCK,
     OUT_OF_PROBES,
     SUCCESS,
     Ending,
@@ -20,6 +21,21 @@ from tests.counterexample_common import (
     parity_cut,
     quiet_search,
 )
+
+#: The shipped config's rates at an acceptance target of 0.98, with ends at their cap
+#: on a deep tree, where they never harvest.
+SHIPPED_RATES = dict(
+    ends_rate=0.5,
+    ends_alternative=1.0,
+    stuck_rate=0.002,
+    stuck_alternative=0.004,
+    disagreement_rate=0.02,
+    disagreement_alternative=0.002,
+    level=1e-3,
+    max_probes=1000,
+)
+
+WITHOUT_EVEN_1 = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
 
 
 class TestCharging(unittest.TestCase):
@@ -149,6 +165,28 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual([None] * 12, endings)
         self.assertEqual(SUCCESS, search.step(b"\x01\x01").kind)
         self.assertEqual(14, search.probes)
+
+    def test_stuck_ends_harvest_before_the_hypothesis_succeeds(self):
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, **SHIPPED_RATES
+        )
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(Ending(HARVEST_STUCK, [b"\x00\x01"] * 11), ending)
+        self.assertEqual(31, search.probes)
+
+    def test_undecided_ends_of_a_searched_walk_do_not_hold_off_success(self):
+        search = quiet_search(parity_cut([b"\x01\x00"]), PARITY_EDGES, **SHIPPED_RATES)
+        ending = search.run(itertools.cycle([b"\x01\x00", b"\x01", b"\x00"]))
+        self.assertEqual(SUCCESS, ending.kind)
+        self.assertEqual((380, 127), (search.probes, len(search.counts.ends)))
+
+    def test_a_stuck_end_delays_success(self):
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, **SHIPPED_RATES
+        )
+        ending = search.run(itertools.chain([b"\x00\x01"], itertools.repeat(b"\x00")))
+        self.assertEqual(SUCCESS, ending.kind)
+        self.assertEqual(508, search.probes)
 
     def test_the_probes_running_out(self):
         search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=3)
