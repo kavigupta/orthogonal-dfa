@@ -87,7 +87,8 @@ def RoundPremises (σ α : Type*) [Fintype σ] [Fintype α] (L : ℕ) (C : Rando
   0 < C.δ ∧ C.δ ≤ 1 ∧ 0 < C.harvestRate
     ∧ C.harvestRate ≤ C.disagreementRate / 48 ∧ C.disagreementRate < 1
     ∧ 36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget
-    ∧ 0 ≤ εw ∧ εw * (C.probeBudget * (L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα) ≤ C.δ / 8
+    ∧ 0 ≤ εw ∧ εw * (C.probeBudget * min (L + 1) (3 + Nat.clog 2 L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+      ≤ C.δ / 8
 
 variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (P : PrefixDistribution α)

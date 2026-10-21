@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.LoopRounds
 import OrthoDFA.Proofs.Adaptive
+import OrthoDFA.Proofs.RawRun
 import Mathlib.Probability.ProductMeasure
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 import Mathlib.MeasureTheory.Function.Floor
@@ -10,8 +11,8 @@ import Mathlib.Data.List.GetD
 
 A uniform `u` lands where `ν`'s running mass over the strings' numbering first passes it, at a
 string with chance its mass, so a draw is from `ν` (`map_drawFrom`). The round's draws, run at
-given populations, are then a run drawn by `runMeasure` at those populations
-(`measurePreserving_clusterRun`).
+given populations, are then drawn by `runMeasure` at those populations, the hash's sides
+included (`measurePreserving_clusterDraws`).
 -/
 
 noncomputable section
@@ -253,10 +254,10 @@ instance (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) :
     IsProbabilityMeasure (offLaw ν T) := by
   unfold offLaw; infer_instance
 
-/-- After the history `h`, a round's clustering draws give a run drawn by `runMeasure` at the
+/-- After the history `h`, a round's clustering draws are drawn by `runMeasure` at the
 populations and suffixes conditioned off what the earlier rounds read. -/
-lemma measurePreserving_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
-    MeasurePreserving (clusterRun (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
+lemma measurePreserving_clusterDraws (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
+    MeasurePreserving (clusterDraws (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
       (runMeasure μ (fun j => offLaw (loopDistributions D h.pops j) h.prefs)
         (offLaw Dsf h.suffs)) := by
   set L : Option (Fin K) → Measure (FreeMonoid α) :=
@@ -266,15 +267,21 @@ lemma measurePreserving_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHi
   set US := Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
   set UP := Measure.pi fun _ : Option (Fin K) =>
     Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
-  have hassoc := (measurePreserving_prodAssoc US UP UP).symm
-  have hin := ((hS.prod hP).prod hP).comp hassoc
-  exact (MeasurePreserving.id μ).prod hin
+  set C := Measure.infinitePi fun _ : FreeMonoid α => fairCoin
+  have e1 := (MeasurePreserving.id US).prod (measurePreserving_prodAssoc UP UP C).symm
+  have e2 := (measurePreserving_prodAssoc US (UP.prod UP) C).symm
+  have e3 := (measurePreserving_prodAssoc US UP UP).symm.prod (MeasurePreserving.id C)
+  have hin := (((hS.prod hP).prod hP).prod (MeasurePreserving.id C)).comp (e3.comp (e2.comp e1))
+  have hall := ((MeasurePreserving.id μ).prod hin)
+  exact (measurePreserving_prodAssoc μ (((Measure.infinitePi fun _ : ℕ => offLaw Dsf h.suffs).prod
+      (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)).prod
+      (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)) C).symm.comp hall
 
 omit [IsProbabilityMeasure μ] in
-lemma measurable_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
-    Measurable (clusterRun (Ω := Ω) (K := K) D Dsf h) := by
-  unfold clusterRun
-  refine measurable_fst.prodMk (Measurable.prodMk (Measurable.prodMk ?_ ?_) ?_)
+lemma measurable_clusterDraws (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
+    Measurable (clusterDraws (Ω := Ω) (K := K) D Dsf h) := by
+  unfold clusterDraws
+  refine (measurable_fst.prodMk (Measurable.prodMk (Measurable.prodMk ?_ ?_) ?_)).prodMk ?_
   · exact measurable_pi_lambda _ fun n => (measurable_drawFrom _).comp
       ((measurable_pi_apply n).comp (measurable_fst.comp measurable_snd))
   · exact measurable_pi_lambda _ fun j => measurable_pi_lambda _ fun n =>
@@ -282,7 +289,13 @@ lemma measurable_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) 
         (measurable_fst.comp (measurable_snd.comp measurable_snd))))
   · exact measurable_pi_lambda _ fun j => measurable_pi_lambda _ fun n =>
       (measurable_drawFrom _).comp ((measurable_pi_apply n).comp ((measurable_pi_apply j).comp
-        (measurable_snd.comp (measurable_snd.comp measurable_snd))))
+        (measurable_fst.comp (measurable_snd.comp (measurable_snd.comp measurable_snd)))))
+  · exact measurable_snd.comp (measurable_snd.comp (measurable_snd.comp measurable_snd))
+
+omit [IsProbabilityMeasure μ] in
+lemma measurable_clusterRun (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) :
+    Measurable (clusterRun (Ω := Ω) (K := K) D Dsf h) :=
+  (measurable_streams _ none).comp (measurable_clusterDraws D Dsf h)
 
 end Run
 

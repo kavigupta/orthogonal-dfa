@@ -4,15 +4,14 @@ import OrthoDFA.Proofs.EpsReads
 # Level 3 with rare wrong reads: the proof
 
 Given the reads, the round fails to end well only where a stretch risks it, as at level 3, or
-where some step reads a string wrong (`eps_probe_level`): a step that reads nothing wrong keeps
-`WitInv`, so the tree stays in the class level 3's stretches need. The run stopped at the first
-step that reads a string wrong (`stopAt`) has level 3's stretches. Over the reads, the probes
-harvest within their bounds but for the tails at every state's rate (`harvest_noise`), and some
-step reads a string wrong with chance at most
-`εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|)` (`pi_wrong_le`).
+where some step is bad (`eps_probe_level`): a step that is not keeps an invariant `J` that keeps
+the tree in the class level 3's stretches need. Level 5 takes `J` to be `WitInv`. The run stopped at the first bad step (`stopAt`) has level 3's
+stretches. Over the reads, the probes harvest within their bounds but for the tails at every
+state's rate (`harvest_noise`).
 
-`Level4RoundCorrect` takes level 3's knobs at `log(16(|Q| + 1)K/δ)`: the tails risk `δ/16` at each
-site, the stretches `3δ/4` and the wrong reads `δ/8`.
+Levels 4 and 5 take level 3's knobs at `log(16(|Q| + 1)K/δ)` (`round_knobs`): the tails risk `δ/16`
+at each site, the stretches `3δ/4` and the wrong reads `δ/8`. Level 4 is level 5 at `κ = 0`
+(`Proofs/KappaRound.lean`).
 -/
 
 namespace OrthoDFA
@@ -68,16 +67,20 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
   (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
 /-- The steps `W` that a step changing the hypothesis must avoid to keep the invariants. -/
-def KeepsInv (W : Level3State α → FreeMonoid α → Prop) : Prop :=
-  ∀ ⦃s s' : Level3State α⦄ ⦃x : FreeMonoid α⦄, Inv read s → WitInv M side s → ¬ W s x →
+def KeepsInv (J : Level3State α → Prop) (W : Level3State α → FreeMonoid α → Prop) : Prop :=
+  ∀ ⦃s s' : Level3State α⦄ ⦃x : FreeMonoid α⦄, Inv read s → J s → ¬ W s x →
     applyProbe read C s x = .inl s' → ¬ (s'.tree = s.tree ∧ s'.edges = s.edges) →
-    Inv read s' ∧ WitInv M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
+    Inv read s' ∧ J s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
       ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s
 
+/-- `J` is about the hypothesis only. -/
+def HypInv (J : Level3State α → Prop) : Prop :=
+  ∀ ⦃s s' : Level3State α⦄, s'.tree = s.tree → s'.edges = s.edges → J s → J s'
+
 /-- A run with no bad step, a step `W` counted as bad, ends well, given enough probes. -/
-theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
-    (hW : KeepsInv read C M side W) :
-    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → WitInv M side s →
+theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
+    (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C (σ := σ) J W) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → J s →
       s.probeCount < Ns → Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U A sl D ε Ns y W) s xs →
       EndsWell
@@ -107,7 +110,7 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
         have hlt : s'.probeCount < Ns := by
           have : s'.probeCount ≠ Ns := fun h => hb1 (Or.inr ⟨s', hst, hsm, h⟩)
           omega
-        refine eps_ends_of_not_anyB W hW xs s' hs' (witInv_congr M side hg hsm.1 hsm.2) hlt ?_
+        refine eps_ends_of_not_anyB J hJ W hW xs s' hs' (hJ hsm.1 hsm.2 hg) hlt ?_
           (hb2 s' hst)
         rw [hΨ, hn']
         simp only [List.length_cons] at hlen
@@ -115,7 +118,7 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
       · have hx : ¬ W s x := fun h => hb1 (Or.inl ⟨hn, Or.inr h⟩)
         obtain ⟨hs', hg', hf, -, hΨ⟩ := hW hs hg hx hst hsm
         have h0 : s'.probeCount = 0 := by rw [hf]; rfl
-        refine eps_ends_of_not_anyB W hW xs s' hs' hg' (by omega) ?_ (hb2 s' hst)
+        refine eps_ends_of_not_anyB J hJ W hW xs s' hs' hg' (by omega) ?_ (hb2 s' hst)
         rw [h0, Nat.sub_zero]
         simp only [List.length_cons] at hlen
         have : (Ψr (Fintype.card σ) s' + 1) * Ns ≤ Ψr (Fintype.card σ) s * Ns :=
@@ -128,7 +131,9 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
 
 /-- Given the reads, the round fails to end well with chance at most what the stretches risk at
 their levels, plus the chance that some step is `W`. -/
-theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C M side W)
+theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J initialState)
+    (hJcls : ∀ s, Inv read s → J s → s.tree ∈ classSet (Fintype.card σ))
+    (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C (σ := σ) J W)
     [IsProbabilityMeasure D] (P N₁ : ℕ)
     (Ge θgpt ηm pM θr εd' θe' θpt' : ℝ)
     (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
@@ -179,8 +184,8 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
   set step₂ := stopAt (applyProbe read C) W (RoundEnd.failed : RoundEnd Level3Site)
   set B₁ := BadStep read C M U A sl D ε Ns y fun _ _ => False
   set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
-  set I : Level3State α → Prop := fun s => Inv read s ∧ WitInv M side s ∧ s.probeCount < Ns
-  have hI0 : I initialState := ⟨inv_start read, witInv_start M side,
+  set I : Level3State α → Prop := fun s => Inv read s ∧ J s ∧ s.probeCount < Ns
+  have hI0 : I initialState := ⟨inv_start read, hJ0,
     by simp only [initialState, newHypothesis]; omega⟩
   have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.hypotheses → ∀ N,
       (Measure.pi fun _ : Fin N => D) {xs | SegB step₂ B₁ Same s (List.ofFn xs)}
@@ -188,7 +193,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
     rintro s ⟨hs, hg, -⟩ hf N
     refine (measure_mono fun xs hxs => segB_stopAt _ _ _ _ _ _ _ hxs).trans ?_
     have := seg_le read C M U A sl D ε Ns y (fun _ _ => False) (fun _ => False) 0 N₁ Ge θgpt ηm pM
-      θr εd' θe' θpt' hs hf (cls_mem' M side read hs hg) hNe hNm (fun _ _ _ _ _ h => h.elim)
+      θr εd' θe' θpt' hs hf (hJcls s hs hg) hNe hNm (fun _ _ _ _ _ h => h.elim)
       (fun N => by simp) hN₁ hN₁s (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
       (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hθg hpM0
       hyM hηm hfall
@@ -203,7 +208,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
       obtain ⟨hs, hg, hn⟩ := hI
       have h := (stopAt_inl _ _ _ h).2
       obtain ⟨h1, h2, h3, h4⟩ := step_same read C hs h hsm.1 hsm.2
-      refine ⟨⟨h1, witInv_congr M side hg hsm.1 hsm.2, ?_⟩, h2 _, h4⟩
+      refine ⟨⟨h1, hJ hsm.1 hsm.2 hg, ?_⟩, h2 _, h4⟩
       have : s'.probeCount ≠ Ns := fun hc => hb (Or.inr ⟨s', h, hsm, hc⟩)
       omega)
     (fun s x s' hI h hsm hb => by
@@ -226,7 +231,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
             (List.ofFn xs) := by
           by_contra hb
           have hn0 : (initialState : Level3State α).probeCount = 0 := rfl
-          refine hxs (eps_ends_of_not_anyB read C M side U A sl D ε Ns y W hW _ initialState hI0.1
+          refine hxs (eps_ends_of_not_anyB read C M U A sl D ε Ns y J hJ W hW _ initialState hI0.1
             hI0.2.1 (by rw [hn0]; exact hNs) ?_ hb)
           rw [hn0, Nat.sub_zero, List.length_ofFn]
           have : (Ψr (Fintype.card σ) (initialState : Level3State α) + 1) * Ns
@@ -270,13 +275,15 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : ProbabilityTheory.iIndepFun read μ)
     (hund : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList))
+    (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J initialState)
+    (hJcls : ∀ rd s, Inv rd s → J s → s.tree ∈ classSet (Fintype.card σ))
     (W : (FreeMonoid α → ARU) → Level3State α → FreeMonoid α → Prop)
-    (hW : ∀ rd, KeepsInv rd C M side (W rd)) (P : PrefixDistribution α) (y p₀ η : ℝ) (kn : Knobs)
+    (hW : ∀ rd, KeepsInv rd C (σ := σ) J (W rd)) (P : PrefixDistribution α) (y p₀ η : ℝ) (kn : Knobs)
     (hA : kn.Admissible (σ := σ) (α := α) C ε y) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
     (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
+    (hAm : 16 * ((2 + Nat.clog 2 P.L) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
     (hθg : 1 / 16 ≤ kn.θgpt) (hηm0 : 0 ≤ kn.ηm) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (read · ω) draws
@@ -330,7 +337,8 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans (le_add_self.trans le_self_add)
     · rw [Set.indicator_of_notMem hω, add_zero]
-      exact eps_probe_level (read · ω) C M side U A sl P.D ε Ns y (W (read · ω)) (hW (read · ω))
+      exact eps_probe_level (read · ω) C M U A sl P.D ε Ns y J hJ hJ0 (hJcls (read · ω))
+        (W (read · ω)) (hW (read · ω))
         C.probeBudget N₁ Ge θgpt ηm pM
         θr εd' θe' θpt' (hgood ω hω).1 (hgood ω hω).2
         hN₁ hN₁s hδ hθs0 hθs1 hps hθpt0 hθpt1 hθg4 hpM0 hyM hηm hfall hεd0 hεd1 hε
@@ -354,40 +362,6 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
         rw [add_comm c, ← ENNReal.ofReal_add (by positivity) hnn]
         rfl
 
-/-- The round's failure chance is at most `roundBoundAt` at admissible knobs, with no
-length-`walkStart` prefix above `p₀`, plus the chance some step reads a string wrong. -/
-theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (εw : ℝ) (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α) (y p₀ η : ℝ) (kn : Knobs)
-    (hA : kn.Admissible (σ := σ) (α := α) C ε y) (hp₀ : 0 < p₀)
-    (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
-    (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
-    (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
-    (hθg : 1 / 16 ≤ kn.θgpt) (hηm0 : 0 ≤ kn.ηm) :
-    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
-        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          ¬ EndsWell
-            { target := M,
-              undecided := U,
-              harvestSlope := A,
-              harvestSlack := sl,
-              probes := P.D,
-              disagreeRate := ε,
-              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
-                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
-              walkStart := C.walkStart,
-              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
-              yield := y,
-              ending := result.ending }} ∂μ
-      ≤ ENNReal.ofReal (roundBoundAt (α := α) σ η p₀ C kn)
-        + ENNReal.ofReal (εw * (C.probeBudget
-          * ((P.L + 1) * Fintype.card σ + (Fintype.card σ + 1) * Fintype.card α
-            * (Fintype.card σ + 1)))) :=
-  (eps_round_le_of C M side U A sl ε μ R.read R.measurable R.indep R.undecided
-    (fun rd => WrongStep M side rd C)
-    (fun rd _ _ _ hs hg hx h hne => eps_step_change M side rd C hs hg hx h hne) P y p₀ η kn hA hp₀
-    hpre hy hy4 hη hAe hAm hsl hθg hηm0).trans (by gcongr; exact pi_wrong_le M side C μ U εw R P)
-
 /-- The level-3 knobs and the sampler's bounds at `η = p₀ log(16(|Q| + 1)K/δ)`: the tails risk
 `δ/8` in all, the stretches `3δ/4`. -/
 theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Level3Settings) (L : ℕ)
@@ -405,8 +379,9 @@ theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
     let η := p₀ * Real.log (16 * (nQ + 1) * K / C.δ)
     ∃ kn : Knobs, kn.Admissible (σ := σ) (α := α) C C.disagreementRate C.harvestRate
       ∧ 1 / 16 ≤ kn.θgpt ∧ 0 ≤ kn.ηm ∧ 0 ≤ η
-      ∧ 6 * (nQ + 1) / C.harvestRate ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (L + 1))
-      ∧ 16 * ((L + 1) * (nQ + 1)) ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (L + 1))
+      ∧ 6 * (nQ + 1) / C.harvestRate ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
+      ∧ 16 * ((2 + Nat.clog 2 L) * (nQ + 1))
+        ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
       ∧ roundBoundAt (α := α) σ η p₀ C kn ≤ 7 * C.δ / 8 := by
   intro nQ K η
   have hK1 : (1 : ℝ) ≤ K := by
@@ -417,9 +392,9 @@ theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
   have hη0 : 0 ≤ η := mul_nonneg hp₀.le (Real.log_nonneg (by
     rw [le_div_iff₀ hδ]; nlinarith))
   refine ⟨kn, hA, hθg.ge, hηm.ge, hη0, ?_, ?_, ?_⟩
-  · have : 0 ≤ (nQ + 1) * (16 * ((L : ℝ) + 1)) := by positivity
-    have e : (nQ + 1) * (6 / C.harvestRate + 16 * ((L : ℝ) + 1))
-        = 6 * (nQ + 1) / C.harvestRate + (nQ + 1) * (16 * ((L : ℝ) + 1)) := by ring
+  · have : 0 ≤ (nQ + 1) * (16 * (2 + (Nat.clog 2 L : ℝ))) := by positivity
+    have e : (nQ + 1) * (6 / C.harvestRate + 16 * (2 + (Nat.clog 2 L : ℝ)))
+        = 6 * (nQ + 1) / C.harvestRate + (nQ + 1) * (16 * (2 + (Nat.clog 2 L : ℝ))) := by ring
     rw [e]; linarith
   · have : 0 ≤ (nQ + 1) * (6 / C.harvestRate) := by positivity
     nlinarith
@@ -427,34 +402,6 @@ theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
     have h1 := tailRisk_eq nQ (Fintype.card α) hp₀ hδ 16 (by norm_num)
     have : 2 * ((nQ : ℝ) + 1) * tailRisk nQ (Fintype.card α) p₀ η = 2 * C.δ / 16 := h1
     linarith
-
-theorem level4RoundCorrect_holds : Level4RoundCorrect := by
-  intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
-  dsimp only
-  intro hpre hδ hy0 hyρ hρ1 hP hw
-  set nQ := Fintype.card σ
-  set nα := Fintype.card α
-  set δ := C.δ
-  by_cases hδ1 : 1 ≤ δ
-  · calc _ ≤ ∫⁻ _, 1 ∂μ := lintegral_mono fun _ => prob_le_one
-      _ = 1 := by simp
-      _ ≤ _ := by rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal hδ1
-  push Not at hδ1
-  have hp₀ : 0 < p₀ :=
-    (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
-  obtain ⟨kn, hA, hθg, hηm0, hη0, hAe, hAm, hround⟩ := round_knobs (σ := σ) (α := α) C P.L p₀ hp₀
-    hδ hδ1 hy0 hyρ hρ1 (by exact_mod_cast hP)
-  refine (eps_round_le_at C M side U _ _ _ μ εw R P _ p₀ _ kn hA hp₀ hpre hy0 (by linarith) hη0
-    hAe hAm le_rfl hθg hηm0).trans ?_
-  have hwr : εw * (C.probeBudget * ((P.L + 1) * nQ + (nQ + 1) * nα * (nQ + 1))) ≤ δ / 8 := by
-    convert hw using 1
-    ring
-  calc _ ≤ ENNReal.ofReal (7 * δ / 8) + ENNReal.ofReal (δ / 8) := by
-        gcongr
-    _ = _ := by
-        rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
-        congr 1
-        ring
 
 end Eps
 

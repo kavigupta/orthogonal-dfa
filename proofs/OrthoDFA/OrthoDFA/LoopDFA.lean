@@ -1,3 +1,4 @@
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 import OrthoDFA.LearnerLoop
 
 /-!
@@ -101,16 +102,19 @@ def LearnerLoopDFASimple : Prop :=
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   -- The strings a round can read wrong; the clustering's band must keep them right.
-  let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+  let W : ℝ := B₃ * (min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+    + (Q + 1) * A ^ Fintype.card σ / ε
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   -- The clustering's prefix count.
-  let RB : ℝ := 60000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
-  let cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
-      (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
+  let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
+        (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
@@ -179,9 +183,10 @@ def LearnerLoopDFA : Prop :=
   let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-  let R₀ : ℝ := 60000 * (Q + 2) ^ 2 * Θ ^ 2
+  let R₀ : ℝ := 64000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
-  let E₁ : ℝ := 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+  let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+    + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)

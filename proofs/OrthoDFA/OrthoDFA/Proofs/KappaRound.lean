@@ -136,23 +136,25 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
     (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
   obtain ⟨kn, hA, hθg, hηm0, hη0, hAe, hAm, hround⟩ := round_knobs (σ := σ) (α := α) C P.L p₀ hp₀
     hδ hδ1 hy0 hyρ hρ1 (by exact_mod_cast hP)
-  refine (eps_round_le_of C M side U _ _ _ μ R.read R.measurable R.indep R.undecided
-    (fun rd => ReadsWrong M side rd C)
+  refine (eps_round_le_of C M U _ _ _ μ R.read R.measurable R.indep R.undecided
+    (WitInv M side) (fun _ _ ht he hg => witInv_congr M side hg ht he) (witInv_start M side)
+    (fun rd _ hs hg => cls_mem' M side rd hs hg) (fun rd => ReadsWrong M side rd C)
     (fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg hx h hne) P _ p₀ _ kn hA
     hp₀ hpre hy0 (by linarith) hη0 hAe hAm le_rfl hθg hηm0).trans ?_
   refine (add_le_add le_rfl (pi_wrong_le' M side C μ U εw κ R P hεw hκ hy0 hyρ hρ1 hδ
     hδ1.le)).trans ?_
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1.le
-  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
+  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]
     push_cast
     nlinarith
-  have hMb : Mb nQ nα P.L C.probeBudget = C.probeBudget * (P.L + 1) * nQ
-      + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mb wSplit
+  have hMb : Mb nQ nα P.L C.probeBudget
+      = C.probeBudget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * nQ
+        + nQ * (nQ + 1) ^ 2 * nα := by
+    unfold Mb wSplit probeSifts
     push_cast
     ring
   have hwr : εw * Mb nQ nα P.L C.probeBudget + κ * Mu nQ nα C ≤ δ / 8 := by
@@ -167,6 +169,19 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
         ring
 
 end Kappa
+
+namespace Eps
+
+theorem level4RoundCorrect_holds : Level4RoundCorrect := by
+  intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
+  dsimp only
+  intro hpre hδ hy0 hyρ hρ1 hP hw
+  have hεw : 0 ≤ εw := MeasureTheory.measureReal_nonneg.trans (R.wrong default)
+  exact Kappa.level5RoundCorrect_holds M side U εw 0 μ
+    ⟨R.read, R.measurable, R.indep, R.undecided, fun z => by simpa using R.wrong z⟩ P C p₀ hpre hδ
+    hy0 hyρ hρ1 hP hεw le_rfl (by simpa using hw)
+
+end Eps
 
 end Random
 
