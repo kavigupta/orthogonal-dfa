@@ -3,9 +3,11 @@ import OrthoDFA.Proofs.RandomHarvest
 /-!
 # What the probes harvest at good read-states
 
-Fix a tree and an edge map. A search reads only decided sifts, so it and a string read undecided
-have chance at most the product of theirs (`forced_le`): a probe stops at an undecided middle at a
-good read-state with chance at most `(L + 1)(|Q| + 1) · 1.5θ` of its chance of searching. A probe
+Fix a tree and an edge map. A search reads only decided sifts, so making a string undecided can
+only stop it sooner, and its reaching a position and the string read undecided have chance at most
+the product of theirs (`forced_le`, `probeQueries_update`). A probe at most `L` long queries at
+most `2 + ⌈log₂ L⌉` positions, so it stops at an undecided middle at a good read-state with chance
+at most `(2 + ⌈log₂ L⌉)(|Q| + 1) · 1.5θ` of its chance of searching. A probe
 stops undecided at its start or end at a string the start sift reads, or, its start sifted to a
 leaf, one the sift at the walk's end or just past it reads, and the sift to that leaf is likewise
 independent of each later string: it stops so at a good read-state with chance at most
@@ -70,35 +72,95 @@ theorem start_und_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
       rw [sift_congr_mids T _ fun m hm => h _ (Finset.mem_image_of_mem _ hm)]) z
     fun rd h => sift_update_inl rd z T _ _ h
 
-/-- A probe stops at an undecided middle at a good read-state with chance at most its strings'
-count times `1.5θ` of its chance of searching. -/
+/-- A probe at most `L` long stops at an undecided middle at a good read-state with chance at most
+`(2 + ⌈log₂ L⌉)(n + 1) · 1.5θ` of its chance of searching. -/
 theorem mid_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
-    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ) :
+    (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ) {L n : ℕ}
+    (hx : x.toList.length ≤ L) (hT : (mids T).card ≤ n + 1) :
     μ.real {ω | x ∈ goodAt (read · ω) k ⟨T, E⟩ M U θ .middles}
-      ≤ (pot k x T).card * (3 / 2 * θ)
+      ≤ (2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ)
         * μ.real {ω | searches (probeOrAgree (read · ω) T E k x) = true} := by
   classical
+  set β := 3 / 2 * θ
   set Srch := {ω | searches (probeOrAgree (read · ω) T E k x) = true}
-  set Zs := (pot k x T).filter fun z => ¬ BadAt U θ (M.eval z.toList)
+  set Ev : ℕ → (FreeMonoid α → ARU) → Prop := fun p rd =>
+    searches (probeOrAgree rd T E k x) = true ∧ p ∈ probeQueries rd T E k x
+  set F : ℕ → Set Ω := fun p => {ω | Ev p (read · ω)}
+  set Ps := Finset.Icc k x.toList.length
+  set Zs : ℕ → Finset (FreeMonoid α) := fun p =>
+    ((mids T).image (prefixOf x p * ·)).filter fun z => ¬ BadAt U θ (M.eval z.toList)
+  have hEv : ∀ p rd rd', (∀ w ∈ pot k x T, rd w = rd' w) → (Ev p rd ↔ Ev p rd') :=
+    fun p rd rd' h => by
+      simp only [Ev, probeOrAgree_congr rd T E k x h, probeQueries_congr rd T E k x h]
+  have hFm : ∀ p, MeasurableSet (F p) := by
+    intro p
+    have := measurable_of_strings hmeas (pot k x T) (fun rd => decide (Ev p rd))
+      fun rd rd' h => by simp only [hEv p rd rd' h]
+    convert this (measurableSet_singleton true) using 1
+    ext ω; simp [F]
+  have hSm : MeasurableSet Srch := by
+    have := measurable_of_strings hmeas (pot k x T)
+      (fun rd => searches (probeOrAgree rd T E k x)) fun rd rd' h => by
+        simp only [probeOrAgree_congr rd T E k x h]
+    exact this (measurableSet_singleton true)
   have hsub : {ω | x ∈ goodAt (read · ω) k ⟨T, E⟩ M U θ .middles}
-      ⊆ ⋃ z ∈ Zs, {ω | searches (probeOrAgree (read · ω) T E k x) = true
-        ∧ read z ω = .undecided} := by
+      ⊆ ⋃ p ∈ Ps, ⋃ z ∈ Zs p, {ω | Ev p (read · ω) ∧ read z ω = .undecided} := by
     intro ω hω
     obtain ⟨z, hz, hg⟩ := hω
-    obtain ⟨hzp, hzu⟩ := probeOrAgree_pt (read · ω) T x E k z hz
-    exact Set.mem_biUnion (Finset.mem_filter.2 ⟨hzp, hg⟩)
-      ⟨searches_of_ptStr (List.ne_nil_of_mem hz), hzu⟩
+    obtain ⟨p, hpq, hkp, hpx, hsz⟩ := probeOrAgree_queried (read · ω) T x E k z hz
+    obtain ⟨m, hm, rfl⟩ := sift_inr_mids (read · ω) T _ _ hsz
+    exact Set.mem_biUnion (Finset.mem_Icc.2 ⟨hkp, hpx⟩) (Set.mem_biUnion
+      (Finset.mem_filter.2 ⟨Finset.mem_image_of_mem _ hm, hg⟩)
+      ⟨⟨searches_of_ptStr (List.ne_nil_of_mem hz), hpq⟩, DTree.sift_inr (read · ω) T _ _ hsz⟩)
+  have hcount : ∑ p ∈ Ps, μ.real (F p) ≤ (2 + Nat.clog 2 L) * μ.real Srch := by
+    have hFi : ∀ p, Integrable ((F p).indicator (1 : Ω → ℝ)) μ :=
+      fun p => (integrable_const (1 : ℝ)).indicator (hFm p)
+    calc ∑ p ∈ Ps, μ.real (F p) = ∫ ω, ∑ p ∈ Ps, (F p).indicator (1 : Ω → ℝ) ω ∂μ := by
+          rw [integral_finsetSum _ fun p _ => hFi p]
+          exact Finset.sum_congr rfl fun p _ => (integral_indicator_one (hFm p)).symm
+      _ ≤ ∫ ω, (2 + Nat.clog 2 L : ℝ) * Srch.indicator (1 : Ω → ℝ) ω ∂μ := by
+          refine integral_mono (integrable_finsetSum _ fun p _ => hFi p)
+            (((integrable_const (1 : ℝ)).indicator hSm).const_mul _) fun ω => ?_
+          by_cases hω : ω ∈ Srch
+          · rw [Set.indicator_of_mem hω, Pi.one_apply, mul_one]
+            calc ∑ p ∈ Ps, (F p).indicator (1 : Ω → ℝ) ω
+                ≤ ∑ p ∈ Ps, if p ∈ probeQueries (read · ω) T E k x then (1 : ℝ) else 0 :=
+                  Finset.sum_le_sum fun p _ => by
+                    by_cases hp : ω ∈ F p
+                    · rw [Set.indicator_of_mem hp, if_pos hp.2, Pi.one_apply]
+                    · rw [Set.indicator_of_notMem hp]; split_ifs <;> norm_num
+              _ = ((Ps.filter (· ∈ probeQueries (read · ω) T E k x)).card : ℝ) := by
+                  rw [Finset.sum_boole]
+              _ ≤ ((probeQueries (read · ω) T E k x).length : ℝ) := by
+                  exact_mod_cast (Finset.card_le_card fun p hp =>
+                    List.mem_toFinset.2 (Finset.mem_filter.1 hp).2).trans
+                    (List.toFinset_card_le _)
+              _ ≤ 2 + Nat.clog 2 L := by
+                  exact_mod_cast probeQueries_length (read · ω) T E k x hx
+          · have : ∀ p, ω ∉ F p := fun p h => hω h.1
+            simp [Set.indicator_of_notMem, this, hω]
+      _ = (2 + Nat.clog 2 L) * μ.real Srch := by
+          rw [integral_const_mul, integral_indicator_one hSm]
   calc _ ≤ _ := measureReal_mono hsub (measure_ne_top μ _)
-    _ ≤ ∑ z ∈ Zs, μ.real {ω | searches (probeOrAgree (read · ω) T E k x) = true
-          ∧ read z ω = .undecided} := measureReal_biUnion_finset_le _ _
-    _ ≤ ∑ _z ∈ Zs, μ.real Srch * (3 / 2 * θ) := by
-        refine Finset.sum_le_sum fun z hz => (search_und_le T E k x hmeas hind z).trans ?_
+    _ ≤ ∑ p ∈ Ps, ∑ z ∈ Zs p, μ.real {ω | Ev p (read · ω) ∧ read z ω = .undecided} := by
+        refine (measureReal_biUnion_finset_le _ _).trans (Finset.sum_le_sum fun p _ => ?_)
+        exact measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ p ∈ Ps, ∑ _z ∈ Zs p, μ.real (F p) * β := by
+        refine Finset.sum_le_sum fun p _ => Finset.sum_le_sum fun z hz => ?_
+        refine (forced_le hmeas hind (pot k x T) (Ev p) (hEv p) z fun rd h =>
+          ⟨searches_update rd T E k x z h.1, probeQueries_update rd T E k x z h.2⟩).trans ?_
         exact mul_le_mul_of_nonneg_left
           (undecided_le_of_good M U θ hU (Finset.mem_filter.1 hz).2) measureReal_nonneg
-    _ = Zs.card * (3 / 2 * θ) * μ.real Srch := by rw [Finset.sum_const, nsmul_eq_mul]; ring
-    _ ≤ _ := by
-        have : (Zs.card : ℝ) ≤ (pot k x T).card := by exact_mod_cast Finset.card_filter_le _ _
-        gcongr
+    _ ≤ ∑ p ∈ Ps, (n + 1) * β * μ.real (F p) := by
+        refine Finset.sum_le_sum fun p _ => ?_
+        rw [Finset.sum_const, nsmul_eq_mul]
+        have h1 : ((Zs p).card : ℝ) ≤ n + 1 := by
+          exact_mod_cast (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans hT)
+        have h2 : 0 ≤ μ.real (F p) * β := by positivity
+        nlinarith
+    _ = (n + 1) * β * ∑ p ∈ Ps, μ.real (F p) := by rw [Finset.mul_sum]
+    _ ≤ (n + 1) * β * ((2 + Nat.clog 2 L) * μ.real Srch) := by gcongr
+    _ = _ := by ring
 
 /-- A probe stops undecided at its start or end at a good read-state with chance at most three
 times the midfixes' count times `1.5θ`. -/
@@ -203,16 +265,16 @@ include hL hp₀ hpre hT
 omit x in
 open scoped Classical in
 /-- At one tree and edge map, the probes stopping at an undecided middle at a good read-state
-exceed twice `θ₀ = (L + 1)(|Q| + 1) · 1.5θ` of the searches by `η` with chance at most
+exceed twice `θ₀ = (2 + ⌈log₂ L⌉)(|Q| + 1) · 1.5θ` of the searches by `η` with chance at most
 `exp(−η / p₀)`, where `θ₀ ≤ 1/8`. -/
 theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ)
     (hU : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)) (hθ : 0 ≤ θ)
-    (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) :
-    μ {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
+    (hθ8 : 8 * ((2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ)) ≤ 1) :
+    μ {ω | 2 * ((2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ))
           * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
         < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)}
       ≤ ENNReal.ofReal (Real.exp (-(η / p₀))) := by
-  set θ₀ : ℝ := (L + 1) * (n + 1) * (3 / 2 * θ)
+  set θ₀ : ℝ := (2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ)
   have hθ₀ : 0 ≤ θ₀ := by positivity
   set uf : (FreeMonoid α → ARU) → FreeMonoid α → ℝ := fun rd x =>
     if x ∈ goodAt rd k ⟨T, E⟩ M U θ .middles then 1 else 0
@@ -233,12 +295,7 @@ theorem mid_tail_one (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read
         integral_ite_strings read hmeas (pot k x T)
           (fun rd => searches (probeOrAgree rd T E k x) = true) fun rd rd' h => by
           rw [probeOrAgree_congr rd T E k x h]]
-      refine (mid_mean_le M U θ T E k x hmeas hind hU hθ).trans ?_
-      gcongr
-      have h1 := card_pot k x T
-      have h2 := mem_upTo.1 hx
-      have : (pot k x T).card ≤ (L + 1) * (n + 1) := h1.trans (Nat.mul_le_mul (by omega) hT)
-      exact mul_le_mul_of_nonneg_right (by exact_mod_cast this) (by positivity)
+      exact mid_mean_le M U θ T E k x hmeas hind hU hθ (mem_upTo.1 hx) hT
   refine le_trans (measure_mono fun ω hω => ?_) hTB
   simp only [Set.mem_ofPred_eq] at hω ⊢
   rw [measureReal_eq_sum_upTo D hL, measureReal_eq_sum_upTo D hL] at hω
@@ -342,13 +399,14 @@ include hmeas hind hU hθ hL hp₀ hpre
 /-- Over every tree of `classSet n` and edge map into its leaves, the probes stopping at an
 undecided middle at a good read-state are at most `θgpt` of the searches plus `η`, but for
 `tailRisk`. -/
-theorem midNoise_le (hθ8 : 8 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgpt : ℝ}
-    (hθg : 2 * ((L + 1) * (n + 1) * (3 / 2 * θ)) ≤ θgpt) :
+theorem midNoise_le (hθ8 : 8 * ((2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ)) ≤ 1) {θgpt : ℝ}
+    (hθg : 2 * ((2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ)) ≤ θgpt) :
     μ {ω | ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
         D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)
           ≤ θgpt * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η}
       ≤ ENNReal.ofReal (tailRisk n (Fintype.card α) p₀ η) := by
-  set B : DTree α → Edges α → Set Ω := fun T E => {ω | 2 * ((L + 1) * (n + 1) * (3 / 2 * θ))
+  set B : DTree α → Edges α → Set Ω := fun T E =>
+    {ω | 2 * ((2 + Nat.clog 2 L) * (n + 1) * (3 / 2 * θ))
       * D.real {x | searches (probeOrAgree (read · ω) T E k x) = true} + η
     < D.real (goodAt (read · ω) k ⟨T, E⟩ M U θ .middles)}
   refine le_trans (measure_mono fun ω hω => ?_) ((union_le n B fun T hT E _ =>
