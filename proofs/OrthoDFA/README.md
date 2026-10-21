@@ -5,12 +5,10 @@
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 
-The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
-loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
-whole run reads one noise, fixed per string as the Python's is. Each round runs level 3's algorithm
-(`indecisiveLStarLevel3`), guaranteed by level 5's claim (`Level5RoundCorrect`), reading the
-clustering's family. One-step consistency at `L − 1` is not enough for this (`parity_toggle`,
-#438).
+The headline, `LearnerLoopCheck` (`OrthoDFA/LoopCheckClaim.lean`), is being rebuilt: the checked
+loop, started from an inherited state at walk start `⌈L/2⌉`, ends at its first round, consistent,
+with its DFA from where `ε` sifts within the check's rate and the reads' errors. The whole run
+reads one noise, fixed per string as the Python's is.
 
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
@@ -27,9 +25,6 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
   reads scaling with indecision.
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
-- `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
-- `LearnerLoopSound` and `LearnerLoopSoundSimple` (`OrthoDFA/LoopSound.lean`): the loop's rate
-  test certifies its DFA the way the Python argues it. See "The rate test's DFA".
 - `Level3ConsistentSound` (`OrthoDFA/Level3Sound.lean`): whatever the reads, level 3 ends
   consistent at a hypothesis whose probes search or stop undecided at their start or end sift more
   than the disagreement rate of the time with chance at most `δ/8`.
@@ -41,96 +36,6 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `Level4CheckRoundCorrect` (`OrthoDFA/Level3CheckClaim.lean`): with level 4's reads, the checked
   round ends well but for level 4's chance, its wrong reads, the check's silent tails and the chance
   its strings read undecided more than a share `q` of the time.
-
-## The rate test's DFA
-
-`LearnerLoopSound` (`OrthoDFA/LoopSound.lean`, proved in `Proofs/LoopSoundMain.lean`) runs the loop
-with probes uniform over the strings of length `L`, walked from `0` as the Python walks, avoiding
-the first `a = ⌈L/2⌉` letters of the prefixes each round's clustering read. Every round that ends
-consistent at rate `ε` has its DFA started where `ε` sifts (the Python's start) misjudge at most
-`ε + ε/96 + (513/512) εcov + 2ι` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`,
-whatever level 3's yield and budget. It asks nothing of the populations the harvests hand on, and
-nothing of the target but its oracle and its suffixes; whether the loop reaches a consistent round
-is not claimed.
-
-- A consistent ending certifies its rate for any fixed reads (`Level3ConsistentSound`), and the
-  round's reads are fixed by its noise and its clustering, independent of its probes
-  (`loop_consistent_round_le`, `Proofs/LoopSoundRound.lean`).
-- A probe walked from `0` outside the probes that search or stop undecided at their ends is
-  classified as read by the DFA from where `ε` sifts (`ProbeAgreeCorrect`), and a decided read on
-  the wrong side is the seeded family's miscut or indecision (`misread_cut`,
-  `Proofs/LoopSoundDFA.lean`).
-- The clustering's guarantee on the uniform pool alone holds at the run's own noise
-  (`UniSpec`, `Proofs/LoopUniSpec.lean`); given the earlier rounds it is fixed by the answers at
-  what the round's clustering reads and at the pool's strings off the earlier prefixes, followed by
-  nothing or by the round's suffixes, none of which an earlier round read
-  (`loop_uni_round_le_persist`, `Proofs/LoopUniRound.lean`).
-
-At `|Σ| = 2`, `η₀ = 0.1`, `ε = εcov = δ = 0.01`, `ι = εcov/8`, `pAP = 1/3` and `R = 4` rounds,
-`L₀ ≈ 215`.
-
-## The learner's DFA
-
-`LearnerLoopDFA` asks for what the Python's `satisfies_preconditions` checks of the target, at its
-length `L`: `coveredStates M L c` are the states at least `c` (`min_coverage`) of the strings of
-length `L` visit at some position from `⌈L/2⌉` to `L`, and `rerootAccuracy M L S q` is the share
-of those strings whose run from `q` stays in `S` and is classified as the target classifies them
-(`covered_accuracy_ceiling` at the start `q`). Where some covered `q` has accuracy at least
-`1 − γ`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
-walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re-rooted DFA
-(`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
-misclassifies at most `γ + ξ` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`. A run
-that reaches an unlearned edge counts as wrong. The start leaf (`pickLeaf`) is picked as follows: after
-the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
-by the last round's family; each leaf scores the strings its run classifies as the family decides
-them, undecided reads scoring none, and the first leaf of highest score is the start. With
-`N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
-`ε/48`, drawing at most `B₃ = 36 S/ε · log(16 S(S+1)/δ') + S + 1` probes,
-`S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
-every hypothesis an inequality; they follow from `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k`, `E` and `E₂` free
-of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`. Bounding
-`log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂) + 12)/log |Σ| + |Q| + 4`, that holds once
-`L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
-
-    L₀ = 2(log (E + E₂) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
-
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 500.4`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 501, and the least meeting `LearnerLoopDFASimple`'s
-hypotheses 469.
-
-The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
-probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
-past a midfix and nothing undecided at their sifts, cross a learned edge between their states'
-true leaves (`edge_of_pair`, `Proofs/DFABridge.lean`). A covered state is visited `c` of the time
-summed over the window, so an edge out of its true leaf that is wrong or unlearned leaves
-`c/((|Σ|+1)N)` of the probes disagreeing (`edge_of_occupied`), `disagreeSet` being the probes
-that search, cross a wrong edge, stop at an unlearned one, stop undecided at their start or end
-sift (level 3's own success test bounds these at `ε`), or read a string followed by a midfix of
-the tree on its state's rarer side (`rarerSet`). The last is bounded by Markov: each string reads
-wrong with chance at most the band's far side, and on the event that no step reads wrong the tree
-is in `classSet |Q|`, its midfixes at most `|Q|` long, so the probes reading wrong past a midfix
-weigh more than `ε` with chance at most `(|Q|+1)|Σ|^|Q|` times the far side over `ε`, which the far
-side's choice makes `δ'/8`. The clustering, run at `εcov = min(ε, ξ/(8N))`, reads every covered
-state on its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it
-accepts as the target does, so the hypothesis from the covered start's true leaf tracks the
-re-rooted target on every run that stays covered (`classify_start_le`).
-
-The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
-on and off the language may differ, and agreement with such a read weighs a leaf's errors by
-`1 − 2η` of the string's true label, which can rank a worse leaf first. The family's read of a
-string of length `L` is wrong at most `(1025/1024) N εcov` of the time and undecided at most
-`(3/8) N εcov`, with `N εcov ≤ ξ/8`, so a leaf's
-mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
-reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
-prefix the last round's clustering read or of one of its probes: level 3 reads only short strings
-beginning with some probe's first `k` letters (`level3_congr_zone'`, `Proofs/LoopSelect.lean`), and
-the earlier rounds read other suffixes. That collision has chance at most
-`n(6(|Q|+2)RB + B₃ + n)/|Σ|^k`, which `L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that
-can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
-strings, and that within `nξ/8` of `n` times its mean over the strings, but for chance
-`4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most `|Q| + 2` leaves, so the picked leaf
-misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ` (`pickLeaf_le`). `δ` splits half to
-the loop, a quarter to the scores and a quarter to collisions.
 
 ## The loop
 
@@ -345,7 +250,9 @@ what a state's chance of reading undecided is.
   and each state's read distribution.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
   reading the family at the gate's cut, and hands its harvest's sampler on as a population.
-- `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA`.
+- `OrthoDFA/LoopCheck.lean` — the checked loop, `indecisiveLStarCheckLoop`, its pool law `poolMix`
+  and the precondition `CoveredAccurate`.
+- `OrthoDFA/LoopCheckClaim.lean` — `LearnerLoopCheckSimple`, whose proof is in progress.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

@@ -312,7 +312,7 @@ include hL in
 /-- The first round, where its clustering returned at a good stage and read strings of the
 lengths `LensOK` says, fails to end consistent with at most the chance its re-noised round has. -/
 theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribution α)
-    (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf] (h₀ : LoopHist α) (hK : 0 < K)
+    (Du Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf] (h₀ : LoopHist α) (hK : 0 < K)
     (Ls NK h : ℕ) (crossLimit p₀ u ph ηc : ℝ)
     (hz : settings.avoidDepth = settings.level3.walkStart)
     (hk : 1 ≤ settings.level3.walkStart) (ha : 1 ≤ settings.checkDepth)
@@ -346,11 +346,11 @@ theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribut
       + (Kk.size + 1) * ((nQ + 1) ^ 2 * nα)) ≤ δ / 8 →
     A * u + η / y < 1 →
     (checkLoopMeasure μ α K settings.level3.probeBudget settings.check.size)
-      {p | ∃ t, stage0 settings.toLoopSettings O P.D Dsf h₀ settings.checkDepth
+      {p | ∃ t, stage0 settings.toLoopSettings O Du Dsf h₀ settings.checkDepth
             (p.1, (p.2 ⟨0, hK⟩).1) = some t
           ∧ GoodStage M O (settings.schedule (loopPopulations K h₀.pops.length)) u NK t
-          ∧ LensOK settings.toLoopSettings P.D Dsf h₀ settings.level3.walkStart Ls (p.2 ⟨0, hK⟩).1
-          ∧ (checkRound settings O P.D Dsf Pc.D h₀ (p.1, p.2 ⟨0, hK⟩)).result.ending
+          ∧ LensOK settings.toLoopSettings Du Dsf h₀ settings.level3.walkStart Ls (p.2 ⟨0, hK⟩).1
+          ∧ (checkRound settings O P.D Du Dsf Pc.D h₀ (p.1, p.2 ⟨0, hK⟩)).result.ending
             ≠ .consistent}
       ≤ ENNReal.ofReal (9 * δ / 8 + 2 * (∑ j ∈ Finset.range S, Kk.silentBase q ^ Kk.size
             / Kk.level j + (h + 1) * nα ^ h * Ms * u + Real.exp (-(ηc / ph)))) := by
@@ -400,30 +400,30 @@ theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribut
     | some t => if hg : GoodStage M O sched u NK t then Classical.choose (hex t hg) else ∅
     | none => ∅ with hBad
   set W : Y → (Fin K → CheckRoundDraws α K T n) → Finset (FreeMonoid α) := fun _ x =>
-    schedReads sched pops ((ω₀, runOf P.D Dsf h₀ (x r0).1) : Run Ω (FreeMonoid α) (Option (Fin K)))
+    schedReads sched pops ((ω₀, runOf Du Dsf h₀ (x r0).1) : Run Ω (FreeMonoid α) (Option (Fin K)))
   set Z : Y → X₂ → Finset (FreeMonoid α) := fun y v => match y with
     | some t => checkZone (drawsLen Kk (checkDrawsOf Kk P.D Pc.D k a t.2.2.1 t.2.2.2 v) + T + 1)
         k a t.2.2.1 t.2.2.2 t.2.1
     | none => ∅
   set Dj : Y → Set (Fin K → CheckRoundDraws α K T n) := fun y => match y with
-    | some t => {x | LensOK ls P.D Dsf h₀ k Ls (x r0).1
-        ∧ t.2.1 ⊆ suffsOf ls P.D Dsf h₀ (x r0).1
-        ∧ t.2.2.1 = (prefsOf ls P.D Dsf h₀ (x r0).1).image (fun p => prefixOf p k)
-        ∧ t.2.2.2 = (prefsOf ls P.D Dsf h₀ (x r0).1).image (fun p => prefixOf p a)}
+    | some t => {x | LensOK ls Du Dsf h₀ k Ls (x r0).1
+        ∧ t.2.1 ⊆ suffsOf ls Du Dsf h₀ (x r0).1
+        ∧ t.2.2.1 = (prefsOf ls Du Dsf h₀ (x r0).1).image (fun p => prefixOf p k)
+        ∧ t.2.2.2 = (prefsOf ls Du Dsf h₀ (x r0).1).image (fun p => prefixOf p a)}
     | none => Set.univ
   have hx0 : Measurable fun x : Fin K → CheckRoundDraws α K T n => (x r0).1 :=
     measurable_fst.comp (measurable_pi_apply r0)
   have hmain := persist_stage_le O (checkRoundLaw α K T n) (restLaw α K) ν₂ id hσ id measurable_id
-    (fun w => rfl) r0 (fun ω x => stage0 ls O P.D Dsf h₀ a (ω, (x r0).1))
+    (fun w => rfl) r0 (fun ω x => stage0 ls O Du Dsf h₀ a (ω, (x r0).1))
     (fun ω x x' _ h1 => by
       change (x r0).1 = (x' r0).1 at h1
       simp only [h1])
     (fun y => (measurable_fst.prodMk (hx0.comp measurable_snd))
-      (measurableSet_stage0 ls O P.D Dsf h₀ a y))
+      (measurableSet_stage0 ls O Du Dsf h₀ a y))
     W (fun y => ∃ t, y = some t)
     (fun y x ω ω' hG hs h' => by
       obtain ⟨t, rfl⟩ := hG
-      exact stage0_stop ls O P.D Dsf h₀ a (x r0).1 ω ω' t hs h')
+      exact stage0_stop ls O Du Dsf h₀ a (x r0).1 ω ω' t hs h')
     Bad (fun y hy => by
       rcases y with _ | t
       · rfl
@@ -448,17 +448,17 @@ theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribut
       rcases y with _ | ⟨B, F, K₀, Kc⟩
       · exact MeasurableSet.univ
       · show MeasurableSet {x : Fin K → CheckRoundDraws α K T n |
-          LensOK ls P.D Dsf h₀ k Ls (x r0).1 ∧ F ⊆ suffsOf ls P.D Dsf h₀ (x r0).1
-            ∧ K₀ = (prefsOf ls P.D Dsf h₀ (x r0).1).image (fun p => prefixOf p k)
-            ∧ Kc = (prefsOf ls P.D Dsf h₀ (x r0).1).image (fun p => prefixOf p a)}
-        exact hx0 (measurableSet_sets ls P.D Dsf h₀ fun Pr Sf =>
+          LensOK ls Du Dsf h₀ k Ls (x r0).1 ∧ F ⊆ suffsOf ls Du Dsf h₀ (x r0).1
+            ∧ K₀ = (prefsOf ls Du Dsf h₀ (x r0).1).image (fun p => prefixOf p k)
+            ∧ Kc = (prefsOf ls Du Dsf h₀ (x r0).1).image (fun p => prefixOf p a)}
+        exact hx0 (measurableSet_sets ls Du Dsf h₀ fun Pr Sf =>
           ((∀ v ∈ Sf, v.toList.length = Ls) ∧ ∀ p ∈ Pr, k ≤ p.toList.length ∧ p.toList.length < Ls)
             ∧ F ⊆ Sf ∧ K₀ = Pr.image (fun p => prefixOf p k)
             ∧ Kc = Pr.image (fun p => prefixOf p a)))
     (fun y x hG hx => by
       obtain ⟨⟨B, F, K₀, Kc⟩, rfl⟩ := hG
       obtain ⟨hl, hF, hK₀, hKc⟩ := hx
-      exact disjoint_sched_checkZone ls P.D Dsf h₀ k a Ls _ (x r0).1 ω₀ hl F K₀ Kc hF hK₀ hKc)
+      exact disjoint_sched_checkZone ls Du Dsf h₀ k a Ls _ (x r0).1 ω₀ hl F K₀ Kc hF hK₀ hKc)
     (ENNReal.ofReal bound) (fun y => by
       rcases y with _ | t
       · show (μ.prod ν₂) ∅ ≤ _
@@ -470,10 +470,10 @@ theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribut
         · simp)
   refine (measure_mono ?_).trans hmain
   rintro p ⟨⟨B, F, K₀, Kc⟩, hst, hgood, hl, hnc⟩
-  obtain ⟨h1, h2, h3, h4, h5⟩ := (stage0_eq_some ls O P.D Dsf h₀ a _ B F K₀ Kc).1 hst
+  obtain ⟨h1, h2, h3, h4, h5⟩ := (stage0_eq_some ls O Du Dsf h₀ a _ B F K₀ Kc).1 hst
   have hBs : B ∈ sched := hgood.1
-  show (p.1, (p.2 r0).2) ∈ Bad (stage0 ls O P.D Dsf h₀ a (p.1, (p.2 r0).1))
-    ∧ p.2 ∈ Dj (stage0 ls O P.D Dsf h₀ a (p.1, (p.2 r0).1))
+  show (p.1, (p.2 r0).2) ∈ Bad (stage0 ls O Du Dsf h₀ a (p.1, (p.2 r0).1))
+    ∧ p.2 ∈ Dj (stage0 ls O Du Dsf h₀ a (p.1, (p.2 r0).1))
   rw [hst]
   refine ⟨?_, hl, ?_, ?_, ?_⟩
   · show (p.1, (p.2 r0).2) ∈ (if hg : GoodStage M O sched u NK (B, F, K₀, Kc) then
@@ -482,18 +482,18 @@ theorem check_round0_le (settings : CheckLoopSettings K) (P Pc : PrefixDistribut
     by_contra hnb
     apply hnc
     have hres := (Classical.choose_spec (hex _ hgood)).2.2.2 p.1 (p.2 r0).2 hnb
-    have e : (checkRound settings O P.D Dsf Pc.D h₀ (p.1, p.2 r0)).result
+    have e : (checkRound settings O P.D Du Dsf Pc.D h₀ (p.1, p.2 r0)).result
         = indecisiveLStarCheck C Kk (fun z => familyRead O.mq
-            (clusterAt O.mq pops (clusterRun P.D Dsf h₀ (p.1, (p.2 r0).1))
-              (roundState ls O P.D Dsf h₀ (p.1, (p.2 r0).1)))
-            (roundState ls O P.D Dsf h₀ (p.1, (p.2 r0).1)).lo
-            ((roundState ls O P.D Dsf h₀ (p.1, (p.2 r0).1)).hi + 1) z p.1)
-          (checkDrawsOf Kk P.D Pc.D settings.avoidDepth a (roundKeys ls P.D Dsf h₀ (p.1, (p.2 r0).1))
-            (clusterKeys sched pops a (clusterRun P.D Dsf h₀ (p.1, (p.2 r0).1))) (p.2 r0).2) := rfl
+            (clusterAt O.mq pops (clusterRun Du Dsf h₀ (p.1, (p.2 r0).1))
+              (roundState ls O Du Dsf h₀ (p.1, (p.2 r0).1)))
+            (roundState ls O Du Dsf h₀ (p.1, (p.2 r0).1)).lo
+            ((roundState ls O Du Dsf h₀ (p.1, (p.2 r0).1)).hi + 1) z p.1)
+          (checkDrawsOf Kk P.D Pc.D settings.avoidDepth a (roundKeys ls Du Dsf h₀ (p.1, (p.2 r0).1))
+            (clusterKeys sched pops a (clusterRun Du Dsf h₀ (p.1, (p.2 r0).1))) (p.2 r0).2) := rfl
     rw [e, h2, h3, h4, h5, hz]
     exact hres
   · rw [← h3]
-    exact clusterAt_subset_suffsOf ls O P.D Dsf h₀ p.1 (p.2 r0).1 (h2 ▸ hBs)
+    exact clusterAt_subset_suffsOf ls O Du Dsf h₀ p.1 (p.2 r0).1 (h2 ▸ hBs)
   · rw [← h4, roundKeys_eq_prefsOf, hz]
   · rw [← h5]
     rfl

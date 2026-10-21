@@ -216,7 +216,7 @@ theorem measurable_startFails_mass (O : Oracle μ (FreeMonoid α)) (F : Finset (
 section Acc
 
 variable {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMonoid α))
-  (D Dsf Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure D] [IsProbabilityMeasure Dc]
+  (D Du Dsf Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure D] [IsProbabilityMeasure Dc]
   (h₀ : LoopHist α)
 
 /-- At a stage, the noise and round uniforms where the round ends consistent at a hypothesis
@@ -268,7 +268,7 @@ strings from `0` with chance at most `δ/8`, whatever its family. -/
 theorem acc_round0_le (hK : 0 < K) (hKδ : 0 < settings.check.δ) (hr0 : 0 < settings.check.rate)
     (hr1 : settings.check.rate < 1) :
     (checkLoopMeasure μ α K settings.level3.probeBudget settings.check.size)
-      {p | ∃ t, stage0 settings.toLoopSettings O D Dsf h₀ settings.checkDepth
+      {p | ∃ t, stage0 settings.toLoopSettings O Du Dsf h₀ settings.checkDepth
           (p.1, (p.2 ⟨0, hK⟩).1) = some t
         ∧ (p.1, (p.2 ⟨0, hK⟩).2) ∈ accBad settings O D Dc t}
       ≤ ENNReal.ofReal (settings.check.δ / 8) := by
@@ -282,13 +282,13 @@ theorem acc_round0_le (hK : 0 < K) (hKδ : 0 < settings.check.δ) (hr0 : 0 < set
   set ν₂ : Measure X₂ := Measure.pi fun _ : Fin T => (volume : Measure unitInterval).prod
     (Measure.pi fun _ : Fin n => (volume : Measure unitInterval))
   set Y := Option (State × Finset (FreeMonoid α) × Finset (FreeMonoid α) × Finset (FreeMonoid α))
-  set S := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O D Dsf h₀ a
+  set S := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O Du Dsf h₀ a
       (p.1, (p.2 r0).1) = some t ∧ (p.1, (p.2 r0).2) ∈ accBad settings O D Dc t}
   have hx0 : Measurable fun x : Fin K → CheckRoundDraws α K T n => (x r0).1 :=
     measurable_fst.comp (measurable_pi_apply r0)
   have hS : MeasurableSet S := by
     have : S = ⋃ t : State × Finset (FreeMonoid α) × Finset (FreeMonoid α) × Finset (FreeMonoid α),
-        {p | stage0 ls O D Dsf h₀ a (p.1, (p.2 r0).1) = some t}
+        {p | stage0 ls O Du Dsf h₀ a (p.1, (p.2 r0).1) = some t}
           ∩ (fun p : Ω × (Fin K → CheckRoundDraws α K T n) => (p.1, (p.2 r0).2)) ⁻¹'
             accBad settings O D Dc t := by
       ext p
@@ -296,7 +296,7 @@ theorem acc_round0_le (hK : 0 < K) (hKδ : 0 < settings.check.δ) (hr0 : 0 < set
     rw [this]
     exact MeasurableSet.iUnion fun t =>
       ((measurable_fst.prodMk (hx0.comp measurable_snd))
-        (measurableSet_stage0 ls O D Dsf h₀ a (some t))).inter
+        (measurableSet_stage0 ls O Du Dsf h₀ a (some t))).inter
       ((measurable_fst.prodMk (measurable_snd.comp ((measurable_pi_apply r0).comp
         measurable_snd))) (measurableSet_accBad settings O D Dc t))
   have hsec : ∀ ω, (Measure.pi fun _ : Fin K => checkRoundLaw α K T n) (Prod.mk ω ⁻¹' S)
@@ -331,15 +331,15 @@ theorem acc_round0_le (hK : 0 < K) (hKδ : 0 < settings.check.δ) (hr0 : 0 < set
         exact ENNReal.ofReal_le_ofReal (level3CheckSound_holds rd _ _ settings.level3 settings.check
           hKδ hr0 hr1)
     have h := round_stage_le (checkRoundLaw α K T n) (restLaw α K) ν₂ id hσ id measurable_id
-      (fun w => rfl) r0 (fun x => stage0 ls O D Dsf h₀ a (ω, (x r0).1))
+      (fun w => rfl) r0 (fun x => stage0 ls O Du Dsf h₀ a (ω, (x r0).1))
       (fun x x' _ h1 => by
         change (x r0).1 = (x' r0).1 at h1
         simp only [h1])
-      (fun y => hx0 (measurable_prodMk_left (measurableSet_stage0 ls O D Dsf h₀ a y)))
+      (fun y => hx0 (measurable_prodMk_left (measurableSet_stage0 ls O Du Dsf h₀ a y)))
       Bad (ENNReal.ofReal (settings.check.δ / 8)) hBad
     refine (measure_mono fun g hg => ?_).trans h
     obtain ⟨t, ht, hf⟩ := hg
-    show (g r0).2 ∈ Bad (stage0 ls O D Dsf h₀ a (ω, (g r0).1))
+    show (g r0).2 ∈ Bad (stage0 ls O Du Dsf h₀ a (ω, (g r0).1))
     rw [ht]
     exact hf
   unfold checkLoopMeasure

@@ -5,8 +5,8 @@ import OrthoDFA.Level3Check
 # The learner's loop with the start check
 
 `indecisiveLStarCheckLoop` is `indecisiveLStarLoop` with each round's level 3 replaced by the
-checked round (`indecisiveLStarCheck`), started from what earlier rounds handed on (`h₀`). Each of
-the round's draws is a probe, drawn from `D` with its first `avoidDepth` letters avoiding those of
+checked round (`indecisiveLStarCheck`), started from what earlier rounds handed on (`h₀`). The
+clustering's uniform pool is drawn from `Du`. Each of the round's draws is a probe, drawn from `D` with its first `avoidDepth` letters avoiding those of
 the prefixes the round's clustering read, and a block of check strings, each drawn from `Dc` with
 its first `checkDepth` letters avoiding them. The rounds go on while each ends in a harvest.
 
@@ -18,6 +18,10 @@ the Python keeps at the switch, and what their clusterings read.
 Known modelling gap. The check strings avoid the first `checkDepth` letters of the prefixes the
 round's clustering read, so that no check string's prefix followed by a midfix is one of them. The
 Python draws them freely.
+
+Known modelling gap. The Python draws its uniform pool at length `L`, as it does its probes; here
+the pool is drawn from `Du`, half at length `L` and half over the window of lengths `⌈L/2⌉` to `L`
+(`poolMix`), so that every covered state has pool mass.
 
 Known modelling gap. Every population is drawn off the strings the earlier rounds' clusterings
 read (`popOff`), and off them the inherited ones too; the Python reads its tables' strings again.
@@ -60,7 +64,7 @@ def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ENNReal)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
 
 /-- Half the strings of length `L`, half the window of lengths `k` to `L`. -/
-def probeMix (k L : ℕ) : Measure (FreeMonoid α) :=
+def poolMix (k L : ℕ) : Measure (FreeMonoid α) :=
   (2 : ENNReal)⁻¹ • uniformStrings L + (2 : ENNReal)⁻¹ • windowStrings k L
 
 /-- The states at least `c` of the strings of length `L` visit at some position from `⌈L/2⌉` to
@@ -80,11 +84,11 @@ variable {μ : Measure Ω}
 
 /-- The round after the history `h`, with the checked round in level 3's place. -/
 def checkRound {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf Dc : Measure (FreeMonoid α)) (h : LoopHist α)
+    (D Du Dsf Dc : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : Ω × CheckRoundDraws α K settings.level3.probeBudget settings.check.size) :
     LoopRound Ω α K :=
   let ps := loopPopulations K h.pops.length
-  let x := clusterRun D Dsf h (d.1, d.2.1)
+  let x := clusterRun Du Dsf h (d.1, d.2.1)
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
     ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
@@ -98,24 +102,25 @@ def checkRound {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMo
 
 /-- The first `r` rounds after `h₀`, cut short at a round that does not end in a harvest. -/
 def checkRounds {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
+    (D Du Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
     (p : Ω × (Fin K → CheckRoundDraws α K settings.level3.probeBudget settings.check.size)) :
     ℕ → List (LoopRound Ω α K)
   | 0 => []
   | r + 1 =>
-    if h : r < K ∧ ∀ o ∈ checkRounds settings O D Dsf Dc h₀ p r, o.result.ending.harvested ≠ none
-    then checkRounds settings O D Dsf Dc h₀ p r
-        ++ [checkRound settings O D Dsf Dc
-          (h₀.append (histOf D settings.level3.walkStart (checkRounds settings O D Dsf Dc h₀ p r)))
+    if h : r < K ∧ ∀ o ∈ checkRounds settings O D Du Dsf Dc h₀ p r,
+        o.result.ending.harvested ≠ none
+    then checkRounds settings O D Du Dsf Dc h₀ p r
+        ++ [checkRound settings O D Du Dsf Dc
+          (h₀.append (histOf D settings.level3.walkStart (checkRounds settings O D Du Dsf Dc h₀ p r)))
           (p.1, p.2 ⟨r, h.1⟩)]
-    else checkRounds settings O D Dsf Dc h₀ p r
+    else checkRounds settings O D Du Dsf Dc h₀ p r
 
 /-- The rounds the loop runs after `h₀`, at most `K`. -/
 def indecisiveLStarCheckLoop {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
+    (D Du Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
     (p : Ω × (Fin K → CheckRoundDraws α K settings.level3.probeBudget settings.check.size)) :
     List (LoopRound Ω α K) :=
-  checkRounds settings O D Dsf Dc h₀ p K
+  checkRounds settings O D Du Dsf Dc h₀ p K
 
 end OrthoDFA
 

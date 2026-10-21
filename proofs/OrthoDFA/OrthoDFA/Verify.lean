@@ -10,8 +10,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
-import OrthoDFA.Proofs.LoopDFA
-import OrthoDFA.Proofs.LoopSoundMain
+import OrthoDFA.Proofs.LoopCheckCore
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -24,20 +23,15 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LoopDFA`, holds: the learner's loop outputs a
-hypothesis that agrees with the target DFA but for chance `δ`.
+The headline, `LearnerLoopCheck` (`OrthoDFA.LoopCheckClaim`), is being rebuilt; its pieces so far
+are `Level3CheckSound` and `Level4CheckRoundCorrect`.
 
-The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
+The claims the loop rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises.
-
-`LearnerLoopSound` and `LearnerLoopSoundSimple`, stated in `OrthoDFA.LoopSound`: every round of the
-loop walked from `0` that ends consistent has its DFA from where `ε` sifts within its rate, but for
-chance `δ`. They rest on `Level3ConsistentSound`, stated in `OrthoDFA.Level3Sound`.
+`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
 `BitSumTails`, `CoveredStartCorrect`, `ProbeAgreeCorrect`, `RateTestSound`, `SeqRateSound`,
@@ -75,22 +69,6 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
-
-theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
-
-#print axioms learner_loop_dfa_simple
-
-theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
-
-#print axioms learner_loop_dfa
-
-theorem learner_loop_sound_simple : LearnerLoopSoundSimple := learnerLoopSoundSimple_holds
-
-#print axioms learner_loop_sound_simple
-
-theorem learner_loop_sound : LearnerLoopSound := learnerLoopSound_holds
-
-#print axioms learner_loop_sound
 
 theorem level3_consistent_sound : Level3ConsistentSound := level3ConsistentSound_holds
 

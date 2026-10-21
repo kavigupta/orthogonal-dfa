@@ -81,12 +81,12 @@ theorem measurePreserving_round0 (D Dsf : Measure (FreeMonoid α)) (h : LoopHist
 
 /-- The rounds after a first round that does not end in a harvest are that round alone. -/
 theorem checkRounds_of_first {K : ℕ} (settings : CheckLoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
+    (D Du Dsf Dc : Measure (FreeMonoid α)) (h₀ : LoopHist α)
     (p : Ω × (Fin K → CheckRoundDraws α K settings.level3.probeBudget settings.check.size))
     (hK : 0 < K)
-    (hn : (checkRound settings O D Dsf Dc h₀ (p.1, p.2 ⟨0, hK⟩)).result.ending.harvested = none) :
-    ∀ r, 1 ≤ r → checkRounds settings O D Dsf Dc h₀ p r
-      = [checkRound settings O D Dsf Dc h₀ (p.1, p.2 ⟨0, hK⟩)]
+    (hn : (checkRound settings O D Du Dsf Dc h₀ (p.1, p.2 ⟨0, hK⟩)).result.ending.harvested = none) :
+    ∀ r, 1 ≤ r → checkRounds settings O D Du Dsf Dc h₀ p r
+      = [checkRound settings O D Du Dsf Dc h₀ (p.1, p.2 ⟨0, hK⟩)]
   | 0, h => absurd h (by omega)
   | 1, _ => by
     have e : h₀.append (histOf D settings.level3.walkStart ([] : List (LoopRound Ω α K))) = h₀ := by
@@ -94,7 +94,7 @@ theorem checkRounds_of_first {K : ℕ} (settings : CheckLoopSettings K) (O : Ora
     simp only [checkRounds, List.not_mem_nil, false_imp_iff, implies_true, and_true, hK,
       dif_pos, List.nil_append, e]
   | r + 2, _ => by
-    have ih := checkRounds_of_first settings O D Dsf Dc h₀ p hK hn (r + 1) (by omega)
+    have ih := checkRounds_of_first settings O D Du Dsf Dc h₀ p hK hn (r + 1) (by omega)
     rw [checkRounds]
     split_ifs with hc
     · exact absurd hn (hc.2 _ (by rw [ih]; exact List.mem_singleton_self _))
@@ -117,12 +117,14 @@ def FreshSpec (settings : LoopSettings K) (pops : Finset (Option (Fin K)))
         ∧ ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂Du
           ≤ 2 * settings.indecisionLimit + slack
 
+set_option maxHeartbeats 1000000 in
 include hL in
 /-- The checked loop, started from `h₀`, ends at its first round, consistent, with its DFA from
 where `ε` sifts misjudging at most the check's rate, the check strings' avoided mass and the
 family's misreads of the uniform pool, but for the chances its parts fail. -/
 theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
-    (P Pc : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
+    (P Pc : PrefixDistribution α) (Du Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Du]
+    [IsProbabilityMeasure Dsf]
     (h₀ : LoopHist α) (L Ls NP NK h : ℕ) (c slack crossLimit p₀ u ph ηc cN m₀ Nw e₁ e₂ : ℝ)
     -- the walk and the depths
     (hz : settings.avoidDepth = settings.level3.walkStart)
@@ -135,33 +137,33 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
         BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hNK : 6 * (K + 1) * NP ≤ NK)
-    (hfresh : (runMeasure μ (fun j => popOff P.D h₀.pops j h₀.prefs) (offLaw Dsf h₀.suffs)).real
+    (hfresh : (runMeasure μ (fun j => popOff Du h₀.pops j h₀.prefs) (offLaw Dsf h₀.suffs)).real
       {x | ¬ FreshSpec O settings.toLoopSettings (loopPopulations K h₀.pops.length)
-        (popOff P.D h₀.pops (none : Option (Fin K)) h₀.prefs) slack (streams (fun _ => ∅) none x)} ≤ e₁)
-    (huni : (runMeasure μ (fun j => popOff P.D h₀.pops j h₀.prefs) (offLaw Dsf h₀.suffs)).real
+        (popOff Du h₀.pops (none : Option (Fin K)) h₀.prefs) slack (streams (fun _ => ∅) none x)} ≤ e₁)
+    (huni : (runMeasure μ (fun j => popOff Du h₀.pops j h₀.prefs) (offLaw Dsf h₀.suffs)).real
       {x | ¬ UniSpec O (loopPopulations K h₀.pops.length)
         (settings.schedule (loopPopulations K h₀.pops.length)) settings.η₀
         settings.indecisionLimit settings.εcov settings.gateLevel
-        (popOff P.D h₀.pops (none : Option (Fin K)) h₀.prefs) (streams (fun _ => ∅) none x)} ≤ e₂)
+        (popOff Du h₀.pops (none : Option (Fin K)) h₀.prefs) (streams (fun _ => ∅) none x)} ≤ e₂)
     -- the lengths the clustering reads
-    (hDlen : P.D {q | ¬ (settings.level3.walkStart ≤ q.toList.length ∧ q.toList.length < Ls)} = 0)
+    (hDlen : Du {q | ¬ (settings.level3.walkStart ≤ q.toList.length ∧ q.toList.length < Ls)} = 0)
     (hpops : ∀ ν ∈ h₀.pops, IsProbabilityMeasure ν
       ∧ ν {q | ¬ (settings.level3.walkStart ≤ q.toList.length ∧ q.toList.length < Ls)} = 0)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
-    (hpm : P.D.real ↑h₀.prefs ≤ m₀) (hm₀ : m₀ ≤ 1 / 2) (hsm : Dsf.real ↑h₀.suffs ≤ 1 / 2)
+    (hpm : Du.real ↑h₀.prefs ≤ m₀) (hm₀ : m₀ ≤ 1 / 2) (hsm : Dsf.real ↑h₀.suffs ≤ 1 / 2)
     -- the start's re-rooting and the uniform pool's occupancy
     {qs : σ} (hq : CoveredAccurate M L c qs) {ps : FreeMonoid α} (hps : M.eval ps.toList = qs)
     (hLs : (L + 1) / 2 ≤ Ls) (hLs2 : (L + 1) / 2 + Ls ≤ 2 * L)
     (hLσ : (L + 1) / 2 + Fintype.card σ * Fintype.card σ ≤ 2 * L)
     (hσ : Fintype.card σ ≤ (L + 1) / 2)
-    (hcov : ∀ q ∈ coveredStates M L c, cN ≤ P.D.real {z | M.eval z.toList = q})
+    (hcov : ∀ q ∈ coveredStates M L c, cN ≤ Du.real {z | M.eval z.toList = q})
     (hu : 2 * settings.indecisionLimit + slack < u * (cN - m₀))
     -- the check strings
     (hNKk : NK * prefixMax P.D settings.level3.walkStart ≤ 1 / 2)
     (hp₀ : 2 * prefixMax P.D settings.level3.walkStart ≤ p₀)
     (hNKa : NK * prefixMax Pc.D settings.checkDepth ≤ 1 / 2)
     (hph : 2 * prefixMax Pc.D h ≤ ph)
-    (hDc : ∀ S : Set (FreeMonoid α), Pc.D.real S ≤ Nw * P.D.real S) (hNw : 0 ≤ Nw) :
+    (hDc : ∀ S : Set (FreeMonoid α), Pc.D.real S ≤ Nw * Du.real S) (hNw : 0 ≤ Nw) :
     let C := settings.level3
     let Kk := settings.check
     let y := C.harvestRate
@@ -184,7 +186,7 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
       + (Kk.size + 1) * ((nQ + 1) ^ 2 * nα)) ≤ δ / 8 →
     A * u + η / y < 1 →
     (checkLoopMeasure μ α K C.probeBudget Kk.size).real
-      {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Dsf Pc.D h₀ p = [o]
+      {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Du Dsf Pc.D h₀ p = [o]
           ∧ o.result.ending = .consistent
           ∧ ∃ s, o.result.hypothesis.tree.sift o.read 1 = .inl s
             ∧ Pc.D.real {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)}
@@ -203,16 +205,16 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
   set pops := loopPopulations K h₀.pops.length
   set sched := settings.schedule pops
   set r0 : Fin K := ⟨0, hK⟩
-  set Dn := popOff P.D h₀.pops (none : Option (Fin K)) h₀.prefs
-  have hDn : Dn = offLaw P.D h₀.prefs := popOff_none P.D h₀.pops h₀.prefs
+  set Dn := popOff Du h₀.pops (none : Option (Fin K)) h₀.prefs
+  have hDn : Dn = offLaw Du h₀.prefs := popOff_none Du h₀.pops h₀.prefs
   have : IsProbabilityMeasure (checkLoopMeasure μ α K T n) := by
     unfold checkLoopMeasure; infer_instance
   set μL := checkLoopMeasure μ α K T n
   set xr : Ω × (Fin K → CheckRoundDraws α K T n) → Run Ω (FreeMonoid α) (Option (Fin K)) :=
-    fun p => clusterRun P.D Dsf h₀ (p.1, (p.2 r0).1)
+    fun p => clusterRun Du Dsf h₀ (p.1, (p.2 r0).1)
   set bound := 9 * δ / 8 + 2 * (∑ j ∈ Finset.range S, Kk.silentBase q ^ n / Kk.level j
     + (h + 1) * nα ^ h * Ms * u + Real.exp (-(ηc / ph)))
-  have hpm' : P.D.real ↑h₀.prefs ≤ 1 / 2 := hpm.trans hm₀
+  have hpm' : Du.real ↑h₀.prefs ≤ 1 / 2 := hpm.trans hm₀
   -- the bad events
   set E₁ := {p : Ω × (Fin K → CheckRoundDraws α K T n) |
     ¬ FreshSpec O ls pops Dn slack (xr p)}
@@ -220,13 +222,13 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
     ¬ UniSpec O pops sched settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel Dn
       (xr p)}
   set E₃ := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ¬ RestLt (p.2 r0).1}
-  set E₄ := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O P.D Dsf h₀ a
+  set E₄ := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O Du Dsf h₀ a
       (p.1, (p.2 r0).1) = some t
-    ∧ GoodStage M O sched u NK t ∧ LensOK ls P.D Dsf h₀ k Ls (p.2 r0).1
-    ∧ (checkRound settings O P.D Dsf Pc.D h₀ (p.1, p.2 r0)).result.ending ≠ .consistent}
-  set E₅ := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O P.D Dsf h₀ a
+    ∧ GoodStage M O sched u NK t ∧ LensOK ls Du Dsf h₀ k Ls (p.2 r0).1
+    ∧ (checkRound settings O P.D Du Dsf Pc.D h₀ (p.1, p.2 r0)).result.ending ≠ .consistent}
+  set E₅ := {p : Ω × (Fin K → CheckRoundDraws α K T n) | ∃ t, stage0 ls O Du Dsf h₀ a
       (p.1, (p.2 r0).1) = some t ∧ (p.1, (p.2 r0).2) ∈ accBad settings O P.D Pc.D t}
-  have hmp := measurePreserving_round0 (μ := μ) P.D Dsf h₀ T n hK
+  have hmp := measurePreserving_round0 (μ := μ) Du Dsf h₀ T n hK
   have hE₁ : μL.real E₁ ≤ e₁ := by
     have hm : MeasurableSet {x : Draws Ω (FreeMonoid α) (Option (Fin K)) |
         ¬ FreshSpec O ls pops Dn slack (streams (fun _ => ∅) none x)} :=
@@ -236,7 +238,7 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
           ∧ ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂Dn
             ≤ 2 * settings.indecisionLimit + slack))).compl
     have e : E₁ = (fun p : Ω × (Fin K → CheckRoundDraws α K T n) =>
-        clusterDraws P.D Dsf h₀ ((p.1, (p.2 r0).1) : ClusterDraws Ω α K)) ⁻¹'
+        clusterDraws Du Dsf h₀ ((p.1, (p.2 r0).1) : ClusterDraws Ω α K)) ⁻¹'
           {x | ¬ FreshSpec O ls pops Dn slack (streams (fun _ => ∅) none x)} := rfl
     rw [e, measureReal_def, hmp.measure_preimage hm.nullMeasurableSet, ← measureReal_def]
     exact hfresh
@@ -248,7 +250,7 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
       (measurable_streams _ none (measurableSet_uniSpec O pops sched settings.η₀
         settings.indecisionLimit settings.εcov settings.gateLevel Dn)).compl
     have e : E₂ = (fun p : Ω × (Fin K → CheckRoundDraws α K T n) =>
-        clusterDraws P.D Dsf h₀ ((p.1, (p.2 r0).1) : ClusterDraws Ω α K)) ⁻¹'
+        clusterDraws Du Dsf h₀ ((p.1, (p.2 r0).1) : ClusterDraws Ω α K)) ⁻¹'
           {x | ¬ UniSpec O pops sched settings.η₀ settings.indecisionLimit settings.εcov
             settings.gateLevel Dn (streams (fun _ => ∅) none x)} := rfl
     rw [e, measureReal_def, hmp.measure_preimage hm.nullMeasurableSet, ← measureReal_def]
@@ -283,7 +285,7 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
     rw [e, measureReal_def, hpr.measure_preimage hm.nullMeasurableSet, restLt_ae,
       ENNReal.toReal_zero]
   have hE₄ : μL.real E₄ ≤ bound := by
-    have h := check_round0_le M O hL settings P Pc Dsf h₀ hK Ls NK h crossLimit p₀ u ph ηc hz hk ha
+    have h := check_round0_le M O hL settings P Pc Du Dsf h₀ hK Ls NK h crossLimit p₀ u ph ηc hz hk ha
       hak hη1 hcross (fun pops B hB => (hband pops B hB).2.2) hNKk hp₀ hNKa hph hδ hy0 hyρ hρ1 hP
       hu0 hph0 hhL hηc h8 hq1 hr0 hr1 hKδ hw hAu
     exact ENNReal.toReal_le_of_le_ofReal (by
@@ -299,9 +301,9 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
       positivity) h
   have hE₅ : μL.real E₅ ≤ Kk.δ / 8 :=
     ENNReal.toReal_le_of_le_ofReal (by positivity)
-      (acc_round0_le settings O P.D Dsf Pc.D h₀ hK hKδ hr0 hr1)
+      (acc_round0_le settings O P.D Du Dsf Pc.D h₀ hK hKδ hr0 hr1)
   -- off the bad events, the loop stops at its first round with an accurate DFA
-  have hsub : {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Dsf Pc.D h₀ p = [o]
+  have hsub : {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Du Dsf Pc.D h₀ p = [o]
       ∧ o.result.ending = .consistent
       ∧ ∃ s, o.result.hypothesis.tree.sift o.read 1 = .inl s
         ∧ Pc.D.real {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)}
@@ -316,20 +318,20 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
     have hus : UniSpec O pops sched settings.η₀ settings.indecisionLimit settings.εcov
         settings.gateLevel Dn (xr p) := not_not.1 h2
     have hlt : RestLt (p.2 r0).1 := not_not.1 h3
-    have hl := lensOK_of_restLt ls P.D Dsf h₀ k Ls hDlen hpops hDsf hpm' hsm (p.2 r0).1 hlt
+    have hl := lensOK_of_restLt ls Du Dsf h₀ k Ls hDlen hpops hDsf hpm' hsm (p.2 r0).1 hlt
     set cd : ClusterDraws Ω α K := (p.1, (p.2 r0).1)
-    have hret : Returns ls O P.D Dsf h₀ cd := hfr.1
-    set B := roundState ls O P.D Dsf h₀ cd
-    set F := clusterAt O.mq pops (clusterRun P.D Dsf h₀ cd) B
-    set K₀ := roundKeys ls P.D Dsf h₀ cd
-    set Kc := clusterKeys sched pops a (clusterRun P.D Dsf h₀ cd)
-    have hst : stage0 ls O P.D Dsf h₀ a cd = some (B, F, K₀, Kc) :=
-      (stage0_eq_some ls O P.D Dsf h₀ a cd B F K₀ Kc).2 ⟨hret, rfl, rfl, rfl, rfl⟩
+    have hret : Returns ls O Du Dsf h₀ cd := hfr.1
+    set B := roundState ls O Du Dsf h₀ cd
+    set F := clusterAt O.mq pops (clusterRun Du Dsf h₀ cd) B
+    set K₀ := roundKeys ls Du Dsf h₀ cd
+    set Kc := clusterKeys sched pops a (clusterRun Du Dsf h₀ cd)
+    have hst : stage0 ls O Du Dsf h₀ a cd = some (B, F, K₀, Kc) :=
+      (stage0_eq_some ls O Du Dsf h₀ a cd B F K₀ Kc).2 ⟨hret, rfl, rfl, rfl, rfl⟩
     have hBs : B ∈ sched := (Classical.epsilon_spec hret).1
     have hBret : xr p ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
         settings.gateLevel B := (Classical.epsilon_spec hret).2
-    have hFs : F ⊆ suffsOf ls P.D Dsf h₀ (p.2 r0).1 :=
-      clusterAt_subset_suffsOf ls O P.D Dsf h₀ p.1 (p.2 r0).1 hBs
+    have hFs : F ⊆ suffsOf ls Du Dsf h₀ (p.2 r0).1 :=
+      clusterAt_subset_suffsOf ls O Du Dsf h₀ p.1 (p.2 r0).1 hBs
     have hlenF : ∀ v ∈ F, v.toList.length = Ls := fun v hv => hl.1 v (hFs hv)
     have hF1 : (1 : FreeMonoid α) ∉ F := fun h' => by
       have := hlenF 1 h'
@@ -358,10 +360,10 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
         apply FreeMonoid.toList.injective
         exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
       · obtain ⟨-, hk2, -⟩ := hband _ B hBs
-        have h1 := clusterAt_card_add_one (rule := lloydClusterer) O pops B (clusterRun P.D Dsf h₀ cd)
-        have h2 := lloydClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun P.D Dsf h₀ cd)) = 1)
-          (prefixesAt pops B.npref (clusterRun P.D Dsf h₀ cd))
-          (screenedAt O.mq pops B (clusterRun P.D Dsf h₀ cd)) B.k (by omega)
+        have h1 := clusterAt_card_add_one (rule := lloydClusterer) O pops B (clusterRun Du Dsf h₀ cd)
+        have h2 := lloydClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun Du Dsf h₀ cd)) = 1)
+          (prefixesAt pops B.npref (clusterRun Du Dsf h₀ cd))
+          (screenedAt O.mq pops B (clusterRun Du Dsf h₀ cd)) B.k (by omega)
         show F.card + 1 ≤ B.k
         simp only [F]
         rw [clusterAt_eq]
@@ -386,12 +388,12 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
           _ = 6 * (K + 1) * NP := by ring
           _ ≤ NK := hNK
     -- the round ends consistent
-    set o := checkRound settings O P.D Dsf Pc.D h₀ (p.1, p.2 r0)
+    set o := checkRound settings O P.D Du Dsf Pc.D h₀ (p.1, p.2 r0)
     have hcons : o.result.ending = .consistent := by
       by_contra hc
       exact h4 ⟨_, hst, hgood, hl, hc⟩
-    have hrounds : indecisiveLStarCheckLoop settings O P.D Dsf Pc.D h₀ p = [o] :=
-      checkRounds_of_first settings O P.D Dsf Pc.D h₀ p hK (by rw [hcons]; rfl) K hK
+    have hrounds : indecisiveLStarCheckLoop settings O P.D Du Dsf Pc.D h₀ p = [o] :=
+      checkRounds_of_first settings O P.D Du Dsf Pc.D h₀ p hK (by rw [hcons]; rfl) K hK
     -- its check passed at its rate
     have hres : o.result = indecisiveLStarCheck C Kk
         (fun z => familyRead O.mq F B.lo (B.hi + 1) z p.1)
@@ -452,7 +454,7 @@ theorem check_first_core (settings : CheckLoopSettings K) (hK : 0 < K)
               ≤ 2 * settings.indecisionLimit := hcut.2
           linarith
       _ = _ := by ring
-  calc μL.real {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Dsf Pc.D h₀ p = [o]
+  calc μL.real {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O P.D Du Dsf Pc.D h₀ p = [o]
         ∧ o.result.ending = .consistent
         ∧ ∃ s, o.result.hypothesis.tree.sift o.read 1 = .inl s
           ∧ Pc.D.real {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)}

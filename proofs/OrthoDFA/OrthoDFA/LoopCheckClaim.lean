@@ -5,10 +5,10 @@ import OrthoDFA.LoopCheck
 
 `LearnerLoopCheckSimple`: where the target re-rooted at some state `q*` classifies every string of
 each length from `⌈L/2⌉` to `2L` with its run in the covered states, the checked loop, its probes
-half of length `L` and half uniform over the lengths `⌈L/2⌉` to `L` (`probeMix`), and walked
-from `⌈L/2⌉`, started from any inherited state
-whose populations hold only strings `⌈L/2⌉` to `L` long and which read at most `T₀` prefixes and
-`T₀` suffixes, ends at its first round, consistent, and its DFA started where `ε` sifts
+and check strings of length `L`, its probes walked from `⌈L/2⌉`, and its uniform pool half of
+length `L` and half uniform over the lengths `⌈L/2⌉` to `L` (`poolMix`), started from any
+inherited state whose populations hold only strings `⌈L/2⌉` to `L` long and which read at most
+`T₀` prefixes and `T₀` suffixes, ends at its first round, consistent, and its DFA started where `ε` sifts
 misclassifies at most
 
     ε + 2 ((513/512) εcov + 2 ι + T₀ |Σ|^(−k)) + N_K |Σ|^(−a)
@@ -28,9 +28,6 @@ never harvests, and it exercises neither harvests nor the progress they make.
 Known modelling gap. The Python admits a target whose covered start re-roots it with error up to
 `γ = 1 − 0.99`; the model asks `γ = 0`, on every length from `⌈L/2⌉` to `2L`. The Python tolerates
 the error as a kind of noise the proof does not model.
-
-Known modelling gap. The Python draws its probes at length `L`; here half of them are uniform over
-the window of lengths `⌈L/2⌉` to `L`, so that the uniform pool holds every covered state.
 -/
 
 noncomputable section
@@ -40,16 +37,16 @@ namespace OrthoDFA
 open MeasureTheory
 
 /-- The checked loop stops at its first round, consistent, with its DFA from where `ε` sifts
-misclassifying at most its check's rate and its reads' errors on the strings of length `L`, but for chance `δ`; every premise an
-explicit inequality. -/
+misclassifying at most its check's rate and its reads' errors on the strings of length `L`, but
+for chance `δ`; every premise an explicit inequality. -/
 def LearnerLoopCheckSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L T₀ : ℕ) (η₀ c δ pAP εcov ε : ℝ),
   let Q : ℝ := Fintype.card σ
   let A : ℝ := Fintype.card α
-  -- Probes are walked from half the Python's length; half of them are uniform over the `N`
-  -- lengths `k` to `L`.
+  -- Probes are walked from half the Python's length; half the uniform pool is uniform over the
+  -- `N` lengths `k` to `L`.
   let k : ℕ := (L + 1) / 2
   let N : ℝ := L + 1 - k
   let ℓ : ℝ := L + 1
@@ -120,7 +117,7 @@ def LearnerLoopCheckSimple : Prop :=
       h₀.prefs.card ≤ T₀ → h₀.suffs.card ≤ T₀ →
       (checkLoopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget
           settings.check.size).real
-        {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O (probeMix k L) (uniformStrings Ls)
+        {p | ¬ ∃ o, indecisiveLStarCheckLoop settings O (uniformStrings L) (poolMix k L) (uniformStrings Ls)
               (uniformStrings L) h₀ p = [o]
             ∧ o.result.ending = .consistent
             ∧ ∃ s, o.result.hypothesis.tree.sift o.read 1 = .inl s
