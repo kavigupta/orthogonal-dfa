@@ -16,6 +16,7 @@ import OrthoDFA.Proofs.KappaRound
 import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.SuccessiveDraws
 import OrthoDFA.Proofs.TripartiteSearch
 
 /-!
@@ -33,7 +34,7 @@ stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Cla
 with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`BitSumTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
@@ -91,6 +92,10 @@ theorem rate_test_sound : RateTestSound := rateTestSound
 theorem bit_sum_tails : BitSumTails := bitSumTails
 
 #print axioms bit_sum_tails
+
+theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_holds
+
+#print axioms successive_draws_tails
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 

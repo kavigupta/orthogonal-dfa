@@ -332,6 +332,12 @@ need not be read to trust the claims above.
   any rates lands at or below a count at least two under its mean no more often than a binomial
   with as many trials or more at a rate the mean clears, and likewise above.
 
+- `OrthoDFA/Utils/SuccessiveDraws.lean` — `SuccessiveDrawsTails`: over independent draws, where
+  `T` with any fewer than `n` more strings holds at most `t` of the law, the draws among the first
+  `n` that land in `T` or repeat an earlier one reach a count no more often than `Bin(n, t)` does,
+  and the distinct draws outside `T` that land in `P` reach a count no more often than
+  `Bin(n, D(P))`, and stay at or below one no more often than `Bin(n, D(P) − t)`, does.
+
 - `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
   (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the
