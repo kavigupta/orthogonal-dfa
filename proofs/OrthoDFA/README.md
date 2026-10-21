@@ -105,8 +105,9 @@ round's clustering draws its prefixes, certification prefixes and suffixes off e
 earlier rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
 avoiding those of every prefix the round's clustering read. The band's far side is
-`δ'/(8W)`, `W = B₃(L₁+1)|Q| + |Q|(|Q|+1)²|Σ| + (|Q|+1)|Σ|^|Q|/ε`, which meets level 5's premise
-`εw(B₃(L₁+1)|Q| + |Q|(|Q|+1)²|Σ|) ≤ δ'/8` (`κ = 0` for the family) and the Markov bound above. A
+`δ'/(8W)`, `W = B₃ w|Q| + |Q|(|Q|+1)²|Σ| + (|Q|+1)|Σ|^|Q|/ε` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)`,
+which meets level 5's premise `εw(B₃ w|Q| + |Q|(|Q|+1)²|Σ|) ≤ δ'/8` (`κ = 0` for the family) and
+the Markov bound above. A
 round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is level 3's ending, transferred to `D`,
 and its tree in `classSet |Q|`; it fails with chance at most `δ' + δ'/8 + δ'/8`: level 5's claim,
 the event that some step reads a string wrong (`pi_wrong_le'`), and the Markov bound
@@ -289,16 +290,18 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
   under level 3's premises, `η`'s `log(8(|Q| + 1)K/δ)` becoming `log(16(|Q| + 1)K/δ)`, and
-  `εw · probeBudget · ((L + 1)|Q| + (|Q| + 1)²|Σ|) ≤ δ/8`. A step that reads no string wrong
-  splits and learns only on real targets. A probe's step reads at most `(L + 1)|Q|` strings and a
-  split re-sifts at most `(|Q| + 1)²|Σ|`, so by `AdaptiveReadsBound` the premise keeps every string
-  the round reads right but for chance `δ/8`. The sampler's bounds take `δ/16` at each site and
-  the stretches `3δ/4`.
+  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`, `N` the budget and `w = min(L + 1, 3 + ⌈log₂ L⌉)`. A
+  step that reads no string wrong splits and learns only on real targets. A probe sifts at most
+  `w` of its prefixes, its search's queries and the successor of its walk's end, each sift reading
+  at most `|Q|` strings, and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; so by
+  `RaceReadsBound` over the strings each step reads the premise keeps every string the round reads
+  right but for chance `δ/8`. It is level 5 at `κ = 0`. The sampler's bounds take `δ/16` at each
+  site and the stretches `3δ/4`.
 - `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
-  `εw (N(L + 1)|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`,
-  `N` the budget. A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
+  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
+  A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
   probe's sifts stop at their first undecided read, and the tests count it: under the `j`-th
   hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string

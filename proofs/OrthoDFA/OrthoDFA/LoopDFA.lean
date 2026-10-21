@@ -101,7 +101,8 @@ def LearnerLoopDFASimple : Prop :=
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   -- The strings a round can read wrong; the clustering's band must keep them right.
-  let W : ℝ := B₃ * (L₁ + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+  let W : ℝ := B₃ * (min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+    + (Q + 1) * A ^ Fintype.card σ / ε
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
