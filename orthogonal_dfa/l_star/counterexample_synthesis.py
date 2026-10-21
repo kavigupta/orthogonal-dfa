@@ -260,14 +260,11 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-#: Probes a search runs past its best-scoring hypothesis before stopping.
-SCORE_PATIENCE = 500
-
-
 def _counterexample_search(pst, vs, *, acc_threshold):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
     boundary = pst.decision_boundary
+    patience = pst.config.counterexample_score_patience
 
     def start(hypothesis):
         """The leaf ``_hypothesis_dfa`` starts the DFA on."""
@@ -277,14 +274,17 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         return hypothesis.tree.sift_with_path(lambda read: decide(b"", read), b"")[1]
 
     config = counterexample_search_config(acc_threshold, pst.config.acceptable_fnr)
-    # The harvest tests take acceptable_fnr as a good state's undecided rate per
-    # read; a family that only made its FNR gate reads undecided at its own FNR.
-    fnr, _ = pst.fnr_from_decision(pst.compute_decision(vs, pst.table.representative))
-    config = replace(
-        config,
-        harvest_multiple=config.harvest_multiple
-        * max(1.0, fnr / pst.config.acceptable_fnr),
-    )
+    if pst.config.counterexample_fnr_harvest:
+        # The harvest tests take acceptable_fnr as a good state's undecided rate
+        # per read; a family that only made its FNR gate reads at its own FNR.
+        fnr, _ = pst.fnr_from_decision(
+            pst.compute_decision(vs, pst.table.representative)
+        )
+        config = replace(
+            config,
+            harvest_multiple=config.harvest_multiple
+            * max(1.0, fnr / pst.config.acceptable_fnr),
+        )
     search = CounterexampleSearch(
         config,
         lambda z: family.is_accept(z, b""),
@@ -293,10 +293,14 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
         ],
         start=start,
-        score=lambda hypothesis: _held_out_oracle_score(
-            pst, _hypothesis_dfa(pst, hypothesis)
+        score=(
+            None
+            if patience is None
+            else lambda hypothesis: _held_out_oracle_score(
+                pst, _hypothesis_dfa(pst, hypothesis)
+            )
         ),
-        patience=SCORE_PATIENCE,
+        patience=patience,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -307,7 +311,7 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         ending = search.run(warmed_draws(search, draw, family.read_many))
     unclosed = search.snapshot()
     search.close(pst.alphabet_size)
-    if search.score(search.hypothesis) < search.best_score:
+    if search.score is not None and search.score(search.hypothesis) < search.best_score:
         search.restore(unclosed)
     return search, ending
 

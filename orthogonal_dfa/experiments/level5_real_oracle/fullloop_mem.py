@@ -217,6 +217,8 @@ def main():
     if a.plateau:
         pst.config.fnr_limit = 0.10
         pst.config.fnr_plateau_patience = 3
+        pst.config.counterexample_score_patience = 500
+        pst.config.counterexample_fnr_harvest = True
         pst.config.fnr_plateau_tol = 0.01
     tracker = Tracker(halves, a.out)
     if a.no_halving:

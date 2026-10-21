@@ -70,6 +70,12 @@ class SearchConfig:
     #: Searches per round, keeping the one whose DFA best predicts the oracle on
     #: held-out strings.
     counterexample_restarts: int = 1
+    #: When set, a round's search returns its best hypothesis by held-out oracle
+    #: score, and stops once this many probes pass without a better one.
+    counterexample_score_patience: Optional[int] = None
+    #: Scale the round's harvest thresholds by the family's measured FNR over
+    #: ``acceptable_fnr``: for oracles whose families only just make their FNR gate.
+    counterexample_fnr_harvest: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
