@@ -8,7 +8,8 @@ from collections import Counter
 from hashlib import blake2b
 
 from .mask_table import UNIFORM
-from .prefix_sources import UniformSource, draw_many
+from .prefix_sources import UniformSource
+from .prefix_suffix_tracker import _distinct_prefixes
 
 
 class PoolState:
@@ -145,7 +146,14 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     if source is None or not source.proven:
         return []
     if label == UNIFORM:
-        return draw_many(source, wanted)
+        # Off every table: the family was fitted to the reads of those.
+        return _distinct_prefixes(
+            pst.sampler,
+            pst.rng,
+            alphabet_size=pst.alphabet_size,
+            count=wanted,
+            held=state.tabled().union(pst.table.prefixes),
+        )
     reserve = state.reserves.get(label, [])
     taken, reserve[:] = reserve[:wanted], reserve[wanted:]
     # Table-side draws are discarded: they are in no table.
