@@ -15,6 +15,7 @@ import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
 import OrthoDFA.Proofs.RaceReads
+import OrthoDFA.Proofs.RaceTail
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.SuccessiveDraws
@@ -36,7 +37,7 @@ stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Cla
 with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`RaceTailBound`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
@@ -122,6 +123,10 @@ theorem level4_round_correct : Level4RoundCorrect := Random.Eps.level4RoundCorre
 theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
 
 #print axioms race_reads_bound
+
+theorem race_tail_bound : RaceTailBound := raceTailBound_holds
+
+#print axioms race_tail_bound
 
 theorem level5_round_correct : Level5RoundCorrect :=
   Random.Kappa.level5RoundCorrect_holds

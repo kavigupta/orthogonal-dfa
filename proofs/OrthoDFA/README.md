@@ -343,6 +343,13 @@ need not be read to trust the claims above.
   queried in rounds, each fixed by what it and the earlier rounds read; some query of the first `n`
   rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
   most `b`, `m` of them reading in `V`.
+- `OrthoDFA/Utils/RaceTail.lean` — `RaceTailBound`: as `RaceReadsBound`, counting the fresh-bad
+  rounds, those where a string no earlier round queried reads bad. Each round is fixed by what it
+  and the earlier rounds read while fewer than `f` fresh-bad rounds precede it. If the new strings
+  number at most `b` and those in `V` at most `m` over those rounds, each round costing at most `w`,
+  then at least `f` rounds are fresh-bad with chance at most `exp(t'(ε b + κ m))/(1 + t)^f` for
+  `t w ≤ 1 − e^{−t' w}`. The proof: `(1 + t)^c e^{−t'(ε q + κ v)}` at the counts so far has mean at
+  most `1`.
 
 - `OrthoDFA/Utils/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits at
   any rates lands at or below a count at least two under its mean no more often than a binomial
