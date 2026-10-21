@@ -60,7 +60,7 @@ def Level5RoundCorrect : Prop :=
     -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
     -- As at level 3.
-    let A : ℝ := (nQ + 1) * (6 / y + 16 * (P.L + 1))
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
     -- As at level 3, at chance `δ/16` at each site.
     let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
@@ -69,12 +69,13 @@ def Level5RoundCorrect : Prop :=
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     0 ≤ εw → 0 ≤ κ →
-    -- The round reads some string wrong with chance at most `δ/8`. A probe reads at most
-    -- `(L + 1)|Q|` strings and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test
-    -- fires, a hypothesis's probes stop undecided at most `5 log(1/a_j)` times however long the
-    -- stretch, so the `κ` term does not grow with the budget.
-    εw * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+    -- The round reads some string wrong with chance at most `δ/8`. A probe sifts at most
+    -- `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes, each reading at most `|Q|` strings, and at most
+    -- `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test fires, a hypothesis's probes
+    -- stop undecided at most `(16/5) log(1/a_j)` times however long the stretch, so the `κ` term
+    -- does not grow with the budget.
+    εw * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+      + κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           -- As at level 3.

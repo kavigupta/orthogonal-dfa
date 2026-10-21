@@ -6,13 +6,19 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 
 Under the `j`-th hypothesis, while no test fires, every search stops at an undecided middle, and
 the three tests together keep the probes stopping undecided, at their start or end or a middle, to
-at most `5 log(1/a_j)`, whatever the stretch's length (`quiet_cost`): the ends test bounds the
-first by `(log(1/a_j) + 2yn)/log 2` after `n` probes, the middles test or the search share bounds
-the second, and the success test, not firing, makes `n` at most of order `log(1/a_j)/ε`. A probe
+at most `(16/5) log(1/a_j)`, whatever the stretch's length (`quiet_cost`). With `K` the probes
+counted and `c = y/(1 - 2y)`, the three tests, not firing, give
+
+    e log 2 < log(1/a_j) + c (n - e),
+    k log 2 < log(1/a_j)  or  k < ε n/6,
+    (n - K) ε/(2 - ε) < log(1/a_j) + K log 2,
+
+and `y ≤ ε/48` makes `c ≤ ε/(24(2 - ε))`, so the ends' slack is a 24th of the success test's. A probe
 reads at most the one string it stops at undecided, and a split re-sifts at most `(|Q| + 1)²|Σ|`
 strings. So while nothing read is wrong, the round reads at most
-`Σ_{j < S} 5 log(1/a_j) + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and at most
-`(L + 1)|Q| · |xs| + |Q|(|Q| + 1)²|Σ|` in all (`count_le`).
+`Σ_{j < S} (16/5) log(1/a_j) + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and at most
+`min(L + 1, 3 + ⌈log₂ L⌉)|Q| · |xs| + |Q|(|Q| + 1)²|Σ|` in all (`count_le`), a probe sifting
+at most `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes.
 -/
 
 namespace OrthoDFA
@@ -33,7 +39,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings)
 def cost (t : Level3State α) : ℝ := t.endsUndecided.length + t.middleUndecided.length
 
 /-- What a stretch under the `j`-th hypothesis may cost. -/
-noncomputable def costAt (j : ℕ) : ℝ := 5 * Real.log (1 / C.level j)
+noncomputable def costAt (j : ℕ) : ℝ := 16 / 5 * Real.log (1 / C.level j)
 
 theorem costAt_nonneg {j : ℕ} (ha0 : 0 < C.level j) (ha1 : C.level j ≤ 1) : 0 ≤ costAt C j := by
   unfold costAt
@@ -63,18 +69,21 @@ theorem quiet_cost (t : Level3State α) (hn : runTests C t = none)
   have he0 : (0 : ℝ) ≤ e := Nat.cast_nonneg _
   have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg _
-  -- the ends
+  have hy48 : y ≤ 1 / 48 := by linarith
+  have hl0' : 0.6931471803 < l := Real.log_two_gt_d9
+  have hl1' : l < 0.6931471808 := Real.log_two_lt_d9
+  -- the ends: `e log 2 < Λ + c (n - e)`, with `c = y/(1 - 2y)`
+  have hc0 : 0 ≤ y / (1 - 2 * y) := div_nonneg hy0.le (by linarith)
   have hq0 : 0 < (1 - 2 * y) / (1 - y) := div_pos (by linarith) (by linarith)
-  have hq1 : (1 - 2 * y) / (1 - y) ≤ 1 := by rw [div_le_one (by linarith)]; linarith
-  have hlq : -(2 * y) ≤ Real.log ((1 - 2 * y) / (1 - y)) := by
+  have hlq : -(y / (1 - 2 * y)) ≤ Real.log ((1 - 2 * y) / (1 - y)) := by
     have h1 := Real.log_le_sub_one_of_pos (inv_pos.2 hq0)
     rw [Real.log_inv] at h1
-    have h2 : ((1 - 2 * y) / (1 - y))⁻¹ - 1 ≤ 2 * y := by
-      rw [inv_div, div_sub_one (by linarith), div_le_iff₀ (by linarith)]
-      nlinarith
+    have h2 : ((1 - 2 * y) / (1 - y))⁻¹ - 1 = y / (1 - 2 * y) := by
+      have h : (1 - 2 * y) ≠ 0 := by linarith
+      rw [inv_div, div_sub_one h, show 1 - y - (1 - 2 * y) = y by ring]
     linarith
-  have hE : e * l < Λ + 2 * y * n := by
-    have hlt : (2 : ℝ) ^ e * ((1 - 2 * y) / (1 - y)) ^ n < 1 / a := by
+  have hE : e * l < Λ + y / (1 - 2 * y) * ((n - e : ℕ) : ℝ) := by
+    have hlt : (2 : ℝ) ^ e * ((1 - 2 * y) / (1 - y)) ^ (n - e) < 1 / a := by
       have hlr : likelihoodRatio C.endsRate C.endsAlternative n e < 1 / a := lt_of_not_ge he
       unfold likelihoodRatio at hlr
       have h2 : C.endsAlternative / C.endsRate = 2 := by
@@ -82,11 +91,11 @@ theorem quiet_cost (t : Level3State α) (hn : runTests C t = none)
         rw [mul_div_assoc, div_self (ne_of_gt hy0), mul_one]
       simp only [Level3Settings.endsAlternative, Level3Settings.endsRate] at hlr h2
       rw [h2] at hlr
-      refine lt_of_le_of_lt (mul_le_mul_of_nonneg_left ?_ (by positivity)) hlr
-      exact pow_le_pow_of_le_one hq0.le hq1 (Nat.sub_le n e)
-    have hpos : 0 < (2 : ℝ) ^ e * ((1 - 2 * y) / (1 - y)) ^ n := by positivity
+      exact hlr
+    have hpos : 0 < (2 : ℝ) ^ e * ((1 - 2 * y) / (1 - y)) ^ (n - e) := by positivity
     have := Real.log_lt_log hpos hlt
     rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow] at this
+    have hm := mul_le_mul_of_nonneg_left hlq (Nat.cast_nonneg (α := ℝ) (n - e))
     nlinarith
   -- the middles
   have hK : k * l < Λ ∨ (k : ℝ) < ε / 6 * n := by
@@ -107,15 +116,19 @@ theorem quiet_cost (t : Level3State α) (hn : runTests C t = none)
       simp only [Level3Settings.searchShare, not_le] at hsh
       rw [hsm] at hsh
       linarith
-  -- success
-  have hr1 : 1 ≤ (1 - ε / 2) / (1 - ε) := by rw [le_div_iff₀ (by linarith)]; linarith
-  have hlr : ε / 2 ≤ Real.log ((1 - ε / 2) / (1 - ε)) := by
-    have h1 := Real.one_sub_inv_le_log_of_pos (show 0 < (1 - ε / 2) / (1 - ε) by linarith)
-    have h2 : ε / 2 ≤ 1 - ((1 - ε / 2) / (1 - ε))⁻¹ := by
-      rw [inv_div, one_sub_div (by linarith), le_div_iff₀ (by linarith)]
-      nlinarith
+  -- success: `(n - k - e) ε/(2 - ε) < Λ + (k + e) log 2`
+  have hr0 : 0 < (1 - ε / 2) / (1 - ε) := div_pos (by linarith) (by linarith)
+  have hlr : ε / (2 - ε) ≤ Real.log ((1 - ε / 2) / (1 - ε)) := by
+    have h1 := Real.one_sub_inv_le_log_of_pos hr0
+    have h2 : 1 - ((1 - ε / 2) / (1 - ε))⁻¹ = ε / (2 - ε) := by
+      have h : (1 - ε / 2) ≠ 0 := by linarith
+      have h' : (2 - ε) ≠ 0 := by linarith
+      rw [inv_div, one_sub_div h, show 1 - ε / 2 - (1 - ε) = ε / 2 by ring,
+        div_eq_div_iff h h']
+      ring
     linarith
-  have hS : ((n : ℝ) - k - e) * (ε / 2) - (k + e) * l < Λ := by
+  have hd0 : (0 : ℝ) ≤ ((n - (k + e) : ℕ) : ℝ) := Nat.cast_nonneg _
+  have hS : ((n - (k + e) : ℕ) : ℝ) * (ε / (2 - ε)) < Λ + (k + e) * l := by
     have hlt : likelihoodRatio C.disagreementRate C.disagreementAlternative n
         (t.searchCount + e) < 1 / a := lt_of_not_ge hs
     unfold likelihoodRatio at hlt
@@ -126,47 +139,63 @@ theorem quiet_cost (t : Level3State α) (hn : runTests C t = none)
     rw [h2, hsm] at hlt
     simp only [Level3Settings.disagreementAlternative] at hlt
     have hpos : 0 < (1 / 2 : ℝ) ^ (k + e) * ((1 - ε / 2) / (1 - ε)) ^ (n - (k + e)) := by
-      have : 0 < (1 - ε / 2) / (1 - ε) := by linarith
       positivity
     have := Real.log_lt_log hpos hlt
     rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow,
       one_div, Real.log_inv] at this
-    have hsub : (n : ℝ) - k - e ≤ ((n - (k + e) : ℕ) : ℝ) := by
-      have : (n : ℝ) - (k + e) ≤ ((n - (k + e) : ℕ) : ℝ) := by
-        rcases le_total (k + e) n with h | h
-        · rw [Nat.cast_sub h]; push_cast; rfl
-        · rw [Nat.sub_eq_zero_of_le h]; push_cast
-          have : (n : ℝ) ≤ k + e := by exact_mod_cast h
-          linarith
-      linarith
-    have hm1 : ((n : ℝ) - k - e) * (ε / 2)
-        ≤ ((n - (k + e) : ℕ) : ℝ) * Real.log ((1 - ε / 2) / (1 - ε)) := by
-      rcases le_total 0 ((n : ℝ) - k - e) with h | h
-      · exact mul_le_mul hsub hlr (by linarith) (Nat.cast_nonneg _)
-      · have : 0 ≤ ((n - (k + e) : ℕ) : ℝ) * Real.log ((1 - ε / 2) / (1 - ε)) :=
-          mul_nonneg (Nat.cast_nonneg _) (by linarith)
-        nlinarith
+    have hm := mul_le_mul_of_nonneg_left hlr hd0
     push_cast at this
     nlinarith
-  -- the cases
-  have hyn : y * n ≤ ε / 48 * n := mul_le_mul_of_nonneg_right hyε hn0
-  have hel : e * (2 / 3) ≤ e * l := mul_le_mul_of_nonneg_left hl0 he0
-  have hkel : (k + e) * l ≤ (k + e) * (7 / 10) := mul_le_mul_of_nonneg_left hl1 (by positivity)
-  have hkee : (k + e) * ε ≤ (k + e) * 1 := mul_le_mul_of_nonneg_left hε1.le (by positivity)
-  have hexp : ((n : ℝ) - k - e) * (ε / 2) = (n : ℝ) * ε / 2 - (k + e) * ε / 2 := by ring
-  have hSe : (n : ℝ) * ε / 2 < Λ + (k + e) * (7 / 10) + (k + e) / 2 := by linarith
-  have hEe : (e : ℝ) < 3 / 2 * Λ + ε * n / 16 := by linarith
+  -- `c ≤ (ε/(2 - ε))/24` and `c ≤ 1/46` turn the ends' slack into the success test's
+  have hcg : y / (1 - 2 * y) ≤ ε / (2 - ε) / 24 := by
+    rw [div_div, div_le_div_iff₀ (by linarith) (by linarith)]
+    nlinarith
+  have hc46 : y / (1 - 2 * y) ≤ 1 / 46 := by
+    rw [div_le_div_iff₀ (by linarith) (by norm_num)]
+    linarith
+  have hne : ((n - e : ℕ) : ℝ) ≤ ((n - (k + e) : ℕ) : ℝ) + k := by
+    have : n - e ≤ n - (k + e) + k := by omega
+    exact_mod_cast this
+  have hEE : e * l < Λ + (Λ + (k + e) * l) / 24 + k / 46 := by
+    have h1 : y / (1 - 2 * y) * ((n - e : ℕ) : ℝ)
+        ≤ y / (1 - 2 * y) * ((n - (k + e) : ℕ) : ℝ) + y / (1 - 2 * y) * k := by
+      rw [← mul_add]; exact mul_le_mul_of_nonneg_left hne hc0
+    have h2 : y / (1 - 2 * y) * ((n - (k + e) : ℕ) : ℝ)
+        ≤ ((n - (k + e) : ℕ) : ℝ) * (ε / (2 - ε)) / 24 := by
+      have := mul_le_mul_of_nonneg_right hcg hd0
+      linarith
+    have h3 : y / (1 - 2 * y) * k ≤ k / 46 := by
+      have := mul_le_mul_of_nonneg_right hc46 hk0
+      linarith
+    linarith
+  have hel0 : e * 0.6931471803 ≤ e * l := mul_le_mul_of_nonneg_left hl0'.le he0
+  have hel1 : e * l ≤ e * 0.6931471808 := mul_le_mul_of_nonneg_left hl1'.le he0
+  have hkl0 : k * 0.6931471803 ≤ k * l := mul_le_mul_of_nonneg_left hl0'.le hk0
+  have hkl1 : k * l ≤ k * 0.6931471808 := mul_le_mul_of_nonneg_left hl1'.le hk0
   unfold cost costAt
   rcases hK with hK | hK
-  · have hkl : k * (2 / 3) ≤ k * l := mul_le_mul_of_nonneg_left hl0 hk0
-    have hk : (k : ℝ) < 3 / 2 * Λ := by linarith
-    linarith
   · linarith
+  · -- the searches below their share: `ε n ≤ 2Λ + (k + e)(1 + log 2)`
+    have hnd : (n : ℝ) ≤ ((n - (k + e) : ℕ) : ℝ) + (k + e) := by
+      have : n ≤ n - (k + e) + (k + e) := by omega
+      exact_mod_cast this
+    have hεd : ε * ((n - (k + e) : ℕ) : ℝ) ≤ (2 - ε) * (Λ + (k + e) * l) := by
+      have h2ε : 0 < 2 - ε := by linarith
+      have : ε * ((n - (k + e) : ℕ) : ℝ)
+          = (2 - ε) * (((n - (k + e) : ℕ) : ℝ) * (ε / (2 - ε))) := by
+        field_simp
+      rw [this]
+      exact mul_le_mul_of_nonneg_left hS.le h2ε.le
+    have hK1 : (0 : ℝ) ≤ (k + e) * (1 - l) := mul_nonneg (by positivity) (by linarith)
+    have hεn : ε * n ≤ 2 * Λ + (k + e) * (1 + l) := by
+      have := mul_le_mul_of_nonneg_left hnd hε0.le
+      nlinarith [mul_nonneg hε0.le hla, mul_le_mul_of_nonneg_right hε1.le hK1]
+    linarith
 
 /-- The stretches' costs over the first `H` hypotheses. -/
 theorem sum_costAt_le (H : ℕ) (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
-    ∑ j ∈ Finset.range H, costAt C j ≤ 5 * H * Real.log (8 * H * (H + 1) / C.δ) := by
-  calc _ ≤ ∑ _j ∈ Finset.range H, 5 * Real.log (8 * H * (H + 1) / C.δ) := by
+    ∑ j ∈ Finset.range H, costAt C j ≤ 16 / 5 * H * Real.log (8 * H * (H + 1) / C.δ) := by
+  calc _ ≤ ∑ _j ∈ Finset.range H, 16 / 5 * Real.log (8 * H * (H + 1) / C.δ) := by
         refine Finset.sum_le_sum fun j hj => ?_
         have hj' : (j : ℝ) + 1 ≤ H := by exact_mod_cast Finset.mem_range.1 hj
         have hlev : 1 / C.level j = 8 * (j + 1) * (j + 2) / C.δ := by
@@ -227,18 +256,31 @@ theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMon
     · simp
   all_goals simp
 
+/-- The most prefixes a probe at most `L` long sifts. -/
+def probeSifts (L : ℕ) : ℕ := min (L + 1) (3 + Nat.clog 2 L)
+
 omit [DecidableEq α] in
-/-- A probe reads at most `(L + 1)|Q|` strings. -/
 theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMonoid α} {L : ℕ}
     (hx : x.toList.length ≤ L) :
-    (probeReads read s.tree s.edges C.walkStart x).card ≤ (L + 1) * Fintype.card σ := by
+    (probeReads read s.tree s.edges C.walkStart x).card ≤ probeSifts L * Fintype.card σ := by
   have hlv : s.tree.leaves.length ≤ Fintype.card σ + 1 := by
     have := hW.leaves; have := img_card_le M side s.tree; omega
   have hmid : (mids s.tree).card ≤ Fintype.card σ := by
     have := mids_card s.tree; omega
-  calc _ ≤ (pot C.walkStart x s.tree).card := Finset.card_le_card (probeReads_pot _ _)
-    _ ≤ (x.toList.length + 1) * (mids s.tree).card := card_pot _ x _
-    _ ≤ _ := Nat.mul_le_mul (by omega) hmid
+  have h1 : (probeReads read s.tree s.edges C.walkStart x).card ≤ (L + 1) * Fintype.card σ :=
+    calc _ ≤ (pot C.walkStart x s.tree).card := Finset.card_le_card (probeReads_pot _ _)
+      _ ≤ (x.toList.length + 1) * (mids s.tree).card := card_pot _ x _
+      _ ≤ _ := Nat.mul_le_mul (by omega) hmid
+  have h2 : (probeReads read s.tree s.edges C.walkStart x).card
+      ≤ (3 + Nat.clog 2 L) * Fintype.card σ := by
+    obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := read) (T := s.tree) s.edges C.walkStart hx
+    calc _ ≤ (posReads read s.tree x ps).card := Finset.card_le_card hsub
+      _ ≤ ps.toFinset.card * (mids s.tree).card := posReads_card _ _ _ _
+      _ ≤ _ := Nat.mul_le_mul hps hmid
+  unfold probeSifts
+  rcases le_total (L + 1) (3 + Nat.clog 2 L) with h | h
+  · rw [min_eq_left h]; exact h1
+  · rw [min_eq_right h]; exact h2
 
 omit [Fintype α] [DecidableEq α] in
 theorem ends_mid_le_one (o : Outcome α) : (endsString o).length + (middleString o).length ≤ 1 := by
@@ -328,14 +370,15 @@ noncomputable def Φu (nQ nα : ℕ) (C : Level3Settings) (s : Level3State α) :
 
 /-- What the rounds so far may have read, given the state reached after `n` probes. -/
 noncomputable def Φb (nQ nα L : ℕ) (s : Level3State α) (n : ℕ) : ℝ :=
-  (((L + 1) * nQ : ℕ) : ℝ) * n + (wSplit nQ nα : ℝ) * ((s.tree.leaves.length : ℝ) - 2)
+  ((probeSifts L * nQ : ℕ) : ℝ) * n + (wSplit nQ nα : ℝ) * ((s.tree.leaves.length : ℝ) - 2)
 
 /-- The bound on what the round reads undecided. -/
 noncomputable def Mu (nQ nα : ℕ) (C : Level3Settings) : ℝ :=
   ∑ j ∈ Finset.range (Level2.stretches nQ nα), costAt C j + 1 + (wSplit nQ nα : ℝ) * nQ
 
 /-- The bound on what the round reads. -/
-noncomputable def Mb (nQ nα L N : ℕ) : ℝ := (((L + 1) * nQ : ℕ) : ℝ) * N + (wSplit nQ nα : ℝ) * nQ
+noncomputable def Mb (nQ nα L N : ℕ) : ℝ :=
+  ((probeSifts L * nQ : ℕ) : ℝ) * N + (wSplit nQ nα : ℝ) * nQ
 
 variable {C}
 
@@ -352,7 +395,7 @@ theorem phi_le {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN : 
     (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
     Φu (Fintype.card σ) (Fintype.card α) C s + 1 + wSplit (Fintype.card σ) (Fintype.card α)
         ≤ Mu (Fintype.card σ) (Fintype.card α) C
-      ∧ Φb (Fintype.card σ) (Fintype.card α) L s n + (((L + 1) * Fintype.card σ : ℕ) : ℝ)
+      ∧ Φb (Fintype.card σ) (Fintype.card α) L s n + ((probeSifts L * Fintype.card σ : ℕ) : ℝ)
         + wSplit (Fintype.card σ) (Fintype.card α) ≤ Mb (Fintype.card σ) (Fintype.card α) L N := by
   have hlv : s.tree.leaves.length ≤ Fintype.card σ + 1 := by
     have := hs.wit.leaves; have := img_card_le M side s.tree; omega
@@ -382,8 +425,8 @@ theorem phi_le {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN : 
         + wSplit (Fintype.card σ) (Fintype.card α)
         ≤ (wSplit (Fintype.card σ) (Fintype.card α) : ℝ) * Fintype.card σ := by
       rw [← mul_add_one]; gcongr
-    have : (((L + 1) * Fintype.card σ : ℕ) : ℝ) * n + (((L + 1) * Fintype.card σ : ℕ) : ℝ)
-        ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) * N := by
+    have : ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * n + ((probeSifts L * Fintype.card σ : ℕ) : ℝ)
+        ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * N := by
       rw [← mul_add_one]; gcongr
     linarith
 
@@ -410,7 +453,7 @@ theorem phiU_count (nQ nα : ℕ) {s s' : Level3State α} (hh : s'.hypotheses = 
 
 omit [DecidableEq α] [Fintype α] [Fintype σ] in
 theorem phiB_step (nQ nα L : ℕ) {s s' : Level3State α} (n : ℕ) :
-    Φb nQ nα L s' (n + 1) = Φb nQ nα L s n + (((L + 1) * nQ : ℕ) : ℝ)
+    Φb nQ nα L s' (n + 1) = Φb nQ nα L s n + ((probeSifts L * nQ : ℕ) : ℝ)
       + (wSplit nQ nα : ℝ) * ((s'.tree.leaves.length : ℝ) - s.tree.leaves.length) := by
   unfold Φb
   push_cast
@@ -518,7 +561,7 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
   have hu01r : ((endsString o).length : ℝ) + (middleString o).length ≤ 1 := by
     exact_mod_cast hu01
   have hb0r : ((probeReads r s.tree s.edges C.walkStart x).card : ℝ)
-      ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) := by exact_mod_cast hb0
+      ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) := by exact_mod_cast hb0
   have hb1r : ((splitReads r C s x).card : ℝ) ≤ (wSplit (Fintype.card σ) (Fintype.card α) : ℝ) := by
     simp only [wSplit]; exact_mod_cast hb1
   have hu1r : (((splitReads r C s x).filter fun z => r z = .undecided).card : ℝ)
@@ -665,7 +708,8 @@ theorem phi_le0 {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN :
   · unfold Φu Mu
     linarith
   · unfold Φb Mb
-    have : (((L + 1) * Fintype.card σ : ℕ) : ℝ) * n ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) * N := by
+    have : ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * n
+        ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * N := by
       gcongr
     linarith
 
