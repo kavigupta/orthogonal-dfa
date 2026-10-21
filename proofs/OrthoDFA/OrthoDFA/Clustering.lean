@@ -19,10 +19,13 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` takes the family as the rows whose reads
-disagree with the seed's on the fewest of the prefixes `seed_scoring` holds out; `nearestRows`
-reads every prefix of the table, which nothing else in `ret` reads, since the gate and the FNR
-test read the certification sample.
+Known modelling gap.  `identify_cluster_around` proposes candidates by k-means and a merge
+test, takes the group whose rows read in another class than the seed least often on the prefixes
+`seed_scoring` holds out, and ranks that group's rows, then the rest of the pool, by how many of
+those prefixes they read unlike the seed.  `nearestRows` ranks every candidate by that count over
+the whole table, which nothing else in `ret` reads.  The termination proof ranks a candidate set
+fixed before the reads it ranks on; the anchor group is chosen from those same reads, so the claim
+covers `nearestRows` and not the anchor group's ranking.
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
