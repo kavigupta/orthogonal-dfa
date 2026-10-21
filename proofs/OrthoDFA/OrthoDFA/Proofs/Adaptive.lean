@@ -498,7 +498,7 @@ lemma flipFrac_le_flipFracOf (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ �
   nlinarith [mul_le_mul_of_nonneg_left hgle (by linarith : (0 : ℝ) ≤ 3 * (1 / 2 - η₀)),
     mul_nonneg (sub_nonneg.2 hηle) (by linarith : (0 : ℝ) ≤ 7 / 2 - 2 * η₀)]
 
-/-- What a `flipFracOf` fraction flipping shows the screen, against what `screenMargin` was
+/-- What a `flipFracOf` fraction flipping shows the count rule, against what `countSignal` was
 solved at. -/
 lemma flipFracOf_sep (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) :
     flipFrac η₀ * ((1 - η₀) * (1 - 2 * η₀))
@@ -927,24 +927,18 @@ lemma famCount_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (h�
   · rw [h]
     exact famHoeff_crossTail η₀ populations εcov δ hη0 hsig hζ
 
-lemma flipBudget_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
-    (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
-    (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    0 < flipBudget η₀ populations indecisionLimit εcov δ := by
-  rw [flipBudget]
-  exact div_pos
-    (mul_pos (mul_pos (by norm_num) (cutBudget_pos η₀ hsig hε hind)) (flipFrac_pos η₀ hsig))
-    (mul_pos (by norm_num) hcard)
+lemma tableBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
+    (hind : 0 < indecisionLimit) : 0 < tableBudget η₀ indecisionLimit εcov := by
+  have := cutBudget_pos η₀ hsig hε hind
+  have := flipFrac_pos η₀ hsig
+  unfold tableBudget; positivity
 
-lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
-    (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
-    (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    0 < screenMargin η₀ populations indecisionLimit εcov δ := by
-  rw [screenMargin]
-  have h1 := flipBudget_pos η₀ populations (δ := δ) hsig hε hind hcard
-  have h2 := sig_pos η₀ hsig
-  have h3 : (0 : ℝ) < 1 - η₀ := by linarith
-  positivity
+lemma countSignal_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
+    (hind : 0 < indecisionLimit) : 0 < countSignal η₀ indecisionLimit εcov := by
+  have := tableBudget_pos η₀ hsig hε hind
+  have h1 : 0 < 1 - 2 * η₀ := by linarith
+  have h2 : 0 < 1 - η₀ := by linarith
+  unfold countSignal; positivity
 
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
@@ -2108,16 +2102,15 @@ lemma flip_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure D
   MeasureTheory.Integrable.of_mem_Icc 0 1 (flip_meas O v).aemeasurable
     (Filter.Eventually.of_forall (fun p => flip_icc O v p))
 
-/-- Markov over the family's flip masses.  If no member flips more than a `Δ` mass of
-the population, the mass of prefixes where a `c` fraction of the family flips is at most
-`Δ / c`.
+/-- Markov over the family's flip masses.  If the members flip a `Δ` mass of the population on
+average, the mass of prefixes where a `c` fraction of the family flips is at most `Δ / c`.
 
 This is what turns per-member flip mass into misclassified mass.  The round puts `c` at the
 flip fraction the vote's margin absorbs, a constant, so nothing here scales with `|F|` — a
 union bound over the members would have cost a factor of the family's size. -/
 theorem flipCount_mass_le (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj]
     (F : Finset S) (Δ c : ℝ) (hc : 0 < c) (hFne : 0 < F.card)
-    (hF : ∀ v ∈ F, flipMass O Dj v ≤ Δ) :
+    (hF : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ) :
     Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p} ≤ Δ / c := by
   classical
   have hcard : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hFne
@@ -2133,9 +2126,7 @@ theorem flipCount_mass_le (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasu
     rfl
   have hmark := mul_meas_ge_le_integral_of_nonneg hnn hint (c * (F.card : ℝ))
   rw [hInt] at hmark
-  have hle : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ := by
-    calc ∑ v ∈ F, flipMass O Dj v ≤ ∑ _v ∈ F, Δ := Finset.sum_le_sum hF
-      _ = (F.card : ℝ) * Δ := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hle : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ := hF
   have hstep : (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})
       ≤ (F.card : ℝ) * Δ := by
     calc (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})

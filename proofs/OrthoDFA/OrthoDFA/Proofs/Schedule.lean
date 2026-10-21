@@ -150,14 +150,13 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ crossLimit : ℝ) : ℕ :=
   bandAt η (famCount η populations indecisionLimit εcov δ crossLimit)
 
-/-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
-flipping, so Markov charges the cut budget at that fraction and not at the family's size.
-
-The screen's tail binds and is read at this, so it takes fifty-nine sixty-fourths of the cut
-budget; the heavy-prefix count's slack and threshold, whose tails are cheap, and the prefixes the
-samplers redraw share the rest. -/
-noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
-  59 * cutBudget η indecisionLimit εcov * flipFrac η / (64 * (populations.card : ℝ))
+/-- What the family may flip of a population, on average over its members, at the vote's
+flip fraction: Markov over the members charges it to the cut budget at that fraction, not at the
+family's size.  It takes fifty-nine sixty-fourths of the cut budget; the heavy-prefix count's
+slack and threshold, whose tails are cheap, and the prefixes the samplers redraw share the
+rest. -/
+noncomputable def tableBudget (η indecisionLimit εcov : ℝ) : ℝ :=
+  59 * cutBudget η indecisionLimit εcov * flipFrac η / 64
 
 /-- The exponent rate of the drawn prefixes understating a member's flip mass by
 `g = cutBudget·flipFrac/32`, relative to a mass of at most half the cut budget:
@@ -166,21 +165,15 @@ noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimi
 noncomputable def dirtyRate (η indecisionLimit εcov : ℝ) : ℝ :=
   (cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2 / cutBudget η indecisionLimit εcov
 
-/-- The screen's margin, at the flip budget.
+/-- What a row flipping the table budget adds to its disagreement with the seed, per prefix:
 
-A flip costs both the vote and the screen the gap `g` between the classes, the screen at
-`g·(1 − 2η)` per flip.  The vote absorbs a fraction `f` flipping with `g·f ≥ (1 − η)·flipFrac`,
-so a member flipping `flipBudget·f/flipFrac`, what Markov charges at that fraction, shows the
-screen at least
+    (1 − 2η)(1 − η) · tableBudget
 
-    flipBudget · (1 − η) · (1 − 2η)
-
-whatever `g`.  The test spends four one-sided deviations on it — the seed's and the
-candidate's, each against the measured floor — so the factor here is capped below `2`.
-`sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `63/2` in `solvedStateAt`;
-the two constants move together. -/
-noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℝ :=
-  flipBudget η populations indecisionLimit εcov δ * ((1 - η) * sig η) * (63 / 64)
+A flip at `p` moves the row's mean disagreement by `gap·(1 − 2r)`, and the vote absorbs a
+fraction `f` flipping with `gap·f ≥ (1 − η)·flipFrac`, so `gap` cancels against the budget's
+scaling to the vote. -/
+noncomputable def countSignal (η indecisionLimit εcov : ℝ) : ℝ :=
+  (1 - 2 * η) * (1 - η) * tableBudget η indecisionLimit εcov
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `9pAP/20` so
 that a twentieth of the pool is left for the draws the sampler redraws. -/
@@ -188,6 +181,35 @@ noncomputable def poolCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
   ⌈2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊
+
+/-- The accept-preserving rows a pool of `M` guarantees besides the seed: half its findable
+share, the rest spent on the count's deviation and the sampler's redraws. -/
+noncomputable def apFloor (pAP : ℝ) (M : ℕ) : ℝ := M * pAP / 2 - 1
+
+/-- How far above the seed's prediction the clean rows are read, in units of `√(|J|·m)`:
+
+    u = √(log(a/((a − κ + 1)ε))/2),   a = apFloor,   ε = δ/(8|J|),
+
+so that more than `a − κ` of `a` clean rows clear it with chance at most `ε`, by Markov. -/
+noncomputable def cleanLevel (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  Real.sqrt (Real.log (apFloor pAP (poolCount η populations indecisionLimit εcov δ pAP crossLimit)
+    / ((apFloor pAP (poolCount η populations indecisionLimit εcov δ pAP crossLimit)
+      - famCount η populations indecisionLimit εcov δ crossLimit + 1)
+      * (δ / (8 * (populations.card : ℝ))))) / 2)
+
+/-- How far below its mean a heavy row has to read to be picked, in units of `√(|J|·m)`:
+
+    x = max(1, √((11/20) log(15(M + 1)/(κ ε)))),   ε = δ/(8|J|),
+
+the `15` being `θ/(1 − θ)` at `θ = 15/16`, the share of the table budget the heavy rows are
+charged at. -/
+noncomputable def heavyLevel (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  max 1 (Real.sqrt (11 / 20 * Real.log (15
+    * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1)
+    / ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
+      * (δ / (8 * (populations.card : ℝ)))))))
 
 /-- The fraction of a state's prefix draws the samplers may redraw.  Every margin it is charged
 against is a fraction of the cut budget, the flip margins at the flip fraction, so this is both
@@ -214,9 +236,9 @@ noncomputable def budgetLog (populations : Finset J)
 
 /-- What a budget of `k` buys.
 
-`sig` enters at the fourth power because the screen's tail and the gate's bind: their margins
-are a rate times `sig²`, and a deviation bound squares the margin it is given.  The population
-count enters squared because the screen's margin is divided by it. -/
+`sig` enters at the fourth power because the count rule's tail and the gate's bind: their
+margins are a rate times `sig²`, and a deviation bound squares the margin it is given.  The
+population count enters through the count rule's table, which pools every population's draws. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
   k * (populations.card : ℝ) ^ 2
@@ -234,12 +256,16 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
-which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`. -/
+which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
+
+The first term is the count rule's: a heavy row's flip signal, `(15/16)·countSignal` a prefix,
+has to clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes, and `1/(4 sig⁴)` keeps
+the heavy rows' charge largest at the least of them. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (16 * (populations.card : ℝ)
-      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
+  ⌈(populations.card : ℝ) * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+      / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
         / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
@@ -270,9 +296,8 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
     - bandHalf η populations indecisionLimit εcov δ crossLimit - 1
   hi := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
     + bandHalf η populations indecisionLimit εcov δ crossLimit
-  sc := ⌈((⌈63 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-    * screenMargin η populations indecisionLimit εcov δ⌉₊
-  scd := ⌈63 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
+  sc := 1
+  scd := 1
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
@@ -367,7 +392,7 @@ and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits `poolCollisionCap`.
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
+    (O : Oracle μ S) (populations : Finset J) (uni : J)
     (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
@@ -399,15 +424,15 @@ def ClusteringCorrect : Prop :=
   1 - δ - α ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit
         εcov δ α pAP crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
+        x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ
         α pAP crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
+        x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - gateLimit uni εcov j
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              (familyBy nearestClusterer O.mq populations x B.val) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
+              (familyBy nearestClusterer O.mq populations x B.val) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA
