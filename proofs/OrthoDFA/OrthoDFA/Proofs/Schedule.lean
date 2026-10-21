@@ -235,14 +235,18 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
-which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`. -/
+which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
+
+The heavy hits' term is a relative tail: a hit rate of at most `cutBudget` reaches
+`(1 + 1/32)·cutBudget` at the rate `relRate`, `cutBudget/2112`; with it the undecided share's
+tail at `indecisionLimit/2`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   ⌈Real.log (256 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
+        * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
         * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)

@@ -461,7 +461,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       exact_mod_cast this
     exact rejTail_mono (by positivity) le_rfl (mul_le_mul_of_nonneg_right hKN hρ0) _
   have bl : (runMeasure μ D Dsf).real (Y ⁻¹' El)
-      ≤ Real.exp (-2 * (N : ℝ) * (l - E) ^ 2) + Real.exp (-2 * (N : ℝ) * (5 / 8 * lcut - E) ^ 2) :=
+      ≤ Real.exp (-((N : ℝ) * relRate l E)) + Real.exp (-((N : ℝ) * relRate (5 / 8 * lcut) E)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_lightMiss O populations j B l lcut
       (5 / 8 * lcut) f kk kk) (fun g => measureReal_lightMiss_le hflat O populations _ _ Dsf
         (hsT g) (hsC g) hsuppSf j hj B l lcut (5 / 8 * lcut) f E kk kk hE hElcut hlcl hElm hdec
@@ -652,9 +652,14 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     refine le_trans (measureReal_failUnion_le hflat O populations Pp Pc Dsf (hsT g) (hsC g)
       hsuppSf uni huni (D uni) (sideLawC_uni H uni D g) B l lcut (5 / 8 * lcut) f E Δp th t
       (collisionMass Dsf) r rs κ κ hE0 (by linarith) (by rw [hl]; exact hlcl) (by linarith) hth
-      ht hρsf' hρsf0 _ hcertB _ (hstallB g) _ hdirtyB hdec hcut) (le_of_eq ?_)
+      ht hρsf' hρsf0 _ hcertB _ (hstallB g) _ hdirtyB hdec hcut) ?_
+    have hΔf : 0 ≤ Δp / f := by positivity
+    have hhv : Real.exp (-((B.npref : ℝ) * relRate (Δp / f + th) (Δp / f)))
+        ≤ Real.exp (-((B.npref : ℝ) * relRate (lcut + th) lcut)) :=
+      Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_left
+        (relRate_shift_anti hΔf (by linarith) hth) (Nat.cast_nonneg _)))
     unfold roundFail
-    ring
+    linarith
   -- the named populations
   have hnamedB : ∀ j ∈ populations, j ≠ uni →
       ν.real {x | Y x ∉ retAtK rule O populations uni η₀ indecisionLimit εcov α B j}
