@@ -177,13 +177,17 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
         pAP - ms ≤ Lsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ t, Lsf.real {t} ≤ 2 * capSf) →
         (runMeasure μ L Lsf).real
-          {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-            ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
-              ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
+          {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
                   ≤ εcov + (slack - m)
-                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                   ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc)
     (hLs : P.L < Ls) (hDat : ∀ t, P.D.real {t} ≤ cap) (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
     (hpAP : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}) (hsfat : ∀ t, Dsf.real {t} ≤ capSf)
@@ -320,23 +324,30 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
           (offLaw_null (compl_ne_zero hsm') hDsf)
           (by linarith [le_offLaw_real hsm' {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}])
           (fun t => (offLaw_atom_le hsm' t).trans (by linarith [hsfat t]))
-        have hcr' := measurePreserving_clusterRun (μ := μ) (K := K) P.D Dsf h
+        have hcr' := measurePreserving_clusterDraws (μ := μ) (K := K) P.D Dsf h
         set Tset := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
           ¬ ClusterSpec settings O P.D εcov slack h.pops x}
-        have hTm : MeasurableSet Tset :=
-          (measurableSet_clusterSpec settings O P.D εcov slack h.pops).compl
+        have hTm : MeasurableSet (streams (Ω := Ω) (fun _ => ∅) none ⁻¹' Tset) :=
+          measurable_streams _ none
+            (measurableSet_clusterSpec settings O P.D εcov slack h.pops).compl
         have hmarg : MeasurePreserving (fun q : Ω × RoundDraws α K T =>
             ((q.1, q.2.1) : ClusterDraws Ω α K)) (μ.prod ν) (clusterLaw μ α K) :=
           (MeasurePreserving.id μ).prod measurePreserving_fst
-        have hsub : Tset ⊆ {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-            ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
-              ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
+        have hsub : streams (Ω := Ω) (fun _ => ∅) none ⁻¹' Tset
+            ⊆ {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
                   ≤ εcov + (slack - m)
-                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                   ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} := by
-          intro x hx hs
+          intro y hx hs
+          set x := streams (fun _ => ∅) none y
           apply hx
           refine ⟨hs.1, fun B hB hret => ⟨?_, fun j hj => ?_⟩⟩
           · have h1 := integral_le_offLaw (loopDistributions (K := K) P.D h.pops none) h.prefs
@@ -355,19 +366,26 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
             linarith
         calc (μ.prod ν) (Bad (some c))
             ≤ (μ.prod ν) ((fun q : Ω × RoundDraws α K T => ((q.1, q.2.1) : ClusterDraws Ω α K)) ⁻¹'
-                (clusterRun P.D Dsf h ⁻¹' Tset)) := measure_mono fun q hq => hq.2
-          _ = clusterLaw μ α K (clusterRun P.D Dsf h ⁻¹' Tset) :=
+                (clusterDraws P.D Dsf h ⁻¹' (streams (fun _ => ∅) none ⁻¹' Tset))) :=
+              measure_mono fun q hq => hq.2
+          _ = clusterLaw μ α K (clusterDraws P.D Dsf h ⁻¹' (streams (fun _ => ∅) none ⁻¹' Tset)) :=
               hmarg.measure_preimage (hcr'.measurable hTm).nullMeasurableSet
-          _ = runMeasure μ L (offLaw Dsf h.suffs) Tset :=
+          _ = runMeasure μ L (offLaw Dsf h.suffs) (streams (fun _ => ∅) none ⁻¹' Tset) :=
               hcr'.measure_preimage hTm.nullMeasurableSet
-          _ ≤ runMeasure μ L (offLaw Dsf h.suffs) {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-            ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
-              ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
+          _ ≤ runMeasure μ L (offLaw Dsf h.suffs)
+              {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
                   ≤ εcov + (slack - m)
-                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
-                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} := measure_mono hsub
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
+                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} :=
+              measure_mono hsub
           _ ≤ ENNReal.ofReal δc := by
               rw [← ofReal_measureReal]
               exact ENNReal.ofReal_le_ofReal hc)

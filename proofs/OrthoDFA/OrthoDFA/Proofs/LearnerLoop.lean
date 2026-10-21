@@ -33,7 +33,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 /-- One schedule serves every set of the loop's populations: every state of it reads a family of
 at most `k - 1` members at a band whose far side `crossLimit` bounds, whatever the read's two
 rates, draws the one pool and at most the top prefix count, and the prefix counts sum to at most
-twice the top's. -/
+twice the top's. Nothing is harvested into a table, and every population is tame. -/
 theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (K : ℕ) (Pre Suf : Set (FreeMonoid α))
     (η₀ indecisionLimit gateLevel crossLimit εcov δc slack pAP : ℝ)
@@ -48,37 +48,46 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       ∧ (∀ pops, ∀ B ∈ schedule pops,
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
         ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
-          (crossLimit ^ 4))
+          (crossLimit ^ 4) 0)
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
         ≤ 2 * prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
-          (crossLimit ^ 4))
+          (crossLimit ^ 4) 0)
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
           (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
           (∀ j ∈ pops, D j Preᶜ = 0) → Dsf Sufᶜ = 0 →
           pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-          (∀ B ∈ schedule pops, ∀ j ∈ pops,
-            2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (D j)
+          (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
+            2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
               ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2) →
-          (∀ B ∈ schedule pops, ∀ j ∈ pops,
-            2 ^ 8 * ((pops.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (D j)
+          (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
+            2 ^ 8 * ((pops.card : ℝ) + 1) * (B.npref : ℝ) * (D j).real {t}
               ≤ δc * slack ^ 2) →
           (∀ B ∈ schedule pops,
             2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
           (runMeasure μ D Dsf).real
-            {x | ¬ ((∃ B ∈ schedule pops, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
-              ∧ ∀ B ∈ schedule pops, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
-                ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(D none)
-                    ≤ εcov + slack
-                  ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
+            {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
+              ∧ ∀ B ∈ schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
+                ∫ p, miscutProb O B.lo (B.hi + 1)
+                    (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(D none)
+                    ≤ 513 / 512 * εcov + slack
+                  ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                    (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack)} ≤ δc + gateLevel := by
   classical
   obtain ⟨c, hc⟩ : ∃ c : ℝ, c = crossLimit ^ 4 := ⟨_, rfl⟩
   have hc0 : 0 < c := hc ▸ pow_pos hcross 4
   rw [← hc]
+  have hH : (allHarvest (fun _ : Option (Fin K) => (∅ : Finset (FreeMonoid α)))).card = 0 :=
+    Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
+      simp [allHarvest] at hs)
   have hq : ∀ pops : Finset (Option (Fin K)), none ∈ pops → _ := fun pops hpops =>
-    clustering_quality_sized O pops none Pre Suf η₀ indecisionLimit εcov gateLevel δc pAP c slack
-      hη hη₀ hpops hflat hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0 hslack
+    clustering_quality_sized O pops pops none (fun _ => ∅) Pre Suf η₀ indecisionLimit εcov
+      gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
+      (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0
+      hslack
   refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
   · intro pops B hB
     dsimp only at hB
@@ -115,6 +124,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     swap
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
+    rw [hH] at hs
     refine ⟨nsuff_of_mem_schedule hs, ?_⟩
     obtain ⟨i, -, hi⟩ := Finset.mem_image.1 hs
     rw [← hi]
@@ -122,8 +132,12 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   · intro pops
     dsimp only
     split_ifs with hp
-    · have h := le_trans (Finset.sum_le_sum_of_subset_of_nonneg
-        (Classical.choose_spec (hq pops hp)).2.1 (fun _ _ _ => Nat.cast_nonneg _))
+    · have hsub : Classical.choose (hq pops hp) ⊆ schedule η₀ pops indecisionLimit εcov (δc / 2)
+          gateLevel pAP c 0 := fun B hB => by
+        have h := (Classical.choose_spec (hq pops hp)).2.1 hB
+        rwa [hH] at h
+      have h := le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub
+        (fun _ _ _ => Nat.cast_nonneg _))
         (schedule_npref_sum_le η₀ pops εcov (δc / 2) gateLevel pAP)
       exact_mod_cast h
     · simp
@@ -132,36 +146,43 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     set states := Classical.choose (hq pops hpops)
     obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hslD hcolSf
-    set Spec := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
+    set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
         ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
           ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(D none)
-              ≤ εcov + slack
+              ≤ 513 / 512 * εcov + slack
             ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
               ∂(D j) ≤ 2 * indecisionLimit + slack}
-    have hSm : MeasurableSet Spec := measurableSet_specAt O pops states η₀ indecisionLimit εcov gateLevel
-      (fun B F => ∫ p, miscutProb O B.lo (B.hi + 1) F p ∂(D none) ≤ εcov + slack
-        ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂(D j)
-          ≤ 2 * indecisionLimit + slack)
-    have hsub : {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-        (∃ B : {B : State // B ∈ states},
-          x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val)
-          ∧ ∀ B : {B : State // B ∈ states},
-            x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
-            ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
-                ∂(D none) ≤ εcov + slack
+    have hSm : MeasurableSet (streams (Ω := Ω) (fun _ => ∅) none ⁻¹' SpecR) :=
+      measurable_streams _ none (measurableSet_specAt O pops states η₀ indecisionLimit εcov
+        gateLevel (fun B F => ∫ p, miscutProb O B.lo (B.hi + 1) F p ∂(D none)
+          ≤ 513 / 512 * εcov + slack
+          ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂(D j)
+            ≤ 2 * indecisionLimit + slack))
+    have hsub : {x : Draws Ω (FreeMonoid α) (Option (Fin K)) |
+        (∃ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
+          ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val)
+          ∧ ∀ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
+            ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
+            ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
+                ∂(D none) ≤ 513 / 512 * εcov + slack
             ∧ ∀ j ∈ pops,
-              ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
-                  ∂(D j) ≤ 1 / 2 + slack
-              ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq pops x B.val) p
-                  ∂(D j) ≤ 2 * indecisionLimit + slack} ⊆ Spec := by
+              ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
+                  ∂(D j) ≤ 1 / 2 + εcov / 512 + slack
+              ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
+                  ∂(D j) ≤ 2 * indecisionLimit + slack}
+        ⊆ streams (fun _ => ∅) none ⁻¹' SpecR := by
       rintro x ⟨⟨B, hret⟩, hall⟩
       exact ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' =>
         ⟨(hall ⟨B', hB'⟩ hret').1, fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
     have hmono := measureReal_mono (μ := runMeasure μ D Dsf) hsub (measure_ne_top _ _)
-    have hcompl : (runMeasure μ D Dsf).real Specᶜ = 1 - (runMeasure μ D Dsf).real Spec :=
+    have hcompl : (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR)ᶜ
+        = 1 - (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR) :=
       probReal_compl_eq_one_sub hSm
-    show (runMeasure μ D Dsf).real Specᶜ ≤ δc + gateLevel
+    show (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR)ᶜ ≤ δc + gateLevel
     linarith
 
 /-! ## The theorem -/
@@ -232,18 +253,6 @@ lemma popLaw_atom_le {ν : Measure (FreeMonoid α)} {q y : ℝ} (hy : 0 < y)
   calc ν.real {t} / ν.real Set.univ ≤ q / ν.real Set.univ :=
         div_le_div_of_nonneg_right (hq t) hpos.le
     _ ≤ q / y := div_le_div_of_nonneg_left hq0 hy hyν
-
-lemma collisionMass_le_of_atoms {ν : Measure (FreeMonoid α)} [IsProbabilityMeasure ν] {q : ℝ}
-    (hq : ∀ t, ν.real {t} ≤ q) : collisionMass ν ≤ q := by
-  have hq0 : 0 ≤ q := measureReal_nonneg.trans (hq 1)
-  unfold collisionMass
-  refine tsum_le_of_sum_le' hq0 fun s => ?_
-  calc ∑ t ∈ s, ν.real {t} ^ 2 ≤ ∑ t ∈ s, q * ν.real {t} :=
-        Finset.sum_le_sum fun t _ => by
-          rw [sq]; exact mul_le_mul_of_nonneg_right (hq t) measureReal_nonneg
-    _ = q * ν.real s := by rw [← Finset.mul_sum, sum_measureReal_singleton]
-    _ ≤ q * 1 := mul_le_mul_of_nonneg_left measureReal_le_one hq0
-    _ = q := mul_one _
 
 section Bridge
 
@@ -365,7 +374,7 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     poolCount η₀ pops indecisionLimit εcov (δc / 2) (pAP - ms) c ≤ NS) →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
-    prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c ≤ NP) →
+    prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c 0 ≤ NP) →
   2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap
     ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2 →
   2 ^ 9 * ((K : ℝ) + 2) * NP * cap ≤ δc * (slack - m) ^ 2 →
@@ -392,7 +401,7 @@ def LoopCore : Prop :=
       (loopMeasure μ α K settings.level3.probeBudget).real
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-                o.Checks M O P.D C.walkStart (εcov + 2 * indecisionLimit + 2 * slack)
+                o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (C.disagreementRate + u + mr))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
@@ -479,27 +488,28 @@ theorem loop_core_holds : LoopCore := by
         pAP - ms ≤ Lsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ t, Lsf.real {t} ≤ 2 * cap) →
         (runMeasure μ L Lsf).real
-          {x | ¬ ((∃ B ∈ settings.schedule pops,
-                x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-            ∧ ∀ B ∈ settings.schedule pops,
-              x ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
-              ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(L none)
-                  ≤ εcov + (slack - m)
-                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
+          {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
+                  ≤ 513 / 512 * εcov + (slack - m)
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                   ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc + gate := by
     intro pops hpops L Lsf hLp hLsfp hLs hLat hLsfLen hpAPL hLsfat
     have hs : settings.schedule pops = schedule₀ pops := if_pos hpops
     rw [hs]
-    have hcolL : ∀ j ∈ pops, collisionMass (L j) ≤ 2 * cap := fun j hj =>
-      collisionMass_le_of_atoms (hLat j hj)
-    have hcolL0 : ∀ j, 0 ≤ collisionMass (L j) := fun j =>
-      tsum_nonneg fun t => sq_nonneg _
-    have hcolS : collisionMass Lsf ≤ 2 * cap := collisionMass_le_of_atoms hLsfat
+    have hLat0 : ∀ j t, 0 ≤ (L j).real {t} := fun _ _ => measureReal_nonneg
+    have hcolS : collisionMass Lsf ≤ 2 * cap := collisionMass_le_of_atoms Lsf hLsfat
     have hcolS0 : 0 ≤ collisionMass Lsf := tsum_nonneg fun t => sq_nonneg _
     have hNP0 : (0 : ℝ) ≤ NP := Nat.cast_nonneg _
     have hNS0 : (0 : ℝ) ≤ NS := Nat.cast_nonneg _
     refine hclust₀ pops hpops L Lsf hLp hLsfp (fun j hj => ?_) ?_ hpAPL
-      (fun B hB j hj => ?_) (fun B hB j hj => ?_) (fun B hB => ?_)
+      (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB => ?_)
     · refine measure_mono_null (fun p hp => ?_) (hLs j hj)
       simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hp ⊢
       exact hp
@@ -511,9 +521,9 @@ theorem loop_core_holds : LoopCore := by
       have ha : ((pops.card : ℝ) + 1) ^ 2 ≤ ((K : ℝ) + 2) ^ 2 :=
         pow_le_pow_left₀ (add_nonneg (Nat.cast_nonneg _) zero_le_one) hc1 2
       have hb := mul_le_mul ha hnp (Nat.cast_nonneg _) (by positivity)
-      have hcc := mul_le_mul hb (hcolL j hj) (hcolL0 j) (by positivity)
-      calc 2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (L j)
-          = 2 ^ 21 * (((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * collisionMass (L j)) := by ring
+      have hcc := mul_le_mul hb (hLat j hj t) (hLat0 j t) (by positivity)
+      calc 2 ^ 21 * ((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (L j).real {t}
+          = 2 ^ 21 * (((pops.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (L j).real {t}) := by ring
         _ ≤ 2 ^ 21 * (((K : ℝ) + 2) ^ 2 * NP * (2 * cap)) :=
             mul_le_mul_of_nonneg_left hcc (by norm_num)
         _ = 2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap := by ring
@@ -522,9 +532,9 @@ theorem loop_core_holds : LoopCore := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
       have hc1 := hpopc pops
       have hb := mul_le_mul hc1 hnp (Nat.cast_nonneg _) (by positivity)
-      have hcc := mul_le_mul hb (hcolL j hj) (hcolL0 j) (by positivity)
-      calc 2 ^ 8 * ((pops.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (L j)
-          = 2 ^ 8 * (((pops.card : ℝ) + 1) * (B.npref : ℝ) * collisionMass (L j)) := by ring
+      have hcc := mul_le_mul hb (hLat j hj t) (hLat0 j t) (by positivity)
+      calc 2 ^ 8 * ((pops.card : ℝ) + 1) * (B.npref : ℝ) * (L j).real {t}
+          = 2 ^ 8 * (((pops.card : ℝ) + 1) * (B.npref : ℝ) * (L j).real {t}) := by ring
         _ ≤ 2 ^ 8 * (((K : ℝ) + 2) * NP * (2 * cap)) :=
             mul_le_mul_of_nonneg_left hcc (by norm_num)
         _ = 2 ^ 9 * ((K : ℝ) + 2) * NP * cap := by ring
@@ -584,7 +594,7 @@ theorem loop_core_holds : LoopCore := by
             (histCodes settings O P.D Dsf N p.1 p.2 r)).pops j).real
               ↑(dec (histCodes settings O P.D Dsf N p.1 p.2 r)).prefs ≤ m)
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ ms
-        ∧ ¬ ClusterSpec settings O P.D εcov slack (dec
+        ∧ ¬ ClusterSpec settings O P.D (513 / 512 * εcov) slack (dec
             (histCodes settings O P.D Dsf N p.1 p.2 r)).pops
           (clusterRun P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1))
@@ -608,9 +618,8 @@ theorem loop_core_holds : LoopCore := by
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ 1 / 2
         ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
-    loop_cluster_round_le_persist settings O P Dsf Ls N εcov (δc + gate) slack cap cap m ms pAP
-      (by linarith) hN
-      hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
+    loop_cluster_round_le_persist settings O P Dsf Ls N (513 / 512 * εcov) (δc + gate) slack cap cap
+      m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
   set δ3 : ℝ := C.δ + C.δ / 8 + (shortStrings (α := α) (Fintype.card σ)).card * cross / u
     with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
@@ -639,7 +648,7 @@ theorem loop_core_holds : LoopCore := by
   have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
       let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Checks M O P.D k (εcov + 2 * ι + 2 * slack) (2 * ι + slack)
+          o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
             (C.disagreementRate + u + mr))
         ∧ RoundsFresh settings O P.D Dsf N Ls p)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
@@ -648,7 +657,8 @@ theorem loop_core_holds : LoopCore := by
     simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hno
     set Lr := loopRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
-        (ClusterSpec settings O P.D εcov slack (harvestsOf P.D k (Lr.take i)) Lr[i].run
+        (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
+            Lr[i].run
           ∧ RoundSpec M O P A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) k Lr[i])
         ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
@@ -665,7 +675,7 @@ theorem loop_core_holds : LoopCore := by
         obtain ⟨⟨hn1, hn2⟩, hn3⟩ := hnot
         set cH := histCodes settings O P.D Dsf N p.1 p.2 i
         have hok : HistOK settings O P.D Dsf N p.1 p.2 i :=
-          histOK_of_specs settings O P.D Dsf P.length_le hN εcov slack p i hi.le
+          histOK_of_specs settings O P.D Dsf P.length_le hN (513 / 512 * εcov) slack p i hi.le
             fun j hj hji => (ih j hji (by omega) hj).1.1
         have hpops : ∀ ν ∈ (dec cH).pops,
             (∀ t, ν.real {t} ≤ cap) ∧ ν {q | Ls ≤ q.toList.length} = 0 := by
@@ -739,7 +749,7 @@ theorem loop_core_holds : LoopCore := by
           by_contra h
           exact hn3 ⟨hlen, fun ν hν => (hpops ν hν).2, fun j hj => (hmP j hj).trans hm1,
             hmS.trans hms1, h⟩
-        have hcs : ClusterSpec settings O P.D εcov slack (dec cH).pops
+        have hcs : ClusterSpec settings O P.D (513 / 512 * εcov) slack (dec cH).pops
             (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
@@ -750,8 +760,8 @@ theorem loop_core_holds : LoopCore := by
         have hret := hcs.1
         rw [← histOf_pops, ← hdec, e]
         exact ⟨⟨hcs, h4⟩, hK', hok, hret, hnc⟩
-    have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl εcov slack
-      A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) Tu hK hT (by linarith)
+    have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl (513 / 512 * εcov)
+      slack A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) Tu hK hT (by linarith)
       ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
       (fun pops B hB => (hband pops B hB).1)
       fun i hi hiσ => (hspec i hiσ hi).1
