@@ -484,7 +484,8 @@ theorem step_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read μ) 
             + ENNReal.ofReal κ * ∫⁻ ω, F z ω * (read z ⁻¹' V z).indicator 1 ω ∂μ) := by
           refine ENNReal.tsum_le_tsum fun z => ?_
           rw [lintegral_mul_read μ read hmeas hind z (hFm z)]
-          calc _ ≤ (∫⁻ ω, F z ω ∂μ) * (ENNReal.ofReal ε + ENNReal.ofReal κ * μ (read z ⁻¹' V z)) := by
+          calc _ ≤ (∫⁻ ω, F z ω ∂μ)
+                * (ENNReal.ofReal ε + ENNReal.ofReal κ * μ (read z ⁻¹' V z)) := by
                 gcongr; exact hBad z
             _ = _ := by ring
       _ = ∫⁻ ω, ∑' z, (ENNReal.ofReal ε * F z ω
@@ -638,7 +639,8 @@ theorem raceTailBound_holds : RaceTailBound := by
       add_le_add (mul_le_mul_of_nonneg_left h1 hε) (mul_le_mul_of_nonneg_left h2 hκ)
     nlinarith [mul_le_mul_of_nonneg_left this ht']
   have hmeasf : Measurable fun ω => hv ε κ t t' (hist (cut Q B f) B V n (read · ω)) :=
-    (measurable_of_countable (hv ε κ t t')).comp (hist_measurable (B := B) (V := V) hlocf read hmeas n)
+    (measurable_of_countable (hv ε κ t t')).comp
+      (hist_measurable (B := B) (V := V) hlocf read hmeas n)
   calc μ {ω | f ≤ badCount Q B n (read · ω)}
       ≤ μ {ω | thr ≤ hv ε κ t t' (hist (cut Q B f) B V n (read · ω))} := measure_mono hsubset
     _ ≤ (∫⁻ ω, hv ε κ t t' (hist (cut Q B f) B V n (read · ω)) ∂μ) / thr :=

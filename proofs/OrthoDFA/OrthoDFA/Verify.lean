@@ -18,6 +18,8 @@ import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RaceTail
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.SpurAccount
+import OrthoDFA.Proofs.SpurCount
 import OrthoDFA.Proofs.SuccessiveDraws
 import OrthoDFA.Proofs.TripartiteSearch
 
