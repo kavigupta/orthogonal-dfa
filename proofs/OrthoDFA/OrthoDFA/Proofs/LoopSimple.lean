@@ -171,7 +171,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 →
     0 < εcov → εcov ≤ 1 → 0 < ε → ε ≤ 1 / 2 → 0 < δ' → δ' ≤ 1 → 0 < pAP → 1 ≤ P.L → 1 ≤ k →
-    (L + 1) * ε < 3 / 8 →
+    (2 + Nat.clog 2 P.L) * ε < 3 / 8 →
     prefixMax P.D k ≤ cap * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * prefixMax P.D k ≤ ε →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
@@ -388,8 +388,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   -- the harvests' threshold `Tu`: `A·Tu = 7/16` and `|Q| · 3ι / Tu < 7/16`, the slack and the
   -- avoided mass at most `1/16` each
   set Aₛ := roundSlope σ P.L C with hAₛ
-  have hAeq : Aₛ = (Q + 1) * (288 / ε + 16 * (L + 1)) := by
-    show ((Fintype.card σ : ℝ) + 1) * (6 / (ε / 48) + 16 * ((P.L : ℝ) + 1)) = _
+  have hAeq : Aₛ = (Q + 1) * (288 / ε + 16 * (2 + Nat.clog 2 P.L)) := by
+    show ((Fintype.card σ : ℝ) + 1) * (6 / (ε / 48) + 16 * (2 + (Nat.clog 2 P.L : ℝ))) = _
     rw [show (6 : ℝ) / (ε / 48) = 288 / ε by field_simp; ring]
   have hAₛ0 : 0 < Aₛ := by rw [hAeq]; positivity
   set Tu : ℝ := 7 / (16 * Aₛ) with hTu
@@ -411,7 +411,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hAQι : Q * ι * Aₛ < 49 / 768 := by
     have hQQ : 0 < Q * (Q + 1) := by positivity
     calc Q * ι * Aₛ ≤ Q * (ε / (4608 * Q * (Q + 1))) * Aₛ := by gcongr
-      _ = (288 + 16 * (L + 1) * ε) / 4608 := by
+      _ = (288 + 16 * (2 + Nat.clog 2 P.L) * ε) / 4608 := by
           rw [hAeq]
           field_simp
       _ < 49 / 768 := by linarith

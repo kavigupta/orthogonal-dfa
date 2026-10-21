@@ -60,7 +60,7 @@ def Level5RoundCorrect : Prop :=
     -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
     -- As at level 3.
-    let A : ℝ := (nQ + 1) * (6 / y + 16 * (P.L + 1))
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
     -- As at level 3, at chance `δ/16` at each site.
     let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
