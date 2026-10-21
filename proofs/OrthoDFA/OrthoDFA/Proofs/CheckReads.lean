@@ -442,6 +442,63 @@ theorem wrongC_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabi
   · push_cast
     ring_nf
 
+/-- Over the draws and the reads, some step reads a string wrong with chance at most the same
+bound over `P`'s probes and `L_c`-long check strings. -/
+theorem pi_wrongC_le {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (U : σ → ℝ) (εw : ℝ) (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α)
+    (Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure Dc] (Lc : ℕ)
+    (hDc : ∀ᵐ x ∂Dc, x.toList.length ≤ Lc) :
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget =>
+        P.D.prod (Measure.pi fun _ : Fin K.size => Dc))
+        {ds | AnyB (applyCheck (R.read · ω) C K) (WrongC M side C K (R.read · ω)) initialState
+          (List.ofFn ds)} ∂μ
+      ≤ ENNReal.ofReal (εw * (C.probeBudget * ((P.L + 1) * Fintype.card σ
+        + K.size * ((Lc + 1) * Fintype.card σ)
+        + (K.size + 1) * ((Fintype.card σ + 1) * Fintype.card α * (Fintype.card σ + 1))))) := by
+  have : Countable (FreeMonoid α) := (inferInstance : Countable (List α))
+  refine lintegral_le_of_points μ _ _ _ fun ds hd => ?_
+  have hpi : (Measure.pi fun _ : Fin C.probeBudget =>
+      P.D.prod (Measure.pi fun _ : Fin K.size => Dc)) {ds}
+      = ∏ j, (P.D.prod (Measure.pi fun _ : Fin K.size => Dc)) {ds j} := by
+    rw [← Measure.pi_pi]
+    congr 1
+    ext d'
+    simp [funext_iff]
+  have hpt : ∀ j, (P.D.prod (Measure.pi fun _ : Fin K.size => Dc)) {ds j} ≠ 0 := fun j h0 =>
+    hd (by rw [hpi]; exact Finset.prod_eq_zero (Finset.mem_univ j) h0)
+  have hL : ∀ d ∈ List.ofFn ds, d.1.toList.length ≤ P.L := by
+    intro d hdm
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hdm
+    by_contra hlt
+    apply hpt j
+    have : {ds j} ⊆ {x : FreeMonoid α | ¬ x.toList.length ≤ P.L} ×ˢ Set.univ := by
+      intro d hd'; rw [Set.mem_singleton_iff] at hd'; subst hd'; exact ⟨hlt, trivial⟩
+    refine measure_mono_null this ?_
+    rw [Measure.prod_prod]
+    simp only [measure_univ, mul_one]
+    exact ae_iff.1 P.length_le
+  have hLc : ∀ d ∈ List.ofFn ds, ∀ i, (d.2 i).toList.length ≤ Lc := by
+    intro d hdm i
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hdm
+    by_contra hlt
+    apply hpt j
+    have : {ds j} ⊆ Set.univ ×ˢ {b : Fin K.size → FreeMonoid α | ¬ (b i).toList.length ≤ Lc} := by
+      intro d hd'; rw [Set.mem_singleton_iff] at hd'; subst hd'; exact ⟨trivial, hlt⟩
+    refine measure_mono_null this ?_
+    rw [Measure.prod_prod]
+    have hnull : (Measure.pi fun _ : Fin K.size => Dc)
+        {b : Fin K.size → FreeMonoid α | ¬ (b i).toList.length ≤ Lc} = 0 := by
+      have : {b : Fin K.size → FreeMonoid α | ¬ (b i).toList.length ≤ Lc}
+          = Function.eval i ⁻¹' {x | ¬ x.toList.length ≤ Lc} := rfl
+      rw [this, ← Measure.map_apply (measurable_pi_apply i) (Set.to_countable _).measurableSet,
+        Measure.pi_map_eval]
+      simp only [Finset.prod_const_one, measure_univ, one_smul]
+      exact ae_iff.1 hDc
+    rw [hnull, mul_zero]
+  have := wrongC_le M side C K μ U εw R (List.ofFn ds) P.L Lc hL hLc
+  rw [List.length_ofFn] at this
+  exact this
+
 end Eps
 
 end Random

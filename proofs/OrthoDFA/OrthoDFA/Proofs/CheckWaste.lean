@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.CheckReads
+import OrthoDFA.Level3CheckClaim
 
 /-!
 # A check that fails without a fix
@@ -110,10 +111,6 @@ theorem checkStep_failed_silent {s : Level3State α} (hs : Inv read s)
   refine le_trans hsil (likelihoodRatio_anti hr0 (by linarith) (by linarith) hr1 hle ?_)
   exact (List.countP_le_length).trans (by simp)
 
-/-- The check's silent base at rate `q`. -/
-noncomputable def silentBase (K : CheckSettings) (q : ℝ) : ℝ :=
-  q * (K.rate / (K.rate / 2)) + (1 - q) * ((1 - K.rate) / (1 - K.rate / 2))
-
 variable (Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure Dc]
 
 /-- Where at most `q` of the check's strings read undecided, it fails without a fix with chance at
@@ -122,7 +119,7 @@ theorem waste_le {s : Level3State α} (hs : Inv read s) {q : ℝ}
     (hq : Dc.real {x | Utype read s.tree x = true} ≤ q) (hq1 : q ≤ 1) (hr0 : 0 < K.rate)
     (hr1 : K.rate < 1) (hK : 0 < K.δ) :
     (Measure.pi fun _ : Fin K.size => Dc) {b | checkStep read K s b = .inr .failed}
-      ≤ ENNReal.ofReal (silentBase K q ^ K.size / K.level s.hypotheses) := by
+      ≤ ENNReal.ofReal (K.silentBase q ^ K.size / K.level s.hypotheses) := by
   classical
   have ha : 0 < K.level s.hypotheses := by unfold CheckSettings.level; positivity
   set a := K.level s.hypotheses
@@ -183,7 +180,7 @@ theorem seg_waste_le {q : ℝ} (hq1 : q ≤ 1) (hr0 : 0 < K.rate) (hr1 : K.rate 
       (Measure.pi fun _ : Fin N => D.prod (Measure.pi fun _ : Fin K.size => Dc))
           {ds | SegB (stopAt (applyCheck read C K) (WrongC M side C K read) .failed)
             (WasteC read C K) Same s (List.ofFn ds)}
-        ≤ ENNReal.ofReal (silentBase K q ^ K.size / K.level s.hypotheses) := by
+        ≤ ENNReal.ofReal (K.silentBase q ^ K.size / K.level s.hypotheses) := by
   classical
   induction N with
   | zero =>
@@ -196,7 +193,7 @@ theorem seg_waste_le {q : ℝ} (hq1 : q ≤ 1) (hr0 : 0 < K.rate) (hr1 : K.rate 
   | succ N ih =>
     intro s hs hg
     rw [pi_cons_apply]
-    set lv := ENNReal.ofReal (silentBase K q ^ K.size / K.level s.hypotheses)
+    set lv := ENNReal.ofReal (K.silentBase q ^ K.size / K.level s.hypotheses)
     set fire : FreeMonoid α → Prop := fun x => applyProbe read C s x = .inr .consistent
     have hpt : ∀ d : CheckDraw α K,
         (Measure.pi fun _ : Fin N => D.prod (Measure.pi fun _ : Fin K.size => Dc))
@@ -275,9 +272,9 @@ theorem anyB_waste_le {q : ℝ} (hq1 : q ≤ 1) (hr0 : 0 < K.rate) (hr1 : K.rate
         {ds | AnyB (stopAt (applyCheck read C K) (WrongC M side C K read) .failed)
           (WasteC read C K) initialState (List.ofFn ds)}
       ≤ ∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
-        ENNReal.ofReal (silentBase K q ^ K.size / K.level j) := by
+        ENNReal.ofReal (K.silentBase q ^ K.size / K.level j) := by
   classical
-  set w : ℕ → ENNReal := fun j => ENNReal.ofReal (silentBase K q ^ K.size / K.level j)
+  set w : ℕ → ENNReal := fun j => ENNReal.ofReal (K.silentBase q ^ K.size / K.level j)
   set stepW := stopAt (applyCheck read C K) (WrongC M side C K read) (RoundEnd.failed :
     RoundEnd Level3Site)
   have hΨ := Ψr_start (α := α) (Fintype.card σ)

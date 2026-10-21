@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.AdaptiveReads
 import OrthoDFA.Proofs.BitSum
+import OrthoDFA.Proofs.CheckRoundMain
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
@@ -14,6 +15,7 @@ import OrthoDFA.Proofs.LoopSoundMain
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Proofs.Level3CheckSound
 import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
@@ -150,5 +152,13 @@ theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
 
 #print axioms covered_start_correct
+
+theorem level3_check_sound : Level3CheckSound := level3CheckSound_holds
+
+#print axioms level3_check_sound
+
+theorem level4_check_round_correct : Level4CheckRoundCorrect := level4CheckRoundCorrect_holds
+
+#print axioms level4_check_round_correct
 
 end OrthoDFA

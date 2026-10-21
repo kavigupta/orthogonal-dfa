@@ -105,7 +105,7 @@ theorem applyCheck_inl {s s' : Level3State α} {d : CheckDraw α K}
     · simp at h
 
 omit [Fintype α] in
-theorem applyCheck_same {s s' : Level3State α} {d : CheckDraw α K}
+theorem applyCheck_sameHyp {s s' : Level3State α} {d : CheckDraw α K}
     (h : applyCheck read C K s d = .inl s') (hsm : SameHyp s s') :
     applyProbe read C s d.1 = .inl s' ∧ s'.tree = s.tree ∧ s'.edges = s.edges := by
   have hne : ¬ s' = newHypothesis s'.tree s'.edges (s.hypotheses + 1) := fun hn => by
@@ -177,7 +177,7 @@ theorem seg_check_le (hr0 : 0 < K.rate) (hr1 : K.rate < 1) (hK : 0 < K.δ) (N : 
       · simp only [Sum.inl.injEq, exists_eq_left']
         by_cases hsm : SameHyp s s'
         · simp only [hsm, true_and]
-          obtain ⟨ha, -, -⟩ := applyCheck_same read C K hst hsm
+          obtain ⟨ha, -, -⟩ := applyCheck_sameHyp read C K hst hsm
           have hnf : ¬ fire d.1 := fun hf => by
             simp only [fire] at hf
             rw [hf] at ha

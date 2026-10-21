@@ -33,6 +33,14 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `Level3ConsistentSound` (`OrthoDFA/Level3Sound.lean`): whatever the reads, level 3 ends
   consistent at a hypothesis whose probes search or stop undecided at their start or end sift more
   than the disagreement rate of the time with chance at most `δ/8`.
+- `Level3CheckSound` (`OrthoDFA/Level3CheckSound.lean`): the checked round
+  (`indecisiveLStarCheck`, `OrthoDFA/Level3Check.lean`), which checks the hypothesis from `ε` on a
+  fresh block of strings where level 3's success test fires and fixes it from a failing string,
+  ends consistent at a hypothesis whose probes from `0` fail more than the check's rate of the time
+  with chance at most `δ/8`, whatever the reads.
+- `Level4CheckRoundCorrect` (`OrthoDFA/Level3CheckClaim.lean`): with level 4's reads, the checked
+  round ends well but for level 4's chance, its wrong reads, the check's silent tails and the chance
+  its strings read undecided more than a share `q` of the time.
 
 ## The rate test's DFA
 
