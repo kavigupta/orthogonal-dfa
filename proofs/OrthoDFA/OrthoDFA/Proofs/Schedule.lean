@@ -54,15 +54,18 @@ a member's mean by the gap between the classes, at most `1 − η`, and what is 
 
     (1 − η) · flipFrac η + voteSlack η = sig η
 
+It takes a fifth of `sig`.  The family's size goes as `1/voteSlack²` and the count rule's and the
+flip understatement's counts as `1/flipFrac²`; a fifth is where those counts have grown by two.
+
 Only termination needs this: the gate certifies the miscut itself, but a family it can pass
 has to be found whose members flip `tableBudget` on average.
 
 An oracle with a narrower gap absorbs proportionally more flips, and the count rule sees each one
 proportionally less; `countSignal` is solved at that pairing, not at this fraction. -/
-noncomputable def flipFrac (η : ℝ) : ℝ := 3 * sig η / (5 * (1 - η))
+noncomputable def flipFrac (η : ℝ) : ℝ := sig η / (5 * (1 - η))
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
-noncomputable def voteSlack (η : ℝ) : ℝ := 2 * sig η / 5
+noncomputable def voteSlack (η : ℝ) : ℝ := 4 * sig η / 5
 
 /-- The share of a population a round lets its family cut wrongly.  `εcov/8` and `s/10` hold the
 vote's misfire rate and the count rule's budget, `indecisionLimit/2` is what the FNR test tolerates,
@@ -131,12 +134,13 @@ noncomputable def halfTail (η : ℝ) (κ : ℕ) : ℝ :=
 
 /-- A family of `κ` the exact tails allow.  The tails are binomials, which bound a vote's reads
 whatever their rates (`BitSumTails`).  The band spans at least five counts, which that bound asks
-of it, and the family is at least 128 strong, which the pool's size bounds lean on.
+of it, and the family is at least 32 strong, which keeps the pool at 64 for the budget's
+bounds.
 
 `halfTail` is for the loop's band check, which reads the band from its centre at the fourth root
 of `crossLimit`. -/
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
-  Even κ ∧ 128 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
+  Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
     ∧ misfireTail η κ ≤ cut / 2 ∧ crossTail η κ ≤ crossLimit ∧ halfTail η κ ^ 4 ≤ crossLimit
 
 open scoped Classical in
@@ -216,7 +220,7 @@ noncomputable def heavyLevel (η : ℝ) (populations : Finset J)
 against is a fraction of the cut budget, the flip margins at the flip fraction, so this is both
 at once with room to spare. -/
 noncomputable def rejFrac (η indecisionLimit εcov : ℝ) : ℝ :=
-  cutBudget η indecisionLimit εcov * flipFrac η / 128
+  3 * cutBudget η indecisionLimit εcov * flipFrac η / 128
 
 /-- The draws the samplers may redraw at a prefix count. -/
 noncomputable def rejCount (η indecisionLimit εcov : ℝ) (m : ℕ) : ℕ :=
