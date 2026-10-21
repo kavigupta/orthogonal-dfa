@@ -300,10 +300,10 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
-  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
+  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ ((16/5)S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
   A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
   probe's sifts stop at their first undecided read, and the tests count it: under the `j`-th
-  hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
+  hypothesis, until a test fires, the probes stopping undecided number at most `(16/5) log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
 - `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
