@@ -4311,6 +4311,85 @@ theorem screen_pass_rel {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     exact mul_le_mul_of_nonneg_right hcardle (Real.exp_nonneg _)
   linarith [h1, h2]
 
+/-- `screen_pass_rel` over every clean candidate at once.  The floor's lower tail is one event
+shared by all of them, so the pool costs one upper tail per candidate and one lower tail per
+candidate, not a pair per candidate. -/
+theorem screen_pass_all {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (γ : ℝ) (sc scd : ℕ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2) (hscd : 0 < scd)
+    (hsc : (scd : ℝ) * (2 * γ) ≤ (sc : ℝ)) :
+    μ.real {ω | ¬ ∀ v ∈ cands, v ≠ 1 → (∀ p ∈ P, O.flip v p = 0) →
+        scd * screenCount O.mq P v ω ≤ scd * screenBase O.mq P cands ω + sc * P.card}
+      ≤ 2 * (cands.card : ℝ) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+  classical
+  have hscdR : (0 : ℝ) < (scd : ℝ) := by exact_mod_cast hscd
+  have hPc : (0 : ℝ) ≤ (P.card : ℝ) := Nat.cast_nonneg _
+  set W : Finset S := (cands.erase 1).filter (fun v => ∀ p ∈ P, O.flip v p = 0) with hW
+  have hsub : {ω | ¬ ∀ v ∈ cands, v ≠ 1 → (∀ p ∈ P, O.flip v p = 0) →
+        scd * screenCount O.mq P v ω ≤ scd * screenBase O.mq P cands ω + sc * P.card}
+      ⊆ (⋃ v ∈ W, {ω | cleanLoss O P + (P.card : ℝ) * γ ≤ (screenCount O.mq P v ω : ℝ)})
+        ∪ ⋃ w ∈ cands.erase 1,
+            {ω | (screenCount O.mq P w ω : ℝ)
+              ≤ cleanLoss O P + (P.card : ℝ) * (0 * (O.gap * (1 - 2 * O.η)) - γ)} := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, not_forall] at hω
+    obtain ⟨v, hvc, hv1, hclean, hfail⟩ := hω
+    by_contra hnot
+    simp only [Set.mem_union, not_or, Set.mem_iUnion, not_exists, Set.mem_setOf_eq,
+      not_le, exists_prop, not_and] at hnot
+    obtain ⟨hvU, hBl⟩ := hnot
+    have hvW : v ∈ W := Finset.mem_filter.2 ⟨Finset.mem_erase.2 ⟨hv1, hvc⟩, hclean⟩
+    have hne : (cands.erase 1).Nonempty := ⟨v, Finset.mem_erase.2 ⟨hv1, hvc⟩⟩
+    have hbase : cleanLoss O P + (P.card : ℝ) * (0 * (O.gap * (1 - 2 * O.η)) - γ)
+        < (screenBase O.mq P cands ω : ℝ) := by
+      rw [screenBase, dif_pos hne]
+      obtain ⟨w, hw, hweq⟩ :=
+        Finset.exists_mem_eq_inf' hne (fun w => screenCount O.mq P w ω)
+      rw [hweq]
+      exact hBl w hw
+    have hωR : (scd : ℝ) * (screenBase O.mq P cands ω : ℝ) + (sc : ℝ) * (P.card : ℝ)
+        < (scd : ℝ) * (screenCount O.mq P v ω : ℝ) := by exact_mod_cast not_le.1 hfail
+    have hvU' := hvU v hvW
+    nlinarith [hsc, hbase, hvU', hωR, hscdR, hPc]
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_union_le _ _) ?_
+  have hcardle : ((cands.erase 1).card : ℝ) ≤ (cands.card : ℝ) := by
+    exact_mod_cast Finset.card_erase_le
+  have hWle : (W.card : ℝ) ≤ (cands.card : ℝ) :=
+    le_trans (by exact_mod_cast Finset.card_filter_le _ _) hcardle
+  have h1 : μ.real (⋃ v ∈ W,
+        {ω | cleanLoss O P + (P.card : ℝ) * γ ≤ (screenCount O.mq P v ω : ℝ)})
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+    have hper : ∀ v ∈ W,
+        μ.real {ω | cleanLoss O P + (P.card : ℝ) * γ ≤ (screenCount O.mq P v ω : ℝ)}
+          ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+      intro v hv
+      obtain ⟨hv', hclean⟩ := Finset.mem_filter.1 hv
+      exact screenCount_upper hflat O hcd hP v (hV v (Finset.mem_of_mem_erase hv'))
+        (Finset.ne_of_mem_erase hv') γ hγ hsig hclean
+    refine le_trans (Finset.sum_le_sum hper) ?_
+    rw [Finset.sum_const, nsmul_eq_mul]
+    exact mul_le_mul_of_nonneg_right hWle (Real.exp_nonneg _)
+  have h2 : μ.real (⋃ w ∈ cands.erase 1,
+        {ω | (screenCount O.mq P w ω : ℝ)
+          ≤ cleanLoss O P + (P.card : ℝ) * (0 * (O.gap * (1 - 2 * O.η)) - γ)})
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+    have hper : ∀ w ∈ cands.erase 1,
+        μ.real {ω | (screenCount O.mq P w ω : ℝ)
+          ≤ cleanLoss O P + (P.card : ℝ) * (0 * (O.gap * (1 - 2 * O.η)) - γ)}
+          ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) :=
+      fun w hw => screenCount_lower hflat O hcd hP w (hV w (Finset.mem_of_mem_erase hw))
+        (Finset.ne_of_mem_erase hw) 0 γ hγ hsig
+        (by rw [zero_mul]; exact Finset.sum_nonneg (fun p _ => by
+          rcases O.flip_bit w p with h | h <;> rw [h] <;> norm_num))
+    refine le_trans (Finset.sum_le_sum hper) ?_
+    rw [Finset.sum_const, nsmul_eq_mul]
+    exact mul_le_mul_of_nonneg_right hcardle (Real.exp_nonneg _)
+  linarith [h1, h2]
+
 /-- The screen rarely lets a badly-flipping candidate through.  One `screen_tail_rel` per
 pool member, at a fixed table: the flip counts are deterministic once the draws are, so this
 is a plain union bound and costs `M + 1`. -/
@@ -4324,9 +4403,9 @@ theorem measureReal_screenBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     (hscd : 0 < B.scd)
     (hsc : (B.sc : ℝ) ≤ (B.scd : ℝ) * (Δ * (O.gap * (1 - 2 * O.η)) - 2 * γ)) :
     (streamMeasure μ Pp Pc Dsf).real (screenBad O populations B Δ)
-      ≤ ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
+      ≤ 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
   classical
-  set E : ℝ := ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) with hEdef
+  set E : ℝ := 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) with hEdef
   have hE0 : 0 ≤ E := by positivity
   have hEnn : streamMeasure μ Pp Pc Dsf (screenBad O populations B Δ) ≤ ENNReal.ofReal E := by
     refine streamMeasure_slice_le Pp Pc Dsf _ (measurableSet_screenBad O populations B Δ) _ ?_
@@ -4657,8 +4736,7 @@ theorem measureReal_noCleanRef_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Mea
   · exact measureReal_apShort_le Pp Pc Dsf O B.nsuff pAP t hpAP0 ht hpAPBound
   · exact measureReal_poolBad_le Pp Pc Dsf B.nsuff r ρsf hρsf hρsf0
 
-/-- The screen keeps the accept-preserving candidates.  One `screen_pass_rel` per pool
-member; the cutoff sits above the clean rate by `γ`. -/
+/-- The screen keeps the accept-preserving candidates: `screen_pass_all` at the drawn table. -/
 theorem measureReal_screenFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
@@ -4669,9 +4747,9 @@ theorem measureReal_screenFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : 
     (hsig : O.η ≤ 1 / 2)
     (hsc : (B.scd : ℝ) * (2 * γ) ≤ (B.sc : ℝ)) :
     (streamMeasure μ Pp Pc Dsf).real (screenFail O populations B)
-      ≤ ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
+      ≤ 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
   classical
-  set E : ℝ := ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) with hEdef
+  set E : ℝ := 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) with hEdef
   have hE0 : 0 ≤ E := by positivity
   have hEnn : streamMeasure μ Pp Pc Dsf (screenFail O populations B) ≤ ENNReal.ofReal E := by
     refine streamMeasure_slice_le Pp Pc Dsf _ (measurableSet_screenFail O populations B) _ ?_
@@ -4683,65 +4761,35 @@ theorem measureReal_screenFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : 
     have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     have hP : ∀ q ∈ Pd, q ∈ Pre :=
       table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hd
-    have hPle : Pd.card ≤ populations.card * B.npref := by
-      rw [hPd]
-      refine le_trans Finset.card_biUnion_le ?_
-      calc ∑ j ∈ populations, (freshDraws ∅ (fun i => d.1.2 j i) B.npref).card
-          ≤ ∑ _j ∈ populations, B.npref :=
-            Finset.sum_le_sum (fun j _ => card_freshDraws_le _ _ _)
-        _ = populations.card * B.npref := by rw [Finset.sum_const, smul_eq_mul]
     by_cases hm : B.npref ≤ Pd.card
     · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ screenFail O populations B}
-          ⊆ ⋃ v ∈ Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p),
-              {ω : Ω | ¬ (B.scd * screenCount O.mq Pd v ω ≤ B.scd * screenBase O.mq Pd Cd ω + B.sc * Pd.card)} := by
+          ⊆ {ω | ¬ ∀ v ∈ Cd, v ≠ 1 → (∀ p ∈ Pd, O.flip v p = 0) →
+              B.scd * screenCount O.mq Pd v ω ≤ B.scd * screenBase O.mq Pd Cd ω + B.sc * Pd.card} := by
         rintro ω ⟨-, hbad⟩
         simp only [not_forall] at hbad
         obtain ⟨v, hv, hv1, hap, hfail⟩ := hbad
-        exact Set.mem_biUnion (Finset.mem_filter.2 ⟨hv, hv1, hap⟩) hfail
-      refine le_trans (measure_mono hsec) (le_trans (measure_biUnion_finset_le _ _) ?_)
-      have hper : ∀ v ∈ Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p),
-          μ {ω : Ω | ¬ (B.scd * screenCount O.mq Pd v ω ≤ B.scd * screenBase O.mq Pd Cd ω + B.sc * Pd.card)}
-            ≤ ENNReal.ofReal (((B.nsuff : ℝ) + 2) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)) := by
-        intro v hv
-        obtain ⟨hvC, hv1, hap⟩ := Finset.mem_filter.1 hv
-        have hclean : ∀ p ∈ Pd, O.flip v p = 0 := by
-          intro p _
-          show O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0
-          rw [hap p]
-          rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
-        have htail := screen_pass_rel (cands := Cd) hflat O Nat.one_lt_two hP hV v hv1 hvC γ B.sc B.scd hγ
-          hsig hscd hclean hsc
-        have hcardR : (B.npref : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
-        have hCard : Cd.card ≤ B.nsuff + 1 :=
-          le_trans (Finset.card_insert_le _ _)
-            (by have := card_freshDraws_le ∅ (fun i => d.1.1 i) B.nsuff; omega)
-        have hCdc : (Cd.card : ℝ) ≤ (B.nsuff : ℝ) + 1 := by exact_mod_cast hCard
-        rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
-        refine ENNReal.ofReal_le_ofReal (le_trans htail ?_)
-        have hmono : Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2)
-            ≤ Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
-          refine Real.exp_le_exp.2 ?_
-          nlinarith [sq_nonneg γ]
-        have hexp0 : (0 : ℝ) ≤ Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2) := Real.exp_nonneg _
-        refine mul_le_mul ?_ hmono hexp0 (by positivity)
-        linarith [hCdc]
-      refine le_trans (Finset.sum_le_sum hper) ?_
-      rw [Finset.sum_const, nsmul_eq_mul, hEdef]
-      rw [← ENNReal.ofReal_natCast (Cd.filter _).card, ← ENNReal.ofReal_mul (by positivity)]
-      refine ENNReal.ofReal_le_ofReal ?_
+        simp only [Set.mem_setOf_eq, not_forall]
+        refine ⟨v, hv, hv1, fun p _ => ?_, hfail⟩
+        show O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0
+        rw [hap p]
+        rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
+      refine le_trans (measure_mono hsec) ?_
+      have htail := screen_pass_all (cands := Cd) hflat O Nat.one_lt_two hP hV γ B.sc B.scd hγ
+        hsig hscd hsc
+      have hcardR : (B.npref : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
       have hCard : Cd.card ≤ B.nsuff + 1 :=
         le_trans (Finset.card_insert_le _ _)
           (by have := card_freshDraws_le ∅ (fun i => d.1.1 i) B.nsuff; omega)
-      have hCardR : ((Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p)).card : ℝ)
-          ≤ (B.nsuff : ℝ) + 1 := by
-        have := le_trans (Finset.card_filter_le
-          Cd (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p)) hCard
-        exact_mod_cast this
-      have hn0 : (0 : ℝ) ≤ (B.nsuff : ℝ) := Nat.cast_nonneg _
-      have hex : (0 : ℝ) ≤ Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := Real.exp_nonneg _
-      have hstep := mul_le_mul_of_nonneg_right hCardR
-        (by positivity : (0:ℝ) ≤ ((B.nsuff : ℝ) + 2) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2))
-      nlinarith [hstep, hn0, hex]
+      have hCdc : (Cd.card : ℝ) ≤ (B.nsuff : ℝ) + 1 := by exact_mod_cast hCard
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal (le_trans htail ?_)
+      have hmono : Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2)
+          ≤ Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
+        refine Real.exp_le_exp.2 ?_
+        nlinarith [sq_nonneg γ]
+      have hexp0 : (0 : ℝ) ≤ Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2) := Real.exp_nonneg _
+      rw [hEdef]
+      exact mul_le_mul (by linarith [hCdc]) hmono hexp0 (by positivity)
     · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ screenFail O populations B}
           = (∅ : Set Ω) := by
         ext ω
@@ -4785,7 +4833,7 @@ theorem measureReal_smallScreen_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O :
       ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
         + (Real.exp (-2 * (B.nsuff : ℝ) * t ^ 2)
         + (((B.npref + rt : ℕ) : ℝ) ^ 2 * ρ / (2 * ((rt : ℝ) + 1))
-          + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2))) := by
+          + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2))) := by
   classical
   set E1 : Set (Run Ω S J) := {x | ¬ poolGood B.nsuff rs x} with hE1
   set E2 : Set (Run Ω S J) := apShort O B.nsuff pAP t with hE2
@@ -4872,7 +4920,7 @@ theorem measureReal_dirtyMember_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O :
         ∩ {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
           flipMass O Dj v ≤ (populations.card : ℝ) * Δ + c + g})
       ≤ ((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
-        + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)
+        + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)
         + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * g ^ 2) := by
   classical
   set Δp : ℝ := (populations.card : ℝ) * Δ + c + g with hΔp
