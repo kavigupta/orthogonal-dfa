@@ -464,7 +464,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     have h1 := mul_le_mul_of_nonneg_left hKN (mul_nonneg h0 hθ.le)
     nlinarith [h1]
   have bl : (runMeasure μ D Dsf).real (Y ⁻¹' El)
-      ≤ Real.exp (-2 * (N : ℝ) * (l - E) ^ 2) + Real.exp (-2 * (N : ℝ) * (5 / 8 * lcut - E) ^ 2) :=
+      ≤ Real.exp (-((N : ℝ) * relRate l E)) + Real.exp (-((N : ℝ) * relRate (5 / 8 * lcut) E)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_lightMiss O populations j B l lcut
       (5 / 8 * lcut) f kk kk) (fun g => measureReal_lightMiss_le hflat O populations _ _ Dsf
         (hsT g) (hsC g) hsuppSf j hj B l lcut (5 / 8 * lcut) f E kk kk hE hElcut hlcl hElm hdec
@@ -531,7 +531,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap hρsf
   obtain ⟨th, tap, q, E, γscr, γdirty, gdirty, Δ, lcut, f, c, t, L, θ, r, rs, G, hmpos, hkpos,
     hindLim', hind1', hth, htap, hγscr, hγdirty, hgdirty, hΔ, hf0, hpAP0, hlcut, hlcl,
-    hc0, hr, hpAPBound', hρsf', hheavy, hL, hθ, hN2, hszG, hheavyN, hscd, hscLow, hscHigh,
+    hc0, hr, hpAPBound', hρsf', hheavy, hhalf, hL, hθ, hN2, hszG, hheavyN, hscd, hscLow, hscHigh,
     hcount, hpool, hq0, hq1, hqa, hqr, hhiUp, hloUp, hhiLo, hloLo, hhiκ, hlohi, ht, hgate, hE0,
     hEhalf, hEa, hEb, hEc, hEd, hbudget⟩ := hpass
   set l : ℝ := indecisionLimit / 2 with hl
@@ -627,9 +627,18 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         {x | ¬ ∀ v ∈ clusterBy rule O.mq populations x B, flipMass O (D uni) v ≤ Δp}
         ≤ (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
             + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
-            + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * gdirty ^ 2))
+            + (B.nsuff : ℝ) * Real.exp (-((B.npref : ℝ) * (gdirty ^ 2 / lcut))))
           + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
             + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))) := by
+      have hJΔ : 0 < (populations.card : ℝ) * Δ :=
+        mul_pos (Nat.cast_pos.2 (Finset.card_pos.2 ⟨uni, huni⟩)) hΔ
+      have hexp : (B.nsuff : ℝ) * Real.exp (-((B.npref : ℝ) * gdirty ^ 2
+            / (2 * ((populations.card : ℝ) * Δ + c + gdirty))))
+          ≤ (B.nsuff : ℝ) * Real.exp (-((B.npref : ℝ) * (gdirty ^ 2 / lcut))) := by
+        refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 ?_) (Nat.cast_nonneg _)
+        rw [neg_le_neg_iff, mul_div_assoc]
+        refine mul_le_mul_of_nonneg_left
+          (div_le_div_of_nonneg_left (sq_nonneg _) (by linarith) hhalf) (Nat.cast_nonneg _)
       have hdirtyI := measureReal_dirtyMember_le (rule := rule) hflat O populations Pp Pc Dsf
         (hsT g) hsuppSf uni huni (D uni) (sideLawT_uni H uni D g) B hsigle hmpos Δ γdirty gdirty
         c ρ r hΔ hγdirty hgdirty hc0 hρ0 hr hρc hscd hscHigh
@@ -652,13 +661,18 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         · exact Or.inr hc
       refine le_trans (measureReal_mono hcov (measure_ne_top _ _)) ?_
       refine le_trans (measureReal_union_le _ _) ?_
-      gcongr
+      linarith [hdirtyI, hnoclean, hexp]
     refine le_trans (measureReal_failUnion_le hflat O populations Pp Pc Dsf (hsT g) (hsC g)
       hsuppSf uni huni (D uni) (sideLawC_uni H uni D g) B l lcut (5 / 8 * lcut) f E Δp th t
       (collisionMass Dsf) r rs κ κ hE0 (by linarith) (by rw [hl]; exact hlcl) (by linarith) hth
-      ht hρsf' hρsf0 _ hcertB _ (hstallB g) _ hdirtyB hdec hcut) (le_of_eq ?_)
+      ht hρsf' hρsf0 _ hcertB _ (hstallB g) _ hdirtyB hdec hcut) ?_
+    have hΔf : 0 ≤ Δp / f := by positivity
+    have hhv : Real.exp (-((B.npref : ℝ) * relRate (Δp / f + th) (Δp / f)))
+        ≤ Real.exp (-((B.npref : ℝ) * relRate (lcut + th) lcut)) :=
+      Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_left
+        (relRate_shift_anti hΔf (by linarith) hth) (Nat.cast_nonneg _)))
     unfold roundFail
-    ring
+    linarith
   -- the named populations
   have hnamedB : ∀ j ∈ populations, j ≠ uni →
       ν.real {x | Y x ∉ retAtK rule O populations uni η₀ indecisionLimit εcov α B j}

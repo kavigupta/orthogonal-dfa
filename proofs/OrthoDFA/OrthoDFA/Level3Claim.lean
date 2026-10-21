@@ -81,10 +81,10 @@ def Level3RoundCorrect : Prop :=
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    -- A probe's start and end sifts read at most `3(|Q| + 1)` strings and a search at most
-    -- `(L + 1)(|Q| + 1)`, each undecided at its state's rate; the searches are at most eight times
-    -- the middles' harvest.
-    let A : ℝ := (nQ + 1) * (6 / y + 16 * (P.L + 1))
+    -- A probe's start and end sifts read at most `3(|Q| + 1)` strings and a search queries at most
+    -- `2 + ⌈log₂ L⌉` positions, each sift reading at most `|Q| + 1` strings undecided at their
+    -- states' rates; the searches are at most eight times the middles' harvest.
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
     -- Bounds, but for chance `δ/8` at each site, how far the probes harvesting at the states read
     -- undecided at most `T` of the time exceed their mean, for every tree and edge map.
     let η := p₀ * Real.log (8 * (nQ + 1) * K / δ)

@@ -20,8 +20,8 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state
   has one distribution its strings read with, and the band's check bounds each.
 - `TripartiteSearchCorrect`: the search the probes use to find where the walk and the sift part
-  finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` positions, and finds the turn
-  exactly where nothing is undecided.
+  finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` positions (`2 + ⌈log₂(hi − lo)⌉`
+  without recovery), and finds the turn exactly where nothing is undecided.
 - `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\* round
   ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, and wrong
   reads scaling with indecision.
@@ -149,13 +149,13 @@ the sampler at any set of states (`looseEndsWell_of_endsWell`, `Proofs/LoopTrans
 The loop stops because each harvest finds a new state the later families rarely leave undecided
 (`loop_agrees_of_specs`, `Proofs/LoopTermination.lean`). Level 5's harvest puts at most
 `A·T + sl` of its law on the states read undecided at most `T` of the time,
-`A = (|Q|+1)(6/y + 16(L₁+1))` and `sl` the concentration slack, plus `m` after the transfer.
-Every later family is held by the gate to `c = 2ι + slack` undecided on the harvest's
+`A = (|Q|+1)(6/y + 16(2 + ⌈log₂ L₁⌉))` and `sl` the concentration slack, plus `m` after the
+transfer. Every later family is held by the gate to `c = 2ι + slack` undecided on the harvest's
 population, so a state holding more than `c/T` of it is read undecided at most `T` of the time by
 every later family (`good_of_heavy`). At `T = 7/(16A)`, with `ι ≤ ε/(4608|Q|(|Q|+1))`, the slack and
-`m/y` at most `1/16` each, and `(L₁+1)ε < 3/8`, more than `|Q|c/T` of the population lies on the
-states read undecided more than `T` of the time, so more than `c/T` on one of them. That state is
-never such again, so one of the first `|Q| + 1` rounds does not harvest.
+`m/y` at most `1/16` each, and `(2 + ⌈log₂ L₁⌉)ε < 3/8`, more than `|Q|c/T` of the population lies
+on the states read undecided more than `T` of the time, so more than `c/T` on one of them. That
+state is never such again, so one of the first `|Q| + 1` rounds does not harvest.
 
 ## The round, by refinement
 
@@ -269,17 +269,19 @@ what a state's chance of reading undecided is.
   `searchSet ∪ endsSet`, the probes that search or stop undecided at their start or end sift) or a
   harvest whose sampler yields `y` and puts at most `A·T + η/y` of its law on the states read
   undecided at most `T` of the time, with chance at most `δ`. Here
-  `A = (|Q| + 1)(6/y + 16(L + 1))` and `η = p₀ log(8(|Q| + 1)K/δ)`, with
+  `A = (|Q| + 1)(6/y + 16(2 + ⌈log₂ L⌉))` and `η = p₀ log(8(|Q| + 1)K/δ)`, with
   `K = (1 + (|Q| + 1)³|Σ|)^|Q| (|Q| + 3)^((|Q| + 2)|Σ|)` counting the trees level 3 can grow with an
   edge map into each one's leaves. A probe's start and end sifts read at most `3(|Q| + 1)`
-  strings, and a search at most `(L + 1)(|Q| + 1)`, which it reads only after decided sifts, so it
-  is independent of each string it might stop at. At each state's rate `t` and every tree, but
-  for chance `δ/8` at each site over the states, the probes stopping undecided at their start or
-  end at the states read undecided at most `t` of the time are at most `6(|Q| + 1)t + η`, and
-  those stopping at an undecided middle there at most `2(L + 1)(|Q| + 1)t` of the searches plus
-  `η` (`harvest_noise`); a middles harvest that ends well finds at least an eighth of the searches.
-  The sampler (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis and finds the
-  probe's undecided string at the site, as the tests counted it.
+  strings, and a search queries at most `2 + ⌈log₂ L⌉` positions, each sift reading at most
+  `|Q| + 1` strings. Making a string undecided can only stop the search sooner, so the search
+  reaching a position and a string read there undecided have chance at most the product of theirs.
+  At each state's rate `t` and every tree, but for chance `δ/8` at each site over the states, the
+  probes stopping undecided at their start or end at the states read undecided at most `t` of the
+  time are at most `6(|Q| + 1)t + η`, and those stopping at an undecided middle there at most
+  `2(2 + ⌈log₂ L⌉)(|Q| + 1)t` of the searches plus `η` (`harvest_noise`); a middles harvest that
+  ends well finds at least an eighth of the searches. The sampler (`harvestLaw`) draws a fresh
+  probe, walks it under the final hypothesis and finds the probe's undecided string at the site, as
+  the tests counted it.
 - `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
   under level 3's premises, `η`'s `log(8(|Q| + 1)K/δ)` becoming `log(16(|Q| + 1)K/δ)`, and
@@ -346,7 +348,8 @@ need not be read to trust the claims above.
 
 - `OrthoDFA/Utils/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
   `agrees` is where it points, the queries stay between the endpoints and number at most
-  `2 + 3⌈log₂(hi − lo)⌉`, and with nothing undecided it finds the turn exactly.
+  `2 + 3⌈log₂(hi − lo)⌉`, or `2 + ⌈log₂(hi − lo)⌉` without recovery, and with nothing undecided it
+  finds the turn exactly.
 
 - `OrthoDFA/Utils/DTree.lean` — `SiftWithPathCorrect`: the reads are the string followed by each
   midfix on its way, no more than the tree is deep; a decided sift ends at a leaf, along the path

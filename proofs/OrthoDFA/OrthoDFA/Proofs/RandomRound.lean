@@ -299,7 +299,7 @@ theorem harvest_noise {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ)
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
     (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
+    (hAm : 16 * ((2 + Nat.clog 2 P.L) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
     {Ge θgpt ηm : ℝ} (hGe0 : 0 ≤ Ge) (hθg : 1 / 16 ≤ θgpt) (hηm0 : 0 ≤ ηm) :
     ∃ N : Set Ω, MeasurableSet N
       ∧ μ N ≤ ENNReal.ofReal (2 * (Fintype.card σ + 1) * tailRisk (Fintype.card σ)
@@ -325,10 +325,10 @@ theorem harvest_noise {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ)
     ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
       D.real (goodAt (read · ω) C.walkStart ⟨T, E⟩ M U (2 / 3 * U q) .ends)
         ≤ 9 * (2 / 3 * U q) * (n + 1) + η}
-  set Nm : σ → Set Ω := fun q => {ω | 0 ≤ U q ∧ 8 * ((L + 1) * (n + 1) * U q) ≤ 1 ∧
+  set Nm : σ → Set Ω := fun q => {ω | 0 ≤ U q ∧ 8 * ((2 + Nat.clog 2 L) * (n + 1) * U q) ≤ 1 ∧
     ¬ ∀ T ∈ (classSet n : Finset (DTree α)), ∀ E, EdgesInto T E →
       D.real (goodAt (read · ω) C.walkStart ⟨T, E⟩ M U (2 / 3 * U q) .middles)
-        ≤ 2 * ((L + 1) * (n + 1) * U q)
+        ≤ 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q)
           * D.real {x | searches (probeOrAgree (read · ω) T E C.walkStart x) = true} + η}
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg _
   have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg _
@@ -342,7 +342,7 @@ theorem harvest_noise {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ)
         nlinarith [hq.2]
       · have : Ne q = ∅ := Set.eq_empty_of_forall_notMem fun ω hω => hq ⟨hω.1, hω.2.1⟩
         rw [this, measure_empty]; exact bot_le
-    · by_cases hq : 0 ≤ U q ∧ 8 * ((L + 1) * (n + 1) * U q) ≤ 1
+    · by_cases hq : 0 ≤ U q ∧ 8 * ((2 + Nat.clog 2 L) * (n + 1) * U q) ≤ 1
       · refine le_trans (measure_mono fun ω hω => hω.2.2) (midNoise_le M U (2 / 3 * U q) hmeas
           hind hund (by linarith [hq.1]) D C.walkStart (n := n) (η := η) hL hp₀ hpre ?_ ?_)
         · nlinarith [hq.2]
@@ -392,7 +392,7 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
     (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
+    (hAm : 16 * ((2 + Nat.clog 2 P.L) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
     (hθg : 1 / 16 ≤ kn.θgpt) (hηm0 : 0 ≤ kn.ηm) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws

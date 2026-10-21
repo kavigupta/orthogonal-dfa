@@ -349,8 +349,16 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     linarith
   obtain ⟨q₀, hq₀, hq₀acc⟩ := hceil
   have hc1 : c ≤ 1 := hq₀.trans measureReal_le_one
+  have hwN : 2 + (Nat.clog 2 L₁ : ℝ) ≤ 2 * N := by
+    have h1 : 1 ≤ L₁ := by change 1 ≤ L + Fintype.card σ + 3; omega
+    have h2 : Nat.clog 2 L₁ ≤ L₁ - 1 :=
+      Nat.clog_le_of_le_pow (by have := (L₁ - 1).lt_two_pow_self; omega)
+    have : 2 + Nat.clog 2 L₁ ≤ L₁ + 1 := by omega
+    have : 2 + (Nat.clog 2 L₁ : ℝ) ≤ L₁ + 1 := by exact_mod_cast this
+    linarith
   obtain ⟨hε0, hε12, hεc0, hεcε, hι0, hι8, hbad, hcN, hιL⟩ :=
-    dfa_rates (ℓ := (L₁ : ℝ) + 1) hQ1 hA2' hN1 (by positivity) hℓN hc hc1 hξ rfl rfl rfl
+    dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hA2' hN1 (by positivity) hwN hc hc1 hξ rfl rfl
+      rfl
   have hεcov1 : εcov ≤ 1 := by linarith
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1 : δ' ≤ 1 := by

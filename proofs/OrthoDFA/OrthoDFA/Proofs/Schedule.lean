@@ -161,6 +161,13 @@ samplers redraw share the rest. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
   55 * cutBudget η indecisionLimit εcov * flipFrac η / (64 * (populations.card : ℝ))
 
+/-- The exponent rate of the drawn prefixes understating a member's flip mass by
+`g = cutBudget·flipFrac/32`, relative to a mass of at most half the cut budget:
+
+    g² / cutBudget -/
+noncomputable def dirtyRate (η indecisionLimit εcov : ℝ) : ℝ :=
+  (cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2 / cutBudget η indecisionLimit εcov
+
 /-- The screen's margin, at the flip budget.
 
 A flip costs both the vote and the screen the gap `g` between the classes, the screen at
@@ -234,14 +241,21 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
-which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`. -/
+which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
+
+The heavy hits' term is a relative tail: a hit rate of at most `cutBudget` reaches
+`(1 + 1/32)·cutBudget` at the rate `relRate`, `cutBudget/2112`; with it the undecided share's
+tail at `indecisionLimit/2`.
+
+The `4096/9` term is the hash sides' imbalance on a named population, `G = ⌈√(m·log(128|J|/δ))⌉`,
+which is charged against the cut budget and has to fit in `3·cutBudget·m/64`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   ⌈Real.log (256 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
+        * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
         * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
@@ -250,10 +264,12 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
+        / dirtyRate η indecisionLimit εcov⌉₊
     + ⌈2900 * Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (cutBudget η indecisionLimit εcov * flipFrac η)⌉₊
+    + ⌈4096 * Real.log (128 * (populations.card : ℝ) / δ)
+        / (9 * cutBudget η indecisionLimit εcov ^ 2)⌉₊
     + ⌈128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov⌉₊
     + 1
 
