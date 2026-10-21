@@ -9,13 +9,20 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-    AllFramesClosedOracle, BernoulliParityOracle, BernoulliRegex)
+    AllFramesClosedOracle,
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
-from tests.lstar_common import (DEFAULT_SAMPLER, assert_terminates, assertDFA,
-                                assertDoesNotMeetProperty)
+from tests.lstar_common import (
+    DEFAULT_SAMPLER,
+    assert_terminates,
+    assertDFA,
+    assertDoesNotMeetProperty,
+)
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
