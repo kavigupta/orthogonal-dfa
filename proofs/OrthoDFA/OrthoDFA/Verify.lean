@@ -10,6 +10,7 @@ import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
+import OrthoDFA.Proofs.ProbeAgree
 import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
@@ -39,8 +40,9 @@ stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Cla
 with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`RaceTailBound`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+`RaceTailBound`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `ProbeAgreeCorrect`,
+`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
+`SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
 namespace OrthoDFA
@@ -89,6 +91,10 @@ theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 theorem probe_correct : ProbeCorrect := probeCorrect
 
 #print axioms probe_correct
+
+theorem probe_agree_correct : ProbeAgreeCorrect := probeAgreeCorrect
+
+#print axioms probe_agree_correct
 
 theorem rate_test_sound : RateTestSound := rateTestSound
 

@@ -369,6 +369,11 @@ need not be read to trust the claims above.
   target at that state classifies `1 - γ` of them with its run staying in `S`
   (`rerootAccuracy`). Also `uniformStrings`.
 
+- `OrthoDFA/Utils/ProbeAgree.lean` — `ProbeAgreeCorrect`: a probe walked from `k` that neither
+  searches nor stops undecided at its start or end sift sifts its first `k` letters to a leaf from
+  which the edges walk the rest of it to its own leaf. Walked from `0`, with the root reading the
+  string itself, the hypothesis started where `ε` sifts classifies it as its read, which is decided.
+
 - `OrthoDFA/Utils/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
   `agrees` is where it points, the queries stay between the endpoints and number at most
   `2 + 3⌈log₂(hi − lo)⌉`, or `2 + ⌈log₂(hi − lo)⌉` without recovery, and with nothing undecided it
