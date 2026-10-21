@@ -356,16 +356,16 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
     gcongr
 
 /-- The band's ceiling `W` at the length `ℓ`, within `ℓ²` of its length-free bound. -/
-lemma w_le {ℓ B₃ K₁ Q A ε aε δ' Wm w5 Am : ℝ} (hℓ1 : 1 ≤ ℓ) (hB₃ : B₃ ≤ K₁ * ℓ)
+lemma w_le {ℓ B₃ K₁ Q A ε aε δ' Wm w5 : ℝ} (hℓ1 : 1 ≤ ℓ) (hB₃ : B₃ ≤ K₁ * ℓ)
     (hB₃0 : 0 ≤ B₃) (hK₁ : 0 ≤ K₁) (hQ : 0 ≤ Q) (hA : 0 ≤ A) (hw5 : w5 ≤ ℓ * (Q + 1))
-    (hw50 : 0 ≤ w5) (hε0 : 0 < ε) (hinv : 1 / ε ≤ aε * ℓ) (hAm : 0 ≤ Am) (hδ' : 0 ≤ δ')
+    (hw50 : 0 ≤ w5) (hε0 : 0 < ε) (hinv : 1 / ε ≤ aε * ℓ) (hδ' : 0 ≤ δ')
     (hWm : 0 ≤ Wm) :
     max (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ'
         * (B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2)) / 8))
-      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) * Am / ε)))
+      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) / ε)))
       ≤ (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ'
           * (K₁ * (Q + 1) + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (2 * Q + 3)) / 8)
-        + Real.exp 1 * Real.sqrt δ' * Wm + 2 * ((Q + 1) * Am * aε)) * ℓ ^ 2 := by
+        + Real.exp 1 * Real.sqrt δ' * Wm + 2 * ((Q + 1) * aε)) * ℓ ^ 2 := by
   have hℓ0 : 0 ≤ ℓ := by linarith
   have hℓ2 : ℓ ≤ ℓ ^ 2 := by nlinarith
   have hℓ21 : 1 ≤ ℓ ^ 2 := one_le_pow₀ hℓ1
@@ -399,24 +399,24 @@ lemma w_le {ℓ B₃ K₁ Q A ε aε δ' Wm w5 Am : ℝ} (hℓ1 : 1 ≤ ℓ) (hB
       _ ≤ _ := mul_le_mul_of_nonneg_left hℓ2 (Real.sqrt_nonneg _)
   have hs2 : Real.exp 1 * Real.sqrt δ' * Wm ≤ Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 :=
     le_mul_of_one_le_right (by positivity) hℓ21
-  have hs3 : 2 * ((Q + 1) * Am / ε) ≤ 2 * ((Q + 1) * Am * aε) * ℓ ^ 2 := by
-    have h1 : (Q + 1) * Am / ε = (Q + 1) * Am * (1 / ε) := by ring
-    have h2 : (Q + 1) * Am * (1 / ε) ≤ (Q + 1) * Am * (aε * ℓ) :=
+  have hs3 : 2 * ((Q + 1) / ε) ≤ 2 * ((Q + 1) * aε) * ℓ ^ 2 := by
+    have h1 : (Q + 1) / ε = (Q + 1) * (1 / ε) := by ring
+    have h2 : (Q + 1) * (1 / ε) ≤ (Q + 1) * (aε * ℓ) :=
       mul_le_mul_of_nonneg_left hinv (by positivity)
-    have h3 : (Q + 1) * Am * (aε * ℓ) ≤ (Q + 1) * Am * aε * ℓ ^ 2 := by
+    have h3 : (Q + 1) * (aε * ℓ) ≤ (Q + 1) * aε * ℓ ^ 2 := by
       have haε : 0 ≤ aε := by
         have : 0 < 1 / ε := by positivity
         nlinarith
-      have := mul_le_mul_of_nonneg_left hℓ2 (by positivity : (0 : ℝ) ≤ (Q + 1) * Am * aε)
+      have := mul_le_mul_of_nonneg_left hℓ2 (by positivity : (0 : ℝ) ≤ (Q + 1) * aε)
       linarith
     linarith
   have h0a := Real.sqrt_nonneg (Real.exp 1 * δ' * Real.sqrt δ' * Wb / 8)
   have h0b : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm := by positivity
-  have h0c : 0 ≤ 2 * ((Q + 1) * Am / ε) := by positivity
+  have h0c : 0 ≤ 2 * ((Q + 1) / ε) := by positivity
   have e : (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8) + Real.exp 1 * Real.sqrt δ' * Wm
-      + 2 * ((Q + 1) * Am * aε)) * ℓ ^ 2
+      + 2 * ((Q + 1) * aε)) * ℓ ^ 2
       = Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8) * ℓ ^ 2
-        + Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 + 2 * ((Q + 1) * Am * aε) * ℓ ^ 2 := by ring
+        + Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 + 2 * ((Q + 1) * aε) * ℓ ^ 2 := by ring
   rw [e]
   refine max_le (by linarith) (max_le (by linarith) (by linarith))
 

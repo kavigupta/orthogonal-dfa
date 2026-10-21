@@ -23,39 +23,6 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
 
-section Zone
-
-/-- The first `k` letters of the probes. -/
-def probeKeys (k : ℕ) {T : ℕ} (xs : Fin T → FreeMonoid α) : Finset (FreeMonoid α) :=
-  Finset.univ.image fun i => prefixOf (xs i) k
-
-open scoped Classical in
-/-- The strings level 3 reads over the probes `xs`: short strings beginning with a probe's first
-`k` letters, followed by the family's suffixes. -/
-def level3Zone (k : ℕ) {T : ℕ} (xs : Fin T → FreeMonoid α) (F : Finset (FreeMonoid α)) :
-    Finset (FreeMonoid α) :=
-  readStrings ((shortStrings (probesLen xs + 1 + T + 2)).filter fun z =>
-    k ≤ z.toList.length ∧ prefixOf z k ∈ probeKeys k xs) F
-
-omit [IsProbabilityMeasure μ] in
-theorem level3_congr_zone' (O : Oracle μ (FreeMonoid α)) (C : Random.Level3Settings)
-    (F : Finset (FreeMonoid α)) (kl kh : ℕ) {T : ℕ} (xs : Fin T → FreeMonoid α) {ω ω' : Ω}
-    (h : ∀ w ∈ level3Zone C.walkStart xs F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    Random.indecisiveLStarLevel3 C (fun z => familyRead O.mq F kl kh z ω) xs
-      = Random.indecisiveLStarLevel3 C (fun z => familyRead O.mq F kl kh z ω') xs := by
-  classical
-  refine Random.level3_congr_zone C xs fun i j hj hjx m hm => familyRead_congr O h ?_
-  have h1 := le_probesLen xs i
-  have hlp : (prefixOf (xs i) j).toList.length = j := by
-    simp [prefixOf]; omega
-  refine Finset.mem_filter.2 ⟨mem_shortStrings.2 ?_, ?_, ?_⟩
-  · simp only [FreeMonoid.toList_mul, List.length_append, hlp]; omega
-  · simp only [FreeMonoid.toList_mul, List.length_append, hlp]; omega
-  · rw [prefixOf_mul_of_le (by rw [hlp]; exact hj), prefixOf_prefixOf_of_le _ hj]
-    exact Finset.mem_image.2 ⟨i, Finset.mem_univ _, rfl⟩
-
-end Zone
-
 section Stage
 
 /-- A level 3 result as data: its tree, its edges' graph, and whether it ended consistent. -/

@@ -109,25 +109,6 @@ open MeasureTheory
 
 open Random (prefixMax le_prefixMax prefixMax_pos)
 
-/-- The strings of at most `n` letters number at most `(n + 1) |Σ|^n`. -/
-lemma card_shortStrings_le {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (n : ℕ) :
-    ((shortStrings (α := α) n).card : ℝ) ≤ (n + 1) * (Fintype.card α : ℝ) ^ n := by
-  classical
-  have hA : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
-  have h1 : (shortStrings (α := α) n).card ≤ ∑ i ∈ Finset.range (n + 1), Fintype.card α ^ i := by
-    unfold shortStrings
-    refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun i _ => ?_)
-    refine Finset.card_image_le.trans ?_
-    simp
-  calc ((shortStrings (α := α) n).card : ℝ)
-      ≤ ((∑ i ∈ Finset.range (n + 1), Fintype.card α ^ i : ℕ) : ℝ) := by exact_mod_cast h1
-    _ = ∑ i ∈ Finset.range (n + 1), (Fintype.card α : ℝ) ^ i := by push_cast; rfl
-    _ ≤ ∑ _i ∈ Finset.range (n + 1), (Fintype.card α : ℝ) ^ n :=
-        Finset.sum_le_sum fun i hi => pow_le_pow_right₀ hA (by
-          have := Finset.mem_range.1 hi; omega)
-    _ = (n + 1) * (Fintype.card α : ℝ) ^ n := by
-        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; push_cast; ring
-
 /-- The race tail at `t = 1/(λ + 2c)` and `t' = 2t`:
 
     exp(t'λ)/(1 + t)² ≤ e² (λ + 2c)². -/
@@ -269,7 +250,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Wb : ℝ := B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2)
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb / 8))
-      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) * A ^ Fintype.card σ / ε)))
+      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) / ε)))
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -342,12 +323,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hbud0 : (0 : ℝ) ≤ budget := Nat.cast_nonneg _
   set C : Random.Level3Settings := ⟨k, δ', ε / 48, ε, budget⟩ with hCd
   -- the band's far side
-  have hWr : 2 * ((Q + 1) * A ^ Fintype.card σ / ε) ≤ W := le_max_of_le_right (le_max_right _ _)
+  have hWr : 2 * ((Q + 1) / ε) ≤ W := le_max_of_le_right (le_max_right _ _)
   have hW1 : 1 ≤ W := by
     refine le_trans ?_ hWr
-    have h1 : (1 : ℝ) ≤ A ^ Fintype.card σ := one_le_pow₀ hA1
-    have h2 : (1 : ℝ) ≤ (Q + 1) * A ^ Fintype.card σ := by nlinarith
-    have h3 : (Q + 1) * A ^ Fintype.card σ ≤ (Q + 1) * A ^ Fintype.card σ / ε := by
+    have h3 : Q + 1 ≤ (Q + 1) / ε := by
       rw [le_div_iff₀ hεd]; nlinarith
     linarith
   set cross : ℝ := δ' / (8 * W) with hcrossd
@@ -593,24 +572,41 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       ring
     rw [e1, e2, hmrq]
     linarith
-  have hshort : ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) * (cross ^ 2 + cross) / ε
-      ≤ δ' / 8 := by
-    have h1 := card_shortStrings_le (α := α) (Fintype.card σ)
-    have h2 : ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) / ε
-        ≤ (Q + 1) * A ^ Fintype.card σ / ε := by
-      gcongr
+  -- the rarer reads past a midfix: probes sharing a probe's first `k` letters, and the rest
+  have hshort : ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε
+      ≤ δ' / 4 := by
     have hc2 : cross ^ 2 + cross ≤ 2 * cross := by nlinarith
-    have h3 : cross * (2 * ((Q + 1) * A ^ Fintype.card σ / ε)) ≤ cross * W :=
-      mul_le_mul_of_nonneg_left hWr hcr.le
-    calc ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) * (cross ^ 2 + cross) / ε
-        = (cross ^ 2 + cross) * (((shortStrings (α := α) (Fintype.card σ)).card : ℝ) / ε) := by
-          ring
-      _ ≤ (2 * cross) * ((Q + 1) * A ^ Fintype.card σ / ε) := by
-          have : 0 ≤ ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) / ε := by positivity
-          exact mul_le_mul hc2 h2 this (by positivity)
-      _ = cross * (2 * ((Q + 1) * A ^ Fintype.card σ / ε)) := by ring
-      _ ≤ cross * W := h3
-      _ = δ' / 8 := hcrW
+    have h1 : (Q + 1) * (cross ^ 2 + cross) / ε ≤ δ' / 8 :=
+      calc (Q + 1) * (cross ^ 2 + cross) / ε ≤ (Q + 1) * (2 * cross) / ε :=
+            div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hc2 (by positivity)) hεd.le
+        _ = cross * (2 * ((Q + 1) / ε)) := by ring
+        _ ≤ cross * W := mul_le_mul_of_nonneg_left hWr hcr.le
+        _ = δ' / 8 := hcrW
+    have hB₃ε : 1 ≤ B₃ * ε := by
+      set lg := Real.log (16 * S * (S + 1) / δ')
+      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith
+      have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
+      have hinv : (16 * S * (S + 1) / δ')⁻¹ ≤ 1 / 32 := by
+        rw [inv_eq_one_div]; exact one_div_le_one_div_of_le (by norm_num) hx
+      have e : B₃ * ε = 36 * S * lg + (S + 1) * ε := by
+        show (36 * S / ε * lg + S + 1) * ε = _
+        field_simp
+        ring
+      have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
+      nlinarith
+    have h2 : (budget : ℝ) * (2 * prefixMax P.D k) / ε ≤ δ' / 8 := by
+      rw [div_le_iff₀ hεd]
+      have hB0 : 0 ≤ B₃ := hbud0.trans hbud
+      have e1 : (budget : ℝ) * prefixMax P.D k ≤ B₃ * prefixMax P.D k :=
+        mul_le_mul_of_nonneg_right hbud hpm0
+      have e2 : B₃ * prefixMax P.D k ≤ B₃ * prefixMax P.D k * (B₃ * ε) :=
+        le_mul_of_one_le_right (by positivity) hB₃ε
+      have e3 : 16 * B₃ ^ 2 * prefixMax P.D k * ε ≤ δ' * ε :=
+        mul_le_mul_of_nonneg_right hk3 hεd.le
+      have e4 : B₃ * prefixMax P.D k * (B₃ * ε) = B₃ ^ 2 * prefixMax P.D k * ε := by ring
+      linarith
+    rw [add_div]
+    linarith
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε cross Tu C
   dsimp only at hcore
@@ -640,10 +636,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
     show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ'
-      + ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) * (cross ^ 2 + cross) / ε))
+      + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε))
         ≤ (Q + 1) * (5 * δ' / 2)
     have : δ' + δ' / 4 + (δ'
-        + ((shortStrings (α := α) (Fintype.card σ)).card : ℝ) * (cross ^ 2 + cross) / ε)
+        + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε)
           ≤ 5 * δ' / 2 := by
       linarith
     exact mul_le_mul_of_nonneg_left this hQ0
