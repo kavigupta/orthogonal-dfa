@@ -445,7 +445,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  set rule : Clusterer S := nearestClusterer with hrule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -561,7 +561,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
         + harvestCap η₀ indecisionLimit εcov hsz := by
     rw [budgetCap, harvestCap]
     linarith [hpoly]
-  have hcc := clustering_correct O rule populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
+  have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
     ρ₀ pAP crossLimit 64000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.

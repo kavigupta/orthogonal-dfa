@@ -12,7 +12,7 @@ namespace OrthoDFA
 open MeasureTheory ProbabilityTheory
 
 theorem clustering_correct : ClusteringCorrect := by
-  intro Ω _ μ _ S _ J _ O rule populations tame uni H D Dsf _ _ Pre Suf η₀ indecisionLimit εcov
+  intro Ω _ μ _ S _ J _ O populations tame uni H D Dsf _ _ Pre Suf η₀ indecisionLimit εcov
     α δ ρ pAP crossLimit k hηle hη₀ huni htame hflat hH hsupp hsuppSf hρ hpAPPositive hpAPBound
     hindLim hind1 hαpos hα hεcov hε1 hδ _hbudget hρcap hρsf
   classical
@@ -21,32 +21,38 @@ theorem clustering_correct : ClusteringCorrect := by
   by_cases hδ1 : δ ≤ 1
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ - α ≤ 0) measureReal_nonneg
-  have hvalid := raw_valid (rule := rule) (crossLimit := crossLimit) hflat O populations tame uni
+  have hvalid := raw_valid (rule := nearestClusterer) (crossLimit := crossLimit) hflat O
+    populations tame uni
     huni htame H D Dsf hsupp hH hsuppSf εcov α δ ρ pAP hηle hη₀ hindLim hind1 hαpos
     (by linarith) hεcov hδ hδ1 hpAPPositive hpAPBound hρ hρcap hρsf
-  have hterm := raw_terminates (rule := rule) hflat O populations uni (htame huni) H D Dsf hsupp
+  have hterm := raw_terminates hflat O populations uni (htame huni) H D Dsf hsupp
     hH hsuppSf εcov α δ ρ pAP crossLimit hsig hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1
     hpAPPositive hpAPBound (hρ uni huni) hρcap hρsf
   set st := stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card ρ
     with hst
   set Bad := streams H uni ⁻¹' ⋃ B : {B : State // B ∈ st},
-      (retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := rule) O populations uni D εcov
+      (retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := nearestClusterer) O populations uni D εcov
           (rejFrac η₀ indecisionLimit εcov) indecisionLimit y B.val j}) with hBad
   set NoRet := {x : Draws Ω S J | ∀ B : {B : State // B ∈ st},
-      streams H uni x ∉ retAll rule O.mq populations uni η₀ indecisionLimit εcov α B.val}
+      streams H uni x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+        B.val}
     with hNoRet
   set ν := runMeasure μ D Dsf with hν
   have hgood : (Bad ∪ NoRet)ᶜ ⊆ {x | (∃ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val) ∧
+        streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+          B.val) ∧
       ∀ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val →
+        streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+          B.val →
         ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov
             - (if j = uni then 0 else εcov / 1024)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+              (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise
+                x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+              (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise
+                x.1)}
             ≤ 2 * indecisionLimit} := by
     intro x hx
     simp only [Set.mem_compl_iff, Set.mem_union, not_or] at hx
@@ -54,7 +60,7 @@ theorem clustering_correct : ClusteringCorrect := by
     refine ⟨?_, fun B hB j hj => ?_⟩
     · simp only [hNoRet, Set.mem_ofPred_eq, not_forall, not_not] at hxN
       obtain ⟨B, hB⟩ := hxN
-      exact ⟨B, retAll_subset_retBy rule O.mq η₀ indecisionLimit εcov α B.val hB⟩
+      exact ⟨B, retAll_subset_retBy nearestClusterer O.mq η₀ indecisionLimit εcov α B.val hB⟩
     · by_contra hc
       apply hxB
       refine Set.mem_preimage.2 (Set.mem_iUnion.2 ⟨B, hB, fun hall => hc ?_⟩)
