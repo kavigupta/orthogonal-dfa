@@ -1,84 +1,59 @@
-import OrthoDFA.Level4Claim
+import OrthoDFA.Level4KappaClaim
+import OrthoDFA.AllowanceClaim
 
 /-!
-# `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision
+# `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision, a few tolerated
 
-Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
-most `εw + κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`), otherwise as
-`ReadOracle` says. A wrong read can steer the round only once the round reads its string, and a
-string is read wrong at most `κ` times as often as undecided, beyond `εw`. A probe's sifts stop at their
-first undecided read, so each probe reads at most one string undecided, and the tests count it:
-the tests bound the undecided reads a round makes, whatever the budget, and with them the wrong
-ones.
+Level 3 (`indecisiveLStarLevel3`) runs on level 5's reads (`KappaReadOracle`). `Level4KappaRoundCorrect` charges
+the round its chance of reading anything wrong; here the round may read up to `f + 1` rounds
+wrong and still end well. A wrong read adds at most one spurious leaf, so with level 3's premises
+taken at `|Q| + f` states (`Level3AllowanceCorrect`) the round fails only where `f + 2` rounds of
+reads meet a fresh wrong read (`RaceTailBound`), or two probes share their first `walkStart`
+letters, so that one probe's wrong read could recur in another's.
 
-`Level5RoundCorrect` asks level 3's premises, the sampler's bounds holding but for chance `δ/16` at
-each site rather than `δ/8`, and that the strings the round reads, and those it reads undecided,
-are few enough against `εw` and `κ` that no string the round reads is read wrong but for chance
-`δ/8`.
+A step reads in rounds: its probe's reads, at most `w = min(L + 1, 3 + ⌈log₂ L⌉)(|Q| + f + 1)`
+strings and one undecided, and one re-sift per edge of a split, at most `|Q| + f + 2` strings and
+one undecided. A round costs at most `c = εw max(w, |Q| + f + 2) + κ`. Over the round the strings
+read number at most `b` and those read undecided at most `m`.
 -/
 
 namespace OrthoDFA
 
-namespace Random
-
-namespace Kappa
-
-open MeasureTheory
-
-variable {α : Type*}
-
-/-- `ReadOracle` with each read on its state's wrong side with chance at most `εw + κ U q`. -/
-structure KappaReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
-    (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) where
-  read : FreeMonoid α → Ω → ARU
-  measurable : ∀ z, Measurable (read z)
-  indep : ProbabilityTheory.iIndepFun read μ
-  undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
-  wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept}
-    ≤ εw + κ * U (M.eval z.toList)
-
-end Kappa
-
-end Random
-
 open MeasureTheory Random Random.Kappa
 
 /-- Level 3's algorithm, with wrong reads that may scale with a state's indecision, fails to end
-well with chance at most `δ`. -/
+well with chance at most `δ`, a few wrong reads tolerated. -/
 def Level5RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
-    (C : Level3Settings) (p₀ : ℝ),
+    (C : Level3Settings) (p₀ : ℝ) (f : ℕ) (t t' : ℝ),
     let y := C.harvestRate
     let ε := C.disagreementRate
     let δ := C.δ
-    let nQ := Fintype.card σ
+    let nQ := Fintype.card σ + f
     let nα := Fintype.card α
-    -- Bounds the hypotheses: at most `|Q| + 2` leaves, each leaf's edges learned once between splits.
+    -- As at level 3, at `|Q| + f` states.
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    -- As at level 3.
     let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
-    -- As at level 3, at chance `δ/16` at each site.
     let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
+    -- A probe round's reads, a round's cost, and the round's reads, in all and undecided.
+    let w : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (nQ + 1)
+    let c : ℝ := εw * max w (nQ + 2) + κ
+    let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
+    let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + (nQ + 2) * nα * (nQ + 1)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → 0 < y →
-    -- The middles test's yield fits under the success test's rate.
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → δ < 1 → 0 < y →
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
-    0 ≤ εw → 0 ≤ κ →
-    -- The round reads some string wrong with chance at most `δ/8`. A probe sifts at most
-    -- `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes, each reading at most `|Q|` strings, and at most
-    -- `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test fires, a hypothesis's probes
-    -- stop undecided at most `(16/5) log(1/a_j)` times however long the stretch, so the `κ` term
-    -- does not grow with the budget.
-    εw * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+    0 ≤ εw → 0 ≤ κ → 0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
+    -- Two probes share their first `walkStart` letters, or `f + 2` rounds read wrong, with chance
+    -- at most `δ/8`.
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      + Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          -- As at level 3.
           ¬ EndsWell
             { target := M,
               undecided := U,

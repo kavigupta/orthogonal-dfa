@@ -8,7 +8,7 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
 loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
 whole run reads one noise, fixed per string as the Python's is. Each round runs level 3's algorithm
-(`indecisiveLStarLevel3`), guaranteed by level 5's claim (`Level5RoundCorrect`), reading the
+(`indecisiveLStarLevel3`), guaranteed by `Level4KappaRoundCorrect` (level 4 at `κ > 0`), reading the
 clustering's family. One-step consistency at `L − 1` is not enough for this (`parity_toggle`,
 #438).
 
@@ -26,9 +26,10 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `TripartiteSearchCorrect`: the search the probes use to find where the walk and the sift part
   finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` positions (`2 + ⌈log₂(hi − lo)⌉`
   without recovery), and finds the turn exactly where nothing is undecided.
-- `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\* round
-  ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, and wrong
-  reads scaling with indecision.
+- `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect`, `Level4KappaRoundCorrect` and `Level5RoundCorrect`: one L\* round
+  ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads (level 4,
+  also with wrong reads scaling with indecision, no wrong read in the round), and wrong reads
+  scaling with indecision, a few tolerated (level 5).
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
@@ -106,10 +107,10 @@ earlier rounds' clusterings read (`offLaw`), so no two rounds read the same stri
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
 avoiding those of every prefix the round's clustering read. The band's far side is
 `δ'/(8W)`, `W = B₃ w|Q| + |Q|(|Q|+1)²|Σ| + (|Q|+1)|Σ|^|Q|/ε` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)`,
-which meets level 5's premise `εw(B₃ w|Q| + |Q|(|Q|+1)²|Σ|) ≤ δ'/8` (`κ = 0` for the family) and
+which meets the κ claim's premise `εw(B₃ w|Q| + |Q|(|Q|+1)²|Σ|) ≤ δ'/8` (`κ = 0` for the family) and
 the Markov bound above. A
 round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is level 3's ending, transferred to `D`,
-and its tree in `classSet |Q|`; it fails with chance at most `δ' + δ'/8 + δ'/8`: level 5's claim,
+and its tree in `classSet |Q|`; it fails with chance at most `δ' + δ'/8 + δ'/8`: the κ claim,
 the event that some step reads a string wrong (`pi_wrong_le'`), and the Markov bound
 (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
@@ -145,14 +146,14 @@ the removed mass `m` of its own (`integral_le_offLaw`), which the claim's slack 
 (`loop_cluster_round_le_persist`, `Proofs/LoopE1.lean`). Level 3 reads `z·v` with `v` a family
 suffix and `z`'s first `k` letters a probe's, so its avoiding probes never read a string the
 clustering read. Re-noising the clustering's strings with a second, independent noise
-(`Oracle.renoise`, `Proofs/Renoise.lean`) leaves a fresh family on which level 5's guarantee holds
+(`Oracle.renoise`, `Proofs/Renoise.lean`) leaves a fresh family on which the κ claim's guarantee holds
 at the conditioned probes, whose prefix mass grows by at most `1/(1 − m)` for `m ≤ |keys| ·
 prefixMax` the mass removed (`Proofs/LoopAvoid.lean`); the actual run is the same run, and its
 ending transfers back to `D` at disagreement `ε + m`, yield `(1 − m) y`, and at most `m` more of
 the sampler at any set of states (`looseEndsWell_of_endsWell`, `Proofs/LoopTransfer.lean`).
 
 The loop stops because each harvest finds a new state the later families rarely leave undecided
-(`loop_agrees_of_specs`, `Proofs/LoopTermination.lean`). Level 5's harvest puts at most
+(`loop_agrees_of_specs`, `Proofs/LoopTermination.lean`). The κ claim's harvest puts at most
 `A·T + sl` of its law on the states read undecided at most `T` of the time,
 `A = (|Q|+1)(6/y + 16(2 + ⌈log₂ L₁⌉))` and `sl` the concentration slack, plus `m` after the
 transfer. Every later family is held by the gate to `c = 2ι + slack` undecided on the harvest's
@@ -173,8 +174,9 @@ what a state's chance of reading undecided is.
 1. #417, `Level2RoundCorrect`: ideal reads; a state reads undecided where all its strings do.
 2. #419, `Level3RoundCorrect`: indecision random, decided reads always right.
 3. #420, `Level4RoundCorrect`: rare wrong reads at every state.
-4. #450, `Level5RoundCorrect`: wrong reads at most `εw` plus `κ` times the state's indecision, the
-   round the loop runs.
+4. #450, `Level4KappaRoundCorrect`: level 4 with wrong reads at most `εw` plus `κ` times the
+   state's indecision, no wrong read in the round; the round the loop runs.
+5. #499, `Level5RoundCorrect`: the same reads, a few wrong reads tolerated as spurious splits.
 
 ## Open
 
@@ -295,9 +297,9 @@ what a state's chance of reading undecided is.
   `w` of its prefixes, its search's queries and the successor of its walk's end, each sift reading
   at most `|Q|` strings, and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; so by
   `RaceReadsBound` over the strings each step reads the premise keeps every string the round reads
-  right but for chance `δ/8`. It is level 5 at `κ = 0`. The sampler's bounds take `δ/16` at each
+  right but for chance `δ/8`. It is the κ claim at `κ = 0`. The sampler's bounds take `δ/16` at each
   site and the stretches `3δ/4`.
-- `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
+- `OrthoDFA/Level4KappaClaim.lean` — `Level4KappaRoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
   `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ ((16/5)S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
@@ -309,11 +311,11 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/AllowanceClaim.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its reads
   independent and undecided at their state's rate but with no premise on wrong reads, fails to end
   well with chance at most `7δ/8` plus the chance that a step grows its tree past `|Q| + f + 2`
-  leaves (`GrowsRun`), under level 5's premises with `S`, `K`, `A` and `η` taken at `|Q| + f`
+  leaves (`GrowsRun`), under the κ claim's premises with `S`, `K`, `A` and `η` taken at `|Q| + f`
   states. Level 3's stretches use right reads only to keep the tree in its class; the proof runs
-  level 5's frame on the target padded with `f` unreachable states, with the leaf count as the
+  the κ claim's frame on the target padded with `f` unreachable states, with the leaf count as the
   invariant.
-- `OrthoDFA/Level6Claim.lean` — `Level6RoundCorrect`: level 3's algorithm, unchanged, on level 5's
+- `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, on level 5's
   reads, fails to end well with chance at most `δ` while tolerating a few wrong reads. Its premises
   are level 3's at `|Q| + f` states, and
   `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t' c}`. Here

@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.BandWide
 
 Level 3 reads, at probes avoiding the clustering's prefixes, only strings the clustering did not.
 Where the clustering's reads are re-noised it reads a fresh family on probes from `D` conditioned
-to avoid them, so level 5's guarantee holds there (`round_bad_exists`), and the actual run is the
+to avoid them, so the κ claim's guarantee holds there (`round_bad_exists`), and the actual run is the
 same run. Transferred back to `D` it ends well, and off a collision it does so with the chance it
 has on fresh noise (`loop_round_le_persist`).
 -/
@@ -78,7 +78,7 @@ lemma avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D
 
 section Bad
 
-/-- Level 5's premises for probes at most `L` long and the wrong-read rate `εw`. -/
+/-- The κ claim's premises for probes at most `L` long and the wrong-read rate `εw`. -/
 def RoundPremises (σ α : Type*) [Fintype σ] [Fintype α] (L : ℕ) (C : Random.Level3Settings)
     (εw : ℝ) : Prop :=
   let nQ := Fintype.card σ

@@ -5,12 +5,12 @@ import OrthoDFA.Proofs.EpsReads
 
 Given the reads, the round fails to end well only where a stretch risks it, as at level 3, or
 where some step is bad (`eps_probe_level`): a step that is not keeps an invariant `J` that keeps
-the tree in the class level 3's stretches need. Level 5 takes `J` to be `WitInv`. The run stopped at the first bad step (`stopAt`) has level 3's
+the tree in the class level 3's stretches need. The κ claim takes `J` to be `WitInv`. The run stopped at the first bad step (`stopAt`) has level 3's
 stretches. Over the reads, the probes harvest within their bounds but for the tails at every
 state's rate (`harvest_noise`).
 
 Levels 4 and 5 take level 3's knobs at `log(16(|Q| + 1)K/δ)` (`round_knobs`): the tails risk `δ/16`
-at each site, the stretches `3δ/4` and the wrong reads `δ/8`. Level 4 is level 5 at `κ = 0`
+at each site, the stretches `3δ/4` and the wrong reads `δ/8`. Level 4 is the κ claim at `κ = 0`
 (`Proofs/KappaRound.lean`).
 -/
 

@@ -1,4 +1,4 @@
-import OrthoDFA.Level5Claim
+import OrthoDFA.Level4KappaClaim
 import OrthoDFA.SuffixFamily
 
 /-!

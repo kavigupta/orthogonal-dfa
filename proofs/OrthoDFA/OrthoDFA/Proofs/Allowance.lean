@@ -5,7 +5,7 @@ import OrthoDFA.Proofs.KappaRound
 # Level 3 within a leaf allowance: the proof
 
 The target padded with `f` states no string reaches (`DFA.pad`) has the same runs and the same
-indecision, and `|Q| + f` states. Level 5's frame (`eps_round_le_of`) takes any invariant that
+indecision, and `|Q| + f` states. The κ claim's frame (`eps_round_le_of`) takes any invariant that
 keeps the tree in level 3's class; here it is that the tree has at most `|Q| + f + 2` leaves, kept
 by every step that does not grow it past them (`keepsInv_grows`).
 -/

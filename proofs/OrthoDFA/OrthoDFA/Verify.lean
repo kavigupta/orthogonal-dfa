@@ -11,7 +11,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
-import OrthoDFA.Proofs.Level6
+import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -33,10 +33,10 @@ hypothesis that agrees with the target DFA but for chance `δ`.
 The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
-in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`,
-`Level3AllowanceCorrect` and `Level6RoundCorrect`, stated in `OrthoDFA.AllowanceClaim` and
-`OrthoDFA.Level6Claim`, and
+in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level4KappaRoundCorrect`,
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level4KappaClaim`,
+`Level3AllowanceCorrect` and `Level5RoundCorrect`, stated in `OrthoDFA.AllowanceClaim` and
+`OrthoDFA.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
@@ -132,18 +132,18 @@ theorem race_tail_bound : RaceTailBound := raceTailBound_holds
 
 #print axioms race_tail_bound
 
-theorem level5_round_correct : Level5RoundCorrect :=
-  Random.Kappa.level5RoundCorrect_holds
+theorem level4_kappa_round_correct : Level4KappaRoundCorrect :=
+  Random.Kappa.level4KappaRoundCorrect_holds
 
-#print axioms level5_round_correct
+#print axioms level4_kappa_round_correct
 
 theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
 
 #print axioms level3_allowance_correct
 
-theorem level6_round_correct : Level6RoundCorrect := level6RoundCorrect_holds
+theorem level5_round_correct : Level5RoundCorrect := level5RoundCorrect_holds
 
-#print axioms level6_round_correct
+#print axioms level5_round_correct
 
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 

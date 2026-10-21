@@ -3,7 +3,7 @@ import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.EpsRound
 
 /-!
-# Level 5: the proof
+# Level 4 at `κ > 0`: the proof
 
 Given the reads, the round fails to end well only where a stretch risks it, as at level 3, or
 where some step reads a string wrong among what it reads (`ReadsWrong`), as at level 4
@@ -119,7 +119,7 @@ theorem pi_wrong_le' {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProb
   rw [List.length_ofFn] at this
   exact this
 
-theorem level5RoundCorrect_holds : Level5RoundCorrect := by
+theorem level4KappaRoundCorrect_holds : Level4KappaRoundCorrect := by
   intro α _ _ σ _ M side U εw κ Ω _ μ _ R P C p₀
   dsimp only
   intro hpre hδ hy0 hyρ hρ1 hP hεw hκ hw
@@ -177,7 +177,7 @@ theorem level4RoundCorrect_holds : Level4RoundCorrect := by
   dsimp only
   intro hpre hδ hy0 hyρ hρ1 hP hw
   have hεw : 0 ≤ εw := MeasureTheory.measureReal_nonneg.trans (R.wrong default)
-  exact Kappa.level5RoundCorrect_holds M side U εw 0 μ
+  exact Kappa.level4KappaRoundCorrect_holds M side U εw 0 μ
     ⟨R.read, R.measurable, R.indep, R.undecided, fun z => by simpa using R.wrong z⟩ P C p₀ hpre hδ
     hy0 hyρ hρ1 hP hεw le_rfl (by simpa using hw)
 

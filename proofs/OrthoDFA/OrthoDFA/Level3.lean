@@ -8,7 +8,7 @@ the learned edges and sifted whole, and `tripartiteSearch`, with no recovery, fi
 part or stops at an undecided midpoint. A decided read is never on its state's wrong side, so as at
 level 2 a clean disagreement splits the edge's leaf at once, and a probe at an unlearned edge learns
 it. A probe shorter than `walkStart` has no walk and is counted as agreeing. Its counts, kept over
-the stretch since the hypothesis last changed, feed the tests of level 5, checked after every probe,
+the stretch since the hypothesis last changed, feed the tests of the κ claim, checked after every probe,
 each rate tested by `seqRate` against an alternative, twice the rate for the ends and the middles
 and half of it for success. Under the `j`-th hypothesis each test runs at level
 `δ / (8 (j + 1) (j + 2))`:

@@ -7,7 +7,7 @@ import OrthoDFA.Proofs.Renoise
 
 `SuffixFamily.renoise` reads the family through `O.renoise R`: a suffix family on two copies of
 the noise, with the same read distributions, which agrees with the family off `R` at the first
-copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`level3Fail_le`): level 3 fails
+copy (`renoise_read_of_notMem`). The κ claim's guarantee holds of it (`level3Fail_le`): level 3 fails
 to end well, a step reads some string wrong, or the probes some string of which, followed by at
 most `|Q|` letters, reads wrong weigh more than `u`, with chance at most
 `δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. A second copy can be fixed at a point
@@ -121,11 +121,11 @@ theorem wrongSet_markov (read : FreeMonoid α → Ω' → ARU) (hmeas : ∀ z, M
 
 variable [Fintype σ]
 
-/-- Level 5's harvest slope at probes at most `L` long. -/
+/-- The κ claim's harvest slope at probes at most `L` long. -/
 def roundSlope (σ : Type*) [Fintype σ] (L : ℕ) (C : Random.Level3Settings) : ℝ :=
   (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
 
-/-- Level 5's harvest slack at the prefix mass `p₀`. -/
+/-- The κ claim's harvest slack at the prefix mass `p₀`. -/
 def roundSlack (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (p₀ : ℝ) : ℝ :=
   p₀ * Real.log (16 * (Fintype.card σ + 1) * ((1 + (Fintype.card σ + 1) ^ 3 * Fintype.card α)
     ^ Fintype.card σ * (Fintype.card σ + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) : ℕ)
@@ -252,7 +252,7 @@ theorem readDist_le_one (fam : SuffixFamily μ' α σ) (q : σ) (r : ARU) : fam.
   · norm_num
 
 open Random.Kappa in
-/-- Level 5's guarantee read through the family: level 3 fails to end well at `ε + u` over
+/-- The κ claim's guarantee read through the family: level 3 fails to end well at `ε + u` over
 `disagreeSet`, or its tree leaves `classSet |Q|`, but for chance
 `δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. -/
 theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
@@ -281,7 +281,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   set π := Measure.pi fun _ : Fin T => P.D
   set wrong : FreeMonoid α → ARU := fun z => if side (fam.M.eval z.toList) then .reject else .accept
   -- level 3 ends well
-  have hK := Random.Kappa.level5RoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ hpre
+  have hK := Random.Kappa.level4KappaRoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ hpre
     hδ hy0 hyρ hρ1 hP hε hκ hw
   -- no step reads wrong
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)

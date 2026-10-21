@@ -10,8 +10,8 @@ read, so no round reads a string an earlier round read but with chance zero (`lo
 Round `r` fails the clustering's claim, given the earlier rounds, but for chance `δc`
 (`loop_cluster_round_le_persist`): off what the earlier rounds read the clustering meets its
 claim at `slack - m`, and a population's average moves by at most the `m` the earlier rounds'
-prefixes hold of it. It fails level 5's but for chance `δ` (`loop_round_le_persist`). A
-round meeting level 5's claim hands on a population putting at most `prefixMax / (ρ/4)` on any
+prefixes hold of it. It fails the κ claim's but for chance `δ` (`loop_round_le_persist`). A
+round meeting the κ claim hands on a population putting at most `prefixMax / (ρ/4)` on any
 string, within the cap. Where every one of the first `|Q| + 1` rounds meets both claims, the loop
 stops in agreement (`loop_agrees_of_specs`), each harvest's population putting more than `c/T` on
 a state read undecided more than `T` of the time.
@@ -353,7 +353,7 @@ def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
 /-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS` and `NP` bounding the
 schedule's suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The
-clustering's band passes at `cross`, small enough that level 5's wrong reads fit level 3's
+clustering's band passes at `cross`, small enough that the κ claim's wrong reads fit level 3's
 premises and the probes reading wrong past a midfix weigh more than `u` with chance at most
 `C.δ / 8`. The last round has at most `C.disagreementRate + u + mr` of the probes in
 `disagreeSet`, `mr` bounding the mass the round's probes avoid. -/

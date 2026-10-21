@@ -1,9 +1,9 @@
-import OrthoDFA.Level6Claim
+import OrthoDFA.Level5Claim
 import OrthoDFA.Proofs.SpurAccount
 import OrthoDFA.Proofs.SpurCount
 
 /-!
-# Level 6: the proof
+# Level 5: the proof
 
 Level 3 within an allowance of `f` leaves (`Level3AllowanceCorrect`) fails but for `7δ/8`, plus
 the chance that a step grows the tree past `|Q| + f + 2` leaves. Where no two probes share their
@@ -266,7 +266,7 @@ namespace OrthoDFA
 
 open MeasureTheory Random Random.Kappa Random.Spur RaceTail
 
-theorem level6RoundCorrect_holds : Level6RoundCorrect := by
+theorem level5RoundCorrect_holds : Level5RoundCorrect := by
   intro α _ _ σ _ M side U εw κ Ω _ μ _ R P C p₀ f t t'
   dsimp only
   intro hpre hδ hδ1 hy0 hyρ hρ1 hP hεw hκ ht ht' htc hfin

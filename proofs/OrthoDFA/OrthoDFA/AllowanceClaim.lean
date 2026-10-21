@@ -51,7 +51,7 @@ def Level3AllowanceCorrect : Prop :=
     -- Level 3's count of trees and edge maps, at `|Q| + f` states.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
     let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
-    -- As at level 5, at chance `δ/16` at each site.
+    -- As in the κ claim, at chance `δ/16` at each site.
     let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → δ < 1 → 0 < y →
