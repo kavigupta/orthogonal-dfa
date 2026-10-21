@@ -50,7 +50,7 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
       / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4),
     Real.log (128 * (populations.card : ℝ) / δ)
-      / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2),
+      * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2),
     25 / 2 * (gateDevT η + gateDevU η) ^ 2
       * Real.log (32 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
@@ -293,6 +293,7 @@ theorem prefCount_le_poly (populations : Finset J)
   have hcutlb' := cutBudget_ge η indecisionLimit εcov hεcov hind hη hηlt
   obtain ⟨hgR0, hgR1, hgRlb⟩ := gateRoom_facts η indecisionLimit εcov hηlt hη hεcov hind
   have hBpos := budgetScale_pos η indecisionLimit εcov hεcov hind hη hηlt
+  have hBil : budgetScale η indecisionLimit εcov ≤ indecisionLimit := min_le_right _ _
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
   clear_value B
   have hBε : B ≤ εcov := le_trans hBmn (min_le_left _ _)
@@ -549,10 +550,31 @@ theorem prefCount_le_poly (populations : Finset J)
       have h4 : 4 ≤ Q * s ^ 4 := by nlinarith only [h1', hB4, hQs0]
       nlinarith only [h4]
     linarith only [h1, h2]
-  have t2 : Real.log (128 * c / δ) / (2 * (cut / 32) ^ 2) ≤ 3200 * Q := by
-    refine tail_le hR hL0 (by positivity) hD ?_
-    nlinarith only [hB2c, mul_le_mul_of_nonneg_right hs4 (sq_nonneg B),
-      mul_le_mul_of_nonneg_right hc2 (sq_nonneg cut)]
+  have t2 : Real.log (128 * c / δ) * (2112 / cut + 2 / indecisionLimit ^ 2) ≤ 700 * Q := by
+    have hlog0 : 0 ≤ Real.log (128 * c / δ) :=
+      Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1])
+    have hk1 : 2112 / cut ≤ 21120 / B := by
+      rw [div_le_div_iff₀ hcutpos hBpos]; nlinarith only [hcutlb]
+    have hk2 : 2 / indecisionLimit ^ 2 ≤ 2 / B ^ 2 :=
+      div_le_div_of_nonneg_left (by norm_num) (by positivity)
+        (pow_le_pow_left₀ hBpos.le hBil 2)
+    have hk0 : 0 ≤ 2112 / cut + 2 / indecisionLimit ^ 2 := by positivity
+    have hkD : (21120 / B + 2 / B ^ 2) * (s ^ 4 * B ^ 2) ≤ 700 * c ^ 2 := by
+      have e : (21120 / B + 2 / B ^ 2) * (s ^ 4 * B ^ 2) = 21120 * s ^ 4 * B + 2 * s ^ 4 := by
+        field_simp
+      rw [e]
+      have h5 : s ^ 4 * B ≤ s ^ 4 * s := mul_le_mul_of_nonneg_left hBs (by positivity)
+      have h55 : s ^ 4 * s ≤ 1 / 16 * (1 / 2) :=
+        mul_le_mul hs4 hs2 hsig.le (by norm_num)
+      nlinarith only [h5, h55, hs4, hc2]
+    rw [hQdef, mul_div_assoc', le_div_iff₀ hD]
+    calc Real.log (128 * c / δ) * (2112 / cut + 2 / indecisionLimit ^ 2) * (s ^ 4 * B ^ 2)
+        ≤ L * (21120 / B + 2 / B ^ 2) * (s ^ 4 * B ^ 2) := by
+          refine mul_le_mul_of_nonneg_right ?_ hD.le
+          exact mul_le_mul (by linarith only [hR]) (by linarith only [hk1, hk2]) hk0 hL0
+      _ ≤ L * (700 * c ^ 2) := by
+          rw [mul_assoc]; exact mul_le_mul_of_nonneg_left hkD hL0
+      _ = 700 * (c ^ 2 * L) := by ring
   have t3 : 25 / 2 * Wg ^ 2 * Real.log (32 * c * (M + 3) / δ) / gR ^ 2 ≤ 9500 * Q := by
     have hL₁0 : 0 ≤ Real.log (32 * c * (M + 3) / δ) :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1, hM256])
@@ -706,6 +728,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   have hηlt : η < 1 / 2 := by rw [hsdef, sig] at hsig; linarith only [hsig]
   have hcutlb' := cutBudget_ge η indecisionLimit εcov hεcov hind hη hηlt
   have hBpos := budgetScale_pos η indecisionLimit εcov hεcov hind hη hηlt
+  have hBil : budgetScale η indecisionLimit εcov ≤ indecisionLimit := min_le_right _ _
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
   have hBs : B ≤ s := by
     rw [hBdef, hsdef]; exact budgetScale_le_sig η indecisionLimit εcov hη hηlt

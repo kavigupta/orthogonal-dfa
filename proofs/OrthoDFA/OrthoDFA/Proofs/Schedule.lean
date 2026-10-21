@@ -267,7 +267,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
       / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
+        * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
         * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
