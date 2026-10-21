@@ -6,11 +6,11 @@ import OrthoDFA.Level4Claim
 
 The checked round (`indecisiveLStarCheck`) runs with the reads of `Level4RoundCorrect`, each draw
 a probe from `P` and a block of check strings from `Dc`. It ends well as level 3's round does,
-and fails to only where level 4's round would, where some step reads a string wrong, where the
-check strings read undecided more often than a share `q` of the time, or where a check silent at
-that share fails without a fix:
+with its midfixes at most `|Q|` long, and fails to only where level 4's round would, where some step
+reads a string wrong, where the check strings read undecided more often than a share `q` of the
+time, or where a check silent at that share fails without a fix:
 
-    P(¬ ends well) ≤ δ + Σ_{j < S} b(q)^n / a_j + |heavy| u + exp(−η_c / p_h),
+    P(¬ ends well) ≤ 9δ/8 + 2 (Σ_{j < S} b(q)^n / a_j + |heavy| u + exp(−η_c / p_h)),
 
 `n` the check's size, `a_j` the `j`-th check's level and `b(q)` the test's silent base
 (`CheckSettings.silentBase`). Each check string's prefix followed by at most `|Q|` letters reads
@@ -20,6 +20,11 @@ length-`h` prefix holding more than `p_h` of the check strings.
 -/
 
 namespace OrthoDFA
+
+/-- Every midfix of the tree is at most `n` letters long. -/
+def DTree.MidsShort {α : Type*} (n : ℕ) : DTree α → Prop
+  | .leaf => True
+  | .node m r a => m.toList.length ≤ n ∧ r.MidsShort n ∧ a.MidsShort n
 
 namespace Random
 
@@ -74,7 +79,7 @@ def Level4CheckRoundCorrect : Prop :=
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget =>
         P.D.prod (Measure.pi fun _ : Fin K.size => Dc))
         {draws | let result := indecisiveLStarCheck C K (R.read · ω) draws
-          ¬ EndsWell
+          ¬ (EndsWell
             { target := M,
               undecided := U,
               harvestSlope := A,
@@ -86,8 +91,9 @@ def Level4CheckRoundCorrect : Prop :=
               walkStart := C.walkStart,
               harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
-              ending := result.ending }} ∂μ
-      ≤ ENNReal.ofReal (δ + ∑ j ∈ Finset.range S, K.silentBase q ^ K.size / K.level j
-        + (h + 1) * nα ^ h * Ms * u + Real.exp (-(ηc / ph)))
+              ending := result.ending }
+            ∧ result.hypothesis.tree.MidsShort nQ)} ∂μ
+      ≤ ENNReal.ofReal (9 * δ / 8 + 2 * (∑ j ∈ Finset.range S, K.silentBase q ^ K.size / K.level j
+        + (h + 1) * nα ^ h * Ms * u + Real.exp (-(ηc / ph))))
 
 end OrthoDFA

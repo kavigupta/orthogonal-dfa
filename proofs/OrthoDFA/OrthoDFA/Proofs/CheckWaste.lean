@@ -170,6 +170,27 @@ theorem wrongC_keeps {s s' : Level3State α} {d : CheckDraw α K} (hs : Inv read
     · exact hne' hf
     · rw [he, hw] at h; cases h
 
+
+/-- A run that reads nothing wrong ends at a state keeping the invariants. -/
+theorem final_inv_of_not_wrong :
+    ∀ (ds : List (CheckDraw α K)) (s : Level3State α), Inv read s → WitInv M side s →
+      ¬ AnyB (applyCheck read C K) (WrongC M side C K read) s ds →
+      Inv read (runChecked read C K s ds).1 ∧ WitInv M side (runChecked read C K s ds).1
+  | [], s, hs, hg, _ => ⟨hs, hg⟩
+  | d :: ds, s, hs, hg, hb => by
+    simp only [AnyB, not_or, not_exists, not_and] at hb
+    obtain ⟨hb1, hb2⟩ := hb
+    rcases hst : applyCheck read C K s d with s' | e
+    · simp only [runChecked, hst]
+      by_cases hsm : Same s s'
+      · have ha := applyCheck_same read C K hs hst hsm
+        exact final_inv_of_not_wrong ds s' (step_same read C hs ha hsm.1 hsm.2).1
+          (witInv_congr M side hg hsm.1 hsm.2) (hb2 s' hst)
+      · obtain ⟨h1, h2, -⟩ := wrongC_keeps read C K M side hs hg hb1 hst hsm
+        exact final_inv_of_not_wrong ds s' h1 h2 (hb2 s' hst)
+    · simp only [runChecked, hst]
+      exact ⟨hs, hg⟩
+
 variable (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
 
 /-- Within a stretch, a check failing without a fix has chance at most its bound. -/

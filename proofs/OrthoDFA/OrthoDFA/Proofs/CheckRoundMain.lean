@@ -22,14 +22,33 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (K : CheckSettings)
   {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (A sl : ℝ) (ε : ℝ)
 
-/-- The checked round's failure chance is at most `roundBoundAt` at admissible knobs, plus the
-chance of a hazard. -/
+omit [Fintype α] [DecidableEq α] in
+theorem midsShort_of_mids {n : ℕ} : ∀ T : DTree α, (∀ m ∈ mids T, m.toList.length ≤ n) →
+    T.MidsShort n
+  | .leaf, _ => trivial
+  | .node m r a, h => by
+    classical
+    exact ⟨h m (by simp [mids]), midsShort_of_mids r fun m' hm => h m' (by simp [mids, hm]),
+      midsShort_of_mids a fun m' hm => h m' (by simp [mids, hm])⟩
+
+omit [DecidableEq α] in
+theorem midsShort_of_classSet (n : ℕ) (T : DTree α) (h : T ∈ classSet n) : T.MidsShort n :=
+  midsShort_of_mids T (midsLe_classSet n T h)
+
+omit [Fintype α] [DecidableEq α] in
+theorem anyB_mono {S X E : Type*} (step : S → X → S ⊕ E) (B B' : S → X → Prop)
+    (h : ∀ s x, B s x → B' s x) : ∀ s xs, AnyB step B s xs → AnyB step B' s xs
+  | _, [], hb => hb
+  | s, x :: xs, hb => hb.elim (fun hb => Or.inl (h s x hb))
+      fun ⟨s', hs', hb⟩ => Or.inr ⟨s', hs', anyB_mono step B B' h s' xs hb⟩
+
+/-- The checked round's chance of failing to end well or of leaving `classSet |Q|` is at most
+`roundBoundAt` at admissible knobs, plus twice the chance of a hazard. -/
 theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : ProbabilityTheory.iIndepFun read μ)
     (hund : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList))
-    (W : (FreeMonoid α → ARU) → Level3State α → FreeMonoid α → Prop)
-    (hW : ∀ rd, KeepsInv rd C M side (W rd)) (P : PrefixDistribution α)
+    (P : PrefixDistribution α)
     (Dc : Measure (FreeMonoid α)) [IsProbabilityMeasure Dc] (y p₀ η : ℝ) (kn : Knobs)
     (hA : kn.Admissible (σ := σ) (α := α) C ε y) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
@@ -40,7 +59,7 @@ theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget =>
         P.D.prod (Measure.pi fun _ : Fin K.size => Dc))
         {draws | let result := indecisiveLStarCheck C K (read · ω) draws
-          ¬ EndsWell
+          ¬ (EndsWell
             { target := M,
               undecided := U,
               harvestSlope := A,
@@ -52,12 +71,18 @@ theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
               walkStart := C.walkStart,
               harvestLaw := harvestLaw (read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
-              ending := result.ending }} ∂μ
+              ending := result.ending }
+            ∧ result.hypothesis.tree.MidsShort (Fintype.card σ))} ∂μ
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ η p₀ C kn)
-        + ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget =>
+        + 2 * ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget =>
           P.D.prod (Measure.pi fun _ : Fin K.size => Dc))
-          {d | AnyB (applyCheck (read · ω) C K) (CheckHazard (read · ω) C K M side (W (read · ω)))
+          {d | AnyB (applyCheck (read · ω) C K)
+            (CheckHazard (read · ω) C K M side (WrongStep M side (read · ω) C))
             initialState (List.ofFn d)} ∂μ := by
+  set W : (FreeMonoid α → ARU) → Level3State α → FreeMonoid α → Prop :=
+    fun rd => WrongStep M side rd C
+  have hW : ∀ rd, KeepsInv rd C M side (W rd) :=
+    fun rd _ _ _ hs hg hx h hne => eps_step_change M side rd C hs hg hx h hne
   obtain ⟨N, hNmeas, hN, hgood⟩ := harvest_noise M U μ read hmeas hind hund P C ε y p₀ η A sl hp₀
     hpre hy hy4 hη hAe hAm hsl hA.Ge_nonneg hθg hηm0
   obtain ⟨Ns, N₁, Ge, θgpt, ηm, pM, θr, εd', θe', θpt'⟩ := kn
@@ -76,6 +101,23 @@ theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget =>
       P.D.prod (Measure.pi fun _ : Fin K.size => Dc))
       {ds | let r := runChecked (read · ω) C K initialState (List.ofFn ds)
+        ¬ (EndsWell
+          { target := M,
+            undecided := U,
+            harvestSlope := A,
+            harvestSlack := sl,
+            probes := P.D,
+            disagreeRate := ε,
+            disagree := searchSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
+              ∪ endsSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            walkStart := C.walkStart,
+            harvestLaw := harvestLaw (read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            yield := y,
+            ending := r.2 }
+          ∧ r.1.tree.MidsShort (Fintype.card σ))}
+        ≤ (c + N.indicator 1 ω) + g ω + g ω := by
+    intro ω
+    refine (measure_mono (t := {ds | let r := runChecked (read · ω) C K initialState (List.ofFn ds)
         ¬ EndsWell
           { target := M,
             undecided := U,
@@ -88,9 +130,23 @@ theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
             walkStart := C.walkStart,
             harvestLaw := harvestLaw (read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩,
             yield := y,
-            ending := r.2 }}
-        ≤ (c + N.indicator 1 ω) + g ω := by
-    intro ω
+            ending := r.2 }} ∪ {d | AnyB (applyCheck (read · ω) C K)
+            (CheckHazard (read · ω) C K M side (W (read · ω))) initialState (List.ofFn d)})
+      fun ds hds => ?_).trans ((measure_union_le _ _).trans (add_le_add ?_ le_rfl))
+    · simp only [Set.mem_ofPred_eq, not_and_or] at hds
+      rcases hds with h | h
+      · exact Or.inl h
+      · right
+        by_contra hno
+        apply h
+        have hnw : ¬ AnyB (applyCheck (read · ω) C K) (WrongC M side C K (read · ω)) initialState
+            (List.ofFn ds) := fun hw => hno (anyB_mono _ _ _ (fun s d hd => by
+              rcases hd with hd | ⟨hf, hd⟩
+              · exact Or.inl hd
+              · exact Or.inr ⟨hf, Or.inl hd⟩) _ _ hw)
+        obtain ⟨h1, h2⟩ := final_inv_of_not_wrong (read · ω) C K M side (List.ofFn ds)
+          initialState (inv_start _) (witInv_start M side) hnw
+        exact midsShort_of_classSet _ _ (cls_mem' M side _ h1 h2)
     by_cases hω : ω ∈ N
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans (le_add_self.trans le_self_add)
@@ -107,13 +163,15 @@ theorem eps_check_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
         show 0 ≤ 2 * C.middleRate; linarith) hθpt'0) hθpt'1
   have htr0 : 0 ≤ tailRisk (Fintype.card σ) (Fintype.card α) p₀ η := by
     unfold tailRisk; positivity
-  calc _ ≤ ∫⁻ ω, ((c + N.indicator 1 ω) + g ω) ∂μ := lintegral_mono hpt
-    _ = c + μ N + ∫⁻ ω, g ω ∂μ := by
-        rw [lintegral_add_left ((measurable_one.indicator hNmeas).const_add c),
+  calc _ ≤ ∫⁻ ω, ((c + N.indicator 1 ω) + g ω + g ω) ∂μ := lintegral_mono hpt
+    _ = c + μ N + 2 * ∫⁻ ω, g ω ∂μ := by
+        rw [show (fun ω => (c + N.indicator 1 ω) + g ω + g ω)
+            = fun ω => (c + N.indicator 1 ω) + 2 * g ω from funext fun ω => by ring,
+          lintegral_add_left ((measurable_one.indicator hNmeas).const_add c),
           lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
-          lintegral_indicator_one hNmeas]
+          lintegral_indicator_one hNmeas, lintegral_const_mul' _ _ (by norm_num)]
     _ ≤ c + ENNReal.ofReal (2 * (Fintype.card σ + 1)
-          * tailRisk (Fintype.card σ) (Fintype.card α) p₀ η) + ∫⁻ ω, g ω ∂μ := by
+          * tailRisk (Fintype.card σ) (Fintype.card α) p₀ η) + 2 * ∫⁻ ω, g ω ∂μ := by
         gcongr
     _ = _ := by
         rw [add_comm c, ← ENNReal.ofReal_add (by positivity) hnn]
@@ -190,9 +248,7 @@ theorem level4CheckRoundCorrect_holds : Level4CheckRoundCorrect := by
   obtain ⟨kn, hA, hθg, hηm0, hη0, hAe, hAm, hround⟩ := round_knobs (σ := σ) (α := α) C P.L p₀ hp₀
     hδ hδ1 hy0 hyρ hρ1 (by exact_mod_cast hP)
   have hmain := eps_check_round_le_of C K M side U _ _ _ μ R.read R.measurable R.indep R.undecided
-    (fun rd => WrongStep M side rd C)
-    (fun rd _ _ _ hs hg hx h hne => eps_step_change M side rd C hs hg hx h hne) P Dc _ p₀ _ kn hA
-    hp₀ hpre hy0 (by linarith) hη0 hAe hAm le_rfl hθg hηm0
+    P Dc _ p₀ _ kn hA hp₀ hpre hy0 (by linarith) hη0 hAe hAm le_rfl hθg hηm0
   refine hmain.trans ?_
   -- the hazards
   set Dd := P.D.prod (Measure.pi fun _ : Fin K.size => Dc)
@@ -257,24 +313,32 @@ theorem level4CheckRoundCorrect_holds : Level4CheckRoundCorrect := by
       + (K.size + 1) * ((nQ + 1) * nα * (nQ + 1)))) ≤ δ / 8 := by
     convert hw using 1
     ring
-  calc _ ≤ ENNReal.ofReal (7 * δ / 8) + ∫⁻ ω, (g₁ ω + (c₂ + (toMeasurable μ Bad).indicator 1 ω)) ∂μ :=
-        add_le_add (ENNReal.ofReal_le_ofReal hround) (lintegral_mono hpt)
-    _ = ENNReal.ofReal (7 * δ / 8) + (∫⁻ ω, g₁ ω ∂μ + (c₂ + μ (toMeasurable μ Bad))) := by
-        rw [lintegral_add_right (fun ω => g₁ ω) (show Measurable fun ω =>
-            c₂ + (toMeasurable μ Bad).indicator 1 ω from measurable_const.add
-              (measurable_one.indicator (measurableSet_toMeasurable _ _))),
-          lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
-          lintegral_indicator_one (measurableSet_toMeasurable _ _)]
-    _ ≤ ENNReal.ofReal (7 * δ / 8) + (ENNReal.ofReal (δ / 8) + (ENNReal.ofReal Wsum
-          + ENNReal.ofReal (heavy + Real.exp (-(ηc / ph))))) := by
-        rw [measure_toMeasurable, hc₂]
-        gcongr
-        exact hg₁.trans (ENNReal.ofReal_le_ofReal hwr)
+  set X : ENNReal := ENNReal.ofReal (δ / 8) + (ENNReal.ofReal Wsum
+    + ENNReal.ofReal (heavy + Real.exp (-(ηc / ph))))
+  have hhaz : ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => Dd)
+      {d | AnyB (applyCheck (R.read · ω) C K)
+        (CheckHazard (R.read · ω) C K M side (WrongStep M side (R.read · ω) C)) initialState
+        (List.ofFn d)} ∂μ ≤ X := by
+    calc _ ≤ ∫⁻ ω, (g₁ ω + (c₂ + (toMeasurable μ Bad).indicator 1 ω)) ∂μ := lintegral_mono hpt
+      _ = ∫⁻ ω, g₁ ω ∂μ + (c₂ + μ (toMeasurable μ Bad)) := by
+          rw [lintegral_add_right (fun ω => g₁ ω) (show Measurable fun ω =>
+              c₂ + (toMeasurable μ Bad).indicator 1 ω from measurable_const.add
+                (measurable_one.indicator (measurableSet_toMeasurable _ _))),
+            lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one,
+            lintegral_indicator_one (measurableSet_toMeasurable _ _)]
+      _ ≤ X := by
+          rw [measure_toMeasurable, hc₂]
+          simp only [X]
+          gcongr
+          exact hg₁.trans (ENNReal.ofReal_le_ofReal hwr)
+  calc _ ≤ ENNReal.ofReal (7 * δ / 8) + 2 * X :=
+        add_le_add (ENNReal.ofReal_le_ofReal hround) (by gcongr)
     _ = _ := by
-        have e : 7 * δ / 8 + (δ / 8 + (Wsum + (heavy + Real.exp (-(ηc / ph)))))
-            = δ + Wsum + heavy + Real.exp (-(ηc / ph)) := by ring
         have h1 : 0 ≤ heavy + Real.exp (-(ηc / ph)) := by positivity
+        have e : 7 * δ / 8 + 2 * (δ / 8 + (Wsum + (heavy + Real.exp (-(ηc / ph)))))
+            = 9 * δ / 8 + 2 * (Wsum + heavy + Real.exp (-(ηc / ph))) := by ring
         rw [← e, ENNReal.ofReal_add (p := 7 * δ / 8) (by positivity) (by positivity),
+          ENNReal.ofReal_mul (by norm_num), ENNReal.ofReal_ofNat,
           ENNReal.ofReal_add (p := δ / 8) (by positivity) (by positivity),
           ENNReal.ofReal_add (p := Wsum) hWsum0 h1]
 
