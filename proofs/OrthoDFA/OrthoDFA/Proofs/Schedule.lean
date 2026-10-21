@@ -170,10 +170,10 @@ screen at least
 
 whatever `g`.  The test spends four one-sided deviations on it — the seed's and the
 candidate's, each against the measured floor — so the factor here is capped below `2`.
-`sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `15/2` in `solvedStateAt`;
+`sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `63/2` in `solvedStateAt`;
 the two constants move together. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℝ :=
-  flipBudget η populations indecisionLimit εcov δ * ((1 - η) * sig η) * (15 / 16)
+  flipBudget η populations indecisionLimit εcov δ * ((1 - η) * sig η) * (63 / 64)
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `9pAP/20` so
 that a twentieth of the pool is left for the draws the sampler redraws. -/
@@ -221,7 +221,7 @@ noncomputable def gateLogCount (K k : ℝ) : ℝ :=
   4 * K * (Real.log (4 * K * k) + 2 * Real.log (Real.log (4 * K * k)))
 
 /-- The counts the round's tails ask for, summed so each is met.  The gate's two terms pay for
-its deviations in `gateRoom`: the seed's and the references', at `log(128|J|(M + 3)/δ)`, take
+its deviations in `gateRoom`: the seed's and the references', at `log(32|J|(M + 3)/δ)`, take
 two fifths of it, and the levels', which shrink with the prefix count `n`, the rest.  With
 `K = (50/9)(gateDevD + 1)²/gateRoom²` the latter need
 
@@ -230,18 +230,18 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (128 * (populations.card : ℝ)
-      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
+  ⌈Real.log (16 * (populations.card : ℝ)
+      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
         / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
-        * Real.log (128 * (populations.card : ℝ)
+        * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
         / gateRoom η indecisionLimit εcov ^ 2⌉₊
     + ⌈gateLogCount (50 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ)
+    + ⌈Real.log (16 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
     + 1
@@ -263,9 +263,9 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
     - bandHalf η populations indecisionLimit εcov δ crossLimit - 1
   hi := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
     + bandHalf η populations indecisionLimit εcov δ crossLimit
-  sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+  sc := ⌈((⌈63 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations indecisionLimit εcov δ⌉₊
-  scd := ⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
+  scd := ⌈63 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
