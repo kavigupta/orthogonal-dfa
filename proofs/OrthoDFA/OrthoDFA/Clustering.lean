@@ -533,9 +533,9 @@ there cuts `≥ 1 − (513/512)·εcov` of the uniform pool the way the noiseles
 no tame population backwards (cuts at least `1/2 − εcov/512` of each
 that way), and leaves at most `2·indecisionLimit` of each tame population undecided; no state
 draws more prefixes than the first count below, nor asks for a family or a suffix pool larger
-than the sizes below.  Some state draws no more than the second count, which
-is what validity alone costs, so a stop is covered from there; the first count is what the loop
-may need before a round passes.  Every state's band is wide enough that a vote over a family no
+than the sizes below.  Some state draws no more than the second count, what validity costs
+and what makes a state's samplers rarely reject many of its draws, so a stop is covered from
+there; the first count is what the loop may need before a round passes.  Every state's band is wide enough that a vote over a family no
 larger than its own, whose mean lies above the band, lands at or below `lo`, or one whose mean
 lies at or below `lo` lands above `hi`, at most `crossLimit` of the time.
 
@@ -544,8 +544,10 @@ the one population every prefix of the learner's distribution is drawn from.  `p
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
-prefixes a state draws, and the suffix measure a collision mass small against the suffixes;
-the other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j`
+prefixes a state draws, at the rate scale times the signal: a draw then lands on what the
+state already holds rarely enough that its rejections are a binomial tail; and no string heavy
+against `δ` times the square of the rates, so the hash splits it evenly.  The suffix measure
+needs a collision mass small against the suffixes; the other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j`
 are the strings population `j` harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -580,8 +582,10 @@ def ClusteringGuarantee : Prop :=
       / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
-    (∃ B ∈ states, (B.npref : ℝ) ≤
-      5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2
+    (∃ B ∈ states, (B.npref : ℝ) ≤ max
+      (5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2)
+      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+        / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
     ) ∧
     (∀ B ∈ states,
       (B.k : ℝ) ≤ 25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
@@ -598,8 +602,11 @@ def ClusteringGuarantee : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
-          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
+        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 33 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δ * min εcov indecisionLimit ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real

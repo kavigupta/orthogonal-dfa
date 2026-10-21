@@ -731,6 +731,21 @@ lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0
     ≤ 6 * sig η₀ / 10) hf) (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
   nlinarith
 
+/-- The redraw fraction is at least a constant times the scale times the signal: the cut budget
+is a tenth of the scale, and the flip fraction three fifths of the signal. -/
+lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
+    6 * budgetScale η₀ indecisionLimit εcov * sig η₀ / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
+  have hs := sig_pos η₀ hsig
+  have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
+  have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
+  have hf : 6 * sig η₀ / 10 ≤ flipFrac η₀ := by
+    rw [flipFrac, div_le_div_iff₀ (by norm_num) (by linarith)]
+    nlinarith
+  rw [rejFrac]
+  have := mul_le_mul hcut hf (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
+  nlinarith
+
 /-- What the pool's collision cap buys: its redraws cost a hundred-and-twenty-eighth of the error
 budget per population. -/
 lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP ρsf : ℝ}

@@ -62,8 +62,11 @@ def ClusteringQualityGuarantee : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
-          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
+        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 34 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δ * min εcov indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * (D j).real {t}
           ≤ δ * slack ^ 2) →
