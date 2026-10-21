@@ -12,9 +12,9 @@ the rates they resolve.  This file says it: every term is bounded by one polynom
 reciprocals of `sig η` and `budgetScale`, so the budget is `log` in the failure probability and
 polynomial in everything else.
 
-The two scales are not independent.  `screenMargin` carries `cutBudget · sig²`, and the tail
-it sits in squares it, so `sig` enters at the fourth power — and `cutBudget` is itself a minimum
-over `εcov`, `sig` and `indecisionLimit`, so a bound in `sig` alone cannot exist.
+The two scales are not independent.  `countSignal` carries `cutBudget · sig²`, and the count it
+sets squares it, so `sig` enters at the fourth power — and `cutBudget` is itself a minimum over
+`εcov`, `sig` and `indecisionLimit`, so a bound in `sig` alone cannot exist.
 
 With that bound `ClusteringGuarantee` follows from `ClusteringCorrect`, at the end.
 -/
@@ -46,9 +46,9 @@ private lemma ceil_le_of_le {x M : ℝ} (hx : x ≤ M) (hM : 0 ≤ M) : (⌈x⌉
 /-- The five tails, each named, so the bound can be read term by term. -/
 noncomputable def prefTerms (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : List ℝ :=
-  [ Real.log (16 * (populations.card : ℝ)
-      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2),
+  [ (populations.card : ℝ) * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+      / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4),
     Real.log (128 * (populations.card : ℝ) / δ)
       / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2),
     25 / 2 * (gateDevT η + gateDevU η) ^ 2
@@ -162,13 +162,12 @@ theorem poolCount_ge (populations : Finset J) (η indecisionLimit εcov δ pAP c
 set_option maxHeartbeats 1000000 in
 /-- The budget is polynomial in the reciprocals of the rates it resolves.
 
-`sig` enters at the fourth power because the screen's tail and the gate's are the binding
-ones: the screen's margin is `cutBudget · sig²`, the gate's deviations cost `1/sig²` each, and a
-deviation bound squares the margin it is given.  The population count enters squared because
-`flipBudget` divides by it, and `screenMargin` inherits that.
+`sig` enters at the fourth power because the count rule's term and the gate's are the binding
+ones: the count rule's signal is `cutBudget · sig²`, the gate's deviations cost `1/sig²` each,
+and a deviation bound squares the margin it is given.
 
-The pool's size is left inside the log rather than bounded in the rates: the screen's tail
-union-bounds over its pairs and the flip tail over its members, and nothing else reads it.
+The pool's size is left inside the log rather than bounded in the rates: the count rule's levels
+and the flip tail union-bound over its members, and nothing else reads it.
 
 `0 ≤ η` is what bounds `sig η` above; without it the noise rate may be negative, `sig` may be
 arbitrarily large, and the `sig ^ 4` in the denominator sends the bound below the count.
@@ -188,6 +187,86 @@ theorem prefCount_le_poly (populations : Finset J)
   have hM256 := poolCount_ge populations η indecisionLimit εcov δ pAP crossLimit hsig hη hind
     hεcov hpAP hpAP1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
+  -- the count rule's two levels, against the pool
+  have hηlt' : η < 1 / 2 := by rw [sig] at hsig; linarith only [hsig]
+  have hκ4 : (4 : ℝ) ≤ (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) := by
+    exact_mod_cast famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      η populations εcov δ hηlt'
+  have hMκ : 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP
+      ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
+    rw [poolCount]
+    push_cast
+    linarith [Nat.le_ceil (2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
+        + 1) / pAP),
+      Nat.cast_nonneg (α := ℝ)
+        ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊]
+  have hcl2 : cleanLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2
+      ≤ max 0 (Real.log (8 * (populations.card : ℝ)
+        * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) / δ)) / 2 := by
+    set M' : ℝ := (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
+    set κ' : ℝ := (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
+    set a : ℝ := apFloor pAP (poolCount η populations indecisionLimit εcov δ pAP crossLimit)
+      with ha
+    have ha' : a = M' * pAP / 2 - 1 := rfl
+    have haκ : κ' ≤ a := by
+      rw [ha']; rw [div_le_iff₀ hpAP] at hMκ; nlinarith
+    have hM'0 : 0 ≤ M' := Nat.cast_nonneg _
+    have haM : a ≤ M' := by rw [ha']; nlinarith [hM'0, hpAP1, hpAP]
+    have ha0 : 0 < a := by linarith
+    set X : ℝ := a / ((a - κ' + 1) * (δ / (8 * (populations.card : ℝ)))) with hX
+    have hX0 : 0 < X := by
+      have : 0 < a - κ' + 1 := by linarith
+      positivity
+    have hXle : X ≤ 8 * (populations.card : ℝ) * M' / δ := by
+      have hden : 0 < (a - κ' + 1) * (δ / (8 * (populations.card : ℝ))) := by
+        have : 0 < a - κ' + 1 := by linarith
+        have : (0 : ℝ) < (populations.card : ℝ) := by linarith
+        positivity
+      rw [hX, div_le_div_iff₀ hden hδ]
+      have h1 : a * δ ≤ M' * δ := mul_le_mul_of_nonneg_right haM hδ.le
+      have h2 : 1 ≤ a - κ' + 1 := by linarith
+      have hcp : (0 : ℝ) < (populations.card : ℝ) := by linarith
+      field_simp
+      nlinarith [mul_le_mul_of_nonneg_left h2 (by positivity : (0 : ℝ) ≤ M' * δ)]
+    have hlog : Real.log X ≤ Real.log (8 * (populations.card : ℝ) * M' / δ) :=
+      Real.log_le_log hX0 hXle
+    have heq : cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        = Real.sqrt (Real.log X / 2) := rfl
+    rw [heq]
+    by_cases h0 : 0 ≤ Real.log X / 2
+    · rw [Real.sq_sqrt h0]
+      have := le_max_right 0 (Real.log (8 * (populations.card : ℝ) * M' / δ))
+      linarith
+    · rw [Real.sqrt_eq_zero'.2 (by linarith)]
+      have := le_max_left 0 (Real.log (8 * (populations.card : ℝ) * M' / δ))
+      norm_num; positivity
+  have hhv2 : heavyLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2
+      ≤ max 1 (11 / 20 * Real.log (120 * (populations.card : ℝ)
+        * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)) := by
+    set M' : ℝ := (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
+    set κ' : ℝ := (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
+    set Y : ℝ := 15 * (M' + 1) / (κ' * (δ / (8 * (populations.card : ℝ)))) with hY
+    have hcp : (0 : ℝ) < (populations.card : ℝ) := by linarith
+    have hM0 : 0 ≤ M' := Nat.cast_nonneg _
+    have hY0 : 0 < Y := by rw [hY]; positivity
+    have hYle : Y ≤ 120 * (populations.card : ℝ) * (M' + 1) / δ := by
+      rw [hY, div_le_div_iff₀ (by positivity) hδ]
+      field_simp
+      nlinarith [mul_le_mul_of_nonneg_left (by linarith : (1 : ℝ) ≤ κ')
+        (by positivity : (0 : ℝ) ≤ 120 * (populations.card : ℝ) * (M' + 1) * δ)]
+    have hlog : Real.log Y ≤ Real.log (120 * (populations.card : ℝ) * (M' + 1) / δ) :=
+      Real.log_le_log hY0 hYle
+    have heq : heavyLevel η populations indecisionLimit εcov δ pAP crossLimit
+        = max 1 (Real.sqrt (11 / 20 * Real.log Y)) := rfl
+    rw [heq]
+    rcases le_total 1 (Real.sqrt (11 / 20 * Real.log Y)) with h | h
+    · rw [max_eq_right h]
+      have h0 : 0 ≤ 11 / 20 * Real.log Y := by
+        by_contra hn; push_neg at hn
+        rw [Real.sqrt_eq_zero'.2 hn.le] at h; linarith
+      rw [Real.sq_sqrt h0]
+      exact le_trans (by linarith) (le_max_right _ _)
+    · rw [max_eq_left h]; norm_num
   set c : ℝ := (populations.card : ℝ) with hcdef
   clear_value c
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
@@ -238,20 +317,20 @@ theorem prefCount_le_poly (populations : Finset J)
       simp only [flipFrac, ← hsdef]; field_simp; ring
     rw [he, le_div_iff₀ (by linarith only [hηlt] : (0 : ℝ) < 1 - η)]
     linarith only [mul_nonneg (by linarith only [hsig] : (0 : ℝ) ≤ 6 * s) hη]
-  -- the screen's margin pays `flipFrac`'s `1 − η` back, leaving `cutBudget · sig²`
-  have hsm : 2475 * B * s ^ 2
-      ≤ 51200 * (c * screenMargin η populations indecisionLimit εcov δ) := by
-    have hne : (1 : ℝ) - η ≠ 0 := by intro h; linarith only [h, hηlt]
-    have e : 51200 * (c * screenMargin η populations indecisionLimit εcov δ)
-        = 55755 / 2 * cut * s ^ 2 := by
-      simp only [screenMargin, flipBudget, flipFrac, ← hsdef, ← hcdef, ← hcutdef]
-      field_simp
-      ring
+  -- the count rule's signal is at least a multiple of `B · sig²`
+  have hΓ : 354 * B * s ^ 2 ≤ 6400 * countSignal η indecisionLimit εcov := by
+    have h1 : B * (6 * s) ≤ 10 * cut * (10 * flipFrac η) :=
+      le_mul2 hBpos.le (by linarith only [hsig]) hcutlb hf
+    have e : countSignal η indecisionLimit εcov
+        = 2 * s * (1 - η) * (59 * cut * flipFrac η / 64) := by
+      rw [countSignal, tableBudget, ← hcutdef, hsval]; ring
     rw [e]
-    nlinarith only [mul_le_mul_of_nonneg_right hcutlb (sq_nonneg s), hcutpos, sq_nonneg s]
-  have hsmpos : 0 < screenMargin η populations indecisionLimit εcov δ := by
-    have h7 : (0 : ℝ) < 2475 * B * s ^ 2 := by positivity
-    nlinarith only [lt_of_lt_of_le h7 hsm, hcpos]
+    have hη1 : 1 / 2 ≤ 1 - η := by linarith only [hηlt]
+    have h2 : 6 * B * s ≤ 100 * (cut * flipFrac η) := by linarith only [h1]
+    have h3 : 0 ≤ cut * flipFrac η := by
+      have := flipFrac_pos η hηlt; positivity
+    nlinarith only [mul_le_mul_of_nonneg_left h2 (by positivity : (0 : ℝ) ≤ s),
+      mul_le_mul_of_nonneg_left hη1 (by positivity : (0 : ℝ) ≤ s * (cut * flipFrac η)), hsig, h3]
   -- the pool, which enters only through the log
   set M : ℝ := (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) with hMdef
   clear_value M
@@ -397,11 +476,79 @@ theorem prefCount_le_poly (populations : Finset J)
   have hB2c : B ^ 2 ≤ 100 * cut ^ 2 := by
     have := mul_self_le_mul_self hBpos.le hcutlb
     nlinarith only [this]
-  have t1 : Real.log (16 * c * (M + 1) / δ)
-      / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2) ≤ 2600 * Q := by
-    refine tail_le hX hL0 (by positivity) hD ?_
-    have h := mul_self_le_mul_self (by positivity) hsm
-    nlinarith only [h]
+  have t1 : c * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+      / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * s ^ 4) ≤ 3000 * Q := by
+    -- the two levels' logs, against `L`
+    have hl8 : Real.log (8 * c * M / δ) ≤ 2 * L := by
+      have harg : 8 * c * M / δ ≤ T ^ 2 := by
+        rw [div_le_iff₀ hδ]
+        have : T * δ * 6 ≤ T * δ * T := mul_le_mul_of_nonneg_left hT6 (by positivity)
+        have e : T ^ 2 * δ = T * δ * T := by ring
+        have h8 : 8 * c * M ≤ 6 * (2 * ((c + 2) * M)) := by nlinarith only [hcpos, hM0]
+        linarith only [hTδ, this, e, h8]
+      have h := log_le_of_le_pow (by positivity) 2 harg
+      rw [hLdef]; push_cast at h; linarith only [h]
+    have hl120 : Real.log (120 * c * (M + 1) / δ) ≤ 4 * L := by
+      have harg : 120 * c * (M + 1) / δ ≤ T ^ 4 := by
+        rw [div_le_iff₀ hδ]
+        have hT3 : 216 ≤ T ^ 3 := by
+          have := pow_le_pow_left₀ (by norm_num) hT6 3
+          norm_num at this; linarith
+        have : T * δ * 216 ≤ T * δ * T ^ 3 := mul_le_mul_of_nonneg_left hT3 (by positivity)
+        have e : T ^ 4 * δ = T * δ * T ^ 3 := by ring
+        have h8 : 120 * c * (M + 1) ≤ 216 * (2 * ((c + 2) * M)) := by
+          nlinarith only [hcpos, hM256]
+        linarith only [hTδ, this, e, h8]
+      have h := log_le_of_le_pow (by positivity) 4 harg
+      rw [hLdef]; push_cast at h; linarith only [h]
+    have hu : cleanLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2 ≤ L := by
+      refine le_trans hcl2 ?_
+      have : max 0 (Real.log (8 * c * M / δ)) ≤ 2 * L := max_le (by linarith only [hL0]) hl8
+      linarith only [this]
+    have hx : heavyLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2 ≤ 3 * L := by
+      refine le_trans hhv2 (max_le (by linarith only [hL1]) ?_)
+      linarith only [hl120, hL0]
+    have hux : (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2 ≤ 8 * L := by
+      nlinarith only [hu, hx, sq_nonneg (cleanLevel η populations indecisionLimit εcov δ pAP
+        crossLimit - heavyLevel η populations indecisionLimit εcov δ pAP crossLimit)]
+    have hΓ2 : (354 * B * s ^ 2) ^ 2 ≤ (6400 * countSignal η indecisionLimit εcov) ^ 2 :=
+      pow_le_pow_left₀ (by positivity) hΓ 2
+    have hΓpos : 0 < countSignal η indecisionLimit εcov := by
+      have : 0 < 354 * B * s ^ 2 := by positivity
+      linarith only [this, hΓ]
+    have hQeq : Q * (s ^ 4 * B ^ 2) = c ^ 2 * L := by rw [hQdef]; field_simp
+    -- the first part
+    have h1 : c * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+        + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+        / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 ≤ 2990 * Q := by
+      rw [div_le_iff₀ (by positivity)]
+      have hcc : c * (8 * L) ≤ c ^ 2 * (8 * L) := by
+        nlinarith only [mul_nonneg (mul_nonneg hcpos.le (sub_nonneg.2 hc1)) hL0]
+      have hstep : c * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
+          + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+          ≤ c ^ 2 * (8 * L) := le_trans (mul_le_mul_of_nonneg_left hux hcpos.le) hcc
+      -- `(15/16 Γ)² ≥ (15/16)² (354/6400)² B² s⁴`
+      have hrhs : 2990 * Q * (15 / 16 * countSignal η indecisionLimit εcov) ^ 2
+          ≥ 2990 * Q * ((15 / 16) ^ 2 * (354 / 6400) ^ 2 * (B ^ 2 * s ^ 4)) := by
+        refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+        nlinarith only [hΓ2]
+      have e : 2990 * Q * ((15 / 16) ^ 2 * (354 / 6400) ^ 2 * (B ^ 2 * s ^ 4))
+          = 2990 * ((15 / 16) ^ 2 * (354 / 6400) ^ 2) * (Q * (s ^ 4 * B ^ 2)) := by ring
+      rw [e, hQeq] at hrhs
+      nlinarith only [hstep, hrhs, mul_nonneg (sq_nonneg c) hL0]
+    -- the second
+    have h2 : 1 / (4 * s ^ 4) ≤ 10 * Q := by
+      rw [div_le_iff₀ (by positivity)]
+      have hB4 : B ^ 2 ≤ 1 / 4 := by nlinarith only [hB2, hBpos]
+      have h1' : 1 ≤ Q * s ^ 4 * B ^ 2 := by
+        have : Q * s ^ 4 * B ^ 2 = c ^ 2 * L := by rw [← hQeq]; ring
+        rw [this]; nlinarith only [hc2, hL1]
+      have hQs0 : 0 ≤ Q * s ^ 4 := by positivity
+      have h4 : 4 ≤ Q * s ^ 4 := by nlinarith only [h1', hB4, hQs0]
+      nlinarith only [h4]
+    linarith only [h1, h2]
   have t2 : Real.log (128 * c / δ) / (2 * (cut / 32) ^ 2) ≤ 3200 * Q := by
     refine tail_le hR hL0 (by positivity) hD ?_
     nlinarith only [hB2c, mul_le_mul_of_nonneg_right hs4 (sq_nonneg B),
@@ -709,7 +856,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   simp only [ret_eq, familyAt_eq]
-  generalize (nearestClusterer : Clusterer S) = rule
+  set rule : Clusterer S := nearestClusterer with hrule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
@@ -816,7 +963,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit :=
     (caps_of_top populations η₀ indecisionLimit εcov δ α pAP crossLimit 0 (collisionMass Dsf)
       hN hM (by simp only [mul_zero]; positivity) (hcollSf _ htop)).2
-  refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
+  refine le_trans (clustering_correct O populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
     α δ ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAPPositive
     hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hδ hpoly le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))

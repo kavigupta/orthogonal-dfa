@@ -895,7 +895,7 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : 
       ≤ δ / 8 := by
   have hcle := cutBudget_le η₀ indecisionLimit εcov
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
-  obtain ⟨-, -, -, tth⟩ :=
+  obtain ⟨-, -, tth⟩ :=
     solved_tails (α := α) (crossLimit := crossLimit) η₀ populations hsig hε hind hδ hpAP hcard
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
@@ -2110,6 +2110,17 @@ lemma solved_signal (O : Oracle μ S) (hηle : O.η ≤ η₀) (hη₀ : η₀ <
     ∧ 2 ≤ 15 / 16 * (59 / 64 * cutBudget η₀ indecisionLimit εcov * flipFracOf O η₀)
         * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
         * (O.gap * (1 - 2 * O.η)) ^ 2 := by
+  have hmc : (populations.card : ℝ) * (cleanLevel η₀ populations indecisionLimit εcov δ pAP
+        crossLimit + heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+        / (15 / 16 * countSignal η₀ indecisionLimit εcov) ^ 2 + 1 / (4 * sig η₀ ^ 4)
+      ≤ (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) := by
+    refine le_trans (Nat.le_ceil _) ?_
+    have : ⌈(populations.card : ℝ) * (cleanLevel η₀ populations indecisionLimit εcov δ pAP
+        crossLimit + heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit) ^ 2
+        / (15 / 16 * countSignal η₀ indecisionLimit εcov) ^ 2 + 1 / (4 * sig η₀ ^ 4)⌉₊
+        ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
+      rw [prefCount]; omega
+    exact_mod_cast this
   set m : ℝ := (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) with hm
   set u : ℝ := cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit with hu
   set x : ℝ := heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit with hx
@@ -2124,13 +2135,6 @@ lemma solved_signal (O : Oracle μ S) (hηle : O.η ≤ η₀) (hη₀ : η₀ <
   have hΓ0 : 0 < Γ := countSignal_pos η₀ hη₀ hε hind
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hs : 0 < sig η₀ := sig_pos η₀ hη₀
-  -- the count the first term asks for
-  have hmc : Jc * (u + x) ^ 2 / (15 / 16 * Γ) ^ 2 + 1 / (4 * sig η₀ ^ 4) ≤ m := by
-    refine le_trans (Nat.le_ceil _) ?_
-    have : ⌈Jc * (u + x) ^ 2 / (15 / 16 * Γ) ^ 2 + 1 / (4 * sig η₀ ^ 4)⌉₊
-        ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
-      rw [prefCount]; omega
-    exact_mod_cast this
   have hm1 : Jc * (u + x) ^ 2 / (15 / 16 * Γ) ^ 2 ≤ m := by
     have : 0 ≤ 1 / (4 * sig η₀ ^ 4) := by positivity
     linarith
@@ -2152,8 +2156,7 @@ lemma solved_signal (O : Oracle μ S) (hηle : O.η ≤ η₀) (hη₀ : η₀ <
       have h := hm1
       rw [div_le_iff₀ (by positivity)] at h
       nlinarith [h]
-    exact abs_le_abs_of_sq_le_sq' (by positivity) hsq |>.2 |> fun h => by
-      simpa [abs_of_nonneg (by positivity : (0 : ℝ) ≤ 15 / 16 * Γ * m)] using h
+    exact le_of_pow_le_pow_left₀ two_ne_zero (by positivity) hsq
   have h1 : (u + x) * Real.sqrt (Jc * m)
       ≤ γ * (15 / 16 * (59 / 64 * cutBudget η₀ indecisionLimit εcov * flipFracOf O η₀) * m) := by
     refine le_trans hsig1 ?_
@@ -2178,7 +2181,7 @@ lemma solved_signal (O : Oracle μ S) (hηle : O.η ≤ η₀) (hη₀ : η₀ <
   have key : 2 ≤ (1 - 2 * η₀) ^ 2 * Real.sqrt m := by
     rw [hsigeq]
     have := mul_le_mul_of_nonneg_left hsqm (by positivity : (0 : ℝ) ≤ 4 * sig η₀ ^ 2)
-    rw [show 4 * sig η₀ ^ 2 * (1 / (2 * sig η₀ ^ 2)) = 2 by field_simp] at this
+    rw [show 4 * sig η₀ ^ 2 * (1 / (2 * sig η₀ ^ 2)) = 2 by field_simp; norm_num] at this
     exact this
   have hγpos : 0 ≤ γ := le_trans (sq_nonneg _) hγ0
   calc (2 : ℝ) ≤ (1 - 2 * η₀) ^ 2 * Real.sqrt m := key
@@ -2206,8 +2209,9 @@ lemma solved_countTails (η₀ : ℝ) (populations : Finset J) (hpop : populatio
   set ε : ℝ := δ / (8 * (populations.card : ℝ)) with hεdef
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hε : 0 < ε := by positivity
-  have hκ4 : (4 : ℝ) ≤ κ := by exact_mod_cast famCount_ge_four (indecisionLimit := indecisionLimit)
+  have hκ4' : 4 ≤ κ := famCount_ge_four (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) η₀ populations εcov δ hsig
+  have hκ4 : (4 : ℝ) ≤ κ := by exact_mod_cast hκ4'
   -- the pool's clean rows beyond the family
   have hMκ : 2 * ((κ : ℝ) + 1) / pAP ≤ (M : ℝ) := by
     rw [hMdef, poolCount]
@@ -2362,6 +2366,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     O hηle hη₀ populations hpop hεcov hindLim
   obtain ⟨hE1, hE2⟩ := solved_countTails (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) η₀ populations hpop (εcov := εcov) hδ hpAPPositive hη₀
+  rw [← hmdef] at hsignal hsq hcdirty
+  rw [← hκdef] at hE1 hE2
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   clear_value B κ m
   have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hη₀ hεcov hindLim
@@ -2469,10 +2475,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         : ℕ) : ℝ) ≤ pAP * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
           / 20 := Nat.floor_le (by positivity)
     linarith
-  · rw [hBkappa, hBM, apFloor]
+  · rw [hBkappa, apFloor]
     have hceil := hMceil
     rw [div_le_iff₀ hpAPPositive, hBM] at hceil
-    nlinarith
+    linarith
   · -- the drawn prefixes read a member's mass against at most half the cut budget
     have hfo2 : flipFracOf O η₀ ≤ 1 / 2 := by
       unfold flipFracOf
@@ -2499,9 +2505,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       have : (1 : ℝ) ≤ (populations.card : ℝ) * ((poolCount η₀ populations indecisionLimit εcov δ
           pAP crossLimit : ℝ) + 1) := by nlinarith [hcard1]
       nlinarith
-    rw [← hmdef]
     nlinarith [mul_le_mul_of_nonneg_left hhalf hL0]
-  · rw [hBkappa, hBM]; exact hE1
+  · rw [hBkappa]; exact hE1
   · rw [hBkappa, hBM]; exact hE2
   -- the pool holds a family
   · rw [hBk]
@@ -2708,7 +2713,8 @@ theorem clustering_correct : ClusteringCorrect := by
     (show δ / (128 * ((populations.card : ℝ) + 1)) ≤ δ / 16 by
       rw [div_le_div_iff₀ (by positivity) (by norm_num)]
       exact mul_le_mul_of_nonneg_left (by linarith) hδ.le)
-  have hvalid := validity_of_returned (rule := nearestClusterer) (crossLimit := crossLimit) hflat O populations
+  have hvalid := validity_of_returned (rule := nearestClusterer) (crossLimit := crossLimit) hflat O
+    populations
     uni huni D Dsf hsupp hsuppSf indecisionLimit εcov α hindLim hηle hη₀ hαpos (by linarith)
     ρ (collisionMass Dsf) hρ le_rfl hρsf0 hεcov δ hδ hδ1 pAP hpAPPositive hpAP1 hpAPBound
     hcoll
@@ -2723,10 +2729,12 @@ theorem clustering_correct : ClusteringCorrect := by
         ∩ FailAt nearestClusterer O populations uni D indecisionLimit εcov B.val)
     (fun B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ} =>
-      retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val) (δ / 2 + α) (δ / 2)
+      retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val)
+    (δ / 2 + α) (δ / 2)
     hvalid
     (le_trans (measureReal_mono (fun x hx B hB => hx B
-        (retAll_subset_retBy nearestClusterer O.mq η₀ indecisionLimit εcov α B.val hB)) (measure_ne_top _ _))
+        (retAll_subset_retBy nearestClusterer O.mq η₀ indecisionLimit εcov α B.val hB))
+        (measure_ne_top _ _))
       hterm)
   rw [show (1 : ℝ) - (δ / 2 + α + δ / 2) = 1 - δ - α by ring] at h
   refine le_trans h (measureReal_mono ?_ (measure_ne_top _ _))

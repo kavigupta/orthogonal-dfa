@@ -52,17 +52,17 @@ a member's mean by the gap between the classes, at most `1 − η`, and what is 
     (1 − η) · flipFrac η + voteSlack η = sig η
 
 Only termination needs this: the gate certifies the miscut itself, but a family it can pass
-has to be found among members the screen admits flipping up to `flipBudget`.
+has to be found whose members flip `tableBudget` on average.
 
-An oracle with a narrower gap absorbs proportionally more flips, and its screen sees each one
-proportionally less; `screenMargin` is solved at that pairing, not at this fraction. -/
+An oracle with a narrower gap absorbs proportionally more flips, and the count rule sees each one
+proportionally less; `countSignal` is solved at that pairing, not at this fraction. -/
 noncomputable def flipFrac (η : ℝ) : ℝ := 3 * sig η / (5 * (1 - η))
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
 noncomputable def voteSlack (η : ℝ) : ℝ := 2 * sig η / 5
 
 /-- The share of a population a round lets its family cut wrongly.  `εcov/8` and `s/10` hold the
-vote's misfire rate and the screen's cutoff, `indecisionLimit/2` is what the FNR test tolerates,
+vote's misfire rate and the count rule's budget, `indecisionLimit/2` is what the FNR test tolerates,
 and the last term is what the gate's charge leaves room for: a clean family is wrong on at most
 `13/8` of this, and the gate charges each wrong prefix `1/gateKappa`, so the charge takes at most
 `4/5` of the gate's limit. -/
@@ -325,7 +325,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
 
-At a handful of prefixes neither the screen nor the certification sample can see a dirty
+At a handful of prefixes neither the count rule nor the certification sample can see a dirty
 family, so the guarantee cannot cover a stop there. -/
 structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ pAP : ℝ)
     (N V : ℕ) (B : State) : Prop where

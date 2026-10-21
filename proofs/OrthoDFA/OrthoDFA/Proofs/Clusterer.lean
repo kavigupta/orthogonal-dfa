@@ -137,7 +137,8 @@ noncomputable def readLoss (reads : S → Prop) (P : Finset S) (v : S) : ℝ :=
 open scoped Classical in
 /-- `nearestRows` over the reads it is handed. -/
 noncomputable def nearestClusterer : Clusterer S where
-  pick := fun reads P cands k => insert 1 (leastLossSubset (readLoss reads P) (cands.erase 1) (k - 1))
+  pick := fun reads P cands k =>
+    insert 1 (leastLossSubset (readLoss reads P) (cands.erase 1) (k - 1))
   seed_mem := fun _ _ _ _ _ => Finset.mem_insert_self _ _
   subset := fun reads P cands k hone => Finset.insert_subset hone
     ((leastLossSubset_subset' _ _ _).trans (Finset.erase_subset _ _))

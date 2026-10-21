@@ -25,7 +25,8 @@ lemma integrable_of_bit_comp {e : Ω → ℝ} (he : Measurable e)
     Integrable (fun ω => f (e ω)) μ := by
   refine MeasureTheory.Integrable.of_bound (C := |f 0| + |f 1|) (hf.comp he).aestronglyMeasurable ?_
   filter_upwards [hebit] with ω hω
-  rcases hω with h | h <;> rw [h, Real.norm_eq_abs] <;> linarith [abs_nonneg (f 0), abs_nonneg (f 1)]
+  rcases hω with h | h <;> rw [h, Real.norm_eq_abs] <;>
+    linarith [abs_nonneg (f 0), abs_nonneg (f 1)]
 
 /-- With `e` a bit independent of `b ∈ [0, 1]`,
 
@@ -134,7 +135,8 @@ theorem subG_signed {e b : Ω → ℝ} (he : Measurable e) (hb : Measurable b)
       have hem1 : μ[e] ≤ 1 := by
         have : μ[e] ≤ μ[fun _ => (1 : ℝ)] :=
           integral_mono_ae (integrable_of_bit_comp he hebit id measurable_id)
-            (integrable_const _) (by filter_upwards [hebit] with ω h; rcases h with h | h <;> simp [h])
+            (integrable_const _)
+            (by filter_upwards [hebit] with ω h; rcases h with h | h <;> simp [h])
         simpa using this
       filter_upwards [hebit, hbI] with ω h1 h2
       have hk1 : |κ * (e ω - μ[e])| ≤ |κ| * 2 := by
@@ -154,7 +156,8 @@ theorem subG_signed {e b : Ω → ℝ} (he : Measurable e) (hb : Measurable b)
     unfold mgf
     have h := mgf_signed_le (μ := μ) he hb hebit hbI hind (t * κ) t
     have heq : (fun ω => Real.exp (t * ((1 - 2 * e ω) * (b ω - μ[b]) + κ * (e ω - μ[e]))))
-        = fun ω => Real.exp (t * κ * (e ω - μ[e])) * Real.exp (t * ((1 - 2 * e ω) * (b ω - μ[b]))) := by
+        = fun ω => Real.exp (t * κ * (e ω - μ[e]))
+          * Real.exp (t * ((1 - 2 * e ω) * (b ω - μ[b]))) := by
       funext ω; rw [← Real.exp_add]; ring_nf
     rw [heq]
     refine le_trans h (le_of_eq ?_)
@@ -274,7 +277,7 @@ lemma measurable_rowTerm_block (O : Oracle μ S) (v p : S) :
       (h1.sub measurable_const)))
 
 /-- A row's terms are independent across the table's prefixes: each reads `p` and `p · v`, and
-those pairs are disjoint, as in `seedLoss_indep`. -/
+those pairs are disjoint. -/
 lemma rowTerm_indep {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hvS : v ∈ insert 1 Suf) :
     iIndepFun (fun p : {p // p ∈ P} => rowTerm O v p.val) μ := by
@@ -1019,7 +1022,8 @@ theorem measureReal_famHeavy_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     (hmass : 2 * L * (Δ + c + g) ≤ B.npref * g ^ 2)
     (hρD : collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
-    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
+    (runMeasure μ D Dsf).real {x : Run Ω S J |
+        ¬ ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
         flipMass O (D j) v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
           * (Δ + c + g)}
       ≤ ((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))

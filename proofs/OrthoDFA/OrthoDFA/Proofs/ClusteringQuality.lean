@@ -424,7 +424,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
-  generalize (nearestClusterer : Clusterer S) = rule
+  set rule : Clusterer S := nearestClusterer with hrule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -532,7 +532,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 8 * (Jc + 1) * m := by
       linarith only [h, mul_nonneg hJ1 hm.le]
     exact mul_le_mul_of_nonneg_left h' hs2
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ iL εcov α δ'
+  have hcc := clustering_correct O populations uni D Dsf Pre Suf η₀ iL εcov α δ'
     ρ₀ pAP crossLimit 60000 hηle hη₀ huni hflat hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
