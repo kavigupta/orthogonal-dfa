@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.AdaptiveReads
+import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
@@ -14,6 +15,7 @@ import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
 import OrthoDFA.Proofs.RaceReads
+import OrthoDFA.Proofs.RaceTail
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
 import OrthoDFA.Proofs.SuccessiveDraws
@@ -29,12 +31,13 @@ The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`,
+`Level3AllowanceCorrect`, stated in `OrthoDFA.AllowanceClaim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`RaceTailBound`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
@@ -121,10 +124,18 @@ theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
 
 #print axioms race_reads_bound
 
+theorem race_tail_bound : RaceTailBound := raceTailBound_holds
+
+#print axioms race_tail_bound
+
 theorem level5_round_correct : Level5RoundCorrect :=
   Random.Kappa.level5RoundCorrect_holds
 
 #print axioms level5_round_correct
+
+theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
+
+#print axioms level3_allowance_correct
 
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 
