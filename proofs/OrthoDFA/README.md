@@ -59,9 +59,9 @@ of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|
 
     L₀ = 2(log (E + E₂) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 500.4`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 501, and the least meeting `LearnerLoopDFASimple`'s
-hypotheses 469.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 418.8`; the
+least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 419, and the least meeting `LearnerLoopDFASimple`'s
+hypotheses 369.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
@@ -116,9 +116,11 @@ the event that some step reads a string wrong (`pi_wrong_le'`), and the Markov b
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `96 prefixMax / ε` on a string, within `cap`, which also bounds the suffixes' atoms; its strings are
 at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's atom
-conditions, every population tame, linear in the schedule's prefix count `NP` and suffix pool
-`NS`, hold, and the earlier rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a
-round, hold at most `m` of any population and `ms` of the suffixes. `NS` and `NP` are bounded by
+conditions hold, every population tame: its samplers' rejections, `NP·cap` under the rate scale
+times the signal; the hash's balance and the quality's deviation, `log₂ NP·cap` under `δ` times
+the rates squared; and the tables' own mass, `NP·cap` under the slack. The earlier rounds'
+reads, at most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any
+population and `ms` of the suffixes. `NS` and `NP` are bounded by
 `poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`).
 
 The rounds' draws are independent, and given the earlier rounds a round's clustering draws, the

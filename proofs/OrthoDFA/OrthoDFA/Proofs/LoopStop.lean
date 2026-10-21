@@ -93,7 +93,7 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
   have hcert : ∀ j ∈ pops, ∀ e ≤ B.npref, certOf P j (B.npref + e) x ⊆ roundPrefs sched pops x :=
     fun j hj e he => certOf_sub_roundPrefs hB hj he x
   set cl : Ω → Finset (FreeMonoid α) := fun ω'' =>
-    clusterOf lloydClusterer O B.sc B.scd P C B.k ω''
+    clusterOf nearestClusterer O B.sc B.scd P C B.k ω''
   have hcl : cl ω = cl ω' :=
     clusterOf_congr_mq O B.sc B.scd P C B.k hone fun w hw => h w (readSet_mono' hPs hCs hw)
   have hins : ∀ v ∈ insert 1 (cl ω), v ∈ insert 1 (roundSuffs sched x) := by
