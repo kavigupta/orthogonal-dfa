@@ -302,12 +302,19 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
   on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
   with chance at most `δ` under level 4's premises with the last replaced by
-  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ (5S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
+  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ ((16/5)S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
   A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
   probe's sifts stop at their first undecided read, and the tests count it: under the `j`-th
-  hypothesis, until a test fires, the probes stopping undecided number at most `5 log(1/a_j)`,
+  hypothesis, until a test fires, the probes stopping undecided number at most `(16/5) log(1/a_j)`,
   whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
   wrong with chance at most `δ/8`.
+- `OrthoDFA/AllowanceClaim.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its reads
+  independent and undecided at their state's rate but with no premise on wrong reads, fails to end
+  well with chance at most `7δ/8` plus the chance that a step grows its tree past `|Q| + f + 2`
+  leaves (`GrowsRun`), under level 5's premises with `S`, `K`, `A` and `η` taken at `|Q| + f`
+  states. Level 3's stretches use right reads only to keep the tree in its class; the proof runs
+  level 5's frame on the target padded with `f` unreachable states, with the leaf count as the
+  invariant.
 - `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
   suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
   side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the

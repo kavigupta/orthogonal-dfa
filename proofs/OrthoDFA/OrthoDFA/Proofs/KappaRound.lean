@@ -136,15 +136,16 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
     (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
   obtain ⟨kn, hA, hθg, hηm0, hη0, hAe, hAm, hround⟩ := round_knobs (σ := σ) (α := α) C P.L p₀ hp₀
     hδ hδ1 hy0 hyρ hρ1 (by exact_mod_cast hP)
-  refine (eps_round_le_of C M side U _ _ _ μ R.read R.measurable R.indep R.undecided
-    (fun rd => ReadsWrong M side rd C)
+  refine (eps_round_le_of C M U _ _ _ μ R.read R.measurable R.indep R.undecided
+    (WitInv M side) (fun _ _ ht he hg => witInv_congr M side hg ht he) (witInv_start M side)
+    (fun rd _ hs hg => cls_mem' M side rd hs hg) (fun rd => ReadsWrong M side rd C)
     (fun rd _ _ _ hs hg hx h hne => kappa_step_change M side rd C hs hg hx h hne) P _ p₀ _ kn hA
     hp₀ hpre hy0 (by linarith) hη0 hAe hAm le_rfl hθg hηm0).trans ?_
   refine (add_le_add le_rfl (pi_wrong_le' M side C μ U εw κ R P hεw hκ hy0 hyρ hρ1 hδ
     hδ1.le)).trans ?_
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1.le
-  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
+  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]

@@ -4,8 +4,8 @@ import OrthoDFA.Proofs.EpsReads
 # Level 3 with rare wrong reads: the proof
 
 Given the reads, the round fails to end well only where a stretch risks it, as at level 3, or
-where some step is bad (`eps_probe_level`): a step that is not keeps `WitInv`, so the tree stays in
-the class level 3's stretches need. The run stopped at the first bad step (`stopAt`) has level 3's
+where some step is bad (`eps_probe_level`): a step that is not keeps an invariant `J` that keeps
+the tree in the class level 3's stretches need. Level 5 takes `J` to be `WitInv`. The run stopped at the first bad step (`stopAt`) has level 3's
 stretches. Over the reads, the probes harvest within their bounds but for the tails at every
 state's rate (`harvest_noise`).
 
@@ -67,16 +67,20 @@ variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → AR
   (D : Measure (FreeMonoid α)) (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
 /-- The steps `W` that a step changing the hypothesis must avoid to keep the invariants. -/
-def KeepsInv (W : Level3State α → FreeMonoid α → Prop) : Prop :=
-  ∀ ⦃s s' : Level3State α⦄ ⦃x : FreeMonoid α⦄, Inv read s → WitInv M side s → ¬ W s x →
+def KeepsInv (J : Level3State α → Prop) (W : Level3State α → FreeMonoid α → Prop) : Prop :=
+  ∀ ⦃s s' : Level3State α⦄ ⦃x : FreeMonoid α⦄, Inv read s → J s → ¬ W s x →
     applyProbe read C s x = .inl s' → ¬ (s'.tree = s.tree ∧ s'.edges = s.edges) →
-    Inv read s' ∧ WitInv M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
+    Inv read s' ∧ J s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
       ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s
 
+/-- `J` is about the hypothesis only. -/
+def HypInv (J : Level3State α → Prop) : Prop :=
+  ∀ ⦃s s' : Level3State α⦄, s'.tree = s.tree → s'.edges = s.edges → J s → J s'
+
 /-- A run with no bad step, a step `W` counted as bad, ends well, given enough probes. -/
-theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
-    (hW : KeepsInv read C M side W) :
-    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → WitInv M side s →
+theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
+    (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C (σ := σ) J W) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s → J s →
       s.probeCount < Ns → Ψr (Fintype.card σ) s * Ns + (Ns - s.probeCount) ≤ xs.length →
       ¬ AnyB (applyProbe read C) (BadStep read C M U A sl D ε Ns y W) s xs →
       EndsWell
@@ -106,7 +110,7 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
         have hlt : s'.probeCount < Ns := by
           have : s'.probeCount ≠ Ns := fun h => hb1 (Or.inr ⟨s', hst, hsm, h⟩)
           omega
-        refine eps_ends_of_not_anyB W hW xs s' hs' (witInv_congr M side hg hsm.1 hsm.2) hlt ?_
+        refine eps_ends_of_not_anyB J hJ W hW xs s' hs' (hJ hsm.1 hsm.2 hg) hlt ?_
           (hb2 s' hst)
         rw [hΨ, hn']
         simp only [List.length_cons] at hlen
@@ -114,7 +118,7 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
       · have hx : ¬ W s x := fun h => hb1 (Or.inl ⟨hn, Or.inr h⟩)
         obtain ⟨hs', hg', hf, -, hΨ⟩ := hW hs hg hx hst hsm
         have h0 : s'.probeCount = 0 := by rw [hf]; rfl
-        refine eps_ends_of_not_anyB W hW xs s' hs' hg' (by omega) ?_ (hb2 s' hst)
+        refine eps_ends_of_not_anyB J hJ W hW xs s' hs' hg' (by omega) ?_ (hb2 s' hst)
         rw [h0, Nat.sub_zero]
         simp only [List.length_cons] at hlen
         have : (Ψr (Fintype.card σ) s' + 1) * Ns ≤ Ψr (Fintype.card σ) s * Ns :=
@@ -127,7 +131,9 @@ theorem eps_ends_of_not_anyB (W : Level3State α → FreeMonoid α → Prop)
 
 /-- Given the reads, the round fails to end well with chance at most what the stretches risk at
 their levels, plus the chance that some step is `W`. -/
-theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C M side W)
+theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J initialState)
+    (hJcls : ∀ s, Inv read s → J s → s.tree ∈ classSet (Fintype.card σ))
+    (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C (σ := σ) J W)
     [IsProbabilityMeasure D] (P N₁ : ℕ)
     (Ge θgpt ηm pM θr εd' θe' θpt' : ℝ)
     (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
@@ -178,8 +184,8 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
   set step₂ := stopAt (applyProbe read C) W (RoundEnd.failed : RoundEnd Level3Site)
   set B₁ := BadStep read C M U A sl D ε Ns y fun _ _ => False
   set b : ℕ → ENNReal := fun j => ENNReal.ofReal (stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
-  set I : Level3State α → Prop := fun s => Inv read s ∧ WitInv M side s ∧ s.probeCount < Ns
-  have hI0 : I initialState := ⟨inv_start read, witInv_start M side,
+  set I : Level3State α → Prop := fun s => Inv read s ∧ J s ∧ s.probeCount < Ns
+  have hI0 : I initialState := ⟨inv_start read, hJ0,
     by simp only [initialState, newHypothesis]; omega⟩
   have hseg : ∀ s, I s → s = newHypothesis s.tree s.edges s.hypotheses → ∀ N,
       (Measure.pi fun _ : Fin N => D) {xs | SegB step₂ B₁ Same s (List.ofFn xs)}
@@ -187,7 +193,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
     rintro s ⟨hs, hg, -⟩ hf N
     refine (measure_mono fun xs hxs => segB_stopAt _ _ _ _ _ _ _ hxs).trans ?_
     have := seg_le read C M U A sl D ε Ns y (fun _ _ => False) (fun _ => False) 0 N₁ Ge θgpt ηm pM
-      θr εd' θe' θpt' hs hf (cls_mem' M side read hs hg) hNe hNm (fun _ _ _ _ _ h => h.elim)
+      θr εd' θe' θpt' hs hf (hJcls s hs hg) hNe hNm (fun _ _ _ _ _ h => h.elim)
       (fun N => by simp) hN₁ hN₁s (level_pos C hδ _) hθs0 (by rw [hsa]; linarith)
       (by rw [hsa]; linarith) hps hθpt0 (by rw [hm]; linarith) (by rw [hm]; linarith) hθg hpM0
       hyM hηm hfall
@@ -202,7 +208,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
       obtain ⟨hs, hg, hn⟩ := hI
       have h := (stopAt_inl _ _ _ h).2
       obtain ⟨h1, h2, h3, h4⟩ := step_same read C hs h hsm.1 hsm.2
-      refine ⟨⟨h1, witInv_congr M side hg hsm.1 hsm.2, ?_⟩, h2 _, h4⟩
+      refine ⟨⟨h1, hJ hsm.1 hsm.2 hg, ?_⟩, h2 _, h4⟩
       have : s'.probeCount ≠ Ns := fun hc => hb (Or.inr ⟨s', h, hsm, hc⟩)
       omega)
     (fun s x s' hI h hsm hb => by
@@ -225,7 +231,7 @@ theorem eps_probe_level (W : Level3State α → FreeMonoid α → Prop) (hW : Ke
             (List.ofFn xs) := by
           by_contra hb
           have hn0 : (initialState : Level3State α).probeCount = 0 := rfl
-          refine hxs (eps_ends_of_not_anyB read C M side U A sl D ε Ns y W hW _ initialState hI0.1
+          refine hxs (eps_ends_of_not_anyB read C M U A sl D ε Ns y J hJ W hW _ initialState hI0.1
             hI0.2.1 (by rw [hn0]; exact hNs) ?_ hb)
           rw [hn0, Nat.sub_zero, List.length_ofFn]
           have : (Ψr (Fintype.card σ) (initialState : Level3State α) + 1) * Ns
@@ -269,8 +275,10 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : ProbabilityTheory.iIndepFun read μ)
     (hund : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList))
+    (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J initialState)
+    (hJcls : ∀ rd s, Inv rd s → J s → s.tree ∈ classSet (Fintype.card σ))
     (W : (FreeMonoid α → ARU) → Level3State α → FreeMonoid α → Prop)
-    (hW : ∀ rd, KeepsInv rd C M side (W rd)) (P : PrefixDistribution α) (y p₀ η : ℝ) (kn : Knobs)
+    (hW : ∀ rd, KeepsInv rd C (σ := σ) J (W rd)) (P : PrefixDistribution α) (y p₀ η : ℝ) (kn : Knobs)
     (hA : kn.Admissible (σ := σ) (α := α) C ε y) (hp₀ : 0 < p₀)
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
@@ -329,7 +337,8 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans (le_add_self.trans le_self_add)
     · rw [Set.indicator_of_notMem hω, add_zero]
-      exact eps_probe_level (read · ω) C M side U A sl P.D ε Ns y (W (read · ω)) (hW (read · ω))
+      exact eps_probe_level (read · ω) C M U A sl P.D ε Ns y J hJ hJ0 (hJcls (read · ω))
+        (W (read · ω)) (hW (read · ω))
         C.probeBudget N₁ Ge θgpt ηm pM
         θr εd' θe' θpt' (hgood ω hω).1 (hgood ω hω).2
         hN₁ hN₁s hδ hθs0 hθs1 hps hθpt0 hθpt1 hθg4 hpM0 hyM hηm hfall hεd0 hεd1 hε
