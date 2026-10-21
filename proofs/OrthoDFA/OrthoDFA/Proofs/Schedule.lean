@@ -260,7 +260,9 @@ which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
 
 The first term is the count rule's: a heavy row's flip signal, `(15/16)·countSignal` a prefix,
 has to clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes, and `1/(4 sig⁴)` keeps
-the heavy rows' charge largest at the least of them. -/
+the heavy rows' charge largest at the least of them.  The second is the heavy hits' relative
+tail: a hit rate of at most `cutBudget` reaches `(1 + 1/32)·cutBudget` at the rate
+`relRate`, `cutBudget/2112`; with it the undecided share's tail at `indecisionLimit/2`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℕ :=
   ⌈(populations.card : ℝ) * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit

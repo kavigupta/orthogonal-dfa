@@ -3242,8 +3242,8 @@ theorem selection_block_bound (O : Oracle μ S) (R Q : Finset S)
     _ ≤ E := hmain
 
 open scoped Classical in
-/-- Hoeffding on a per-prefix failure count.  Each prefix's failure is decided by its own
-block of strings, the blocks are disjoint, so the failures are independent. -/
+/-- The relative upper tail of a per-prefix failure count.  Each prefix's failure is decided by
+its own block of strings, the blocks are disjoint, so the failures are independent. -/
 theorem count_frac_hoeffding (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
     (hblk : ∀ p ∈ C, ∀ q ∈ C, p ≠ q → Disjoint (blk p) (blk q))
     (Bad : S → Set Ω) (hmeasB : ∀ p, MeasurableSet[noiseAlg O ↑(blk p)] (Bad p))
@@ -3343,7 +3343,7 @@ theorem frac_selected_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ
     hmeasU hmeasR _ (Real.exp_nonneg _) hfixed
 
 open scoped Classical in
-/-- The indecision rate on the certification sample is below the limit, off a Hoeffding
+/-- The indecision rate on the certification sample is below the limit, off a relative
 tail. -/
 theorem indecision_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
@@ -3795,7 +3795,7 @@ lemma card_filter_fin_eq (m : ℕ) (Q : S → Prop) [DecidablePred Q] (y : ℕ �
 open scoped Classical in
 /-- The draws are not mostly prefixes the family flips.  The heavy set is chosen by the
 noise and the table; the certification draws are neither, so their hit count is the upper
-Hoeffding tail at its mass. -/
+tail relative to its mass. -/
 noncomputable def heavyHits (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
     (Dj : Measure S) (j : J) (B : State) (f q t : ℝ) : Set (Run Ω S J) :=
   {x | Dj.real {p | ¬ (flipCount O (clusterBy rule O.mq populations x B) p
