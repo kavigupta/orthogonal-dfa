@@ -378,7 +378,6 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   classical
   have hsig : O.η ≤ 1 / 2 := by linarith [hηle]
   have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρu 1)
-  have hρc : collisionMass (D uni) ≤ ρ := collisionMass_le_of_atoms (D uni) hρu
   set N : ℕ := B.npref with hN
   set M : ℕ := B.nsuff with hM
   set K : ℕ := 2 * (N - (H j).card - G) with hK
@@ -419,12 +418,12 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   have bs : (runMeasure μ D Dsf).real (Y ⁻¹' Es)
       ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
         + (Real.exp (-2 * (M : ℝ) * tap ^ 2)
-        + (((N + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
+        + (rejTail (N + r) (((N + r : ℕ) : ℝ) * ρ) r
           + 2 * ((M : ℝ) + 1) * Real.exp (-2 * (N : ℝ) * γscr ^ 2))) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B kk kk) (fun g =>
       measureReal_stalled_le hflat O populations _ _ Dsf (hsT g) hsuppSf B (by omega) uni huni
         (D uni) (sideLawT_uni H uni D g) γscr pAP tap ρsf ρ rs r hγscr hpAP0 htap hpAPBound hscd
-        hsig hscLow hcount hρsf hρsf0 hρc hρ0)
+        hsig hscLow hcount hρsf hρsf0 hρu)
   have bn : (runMeasure μ D Dsf).real (Y ⁻¹' En)
       ≤ Real.exp (-2 * (M : ℝ) * tap ^ 2) + ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_noClean O populations B)
@@ -450,19 +449,17 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     exact coins_window_card_le (winAt H K j x) N G hNpos
       (le_trans (window_card_le _ K _) (by omega))
   have bt : (runMeasure μ D Dsf).real (Y ⁻¹' Et)
-      ≤ ((N + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1)) :=
+      ≤ rejTail (N + r) (((N + r : ℕ) : ℝ) * ρ) r :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_notTabGood uni N r) (fun g =>
-      measureReal_tabBad_le _ _ Dsf uni (D uni) (sideLawT_uni H uni D g) N r ρ hρc hρ0)
-  have bh : (runMeasure μ D Dsf).real Eh ≤ 2 * ((N + r : ℕ) : ℝ) * ρ / θ := by
+      measureReal_tabBad_le _ _ Dsf uni (D uni) (sideLawT_uni H uni D g) N r ρ hρu)
+  have bh : (runMeasure μ D Dsf).real Eh
+      ≤ rejTail (N + r) (((2 * N : ℕ) : ℝ) * ρ) (⌈θ * N⌉₊ - 1) := by
     refine runMeasure_base_le D Dsf _ (measurableSet_hitsBad H K (N + r) (θ * N) uni j) ?_
     refine le_trans (measureReal_hits_le D Dsf uni j hju hρu _ K (N + r) (by positivity)) ?_
-    have hKN : (K : ℝ) ≤ 2 * N := by
+    have hKN : ((K : ℕ) : ℝ) ≤ ((2 * N : ℕ) : ℝ) := by
       have : K ≤ 2 * N := by omega
       exact_mod_cast this
-    rw [div_le_div_iff₀ (by positivity) hθ]
-    have h0 : (0 : ℝ) ≤ ((N + r : ℕ) : ℝ) * ρ := by positivity
-    have h1 := mul_le_mul_of_nonneg_left hKN (mul_nonneg h0 hθ.le)
-    nlinarith [h1]
+    exact rejTail_mono (by positivity) le_rfl (mul_le_mul_of_nonneg_right hKN hρ0) _
   have bl : (runMeasure μ D Dsf).real (Y ⁻¹' El)
       ≤ Real.exp (-((N : ℝ) * relRate l E)) + Real.exp (-((N : ℝ) * relRate (5 / 8 * lcut) E)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_lightMiss O populations j B l lcut
@@ -523,7 +520,6 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρu 1)
-  have hρc : collisionMass (D uni) ≤ ρ := collisionMass_le_of_atoms (D uni) hρu
   have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
   have hsigle : O.η ≤ 1 / 2 := hsig.le
   obtain ⟨B, hB, hpass⟩ := exists_passable (crossLimit := crossLimit) (hsz := (allHarvest H).card)
@@ -604,11 +600,11 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       (stalled rule O populations B κ κ)
       ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))
         + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
-        + (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
+        + (rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
           + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γscr ^ 2))) := fun g =>
     measureReal_stalled_le hflat O populations _ _ Dsf (hsT g) hsuppSf B (by omega) uni huni
       (D uni) (sideLawT_uni H uni D g) γscr pAP tap (collisionMass Dsf) ρ rs r hγscr hpAP0 htap
-      hpAPBound' hscd hsigle hscLow hcount hρsf' hρsf0 hρc hρ0
+      hpAPBound' hscd hsigle hscLow hcount hρsf' hρsf0 hρu
   have huniB : ν.real {x | Y x ∉ retAtK rule O populations uni η₀ indecisionLimit εcov α B uni}
       ≤ roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf) t r rs
         B := by
@@ -617,15 +613,15 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     set Pp := sideLawT H uni D g
     set Pc := sideLawC H uni D g
     have hcertB : (streamMeasure μ Pp Pc Dsf).real {x | ¬ certGood populations uni B.npref r x}
-        ≤ (((2 * B.npref + r : ℕ) : ℝ) * ((populations.card : ℝ) * B.npref * ρ)
-          + ((2 * B.npref + r : ℕ) : ℝ) ^ 2 * ρ / 2) / ((r : ℝ) + 1) :=
+        ≤ rejTail (2 * B.npref + r)
+          (((populations.card * B.npref + (2 * B.npref + r) : ℕ) : ℝ) * ρ) r :=
       le_trans (measureReal_mono (fun x hx h2 => hx (certGood_of_certGood2 populations uni
           B.npref r x h2)) (measure_ne_top _ _))
         (measureReal_certBad2_le Pp Pc Dsf populations uni (D uni) (sideLawC_uni H uni D g)
           B.npref r ρ hρu)
     have hdirtyB : (streamMeasure μ Pp Pc Dsf).real
         {x | ¬ ∀ v ∈ clusterBy rule O.mq populations x B, flipMass O (D uni) v ≤ Δp}
-        ≤ (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
+        ≤ (rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
             + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
             + (B.nsuff : ℝ) * Real.exp (-((B.npref : ℝ) * (gdirty ^ 2 / lcut))))
           + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
@@ -641,7 +637,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
           (div_le_div_of_nonneg_left (sq_nonneg _) (by linarith) hhalf) (Nat.cast_nonneg _)
       have hdirtyI := measureReal_dirtyMember_le (rule := rule) hflat O populations Pp Pc Dsf
         (hsT g) hsuppSf uni huni (D uni) (sideLawT_uni H uni D g) B hsigle hmpos Δ γdirty gdirty
-        c ρ r hΔ hγdirty hgdirty hc0 hρ0 hr hρc hscd hscHigh
+        c ρ r hΔ hγdirty hgdirty hc0 hr hρu hscd hscHigh
       have hnoclean := measureReal_noCleanRef_le Pp Pc Dsf O populations B pAP tap
         (collisionMass Dsf) rs hpAP0 htap hpAPBound' le_rfl hρsf0 (by
           have hk2 : (2 : ℝ) ≤ (B.k : ℝ) := by exact_mod_cast hkpos
@@ -684,9 +680,9 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       hscLow hscHigh hcount hρu hρsf' hρsf0 hdec hcut
   -- every population
   have hRF0 : 0 ≤ roundFail populations l lcut th E γscr γdirty gdirty tap ρ (collisionMass Dsf)
-      t r rs B := by unfold roundFail; positivity
-  have hNF0 : 0 ≤ namedFail l lcut E γscr γdirty tap ρ (collisionMass Dsf) t L θ r rs G B := by
-    unfold namedFail; positivity
+      t r rs B := roundFail_nonneg populations _ _ _ _ _ _ _ _ ρ _ t r rs B hρ0 hρsf0
+  have hNF0 : 0 ≤ namedFail l lcut E γscr γdirty tap ρ (collisionMass Dsf) t L θ r rs G B :=
+    namedFail_nonneg _ _ _ _ _ _ ρ _ t L θ r rs G B hρ0 hρsf0
   have hsub : {x : Draws Ω S J | ∀ B' : {B : State // B ∈ stoppable η₀ populations
           indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card ρ},
         Y x ∉ retAll rule O.mq populations uni η₀ indecisionLimit εcov α B'.val}

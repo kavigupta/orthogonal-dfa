@@ -406,8 +406,11 @@ def ClusteringQualitySized : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * (B.npref : ℝ) * (D j).real {t}
-          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2) →
+        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 34 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δ * min εcov indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * (D j).real {t}
           ≤ δ * slack ^ 2) →
@@ -465,15 +468,17 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   set ρ₀ : ℝ := collisionCap η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz with hρ₀def
   have hρ₀0 : 0 ≤ ρ₀ := by
     rw [hρ₀def, collisionCap]
-    positivity
+    have hc0 := rejFrac_pos η₀ hη₀ hε hind (indecisionLimit := indecisionLimit)
+    exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity)) (by positivity)
+  have hδ'1 : δ' ≤ 1 := by rw [hδ'def]; linarith
   have htop := solvedState_mem_stoppable (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀
-    populations hη0 hη₀ hε hind hδ' hpAP hcard hρ₀0 le_rfl
+    populations hη0 hη₀ hε hind hδ' hδ'1 hpAP hcard hρ₀0 le_rfl
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz ρ₀
     with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB),
     Finset.filter_subset _ _, ?_⟩
-  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hslackD hcollSf
+  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hcollH hslackD hcollSf
   have := hD
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
@@ -482,28 +487,30 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       hε hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
+  have hscaleEq :
+      budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
+    unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
-    (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit ((D j).real {t}) 0
-      (by rw [← hmdef]; exact hm) hM (by
-        have h := hcollD _ htop j hj t
+    cap_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit ((D j).real {t}) hη0 hη₀
+      hε hind hcard measureReal_nonneg (by rw [← hmdef]; exact hm)
+      (by rw [hscaleEq, sig]; exact hcollD _ htop j hj t) (by
+        have h := hcollH _ htop j hj t
+        change 2 ^ 34 * (populations.card : ℝ)
+            * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov δ' α pAP
+              crossLimit hsz) : ℝ)) * (D j).real {t}
+          ≤ δ * min εcov indecisionLimit ^ 2 at h
         rw [hδ'def]
-        have hscaleEq :
-            budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
-          unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
-        change 2 ^ 21 * ((populations.card : ℝ) + 1) ^ 2 * m * (D j).real {t}
-          ≤ δ * rateScale η₀ indecisionLimit εcov ^ 2 at h
-        rw [← hmdef, hscaleEq]
-        linarith) (by simp only [mul_zero]; positivity)).1
+        linarith)
   have hcapsf : collisionMass Dsf
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ' pAP crossLimit :=
-    (caps_of_top populations η₀ indecisionLimit εcov δ' α pAP crossLimit 0 (collisionMass Dsf)
-      (by rw [← hmdef]; exact hm) hM (by simp only [mul_zero]; positivity) (by
+    poolCap_of_top populations η₀ indecisionLimit εcov δ' pAP crossLimit (collisionMass Dsf) hM
+      (by
         have h := hcollSf _ htop
         rw [hδ'def]
         change 2 ^ 13 * ((populations.card : ℝ) + 1)
           * (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ)
           * collisionMass Dsf ≤ δ * pAP at h
-        linarith)).2
+        linarith)
   -- and against `slack`, which the table's own mass and the deviation tail need
   set ρs : ℝ := δ * slack ^ 2 / (2 ^ 8 * (Jc + 1) * m) with hρsdef
   have hslackj : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρs := by

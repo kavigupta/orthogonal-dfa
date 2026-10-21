@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.Clusterer
 import OrthoDFA.Proofs.GateCharge
 import OrthoDFA.Proofs.Coins
+import OrthoDFA.Proofs.RedrawTail
 
 /-!
 # The schedule, and what it is solved from
@@ -307,14 +308,19 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
     (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
       (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i))
 
-/-- What one tested state may cost, summed over the populations: the samplers redrawing more
-than `rejCount` of the state's draws, priced by Markov's inequality at `ρ` a chance so linearly in
-the draws, and the draws missing the undecided set.  The gate's own tails are not here: they
-are spent at `gateLevel`, which sums to `α` over the states. -/
+/-- What one tested state may cost, summed over the populations: each table and certification
+sampler rejecting more than `rejCount` of its draws, a binomial tail at what a draw can land on,
+and the draws missing the undecided set.  The gate's own tails are not here: they are spent at
+`gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * ((3 * (populations.card : ℝ) + 5) * (B.npref : ℝ) * ρ
-      / rejFrac η₀ indecisionLimit εcov
+  (populations.card : ℝ) * (rejTail (B.npref + rejCount η₀ indecisionLimit εcov B.npref)
+        (((B.npref + rejCount η₀ indecisionLimit εcov B.npref : ℕ) : ℝ) * ρ)
+        (rejCount η₀ indecisionLimit εcov B.npref)
+      + rejTail (2 * B.npref + rejCount η₀ indecisionLimit εcov B.npref)
+        (((populations.card * B.npref + (2 * B.npref + rejCount η₀ indecisionLimit εcov B.npref)
+          : ℕ) : ℝ) * ρ)
+        (rejCount η₀ indecisionLimit εcov B.npref)
     + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
@@ -355,14 +361,23 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
       (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
 
-/-- How much collision mass the populations may carry.  A state redraws `m·ρ/rejFrac` of its
-`m` draws in expectation, which its share `δ·m/(8N)` pays for, so the cap is linear in the top
-count `N`. -/
+/-- How much any one string may hold of a tame population.  A rung's draws land on what earlier
+draws or the tables hold at most `(|J| + 3)·m·ρ` of the time, which against `rejFrac` makes its
+rejections a binomial tail of order `(m/N)·2^-(r+1)`; the uniform pool's draws land in a window
+of `4|J|N` strings at most `e/4` of the time, `e = min(εcov, indecisionLimit)/4096`; and the hash
+splits every population evenly but for its sub-Gaussian tail at `ρ/e²`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
-  δ * budgetScale η indecisionLimit εcov ^ 2
-    / (2 ^ 20 * ((populations.card : ℝ) + 1) ^ 2
-      * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
+  min (min (rejFrac η indecisionLimit εcov
+        / (64 * ((populations.card : ℝ) + 3)
+          * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)))
+      (min εcov indecisionLimit
+        / (65536 * (populations.card : ℝ)
+          * (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))))
+    (δ * min εcov indecisionLimit ^ 2
+      / (2 ^ 33 * (populations.card : ℝ)
+        * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov δ α pAP crossLimit
+          hsz) : ℝ))))
 
 /-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
 draws, a twentieth of the findable share. -/
