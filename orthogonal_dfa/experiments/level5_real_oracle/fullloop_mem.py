@@ -219,6 +219,7 @@ def main():
         pst.config.fnr_plateau_patience = 3
         pst.config.counterexample_score_patience = 500
         pst.config.counterexample_fnr_harvest = True
+        pst.config.counterexample_restarts = a.restarts if a.restarts > 1 else 3
         pst.config.fnr_plateau_tol = 0.01
     tracker = Tracker(halves, a.out)
     if a.no_halving:
@@ -241,7 +242,7 @@ def main():
     summary = dict(
         commit=commit,
         seed=a.seed,
-        restarts=a.restarts,
+        restarts=pst.config.counterexample_restarts,
         best_round=best.round_index,
         best_consistency=best.consistency,
         certified=getattr(best, "certified", None) is not None,
