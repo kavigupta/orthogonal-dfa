@@ -51,28 +51,23 @@ def ending_test(
     config: CounterexampleSearchConfig,
     depth: int,
 ) -> Optional[Ending]:
-    """The harvest tests, then the success test.
-
-    Each test counts distinct strings: a deterministic oracle reads a string the
-    same way every time, so a repeat is no further evidence.
-    """
-    ends, stuck, middles = map(_distinct, (counts.ends, counts.stuck, counts.middles))
+    """The harvest tests, then the success test."""
     if seq_rate(
         config.ends_rate(depth),
         config.ends_alternative(depth),
         config.level,
         counts.probes,
-        len(ends),
+        len(counts.ends),
     ):
-        return Ending(HARVEST_ENDS, ends)
+        return Ending(HARVEST_ENDS, list(counts.ends))
     if seq_rate(
         config.stuck_rate,
         config.stuck_alternative,
         config.level,
         counts.probes,
-        len(stuck),
+        len(counts.stuck),
     ):
-        return Ending(HARVEST_STUCK, stuck)
+        return Ending(HARVEST_STUCK, list(counts.stuck))
     searches = counts.searches
     per_search = counts.search_queries / max(searches, 1)
     if config.search_share * counts.probes <= searches and seq_rate(
@@ -80,16 +75,12 @@ def ending_test(
         config.middle_alternative(per_search),
         config.level,
         searches,
-        len(middles),
+        len(counts.middles),
     ):
-        return Ending(HARVEST_MIDDLES, middles)
+        return Ending(HARVEST_MIDDLES, list(counts.middles))
     if succeeds_at(counts, config, counts.probes):
         return Ending(SUCCESS, [])
     return None
-
-
-def _distinct(strings: List[bytes]) -> List[bytes]:
-    return list(dict.fromkeys(strings))
 
 
 def succeeds_at(

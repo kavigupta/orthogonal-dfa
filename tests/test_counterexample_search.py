@@ -42,23 +42,6 @@ SHIPPED_RATES = dict(
 
 WITHOUT_EVEN_1 = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
 
-#: Fourteen distinct four-letter strings.
-FOURS = [bytes(bits) for bits in itertools.product((0, 1), repeat=4)][:14]
-
-#: Each probe disagrees with ``WRONG_ODD_0``, and ``MIDDLE_CUT`` leaves every
-#: position between its ends undecided, so it is a middle at its first two letters,
-#: one of ``MIDDLES``.
-MIDDLES = [b"\x00\x01", b"\x01\x00", b"\x01\x01", b"\x00\x00"]
-MIDDLE_PROBES = [
-    b"\x00\x01\x00\x00",
-    b"\x01\x00\x00\x00",
-    b"\x01\x01\x01\x00",
-    b"\x00\x00\x01\x00",
-]
-MIDDLE_CUT = parity_cut(
-    bytes(z) for n in (1, 2, 3) for z in itertools.product((0, 1), repeat=n)
-)
-
 
 class TestCharging(unittest.TestCase):
     def test_a_string_counts_each_time_it_is_read(self):
@@ -127,31 +110,18 @@ class TestTheTests(unittest.TestCase):
 
     def test_an_undecided_start_harvests_it(self):
         search = quiet_search(
-            parity_cut(FOURS),
+            parity_cut([b""]),
             PARITY_EDGES,
-            k=4,
             ends_rate=0.05,
             ends_alternative=0.1,
             level=1e-4,
         )
         # 2^n reaches 1e4 at n = 14.
-        endings = [search.step(start + b"\x00") for start in FOURS]
+        endings = [search.step(b"\x01\x00") for _ in range(14)]
         self.assertEqual([None] * 13, endings[:13])
-        self.assertEqual(Ending(HARVEST_ENDS, FOURS), endings[13])
+        self.assertEqual(Ending(HARVEST_ENDS, [b""] * 14), endings[13])
 
     def test_an_undecided_end_harvests_it(self):
-        search = quiet_search(
-            parity_cut(FOURS),
-            PARITY_EDGES,
-            ends_rate=0.05,
-            ends_alternative=0.1,
-            level=1e-4,
-        )
-        endings = [search.step(end) for end in FOURS]
-        self.assertEqual([None] * 13, endings[:13])
-        self.assertEqual(Ending(HARVEST_ENDS, FOURS), endings[13])
-
-    def test_an_end_read_again_is_not_more_evidence(self):
         search = quiet_search(
             parity_cut([b"\x01\x00"]),
             PARITY_EDGES,
@@ -160,45 +130,29 @@ class TestTheTests(unittest.TestCase):
             level=1e-4,
         )
         endings = [search.step(b"\x01\x00") for _ in range(14)]
-        self.assertEqual([None] * 14, endings)
+        self.assertEqual([None] * 13, endings[:13])
+        self.assertEqual(Ending(HARVEST_ENDS, [b"\x01\x00"] * 14), endings[13])
 
     def test_undecided_middles_harvest_once_the_hypothesis_searches_enough(self):
+        cut = parity_cut([b"\x00\x01"])
         search = quiet_search(
-            MIDDLE_CUT,
-            WRONG_ODD_0,
-            middle_rate=0.1,
-            middle_alternative=0.5,
-            search_share=0.5,
+            cut, WRONG_ODD_0, middle_rate=0.1, middle_alternative=0.5, search_share=0.5
         )
-        endings = [search.step(probe) for probe in MIDDLE_PROBES[:3]]
+        endings = [search.step(b"\x00\x01\x00\x00") for _ in range(3)]
         self.assertEqual([None, None], endings[:2])
-        self.assertEqual(Ending(HARVEST_MIDDLES, MIDDLES[:3]), endings[2])
-
-    def test_a_middle_read_again_is_not_more_evidence(self):
-        search = quiet_search(
-            MIDDLE_CUT,
-            WRONG_ODD_0,
-            middle_rate=0.1,
-            middle_alternative=0.5,
-            search_share=0.5,
-        )
-        endings = [search.step(MIDDLE_PROBES[0]) for _ in range(3)]
-        self.assertEqual([None] * 3, endings)
+        self.assertEqual(Ending(HARVEST_MIDDLES, [b"\x00\x01"] * 3), endings[2])
 
     def test_the_middles_test_waits_for_searches(self):
+        cut = parity_cut([b"\x00\x01"])
         search = quiet_search(
-            MIDDLE_CUT,
-            WRONG_ODD_0,
-            middle_rate=0.1,
-            middle_alternative=0.5,
-            search_share=0.5,
+            cut, WRONG_ODD_0, middle_rate=0.1, middle_alternative=0.5, search_share=0.5
         )
         for _ in range(4):
-            search.step(b"\x00\x00\x00\x00")
-        endings = [search.step(probe) for probe in MIDDLE_PROBES[:3]]
+            search.step(b"\x00\x00")
+        endings = [search.step(b"\x00\x01\x00\x00") for _ in range(3)]
         self.assertEqual([None] * 3, endings, "3 searches of 7 probes")
         self.assertEqual(
-            HARVEST_MIDDLES, search.step(MIDDLE_PROBES[3]).kind, "4 of 8 probes"
+            HARVEST_MIDDLES, search.step(b"\x00\x01\x00\x00").kind, "4 of 8 probes"
         )
 
     def test_a_hypothesis_without_disagreement_succeeds(self):
@@ -218,12 +172,11 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(14, search.probes)
 
     def test_stuck_ends_harvest_before_the_hypothesis_succeeds(self):
-        stuck = [b"\x00" * n + b"\x01" for n in range(1, 40)]
-        search = quiet_search(parity_cut(stuck), WITHOUT_EVEN_1, **SHIPPED_RATES)
-        ending = search.run(
-            itertools.chain.from_iterable([z, b"\x00", b"\x00\x00"] for z in stuck)
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, **SHIPPED_RATES
         )
-        self.assertEqual(Ending(HARVEST_STUCK, stuck[:11]), ending)
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(Ending(HARVEST_STUCK, [b"\x00\x01"] * 11), ending)
         self.assertEqual(31, search.probes)
 
     def test_undecided_ends_of_a_searched_walk_do_not_hold_off_success(self):

@@ -93,6 +93,11 @@ d = family_ckpt.load(a.ckpt, base, VOCAB)
 pst, vs, acc = d["pst"], d["vs"], d["acc_threshold"]
 if a.probe_seed is not None:
     pst.rng = np.random.default_rng(a.probe_seed)
+# What fullloop_mem.py --plateau sets; checkpoints may predate these fields.
+pst.config.counterexample_score_patience = 500
+pst.config.counterexample_fnr_harvest = True
+if not hasattr(pst.config, "counterexample_restarts"):
+    pst.config.counterexample_restarts = 1
 
 halves_path = os.path.join(ckdir, "halves.pkl")
 if os.path.exists(halves_path):
