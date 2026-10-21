@@ -55,6 +55,23 @@ def checkLoopMeasure (μ : Measure Ω) (α : Type*) (K P n : ℕ) :
 def LoopHist.append (h₀ h : LoopHist α) : LoopHist α :=
   ⟨h₀.pops ++ h.pops, h₀.prefs ∪ h.prefs, h₀.suffs ∪ h.suffs⟩
 
+/-- Uniform over the lengths `lo` to `hi`, and over the strings of each length. -/
+def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
+  ((hi + 1 - lo : ℕ) : ENNReal)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
+
+/-- The states at least `c` of the strings of length `L` visit at some position from `⌈L/2⌉` to
+`L`. -/
+def coveredStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) : Set σ :=
+  {q | c ≤ (uniformStrings L).real
+    {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L ∧ M.eval (prefixOf x j).toList = q}}
+
+/-- The start `q` re-roots the target on every string of each length from `⌈L/2⌉` to `2L`, its
+run staying in the covered states. -/
+def CoveredAccurate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) (q : σ) : Prop :=
+  ∀ ℓ, (L + 1) / 2 ≤ ℓ → ℓ ≤ 2 * L → ∀ x : FreeMonoid α, x.toList.length = ℓ →
+    (∀ i ≤ ℓ, M.evalFrom q (prefixOf x i).toList ∈ coveredStates M L c)
+      ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)
+
 variable {μ : Measure Ω}
 
 /-- The round after the history `h`, with the checked round in level 3's place. -/

@@ -1,4 +1,4 @@
-import OrthoDFA.LoopDFA
+import OrthoDFA.LoopCheck
 import OrthoDFA.Proofs.LoopTermination
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.UniformStrings

@@ -21,13 +21,6 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ]
 
-/-- The start `q` re-roots the target on every string of each length from `⌈L/2⌉` to `2L`, its
-run staying in the covered states. -/
-def CoveredAccurate (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) (q : σ) : Prop :=
-  ∀ ℓ, (L + 1) / 2 ≤ ℓ → ℓ ≤ 2 * L → ∀ x : FreeMonoid α, x.toList.length = ℓ →
-    (∀ i ≤ ℓ, M.evalFrom q (prefixOf x i).toList ∈ coveredStates M L c)
-      ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)
-
 variable (M : _root_.DFA α σ) {L : ℕ} {c : ℝ} {q : σ}
 
 omit [DecidableEq α] in

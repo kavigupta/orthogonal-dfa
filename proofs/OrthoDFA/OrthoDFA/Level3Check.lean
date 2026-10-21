@@ -28,6 +28,10 @@ Known modelling gap. The Python probes every string of a failed check from `ε` 
 after every change until none changes the hypothesis (`settle`), and its search goes on where none
 does. Here one string's change is made, and a check whose strings change nothing ends the round
 without a population.
+
+Known modelling gap. Where a failing check string's probe from `ε` stops undecided, the Python
+feeds the string to the next round's search, which harvests the undecided prefix. Here it changes
+nothing, so a check whose strings all stop undecided ends the round without a population.
 -/
 
 namespace OrthoDFA
