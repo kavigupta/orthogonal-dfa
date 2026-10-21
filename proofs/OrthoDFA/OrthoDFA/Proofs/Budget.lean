@@ -44,7 +44,7 @@ private lemma cast_ceil_le (x : ℝ) : (⌈x⌉₊ : ℝ) ≤ max x 0 + 1 := by
 private lemma ceil_le_of_le {x M : ℝ} (hx : x ≤ M) (hM : 0 ≤ M) : (⌈x⌉₊ : ℝ) ≤ M + 1 :=
   le_trans (cast_ceil_le x) (by linarith [max_le hx hM])
 
-/-- The six tails, each named, so the bound can be read term by term. -/
+/-- The seven tails, each named, so the bound can be read term by term. -/
 noncomputable def prefTerms (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : List ℝ :=
   [ Real.log (256 * (populations.card : ℝ)
@@ -60,10 +60,12 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
       (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α))),
     Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2),
+      / dirtyRate η indecisionLimit εcov,
     2900 * Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (cutBudget η indecisionLimit εcov * flipFrac η) ]
+      / (cutBudget η indecisionLimit εcov * flipFrac η),
+    4096 * Real.log (128 * (populations.card : ℝ) / δ)
+      / (9 * cutBudget η indecisionLimit εcov ^ 2) ]
 
 /-- Rounding up a list of reals costs one apiece. -/
 private lemma cast_sum_ceil_le : ∀ l : List ℝ,
@@ -92,14 +94,14 @@ theorem prefCount_le_terms (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit : ℝ) :
     (prefCount η populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
       ≤ ((prefTerms η populations indecisionLimit εcov δ α pAP crossLimit).map
-          (fun x => max x 0)).sum + 8
+          (fun x => max x 0)).sum + 9
         + max (128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov) 0 := by
   have h :=
     cast_sum_ceil_le (prefTerms η populations indecisionLimit εcov δ α pAP crossLimit)
   have hh := cast_ceil_le (128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov)
   rw [prefCount_eq_sum]
   have hlen :
-      (prefTerms η populations indecisionLimit εcov δ α pAP crossLimit).length = 6 := by
+      (prefTerms η populations indecisionLimit εcov δ α pAP crossLimit).length = 7 := by
     simp [prefTerms]
   rw [hlen] at h
   push_cast at h ⊢
@@ -522,16 +524,25 @@ theorem prefCount_le_poly (populations : Finset J)
           mul_one]
       nlinarith only [h4, e4, mul_le_mul_of_nonneg_right hc2 hL0, hL0]
     exact le_trans h1 (le_of_mul_le_mul_right h2 hD)
-  have t5 : Real.log (128 * c * (M + 1) / δ) / (2 * (3 * cut * flipFrac η / 32) ^ 2)
+  have t5 : Real.log (128 * c * (M + 1) / δ) / dirtyRate η indecisionLimit εcov
       ≤ 8000 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
-    refine tail_le hY16 hL0
-      (mul_pos two_pos (pow_pos (div_pos (mul_pos (mul_pos three_pos hcutpos) hfpos)
-        (by norm_num)) 2)) hD ?_
-    have h := mul_self_le_mul_self (by positivity) hcf
-    have hcf2 : 0 ≤ (cut * flipFrac η) ^ 2 := sq_nonneg _
-    nlinarith only [h, mul_le_mul_of_nonneg_right hs2sq (by positivity : (0 : ℝ) ≤ s ^ 2 * B ^ 2),
-      mul_le_mul_of_nonneg_right hc2 hcf2, hcf2]
+    have hdr : dirtyRate η indecisionLimit εcov = cut * flipFrac η ^ 2 / 1024 := by
+      rw [dirtyRate, ← hcutdef]; field_simp; ring
+    rw [hdr]
+    refine tail_le hY16 hL0 (by positivity) hD ?_
+    have hf2 : 36 * s ^ 2 ≤ 100 * flipFrac η ^ 2 := by
+      have := mul_self_le_mul_self (by linarith only [hsig]) hf
+      nlinarith only [this]
+    have hcf2 : 36 * B * s ^ 2 ≤ 1000 * (cut * flipFrac η ^ 2) := by
+      nlinarith only [mul_le_mul hcutlb hf2 (by positivity) (by positivity), hBpos, hsig]
+    have hs4B : 2 * (s ^ 4 * B ^ 2) ≤ s ^ 2 * B / 4 := by
+      have h1 : s ^ 4 * B ^ 2 = (s ^ 2 * B) * (s ^ 2 * B) := by ring
+      have h2 : s ^ 2 * B ≤ 1 / 8 := by
+        nlinarith only [mul_le_mul hs2sq hB2 hBpos.le (by norm_num : (0 : ℝ) ≤ 1 / 4)]
+      nlinarith only [h1, h2, mul_pos (pow_pos hsig 2) hBpos]
+    nlinarith only [hs4B, hcf2, mul_le_mul_of_nonneg_right hc2
+      (by positivity : (0 : ℝ) ≤ cut * flipFrac η ^ 2 / 1024), mul_pos (pow_pos hsig 2) hBpos]
   have t6 : 2900 * Real.log (128 * c * (M + 1) / δ) / (cut * flipFrac η) ≤ 6100 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
     refine tail_le (w := 5800) (by linarith only [hY]) hL0 (mul_pos hcutpos hfpos) hD ?_
@@ -544,6 +555,10 @@ theorem prefCount_le_poly (populations : Finset J)
     have hc2cf : cut * flipFrac η ≤ c ^ 2 * (cut * flipFrac η) := by nlinarith only [hc2, hcfp]
     rw [e]
     nlinarith only [mul_le_mul_of_nonneg_right hsB hsB0, hcf, hc2cf, hsB0]
+  have t8 : 4096 * Real.log (128 * c / δ) / (9 * cut ^ 2) ≤ 2850 * Q := by
+    refine tail_le (w := 4096) (by linarith only [hR]) hL0 (by positivity) hD ?_
+    nlinarith only [hB2c, mul_le_mul_of_nonneg_right hs4 (sq_nonneg B),
+      mul_le_mul_of_nonneg_right hc2 (sq_nonneg cut)]
   have t7 : (6 : ℝ) ≤ Q := by
     rw [hQdef, le_div_iff₀ hD]
     have hc2L : (1 : ℝ) ≤ c ^ 2 * L := by linarith only [le_mul2 zero_le_one zero_le_one hc2 hL1]
@@ -562,11 +577,12 @@ theorem prefCount_le_poly (populations : Finset J)
   have m4 := max_le t4 (by positivity)
   have m5 := max_le t5 (by positivity)
   have m6 := max_le t6 (by positivity)
+  have m8 := max_le t8 (by positivity)
   have hh : max (128 * (hsz : ℝ) / cut) 0 = 128 * (hsz : ℝ) / cut :=
     max_eq_left (by positivity)
   rw [hh] at hbound
   rw [hLeq, show 64000 * c ^ 2 * L / (s ^ 4 * B ^ 2) = 64000 * Q by rw [hQdef]; ring]
-  linarith only [hbound, m1, m2, m3, m4, m5, m6, t7, hQnn]
+  linarith only [hbound, m1, m2, m3, m4, m5, m6, m8, t7, hQnn]
 
 /-- `validCount` is its one tail, rounded up, and the ladder's rung. -/
 theorem validCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)

@@ -291,9 +291,9 @@ theorem level3RoundCorrect_holds : Level3RoundCorrect := by
   refine (round_le_at M side U μ R P C _ _ p₀ η _ _ kn hA hp₀ hpre hy0 hy4 hη0 ?_ ?_ le_rfl
     hθg.ge (by rw [hηm])).trans (ENNReal.ofReal_le_ofReal ?_)
   · rw [div_le_iff₀ hy0]
-    have : 0 ≤ (nQ + 1) * (16 * ((P.L : ℝ) + 1)) * y := by positivity
-    have e : (nQ + 1) * (6 / y + 16 * ((P.L : ℝ) + 1)) * y
-        = 6 * (nQ + 1) + (nQ + 1) * (16 * ((P.L : ℝ) + 1)) * y := by
+    have : 0 ≤ (nQ + 1) * (16 * (2 + (Nat.clog 2 P.L : ℝ))) * y := by positivity
+    have e : (nQ + 1) * (6 / y + 16 * (2 + (Nat.clog 2 P.L : ℝ))) * y
+        = 6 * (nQ + 1) + (nQ + 1) * (16 * (2 + (Nat.clog 2 P.L : ℝ))) * y := by
       field_simp
     rw [e]; linarith
   · have : 0 ≤ (nQ + 1) * (6 / y) := by positivity

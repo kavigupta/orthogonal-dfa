@@ -276,7 +276,7 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
     (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
+    (hAm : 16 * ((2 + Nat.clog 2 P.L) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
     (hθg : 1 / 16 ≤ kn.θgpt) (hηm0 : 0 ≤ kn.ηm) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (read · ω) draws
@@ -362,7 +362,7 @@ theorem eps_round_le_at {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
     (hpre : ∀ u : FreeMonoid α, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀)
     (hy : 0 < y) (hy4 : y ≤ 1 / 4) (hη : 0 ≤ η)
     (hAe : 6 * (Fintype.card σ + 1) / y ≤ A)
-    (hAm : 16 * ((P.L + 1) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
+    (hAm : 16 * ((2 + Nat.clog 2 P.L) * (Fintype.card σ + 1)) ≤ A) (hsl : η / y ≤ sl)
     (hθg : 1 / 16 ≤ kn.θgpt) (hηm0 : 0 ≤ kn.ηm) :
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
@@ -405,8 +405,9 @@ theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
     let η := p₀ * Real.log (16 * (nQ + 1) * K / C.δ)
     ∃ kn : Knobs, kn.Admissible (σ := σ) (α := α) C C.disagreementRate C.harvestRate
       ∧ 1 / 16 ≤ kn.θgpt ∧ 0 ≤ kn.ηm ∧ 0 ≤ η
-      ∧ 6 * (nQ + 1) / C.harvestRate ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (L + 1))
-      ∧ 16 * ((L + 1) * (nQ + 1)) ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (L + 1))
+      ∧ 6 * (nQ + 1) / C.harvestRate ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
+      ∧ 16 * ((2 + Nat.clog 2 L) * (nQ + 1))
+        ≤ (nQ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
       ∧ roundBoundAt (α := α) σ η p₀ C kn ≤ 7 * C.δ / 8 := by
   intro nQ K η
   have hK1 : (1 : ℝ) ≤ K := by
@@ -417,9 +418,9 @@ theorem round_knobs {α : Type*} [Fintype α] {σ : Type*} [Fintype σ] (C : Lev
   have hη0 : 0 ≤ η := mul_nonneg hp₀.le (Real.log_nonneg (by
     rw [le_div_iff₀ hδ]; nlinarith))
   refine ⟨kn, hA, hθg.ge, hηm.ge, hη0, ?_, ?_, ?_⟩
-  · have : 0 ≤ (nQ + 1) * (16 * ((L : ℝ) + 1)) := by positivity
-    have e : (nQ + 1) * (6 / C.harvestRate + 16 * ((L : ℝ) + 1))
-        = 6 * (nQ + 1) / C.harvestRate + (nQ + 1) * (16 * ((L : ℝ) + 1)) := by ring
+  · have : 0 ≤ (nQ + 1) * (16 * (2 + (Nat.clog 2 L : ℝ))) := by positivity
+    have e : (nQ + 1) * (6 / C.harvestRate + 16 * (2 + (Nat.clog 2 L : ℝ)))
+        = 6 * (nQ + 1) / C.harvestRate + (nQ + 1) * (16 * (2 + (Nat.clog 2 L : ℝ))) := by ring
     rw [e]; linarith
   · have : 0 ≤ (nQ + 1) * (6 / C.harvestRate) := by positivity
     nlinarith

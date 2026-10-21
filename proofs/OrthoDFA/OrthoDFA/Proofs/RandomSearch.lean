@@ -321,12 +321,9 @@ theorem probe_congrK {read' : FreeMonoid α → ARU}
       · rfl
   · rfl
 
-/-- A probe reads only the strings of `pot k x T`. -/
-theorem probeOrAgree_congr {read' : FreeMonoid α → ARU} (h : ∀ z ∈ pot k x T, read z = read' z) :
-    probeOrAgree read T E k x = probeOrAgree read' T E k x := by
-  by_cases hs : x.toList.length < k
-  · simp [probeOrAgree, hs]
-  refine probe_congrK read T E k x fun j hj => ?_
+theorem sift_congr_pot {read' : FreeMonoid α → ARU} (h : ∀ z ∈ pot k x T, read z = read' z)
+    (hs : k ≤ x.toList.length) (j : ℕ) (hj : k ≤ j) :
+    T.sift read (prefixOf x j) = T.sift read' (prefixOf x j) := by
   have hj' : prefixOf x j = prefixOf x (min j x.toList.length) := by
     simp only [prefixOf]
     rcases le_total j x.toList.length with hjl | hjl
@@ -334,6 +331,42 @@ theorem probeOrAgree_congr {read' : FreeMonoid α → ARU} (h : ∀ z ∈ pot k 
     · rw [min_eq_right hjl, List.take_of_length_le hjl, List.take_of_length_le le_rfl]
   rw [hj']
   exact sift_congr_mids T _ fun m hm => h _ (mem_pot (by omega) (min_le_right _ _) hm)
+
+/-- A probe reads only the strings of `pot k x T`. -/
+theorem probeOrAgree_congr {read' : FreeMonoid α → ARU} (h : ∀ z ∈ pot k x T, read z = read' z) :
+    probeOrAgree read T E k x = probeOrAgree read' T E k x := by
+  by_cases hs : x.toList.length < k
+  · simp [probeOrAgree, hs]
+  exact probe_congrK read T E k x (sift_congr_pot read T k x h (by omega))
+
+/-- A probe's search queries by the strings of `pot k x T` only. -/
+theorem probeQueries_congr {read' : FreeMonoid α → ARU} (h : ∀ z ∈ pot k x T, read z = read' z) :
+    probeQueries read T E k x = probeQueries read' T E k x := by
+  unfold probeQueries
+  split_ifs with hs
+  · rfl
+  have hj := sift_congr_pot read T k x h (by omega)
+  rw [hj k le_rfl]
+  rcases T.sift read' (prefixOf x k) with a | w
+  · simp only
+    obtain ⟨hpos, -, -⟩ := walk_facts E k x (p₀ := a) (by omega)
+    exact congrArg Prod.snd (tripartiteSearch_congr false (by omega) fun i hi => by
+      simp only [siftAgrees, hj i hi])
+  · rfl
+
+theorem probeQueries_length {L : ℕ} (hx : x.toList.length ≤ L) :
+    (probeQueries read T E k x).length ≤ 2 + Nat.clog 2 L := by
+  unfold probeQueries
+  split_ifs with hs
+  · simp
+  rcases T.sift read (prefixOf x k) with a | w
+  · simp only
+    obtain ⟨-, hhi, -⟩ := walk_facts E k x (p₀ := a) (by omega)
+    refine (tripartiteSearch_length_noRecovery _ _ _).trans ?_
+    have := Nat.clog_mono_right 2
+      (show k + (walk E a (x.toList.drop k)).length - 1 - k ≤ L by omega)
+    omega
+  · simp
 
 open scoped Classical in
 /-- Making `z` undecided can only stop a search. -/
@@ -346,6 +379,25 @@ theorem searches_update (z : FreeMonoid α)
       sift_update_inl read z T _ _ hl, hne⟩
   obtain ⟨t, ht⟩ := hc c hc'
   exact ⟨t, sift_update_inl read z T _ _ ht⟩
+
+open scoped Classical in
+/-- Making `z` undecided can only drop positions from a search's queries. -/
+theorem probeQueries_update (z : FreeMonoid α) {p : ℕ}
+    (h : p ∈ probeQueries (Function.update read z .undecided) T E k x) :
+    p ∈ probeQueries read T E k x := by
+  unfold probeQueries at h ⊢
+  split_ifs at h ⊢ with hs
+  · simp at h
+  rcases h₀ : T.sift (Function.update read z .undecided) (prefixOf x k) with a | w
+  · rw [h₀] at h
+    rw [sift_update_inl read z T _ _ h₀]
+    refine tripartiteSearch_queries_mono _ _ (fun i b hi => ?_) p h
+    unfold siftAgrees at hi ⊢
+    rcases hs' : T.sift (Function.update read z .undecided) (prefixOf x i) with l | w <;>
+      rw [hs'] at hi
+    · rw [sift_update_inl read z T _ _ hs']; exact hi
+    · simp at hi
+  · rw [h₀] at h; simp at h
 
 end Structure
 
