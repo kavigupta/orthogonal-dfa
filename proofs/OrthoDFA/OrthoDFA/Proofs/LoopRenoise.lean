@@ -263,7 +263,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ ≤ 1 →
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
-    fam.ε * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+    fam.ε * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
       + fam.κ * (5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
         ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
@@ -294,9 +294,10 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     rw [hSst]
     push_cast
     nlinarith
-  have hMb : Mb nQ nα P.L C.probeBudget = C.probeBudget * (P.L + 1) * nQ
-      + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mb wSplit
+  have hMb : Mb nQ nα P.L C.probeBudget
+      = C.probeBudget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * nQ
+        + nQ * (nQ + 1) ^ 2 * nα := by
+    unfold Mb wSplit probeSifts
     push_cast
     ring
   have hwr : fam.ε * Mb nQ nα P.L C.probeBudget + fam.κ * Mu nQ nα C ≤ C.δ / 8 := by

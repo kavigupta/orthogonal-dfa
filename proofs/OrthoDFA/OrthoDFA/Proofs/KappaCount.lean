@@ -12,7 +12,8 @@ the second, and the success test, not firing, makes `n` at most of order `log(1/
 reads at most the one string it stops at undecided, and a split re-sifts at most `(|Q| + 1)²|Σ|`
 strings. So while nothing read is wrong, the round reads at most
 `Σ_{j < S} 5 log(1/a_j) + 1 + |Q|(|Q| + 1)²|Σ|` strings undecided, and at most
-`(L + 1)|Q| · |xs| + |Q|(|Q| + 1)²|Σ|` in all (`count_le`).
+`min(L + 1, 3 + ⌈log₂ L⌉)|Q| · |xs| + |Q|(|Q| + 1)²|Σ|` in all (`count_le`), a probe sifting
+at most `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes.
 -/
 
 namespace OrthoDFA
@@ -227,18 +228,31 @@ theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMon
     · simp
   all_goals simp
 
+/-- The most prefixes a probe at most `L` long sifts. -/
+def probeSifts (L : ℕ) : ℕ := min (L + 1) (3 + Nat.clog 2 L)
+
 omit [DecidableEq α] in
-/-- A probe reads at most `(L + 1)|Q|` strings. -/
 theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMonoid α} {L : ℕ}
     (hx : x.toList.length ≤ L) :
-    (probeReads read s.tree s.edges C.walkStart x).card ≤ (L + 1) * Fintype.card σ := by
+    (probeReads read s.tree s.edges C.walkStart x).card ≤ probeSifts L * Fintype.card σ := by
   have hlv : s.tree.leaves.length ≤ Fintype.card σ + 1 := by
     have := hW.leaves; have := img_card_le M side s.tree; omega
   have hmid : (mids s.tree).card ≤ Fintype.card σ := by
     have := mids_card s.tree; omega
-  calc _ ≤ (pot C.walkStart x s.tree).card := Finset.card_le_card (probeReads_pot _ _)
-    _ ≤ (x.toList.length + 1) * (mids s.tree).card := card_pot _ x _
-    _ ≤ _ := Nat.mul_le_mul (by omega) hmid
+  have h1 : (probeReads read s.tree s.edges C.walkStart x).card ≤ (L + 1) * Fintype.card σ :=
+    calc _ ≤ (pot C.walkStart x s.tree).card := Finset.card_le_card (probeReads_pot _ _)
+      _ ≤ (x.toList.length + 1) * (mids s.tree).card := card_pot _ x _
+      _ ≤ _ := Nat.mul_le_mul (by omega) hmid
+  have h2 : (probeReads read s.tree s.edges C.walkStart x).card
+      ≤ (3 + Nat.clog 2 L) * Fintype.card σ := by
+    obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := read) (T := s.tree) s.edges C.walkStart hx
+    calc _ ≤ (posReads read s.tree x ps).card := Finset.card_le_card hsub
+      _ ≤ ps.toFinset.card * (mids s.tree).card := posReads_card _ _ _ _
+      _ ≤ _ := Nat.mul_le_mul hps hmid
+  unfold probeSifts
+  rcases le_total (L + 1) (3 + Nat.clog 2 L) with h | h
+  · rw [min_eq_left h]; exact h1
+  · rw [min_eq_right h]; exact h2
 
 omit [Fintype α] [DecidableEq α] in
 theorem ends_mid_le_one (o : Outcome α) : (endsString o).length + (middleString o).length ≤ 1 := by
@@ -328,14 +342,15 @@ noncomputable def Φu (nQ nα : ℕ) (C : Level3Settings) (s : Level3State α) :
 
 /-- What the rounds so far may have read, given the state reached after `n` probes. -/
 noncomputable def Φb (nQ nα L : ℕ) (s : Level3State α) (n : ℕ) : ℝ :=
-  (((L + 1) * nQ : ℕ) : ℝ) * n + (wSplit nQ nα : ℝ) * ((s.tree.leaves.length : ℝ) - 2)
+  ((probeSifts L * nQ : ℕ) : ℝ) * n + (wSplit nQ nα : ℝ) * ((s.tree.leaves.length : ℝ) - 2)
 
 /-- The bound on what the round reads undecided. -/
 noncomputable def Mu (nQ nα : ℕ) (C : Level3Settings) : ℝ :=
   ∑ j ∈ Finset.range (Level2.stretches nQ nα), costAt C j + 1 + (wSplit nQ nα : ℝ) * nQ
 
 /-- The bound on what the round reads. -/
-noncomputable def Mb (nQ nα L N : ℕ) : ℝ := (((L + 1) * nQ : ℕ) : ℝ) * N + (wSplit nQ nα : ℝ) * nQ
+noncomputable def Mb (nQ nα L N : ℕ) : ℝ :=
+  ((probeSifts L * nQ : ℕ) : ℝ) * N + (wSplit nQ nα : ℝ) * nQ
 
 variable {C}
 
@@ -352,7 +367,7 @@ theorem phi_le {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN : 
     (hδ0 : 0 < C.δ) (hδ1 : C.δ ≤ 1) :
     Φu (Fintype.card σ) (Fintype.card α) C s + 1 + wSplit (Fintype.card σ) (Fintype.card α)
         ≤ Mu (Fintype.card σ) (Fintype.card α) C
-      ∧ Φb (Fintype.card σ) (Fintype.card α) L s n + (((L + 1) * Fintype.card σ : ℕ) : ℝ)
+      ∧ Φb (Fintype.card σ) (Fintype.card α) L s n + ((probeSifts L * Fintype.card σ : ℕ) : ℝ)
         + wSplit (Fintype.card σ) (Fintype.card α) ≤ Mb (Fintype.card σ) (Fintype.card α) L N := by
   have hlv : s.tree.leaves.length ≤ Fintype.card σ + 1 := by
     have := hs.wit.leaves; have := img_card_le M side s.tree; omega
@@ -382,8 +397,8 @@ theorem phi_le {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN : 
         + wSplit (Fintype.card σ) (Fintype.card α)
         ≤ (wSplit (Fintype.card σ) (Fintype.card α) : ℝ) * Fintype.card σ := by
       rw [← mul_add_one]; gcongr
-    have : (((L + 1) * Fintype.card σ : ℕ) : ℝ) * n + (((L + 1) * Fintype.card σ : ℕ) : ℝ)
-        ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) * N := by
+    have : ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * n + ((probeSifts L * Fintype.card σ : ℕ) : ℝ)
+        ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * N := by
       rw [← mul_add_one]; gcongr
     linarith
 
@@ -410,7 +425,7 @@ theorem phiU_count (nQ nα : ℕ) {s s' : Level3State α} (hh : s'.hypotheses = 
 
 omit [DecidableEq α] [Fintype α] [Fintype σ] in
 theorem phiB_step (nQ nα L : ℕ) {s s' : Level3State α} (n : ℕ) :
-    Φb nQ nα L s' (n + 1) = Φb nQ nα L s n + (((L + 1) * nQ : ℕ) : ℝ)
+    Φb nQ nα L s' (n + 1) = Φb nQ nα L s n + ((probeSifts L * nQ : ℕ) : ℝ)
       + (wSplit nQ nα : ℝ) * ((s'.tree.leaves.length : ℝ) - s.tree.leaves.length) := by
   unfold Φb
   push_cast
@@ -518,7 +533,7 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
   have hu01r : ((endsString o).length : ℝ) + (middleString o).length ≤ 1 := by
     exact_mod_cast hu01
   have hb0r : ((probeReads r s.tree s.edges C.walkStart x).card : ℝ)
-      ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) := by exact_mod_cast hb0
+      ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) := by exact_mod_cast hb0
   have hb1r : ((splitReads r C s x).card : ℝ) ≤ (wSplit (Fintype.card σ) (Fintype.card α) : ℝ) := by
     simp only [wSplit]; exact_mod_cast hb1
   have hu1r : (((splitReads r C s x).filter fun z => r z = .undecided).card : ℝ)
@@ -665,7 +680,8 @@ theorem phi_le0 {s : Level3State α} (hs : CInv M side C r s) {n N : ℕ} (hnN :
   · unfold Φu Mu
     linarith
   · unfold Φb Mb
-    have : (((L + 1) * Fintype.card σ : ℕ) : ℝ) * n ≤ (((L + 1) * Fintype.card σ : ℕ) : ℝ) * N := by
+    have : ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * n
+        ≤ ((probeSifts L * Fintype.card σ : ℕ) : ℝ) * N := by
       gcongr
     linarith
 
