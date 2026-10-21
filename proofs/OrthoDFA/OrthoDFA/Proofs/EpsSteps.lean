@@ -7,8 +7,9 @@ import OrthoDFA.Proofs.EpsTrue
 
 A step reads its probe's prefixes, each followed by a midfix of the tree (`pot 0`), and, where it
 splits, re-sifts every learned edge's witness's successor through the new tree (`splitReads`).
-Where none of those reads is wrong (`WrongStep`), every edge it learns has a witness at its leaf
-and a successor at its target by their states (`WitInv`), so its split is genuine. `WitInv` is
+Where the edge it learns or disagrees at sifts to its true leaves and nothing it re-sifts reads
+wrong (`eps_step_change_of`), every edge it learns has a witness at its leaf and a successor at its
+target by their states (`WitInv`), so its split is genuine. `WitInv` is
 about states, not reads, so it holds whatever is read later.
 
 Reads that agree on what a step reads give the same step (`applyProbe_congr`).
@@ -51,12 +52,6 @@ noncomputable def splitReads (s : Level3State α) (x : FreeMonoid α) : Finset (
     | none => ∅
   | _ => ∅
 
-/-- The step reads a string, a prefix of the probe followed by a midfix or one its split
-re-sifts, on its state's wrong side. -/
-def WrongStep (s : Level3State α) (x : FreeMonoid α) : Prop :=
-  ∃ z ∈ pot 0 x s.tree ∪ splitReads read C s x,
-    read z = if side (M.eval z.toList) then .reject else .accept
-
 /-! ## The invariant -/
 
 omit [DecidableEq α] in
@@ -93,23 +88,6 @@ theorem sift_true' {T : DTree α} {z : FreeMonoid α} {p : List Bool} (h : T.sif
       read (z * m) ≠ if side (M.eval (z * m).toList) then .reject else .accept) :
     leafOf M side T (M.eval z.toList) = p :=
   (sift_true M side read T z p h hw).symm
-
-omit [DecidableEq α] [Fintype σ] in
-/-- The prefix and successor of an edge a probe learns or disagrees at sift, where the step reads
-nothing wrong, to their true leaves. -/
-theorem true_of_probe {s : Level3State α} {x : FreeMonoid α} (hx : ¬ WrongStep M side read C s x)
-    {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool}
-    (h : probeOrAgree read s.tree s.edges C.walkStart x = .wrongEdge p c u t
-      ∨ probeOrAgree read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t)
-    (hu : s.tree.sift read u = .inl p) (huc : s.tree.sift read (u * FreeMonoid.of c) = .inl t) :
-    leafOf M side s.tree (M.eval u.toList) = p
-      ∧ leafOf M side s.tree (M.eval (u * FreeMonoid.of c).toList) = t := by
-  obtain ⟨i, -, h2, rfl, hc⟩ := probe_prefix read s.tree s.edges C.walkStart x h
-  have hno : ∀ j ≤ x.toList.length, ∀ m ∈ mids s.tree, read (prefixOf x j * m)
-      ≠ if side (M.eval (prefixOf x j * m).toList) then .reject else .accept :=
-    fun j hj m hm hw => hx ⟨_, Finset.mem_union_left _ (mem_pot (Nat.zero_le j) hj hm), hw⟩
-  rw [← prefixOf_succ hc] at huc ⊢
-  exact ⟨sift_true' M side read hu (hno i h2.le), sift_true' M side read huc (hno (i + 1) h2)⟩
 
 omit [DecidableEq α] in
 /-- A split's retargeted edges keep their witnesses at their leaves and successors at their
@@ -219,16 +197,6 @@ theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitIn
           simp only [Level2.newHypothesis]
           omega) _ 0
   · exact absurd ⟨rfl, rfl⟩ hne
-
-/-- A step that changes the hypothesis and reads nothing wrong starts a fresh stretch, keeps the
-invariants and lowers `Ψr`. -/
-theorem eps_step_change {s s' : Level3State α} (hs : Inv read s) (hg : WitInv M side s)
-    {x : FreeMonoid α} (hx : ¬ WrongStep M side read C s x)
-    (h : applyProbe read C s x = .inl s') (hne : ¬ (s'.tree = s.tree ∧ s'.edges = s.edges)) :
-    Inv read s' ∧ WitInv M side s' ∧ s' = newHypothesis s'.tree s'.edges s'.hypotheses
-      ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s :=
-  eps_step_change_of M side read C hs hg (fun ho hu huc => true_of_probe M side read C hx ho hu huc)
-    (fun z hz hw => hx ⟨z, Finset.mem_union_right _ hz, hw⟩) h hne
 
 /-! ## Reads that agree on what a step reads -/
 

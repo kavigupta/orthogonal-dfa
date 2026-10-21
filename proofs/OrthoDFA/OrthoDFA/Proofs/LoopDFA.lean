@@ -558,7 +558,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
     have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
     have hW1 : 1 ≤ W := by
-      show 1 ≤ B₃ * ((L₁ : ℝ) + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+      show 1 ≤ B₃ * ((min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) : ℝ) * Q + Q * (Q + 1) ^ 2 * A
+        + (Q + 1) * A ^ Fintype.card σ / ε
       have hB0 : 0 ≤ B₃ := by
         show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
         have hS : 1 ≤ S := by
@@ -571,7 +572,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       have : 1 ≤ Q * (Q + 1) ^ 2 * A := by
         have h1 : (1 : ℝ) ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith)
         exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ1 h1) (by linarith)
-      have : 0 ≤ B₃ * ((L₁ : ℝ) + 1) * Q := by positivity
+      have : 0 ≤ B₃ * ((min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) : ℝ) * Q := by positivity
       have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
       linarith
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
@@ -626,7 +627,11 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
-  set W : ℝ := B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
+  set w : ℝ := ((min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) : ℝ) with hwd
+  have hwℓ : w ≤ ℓ := by
+    rw [hwd, hℓd]
+    exact_mod_cast (min_le_left _ _).trans (le_refl (L₁ + 1))
+  set W : ℝ := B₃ * w * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
   set RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -654,13 +659,17 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hK₁0 : 0 ≤ K₁ := by
     show 0 ≤ 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
     positivity
-  have hWW : W ≤ W₀ * ℓ ^ 2 := far_le hB₃ hB₃0 hQ0 (by positivity) (by positivity) hε0 hinvε hℓ1
+  have hWW : W ≤ W₀ * ℓ ^ 2 := by
+    have h1 : B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε ≤ W₀ * ℓ ^ 2 :=
+      far_le hB₃ hB₃0 hQ0 (by positivity) (by positivity) hε0 hinvε hℓ1
+    have : B₃ * w * Q ≤ B₃ * ℓ * Q := by gcongr
+    linarith
   have hc3 : 1 ≤ Q * (Q + 1) ^ 2 * A := by
     have h1 : (1 : ℝ) ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith)
     exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ1 h1) (by linarith)
   have hW1 : 1 ≤ W := by
-    show 1 ≤ B₃ * ℓ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-    have : 0 ≤ B₃ * ℓ * Q := by positivity
+    show 1 ≤ B₃ * w * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+    have : 0 ≤ B₃ * w * Q := by positivity
     have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
     linarith
   have hW₀1 : 1 ≤ W₀ := by

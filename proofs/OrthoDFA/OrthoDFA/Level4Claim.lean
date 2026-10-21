@@ -61,9 +61,11 @@ def Level4RoundCorrect : Prop :=
     -- The middles test's yield fits under the success test's rate.
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
-    -- A probe reads at most `(L + 1)|Q|` strings and a split re-sifts at most `(|Q| + 1)²|Σ|`, so
-    -- the round reads some string wrong with chance at most `δ/8`.
-    εw * C.probeBudget * ((P.L + 1) * nQ + (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+    -- A probe sifts at most `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes, each reading at most `|Q|`
+    -- strings, and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each, so the round reads some
+    -- string wrong with chance at most `δ/8`.
+    εw * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+      ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           -- As at level 3.

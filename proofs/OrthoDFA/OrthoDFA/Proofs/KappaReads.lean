@@ -630,6 +630,99 @@ theorem probeReads_pot : probeReads rd T E k x ⊆ pot k x T := by
       · rw [hb] at hw; simp at hw
   · rw [ha] at hw; simp at hw
 
+
+/-- A search reads the sifts only of the positions it queries. -/
+theorem searchPos_sub (ag : ℕ → Option Bool) {lo hi : ℕ} (hle : lo ≤ hi) :
+    ∀ p ∈ searchPos (tripartiteSearch false ag lo hi) hi,
+      p ∈ (tripartiteSearch false ag lo hi).2 := by
+  intro p hp
+  rcases List.mem_append.1 hp with hp | hp
+  · exact hp
+  have he := tripartiteSearch_edge_mem ag lo hi hle
+  have hm := tripartiteSearch_undecidedMid_mem ag lo hi
+  have hh := tripartiteSearch_undecidedHi_mem ag lo hi
+  generalize (tripartiteSearch false ag lo hi).1 = r at hp he hm hh
+  cases r with
+  | edge q =>
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact (he _ rfl).2
+    · exact (he _ rfl).1
+  | undecidedMid q =>
+    simp only [List.mem_singleton] at hp
+    subst hp
+    exact hm _ rfl
+  | undecidedHi =>
+    simp only [List.mem_singleton] at hp
+    subst hp
+    exact hh rfl
+  | _ => simp at hp
+
+theorem siftReads_card (rd : FreeMonoid α → ARU) (T : DTree α) (z : FreeMonoid α) :
+    (siftReads rd T z).card ≤ (mids T).card := by
+  classical
+  have : siftReads rd T z ⊆ (mids T).image (z * ·) := fun w hw => by
+    obtain ⟨m, hm, rfl⟩ := siftReads_mids T z w hw
+    exact Finset.mem_image_of_mem _ hm
+  exact (Finset.card_le_card this).trans Finset.card_image_le
+
+theorem posReads_card (rd : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
+    (ps : List ℕ) : (posReads rd T x ps).card ≤ ps.toFinset.card * (mids T).card := by
+  classical
+  unfold posReads
+  refine Finset.card_biUnion_le.trans ?_
+  calc _ ≤ ∑ _p ∈ ps.toFinset, (mids T).card :=
+        Finset.sum_le_sum fun p _ => siftReads_card rd T _
+    _ = _ := by rw [Finset.sum_const, smul_eq_mul]
+
+/-- A probe at most `L` long reads the sifts of at most `3 + ⌈log₂ L⌉` of its prefixes: its
+search's queries, the first its start, and the successor of the walk's end. -/
+theorem probeReads_sub {L : ℕ} (hx : x.toList.length ≤ L) :
+    ∃ ps : List ℕ, ps.toFinset.card ≤ 3 + Nat.clog 2 L
+      ∧ probeReads rd T E k x ⊆ posReads rd T x ps := by
+  classical
+  unfold probeReads
+  by_cases hk : x.toList.length < k
+  · exact ⟨[], by simp, by simp [hk]⟩
+  rw [if_neg hk]
+  rcases ha : T.sift rd (prefixOf x k) with a | z
+  · dsimp only
+    obtain ⟨hpos, hhix, -⟩ := walk_facts E k x (p₀ := a) (by omega)
+    generalize walk E a (x.toList.drop k) = ss at hpos hhix ⊢
+    refine ⟨(k + ss.length - 1 + 1) :: (tripartiteSearch false
+      (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2, ?_, ?_⟩
+    · have h1 := tripartiteSearch_length_noRecovery
+        (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)
+      have h2 := Nat.clog_mono_right 2 (show k + ss.length - 1 - k ≤ L by omega)
+      rw [List.toFinset_cons]
+      have h3 := List.toFinset_card_le (tripartiteSearch false
+        (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2
+      have h4 := Finset.card_insert_le (k + ss.length - 1 + 1) (tripartiteSearch false
+        (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2.toFinset
+      omega
+    · have hsr : posReads rd T x (searchPos (tripartiteSearch false
+          (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1))
+          (k + ss.length - 1)) ⊆ posReads rd T x
+          ((k + ss.length - 1 + 1) :: (tripartiteSearch false
+            (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2) :=
+        fun w hw => by
+          obtain ⟨p, hp, hwp⟩ := mem_posReads.1 hw
+          exact mem_posReads.2 ⟨p, List.mem_cons_of_mem _ (searchPos_sub _ (by omega) p hp),
+            hwp⟩
+      have hst : ∀ w ∈ siftReads rd T (prefixOf x k), w ∈ posReads rd T x
+          ((k + ss.length - 1 + 1) :: (tripartiteSearch false
+            (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2) :=
+        fun w hw => mem_posReads.2 ⟨k, List.mem_cons_of_mem _ (tripartiteSearch_lo_mem _ _ _), hw⟩
+      refine Finset.union_subset hst ?_
+      split
+      · refine Finset.union_subset (fun w hw => mem_posReads.2 ⟨_, List.mem_cons_self, hw⟩) ?_
+        split
+        · exact Finset.empty_subset _
+        · exact hsr
+      · exact hsr
+  · exact ⟨[k], by simp; omega, Finset.union_subset (fun w hw =>
+      mem_posReads.2 ⟨k, List.mem_singleton_self _, hw⟩) (Finset.empty_subset _)⟩
+
 end Probe
 
 end Kappa
