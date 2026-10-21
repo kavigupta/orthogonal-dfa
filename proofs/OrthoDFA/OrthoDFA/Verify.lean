@@ -11,6 +11,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.Level6
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
 import OrthoDFA.Proofs.KappaRound
@@ -34,7 +35,8 @@ The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`,
-`Level3AllowanceCorrect`, stated in `OrthoDFA.AllowanceClaim`, and
+`Level3AllowanceCorrect` and `Level6RoundCorrect`, stated in `OrthoDFA.AllowanceClaim` and
+`OrthoDFA.Level6Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises.
 
@@ -138,6 +140,10 @@ theorem level5_round_correct : Level5RoundCorrect :=
 theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
 
 #print axioms level3_allowance_correct
+
+theorem level6_round_correct : Level6RoundCorrect := level6RoundCorrect_holds
+
+#print axioms level6_round_correct
 
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 

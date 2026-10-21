@@ -313,6 +313,18 @@ what a state's chance of reading undecided is.
   states. Level 3's stretches use right reads only to keep the tree in its class; the proof runs
   level 5's frame on the target padded with `f` unreachable states, with the leaf count as the
   invariant.
+- `OrthoDFA/Level6Claim.lean` — `Level6RoundCorrect`: level 3's algorithm, unchanged, on level 5's
+  reads, fails to end well with chance at most `δ` while tolerating a few wrong reads. Its premises
+  are level 3's at `|Q| + f` states, and
+  `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t' c}`. Here
+  `c` is a round's cost, and `b` and `m` count the strings the round reads, in all and undecided,
+  within `|Q| + f + 2` leaves.
+  - A step reads in rounds: its probe's, then one per edge its split re-sifts.
+  - Where no two probes share their first `walkStart` letters (the first term), every string read
+    belongs to one probe. A round with a fresh wrong read then adds at most one spurious leaf or
+    one bad edge, and a split on a bad edge drops it.
+  - So the tree outgrows `|Q| + f + 2` leaves only after `f + 2` such rounds, which
+    `RaceTailBound` bounds; within the allowance, `Level3AllowanceCorrect` gives `7δ/8`.
 - `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
   suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
   side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the
