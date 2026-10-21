@@ -4,8 +4,6 @@ import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopSelect
-set_option profiler true
-set_option profiler.threshold 2000
 
 /-!
 # The learner's DFA: the proof
@@ -384,7 +382,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         _ ≤ 16 := by norm_num
     refine this.trans ?_
     rw [le_div_iff₀ hδ'0]
-    nlinarith
+    nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)]
   -- the walk starts after at least one letter
   have hk0 : 1 ≤ k := by
     by_contra h
@@ -699,7 +697,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     have ha0 := (gateA_pos hη0 hη₀).le
     have hsq : ((1 - 2 * η₀) / (1 - η₀)) ^ 2 ≤ 1 := by
       have : (1 - 2 * η₀) / (1 - η₀) = gateA η₀ := rfl
-      rw [this]; nlinarith
+      rw [this]; exact pow_le_one₀ ha0 ha
     have hεc0 : 0 ≤ εcov / 2 := by
       have : 0 < εcov := lt_min hε0 (by positivity)
       positivity
@@ -717,7 +715,9 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     positivity
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
   have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+    Real.log_nonneg (by
+      rw [le_div_iff₀ hδ'0]
+      nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
   have hEE : 1 ≤ E + E₂ := by
     have hE₁ : 1 ≤ E₁ := by
       show 1 ≤ (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s

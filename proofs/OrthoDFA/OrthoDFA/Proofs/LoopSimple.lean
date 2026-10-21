@@ -1,8 +1,6 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 import OrthoDFA.Proofs.LearnerLoop
 import OrthoDFA.Proofs.Budget
-set_option profiler true
-set_option profiler.threshold 2000
 
 /-!
 # The loop's claim at explicit settings

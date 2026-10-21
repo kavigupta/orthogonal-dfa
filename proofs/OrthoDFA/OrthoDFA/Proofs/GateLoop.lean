@@ -1,8 +1,6 @@
 import OrthoDFA.Proofs.MiscutGate
 import OrthoDFA.Proofs.CountRule
 import Mathlib.Analysis.Complex.ExponentialBounds
-set_option profiler true
-set_option profiler.threshold 2000
 
 /-!
 # The adaptive clustering loop, gated: the proof
