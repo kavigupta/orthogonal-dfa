@@ -29,6 +29,9 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\* round
   ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, and wrong
   reads scaling with indecision.
+- `Level3ConsistentSound` (`OrthoDFA/Level3Sound.lean`): whatever the reads, level 3 ends
+  consistent at a hypothesis whose probes search or stop undecided at their start or end sift more
+  than the disagreement rate of the time with chance at most `δ/8`.
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
