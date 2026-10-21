@@ -150,9 +150,10 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
     rw [hSst]
     push_cast
     nlinarith
-  have hMb : Mb nQ nα P.L C.probeBudget = C.probeBudget * (P.L + 1) * nQ
-      + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mb wSplit
+  have hMb : Mb nQ nα P.L C.probeBudget
+      = C.probeBudget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * nQ
+        + nQ * (nQ + 1) ^ 2 * nα := by
+    unfold Mb wSplit probeSifts
     push_cast
     ring
   have hwr : εw * Mb nQ nα P.L C.probeBudget + κ * Mu nQ nα C ≤ δ / 8 := by
@@ -167,6 +168,19 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
         ring
 
 end Kappa
+
+namespace Eps
+
+theorem level4RoundCorrect_holds : Level4RoundCorrect := by
+  intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
+  dsimp only
+  intro hpre hδ hy0 hyρ hρ1 hP hw
+  have hεw : 0 ≤ εw := MeasureTheory.measureReal_nonneg.trans (R.wrong default)
+  exact Kappa.level5RoundCorrect_holds M side U εw 0 μ
+    ⟨R.read, R.measurable, R.indep, R.undecided, fun z => by simpa using R.wrong z⟩ P C p₀ hpre hδ
+    hy0 hyρ hρ1 hP hεw le_rfl (by simpa using hw)
+
+end Eps
 
 end Random
 
