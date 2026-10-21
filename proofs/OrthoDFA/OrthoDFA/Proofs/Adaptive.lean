@@ -1673,7 +1673,7 @@ lemma cert_hits_upper (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeas
     (Measure.pi Pc).real
         {c | (m : ℝ) * (q + t)
           ≤ (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ)}
-      ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((m : ℝ) * relRate (q + t) q)) := by
   classical
   set ν : Measure (J → ℕ → S) := Measure.pi Pc with hνdef
   have hWm : MeasurableSet W := measurableSet_of_countable W
@@ -1708,7 +1708,10 @@ lemma cert_hits_upper (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeas
       Finset.card_range]
     have : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
     nlinarith [hW]
-  have hmain := sumUpper_le X (Finset.range m) q t hmeas hindep hicc hsum ht
+  have hq0 : 0 ≤ q := le_trans measureReal_nonneg hW
+  have hmain := sumUpper_count_rel X (Finset.range m) q (q + t)
+    (fun i => hindm.comp ((measurable_pi_apply _).comp (measurable_pi_apply _))) hindep hicc hq0
+    (by linarith) hsum
   have hcount : ∀ c : J → ℕ → S, ∑ i ∈ Finset.range m, X i c
       = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
     intro c
@@ -3726,14 +3729,14 @@ theorem selection_block_bound (O : Oracle μ S) (R Q : Finset S)
     _ ≤ E := hmain
 
 open scoped Classical in
-/-- Hoeffding on a per-prefix failure count.  Each prefix's failure is decided by its own
-block of strings, the blocks are disjoint, so the failures are independent. -/
+/-- The relative upper tail of a per-prefix failure count.  Each prefix's failure is decided by
+its own block of strings, the blocks are disjoint, so the failures are independent. -/
 theorem count_frac_hoeffding (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
     (hblk : ∀ p ∈ C, ∀ q ∈ C, p ≠ q → Disjoint (blk p) (blk q))
     (Bad : S → Set Ω) (hmeasB : ∀ p, MeasurableSet[noiseAlg O ↑(blk p)] (Bad p))
-    (E l : ℝ) (hEl : E ≤ l) (hper : ∀ p ∈ C, μ.real (Bad p) ≤ E) :
+    (E l : ℝ) (hE : 0 ≤ E) (hEl : E ≤ l) (hper : ∀ p ∈ C, μ.real (Bad p) ≤ E) :
     μ.real {ω | l * (C.card : ℝ) < ((C.filter (fun p => ω ∈ Bad p)).card : ℝ)}
-      ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+      ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
   classical
   set Y : {p // p ∈ C} → Ω → ℝ := fun i => (Bad i.val).indicator (fun _ => (1 : ℝ)) with hY
   have hmeasA : ∀ p, MeasurableSet (Bad p) := fun p => noiseAlg_le O _ _ (hmeasB p)
@@ -3760,105 +3763,19 @@ theorem count_frac_hoeffding (O : Oracle μ S) (C : Finset S) (blk : S → Finse
           Finset.sum_le_sum (fun i _ => hper i.val i.property)
       _ = ((Finset.univ : Finset {p // p ∈ C}).card : ℝ) * E := by
           rw [Finset.sum_const, nsmul_eq_mul]
-  have h := sumUpper_le Y Finset.univ E (l - E)
-    (fun i => (measurable_const.indicator (hmeasA i.val)).aemeasurable) hind hIcc hmean
-    (by linarith)
+  have h := sumUpper_count_rel Y Finset.univ E l
+    (fun i => measurable_const.indicator (hmeasA i.val)) hind hIcc hE hEl hmean
   have hcard : ((Finset.univ : Finset {p // p ∈ C}).card : ℝ) = (C.card : ℝ) := by
     simp
   rw [hcard] at h
   refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) h
-  change (C.card : ℝ) * (E + (l - E)) ≤ ∑ i : {p // p ∈ C}, Y i ω
+  change (C.card : ℝ) * l ≤ ∑ i : {p // p ∈ C}, Y i ω
   have hsum : ∑ i : {p // p ∈ C}, Y i ω = ((C.filter (fun p => ω ∈ Bad p)).card : ℝ) := by
     rw [hY, Finset.sum_coe_sort C (fun p => (Bad p).indicator (fun _ => (1 : ℝ)) ω)]
     simp [Set.indicator_apply, Finset.sum_boole]
-  rw [hsum, show E + (l - E) = l by ring]
+  rw [hsum]
   have h' : l * (C.card : ℝ) < ((C.filter (fun p => ω ∈ Bad p)).card : ℝ) := hω
   linarith
-
-open scoped Classical in
-/-- The table's own vote concentrates: off an `exp (−2·#P·(b − E)²)` set, every `κ`-subset
-of the pool votes within `#F·γ` of its mean at all but a `b` fraction of the table's
-prefixes.  Each prefix reads its own block `p · F`, which flatness keeps apart from the
-others, so the per-prefix deviations are independent.
-
-Unlike `frac_selected_le` this says nothing about the family the table selects; it is
-uniform over the families instead, which is what the selection's own reads cost. -/
-theorem tableVote_unif_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
-    (P Cd : Finset S) (hP : ∀ p ∈ P, p ∈ Pre) (hV : ∀ v ∈ Cd, v ∈ insert 1 Suf) (κ : ℕ)
-    (γ b : ℝ) (hγ : 0 ≤ γ)
-    (hb : 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2) ≤ b) :
-    μ.real {ω | ∃ F ∈ Cd.powersetCard κ, b * (P.card : ℝ)
-        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
-            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
-      ≤ (Cd.card.choose κ : ℝ)
-        * Real.exp (-2 * (P.card : ℝ) * (b - 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) ^ 2) := by
-  classical
-  have hper : ∀ (F : Finset S) (p : S),
-      μ.real {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
-          ≤ (F.card : ℝ) * γ} ≤ 2 * Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
-    intro F p
-    have hup := sumUpper_le_total (fun v : S => O.mq (p * v)) F
-      (∑ v ∈ F, μ[O.mq (p * v)]) γ (fun _ => (mq_meas O _).aemeasurable)
-      (mq_indep_shift O p) (fun _ => mq_icc O _) le_rfl hγ
-    have hlo := sumLower_le_total (fun v : S => O.mq (p * v)) F
-      (∑ v ∈ F, μ[O.mq (p * v)]) γ (fun _ => (mq_meas O _).aemeasurable)
-      (mq_indep_shift O p) (fun _ => mq_icc O _) le_rfl hγ
-    have hsub : ∀ᵐ ω ∂μ, ω ∈ {ω | ¬ |(voteCount O.mq F p ω : ℝ)
-          - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ} →
-        ω ∈ ({ω | ∑ v ∈ F, μ[O.mq (p * v)] + (F.card : ℝ) * γ ≤ ∑ v ∈ F, O.mq (p * v) ω}
-          ∪ {ω | ∑ v ∈ F, O.mq (p * v) ω
-              ≤ ∑ v ∈ F, μ[O.mq (p * v)] - (F.card : ℝ) * γ}) := by
-      filter_upwards [voteCount_eq_voteSum O F p] with ω heq hω
-      have hω' : (F.card : ℝ) * γ ≤ |voteSum O F p ω - ∑ v ∈ F, μ[O.mq (p * v)]| := by
-        rw [← heq]; exact le_of_lt (not_le.mp hω)
-      rcases le_abs.mp hω' with h | h
-      · exact Or.inl (show _ ≤ voteSum O F p ω by
-          simp only [voteSum] at h ⊢; linarith)
-      · exact Or.inr (show voteSum O F p ω ≤ _ by
-          simp only [voteSum] at h ⊢; linarith)
-    calc μ.real {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
-            ≤ (F.card : ℝ) * γ}
-        ≤ μ.real ({ω | ∑ v ∈ F, μ[O.mq (p * v)] + (F.card : ℝ) * γ
-              ≤ ∑ v ∈ F, O.mq (p * v) ω}
-            ∪ {ω | ∑ v ∈ F, O.mq (p * v) ω
-              ≤ ∑ v ∈ F, μ[O.mq (p * v)] - (F.card : ℝ) * γ}) :=
-          measureReal_le_of_ae_imp hsub
-      _ ≤ _ + _ := measureReal_union_le _ _
-      _ ≤ 2 * Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by linarith
-  have hcount : ∀ F ∈ Cd.powersetCard κ,
-      μ.real {ω | b * (P.card : ℝ) < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
-            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
-        ≤ Real.exp (-2 * (P.card : ℝ) * (b - 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) ^ 2) := by
-    intro F hF
-    have hFκ : F.card = κ := (Finset.mem_powersetCard.mp hF).2
-    have hFV : ∀ v ∈ F, v ∈ insert 1 Suf := fun v hv => hV v ((Finset.mem_powersetCard.mp hF).1 hv)
-    have h := count_frac_hoeffding O P (fun p => F.image (fun v => p * v)) ?_
-      (fun p => {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
-        ≤ (F.card : ℝ) * γ}) ?_
-      (2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) b hb (fun p _ => by rw [← hFκ]; exact hper F p)
-    · simpa only [Set.mem_setOf_eq] using h
-    · intro p hp q hq hpq
-      rw [Finset.disjoint_left]
-      intro z hz hz'
-      obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hz
-      obtain ⟨v', hv'F, hv'⟩ := Finset.mem_image.1 hz'
-      exact hpq (hflat p (hP p hp) q (hP q hq) v (hFV v hv) v' (hFV v' hv'F) hv'.symm)
-    · intro p
-      exact measurableSet_filter_pred_map O (fun v => p * v)
-        (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv))
-        (fun W => ¬ |((W.card : ℕ) : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)
-  have hunion : {ω | ∃ F ∈ Cd.powersetCard κ, b * (P.card : ℝ)
-        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
-            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
-      = ⋃ F ∈ Cd.powersetCard κ, {ω | b * (P.card : ℝ)
-        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
-            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)} := by
-    ext ω
-    simp only [Set.mem_setOf_eq, Set.mem_iUnion, exists_prop]
-  rw [hunion]
-  refine le_trans (measureReal_biUnion_finset_le _ _)
-    (le_trans (Finset.sum_le_sum hcount) ?_)
-  rw [Finset.sum_const, nsmul_eq_mul, Finset.card_powersetCard]
 
 open scoped Classical in
 /-- A per-prefix failure count on the certification sample, for the family the table
@@ -3876,7 +3793,7 @@ theorem frac_selected_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ
     (E l : ℝ) (hE : 0 ≤ E) (hEl : E ≤ l)
     (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, μ.real {ω | Ev A₀ p ω} ≤ E) :
     μ.real {ω | l * (C.card : ℝ) < ((C.filter (fun p => Ev (fam ω) p ω)).card : ℝ)}
-      ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+      ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
   classical
   set R : Finset S := C.biUnion (fun p => cands.image (fun v => p * v)) with hR
   have hdisjR : Disjoint (↑R : Set S) (↑(readSet P cands) : Set S) := by
@@ -3895,12 +3812,12 @@ theorem frac_selected_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ
       (fun p hp => hEv A₀ p ↑R (fun v hv => Finset.mem_coe.2 (Finset.mem_biUnion.2
         ⟨p, hp, Finset.mem_image_of_mem _ (hTC A₀ hA₀ hv)⟩)))
       (fun U => l * (C.card : ℝ) < (U.card : ℝ))
-  have hfixed : ∀ A₀ ∈ T, μ.real (Bad A₀) ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+  have hfixed : ∀ A₀ ∈ T, μ.real (Bad A₀) ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
     intro A₀ hA₀
     have h := count_frac_hoeffding O C (fun p => A₀.image (fun v => p * v)) ?_
       (fun p => {ω | Ev A₀ p ω})
       (fun p => hEv A₀ p _ (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv)))
-      E l hEl (fun p hp => hbad p hp A₀ hA₀)
+      E l hE hEl (fun p hp => hbad p hp A₀ hA₀)
     · exact le_of_eq_of_le (by rfl) h
     · intro p hp q hq hpq
       rw [Finset.disjoint_left]
@@ -3913,7 +3830,7 @@ theorem frac_selected_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ
     hmeasU hmeasR _ (Real.exp_nonneg _) hfixed
 
 open scoped Classical in
-/-- The indecision rate on the certification sample is below the limit, off a Hoeffding
+/-- The indecision rate on the certification sample is below the limit, off a relative
 tail. -/
 theorem indecision_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
@@ -3925,7 +3842,7 @@ theorem indecision_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle 
     (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ decided O.mq lo ha A₀ p ω} ≤ E) :
     μ.real {ω | l * (C.card : ℝ)
         < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ decided O.mq lo ha (fam ω) p ω)).card : ℝ)}
-      ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+      ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
   classical
   have h := frac_selected_le hflat O P cands C hP hV hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
     (fun A₀ p ω => A₀ ∈ good p ∧ ¬ decided O.mq lo ha A₀ p ω) (fun A₀ p U hU => by
@@ -3958,7 +3875,7 @@ theorem indecision_frac_le_seed {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     μ.real {ω | l * (C.card : ℝ)
         < ((C.filter (fun p => fam ω ∈ good p
             ∧ ¬ decided O.mq lo ha (insert 1 (fam ω)) p ω)).card : ℝ)}
-      ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+      ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
   classical
   set T' : Finset (Finset S) := T.image (insert 1) with hT'
   set good' : S → Finset (Finset S) := fun p => T'.filter (fun A => A.erase 1 ∈ good p)
@@ -3998,7 +3915,7 @@ theorem miscut_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ cutCorrect O lo ha A₀ p ω} ≤ E) :
     μ.real {ω | l * (C.card : ℝ)
         < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)}
-      ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
+      ≤ Real.exp (-((C.card : ℝ) * relRate l E)) := by
   classical
   have h := frac_selected_le hflat O P cands C hP hV hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
     (fun A₀ p ω => A₀ ∈ good p ∧ ¬ cutCorrect O lo ha A₀ p ω) (fun A₀ p U hU => by
@@ -5178,7 +5095,7 @@ lemma card_filter_fin_eq (m : ℕ) (Q : S → Prop) [DecidablePred Q] (y : ℕ �
 open scoped Classical in
 /-- The draws are not mostly prefixes the family flips.  The heavy set is chosen by the
 noise and the table; the certification draws are neither, so their hit count is the upper
-Hoeffding tail at its mass. -/
+tail relative to its mass. -/
 noncomputable def heavyHits (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
     (Dj : Measure S) (j : J) (B : State) (f q t : ℝ) : Set (Run Ω S J) :=
   {x | Dj.real {p | ¬ (flipCount O (clusterBy rule O.mq populations x B) p
@@ -5248,10 +5165,10 @@ theorem measureReal_heavyHits_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Meas
     (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
     (hPc : Pc j = iidStream Dj) (B : State) (f q t : ℝ) (ht : 0 ≤ t) :
     (streamMeasure μ Pp Pc Dsf).real (heavyHits rule O populations Dj j B f q t)
-      ≤ Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((B.npref : ℝ) * relRate (q + t) q)) := by
   classical
   have hEnn : streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B f q t)
-      ≤ ENNReal.ofReal (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)) := by
+      ≤ ENNReal.ofReal (Real.exp (-((B.npref : ℝ) * relRate (q + t) q))) := by
     refine streamMeasure_slice_cert_le Pp Pc Dsf _
       (measurableSet_heavyHits O populations Dj j B f q t) _ ?_
     intro y
@@ -5288,9 +5205,9 @@ theorem measureReal_heavyHits_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Meas
       simp [hsec]
   rw [measureReal_def]
   calc (streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B f q t)).toReal
-      ≤ (ENNReal.ofReal (Real.exp (-2 * (B.npref : ℝ) * t ^ 2))).toReal :=
+      ≤ (ENNReal.ofReal (Real.exp (-((B.npref : ℝ) * relRate (q + t) q)))).toReal :=
         ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
-    _ = Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
+    _ = Real.exp (-((B.npref : ℝ) * relRate (q + t) q)) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
 lemma measurableSet_decided' (O : Oracle μ S) (lo ha : ℕ) (A₀ : Finset S) (p : S) :
     MeasurableSet[noiseAlg O Set.univ] {ω | ¬ decided O.mq lo ha A₀ p ω} :=
