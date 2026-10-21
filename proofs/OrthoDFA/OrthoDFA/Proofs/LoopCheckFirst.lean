@@ -275,6 +275,9 @@ theorem disjoint_sched_checkZone (settings : LoopSettings K) (D Dsf : Measure (F
 instance (T n : ℕ) : IsProbabilityMeasure (checkRoundLaw α K T n) := by
   unfold checkRoundLaw; infer_instance
 
+instance (T n : ℕ) : SFinite (Measure.pi fun _ : Fin K => checkRoundLaw α K T n) :=
+  @instSFiniteOfSigmaFinite _ _ _ inferInstance
+
 omit [IsProbabilityMeasure μ] in
 lemma measurableSet_sets (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     (h : LoopHist α) (Φ : Finset (FreeMonoid α) → Finset (FreeMonoid α) → Prop) :
