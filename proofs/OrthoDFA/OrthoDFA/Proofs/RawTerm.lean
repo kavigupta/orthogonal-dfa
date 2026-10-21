@@ -420,7 +420,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
         + (Real.exp (-2 * (M : ℝ) * tap ^ 2)
         + (((N + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
-          + ((M : ℝ) + 2) ^ 2 * Real.exp (-2 * (N : ℝ) * γscr ^ 2))) :=
+          + 2 * ((M : ℝ) + 1) * Real.exp (-2 * (N : ℝ) * γscr ^ 2))) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B kk kk) (fun g =>
       measureReal_stalled_le hflat O populations _ _ Dsf (hsT g) hsuppSf B (by omega) uni huni
         (D uni) (sideLawT_uni H uni D g) γscr pAP tap ρsf ρ rs r hγscr hpAP0 htap hpAPBound hscd
@@ -433,7 +433,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
           have : (2 : ℝ) ≤ B.k := by exact_mod_cast hkpos
           linarith))
   have bb : (runMeasure μ D Dsf).real (Y ⁻¹' Eb)
-      ≤ ((M : ℝ) + 2) ^ 2 * Real.exp (-2 * (N : ℝ) * γdirty ^ 2) :=
+      ≤ 2 * ((M : ℝ) + 1) * Real.exp (-2 * (N : ℝ) * γdirty ^ 2) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_screenBad O populations B Δ) (fun g =>
       measureReal_screenBad_le hflat O populations _ _ Dsf (hsT g) hsuppSf B hsig hNpos Δ
         γdirty hΔ hγdirty hscd hscHigh)
@@ -605,7 +605,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))
         + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
         + (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
-          + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γscr ^ 2))) := fun g =>
+          + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γscr ^ 2))) := fun g =>
     measureReal_stalled_le hflat O populations _ _ Dsf (hsT g) hsuppSf B (by omega) uni huni
       (D uni) (sideLawT_uni H uni D g) γscr pAP tap (collisionMass Dsf) ρ rs r hγscr hpAP0 htap
       hpAPBound' hscd hsigle hscLow hcount hρsf' hρsf0 hρc hρ0
@@ -626,7 +626,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     have hdirtyB : (streamMeasure μ Pp Pc Dsf).real
         {x | ¬ ∀ v ∈ clusterBy rule O.mq populations x B, flipMass O (D uni) v ≤ Δp}
         ≤ (((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
-            + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
+            + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γdirty ^ 2)
             + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * gdirty ^ 2))
           + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
             + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * collisionMass Dsf / (2 * ((rs : ℝ) + 1))) := by
