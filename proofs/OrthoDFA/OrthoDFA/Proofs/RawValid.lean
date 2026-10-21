@@ -147,16 +147,18 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
   have he1 : e ≤ 1 / 64 := by
     have : min εcov indecisionLimit ≤ indecisionLimit := min_le_right _ _
     rw [hedef]; linarith
-  have hρle : ρ ≤ 16 * δ * e ^ 2 / ((P + 1) ^ 2 * N) := by
-    refine le_trans hρcap ?_
-    rw [collisionCap, ← hs, ← hP, ← hNdef]
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have hs2 : s ^ 2 ≤ (4096 * e) ^ 2 := pow_le_pow_left₀ hs0.le hse 2
-    have hk : (0 : ℝ) ≤ δ * ((P + 1) ^ 2 * N) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hs2 hk]
-  have hρN : ρ * ((P + 1) ^ 2 * N) ≤ 16 * δ * e ^ 2 := by
-    rwa [le_div_iff₀ (by positivity)] at hρle
-  have hP4 : 4 * P ≤ (P + 1) ^ 2 := by nlinarith [sq_nonneg (P - 1)]
+  have hwin : ρ * (65536 * P * N) ≤ min εcov indecisionLimit := by
+    have h := le_trans hρcap (le_trans (min_le_left _ _) (min_le_right _ _))
+    rw [← hP, ← hNdef, le_div_iff₀ (by positivity)] at h
+    exact h
+  have hhash : ρ * (2 ^ 33 * P * (3 + 2 * (Nat.log 2 N : ℝ)))
+      ≤ δ * min εcov indecisionLimit ^ 2 := by
+    have h := le_trans hρcap (min_le_right _ _)
+    rw [← hP, ← hNdef, le_div_iff₀ (by positivity)] at h
+    exact h
+  have hmin : min εcov indecisionLimit = 4096 * e := by rw [hedef]; ring
+  rw [hmin] at hwin hhash
+  clear hmin
   refine ⟨by exact_mod_cast hN20, ?_, ?_, ?_, ?_⟩
   · -- the fill's tail
     have hL : L ≤ (N : ℝ) / 2 := by linarith
@@ -174,47 +176,26 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
           mul_le_mul_of_nonneg_left hexp (by linarith)
       _ ≤ δ / 32 := this
   · -- the hash's tails over every rung
-    have hx : 16 * ρ / e ^ 2 ≤ 256 * δ / ((P + 1) ^ 2 * N) := by
-      rw [div_le_div_iff₀ (by positivity) (by positivity)]
-      nlinarith
     have hlog0 : (0 : ℝ) ≤ 3 + 2 * (Nat.log 2 N : ℝ) := by positivity
-    calc P * (3 + 2 * (Nat.log 2 N : ℝ)) * (16 * ρ / e ^ 2)
-        ≤ P * (3 + 2 * (Nat.log 2 N : ℝ)) * (256 * δ / ((P + 1) ^ 2 * N)) :=
-          mul_le_mul_of_nonneg_left hx (by positivity)
-      _ ≤ δ / 32 := by
-          rw [show P * (3 + 2 * (Nat.log 2 N : ℝ)) * (256 * δ / ((P + 1) ^ 2 * N))
-              = (256 * δ * P * (3 + 2 * (Nat.log 2 N : ℝ))) / ((P + 1) ^ 2 * N) by ring,
-            div_le_div_iff₀ (by positivity) (by norm_num)]
-          have h1 : 256 * δ * P * (3 + 2 * (Nat.log 2 N : ℝ)) * 32
-              ≤ δ * (64 * (4 * P) * (2048 * (3 + 2 * (Nat.log 2 N : ℝ)) / 2048 * 32)) := by
-            nlinarith
-          have h2 : δ * (4 * P) * (3 + 2 * (Nat.log 2 N : ℝ)) * 2048
-              ≤ δ * (P + 1) ^ 2 * N := by
-            have := mul_le_mul hP4 hlogR (by positivity) (by positivity)
-            nlinarith [mul_le_mul_of_nonneg_left this hδ.le]
-          nlinarith
+    rw [show P * (3 + 2 * (Nat.log 2 N : ℝ)) * (16 * ρ / e ^ 2)
+        = 16 * (ρ * (P * (3 + 2 * (Nat.log 2 N : ℝ)))) / e ^ 2 by ring,
+      div_le_iff₀ (by positivity)]
+    have e1 : ρ * (2 ^ 33 * P * (3 + 2 * (Nat.log 2 N : ℝ)))
+        = 2 ^ 33 * (ρ * (P * (3 + 2 * (Nat.log 2 N : ℝ)))) := by ring
+    have e2 : δ * (4096 * e) ^ 2 = 2 ^ 24 * (δ * e ^ 2) := by ring
+    rw [e1, e2] at hhash
+    nlinarith
   · -- the windows' mass
-    calc P * (4 * (N : ℝ)) * ρ = 4 * P * (ρ * N) := by ring
-      _ ≤ 4 * P * (16 * δ * e ^ 2 / (P + 1) ^ 2) := by
-          refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-          rw [le_div_iff₀ (by positivity)]
-          nlinarith
-      _ ≤ 16 * δ * e ^ 2 := by
-          rw [show 4 * P * (16 * δ * e ^ 2 / (P + 1) ^ 2)
-              = (4 * P) * (16 * δ * e ^ 2) / (P + 1) ^ 2 by ring,
-            div_le_iff₀ (by positivity)]
-          have : 0 ≤ 16 * δ * e ^ 2 := by positivity
-          nlinarith
-      _ ≤ e / 4 := by nlinarith
+    have e1 : ρ * (65536 * P * N) = 65536 * (P * (4 * (N : ℝ)) * ρ) / 4 := by ring
+    rw [e1] at hwin
+    linarith
   · -- the harvested strings' mass
-    have h1 : ρ * N ≤ 16 * δ * e ^ 2 := by
-      have : ρ * N ≤ ρ * ((P + 1) ^ 2 * N) := by
-        have : (N : ℝ) ≤ (P + 1) ^ 2 * N := by nlinarith
-        exact mul_le_mul_of_nonneg_left this hρ0
-      linarith
+    have h1 : ρ * N ≤ 4096 * e / (65536 * P) := by
+      rw [le_div_iff₀ (by positivity)]; linarith
+    have h2 : 4096 * e / (65536 * P) ≤ e / 4 := by
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]; nlinarith
     calc (hsz : ℝ) * ρ ≤ N * ρ := mul_le_mul_of_nonneg_right hhszN hρ0
-      _ ≤ 16 * δ * e ^ 2 := by linarith
-      _ ≤ e / 4 := by nlinarith
+      _ ≤ e / 4 := by linarith
 
 open scoped Classical in
 /-- `D` on `A`, or `D` itself when `A` is null. -/

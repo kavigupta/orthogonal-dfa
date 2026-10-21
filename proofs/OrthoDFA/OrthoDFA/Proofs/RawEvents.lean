@@ -343,52 +343,87 @@ lemma measureReal_draw_in_window (D : J → Measure S) (Dsf : Measure S)
   exact ENNReal.toReal_le_of_le_ofReal hK hval
 
 open scoped Classical in
-/-- The uniform pool's first `n` draws land `a` times in a named population's window with chance
-at most `nKρ/a`. -/
+/-- The uniform pool's first `n` distinct draws land `a > 0` times in a named population's window,
+a set of at most `K` strings drawn independently of them, no more often than `Bin(n, Kρ)` reaches
+`⌈a⌉`. -/
 theorem measureReal_hits_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (uni j : J) (hju : j ≠ uni)
     {ρ : ℝ} (hρ : ∀ t, (D uni).real {t} ≤ ρ) (Q : Set S) (K n : ℕ) {a : ℝ} (ha : 0 < a) :
     (baseRun μ D Dsf).real {r : Run Ω S J |
         a ≤ ((window Q K (r.2.1.2 j) ∩ acceptedAt ∅ (r.2.1.2 uni) n).card : ℝ)}
-      ≤ n * (K * ρ) / a := by
+      ≤ rejTail n (K * ρ) (⌈a⌉₊ - 1) := by
   classical
-  set A : ℕ → Set (Run Ω S J) := fun i => {r | r.2.1.2 uni i ∈ window Q K (r.2.1.2 j)}
-    with hAdef
-  have hAm : ∀ i, MeasurableSet (A i) := by
-    intro i
-    have : A i = ⋃ z : Finset S, {r : Run Ω S J | window Q K (r.2.1.2 j) = z}
-        ∩ (fun r : Run Ω S J => r.2.1.2 uni i) ⁻¹' ↑z := by
-      ext r
-      simp only [hAdef, Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage,
-        Finset.mem_coe]
-      exact ⟨fun h => ⟨_, rfl, h⟩, fun ⟨z, hz, h⟩ => hz ▸ h⟩
+  have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρ 1)
+  have hk1 : 1 ≤ ⌈a⌉₊ := Nat.one_le_iff_ne_zero.2 (Nat.ceil_pos.2 ha).ne'
+  set k : ℕ := ⌈a⌉₊ - 1 with hk
+  have hkk : k + 1 = ⌈a⌉₊ := by omega
+  set A' : Set ((ℕ → S) × (ℕ → S)) :=
+    {p | k + 1 ≤ ((window Q K p.2 ∩ acceptedAt ∅ p.1 n).card)} with hA'
+  have hA'm : MeasurableSet A' := by
+    have : A' = ⋃ z : Finset S, Prod.fst ⁻¹' {s : ℕ → S | k + 1 ≤ (z ∩ acceptedAt ∅ s n).card}
+        ∩ Prod.snd ⁻¹' {w | window Q K w = z} := by
+      ext p
+      simp only [hA', Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage]
+      exact ⟨fun h => ⟨_, h, rfl⟩, fun ⟨z, h, hz⟩ => hz ▸ h⟩
     rw [this]
-    exact MeasurableSet.iUnion (fun z => (measurableSet_window_of Q K j z).inter
-      (((measurable_pi_apply i).comp (measurable_prefixStreamOf uni))
-        (Set.to_countable _).measurableSet))
+    exact MeasurableSet.iUnion (fun z => MeasurableSet.inter
+      (measurable_fst (measurableSet_acceptedAt ∅ n (fun A => k + 1 ≤ (z ∩ A).card)))
+      (measurable_snd (measurableSet_window_eq Q K (fun z' => z' = z))))
+  have hpair : Measurable (fun q : J → ℕ → S => (q uni, q j)) := by fun_prop
+  have hind : IndepFun (fun q : J → ℕ → S => q uni) (fun q => q j)
+      (Measure.pi (fun j => iidStream (D j))) :=
+    (iIndepFun_pi (X := fun _ (y : ℕ → S) => y) (μ := fun j => iidStream (D j))
+      (fun _ => measurable_id.aemeasurable)).indepFun hju.symm
+  have hlaw : Measure.map (fun q : J → ℕ → S => (q uni, q j))
+      (Measure.pi (fun j => iidStream (D j))) = (iidStream (D uni)).prod (iidStream (D j)) := by
+    rw [(indepFun_iff_map_prod_eq_prod_map_map (measurable_pi_apply uni).aemeasurable
+      (measurable_pi_apply j).aemeasurable).1 hind,
+      (measurePreserving_eval (fun j => iidStream (D j)) uni).map_eq,
+      (measurePreserving_eval (fun j => iidStream (D j)) j).map_eq]
   have hsub : {r : Run Ω S J |
         a ≤ ((window Q K (r.2.1.2 j) ∩ acceptedAt ∅ (r.2.1.2 uni) n).card : ℝ)}
-      ⊆ {r | a ≤ (((Finset.range n).filter (fun i => r ∈ A i)).card : ℝ)
-          + (((∅ : Finset ℕ).filter (fun i => r ∈ A i)).card : ℝ)} := by
+      ⊆ (fun r : Run Ω S J => r.2.1.2) ⁻¹' ((fun q : J → ℕ → S => (q uni, q j)) ⁻¹' A') := by
     intro r hr
-    simp only [Set.mem_ofPred_eq, Finset.filter_empty, Finset.card_empty, Nat.cast_zero,
-      add_zero] at hr ⊢
-    refine le_trans hr ?_
-    have hle : (window Q K (r.2.1.2 j) ∩ acceptedAt ∅ (r.2.1.2 uni) n)
-        ⊆ ((Finset.range n).filter (fun i => r ∈ A i)).image (r.2.1.2 uni) := by
-      intro s hs
-      obtain ⟨hsZ, hsT⟩ := Finset.mem_inter.1 hs
-      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 (Finset.mem_sdiff.1 hsT).1
-      exact Finset.mem_image.2 ⟨i, Finset.mem_filter.2 ⟨hi, hsZ⟩, rfl⟩
-    exact_mod_cast le_trans (Finset.card_le_card hle) Finset.card_image_le
+    show k + 1 ≤ (window Q K (r.2.1.2 j) ∩ acceptedAt ∅ (r.2.1.2 uni) n).card
+    have hr' : a ≤ ((window Q K (r.2.1.2 j) ∩ acceptedAt ∅ (r.2.1.2 uni) n).card : ℝ) := hr
+    have := Nat.ceil_le.2 hr'
+    omega
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-  refine le_trans (measureReal_count_ge_le (baseRun μ D Dsf) (Finset.range n) A hAm
-    (∅ : Finset ℕ) A hAm ha) ?_
-  rw [Finset.sum_empty, add_zero]
-  refine div_le_div_of_nonneg_right ?_ ha.le
-  calc ∑ i ∈ Finset.range n, (baseRun μ D Dsf).real (A i) ≤ ∑ _i ∈ Finset.range n, K * ρ :=
-        Finset.sum_le_sum (fun i _ => measureReal_draw_in_window D Dsf uni j hju hρ Q K i)
-    _ = n * (K * ρ) := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  have hval : baseRun μ D Dsf
+        ((fun r : Run Ω S J => r.2.1.2) ⁻¹' ((fun q : J → ℕ → S => (q uni, q j)) ⁻¹' A'))
+      ≤ ENNReal.ofReal (rejTail n (K * ρ) k) := by
+    rw [← Measure.map_apply (by fun_prop) (hpair hA'm), map_prefixStreams_base,
+      ← Measure.map_apply hpair hA'm, hlaw, Measure.prod_apply_symm hA'm]
+    refine le_trans (lintegral_mono (g := fun _ => ENNReal.ofReal (rejTail n (K * ρ) k))
+      (fun w => ?_)) ?_
+    · set W : Finset S := window Q K w with hW
+      have hmp := measurePreserving_finRestrict (D uni) n
+      have hpre : (fun s : ℕ → S => (s, w)) ⁻¹' A'
+          = (fun s : ℕ → S => fun i : Fin n => s i.val) ⁻¹'
+            {z : Fin n → S | k + 1 ≤ (((Finset.univ : Finset (Fin n)).image z \ ∅).filter
+              (· ∈ (W : Set S))).card} := by
+        ext s
+        simp only [Set.mem_preimage, Set.mem_ofPred_eq, hA', acceptedAt,
+          image_range_eq_image_univ n s]
+        rw [Finset.inter_comm, ← Finset.filter_mem_eq_inter]
+        rfl
+      rw [hpre, hmp.measure_preimage (Set.to_countable _).measurableSet.nullMeasurableSet,
+        ← ofReal_measureReal]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have key := (successiveDrawsTails_holds (D uni) n ∅ 1 (↑W : Set S) le_rfl
+        (fun F _ => measureReal_le_one)).2.1 (k + 1)
+      have hW1 : (D uni).real (↑W : Set S) ≤ min (K * ρ) 1 := by
+        refine le_min (le_trans (measureReal_window_le (D uni) hρ W) ?_) measureReal_le_one
+        exact mul_le_mul_of_nonneg_right (by exact_mod_cast window_card_le Q K w) hρ0
+      refine le_trans (le_of_eq ?_)
+        (le_trans key (binomSfGe_mono measureReal_nonneg (min_le_right _ _) hW1 n (k + 1)))
+      congr 1
+      ext z
+      simp only [Set.mem_ofPred_eq]
+      congr!
+    · simp
+  have hK : 0 ≤ rejTail n (K * ρ) k := rejTail_nonneg _ (by positivity) _
+  exact ENNReal.toReal_le_of_le_ofReal hK hval
 
 end Hits
 
