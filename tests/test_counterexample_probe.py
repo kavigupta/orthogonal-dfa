@@ -10,6 +10,7 @@ from orthogonal_dfa.l_star.counterexample_probe import (
     Middle,
     Start,
     charges,
+    first_decided,
     locate,
 )
 from orthogonal_dfa.l_star.hypothesis_dfa import HypothesisDFA
@@ -25,6 +26,32 @@ def _locate(cut, edges, x):
 
 def _charges(cut, edges, x):
     return charges(_locate(cut, edges, x), 0, bytes(x))
+
+
+def _hypothesis(cut, edges):
+    hypothesis = HypothesisDFA(cut, MidfixTree([]))
+    hypothesis.edges = dict(edges)
+    return hypothesis
+
+
+class TestFirstDecided(unittest.TestCase):
+    def test_it_is_zero_when_the_empty_string_is_decided(self):
+        self.assertEqual(0, first_decided(_hypothesis(parity_cut(()), {}), b"\x01"))
+
+    def test_it_skips_undecided_prefixes(self):
+        cut = parity_cut([b"", b"\x01"])
+        self.assertEqual(2, first_decided(_hypothesis(cut, {}), b"\x01\x00\x01"))
+
+    def test_it_is_the_length_when_no_prefix_is_decided(self):
+        cut = parity_cut([b"", b"\x01"])
+        self.assertEqual(1, first_decided(_hypothesis(cut, {}), b"\x01"))
+
+    def test_a_walk_from_it_agrees_where_a_walk_from_zero_stopped(self):
+        hypothesis = _hypothesis(parity_cut([b""]), PARITY_EDGES)
+        x = b"\x01\x00\x01"
+        start = first_decided(hypothesis, x)
+        self.assertEqual(Start(b""), locate(hypothesis, 0, x).outcome)
+        self.assertEqual(Agree(), locate(hypothesis, start, x).outcome)
 
 
 class TestOutcomes(unittest.TestCase):

@@ -4,7 +4,15 @@ from itertools import islice
 from typing import Iterable, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
-from .counterexample_probe import Charges, EdgeFound, Member, Outcome, charges, locate
+from .counterexample_probe import (
+    Charges,
+    EdgeFound,
+    Member,
+    Outcome,
+    charges,
+    first_decided,
+    locate,
+)
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import OUT_OF_PROBES, Ending, SiteCounts, ending_test
@@ -42,8 +50,9 @@ class CounterexampleSearch:
         return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.config.k, x)
-        return located.outcome, charges(located, self.config.k, x)
+        start = first_decided(self.hypothesis, x)
+        located = locate(self.hypothesis, start, x)
+        return located.outcome, charges(located, start, x)
 
     def _split(self, found: EdgeFound):
         """Split the edge's source on its letter and the midfix where the probe's

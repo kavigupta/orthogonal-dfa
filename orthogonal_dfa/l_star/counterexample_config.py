@@ -27,10 +27,6 @@ class CounterexampleSearchConfig:
     acceptable_fnr: float
 
     @property
-    def k(self) -> int:
-        return 0
-
-    @property
     def disagreement_rate(self) -> float:
         return 1 - self.acc_threshold
 

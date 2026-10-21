@@ -47,9 +47,11 @@ class TestCharging(unittest.TestCase):
         self.assertEqual([b"\x01\x00"] * 2, search.counts.edge_harvest[(ODD, 0)])
 
     def test_the_start_is_not_charged_to_an_edge(self):
-        search = quiet_search(parity_cut([b""]), PARITY_EDGES)
+        search = quiet_search(parity_cut([b"", b"\x01"]), PARITY_EDGES)
         search.step(b"\x01")
-        self.assertEqual(([b""], {}), (search.counts.ends, search.counts.edge_harvest))
+        self.assertEqual(
+            ([b"\x01"], {}), (search.counts.ends, search.counts.edge_harvest)
+        )
 
 
 class TestLearningAndSplitting(unittest.TestCase):
@@ -105,7 +107,7 @@ class TestTheTests(unittest.TestCase):
 
     def test_an_undecided_start_harvests_it(self):
         search = quiet_search(
-            parity_cut([b""]),
+            parity_cut([b"", b"\x01", b"\x01\x00"]),
             PARITY_EDGES,
             ends_rate=0.05,
             ends_alternative=0.1,
@@ -114,7 +116,7 @@ class TestTheTests(unittest.TestCase):
         # 2^n reaches 1e4 at n = 14.
         endings = [search.step(b"\x01\x00") for _ in range(14)]
         self.assertEqual([None] * 13, endings[:13])
-        self.assertEqual(Ending(HARVEST_ENDS, [b""] * 14), endings[13])
+        self.assertEqual(Ending(HARVEST_ENDS, [b"\x01\x00"] * 14), endings[13])
 
     def test_an_undecided_end_harvests_it(self):
         search = quiet_search(

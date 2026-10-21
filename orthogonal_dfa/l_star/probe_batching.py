@@ -2,7 +2,7 @@
 
 from typing import Callable, Iterator, List
 
-from .counterexample_probe import ends
+from .counterexample_probe import ends, first_decided
 from .counterexample_search import CounterexampleSearch
 from .hypothesis_dfa import HypothesisDFA
 from .round_end import succeeds_at
@@ -34,11 +34,11 @@ def warmed_draws(
         with_ends = [
             (x, positions)
             for x in xs
-            for positions in [ends(hypothesis, config.k, x)]
+            for positions in [ends(hypothesis, first_decided(hypothesis, x), x)]
             if positions
         ]
         _warm(hypothesis, warm, [x[: positions[0]] for x, positions in with_ends])
-        first_decided = [
+        decided_first = [
             (x, positions)
             for x, positions in with_ends
             if hypothesis.sift(x[: positions[0]]) is not None
@@ -48,7 +48,7 @@ def warmed_draws(
             warm,
             [
                 x[: positions[1]]
-                for x, positions in first_decided
+                for x, positions in decided_first
                 if len(positions) == 2
             ],
         )
