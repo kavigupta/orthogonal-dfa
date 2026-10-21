@@ -363,6 +363,13 @@ need not be read to trust the claims above.
   any rates lands at or below a count at least two under its mean no more often than a binomial
   with as many trials or more at a rate the mean clears, and likewise above.
 
+- `OrthoDFA/Utils/BandKappa.lean` — `BandKappaBound`: the vote `Bin(a, p) + Bin(N − a, r)`, `N ≤ n`,
+  read at `kl` and `kh`, is on its rarer decided side at most `bandKappa` times as often as it is
+  undecided, whatever `p` and `r`: for any count `c` inside the band, with `Y ~ Bin(n, 1/2)`,
+  `bandKappa = max(P(Y ≥ kh)/P(c ≤ Y < kh), P(Y ≤ kl)/P(kl < Y ≤ c))`. The proof: by Newton's
+  inequalities `P(X = j)/C(n, j)` is log-concave in `j`, so from `c` it does not rise or up to `c`
+  it does not fall, and either way compares each tail count with each count of the window.
+
 - `OrthoDFA/Utils/SuccessiveDraws.lean` — `SuccessiveDrawsTails`: over independent draws, where
   `T` with any fewer than `n` more strings holds at most `t` of the law, the draws among the first
   `n` that land in `T` or repeat an earlier one reach a count no more often than `Bin(n, t)` does,
