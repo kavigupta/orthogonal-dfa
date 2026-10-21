@@ -58,6 +58,79 @@ lemma window_covered {σ : Type*} (M : _root_.DFA α σ) {L : ℕ} {c : ℝ} (hk
   rw [windowStrings_real hk]
   exact div_le_div_of_nonneg_right (occupancy_of_covered M hq) hN.le
 
+lemma probeMix_real {k L : ℕ} (hkL : k ≤ L) (S : Set (FreeMonoid α)) :
+    (probeMix k L).real S = ((uniformStrings L).real S + (windowStrings k L).real S) / 2 := by
+  have : IsProbabilityMeasure (windowStrings (α := α) k L) := windowStrings_isProbability hkL
+  unfold probeMix
+  rw [measureReal_def, Measure.add_apply, Measure.smul_apply, Measure.smul_apply, smul_eq_mul,
+    smul_eq_mul, ENNReal.toReal_add (by finiteness) (by finiteness), ENNReal.toReal_mul,
+    ENNReal.toReal_mul, ← measureReal_def, ← measureReal_def]
+  simp only [ENNReal.toReal_inv, ENNReal.toReal_ofNat]
+  ring
+
+lemma probeMix_isProbability {k L : ℕ} (hkL : k ≤ L) :
+    IsProbabilityMeasure (probeMix (α := α) k L) := by
+  have : IsProbabilityMeasure (windowStrings (α := α) k L) := windowStrings_isProbability hkL
+  constructor
+  unfold probeMix
+  rw [Measure.add_apply, Measure.smul_apply, Measure.smul_apply, measure_univ, measure_univ]
+  simp only [smul_eq_mul, mul_one, ENNReal.inv_two_add_inv_two]
+
+
+lemma probeMix_length {k L : ℕ} (hkL : k ≤ L) :
+    probeMix (α := α) k L {q | ¬ (k ≤ q.toList.length ∧ q.toList.length ≤ L)} = 0 := by
+  unfold probeMix
+  rw [Measure.add_apply, Measure.smul_apply, Measure.smul_apply]
+  have h1 : uniformStrings (α := α) L {q | ¬ (k ≤ q.toList.length ∧ q.toList.length ≤ L)} = 0 :=
+    measure_mono_null (fun q hq => by
+      simp only [Set.mem_ofPred_eq] at hq ⊢
+      omega) (uniformStrings_length L)
+  have h2 : windowStrings (α := α) k L {q | ¬ (k ≤ q.toList.length ∧ q.toList.length ≤ L)} = 0 :=
+    ae_iff.1 (windowStrings_length k L)
+  rw [h1, h2]
+  simp
+
+lemma probeMix_singleton_le {k L : ℕ} (hkL : k ≤ L) (t : FreeMonoid α) :
+    (probeMix k L).real {t} ≤ 1 / (Fintype.card α : ℝ) ^ k := by
+  have hA : (1 : ℝ) ≤ Fintype.card α := by exact_mod_cast Fintype.card_pos
+  rw [probeMix_real hkL]
+  have h1 := (uniformStrings_singleton_le L t).trans
+    (one_div_le_one_div_of_le (by positivity) (pow_le_pow_right₀ hA hkL))
+  have h2 := windowStrings_singleton_le hkL t
+  linarith
+
+lemma prefixMax_probeMix_le {k L : ℕ} (hkL : k ≤ L) :
+    prefixMax (probeMix (α := α) k L) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
+  have : IsProbabilityMeasure (windowStrings (α := α) k L) := windowStrings_isProbability hkL
+  unfold prefixMax
+  refine ciSup_le fun u => ?_
+  rw [probeMix_real hkL]
+  have h1 : (uniformStrings L).real {x : FreeMonoid α | prefixOf x k = u}
+      ≤ 1 / (Fintype.card α : ℝ) ^ k := (le_prefixMax _ k u).trans (prefixMax_uniformStrings_le hkL)
+  have h2 : (windowStrings k L).real {x : FreeMonoid α | prefixOf x k = u}
+      ≤ 1 / (Fintype.card α : ℝ) ^ k :=
+    (le_prefixMax _ k u).trans (prefixMax_windowStrings_le le_rfl hkL)
+  linarith
+
+lemma uniformStrings_le_probeMix {k L : ℕ} (hkL : k ≤ L) (S : Set (FreeMonoid α)) :
+    (uniformStrings L).real S ≤ 2 * (probeMix k L).real S := by
+  rw [probeMix_real hkL]
+  have : 0 ≤ (windowStrings k L).real S := measureReal_nonneg
+  linarith
+
+lemma probeMix_covered {σ : Type*} (M : _root_.DFA α σ) {L : ℕ} {c : ℝ} (hk : (L + 1) / 2 ≤ L)
+    {q : σ} (hq : q ∈ coveredStates M L c) :
+    c / (2 * ((L : ℝ) + 1 - ((L + 1) / 2 : ℕ))) ≤ (probeMix ((L + 1) / 2) L).real
+      {z | M.eval z.toList = q} := by
+  rw [probeMix_real hk]
+  have h1 := window_covered M hk hq
+  have h0 : 0 ≤ (uniformStrings L).real {z : FreeMonoid α | M.eval z.toList = q} :=
+    measureReal_nonneg
+  have e : c / (2 * ((L : ℝ) + 1 - ((L + 1) / 2 : ℕ)))
+      = c / ((L : ℝ) + 1 - ((L + 1) / 2 : ℕ)) / 2 := by
+    rw [div_div, mul_comm]
+  linarith
+
 omit [Nonempty α] in
 lemma offLaw_singleton_le {ν : Measure (FreeMonoid α)} [IsProbabilityMeasure ν]
     {T : Finset (FreeMonoid α)} (hT : ν.real ↑T ≤ 1 / 2) (t : FreeMonoid α) :

@@ -59,6 +59,10 @@ def LoopHist.append (h₀ h : LoopHist α) : LoopHist α :=
 def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ENNReal)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
 
+/-- Half the strings of length `L`, half the window of lengths `k` to `L`. -/
+def probeMix (k L : ℕ) : Measure (FreeMonoid α) :=
+  (2 : ENNReal)⁻¹ • uniformStrings L + (2 : ENNReal)⁻¹ • windowStrings k L
+
 /-- The states at least `c` of the strings of length `L` visit at some position from `⌈L/2⌉` to
 `L`. -/
 def coveredStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) : Set σ :=
