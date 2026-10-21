@@ -46,18 +46,18 @@ private lemma ceil_le_of_le {x M : ℝ} (hx : x ≤ M) (hM : 0 ≤ M) : (⌈x⌉
 /-- The five tails, each named, so the bound can be read term by term. -/
 noncomputable def prefTerms (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : List ℝ :=
-  [ Real.log (128 * (populations.card : ℝ)
-      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
+  [ Real.log (16 * (populations.card : ℝ)
+      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2),
     Real.log (128 * (populations.card : ℝ) / δ)
       / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2),
     25 / 2 * (gateDevT η + gateDevU η) ^ 2
-      * Real.log (128 * (populations.card : ℝ)
+      * Real.log (32 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
       / gateRoom η indecisionLimit εcov ^ 2,
     gateLogCount (50 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
       (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α))),
-    Real.log (128 * (populations.card : ℝ)
+    Real.log (16 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2) ]
 
@@ -247,12 +247,12 @@ theorem prefCount_le_poly (populations : Finset J)
       ≤ 51200 * (c * screenMargin η populations indecisionLimit εcov δ) := by
     have hne : (1 : ℝ) - η ≠ 0 := by intro h; linarith only [h, hηlt]
     have e : 51200 * (c * screenMargin η populations indecisionLimit εcov δ)
-        = 24750 * cut * s ^ 2 := by
+        = 51975 / 2 * cut * s ^ 2 := by
       simp only [screenMargin, flipBudget, flipFrac, ← hsdef, ← hcdef, ← hcutdef]
       field_simp
       ring
     rw [e]
-    nlinarith only [mul_le_mul_of_nonneg_right hcutlb (sq_nonneg s)]
+    nlinarith only [mul_le_mul_of_nonneg_right hcutlb (sq_nonneg s), hcutpos, sq_nonneg s]
   have hsmpos : 0 < screenMargin η populations indecisionLimit εcov δ := by
     have h7 : (0 : ℝ) < 2475 * B * s ^ 2 := by positivity
     nlinarith only [lt_of_lt_of_le h7 hsm, hcpos]
@@ -296,23 +296,6 @@ theorem prefCount_le_poly (populations : Finset J)
     have h' : Z ≤ T := le_of_mul_le_mul_right h hδ
     have := log_le_of_le_pow hZ 1 (by simpa using h')
     rw [hLdef]; push_cast at this; linarith only [this]
-  have hX : Real.log (128 * c * (M + 2) ^ 2 / δ) ≤ 3 * L := by
-    have h27 : 27 * c ≤ (c + 2) ^ 3 := by
-      nlinarith only [mul_nonneg (sq_nonneg (c - 1)) (by linarith only [hc1] : (0 : ℝ) ≤ c + 8)]
-    have hM3 : (M + 2) ^ 2 ≤ M ^ 3 := by nlinarith only [hM256]
-    have hcube : (2 * ((c + 2) * M)) ^ 3 ≤ (T * δ) ^ 3 := pow_le_pow_left₀ (by positivity) hTδ 3
-    have hδ3 : (T * δ) ^ 3 ≤ T ^ 3 * δ := by
-      have : δ ^ 3 ≤ δ := by nlinarith only [hδ, hδ1, mul_pos hδ hδ]
-      calc (T * δ) ^ 3 = T ^ 3 * δ ^ 3 := by ring
-        _ ≤ T ^ 3 * δ := mul_le_mul_of_nonneg_left this (by positivity)
-    have harg : 128 * c * (M + 2) ^ 2 / δ ≤ T ^ 3 := by
-      rw [div_le_iff₀ hδ]
-      have e : (2 * ((c + 2) * M)) ^ 3 = 8 * (c + 2) ^ 3 * M ^ 3 := by ring
-      nlinarith only [hcube, hδ3, e, mul_le_mul_of_nonneg_right h27 (pow_nonneg hM0 3),
-        mul_le_mul_of_nonneg_left hM3 (by linarith only [hcpos] : (0 : ℝ) ≤ 128 * c),
-        mul_nonneg hcpos.le (pow_nonneg hM0 3)]
-    have h := log_le_of_le_pow (by positivity) 3 harg
-    rw [hLdef]; push_cast at h; linarith only [h]
   have hY : Real.log (128 * c * (M + 1) / δ) ≤ 2 * L := by
     have h8 : 8 * c ≤ (c + 2) ^ 2 := by nlinarith only [sq_nonneg (c - 2)]
     have hsq : (2 * ((c + 2) * M)) ^ 2 ≤ (T * δ) ^ 2 := pow_le_pow_left₀ (by positivity) hTδ 2
@@ -328,6 +311,10 @@ theorem prefCount_le_poly (populations : Finset J)
         mul_le_mul_of_nonneg_left hM2 (by linarith only [hcpos] : (0 : ℝ) ≤ 32 * c)]
     have h := log_le_of_le_pow (by positivity) 2 harg
     rw [hLdef]; push_cast at h; linarith only [h]
+  have hY16 : Real.log (16 * c * (M + 1) / δ) ≤ 2 * L := by
+    refine le_trans (Real.log_le_log (by positivity) ?_) hY
+    exact div_le_div_of_nonneg_right (by nlinarith only [hcpos, hM0]) hδ.le
+  have hX : Real.log (16 * c * (M + 1) / δ) ≤ 3 * L := by linarith only [hY16, hL0]
   have hR : Real.log (128 * c / δ) ≤ 1 * L :=
     hlog1 _ (by positivity) (by rw [div_mul_cancel₀ _ hδ.ne']; nlinarith only [hTδ, hc1, hM256])
   -- the gate's logs, against `L`
@@ -362,6 +349,9 @@ theorem prefCount_le_poly (populations : Finset J)
         mul_le_mul_of_nonneg_left hM2 (by linarith only [hcpos] : (0 : ℝ) ≤ 32 * c)]
     have h := log_le_of_le_pow (by positivity) 2 harg
     rw [hLdef]; push_cast at h; linarith only [h]
+  have hY32 : Real.log (32 * c * (M + 3) / δ) ≤ 2 * L := by
+    refine le_trans (Real.log_le_log (by positivity) ?_) hY3
+    exact div_le_div_of_nonneg_right (by nlinarith only [hcpos, hM0]) hδ.le
   -- the gate's constants, against `1/sig`: its gap is at least `8 sig/7`
   set u : ℝ := 1 / s with hudef
   have hus : u * s = 1 := by rw [hudef]; field_simp
@@ -411,7 +401,7 @@ theorem prefCount_le_poly (populations : Finset J)
   have hB2c : B ^ 2 ≤ 100 * cut ^ 2 := by
     have := mul_self_le_mul_self hBpos.le hcutlb
     nlinarith only [this]
-  have t1 : Real.log (128 * c * (M + 2) ^ 2 / δ)
+  have t1 : Real.log (16 * c * (M + 1) / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2) ≤ 2600 * Q := by
     refine tail_le hX hL0 (by positivity) hD ?_
     have h := mul_self_le_mul_self (by positivity) hsm
@@ -420,11 +410,11 @@ theorem prefCount_le_poly (populations : Finset J)
     refine tail_le hR hL0 (by positivity) hD ?_
     nlinarith only [hB2c, mul_le_mul_of_nonneg_right hs4 (sq_nonneg B),
       mul_le_mul_of_nonneg_right hc2 (sq_nonneg cut)]
-  have t3 : 25 / 2 * Wg ^ 2 * Real.log (128 * c * (M + 3) / δ) / gR ^ 2 ≤ 9500 * Q := by
-    have hL₁0 : 0 ≤ Real.log (128 * c * (M + 3) / δ) :=
+  have t3 : 25 / 2 * Wg ^ 2 * Real.log (32 * c * (M + 3) / δ) / gR ^ 2 ≤ 9500 * Q := by
+    have hL₁0 : 0 ≤ Real.log (32 * c * (M + 3) / δ) :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1, hM256])
     refine tail_le (w := 365 * u ^ 4) ?_ hL0 (by positivity) hD ?_
-    · nlinarith only [mul_le_mul hW2 hY3 hL₁0 (by positivity), sq_nonneg Wg]
+    · nlinarith only [mul_le_mul hW2 hY32 hL₁0 (by positivity), sq_nonneg Wg]
     · have : 365 * u ^ 4 * (s ^ 4 * B ^ 2) = 365 * B ^ 2 := by
         rw [show 365 * u ^ 4 * (s ^ 4 * B ^ 2) = 365 * B ^ 2 * (u ^ 4 * s ^ 4) by ring, hus4,
           mul_one]
@@ -500,10 +490,10 @@ theorem prefCount_le_poly (populations : Finset J)
           mul_one]
       nlinarith only [h4, e4, mul_le_mul_of_nonneg_right hc2 hL0, hL0]
     exact le_trans h1 (le_of_mul_le_mul_right h2 hD)
-  have t5 : Real.log (128 * c * (M + 1) / δ) / (2 * (3 * cut * flipFrac η / 32) ^ 2)
+  have t5 : Real.log (16 * c * (M + 1) / δ) / (2 * (3 * cut * flipFrac η / 32) ^ 2)
       ≤ 8000 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
-    refine tail_le hY hL0
+    refine tail_le hY16 hL0
       (mul_pos two_pos (pow_pos (div_pos (mul_pos (mul_pos three_pos hcutpos) hfpos)
         (by norm_num)) 2)) hD ?_
     have h := mul_self_le_mul_self (by positivity) hcf
