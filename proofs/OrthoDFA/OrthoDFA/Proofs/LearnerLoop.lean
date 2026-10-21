@@ -375,14 +375,16 @@ def LoopCore : Prop :=
   0 < slack → 0 < pAP → 1 ≤ P.L →
   Fintype.card σ + 1 ≤ K →
   P.L + Fintype.card σ < Ls →
-  0 < cap → m < slack → m ≤ 1 / 2 → slack - m ≤ 1 → ms < pAP → ms ≤ 1 / 2 →
+  0 < cap → m < slack → m ≤ 1 / 2 → ms < pAP → ms ≤ 1 / 2 →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     poolCount η₀ pops indecisionLimit εcov (δc / 2) (pAP - ms) c ≤ NS) →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c 0 ≤ NP) →
-  2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap
-    ≤ δc * rateScale η₀ indecisionLimit εcov ^ 2 →
-  2 ^ 9 * ((K : ℝ) + 2) * NP * cap ≤ δc * (slack - m) ^ 2 →
+  2 ^ 19 * ((K : ℝ) + 4) * NP * cap ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) →
+  2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap
+    ≤ δc * min εcov indecisionLimit ^ 2 →
+  2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
+  8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
   2 ^ 14 * ((K : ℝ) + 2) * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
@@ -415,8 +417,8 @@ def LoopCore : Prop :=
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
-    c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hsm1 hmsp
-    hms1 hNSb hNPb hq1 hq2 hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
+    c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
+    hms1 hNSb hNPb hq1a hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
@@ -513,22 +515,6 @@ theorem loop_core_holds : LoopCore := by
     have hcolS0 : 0 ≤ collisionMass Lsf := tsum_nonneg fun t => sq_nonneg _
     have hNP0 : (0 : ℝ) ≤ NP := Nat.cast_nonneg _
     have hNS0 : (0 : ℝ) ≤ NS := Nat.cast_nonneg _
-    have hscaleEq : budgetScale η₀ ι εcov = rateScale η₀ ι εcov := by
-      unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
-    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-    have hτs : rateScale η₀ ι εcov ≤ 1 / 2 - η₀ := by
-      rw [← hscaleEq]; exact budgetScale_le_sig η₀ ι εcov hη0 hη₀
-    have hτ0 : 0 < rateScale η₀ ι εcov := by
-      rw [← hscaleEq]; exact budgetScale_pos η₀ ι εcov hε hι hη0 hη₀
-    have hτmin : rateScale η₀ ι εcov ≤ min εcov ι := by
-      refine le_min ?_ (min_le_right _ _)
-      have ha := gateA_le_one hη0 hη₀
-      have ha0 := (gateA_pos hη0 hη₀).le
-      have hsq : gateA η₀ ^ 2 ≤ 1 := by nlinarith
-      unfold rateScale
-      refine le_trans (min_le_left _ _) ?_
-      rw [← gateA]
-      nlinarith [mul_le_mul_of_nonneg_left hsq hε.le]
     refine hclust₀ pops hpops L Lsf hLp hLsfp (fun j hj => ?_) ?_ hpAPL
       (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_)
       (fun B hB j hj t => ?_) (fun B hB => ?_)
@@ -537,124 +523,53 @@ theorem loop_core_holds : LoopCore := by
       exact hp
     · refine measure_mono_null (fun v hv => ?_) hLsfLen
       simpa using hv
+    -- each of the clustering's four prefix premises is one of the cap's, at the schedule's
+    -- counts and the populations' atoms, at most twice the cap
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
-      have hc1 := hpopc pops
-      have ha : ((pops.card : ℝ) + 1) ^ 2 ≤ ((K : ℝ) + 2) ^ 2 :=
-        pow_le_pow_left₀ (add_nonneg (Nat.cast_nonneg _) zero_le_one) hc1 2
-      have hb := mul_le_mul ha hnp (Nat.cast_nonneg _) (by positivity)
-      have hcc := mul_le_mul hb (hLat j hj t) (hLat0 j t) (by positivity)
-      have hK0 : (0 : ℝ) ≤ K := Nat.cast_nonneg _
-      have hp3 : (pops.card : ℝ) + 3 ≤ ((K : ℝ) + 2) ^ 2 / 8 * 8 := by nlinarith
-      have hb' := mul_le_mul hp3 hnp (Nat.cast_nonneg _) (by positivity)
-      have hcc' := mul_le_mul hb' (hLat j hj t) (hLat0 j t) (by positivity)
-      have hτ2 : δc * rateScale η₀ ι εcov ^ 2 ≤ rateScale η₀ ι εcov * (1 / 2 - η₀) := by
-        have : δc * rateScale η₀ ι εcov ≤ 1 / 2 - η₀ := by nlinarith
-        nlinarith
+      have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
+      have hLj := hLat j hj t
+      have hc0 := hcap.le
       calc 2 ^ 18 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (L j).real {t}
-          = 2 ^ 18 * (((pops.card : ℝ) + 3) * (B.npref : ℝ) * (L j).real {t}) := by ring
-        _ ≤ 2 ^ 18 * (((K : ℝ) + 2) ^ 2 / 8 * 8 * NP * (2 * cap)) :=
-            mul_le_mul_of_nonneg_left hcc' (by norm_num)
-        _ ≤ 2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap := by
-            have : (0 : ℝ) ≤ ((K : ℝ) + 2) ^ 2 * NP * cap := by
-              have := hcap.le; positivity
-            nlinarith
-        _ ≤ _ := hq1
-        _ ≤ _ := hτ2
-    · have hnpN : (B.npref : ℝ) ≤ NP := by
-        exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
-      have hc1 := hpopc pops
-      have hK0 : (0 : ℝ) ≤ K := Nat.cast_nonneg _
-      -- the top count is past `2^19`, where `2048(3 + 2 log₂ N) ≤ N`
-      have hNP19 : 2 ^ 19 ≤ NP := by
-        have hpc1 : (1 : ℝ) ≤ (pops.card : ℝ) := by
-          have : 1 ≤ pops.card := Finset.card_pos.2 ⟨none, hpops⟩
-          exact_mod_cast this
-        have hcc0 : (0 : ℝ) ≤ collisionCap η₀ pops ι εcov (δc / 2) gate (pAP - ms) c 0 := by
-          rw [collisionCap]
-          have hc0 := rejFrac_pos η₀ hη₀ hε hι (indecisionLimit := ι)
-          exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity))
-            (by positivity)
-        have hδ2 : (0 : ℝ) < δc / 2 := by linarith
-        have hδ21 : δc / 2 ≤ 1 := by linarith
-        have h := (solved_conversion (α := gate) (crossLimit := c) (hsz := 0) η₀ pops hη0 hη₀ hε
-          hι hι1 hδ2 hδ21 hpc1 le_rfl hcc0).1
-        exact le_trans h (hNPb pops hpops)
-      have hlogN : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
-        have : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
-        exact_mod_cast Nat.log_mono_right this
-      have hlad : 2048 * (3 + 2 * (Nat.log 2 NP : ℝ)) ≤ NP := by
-        exact_mod_cast log_ladder_le hNP19
-      have hpc : (pops.card : ℝ) ≤ K + 1 := by linarith
-      have h3 : (3 + 2 * (Nat.log 2 B.npref : ℝ)) ≤ NP / 2048 := by
-        rw [le_div_iff₀ (by norm_num)]; linarith
-      have hLj := hLat j hj t
-      have hK2 : 4 * ((K : ℝ) + 1) ≤ ((K : ℝ) + 2) ^ 2 := by nlinarith
-      calc 2 ^ 34 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
-          ≤ 2 ^ 34 * ((K : ℝ) + 1) * (NP / 2048) * (2 * cap) := by
-            have h0 : (0 : ℝ) ≤ 3 + 2 * (Nat.log 2 B.npref : ℝ) := by positivity
-            gcongr
-        _ = 2 ^ 22 * (4 * ((K : ℝ) + 1)) * NP * cap := by ring
-        _ ≤ 2 ^ 22 * ((K : ℝ) + 2) ^ 2 * NP * cap := by gcongr
-        _ ≤ δc * rateScale η₀ ι εcov ^ 2 := hq1
-        _ ≤ δc * min εcov ι ^ 2 := by gcongr
-    · have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
-      have hc1 := hpopc pops
-      have hK0 : (0 : ℝ) ≤ K := Nat.cast_nonneg _
-      have hNP19 : 2 ^ 19 ≤ NP := by
-        have hpc1 : (1 : ℝ) ≤ (pops.card : ℝ) := by
-          have : 1 ≤ pops.card := Finset.card_pos.2 ⟨none, hpops⟩
-          exact_mod_cast this
-        have hcc0 : (0 : ℝ) ≤ collisionCap η₀ pops ι εcov (δc / 2) gate (pAP - ms) c 0 := by
-          rw [collisionCap]
-          have hc0 := rejFrac_pos η₀ hη₀ hε hι (indecisionLimit := ι)
-          exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity))
-            (by positivity)
-        have h := (solved_conversion (α := gate) (crossLimit := c) (hsz := 0) η₀ pops hη0 hη₀ hε
-          hι hι1 (by linarith : (0 : ℝ) < δc / 2) (by linarith) hpc1 le_rfl hcc0).1
-        exact le_trans h (hNPb pops hpops)
-      have hlad : 2048 * (3 + 2 * (Nat.log 2 B.npref : ℝ)) ≤ NP := by
-        have h1 : 2048 * (3 + 2 * Nat.log 2 NP) ≤ NP := log_ladder_le hNP19
-        have h2 : Nat.log 2 B.npref ≤ Nat.log 2 NP := Nat.log_mono_right hnpN
-        have : 2048 * (3 + 2 * Nat.log 2 B.npref) ≤ NP := by omega
-        exact_mod_cast this
-      have hLj := hLat j hj t
-      have hlg0 : (0 : ℝ) ≤ 3 + 2 * (Nat.log 2 B.npref : ℝ) := by positivity
-      calc 2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
-          ≤ 2 ^ 4 * ((K : ℝ) + 2) * (NP / 2048) * (2 * cap) := by
-            have hlg : 3 + 2 * (Nat.log 2 B.npref : ℝ) ≤ NP / 2048 := by
-              rw [le_div_iff₀ (by norm_num)]; linarith
-            have := hcap.le
-            gcongr
-        _ ≤ 2 ^ 9 * ((K : ℝ) + 2) * NP * cap := by
-            have : (0 : ℝ) ≤ ((K : ℝ) + 2) * NP * cap := by have := hcap.le; positivity
-            have e : 2 ^ 4 * ((K : ℝ) + 2) * (NP / 2048) * (2 * cap)
-                = ((K : ℝ) + 2) * NP * cap / 64 := by ring
-            rw [e]
-            linarith only [this]
-        _ ≤ _ := hq2
+          ≤ 2 ^ 18 * ((K : ℝ) + 1 + 3) * NP * (2 * cap) := by gcongr
+        _ = 2 ^ 19 * ((K : ℝ) + 4) * NP * cap := by ring
+        _ ≤ _ := hq1a
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
-      have hc1 := hpopc pops
-      have hK0 : (0 : ℝ) ≤ K := Nat.cast_nonneg _
+      have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
       have hLj := hLat j hj t
-      have hs0 : 0 < slack - m := by linarith
-      have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 2 := by linarith only [hc1]
-      have hm0' : (0 : ℝ) ≤ (B.npref : ℝ) := Nat.cast_nonneg _
-      have hpk' : (0 : ℝ) ≤ (pops.card : ℝ) := Nat.cast_nonneg _
-      have e1 : 4 * (pops.card : ℝ) * (B.npref : ℝ) ≤ 4 * ((K : ℝ) + 2) * NP :=
-        mul_le_mul (mul_le_mul_of_nonneg_left hpk (by norm_num)) hnp hm0' (by positivity)
-      have e2 : 4 * (pops.card : ℝ) * (B.npref : ℝ) * (L j).real {t}
-          ≤ 4 * ((K : ℝ) + 2) * NP * (2 * cap) :=
-        mul_le_mul e1 hLj (hLat0 j t) (by positivity)
-      have e3 : 2 ^ 9 * ((K : ℝ) + 2) * NP * cap / 64 ≤ δc * (slack - m) ^ 2 / 64 :=
-        div_le_div_of_nonneg_right hq2 (by norm_num)
-      have h1 : δc * (slack - m) ^ 2 ≤ (slack - m) ^ 2 :=
-        mul_le_of_le_one_left (sq_nonneg _) hδc1
-      have h2 : (slack - m) ^ 2 ≤ slack - m := pow_le_of_le_one hs0.le hsm1 (by norm_num)
-      have e4 : 4 * ((K : ℝ) + 2) * NP * (2 * cap) = 2 ^ 9 * ((K : ℝ) + 2) * NP * cap / 64 := by
-        ring
-      linarith only [e2, e3, e4, h1, h2, hs0]
+      have hc0 := hcap.le
+      have hlog : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
+        exact_mod_cast Nat.log_mono_right hnpN
+      calc 2 ^ 34 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
+          ≤ 2 ^ 34 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * (2 * cap) := by gcongr
+        _ = 2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by ring
+        _ ≤ _ := hq1b
+    · have hnp : (B.npref : ℝ) ≤ NP := by
+        exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
+      have hLj := hLat j hj t
+      have hc0 := hcap.le
+      have hlog : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
+        exact_mod_cast Nat.log_mono_right hnpN
+      calc 2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
+          ≤ 2 ^ 4 * ((K : ℝ) + 1 + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * (2 * cap) := by
+            gcongr
+        _ = 2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by ring
+        _ ≤ _ := hq2a
+    · have hnp : (B.npref : ℝ) ≤ NP := by
+        exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
+      have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
+      have hLj := hLat j hj t
+      have hc0 := hcap.le
+      calc 4 * (pops.card : ℝ) * (B.npref : ℝ) * (L j).real {t}
+          ≤ 4 * ((K : ℝ) + 1) * NP * (2 * cap) := by gcongr
+        _ = 8 * ((K : ℝ) + 1) * NP * cap := by ring
+        _ ≤ _ := hq2b
     · have hns : (B.nsuff : ℝ) ≤ NS := by
         rw [(hsizes pops B (by rw [hs]; exact hB)).1]
         exact_mod_cast hNSb pops hpops
