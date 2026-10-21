@@ -1,7 +1,7 @@
 """``indecisiveLStarLevel5`` of ``OrthoDFA/Level5.lean``, read through the round's suffix family."""
 
 from itertools import islice
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import Charges, EdgeFound, Member, Outcome, charges, locate
@@ -20,7 +20,8 @@ class CounterexampleSearch:
         self.probes = 0
 
     def run(self, draws: Iterable[bytes]) -> Ending:
-        """``step`` over the first ``max_probes`` of ``draws``."""
+        """step over the first max_probes of draws, counting afresh."""
+        self.counts = SiteCounts()
         for x in islice(draws, self.config.max_probes):
             ending = self.step(x)
             if ending is not None:
@@ -30,20 +31,39 @@ class CounterexampleSearch:
     def step(self, x: bytes) -> Optional[Ending]:
         outcome, charged = self.probe(x)
         self.probes += 1
-        if isinstance(outcome, Member):
-            self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
-            self.counts = SiteCounts()
-            return None
-        if isinstance(outcome, EdgeFound):
-            self._split(outcome)
-            self.counts = SiteCounts()
+        if self._learn(outcome):
             return None
         self.counts.add(charged, outcome)
         return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
 
+    def settle(self, xs: List[bytes]):
+        """Probe xs from ε until a pass over them changes nothing, using
+        only their outcomes: they were chosen for failing, so no rate test may
+        count them."""
+        start, version = self.probes, None
+        while version != self.hypothesis.version and (
+            self.probes - start < self.config.max_probes
+        ):
+            version = self.hypothesis.version
+            for x in xs:
+                self.probes += 1
+                self._learn(locate(self.hypothesis, 0, x).outcome)
+
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x)
         return located.outcome, charges(located, self.config.k, x)
+
+    def _learn(self, outcome: Outcome) -> bool:
+        """Whether outcome changed the hypothesis, which starts the counts
+        afresh."""
+        if isinstance(outcome, Member):
+            self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
+        elif isinstance(outcome, EdgeFound):
+            self._split(outcome)
+        else:
+            return False
+        self.counts = SiteCounts()
+        return True
 
     def _split(self, found: EdgeFound):
         """Split the edge's source on its letter and the midfix where the probe's

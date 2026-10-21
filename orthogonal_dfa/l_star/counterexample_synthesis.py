@@ -21,6 +21,7 @@ from .counterexample_search import CounterexampleSearch
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
+from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import (
     HarvestSource,
@@ -260,22 +261,102 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-def _counterexample_search(pst, vs, *, acc_threshold):
-    """The round's search and how it ended."""
+#: Start checks one round runs.  One resume from the check's failures is
+#: expected to mend the start; a second covers the resumed probes' splits
+#: disturbing it again; a start failing past that is left to the next family.
+CHECK_ATTEMPTS = 3
+
+
+def _searched_and_checked(pst, vs, *, acc_threshold, k, index):
+    """The round's search, how it ended, its DFA, and the DFA's agreement with
+    the tree from ε.  Probes walked from k > 0 never run the DFA from ε, so a
+    search that succeeds while that agreement falls short probes the strings
+    it disagreed on from ε and resumes."""
     family = SuffixFamily(pst, vs)
     search = CounterexampleSearch(
-        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
+        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr, k),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
     )
+    for attempt in range(1, CHECK_ATTEMPTS + 1):
+        ending = _run(pst, search, family)
+        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        true_acc, disagreeing = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            search.hypothesis.tree,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
+        )
+        print(
+            f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f} "
+            f"after {ending.kind}, k={k}, check {attempt}"
+        )
+        if (
+            k == 0
+            or ending.kind != SUCCESS
+            or true_acc >= acc_threshold
+            or attempt == CHECK_ATTEMPTS
+        ):
+            break
+        version = search.hypothesis.version
+        search.settle(disagreeing)
+        if search.hypothesis.version == version:
+            break
+        print(
+            f"[round {index}] {len(disagreeing)} start-check failures probed "
+            "from ε; resuming the search"
+        )
+    return search, ending, dfa, true_acc
+
+
+def _run(pst, search, family):
     with counter(search.config.max_probes, "Probing") as pbar:
 
         def draw():
             pbar.update(1)
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
-        ending = search.run(warmed_draws(search, draw, family.read_many))
-    return search, ending
+        return search.run(warmed_draws(search, draw, family.read_many))
+
+
+def _walk_deeper(pst, state, k, harvested, strings, *, taken, index) -> int:
+    """Double k, from 0 to 1 and at most start_length(L), after a round that
+    took no new strings or repeated one of harvested.  Reaching
+    start_length(L) drops every population holding a shorter string."""
+    deepest = start_length(pst.sampler.length)
+    repeats = not harvested.isdisjoint(strings)
+    harvested.update(strings)
+    if k >= deepest or (taken > 0 and not repeats):
+        return k
+    deeper = min(max(2 * k, 1), deepest)
+    print(f"[round {index}] k now {deeper}")
+    if deeper == deepest:
+        _drop_shallow_populations(state, deepest, index=index)
+    return deeper
+
+
+def _drop_shallow_populations(state, depth, *, index) -> None:
+    shallow = [
+        label
+        for label, strings in state.held.items()
+        if any(len(string) < depth for string in strings)
+    ]
+    dropped = 0
+    for label in shallow:
+        strings = state.held.pop(label)
+        dropped += len(strings)
+        state.seen.difference_update(strings)
+        state.seen.difference_update(state.reserves.pop(label, ()))
+        state.sources.pop(label, None)
+    if state.harvesting in shallow:
+        state.close_harvest()
+    print(
+        f"[round {index}] dropped {len(shallow)} populations, {dropped} strings, "
+        f"holding strings shorter than {depth}"
+    )
 
 
 def _hypothesis_dfa(pst, hypothesis):
@@ -292,6 +373,7 @@ def counterexample_driven_synthesis(
     *,
     acc_threshold: float,
     tracker: SynthesisTracker,
+    initial_k: int,
     max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
@@ -314,9 +396,11 @@ def counterexample_driven_synthesis(
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
+    k = initial_k
+    harvested = set()
     index = 0
     while True:
-        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes, k={k}")
         started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
         pst.decision_boundary = boundary
@@ -324,10 +408,11 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
-        hypothesis = search.hypothesis
+        search, ending, dfa, true_acc = _searched_and_checked(
+            pst, vs, acc_threshold=acc_threshold, k=k, index=index
+        )
+        hypothesis, dt = search.hypothesis, search.hypothesis.tree
         tracker.on_search_ended(ending, index)
-        dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {search.probes} probes: "
             f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
@@ -337,16 +422,6 @@ def counterexample_driven_synthesis(
         assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
-        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
         output, blamed = None, None
@@ -367,9 +442,13 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
-        taken = _accumulate_harvest(strings, provenance, state, target)
+        taken = _accumulate_harvest(
+            strings,
+            provenance,
+            state,
+            max(int(indecisive_fraction * pst.num_prefixes), min_indecisive),
+        )
         if (
             _family_too_loose(ending, true_acc, acc_threshold, taken)
             and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
@@ -377,14 +456,22 @@ def counterexample_driven_synthesis(
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
-        # Rounds after a refusal have their own patience, so they are not
-        # weighed for a stall.
-        if uncertified_since is None and stall.stalled(progressed=taken > 0):
+        deeper = _walk_deeper(
+            pst, state, k, harvested, strings, taken=taken, index=index
+        )
+        # Rounds after a refusal have their own patience, and a round that
+        # walks deeper is progress, so neither is weighed for a stall.
+        if (
+            deeper == k
+            and uncertified_since is None
+            and stall.stalled(progressed=taken > 0)
+        ):
             print(
                 f"[round {index}] no new strings harvested in {STALL_PATIENCE} "
                 "rounds; stopping synthesis"
             )
             return best
+        k = deeper
         _boundary_source(pst, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
@@ -398,10 +485,10 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float, tracker: SynthesisTracker
+    pst, *, acc_threshold: float, tracker: SynthesisTracker, initial_k: int
 ) -> Optional[DFA]:
     best = counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold, tracker=tracker
+        pst, acc_threshold=acc_threshold, tracker=tracker, initial_k=initial_k
     )
     if best.dfa is None:
         return None

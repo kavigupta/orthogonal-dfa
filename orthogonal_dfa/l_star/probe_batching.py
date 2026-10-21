@@ -31,6 +31,7 @@ def warmed_draws(
         )
         size = min(block, config.max_probes - done, until_success)
         xs = [draw() for _ in range(size)]
+        _warm(hypothesis, warm, [x[: config.k] for x in xs])
         with_ends = [
             (x, positions)
             for x in xs

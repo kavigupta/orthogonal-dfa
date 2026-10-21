@@ -16,7 +16,7 @@ from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
 from .statistics import compute_suffix_size_counterexample_gen
-from .structures import SymmetricBernoulli
+from .structures import CountingOracle, SymmetricBernoulli
 from .tracker import SynthesisTracker
 
 #: All of E-L*'s signal comes from words drawn at this length.
@@ -94,6 +94,7 @@ def learn_dfa(
     acceptable_fnr: float = 0.01,
     max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
     tracker: SynthesisTracker = SynthesisTracker(),
+    initial_k: int = 0,
 ):
     """Learn a DFA from `oracle_creator`.  Failure raises
     `NoAcceptPreservingFamily` rather than returning.
@@ -104,8 +105,14 @@ def learn_dfa(
     `SynthesisTracker`) to receive each round's family, hypothesis and
     consistency as they are made; the default one discards them.
     """
+    oracles = []
+
+    def counted(noise_model, seed):
+        oracles.append(CountingOracle(oracle_creator(noise_model, seed)))
+        return oracles[-1]
+
     pst = build_pst(
-        oracle_creator,
+        counted,
         min_signal_strength=min_signal_strength,
         seed=seed,
         noise_model=noise_model,
@@ -117,6 +124,7 @@ def learn_dfa(
         max_coverage_error=max_coverage_error,
     )
     dfa = do_counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold, tracker=tracker
+        pst, acc_threshold=acc_threshold, tracker=tracker, initial_k=initial_k
     )
+    print(f"learn_dfa: {sum(o.queries for o in oracles)} membership queries")
     return dfa

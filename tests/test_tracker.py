@@ -117,7 +117,7 @@ class TestMaxRounds(unittest.TestCase):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         tracker = RecordingTracker()
         best = counterexample_driven_synthesis(
-            pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
+            pst, acc_threshold=0.98, tracker=tracker, initial_k=0, max_rounds=1
         )
         # Round 0 lands far short of the target here (it measures ~0.77) and
         # the stall detector cannot fire on a first round, which leaves the cap
@@ -129,7 +129,11 @@ class TestMaxRounds(unittest.TestCase):
     def test_drives_the_loop_with_the_base_tracker(self):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         best = counterexample_driven_synthesis(
-            pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
+            pst,
+            acc_threshold=0.98,
+            tracker=SynthesisTracker(),
+            initial_k=0,
+            max_rounds=1,
         )
         self.assertIsNotNone(best.dfa)
         # A caller recording nothing has no other route to the settled tree.
@@ -139,5 +143,9 @@ class TestMaxRounds(unittest.TestCase):
         # Rejected before the pst is touched, hence None here.
         with self.assertRaises(AssertionError):
             counterexample_driven_synthesis(
-                None, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=0
+                None,
+                acc_threshold=0.98,
+                tracker=SynthesisTracker(),
+                initial_k=0,
+                max_rounds=0,
             )
