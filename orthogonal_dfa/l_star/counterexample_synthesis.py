@@ -21,6 +21,7 @@ from .counterexample_search import CounterexampleSearch
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
+from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import (
     HarvestSource,
@@ -301,6 +302,11 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             )
         ),
         patience=patience,
+        max_k=(
+            start_length(pst.sampler.length)
+            if pst.config.counterexample_deepen
+            else None
+        ),
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 

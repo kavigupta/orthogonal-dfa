@@ -231,6 +231,20 @@ class TestUndecidedFallbacks(unittest.TestCase):
         self.assertEqual(Agree(), outcome)
 
 
+class TestDeepening(unittest.TestCase):
+    def test_a_harvest_that_repeats_a_string_walks_deeper(self):
+        search = CounterexampleSearch(
+            quiet_config(**SHIPPED_RATES),
+            parity_cut([b"\x00\x01"]),
+            MidfixTree([]),
+            max_k=2,
+        )
+        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
+        search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(31, search.deepenings[0][0])
+        self.assertEqual(1, search.deepenings[0][1])
+
+
 class TestBestHypothesis(unittest.TestCase):
     def test_with_patience_a_stuck_string_read_again_is_not_more_evidence(self):
         search = CounterexampleSearch(

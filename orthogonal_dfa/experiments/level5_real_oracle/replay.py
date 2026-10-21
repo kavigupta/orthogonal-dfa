@@ -58,6 +58,7 @@ ap.add_argument("ckpt")
 ap.add_argument("--set", action="append", default=[])
 ap.add_argument("--probe-seed", type=int)
 ap.add_argument("--tag")
+ap.add_argument("--deepen", action="store_true", help="counterexample_deepen")
 a = ap.parse_args()
 
 overrides, k = {}, 0
@@ -96,6 +97,7 @@ if a.probe_seed is not None:
 # What fullloop_mem.py --plateau sets; checkpoints may predate these fields.
 pst.config.counterexample_score_patience = 500
 pst.config.counterexample_fnr_harvest = True
+pst.config.counterexample_deepen = a.deepen
 if not hasattr(pst.config, "counterexample_restarts"):
     pst.config.counterexample_restarts = 1
 
@@ -250,6 +252,7 @@ def step(self, x):
         depth=hyp.tree.depth,
         edges_learned=len(hyp.edges),
         since_change=c.probes,
+        k=cfg.k,
         counts=counts_json(c),
         oracle_strings=oracle_use["strings"] - before["strings"],
         oracle_s=oracle_use["seconds"] - before["seconds"],
@@ -305,6 +308,7 @@ summary = dict(
     thresholds=thresholds,
     minutes=(time.time() - t0) / 60,
     selection_score=getattr(search, "best_score", None),
+    deepenings=getattr(search, "deepenings", None),
     best_phi_seen=max(
         r["phi"] for r in map(json.loads, open(os.path.join(outdir, "snapshots.jsonl")))
     ),

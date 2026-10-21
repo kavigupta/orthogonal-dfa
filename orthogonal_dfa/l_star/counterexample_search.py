@@ -18,7 +18,14 @@ from .counterexample_probe import (
 )
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
-from .round_end import OUT_OF_PROBES, SCORE_STALLED, Ending, SiteCounts, ending_test
+from .round_end import (
+    HARVESTS,
+    OUT_OF_PROBES,
+    SCORE_STALLED,
+    Ending,
+    SiteCounts,
+    ending_test,
+)
 
 #: Members of a leaf an undecided edge is read on before it is left undecided.
 MEMBER_LIMIT = 20
@@ -37,11 +44,14 @@ class CounterexampleSearch:
         start: Optional[Callable[[HypothesisDFA], Optional[Path]]] = None,
         score: Optional[Callable[[HypothesisDFA], float]] = None,
         patience: Optional[int] = None,
+        max_k: Optional[int] = None,
     ):
         """``members`` are strings an edge can be read on in place of the probe's
         own prefix; ``start`` is ``locate``'s.  With ``score``, ``run`` leaves the
         hypothesis at the best-scoring one it saw, and with ``patience`` stops once
-        that many probes pass without a better one."""
+        that many probes pass without a better one.  With ``max_k``, a harvest
+        that repeats a string doubles ``k`` instead of ending the search, up to
+        ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
@@ -52,6 +62,9 @@ class CounterexampleSearch:
         self.score, self.patience = score, patience
         self.best_score, self._best, self._best_at = None, None, 0
         self._scored_version = None
+        self.max_k = max_k
+        #: ``(probe, k)`` at each deepening.
+        self.deepenings = []
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -120,12 +133,36 @@ class CounterexampleSearch:
             self.counts = SiteCounts()
             return None
         self.counts.add(charged, outcome)
-        return ending_test(
+        ending = ending_test(
             self.counts,
             self.config,
             self.hypothesis.tree.depth,
-            distinct=self.patience is not None,
+            distinct=self.patience is not None and self.max_k is None,
         )
+        if ending is not None and self._deepens(ending):
+            return None
+        return ending
+
+    def _deepens(self, ending: Ending) -> bool:
+        """Walk deeper in place of a harvest that repeats a string: a repeat is
+        one string read undecided again, which a deeper start stops reaching."""
+        k = self.config.k
+        if (
+            self.max_k is None
+            or k >= self.max_k
+            or ending.kind not in HARVESTS
+            or len(set(ending.harvest)) == len(ending.harvest)
+        ):
+            return False
+        deeper = min(max(2 * k, 1), self.max_k)
+        config = copy.copy(self.config)
+        # Frozen.
+        object.__setattr__(config, "k", deeper)
+        self.config = config
+        self.counts = SiteCounts()
+        self.deepenings.append((self.probes, deeper))
+        print(f"  {ending.kind} repeated a string; k now {deeper}")
+        return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x, self.start)

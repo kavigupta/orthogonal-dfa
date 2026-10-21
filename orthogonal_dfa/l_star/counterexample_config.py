@@ -25,10 +25,8 @@ class CounterexampleSearchConfig:
     acc_threshold: float
     #: The share of prefixes the family may leave undecided.
     acceptable_fnr: float
-
-    @property
-    def k(self) -> int:
-        return 0
+    #: Where the probes' walks start.
+    k: int = 0
 
     @property
     def disagreement_rate(self) -> float:

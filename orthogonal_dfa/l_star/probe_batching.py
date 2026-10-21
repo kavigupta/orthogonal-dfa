@@ -17,9 +17,11 @@ def warmed_draws(
 ) -> Iterator[bytes]:
     # Not trajectory-neutral: a block is drawn ahead, and one that sees a change
     # has read for its later probes under the old hypothesis.
-    config, hypothesis = search.config, search.hypothesis
+    hypothesis = search.hypothesis
     block, done = 1, 0
-    while done < config.max_probes:
+    while done < search.config.max_probes:
+        # The search may walk deeper mid-run.
+        config = search.config
         version = hypothesis.version
         until_success = next(
             (
