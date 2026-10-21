@@ -114,7 +114,7 @@ theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov 
     (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
     ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit) := by
   obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hB
-  obtain ⟨hct, -, hb1⟩ := famCount_cross (indecisionLimit := indecisionLimit)
+  obtain ⟨hct, hb1⟩ := famCount_cross (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) η₀ populations εcov δ hη0 hη₀ hcross
   have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ

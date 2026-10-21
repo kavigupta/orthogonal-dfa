@@ -31,9 +31,10 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 /-! ## The clustering's schedule -/
 
 /-- One schedule serves every set of the loop's populations: every state of it reads a family of
-at most `k - 1` members at a band whose far side `crossLimit` bounds, whatever the read's two
-rates, draws the one pool and at most the top prefix count, and the prefix counts sum to at most
-twice the top's. Nothing is harvested into a table, and every population is tame. -/
+at most `k - 1` members at a band that passes its check at `ζ = crossLimit`, whatever the read's
+two rates: wrong at most `ζ²`, or at most `ζ` times as often as undecided. It draws the one pool and
+at most the top prefix count, and the prefix counts sum to at most twice the top's. Nothing is
+harvested into a table, and every population is tame. -/
 theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (K : ℕ) (Pre Suf : Set (FreeMonoid α))
     (η₀ indecisionLimit gateLevel crossLimit εcov δc slack pAP : ℝ)
@@ -42,9 +43,9 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1 / 2)
     (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) :
     ∃ schedule : Finset (Option (Fin K)) → Finset State,
-      (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ,
-        0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
-        BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
+      (∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ,
+        0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
+        BandPasses N B.lo (B.hi + 1) p r (crossLimit ^ 2) crossLimit crossLimit)
       ∧ (∀ pops, ∀ B ∈ schedule pops,
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
         ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
@@ -102,8 +103,10 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
     obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hs
-    obtain ⟨-, hhalf, hb1⟩ := famCount_cross (indecisionLimit := indecisionLimit) (crossLimit := c)
+    obtain ⟨-, hb1⟩ := famCount_cross (indecisionLimit := indecisionLimit) (crossLimit := c)
       η₀ pops εcov (δc / 2) hη0 hη₀ hc0
+    obtain ⟨g, hg2, hg, hu, hclean, hκ4⟩ := famCount_split (indecisionLimit := indecisionLimit)
+      (crossLimit := c) (δ := δc / 2) η₀ pops hη0 hη₀ hc0 hε hι
     have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := c)
       η₀ pops εcov (δc / 2)
     have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := c)
@@ -118,11 +121,36 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have hlo3 : loAt η₀ κc + 3 ≤ hiAt η₀ κc := by
       have : ((loAt η₀ κc + 3 : ℕ) : ℝ) ≤ hiAt η₀ κc := by push_cast; rw [hlo, hhi]; linarith
       exact_mod_cast this
-    have hhalf' : halfTail η₀ κc ≤ crossLimit :=
-      (pow_le_pow_iff_left₀ (halfTail_nonneg η₀ κc) hcross.le (by norm_num)).1 (hhalf.trans_eq hc)
-    refine ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r ε₂ κ hp0 hp1 hr0 hr1 _ => ?_⟩
+    -- the split's rates against the fourth root of `c`
+    have hh0 := halfTail_nonneg η₀ κc
+    have hu0 : 0 < edgeFloor η₀ κc g := by linarith
+    have hu1 : edgeFloor η₀ κc g ≤ 1 := by
+      have : 0 ≤ edgeTail η₀ κc g := by
+        rw [edgeTail]
+        linarith [binomSfGe_le_one (n := κc) (by positivity) (show ((loAt η₀ κc + g : ℕ) : ℝ) / κc
+          ≤ 1 by rw [div_le_one (by exact_mod_cast (show 0 < κc by omega))]; exact_mod_cast
+            (show loAt η₀ κc + g ≤ κc by omega)) (loAt η₀ κc + 1)]
+      unfold edgeFloor; linarith
+    have hκ1 : halfTail η₀ κc / edgeFloor η₀ κc g ≤ crossLimit :=
+      (pow_le_pow_iff_left₀ (div_nonneg hh0 hu0.le) hcross.le (by norm_num)).1 (hκ4.trans_eq hc)
+    have hh1 : halfTail η₀ κc ≤ crossLimit :=
+      ((le_div_self hh0 hu0 hu1)).trans hκ1
+    have hc1 : cleanTail η₀ κc g ≤ crossLimit ^ 2 := by
+      have hct0 : 0 ≤ cleanTail η₀ κc g := by
+        rw [cleanTail]
+        exact binomSfGe_nonneg (by positivity) (by
+          rw [div_le_one (by exact_mod_cast (show 0 < κc by omega))]
+          exact_mod_cast (show loAt η₀ κc + g ≤ κc by omega)) _
+      refine (pow_le_pow_iff_left₀ hct0 (by positivity) (by norm_num : (2 : ℕ) ≠ 0)).1 ?_
+      rw [← pow_mul]
+      exact hclean.trans_eq hc
+    refine ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 => ?_⟩
     rw [hBlo, hBhi]
-    exact bandPasses_of_halfTail hp0 hp1 hr0 hr1 (by omega) hsum hlo3 hhalf'
+    refine (bandPasses_of_split (g := g) hp0 hp1 hr0 hr1 (by omega) hsum hlo3 hg2 hg ?_).mono
+      hc1 hh1 hκ1 hp0 hp1 hr0 hr1
+    have := hu
+    unfold edgeFloor edgeTail halfTail at this
+    exact this
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp
@@ -355,9 +383,9 @@ def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
 /-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS` and `NP` bounding the
 schedule's suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The
-clustering's band passes at `cross`, small enough that level 5's wrong reads fit level 3's
-premises and the probes reading wrong past a midfix weigh more than `u` with chance at most
-`C.δ / 8`. The last round has at most `C.disagreementRate + u + mr` of the probes in
+clustering's band passes its check at `ζ = cross`: a read is wrong at most `ζ²`, or at most `ζ`
+times as often as undecided, small enough for level 5's premises at `f = 0`. The last round has
+at most `C.disagreementRate + u + mr` of the probes in
 `disagreeSet`, `mr` bounding the mass the round's probes avoid. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
@@ -391,7 +419,7 @@ def LoopCore : Prop :=
   1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
   0 < u → 0 < C.harvestRate →
   6 * (K + 1) * NP * prefixMax P.D C.walkStart ≤ mr → mr ≤ 1 / 2 → 0 < cross →
-  RoundPremises σ α P.L C cross →
+  RoundPremises σ α P.L C (cross ^ 2) cross (2 * prefixMax P.D C.walkStart) →
   -- Each harvest puts more than `c/Tu` of its population on a state read undecided more than `Tu`
   -- of the time, `c` the gate's limit.
   0 < Tu →
@@ -412,7 +440,7 @@ def LoopCore : Prop :=
                   (2 * indecisionLimit + slack) (C.disagreementRate + u + mr))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
-          + (C.δ + C.δ / 8 + (shortStrings (α := α) (Fintype.card σ)).card * cross / u))
+          + (C.δ + (shortStrings (α := α) (Fintype.card σ)).card * (cross ^ 2 + cross) / u))
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
@@ -431,8 +459,8 @@ theorem loop_core_holds : LoopCore := by
   set schedule : Finset (Option (Fin K)) → Finset State := fun pops =>
     if none ∈ pops then schedule₀ pops else ∅ with hschedd
   have hband : ∀ pops, ∀ B ∈ schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
-      ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
-        BandPasses N B.lo (B.hi + 1) p r cross ε₂ κ := fun pops B hB => by
+      ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
+        BandPasses N B.lo (B.hi + 1) p r (cross ^ 2) cross cross := fun pops B hB => by
     simp only [hschedd] at hB
     split_ifs at hB
     · exact hband₀ pops B hB
@@ -651,7 +679,7 @@ theorem loop_core_holds : LoopCore := by
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N (513 / 512 * εcov) (δc + gate) slack cap cap
       m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
-  set δ3 : ℝ := C.δ + C.δ / 8 + (shortStrings (α := α) (Fintype.card σ)).card * cross / u
+  set δ3 : ℝ := C.δ + (shortStrings (α := α) (Fintype.card σ)).card * (cross ^ 2 + cross) / u
     with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
     loop_round_le_persist M O hL P Dsf settings Ls NP N mr u cross hN hNPsum hband hk0 hη1
@@ -672,7 +700,8 @@ theorem loop_core_holds : LoopCore := by
             add_le_add (add_le_add (h1 r hr) (h2 r hr)) (le_of_eq (h3 r hr))
         _ = δc + gate + δ3 := by ring
     · rw [measureReal_empty]
-      have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * cross / u := by positivity
+      have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * (cross ^ 2 + cross) / u := by
+        positivity
       have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; linarith
       exact this
   -- a failing run fails one of the first `|Q| + 1` rounds' claims

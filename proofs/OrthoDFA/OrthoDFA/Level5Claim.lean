@@ -1,12 +1,12 @@
-import OrthoDFA.Level4KappaClaim
-import OrthoDFA.AllowanceClaim
+import OrthoDFA.Utils.Allowance
 
 /-!
 # `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision, a few tolerated
 
-Level 3 (`indecisiveLStarLevel3`) runs on level 5's reads (`KappaReadOracle`). `Level4KappaRoundCorrect` charges
-the round its chance of reading anything wrong; here the round may read up to `f + 1` rounds
-wrong and still end well. A wrong read adds at most one spurious leaf, so with level 3's premises
+Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
+most `εw + κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`), otherwise as
+`ReadOracle` says. The round may read up to `f + 1` rounds wrong and still end well, its tree
+within `|Q| + f + 2` leaves. A wrong read adds at most one spurious leaf, so with level 3's premises
 taken at `|Q| + f` states (`Level3AllowanceCorrect`) the round fails only where `f + 2` rounds of
 reads meet a fresh wrong read (`RaceTailBound`), or two probes share their first `walkStart`
 letters, so that one probe's wrong read could recur in another's.
@@ -19,10 +19,32 @@ read number at most `b` and those read undecided at most `m`.
 
 namespace OrthoDFA
 
+namespace Random
+
+namespace Kappa
+
+open MeasureTheory
+
+variable {α : Type*}
+
+/-- `ReadOracle` with each read on its state's wrong side with chance at most `εw + κ U q`. -/
+structure KappaReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*}
+    (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) where
+  read : FreeMonoid α → Ω → ARU
+  measurable : ∀ z, Measurable (read z)
+  indep : ProbabilityTheory.iIndepFun read μ
+  undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
+  wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept}
+    ≤ εw + κ * U (M.eval z.toList)
+
+end Kappa
+
+end Random
+
 open MeasureTheory Random Random.Kappa
 
 /-- Level 3's algorithm, with wrong reads that may scale with a state's indecision, fails to end
-well with chance at most `δ`, a few wrong reads tolerated. -/
+well within `|Q| + f + 2` leaves with chance at most `δ`, a few wrong reads tolerated. -/
 def Level5RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -66,7 +88,8 @@ def Level5RoundCorrect : Prop :=
               walkStart := C.walkStart,
               harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
-              ending := result.ending }} ∂μ
+              ending := result.ending }
+          ∨ nQ + 2 < result.hypothesis.tree.leaves.length} ∂μ
       ≤ ENNReal.ofReal δ
 
 end OrthoDFA

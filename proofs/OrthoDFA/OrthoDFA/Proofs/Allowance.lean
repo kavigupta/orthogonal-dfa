@@ -1,11 +1,11 @@
-import OrthoDFA.AllowanceClaim
-import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Utils.Allowance
+import OrthoDFA.Proofs.EpsRound
 
 /-!
 # Level 3 within a leaf allowance: the proof
 
 The target padded with `f` states no string reaches (`DFA.pad`) has the same runs and the same
-indecision, and `|Q| + f` states. The κ claim's frame (`eps_round_le_of`) takes any invariant that
+indecision, and `|Q| + f` states. Level 3's frame (`eps_round_le_of`) takes any invariant that
 keeps the tree in level 3's class; here it is that the tree has at most `|Q| + f + 2` leaves, kept
 by every step that does not grow it past them (`keepsInv_grows`).
 -/
@@ -110,7 +110,7 @@ theorem level3AllowanceCorrect_holds : Level3AllowanceCorrect := by
   · congr 1; funext ω; congr 1; ext d
     simp only [Set.mem_ofPred_eq]
     unfold EndsWell
-    simp only [heval, U', Sum.elim_inl]
+    simp only [heval, U', Sum.elim_inl, anyB_grows]
   · congr 1; funext ω; congr 1; ext d
     exact anyB_grows (read · ω) C _ _ _
 

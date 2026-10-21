@@ -5,13 +5,13 @@ import OrthoDFA.Proofs.EpsReads
 
 Given the reads, the round fails to end well only where a stretch risks it, as at level 3, or
 where some step is bad (`eps_probe_level`): a step that is not keeps an invariant `J` that keeps
-the tree in the class level 3's stretches need. The κ claim takes `J` to be `WitInv`. The run stopped at the first bad step (`stopAt`) has level 3's
+the tree in the class level 3's stretches need; level 5 takes `J` to be a leaf allowance
+(`Proofs/Allowance.lean`). The run stopped at the first bad step (`stopAt`) has level 3's
 stretches. Over the reads, the probes harvest within their bounds but for the tails at every
 state's rate (`harvest_noise`).
 
 Levels 4 and 5 take level 3's knobs at `log(16(|Q| + 1)K/δ)` (`round_knobs`): the tails risk `δ/16`
-at each site, the stretches `3δ/4` and the wrong reads `δ/8`. Level 4 is the κ claim at `κ = 0`
-(`Proofs/KappaRound.lean`).
+at each site, the stretches `3δ/4` and the wrong reads `δ/8`.
 -/
 
 namespace OrthoDFA
@@ -129,8 +129,8 @@ theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
       by_contra hne
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
-/-- Given the reads, the round fails to end well with chance at most what the stretches risk at
-their levels, plus the chance that some step is `W`. -/
+/-- Given the reads, the round fails to end well or has a step that is `W` with chance at most what
+the stretches risk at their levels, plus the chance that some step is `W`. -/
 theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J initialState)
     (hJcls : ∀ s, Inv read s → J s → s.tree ∈ classSet (Fintype.card σ))
     (W : Level3State α → FreeMonoid α → Prop) (hW : KeepsInv read C (σ := σ) J W)
@@ -171,7 +171,8 @@ theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J i
               walkStart := C.walkStart,
               harvestLaw := harvestLaw read D C.walkStart ⟨r.1.tree, r.1.edges⟩,
               yield := y,
-              ending := r.2 }}
+              ending := r.2 }
+          ∨ AnyB (applyProbe read C) W initialState (List.ofFn xs)}
       ≤ ENNReal.ofReal (∑ j ∈ Finset.range (Level2.stretches (Fintype.card σ) (Fintype.card α)),
           stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
         + (Measure.pi fun _ : Fin P => D)
@@ -227,6 +228,9 @@ theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J i
         ({xs | AnyB step₂ B₁ initialState (List.ofFn xs)}
           ∪ {xs | AnyB (applyProbe read C) W initialState (List.ofFn xs)}) := by
         refine measure_mono fun xs hxs => ?_
+        rcases hxs with hxs | hW'
+        swap
+        · exact Or.inr hW'
         have hb : AnyB (applyProbe read C) (BadStep read C M U A sl D ε Ns y W) initialState
             (List.ofFn xs) := by
           by_contra hb
@@ -269,8 +273,8 @@ theorem eps_probe_level (J : Level3State α → Prop) (hJ : HypInv J) (hJ0 : J i
               Finset.sum_le_sum_of_subset (Finset.range_subset_range.2 (by omega))
           _ = _ := (ENNReal.ofReal_sum_of_nonneg hnn).symm
 
-/-- The round's failure chance is at most `roundBoundAt` at admissible knobs, with no
-length-`walkStart` prefix above `p₀`, plus the chance some step is `W`. -/
+/-- The round fails, or has a step that is `W`, with chance at most `roundBoundAt` at admissible
+knobs, with no length-`walkStart` prefix above `p₀`, plus the chance some step is `W`. -/
 theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsProbabilityMeasure μ]
     (read : FreeMonoid α → Ω → ARU) (hmeas : ∀ z, Measurable (read z))
     (hind : ProbabilityTheory.iIndepFun read μ)
@@ -299,7 +303,8 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
               walkStart := C.walkStart,
               harvestLaw := harvestLaw (read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
-              ending := result.ending }} ∂μ
+              ending := result.ending }
+          ∨ AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn draws)} ∂μ
       ≤ ENNReal.ofReal (roundBoundAt (α := α) σ η p₀ C kn)
         + ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {d | AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn d)} ∂μ := by
@@ -330,7 +335,8 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
             walkStart := C.walkStart,
             harvestLaw := harvestLaw (read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩,
             yield := y,
-            ending := r.2 }}
+            ending := r.2 }
+          ∨ AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn xs)}
         ≤ (c + N.indicator 1 ω) + g ω := by
     intro ω
     by_cases hω : ω ∈ N

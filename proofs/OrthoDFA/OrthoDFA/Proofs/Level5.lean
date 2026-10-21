@@ -38,6 +38,19 @@ theorem growsRun_state : ∀ (xs : List (FreeMonoid α)) (s₀ : Level3State α)
     · obtain ⟨j, hj, s, hs, hlt⟩ := growsRun_state xs s' h
       exact ⟨j + 1, by simp; omega, s, by simp [stateAt, hs', hs], hlt⟩
 
+omit [Fintype α] in
+theorem leaves_le_of_not_growsRun : ∀ (xs : List (FreeMonoid α)) (s : Level3State α),
+    s.tree.leaves.length ≤ n + 2 → ¬ GrowsRun r C n s xs →
+      (runProbes r C s xs).1.tree.leaves.length ≤ n + 2
+  | [], _, h, _ => h
+  | x :: xs, s, h, hg => by
+    simp only [runProbes]
+    rcases ha : applyProbe r C s x with s' | e
+    · refine leaves_le_of_not_growsRun xs s' ?_ fun h' => hg (Or.inr ⟨s', ha, h'⟩)
+      by_contra hc
+      exact hg (Or.inl ⟨s', ha, by omega⟩)
+    · exact h
+
 variable {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool) {xs : List (FreeMonoid α)}
   {R : ℕ}
 
@@ -283,7 +296,15 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
   have hp₀ : 0 < p₀ := (prefixMax_pos P.D C.walkStart).trans_le (ciSup_le hpre)
   have hall := level3AllowanceCorrect_holds M U μ R.read R.measurable R.indep R.undecided P C p₀ f
   dsimp only at hall
-  refine (hall hpre hδ hδ1 hy0 hyρ hρ1 hP).trans ?_
+  refine (lintegral_mono fun ω => measure_mono fun d hd => ?_).trans
+    ((hall hpre hδ hδ1 hy0 hyρ hρ1 hP).trans ?_)
+  · rcases hd with hd | hd
+    · exact Or.inl hd
+    · by_contra hc
+      simp only [Set.mem_ofPred_eq, not_or] at hc
+      have h0 : (initialState : Level3State α).tree.leaves.length ≤ nQ + 2 := by
+        simp [initialState, newHypothesis, DTree.leaves]
+      exact absurd (leaves_le_of_not_growsRun _ _ h0 hc.2) (not_le.2 hd)
   set π := Measure.pi fun _ : Fin C.probeBudget => P.D
   set tail := Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2)
   have htail0 : 0 ≤ tail := by positivity

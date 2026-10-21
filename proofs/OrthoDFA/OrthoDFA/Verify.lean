@@ -11,11 +11,10 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
-import OrthoDFA.Proofs.KappaRound
-import OrthoDFA.Proofs.RaceReads
 import OrthoDFA.Proofs.RaceTail
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
@@ -33,16 +32,17 @@ hypothesis that agrees with the target DFA but for chance `δ`.
 The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
 in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
-in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level4KappaRoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level4KappaClaim`,
-`Level3AllowanceCorrect` and `Level5RoundCorrect`, stated in `OrthoDFA.AllowanceClaim` and
-`OrthoDFA.Level5Claim`, and
+in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
+stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises.
+with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
+and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
+at both. The loop runs level 5.
 
-The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`RaceTailBound`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
+`Level3AllowanceCorrect`, `BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`,
+`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
+`SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
 
 namespace OrthoDFA
@@ -120,22 +120,13 @@ theorem level3_round_correct : Level3RoundCorrect := Random.level3RoundCorrect_h
 
 #print axioms level3_round_correct
 
-theorem level4_round_correct : Level4RoundCorrect := Random.Eps.level4RoundCorrect_holds
+theorem level4_round_correct : Level4RoundCorrect := level4RoundCorrect_holds
 
 #print axioms level4_round_correct
-
-theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
-
-#print axioms race_reads_bound
 
 theorem race_tail_bound : RaceTailBound := raceTailBound_holds
 
 #print axioms race_tail_bound
-
-theorem level4_kappa_round_correct : Level4KappaRoundCorrect :=
-  Random.Kappa.level4KappaRoundCorrect_holds
-
-#print axioms level4_kappa_round_correct
 
 theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
 

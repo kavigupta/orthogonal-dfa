@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.Allowance
+import OrthoDFA.Proofs.KappaCount
 
 /-!
 # A step's reads, one round for its probe and one for each edge its split re-sifts
@@ -107,6 +108,25 @@ theorem inv_keys_stateAt : ∀ (xs : List (FreeMonoid α)) (j : ℕ) (s : Level3
     subst h
     obtain ⟨h1, h2⟩ := inv_keys_stateAt xs j s₁ hs₁
     exact inv_keys_step read C h1 h2 ha
+
+theorem inv_keys_runProbes : ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s →
+    Keys s → Inv read (runProbes read C s xs).1 ∧ Keys (runProbes read C s xs).1
+  | [], _, hs, hk => ⟨hs, hk⟩
+  | x :: xs, s, hs, hk => by
+    simp only [runProbes]
+    rcases ha : applyProbe read C s x with s' | e
+    · obtain ⟨h1, h2⟩ := inv_keys_step read C hs hk ha
+      exact inv_keys_runProbes xs s' h1 h2
+    · exact ⟨hs, hk⟩
+
+/-- Whatever the reads, a tree of at most `n + 2` leaves is in `classSet n`. -/
+theorem tree_classSet_of_leaves {T n : ℕ} (xs : Fin T → FreeMonoid α)
+    (h : (indecisiveLStarLevel3 C read xs).hypothesis.tree.leaves.length ≤ n + 2) :
+    (indecisiveLStarLevel3 C read xs).hypothesis.tree ∈ classSet n := by
+  obtain ⟨hinv, -⟩ := inv_keys_runProbes read C (List.ofFn xs) initialState (inv_start read)
+    (fun _ _ _ h => by simp [initialState, newHypothesis] at h)
+  have h' : (runProbes read C initialState (List.ofFn xs)).1.tree.leaves.length ≤ n + 2 := h
+  exact classSet_mono' (by omega) hinv.cls
 
 /-! ## Reads agreeing on a step's rounds give the same step -/
 

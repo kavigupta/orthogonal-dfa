@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.FamilyOracle
+import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.LoopAvoid
 import OrthoDFA.Proofs.Renoise
 
@@ -7,10 +8,10 @@ import OrthoDFA.Proofs.Renoise
 
 `SuffixFamily.renoise` reads the family through `O.renoise R`: a suffix family on two copies of
 the noise, with the same read distributions, which agrees with the family off `R` at the first
-copy (`renoise_read_of_notMem`). The κ claim's guarantee holds of it (`level3Fail_le`): level 3 fails
-to end well, a step reads some string wrong, or the probes some string of which, followed by at
-most `|Q|` letters, reads wrong weigh more than `u`, with chance at most
-`δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. A second copy can be fixed at a point
+copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`level3Fail_le`): level 3 fails
+to end well within `|Q| + 2` leaves, or the probes some string of which, followed by at most `|Q|`
+letters, reads wrong weigh more than `u`, with chance at most
+`δ + #(strings of at most |Q| letters) (ε + κ)/u`. A second copy can be fixed at a point
 where the bound still holds (`exists_noise_le`).
 -/
 
@@ -121,11 +122,11 @@ theorem wrongSet_markov (read : FreeMonoid α → Ω' → ARU) (hmeas : ∀ z, M
 
 variable [Fintype σ]
 
-/-- The κ claim's harvest slope at probes at most `L` long. -/
+/-- Level 5's harvest slope at `f = 0`, at probes at most `L` long. -/
 def roundSlope (σ : Type*) [Fintype σ] (L : ℕ) (C : Random.Level3Settings) : ℝ :=
   (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
 
-/-- The κ claim's harvest slack at the prefix mass `p₀`. -/
+/-- Level 5's harvest slack at `f = 0`, at the prefix mass `p₀`. -/
 def roundSlack (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (p₀ : ℝ) : ℝ :=
   p₀ * Real.log (16 * (Fintype.card σ + 1) * ((1 + (Fintype.card σ + 1) ^ 3 * Fintype.card α)
     ^ Fintype.card σ * (Fintype.card σ + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) : ℕ)
@@ -221,29 +222,6 @@ theorem measurableSet_level3Fail (fam : SuffixFamily μ' α σ) (C : Random.Leve
     (fun q => fam.readDist_nonneg q _) hA hsl _ D' _ _ _ _).union
     (MeasurableSet.const _)
 
-/-- Whether some step reads a string wrong is measurable. -/
-theorem measurableSet_anyB (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (side : σ → Bool) :
-    MeasurableSet {d : Ω' × (Fin C.probeBudget → FreeMonoid α) |
-      Random.AnyB (Random.applyProbe (fun z => fam.read d.1 z) C)
-        (Random.Kappa.ReadsWrong fam.M side (fun z => fam.read d.1 z) C) Random.initialState
-        (List.ofFn d.2)} := by
-  classical
-  refine measurableSet_prod_countable_right _ fun xs => ?_
-  set A := readStrings (shortStrings (probesLen xs + 1 + C.probeBudget + 2)) fam.F
-  refine measurableSet_of_reads fam.O A _ fun ω ω' h hω => ?_
-  simp only [Set.mem_setOf_eq] at hω ⊢
-  refine Random.anyB_congr_zone C fam.M side (X := List.ofFn xs) (B := C.probeBudget)
-    (fun x hx j _ hj m hm => ?_) (List.ofFn xs) Random.initialState (fun _ h => h)
-    (Random.runInv_start _ C _) (by simp [Random.initialState, Random.newHypothesis,
-      DTree.leaves]) hω
-  obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-  refine familyRead_congr fam.O h (mem_shortStrings.2 ?_)
-  have h1 := le_probesLen xs i
-  have h2 : (prefixOf (xs i) j).toList.length ≤ (xs i).toList.length := by simp [prefixOf]
-  simp only [FreeMonoid.toList_mul, List.length_append]
-  omega
-
 theorem readDist_le_one (fam : SuffixFamily μ' α σ) (q : σ) (r : ARU) : fam.readDist q r ≤ 1 := by
   classical
   unfold SuffixFamily.readDist
@@ -252,25 +230,30 @@ theorem readDist_le_one (fam : SuffixFamily μ' α σ) (q : σ) (r : ARU) : fam.
   · norm_num
 
 open Random.Kappa in
-/-- The κ claim's guarantee read through the family: level 3 fails to end well at `ε + u` over
-`disagreeSet`, or its tree leaves `classSet |Q|`, but for chance
-`δ + δ/8 + #(strings of at most |Q| letters) (ε + κ)/u`. -/
+/-- Level 5's guarantee read through the family at `f = 0`, one spurious leaf tolerated within
+level 3's `|Q| + 2`: level 3 fails to end well at `ε + u` over `disagreeSet`, or its tree leaves
+`classSet |Q|`, but for chance
+`δ + #(strings of at most |Q| letters) (ε + κ)/u`. -/
 theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
-    (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u : ℝ) (hu : 0 < u) :
+    (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u t t' : ℝ) (hu : 0 < u) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ ≤ 1 →
+    let w : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (nQ + 1)
+    let c : ℝ := fam.ε * max w (nQ + 2) + fam.κ
+    let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
+    let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + (nQ + 2) * nα * (nQ + 1)
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ < 1 →
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
-    fam.ε * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + fam.κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
-        ≤ C.δ / 8 →
+    0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      + Real.exp (t' * (fam.ε * b + fam.κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
-      ≤ ENNReal.ofReal (C.δ + C.δ / 8
+      ≤ ENNReal.ofReal (C.δ
         + (shortStrings (α := α) (Fintype.card σ)).card * (fam.ε + fam.κ) / u) := by
-  intro nQ nα S hpre hδ hδ1 hy0 hyρ hρ1 hP hw
+  intro nQ nα S w c b m hpre hδ hδ1 hy0 hyρ hρ1 hP ht ht' htc hfin
   classical
   set side : σ → Bool := fun q => readSide (fam.readDist q)
   set U : σ → ℝ := fun q => fam.readDist q .undecided
@@ -280,31 +263,10 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   set T := C.probeBudget
   set π := Measure.pi fun _ : Fin T => P.D
   set wrong : FreeMonoid α → ARU := fun z => if side (fam.M.eval z.toList) then .reject else .accept
-  -- level 3 ends well
-  have hK := Random.Kappa.level4KappaRoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ hpre
-    hδ hy0 hyρ hρ1 hP hε hκ hw
-  -- no step reads wrong
+  -- level 3 ends well within `|Q| + 2` leaves
+  have hK := level5RoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ 0 t t' hpre hδ hδ1 hy0
+    hyρ hρ1 hP hε hκ ht ht' htc hfin
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)
-  have hW := pi_wrong_le' fam.M side C μ' U fam.ε fam.κ R P hε hκ hy0 hyρ hρ1 hδ hδ1
-  have hSst : Level2.stretches nQ nα = S := rfl
-  have hcost := sum_costAt_le C S hδ hδ1
-  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
-      + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mu wSplit
-    rw [hSst]
-    push_cast
-    nlinarith
-  have hMb : Mb nQ nα P.L C.probeBudget
-      = C.probeBudget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * nQ
-        + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mb wSplit probeSifts
-    push_cast
-    ring
-  have hwr : fam.ε * Mb nQ nα P.L C.probeBudget + fam.κ * Mu nQ nα C ≤ C.δ / 8 := by
-    rw [hMb]
-    have := mul_le_mul_of_nonneg_left hMu hκ
-    linarith
-  have hW' := hW.trans (ENNReal.ofReal_le_ofReal hwr)
   -- the probes reading wrong past a short midfix weigh at most `u`
   set Mk := {ω | u < P.D.real (wrongSet (fun z => fam.read ω z) wrong nQ)}
   have hMk : MeasurableSet Mk :=
@@ -317,7 +279,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
       have h2 : fam.κ * U (fam.M.eval z.toList) ≤ fam.κ :=
         mul_le_of_le_one_right hκ (readDist_le_one fam _ _)
       exact h1.trans (by linarith)) P.D nQ hu
-  -- the three events
+  -- the two events
   set E₁ := {d : Ω' × (Fin T → FreeMonoid α) |
     let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
     ¬ EndsWell
@@ -332,7 +294,8 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
         walkStart := k,
         harvestLaw := Random.harvestLaw (fun z => fam.read d.1 z) P.D k result.hypothesis,
         yield := C.harvestRate,
-        ending := result.ending }}
+        ending := result.ending }
+      ∨ nQ + 2 < result.hypothesis.tree.leaves.length}
   have hA0 : 0 ≤ roundSlope σ P.L C := by unfold roundSlope; positivity
   have hsl0 : 0 ≤ roundSlack σ α C p₀ := by
     unfold roundSlack
@@ -354,21 +317,17 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
       walkStart := k,
       harvestLaw := Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis,
       yield := C.harvestRate,
-      ending := result.ending }) fun res =>
-      measurableSet_not_endsWell_searchEnds fam.O fam.F _ _ k fam.M _
-        (fun q => fam.readDist_nonneg q _) hA0 hsl0 P.D _ _ _ _
-  set E₂ := {d : Ω' × (Fin T → FreeMonoid α) |
-    Random.AnyB (Random.applyProbe (fun z => fam.read d.1 z) C)
-      (Random.Kappa.ReadsWrong fam.M side (fun z => fam.read d.1 z) C) Random.initialState
-      (List.ofFn d.2)}
-  have hE₂ : MeasurableSet E₂ := measurableSet_anyB fam C side
-  -- off the three, the round ends well
+      ending := result.ending }
+      ∨ nQ + 2 < result.hypothesis.tree.leaves.length) fun res =>
+      (measurableSet_not_endsWell_searchEnds fam.O fam.F _ _ k fam.M _
+        (fun q => fam.readDist_nonneg q _) hA0 hsl0 P.D _ _ _ _).union (MeasurableSet.const _)
+  -- off the two, the round ends well
   have hsub : ∀ ω, Prod.mk ω ⁻¹' level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u
-      ⊆ Prod.mk ω ⁻¹' E₁ ∪ Prod.mk ω ⁻¹' E₂ ∪ (if ω ∈ Mk then Set.univ else ∅) := by
+      ⊆ Prod.mk ω ⁻¹' E₁ ∪ (if ω ∈ Mk then Set.univ else ∅) := by
     intro ω xs hxs
     by_contra hno
     simp only [Set.mem_union, Set.mem_preimage, not_or] at hno
-    obtain ⟨⟨h1, h2⟩, h3⟩ := hno
+    obtain ⟨h1, h3⟩ := hno
     have hM : ω ∉ Mk := fun h => h3 (by rw [if_pos h]; trivial)
     apply hxs
     set result := Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs
@@ -385,9 +344,10 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
         harvestLaw := Random.harvestLaw (fun z => fam.read ω z) P.D k result.hypothesis,
         yield := C.harvestRate,
         ending := result.ending } := by
-      by_contra h; exact h1 h
+      by_contra h; exact h1 (Or.inl h)
     have hcls : result.hypothesis.tree ∈ Random.classSet nQ :=
-      Random.tree_classSet_of_good fam.M side (fun z => fam.read ω z) C xs h2
+      Random.Spur.tree_classSet_of_leaves (fun z => fam.read ω z) C xs
+        (not_lt.1 fun h => h1 (Or.inr h))
     refine ⟨?_, hcls⟩
     rcases he : result.ending with _ | site | _
     · rw [he] at hEW
@@ -411,25 +371,20 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   rw [Measure.prod_apply (measurableSet_level3Fail fam C P.D hA0 hsl0 u)]
   calc ∫⁻ ω, π (Prod.mk ω ⁻¹' level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
         ∂μ'
-      ≤ ∫⁻ ω, (π (Prod.mk ω ⁻¹' E₁) + π (Prod.mk ω ⁻¹' E₂) + Mk.indicator 1 ω) ∂μ' := by
+      ≤ ∫⁻ ω, (π (Prod.mk ω ⁻¹' E₁) + Mk.indicator 1 ω) ∂μ' := by
         refine lintegral_mono fun ω => (measure_mono (hsub ω)).trans
-          ((measure_union_le _ _).trans (add_le_add (measure_union_le _ _) ?_))
+          ((measure_union_le _ _).trans (add_le_add le_rfl ?_))
         by_cases h : ω ∈ Mk
         · rw [if_pos h, Set.indicator_of_mem h]; exact prob_le_one
         · rw [if_neg h, Set.indicator_of_notMem h]; simp
-    _ = ∫⁻ ω, π (Prod.mk ω ⁻¹' E₁) ∂μ' + ∫⁻ ω, π (Prod.mk ω ⁻¹' E₂) ∂μ' + μ' Mk := by
-        rw [lintegral_add_right _ (measurable_one.indicator hMk),
-          lintegral_add_left (measurable_measure_prodMk_left hE₁),
-          lintegral_indicator_one hMk]
-    _ ≤ ENNReal.ofReal C.δ + ENNReal.ofReal (C.δ / 8)
+    _ = ∫⁻ ω, π (Prod.mk ω ⁻¹' E₁) ∂μ' + μ' Mk := by
+        rw [lintegral_add_right _ (measurable_one.indicator hMk), lintegral_indicator_one hMk]
+    _ ≤ ENNReal.ofReal C.δ
           + ENNReal.ofReal ((shortStrings (α := α) nQ).card * (fam.ε + fam.κ) / u) := by
-        simp only [hRr] at hK hW'
+        simp only [hRr] at hK
         gcongr
-        · exact hK
-        · exact hW'
-    _ = _ := by
-        rw [← ENNReal.ofReal_add (by positivity) (by positivity),
-          ← ENNReal.ofReal_add (by positivity) (by positivity)]
+        exact hK
+    _ = _ := by rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
 
 end Fail
 
