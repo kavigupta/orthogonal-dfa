@@ -186,16 +186,16 @@ theorem ends_law {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) {n :
           have : 0 ≤ V := measureReal_nonneg
           nlinarith
 
-/-- Where at most `2(L + 1)(n + 1)t` of the searches plus `η` of the probes harvest at the middles
-at the states read undecided at most `t ≤ 1/(8(L + 1)(n + 1))` of the time, a harvest there
+/-- Where at most `2wt` of the searches plus `η` of the probes harvest at the middles at the states
+read undecided at most `t ≤ 1/(8w)` of the time, `w = (2 + ⌈log₂ L⌉)(n + 1)`, a harvest there
 yielding `y`, and at least an eighth of the searches, puts at most `A·T + s` of its law on the
-states read undecided at most `T` of the time, once `A ≥ 16(L + 1)(n + 1)` and `s ≥ η/y`. -/
+states read undecided at most `T` of the time, once `A ≥ 16w` and `s ≥ η/y`. -/
 theorem middles_law {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) {L n : ℕ} {η y A s : ℝ}
-    (hy : 0 < y) (hη : 0 ≤ η) (hA : 16 * ((L + 1) * (n + 1)) ≤ A) (hs : η / y ≤ s)
+    (hy : 0 < y) (hη : 0 ≤ η) (hA : 16 * ((2 + Nat.clog 2 L) * (n + 1)) ≤ A) (hs : η / y ≤ s)
     (hU : ∀ z : FreeMonoid α, 0 ≤ U (M.eval z.toList))
-    (hc : ∀ q, 0 ≤ U q → 8 * ((L + 1) * (n + 1) * U q) ≤ 1 →
+    (hc : ∀ q, 0 ≤ U q → 8 * ((2 + Nat.clog 2 L) * (n + 1) * U q) ≤ 1 →
       D.real (goodAt read k H M U (2 / 3 * U q) .middles)
-        ≤ 2 * ((L + 1) * (n + 1) * U q)
+        ≤ 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q)
           * D.real {x | searches (probeOrAgree read H.tree H.edges k x) = true} + η)
     (hyl : y ≤ (harvestLaw read D k H .middles).real Set.univ)
     (hZ : D.real {x | searches (probeOrAgree read H.tree H.edges k x) = true}
@@ -207,7 +207,7 @@ theorem middles_law {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) {
   set Z := D.real {x | searches (probeOrAgree read H.tree H.edges k x) = true}
   have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hL : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-  have hA0 : 0 ≤ A := (by positivity : (0 : ℝ) ≤ 16 * ((L + 1) * (n + 1))).trans hA
+  have hA0 : 0 ≤ A := (by positivity : (0 : ℝ) ≤ 16 * ((2 + Nat.clog 2 L) * (n + 1))).trans hA
   have hs0 : 0 ≤ s := (div_nonneg hη hy.le).trans hs
   have hV0 : 0 ≤ V := measureReal_nonneg
   have htop : ν Set.univ ≠ ⊤ := by
@@ -217,20 +217,20 @@ theorem middles_law {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) {
           ((List.length_filter_le _ _).trans (siteHarvest_length read k H .middles x))
       _ = 1 := by simp
   refine sublevel_of_states M U ν hA0 hs0 hU fun q hq => ?_
-  have hAq : 16 * ((L + 1) * (n + 1)) * U q ≤ A * U q := mul_le_mul_of_nonneg_right hA hq
-  by_cases hsmall : 8 * ((L + 1) * (n + 1) * U q) ≤ 1
+  have hAq : 16 * ((2 + Nat.clog 2 L) * (n + 1)) * U q ≤ A * U q := mul_le_mul_of_nonneg_right hA hq
+  by_cases hsmall : 8 * ((2 + Nat.clog 2 L) * (n + 1) * U q) ≤ 1
   · have h1 := (harvestLaw_good_le read D k H M U (2 / 3 * U q) .middles).trans
       (hc q hq hsmall)
     rw [show 3 / 2 * (2 / 3 * U q) = U q by ring] at h1
     refine h1.trans ?_
     have e2 : η ≤ s * y := by rw [div_le_iff₀ hy] at hs; linarith
     have e3 : s * y ≤ s * V := mul_le_mul_of_nonneg_left hyl hs0
-    have hLnq : 0 ≤ (L + 1) * (n + 1) * U q := by positivity
-    have e1 : 2 * ((L + 1) * (n + 1) * U q) * Z ≤ A * U q * V := by
-      calc 2 * ((L + 1) * (n + 1) * U q) * Z
-          ≤ 2 * ((L + 1) * (n + 1) * U q) * (8 * V) :=
+    have hLnq : 0 ≤ (2 + Nat.clog 2 L) * (n + 1) * U q := by positivity
+    have e1 : 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q) * Z ≤ A * U q * V := by
+      calc 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q) * Z
+          ≤ 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q) * (8 * V) :=
             mul_le_mul_of_nonneg_left hZ (by positivity)
-        _ = 16 * ((L + 1) * (n + 1)) * U q * V := by ring
+        _ = 16 * ((2 + Nat.clog 2 L) * (n + 1)) * U q * V := by ring
         _ ≤ A * U q * V := mul_le_mul_of_nonneg_right hAq hV0
     nlinarith
   · push Not at hsmall
@@ -269,11 +269,11 @@ theorem ends_total_of_not_endsWell {σ : Type*} [Fintype σ] (M : DFA α σ) (U 
 harvest there that does not end well yields less than `y`, or less than an eighth of the
 searches. -/
 theorem middles_total_of_not_endsWell {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ)
-    {L n : ℕ} {η y A s : ℝ} (hy : 0 < y) (hη : 0 ≤ η) (hA : 16 * ((L + 1) * (n + 1)) ≤ A)
+    {L n : ℕ} {η y A s : ℝ} (hy : 0 < y) (hη : 0 ≤ η) (hA : 16 * ((2 + Nat.clog 2 L) * (n + 1)) ≤ A)
     (hs : η / y ≤ s) (hU : ∀ z : FreeMonoid α, 0 ≤ U (M.eval z.toList))
-    (hc : ∀ q, 0 ≤ U q → 8 * ((L + 1) * (n + 1) * U q) ≤ 1 →
+    (hc : ∀ q, 0 ≤ U q → 8 * ((2 + Nat.clog 2 L) * (n + 1) * U q) ≤ 1 →
       D.real (goodAt read k H M U (2 / 3 * U q) .middles)
-        ≤ 2 * ((L + 1) * (n + 1) * U q)
+        ≤ 2 * ((2 + Nat.clog 2 L) * (n + 1) * U q)
           * D.real {x | searches (probeOrAgree read H.tree H.edges k x) = true} + η)
     (ε : ℝ) (dis : Set (FreeMonoid α))
     (h : ¬ EndsWell

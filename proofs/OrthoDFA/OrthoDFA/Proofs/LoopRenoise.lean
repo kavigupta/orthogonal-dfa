@@ -123,7 +123,7 @@ variable [Fintype σ]
 
 /-- Level 5's harvest slope at probes at most `L` long. -/
 def roundSlope (σ : Type*) [Fintype σ] (L : ℕ) (C : Random.Level3Settings) : ℝ :=
-  (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (L + 1))
+  (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
 
 /-- Level 5's harvest slack at the prefix mass `p₀`. -/
 def roundSlack (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (p₀ : ℝ) : ℝ :=
