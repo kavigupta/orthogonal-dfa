@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.LoopCodes
-import OrthoDFA.Proofs.Lloyd
+import OrthoDFA.Proofs.Nearest
 import OrthoDFA.Proofs.RawMeas
 
 /-!
@@ -439,10 +439,11 @@ theorem measurableSet_clusterAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (
     (fun y => (measurableSet_prefixesAt pops B.npref y.1).inter (measurableSet_poolAt B.nsuff y.2)
       |> fun h => by convert h using 1; ext x; simp [Prod.ext_iff])
     (fun y => if (1 : FreeMonoid α) ∈ y.2 then Prod.fst ⁻¹'
-        {ω | clusterOf lloydClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
+        {ω | clusterOf nearestClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
     (fun y => by
       split_ifs with hone
-      · exact measurable_fst (measurableSet_clusterOf (rule := lloydClusterer) O B.sc B.scd y.1 y.2
+      · exact measurable_fst (measurableSet_clusterOf (rule := nearestClusterer) O B.sc B.scd y.1
+        y.2
           B.k hone F)
       · exact MeasurableSet.empty) |> fun h => by
     convert h using 1

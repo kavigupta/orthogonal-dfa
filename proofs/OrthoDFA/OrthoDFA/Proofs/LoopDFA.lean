@@ -221,7 +221,7 @@ theorem integral_uniform_le_window {k L L₁ : ℕ} (hk : k ≤ L) (hL : L ≤ L
 lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hcL : 0 ≤ cL) :
-    0 ≤ 64000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
+    0 ≤ 161000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
         * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2)
         / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 2) := by
@@ -634,10 +634,12 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set W : ℝ := B₃ * w * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
-  set RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2) with hRBd
-  set cap : ℝ := min (min (δ' * τ ^ 2 / (2 ^ 22 * (J + 1) ^ 2 * (RB + 1)))
-      (δ' * ι ^ 2 / (2 ^ 11 * (J + 1) * (RB + 1))))
+  set cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
+        (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
   obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
@@ -686,28 +688,46 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
   have hR₀ : 0 ≤ R₀ := by
     have := log_count_nonneg hQ0 hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
-    show 0 ≤ 64000 * (Q + 2) ^ 2 * Θ ^ 2
+    show 0 ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2
       * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
     positivity
+  have hτm : τ ≤ min (εcov / 2) ι := by
+    refine le_min ?_ (min_le_right _ _)
+    have ha := gateA_le_one hη0 hη₀
+    have ha0 := (gateA_pos hη0 hη₀).le
+    have hsq : ((1 - 2 * η₀) / (1 - η₀)) ^ 2 ≤ 1 := by
+      have : (1 - 2 * η₀) / (1 - η₀) = gateA η₀ := rfl
+      rw [this]; nlinarith
+    have hεc0 : 0 ≤ εcov / 2 := by
+      have : 0 < εcov := lt_min hε0 (by positivity)
+      positivity
+    exact (min_le_left _ _).trans (mul_le_of_le_one_right hεc0 hsq)
+  have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
   have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hτ0
     hinvτ hι0 hinvι hΘ1 hℓ1 hRB0 (by rw [hRBd]; exact hRB) (by linarith) (by rw [hPBJ]; exact hPB)
-    (by linarith) hR₀ hδ'0 hδ'1 hpAP hp1 rfl
+    (by linarith) hR₀ hδ'0 hδ'1 hpAP hp1 hs0 hs1 hτm rfl
   have hE₁0 : 0 < E₁ := by
-    show 0 < 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
+    show 0 < (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+      + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+    have : 0 < 2 ^ 20 * Θ * (R₀ + 1) / s := by positivity
+    have : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
+    have : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
     positivity
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
   have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
   have hEE : 1 ≤ E + E₂ := by
     have hE₁ : 1 ≤ E₁ := by
-      show 1 ≤ 2 ^ 23 * (Q + 3) ^ 2 * (Θ ^ 2 * (R₀ + 1) + (P₀ + 2) / pAP) / δ'
-      rw [le_div_iff₀ hδ'0, one_mul]
-      have h1 : 1 ≤ Θ ^ 2 * (R₀ + 1) :=
-        one_le_mul_of_one_le_of_one_le (one_le_pow₀ hΘ1) (by linarith only [hR₀])
-      have h2 : 0 ≤ (P₀ + 2) / pAP := by positivity
-      have h3 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith only [hQ0])
-      exact hδ'1.trans (one_le_mul_of_one_le_of_one_le
-        (one_le_mul_of_one_le_of_one_le (by norm_num) h3) (le_add_of_le_of_nonneg h1 h2))
+      show 1 ≤ (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+        + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+      have h1 : 1 ≤ 2 ^ 20 * Θ * (R₀ + 1) / s := by
+        rw [le_div_iff₀ hs0, one_mul]
+        have : 1 ≤ Θ * (R₀ + 1) := one_le_mul_of_one_le_of_one_le hΘ1 (by linarith only [hR₀])
+        linarith only [this, hs1]
+      have h2 : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
+      have h3 : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
+      have h4 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith only [hQ0])
+      exact one_le_mul_of_one_le_of_one_le h4 (by linarith only [h1, h2, h3])
     have haε : 1 ≤ aε := by
       show 1 ≤ 4 * (A + 1) / c
       rw [le_div_iff₀ hc, one_mul]
