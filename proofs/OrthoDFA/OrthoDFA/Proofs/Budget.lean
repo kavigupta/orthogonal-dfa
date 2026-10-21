@@ -59,7 +59,7 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
       (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α))),
     Real.log (16 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2) ]
+      / dirtyRate η indecisionLimit εcov ]
 
 /-- Rounding up a list of reals costs one apiece. -/
 private lemma cast_sum_ceil_le : ∀ l : List ℝ,
@@ -238,16 +238,12 @@ theorem prefCount_le_poly (populations : Finset J)
       simp only [flipFrac, ← hsdef]; field_simp; ring
     rw [he, le_div_iff₀ (by linarith only [hηlt] : (0 : ℝ) < 1 - η)]
     linarith only [mul_nonneg (by linarith only [hsig] : (0 : ℝ) ≤ 6 * s) hη]
-  have hcf : 6 * B * s ≤ 100 * (cut * flipFrac η) := by
-    have h : B * (6 * s) ≤ 10 * cut * (10 * flipFrac η) :=
-      le_mul2 hBpos.le (by linarith only [hsig]) hcutlb hf
-    linarith only [h]
   -- the screen's margin pays `flipFrac`'s `1 − η` back, leaving `cutBudget · sig²`
   have hsm : 2475 * B * s ^ 2
       ≤ 51200 * (c * screenMargin η populations indecisionLimit εcov δ) := by
     have hne : (1 : ℝ) - η ≠ 0 := by intro h; linarith only [h, hηlt]
     have e : 51200 * (c * screenMargin η populations indecisionLimit εcov δ)
-        = 51975 / 2 * cut * s ^ 2 := by
+        = 55755 / 2 * cut * s ^ 2 := by
       simp only [screenMargin, flipBudget, flipFrac, ← hsdef, ← hcdef, ← hcutdef]
       field_simp
       ring
@@ -490,16 +486,25 @@ theorem prefCount_le_poly (populations : Finset J)
           mul_one]
       nlinarith only [h4, e4, mul_le_mul_of_nonneg_right hc2 hL0, hL0]
     exact le_trans h1 (le_of_mul_le_mul_right h2 hD)
-  have t5 : Real.log (16 * c * (M + 1) / δ) / (2 * (3 * cut * flipFrac η / 32) ^ 2)
+  have t5 : Real.log (16 * c * (M + 1) / δ) / dirtyRate η indecisionLimit εcov
       ≤ 8000 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
-    refine tail_le hY16 hL0
-      (mul_pos two_pos (pow_pos (div_pos (mul_pos (mul_pos three_pos hcutpos) hfpos)
-        (by norm_num)) 2)) hD ?_
-    have h := mul_self_le_mul_self (by positivity) hcf
-    have hcf2 : 0 ≤ (cut * flipFrac η) ^ 2 := sq_nonneg _
-    nlinarith only [h, mul_le_mul_of_nonneg_right hs2sq (by positivity : (0 : ℝ) ≤ s ^ 2 * B ^ 2),
-      mul_le_mul_of_nonneg_right hc2 hcf2, hcf2]
+    have hdr : dirtyRate η indecisionLimit εcov = cut * flipFrac η ^ 2 / 1024 := by
+      rw [dirtyRate, ← hcutdef]; field_simp; ring
+    rw [hdr]
+    refine tail_le hY16 hL0 (by positivity) hD ?_
+    have hf2 : 36 * s ^ 2 ≤ 100 * flipFrac η ^ 2 := by
+      have := mul_self_le_mul_self (by linarith only [hsig]) hf
+      nlinarith only [this]
+    have hcf2 : 36 * B * s ^ 2 ≤ 1000 * (cut * flipFrac η ^ 2) := by
+      nlinarith only [mul_le_mul hcutlb hf2 (by positivity) (by positivity), hBpos, hsig]
+    have hs4B : 2 * (s ^ 4 * B ^ 2) ≤ s ^ 2 * B / 4 := by
+      have h1 : s ^ 4 * B ^ 2 = (s ^ 2 * B) * (s ^ 2 * B) := by ring
+      have h2 : s ^ 2 * B ≤ 1 / 8 := by
+        nlinarith only [mul_le_mul hs2sq hB2 hBpos.le (by norm_num : (0 : ℝ) ≤ 1 / 4)]
+      nlinarith only [h1, h2, mul_pos (pow_pos hsig 2) hBpos]
+    nlinarith only [hs4B, hcf2, mul_le_mul_of_nonneg_right hc2
+      (by positivity : (0 : ℝ) ≤ cut * flipFrac η ^ 2 / 1024), mul_pos (pow_pos hsig 2) hBpos]
   have t7 : (6 : ℝ) ≤ Q := by
     rw [hQdef, le_div_iff₀ hD]
     have hc2L : (1 : ℝ) ≤ c ^ 2 * L := by linarith only [le_mul2 zero_le_one zero_le_one hc2 hL1]

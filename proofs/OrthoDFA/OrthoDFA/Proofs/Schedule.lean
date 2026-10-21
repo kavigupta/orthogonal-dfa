@@ -153,11 +153,18 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
 /-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
 flipping, so Markov charges the cut budget at that fraction and not at the family's size.
 
-The screen's tail binds and is read at this, so it takes fifty-five sixty-fourths of the cut
+The screen's tail binds and is read at this, so it takes fifty-nine sixty-fourths of the cut
 budget; the heavy-prefix count's slack and threshold, whose tails are cheap, and the prefixes the
 samplers redraw share the rest. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
-  55 * cutBudget η indecisionLimit εcov * flipFrac η / (64 * (populations.card : ℝ))
+  59 * cutBudget η indecisionLimit εcov * flipFrac η / (64 * (populations.card : ℝ))
+
+/-- The exponent rate of the drawn prefixes understating a member's flip mass by
+`g = cutBudget·flipFrac/32`, relative to a mass of at most half the cut budget:
+
+    g² / cutBudget -/
+noncomputable def dirtyRate (η indecisionLimit εcov : ℝ) : ℝ :=
+  (cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2 / cutBudget η indecisionLimit εcov
 
 /-- The screen's margin, at the flip budget.
 
@@ -243,7 +250,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
     + ⌈Real.log (16 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
+        / dirtyRate η indecisionLimit εcov⌉₊
     + 1
 
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at

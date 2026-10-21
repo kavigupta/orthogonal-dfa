@@ -2839,6 +2839,59 @@ theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
     ← measureReal_def]
   exact htail
 
+/-- `prefix_flip_lower` relative to the mass: a candidate flipping more than `Δ` reads inside
+`Δ − g` on the drawn prefixes with chance at most `exp(−m g²/(2Δ))`. -/
+theorem prefix_flip_lower_rel (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (m : ℕ) (v : S) (Δ g : ℝ) (hΔ : 0 < Δ) (hg : 0 ≤ g) (hgΔ : g ≤ 2 * Δ)
+    (hv : Δ < flipMass O (D j) v) :
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ∑ i : Fin m, O.flip v (prefixDraw j i.val x)
+        ≤ (m : ℝ) * (Δ - g)}
+      ≤ Real.exp (-((m : ℝ) * g ^ 2 / (2 * Δ))) := by
+  classical
+  set φ : ℝ := flipMass O (D j) v with hφ
+  have hφ0 : 0 < φ := lt_trans hΔ hv
+  rcases Nat.eq_zero_or_pos m with hm0 | hmpos
+  · subst hm0
+    simp only [Nat.cast_zero, zero_mul, zero_div, neg_zero, Real.exp_zero]
+    exact measureReal_le_one
+  have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
+  have hcard : ((Finset.univ : Finset (Fin m)).card : ℝ) = (m : ℝ) := by simp
+  have hmean : ∑ i ∈ (Finset.univ : Finset (Fin m)),
+      (Measure.pi fun _ : Fin m => D j)[fun q : Fin m → S => O.flip v (q i)] = (m : ℝ) * φ := by
+    rw [Finset.sum_congr rfl (fun i _ => pi_flip_mean (D j) O m v i), Finset.sum_const,
+      nsmul_eq_mul, hcard]
+  have htail := sumLower_rel (μ := Measure.pi fun _ : Fin m => D j)
+    (fun (i : Fin m) (q : Fin m → S) => O.flip v (q i)) (Finset.univ : Finset (Fin m))
+    ((m : ℝ) * φ) ((m : ℝ) * (φ - Δ + g))
+    (fun i => (flip_meas O v).comp (measurable_pi_apply i))
+    (iIndepFun_pi (fun _ => (flip_meas O v).aemeasurable))
+    (fun i => Filter.Eventually.of_forall (fun q => flip_icc O v (q i)))
+    (by positivity) (le_of_eq hmean.symm) (by nlinarith)
+  have hpre : {x : Run Ω S J | ∑ i : Fin m, O.flip v (prefixDraw j i.val x)
+      ≤ (m : ℝ) * (Δ - g)}
+      = (fun x : Run Ω S J => (fun i : Fin m => prefixDraw j i.val x)) ⁻¹'
+        {q : Fin m → S | ∑ i : Fin m, O.flip v (q i)
+          ≤ (m : ℝ) * φ - (m : ℝ) * (φ - Δ + g)} := by
+    ext x; simp only [Set.mem_setOf_eq, Set.mem_preimage]; ring_nf
+  have hmeasPrf : Measurable (fun x : Run Ω S J => (fun i : Fin m => prefixDraw j i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin m => measurable_prf j i.val)
+  rw [hpre, measureReal_def,
+    Measure.map_apply hmeasPrf (measurableSet_le (by fun_prop) measurable_const)
+      |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_prefixBlock D Dsf j m)),
+    ← measureReal_def]
+  refine le_trans htail (Real.exp_le_exp.2 ?_)
+  -- `(φ − Δ + g)²/φ ≥ g²/Δ` once `φ ≥ Δ` and `g ≤ 2Δ`
+  have hd : 0 ≤ φ - Δ := by linarith
+  have key : g ^ 2 * φ ≤ (φ - Δ + g) ^ 2 * Δ := by
+    nlinarith [mul_nonneg hd (by nlinarith : (0 : ℝ) ≤ (φ - Δ) * Δ + 2 * g * Δ - g ^ 2)]
+  rw [neg_le_neg_iff, div_le_div_iff₀ (by positivity) (by positivity)]
+  have : ((m : ℝ) * (φ - Δ + g)) ^ 2 * (2 * Δ) = (m : ℝ) * ((m : ℝ) * ((φ - Δ + g) ^ 2 * Δ)) * 2 := by
+    ring
+  rw [this]
+  have h2 := mul_le_mul_of_nonneg_left key (by positivity : (0 : ℝ) ≤ (m : ℝ) * (m : ℝ) * 2)
+  nlinarith [h2]
+
 lemma runMeasure_prefix_apply (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (C : Set (J → ℕ → S)) (hC : MeasurableSet C) :
@@ -2872,30 +2925,38 @@ lemma measurableSet_understated (O : Oracle μ S) (D : J → Measure S) (j : J) 
 
 lemma measure_understated_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
-    (j : J) (m : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (v : S) :
+    (j : J) (m : ℕ) (Δ g : ℝ) (hΔ : 0 < Δ) (hg : 0 ≤ g) (hgΔ : g ≤ 2 * Δ) (v : S) :
     (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) (understated O D j m Δ g v)
-      ≤ ENNReal.ofReal (Real.exp (-2 * (m : ℝ) * g ^ 2)) := by
+      ≤ ENNReal.ofReal (Real.exp (-((m : ℝ) * g ^ 2 / (2 * Δ)))) := by
   rw [← runMeasure_prefix_apply (μ := μ) D Dsf _ (measurableSet_understated O D j m Δ g v)]
-  have hsub : {x : Run Ω S J | prefixStreams x ∈ understated O D j m Δ g v}
-      ⊆ {x : Run Ω S J | ∑ i : Fin m, O.flip v (prefixDraw j i.val x)
-          ≤ (m : ℝ) * (flipMass O (D j) v - g)} := by
-    rintro x ⟨hΔ, hcount⟩
-    have hm : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
-    exact le_trans hcount (by nlinarith)
-  refine le_trans (measure_mono hsub) ?_
-  rw [← ENNReal.ofReal_toReal (measure_ne_top (runMeasure μ D Dsf) _), ← measureReal_def]
-  exact ENNReal.ofReal_le_ofReal (prefix_flip_lower D Dsf O j m v g hg)
+  by_cases hv : Δ < flipMass O (D j) v
+  · have hsub : {x : Run Ω S J | prefixStreams x ∈ understated O D j m Δ g v}
+        ⊆ {x : Run Ω S J | ∑ i : Fin m, O.flip v (prefixDraw j i.val x)
+            ≤ (m : ℝ) * (Δ - g)} := by
+      rintro x ⟨-, hcount⟩
+      exact hcount
+    refine le_trans (measure_mono hsub) ?_
+    rw [← ENNReal.ofReal_toReal (measure_ne_top (runMeasure μ D Dsf) _), ← measureReal_def]
+    exact ENNReal.ofReal_le_ofReal (prefix_flip_lower_rel D Dsf O j m v Δ g hΔ hg hgΔ hv)
+  · have hempty : {x : Run Ω S J | prefixStreams x ∈ understated O D j m Δ g v} = ∅ := by
+      ext x
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      rintro ⟨h, -⟩
+      exact hv h
+    rw [hempty, measure_empty]
+    exact bot_le
 
 /-- The whole drawn pool is honest at once.  A pool member the drawn prefixes say sits
-inside `Δ - g` really flips at most `Δ` of the population, off an `M · exp(-2 m g²)` set. -/
+inside `Δ - g` really flips at most `Δ` of the population, off an `M · exp(−m g²/(2Δ))` set. -/
 theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
-    (j : J) (m M : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (hΔ : 0 ≤ Δ) :
+    (j : J) (m M : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (hΔ' : 0 < Δ) (hgΔ : g ≤ 2 * Δ) :
     (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
         (∑ i : Fin m, O.flip v (prefixDraw j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
-      ≤ (M : ℝ) * Real.exp (-2 * (m : ℝ) * g ^ 2) := by
+      ≤ (M : ℝ) * Real.exp (-((m : ℝ) * g ^ 2 / (2 * Δ))) := by
   classical
-  set E : ℝ≥0∞ := ENNReal.ofReal (Real.exp (-2 * (m : ℝ) * g ^ 2)) with hE
+  have hΔ : 0 ≤ Δ := hΔ'.le
+  set E : ℝ≥0∞ := ENNReal.ofReal (Real.exp (-((m : ℝ) * g ^ 2 / (2 * Δ)))) with hE
   have hseed : flipMass O (D j) (1 : S) = 0 := by
     have : ∀ p : S, O.flip (1 : S) p = 0 := by
       intro p
@@ -2918,14 +2979,14 @@ theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
       ≤ (M : ℝ≥0∞) * E :=
     le_trans (measure_mono hsub) (runMeasure_pool_selection_le D Dsf _
       (measurableSet_understated O D j m Δ g) M E
-      (fun v => measure_understated_le (μ := μ) D Dsf O j m Δ g hg v))
+      (fun v => measure_understated_le (μ := μ) D Dsf O j m Δ g hΔ' hg hgΔ v))
   rw [measureReal_def]
   calc (runMeasure μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
           (∑ i : Fin m, O.flip v (prefixDraw j i.val x) ≤ (m : ℝ) * (Δ - g))
             → flipMass O (D j) v ≤ Δ}).toReal
       ≤ ((M : ℝ≥0∞) * E).toReal :=
         ENNReal.toReal_mono (by simp [hE, ENNReal.mul_eq_top]) hbound
-    _ = (M : ℝ) * Real.exp (-2 * (m : ℝ) * g ^ 2) := by
+    _ = (M : ℝ) * Real.exp (-((m : ℝ) * g ^ 2 / (2 * Δ))) := by
         rw [ENNReal.toReal_mul, hE, ENNReal.toReal_ofReal (Real.exp_nonneg _)]
         simp
 
@@ -4844,7 +4905,8 @@ theorem measureReal_dirtyMember_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O :
           flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + c + g})
       ≤ ((B.npref + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1))
         + 2 * ((B.nsuff : ℝ) + 1) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)
-        + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * g ^ 2) := by
+        + (B.nsuff : ℝ) * Real.exp (-((B.npref : ℝ) * g ^ 2
+            / (2 * ((populations.card : ℝ) * Δ + c + g)))) := by
   classical
   set Δp : ℝ := (populations.card : ℝ) * Δ + c + g with hΔp
   set E1 : Set (Run Ω S J) := {x | ¬ tabGood j B.npref r x} with hE1
@@ -4916,7 +4978,10 @@ theorem measureReal_dirtyMember_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O :
         · exact measureReal_tabBad_le D Dsf j B.npref r ρ hρD hρ0
         · exact measureReal_screenBad_le hflat O populations D Dsf hsupp hsuppSf B hsig hmpos
             Δ γ hΔ hγ hscd hsc
-        · exact pool_flipMass_le D Dsf O j B.npref B.nsuff Δp g hg (by positivity)
+        · have hJΔ : 0 < (populations.card : ℝ) * Δ :=
+            mul_pos (Nat.cast_pos.2 (Finset.card_pos.2 ⟨j, hj⟩)) hΔ
+          exact pool_flipMass_le D Dsf O j B.npref B.nsuff Δp g hg (by linarith)
+            (by linarith)
 
 lemma measurableSet_cutCorrect' (O : Oracle μ S) (lo hi : ℕ) (A₀ : Finset S) (p : S) :
     MeasurableSet[noiseAlg O Set.univ] {ω | ¬ cutCorrect O lo hi A₀ p ω} :=
