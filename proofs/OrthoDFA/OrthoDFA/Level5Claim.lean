@@ -72,10 +72,10 @@ def Level5RoundCorrect : Prop :=
     -- The round reads some string wrong with chance at most `δ/8`. A probe sifts at most
     -- `min(L + 1, 3 + ⌈log₂ L⌉)` of its prefixes, each reading at most `|Q|` strings, and at most
     -- `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test fires, a hypothesis's probes
-    -- stop undecided at most `5 log(1/a_j)` times however long the stretch, so the `κ` term does
-    -- not grow with the budget.
+    -- stop undecided at most `(16/5) log(1/a_j)` times however long the stretch, so the `κ` term
+    -- does not grow with the budget.
     εw * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+      + κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
           -- As at level 3.

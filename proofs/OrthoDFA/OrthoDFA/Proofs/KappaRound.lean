@@ -144,7 +144,7 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
     hδ1.le)).trans ?_
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1.le
-  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
+  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]

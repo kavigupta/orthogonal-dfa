@@ -264,7 +264,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
     fam.ε * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + fam.κ * (5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
+      + fam.κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
         ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
@@ -288,7 +288,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   have hW := pi_wrong_le' fam.M side C μ' U fam.ε fam.κ R P hε hκ hy0 hyρ hρ1 hδ hδ1
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1
-  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
+  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]
