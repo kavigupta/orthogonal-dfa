@@ -157,7 +157,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let J : ℝ := Q + 2
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-    let W : ℝ := B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+    let W : ℝ := B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+      + (Q + 1) * A ^ Fintype.card σ / ε
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -227,11 +228,12 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   set C : Random.Level3Settings := ⟨k, δ', ε / 48, ε, budget⟩ with hCd
   -- the band's far side
   have hW1 : 1 ≤ W := by
-    show 1 ≤ B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
+    show 1 ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+      + (Q + 1) * A ^ Fintype.card σ / ε
     have h1 : (1 : ℝ) ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith)
     have : 1 ≤ Q * (Q + 1) ^ 2 * A :=
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ1 h1) hA1
-    have : 0 ≤ B₃ * (L + 1) * Q := by
+    have : 0 ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q := by
       have : 0 ≤ B₃ := hbud0.trans hbud
       positivity
     have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
@@ -365,13 +367,16 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     · show 36 * (S' : ℝ) / ε * Real.log (16 * S' * (S' + 1) / δ') + S' ≤ (budget : ℝ)
       rw [hSS]
       exact Nat.le_ceil _
-    · show cross * (budget * ((P.L : ℝ) + 1) * Fintype.card σ
+    · show cross * (budget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * Fintype.card σ
         + Fintype.card σ * ((Fintype.card σ : ℝ) + 1) ^ 2 * Fintype.card α) ≤ δ' / 8
       rw [← hcrW]
       refine mul_le_mul_of_nonneg_left ?_ hcr.le
-      show (budget : ℝ) * (L + 1) * Q + Q * (Q + 1) ^ 2 * A
-        ≤ B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-      have : (budget : ℝ) * (L + 1) * Q ≤ B₃ * (L + 1) * Q := by gcongr
+      show (budget : ℝ) * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+        ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+          + (Q + 1) * A ^ Fintype.card σ / ε
+      have : (budget : ℝ) * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q
+          ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q := by
+        gcongr
       have : 0 ≤ (Q + 1) * A ^ Fintype.card σ / ε := by positivity
       linarith
   -- the probes' avoided mass
@@ -432,8 +437,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         ≤ (Q + 1) * A ^ Fintype.card σ / ε := by
       gcongr
     have h3 : (Q + 1) * A ^ Fintype.card σ / ε ≤ W := by
-      show _ ≤ B₃ * (L + 1) * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ / ε
-      have : 0 ≤ B₃ * (L + 1) * Q := by
+      show _ ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
+        + (Q + 1) * A ^ Fintype.card σ / ε
+      have : 0 ≤ B₃ * (min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) * Q := by
         have : 0 ≤ B₃ := hbud0.trans hbud
         positivity
       have : 0 ≤ Q * (Q + 1) ^ 2 * A := by positivity
