@@ -1,0 +1,37 @@
+\section{Splitting: refining a leaf into two classes}
+
+A candidate distinguisher $d$ is proposed (from a counterexample, below). The
+split test \texttt{SplitEvidence.verdict} decides whether the leaf's member
+population genuinely contains two classes under $d$. It partitions the family's
+suffixes into a train half and a disjoint test half:
+
+\begin{enumerate}
+\item Group each member by which side of $d$ its train-half rows fall on.
+\item Score, on the test half only, whether the two groups differ in
+acceptance rate, via a Beta--Bernoulli Bayes factor $B$.
+\end{enumerate}
+
+\begin{lemma}[Split soundness]\label{lem:split-sound}
+Because grouping (train half) and scoring (test half) read disjoint suffixes,
+noise that mis-groups a member is independent of its test-half evidence, so under
+the null ``one class'' the two groups have the same test-half rate. The test
+returns \textsc{split} only if $\log B \ge \log(N/\texttt{split\_pval})$ where $N$
+is the number of edges that could split; by the Bonferroni argument the overall
+false-split probability is $\le \texttt{split\_pval}$.
+\end{lemma}
+
+\begin{lemma}[Split completeness]\label{lem:split-complete}
+If neither side of the true split has fewer than a \texttt{\_MIN\_DETECTABLE\_SPLIT}
+$=0.1$ fraction of members, the no-split test (a binomial test on the minority
+count) fails to fire, so as members accumulate the leaf is eventually declared
+\textsc{split} rather than \textsc{no\_split}.
+\end{lemma}
+
+\begin{remark}
+The train/test partition is what decouples the split test's correctness from the
+evidence-margin calibration; a miscalibrated margin costs power
+(Lemma~\ref{lem:split-complete}) but not soundness
+(Lemma~\ref{lem:split-sound}). This is why \texttt{split\_pval} and the
+calibration \texttt{fpr} need not be linked (they were, historically, when the
+split test reused suffixes; that coupling was a real bug, since removed).
+\end{remark}

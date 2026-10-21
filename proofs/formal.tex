@@ -1,0 +1,528 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1in]{geometry}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+
+\newcommand{\MQ}{\mathrm{MQ}}
+\newcommand{\acc}{\textsc{accept}}
+\newcommand{\rej}{\textsc{reject}}
+\newcommand{\ind}{\textsc{indecisive}}
+\newcommand{\fpr}{\mathrm{fpr}}
+\newcommand{\fnr}{\mathrm{fnr}}
+\DeclareMathOperator{\Bin}{Bin}
+\DeclareMathOperator{\KL}{KL}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\title{A formal proof of the E-L$^*$ noisy DFA learner\\[2pt]
+\large (pseudocode level, all assumptions explicit)}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This is the rigorous companion to the informal correctness note. It states the
+model, the algorithm, and the proof at a level where every step is either proved
+or reduced to a numbered assumption. The intent is to force out the sub-facts the
+informal convergence argument leaned on without naming. Where a step is genuinely
+an assumption about the target or the sampler and not a theorem, it is boxed as
+one; Section~\ref{sec:ledger} collects them and marks which are load-bearing.
+Two proofs need external theorems: the exact certification test cites Hoeffding
+(1956); everything else is self-contained.
+\end{abstract}
+
+\section{Model}\label{sec:model}
+
+\subsection{Target and oracle}
+
+The target is a language $L\subseteq\Sigma^*$ recognised by the minimal DFA
+$A^\star=(Q^\star,\Sigma,t,q_0,F)$. Write $q^\star(u)$ for the state $u$ reaches
+and $x_q$ for a fixed access string with $q^\star(x_q)=q$. The Myhill--Nerode
+property is that membership of any extension of $u$ depends on $u$ only through
+$q^\star(u)$:
+\begin{equation}\label{eq:mn}
+  q^\star(u)=q^\star(u')\ \Longrightarrow\ \big(uw\in L\iff u'w\in L\big)\quad\forall w.
+\end{equation}
+
+\begin{definition}[Persistent signal oracle]\label{def:oracle}
+Fix a base rate $\beta\in(0,1)$ and signal $s\in(0,\min(\beta,1-\beta)]$. For each
+string $x$ the oracle holds a fixed bit $\MQ(x)\in\{0,1\}$, drawn once and
+independently across distinct strings, with
+\[
+  \Pr[\MQ(x)=1]=\begin{cases}\beta+s & x\in L,\\ \beta-s & x\notin L.\end{cases}
+\]
+The bit is persistent: re-querying $x$ returns the same value, so a single string
+yields one read.
+\end{definition}
+
+The independence-across-distinct-strings clause is the whole reason a vote
+denoises; it is a property of the model, used explicitly below.
+
+\begin{definition}[Access and goal]\label{def:goal}
+The learner may call $\MQ$ on any string and may sample from a distribution $D$
+over $\Sigma^*$. It outputs a DFA $A$; the target accuracy is
+$\Pr_{x\sim D}[A(x)=A^\star(x)]\ge 1-\varepsilon$ with probability $\ge 1-\delta$
+over the oracle draw and the learner's randomness.
+\end{definition}
+
+\subsection{Midfixes, cuts, families}
+
+\begin{definition}[Cut]\label{def:cut}
+For a midfix $m\in\Sigma^*$, its cut is $D_m=\{q\in Q^\star : x_q\,m\in L\}$; by
+\eqref{eq:mn} this is independent of the choice of access string.
+\end{definition}
+
+A node of the discrimination tree carries a midfix $m$ and routes $u$ left if
+$q^\star(u)\in D_m$, else right; leaves are classes of states the tree has not yet
+separated. The learner cannot evaluate $q\in D_m$ directly --- one read
+$\MQ(x_q m)$ carries signal only $s$ --- so it votes a family of suffixes.
+
+\begin{definition}[Accept-preserving]\label{def:ap}
+A suffix $v$ is accept-preserving on a set $R\subseteq Q^\star$ if $x_q v\in L\iff
+x_q\in L$ for every $q\in R$. The empty suffix $\varepsilon$ is accept-preserving on
+all of $Q^\star$.
+\end{definition}
+
+\begin{definition}[Vote and decision]\label{def:decide}
+For a family $V=(v_1,\dots,v_k)$ of distinct suffixes, split $\beta$ and margin
+$\tau\in(0,s)$, the vote and decision of a string $x$ are
+\[
+  \bar r(x)=\frac1k\sum_{i=1}^k \MQ(x\,v_i),\qquad
+  \mathrm{decide}(x)=\begin{cases}
+    \acc & \bar r(x)>\beta+\tau,\\
+    \rej & \bar r(x)<\beta-\tau,\\
+    \ind & \text{otherwise.}
+  \end{cases}
+\]
+A node with midfix $m$ classifies $u$ by $\mathrm{decide}(u\,m)$.
+\end{definition}
+
+\section{Denoising: soundness of a decisive decision}\label{sec:denoise}
+
+\begin{lemma}[Independence of a vote]\label{lem:indep}
+For distinct $v_1,\dots,v_k$ the strings $x v_1,\dots,x v_k$ are distinct, so the
+reads $\MQ(x v_i)$ are independent (Def.~\ref{def:oracle}). Hence
+$k\,\bar r(x)=\sum_i \MQ(x v_i)$ is a sum of $k$ independent Bernoulli variables
+with means $\mu_i=\beta+s\cdot(2\cdot\mathbf 1[x v_i\in L]-1)$.
+\end{lemma}
+\begin{proof}
+Distinctness of the $v_i$ gives distinct query strings; Definition~\ref{def:oracle}
+makes the bits independent, and each has the stated mean by membership of $x v_i$.
+\end{proof}
+
+\begin{definition}[Error rates]\label{def:rates}
+Put $\mu(x)=\mathbb E[\bar r(x)]=\frac1k\sum_i\mu_i$. Define
+\[
+  \fpr(k,\tau)=2e^{-2k\tau^2},\qquad \fnr(k,\tau)=e^{-2k(s-\tau)^2}.
+\]
+\end{definition}
+
+\begin{lemma}[Denoising bounds]\label{lem:tails}
+For any string $x$ and any family:
+\begin{enumerate}
+\item[(i)] if $\mu(x)\le\beta$ then $\Pr[\mathrm{decide}(x)=\acc]\le e^{-2k\tau^2}$,
+and symmetrically for $\rej$ when $\mu(x)\ge\beta$; so a decision on the wrong side
+of $\beta$ has probability $\le\fpr(k,\tau)$;
+\item[(ii)] if $x$ is such that all $x v_i$ share membership $b$ (the family is
+accept-preserving for $x$), then $\mu(x)=\beta\pm s$ and
+$\Pr[\mathrm{decide}(x)=\ind]\le\fnr(k,\tau)$.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+$k\bar r(x)$ is a sum of independent $[0,1]$ variables (Lemma~\ref{lem:indep}) with
+mean $k\mu(x)$. (i) $\{\mathrm{decide}=\acc\}=\{\bar r>\beta+\tau\}$ needs
+$\bar r-\mu(x)>\beta+\tau-\mu(x)\ge\tau$; Hoeffding's inequality gives
+$e^{-2k\tau^2}$. (ii) With common membership $b$, $\mu(x)=\beta+s$ (say);
+$\{\ind\}\subseteq\{\bar r\le\beta+\tau\}$ needs $\bar r-\mu(x)\le-(s-\tau)$, of
+probability $\le e^{-2k(s-\tau)^2}$.
+\end{proof}
+
+\begin{lemma}[A decisive decision realises the noiseless rule]\label{lem:decisive}
+For any $V,\beta$ the map
+\[
+  \mathrm{decide}^\star(q)=\begin{cases}\acc & \mu^\star(q)>\beta,\\ \rej & \mu^\star(q)<\beta,\end{cases}
+  \qquad \mu^\star(q)=\mathbb E[\bar r(x_q m)],
+\]
+is well defined and depends on $q$ alone. For every $u$,
+$\Pr[\mathrm{decide}(u\,m)\ne\mathrm{decide}^\star(q^\star(u))\text{ and }\mathrm{decide}(u\,m)\ne\ind]\le\fpr(k,\tau)$.
+\end{lemma}
+\begin{proof}
+$\mu^\star(q)=\frac1k\sum_i\mathbb E[\MQ(x_q m v_i)]$, and $\mathbb E[\MQ(x_q m
+v_i)]$ is $\beta+s$ or $\beta-s$ according to $x_q m v_i\in L$, which by
+\eqref{eq:mn} depends only on $q^\star(x_q)=q$; so $\mu^\star$ is a function of $q$.
+A decisive disagreement --- say $\acc$ while $\mu^\star(q^\star(u))<\beta$ --- is
+the event of Lemma~\ref{lem:tails}(i) with $x=u\,m$, of probability $\le\fpr$.
+\end{proof}
+
+Soundness holds for {any} family: whether or not $V$ is accept-preserving, a
+decision it makes decisively agrees with a genuine state predicate except with
+probability $\fpr$. The family only controls {coverage} --- the fraction of
+strings decided rather than left $\ind$ (Lemma~\ref{lem:tails}(ii) needs the
+family accept-preserving for $x$). Coverage is where correctness could silently
+fail, and is what the populations and the certificate below govern.
+
+\section{Prefix populations}\label{sec:pops}
+
+The learner reads its rates not over one sample but over a finite collection
+$\mathcal P=\{P_1,\dots,P_r\}$ of populations of prefixes, held to each rate
+separately:
+\begin{itemize}
+\item the uniform pool $P_{\mathrm{unif}}$, drawn i.i.d.\ from $D$;
+\item for each leaf $q$ of the current tree, $P_q$: prefixes the tree rests at
+$q$ (the tree's own placement, not the hypothesis' aim);
+\item for each past round, a boundary population of strings that round left $\ind$.
+\end{itemize}
+A prefix may lie in several. The reason to separate them is arithmetic and is the
+crux of the whole design:
+
+\begin{lemma}[A union rate hides a minority]\label{lem:union}
+Let a family read a fraction $\rho_i$ of population $P_i$ as $\ind$ (or, for the
+certificate below, as the wrong class). The pooled rate over
+$\bigcup_i P_i$ is $\sum_i \rho_i |P_i| / \sum_i |P_i|$. If $P_j$ is entirely
+misread ($\rho_j=1$) while all others are clean, the pooled rate is
+$|P_j|/\sum_i|P_i|$, which is below any limit $\ell$ whenever
+$|P_j| < \ell\sum_i|P_i|$. Thus no bound on the pooled rate constrains a
+population smaller than an $\ell$ share of the union.
+\end{lemma}
+\begin{proof}
+Immediate from the definition of the pooled average.
+\end{proof}
+
+Every rate below --- clustering loss, FNR, certification --- is therefore stated
+per population and enforced as a maximum, $\max_i(\cdot)$, not an average. A
+population the learner cannot fill (a leaf no sampled string reaches) is dropped;
+Assumption~\ref{ass:cover} says which populations can be filled.
+
+\section{The algorithm}\label{sec:alg}
+
+\begin{algorithm}[h]
+\caption{$\textsc{Cluster}(\beta)$: $\varepsilon$-anchored family and refreshed split}
+\label{alg:cluster}
+\begin{algorithmic}[1]
+\State fill $M[v][j]=\MQ(x_j v)$ over candidate suffixes $v$ and pooled prefixes $j$
+\State $w_j\gets 1/|P(j)|$ \Comment{$P(j)=$ the population of prefix $j$; equal say per population}
+\State $V\gets\{\varepsilon\}$;\quad $\ell^\star\gets\infty$
+\Loop
+  \State $c[j]\gets\mathbf 1[\operatorname{mean}_{v\in V}M[v][j]>\beta]$
+  \State $N\gets$ the $k$ rows minimising $\ell(v)=\sum_j w_j\,\mathbf 1[M[v][j]\ne c[j]]$
+  \If{$\varepsilon\notin N$ \textbf{ or } $\sum_{v\in N}\ell(v)\ge\ell^\star$} \textbf{break}\EndIf
+  \State $V\gets N$;\quad $\ell^\star\gets\sum_{v\in N}\ell(v)$
+\EndLoop
+\State $\beta\gets\tfrac12(\bar r_{\mathrm{acc}}+\bar r_{\mathrm{rej}})$ \Comment{midpoint of the mean vote on $V$'s two sides}
+\State \textbf{return }$(V,\beta)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{$\textsc{SampleFamily}$: resampling loop with per-population gates}
+\label{alg:gate}
+\begin{algorithmic}[1]
+\Loop
+  \State $(V,\beta)\gets\textsc{Cluster}(\beta)$;\quad $\tau\gets$ margin meeting $\fpr,\fnr$ budgets at $(\beta,k)$
+  \State $\widehat\fnr_P\gets$ fraction of $P$ left $\ind$ by $(V,\beta,\tau)$, each population $P$
+  \State $P^\star\gets\argmax_P\widehat\fnr_P$
+  \If{$|V|<k$ \textbf{ or } $\widehat\fnr_{P^\star}>\delta_\fnr$}
+     \State draw more suffixes (screened against $M[\varepsilon]$) or grow $P^\star$; \textbf{continue}
+  \EndIf
+  \State on the column $M[\varepsilon]$, count each population's two sides of the cut
+  \If{some population is certified read as the opposite class} \textbf{refuse; continue} \Comment{veto}
+  \ElsIf{$P_{\mathrm{unif}}$'s two sides are certified each on its own class}
+     \State \textbf{return }$(V,\beta,\tau)$ \Comment{admit}
+  \Else\ {}draw more of $P_{\mathrm{unif}}$ for the split; \textbf{continue} \Comment{undecided}
+  \EndIf
+\EndLoop
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{$\textsc{Learn}$: the round loop}
+\label{alg:learn}
+\begin{algorithmic}[1]
+\State populations $\gets\{P_{\mathrm{unif}}\}$ from an i.i.d.\ $D$-sample; tree $\gets$ single leaf
+\Loop
+  \State $(V,\beta,\tau)\gets\textsc{SampleFamily}()$ anchored at $\varepsilon$
+  \State build hypothesis $(A,\text{tree})$ by resolving transitions with $(V,\beta,\tau)$
+  \If{$A$ is consistent enough, or the round harvested no new boundary strings} \textbf{return }$A$\EndIf
+  \State rebuild populations: refresh $P_{\mathrm{unif}}$, harvest boundary strings, sample each leaf
+\EndLoop
+\end{algorithmic}
+\end{algorithm}
+
+\section{Certification}\label{sec:cert}
+
+Fix one side of the cut of a candidate family, restricted to one population: $n$
+prefixes $x_1,\dots,x_n$ land there, and $H=\sum_j M[\varepsilon][j]$ of them read
+$1$ on the empty-suffix column. Since $M[\varepsilon][j]=\MQ(x_j)$, the reads are
+independent (Def.~\ref{def:oracle}) with $\mathbb E[M[\varepsilon][j]]=\beta+s$ if
+$x_j\in L$ and $\beta-s$ if not. If a fraction $f$ of the $n$ are really the other
+class, the mean read is
+\begin{equation}\label{eq:ratef}
+  \bar p=(1-f)(\beta+s)+f(\beta-s)=\beta+s-2sf .
+\end{equation}
+The tests are $\Pr[\Bin(n,\beta+\tau)\ge H]\le\alpha$ (accept side reads high) and
+$\Pr[\Bin(n,\beta-\tau)\le H]\le\alpha$ (reject side reads low). The difficulty is
+that $H$ is a sum of {non-identically-distributed} Bernoullis, so a scalar
+monotonicity argument does not apply. We isolate the fact that does.
+
+\begin{lemma}[MGF domination]\label{lem:mgf}
+Let $X_1,\dots,X_n$ be independent, $X_j\sim\Bin(1,p_j)$, $\bar p=\frac1n\sum_j p_j$,
+$H=\sum_j X_j$. For every $\lambda>0$,
+\[
+  \mathbb E[e^{\lambda H}]=\prod_{j}\big(1+p_j(e^\lambda-1)\big)\le\big(1+\bar p(e^\lambda-1)\big)^n=\mathbb E[e^{\lambda B}],\quad B\sim\Bin(n,\bar p).
+\]
+Consequently, for any $q\ge\bar p$ and any threshold $h$,
+\[
+  \Pr[H\ge h]\le\inf_{\lambda>0}e^{-\lambda h}\big(1+q(e^\lambda-1)\big)^n
+  = \exp\!\big(-n\,\KL(h/n\,\|\,q)\big)\ \ (h/n\ge q),
+\]
+the Chernoff upper-tail bound of $\Bin(n,q)$.
+\end{lemma}
+\begin{proof}
+Independence gives the product form. Each factor $a_j=1+p_j(e^\lambda-1)>0$, and by
+AM--GM $\prod_j a_j\le(\frac1n\sum_j a_j)^n=(1+\bar p(e^\lambda-1))^n$. The map
+$q\mapsto 1+q(e^\lambda-1)$ is increasing for $\lambda>0$, so raising $\bar p$ to
+$q$ only enlarges the bound; optimising $\lambda$ gives the stated Chernoff/KL form.
+\end{proof}
+
+\begin{proposition}[Certification is sound: Chernoff form]\label{prop:cert}
+Suppose a side is admitted only when $H/n>\beta+\tau$ and the $\Bin(n,\beta+\tau)$
+Chernoff upper-tail bound at $H$ is $\le\alpha$, i.e.\
+$\exp(-n\KL(H/n\|\beta+\tau))\le\alpha$. If the side is drifted at or past the bar,
+$f\ge\frac{s-\tau}{2s}$ (equivalently $\bar p\le\beta+\tau$ by \eqref{eq:ratef}),
+then $\Pr[\text{admit}]\le\alpha$. Symmetrically for the reject side and the veto
+tests. Hence, on admission, with confidence $\ge1-\alpha$ the side carries
+\[
+  f<\frac{s-\tau}{2s}
+\]
+of the other class.
+\end{proposition}
+\begin{proof}
+On admission $H/n>\beta+\tau\ge\bar p$, so Lemma~\ref{lem:mgf} with $q=\beta+\tau$
+gives $\Pr[H\ge H_{\mathrm{obs}}]$ bounded by the $\Bin(n,\beta+\tau)$ Chernoff
+bound, which admission forces $\le\alpha$. The contrapositive is the confidence
+statement, and $\bar p\le\beta+\tau\iff f\ge(s-\tau)/2s$ by \eqref{eq:ratef}.
+\end{proof}
+
+\begin{remark}[The exact binomial test]\label{rem:exact}
+The implementation uses the exact tail $\Pr[\Bin(n,\beta+\tau)\ge H]$ rather than
+its Chernoff bound. Validity of the exact test needs
+$\Pr[H\ge h]\le\Pr[\Bin(n,\bar p)\ge h]$ for the non-i.i.d.\ $H$, which is
+Hoeffding's 1956 tail theorem, valid for $h\ge n\bar p+1$. At the admission
+threshold $h>n(\beta+\tau)\ge n\bar p$, and for the levels $\alpha$ in use the
+threshold clears $n\bar p+1$, so the exact test is valid there; combined with
+binomial monotonicity in the rate ($\bar p\le\beta+\tau$) it gives the same
+$\alpha$ guarantee. The self-contained core (Prop.~\ref{prop:cert}) does not
+depend on this refinement.
+\end{remark}
+
+\begin{proposition}[Only the base-rate pool may admit]\label{prop:onlyunif}
+Admission is the claim that the family separates the two classes: both sides read
+as their own class. This is testable only on a population that contains both
+classes in known proportion. A per-state population $P_q$ is a single class
+($f\in\{0,1\}$), so one of its sides is empty and its admission test is vacuous;
+it can veto (its one side read against its class) but cannot attest to a
+separation it never straddles. The uniform pool is the population whose class
+proportions equal the target's base rate under $D$; admission is read only there.
+Veto, needing only that a populated side reads against its class, is read on every
+population.
+\end{proposition}
+\begin{proof}
+A side with $n=0$ triggers neither one-sided test, so a single-class population
+cannot satisfy the two-sided admission conjunction; it satisfies a veto test as in
+Prop.~\ref{prop:cert} applied to its populated side. That the uniform pool's
+proportions match $D$ is by construction (it is an i.i.d.\ $D$-sample), so its
+two-sided reading estimates the separation the goal in Def.~\ref{def:goal} is
+scored against.
+\end{proof}
+
+\section{The sampling loop halts and returns a certified family}\label{sec:halt}
+
+\begin{assumption}[Findable accept-preserving suffix]\label{ass:preserve}
+Each suffix draw is accept-preserving on $Q^\star$ with probability
+$\ge p_{\mathrm{preserve}}>0$.
+\end{assumption}
+
+\begin{assumption}[Coverage]\label{ass:cover}
+There is a covered set $R\subseteq Q^\star$ with (i)
+$\Pr_{x\sim D}[q^\star(x)\notin R]\le\varepsilon_{\mathrm{cov}}$, and (ii) every
+$q\in R$ is reached by a $D$-draw with probability $\ge p_{\mathrm{reach}}>0$. $L$
+is nontrivial: both classes have positive $D$-mass, so the uniform pool contains
+members and non-members.
+\end{assumption}
+
+\begin{assumption}[Screening separability]\label{ass:screen}
+For every suffix $v$ not accept-preserving on $R$ there is $q\in R$ with
+$\mathbf 1[x_q\in L]\ne\mathbf 1[x_q v\in L]$; and the screen that compares a
+candidate $v$ against $M[\varepsilon]$ over the populations rejects $v$ once a
+prefix reaching $q$ is present in some population --- which occurs with probability
+$\ge p_{\mathrm{reach}}$ per draw by Assumption~\ref{ass:cover}(ii).
+\end{assumption}
+
+\begin{theorem}[$\textsc{SampleFamily}$ returns a certified family]\label{thm:halt}
+Under Assumptions~\ref{ass:preserve}--\ref{ass:screen} the loop of
+Algorithm~\ref{alg:gate} halts with probability $1$, and the family it returns
+(a) leaves at most $\delta_\fnr$ of every population $\ind$, (b) is admitted by the
+uniform pool with no population vetoing, so by Proposition~\ref{prop:cert} each
+side of its cut carries $f<(s-\tau)/2s$ of the other class with confidence
+$\ge1-\alpha$. When no suffix is accept-preserving on $R$, the uniform pool never
+admits and the idealised loop does not halt.
+\end{theorem}
+\begin{proof}
+{Halting.} Consider the events across draws. By Assumption~\ref{ass:preserve} an
+accept-preserving suffix is drawn infinitely often almost surely
+(Borel--Cantelli, independent draws each $\ge p_{\mathrm{preserve}}$). By
+Assumption~\ref{ass:screen}, any drawn suffix flipping a covered state is rejected
+once that state is populated, and each covered state is populated after finitely
+many draws a.s.\ (Assumption~\ref{ass:cover}(ii), Borel--Cantelli). Hence after
+finitely many draws a.s.\ the candidate pool contains $k$ suffixes accept-preserving
+on $R$; the $\varepsilon$-anchored cluster (Alg.~\ref{alg:cluster}), which retains
+$\varepsilon$ and whose weighted loss (Lemma~\ref{lem:union}, weighting) gives each
+covered state equal say, then proposes a family driftless on $R$. For such a family
+every covered prefix is coherent, so by Lemma~\ref{lem:tails}(ii) taking $k$ large
+enough (finite, by Def.~\ref{def:rates}) drives $\widehat\fnr_P\le\delta_\fnr$ on
+each fillable $P$; a population still short is grown ($P^\star$ lever), which
+succeeds by Assumption~\ref{ass:cover}(ii). A driftless family has no side read
+against its class, so no population vetoes (Prop.~\ref{prop:cert}); and its uniform
+pool, containing both classes (Assumption~\ref{ass:cover}), has both sides on their
+own class, so after finitely many split reads the admission conjunction holds
+(Prop.~\ref{prop:onlyunif}). The loop returns.
+
+{Guarantees.} The loop returns only on the admit branch, which requires (a) and
+(b) verbatim; the confidence bound is Proposition~\ref{prop:cert}.
+
+{No accept-preserving family.} If every candidate flips some covered state on
+positive mass, the uniform pool's separation is contradicted on that mass, so the
+two-sided admission test fails for every proposal; the idealised loop never takes
+the admit branch. (The implementation caps the loop with a give-up budget spent
+only on proposals a population has vetoed, then reports the target has none.)
+\end{proof}
+
+\section{Rounds converge to the covered state partition}\label{sec:converge}
+
+\begin{assumption}[Distinguisher findability]\label{ass:dist}
+Whenever two covered states $q\ne q'\in R$ share a leaf of the current tree, each
+round draws, with probability $\ge p_{\mathrm{dist}}>0$, prefixes reaching $q$ and
+$q'$ and a midfix $m$ with exactly one of $q,q'$ in $D_m$ (Def.~\ref{def:cut}).
+\end{assumption}
+
+\begin{assumption}[Resolver specification]\label{ass:resolver}
+Given a certified family (Thm.~\ref{thm:halt}) and a midfix $m$ that is decisive
+(Def.~\ref{def:decide}) and separates two states currently sharing a leaf, the
+resolver splits that leaf into the two sides of $m$'s cut and never merges leaves;
+the hypothesis $A$ it emits routes each covered state to its leaf consistently with
+the tree.
+\end{assumption}
+
+\begin{lemma}[Progress]\label{lem:progress}
+Under Assumptions~\ref{ass:cover}--\ref{ass:resolver}, while some leaf holds two
+covered states, some round a.s.\ splits a leaf.
+\end{lemma}
+\begin{proof}
+Fix such a pair $q,q'$. By Assumption~\ref{ass:dist} a round exposes a separating
+midfix $m$ with prefixes reaching each, and those prefixes form (or join) the
+per-state populations $P_q,P_{q'}$. The returned family is decisive on every
+population to $\delta_\fnr$ (Thm.~\ref{thm:halt}(a)), so all but a $\delta_\fnr$
+fraction of $P_q\cup P_{q'}$ are decided; a decided string at $m$ is
+$\mathrm{decide}(u\,m)$, which by Lemma~\ref{lem:decisive} equals
+$\mathrm{decide}^\star(q^\star(u))$ except w.p.\ $\fpr$, and since exactly one of
+$q,q'$ lies in $D_m$ the two states fall on opposite decisive sides. So a decisive
+separating $m$ is present; by Assumption~\ref{ass:resolver} the resolver splits the
+leaf. Assumption~\ref{ass:dist} recurs each round, so by Borel--Cantelli a split
+occurs a.s.
+\end{proof}
+
+\begin{theorem}[Convergence to the covered partition]\label{thm:converge}
+Under Assumptions~\ref{ass:preserve}--\ref{ass:resolver}, with probability $1$
+after finitely many rounds the leaves of the tree are exactly the covered states:
+each $q\in R$ occupies its own leaf, and two states in one leaf are
+Myhill--Nerode-equal.
+\end{theorem}
+\begin{proof}
+Splits refine and never merge (Assumption~\ref{ass:resolver}), so the number of
+leaves is non-decreasing and bounded by $|Q^\star|$. By Lemma~\ref{lem:progress}
+each round with a covered pair sharing a leaf a.s.\ eventually splits one; a split
+strictly increases the leaf count, so after at most $|R|-1$ effective splits no
+covered pair shares a leaf. Two states the tree separates are separated by a cut
+$D_m$ containing exactly one of them, hence Myhill--Nerode-distinct
+(Def.~\ref{def:cut}, \eqref{eq:mn}); so distinct covered leaves are distinct
+states, and each covered leaf is a singleton.
+\end{proof}
+
+\section{Main theorem}\label{sec:main}
+
+\begin{theorem}[Correctness of $\textsc{Learn}$]\label{thm:main}
+Assume \ref{ass:preserve}--\ref{ass:resolver}. Let $d$ bound the tree depth (so
+$d\le|Q^\star|$). If $k,\tau$ are set so $\fpr(k,\tau)\le(\varepsilon-\varepsilon_{\mathrm{cov}})/d$
+and $\alpha$ and the round budget are set so the total failure probability over the
+finitely many certifications and rounds is $\le\delta$, then $\textsc{Learn}$
+(Alg.~\ref{alg:learn}) outputs $A$ with
+\[
+  \Pr_{x\sim D}[A(x)\ne A^\star(x)]\le\varepsilon
+  \qquad\text{with probability }\ge 1-\delta .
+\]
+\end{theorem}
+\begin{proof}
+By Theorem~\ref{thm:converge} the tree's leaves are the covered states after
+finitely many rounds a.s. Take $x\sim D$. If $q^\star(x)\notin R$, it may be
+misclassified; this has $D$-mass $\le\varepsilon_{\mathrm{cov}}$
+(Assumption~\ref{ass:cover}(i)). If $q^\star(x)\in R$, routing $x$ traverses
+$\le d$ decisive nodes, each returning $x$'s true side except w.p.\ $\fpr$
+(Lemma~\ref{lem:decisive}); by a union bound $x$ reaches its true (singleton) leaf,
+whose state is $q^\star(x)$, except w.p.\ $d\cdot\fpr$. So
+\[
+  \Pr_{x\sim D}[A(x)\ne A^\star(x)]\le\varepsilon_{\mathrm{cov}}+d\cdot\fpr(k,\tau)\le\varepsilon .
+\]
+The oracle-level failures --- a miscertified family (each $\le\alpha$,
+Thm.~\ref{thm:halt}), and non-convergence within the round budget --- are made to
+sum to $\le\delta$ by the choice of $\alpha$ and the budget, which is finite by
+Theorems~\ref{thm:halt} and~\ref{thm:converge}.
+\end{proof}
+
+\section{Assumption ledger}\label{sec:ledger}
+
+The proof rests on exactly the following, in decreasing order of how much it
+carries and how far it is from provable:
+
+\begin{enumerate}
+\item[\ref{ass:cover}] {Coverage.} Load-bearing and irreducible: a state no
+$D$-draw reaches is never populated, never split, and can be misclassified; its
+mass appears as $\varepsilon_{\mathrm{cov}}$ in Theorem~\ref{thm:main}. This is the
+honest boundary of what any sampler-driven learner can promise.
+\item[\ref{ass:dist}] {Distinguisher findability.} Load-bearing for convergence.
+It is the noiseless-separation signal: without it two distinct states can share a
+leaf forever. It is a statement about $D$ and the midfix sampler, not about noise.
+\item[\ref{ass:screen}] {Screening separability.} Load-bearing for halting and for
+{which} family is returned. This is the sub-fact the informal note waved at
+(``the screen drops any suffix flipping a state on positive $D$-mass''); made
+explicit, it is a consequence of Coverage plus the definition of the screen, so it
+is nearly derivable --- it needs only that a covered flipped state is eventually
+populated, which is Assumption~\ref{ass:cover}(ii).
+\item[\ref{ass:preserve}] {Findable accept-preserving suffix.} Load-bearing for
+halting; genuinely an assumption about $D$ (some accept-preserving suffix has
+positive draw mass).
+\item[\ref{ass:resolver}] {Resolver specification.} Not a fact about the target
+but the interface contract of the transition resolver: it splits on a decisive
+separating midfix and never merges. Discharging it fully means verifying the
+resolver code; here it is the one place the pseudocode abstracts an implementation.
+\end{enumerate}
+
+Everything else is proved: independence and the denoising tails
+(Lemmas~\ref{lem:indep}, \ref{lem:tails}), soundness of decisive decisions
+(Lemma~\ref{lem:decisive}, assumption-free), the union-rate hazard the populations
+answer (Lemma~\ref{lem:union}), and certification soundness
+(Lemma~\ref{lem:mgf}, Propositions~\ref{prop:cert}, \ref{prop:onlyunif}) --- the
+last self-contained up to the exact-test refinement of Remark~\ref{rem:exact},
+which cites Hoeffding (1956).
+
+\end{document}

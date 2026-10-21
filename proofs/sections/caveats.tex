@@ -1,0 +1,26 @@
+\section{What is not rigorous here}
+
+\begin{enumerate}
+\item FNR-gate convergence (heuristic). We assume each round returns a
+family meeting the $(\mathrm{fpr},\mathrm{fnr})$ budget and that the boundary
+feedback strictly reduces the unresolved set. The clustering
+(\texttt{identify\_cluster\_around}) is a greedy heuristic with no proven
+guarantee that it finds a coherent family when one exists; the \texttt{fnr\_limit}
+check certifies the result but not that the search reaches it. The stall
+detector exists precisely because this can fail to make progress.
+
+\item Sequential peeking in the split test. Lemma~\ref{lem:split-sound}
+is stated for a fixed member sample. Reading members until the Bayes factor
+crosses the threshold (an optional-stopping rule) inflates the false-split rate
+above \texttt{split\_pval} unless the threshold is replaced by an anytime-valid
+one. The current code reads a fixed cap of members, so it is sound (the fixed-$n$
+threshold is valid) rather than sequential.
+
+\item Coverage of transient states. Assumption~\ref{ass:cover} is a real
+restriction: fixed-length sampling can miss states reachable only off the sampled
+length, and the guarantee is only over $D$, not worst-case.
+
+\item Independence approximations. Rows share cells (a prefix's noise
+bits recur across families across rounds), so the ``independent noise'' used in
+the union bounds is an approximation once the same strings are reused.
+\end{enumerate}
