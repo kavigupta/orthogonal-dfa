@@ -2,7 +2,7 @@
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from .hypothesis_dfa import Edge, HypothesisDFA, Path
 from .tripartite_search import (
@@ -11,7 +11,7 @@ from .tripartite_search import (
     UNDECIDED_HI,
     UNDECIDED_LO,
     UNDECIDED_MID,
-    tripartite_search,
+    skipping_search,
 )
 
 
@@ -99,13 +99,21 @@ def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     return [k + unlearned_step + 1, k + unlearned_step]
 
 
-def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
+def locate(
+    hypothesis: HypothesisDFA,
+    k: int,
+    x: bytes,
+    start: Optional[Callable[[HypothesisDFA], Optional[Path]]] = None,
+) -> Located:
+    """``start`` places the empty string where the cut leaves it undecided."""
     routes = {}
 
     def sift(i) -> Tuple[Optional[Path], Optional[bytes]]:
         """The leaf at ``i``, and the string read undecided there."""
         if i not in routes:
             reads, path = hypothesis.tree.sift_with_path(hypothesis.cut, x[:i])
+            if path is None and i == 0 and start is not None:
+                path = start(hypothesis)
             routes[i] = path, reads[-1] if path is None else None
         return routes[i]
 
@@ -123,7 +131,7 @@ def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
         here = sift(i)[0]
         return None if here is None else here == walk[max(i - k, 0)]
 
-    found = tripartite_search(agrees, k, hi, recover=False)
+    found = skipping_search(agrees, k, hi)
     kind, j = found.kind, found.position
     if kind == UNDECIDED_LO:
         outcome = Start(sift(k)[1])

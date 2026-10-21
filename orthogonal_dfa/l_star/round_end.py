@@ -15,6 +15,7 @@ HARVEST_EDGE = "harvest edge"
 HARVEST_MIDDLES = "harvest middles"
 TOO_BIG = "too big"
 OUT_OF_PROBES = "out of probes"
+SCORE_STALLED = "score stalled"
 HARVESTS = (HARVEST_START, HARVEST_EDGE, HARVEST_MIDDLES)
 
 
@@ -54,23 +55,29 @@ def ending_test(
     depth: int,
     leaves: Set[Path],
 ) -> Optional[Ending]:
-    """The harvest tests, then the success test."""
+    """The harvest tests, then the success test.
+
+    Each test counts distinct strings: a deterministic oracle reads a string the
+    same way every time, so a repeat is no further evidence.
+    """
+    start_harvest = _distinct(counts.start_harvest)
     if seq_rate(
         config.start_rate(depth),
         config.start_alternative(depth),
         config.level,
         counts.probes,
-        len(counts.start_harvest),
+        len(start_harvest),
     ):
-        return Ending(HARVEST_START, list(counts.start_harvest), None)
+        return Ending(HARVEST_START, start_harvest, None)
     for edge, count in counts.traversals.items():
-        harvest = counts.edge_harvest.get(edge, [])
+        harvest = _distinct(counts.edge_harvest.get(edge, []))
         if (
             edge[0] in leaves
             and config.edge_traffic * counts.probes <= count
             and config.edge_excess <= len(harvest) - config.edge_rate * count
         ):
-            return Ending(HARVEST_EDGE, list(harvest), edge)
+            return Ending(HARVEST_EDGE, harvest, edge)
+    middles = _distinct(counts.middles)
     searches = counts.searches
     per_search = counts.search_queries / max(searches, 1)
     if config.search_share * counts.probes <= searches and seq_rate(
@@ -78,12 +85,16 @@ def ending_test(
         config.middle_alternative(per_search),
         config.level,
         searches,
-        len(counts.middles),
+        len(middles),
     ):
-        return Ending(HARVEST_MIDDLES, list(counts.middles), None)
+        return Ending(HARVEST_MIDDLES, middles, None)
     if succeeds_at(counts, config, counts.probes):
         return Ending(SUCCESS, [], None)
     return None
+
+
+def _distinct(strings: List[bytes]) -> List[bytes]:
+    return list(dict.fromkeys(strings))
 
 
 def succeeds_at(

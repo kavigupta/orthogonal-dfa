@@ -517,6 +517,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         read_rates(pst, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config, state)
+    best_fnr, best_vs, best_boundary, plateaued = 1.0, None, decision_boundary, 0
 
     if v not in pst.suffix_pool:
         pst.suffix_pool.append(v)
@@ -547,6 +548,22 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return judged.vs, decision_boundary
+
+        # A full family that stops improving is reading the oracle's noise floor.
+        patience = pst.config.fnr_plateau_patience
+        if patience is not None and len(judged.vs) >= family_size:
+            if judged.fnr < best_fnr - pst.config.fnr_plateau_tol:
+                best_fnr, best_vs, best_boundary, plateaued = (
+                    judged.fnr,
+                    judged.vs,
+                    decision_boundary,
+                    0,
+                )
+            else:
+                plateaued += 1
+                if plateaued >= patience:
+                    print(f"FNR plateaued at {best_fnr:.4f} (> limit {pst.fnr_limit})")
+                    return best_vs, best_boundary
 
         if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so
