@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Lloyd
+import OrthoDFA.Proofs.Nearest
 import OrthoDFA.Proofs.GateLoop
 import Mathlib.Analysis.Complex.ExponentialBounds
 
@@ -709,7 +709,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  generalize (nearestClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop

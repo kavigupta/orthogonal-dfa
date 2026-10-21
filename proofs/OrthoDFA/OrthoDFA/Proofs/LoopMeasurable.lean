@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.LoopCodes
-import OrthoDFA.Proofs.Lloyd
+import OrthoDFA.Proofs.Nearest
 
 /-!
 # A round's outcomes are measurable
@@ -484,7 +484,7 @@ theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option
     MeasurableSet (ret O.mq pops uni η₀ ι εcov a B : Set (Run Ω (FreeMonoid α) (Option (Fin K)))) := by
   classical
   set cl : Finset (FreeMonoid α) → Finset (FreeMonoid α) → Ω → Finset (FreeMonoid α) :=
-    fun P C ω => clusterOf lloydClusterer O B.sc B.scd P C B.k ω
+    fun P C ω => clusterOf nearestClusterer O B.sc B.scd P C B.k ω
   have hret : (ret O.mq pops uni η₀ ι εcov a B : Set (Run Ω (FreeMonoid α) (Option (Fin K))))
       = {x | B.k ≤ (cl (prefixesAt pops B.npref x) (poolAt B.nsuff x) (oracleNoise x)).card + 1
           ∧ ∀ j ∈ pops, (((certOf (prefixesAt pops B.npref x) j B.npref x).filter fun p => ¬ decided O.mq B.lo (B.hi + 1)
@@ -618,10 +618,10 @@ theorem measurableSet_clusterAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (
     (fun y => (measurableSet_prefixesAt pops B.npref y.1).inter (measurableSet_poolAt B.nsuff y.2)
       |> fun h => by convert h using 1; ext x; simp [Prod.ext_iff])
     (fun y => if (1 : FreeMonoid α) ∈ y.2 then Prod.fst ⁻¹'
-        {ω | clusterOf lloydClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
+        {ω | clusterOf nearestClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
     (fun y => by
       split_ifs with hone
-      · exact measurable_fst (measurableSet_clusterOf (rule := lloydClusterer) O B.sc B.scd y.1 y.2
+      · exact measurable_fst (measurableSet_clusterOf (rule := nearestClusterer) O B.sc B.scd y.1 y.2
           B.k hone F)
       · exact MeasurableSet.empty) |> fun h => by
     convert h using 1

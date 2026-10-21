@@ -424,7 +424,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  generalize (nearestClusterer : Clusterer S) = rule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
