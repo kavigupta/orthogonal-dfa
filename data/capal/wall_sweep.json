@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
   "experiment": "wall_sweep",
-  "description": "CAPAL hyperparameter sweep (max_same_samples x pool x alpha x seeds) across every benchmark cell, to separate cell-specific structural walls from default-config artifacts.",
+  "description": "CAPAL hyperparameter sweep (max_same_samples x pool x alpha x seeds) across every benchmark cell.",
   "complete": true,
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
   "config": {
@@ -33,8 +33,7 @@
       "m=240,pool=24,alpha=0.001",
       "m=240,pool=24,alpha=0.05"
     ],
-    "matched_budget": false,
-    "with_elstar": false
+    "matched_budget": false
   },
   "cells": [
     {
@@ -64,7 +63,7 @@
       "converged": true,
       "queries_total": 3083,
       "equivalence_queries": 10,
-      "seconds": 0.092,
+      "seconds": 0.253,
       "error_type": null,
       "error": null
     },
@@ -95,7 +94,7 @@
       "converged": false,
       "queries_total": 8871,
       "equivalence_queries": 200,
-      "seconds": 11.424,
+      "seconds": 30.804,
       "error_type": null,
       "error": null
     },
@@ -126,7 +125,7 @@
       "converged": true,
       "queries_total": 3568,
       "equivalence_queries": 11,
-      "seconds": 0.096,
+      "seconds": 0.265,
       "error_type": null,
       "error": null
     },
@@ -157,7 +156,7 @@
       "converged": true,
       "queries_total": 5605,
       "equivalence_queries": 11,
-      "seconds": 0.196,
+      "seconds": 0.545,
       "error_type": null,
       "error": null
     },
@@ -188,7 +187,7 @@
       "converged": true,
       "queries_total": 5940,
       "equivalence_queries": 15,
-      "seconds": 0.261,
+      "seconds": 0.7,
       "error_type": null,
       "error": null
     },
@@ -219,7 +218,7 @@
       "converged": true,
       "queries_total": 2622,
       "equivalence_queries": 8,
-      "seconds": 0.088,
+      "seconds": 0.237,
       "error_type": null,
       "error": null
     },
@@ -250,7 +249,7 @@
       "converged": true,
       "queries_total": 12030,
       "equivalence_queries": 21,
-      "seconds": 0.656,
+      "seconds": 1.809,
       "error_type": null,
       "error": null
     },
@@ -281,7 +280,7 @@
       "converged": true,
       "queries_total": 6086,
       "equivalence_queries": 11,
-      "seconds": 0.122,
+      "seconds": 0.332,
       "error_type": null,
       "error": null
     },
@@ -312,7 +311,7 @@
       "converged": true,
       "queries_total": 11784,
       "equivalence_queries": 27,
-      "seconds": 0.692,
+      "seconds": 1.871,
       "error_type": null,
       "error": null
     },
@@ -343,7 +342,7 @@
       "converged": false,
       "queries_total": 23260,
       "equivalence_queries": 200,
-      "seconds": 96.385,
+      "seconds": 253.826,
       "error_type": null,
       "error": null
     },
@@ -374,7 +373,7 @@
       "converged": false,
       "queries_total": 17249,
       "equivalence_queries": 200,
-      "seconds": 46.123,
+      "seconds": 118.868,
       "error_type": null,
       "error": null
     },
@@ -405,7 +404,7 @@
       "converged": true,
       "queries_total": 8724,
       "equivalence_queries": 17,
-      "seconds": 0.401,
+      "seconds": 1.09,
       "error_type": null,
       "error": null
     },
@@ -436,7 +435,7 @@
       "converged": true,
       "queries_total": 8006,
       "equivalence_queries": 7,
-      "seconds": 0.655,
+      "seconds": 1.731,
       "error_type": null,
       "error": null
     },
@@ -467,7 +466,7 @@
       "converged": true,
       "queries_total": 14845,
       "equivalence_queries": 16,
-      "seconds": 3.327,
+      "seconds": 8.708,
       "error_type": null,
       "error": null
     },
@@ -498,7 +497,7 @@
       "converged": true,
       "queries_total": 7915,
       "equivalence_queries": 7,
-      "seconds": 0.547,
+      "seconds": 1.432,
       "error_type": null,
       "error": null
     },
@@ -529,7 +528,7 @@
       "converged": true,
       "queries_total": 10213,
       "equivalence_queries": 6,
-      "seconds": 0.813,
+      "seconds": 2.171,
       "error_type": null,
       "error": null
     },
@@ -560,7 +559,7 @@
       "converged": true,
       "queries_total": 16540,
       "equivalence_queries": 13,
-      "seconds": 2.555,
+      "seconds": 6.83,
       "error_type": null,
       "error": null
     },
@@ -591,7 +590,7 @@
       "converged": true,
       "queries_total": 11714,
       "equivalence_queries": 16,
-      "seconds": 1.837,
+      "seconds": 4.816,
       "error_type": null,
       "error": null
     },
@@ -622,7 +621,7 @@
       "converged": true,
       "queries_total": 7087,
       "equivalence_queries": 6,
-      "seconds": 0.39,
+      "seconds": 1.013,
       "error_type": null,
       "error": null
     },
@@ -653,7 +652,7 @@
       "converged": true,
       "queries_total": 18035,
       "equivalence_queries": 13,
-      "seconds": 1.394,
+      "seconds": 3.706,
       "error_type": null,
       "error": null
     },
@@ -684,7 +683,7 @@
       "converged": true,
       "queries_total": 14113,
       "equivalence_queries": 11,
-      "seconds": 1.304,
+      "seconds": 3.364,
       "error_type": null,
       "error": null
     },
@@ -715,7 +714,7 @@
       "converged": true,
       "queries_total": 11047,
       "equivalence_queries": 6,
-      "seconds": 0.608,
+      "seconds": 1.631,
       "error_type": null,
       "error": null
     },
@@ -746,7 +745,7 @@
       "converged": true,
       "queries_total": 15999,
       "equivalence_queries": 12,
-      "seconds": 0.964,
+      "seconds": 2.596,
       "error_type": null,
       "error": null
     },
@@ -777,7 +776,7 @@
       "converged": true,
       "queries_total": 25850,
       "equivalence_queries": 15,
-      "seconds": 3.996,
+      "seconds": 10.582,
       "error_type": null,
       "error": null
     },
@@ -808,7 +807,7 @@
       "converged": false,
       "queries_total": 55232,
       "equivalence_queries": 200,
-      "seconds": 480.923,
+      "seconds": 1239.285,
       "error_type": null,
       "error": null
     },
@@ -839,7 +838,7 @@
       "converged": false,
       "queries_total": 15149,
       "equivalence_queries": 200,
-      "seconds": 46.493,
+      "seconds": 121.164,
       "error_type": null,
       "error": null
     },
@@ -870,7 +869,7 @@
       "converged": false,
       "queries_total": 11292,
       "equivalence_queries": 200,
-      "seconds": 34.999,
+      "seconds": 91.23,
       "error_type": null,
       "error": null
     },
@@ -901,7 +900,7 @@
       "converged": false,
       "queries_total": 20754,
       "equivalence_queries": 200,
-      "seconds": 100.238,
+      "seconds": 257.372,
       "error_type": null,
       "error": null
     },
@@ -932,7 +931,7 @@
       "converged": true,
       "queries_total": 5777,
       "equivalence_queries": 13,
-      "seconds": 0.203,
+      "seconds": 0.529,
       "error_type": null,
       "error": null
     },
@@ -963,7 +962,7 @@
       "converged": false,
       "queries_total": 30071,
       "equivalence_queries": 200,
-      "seconds": 197.299,
+      "seconds": 506.938,
       "error_type": null,
       "error": null
     },
@@ -994,7 +993,7 @@
       "converged": false,
       "queries_total": 3524,
       "equivalence_queries": 200,
-      "seconds": 2.266,
+      "seconds": 6.179,
       "error_type": null,
       "error": null
     },
@@ -1025,7 +1024,7 @@
       "converged": false,
       "queries_total": 13305,
       "equivalence_queries": 200,
-      "seconds": 21.78,
+      "seconds": 56.483,
       "error_type": null,
       "error": null
     },
@@ -1056,7 +1055,7 @@
       "converged": false,
       "queries_total": 15380,
       "equivalence_queries": 200,
-      "seconds": 32.329,
+      "seconds": 82.886,
       "error_type": null,
       "error": null
     },
@@ -1087,7 +1086,7 @@
       "converged": true,
       "queries_total": 8602,
       "equivalence_queries": 11,
-      "seconds": 0.399,
+      "seconds": 1.105,
       "error_type": null,
       "error": null
     },
@@ -1118,7 +1117,7 @@
       "converged": false,
       "queries_total": 28180,
       "equivalence_queries": 200,
-      "seconds": 118.96,
+      "seconds": 308.258,
       "error_type": null,
       "error": null
     },
@@ -1149,7 +1148,7 @@
       "converged": false,
       "queries_total": 54291,
       "equivalence_queries": 200,
-      "seconds": 365.545,
+      "seconds": 948.843,
       "error_type": null,
       "error": null
     },
@@ -1180,7 +1179,7 @@
       "converged": false,
       "queries_total": 53157,
       "equivalence_queries": 200,
-      "seconds": 243.499,
+      "seconds": 613.325,
       "error_type": null,
       "error": null
     },
@@ -1211,7 +1210,7 @@
       "converged": true,
       "queries_total": 12671,
       "equivalence_queries": 13,
-      "seconds": 2.036,
+      "seconds": 5.013,
       "error_type": null,
       "error": null
     },
@@ -1242,7 +1241,7 @@
       "converged": true,
       "queries_total": 12267,
       "equivalence_queries": 11,
-      "seconds": 1.844,
+      "seconds": 4.459,
       "error_type": null,
       "error": null
     },
@@ -1273,7 +1272,7 @@
       "converged": true,
       "queries_total": 22802,
       "equivalence_queries": 20,
-      "seconds": 6.07,
+      "seconds": 14.943,
       "error_type": null,
       "error": null
     },
@@ -1304,7 +1303,7 @@
       "converged": false,
       "queries_total": 109433,
       "equivalence_queries": 200,
-      "seconds": 589.709,
+      "seconds": 1500.921,
       "error_type": null,
       "error": null
     },
@@ -1335,7 +1334,7 @@
       "converged": true,
       "queries_total": 13993,
       "equivalence_queries": 11,
-      "seconds": 2.304,
+      "seconds": 5.624,
       "error_type": null,
       "error": null
     },
@@ -1366,7 +1365,7 @@
       "converged": true,
       "queries_total": 7697,
       "equivalence_queries": 5,
-      "seconds": 0.406,
+      "seconds": 0.983,
       "error_type": null,
       "error": null
     },
@@ -1397,7 +1396,7 @@
       "converged": true,
       "queries_total": 22189,
       "equivalence_queries": 20,
-      "seconds": 2.294,
+      "seconds": 5.56,
       "error_type": null,
       "error": null
     },
@@ -1428,7 +1427,7 @@
       "converged": true,
       "queries_total": 19159,
       "equivalence_queries": 14,
-      "seconds": 1.859,
+      "seconds": 4.632,
       "error_type": null,
       "error": null
     },
@@ -1459,7 +1458,7 @@
       "converged": true,
       "queries_total": 26786,
       "equivalence_queries": 20,
-      "seconds": 9.039,
+      "seconds": 22.837,
       "error_type": null,
       "error": null
     },
@@ -1490,7 +1489,7 @@
       "converged": true,
       "queries_total": 37234,
       "equivalence_queries": 32,
-      "seconds": 8.692,
+      "seconds": 22.53,
       "error_type": null,
       "error": null
     },
@@ -1521,7 +1520,7 @@
       "converged": false,
       "queries_total": 44614,
       "equivalence_queries": 200,
-      "seconds": 166.152,
+      "seconds": 415.017,
       "error_type": null,
       "error": null
     },
@@ -1552,7 +1551,7 @@
       "converged": false,
       "queries_total": 11085,
       "equivalence_queries": 200,
-      "seconds": 28.082,
+      "seconds": 70.465,
       "error_type": null,
       "error": null
     },
@@ -1583,7 +1582,7 @@
       "converged": false,
       "queries_total": 15659,
       "equivalence_queries": 200,
-      "seconds": 46.016,
+      "seconds": 115.669,
       "error_type": null,
       "error": null
     },
@@ -1614,7 +1613,7 @@
       "converged": false,
       "queries_total": 20679,
       "equivalence_queries": 200,
-      "seconds": 106.391,
+      "seconds": 270.91,
       "error_type": null,
       "error": null
     },
@@ -1645,7 +1644,7 @@
       "converged": false,
       "queries_total": 12374,
       "equivalence_queries": 200,
-      "seconds": 35.086,
+      "seconds": 88.935,
       "error_type": null,
       "error": null
     },
@@ -1676,7 +1675,7 @@
       "converged": false,
       "queries_total": 16240,
       "equivalence_queries": 200,
-      "seconds": 58.257,
+      "seconds": 146.488,
       "error_type": null,
       "error": null
     },
@@ -1707,7 +1706,7 @@
       "converged": false,
       "queries_total": 67309,
       "equivalence_queries": 200,
-      "seconds": 511.303,
+      "seconds": 1262.658,
       "error_type": null,
       "error": null
     },
@@ -1738,7 +1737,7 @@
       "converged": false,
       "queries_total": 8233,
       "equivalence_queries": 200,
-      "seconds": 8.939,
+      "seconds": 24.26,
       "error_type": null,
       "error": null
     },
@@ -1769,7 +1768,7 @@
       "converged": false,
       "queries_total": 26730,
       "equivalence_queries": 200,
-      "seconds": 87.114,
+      "seconds": 225.119,
       "error_type": null,
       "error": null
     },
@@ -1800,7 +1799,7 @@
       "converged": false,
       "queries_total": 30862,
       "equivalence_queries": 200,
-      "seconds": 138.255,
+      "seconds": 350.505,
       "error_type": null,
       "error": null
     },
@@ -1831,7 +1830,7 @@
       "converged": false,
       "queries_total": 59298,
       "equivalence_queries": 200,
-      "seconds": 446.731,
+      "seconds": 1100.57,
       "error_type": null,
       "error": null
     },
@@ -1862,7 +1861,7 @@
       "converged": false,
       "queries_total": 23888,
       "equivalence_queries": 200,
-      "seconds": 76.618,
+      "seconds": 197.957,
       "error_type": null,
       "error": null
     },
@@ -1893,7 +1892,7 @@
       "converged": false,
       "queries_total": 26890,
       "equivalence_queries": 200,
-      "seconds": 106.721,
+      "seconds": 273.286,
       "error_type": null,
       "error": null
     },
@@ -1924,7 +1923,7 @@
       "converged": false,
       "queries_total": 118215,
       "equivalence_queries": 200,
-      "seconds": 583.987,
+      "seconds": 1469.235,
       "error_type": null,
       "error": null
     },
@@ -1955,7 +1954,7 @@
       "converged": false,
       "queries_total": 53947,
       "equivalence_queries": 200,
-      "seconds": 248.474,
+      "seconds": 616.124,
       "error_type": null,
       "error": null
     },
@@ -1986,7 +1985,7 @@
       "converged": false,
       "queries_total": 97849,
       "equivalence_queries": 200,
-      "seconds": 438.913,
+      "seconds": 1096.753,
       "error_type": null,
       "error": null
     },
@@ -2017,7 +2016,7 @@
       "converged": false,
       "queries_total": 144484,
       "equivalence_queries": 200,
-      "seconds": 996.217,
+      "seconds": 2435.262,
       "error_type": null,
       "error": null
     },
@@ -2048,7 +2047,7 @@
       "converged": false,
       "queries_total": 104210,
       "equivalence_queries": 200,
-      "seconds": 496.77,
+      "seconds": 1273.928,
       "error_type": null,
       "error": null
     },
@@ -2079,7 +2078,7 @@
       "converged": false,
       "queries_total": 101587,
       "equivalence_queries": 200,
-      "seconds": 448.976,
+      "seconds": 1156.725,
       "error_type": null,
       "error": null
     },
@@ -2110,7 +2109,7 @@
       "converged": false,
       "queries_total": 111595,
       "equivalence_queries": 200,
-      "seconds": 219.348,
+      "seconds": 582.836,
       "error_type": null,
       "error": null
     },
@@ -2141,7 +2140,7 @@
       "converged": false,
       "queries_total": 86973,
       "equivalence_queries": 200,
-      "seconds": 236.87,
+      "seconds": 667.178,
       "error_type": null,
       "error": null
     },
@@ -2172,7 +2171,7 @@
       "converged": false,
       "queries_total": 53533,
       "equivalence_queries": 200,
-      "seconds": 143.77,
+      "seconds": 423.282,
       "error_type": null,
       "error": null
     },
@@ -2203,7 +2202,7 @@
       "converged": false,
       "queries_total": 105935,
       "equivalence_queries": 200,
-      "seconds": 415.818,
+      "seconds": 1078.78,
       "error_type": null,
       "error": null
     },
@@ -2234,7 +2233,7 @@
       "converged": false,
       "queries_total": 152297,
       "equivalence_queries": 200,
-      "seconds": 715.85,
+      "seconds": 1876.373,
       "error_type": null,
       "error": null
     },
@@ -2265,7 +2264,7 @@
       "converged": false,
       "queries_total": 50043,
       "equivalence_queries": 200,
-      "seconds": 208.381,
+      "seconds": 528.161,
       "error_type": null,
       "error": null
     },
@@ -2296,7 +2295,7 @@
       "converged": false,
       "queries_total": 17194,
       "equivalence_queries": 200,
-      "seconds": 63.887,
+      "seconds": 162.264,
       "error_type": null,
       "error": null
     },
@@ -2327,7 +2326,7 @@
       "converged": false,
       "queries_total": 14134,
       "equivalence_queries": 200,
-      "seconds": 30.635,
+      "seconds": 78.95,
       "error_type": null,
       "error": null
     },
@@ -2358,7 +2357,7 @@
       "converged": false,
       "queries_total": 7977,
       "equivalence_queries": 200,
-      "seconds": 18.206,
+      "seconds": 46.304,
       "error_type": null,
       "error": null
     },
@@ -2389,7 +2388,7 @@
       "converged": false,
       "queries_total": 12729,
       "equivalence_queries": 200,
-      "seconds": 33.685,
+      "seconds": 85.881,
       "error_type": null,
       "error": null
     },
@@ -2420,7 +2419,7 @@
       "converged": false,
       "queries_total": 21879,
       "equivalence_queries": 200,
-      "seconds": 95.991,
+      "seconds": 251.593,
       "error_type": null,
       "error": null
     },
@@ -2451,7 +2450,7 @@
       "converged": false,
       "queries_total": 11513,
       "equivalence_queries": 200,
-      "seconds": 33.246,
+      "seconds": 86.511,
       "error_type": null,
       "error": null
     },
@@ -2482,7 +2481,7 @@
       "converged": false,
       "queries_total": 17709,
       "equivalence_queries": 200,
-      "seconds": 35.77,
+      "seconds": 94.815,
       "error_type": null,
       "error": null
     },
@@ -2513,7 +2512,7 @@
       "converged": false,
       "queries_total": 18891,
       "equivalence_queries": 200,
-      "seconds": 37.313,
+      "seconds": 98.537,
       "error_type": null,
       "error": null
     },
@@ -2544,7 +2543,7 @@
       "converged": false,
       "queries_total": 14388,
       "equivalence_queries": 200,
-      "seconds": 23.944,
+      "seconds": 62.982,
       "error_type": null,
       "error": null
     },
@@ -2575,7 +2574,7 @@
       "converged": false,
       "queries_total": 13933,
       "equivalence_queries": 200,
-      "seconds": 26.119,
+      "seconds": 70.798,
       "error_type": null,
       "error": null
     },
@@ -2606,7 +2605,7 @@
       "converged": false,
       "queries_total": 44967,
       "equivalence_queries": 200,
-      "seconds": 176.506,
+      "seconds": 458.666,
       "error_type": null,
       "error": null
     },
@@ -2637,7 +2636,7 @@
       "converged": false,
       "queries_total": 22643,
       "equivalence_queries": 200,
-      "seconds": 58.611,
+      "seconds": 150.627,
       "error_type": null,
       "error": null
     },
@@ -2668,7 +2667,7 @@
       "converged": false,
       "queries_total": 60607,
       "equivalence_queries": 200,
-      "seconds": 260.46,
+      "seconds": 671.773,
       "error_type": null,
       "error": null
     },
@@ -2699,7 +2698,7 @@
       "converged": false,
       "queries_total": 106971,
       "equivalence_queries": 200,
-      "seconds": 508.386,
+      "seconds": 1320.898,
       "error_type": null,
       "error": null
     },
@@ -2730,7 +2729,7 @@
       "converged": false,
       "queries_total": 40550,
       "equivalence_queries": 200,
-      "seconds": 165.048,
+      "seconds": 418.869,
       "error_type": null,
       "error": null
     },
@@ -2761,7 +2760,7 @@
       "converged": false,
       "queries_total": 29496,
       "equivalence_queries": 200,
-      "seconds": 109.437,
+      "seconds": 275.551,
       "error_type": null,
       "error": null
     },
@@ -2792,7 +2791,7 @@
       "converged": false,
       "queries_total": 102480,
       "equivalence_queries": 200,
-      "seconds": 431.295,
+      "seconds": 1104.64,
       "error_type": null,
       "error": null
     },
@@ -2823,7 +2822,7 @@
       "converged": false,
       "queries_total": 70959,
       "equivalence_queries": 200,
-      "seconds": 274.581,
+      "seconds": 707.232,
       "error_type": null,
       "error": null
     },
@@ -2854,7 +2853,7 @@
       "converged": false,
       "queries_total": 57372,
       "equivalence_queries": 200,
-      "seconds": 187.088,
+      "seconds": 489.196,
       "error_type": null,
       "error": null
     },
@@ -2885,7 +2884,7 @@
       "converged": false,
       "queries_total": 131093,
       "equivalence_queries": 200,
-      "seconds": 446.185,
+      "seconds": 1176.09,
       "error_type": null,
       "error": null
     },
@@ -2916,7 +2915,7 @@
       "converged": false,
       "queries_total": 50542,
       "equivalence_queries": 200,
-      "seconds": 117.079,
+      "seconds": 308.374,
       "error_type": null,
       "error": null
     },
@@ -2947,7 +2946,7 @@
       "converged": false,
       "queries_total": 72593,
       "equivalence_queries": 200,
-      "seconds": 168.395,
+      "seconds": 447.449,
       "error_type": null,
       "error": null
     },
@@ -2978,7 +2977,7 @@
       "converged": false,
       "queries_total": 85701,
       "equivalence_queries": 200,
-      "seconds": 225.257,
+      "seconds": 589.542,
       "error_type": null,
       "error": null
     },
@@ -3009,7 +3008,7 @@
       "converged": false,
       "queries_total": 70262,
       "equivalence_queries": 200,
-      "seconds": 216.121,
+      "seconds": 562.072,
       "error_type": null,
       "error": null
     },
@@ -3040,7 +3039,7 @@
       "converged": true,
       "queries_total": 10269,
       "equivalence_queries": 15,
-      "seconds": 0.61,
+      "seconds": 1.848,
       "error_type": null,
       "error": null
     },
@@ -3071,7 +3070,7 @@
       "converged": true,
       "queries_total": 6828,
       "equivalence_queries": 12,
-      "seconds": 0.189,
+      "seconds": 0.502,
       "error_type": null,
       "error": null
     },
@@ -3102,7 +3101,7 @@
       "converged": true,
       "queries_total": 4633,
       "equivalence_queries": 8,
-      "seconds": 0.095,
+      "seconds": 0.269,
       "error_type": null,
       "error": null
     },
@@ -3133,7 +3132,7 @@
       "converged": true,
       "queries_total": 4472,
       "equivalence_queries": 8,
-      "seconds": 0.091,
+      "seconds": 0.245,
       "error_type": null,
       "error": null
     },
@@ -3164,7 +3163,7 @@
       "converged": true,
       "queries_total": 4619,
       "equivalence_queries": 7,
-      "seconds": 0.066,
+      "seconds": 0.175,
       "error_type": null,
       "error": null
     },
@@ -3195,7 +3194,7 @@
       "converged": true,
       "queries_total": 4698,
       "equivalence_queries": 8,
-      "seconds": 0.098,
+      "seconds": 0.277,
       "error_type": null,
       "error": null
     },
@@ -3226,7 +3225,7 @@
       "converged": false,
       "queries_total": 18226,
       "equivalence_queries": 200,
-      "seconds": 40.144,
+      "seconds": 108.897,
       "error_type": null,
       "error": null
     },
@@ -3257,7 +3256,7 @@
       "converged": true,
       "queries_total": 13156,
       "equivalence_queries": 22,
-      "seconds": 0.612,
+      "seconds": 1.693,
       "error_type": null,
       "error": null
     },
@@ -3288,7 +3287,7 @@
       "converged": true,
       "queries_total": 5712,
       "equivalence_queries": 8,
-      "seconds": 0.085,
+      "seconds": 0.232,
       "error_type": null,
       "error": null
     },
@@ -3319,7 +3318,7 @@
       "converged": true,
       "queries_total": 4371,
       "equivalence_queries": 8,
-      "seconds": 0.073,
+      "seconds": 0.197,
       "error_type": null,
       "error": null
     },
@@ -3350,7 +3349,7 @@
       "converged": false,
       "queries_total": 2823,
       "equivalence_queries": 200,
-      "seconds": 1.153,
+      "seconds": 3.134,
       "error_type": null,
       "error": null
     },
@@ -3381,7 +3380,7 @@
       "converged": true,
       "queries_total": 8763,
       "equivalence_queries": 10,
-      "seconds": 0.229,
+      "seconds": 0.645,
       "error_type": null,
       "error": null
     },
@@ -3412,7 +3411,7 @@
       "converged": true,
       "queries_total": 15283,
       "equivalence_queries": 7,
-      "seconds": 0.945,
+      "seconds": 2.477,
       "error_type": null,
       "error": null
     },
@@ -3443,7 +3442,7 @@
       "converged": true,
       "queries_total": 19218,
       "equivalence_queries": 9,
-      "seconds": 1.764,
+      "seconds": 4.699,
       "error_type": null,
       "error": null
     },
@@ -3474,7 +3473,7 @@
       "converged": true,
       "queries_total": 19248,
       "equivalence_queries": 8,
-      "seconds": 1.521,
+      "seconds": 3.862,
       "error_type": null,
       "error": null
     },
@@ -3505,7 +3504,7 @@
       "converged": true,
       "queries_total": 13594,
       "equivalence_queries": 7,
-      "seconds": 0.72,
+      "seconds": 1.833,
       "error_type": null,
       "error": null
     },
@@ -3536,7 +3535,7 @@
       "converged": true,
       "queries_total": 17405,
       "equivalence_queries": 9,
-      "seconds": 1.741,
+      "seconds": 4.495,
       "error_type": null,
       "error": null
     },
@@ -3567,7 +3566,7 @@
       "converged": true,
       "queries_total": 28185,
       "equivalence_queries": 10,
-      "seconds": 2.855,
+      "seconds": 7.437,
       "error_type": null,
       "error": null
     },
@@ -3598,7 +3597,7 @@
       "converged": false,
       "queries_total": 6177,
       "equivalence_queries": 200,
-      "seconds": 9.021,
+      "seconds": 23.377,
       "error_type": null,
       "error": null
     },
@@ -3629,7 +3628,7 @@
       "converged": true,
       "queries_total": 9234,
       "equivalence_queries": 6,
-      "seconds": 0.361,
+      "seconds": 0.941,
       "error_type": null,
       "error": null
     },
@@ -3660,7 +3659,7 @@
       "converged": true,
       "queries_total": 35865,
       "equivalence_queries": 14,
-      "seconds": 2.996,
+      "seconds": 7.777,
       "error_type": null,
       "error": null
     },
@@ -3691,7 +3690,7 @@
       "converged": false,
       "queries_total": 6172,
       "equivalence_queries": 200,
-      "seconds": 8.801,
+      "seconds": 22.858,
       "error_type": null,
       "error": null
     },
@@ -3722,7 +3721,7 @@
       "converged": true,
       "queries_total": 9417,
       "equivalence_queries": 6,
-      "seconds": 0.411,
+      "seconds": 1.086,
       "error_type": null,
       "error": null
     },
@@ -3753,7 +3752,7 @@
       "converged": true,
       "queries_total": 29591,
       "equivalence_queries": 12,
-      "seconds": 2.139,
+      "seconds": 5.651,
       "error_type": null,
       "error": null
     },
@@ -3784,7 +3783,7 @@
       "converged": true,
       "queries_total": 5425,
       "equivalence_queries": 9,
-      "seconds": 0.129,
+      "seconds": 0.345,
       "error_type": null,
       "error": null
     },
@@ -3815,7 +3814,7 @@
       "converged": true,
       "queries_total": 4343,
       "equivalence_queries": 7,
-      "seconds": 0.064,
+      "seconds": 0.167,
       "error_type": null,
       "error": null
     },
@@ -3846,7 +3845,7 @@
       "converged": false,
       "queries_total": 1285,
       "equivalence_queries": 200,
-      "seconds": 0.675,
+      "seconds": 1.823,
       "error_type": null,
       "error": null
     },
@@ -3877,7 +3876,7 @@
       "converged": true,
       "queries_total": 5529,
       "equivalence_queries": 12,
-      "seconds": 0.226,
+      "seconds": 0.607,
       "error_type": null,
       "error": null
     },
@@ -3908,7 +3907,7 @@
       "converged": true,
       "queries_total": 4854,
       "equivalence_queries": 7,
-      "seconds": 0.087,
+      "seconds": 0.234,
       "error_type": null,
       "error": null
     },
@@ -3939,7 +3938,7 @@
       "converged": false,
       "queries_total": 1280,
       "equivalence_queries": 200,
-      "seconds": 0.672,
+      "seconds": 1.814,
       "error_type": null,
       "error": null
     },
@@ -3970,7 +3969,7 @@
       "converged": false,
       "queries_total": 10646,
       "equivalence_queries": 200,
-      "seconds": 14.743,
+      "seconds": 40.736,
       "error_type": null,
       "error": null
     },
@@ -4001,7 +4000,7 @@
       "converged": false,
       "queries_total": 14042,
       "equivalence_queries": 200,
-      "seconds": 19.553,
+      "seconds": 53.919,
       "error_type": null,
       "error": null
     },
@@ -4032,7 +4031,7 @@
       "converged": true,
       "queries_total": 7170,
       "equivalence_queries": 14,
-      "seconds": 0.201,
+      "seconds": 0.563,
       "error_type": null,
       "error": null
     },
@@ -4063,7 +4062,7 @@
       "converged": true,
       "queries_total": 5695,
       "equivalence_queries": 9,
-      "seconds": 0.098,
+      "seconds": 0.274,
       "error_type": null,
       "error": null
     },
@@ -4094,7 +4093,7 @@
       "converged": false,
       "queries_total": 52568,
       "equivalence_queries": 200,
-      "seconds": 321.8,
+      "seconds": 846.653,
       "error_type": null,
       "error": null
     },
@@ -4125,7 +4124,7 @@
       "converged": true,
       "queries_total": 7989,
       "equivalence_queries": 16,
-      "seconds": 0.216,
+      "seconds": 0.67,
       "error_type": null,
       "error": null
     },
@@ -4156,7 +4155,7 @@
       "converged": true,
       "queries_total": 15147,
       "equivalence_queries": 7,
-      "seconds": 0.963,
+      "seconds": 2.561,
       "error_type": null,
       "error": null
     },
@@ -4187,7 +4186,7 @@
       "converged": false,
       "queries_total": 29783,
       "equivalence_queries": 200,
-      "seconds": 96.35,
+      "seconds": 253.206,
       "error_type": null,
       "error": null
     },
@@ -4218,7 +4217,7 @@
       "converged": true,
       "queries_total": 14206,
       "equivalence_queries": 9,
-      "seconds": 1.304,
+      "seconds": 3.391,
       "error_type": null,
       "error": null
     },
@@ -4249,7 +4248,7 @@
       "converged": true,
       "queries_total": 11920,
       "equivalence_queries": 6,
-      "seconds": 0.749,
+      "seconds": 1.912,
       "error_type": null,
       "error": null
     },
@@ -4280,7 +4279,7 @@
       "converged": false,
       "queries_total": 38116,
       "equivalence_queries": 200,
-      "seconds": 177.121,
+      "seconds": 460.638,
       "error_type": null,
       "error": null
     },
@@ -4311,7 +4310,7 @@
       "converged": true,
       "queries_total": 37762,
       "equivalence_queries": 17,
-      "seconds": 6.409,
+      "seconds": 16.498,
       "error_type": null,
       "error": null
     },
@@ -4342,7 +4341,7 @@
       "converged": false,
       "queries_total": 6177,
       "equivalence_queries": 200,
-      "seconds": 8.25,
+      "seconds": 22.103,
       "error_type": null,
       "error": null
     },
@@ -4373,7 +4372,7 @@
       "converged": true,
       "queries_total": 12903,
       "equivalence_queries": 8,
-      "seconds": 0.586,
+      "seconds": 1.589,
       "error_type": null,
       "error": null
     },
@@ -4404,7 +4403,7 @@
       "converged": true,
       "queries_total": 12594,
       "equivalence_queries": 7,
-      "seconds": 0.466,
+      "seconds": 1.303,
       "error_type": null,
       "error": null
     },
@@ -4435,7 +4434,7 @@
       "converged": false,
       "queries_total": 6795,
       "equivalence_queries": 200,
-      "seconds": 9.827,
+      "seconds": 26.049,
       "error_type": null,
       "error": null
     },
@@ -4466,7 +4465,7 @@
       "converged": true,
       "queries_total": 10207,
       "equivalence_queries": 6,
-      "seconds": 0.464,
+      "seconds": 1.219,
       "error_type": null,
       "error": null
     },
@@ -4497,7 +4496,7 @@
       "converged": true,
       "queries_total": 17766,
       "equivalence_queries": 8,
-      "seconds": 0.837,
+      "seconds": 2.248,
       "error_type": null,
       "error": null
     },
@@ -4528,7 +4527,7 @@
       "converged": true,
       "queries_total": 7197,
       "equivalence_queries": 18,
-      "seconds": 0.566,
+      "seconds": 1.506,
       "error_type": null,
       "error": null
     },
@@ -4559,7 +4558,7 @@
       "converged": false,
       "queries_total": 8622,
       "equivalence_queries": 200,
-      "seconds": 9.838,
+      "seconds": 26.724,
       "error_type": null,
       "error": null
     },
@@ -4590,7 +4589,7 @@
       "converged": false,
       "queries_total": 1513,
       "equivalence_queries": 200,
-      "seconds": 0.941,
+      "seconds": 2.536,
       "error_type": null,
       "error": null
     },
@@ -4621,7 +4620,7 @@
       "converged": true,
       "queries_total": 19361,
       "equivalence_queries": 40,
-      "seconds": 5.237,
+      "seconds": 14.915,
       "error_type": null,
       "error": null
     },
@@ -4652,7 +4651,7 @@
       "converged": false,
       "queries_total": 12748,
       "equivalence_queries": 200,
-      "seconds": 23.29,
+      "seconds": 62.821,
       "error_type": null,
       "error": null
     },
@@ -4683,7 +4682,7 @@
       "converged": false,
       "queries_total": 1400,
       "equivalence_queries": 200,
-      "seconds": 0.74,
+      "seconds": 2.083,
       "error_type": null,
       "error": null
     },
@@ -4714,7 +4713,7 @@
       "converged": false,
       "queries_total": 8178,
       "equivalence_queries": 200,
-      "seconds": 9.598,
+      "seconds": 26.72,
       "error_type": null,
       "error": null
     },
@@ -4745,7 +4744,7 @@
       "converged": true,
       "queries_total": 10379,
       "equivalence_queries": 13,
-      "seconds": 0.264,
+      "seconds": 0.785,
       "error_type": null,
       "error": null
     },
@@ -4776,7 +4775,7 @@
       "converged": false,
       "queries_total": 1704,
       "equivalence_queries": 200,
-      "seconds": 0.647,
+      "seconds": 1.861,
       "error_type": null,
       "error": null
     },
@@ -4807,7 +4806,7 @@
       "converged": true,
       "queries_total": 6794,
       "equivalence_queries": 18,
-      "seconds": 0.332,
+      "seconds": 0.942,
       "error_type": null,
       "error": null
     },
@@ -4838,7 +4837,7 @@
       "converged": false,
       "queries_total": 12941,
       "equivalence_queries": 200,
-      "seconds": 17.148,
+      "seconds": 47.217,
       "error_type": null,
       "error": null
     },
@@ -4869,7 +4868,7 @@
       "converged": false,
       "queries_total": 1895,
       "equivalence_queries": 200,
-      "seconds": 0.801,
+      "seconds": 2.254,
       "error_type": null,
       "error": null
     },
@@ -4900,7 +4899,7 @@
       "converged": false,
       "queries_total": 4806,
       "equivalence_queries": 200,
-      "seconds": 7.736,
+      "seconds": 19.725,
       "error_type": null,
       "error": null
     },
@@ -4931,7 +4930,7 @@
       "converged": false,
       "queries_total": 18952,
       "equivalence_queries": 200,
-      "seconds": 43.258,
+      "seconds": 113.079,
       "error_type": null,
       "error": null
     },
@@ -4962,7 +4961,7 @@
       "converged": true,
       "queries_total": 28523,
       "equivalence_queries": 13,
-      "seconds": 4.165,
+      "seconds": 10.621,
       "error_type": null,
       "error": null
     },
@@ -4993,7 +4992,7 @@
       "converged": false,
       "queries_total": 4815,
       "equivalence_queries": 200,
-      "seconds": 8.037,
+      "seconds": 20.632,
       "error_type": null,
       "error": null
     },
@@ -5024,7 +5023,7 @@
       "converged": false,
       "queries_total": 192957,
       "equivalence_queries": 200,
-      "seconds": 444.909,
+      "seconds": 1176.213,
       "error_type": null,
       "error": null
     },
@@ -5055,7 +5054,7 @@
       "converged": true,
       "queries_total": 43978,
       "equivalence_queries": 20,
-      "seconds": 13.453,
+      "seconds": 33.707,
       "error_type": null,
       "error": null
     },
@@ -5086,7 +5085,7 @@
       "converged": false,
       "queries_total": 6819,
       "equivalence_queries": 200,
-      "seconds": 9.894,
+      "seconds": 24.575,
       "error_type": null,
       "error": null
     },
@@ -5117,7 +5116,7 @@
       "converged": false,
       "queries_total": 88713,
       "equivalence_queries": 200,
-      "seconds": 322.326,
+      "seconds": 858.954,
       "error_type": null,
       "error": null
     },
@@ -5148,7 +5147,7 @@
       "converged": true,
       "queries_total": 19385,
       "equivalence_queries": 9,
-      "seconds": 0.949,
+      "seconds": 2.609,
       "error_type": null,
       "error": null
     },
@@ -5179,7 +5178,7 @@
       "converged": false,
       "queries_total": 6795,
       "equivalence_queries": 200,
-      "seconds": 9.507,
+      "seconds": 25.916,
       "error_type": null,
       "error": null
     },
@@ -5210,7 +5209,7 @@
       "converged": false,
       "queries_total": 19225,
       "equivalence_queries": 200,
-      "seconds": 24.856,
+      "seconds": 68.006,
       "error_type": null,
       "error": null
     },
@@ -5241,7 +5240,7 @@
       "converged": true,
       "queries_total": 21063,
       "equivalence_queries": 12,
-      "seconds": 1.533,
+      "seconds": 4.228,
       "error_type": null,
       "error": null
     },
@@ -5272,7 +5271,7 @@
       "converged": false,
       "queries_total": 5284,
       "equivalence_queries": 200,
-      "seconds": 7.909,
+      "seconds": 22.172,
       "error_type": null,
       "error": null
     },
@@ -5303,7 +5302,7 @@
       "converged": false,
       "queries_total": 8188,
       "equivalence_queries": 200,
-      "seconds": 6.55,
+      "seconds": 18.066,
       "error_type": null,
       "error": null
     },
@@ -5334,7 +5333,7 @@
       "converged": false,
       "queries_total": 1400,
       "equivalence_queries": 200,
-      "seconds": 0.673,
+      "seconds": 1.813,
       "error_type": null,
       "error": null
     },
@@ -5365,7 +5364,7 @@
       "converged": false,
       "queries_total": 2956,
       "equivalence_queries": 200,
-      "seconds": 2.265,
+      "seconds": 6.166,
       "error_type": null,
       "error": null
     },
@@ -5396,7 +5395,7 @@
       "converged": false,
       "queries_total": 8382,
       "equivalence_queries": 200,
-      "seconds": 7.029,
+      "seconds": 19.34,
       "error_type": null,
       "error": null
     },
@@ -5427,7 +5426,7 @@
       "converged": false,
       "queries_total": 1536,
       "equivalence_queries": 200,
-      "seconds": 0.782,
+      "seconds": 2.146,
       "error_type": null,
       "error": null
     },
@@ -5458,7 +5457,7 @@
       "converged": false,
       "queries_total": 2276,
       "equivalence_queries": 200,
-      "seconds": 0.847,
+      "seconds": 2.336,
       "error_type": null,
       "error": null
     },
@@ -5489,7 +5488,7 @@
       "converged": false,
       "queries_total": 3197,
       "equivalence_queries": 200,
-      "seconds": 1.365,
+      "seconds": 4.012,
       "error_type": null,
       "error": null
     },
@@ -5520,7 +5519,7 @@
       "converged": false,
       "queries_total": 1701,
       "equivalence_queries": 200,
-      "seconds": 0.64,
+      "seconds": 1.839,
       "error_type": null,
       "error": null
     },
@@ -5551,7 +5550,7 @@
       "converged": false,
       "queries_total": 2459,
       "equivalence_queries": 200,
-      "seconds": 1.165,
+      "seconds": 3.353,
       "error_type": null,
       "error": null
     },
@@ -5582,7 +5581,7 @@
       "converged": false,
       "queries_total": 3168,
       "equivalence_queries": 200,
-      "seconds": 1.474,
+      "seconds": 4.199,
       "error_type": null,
       "error": null
     },
@@ -5613,7 +5612,7 @@
       "converged": false,
       "queries_total": 2066,
       "equivalence_queries": 200,
-      "seconds": 0.908,
+      "seconds": 3.808,
       "error_type": null,
       "error": null
     },
@@ -5644,7 +5643,7 @@
       "converged": false,
       "queries_total": 5909,
       "equivalence_queries": 200,
-      "seconds": 9.366,
+      "seconds": 24.417,
       "error_type": null,
       "error": null
     },
@@ -5675,7 +5674,7 @@
       "converged": false,
       "queries_total": 38915,
       "equivalence_queries": 200,
-      "seconds": 161.138,
+      "seconds": 427.46,
       "error_type": null,
       "error": null
     },
@@ -5706,7 +5705,7 @@
       "converged": false,
       "queries_total": 8060,
       "equivalence_queries": 200,
-      "seconds": 20.594,
+      "seconds": 53.888,
       "error_type": null,
       "error": null
     },
@@ -5737,7 +5736,7 @@
       "converged": false,
       "queries_total": 5894,
       "equivalence_queries": 200,
-      "seconds": 7.958,
+      "seconds": 20.528,
       "error_type": null,
       "error": null
     },
@@ -5768,7 +5767,7 @@
       "converged": false,
       "queries_total": 26826,
       "equivalence_queries": 200,
-      "seconds": 123.27,
+      "seconds": 316.231,
       "error_type": null,
       "error": null
     },
@@ -5799,7 +5798,7 @@
       "converged": false,
       "queries_total": 6960,
       "equivalence_queries": 200,
-      "seconds": 15.831,
+      "seconds": 40.656,
       "error_type": null,
       "error": null
     },
@@ -5830,7 +5829,7 @@
       "converged": false,
       "queries_total": 6821,
       "equivalence_queries": 200,
-      "seconds": 7.882,
+      "seconds": 19.825,
       "error_type": null,
       "error": null
     },
@@ -5861,7 +5860,7 @@
       "converged": false,
       "queries_total": 6957,
       "equivalence_queries": 200,
-      "seconds": 7.098,
+      "seconds": 18.181,
       "error_type": null,
       "error": null
     },
@@ -5892,7 +5891,7 @@
       "converged": false,
       "queries_total": 8905,
       "equivalence_queries": 200,
-      "seconds": 10.516,
+      "seconds": 27.112,
       "error_type": null,
       "error": null
     },
@@ -5923,7 +5922,7 @@
       "converged": false,
       "queries_total": 6197,
       "equivalence_queries": 200,
-      "seconds": 8.874,
+      "seconds": 28.493,
       "error_type": null,
       "error": null
     },
@@ -5954,7 +5953,7 @@
       "converged": false,
       "queries_total": 8866,
       "equivalence_queries": 200,
-      "seconds": 14.449,
+      "seconds": 39.299,
       "error_type": null,
       "error": null
     },
@@ -5985,7 +5984,7 @@
       "converged": false,
       "queries_total": 6961,
       "equivalence_queries": 200,
-      "seconds": 8.568,
+      "seconds": 23.565,
       "error_type": null,
       "error": null
     },
@@ -6016,7 +6015,7 @@
       "converged": true,
       "queries_total": 4556,
       "equivalence_queries": 10,
-      "seconds": 0.117,
+      "seconds": 0.376,
       "error_type": null,
       "error": null
     },
@@ -6047,7 +6046,7 @@
       "converged": true,
       "queries_total": 6728,
       "equivalence_queries": 12,
-      "seconds": 0.203,
+      "seconds": 0.55,
       "error_type": null,
       "error": null
     },
@@ -6078,7 +6077,7 @@
       "converged": true,
       "queries_total": 13860,
       "equivalence_queries": 27,
-      "seconds": 1.87,
+      "seconds": 5.289,
       "error_type": null,
       "error": null
     },
@@ -6109,7 +6108,7 @@
       "converged": true,
       "queries_total": 4034,
       "equivalence_queries": 8,
-      "seconds": 0.089,
+      "seconds": 0.239,
       "error_type": null,
       "error": null
     },
@@ -6140,7 +6139,7 @@
       "converged": true,
       "queries_total": 6932,
       "equivalence_queries": 12,
-      "seconds": 0.234,
+      "seconds": 0.708,
       "error_type": null,
       "error": null
     },
@@ -6171,7 +6170,7 @@
       "converged": true,
       "queries_total": 4122,
       "equivalence_queries": 11,
-      "seconds": 0.107,
+      "seconds": 0.276,
       "error_type": null,
       "error": null
     },
@@ -6202,7 +6201,7 @@
       "converged": true,
       "queries_total": 7439,
       "equivalence_queries": 11,
-      "seconds": 0.209,
+      "seconds": 0.572,
       "error_type": null,
       "error": null
     },
@@ -6233,7 +6232,7 @@
       "converged": true,
       "queries_total": 9537,
       "equivalence_queries": 13,
-      "seconds": 0.254,
+      "seconds": 0.642,
       "error_type": null,
       "error": null
     },
@@ -6264,7 +6263,7 @@
       "converged": false,
       "queries_total": 2324,
       "equivalence_queries": 200,
-      "seconds": 0.975,
+      "seconds": 2.76,
       "error_type": null,
       "error": null
     },
@@ -6295,7 +6294,7 @@
       "converged": false,
       "queries_total": 1753,
       "equivalence_queries": 200,
-      "seconds": 0.659,
+      "seconds": 1.847,
       "error_type": null,
       "error": null
     },
@@ -6326,7 +6325,7 @@
       "converged": true,
       "queries_total": 14406,
       "equivalence_queries": 16,
-      "seconds": 0.429,
+      "seconds": 1.308,
       "error_type": null,
       "error": null
     },
@@ -6357,7 +6356,7 @@
       "converged": true,
       "queries_total": 10200,
       "equivalence_queries": 37,
-      "seconds": 0.612,
+      "seconds": 1.809,
       "error_type": null,
       "error": null
     },
@@ -6388,7 +6387,7 @@
       "converged": true,
       "queries_total": 15108,
       "equivalence_queries": 9,
-      "seconds": 1.495,
+      "seconds": 4.151,
       "error_type": null,
       "error": null
     },
@@ -6419,7 +6418,7 @@
       "converged": true,
       "queries_total": 25858,
       "equivalence_queries": 14,
-      "seconds": 4.293,
+      "seconds": 11.685,
       "error_type": null,
       "error": null
     },
@@ -6450,7 +6449,7 @@
       "converged": true,
       "queries_total": 15177,
       "equivalence_queries": 9,
-      "seconds": 1.332,
+      "seconds": 3.34,
       "error_type": null,
       "error": null
     },
@@ -6481,7 +6480,7 @@
       "converged": true,
       "queries_total": 36629,
       "equivalence_queries": 29,
-      "seconds": 9.833,
+      "seconds": 25.283,
       "error_type": null,
       "error": null
     },
@@ -6512,7 +6511,7 @@
       "converged": true,
       "queries_total": 22353,
       "equivalence_queries": 13,
-      "seconds": 3.153,
+      "seconds": 8.352,
       "error_type": null,
       "error": null
     },
@@ -6543,7 +6542,7 @@
       "converged": true,
       "queries_total": 14392,
       "equivalence_queries": 9,
-      "seconds": 1.245,
+      "seconds": 3.344,
       "error_type": null,
       "error": null
     },
@@ -6574,7 +6573,7 @@
       "converged": true,
       "queries_total": 22535,
       "equivalence_queries": 9,
-      "seconds": 1.34,
+      "seconds": 3.498,
       "error_type": null,
       "error": null
     },
@@ -6605,7 +6604,7 @@
       "converged": true,
       "queries_total": 31660,
       "equivalence_queries": 17,
-      "seconds": 4.607,
+      "seconds": 12.573,
       "error_type": null,
       "error": null
     },
@@ -6636,7 +6635,7 @@
       "converged": true,
       "queries_total": 23914,
       "equivalence_queries": 15,
-      "seconds": 2.593,
+      "seconds": 6.732,
       "error_type": null,
       "error": null
     },
@@ -6667,7 +6666,7 @@
       "converged": true,
       "queries_total": 17289,
       "equivalence_queries": 8,
-      "seconds": 1.182,
+      "seconds": 3.063,
       "error_type": null,
       "error": null
     },
@@ -6698,7 +6697,7 @@
       "converged": true,
       "queries_total": 22813,
       "equivalence_queries": 11,
-      "seconds": 1.37,
+      "seconds": 3.65,
       "error_type": null,
       "error": null
     },
@@ -6729,7 +6728,7 @@
       "converged": true,
       "queries_total": 41065,
       "equivalence_queries": 17,
-      "seconds": 4.186,
+      "seconds": 11.033,
       "error_type": null,
       "error": null
     },
@@ -6760,7 +6759,7 @@
       "converged": false,
       "queries_total": 9327,
       "equivalence_queries": 200,
-      "seconds": 16.897,
+      "seconds": 46.011,
       "error_type": null,
       "error": null
     },
@@ -6791,7 +6790,7 @@
       "converged": false,
       "queries_total": 7868,
       "equivalence_queries": 200,
-      "seconds": 2.504,
+      "seconds": 7.223,
       "error_type": null,
       "error": null
     },
@@ -6822,7 +6821,7 @@
       "converged": false,
       "queries_total": 1240,
       "equivalence_queries": 200,
-      "seconds": 0.796,
+      "seconds": 2.2,
       "error_type": null,
       "error": null
     },
@@ -6853,7 +6852,7 @@
       "converged": false,
       "queries_total": 2277,
       "equivalence_queries": 200,
-      "seconds": 1.278,
+      "seconds": 3.66,
       "error_type": null,
       "error": null
     },
@@ -6884,7 +6883,7 @@
       "converged": true,
       "queries_total": 7585,
       "equivalence_queries": 15,
-      "seconds": 0.315,
+      "seconds": 0.898,
       "error_type": null,
       "error": null
     },
@@ -6915,7 +6914,7 @@
       "converged": false,
       "queries_total": 1120,
       "equivalence_queries": 200,
-      "seconds": 0.626,
+      "seconds": 2.183,
       "error_type": null,
       "error": null
     },
@@ -6946,7 +6945,7 @@
       "converged": false,
       "queries_total": 6439,
       "equivalence_queries": 200,
-      "seconds": 6.369,
+      "seconds": 18.435,
       "error_type": null,
       "error": null
     },
@@ -6977,7 +6976,7 @@
       "converged": true,
       "queries_total": 8889,
       "equivalence_queries": 13,
-      "seconds": 0.205,
+      "seconds": 0.585,
       "error_type": null,
       "error": null
     },
@@ -7008,7 +7007,7 @@
       "converged": false,
       "queries_total": 27152,
       "equivalence_queries": 200,
-      "seconds": 120.042,
+      "seconds": 325.967,
       "error_type": null,
       "error": null
     },
@@ -7039,7 +7038,7 @@
       "converged": true,
       "queries_total": 7361,
       "equivalence_queries": 10,
-      "seconds": 0.199,
+      "seconds": 0.559,
       "error_type": null,
       "error": null
     },
@@ -7070,7 +7069,7 @@
       "converged": true,
       "queries_total": 8817,
       "equivalence_queries": 13,
-      "seconds": 0.221,
+      "seconds": 0.625,
       "error_type": null,
       "error": null
     },
@@ -7101,7 +7100,7 @@
       "converged": false,
       "queries_total": 28935,
       "equivalence_queries": 200,
-      "seconds": 101.224,
+      "seconds": 283.438,
       "error_type": null,
       "error": null
     },
@@ -7132,7 +7131,7 @@
       "converged": true,
       "queries_total": 17514,
       "equivalence_queries": 12,
-      "seconds": 1.706,
+      "seconds": 4.535,
       "error_type": null,
       "error": null
     },
@@ -7163,7 +7162,7 @@
       "converged": true,
       "queries_total": 27234,
       "equivalence_queries": 14,
-      "seconds": 4.102,
+      "seconds": 10.961,
       "error_type": null,
       "error": null
     },
@@ -7194,7 +7193,7 @@
       "converged": true,
       "queries_total": 15442,
       "equivalence_queries": 9,
-      "seconds": 1.508,
+      "seconds": 3.974,
       "error_type": null,
       "error": null
     },
@@ -7225,7 +7224,7 @@
       "converged": true,
       "queries_total": 80235,
       "equivalence_queries": 75,
-      "seconds": 103.49,
+      "seconds": 276.728,
       "error_type": null,
       "error": null
     },
@@ -7256,7 +7255,7 @@
       "converged": true,
       "queries_total": 21761,
       "equivalence_queries": 13,
-      "seconds": 2.884,
+      "seconds": 7.529,
       "error_type": null,
       "error": null
     },
@@ -7287,7 +7286,7 @@
       "converged": false,
       "queries_total": 5904,
       "equivalence_queries": 200,
-      "seconds": 10.564,
+      "seconds": 26.792,
       "error_type": null,
       "error": null
     },
@@ -7318,7 +7317,7 @@
       "converged": true,
       "queries_total": 21841,
       "equivalence_queries": 9,
-      "seconds": 1.234,
+      "seconds": 3.18,
       "error_type": null,
       "error": null
     },
@@ -7349,7 +7348,7 @@
       "converged": true,
       "queries_total": 28065,
       "equivalence_queries": 18,
-      "seconds": 2.668,
+      "seconds": 7.234,
       "error_type": null,
       "error": null
     },
@@ -7380,7 +7379,7 @@
       "converged": true,
       "queries_total": 20545,
       "equivalence_queries": 14,
-      "seconds": 1.556,
+      "seconds": 4.044,
       "error_type": null,
       "error": null
     },
@@ -7411,7 +7410,7 @@
       "converged": true,
       "queries_total": 16437,
       "equivalence_queries": 8,
-      "seconds": 0.9,
+      "seconds": 2.299,
       "error_type": null,
       "error": null
     },
@@ -7442,7 +7441,7 @@
       "converged": true,
       "queries_total": 28808,
       "equivalence_queries": 20,
-      "seconds": 3.511,
+      "seconds": 9.118,
       "error_type": null,
       "error": null
     },
@@ -7473,7 +7472,7 @@
       "converged": true,
       "queries_total": 19032,
       "equivalence_queries": 14,
-      "seconds": 1.382,
+      "seconds": 3.549,
       "error_type": null,
       "error": null
     },
@@ -7504,7 +7503,7 @@
       "converged": false,
       "queries_total": 4633,
       "equivalence_queries": 200,
-      "seconds": 5.632,
+      "seconds": 14.87,
       "error_type": null,
       "error": null
     },
@@ -7535,7 +7534,7 @@
       "converged": false,
       "queries_total": 8654,
       "equivalence_queries": 200,
-      "seconds": 1.845,
+      "seconds": 5.13,
       "error_type": null,
       "error": null
     },
@@ -7566,7 +7565,7 @@
       "converged": false,
       "queries_total": 1408,
       "equivalence_queries": 200,
-      "seconds": 0.898,
+      "seconds": 2.458,
       "error_type": null,
       "error": null
     },
@@ -7597,7 +7596,7 @@
       "converged": false,
       "queries_total": 2854,
       "equivalence_queries": 200,
-      "seconds": 2.481,
+      "seconds": 7.176,
       "error_type": null,
       "error": null
     },
@@ -7628,7 +7627,7 @@
       "converged": false,
       "queries_total": 8666,
       "equivalence_queries": 200,
-      "seconds": 1.773,
+      "seconds": 5.032,
       "error_type": null,
       "error": null
     },
@@ -7659,7 +7658,7 @@
       "converged": false,
       "queries_total": 1408,
       "equivalence_queries": 200,
-      "seconds": 0.869,
+      "seconds": 2.713,
       "error_type": null,
       "error": null
     },
@@ -7690,7 +7689,7 @@
       "converged": false,
       "queries_total": 20822,
       "equivalence_queries": 200,
-      "seconds": 51.529,
+      "seconds": 138.014,
       "error_type": null,
       "error": null
     },
@@ -7721,7 +7720,7 @@
       "converged": false,
       "queries_total": 7034,
       "equivalence_queries": 200,
-      "seconds": 5.109,
+      "seconds": 15.966,
       "error_type": null,
       "error": null
     },
@@ -7752,7 +7751,7 @@
       "converged": false,
       "queries_total": 2050,
       "equivalence_queries": 200,
-      "seconds": 0.964,
+      "seconds": 3.887,
       "error_type": null,
       "error": null
     },
@@ -7783,7 +7782,7 @@
       "converged": true,
       "queries_total": 12505,
       "equivalence_queries": 22,
-      "seconds": 0.794,
+      "seconds": 3.304,
       "error_type": null,
       "error": null
     },
@@ -7814,7 +7813,7 @@
       "converged": false,
       "queries_total": 4994,
       "equivalence_queries": 200,
-      "seconds": 3.301,
+      "seconds": 10.879,
       "error_type": null,
       "error": null
     },
@@ -7845,7 +7844,7 @@
       "converged": false,
       "queries_total": 2381,
       "equivalence_queries": 200,
-      "seconds": 1.405,
+      "seconds": 3.699,
       "error_type": null,
       "error": null
     },
@@ -7876,7 +7875,7 @@
       "converged": false,
       "queries_total": 6449,
       "equivalence_queries": 200,
-      "seconds": 16.062,
+      "seconds": 39.657,
       "error_type": null,
       "error": null
     },
@@ -7907,7 +7906,7 @@
       "converged": false,
       "queries_total": 42720,
       "equivalence_queries": 200,
-      "seconds": 166.705,
+      "seconds": 439.822,
       "error_type": null,
       "error": null
     },
@@ -7938,7 +7937,7 @@
       "converged": false,
       "queries_total": 7542,
       "equivalence_queries": 200,
-      "seconds": 15.349,
+      "seconds": 50.589,
       "error_type": null,
       "error": null
     },
@@ -7969,7 +7968,7 @@
       "converged": false,
       "queries_total": 7509,
       "equivalence_queries": 200,
-      "seconds": 23.257,
+      "seconds": 60.01,
       "error_type": null,
       "error": null
     },
@@ -8000,7 +7999,7 @@
       "converged": false,
       "queries_total": 31479,
       "equivalence_queries": 200,
-      "seconds": 121.891,
+      "seconds": 327.952,
       "error_type": null,
       "error": null
     },
@@ -8031,7 +8030,7 @@
       "converged": false,
       "queries_total": 14031,
       "equivalence_queries": 200,
-      "seconds": 40.152,
+      "seconds": 104.999,
       "error_type": null,
       "error": null
     },
@@ -8062,7 +8061,7 @@
       "converged": false,
       "queries_total": 6203,
       "equivalence_queries": 200,
-      "seconds": 8.466,
+      "seconds": 21.014,
       "error_type": null,
       "error": null
     },
@@ -8093,7 +8092,7 @@
       "converged": false,
       "queries_total": 28150,
       "equivalence_queries": 200,
-      "seconds": 54.427,
+      "seconds": 140.497,
       "error_type": null,
       "error": null
     },
@@ -8124,7 +8123,7 @@
       "converged": false,
       "queries_total": 54272,
       "equivalence_queries": 200,
-      "seconds": 110.149,
+      "seconds": 289.789,
       "error_type": null,
       "error": null
     },
@@ -8155,7 +8154,7 @@
       "converged": false,
       "queries_total": 7473,
       "equivalence_queries": 200,
-      "seconds": 11.881,
+      "seconds": 30.719,
       "error_type": null,
       "error": null
     },
@@ -8186,7 +8185,7 @@
       "converged": false,
       "queries_total": 28553,
       "equivalence_queries": 200,
-      "seconds": 72.396,
+      "seconds": 189.943,
       "error_type": null,
       "error": null
     },
@@ -8217,7 +8216,7 @@
       "converged": false,
       "queries_total": 54762,
       "equivalence_queries": 200,
-      "seconds": 133.004,
+      "seconds": 348.555,
       "error_type": null,
       "error": null
     },
@@ -8248,7 +8247,7 @@
       "converged": false,
       "queries_total": 2392,
       "equivalence_queries": 200,
-      "seconds": 1.518,
+      "seconds": 4.137,
       "error_type": null,
       "error": null
     },
@@ -8279,7 +8278,7 @@
       "converged": false,
       "queries_total": 11122,
       "equivalence_queries": 200,
-      "seconds": 26.1,
+      "seconds": 72.112,
       "error_type": null,
       "error": null
     },
@@ -8310,7 +8309,7 @@
       "converged": false,
       "queries_total": 1284,
       "equivalence_queries": 200,
-      "seconds": 0.663,
+      "seconds": 1.754,
       "error_type": null,
       "error": null
     },
@@ -8341,7 +8340,7 @@
       "converged": false,
       "queries_total": 9453,
       "equivalence_queries": 200,
-      "seconds": 14.16,
+      "seconds": 39.745,
       "error_type": null,
       "error": null
     },
@@ -8372,7 +8371,7 @@
       "converged": false,
       "queries_total": 8381,
       "equivalence_queries": 200,
-      "seconds": 7.963,
+      "seconds": 21.909,
       "error_type": null,
       "error": null
     },
@@ -8403,7 +8402,7 @@
       "converged": false,
       "queries_total": 1284,
       "equivalence_queries": 200,
-      "seconds": 0.702,
+      "seconds": 1.895,
       "error_type": null,
       "error": null
     },
@@ -8434,7 +8433,7 @@
       "converged": false,
       "queries_total": 11903,
       "equivalence_queries": 200,
-      "seconds": 17.533,
+      "seconds": 47.935,
       "error_type": null,
       "error": null
     },
@@ -8465,7 +8464,7 @@
       "converged": false,
       "queries_total": 4192,
       "equivalence_queries": 200,
-      "seconds": 2.432,
+      "seconds": 6.799,
       "error_type": null,
       "error": null
     },
@@ -8496,7 +8495,7 @@
       "converged": false,
       "queries_total": 2262,
       "equivalence_queries": 200,
-      "seconds": 0.942,
+      "seconds": 2.875,
       "error_type": null,
       "error": null
     },
@@ -8527,7 +8526,7 @@
       "converged": false,
       "queries_total": 2475,
       "equivalence_queries": 200,
-      "seconds": 1.19,
+      "seconds": 3.54,
       "error_type": null,
       "error": null
     },
@@ -8558,7 +8557,7 @@
       "converged": false,
       "queries_total": 4559,
       "equivalence_queries": 200,
-      "seconds": 2.514,
+      "seconds": 7.035,
       "error_type": null,
       "error": null
     },
@@ -8589,7 +8588,7 @@
       "converged": false,
       "queries_total": 2263,
       "equivalence_queries": 200,
-      "seconds": 0.969,
+      "seconds": 2.665,
       "error_type": null,
       "error": null
     },
@@ -8620,7 +8619,7 @@
       "converged": false,
       "queries_total": 5957,
       "equivalence_queries": 200,
-      "seconds": 11.127,
+      "seconds": 29.631,
       "error_type": null,
       "error": null
     },
@@ -8651,7 +8650,7 @@
       "converged": false,
       "queries_total": 16103,
       "equivalence_queries": 200,
-      "seconds": 37.541,
+      "seconds": 105.449,
       "error_type": null,
       "error": null
     },
@@ -8682,7 +8681,7 @@
       "converged": false,
       "queries_total": 32002,
       "equivalence_queries": 200,
-      "seconds": 90.396,
+      "seconds": 257.442,
       "error_type": null,
       "error": null
     },
@@ -8713,7 +8712,7 @@
       "converged": false,
       "queries_total": 5935,
       "equivalence_queries": 200,
-      "seconds": 12.823,
+      "seconds": 36.095,
       "error_type": null,
       "error": null
     },
@@ -8744,7 +8743,7 @@
       "converged": false,
       "queries_total": 34866,
       "equivalence_queries": 200,
-      "seconds": 127.959,
+      "seconds": 347.738,
       "error_type": null,
       "error": null
     },
@@ -8775,7 +8774,7 @@
       "converged": false,
       "queries_total": 18922,
       "equivalence_queries": 200,
-      "seconds": 47.483,
+      "seconds": 174.057,
       "error_type": null,
       "error": null
     },
@@ -8806,7 +8805,7 @@
       "converged": false,
       "queries_total": 6881,
       "equivalence_queries": 200,
-      "seconds": 8.599,
+      "seconds": 22.985,
       "error_type": null,
       "error": null
     },
@@ -8837,7 +8836,7 @@
       "converged": false,
       "queries_total": 10117,
       "equivalence_queries": 200,
-      "seconds": 14.009,
+      "seconds": 36.921,
       "error_type": null,
       "error": null
     },
@@ -8868,7 +8867,7 @@
       "converged": false,
       "queries_total": 23713,
       "equivalence_queries": 200,
-      "seconds": 51.596,
+      "seconds": 136.1,
       "error_type": null,
       "error": null
     },
@@ -8899,7 +8898,7 @@
       "converged": false,
       "queries_total": 6223,
       "equivalence_queries": 200,
-      "seconds": 7.851,
+      "seconds": 20.718,
       "error_type": null,
       "error": null
     },
@@ -8930,7 +8929,7 @@
       "converged": false,
       "queries_total": 12667,
       "equivalence_queries": 200,
-      "seconds": 19.15,
+      "seconds": 51.58,
       "error_type": null,
       "error": null
     },
@@ -8961,7 +8960,7 @@
       "converged": false,
       "queries_total": 17358,
       "equivalence_queries": 200,
-      "seconds": 32.054,
+      "seconds": 116.39,
       "error_type": null,
       "error": null
     },
@@ -8992,7 +8991,7 @@
       "converged": true,
       "queries_total": 11257,
       "equivalence_queries": 21,
-      "seconds": 0.785,
+      "seconds": 3.43,
       "error_type": null,
       "error": null
     },
@@ -9023,7 +9022,7 @@
       "converged": false,
       "queries_total": 10323,
       "equivalence_queries": 200,
-      "seconds": 18.5,
+      "seconds": 65.94,
       "error_type": null,
       "error": null
     },
@@ -9054,7 +9053,7 @@
       "converged": true,
       "queries_total": 7014,
       "equivalence_queries": 14,
-      "seconds": 0.26,
+      "seconds": 0.725,
       "error_type": null,
       "error": null
     },
@@ -9085,7 +9084,7 @@
       "converged": true,
       "queries_total": 11063,
       "equivalence_queries": 18,
-      "seconds": 0.765,
+      "seconds": 2.163,
       "error_type": null,
       "error": null
     },
@@ -9116,7 +9115,7 @@
       "converged": true,
       "queries_total": 7694,
       "equivalence_queries": 14,
-      "seconds": 0.246,
+      "seconds": 0.865,
       "error_type": null,
       "error": null
     },
@@ -9147,7 +9146,7 @@
       "converged": true,
       "queries_total": 8749,
       "equivalence_queries": 17,
-      "seconds": 0.47,
+      "seconds": 1.321,
       "error_type": null,
       "error": null
     },
@@ -9178,7 +9177,7 @@
       "converged": true,
       "queries_total": 9554,
       "equivalence_queries": 15,
-      "seconds": 0.339,
+      "seconds": 0.946,
       "error_type": null,
       "error": null
     },
@@ -9209,7 +9208,7 @@
       "converged": true,
       "queries_total": 14675,
       "equivalence_queries": 37,
-      "seconds": 0.705,
+      "seconds": 2.008,
       "error_type": null,
       "error": null
     },
@@ -9240,7 +9239,7 @@
       "converged": true,
       "queries_total": 13432,
       "equivalence_queries": 18,
-      "seconds": 0.548,
+      "seconds": 1.573,
       "error_type": null,
       "error": null
     },
@@ -9271,7 +9270,7 @@
       "converged": true,
       "queries_total": 12879,
       "equivalence_queries": 20,
-      "seconds": 0.615,
+      "seconds": 1.76,
       "error_type": null,
       "error": null
     },
@@ -9302,7 +9301,7 @@
       "converged": true,
       "queries_total": 13059,
       "equivalence_queries": 17,
-      "seconds": 0.469,
+      "seconds": 1.299,
       "error_type": null,
       "error": null
     },
@@ -9333,7 +9332,7 @@
       "converged": false,
       "queries_total": 16309,
       "equivalence_queries": 200,
-      "seconds": 29.479,
+      "seconds": 84.599,
       "error_type": null,
       "error": null
     },
@@ -9364,7 +9363,7 @@
       "converged": true,
       "queries_total": 37241,
       "equivalence_queries": 16,
-      "seconds": 7.624,
+      "seconds": 23.437,
       "error_type": null,
       "error": null
     },
@@ -9395,7 +9394,7 @@
       "converged": true,
       "queries_total": 31348,
       "equivalence_queries": 15,
-      "seconds": 4.763,
+      "seconds": 12.153,
       "error_type": null,
       "error": null
     },
@@ -9426,7 +9425,7 @@
       "converged": true,
       "queries_total": 41745,
       "equivalence_queries": 18,
-      "seconds": 7.947,
+      "seconds": 20.044,
       "error_type": null,
       "error": null
     },
@@ -9457,7 +9456,7 @@
       "converged": true,
       "queries_total": 92300,
       "equivalence_queries": 39,
-      "seconds": 73.137,
+      "seconds": 201.321,
       "error_type": null,
       "error": null
     },
@@ -9488,7 +9487,7 @@
       "converged": true,
       "queries_total": 42887,
       "equivalence_queries": 18,
-      "seconds": 9.791,
+      "seconds": 24.998,
       "error_type": null,
       "error": null
     },
@@ -9519,7 +9518,7 @@
       "converged": false,
       "queries_total": 81313,
       "equivalence_queries": 200,
-      "seconds": 400.267,
+      "seconds": 1050.85,
       "error_type": null,
       "error": null
     },
@@ -9550,7 +9549,7 @@
       "converged": true,
       "queries_total": 89735,
       "equivalence_queries": 36,
-      "seconds": 42.2,
+      "seconds": 108.357,
       "error_type": null,
       "error": null
     },
@@ -9581,7 +9580,7 @@
       "converged": true,
       "queries_total": 36202,
       "equivalence_queries": 15,
-      "seconds": 3.275,
+      "seconds": 8.365,
       "error_type": null,
       "error": null
     },
@@ -9612,7 +9611,7 @@
       "converged": false,
       "queries_total": 10139,
       "equivalence_queries": 200,
-      "seconds": 16.249,
+      "seconds": 41.294,
       "error_type": null,
       "error": null
     },
@@ -9643,7 +9642,7 @@
       "converged": true,
       "queries_total": 43007,
       "equivalence_queries": 16,
-      "seconds": 6.347,
+      "seconds": 15.917,
       "error_type": null,
       "error": null
     },
@@ -9674,7 +9673,7 @@
       "converged": true,
       "queries_total": 36439,
       "equivalence_queries": 15,
-      "seconds": 3.713,
+      "seconds": 9.641,
       "error_type": null,
       "error": null
     },
@@ -9705,7 +9704,7 @@
       "converged": false,
       "queries_total": 8866,
       "equivalence_queries": 200,
-      "seconds": 12.965,
+      "seconds": 33.175,
       "error_type": null,
       "error": null
     },
@@ -9736,7 +9735,7 @@
       "converged": true,
       "queries_total": 8477,
       "equivalence_queries": 15,
-      "seconds": 0.436,
+      "seconds": 1.193,
       "error_type": null,
       "error": null
     },
@@ -9767,7 +9766,7 @@
       "converged": false,
       "queries_total": 13460,
       "equivalence_queries": 200,
-      "seconds": 36.612,
+      "seconds": 98.06,
       "error_type": null,
       "error": null
     },
@@ -9798,7 +9797,7 @@
       "converged": false,
       "queries_total": 11943,
       "equivalence_queries": 200,
-      "seconds": 33.915,
+      "seconds": 88.419,
       "error_type": null,
       "error": null
     },
@@ -9829,7 +9828,7 @@
       "converged": true,
       "queries_total": 9009,
       "equivalence_queries": 15,
-      "seconds": 0.482,
+      "seconds": 1.338,
       "error_type": null,
       "error": null
     },
@@ -9860,7 +9859,7 @@
       "converged": true,
       "queries_total": 14124,
       "equivalence_queries": 26,
-      "seconds": 2.002,
+      "seconds": 5.475,
       "error_type": null,
       "error": null
     },
@@ -9891,7 +9890,7 @@
       "converged": true,
       "queries_total": 9870,
       "equivalence_queries": 20,
-      "seconds": 0.677,
+      "seconds": 1.998,
       "error_type": null,
       "error": null
     },
@@ -9922,7 +9921,7 @@
       "converged": false,
       "queries_total": 1747,
       "equivalence_queries": 200,
-      "seconds": 0.871,
+      "seconds": 2.393,
       "error_type": null,
       "error": null
     },
@@ -9953,7 +9952,7 @@
       "converged": false,
       "queries_total": 6337,
       "equivalence_queries": 200,
-      "seconds": 5.088,
+      "seconds": 14.139,
       "error_type": null,
       "error": null
     },
@@ -9984,7 +9983,7 @@
       "converged": true,
       "queries_total": 7985,
       "equivalence_queries": 14,
-      "seconds": 0.181,
+      "seconds": 0.503,
       "error_type": null,
       "error": null
     },
@@ -10015,7 +10014,7 @@
       "converged": false,
       "queries_total": 1736,
       "equivalence_queries": 200,
-      "seconds": 0.878,
+      "seconds": 2.431,
       "error_type": null,
       "error": null
     },
@@ -10046,7 +10045,7 @@
       "converged": true,
       "queries_total": 16238,
       "equivalence_queries": 34,
-      "seconds": 1.319,
+      "seconds": 3.62,
       "error_type": null,
       "error": null
     },
@@ -10077,7 +10076,7 @@
       "converged": false,
       "queries_total": 2609,
       "equivalence_queries": 200,
-      "seconds": 1.075,
+      "seconds": 3.164,
       "error_type": null,
       "error": null
     },
@@ -10108,7 +10107,7 @@
       "converged": true,
       "queries_total": 43819,
       "equivalence_queries": 19,
-      "seconds": 12.328,
+      "seconds": 32.317,
       "error_type": null,
       "error": null
     },
@@ -10139,7 +10138,7 @@
       "converged": false,
       "queries_total": 8034,
       "equivalence_queries": 200,
-      "seconds": 19.341,
+      "seconds": 50.285,
       "error_type": null,
       "error": null
     },
@@ -10170,7 +10169,7 @@
       "converged": true,
       "queries_total": 52042,
       "equivalence_queries": 24,
-      "seconds": 16.756,
+      "seconds": 44.909,
       "error_type": null,
       "error": null
     },
@@ -10201,7 +10200,7 @@
       "converged": true,
       "queries_total": 72792,
       "equivalence_queries": 37,
-      "seconds": 62.471,
+      "seconds": 170.457,
       "error_type": null,
       "error": null
     },
@@ -10232,7 +10231,7 @@
       "converged": false,
       "queries_total": 8034,
       "equivalence_queries": 200,
-      "seconds": 20.544,
+      "seconds": 51.861,
       "error_type": null,
       "error": null
     },
@@ -10263,7 +10262,7 @@
       "converged": true,
       "queries_total": 38310,
       "equivalence_queries": 23,
-      "seconds": 11.171,
+      "seconds": 28.64,
       "error_type": null,
       "error": null
     },
@@ -10294,7 +10293,7 @@
       "converged": false,
       "queries_total": 27335,
       "equivalence_queries": 200,
-      "seconds": 72.712,
+      "seconds": 184.24,
       "error_type": null,
       "error": null
     },
@@ -10325,7 +10324,7 @@
       "converged": true,
       "queries_total": 28459,
       "equivalence_queries": 16,
-      "seconds": 3.011,
+      "seconds": 7.636,
       "error_type": null,
       "error": null
     },
@@ -10356,7 +10355,7 @@
       "converged": false,
       "queries_total": 10137,
       "equivalence_queries": 200,
-      "seconds": 18.398,
+      "seconds": 45.839,
       "error_type": null,
       "error": null
     },
@@ -10387,7 +10386,7 @@
       "converged": true,
       "queries_total": 51454,
       "equivalence_queries": 19,
-      "seconds": 11.101,
+      "seconds": 28.009,
       "error_type": null,
       "error": null
     },
@@ -10418,7 +10417,7 @@
       "converged": true,
       "queries_total": 20210,
       "equivalence_queries": 14,
-      "seconds": 1.592,
+      "seconds": 3.976,
       "error_type": null,
       "error": null
     },
@@ -10449,7 +10448,7 @@
       "converged": false,
       "queries_total": 9499,
       "equivalence_queries": 200,
-      "seconds": 14.43,
+      "seconds": 36.098,
       "error_type": null,
       "error": null
     },
@@ -10480,7 +10479,7 @@
       "converged": false,
       "queries_total": 11475,
       "equivalence_queries": 200,
-      "seconds": 30.559,
+      "seconds": 84.351,
       "error_type": null,
       "error": null
     },
@@ -10511,7 +10510,7 @@
       "converged": false,
       "queries_total": 8122,
       "equivalence_queries": 200,
-      "seconds": 5.967,
+      "seconds": 16.013,
       "error_type": null,
       "error": null
     },
@@ -10542,7 +10541,7 @@
       "converged": false,
       "queries_total": 1284,
       "equivalence_queries": 200,
-      "seconds": 0.683,
+      "seconds": 1.873,
       "error_type": null,
       "error": null
     },
@@ -10573,7 +10572,7 @@
       "converged": false,
       "queries_total": 3836,
       "equivalence_queries": 200,
-      "seconds": 3.865,
+      "seconds": 10.429,
       "error_type": null,
       "error": null
     },
@@ -10604,7 +10603,7 @@
       "converged": false,
       "queries_total": 14496,
       "equivalence_queries": 200,
-      "seconds": 42.437,
+      "seconds": 111.02,
       "error_type": null,
       "error": null
     },
@@ -10635,7 +10634,7 @@
       "converged": false,
       "queries_total": 1430,
       "equivalence_queries": 200,
-      "seconds": 0.848,
+      "seconds": 2.27,
       "error_type": null,
       "error": null
     },
@@ -10666,7 +10665,7 @@
       "converged": false,
       "queries_total": 1747,
       "equivalence_queries": 200,
-      "seconds": 0.829,
+      "seconds": 2.29,
       "error_type": null,
       "error": null
     },
@@ -10697,7 +10696,7 @@
       "converged": false,
       "queries_total": 1633,
       "equivalence_queries": 200,
-      "seconds": 0.538,
+      "seconds": 1.494,
       "error_type": null,
       "error": null
     },
@@ -10728,7 +10727,7 @@
       "converged": false,
       "queries_total": 1702,
       "equivalence_queries": 200,
-      "seconds": 0.717,
+      "seconds": 1.933,
       "error_type": null,
       "error": null
     },
@@ -10759,7 +10758,7 @@
       "converged": false,
       "queries_total": 3004,
       "equivalence_queries": 200,
-      "seconds": 1.426,
+      "seconds": 3.747,
       "error_type": null,
       "error": null
     },
@@ -10790,7 +10789,7 @@
       "converged": false,
       "queries_total": 2016,
       "equivalence_queries": 200,
-      "seconds": 0.733,
+      "seconds": 2.039,
       "error_type": null,
       "error": null
     },
@@ -10821,7 +10820,7 @@
       "converged": false,
       "queries_total": 1529,
       "equivalence_queries": 200,
-      "seconds": 0.568,
+      "seconds": 1.569,
       "error_type": null,
       "error": null
     },
@@ -10852,7 +10851,7 @@
       "converged": false,
       "queries_total": 37480,
       "equivalence_queries": 200,
-      "seconds": 157.05,
+      "seconds": 401.385,
       "error_type": null,
       "error": null
     },
@@ -10883,7 +10882,7 @@
       "converged": false,
       "queries_total": 8034,
       "equivalence_queries": 200,
-      "seconds": 20.458,
+      "seconds": 52.31,
       "error_type": null,
       "error": null
     },
@@ -10914,7 +10913,7 @@
       "converged": false,
       "queries_total": 8569,
       "equivalence_queries": 200,
-      "seconds": 12.298,
+      "seconds": 31.558,
       "error_type": null,
       "error": null
     },
@@ -10945,7 +10944,7 @@
       "converged": false,
       "queries_total": 83043,
       "equivalence_queries": 200,
-      "seconds": 546.053,
+      "seconds": 1468.29,
       "error_type": null,
       "error": null
     },
@@ -10976,7 +10975,7 @@
       "converged": false,
       "queries_total": 10177,
       "equivalence_queries": 200,
-      "seconds": 23.995,
+      "seconds": 65.155,
       "error_type": null,
       "error": null
     },
@@ -11007,7 +11006,7 @@
       "converged": false,
       "queries_total": 124111,
       "equivalence_queries": 200,
-      "seconds": 519.881,
+      "seconds": 1500.191,
       "error_type": null,
       "error": null
     },
@@ -11038,7 +11037,7 @@
       "converged": false,
       "queries_total": 11159,
       "equivalence_queries": 200,
-      "seconds": 22.82,
+      "seconds": 61.219,
       "error_type": null,
       "error": null
     },
@@ -11069,7 +11068,7 @@
       "converged": false,
       "queries_total": 26123,
       "equivalence_queries": 200,
-      "seconds": 55.441,
+      "seconds": 162.102,
       "error_type": null,
       "error": null
     },
@@ -11100,7 +11099,7 @@
       "converged": false,
       "queries_total": 10772,
       "equivalence_queries": 200,
-      "seconds": 16.584,
+      "seconds": 44.837,
       "error_type": null,
       "error": null
     },
@@ -11131,7 +11130,7 @@
       "converged": false,
       "queries_total": 33534,
       "equivalence_queries": 200,
-      "seconds": 104.617,
+      "seconds": 290.692,
       "error_type": null,
       "error": null
     },
@@ -11162,7 +11161,7 @@
       "converged": false,
       "queries_total": 27376,
       "equivalence_queries": 200,
-      "seconds": 65.682,
+      "seconds": 175.527,
       "error_type": null,
       "error": null
     },
@@ -11193,7 +11192,7 @@
       "converged": false,
       "queries_total": 10772,
       "equivalence_queries": 200,
-      "seconds": 14.89,
+      "seconds": 38.088,
       "error_type": null,
       "error": null
     },
@@ -11224,7 +11223,7 @@
       "converged": false,
       "queries_total": 2240,
       "equivalence_queries": 200,
-      "seconds": 1.353,
+      "seconds": 3.588,
       "error_type": null,
       "error": null
     },
@@ -11255,7 +11254,7 @@
       "converged": false,
       "queries_total": 11969,
       "equivalence_queries": 200,
-      "seconds": 21.935,
+      "seconds": 58.565,
       "error_type": null,
       "error": null
     },
@@ -11286,7 +11285,7 @@
       "converged": false,
       "queries_total": 1654,
       "equivalence_queries": 200,
-      "seconds": 0.998,
+      "seconds": 2.684,
       "error_type": null,
       "error": null
     },
@@ -11317,7 +11316,7 @@
       "converged": false,
       "queries_total": 6166,
       "equivalence_queries": 200,
-      "seconds": 8.248,
+      "seconds": 22.407,
       "error_type": null,
       "error": null
     },
@@ -11348,7 +11347,7 @@
       "converged": false,
       "queries_total": 10537,
       "equivalence_queries": 200,
-      "seconds": 2.683,
+      "seconds": 7.808,
       "error_type": null,
       "error": null
     },
@@ -11379,7 +11378,7 @@
       "converged": false,
       "queries_total": 1686,
       "equivalence_queries": 200,
-      "seconds": 1.158,
+      "seconds": 3.12,
       "error_type": null,
       "error": null
     },
@@ -11410,7 +11409,7 @@
       "converged": false,
       "queries_total": 1410,
       "equivalence_queries": 200,
-      "seconds": 0.435,
+      "seconds": 1.193,
       "error_type": null,
       "error": null
     },
@@ -11441,7 +11440,7 @@
       "converged": false,
       "queries_total": 2811,
       "equivalence_queries": 200,
-      "seconds": 1.226,
+      "seconds": 3.394,
       "error_type": null,
       "error": null
     },
@@ -11472,7 +11471,7 @@
       "converged": false,
       "queries_total": 4744,
       "equivalence_queries": 200,
-      "seconds": 3.007,
+      "seconds": 8.243,
       "error_type": null,
       "error": null
     },
@@ -11503,7 +11502,7 @@
       "converged": false,
       "queries_total": 2468,
       "equivalence_queries": 200,
-      "seconds": 1.203,
+      "seconds": 3.237,
       "error_type": null,
       "error": null
     },
@@ -11534,7 +11533,7 @@
       "converged": false,
       "queries_total": 8459,
       "equivalence_queries": 200,
-      "seconds": 8.764,
+      "seconds": 23.853,
       "error_type": null,
       "error": null
     },
@@ -11565,7 +11564,7 @@
       "converged": false,
       "queries_total": 4096,
       "equivalence_queries": 200,
-      "seconds": 1.563,
+      "seconds": 4.179,
       "error_type": null,
       "error": null
     },
@@ -11596,7 +11595,7 @@
       "converged": false,
       "queries_total": 16626,
       "equivalence_queries": 200,
-      "seconds": 38.394,
+      "seconds": 99.099,
       "error_type": null,
       "error": null
     },
@@ -11627,7 +11626,7 @@
       "converged": false,
       "queries_total": 17134,
       "equivalence_queries": 200,
-      "seconds": 51.448,
+      "seconds": 136.249,
       "error_type": null,
       "error": null
     },
@@ -11658,7 +11657,7 @@
       "converged": false,
       "queries_total": 5857,
       "equivalence_queries": 200,
-      "seconds": 7.989,
+      "seconds": 22.203,
       "error_type": null,
       "error": null
     },
@@ -11689,7 +11688,7 @@
       "converged": false,
       "queries_total": 19766,
       "equivalence_queries": 200,
-      "seconds": 83.094,
+      "seconds": 278.935,
       "error_type": null,
       "error": null
     },
@@ -11720,7 +11719,7 @@
       "converged": false,
       "queries_total": 35345,
       "equivalence_queries": 200,
-      "seconds": 159.227,
+      "seconds": 465.847,
       "error_type": null,
       "error": null
     },
@@ -11751,7 +11750,7 @@
       "converged": false,
       "queries_total": 8521,
       "equivalence_queries": 200,
-      "seconds": 11.197,
+      "seconds": 34.004,
       "error_type": null,
       "error": null
     },
@@ -11782,7 +11781,7 @@
       "converged": false,
       "queries_total": 21116,
       "equivalence_queries": 200,
-      "seconds": 35.956,
+      "seconds": 114.512,
       "error_type": null,
       "error": null
     },
@@ -11813,7 +11812,7 @@
       "converged": false,
       "queries_total": 15241,
       "equivalence_queries": 200,
-      "seconds": 24.256,
+      "seconds": 90.443,
       "error_type": null,
       "error": null
     },
@@ -11844,7 +11843,7 @@
       "converged": false,
       "queries_total": 7586,
       "equivalence_queries": 200,
-      "seconds": 8.756,
+      "seconds": 33.764,
       "error_type": null,
       "error": null
     },
@@ -11875,7 +11874,7 @@
       "converged": false,
       "queries_total": 23595,
       "equivalence_queries": 200,
-      "seconds": 43.226,
+      "seconds": 155.26,
       "error_type": null,
       "error": null
     },
@@ -11906,7 +11905,7 @@
       "converged": false,
       "queries_total": 27969,
       "equivalence_queries": 200,
-      "seconds": 63.632,
+      "seconds": 236.851,
       "error_type": null,
       "error": null
     },
@@ -11937,7 +11936,7 @@
       "converged": false,
       "queries_total": 9523,
       "equivalence_queries": 200,
-      "seconds": 11.997,
+      "seconds": 44.624,
       "error_type": null,
       "error": null
     },
@@ -11968,7 +11967,7 @@
       "converged": true,
       "queries_total": 6103,
       "equivalence_queries": 10,
-      "seconds": 0.118,
+      "seconds": 0.337,
       "error_type": null,
       "error": null
     },
@@ -11999,7 +11998,7 @@
       "converged": true,
       "queries_total": 6651,
       "equivalence_queries": 12,
-      "seconds": 0.112,
+      "seconds": 0.332,
       "error_type": null,
       "error": null
     },
@@ -12030,7 +12029,7 @@
       "converged": true,
       "queries_total": 7286,
       "equivalence_queries": 14,
-      "seconds": 0.244,
+      "seconds": 0.684,
       "error_type": null,
       "error": null
     },
@@ -12061,7 +12060,7 @@
       "converged": true,
       "queries_total": 5733,
       "equivalence_queries": 9,
-      "seconds": 0.084,
+      "seconds": 0.237,
       "error_type": null,
       "error": null
     },
@@ -12092,7 +12091,7 @@
       "converged": true,
       "queries_total": 8822,
       "equivalence_queries": 15,
-      "seconds": 0.207,
+      "seconds": 0.591,
       "error_type": null,
       "error": null
     },
@@ -12123,7 +12122,7 @@
       "converged": true,
       "queries_total": 9653,
       "equivalence_queries": 15,
-      "seconds": 0.37,
+      "seconds": 1.112,
       "error_type": null,
       "error": null
     },
@@ -12154,7 +12153,7 @@
       "converged": true,
       "queries_total": 7101,
       "equivalence_queries": 11,
-      "seconds": 0.151,
+      "seconds": 0.433,
       "error_type": null,
       "error": null
     },
@@ -12185,7 +12184,7 @@
       "converged": false,
       "queries_total": 28917,
       "equivalence_queries": 200,
-      "seconds": 30.947,
+      "seconds": 107.055,
       "error_type": null,
       "error": null
     },
@@ -12216,7 +12215,7 @@
       "converged": true,
       "queries_total": 8349,
       "equivalence_queries": 10,
-      "seconds": 0.158,
+      "seconds": 0.462,
       "error_type": null,
       "error": null
     },
@@ -12247,7 +12246,7 @@
       "converged": true,
       "queries_total": 21438,
       "equivalence_queries": 21,
-      "seconds": 0.926,
+      "seconds": 3.137,
       "error_type": null,
       "error": null
     },
@@ -12278,7 +12277,7 @@
       "converged": true,
       "queries_total": 9621,
       "equivalence_queries": 16,
-      "seconds": 0.21,
+      "seconds": 0.859,
       "error_type": null,
       "error": null
     },
@@ -12309,7 +12308,7 @@
       "converged": true,
       "queries_total": 6860,
       "equivalence_queries": 9,
-      "seconds": 0.082,
+      "seconds": 0.37,
       "error_type": null,
       "error": null
     },
@@ -12340,7 +12339,7 @@
       "converged": false,
       "queries_total": 1001654,
       "equivalence_queries": 200,
-      "seconds": 87.693,
+      "seconds": 281.14,
       "error_type": null,
       "error": null
     },
@@ -12371,7 +12370,7 @@
       "converged": true,
       "queries_total": 74690,
       "equivalence_queries": 10,
-      "seconds": 0.669,
+      "seconds": 1.826,
       "error_type": null,
       "error": null
     },
@@ -12402,7 +12401,7 @@
       "converged": true,
       "queries_total": 148025,
       "equivalence_queries": 11,
-      "seconds": 2.003,
+      "seconds": 6.124,
       "error_type": null,
       "error": null
     },
@@ -12433,7 +12432,7 @@
       "converged": true,
       "queries_total": 111585,
       "equivalence_queries": 11,
-      "seconds": 1.254,
+      "seconds": 3.272,
       "error_type": null,
       "error": null
     },
@@ -12464,7 +12463,7 @@
       "converged": true,
       "queries_total": 75524,
       "equivalence_queries": 10,
-      "seconds": 0.7,
+      "seconds": 1.849,
       "error_type": null,
       "error": null
     },
@@ -12495,7 +12494,7 @@
       "converged": true,
       "queries_total": 77926,
       "equivalence_queries": 9,
-      "seconds": 0.84,
+      "seconds": 2.194,
       "error_type": null,
       "error": null
     },
@@ -12526,7 +12525,7 @@
       "converged": true,
       "queries_total": 160596,
       "equivalence_queries": 15,
-      "seconds": 1.823,
+      "seconds": 4.672,
       "error_type": null,
       "error": null
     },
@@ -12557,7 +12556,7 @@
       "converged": true,
       "queries_total": 73867,
       "equivalence_queries": 12,
-      "seconds": 0.661,
+      "seconds": 1.737,
       "error_type": null,
       "error": null
     },
@@ -12588,7 +12587,7 @@
       "converged": true,
       "queries_total": 180196,
       "equivalence_queries": 14,
-      "seconds": 2.285,
+      "seconds": 5.991,
       "error_type": null,
       "error": null
     },
@@ -12619,7 +12618,7 @@
       "converged": true,
       "queries_total": 144897,
       "equivalence_queries": 13,
-      "seconds": 1.683,
+      "seconds": 4.585,
       "error_type": null,
       "error": null
     },
@@ -12650,7 +12649,7 @@
       "converged": true,
       "queries_total": 71960,
       "equivalence_queries": 12,
-      "seconds": 0.649,
+      "seconds": 1.843,
       "error_type": null,
       "error": null
     },
@@ -12681,7 +12680,7 @@
       "converged": true,
       "queries_total": 179357,
       "equivalence_queries": 14,
-      "seconds": 2.452,
+      "seconds": 7.246,
       "error_type": null,
       "error": null
     },
@@ -12712,7 +12711,7 @@
       "converged": true,
       "queries_total": 10223,
       "equivalence_queries": 13,
-      "seconds": 0.275,
+      "seconds": 0.823,
       "error_type": null,
       "error": null
     },
@@ -12743,7 +12742,7 @@
       "converged": true,
       "queries_total": 14497,
       "equivalence_queries": 23,
-      "seconds": 0.723,
+      "seconds": 2.793,
       "error_type": null,
       "error": null
     },
@@ -12774,7 +12773,7 @@
       "converged": false,
       "queries_total": 1264,
       "equivalence_queries": 200,
-      "seconds": 0.453,
+      "seconds": 1.381,
       "error_type": null,
       "error": null
     },
@@ -12805,7 +12804,7 @@
       "converged": false,
       "queries_total": 19049,
       "equivalence_queries": 200,
-      "seconds": 22.333,
+      "seconds": 98.816,
       "error_type": null,
       "error": null
     },
@@ -12836,7 +12835,7 @@
       "converged": true,
       "queries_total": 22263,
       "equivalence_queries": 38,
-      "seconds": 1.937,
+      "seconds": 5.354,
       "error_type": null,
       "error": null
     },
@@ -12867,7 +12866,7 @@
       "converged": false,
       "queries_total": 1286,
       "equivalence_queries": 200,
-      "seconds": 0.488,
+      "seconds": 1.346,
       "error_type": null,
       "error": null
     },
@@ -12898,7 +12897,7 @@
       "converged": true,
       "queries_total": 8546,
       "equivalence_queries": 12,
-      "seconds": 0.244,
+      "seconds": 0.665,
       "error_type": null,
       "error": null
     },
@@ -12929,7 +12928,7 @@
       "converged": false,
       "queries_total": 18584,
       "equivalence_queries": 200,
-      "seconds": 15.327,
+      "seconds": 46.729,
       "error_type": null,
       "error": null
     },
@@ -12960,7 +12959,7 @@
       "converged": false,
       "queries_total": 2198,
       "equivalence_queries": 200,
-      "seconds": 0.673,
+      "seconds": 1.846,
       "error_type": null,
       "error": null
     },
@@ -12991,7 +12990,7 @@
       "converged": true,
       "queries_total": 20436,
       "equivalence_queries": 25,
-      "seconds": 0.944,
+      "seconds": 2.596,
       "error_type": null,
       "error": null
     },
@@ -13022,7 +13021,7 @@
       "converged": true,
       "queries_total": 45731,
       "equivalence_queries": 66,
-      "seconds": 14.601,
+      "seconds": 40.215,
       "error_type": null,
       "error": null
     },
@@ -13053,7 +13052,7 @@
       "converged": false,
       "queries_total": 2167,
       "equivalence_queries": 200,
-      "seconds": 0.634,
+      "seconds": 1.781,
       "error_type": null,
       "error": null
     },
@@ -13084,7 +13083,7 @@
       "converged": true,
       "queries_total": 74731,
       "equivalence_queries": 8,
-      "seconds": 0.731,
+      "seconds": 2.015,
       "error_type": null,
       "error": null
     },
@@ -13115,7 +13114,7 @@
       "converged": false,
       "queries_total": 524819,
       "equivalence_queries": 200,
-      "seconds": 31.819,
+      "seconds": 87.606,
       "error_type": null,
       "error": null
     },
@@ -13146,7 +13145,7 @@
       "converged": false,
       "queries_total": 103188,
       "equivalence_queries": 200,
-      "seconds": 5.196,
+      "seconds": 13.508,
       "error_type": null,
       "error": null
     },
@@ -13177,7 +13176,7 @@
       "converged": true,
       "queries_total": 222023,
       "equivalence_queries": 16,
-      "seconds": 3.02,
+      "seconds": 7.888,
       "error_type": null,
       "error": null
     },
@@ -13208,7 +13207,7 @@
       "converged": true,
       "queries_total": 207813,
       "equivalence_queries": 21,
-      "seconds": 3.288,
+      "seconds": 8.717,
       "error_type": null,
       "error": null
     },
@@ -13239,7 +13238,7 @@
       "converged": false,
       "queries_total": 103209,
       "equivalence_queries": 200,
-      "seconds": 5.154,
+      "seconds": 13.421,
       "error_type": null,
       "error": null
     },
@@ -13270,7 +13269,7 @@
       "converged": true,
       "queries_total": 116720,
       "equivalence_queries": 11,
-      "seconds": 1.136,
+      "seconds": 2.959,
       "error_type": null,
       "error": null
     },
@@ -13301,7 +13300,7 @@
       "converged": true,
       "queries_total": 479995,
       "equivalence_queries": 42,
-      "seconds": 11.13,
+      "seconds": 28.634,
       "error_type": null,
       "error": null
     },
@@ -13332,7 +13331,7 @@
       "converged": false,
       "queries_total": 99000,
       "equivalence_queries": 200,
-      "seconds": 3.763,
+      "seconds": 9.991,
       "error_type": null,
       "error": null
     },
@@ -13363,7 +13362,7 @@
       "converged": true,
       "queries_total": 264035,
       "equivalence_queries": 18,
-      "seconds": 3.843,
+      "seconds": 9.921,
       "error_type": null,
       "error": null
     },
@@ -13394,7 +13393,7 @@
       "converged": false,
       "queries_total": 418837,
       "equivalence_queries": 200,
-      "seconds": 25.784,
+      "seconds": 68.405,
       "error_type": null,
       "error": null
     },
@@ -13425,7 +13424,7 @@
       "converged": false,
       "queries_total": 98971,
       "equivalence_queries": 200,
-      "seconds": 3.783,
+      "seconds": 10.225,
       "error_type": null,
       "error": null
     },
@@ -13456,7 +13455,7 @@
       "converged": false,
       "queries_total": 29556,
       "equivalence_queries": 200,
-      "seconds": 56.027,
+      "seconds": 148.081,
       "error_type": null,
       "error": null
     },
@@ -13487,7 +13486,7 @@
       "converged": true,
       "queries_total": 8952,
       "equivalence_queries": 19,
-      "seconds": 0.336,
+      "seconds": 0.947,
       "error_type": null,
       "error": null
     },
@@ -13518,7 +13517,7 @@
       "converged": false,
       "queries_total": 1793,
       "equivalence_queries": 200,
-      "seconds": 0.761,
+      "seconds": 2.187,
       "error_type": null,
       "error": null
     },
@@ -13549,7 +13548,7 @@
       "converged": false,
       "queries_total": 14991,
       "equivalence_queries": 200,
-      "seconds": 14.594,
+      "seconds": 40.737,
       "error_type": null,
       "error": null
     },
@@ -13580,7 +13579,7 @@
       "converged": true,
       "queries_total": 31244,
       "equivalence_queries": 42,
-      "seconds": 4.352,
+      "seconds": 12.867,
       "error_type": null,
       "error": null
     },
@@ -13611,7 +13610,7 @@
       "converged": false,
       "queries_total": 36381,
       "equivalence_queries": 200,
-      "seconds": 108.357,
+      "seconds": 293.916,
       "error_type": null,
       "error": null
     },
@@ -13642,7 +13641,7 @@
       "converged": false,
       "queries_total": 53516,
       "equivalence_queries": 200,
-      "seconds": 142.715,
+      "seconds": 377.493,
       "error_type": null,
       "error": null
     },
@@ -13673,7 +13672,7 @@
       "converged": false,
       "queries_total": 131908,
       "equivalence_queries": 200,
-      "seconds": 454.597,
+      "seconds": 1367.233,
       "error_type": null,
       "error": null
     },
@@ -13704,7 +13703,7 @@
       "converged": false,
       "queries_total": 2556,
       "equivalence_queries": 200,
-      "seconds": 0.739,
+      "seconds": 2.106,
       "error_type": null,
       "error": null
     },
@@ -13735,7 +13734,7 @@
       "converged": false,
       "queries_total": 40283,
       "equivalence_queries": 200,
-      "seconds": 90.339,
+      "seconds": 266.898,
       "error_type": null,
       "error": null
     },
@@ -13766,7 +13765,7 @@
       "converged": false,
       "queries_total": 84931,
       "equivalence_queries": 200,
-      "seconds": 228.321,
+      "seconds": 704.398,
       "error_type": null,
       "error": null
     },
@@ -13797,7 +13796,7 @@
       "converged": false,
       "queries_total": 4003,
       "equivalence_queries": 200,
-      "seconds": 1.135,
+      "seconds": 4.074,
       "error_type": null,
       "error": null
     },
@@ -13828,7 +13827,7 @@
       "converged": false,
       "queries_total": 1996009,
       "equivalence_queries": 200,
-      "seconds": 416.527,
+      "seconds": 1265.159,
       "error_type": null,
       "error": null
     },
@@ -13859,7 +13858,7 @@
       "converged": false,
       "queries_total": 1539962,
       "equivalence_queries": 200,
-      "seconds": 211.927,
+      "seconds": 639.761,
       "error_type": null,
       "error": null
     },
@@ -13890,7 +13889,7 @@
       "converged": false,
       "queries_total": 102640,
       "equivalence_queries": 200,
-      "seconds": 5.149,
+      "seconds": 14.071,
       "error_type": null,
       "error": null
     },
@@ -13921,7 +13920,7 @@
       "converged": false,
       "queries_total": 2093655,
       "equivalence_queries": 200,
-      "seconds": 486.904,
+      "seconds": 1693.708,
       "error_type": null,
       "error": null
     },
@@ -13952,7 +13951,7 @@
       "converged": false,
       "queries_total": 1502567,
       "equivalence_queries": 200,
-      "seconds": 420.43,
+      "seconds": 1193.06,
       "error_type": null,
       "error": null
     },
@@ -13983,7 +13982,7 @@
       "converged": false,
       "queries_total": 222602,
       "equivalence_queries": 200,
-      "seconds": 15.498,
+      "seconds": 41.792,
       "error_type": null,
       "error": null
     },
@@ -14014,7 +14013,7 @@
       "converged": true,
       "queries_total": 385735,
       "equivalence_queries": 21,
-      "seconds": 6.13,
+      "seconds": 16.197,
       "error_type": null,
       "error": null
     },
@@ -14045,7 +14044,7 @@
       "converged": false,
       "queries_total": 466017,
       "equivalence_queries": 200,
-      "seconds": 28.444,
+      "seconds": 81.599,
       "error_type": null,
       "error": null
     },
@@ -14076,7 +14075,7 @@
       "converged": false,
       "queries_total": 98963,
       "equivalence_queries": 200,
-      "seconds": 3.848,
+      "seconds": 12.257,
       "error_type": null,
       "error": null
     },
@@ -14107,7 +14106,7 @@
       "converged": true,
       "queries_total": 209804,
       "equivalence_queries": 13,
-      "seconds": 2.597,
+      "seconds": 7.424,
       "error_type": null,
       "error": null
     },
@@ -14138,7 +14137,7 @@
       "converged": false,
       "queries_total": 1918809,
       "equivalence_queries": 200,
-      "seconds": 349.036,
+      "seconds": 989.38,
       "error_type": null,
       "error": null
     },
@@ -14169,7 +14168,7 @@
       "converged": false,
       "queries_total": 1226903,
       "equivalence_queries": 200,
-      "seconds": 126.879,
+      "seconds": 349.781,
       "error_type": null,
       "error": null
     },
@@ -14200,7 +14199,7 @@
       "converged": false,
       "queries_total": 16889,
       "equivalence_queries": 200,
-      "seconds": 18.685,
+      "seconds": 52.511,
       "error_type": null,
       "error": null
     },
@@ -14231,7 +14230,7 @@
       "converged": false,
       "queries_total": 11679,
       "equivalence_queries": 200,
-      "seconds": 10.29,
+      "seconds": 30.861,
       "error_type": null,
       "error": null
     },
@@ -14262,7 +14261,7 @@
       "converged": false,
       "queries_total": 1539,
       "equivalence_queries": 200,
-      "seconds": 0.506,
+      "seconds": 1.572,
       "error_type": null,
       "error": null
     },
@@ -14293,7 +14292,7 @@
       "converged": false,
       "queries_total": 13970,
       "equivalence_queries": 200,
-      "seconds": 14.585,
+      "seconds": 48.444,
       "error_type": null,
       "error": null
     },
@@ -14324,7 +14323,7 @@
       "converged": false,
       "queries_total": 13783,
       "equivalence_queries": 200,
-      "seconds": 14.767,
+      "seconds": 54.944,
       "error_type": null,
       "error": null
     },
@@ -14355,7 +14354,7 @@
       "converged": false,
       "queries_total": 1779,
       "equivalence_queries": 200,
-      "seconds": 0.782,
+      "seconds": 4.706,
       "error_type": null,
       "error": null
     },
@@ -14386,7 +14385,7 @@
       "converged": false,
       "queries_total": 60863,
       "equivalence_queries": 200,
-      "seconds": 158.757,
+      "seconds": 442.608,
       "error_type": null,
       "error": null
     },
@@ -14417,7 +14416,7 @@
       "converged": false,
       "queries_total": 11019,
       "equivalence_queries": 200,
-      "seconds": 6.496,
+      "seconds": 17.993,
       "error_type": null,
       "error": null
     },
@@ -14448,7 +14447,7 @@
       "converged": false,
       "queries_total": 3589,
       "equivalence_queries": 200,
-      "seconds": 1.095,
+      "seconds": 3.062,
       "error_type": null,
       "error": null
     },
@@ -14479,7 +14478,7 @@
       "converged": false,
       "queries_total": 22079,
       "equivalence_queries": 200,
-      "seconds": 21.844,
+      "seconds": 60.866,
       "error_type": null,
       "error": null
     },
@@ -14510,7 +14509,7 @@
       "converged": false,
       "queries_total": 20590,
       "equivalence_queries": 200,
-      "seconds": 21.173,
+      "seconds": 61.335,
       "error_type": null,
       "error": null
     },
@@ -14541,7 +14540,7 @@
       "converged": false,
       "queries_total": 2952,
       "equivalence_queries": 200,
-      "seconds": 0.81,
+      "seconds": 2.397,
       "error_type": null,
       "error": null
     },
@@ -14572,7 +14571,7 @@
       "converged": false,
       "queries_total": 1138537,
       "equivalence_queries": 200,
-      "seconds": 140.002,
+      "seconds": 397.011,
       "error_type": null,
       "error": null
     },
@@ -14603,7 +14602,7 @@
       "converged": false,
       "queries_total": 558905,
       "equivalence_queries": 200,
-      "seconds": 42.906,
+      "seconds": 166.986,
       "error_type": null,
       "error": null
     },
@@ -14634,7 +14633,7 @@
       "converged": false,
       "queries_total": 1345455,
       "equivalence_queries": 200,
-      "seconds": 195.352,
+      "seconds": 613.169,
       "error_type": null,
       "error": null
     },
@@ -14665,7 +14664,7 @@
       "converged": false,
       "queries_total": 1873061,
       "equivalence_queries": 200,
-      "seconds": 376.12,
+      "seconds": 1153.631,
       "error_type": null,
       "error": null
     },
@@ -14696,7 +14695,7 @@
       "converged": false,
       "queries_total": 1416819,
       "equivalence_queries": 200,
-      "seconds": 390.966,
+      "seconds": 1101.425,
       "error_type": null,
       "error": null
     },
@@ -14727,7 +14726,7 @@
       "converged": false,
       "queries_total": 179255,
       "equivalence_queries": 200,
-      "seconds": 11.714,
+      "seconds": 31.743,
       "error_type": null,
       "error": null
     },
@@ -14758,7 +14757,7 @@
       "converged": false,
       "queries_total": 1270532,
       "equivalence_queries": 200,
-      "seconds": 177.711,
+      "seconds": 463.367,
       "error_type": null,
       "error": null
     },
@@ -14789,7 +14788,7 @@
       "converged": false,
       "queries_total": 366670,
       "equivalence_queries": 200,
-      "seconds": 24.335,
+      "seconds": 63.42,
       "error_type": null,
       "error": null
     },
@@ -14820,7 +14819,7 @@
       "converged": false,
       "queries_total": 192399,
       "equivalence_queries": 200,
-      "seconds": 8.795,
+      "seconds": 23.419,
       "error_type": null,
       "error": null
     },
@@ -14851,7 +14850,7 @@
       "converged": false,
       "queries_total": 1348303,
       "equivalence_queries": 200,
-      "seconds": 195.938,
+      "seconds": 506.232,
       "error_type": null,
       "error": null
     },
@@ -14882,7 +14881,7 @@
       "converged": false,
       "queries_total": 484163,
       "equivalence_queries": 200,
-      "seconds": 33.529,
+      "seconds": 85.873,
       "error_type": null,
       "error": null
     },
@@ -14913,7 +14912,7 @@
       "converged": false,
       "queries_total": 161889,
       "equivalence_queries": 200,
-      "seconds": 8.182,
+      "seconds": 21.256,
       "error_type": null,
       "error": null
     }
