@@ -120,7 +120,12 @@ class CounterexampleSearch:
             self.counts = SiteCounts()
             return None
         self.counts.add(charged, outcome)
-        return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
+        return ending_test(
+            self.counts,
+            self.config,
+            self.hypothesis.tree.depth,
+            distinct=self.patience is not None,
+        )
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.config.k, x, self.start)

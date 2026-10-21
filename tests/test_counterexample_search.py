@@ -232,6 +232,17 @@ class TestUndecidedFallbacks(unittest.TestCase):
 
 
 class TestBestHypothesis(unittest.TestCase):
+    def test_with_patience_a_stuck_string_read_again_is_not_more_evidence(self):
+        search = CounterexampleSearch(
+            quiet_config(**{**SHIPPED_RATES, "max_probes": 60}),
+            parity_cut([b"\x00\x01"]),
+            MidfixTree([]),
+            patience=10**9,
+        )
+        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(OUT_OF_PROBES, ending.kind)
+
     def test_the_search_ends_on_its_best_scoring_hypothesis(self):
         search = CounterexampleSearch(
             quiet_config(max_probes=4),
