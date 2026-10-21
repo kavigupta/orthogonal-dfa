@@ -488,9 +488,12 @@ lemma rejFrac_le (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < �
     (hind : 0 < indecisionLimit) :
     rejFrac η₀ indecisionLimit εcov ≤ cutBudget η₀ indecisionLimit εcov / 128
     ∧ rejFrac η₀ indecisionLimit εcov
-      = cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀ := by
+      = 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀ := by
   have hc := cutBudget_pos η₀ hsig hε hind
-  have hf := flipFrac_lt_one η₀ hsig
+  have hf : 3 * flipFrac η₀ ≤ 1 := by
+    have h1 : (0 : ℝ) < 5 * (1 - η₀) := by linarith
+    rw [flipFrac, sig, mul_div_assoc', div_le_one h1]
+    linarith
   refine ⟨?_, by rw [rejFrac]; ring⟩
   rw [rejFrac]
   nlinarith [flipFrac_pos η₀ hsig]
@@ -600,8 +603,8 @@ lemma flipFrac_le_flipFracOf (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ �
   rw [flipFrac, flipFracOf, voteSlack, div_le_div_iff₀ (by linarith) hg]
   simp only [sig]
   have hs : 0 ≤ 1 / 2 - η₀ := by linarith
-  nlinarith [mul_le_mul_of_nonneg_left hgle (by linarith : (0 : ℝ) ≤ 3 * (1 / 2 - η₀)),
-    mul_nonneg (sub_nonneg.2 hηle) (by linarith : (0 : ℝ) ≤ 7 / 2 - 2 * η₀)]
+  nlinarith [mul_le_mul_of_nonneg_left hgle (by linarith : (0 : ℝ) ≤ 1 / 2 - η₀),
+    mul_nonneg (sub_nonneg.2 hηle) (by linarith : (0 : ℝ) ≤ 9 / 2 - 4 * η₀)]
 
 /-- What a `flipFracOf` fraction flipping shows the count rule, against what `countSignal` was
 solved at. -/
@@ -613,7 +616,7 @@ lemma flipFracOf_sep (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (h
   rw [show flipFracOf O η₀ * (O.gap * (1 - 2 * O.η))
       = (O.gap * flipFracOf O η₀) * (1 - 2 * O.η) by ring, hg,
     show flipFrac η₀ * ((1 - η₀) * (1 - 2 * η₀)) = ((1 - η₀) * flipFrac η₀) * (1 - 2 * η₀) by ring]
-  have hvs : voteSlack η₀ = 2 * (1 / 2 - η₀) / 5 := by rw [voteSlack, sig]
+  have hvs : voteSlack η₀ = 4 * (1 / 2 - η₀) / 5 := by rw [voteSlack, sig]
   simp only [sig] at hsplit ⊢
   exact mul_le_mul (by linarith) (by linarith) (by linarith) (by linarith)
 
@@ -634,7 +637,7 @@ lemma binomSfGe_succ_le {n : ℕ} {q : ℝ} (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (j :
 
 lemma misfireTail_nonneg (η₀ : ℝ) (κ : ℕ) (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) :
     0 ≤ misfireTail η₀ κ := by
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have := voteSlack_pos η₀ hsig
   rw [misfireTail]
   linarith [binomSfGe_le_one (n := κ + 1) (q := 1 / 2 + voteSlack η₀) (by linarith) (by linarith)
@@ -788,7 +791,7 @@ lemma ceil_half_of_even {κ : ℕ} (hκ : Even κ) : (⌈(κ : ℝ) / 2⌉₊ : 
 /-- The band fits below the centre, so `lo` is not truncated. -/
 lemma bandAt_lt (η₀ : ℝ) {κ : ℕ} (hκ : Even κ) (h4 : 4 ≤ κ) (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     bandAt η₀ κ + 1 ≤ ⌈(κ : ℝ) / 2⌉₊ := by
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hv0 := voteSlack_pos η₀ hsig
   have hb := bandAt_le η₀ κ hsig
   have hc := ceil_half_of_even hκ
@@ -816,10 +819,11 @@ lemma famHoeff_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
   omega
 
 omit [Fintype J] in
-/-- `famHoeff` is at least 128: the cut budget is under `1/8`, and the vote's slack under `1/5`. -/
+/-- `famHoeff` is at least 32 and its band spans five counts: the cut budget is under `1/8`, and
+the vote's slack under `2/5`. -/
 lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
-    (128 : ℝ) ≤ famHoeff η₀ populations indecisionLimit εcov δ crossLimit
+    (32 : ℝ) ≤ famHoeff η₀ populations indecisionLimit εcov δ crossLimit
       ∧ 5 ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   have hcutpos := cutBudget_pos η₀ hsig hε hind
   have hcut8 : cutBudget η₀ indecisionLimit εcov ≤ 1 / 8 := by
@@ -832,20 +836,20 @@ lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 
     rw [show (16 : ℝ) = 2 ^ 4 by norm_num, Real.log_pow, Nat.cast_ofNat] at h
     linarith only [h, Real.log_two_gt_d9]
   have hv0 := voteSlack_pos η₀ hsig
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hT := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ).1
   set κ : ℝ := (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
-  have ha : 275 / 4 ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 := by
+  have ha : 17 ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 := by
     rw [le_div_iff₀ (by positivity)]
     nlinarith only [hlog, hv, hv0]
-  have hS : 5 ≤ 1 / voteSlack η₀ := by rw [le_div_iff₀ hv0]; linarith only [hv]
+  have hS : 0 ≤ 1 / voteSlack η₀ := by positivity
   refine ⟨by linarith only [hT, ha, hS], ?_⟩
   have hb : 11 / 4 / voteSlack η₀
       ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 * voteSlack η₀ := by
     rw [pow_two, ← div_div, div_mul_cancel₀ _ hv0.ne']
     exact div_le_div_of_nonneg_right hlog hv0.le
-  have h1 : 11 / 4 * 5 ≤ 11 / 4 / voteSlack η₀ := by
+  have h1 : 11 / 4 * (5 / 2) ≤ 11 / 4 / voteSlack η₀ := by
     rw [le_div_iff₀ hv0]; nlinarith only [hv]
   have hTv := mul_le_mul_of_nonneg_right hT hv0.le
   have e : 1 / voteSlack η₀ * voteSlack η₀ = 1 := by field_simp
@@ -872,7 +876,7 @@ lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ)
     have : (4 : ℝ) ≤ κ := by exact_mod_cast h4
     linarith
   have hv0 := voteSlack_pos η₀ hsig
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hsig
   have hb := bandAt_le η₀ κ hsig
   have hb0 : (0 : ℝ) ≤ bandAt η₀ κ := Nat.cast_nonneg _
@@ -927,7 +931,7 @@ lemma famHoeff_misfire (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (
   have hev : Even κ := by rw [hκdef, famHoeff]; exact even_two_mul _
   have h4 : 4 ≤ κ := famHoeff_ge_four η₀ populations εcov δ hsig
   have hv0 := voteSlack_pos η₀ hsig
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   obtain ⟨-, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hsig
   have hb := bandAt_le η₀ κ hsig
   have hd : decSlack η₀ populations indecisionLimit εcov δ crossLimit
@@ -989,10 +993,10 @@ lemma famCount_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
   · rw [h]; exact famHoeff_ge_four η₀ populations εcov δ hsig
 
 omit [Fintype J] in
-/-- The family is at least 128 strong, whatever `crossLimit`. -/
+/-- The family is at least 32 strong, whatever `crossLimit`. -/
 lemma famCount_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
-    (128 : ℝ) ≤ famCount η₀ populations indecisionLimit εcov δ crossLimit := by
+    (32 : ℝ) ≤ famCount η₀ populations indecisionLimit εcov δ crossLimit := by
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
   · exact_mod_cast h.2.1

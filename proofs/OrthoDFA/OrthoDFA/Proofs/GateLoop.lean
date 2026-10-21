@@ -126,7 +126,7 @@ theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov 
   have hκR : (4 : ℝ) ≤ κ := by exact_mod_cast h4
   have hFk : F.card ≤ κ := by omega
   have hb1R : (1 : ℝ) ≤ bandAt η₀ κ := by exact_mod_cast hb1
-  have hv : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hb := bandAt_le η₀ κ hη₀
   have hlo0 : (0 : ℝ) ≤ loAt η₀ κ := Nat.cast_nonneg _
   have hsum : loAt η₀ κ + hiAt η₀ κ + 1 = κ := by
@@ -656,7 +656,7 @@ lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind :
   refine le_min (by linarith) (le_min (by linarith) (le_min (by linarith) h4))
 
 /-- The redraw fraction is at least a constant times the scale squared: the cut budget is a tenth
-of the scale, and the flip fraction three fifths of the signal. -/
+of the scale, and three times the flip fraction three fifths of the signal. -/
 lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     6 * budgetScale η₀ indecisionLimit εcov ^ 2 / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
@@ -664,8 +664,8 @@ lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
   have hBs := budgetScale_le_sig η₀ indecisionLimit εcov hη0 hsig
   have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hf : 6 * sig η₀ / 10 ≤ flipFrac η₀ := by
-    rw [flipFrac, div_le_div_iff₀ (by norm_num) (by linarith)]
+  have hf : 6 * sig η₀ / 10 ≤ 3 * flipFrac η₀ := by
+    rw [flipFrac, mul_div_assoc', div_le_div_iff₀ (by norm_num) (by linarith)]
     nlinarith
   rw [rejFrac]
   have := mul_le_mul hcut (le_trans (by linarith : 6 * budgetScale η₀ indecisionLimit εcov / 10
@@ -673,15 +673,15 @@ lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0
   nlinarith
 
 /-- The redraw fraction is at least a constant times the scale times the signal: the cut budget
-is a tenth of the scale, and the flip fraction three fifths of the signal. -/
+is a tenth of the scale, and three times the flip fraction three fifths of the signal. -/
 lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     6 * budgetScale η₀ indecisionLimit εcov * sig η₀ / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
   have hs := sig_pos η₀ hsig
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
   have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hf : 6 * sig η₀ / 10 ≤ flipFrac η₀ := by
-    rw [flipFrac, div_le_div_iff₀ (by norm_num) (by linarith)]
+  have hf : 6 * sig η₀ / 10 ≤ 3 * flipFrac η₀ := by
+    rw [flipFrac, mul_div_assoc', div_le_div_iff₀ (by norm_num) (by linarith)]
     nlinarith
   rw [rejFrac]
   have := mul_le_mul hcut hf (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
@@ -1020,7 +1020,7 @@ lemma solved_rej_log (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : �
       rw [div_le_div_iff_of_pos_right hδ]; nlinarith)
   have hL0 : 0 ≤ Real.log (256 * P / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  have hrej : rejFrac η₀ indecisionLimit εcov = cb * ff / 128 := by
+  have hrej : rejFrac η₀ indecisionLimit εcov = 3 * cb * ff / 128 := by
     obtain ⟨-, h⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hsig hε hind
     rw [h, ← hcb, ← hffdef]; ring
   rw [hrej]
@@ -2874,7 +2874,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     have : ((loAt η₀ κ + hiAt η₀ κ + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
     exact_mod_cast this
   have hlohi : loAt η₀ κ ≤ hiAt η₀ κ := by unfold loAt hiAt; omega
-  have hv5 : voteSlack η₀ ≤ 1 / 5 := by rw [voteSlack, sig]; linarith
+  have hv5 : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hq0 : (0 : ℝ) ≤ 1 / 2 + voteSlack η₀ := by linarith
   have hq1 : 1 / 2 + voteSlack η₀ ≤ 1 := by linarith
   have hmisle : 1 - binomSfGe κ (1 / 2 + voteSlack η₀) (loAt η₀ κ + 1) ≤ misfireTail η₀ κ := by
@@ -3016,11 +3016,11 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
       congr 2
       field_simp
     have hcf : rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
-        ≤ cutBudget η₀ indecisionLimit εcov / 128 := by
+        ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 := by
       calc rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
           ≤ rejFrac η₀ indecisionLimit εcov / flipFrac η₀ :=
             div_le_div_of_nonneg_left hc0.le hff hfle
-        _ = cutBudget η₀ indecisionLimit εcov / 128 := by
+        _ = 3 * cutBudget η₀ indecisionLimit εcov / 128 := by
             rw [hceq]
             field_simp
     have h2 : cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFracOf O η₀
