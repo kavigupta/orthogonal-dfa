@@ -448,6 +448,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   obtain ⟨settings, -, -, -, -, hC3, hnp, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
+    (by linarith)
     (fun pops hpops => by
       rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).1)
