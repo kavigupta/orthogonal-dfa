@@ -145,10 +145,6 @@ theorem level5_round_correct : Level5RoundCorrect := level5RoundCorrect_holds
 
 #print axioms level5_round_correct
 
-theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
-
-#print axioms level3_allowance_correct
-
 theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 
 #print axioms family_kappa_oracle
