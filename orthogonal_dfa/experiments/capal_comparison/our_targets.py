@@ -56,6 +56,6 @@ def our_benchmarks() -> List[Benchmark]:
         ),
         regex_case("regex_subseq_1010101", r".*1010101.*"),
         regex_case("regex_two_1111", r".*1111.*1111.*"),
-        regex_case("regex_alt_1111_or_0000_11", r".*(1111|0000)11.*"),
+        regex_case("regex_alt_1111_or_0000_11_3sym", r".*(1111|0000)11.*", symbols=3),
         regex_case("regex_alt_111_or_000_3sym", r".*(111|000).*", symbols=3),
     ]

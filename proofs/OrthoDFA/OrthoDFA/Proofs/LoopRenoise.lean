@@ -123,7 +123,7 @@ variable [Fintype σ]
 
 /-- Level 5's harvest slope at probes at most `L` long. -/
 def roundSlope (σ : Type*) [Fintype σ] (L : ℕ) (C : Random.Level3Settings) : ℝ :=
-  (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (L + 1))
+  (Fintype.card σ + 1) * (6 / C.harvestRate + 16 * (2 + Nat.clog 2 L))
 
 /-- Level 5's harvest slack at the prefix mass `p₀`. -/
 def roundSlack (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (p₀ : ℝ) : ℝ :=
@@ -263,8 +263,8 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ ≤ 1 →
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
-    fam.ε * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + fam.κ * (5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
+    fam.ε * (C.probeBudget * min (P.L + 1) (3 + Nat.clog 2 P.L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
+      + fam.κ * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + nQ * (nQ + 1) ^ 2 * nα)
         ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
@@ -288,15 +288,16 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
   have hW := pi_wrong_le' fam.M side C μ' U fam.ε fam.κ R P hε hκ hy0 hyρ hρ1 hδ hδ1
   have hSst : Level2.stretches nQ nα = S := rfl
   have hcost := sum_costAt_le C S hδ hδ1
-  have hMu : Mu nQ nα C ≤ 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
+  have hMu : Mu nQ nα C ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
       + nQ * (nQ + 1) ^ 2 * nα := by
     unfold Mu wSplit
     rw [hSst]
     push_cast
     nlinarith
-  have hMb : Mb nQ nα P.L C.probeBudget = C.probeBudget * (P.L + 1) * nQ
-      + nQ * (nQ + 1) ^ 2 * nα := by
-    unfold Mb wSplit
+  have hMb : Mb nQ nα P.L C.probeBudget
+      = C.probeBudget * ((min (P.L + 1) (3 + Nat.clog 2 P.L) : ℕ) : ℝ) * nQ
+        + nQ * (nQ + 1) ^ 2 * nα := by
+    unfold Mb wSplit probeSifts
     push_cast
     ring
   have hwr : fam.ε * Mb nQ nα P.L C.probeBudget + fam.κ * Mu nQ nα C ≤ C.δ / 8 := by
