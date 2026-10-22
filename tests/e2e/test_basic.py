@@ -146,13 +146,15 @@ def _assert_bar_is_what_the_target_allows(testcase, target):
     not by noise -- but comfortably above 0.97, which is where assertDFA's own
     tolerance already sat.
     """
-    ceiling = P.covered_accuracy_at(target, length=40)
-    testcase.assertLess(ceiling, 0.99, "target would be admissible; no need to lower")
-    testcase.assertGreater(ceiling, 0.975, "0.97 is not the bar this target allows")
     testcase.assertLess(
-        P.covered_accuracy_ceiling(target, length=40),
+        P.dominated_accuracy_ceiling(target, length=40),
         0.99,
-        "the stricter check admits it",
+        "target would be admissible; no need to lower",
+    )
+    testcase.assertGreater(
+        P.dominated_accuracy_at(target, length=40),
+        0.975,
+        "0.97 is not the bar this target allows",
     )
 
 

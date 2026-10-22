@@ -72,7 +72,7 @@ class TestArmedMergeTarget(unittest.TestCase):
         # Nothing about the sampler stops this being learned exactly, so the shortfall
         # below is the learner's and not the target's.
         self.assertAlmostEqual(
-            P.covered_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
+            P.dominated_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
             1.0,
         )
 

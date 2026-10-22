@@ -11,11 +11,12 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
+- dominated_accuracy_ceiling: re-rooting the target at the best *covered* start
   state (all the learner can anchor to) still classifies almost every string,
-  without the re-rooted run leaving the covered states -- at every string
-  length from ``ceil(length / 2)`` to twice ``length``, taking the worst length for
-  each start
+  with the re-rooted run only passing through covered states or states the
+  sampled prefixes land in at a rate comparable to the run's own -- at every
+  string length from ``ceil(length / 2)`` to twice ``length``, taking the worst
+  length for each start
 """
 
 import copy
@@ -36,6 +37,8 @@ DEFAULT_NUM_SAMPLES = 2000
 #: Bar for coverage by prefixes of the given length before we consider a state
 #: "covered" by it.
 DEFAULT_MIN_COVERAGE = 0.01
+
+MAX_VISIT_RATIO = 2
 
 
 @lru_cache(maxsize=None)
@@ -137,6 +140,13 @@ def _run(dfa: DFA, string: bytes, start=None) -> list:
     return states
 
 
+def _window_visits(dfa: DFA, strings, length: int) -> Counter:
+    """Per state, how many of ``strings`` visit it, run from q0, somewhere from
+    ``start_length(length)`` on."""
+    k = start_length(length)
+    return Counter(q for s in strings for q in set(_run(dfa, s)[k:]))
+
+
 def covered_states(
     dfa: DFA,
     *,
@@ -149,13 +159,45 @@ def covered_states(
     The states at least ``min_coverage`` of random length-``length`` strings visit
     somewhere from ``start_length(length)`` on.
     """
-    k = start_length(length)
-    counts = Counter(
-        q
-        for s in _samples(dfa, length, num_samples, sampler)
-        for q in set(_run(dfa, s)[k:])
-    )
-    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    window = _window_visits(dfa, _samples(dfa, length, num_samples, sampler), length)
+    return {q for q, c in window.items() if c / num_samples >= min_coverage}
+
+
+def _visit_ratio(length: int) -> float:
+    """``MAX_VISIT_RATIO`` per position: a run has ``length + 1`` of them, the
+    window ``length + 1 - start_length(length)``."""
+    return MAX_VISIT_RATIO * (length + 1) / (length + 1 - start_length(length))
+
+
+def _dominated(dfa: DFA, covered: set, window: Counter, runs, length: int) -> set:
+    rerooted = Counter(q for run in runs for q in set(run))
+    ratio = _visit_ratio(length)
+    return covered | {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
+
+
+def dominated_states(
+    dfa: DFA,
+    start,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
+) -> set:
+    """
+    The covered states, and those q' that runs from ``start`` visit at most C
+    times as often as runs from q0 do in the window:
+
+        r_start(q') <= C * w(q'),   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - start_length(L))
+
+    r counting a visit at any of the L + 1 positions, w one at any from
+    ``start_length(L)`` on, so C compares visits per position.
+    """
+    strings = _samples(dfa, length, num_samples, sampler)
+    window = _window_visits(dfa, strings, length)
+    covered = {q for q, c in window.items() if c / num_samples >= min_coverage}
+    runs = [_run(dfa, s, start) for s in strings]
+    return _dominated(dfa, covered, window, runs, length)
 
 
 @lru_cache(maxsize=None)
@@ -199,9 +241,11 @@ def _worst_start_accuracies(
     num_samples: int,
     min_coverage: float,
     sampler: Optional[Sampler],
+    dominated: bool,
 ) -> np.ndarray:
     """Per covered start (covered at ``length``), its lowest accuracy over
-    ``string_lengths``."""
+    ``string_lengths``; a run may use the covered states, plus those dominated
+    from its start when ``dominated``."""
     covered = covered_states(
         dfa,
         length=length,
@@ -214,19 +258,47 @@ def _worst_start_accuracies(
     symbols = sorted(dfa.input_symbols)
     table = np.array([[index[dfa.transitions[q][c]] for c in symbols] for q in states])
     final = np.array([q in dfa.final_states for q in states])
-    is_covered = np.array([q in covered for q in states])
-    starts = np.array(sorted(index[q] for q in covered), dtype=int)
+    start_states = sorted(covered, key=lambda q: index[q])
+    starts = np.array([index[q] for q in start_states], dtype=int)
+    if dominated:
+        allowed_sets = [
+            dominated_states(
+                dfa,
+                q,
+                length=length,
+                num_samples=num_samples,
+                min_coverage=min_coverage,
+                sampler=sampler,
+            )
+            for q in start_states
+        ]
+    else:
+        allowed_sets = [covered] * len(start_states)
+    allowed = np.array([[q in a for q in states] for a in allowed_sets], dtype=bool)
+    allowed = allowed.reshape(len(start_states), len(states))
     worst = np.ones(len(starts))
     for ell in string_lengths:
         strings = _strings_at_length(dfa, ell, num_samples, sampler)
         initial_end, _ = _run_from(
-            table, is_covered, strings, np.array([index[dfa.initial_state]])
+            table, allowed[:1], strings, np.array([index[dfa.initial_state]])
         )
         truth = final[initial_end[0]]
-        ends, stayed = _run_from(table, is_covered, strings, starts)
+        ends, stayed = _run_from(table, allowed, strings, starts)
         accuracy = (stayed & (final[ends] == truth)).mean(axis=1)
         worst = np.minimum(worst, accuracy)
     return worst
+
+
+def _run_from(table, allowed, strings, starts):
+    """Endpoints of running each row of ``strings`` from each of ``starts``, and
+    whether the run stayed in that start's row of ``allowed``."""
+    rows = np.arange(len(starts))[:, None]
+    current = np.repeat(starts[:, None], len(strings), axis=1)
+    stayed = allowed[rows, current]
+    for j in range(strings.shape[1]):
+        current = table[current, strings[:, j]]
+        stayed &= allowed[rows, current]
+    return current, stayed
 
 
 def covered_accuracy_at(
@@ -247,6 +319,7 @@ def covered_accuracy_at(
         num_samples=num_samples,
         min_coverage=min_coverage,
         sampler=sampler,
+        dominated=False,
     )
     return float(worst.max(initial=0.0))
 
@@ -282,19 +355,52 @@ def covered_accuracy_ceiling(
         num_samples=num_samples,
         min_coverage=min_coverage,
         sampler=sampler,
+        dominated=False,
     )
     return float(worst.max(initial=0.0))
 
 
-def _run_from(table, is_covered, strings, starts):
-    """Endpoints of running each row of ``strings`` from each of ``starts``, and
-    whether the run stayed in covered states."""
-    current = np.repeat(starts[:, None], len(strings), axis=1)
-    stayed = is_covered[current]
-    for j in range(strings.shape[1]):
-        current = table[current, strings[:, j]]
-        stayed &= is_covered[current]
-    return current, stayed
+def dominated_accuracy_at(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
+) -> float:
+    """``dominated_accuracy_ceiling`` on strings of exactly ``length``."""
+    worst = _worst_start_accuracies(
+        dfa,
+        length=length,
+        string_lengths=range(length, length + 1),
+        num_samples=num_samples,
+        min_coverage=min_coverage,
+        sampler=sampler,
+        dominated=True,
+    )
+    return float(worst.max(initial=0.0))
+
+
+def dominated_accuracy_ceiling(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
+) -> float:
+    """Like ``covered_accuracy_ceiling``, but a run from a start may also pass
+    through the states ``dominated_states`` gives for that start."""
+    worst = _worst_start_accuracies(
+        dfa,
+        length=length,
+        string_lengths=range((length + 1) // 2, 2 * length + 1),
+        num_samples=num_samples,
+        min_coverage=min_coverage,
+        sampler=sampler,
+        dominated=True,
+    )
+    return float(worst.max(initial=0.0))
 
 
 @dataclass(frozen=True)
@@ -309,7 +415,7 @@ class PreconditionReport:
     length: int
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
-    covered_accuracy_ceiling: Optional[float] = None
+    dominated_accuracy_ceiling: Optional[float] = None
     #: States no sampled prefix lands in, as strings -- populated when the
     #: ceiling is measured, since that is the check they explain.
     uncovered_states: Optional[List[str]] = None
@@ -330,7 +436,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_covered_accuracy: float = 0.99,
+    min_dominated_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -341,7 +447,7 @@ def satisfies_preconditions(
 
     - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - covered-accuracy ceiling at least ``min_covered_accuracy``
+    - dominated-accuracy ceiling at least ``min_dominated_accuracy``
 
     The acceptance-rate check only rejects degeneracy -- a language that is
     constant over the sampled strings, which E-L* cannot get signal from and
@@ -372,13 +478,13 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = covered_accuracy_ceiling(
+    ceiling = dominated_accuracy_ceiling(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    if ceiling < min_covered_accuracy:
+    if ceiling < min_dominated_accuracy:
         reasons.append(
-            f"covered-accuracy ceiling {ceiling:.3f} below "
-            f"{min_covered_accuracy} (an uncovered state carries a decision)"
+            f"dominated-accuracy ceiling {ceiling:.3f} below {min_dominated_accuracy} "
+            "(a decision rides on a state the window rarely lands in)"
         )
     covered = covered_states(
         dfa, length=length, num_samples=num_samples, sampler=sampler
