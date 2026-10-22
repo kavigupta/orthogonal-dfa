@@ -202,6 +202,8 @@ class BestRound:
     against it."""
 
     consistency: float = -1.0
+    #: The held-out oracle score, ranked on in place of consistency when given.
+    score: Optional[float] = None
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
@@ -209,12 +211,16 @@ class BestRound:
     #: The denoised DFA the certificate passed, if one did.
     certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
-        if (certified is not None, consistency) > (
+    def consider(
+        self, *, consistency, dfa, tree, boundary, round_index, certified, score=None
+    ):
+        rank = consistency if score is None else score
+        held = self.consistency if self.score is None else self.score
+        if self.dfa is None or (certified is not None, rank) > (
             self.certified is not None,
-            self.consistency,
+            held,
         ):
-            self.consistency = consistency
+            self.consistency, self.score = consistency, score
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
             self.certified = certified
@@ -465,6 +471,11 @@ def counterexample_driven_synthesis(
                 index if uncertified_since is None else uncertified_since
             )
         best.consider(
+            score=(
+                None
+                if pst.config.counterexample_score_patience is None
+                else _held_out_oracle_score(pst, dfa)
+            ),
             consistency=true_acc,
             dfa=dfa,
             tree=dt,

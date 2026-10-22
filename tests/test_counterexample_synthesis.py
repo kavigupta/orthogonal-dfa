@@ -9,6 +9,7 @@ import numpy as np
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
+    BestRound,
     _accumulate_harvest,
     _family_too_loose,
     _publish_pool,
@@ -206,3 +207,19 @@ class TestWhenTheFamilyTightens(unittest.TestCase):
         for kind in (HARVEST_ENDS, HARVEST_STUCK):
             harvest = Ending(kind, [b"a"])
             self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
+
+
+class TestBestRoundByScore(unittest.TestCase):
+    def test_a_score_outranks_consistency(self):
+        best = BestRound()
+        common = dict(tree=None, boundary=0.5, certified=None)
+        best.consider(consistency=0.9, score=0.1, dfa="a", round_index=0, **common)
+        best.consider(consistency=0.1, score=0.2, dfa="b", round_index=1, **common)
+        self.assertEqual("b", best.dfa)
+
+    def test_without_a_score_consistency_ranks(self):
+        best = BestRound()
+        common = dict(tree=None, boundary=0.5, certified=None)
+        best.consider(consistency=0.9, dfa="a", round_index=0, **common)
+        best.consider(consistency=0.1, dfa="b", round_index=1, **common)
+        self.assertEqual("a", best.dfa)

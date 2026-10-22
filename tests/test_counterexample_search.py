@@ -231,6 +231,20 @@ class TestUndecidedFallbacks(unittest.TestCase):
         self.assertEqual(Agree(), outcome)
 
 
+class TestStalledHarvest(unittest.TestCase):
+    def test_a_stalled_score_harvests_the_strings_read_undecided(self):
+        search = CounterexampleSearch(
+            quiet_config(),
+            parity_cut([b"\x01\x00"]),
+            MidfixTree([]),
+            score=lambda h: 0,
+            patience=3,
+        )
+        search.hypothesis.edges = dict(PARITY_EDGES)
+        ending = search.run(itertools.cycle([b"\x01\x00", b"\x01"]))
+        self.assertEqual(Ending(SCORE_STALLED, [b"\x01\x00"]), ending)
+
+
 class TestDeepening(unittest.TestCase):
     def test_a_harvest_that_repeats_a_string_walks_deeper(self):
         search = CounterexampleSearch(

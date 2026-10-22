@@ -63,6 +63,8 @@ class CounterexampleSearch:
         self.best_score, self._best, self._best_at = None, None, 0
         self._scored_version = None
         self.max_k = max_k
+        #: Every distinct string read undecided, which a stalled score harvests.
+        self.undecided = {}
         #: ``(probe, k)`` at each deepening.
         self.deepenings = []
 
@@ -80,7 +82,7 @@ class CounterexampleSearch:
                 self.patience is not None
                 and self.probes - self._best_at >= self.patience
             ):
-                ending = Ending(SCORE_STALLED, [])
+                ending = Ending(SCORE_STALLED, list(self.undecided))
                 break
         self.restore_best()
         return ending
@@ -133,6 +135,9 @@ class CounterexampleSearch:
             self.counts = SiteCounts()
             return None
         self.counts.add(charged, outcome)
+        self.undecided.update(
+            dict.fromkeys(charged.ends + charged.stuck + charged.middle)
+        )
         ending = ending_test(
             self.counts,
             self.config,
