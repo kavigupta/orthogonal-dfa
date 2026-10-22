@@ -62,6 +62,13 @@ At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1
 least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 371.
 
+`LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
+rule too: some `q ∈ coveredStates M L c₀` has accuracy at least `1 − γ` with
+`S = coveredStates M L c₀ ∪ dominatedStates M L R q`, `dominatedStates` being the states whose visit
+rate from `q` is at most `R` per position times that of a string from `⌈L/2⌉` on. With
+`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`. `n` is
+`⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
+
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
 past a midfix and nothing undecided at their sifts, cross a learned edge between their states'
