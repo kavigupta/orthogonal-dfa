@@ -30,7 +30,7 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
   round ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, a few
   tolerated, and wrong reads scaling with indecision, a few tolerated.
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
-  `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
+  `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's `κ`.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
 
 ## The learner's DFA
@@ -75,9 +75,9 @@ at most `|Q| + 1` of them where its tree is in `classSet |Q|` (`rarer_tail`,
 `Proofs/LoopRenoise.lean`). Level 3 reads only strings beginning with a probe's first `k` letters
 (`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads past each midfix
 independently of the tree (`measure_inter_of_reads`, `Proofs/LoopPersist.lean`), wrong with chance
-at most `εw + κ`, and two such probes read independently where their first `k` letters differ; the
+at most `κ`, and two such probes read independently where their first `k` letters differ; the
 probes sharing a probe's first `k` letters weigh at most `B₃ prefixMax`. Given the tree's midfixes,
-the rest weigh `X` with `E X ≤ e = (|Q|+1)(εw + κ)` and, each first `k` letters holding at most
+the rest weigh `X` with `E X ≤ e = (|Q|+1)κ` and, each first `k` letters holding at most
 `prefixMax` of the probes, `Var X ≤ prefixMax · e`, so by Chebyshev (`meas_gt_le_of_pairs`) those
 probes weigh more than `ε` with chance at most
 
@@ -113,22 +113,20 @@ every later round. The whole run, every round's clustering and level 3, reads on
 round's clustering draws its prefixes, certification prefixes and suffixes off every one the
 earlier rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
-avoiding those of every prefix the round's clustering read. The family's band passes its check at
-`ζ = δ'/(8W)` (`bandPasses_of_split`, `Proofs/BandWide.lean`): split `g` counts inside the band's
-edges, a vote whose mean lies outside the split reads wrong at most `ζ²`, and one inside it is
-undecided at least a third of the time and reads wrong at most `ζ` times as often. So the family is
-level 5's oracle at `εw = ζ²` and `κ = ζ`. With `f = 0` level 5 tolerates one spurious leaf, within
-level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2c)`, `t' = 2t` is at most `e²(λ + 2c)²`,
-`λ = εw b + κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
+avoiding those of every prefix the round's clustering read. Whatever its two rates, the family's
+read is on its rarer decided side at most `bandKappa` times as often as undecided (`BandKappaBound`,
+`OrthoDFA/Utils/BandKappa.lean`), and the family's size puts `bandKappa` at most `ζ = δ'/(8W)`. So
+the family is level 5's oracle at `εw = 0` and `κ = ζ`. With `f = 0` level 5 tolerates one spurious
+leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most
+`e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
-    W = max(√(e δ'^(3/2) W_b/8), e √δ' W_m, 1 + (|Q|+1)δ'/(4ε)),
+    W = max(e √δ' W_m / 2, 1 + (|Q|+1)δ'/(7ε)),
 
-`W_b = B₃ w + (|Q|+2)²|Σ|(|Q|+1) + 2(w + |Q| + 2)` and `W_m = (16/5)S log(8S(S+1)/δ') + 3 +
-(|Q|+2)|Σ|(|Q|+1)` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)(|Q|+1)`, puts `λ + 2c` under `√δ'/(4e)` and
-`(|Q|+1)(ζ² + ζ)` under `9ε/16`; `16 B₃² prefixMax ≤ δ'` and `B₃ ε ≥ 1` put `2 B₃ prefixMax` under
-`ε/8` and `prefixMax` under `δ' ε²/16`, so with `ε ≤ 3/16` the Chebyshev bound above is under
-`δ'/4`; no two of a round's probes sharing their first `k` letters takes the rest of level 5's
-`δ'/8`. A round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is
+`W_m = (16/5)S log(8S(S+1)/δ') + 3 + (|Q|+2)|Σ|(|Q|+1)`, puts `λ + 2κ` under `√δ'/(4e)` and
+`(|Q|+1)ζ` under `7ε/8`; `16 B₃² prefixMax ≤ δ'` and `B₃ ε ≥ 34` put `2 B₃ prefixMax` under `ε/16`
+and `prefixMax` under `δ' ε²/18496`, so the Chebyshev bound above is under `δ'/4`; no two of a
+round's probes sharing their first `k` letters takes the rest of level 5's `δ'/8`. A round's claim
+(`RoundSpec`, `Proofs/LoopTermination.lean`) is
 level 3's ending, transferred to `D`, and its tree in `classSet |Q|`; it fails with chance at most
 `δ' + δ'/4`: level 5's claim and the Chebyshev bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
@@ -202,11 +200,10 @@ what a state's chance of reading undecided is.
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
-  read wrong at most `εw + κ` of the time. At the README's settings this caps `ζ` at
-  `≈ ε/(2(|Q|+1)) ≈ 4.7e-7`; level 5's race tail binds first, at `ζ ≈ 5.1e-8` through `εw = ζ²`
-  and `≈ 3.8e-7` through `κ`. It charges `κ` where the read's chance is `κ U` at the state of
-  `y·m`; no claim the loop proves bounds `U` at `y·m` under the probes' law, only at the
-  populations' own strings.
+  read wrong at most `κ` of the time. At the README's settings this caps `ζ` at
+  `≈ 7ε/(8(|Q|+1)) ≈ 8.2e-7`; level 5's race tail binds first, at `ζ ≈ 7.5e-7`. It charges `κ`
+  where the read's chance is `κ U` at the state of `y·m`; no claim the loop proves bounds `U` at
+  `y·m` under the probes' law, only at the populations' own strings.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
@@ -331,9 +328,9 @@ what a state's chance of reading undecided is.
   - So the tree outgrows `|Q| + f + 2` leaves only after `f + 2` such rounds, which
     `RaceTailBound` bounds; within the allowance, `Level3AllowanceCorrect` gives `7δ/8`.
 - `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
-  suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
-  side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the
-  rarer side's `max ε (κ U)` is at most `ε + κ U`.
+  suffix-free family and a band read on its rarer decided side at most `κ` times as often as
+  undecided, `RarerBounded`) are level 5's `KappaReadOracle` at `εw = 0`, each state's side the
+  one it reads more often (`readSide`).
 - `OrthoDFA/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band, with its reads
   and each state's read distribution.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
@@ -375,6 +372,13 @@ need not be read to trust the claims above.
 - `OrthoDFA/Utils/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits at
   any rates lands at or below a count at least two under its mean no more often than a binomial
   with as many trials or more at a rate the mean clears, and likewise above.
+
+- `OrthoDFA/Utils/BandKappa.lean` — `BandKappaBound`: the vote `Bin(a, p) + Bin(N − a, r)`, `N ≤ n`,
+  read at `kl` and `kh`, is on its rarer decided side at most `bandKappa` times as often as it is
+  undecided, whatever `p` and `r`: for any count `c` inside the band, with `Y ~ Bin(n, 1/2)`,
+  `bandKappa = max(P(Y ≥ kh)/P(c ≤ Y < kh), P(Y ≤ kl)/P(kl < Y ≤ c))`. The proof: by Newton's
+  inequalities `P(X = j)/C(n, j)` is log-concave in `j`, so from `c` it does not rise or up to `c`
+  it does not fall, and either way compares each tail count with each count of the window.
 
 - `OrthoDFA/Utils/SuccessiveDraws.lean` — `SuccessiveDrawsTails`: over independent draws, where
   `T` with any fewer than `n` more strings holds at most `t` of the law, the draws among the first
