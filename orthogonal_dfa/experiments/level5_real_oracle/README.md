@@ -22,6 +22,6 @@ writes `OUT/replay_<tag>/{probes,snapshots}.jsonl`, `snap_<n>.pkl` and
 `summary.json`.  `close_snap.py CKPT SNAP...` closes a snapshot's hypothesis and
 scores it; `leaf_spread.py CKPT SNAP` counts where pool and held-out prefixes sift.
 
-The checkpoints and caches from #501 were made with an older
-`gate_composition_residual.py` fit; check that file out from #501's branch to reuse
-them.
+These scripts use the len40 oracle (`length=40`, `len_lo=35`, `len_hi=85`). Main's
+`gate_composition_residual.py` is fitted around the default exon's query length (189)
+and rejects that band, so check out #501's version of that file to run them.
