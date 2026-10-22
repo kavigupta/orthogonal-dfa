@@ -247,7 +247,7 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
-collides, fails its claim with chance at most `δ + #(strings of at most |Q| letters)(ζ² + ζ)/u`.
+collides, fails its claim with chance at most `δ + (2T prefixMax + (|Q| + 1)(ζ² + ζ))/u`.
 -/
 theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
@@ -275,13 +275,16 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ
-        + (shortStrings (α := α) (Fintype.card σ)).card * (crossLimit ^ 2 + crossLimit) / u := by
+        + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
+            + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by
   set δb := settings.level3.δ
-    + (shortStrings (α := α) (Fintype.card σ)).card * (crossLimit ^ 2 + crossLimit) / u with hδb
+    + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
+      + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u with hδb
   have hδb0 : 0 ≤ δb := by
     obtain ⟨hδ0, -⟩ := hprem
-    have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * (crossLimit ^ 2 + crossLimit) / u :=
-      by positivity
+    have := (prefixMax_pos P.D settings.level3.walkStart).le
+    have : 0 ≤ (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
+        + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by positivity
     linarith
   classical
   set T := settings.level3.probeBudget

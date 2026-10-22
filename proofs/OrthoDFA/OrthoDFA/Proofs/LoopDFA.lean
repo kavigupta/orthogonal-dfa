@@ -560,11 +560,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
     have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
     have hW1 : 1 ≤ W := by
-      have hWr : 2 * ((Q + 1) * A ^ Fintype.card σ / ε) ≤ W :=
-        le_max_of_le_right (le_max_right _ _)
-      have h1 : (1 : ℝ) ≤ A ^ Fintype.card σ := one_le_pow₀ (by linarith)
-      have h2 : (1 : ℝ) ≤ (Q + 1) * A ^ Fintype.card σ := by nlinarith
-      have h3 : (Q + 1) * A ^ Fintype.card σ ≤ (Q + 1) * A ^ Fintype.card σ / ε := by
+      have hWr : 2 * ((Q + 1) / ε) ≤ W := le_max_of_le_right (le_max_right _ _)
+      have h3 : Q + 1 ≤ (Q + 1) / ε := by
         rw [le_div_iff₀ hε0]; nlinarith
       linarith
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
@@ -627,7 +624,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set w5 : ℕ := min (L₁ + 1) (3 + Nat.clog 2 L₁) * (Fintype.card σ + 1) with hw5d
   set Wb : ℝ := B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2) with hWbd
   set W : ℝ := max (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb / 8))
-    (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) * A ^ Fintype.card σ / ε))) with hWd
+    (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) / ε))) with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
   set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -667,14 +664,10 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
       show 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
       positivity
-    exact w_le hℓ1 hB₃ hB₃0 hK₁0 hQ0 (by linarith) hw5 (Nat.cast_nonneg _) hε0 hinvε
-      (by positivity) hδ'0.le hWm0
+    exact w_le hℓ1 hB₃ hB₃0 hK₁0 hQ0 (by linarith) hw5 (Nat.cast_nonneg _) hε0 hinvε hδ'0.le hWm0
   have hW1 : 1 ≤ W := by
-    have hWr : 2 * ((Q + 1) * A ^ Fintype.card σ / ε) ≤ W :=
-      le_max_of_le_right (le_max_right _ _)
-    have h1 : (1 : ℝ) ≤ A ^ Fintype.card σ := one_le_pow₀ (by linarith)
-    have h2 : (1 : ℝ) ≤ (Q + 1) * A ^ Fintype.card σ := by nlinarith
-    have h3 : (Q + 1) * A ^ Fintype.card σ ≤ (Q + 1) * A ^ Fintype.card σ / ε := by
+    have hWr : 2 * ((Q + 1) / ε) ≤ W := le_max_of_le_right (le_max_right _ _)
+    have h3 : Q + 1 ≤ (Q + 1) / ε := by
       have hε1 : ε ≤ 1 := rate_le_one hc1 hA hN1
       rw [le_div_iff₀ hε0]; nlinarith
     linarith
@@ -683,10 +676,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       show 1 ≤ 4 * (A + 1) / c
       rw [le_div_iff₀ hc, one_mul]
       linarith only [hA, hc1]
-    have h1 : (1 : ℝ) ≤ A ^ Fintype.card σ := one_le_pow₀ (by linarith)
-    have h2 : (1 : ℝ) ≤ (Q + 1) * A ^ Fintype.card σ * aε := by
-      have : (1 : ℝ) ≤ (Q + 1) * A ^ Fintype.card σ := by nlinarith
-      nlinarith
+    have h2 : (1 : ℝ) ≤ (Q + 1) * aε := by nlinarith
     have : 0 ≤ Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8) := Real.sqrt_nonneg _
     have : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
@@ -696,7 +686,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
         positivity
       positivity
     show 1 ≤ Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8)
-      + Real.exp 1 * Real.sqrt δ' * Wm + 2 * ((Q + 1) * A ^ Fintype.card σ * aε)
+      + Real.exp 1 * Real.sqrt δ' * Wm + 2 * ((Q + 1) * aε)
     linarith
   obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
     hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1

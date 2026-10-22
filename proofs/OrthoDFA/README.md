@@ -70,11 +70,13 @@ summed over the window, so an edge out of its true leaf that is wrong or unlearn
 `c/((|Σ|+1)N)` of the probes disagreeing (`edge_of_occupied`), `disagreeSet` being the probes
 that search, cross a wrong edge, stop at an unlearned one, stop undecided at their start or end
 sift (level 3's own success test bounds these at `ε`), or read a string followed by a midfix of
-the tree on its state's rarer side (`rarerSet`). The last is bounded by Markov: each string reads
-wrong with chance at most the band's far side, and on the event that no step reads wrong the tree
-is in `classSet |Q|`, its midfixes at most `|Q|` long, so the probes reading wrong past a midfix
-weigh more than `ε` with chance at most `(|Q|+1)|Σ|^|Q|` times the far side over `ε`, which the far
-side's choice makes `δ'/8`. The clustering, run at `εcov = min(ε, ξ/(8N))`, reads every covered
+the tree on its state's rarer side (`rarerSet`). The last is bounded by Markov over the tree's own
+midfixes, at most `|Q| + 1` of them where its tree is in `classSet |Q|` (`rarer_markov`,
+`Proofs/LoopRenoise.lean`). Level 3 reads only strings beginning with a probe's first `k` letters
+(`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads past each midfix
+independently of the tree (`measure_inter_of_reads`, `Proofs/LoopPersist.lean`), wrong with chance
+at most `εw + κ`; the probes sharing a probe's first `k` letters weigh at most `B₃ prefixMax`. So
+those probes weigh more than `ε` with chance at most `(2 B₃ prefixMax + (|Q|+1)(εw + κ))/ε`. The clustering, run at `εcov = min(ε, ξ/(8N))`, reads every covered
 state on its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it
 accepts as the target does, so the hypothesis from the covered start's true leaf tracks the
 re-rooted target on every run that stays covered (`classify_start_le`).
@@ -87,7 +89,7 @@ string of length `L` is wrong at most `(1025/1024) N εcov` of the time and unde
 mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
 reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
 prefix the last round's clustering read or of one of its probes: level 3 reads only short strings
-beginning with some probe's first `k` letters (`level3_congr_zone'`, `Proofs/LoopSelect.lean`), and
+beginning with some probe's first `k` letters (`level3_congr_zone'`, `Proofs/LoopRenoise.lean`), and
 the earlier rounds read other suffixes. That collision has chance at most
 `n(6(|Q|+2)RB + B₃ + n)/|Σ|^k`, which `L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that
 can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
@@ -112,14 +114,15 @@ level 5's oracle at `εw = ζ²` and `κ = ζ`. With `f = 0` level 5 tolerates o
 level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2c)`, `t' = 2t` is at most `e²(λ + 2c)²`,
 `λ = εw b + κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
-    W = max(√(e δ'^(3/2) W_b/8), e √δ' W_m, 2(|Q|+1)|Σ|^|Q|/ε),
+    W = max(√(e δ'^(3/2) W_b/8), e √δ' W_m, 2(|Q|+1)/ε),
 
 `W_b = B₃ w + (|Q|+2)²|Σ|(|Q|+1) + 2(w + |Q| + 2)` and `W_m = (16/5)S log(8S(S+1)/δ') + 3 +
 (|Q|+2)|Σ|(|Q|+1)` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)(|Q|+1)`, puts `λ + 2c` under `√δ'/(4e)` and
-the Markov bound above under `δ'/8`; no two of a round's probes sharing their first `k` letters
-takes the rest of level 5's `δ'/8`. A round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is
+the midfix part of the Markov bound above under `δ'/8`; `16 B₃² prefixMax ≤ δ'` and `B₃ ε ≥ 1` put
+its shared-key part under `δ'/8`; no two of a round's probes sharing their first `k` letters takes
+the rest of level 5's `δ'/8`. A round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is
 level 3's ending, transferred to `D`, and its tree in `classSet |Q|`; it fails with chance at most
-`δ' + δ'/8`: level 5's claim and the Markov bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
+`δ' + δ'/4`: level 5's claim and the Markov bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `96 prefixMax / ε` on a string, within `cap`, which also bounds the suffixes' atoms; its strings are
 at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's atom
@@ -190,10 +193,12 @@ what a state's chance of reading undecided is.
 ## Open
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
-- **The rarer reads past a midfix** are bounded by a union over every word of at most `|Q|` letters,
-  `(|Q|+1)|Σ|^|Q|` of them, each read wrong at most `εw + κ` of the time. This Markov bound is what
-  sets the band's `ζ`: at the README's settings it caps `κ` at `δ'ε/(16(|Q|+1)|Σ|^|Q|) ≈ 2.3e-12`,
-  where level 5's race tail alone would allow `≈ 7.5e-7`.
+- **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
+  read wrong at most `εw + κ` of the time. This Markov bound is what sets the band's `ζ`: at the
+  README's settings it caps `κ` at `δ'ε/(16(|Q|+1)) ≈ 1.9e-11`, where level 5's race tail alone
+  would allow `≈ 7.5e-7`. It charges `κ` where the read's chance is `κ U` at the state of `y·m`;
+  no claim the loop proves bounds `U` at `y·m` under the probes' law, only at the populations'
+  own strings.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`

@@ -102,7 +102,7 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
-reads. Its chance is at most `δ + #(strings of at most |Q| letters)(ζ² + ζ)/u`, it is fixed
+reads. Its chance is at most `δ + (2T prefixMax + (|Q| + 1)(ζ² + ζ))/u`, it is fixed
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
 theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
@@ -117,7 +117,8 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ
-          + (shortStrings (α := α) (Fintype.card σ)).card * (crossLimit ^ 2 + crossLimit) / u)
+          + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
+            + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u)
       ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
