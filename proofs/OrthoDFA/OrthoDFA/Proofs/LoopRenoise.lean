@@ -11,7 +11,7 @@ the noise, with the same read distributions, which agrees with the family off `R
 copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`level3Fail_le`): level 3 fails
 to end well within `|Q| + 2` leaves, or the probes reading past one of its tree's at most `|Q| + 1`
 midfixes on their state's rarer side weigh more than `u`, with chance at most
-`δ + (T p₀ + (|Q| + 1)(ε + κ))/u`. Level 3 reads only strings beginning with a probe's first `k`
+`δ + (T p₀ + (|Q| + 1)κ)/u`. Level 3 reads only strings beginning with a probe's first `k`
 letters (`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads
 independently of the tree (`rarer_point_le`); the others weigh at most `T p₀`. A second copy can be
 fixed at a point where the bound still holds (`exists_noise_le`).
@@ -29,8 +29,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
 /-- The family read through `O.renoise R`. -/
 def SuffixFamily.renoise (fam : SuffixFamily μ α σ) (R : Set (FreeMonoid α)) :
     SuffixFamily (μ.prod μ) α σ :=
-  ⟨fam.O.renoise R, fam.M, fam.F, fam.kl, fam.kh, fam.ε, fam.ε₂, fam.κ, fam.lang, fam.suffixFree,
-    fam.band⟩
+  ⟨fam.O.renoise R, fam.M, fam.F, fam.kl, fam.kh, fam.κ, fam.lang, fam.suffixFree, fam.band⟩
 
 lemma SuffixFamily.renoise_readDist (fam : SuffixFamily μ α σ) (R : Set (FreeMonoid α)) :
     (fam.renoise R).readDist = fam.readDist := by
@@ -408,51 +407,49 @@ theorem rarer_markov (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings) 
 open Random.Kappa in
 /-- Level 5's guarantee read through the family at `f = 0`, one spurious leaf tolerated within
 level 3's `|Q| + 2`: level 3 fails to end well at `ε + u` over `disagreeSet`, or its tree leaves
-`classSet |Q|`, but for chance `δ + (T p₀ + (|Q| + 1)(ε + κ))/u`. -/
-theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
+`classSet |Q|`, but for chance `δ + (T p₀ + (|Q| + 1)κ)/u`. -/
+theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hκ : 0 ≤ fam.κ)
     (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u t t' : ℝ) (hu : 0 < u) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let w : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (nQ + 1)
-    let c : ℝ := fam.ε * max w (nQ + 2) + fam.κ
-    let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
     let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + (nQ + 2) * nα * (nQ + 1)
     (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < C.δ → C.δ < 1 →
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
-    0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
+    0 ≤ t → 0 ≤ t' → t * fam.κ ≤ 1 - Real.exp (-(t' * fam.κ)) →
     C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
-      + Real.exp (t' * (fam.ε * b + fam.κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8 →
+      + Real.exp (t' * (fam.κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
       ≤ ENNReal.ofReal (C.δ
-        + (C.probeBudget * p₀ + (Fintype.card σ + 1) * (fam.ε + fam.κ)) / u) := by
-  intro nQ nα S w c b m hpre hδ hδ1 hy0 hyρ hρ1 hP ht ht' htc hfin
+        + (C.probeBudget * p₀ + (Fintype.card σ + 1) * fam.κ) / u) := by
+  intro nQ nα S m hpre hδ hδ1 hy0 hyρ hρ1 hP ht ht' htc hfin
   classical
   set side : σ → Bool := fun q => readSide (fam.readDist q)
   set U : σ → ℝ := fun q => fam.readDist q .undecided
-  obtain ⟨R, hR⟩ := familyKappaOracle_holds fam hε hκ
+  obtain ⟨R, hR⟩ := familyKappaOracle_holds fam
   have hRr : ∀ z ω, R.read z ω = fam.read ω z := fun z ω => congrFun (congrFun hR z) ω
   set k := C.walkStart
   set T := C.probeBudget
   set π := Measure.pi fun _ : Fin T => P.D
   -- level 3 ends well within `|Q| + 2` leaves
-  have hK := level5RoundCorrect_holds fam.M side U fam.ε fam.κ μ' R P C p₀ 0 t t' hpre hδ hδ1 hy0
-    hyρ hρ1 hP hε hκ ht ht' htc hfin
+  have hK := level5RoundCorrect_holds fam.M side U 0 fam.κ μ' R P C p₀ 0 t t' hpre hδ hδ1 hy0
+    hyρ hρ1 hP le_rfl hκ ht ht' (by simp only [zero_mul, zero_add]; exact htc)
+    (by simp only [zero_mul, zero_add]; exact hfin)
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)
   -- the probes reading on the rarer side past a midfix of the tree weigh at most `u`
   set Mk := {d : Ω' × (Fin T → FreeMonoid α) |
     let Tr := (Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2).hypothesis.tree
     u < P.D.real {y | Tr ∈ Random.classSet nQ
       ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read d.1 z) k Tr}}
-  have hMkle : (μ'.prod π) Mk ≤ ENNReal.ofReal ((T * p₀ + (nQ + 1) * (fam.ε + fam.κ)) / u) :=
+  have hMkle : (μ'.prod π) Mk ≤ ENNReal.ofReal ((T * p₀ + (nQ + 1) * fam.κ) / u) :=
     rarer_markov fam C (by positivity) (fun z => by
       have h1 := R.wrong z
       simp only [hRr] at h1
       have h2 : fam.κ * U (fam.M.eval z.toList) ≤ fam.κ :=
         mul_le_mul_of_nonneg_left (readDist_le_one fam _ _) hκ |>.trans (by rw [mul_one])
-      exact h1.trans (by linarith)) P.D hp₀.le hpre hu
+      exact h1.trans (by rw [zero_add]; exact h2)) P.D hp₀.le hpre hu
   -- level 5's event
   set E₁ := {d : Ω' × (Fin T → FreeMonoid α) |
     let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
@@ -546,7 +543,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     exact hK
   calc (μ'.prod π) (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
       ≤ (μ'.prod π) E₁ + (μ'.prod π) Mk := (measure_mono hsub).trans (measure_union_le _ _)
-    _ ≤ ENNReal.ofReal C.δ + ENNReal.ofReal ((T * p₀ + (nQ + 1) * (fam.ε + fam.κ)) / u) :=
+    _ ≤ ENNReal.ofReal C.δ + ENNReal.ofReal ((T * p₀ + (nQ + 1) * fam.κ) / u) :=
         add_le_add hE₁le hMkle
     _ = _ := by rw [← ENNReal.ofReal_add hδ.le (by positivity)]
 

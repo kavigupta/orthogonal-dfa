@@ -146,73 +146,49 @@ lemma race_tail_choice {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 <
           rw [mul_assoc, mul_comm _ (t ^ 2), h3, mul_one]
       _ ≤ Real.exp 2 * (lam + 2 * c) ^ 2 * (1 + t) ^ 2 := by gcongr
 
-/-- Level 5's premises at the band's two rates `ζ²` and `ζ`, once the round's reads, weighted
-`ζ²` in all and `ζ` undecided, stay under `√δ/(4e)`, and the pairs of probes under `δ/16`. -/
-theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (L : ℕ) (C : Random.Level3Settings)
-    (cross p₀ Wb Wm : ℝ) :
+/-- Level 5's premises at the band's `κ = ζ`, once the round's undecided reads, weighted `ζ`,
+stay under `√δ/(4e)`, and the pairs of probes under `δ/16`. -/
+theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.Level3Settings)
+    (cross p₀ Wm : ℝ) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    let w : ℕ := min (L + 1) (3 + Nat.clog 2 L) * (nQ + 1)
     0 < C.δ → C.δ < 1 → 0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 →
     C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
     0 < cross →
     C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ ≤ C.δ / 16 →
-    (C.probeBudget : ℝ) * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1) + 2 * ((w : ℝ) + nQ + 2) ≤ Wb →
     16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 3 + (nQ + 2) * nα * (nQ + 1) ≤ Wm →
-    cross ^ 2 * Wb ≤ Real.sqrt C.δ / (8 * Real.exp 1) →
-    cross * Wm ≤ Real.sqrt C.δ / (8 * Real.exp 1) →
-    RoundPremises σ α L C (cross ^ 2) cross p₀ := by
-  intro nQ nα S w hδ0 hδ1 hy hyε hε hP hcr hpair hWb hWm hcb hcm
+    cross * Wm ≤ Real.sqrt C.δ / (4 * Real.exp 1) →
+    RoundPremises σ α C cross p₀ := by
+  intro nQ nα S hδ0 hδ1 hy hyε hε hP hcr hpair hWm hcm
   unfold RoundPremises
   dsimp only
-  refine ⟨hδ0, hδ1, hy, hyε, hε, hP, by positivity, hcr.le, ?_⟩
+  refine ⟨hδ0, hδ1, hy, hyε, hε, hP, hcr.le, ?_⟩
   have hS1 : (1 : ℝ) ≤ S := by
     have : 1 ≤ S := by omega
     exact_mod_cast this
   have hlog : 0 ≤ Real.log (8 * S * (S + 1) / C.δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ0]; nlinarith)
-  set cc : ℝ := cross ^ 2 * ((max w (nQ + 2) : ℕ) : ℝ) + cross with hccd
-  set lam : ℝ := cross ^ 2 * ((C.probeBudget : ℝ) * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1))
-    + cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + (nQ + 2) * nα * (nQ + 1))
-    with hlamd
-  have hcc0 : 0 ≤ cc := by positivity
+  set lam : ℝ := cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
+    + (nQ + 2) * nα * (nQ + 1)) with hlamd
   have hlam0 : 0 ≤ lam := by positivity
-  have hpos : 0 < lam + 2 * cc := by
-    have : 0 < cc := by positivity
-    linarith
-  obtain ⟨ht, ht', htc, htail⟩ := race_tail_choice hlam0 hcc0 hpos
-  have hmax : ((max w (nQ + 2) : ℕ) : ℝ) ≤ (w : ℝ) + nQ + 2 := by
-    have : max w (nQ + 2) ≤ w + nQ + 2 := max_le (by omega) (by omega)
-    have h : ((max w (nQ + 2) : ℕ) : ℝ) ≤ ((w + nQ + 2 : ℕ) : ℝ) := by exact_mod_cast this
-    simpa only [Nat.cast_add, Nat.cast_ofNat] using h
-  have hsum : lam + 2 * cc ≤ cross ^ 2 * Wb + cross * Wm := by
-    have h4 : cross ^ 2 * ((C.probeBudget : ℝ) * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
-        + 2 * ((max w (nQ + 2) : ℕ) : ℝ)) ≤ cross ^ 2 * Wb :=
-      mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-    have h5 : cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
-        + (nQ + 2) * nα * (nQ + 1) + 2) ≤ cross * Wm :=
-      mul_le_mul_of_nonneg_left (by linarith) hcr.le
-    have e : lam + 2 * cc = cross ^ 2 * ((C.probeBudget : ℝ) * w
-        + (nQ + 2) * nα * (nQ + 2) * (nQ + 1) + 2 * ((max w (nQ + 2) : ℕ) : ℝ))
-        + cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1
-        + (nQ + 2) * nα * (nQ + 1) + 2) := by
-      rw [hlamd, hccd]; ring
-    linarith
+  have hpos : 0 < lam + 2 * cross := by linarith
+  obtain ⟨ht, ht', htc, htail⟩ := race_tail_choice hlam0 hcr.le hpos
+  have hsum : lam + 2 * cross ≤ cross * Wm := by
+    have e : lam + 2 * cross = cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 3
+        + (nQ + 2) * nα * (nQ + 1)) := by rw [hlamd]; ring
+    rw [e]
+    exact mul_le_mul_of_nonneg_left hWm hcr.le
   set u := Real.sqrt C.δ with hud
   have hu2 : u * u = C.δ := Real.mul_self_sqrt hδ0.le
-  have hsq : Real.exp 2 * (lam + 2 * cc) ^ 2 ≤ C.δ / 16 := by
-    have h1 : lam + 2 * cc ≤ u / (4 * Real.exp 1) := by
-      have : u / (8 * Real.exp 1) + u / (8 * Real.exp 1) = u / (4 * Real.exp 1) := by
-        field_simp; ring
-      linarith
+  have hsq : Real.exp 2 * (lam + 2 * cross) ^ 2 ≤ C.δ / 16 := by
     have e : Real.exp 2 * (u / (4 * Real.exp 1)) ^ 2 = C.δ / 16 := by
       rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add, ← hu2]; field_simp; ring
-    calc Real.exp 2 * (lam + 2 * cc) ^ 2 ≤ Real.exp 2 * (u / (4 * Real.exp 1)) ^ 2 := by
-          gcongr
+    calc Real.exp 2 * (lam + 2 * cross) ^ 2 ≤ Real.exp 2 * (u / (4 * Real.exp 1)) ^ 2 := by
+          gcongr; linarith
       _ = C.δ / 16 := e
-  refine ⟨1 / (lam + 2 * cc), 2 * (1 / (lam + 2 * cc)), ht, ht', htc, ?_⟩
+  refine ⟨1 / (lam + 2 * cross), 2 * (1 / (lam + 2 * cross)), ht, ht', htc, ?_⟩
   have := htail.trans hsq
   linarith
 
@@ -246,11 +222,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let J : ℝ := Q + 2
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-    let w5 : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (Fintype.card σ + 1)
-    let Wb : ℝ := B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2)
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-    let W : ℝ := max (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb / 8))
-      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) / ε)))
+    let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) ((Q + 1) / ε)
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -285,7 +258,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                 ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2)
                   (P.L + Fintype.card σ + 3) p)}
           ≤ (Q + 1) * (5 * δ' / 2) := by
-  intro Q A L ι s τ J S B₃ w5 Wb Wm W PB RB cap Kc
+  intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hL1 hk0 hLε hk1 hk2 hk3
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
   classical
@@ -323,7 +296,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hbud0 : (0 : ℝ) ≤ budget := Nat.cast_nonneg _
   set C : Random.Level3Settings := ⟨k, δ', ε / 48, ε, budget⟩ with hCd
   -- the band's far side
-  have hWr : 2 * ((Q + 1) / ε) ≤ W := le_max_of_le_right (le_max_right _ _)
+  have hWr : (Q + 1) / ε ≤ W := le_max_right _ _
   have hW1 : 1 ≤ W := by
     refine le_trans ?_ hWr
     have h3 : Q + 1 ≤ (Q + 1) / ε := by
@@ -479,32 +452,22 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hKc : (((1 + (Fintype.card σ + 1) ^ 3 * Fintype.card α) ^ Fintype.card σ
       * (Fintype.card σ + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) : ℕ) : ℝ) = Kc := by
     push_cast; rfl
-  -- level 5's race tail, at the band's two rates
+  -- level 5's race tail, at the band's `κ`
   have hcr1 : cross ≤ 1 := by
     rw [hcrossd, div_le_one (by positivity)]; linarith
   set u := Real.sqrt δ' with hud
   have hu0 : 0 < u := Real.sqrt_pos.2 hδ'0
   have hu2 : u * u = δ' := Real.mul_self_sqrt hδ'0.le
   have he0 : 0 < Real.exp 1 := Real.exp_pos 1
-  have hcb : cross ^ 2 * Wb ≤ u / (8 * Real.exp 1) := by
-    have hV : Real.sqrt (Real.exp 1 * δ' * u * Wb / 8) ≤ W := le_max_left _ _
-    have hV2 : Real.exp 1 * δ' * u * Wb / 8 ≤ W ^ 2 := by
-      have h := pow_le_pow_left₀ (Real.sqrt_nonneg _) hV 2
-      rwa [Real.sq_sqrt (by positivity)] at h
-    rw [hcrossd, div_pow, div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)]
-    calc δ' ^ 2 * Wb * (8 * Real.exp 1) = 64 * u * (Real.exp 1 * δ' * u * Wb / 8) := by
-          rw [← hu2]; ring
-      _ ≤ 64 * u * W ^ 2 := by gcongr
-      _ = u * (8 * W) ^ 2 := by ring
-  have hcm : cross * Wm ≤ u / (8 * Real.exp 1) := by
-    have hV : Real.exp 1 * u * Wm ≤ W := le_max_of_le_right (le_max_left _ _)
+  have hcm : cross * Wm ≤ u / (4 * Real.exp 1) := by
+    have hV : Real.exp 1 * u * Wm / 2 ≤ W := le_max_left _ _
     rw [hcrossd, div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)]
-    calc δ' * Wm * (8 * Real.exp 1) = 8 * u * (Real.exp 1 * u * Wm) := by rw [← hu2]; ring
+    calc δ' * Wm * (4 * Real.exp 1) = 8 * u * (Real.exp 1 * u * Wm / 2) := by rw [← hu2]; ring
       _ ≤ 8 * u * W := by gcongr
       _ = u * (8 * W) := by ring
-  have hprem : RoundPremises σ α P.L C (cross ^ 2) cross (2 * prefixMax P.D k) := by
-    refine roundPremises_of P.L C cross (2 * prefixMax P.D k) Wb Wm hδ'0 hδ'1'
-      (by show 0 < ε / 48; positivity) (le_refl _) (by show ε < 1; linarith) ?_ hcr ?_ ?_ ?_ hcb hcm
+  have hprem : RoundPremises σ α C cross (2 * prefixMax P.D k) := by
+    refine roundPremises_of C cross (2 * prefixMax P.D k) Wm hδ'0 hδ'1'
+      (by show 0 < ε / 48; positivity) (le_refl _) (by show ε < 1; linarith) ?_ hcr ?_ ?_ hcm
     · show 36 * (S' : ℝ) / ε * Real.log (16 * S' * (S' + 1) / δ') + S' ≤ (budget : ℝ)
       rw [hSS]
       exact Nat.le_ceil _
@@ -514,10 +477,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         nlinarith only [hbud, hbud0, hB0]
       have h2 := mul_le_mul_of_nonneg_right h1 hpm0
       linarith only [h2, hk3]
-    · show (budget : ℝ) * (w5 : ℝ) + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * ((w5 : ℝ) + Q + 2)
-        ≤ B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2)
-      have := mul_le_mul_of_nonneg_right hbud (Nat.cast_nonneg (α := ℝ) w5)
-      linarith only [this]
     · show 16 / 5 * (S' : ℝ) * Real.log (8 * S' * (S' + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
         ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
       rw [hSS]
@@ -573,13 +532,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [e1, e2, hmrq]
     linarith
   -- the rarer reads past a midfix: probes sharing a probe's first `k` letters, and the rest
-  have hshort : ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε
+  have hshort : ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * cross) / ε
       ≤ δ' / 4 := by
-    have hc2 : cross ^ 2 + cross ≤ 2 * cross := by nlinarith
-    have h1 : (Q + 1) * (cross ^ 2 + cross) / ε ≤ δ' / 8 :=
-      calc (Q + 1) * (cross ^ 2 + cross) / ε ≤ (Q + 1) * (2 * cross) / ε :=
-            div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hc2 (by positivity)) hεd.le
-        _ = cross * (2 * ((Q + 1) / ε)) := by ring
+    have h1 : (Q + 1) * cross / ε ≤ δ' / 8 :=
+      calc (Q + 1) * cross / ε = cross * ((Q + 1) / ε) := by ring
         _ ≤ cross * W := mul_le_mul_of_nonneg_left hWr hcr.le
         _ = δ' / 8 := hcrW
     have hB₃ε : 1 ≤ B₃ * ε := by
@@ -636,10 +592,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
     show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ'
-      + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε))
+      + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * cross) / ε))
         ≤ (Q + 1) * (5 * δ' / 2)
     have : δ' + δ' / 4 + (δ'
-        + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * (cross ^ 2 + cross)) / ε)
+        + ((budget : ℝ) * (2 * prefixMax P.D k) + (Q + 1) * cross) / ε)
           ≤ 5 * δ' / 2 := by
       linarith
     exact mul_le_mul_of_nonneg_left this hQ0

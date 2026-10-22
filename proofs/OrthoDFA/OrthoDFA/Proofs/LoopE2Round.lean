@@ -247,16 +247,16 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
-collides, fails its claim with chance at most `δ + (2T prefixMax + (|Q| + 1)(ζ² + ζ))/u`.
+collides, fails its claim with chance at most `δ + (2T prefixMax + (|Q| + 1)ζ)/u`.
 -/
 theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
-        BandPasses N B.lo (B.hi + 1) p r (crossLimit ^ 2) crossLimit crossLimit)
+        RarerBounded N B.lo (B.hi + 1) p r crossLimit)
     (hk : 1 ≤ settings.level3.walkStart) (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : RoundPremises σ α P.L settings.level3 (crossLimit ^ 2) crossLimit
+    (hprem : RoundPremises σ α settings.level3 crossLimit
       (2 * prefixMax P.D settings.level3.walkStart))
     (hu : 0 < u)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
@@ -276,15 +276,15 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ
         + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-            + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by
+            + (Fintype.card σ + 1) * crossLimit) / u := by
   set δb := settings.level3.δ
     + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-      + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u with hδb
+      + (Fintype.card σ + 1) * crossLimit) / u with hδb
   have hδb0 : 0 ≤ δb := by
     obtain ⟨hδ0, -⟩ := hprem
     have := (prefixMax_pos P.D settings.level3.walkStart).le
     have : 0 ≤ (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-        + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by positivity
+        + (Fintype.card σ + 1) * crossLimit) / u := by positivity
     linarith
   classical
   set T := settings.level3.probeBudget
