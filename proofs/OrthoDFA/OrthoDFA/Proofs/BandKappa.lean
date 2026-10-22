@@ -1,5 +1,5 @@
 import OrthoDFA.Utils.BandKappa
-import OrthoDFA.Proofs.BandWide
+import OrthoDFA.Proofs.FamilyRead
 
 /-!
 # A band's vote, against `Bin(n, 1/2)`
@@ -15,6 +15,21 @@ where it does not fall, the mirror at `kl`.
 -/
 
 namespace OrthoDFA
+
+open Polynomial
+
+/-- The Poisson-binomial law of independent bits at rates `ps`. -/
+def pbLaw (ps : List ℝ) : ℕ → ℝ := ps.foldr pbStep pbBase
+
+lemma pbLaw_eq_coeff : ∀ (ps : List ℝ) (j : ℕ), pbLaw ps j = (bitPoly (ps : Multiset ℝ)).coeff j
+  | [], j => by
+    simp [pbLaw, pbBase, bitPoly, coeff_one]
+  | p :: ps, j => by
+    rw [← Multiset.cons_coe, bitPoly_cons]
+    change pbStep p (pbLaw ps) j = _
+    cases j with
+    | zero => rw [pbStep, coeff_bitLin_mul_zero, pbLaw_eq_coeff ps]
+    | succ j => rw [pbStep, coeff_bitLin_mul_succ, pbLaw_eq_coeff ps, pbLaw_eq_coeff ps]
 
 /-! ## The law over the binomial coefficients -/
 
@@ -336,7 +351,7 @@ lemma readOf_undecided {kl kh j : ℕ} : readOf kl kh j = .undecided ↔ kl < j 
   unfold readOf; split_ifs <;> simp_all
 
 theorem bandKappaBound_holds : BandKappaBound := by
-  intro N n a kl c kh p r haN hNn hklc hckh hcn hp0 hp1 hr0 hr1
+  intro N n kl c kh p r hNn hklc hckh hcn hp0 hp1 hr0 hr1 a haN
   classical
   set ps := List.replicate (n - N) (0 : ℝ) ++ (List.replicate a p ++ List.replicate (N - a) r)
     with hps
@@ -437,35 +452,18 @@ theorem bandKappaBound_holds : BandKappaBound := by
       exact hx'.trans (mul_le_mul_of_nonneg_left hUc (by linarith))
     exact (min_le_right _ _).trans (hR.trans (mul_le_mul_of_nonneg_right (le_max_right _ _) hU0))
 
-/-- A band at `lo` and `hi + 1` centred over an even `n`, at `c = n/2`:
-
-    bandKappa = h / (P(Y ≥ n/2) − h),   h = P(Y ≤ lo),   Y ~ Bin(n, 1/2) -/
-lemma bandKappa_centre {n lo hi : ℕ} (hsum : lo + hi + 1 = n) (hlo : lo < n / 2)
-    (hhi : n / 2 ≤ hi) (hev : Even n) :
-    bandKappa n lo (n / 2) (hi + 1)
-      = (1 - binomSfGe n (1 / 2) (lo + 1))
-        / (binomSfGe n (1 / 2) (n / 2) - (1 - binomSfGe n (1 / 2) (lo + 1))) := by
-  obtain ⟨m, rfl⟩ := hev
-  rw [show (m + m) / 2 = m by omega] at hlo hhi ⊢
-  have s1 : binomSfGe (m + m) (1 / 2) (hi + 1) = 1 - binomSfGe (m + m) (1 / 2) (lo + 1) := by
-    rw [binomSfGe_symm _ _ (hi + 1) (by omega), show m + m + 1 - (hi + 1) = lo + 1 by omega,
-      show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num]
-  have s2 : binomSfGe (m + m) (1 / 2) (m + 1) = 1 - binomSfGe (m + m) (1 / 2) m := by
-    rw [binomSfGe_symm _ _ (m + 1) (by omega), show m + m + 1 - (m + 1) = m by omega,
-      show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num]
-  rw [bandKappa, s1, s2]
-  have e : binomSfGe (m + m) (1 / 2) (lo + 1) - (1 - binomSfGe (m + m) (1 / 2) m)
-      = binomSfGe (m + m) (1 / 2) m - (1 - binomSfGe (m + m) (1 / 2) (lo + 1)) := by ring
-  rw [e, max_self]
-
-/-- `Bin(n, 1/2)` lands at or above `n/2` at least half the time, for `n` even. -/
-lemma half_le_binomSfGe_half {n : ℕ} (hev : Even n) : 1 / 2 ≤ binomSfGe n (1 / 2) (n / 2) := by
-  obtain ⟨m, rfl⟩ := hev
-  rw [show (m + m) / 2 = m by omega]
-  have s2 : binomSfGe (m + m) (1 / 2) (m + 1) = 1 - binomSfGe (m + m) (1 / 2) m := by
-    rw [binomSfGe_symm _ _ (m + 1) (by omega), show m + m + 1 - (m + 1) = m by omega,
-      show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num]
-  have := binomSfGe_antitone (n := m + m) (p := 1 / 2) (by norm_num) (by norm_num) m
-  linarith
+/-- `RarerBounded` is monotone in `κ`. -/
+theorem RarerBounded.mono {N kl kh : ℕ} {p r κ κ' : ℝ} (h : RarerBounded N kl kh p r κ)
+    (hκ : κ ≤ κ') (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
+    RarerBounded N kl kh p r κ' := by
+  intro a ha
+  have h1 := h a ha
+  dsimp only at h1 ⊢
+  refine h1.trans (mul_le_mul_of_nonneg_right hκ (Finset.sum_nonneg fun j _ => ?_))
+  split_ifs
+  · refine Finset.sum_nonneg fun x _ => mul_nonneg ?_ ?_ <;>
+      exact mul_nonneg (mul_nonneg (Nat.cast_nonneg _) (pow_nonneg (by assumption) _))
+        (pow_nonneg (by linarith) _)
+  · exact le_rfl
 
 end OrthoDFA
