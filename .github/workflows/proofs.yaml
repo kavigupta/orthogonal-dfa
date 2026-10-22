@@ -33,6 +33,10 @@ jobs:
           key: lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-${{ github.sha }}
           restore-keys: |
             lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-
+      - name: Make the restored build newer than the fresh checkout
+        run: |
+          [ -d .lake/build ] && find .lake/build -type f -exec touch {} +
+          true
       - name: Build
         run: lake build 2>&1 | tee build.log
       - name: Elaborate Verify.lean afresh
