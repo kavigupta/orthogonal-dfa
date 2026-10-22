@@ -8,7 +8,7 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
 loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
 whole run reads one noise, fixed per string as the Python's is. Each round runs level 3's algorithm
-(`indecisiveLStarLevel3`), guaranteed by level 5's claim (`Level5RoundCorrect`), reading the
+(`indecisiveLStarLevel3`), guaranteed by `Level5RoundCorrect` at the family's `κ`, reading the
 clustering's family. One-step consistency at `L − 1` is not enough for this (`parity_toggle`,
 #438).
 
@@ -26,9 +26,9 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `TripartiteSearchCorrect`: the search the probes use to find where the walk and the sift part
   finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` positions (`2 + ⌈log₂(hi − lo)⌉`
   without recovery), and finds the turn exactly where nothing is undecided.
-- `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\* round
-  ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, and wrong
-  reads scaling with indecision.
+- `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\*
+  round ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, a few
+  tolerated, and wrong reads scaling with indecision, a few tolerated.
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, `εw` and `κ` the band's.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
@@ -51,16 +51,16 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
 `ε/48`, drawing at most `B₃ = 36 S/ε · log(16 S(S+1)/δ') + S + 1` probes,
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
-every hypothesis an inequality; they follow from `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k`, `E` and `E₂` free
-of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`. Bounding
-`log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂) + 12)/log |Σ| + |Q| + 4`, that holds once
-`L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
+every hypothesis an inequality; they follow from `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂`
+and `E₃` free of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`.
+Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
+holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
+    L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
 
 At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 421.6`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂) ≤ |Σ|^k` is 421, and the least meeting `LearnerLoopDFASimple`'s
-hypotheses 371.
+least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 371.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
@@ -104,14 +104,22 @@ every later round. The whole run, every round's clustering and level 3, reads on
 round's clustering draws its prefixes, certification prefixes and suffixes off every one the
 earlier rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
-avoiding those of every prefix the round's clustering read. The band's far side is
-`δ'/(8W)`, `W = B₃ w|Q| + |Q|(|Q|+1)²|Σ| + (|Q|+1)|Σ|^|Q|/ε` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)`,
-which meets level 5's premise `εw(B₃ w|Q| + |Q|(|Q|+1)²|Σ|) ≤ δ'/8` (`κ = 0` for the family) and
-the Markov bound above. A
-round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is level 3's ending, transferred to `D`,
-and its tree in `classSet |Q|`; it fails with chance at most `δ' + δ'/8 + δ'/8`: level 5's claim,
-the event that some step reads a string wrong (`pi_wrong_le'`), and the Markov bound
-(`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
+avoiding those of every prefix the round's clustering read. The family's band passes its check at
+`ζ = δ'/(8W)` (`bandPasses_of_split`, `Proofs/BandWide.lean`): split `g` counts inside the band's
+edges, a vote whose mean lies outside the split reads wrong at most `ζ²`, and one inside it is
+undecided at least a third of the time and reads wrong at most `ζ` times as often. So the family is
+level 5's oracle at `εw = ζ²` and `κ = ζ`. With `f = 0` level 5 tolerates one spurious leaf, within
+level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2c)`, `t' = 2t` is at most `e²(λ + 2c)²`,
+`λ = εw b + κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
+
+    W = max(√(e δ'^(3/2) W_b/8), e √δ' W_m, 2(|Q|+1)|Σ|^|Q|/ε),
+
+`W_b = B₃ w + (|Q|+2)²|Σ|(|Q|+1) + 2(w + |Q| + 2)` and `W_m = (16/5)S log(8S(S+1)/δ') + 3 +
+(|Q|+2)|Σ|(|Q|+1)` with `w = min(L₁+1, 3 + ⌈log₂ L₁⌉)(|Q|+1)`, puts `λ + 2c` under `√δ'/(4e)` and
+the Markov bound above under `δ'/8`; no two of a round's probes sharing their first `k` letters
+takes the rest of level 5's `δ'/8`. A round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is
+level 3's ending, transferred to `D`, and its tree in `classSet |Q|`; it fails with chance at most
+`δ' + δ'/8`: level 5's claim and the Markov bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `96 prefixMax / ε` on a string, within `cap`, which also bounds the suffixes' atoms; its strings are
 at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's atom
@@ -174,15 +182,18 @@ what a state's chance of reading undecided is.
 
 1. #417, `Level2RoundCorrect`: ideal reads; a state reads undecided where all its strings do.
 2. #419, `Level3RoundCorrect`: indecision random, decided reads always right.
-3. #420, `Level4RoundCorrect`: rare wrong reads at every state.
-4. #450, `Level5RoundCorrect`: wrong reads at most `εw` plus `κ` times the state's indecision, the
-   round the loop runs.
+3. #420, `Level4RoundCorrect`: rare wrong reads at every state, a few tolerated as spurious
+   splits; level 5 at `κ = 0`.
+4. #499, `Level5RoundCorrect`: wrong reads at most `εw` plus `κ` times the state's indecision, a
+   few tolerated; the round the loop runs, at the family's `κ`.
 
 ## Open
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
 - **The rarer reads past a midfix** are bounded by a union over every word of at most `|Q|` letters,
-  `(|Q|+1)|Σ|^|Q|` of them, which enters only the band's far side, through its log.
+  `(|Q|+1)|Σ|^|Q|` of them, each read wrong at most `εw + κ` of the time. This Markov bound is what
+  sets the band's `ζ`: at the README's settings it caps `κ` at `δ'ε/(16(|Q|+1)|Σ|^|Q|) ≈ 2.3e-12`,
+  where level 5's race tail alone would allow `≈ 7.5e-7`.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
@@ -289,32 +300,23 @@ what a state's chance of reading undecided is.
   ends well finds at least an eighth of the searches. The sampler (`harvestLaw`) draws a fresh
   probe, walks it under the final hypothesis and finds the probe's undecided string at the site, as
   the tests counted it.
-- `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: level 3's algorithm, unchanged, with each read
-  on its state's wrong side with chance at most `εw`, fails to end well with chance at most `δ`
-  under level 3's premises, `η`'s `log(8(|Q| + 1)K/δ)` becoming `log(16(|Q| + 1)K/δ)`, and
-  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`, `N` the budget and `w = min(L + 1, 3 + ⌈log₂ L⌉)`. A
-  step that reads no string wrong splits and learns only on real targets. A probe sifts at most
-  `w` of its prefixes, its search's queries and the successor of its walk's end, each sift reading
-  at most `|Q|` strings, and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; so by
-  `RaceReadsBound` over the strings each step reads the premise keeps every string the round reads
-  right but for chance `δ/8`. It is level 5 at `κ = 0`. The sampler's bounds take `δ/16` at each
-  site and the stretches `3δ/4`.
-- `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each read
-  on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end well
-  with chance at most `δ` under level 4's premises with the last replaced by
-  `εw (N w|Q| + |Q|(|Q| + 1)²|Σ|) + κ ((16/5)S log(8S(S + 1)/δ) + 1 + |Q|(|Q| + 1)²|Σ|) ≤ δ/8`.
-  A string is read wrong at most `κ` times as often as undecided, beyond `εw`; a
-  probe's sifts stop at their first undecided read, and the tests count it: under the `j`-th
-  hypothesis, until a test fires, the probes stopping undecided number at most `(16/5) log(1/a_j)`,
-  whatever the stretch's length. So by `RaceReadsBound` over the strings each step reads, the round reads some string
-  wrong with chance at most `δ/8`.
-- `OrthoDFA/AllowanceClaim.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its reads
-  independent and undecided at their state's rate but with no premise on wrong reads, fails to end
-  well with chance at most `7δ/8` plus the chance that a step grows its tree past `|Q| + f + 2`
-  leaves (`GrowsRun`), under level 5's premises with `S`, `K`, `A` and `η` taken at `|Q| + f`
-  states. Level 3's stretches use right reads only to keep the tree in its class; the proof runs
-  level 5's frame on the target padded with `f` unreachable states, with the leaf count as the
-  invariant.
+- `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: level 5 on reads wrong at most `εw` of the
+  time (`EpsReadOracle`), with no `κ`: level 3's algorithm, unchanged, fails to end well within
+  `|Q| + f + 2` leaves with chance at most `δ` under level 5's premises at `κ = 0`. Its proof reads
+  the oracle as level 5's at `κ = 0`.
+- `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each
+  read on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end
+  well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong reads. Its
+  premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each site, and
+  `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t' c}`. Here
+  `c` is a round's cost, and `b` and `m` count the strings the round reads, in all and undecided,
+  within `|Q| + f + 2` leaves.
+  - A step reads in rounds: its probe's, then one per edge its split re-sifts.
+  - Where no two probes share their first `walkStart` letters (the first term), every string read
+    belongs to one probe. A round with a fresh wrong read then adds at most one spurious leaf or
+    one bad edge, and a split on a bad edge drops it.
+  - So the tree outgrows `|Q| + f + 2` leaves only after `f + 2` such rounds, which
+    `RaceTailBound` bounds; within the allowance, `Level3AllowanceCorrect` gives `7δ/8`.
 - `OrthoDFA/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
   suffix-free family and a band passing `BandPasses`) are level 5's `KappaReadOracle`, each state's
   side the one it reads more often (`readSide`), `εw` the band's `ε` and `κ` its `κ`, since the
@@ -340,18 +342,22 @@ need not be read to trust the claims above.
   round choosing its strings from what earlier rounds read; some query of the first `n` rounds
   reads bad with chance at most `ε` times the most strings they query while none has.
 
-- `OrthoDFA/Utils/RaceReads.lean` — `RaceReadsBound`: reads drawn once per string, independently
+- `OrthoDFA/Utils/RaceTail.lean` — `RaceTailBound`: reads drawn once per string, independently
   across strings, each bad with chance at most `ε` plus `κ` times its chance of reading in `V`, and
-  queried in rounds, each fixed by what it and the earlier rounds read; some query of the first `n`
-  rounds reads bad with chance at most `ε b + κ m`, where the queries, before any bad read, number at
-  most `b`, `m` of them reading in `V`.
-- `OrthoDFA/Utils/RaceTail.lean` — `RaceTailBound`: as `RaceReadsBound`, counting the fresh-bad
-  rounds, those where a string no earlier round queried reads bad. Each round is fixed by what it
+  queried in rounds; it counts the fresh-bad rounds, those where a string no earlier round queried
+  reads bad. Each round is fixed by what it
   and the earlier rounds read while fewer than `f` fresh-bad rounds precede it. If the new strings
   number at most `b` and those in `V` at most `m` over those rounds, each round costing at most `w`,
   then at least `f` rounds are fresh-bad with chance at most `exp(t'(ε b + κ m))/(1 + t)^f` for
   `t w ≤ 1 − e^{−t' w}`. The proof: `(1 + t)^c e^{−t'(ε q + κ v)}` at the counts so far has mean at
   most `1`.
+- `OrthoDFA/Utils/Allowance.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its reads
+  independent and undecided at their state's rate but with no premise on wrong reads, fails to end
+  well or grows its tree past `|Q| + f + 2` leaves with chance at most `7δ/8` plus the chance that a
+  step grows it past them (`GrowsRun`), under level 3's premises at `|Q| + f` states, the sampler's
+  bounds at `δ/16` at each site. Level 3's stretches use right reads only to keep the tree in its
+  class; the proof runs level 3's frame on the target padded with `f` unreachable states, with the
+  leaf count as the invariant. A step toward levels 4 and 5.
 
 - `OrthoDFA/Utils/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits at
   any rates lands at or below a count at least two under its mean no more often than a binomial

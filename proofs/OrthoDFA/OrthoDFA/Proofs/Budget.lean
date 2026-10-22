@@ -791,10 +791,17 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
       _ = 25 * G / (16 * s ^ 2) := by rw [hvote]; field_simp
       _ ≤ 25 * M / (16 * s ^ 2) := by
           gcongr; exact le_trans (by linarith only [hG0]) (le_max_left _ _)
-  have hzC : Z / (4 * voteSlack η ^ 2) ≤ 25 * M / (16 * s ^ 2) := by
-    calc Z / (4 * voteSlack η ^ 2) = 25 * Z / (64 * s ^ 2) := by rw [hvote]; field_simp; ring
-      _ ≤ 25 * Z / (16 * s ^ 2) := by gcongr; norm_num
-      _ ≤ 25 * M / (16 * s ^ 2) := by gcongr; exact le_max_right _ _
+  have hG2 : Real.log 2 ≤ G :=
+    Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hBpos]; linarith only [hB2])
+  have hZ4 : Z + 4 ≤ 4 * M := by
+    have h1 : 4 * G ≤ M := le_max_left _ _
+    have h2 : Z ≤ M := le_max_right _ _
+    linarith only [h1, h2, hG2, half_le_log_two]
+  have hzC : (Z + 4) / (4 * voteSlack η ^ 2) ≤ 25 * M / (16 * s ^ 2) := by
+    calc (Z + 4) / (4 * voteSlack η ^ 2) = 25 * (Z + 4) / (64 * s ^ 2) := by
+          rw [hvote]; field_simp; ring
+      _ ≤ 25 * (4 * M) / (64 * s ^ 2) := by gcongr
+      _ = 25 * M / (16 * s ^ 2) := by field_simp; ring
   have hzS : 1 / voteSlack η ≤ 5 / (2 * s) := by
     simp only [voteSlack, ← hsdef]
     rw [div_le_div_iff₀ (by positivity) (by positivity)]

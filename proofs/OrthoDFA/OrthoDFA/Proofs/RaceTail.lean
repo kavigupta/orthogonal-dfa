@@ -1,5 +1,5 @@
 import OrthoDFA.Utils.RaceTail
-import OrthoDFA.Proofs.RaceReads
+import OrthoDFA.Proofs.AdaptiveReads
 import Mathlib.Probability.Independence.Integration
 
 /-!

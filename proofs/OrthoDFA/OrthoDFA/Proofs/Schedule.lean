@@ -89,10 +89,10 @@ rate only has to sit under half the cut budget: the misfires on the certificatio
 independent given the family, so their count concentrates below the budget.
 
 The band is about `κ·voteSlack` wide and a crossing vote travels all of it, so its tail is
-`exp (-2κ·voteSlack²)`, which the second term puts under `crossLimit`.  Each tail asks for its
-own size, and the family takes the larger.  The third pays for the seed: the family
-returned is one member larger than the band is centred for, which its vote pays for out of the
-slack, at `decSlack`.
+`exp (-2κ·voteSlack²)`, which the second term puts under `crossLimit`, with `e⁴` to spare for the
+loop's band check.  Each tail asks for its own size, and the family takes the larger.  The third
+pays for the seed: the family returned is one member larger than the band is centred for, which
+its vote pays for out of the slack, at `decSlack`.
 
 The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
 the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
@@ -100,7 +100,7 @@ the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round t
 noncomputable def famHoeff (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
   2 * (max ⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
-      ⌈Real.log (1 / crossLimit) / (4 * voteSlack η ^ 2)⌉₊
+      ⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η ^ 2)⌉₊
     + ⌈1 / voteSlack η⌉₊ + 1)
 
 /-- How far `famHoeff`'s vote, seed included, clears its cut at `lo` and `hi + 1`: the band's
@@ -132,16 +132,31 @@ noncomputable def crossTail (η : ℝ) (κ : ℕ) : ℝ :=
 noncomputable def halfTail (η : ℝ) (κ : ℕ) : ℝ :=
   1 - binomSfGe κ (1 / 2) (loAt η κ + 1)
 
+/-- A vote over `κ` reads whose mean is `lo + g` landing at or below `lo`. -/
+noncomputable def edgeTail (η : ℝ) (κ g : ℕ) : ℝ :=
+  1 - binomSfGe κ (((loAt η κ + g : ℕ) : ℝ) / κ) (loAt η κ + 1)
+
+/-- A vote over `κ` reads whose mean is `lo + g` reaching `hi + 1`. -/
+noncomputable def cleanTail (η : ℝ) (κ g : ℕ) : ℝ :=
+  binomSfGe κ (((loAt η κ + g : ℕ) : ℝ) / κ) (hiAt η κ + 1)
+
+/-- How often a vote whose mean lies within `g` counts inside the band's edges is undecided, at
+least. -/
+noncomputable def edgeFloor (η : ℝ) (κ g : ℕ) : ℝ := 1 - halfTail η κ - edgeTail η κ g
+
 /-- A family of `κ` the exact tails allow.  The tails are binomials, which bound a vote's reads
 whatever their rates (`BitSumTails`).  The band spans at least five counts, which that bound asks
 of it, and the family is at least 32 strong, which keeps the pool at 64 for the budget's
 bounds.
 
-`halfTail` is for the loop's band check, which reads the band from its centre at the fourth root
-of `crossLimit`. -/
+The last is for the loop's band check, at `ζ = crossLimit^(1/4)`. Split `g` counts inside the
+band's edges, a vote whose mean lies outside the split is wrong at most `cleanTail ≤ ζ²`, and one
+inside it is undecided at least a third of the time and wrong at most `ζ` times as often. -/
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
   Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
-    ∧ misfireTail η κ ≤ cut / 2 ∧ crossTail η κ ≤ crossLimit ∧ halfTail η κ ^ 4 ≤ crossLimit
+    ∧ misfireTail η κ ≤ cut / 2 ∧ crossTail η κ ≤ crossLimit
+    ∧ ∃ g : ℕ, 2 ≤ g ∧ loAt η κ + g + 1 ≤ hiAt η κ ∧ 1 / 3 ≤ edgeFloor η κ g
+      ∧ cleanTail η κ g ^ 2 ≤ crossLimit ∧ (halfTail η κ / edgeFloor η κ g) ^ 4 ≤ crossLimit
 
 open scoped Classical in
 /-- The family's size: the least that `FamilyFits`, searched no further than `famHoeff`, which

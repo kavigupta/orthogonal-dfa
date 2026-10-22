@@ -652,7 +652,7 @@ omit [Fintype J] in
 lemma famHoeff_eq (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
     (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
       = 2 * (max (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-          (⌈Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
+          (⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
         + (⌈1 / voteSlack η₀⌉₊ : ℝ) + 1) := by
   rw [famHoeff]; push_cast; ring
 
@@ -662,16 +662,16 @@ seed's, and separately the crossing term and the seed's. -/
 lemma famHoeff_terms (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
     Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 + 1 / voteSlack η₀ + 1
         ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2
-      ∧ Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2) + 1 / voteSlack η₀ + 1
+      ∧ (Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2) + 1 / voteSlack η₀ + 1
         ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
   rw [famHoeff_eq]
   have h1 := Nat.le_ceil (Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2)
-  have h2 := Nat.le_ceil (Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2))
+  have h2 := Nat.le_ceil ((Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2))
   have h3 := Nat.le_ceil (1 / voteSlack η₀)
   have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-    (⌈Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
+    (⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
   have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-    (⌈Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
+    (⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
   constructor <;> linarith
 
 /-- To put `exp (-a)` under `ε` it is enough that `a` clears `log (1/ε)`. -/
@@ -693,7 +693,7 @@ lemma famHoeff_seed (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsi
     have := Nat.le_ceil (1 / voteSlack η₀)
     have : (0 : ℝ) ≤ max
         (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-        (⌈Real.log (1 / crossLimit) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ) :=
+        (⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ) :=
       le_trans (Nat.cast_nonneg _) (le_max_left _ _)
     linarith
   rw [div_le_iff₀ hs] at hle
@@ -758,7 +758,7 @@ lemma famHoeff_tail_seed (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
 omit [Fintype J] in
 /-- The crossing term in `famHoeff`, in the form the band's width is checked against. -/
 lemma famHoeff_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
-    Real.log (1 / crossLimit)
+    Real.log (1 / crossLimit) + 4
       ≤ 2 * voteSlack η₀
         * ((famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ - 2) := by
   have hs := voteSlack_pos η₀ hsig
@@ -767,7 +767,8 @@ lemma famHoeff_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hs
   set κ : ℝ := (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
   set v : ℝ := voteSlack η₀
   have e : 2 * v * (κ * v - 2) = 4 * v ^ 2 * (κ / 2 - 1 / v) := by field_simp; ring
-  have e2 : 4 * v ^ 2 * (Real.log (1 / crossLimit) / (4 * v ^ 2)) = Real.log (1 / crossLimit) := by
+  have e2 : 4 * v ^ 2 * ((Real.log (1 / crossLimit) + 4) / (4 * v ^ 2))
+      = Real.log (1 / crossLimit) + 4 := by
     field_simp
   rw [e, ← e2]
   exact mul_le_mul_of_nonneg_left (by linarith) (by positivity)
@@ -858,12 +859,10 @@ lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 
   linarith only [hTv, hb, h1, hv0, hκv]
 
 omit [Fintype J] in
-/-- Hoeffding's crossing tail at `famHoeff`, read at the band's full width, and from its centre
-at half of it. -/
+/-- Hoeffding's crossing tail at `famHoeff`, read at the band's full width. -/
 lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) :
     crossTail η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit) ≤ crossLimit
-      ∧ halfTail η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit) ^ 4 ≤ crossLimit
       ∧ 1 ≤ bandAt η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit) := by
   have hL := famHoeff_cross (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
@@ -883,25 +882,9 @@ lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ)
   have hw := bandAt_wide η₀ κ
   -- `κ log (1/ζ) ≤ 2(κv − 1)²`, which the full width squares to and twice the half width clears
   have hκL : (κ : ℝ) * Real.log (1 / crossLimit) ≤ 2 * ((κ : ℝ) * voteSlack η₀ - 1) ^ 2 := by
-    nlinarith [mul_le_mul_of_nonneg_left hL hκR.le]
+    nlinarith [mul_le_mul_of_nonneg_left hL hκR.le, (by positivity : (0 : ℝ) ≤ 4 * κ)]
   have hκv1 : 0 ≤ (κ : ℝ) * voteSlack η₀ - 1 := by linarith
-  refine ⟨?_, ?_, Nat.le_floor (by push_cast; linarith)⟩
-  rotate_left
-  · have hγ : (0 : ℝ) ≤ ((bandAt η₀ κ : ℝ) + 1) / κ := by positivity
-    have h := one_sub_binomSfGe_le_exp κ (loAt η₀ κ) (q := 1 / 2) (by norm_num) (by norm_num) hγ
-      (le_of_eq (by rw [hlo]; field_simp; ring))
-    refine le_trans (pow_le_pow_left₀ (halfTail_nonneg η₀ κ) h 4) ?_
-    rw [← Real.exp_nat_mul]
-    have e : ((4 : ℕ) : ℝ) * (-2 * (κ : ℝ) * (((bandAt η₀ κ : ℝ) + 1) / κ) ^ 2)
-        = -(8 * ((bandAt η₀ κ : ℝ) + 1) ^ 2 / κ) := by
-      field_simp
-      ring
-    rw [e]
-    refine exp_neg_le_of_log_le hζ ?_
-    rw [le_div_iff₀ hκR]
-    have hsq := pow_le_pow_left₀ hκv1 (show (κ : ℝ) * voteSlack η₀ - 1 ≤ 2 * ((bandAt η₀ κ : ℝ) + 1)
-      by linarith) 2
-    nlinarith
+  refine ⟨?_, Nat.le_floor (by push_cast; linarith)⟩
   have hhiκ : (hiAt η₀ κ : ℝ) ≤ κ := by rw [hhi]; nlinarith
   have hγ : (0 : ℝ) ≤ ((hiAt η₀ κ : ℝ) - loAt η₀ κ) / κ := by
     rw [hhi, hlo]; apply div_nonneg _ hκR.le; linarith
@@ -917,6 +900,181 @@ lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ)
     exact pow_le_pow_left₀ (by linarith) (by linarith) 2
   rw [le_div_iff₀ hκR]
   nlinarith
+
+omit [Fintype J] in
+/-- The loop's band check at `famHoeff`, split `⌊(b + 2)/2⌋` counts inside the band's edges, `b`
+its half width. -/
+lemma famHoeff_split (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
+    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (κ : ℕ) (hκ : κ = famHoeff η₀ populations indecisionLimit εcov δ crossLimit) :
+    ∃ g : ℕ, 2 ≤ g ∧ loAt η₀ κ + g + 1 ≤ hiAt η₀ κ ∧ 1 / 3 ≤ edgeFloor η₀ κ g
+      ∧ cleanTail η₀ κ g ^ 2 ≤ crossLimit ∧ (halfTail η₀ κ / edgeFloor η₀ κ g) ^ 4 ≤ crossLimit := by
+  have hL := famHoeff_cross (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ hsig
+  have hT1 := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ).1
+  obtain ⟨h32, h5⟩ := famHoeff_ge (crossLimit := crossLimit) η₀ populations (δ := δ) hη0 hsig hε
+    hind
+  have hev : Even κ := by rw [hκ, famHoeff]; exact even_two_mul _
+  have h4 : 4 ≤ κ := hκ ▸ famHoeff_ge_four η₀ populations εcov δ hsig
+  rw [← hκ] at hL hT1 h32 h5
+  have hκR : (0 : ℝ) < κ := by linarith
+  have hv0 := voteSlack_pos η₀ hsig
+  have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
+  obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hsig
+  have hb := bandAt_le η₀ κ hsig
+  have hb0 : (0 : ℝ) ≤ bandAt η₀ κ := Nat.cast_nonneg _
+  have hw := bandAt_wide η₀ κ
+  -- `κ log (1/ζ) ≤ 2(κv − 1)²`, which the full width squares to
+  have hκL : (κ : ℝ) * Real.log (1 / crossLimit) ≤ 2 * ((κ : ℝ) * voteSlack η₀ - 1) ^ 2 := by
+    nlinarith [mul_le_mul_of_nonneg_left hL hκR.le]
+  have hκv1 : 0 ≤ (κ : ℝ) * voteSlack η₀ - 1 := by linarith
+  have hexpκ : ∀ x : ℝ, Real.exp (-2 * (κ : ℝ) * (x / κ) ^ 2) = Real.exp (-(2 * x ^ 2 / κ)) := by
+    intro x; congr 1; field_simp
+  set b : ℕ := bandAt η₀ κ with hbdef
+  set B : ℝ := (b : ℝ) + 1 with hBdef
+  clear_value b B
+  have hloB : (loAt η₀ κ : ℝ) = (κ : ℝ) / 2 - B := by rw [hlo, hBdef]; ring
+  have hb2 : 2 ≤ b := by
+    have : (1 : ℝ) < b := by linarith
+    have : 1 < b := by exact_mod_cast this
+    omega
+  have hκvB : (κ : ℝ) * voteSlack η₀ ≤ 2 * B := by linarith
+  have hκv25 : (κ : ℝ) * voteSlack η₀ ≤ (κ : ℝ) * (2 / 5) := mul_le_mul_of_nonneg_left hv hκR.le
+  have hBle : B ≤ (κ : ℝ) / 5 + 1 := by rw [hBdef]; linarith
+  have hB1 : 1 ≤ B := by rw [hBdef]; linarith
+  -- the misfire term: `κv² ≥ 2 log(2/cut) ≥ 8 log 2`
+  have hcutpos := cutBudget_pos η₀ hsig hε hind
+  have hcut8 : cutBudget η₀ indecisionLimit εcov ≤ 1 / 8 := by
+    have := (cutBudget_le η₀ indecisionLimit εcov).2.1
+    rw [sig] at this
+    linarith
+  have hlog16 : 4 * Real.log 2 ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) := by
+    have h : Real.log 16 ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) :=
+      Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hcutpos]; linarith only [hcut8])
+    rw [show (16 : ℝ) = 2 ^ 4 by norm_num, Real.log_pow, Nat.cast_ofNat] at h
+    exact h
+  have hκv2 : 8 * Real.log 2 ≤ (κ : ℝ) * voteSlack η₀ ^ 2 := by
+    have h1 : Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 ≤ (κ : ℝ) / 2 := by
+      have : 0 ≤ 1 / voteSlack η₀ := by positivity
+      linarith
+    rw [div_le_iff₀ (by positivity)] at h1
+    linarith
+  have hl2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
+  have hsqκ : ((κ : ℝ) * voteSlack η₀) ^ 2 ≤ (2 * B) ^ 2 := pow_le_pow_left₀ (by linarith) hκvB 2
+  have hBκ : 2 * Real.log 2 * κ ≤ B ^ 2 := by
+    have h2 := mul_le_mul_of_nonneg_left hκv2 hκR.le
+    linarith
+  have hBc : (κ : ℝ) * (Real.log (1 / crossLimit) + 4) ≤ 8 * B ^ 2 := by
+    have h2 : Real.log (1 / crossLimit) + 4 ≤ 2 * ((κ : ℝ) * voteSlack η₀ ^ 2) := by
+      have : 0 < voteSlack η₀ * 4 := by positivity
+      linarith
+    have h3 := mul_le_mul_of_nonneg_left h2 hκR.le
+    linarith
+  -- the near edge from the centre
+  have hhalf : halfTail η₀ κ ≤ Real.exp (-(2 * B ^ 2 / κ)) := by
+    have h := one_sub_binomSfGe_le_exp κ (loAt η₀ κ) (q := 1 / 2) (γ := B / κ) (by norm_num)
+      (by norm_num) (div_nonneg (by linarith) hκR.le)
+      (le_of_eq (by rw [hloB, mul_sub, mul_div_cancel₀ _ hκR.ne']; ring))
+    rw [hexpκ] at h
+    exact h
+  have hhalf16 : halfTail η₀ κ ≤ 1 / 16 := by
+    refine hhalf.trans ?_
+    have : Real.exp (-(4 * Real.log 2)) = 1 / 16 := by
+      rw [show -(4 * Real.log 2) = Real.log ((2 : ℝ) ^ 4)⁻¹ by
+        rw [Real.log_inv, Real.log_pow]; push_cast; ring, Real.exp_log (by norm_num)]
+      norm_num
+    rw [← this]
+    refine Real.exp_le_exp.2 (neg_le_neg ?_)
+    rw [le_div_iff₀ hκR]; linarith
+  set g : ℕ := (b + 2) / 2 with hgdef
+  have hg1 : b + 1 ≤ 2 * g := by omega
+  have hg2 : 2 * g ≤ b + 2 := by omega
+  have hg1R : B ≤ 2 * (g : ℝ) := by rw [hBdef]; exact_mod_cast hg1
+  have hg2R : 2 * (g : ℝ) ≤ B + 1 := by rw [hBdef]; exact_mod_cast hg2
+  have hg2' : 2 ≤ g := by omega
+  clear_value g
+  have hlogR : ((loAt η₀ κ + g : ℕ) : ℝ) = (κ : ℝ) / 2 - B + g := by
+    push_cast; rw [hlo, hBdef]; ring
+  have hq1 : ((loAt η₀ κ + g : ℕ) : ℝ) / κ ≤ 1 := by rw [div_le_one hκR, hlogR]; linarith
+  -- the near edge from the split
+  have hedge : edgeTail η₀ κ g ≤ 1 / 2 := by
+    have e1 : (κ : ℝ) * (((loAt η₀ κ + g : ℕ) : ℝ) / κ - g / κ) = loAt η₀ κ := by
+      rw [mul_sub, mul_div_cancel₀ _ hκR.ne', mul_div_cancel₀ _ hκR.ne']; push_cast; ring
+    have h := one_sub_binomSfGe_le_exp κ (loAt η₀ κ) (q := ((loAt η₀ κ + g : ℕ) : ℝ) / κ)
+      (γ := g / κ) (div_nonneg (Nat.cast_nonneg _) hκR.le) hq1
+      (div_nonneg (Nat.cast_nonneg _) hκR.le) e1.ge
+    rw [hexpκ] at h
+    refine h.trans ?_
+    have : Real.exp (-Real.log 2) = 1 / 2 := by
+      rw [← Real.log_inv, Real.exp_log (by norm_num)]; norm_num
+    rw [← this]
+    refine Real.exp_le_exp.2 (neg_le_neg ?_)
+    rw [le_div_iff₀ hκR]
+    have h := pow_le_pow_left₀ (by positivity : (0 : ℝ) ≤ B) hg1R 2
+    nlinarith only [h, hBκ]
+  have hfloor : 7 / 16 ≤ edgeFloor η₀ κ g := by unfold edgeFloor; linarith
+  have hhalf0 := halfTail_nonneg η₀ κ
+  refine ⟨g, hg2', ?_, by linarith, ?_, ?_⟩
+  · have : ((loAt η₀ κ + g + 1 : ℕ) : ℝ) ≤ hiAt η₀ κ := by
+      push_cast; rw [hlo, hhi]; linarith
+    exact_mod_cast this
+  · -- the far edge from the split, mirrored onto the near one
+    have hsy : cleanTail η₀ κ g
+        = 1 - binomSfGe κ (1 - ((loAt η₀ κ + g : ℕ) : ℝ) / κ) (loAt η₀ κ + 1) := by
+      have hsum : loAt η₀ κ + hiAt η₀ κ + 1 = κ := by
+        have : ((loAt η₀ κ + hiAt η₀ κ + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
+        exact_mod_cast this
+      rw [cleanTail, binomSfGe_symm _ κ (hiAt η₀ κ + 1) (by omega),
+        show κ + 1 - (hiAt η₀ κ + 1) = loAt η₀ κ + 1 by omega]
+    have hq0 : 0 ≤ 1 - ((loAt η₀ κ + g : ℕ) : ℝ) / κ := by
+      have := hq1; linarith
+    have hq1' : 1 - ((loAt η₀ κ + g : ℕ) : ℝ) / κ ≤ 1 := by
+      have : 0 ≤ ((loAt η₀ κ + g : ℕ) : ℝ) / κ := div_nonneg (Nat.cast_nonneg _) hκR.le
+      linarith
+    have e2 : (κ : ℝ) * (1 - ((loAt η₀ κ + g : ℕ) : ℝ) / κ - (2 * B - g) / κ) = loAt η₀ κ := by
+      rw [mul_sub, mul_sub, mul_one, mul_div_cancel₀ _ hκR.ne', mul_div_cancel₀ _ hκR.ne', hlogR,
+        hloB]
+      ring
+    have h := one_sub_binomSfGe_le_exp κ (loAt η₀ κ)
+      (q := 1 - ((loAt η₀ κ + g : ℕ) : ℝ) / κ) (γ := (2 * B - g) / κ) hq0 hq1'
+      (div_nonneg (by linarith) hκR.le) e2.ge
+    rw [hexpκ, ← hsy] at h
+    have hc0 : 0 ≤ cleanTail η₀ κ g := by
+      rw [cleanTail]; exact binomSfGe_nonneg (by positivity) (by
+        rw [div_le_one hκR, hlogR]; linarith) _
+    calc cleanTail η₀ κ g ^ 2 ≤ Real.exp (-(2 * (2 * B - g) ^ 2 / κ)) ^ 2 :=
+          pow_le_pow_left₀ hc0 h 2
+      _ = Real.exp (-(4 * (2 * B - g) ^ 2 / κ)) := by
+          rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+      _ ≤ crossLimit := by
+          refine exp_neg_le_of_log_le hζ ?_
+          rw [le_div_iff₀ hκR]
+          have hBk : 6 * B ≤ 4 * κ := by linarith
+          have h3 : (3 * B - 1) / 2 ≤ 2 * B - g := by linarith
+          have h4 := pow_le_pow_left₀ (by linarith) h3 2
+          nlinarith only [hBc, h4, hBk]
+  · calc (halfTail η₀ κ / edgeFloor η₀ κ g) ^ 4 ≤ (16 / 7 * halfTail η₀ κ) ^ 4 := by
+          refine pow_le_pow_left₀ (div_nonneg hhalf0 (by linarith)) ?_ 4
+          rw [div_le_iff₀ (by linarith)]
+          nlinarith only [hfloor, hhalf0]
+      _ ≤ (16 / 7) ^ 4 * Real.exp (-(8 * B ^ 2 / κ)) := by
+          rw [mul_pow]
+          gcongr
+          calc halfTail η₀ κ ^ 4 ≤ Real.exp (-(2 * B ^ 2 / κ)) ^ 4 :=
+                pow_le_pow_left₀ hhalf0 hhalf 4
+            _ = _ := by rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+      _ ≤ Real.exp 4 * Real.exp (-(Real.log (1 / crossLimit) + 4)) := by
+          gcongr
+          · have he := Real.exp_one_gt_d9
+            have : (16 / 7 : ℝ) ≤ Real.exp 1 := by linarith
+            calc (16 / 7 : ℝ) ^ 4 ≤ Real.exp 1 ^ 4 := pow_le_pow_left₀ (by norm_num) this 4
+              _ = Real.exp 4 := by rw [← Real.exp_nat_mul]; norm_num
+          · rw [le_div_iff₀ hκR]; nlinarith only [hBc]
+      _ = crossLimit := by
+          rw [← Real.exp_add, show 4 + -(Real.log (1 / crossLimit) + 4)
+            = -Real.log (1 / crossLimit) by ring, one_div, Real.log_inv, neg_neg,
+            Real.exp_log hζ]
 
 omit [Fintype J] in
 /-- Hoeffding's misfire tail at `famHoeff`, read at `decSlack`. -/
@@ -1018,23 +1176,34 @@ lemma famCount_misfire (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (
       (famHoeff_ge η₀ populations hη0 hsig hε hind).2⟩
 
 omit [Fintype J] in
-/-- The crossing tail at the family, its tail from the centre, and a band at least one count
-wide. -/
+/-- The crossing tail at the family, and a band at least one count wide. -/
 lemma famCount_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) :
     crossTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) ≤ crossLimit
-      ∧ halfTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) ^ 4 ≤ crossLimit
       ∧ 1 ≤ bandHalf η₀ populations indecisionLimit εcov δ crossLimit := by
   have hv0 := voteSlack_pos η₀ hsig
   rw [bandHalf]
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
-  · refine ⟨h.2.2.2.2.1, h.2.2.2.2.2, Nat.le_floor ?_⟩
+  · refine ⟨h.2.2.2.2.1, Nat.le_floor ?_⟩
     have := h.2.2.1
     push_cast
     linarith
   · rw [h]
     exact famHoeff_crossTail η₀ populations εcov δ hη0 hsig hζ
+
+omit [Fintype J] in
+/-- The loop's band check at the family, at some split. -/
+lemma famCount_split (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
+    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
+    let κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
+    ∃ g : ℕ, 2 ≤ g ∧ loAt η₀ κ + g + 1 ≤ hiAt η₀ κ ∧ 1 / 3 ≤ edgeFloor η₀ κ g
+      ∧ cleanTail η₀ κ g ^ 2 ≤ crossLimit ∧ (halfTail η₀ κ / edgeFloor η₀ κ g) ^ 4 ≤ crossLimit := by
+  intro κ
+  rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
+    populations εcov δ with h | h
+  · exact h.2.2.2.2.2
+  · exact famHoeff_split η₀ populations hη0 hsig hζ hε hind _ h
 
 lemma tableBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
     (hind : 0 < indecisionLimit) : 0 < tableBudget η₀ indecisionLimit εcov := by

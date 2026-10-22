@@ -78,17 +78,23 @@ lemma avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D
 
 section Bad
 
-/-- Level 5's premises for probes at most `L` long and the wrong-read rate `εw`. -/
+/-- Level 5's premises at `f = 0`, one spurious leaf tolerated within level 3's `|Q| + 2`, for
+probes at most `L` long, wrong reads at `εw + κ U` and no length-`walkStart` prefix above `p₀`. -/
 def RoundPremises (σ α : Type*) [Fintype σ] [Fintype α] (L : ℕ) (C : Random.Level3Settings)
-    (εw : ℝ) : Prop :=
+    (εw κ p₀ : ℝ) : Prop :=
   let nQ := Fintype.card σ
   let nα := Fintype.card α
   let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-  0 < C.δ ∧ C.δ ≤ 1 ∧ 0 < C.harvestRate
+  let w : ℕ := min (L + 1) (3 + Nat.clog 2 L) * (nQ + 1)
+  let c : ℝ := εw * max w (nQ + 2) + κ
+  let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
+  let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 1 + (nQ + 2) * nα * (nQ + 1)
+  0 < C.δ ∧ C.δ < 1 ∧ 0 < C.harvestRate
     ∧ C.harvestRate ≤ C.disagreementRate / 48 ∧ C.disagreementRate < 1
     ∧ 36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget
-    ∧ 0 ≤ εw ∧ εw * (C.probeBudget * min (L + 1) (3 + Nat.clog 2 L) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      ≤ C.δ / 8
+    ∧ 0 ≤ εw ∧ 0 ≤ κ ∧ ∃ t t' : ℝ, 0 ≤ t ∧ 0 ≤ t' ∧ t * c ≤ 1 - Real.exp (-(t' * c))
+      ∧ C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+        + Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8
 
 variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (P : PrefixDistribution α)
@@ -96,21 +102,22 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
-reads. Its chance is at most `δ + δ/8 + #(strings of at most |Q| letters) cross / u`, it is fixed
+reads. Its chance is at most `δ + #(strings of at most |Q| letters)(ζ² + ζ)/u`, it is fixed
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
 theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : RoundPremises σ α P.L settings.level3 crossLimit)
+    (hprem : RoundPremises σ α P.L settings.level3 (crossLimit ^ 2) crossLimit
+      (2 * prefixMax P.D settings.level3.walkStart))
     (hu : 0 < u) (hm1 : m ≤ 1 / 2)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
-    (hband : ∀ N, N + 1 ≤ B.k → ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
-      BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
+    (hband : ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
+      BandPasses N B.lo (B.hi + 1) p r (crossLimit ^ 2) crossLimit crossLimit)
     (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
-        ≤ ENNReal.ofReal (settings.level3.δ + settings.level3.δ / 8
-          + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u)
+        ≤ ENNReal.ofReal (settings.level3.δ
+          + (shortStrings (α := α) (Fintype.card σ)).card * (crossLimit ^ 2 + crossLimit) / u)
       ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -122,7 +129,7 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
           (settings.level3.harvestRate / 2) settings.level3.walkStart
           (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
   classical
-  obtain ⟨hδ0, hδ1, hy0, hyρ, hρ1, hP, hcr0, hcr⟩ := hprem
+  obtain ⟨hδ0, hδ1, hy0, hyρ, hρ1, hP, hcr0, hκ0, t, t', ht, ht', htc, hfin⟩ := hprem
   set C := settings.level3 with hCdef
   set k := C.walkStart
   set T := C.probeBudget
@@ -136,8 +143,9 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     have h1 : O.ηOut ≤ O.η := le_max_right _ _
     exact ⟨by simp only [Oc, Oracle.clamped]; exact le_max_right _ _,
       by simp only [Oc, Oracle.clamped]; exact max_le (by linarith) (by norm_num)⟩
-  have hb := hband F.card hcard (1 - Oc.ηIn) Oc.ηOut 0 0 hηIn.1 hηIn.2 hηOut.1 hηOut.2 le_rfl
-  let fam : SuffixFamily μ α σ := ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit, 0, 0, hL, hsf, hb⟩
+  have hb := hband F.card hcard (1 - Oc.ηIn) Oc.ηOut hηIn.1 hηIn.2 hηOut.1 hηOut.2
+  let fam : SuffixFamily μ α σ :=
+    ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit ^ 2, crossLimit, crossLimit, hL, hsf, hb⟩
   set R : Set (FreeMonoid α) := (offReads k K₀ F)ᶜ
   let fam' := fam.renoise R
   -- the conditioned probes
@@ -154,11 +162,8 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     nlinarith
   have hpre' : ∀ v, P'.D.real {x | prefixOf x C.walkStart = v} ≤ 2 * prefixMax P.D k :=
     fun v => (le_prefixMax D' k v).trans hpm
-  have h4 := level3Fail_le fam' (show (0 : ℝ) ≤ crossLimit from hcross.le) le_rfl P' C
-    (2 * prefixMax P.D k) u hu hpre' hδ0 hδ1 hy0 hyρ hρ1 hP (by
-      show crossLimit * _ + 0 * _ ≤ C.δ / 8
-      rw [zero_mul, add_zero]
-      exact hcr)
+  have h4 := level3Fail_le fam' hcr0 hκ0 P' C (2 * prefixMax P.D k) u t t' hu hpre' hδ0 hδ1 hy0
+    hyρ hρ1 hP ht ht' htc hfin
   have hA0 : 0 ≤ roundSlope σ P.L C := by unfold roundSlope; positivity
   have hsl0 : 0 ≤ roundSlack σ α C (2 * prefixMax P.D k) := by
     unfold roundSlack
@@ -183,11 +188,7 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
   refine ⟨(fun q : Ω × (Fin T → unitInterval) => (q.1, probesOf settings P.D K₀ q.2)) ⁻¹'
     {q | ((q.1, ω₀), q.2) ∈ Sf}, hmp.measurable hSω, ?_, ?_, ?_⟩
   · rw [hmp.measure_preimage hSω.nullMeasurableSet]
-    refine hω₀.trans (h4.trans (le_of_eq ?_))
-    have e : fam'.ε + fam'.κ = crossLimit := by
-      show crossLimit + 0 = crossLimit
-      rw [add_zero]
-    rw [e]
+    exact hω₀.trans h4
   · -- the bad draws read only the zone
     intro v ω ω' h hω
     have hread : ∀ z : FreeMonoid α, z.toList.length ≤ max (P.L + T + 2)
