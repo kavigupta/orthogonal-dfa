@@ -247,7 +247,7 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
-collides, fails its claim with chance at most `δ + (2T prefixMax + (|Q| + 1)(ζ² + ζ))/u`.
+collides, fails its claim with chance at most `δ + rarerTail T (2 prefixMax) ((|Q| + 1)(ζ² + ζ)) u`.
 -/
 theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
@@ -258,7 +258,6 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hk : 1 ≤ settings.level3.walkStart) (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : RoundPremises σ α P.L settings.level3 (crossLimit ^ 2) crossLimit
       (2 * prefixMax P.D settings.level3.walkStart))
-    (hu : 0 < u)
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
     (hm1 : m ≤ 1 / 2)
     (r : ℕ) (hr : r < K) :
@@ -275,16 +274,17 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ
-        + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-            + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by
+        + rarerTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+            ((Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) u := by
   set δb := settings.level3.δ
-    + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-      + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u with hδb
+    + rarerTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+      ((Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) u with hδb
   have hδb0 : 0 ≤ δb := by
     obtain ⟨hδ0, -⟩ := hprem
     have := (prefixMax_pos P.D settings.level3.walkStart).le
-    have : 0 ≤ (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-        + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u := by positivity
+    have := rarerTail_nonneg (T := (settings.level3.probeBudget : ℝ)) (u := u)
+      (by positivity : 0 ≤ 2 * prefixMax P.D settings.level3.walkStart)
+      (by positivity : (0 : ℝ) ≤ (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit))
     linarith
   classical
   set T := settings.level3.probeBudget
@@ -313,7 +313,7 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D k)) m
           (settings.level3.disagreementRate + u + m) (settings.level3.harvestRate / 2) k
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
-    fun t ht => round_bad_exists M O hL P settings m u crossLimit hk hη1 hcross hprem hu
+    fun t ht => round_bad_exists M O hL P settings m u crossLimit hk hη1 hcross hprem
       hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2

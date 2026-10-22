@@ -362,10 +362,10 @@ lemma w_le {ℓ B₃ K₁ Q A ε aε δ' Wm w5 : ℝ} (hℓ1 : 1 ≤ ℓ) (hB₃
     (hWm : 0 ≤ Wm) :
     max (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ'
         * (B₃ * w5 + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (w5 + Q + 2)) / 8))
-      (max (Real.exp 1 * Real.sqrt δ' * Wm) (2 * ((Q + 1) / ε)))
+      (max (Real.exp 1 * Real.sqrt δ' * Wm) (1 + (Q + 1) * δ' / (4 * ε)))
       ≤ (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ'
           * (K₁ * (Q + 1) + (Q + 2) * A * (Q + 2) * (Q + 1) + 2 * (2 * Q + 3)) / 8)
-        + Real.exp 1 * Real.sqrt δ' * Wm + 2 * ((Q + 1) * aε)) * ℓ ^ 2 := by
+        + Real.exp 1 * Real.sqrt δ' * Wm + (1 + (Q + 1) * δ' * aε / 4)) * ℓ ^ 2 := by
   have hℓ0 : 0 ≤ ℓ := by linarith
   have hℓ2 : ℓ ≤ ℓ ^ 2 := by nlinarith
   have hℓ21 : 1 ≤ ℓ ^ 2 := one_le_pow₀ hℓ1
@@ -399,24 +399,25 @@ lemma w_le {ℓ B₃ K₁ Q A ε aε δ' Wm w5 : ℝ} (hℓ1 : 1 ≤ ℓ) (hB₃
       _ ≤ _ := mul_le_mul_of_nonneg_left hℓ2 (Real.sqrt_nonneg _)
   have hs2 : Real.exp 1 * Real.sqrt δ' * Wm ≤ Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 :=
     le_mul_of_one_le_right (by positivity) hℓ21
-  have hs3 : 2 * ((Q + 1) / ε) ≤ 2 * ((Q + 1) * aε) * ℓ ^ 2 := by
-    have h1 : (Q + 1) / ε = (Q + 1) * (1 / ε) := by ring
-    have h2 : (Q + 1) * (1 / ε) ≤ (Q + 1) * (aε * ℓ) :=
+  have hs3 : 1 + (Q + 1) * δ' / (4 * ε) ≤ (1 + (Q + 1) * δ' * aε / 4) * ℓ ^ 2 := by
+    have h1 : (Q + 1) * δ' / (4 * ε) = (Q + 1) * δ' / 4 * (1 / ε) := by ring
+    have h2 : (Q + 1) * δ' / 4 * (1 / ε) ≤ (Q + 1) * δ' / 4 * (aε * ℓ) :=
       mul_le_mul_of_nonneg_left hinv (by positivity)
-    have h3 : (Q + 1) * (aε * ℓ) ≤ (Q + 1) * aε * ℓ ^ 2 := by
+    have h3 : (Q + 1) * δ' / 4 * (aε * ℓ) ≤ (Q + 1) * δ' * aε / 4 * ℓ ^ 2 := by
       have haε : 0 ≤ aε := by
         have : 0 < 1 / ε := by positivity
         nlinarith
-      have := mul_le_mul_of_nonneg_left hℓ2 (by positivity : (0 : ℝ) ≤ (Q + 1) * aε)
-      linarith
-    linarith
+      have := mul_le_mul_of_nonneg_left hℓ2 (by positivity : (0 : ℝ) ≤ (Q + 1) * δ' * aε / 4)
+      nlinarith
+    nlinarith
   have h0a := Real.sqrt_nonneg (Real.exp 1 * δ' * Real.sqrt δ' * Wb / 8)
   have h0b : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm := by positivity
-  have h0c : 0 ≤ 2 * ((Q + 1) / ε) := by positivity
+  have h0c : 0 ≤ 1 + (Q + 1) * δ' / (4 * ε) := by positivity
   have e : (Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8) + Real.exp 1 * Real.sqrt δ' * Wm
-      + 2 * ((Q + 1) * aε)) * ℓ ^ 2
+      + (1 + (Q + 1) * δ' * aε / 4)) * ℓ ^ 2
       = Real.sqrt (Real.exp 1 * δ' * Real.sqrt δ' * Wb₀ / 8) * ℓ ^ 2
-        + Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 + 2 * ((Q + 1) * aε) * ℓ ^ 2 := by ring
+        + Real.exp 1 * Real.sqrt δ' * Wm * ℓ ^ 2 + (1 + (Q + 1) * δ' * aε / 4) * ℓ ^ 2 := by
+    ring
   rw [e]
   refine max_le (by linarith) (max_le (by linarith) (by linarith))
 

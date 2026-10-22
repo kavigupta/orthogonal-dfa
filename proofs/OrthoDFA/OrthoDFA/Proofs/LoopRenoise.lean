@@ -11,10 +11,12 @@ the noise, with the same read distributions, which agrees with the family off `R
 copy (`renoise_read_of_notMem`). Level 5's guarantee holds of it (`level3Fail_le`): level 3 fails
 to end well within `|Q| + 2` leaves, or the probes reading past one of its tree's at most `|Q| + 1`
 midfixes on their state's rarer side weigh more than `u`, with chance at most
-`δ + (T p₀ + (|Q| + 1)(ε + κ))/u`. Level 3 reads only strings beginning with a probe's first `k`
-letters (`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads
-independently of the tree (`rarer_point_le`); the others weigh at most `T p₀`. A second copy can be
-fixed at a point where the bound still holds (`exists_noise_le`).
+`δ + rarerTail T p₀ ((|Q| + 1)(ε + κ)) u`. Level 3 reads only strings beginning with a probe's first
+`k` letters (`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads
+independently of the tree, and of every probe with other first `k` letters; the others weigh at most
+`T p₀`. Given the tree's midfixes the rest concentrate by Chebyshev (`meas_gt_le_of_pairs`,
+`rarer_tail`). A second copy can be fixed at a point where the bound still holds
+(`exists_noise_le`).
 -/
 
 noncomputable section
@@ -22,6 +24,7 @@ noncomputable section
 namespace OrthoDFA
 
 open MeasureTheory
+open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω} [IsProbabilityMeasure μ] {σ : Type*}
@@ -87,27 +90,199 @@ theorem level3_congr_zone' (O : Oracle μ (FreeMonoid α)) (C : Random.Level3Set
   · rw [prefixOf_mul_of_le (by rw [hlp]; exact hj), prefixOf_prefixOf_of_le _ hj]
     exact Finset.mem_image.2 ⟨i, Finset.mem_univ _, rfl⟩
 
-/-- A string past its first `k` letters, which are no probe's, followed by anything, is read at
-none of level 3's strings. -/
-theorem disjoint_level3Zone (k : ℕ) {T : ℕ} (xs : Fin T → FreeMonoid α) (F : Finset (FreeMonoid α))
-    {y : FreeMonoid α} (hy : k ≤ y.toList.length) (hkey : prefixOf y k ∉ probeKeys k xs)
-    (m : FreeMonoid α) : Disjoint (level3Zone k xs F) (readStrings {y * m} F) := by
-  classical
-  refine Finset.disjoint_left.2 fun w hw hw' => hkey ?_
+theorem prefixOf_of_mem_readStrings {k : ℕ} {Y F : Finset (FreeMonoid α)} {w : FreeMonoid α}
+    (hw : w ∈ readStrings Y F) (hY : ∀ z ∈ Y, k ≤ z.toList.length) :
+    ∃ z ∈ Y, prefixOf w k = prefixOf z k := by
   obtain ⟨⟨z, v⟩, hzv, rfl⟩ := Finset.mem_image.1 hw
-  obtain ⟨⟨z', v'⟩, hzv', he⟩ := Finset.mem_image.1 hw'
-  obtain ⟨hz, hz'⟩ := Finset.mem_product.1 hzv
+  obtain ⟨hz, -⟩ := Finset.mem_product.1 hzv
+  exact ⟨z, hz, prefixOf_mul_of_le (hY z hz) v⟩
+
+/-- Strings past their first `k` letters, which are no probe's, followed by the family's suffixes,
+are none of level 3's strings. -/
+theorem disjoint_level3Zone (k : ℕ) {T : ℕ} (xs : Fin T → FreeMonoid α) (F : Finset (FreeMonoid α))
+    {Y : Finset (FreeMonoid α)}
+    (hY : ∀ z ∈ Y, k ≤ z.toList.length ∧ prefixOf z k ∉ probeKeys k xs) :
+    Disjoint (level3Zone k xs F) (readStrings Y F) := by
+  classical
+  refine Finset.disjoint_left.2 fun w hw hw' => ?_
+  obtain ⟨z', hz', he'⟩ := prefixOf_of_mem_readStrings hw' fun z hz => (hY z hz).1
+  obtain ⟨⟨z, v⟩, hzv, rfl⟩ := Finset.mem_image.1 hw
+  obtain ⟨hz, -⟩ := Finset.mem_product.1 hzv
   obtain ⟨-, hzk, hkz⟩ := Finset.mem_filter.1 hz
-  rw [Finset.mem_singleton.1 (Finset.mem_product.1 hzv').1] at he
-  have e1 : prefixOf (y * m * v') k = prefixOf y k := by
-    rw [mul_assoc]; exact prefixOf_mul_of_le hy _
-  have e2 : prefixOf (z * v) k = prefixOf z k := prefixOf_mul_of_le hzk _
-  dsimp only at he
-  rw [← e1, he, e2]
+  refine (hY z' hz').2 ?_
+  rw [← he', prefixOf_mul_of_le hzk]
   exact hkz
+
+/-- Strings past different first `k` letters, followed by the family's suffixes, differ. -/
+theorem disjoint_readStrings_of_keys (k : ℕ) {Y Y' : Finset (FreeMonoid α)}
+    (F : Finset (FreeMonoid α)) (hY : ∀ z ∈ Y, k ≤ z.toList.length)
+    (hY' : ∀ z ∈ Y', k ≤ z.toList.length)
+    (hne : ∀ z ∈ Y, ∀ z' ∈ Y', prefixOf z k ≠ prefixOf z' k) :
+    Disjoint (readStrings Y F) (readStrings Y' F) := by
+  refine Finset.disjoint_left.2 fun w hw hw' => ?_
+  obtain ⟨z, hz, he⟩ := prefixOf_of_mem_readStrings hw hY
+  obtain ⟨z', hz', he'⟩ := prefixOf_of_mem_readStrings hw' hY'
+  exact hne z hz z' hz' (he.symm.trans he')
 
 end Zone
 
+
+section Chebyshev
+
+/-- Chebyshev on `H`, for `X(ω) = D{y | ω ∈ B y}` whose events are independent of `H`, and of
+each other where their keys differ: where each key holds at most `p` of `D` and
+`Σ_y D{y} μ(B y) ≤ e < u`,
+
+    μ(H ∩ {X > u}) ≤ μ(H) p e/(u − e)². -/
+theorem meas_gt_le_of_pairs {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {Y : Type*} [MeasurableSpace Y] [Countable Y]
+    [MeasurableSingletonClass Y] (D : Measure Y) [IsFiniteMeasure D] {K : Type*} (key : Y → K)
+    (H : Set Ω) (B : Y → Set Ω) (hB : ∀ y, MeasurableSet (B y))
+    (h1 : ∀ y, μ (H ∩ B y) = μ H * μ (B y))
+    (h2 : ∀ y y', key y ≠ key y' → μ (H ∩ (B y ∩ B y')) = μ H * (μ (B y) * μ (B y')))
+    {p e u : ℝ} (hp : 0 ≤ p) (he0 : 0 ≤ e) (hkey : ∀ y, D {y' | key y' = key y} ≤ ENNReal.ofReal p)
+    (he : ∑' y, D {y} * μ (B y) ≤ ENNReal.ofReal e) (heu : e < u) :
+    μ (H ∩ {ω | u < D.real {y | ω ∈ B y}}) ≤ μ H * ENNReal.ofReal (p * e / (u - e) ^ 2) := by
+  classical
+  set Xe : Ω → ℝ≥0∞ := fun ω => D {y | ω ∈ B y} with hXed
+  have hXe : ∀ ω, Xe ω = ∑' y, (B y).indicator (fun _ => D {y}) ω := by
+    intro ω
+    show D {y | ω ∈ B y} = _
+    rw [← Measure.tsum_indicator_apply_singleton D _ ((Set.to_countable _).measurableSet)]
+    exact tsum_congr fun y => by simp only [Set.indicator]; rfl
+  have hXm : Measurable Xe := measurable_measure_of_mem D (fun ω => {y | ω ∈ B y}) hB
+  set Mm : ℝ≥0∞ := ∑' y, D {y} * μ (B y) with hMm
+  have hMfin : Mm ≠ ∞ := (he.trans_lt ENNReal.ofReal_lt_top).ne
+  -- the first moment on `H`
+  have hm1 : ∫⁻ ω in H, Xe ω ∂μ = μ H * Mm := by
+    simp_rw [hXe]
+    rw [lintegral_tsum fun y => (measurable_const.indicator (hB y)).aemeasurable,
+      ← ENNReal.tsum_mul_left]
+    refine tsum_congr fun y => ?_
+    rw [lintegral_indicator_const (hB y), Measure.restrict_apply (hB y), Set.inter_comm, h1]
+    ring
+  -- the second moment on `H`: pairs with distinct keys are independent
+  have hm2 : ∫⁻ ω in H, Xe ω ^ 2 ∂μ ≤ μ H * (Mm ^ 2 + ENNReal.ofReal p * Mm) := by
+    have hsq : ∀ ω, Xe ω ^ 2 = ∑' y, ∑' y', (B y ∩ B y').indicator (fun _ => D {y} * D {y'}) ω := by
+      intro ω
+      rw [sq, hXe, ← ENNReal.tsum_mul_right]
+      refine tsum_congr fun y => ?_
+      rw [← ENNReal.tsum_mul_left]
+      refine tsum_congr fun y' => ?_
+      simp only [Set.indicator, Set.mem_inter_iff]
+      split_ifs <;> simp_all
+    have hterm : ∀ y y', ∫⁻ ω in H, (B y ∩ B y').indicator (fun _ => D {y} * D {y'}) ω ∂μ
+        ≤ μ H * (D {y} * μ (B y)) * (D {y'} * μ (B y'))
+          + μ H * (D {y} * μ (B y)) * {y'' | key y'' = key y}.indicator (fun x => D {x}) y' := by
+      intro y y'
+      rw [lintegral_indicator_const ((hB y).inter (hB y')),
+        Measure.restrict_apply ((hB y).inter (hB y')), Set.inter_comm]
+      by_cases hk : key y = key y'
+      · have hy' : y' ∈ {y'' | key y'' = key y} := hk.symm
+        rw [Set.indicator_of_mem hy']
+        refine le_add_left ?_
+        calc D {y} * D {y'} * μ (H ∩ (B y ∩ B y'))
+            ≤ D {y} * D {y'} * μ (H ∩ B y) := by
+              gcongr; exact Set.inter_subset_left
+          _ = _ := by rw [h1]; ring
+      · refine le_add_right ?_
+        rw [h2 y y' hk]
+        exact le_of_eq (by ring)
+    simp_rw [hsq]
+    rw [lintegral_tsum fun y => (Measurable.tsum fun y' =>
+      measurable_const.indicator ((hB y).inter (hB y'))).aemeasurable]
+    calc ∑' y, ∫⁻ ω in H, ∑' y', (B y ∩ B y').indicator (fun _ => D {y} * D {y'}) ω ∂μ
+        = ∑' y, ∑' y', ∫⁻ ω in H, (B y ∩ B y').indicator (fun _ => D {y} * D {y'}) ω ∂μ :=
+          tsum_congr fun y => lintegral_tsum fun y' =>
+            (measurable_const.indicator ((hB y).inter (hB y'))).aemeasurable
+      _ ≤ ∑' y, ∑' y', (μ H * (D {y} * μ (B y)) * (D {y'} * μ (B y'))
+          + μ H * (D {y} * μ (B y)) * {y'' | key y'' = key y}.indicator (fun x => D {x}) y') :=
+          ENNReal.tsum_le_tsum fun y => ENNReal.tsum_le_tsum fun y' => hterm y y'
+      _ = ∑' y, (μ H * (D {y} * μ (B y)) * Mm
+          + μ H * (D {y} * μ (B y)) * D {y'' | key y'' = key y}) := by
+          refine tsum_congr fun y => ?_
+          rw [ENNReal.tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_left,
+            Measure.tsum_indicator_apply_singleton D _ ((Set.to_countable _).measurableSet)]
+      _ ≤ ∑' y, (μ H * (D {y} * μ (B y)) * Mm + μ H * (D {y} * μ (B y)) * ENNReal.ofReal p) :=
+          ENNReal.tsum_le_tsum fun y => by gcongr; exact hkey y
+      _ = μ H * (Mm ^ 2 + ENNReal.ofReal p * Mm) := by
+          rw [ENNReal.tsum_add, ENNReal.tsum_mul_right, ENNReal.tsum_mul_right,
+            ENNReal.tsum_mul_left]
+          ring
+  -- Chebyshev about the mean `m` on `H`
+  set m : ℝ := Mm.toReal with hmd
+  have hm0 : 0 ≤ m := ENNReal.toReal_nonneg
+  have hMm : Mm = ENNReal.ofReal m := (ENNReal.ofReal_toReal hMfin).symm
+  have hme : m ≤ e := ENNReal.toReal_le_of_le_ofReal he0 he
+  set h : ℝ := μ.real H with hhd
+  have hH : μ H = ENNReal.ofReal h := (ofReal_measureReal (measure_ne_top _ _)).symm
+  set X : Ω → ℝ := fun ω => D.real {y | ω ∈ B y} with hXd
+  have hXX : ∀ ω, Xe ω = ENNReal.ofReal (X ω) := fun ω =>
+    (ofReal_measureReal (measure_ne_top _ _)).symm
+  have hX0 : ∀ ω, 0 ≤ X ω := fun ω => measureReal_nonneg
+  set g : Ω → ℝ≥0∞ := fun ω => ENNReal.ofReal ((X ω - m) ^ 2) with hgd
+  have hgm : Measurable g :=
+    ENNReal.measurable_ofReal.comp (((ENNReal.measurable_toReal.comp hXm).sub_const m).pow_const 2)
+  have hpt : ∀ ω, g ω + ENNReal.ofReal (2 * m) * Xe ω = Xe ω ^ 2 + ENNReal.ofReal (m ^ 2) := by
+    intro ω
+    rw [hXX, hgd, ← ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_pow (hX0 ω),
+      ← ENNReal.ofReal_add (by positivity) (by have := hX0 ω; positivity),
+      ← ENNReal.ofReal_add (by have := hX0 ω; positivity) (by positivity)]
+    congr 1
+    ring
+  have hG : ∫⁻ ω in H, g ω ∂μ ≤ ENNReal.ofReal (h * p * m) := by
+    have e1 : ∫⁻ ω in H, g ω ∂μ + ENNReal.ofReal (2 * m) * (μ H * Mm)
+        = ∫⁻ ω in H, Xe ω ^ 2 ∂μ + ENNReal.ofReal (m ^ 2) * μ H := by
+      rw [← hm1, ← lintegral_const_mul _ hXm, ← lintegral_add_left hgm]
+      simp_rw [hpt]
+      rw [lintegral_add_right _ measurable_const, setLIntegral_const]
+    have e2 : ∫⁻ ω in H, g ω ∂μ + ENNReal.ofReal (2 * h * m ^ 2)
+        ≤ ENNReal.ofReal (h * p * m) + ENNReal.ofReal (2 * h * m ^ 2) := by
+      have hh0 : 0 ≤ h := measureReal_nonneg
+      calc ∫⁻ ω in H, g ω ∂μ + ENNReal.ofReal (2 * h * m ^ 2)
+          = ∫⁻ ω in H, g ω ∂μ + ENNReal.ofReal (2 * m) * (μ H * Mm) := by
+            rw [hH, hMm, ← ENNReal.ofReal_mul hh0, ← ENNReal.ofReal_mul (by positivity)]
+            congr 2; ring
+        _ = ∫⁻ ω in H, Xe ω ^ 2 ∂μ + ENNReal.ofReal (m ^ 2) * μ H := e1
+        _ ≤ μ H * (Mm ^ 2 + ENNReal.ofReal p * Mm) + ENNReal.ofReal (m ^ 2) * μ H := by gcongr
+        _ = ENNReal.ofReal (h * p * m) + ENNReal.ofReal (2 * h * m ^ 2) := by
+            rw [hH, hMm, ← ENNReal.ofReal_pow hm0, ← ENNReal.ofReal_mul hp,
+              ← ENNReal.ofReal_add (by positivity) (by positivity), ← ENNReal.ofReal_mul hh0,
+              ← ENNReal.ofReal_mul (by positivity),
+              ← ENNReal.ofReal_add (by positivity) (by positivity),
+              ← ENNReal.ofReal_add (by positivity) (by positivity)]
+            congr 1; ring
+    exact (ENNReal.add_le_add_iff_right ENNReal.ofReal_ne_top).1 e2
+  have hum : 0 < u - m := by linarith
+  have hsub : H ∩ {ω | u < X ω} ⊆ {ω | ENNReal.ofReal ((u - m) ^ 2) ≤ g ω} ∩ H := by
+    rintro ω ⟨hωH, hω⟩
+    refine ⟨ENNReal.ofReal_le_ofReal ?_, hωH⟩
+    have : u - m ≤ X ω - m := by simp only [Set.mem_ofPred_eq] at hω; linarith
+    nlinarith
+  have hcheb := mul_meas_ge_le_lintegral₀ (μ := μ.restrict H) hgm.aemeasurable
+    (ENNReal.ofReal ((u - m) ^ 2))
+  rw [Measure.restrict_apply (measurableSet_le measurable_const hgm)] at hcheb
+  have hpos : 0 < (u - m) ^ 2 := by positivity
+  have hh0 : 0 ≤ h := measureReal_nonneg
+  calc μ (H ∩ {ω | u < D.real {y | ω ∈ B y}})
+      ≤ μ ({ω | ENNReal.ofReal ((u - m) ^ 2) ≤ g ω} ∩ H) := measure_mono hsub
+    _ ≤ ENNReal.ofReal (h * p * m) / ENNReal.ofReal ((u - m) ^ 2) := by
+        rw [ENNReal.le_div_iff_mul_le (Or.inl (ENNReal.ofReal_pos.2 hpos).ne')
+          (Or.inl ENNReal.ofReal_ne_top),
+          mul_comm]
+        exact hcheb.trans hG
+    _ = ENNReal.ofReal (h * (p * m / (u - m) ^ 2)) := by
+        rw [← ENNReal.ofReal_div_of_pos hpos]; congr 1; ring
+    _ ≤ ENNReal.ofReal (h * (p * e / (u - e) ^ 2)) := by
+        refine ENNReal.ofReal_le_ofReal (mul_le_mul_of_nonneg_left ?_ hh0)
+        have hue : 0 < (u - e) ^ 2 := by have : 0 < u - e := by linarith
+                                         positivity
+        exact div_le_div₀ (by positivity) (mul_le_mul_of_nonneg_left hme hp) hue
+          (pow_le_pow_left₀ (by linarith) (by linarith) 2)
+    _ = μ H * ENNReal.ofReal (p * e / (u - e) ^ 2) := by
+        rw [hH, ENNReal.ofReal_mul hh0]
+
+end Chebyshev
 
 section Fail
 
@@ -222,113 +397,48 @@ theorem readDist_le_one (fam : SuffixFamily μ' α σ) (q : σ) (r : ARU) : fam.
   · exact measureReal_le_one
   · norm_num
 
-/-- Over given probes, a string `y` whose first `k` letters are no probe's reads, past a midfix of
-level 3's tree, on its state's rarer side with chance at most `(|Q| + 1) w`, where each string does
-so with chance at most `w`: level 3's reads and `y`'s are at disjoint strings. -/
-theorem rarer_point_le (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings) {w : ℝ}
-    (hw : ∀ z, μ'.real {ω | fam.read ω z
-      = if readSide (fam.readDist (fam.M.eval z.toList)) then .reject else .accept} ≤ w)
-    (xs : Fin C.probeBudget → FreeMonoid α) (y : FreeMonoid α)
-    (hkey : prefixOf y C.walkStart ∉ probeKeys C.walkStart xs) :
-    μ' {ω | let T := (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis.tree
-      T ∈ Random.classSet (Fintype.card σ)
-        ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart T}
-      ≤ ENNReal.ofReal ((Fintype.card σ + 1) * w) := by
-  classical
-  set k := C.walkStart
-  set nQ := Fintype.card σ
-  set Z := level3Zone k xs fam.F
-  set tr : Ω' → DTree α := fun ω =>
-    (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis.tree
-  have htr : ∀ ω ω', (∀ p ∈ Z, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → tr ω = tr ω' :=
-    fun ω ω' h => by
-      exact congrArg (fun r => r.hypothesis.tree)
-        (level3_congr_zone' fam.O C fam.F fam.kl fam.kh xs h)
-  by_cases hk : k ≤ y.toList.length
-  swap
-  · exact (measure_mono (t := ∅) fun ω hω => (hk hω.2.1).elim).trans (by simp)
-  set H : FreeMonoid α → Set Ω' := fun m => {ω | tr ω ∈ Random.classSet nQ ∧ m ∈ Random.mids (tr ω)}
-  set wrong : FreeMonoid α → ARU := fun z =>
-    if readSide (fam.readDist (fam.M.eval z.toList)) then .reject else .accept
-  set B : FreeMonoid α → Set Ω' := fun m => {ω | fam.read ω (y * m) = wrong (y * m)}
-  have hHc : ∀ m ω ω', (∀ p ∈ Z, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → ω ∈ H m → ω' ∈ H m :=
-    fun m ω ω' h hω => by
-      simp only [H, Set.mem_ofPred_eq, ← htr ω ω' h]
-      exact hω
-  have hHm : ∀ m, MeasurableSet (H m) := fun m => measurableSet_of_reads fam.O Z (H m) (hHc m)
-  have hHB : ∀ m, μ' (H m ∩ B m) = μ' (H m) * μ' (B m) := fun m =>
-    measure_inter_of_reads fam.O (disjoint_level3Zone k xs fam.F hk hkey m) (H m) (B m) (hHc m)
-      fun ω ω' h hω => by
-        have : fam.read ω (y * m) = fam.read ω' (y * m) :=
-          familyRead_congr fam.O h (Finset.mem_singleton_self _)
-        change fam.read ω' (y * m) = _
-        rw [← this]
-        exact hω
-  have hB : ∀ m, μ' (B m) ≤ ENNReal.ofReal w := fun m => by
-    rw [← ofReal_measureReal (measure_ne_top _ _)]
-    exact ENNReal.ofReal_le_ofReal (hw _)
-  have hsub : {ω | tr ω ∈ Random.classSet nQ
-      ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) k (tr ω)}
-      ⊆ ⋃ m ∈ shortStrings (α := α) nQ, H m ∩ B m := by
-    rintro ω ⟨hc, -, m, hm, hr⟩
-    exact Set.mem_biUnion (mem_shortStrings.2 ((Random.classSet_props _ _ hc).1 m hm))
-      ⟨⟨hc, hm⟩, hr⟩
-  have hsumH : ∑ m ∈ shortStrings (α := α) nQ, μ' (H m) ≤ ((nQ + 1 : ℕ) : ENNReal) := by
-    calc ∑ m ∈ shortStrings (α := α) nQ, μ' (H m)
-        = ∫⁻ ω, ∑ m ∈ shortStrings (α := α) nQ, (H m).indicator 1 ω ∂μ' := by
-          rw [lintegral_finsetSum _ fun m _ => measurable_one.indicator (hHm m)]
-          exact Finset.sum_congr rfl fun m _ => (lintegral_indicator_one (hHm m)).symm
-      _ ≤ ∫⁻ _, ((nQ + 1 : ℕ) : ENNReal) ∂μ' := lintegral_mono fun ω => by
-          have e : ∑ m ∈ shortStrings (α := α) nQ, (H m).indicator (1 : Ω' → ENNReal) ω
-              = (((shortStrings (α := α) nQ).filter fun m => ω ∈ H m).card : ENNReal) := by
-            simp only [Set.indicator_apply, Pi.one_apply]
-            rw [Finset.sum_boole]
-          rw [e, Nat.cast_le]
-          by_cases hc : tr ω ∈ Random.classSet nQ
-          · have h1 := Random.mids_card (tr ω)
-            have h2 := (Random.classSet_props _ _ hc).2
-            refine (Finset.card_le_card fun m hm => (Finset.mem_filter.1 hm).2.2).trans ?_
-            omega
-          · rw [Finset.filter_false_of_mem fun m _ hm => hc hm.1]
-            simp
-      _ = _ := by simp
-  calc μ' {ω | tr ω ∈ Random.classSet nQ
-        ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) k (tr ω)}
-      ≤ ∑ m ∈ shortStrings (α := α) nQ, μ' (H m ∩ B m) :=
-        (measure_mono hsub).trans (measure_biUnion_finset_le _ _)
-    _ ≤ ∑ m ∈ shortStrings (α := α) nQ, μ' (H m) * ENNReal.ofReal w :=
-        Finset.sum_le_sum fun m _ => by rw [hHB]; gcongr; exact hB m
-    _ = (∑ m ∈ shortStrings (α := α) nQ, μ' (H m)) * ENNReal.ofReal w :=
-        (Finset.sum_mul _ _ _).symm
-    _ ≤ ((nQ + 1 : ℕ) : ENNReal) * ENNReal.ofReal w := by gcongr
-    _ = ENNReal.ofReal ((nQ + 1) * w) := by
-        rw [ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_natCast]
-        push_cast
-        rfl
+/-- The chance the rarer reads past a midfix weigh more than `u`: `p e/(u − T p − e)²` where
+`T p + e < u`, and `1` otherwise. -/
+def rarerTail (T p e u : ℝ) : ℝ := if T * p + e < u then p * e / (u - T * p - e) ^ 2 else 1
+
+lemma rarerTail_nonneg {T p e u : ℝ} (hp : 0 ≤ p) (he : 0 ≤ e) : 0 ≤ rarerTail T p e u := by
+  unfold rarerTail
+  split_ifs <;> positivity
 
 /-- Where level 3's tree is in `classSet |Q|`, the probes reading past one of its midfixes on their
-state's rarer side weigh more than `u` with chance at most `(T p₀ + (|Q| + 1) w)/u`, where no
-length-`k` prefix holds more than `p₀` of the probes and each string reads on its state's rarer side
-with chance at most `w`. Those whose first `k` letters are a probe's weigh at most `T p₀`. -/
-theorem rarer_markov (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings) {w : ℝ} (hw0 : 0 ≤ w)
+state's rarer side weigh more than `u` with chance at most `rarerTail T p₀ ((|Q| + 1) w) u`, where
+no length-`k` prefix holds more than `p₀` of the probes and each string reads on its state's rarer
+side with chance at most `w`. Those whose first `k` letters are a probe's weigh at most `T p₀`. The
+rest read independently of the tree, and of each other where their first `k` letters differ. -/
+theorem rarer_tail (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings) {w : ℝ} (hw0 : 0 ≤ w)
     (hw : ∀ z, μ'.real {ω | fam.read ω z
       = if readSide (fam.readDist (fam.M.eval z.toList)) then .reject else .accept} ≤ w)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {p₀ : ℝ} (hp₀ : 0 ≤ p₀)
-    (hpre : ∀ v, D.real {x | prefixOf x C.walkStart = v} ≤ p₀) {u : ℝ} (hu : 0 < u) :
+    (hpre : ∀ v, D.real {x | prefixOf x C.walkStart = v} ≤ p₀) (u : ℝ) :
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => D)) {d |
       let T := (Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2).hypothesis.tree
       u < D.real {y | T ∈ Random.classSet (Fintype.card σ)
         ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read d.1 z) C.walkStart T}}
-      ≤ ENNReal.ofReal ((C.probeBudget * p₀ + (Fintype.card σ + 1) * w) / u) := by
+      ≤ ENNReal.ofReal (rarerTail C.probeBudget p₀ ((Fintype.card σ + 1) * w) u) := by
   classical
   set k := C.walkStart
   set nQ := Fintype.card σ
-  set π := Measure.pi fun _ : Fin C.probeBudget => D
-  set S : Ω' × (Fin C.probeBudget → FreeMonoid α) → Set (FreeMonoid α) := fun d =>
+  set T := C.probeBudget
+  set π := Measure.pi fun _ : Fin T => D
+  set e : ℝ := (nQ + 1) * w with hed
+  have he0 : 0 ≤ e := by positivity
+  unfold rarerTail
+  split_ifs with hu
+  swap
+  · rw [ENNReal.ofReal_one]; exact prob_le_one
+  set wrong : FreeMonoid α → ARU := fun z =>
+    if readSide (fam.readDist (fam.M.eval z.toList)) then .reject else .accept
+  set S : Ω' × (Fin T → FreeMonoid α) → Set (FreeMonoid α) := fun d =>
     {y | (Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2).hypothesis.tree
         ∈ Random.classSet nQ
       ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read d.1 z) k
         (Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2).hypothesis.tree}
+  change (μ'.prod π) {d | u < D.real (S d)} ≤ ENNReal.ofReal (p₀ * e / (u - T * p₀ - e) ^ 2)
   have hSy : ∀ y, MeasurableSet {d | y ∈ S d} := fun y =>
     measurableSet_of_result fam C (fun ω res => res.hypothesis.tree ∈ Random.classSet nQ
       ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) k res.hypothesis.tree)
@@ -336,81 +446,178 @@ theorem rarer_markov (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings) 
         have e : {ω | res.hypothesis.tree ∈ Random.classSet nQ
             ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) k res.hypothesis.tree}
             = {_ω | res.hypothesis.tree ∈ Random.classSet nQ} ∩ ({_ω | k ≤ y.toList.length}
-              ∩ ⋃ m ∈ Random.mids res.hypothesis.tree, {ω | fam.read ω (y * m)
-                = if readSide (fam.readDist (fam.M.eval (y * m).toList)) then .reject
-                  else .accept}) := by
+              ∩ ⋃ m ∈ Random.mids res.hypothesis.tree,
+                {ω | fam.read ω (y * m) = wrong (y * m)}) := by
           ext ω
-          simp [rarerSet]
+          simp [rarerSet, wrong]
         rw [e]
         exact (MeasurableSet.const _).inter ((MeasurableSet.const _).inter
           (Finset.measurableSet_biUnion _ fun m _ =>
             fam.read_measurable _ (measurableSet_singleton _)))
   have hf : Measurable fun d => D (S d) := measurable_measure_of_mem D _ hSy
+  have hmeas : MeasurableSet {d : Ω' × (Fin T → FreeMonoid α) | u < D.real (S d)} :=
+    measurableSet_lt measurable_const (ENNReal.measurable_toReal.comp hf)
   -- the probes sharing their first `k` letters with a probe
-  have hcoll : ∀ xs : Fin C.probeBudget → FreeMonoid α,
-      D {y | prefixOf y k ∈ probeKeys k xs} ≤ ENNReal.ofReal (C.probeBudget * p₀) := by
+  have hcoll : ∀ xs : Fin T → FreeMonoid α,
+      D.real {y | prefixOf y k ∈ probeKeys k xs} ≤ T * p₀ := by
     intro xs
     have e : {y | prefixOf y k ∈ probeKeys k xs} = ⋃ i, {y | prefixOf y k = prefixOf (xs i) k} := by
       ext y; simp [probeKeys, eq_comm]
     rw [e]
-    refine (measure_iUnion_fintype_le _ _).trans ?_
-    calc ∑ i, D {y | prefixOf y k = prefixOf (xs i) k}
-        ≤ ∑ _i : Fin C.probeBudget, ENNReal.ofReal p₀ := Finset.sum_le_sum fun i _ => by
-          rw [← ofReal_measureReal (measure_ne_top _ _)]
-          exact ENNReal.ofReal_le_ofReal (hpre _)
-      _ = ENNReal.ofReal (C.probeBudget * p₀) := by
-          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-            ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast]
-  set S' : Ω' × (Fin C.probeBudget → FreeMonoid α) → Set (FreeMonoid α) := fun d =>
-    {y | y ∈ S d ∧ prefixOf y k ∉ probeKeys k d.2}
-  have hpt : ∀ d, D (S d) ≤ ENNReal.ofReal (C.probeBudget * p₀) + D (S' d) := fun d =>
-    calc D (S d) ≤ D ({y | prefixOf y k ∈ probeKeys k d.2} ∪ S' d) := measure_mono fun y hy => by
-          by_cases h : prefixOf y k ∈ probeKeys k d.2
-          · exact Or.inl h
-          · exact Or.inr ⟨hy, h⟩
-      _ ≤ _ := (measure_union_le _ _).trans (add_le_add (hcoll d.2) le_rfl)
-  -- the rest, by independence
-  have hS' : ∀ y, (μ'.prod π) {d | y ∈ S' d} ≤ ENNReal.ofReal ((nQ + 1) * w) := by
-    intro y
-    have hm : MeasurableSet {d : Ω' × (Fin C.probeBudget → FreeMonoid α) | y ∈ S' d} :=
-      (hSy y).inter (measurable_snd (Set.to_countable
-        {xs : Fin C.probeBudget → FreeMonoid α | prefixOf y k ∉ probeKeys k xs}).measurableSet)
-    rw [Measure.prod_apply_symm hm]
-    calc ∫⁻ xs, μ' ((fun ω => (ω, xs)) ⁻¹' {d | y ∈ S' d}) ∂π
-        ≤ ∫⁻ _, ENNReal.ofReal ((nQ + 1) * w) ∂π := lintegral_mono fun xs => by
-          by_cases hkey : prefixOf y k ∈ probeKeys k xs
-          · exact (measure_mono (t := ∅) fun ω hω => (hω.2 hkey).elim).trans (by simp)
-          · exact (measure_mono fun ω hω => hω.1).trans (rarer_point_le fam C hw xs y hkey)
-      _ = _ := by simp
-  have hint : ∫⁻ d, D (S d) ∂(μ'.prod π)
-      ≤ ENNReal.ofReal (C.probeBudget * p₀) + ENNReal.ofReal ((nQ + 1) * w) :=
-    calc ∫⁻ d, D (S d) ∂(μ'.prod π)
-        ≤ ∫⁻ d, (ENNReal.ofReal (C.probeBudget * p₀) + D (S' d)) ∂(μ'.prod π) :=
-          lintegral_mono hpt
-      _ = ENNReal.ofReal (C.probeBudget * p₀) + ∫⁻ d, D (S' d) ∂(μ'.prod π) := by
-          rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one]
-      _ ≤ _ := add_le_add le_rfl (Random.Eps.lintegral_le_of_points _ D S' _ fun y _ => hS' y)
-  have hsub : {d : Ω' × (Fin C.probeBudget → FreeMonoid α) | u < D.real (S d)}
-      ⊆ {d | ENNReal.ofReal u ≤ D (S d)} := by
-    intro d hd
-    simp only [Set.mem_ofPred_eq] at hd ⊢
-    rw [measureReal_def] at hd
-    exact (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).2 hd.le
-  refine (measure_mono hsub).trans ((meas_ge_le_lintegral_div hf.aemeasurable
-    (by simpa using hu) ENNReal.ofReal_ne_top).trans ?_)
-  calc (∫⁻ d, D (S d) ∂(μ'.prod π)) / ENNReal.ofReal u
-      ≤ (ENNReal.ofReal (C.probeBudget * p₀) + ENNReal.ofReal ((nQ + 1) * w))
-        / ENNReal.ofReal u := by gcongr
-    _ = _ := by
-        rw [← ENNReal.ofReal_add (by positivity) (by positivity), ENNReal.ofReal_div_of_pos hu]
-
+    refine (measureReal_iUnion_fintype_le _).trans ?_
+    calc ∑ i, D.real {y | prefixOf y k = prefixOf (xs i) k}
+        ≤ ∑ _i : Fin T, p₀ := Finset.sum_le_sum fun i _ => hpre _
+      _ = T * p₀ := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  set c : ℝ := p₀ * e / (u - T * p₀ - e) ^ 2 with hcd
+  -- over given probes
+  have hfix : ∀ xs : Fin T → FreeMonoid α, μ' {ω | u < D.real (S (ω, xs))} ≤ ENNReal.ofReal c := by
+    intro xs
+    set u' := u - T * p₀ with hu'd
+    set Z := level3Zone k xs fam.F
+    set tr : Ω' → DTree α := fun ω =>
+      (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis.tree
+    have htr : ∀ ω ω', (∀ p ∈ Z, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → tr ω = tr ω' :=
+      fun ω ω' h => congrArg (fun r => r.hypothesis.tree)
+        (level3_congr_zone' fam.O C fam.F fam.kl fam.kh xs h)
+    set good : FreeMonoid α → Prop := fun y =>
+      k ≤ y.toList.length ∧ prefixOf y k ∉ probeKeys k xs
+    set H : Finset (FreeMonoid α) → Set Ω' := fun M =>
+      {ω | tr ω ∈ Random.classSet nQ ∧ Random.mids (tr ω) = M}
+    set B : Finset (FreeMonoid α) → FreeMonoid α → Set Ω' := fun M y =>
+      {ω | good y ∧ ∃ m ∈ M, fam.read ω (y * m) = wrong (y * m)}
+    set Ms := (shortStrings (α := α) nQ).powerset.filter fun M => M.card ≤ nQ + 1
+    have hHc : ∀ M ω ω', (∀ p ∈ Z, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → ω ∈ H M →
+        ω' ∈ H M := fun M ω ω' h hω => by
+      simp only [H, Set.mem_ofPred_eq, ← htr ω ω' h]
+      exact hω
+    have hBc : ∀ M y (Y : Finset (FreeMonoid α)), M.image (y * ·) ⊆ Y → ∀ ω ω',
+        (∀ p ∈ readStrings Y fam.F, (fam.O.mq p ω = 1 ↔ fam.O.mq p ω' = 1)) → ω ∈ B M y →
+        ω' ∈ B M y := by
+      rintro M y Y hY ω ω' h ⟨hg, m, hm, hr⟩
+      refine ⟨hg, m, hm, ?_⟩
+      have : fam.read ω (y * m) = fam.read ω' (y * m) :=
+        familyRead_congr fam.O h (hY (Finset.mem_image_of_mem _ hm))
+      rw [← this]
+      exact hr
+    have hHm : ∀ M, MeasurableSet (H M) := fun M => measurableSet_of_reads fam.O Z (H M) (hHc M)
+    have hBm : ∀ M y, MeasurableSet (B M y) := fun M y =>
+      measurableSet_of_reads fam.O _ (B M y) (hBc M y _ subset_rfl)
+    have hgood : ∀ {y}, good y → ∀ M : Finset (FreeMonoid α), ∀ z ∈ M.image (y * ·),
+        k ≤ z.toList.length ∧ prefixOf z k = prefixOf y k := by
+      intro y hy M z hz
+      obtain ⟨m, -, rfl⟩ := Finset.mem_image.1 hz
+      refine ⟨?_, prefixOf_mul_of_le hy.1 m⟩
+      simp only [FreeMonoid.toList_mul, List.length_append]
+      exact le_add_right hy.1
+    have hBe : ∀ M y, ¬ good y → B M y = ∅ := fun M y hy =>
+      Set.eq_empty_of_forall_notMem fun ω hω => hy hω.1
+    -- off the probes sharing a key, the rest given the tree's midfixes
+    have hsub : {ω | u < D.real (S (ω, xs))}
+        ⊆ ⋃ M ∈ Ms, H M ∩ {ω | u' < D.real {y | ω ∈ B M y}} := by
+      intro ω hω
+      have hω : u < D.real (S (ω, xs)) := hω
+      have hc : tr ω ∈ Random.classSet nQ := by
+        by_contra hc
+        have : S (ω, xs) = ∅ := Set.eq_empty_of_forall_notMem fun y hy => hc hy.1
+        rw [this, measureReal_empty] at hω
+        have : 0 ≤ T * p₀ := by positivity
+        linarith
+      have hM : Random.mids (tr ω) ∈ Ms := by
+        refine Finset.mem_filter.2 ⟨Finset.mem_powerset.2 fun m hm =>
+          mem_shortStrings.2 ((Random.classSet_props _ _ hc).1 m hm), ?_⟩
+        have h1 := Random.mids_card (tr ω)
+        have h2 := (Random.classSet_props _ _ hc).2
+        omega
+      refine Set.mem_biUnion hM ⟨⟨hc, rfl⟩, ?_⟩
+      have hS : S (ω, xs) ⊆ {y | prefixOf y k ∈ probeKeys k xs}
+          ∪ {y | ω ∈ B (Random.mids (tr ω)) y} := by
+        rintro y ⟨-, hk, m, hm, hr⟩
+        by_cases hp : prefixOf y k ∈ probeKeys k xs
+        · exact Or.inl hp
+        · exact Or.inr ⟨⟨hk, hp⟩, m, hm, hr⟩
+      have := (measureReal_mono (μ := D) hS).trans (measureReal_union_le _ _)
+      show u - T * p₀ < _
+      linarith [hcoll xs]
+    -- each set of midfixes, by Chebyshev
+    have hM : ∀ M ∈ Ms, μ' (H M ∩ {ω | u' < D.real {y | ω ∈ B M y}})
+        ≤ μ' (H M) * ENNReal.ofReal c := by
+      intro M hM
+      have hMc : M.card ≤ nQ + 1 := (Finset.mem_filter.1 hM).2
+      refine meas_gt_le_of_pairs (μ := μ') D (fun y => prefixOf y k) (H M) (B M) (hBm M)
+        (fun y => ?_)
+        (fun y y' hyy => ?_) hp₀ he0 (fun y => ?_) ?_ (by linarith)
+      · by_cases hy : good y
+        · exact measure_inter_of_reads fam.O
+            (disjoint_level3Zone k xs fam.F fun z hz => by
+              obtain ⟨h1, h2⟩ := hgood hy M z hz
+              exact ⟨h1, h2 ▸ hy.2⟩) _ _ (hHc M) (hBc M y _ subset_rfl)
+        · simp [hBe M y hy]
+      · by_cases hy : good y
+        · by_cases hy' : good y'
+          · have hd := disjoint_readStrings_of_keys k fam.F (fun z hz => (hgood hy M z hz).1)
+              (fun z hz => (hgood hy' M z hz).1) fun z hz z' hz' => by
+                rw [(hgood hy M z hz).2, (hgood hy' M z' hz').2]; exact hyy
+            rw [measure_inter_of_reads fam.O
+              (disjoint_level3Zone k xs fam.F (Y := M.image (y * ·) ∪ M.image (y' * ·))
+                fun z hz => by
+                  rcases Finset.mem_union.1 hz with hz | hz
+                  · obtain ⟨h1, h2⟩ := hgood hy M z hz; exact ⟨h1, h2 ▸ hy.2⟩
+                  · obtain ⟨h1, h2⟩ := hgood hy' M z hz; exact ⟨h1, h2 ▸ hy'.2⟩)
+              (H M) (B M y ∩ B M y') (hHc M) fun ω ω' h hω =>
+                ⟨hBc M y _ Finset.subset_union_left ω ω' h hω.1,
+                  hBc M y' _ Finset.subset_union_right ω ω' h hω.2⟩,
+              measure_inter_of_reads fam.O hd (B M y) (B M y') (hBc M y _ subset_rfl)
+                (hBc M y' _ subset_rfl)]
+          · simp [hBe M y' hy']
+        · simp [hBe M y hy]
+      · rw [← ofReal_measureReal (measure_ne_top _ _)]
+        exact ENNReal.ofReal_le_ofReal (hpre _)
+      · have hBw : ∀ y, μ' (B M y) ≤ ENNReal.ofReal e := fun y => by
+          calc μ' (B M y) ≤ μ' (⋃ m ∈ M, {ω | fam.read ω (y * m) = wrong (y * m)}) :=
+                measure_mono fun ω ⟨_, m, hm, hr⟩ => Set.mem_biUnion hm hr
+            _ ≤ ∑ m ∈ M, μ' {ω | fam.read ω (y * m) = wrong (y * m)} :=
+                measure_biUnion_finset_le _ _
+            _ ≤ ∑ _m ∈ M, ENNReal.ofReal w := Finset.sum_le_sum fun m _ => by
+                rw [← ofReal_measureReal (measure_ne_top _ _)]
+                exact ENNReal.ofReal_le_ofReal (hw _)
+            _ = ENNReal.ofReal (M.card * w) := by
+                rw [Finset.sum_const, nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg _),
+                  ENNReal.ofReal_natCast]
+            _ ≤ ENNReal.ofReal e := ENNReal.ofReal_le_ofReal (by
+                rw [hed]
+                have : (M.card : ℝ) ≤ nQ + 1 := by exact_mod_cast hMc
+                exact mul_le_mul_of_nonneg_right this hw0)
+        calc ∑' y, D {y} * μ' (B M y) ≤ ∑' y, D {y} * ENNReal.ofReal e :=
+              ENNReal.tsum_le_tsum fun y => by gcongr; exact hBw y
+          _ = ENNReal.ofReal e := by
+              rw [ENNReal.tsum_mul_right]
+              have := Measure.tsum_indicator_apply_singleton D Set.univ MeasurableSet.univ
+              simp only [Set.indicator_univ, measure_univ] at this
+              rw [this, one_mul]
+    have hdisj : Set.PairwiseDisjoint (↑Ms : Set (Finset (FreeMonoid α))) H := by
+      intro M _ M' _ hne
+      refine Set.disjoint_left.2 fun ω hω hω' => hne ?_
+      exact hω.2.symm.trans hω'.2
+    calc μ' {ω | u < D.real (S (ω, xs))}
+        ≤ μ' (⋃ M ∈ Ms, H M ∩ {ω | u' < D.real {y | ω ∈ B M y}}) := measure_mono hsub
+      _ ≤ ∑ M ∈ Ms, μ' (H M ∩ {ω | u' < D.real {y | ω ∈ B M y}}) :=
+          measure_biUnion_finset_le _ _
+      _ ≤ ∑ M ∈ Ms, μ' (H M) * ENNReal.ofReal c := Finset.sum_le_sum hM
+      _ = μ' (⋃ M ∈ Ms, H M) * ENNReal.ofReal c := by
+          rw [← Finset.sum_mul, measure_biUnion_finset hdisj fun M _ => hHm M]
+      _ ≤ 1 * ENNReal.ofReal c := by gcongr; exact prob_le_one
+      _ = ENNReal.ofReal c := one_mul _
+  rw [Measure.prod_apply_symm hmeas]
+  calc ∫⁻ xs, μ' ((fun ω => (ω, xs)) ⁻¹' {d | u < D.real (S d)}) ∂π
+      ≤ ∫⁻ _, ENNReal.ofReal c ∂π := lintegral_mono fun xs => hfix xs
+    _ = ENNReal.ofReal c := by simp
 
 open Random.Kappa in
 /-- Level 5's guarantee read through the family at `f = 0`, one spurious leaf tolerated within
 level 3's `|Q| + 2`: level 3 fails to end well at `ε + u` over `disagreeSet`, or its tree leaves
-`classSet |Q|`, but for chance `δ + (T p₀ + (|Q| + 1)(ε + κ))/u`. -/
+`classSet |Q|`, but for chance `δ + rarerTail T p₀ ((|Q| + 1)(ε + κ)) u`. -/
 theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ : 0 ≤ fam.κ)
-    (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u t t' : ℝ) (hu : 0 < u) :
+    (P : PrefixDistribution α) (C : Random.Level3Settings) (p₀ u t t' : ℝ) :
     let nQ := Fintype.card σ
     let nα := Fintype.card α
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
@@ -427,7 +634,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
       ≤ ENNReal.ofReal (C.δ
-        + (C.probeBudget * p₀ + (Fintype.card σ + 1) * (fam.ε + fam.κ)) / u) := by
+        + rarerTail C.probeBudget p₀ ((Fintype.card σ + 1) * (fam.ε + fam.κ)) u) := by
   intro nQ nα S w c b m hpre hδ hδ1 hy0 hyρ hρ1 hP ht ht' htc hfin
   classical
   set side : σ → Bool := fun q => readSide (fam.readDist q)
@@ -446,13 +653,13 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     let Tr := (Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2).hypothesis.tree
     u < P.D.real {y | Tr ∈ Random.classSet nQ
       ∧ y ∈ rarerSet fam.M fam.readDist (fun z => fam.read d.1 z) k Tr}}
-  have hMkle : (μ'.prod π) Mk ≤ ENNReal.ofReal ((T * p₀ + (nQ + 1) * (fam.ε + fam.κ)) / u) :=
-    rarer_markov fam C (by positivity) (fun z => by
+  have hMkle : (μ'.prod π) Mk ≤ ENNReal.ofReal (rarerTail T p₀ ((nQ + 1) * (fam.ε + fam.κ)) u) :=
+    rarer_tail fam C (by positivity) (fun z => by
       have h1 := R.wrong z
       simp only [hRr] at h1
       have h2 : fam.κ * U (fam.M.eval z.toList) ≤ fam.κ :=
         mul_le_mul_of_nonneg_left (readDist_le_one fam _ _) hκ |>.trans (by rw [mul_one])
-      exact h1.trans (by linarith)) P.D hp₀.le hpre hu
+      exact h1.trans (by linarith)) P.D hp₀.le hpre u
   -- level 5's event
   set E₁ := {d : Ω' × (Fin T → FreeMonoid α) |
     let result := Random.indecisiveLStarLevel3 C (fun z => fam.read d.1 z) d.2
@@ -546,9 +753,9 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hε : 0 ≤ fam.ε) (hκ :
     exact hK
   calc (μ'.prod π) (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) u)
       ≤ (μ'.prod π) E₁ + (μ'.prod π) Mk := (measure_mono hsub).trans (measure_union_le _ _)
-    _ ≤ ENNReal.ofReal C.δ + ENNReal.ofReal ((T * p₀ + (nQ + 1) * (fam.ε + fam.κ)) / u) :=
+    _ ≤ ENNReal.ofReal C.δ + ENNReal.ofReal (rarerTail T p₀ ((nQ + 1) * (fam.ε + fam.κ)) u) :=
         add_le_add hE₁le hMkle
-    _ = _ := by rw [← ENNReal.ofReal_add hδ.le (by positivity)]
+    _ = _ := by rw [← ENNReal.ofReal_add hδ.le (rarerTail_nonneg hp₀.le (by positivity))]
 
 
 end Fail

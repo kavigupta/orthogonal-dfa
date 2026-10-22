@@ -102,14 +102,14 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
-reads. Its chance is at most `δ + (2T prefixMax + (|Q| + 1)(ζ² + ζ))/u`, it is fixed
+reads. Its chance is at most `δ + rarerTail T (2 prefixMax) ((|Q| + 1)(ζ² + ζ)) u`, it is fixed
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
 theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : RoundPremises σ α P.L settings.level3 (crossLimit ^ 2) crossLimit
       (2 * prefixMax P.D settings.level3.walkStart))
-    (hu : 0 < u) (hm1 : m ≤ 1 / 2)
+    (hm1 : m ≤ 1 / 2)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
       BandPasses N B.lo (B.hi + 1) p r (crossLimit ^ 2) crossLimit crossLimit)
@@ -117,8 +117,8 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ
-          + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-            + (Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) / u)
+          + rarerTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+            ((Fintype.card σ + 1) * (crossLimit ^ 2 + crossLimit)) u)
       ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -163,7 +163,7 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     nlinarith
   have hpre' : ∀ v, P'.D.real {x | prefixOf x C.walkStart = v} ≤ 2 * prefixMax P.D k :=
     fun v => (le_prefixMax D' k v).trans hpm
-  have h4 := level3Fail_le fam' hcr0 hκ0 P' C (2 * prefixMax P.D k) u t t' hu hpre' hδ0 hδ1 hy0
+  have h4 := level3Fail_le fam' hcr0 hκ0 P' C (2 * prefixMax P.D k) u t t' hpre' hδ0 hδ1 hy0
     hyρ hρ1 hP ht ht' htc hfin
   have hA0 : 0 ≤ roundSlope σ P.L C := by unfold roundSlope; positivity
   have hsl0 : 0 ≤ roundSlack σ α C (2 * prefixMax P.D k) := by
