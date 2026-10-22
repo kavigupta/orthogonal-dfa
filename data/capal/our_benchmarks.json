@@ -22,7 +22,7 @@
       "parity_mod9_allowed_3_6",
       "regex_subseq_1010101",
       "regex_two_1111",
-      "regex_alt_1111_or_0000_11",
+      "regex_alt_1111_or_0000_11_3sym",
       "regex_alt_111_or_000_3sym"
     ],
     "elstar_regime": {
@@ -50,17 +50,13 @@
         "uncovered_states": [],
         "reasons": []
       },
-      "regex_alt_1111_or_0000_11": {
+      "regex_alt_1111_or_0000_11_3sym": {
         "length": 40,
-        "acceptance_rate": 0.5945,
-        "class_preserving_fraction": 0.114,
-        "covered_accuracy_ceiling": 0.9865,
-        "uncovered_states": [
-          "0"
-        ],
-        "reasons": [
-          "covered-accuracy ceiling 0.987 below 0.99 (an uncovered state carries a decision)"
-        ]
+        "acceptance_rate": 0.079,
+        "class_preserving_fraction": 0.5795,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [],
+        "reasons": []
       },
       "regex_alt_111_or_000_3sym": {
         "length": 40,
@@ -687,13 +683,13 @@
       "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "CAPAL",
       "eta": 0.05,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
+      "alphabet_size": 3,
       "learner_config": {
         "max_iters": 200,
         "max_same_samples": 80,
@@ -707,41 +703,44 @@
         "extra_len_max": 8,
         "eta_hat": 0.15
       },
-      "learned_states": 17,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 11257,
-      "equivalence_queries": 21,
-      "seconds": 2.129,
+      "learned_states": 20,
+      "accuracy": 0.999,
+      "converged": false,
+      "queries_total": 31142,
+      "equivalence_queries": 200,
+      "seconds": 120.077,
       "error_type": null,
       "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "E-L*",
       "eta": 0.05,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.987 below 0.99 (an uncovered state carries a decision)"
+      "alphabet_size": 3,
+      "learner_config": {
+        "min_signal_strength": 0.45,
+        "min_suffix_frequency": 0.02
+      },
+      "learned_states": 11,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 398251,
+      "equivalence_queries": 0,
+      "seconds": 14.274,
+      "error_type": null,
+      "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "CAPAL",
       "eta": 0.1,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
+      "alphabet_size": 3,
       "learner_config": {
         "max_iters": 200,
         "max_same_samples": 80,
@@ -755,41 +754,44 @@
         "extra_len_max": 8,
         "eta_hat": 0.15
       },
-      "learned_states": 15,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 8477,
-      "equivalence_queries": 15,
-      "seconds": 1.11,
+      "learned_states": 25,
+      "accuracy": 0.9946,
+      "converged": false,
+      "queries_total": 22188,
+      "equivalence_queries": 200,
+      "seconds": 81.745,
       "error_type": null,
       "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "E-L*",
       "eta": 0.1,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.987 below 0.99 (an uncovered state carries a decision)"
+      "alphabet_size": 3,
+      "learner_config": {
+        "min_signal_strength": 0.4,
+        "min_suffix_frequency": 0.02
+      },
+      "learned_states": 11,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 422929,
+      "equivalence_queries": 0,
+      "seconds": 11.329,
+      "error_type": null,
+      "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "CAPAL",
       "eta": 0.2,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
+      "alphabet_size": 3,
       "learner_config": {
         "max_iters": 200,
         "max_same_samples": 80,
@@ -804,40 +806,43 @@
         "eta_hat": 0.2
       },
       "learned_states": 28,
-      "accuracy": 0.776,
+      "accuracy": 0.971,
       "converged": false,
-      "queries_total": 11475,
+      "queries_total": 51472,
       "equivalence_queries": 200,
-      "seconds": 80.357,
+      "seconds": 358.499,
       "error_type": null,
       "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "E-L*",
       "eta": 0.2,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.987 below 0.99 (an uncovered state carries a decision)"
+      "alphabet_size": 3,
+      "learner_config": {
+        "min_signal_strength": 0.3,
+        "min_suffix_frequency": 0.02
+      },
+      "learned_states": 11,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 1358233,
+      "equivalence_queries": 0,
+      "seconds": 34.46,
+      "error_type": null,
+      "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "CAPAL",
       "eta": 0.3,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
+      "alphabet_size": 3,
       "learner_config": {
         "max_iters": 200,
         "max_same_samples": 80,
@@ -851,32 +856,35 @@
         "extra_len_max": 8,
         "eta_hat": 0.3
       },
-      "learned_states": 12,
-      "accuracy": 0.7224,
+      "learned_states": 8,
+      "accuracy": 0.9648,
       "converged": false,
-      "queries_total": 2240,
+      "queries_total": 3826,
       "equivalence_queries": 200,
-      "seconds": 3.701,
+      "seconds": 4.35,
       "error_type": null,
       "error": null
     },
     {
-      "benchmark": "regex_alt_1111_or_0000_11",
+      "benchmark": "regex_alt_1111_or_0000_11_3sym",
       "family": "ours",
       "learner": "E-L*",
       "eta": 0.3,
       "seed": 0,
       "target_states": 11,
-      "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.987 below 0.99 (an uncovered state carries a decision)"
+      "alphabet_size": 3,
+      "learner_config": {
+        "min_signal_strength": 0.2,
+        "min_suffix_frequency": 0.02
+      },
+      "learned_states": 11,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 3020265,
+      "equivalence_queries": 0,
+      "seconds": 76.46,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
