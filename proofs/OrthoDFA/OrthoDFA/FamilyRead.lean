@@ -68,6 +68,19 @@ def BandPasses (N kl kh : ℕ) (p r ε ε₂ κ : ℝ) : Prop :=
       ∨ ((dist .accept ≤ ε₂ ∨ dist .reject ≤ ε₂) ∧ 1 / 3 ≤ dist .undecided))
     ∧ min (dist .accept) (dist .reject) ≤ max ε (κ * dist .undecided)
 
+/-- For every `a ≤ N`, the read of the count of `N` queries, `a` of them answering 1 with chance
+`p` and the rest with chance `r`, is on its rarer decided side at most `κ` times as often as it is
+undecided. -/
+def RarerBounded (N kl kh : ℕ) (p r κ : ℝ) : Prop :=
+  ∀ a ≤ N,
+    let dist : ARU → ℝ := fun rd => ∑ j ∈ Finset.range (N + 1),
+      if readOf kl kh j = rd then
+        ∑ x ∈ Finset.antidiagonal j,
+          (a.choose x.1 * p ^ x.1 * (1 - p) ^ (a - x.1))
+            * ((N - a).choose x.2 * r ^ x.2 * (1 - r) ^ (N - a - x.2))
+      else 0
+    min (dist .accept) (dist .reject) ≤ κ * dist .undecided
+
 /-! ## The claim -/
 
 /-- With the language a DFA's, the family suffix-free and the band passing its check: the reads

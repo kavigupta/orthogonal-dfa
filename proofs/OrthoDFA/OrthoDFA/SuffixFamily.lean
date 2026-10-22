@@ -3,8 +3,8 @@ import OrthoDFA.DTree
 /-!
 # A suffix family read against a DFA target
 
-The oracle's language is the target DFA's, the family is suffix-free, and its band passes the
-band selection rule's check (`BandPasses`). A draw of the oracle's noise reads every string once
+The oracle's language is the target DFA's, the family is suffix-free, and its band reads the
+rarer decided side at most `κ` times as often as undecided (`RarerBounded`). A draw of the oracle's noise reads every string once
 (`SuffixFamily.read`), and each target state has one distribution its strings read with
 (`SuffixFamily.readDist`).
 -/
@@ -18,7 +18,7 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- The oracle `O`, whose language is `M`'s; the family `F`, suffix-free, read with the band
-`kl, kh`; and the band check's constants `ε, ε₂, κ`, which the band passes. -/
+`kl, kh`, on its rarer decided side at most `κ` times as often as undecided. -/
 structure SuffixFamily {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (α σ : Type*)
     [Fintype α] where
   O : Oracle μ (FreeMonoid α)
@@ -26,12 +26,10 @@ structure SuffixFamily {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (α �
   F : Finset (FreeMonoid α)
   kl : ℕ
   kh : ℕ
-  ε : ℝ
-  ε₂ : ℝ
   κ : ℝ
   lang : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept
   suffixFree : SuffixFree F
-  band : BandPasses F.card kl kh (1 - O.ηIn) O.ηOut ε ε₂ κ
+  band : RarerBounded F.card kl kh (1 - O.ηIn) O.ηOut κ
 
 namespace SuffixFamily
 

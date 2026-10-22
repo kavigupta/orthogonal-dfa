@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.LoopE2Round
+import OrthoDFA.Proofs.RawWindow
 
 /-!
 # Rounds read new strings
@@ -70,6 +71,45 @@ lemma loopPopulations_mono {i r : ℕ} (h : i ≤ r) : loopPopulations K i ⊆ l
 
 end Sets
 
+section Streams
+
+variable {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+
+lemma nthDrawIn_draw (A : Set S) (d : S) (w : ℕ → S) (k : ℕ) :
+    nthDrawIn A d w k = d ∨ ∃ i, nthDrawIn A d w k = w i := by
+  rcases nthDrawIn_spec A d w k with h | ⟨i, -, h⟩
+  · exact .inl h
+  · exact .inr ⟨i, h.symm⟩
+
+lemma nthDrawIn_nthDrawIn_draw (A : Set S) (w z : ℕ → S) (a k : ℕ) :
+    ∃ i, nthDrawIn A (nthDrawIn A (z a) w 0) w k = w i ∨ nthDrawIn A (nthDrawIn A (z a) w 0) w k
+      = z i := by
+  rcases nthDrawIn_draw A (nthDrawIn A (z a) w 0) w k with h | ⟨i, h⟩
+  · rw [h]
+    rcases nthDrawIn_draw A (z a) w 0 with h' | ⟨i, h'⟩
+    · exact ⟨a, .inr h'⟩
+    · exact ⟨i, .inl h'⟩
+  · exact ⟨i, .inl h⟩
+
+open scoped Classical in
+/-- With nothing harvested, every entry of a population's two sequences is a draw of one of
+its two streams. -/
+lemma streams_empty_draw (uni : J) (x : Draws Ω S J) (j : J) (n : ℕ) :
+    (∃ i, prefixDraw j n (streams (fun _ => ∅) uni x) = x.1.2.1.2 j i
+      ∨ prefixDraw j n (streams (fun _ => ∅) uni x) = x.1.2.2 j i)
+    ∧ ∃ i, certPrefix j n (streams (fun _ => ∅) uni x) = x.1.2.1.2 j i
+      ∨ certPrefix j n (streams (fun _ => ∅) uni x) = x.1.2.2 j i := by
+  by_cases hj : j = uni
+  · subst hj
+    simp only [prefixDraw, certPrefix, streams, if_true]
+    exact ⟨⟨n, .inl rfl⟩, ⟨n, .inr rfl⟩⟩
+  · simp only [prefixDraw, certPrefix, streams, if_neg hj, tableSeqOf, reserveSeqOf,
+      prependStream, Finset.toList_empty, List.headD_nil, List.length_nil, Nat.not_lt_zero,
+      dite_false, Nat.sub_zero]
+    exact ⟨nthDrawIn_nthDrawIn_draw _ _ _ 0 n, nthDrawIn_nthDrawIn_draw _ _ _ 1 n⟩
+
+end Streams
+
 section Draws
 
 variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
@@ -80,16 +120,18 @@ lemma mem_prefsOf_draw {h : LoopHist α} {c : ClusterRest α K} {p : FreeMonoid 
     (hp : p ∈ prefsOf settings D Dsf h c) :
     ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
       p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.1 j n)
-        ∨ p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2 j n) := by
+        ∨ p = drawFrom (offLaw (loopDistributions D h.pops j) h.prefs) (c.2.2.1 j n) := by
   obtain ⟨B, -, hp⟩ := Finset.mem_biUnion.1 hp
   rcases Finset.mem_union.1 hp with hp | hp
   · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨n, hn⟩ := mem_freshDraws hp
-    exact ⟨j, hj, n, Or.inl hn.symm⟩
+    obtain ⟨i, hi⟩ := (streams_empty_draw none (clusterDraws (Ω := Unit) D Dsf h ((), c)) j n).1
+    exact ⟨j, hj, i, hn ▸ hi⟩
   · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨e, -, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨n, hn⟩ := mem_freshDraws hp
-    exact ⟨j, hj, n, Or.inr hn.symm⟩
+    obtain ⟨i, hi⟩ := (streams_empty_draw none (clusterDraws (Ω := Unit) D Dsf h ((), c)) j n).2
+    exact ⟨j, hj, i, hn ▸ hi⟩
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A suffix a round's clustering reads, but `ε`, is a draw of the suffix distribution. -/
@@ -105,7 +147,7 @@ lemma mem_suffsOf_draw {h : LoopHist α} {c : ClusterRest α K} {v : FreeMonoid 
 /-- Through round `r`, every uniform the clusterings draw by is below `1`. -/
 def AllLt {T : ℕ} (x : Fin K → RoundDraws α K T) (r : ℕ) : Prop :=
   ∀ i : Fin K, i.1 ≤ r → (∀ n, ((x i).1.1 n : ℝ) < 1) ∧ (∀ j n, ((x i).1.2.1 j n : ℝ) < 1)
-    ∧ ∀ j n, ((x i).1.2.2 j n : ℝ) < 1
+    ∧ ∀ j n, ((x i).1.2.2.1 j n : ℝ) < 1
 
 lemma volume_eq_one_unit : (volume : Measure unitInterval) {u | ¬ (u : ℝ) < 1} = 0 := by
   have h := volume_Ico_unit (a := 0) (b := 1) le_rfl zero_le_one le_rfl
@@ -127,8 +169,9 @@ lemma allLt_ae {T : ℕ} (r : ℕ) :
       ((Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
         ((Measure.pi fun _ : Option (Fin K) =>
             Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
-          (Measure.pi fun _ : Option (Fin K) =>
-            Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)))) := fun i =>
+          ((Measure.pi fun _ : Option (Fin K) =>
+            Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
+            (Measure.infinitePi fun _ : FreeMonoid α => fairCoin)))) := fun i =>
     measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)
   have hev : ∀ n, MeasurePreserving (fun f : ℕ → unitInterval => f n)
       (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun n =>
@@ -147,7 +190,7 @@ lemma allLt_ae {T : ℕ} (r : ℕ) :
   have hset : {p : Ω × (Fin K → RoundDraws α K T) | ¬ AllLt p.2 r}
       ⊆ ⋃ i : Fin K, ⋃ n : ℕ, ({p | ¬ (((p.2 i).1.1 n : unitInterval) : ℝ) < 1}
         ∪ ⋃ j : Option (Fin K), ({p | ¬ (((p.2 i).1.2.1 j n : unitInterval) : ℝ) < 1}
-          ∪ {p | ¬ (((p.2 i).1.2.2 j n : unitInterval) : ℝ) < 1})) := by
+          ∪ {p | ¬ (((p.2 i).1.2.2.1 j n : unitInterval) : ℝ) < 1})) := by
     intro p hp
     simp only [AllLt, not_forall, not_and_or] at hp
     obtain ⟨i, -, hp⟩ := hp
@@ -161,8 +204,8 @@ lemma allLt_ae {T : ℕ} (r : ℕ) :
   · exact hnull ((hev n).comp (measurePreserving_fst.comp (hrest i)))
   · exact hnull ((hev2 j n).comp (measurePreserving_fst.comp (measurePreserving_snd.comp
       (hrest i))))
-  · exact hnull ((hev2 j n).comp (measurePreserving_snd.comp (measurePreserving_snd.comp
-      (hrest i))))
+  · exact hnull ((hev2 j n).comp (measurePreserving_fst.comp (measurePreserving_snd.comp
+      (measurePreserving_snd.comp (hrest i)))))
 
 end Draws
 

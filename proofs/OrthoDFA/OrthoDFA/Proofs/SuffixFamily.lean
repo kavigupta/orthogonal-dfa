@@ -4,8 +4,9 @@ import OrthoDFA.Proofs.FamilyRead
 /-!
 # A suffix family's read distributions
 
-By `FamilyReadBound`, the reads are independent across strings and every string reads with its
-state's distribution, which is nonnegative and meets the band's minority bound.
+The reads are independent across strings and every string reads with its state's distribution,
+the law of a vote whose count of accepting members the state fixes; so it is nonnegative and on
+its rarer decided side at most `κ` times as often as undecided.
 -/
 
 namespace OrthoDFA
@@ -20,12 +21,11 @@ namespace SuffixFamily
 theorem readProb_eq_readDist (w : FreeMonoid α) :
     readProb fam.O fam.F fam.kl fam.kh w = fam.readDist (fam.M.eval w.toList) := by
   classical
-  obtain ⟨-, hq⟩ := family_read_bound_holds fam.O fam.M fam.F fam.kl fam.kh fam.ε fam.ε₂ fam.κ
-    fam.lang fam.suffixFree fam.band
-  choose d hd _ _ using hq
   have h : ∃ w' : FreeMonoid α, fam.M.eval w'.toList = fam.M.eval w.toList := ⟨w, rfl⟩
   simp only [readDist, dif_pos h]
-  exact (hd _ w rfl).trans (hd _ _ h.choose_spec).symm
+  funext rd
+  rw [readProb_eq_readLaw, readProb_eq_readLaw, acceptCount_eq_state fam.O fam.M fam.lang,
+    acceptCount_eq_state fam.O fam.M fam.lang, h.choose_spec]
 
 theorem readDist_nonneg (q : σ) (r : ARU) : 0 ≤ fam.readDist q r := by
   classical
@@ -36,15 +36,14 @@ theorem readDist_nonneg (q : σ) (r : ARU) : 0 ≤ fam.readDist q r := by
 
 theorem readDist_rare (q : σ) :
     min (fam.readDist q .accept) (fam.readDist q .reject)
-        ≤ max fam.ε (fam.κ * fam.readDist q .undecided) := by
+        ≤ fam.κ * fam.readDist q .undecided := by
   classical
-  obtain ⟨-, hq⟩ := family_read_bound_holds fam.O fam.M fam.F fam.kl fam.kh fam.ε fam.ε₂ fam.κ
-    fam.lang fam.suffixFree fam.band
-  choose d hd _ hrare using hq
   by_cases h : ∃ w : FreeMonoid α, fam.M.eval w.toList = q
-  · have e : fam.readDist q = d q := by
-      simp only [readDist, dif_pos h]; exact hd _ _ h.choose_spec
-    rw [e]; exact hrare q
+  · simp only [readDist, dif_pos h]
+    rw [readProb_eq_readLaw, readProb_eq_readLaw, readProb_eq_readLaw]
+    refine fam.band _ ?_
+    rw [acceptCount_eq_state fam.O fam.M fam.lang]
+    exact Finset.card_filter_le _ _
   · simp [readDist, dif_neg h]
 
 theorem read_measurable (z : FreeMonoid α) : Measurable fun ω => fam.read ω z :=

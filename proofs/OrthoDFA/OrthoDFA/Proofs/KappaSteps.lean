@@ -2,7 +2,7 @@ import OrthoDFA.Proofs.KappaReads
 import OrthoDFA.Proofs.EpsReads
 
 /-!
-# Level 5's steps
+# A step's reads, in rounds
 
 A step reads what its probe reads (`probeReads`) and, where it splits, what the split re-sifts
 (`splitReads`). Where none of that is read wrong, the step keeps `WitInv` (`kappa_step_change`),
