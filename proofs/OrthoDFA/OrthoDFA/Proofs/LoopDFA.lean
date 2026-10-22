@@ -8,12 +8,13 @@ import OrthoDFA.Proofs.LoopSelect
 /-!
 # The learner's DFA: the proof
 
-`loop_simple_checks` at the window's probes leaves a last round with at most `2ε + ε/96` of the
-probes disagreeing: searching, stopping undecided at their start or end sift, or reading a string
-on its state's rarer side. From there the bridge is deterministic (`dfa_of_checks`): the tree's
-root reads the string itself, so a covered state's edges are true (`edge_of_occupied`), it is read
-on its true side (`sideOf_eq_of_mass`), and the covered start's true leaf misjudges at most what
-re-rooting does (`classify_start_le`).
+`loop_simple_checks` at the window's probes leaves a last round with at most `ε + ε/96` of the
+probes disagreeing, searching or stopping undecided at their start or end sift, and at most half
+of each state's strings shorter than `L + 1`, plus `ε + ε/96`, misled: reading, or extended by a
+letter reading, a string on its state's rarer side. From there the bridge is deterministic
+(`dfa_of_checks`): the tree's root reads the string itself, so a covered state's edges are true
+(`edge_of_occupied`), it is read on its true side (`sideOf_eq_of_mass`), and the covered start's
+true leaf misjudges at most what re-rooting does (`classify_start_le`).
 
 The family reads a string of length `L` wrongly at most `(1025/1024) N εcov` of the time and
 leaves it undecided at most `(3/8) N εcov`, with `N εcov ≤ ξ/8`, so off a stray score the picked
@@ -104,16 +105,18 @@ section Bridge
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
-/-- A last round whose disagreeing probes over the window are at most `εB`, small enough against
-the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting at a
-covered start does. -/
+/-- A last round whose disagreeing probes over the window are at most `εB`, and whose misled ones
+are at most half of each state's strings shorter than `L + 1`, plus `εm`, both small enough
+against the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting
+at a covered start does. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
-    (L : ℕ) {c εr εu εB γ : ℝ}
+    (L : ℕ) {c εr εu εB εm γ : ℝ}
     (hch : o.Checks M O (windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3)) ((L + 1) / 2)
-      εr εu εB)
-    (hεB : ((Fintype.card α : ℝ) + 1) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
-      * εB < c)
+      εr εu εB (shortAt M (L + 1)) εm) (hεm : 0 ≤ εm)
+    (hεB : 2 * (((Fintype.card α : ℝ) + 1)
+      * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εB
+      + ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εm) < c)
     (hcov : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
     (hceil : ∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) :
     ∃ s ∈ o.result.hypothesis.tree.leaves, (uniformStrings L).real
@@ -129,7 +132,7 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   set side : σ → Bool := fun q => readSide (dist q)
   have hd0 := familyReadDist_nonneg O M o.family o.state.lo (o.state.hi + 1)
   have hd1 := familyReadDist_le_one O M o.family o.state.lo (o.state.hi + 1)
-  obtain ⟨⟨hcons, hmis, hund⟩, hchk, hcls⟩ := hch
+  obtain ⟨⟨hcons, hmis, hund⟩, hchk, hcls, hfew⟩ := hch
   have hroot : ∃ r a, H.tree = .node 1 r a := rootOne_of_classSet _ _ hcls
   -- the family's reads over the window
   have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂D ≤ εu := by
@@ -168,9 +171,12 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     simp only [hSd, coveredStates, Set.mem_setOf_eq, hempty, measureReal_empty] at h
     have hc0 : 0 < c := by
       have : 0 ≤ ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εB := by positivity
-      have e : ((Fintype.card α : ℝ) + 1)
+      have : 0 ≤ ((L₁ : ℝ) + 1 - k) * εm := by positivity
+      have e : 2 * (((Fintype.card α : ℝ) + 1)
           * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εB
-          = ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εB := rfl
+          + ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εm)
+          = 2 * (((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * εB
+            + ((L₁ : ℝ) + 1 - k) * εm) := rfl
       linarith
     linarith
   have hocc : ∀ q ∈ Sc, c ≤ ∑ i ∈ Finset.Ico k (L + 1),
@@ -181,7 +187,7 @@ theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   have hE : ∀ q ∈ Sc, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
       = some (Random.leafOf M side H.tree (M.step q a), w) := fun q hq a =>
     edge_of_occupied M dist o.read H (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) q a hchk
-      (hocc q hq) hεB
+      (hfew q a) (hocc q hq) hεB
   have hside : ∀ q ∈ Sc, side q = decide (q ∈ M.accept) := by
     intro q hq
     refine sideOf_eq_of_mass M D dist hd0 hd1 q
@@ -296,7 +302,7 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
     (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) :
     0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ ε ∧ 0 < ι ∧ ι ≤ εcov / 8
-      ∧ (A + 1) * N * (ε + ε + ε / 96) < c ∧ 3 * εcov * N < c
+      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 3 * εcov * N < c
       ∧ ℓ * ε < 3 / 8 := by
   have hX : 0 < 4 * (A + 1) * N := by positivity
   have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
@@ -309,9 +315,12 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
   refine ⟨he0, ?_, hεc0, hεcε, hι0, hι8, ?_, ?_, ?_⟩
   · have : ε * 12 ≤ 1 := by nlinarith
     linarith
-  · have e : (A + 1) * N * (ε + ε + ε / 96) = 193 / 384 * (ε * (4 * (A + 1) * N)) := by ring
-    rw [e, hq]
-    linarith
+  · have hεN : 0 < ε * N := by positivity
+    have e : 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) = 97 / 48 * (A + 2) * (ε * N) := by
+      ring
+    have e2 : c = 4 * (A + 1) * (ε * N) := by rw [← hq]; ring
+    rw [e, e2]
+    nlinarith
   · have h3 : 3 * εcov * N ≤ 3 * ε * N := by gcongr
     have e : 3 * ε * N * (4 * (A + 1)) = 3 * c := by rw [← hq]; ring
     have hA1 : (12 : ℝ) ≤ 4 * (A + 1) := by linarith
@@ -403,7 +412,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     rwa [one_div] at this
   have : IsProbabilityMeasure P.D := windowStrings_isProbability hkL₁
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P η₀ εcov ε δ' pAP k
+  obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P (shortAt M (L + 1))
+    η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) (by linarith [hlogK]))).trans hk2)
@@ -437,7 +447,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T)) :=
     {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-          o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 96))
+          o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) (shortAt M (L + 1))
+            (ε + ε / 96))
         ∧ RoundsFresh settings O P.D Dsf Nn Ls p)} with hBloopd
   set Sel : ℕ → Set ((Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
       × (Fin n → FreeMonoid α)) := fun r =>
@@ -491,7 +502,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
     have hleaves : o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2 :=
-      (Random.classSet_props _ _ hch.2.2).2
+      (Random.classSet_props _ _ hch.2.2.1).2
     have hgood : (q.1.1, q.2) ∉ scoreBad O o.result.hypothesis o.family o.state.lo
         (o.state.hi + 1) L n t := by
       intro h
@@ -502,7 +513,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       rw [hF, hB, hhyp, if_pos ⟨hsf, hleaves⟩]
       exact h
     -- the best leaf, and the family's reads on the strings of length `L`
-    have hs := dfa_of_checks M O hL o L hch ?_ ?_ ⟨q₀, hq₀, hq₀acc⟩
+    have hs := dfa_of_checks M O hL o L hch (by linarith) ?_ ?_ ⟨q₀, hq₀, hq₀acc⟩
     · have hn : 0 < n := by
         refine Nat.ceil_pos.2 (div_pos (mul_pos (by norm_num) (Real.log_pos ?_)) (by positivity))
         rw [one_lt_div hδ]
@@ -531,7 +542,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         have h0 : 0 ≤ N * εcov := mul_nonneg (zero_le_one.trans hN1) hεc0.le
         rw [htd]; linarith
       exact h.trans this
-    · show (A + 1) * N * (ε + ε + ε / 96) < c
+    · show 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c
       exact hbad
     · show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
       have h0 : 0 ≤ εcov * N := mul_nonneg hεc0.le (zero_le_one.trans hN1)
@@ -559,10 +570,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))
       (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
     have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
-    have hW1 : 1 ≤ W := by
-      have hWr : 1 + (Q + 1) * δ' / (7 * ε) ≤ W := le_max_right _ _
-      have : 0 ≤ (Q + 1) * δ' / (7 * ε) := by positivity
-      linarith
+    have hW1 : 1 ≤ W := le_max_right _ _
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
       (Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith))
     refine (loop_select_round_le settings O P Dsf Ls L n (Fintype.card σ + 2) ⌊RB⌋₊ t
@@ -616,7 +624,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
-  set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) (1 + (Q + 1) * δ' / (7 * ε)) with hWd
+  set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1 with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
   set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -652,17 +660,9 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
       show 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
       positivity
-    exact w_le hℓ1 hQ0 hε0 hinvε hδ'0.le hWm0
-  have hW1 : 1 ≤ W := by
-    have hWr : 1 + (Q + 1) * δ' / (7 * ε) ≤ W := le_max_right _ _
-    have : 0 ≤ (Q + 1) * δ' / (7 * ε) := by positivity
-    linarith
+    exact w_le hℓ1 hWm0
+  have hW1 : 1 ≤ W := le_max_right _ _
   have hW₀1 : 1 ≤ W₀ := by
-    have haε : 1 ≤ aε := by
-      show 1 ≤ 4 * (A + 1) / c
-      rw [le_div_iff₀ hc, one_mul]
-      linarith only [hA, hc1]
-    have h2 : (0 : ℝ) ≤ (Q + 1) * δ' * aε / 7 := by positivity
     have : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
@@ -670,7 +670,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
         show 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
         positivity
       positivity
-    show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + (1 + (Q + 1) * δ' * aε / 7)
+    show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
     linarith
   obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
     hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1
