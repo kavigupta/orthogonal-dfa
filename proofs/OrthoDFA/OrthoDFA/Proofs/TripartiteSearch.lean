@@ -6,7 +6,7 @@ import Mathlib.Tactic
 
 Each result says what `agrees` is at the positions it names. Every queried position lies between
 the endpoints, and there are at most `2 + 3⌈log₂(hi − lo)⌉` queries: the two endpoints, and at
-most three per halving of the interval.
+most three per halving of the interval, one without recovery.
 -/
 
 namespace OrthoDFA
@@ -170,6 +170,120 @@ theorem bisectBoundary_noRecovery : ∀ (n lo hi : ℕ), hi - lo = n → ∀ j,
     · exact ih _ (by omega) _ _ rfl j
     · simp
 
+omit recover in
+/-- Without recovery the bisection queries one position per halving. -/
+theorem bisectBoundary_length_noRecovery : ∀ (n lo hi : ℕ), hi - lo = n →
+    (bisectBoundary false agrees lo hi).2.length ≤ Nat.clog 2 (hi - lo) := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro lo hi hn
+  rw [bisectBoundary]
+  split
+  · simp
+  · rename_i hgap
+    have hc : Nat.clog 2 (hi - lo) = Nat.clog 2 ((hi - lo + 2 - 1) / 2) + 1 :=
+      Nat.clog_of_two_le (by norm_num) (by omega)
+    have hmono : ∀ m, m ≤ (hi - lo + 2 - 1) / 2 →
+        Nat.clog 2 m ≤ Nat.clog 2 ((hi - lo + 2 - 1) / 2) := fun m h => Nat.clog_mono_right 2 h
+    split
+    · have := ih _ (by omega) ((lo + hi) / 2) hi rfl
+      have := hmono (hi - (lo + hi) / 2) (by omega)
+      simp only [List.length_cons]
+      omega
+    · have := ih _ (by omega) lo ((lo + hi) / 2) rfl
+      have := hmono ((lo + hi) / 2 - lo) (by omega)
+      simp only [List.length_cons]
+      omega
+    · simp; omega
+
+omit recover in
+/-- The undecided midpoint a bisection without recovery stops at is one it queried. -/
+theorem bisectBoundary_undecidedMid_mem : ∀ (n lo hi : ℕ), hi - lo = n → ∀ j,
+    (bisectBoundary false agrees lo hi).1 = .undecidedMid j →
+      j ∈ (bisectBoundary false agrees lo hi).2 := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro lo hi hn j hj
+  rw [bisectBoundary] at hj ⊢
+  split at hj
+  · simp at hj
+  · rename_i hgap
+    rw [dif_neg hgap]
+    split at hj
+    · simp only
+      exact List.mem_cons_of_mem _ (ih _ (by omega) _ _ rfl j hj)
+    · simp only
+      exact List.mem_cons_of_mem _ (ih _ (by omega) _ _ rfl j hj)
+    · simp only [Bool.false_eq_true, ↓reduceIte, SearchResult.undecidedMid.injEq] at hj
+      simp only [Bool.false_eq_true, ↓reduceIte, List.mem_singleton]
+      exact hj.symm
+
+omit recover in
+/-- The edge a bisection without recovery finds has each side queried, or at an end. -/
+theorem bisectBoundary_edge_mem : ∀ (n lo hi : ℕ), hi - lo = n → lo < hi → ∀ j,
+    (bisectBoundary false agrees lo hi).1 = .edge j →
+      (j = hi ∨ j ∈ (bisectBoundary false agrees lo hi).2)
+        ∧ (j - 1 = lo ∨ j - 1 ∈ (bisectBoundary false agrees lo hi).2) := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro lo hi hn hlt j hj
+  rw [bisectBoundary] at hj ⊢
+  split at hj
+  · rename_i hgap
+    simp only [SearchResult.edge.injEq] at hj
+    subst hj
+    rw [dif_pos hgap]
+    exact ⟨Or.inl rfl, Or.inl (by omega)⟩
+  · rename_i hgap
+    rw [dif_neg hgap]
+    split at hj
+    · simp only
+      obtain ⟨h1, h2⟩ := ih _ (by omega) _ _ rfl (by omega) j hj
+      refine ⟨h1.imp_right (List.mem_cons_of_mem _), Or.inr ?_⟩
+      rcases h2 with h2 | h2
+      · rw [h2]; exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ h2
+    · simp only
+      obtain ⟨h1, h2⟩ := ih _ (by omega) _ _ rfl (by omega) j hj
+      refine ⟨Or.inr ?_, h2.imp_right (List.mem_cons_of_mem _)⟩
+      rcases h1 with h1 | h1
+      · rw [h1]; exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ h1
+    · simp at hj
+
+omit agrees in
+/-- A bisection without recovery under `ag`, which decides as `ag'` wherever `ag'` decides,
+queries every position the one under `ag'` queries. -/
+theorem bisectBoundary_queries_mono {ag ag' : ℕ → Option Bool}
+    (h : ∀ i b, ag' i = some b → ag i = some b) : ∀ (n lo hi : ℕ), hi - lo = n →
+    ∀ p ∈ (bisectBoundary false ag' lo hi).2, p ∈ (bisectBoundary false ag lo hi).2 := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro lo hi hn p hp
+  rw [bisectBoundary] at hp ⊢
+  split at hp
+  · simp at hp
+  · rename_i hgap
+    rw [dif_neg hgap]
+    split at hp
+    · rename_i hm
+      simp only [h _ _ hm]
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (ih _ (by omega) _ _ rfl p hp)
+    · rename_i hm
+      simp only [h _ _ hm]
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (ih _ (by omega) _ _ rfl p hp)
+    · simp only [Bool.false_eq_true, ↓reduceIte, List.mem_singleton] at hp
+      subst hp
+      split <;> simp
+
 /-! ## The search -/
 
 variable {recover agrees} {lo hi : ℕ}
@@ -227,6 +341,117 @@ theorem tripartiteSearch_length :
     · simp only [List.length_cons, List.length_nil]; omega
     · simp only [List.length_cons]; omega
 
+omit recover in
+theorem tripartiteSearch_length_noRecovery :
+    (tripartiteSearch false agrees lo hi).2.length ≤ 2 + Nat.clog 2 (hi - lo) := by
+  have := bisectBoundary_length_noRecovery agrees _ lo hi rfl
+  unfold tripartiteSearch
+  split
+  · simp only [List.length_cons, List.length_nil]; omega
+  · simp only [List.length_cons, List.length_nil]; omega
+  · split
+    · simp only [List.length_cons, List.length_nil]; omega
+    · simp only [List.length_cons, List.length_nil]; omega
+    · simp only [List.length_cons]; omega
+
+omit recover in
+theorem tripartiteSearch_undecidedMid_mem (j : ℕ)
+    (hj : (tripartiteSearch false agrees lo hi).1 = .undecidedMid j) :
+    j ∈ (tripartiteSearch false agrees lo hi).2 := by
+  unfold tripartiteSearch at hj ⊢
+  split at hj
+  · simp at hj
+  · simp at hj
+  · simp only
+    split at hj
+    · simp at hj
+    · simp at hj
+    · simp only
+      exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (bisectBoundary_undecidedMid_mem agrees _ lo hi rfl j hj))
+
+omit recover in
+theorem tripartiteSearch_lo_mem : lo ∈ (tripartiteSearch false agrees lo hi).2 := by
+  unfold tripartiteSearch
+  split <;> (try split) <;> simp
+
+omit recover in
+theorem tripartiteSearch_undecidedHi_mem
+    (h : (tripartiteSearch false agrees lo hi).1 = .undecidedHi) :
+    hi ∈ (tripartiteSearch false agrees lo hi).2 := by
+  unfold tripartiteSearch at h ⊢
+  split at h
+  · simp at h
+  · simp at h
+  · split at h
+    · simp
+    · simp at h
+    · simp
+
+omit recover in
+/-- Both sides of the edge a search without recovery finds are positions it queried. -/
+theorem tripartiteSearch_edge_mem (hle : lo ≤ hi) (j : ℕ)
+    (hj : (tripartiteSearch false agrees lo hi).1 = .edge j) :
+    j ∈ (tripartiteSearch false agrees lo hi).2
+      ∧ j - 1 ∈ (tripartiteSearch false agrees lo hi).2 := by
+  unfold tripartiteSearch at hj ⊢
+  split at hj
+  · simp at hj
+  · simp at hj
+  · rename_i hlo
+    split at hj
+    · simp at hj
+    · simp at hj
+    · rename_i hhi
+      have hlt : lo < hi := by
+        rcases Nat.lt_or_ge lo hi with h | h
+        · exact h
+        · have e : lo = hi := by omega
+          subst e
+          rw [hlo] at hhi
+          cases hhi
+      obtain ⟨h1, h2⟩ := bisectBoundary_edge_mem agrees _ lo hi rfl hlt j hj
+      simp only
+      refine ⟨?_, ?_⟩
+      · rcases h1 with h1 | h1
+        · rw [h1]; exact List.mem_cons_of_mem _ List.mem_cons_self
+        · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h1)
+      · rcases h2 with h2 | h2
+        · rw [h2]; exact List.mem_cons_self
+        · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h2)
+
+omit recover agrees in
+/-- A search without recovery under `ag`, which decides as `ag'` wherever `ag'` decides, queries
+every position the one under `ag'` queries. -/
+theorem tripartiteSearch_queries_mono {ag ag' : ℕ → Option Bool}
+    (h : ∀ i b, ag' i = some b → ag i = some b) :
+    ∀ p ∈ (tripartiteSearch false ag' lo hi).2, p ∈ (tripartiteSearch false ag lo hi).2 := by
+  intro p hp
+  unfold tripartiteSearch at hp ⊢
+  split at hp
+  · simp only [List.mem_singleton] at hp
+    subst hp
+    split <;> (try split) <;> simp
+  · rename_i hlo
+    simp only [h _ _ hlo]
+    exact hp
+  · rename_i hlo
+    simp only [h _ _ hlo]
+    split at hp
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl <;> split <;> simp
+    · rename_i hhi
+      simp only [h _ _ hhi]
+      exact hp
+    · rename_i hhi
+      simp only [h _ _ hhi]
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact List.mem_cons_self
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact List.mem_cons_of_mem _ List.mem_cons_self
+      exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (bisectBoundary_queries_mono h _ lo hi rfl p hp))
+
 theorem tripartiteSearch_mem (hle : lo ≤ hi) :
     ∀ p ∈ (tripartiteSearch recover agrees lo hi).2, lo ≤ p ∧ p ≤ hi := by
   have := bisectBoundary_mem recover agrees _ lo hi rfl
@@ -277,6 +502,7 @@ theorem tripartiteSearch_correct : TripartiteSearchCorrect := by
   refine ⟨fun h => ?_, fun h => ?_, fun h => ?_, fun h => ?_, fun j h => ?_, fun j h => ?_,
     fun j h => ?_, fun j h => ?_, tripartiteSearch_mem recover agrees lo hi hle,
     tripartiteSearch_length recover agrees lo hi,
+    fun h => by subst h; exact tripartiteSearch_length_noRecovery agrees lo hi,
     fun t h1 h2 h3 => tripartiteSearch_monotone recover agrees lo hi h1 h2 h3⟩ <;>
     rw [h] at hok <;> exact hok
 

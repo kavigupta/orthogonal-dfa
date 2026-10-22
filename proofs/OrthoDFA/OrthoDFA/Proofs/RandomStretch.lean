@@ -39,10 +39,25 @@ def AnyB : S → List X → Prop
 end Segments
 
 variable {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
-  {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (θ : ℝ) (D : Measure (FreeMonoid α))
+  {σ : Type*} [Fintype σ] (M : DFA α σ) (U : σ → ℝ) (A sl : ℝ) (D : Measure (FreeMonoid α))
   (ε : ℝ) (Ns : ℕ) (y : ℝ)
 
 def Same (s s' : Level3State α) : Prop := s'.tree = s.tree ∧ s'.edges = s.edges
+
+/-- The round's outcome under the hypothesis `⟨T, E⟩`, ending `e`. -/
+noncomputable def outcomeAt (T : DTree α) (E : Edges α) (e : RoundEnd Level3Site) :
+    RoundOutcome α σ Level3Site :=
+  { target := M,
+    undecided := U,
+    harvestSlope := A,
+    harvestSlack := sl,
+    probes := D,
+    disagreeRate := ε,
+    disagree := searchSet read C.walkStart ⟨T, E⟩ ∪ endsSet read C.walkStart ⟨T, E⟩,
+    walkStart := C.walkStart,
+    harvestLaw := harvestLaw read D C.walkStart ⟨T, E⟩,
+    yield := y,
+    ending := e }
 
 /-- Within the first `Ns` probes of its stretch the step ends the round badly, a harvest's sampler
 yielding `y`, or is one of the steps `X`, or its stretch reaches `Ns` probes. -/
@@ -50,7 +65,9 @@ def BadStep (X : Level3State α → FreeMonoid α → Prop) (s : Level3State α)
     Prop :=
   (s.probeCount < Ns ∧ ((∃ e, applyProbe read C s x = .inr e ∧ ¬ EndsWell
     { target := M,
-      badStates := BadAt U θ,
+      undecided := U,
+      harvestSlope := A,
+      harvestSlack := sl,
       probes := D,
       disagreeRate := ε,
       disagree := searchSet read C.walkStart ⟨s.tree, s.edges⟩
@@ -301,16 +318,20 @@ theorem countP_or_of_zero {X : Type*} (f g : X → Bool) {l : List X} (h : l.cou
 
 /-- A step that ends the round badly fires a test falsely. -/
 theorem falseFire_of_end [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
-    (hGe : D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
-    (hGm : D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
-      ≤ θgpt * D.real {x | fS read C T E x} + ηm)
+    (hGe : ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .ends)) →
+      (harvestLaw read D C.walkStart ⟨T, E⟩ .ends).real Set.univ ≤ max (2 * Ge) y)
+    (hGm : ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .middles)) →
+      (harvestLaw read D C.walkStart ⟨T, E⟩ .middles).real Set.univ
+        ≤ max (2 * (θgpt * D.real {x | fS read C T E x} + ηm)) y)
     (hyM : y ≤ pM) (hηm : 4 * ηm ≤ pM) (hθg : 4 * θgpt ≤ C.middleRate)
     {ys : List (FreeMonoid α)} {s : Level3State α} (hs : Inv read s)
     (hst : StInv read C T E j ys s) (hcl : ys.countP (fW read C T E) = 0) {x : FreeMonoid α}
     {e : RoundEnd Level3Site} (he : applyProbe read C s x = .inr e)
     (hbad : ¬ EndsWell
       { target := M,
-        badStates := BadAt U θ,
+        undecided := U,
+        harvestSlope := A,
+        harvestSlack := sl,
         probes := D,
         disagreeRate := ε,
         disagree := searchSet read C.walkStart ⟨s.tree, s.edges⟩
@@ -331,14 +352,13 @@ theorem falseFire_of_end [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
   have hj : (countProbe read C s x).hypotheses = j := hst'.hypotheses
   rcases look_some C hlook with ⟨hr, rfl⟩ | ⟨hq, hr, rfl⟩ | ⟨hr, rfl⟩
   · rw [hj] at hr
-    have ht := total_le_of_not_endsWell read D C.walkStart ⟨T, E⟩ M U θ (y := y) .ends hGe ε _ hbad
+    have ht := hGe hbad
     rw [harvestLaw_real_univ read D C.walkStart ⟨T, E⟩, integral_length_le_one D
       (siteHarvest read C.walkStart ⟨T, E⟩ .ends) fun x => endsString_length _] at ht
     refine Or.inl ⟨ht, ?_⟩
     rwa [hlen, hst'.endsUndecided] at hr
   · rw [hj] at hr
-    have ht := total_le_of_not_endsWell read D C.walkStart ⟨T, E⟩ M U θ (y := y) .middles hGm ε _
-      hbad
+    have ht := hGm hbad
     rw [harvestLaw_real_univ read D C.walkStart ⟨T, E⟩, integral_length_le_one D
       (siteHarvest read C.walkStart ⟨T, E⟩ .middles) fun x => middleString_length _] at ht
     rw [hlen, hst'.searchCount] at hq
@@ -367,9 +387,11 @@ theorem falseFire_of_end [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
 
 /-- A bad step in a stretch shows in its counts. -/
 theorem seg_reduce [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
-    (hGe : D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
-    (hGm : D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
-      ≤ θgpt * D.real {x | fS read C T E x} + ηm)
+    (hGe : ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .ends)) →
+      (harvestLaw read D C.walkStart ⟨T, E⟩ .ends).real Set.univ ≤ max (2 * Ge) y)
+    (hGm : ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .middles)) →
+      (harvestLaw read D C.walkStart ⟨T, E⟩ .middles).real Set.univ
+        ≤ max (2 * (θgpt * D.real {x | fS read C T E x} + ηm)) y)
     (hyM : y ≤ pM) (hηm : 4 * ηm ≤ pM) (hθg : 4 * θgpt ≤ C.middleRate)
     (X : Level3State α → FreeMonoid α → Prop) (XEv : List (FreeMonoid α) → Prop)
     (hX : ∀ ys s x, Inv read s → StInv read C T E j ys s → X s x → XEv (ys ++ [x]))
@@ -377,7 +399,7 @@ theorem seg_reduce [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
     ∀ (xs ys : List (FreeMonoid α)) (s : Level3State α), Inv read s →
       StInv read C T E j ys s → Look₁ read C T E j N₁ ys → ys.countP (fW read C T E) = 0
           → s.probeCount < Ns →
-      SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s xs →
+      SegB (applyProbe read C) (BadStep read C M U A sl D ε Ns y X) Same s xs →
       ∃ i, i < xs.length ∧ ys.length + i + 1 ≤ Ns ∧
         (FalseFire read C D ε T E j (max (2 * Ge) y) pM (ys ++ xs.take (i + 1))
           ∨ (ys.length + i + 1 = Ns ∧ Survives read C T E j N₁ (ys ++ xs.take (i + 1)))
@@ -399,13 +421,13 @@ theorem seg_reduce [IsProbabilityMeasure D] {Ge θgpt ηm pM : ℝ}
       · rw [hst'.probeCount]; simp
       · rw [countP_snoc, hcl]
         simp [fW, ← hst.tree, ← hst.edges, hr]
-    by_cases hb : BadStep read C M U θ D ε Ns y X s x
+    by_cases hb : BadStep read C M U A sl D ε Ns y X s x
     · refine ⟨0, by simp, by omega, ?_⟩
       simp only [zero_add, List.take_succ_cons, List.take_zero]
       rcases hb with ⟨-, ⟨e, he, hbad⟩ | hx⟩ | ⟨s', h', hsm, hNs⟩
       · by_cases hx : X s x
         · exact Or.inr (Or.inr (hX ys s x hs hst hx))
-        · exact Or.inl (falseFire_of_end read C M U θ D ε y T E j hGe hGm hyM hηm hθg hs hst hcl
+        · exact Or.inl (falseFire_of_end read C M U A sl D ε y T E j hGe hGm hyM hηm hθg hs hst hcl
             he hbad)
       · exact Or.inr (Or.inr (hX ys s x hs hst hx))
       · obtain ⟨-, hst', h₁', hl, hn'', hcl'⟩ := hsame s' h' hsm
@@ -782,10 +804,13 @@ theorem seg_le (X : Level3State α → FreeMonoid α → Prop) (XEv : List (Free
     {s : Level3State α} (hs : Inv read s) (hf : s = newHypothesis s.tree s.edges s.hypotheses)
     (hT : s.tree ∈ (classSet (Fintype.card σ) : Finset (DTree α)))
     (hNe : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
-      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .ends) ≤ Ge)
+      ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .ends)) →
+        (harvestLaw read D C.walkStart ⟨T, E⟩ .ends).real Set.univ ≤ max (2 * Ge) y)
     (hNm : ∀ T ∈ (classSet (Fintype.card σ) : Finset (DTree α)), ∀ E, EdgesInto T E →
-      D.real (goodAt read C.walkStart ⟨T, E⟩ M U θ .middles)
-        ≤ θgpt * D.real {x | searches (probeOrAgree read T E C.walkStart x) = true} + ηm)
+      ¬ EndsWell (outcomeAt read C M U A sl D ε y T E (.harvest .middles)) →
+        (harvestLaw read D C.walkStart ⟨T, E⟩ .middles).real Set.univ
+          ≤ max (2 * (θgpt * D.real {x | searches (probeOrAgree read T E C.walkStart x) = true}
+            + ηm)) y)
     (hX : ∀ ys s' x, Inv read s' → StInv read C s.tree s.edges s.hypotheses ys s' → X s' x
       → XEv (ys ++ [x]))
     (hbX : ∀ N, (Measure.pi fun _ : Fin N => D).real
@@ -805,12 +830,12 @@ theorem seg_le (X : Level3State α → FreeMonoid α → Prop) (XEv : List (Free
     (hθpt'0 : C.middleAlternative ≤ θpt') (hθpt'1 : θpt' ≤ 1)
     (hsep : θr ≤ (1 - θpt') * (εd' - θe')) (N : ℕ) :
     (Measure.pi fun _ : Fin N => D)
-        {xs | SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
+        {xs | SegB (applyProbe read C) (BadStep read C M U A sl D ε Ns y X) Same s (List.ofFn xs)}
       ≤ ENNReal.ofReal
           (stretchRisk C (C.level s.hypotheses) Ns N₁ θr εd' θe' θpt' + bX) := by
   classical
   have hsub : {xs : Fin N → FreeMonoid α |
-      SegB (applyProbe read C) (BadStep read C M U θ D ε Ns y X) Same s (List.ofFn xs)}
+      SegB (applyProbe read C) (BadStep read C M U A sl D ε Ns y X) Same s (List.ofFn xs)}
       ⊆ ({xs | ∃ n ∈ Finset.Icc 1 Ns, n ≤ N ∧
           FalseFire read C D ε s.tree s.edges s.hypotheses (max (2 * Ge) y) pM
             ((List.ofFn xs).take n)}
@@ -823,7 +848,7 @@ theorem seg_le (X : Level3State α → FreeMonoid α → Prop) (XEv : List (Free
     have h₁0 : Look₁ read C s.tree s.edges s.hypotheses N₁ [] := fun h => by simp at h; omega
     have hn0 : s.probeCount < Ns := by rw [hf]; simp only [newHypothesis]; omega
     have hE := edgesInto_of_ok hs.edges
-    obtain ⟨i, hi, hiN, h⟩ := seg_reduce read C M U θ D ε Ns y s.tree s.edges s.hypotheses N₁
+    obtain ⟨i, hi, hiN, h⟩ := seg_reduce read C M U A sl D ε Ns y s.tree s.edges s.hypotheses N₁
       (hNe _ hT _ hE) (hNm _ hT _ hE) hyM hηm hθg X XEv
       (fun ys s' x hs' hst' hx => hX ys s' x hs' hst' hx) hN₁s (List.ofFn xs) []
       s hs hst0 h₁0 (by simp) hn0 hxs

@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.KappaRound
+import OrthoDFA.Proofs.KappaCount
 import OrthoDFA.Proofs.ProbeKeys
 
 /-!
@@ -8,7 +8,7 @@ Every step keeps `Inv`, adds at most one leaf, and keeps each learned edge at a 
 a probe's prefix past its first `k` letters (`RunInv`). So after `T` probes the tree has at most
 `T + 2` leaves and midfixes at most `T` long, and the run reads only a probe's prefix past its
 first `k` letters followed by a midfix: reads agreeing there give the same run
-(`runProbes_congr_zone`). Where no step reads a string wrong, the tree stays in `classSet |Q|`.
+(`runProbes_congr_zone`).
 -/
 
 namespace OrthoDFA
@@ -241,38 +241,6 @@ theorem runProbes_congr_zone {r r' : FreeMonoid α → ARU} {X : List (FreeMonoi
       exact runProbes_congr_zone h xs s' (fun y hy => hX y (by simp [hy])) hs' (by omega)
     · rfl
 
-/-- Reads agreeing as in `runProbes_congr_zone` read a string wrong at the same steps. -/
-theorem anyB_congr_zone {σ : Type*} (M : DFA α σ) (side : σ → Bool) {r r' : FreeMonoid α → ARU}
-    {X : List (FreeMonoid α)} {B : ℕ}
-    (h : ∀ x ∈ X, ∀ j, C.walkStart ≤ j → j ≤ x.toList.length → ∀ m : FreeMonoid α,
-      m.toList.length ≤ B → r (prefixOf x j * m) = r' (prefixOf x j * m)) :
-    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv r C X s →
-      s.tree.leaves.length - 2 + xs.length ≤ B →
-      AnyB (applyProbe r C) (Kappa.ReadsWrong M side r C) s xs →
-      AnyB (applyProbe r' C) (Kappa.ReadsWrong M side r' C) s xs
-  | [], _, _, _, _, hb => hb
-  | x :: xs, s, hX, hs, hB, hb => by
-    classical
-    have hxX := hX x (by simp)
-    simp only [List.length_cons] at hB
-    have hz := step_reads_agree C h hxX hs (by omega)
-    have hstep : applyProbe r C s x = applyProbe r' C s x :=
-      Kappa.applyProbe_congr' C (fun e t w he => hs.keys e t w he) hz
-    have hpo := Kappa.probeReads_congr s.edges C.walkStart
-      (fun w hw => hz w (Finset.mem_union_left _ hw))
-    have hsr : Eps.splitReads r' C s x = Eps.splitReads r C s x := by
-      simp only [Eps.splitReads, hpo.1]
-    rcases hb with hb | ⟨s', hs', hb⟩
-    · left
-      obtain ⟨z, hzm, hw⟩ := hb
-      refine ⟨z, ?_, ?_⟩
-      · rw [hpo.2, hsr]; exact hzm
-      · rw [← hz z hzm]; exact hw
-    · right
-      refine ⟨s', hstep ▸ hs', ?_⟩
-      obtain ⟨hs'', hl⟩ := runInv_step r C hxX hs hs'
-      exact anyB_congr_zone M side h xs s' (fun y hy => hX y (by simp [hy])) hs'' (by omega) hb
-
 /-- Reads agreeing on every prefix of a probe past its first `walkStart` letters, followed by at
 most `T` letters, give the same result. -/
 theorem level3_congr_zone {r r' : FreeMonoid α → ARU} {T : ℕ} (xs : Fin T → FreeMonoid α)
@@ -301,42 +269,6 @@ theorem probeOrAgree_congr_zone {r r' : FreeMonoid α → ARU} {T : DTree α} (E
   exact h p hp1 hp2 m hm
 
 end Run
-
-/-! ## Where no step reads wrong -/
-
-section Good
-
-variable {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool) (read : FreeMonoid α → ARU)
-  (C : Level3Settings)
-
-/-- Where no step reads a string wrong, the run keeps `Inv` and `WitInv`. -/
-theorem witInv_runProbes : ∀ (xs : List (FreeMonoid α)) (s : Level3State α), Inv read s →
-    Eps.WitInv M side s →
-    ¬ AnyB (applyProbe read C) (Kappa.ReadsWrong M side read C) s xs →
-    Inv read (runProbes read C s xs).1 ∧ Eps.WitInv M side (runProbes read C s xs).1
-  | [], s, hs, hg, _ => ⟨hs, hg⟩
-  | x :: xs, s, hs, hg, hb => by
-    simp only [AnyB, not_or, not_exists, not_and] at hb
-    simp only [runProbes]
-    rcases ha : applyProbe read C s x with s' | e
-    · by_cases hsm : s'.tree = s.tree ∧ s'.edges = s.edges
-      · exact witInv_runProbes xs s' (step_same read C hs ha hsm.1 hsm.2).1
-          (Eps.witInv_congr M side hg hsm.1 hsm.2) (hb.2 s' ha)
-      · obtain ⟨hs', hg', -⟩ := Kappa.kappa_step_change M side read C hs hg hb.1 ha hsm
-        exact witInv_runProbes xs s' hs' hg' (hb.2 s' ha)
-    · exact ⟨hs, hg⟩
-
-/-- Where no step reads a string wrong, the tree is in `classSet |Q|`: at most `|Q| + 2` leaves
-and midfixes at most `|Q|` long. -/
-theorem tree_classSet_of_good {T : ℕ} (xs : Fin T → FreeMonoid α)
-    (hb : ¬ AnyB (applyProbe read C) (Kappa.ReadsWrong M side read C) initialState
-      (List.ofFn xs)) :
-    (indecisiveLStarLevel3 C read xs).hypothesis.tree ∈ classSet (Fintype.card σ) := by
-  obtain ⟨h1, h2⟩ := witInv_runProbes M side read C (List.ofFn xs) initialState (inv_start read)
-    (Eps.witInv_start M side) hb
-  exact Eps.cls_mem' M side read h1 h2
-
-end Good
 
 /-! ## The sampler -/
 

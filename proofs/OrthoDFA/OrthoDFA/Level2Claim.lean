@@ -20,6 +20,11 @@ def ReadsByState {σ : Type*} (M : DFA α σ) (side : σ → Bool) : Prop :=
   ∀ q, AllUndecided read M q ∨
     ∀ w : FreeMonoid α, M.eval w.toList = q → read w = if side q then .accept else .reject
 
+open scoped Classical in
+/-- `1` where every string in the state reads undecided, `0` elsewhere. -/
+noncomputable def undecidedOf {σ : Type*} (M : DFA α σ) (q : σ) : ℝ :=
+  if AllUndecided read M q then 1 else 0
+
 variable [DecidableEq α]
 
 /-- The undecided string a probe of `x` walked from `k` under `H` stops at, if any. -/
@@ -39,8 +44,8 @@ open MeasureTheory Level2
 
 /-- With reads fixed by the target state, `0 < y < ε < 1` (`harvestRate`, `disagreementRate`),
 `0 < δ < 1`, and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes, level 2 fails to
-end well (`OrthoDFA.RoundEnd`), a state being bad where all its strings read undecided, with
-chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of them,
+end well (`OrthoDFA.RoundEnd`), a state reading undecided where all its strings do, with chance
+at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of them,
 and between splits each of a leaf's edges is learned once. A consistent ending has its hypothesis
 and tree parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
 def Level2RoundCorrect : Prop :=
@@ -58,7 +63,8 @@ def Level2RoundCorrect : Prop :=
       (Measure.pi fun _ : Fin P => D).real
           {draws | let result := indecisiveLStarLevel2 C read draws
             ¬ EndsWell
-              { target := M, badStates := AllUndecided read M, probes := D, disagreeRate := ε,
+              { target := M, undecided := undecidedOf read M, harvestSlope := 1, harvestSlack := 0,
+                probes := D, disagreeRate := ε,
                 disagree := {x | Disagrees read result.hypothesis C.walkStart x},
                 walkStart := C.walkStart,
                 harvestLaw := fun _ => harvestLaw read D C.walkStart result.hypothesis,

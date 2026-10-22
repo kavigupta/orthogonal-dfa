@@ -1,19 +1,20 @@
-import OrthoDFA.Level4Claim
+import OrthoDFA.Utils.Allowance
 
 /-!
-# `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision
+# `Level5RoundCorrect`: level 3 with wrong reads that scale with indecision, a few tolerated
 
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
 most `εw + κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`), otherwise as
-`ReadOracle` says. A wrong read can steer the round only once the round reads its string, and a
-string is read wrong at most `κ` times as often as undecided, beyond `εw`. A probe's sifts stop at their
-first undecided read, so each probe reads at most one string undecided, and the tests count it:
-the tests bound the undecided reads a round makes, whatever the budget, and with them the wrong
-ones.
+`ReadOracle` says. The round may read up to `f + 1` rounds wrong and still end well, its tree
+within `|Q| + f + 2` leaves. A wrong read adds at most one spurious leaf, so with level 3's premises
+taken at `|Q| + f` states (`Level3AllowanceCorrect`) the round fails only where `f + 2` rounds of
+reads meet a fresh wrong read (`RaceTailBound`), or two probes share their first `walkStart`
+letters, so that one probe's wrong read could recur in another's.
 
-`Level5RoundCorrect` asks level 3's premises, the good states' bounds holding but for chance `δ/16`
-each rather than `δ/8`, and that the strings the round reads, and those it reads undecided, are few
-enough against `εw` and `κ` that no string the round reads is read wrong but for chance `δ/8`.
+A step reads in rounds: its probe's reads, at most `w = min(L + 1, 3 + ⌈log₂ L⌉)(|Q| + f + 1)`
+strings and one undecided, and one re-sift per edge of a split, at most `|Q| + f + 2` strings and
+one undecided. A round costs at most `c = εw max(w, |Q| + f + 2) + κ`. Over the round the strings
+read number at most `b` and those read undecided at most `m`.
 -/
 
 namespace OrthoDFA
@@ -43,48 +44,43 @@ end Random
 open MeasureTheory Random Random.Kappa
 
 /-- Level 3's algorithm, with wrong reads that may scale with a state's indecision, fails to end
-well with chance at most `δ`. -/
+well within `|Q| + f + 2` leaves with chance at most `δ`, a few wrong reads tolerated. -/
 def Level5RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
-    (side : σ → Bool) (U : σ → ℝ) (θ εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U εw κ) (P : PrefixDistribution α)
-    (C : Level3Settings) (p₀ : ℝ),
+    (C : Level3Settings) (p₀ : ℝ) (f : ℕ) (t t' : ℝ),
     let y := C.harvestRate
     let ε := C.disagreementRate
     let δ := C.δ
-    let nQ := Fintype.card σ
+    let nQ := Fintype.card σ + f
     let nα := Fintype.card α
-    -- Bounds the hypotheses: at most `|Q| + 2` leaves, each leaf's edges learned once between splits.
+    -- As at level 3, at `|Q| + f` states.
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
-    -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    -- Bounds, but for chance `δ/16`, the share of probes stopping undecided at their start or end
-    -- sift at a good state.
-    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (16 * K / δ)
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
+    let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
+    -- A probe round's reads, a round's cost, and the round's reads, in all and undecided.
+    let w : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (nQ + 1)
+    let c : ℝ := εw * max w (nQ + 2) + κ
+    let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
+    let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + (nQ + 2) * nα * (nQ + 1)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    -- Good states' undecided middles stay under a quarter of the searches.
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 →
-    -- Good states' undecided ends stay under the ends test's rate.
-    2 * G ≤ y →
-    -- The middles test's yield fits under the success test's rate.
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → δ < 1 → 0 < y →
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
-    0 ≤ εw → 0 ≤ κ →
-    -- The round reads some string wrong with chance at most `δ/8`. A probe reads at most
-    -- `(L + 1)|Q|` strings and at most `|Q|` splits re-sift `(|Q| + 1)²|Σ|` each; and until a test
-    -- fires, a hypothesis's probes stop undecided at most `5 log(1/a_j)` times however long the
-    -- stretch, so the `κ` term does not grow with the budget.
-    εw * (C.probeBudget * (P.L + 1) * nQ + nQ * (nQ + 1) ^ 2 * nα)
-      + κ * (5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + nQ * (nQ + 1) ^ 2 * nα) ≤ δ / 8 →
+    0 ≤ εw → 0 ≤ κ → 0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
+    -- Two probes share their first `walkStart` letters, or `f + 2` rounds read wrong, with chance
+    -- at most `δ/8`.
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      + Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
-          -- the probes searching, changing the hypothesis or stopping undecided at their start or
-          -- end sift; a harvest's sampler yields `y`.
           ¬ EndsWell
             { target := M,
-              badStates := BadAt U θ,
+              undecided := U,
+              harvestSlope := A,
+              harvestSlack := η / y,
               probes := P.D,
               disagreeRate := ε,
               disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
@@ -92,7 +88,8 @@ def Level5RoundCorrect : Prop :=
               walkStart := C.walkStart,
               harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
               yield := y,
-              ending := result.ending }} ∂μ
+              ending := result.ending }
+          ∨ nQ + 2 < result.hypothesis.tree.leaves.length} ∂μ
       ≤ ENNReal.ofReal δ
 
 end OrthoDFA

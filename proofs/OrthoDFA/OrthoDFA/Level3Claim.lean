@@ -6,7 +6,7 @@ import OrthoDFA.ProbeDistribution
 
 Every string's read is drawn once, independently across strings, from a distribution fixed by
 the string's target state: undecided with chance `U q`, otherwise on the state's side, never on
-the other (`ReadOracle`). A read-state is bad where it is undecided more than `1.5θ` of the time.
+the other (`ReadOracle`).
 
 A harvest is a site of the final hypothesis. Its sampler (`harvestLaw`) draws a fresh probe, walks
 it under that hypothesis and finds the probe's undecided strings at the site, as the tests counted
@@ -52,9 +52,6 @@ def searchSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : 
 def endsSet (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) : Set (FreeMonoid α) :=
   {x | endsString (probeOrAgree read H.tree H.edges k x) ≠ []}
 
-/-- A read-state is bad where it reads undecided more than `1.5θ` of the time. -/
-def BadAt {σ : Type*} (U : σ → ℝ) (θ : ℝ) (q : σ) : Prop := 3 / 2 * θ < U q
-
 /-- Reads of every string, independent across strings, each undecided with its state's chance `U`
 and never on its state's wrong side. -/
 structure ReadOracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {σ : Type*} (M : DFA α σ)
@@ -72,7 +69,7 @@ open MeasureTheory Random
 /-- Level 3 fails to end well with chance at most `δ`. -/
 def Level3RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
-    (side : σ → Bool) (U : σ → ℝ) (θ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (side : σ → Bool) (U : σ → ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α)
     (C : Level3Settings) (p₀ : ℝ),
     let y := C.harvestRate
@@ -84,26 +81,29 @@ def Level3RoundCorrect : Prop :=
     let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
     -- Counts the trees level 3 can grow, with an edge map into each one's leaves.
     let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
-    -- Bounds, but for chance `δ/8`, the share of probes stopping undecided at their start or end
-    -- sift at a good state.
-    let G := 9 * θ * (nQ + 1) + 2 * p₀ * Real.log (8 * K / δ)
+    -- A probe's start and end sifts read at most `3(|Q| + 1)` strings and a search queries at most
+    -- `2 + ⌈log₂ L⌉` positions, each sift reading at most `|Q| + 1` strings undecided at their
+    -- states' rates; the searches are at most eight times the middles' harvest.
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
+    -- Bounds, but for chance `δ/8` at each site, how far the probes harvesting at the states read
+    -- undecided at most `T` of the time exceed their mean, for every tree and edge map.
+    let η := p₀ * Real.log (8 * (nQ + 1) * K / δ)
     -- No length-`walkStart` prefix holds more than `p₀` of the probes.
-    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 ≤ θ → 0 < δ →
-    -- Good states' undecided middles stay under a quarter of the searches.
-    48 * (P.L + 1) * (nQ + 1) * θ ≤ 1 →
-    -- Good states' undecided ends stay under the ends test's rate.
-    2 * G ≤ y →
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → 0 < y →
     -- The middles test's yield fits under the success test's rate.
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
-          -- Bad: undecided more than `1.5θ` of the time. A consistent ending has at most `ε` of
-          -- the probes searching, changing the hypothesis or stopping undecided at their start or
-          -- end sift; a harvest's sampler yields `y`.
+          -- A consistent ending has at most `ε` of the probes searching, changing the hypothesis
+          -- or stopping undecided at their start or end sift. A harvest's sampler yields `y` and
+          -- puts at most `A·T + η/y` of its law on the states read undecided at most `T` of the
+          -- time.
           ¬ EndsWell
             { target := M,
-              badStates := BadAt U θ,
+              undecided := U,
+              harvestSlope := A,
+              harvestSlack := η / y,
               probes := P.D,
               disagreeRate := ε,
               disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
