@@ -44,39 +44,31 @@ cluster.judge_family = judge_family
 orig_end = cxs.ending_test
 
 
-def ending_test(counts, config, depth, leaves):
-    e = orig_end(counts, config, depth, leaves)
+def counts_json(counts):
+    """Each count list as (total, distinct); any other field as is."""
+    out = {}
+    for name, v in vars(counts).items():
+        if isinstance(v, list):
+            out[name] = (len(v), len(set(map(bytes, v))))
+        elif isinstance(v, dict):
+            flat = [z for zs in v.values() if isinstance(zs, list) for z in zs]
+            out[name] = (len(flat), len(set(map(bytes, flat))))
+        else:
+            out[name] = v
+    return out
+
+
+def ending_test(counts, *args, **kwargs):
+    e = orig_end(counts, *args, **kwargs)
     if e is not None:
-        edges = [
-            dict(
-                edge=str(k),
-                leaf=k[0] in leaves,
-                traversals=n,
-                undecided=len(counts.edge_harvest.get(k, [])),
-            )
-            for k, n in counts.traversals.items()
-        ]
-        tot_t = sum(x["traversals"] for x in edges)
-        tot_u = sum(x["undecided"] for x in edges)
         log(
             dict(
                 kind="ending",
                 ending=e.kind,
-                edge=str(e.edge),
-                probes=counts.probes,
-                depth=depth,
                 harvest_len=len(e.harvest),
-                start_harvest=len(counts.start_harvest),
-                searches=counts.searches,
-                middles=len(counts.middles),
-                search_queries=counts.search_queries,
-                edge_rate=config.edge_rate,
-                edge_excess=config.edge_excess,
-                edge_traffic=config.edge_traffic,
-                start_rate=config.start_rate(depth),
-                overall_undecided_per_traversal=tot_u / max(tot_t, 1),
-                distinct_harvest=len(set(map(repr, e.harvest))),
-                edges=edges,
+                distinct_harvest=len(set(map(bytes, e.harvest))),
+                counts=counts_json(counts),
+                kwargs=kwargs,
             )
         )
     return e
@@ -91,18 +83,19 @@ import family_ckpt
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 
 orig_search = cs._counterexample_search
-calls = [0]
+families = []
 
 
 def counterexample_search(pst, vs, *, acc_threshold):
-    try:
-        family_ckpt.dump(
-            f"{OUT}/family_r{calls[0]}.pkl", pst=pst, vs=vs, acc_threshold=acc_threshold
-        )
-        log(dict(kind="dumped", round=calls[0]))
-    except Exception:
-        log(dict(kind="dump_failed", error=traceback.format_exc()))
-    calls[0] += 1
+    # Restarts search one family several times; save each family once.
+    if not families or families[-1] is not vs:
+        families.append(vs)
+        name = f"{OUT}/family_r{len(families) - 1}.pkl"
+        try:
+            family_ckpt.dump(name, pst=pst, vs=vs, acc_threshold=acc_threshold)
+            log(dict(kind="dumped", round=len(families) - 1))
+        except Exception:
+            log(dict(kind="dump_failed", error=traceback.format_exc()))
     return orig_search(pst, vs, acc_threshold=acc_threshold)
 
 
