@@ -32,7 +32,6 @@ from .prefix_sources import (
 )
 from .probe_batching import warmed_draws
 from .progress import counter, track
-from .round_end import SUCCESS
 from .suffix_family import SuffixFamily
 from .tracker import SynthesisTracker
 
@@ -98,10 +97,6 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
     for string in taken[:wanted]:
         state.take(string, read)
     return min(wanted, len(taken))
-
-
-def _family_too_loose(ending, true_acc, acc_threshold, taken) -> bool:
-    return ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
 
 
 def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
@@ -368,10 +363,7 @@ def counterexample_driven_synthesis(
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        if (
-            _family_too_loose(ending, true_acc, acc_threshold, taken)
-            and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
-        ):
+        if taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
