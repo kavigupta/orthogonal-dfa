@@ -21,7 +21,7 @@ import collections
 import json
 import re
 import statistics
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
 
@@ -34,7 +34,7 @@ DATA_DIR = REPO_ROOT / "data" / "capal"
 OUT_DIR = REPO_ROOT / "figures" / "capal-comparison"
 
 EXPERIMENTS = ["capal_benchmarks", "our_benchmarks"]
-SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "This repo"}
+SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "Our benchmarks"}
 SOURCE_ORDER = ["capal_dataset", "ours"]
 
 
@@ -111,11 +111,12 @@ def success_rows(cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
+def cost_rows(cells: Sequence[dict]) -> List[Union[List[str], str]]:
     idx = _grouped(cells)
     targets, etas = _axes(cells)
-    rows = []
+    rows: List[Union[List[str], str]] = []
     for family in SOURCE_ORDER:
+        group = []
         for eta in etas:
             pairs = [
                 (
@@ -130,17 +131,23 @@ def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
             capal_mq = statistics.mean(c["queries_total"] for c, _ in both)
             capal_eq = statistics.mean(c["equivalence_queries"] for c, _ in both)
             elstar_mq = statistics.mean(e["queries_total"] for _, e in both)
-            rows.append(
+            group.append(
                 [
-                    SOURCE_NAMES[family],
                     f"{eta:g}",
-                    str(len(both)),
                     _sci(capal_mq),
                     f"{capal_eq:.1f}",
                     _sci(elstar_mq),
-                    _sci(elstar_mq / capal_mq),
+                    f"{elstar_mq / capal_mq:,.0f}$\\times$",
                 ]
             )
+        if not group:
+            continue
+        if rows:
+            rows.append(r"\midrule")
+        # \multirow needs \usepackage{multirow} in the including document.
+        source = f"\\multirow{{{len(group)}}}{{*}}{{{SOURCE_NAMES[family]}}}"
+        rows.append([source] + group[0])
+        rows += [[""] + row for row in group[1:]]
     return rows
 
 
@@ -225,8 +232,11 @@ def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -> str:
-    body = "\n".join(" & ".join(r) + r" \\" for r in rows)
+def tabular(
+    headers: Sequence[str], align: str, rows: Sequence[Union[Sequence[str], str]]
+) -> str:
+    """A row given as a string, such as a rule, goes in as it is."""
+    body = "\n".join(r if isinstance(r, str) else " & ".join(r) + r" \\" for r in rows)
     return "\n".join(
         [
             f"\\begin{{tabular}}{{{align}}}",
@@ -263,15 +273,15 @@ GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{1F5FA8}
     \fill[bg#4] (#1, -#2 - 1) -- (#1 + 1, -#2 - 1) -- (#1 + 1, -#2) -- cycle;
     \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
 }
-\def\bgtarget#1#2{\node[anchor=east, font=\scriptsize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
-\def\bgeta#1#2{\node[anchor=base, font=\scriptsize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
+\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
 \def\bgtitle#1#2{
-    \node[anchor=base east, font=\scriptsize, inner sep=2pt] at (0, 0.25) {$\eta$};
+    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0, 0.25) {$\eta$};
     \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
-    \node[anchor=south, font=\scriptsize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
+    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
 }"""
 
-GRID_LEGEND = r"""\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt, font=\scriptsize]
+GRID_LEGEND = r"""\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt, font=\footnotesize]
     \draw[black!50] (0, -1.5) rectangle (1.5, 0) (0, -1.5) -- (1.5, 0);
     \node[anchor=south, inner sep=2pt] at (0.75, 0) {CAPAL};
     \node[anchor=north, inner sep=2pt] at (0.75, -1.5) {\ours{}};
@@ -315,7 +325,7 @@ def grid_panel(cells: Sequence[dict], title: str) -> str:
             lines.append(f"\\bgcell{{{col}}}{{{row}}}{{{capal}}}{{{elstar}}}")
     body = "\n".join("    " + line for line in lines)
     return (
-        "\\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt]\n"
+        "\\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt]\n"
         + body
         + "\n\\end{tikzpicture}"
     )
@@ -324,7 +334,7 @@ def grid_panel(cells: Sequence[dict], title: str) -> str:
 def grid_fragment() -> str:
     """Whether each learner solves each target E-L* admits, at each eta."""
     panels = [grid_panel(load_experiment(name), title) for name, title in GRID_PANELS]
-    return GRID_MACROS + "\n" + "\n\\qquad\n".join(panels + [GRID_LEGEND])
+    return GRID_MACROS + "\n" + "\n\\quad\n".join(panels + [GRID_LEGEND])
 
 
 TABLES: List[Dict[str, Any]] = [
@@ -345,13 +355,12 @@ TABLES: List[Dict[str, Any]] = [
         "headers": [
             "Benchmark source",
             r"$\eta$",
-            "$n$",
             "CAPAL MQ",
             "CAPAL EQ",
             r"\ours{} MQ",
-            "Ratio",
+            "MQ ratio",
         ],
-        "align": "llrrrrr",
+        "align": "llrrrr",
         "rows": cost_rows,
     },
     {
@@ -383,7 +392,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fragments = {}
     for spec in TABLES:
-        rows: Callable[[Sequence[dict]], List[List[str]]] = spec["rows"]
+        rows: Callable[[Sequence[dict]], List[Union[List[str], str]]] = spec["rows"]
         fragments[spec["name"]] = tabular(spec["headers"], spec["align"], rows(cells))
     fragments["benchmark_grid"] = grid_fragment()
     for name, fragment in fragments.items():
