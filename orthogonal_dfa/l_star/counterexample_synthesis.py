@@ -37,8 +37,9 @@ class RoundClassifier:
 
     The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
-    population the family was clustered on. Off-length prefixes (boundary strings) reach the family off its calibration, so a consumer checking
-    the recorded cut should restrict to the calibrated ones."""
+    population the family was clustered on. Off-length prefixes (boundary strings)
+    reach the family off its calibration, so a consumer checking the recorded cut
+    should restrict to the calibrated ones."""
 
     prefixes: List[bytes]
     votes: np.ndarray
