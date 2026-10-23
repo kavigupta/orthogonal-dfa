@@ -560,9 +560,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
     have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
     have hW1 : 1 ≤ W := by
-      have hWr : (Q + 1) / ε ≤ W := le_max_right _ _
-      have h3 : Q + 1 ≤ (Q + 1) / ε := by
-        rw [le_div_iff₀ hε0]; nlinarith
+      have hWr : 1 + (Q + 1) * δ' / (7 * ε) ≤ W := le_max_right _ _
+      have : 0 ≤ (Q + 1) * δ' / (7 * ε) := by positivity
       linarith
     have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hτ0 hτ1
       (Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith))
@@ -617,7 +616,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
-  set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) ((Q + 1) / ε) with hWd
+  set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) (1 + (Q + 1) * δ' / (7 * ε)) with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
   set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
@@ -655,17 +654,15 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       positivity
     exact w_le hℓ1 hQ0 hε0 hinvε hδ'0.le hWm0
   have hW1 : 1 ≤ W := by
-    have hWr : (Q + 1) / ε ≤ W := le_max_right _ _
-    have h3 : Q + 1 ≤ (Q + 1) / ε := by
-      have hε1 : ε ≤ 1 := rate_le_one hc1 hA hN1
-      rw [le_div_iff₀ hε0]; nlinarith
+    have hWr : 1 + (Q + 1) * δ' / (7 * ε) ≤ W := le_max_right _ _
+    have : 0 ≤ (Q + 1) * δ' / (7 * ε) := by positivity
     linarith
   have hW₀1 : 1 ≤ W₀ := by
     have haε : 1 ≤ aε := by
       show 1 ≤ 4 * (A + 1) / c
       rw [le_div_iff₀ hc, one_mul]
       linarith only [hA, hc1]
-    have h2 : (1 : ℝ) ≤ (Q + 1) * aε := by nlinarith
+    have h2 : (0 : ℝ) ≤ (Q + 1) * δ' * aε / 7 := by positivity
     have : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
@@ -673,7 +670,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
         show 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
         positivity
       positivity
-    show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + (Q + 1) * aε
+    show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + (1 + (Q + 1) * δ' * aε / 7)
     linarith
   obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
     hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1

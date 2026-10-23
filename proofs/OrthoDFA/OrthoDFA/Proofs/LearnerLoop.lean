@@ -417,14 +417,14 @@ def LoopCore : Prop :=
                   (2 * indecisionLimit + slack) (C.disagreementRate + u + mr))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
-          + (C.δ + (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-            + (Fintype.card σ + 1) * cross) / u))
+          + (C.δ + rarerTail C.probeBudget (2 * prefixMax P.D C.walkStart)
+            ((Fintype.card σ + 1) * cross) u))
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
     c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
-    hms1 hNSb hNPb hq1a hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
+    hms1 hNSb hNPb hq1a hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 _hu hy0 hmr hmr1 hcr hprem hT hcond
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
@@ -657,11 +657,11 @@ theorem loop_core_holds : LoopCore := by
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N (513 / 512 * εcov) (δc + gate) slack cap cap
       m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
-  set δ3 : ℝ := C.δ + (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-    + (Fintype.card σ + 1) * cross) / u with hδ3d
+  set δ3 : ℝ := C.δ + rarerTail C.probeBudget (2 * prefixMax P.D C.walkStart)
+    ((Fintype.card σ + 1) * cross) u with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
     loop_round_le_persist M O hL P Dsf settings Ls NP N mr u cross hN hNPsum hband hk0 hη1
-      hcr hprem hu hmr hmr1 r hr
+      hcr hprem hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -679,9 +679,9 @@ theorem loop_core_holds : LoopCore := by
         _ = δc + gate + δ3 := by ring
     · rw [measureReal_empty]
       have := (prefixMax_pos P.D C.walkStart).le
-      have : 0 ≤ (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-          + (Fintype.card σ + 1) * cross) / u := by
-        positivity
+      have := rarerTail_nonneg (T := (C.probeBudget : ℝ)) (u := u)
+        (by positivity : 0 ≤ 2 * prefixMax P.D C.walkStart)
+        (by positivity : (0 : ℝ) ≤ (Fintype.card σ + 1) * cross)
       have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; linarith
       exact this
   -- a failing run fails one of the first `|Q| + 1` rounds' claims

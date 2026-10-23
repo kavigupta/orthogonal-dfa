@@ -70,17 +70,23 @@ summed over the window, so an edge out of its true leaf that is wrong or unlearn
 `c/((|Σ|+1)N)` of the probes disagreeing (`edge_of_occupied`), `disagreeSet` being the probes
 that search, cross a wrong edge, stop at an unlearned one, stop undecided at their start or end
 sift (level 3's own success test bounds these at `ε`), or read a string followed by a midfix of
-the tree on its state's rarer side (`rarerSet`). The last is bounded by Markov over the tree's own
-midfixes, at most `|Q| + 1` of them where its tree is in `classSet |Q|` (`rarer_markov`,
+the tree on its state's rarer side (`rarerSet`). The last is bounded over the tree's own midfixes,
+at most `|Q| + 1` of them where its tree is in `classSet |Q|` (`rarer_tail`,
 `Proofs/LoopRenoise.lean`). Level 3 reads only strings beginning with a probe's first `k` letters
 (`level3_congr_zone'`), so a probe whose first `k` letters are no probe's reads past each midfix
 independently of the tree (`measure_inter_of_reads`, `Proofs/LoopPersist.lean`), wrong with chance
-at most `κ`; the probes sharing a probe's first `k` letters weigh at most `B₃ prefixMax`. So
-those probes weigh more than `ε` with chance at most `(2 B₃ prefixMax + (|Q|+1)κ)/ε`. The
-clustering, run at `εcov = min(ε, ξ/(8N))`, reads every covered
-state on its true side (`sideOf_eq_of_mass`). Every covered state's edges are then true and it
-accepts as the target does, so the hypothesis from the covered start's true leaf tracks the
-re-rooted target on every run that stays covered (`classify_start_le`).
+at most `κ`, and two such probes read independently where their first `k` letters differ; the
+probes sharing a probe's first `k` letters weigh at most `B₃ prefixMax`. Given the tree's midfixes,
+the rest weigh `X` with `E X ≤ e = (|Q|+1)κ` and, each first `k` letters holding at most
+`prefixMax` of the probes, `Var X ≤ prefixMax · e`, so by Chebyshev (`meas_gt_le_of_pairs`) those
+probes weigh more than `ε` with chance at most
+
+    2 prefixMax · e/(ε − 2 B₃ prefixMax − e)²
+
+where `2 B₃ prefixMax + e < ε` (`rarerTail`). The clustering, run at `εcov = min(ε, ξ/(8N))`,
+reads every covered state on its true side (`sideOf_eq_of_mass`). Every covered state's edges
+are then true and it accepts as the target does, so the hypothesis from the covered start's true
+leaf tracks the re-rooted target on every run that stays covered (`classify_start_le`).
 
 The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
 on and off the language may differ, and agreement with such a read weighs a leaf's errors by
@@ -114,14 +120,15 @@ the family is level 5's oracle at `εw = 0` and `κ = ζ`. With `f = 0` level 5 
 leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most
 `e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
-    W = max(e √δ' W_m / 2, (|Q|+1)/ε),
+    W = max(e √δ' W_m / 2, 1 + (|Q|+1)δ'/(7ε)),
 
 `W_m = (16/5)S log(8S(S+1)/δ') + 3 + (|Q|+2)|Σ|(|Q|+1)`, puts `λ + 2κ` under `√δ'/(4e)` and
-the midfix part of the Markov bound above under `δ'/8`; `16 B₃² prefixMax ≤ δ'` and `B₃ ε ≥ 1` put
-its shared-key part under `δ'/8`; no two of a round's probes sharing their first `k` letters takes
-the rest of level 5's `δ'/8`. A round's claim (`RoundSpec`, `Proofs/LoopTermination.lean`) is
+`(|Q|+1)ζ` under `7ε/8`; `16 B₃² prefixMax ≤ δ'` and `B₃ ε ≥ 34` put `2 B₃ prefixMax` under `ε/16`
+and `prefixMax` under `δ' ε²/18496`, so the Chebyshev bound above is under `δ'/4`; no two of a
+round's probes sharing their first `k` letters takes the rest of level 5's `δ'/8`. A round's claim
+(`RoundSpec`, `Proofs/LoopTermination.lean`) is
 level 3's ending, transferred to `D`, and its tree in `classSet |Q|`; it fails with chance at most
-`δ' + δ'/4`: level 5's claim and the Markov bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
+`δ' + δ'/4`: level 5's claim and the Chebyshev bound (`level3Fail_le`, `Proofs/LoopRenoise.lean`). A harvest's sampler yields at least `ε/96` and finds a
 string at most as often as the probes share its length-`k` prefix, so a population puts at most
 `96 prefixMax / ε` on a string, within `cap`, which also bounds the suffixes' atoms; its strings are
 at most `L₁ + |Q|` long, the tree's midfixes at most `|Q|`. Against `cap` the clustering's atom
@@ -193,11 +200,10 @@ what a state's chance of reading undecided is.
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
-  read wrong at most `κ` of the time. This Markov bound is what sets the band's `ζ`: at the
-  README's settings it caps `κ` at `δ'ε/(8(|Q|+1)) ≈ 3.7e-11`, where level 5's race tail alone
-  would allow `≈ 7.5e-7`. It charges `κ` where the read's chance is `κ U` at the state of `y·m`;
-  no claim the loop proves bounds `U` at `y·m` under the probes' law, only at the populations'
-  own strings.
+  read wrong at most `κ` of the time. At the README's settings this caps `ζ` at
+  `≈ 7ε/(8(|Q|+1)) ≈ 8.2e-7`; level 5's race tail binds first, at `ζ ≈ 7.5e-7`. It charges `κ`
+  where the read's chance is `κ U` at the state of `y·m`; no claim the loop proves bounds `U` at
+  `y·m` under the probes' law, only at the populations' own strings.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
