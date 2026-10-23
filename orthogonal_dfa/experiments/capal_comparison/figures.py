@@ -7,7 +7,7 @@ Two tables, both read from `data/capal/*.json`:
    E-L* scored only over the targets its preconditions admit, plus how many
    targets that is.
 2. query cost -- what each learner spends on the targets *both* solve, so the
-   ratio is like for like. Rows with no such target are dropped: two numbers
+   comparison is like for like. Rows with no such target are dropped: two numbers
    from disjoint target sets do not make a comparison.
 
 Plus a grid of which learner solves each target E-L* admits at each eta.
@@ -137,7 +137,6 @@ def cost_rows(cells: Sequence[dict]) -> List[Union[List[str], str]]:
                     _sci(capal_mq),
                     f"{capal_eq:.1f}",
                     _sci(elstar_mq),
-                    f"{elstar_mq / capal_mq:,.0f}$\\times$",
                 ]
             )
         if not group:
@@ -358,9 +357,8 @@ TABLES: List[Dict[str, Any]] = [
             "CAPAL MQ",
             "CAPAL EQ",
             r"\ours{} MQ",
-            "MQ ratio",
         ],
-        "align": "llrrrr",
+        "align": "llrrr",
         "rows": cost_rows,
     },
     {
