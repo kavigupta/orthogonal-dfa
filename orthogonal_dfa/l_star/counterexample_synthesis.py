@@ -32,7 +32,7 @@ from .prefix_sources import (
 )
 from .probe_batching import warmed_draws
 from .progress import counter, track
-from .round_end import HARVESTS, SUCCESS
+from .round_end import SUCCESS
 from .suffix_family import SuffixFamily
 from .tracker import SynthesisTracker
 
@@ -101,9 +101,7 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
 
 
 def _family_too_loose(ending, true_acc, acc_threshold, taken) -> bool:
-    return ending.kind in HARVESTS or (
-        ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
-    )
+    return ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
 
 
 def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:

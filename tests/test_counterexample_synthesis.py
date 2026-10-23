@@ -202,7 +202,7 @@ class TestWhenTheFamilyTightens(unittest.TestCase):
         success = Ending(SUCCESS, [])
         self.assertFalse(_family_too_loose(success, 0.9, 0.98, 0))
 
-    def test_a_harvest_tightens(self):
+    def test_a_harvest_does_not(self):
         for kind in (HARVEST_ENDS, HARVEST_STUCK):
             harvest = Ending(kind, [b"a"])
-            self.assertTrue(_family_too_loose(harvest, 0.5, 0.98, 1))
+            self.assertFalse(_family_too_loose(harvest, 0.5, 0.98, 1))
