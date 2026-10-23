@@ -64,17 +64,16 @@ class TestOutcomes(unittest.TestCase):
         self.assertEqual(EdgeFound(ODD, 0, ODD, b"\x01"), located.outcome)
         self.assertEqual([4, 2, 1], list(located.sifts))
 
-    def test_an_undecided_midpoint_ends_the_search_as_a_middle(self):
+    def test_a_midpoint_with_no_decided_position_to_step_to_is_a_middle(self):
         located = _locate(parity_cut([b"\x00\x01"]), WRONG_ODD_0, [0, 1, 0, 0])
         self.assertEqual(Middle(2, b"\x00\x01"), located.outcome)
-        self.assertEqual([4, 2], list(located.sifts))
+        self.assertEqual([4, 2, 1, 3], list(located.sifts))
         self.assertEqual([b"\x00\x01"], charges(located, 0, b"\x00\x01\x00\x00").middle)
 
-    def test_the_search_does_not_step_past_an_undecided_midpoint(self):
+    def test_the_search_steps_past_an_undecided_midpoint(self):
         cut = parity_cut([b"\x00\x00\x00"])
         located = _locate(cut, WRONG_ODD_0, [0, 0, 0, 1, 0, 0])
-        self.assertEqual(Middle(3, b"\x00\x00\x00"), located.outcome)
-        self.assertEqual([6, 3], list(located.sifts))
+        self.assertEqual(EdgeFound(ODD, 0, ODD, b"\x00\x00\x00\x01"), located.outcome)
 
 
 class TestCharging(unittest.TestCase):

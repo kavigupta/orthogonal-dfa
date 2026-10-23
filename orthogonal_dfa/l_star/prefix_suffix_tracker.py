@@ -60,9 +60,25 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+    #: Full families in a row whose FNR fails to drop by ``fnr_plateau_tol`` before
+    #: the family search takes the best one seen; ``None`` waits for ``fnr_limit``.
+    fnr_plateau_patience: Optional[int] = None
+    fnr_plateau_tol: float = 0.01
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
+    #: Searches per round, keeping the one whose DFA best predicts the oracle on
+    #: held-out strings.
+    counterexample_restarts: int = 1
+    #: When set, a round's search returns its best hypothesis by held-out oracle
+    #: score, and stops once this many probes pass without a better one.
+    counterexample_score_patience: Optional[int] = None
+    #: Scale the round's harvest thresholds by the family's measured FNR over
+    #: ``acceptable_fnr``: for oracles whose families only just make their FNR gate.
+    counterexample_fnr_harvest: bool = False
+    #: A round's search doubles its walk start, up to half the sampled length, at
+    #: each harvest that repeats a string, instead of ending.
+    counterexample_deepen: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

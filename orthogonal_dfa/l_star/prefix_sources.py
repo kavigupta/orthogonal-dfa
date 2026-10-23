@@ -19,7 +19,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
-from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
+from .round_end import HARVEST_ENDS, HARVEST_STUCK, SCORE_STALLED, Ending
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -96,6 +96,8 @@ def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
         return lambda charged: charged.ends
     if ending.kind == HARVEST_STUCK:
         return lambda charged: charged.stuck
+    if ending.kind == SCORE_STALLED:
+        return lambda charged: charged.ends + charged.stuck + charged.middle
     return lambda charged: charged.middle
 
 

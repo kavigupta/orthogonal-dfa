@@ -3,11 +3,15 @@
 import itertools
 import unittest
 
+from orthogonal_dfa.l_star.counterexample_probe import Agree
+from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
+from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.round_end import (
     HARVEST_ENDS,
     HARVEST_MIDDLES,
     HARVEST_STUCK,
     OUT_OF_PROBES,
+    SCORE_STALLED,
     SUCCESS,
     Ending,
 )
@@ -19,6 +23,7 @@ from tests.counterexample_common import (
     WRONG_ODD_0,
     mod3_cut,
     parity_cut,
+    quiet_config,
     quiet_search,
 )
 
@@ -192,6 +197,102 @@ class TestTheTests(unittest.TestCase):
         search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=3)
         self.assertEqual(OUT_OF_PROBES, search.run(itertools.repeat(b"\x01")).kind)
         self.assertEqual(3, search.probes)
+
+
+class TestUndecidedFallbacks(unittest.TestCase):
+    def search(self, cut, edges, **kwargs):
+        search = CounterexampleSearch(quiet_config(), cut, MidfixTree([]), **kwargs)
+        search.hypothesis.edges = dict(edges)
+        return search
+
+    def test_an_edge_its_prefix_leaves_undecided_is_read_on_a_member(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (ODD, 0)}
+        search = self.search(
+            parity_cut([b"\x01\x00"]), edges, members=[b"\x00", b"\x01\x01\x01"]
+        )
+        search.step(b"\x01\x00")
+        self.assertEqual((ODD, b"\x01\x01\x01"), search.hypothesis.edges[(ODD, 0)])
+
+    def test_without_a_member_the_edge_stays_unlearned(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (ODD, 0)}
+        search = self.search(parity_cut([b"\x01\x00"]), edges, members=[b"\x00"])
+        search.step(b"\x01\x00")
+        self.assertNotIn((ODD, 0), search.hypothesis.edges)
+
+    def test_closing_learns_the_edges_members_can_place(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (ODD, 0)}
+        search = self.search(parity_cut(()), edges, members=[b"\x00", b"\x01"])
+        search.close(2)
+        self.assertEqual((ODD, b"\x01"), search.hypothesis.edges[(ODD, 0)])
+
+    def test_an_undecided_empty_string_starts_where_start_says(self):
+        search = self.search(parity_cut([b""]), PARITY_EDGES, start=lambda _: EVEN)
+        outcome, _ = search.probe(b"\x01\x01")
+        self.assertEqual(Agree(), outcome)
+
+
+class TestStalledHarvest(unittest.TestCase):
+    def test_a_stalled_score_harvests_the_strings_read_undecided(self):
+        search = CounterexampleSearch(
+            quiet_config(),
+            parity_cut([b"\x01\x00"]),
+            MidfixTree([]),
+            score=lambda h: 0,
+            patience=3,
+        )
+        search.hypothesis.edges = dict(PARITY_EDGES)
+        ending = search.run(itertools.cycle([b"\x01\x00", b"\x01"]))
+        self.assertEqual(Ending(SCORE_STALLED, [b"\x01\x00"]), ending)
+
+
+class TestDeepening(unittest.TestCase):
+    def test_a_harvest_that_repeats_a_string_walks_deeper(self):
+        search = CounterexampleSearch(
+            quiet_config(**SHIPPED_RATES),
+            parity_cut([b"\x00\x01"]),
+            MidfixTree([]),
+            max_k=2,
+        )
+        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
+        search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(31, search.deepenings[0][0])
+        self.assertEqual(1, search.deepenings[0][1])
+
+
+class TestBestHypothesis(unittest.TestCase):
+    def test_with_patience_a_stuck_string_read_again_is_not_more_evidence(self):
+        search = CounterexampleSearch(
+            quiet_config(**{**SHIPPED_RATES, "max_probes": 60}),
+            parity_cut([b"\x00\x01"]),
+            MidfixTree([]),
+            patience=10**9,
+        )
+        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(OUT_OF_PROBES, ending.kind)
+
+    def test_the_search_ends_on_its_best_scoring_hypothesis(self):
+        search = CounterexampleSearch(
+            quiet_config(max_probes=4),
+            parity_cut(()),
+            MidfixTree([]),
+            score=lambda h: -len(h.edges),
+        )
+        search.run(itertools.repeat(b"\x01\x00"))
+        self.assertGreater(search.probes, 1)
+        self.assertEqual({}, search.hypothesis.edges)
+
+    def test_patience_ends_a_search_whose_score_stops_improving(self):
+        search = CounterexampleSearch(
+            quiet_config(),
+            parity_cut(()),
+            MidfixTree([]),
+            score=lambda h: 0,
+            patience=3,
+        )
+        search.hypothesis.edges = dict(PARITY_EDGES)
+        ending = search.run(itertools.repeat(b"\x01"))
+        self.assertEqual((SCORE_STALLED, 3), (ending.kind, search.probes))
 
 
 class TestExport(unittest.TestCase):
