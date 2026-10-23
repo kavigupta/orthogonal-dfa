@@ -7,16 +7,19 @@ import OrthoDFA.Proofs.UniformStrings
 # From a checked round to the learner's DFA
 
 The probes are uniform over the lengths `k` to `L₁`. A probe of length `i` and its extension by a
-letter that both agree, read nothing on a rarer side and stop undecided at neither their start's
-sift nor their own, walk to the true
-leaves of their states, so the edge between those leaves is learned and true (`edge_of_pair`).
-Summed over the window, a state visited `c` of the time has every edge out of it crossed by such
-pairs unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws (`edge_of_occupied`). A state the
-probes visit is read on its true side once the reads are rarely wrong or undecided
-(`sideOf_eq_of_mass`). Where every covered state's edges are true and it is read on its true side,
-the hypothesis from the covered start's leaf follows the re-rooted target along every run that
-stays covered (`classifies_of_matches`), so it misjudges at most what re-rooting does
-(`classify_start_le`).
+letter that both agree, read nothing on a rarer side past a midfix and stop undecided at neither
+their start's sift nor their own, walk to the true leaves of their states, so the edge between those
+leaves is learned and true (`edge_of_pair`). A state visited `X ≥ c` of the time, summed over the
+window, has every edge out of it crossed by such pairs unless
+
+    X ≤ (|Σ|+1)N β + X/2 + N β',
+
+the disagreeing probes holding `β` of the draws and the misled ones among the state's at most half
+of them plus `β'` (`edge_of_occupied`). A state the probes visit is read on its true side once the
+reads are rarely wrong or undecided (`sideOf_eq_of_mass`). Where every covered state's edges are
+true and it is read on its true side, the hypothesis from the covered start's leaf follows the
+re-rooted target along every run that stays covered (`classifies_of_matches`), so it misjudges at
+most what re-rooting does (`classify_start_le`).
 -/
 
 noncomputable section
@@ -313,19 +316,21 @@ theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
       List.getElem?_eq_getElem (by omega)]
     rfl
 
-/-- A probe and its extension by a letter, neither disagreeing, cross a learned edge between
-their states' true leaves. -/
+/-- A probe and its extension by a letter, neither disagreeing nor misled, cross a learned edge
+between their states' true leaves. -/
 theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : α)
-    (hk : k ≤ y.toList.length) (hy : y ∉ disagreeSet M dist rd k H)
-    (hya : y * FreeMonoid.of a ∉ disagreeSet M dist rd k H) :
+    (hk : k ≤ y.toList.length) (hy : y ∉ disagreeSet rd k H)
+    (hya : y * FreeMonoid.of a ∉ disagreeSet rd k H) (hm : y ∉ misledSet M dist rd k H.tree a) :
     ∃ w, H.edges (Random.leafOf M (fun q => readSide (dist q)) H.tree (M.eval y.toList), a)
       = some (Random.leafOf M (fun q => readSide (dist q)) H.tree
         (M.eval (y * FreeMonoid.of a).toList), w) := by
   have hlen : (y * FreeMonoid.of a).toList.length = y.toList.length + 1 := by simp
   simp only [disagreeSet, Set.mem_union, not_or] at hy hya
-  obtain ⟨p, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1.1 hy.1.2
+  have hr : y ∉ rarerSet M dist rd k H.tree ∧ y * FreeMonoid.of a ∉ rarerSet M dist rd k H.tree :=
+    ⟨fun h => hm ⟨hk, .inl h⟩, fun h => hm ⟨hk, .inr h⟩⟩
+  obtain ⟨p, e, hp, hf, he, hl⟩ := agree_of_unchecked rd H hk hy.1 hy.2
   obtain ⟨p', e', hp', hf', he', hl'⟩ :=
-    agree_of_unchecked rd H (by omega) hya.1.1 hya.1.2
+    agree_of_unchecked rd H (by omega) hya.1 hya.2
   have hpre : prefixOf (y * FreeMonoid.of a) k = prefixOf y k := by
     simp only [prefixOf, FreeMonoid.toList_mul, FreeMonoid.toList_of]
     rw [List.take_append_of_le_length hk]
@@ -340,55 +345,69 @@ theorem edge_of_pair (H : HypothesisDFA α) {k : ℕ} {y : FreeMonoid α} (a : �
       k ≤ z.toList.length → ∀ m ∈ Random.mids H.tree,
         rd (z * m) ≠ if readSide (dist (M.eval (z * m).toList)) then .reject else .accept :=
     fun z hz hkz m hm hwr => hz ⟨hkz, m, hm, hwr⟩
-  have h1 := Random.Eps.sift_true' M (fun q => readSide (dist q)) rd he (hclean y hy.2 hk)
+  have h1 := Random.Eps.sift_true' M (fun q => readSide (dist q)) rd he (hclean y hr.1 hk)
   have h2 := Random.Eps.sift_true' M (fun q => readSide (dist q)) rd he'
-    (hclean _ hya.2 (by omega))
+    (hclean _ hr.2 (by omega))
   rw [hl, hl'] at hw
   rw [h1, h2]
   exact ⟨w, hw⟩
 
+/-- The strings shorter than `J` in state `q`. -/
+def shortAt (J : ℕ) (q : σ) : Set (FreeMonoid α) := {y | y.toList.length < J ∧ M.eval y.toList = q}
+
 variable [Nonempty α]
 
 /-- A state visited `c` of the time over the window's lengths below `J` has every edge out of its
-true leaf learned and true, unless the disagreeing probes hold `c/((|Σ|+1)N)` of the draws. -/
-theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ) (a : α)
-    {c β : ℝ}
-    (hbad : (windowStrings k L₁).real (disagreeSet M dist rd k H) ≤ β)
+true leaf learned and true, unless the disagreeing probes hold `β` of the draws and the misled
+ones more than half of the state's, plus `β'`, with `2((|Σ|+1)Nβ + Nβ') ≥ c`. -/
+theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (hJ : J ≤ L₁) (q : σ)
+    (a : α) {c β β' : ℝ}
+    (hbad : (windowStrings k L₁).real (disagreeSet rd k H) ≤ β)
+    (hmis : (windowStrings k L₁).real (shortAt M J q ∩ misledSet M dist rd k H.tree a)
+      ≤ (windowStrings k L₁).real (shortAt M J q) / 2 + β')
     (hocc : c ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings i).real {y | M.eval y.toList = q})
-    (hβ : ((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * β < c) :
+    (hβ : 2 * (((Fintype.card α : ℝ) + 1) * ((L₁ : ℝ) + 1 - k) * β + ((L₁ : ℝ) + 1 - k) * β')
+      < c) :
     ∃ w, H.edges (Random.leafOf M (fun q => readSide (dist q)) H.tree q, a)
       = some (Random.leafOf M (fun q => readSide (dist q)) H.tree (M.step q a), w) := by
-  set Bad := disagreeSet M dist rd k H
+  set Bad := disagreeSet rd k H
+  set Ex := shortAt M J q
+  set Mis := Ex ∩ misledSet M dist rd k H.tree a
   set A : ℝ := (Fintype.card α : ℝ) with hA
   by_contra hno
   have hkL : k ≤ L₁ := by omega
-  have hU0 : ∀ i, 0 ≤ (uniformStrings (α := α) i).real Bad := fun _ => measureReal_nonneg
+  have hU0 : ∀ i (S : Set (FreeMonoid α)), 0 ≤ (uniformStrings (α := α) i).real S :=
+    fun _ _ => measureReal_nonneg
+  have hnull : ∀ i, (uniformStrings (α := α) i).real {y | y.toList.length ≠ i} = 0 := fun i => by
+    rw [measureReal_def, uniformStrings_length, ENNReal.toReal_zero]
   have hi : ∀ i ∈ Finset.Ico k J, (uniformStrings i).real {y | M.eval y.toList = q}
-      ≤ (uniformStrings i).real Bad + A * (uniformStrings (i + 1)).real Bad := by
+      ≤ (uniformStrings i).real Bad + A * (uniformStrings (i + 1)).real Bad
+        + (uniformStrings i).real Mis := by
     intro i hi
     simp only [Finset.mem_Ico] at hi
     have hsub : {y : FreeMonoid α | M.eval y.toList = q}
-        ⊆ (Bad ∪ {y | y * FreeMonoid.of a ∈ Bad}) ∪ {y | y.toList.length ≠ i} := by
+        ⊆ ((Bad ∪ {y | y * FreeMonoid.of a ∈ Bad}) ∪ Mis) ∪ {y | y.toList.length ≠ i} := by
       intro y hy
       by_contra hc
       simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hc hy
       apply hno
-      obtain ⟨w, hw⟩ := edge_of_pair M dist rd H a (by omega) hc.1.1 hc.1.2
+      have hm : y ∉ misledSet M dist rd k H.tree a := fun h =>
+        hc.1.2 ⟨⟨by omega, hy⟩, h⟩
+      obtain ⟨w, hw⟩ := edge_of_pair M dist rd H a (by omega) hc.1.1.1 hc.1.1.2 hm
       rw [FreeMonoid.toList_mul, FreeMonoid.toList_of, DFA.eval_append_singleton, hy] at hw
       exact ⟨w, hw⟩
-    have hnull : (uniformStrings (α := α) i).real {y | y.toList.length ≠ i} = 0 := by
-      rw [measureReal_def, uniformStrings_length, ENNReal.toReal_zero]
     refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
     refine (measureReal_union_le _ _).trans ?_
     rw [hnull, add_zero]
+    refine (measureReal_union_le _ _).trans (add_le_add ?_ le_rfl)
     refine (measureReal_union_le _ _).trans (add_le_add le_rfl ?_)
     exact uniformStrings_snoc_le i a Bad
   have hsum := Finset.sum_le_sum hi
-  rw [Finset.sum_add_distrib, ← Finset.mul_sum] at hsum
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum] at hsum
   have h1 : ∑ i ∈ Finset.Ico k J, (uniformStrings (α := α) i).real Bad
       ≤ ∑ i ∈ Finset.Icc k L₁, (uniformStrings (α := α) i).real Bad :=
     Finset.sum_le_sum_of_subset_of_nonneg (fun i hi => by
-      simp only [Finset.mem_Ico, Finset.mem_Icc] at hi ⊢; omega) fun i _ _ => hU0 i
+      simp only [Finset.mem_Ico, Finset.mem_Icc] at hi ⊢; omega) fun i _ _ => hU0 i Bad
   have h2 : ∑ i ∈ Finset.Ico k J, (uniformStrings (α := α) (i + 1)).real Bad
       ≤ ∑ i ∈ Finset.Icc k L₁, (uniformStrings (α := α) i).real Bad := by
     have e := Finset.sum_image (f := fun i => (uniformStrings (α := α) i).real Bad)
@@ -396,15 +415,37 @@ theorem edge_of_occupied (H : HypothesisDFA α) {k J L₁ : ℕ} (hkJ : k < J) (
     rw [← e]
     exact Finset.sum_le_sum_of_subset_of_nonneg (fun i hi => by
       simp only [Finset.mem_image, Finset.mem_Ico, Finset.mem_Icc] at hi ⊢; omega)
-      fun i _ _ => hU0 i
-  have hw := windowStrings_real (α := α) hkL Bad
+      fun i _ _ => hU0 i Bad
+  -- the window holds the state's strings shorter than `J` only at the lengths `k` to `J - 1`
+  have hshort : ∀ S ⊆ Ex, ∑ i ∈ Finset.Icc k L₁, (uniformStrings (α := α) i).real S
+      = ∑ i ∈ Finset.Ico k J, (uniformStrings (α := α) i).real S := by
+    intro S hS
+    refine (Finset.sum_subset (fun i hi => by
+      simp only [Finset.mem_Ico, Finset.mem_Icc] at hi ⊢; omega) fun i hi hi' => ?_).symm
+    simp only [Finset.mem_Ico, Finset.mem_Icc, not_and, not_lt] at hi hi'
+    refine le_antisymm ((measureReal_mono (fun y hy => ?_) (measure_ne_top _ _)).trans
+      (hnull i).le) (hU0 i S)
+    have := (hS hy).1
+    show y.toList.length ≠ i
+    omega
+  have hEx : ∑ i ∈ Finset.Ico k J, (uniformStrings (α := α) i).real Ex
+      ≤ ∑ i ∈ Finset.Ico k J, (uniformStrings (α := α) i).real {y | M.eval y.toList = q} :=
+    Finset.sum_le_sum fun i _ => measureReal_mono (fun y hy => hy.2) (measure_ne_top _ _)
   have hN : 0 < (L₁ : ℝ) + 1 - k := by
     have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL
     linarith
-  rw [eq_div_iff hN.ne'] at hw
+  have hw : ∀ S, (windowStrings (α := α) k L₁).real S * ((L₁ : ℝ) + 1 - k)
+      = ∑ i ∈ Finset.Icc k L₁, (uniformStrings i).real S := fun S => by
+    rw [windowStrings_real hkL, div_mul_cancel₀ _ hN.ne']
+  have hwB := hw Bad
+  have hwM := hw Mis
+  have hwE := hw Ex
+  rw [hshort Mis Set.inter_subset_left] at hwM
+  rw [hshort Ex subset_rfl] at hwE
   have hA0 : 0 ≤ A := by positivity
   have h3 := mul_le_mul_of_nonneg_left hbad hN.le
   have h4 := mul_le_mul_of_nonneg_left h2 hA0
+  have h5 := mul_le_mul_of_nonneg_right hmis hN.le
   nlinarith
 
 end Edges

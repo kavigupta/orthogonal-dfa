@@ -356,31 +356,13 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
     gcongr
 
 /-- The band's ceiling `W` at the length `ℓ`, within `ℓ²` of its length-free bound. -/
-lemma w_le {ℓ Q ε aε δ' Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hQ : 0 ≤ Q) (hε0 : 0 < ε)
-    (hinv : 1 / ε ≤ aε * ℓ) (hδ' : 0 ≤ δ') (hWm : 0 ≤ Wm) :
-    max (Real.exp 1 * Real.sqrt δ' * Wm / 2) (1 + (Q + 1) * δ' / (7 * ε))
-      ≤ (Real.exp 1 * Real.sqrt δ' * Wm / 2 + (1 + (Q + 1) * δ' * aε / 7)) * ℓ ^ 2 := by
-  have hℓ0 : 0 ≤ ℓ := by linarith
-  have hℓ2 : ℓ ≤ ℓ ^ 2 := by nlinarith
+lemma w_le {ℓ δ' Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
+    max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+      ≤ (Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1) * ℓ ^ 2 := by
   have hℓ21 : 1 ≤ ℓ ^ 2 := one_le_pow₀ hℓ1
-  have hs2 : Real.exp 1 * Real.sqrt δ' * Wm / 2 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 * ℓ ^ 2 :=
-    le_mul_of_one_le_right (by positivity) hℓ21
-  have hs3 : 1 + (Q + 1) * δ' / (7 * ε) ≤ (1 + (Q + 1) * δ' * aε / 7) * ℓ ^ 2 := by
-    have h1 : (Q + 1) * δ' / (7 * ε) = (Q + 1) * δ' / 7 * (1 / ε) := by ring
-    have h2 : (Q + 1) * δ' / 7 * (1 / ε) ≤ (Q + 1) * δ' / 7 * (aε * ℓ) :=
-      mul_le_mul_of_nonneg_left hinv (by positivity)
-    have haε : 0 ≤ aε := by
-      have : 0 < 1 / ε := by positivity
-      nlinarith
-    have := mul_le_mul_of_nonneg_left hℓ2 (by positivity : (0 : ℝ) ≤ (Q + 1) * δ' * aε / 7)
-    nlinarith
   have h0b : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by positivity
-  have h0c : 0 ≤ 1 + (Q + 1) * δ' / (7 * ε) := by positivity
-  have e : (Real.exp 1 * Real.sqrt δ' * Wm / 2 + (1 + (Q + 1) * δ' * aε / 7)) * ℓ ^ 2
-      = Real.exp 1 * Real.sqrt δ' * Wm / 2 * ℓ ^ 2 + (1 + (Q + 1) * δ' * aε / 7) * ℓ ^ 2 := by
-    ring
-  rw [e]
-  exact max_le (by linarith) (by linarith)
+  refine (max_le (by linarith) (by linarith)).trans
+    (le_mul_of_one_le_right (by positivity) hℓ21)
 
 /-- `3 + 2 log₂ (RB + 1)` grows at most linearly in `ℓ` when `RB ≤ R₀ ℓ³`. -/
 lemma logRB_le {RB R₀ ℓ : ℝ} (hRB0 : 0 ≤ RB) (hRB : RB + 1 ≤ (R₀ + 1) * ℓ ^ 3) (hR₀ : 0 ≤ R₀)
