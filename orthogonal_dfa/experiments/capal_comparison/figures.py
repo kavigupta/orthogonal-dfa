@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the CAPAL vs E-L* summary tables as LaTeX, and as images of it.
+"""Render the CAPAL vs E-L* summary tables as LaTeX fragments to `\\input` into a paper.
 
 Two tables, both read from `data/capal/*.json`:
 
@@ -12,9 +12,6 @@ Two tables, both read from `data/capal/*.json`:
 
 Plus a grid of which learner solves each target E-L* admits at each eta.
 
-Each table is written twice: a `\\tabular` fragment to `\\input` into a paper,
-and a PNG of it to look at.
-
     python -m orthogonal_dfa.experiments.capal_comparison.figures
 """
 
@@ -23,11 +20,7 @@ from __future__ import annotations
 import collections
 import json
 import re
-import shutil
 import statistics
-import subprocess
-import tempfile
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
@@ -247,52 +240,6 @@ def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -
     )
 
 
-def render(fragment: str, png_path: Path) -> bool:
-    """Compile `fragment` standalone and write a PNG beside it.
-
-    Returns False when there is no LaTeX toolchain, so the fragments still get
-    written on a machine that cannot render them.
-    """
-    if not (shutil.which("pdflatex") and shutil.which("pdftoppm")):
-        return False
-    document = "\n".join(
-        [
-            r"\documentclass[border=6pt]{standalone}",
-            r"\usepackage{booktabs}",
-            r"\usepackage{tikz}",
-            r"\providecommand{\ours}{E-L*}",
-            r"\begin{document}",
-            fragment,
-            r"\end{document}",
-        ]
-    )
-    with tempfile.TemporaryDirectory() as tmp:
-        tex = Path(tmp) / "table.tex"
-        tex.write_text(document)
-        subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", tex.name],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            [
-                "pdftoppm",
-                "-png",
-                "-r",
-                "300",
-                "-singlefile",
-                "table.pdf",
-                png_path.stem,
-            ],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        shutil.move(str(Path(tmp) / f"{png_path.stem}.png"), png_path)
-    return True
-
-
 #: Readable names for this repo's targets; CAPAL's are named like "Simple01".
 OUR_LABELS = {
     "parity_mod9_allowed_3_6": r"$\#_1(x) \bmod 9 \in \{3, 6\}$",
@@ -441,17 +388,8 @@ def main() -> None:
     fragments["benchmark_grid"] = grid_fragment()
     for name, fragment in fragments.items():
         tex_path = OUT_DIR / f"{name}.tex"
-        png_path = OUT_DIR / f"{name}.png"
         tex_path.write_text(fragment + "\n")
-        rendered = render(fragment, png_path)
-        print(
-            f"wrote {tex_path}"
-            + (
-                f" and {png_path}"
-                if rendered
-                else " (no LaTeX toolchain; skipped the PNG)"
-            )
-        )
+        print(f"wrote {tex_path}")
 
 
 if __name__ == "__main__":
