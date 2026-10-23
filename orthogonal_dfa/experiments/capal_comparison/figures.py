@@ -21,7 +21,7 @@ import collections
 import json
 import re
 import statistics
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
 
@@ -34,7 +34,7 @@ DATA_DIR = REPO_ROOT / "data" / "capal"
 OUT_DIR = REPO_ROOT / "figures" / "capal-comparison"
 
 EXPERIMENTS = ["capal_benchmarks", "our_benchmarks"]
-SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "This repo"}
+SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "Our benchmarks"}
 SOURCE_ORDER = ["capal_dataset", "ours"]
 
 
@@ -111,11 +111,12 @@ def success_rows(cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
+def cost_rows(cells: Sequence[dict]) -> List[Union[List[str], str]]:
     idx = _grouped(cells)
     targets, etas = _axes(cells)
-    rows = []
+    rows: List[Union[List[str], str]] = []
     for family in SOURCE_ORDER:
+        group = []
         for eta in etas:
             pairs = [
                 (
@@ -130,17 +131,23 @@ def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
             capal_mq = statistics.mean(c["queries_total"] for c, _ in both)
             capal_eq = statistics.mean(c["equivalence_queries"] for c, _ in both)
             elstar_mq = statistics.mean(e["queries_total"] for _, e in both)
-            rows.append(
+            group.append(
                 [
-                    SOURCE_NAMES[family],
                     f"{eta:g}",
-                    str(len(both)),
                     _sci(capal_mq),
                     f"{capal_eq:.1f}",
                     _sci(elstar_mq),
-                    _sci(elstar_mq / capal_mq),
+                    f"{elstar_mq / capal_mq:,.0f}$\\times$",
                 ]
             )
+        if not group:
+            continue
+        if rows:
+            rows.append(r"\midrule")
+        # \multirow needs \usepackage{multirow} in the including document.
+        source = f"\\multirow{{{len(group)}}}{{*}}{{{SOURCE_NAMES[family]}}}"
+        rows.append([source] + group[0])
+        rows += [[""] + row for row in group[1:]]
     return rows
 
 
@@ -225,8 +232,11 @@ def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -> str:
-    body = "\n".join(" & ".join(r) + r" \\" for r in rows)
+def tabular(
+    headers: Sequence[str], align: str, rows: Sequence[Union[Sequence[str], str]]
+) -> str:
+    """A row given as a string, such as a rule, goes in as it is."""
+    body = "\n".join(r if isinstance(r, str) else " & ".join(r) + r" \\" for r in rows)
     return "\n".join(
         [
             f"\\begin{{tabular}}{{{align}}}",
@@ -345,13 +355,12 @@ TABLES: List[Dict[str, Any]] = [
         "headers": [
             "Benchmark source",
             r"$\eta$",
-            "$n$",
             "CAPAL MQ",
             "CAPAL EQ",
             r"\ours{} MQ",
-            "Ratio",
+            "MQ ratio",
         ],
-        "align": "llrrrrr",
+        "align": "llrrrr",
         "rows": cost_rows,
     },
     {
@@ -383,7 +392,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fragments = {}
     for spec in TABLES:
-        rows: Callable[[Sequence[dict]], List[List[str]]] = spec["rows"]
+        rows: Callable[[Sequence[dict]], List[Union[List[str], str]]] = spec["rows"]
         fragments[spec["name"]] = tabular(spec["headers"], spec["align"], rows(cells))
     fragments["benchmark_grid"] = grid_fragment()
     for name, fragment in fragments.items():
