@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the CAPAL vs E-L* summary tables as LaTeX, and as images of it.
+"""Render the CAPAL vs E-L* summary tables as LaTeX fragments to `\\input` into a paper.
 
 Two tables, both read from `data/capal/*.json`:
 
@@ -10,8 +10,7 @@ Two tables, both read from `data/capal/*.json`:
    ratio is like for like. Rows with no such target are dropped: two numbers
    from disjoint target sets do not make a comparison.
 
-Each table is written twice: a `\\tabular` fragment to `\\input` into a paper,
-and a PNG of it to look at.
+Plus a grid of which learner solves each target E-L* admits at each eta.
 
     python -m orthogonal_dfa.experiments.capal_comparison.figures
 """
@@ -20,11 +19,8 @@ from __future__ import annotations
 
 import collections
 import json
-import shutil
+import re
 import statistics
-import subprocess
-import tempfile
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
@@ -244,49 +240,91 @@ def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -
     )
 
 
-def render(fragment: str, png_path: Path) -> bool:
-    """Compile `fragment` standalone and write a PNG beside it.
+#: Readable names for this repo's targets; CAPAL's are named like "Simple01".
+OUR_LABELS = {
+    "parity_mod9_allowed_3_6": r"$\#_1(x) \bmod 9 \in \{3, 6\}$",
+    "regex_subseq_1010101": r"\texttt{.*1010101.*}",
+    "regex_two_1111": r"\texttt{.*1111.*1111.*}",
+    "regex_alt_1111_or_0000_11_3sym": r"\texttt{.*(1111|0000)11.*}, ternary",
+    "regex_alt_111_or_000_3sym": r"\texttt{.*(111|000).*}, ternary",
+}
+DIFFICULTY_ORDER = ["Simple", "Normal", "Difficult"]
+GRID_PANELS = [
+    ("capal_benchmarks", "CAPAL suite"),
+    ("our_benchmarks", "our benchmarks"),
+]
 
-    Returns False when there is no LaTeX toolchain, so the fragments still get
-    written on a machine that cannot render them.
-    """
-    if not (shutil.which("pdflatex") and shutil.which("pdftoppm")):
-        return False
-    document = "\n".join(
-        [
-            r"\documentclass[border=6pt]{standalone}",
-            r"\usepackage{booktabs}",
-            r"\providecommand{\ours}{E-L*}",
-            r"\begin{document}",
-            fragment,
-            r"\end{document}",
-        ]
+# Each cell is a square split on its diagonal: CAPAL upper-left, E-L* lower-right.
+# Rows run downward from y = 0, so panels with different row counts align at the top.
+GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{1F5FA8}
+\definecolor{bgfailed}{HTML}{BF8330}
+\def\bgcell#1#2#3#4{
+    \fill[bg#3] (#1, -#2 - 1) rectangle +(1, 1);
+    \fill[bg#4] (#1, -#2 - 1) -- (#1 + 1, -#2 - 1) -- (#1 + 1, -#2) -- cycle;
+    \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
+}
+\def\bgtarget#1#2{\node[anchor=east, font=\scriptsize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\scriptsize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
+\def\bgtitle#1#2{
+    \node[anchor=base east, font=\scriptsize, inner sep=2pt] at (0, 0.25) {$\eta$};
+    \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
+    \node[anchor=south, font=\scriptsize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
+}"""
+
+GRID_LEGEND = r"""\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt, font=\scriptsize]
+    \draw[black!50] (0, -1.5) rectangle (1.5, 0) (0, -1.5) -- (1.5, 0);
+    \node[anchor=south, inner sep=2pt] at (0.75, 0) {CAPAL};
+    \node[anchor=north, inner sep=2pt] at (0.75, -1.5) {\ours{}};
+    \foreach \kind/\name [count=\i] in {solved/solved, failed/not solved} {
+        \fill[bg\kind] (0, -2.5 - \i) rectangle +(0.8, 0.8);
+        \node[anchor=west, inner sep=2pt] at (0.8, -2.1 - \i) {\name};
+    }
+\end{tikzpicture}"""
+
+
+def target_label(name: str) -> str:
+    if name in OUR_LABELS:
+        return OUR_LABELS[name]
+    match = re.fullmatch(r"([A-Za-z]+)(\d+)", name)
+    assert match, name
+    return f"{match.group(1)} {int(match.group(2))}"
+
+
+def target_order(name: str) -> tuple:
+    kinds = [i for i, kind in enumerate(DIFFICULTY_ORDER) if name.startswith(kind)]
+    return (kinds[0] if kinds else 0, name)
+
+
+def grid_panel(cells: Sequence[dict], title: str) -> str:
+    """One suite's targets E-L* admits as rows, eta as columns."""
+    excluded = {c["benchmark"] for c in cells if not applicable(c)}
+    targets = sorted({c["benchmark"] for c in cells} - excluded, key=target_order)
+    etas = sorted({c["eta"] for c in cells})
+    idx = {(c["benchmark"], c["learner"], c["eta"]): c for c in cells}
+
+    def outcome(target: str, learner: str, eta: float) -> str:
+        return "solved" if succeeded(idx[(target, learner, eta)]) else "failed"
+
+    lines = [f"\\bgtitle{{{len(etas)}}}{{{title}}}"]
+    lines += [f"\\bgeta{{{col}}}{{{eta:g}}}" for col, eta in enumerate(etas)]
+    for row, target in enumerate(targets):
+        lines.append(f"\\bgtarget{{{row}}}{{{target_label(target)}}}")
+        for col, eta in enumerate(etas):
+            capal = outcome(target, LEARNER_CAPAL, eta)
+            elstar = outcome(target, LEARNER_ELSTAR, eta)
+            lines.append(f"\\bgcell{{{col}}}{{{row}}}{{{capal}}}{{{elstar}}}")
+    body = "\n".join("    " + line for line in lines)
+    return (
+        "\\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt]\n"
+        + body
+        + "\n\\end{tikzpicture}"
     )
-    with tempfile.TemporaryDirectory() as tmp:
-        tex = Path(tmp) / "table.tex"
-        tex.write_text(document)
-        subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", tex.name],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            [
-                "pdftoppm",
-                "-png",
-                "-r",
-                "300",
-                "-singlefile",
-                "table.pdf",
-                png_path.stem,
-            ],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        shutil.move(str(Path(tmp) / f"{png_path.stem}.png"), png_path)
-    return True
+
+
+def grid_fragment() -> str:
+    """Whether each learner solves each target E-L* admits, at each eta."""
+    panels = [grid_panel(load_experiment(name), title) for name, title in GRID_PANELS]
+    return GRID_MACROS + "\n" + "\n\\qquad\n".join(panels + [GRID_LEGEND])
 
 
 TABLES: List[Dict[str, Any]] = [
@@ -343,21 +381,15 @@ TABLES: List[Dict[str, Any]] = [
 def main() -> None:
     cells = load_cells()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    fragments = {}
     for spec in TABLES:
         rows: Callable[[Sequence[dict]], List[List[str]]] = spec["rows"]
-        fragment = tabular(spec["headers"], spec["align"], rows(cells))
-        tex_path = OUT_DIR / f"{spec['name']}.tex"
-        png_path = OUT_DIR / f"{spec['name']}.png"
+        fragments[spec["name"]] = tabular(spec["headers"], spec["align"], rows(cells))
+    fragments["benchmark_grid"] = grid_fragment()
+    for name, fragment in fragments.items():
+        tex_path = OUT_DIR / f"{name}.tex"
         tex_path.write_text(fragment + "\n")
-        rendered = render(fragment, png_path)
-        print(
-            f"wrote {tex_path}"
-            + (
-                f" and {png_path}"
-                if rendered
-                else " (no LaTeX toolchain; skipped the PNG)"
-            )
-        )
+        print(f"wrote {tex_path}")
 
 
 if __name__ == "__main__":
