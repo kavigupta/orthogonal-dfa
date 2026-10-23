@@ -6,9 +6,9 @@
     \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
 }
 \def\bgtarget#1#2{\node[anchor=east, font=\scriptsize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
-\def\bgeta#1#2{\node[anchor=south, font=\scriptsize, inner sep=2pt] at (#1 + 0.5, 0) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\scriptsize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
 \def\bgtitle#1#2{
-    \node[anchor=east, font=\scriptsize, inner sep=2pt] at (0, 0.45) {$\eta$};
+    \node[anchor=base east, font=\scriptsize, inner sep=2pt] at (0, 0.25) {$\eta$};
     \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
     \node[anchor=south, font=\scriptsize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
 }
