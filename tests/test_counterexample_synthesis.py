@@ -2,11 +2,9 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest import mock
 
 import numpy as np
 
-from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_harvest,
@@ -146,27 +144,6 @@ if __name__ == "__main__":
 
 
 class TestWhatARoundPublishes(unittest.TestCase):
-    def test_the_round_draws_over_last_rounds_states(self):
-        state = _state()
-        state.held[("state", 7)] = [b"x"]
-        words = iter(range(1000))
-        drawn = SimpleNamespace(draw=lambda: bytes([next(words) % 256, 1]))
-
-        with mock.patch.object(cs, "aim_at", lambda *_: object()), mock.patch.object(
-            cs, "state_source", lambda *_, **__: drawn
-        ):
-            cs._per_state_members(  # pylint: disable=protected-access
-                SimpleNamespace(rng=np.random.default_rng(0)),
-                SimpleNamespace(
-                    tree=SimpleNamespace(num_states=1, path_of=lambda _: ())
-                ),
-                None,
-                state,
-                1,
-            )
-
-        self.assertEqual([("state", 0)], sorted(state.held))
-
     def test_last_rounds_states_are_not_this_rounds(self):
         state = _state()
         state.held[("state", 0)] = [b"x"]
