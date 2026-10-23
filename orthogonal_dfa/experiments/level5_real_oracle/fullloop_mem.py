@@ -17,7 +17,7 @@ from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     counterexample_driven_synthesis,
 )
-from orthogonal_dfa.l_star.examples.gate_composition_residual import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
     gate_residual_oracle,
 )
 from orthogonal_dfa.l_star.learn import build_pst
