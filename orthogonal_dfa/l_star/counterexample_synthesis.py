@@ -22,16 +22,9 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
 from .prefix_populations import PoolState
-from .prefix_sources import (
-    HarvestSource,
-    Replay,
-    UniformSource,
-    aim_at,
-    harvest_reader,
-    state_source,
-)
+from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
-from .progress import counter, track
+from .progress import counter
 from .suffix_family import SuffixFamily
 from .tracker import SynthesisTracker
 
@@ -44,8 +37,7 @@ class RoundClassifier:
 
     The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
-    population the family was clustered on. Off-length prefixes (boundary strings,
-    per-state samples) reach the family off its calibration, so a consumer checking
+    population the family was clustered on. Off-length prefixes (boundary strings) reach the family off its calibration, so a consumer checking
     the recorded cut should restrict to the calibrated ones."""
 
     prefixes: List[bytes]
@@ -97,26 +89,6 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
     for string in taken[:wanted]:
         state.take(string, read)
     return min(wanted, len(taken))
-
-
-def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
-    """``("state", leaf) -> members``, ``per_state`` of them resting at each
-    state that has a source."""
-    state.retire("state")
-    for leaf in track(
-        range(hypothesis.tree.num_states), "Drawing each state's prefixes"
-    ):
-        aim = aim_at(pst, dfa, leaf)
-        if aim is None:
-            # Out of reach rather than short: too few strings of the sampler's
-            # length arrive here to draw from, so no round is going to fill it
-            # and this one is not waiting on a draw.
-            continue
-        path = hypothesis.tree.path_of(leaf)
-        source = state_source(lambda s, path=path: hypothesis.sift(s) == path, aim)
-        if source is None:
-            continue
-        state.hold(("state", leaf), source, per_state)
 
 
 def _boundary_source(pst, state, *, acc_threshold) -> None:
@@ -174,12 +146,6 @@ class _StallDetector:
     def stalled(self, *, progressed: bool) -> bool:
         self._stalled = 0 if progressed else self._stalled + 1
         return self._stalled >= self._patience
-
-
-#: Representative strings drawn per DFA state.  Every round draws this many
-#: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.
-PER_STATE = 50
 
 
 class UncertifiedResult(UserWarning):
@@ -287,7 +253,6 @@ def counterexample_driven_synthesis(
     acc_threshold: float,
     tracker: SynthesisTracker,
     max_rounds: Optional[int] = None,
-    per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> BestRound:
@@ -368,7 +333,6 @@ def counterexample_driven_synthesis(
         if halved:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
-        _per_state_members(pst, hypothesis, dfa, state, per_state)
         # Rounds after a refusal have their own patience, so they are not
         # weighed for a stall.
         if uncertified_since is None and stall.stalled(progressed=taken > 0 or halved):
