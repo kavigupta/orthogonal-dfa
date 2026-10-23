@@ -273,15 +273,15 @@ GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{1F5FA8}
     \fill[bg#4] (#1, -#2 - 1) -- (#1 + 1, -#2 - 1) -- (#1 + 1, -#2) -- cycle;
     \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
 }
-\def\bgtarget#1#2{\node[anchor=east, font=\scriptsize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
-\def\bgeta#1#2{\node[anchor=base, font=\scriptsize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
+\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
 \def\bgtitle#1#2{
-    \node[anchor=base east, font=\scriptsize, inner sep=2pt] at (0, 0.25) {$\eta$};
+    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0, 0.25) {$\eta$};
     \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
-    \node[anchor=south, font=\scriptsize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
+    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
 }"""
 
-GRID_LEGEND = r"""\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt, font=\scriptsize]
+GRID_LEGEND = r"""\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt, font=\footnotesize]
     \draw[black!50] (0, -1.5) rectangle (1.5, 0) (0, -1.5) -- (1.5, 0);
     \node[anchor=south, inner sep=2pt] at (0.75, 0) {CAPAL};
     \node[anchor=north, inner sep=2pt] at (0.75, -1.5) {\ours{}};
@@ -325,7 +325,7 @@ def grid_panel(cells: Sequence[dict], title: str) -> str:
             lines.append(f"\\bgcell{{{col}}}{{{row}}}{{{capal}}}{{{elstar}}}")
     body = "\n".join("    " + line for line in lines)
     return (
-        "\\begin{tikzpicture}[x=0.5cm, y=0.5cm, baseline=0pt]\n"
+        "\\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt]\n"
         + body
         + "\n\\end{tikzpicture}"
     )
@@ -334,7 +334,7 @@ def grid_panel(cells: Sequence[dict], title: str) -> str:
 def grid_fragment() -> str:
     """Whether each learner solves each target E-L* admits, at each eta."""
     panels = [grid_panel(load_experiment(name), title) for name, title in GRID_PANELS]
-    return GRID_MACROS + "\n" + "\n\\qquad\n".join(panels + [GRID_LEGEND])
+    return GRID_MACROS + "\n" + "\n\\quad\n".join(panels + [GRID_LEGEND])
 
 
 TABLES: List[Dict[str, Any]] = [
