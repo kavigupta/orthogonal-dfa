@@ -164,7 +164,8 @@ FNR_FLOOR = 0.25
 
 
 class _StallDetector:
-    """Stops a run whose rounds have stopped handing the next one new strings."""
+    """Stops a run whose rounds have stopped handing the next one new strings or a
+    tighter family."""
 
     def __init__(self, patience: int):
         self._patience = patience
@@ -363,13 +364,14 @@ def counterexample_driven_synthesis(
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        if taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit:
+        halved = taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
+        if halved:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _per_state_members(pst, hypothesis, dfa, state, per_state)
         # Rounds after a refusal have their own patience, so they are not
         # weighed for a stall.
-        if uncertified_since is None and stall.stalled(progressed=taken > 0):
+        if uncertified_since is None and stall.stalled(progressed=taken > 0 or halved):
             print(
                 f"[round {index}] no new strings harvested in {STALL_PATIENCE} "
                 "rounds; stopping synthesis"
