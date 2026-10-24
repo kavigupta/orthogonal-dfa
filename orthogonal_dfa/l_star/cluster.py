@@ -557,7 +557,8 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
 
-    ``state`` carries the round's prefix populations, which a refusal grows.
+    ``state`` carries the round's prefix populations, which a refusal grows,
+    and their anchors, which outlast the call.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -568,7 +569,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         read_rates(pst, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config, state)
-    anchored = {}
+    anchored = state.anchored
 
     if v not in pst.suffix_pool:
         pst.suffix_pool.append(v)
@@ -627,7 +628,6 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 f"{len(anchored)} in all"
             )
         elif not grow_population(pst, state, judged.blamed):
-            anchored.pop(judged.blamed, None)
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
             # results do not follow the theory.

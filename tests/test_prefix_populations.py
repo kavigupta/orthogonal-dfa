@@ -172,6 +172,15 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertEqual(set(), state.seen)
 
+    def test_and_its_anchor_is_dropped(self):
+        pst = _Pst()
+        state = _holding(("boundary", 1), _Source([], worth=False), _words(3))
+        state.anchored[("boundary", 1)] = _words(1)[0]
+
+        grow_population(pst, state, ("boundary", 1))
+
+        self.assertEqual({}, state.anchored)
+
     def test_a_population_this_round_has_no_source_for_is_retired_too(self):
         pst, state = _Pst(), PoolState([], _KEY)
         state.held[("state", 9)] = _words(3)

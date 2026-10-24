@@ -37,6 +37,8 @@ class PoolState:
         self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
+        #: The prefix each boundary population's family searches read decided.
+        self.anchored = {}
 
     def retire(self, kind) -> None:
         """Forget last round's populations labelled (kind, ...): this round's are
@@ -119,6 +121,7 @@ def grow_population(pst, state, label) -> bool:
         state.seen.difference_update(state.held.pop(label, ()))
         state.seen.difference_update(state.reserves.pop(label, ()))
         state.sources.pop(label, None)
+        state.anchored.pop(label, None)
         pst.table.drop_population(label)
         return False
     # As many as the uniform draw this stands in for adds.
