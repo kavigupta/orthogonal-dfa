@@ -22,7 +22,7 @@ class TestNearestToAnchorGroup(unittest.TestCase):
         anchor = (rng.random(columns) < rates).astype(float)
         everything = np.ones(columns, dtype=bool)
         with mock.patch.object(suffix_groups, "coherent_groups", return_value=groups):
-            order, leading = suffix_groups.nearest_to_anchor_group(
+            order = suffix_groups.nearest_to_anchor_group(
                 rows,
                 anchor,
                 [everything],
@@ -32,7 +32,6 @@ class TestNearestToAnchorGroup(unittest.TestCase):
                 alpha=0.01,
                 rng=rng,
             )
-        self.assertEqual(leading, 300)
         self.assertEqual(set(order[:300]), set(groups[0]))
 
 
