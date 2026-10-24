@@ -11,9 +11,9 @@ import OrthoDFA.Level5Claim
 `LevelsClaim`: each level's round ends well, but for chance `δ`, at a probe budget within the
 big-O shapes below. Levels 3 to 5 share one budget, and their harvests' slope and slack are
 bounded the same way. Levels 4 and 5 also need the probes' walk starts spread, every one holding
-at most `p₀Tol` of them, and their wrong reads rare, at most `εwTol` or `κTol` times the state's
-indecision; how small those must be is bounded below the same way. Both run at no leaves beyond
-level 3's `|Q| + 2`.
+at most `p₀Tol` of the probes' law, and their reads rarely wrong: at level 4 at most `εwTol` of
+the time, at level 5 at most `κTol` times the state's indecision. How small those must be is
+bounded below the same way. Both run at no leaves beyond level 3's `|Q| + 2`.
 -/
 
 namespace OrthoDFA

@@ -20,8 +20,8 @@ bounded. Each claim is proved from the explicit theorems below.
 - `LevelsClaim` (`Claims/Levels.lean`): over `(|Q|, |Σ|, 1/ε, 1/δ, 1/y, L)`, one round's probe
   budget at each level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
-  4 and 5 how few probes may share a walk start and how rarely reads may be wrong, both levels at
-  no leaves beyond level 3's `|Q| + 2`.
+  4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
+  wrong, both levels at no leaves beyond level 3's `|Q| + 2`.
 
 ## The explicit theorems
 
