@@ -23,6 +23,7 @@ writes `OUT/replay_<tag>/{probes,snapshots}.jsonl`, `snap_<n>.pkl` and
 scores it; `leaf_spread.py CKPT SNAP` counts where pool and held-out prefixes sift.
 `source_yield.py CKPT` reruns the round's search, then measures how often the next
 round's boundary source finds a new string, per reader and per hypothesis variant.
+`rescore.py OUT...` scores each saved round DFA of finished runs on 60,000 fresh strings.
 
 These scripts use the len40 oracle (`length=40`, `len_lo=35`, `len_hi=85`) from
 `gate_composition_residual_len40.py`, the version of `gate_composition_residual.py`

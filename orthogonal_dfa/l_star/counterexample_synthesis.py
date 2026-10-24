@@ -337,6 +337,9 @@ def _hypothesis_dfa(pst, hypothesis):
     return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
 
 
+#: A smaller sample overrates the hypothesis a search picked on it, and cannot
+#: rank rounds a few thousandths apart.
+SELECTION_SAMPLE = 16000
 _HELD_OUT = {}
 
 
@@ -344,7 +347,7 @@ def _held_out_oracle_score(pst, dfa) -> float:
     """|corr| between the oracle and each state's accept rate, the rates fit on one
     half of a fixed sample and read on the other."""
     if id(pst) not in _HELD_OUT:
-        _HELD_OUT[id(pst)] = _draw_held_out(pst, 4000)
+        _HELD_OUT[id(pst)] = _draw_held_out(pst, SELECTION_SAMPLE)
     strings, labels = _HELD_OUT[id(pst)]
     half = len(strings) // 2
 
