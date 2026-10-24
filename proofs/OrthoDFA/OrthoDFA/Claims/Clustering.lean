@@ -18,7 +18,8 @@ namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter
 
-/-- `(|J|, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u, 1/ε_w, 1/s₀, nH)`, `nH` the strings harvested. -/
+/-- `(nJ, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u, 1/ε_w, 1/s₀, nH)`, `nJ` the number of populations and
+`nH` of strings harvested. -/
 abbrev ClusterVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -59,19 +60,20 @@ open Real in
 def ClusteringClaim : Prop :=
   ∃ k nsuff npref npref₀ atomTol collTol : ClusterVec → ℝ,
     k =O[atTop] (fun (_, _, _, _, ie, iu, iw, is, _) => log (ie * iu * iw * is) * is ^ 2) ∧
-    nsuff =O[atTop] (fun (J, iδ, _, ip, ie, iu, iw, is, _) =>
-      log (ie * iu * iw * is) * ip * is ^ 2 + log (J * iδ) * ip ^ 2) ∧
-    npref₀ =O[atTop] (fun (J, iδ, _, _, ie, iu, _, is, _) =>
-      log (J * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3)) ∧
-    npref =O[atTop] (fun (J, iδ, iα, ip, ie, iu, iw, is, nH) =>
-      J ^ 2 * log (J * iδ * iα * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
+    nsuff =O[atTop] (fun (nJ, iδ, _, ip, ie, iu, iw, is, _) =>
+      log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2) ∧
+    npref₀ =O[atTop] (fun (nJ, iδ, _, _, ie, iu, _, is, _) =>
+      log (nJ * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3)) ∧
+    npref =O[atTop] (fun (nJ, iδ, iα, ip, ie, iu, iw, is, nH) =>
+      nJ ^ 2 * log (nJ * iδ * iα * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
         + nH * (ie * is ^ 2 + iu)) ∧
-    (fun v => 1 / atomTol v) =O[atTop] (fun (J, iδ, iα, ip, ie, iu, iw, is, nH) =>
-      J * (J ^ 2 * log (J * iδ * iα * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
+    (fun v => 1 / atomTol v) =O[atTop] (fun (nJ, iδ, iα, ip, ie, iu, iw, is, nH) =>
+      nJ * (nJ ^ 2 * log (nJ * iδ * iα * ip * ie * iu * iw * is)
+              * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
           + nH * (ie * is ^ 2 + iu)) * (ie * is ^ 3 + iu * is)
-        + J * iδ * log (J * iδ * iα * ip * ie * iu * iw * is * nH) * (ie ^ 2 + iu ^ 2)) ∧
-    (fun v => 1 / collTol v) =O[atTop] (fun (J, iδ, _, ip, ie, iu, iw, is, _) =>
-      J * iδ * ip * (log (ie * iu * iw * is) * ip * is ^ 2 + log (J * iδ) * ip ^ 2)) ∧
+        + nJ * iδ * log (nJ * iδ * iα * ip * ie * iu * iw * is * nH) * (ie ^ 2 + iu ^ 2)) ∧
+    (fun v => 1 / collTol v) =O[atTop] (fun (nJ, iδ, _, ip, ie, iu, iw, is, _) =>
+      nJ * iδ * ip * (log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2)) ∧
     (∀ v, 0 < atomTol v ∧ 0 < collTol v) ∧
     ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
       {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
