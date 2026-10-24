@@ -731,11 +731,9 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
     let aε : ℝ := 4 * (A + 1) / c
-    let Ce : ℝ := aε + 8 / ξ
-    let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
+    let Θ : ℝ := loopΘ Q A c ξ η₀
     let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
-    let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-    let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
+    let W₀ : ℝ := loopW₀ Q A δ
     let P₀ : ℝ :=
       (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
@@ -778,7 +776,7 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
                 o.result.hypothesis.rerootedDFA o.read q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
         ≤ δ := by
-  intro Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀
+  intro Q A k L₁ N ε δ' s S B₃ n aε Θ K₁ W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀
     hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -805,6 +803,7 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
   have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
+  set Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
   set εcov : ℝ := min ε (ξ / (8 * N)) with hεcd
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
@@ -821,7 +820,8 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
   obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
-    dfa_rate_bounds (ℓ := ℓ) hQ1 hA hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀ rfl rfl rfl rfl rfl rfl rfl rfl
+    dfa_rate_bounds (ℓ := ℓ) (Ce := aε + 8 / ξ) (Θ := Θ) hQ1 hA hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀
+      rfl rfl rfl rfl rfl rfl rfl rfl
   have hτ1 : τ ≤ 1 := by
     have h1 : ι ≤ εcov / 8 := min_le_left _ _
     have h2 : εcov ≤ ε := min_le_left _ _
@@ -857,8 +857,8 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
       positivity
     show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
     linarith
-  obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
-    hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1
+  obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hWW
+    hδ'0 hδ'1 hs0 hs1 hpAP hp1
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ0 hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
   have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := rfl
@@ -959,7 +959,7 @@ theorem learner_loop_dfa_counts {α : Type*} [Fintype α] [DecidableEq α] [None
   have hQ1' : (0 : ℝ) ≤ Q + 1 := by linarith
   obtain ⟨hpr, hsu⟩ := hreads draws
   refine ⟨hpr.trans ?_, hsu.trans ?_, ?_⟩
-  · have := count_le hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hPB1 hPBf hδ'0 hδ'1 hs0 hpAP hp1
+  · have := count_le hQ0 hτ0 hτ1 hinvτ hPB1 hPBf hδ'0 hδ'1 hs0 hpAP hp1
     gcongr
     exact this
   · gcongr

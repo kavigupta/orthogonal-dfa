@@ -212,39 +212,20 @@ lemma far_le {B K Q c Am ε aε ℓ : ℝ} (hB : B ≤ K * ℓ) (hB0 : 0 ≤ B) 
       = K * Q * ℓ ^ 2 + c * ℓ ^ 2 + (Q + 1) * Am * aε * ℓ ^ 2 := by ring
   linarith
 
-lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
-    (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hW₀1 : 1 ≤ W₀)
-    (hWW : W ≤ W₀ * ℓ ^ 2)
-    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2) (hp : 0 < pAP)
-    (hp1 : pAP ≤ 1) :
-    1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+lemma pool_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
+    (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s)
+    (hp : 0 < pAP) :
+    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
         + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
-      ∧ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
-      ≤ ((50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
-        + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) * ℓ := by
+      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
+          + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by
   have hℓ0 : 0 < ℓ := by linarith
-  have hW₀ : 0 < W₀ := by linarith
-  have hQ4 : Q + 2 + 2 = Q + 4 := by ring
-  rw [hQ4]
-  have hZ : 0 ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 :=
-    div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
-      rw [le_div_iff₀ (by positivity)]; linarith))) (by positivity)
-  have h20τ : 0 ≤ Real.log (20 / τ) :=
-    Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith)
-  have h8W : 0 ≤ Real.log (8 * W / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
-  have hs20 : 0 ≤ 20 / s := by positivity
-  have hs2 : 0 < s ^ 2 := by positivity
-  constructor
-  · have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) := le_max_of_le_left h20τ
-    have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 :=
-      div_nonneg (mul_nonneg (by norm_num) hm0) hs2.le
-    have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28)
-        / pAP := by
-      rw [le_div_iff₀ hp]
-      linarith
-    linarith
+  have hW₀ : 0 < W₀ := by
+    by_contra h
+    push Not at h
+    nlinarith [sq_nonneg ℓ]
+  rw [show Q + 2 + 2 = Q + 4 by ring]
   have hτ2 : Real.log (20 / τ) ≤ Real.log (20 * Θ) + Real.log ℓ := by
     have h : 20 / τ ≤ 20 * Θ * ℓ := by
       have e : 20 / τ = 20 * (1 / τ) := by ring
@@ -255,7 +236,6 @@ lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) 
     log_le_mul_of_le (by positivity) hℓ
       (by rw [show 8 * W₀ / δ' * ℓ ^ 2 = 8 * (W₀ * ℓ ^ 2) / δ' by ring]; gcongr) (by positivity)
       le_rfl
-  have hl0 : 0 ≤ Real.log (20 * Θ) := Real.log_nonneg (by linarith)
   have hlℓ : 0 ≤ Real.log ℓ := Real.log_nonneg hℓ
   have hmax : max (Real.log (20 / τ)) (Real.log (8 * W / δ'))
       ≤ max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ := by
@@ -264,36 +244,97 @@ lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) 
       linarith
     · have := le_max_right (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
       linarith
-  have hm₀ : 0 ≤ max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) := le_max_of_le_left hl0
-  have hX : 0 ≤ 50 * max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) / s ^ 2 + 20 / s + 28 := by
-    have : 0 ≤ 50 * max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) / s ^ 2 :=
-      div_nonneg (mul_nonneg (by norm_num) hm₀) hs2.le
+  gcongr
+
+lemma count_le {Q τ Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
+    (hinvτ : 1 / τ ≤ Θ * ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ PBf)
+    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP) (hp1 : pAP ≤ 1) :
+    161000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+        / (s ^ 4 * τ ^ 2)
+      ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+        * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4 := by
+  have hD : δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 := by ring
+  rw [hD, show Q + 2 + 2 = Q + 4 by ring]
+  have hD0 : 0 < δ' ^ 2 * pAP * τ / 16 := by positivity
+  have harg1 : 1 ≤ (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) := by
+    rw [le_div_iff₀ hD0]
+    have h1 : δ' ^ 2 ≤ 1 := by nlinarith
+    have h2 : δ' ^ 2 * pAP ≤ 1 := by nlinarith
+    have h3 : δ' ^ 2 * pAP * τ ≤ 1 := by nlinarith [mul_nonneg (sq_nonneg δ') hp.le]
+    nlinarith
+  have harg : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
+      ≤ 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP) := by
+    have e : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
+        = 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) * (1 / τ) := by
+      field_simp
+    have e2 : 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)
+        = 16 * (Q + 4) * PBf / (δ' ^ 2 * pAP) * (Θ * ℓ) := by ring
+    have hPBf : 0 ≤ PBf := by linarith
+    rw [e, e2]
+    gcongr
+  have hlog := Real.log_le_log (by linarith) harg
+  have hlog0 : 0 ≤ Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)) := Real.log_nonneg harg1
+  have hinv2 : 1 / τ ^ 2 ≤ Θ ^ 2 * ℓ ^ 2 := by
+    rw [show 1 / τ ^ 2 = (1 / τ) ^ 2 by ring, show Θ ^ 2 * ℓ ^ 2 = (Θ * ℓ) ^ 2 by ring]
+    exact pow_le_pow_left₀ (by positivity) hinvτ 2
+  have e : 161000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+      / (s ^ 4 * τ ^ 2)
+      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+        * (1 / τ ^ 2)) := by field_simp
+  rw [e]
+  have e2 : 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+      * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4
+      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP))
+        * (Θ ^ 2 * ℓ ^ 2)) := by ring
+  rw [e2]
+  have := hlog0.trans hlog
+  gcongr
+
+lemma pb_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
+    (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2)
+    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2) (hp : 0 < pAP)
+    (hp1 : pAP ≤ 1) :
+    1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
+      ∧ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
+      ≤ ((50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2) * ℓ := by
+  have hZ : 0 ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 :=
+    div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
+      rw [le_div_iff₀ (by positivity)]; linarith))) (by positivity)
+  have hs2 : 0 < s ^ 2 := by positivity
+  refine ⟨?_, (pool_le hτ0 hinvτ hΘ hℓ hW1 hWW hδ'0 hs0 hp).trans ?_⟩
+  · rw [show Q + 2 + 2 = Q + 4 by ring]
+    have h20τ : 0 ≤ Real.log (20 / τ) :=
+      Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith)
+    have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) := le_max_of_le_left h20τ
+    have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 :=
+      div_nonneg (mul_nonneg (by norm_num) hm0) hs2.le
+    have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28)
+        / pAP := by
+      rw [le_div_iff₀ hp]
+      have : 0 ≤ 20 / s := by positivity
+      linarith
     linarith
-  have hsum : 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28)
-        * ℓ := by
-    have h1 : 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2
-        ≤ 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2 := by
-      gcongr
-    have h2 := add_log_le hX hℓ (show (0 : ℝ) ≤ 100 / s ^ 2 by positivity)
-    have e : 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
-        + 20 / s + 28
-        = (50 * max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) / s ^ 2 + 20 / s + 28)
-          + 100 / s ^ 2 * Real.log ℓ := by ring
-    have e2 : (50 * max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) / s ^ 2 + 20 / s + 28)
-        + 100 / s ^ 2
-        = 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28 := by
-      ring
-    rw [← e2]
+  set m := max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
+  have hm₀ : 0 ≤ m := le_max_of_le_left (Real.log_nonneg (by linarith))
+  have hX : 0 ≤ 50 * m / s ^ 2 + 20 / s + 28 := by
+    have : 0 ≤ 50 * m / s ^ 2 := div_nonneg (mul_nonneg (by norm_num) hm₀) hs2.le
+    have : 0 ≤ 20 / s := by positivity
     linarith
-  have hterm : (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28)
-        / pAP * ℓ := by
+  have hsum : 50 * (m + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28
+      ≤ (50 * (m + 2) / s ^ 2 + 20 / s + 28) * ℓ := by
+    have h := add_log_le hX hℓ (show (0 : ℝ) ≤ 100 / s ^ 2 by positivity)
+    rw [show 50 * m / s ^ 2 + 20 / s + 28 + 100 / s ^ 2
+      = 50 * (m + 2) / s ^ 2 + 20 / s + 28 by ring] at h
+    linarith [show 50 * (m + 2 * Real.log ℓ) / s ^ 2
+      = 50 * m / s ^ 2 + 100 / s ^ 2 * Real.log ℓ by ring]
+  have hterm : (50 * (m + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
+      ≤ (50 * (m + 2) / s ^ 2 + 20 / s + 28) / pAP * ℓ := by
     rw [div_mul_eq_mul_div]
     gcongr
-  have hZℓ : 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-      ≤ 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 * ℓ := le_mul_of_one_le_right hZ hℓ
-  linarith
+  linarith [le_mul_of_one_le_right hZ hℓ]
 
 lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ P₀ * ℓ)
@@ -305,18 +346,19 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
         / (s ^ 4 * τ ^ 2)
       ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2
         * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4 * ℓ ^ 3 := by
-  have hℓ0 : 0 < ℓ := by linarith
-  have hD : δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 := by ring
-  rw [hD, show Q + 2 + 2 = Q + 4 by ring]
-  have hD0 : 0 < δ' ^ 2 * pAP * τ / 16 := by positivity
-  have hD1 : δ' ^ 2 * pAP * τ / 16 ≤ 1 / 16 := by
-    have h1 : δ' ^ 2 ≤ 1 := by nlinarith
-    have h2 : δ' ^ 2 * pAP ≤ 1 := by nlinarith
-    have h3 : δ' ^ 2 * pAP * τ ≤ 1 := by nlinarith [mul_nonneg (sq_nonneg δ') hp.le]
-    linarith
-  have harg1 : 1 ≤ (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) := by
-    rw [le_div_iff₀ hD0]
-    nlinarith
+  refine ⟨?_, (count_le hQ hτ0 hτ1 hinvτ hPB1 hPB hδ'0 hδ'1 hs0 hp hp1).trans ?_⟩
+  · rw [show δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 by ring,
+      show Q + 2 + 2 = Q + 4 by ring]
+    have hD0 : 0 < δ' ^ 2 * pAP * τ / 16 := by positivity
+    have h3 : δ' ^ 2 * pAP * τ ≤ 1 := by
+      have h1 : δ' ^ 2 ≤ 1 := by nlinarith
+      have h2 : δ' ^ 2 * pAP ≤ 1 := by nlinarith
+      nlinarith [mul_nonneg (sq_nonneg δ') hp.le]
+    have harg1 : 1 ≤ (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) := by
+      rw [le_div_iff₀ hD0]
+      nlinarith
+    have := Real.log_nonneg harg1
+    positivity
   set y := 16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP) with hy
   have hy1 : 1 ≤ y := by
     rw [hy, le_div_iff₀ (by positivity)]
@@ -325,35 +367,17 @@ lemma rb_le {Q τ Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ)
       have : 1 ≤ (Q + 4) * P₀ := by nlinarith
       nlinarith
     nlinarith
-  have hargy : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) ≤ y * ℓ ^ 2 := by
-    have e : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) = 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) * (1 / τ) := by
-      field_simp
-    rw [e, hy]
-    have h1 : 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) ≤ 16 * (Q + 4) * (P₀ * ℓ) / (δ' ^ 2 * pAP) := by
-      gcongr
-    calc 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) * (1 / τ)
-        ≤ 16 * (Q + 4) * (P₀ * ℓ) / (δ' ^ 2 * pAP) * (Θ * ℓ) := by
-          gcongr
-      _ = 16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP) * ℓ ^ 2 := by ring
-  have hlog := log_le_mul_of_le (by linarith) hℓ hargy (by linarith) le_rfl
   have hY : 0 ≤ Real.log y := Real.log_nonneg hy1
-  have hlog' : Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)) ≤ (Real.log y + 2) * ℓ :=
-    hlog.trans (add_log_le hY hℓ (by norm_num))
-  have hlog0 : 0 ≤ Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)) := Real.log_nonneg harg1
-  have hinv2 : 1 / τ ^ 2 ≤ Θ ^ 2 * ℓ ^ 2 := by
-    rw [show 1 / τ ^ 2 = (1 / τ) ^ 2 by ring, show Θ ^ 2 * ℓ ^ 2 = (Θ * ℓ) ^ 2 by ring]
-    exact pow_le_pow_left₀ (by positivity) hinvτ 2
-  constructor
-  · positivity
-  · have e : 161000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
-        / (s ^ 4 * τ ^ 2)
-        = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
-          * (1 / τ ^ 2)) := by field_simp
-    rw [e]
-    have e2 : 161000 * (Q + 2) ^ 2 * Θ ^ 2 * (Real.log y + 2) / s ^ 4 * ℓ ^ 3
-        = 161000 * (Q + 2) ^ 2 / s ^ 4 * ((Real.log y + 2) * ℓ * (Θ ^ 2 * ℓ ^ 2)) := by ring
-    rw [e2]
-    gcongr
+  have hlog : Real.log (16 * (Q + 4) * (P₀ * ℓ) * Θ * ℓ / (δ' ^ 2 * pAP))
+      ≤ (Real.log y + 2) * ℓ := by
+    rw [show 16 * (Q + 4) * (P₀ * ℓ) * Θ * ℓ / (δ' ^ 2 * pAP) = y * ℓ ^ 2 by rw [hy]; ring,
+      Real.log_mul (by positivity) (by positivity), Real.log_pow]
+    push_cast
+    exact add_log_le hY hℓ (by norm_num)
+  calc 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+        * Real.log (16 * (Q + 4) * (P₀ * ℓ) * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4
+      ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2 * ((Real.log y + 2) * ℓ) / s ^ 4 := by gcongr
+    _ = _ := by ring
 
 /-- The band's ceiling `W` at the length `ℓ`, within `ℓ²` of its length-free bound. -/
 lemma w_le {ℓ δ' Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
@@ -702,84 +726,6 @@ lemma kc_ge_one {Q A : ℝ} {m e : ℕ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) :
                     linarith)
   have h2 : (1 : ℝ) ≤ (Q + 3) ^ e := one_le_pow₀ (by linarith)
   exact one_le_mul_of_one_le_of_one_le h1 h2
-
-lemma pool_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
-    (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s)
-    (hp : 0 < pAP) :
-    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
-          + 20 / s + 28) / pAP
-        + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by
-  have hℓ0 : 0 < ℓ := by linarith
-  have hW₀ : 0 < W₀ := by
-    by_contra h
-    push Not at h
-    nlinarith [sq_nonneg ℓ]
-  rw [show Q + 2 + 2 = Q + 4 by ring]
-  have hτ2 : Real.log (20 / τ) ≤ Real.log (20 * Θ) + Real.log ℓ := by
-    have h : 20 / τ ≤ 20 * Θ * ℓ := by
-      have e : 20 / τ = 20 * (1 / τ) := by ring
-      rw [e]; linarith
-    calc Real.log (20 / τ) ≤ Real.log (20 * Θ * ℓ) := Real.log_le_log (by positivity) h
-      _ = Real.log (20 * Θ) + Real.log ℓ := Real.log_mul (by positivity) hℓ0.ne'
-  have hW2 : Real.log (8 * W / δ') ≤ Real.log (8 * W₀ / δ') + 2 * Real.log ℓ :=
-    log_le_mul_of_le (by positivity) hℓ
-      (by rw [show 8 * W₀ / δ' * ℓ ^ 2 = 8 * (W₀ * ℓ ^ 2) / δ' by ring]; gcongr) (by positivity)
-      le_rfl
-  have hlℓ : 0 ≤ Real.log ℓ := Real.log_nonneg hℓ
-  have hmax : max (Real.log (20 / τ)) (Real.log (8 * W / δ'))
-      ≤ max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ := by
-    refine max_le ?_ ?_
-    · have := le_max_left (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
-      linarith
-    · have := le_max_right (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
-      linarith
-  gcongr
-
-lemma count_le {Q τ Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
-    (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ PBf)
-    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP) (hp1 : pAP ≤ 1) :
-    161000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
-        / (s ^ 4 * τ ^ 2)
-      ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
-        * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4 := by
-  have hD : δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 := by ring
-  rw [hD, show Q + 2 + 2 = Q + 4 by ring]
-  have hD0 : 0 < δ' ^ 2 * pAP * τ / 16 := by positivity
-  have harg1 : 1 ≤ (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) := by
-    rw [le_div_iff₀ hD0]
-    have h1 : δ' ^ 2 ≤ 1 := by nlinarith
-    have h2 : δ' ^ 2 * pAP ≤ 1 := by nlinarith
-    have h3 : δ' ^ 2 * pAP * τ ≤ 1 := by nlinarith [mul_nonneg (sq_nonneg δ') hp.le]
-    nlinarith
-  have harg : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
-      ≤ 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP) := by
-    have e : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
-        = 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) * (1 / τ) := by
-      field_simp
-    have e2 : 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)
-        = 16 * (Q + 4) * PBf / (δ' ^ 2 * pAP) * (Θ * ℓ) := by ring
-    have hPBf : 0 ≤ PBf := by linarith
-    rw [e, e2]
-    gcongr
-  have hlog := Real.log_le_log (by linarith) harg
-  have hlog0 : 0 ≤ Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)) := Real.log_nonneg harg1
-  have hinv2 : 1 / τ ^ 2 ≤ Θ ^ 2 * ℓ ^ 2 := by
-    rw [show 1 / τ ^ 2 = (1 / τ) ^ 2 by ring, show Θ ^ 2 * ℓ ^ 2 = (Θ * ℓ) ^ 2 by ring]
-    exact pow_le_pow_left₀ (by positivity) hinvτ 2
-  have e : 161000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
-      / (s ^ 4 * τ ^ 2)
-      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
-        * (1 / τ ^ 2)) := by field_simp
-  rw [e]
-  have e2 : 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
-      * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4
-      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP))
-        * (Θ ^ 2 * ℓ ^ 2)) := by ring
-  rw [e2]
-  have := hlog0.trans hlog
-  gcongr
 
 end OrthoDFA
 

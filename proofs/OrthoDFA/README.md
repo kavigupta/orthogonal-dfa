@@ -25,9 +25,10 @@ bounded. Each claim is proved from the explicit theorems below.
 - `LoopClaim` (`Claims/Loop.lean`): over `(|Q|, |Σ|, 1/δ, 1/c, 1/ξ, 1/pAP, 1/s₀)`, `c` the coverage,
   the length `L₀` past which the learner's DFA is right but for `γ + ξ`,
   `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked on, and, with
-  `L` a coordinate too, every prefix, suffix and probe the whole run reads. Those grow with `L`:
-  each round holds its disagreement rate, and with it the clustering's accuracy, at `c` over the
-  window's `Θ(L)` lengths, so the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `L` a coordinate too, every prefix, suffix and probe the whole run reads. Those grow with `L`
+  because the settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)`
+  over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as
+  `log L`.
 
 ## The explicit theorems
 

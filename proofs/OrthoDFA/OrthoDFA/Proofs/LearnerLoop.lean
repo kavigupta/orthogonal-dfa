@@ -347,8 +347,6 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
   calc ∑ t ∈ T, ν.real {t} ≤ ∑ _t ∈ T, q := Finset.sum_le_sum fun t _ => hq t
     _ = T.card * q := by rw [Finset.sum_const, nsmul_eq_mul]
 
-/-- Over its at most `K` rounds the loop reads at most `K a` prefixes and `K b` suffixes, where a
-round's clustering reads at most `a` and `b`. -/
 lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (a b : ℕ)
@@ -490,7 +488,6 @@ theorem loop_core_holds : LoopCore := by
     split_ifs with hp
     · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
     · simp
-  -- a round reads at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes
   have hreads : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1 := by

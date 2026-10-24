@@ -10,8 +10,9 @@ at most `γ + ξ` of the strings of length `L`, but for chance `δ`, its start l
 `heldOut` strings; over the whole run its clusterings read at most `totalPref` prefixes and
 `totalSuff` suffixes, and its rounds draw at most `totalProbes` probes, whatever they draw. Every
 one is within the big-O shape below, with `c` the coverage and `s₀ = 1/2 − η₀` the signal. The
-totals grow with `L`: each round's disagreement rate, and with it the clustering's accuracy, is
-held at `c` over the window's `Θ(L)` lengths.
+totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
+`c/(4(|Σ| + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
+the suffixes as `log L`.
 -/
 
 namespace OrthoDFA

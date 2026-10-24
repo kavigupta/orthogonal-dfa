@@ -20,6 +20,11 @@ lemma one_div_min_le {x y : ℝ} (hx : 0 < x) (hy : 0 < y) : 1 / min x y ≤ 1 /
 
 lemma div_one_div' (a b : ℝ) : a / (1 / b) = a * b := by rw [one_div, div_inv_eq_mul]
 
+lemma abs_le_mul_abs_of {w g C : ℝ} (hC : 0 ≤ C) (h0 : 0 ≤ w) (h : w ≤ C * g) :
+    |w| ≤ C * |g| := by
+  rw [abs_of_nonneg h0]
+  exact h.trans (mul_le_mul_of_nonneg_left (le_abs_self g) hC)
+
 lemma log_two_le_log {x : ℝ} (hx : 2 ≤ x) : log 2 ≤ log x :=
   Real.log_le_log (by norm_num) hx
 
