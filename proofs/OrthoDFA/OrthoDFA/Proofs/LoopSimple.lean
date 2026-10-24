@@ -602,7 +602,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hshort : Q * A * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε
       ≤ δ' / 4 := by
     have hB₃ε : 34 ≤ B₃ * ε := by
-      set lg := Real.log (16 * S * (S + 1) / δ')
+      set lg := Real.log (16 * S * (S + 1) / δ') with hlg
       have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
       have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
       have hinv : (16 * S * (S + 1) / δ')⁻¹ ≤ 1 / 32 := by
@@ -612,7 +612,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         field_simp
         ring
       have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
-      nlinarith only [e, hl, hinv, hSl, hε, mul_nonneg (by linarith : (0 : ℝ) ≤ S) hε.le]
+      nlinarith only [e, hl, hinv, hSl, hlg, hε, mul_nonneg (by linarith : (0 : ℝ) ≤ S) hε.le]
     have hB0 : 0 ≤ B₃ := hbud0.trans hbud
     obtain ⟨hTp, -⟩ := shared_key_le hB0 hbud hpm0 hεd hB₃ε hk3 hδ'1
     have hpε : 2 * (Q * A) * (2 * prefixMax P.D k) ≤ ε * δ' :=
