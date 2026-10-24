@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Grouping
 import OrthoDFA.Proofs.FreshDraws
 import OrthoDFA.Proofs.Windows
 import OrthoDFA.Proofs.RedrawTail
-import OrthoDFA.Utils.BandKappa
+import OrthoDFA.LowLevelClaims.BandKappa
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 import Mathlib.Analysis.Complex.ExponentialBounds

@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.RaceTail
+import OrthoDFA.LowLevelClaims.RaceTail
 import OrthoDFA.Proofs.AdaptiveReads
 import Mathlib.Probability.Independence.Integration
 

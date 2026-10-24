@@ -2,7 +2,7 @@ import OrthoDFA.Proofs.Clusterer
 import OrthoDFA.Proofs.GateCharge
 import OrthoDFA.Proofs.Coins
 import OrthoDFA.Proofs.RedrawTail
-import OrthoDFA.Utils.BandKappa
+import OrthoDFA.LowLevelClaims.BandKappa
 
 /-!
 # The schedule, and what it is solved from

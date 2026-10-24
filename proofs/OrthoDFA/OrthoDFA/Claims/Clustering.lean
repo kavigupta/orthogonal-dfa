@@ -1,6 +1,6 @@
 import Mathlib.Analysis.Asymptotics.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 
 /-!
 # The clustering's costs, asymptotically

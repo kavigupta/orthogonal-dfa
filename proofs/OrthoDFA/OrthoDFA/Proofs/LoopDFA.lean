@@ -1,4 +1,4 @@
-import OrthoDFA.LoopDFA
+import OrthoDFA.LowLevelClaims.LoopDFA
 import OrthoDFA.Proofs.LoopSimple
 import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge

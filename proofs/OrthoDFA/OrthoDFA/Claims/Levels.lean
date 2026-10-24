@@ -1,9 +1,9 @@
 import Mathlib.Analysis.Asymptotics.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import OrthoDFA.Level2Claim
-import OrthoDFA.Level4Claim
-import OrthoDFA.Level5Claim
+import OrthoDFA.LowLevelClaims.Level2Claim
+import OrthoDFA.LowLevelClaims.Level4Claim
+import OrthoDFA.LowLevelClaims.Level5Claim
 
 /-!
 # One L\* round's costs, asymptotically

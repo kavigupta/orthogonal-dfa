@@ -1,4 +1,4 @@
-import OrthoDFA.ClusteringQuality
+import OrthoDFA.LowLevelClaims.ClusteringQuality
 import OrthoDFA.Proofs.Budget
 
 /-!

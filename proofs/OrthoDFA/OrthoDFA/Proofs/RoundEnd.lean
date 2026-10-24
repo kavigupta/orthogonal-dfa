@@ -1,4 +1,4 @@
-import OrthoDFA.RoundEnd
+import OrthoDFA.LowLevelClaims.RoundEnd
 
 /-!
 # A sampler's law
