@@ -109,43 +109,6 @@ open MeasureTheory
 
 open Random (prefixMax le_prefixMax prefixMax_pos)
 
-/-- The race tail at `t = 1/(λ + 2c)` and `t' = 2t`:
-
-    exp(t'λ)/(1 + t)² ≤ e² (λ + 2c)². -/
-lemma race_tail_choice {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 < lam + 2 * c) :
-    0 ≤ 1 / (lam + 2 * c) ∧ 0 ≤ 2 * (1 / (lam + 2 * c))
-      ∧ 1 / (lam + 2 * c) * c ≤ 1 - Real.exp (-(2 * (1 / (lam + 2 * c)) * c))
-      ∧ Real.exp (2 * (1 / (lam + 2 * c)) * lam) / (1 + 1 / (lam + 2 * c)) ^ 2
-        ≤ Real.exp 2 * (lam + 2 * c) ^ 2 := by
-  set t := 1 / (lam + 2 * c) with ht
-  have ht0 : 0 < t := by positivity
-  refine ⟨ht0.le, by positivity, ?_, ?_⟩
-  · set x := t * c with hx
-    have hx0 : 0 ≤ x := by positivity
-    have hx2 : x ≤ 1 / 2 := by
-      rw [hx, ht, div_mul_eq_mul_div, one_mul, div_le_iff₀ hpos]; linarith
-    have h1 : 1 + 2 * x ≤ Real.exp (2 * x) := by linarith [Real.add_one_le_exp (2 * x)]
-    have h2 : Real.exp (-(2 * x)) ≤ 1 / (1 + 2 * x) := by
-      rw [Real.exp_neg, ← one_div]
-      exact one_div_le_one_div_of_le (by positivity) h1
-    have h3 : 1 / (1 + 2 * x) ≤ 1 - x := by
-      rw [div_le_iff₀ (by positivity)]; nlinarith
-    have e : 2 * t * c = 2 * x := by rw [hx]; ring
-    rw [e]
-    linarith
-  · have h1 : 2 * t * lam ≤ 2 := by
-      rw [ht, show 2 * (1 / (lam + 2 * c)) * lam = 2 * (lam / (lam + 2 * c)) by ring]
-      have : lam / (lam + 2 * c) ≤ 1 := by rw [div_le_one hpos]; linarith
-      linarith
-    have h2 : t ^ 2 ≤ (1 + t) ^ 2 := pow_le_pow_left₀ ht0.le (by linarith) 2
-    have h3 : t ^ 2 * (lam + 2 * c) ^ 2 = 1 := by
-      rw [ht, ← mul_pow, one_div_mul_cancel hpos.ne', one_pow]
-    rw [div_le_iff₀ (by positivity)]
-    calc Real.exp (2 * t * lam) ≤ Real.exp 2 := Real.exp_le_exp.2 h1
-      _ = Real.exp 2 * (lam + 2 * c) ^ 2 * t ^ 2 := by
-          rw [mul_assoc, mul_comm _ (t ^ 2), h3, mul_one]
-      _ ≤ Real.exp 2 * (lam + 2 * c) ^ 2 * (1 + t) ^ 2 := by gcongr
-
 /-- Level 5's premises at the band's `κ = ζ`, once the round's undecided reads, weighted `ζ`,
 stay under `√δ/(4e)`, and the pairs of probes under `δ/16`. -/
 theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.Level3Settings)
@@ -318,6 +281,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
+      (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
+        (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
+          ∧ (roundSuffs (settings.schedule pops) x).card ≤ ⌊PB⌋₊ + 1) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -384,7 +350,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp, ?_⟩
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp,
+      fun _ _ => by simp [roundPrefs, roundSuffs], ?_⟩
     intro Dsf hDsf _ hpAPD _
     have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
     linarith
@@ -635,7 +602,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε cross Tu C
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hnp, hmain⟩ := hcore hL hη hη₀ hι0
+  obtain ⟨settings, -, -, -, -, hC3, hnp, hreads, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
     (fun pops hpops => by
@@ -647,7 +614,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     hq1a hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by positivity) hmr (by linarith) hcr hprem hTu0 hcond
-  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, ?_⟩
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

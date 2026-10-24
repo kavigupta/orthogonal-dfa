@@ -192,44 +192,6 @@ private lemma κ_race (nQ nα : ℕ) {κ δ iε iy L : ℝ} (b c : ℝ) (hδ : 0
     _ ≤ _ := mul_le_mul_of_nonneg_right hκ (by positivity)
     _ = Real.sqrt δ / (4 * exp 1) := by field_simp
 
-/-- The race tail at `t = 1/(λ + 2c)` and `t' = 2t` (`race_tail_apply` takes `t = 4/√δ`,
-`t' = 0` when `λ = c = 0`):
-
-    exp(t'λ)/(1 + t)² ≤ e² (λ + 2c)². -/
-private lemma race_tail_at {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 < lam + 2 * c) :
-    0 ≤ 1 / (lam + 2 * c) ∧ 0 ≤ 2 * (1 / (lam + 2 * c))
-      ∧ 1 / (lam + 2 * c) * c ≤ 1 - Real.exp (-(2 * (1 / (lam + 2 * c)) * c))
-      ∧ Real.exp (2 * (1 / (lam + 2 * c)) * lam) / (1 + 1 / (lam + 2 * c)) ^ 2
-        ≤ Real.exp 2 * (lam + 2 * c) ^ 2 := by
-  set t := 1 / (lam + 2 * c) with ht
-  have ht0 : 0 < t := by positivity
-  refine ⟨ht0.le, by positivity, ?_, ?_⟩
-  · set x := t * c with hx
-    have hx0 : 0 ≤ x := by positivity
-    have hx2 : x ≤ 1 / 2 := by
-      rw [hx, ht, div_mul_eq_mul_div, one_mul, div_le_iff₀ hpos]; linarith
-    have h1 : 1 + 2 * x ≤ Real.exp (2 * x) := by linarith [Real.add_one_le_exp (2 * x)]
-    have h2 : Real.exp (-(2 * x)) ≤ 1 / (1 + 2 * x) := by
-      rw [Real.exp_neg, ← one_div]
-      exact one_div_le_one_div_of_le (by positivity) h1
-    have h3 : 1 / (1 + 2 * x) ≤ 1 - x := by
-      rw [div_le_iff₀ (by positivity)]; nlinarith
-    have e : 2 * t * c = 2 * x := by rw [hx]; ring
-    rw [e]
-    linarith
-  · have h1 : 2 * t * lam ≤ 2 := by
-      rw [ht, show 2 * (1 / (lam + 2 * c)) * lam = 2 * (lam / (lam + 2 * c)) by ring]
-      have : lam / (lam + 2 * c) ≤ 1 := by rw [div_le_one hpos]; linarith
-      linarith
-    have h2 : t ^ 2 ≤ (1 + t) ^ 2 := pow_le_pow_left₀ ht0.le (by linarith) 2
-    have h3 : t ^ 2 * (lam + 2 * c) ^ 2 = 1 := by
-      rw [ht, ← mul_pow, one_div_mul_cancel hpos.ne', one_pow]
-    rw [div_le_iff₀ (by positivity)]
-    calc Real.exp (2 * t * lam) ≤ Real.exp 2 := Real.exp_le_exp.2 h1
-      _ = Real.exp 2 * (lam + 2 * c) ^ 2 * t ^ 2 := by
-          rw [mul_assoc, mul_comm _ (t ^ 2), h3, mul_one]
-      _ ≤ Real.exp 2 * (lam + 2 * c) ^ 2 * (1 + t) ^ 2 := by gcongr
-
 private lemma race_tail_apply {lam c δ X : ℝ} {G : Prop} (hδ : 0 < δ) (hl : 0 ≤ lam) (hc : 0 ≤ c)
     (h : lam + 2 * c ≤ Real.sqrt δ / (4 * exp 1)) (hX : X ≤ δ / 16)
     (k : ∀ t t' : ℝ, 0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
@@ -237,7 +199,7 @@ private lemma race_tail_apply {lam c δ X : ℝ} {G : Prop} (hδ : 0 < δ) (hl :
   have hs : 0 < Real.sqrt δ := Real.sqrt_pos.2 hδ
   rw [zero_add] at k
   by_cases hpos : 0 < lam + 2 * c
-  · obtain ⟨ht, ht', htc, htail⟩ := race_tail_at hl hc hpos
+  · obtain ⟨ht, ht', htc, htail⟩ := race_tail_choice hl hc hpos
     refine k _ _ ht ht' htc ?_
     have hsq : Real.exp 2 * (lam + 2 * c) ^ 2 ≤ δ / 16 := by
       have e : Real.exp 2 * (Real.sqrt δ / (4 * Real.exp 1)) ^ 2 = δ / 16 := by

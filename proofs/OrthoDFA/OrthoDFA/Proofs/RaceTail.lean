@@ -652,4 +652,41 @@ theorem raceTailBound_holds : RaceTailBound := by
         congr 1
         rw [mul_inv, ← Real.exp_neg, neg_neg, div_eq_mul_inv, mul_comm]
 
+/-- The race tail at `t = 1/(λ + 2c)` and `t' = 2t`:
+
+    exp(t'λ)/(1 + t)² ≤ e² (λ + 2c)². -/
+lemma race_tail_choice {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 < lam + 2 * c) :
+    0 ≤ 1 / (lam + 2 * c) ∧ 0 ≤ 2 * (1 / (lam + 2 * c))
+      ∧ 1 / (lam + 2 * c) * c ≤ 1 - Real.exp (-(2 * (1 / (lam + 2 * c)) * c))
+      ∧ Real.exp (2 * (1 / (lam + 2 * c)) * lam) / (1 + 1 / (lam + 2 * c)) ^ 2
+        ≤ Real.exp 2 * (lam + 2 * c) ^ 2 := by
+  set t := 1 / (lam + 2 * c) with ht
+  have ht0 : 0 < t := by positivity
+  refine ⟨ht0.le, by positivity, ?_, ?_⟩
+  · set x := t * c with hx
+    have hx0 : 0 ≤ x := by positivity
+    have hx2 : x ≤ 1 / 2 := by
+      rw [hx, ht, div_mul_eq_mul_div, one_mul, div_le_iff₀ hpos]; linarith
+    have h1 : 1 + 2 * x ≤ Real.exp (2 * x) := by linarith [Real.add_one_le_exp (2 * x)]
+    have h2 : Real.exp (-(2 * x)) ≤ 1 / (1 + 2 * x) := by
+      rw [Real.exp_neg, ← one_div]
+      exact one_div_le_one_div_of_le (by positivity) h1
+    have h3 : 1 / (1 + 2 * x) ≤ 1 - x := by
+      rw [div_le_iff₀ (by positivity)]; nlinarith
+    have e : 2 * t * c = 2 * x := by rw [hx]; ring
+    rw [e]
+    linarith
+  · have h1 : 2 * t * lam ≤ 2 := by
+      rw [ht, show 2 * (1 / (lam + 2 * c)) * lam = 2 * (lam / (lam + 2 * c)) by ring]
+      have : lam / (lam + 2 * c) ≤ 1 := by rw [div_le_one hpos]; linarith
+      linarith
+    have h2 : t ^ 2 ≤ (1 + t) ^ 2 := pow_le_pow_left₀ ht0.le (by linarith) 2
+    have h3 : t ^ 2 * (lam + 2 * c) ^ 2 = 1 := by
+      rw [ht, ← mul_pow, one_div_mul_cancel hpos.ne', one_pow]
+    rw [div_le_iff₀ (by positivity)]
+    calc Real.exp (2 * t * lam) ≤ Real.exp 2 := Real.exp_le_exp.2 h1
+      _ = Real.exp 2 * (lam + 2 * c) ^ 2 * t ^ 2 := by
+          rw [mul_assoc, mul_comm _ (t ^ 2), h3, mul_one]
+      _ ≤ Real.exp 2 * (lam + 2 * c) ^ 2 * (1 + t) ^ 2 := by gcongr
+
 end OrthoDFA

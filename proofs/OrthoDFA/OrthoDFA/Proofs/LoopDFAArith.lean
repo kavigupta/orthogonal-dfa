@@ -703,6 +703,84 @@ lemma kc_ge_one {Q A : ℝ} {m e : ℕ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) :
   have h2 : (1 : ℝ) ≤ (Q + 3) ^ e := one_le_pow₀ (by linarith)
   exact one_le_mul_of_one_le_of_one_le h1 h2
 
+lemma pool_le {Q τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
+    (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s)
+    (hp : 0 < pAP) :
+    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2
+      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
+          + 20 / s + 28) / pAP
+        + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 := by
+  have hℓ0 : 0 < ℓ := by linarith
+  have hW₀ : 0 < W₀ := by
+    by_contra h
+    push Not at h
+    nlinarith [sq_nonneg ℓ]
+  rw [show Q + 2 + 2 = Q + 4 by ring]
+  have hτ2 : Real.log (20 / τ) ≤ Real.log (20 * Θ) + Real.log ℓ := by
+    have h : 20 / τ ≤ 20 * Θ * ℓ := by
+      have e : 20 / τ = 20 * (1 / τ) := by ring
+      rw [e]; linarith
+    calc Real.log (20 / τ) ≤ Real.log (20 * Θ * ℓ) := Real.log_le_log (by positivity) h
+      _ = Real.log (20 * Θ) + Real.log ℓ := Real.log_mul (by positivity) hℓ0.ne'
+  have hW2 : Real.log (8 * W / δ') ≤ Real.log (8 * W₀ / δ') + 2 * Real.log ℓ :=
+    log_le_mul_of_le (by positivity) hℓ
+      (by rw [show 8 * W₀ / δ' * ℓ ^ 2 = 8 * (W₀ * ℓ ^ 2) / δ' by ring]; gcongr) (by positivity)
+      le_rfl
+  have hlℓ : 0 ≤ Real.log ℓ := Real.log_nonneg hℓ
+  have hmax : max (Real.log (20 / τ)) (Real.log (8 * W / δ'))
+      ≤ max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ := by
+    refine max_le ?_ ?_
+    · have := le_max_left (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
+      linarith
+    · have := le_max_right (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
+      linarith
+  gcongr
+
+lemma count_le {Q τ Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
+    (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ PBf)
+    (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP) (hp1 : pAP ≤ 1) :
+    161000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+        / (s ^ 4 * τ ^ 2)
+      ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+        * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4 := by
+  have hD : δ' / 2 * (δ' / 4) * (pAP / 2) * τ = δ' ^ 2 * pAP * τ / 16 := by ring
+  rw [hD, show Q + 2 + 2 = Q + 4 by ring]
+  have hD0 : 0 < δ' ^ 2 * pAP * τ / 16 := by positivity
+  have harg1 : 1 ≤ (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16) := by
+    rw [le_div_iff₀ hD0]
+    have h1 : δ' ^ 2 ≤ 1 := by nlinarith
+    have h2 : δ' ^ 2 * pAP ≤ 1 := by nlinarith
+    have h3 : δ' ^ 2 * pAP * τ ≤ 1 := by nlinarith [mul_nonneg (sq_nonneg δ') hp.le]
+    nlinarith
+  have harg : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
+      ≤ 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP) := by
+    have e : (Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)
+        = 16 * (Q + 4) * PB / (δ' ^ 2 * pAP) * (1 / τ) := by
+      field_simp
+    have e2 : 16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)
+        = 16 * (Q + 4) * PBf / (δ' ^ 2 * pAP) * (Θ * ℓ) := by ring
+    have hPBf : 0 ≤ PBf := by linarith
+    rw [e, e2]
+    gcongr
+  have hlog := Real.log_le_log (by linarith) harg
+  have hlog0 : 0 ≤ Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16)) := Real.log_nonneg harg1
+  have hinv2 : 1 / τ ^ 2 ≤ Θ ^ 2 * ℓ ^ 2 := by
+    rw [show 1 / τ ^ 2 = (1 / τ) ^ 2 by ring, show Θ ^ 2 * ℓ ^ 2 = (Θ * ℓ) ^ 2 by ring]
+    exact pow_le_pow_left₀ (by positivity) hinvτ 2
+  have e : 161000 * (Q + 2) ^ 2 * Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+      / (s ^ 4 * τ ^ 2)
+      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log ((Q + 4) * PB / (δ' ^ 2 * pAP * τ / 16))
+        * (1 / τ ^ 2)) := by field_simp
+  rw [e]
+  have e2 : 161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+      * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) / s ^ 4
+      = 161000 * (Q + 2) ^ 2 / s ^ 4 * (Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP))
+        * (Θ ^ 2 * ℓ ^ 2)) := by ring
+  rw [e2]
+  have := hlog0.trans hlog
+  gcongr
+
 end OrthoDFA
 
 

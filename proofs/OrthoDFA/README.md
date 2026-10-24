@@ -22,6 +22,12 @@ bounded. Each claim is proved from the explicit theorems below.
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
   4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
   wrong, both levels at no leaves beyond level 3's `|Q| + 2`.
+- `LoopClaim` (`Claims/Loop.lean`): over `(|Q|, |Σ|, 1/δ, 1/c, 1/ξ, 1/pAP, 1/s₀)`, `c` the coverage,
+  the length `L₀` past which the learner's DFA is right but for `γ + ξ`,
+  `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked on, and, with
+  `L` a coordinate too, every prefix, suffix and probe the whole run reads. Those grow with `L`:
+  each round holds its disagreement rate, and with it the clustering's accuracy, at `c` over the
+  window's `Θ(L)` lengths, so the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 
 ## The explicit theorems
 
