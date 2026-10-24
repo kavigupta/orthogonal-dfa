@@ -613,7 +613,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         ring
       have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
       have h31 : (31 / 32 : ℝ) ≤ lg := le_trans (by linarith only [hinv]) hl
-      have h2 : 0 ≤ (S + 1) * ε := mul_nonneg (by linarith only [hS1]) hε.le
+      have h2 : 0 ≤ (S + 1) * ε := mul_nonneg (by linarith only [hS1]) hεd.le
       rw [e]
       nlinarith only [h31.trans hSl, h2]
     have hB0 : 0 ≤ B₃ := hbud0.trans hbud
