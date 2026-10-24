@@ -299,9 +299,7 @@ end Random
 
 open MeasureTheory Random Random.Kappa Random.Spur RaceTail
 
-/-- `Level5RoundCorrect` with an added floor `εw` on each read's wrong chance. A probe round reads
-at most `w` strings and a re-sift at most `|Q| + f + 2`, so a round costs at most `c`; over the
-round the strings read number at most `b`. -/
+/-- `Level5RoundCorrect` with an added floor `εw` on each read's wrong chance. -/
 def Level5EpsRoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
     (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)

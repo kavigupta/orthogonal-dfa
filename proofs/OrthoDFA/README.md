@@ -323,10 +323,12 @@ what a state's chance of reading undecided is.
   the tests counted it.
 - `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: reads wrong at most `εw` of the time
   (`EpsReadOracle`): level 3's algorithm, unchanged, fails to end well within `|Q| + f + 2` leaves
-  with chance at most `δ`. Its premises are level 5's but for the race tail, which charges `εw` on
-  each of the `b` strings the round reads, a round of reads costing at most `εw` on each of its
-  at most `max(w, |Q| + f + 2)` strings. Both are proved from one argument on reads wrong at most
-  `εw + κ U q`, internal to `Proofs/Level5.lean`.
+  with chance at most `δ`. Its premises are level 5's with `εw` in place of `κ` in the race tail:
+  a probe's reads number at most `w = min(L + 1, 3 + ⌈log₂ L⌉)(|Q| + f + 1)` and a re-sift's
+  `|Q| + f + 2`, each read wrong at most `εw` of the time, so a round of reads costs at most
+  `εw max(w, |Q| + f + 2)`, and the tail charges `εw` on each of the at most `b` strings the
+  L\* round reads. Both levels are proved from one argument on reads wrong at most `εw + κ U q`,
+  internal to `Proofs/Level5.lean`.
 - `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each
   read on its state's wrong side with chance at most `κ U q` (`KappaReadOracle`), fails to end
   well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong reads. Its
