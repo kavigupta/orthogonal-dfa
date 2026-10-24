@@ -707,7 +707,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   obtain ⟨h1, h2, h3, h4⟩ := dfa_tail (k := k) hA hQ0 (Nat.cast_nonneg L) hc hc1 hs0 hs1 hpAP hδ'0
     hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0 (Nat.cast_nonneg n)
     (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hℓ1 hε0 hinvε hcap hlg
-    rfl rfl rfl rfl rfl rfl hRB0 (by rw [hRBd]; exact hRB) hB₃0 hB₃
+    rfl rfl rfl rfl rfl rfl hRB0 hRB hB₃0 hB₃
     (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
   exact learner_loop_dfa_simple_holds M O L η₀ c γ δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
     hceil h1 h2 h3 h4
