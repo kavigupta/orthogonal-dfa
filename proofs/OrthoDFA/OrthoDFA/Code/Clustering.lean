@@ -3,10 +3,10 @@ import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
 /-!
-# The model: the oracle, the algorithm, and the theorem
+# The model: the oracle and the algorithm
 
-Everything `ClusteringGuarantee` mentions is defined here, so auditing the claim means reading
-this file and no other.  Each definition's doc names the Python it models.
+`ClusteringGuarantee`, stated in `OrthoDFA.LowLevelClaims.Clustering`, mentions only what is
+defined here and there.  Each definition's doc names the Python it models.
 
 Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
 `draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
