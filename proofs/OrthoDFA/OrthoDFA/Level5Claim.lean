@@ -11,9 +11,9 @@ taken at `|Q| + f` states (`Level3AllowanceCorrect`) the round fails only where 
 reads meet a fresh wrong read (`RaceTailBound`), or two probes share their first `walkStart`
 letters, so that one probe's wrong read could recur in another's.
 
-A step reads in rounds: its probe's reads and one re-sift per edge of a split, each reading at most
-one string undecided, so costing at most `κ`. Over the round the strings read undecided number at
-most `m`.
+A step reads in rounds: its probe's reads and one re-sift per edge of a split. Each reads at most
+one string undecided, so costs at most `κ` in `RaceTailBound`'s sense, which is the `w` of the
+premise `t κ ≤ 1 − e^{−t'κ}`. Over the L\* round the strings read undecided number at most `m`.
 -/
 
 namespace OrthoDFA

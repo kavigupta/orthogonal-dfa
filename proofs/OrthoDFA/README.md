@@ -323,16 +323,17 @@ what a state's chance of reading undecided is.
   the tests counted it.
 - `OrthoDFA/Level4Claim.lean` — `Level4RoundCorrect`: reads wrong at most `εw` of the time
   (`EpsReadOracle`): level 3's algorithm, unchanged, fails to end well within `|Q| + f + 2` leaves
-  with chance at most `δ` under level 5's premises, the race tail charging `εw` on each of the `b`
-  strings the round reads. Level 5's proof runs on reads wrong at most `εw + κ U q`
-  (`Level5EpsRoundCorrect`, `Proofs/Level5.lean`); levels 4 and 5 are its cases `κ = 0` and
-  `εw = 0`.
+  with chance at most `δ`. Its premises are level 5's but for the race tail, which charges `εw` on
+  each of the `b` strings the round reads, a round of reads costing at most `εw` on each of its
+  at most `max(w, |Q| + f + 2)` strings. Both are proved from one argument on reads wrong at most
+  `εw + κ U q`, internal to `Proofs/Level5.lean`.
 - `OrthoDFA/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each
   read on its state's wrong side with chance at most `κ U q` (`KappaReadOracle`), fails to end
   well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong reads. Its
   premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each site, and
-  `B₃(B₃ − 1)/2 · p₀ + exp(t' κ m)/(1 + t)^(f + 2) ≤ δ/8` for `t κ ≤ 1 − e^{−t' κ}`. Here `m`
-  counts the strings the round reads undecided, within `|Q| + f + 2` leaves, at most one a round.
+  `B₃(B₃ − 1)/2 · p₀ + exp(t' κ m)/(1 + t)^(f + 2) ≤ δ/8` for `t κ ≤ 1 − e^{−t' κ}`. Each round
+  of reads (a probe's, or a re-sift's) reads at most one string undecided, so costs at most `κ`,
+  and `m` counts those strings over the whole L\* round, within `|Q| + f + 2` leaves.
   - A step reads in rounds: its probe's, then one per edge its split re-sifts.
   - Where no two probes share their first `walkStart` letters (the first term), every string read
     belongs to one probe. A round with a fresh wrong read then adds at most one spurious leaf or
