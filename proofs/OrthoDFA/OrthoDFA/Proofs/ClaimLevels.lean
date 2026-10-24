@@ -46,7 +46,8 @@ private def lvProbes₂ : Level2Vec → ℕ
 private def lvSlope : LevelVec → ℝ
   | (Q, _, _, _, iy, L) => (Q + 1) * (6 * iy + 16 * (2 + Nat.clog 2 ⌊L⌋₊))
 
-private def lvLogK (Q A : ℝ) : ℝ := Q * Real.log (1 + (Q + 1) ^ 3 * A) + (Q + 2) * A * Real.log (Q + 3)
+private def lvLogK (Q A : ℝ) : ℝ :=
+  Q * Real.log (1 + (Q + 1) ^ 3 * A) + (Q + 2) * A * Real.log (Q + 3)
 
 private def lvSlack : LevelVec → ℝ
   | (Q, A, _, iδ, iy, _) =>
@@ -174,7 +175,8 @@ private lemma εw_race (nQ nα L B : ℕ) {εw δ iε iy : ℝ} (hδ : 0 < δ)
     _ ≤ _ := mul_le_mul_of_nonneg_right hεw hX0.le
     _ = Real.sqrt δ / (4 * exp 1) := by field_simp
 
-private lemma κ_race (nQ nα : ℕ) {κ δ iε iy L : ℝ} (b c : ℝ) (hδ : 0 < δ) (hδ1 : δ < 1) (hκ0 : 0 ≤ κ)
+private lemma κ_race (nQ nα : ℕ) {κ δ iε iy L : ℝ} (b c : ℝ) (hδ : 0 < δ) (hδ1 : δ < 1)
+    (hκ0 : 0 ≤ κ)
     (hκ : κ ≤ lvκ (nQ, nα, iε, 1 / δ, iy, L)) :
     0 ≤ 0 * b + κ * lvMN nQ nα δ ∧ 0 ≤ 0 * c + κ
       ∧ 0 * b + κ * lvMN nQ nα δ + 2 * (0 * c + κ) ≤ Real.sqrt δ / (4 * exp 1) := by
@@ -258,13 +260,6 @@ private lemma race_tail_apply {lam c δ X : ℝ} {G : Prop} (hδ : 0 < δ) (hl :
 
 /-! ### Big-O, past `4` in every coordinate -/
 
-private lemma one_le_log_of {x : ℝ} (hx : 3 ≤ x) : 1 ≤ Real.log x := by
-  rw [Real.le_log_iff_exp_le (by linarith)]; linarith [Real.exp_one_lt_d9]
-
-private lemma log_le_of_le_pow {x R : ℝ} (k : ℕ) (hx : 0 < x) (h : x ≤ R ^ k) :
-    Real.log x ≤ k * Real.log R := by
-  rw [← Real.log_pow]; exact Real.log_le_log hx h
-
 private lemma clog_le {L : ℝ} (hL : 2 ≤ L) : (Nat.clog 2 ⌊L⌋₊ : ℝ) ≤ 2 * Real.log L + 1 := by
   have hn : 2 ≤ ⌊L⌋₊ := Nat.le_floor (by exact_mod_cast hL)
   have hnL : (⌊L⌋₊ : ℝ) ≤ L := Nat.floor_le (by linarith)
@@ -297,13 +292,14 @@ private lemma probes_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 4 ≤ Q) (hA : 4 
   have hS7 := lvS_le (by linarith : (1 : ℝ) ≤ Q) (by linarith : (1 : ℝ) ≤ A)
   have hQA : 16 ≤ Q ^ 2 * A := by nlinarith
   have hP : 64 ≤ Q ^ 2 * A * iδ := by nlinarith
-  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of (by linarith)
+  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of_three_le (by linarith)
   have hX : Q ^ 2 * A ≤ Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ) := by
     have : 1 ≤ iε * Real.log (Q ^ 2 * A * iδ) := by nlinarith
     nlinarith
   refine ⟨?_, by linarith⟩
   have hlog : Real.log (16 * lvS Q A * (lvS Q A + 1) * iδ) ≤ 4 * Real.log (Q ^ 2 * A * iδ) := by
-    refine (log_le_of_le_pow (R := Q ^ 2 * A * iδ) 4 (by positivity) ?_).trans_eq (by norm_num)
+    refine (log_le_mul_log_of_le_pow (P := Q ^ 2 * A * iδ) 4 (by positivity) ?_).trans_eq
+      (by norm_num)
     have h1 : lvS Q A * (lvS Q A + 1) ≤ 7 * (Q ^ 2 * A) * (8 * (Q ^ 2 * A)) :=
       mul_le_mul hS7 (by linarith) (by linarith) (by positivity)
     have h2 : iδ ≤ iδ ^ 2 := by nlinarith
@@ -335,7 +331,7 @@ private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) 
   have hS7 := lvS_le (by linarith : (1 : ℝ) ≤ Q) (by linarith : (1 : ℝ) ≤ A)
   have hQA : 16 ≤ Q ^ 2 * A := by nlinarith
   have hP : 64 ≤ Q ^ 2 * A * iδ := by nlinarith
-  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of (by linarith)
+  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of_three_le (by linarith)
   have hG0 : 0 ≤ Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ) := by
     have := Real.log_nonneg (by linarith : (1 : ℝ) ≤ Q ^ 2 * A * iδ)
     positivity
@@ -350,7 +346,7 @@ private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) 
     rw [e1, e2]
     have hlog : Real.log (2 * lvS Q A * (lvS Q A + 1) * iδ)
         ≤ 4 * Real.log (Q ^ 2 * A * iδ) := by
-      refine (log_le_of_le_pow (R := Q ^ 2 * A * iδ) 4 (by positivity) ?_).trans_eq
+      refine (log_le_mul_log_of_le_pow (P := Q ^ 2 * A * iδ) 4 (by positivity) ?_).trans_eq
         (by norm_num)
       have h1 : lvS Q A * (lvS Q A + 1) ≤ 7 * (Q ^ 2 * A) * (8 * (Q ^ 2 * A)) :=
         mul_le_mul hS7 (by linarith) (by linarith) (by positivity)
@@ -367,7 +363,8 @@ private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) 
         ≤ 12 * (7 * (Q ^ 2 * A)) * (ig ^ 2 / iε) * (4 * Real.log (Q ^ 2 * A * iδ)) := by
       gcongr
     have h0 : 0 ≤ 12 * lvS Q A * (ig ^ 2 / iε) * Real.log (2 * lvS Q A * (lvS Q A + 1) * iδ) := by
-      have := mul_nonneg (mul_nonneg (by linarith : 0 ≤ 12 * lvS Q A) (by linarith : 0 ≤ ig ^ 2 / iε))
+      have := mul_nonneg
+        (mul_nonneg (by linarith : 0 ≤ 12 * lvS Q A) (by linarith : 0 ≤ ig ^ 2 / iε))
         hlog0
       linarith
     have hc := Nat.ceil_lt_add_one (show 0 ≤ 12 * lvS Q A * (ig ^ 2 / iε)
@@ -383,16 +380,18 @@ private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) 
   · simp only [Nat.cast_zero]; positivity
 
 private lemma slope_pt {Q A iε iδ iy L : ℝ} (hQ : 4 ≤ Q) (hy : 4 ≤ iy) (hL : 4 ≤ L) :
-    0 ≤ lvSlope (Q, A, iε, iδ, iy, L) ∧ lvSlope (Q, A, iε, iδ, iy, L) ≤ 160 * (Q * (iy + Real.log L))
+    0 ≤ lvSlope (Q, A, iε, iδ, iy, L)
+      ∧ lvSlope (Q, A, iε, iδ, iy, L) ≤ 160 * (Q * (iy + Real.log L))
       ∧ 0 ≤ Q * (iy + Real.log L) := by
   simp only [lvSlope]
   have hk := clog_le (by linarith : (2 : ℝ) ≤ L)
-  have hlL := one_le_log_of (by linarith : (3 : ℝ) ≤ L)
+  have hlL := one_le_log_of_three_le (by linarith : (3 : ℝ) ≤ L)
   have hk0 : (0 : ℝ) ≤ Nat.clog 2 ⌊L⌋₊ := Nat.cast_nonneg _
   have h1 : 6 * iy + 16 * (2 + (Nat.clog 2 ⌊L⌋₊ : ℝ)) ≤ 80 * (iy + Real.log L) := by linarith
   refine ⟨mul_nonneg (by linarith) (by linarith), ?_, mul_nonneg (by linarith) (by linarith)⟩
   calc (Q + 1) * (6 * iy + 16 * (2 + (Nat.clog 2 ⌊L⌋₊ : ℝ)))
-      ≤ (2 * Q) * (80 * (iy + Real.log L)) := mul_le_mul (by linarith) h1 (by linarith) (by linarith)
+      ≤ (2 * Q) * (80 * (iy + Real.log L)) :=
+        mul_le_mul (by linarith) h1 (by linarith) (by linarith)
     _ = 160 * (Q * (iy + Real.log L)) := by ring
 
 private lemma slack_pt {Q A iε iδ iy L : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) (hδ : 4 ≤ iδ) (hy : 4 ≤ iy) :
@@ -401,7 +400,7 @@ private lemma slack_pt {Q A iε iδ iy L : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) (h
       ∧ 0 ≤ (Q * A * Real.log (Q * A) + Real.log iδ) * iy := by
   simp only [lvSlack, lvLogK]
   have hR : 16 ≤ Q * A := by nlinarith
-  have hlL := one_le_log_of (by linarith : (3 : ℝ) ≤ Q * A)
+  have hlL := one_le_log_of_three_le (by linarith : (3 : ℝ) ≤ Q * A)
   have hlδ := Real.log_nonneg (by linarith : (1 : ℝ) ≤ iδ)
   have h16 : Real.log 16 ≤ Real.log (Q * A) := Real.log_le_log (by norm_num) hR
   have hQ1 : Real.log (Q + 1) ≤ Real.log (Q * A) := Real.log_le_log (by linarith) (by nlinarith)
@@ -412,7 +411,7 @@ private lemma slack_pt {Q A iε iδ iy L : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) (h
   have hQ3A : 1 ≤ Q ^ 3 * A := by nlinarith [pow_le_pow_left₀ (by norm_num) hQ 3]
   have hA3 : 9 ≤ Q * A ^ 3 := by nlinarith [pow_le_pow_left₀ (by norm_num) hA 3]
   have hcube : Real.log (1 + (Q + 1) ^ 3 * A) ≤ 4 * Real.log (Q * A) := by
-    refine (log_le_of_le_pow (R := Q * A) 4 (by positivity) ?_).trans_eq (by norm_num)
+    refine (log_le_mul_log_of_le_pow (P := Q * A) 4 (by positivity) ?_).trans_eq (by norm_num)
     calc 1 + (Q + 1) ^ 3 * A ≤ 1 + 8 * Q ^ 3 * A := by nlinarith
       _ ≤ 9 * (Q ^ 3 * A) := by linarith
       _ ≤ (Q * A ^ 3) * (Q ^ 3 * A) := by nlinarith
@@ -444,7 +443,8 @@ private lemma slack_pt {Q A iε iδ iy L : ℝ} (hQ : 4 ≤ Q) (hA : 4 ≤ A) (h
         mul_le_mul_of_nonneg_right hsum (by linarith)
     _ = _ := by ring
 
-private lemma p₀_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 4 ≤ Q) (hA : 4 ≤ A) (hε : 4 ≤ iε) (hδ : 4 ≤ iδ) :
+private lemma p₀_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 4 ≤ Q) (hA : 4 ≤ A) (hε : 4 ≤ iε)
+    (hδ : 4 ≤ iδ) :
     |1 / lvP₀ (Q, A, iε, iδ, iy, L)|
       ≤ 8 * (1016 ^ 2 + 1) * |(Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) ^ 2 * iδ| := by
   obtain ⟨hn, hX1⟩ := probes_pt iy L hQ hA hε hδ
@@ -471,12 +471,12 @@ private lemma κ_pt {Q A iδ : ℝ} (iε iy L : ℝ) (hQ : 4 ≤ Q) (hA : 4 ≤ 
     (by linarith : 1 < iδ)
   have hQA : 16 ≤ Q ^ 2 * A := by nlinarith
   have hP : 64 ≤ Q * A * iδ := by nlinarith
-  have hℓ : 1 ≤ Real.log (Q * A * iδ) := one_le_log_of (by linarith)
+  have hℓ : 1 ≤ Real.log (Q * A * iδ) := one_le_log_of_three_le (by linarith)
   have hs : 0 ≤ Real.sqrt iδ := Real.sqrt_nonneg _
   rw [abs_of_nonneg (by positivity), abs_of_nonneg (by positivity)]
   have hlog : Real.log (8 * lvS Q A * (lvS Q A + 1) / (1 / iδ)) ≤ 6 * Real.log (Q * A * iδ) := by
     rw [one_div, div_inv_eq_mul]
-    refine (log_le_of_le_pow (R := Q * A * iδ) 6 (by positivity) ?_).trans_eq (by norm_num)
+    refine (log_le_mul_log_of_le_pow (P := Q * A * iδ) 6 (by positivity) ?_).trans_eq (by norm_num)
     have h1 : lvS Q A * (lvS Q A + 1) ≤ 7 * (Q ^ 2 * A) * (8 * (Q ^ 2 * A)) :=
       mul_le_mul hS7 (by linarith) (by linarith) (by positivity)
     have hu : 1 ≤ A ^ 2 * iδ ^ 3 :=
@@ -514,10 +514,10 @@ private lemma εw_pt {Q A iε iδ L : ℝ} (iy : ℝ) (hQ : 4 ≤ Q) (hA : 4 ≤
   have hn0 : (0 : ℝ) ≤ lvProbes (Q, A, iε, iδ, iy, L) := Nat.cast_nonneg _
   have hW0 := lvW_nonneg L (by linarith : (0 : ℝ) ≤ Q)
   have hk := clog_le (by linarith : (2 : ℝ) ≤ L)
-  have hlL := one_le_log_of (by linarith : (3 : ℝ) ≤ L)
+  have hlL := one_le_log_of_three_le (by linarith : (3 : ℝ) ≤ L)
   have hQA : 16 ≤ Q ^ 2 * A := by nlinarith
   have hP : 64 ≤ Q ^ 2 * A * iδ := by nlinarith
-  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of (by linarith)
+  have hℓ : 1 ≤ Real.log (Q ^ 2 * A * iδ) := one_le_log_of_three_le (by linarith)
   have hs : 0 ≤ Real.sqrt iδ := Real.sqrt_nonneg _
   have hW : lvW Q L ≤ 12 * (Q * Real.log L) := by
     unfold lvW
