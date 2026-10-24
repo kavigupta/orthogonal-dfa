@@ -95,7 +95,9 @@ def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
     if ending.kind == HARVEST_ENDS:
         return lambda charged: charged.ends
     if ending.kind == HARVEST_STUCK:
-        return lambda charged: charged.stuck
+        # Stuck reads do not recur: a later probe's members, tried witnesses
+        # first, place the edge.  Every stuck read is also an end.
+        return lambda charged: charged.ends
     if ending.kind == SCORE_STALLED:
         return lambda charged: charged.ends + charged.stuck + charged.middle
     return lambda charged: charged.middle

@@ -208,14 +208,14 @@ class TestReplay(unittest.TestCase):
             [], Replay(search, harvest_reader(ending), lambda: b"\x01\x01").sample()
         )
 
-    def test_a_stuck_harvest_reads_only_what_sticks_at_an_unlearned_edge(self):
+    def test_a_stuck_harvest_reads_every_end(self):
         edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
         search = quiet_search(parity_cut([b"\x00\x01", b"\x00"]), edges)
         read = harvest_reader(Ending(HARVEST_STUCK, []))
         self.assertEqual(
             [b"\x00\x01"], Replay(search, read, lambda: b"\x00\x01").sample()
         )
-        self.assertEqual([], Replay(search, read, lambda: b"\x00").sample())
+        self.assertEqual([b"\x00"], Replay(search, read, lambda: b"\x00").sample())
 
 
 if __name__ == "__main__":
