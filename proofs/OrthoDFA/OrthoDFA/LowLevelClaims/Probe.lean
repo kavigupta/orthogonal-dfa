@@ -1,5 +1,7 @@
 import OrthoDFA.Code.Probe
 
+/-! What the probe reports of a hypothesis DFA's edges and of the strings it reads undecided. -/
+
 namespace OrthoDFA
 
 variable {α : Type*}

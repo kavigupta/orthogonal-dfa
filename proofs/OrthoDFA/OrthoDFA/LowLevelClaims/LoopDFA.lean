@@ -1,4 +1,5 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
+import OrthoDFA.Code.LearnerLoop
 import OrthoDFA.Code.LoopDFA
 import OrthoDFA.LowLevelClaims.CoveredStart
 
@@ -44,6 +45,10 @@ open MeasureTheory
 open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
+
+/-- Uniform over the lengths `lo` to `hi`, and over the strings of each length. -/
+def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
+  ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
 
 /-- The states at least `c` of the strings of length `L` visit at some position from `⌈L/2⌉` to
 `L`. -/

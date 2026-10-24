@@ -1,4 +1,5 @@
 import OrthoDFA.Code.RoundEnd
+import Mathlib.Computability.DFA
 
 /-!
 # How a round ends well

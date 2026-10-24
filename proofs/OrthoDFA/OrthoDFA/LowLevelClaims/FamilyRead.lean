@@ -1,4 +1,7 @@
 import OrthoDFA.Code.FamilyRead
+import Mathlib.Computability.DFA
+
+/-! The distribution a family's reads of a string follow, and what a band check implies about it. -/
 
 namespace OrthoDFA
 

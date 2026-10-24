@@ -1,18 +1,12 @@
 import OrthoDFA.Code.HypothesisDFA
 
+/-! How a hypothesis DFA, run from a leaf, classifies a string. -/
+
 noncomputable section
 
 namespace OrthoDFA
 
-open MeasureTheory
-open scoped ENNReal
-
 variable {α : Type*} [Fintype α] [DecidableEq α]
-
-/-- Uniform over the strings of length `n`. -/
-def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
-  ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
-    • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
 
 /-- From the leaf `s`, `H` follows learned edges along all of `x` to a leaf, which is on the root's
 accept side exactly when `b`. -/

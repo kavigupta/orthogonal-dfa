@@ -1,5 +1,4 @@
 import OrthoDFA.Code.Level3Harvest
-import OrthoDFA.Code.CoveredStart
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!

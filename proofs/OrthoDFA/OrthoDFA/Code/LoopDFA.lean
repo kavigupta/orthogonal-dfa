@@ -1,17 +1,13 @@
-import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.Code.CoveredStart
+import OrthoDFA.Code.FamilyRead
+
+/-! Choosing the leaf the final hypothesis starts at. -/
 
 noncomputable section
 
 namespace OrthoDFA
 
-open MeasureTheory
-open scoped ENNReal
-
 variable {α : Type*} [Fintype α] [DecidableEq α]
-
-/-- Uniform over the lengths `lo` to `hi`, and over the strings of each length. -/
-def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
-  ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
 
 open scoped Classical in
 /-- How many of `xs` the hypothesis, run from the leaf `s`, classifies as `read` decides them. -/

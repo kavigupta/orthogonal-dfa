@@ -1,5 +1,7 @@
 import OrthoDFA.Code.Clustering
 
+/-! The guarantee of the clustering model in `Code/Clustering.lean`: `ClusteringGuarantee`. -/
+
 namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory

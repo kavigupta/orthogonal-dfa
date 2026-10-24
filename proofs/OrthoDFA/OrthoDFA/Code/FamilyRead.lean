@@ -1,5 +1,4 @@
 import OrthoDFA.Code.Clustering
-import Mathlib.Computability.DFA
 
 /-!
 # The family's read of a string

@@ -32,12 +32,12 @@ bounded. Each claim is proved from the explicit theorems below.
 
 ## The explicit theorems
 
-The headline is `LearnerLoopDFA` (`OrthoDFA/LowLevelClaims/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
-loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
-whole run reads one noise, fixed per string as the Python's is. Each round runs level 3's algorithm
-(`indecisiveLStarLevel3`), guaranteed by `Level5RoundCorrect` at the family's `κ`, reading the
-clustering's family. One-step consistency at `L − 1` is not enough for this (`parity_toggle`,
-#438).
+The headline is `LearnerLoopDFA` (`OrthoDFA/LowLevelClaims/LoopDFA.lean`, proved in
+`Proofs/LoopDFA.lean`): the loop outputs a DFA, and `LearnerLoopDFASimple` states the same at
+explicit settings (below). The whole run reads one noise, fixed per string as the Python's is. Each
+round runs level 3's algorithm (`indecisiveLStarLevel3`), guaranteed by `Level5RoundCorrect` at the
+family's `κ`, reading the clustering's family. One-step consistency at `L − 1` is not enough for
+this (`parity_toggle`, #438).
 
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
@@ -56,8 +56,9 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\*
   round ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, a few
   tolerated, and wrong reads scaling with indecision, a few tolerated.
-- `FamilyKappaOracle` (`OrthoDFA/LowLevelClaims/FamilyOracle.lean`): the clustering's family reads are a
-  `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's `κ`.
+- `FamilyKappaOracle` (`OrthoDFA/LowLevelClaims/FamilyOracle.lean`): the clustering's family reads
+  are a `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's
+  `κ`.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
 
 ## The learner's DFA
@@ -143,18 +144,18 @@ the loop, a quarter to the scores and a quarter to collisions.
 
 ## The loop
 
-`indecisiveLStarLoop` (`OrthoDFA/Code/LearnerLoop.lean`) clusters a family over the populations so far,
-runs level 3 with it, and adds a harvest's sampler, scaled to a probability, as a population of
+`indecisiveLStarLoop` (`OrthoDFA/Code/LearnerLoop.lean`) clusters a family over the populations so
+far, runs level 3 with it, and adds a harvest's sampler, scaled to a probability, as a population of
 every later round. The whole run, every round's clustering and level 3, reads one noise. Each
-round's clustering draws its prefixes, certification prefixes and suffixes off every one the
-earlier rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
+round's clustering draws its prefixes, certification prefixes and suffixes off every one the earlier
+rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
 avoiding those of every prefix the round's clustering read. Whatever its two rates, the family's
 read is on its rarer decided side at most `bandKappa` times as often as undecided (`BandKappaBound`,
-`OrthoDFA/LowLevelClaims/BandKappa.lean`), and the family's size puts `bandKappa` at most `ζ = δ'/(8W)`. So
-the family is level 5's oracle at `εw = 0` and `κ = ζ`. With `f = 0` level 5 tolerates one spurious
-leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most
-`e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
+`OrthoDFA/LowLevelClaims/BandKappa.lean`), and the family's size puts `bandKappa` at most `ζ =
+δ'/(8W)`. So the family is level 5's oracle at `εw = 0` and `κ = ζ`. With `f = 0` level 5 tolerates
+one spurious leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at
+most `e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
     W = max(e √δ' W_m / 2, 1),
 
@@ -221,11 +222,11 @@ state is never such again, so one of the first `|Q| + 1` rounds does not harvest
 
 ## The round, by refinement
 
-Each level proves one L\* round correct and states its ending through `OrthoDFA/LowLevelClaims/RoundEnd.lean`:
-the round ends well when it is consistent, the hypothesis and the tree parting on at most `ε` of
-the probes, or ends in a harvest whose sampler is spread, yields, and puts at most
-`slope·T + slack` of its law on the states read undecided at most `T` of the time. Each level says
-what a state's chance of reading undecided is.
+Each level proves one L\* round correct and states its ending through
+`OrthoDFA/LowLevelClaims/RoundEnd.lean`: the round ends well when it is consistent, the hypothesis
+and the tree parting on at most `ε` of the probes, or ends in a harvest whose sampler is spread,
+yields, and puts at most `slope·T + slack` of its law on the states read undecided at most `T` of
+the time. Each level says what a state's chance of reading undecided is.
 
 1. #417, `Level2RoundCorrect`: ideal reads; a state reads undecided where all its strings do.
 2. #419, `Level3RoundCorrect`: indecision random, decided reads always right.
@@ -260,12 +261,13 @@ what a state's chance of reading undecided is.
   definitions it runs, which every claim is about; `Proofs/` need not be read.
 - `OrthoDFA/Code/Clustering.lean` and `OrthoDFA/LowLevelClaims/Clustering.lean` — the oracle, the
   algorithm, and `ClusteringGuarantee`, the claim. `Code/Clustering.lean` imports only Mathlib.
-- `OrthoDFA/LowLevelClaims/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over a population, the
-  returned family decides a prefix wrongly at most `εcov + slack` of the time on the uniform pool
-  and at most `1/2 + slack` on any other, and leaves it undecided at most `2·indecisionLimit +
-  slack` of the time on each.
-- `OrthoDFA/Code/FamilyRead.lean` and `OrthoDFA/LowLevelClaims/FamilyRead.lean` — the suffix family's read of a string: accept at `X(w) ≥ kh`, reject
-  at `X(w) ≤ kl`, undecided between, where `X(w)` counts the members `v` whose query `w·v` answers
+- `OrthoDFA/LowLevelClaims/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over a
+  population, the returned family decides a prefix wrongly at most `εcov + slack` of the time on the
+  uniform pool and at most `1/2 + slack` on any other, and leaves it undecided at most
+  `2·indecisionLimit + slack` of the time on each.
+- `OrthoDFA/Code/FamilyRead.lean` and `OrthoDFA/LowLevelClaims/FamilyRead.lean` — the suffix
+  family's read of a string: accept at `X(w) ≥ kh`, reject at `X(w) ≤ kl`, undecided between, where
+  `X(w)` counts the members `v` whose query `w·v` answers
   1.  `FamilyReadBound`: with the language a DFA's, the family suffix-free and the band passing
   `BandPasses`, the reads are independent across strings and every DFA state has one distribution
   its strings read with, which is accept at most `ε` of the time, or reject at most `ε`, or
@@ -273,112 +275,111 @@ what a state's chance of reading undecided is.
   most `ε`, or at most `κ` times as often as it is undecided. `BandPasses` is the check the band
   selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`, `ε₂ =
   MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
-- `OrthoDFA/Code/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns from
-  agreeing to disagreeing that steps past undecided positions.
+- `OrthoDFA/Code/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns
+  from agreeing to disagreeing that steps past undecided positions.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
 - `OrthoDFA/Code/DTree.lean` — the discrimination tree, and `DTree.siftWithPath`, sifting a string
   through it under a three-valued cut. `MidfixTree.sift_with_path` is the same function. It also
   holds `sift`, the same sift under a read, and `splitAt`, which splits a leaf. `MidfixTree.split`
   is the same split, naming the leaf by its state.
-- `OrthoDFA/Code/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its leaves,
-  and the walk a string takes along them; `walkEnd` is its last leaf when it follows every letter.
-  `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it
+- `OrthoDFA/Code/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its
+  leaves, and the walk a string takes along them; `walkEnd` is its last leaf when it follows every
+  letter. `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it
   (`hypothesis_dfa.HypothesisDFA.split_leaf`).
-- `OrthoDFA/Code/Probe.lean` and `OrthoDFA/LowLevelClaims/Probe.lean` — `probe`: a string walked along the edges from its first `k` letters'
-  leaf and sifted, and where the two part, found by `tripartiteSearch` without recovery
-  (`counterexample_probe.locate`). `ProbeCorrect`: with the edges witnessed, a wrong edge is one the
-  probe crossed with a string whose successor sifts off its target, an unlearned edge is the one it
-  stopped at, the at most one undecided string it reports reads undecided and is a prefix of the
-  probe followed by a midfix, and a probe on which the walk and the sift part (`Disagrees`) never
-  comes out clean.
+- `OrthoDFA/Code/Probe.lean` and `OrthoDFA/LowLevelClaims/Probe.lean` — `probe`: a string walked
+  along the edges from its first `k` letters' leaf and sifted, and where the two part, found by
+  `tripartiteSearch` without recovery (`counterexample_probe.locate`). `ProbeCorrect`: with the
+  edges witnessed, a wrong edge is one the probe crossed with a string whose successor sifts off its
+  target, an unlearned edge is the one it stopped at, the at most one undecided string it reports
+  reads undecided and is a prefix of the probe followed by a midfix, and a probe on which the walk
+  and the sift part (`Disagrees`) never comes out clean.
 - `OrthoDFA/Code/RateTest.lean` — `rateSide`, the binomial test of a count of hits against a rate.
   `statistics.rate_side` is the same test.
 - `OrthoDFA/Code/SeqTest.lean` — `seqRate`, the sequential likelihood-ratio test of a count of hits
   against a rate. `statistics.seq_rate` is the same test.
 - `OrthoDFA/LowLevelClaims/ProbeDistribution.lean` — how probes are drawn (`PrefixDistribution`).
-- `OrthoDFA/Code/RoundEnd.lean` and `OrthoDFA/LowLevelClaims/RoundEnd.lean` — what it is for a round of the learner to end well, shared by every
-  level: consistent, or a harvest. A harvest is a sampler; it puts at most `slope·T + slack` of
-  what it finds on the states read undecided at most `T` of the time, it finds no string more
-  often than the probes share its first `k` letters (spread), and it finds `y` in all (yields).
-- `OrthoDFA/Code/Level2.lean` — level 2 of indecisive L\*, `indecisiveLStarLevel2`. A disagreement at
-  decided reads splits the edge's leaf at once (Kearns–Vazirani: the probe's prefix and the edge's
-  witness part at the edge's letter and the midfix where their successors' leaves part), and an
-  unlearned edge is learned. The undecided reads probes stop at, and the searches that stopped at
+- `OrthoDFA/Code/RoundEnd.lean` and `OrthoDFA/LowLevelClaims/RoundEnd.lean` — what it is for a round
+  of the learner to end well, shared by every level: consistent, or a harvest. A harvest is a
+  sampler; it puts at most `slope·T + slack` of what it finds on the states read undecided at most
+  `T` of the time, it finds no string more often than the probes share its first `k` letters
+  (spread), and it finds `y` in all (yields).
+- `OrthoDFA/Code/Level2.lean` — level 2 of indecisive L\*, `indecisiveLStarLevel2`. A disagreement
+  at decided reads splits the edge's leaf at once (Kearns–Vazirani: the probe's prefix and the
+  edge's witness part at the edge's letter and the midfix where their successors' leaves part), and
+  an unlearned edge is learned. The undecided reads probes stop at, and the searches that stopped at
   an undecided midpoint (the disagreements), are counted since the hypothesis last changed. After
-  each probe a sequential test (`seqRate`) checks each count against the midpoint of the two
-  rates (`alternativeRate`): the round
-  harvests once the undecided reads' test of `harvestRate` fires, and ends consistent once the
-  disagreements' test of `disagreementRate` fires. Under the `j`-th hypothesis both run at level
-  `δ / (2 (j + 1) (j + 2))`, so each test's levels sum to at most `δ / 2`. With
-  `harvestRate < disagreementRate`, one of the tests fires within `stretchLength` probes under one
-  hypothesis, at most `12 ε / (ε − y)² · log(1/a) + 1` (`stretchBound_mid_le`). A harvest's sampler
-  (`harvestLaw`) draws a fresh probe, walks it under the final hypothesis, and finds the undecided
-  read it stops at.
-- `OrthoDFA/LowLevelClaims/Level2Claim.lean` — `Level2RoundCorrect`: with every state's reads all undecided or all on
-  its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`, `disagreementRate`), `0 < δ < 1` and
-  at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes,
-  `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent with
-  its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler yields
-  `y`, but for chance at most `δ`.
-- `OrthoDFA/Code/Level3.lean` — level 3, `indecisiveLStarLevel3`: level 2's probes with reads drawn at
-  random, the search stopping at an undecided midpoint, as at level 2. A clean disagreement
-  splits the edge's leaf at once and an unlearned edge is learned. Its counts are kept over the
-  stretch since the hypothesis last changed and tested after every probe: the ends (probes whose
-  start or end sift stops undecided) and the middles each by `seqRate` against an alternative
-  (twice `endsRate`, twice `middleRate`), and success, counting the searches and the ends together,
-  by `seqRate` against half `disagreementRate`. Its settings are the yield `y = harvestRate` and
-  the disagreement rate `ε = disagreementRate`; the tests' rates follow from them:
-  `endsRate = y`, `middleRate = 1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test
-  runs at level `δ / (8 (j + 1) (j + 2))`. A harvest is the site whose test fired, `ends` or
-  `middles`.
-- `OrthoDFA/LowLevelClaims/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn once,
-  independently, undecided with its state's chance and never on its state's wrong side, every
+  each probe a sequential test (`seqRate`) checks each count against the midpoint of the two rates
+  (`alternativeRate`): the round harvests once the undecided reads' test of `harvestRate` fires, and
+  ends consistent once the disagreements' test of `disagreementRate` fires. Under the `j`-th
+  hypothesis both run at level `δ / (2 (j + 1) (j + 2))`, so each test's levels sum to at most `δ /
+  2`. With `harvestRate < disagreementRate`, one of the tests fires within `stretchLength` probes
+  under one hypothesis, at most `12 ε / (ε − y)² · log(1/a) + 1` (`stretchBound_mid_le`).
+- `OrthoDFA/LowLevelClaims/Level2Claim.lean` — `Level2RoundCorrect`: with every state's reads all
+  undecided or all on its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`,
+  `disagreementRate`), `0 < δ < 1` and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S`
+  probes, `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent
+  with its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler
+  yields `y`, but for chance at most `δ`. A harvest's sampler (`harvestLaw`, defined there) draws a
+  fresh probe, walks it under the final hypothesis, and finds the undecided read it stops at.
+- `OrthoDFA/Code/Level3.lean` and `OrthoDFA/Code/Level3Harvest.lean` — level 3,
+  `indecisiveLStarLevel3`: level 2's probes with reads drawn at random, the search stopping at an
+  undecided midpoint, as at level 2. A clean disagreement splits the edge's leaf at once and an
+  unlearned edge is learned. Its counts are kept over the stretch since the hypothesis last changed
+  and tested after every probe: the ends (probes whose start or end sift stops undecided) and the
+  middles each by `seqRate` against an alternative (twice `endsRate`, twice `middleRate`), and
+  success, counting the searches and the ends together, by `seqRate` against half
+  `disagreementRate`. Its settings are the yield `y = harvestRate` and the disagreement rate `ε =
+  disagreementRate`; the tests' rates follow from them: `endsRate = y`, `middleRate = 1/4` and
+  `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
+  2))`. A harvest is the site whose test fired, `ends` or `middles`.
+- `OrthoDFA/LowLevelClaims/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn
+  once, independently, undecided with its state's chance and never on its state's wrong side, every
   length-`walkStart` prefix at most `p₀` of the probes, `0 < y ≤ ε/48`, `ε < 1`, `0 < δ`, and at
   least `36 S / ε · log(16 S (S + 1) / δ) + S` probes, level 3 fails to end well, consistent with
-  its hypothesis and tree parting on at most `ε` of the probes (`EndsWell` over
-  `searchSet ∪ endsSet`, the probes that search or stop undecided at their start or end sift) or a
-  harvest whose sampler yields `y` and puts at most `A·T + η/y` of its law on the states read
-  undecided at most `T` of the time, with chance at most `δ`. Here
-  `A = (|Q| + 1)(6/y + 16(2 + ⌈log₂ L⌉))` and `η = p₀ log(8(|Q| + 1)K/δ)`, with
-  `K = (1 + (|Q| + 1)³|Σ|)^|Q| (|Q| + 3)^((|Q| + 2)|Σ|)` counting the trees level 3 can grow with an
-  edge map into each one's leaves. A probe's start and end sifts read at most `3(|Q| + 1)`
-  strings, and a search queries at most `2 + ⌈log₂ L⌉` positions, each sift reading at most
-  `|Q| + 1` strings. Making a string undecided can only stop the search sooner, so the search
-  reaching a position and a string read there undecided have chance at most the product of theirs.
-  At each state's rate `t` and every tree, but for chance `δ/8` at each site over the states, the
-  probes stopping undecided at their start or end at the states read undecided at most `t` of the
-  time are at most `6(|Q| + 1)t + η`, and those stopping at an undecided middle there at most
-  `2(2 + ⌈log₂ L⌉)(|Q| + 1)t` of the searches plus `η` (`harvest_noise`); a middles harvest that
-  ends well finds at least an eighth of the searches. The sampler (`harvestLaw`, in
-  `OrthoDFA/Code/Level3Harvest.lean`) draws a fresh
-  probe, walks it under the final hypothesis and finds the probe's undecided string at the site, as
-  the tests counted it.
-- `OrthoDFA/LowLevelClaims/Level4Claim.lean` — `Level4RoundCorrect`: level 5 on reads wrong at most `εw` of the
-  time (`EpsReadOracle`), with no `κ`: level 3's algorithm, unchanged, fails to end well within
-  `|Q| + f + 2` leaves with chance at most `δ` under level 5's premises at `κ = 0`. Its proof reads
-  the oracle as level 5's at `κ = 0`.
-- `OrthoDFA/LowLevelClaims/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged, with each
-  read on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`), fails to end
-  well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong reads. Its
-  premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each site, and
-  `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t' c}`. Here
-  `c` is a round's cost, and `b` and `m` count the strings the round reads, in all and undecided,
-  within `|Q| + f + 2` leaves.
+  its hypothesis and tree parting on at most `ε` of the probes (`EndsWell` over `searchSet ∪
+  endsSet`, the probes that search or stop undecided at their start or end sift) or a harvest whose
+  sampler yields `y` and puts at most `A·T + η/y` of its law on the states read undecided at most
+  `T` of the time, with chance at most `δ`. Here `A = (|Q| + 1)(6/y + 16(2 + ⌈log₂ L⌉))` and `η = p₀
+  log(8(|Q| + 1)K/δ)`, with `K = (1 + (|Q| + 1)³|Σ|)^|Q| (|Q| + 3)^((|Q| + 2)|Σ|)` counting the
+  trees level 3 can grow with an edge map into each one's leaves. A probe's start and end sifts read
+  at most `3(|Q| + 1)` strings, and a search queries at most `2 + ⌈log₂ L⌉` positions, each sift
+  reading at most `|Q| + 1` strings. Making a string undecided can only stop the search sooner, so
+  the search reaching a position and a string read there undecided have chance at most the product
+  of theirs. At each state's rate `t` and every tree, but for chance `δ/8` at each site over the
+  states, the probes stopping undecided at their start or end at the states read undecided at most
+  `t` of the time are at most `6(|Q| + 1)t + η`, and those stopping at an undecided middle there at
+  most `2(2 + ⌈log₂ L⌉)(|Q| + 1)t` of the searches plus `η` (`harvest_noise`); a middles harvest
+  that ends well finds at least an eighth of the searches. The sampler (`harvestLaw`, in
+  `Code/Level3Harvest.lean`) draws a fresh probe, walks it under the final hypothesis and finds the
+  probe's undecided string at the site, as the tests counted it.
+- `OrthoDFA/LowLevelClaims/Level4Claim.lean` — `Level4RoundCorrect`: level 5 on reads wrong at most
+  `εw` of the time (`EpsReadOracle`), with no `κ`: level 3's algorithm, unchanged, fails to end well
+  within `|Q| + f + 2` leaves with chance at most `δ` under level 5's premises at `κ = 0`. Its proof
+  reads the oracle as level 5's at `κ = 0`.
+- `OrthoDFA/LowLevelClaims/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged,
+  with each read on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`),
+  fails to end well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong
+  reads. Its premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each
+  site, and `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t'
+  c}`. Here `c` is a round's cost, and `b` and `m` count the strings the round reads, in all and
+  undecided, within `|Q| + f + 2` leaves.
   - A step reads in rounds: its probe's, then one per edge its split re-sifts.
   - Where no two probes share their first `walkStart` letters (the first term), every string read
     belongs to one probe. A round with a fresh wrong read then adds at most one spurious leaf or
     one bad edge, and a split on a bad edge drops it.
   - So the tree outgrows `|Q| + f + 2` leaves only after `f + 2` such rounds, which
     `RaceTailBound` bounds; within the allowance, `Level3AllowanceCorrect` gives `7δ/8`.
-- `OrthoDFA/LowLevelClaims/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA target, a
-  suffix-free family and a band read on its rarer decided side at most `κ` times as often as
-  undecided, `RarerBounded`) are level 5's `KappaReadOracle` at `εw = 0`, each state's side the
+- `OrthoDFA/LowLevelClaims/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA
+  target, a suffix-free family and a band read on its rarer decided side at most `κ` times as often
+  as undecided, `RarerBounded`) are level 5's `KappaReadOracle` at `εw = 0`, each state's side the
   one it reads more often (`readSide`).
-- `OrthoDFA/LowLevelClaims/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band, with its reads
-  and each state's read distribution.
-- `OrthoDFA/Code/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
-  reading the family at the gate's cut, and hands its harvest's sampler on as a population.
-- `OrthoDFA/Code/LoopDFA.lean` and `OrthoDFA/LowLevelClaims/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA`.
+- `OrthoDFA/LowLevelClaims/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band,
+  with its reads and each state's read distribution.
+- `OrthoDFA/Code/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs
+  level 3 reading the family at the gate's cut, and hands its harvest's sampler on as a population.
+- `OrthoDFA/Code/LoopDFA.lean` and `OrthoDFA/LowLevelClaims/LoopDFA.lean` — `LearnerLoopDFA` and
+  `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA` (in `Code/`), and `windowStrings`, the
+  distribution the loop draws its probes from (in `LowLevelClaims/`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -395,70 +396,71 @@ probability rather than the algorithm. They are proved under `OrthoDFA/Proofs/` 
   round choosing its strings from what earlier rounds read; some query of the first `n` rounds
   reads bad with chance at most `ε` times the most strings they query while none has.
 
-- `OrthoDFA/LowLevelClaims/RaceTail.lean` — `RaceTailBound`: reads drawn once per string, independently
-  across strings, each bad with chance at most `ε` plus `κ` times its chance of reading in `V`, and
-  queried in rounds; it counts the fresh-bad rounds, those where a string no earlier round queried
-  reads bad. Each round is fixed by what it
-  and the earlier rounds read while fewer than `f` fresh-bad rounds precede it. If the new strings
-  number at most `b` and those in `V` at most `m` over those rounds, each round costing at most `w`,
-  then at least `f` rounds are fresh-bad with chance at most `exp(t'(ε b + κ m))/(1 + t)^f` for
-  `t w ≤ 1 − e^{−t' w}`. The proof: `(1 + t)^c e^{−t'(ε q + κ v)}` at the counts so far has mean at
-  most `1`.
-- `OrthoDFA/LowLevelClaims/Allowance.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its reads
-  independent and undecided at their state's rate but with no premise on wrong reads, fails to end
-  well or grows its tree past `|Q| + f + 2` leaves with chance at most `7δ/8` plus the chance that a
-  step grows it past them (`GrowsRun`), under level 3's premises at `|Q| + f` states, the sampler's
-  bounds at `δ/16` at each site. Level 3's stretches use right reads only to keep the tree in its
-  class; the proof runs level 3's frame on the target padded with `f` unreachable states, with the
-  leaf count as the invariant. A step toward levels 4 and 5.
+- `OrthoDFA/LowLevelClaims/RaceTail.lean` — `RaceTailBound`: reads drawn once per string,
+  independently across strings, each bad with chance at most `ε` plus `κ` times its chance of
+  reading in `V`, and queried in rounds; it counts the fresh-bad rounds, those where a string no
+  earlier round queried reads bad. Each round is fixed by what it and the earlier rounds read while
+  fewer than `f` fresh-bad rounds precede it. If the new strings number at most `b` and those in `V`
+  at most `m` over those rounds, each round costing at most `w`, then at least `f` rounds are
+  fresh-bad with chance at most `exp(t'(ε b + κ m))/(1 + t)^f` for `t w ≤ 1 − e^{−t' w}`. The proof:
+  `(1 + t)^c e^{−t'(ε q + κ v)}` at the counts so far has mean at most `1`.
+- `OrthoDFA/LowLevelClaims/Allowance.lean` — `Level3AllowanceCorrect`: level 3's algorithm, its
+  reads independent and undecided at their state's rate but with no premise on wrong reads, fails to
+  end well or grows its tree past `|Q| + f + 2` leaves with chance at most `7δ/8` plus the chance
+  that a step grows it past them (`GrowsRun`), under level 3's premises at `|Q| + f` states, the
+  sampler's bounds at `δ/16` at each site. Level 3's stretches use right reads only to keep the tree
+  in its class; the proof runs level 3's frame on the target padded with `f` unreachable states,
+  with the leaf count as the invariant. A step toward levels 4 and 5.
 
-- `OrthoDFA/LowLevelClaims/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits at
-  any rates lands at or below a count at least two under its mean no more often than a binomial
+- `OrthoDFA/LowLevelClaims/BitSum.lean` — `BitSumTails` (Hoeffding, 1956): a sum of independent bits
+  at any rates lands at or below a count at least two under its mean no more often than a binomial
   with as many trials or more at a rate the mean clears, and likewise above.
 
-- `OrthoDFA/LowLevelClaims/BandKappa.lean` — `BandKappaBound`: the vote `Bin(a, p) + Bin(N − a, r)`, `N ≤ n`,
-  read at `kl` and `kh`, is on its rarer decided side at most `bandKappa` times as often as it is
-  undecided, whatever `p` and `r`: for any count `c` inside the band, with `Y ~ Bin(n, 1/2)`,
+- `OrthoDFA/LowLevelClaims/BandKappa.lean` — `BandKappaBound`: the vote `Bin(a, p) + Bin(N − a, r)`,
+  `N ≤ n`, read at `kl` and `kh`, is on its rarer decided side at most `bandKappa` times as often as
+  it is undecided, whatever `p` and `r`: for any count `c` inside the band, with `Y ~ Bin(n, 1/2)`,
   `bandKappa = max(P(Y ≥ kh)/P(c ≤ Y < kh), P(Y ≤ kl)/P(kl < Y ≤ c))`. The proof: by Newton's
   inequalities `P(X = j)/C(n, j)` is log-concave in `j`, so from `c` it does not rise or up to `c`
   it does not fall, and either way compares each tail count with each count of the window.
 
-- `OrthoDFA/LowLevelClaims/SuccessiveDraws.lean` — `SuccessiveDrawsTails`: over independent draws, where
-  `T` with any fewer than `n` more strings holds at most `t` of the law, the draws among the first
-  `n` that land in `T` or repeat an earlier one reach a count no more often than `Bin(n, t)` does,
-  and the distinct draws outside `T` that land in `P` reach a count no more often than
-  `Bin(n, D(P))`, and stay at or below one no more often than `Bin(n, D(P) − t)`, does.
+- `OrthoDFA/LowLevelClaims/SuccessiveDraws.lean` — `SuccessiveDrawsTails`: over independent draws,
+  where `T` with any fewer than `n` more strings holds at most `t` of the law, the draws among the
+  first `n` that land in `T` or repeat an earlier one reach a count no more often than `Bin(n, t)`
+  does, and the distinct draws outside `T` that land in `P` reach a count no more often than `Bin(n,
+  D(P))`, and stay at or below one no more often than `Bin(n, D(P) − t)`, does.
 
-- `OrthoDFA/LowLevelClaims/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
+- `OrthoDFA/Code/CoveredStart.lean` and `OrthoDFA/LowLevelClaims/CoveredStart.lean` —
+  `HypothesisDFA.Classifies`, the run of a hypothesis DFA from a leaf along a string, and
+  `CoveredStartCorrect`: where every state of a set `S` has its
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
   (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the
   target at that state classifies `1 - γ` of them with its run staying in `S`
-  (`rerootAccuracy`). Also `uniformStrings`.
+  (`rerootAccuracy`). Also `uniformStrings`, the uniform distribution over the strings of a length.
 
 - `OrthoDFA/LowLevelClaims/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
   `agrees` is where it points, the queries stay between the endpoints and number at most
   `2 + 3⌈log₂(hi − lo)⌉`, or `2 + ⌈log₂(hi − lo)⌉` without recovery, and with nothing undecided it
   finds the turn exactly.
 
-- `OrthoDFA/LowLevelClaims/DTree.lean` — `SiftWithPathCorrect`: the reads are the string followed by each
-  midfix on its way, no more than the tree is deep; a decided sift ends at a leaf, along the path
-  its reads decide, and an undecided one at its only undecided read. `SiftAndSplitCorrect`: `sift`
-  lands where `siftWithPath` does, strings at different leaves read decidedly apart where their
-  paths part, and a split replaces its leaf by two children, reads its midfix there, and changes
-  only the sifts that landed on it.
+- `OrthoDFA/LowLevelClaims/DTree.lean` — `SiftWithPathCorrect`: the reads are the string followed by
+  each midfix on its way, no more than the tree is deep; a decided sift ends at a leaf, along the
+  path its reads decide, and an undecided one at its only undecided read. `SiftAndSplitCorrect`:
+  `sift` lands where `siftWithPath` does, strings at different leaves read decidedly apart where
+  their paths part, and a split replaces its leaf by two children, reads its midfix there, and
+  changes only the sifts that landed on it.
 
-- `OrthoDFA/LowLevelClaims/HypothesisDFA.lean` — `WalkCorrect`: the walk starts at its leaf, follows one
-  learned edge per letter, stops short only at an unlearned one, and stays on the leaves when the
-  edges do. `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps
+- `OrthoDFA/LowLevelClaims/HypothesisDFA.lean` — `WalkCorrect`: the walk starts at its leaf, follows
+  one learned edge per letter, stops short only at an unlearned one, and stays on the leaves when
+  the edges do. `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps
   every learned edge witnessed (`EdgesOK`).
 
-- `OrthoDFA/LowLevelClaims/RateTest.lean` — `RateTestSound`: over independent draws `rateSide` says above
-  with chance at most its failure chance when the true rate is at most the tested one, and below
-  likewise when it is at least.
+- `OrthoDFA/LowLevelClaims/RateTest.lean` — `RateTestSound`: over independent draws `rateSide` says
+  above with chance at most its failure chance when the true rate is at most the tested one, and
+  below likewise when it is at least.
 
-- `OrthoDFA/LowLevelClaims/SeqTest.lean` — `SeqRateSound` (Ville's inequality): over independent draws,
-  testing with `seqRate` at every look fires at some look with chance at most `a` when the true
-  rate is on the far side of `p₀` from `p₁`.
+- `OrthoDFA/LowLevelClaims/SeqTest.lean` — `SeqRateSound` (Ville's inequality): over independent
+  draws, testing with `seqRate` at every look fires at some look with chance at most `a` when the
+  true rate is on the far side of `p₀` from `p₁`.
 
 ## Scope
 

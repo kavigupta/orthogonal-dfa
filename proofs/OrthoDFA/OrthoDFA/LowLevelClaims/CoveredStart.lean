@@ -1,4 +1,5 @@
 import OrthoDFA.Code.CoveredStart
+import Mathlib.Computability.DFA
 
 /-!
 # A hypothesis DFA from a covered start
@@ -16,6 +17,11 @@ open MeasureTheory
 open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
+
+/-- Uniform over the strings of length `n`. -/
+def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
+  ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
+    • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
 
 /-- The share of the strings of length `L` on which the target re-rooted at `q` stays in `S` and
 classifies as the target does. -/

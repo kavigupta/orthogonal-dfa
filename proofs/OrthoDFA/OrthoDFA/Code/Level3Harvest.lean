@@ -1,5 +1,7 @@
 import OrthoDFA.Code.Level3
 
+/-! What level 3's harvest takes from a probe, and the law of what its sampler draws. -/
+
 namespace OrthoDFA
 
 namespace Random
