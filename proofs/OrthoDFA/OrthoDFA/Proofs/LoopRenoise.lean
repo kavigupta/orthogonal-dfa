@@ -2,8 +2,6 @@ import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.LoopAvoid
 import OrthoDFA.Proofs.Renoise
-set_option profiler true
-set_option profiler.threshold 2000
 
 /-!
 # Level 3 read through a re-noised family
