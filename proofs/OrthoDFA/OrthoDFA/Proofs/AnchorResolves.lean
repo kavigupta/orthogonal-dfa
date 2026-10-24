@@ -102,7 +102,7 @@ lemma measurableSet_readsAs_alg (O : Oracle μ S) {T : Set S} {s : S} (hs : s �
 
 omit [IsProbabilityMeasure μ] in
 /-- Functions of disjoint blocks of the noise, one per candidate, are independent. -/
-lemma iIndep_blocks (O : Oracle μ S) (G : Finset S) (blk : S → Finset S)
+lemma iIndepFun_atomBlocks (O : Oracle μ S) (G : Finset S) (blk : S → Finset S)
     (hdisj : ∀ v ∈ G, ∀ v' ∈ G, v ≠ v' → Disjoint (blk v) (blk v')) (Y : S → Ω → ℝ)
     (hY : ∀ v ∈ G, Measurable[noiseAlg O ↑(blk v)] (Y v)) :
     iIndepFun (fun v ω => if v ∈ G then Y v ω else 0) μ := by
@@ -318,7 +318,7 @@ theorem anchorResolves_holds : AnchorResolves := by
     have hnR : (0 : ℝ) < G.card := by exact_mod_cast hn
     set c : ℝ := x * (1 - y)
     set U : S → Ω → ℝ := fun v ω => if v ∈ G then anchorDev O z i b x y v ω + c else 0 with hU
-    have hUind : iIndepFun U μ := iIndep_blocks O G (atomBlock z) hblk
+    have hUind : iIndepFun U μ := iIndepFun_atomBlocks O G (atomBlock z) hblk
       (fun v ω => anchorDev O z i b x y v ω + c)
       (fun v _ => (anchorDev_meas O z i b x y v).add_const c)
     have hUm : ∀ v, Measurable (U v) := by
@@ -377,7 +377,7 @@ theorem anchorResolves_holds : AnchorResolves := by
       rw [this]
       exact MeasurableSet.iInter fun i => measurableSet_readsAs_alg O (mem_atomBlock z v i) _
     set U : S → Ω → ℝ := fun v ω => if v ∈ G then V v ω else 0 with hU
-    have hUind : iIndepFun U μ := iIndep_blocks O G (atomBlock z) hblk V (fun v _ => hVm v)
+    have hUind : iIndepFun U μ := iIndepFun_atomBlocks O G (atomBlock z) hblk V (fun v _ => hVm v)
     have hUm : ∀ v, Measurable (U v) := by
       intro v
       by_cases hv : v ∈ G
