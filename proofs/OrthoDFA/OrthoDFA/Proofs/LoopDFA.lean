@@ -4,6 +4,8 @@ import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopSelect
+set_option profiler true
+set_option profiler.threshold 2000
 
 /-!
 # The learner's DFA: the proof

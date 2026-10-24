@@ -1,5 +1,7 @@
 import OrthoDFA.Proofs.SpurRounds
 import OrthoDFA.Proofs.RaceTail
+set_option profiler true
+set_option profiler.threshold 2000
 
 /-!
 # Spurious leaves cost fresh-bad rounds

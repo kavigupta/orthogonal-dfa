@@ -1,5 +1,7 @@
 import OrthoDFA.Proofs.SpurRounds
 import OrthoDFA.Proofs.KappaCount
+set_option profiler true
+set_option profiler.threshold 2000
 
 /-!
 # What the run's rounds read
