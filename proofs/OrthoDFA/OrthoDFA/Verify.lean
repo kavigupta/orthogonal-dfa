@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.AdaptiveReads
+import OrthoDFA.Proofs.AnchorResolves
 import OrthoDFA.Proofs.BandKappa
 import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
@@ -41,7 +42,7 @@ and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few w
 at both. The loop runs level 5.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
-`Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
+`Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`, `AnchorResolves`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 -/
@@ -108,6 +109,10 @@ theorem band_kappa_bound : BandKappaBound := bandKappaBound_holds
 theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_holds
 
 #print axioms successive_draws_tails
+
+theorem anchor_resolves : AnchorResolves := anchorResolves_holds
+
+#print axioms anchor_resolves
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 

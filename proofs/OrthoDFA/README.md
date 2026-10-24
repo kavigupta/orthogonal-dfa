@@ -397,6 +397,18 @@ need not be read to trust the claims above.
   and the distinct draws outside `T` that land in `P` reach a count no more often than
   `Bin(n, D(P))`, and stay at or below one no more often than `Bin(n, D(P) − t)`, does.
 
+- `OrthoDFA/Utils/AnchorResolves.lean` — `AnchorResolves`: atoms `z_1, …, z_m` each read every
+  candidate suffix `v ∈ G` once, and `C` keeps the candidates whose reads form a most common
+  pattern `b̂`. With the queries `z_i·v` distinct, at least `pAP` of `G` class-preserving,
+  `κ₀ = (1 − 2η₀)²/2` and `t = hoeffDev |G| (δ/(m 2^m + 1))`, but for chance `δ` over the noise,
+  `|C| ≥ (1 − η₀)^m pAP |G| − t` and every atom's state votes on its side of `b̂` with margin,
+  `∑_{v ∈ C} P(MQ(z_i·v) = b̂_i) ≥ (1/2 + κ₀)|C| − t`; so a family drawn uniformly among the
+  `W`-subsets of `C` reads a string at `z_i`'s state off side `b̂_i` with chance at most
+  `exp(−2Wg²)`, `g` the margin left past the band. The side is the majority's, not necessarily
+  `z_i`'s class. The proof: flipping `b̂_i` keeps no more candidates, and
+  `∑_C ρ − (x + y − 2xy)|C| = 2xy(|C| − |A|/2) + ∑_A f_v` with `f_v` independent and centred;
+  the family's tail is Chernoff with Maclaurin's inequality (`Proofs/Maclaurin.lean`).
+
 - `OrthoDFA/Utils/CoveredStart.lean` — `CoveredStartCorrect`: where every state of a set `S` has its
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
   (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the
