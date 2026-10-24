@@ -1,9 +1,24 @@
 # Machine-checked correctness of the E-L\* clustering algorithm
 
-## The theorems
-
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
+
+## The claims
+
+`OrthoDFA/Claims/` states what each part of the learner costs, as big-O shapes in its inputs
+alone. Every cost and every tolerance is something the claim produces: it asserts some function
+of the inputs does the job, and bounds that function with Mathlib's `=O[atTop]`, every coordinate
+of the inputs going to infinity together (each rate as its reciprocal). A cap on an input, such as
+how heavy a population's atoms may be, appears as the largest the claim tolerates, its reciprocal
+bounded. Each claim is proved from the explicit theorems below.
+
+- `ClusteringClaim` (`Claims/Clustering.lean`): over `(|J|, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u,
+  1/ε_w, 1/s₀, nH)`, with `s₀ = 1/2 − η₀` the signal, `ε_u` the indecision limit, `ε_w` the
+  band's cross limit and `nH` the strings harvested, the band width, suffix pool and prefix count
+  of every state it stops at, the prefix count at which some state certifies, and the atom and
+  collision masses its populations must stay under.
+
+## The explicit theorems
 
 The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
 loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
@@ -227,6 +242,7 @@ what a state's chance of reading undecided is.
 
 ## What to read
 
+- `OrthoDFA/Claims/` — the claims above. Each reads the definitions of the files below it names.
 - `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim. It
   imports only Mathlib.
 - `OrthoDFA/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over a population, the

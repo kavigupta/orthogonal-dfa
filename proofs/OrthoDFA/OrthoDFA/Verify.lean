@@ -3,6 +3,7 @@ import OrthoDFA.Proofs.BandKappa
 import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
+import OrthoDFA.Proofs.ClaimClustering
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
@@ -44,9 +45,16 @@ The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `
 `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+
+The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
+`ClusteringClaim`.
 -/
 
 namespace OrthoDFA
+
+theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
+
+#print axioms clustering_claim
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
