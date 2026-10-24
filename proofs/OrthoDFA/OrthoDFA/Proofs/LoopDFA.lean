@@ -4,7 +4,6 @@ import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopSelect
-set_option profiler.threshold 4000
 
 /-!
 # The learner's DFA: the proof
@@ -338,41 +337,27 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
 
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
 theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
-  set_option profiler true in
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ Wm W PB RB
     cap Kc n hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hk1 hk2 hk3 hk4
-  set_option profiler true in
   classical
-  set_option profiler true in
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-  set_option profiler true in
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  set_option profiler true in
   have : Nonempty σ := ⟨M.start⟩
-  set_option profiler true in
   have hQ1 : (1 : ℝ) ≤ Q := by
     show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-  set_option profiler true in
   have hQ0 : (0 : ℝ) ≤ Q := by linarith
-  set_option profiler true in
   have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
-  set_option profiler true in
   have hNe : N = ((L₁ : ℕ) : ℝ) + 1 - k := rfl
-  set_option profiler true in
   have hN1 : (1 : ℝ) ≤ N := by
     have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     rw [hNe]; linarith
-  set_option profiler true in
   have hℓN : ((L₁ : ℝ) + 1) ≤ 2 * N := by
     rw [hNe]
     have : (2 * k : ℕ) ≤ L₁ + 1 := by show 2 * ((L + 1) / 2) ≤ L + Fintype.card σ + 3 + 1; omega
     have : (2 : ℝ) * k ≤ L₁ + 1 := by exact_mod_cast this
     linarith
-  set_option profiler true in
   obtain ⟨q₀, hq₀, hq₀acc⟩ := hceil
-  set_option profiler true in
   have hc1 : c ≤ 1 := hq₀.trans measureReal_le_one
-  set_option profiler true in
   have hwN : 2 + (Nat.clog 2 L₁ : ℝ) ≤ 2 * N := by
     have h1 : 1 ≤ L₁ := by change 1 ≤ L + Fintype.card σ + 3; omega
     have h2 : Nat.clog 2 L₁ ≤ L₁ - 1 :=
@@ -380,22 +365,16 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have : 2 + Nat.clog 2 L₁ ≤ L₁ + 1 := by omega
     have : 2 + (Nat.clog 2 L₁ : ℝ) ≤ L₁ + 1 := by exact_mod_cast this
     linarith
-  set_option profiler true in
   obtain ⟨hε0, hε12, hεc0, hεcε, hι0, hι8, hbad, hcN, hιL⟩ :=
     dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hA2' hN1 (by positivity) hwN hc hc1 hξ rfl rfl
       rfl
-  set_option profiler true in
   have hεcov1 : εcov ≤ 1 := by linarith
-  set_option profiler true in
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
-  set_option profiler true in
   have hδ'1' : δ' < 1 := by
     show δ / (8 * (Q + 1)) < 1
     rw [div_lt_one (by positivity)]
     linarith
-  set_option profiler true in
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
-  set_option profiler true in
   have hKc1 : (1 : ℝ) ≤ Kc := by
     show (1 : ℝ) ≤ (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
@@ -404,7 +383,6 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have h2 : (1 : ℝ) ≤ (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) :=
       one_le_pow₀ (by linarith)
     nlinarith
-  set_option profiler true in
   have hlogK : 2 ≤ Real.log (16 * (Q + 1) * Kc / δ') := by
     rw [Real.le_log_iff_exp_le (by positivity)]
     have he := Real.exp_one_lt_d9
@@ -416,40 +394,31 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     rw [le_div_iff₀ hδ'0]
     nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)]
   -- the walk starts after at least one letter
-  set_option profiler true in
   have hk0 : 1 ≤ k := by
     by_contra h
     have hk : k = 0 := by omega
     rw [hk, pow_zero, inv_one, mul_one] at hk2
     linarith
-  set_option profiler true in
   have hkL : k ≤ L := by
     have : (L + 1) / 2 ≤ L ∨ L = 0 := by omega
     rcases this with h | h
     · exact h
     · exfalso; have : k = 0 := by show (L + 1) / 2 = 0; omega
       omega
-  set_option profiler true in
   let P : PrefixDistribution α := ⟨windowStrings k L₁, windowStrings_isProbability hkL₁, L₁,
     (windowStrings_length k L₁).mono fun x hx => hx.2⟩
-  set_option profiler true in
   have hpm : prefixMax P.D k ≤ (A ^ k)⁻¹ := by
     have := prefixMax_windowStrings_le (α := α) (le_refl k) hkL₁
     rwa [one_div] at this
-  set_option profiler true in
   have : IsProbabilityMeasure P.D := windowStrings_isProbability hkL₁
-  set_option profiler true in
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
-  set_option profiler true in
   obtain ⟨settings, hwalk, hdis, hbud, hnp, hmain⟩ := loop_simple_checks M O P (shortAt M (L + 1))
     η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) (by linarith [hlogK]))).trans hk2)
     ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk4)
-  set_option profiler true in
   refine ⟨settings, hwalk, hdis, hbud, ?_⟩
-  set_option profiler true in
   have hcap0 : 0 < cap := by
     have h1 : 0 < (A ^ k)⁻¹ := by positivity
     by_contra hc0
@@ -458,7 +427,6 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       have := mul_nonpos_of_nonpos_of_nonneg hc0 hε0.le
       linarith
     linarith
-  set_option profiler true in
   have hatom : ∀ v : FreeMonoid α,
       (uniformStrings (L₁ + Fintype.card σ + 3)).real {v} ≤ cap := fun v => by
     refine (uniformStrings_singleton_le _ v).trans ?_
@@ -468,30 +436,20 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     refine h1.trans (hk1.trans ?_)
     have : cap * ε ≤ cap * 1 := mul_le_mul_of_nonneg_left (by linarith) hcap0.le
     linarith
-  set_option profiler true in
   set Dsf : Measure (FreeMonoid α) := uniformStrings (L₁ + Fintype.card σ + 3) with hDsfd
-  set_option profiler true in
   have hD := hmain Dsf inferInstance (uniformStrings_length _) hpAPu hatom
-  set_option profiler true in
   set T := settings.level3.probeBudget
-  set_option profiler true in
   set μL := loopMeasure μ α (Fintype.card σ + 1) T
-  set_option profiler true in
   set β := Measure.pi fun _ : Fin n => uniformStrings (α := α) L
-  set_option profiler true in
   set Nn := P.L + T + 2
-  set_option profiler true in
   set Ls := P.L + Fintype.card σ + 3
-  set_option profiler true in
   set t : ℝ := ξ / 4 with htd
-  set_option profiler true in
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T)) :=
     {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) (shortAt M (L + 1))
             (ε + ε / 96))
         ∧ RoundsFresh settings O P.D Dsf Nn Ls p)} with hBloopd
-  set_option profiler true in
   set Sel : ℕ → Set ((Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
       × (Fin n → FreeMonoid α)) := fun r =>
     if hr : r < Fintype.card σ + 1 then
@@ -499,7 +457,6 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     with hSeld
   -- the loop's last round, consistent and fresh, picks well unless its scores stray or a
   -- held-out string collides
-  set_option profiler true in
   have hsub : {q : (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
         × (Fin n → FreeMonoid α) |
       let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
@@ -591,7 +548,6 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
       have h0 : 0 ≤ εcov * N := mul_nonneg hεc0.le (zero_le_one.trans hN1)
       linarith only [hcN, h0]
   -- the loop's failure, and each round's selection
-  set_option profiler true in
   have hBl : (μL.prod β).real (Prod.fst ⁻¹' Bloop) ≤ δ / 2 := by
     have e : (μL.prod β).real (Prod.fst ⁻¹' Bloop) = μL.real Bloop := by
       rw [← Set.prod_univ, measureReal_def, measureReal_def, Measure.prod_prod, measure_univ,
@@ -601,7 +557,6 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     show (Q + 1) * (5 * (δ / (8 * (Q + 1))) / 2) ≤ δ / 2
     have e : (Q + 1) * (5 * (δ / (8 * (Q + 1))) / 2) = 5 * δ / 16 := by field_simp; ring
     rw [e]; linarith
-  set_option profiler true in
   have hsel : ∀ r ∈ Finset.range (Fintype.card σ + 1), (μL.prod β).real (Sel r)
       ≤ δ / (2 * (Q + 1)) := by
     intro r hr
@@ -625,124 +580,80 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring
     rw [e1, e2, htd]
     exact dfa_select_arith hQ0 hA2' hδ hξ hkL (Nat.le_ceil _) hbud (Nat.floor_le hRB0) hk3
-  set_option profiler true in
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
-  set_option profiler true in
   refine (measureReal_union_le _ _).trans ?_
-  set_option profiler true in
   refine (add_le_add hBl ((measureReal_biUnion_finset_le _ _).trans
     (Finset.sum_le_sum hsel))).trans (le_of_eq ?_)
-  set_option profiler true in
   rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-  set_option profiler true in
   show δ / 2 + ((Fintype.card σ + 1 : ℕ) : ℝ) * (δ / (2 * (Q + 1))) = δ
-  set_option profiler true in
   push_cast
-  set_option profiler true in
   field_simp
-  set_option profiler true in
   ring
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the simple claim's settings
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  set_option profiler true in
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
     P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
-  set_option profiler true in
   classical
-  set_option profiler true in
   have : Nonempty σ := ⟨M.start⟩
-  set_option profiler true in
   have hQ1 : (1 : ℝ) ≤ Q := by
     show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-  set_option profiler true in
   have hQ0 : (0 : ℝ) ≤ Q := by linarith
-  set_option profiler true in
   have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  set_option profiler true in
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-  set_option profiler true in
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  set_option profiler true in
   have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
-  set_option profiler true in
   have hkr : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
-  set_option profiler true in
   have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
-  set_option profiler true in
   have hN1 : 1 ≤ N := by show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith
-  set_option profiler true in
   have hNℓ : N ≤ (L₁ : ℝ) + 1 := by show (L₁ : ℝ) + 1 - k ≤ _; linarith
-  set_option profiler true in
   have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith
-  set_option profiler true in
   have hc1 : c ≤ 1 := by
     obtain ⟨q₀, hq₀, -⟩ := hceil
     exact hq₀.trans measureReal_le_one
-  set_option profiler true in
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
-  set_option profiler true in
   have hδ'1 : δ' ≤ 1 := by
     show δ / (8 * (Q + 1)) ≤ 1
     rw [div_le_one (by positivity)]
     linarith
-  set_option profiler true in
   have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
-  set_option profiler true in
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
-  set_option profiler true in
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
-  set_option profiler true in
   set εcov : ℝ := min ε (ξ / (8 * N)) with hεcd
-  set_option profiler true in
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
-  set_option profiler true in
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
-  set_option profiler true in
   set J : ℝ := Q + 2 with hJd
-  set_option profiler true in
   set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1 with hWd
-  set_option profiler true in
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
-  set_option profiler true in
   set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2) with hRBd
-  set_option profiler true in
   set cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
         (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
       (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
-  set_option profiler true in
   obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
     dfa_rate_bounds (ℓ := ℓ) hQ1 hA hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀ rfl rfl rfl rfl rfl rfl rfl rfl
-  set_option profiler true in
   have hτ1 : τ ≤ 1 := by
     have h1 : ι ≤ εcov / 8 := min_le_left _ _
     have h2 : εcov ≤ ε := min_le_left _ _
     have h3 : ε ≤ 1 := rate_le_one hc1 hA hN1
     exact (min_le_right _ _).trans (by linarith)
-  set_option profiler true in
   have hS1 : 1 ≤ S := by
     show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
-  set_option profiler true in
   have hlS : 0 ≤ Real.log (16 * S * (S + 1) / δ') := log_budget_nonneg hS1 hδ'0 hδ'1
-  set_option profiler true in
   have hB₃ : B₃ ≤ K₁ * ℓ := budget_le (by linarith) hε0 hinvε hℓ1 hlS
-  set_option profiler true in
   have hB₃0 : 0 ≤ B₃ := by
     show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     positivity
-  set_option profiler true in
   have hK₁0 : 0 ≤ K₁ := by
     show 0 ≤ 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
     positivity
-  set_option profiler true in
   have hWW : W ≤ W₀ * ℓ ^ 2 := by
     have hWm0 : 0 ≤ Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
@@ -750,9 +661,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       show 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
       positivity
     exact w_le hℓ1 hWm0
-  set_option profiler true in
   have hW1 : 1 ≤ W := le_max_right _ _
-  set_option profiler true in
   have hW₀1 : 1 ≤ W₀ := by
     have : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
@@ -763,24 +672,18 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       positivity
     show 1 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
     linarith
-  set_option profiler true in
   obtain ⟨hPB1, hPB⟩ := pb_le (Q := Q) (W := W) (W₀ := W₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hW₀1
     hWW hδ'0 hδ'1 hs0 hs1 hpAP hp1
-  set_option profiler true in
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ0 hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
-  set_option profiler true in
   have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := rfl
-  set_option profiler true in
   obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1
     (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
-  set_option profiler true in
   have hR₀ : 0 ≤ R₀ := by
     have := log_count_nonneg hQ0 hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
     show 0 ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2
       * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
     positivity
-  set_option profiler true in
   have hτm : τ ≤ min (εcov / 2) ι := by
     refine le_min ?_ (min_le_right _ _)
     have ha := gateA_le_one hη0 hη₀
@@ -792,13 +695,10 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       have : 0 < εcov := lt_min hε0 (by positivity)
       positivity
     exact (min_le_left _ _).trans (mul_le_of_le_one_right hεc0 hsq)
-  set_option profiler true in
   have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
-  set_option profiler true in
   have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hτ0
     hinvτ hι0 hinvι hΘ1 hℓ1 hRB0 (by rw [hRBd]; exact hRB) (by linarith) (by rw [hPBJ]; exact hPB)
     (by linarith) hR₀ hδ'0 hδ'1 hpAP hp1 hs0 hs1 hτm rfl
-  set_option profiler true in
   have hE₁0 : 0 < E₁ := by
     show 0 < (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
       + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -806,14 +706,11 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     have : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
     have : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
     positivity
-  set_option profiler true in
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
-  set_option profiler true in
   have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
     Real.log_nonneg (by
       rw [le_div_iff₀ hδ'0]
       nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
-  set_option profiler true in
   have hEE : 1 ≤ E + E₂ := by
     have hE₁ : 1 ≤ E₁ := by
       show 1 ≤ (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
@@ -838,42 +735,19 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
     show 1 ≤ 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε + E₂
     exact le_add_of_le_of_nonneg (le_add_of_le_of_nonneg h2 h1) hE₂
-  set_option profiler true in
   have hE₃ : 0 ≤ E₃ := by show 0 ≤ 16 * K₁ ^ 2 / δ'; positivity
-  set_option profiler true in
   have hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
     dfa_pow (L := (L : ℝ)) (Q := Q) hA
       (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hQ0
       (Nat.cast_nonneg L) (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega))
       rfl hL₀
-  set_option profiler true in
   have hℓ6 : 0 ≤ ℓ ^ 6 := by positivity
-  set_option profiler true in
   have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
     (mul_le_mul_of_nonneg_left (by linarith only [hE₃]) hℓ6).trans hpow3
-  set_option profiler true in
   obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) (J := J) (RB := RB) (B₃ := B₃) (by positivity)
     hℓ1 hε0 hinvε haε0 hcap hE₁0 hlg rfl rfl hQ0 (Nat.cast_nonneg n) hδ rfl hRB0
     (by rw [hRBd]; exact hRB) hB₃0 hB₃ hpow
-  set_option profiler true in
-  have h4 : 16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' := by
-    have hAk : 0 < A ^ k := by positivity
-    have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * ℓ ^ 6 := by
-      have h1 : B₃ ^ 2 ≤ (K₁ * ℓ) ^ 2 := pow_le_pow_left₀ hB₃0 hB₃ 2
-      have h2 : ℓ ^ 2 ≤ ℓ ^ 6 := pow_le_pow_right₀ hℓ1 (by norm_num)
-      have h3 : (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 := by ring
-      have h4 := mul_le_mul_of_nonneg_left h2 (sq_nonneg K₁)
-      linarith only [h1, h3, h4]
-    have hE3 : ℓ ^ 6 * E₃ ≤ A ^ k := by
-      have : ℓ ^ 6 * E₃ ≤ ℓ ^ 6 * (E + E₂ + E₃) :=
-        mul_le_mul_of_nonneg_left (by linarith only [hEE]) hℓ6
-      linarith only [this, hpow3]
-    rw [← div_eq_mul_inv, div_le_iff₀ hAk]
-    have e : ℓ ^ 6 * E₃ * δ' = 16 * K₁ ^ 2 * ℓ ^ 6 := by
-      show ℓ ^ 6 * (16 * K₁ ^ 2 / δ') * δ' = _; field_simp
-    have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
-    linarith only [h5, e, hB2]
-  set_option profiler true in
+  have h4 := dfa_noise_tail hℓ1 hB₃0 hB₃ rfl hδ'0 hEE hpow3 (by positivity)
   exact learner_loop_dfa_simple_holds M O L η₀ c γ δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
     hceil h1 h2 h3 h4
 

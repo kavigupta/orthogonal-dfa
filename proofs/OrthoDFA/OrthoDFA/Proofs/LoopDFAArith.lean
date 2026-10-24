@@ -703,6 +703,26 @@ lemma kc_ge_one {Q A : ℝ} {m e : ℕ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) :
   have h2 : (1 : ℝ) ≤ (Q + 3) ^ e := one_le_pow₀ (by linarith)
   exact one_le_mul_of_one_le_of_one_le h1 h2
 
+lemma dfa_noise_tail {B₃ K₁ ℓ Ak E E₂ E₃ δ' : ℝ} (hℓ : 1 ≤ ℓ) (hB₃0 : 0 ≤ B₃)
+    (hB₃ : B₃ ≤ K₁ * ℓ) (hE₃ : E₃ = 16 * K₁ ^ 2 / δ') (hδ'0 : 0 < δ') (hEE : 1 ≤ E + E₂)
+    (hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ Ak) (hAk : 0 < Ak) : 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
+  have hℓ6 : 0 ≤ ℓ ^ 6 := pow_nonneg (by linarith) 6
+  have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * ℓ ^ 6 := by
+    have h1 : B₃ ^ 2 ≤ (K₁ * ℓ) ^ 2 := pow_le_pow_left₀ hB₃0 hB₃ 2
+    have h2 : ℓ ^ 2 ≤ ℓ ^ 6 := pow_le_pow_right₀ hℓ (by norm_num)
+    have h3 : (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 := by ring
+    have h4 := mul_le_mul_of_nonneg_left h2 (sq_nonneg K₁)
+    linarith only [h1, h3, h4]
+  have hE3 : ℓ ^ 6 * E₃ ≤ Ak := by
+    have : ℓ ^ 6 * E₃ ≤ ℓ ^ 6 * (E + E₂ + E₃) :=
+      mul_le_mul_of_nonneg_left (by linarith only [hEE]) hℓ6
+    linarith only [this, hpow3]
+  rw [← div_eq_mul_inv, div_le_iff₀ hAk]
+  have e : ℓ ^ 6 * E₃ * δ' = 16 * K₁ ^ 2 * ℓ ^ 6 := by
+    rw [hE₃]; field_simp
+  have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
+  linarith only [h5, e, hB2]
+
 end OrthoDFA
 
 
