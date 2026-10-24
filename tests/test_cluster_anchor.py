@@ -42,14 +42,24 @@ class TestClusterAnchor(unittest.TestCase):
         # The family asks for more than the keepers, so the rest pad it after them.
         self.assertGreater(np.mean(shifts[vs[:KEEPERS]] == 0), 0.9)
 
-    def test_the_family_reads_anchored_prefixes_as_the_seed(self):
+    def test_the_family_reads_anchored_prefixes_alike(self):
         reads, _ = _pool(0)
         anchored = [0, 1, 2]
         vs, _ = identify_cluster_around(
             cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY, anchored
         )
         self.assertTrue(vs)
-        self.assertTrue((reads[vs][:, anchored] == reads[0, anchored]).all())
+        self.assertEqual(len(np.unique(reads[vs][:, anchored], axis=0)), 1)
+
+    def test_the_family_reads_an_anchored_prefix_as_most_keepers_not_the_seed(self):
+        # Residue 3 accepts, so most keepers read prefix 3 as 1.
+        reads, shifts = _pool(0)
+        reads[0, 3] = 0
+        vs, _ = identify_cluster_around(
+            cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY, [3]
+        )
+        self.assertTrue((reads[vs, 3] == 1).all())
+        self.assertGreater(np.mean(shifts[vs[:150]] == 0), 0.9)
 
 
 if __name__ == "__main__":

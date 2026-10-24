@@ -24,8 +24,12 @@ def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float, anchored: List[bytes]
 ) -> Tuple[List[int], float]:
     """The first count of the rest of the pool in nearest_to_anchor_group's
-    order, anchored on seed's reads, among the suffixes that read every prefix
-    in anchored as seed does.  The seed anchors but does not vote: with
+    order, anchored on seed's reads, among the suffixes v with
+
+        (x_{z v})_{z in anchored} = b̂,   b̂ = argmax_b |{v in G : (x_{z v})_z = b}|,
+
+    x_{z v} the read of z v, G the group that order leads with, and ties going
+    to the least b in lexicographic order.  The seed anchors but does not vote: with
     the empty seed voting, reading z at a midfix m would read the very string
     the read of z·m reads at the root, so node reads would share noise."""
     # Restrict to representative prefix columns: the suffix family and the
@@ -37,14 +41,10 @@ def identify_cluster_around(
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
     signal = pst.config.min_signal_strength
-    others = np.arange(len(reads)) != seed_local
-    if anchored:
-        columns = _representative_columns(pst.table, anchored)
-        others &= (reads[:, columns] == reads[seed_local, columns]).all(1)
-    others = np.flatnonzero(others)
+    others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = []
     if len(others):
-        order = nearest_to_anchor_group(
+        order, leading = nearest_to_anchor_group(
             reads[others],
             reads[seed_local],
             list(pst.table.population_masks().values()),
@@ -56,7 +56,16 @@ def identify_cluster_around(
             alpha=pst.config.screening_alpha,
             rng=pst.rng,
         )
-        cluster += others[order[:count]].tolist()
+        order = others[order]
+        if anchored:
+            # The seed's own read of z is one noisy read, wrong with chance about
+            # the noise rate, and would then keep only suffixes misreading z.
+            signs = reads[:, _representative_columns(pst.table, anchored)]
+            patterns, counts = np.unique(
+                signs[order[:leading]], axis=0, return_counts=True
+            )
+            order = order[(signs[order] == patterns[np.argmax(counts)]).all(1)]
+        cluster += order[:count].tolist()
     if not cluster:
         return [], decision_boundary
 
