@@ -200,4 +200,49 @@ theorem looseEndsWell_of_endsWell (D : Measure (FreeMonoid α)) [IsProbabilityMe
       nlinarith only [mul_le_mul_of_nonneg_left hyield h1m.le, hRU0]
   | failed => exact h
 
+omit [DecidableEq α] in
+/-- At most half of `E` and `u` more in `S'` at the avoiding probes, `S'` holding every avoiding
+probe of `S`, is at most half of `E` and `u + m` more in `S` at all of `D`. -/
+theorem real_inter_le_of_avoiding (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    {E S S' : Set (FreeMonoid α)} (hS : ∀ x ∈ avoiding k K₀, x ∈ S → x ∈ S') {u : ℝ} (hu : 0 ≤ u)
+    (hm : D.real (avoiding k K₀)ᶜ ≤ 1 / 2)
+    (h : (popLaw (D.restrict (avoiding k K₀))).real (E ∩ S')
+      ≤ (popLaw (D.restrict (avoiding k K₀))).real E / 2 + u) :
+    D.real (E ∩ S) ≤ D.real E / 2 + (u + D.real (avoiding k K₀)ᶜ) := by
+  classical
+  set A := avoiding (α := α) k K₀
+  set m := D.real Aᶜ with hmd
+  have hA : D.real A = 1 - m := by
+    rw [hmd, probReal_compl_eq_one_sub (measurableSet_of_countable A)]; ring
+  have hApos : 0 < D.real A := by rw [hA]; linarith
+  have hA0 : D.restrict A Set.univ ≠ 0 := by
+    rw [Measure.restrict_apply_univ]
+    intro h0
+    rw [measureReal_def, h0, ENNReal.toReal_zero] at hApos
+    exact lt_irrefl _ hApos
+  have hAtop : D.restrict A Set.univ ≠ ⊤ := measure_ne_top _ _
+  have hD' : ∀ X, (popLaw (D.restrict A)).real X = D.real (X ∩ A) / D.real A := by
+    intro X
+    unfold popLaw
+    rw [if_neg (by tauto)]
+    simp only [measureReal_def, Measure.smul_apply, smul_eq_mul, ENNReal.toReal_mul,
+      ENNReal.toReal_inv, Measure.restrict_apply_univ,
+      Measure.restrict_apply (measurableSet_of_countable X)]
+    rw [div_eq_inv_mul]
+  rw [hD', hD', div_le_iff₀ hApos, add_mul] at h
+  have h1 : D.real (E ∩ S) ≤ D.real (E ∩ S' ∩ A) + m := by
+    have hsplit := measureReal_inter_add_sdiff₀ (μ := D) (s := E ∩ S)
+      (measurableSet_of_countable A).nullMeasurableSet (measure_ne_top _ _)
+    have hinter : D.real (E ∩ S ∩ A) ≤ D.real (E ∩ S' ∩ A) :=
+      measureReal_mono (fun x ⟨⟨h1, h2⟩, h3⟩ => ⟨⟨h1, hS x h3 h2⟩, h3⟩) (measure_ne_top _ _)
+    have hdiff : D.real ((E ∩ S) \ A) ≤ m :=
+      measureReal_mono (fun x hx => hx.2) (measure_ne_top _ _)
+    linarith
+  have h2 : D.real (E ∩ A) ≤ D.real E :=
+    measureReal_mono Set.inter_subset_left (measure_ne_top _ _)
+  have h3 : D.real A ≤ 1 := measureReal_le_one
+  have h5 : D.real (E ∩ A) / D.real A / 2 * D.real A = D.real (E ∩ A) / 2 := by
+    field_simp
+  nlinarith [mul_le_mul_of_nonneg_left h3 hu]
+
 end OrthoDFA

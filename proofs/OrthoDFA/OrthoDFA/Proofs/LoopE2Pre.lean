@@ -25,11 +25,11 @@ variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Me
 /-- Over probes at most `L` long, whether level 3 fails its claim is fixed by the family's reads
 of the strings at most `max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes. -/
 theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (A sl u : ℝ)
-    (xs : Fin C.probeBudget → FreeMonoid α) {ω ω' : Ω'}
+    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (A sl : ℝ)
+    (E : σ → Set (FreeMonoid α)) (u : ℝ) (xs : Fin C.probeBudget → FreeMonoid α) {ω ω' : Ω'}
     (h : ∀ z, z.toList.length ≤ max (L + C.probeBudget + 2)
       (probesLen xs + 1 + C.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
-    (ω, xs) ∈ level3Fail fam C D' A sl u → (ω', xs) ∈ level3Fail fam C D' A sl u := by
+    (ω, xs) ∈ level3Fail fam C D' A sl E u → (ω', xs) ∈ level3Fail fam C D' A sl E u := by
   classical
   have hlenP : ∀ x : FreeMonoid α, ∀ j, j ≤ x.toList.length → ∀ m : FreeMonoid α,
       (prefixOf x j * m).toList.length ≤ x.toList.length + m.toList.length := by
@@ -58,33 +58,41 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
   have hlaw := Random.harvestLaw_congr_zone (r := fun z => fam.read ω z)
     (r' := fun z => fam.read ω' z) D' C.walkStart H {x | x.toList.length ≤ L} hnull
     (fun x hx j _ hj m hm => hz x hx j hj m hm)
-  have hdis : disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H
-      =ᵐ[D'] disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H := by
+  have hdis : disagreeSet (fun z => fam.read ω z) C.walkStart H
+      =ᵐ[D'] disagreeSet (fun z => fam.read ω' z) C.walkStart H := by
     filter_upwards [hlen] with x hx
     have hp : probeOrAgree (fun z => fam.read ω z) H.tree H.edges C.walkStart x
         = probeOrAgree (fun z => fam.read ω' z) H.tree H.edges C.walkStart x :=
       Random.probeOrAgree_congr_zone H.edges C.walkStart fun j _ hj m hm => hz x hx j hj m hm
-    have hr : ∀ m ∈ Random.mids H.tree, fam.read ω (x * m) = fam.read ω' (x * m) := by
-      intro m hm
-      have := hz x hx x.toList.length le_rfl m hm
-      rwa [prefixOf_length] at this
-    have e1 : x ∈ Random.searchSet (fun z => fam.read ω z) C.walkStart H
-        ↔ x ∈ Random.searchSet (fun z => fam.read ω' z) C.walkStart H := by
-      simp only [Random.searchSet, Set.mem_ofPred_eq]; rw [hp]
-    have e2 : x ∈ Random.endsSet (fun z => fam.read ω z) C.walkStart H
-        ↔ x ∈ Random.endsSet (fun z => fam.read ω' z) C.walkStart H := by
-      simp only [Random.endsSet, Set.mem_ofPred_eq]; rw [hp]
-    have e3 : x ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H.tree
-        ↔ x ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H.tree := by
-      constructor
-      · rintro ⟨hk, m, hm, hw⟩
-        exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [← hr m hm]; exact hw⟩
-      · rintro ⟨hk, m, hm, hw⟩
-        exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [hr m hm]; exact hw⟩
     apply propext
-    show x ∈ disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H
-      ↔ x ∈ disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H
-    simp only [disagreeSet, Set.mem_union, e1, e2, e3]
+    show x ∈ disagreeSet (fun z => fam.read ω z) C.walkStart H
+      ↔ x ∈ disagreeSet (fun z => fam.read ω' z) C.walkStart H
+    simp only [disagreeSet, Set.mem_union, Random.searchSet, Random.endsSet, Set.mem_ofPred_eq, hp]
+  -- a probe at most `L` long, and its extension by a letter, read alike past every midfix
+  have hrr : ∀ z : FreeMonoid α, z.toList.length ≤ L + 1 →
+      (z ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H.tree
+        ↔ z ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H.tree) := by
+    intro z hzl
+    have hr : ∀ m ∈ Random.mids H.tree, fam.read ω (z * m) = fam.read ω' (z * m) :=
+      fun m hm => h _ (by
+        have := hmid m hm
+        simp only [FreeMonoid.toList_mul, List.length_append]
+        omega)
+    constructor
+    · rintro ⟨hk, m, hm, hw⟩
+      exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [← hr m hm]; exact hw⟩
+    · rintro ⟨hk, m, hm, hw⟩
+      exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [hr m hm]; exact hw⟩
+  have hmis : ∀ q a, D'.real (E q ∩ misledSet fam.M fam.readDist (fun z => fam.read ω z)
+        C.walkStart H.tree a)
+      = D'.real (E q ∩ misledSet fam.M fam.readDist (fun z => fam.read ω' z)
+        C.walkStart H.tree a) := by
+    intro q a
+    refine measureReal_congr ?_
+    filter_upwards [hlen] with x hx
+    have hxa : (x * FreeMonoid.of a).toList.length ≤ L + 1 := by simp; omega
+    exact propext (and_congr_right fun _ => and_congr_right fun _ =>
+      or_congr (hrr x (by omega)) (hrr _ hxa))
   have hsuff : ∀ E : RoundEnd Random.Level3Site,
       EndsWell
         { target := fam.M,
@@ -92,8 +100,8 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
           harvestSlope := A,
           harvestSlack := sl,
           probes := D',
-          disagreeRate := C.disagreementRate + u,
-          disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H,
+          disagreeRate := C.disagreementRate,
+          disagree := disagreeSet (fun z => fam.read ω' z) C.walkStart H,
           walkStart := C.walkStart,
           harvestLaw := Random.harvestLaw (fun z => fam.read ω' z) D' C.walkStart H,
           yield := C.harvestRate,
@@ -104,8 +112,8 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
           harvestSlope := A,
           harvestSlack := sl,
           probes := D',
-          disagreeRate := C.disagreementRate + u,
-          disagree := disagreeSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H,
+          disagreeRate := C.disagreementRate,
+          disagree := disagreeSet (fun z => fam.read ω z) C.walkStart H,
           walkStart := C.walkStart,
           harvestLaw := Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart H,
           yield := C.harvestRate,
@@ -122,7 +130,7 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
   intro hω
   simp only [level3Fail, Set.mem_ofPred_eq] at hω ⊢
   rw [← hres]
-  exact fun hg => hω ⟨hsuff _ hg.1, hg.2⟩
+  exact fun hg => hω ⟨hsuff _ hg.1, hg.2.1, fun q a => by rw [hmis q a]; exact hg.2.2 q a⟩
 
 end Reads
 
