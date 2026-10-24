@@ -57,8 +57,6 @@ private lemma rs_le {ie iu is : ℝ} (hie : 0 < ie) (hiu : 0 < iu) (his : 2 ≤ 
   have := mul_le_mul_of_nonneg_left this hie.le
   linarith
 
-private lemma div_one_div' (a b : ℝ) : a / (1 / b) = a * b := by rw [one_div, div_inv_eq_mul]
-
 private lemma kB_bound {ie iu iw is r : ℝ} (hie : 3 ≤ ie) (hiu : 3 ≤ iu) (hiw : 3 ≤ iw)
     (his : 3 ≤ is) (hr : 0 < r) (hr2 : 1 / r ≤ ie * is ^ 2 + iu) :
     0 ≤ kB (1 / is) r (1 / iw)
