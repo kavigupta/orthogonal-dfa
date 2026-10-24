@@ -19,9 +19,11 @@ leaf that scores best on `n` held-out strings of length `L`, drawn after the loo
 scored by how many of them its run classifies as the last round's family reads them, the undecided
 ones counting for none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the time across the
 window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the time at some
-length; the probes that disagree in a consistent round, searching, stopping undecided at their
-start or end sift, or reading a string on its state's rarer side, must be fewer. Level 3's own
-success test bounds the first two at its disagreement rate.
+length by probes that disagree in a consistent round, searching or stopping undecided at their
+start or end sift, unless the probe or its extension reads a string on its state's rarer side.
+Level 3's own success test bounds the disagreeing probes at its disagreement rate. Which probes
+cross the edge is fixed by the target before any read, and a misread is rare and independent of
+it, so but for chance at most half of them, and a little more, are misled.
 
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
@@ -101,14 +103,15 @@ def LearnerLoopDFASimple : Prop :=
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-  -- The strings a round can read wrong; the clustering's band must keep them right.
-  let W : ℝ := B₃ * (min (L₁ + 1) (3 + Nat.clog 2 L₁) : ℕ) * Q + Q * (Q + 1) ^ 2 * A
-    + (Q + 1) * A ^ Fintype.card σ / ε
+  -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
+  -- level 5's race tail.
+  let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
+  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
   -- The clustering's prefix count.
-  let RB : ℝ := 64000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -133,8 +136,10 @@ def LearnerLoopDFASimple : Prop :=
   (A ^ k)⁻¹ ≤ cap * ε / 1536 →
   -- for each round's harvests to concentrate at every state's rate,
   1536 * Real.log (16 * (Q + 1) * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
-  -- and for the held-out strings to read only fresh strings.
+  -- for the held-out strings to read only fresh strings,
   (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  -- and for no two of a round's probes to share their walk start.
+  16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
@@ -175,15 +180,16 @@ def LearnerLoopDFA : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`.
+  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
-  let W₀ : ℝ := K₁ * Q + Q * (Q + 1) ^ 2 * A + (Q + 1) * A ^ Fintype.card σ * aε
+  let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
+  let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-  let R₀ : ℝ := 64000 * (Q + 2) ^ 2 * Θ ^ 2
+  let R₀ : ℝ := 161000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
     + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -192,9 +198,10 @@ def LearnerLoopDFA : Prop :=
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
   -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂) + 6 * Real.log T) / Real.log A
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
     + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →

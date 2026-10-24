@@ -557,12 +557,12 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov δ' α pAP
     crossLimit hsig hη0 hpop hind hε hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 64000
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 161000
         + harvestCap η₀ indecisionLimit εcov hsz := by
     rw [budgetCap, harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
-    ρ₀ pAP crossLimit 64000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+    ρ₀ pAP crossLimit 161000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
@@ -700,7 +700,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hPm := measureReal_finset_le_card (D j) hρj P
     have hPc : (P.card : ℝ) * ρ ≤ Jc * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
     nlinarith
-  have hff : flipFrac η₀ ≤ 7 / 20 := by
+  have hff : flipFrac η₀ ≤ 1 / 10 := by
     rw [flipFrac, sig, div_le_iff₀ (by linarith)]
     nlinarith
   have hrej : 2 * rejFrac η₀ iL εcov ≤ εcov / 1024 := by

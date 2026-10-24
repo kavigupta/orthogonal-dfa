@@ -14,7 +14,7 @@ from .prefix_sources import UniformSource, draw_many
 class PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
     the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), and the
+    sampling distribution even if the other populations are skewed), and the
     populations the rounds have made, with a ``seen`` set to dedup the boundary
     strings across them."""
 

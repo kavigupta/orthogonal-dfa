@@ -44,7 +44,7 @@ Known modelling gap. The Python reads the family with its seed, at `pst.accept_t
 `pst.reject_thresh`.
 
 Known modelling gap. `counterexample_driven_synthesis` also runs the certificate, halves the FNR
-limit, stops on a stall or on certificate patience, adds per-state populations and returns the
+limit, stops on a stall or on certificate patience and returns the
 best round. None of these is modelled.
 -/
 
