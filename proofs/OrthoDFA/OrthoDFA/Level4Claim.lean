@@ -4,9 +4,9 @@ import OrthoDFA.Level3Claim
 # `Level4RoundCorrect`: level 3 with rare wrong reads, a few tolerated
 
 Level 3 (`indecisiveLStarLevel3`) runs with each read on its state's wrong side with chance at
-most `εw` (`EpsReadOracle`), otherwise as `ReadOracle` says. It is level 5 at `κ = 0`: up to
-`f + 1` rounds of reads may meet a wrong read, the round still ending well within `|Q| + f + 2`
-leaves, under level 3's premises at `|Q| + f` states.
+most `εw` (`EpsReadOracle`), otherwise as `ReadOracle` says. As at level 5, up to `f + 1` rounds
+of reads may meet a wrong read, the round still ending well within `|Q| + f + 2` leaves, under
+level 3's premises at `|Q| + f` states.
 -/
 
 namespace OrthoDFA

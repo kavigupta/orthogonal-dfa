@@ -37,7 +37,7 @@ in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
 with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
-and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
+and level 5's wrong at most `κ` times as often as undecided, a few wrong reads tolerated
 at both. The loop runs level 5.
 
 The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
