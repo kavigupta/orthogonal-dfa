@@ -6,31 +6,31 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 ## The claims
 
 `OrthoDFA/Claims/` states what each part of the learner costs, as big-O shapes in its inputs
-alone. Every cost and every tolerance is something the claim produces: it asserts some function
-of the inputs does the job, and bounds that function with Mathlib's `=O[𝓟 R]`: one constant for
-every input vector in a region `R` (each rate as its reciprocal), so the bound keeps its meaning
-with some inputs held fixed. Each claim also states that every instance's vector lies in `R`,
-which is why the hypotheses ask for such things as `δ ≤ 1/2`. A cap on an input, such as how heavy
-a population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
+alone. Each claim's inputs are a record (`ClusterInputs`, …) of counts and rates, and the claim
+holds for every record in a region `R` that spells out the hypotheses, such as `0 < δ ≤ 1/2`. Every
+cost and every tolerance is something the claim produces: it asserts some function of the inputs
+does the job, and bounds that function with Mathlib's `=O[𝓟 R]`, one constant for all of `R`, so
+the bound keeps its meaning with some inputs held fixed. A cap on an input, such as how heavy a
+population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
 Each claim is proved from the explicit theorems below.
 
-- `ClusteringClaim` (`Claims/Clustering.lean`): over `(|J|, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u,
-  1/ε_w, 1/s₀, nH)`, with `s₀ = 1/2 − η₀` the signal, `ε_u` the indecision limit, `ε_w` the
-  band's cross limit and `nH` the strings harvested, the band width, suffix pool and prefix count
-  of every state it stops at, the prefix count at which some state certifies, and the atom and
-  collision masses its populations must stay under.
-- `LevelsClaim` (`Claims/Levels.lean`): over `(|Q|, |Σ|, 1/ε, 1/δ, 1/y, L)`, one round's probe
-  budget at each level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
+- `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
+  signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
+  the band width, suffix pool and prefix count of every state it stops at, the prefix count at
+  which some state certifies, and the atom and collision masses its populations must stay under;
+  it fails with chance at most `δ`. `ClusteringClaimSimple` bounds each by a single product, e.g.
+  the prefix count by `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+- `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
+  level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
   4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
   wrong, both levels at no leaves beyond level 3's `|Q| + 2`.
-- `LoopClaim` (`Claims/Loop.lean`): over `(|Q|, |Σ|, 1/δ, 1/c, 1/ξ, 1/pAP, 1/s₀)`, `c` the coverage,
-  the length `L₀` past which the learner's DFA is right but for `γ + ξ`,
-  `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked on, and, with
-  `L` a coordinate too, every prefix, suffix and probe the whole run reads. Those grow with `L`
-  because the settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)`
-  over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as
-  `log L`.
+- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
+  which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
+  held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
+  prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
+  proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
+  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 
 ## The explicit theorems
 

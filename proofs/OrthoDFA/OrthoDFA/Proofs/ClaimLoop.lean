@@ -19,6 +19,11 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 
+/-- `(|Q|, |Σ|, 1/δ, 1/c, 1/ξ, 1/pAP, 1/s₀)`. -/
+private abbrev LoopVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
+
+private def vecRegion : Set LoopVec := Set.Ici (1, 2, 2, 1, 1, 1, 2)
+
 private lemma loopΘ_inv (Q A ic iξ is : ℝ) :
     loopΘ Q A (1 / ic) (1 / iξ) (1 / 2 - 1 / is)
       = (4 * (A + 1) * ic + 8 * iξ) * is ^ 2 / 2 + 8 * (4 * (A + 1) * ic + 8 * iξ)
@@ -941,71 +946,123 @@ private def claimProbes : ℝ × LoopVec → ℝ
 private def claimHeldOut : LoopVec → ℕ
   | (Q, _, iδ, _, iξ, _, _) => ⌈32 * log (16 * (Q + 1) * (Q + 2) / (1 / iδ)) / (1 / iξ) ^ 2⌉₊
 
-private lemma loop_region {Q A iδ ic iξ ip is : ℝ} (hb : (Q, A, iδ, ic, iξ, ip, is) ∈ loopRegion) :
+private lemma loop_region {Q A iδ ic iξ ip is : ℝ} (hb : (Q, A, iδ, ic, iξ, ip, is) ∈ vecRegion) :
     1 ≤ Q ∧ 2 ≤ A ∧ 2 ≤ iδ ∧ 1 ≤ ic ∧ 1 ≤ iξ ∧ 1 ≤ ip ∧ 2 ≤ is := by
-  simpa only [loopRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
+  simpa only [vecRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
 
 private lemma loop_region' {L Q A iδ ic iξ ip is : ℝ}
-    (hb : (L, Q, A, iδ, ic, iξ, ip, is) ∈ Set.Ici 0 ×ˢ loopRegion) :
+    (hb : (L, Q, A, iδ, ic, iξ, ip, is) ∈ Set.Ici 0 ×ˢ vecRegion) :
     0 ≤ L ∧ 1 ≤ Q ∧ 2 ≤ A ∧ 2 ≤ iδ ∧ 1 ≤ ic ∧ 1 ≤ iξ ∧ 1 ≤ ip ∧ 2 ≤ is := by
   rw [Set.mem_prod] at hb
   exact ⟨hb.1, loop_region hb.2⟩
 
+private lemma claimL0_isBigO : claimL0 =O[𝓟 vecRegion]
+    (fun (Q, A, iδ, ic, iξ, ip, is) => log (Q * A * iδ * ic * iξ * ip * is) / log A
+      : LoopVec → ℝ) := by
+  refine isBigO_principal.2 ⟨1000, fun b hb => ?_⟩
+  obtain ⟨Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region hb
+  simpa only [Real.norm_eq_abs, claimL0] using claim_L0_le hQ hA hiδ hic hiξ hip his
+
+private lemma claimPref_isBigO : claimPref =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)]
+    (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+      Q ^ 4 * (L + Q) ^ 2 * log ((L + Q) * A * iδ * ic * iξ * ip * is)
+        * ((A ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * A ^ 2 * ic ^ 2 * is ^ 4)
+      : ℝ × LoopVec → ℝ) := by
+  refine isBigO_on (2 ^ 74) fun b hb => ?_
+  obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
+  obtain ⟨h0, h⟩ := claim_pref_le hL hQ hA hiδ hic hiξ hip his
+  exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
+
+private lemma claimSuff_isBigO : claimSuff =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)]
+    (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+      Q * (log ((L + Q) * A * iδ * ic * iξ * is) * ip * is ^ 2 + log (Q * iδ) * ip ^ 2)
+      : ℝ × LoopVec → ℝ) := by
+  refine isBigO_on (2 ^ 13) fun b hb => ?_
+  obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
+  obtain ⟨h0, h⟩ := claim_suff_le hL hQ hA hiδ hic hiξ hip his
+  exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
+
+private lemma claimProbes_isBigO : claimProbes =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)]
+    (fun (L, Q, A, iδ, ic, _, _, _) => Q ^ 3 * A ^ 2 * (L + Q) * ic * log (Q * A * iδ)
+      : ℝ × LoopVec → ℝ) := by
+  refine isBigO_on (2 ^ 19) fun b hb => ?_
+  obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hL, hQ, hA, hiδ, hic, -, -, -⟩ := loop_region' hb
+  obtain ⟨h0, h⟩ := claim_probes_le hL hQ hA hiδ hic
+  exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
+
+private lemma claimHeldOut_isBigO : (fun v => (claimHeldOut v : ℝ)) =O[𝓟 vecRegion]
+    (fun (Q, _, iδ, _, iξ, _, _) => log (Q * iδ) * iξ ^ 2 : LoopVec → ℝ) := by
+  refine isBigO_on (2 ^ 9) fun b hb => ?_
+  obtain ⟨Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hQ, -, hiδ, -, hiξ, -, -⟩ := loop_region hb
+  have h := claim_heldOut_le hQ hiδ hiξ
+  exact ⟨Nat.cast_nonneg _,
+    nonneg_of_mul_nonneg_right ((Nat.cast_nonneg _).trans h) (by positivity), h⟩
+
+private def toVec (x : LoopInputs) : LoopVec :=
+  (x.Q, x.A, 1 / x.δ, 1 / x.c, 1 / x.ξ, 1 / x.pAP, 1 / x.s₀)
+
+private def toRunVec (r : LoopRun) : ℝ × LoopVec := (r.L, toVec r.toLoopInputs)
+
+private lemma toVec_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toVec x ∈ vecRegion := by
+  obtain ⟨hQ, hA, hδ, hδ2, hc, hc1, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
+  simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
+  exact ⟨by exact_mod_cast hQ, by exact_mod_cast hA, (le_div_iff₀ hδ).2 (by linarith),
+    (le_div_iff₀ hc).2 (by linarith), (le_div_iff₀ hξ).2 (by linarith),
+    (le_div_iff₀ hp).2 (by linarith), (le_div_iff₀ hs).2 (by linarith)⟩
+
+private lemma transfer {f g : LoopVec → ℝ} {g' : LoopInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
+    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 loopRegion] g' :=
+  (isBigO_comp_on h fun _ hx => toVec_mem hx).congr_right hg
+
+private lemma transferRun {f g : ℝ × LoopVec → ℝ} {g' : LoopRun → ℝ}
+    (h : f =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)] g) (hg : ∀ r, g (toRunVec r) = g' r) :
+    (fun r => f (toRunVec r)) =O[𝓟 loopRunRegion] g' :=
+  (isBigO_comp_on (φ := toRunVec) h fun r hr => Set.mk_mem_prod
+    (Set.mem_Ici.2 (Nat.cast_nonneg r.L)) (toVec_mem hr)).congr_right hg
+
 theorem loopClaim_holds : LoopClaim := by
-  refine ⟨claimL0, claimPref, claimSuff, claimProbes, claimHeldOut, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_principal.2 ⟨1000, fun b hb => ?_⟩
-    obtain ⟨Q, A, iδ, ic, iξ, ip, is⟩ := b
-    obtain ⟨hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region hb
-    simpa only [Real.norm_eq_abs, claimL0] using claim_L0_le hQ hA hiδ hic hiξ hip his
-  · refine isBigO_on (2 ^ 74) fun b hb => ?_
-    obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
-    obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
-    obtain ⟨h0, h⟩ := claim_pref_le hL hQ hA hiδ hic hiξ hip his
-    exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
-  · refine isBigO_on (2 ^ 13) fun b hb => ?_
-    obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
-    obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
-    obtain ⟨h0, h⟩ := claim_suff_le hL hQ hA hiδ hic hiξ hip his
-    exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
-  · refine isBigO_on (2 ^ 19) fun b hb => ?_
-    obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
-    obtain ⟨hL, hQ, hA, hiδ, hic, -, -, -⟩ := loop_region' hb
-    obtain ⟨h0, h⟩ := claim_probes_le hL hQ hA hiδ hic
-    exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h) (by positivity), h⟩
-  · refine isBigO_on (2 ^ 9) fun b hb => ?_
-    obtain ⟨Q, A, iδ, ic, iξ, ip, is⟩ := b
-    obtain ⟨hQ, -, hiδ, -, hiξ, -, -⟩ := loop_region hb
-    have h := claim_heldOut_le hQ hiδ hiξ
-    exact ⟨Nat.cast_nonneg _,
-      nonneg_of_mul_nonneg_right ((Nat.cast_nonneg _).trans h) (by positivity), h⟩
-  · intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ v k L₁ hL hη hη0 hη₀ hc hc1 hδ hδ2 hpAP hpAP1
-      hξ hξ1 hA2 hpAPu hceil hL₀
-    have hreg : v ∈ loopRegion := by
-      have : Nonempty σ := ⟨M.start⟩
-      have hs0 : 0 < 1 / 2 - η₀ := by linarith
-      simp only [v, loopRegion, Set.mem_Ici, Prod.mk_le_mk]
-      exact ⟨by exact_mod_cast Fintype.card_pos, by exact_mod_cast hA2,
-        (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hc).2 (by linarith),
-        (le_div_iff₀ hξ).2 (by linarith), (le_div_iff₀ hpAP).2 (by linarith),
-        (le_div_iff₀ hs0).2 (by linarith)⟩
-    have hL₀' : loopL0 (Fintype.card σ) (Fintype.card α) (Fintype.card σ) (Fintype.card α) δ c ξ
-        pAP η₀ ≤ L := by
-      have e : claimL0 v = loopL0 (Fintype.card σ) (Fintype.card α) (Fintype.card σ)
-          (Fintype.card α) δ c ξ pAP η₀ := by
-        simp only [v, claimL0, Nat.floor_natCast, one_div_one_div, sub_sub_cancel]
-      rw [← e]
-      exact hL₀
-    obtain ⟨settings, hw, -, -, hcnt, hprob⟩ := learner_loop_dfa_counts M O L η₀ c γ δ pAP ξ hL hη
-      hη₀ hc hδ (by linarith) hpAP hξ hA2 hpAPu hceil hL₀'
-    refine ⟨hreg, settings, hw, fun draws => ?_, ?_⟩
-    · obtain ⟨h1, h2, h3⟩ := hcnt draws
-      refine ⟨h1.trans_eq ?_, h2.trans_eq ?_, h3.trans_eq ?_⟩ <;>
-        simp only [v, claimPref, claimSuff, claimProbes, one_div_one_div, sub_sub_cancel]
-    · have e : claimHeldOut v
-          = ⌈32 * log (16 * ((Fintype.card σ : ℝ) + 1) * ((Fintype.card σ : ℝ) + 2) / δ)
-            / ξ ^ 2⌉₊ := by
-        simp only [v, claimHeldOut, one_div_one_div]
-      rw [e]
-      exact hprob
+  refine ⟨fun x => claimL0 (toVec x), fun r => claimPref (toRunVec r),
+    fun r => claimSuff (toRunVec r), fun r => claimProbes (toRunVec r),
+    fun x => claimHeldOut (toVec x),
+    transfer claimL0_isBigO fun x => by simp only [toVec]; ring_nf,
+    transferRun claimPref_isBigO fun r => by simp only [toRunVec, toVec]; ring_nf,
+    transferRun claimSuff_isBigO fun r => by simp only [toRunVec, toVec]; ring_nf,
+    transferRun claimProbes_isBigO fun r => by simp only [toRunVec, toVec]; ring_nf,
+    transfer claimHeldOut_isBigO fun x => by simp only [toVec]; ring_nf, ?_⟩
+  intro α _ _ _ σ _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hηle hpAPu hceil hL₀
+  obtain ⟨Q, A, δ, c, ξ, pAP, s₀⟩ := x
+  simp only [loopRegion, Set.mem_ofPred_eq] at hx hQ hA hηle hpAPu hceil
+  obtain ⟨-, hA2, hδ, hδ2, hc, hc1, hξ, hξ1, hpAP, hpAP1, hs, hs1⟩ := hx
+  obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 1 / 2 - η₀ := ⟨1 / 2 - s₀, by ring⟩
+  subst hQ hA
+  rw [sub_sub_cancel] at hηle
+  have hη₀ : η₀ < 1 / 2 := by linarith
+  have hL₀' : loopL0 (Fintype.card σ) (Fintype.card α) (Fintype.card σ) (Fintype.card α) δ c ξ
+      pAP η₀ ≤ L := by
+    have e : claimL0 (toVec ⟨Fintype.card σ, Fintype.card α, δ, c, ξ, pAP, 1 / 2 - η₀⟩)
+        = loopL0 (Fintype.card σ) (Fintype.card α) (Fintype.card σ) (Fintype.card α) δ c ξ
+          pAP η₀ := by
+      simp only [toVec, claimL0, Nat.floor_natCast, one_div_one_div, sub_sub_cancel]
+    rw [← e]
+    exact hL₀
+  obtain ⟨settings, hw, -, -, hcnt, hprob⟩ := learner_loop_dfa_counts M O L η₀ c γ δ pAP ξ hL
+    hηle hη₀ hc hδ (by linarith) hpAP hξ (by exact_mod_cast hA2) hpAPu hceil hL₀'
+  refine ⟨settings, hw, fun draws => ?_, ?_⟩
+  · obtain ⟨h1, h2, h3⟩ := hcnt draws
+    refine ⟨h1.trans_eq ?_, h2.trans_eq ?_, h3.trans_eq ?_⟩ <;>
+      simp only [toRunVec, toVec, claimPref, claimSuff, claimProbes, one_div_one_div,
+        sub_sub_cancel]
+  · have e : claimHeldOut (toVec ⟨Fintype.card σ, Fintype.card α, δ, c, ξ, pAP, 1 / 2 - η₀⟩)
+        = ⌈32 * log (16 * ((Fintype.card σ : ℝ) + 1) * ((Fintype.card σ : ℝ) + 2) / δ)
+          / ξ ^ 2⌉₊ := by
+      simp only [toVec, claimHeldOut, one_div_one_div]
+    beta_reduce
+    rw [e]
+    exact hprob
 
 end OrthoDFA
