@@ -1,7 +1,9 @@
 # pylint: disable=duplicate-code
 import unittest
+from dataclasses import dataclass
 
 from automata.fa.dfa import DFA
+from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
@@ -232,6 +234,40 @@ class TestSampler(unittest.TestCase):
     def test_length_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
             P.satisfies_preconditions(MOD3, length=40, sampler=UniformSampler(15))
+
+
+@dataclass(frozen=True)
+class _SampledUniform(UniformSampler):
+    """Uniform, but not by type, so the conditions are sampled rather than exact."""
+
+
+class TestExactMatchesSampled(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ("mod3", MOD3),
+            ("difficult09", DIFFICULT09),
+            ("recurrent_but_uncovered", RECURRENT_BUT_UNCOVERED),
+            ("mod9_skewed", MOD9_SKEWED),
+            ("marginal_cp", MARGINAL_CLASS_PRESERVING),
+            ("too_few_cp", TOO_FEW_CLASS_PRESERVING),
+        ]
+    )
+    def test_exact_matches_sampled(self, _name, dfa):
+        exact = P.satisfies_preconditions(dfa, length=40, short_circuit=False)
+        sampled = P.satisfies_preconditions(
+            dfa, length=40, short_circuit=False, sampler=_SampledUniform(40)
+        )
+        self.assertEqual(bool(exact), bool(sampled))
+        self.assertEqual(exact.uncovered_states, sampled.uncovered_states)
+        for field in (
+            "acceptance_rate",
+            "class_preserving_fraction",
+            "covered_accuracy_ceiling",
+        ):
+            # 4 standard deviations of a proportion over 2000 samples
+            self.assertAlmostEqual(
+                getattr(exact, field), getattr(sampled, field), delta=0.045
+            )
 
 
 if __name__ == "__main__":
