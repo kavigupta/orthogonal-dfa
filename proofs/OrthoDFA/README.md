@@ -70,6 +70,23 @@ at most `R` per position times that of a string from `⌈L/2⌉` on. With
 probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
 `⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
 
+`LearnerLoopDFASummed` (`OrthoDFA/LoopDFASummed.lean`, proved in `Proofs/LoopDFASummed.lean`)
+takes the same relative rule and proves it directly, summing occupancy over the wrong states
+instead of asking each state to clear a coverage. A state is wrong when an edge out of its true
+leaf is wrong or unlearned, or it is read on its wrong side. A string `y` at a state `q` with a
+wrong edge at `a` disagrees, has `y·a` disagreeing, or is misled; each `y` has one state, so over
+the window the wrong-edge states occupy at most `2N((|Σ|+1)β + |Q|β')` (`wrongEdge_occupancy_le`),
+the `|Q|` because `FewMisled`'s slack `β'` is per state and letter. The family's wrong and
+undecided reads are bounded on average over the window, and a string at a state read on its wrong
+side has `2·misread + undecided ≥ 1`, so those states hold at most `N(2εr + εu)`
+(`wrongSide_mass_le`). With `ε = m/(3(|Σ|+|Q|+1)N)`, `m = min c (3ξ/(8R))`, the wrong states
+together occupy less than `m`, so a start covered at `c` is not wrong, and a good run from it is
+classified correctly unless it visits a wrong dominated state, which costs at most `C m ≤ 3ξ/4`
+(`dfa_of_checks_summed`). The pick gets `ξ/4`: `εcov = min(ε, ξ/(32N))`,
+`n = ⌈512 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`. At the settings above with `c ≥ 3ξ/(8R)`, the least `L`
+meeting `LearnerLoopDFASummedSimple`'s hypotheses is 369, 377, 395 at `R = 2` and 387, 395, 415
+at `R = 10`, for `ξ = 0.1, 0.05, 0.01`.
+
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
 past a midfix and nothing undecided at their sifts, cross a learned edge between their states'
@@ -219,7 +236,11 @@ what a state's chance of reading undecided is.
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
 - **The relative rule's start.** The Python may start at any state its 2000 samples visit in the
-  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
+  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`, and
+  `LearnerLoopDFASummed`'s at `c`, its rate `ε` scaling with `min c (3ξ/(8R))`.
+- **The summed rule's `|Q|`.** `FewMisled` bounds the misled probes per state and letter, so
+  summing it over the wrong-edge states charges `|Q|` slacks; a bound summed over the states, at a
+  letter chosen per state, would remove it.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
   read wrong at most `κ` of the time. They cap `ζ` only through `2(|Q|+1)ζ < 1/2`, at the
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
