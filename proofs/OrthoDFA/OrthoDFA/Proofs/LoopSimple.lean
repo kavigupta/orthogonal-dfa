@@ -358,7 +358,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
   have hlogS : 0 ≤ Real.log (16 * S * (S + 1) / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
   set budget : ℕ := ⌈36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S⌉₊ with hbudd
   have hbud : (budget : ℝ) ≤ B₃ := by
     have := Nat.ceil_lt_add_one (show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S by
@@ -603,7 +603,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       ≤ δ' / 4 := by
     have hB₃ε : 34 ≤ B₃ * ε := by
       set lg := Real.log (16 * S * (S + 1) / δ')
-      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith
+      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
       have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
       have hinv : (16 * S * (S + 1) / δ')⁻¹ ≤ 1 / 32 := by
         rw [inv_eq_one_div]; exact one_div_le_one_div_of_le (by norm_num) hx
@@ -612,7 +612,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         field_simp
         ring
       have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
-      nlinarith
+      have h31 : (31 / 32 : ℝ) ≤ lg := le_trans (by linarith only [hinv]) hl
+      have h2 : 0 ≤ (S + 1) * ε := mul_nonneg (by linarith only [hS1]) hεd.le
+      rw [e]
+      nlinarith only [h31.trans hSl, h2]
     have hB0 : 0 ≤ B₃ := hbud0.trans hbud
     obtain ⟨hTp, -⟩ := shared_key_le hB0 hbud hpm0 hεd hB₃ε hk3 hδ'1
     have hpε : 2 * (Q * A) * (2 * prefixMax P.D k) ≤ ε * δ' :=
@@ -622,7 +625,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         linarith) hB₃ε hk3
     have hWm : (Q + 2) * A * (Q + 1) ≤ Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
-        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
       show (Q + 2) * A * (Q + 1) ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3
         + (Q + 2) * A * (Q + 1)
       have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') := by positivity
