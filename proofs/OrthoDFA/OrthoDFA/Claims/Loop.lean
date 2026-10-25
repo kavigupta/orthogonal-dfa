@@ -12,65 +12,80 @@ at most `γ + ξ` of the strings of length `L`, but for chance `δ`, its start l
 one is within the big-O shape below, with `c` the coverage and `s₀ = 1/2 − η₀` the signal. The
 totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
 `c/(4(|Σ| + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
-the suffixes as `log L`. Each bound has one constant over all of `loopRegion` (with `L ≥ 0` for the
-totals), where every instance's vector lies.
+the suffixes as `log L`. Each bound has one constant over all of `loopRegion`.
 -/
 
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter
 
-/-- `(|Q|, |Σ|, 1/δ, 1/c, 1/ξ, 1/pAP, 1/s₀)`. -/
-abbrev LoopVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
+/-- The learner's inputs: `Q` states, `A` letters, the failure chance `δ`, the coverage `c`, the
+accuracy slack `ξ`, `pAP` the share of suffixes that preserve membership, and the signal
+`s₀ = 1/2 − η₀`. -/
+structure LoopInputs where
+  Q : ℕ
+  A : ℕ
+  δ : ℝ
+  c : ℝ
+  ξ : ℝ
+  pAP : ℝ
+  s₀ : ℝ
 
-def loopRegion : Set LoopVec := Set.Ici (1, 2, 2, 1, 1, 1, 2)
+def loopRegion : Set LoopInputs :=
+  {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.c ∧ x.c ≤ 1 ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
+    0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
+
+/-- The inputs with the Python's length `L`, which the totals grow with. -/
+structure LoopRun extends LoopInputs where
+  L : ℕ
+
+def loopRunRegion : Set LoopRun := {r | r.toLoopInputs ∈ loopRegion}
 
 open Real in
 def LoopClaim : Prop :=
-  ∃ (L₀ : LoopVec → ℝ) (totalPref totalSuff totalProbes : ℝ × LoopVec → ℝ)
-    (heldOut : LoopVec → ℕ),
-    L₀ =O[𝓟 loopRegion] (fun (Q, A, iδ, ic, iξ, ip, is) =>
-      log (Q * A * iδ * ic * iξ * ip * is) / log A) ∧
-    totalPref =O[𝓟 (Set.Ici 0 ×ˢ loopRegion)] (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
-      Q ^ 4 * (L + Q) ^ 2 * log ((L + Q) * A * iδ * ic * iξ * ip * is)
-        * ((A ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * A ^ 2 * ic ^ 2 * is ^ 4)) ∧
-    totalSuff =O[𝓟 (Set.Ici 0 ×ˢ loopRegion)] (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
-      Q * (log ((L + Q) * A * iδ * ic * iξ * is) * ip * is ^ 2 + log (Q * iδ) * ip ^ 2)) ∧
-    totalProbes =O[𝓟 (Set.Ici 0 ×ˢ loopRegion)] (fun (L, Q, A, iδ, ic, _, _, _) =>
-      Q ^ 3 * A ^ 2 * (L + Q) * ic * log (Q * A * iδ)) ∧
-    (fun v => (heldOut v : ℝ)) =O[𝓟 loopRegion] (fun (Q, _, iδ, _, iξ, _, _) =>
-      log (Q * iδ) * iξ ^ 2) ∧
+  ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
+    (heldOut : LoopInputs → ℕ),
+    L₀ =O[𝓟 loopRegion] (fun x =>
+      log (x.Q * x.A / (x.δ * x.c * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+    totalPref =O[𝓟 loopRunRegion] (fun r =>
+      r.Q ^ 4 * (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀))
+        * ((r.A ^ 2 / r.c ^ 2 + 1 / r.ξ ^ 2) / r.s₀ ^ 8
+          + r.Q ^ 4 * r.A ^ 2 / (r.c ^ 2 * r.s₀ ^ 4))) ∧
+    totalSuff =O[𝓟 loopRunRegion] (fun r =>
+      r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+        + log (r.Q / r.δ) / r.pAP ^ 2)) ∧
+    totalProbes =O[𝓟 loopRunRegion] (fun r =>
+      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.c * log (r.Q * r.A / r.δ)) ∧
+    (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
       [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-      (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (η₀ c γ δ pAP ξ : ℝ),
-    let v : LoopVec :=
-      (Fintype.card σ, Fintype.card α, 1 / δ, 1 / c, 1 / ξ, 1 / pAP, 1 / (1 / 2 - η₀))
+      (x : LoopInputs) (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (γ : ℝ),
     -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
     let k : ℕ := (L + 1) / 2
     let L₁ : ℕ := L + Fintype.card σ + 3
+    x ∈ loopRegion → Fintype.card σ = x.Q → Fintype.card α = x.A →
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ η₀ → 0 ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 / 2 → 0 < pAP → pAP ≤ 1 →
-    0 < ξ → ξ ≤ 1 → 2 ≤ Fintype.card α →
-    pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) →
-    L₀ v ≤ L →
-    v ∈ loopRegion ∧ ∃ settings : LoopSettings (Fintype.card σ + 1),
+    O.η ≤ 1 / 2 - x.s₀ →
+    x.pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+    (∃ q ∈ coveredStates M L x.c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L x.c) q) →
+    L₀ x ≤ L →
+    ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧
       (∀ draws : Fin (Fintype.card σ + 1)
           → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.probeBudget,
         let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
           (uniformStrings (L₁ + Fintype.card σ + 3)) draws
-        ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref (L, v)
-          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff (L, v)
-          ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes (L, v)) ∧
+        ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+          ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
-          (Measure.pi fun _ : Fin (heldOut v) => uniformStrings L)).real
+          (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
         {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
               (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
           ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-              o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
-                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
-        ≤ δ
+              o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
+                o.result.hypothesis.rerootedDFA o.read q.2 w
+                  (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+        ≤ x.δ
 
 end OrthoDFA
