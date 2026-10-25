@@ -247,6 +247,15 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertTrue(report, report.reasons)
 
 
+class TestRelativeRule(unittest.TestCase):
+    def test_visited_contains_covered_and_dominated_contains_start(self):
+        covered = P.covered_states(THIN_POCKETS, length=40)
+        visited = P.visited_states(THIN_POCKETS, length=40)
+        self.assertLessEqual(covered, visited)
+        for q in visited:
+            self.assertIn(q, P.dominated_states(THIN_POCKETS, q, length=40))
+
+
 class _ZeroRunSampler(Sampler):
     """Emits ``0`` everywhere, so MOD3 never leaves its initial state."""
 
