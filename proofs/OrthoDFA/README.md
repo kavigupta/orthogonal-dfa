@@ -32,6 +32,12 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's `κ`.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
+- `LearnerLoopDFATSRMain` and `LearnerLoopDFATSRMainSimple` (`OrthoDFA/LoopDFATSRMain.lean`): the
+  same loop, probes and walk start, admitted when some state the window visits `m` of the time
+  re-roots the target with error at most `γ` (typical-start replication). The disagreement rate is
+  `ε = ξm/(10|Σ|^(|Q|-1)(|Σ|+|Q|+3)N)`: a wrong state the run from the start meets late is reached
+  from `M`'s start along a shortest word, and one it meets early from the state at `⌈L/2⌉`, each
+  word at most `|Q| - 1` letters (`hit_le_occupancy`, `Proofs/TSRMainBridge.lean`).
 
 ## The learner's DFA
 
@@ -347,6 +353,8 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
   reading the family at the gate's cut, and hands its harvest's sampler on as a population.
 - `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA`.
+- `OrthoDFA/LoopDFATSRMain.lean` — `LearnerLoopDFATSRMain` and `LearnerLoopDFATSRMainSimple`,
+  `windowVisitRate` and `rerootError`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
