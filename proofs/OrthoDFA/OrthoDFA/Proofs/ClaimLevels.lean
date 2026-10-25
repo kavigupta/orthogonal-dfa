@@ -8,9 +8,10 @@ import OrthoDFA.Proofs.Level5
 /-!
 # `LevelsClaim`: the proof
 
-The witnesses are the level theorems' premises read off the vector. Off the instances they take
-any value: level 2's budget is `0` where `ig < iε`, which no instance has and without which its
-shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their `δ/8` into
+The witnesses are the level theorems' premises read off `toVec x`, the counts and the rates'
+reciprocals, and are bounded there before being carried back to the records. Off the instances
+they take any value: level 2's budget is `0` where `ig < iε`, which no instance has and without
+which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their `δ/8` into
 `δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and `t' = 2t`,
 or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`.
 -/
@@ -20,6 +21,16 @@ noncomputable section
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter Real Random Random.Eps Random.Kappa
+
+/-- `(|Q|, |Σ|, 1/ε, 1/δ, 1/y, L)`. -/
+private abbrev LevelVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
+
+/-- `(|Q|, |Σ|, 1/ε, 1/δ, 1/(ε − y))`. -/
+private abbrev Level2Vec := ℝ × ℝ × ℝ × ℝ × ℝ
+
+private def vecRegion : Set LevelVec := Set.Ici (1, 1, 1, 2, 1, 2)
+
+private def vec2Region : Set Level2Vec := Set.Ici (1, 1, 1, 2, 1)
 
 private def lvSN (nQ nα : ℕ) : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
 
@@ -614,91 +625,134 @@ private lemma tol_pos (v : LevelVec) : 0 < lvP₀ v ∧ 0 < lvκ v ∧ 0 < lvεw
       exact div_pos (Real.sqrt_pos.2 (by positivity)) (mul_pos (by positivity) (by linarith))
     · norm_num
 
-private lemma level_region {Q A iε iδ iy L : ℝ} (hb : (Q, A, iε, iδ, iy, L) ∈ levelRegion) :
+private lemma level_region {Q A iε iδ iy L : ℝ} (hb : (Q, A, iε, iδ, iy, L) ∈ vecRegion) :
     1 ≤ Q ∧ 1 ≤ A ∧ 1 ≤ iε ∧ 2 ≤ iδ ∧ 1 ≤ iy ∧ 2 ≤ L := by
-  simpa only [levelRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
+  simpa only [vecRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
 
-private lemma mem_levelRegion {α σ : Type*} [Fintype α] [Nonempty α] [Fintype σ] [Nonempty σ]
-    {ε δ y : ℝ} {L : ℕ} (hδ : 0 < δ) (hδ2 : δ ≤ 1 / 2) (hy : 0 < y) (hyε : y ≤ ε / 48)
-    (hε : ε < 1) (hL : 2 ≤ L) :
-    ((Fintype.card σ : ℝ), (Fintype.card α : ℝ), 1 / ε, 1 / δ, 1 / y, (L : ℝ)) ∈ levelRegion := by
-  have hε0 : 0 < ε := by linarith
-  simp only [levelRegion, Set.mem_Ici, Prod.mk_le_mk]
-  exact ⟨by exact_mod_cast Fintype.card_pos, by exact_mod_cast Fintype.card_pos,
-    (le_div_iff₀ hε0).2 (by linarith), (le_div_iff₀ hδ).2 (by linarith),
-    (le_div_iff₀ hy).2 (by linarith), by exact_mod_cast hL⟩
+private lemma lvProbes_isBigO : (fun v => (lvProbes v : ℝ)) =O[𝓟 vecRegion]
+    (fun (Q, A, iε, iδ, _, _) => Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ) : LevelVec → ℝ) := by
+  refine isBigO_on 3040 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
+  obtain ⟨h, h1⟩ := probes_pt iy L hQ hA hε hδ
+  dsimp only
+  exact ⟨Nat.cast_nonneg _, by linarith, h⟩
 
-private lemma mem_level2Region {α σ : Type*} [Fintype α] [Nonempty α] [Fintype σ] [Nonempty σ]
-    {ε δ y : ℝ} (hy : 0 < y) (hyε : y < ε) (hε : ε < 1) (hδ : 0 < δ) (hδ2 : δ ≤ 1 / 2) :
-    ((Fintype.card σ : ℝ), (Fintype.card α : ℝ), 1 / ε, 1 / δ, 1 / (ε - y)) ∈ level2Region := by
-  simp only [level2Region, Set.mem_Ici, Prod.mk_le_mk]
-  exact ⟨by exact_mod_cast Fintype.card_pos, by exact_mod_cast Fintype.card_pos,
-    (le_div_iff₀ (by linarith)).2 (by linarith), (le_div_iff₀ hδ).2 (by linarith),
-    (le_div_iff₀ (by linarith)).2 (by linarith)⟩
+private lemma lvProbes₂_isBigO : (fun v => (lvProbes₂ v : ℝ)) =O[𝓟 vec2Region]
+    (fun (Q, A, iε, iδ, ig) => Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ)
+      : Level2Vec → ℝ) := by
+  refine isBigO_on 1024 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, ig⟩ := b
+  obtain ⟨hQ, hA, hε, hδ, -⟩ : 1 ≤ Q ∧ 1 ≤ A ∧ 1 ≤ iε ∧ 2 ≤ iδ ∧ 1 ≤ ig := by
+    simpa only [vec2Region, Set.mem_Ici, Prod.mk_le_mk] using hb
+  obtain ⟨h, h0⟩ := probes₂_pt (ig := ig) hQ hA hε hδ
+  dsimp only
+  exact ⟨Nat.cast_nonneg _, h0, h⟩
+
+private lemma lvSlope_isBigO : lvSlope =O[𝓟 vecRegion]
+    (fun (Q, _, _, _, iy, L) => Q * (iy + Real.log L) : LevelVec → ℝ) := by
+  refine isBigO_on 160 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, -, -, -, hy, hL⟩ := level_region hb
+  exact slope_pt (A := A) (iε := iε) (iδ := iδ) hQ hy hL
+
+private lemma lvSlack_isBigO : lvSlack =O[𝓟 vecRegion]
+    (fun (Q, A, _, iδ, iy, _) => (Q * A * Real.log (Q * A) + Real.log iδ) * iy
+      : LevelVec → ℝ) := by
+  refine isBigO_on 70 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, -, hδ, hy, -⟩ := level_region hb
+  exact slack_pt (iε := iε) (L := L) hQ hA hδ hy
+
+private lemma lvP₀_isBigO : (fun v => 1 / lvP₀ v) =O[𝓟 vecRegion]
+    (fun (Q, A, iε, iδ, _, _) => (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) ^ 2 * iδ
+      : LevelVec → ℝ) := by
+  refine isBigO_on (8 * (3040 ^ 2 + 4)) fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
+  exact p₀_pt iy L hQ hA hε hδ
+
+private lemma lvκ_isBigO : (fun v => 1 / lvκ v) =O[𝓟 vecRegion]
+    (fun (Q, A, _, iδ, _, _) => Q ^ 2 * A * Real.log (Q * A * iδ) * Real.sqrt iδ
+      : LevelVec → ℝ) := by
+  refine isBigO_on (4 * exp 1 * 340) fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, -, hδ, -, -⟩ := level_region hb
+  exact κ_pt iε iy L hQ hA hδ
+
+private lemma lvεw_isBigO : (fun v => 1 / lvεw v) =O[𝓟 vecRegion]
+    (fun (Q, A, iε, iδ, _, L) => Q ^ 3 * A * iε * Real.log (Q ^ 2 * A * iδ) * Real.log L
+      * Real.sqrt iδ : LevelVec → ℝ) := by
+  refine isBigO_on (4 * exp 1 * 61000) fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, hε, hδ, -, hL⟩ := level_region hb
+  exact εw_pt iy hQ hA hε hδ hL
+
+private def toVec (x : LevelInputs) : LevelVec := (x.Q, x.A, 1 / x.ε, 1 / x.δ, 1 / x.y, x.L)
+
+private def toVec₂ (x : Level2Inputs) : Level2Vec :=
+  (x.Q, x.A, 1 / x.ε, 1 / x.δ, 1 / (x.ε - x.y))
+
+private lemma transfer {f g : LevelVec → ℝ} {g' : LevelInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
+    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 levelRegion] g' := by
+  refine (isBigO_comp_on h fun x hx => ?_).congr_right hg
+  obtain ⟨hQ, hA, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+  have hε0 : 0 < x.ε := by linarith
+  simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
+  exact ⟨by exact_mod_cast hQ, by exact_mod_cast hA, (le_div_iff₀ hε0).2 (by linarith),
+    (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hy).2 (by linarith), by exact_mod_cast hL⟩
+
+private lemma transfer₂ {f g : Level2Vec → ℝ} {g' : Level2Inputs → ℝ} (h : f =O[𝓟 vec2Region] g)
+    (hg : ∀ x, g (toVec₂ x) = g' x) : (fun x => f (toVec₂ x)) =O[𝓟 level2Region] g' := by
+  refine (isBigO_comp_on h fun x hx => ?_).congr_right hg
+  obtain ⟨hQ, hA, hδ, hδ2, hy, hyε, hε⟩ := hx
+  simp only [toVec₂, vec2Region, Set.mem_Ici, Prod.mk_le_mk]
+  exact ⟨by exact_mod_cast hQ, by exact_mod_cast hA, (le_div_iff₀ (by linarith)).2 (by linarith),
+    (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ (by linarith)).2 (by linarith)⟩
 
 theorem levelsClaim_holds : LevelsClaim := by
-  refine ⟨lvProbes, lvProbes₂, lvSlope, lvSlack, lvP₀, lvκ, lvεw, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    tol_pos, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_on 3040 fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
-    obtain ⟨h, h1⟩ := probes_pt iy L hQ hA hε hδ
+  refine ⟨fun x => lvProbes (toVec x), fun x => lvProbes₂ (toVec₂ x), fun x => lvSlope (toVec x),
+    fun x => lvSlack (toVec x), fun x => lvP₀ (toVec x), fun x => lvκ (toVec x),
+    fun x => lvεw (toVec x),
+    transfer lvProbes_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer₂ lvProbes₂_isBigO fun x => by
+      simp only [toVec₂]; rw [one_div_pow, div_one_div']; ring_nf,
+    transfer lvSlope_isBigO fun x => by simp only [toVec],
+    transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvP₀_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvκ_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
+    transfer lvεw_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
+    fun x => tol_pos _, ?_, ?_, ?_, ?_⟩
+  · intro α _ _ σ _ M read side C
     dsimp only
-    exact ⟨Nat.cast_nonneg _, by linarith, h⟩
-  · refine isBigO_on 1024 fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, ig⟩ := b
-    obtain ⟨hQ, hA, hε, hδ, -⟩ : 1 ≤ Q ∧ 1 ≤ A ∧ 1 ≤ iε ∧ 2 ≤ iδ ∧ 1 ≤ ig := by
-      simpa only [level2Region, Set.mem_Ici, Prod.mk_le_mk] using hb
-    obtain ⟨h, h0⟩ := probes₂_pt (ig := ig) hQ hA hε hδ
-    dsimp only
-    exact ⟨Nat.cast_nonneg _, h0, h⟩
-  · refine isBigO_on 160 fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, -, -, -, hy, hL⟩ := level_region hb
-    exact slope_pt (A := A) (iε := iε) (iδ := iδ) hQ hy hL
-  · refine isBigO_on 70 fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, hA, -, hδ, hy, -⟩ := level_region hb
-    exact slack_pt (iε := iε) (L := L) hQ hA hδ hy
-  · refine isBigO_on (8 * (3040 ^ 2 + 4)) fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
-    exact p₀_pt iy L hQ hA hε hδ
-  · refine isBigO_on (4 * exp 1 * 340) fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, hA, -, hδ, -, -⟩ := level_region hb
-    exact κ_pt iε iy L hQ hA hδ
-  · refine isBigO_on (4 * exp 1 * 61000) fun b hb => ?_
-    obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-    obtain ⟨hQ, hA, hε, hδ, -, hL⟩ := level_region hb
-    exact εw_pt iy hQ hA hε hδ hL
-  · intro α _ _ _ σ _ M read side C
-    dsimp only
-    intro hI hy hyε hε1 hδ hδ2
-    have : Nonempty σ := ⟨M.start⟩
-    refine ⟨mem_level2Region hy hyε hε1 hδ hδ2, fun D _ => ?_⟩
+    intro hI hx D _
+    simp only [level2Region, Set.mem_ofPred_eq] at hx
+    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε1⟩ := hx
     refine Level2.level2RoundCorrect_holds M read side C _ hI hy hyε hε1 hδ (by linarith) ?_ D
     have hg : 0 < C.disagreementRate - C.harvestRate := by linarith
+    simp only [toVec₂]
     rw [lvProbes₂, if_pos (one_div_le_one_div_of_le hg (by linarith))]
     refine le_trans (le_of_eq ?_) (Nat.le_ceil _)
     simp only [lvS_cast, one_div_one_div]
     rfl
-  · intro α _ _ _ σ _ M side U Ω _ μ _ R P C p₀
+  · intro α _ _ σ _ M side U Ω _ μ _ R P C p₀
     dsimp only
-    intro hP hpre hδ hδ2 hy hyε hε hL
-    have : Nonempty σ := ⟨M.start⟩
-    refine ⟨mem_levelRegion hδ hδ2 hy hyε hε hL, ?_⟩
+    intro hx hP hpre
+    simp only [levelRegion, Set.mem_ofPred_eq] at hx
+    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+    simp only [toVec] at hP ⊢
     have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
     refine le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
       (level3RoundCorrect_holds M side U μ R P C p₀ hpre hδ hy hyε hε
         (budget_le (Fintype.card σ) (Fintype.card α) hP))
     exact fun hw => hd (endsWell_mono (slope_le _ _) (slack_le _ _ hp₀ hy hδ (by norm_num)
       (by norm_num)) hw)
-  · intro α _ _ _ σ _ M side U εw Ω _ μ _ R P C p₀
+  · intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
     dsimp only
-    intro hP hpre hp₀ hεw0 hεw hδ hδ2 hy hyε hε hL
-    have : Nonempty σ := ⟨M.start⟩
-    refine ⟨mem_levelRegion hδ hδ2 hy hyε hε hL, ?_⟩
+    intro hx hP hpre hp₀ hεw0 hεw
+    simp only [levelRegion, Set.mem_ofPred_eq] at hx
+    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+    simp only [toVec] at hP hp₀ hεw ⊢
     have hδ1 : C.δ < 1 := by linarith
     have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
     refine race_tail_apply hδ (by positivity) (by positivity)
@@ -709,11 +763,12 @@ theorem levelsClaim_holds : LevelsClaim := by
             (budget_le (Fintype.card σ) (Fintype.card α) hP) ht ht' htc hfin)
     exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
       (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
-  · intro α _ _ _ σ _ M side U κ Ω _ μ _ R P C p₀
+  · intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
     dsimp only
-    intro hP hpre hp₀ hκ0 hκ hδ hδ2 hy hyε hε hL
-    have : Nonempty σ := ⟨M.start⟩
-    refine ⟨mem_levelRegion hδ hδ2 hy hyε hε hL, ?_⟩
+    intro hx hP hpre hp₀ hκ0 hκ
+    simp only [levelRegion, Set.mem_ofPred_eq] at hx
+    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+    simp only [toVec] at hP hp₀ hκ ⊢
     have hδ1 : C.δ < 1 := by linarith
     have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
     have hr := fun b c => κ_race (Fintype.card σ) (Fintype.card α) (iε := 1 / C.disagreementRate)
