@@ -8,10 +8,16 @@ A target is admitted at `(m, γ)` when some state `q` the window visits `m` of t
 covered. The probes reach `L₁ = 2L + |Q| + 3`, so the window holds every position from `⌈L/2⌉` to
 `2L`. A target state is wrong when an edge out of its true leaf is wrong or unlearned, or it is
 read on its wrong side; the wrong states together occupy the lengths `⌈L/2⌉` to `2L` at most
-`N(2((|Σ|+1)ε' + |Q|ε') + 3ε')`, `ε'` a little over `ε`. The first visit to `q` from `⌈L/2⌉` on
-is followed by `L` letters uniform and independent of it, so the run re-rooted at `q` meets a
-wrong state on at most that over `m` of the strings: `ξ/2` at `ε = ξm/(8(|Σ|+|Q|+3)N)`. The pick
-of the start leaf gets the other `ξ/2`.
+
+    X = N(2((|Σ|+1)εB + |Q|εm) + 2εr + εu),
+
+`εB`, `εm` the disagreeing and misled slack and `εr`, `εu` the wrong and undecided reads. The first
+visit to `q` from `⌈L/2⌉` on is followed by `L` letters uniform and independent of it, so the run
+re-rooted at `q` meets a wrong state on at most `X/m` of the strings. At
+`ε = ξm/(5(|Σ|+|Q|+3)N)` that and the pick's misreads cost at most `ξ/2`, the pick's scores the
+other `ξ/2`.
+
+Known modelling gap. The probes reach `2L + |Q| + 3`, past `LearnerLoopDFA`'s `L + |Q| + 3`.
 -/
 
 noncomputable section
@@ -47,7 +53,7 @@ def LearnerLoopDFATSRBSimple : Prop :=
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
   -- Each round's disagreement rate, low enough that the wrong states cost the start's runs `ξ/2`.
-  let ε : ℝ := ξ * m / (8 * (A + Q + 3) * N)
+  let ε : ℝ := ξ * m / (5 * (A + Q + 3) * N)
   -- The clustering's accuracy.
   let εcov : ℝ := min ε (ξ / (8 * N))
   -- Each round's share of `δ`.
@@ -133,7 +139,7 @@ def LearnerLoopDFATSRB : Prop :=
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
   -- Each round's disagreement rate, low enough that the wrong states cost the start's runs `ξ/2`.
-  let ε : ℝ := ξ * m / (8 * (A + Q + 3) * N)
+  let ε : ℝ := ξ * m / (5 * (A + Q + 3) * N)
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -145,7 +151,7 @@ def LearnerLoopDFATSRB : Prop :=
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFATSRBSimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
   -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
-  let aε : ℝ := 8 * (A + Q + 3) / (ξ * m)
+  let aε : ℝ := 5 * (A + Q + 3) / (ξ * m)
   let Ce : ℝ := aε + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1

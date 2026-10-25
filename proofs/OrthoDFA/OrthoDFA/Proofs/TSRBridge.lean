@@ -13,10 +13,11 @@ disagreeing, or is misled (`edge_of_pair`); summed over the wrong-edge states th
 The first visit to `q` from `⌈L/2⌉` to `L` depends only on the prefix up to it, and the next `L`
 letters are uniform and independent of it (`window_mul_hit_le`):
 
-    w(q) · Pr_{|x|=L}[the run from q hits B] ≤ Pr_{|x|=2L}[the run from the start hits B in [⌈L/2⌉, 2L]].
+    w(q) h_q(B) ≤ Pr_{|x|=2L}[δ(q₀, x[:j]) ∈ B for some j from ⌈L/2⌉ to 2L],
 
-At `B` the wrong states, the right side is at most their occupancy of the lengths `⌈L/2⌉` to `2L`,
-all inside the probes' window (`dfa_of_checks_tsrb`).
+`h_q(B)` the share of the strings of length `L` whose run from `q` meets `B`. At `B` the wrong
+states, the right side is at most their occupancy of the lengths `⌈L/2⌉` to `2L`, all inside the
+probes' window (`dfa_of_checks_tsrb`).
 -/
 
 noncomputable section

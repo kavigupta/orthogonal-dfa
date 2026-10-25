@@ -12,6 +12,7 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.LoopDFATSRB
 import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
@@ -36,7 +37,8 @@ in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2Rou
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
+with the simpler premises. `LearnerLoopDFATSRB` and `LearnerLoopDFATSRBSimple`, stated in
+`OrthoDFA.LoopDFATSRB`, are the same with probes to `2L + |Q| + 3` and only the start covered. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
 and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
 at both. The loop runs level 5.
 
@@ -84,6 +86,15 @@ theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simpl
 theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
 
 #print axioms learner_loop_dfa
+
+theorem learner_loop_dfa_tsrb_simple : LearnerLoopDFATSRBSimple :=
+  learner_loop_dfa_tsrb_simple_holds
+
+#print axioms learner_loop_dfa_tsrb_simple
+
+theorem learner_loop_dfa_tsrb : LearnerLoopDFATSRB := learner_loop_dfa_tsrb_holds
+
+#print axioms learner_loop_dfa_tsrb
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 

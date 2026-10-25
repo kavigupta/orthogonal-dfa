@@ -32,6 +32,8 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 - `FamilyKappaOracle` (`OrthoDFA/FamilyOracle.lean`): the clustering's family reads are a
   `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's `κ`.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
+- `LearnerLoopDFATSRB` and `LearnerLoopDFATSRBSimple`: the same with the probes reaching `2L + |Q| +
+  3`, and only the start covered. See below.
 
 ## The learner's DFA
 
@@ -113,6 +115,43 @@ strings, and that within `nξ/8` of `n` times its mean over the strings, but for
 `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most `|Q| + 2` leaves, so the picked leaf
 misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ` (`pickLeaf_le`). `δ` splits half to
 the loop, a quarter to the scores and a quarter to collisions.
+
+### Typical-start replication, probes to twice the length
+
+`LearnerLoopDFATSRB` (`OrthoDFA/LoopDFATSRB.lean`, proved in `Proofs/LoopDFATSRB.lean`) asks only
+of the start: some state `q` that `m` of the strings of length `L` visit at a position from `⌈L/2⌉`
+to `L` (`windowVisitRate`) re-roots the target with error at most `γ` (`rerootError`). The loop is
+`LearnerLoopDFA`'s with the probes uniform over the lengths `k` to `L₁ = 2L + |Q| + 3`, at
+`ε = ξm/(5(|Σ|+|Q|+3)N)`; `loop_simple_checks` is used unchanged, its misled probes counted among
+each state's strings shorter than `2L + 1`. A state is wrong when an edge out of its true leaf is
+wrong or unlearned, or it is read on its wrong side. Summed over the wrong states, the occupancy of
+the lengths `k` to `2L` is at most
+
+    X = N (2((|Σ|+1)εB + |Q|εm) + 2εr + εu),
+
+`εB = εm = ε + ε/96` the disagreeing and misled slack, `εr`, `εu` the wrong and undecided reads
+(`wrongEdge_occupancy_le`, `wrongSide_mass_le`, `Proofs/TSRBridge.lean`, as in #527). Each
+string is at one state, so the disagreeing and wrong-read budgets are shared across the wrong
+states; `FewMisled` holds per state and letter, so the misled slack is paid `|Q|` times. The first
+visit to `q` from `k` to `L` depends only on the prefix up to it, and the next `L` letters are
+uniform and independent of it (`window_mul_hit_le`):
+
+    w(q) · Pr_{|x|=L}[the run from q meets B] ≤ Pr_{|x|=2L}[the run from the start meets B in [k, 2L]],
+
+and at `B` the wrong states the right side is at most `X`. So the start's true leaf misjudges at most
+`e(q) + X/m` (`dfa_of_checks_tsrb`). Per unit `ξ`, at `|Σ| = 2`, `|Q| = 3` the terms of `X/m` are
+`2(|Σ|+1)(97/96)/40 ≈ 0.152` for the disagreeing pairs, `2|Q|(97/96)/40 ≈ 0.152` for the misled
+ones and `(2·1025/1024 + 3/8)/40 ≈ 0.059` for the sides; the pick's misreads add at most `0.059 m`
+and its score deviation `1/2` (`tsrb_harm`). The closed form bounds `log ℓ`, `ℓ = 2L + |Q| + 4`, by
+its tangent at `T = 4(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4` (`dfa_pow_twice`):
+
+    L₀ = (2T(log (E + E₂ + E₃) + 6 log T − 6) + 12(|Q| + 4))/(T log |Σ| − 24),
+
+`E`, `E₂`, `E₃` as `LearnerLoopDFA`'s with `aε = 5(|Σ|+|Q|+3)/(ξm)`. At `|Q| = 3`, `|Σ| = 2`,
+`η₀ = 0.1`, `δ = 0.01`, `pAP = 1/3`, the least `L` meeting `LearnerLoopDFATSRBSimple`'s hypotheses
+is 371, 379, 399 at `m = 1` and 399, 407, 425 at `m = 0.1`, for `ξ = 0.1, 0.05, 0.01`
+(`LearnerLoopDFASimple`'s is 371 at `c = 0.01`); `L₀` is 420.8, 429.2, 448.6 and 448.6, 456.9,
+476.3.
 
 ## The loop
 
@@ -224,6 +263,8 @@ what a state's chance of reading undecided is.
   afresh each round, where the Python keeps one pool across rounds. The hash's sides are fair coins
   drawn afresh each round, where the Python draws its key once per run, and a harvest's table is
   drawn from its law, where the Python first puts the harvested strings in it.
+- **`LearnerLoopDFATSRB`'s probes reach `2L + |Q| + 3`**, past `LearnerLoopDFA`'s `L + |Q| + 3`,
+  so that the window holds every position a run re-rooted at the start reaches.
 
 ## What to read
 
