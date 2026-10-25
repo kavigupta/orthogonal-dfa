@@ -1012,7 +1012,7 @@ lemma solved_rej_log (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : �
       rw [div_le_div_iff_of_pos_right hδ]; nlinarith)
   have hL0 : 0 ≤ Real.log (256 * P / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  -- and its `εs` term, `6·log(256|J|/δ)/εs`, more than this
+  -- and the redraws' term, `6·log(256|J|/δ)/εs`, clears it when `rejFrac = εs/4`
   have c2 : 6 * Real.log (256 * P / δ) / εs ≤ (N : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈6 * Real.log (256 * P / δ) / εs⌉₊ ≤ N := by
@@ -1143,8 +1143,8 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
   linarith [hscale, hcoll, htails, hdr]
 
 /-- The fewest prefixes a rung needs for its rejections to be rare enough at the cap. -/
-noncomputable def rejCountMin (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov εs δ : ℝ) :
-    ℕ :=
+noncomputable def rejCountMin (η₀ : ℝ) (populations : Finset J)
+    (indecisionLimit εcov εs δ : ℝ) : ℕ :=
   ⌈Real.log (32 * (populations.card : ℝ) / δ)
     / (rejFrac η₀ indecisionLimit εcov εs * Real.log 2)⌉₊
 
