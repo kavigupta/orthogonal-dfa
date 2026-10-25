@@ -15,9 +15,11 @@ population's atoms may be, appears as the largest the claim tolerates, its recip
 Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
-  signal, `ε_u` the indecision limit, `ε_w` the band's cross limit and `nH` the strings harvested,
+  signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
   the band width, suffix pool and prefix count of every state it stops at, the prefix count at
-  which some state certifies, and the atom and collision masses its populations must stay under.
+  which some state certifies, and the atom and collision masses its populations must stay under;
+  it fails with chance at most `δ`. `ClusteringClaimSimple` bounds each by a single product, e.g.
+  the prefix count by `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
 - `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
   level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
@@ -26,10 +28,9 @@ Each claim is proved from the explicit theorems below.
 - `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
   which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
   held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
-  prefix, suffix and probe the whole run reads. Those grow with `L`
-  because the settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)`
-  over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as
-  `log L`.
+  prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
+  proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
+  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 
 ## The explicit theorems
 

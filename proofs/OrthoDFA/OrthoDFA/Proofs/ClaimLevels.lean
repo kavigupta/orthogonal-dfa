@@ -11,9 +11,9 @@ import OrthoDFA.Proofs.Level5
 The witnesses are the level theorems' premises read off `toVec x`, the counts and the rates'
 reciprocals, and are bounded there before being carried back to the records. Off the instances
 they take any value: level 2's budget is `0` where `ig < iε`, which no instance has and without
-which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their `δ/8` into
-`δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and `t' = 2t`,
-or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`.
+which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their
+`δ/8` into `δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and
+`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`.
 -/
 
 noncomputable section
