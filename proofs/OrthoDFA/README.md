@@ -32,6 +32,8 @@ Each claim is proved from the explicit theorems below.
   prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
   proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
   `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁸(L + |Q|)²|Σ|² log(X)/(c² ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(X)/(pAP² s₀²))`, `X = (L + |Q|)|Σ|/(δ c ξ pAP s₀)`.
 
 ## The explicit theorems
 
