@@ -26,8 +26,21 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Fetch prebuilt Mathlib
         run: lake exe cache get
+      - name: Restore OrthoDFA's own build
+        uses: actions/cache@v4
+        with:
+          path: proofs/OrthoDFA/.lake/build
+          key: lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: |
+            lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-
+      - name: Make the restored build newer than the fresh checkout
+        run: |
+          [ -d .lake/build ] && find .lake/build -type f -exec touch {} +
+          true
       - name: Build
         run: lake build 2>&1 | tee build.log
+      - name: Elaborate Verify.lean afresh
+        run: lake env lean OrthoDFA/Verify.lean 2>&1 | tee -a build.log
       - name: No sorry, and every claim rests on the core axioms alone
         run: |
           if grep -E "declaration uses .sorry." build.log; then
