@@ -24,7 +24,8 @@ Each claim is proved from the explicit theorems below.
   level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
   4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
-  wrong, both levels at no leaves beyond level 3's `|Q| + 2`.
+  wrong, both levels at no leaves beyond level 3's `|Q| + 2`. `LevelsClaimSimple` writes the
+  slope as `O(|Q| log L/y)` and the slack as `O(|Q||Σ| log(|Q||Σ|/δ)/y)`.
 
 ## The explicit theorems
 

@@ -13,7 +13,8 @@ reciprocals, and are bounded there before being carried back to the records. Off
 they take any value: level 2's budget is `0` where `ig < iε`, which no instance has and without
 which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their
 `δ/8` into `δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and
-`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`.
+`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`. `LevelsClaimSimple` follows from
+`LevelsClaim`, the slope's and slack's tight shapes bounded by their products.
 -/
 
 noncomputable section
@@ -688,6 +689,41 @@ private lemma lvεw_isBigO : (fun v => 1 / lvεw v) =O[𝓟 vecRegion]
   obtain ⟨hQ, hA, hε, hδ, -, hL⟩ := level_region hb
   exact εw_pt iy hQ hA hε hδ hL
 
+private lemma slope_dom : (fun (Q, _, _, _, iy, L) => Q * (iy + Real.log L) : LevelVec → ℝ)
+    =O[𝓟 vecRegion] (fun (Q, _, _, _, iy, L) => Q * Real.log L * iy : LevelVec → ℝ) := by
+  refine isBigO_on 3 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, -, -, -, hy, hL⟩ := level_region hb
+  have hl := half_le_log hL
+  have h1 := mul_le_mul_of_nonneg_right hl (by linarith : (0 : ℝ) ≤ iy)
+  have h2 : Real.log L ≤ Real.log L * iy := le_mul_of_one_le_right (by linarith) hy
+  have h3 := mul_le_mul_of_nonneg_left (show iy + Real.log L ≤ 3 * (Real.log L * iy) by linarith)
+    (by linarith : (0 : ℝ) ≤ Q)
+  dsimp only
+  exact ⟨mul_nonneg (by linarith) (by linarith),
+    mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by linarith), by linarith⟩
+
+private lemma slack_dom : (fun (Q, A, _, iδ, iy, _) =>
+    (Q * A * Real.log (Q * A) + Real.log iδ) * iy : LevelVec → ℝ)
+    =O[𝓟 vecRegion] (fun (Q, A, _, iδ, iy, _) => Q * A * Real.log (Q * A * iδ) * iy
+      : LevelVec → ℝ) := by
+  refine isBigO_on 2 fun b hb => ?_
+  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
+  obtain ⟨hQ, hA, -, hδ, hy, -⟩ := level_region hb
+  have hu : 1 ≤ Q * A := one_le_mul_of_one_le_of_one_le hQ hA
+  have hlu : 0 ≤ Real.log (Q * A) := Real.log_nonneg hu
+  have hlδ := half_le_log hδ
+  have e : Real.log (Q * A * iδ) = Real.log (Q * A) + Real.log iδ :=
+    Real.log_mul (by positivity) (by linarith)
+  have h1 : Real.log iδ ≤ Q * A * Real.log iδ := le_mul_of_one_le_left (by linarith) hu
+  have h2 : 0 ≤ Q * A * Real.log (Q * A) := mul_nonneg (by linarith) hlu
+  have h3 : Q * A * Real.log (Q * A) + Real.log iδ ≤ 2 * (Q * A * Real.log (Q * A * iδ)) := by
+    rw [e]; nlinarith
+  have h4 := mul_le_mul_of_nonneg_right h3 (by linarith : (0 : ℝ) ≤ iy)
+  dsimp only
+  refine ⟨mul_nonneg (by linarith) (by linarith),
+    mul_nonneg (mul_nonneg (by linarith) (by rw [e]; linarith)) (by linarith), by linarith⟩
+
 private def toVec (x : LevelInputs) : LevelVec := (x.Q, x.A, 1 / x.ε, 1 / x.δ, 1 / x.y, x.L)
 
 private def toVec₂ (x : Level2Inputs) : Level2Vec :=
@@ -709,6 +745,11 @@ private lemma transfer₂ {f g : Level2Vec → ℝ} {g' : Level2Inputs → ℝ} 
   simp only [toVec₂, vec2Region, Set.mem_Ici, Prod.mk_le_mk]
   exact ⟨by exact_mod_cast hQ, by exact_mod_cast hA, (le_div_iff₀ (by linarith)).2 (by linarith),
     (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ (by linarith)).2 (by linarith)⟩
+
+private lemma dominate {f g : LevelVec → ℝ} {f' g' : LevelInputs → ℝ}
+    (h : f =O[𝓟 vecRegion] g) (hf : ∀ x, f (toVec x) = f' x) (hg : ∀ x, g (toVec x) = g' x) :
+    f' =O[𝓟 levelRegion] g' :=
+  (transfer h hg).congr_left hf
 
 theorem levelsClaim_holds : LevelsClaim := by
   refine ⟨fun x => lvProbes (toVec x), fun x => lvProbes₂ (toVec₂ x), fun x => lvSlope (toVec x),
@@ -780,5 +821,13 @@ theorem levelsClaim_holds : LevelsClaim := by
             (budget_le (Fintype.card σ) (Fintype.card α) hP) le_rfl hκ0 ht ht' htc hfin)
     exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
       (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
+
+theorem levelsClaimSimple_holds : LevelsClaimSimple := by
+  obtain ⟨n, n₂, slope, slack, p₀, κ, εw, hn, hn₂, hs, hk, hp, hκ, hε, hw⟩ := levelsClaim_holds
+  exact ⟨n, n₂, slope, slack, p₀, κ, εw, hn, hn₂,
+    hs.trans (dominate slope_dom (fun x => by simp only [toVec])
+      fun x => by simp only [toVec]; ring_nf),
+    hk.trans (dominate slack_dom (fun x => by simp only [toVec]; ring_nf)
+      fun x => by simp only [toVec]; ring_nf), hp, hκ, hε, hw⟩
 
 end OrthoDFA
