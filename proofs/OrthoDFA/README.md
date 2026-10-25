@@ -70,6 +70,22 @@ at most `R` per position times that of a string from `⌈L/2⌉` on. With
 probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
 `⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
 
+`LearnerLoopDFARelativeDirect` (proved in `Proofs/LoopDFARelativeDirect.lean`) admits the same
+relative rule at any start `q` that at least `c₀` of the strings visit from `k = ⌈L/2⌉` on. With
+`ρ = |Σ|^{-(|Q|-1)}`, a word shorter than `|Q|` leads wherever any word does (`exists_short_word`),
+so a set of states entered only from itself and left from each of its states holds at most
+`δT = (1 − ρ)^⌊k/|Q|⌋` of the strings at `k` (`stay_le`, `Proofs/VisitedStart.lean`). The states
+that reach `q` are such a set if `q` reaches one that does not reach it back, and those that reach
+`q` without being reached by it always are. So where `c₀ > δT`, `q` is reached back from every
+state it reaches, at least `c₀ − δT` of the strings are in those states at `k`, and each is met in
+the window with chance at least `1 − (1 − ρ)^⌊(L − k)/|Q|⌋` (`visit_of_reach`). Every state a run
+from `q` uses is then covered at `c = (c₀ − δT)(1 − (1 − ρ)^⌊(L − k)/|Q|⌋)`, whatever set the
+accuracy is over, and the claim is `LearnerLoopDFA` at that `c`, with `R` entering nowhere. At
+the settings above, `δT ≤ 1.4·10⁻⁷` from `L = 333` on, so the least `L` is
+`LearnerLoopDFASimple`'s at `c ≈ c₀`: 333 at `c₀ = 1/C` for `R = 2` (the start dominating
+itself), 351 for `R = 10`, 371 at `c₀ = 0.01` and 407 at `c₀ = 1/2000`, for each `ξ` of 0.1, 0.05
+and 0.01.
+
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
 past a midfix and nothing undecided at their sifts, cross a learned edge between their states'
@@ -219,7 +235,8 @@ what a state's chance of reading undecided is.
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
 - **The relative rule's start.** The Python may start at any state its 2000 samples visit in the
-  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
+  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`, and
+  `LearnerLoopDFARelativeDirect`'s visited by `c₀ > δT`, its `ε = c/(4(|Σ|+1)N)` at `c ≈ c₀`.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
   read wrong at most `κ` of the time. They cap `ζ` only through `2(|Q|+1)ζ < 1/2`, at the
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`

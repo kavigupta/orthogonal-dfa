@@ -13,6 +13,7 @@ import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.LoopDFARelative
+import OrthoDFA.Proofs.LoopDFARelativeDirect
 import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
@@ -94,6 +95,16 @@ theorem learner_loop_dfa_relative_simple : LearnerLoopDFARelativeSimple :=
 theorem learner_loop_dfa_relative : LearnerLoopDFARelative := learner_loop_dfa_relative_holds
 
 #print axioms learner_loop_dfa_relative
+
+theorem learner_loop_dfa_relative_direct_simple : LearnerLoopDFARelativeDirectSimple :=
+  learner_loop_dfa_relative_direct_simple_holds
+
+#print axioms learner_loop_dfa_relative_direct_simple
+
+theorem learner_loop_dfa_relative_direct : LearnerLoopDFARelativeDirect :=
+  learner_loop_dfa_relative_direct_holds
+
+#print axioms learner_loop_dfa_relative_direct
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
