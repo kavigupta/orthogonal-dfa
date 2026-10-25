@@ -63,10 +63,11 @@ least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the leas
 `LearnerLoopDFASimple`'s hypotheses 371.
 
 `LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
-rule too: some `q ∈ coveredStates M L c₀` has accuracy at least `1 − γ` with
-`S = coveredStates M L c₀ ∪ dominatedStates M L R q`, `dominatedStates` being the states whose visit
-rate from `q` is at most `R` per position times that of a string from `⌈L/2⌉` on. With
-`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = min c₀ (ξ/(2C|Q|))` and `ξ/2`. `n` is
+rule instead: some `q ∈ coveredStates M L c` has accuracy at least `1 − γ` with
+`S = {q} ∪ dominatedStates M L R q`, `dominatedStates` being the states whose visit rate from `q` is
+at most `R` per position times that of a string from `⌈L/2⌉` on. With
+`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`, so its
+probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
 `⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
@@ -217,6 +218,8 @@ what a state's chance of reading undecided is.
 ## Open
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
+- **The relative rule's start.** The Python may start at any state its 2000 samples visit in the
+  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
   read wrong at most `κ` of the time. They cap `ζ` only through `2(|Q|+1)ζ < 1/2`, at the
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
