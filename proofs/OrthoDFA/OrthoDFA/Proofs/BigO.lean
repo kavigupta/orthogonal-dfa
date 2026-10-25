@@ -1,4 +1,4 @@
-import Mathlib.Analysis.Asymptotics.Defs
+import Mathlib.Analysis.Asymptotics.Lemmas
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
@@ -8,11 +8,11 @@ namespace OrthoDFA
 
 open Asymptotics Filter Real
 
-/-- On a product of reals, `a ≤ b` means past `a` in every coordinate. -/
-lemma isBigO_of_ge {ι : Type*} [SemilatticeSup ι] [Nonempty ι] {f g : ι → ℝ} (a : ι) (C : ℝ)
-    (h : ∀ b, a ≤ b → |f b| ≤ C * |g b|) : f =O[atTop] g :=
-  IsBigO.of_bound C (eventually_atTop.2 ⟨a, fun b hb => by
-    simpa only [Real.norm_eq_abs] using h b hb⟩)
+lemma isBigO_on {α : Type*} {f g : α → ℝ} {s : Set α} (C : ℝ)
+    (h : ∀ b ∈ s, 0 ≤ f b ∧ 0 ≤ g b ∧ f b ≤ C * g b) : f =O[𝓟 s] g :=
+  isBigO_principal.2 ⟨C, fun b hb => by
+    obtain ⟨hf, hg, h⟩ := h b hb
+    rwa [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg hf, abs_of_nonneg hg]⟩
 
 lemma one_div_min_le {x y : ℝ} (hx : 0 < x) (hy : 0 < y) : 1 / min x y ≤ 1 / x + 1 / y := by
   rcases min_cases x y with ⟨h, _⟩ | ⟨h, _⟩ <;> rw [h] <;>
