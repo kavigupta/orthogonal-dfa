@@ -8,16 +8,13 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star import preconditions as P
-from orthogonal_dfa.l_star.examples.benchmark_generator import (
-    DFAOracle,
-    sample_random_dfa,
-)
+from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
+from orthogonal_dfa.l_star.examples.random_dfa import sample_admitted_dfas
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from tests.lstar_common import DEFAULT_SAMPLER, compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
-NUM_DFAS = 600
+NUM_DFAS = 37
 ETA = 0.05
 LENGTH = 40
 LEARNED = 0.95  # E-L* accuracy bar for "learned it"
@@ -26,19 +23,19 @@ LEARNED = 0.95  # E-L* accuracy bar for "learned it"
 PER_DFA_TIMEOUT = 600
 
 
-def _admitted_dfas():
-    """``(name, dfa)`` for each sampled DFA the preconditions admit."""
-    rng = np.random.default_rng(0)
-    admitted = []
-    for i in range(NUM_DFAS):
-        num_states = int(rng.integers(2, 6))
-        aut = sample_random_dfa(rng, num_states=num_states, alphabet_size=2)
-        if P.satisfies_preconditions(aut, length=LENGTH):
-            admitted.append((f"{i}_states_{num_states}", aut))
-    return admitted
-
-
-ADMITTED_DFAS = _admitted_dfas()
+ADMITTED_DFAS = [
+    (f"{i}_states_{len(aut.states)}", aut)
+    for i, aut in enumerate(
+        sample_admitted_dfas(
+            np.random.default_rng(0),
+            count=NUM_DFAS,
+            min_states=2,
+            max_states=5,
+            alphabet_size=2,
+            length=LENGTH,
+        )
+    )
+]
 
 
 def _elstar_accuracy(aut) -> float:
