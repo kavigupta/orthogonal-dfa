@@ -8,11 +8,11 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
 `OrthoDFA/Claims/` states what each part of the learner costs, as big-O shapes in its inputs
 alone. Every cost and every tolerance is something the claim produces: it asserts some function
 of the inputs does the job, and bounds that function with Mathlib's `=O[𝓟 R]`: one constant for
-every input vector in a region `R` that each instance's vector lies in (each rate as its
-reciprocal), so the bound keeps its meaning with some inputs held fixed. The regions' lower
-bounds follow from the hypotheses, which ask `δ ≤ 1/2`. A cap on an input, such as
-how heavy a population's atoms may be, appears as the largest the claim tolerates, its reciprocal
-bounded. Each claim is proved from the explicit theorems below.
+every input vector in a region `R` (each rate as its reciprocal), so the bound keeps its meaning
+with some inputs held fixed. Each claim also states that every instance's vector lies in `R`,
+which is why the hypotheses ask for such things as `δ ≤ 1/2`. A cap on an input, such as how heavy
+a population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
+Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `(|J|, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u,
   1/ε_w, 1/s₀, nH)`, with `s₀ = 1/2 − η₀` the signal, `ε_u` the indecision limit, `ε_w` the
