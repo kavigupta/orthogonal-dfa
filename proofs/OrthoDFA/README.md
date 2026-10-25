@@ -62,6 +62,27 @@ At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1
 least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 371.
 
+`LearnerLoopDFATSR` and `LearnerLoopDFATSRSimple` (`OrthoDFA/LoopDFATSR.lean`, proved in
+`Proofs/LoopDFATSR.lean`) admit the target by typical-start replication: some `q` with
+`w(q) = windowVisitRate M L q ≥ c` has
+
+    e(q) + Φ(c)/w(q) ≤ γ,
+
+`e(q)` the share of the strings of length `L` that `M` re-rooted at `q` labels otherwise than `M`,
+`Φ(c)` the share of the strings of length `2L` whose run from the start visits a state of
+`windowVisitRate` below `c` at some position from `k` to `2L`. With `h_q(B)` the share of the
+strings of length `L` whose run from `q` hits `B`, the run's first visit to `q` from `k` to `L` is
+followed by `L` uniform letters independent of it (`window_mul_hit_le`,
+`Proofs/StartReplication.lean`):
+
+    w(q) h_q(B) ≤ Pr_{|x|=2L}[the run from the start hits B at some position from k to 2L].
+
+At `B` the states below `c`, the run from `q` leaves `coveredStates M L c` on at most `Φ(c)/w(q)`
+of the strings, so `q` has accuracy at least `1 − γ` there and the claims are `LearnerLoopDFA` and
+`LearnerLoopDFASimple` at `(c, γ)`. On the Python side this asks for window samples extended to
+length `2L`, `Φ(c)` being the share of them whose least `windowVisitRate` over the positions `k`
+to `2L` is below `c`.
+
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
 past a midfix and nothing undecided at their sifts, cross a learned edge between their states'
@@ -210,6 +231,8 @@ what a state's chance of reading undecided is.
 ## Open
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
+- **Typical-start replication reads past the probes.** `Φ(c)` reads the run from `k` to `2L`,
+  past the probes' longest length `L₁ = L + |Q| + 3`.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
   read wrong at most `κ` of the time. They cap `ζ` only through `2(|Q|+1)ζ < 1/2`, at the
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
@@ -347,6 +370,8 @@ what a state's chance of reading undecided is.
 - `OrthoDFA/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs level 3
   reading the family at the gate's cut, and hands its harvest's sampler on as a population.
 - `OrthoDFA/LoopDFA.lean` — `LearnerLoopDFA` and `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA`.
+- `OrthoDFA/LoopDFATSR.lean` — `LearnerLoopDFATSR` and `LearnerLoopDFATSRSimple`, the target
+  admitted by typical-start replication.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
