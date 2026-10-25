@@ -6,9 +6,10 @@ import OrthoDFA.Proofs.BigO
 /-!
 # The clustering's costs, asymptotically
 
-The witnesses are `ClusteringGuarantee`'s bounds at the parameters the vector decodes to, the
-prefix count's log taken at the pool's ceiling; the tolerances are its per-state atom and
-collision conditions at the ceilings, and `1` off the parameters' range.
+The witnesses are `ClusteringGuarantee`'s bounds, the prefix count's log taken at the pool's
+ceiling; the tolerances are its per-state atom and collision conditions at the ceilings, and `1`
+off the parameters' range. They are stated and bounded on `toVec x`, the counts and the rates'
+reciprocals, and carried back to `ClusterInputs`.
 -/
 
 noncomputable section
@@ -57,10 +58,15 @@ private lemma rs_le {ie iu is : ℝ} (hie : 0 < ie) (hiu : 0 < iu) (his : 2 ≤ 
   have := mul_le_mul_of_nonneg_left this hie.le
   linarith
 
+/-- `(nJ, 1/δ, 1/α, 1/pAP, 1/εcov, 1/ε_u, 1/ε_w, 1/s₀, nH)`. -/
+private abbrev ClusterVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
+
+private def vecRegion : Set ClusterVec := Set.Ici (1, 2, 2, 1, 2, 2, 1, 2, 0)
+
 private lemma region {nJ iδ iα ip ie iu iw is nH : ℝ}
-    (hb : (nJ, iδ, iα, ip, ie, iu, iw, is, nH) ∈ clusterRegion) :
+    (hb : (nJ, iδ, iα, ip, ie, iu, iw, is, nH) ∈ vecRegion) :
     1 ≤ nJ ∧ 2 ≤ iδ ∧ 2 ≤ iα ∧ 1 ≤ ip ∧ 2 ≤ ie ∧ 2 ≤ iu ∧ 1 ≤ iw ∧ 2 ≤ is ∧ 0 ≤ nH := by
-  simpa only [clusterRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
+  simpa only [vecRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
 
 private lemma prods {nJ iδ iα ip ie iu iw is : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ) (hiα : 2 ≤ iα)
     (hip : 1 ≤ ip) (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is) :
@@ -347,7 +353,7 @@ private lemma rsc_facts {ie iu is : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (his 
     0 < rsc ie iu is ∧ 1 / rsc ie iu is ≤ ie * is ^ 2 + iu :=
   ⟨rs_pos (by linarith) (by linarith) (by linarith), rs_le (by linarith) (by linarith) his⟩
 
-private lemma kW_isBigO : kW =O[𝓟 clusterRegion] (fun (_, _, _, _, ie, iu, iw, is, _) =>
+private lemma kW_isBigO : kW =O[𝓟 vecRegion] (fun (_, _, _, _, ie, iu, iw, is, _) =>
     log (ie * iu * iw * is) * is ^ 2 : ClusterVec → ℝ) := by
   refine isBigO_on 70 fun b hb => ?_
   obtain ⟨nJ, iδ, iα, ip, ie, iu, iw, is, nH⟩ := b
@@ -359,7 +365,7 @@ private lemma kW_isBigO : kW =O[𝓟 clusterRegion] (fun (_, _, _, _, ie, iu, iw
   dsimp only [kW]
   exact ⟨h0, by positivity, h⟩
 
-private lemma nsuffW_isBigO : nsuffW =O[𝓟 clusterRegion] (fun (nJ, iδ, _, ip, ie, iu, iw, is, _) =>
+private lemma nsuffW_isBigO : nsuffW =O[𝓟 vecRegion] (fun (nJ, iδ, _, ip, ie, iu, iw, is, _) =>
     log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2 : ClusterVec → ℝ) := by
   refine isBigO_on 140 fun b hb => ?_
   obtain ⟨nJ, iδ, iα, ip, ie, iu, iw, is, nH⟩ := b
@@ -372,7 +378,7 @@ private lemma nsuffW_isBigO : nsuffW =O[𝓟 clusterRegion] (fun (nJ, iδ, _, ip
   dsimp only [nsuffW]
   exact ⟨h0, by positivity, h⟩
 
-private lemma npref₀W_isBigO : npref₀W =O[𝓟 clusterRegion] (fun (nJ, iδ, _, _, ie, iu, _, is, _) =>
+private lemma npref₀W_isBigO : npref₀W =O[𝓟 vecRegion] (fun (nJ, iδ, _, _, ie, iu, _, is, _) =>
     log (nJ * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3) : ClusterVec → ℝ) := by
   refine isBigO_on (2 ^ 16) fun b hb => ?_
   obtain ⟨nJ, iδ, iα, ip, ie, iu, iw, is, nH⟩ := b
@@ -384,7 +390,7 @@ private lemma npref₀W_isBigO : npref₀W =O[𝓟 clusterRegion] (fun (nJ, iδ,
   dsimp only [npref₀W]
   exact ⟨h0, by positivity, h⟩
 
-private lemma nprefW_isBigO : nprefW =O[𝓟 clusterRegion]
+private lemma nprefW_isBigO : nprefW =O[𝓟 vecRegion]
     (fun (nJ, iδ, iα, ip, ie, iu, iw, is, nH) =>
       nJ ^ 2 * log (nJ * iδ * iα * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
         + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ) := by
@@ -399,7 +405,7 @@ private lemma nprefW_isBigO : nprefW =O[𝓟 clusterRegion]
   dsimp only [nprefW]
   exact ⟨h0, by positivity, h⟩
 
-private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 clusterRegion]
+private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
     (fun (nJ, iδ, iα, ip, ie, iu, iw, is, nH) =>
       nJ * (nJ ^ 2 * log (nJ * iδ * iα * ip * ie * iu * iw * is)
               * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
@@ -479,7 +485,7 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 clusterRegion]
       * (ie ^ 2 + iu ^ 2) := by positivity
   linarith
 
-private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 clusterRegion]
+private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     (fun (nJ, iδ, _, ip, ie, iu, iw, is, _) =>
       nJ * iδ * ip * (log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2)
       : ClusterVec → ℝ) := by
@@ -512,11 +518,40 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 clusterRegion]
   have : 0 ≤ nJ * iδ * ip * G := by positivity
   linarith
 
+private def toVec (x : ClusterInputs) : ClusterVec :=
+  (x.nJ, 1 / x.δ, 1 / x.α, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_u, 1 / x.ε_w, 1 / x.s₀, x.nH)
+
+private lemma transfer {f g : ClusterVec → ℝ} {g' : ClusterInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
+    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 clusterRegion] g' := by
+  refine (isBigO_comp_on h fun x hx => ?_).congr_right hg
+  obtain ⟨hJ, hδ, hδ1, hα, hα1, hp, hp1, he, he1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
+  simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
+  exact ⟨by exact_mod_cast hJ, (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hα).2 (by linarith),
+    (le_div_iff₀ hp).2 (by linarith), (le_div_iff₀ he).2 (by linarith),
+    (le_div_iff₀ hu).2 (by linarith), (le_div_iff₀ hw).2 (by linarith),
+    (le_div_iff₀ hs).2 (by linarith), Nat.cast_nonneg _⟩
+
 theorem clusteringClaim_holds : ClusteringClaim := by
-  refine ⟨kW, nsuffW, nprefW, npref₀W, atomTolW, collTolW, kW_isBigO, nsuffW_isBigO,
-    npref₀W_isBigO, nprefW_isBigO, atomTolW_isBigO, collTolW_isBigO, tol_pos, ?_⟩
-  intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ ε_u εcov α δ pAP ε_w hηle hη0 hη₀
-    huni htame hflat hH hpAP hpAP1 hu hu1 hα hα1 he he1 hδ hδ1 hw hw1 v
+  refine ⟨fun x => kW (toVec x), fun x => nsuffW (toVec x), fun x => nprefW (toVec x),
+    fun x => npref₀W (toVec x), fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
+    transfer kW_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer nsuffW_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer npref₀W_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer nprefW_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer atomTolW_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer collTolW_isBigO fun x => by simp only [toVec]; ring_nf,
+    fun x => tol_pos _, ?_⟩
+  intro Ω _ μ _ S _ J _ x O populations tame uni H Pre Suf hx hcard hnH hηle huni htame hflat hH
+  obtain ⟨nJ, nH, δ, α, pAP, εcov, ε_u, ε_w, s₀⟩ := x
+  simp only [clusterRegion, Set.mem_ofPred_eq] at hx hcard hnH hηle
+  obtain ⟨hJ, hδ, hδ1, hα, hα1, hpAP, hpAP1, he, he1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
+  obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 1 / 2 - η₀ := ⟨1 / 2 - s₀, by ring⟩
+  subst hcard hnH
+  rw [sub_sub_cancel] at hηle
+  have hη₀ : η₀ < 1 / 2 := by linarith
+  simp only [ClusteringOutcome, toVec, sub_sub_cancel]
+  set v : ClusterVec := ((populations.card : ℝ), 1 / δ, 1 / α, 1 / pAP, 1 / εcov, 1 / ε_u, 1 / ε_w,
+    1 / (1 / 2 - η₀), ((allHarvest H).card : ℝ)) with hv
   obtain ⟨states, hnp, hnp₀, hkn, hband, hmain⟩ := clustering_guarantee_of_correct O
     populations tame uni H Pre Suf η₀ ε_u εcov α δ pAP ε_w hηle hη₀ huni htame hflat hH hpAP hu
     hu1 hα hα1 he he1 hδ (by linarith) hw hw1
@@ -562,15 +597,7 @@ theorem clusteringClaim_holds : ClusteringClaim := by
     have hd' : (0 : ℝ) ≤ (1 / 2 - η₀) ^ 4 * rateScale η₀ ε_u εcov ^ 2 := by positivity
     exact add_le_add (div_le_div_of_nonneg_right
       (mul_le_mul_of_nonneg_left (log_le_log_max hX0 hX) hc) hd') le_rfl
-  have hreg : v ∈ clusterRegion := by
-    have h1 : (1 : ℝ) ≤ populations.card := by
-      exact_mod_cast Finset.card_pos.2 ⟨uni, htame huni⟩
-    simp only [v, clusterRegion, Set.mem_Ici, Prod.mk_le_mk]
-    exact ⟨h1, (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hα).2 (by linarith),
-      (le_div_iff₀ hpAP).2 (by linarith), (le_div_iff₀ he).2 (by linarith),
-      (le_div_iff₀ hu).2 (by linarith), (le_div_iff₀ hw).2 (by linarith),
-      (le_div_iff₀ hs0).2 (by linarith), Nat.cast_nonneg _⟩
-  refine ⟨hreg, states, fun B hB => ⟨hnpW B hB, hks B hB⟩, ?_, hband, ?_⟩
+  refine ⟨states, fun B hB => ⟨hnpW B hB, hks B hB⟩, ?_, hband, ?_⟩
   · obtain ⟨B, hB, h⟩ := hnp₀
     exact ⟨B, hB, by rw [ep₀]; exact h⟩
   intro D Dsf hD hDsf hpre hsuf hpAP' hatom hcoll

@@ -14,6 +14,10 @@ lemma isBigO_on {α : Type*} {f g : α → ℝ} {s : Set α} (C : ℝ)
     obtain ⟨hf, hg, h⟩ := h b hb
     rwa [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg hf, abs_of_nonneg hg]⟩
 
+lemma isBigO_comp_on {α β : Type*} {f g : β → ℝ} {s : Set β} {t : Set α} {φ : α → β}
+    (h : f =O[𝓟 s] g) (hφ : Set.MapsTo φ t s) : (f ∘ φ) =O[𝓟 t] (g ∘ φ) :=
+  h.comp_tendsto (tendsto_principal_principal.2 hφ)
+
 lemma one_div_min_le {x y : ℝ} (hx : 0 < x) (hy : 0 < y) : 1 / min x y ≤ 1 / x + 1 / y := by
   rcases min_cases x y with ⟨h, _⟩ | ⟨h, _⟩ <;> rw [h] <;>
     linarith [one_div_pos.2 hx, one_div_pos.2 hy]
