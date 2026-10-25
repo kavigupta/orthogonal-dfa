@@ -17,8 +17,9 @@ Each claim is proved from the explicit theorems below.
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
   signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
   the band width, suffix pool and prefix count of every state it stops at, and the atom and
-  collision masses its populations must stay under; it fails with chance at most `δ`. `ClusteringClaimSimple` bounds each by a single product, e.g.
-  the prefix count by `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+  collision masses its populations must stay under; it fails with chance at most `δ`.
+  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
+  `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
 - `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
   level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
