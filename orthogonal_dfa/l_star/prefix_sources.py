@@ -1,32 +1,14 @@
-"""Drawing the prefixes that belong to one state.
-
-A source belongs to the round that made it: it closes over that round's tree,
-which says where a string rests, and its hypothesis, which says where to aim
-one.  Only the tree's answer counts.
-"""
+"""Sources of the prefixes a round's populations draw from."""
 
 from dataclasses import dataclass
-from math import isqrt
 from typing import Callable, List
 
 import numpy as np
 
 from .counterexample_probe import Charges
 from .counterexample_search import CounterexampleSearch
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
 from .rejection_source import RejectionSource, proving_attempts
 from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
-
-#: A leaf landing at least this share of its aims is one worth asking again.
-GOOD_YIELD = 0.5
-#: One landing at most this share is one to stop asking.  Nothing decides
-#: anything between the two bars, which is what keeps the count that tells them
-#: apart affordable.
-POOR_YIELD = 0.25
 
 
 class UniformSource:
@@ -109,69 +91,6 @@ class Replay:
 
     def sample(self) -> List[bytes]:
         return self.read(self.round.probe(self.draw())[1])
-
-
-def aim_at(pst, dfa, leaf):
-    """
-    Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
-    unreachable from the starting state, or if too few strings of the sampler's
-    length reach it to draw from without redrawing what it has already drawn.
-
-    Aims are drawn with replacement, so a leaf that holds
-
-        sqrt(alphabet_size ** length)
-
-    of the strings of that length repeats one only after the fourth root of
-    them have been drawn.  Scaled to the space rather than to the draws asked
-    for: a leaf is thin compared to what the sampler could have put there.
-    """
-    weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    length = pst.sampler.length
-    # Counted evenly rather than off the mass below: the sampler's weights are
-    # read as ratios, so its mass is on no scale a threshold could name.
-    reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
-    if reaching[length][dfa.initial_state] < isqrt(pst.alphabet_size**length):
-        return None
-    mass = count_paths_to_state(dfa, leaf, length, weights)
-    # A symbol the sampler never places can leave a well-reached leaf with none.
-    if mass[length][dfa.initial_state] == 0:
-        return None
-    return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
-
-
-def state_source(rests, aim):
-    """
-    A source that draws on `aim` and guarantees (up to the misread chance in
-    `proving_attempts`) that at least POOR_YIELD (25%) of the strings it draws
-    are ones `rests` keeps.
-
-    If this guarantee cannot be made, returns None
-    """
-    source = StateSource(rests, aim)
-    return source if source.worth_drawing() else None
-
-
-class StateSource(RejectionSource):
-    """Prefixes the tree places at one leaf."""
-
-    proving = proving_attempts(GOOD_YIELD, POOR_YIELD)
-    poor = POOR_YIELD
-
-    def __init__(self, rests, aim):
-        super().__init__()
-        self._rests = rests
-        self._aim = aim
-
-    def attempt_draw(self) -> bool:
-        aimed = self._aim()
-        # Where it rests, not where it was aimed.
-        if self._rests(aimed):
-            self._pool.append(aimed)
-            return True
-        return False
-
-    def source_repr(self) -> str:
-        return "leaf"
 
 
 def draw_many(source, wanted: int) -> list:

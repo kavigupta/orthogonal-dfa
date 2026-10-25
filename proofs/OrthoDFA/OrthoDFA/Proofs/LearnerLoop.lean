@@ -361,14 +361,15 @@ def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 /-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS` and `NP` bounding the
 schedule's suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The
 clustering's band reads the rarer decided side at most `ζ = cross` times as often as undecided,
-small enough for level 5's premises at `f = 0`. The last round has
-at most `C.disagreementRate + u + mr` of the probes in
-`disagreeSet`, `mr` bounding the mass the round's probes avoid. -/
+small enough for level 5's premises at `f = 0`. The last round has at most
+`C.disagreementRate + mr` of the probes in `disagreeSet`, and at most half of each `E q`, plus
+`u + mr`, misled, `mr` bounding the mass the round's probes avoid. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (K Ls NS NP : ℕ) (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr u cross Tu : ℝ)
+    (E : σ → Set (FreeMonoid α)) (K Ls NS NP : ℕ)
+    (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr u cross Tu : ℝ)
     (C : Random.Level3Settings),
   let c : ℝ := cross ^ 4
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
@@ -414,15 +415,15 @@ def LoopCore : Prop :=
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
-                  (2 * indecisionLimit + slack) (C.disagreementRate + u + mr))
+                  (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
-          + (C.δ + (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-            + (Fintype.card σ + 1) * cross) / u))
+          + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
+            (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u))
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
+  intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
     c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
     hms1 hNSb hNPb hq1a hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
   classical
@@ -641,7 +642,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) k
+        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
             (loopRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -657,11 +658,11 @@ theorem loop_core_holds : LoopCore := by
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N (513 / 512 * εcov) (δc + gate) slack cap cap
       m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
-  set δ3 : ℝ := C.δ + (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-    + (Fintype.card σ + 1) * cross) / u with hδ3d
+  set δ3 : ℝ := C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
+    (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_round_le_persist M O hL P Dsf settings Ls NP N mr u cross hN hNPsum hband hk0 hη1
-      hcr hprem hu hmr hmr1 r hr
+    loop_round_le_persist M O hL P Dsf settings E Ls NP N mr u cross hu.le hN hNPsum hband hk0
+      hη1 hcr hprem hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -679,17 +680,18 @@ theorem loop_core_holds : LoopCore := by
         _ = δc + gate + δ3 := by ring
     · rw [measureReal_empty]
       have := (prefixMax_pos P.D C.walkStart).le
-      have : 0 ≤ (C.probeBudget * (2 * prefixMax P.D C.walkStart)
-          + (Fintype.card σ + 1) * cross) / u := by
-        positivity
-      have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; linarith
+      have := misledTail_nonneg (T := (C.probeBudget : ℝ)) (u := u)
+        (by positivity : 0 ≤ 2 * prefixMax P.D C.walkStart)
+        (by positivity : (0 : ℝ) ≤ 2 * (Fintype.card σ + 1) * cross)
+      have : (0 : ℝ) ≤ Fintype.card σ * Fintype.card α := by positivity
+      have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; nlinarith
       exact this
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
   have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
       let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
-            (C.disagreementRate + u + mr))
+            (C.disagreementRate + mr) E (u + mr))
         ∧ RoundsFresh settings O P.D Dsf N Ls p)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
@@ -699,7 +701,8 @@ theorem loop_core_holds : LoopCore := by
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
             Lr[i].run
-          ∧ RoundSpec M O P A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) k Lr[i])
+          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+            Lr[i])
         ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
             (p.1, (p.2 ⟨i, hK⟩).1)
@@ -727,7 +730,7 @@ theorem loop_core_holds : LoopCore := by
           simp only [List.length_take] at hj
           rw [List.getElem_take] at hoν
           have hji : j < i := by omega
-          obtain ⟨h4, hcls⟩ := (ih j hji (by omega) (by omega)).1.2
+          obtain ⟨h4, hcls, -⟩ := (ih j hji (by omega) (by omega)).1.2
           have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hoν
           unfold LoopRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
@@ -793,7 +796,7 @@ theorem loop_core_holds : LoopCore := by
             (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
-        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) k
+        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
@@ -801,7 +804,7 @@ theorem loop_core_holds : LoopCore := by
         rw [← histOf_pops, ← hdec, e]
         exact ⟨⟨hcs, h4⟩, hK', hok, hret, hnc⟩
     have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl (513 / 512 * εcov)
-      slack A sl mr (C.disagreementRate + u + mr) (C.harvestRate / 2) Tu hK hT (by linarith)
+      slack A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu E (u + mr) hK hT (by linarith)
       ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
       (fun pops B hB => (hband pops B hB).1)
       fun i hi hiσ => (hspec i hiσ hi).1

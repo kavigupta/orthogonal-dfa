@@ -99,23 +99,24 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
-reads. Its chance is at most `δ + (2T prefixMax + (|Q| + 1)ζ)/u`, it is fixed
+reads. Its chance is at most `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`, it is fixed
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
-theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walkStart)
+theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ) (hu : 0 ≤ u)
+    (hk : 1 ≤ settings.level3.walkStart)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : RoundPremises σ α settings.level3 crossLimit
       (2 * prefixMax P.D settings.level3.walkStart))
-    (hu : 0 < u) (hm1 : m ≤ 1 / 2)
+    (hm1 : m ≤ 1 / 2)
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
       RarerBounded N B.lo (B.hi + 1) p r crossLimit)
     (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
-        ≤ ENNReal.ofReal (settings.level3.δ
-          + (settings.level3.probeBudget * (2 * prefixMax P.D settings.level3.walkStart)
-            + (Fintype.card σ + 1) * crossLimit) / u)
+        ≤ ENNReal.ofReal (settings.level3.δ + Fintype.card σ * Fintype.card α
+          * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+            (2 * (Fintype.card σ + 1) * crossLimit) u)
       ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -123,8 +124,8 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
       ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
-          (settings.level3.disagreementRate + u + m)
-          (settings.level3.harvestRate / 2) settings.level3.walkStart
+          (settings.level3.disagreementRate + m)
+          (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
           (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
   classical
   obtain ⟨hδ0, hδ1, hy0, hyρ, hρ1, hP, hκ0, t, t', ht, ht', htc, hfin⟩ := hprem
@@ -160,7 +161,7 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
     nlinarith
   have hpre' : ∀ v, P'.D.real {x | prefixOf x C.walkStart = v} ≤ 2 * prefixMax P.D k :=
     fun v => (le_prefixMax D' k v).trans hpm
-  have h4 := level3Fail_le fam' hκ0 P' C (2 * prefixMax P.D k) u t t' hu hpre' hδ0 hδ1 hy0
+  have h4 := level3Fail_le fam' hκ0 P' C E (2 * prefixMax P.D k) u t t' hpre' hδ0 hδ1 hy0
     hyρ hρ1 hP ht ht' htc hfin
   have hA0 : 0 ≤ roundSlope σ P.L C := by unfold roundSlope; positivity
   have hsl0 : 0 ≤ roundSlack σ α C (2 * prefixMax P.D k) := by
@@ -172,8 +173,8 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
       exact_mod_cast Nat.one_le_iff_ne_zero.2 (by positivity)
     have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
     nlinarith
-  set Sf := level3Fail fam' C D' (roundSlope σ P.L C) (roundSlack σ α C (2 * prefixMax P.D k)) u
-  have hSm : MeasurableSet Sf := measurableSet_level3Fail fam' C D' hA0 hsl0 u
+  set Sf := level3Fail fam' C D' (roundSlope σ P.L C) (roundSlack σ α C (2 * prefixMax P.D k)) E u
+  have hSm : MeasurableSet Sf := measurableSet_level3Fail fam' C D' hA0 hsl0 E u
   obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D') Sf hSm
   have hpr : MeasurePreserving (probesOf settings P.D K₀)
       (Measure.pi fun _ : Fin T => (volume : Measure unitInterval)) (Measure.pi fun _ => D') :=
@@ -203,13 +204,13 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
         rw [renoise_mq_of_notMem Oc hzv, renoise_mq_of_notMem Oc hzv]
         refine h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z, v'), Finset.mem_product.2
           ⟨mem_shortStrings.2 hz, hv⟩, rfl⟩, not_not.1 hzv⟩)
-    exact level3Fail_congr_up fam' C D' hD'len _ _ u (probesOf settings P.D K₀ v) hread hω
+    exact level3Fail_congr_up fam' C D' hD'len _ _ E u (probesOf settings P.D K₀ v) hread hω
   · -- off the bad draws, the actual round meets its claim
     intro x₀ Pr Sf' ω v hnot
     set xs := probesOf settings P.D K₀ v
     set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z
     have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := hnot
-    obtain ⟨hE, hcls⟩ := not_not.1 hgood
+    obtain ⟨hE, hcls, hfew⟩ := not_not.1 hgood
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
     have hoff : ∀ z, KeyOff k ↑K₀ z → read z = read' z := fun z hz =>
       (renoise_read_of_notMem fam R (fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩) (ω, ω₀)).symm
@@ -220,40 +221,49 @@ theorem round_bad_exists (m u crossLimit : ℝ) (hk : 1 ≤ settings.level3.walk
       rw [SuffixFamily.renoise_readDist]
       rfl
     set H := (Random.indecisiveLStarLevel3 C read xs).hypothesis with hHd
+    have hH : H = (Random.indecisiveLStarLevel3 C read' xs).hypothesis := by rw [hHd, hres]
     have hq := looseEndsWell_of_endsWell P.D M
       (fun q => familyReadDist O M F B.lo (B.hi + 1) q .undecided) hA0 hsl0
       (k := k) (K₀ := ↑K₀) (read := read) (read' := read') hoff H
-      (disagreeSet M (familyReadDist O M F B.lo (B.hi + 1)) read k H)
-      (disagreeSet M (familyReadDist O M F B.lo (B.hi + 1)) read' k H)
+      (disagreeSet read k H) (disagreeSet read' k H)
       (fun x hx h => by
         have hp : probeOrAgree read H.tree H.edges k x = probeOrAgree read' H.tree H.edges k x :=
           Random.probeOrAgree_congr_zone H.edges k fun j hj hjx m _ =>
             hoff _ (keyOff_of_prefix hx hj hjx m)
-        have e1 : x ∈ Random.searchSet read k H ↔ x ∈ Random.searchSet read' k H := by
-          simp only [Random.searchSet, Set.mem_ofPred_eq]; rw [hp]
-        have e2 : x ∈ Random.endsSet read k H ↔ x ∈ Random.endsSet read' k H := by
-          simp only [Random.endsSet, Set.mem_ofPred_eq]; rw [hp]
-        rcases h with (h | h) | ⟨hk', m, hm, hw⟩
-        · exact .inl (.inl (e1.1 h))
-        · exact .inl (.inr (e2.1 h))
-        · refine .inr ⟨hk', m, hm, ?_⟩
-          have := hoff _ (keyOff_of_prefix hx hk' le_rfl m)
-          rw [prefixOf_length] at this
-          beta_reduce at hw ⊢
-          rw [← this]
-          exact hw)
-      (C.disagreementRate + u) C.harvestRate hy0.le
+        simpa only [disagreeSet, Set.mem_union, Random.searchSet, Random.endsSet,
+          Set.mem_ofPred_eq, hp] using h)
+      C.disagreementRate C.harvestRate hy0.le
       (Random.indecisiveLStarLevel3 C read xs).ending (by linarith) (by
-        have hH : H = (Random.indecisiveLStarLevel3 C read' xs).hypothesis := by rw [hHd, hres]
         rw [hres, hH, ← hdist]
         exact hE)
-    refine ⟨?_, ?_⟩
-    · have hq' := hq.mono (m' := m) (ε' := C.disagreementRate + u + m)
+    -- a misled avoiding probe reads alike under both
+    have hmis : ∀ a, ∀ x ∈ avoiding k (↑K₀ : Set (FreeMonoid α)),
+        x ∈ misledSet M (familyReadDist O M F B.lo (B.hi + 1)) read k H.tree a →
+        x ∈ misledSet M (familyReadDist O M F B.lo (B.hi + 1)) read' k H.tree a := by
+      intro a x hx ⟨hkx, hr⟩
+      have hoff' : ∀ z, prefixOf z k = prefixOf x k → k ≤ z.toList.length → read z = read' z :=
+        fun z hz hkz => hoff z ⟨hkz, by rw [hz]; exact hx hkx⟩
+      have hrr : ∀ z, prefixOf z k = prefixOf x k → k ≤ z.toList.length →
+          z ∈ rarerSet M (familyReadDist O M F B.lo (B.hi + 1)) read k H.tree →
+          z ∈ rarerSet M (familyReadDist O M F B.lo (B.hi + 1)) read' k H.tree := by
+        rintro z hz hkz ⟨-, m, hm, hw⟩
+        refine ⟨hkz, m, hm, ?_⟩
+        have := hoff' (z * m) (by rw [prefixOf_mul_of_le hkz, hz]) (by simp; omega)
+        beta_reduce at hw ⊢
+        rw [← this]
+        exact hw
+      refine ⟨hkx, hr.imp (hrr x rfl hkx) (hrr _ ?_ (by simp; omega))⟩
+      exact prefixOf_mul_of_le hkx _
+    refine ⟨?_, ?_, fun q a => ?_⟩
+    · have hq' := hq.mono (m' := m) (ε' := C.disagreementRate + m)
         (y' := C.harvestRate / 2) hm' (by linarith) (by nlinarith)
       exact hq'
     · show (Random.indecisiveLStarLevel3 C read xs).hypothesis.tree ∈ _
       rw [hres]
       exact hcls
+    · have h := real_inter_le_of_avoiding P.D (E := E q) (hmis a) hu (by linarith)
+        (by rw [hH, ← hdist]; exact hfew q a)
+      exact h.trans (by linarith)
 
 end Bad
 
