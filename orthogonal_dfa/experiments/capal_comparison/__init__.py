@@ -1,9 +1,10 @@
 """CAPAL vs E-L* comparison experiments.
 
-Two experiments, one JSON schema:
+Three experiments, one JSON schema:
 
 1. `run_capal_bench`: both learners on CAPAL's own 28 benchmarks.
 2. `run_our_bench`: both learners on some of this repo's benchmarks.
+3. `run_random_bench`: both learners on random minimal DFAs of a few sizes.
 
 Each writes a self-contained JSON under `data/capal/` carrying config and one
 record per (benchmark, learner, eta, seed) cell.

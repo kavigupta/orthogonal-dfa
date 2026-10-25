@@ -15,6 +15,7 @@ from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 
 FAMILY_OURS = "ours"
 FAMILY_CAPAL = "capal_dataset"
+FAMILY_RANDOM = "random"
 
 
 @dataclass

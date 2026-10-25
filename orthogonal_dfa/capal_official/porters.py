@@ -67,6 +67,27 @@ def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
     )
 
 
+def from_automata_dfa(dfa: Any) -> Any:
+    """Complete automata-lib DFA over symbols ``0..k-1`` -> upstream `capal.DFA`
+    over the characters ``'0'..str(k-1)``; the inverse of `to_automata_dfa`."""
+    M = import_capal()
+    symbols = sorted(dfa.input_symbols)
+    assert symbols == list(range(len(symbols))), symbols
+    states = sorted(dfa.states, key=str)
+    sidx = {q: i for i, q in enumerate(states)}
+    return M.DFA(
+        alphabet=[str(c) for c in symbols],
+        num_states=len(states),
+        start=sidx[dfa.initial_state],
+        accept={sidx[q] for q in dfa.final_states},
+        delta={
+            (sidx[q], str(c)): sidx[dfa.transitions[q][c]]
+            for q in states
+            for c in symbols
+        },
+    )
+
+
 def to_automata_dfa(target: Any) -> Any:
     """Upstream `capal.DFA` -> automata-lib DFA over integer symbols.
 
