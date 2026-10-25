@@ -29,9 +29,6 @@ private def nprefB (s r δ α pAP nJ nH n : ℝ) : ℝ :=
   161000 * nJ ^ 2 * log (max 1 ((nJ + 2) * n / (δ * α * pAP * r))) / (s ^ 4 * r ^ 2)
     + 2 ^ 11 * nH / r
 
-private def npref₀B (s r εu δ nJ : ℝ) : ℝ :=
-  max (5 * log (128 * nJ / δ) / εu ^ 2) (2 ^ 13 * log (32 * nJ / δ) / (r * s))
-
 private lemma rs_eq {ie iu is : ℝ} (his : 0 < is) :
     rateScale (1 / 2 - 1 / is) (1 / iu) (1 / ie) = min (16 / (ie * (is + 2) ^ 2)) (1 / iu) := by
   unfold rateScale
@@ -155,39 +152,6 @@ private lemma nsuffB_bound {nJ iδ ip ie iu iw is r : ℝ} (hJ : 1 ≤ nJ) (hiδ
   constructor
   · positivity
   · nlinarith
-
-private lemma log_le_nine {nJ iδ : ℝ} (c : ℝ) (hc0 : 1 ≤ c) (hc : c ≤ 128) (hJ : 1 ≤ nJ)
-    (hiδ : 2 ≤ iδ) :
-    0 ≤ log (c * nJ / (1 / (2 * iδ))) ∧ log (c * nJ / (1 / (2 * iδ))) ≤ 9 * log (nJ * iδ) := by
-  have hx : 2 ≤ nJ * iδ := by nlinarith
-  rw [div_one_div', show c * nJ * (2 * iδ) = 2 * c * (nJ * iδ) by ring]
-  generalize nJ * iδ = x at *
-  have h8 : (2 : ℝ) ^ 8 ≤ x ^ 8 := pow_le_pow_left₀ (by norm_num) hx 8
-  refine ⟨Real.log_nonneg (by nlinarith),
-    (log_le_mul_log_of_le_pow (P := x) 9 (by nlinarith) ?_).trans (by norm_num)⟩
-  nlinarith [mul_nonneg (sub_nonneg.2 hc) (by linarith : (0 : ℝ) ≤ x),
-    mul_nonneg (sub_nonneg.2 h8) (by linarith : (0 : ℝ) ≤ x)]
-
-private lemma npref₀B_bound {nJ iδ ie iu is r : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ) (hie : 2 ≤ ie)
-    (hiu : 2 ≤ iu) (his : 2 ≤ is) (hr : 0 < r) (hr2 : 1 / r ≤ ie * is ^ 2 + iu) :
-    0 ≤ npref₀B (1 / is) r (1 / iu) (1 / (2 * iδ)) nJ
-      ∧ npref₀B (1 / is) r (1 / iu) (1 / (2 * iδ)) nJ
-        ≤ 2 ^ 17 * (log (nJ * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3)) := by
-  obtain ⟨h1₀, h1⟩ := log_le_nine 128 (by norm_num) le_rfl hJ hiδ
-  obtain ⟨h2₀, h2⟩ := log_le_nine 32 (by norm_num) (by norm_num) hJ hiδ
-  have hLJ : 0 ≤ log (nJ * iδ) := Real.log_nonneg (by nlinarith)
-  unfold npref₀B
-  generalize log (128 * nJ / (1 / (2 * iδ))) = l₁ at *
-  generalize log (32 * nJ / (1 / (2 * iδ))) = l₂ at *
-  rw [show 5 * l₁ / (1 / iu) ^ 2 = 5 * l₁ * iu ^ 2 by field_simp,
-    show 2 ^ 13 * l₂ / (r * (1 / is)) = 2 ^ 13 * (l₂ * (1 / r)) * is by field_simp]
-  have hR := mul_le_mul h2 hr2 (by positivity) (by positivity)
-  have hR' := mul_le_mul_of_nonneg_right hR (show 0 ≤ is by linarith)
-  have h1' := mul_le_mul_of_nonneg_right h1 (sq_nonneg iu)
-  have : 0 ≤ log (nJ * iδ) * (iu * is) := by positivity
-  have : 0 ≤ log (nJ * iδ) * (ie * is ^ 3) := by positivity
-  have : 0 ≤ log (nJ * iδ) * iu ^ 2 := by positivity
-  refine ⟨le_max_of_le_left (by positivity), max_le ?_ ?_⟩ <;> nlinarith
 
 private lemma nprefB_bound {nJ iδ ip ie iu iw is nH r n : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ)
     (hip : 1 ≤ ip) (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is)
@@ -318,9 +282,6 @@ private def nprefW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, iu, iw, is, nH)
   nprefB (1 / is) (rsc ie iu is) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) nJ nH
     (nsuffB (1 / is) (rsc ie iu is) (1 / iw) (1 / ip) nJ (1 / (2 * iδ)))
 
-private def npref₀W : ClusterVec → ℝ := fun (nJ, iδ, _, ie, iu, _, is, _) =>
-  npref₀B (1 / is) (rsc ie iu is) (1 / iu) (1 / (2 * iδ)) nJ
-
 open scoped Classical in
 private def atomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, iu, iw, is, nH) =>
   if 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < iu ∧ 0 < is then
@@ -376,18 +337,6 @@ private lemma nsuffW_isBigO : nsuffW =O[𝓟 vecRegion] (fun (nJ, iδ, ip, ie, i
   obtain ⟨hr, hr2⟩ := rsc_facts hie hiu his
   obtain ⟨h0, h⟩ := nsuffB_bound hJ hiδ hip hie hiu hiw his hr hr2
   dsimp only [nsuffW]
-  exact ⟨h0, by positivity, h⟩
-
-private lemma npref₀W_isBigO : npref₀W =O[𝓟 vecRegion] (fun (nJ, iδ, _, ie, iu, _, is, _) =>
-    log (nJ * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3) : ClusterVec → ℝ) := by
-  refine isBigO_on (2 ^ 17) fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, iu, iw, is, nH⟩ := b
-  obtain ⟨hJ, hiδ, hip, hie, hiu, hiw, his, -⟩ := region hb
-  obtain ⟨-, hx, -⟩ := prods hJ hiδ hip hie hiu hiw his
-  have : 0 ≤ log (nJ * iδ) := Real.log_nonneg (by linarith)
-  obtain ⟨hr, hr2⟩ := rsc_facts hie hiu his
-  obtain ⟨h0, h⟩ := npref₀B_bound hJ hiδ hie hiu his hr hr2
-  dsimp only [npref₀W]
   exact ⟨h0, by positivity, h⟩
 
 private lemma nprefW_isBigO : nprefW =O[𝓟 vecRegion]
@@ -593,28 +542,6 @@ private lemma nsuff_dom : (fun (nJ, iδ, ip, ie, iu, iw, is, _) =>
   dsimp only
   exact ⟨by positivity, by positivity, nsuff_le hJ hiδ hip hie hiu hiw his⟩
 
-private lemma npref₀_dom : (fun (nJ, iδ, _, ie, iu, _, is, _) =>
-    log (nJ * iδ) * (iu ^ 2 + iu * is + ie * is ^ 3) : ClusterVec → ℝ)
-    =O[𝓟 vecRegion] (fun (nJ, iδ, _, ie, iu, _, is, _) =>
-      log (nJ * iδ) * ie * iu ^ 2 * is ^ 3 : ClusterVec → ℝ) := by
-  refine isBigO_on 3 fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, iu, iw, is, nH⟩ := b
-  obtain ⟨hJ, hiδ, hip, hie, hiu, hiw, his, -⟩ := region hb
-  have hL : 0 ≤ log (nJ * iδ) := Real.log_nonneg (by nlinarith)
-  have he : 1 ≤ ie := by linarith
-  have hu : 1 ≤ iu := by linarith
-  have hs : 1 ≤ is := by linarith
-  have t1 : iu ^ 2 ≤ ie * iu ^ 2 * is ^ 3 :=
-    le_of_one_le_mul (by positivity) (one_le_mul' he (one_le_pow₀ (n := 3) hs)) (by ring)
-  have t2 : iu * is ≤ ie * iu ^ 2 * is ^ 3 := le_of_one_le_mul (by positivity)
-    (one_le_mul' (one_le_mul' he hu) (one_le_pow₀ (n := 2) hs)) (by ring)
-  have t3 : ie * is ^ 3 ≤ ie * iu ^ 2 * is ^ 3 :=
-    le_of_one_le_mul (by positivity) (one_le_pow₀ (n := 2) hu) (by ring)
-  have := mul_le_mul_of_nonneg_left (show iu ^ 2 + iu * is + ie * is ^ 3
-    ≤ 3 * (ie * iu ^ 2 * is ^ 3) by linarith) hL
-  dsimp only
-  exact ⟨by positivity, by positivity, by linarith⟩
-
 private lemma npref_dom : (fun (nJ, iδ, ip, ie, iu, iw, is, nH) =>
     nJ ^ 2 * log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4)
       + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ)
@@ -719,10 +646,9 @@ private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
 
 theorem clusteringClaim_holds : ClusteringClaim := by
   refine ⟨fun x => kW (toVec x), fun x => nsuffW (toVec x), fun x => nprefW (toVec x),
-    fun x => npref₀W (toVec x), fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
+    fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
     transfer kW_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer nsuffW_isBigO fun x => by simp only [toVec]; ring_nf,
-    transfer npref₀W_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer nprefW_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer atomTolW_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer collTolW_isBigO fun x => by simp only [toVec]; ring_nf,
@@ -741,7 +667,7 @@ theorem clusteringClaim_holds : ClusteringClaim := by
   have hH0 : (allHarvest (fun _ : J => (∅ : Finset S))).card = 0 :=
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
-  obtain ⟨states, hnp, hnp₀, hkn, hband, hmain⟩ := clustering_guarantee_of_correct O
+  obtain ⟨states, hnp, -, hkn, hband, hmain⟩ := clustering_guarantee_of_correct O
     populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov (δ / 2) (δ / 2) pAP ε_w hηle hη₀ huni
     htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1 (by positivity)
     (by linarith) he he1 (by positivity) (by linarith) hw hw1
@@ -764,9 +690,6 @@ theorem clusteringClaim_holds : ClusteringClaim := by
   have ep : nprefW v = nprefB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) (δ / 2) (δ / 2) pAP
       populations.card 0 (nsuffW v) := by
     simp only [v, nprefW, nsuffW, rsc, one_div_one_div, sub_sub_cancel, half_eq]
-  have ep₀ : npref₀W v
-      = npref₀B (1 / 2 - η₀) (rateScale η₀ ε_u εcov) ε_u (δ / 2) populations.card := by
-    simp only [v, npref₀W, rsc, one_div_one_div, sub_sub_cancel, half_eq]
   have ea : atomTolW v = min (rateScale η₀ ε_u εcov * (1 / 2 - η₀)
         / (2 ^ 18 * (populations.card + 3) * max 1 (nprefW v)))
       (δ / 2 * min εcov ε_u ^ 2
@@ -792,9 +715,7 @@ theorem clusteringClaim_holds : ClusteringClaim := by
     have hd' : (0 : ℝ) ≤ (1 / 2 - η₀) ^ 4 * rateScale η₀ ε_u εcov ^ 2 := by positivity
     exact add_le_add (div_le_div_of_nonneg_right
       (mul_le_mul_of_nonneg_left (log_le_log_max hX0 hX) hc) hd') le_rfl
-  refine ⟨states, fun B hB => ⟨hnpW B hB, hks B hB⟩, ?_, hband, ?_⟩
-  · obtain ⟨B, hB, h⟩ := hnp₀
-    exact ⟨B, hB, by rw [ep₀]; exact h⟩
+  refine ⟨states, fun B hB => ⟨hnpW B hB, hks B hB⟩, hband, ?_⟩
   intro D Dsf hD hDsf hpre hsuf hpAP' hatom hcoll
   rw [ea] at hatom
   rw [ec] at hcoll
@@ -836,12 +757,10 @@ theorem clusteringClaim_holds : ClusteringClaim := by
       _ ≤ _ := by linarith
 
 theorem clusteringClaimSimple_holds : ClusteringClaimSimple := by
-  obtain ⟨k, nsuff, npref, npref₀, atomTol, collTol, hk, hs, hp₀, hp, ha, hc, hw⟩ :=
+  obtain ⟨k, nsuff, npref, atomTol, collTol, hk, hs, hp, ha, hc, hw⟩ :=
     clusteringClaim_holds
-  exact ⟨k, nsuff, npref, npref₀, atomTol, collTol, hk,
+  exact ⟨k, nsuff, npref, atomTol, collTol, hk,
     hs.trans (dominate nsuff_dom (fun x => by simp only [toVec]; ring_nf)
-      fun x => by simp only [toVec]; ring_nf),
-    hp₀.trans (dominate npref₀_dom (fun x => by simp only [toVec]; ring_nf)
       fun x => by simp only [toVec]; ring_nf),
     hp.trans (dominate npref_dom (fun x => by simp only [toVec]; ring_nf)
       fun x => by simp only [toVec]; ring_nf),

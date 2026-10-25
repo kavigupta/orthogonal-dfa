@@ -16,21 +16,24 @@ Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
   signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
-  the band width, suffix pool and prefix count of every state it stops at, the prefix count at
-  which some state certifies, and the atom and collision masses its populations must stay under;
-  it fails with chance at most `δ`. `ClusteringClaimSimple` bounds each by a single product, e.g.
-  the prefix count by `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+  the band width, suffix pool and prefix count of every state it stops at, and the atom and
+  collision masses its populations must stay under; it fails with chance at most `δ`.
+  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
+  `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
 - `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
   level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
   4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
-  wrong, both levels at no leaves beyond level 3's `|Q| + 2`.
+  wrong, both levels at no leaves beyond level 3's `|Q| + 2`. `LevelsClaimSimple` writes the
+  slope as `O(|Q| log L/y)` and the slack as `O(|Q||Σ| log(|Q||Σ|/δ)/y)`.
 - `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
   which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
   held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
   prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
   proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
   `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁸(L + |Q|)²|Σ|² log(X)/(c² ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(X)/(pAP² s₀²))`, `X = (L + |Q|)|Σ|/(δ c ξ pAP s₀)`.
 
 ## The explicit theorems
 

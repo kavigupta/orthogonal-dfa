@@ -9,7 +9,8 @@ import OrthoDFA.Proofs.BigO
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`. In the inverted coordinates `loopΘ` is a
 polynomial, so `loopCount` is `ℓ² Θ²/s⁴` times the log of a polynomial and `loopPool` a sum of
-logs of polynomials; `L₀` is the log of a polynomial over `log |Σ|`.
+logs of polynomials; `L₀` is the log of a polynomial over `log |Σ|`. `LoopClaimSimple` follows
+from `LoopClaim`, the prefix and suffix totals' tight shapes bounded by their products.
 -/
 
 noncomputable section
@@ -1003,6 +1004,85 @@ private lemma claimHeldOut_isBigO : (fun v => (claimHeldOut v : ℝ)) =O[𝓟 ve
   exact ⟨Nat.cast_nonneg _,
     nonneg_of_mul_nonneg_right ((Nat.cast_nonneg _).trans h) (by positivity), h⟩
 
+private lemma pref_dom : (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+    Q ^ 4 * (L + Q) ^ 2 * log ((L + Q) * A * iδ * ic * iξ * ip * is)
+      * ((A ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * A ^ 2 * ic ^ 2 * is ^ 4)
+    : ℝ × LoopVec → ℝ)
+    =O[𝓟 (Set.Ici (0 : ℝ) ×ˢ vecRegion)] (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+      Q ^ 8 * (L + Q) ^ 2 * A ^ 2 * log ((L + Q) * A * iδ * ic * iξ * ip * is)
+        * ic ^ 2 * iξ ^ 2 * is ^ 8 : ℝ × LoopVec → ℝ) := by
+  refine isBigO_on 3 fun b hb => ?_
+  obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
+  have hY : 1 ≤ (L + Q) * A * iδ * ic * iξ * ip * is := by
+    refine one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+      (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le ?_ ?_) ?_) ?_) ?_) ?_) ?_
+      <;> linarith
+  have hl : 0 ≤ log ((L + Q) * A * iδ * ic * iξ * ip * is) := Real.log_nonneg hY
+  have hQ4 : 1 ≤ Q ^ 4 := one_le_pow₀ hQ
+  have hA2 : 1 ≤ A ^ 2 := one_le_pow₀ (by linarith)
+  have hc2 : 1 ≤ ic ^ 2 := one_le_pow₀ hic
+  have hξ2 : 1 ≤ iξ ^ 2 := one_le_pow₀ hiξ
+  have hs4 : 1 ≤ is ^ 4 := one_le_pow₀ (by linarith)
+  have hs8 : 0 ≤ is ^ 8 := by positivity
+  set M := Q ^ 4 * A ^ 2 * ic ^ 2 * iξ ^ 2 * is ^ 8
+  have m1 : A ^ 2 * ic ^ 2 * is ^ 8 ≤ M := (le_mul_of_one_le_left (by positivity)
+    (one_le_mul_of_one_le_of_one_le hQ4 hξ2)).trans_eq (by ring)
+  have m2 : iξ ^ 2 * is ^ 8 ≤ M := (le_mul_of_one_le_left (by positivity)
+    (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ4 hA2) hc2)).trans_eq
+      (by ring)
+  have m3 : Q ^ 4 * A ^ 2 * ic ^ 2 * is ^ 4 ≤ M := (le_mul_of_one_le_left (by positivity)
+    (one_le_mul_of_one_le_of_one_le hξ2 hs4)).trans_eq (by ring)
+  have hK : 0 ≤ Q ^ 4 * (L + Q) ^ 2 * log ((L + Q) * A * iδ * ic * iξ * ip * is) := by
+    positivity
+  have h := mul_le_mul_of_nonneg_left (show (A ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8
+    + Q ^ 4 * A ^ 2 * ic ^ 2 * is ^ 4 ≤ 3 * M by linarith) hK
+  dsimp only
+  refine ⟨mul_nonneg hK (by positivity), by positivity, h.trans_eq (by ring)⟩
+
+private lemma suff_dom : (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+    Q * (log ((L + Q) * A * iδ * ic * iξ * is) * ip * is ^ 2 + log (Q * iδ) * ip ^ 2)
+    : ℝ × LoopVec → ℝ)
+    =O[𝓟 (Set.Ici (0 : ℝ) ×ˢ vecRegion)] (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
+      Q * log ((L + Q) * A * iδ * ic * iξ * ip * is) * ip ^ 2 * is ^ 2
+      : ℝ × LoopVec → ℝ) := by
+  refine isBigO_on 2 fun b hb => ?_
+  obtain ⟨L, Q, A, iδ, ic, iξ, ip, is⟩ := b
+  obtain ⟨hL, hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region' hb
+  have hY' : 1 ≤ (L + Q) * A * iδ * ic * iξ * is := by
+    refine one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+      (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        (one_le_mul_of_one_le_of_one_le ?_ ?_) ?_) ?_) ?_) ?_ <;> linarith
+  have hYY : (L + Q) * A * iδ * ic * iξ * is ≤ (L + Q) * A * iδ * ic * iξ * ip * is :=
+    (le_mul_of_one_le_right (by linarith) hip).trans_eq (by ring)
+  have hQδ : 1 ≤ Q * iδ := one_le_mul_of_one_le_of_one_le hQ (by linarith)
+  have hQY : Q * iδ ≤ (L + Q) * A * iδ * ic * iξ * ip * is := by
+    have h1 : Q * iδ ≤ (L + Q) * iδ := by gcongr; linarith
+    have h2 : 1 ≤ A * ic * iξ * ip * is := by
+      refine one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le ?_ ?_) ?_) ?_) ?_
+        <;> linarith
+    exact h1.trans ((le_mul_of_one_le_right (by nlinarith) h2).trans_eq (by ring))
+  have l1 := Real.log_le_log (by linarith) hYY
+  have l2 := Real.log_le_log (by linarith) hQY
+  have l0 : 0 ≤ log ((L + Q) * A * iδ * ic * iξ * is) := Real.log_nonneg hY'
+  have l0' : 0 ≤ log (Q * iδ) := Real.log_nonneg hQδ
+  set ℓ := log ((L + Q) * A * iδ * ic * iξ * ip * is)
+  have hℓ : 0 ≤ ℓ := l0.trans l1
+  have hp2 : ip ≤ ip ^ 2 := by nlinarith
+  have hs2 : 1 ≤ is ^ 2 := one_le_pow₀ (by linarith)
+  have e1 : log ((L + Q) * A * iδ * ic * iξ * is) * ip * is ^ 2 ≤ ℓ * ip ^ 2 * is ^ 2 := by
+    gcongr
+  have e2 : log (Q * iδ) * ip ^ 2 ≤ ℓ * ip ^ 2 * is ^ 2 :=
+    calc log (Q * iδ) * ip ^ 2 ≤ ℓ * ip ^ 2 := by gcongr
+      _ ≤ ℓ * ip ^ 2 * is ^ 2 := le_mul_of_one_le_right (mul_nonneg hℓ (by positivity)) hs2
+  have h := mul_le_mul_of_nonneg_left (add_le_add e1 e2) (by linarith : (0 : ℝ) ≤ Q)
+  dsimp only
+  refine ⟨mul_nonneg (by linarith) (by positivity),
+    mul_nonneg (mul_nonneg (mul_nonneg (by linarith) hℓ) (by positivity)) (by positivity),
+    h.trans_eq (by ring)⟩
+
 private def toVec (x : LoopInputs) : LoopVec :=
   (x.Q, x.A, 1 / x.δ, 1 / x.c, 1 / x.ξ, 1 / x.pAP, 1 / x.s₀)
 
@@ -1024,6 +1104,11 @@ private lemma transferRun {f g : ℝ × LoopVec → ℝ} {g' : LoopRun → ℝ}
     (fun r => f (toRunVec r)) =O[𝓟 loopRunRegion] g' :=
   (isBigO_comp_on (φ := toRunVec) h fun r hr => Set.mk_mem_prod
     (Set.mem_Ici.2 (Nat.cast_nonneg r.L)) (toVec_mem hr)).congr_right hg
+
+private lemma dominateRun {f g : ℝ × LoopVec → ℝ} {f' g' : LoopRun → ℝ}
+    (h : f =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)] g) (hf : ∀ r, f (toRunVec r) = f' r)
+    (hg : ∀ r, g (toRunVec r) = g' r) : f' =O[𝓟 loopRunRegion] g' :=
+  (transferRun h hg).congr_left hf
 
 theorem loopClaim_holds : LoopClaim := by
   refine ⟨fun x => claimL0 (toVec x), fun r => claimPref (toRunVec r),
@@ -1064,5 +1149,13 @@ theorem loopClaim_holds : LoopClaim := by
     beta_reduce
     rw [e]
     exact hprob
+
+theorem loopClaimSimple_holds : LoopClaimSimple := by
+  obtain ⟨L₀, pref, suff, probes, heldOut, hL₀, hp, hs, hpr, hh, hw⟩ := loopClaim_holds
+  exact ⟨L₀, pref, suff, probes, heldOut, hL₀,
+    hp.trans (dominateRun pref_dom (fun r => by simp only [toRunVec, toVec]; ring_nf)
+      fun r => by simp only [toRunVec, toVec]; ring_nf),
+    hs.trans (dominateRun suff_dom (fun r => by simp only [toRunVec, toVec]; ring_nf)
+      fun r => by simp only [toRunVec, toVec]; ring_nf), hpr, hh, hw⟩
 
 end OrthoDFA

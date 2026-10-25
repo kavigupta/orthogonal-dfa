@@ -12,7 +12,8 @@ at most `γ + ξ` of the strings of length `L`, but for chance `δ`, its start l
 one is within the big-O shape below, with `c` the coverage and `s₀ = 1/2 − η₀` the signal. The
 totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
 `c/(4(|Σ| + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
-the suffixes as `log L`. Each bound has one constant over all of `loopRegion`.
+the suffixes as `log L`. Each bound has one constant over all of `loopRegion`. `LoopClaimSimple`
+states the same with the prefix and suffix totals each a single product.
 -/
 
 namespace OrthoDFA
@@ -41,8 +42,43 @@ structure LoopRun extends LoopInputs where
 
 def loopRunRegion : Set LoopRun := {r | r.toLoopInputs ∈ loopRegion}
 
+/-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
+`totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
+def LoopWithin.{u, v, w} (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
+    (heldOut : LoopInputs → ℕ) : Prop :=
+  ∀ {α : Type u} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type v} [Fintype σ] {Ω : Type w}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (x : LoopInputs) (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (γ : ℝ),
+  -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
+  let k : ℕ := (L + 1) / 2
+  let L₁ : ℕ := L + Fintype.card σ + 3
+  x ∈ loopRegion → Fintype.card σ = x.Q → Fintype.card α = x.A →
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ 1 / 2 - x.s₀ →
+  x.pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  (∃ q ∈ coveredStates M L x.c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L x.c) q) →
+  L₀ x ≤ L →
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level3.walkStart = k ∧
+    (∀ draws : Fin (Fintype.card σ + 1)
+        → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.probeBudget,
+      let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card σ + 3)) draws
+      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
+        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+        ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+        (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
+      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
+        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
+              o.result.hypothesis.rerootedDFA o.read q.2 w
+                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+      ≤ x.δ
+
 open Real in
-def LoopClaim : Prop :=
+def LoopClaim.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
@@ -57,35 +93,24 @@ def LoopClaim : Prop :=
     totalProbes =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.c * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
-    ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
-      [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-      (x : LoopInputs) (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (γ : ℝ),
-    -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
-    let k : ℕ := (L + 1) / 2
-    let L₁ : ℕ := L + Fintype.card σ + 3
-    x ∈ loopRegion → Fintype.card σ = x.Q → Fintype.card α = x.A →
-    (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ 1 / 2 - x.s₀ →
-    x.pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∃ q ∈ coveredStates M L x.c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L x.c) q) →
-    L₀ x ≤ L →
-    ∃ settings : LoopSettings (Fintype.card σ + 1),
-      settings.level3.walkStart = k ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.probeBudget,
-        let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-          (uniformStrings (L₁ + Fintype.card σ + 3)) draws
-        ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
-          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
-          ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-      ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
-          (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-        {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-              (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
-          ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-              o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 w
-                  (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
-        ≤ x.δ
+    LoopWithin.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
+
+open Real in
+/-- `LoopClaim` with the prefix and suffix totals each a single product. -/
+def LoopClaimSimple.{u, v, w} : Prop :=
+  ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
+    (heldOut : LoopInputs → ℕ),
+    L₀ =O[𝓟 loopRegion] (fun x =>
+      log (x.Q * x.A / (x.δ * x.c * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+    totalPref =O[𝓟 loopRunRegion] (fun r =>
+      r.Q ^ 8 * (r.L + r.Q) ^ 2 * r.A ^ 2
+        * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀))
+        / (r.c ^ 2 * r.ξ ^ 2 * r.s₀ ^ 8)) ∧
+    totalSuff =O[𝓟 loopRunRegion] (fun r =>
+      r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀)) / (r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+    totalProbes =O[𝓟 loopRunRegion] (fun r =>
+      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.c * log (r.Q * r.A / r.δ)) ∧
+    (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
+    LoopWithin.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
 
 end OrthoDFA
