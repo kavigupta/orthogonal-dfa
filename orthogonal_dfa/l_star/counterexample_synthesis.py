@@ -261,7 +261,7 @@ def counterexample_driven_synthesis(
     the first refusal run out of patience, or max_rounds of them have run.
     Only a caller driving the loop itself can set that cap; `learn_dfa` does not
     forward one."""
-    # The cap is read at the foot of the body, so a round always runs.
+    # The cap is read once a round has run, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -327,6 +327,10 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
+        # Everything below readies the next round.
+        if max_rounds is not None and index + 1 >= max_rounds:
+            print(f"[round {index}] ran the {max_rounds} rounds asked for")
+            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
@@ -349,9 +353,6 @@ def counterexample_driven_synthesis(
             f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
-        if max_rounds is not None and index >= max_rounds:
-            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
-            return best
 
 
 def do_counterexample_driven_synthesis(
