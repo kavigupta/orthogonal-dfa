@@ -18,7 +18,8 @@ Each claim is proved from the explicit theorems below.
   signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
   the band width, suffix pool and prefix count of every state it stops at, and the atom and
   collision masses its populations must stay under; it fails with chance at most `δ`.
-  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
+  `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
 
 ## The explicit theorems
 
