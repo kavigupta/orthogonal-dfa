@@ -22,17 +22,9 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
 from .prefix_populations import PoolState
-from .prefix_sources import (
-    HarvestSource,
-    Replay,
-    UniformSource,
-    aim_at,
-    harvest_reader,
-    state_source,
-)
+from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
-from .progress import counter, track
-from .round_end import HARVESTS, SUCCESS
+from .progress import counter
 from .suffix_family import SuffixFamily
 from .tracker import SynthesisTracker
 
@@ -45,9 +37,9 @@ class RoundClassifier:
 
     The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
-    population the family was clustered on. Off-length prefixes (boundary strings,
-    per-state samples) reach the family off its calibration, so a consumer checking
-    the recorded cut should restrict to the calibrated ones."""
+    population the family was clustered on. Off-length prefixes (boundary strings)
+    reach the family off its calibration, so a consumer checking the recorded cut
+    should restrict to the calibrated ones."""
 
     prefixes: List[bytes]
     votes: np.ndarray
@@ -100,32 +92,6 @@ def _accumulate_harvest(strings, read, state, wanted) -> int:
     return min(wanted, len(taken))
 
 
-def _family_too_loose(ending, true_acc, acc_threshold, taken) -> bool:
-    return ending.kind in HARVESTS or (
-        ending.kind == SUCCESS and true_acc >= acc_threshold and taken == 0
-    )
-
-
-def _per_state_members(pst, hypothesis, dfa, state, per_state) -> None:
-    """``("state", leaf) -> members``, ``per_state`` of them resting at each
-    state that has a source."""
-    state.retire("state")
-    for leaf in track(
-        range(hypothesis.tree.num_states), "Drawing each state's prefixes"
-    ):
-        aim = aim_at(pst, dfa, leaf)
-        if aim is None:
-            # Out of reach rather than short: too few strings of the sampler's
-            # length arrive here to draw from, so no round is going to fill it
-            # and this one is not waiting on a draw.
-            continue
-        path = hypothesis.tree.path_of(leaf)
-        source = state_source(lambda s, path=path: hypothesis.sift(s) == path, aim)
-        if source is None:
-            continue
-        state.hold(("state", leaf), source, per_state)
-
-
 def _boundary_source(pst, state, *, acc_threshold) -> None:
     """Hands the round's boundary population a source that draws more the way
     its strings were found, proved only when a family search first asks it for
@@ -171,7 +137,8 @@ FNR_FLOOR = 0.25
 
 
 class _StallDetector:
-    """Stops a run whose rounds have stopped handing the next one new strings."""
+    """Stops a run whose rounds have stopped handing the next one new strings or a
+    tighter family."""
 
     def __init__(self, patience: int):
         self._patience = patience
@@ -180,12 +147,6 @@ class _StallDetector:
     def stalled(self, *, progressed: bool) -> bool:
         self._stalled = 0 if progressed else self._stalled + 1
         return self._stalled >= self._patience
-
-
-#: Representative strings drawn per DFA state.  Every round draws this many
-#: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.
-PER_STATE = 50
 
 
 class UncertifiedResult(UserWarning):
@@ -293,7 +254,6 @@ def counterexample_driven_synthesis(
     acc_threshold: float,
     tracker: SynthesisTracker,
     max_rounds: Optional[int] = None,
-    per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> BestRound:
@@ -301,7 +261,7 @@ def counterexample_driven_synthesis(
     the first refusal run out of patience, or max_rounds of them have run.
     Only a caller driving the loop itself can set that cap; `learn_dfa` does not
     forward one."""
-    # The cap is read at the foot of the body, so a round always runs.
+    # The cap is read once a round has run, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -367,19 +327,20 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
+        # Everything below readies the next round.
+        if max_rounds is not None and index + 1 >= max_rounds:
+            print(f"[round {index}] ran the {max_rounds} rounds asked for")
+            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        if (
-            _family_too_loose(ending, true_acc, acc_threshold, taken)
-            and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
-        ):
+        halved = taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
+        if halved:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
-        _per_state_members(pst, hypothesis, dfa, state, per_state)
         # Rounds after a refusal have their own patience, so they are not
         # weighed for a stall.
-        if uncertified_since is None and stall.stalled(progressed=taken > 0):
+        if uncertified_since is None and stall.stalled(progressed=taken > 0 or halved):
             print(
                 f"[round {index}] no new strings harvested in {STALL_PATIENCE} "
                 "rounds; stopping synthesis"
@@ -392,9 +353,6 @@ def counterexample_driven_synthesis(
             f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
-        if max_rounds is not None and index >= max_rounds:
-            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
-            return best
 
 
 def do_counterexample_driven_synthesis(
