@@ -392,7 +392,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
         _ ≤ 16 := by norm_num
     refine this.trans ?_
     rw [le_div_iff₀ hδ'0]
-    nlinarith
+    nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)]
   -- the walk starts after at least one letter
   have hk0 : 1 ≤ k := by
     by_contra h
@@ -690,7 +690,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     have ha0 := (gateA_pos hη0 hη₀).le
     have hsq : ((1 - 2 * η₀) / (1 - η₀)) ^ 2 ≤ 1 := by
       have : (1 - 2 * η₀) / (1 - η₀) = gateA η₀ := rfl
-      rw [this]; nlinarith only [ha, ha0]
+      rw [this]; exact pow_le_one₀ ha0 ha
     have hεc0 : 0 ≤ εcov / 2 := by
       have : 0 < εcov := lt_min hε0 (by positivity)
       positivity
@@ -699,69 +699,16 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hτ0
     hinvτ hι0 hinvι hΘ1 hℓ1 hRB0 (by rw [hRBd]; exact hRB) (by linarith) (by rw [hPBJ]; exact hPB)
     (by linarith) hR₀ hδ'0 hδ'1 hpAP hp1 hs0 hs1 hτm rfl
-  have hE₁0 : 0 < E₁ := by
-    show 0 < (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
-      + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
-    have : 0 < 2 ^ 20 * Θ * (R₀ + 1) / s := by positivity
-    have : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
-    have : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
-    positivity
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
   have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
-  have hEE : 1 ≤ E + E₂ := by
-    have hE₁ : 1 ≤ E₁ := by
-      show 1 ≤ (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
-        + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
-      have h1 : 1 ≤ 2 ^ 20 * Θ * (R₀ + 1) / s := by
-        rw [le_div_iff₀ hs0, one_mul]
-        have : 1 ≤ Θ * (R₀ + 1) := one_le_mul_of_one_le_of_one_le hΘ1 (by linarith only [hR₀])
-        linarith only [this, hs1]
-      have h2 : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
-      have h3 : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
-      have h4 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith only [hQ0])
-      exact one_le_mul_of_one_le_of_one_le h4 (by linarith only [h1, h2, h3])
-    have haε : 1 ≤ aε := by
-      show 1 ≤ 4 * (A + 1) / c
-      rw [le_div_iff₀ hc, one_mul]
-      linarith only [hA, hc1]
-    have hE₂ : 0 ≤ E₂ := by
-      show 0 ≤ 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
-      positivity
-    have h1 : 0 ≤ 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε := by positivity
-    have h2 : 1 ≤ 1536 * aε * E₁ :=
-      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
-    show 1 ≤ 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε + E₂
-    exact le_add_of_le_of_nonneg (le_add_of_le_of_nonneg h2 h1) hE₂
-  have hE₃ : 0 ≤ E₃ := by show 0 ≤ 16 * K₁ ^ 2 / δ'; positivity
-  have hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
-    dfa_pow (L := (L : ℝ)) (Q := Q) hA
-      (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hQ0
-      (Nat.cast_nonneg L) (by linarith) (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega))
-      rfl hL₀
-  have hℓ6 : 0 ≤ ℓ ^ 6 := by positivity
-  have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
-    (mul_le_mul_of_nonneg_left (by linarith only [hE₃]) hℓ6).trans hpow3
-  obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) (J := J) (RB := RB) (B₃ := B₃) (by positivity)
-    hℓ1 hε0 hinvε haε0 hcap hE₁0 hlg rfl rfl hQ0 (Nat.cast_nonneg n) hδ rfl hRB0
-    (by rw [hRBd]; exact hRB) hB₃0 hB₃ hpow
-  have h4 : 16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' := by
-    have hAk : 0 < A ^ k := by positivity
-    have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * ℓ ^ 6 := by
-      have h1 : B₃ ^ 2 ≤ (K₁ * ℓ) ^ 2 := pow_le_pow_left₀ hB₃0 hB₃ 2
-      have h2 : ℓ ^ 2 ≤ ℓ ^ 6 := pow_le_pow_right₀ hℓ1 (by norm_num)
-      have h3 : (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 := by ring
-      have h4 := mul_le_mul_of_nonneg_left h2 (sq_nonneg K₁)
-      linarith only [h1, h3, h4]
-    have hE3 : ℓ ^ 6 * E₃ ≤ A ^ k := by
-      have : ℓ ^ 6 * E₃ ≤ ℓ ^ 6 * (E + E₂ + E₃) :=
-        mul_le_mul_of_nonneg_left (by linarith only [hEE]) hℓ6
-      linarith only [this, hpow3]
-    rw [← div_eq_mul_inv, div_le_iff₀ hAk]
-    have e : ℓ ^ 6 * E₃ * δ' = 16 * K₁ ^ 2 * ℓ ^ 6 := by
-      show ℓ ^ 6 * (16 * K₁ ^ 2 / δ') * δ' = _; field_simp
-    have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
-    linarith only [h5, e, hB2]
+    Real.log_nonneg (by
+      rw [le_div_iff₀ hδ'0]
+      nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
+  obtain ⟨h1, h2, h3, h4⟩ := dfa_tail (k := k) hA hQ0 (Nat.cast_nonneg L) hc hc1 hs0 hs1 hpAP hδ'0
+    hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0 (Nat.cast_nonneg n)
+    (by show ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 = _; push_cast; ring) hℓ1 hε0 hinvε hcap hlg
+    rfl rfl rfl rfl rfl rfl hRB0 hRB hB₃0 hB₃
+    (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
   exact learner_loop_dfa_simple_holds M O L η₀ c γ δ pAP ξ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu
     hceil h1 h2 h3 h4
 
