@@ -13,7 +13,8 @@ big-O shapes below. Levels 3 to 5 share one budget, and their harvests' slope an
 bounded the same way. Levels 4 and 5 also need the probes' walk starts spread, every one holding
 at most `p₀Tol` of the probes' law, and their reads rarely wrong: at level 4 at most `εwTol` of
 the time, at level 5 at most `κTol` times the state's indecision. How small those must be is
-bounded below the same way. Both run at no leaves beyond level 3's `|Q| + 2`.
+bounded below the same way. Both run at no leaves beyond level 3's `|Q| + 2`. Each bound has one
+constant over all of `levelRegion` (`level2Region` for level 2), where every instance's vector lies.
 -/
 
 namespace OrthoDFA
@@ -26,32 +27,37 @@ abbrev LevelVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
 /-- `(|Q|, |Σ|, 1/ε, 1/δ, 1/(ε − y))`. -/
 abbrev Level2Vec := ℝ × ℝ × ℝ × ℝ × ℝ
 
+def levelRegion : Set LevelVec := Set.Ici (1, 1, 1, 2, 1, 2)
+
+def level2Region : Set Level2Vec := Set.Ici (1, 1, 1, 2, 1)
+
 open Real in
 def LevelsClaim : Prop :=
   ∃ (nprobes : LevelVec → ℕ) (nprobes₂ : Level2Vec → ℕ)
     (slope slackRate p₀Tol κTol εwTol : LevelVec → ℝ),
-    (fun v => (nprobes v : ℝ)) =O[atTop] (fun (Q, A, iε, iδ, _, _) =>
+    (fun v => (nprobes v : ℝ)) =O[𝓟 levelRegion] (fun (Q, A, iε, iδ, _, _) =>
       Q ^ 2 * A * iε * log (Q ^ 2 * A * iδ)) ∧
-    (fun v => (nprobes₂ v : ℝ)) =O[atTop] (fun (Q, A, iε, iδ, ig) =>
+    (fun v => (nprobes₂ v : ℝ)) =O[𝓟 level2Region] (fun (Q, A, iε, iδ, ig) =>
       Q ^ 2 * A * ig ^ 2 / iε * log (Q ^ 2 * A * iδ)) ∧
-    slope =O[atTop] (fun (Q, _, _, _, iy, L) => Q * (iy + log L)) ∧
-    slackRate =O[atTop] (fun (Q, A, _, iδ, iy, _) => (Q * A * log (Q * A) + log iδ) * iy) ∧
-    (fun v => 1 / p₀Tol v) =O[atTop] (fun (Q, A, iε, iδ, _, _) =>
+    slope =O[𝓟 levelRegion] (fun (Q, _, _, _, iy, L) => Q * (iy + log L)) ∧
+    slackRate =O[𝓟 levelRegion] (fun (Q, A, _, iδ, iy, _) =>
+      (Q * A * log (Q * A) + log iδ) * iy) ∧
+    (fun v => 1 / p₀Tol v) =O[𝓟 levelRegion] (fun (Q, A, iε, iδ, _, _) =>
       (Q ^ 2 * A * iε * log (Q ^ 2 * A * iδ)) ^ 2 * iδ) ∧
-    (fun v => 1 / κTol v) =O[atTop] (fun (Q, A, _, iδ, _, _) =>
+    (fun v => 1 / κTol v) =O[𝓟 levelRegion] (fun (Q, A, _, iδ, _, _) =>
       Q ^ 2 * A * log (Q * A * iδ) * sqrt iδ) ∧
-    (fun v => 1 / εwTol v) =O[atTop] (fun (Q, A, iε, iδ, _, L) =>
+    (fun v => 1 / εwTol v) =O[𝓟 levelRegion] (fun (Q, A, iε, iδ, _, L) =>
       Q ^ 3 * A * iε * log (Q ^ 2 * A * iδ) * log L * sqrt iδ) ∧
     (∀ v, 0 < p₀Tol v ∧ 0 < κTol v ∧ 0 < εwTol v) ∧
     -- Level 2: every state's reads all undecided or all on its side.
-    (∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] (M : DFA α σ)
       (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2.Settings),
       let y := C.harvestRate
       let ε := C.disagreementRate
       let δ := C.δ
       let v : Level2Vec := (Fintype.card σ, Fintype.card α, 1 / ε, 1 / δ, 1 / (ε - y))
-      Level2.ReadsByState read M side → 0 < y → y < ε → ε < 1 → 0 < δ → δ < 1 →
-      ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
+      Level2.ReadsByState read M side → 0 < y → y < ε → ε < 1 → 0 < δ → δ ≤ 1 / 2 →
+      v ∈ level2Region ∧ ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
         (Measure.pi fun _ : Fin (nprobes₂ v) => D).real
             {draws | let result := Level2.indecisiveLStarLevel2 C read draws
               ¬ EndsWell
@@ -63,7 +69,7 @@ def LevelsClaim : Prop :=
                   yield := y, ending := result.ending }}
           ≤ δ) ∧
     -- Level 3: reads undecided at random, never wrong.
-    (∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] (M : DFA α σ)
       (side : σ → Bool) (U : σ → ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
       [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution α)
       (C : Level3Settings) (p₀ : ℝ),
@@ -72,9 +78,9 @@ def LevelsClaim : Prop :=
       let δ := C.δ
       let v : LevelVec := (Fintype.card σ, Fintype.card α, 1 / ε, 1 / δ, 1 / y, P.L)
       C.probeBudget = nprobes v →
-      (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → 0 < y →
-      y ≤ ε / 48 → ε < 1 →
-      ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+      (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → δ ≤ 1 / 2 → 0 < y →
+      y ≤ ε / 48 → ε < 1 → 2 ≤ P.L →
+      v ∈ levelRegion ∧ ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
             ¬ EndsWell
               { target := M,
@@ -91,7 +97,7 @@ def LevelsClaim : Prop :=
                 ending := result.ending }} ∂μ
         ≤ ENNReal.ofReal δ) ∧
     -- Level 4: reads wrong at most `εw` of the time.
-    (∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] (M : DFA α σ)
       (side : σ → Bool) (U : σ → ℝ) (εw : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
       [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution α)
       (C : Level3Settings) (p₀ : ℝ),
@@ -102,8 +108,8 @@ def LevelsClaim : Prop :=
       C.probeBudget = nprobes v →
       (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol v →
       0 ≤ εw → εw ≤ εwTol v →
-      0 < δ → δ < 1 → 0 < y → y ≤ ε / 48 → ε < 1 →
-      ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+      0 < δ → δ ≤ 1 / 2 → 0 < y → y ≤ ε / 48 → ε < 1 → 2 ≤ P.L →
+      v ∈ levelRegion ∧ ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
             ¬ EndsWell
               { target := M,
@@ -121,7 +127,7 @@ def LevelsClaim : Prop :=
             ∨ Fintype.card σ + 2 < result.hypothesis.tree.leaves.length} ∂μ
         ≤ ENNReal.ofReal δ) ∧
     -- Level 5: reads wrong at most `κ` times as often as undecided.
-    (∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] (M : DFA α σ)
       (side : σ → Bool) (U : σ → ℝ) (κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
       [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U 0 κ) (P : PrefixDistribution α)
       (C : Level3Settings) (p₀ : ℝ),
@@ -132,8 +138,8 @@ def LevelsClaim : Prop :=
       C.probeBudget = nprobes v →
       (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol v →
       0 ≤ κ → κ ≤ κTol v →
-      0 < δ → δ < 1 → 0 < y → y ≤ ε / 48 → ε < 1 →
-      ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+      0 < δ → δ ≤ 1 / 2 → 0 < y → y ≤ ε / 48 → ε < 1 → 2 ≤ P.L →
+      v ∈ levelRegion ∧ ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
             ¬ EndsWell
               { target := M,
