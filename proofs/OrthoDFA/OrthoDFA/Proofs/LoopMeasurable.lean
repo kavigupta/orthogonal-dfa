@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.LoopCodes
-import OrthoDFA.Proofs.Lloyd
+import OrthoDFA.Proofs.Nearest
 import OrthoDFA.Proofs.RawMeas
 
 /-!
@@ -125,26 +125,15 @@ theorem probeOrAgree_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (Fr
       simp only [FreeMonoid.toList_mul, List.length_append]
       omega))
 
-theorem measurableSet_mem_disagreeSet {σ : Type*} (O : Oracle μ (FreeMonoid α))
-    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (dist : σ → ARU → ℝ)
-    (H : HypothesisDFA α) (x : FreeMonoid α) :
-    MeasurableSet {ω | x ∈ disagreeSet M dist (fun z => familyRead O.mq F kl kh z ω) k H} := by
+theorem measurableSet_mem_disagreeSet (O : Oracle μ (FreeMonoid α))
+    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (H : HypothesisDFA α) (x : FreeMonoid α) :
+    MeasurableSet {ω | x ∈ disagreeSet (fun z => familyRead O.mq F kl kh z ω) k H} := by
   refine measurableSet_of_reads O
     (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_
   have hp := probeOrAgree_congr_reads O (kl := kl) (kh := kh) k H x h
-  have hr : ∀ m ∈ Random.mids H.tree, familyRead O.mq F kl kh (x * m) ω
-      = familyRead O.mq F kl kh (x * m) ω' := fun m hm =>
-    familyRead_congr O h (mem_shortStrings.2 (by
-      have := midsLe_midLen H.tree m hm
-      simp only [FreeMonoid.toList_mul, List.length_append]
-      omega))
-  simp only [Set.mem_setOf_eq, disagreeSet, Set.mem_union, Random.searchSet, Random.endsSet,
-    rarerSet] at hω ⊢
-  rw [← hp]
-  rcases hω with (h1 | h1) | ⟨hk, m, hm, hw⟩
-  · exact .inl (.inl h1)
-  · exact .inl (.inr h1)
-  · exact .inr ⟨hk, m, hm, by rw [← hr m hm]; exact hw⟩
+  simp only [Set.mem_setOf_eq, disagreeSet, Set.mem_union, Random.searchSet,
+    Random.endsSet] at hω ⊢
+  rwa [← hp]
 
 omit [IsProbabilityMeasure μ] in
 theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α)}
@@ -309,8 +298,8 @@ theorem measurableSet_not_endsWell_of (O : Oracle μ (FreeMonoid α)) (F : Finse
 
 theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (M : _root_.DFA α σ) (U : σ → ℝ) (hU : ∀ q, 0 ≤ U q) {A s : ℝ} (hA : 0 ≤ A)
-    (hs : 0 ≤ s) (dist : σ → ARU → ℝ)
-    (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
+    (hs : 0 ≤ s) (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α)
+    (e : RoundEnd Random.Level3Site) :
     MeasurableSet {ω | ¬ EndsWell
       { target := M,
         undecided := U,
@@ -318,37 +307,13 @@ theorem measurableSet_not_endsWell (O : Oracle μ (FreeMonoid α)) (F : Finset (
         harvestSlack := s,
         probes := D,
         disagreeRate := ε,
-        disagree := disagreeSet M dist (fun z => familyRead O.mq F kl kh z ω) k H,
+        disagree := disagreeSet (fun z => familyRead O.mq F kl kh z ω) k H,
         walkStart := k,
         harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
         yield := y,
         ending := e }} :=
   measurableSet_not_endsWell_of O F kl kh k M U hU hA hs _
-    (fun x => measurableSet_mem_disagreeSet O F kl kh k M dist H x) D ε y H e
-
-theorem measurableSet_not_endsWell_searchEnds (O : Oracle μ (FreeMonoid α))
-    (F : Finset (FreeMonoid α)) (kl kh k : ℕ) (M : _root_.DFA α σ) (U : σ → ℝ)
-    (hU : ∀ q, 0 ≤ U q) {A s : ℝ} (hA : 0 ≤ A) (hs : 0 ≤ s)
-    (D : Measure (FreeMonoid α)) (ε y : ℝ) (H : HypothesisDFA α) (e : RoundEnd Random.Level3Site) :
-    MeasurableSet {ω | ¬ EndsWell
-      { target := M,
-        undecided := U,
-        harvestSlope := A,
-        harvestSlack := s,
-        probes := D,
-        disagreeRate := ε,
-        disagree := Random.searchSet (fun z => familyRead O.mq F kl kh z ω) k H
-          ∪ Random.endsSet (fun z => familyRead O.mq F kl kh z ω) k H,
-        walkStart := k,
-        harvestLaw := Random.harvestLaw (fun z => familyRead O.mq F kl kh z ω) D k H,
-        yield := y,
-        ending := e }} := by
-  refine measurableSet_not_endsWell_of O F kl kh k M U hU hA hs _ (fun x => ?_) D ε y H e
-  refine measurableSet_of_reads O
-    (readStrings (shortStrings (x.toList.length + midLen H.tree)) F) _ fun ω ω' h hω => ?_
-  have hp := probeOrAgree_congr_reads O (kl := kl) (kh := kh) k H x h
-  simp only [Set.mem_setOf_eq, Set.mem_union, Random.searchSet, Random.endsSet] at hω ⊢
-  rwa [← hp]
+    (fun x => measurableSet_mem_disagreeSet O F kl kh k H x) D ε y H e
 
 end Round
 
@@ -439,10 +404,11 @@ theorem measurableSet_clusterAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (
     (fun y => (measurableSet_prefixesAt pops B.npref y.1).inter (measurableSet_poolAt B.nsuff y.2)
       |> fun h => by convert h using 1; ext x; simp [Prod.ext_iff])
     (fun y => if (1 : FreeMonoid α) ∈ y.2 then Prod.fst ⁻¹'
-        {ω | clusterOf lloydClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
+        {ω | clusterOf nearestClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
     (fun y => by
       split_ifs with hone
-      · exact measurable_fst (measurableSet_clusterOf (rule := lloydClusterer) O B.sc B.scd y.1 y.2
+      · exact measurable_fst (measurableSet_clusterOf (rule := nearestClusterer) O B.sc B.scd y.1
+        y.2
           B.k hone F)
       · exact MeasurableSet.empty) |> fun h => by
     convert h using 1

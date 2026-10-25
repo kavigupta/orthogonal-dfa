@@ -412,8 +412,10 @@ def ClusteringQualitySized : Prop :=
         2 ^ 34 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
           ≤ δ * min εcov indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 8 * ((populations.card : ℝ) + 1) * (B.npref : ℝ) * (D j).real {t}
+        2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
           ≤ δ * slack ^ 2) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,
         2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
         1 - δ - α ≤ (runMeasure μ D Dsf).real
@@ -443,7 +445,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   classical
   simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  set rule : Clusterer S := nearestClusterer with hrule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -478,7 +480,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB),
     Finset.filter_subset _ _, ?_⟩
-  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hcollH hslackD hcollSf
+  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hcollD hcollH hslackD htabD hcollSf
   have := hD
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
@@ -511,15 +513,21 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
           * (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ)
           * collisionMass Dsf ≤ δ * pAP at h
         linarith)
-  -- and against `slack`, which the table's own mass and the deviation tail need
-  set ρs : ℝ := δ * slack ^ 2 / (2 ^ 8 * (Jc + 1) * m) with hρsdef
+  -- and against `slack`: the deviation tail over the ladder, and the table's own mass
+  set lg : ℝ := 3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov δ' α pAP
+    crossLimit hsz) : ℝ) with hlgdef
+  have hlg0 : 0 < lg := by rw [hlgdef]; positivity
+  set ρs : ℝ := min (δ * slack ^ 2 / (2 ^ 4 * (Jc + 1) * lg)) (slack / (4 * Jc * m)) with hρsdef
   have hslackj : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρs := by
     intro j hj t
-    have h := hslackD _ htop j hj t
-    change 2 ^ 8 * ((populations.card : ℝ) + 1) * m * (D j).real {t} ≤ δ * slack ^ 2 at h
-    rw [hρsdef, le_div_iff₀ (by positivity)]
-    rw [← hJcdef] at h
-    linarith
+    have h1 := hslackD _ htop j hj t
+    have h2 := htabD _ htop j hj t
+    change 2 ^ 4 * ((populations.card : ℝ) + 1) * lg * (D j).real {t} ≤ δ * slack ^ 2 at h1
+    change 4 * (populations.card : ℝ) * m * (D j).real {t} ≤ slack at h2
+    rw [← hJcdef] at h1 h2
+    refine le_min ?_ ?_
+    · rw [le_div_iff₀ (by positivity)]; linarith
+    · rw [le_div_iff₀ (by positivity)]; linarith
   obtain ⟨ρ, hρdef⟩ : ∃ ρ : ℝ, ρ = min ρ₀ ρs := ⟨_, rfl⟩
   have hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ := fun j hj t =>
     hρdef ▸ le_min (hcaps j hj t) (hslackj j hj t)
@@ -527,47 +535,34 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     collisionMass_le_of_atoms (D j) (hρ j hj)
   have hρ0 : 0 ≤ ρ := hρdef ▸ le_min hρ₀0 (by rw [hρsdef]; positivity)
   have hρs : ρ ≤ ρs := hρdef ▸ min_le_right _ _
-  have hm1 : (1 : ℝ) ≤ m := by
-    rw [hmdef]; exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
-      (crossLimit := crossLimit) η₀ populations εcov δ' α pAP
-  have hρ1 : ρ ≤ slack ^ 2 / (64 * (N + 1)) := by
-    refine le_trans hρs ?_
-    rw [hρsdef, div_le_div_iff₀ (by positivity) (by positivity)]
-    have hJm : Jc * m + 1 ≤ (Jc + 1) * m := by linarith only [hm1]
-    have hs2 : 0 ≤ slack ^ 2 := sq_nonneg _
-    have hJm0 : 0 ≤ (Jc + 1) * m := mul_nonneg (by linarith only [hJc0]) hm.le
-    have hJm0' : 0 ≤ 64 * (Jc * m + 1) := by linarith only [mul_nonneg hJc0 hm.le]
-    have h := mul_le_mul_of_nonneg_left
-      (mul_le_mul hδ1 (by linarith only [hJm] : 64 * (Jc * m + 1) ≤ 64 * ((Jc + 1) * m))
-        hJm0' zero_le_one) hs2
-    linarith only [h, mul_nonneg hs2 hJm0]
-  have hLm : L + 1 ≤ 2 * m := by
-    have h := Nat.log_lt_self 2 (Nat.pos_iff_ne_zero.1 (prefCount_pos
-      (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) (hsz := hsz)
-      η₀ populations εcov δ' α pAP))
-    have h' : ladderLen η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz
-        ≤ prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz := by
-      rw [ladderLen]; omega
-    have : L ≤ m := by rw [hLdef, hmdef]; exact_mod_cast h'
+  have hρtab : ρ * (4 * Jc * m) ≤ slack := by
+    have h := le_trans hρs (min_le_right _ _)
+    rwa [le_div_iff₀ (by positivity)] at h
+  have hLm : L + 1 ≤ lg := by
+    have : (ladderLen η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
+        = (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz)
+          : ℝ) + 1 := by
+      rw [ladderLen]; push_cast; ring
+    rw [hLdef, this, hlgdef]
+    have : (0 : ℝ) ≤ (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov δ' α pAP
+      crossLimit hsz) : ℝ) := Nat.cast_nonneg _
     linarith
   have hρ2 : ρ ≤ δ * slack ^ 2 / (16 * (L + 1) * (Jc + 1)) := by
-    refine le_trans hρs ?_
-    rw [hρsdef, div_le_div_iff₀ (by positivity) (by positivity)]
+    refine le_trans (le_trans hρs (min_le_left _ _)) ?_
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
     have hs2 : 0 ≤ δ * slack ^ 2 := by positivity
     have hJ1 : 0 ≤ Jc + 1 := by linarith only [hJc0]
-    have h := mul_le_mul_of_nonneg_right hLm hJ1
-    have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 8 * (Jc + 1) * m := by
-      linarith only [h, mul_nonneg hJ1 hm.le]
+    have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 4 * (Jc + 1) * lg := by nlinarith
     exact mul_le_mul_of_nonneg_left h' hs2
   have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov δ' α pAP
     crossLimit hsig hη0 hpop hind hε hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 64000
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 161000
         + harvestCap η₀ indecisionLimit εcov hsz := by
     rw [budgetCap, harvestCap]
     linarith [hpoly]
-  have hcc := clustering_correct O rule populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
-    ρ₀ pAP crossLimit 64000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+  have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov α δ'
+    ρ₀ pAP crossLimit 161000 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
@@ -700,20 +695,12 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
           * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit hsz : ℝ) := by
         exact_mod_cast le_trans h1 h2
       exact h3
-    set τ : ℝ := slack / (8 * (N + 1)) with hτ
-    have hτ0 : 0 < τ := by positivity
-    have a1 : (P.card : ℝ) * τ ≤ slack / 8 := by
-      calc (P.card : ℝ) * τ ≤ N * τ := mul_le_mul_of_nonneg_right hcard hτ0.le
-        _ ≤ slack / 8 := by
-          rw [hτ, mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
-          nlinarith
-    have a2 : collisionMass (D j) / τ ≤ slack / 8 := by
-      rw [div_le_iff₀ hτ0]
-      calc collisionMass (D j) ≤ ρ := hρc j hj
-        _ ≤ slack ^ 2 / (64 * (N + 1)) := hρ1
-        _ = slack / 8 * τ := by rw [hτ]; field_simp; ring
-    linarith [measureReal_finset_le (D j) P hτ0]
-  have hff : flipFrac η₀ ≤ 7 / 20 := by
+    have hρj : ∀ t, (D j).real {t} ≤ ρ := hρ j hj
+    have hm' : (B.val.npref : ℝ) ≤ m := by rw [hmdef]; exact_mod_cast hnpref
+    have hPm := measureReal_finset_le_card (D j) hρj P
+    have hPc : (P.card : ℝ) * ρ ≤ Jc * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
+    nlinarith
+  have hff : flipFrac η₀ ≤ 1 / 10 := by
     rw [flipFrac, sig, div_le_iff₀ (by linarith)]
     nlinarith
   have hrej : 2 * rejFrac η₀ iL εcov ≤ εcov / 1024 := by

@@ -166,21 +166,10 @@ lemma measurableSet_stalled (populations : Finset J) (B : State) (kmin kmax : �
   measurableSet_cluster_data O populations B (fun _ _ A => ¬ (kmin ≤ A.card ∧ A.card ≤ kmax))
 
 lemma measurableSet_dirty (populations : Finset J) (B : State) (Dj : Measure S) (Δp : ℝ) :
-    MeasurableSet {x : Run Ω S J | ¬ ∀ v ∈ clusterBy rule O.mq populations x B,
-      flipMass O Dj v ≤ Δp} :=
-  measurableSet_cluster_data O populations B (fun _ _ A => ¬ ∀ v ∈ A, flipMass O Dj v ≤ Δp)
-
-lemma measurableSet_noClean (populations : Finset J) (B : State) :
-    MeasurableSet {x : Run Ω S J | ¬ ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
-      ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0} := by
-  classical
-  have hR : ∀ P C : Finset S, MeasurableSet
-      {_x : Run Ω S J | ¬ ∃ w₀ ∈ C.erase 1, ∀ p ∈ P, O.flip w₀ p = 0} := by
-    intro P C
-    by_cases h : ∃ w₀ ∈ C.erase 1, ∀ p ∈ P, O.flip w₀ p = 0
-    · simp only [h, not_true_eq_false, Set.setOf_false, MeasurableSet.empty]
-    · simp only [h, not_false_eq_true, Set.setOf_true, MeasurableSet.univ]
-  exact measurableSet_of_run_data populations B _ hR
+    MeasurableSet {x : Run Ω S J | ¬ ∑ v ∈ clusterBy rule O.mq populations x B,
+      flipMass O Dj v ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * Δp} :=
+  measurableSet_cluster_data O populations B
+    (fun _ _ A => ¬ ∑ v ∈ A, flipMass O Dj v ≤ (A.card : ℝ) * Δp)
 
 end Measurability
 

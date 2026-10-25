@@ -135,8 +135,8 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
-    #: The configured limit, halved after each round whose probes since its last
-    #: split were mostly unchecked.
+    #: The configured limit, halved after each round that hands the next one no
+    #: new strings.
     fnr_limit: float = field(init=False)
 
     @property

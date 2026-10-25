@@ -39,11 +39,11 @@ lemma sum_flipCount_eq (O : Oracle μ S) (F C : Finset S) :
 
 open scoped Classical in
 /-- A sample's heavy prefixes: on the window, the members' reserve-side flips, which the hash
-holds to their table-side flips and these to the screen's rate on the tables; beyond the
-window, every prefix. -/
-theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {f Δ L EC : ℝ}
-    (hf : 0 < f) (hL : 0 ≤ L) (hΔ : 0 ≤ Δ)
-    (hscreen : ∀ v ∈ F, ∑ p ∈ P, O.flip v p < Δ * P.card)
+holds to their table-side flips and these, summed over the family, to its flips on the tables;
+beyond the window, every prefix. -/
+theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {f φ L EC : ℝ}
+    (hf : 0 < f) (hL : 0 ≤ L) (hφ0 : 0 ≤ φ)
+    (hflips : ∑ v ∈ F, ∑ p ∈ P, O.flip v p ≤ (F.card : ℝ) * φ)
     (hZA : Z.filter (fun s => g s = true) ⊆ P)
     (hbal : ∀ v ∈ F,
       (((Z.filter (fun p => O.flip v p = 1)).filter (fun s => g s = false)).card : ℝ)
@@ -51,12 +51,12 @@ theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {
       ≤ Real.sqrt (2 * ((Z.filter (fun p => O.flip v p = 1)).card : ℝ) * L))
     (hCZ : ∀ p ∈ C, p ∈ Z → g p = false) (hEC : ((C \ Z).card : ℝ) ≤ EC) :
     ((C.filter (fun p => (F.card : ℝ) * f < flipCount O F p)).card : ℝ)
-      ≤ (Δ * P.card + 2 * Real.sqrt (L * (Δ * P.card)) + 2 * L) / f + EC := by
-  set φ : ℝ := Δ * (P.card : ℝ) with hφ
-  have hφ0 : 0 ≤ φ := by positivity
+      ≤ (φ + 2 * Real.sqrt (L * φ) + 2 * L) / f + EC := by
   set CZ := C.filter (fun p => p ∈ Z) with hCZdef
+  set T : S → ℝ := fun v => ∑ p ∈ P, O.flip v p with hT
+  have hT0 : ∀ v, 0 ≤ T v := fun v => Finset.sum_nonneg (fun p _ => (flip_icc O v p).1)
   have hX : ∀ v ∈ F, ((CZ.filter (fun p => O.flip v p = 1)).card : ℝ)
-      ≤ φ + 2 * Real.sqrt (L * φ) + 2 * L := by
+      ≤ T v + 2 * Real.sqrt (L * T v) + 2 * L := by
     intro v hv
     set Fv := Z.filter (fun p => O.flip v p = 1) with hFv
     set X : ℝ := ((Fv.filter (fun s => g s = false)).card : ℝ) with hXdef
@@ -68,7 +68,7 @@ theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {
       rw [e] at h
       rw [hXdef, hYdef]
       exact_mod_cast h.symm
-    have hYφ : Y ≤ φ := by
+    have hYT : Y ≤ T v := by
       have hsub : Fv.filter (fun s => g s = true) ⊆ P.filter (fun p => O.flip v p = 1) := by
         intro s hs
         simp only [hFv, Finset.mem_filter] at hs
@@ -76,7 +76,7 @@ theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {
       have h1 : Y ≤ ((P.filter (fun p => O.flip v p = 1)).card : ℝ) := by
         rw [hYdef]; exact_mod_cast Finset.card_le_card hsub
       rw [card_filter_flip_eq_sum] at h1
-      exact le_trans h1 (hscreen v hv).le
+      exact h1
     have hb := le_of_balance (X := X) (Y := Y) (L := L) (Nat.cast_nonneg _) hL (Nat.cast_nonneg _)
       (by rw [← hXY]; exact hbal v hv)
     have hsub2 : CZ.filter (fun p => O.flip v p = 1) ⊆ Fv.filter (fun s => g s = false) := by
@@ -85,9 +85,22 @@ theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {
       exact Finset.mem_filter.2 ⟨Finset.mem_filter.2 ⟨hp.1.2, hp.2⟩, hCZ p hp.1.1 hp.1.2⟩
     have h2 : ((CZ.filter (fun p => O.flip v p = 1)).card : ℝ) ≤ X := by
       rw [hXdef]; exact_mod_cast Finset.card_le_card hsub2
-    have h3 : Real.sqrt (L * Y) ≤ Real.sqrt (L * φ) :=
-      Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hYφ hL)
+    have h3 : Real.sqrt (L * Y) ≤ Real.sqrt (L * T v) :=
+      Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hYT hL)
     linarith
+  -- summed over the family: Cauchy–Schwarz on the square roots
+  have hroot : ∑ v ∈ F, Real.sqrt (L * T v) ≤ (F.card : ℝ) * Real.sqrt (L * φ) := by
+    have hcs := sq_sum_le_card_mul_sum_sq (s := F) (f := fun v => Real.sqrt (L * T v))
+    have e : ∑ v ∈ F, Real.sqrt (L * T v) ^ 2 = L * ∑ v ∈ F, T v := by
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl (fun v _ => Real.sq_sqrt (mul_nonneg hL (hT0 v)))
+    rw [e] at hcs
+    have hLT : L * ∑ v ∈ F, T v ≤ L * ((F.card : ℝ) * φ) := mul_le_mul_of_nonneg_left hflips hL
+    have hsq : (∑ v ∈ F, Real.sqrt (L * T v)) ^ 2 ≤ ((F.card : ℝ) * Real.sqrt (L * φ)) ^ 2 := by
+      rw [mul_pow, Real.sq_sqrt (mul_nonneg hL hφ0)]
+      have hc0 : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
+      nlinarith [mul_le_mul_of_nonneg_left hLT hc0]
+    exact le_of_pow_le_pow_left₀ two_ne_zero (by positivity) hsq
   have hK0 : 0 ≤ φ + 2 * Real.sqrt (L * φ) + 2 * L := by positivity
   set hvy : ℝ := ((CZ.filter (fun p => (F.card : ℝ) * f < flipCount O F p)).card : ℝ)
     with hhvy
@@ -113,10 +126,11 @@ theorem heavy_count_le (O : Oracle μ S) (F C Z P : Finset S) (g : S → Bool) {
       have hsumle : ∑ p ∈ CZ, flipCount O F p
           ≤ (F.card : ℝ) * (φ + 2 * Real.sqrt (L * φ) + 2 * L) := by
         rw [sum_flipCount_eq]
-        calc ∑ v ∈ F, ((CZ.filter (fun p => O.flip v p = 1)).card : ℝ)
-            ≤ ∑ _v ∈ F, (φ + 2 * Real.sqrt (L * φ) + 2 * L) := Finset.sum_le_sum hX
-          _ = (F.card : ℝ) * (φ + 2 * Real.sqrt (L * φ) + 2 * L) := by
-              rw [Finset.sum_const, nsmul_eq_mul]
+        refine le_trans (Finset.sum_le_sum hX) ?_
+        rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const,
+          nsmul_eq_mul]
+        have h1 : ∑ v ∈ F, T v ≤ (F.card : ℝ) * φ := hflips
+        nlinarith [hroot]
       have hcomb := le_trans hle hsumle
       rw [le_div_iff₀ hf]
       have h3 : (hvy * f) * (F.card : ℝ)
