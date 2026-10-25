@@ -727,6 +727,76 @@ lemma kc_ge_one {Q A : ℝ} {m e : ℕ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) :
   have h2 : (1 : ℝ) ≤ (Q + 3) ^ e := one_le_pow₀ (by linarith)
   exact one_le_mul_of_one_le_of_one_le h1 h2
 
+lemma dfa_noise_tail {B₃ K₁ ℓ Ak E E₂ E₃ δ' : ℝ} (hℓ : 1 ≤ ℓ) (hB₃0 : 0 ≤ B₃)
+    (hB₃ : B₃ ≤ K₁ * ℓ) (hE₃ : E₃ = 16 * K₁ ^ 2 / δ') (hδ'0 : 0 < δ') (hEE : 1 ≤ E + E₂)
+    (hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ Ak) (hAk : 0 < Ak) : 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
+  have hℓ6 : 0 ≤ ℓ ^ 6 := pow_nonneg (by linarith) 6
+  have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * ℓ ^ 6 := by
+    have h1 : B₃ ^ 2 ≤ (K₁ * ℓ) ^ 2 := pow_le_pow_left₀ hB₃0 hB₃ 2
+    have h2 : ℓ ^ 2 ≤ ℓ ^ 6 := pow_le_pow_right₀ hℓ (by norm_num)
+    have h3 : (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 := by ring
+    have h4 := mul_le_mul_of_nonneg_left h2 (sq_nonneg K₁)
+    linarith only [h1, h3, h4]
+  have hE3 : ℓ ^ 6 * E₃ ≤ Ak := by
+    have : ℓ ^ 6 * E₃ ≤ ℓ ^ 6 * (E + E₂ + E₃) :=
+      mul_le_mul_of_nonneg_left (by linarith only [hEE]) hℓ6
+    linarith only [this, hpow3]
+  rw [← div_eq_mul_inv, div_le_iff₀ hAk]
+  have e : ℓ ^ 6 * E₃ * δ' = 16 * K₁ ^ 2 * ℓ ^ 6 := by
+    rw [hE₃]; field_simp
+  have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
+  linarith only [h5, e, hB2]
+
+lemma dfa_tail {A ℓ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁ δ δ' c s pAP Θ P₀ L T : ℝ} {k : ℕ}
+    (hA : 2 ≤ A) (hQ : 0 ≤ Q) (hL : 0 ≤ L) (hc : 0 < c) (hc1 : c ≤ 1) (hs0 : 0 < s)
+    (hs1 : s ≤ 1 / 2) (hpAP : 0 < pAP) (hδ'0 : 0 < δ') (hδ : 0 < δ) (hΘ1 : 1 ≤ Θ)
+    (hR₀ : 0 ≤ R₀) (hP₀ : 0 ≤ P₀) (hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1)) (hK₁0 : 0 ≤ K₁)
+    (hn : 0 ≤ n) (hℓd : ℓ = L + Q + 4) (hℓ1 : 1 ≤ ℓ) (hε0 : 0 < ε) (hinvε : 1 / ε ≤ aε * ℓ)
+    (hcap : 1 / (E₁ * ℓ ^ 5) ≤ cap) (hlg : 0 ≤ lg) (haεd : aε = 4 * (A + 1) / c)
+    (hE₁d : E₁ = (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+      + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
+    (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
+    (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
+    (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * ℓ ^ 3)
+    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hk : L ≤ 2 * k)
+    (hT : T = 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4)
+    (hL₀ : 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
+      + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12)) ≤ L) :
+    (A ^ k)⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * (A ^ k)⁻¹ ≤ ε
+      ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4
+      ∧ 16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' := by
+  have haε : 1 ≤ aε := by
+    rw [haεd, le_div_iff₀ hc, one_mul]
+    linarith only [hA, hc1]
+  have haε0 : 0 < aε := by linarith only [haε]
+  have hE₁ : 1 ≤ E₁ := by
+    rw [hE₁d]
+    have h1 : 1 ≤ 2 ^ 20 * Θ * (R₀ + 1) / s := by
+      rw [le_div_iff₀ hs0, one_mul]
+      have : 1 ≤ Θ * (R₀ + 1) := one_le_mul_of_one_le_of_one_le hΘ1 (by linarith only [hR₀])
+      linarith only [this, hs1]
+    have h2 : 0 ≤ 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' := by positivity
+    have h3 : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
+    have h4 : (1 : ℝ) ≤ (Q + 3) ^ 2 := one_le_pow₀ (by linarith only [hQ])
+    exact one_le_mul_of_one_le_of_one_le h4 (by linarith only [h1, h2, h3])
+  have hE₂0 : 0 ≤ E₂ := by rw [hE₂d]; positivity
+  have hE₃0 : 0 ≤ E₃ := by rw [hE₃d]; positivity
+  have hEE : 1 ≤ E + E₂ := by
+    have h1 : 0 ≤ 1536 * lg * aε := by positivity
+    have h2 : 1 ≤ 1536 * aε * E₁ :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
+    rw [hEd]
+    linarith only [h1, h2, hE₂0]
+  have hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
+    dfa_pow hA hℓd hQ hL (by linarith only [hEE, hE₃0]) hk hT hL₀
+  have hℓ6 : 0 ≤ ℓ ^ 6 := pow_nonneg (by linarith only [hℓ1]) 6
+  have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
+    (mul_le_mul_of_nonneg_left (by linarith only [hE₃0]) hℓ6).trans hpow3
+  have hAk : 0 < A ^ k := pow_pos (by linarith only [hA]) k
+  obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) hAk hℓ1 hε0 hinvε haε0 hcap
+    (by linarith only [hE₁]) hlg hEd hE₂d hQ hn hδ hJ hRB0 hRB hB₃0 hB₃ hpow
+  exact ⟨h1, h2, h3, dfa_noise_tail hℓ1 hB₃0 hB₃ hE₃d hδ'0 hEE hpow3 hAk⟩
+
 end OrthoDFA
 
 
