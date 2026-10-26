@@ -21,7 +21,7 @@ class CounterexampleSearch:
         *,
         max_k: int,
     ):
-        """A harvest that repeats a string doubles ``k`` instead of ending the
+        """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
@@ -64,7 +64,7 @@ class CounterexampleSearch:
             or len(set(ending.harvest)) == len(ending.harvest)
         ):
             return False
-        self.k = min(max(2 * self.k, 1), self.max_k)
+        self.k = min(self.k + 1, self.max_k)
         self.counts = SiteCounts()
         print(f"  {ending.kind} repeated a string; k now {self.k}")
         return True
