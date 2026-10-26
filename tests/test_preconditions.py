@@ -168,27 +168,16 @@ class TestMeasures(unittest.TestCase):
         self.assertTrue(0.0 <= frac <= 1.0)
 
 
-class TestCoverability(unittest.TestCase):
-    def test_covered_states_strongly_connected(self):
-        # MOD3 is strongly connected and balanced: every state is a length-40
-        # endpoint often enough to be built.
-        self.assertEqual(
-            P.covered_states(MOD3, length=40, num_samples=500), set(MOD3.states)
-        )
+class TestStarts(unittest.TestCase):
+    def _starts(self, dfa, num_samples):
+        return set(P.non_start_zone_states(dfa, length=40, num_samples=num_samples))
 
-    def test_covered_states_excludes_transient(self):
+    def test_starts_strongly_connected(self):
+        self.assertEqual(self._starts(MOD3, 500), set(MOD3.states))
+
+    def test_starts_exclude_transient(self):
         # DIFFICULT09: length-40 strings only ever reach the two absorbing sinks.
-        self.assertEqual(
-            P.covered_states(DIFFICULT09, length=40, num_samples=500), {3, 4}
-        )
-
-    def test_covered_states_excludes_recurrent_but_uncovered(self):
-        # Structurally every state is on a cycle, but 0 and 2 get no length-40
-        # prefix mass -- the distinction structural reachability would miss.
-        self.assertEqual(
-            P.covered_states(RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000),
-            {1, 3, 4},
-        )
+        self.assertEqual(self._starts(DIFFICULT09, 500), {3, 4})
 
 
 class TestSatisfiesPreconditions(unittest.TestCase):
@@ -241,16 +230,13 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
     def test_thinly_sampled_but_non_start_zone_states_pass(self):
-        uncovered = THIN_POCKETS.states - P.covered_states(THIN_POCKETS, length=40)
-        self.assertGreaterEqual(len(uncovered), 6)
         report = P.satisfies_preconditions(THIN_POCKETS, length=40, short_circuit=False)
         self.assertTrue(report, report.reasons)
 
 
 class TestRelativeRule(unittest.TestCase):
-    def test_starts_contain_covered_and_zone_contains_start(self):
+    def test_zone_contains_start(self):
         zones = P.non_start_zone_states(THIN_POCKETS, length=40)
-        self.assertLessEqual(P.covered_states(THIN_POCKETS, length=40), set(zones))
         for q, zone in zones.items():
             self.assertIn(q, zone)
 

@@ -33,10 +33,6 @@ from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
-#: Bar for coverage by prefixes of the given length before we consider a state
-#: "covered" by it.
-DEFAULT_MIN_COVERAGE = 0.01
-
 MAX_VISIT_RATIO = 10
 
 
@@ -139,25 +135,17 @@ def _run(dfa: DFA, string: bytes, start=None) -> list:
     return states
 
 
-def covered_states(
-    dfa: DFA,
-    *,
-    length: int,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
-    sampler: Optional[Sampler] = None,
-) -> set:
-    """
-    The states at least ``min_coverage`` of random length-``length`` strings visit
-    somewhere from ``start_length(length)`` on.
-    """
+def _window_visits(
+    dfa: DFA, *, length: int, num_samples: int, sampler: Optional[Sampler]
+) -> Counter:
+    """Per state, the sampled runs from q0 visiting it at positions
+    ``start_length(length)`` to ``length``."""
     k = start_length(length)
-    counts = Counter(
+    return Counter(
         q
         for s in _samples(dfa, length, num_samples, sampler)
         for q in set(_run(dfa, s)[k:])
     )
-    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
 
 
 def non_start_zone_states(
@@ -177,7 +165,9 @@ def non_start_zone_states(
     """
     strings = _samples(dfa, length, num_samples, sampler)
     k = start_length(length)
-    window = Counter(q for s in strings for q in set(_run(dfa, s)[k:]))
+    window = _window_visits(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
+    )
     ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
     zones = {}
     for start in window:
@@ -337,7 +327,7 @@ class PreconditionReport:
     non_start_zone_accuracy_ceiling: Optional[float] = None
     #: States no sampled prefix lands in, as strings -- populated when the
     #: ceiling is measured, since that is the check they explain.
-    uncovered_states: Optional[List[str]] = None
+    unvisited_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
     reasons: Tuple[str, ...] = ()
@@ -406,8 +396,8 @@ def satisfies_preconditions(
             f"{min_non_start_zone_accuracy} (a decision rides on a state the window "
             "lands in far less than the run does)"
         )
-    covered = covered_states(
+    visited = _window_visits(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
-    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))
+    unvisited = sorted(str(q) for q in dfa.states if q not in visited)
+    return PreconditionReport(length, rate, cp, ceiling, unvisited, tuple(reasons))

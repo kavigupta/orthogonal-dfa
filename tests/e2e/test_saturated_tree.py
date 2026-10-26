@@ -57,7 +57,7 @@ class TestSaturatedTree(unittest.TestCase):
         report = P.satisfies_preconditions(_target(), length=40, short_circuit=False)
 
         self.assertLess(report.non_start_zone_accuracy_ceiling, 0.55, report.reasons)
-        self.assertEqual(report.uncovered_states, ["0"])
+        self.assertEqual(report.unvisited_states, ["0"])
         # The other two preconditions hold, so nothing else stops the run: the
         # language is balanced, and an accept-preserving family exists.
         self.assertGreater(report.class_preserving_fraction, 0.02)
