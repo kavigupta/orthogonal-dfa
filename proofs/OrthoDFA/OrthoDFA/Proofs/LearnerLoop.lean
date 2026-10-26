@@ -371,6 +371,34 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
   calc ∑ t ∈ T, ν.real {t} ≤ ∑ _t ∈ T, q := Finset.sum_le_sum fun t _ => hq t
     _ = T.card * q := by rw [Finset.sum_const, nsmul_eq_mul]
 
+lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (a b : ℕ)
+    (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
+    ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.prefs.card).sum ≤ K * a
+      ∧ ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.suffs.card).sum ≤ K * b := by
+  have hlen : (indecisiveLStarLoop settings O D Dsf draws).length ≤ K :=
+    length_loopRounds_le settings O D Dsf draws K
+  have hmem : ∀ o ∈ indecisiveLStarLoop settings O D Dsf draws,
+      o.prefs.card ≤ a ∧ o.suffs.card ≤ b := by
+    intro o ho
+    unfold indecisiveLStarLoop at ho
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
+    obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws K i hi
+    rw [e]
+    exact h _ _
+  have hsum : ∀ (f : LoopRound Ω α K → ℕ) (c : ℕ),
+      (∀ o ∈ indecisiveLStarLoop settings O D Dsf draws, f o ≤ c) →
+      ((indecisiveLStarLoop settings O D Dsf draws).map f).sum ≤ K * c := fun f c hf => by
+    refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
+    · obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hn
+      exact hf o ho
+    · rw [List.length_map, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ hlen
+  exact ⟨hsum _ a fun o ho => (hmem o ho).1, hsum _ b fun o ho => (hmem o ho).2⟩
+
 /-- Every round the loop runs follows rounds whose clusterings returned, returns itself, and
 reads no prefix or suffix an earlier round read. -/
 def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
@@ -432,6 +460,9 @@ def LoopCore : Prop :=
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
     settings.gateLevel = gateLevel ∧ settings.level3 = C ∧
     (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
+    (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -470,12 +501,36 @@ theorem loop_core_holds : LoopCore := by
     · exact hband₀ pops B hB
     · simp at hB
   set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, C⟩ with hset
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
-  · intro pops
+  -- the schedule's sizes
+  have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
+      (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
+    simp only [hset, hschedd] at hB
+    split_ifs at hB with hp
+    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
+    · simp at hB
+  have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
     simp only [hset, hschedd]
     split_ifs with hp
     · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
     · simp
+  have hreads : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1 := by
+    intro pops x
+    have hpops : pops.card ≤ K + 1 := by
+      have := Finset.card_le_univ pops
+      simpa using this
+    refine ⟨(card_roundPrefs_le _ _ _).trans ?_, ?_⟩
+    · calc 3 * pops.card * ∑ B ∈ settings.schedule pops, B.npref
+          ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) (hNPsum pops)
+        _ = 6 * (K + 1) * NP := by ring
+    · by_cases hp : none ∈ pops
+      · exact (card_roundSuffs_le _ (fun B hB => (hsizes pops B hB).1) _).trans
+          (Nat.succ_le_succ (hNSb pops hp))
+      · have he : settings.schedule pops = ∅ := if_neg hp
+        rw [he]
+        exact (card_roundSuffs_le (n := 0) ∅ (by simp) x).trans (by omega)
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   set k := C.walkStart
   set T := C.probeBudget
@@ -494,18 +549,6 @@ theorem loop_core_holds : LoopCore := by
   have hcap4 : cap * C.harvestRate / 2 ≤ cap := by
     have : cap * C.harvestRate ≤ cap * 1 := mul_le_mul_of_nonneg_left hy1 hcap.le
     linarith
-  -- the schedule's sizes
-  have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
-      (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
-    simp only [hset, hschedd] at hB
-    split_ifs at hB with hp
-    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
-    · simp at hB
-  have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
-    simp only [hset, hschedd]
-    split_ifs with hp
-    · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
-    · simp
   have hDat : ∀ t, P.D.real {t} ≤ cap := fun t =>
     (real_singleton_le_prefixMax P.D k t).trans (hk1.trans hcap4)
   have hLs' : P.L < Ls := by omega

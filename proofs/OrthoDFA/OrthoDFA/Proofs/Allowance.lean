@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.Allowance
+import OrthoDFA.LowLevelClaims.Allowance
 import OrthoDFA.Proofs.EpsRound
 
 /-!
