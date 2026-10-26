@@ -25,6 +25,7 @@ from fullloop_mem import VOCAB, held_out, score
 
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
+from orthogonal_dfa.l_star.dfa_utils import held_out_phi, labelled_sample
 from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
     gate_residual_oracle,
 )
@@ -80,26 +81,37 @@ else:
     pickle.dump(halves, open(halves_path, "wb"))
 
 t1 = time.time()
-# The checkpoint holds restart 0's spawned generator (harvest_diag dumps inside
-# _counterexample_search), so rebuild its siblings rather than spawning again.
+# The checkpoint holds restart 0's generator: harvest_diag dumps inside
+# _counterexample_search, after _best_search spawned the restarts from the run's
+# stream, which _selection_sample had spawned the selection sample's stream from
+# just before.  Rebuild those rather than spawning again.
 ss = pst.rng.bit_generator.seed_seq
-streams = [
-    np.random.default_rng(
-        np.random.SeedSequence(
-            ss.entropy,
-            spawn_key=ss.spawn_key[:-1] + (ss.spawn_key[-1] + i,),
-            pool_size=ss.pool_size,
-        )
+
+
+def sibling(offset):
+    key = ss.spawn_key[:-1] + (ss.spawn_key[-1] + offset,)
+    return np.random.default_rng(
+        np.random.SeedSequence(ss.entropy, spawn_key=key, pool_size=ss.pool_size)
     )
-    for i in range(a.restarts)
-]
+
+
+streams = [sibling(i) for i in range(a.restarts)]
+picking = sibling(-1)
+selection = tuple(
+    labelled_sample(
+        pst.oracle, pst.sampler, pst.alphabet_size, cs.SELECTION_HALF, picking
+    )
+    for _ in range(2)
+)
 restarts, best = [], None
 for i, rng in enumerate(streams):
     pst.rng = rng
-    search, ending = cs._counterexample_search(pst, vs, acc_threshold=acc)
+    search, ending = cs._counterexample_search(
+        pst, vs, acc_threshold=acc, selection=selection
+    )
     hyp = search.hypothesis
     dfa = cs._hypothesis_dfa(pst, hyp)
-    sel = cs._held_out_oracle_score(pst, dfa)
+    sel = held_out_phi(dfa, *selection)
     restarts.append(
         dict(
             selection_score=sel,
@@ -126,7 +138,7 @@ summary = dict(
     representative_prefixes=int(np.sum(pst.table.representative)),
     ending=ending.kind,
     states=hyp.tree.num_states,
-    selection_score=cs._held_out_oracle_score(pst, dfa),
+    selection_score=held_out_phi(dfa, *selection),
     per_restart=restarts,
     phi=phi,
     top_state_share=top,
