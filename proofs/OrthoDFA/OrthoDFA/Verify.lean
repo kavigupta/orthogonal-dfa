@@ -51,7 +51,7 @@ The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReads
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
-`ClusteringClaim`, `ClusteringClaimSimple`, `LevelsClaim`, `LevelsClaimSimple`, `LoopClaim` and
+`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopClaim` and
 `LoopClaimSimple`.
 -/
 
@@ -65,13 +65,21 @@ theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple
 
 #print axioms clustering_claim_simple
 
-theorem levels_claim : LevelsClaim := levelsClaim_holds
+theorem level2_claim : Level2Claim := level2Claim_holds
 
-#print axioms levels_claim
+#print axioms level2_claim
 
-theorem levels_claim_simple : LevelsClaimSimple := levelsClaimSimple_holds
+theorem level3_claim : Level3Claim := level3Claim_holds
 
-#print axioms levels_claim_simple
+#print axioms level3_claim
+
+theorem level4_claim : Level4Claim := level4Claim_holds
+
+#print axioms level4_claim
+
+theorem level5_claim : Level5Claim := level5Claim_holds
+
+#print axioms level5_claim
 
 theorem loop_claim : LoopClaim := loopClaim_holds
 
