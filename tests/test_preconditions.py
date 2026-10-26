@@ -248,12 +248,11 @@ class TestSatisfiesPreconditions(unittest.TestCase):
 
 
 class TestRelativeRule(unittest.TestCase):
-    def test_visited_contains_covered_and_non_start_zone_contains_start(self):
-        covered = P.covered_states(THIN_POCKETS, length=40)
-        visited = P.visited_states(THIN_POCKETS, length=40)
-        self.assertLessEqual(covered, visited)
-        for q in visited:
-            self.assertIn(q, P.non_start_zone_states(THIN_POCKETS, q, length=40))
+    def test_starts_contain_covered_and_zone_contains_start(self):
+        zones = P.non_start_zone_states(THIN_POCKETS, length=40)
+        self.assertLessEqual(P.covered_states(THIN_POCKETS, length=40), set(zones))
+        for q, zone in zones.items():
+            self.assertIn(q, zone)
 
 
 class _ZeroRunSampler(Sampler):
