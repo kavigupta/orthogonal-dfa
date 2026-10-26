@@ -12,7 +12,7 @@ cost and every tolerance is something the claim produces: it asserts some functi
 does the job, and bounds that function with Mathlib's `=O[𝓟 R]`, one constant for all of `R`, so
 the bound keeps its meaning with some inputs held fixed. A cap on an input, such as how heavy a
 population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
-Each claim is proved from the explicit theorems that follow.
+Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
   signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
@@ -21,12 +21,13 @@ Each claim is proved from the explicit theorems that follow.
   chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
-- `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
-  level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
-  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
-  4 and 5 how much of the probes' law any one walk start may hold and how rarely reads may be
-  wrong, both levels at no leaves beyond level 3's `|Q| + 2`. `LevelsClaimSimple` writes the
-  slope as `O(|Q| log L/y)` and the slack as `O(|Q||Σ| log(|Q||Σ|/δ)/y)`.
+- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
+  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))`.
+- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
+  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))`, its harvest's slope
+  `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
+  give how much of the probes' law any one walk start may hold (`p₀Tol`) and how rarely reads may
+  be wrong (`εwTol` at level 4, `κTol` at level 5), at no leaves beyond level 3's `|Q| + 2`.
 - `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
   which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
   held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
