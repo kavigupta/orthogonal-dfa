@@ -6,15 +6,14 @@ import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 
 /-!
-# The level claims: the proofs
+# `Level2Claim` to `Level5Claim`: the proofs
 
 The witnesses are the level theorems' premises read off `toVec x`, the counts and the rates'
 reciprocals, and are bounded there before being carried back to the records. Off the instances
 they take any value: level 2's budget is `0` where `ig < iε`, which no instance has and without
 which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their
 `δ/8` into `δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and
-`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`. Each `Level{3,4,5}ClaimSimple` follows
-from its tight claim, the slope's and slack's tight shapes bounded by their products.
+`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`.
 -/
 
 noncomputable section
@@ -689,41 +688,6 @@ private lemma lvεw_isBigO : (fun v => 1 / lvεw v) =O[𝓟 vecRegion]
   obtain ⟨hQ, hA, hε, hδ, -, hL⟩ := level_region hb
   exact εw_pt iy hQ hA hε hδ hL
 
-private lemma slope_dom : (fun (Q, _, _, _, iy, L) => Q * (iy + Real.log L) : LevelVec → ℝ)
-    =O[𝓟 vecRegion] (fun (Q, _, _, _, iy, L) => Q * Real.log L * iy : LevelVec → ℝ) := by
-  refine isBigO_on 3 fun b hb => ?_
-  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-  obtain ⟨hQ, -, -, -, hy, hL⟩ := level_region hb
-  have hl := half_le_log hL
-  have h1 := mul_le_mul_of_nonneg_right hl (by linarith : (0 : ℝ) ≤ iy)
-  have h2 : Real.log L ≤ Real.log L * iy := le_mul_of_one_le_right (by linarith) hy
-  have h3 := mul_le_mul_of_nonneg_left (show iy + Real.log L ≤ 3 * (Real.log L * iy) by linarith)
-    (by linarith : (0 : ℝ) ≤ Q)
-  dsimp only
-  exact ⟨mul_nonneg (by linarith) (by linarith),
-    mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by linarith), by linarith⟩
-
-private lemma slack_dom : (fun (Q, A, _, iδ, iy, _) =>
-    (Q * A * Real.log (Q * A) + Real.log iδ) * iy : LevelVec → ℝ)
-    =O[𝓟 vecRegion] (fun (Q, A, _, iδ, iy, _) => Q * A * Real.log (Q * A * iδ) * iy
-      : LevelVec → ℝ) := by
-  refine isBigO_on 2 fun b hb => ?_
-  obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
-  obtain ⟨hQ, hA, -, hδ, hy, -⟩ := level_region hb
-  have hu : 1 ≤ Q * A := one_le_mul_of_one_le_of_one_le hQ hA
-  have hlu : 0 ≤ Real.log (Q * A) := Real.log_nonneg hu
-  have hlδ := half_le_log hδ
-  have e : Real.log (Q * A * iδ) = Real.log (Q * A) + Real.log iδ :=
-    Real.log_mul (by positivity) (by linarith)
-  have h1 : Real.log iδ ≤ Q * A * Real.log iδ := le_mul_of_one_le_left (by linarith) hu
-  have h2 : 0 ≤ Q * A * Real.log (Q * A) := mul_nonneg (by linarith) hlu
-  have h3 : Q * A * Real.log (Q * A) + Real.log iδ ≤ 2 * (Q * A * Real.log (Q * A * iδ)) := by
-    rw [e]; nlinarith
-  have h4 := mul_le_mul_of_nonneg_right h3 (by linarith : (0 : ℝ) ≤ iy)
-  dsimp only
-  refine ⟨mul_nonneg (by linarith) (by linarith),
-    mul_nonneg (mul_nonneg (by linarith) (by rw [e]; linarith)) (by linarith), by linarith⟩
-
 private def toVec (x : LevelInputs) : LevelVec := (x.Q, x.A, 1 / x.ε, 1 / x.δ, 1 / x.y, x.L)
 
 private def toVec₂ (x : Level2Inputs) : Level2Vec :=
@@ -745,11 +709,6 @@ private lemma transfer₂ {f g : Level2Vec → ℝ} {g' : Level2Inputs → ℝ} 
   simp only [toVec₂, vec2Region, Set.mem_Ici, Prod.mk_le_mk]
   exact ⟨by exact_mod_cast hQ, by exact_mod_cast hA, (le_div_iff₀ (by linarith)).2 (by linarith),
     (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ (by linarith)).2 (by linarith)⟩
-
-private lemma dominate {f g : LevelVec → ℝ} {f' g' : LevelInputs → ℝ}
-    (h : f =O[𝓟 vecRegion] g) (hf : ∀ x, f (toVec x) = f' x) (hg : ∀ x, g (toVec x) = g' x) :
-    f' =O[𝓟 levelRegion] g' :=
-  (transfer h hg).congr_left hf
 
 theorem level2Claim_holds : Level2Claim := by
   refine ⟨fun x => lvProbes₂ (toVec₂ x),
@@ -838,30 +797,5 @@ theorem level5Claim_holds : Level5Claim := by
           (budget_le (Fintype.card σ) (Fintype.card α) hP) le_rfl hκ0 ht ht' htc hfin)
   exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
     (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
-
-private lemma slope_simple {f : LevelInputs → ℝ}
-    (h : f =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + Real.log x.L))) :
-    f =O[𝓟 levelRegion] (fun x => x.Q * Real.log x.L / x.y) :=
-  h.trans (dominate slope_dom (fun x => by simp only [toVec])
-    fun x => by simp only [toVec]; ring_nf)
-
-private lemma slack_simple {f : LevelInputs → ℝ}
-    (h : f =O[𝓟 levelRegion] (fun x =>
-      (x.Q * x.A * Real.log (x.Q * x.A) + Real.log (1 / x.δ)) / x.y)) :
-    f =O[𝓟 levelRegion] (fun x => x.Q * x.A * Real.log (x.Q * x.A / x.δ) / x.y) :=
-  h.trans (dominate slack_dom (fun x => by simp only [toVec]; ring_nf)
-    fun x => by simp only [toVec]; ring_nf)
-
-theorem level3ClaimSimple_holds : Level3ClaimSimple := by
-  obtain ⟨n, slope, slack, hn, hs, hk, hw⟩ := level3Claim_holds
-  exact ⟨n, slope, slack, hn, slope_simple hs, slack_simple hk, hw⟩
-
-theorem level4ClaimSimple_holds : Level4ClaimSimple := by
-  obtain ⟨n, slope, slack, p₀, εw, hn, hs, hk, hp, hε, hw⟩ := level4Claim_holds
-  exact ⟨n, slope, slack, p₀, εw, hn, slope_simple hs, slack_simple hk, hp, hε, hw⟩
-
-theorem level5ClaimSimple_holds : Level5ClaimSimple := by
-  obtain ⟨n, slope, slack, p₀, κ, hn, hs, hk, hp, hκ, hw⟩ := level5Claim_holds
-  exact ⟨n, slope, slack, p₀, κ, hn, slope_simple hs, slack_simple hk, hp, hκ, hw⟩
 
 end OrthoDFA
