@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.SuffixFamily
 
 The family reads every string once, independently across strings, each with its target state's
 distribution, and on the side its state reads less often at most `κ U` of the time, `U` the
-state's chance of reading undecided. So the reads are a `KappaReadOracle` at `εw = 0`.
+state's chance of reading undecided. So the reads are a `KappaReadOracle`.
 -/
 
 noncomputable section
@@ -38,14 +38,13 @@ theorem readDist_wrong (q : σ) :
 /-- The family's reads, as level 5's oracle. -/
 def kappaOracle :
     Random.Kappa.KappaReadOracle μ fam.M (fun q => readSide (fam.readDist q))
-      (fun q => fam.readDist q .undecided) 0 fam.κ where
+      (fun q => fam.readDist q .undecided) fam.κ where
   read := fun z ω => fam.read ω z
   measurable := fam.read_measurable
   indep := fam.read_indep
   undecided := fun z => fam.reads_by_state z .undecided
   wrong := fun z => by
     rw [fam.reads_by_state]
-    rw [zero_add]
     exact fam.readDist_wrong _
 
 end SuffixFamily

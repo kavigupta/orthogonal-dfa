@@ -173,7 +173,7 @@ def Level5Claim.{u, v, w} : Prop :=
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
       (side : Q → Bool) (U : Q → ℝ) (κ : ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
-      [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U 0 κ) (P : PrefixDistribution A)
+      [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U κ) (P : PrefixDistribution A)
       (C : Level3Settings) (p₀ : ℝ),
       let y := C.harvestRate
       let ε := C.disagreementRate

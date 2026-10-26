@@ -6,7 +6,7 @@ import OrthoDFA.LowLevelClaims.SuffixFamily
 
 `FamilyKappaOracle`: a suffix family's reads are a `KappaReadOracle`, each state's side the one it
 reads more often (`readSide`), its undecided chance the state's chance of reading undecided, at
-`εw = 0` and the family's `κ`.
+the family's `κ`.
 -/
 
 noncomputable section
@@ -21,7 +21,7 @@ def FamilyKappaOracle : Prop :=
   ∀ {α : Type*} [Fintype α] {σ : Type*} {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] (fam : SuffixFamily μ α σ),
     ∃ R : Random.Kappa.KappaReadOracle μ fam.M (fun q => readSide (fam.readDist q))
-      (fun q => fam.readDist q .undecided) 0 fam.κ,
+      (fun q => fam.readDist q .undecided) fam.κ,
       R.read = fun z ω => fam.read ω z
 
 end OrthoDFA

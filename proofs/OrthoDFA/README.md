@@ -66,8 +66,7 @@ this (`parity_toggle`, #438).
   round ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, a few
   tolerated, and wrong reads scaling with indecision, a few tolerated.
 - `FamilyKappaOracle` (`OrthoDFA/LowLevelClaims/FamilyOracle.lean`): the clustering's family reads
-  are a `KappaReadOracle`, each state's side the one it reads more often, at `εw = 0` and the band's
-  `κ`.
+  are a `KappaReadOracle`, each state's side the one it reads more often, at the band's `κ`.
 - `LearnerLoopDFA` and `LearnerLoopDFASimple`: the loop outputs a DFA. See below.
 
 ## The learner's DFA
@@ -162,9 +161,9 @@ disagreement rate `ε` and draws its probes from `D` conditioned on their first 
 avoiding those of every prefix the round's clustering read. Whatever its two rates, the family's
 read is on its rarer decided side at most `bandKappa` times as often as undecided (`BandKappaBound`,
 `OrthoDFA/LowLevelClaims/BandKappa.lean`), and the family's size puts `bandKappa` at most `ζ =
-δ'/(8W)`. So the family is level 5's oracle at `εw = 0` and `κ = ζ`. With `f = 0` level 5 tolerates
-one spurious leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at
-most `e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
+δ'/(8W)`. So the family is level 5's oracle at `κ = ζ`. With `f = 0` level 5 tolerates one spurious
+leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most
+`e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
     W = max(e √δ' W_m / 2, 1),
 
@@ -240,9 +239,9 @@ the time. Each level says what a state's chance of reading undecided is.
 1. #417, `Level2RoundCorrect`: ideal reads; a state reads undecided where all its strings do.
 2. #419, `Level3RoundCorrect`: indecision random, decided reads always right.
 3. #420, `Level4RoundCorrect`: rare wrong reads at every state, a few tolerated as spurious
-   splits; level 5 at `κ = 0`.
-4. #499, `Level5RoundCorrect`: wrong reads at most `εw` plus `κ` times the state's indecision, a
-   few tolerated; the round the loop runs, at the family's `κ`.
+   splits.
+4. #499, `Level5RoundCorrect`: wrong reads at most `κ` times the state's indecision, a few
+   tolerated; the round the loop runs, at the family's `κ`.
 
 ## Open
 
@@ -361,17 +360,21 @@ the time. Each level says what a state's chance of reading undecided is.
   that ends well finds at least an eighth of the searches. The sampler (`harvestLaw`, in
   `Code/Level3Harvest.lean`) draws a fresh probe, walks it under the final hypothesis and finds the
   probe's undecided string at the site, as the tests counted it.
-- `OrthoDFA/LowLevelClaims/Level4Claim.lean` — `Level4RoundCorrect`: level 5 on reads wrong at most
-  `εw` of the time (`EpsReadOracle`), with no `κ`: level 3's algorithm, unchanged, fails to end well
-  within `|Q| + f + 2` leaves with chance at most `δ` under level 5's premises at `κ = 0`. Its proof
-  reads the oracle as level 5's at `κ = 0`.
+- `OrthoDFA/LowLevelClaims/Level4Claim.lean` — `Level4RoundCorrect`: reads wrong at most `εw` of the
+  time (`EpsReadOracle`): level 3's algorithm, unchanged, fails to end well within `|Q| + f + 2`
+  leaves with chance at most `δ`. Its premises are level 5's with `εw` in place of `κ` in the race
+  tail: a probe's reads number at most `w = min(L + 1, 3 + ⌈log₂ L⌉)(|Q| + f + 1)` and a re-sift's
+  `|Q| + f + 2`, each read wrong at most `εw` of the time, so a round of reads costs at most
+  `εw max(w, |Q| + f + 2)`, and the tail charges `εw` on each of the at most `b` strings the
+  L\* round reads. Both levels are proved from one argument on reads wrong at most `εw + κ U q`,
+  internal to `Proofs/Level5.lean`.
 - `OrthoDFA/LowLevelClaims/Level5Claim.lean` — `Level5RoundCorrect`: level 3's algorithm, unchanged,
-  with each read on its state's wrong side with chance at most `εw + κ U q` (`KappaReadOracle`),
-  fails to end well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong
-  reads. Its premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each
-  site, and `B₃(B₃ − 1)/2 · p₀ + exp(t'(εw b + κ m))/(1 + t)^(f + 2) ≤ δ/8` for `t c ≤ 1 − e^{−t'
-  c}`. Here `c` is a round's cost, and `b` and `m` count the strings the round reads, in all and
-  undecided, within `|Q| + f + 2` leaves.
+  with each read on its state's wrong side with chance at most `κ U q` (`KappaReadOracle`), fails to
+  end well within `|Q| + f + 2` leaves with chance at most `δ`, tolerating a few wrong reads. Its
+  premises are level 3's at `|Q| + f` states, the sampler's bounds at `δ/16` at each site, and
+  `B₃(B₃ − 1)/2 · p₀ + exp(t' κ m)/(1 + t)^(f + 2) ≤ δ/8` for `t κ ≤ 1 − e^{−t' κ}`. Each round
+  of reads (a probe's, or a re-sift's) reads at most one string undecided, so costs at most `κ`,
+  and `m` counts those strings over the whole L\* round, within `|Q| + f + 2` leaves.
   - A step reads in rounds: its probe's, then one per edge its split re-sifts.
   - Where no two probes share their first `walkStart` letters (the first term), every string read
     belongs to one probe. A round with a fresh wrong read then adds at most one spurious leaf or
@@ -380,8 +383,8 @@ the time. Each level says what a state's chance of reading undecided is.
     `RaceTailBound` bounds; within the allowance, `Level3AllowanceCorrect` gives `7δ/8`.
 - `OrthoDFA/LowLevelClaims/FamilyOracle.lean` — `FamilyKappaOracle`: a suffix family's reads (a DFA
   target, a suffix-free family and a band read on its rarer decided side at most `κ` times as often
-  as undecided, `RarerBounded`) are level 5's `KappaReadOracle` at `εw = 0`, each state's side the
-  one it reads more often (`readSide`).
+  as undecided, `RarerBounded`) are level 5's `KappaReadOracle`, each state's side the one it reads
+  more often (`readSide`).
 - `OrthoDFA/LowLevelClaims/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band,
   with its reads and each state's read distribution.
 - `OrthoDFA/Code/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs

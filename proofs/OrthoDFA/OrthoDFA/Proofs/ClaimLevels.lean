@@ -187,18 +187,16 @@ private lemma εw_race (nQ nα L B : ℕ) {εw δ iε iy : ℝ} (hδ : 0 < δ)
     _ ≤ _ := mul_le_mul_of_nonneg_right hεw hX0.le
     _ = Real.sqrt δ / (4 * exp 1) := by field_simp
 
-private lemma κ_race (nQ nα : ℕ) {κ δ iε iy L : ℝ} (b c : ℝ) (hδ : 0 < δ) (hδ1 : δ < 1)
-    (hκ0 : 0 ≤ κ)
+private lemma κ_race (nQ nα : ℕ) {κ δ iε iy L : ℝ} (hδ : 0 < δ) (hδ1 : δ < 1) (hκ0 : 0 ≤ κ)
     (hκ : κ ≤ lvκ (nQ, nα, iε, 1 / δ, iy, L)) :
-    0 ≤ 0 * b + κ * lvMN nQ nα δ ∧ 0 ≤ 0 * c + κ
-      ∧ 0 * b + κ * lvMN nQ nα δ + 2 * (0 * c + κ) ≤ Real.sqrt δ / (4 * exp 1) := by
+    0 ≤ κ * lvMN nQ nα δ ∧ κ * lvMN nQ nα δ + 2 * κ ≤ Real.sqrt δ / (4 * exp 1) := by
   have hm : lvM nQ nα (1 / δ) = lvMN nQ nα δ := by
     simp only [lvM, lvMN, lvS_cast, one_div_one_div]
   have hm0 : 0 ≤ lvMN nQ nα δ :=
     hm ▸ lvM_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _) (one_lt_one_div hδ hδ1)
   simp only [lvκ, if_pos (⟨Nat.cast_nonneg _, Nat.cast_nonneg _, one_lt_one_div hδ hδ1⟩ :
     (0 : ℝ) ≤ nQ ∧ (0 : ℝ) ≤ nα ∧ 1 < 1 / δ), one_div_one_div, hm] at hκ
-  refine ⟨by simpa using mul_nonneg hκ0 hm0, by simpa using hκ0, ?_⟩
+  refine ⟨mul_nonneg hκ0 hm0, ?_⟩
   calc _ = κ * (lvMN nQ nα δ + 2) := by ring
     _ ≤ _ := mul_le_mul_of_nonneg_right hκ (by positivity)
     _ = Real.sqrt δ / (4 * exp 1) := by field_simp
@@ -742,13 +740,13 @@ theorem level5Claim_holds : Level5Claim := by
   simp only [toVec] at hP hp₀ hκ ⊢
   have hδ1 : C.δ < 1 := by linarith
   have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-  have hr := fun b c => κ_race (Fintype.card σ) (Fintype.card α) (iε := 1 / C.disagreementRate)
-    (iy := 1 / C.harvestRate) (L := P.L) b c hδ hδ1 hκ0 hκ
-  refine race_tail_apply hδ (hr _ 0).1 (hr 0 _).2.1 (hr _ _).2.2 (collision_le hδ hp₀0 hP hp₀)
+  obtain ⟨hl, hr⟩ := κ_race (Fintype.card σ) (Fintype.card α) (iε := 1 / C.disagreementRate)
+    (iy := 1 / C.harvestRate) (L := P.L) hδ hδ1 hκ0 hκ
+  refine race_tail_apply hδ hl hκ0 hr (collision_le hδ hp₀0 hP hp₀)
     fun t t' ht ht' htc hfin =>
       le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
-        (level5RoundCorrect_holds M side U 0 κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
-          (budget_le (Fintype.card σ) (Fintype.card α) hP) le_rfl hκ0 ht ht' htc hfin)
+        (level5RoundCorrect_holds M side U κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
+          (budget_le (Fintype.card σ) (Fintype.card α) hP) hκ0 ht ht' htc hfin)
   exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
     (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
 
