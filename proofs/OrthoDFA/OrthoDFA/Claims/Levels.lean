@@ -13,7 +13,8 @@ A claim per level, `Level2Claim` to `Level5Claim`: the level's round ends well, 
 slack, and levels 4 and 5 need the probes' walk starts spread, every one holding at most `p₀Tol` of
 the probes' law, and their reads rarely wrong: at level 4 at most `εwTol` of the time, at level 5
 at most `κTol` times the state's indecision. How small those must be is bounded the same way. Both
-run at no leaves beyond level 3's `|Q| + 2`. Each bound has one constant over all of `levelRegion`
+may grow their tree `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`, their costs growing
+with `|Q| + log(1/δ)` in place of `|Q|`. Each bound has one constant over all of `levelRegion`
 (`level2Region` for level 2).
 -/
 
@@ -112,18 +113,20 @@ def Level3Claim.{u, v, w} : Prop :=
 
 open Real in
 /-- Level 4, with reads wrong at most `εw` of the time: its budget, harvest slope and slack, the
-largest `p₀` and `εw` it tolerates, and its round ending well at them. -/
+largest `p₀` and `εw` it tolerates, and its round ending well at them within `spurious` leaves past
+`|Q| + 2`. -/
 def Level4Claim.{u, v, w} : Prop :=
-  ∃ (nprobes : LevelInputs → ℕ) (slope slackRate p₀Tol εwTol : LevelInputs → ℝ),
+  ∃ (nprobes spurious : LevelInputs → ℕ) (slope slackRate p₀Tol εwTol : LevelInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
-    slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
+      (x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
+    slope =O[𝓟 levelRegion] (fun x => (x.Q + log (1 / x.δ)) * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
-      (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
+      (x.Q + log (1 / x.δ)) * x.A * log ((x.Q + log (1 / x.δ)) * x.A) / x.y) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
-      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
+      ((x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / εwTol x) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 3 * x.A / x.ε * log (x.Q * x.A / x.δ) * log x.L / sqrt x.δ) ∧
+      (x.Q + log (1 / x.δ)) ^ 3 * x.A / x.ε * log (x.Q * x.A / x.δ) * log x.L) ∧
+    (fun x => (spurious x : ℝ)) =O[𝓟 levelRegion] (fun x => log (1 / x.δ)) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < εwTol x) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
@@ -152,23 +155,25 @@ def Level4Claim.{u, v, w} : Prop :=
                 harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
                 yield := y,
                 ending := result.ending }
-            ∨ Fintype.card Q + 2 < result.hypothesis.tree.leaves.length} ∂μ
+            ∨ Fintype.card Q + spurious x + 2 < result.hypothesis.tree.leaves.length} ∂μ
         ≤ ENNReal.ofReal δ)
 
 open Real in
 /-- Level 5, with reads wrong at most `κ` times as often as undecided: its budget, harvest slope
-and slack, the largest `p₀` and `κ` it tolerates, and its round ending well at them. -/
+and slack, the largest `p₀` and `κ` it tolerates, and its round ending well at them within
+`spurious` leaves past `|Q| + 2`. -/
 def Level5Claim.{u, v, w} : Prop :=
-  ∃ (nprobes : LevelInputs → ℕ) (slope slackRate p₀Tol κTol : LevelInputs → ℝ),
+  ∃ (nprobes spurious : LevelInputs → ℕ) (slope slackRate p₀Tol κTol : LevelInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
-    slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
+      (x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
+    slope =O[𝓟 levelRegion] (fun x => (x.Q + log (1 / x.δ)) * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
-      (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
+      (x.Q + log (1 / x.δ)) * x.A * log ((x.Q + log (1 / x.δ)) * x.A) / x.y) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
-      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
+      ((x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / κTol x) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / sqrt x.δ) ∧
+      (x.Q + log (1 / x.δ)) ^ 2 * x.A * log (x.Q * x.A / x.δ)) ∧
+    (fun x => (spurious x : ℝ)) =O[𝓟 levelRegion] (fun x => log (1 / x.δ)) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < κTol x) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
@@ -197,7 +202,7 @@ def Level5Claim.{u, v, w} : Prop :=
                 harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
                 yield := y,
                 ending := result.ending }
-            ∨ Fintype.card Q + 2 < result.hypothesis.tree.leaves.length} ∂μ
+            ∨ Fintype.card Q + spurious x + 2 < result.hypothesis.tree.leaves.length} ∂μ
         ≤ ENNReal.ofReal δ)
 
 end OrthoDFA

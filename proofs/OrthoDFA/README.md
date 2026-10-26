@@ -26,8 +26,12 @@ Each claim is proved from the explicit theorems below.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
   round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`, its harvest's slope
   `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
-  give how much of the probes' law any one walk start may hold (`p₀Tol`) and how rarely reads may
-  be wrong (`εwTol` at level 4, `κTol` at level 5), at no leaves beyond level 3's `|Q| + 2`.
+  give how much of the probes' law any one walk start may hold (`p₀Tol`, `1/p₀Tol` of order the
+  budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
+  O(Q'³|Σ|/ε · log(|Q||Σ|/δ) log L)` at level 4, `1/κTol = O(Q'²|Σ| log(|Q||Σ|/δ))` at level 5),
+  their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
+  slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
+  `O(Q'|Σ| log(Q'|Σ|)/y)`.
 - `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
   which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
   held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
