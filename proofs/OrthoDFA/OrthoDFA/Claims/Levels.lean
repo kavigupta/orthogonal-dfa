@@ -39,15 +39,15 @@ def Level2Claim.{u, v} : Prop :=
   ∃ nprobes₂ : Level2Inputs → ℕ,
     (fun x => (nprobes₂ x : ℝ)) =O[𝓟 level2Region] (fun x =>
       x.Q ^ 2 * x.A * x.ε / (x.ε - x.y) ^ 2 * log (x.Q * x.A / x.δ)) ∧
-    (∀ {Sigma : Type u} [Fintype Sigma] [DecidableEq Sigma] {Q : Type v} [Fintype Q]
-      (M : DFA Sigma Q)
-      (read : FreeMonoid Sigma → ARU) (side : Q → Bool) (C : Level2.Settings),
+    (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
+      (M : DFA A Q)
+      (read : FreeMonoid A → ARU) (side : Q → Bool) (C : Level2.Settings),
       let y := C.harvestRate
       let ε := C.disagreementRate
       let δ := C.δ
-      let x : Level2Inputs := { Q := Fintype.card Q, A := Fintype.card Sigma, ε, δ, y }
+      let x : Level2Inputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, y }
       Level2.ReadsByState read M side → x ∈ level2Region →
-      ∀ (D : Measure (FreeMonoid Sigma)) [IsProbabilityMeasure D],
+      ∀ (D : Measure (FreeMonoid A)) [IsProbabilityMeasure D],
         (Measure.pi fun _ : Fin (nprobes₂ x) => D).real
             {draws | let result := Level2.indecisiveLStarLevel2 C read draws
               ¬ EndsWell
@@ -82,15 +82,15 @@ def Level3Claim.{u, v, w} : Prop :=
     slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
       (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
-    (∀ {Sigma : Type u} [Fintype Sigma] [DecidableEq Sigma] {Q : Type v} [Fintype Q]
-      (M : DFA Sigma Q)
+    (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
+      (M : DFA A Q)
       (side : Q → Bool) (U : Q → ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
-      [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution Sigma)
+      [IsProbabilityMeasure μ] (R : ReadOracle μ M side U) (P : PrefixDistribution A)
       (C : Level3Settings) (p₀ : ℝ),
       let y := C.harvestRate
       let ε := C.disagreementRate
       let δ := C.δ
-      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card Sigma, ε, δ, y, L := P.L }
+      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, y, L := P.L }
       x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) →
       ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
@@ -125,15 +125,15 @@ def Level4Claim.{u, v, w} : Prop :=
     (fun x => 1 / εwTol x) =O[𝓟 levelRegion] (fun x =>
       x.Q ^ 3 * x.A / x.ε * log (x.Q * x.A / x.δ) * log x.L / sqrt x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < εwTol x) ∧
-    (∀ {Sigma : Type u} [Fintype Sigma] [DecidableEq Sigma] {Q : Type v} [Fintype Q]
-      (M : DFA Sigma Q)
+    (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
+      (M : DFA A Q)
       (side : Q → Bool) (U : Q → ℝ) (εw : ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
-      [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution Sigma)
+      [IsProbabilityMeasure μ] (R : EpsReadOracle μ M side U εw) (P : PrefixDistribution A)
       (C : Level3Settings) (p₀ : ℝ),
       let y := C.harvestRate
       let ε := C.disagreementRate
       let δ := C.δ
-      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card Sigma, ε, δ, y, L := P.L }
+      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, y, L := P.L }
       x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol x →
       0 ≤ εw → εw ≤ εwTol x →
@@ -170,15 +170,15 @@ def Level5Claim.{u, v, w} : Prop :=
     (fun x => 1 / κTol x) =O[𝓟 levelRegion] (fun x =>
       x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / sqrt x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < κTol x) ∧
-    (∀ {Sigma : Type u} [Fintype Sigma] [DecidableEq Sigma] {Q : Type v} [Fintype Q]
-      (M : DFA Sigma Q)
+    (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
+      (M : DFA A Q)
       (side : Q → Bool) (U : Q → ℝ) (κ : ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
-      [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U 0 κ) (P : PrefixDistribution Sigma)
+      [IsProbabilityMeasure μ] (R : KappaReadOracle μ M side U 0 κ) (P : PrefixDistribution A)
       (C : Level3Settings) (p₀ : ℝ),
       let y := C.harvestRate
       let ε := C.disagreementRate
       let δ := C.δ
-      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card Sigma, ε, δ, y, L := P.L }
+      let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, y, L := P.L }
       x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol x →
       0 ≤ κ → κ ≤ κTol x →

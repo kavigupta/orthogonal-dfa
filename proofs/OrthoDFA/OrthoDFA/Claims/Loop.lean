@@ -46,14 +46,14 @@ def loopRunRegion : Set LoopRun := {r | r.toLoopInputs ∈ loopRegion}
 `totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
 def LoopWithin.{u, v, w} (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ) : Prop :=
-  ∀ {Sigma : Type u} [Fintype Sigma] [DecidableEq Sigma] [Nonempty Sigma] {Q : Type v}
+  ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : LoopInputs) (M : _root_.DFA Sigma Q) (O : Oracle μ (FreeMonoid Sigma)) (L : ℕ) (γ : ℝ),
+    (x : LoopInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ),
   -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
-  x ∈ loopRegion → Fintype.card Q = x.Q → Fintype.card Sigma = x.A →
+  x ∈ loopRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -62,13 +62,13 @@ def LoopWithin.{u, v, w} (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalP
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ draws : Fin (Fintype.card Q + 1)
-        → LoopRoundDraws Ω Sigma (Fintype.card Q + 1) settings.level3.probeBudget,
+        → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.probeBudget,
       let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card Q + 3)) draws
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    ((loopMeasure μ Sigma (Fintype.card Q + 1) settings.level3.probeBudget).prod
+    ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
       {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card Q + 3)) (persistDraws q.1)
