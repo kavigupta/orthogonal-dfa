@@ -33,7 +33,7 @@ Each claim is proved from the explicit theorems below.
   slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
   `O(Q'|Σ| log(Q'|Σ|)/y)`.
 - `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
-  which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
+  which the learner's DFA is right but for `γ + ξ`, `O(1 + log(|Q|/(δ c ξ pAP s₀))/log|Σ|)`, the
   held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
   prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
   proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
