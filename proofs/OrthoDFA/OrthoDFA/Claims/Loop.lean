@@ -7,33 +7,37 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 
 `LoopClaim`: once the Python's length `L` is at least `L₀`, the loop's re-rooted DFA misclassifies
 at most `γ + ξ` of the strings of length `L`, but for chance `δ`, its start leaf picked on
-`heldOut` strings; over the whole run its clusterings read at most `totalPref` prefixes and
-`totalSuff` suffixes, and its rounds draw at most `totalProbes` probes, whatever they draw. Every
-one is within the big-O shape below, with `c` the coverage and `s₀ = 1/2 − η₀` the signal. The
-totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
-`c/(4(|Σ| + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
-the suffixes as `log L`. Each bound has one constant over all of `loopRegion`. `LoopClaimSimple`
-states the same with the prefix and suffix totals each a single product.
+`heldOut` strings, when the target admits a start by the relative rule at visit ratio `R`; over the
+whole run its clusterings read at most `totalPref` prefixes and `totalSuff` suffixes, and its
+rounds draw at most `totalProbes` probes, whatever they draw. Every one is within the big-O shape
+below, with `s₀ = 1/2 − η₀` the signal. The run is the coverage rule's at `c = ξ/(2C|Q|)`, with
+`R ≤ C ≤ 2R`, so `1/c` enters the shapes as `R|Q|/ξ`. The totals grow with `L` because the
+settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the
+window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`. Each
+bound has one constant over all of `loopRegion`. `LoopClaimSimple` states the same with the prefix
+and suffix totals each a single product.
 -/
 
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter
 
-/-- The learner's inputs: `Q` states, `A` letters, the failure chance `δ`, the coverage `c`, the
-accuracy slack `ξ`, `pAP` the share of suffixes that preserve membership, and the signal
-`s₀ = 1/2 − η₀`. -/
+/-- The learner's inputs: `Q` states, `A` letters, the failure chance `δ`, the visit ratio `R` of
+`nonStartZoneStates`, the accuracy slack `ξ`, `pAP` the share of suffixes that preserve
+membership, and the signal `s₀ = 1/2 − η₀`. -/
 structure LoopInputs where
   Q : ℕ
   A : ℕ
   δ : ℝ
-  c : ℝ
+  R : ℝ
   ξ : ℝ
   pAP : ℝ
   s₀ : ℝ
 
+/-- A ratio `R < 1` asks more of the target than `R = 1`: fewer non-start-zone states, and a
+higher coverage. -/
 def loopRegion : Set LoopInputs :=
-  {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.c ∧ x.c ≤ 1 ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
+  {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 1 ≤ x.R ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
 
 /-- The inputs with the Python's length `L`, which the totals grow with. -/
@@ -53,11 +57,15 @@ def LoopWithin.{u, v, w} (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalP
   -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
+  let C : ℝ := x.R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
+  -- The start's coverage, low enough that the non-start-zone states below it cost `ξ/2`.
+  let c : ℝ := x.ξ / (2 * C * Fintype.card Q)
   x ∈ loopRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  (∃ q ∈ coveredStates M L x.c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L x.c) q) →
+  (∃ q ∈ coveredStates M L c,
+    1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L x.R q)) q) →
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
@@ -83,16 +91,16 @@ def LoopClaim.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
-      log (x.Q * x.A / (x.δ * x.c * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+      log (x.Q * x.A * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 4 * (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀))
-        * ((r.A ^ 2 / r.c ^ 2 + 1 / r.ξ ^ 2) / r.s₀ ^ 8
-          + r.Q ^ 4 * r.A ^ 2 / (r.c ^ 2 * r.s₀ ^ 4))) ∧
+      r.Q ^ 6 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
+        * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
+        * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
-      r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+      r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP ^ 2)) ∧
     totalProbes =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.c * log (r.Q * r.A / r.δ)) ∧
+      r.Q ^ 4 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithin.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
 
@@ -102,15 +110,15 @@ def LoopClaimSimple.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
-      log (x.Q * x.A / (x.δ * x.c * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+      log (x.Q * x.A * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 8 * (r.L + r.Q) ^ 2 * r.A ^ 2
-        * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀))
-        / (r.c ^ 2 * r.ξ ^ 2 * r.s₀ ^ 8)) ∧
+      r.Q ^ 10 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
+        * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
+        / (r.ξ ^ 2 * r.s₀ ^ 8)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
-      r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.c * r.ξ * r.pAP * r.s₀)) / (r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+      r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.pAP ^ 2 * r.s₀ ^ 2)) ∧
     totalProbes =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.c * log (r.Q * r.A / r.δ)) ∧
+      r.Q ^ 4 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithin.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
 

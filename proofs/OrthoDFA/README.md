@@ -28,14 +28,18 @@ Each claim is proved from the explicit theorems below.
   `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
   give how much of the probes' law any one walk start may hold (`p₀Tol`) and how rarely reads may
   be wrong (`εwTol` at level 4, `κTol` at level 5), at no leaves beyond level 3's `|Q| + 2`.
-- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
-  which the learner's DFA is right but for `γ + ξ`, `O(log(|Q||Σ|/(δ c ξ pAP s₀))/log|Σ|)`, the
-  held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
-  prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
-  proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
-  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
-  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁸(L + |Q|)²|Σ|² log(X)/(c² ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(X)/(pAP² s₀²))`, `X = (L + |Q|)|Σ|/(δ c ξ pAP s₀)`.
+- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `R ≥ 1` the visit ratio of the relative
+  rule (`LearnerLoopDFARelative`'s premise), the length `L₀` past which the learner's DFA is right
+  but for `γ + ξ`, `O(log(|Q||Σ|R/(δ ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked
+  on, `O(log(|Q|/δ)/ξ²)`, and, over `LoopRun` (the inputs with `L`), every prefix, suffix and
+  probe the whole run reads: `O(|Q|⁶(L + |Q|)²|Σ|²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes,
+  `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ ·
+  log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. The run is the coverage rule's at
+  `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The totals grow with `L` because the
+  settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the
+  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
 
 ## The explicit theorems
 
