@@ -32,14 +32,18 @@ Each claim is proved from the explicit theorems below.
   their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
   slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
   `O(Q'|Σ| log(Q'|Σ|)/y)`.
-- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `c` the coverage, the length `L₀` past
-  which the learner's DFA is right but for `γ + ξ`, `O(1 + log(|Q|/(δ c ξ pAP s₀))/log|Σ|)`, the
-  held-out strings its start is picked on, and, over `LoopRun` (the inputs with `L`), every
-  prefix, suffix and probe the whole run reads. Those grow with `L` because the settings the
-  proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the window's
-  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
-  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁸(L + |Q|)²|Σ|² log(X)/(c² ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(X)/(pAP² s₀²))`, `X = (L + |Q|)|Σ|/(δ c ξ pAP s₀)`.
+- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `R ≥ 1` the visit ratio of the relative
+  rule (`LearnerLoopDFARelative`'s premise), the length `L₀` past which the learner's DFA is right
+  but for `γ + ξ`, `O(1 + log(|Q|R/(δ ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked
+  on, `O(log(|Q|/δ)/ξ²)`, and, over `LoopRun` (the inputs with `L`), every prefix, suffix and
+  probe the whole run reads: `O(|Q|⁶(L + |Q|)²|Σ|²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes,
+  `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ ·
+  log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. The run is the coverage rule's at
+  `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The totals grow with `L` because the
+  settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the
+  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
 
 ## The explicit theorems
 
@@ -101,6 +105,15 @@ holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 421.6`; the
 least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 371.
+
+`LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
+rule instead: some `q ∈ nonStartZoneStates M L R q` has accuracy at least `1 − γ` with
+`S = nonStartZoneStates M L R q`, `nonStartZoneStates` being the states whose visit rate from `q` is
+at most `R` per position times that of a string from `⌈L/2⌉` on. With
+`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, `q` is covered at `1/C`, and it is `LearnerLoopDFA` at
+`c = ξ/(2C|Q|)` and `ξ/2`, so its
+probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
+`⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side

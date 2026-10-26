@@ -11,11 +11,10 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
-  state (all the learner can anchor to) still classifies almost every string,
-  without the re-rooted run leaving the covered states -- at every string
-  length from ``ceil(length / 2)`` to twice ``length``, taking the worst length for
-  each start
+- non_start_zone_accuracy_ceiling: re-rooting the target at the best start state
+  (a state in its own non-start zone) still classifies almost every string,
+  without the re-rooted run leaving that zone -- at every string length from
+  ``ceil(length / 2)`` to twice ``length``, taking the worst length for each start
 """
 
 import copy
@@ -33,9 +32,7 @@ from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
-#: Bar for coverage by prefixes of the given length before we consider a state
-#: "covered" by it.
-DEFAULT_MIN_COVERAGE = 0.01
+MAX_VISIT_RATIO = 10
 
 
 @lru_cache(maxsize=None)
@@ -137,25 +134,47 @@ def _run(dfa: DFA, string: bytes, start=None) -> list:
     return states
 
 
-def covered_states(
-    dfa: DFA,
-    *,
-    length: int,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
-    sampler: Optional[Sampler] = None,
-) -> set:
-    """
-    The states at least ``min_coverage`` of random length-``length`` strings visit
-    somewhere from ``start_length(length)`` on.
-    """
+def _window_visits(
+    dfa: DFA, *, length: int, num_samples: int, sampler: Optional[Sampler]
+) -> Counter:
+    """Per state, the sampled runs from q0 visiting it at positions
+    ``start_length(length)`` to ``length``."""
     k = start_length(length)
-    counts = Counter(
+    return Counter(
         q
         for s in _samples(dfa, length, num_samples, sampler)
         for q in set(_run(dfa, s)[k:])
     )
-    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+
+
+def non_start_zone_states(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    sampler: Optional[Sampler] = None,
+) -> dict:
+    """
+    Per state s in its own non-start zone, that zone
+
+        {q : r_s(q) <= C * w(q)},   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - k)
+
+    with w(q) the runs from q0 visiting q at positions k = start_length(L) to L, and
+    r_s(q) the runs from s visiting q at positions 0 to L.
+    """
+    strings = _samples(dfa, length, num_samples, sampler)
+    k = start_length(length)
+    window = _window_visits(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
+    )
+    ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
+    zones = {}
+    for start in window:
+        rerooted = Counter(q for s in strings for q in set(_run(dfa, s, start)))
+        zone = {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
+        if start in zone:
+            zones[start] = zone
+    return zones
 
 
 @lru_cache(maxsize=None)
@@ -197,78 +216,73 @@ def _worst_start_accuracies(
     length: int,
     string_lengths: range,
     num_samples: int,
-    min_coverage: float,
     sampler: Optional[Sampler],
 ) -> np.ndarray:
-    """Per covered start (covered at ``length``), its lowest accuracy over
-    ``string_lengths``."""
-    covered = covered_states(
-        dfa,
-        length=length,
-        num_samples=num_samples,
-        min_coverage=min_coverage,
-        sampler=sampler,
+    """Per start of ``non_start_zone_states`` at ``length``, its lowest accuracy
+    over ``string_lengths``."""
+    zones = non_start_zone_states(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
     )
     states = sorted(dfa.states, key=str)
     index = {q: i for i, q in enumerate(states)}
     symbols = sorted(dfa.input_symbols)
     table = np.array([[index[dfa.transitions[q][c]] for c in symbols] for q in states])
     final = np.array([q in dfa.final_states for q in states])
-    is_covered = np.array([q in covered for q in states])
-    starts = np.array(sorted(index[q] for q in covered), dtype=int)
+    starts = np.array(sorted(index[q] for q in zones), dtype=int)
+    allowed = np.array(
+        [[q in zones[states[s]] for q in states] for s in starts], dtype=bool
+    ).reshape(len(starts), len(states))
     worst = np.ones(len(starts))
     for ell in string_lengths:
         strings = _strings_at_length(dfa, ell, num_samples, sampler)
         initial_end, _ = _run_from(
-            table, is_covered, strings, np.array([index[dfa.initial_state]])
+            table,
+            np.ones((1, len(states)), dtype=bool),
+            strings,
+            np.array([index[dfa.initial_state]]),
         )
         truth = final[initial_end[0]]
-        ends, stayed = _run_from(table, is_covered, strings, starts)
+        ends, stayed = _run_from(table, allowed, strings, starts)
         accuracy = (stayed & (final[ends] == truth)).mean(axis=1)
         worst = np.minimum(worst, accuracy)
     return worst
 
 
-def covered_accuracy_at(
+def non_start_zone_accuracy_at(
     dfa: DFA,
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> float:
-    """Best accuracy over covered starts on strings of exactly ``length``,
-    counting a string only if the run from the start stays within the covered
-    states."""
+    """``non_start_zone_accuracy_ceiling`` on strings of exactly ``length``."""
     worst = _worst_start_accuracies(
         dfa,
         length=length,
         string_lengths=range(length, length + 1),
         num_samples=num_samples,
-        min_coverage=min_coverage,
         sampler=sampler,
     )
     return float(worst.max(initial=0.0))
 
 
-def covered_accuracy_ceiling(
+def non_start_zone_accuracy_ceiling(
     dfa: DFA,
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
     sampler: Optional[Sampler] = None,
 ) -> float:
     """
-    Best accuracy reachable when the classifier may only be started from a
-    covered state, counting a string only if the run from there stays within the
-    covered states.
+    Best accuracy reachable when the classifier may only be started from a start
+    of ``non_start_zone_states``, counting a string only if the run from there
+    stays within that start's zone.
 
     E-L* discovers states from where its sampled prefixes land, so it can only
-    anchor its automaton at covered state; if the true initial state is uncovered
-    it cannot represent it. Only the start is constrained, from there we follow
-    the target's true transitions and read off the endpoint's true accept label.
-    A run through an uncovered state uses transitions the learner never checks.
+    anchor its automaton at a state they land in often. Only the start is
+    constrained, from there we follow the target's true transitions and read off
+    the endpoint's true accept label. A run through a state the window lands in
+    far less often than the run does uses transitions the learner rarely checks.
 
     A start's accuracy is its minimum over string lengths ``ceil(length / 2)`` to
     2 * ``length``; the ceiling is the best start's. A custom ``sampler`` is asked
@@ -280,20 +294,20 @@ def covered_accuracy_ceiling(
         length=length,
         string_lengths=range((length + 1) // 2, 2 * length + 1),
         num_samples=num_samples,
-        min_coverage=min_coverage,
         sampler=sampler,
     )
     return float(worst.max(initial=0.0))
 
 
-def _run_from(table, is_covered, strings, starts):
+def _run_from(table, allowed, strings, starts):
     """Endpoints of running each row of ``strings`` from each of ``starts``, and
-    whether the run stayed in covered states."""
+    whether the run stayed in its start's row of ``allowed``."""
+    rows = np.arange(len(starts))[:, None]
     current = np.repeat(starts[:, None], len(strings), axis=1)
-    stayed = is_covered[current]
+    stayed = allowed[rows, current]
     for j in range(strings.shape[1]):
         current = table[current, strings[:, j]]
-        stayed &= is_covered[current]
+        stayed &= allowed[rows, current]
     return current, stayed
 
 
@@ -309,10 +323,10 @@ class PreconditionReport:
     length: int
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
-    covered_accuracy_ceiling: Optional[float] = None
+    non_start_zone_accuracy_ceiling: Optional[float] = None
     #: States no sampled prefix lands in, as strings -- populated when the
     #: ceiling is measured, since that is the check they explain.
-    uncovered_states: Optional[List[str]] = None
+    unvisited_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
     reasons: Tuple[str, ...] = ()
@@ -330,7 +344,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_covered_accuracy: float = 0.99,
+    min_non_start_zone_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -341,7 +355,7 @@ def satisfies_preconditions(
 
     - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - covered-accuracy ceiling at least ``min_covered_accuracy``
+    - non-start-zone accuracy ceiling at least ``min_non_start_zone_accuracy``
 
     The acceptance-rate check only rejects degeneracy -- a language that is
     constant over the sampled strings, which E-L* cannot get signal from and
@@ -372,16 +386,17 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = covered_accuracy_ceiling(
+    ceiling = non_start_zone_accuracy_ceiling(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    if ceiling < min_covered_accuracy:
+    if ceiling < min_non_start_zone_accuracy:
         reasons.append(
-            f"covered-accuracy ceiling {ceiling:.3f} below "
-            f"{min_covered_accuracy} (an uncovered state carries a decision)"
+            f"non-start-zone accuracy ceiling {ceiling:.3f} below "
+            f"{min_non_start_zone_accuracy} (a decision rides on a state the window "
+            "lands in far less than the run does)"
         )
-    covered = covered_states(
+    visited = _window_visits(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
-    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))
+    unvisited = sorted(str(q) for q in dfa.states if q not in visited)
+    return PreconditionReport(length, rate, cp, ceiling, unvisited, tuple(reasons))
