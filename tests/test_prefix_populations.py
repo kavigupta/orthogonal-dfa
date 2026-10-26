@@ -209,15 +209,6 @@ class TestADrySource(unittest.TestCase):
         self.assertEqual([("boundary", 1)], pst.table.dropped)
         self.assertEqual(({}, set()), (state.held, state.seen))
 
-    def test_and_a_split_goes_ahead_without_it(self):
-        state = _holding(("boundary", 1), _DrySource(retirable=True), _words(3))
-        state.reserves[("boundary", 1)] = [b"r"]
-
-        self.assertEqual(
-            [], prefixes_for_split(_Pst(), state, ("boundary", 1), wanted=2)
-        )
-        self.assertEqual([b"r"], state.reserves[("boundary", 1)])
-
 
 class _ProvenSource(_Source):
     proven = True

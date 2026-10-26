@@ -106,7 +106,9 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         known=state.seen,
         acc_threshold=acc_threshold,
         # Its search walked deeper because its reads repeated, so they may run out.
-        retirable=any(read.round.deepenings for read in state.harvest_reads),
+        retirable=any(
+            read.round.k > read.round.config.k for read in state.harvest_reads
+        ),
     )
 
 
@@ -267,14 +269,6 @@ def _best_search(pst, vs, *, acc_threshold, index, selection):
     return search, ending, dfa
 
 
-def _note_deepening(search, index) -> None:
-    if search.deepenings:
-        print(
-            f"[round {index}] walked deeper to k = {search.k}; this round's boundary "
-            "source is retired if it runs dry"
-        )
-
-
 def _round_score(pst, dfa, selection, index) -> Optional[float]:
     """What ``BestRound`` ranks an uncertified round on in place of consistency."""
     if not pst.config.rank_rounds_by_held_out:
@@ -345,14 +339,14 @@ def counterexample_driven_synthesis(
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
-        tracker.on_round_classified(_round_classifier(pst, vs), index)
+        classifier = _round_classifier(pst, vs)
+        tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
         search, ending, dfa = _best_search(
             pst, vs, acc_threshold=acc_threshold, index=index, selection=selection
         )
         hypothesis = search.hypothesis
         tracker.on_search_ended(ending, index)
-        _note_deepening(search, index)
         dt = hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {search.probes} probes: "

@@ -28,8 +28,6 @@ class CounterexampleSearch:
         self.counts = SiteCounts()
         self.probes = 0
         self.k, self.max_k = config.k, max_k
-        #: ``(probe, k)`` at each deepening.
-        self.deepenings = []
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -58,7 +56,8 @@ class CounterexampleSearch:
 
     def _deepens(self, ending: Ending) -> bool:
         """Walk deeper in place of a harvest that repeats a string, which a deeper
-        start stops reaching.  ``Level5.lean`` holds ``k`` fixed for the round."""
+        start stops reaching.  The counts restart, or the test that just fired would
+        fire again at once."""
         if (
             self.k >= self.max_k
             or ending.kind not in HARVESTS
@@ -67,7 +66,6 @@ class CounterexampleSearch:
             return False
         self.k = min(max(2 * self.k, 1), self.max_k)
         self.counts = SiteCounts()
-        self.deepenings.append((self.probes, self.k))
         print(f"  {ending.kind} repeated a string; k now {self.k}")
         return True
 

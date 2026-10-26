@@ -164,13 +164,7 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     fresh = []
     tabled = state.tabled()
     while len(taken) + len(fresh) < wanted:
-        try:
-            string = source.draw()
-        except SourceDry:
-            if not source.retirable:
-                raise
-            reserve[:0] = taken
-            return []
+        string = source.draw()
         if state.in_reserve(string) and string not in tabled:
             fresh.append(string)
     return taken + sorted(fresh)

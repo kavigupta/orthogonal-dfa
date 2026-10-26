@@ -201,8 +201,7 @@ class TestDeepening(unittest.TestCase):
             parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, max_k=2, **SHIPPED_RATES
         )
         ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
-        self.assertEqual([1, 2], [k for _, k in search.deepenings])
-        self.assertEqual(31, search.deepenings[0][0])
+        self.assertEqual(2, search.k)
         self.assertEqual(SUCCESS, ending.kind)
 
 
