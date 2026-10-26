@@ -263,8 +263,6 @@ the time. Each level says what a state's chance of reading undecided is.
 ## Open
 
 - **The shipped Python uses fixed settings**, not the ones the claims choose.
-- **The relative rule's start.** The Python may start at any state its 2000 samples visit in the
-  window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
 - **The rarer reads past a midfix** are bounded over the tree's at most `|Q| + 1` midfixes, each
   read wrong at most `κ` of the time. They cap `ζ` only through `2(|Q|+1)ζ < 1/2`, at the
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
