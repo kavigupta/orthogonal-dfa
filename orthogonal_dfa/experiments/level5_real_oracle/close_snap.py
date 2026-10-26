@@ -44,6 +44,7 @@ for snap in snaps:
         lambda z: family.is_accept(z, b""),
         s["tree"],
         members=members,
+        max_k=0,
     )
     search.hypothesis.edges = dict(s["edges"])
     before = score(cs._hypothesis_dfa(pst, search.hypothesis), halves)

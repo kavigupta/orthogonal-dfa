@@ -35,6 +35,7 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=known,
             acc_threshold=0.98,
+            retirable=False,
         )
 
     def test_a_find_is_served(self):
@@ -78,6 +79,7 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=(),
             acc_threshold=0.98,
+            retirable=False,
         )
         ends = [source.draw()[-1:] for _ in range(400)]
 

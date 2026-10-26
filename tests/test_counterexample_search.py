@@ -201,7 +201,9 @@ class TestTheTests(unittest.TestCase):
 
 class TestUndecidedFallbacks(unittest.TestCase):
     def search(self, cut, edges, **kwargs):
-        search = CounterexampleSearch(quiet_config(), cut, MidfixTree([]), **kwargs)
+        search = CounterexampleSearch(
+            quiet_config(), cut, MidfixTree([]), max_k=0, **kwargs
+        )
         search.hypothesis.edges = dict(edges)
         return search
 
@@ -237,6 +239,7 @@ class TestStalledHarvest(unittest.TestCase):
             quiet_config(),
             parity_cut([b"\x01\x00"]),
             MidfixTree([]),
+            max_k=0,
             score=lambda h: 0,
             patience=3,
         )
@@ -246,36 +249,23 @@ class TestStalledHarvest(unittest.TestCase):
 
 
 class TestDeepening(unittest.TestCase):
-    def test_a_harvest_that_repeats_a_string_walks_deeper(self):
-        search = CounterexampleSearch(
-            quiet_config(**SHIPPED_RATES),
-            parity_cut([b"\x00\x01"]),
-            MidfixTree([]),
-            max_k=2,
+    def test_a_harvest_that_repeats_a_string_walks_past_it(self):
+        # At k = 0 this stuck harvest ends the search (see TestTheTests).
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, max_k=2, **SHIPPED_RATES
         )
-        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
-        search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
-        self.assertEqual(31, search.deepenings[0][0])
-        self.assertEqual(1, search.deepenings[0][1])
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(2, search.k)
+        self.assertEqual(SUCCESS, ending.kind)
 
 
 class TestBestHypothesis(unittest.TestCase):
-    def test_with_patience_a_stuck_string_read_again_is_not_more_evidence(self):
-        search = CounterexampleSearch(
-            quiet_config(**{**SHIPPED_RATES, "max_probes": 60}),
-            parity_cut([b"\x00\x01"]),
-            MidfixTree([]),
-            patience=10**9,
-        )
-        search.hypothesis.edges = dict(WITHOUT_EVEN_1)
-        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
-        self.assertEqual(OUT_OF_PROBES, ending.kind)
-
     def test_the_search_ends_on_its_best_scoring_hypothesis(self):
         search = CounterexampleSearch(
             quiet_config(max_probes=4),
             parity_cut(()),
             MidfixTree([]),
+            max_k=0,
             score=lambda h: -len(h.edges),
         )
         search.run(itertools.repeat(b"\x01\x00"))
@@ -287,6 +277,7 @@ class TestBestHypothesis(unittest.TestCase):
             quiet_config(),
             parity_cut(()),
             MidfixTree([]),
+            max_k=0,
             score=lambda h: 0,
             patience=3,
         )

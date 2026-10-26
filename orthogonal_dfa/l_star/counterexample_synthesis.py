@@ -105,6 +105,10 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         pst.rng,
         known=state.seen,
         acc_threshold=acc_threshold,
+        # Its search walked deeper because its reads repeated, so they may run out.
+        retirable=any(
+            read.round.k > read.round.config.k for read in state.harvest_reads
+        ),
     )
 
 
@@ -267,11 +271,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             )
         ),
         patience=patience,
-        max_k=(
-            start_length(pst.sampler.length)
-            if pst.config.counterexample_deepen
-            else None
-        ),
+        max_k=start_length(pst.sampler.length),
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 

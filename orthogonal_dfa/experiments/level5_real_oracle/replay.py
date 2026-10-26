@@ -63,7 +63,6 @@ ap.add_argument(
     type=int,
     help="counterexample_restarts, through _best_search",
 )
-ap.add_argument("--deepen", action="store_true", help="counterexample_deepen")
 a = ap.parse_args()
 
 overrides, k = {}, 0
@@ -102,7 +101,6 @@ if a.probe_seed is not None:
 # What fullloop_mem.py --plateau sets; checkpoints may predate these fields.
 pst.config.counterexample_score_patience = 500
 pst.config.counterexample_fnr_harvest = True
-pst.config.counterexample_deepen = a.deepen
 if not hasattr(pst.config, "counterexample_restarts"):
     pst.config.counterexample_restarts = 1
 
@@ -318,7 +316,7 @@ summary = dict(
     thresholds=thresholds,
     minutes=(time.time() - t0) / 60,
     selection_score=getattr(search, "best_score", None),
-    deepenings=getattr(search, "deepenings", None),
+    final_k=search.k,
     best_phi_seen=max(
         r["phi"] for r in map(json.loads, open(os.path.join(outdir, "snapshots.jsonl")))
     ),

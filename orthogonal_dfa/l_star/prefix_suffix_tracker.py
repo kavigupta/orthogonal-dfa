@@ -78,9 +78,6 @@ class SearchConfig:
     #: Scale the round's harvest thresholds by the family's measured FNR over
     #: ``acceptable_fnr``: for oracles whose families only just make their FNR gate.
     counterexample_fnr_harvest: bool = False
-    #: A round's search doubles its walk start, up to half the sampled length, at
-    #: each harvest that repeats a string, instead of ending.
-    counterexample_deepen: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

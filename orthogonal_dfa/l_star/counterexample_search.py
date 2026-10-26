@@ -44,14 +44,13 @@ class CounterexampleSearch:
         start: Optional[Callable[[HypothesisDFA], Optional[Path]]] = None,
         score: Optional[Callable[[HypothesisDFA], float]] = None,
         patience: Optional[int] = None,
-        max_k: Optional[int] = None,
+        max_k: int,
     ):
         """``members`` are strings an edge can be read on in place of the probe's
         own prefix; ``start`` is ``locate``'s.  With ``score``, ``run`` leaves the
         hypothesis at the best-scoring one it saw, and with ``patience`` stops once
-        that many probes pass without a better one.  With ``max_k``, a harvest
-        that repeats a string doubles ``k`` instead of ending the search, up to
-        ``max_k``."""
+        that many probes pass without a better one.  A harvest that repeats a
+        string increments ``k`` instead of ending the search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
@@ -62,11 +61,9 @@ class CounterexampleSearch:
         self.score, self.patience = score, patience
         self.best_score, self._best, self._best_at = None, None, 0
         self._scored_version = None
-        self.max_k = max_k
+        self.k, self.max_k = config.k, max_k
         #: Every distinct string read undecided, which a stalled score harvests.
         self.undecided = {}
-        #: ``(probe, k)`` at each deepening.
-        self.deepenings = []
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -138,42 +135,31 @@ class CounterexampleSearch:
         self.undecided.update(
             dict.fromkeys(charged.ends + charged.stuck + charged.middle)
         )
-        ending = ending_test(
-            self.counts,
-            self.config,
-            self.hypothesis.tree.depth,
-            distinct=self.patience is not None and self.max_k is None,
-        )
+        ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
         if ending is not None and self._deepens(ending):
             return None
         return ending
 
     def _deepens(self, ending: Ending) -> bool:
-        """Walk deeper in place of a harvest that repeats a string: a repeat is
-        one string read undecided again, which a deeper start stops reaching."""
-        k = self.config.k
+        """Walk deeper in place of a harvest that repeats a string, which a deeper
+        start stops reaching.  The counts restart, or the test that just fired would
+        fire again at once."""
         if (
-            self.max_k is None
-            or k >= self.max_k
+            self.k >= self.max_k
             or ending.kind not in HARVESTS
             or len(set(ending.harvest)) == len(ending.harvest)
         ):
             return False
-        deeper = min(max(2 * k, 1), self.max_k)
-        config = copy.copy(self.config)
-        # Frozen.
-        object.__setattr__(config, "k", deeper)
-        self.config = config
+        self.k = min(self.k + 1, self.max_k)
         self.counts = SiteCounts()
-        self.deepenings.append((self.probes, deeper))
-        print(f"  {ending.kind} repeated a string; k now {deeper}")
+        print(f"  {ending.kind} repeated a string; k now {self.k}")
         return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.config.k, x, self.start)
+        located = locate(self.hypothesis, self.k, x, self.start)
         if isinstance(located.outcome, End) and located.outcome.stuck:
             located = self._read_on_members(located, x)
-        return located.outcome, charges(located, self.config.k, x)
+        return located.outcome, charges(located, self.k, x)
 
     def _member_target(self, source: Path, letter: int):
         """``(target, member)`` for the first of up to ``MEMBER_LIMIT`` members of
@@ -198,7 +184,7 @@ class CounterexampleSearch:
         few short strings, so one of them read undecided would block its edge
         for good.
         """
-        k = self.config.k
+        k = self.k
         walk, step = follow(self.hypothesis.edges, located.walk[0], x[k:])
         source, letter = walk[-1], x[k + step]
         found = self._member_target(source, letter)
