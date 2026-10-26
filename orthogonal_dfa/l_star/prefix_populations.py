@@ -38,9 +38,6 @@ class PoolState:
         self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
-        #: Whether a round's search walked deeper than its start: a source whose
-        #: strings the deeper walks stopped reaching may then run dry.
-        self.deepened = False
 
     def retire(self, kind) -> None:
         """Forget last round's populations labelled (kind, ...): this round's are
@@ -124,9 +121,9 @@ def grow_population(pst, state, label) -> bool:
         # As many as the uniform draw this stands in for adds.
         drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
     except SourceDry:
-        if not state.deepened:
+        if not source.retirable:
             raise
-        print(f"  {label}'s source ran dry after a search walked deeper; retired")
+        print(f"  {label}'s source ran dry; retired")
         _retire(pst, state, label)
         return False
     state.held.setdefault(label, []).extend(drawn)
@@ -170,7 +167,7 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
         try:
             string = source.draw()
         except SourceDry:
-            if not state.deepened:
+            if not source.retirable:
                 raise
             reserve[:0] = taken
             return []

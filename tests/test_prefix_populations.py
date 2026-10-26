@@ -186,23 +186,23 @@ class _DrySource(_Source):
 
     proven = True
 
-    def __init__(self):
+    def __init__(self, *, retirable):
         super().__init__([], worth=True)
+        self.retirable = retirable
 
     def draw(self):
         raise SourceDry("dry")
 
 
 class TestADrySource(unittest.TestCase):
-    def test_before_any_search_walks_deeper_it_is_an_error(self):
-        state = _holding(("boundary", 1), _DrySource(), _words(3))
+    def test_one_not_retirable_is_an_error(self):
+        state = _holding(("boundary", 1), _DrySource(retirable=False), _words(3))
         with self.assertRaises(SourceDry):
             grow_population(_Pst(), state, ("boundary", 1))
 
-    def test_after_one_does_its_population_is_retired(self):
+    def test_a_retirable_one_has_its_population_retired(self):
         pst = _Pst()
-        state = _holding(("boundary", 1), _DrySource(), _words(3))
-        state.deepened = True
+        state = _holding(("boundary", 1), _DrySource(retirable=True), _words(3))
 
         self.assertFalse(grow_population(pst, state, ("boundary", 1)))
 
@@ -210,8 +210,7 @@ class TestADrySource(unittest.TestCase):
         self.assertEqual(({}, set()), (state.held, state.seen))
 
     def test_and_a_split_goes_ahead_without_it(self):
-        state = _holding(("boundary", 1), _DrySource(), _words(3))
-        state.deepened = True
+        state = _holding(("boundary", 1), _DrySource(retirable=True), _words(3))
         state.reserves[("boundary", 1)] = [b"r"]
 
         self.assertEqual(

@@ -85,8 +85,8 @@ def build_counted_pattern() -> DFA:
 
 class TestCountedPattern(unittest.TestCase):
     """Its harvests from k = 0 repeat a few short strings, so its rounds walk
-    deeper (``CounterexampleSearch._deepens``) and can leave a boundary source
-    dry (``PoolState.deepened``)."""
+    deeper (``CounterexampleSearch._deepens``) and their boundary sources can run
+    dry (``HarvestSource.retirable``)."""
 
     def test_admitted(self):
         report = P.satisfies_preconditions(

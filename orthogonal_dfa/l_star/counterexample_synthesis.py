@@ -105,6 +105,8 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         pst.rng,
         known=state.seen,
         acc_threshold=acc_threshold,
+        # Its search walked deeper because its reads repeated, so they may run out.
+        retirable=any(read.round.deepenings for read in state.harvest_reads),
     )
 
 
@@ -265,12 +267,11 @@ def _best_search(pst, vs, *, acc_threshold, index, selection):
     return search, ending, dfa
 
 
-def _note_deepening(search, state, index) -> None:
+def _note_deepening(search, index) -> None:
     if search.deepenings:
-        state.deepened = True
         print(
-            f"[round {index}] walked deeper to k = {search.k}; a boundary source "
-            "that runs dry from here on is retired"
+            f"[round {index}] walked deeper to k = {search.k}; this round's boundary "
+            "source is retired if it runs dry"
         )
 
 
@@ -351,7 +352,7 @@ def counterexample_driven_synthesis(
         )
         hypothesis = search.hypothesis
         tracker.on_search_ended(ending, index)
-        _note_deepening(search, state, index)
+        _note_deepening(search, index)
         dt = hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {search.probes} probes: "
