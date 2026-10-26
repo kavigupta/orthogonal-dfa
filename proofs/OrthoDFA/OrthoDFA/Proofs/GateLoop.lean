@@ -23,6 +23,7 @@ variable {η₀ : ℝ}
 variable {indecisionLimit : ℝ}
 variable {crossLimit : ℝ}
 variable {hsz : ℕ}
+variable {εs : ℝ}
 
 section Loop
 
@@ -90,7 +91,7 @@ lemma vote_shifts (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη�
 
 /-- A rung's family is `famCount` without its seed, cut at `loAt` and `hiAt`. -/
 lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1
       ∧ B.lo = loAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)
       ∧ B.hi = hiAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) := by
@@ -99,7 +100,8 @@ lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
   exact ⟨rfl, rfl, rfl⟩
 
 lemma lohi_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) : B.lo ≤ B.hi := by
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    B.lo ≤ B.hi := by
   obtain ⟨-, hlo, hhi⟩ := band_of_mem_schedule hB
   rw [hlo, hhi]
   unfold loAt hiAt
@@ -109,7 +111,7 @@ lemma lohi_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
 reaches the band's far side at most `crossLimit` of the time. -/
 theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov δ α pAP : ℝ}
     {B : State} (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hcross : 0 < crossLimit)
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (F : Finset S) (hF : F.card + 1 ≤ B.k) (p : S) :
     (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
     ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit) := by
@@ -402,7 +404,7 @@ lemma pool_holds_ref (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : ℝ}
 /-- The states of the schedule are told apart by their prefix counts. -/
 lemma schedule_npref_inj {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} :
     Set.InjOn State.npref
-      ↑(schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) := by
+      ↑(schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) := by
   intro B hB B' hB' h
   rw [Finset.mem_coe, schedule] at hB hB'
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
@@ -413,7 +415,7 @@ lemma schedule_npref_inj {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP
 /-- What the gate spends over the ladder's rungs is at most `α`. -/
 lemma gateLevel_sum_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (hα : 0 ≤ α)
     (hpop : populations.Nonempty) (s : Finset State)
-    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     ∑ B ∈ s, 7 * (populations.card : ℝ) * gateLevel α populations B ≤ α := by
   classical
   have hJ : (0 : ℝ) < populations.card := by exact_mod_cast Finset.card_pos.2 hpop
@@ -424,7 +426,7 @@ lemma gateLevel_sum_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP :
     unfold gateLevel sizeLevel
     field_simp
   rw [Finset.sum_congr rfl (fun B _ => e B)]
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
   have hle : ∀ B ∈ s, B.npref ≤ N := by
     intro B hB
     have := hs hB
@@ -461,11 +463,11 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α u : ℝ) (hindLim : 0 < indecisionLimit)
-    (hu : 3 / 2 * indecisionLimit + rejFrac η₀ indecisionLimit εcov ≤ u)
+    (hu : 3 / 2 * indecisionLimit + rejFrac η₀ indecisionLimit εcov εs ≤ u)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ 3 * ρ ∧ (Dp j).real {t} ≤ 3 * ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
-    (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hεcov : 0 < εcov) (hεs : 0 < εs) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (pAP : ℝ) (hpAP0 : 0 < pAP) (hpAP1 : pAP ≤ 1)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hcoll : ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
@@ -475,11 +477,11 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
           pAP crossLimit) : ℝ) + 1))
       ≤ δ / 256) :
     (streamMeasure μ Pp Pc Dsf).real
-        (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov
+        (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs
             δ α pAP crossLimit hsz ρ},
           retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
             ∩ FailAt rule O populations tame uni Dc εcov
-                (rejFrac η₀ indecisionLimit εcov) u B.val) ≤ 7 * δ / 16 + α := by
+                (rejFrac η₀ indecisionLimit εcov εs) u B.val) ≤ 7 * δ / 16 + α := by
   classical
   set iLc : ℝ := indecisionLimit with hiLc
   have hiLc0 : 0 < iLc := hindLim
@@ -489,10 +491,10 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   have hρ0 : 0 ≤ 3 * ρ := le_trans measureReal_nonneg (hρ uni huni 1).1
   set M : ℕ := poolCount η₀ populations iLc εcov δ pAP crossLimit with hMdef
   set rs : ℕ := poolRej pAP M with hrsdef
-  set N : ℕ := prefCount η₀ populations iLc εcov δ α pAP crossLimit hsz with hNdef
+  set N : ℕ := prefCount η₀ populations iLc εcov εs δ α pAP crossLimit hsz with hNdef
   set V : ℕ := validCount η₀ populations iLc εcov δ pAP crossLimit with hVdef
   set G : Set (Run Ω S J) := apShort O M pAP (9 * pAP / 20) ∪ {x | ¬ poolGood M rs x} with hGdef
-  set st := stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ with hst
+  set st := stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ with hst
   have hGle : (streamMeasure μ Pp Pc Dsf).real G ≤ δ / 16 := by
     refine le_trans (measureReal_union_le _ _) ?_
     have h1 := le_trans (measureReal_apShort_le Pp Pc Dsf O M pAP (9 * pAP / 20) hpAP0.le
@@ -504,7 +506,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   have hper : ∀ B ∈ st, (streamMeasure μ Pp Pc Dsf).real
       ((retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
         ∩ FailAt rule O populations tame uni Dc εcov
-            (rejFrac η₀ indecisionLimit εcov) u B) \ G)
+            (rejFrac η₀ indecisionLimit εcov εs) u B) \ G)
       ≤ 7 * populations.card * gateLevel α populations B
         + (δ * (B.npref : ℝ) / (8 * N) + if V ≤ B.npref then δ * (V : ℝ) / (16 * B.npref) else 0) := by
     intro B hB
@@ -519,11 +521,11 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       rw [schedule] at hsched
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hsched
       rfl
-    set c : ℝ := rejFrac η₀ iLc εcov with hcdef
-    have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hiLc0
-    obtain ⟨hcle, -⟩ := rejFrac_le (indecisionLimit := iLc) η₀ hη₀ hεcov hiLc0
+    set c : ℝ := rejFrac η₀ iLc εcov εs with hcdef
+    have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hiLc0
+    obtain ⟨hcle, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := iLc) η₀ hη₀ hεcov hiLc0
     have hcutle := cutBudget_le η₀ iLc εcov
-    set r : ℕ := rejCount η₀ iLc εcov B.npref with hrdef
+    set r : ℕ := rejCount η₀ iLc εcov εs B.npref with hrdef
     have hr : (r : ℝ) ≤ c * B.npref := Nat.floor_le (by positivity)
     have hG' : ∀ x ∉ G, ∃ v ∈ refsBy rule O.mq populations x B,
         ∀ p, O.label (p * v) = O.label p := by
@@ -555,10 +557,10 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   have hsplit : (⋃ B : {B : State // B ∈ st},
         retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
           ∩ FailAt rule O populations tame uni Dc εcov
-              (rejFrac η₀ indecisionLimit εcov) u B.val)
+              (rejFrac η₀ indecisionLimit εcov εs) u B.val)
       ⊆ (⋃ B ∈ st, (retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
           ∩ FailAt rule O populations tame uni Dc εcov
-              (rejFrac η₀ indecisionLimit εcov) u B) \ G) ∪ G := by
+              (rejFrac η₀ indecisionLimit εcov εs) u B) \ G) ∪ G := by
     intro x hx
     obtain ⟨B, hB⟩ := Set.mem_iUnion.1 hx
     by_cases hg : x ∈ G
@@ -567,7 +569,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   refine le_trans (measureReal_mono hsplit (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
   have hNpos : (0 : ℝ) < N := by exact_mod_cast prefCount_pos _ _ _ _ _ _
-  have hsumN := stoppable_npref_sum_le (indecisionLimit := iLc) (crossLimit := crossLimit)
+  have hsumN := stoppable_npref_sum_le (εs := εs) (indecisionLimit := iLc)
+      (crossLimit := crossLimit)
     (hsz := hsz) η₀
     populations εcov δ α pAP ρ
   have hinv := schedule_inv_sum_le (indecisionLimit := iLc) (crossLimit := crossLimit) η₀
@@ -580,11 +583,11 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     intro B; split_ifs <;> ring
   have hmain : (streamMeasure μ Pp Pc Dsf).real (⋃ B ∈ st, (retBy rule O.mq populations uni η₀
         indecisionLimit εcov α B ∩ FailAt rule O populations tame uni Dc εcov
-            (rejFrac η₀ indecisionLimit εcov) u B) \ G)
+            (rejFrac η₀ indecisionLimit εcov εs) u B) \ G)
       ≤ α + 3 * δ / 8 := by
     calc _ ≤ ∑ B ∈ st, (streamMeasure μ Pp Pc Dsf).real ((retBy rule O.mq populations uni η₀
             indecisionLimit εcov α B ∩ FailAt rule O populations tame uni Dc εcov
-                (rejFrac η₀ indecisionLimit εcov) u B)
+                (rejFrac η₀ indecisionLimit εcov εs) u B)
               \ G) := measureReal_biUnion_finset_le _ _
       _ ≤ ∑ B ∈ st, (7 * populations.card * gateLevel α populations B
             + (δ * (B.npref : ℝ) / (8 * N)
@@ -655,28 +658,13 @@ lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind :
   rw [cutBudget]
   refine le_min (by linarith) (le_min (by linarith) (le_min (by linarith) h4))
 
-/-- The redraw fraction is at least a constant times the scale squared: the cut budget is a tenth
-of the scale, and three times the flip fraction three fifths of the signal. -/
-lemma rejFrac_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
-    6 * budgetScale η₀ indecisionLimit εcov ^ 2 / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
-  have hs := sig_pos η₀ hsig
-  have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hBs := budgetScale_le_sig η₀ indecisionLimit εcov hη0 hsig
-  have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
-  have hf : 6 * sig η₀ / 10 ≤ 3 * flipFrac η₀ := by
-    rw [flipFrac, mul_div_assoc', div_le_div_iff₀ (by norm_num) (by linarith)]
-    nlinarith
-  rw [rejFrac]
-  have := mul_le_mul hcut (le_trans (by linarith : 6 * budgetScale η₀ indecisionLimit εcov / 10
-    ≤ 6 * sig η₀ / 10) hf) (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
-  nlinarith
-
-/-- The redraw fraction is at least a constant times the scale times the signal: the cut budget
-is a tenth of the scale, and three times the flip fraction three fifths of the signal. -/
+/-- The redraw fraction is at least a constant times the scale times the signal, or a quarter of
+`εs`: the cut budget is a tenth of the scale, and three times the flip fraction three fifths of
+the signal. -/
 lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
-    6 * budgetScale η₀ indecisionLimit εcov * sig η₀ / 12800 ≤ rejFrac η₀ indecisionLimit εcov := by
+    min (6 * budgetScale η₀ indecisionLimit εcov * sig η₀ / 12800) (εs / 4)
+      ≤ rejFrac η₀ indecisionLimit εcov εs := by
   have hs := sig_pos η₀ hsig
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
   have hcut := cutBudget_ge η₀ indecisionLimit εcov hε hind hη0 hsig
@@ -684,6 +672,7 @@ lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind
     rw [flipFrac, mul_div_assoc', div_le_div_iff₀ (by norm_num) (by linarith)]
     nlinarith
   rw [rejFrac]
+  refine min_le_min ?_ le_rfl
   have := mul_le_mul hcut hf (by positivity) (by linarith [hcut, cutBudget_pos η₀ hsig hε hind])
   nlinarith
 
@@ -730,10 +719,10 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
     Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
         * (9 * pAP / 20) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
-    ∧ Real.exp (-((prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+    ∧ Real.exp (-((prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
         * (cutBudget η₀ indecisionLimit εcov / 2112)))
         ≤ δ / (128 * (populations.card : ℝ))
-    ∧ Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+    ∧ Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
         * (indecisionLimit / 2) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ)) := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
@@ -741,7 +730,7 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
   have hf : 0 < flipFrac η₀ := flipFrac_pos η₀ hsig
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
   have hε₀ : 0 < ε₀ := by rw [hε₀def]; positivity
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
@@ -871,28 +860,29 @@ lemma tail_le_of_count_scaled {γ ε c V m : ℝ} (hγ : 0 < γ) (hε : 0 < ε) 
 its draws with chance at most `(m/N)·2^-(r+1)`: it lands on what is already held at most
 `(|J| + 3)·m·3ρ` of the time, a `(m/N)/8` share of `rejFrac`. -/
 lemma rung_tails_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
-    (m : ℕ) (hm : m ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
-    rejTail (m + rejCount η₀ indecisionLimit εcov m)
-        (((m + rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ) * (3 * ρ))
-        (rejCount η₀ indecisionLimit εcov m)
-      ≤ (m : ℝ) / (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
-        * (1 / 2) ^ (rejCount η₀ indecisionLimit εcov m + 1)
-    ∧ rejTail (2 * m + rejCount η₀ indecisionLimit εcov m)
-        (((populations.card * m + (2 * m + rejCount η₀ indecisionLimit εcov m) : ℕ) : ℝ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (m : ℕ) (hm : m ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    rejTail (m + rejCount η₀ indecisionLimit εcov εs m)
+        (((m + rejCount η₀ indecisionLimit εcov εs m : ℕ) : ℝ) * (3 * ρ))
+        (rejCount η₀ indecisionLimit εcov εs m)
+      ≤ (m : ℝ) / (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
+        * (1 / 2) ^ (rejCount η₀ indecisionLimit εcov εs m + 1)
+    ∧ rejTail (2 * m + rejCount η₀ indecisionLimit εcov εs m)
+        (((populations.card * m + (2 * m + rejCount η₀ indecisionLimit εcov εs m) : ℕ) : ℝ)
           * (3 * ρ))
-        (rejCount η₀ indecisionLimit εcov m)
-      ≤ (m : ℝ) / (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
-        * (1 / 2) ^ (rejCount η₀ indecisionLimit εcov m + 1) := by
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
-  set c : ℝ := rejFrac η₀ indecisionLimit εcov with hcdef
-  set r : ℕ := rejCount η₀ indecisionLimit εcov m with hrdef
+        (rejCount η₀ indecisionLimit εcov εs m)
+      ≤ (m : ℝ) / (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
+        * (1 / 2) ^ (rejCount η₀ indecisionLimit εcov εs m + 1) := by
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
+  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hcdef
+  set r : ℕ := rejCount η₀ indecisionLimit εcov εs m with hrdef
   set P : ℝ := (populations.card : ℝ) with hP
-  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hind
+  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hεs hind
   have hc4 : c ≤ 1 / 4 := by
-    obtain ⟨hcle, -⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hsig hε hind
+    obtain ⟨hcle, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ hsig hε hind
     have h2 := (cutBudget_le η₀ indecisionLimit εcov).2.1
     have : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
     linarith
@@ -941,31 +931,32 @@ lemma rung_tails_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ :
 /-- A rung whose count clears `log(32|J|/δ)/(rejFrac·log 2)` pays for both samplers out of half
 its proportional share. -/
 lemma rung_redraws_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
-    (m : ℕ) (hm : m ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (m : ℕ) (hm : m ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hlog : Real.log (32 * (populations.card : ℝ) / δ)
-      ≤ rejFrac η₀ indecisionLimit εcov * m * Real.log 2) :
-    (populations.card : ℝ) * (rejTail (m + rejCount η₀ indecisionLimit εcov m)
-        (((m + rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ) * (3 * ρ))
-        (rejCount η₀ indecisionLimit εcov m)
-      + rejTail (2 * m + rejCount η₀ indecisionLimit εcov m)
-        (((populations.card * m + (2 * m + rejCount η₀ indecisionLimit εcov m) : ℕ) : ℝ)
+      ≤ rejFrac η₀ indecisionLimit εcov εs * m * Real.log 2) :
+    (populations.card : ℝ) * (rejTail (m + rejCount η₀ indecisionLimit εcov εs m)
+        (((m + rejCount η₀ indecisionLimit εcov εs m : ℕ) : ℝ) * (3 * ρ))
+        (rejCount η₀ indecisionLimit εcov εs m)
+      + rejTail (2 * m + rejCount η₀ indecisionLimit εcov εs m)
+        (((populations.card * m + (2 * m + rejCount η₀ indecisionLimit εcov εs m) : ℕ) : ℝ)
           * (3 * ρ))
-        (rejCount η₀ indecisionLimit εcov m))
-      ≤ δ * m / (16 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
+        (rejCount η₀ indecisionLimit εcov εs m))
+      ≤ δ * m / (16 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))
       := by
   obtain ⟨h1, h2⟩ := rung_tails_le (crossLimit := crossLimit) η₀ populations (δ := δ) (α := α)
-    (pAP := pAP) hη0 hsig hε hind hρ0 hρcap m hm
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
-  set c : ℝ := rejFrac η₀ indecisionLimit εcov with hcdef
-  set r : ℕ := rejCount η₀ indecisionLimit εcov m with hrdef
+    (pAP := pAP) hη0 hsig hε hεs hind hρ0 hρcap m hm
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
+  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hcdef
+  set r : ℕ := rejCount η₀ indecisionLimit εcov εs m with hrdef
   set P : ℝ := (populations.card : ℝ) with hP
   have hNpos : (0 : ℝ) < N := by
     rw [hNdef]; exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
       (crossLimit := crossLimit) η₀ populations εcov δ α pAP
-  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hind
+  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hεs hind
   have hr2 : c * m < (r : ℝ) + 1 := Nat.lt_floor_add_one _
   have hl2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
   have hpow : 32 * P / δ ≤ (2 : ℝ) ^ (r + 1) := by
@@ -989,13 +980,14 @@ lemma rung_redraws_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ
 /-- At the top count the rejections are rare enough, with room: `rejFrac·N·log 2` is many
 times `log(128|J|/δ)`, the count's own tail. -/
 lemma solved_rej_log (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
     Real.log (256 * (populations.card : ℝ) / δ)
-      ≤ rejFrac η₀ indecisionLimit εcov
-        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+      ≤ rejFrac η₀ indecisionLimit εcov εs
+        * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
         * Real.log 2 := by
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set cb : ℝ := cutBudget η₀ indecisionLimit εcov with hcb
   set ff : ℝ := flipFrac η₀ with hffdef
@@ -1020,23 +1012,32 @@ lemma solved_rej_log (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : �
       rw [div_le_div_iff_of_pos_right hδ]; nlinarith)
   have hL0 : 0 ≤ Real.log (256 * P / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  have hrej : rejFrac η₀ indecisionLimit εcov = 3 * cb * ff / 128 := by
-    obtain ⟨-, h⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hsig hε hind
-    rw [h, ← hcb, ← hffdef]; ring
-  rw [hrej]
+  -- and the redraws' term, `6·log(256|J|/δ)/εs`, clears it when `rejFrac = εs/4`
+  have c2 : 6 * Real.log (256 * P / δ) / εs ≤ (N : ℝ) := by
+    refine le_trans (Nat.le_ceil _) ?_
+    have hle : ⌈6 * Real.log (256 * P / δ) / εs⌉₊ ≤ N := by
+      rw [hNdef, prefCount, ← hP]; omega
+    exact_mod_cast hle
+  rw [div_le_iff₀ hεs] at c2
   have hl2 : 0.6931471803 < Real.log 2 := Real.log_two_gt_d9
   have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
-  have hcfN : 0 ≤ cb * ff * N := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hl2.le hcfN]
+  rw [rejFrac, ← hcb, ← hffdef, min_mul_of_nonneg _ _ hN0,
+    min_mul_of_nonneg _ _ (by linarith : (0 : ℝ) ≤ Real.log 2)]
+  refine le_min ?_ ?_
+  · have hcfN : 0 ≤ cb * ff * N := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left hl2.le hcfN]
+  · have hsN : 0 ≤ εs * N := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left hl2.le hsN]
 
 /-- The top rung carries its own share of the error budget, `δ/8`. -/
 lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ)
-    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
-    stateFail η₀ populations indecisionLimit εcov (3 * ρ) (solvedState η₀ populations
-      indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    stateFail η₀ populations indecisionLimit εcov εs (3 * ρ) (solvedState η₀ populations
+      indecisionLimit εcov εs δ α pAP crossLimit hsz)
       ≤ δ / 8 := by
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
     have h1 : 0 < populations.card := by exact_mod_cast hcard
@@ -1044,20 +1045,21 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : 
   obtain ⟨-, -, tund⟩ :=
     solved_tails (α := α) (crossLimit := crossLimit) η₀ populations hsig hε hind hδ hpAP hcard
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref = m :=
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
+  have hBm :
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref = m :=
     rfl
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hmpos : (0 : ℝ) < (m : ℝ) := by
     rw [hmdef]; exact_mod_cast prefCount_pos (indecisionLimit := indecisionLimit)
       (crossLimit := crossLimit) η₀ populations εcov δ α pAP
   have hlog := solved_rej_log (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀ populations
-    hη0 hsig hε hind hδ hδ1 hpAP hcard1
+    hη0 hsig hε hεs hind hδ hδ1 hpAP hcard1
   have hlog32 : Real.log (32 * (populations.card : ℝ) / δ)
-      ≤ rejFrac η₀ indecisionLimit εcov * m * Real.log 2 :=
+      ≤ rejFrac η₀ indecisionLimit εcov εs * m * Real.log 2 :=
     le_trans (Real.log_le_log (by positivity)
       (div_le_div_of_nonneg_right (by linarith) hδ.le)) hlog
-  have hdr := rung_redraws_le (crossLimit := crossLimit) η₀ populations hη0 hsig hε hind hδ
+  have hdr := rung_redraws_le (crossLimit := crossLimit) η₀ populations hη0 hsig hε hεs hind hδ
     hcard hρ0 hρsmall m le_rfl hlog32
   rw [← hmdef, show δ * (m : ℝ) / (16 * (m : ℝ)) = δ / 16 by field_simp] at hdr
   have hcε : (populations.card : ℝ) * ε₀ = δ / 128 := by
@@ -1070,26 +1072,27 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : 
 samplers' tails from the share proportional to its count, its undecided tail from the one
 inversely proportional. -/
 theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
     (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
-    (i : ℕ) (hi : i < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (i : ℕ) (hi : i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hV : validCount η₀ populations indecisionLimit εcov δ pAP crossLimit
-      ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i)
+      ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i)
     (hlog : Real.log (32 * (populations.card : ℝ) / δ)
-      ≤ rejFrac η₀ indecisionLimit εcov
-        * ((prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i : ℕ)
+      ≤ rejFrac η₀ indecisionLimit εcov εs
+        * ((prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i : ℕ)
           : ℝ) * Real.log 2) :
     solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-        (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz / 2 ^ i)
-      ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ := by
+        (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i)
+      ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ := by
   classical
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
   set V : ℕ := validCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hVdef
   set m : ℕ := N / 2 ^ i with hmdef
   have hB : solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit m
-      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
     rw [schedule]
     exact Finset.mem_image.2 ⟨i, Finset.mem_range.2 hi, rfl⟩
   have hVpos : 0 < V := by rw [hVdef, validCount]; omega
@@ -1102,12 +1105,12 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
   rw [stoppable]
   refine Finset.mem_filter.2 ⟨hB, ⟨lohi_of_mem_schedule hB,
     by show 0 < m; exact_mod_cast hmR, poolCount_found η₀ populations hsig hpAP, ?_⟩⟩
-  show stateFail η₀ populations indecisionLimit εcov (3 * ρ)
+  show stateFail η₀ populations indecisionLimit εcov εs (3 * ρ)
       (solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit m)
     ≤ δ * (m : ℝ) / (8 * N) + if V ≤ m then δ * (V : ℝ) / (16 * m) else 0
   rw [if_pos hV, stateFail, show (solvedStateAt η₀ populations indecisionLimit εcov δ pAP
     crossLimit m).npref = m from rfl]
-  have hdr := rung_redraws_le (crossLimit := crossLimit) η₀ populations hη0 hsig hε hind hδ
+  have hdr := rung_redraws_le (crossLimit := crossLimit) η₀ populations hη0 hsig hε hεs hind hδ
     hcard hρ0 hρcap m hmN' hlog
   rw [← hNdef] at hdr
   have hcoll : δ * (m : ℝ) / (16 * N) ≤ δ * (m : ℝ) / (8 * N) :=
@@ -1140,34 +1143,36 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
   linarith [hscale, hcoll, htails, hdr]
 
 /-- The fewest prefixes a rung needs for its rejections to be rare enough at the cap. -/
-noncomputable def rejCountMin (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℕ :=
+noncomputable def rejCountMin (η₀ : ℝ) (populations : Finset J)
+    (indecisionLimit εcov εs δ : ℝ) : ℕ :=
   ⌈Real.log (32 * (populations.card : ℝ) / δ)
-    / (rejFrac η₀ indecisionLimit εcov * Real.log 2)⌉₊
+    / (rejFrac η₀ indecisionLimit εcov εs * Real.log 2)⌉₊
 
 /-- Some rung the loop may stop at has fewer than twice the larger of `validCount` and
 `rejCountMin` prefixes: the lowest rung whose count is still at or above both, or any rung when
 the top is already below them. -/
 theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
     (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
-    (hne : (stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ).Nonempty) :
-    ∃ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ,
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (hne : (stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ).Nonempty) :
+    ∃ B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ,
       (B.npref : ℝ) ≤ 2 * (max (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit)
-        (rejCountMin η₀ populations indecisionLimit εcov δ) : ℝ) := by
+        (rejCountMin η₀ populations indecisionLimit εcov εs δ) : ℝ) := by
   classical
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
   set V : ℕ := max (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit)
-    (rejCountMin η₀ populations indecisionLimit εcov δ) with hVdef
+    (rejCountMin η₀ populations indecisionLimit εcov εs δ) with hVdef
   have hVpos : 0 < V := by
     have : 0 < validCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
       rw [validCount]; omega
     exact lt_of_lt_of_le this (le_max_left _ _)
   have hcast : ((max (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit)
-      (rejCountMin η₀ populations indecisionLimit εcov δ) : ℕ) : ℝ) = (V : ℝ) := rfl
+      (rejCountMin η₀ populations indecisionLimit εcov εs δ) : ℕ) : ℝ) = (V : ℝ) := rfl
   rw [show (max ((validCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℕ) : ℝ)
-      ((rejCountMin η₀ populations indecisionLimit εcov δ : ℕ) : ℝ)) = (V : ℝ) by
+      ((rejCountMin η₀ populations indecisionLimit εcov εs δ : ℕ) : ℝ)) = (V : ℝ) by
     rw [hVdef]; push_cast; rfl]
   by_cases hNV : N < V
   · obtain ⟨B, hB⟩ := hne
@@ -1197,7 +1202,7 @@ theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ 
   have hhalf : N / 2 ^ i / 2 = N / 2 ^ (i + 1) := by
     rw [Nat.div_div_eq_div_mul, pow_succ]
   have hlt : N / 2 ^ i < 2 * V := by omega
-  have hiL : i < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+  have hiL : i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
     have hpow : 2 ^ i ≤ N := by
       have h1 : 1 ≤ N / 2 ^ i := le_trans hVpos hi0
       exact (Nat.one_le_div_iff (by positivity)).1 h1
@@ -1207,46 +1212,47 @@ theorem exists_small_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ 
   have hval : validCount η₀ populations indecisionLimit εcov δ pAP crossLimit ≤ N / 2 ^ i :=
     le_trans (le_max_left _ _) hi0
   have hlog : Real.log (32 * (populations.card : ℝ) / δ)
-      ≤ rejFrac η₀ indecisionLimit εcov * ((N / 2 ^ i : ℕ) : ℝ) * Real.log 2 := by
-    have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hsig hε hind
+      ≤ rejFrac η₀ indecisionLimit εcov εs * ((N / 2 ^ i : ℕ) : ℝ) * Real.log 2 := by
+    have hc0 : 0 < rejFrac η₀ indecisionLimit εcov εs := rejFrac_pos η₀ hsig hε hεs hind
     have hl2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
-    have hmin : rejCountMin η₀ populations indecisionLimit εcov δ ≤ N / 2 ^ i :=
+    have hmin : rejCountMin η₀ populations indecisionLimit εcov εs δ ≤ N / 2 ^ i :=
       le_trans (le_max_right _ _) hi0
     have hceil : Real.log (32 * (populations.card : ℝ) / δ)
-        / (rejFrac η₀ indecisionLimit εcov * Real.log 2) ≤ ((N / 2 ^ i : ℕ) : ℝ) :=
+        / (rejFrac η₀ indecisionLimit εcov εs * Real.log 2) ≤ ((N / 2 ^ i : ℕ) : ℝ) :=
       le_trans (Nat.le_ceil _) (by rw [rejCountMin] at hmin; exact_mod_cast hmin)
     rw [div_le_iff₀ (by positivity)] at hceil
     linarith
-  refine ⟨_, rung_mem_stoppable η₀ populations hη0 hsig hε hind hδ hδ1 hpAP hcard hρ0 hρcap i hiL
-    hval hlog, ?_⟩
+  refine ⟨_, rung_mem_stoppable η₀ populations hη0 hsig hε hεs hind hδ hδ1 hpAP hcard hρ0 hρcap
+    i hiL hval hlog, ?_⟩
   show ((N / 2 ^ i : ℕ) : ℝ) ≤ 2 * (V : ℝ)
   exact_mod_cast hlt.le
 
 /-- The top rung can always be stopped at: it carries the whole proportional share. -/
 theorem solvedState_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (0 : ℝ) < (populations.card : ℝ))
     (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
-    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
-      ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ := by
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ := by
   classical
-  have hB := solvedState_mem_schedule (indecisionLimit := indecisionLimit)
+  have hB := solvedState_mem_schedule (εs := εs) (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) (hsz := hsz) η₀ populations εcov δ α pAP
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   have hmpos : 0 < m := prefCount_pos (indecisionLimit := indecisionLimit)
     (crossLimit := crossLimit) η₀ populations εcov δ α pAP
   have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
   rw [stoppable]
   refine Finset.mem_filter.2 ⟨hB, ⟨lohi_of_mem_schedule hB, hmpos,
     poolCount_found η₀ populations hsig hpAP, ?_⟩⟩
-  show stateFail η₀ populations indecisionLimit εcov (3 * ρ)
-      (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+  show stateFail η₀ populations indecisionLimit εcov εs (3 * ρ)
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     ≤ δ * (m : ℝ) / (8 * m) + _
   have hval : δ * (m : ℝ) / (8 * (m : ℝ)) = δ / 8 := by field_simp
   rw [hval]
-  exact le_add_of_le_of_nonneg (solved_share η₀ populations hsig hη0 hε hind hδ hδ1 hpAP hcard hρ0
-    hρcap) (by split_ifs <;> positivity)
+  exact le_add_of_le_of_nonneg (solved_share η₀ populations hsig hη0 hε hεs hind hδ hδ1 hpAP hcard
+    hρ0 hρcap) (by split_ifs <;> positivity)
 
 open scoped Classical in
 /-- At a fixed table the state's two counts on a sample are within budget: on the prefixes the
@@ -1922,39 +1928,43 @@ set_option maxHeartbeats 2000000 in
 /-- The top rung's gate clears its charge and its deviations at every count of draws its
 redraws allow. -/
 lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
-    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov)
+    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hεs : 0 < εs)
     (hind : 0 < indecisionLimit) (hα : 0 < α) (hα1 : α ≤ 1)
     (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
-    ∀ N : ℕ, (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref ≤ N →
-      N ≤ (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref
-        + rejCount η₀ indecisionLimit εcov
-          (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref →
+    ∀ N : ℕ, (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref ≤ N →
+      N ≤ (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref
+        + rejCount η₀ indecisionLimit εcov εs
+          (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref →
       (cutBudget η₀ indecisionLimit εcov + 5 / 8 * cutBudget η₀ indecisionLimit εcov)
-          * (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref
+          * (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref
           / gateKappa η₀
         + 2 * ((gateDevT η₀ + gateDevU η₀)
-            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+            * hoeffDev (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
               hsz).npref
               (δ / (32 * populations.card
-                * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff
+                * (((solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+                    hsz).nsuff
                   : ℝ) + 3)))
           + gateDevD η₀
-            * hoeffDev (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+            * hoeffDev (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
               hsz).npref
               (sizeLevel (gateLevel α populations
-                (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz))
-                (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref))
-        + ((N : ℝ) - (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref)
+                (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz))
+                (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref))
+        + ((N : ℝ) - (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+            hsz).npref)
       ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations
-          (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)) N) := by
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+          (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)) N) := by
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref = m :=
+  have hBm :
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref = m :=
     rfl
-  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff = M :=
+  have hBM :
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).nsuff = M :=
     rfl
   have hga : ∀ N : ℕ, sizeLevel (gateLevel α populations
-        (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)) N
+        (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)) N
       = sizeLevel (sizeLevel (α / (7 * (populations.card : ℝ))) m) N := fun N => rfl
   rw [hBm, hBM]
   simp only [hga]
@@ -1967,7 +1977,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊ ≤ m := by
     rw [hmdef, prefCount]; omega
   have hmR1 : (1 : ℝ) ≤ m := by
-    have := prefCount_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
       (hsz := hsz) η₀
       populations εcov δ α pAP
     exact_mod_cast this
@@ -2072,16 +2082,16 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
       _ ≤ Real.sqrt ((3 * (gR * m)) ^ 2) := Real.sqrt_le_sqrt h
       _ = 3 * (gR * m) := Real.sqrt_sq (by positivity)
   intro N hN1 hN2
-  have hr : ((rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ) ≤ cut / 128 * m := by
-    have h1 : ((rejCount η₀ indecisionLimit εcov m : ℕ) : ℝ)
-        ≤ rejFrac η₀ indecisionLimit εcov * m := Nat.floor_le (by
-      have := rejFrac_pos η₀ hsig hε hind; positivity)
-    have h2 := (rejFrac_le η₀ hsig hε hind).1
+  have hr : ((rejCount η₀ indecisionLimit εcov εs m : ℕ) : ℝ) ≤ cut / 128 * m := by
+    have h1 : ((rejCount η₀ indecisionLimit εcov εs m : ℕ) : ℝ)
+        ≤ rejFrac η₀ indecisionLimit εcov εs * m := Nat.floor_le (by
+      have := rejFrac_pos η₀ hsig hε hεs hind; positivity)
+    have h2 := (rejFrac_le (εs := εs) η₀ hsig hε hind).1
     have := mul_le_mul_of_nonneg_right h2 hm0.le
     linarith only [h1, this]
   have hNR1 : (m : ℝ) ≤ N := by exact_mod_cast hN1
   have hNR2 : (N : ℝ) ≤ m + cut / 128 * m := by
-    have : (N : ℝ) ≤ m + (rejCount η₀ indecisionLimit εcov m : ℕ) := by exact_mod_cast hN2
+    have : (N : ℝ) ≤ m + (rejCount η₀ indecisionLimit εcov εs m : ℕ) := by exact_mod_cast hN2
     linarith
   have hcut1 : cut ≤ 1 := by
     have := (cutBudget_le η₀ indecisionLimit εcov).2.1
@@ -2226,11 +2236,11 @@ lemma solved_hits_log (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : 
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
     Real.log (256 * (populations.card : ℝ) / δ)
       ≤ cutBudget η₀ indecisionLimit εcov / 1024
-        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+        * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
         * Real.log 2 := by
   obtain ⟨-, thh, -⟩ := solved_tails (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀
     populations hsig hε hind hδ hpAP (by linarith)
-  set N : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hNdef
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
   set cb : ℝ := cutBudget η₀ indecisionLimit εcov with hcb
   set P : ℝ := (populations.card : ℝ) with hP
   have hcb0 : 0 < cb := cutBudget_pos η₀ hsig hε hind
@@ -2261,10 +2271,10 @@ set_option maxHeartbeats 2000000 in
 /-- The round's failure, over every population, fits the error budget. -/
 lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     {indecisionLimit εcov δ α pAP ρ ρsf : ℝ}
-    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hδ : 0 < δ)
+    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hεs : 0 < εs) (hδ : 0 < δ)
     (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hind : 0 < indecisionLimit)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
-    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hρsfsmall : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     (populations.card : ℝ)
         * (roundFail populations (indecisionLimit / 2) (cutBudget η₀ indecisionLimit εcov)
@@ -2273,28 +2283,29 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
             (Real.log (128 * (populations.card : ℝ)
               * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ))
             (9 * pAP / 20) ρ ρsf
-            (hoeffDev (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+            (hoeffDev (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
               (δ / (32 * populations.card
                 * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3))))
-            (rejCount η₀ indecisionLimit εcov
-              (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz))
+            (rejCount η₀ indecisionLimit εcov εs
+              (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz))
             (poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
-            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+            (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
           + namedFail (indecisionLimit / 2) (cutBudget η₀ indecisionLimit εcov)
             (misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit))
             (9 * pAP / 20) ρ ρsf
-            (hoeffDev (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+            (hoeffDev (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
               (δ / (32 * populations.card
                 * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3))))
             (Real.log (128 * (populations.card : ℝ)
               * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ))
             (cutBudget η₀ indecisionLimit εcov / 1024)
-            (rejCount η₀ indecisionLimit εcov
-              (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz))
+            (rejCount η₀ indecisionLimit εcov εs
+              (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz))
             (poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
-            ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+            ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+                hsz : ℝ)
               * Real.log (128 * (populations.card : ℝ) / δ))⌉₊
-            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz))
+            (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz))
       ≤ 3 * δ / 8 := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
@@ -2303,12 +2314,14 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     solved_tails (α := α) (crossLimit := crossLimit) η₀ populations hsig hε hind hδ hpAP hcard
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
   have hε₀ : 0 < ε₀ := by rw [hε₀def]; positivity
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).npref = m :=
+  have hBm :
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref = m :=
     rfl
-  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz).nsuff = M :=
+  have hBM :
+      (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).nsuff = M :=
     rfl
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hmpos : (0 : ℝ) < (m : ℝ) := by
@@ -2365,10 +2378,10 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     rw [hε₀def]
     field_simp
   -- the redraws
-  set c : ℝ := rejFrac η₀ indecisionLimit εcov with hcdef
-  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hind
-  obtain ⟨hcle, hceq⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hsig hε hind
-  set r : ℕ := rejCount η₀ indecisionLimit εcov m with hrdef
+  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hcdef
+  have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hεs hind
+  obtain ⟨hcle, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ hsig hε hind
+  set r : ℕ := rejCount η₀ indecisionLimit εcov εs m with hrdef
   set rs : ℕ := poolRej pAP M with hrsdef
   have hpool := poolDraws_le_of_cap η₀ populations hpAP hpAP1 hδ hρsf0 hρsfsmall
   rw [← hMdef, ← hrsdef] at hpool
@@ -2394,7 +2407,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     rw [div_le_iff₀ hδ] at hpow
     linarith
   have hlog := solved_rej_log (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀ populations
-    hη0 hsig hε hind hδ hδ1 hpAP hJ1
+    hη0 hsig hε hεs hind hδ hδ1 hpAP hJ1
   rw [← hmdef] at hlog
   have hr2 : c * m < (r : ℝ) + 1 := Nat.lt_floor_add_one _
   have hrlog : Real.log (256 * (populations.card : ℝ) / δ) ≤ ((r + 1 : ℕ) : ℝ) * Real.log 2 := by
@@ -2402,7 +2415,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     nlinarith [mul_le_mul_of_nonneg_right hr2.le hl2.le]
   have hhalf := hhalf_of (r + 1) hrlog
   obtain ⟨ht3, hc3⟩ := rung_tails_le (crossLimit := crossLimit) η₀ populations (δ := δ) (α := α)
-    (pAP := pAP) hη0 hsig hε hind hρ0 hρsmall m le_rfl
+    (pAP := pAP) hη0 hsig hε hεs hind hρ0 hρsmall m le_rfl
   rw [← hmdef, div_self (ne_of_gt hmpos), one_mul] at ht3 hc3
   have htab_le : tab ≤ δ / (256 * (populations.card : ℝ)) :=
     le_trans (rejTail_mono (by positivity) le_rfl (by nlinarith) r) (le_trans ht3 hhalf)
@@ -2455,7 +2468,8 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
         rw [hkR, mul_one]
         linarith only [h3, h4, h5, hθle])
     rw [show ⌈θm⌉₊ - 1 + 1 = ⌈θm⌉₊ by omega] at hpow
-    have hhl := solved_hits_log (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀ populations
+    have hhl := solved_hits_log (εs := εs) (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀
+        populations
       hη0 hsig hε hind hδ hδ1 hpAP hJ1
     rw [← hmdef, ← hθm] at hhl
     exact le_trans hpow (hhalf_of ⌈θm⌉₊ (le_trans hhl (mul_le_mul_of_nonneg_right hθle hl2.le)))
@@ -2527,26 +2541,27 @@ lemma solved_heavyNamed (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov)
     (hind : 0 < indecisionLimit) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
-    2 ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
-    ∧ hsz + ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+    2 ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+    ∧ hsz + ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+        hsz : ℝ)
         * Real.log (128 * (populations.card : ℝ) / δ))⌉₊
-      ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
+      ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
     ∧ ((tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀
-            * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+            * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
           + 2 * Real.sqrt (Real.log (128 * (populations.card : ℝ)
               * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
             * (tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀
-              * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)))
+              * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)))
           + 2 * Real.log (128 * (populations.card : ℝ)
               * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ))
           / flipFracOf O η₀
-        + hsz + 2 * ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov δ α pAP
+        + hsz + 2 * ⌈Real.sqrt ((prefCount η₀ populations indecisionLimit εcov εs δ α pAP
             crossLimit hsz : ℝ) * Real.log (128 * (populations.card : ℝ) / δ))⌉₊
         + cutBudget η₀ indecisionLimit εcov / 1024
-          * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+          * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
       ≤ cutBudget η₀ indecisionLimit εcov
-          * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)) := by
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+          * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)) := by
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set cb : ℝ := cutBudget η₀ indecisionLimit εcov with hcb
   set ff : ℝ := flipFrac η₀ with hffdef
@@ -2647,25 +2662,25 @@ lemma solved_signal (O : Oracle μ S) (hηle : O.η ≤ η₀) (hη₀ : η₀ <
     (cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit
         + heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit)
         * Real.sqrt ((populations.card : ℝ)
-          * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
+          * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))
       ≤ O.gap * (1 - 2 * O.η) * (15 / 16 * (tableBudget η₀ indecisionLimit εcov
         * flipFracOf O η₀ / flipFrac η₀)
-        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ))
+        * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))
     ∧ 2 ≤ 15 / 16 * (tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀)
-        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ)
+        * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
         * (O.gap * (1 - 2 * O.η)) ^ 2 := by
   have hmc : (populations.card : ℝ) * (cleanLevel η₀ populations indecisionLimit εcov δ pAP
         crossLimit + heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit) ^ 2
         / (15 / 16 * countSignal η₀ indecisionLimit εcov) ^ 2 + 1 / (4 * sig η₀ ^ 4)
-      ≤ (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
+      ≤ (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
     have : ⌈(populations.card : ℝ) * (cleanLevel η₀ populations indecisionLimit εcov δ pAP
         crossLimit + heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit) ^ 2
         / (15 / 16 * countSignal η₀ indecisionLimit εcov) ^ 2 + 1 / (4 * sig η₀ ^ 4)⌉₊
-        ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+        ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
       rw [prefCount]; omega
     exact_mod_cast this
-  set m : ℝ := (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) with hm
+  set m : ℝ := (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) with hm
   set u : ℝ := cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit with hu
   set x : ℝ := heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit with hx
   set Γ : ℝ := countSignal η₀ indecisionLimit εcov with hΓ
@@ -2837,15 +2852,15 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hεs : 0 < εs) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ0 : 0 ≤ ρ) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hρsfcap : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
-    ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ
+    ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ
       ∧ PassableAt O η₀ populations Dsf indecisionLimit εcov α δ ρ ρsf pAP hsz B := by
   classical
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by
@@ -2883,10 +2898,11 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     exact binomSfGe_antitone' hq0 hq1 (by omega)
   have hg := gap_mul_flipFracOf O η₀ (lt_of_le_of_lt hηle hη₀)
   have hκpos : 0 < κ := by omega
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   have hmpos : 0 < m := by rw [hmdef, prefCount]; omega
   have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
-  set B : State := solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hBdef
+  set B : State := solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with
+      hBdef
   -- the fields, as the definitions give them
   have hBm : B.npref = m := rfl
   have hBk : B.k = κ + 1 := rfl
@@ -2909,22 +2925,23 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     exact_mod_cast this
   have hgate := solved_gate (crossLimit := crossLimit) (hsz := hsz) (pAP := pAP) (δ := δ) η₀
     populations hη₀
-    hη0' hεcov
+    hη0' hεcov hεs
     hindLim hαpos (by linarith) hcard1
   rw [← hBdef] at hgate
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
-  have hheavyN := solved_heavyNamed (crossLimit := crossLimit) (hsz := hsz) (α := α) (pAP := pAP)
+  have hheavyN := solved_heavyNamed (εs := εs) (crossLimit := crossLimit) (hsz := hsz) (α := α)
+      (pAP := pAP)
     O η₀ populations hηle hη₀ hη0' hεcov hindLim hδ hδ1 hcard1
   rw [← hmdef] at hheavyN
   have hcdirty : Real.log (128 * (populations.card : ℝ)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / dirtyRate η₀ indecisionLimit εcov
-      ≤ (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
+      ≤ (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / dirtyRate η₀ indecisionLimit εcov⌉₊
-        ≤ prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+        ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
       rw [prefCount]; omega
     exact_mod_cast hle
   obtain ⟨hsignal, hsq⟩ := solved_signal (crossLimit := crossLimit) (hsz := hsz) (δ := δ)
@@ -2934,8 +2951,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   rw [← hmdef] at hsignal hsq
   rw [← hκdef] at hE1 hE2
   clear_value B κ m
-  have hc0 : 0 < rejFrac η₀ indecisionLimit εcov := rejFrac_pos η₀ hη₀ hεcov hindLim
-  obtain ⟨hcle, hceq⟩ := rejFrac_le (indecisionLimit := indecisionLimit) η₀ hη₀ hεcov hindLim
+  have hc0 : 0 < rejFrac η₀ indecisionLimit εcov εs := rejFrac_pos η₀ hη₀ hεcov hεs hindLim
+  obtain ⟨hcle, hceq, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ hη₀
+    hεcov hindLim
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
     cutBudget η₀ indecisionLimit εcov / 32, 9 * pAP / 20, 1 / 2 + voteSlack η₀, misfireTail η₀ κ,
     tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀,
@@ -2944,13 +2962,13 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
     apFloor pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit),
     δ / 16, δ / 16,
-    cutBudget η₀ indecisionLimit εcov, flipFracOf O η₀, rejFrac η₀ indecisionLimit εcov,
+    cutBudget η₀ indecisionLimit εcov, flipFracOf O η₀, rejFrac η₀ indecisionLimit εcov εs,
     hoeffDev m (δ / (32 * populations.card
       * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3))),
     Real.log (128 * (populations.card : ℝ)
       * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ),
     cutBudget η₀ indecisionLimit εcov / 1024,
-    rejCount η₀ indecisionLimit εcov m,
+    rejCount η₀ indecisionLimit εcov εs m,
     poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit),
     ⌈Real.sqrt ((m : ℝ) * Real.log (128 * (populations.card : ℝ) / δ))⌉₊,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
@@ -2969,7 +2987,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
       rw [mul_comm (8 : ℝ) (m : ℝ), mul_comm δ (m : ℝ),
         mul_div_mul_left _ _ (ne_of_gt hmR)]
     rw [hBm, ← hmdef, hval, hBdef]
-    exact le_add_of_le_of_nonneg (solved_share η₀ populations hη₀ hη0' hεcov hindLim hδ hδ1
+    exact le_add_of_le_of_nonneg (solved_share η₀ populations hη₀ hη0' hεcov hεs hindLim hδ hδ1
       hpAPPositive hcard hρ0 hρcap) (by split_ifs <;> positivity)
   -- PassableAt
   · rw [hBm]; exact hmpos
@@ -3007,22 +3025,20 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   · exact hρsf
   -- the family's flips fit the cut budget
   · have hsplit : (tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀
-          + rejFrac η₀ indecisionLimit εcov
+          + rejFrac η₀ indecisionLimit εcov εs
         + cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) / flipFracOf O η₀
         = cutBudget η₀ indecisionLimit εcov * (55 / 64)
-          + rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
+          + rejFrac η₀ indecisionLimit εcov εs / flipFracOf O η₀
           + cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFracOf O η₀ := by
       rw [add_div, add_div, tableBudget]
       congr 2
       field_simp
-    have hcf : rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
+    have hcf : rejFrac η₀ indecisionLimit εcov εs / flipFracOf O η₀
         ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 := by
-      calc rejFrac η₀ indecisionLimit εcov / flipFracOf O η₀
-          ≤ rejFrac η₀ indecisionLimit εcov / flipFrac η₀ :=
+      calc rejFrac η₀ indecisionLimit εcov εs / flipFracOf O η₀
+          ≤ rejFrac η₀ indecisionLimit εcov εs / flipFrac η₀ :=
             div_le_div_of_nonneg_left hc0.le hff hfle
-        _ = 3 * cutBudget η₀ indecisionLimit εcov / 128 := by
-            rw [hceq]
-            field_simp
+        _ ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 := (div_le_iff₀ hff).2 hceq
     have h2 : cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFracOf O η₀
         ≤ cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32 / flipFrac η₀ :=
       div_le_div_of_nonneg_left (by positivity) hff hfle
@@ -3070,10 +3086,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
         = 55 / 64 * cutBudget η₀ indecisionLimit εcov * flipFracOf O η₀ := by
       rw [tableBudget]; field_simp
     have hhalf : 2 * (tableBudget η₀ indecisionLimit εcov * flipFracOf O η₀ / flipFrac η₀
-        + rejFrac η₀ indecisionLimit εcov + cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32)
+        + rejFrac η₀ indecisionLimit εcov εs + cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32)
         ≤ cutBudget η₀ indecisionLimit εcov := by
-      rw [hid, hceq]
-      nlinarith [mul_le_mul_of_nonneg_left hfo2 hcut.le,
+      rw [hid]
+      nlinarith [hceq, mul_le_mul_of_nonneg_left hfo2 hcut.le,
         mul_le_mul_of_nonneg_left hff1.le hcut.le]
     have hdr : dirtyRate η₀ indecisionLimit εcov
         = (cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2
@@ -3135,7 +3151,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   · rw [hBkappa, hBlo]; exact hmisle
   · rw [hBkappa, hBhi, show κ - hiAt η₀ κ = loAt η₀ κ + 1 by omega]; exact hmisle
   · have h := solved_roundFail (crossLimit := crossLimit) (α := α) (ρ := ρ) (ρsf := ρsf)
-      η₀ populations hη₀ hη0' hεcov hδ hδ1 hpAPPositive hpAP1 hindLim
+      η₀ populations hη₀ hη0' hεcov hεs hδ hδ1 hpAPPositive hpAP1 hindLim
       hcard hρ0 hρsf0 hρcap hρsfcap
     rw [← hBdef, ← hmdef, ← hκdef] at h
     linarith

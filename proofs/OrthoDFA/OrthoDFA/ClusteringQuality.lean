@@ -25,8 +25,8 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 
 /-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the
 family it returns there, averaged over a tame population, decides a prefix the wrong way at
-most `(513/512)·εcov + slack` of the time on the uniform pool and at most
-`1/2 + εcov/512 + slack` on any tame population, and leaves it undecided at most
+most `εcov + εs + slack` of the time on the uniform pool and at most
+`1/2 + εs + slack` on any tame population, and leaves it undecided at most
 `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
 `ClusteringGuarantee`'s.  The tame populations' atoms are held as there, at `δ/2`, and also
 against `slack`: the table's own prefixes are read with the noise the family was chosen on. -/
@@ -34,7 +34,7 @@ def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit slack : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ tame →
@@ -48,6 +48,7 @@ def ClusteringQualityGuarantee : Prop :=
   α < 1 / 2 →
   0 < εcov →
   εcov ≤ 1 / 2 →
+  0 < εs →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -65,8 +66,10 @@ def ClusteringQualityGuarantee : Prop :=
         2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
           ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 34 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * min εcov indecisionLimit ^ 2) →
+        2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 16 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δ * min εs indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
           ≤ δ * slack ^ 2) →
@@ -81,11 +84,11 @@ def ClusteringQualityGuarantee : Prop :=
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p ∂(D uni)
-                ≤ 513 / 512 * εcov + slack
+                ≤ εcov + εs + slack
               ∧ ∀ j ∈ tame,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
-                  ≤ 1 / 2 + εcov / 512 + slack
+                  ≤ 1 / 2 + εs + slack
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations (streams H uni x) B.val) p ∂(D j)
                   ≤ 2 * indecisionLimit + slack}
