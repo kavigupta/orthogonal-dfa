@@ -22,6 +22,7 @@ from .dfa_utils import held_out_phi, labelled_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
+from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
@@ -104,6 +105,10 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         pst.rng,
         known=state.seen,
         acc_threshold=acc_threshold,
+        # Its search walked deeper because its reads repeated, so they may run out.
+        retirable=any(
+            read.round.k > read.round.config.k for read in state.harvest_reads
+        ),
     )
 
 
@@ -232,6 +237,7 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
+        max_k=start_length(pst.sampler.length),
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
