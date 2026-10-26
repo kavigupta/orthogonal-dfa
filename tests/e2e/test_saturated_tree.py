@@ -56,7 +56,7 @@ class TestSaturatedTree(unittest.TestCase):
     def test_the_target_is_learnable_only_up_to_a_coin_flip(self):
         report = P.satisfies_preconditions(_target(), length=40, short_circuit=False)
 
-        self.assertLess(report.dominated_accuracy_ceiling, 0.55, report.reasons)
+        self.assertLess(report.non_start_zone_accuracy_ceiling, 0.55, report.reasons)
         self.assertEqual(report.uncovered_states, ["0"])
         # The other two preconditions hold, so nothing else stops the run: the
         # language is balanced, and an accept-preserving family exists.

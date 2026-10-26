@@ -11,7 +11,7 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- dominated_accuracy_ceiling: re-rooting the target at the best start state
+- non_start_zone_accuracy_ceiling: re-rooting the target at the best start state
   (any state a sampled prefix lands in) still classifies almost every string,
   with the re-rooted run only passing through its start or states the sampled
   prefixes land in at a rate comparable to the run's own -- at every string
@@ -181,13 +181,13 @@ def visited_states(
     return set(_window_visits(dfa, _samples(dfa, length, num_samples, sampler), length))
 
 
-def _dominated(dfa: DFA, start, window: Counter, runs, length: int) -> set:
+def _non_start_zone(dfa: DFA, start, window: Counter, runs, length: int) -> set:
     rerooted = Counter(q for run in runs for q in set(run))
     ratio = _visit_ratio(length)
     return {start} | {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
 
 
-def dominated_states(
+def non_start_zone_states(
     dfa: DFA,
     start,
     *,
@@ -207,7 +207,7 @@ def dominated_states(
     strings = _samples(dfa, length, num_samples, sampler)
     window = _window_visits(dfa, strings, length)
     runs = [_run(dfa, s, start) for s in strings]
-    return _dominated(dfa, start, window, runs, length)
+    return _non_start_zone(dfa, start, window, runs, length)
 
 
 @lru_cache(maxsize=None)
@@ -251,14 +251,14 @@ def _worst_start_accuracies(
     num_samples: int,
     min_coverage: Optional[float],
     sampler: Optional[Sampler],
-    dominated: bool,
+    non_start_zone: bool,
 ) -> np.ndarray:
     """Per start, its lowest accuracy over ``string_lengths``. Without
-    ``dominated`` the starts are the states covered at ``min_coverage`` and a run
+    ``non_start_zone`` the starts are the states covered at ``min_coverage`` and a run
     may use only those; with it they are the visited states and a run may use
-    those ``dominated_states`` gives for its start (``min_coverage`` is then
+    those ``non_start_zone_states`` gives for its start (``min_coverage`` is then
     unused and must be ``None``)."""
-    if dominated:
+    if non_start_zone:
         assert min_coverage is None
         start_set = visited_states(
             dfa, length=length, num_samples=num_samples, sampler=sampler
@@ -278,9 +278,9 @@ def _worst_start_accuracies(
     final = np.array([q in dfa.final_states for q in states])
     start_states = sorted(start_set, key=lambda q: index[q])
     starts = np.array([index[q] for q in start_states], dtype=int)
-    if dominated:
+    if non_start_zone:
         allowed_sets = [
-            dominated_states(
+            non_start_zone_states(
                 dfa,
                 q,
                 length=length,
@@ -336,7 +336,7 @@ def covered_accuracy_at(
         num_samples=num_samples,
         min_coverage=min_coverage,
         sampler=sampler,
-        dominated=False,
+        non_start_zone=False,
     )
     return float(worst.max(initial=0.0))
 
@@ -372,19 +372,19 @@ def covered_accuracy_ceiling(
         num_samples=num_samples,
         min_coverage=min_coverage,
         sampler=sampler,
-        dominated=False,
+        non_start_zone=False,
     )
     return float(worst.max(initial=0.0))
 
 
-def dominated_accuracy_at(
+def non_start_zone_accuracy_at(
     dfa: DFA,
     *,
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     sampler: Optional[Sampler] = None,
 ) -> float:
-    """``dominated_accuracy_ceiling`` on strings of exactly ``length``."""
+    """``non_start_zone_accuracy_ceiling`` on strings of exactly ``length``."""
     worst = _worst_start_accuracies(
         dfa,
         length=length,
@@ -392,12 +392,12 @@ def dominated_accuracy_at(
         num_samples=num_samples,
         min_coverage=None,
         sampler=sampler,
-        dominated=True,
+        non_start_zone=True,
     )
     return float(worst.max(initial=0.0))
 
 
-def dominated_accuracy_ceiling(
+def non_start_zone_accuracy_ceiling(
     dfa: DFA,
     *,
     length: int,
@@ -406,7 +406,7 @@ def dominated_accuracy_ceiling(
 ) -> float:
     """Like ``covered_accuracy_ceiling``, but the starts are all visited states,
     and a run from a start may pass through only that start and the states
-    ``dominated_states`` gives for it, covered or not."""
+    ``non_start_zone_states`` gives for it, covered or not."""
     worst = _worst_start_accuracies(
         dfa,
         length=length,
@@ -414,7 +414,7 @@ def dominated_accuracy_ceiling(
         num_samples=num_samples,
         min_coverage=None,
         sampler=sampler,
-        dominated=True,
+        non_start_zone=True,
     )
     return float(worst.max(initial=0.0))
 
@@ -431,7 +431,7 @@ class PreconditionReport:
     length: int
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
-    dominated_accuracy_ceiling: Optional[float] = None
+    non_start_zone_accuracy_ceiling: Optional[float] = None
     #: States no sampled prefix lands in (so not a possible start), as strings --
     #: populated when the ceiling is measured, since that is the check they explain.
     uncovered_states: Optional[List[str]] = None
@@ -452,7 +452,7 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = 0.02,
-    min_dominated_accuracy: float = 0.99,
+    min_non_start_zone_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -463,7 +463,7 @@ def satisfies_preconditions(
 
     - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - dominated-accuracy ceiling at least ``min_dominated_accuracy``
+    - non-start-zone accuracy ceiling at least ``min_non_start_zone_accuracy``
 
     The acceptance-rate check only rejects degeneracy -- a language that is
     constant over the sampled strings, which E-L* cannot get signal from and
@@ -494,12 +494,12 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = dominated_accuracy_ceiling(
+    ceiling = non_start_zone_accuracy_ceiling(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    if ceiling < min_dominated_accuracy:
+    if ceiling < min_non_start_zone_accuracy:
         reasons.append(
-            f"dominated-accuracy ceiling {ceiling:.3f} below {min_dominated_accuracy} "
+            f"non-start-zone accuracy ceiling {ceiling:.3f} below {min_non_start_zone_accuracy} "
             "(a decision rides on a state the window lands in far less than the run does)"
         )
     visited = visited_states(

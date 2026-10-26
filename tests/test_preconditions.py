@@ -36,7 +36,7 @@ DIFFICULT09 = DFA(
 # The [336] false positive: every state is on a cycle (structurally recurrent),
 # yet length-40 strings only ever end in {1,3,4} -- states 0 and 2 get zero
 # prefix mass, so they are uncovered. The old infinite-reachability check
-# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the dominated-accuracy
+# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the non-start-zone accuracy
 # ceiling catches it. Guards against reintroducing the structural check.
 RECURRENT_BUT_UNCOVERED = DFA(
     states={0, 1, 2, 3, 4},
@@ -139,7 +139,7 @@ def _thin_pockets(alphabet, pockets, depth):
 
 
 # Every pocket state is uncovered, but whole runs land in it at about the window's
-# per-position rate, so it is dominated.
+# per-position rate, so it is outside the start zone.
 THIN_POCKETS = _thin_pockets(alphabet=48, pockets=3, depth=2)
 
 
@@ -222,13 +222,13 @@ class TestSatisfiesPreconditions(unittest.TestCase):
 
     def test_ceiling_catches_transient_states(self):
         # Difficult09 is non-degenerate and class-preserving, so only the
-        # dominated-accuracy ceiling catches it: the decision lives in transient
+        # non-start-zone accuracy ceiling catches it: the decision lives in transient
         # states.
         self.assertNotIn(P.acceptance_rate(DIFFICULT09, length=40), (0.0, 1.0))
         self.assertGreaterEqual(
             P.class_preserving_fraction(DIFFICULT09, length=40), 0.05
         )
-        self.assertLess(P.dominated_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
+        self.assertLess(P.non_start_zone_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
         self.assertFalse(P.satisfies_preconditions(DIFFICULT09, length=40))
 
     def test_ceiling_catches_recurrent_but_uncovered_states(self):
@@ -236,11 +236,11 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         # on cycles) but the decision lives in an uncovered state, so E-L* is
         # capped well below 1.0 and the ceiling must reject it.
         self.assertLess(
-            P.dominated_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
+            P.non_start_zone_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
         )
         self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
-    def test_thinly_sampled_but_dominated_states_pass(self):
+    def test_thinly_sampled_but_non_start_zone_states_pass(self):
         uncovered = THIN_POCKETS.states - P.covered_states(THIN_POCKETS, length=40)
         self.assertGreaterEqual(len(uncovered), 6)
         report = P.satisfies_preconditions(THIN_POCKETS, length=40, short_circuit=False)
@@ -248,12 +248,12 @@ class TestSatisfiesPreconditions(unittest.TestCase):
 
 
 class TestRelativeRule(unittest.TestCase):
-    def test_visited_contains_covered_and_dominated_contains_start(self):
+    def test_visited_contains_covered_and_non_start_zone_contains_start(self):
         covered = P.covered_states(THIN_POCKETS, length=40)
         visited = P.visited_states(THIN_POCKETS, length=40)
         self.assertLessEqual(covered, visited)
         for q in visited:
-            self.assertIn(q, P.dominated_states(THIN_POCKETS, q, length=40))
+            self.assertIn(q, P.non_start_zone_states(THIN_POCKETS, q, length=40))
 
 
 class _ZeroRunSampler(Sampler):

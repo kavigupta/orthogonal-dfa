@@ -147,12 +147,12 @@ def _assert_bar_is_what_the_target_allows(testcase, target):
     tolerance already sat.
     """
     testcase.assertLess(
-        P.dominated_accuracy_ceiling(target, length=40),
+        P.non_start_zone_accuracy_ceiling(target, length=40),
         0.99,
         "target would be admissible; no need to lower",
     )
     testcase.assertGreater(
-        P.dominated_accuracy_at(target, length=40),
+        P.non_start_zone_accuracy_at(target, length=40),
         0.975,
         "0.97 is not the bar this target allows",
     )
