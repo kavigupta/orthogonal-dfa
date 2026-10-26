@@ -1,9 +1,28 @@
 # Machine-checked correctness of the E-L\* clustering algorithm
 
-## The theorems
-
 Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
 and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
+
+## The claims
+
+`OrthoDFA/Claims/` states what each part of the learner costs, as big-O shapes in its inputs
+alone. Each claim's inputs are a record (`ClusterInputs`, …) of counts and rates, and the claim
+holds for every record in a region `R` that spells out the hypotheses, such as `0 < δ ≤ 1/2`. Every
+cost and every tolerance is something the claim produces: it asserts some function of the inputs
+does the job, and bounds that function with Mathlib's `=O[𝓟 R]`, one constant for all of `R`, so
+the bound keeps its meaning with some inputs held fixed. A cap on an input, such as how heavy a
+population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
+Each claim is proved from the explicit theorems below.
+
+- `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
+  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
+  limit, and no strings harvested, the band width, suffix pool and prefix count of every state it
+  stops at, and the atom and collision masses its populations must stay under; it fails with
+  chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
+  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
+  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
+
+## The explicit theorems
 
 The headline is `LearnerLoopDFA` (`OrthoDFA/LoopDFA.lean`, proved in `Proofs/LoopDFA.lean`): the
 loop outputs a DFA, and `LearnerLoopDFASimple` states the same at explicit settings (below). The
@@ -229,6 +248,7 @@ what a state's chance of reading undecided is.
 
 ## What to read
 
+- `OrthoDFA/Claims/` — the claims above. Each reads the definitions of the files below it names.
 - `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim. It
   imports only Mathlib.
 - `OrthoDFA/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over a population, the
