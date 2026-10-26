@@ -198,6 +198,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--no-halving", action="store_true")
     ap.add_argument("--plateau", action="store_true")
+    ap.add_argument("--min-indecisive", type=int, default=200)
+    ap.add_argument("--indecisive-fraction", type=float, default=0.1)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     log_batches(f"{a.out}/batches.jsonl")
@@ -236,7 +238,12 @@ def main():
         target=memlog, args=(pst, tracker, f"{a.out}/mem.jsonl"), daemon=True
     ).start()
     best = counterexample_driven_synthesis(
-        pst, acc_threshold=0.98, tracker=tracker, max_rounds=a.max_rounds
+        pst,
+        acc_threshold=0.98,
+        tracker=tracker,
+        max_rounds=a.max_rounds,
+        indecisive_fraction=a.indecisive_fraction,
+        min_indecisive=a.min_indecisive,
     )
     phi, top, used = score(best.dfa, halves)
     summary = dict(
