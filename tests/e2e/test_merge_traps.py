@@ -129,7 +129,7 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
 
 
 #: (alphabet, arms, disarm).
-TRAPS = [(200, 4, 173), (200, 4, 180)]
+TRAPS = [(200, 4, 174), (200, 4, 180)]
 
 
 class TestTrapTargets(unittest.TestCase):
