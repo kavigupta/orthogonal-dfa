@@ -88,7 +88,7 @@ def LoopClaim.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
-      log (x.Q * x.A * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+      1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 6 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
@@ -107,7 +107,7 @@ def LoopClaimSimple.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
-      log (x.Q * x.A * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+      1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 10 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))

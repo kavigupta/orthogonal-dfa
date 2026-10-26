@@ -34,7 +34,7 @@ def warmed_draws(
         with_ends = [
             (x, positions)
             for x in xs
-            for positions in [ends(hypothesis, config.k, x)]
+            for positions in [ends(hypothesis, search.k, x)]
             if positions
         ]
         _warm(hypothesis, warm, [x[: positions[0]] for x, positions in with_ends])

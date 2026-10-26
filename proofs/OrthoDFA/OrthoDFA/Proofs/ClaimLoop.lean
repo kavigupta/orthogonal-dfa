@@ -1136,7 +1136,7 @@ private lemma rel_L0_le {Q A iδ R iξ ip is ic : ℝ} (hQ : 1 ≤ Q) (hA : 2 �
   refine (le_abs_self _).trans (h.trans ?_)
   exact mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hl hlA.le) (by norm_num)
 
-private lemma relL0_isBigO : relL0 =O[𝓟 vecRegion]
+private lemma relL0_isBigO' : relL0 =O[𝓟 vecRegion]
     (fun (Q, A, iδ, R, iξ, ip, is) => log (Q * A * iδ * R * iξ * ip * is) / log A
       : LoopVec → ℝ) := by
   refine isBigO_on 5000 fun b hb => ?_
@@ -1153,6 +1153,27 @@ private lemma relL0_isBigO : relL0 =O[𝓟 vecRegion]
   have := div_le_div_of_nonneg_right hl hlA.le
   rw [mul_div_assoc] at this
   linarith
+
+private lemma relL0_isBigO : relL0 =O[𝓟 vecRegion]
+    (fun (Q, A, iδ, R, iξ, ip, is) => 1 + log (Q * iδ * R * iξ * ip * is) / log A
+      : LoopVec → ℝ) := by
+  refine relL0_isBigO'.congr' EventuallyEq.rfl (Filter.eventually_principal.2 fun b hb => ?_)
+  obtain ⟨Q, A, iδ, R, iξ, ip, is⟩ := b
+  obtain ⟨hQ, hA, hiδ, hR, hiξ, hip, his⟩ := loop_region hb
+  have hlA : 0 < log A := Real.log_pos (by linarith)
+  have hX : 0 < Q * iδ * R * iξ * ip * is := by
+    have : 0 < Q := by linarith
+    have : 0 < iδ := by linarith
+    have : 0 < R := by linarith
+    have : 0 < iξ := by linarith
+    have : 0 < ip := by linarith
+    have : 0 < is := by linarith
+    positivity
+  change log (Q * A * iδ * R * iξ * ip * is) / log A
+    = 1 + log (Q * iδ * R * iξ * ip * is) / log A
+  rw [show Q * A * iδ * R * iξ * ip * is = A * (Q * iδ * R * iξ * ip * is) by ring,
+    Real.log_mul (by linarith : (0 : ℝ) < A).ne' hX.ne']
+  field_simp [hlA.ne']
 
 private lemma visitC_bounds {R : ℝ} (L : ℕ) (hR : 0 ≤ R) :
     R ≤ R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ)
