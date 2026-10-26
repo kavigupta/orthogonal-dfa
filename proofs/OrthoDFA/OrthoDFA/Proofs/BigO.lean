@@ -24,6 +24,9 @@ lemma one_div_min_le {x y : ℝ} (hx : 0 < x) (hy : 0 < y) : 1 / min x y ≤ 1 /
 
 lemma div_one_div' (a b : ℝ) : a / (1 / b) = a * b := by rw [one_div, div_inv_eq_mul]
 
+lemma half_le_log {x : ℝ} (hx : 2 ≤ x) : 1 / 2 ≤ log x :=
+  (by linarith [log_two_gt_d9] : (1 : ℝ) / 2 ≤ log 2).trans (Real.log_le_log (by norm_num) hx)
+
 lemma one_le_log_of_three_le {x : ℝ} (hx : 3 ≤ x) : 1 ≤ log x :=
   (le_log_iff_exp_le (by linarith)).2 (by linarith [exp_one_lt_three])
 

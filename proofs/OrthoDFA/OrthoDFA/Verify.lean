@@ -4,6 +4,7 @@ import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClaimClustering
+import OrthoDFA.Proofs.ClaimLevels
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
@@ -47,7 +48,7 @@ The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
-`ClusteringClaim` and `ClusteringClaimSimple`.
+`ClusteringClaim`, `ClusteringClaimSimple`, and `Level2Claim` to `Level5Claim`.
 -/
 
 namespace OrthoDFA
@@ -59,6 +60,22 @@ theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
 theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple_holds
 
 #print axioms clustering_claim_simple
+
+theorem level2_claim : Level2Claim := level2Claim_holds
+
+#print axioms level2_claim
+
+theorem level3_claim : Level3Claim := level3Claim_holds
+
+#print axioms level3_claim
+
+theorem level4_claim : Level4Claim := level4Claim_holds
+
+#print axioms level4_claim
+
+theorem level5_claim : Level5Claim := level5Claim_holds
+
+#print axioms level5_claim
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
