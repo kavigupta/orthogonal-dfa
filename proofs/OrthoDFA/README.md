@@ -15,11 +15,12 @@ population's atoms may be, appears as the largest the claim tolerates, its recip
 Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
-  signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
-  the band width, suffix pool and prefix count of every state it stops at, and the atom and
-  collision masses its populations must stay under; it fails with chance at most `δ`.
+  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
+  limit, and no strings harvested, the band width, suffix pool and prefix count of every state it
+  stops at, and the atom and collision masses its populations must stay under; it fails with
+  chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
-  `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 
 ## The explicit theorems
 
