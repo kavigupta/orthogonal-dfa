@@ -1,4 +1,4 @@
-import OrthoDFA.Level5Claim
+import OrthoDFA.LowLevelClaims.Level5Claim
 import OrthoDFA.Proofs.SpurAccount
 import OrthoDFA.Proofs.SpurCount
 

@@ -30,21 +30,23 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LoopDFA`, holds: the learner's loop outputs a
-hypothesis that agrees with the target DFA but for chance `δ`.
+The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
+loop outputs a hypothesis that agrees with the target DFA but for chance `δ`.
 
-The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
-`ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
-in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
-in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
-and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
-at both. The loop runs level 5.
+The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.LowLevelClaims.Clustering`,
+`ClusteringQualityGuarantee`, stated in `OrthoDFA.LowLevelClaims.ClusteringQuality`, the family-read
+claims, stated in `OrthoDFA.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated in
+`OrthoDFA.LowLevelClaims.Probe`, `Level2RoundCorrect`, stated in
+`OrthoDFA.LowLevelClaims.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and
+`Level5RoundCorrect`, stated in `OrthoDFA.LowLevelClaims.Level3Claim`,
+`OrthoDFA.LowLevelClaims.Level4Claim` and `OrthoDFA.LowLevelClaims.Level5Claim`, and
+`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
+same claim with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely
+wrong, and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads
+tolerated at both. The loop runs level 5.
 
-The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
-`Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
+The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReadsBound`,
+`RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 
