@@ -12,7 +12,7 @@ cost and every tolerance is something the claim produces: it asserts some functi
 does the job, and bounds that function with Mathlib's `=O[𝓟 R]`, one constant for all of `R`, so
 the bound keeps its meaning with some inputs held fixed. A cap on an input, such as how heavy a
 population's atoms may be, appears as the largest the claim tolerates, its reciprocal bounded.
-Each claim is proved from the explicit theorems below.
+Each claim is proved from the explicit theorems that follow.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
   signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
