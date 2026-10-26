@@ -64,7 +64,7 @@ least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the leas
 
 `LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
 rule instead: some `q ∈ coveredStates M L c` has accuracy at least `1 − γ` with
-`S = {q} ∪ dominatedStates M L R q`, `dominatedStates` being the states whose visit rate from `q` is
+`S = {q} ∪ nonStartZoneStates M L R q`, `nonStartZoneStates` being the states whose visit rate from `q` is
 at most `R` per position times that of a string from `⌈L/2⌉` on. With
 `C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`, so its
 probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
@@ -81,7 +81,7 @@ undecided reads are bounded on average over the window, and a string at a state 
 side has `2·misread + undecided ≥ 1`, so those states hold at most `N(2εr + εu)`
 (`wrongSide_mass_le`). With `ε = m/(3(|Σ|+|Q|+1)N)`, `m = min c (3ξ/(8R))`, the wrong states
 together occupy less than `m`, so a start covered at `c` is not wrong, and a good run from it is
-classified correctly unless it visits a wrong dominated state, which costs at most `C m ≤ 3ξ/4`
+classified correctly unless it visits a wrong non-start-zone state, which costs at most `C m ≤ 3ξ/4`
 (`dfa_of_checks_summed`). The pick gets `ξ/4`: `εcov = min(ε, ξ/(32N))`,
 `n = ⌈512 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`. At the settings above with `c ≥ 3ξ/(8R)`, the least `L`
 meeting `LearnerLoopDFASummedSimple`'s hypotheses is 369, 377, 395 at `R = 2` and 387, 395, 415

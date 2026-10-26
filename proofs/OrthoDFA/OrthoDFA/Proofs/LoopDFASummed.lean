@@ -248,7 +248,7 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace �
 /-- A last round as in `dfa_of_checks`, whose wrong states together occupy the window's lengths
 `⌈L/2⌉` to `L` less than `c`, has a leaf from which its hypothesis misjudges at most `γ + Cc`,
 `C = R(L+1)/(L+1−⌈L/2⌉)`, where a start covered at `c` re-roots with accuracy `1 − γ` through
-itself and the states it dominates. -/
+itself and its non-start-zone states. -/
 theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
     (L : ℕ) {c R εr εu εB εm γ : ℝ}
@@ -257,7 +257,7 @@ theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid �
     (hbnd : ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
       * (2 * (((Fintype.card α : ℝ) + 1) * εB + Fintype.card σ * εm) + (2 * εr + εu)) < c)
     (hstart : ∃ q ∈ coveredStates M L c,
-      1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) :
+      1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) :
     ∃ s ∈ o.result.hypothesis.tree.leaves, (uniformStrings L).real
       {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)}
         ≤ γ + R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * c := by
@@ -352,13 +352,13 @@ theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid �
     linarith
   set C : ℝ := R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) with hCd
   have hC0 : 0 ≤ C := by positivity
-  set Dom := dominatedStates M L R q₀ with hDomd
+  set Dom := nonStartZoneStates M L R q₀ with hDomd
   set T : Finset σ := (WE ∪ WS).filter (· ∈ Dom) with hTd
   set V : Set (FreeMonoid α) :=
     ⋃ q' ∈ T, {x | ∃ i ≤ L, M.evalFrom q₀ (prefixOf x i).toList = q'} with hVd
   set G : Set (FreeMonoid α) := {x | (∀ i ≤ L, M.evalFrom q₀ (prefixOf x i).toList ∈ insert q₀ Dom)
     ∧ (M.evalFrom q₀ x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)} with hGd
-  -- off the runs through a wrong dominated state, a good string is classified as re-rooting does
+  -- off the runs through a wrong non-start-zone state, a good string is classified as re-rooting does
   have hsub : {x | ¬ H.Classifies (Random.leafOf M side H.tree q₀) x (M.eval x.toList ∈ M.accept)}
       ⊆ (Gᶜ ∪ V) ∪ {x | x.toList.length ≠ L} := by
     intro x hx

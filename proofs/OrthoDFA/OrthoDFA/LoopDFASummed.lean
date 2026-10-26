@@ -4,11 +4,11 @@ import OrthoDFA.LoopDFA
 # The learner's DFA under the relative rule, by summed occupancy
 
 `LearnerLoopDFASummed` admits the target by `LearnerLoopDFARelative`'s rule: some state `q` covered
-at `c` re-roots it with accuracy at least `1 − γ` without leaving `{q} ∪ dominatedStates M L R q`.
+at `c` re-roots it with accuracy at least `1 − γ` without leaving `{q} ∪ nonStartZoneStates M L R q`.
 It is proved directly, not through `LearnerLoopDFA`. A target state is wrong when an edge out of
 its true leaf is wrong or unlearned, or it is read on its wrong side. The wrong states together
 occupy the window less than `m = min c (3ξ/(8R))`, so the start is not wrong, and the runs from it
-through a wrong dominated state cost at most `C m ≤ 3ξ/4`, `C = R(L+1)/(L+1−⌈L/2⌉) ≤ 2R`. No
+through a wrong non-start-zone state cost at most `C m ≤ 3ξ/4`, `C = R(L+1)/(L+1−⌈L/2⌉) ≤ 2R`. No
 state but the start need be covered. The pick of the start leaf gets the other `ξ/4`.
 -/
 
@@ -31,7 +31,7 @@ def LearnerLoopDFASummedSimple : Prop :=
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
-  -- The start's coverage, capped where the wrong states it dominates cost `3ξ/4`.
+  -- The start's coverage, capped where its wrong non-start-zone states cost `3ξ/4`.
   let m : ℝ := min c (3 * ξ / (8 * R))
   -- Each round's disagreement rate, low enough that the wrong states together occupy the window
   -- less than `m`.
@@ -82,8 +82,8 @@ def LearnerLoopDFASummedSimple : Prop :=
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's relative precondition: some state re-roots the target with error at most `γ`
-  -- through the states it dominates.
-  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) →
+  -- through its non-start-zone states.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) →
   -- The walk start's prefixes are spread thinly enough for the clustering's collisions,
   (A ^ k)⁻¹ ≤ cap * ε / 1536 →
   -- for each round's harvests to concentrate at every state's rate,
@@ -120,7 +120,7 @@ def LearnerLoopDFASummed : Prop :=
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
-  -- The start's coverage, capped where the wrong states it dominates cost `3ξ/4`.
+  -- The start's coverage, capped where its wrong non-start-zone states cost `3ξ/4`.
   let m : ℝ := min c (3 * ξ / (8 * R))
   -- Each round's disagreement rate, low enough that the wrong states together occupy the window
   -- less than `m`.
@@ -165,8 +165,8 @@ def LearnerLoopDFASummed : Prop :=
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's relative precondition: some state re-roots the target with error at most `γ`
-  -- through the states it dominates.
-  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) →
+  -- through its non-start-zone states.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) →
   -- The Python's length is long enough.
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
