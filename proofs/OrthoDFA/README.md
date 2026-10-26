@@ -21,13 +21,14 @@ Each claim is proved from the explicit theorems below.
   chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
-- `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at levels 3
-  to 5, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))`, their harvest's slope and slack, and at levels 4 and 5 how
-  much of the probes' law any one walk start may hold and how rarely reads may be wrong, both
-  levels at no leaves beyond level 3's `|Q| + 2`. `LevelsClaimSimple` writes the slope as
-  `O(|Q| log L/y)` and the slack as `O(|Q||Σ| log(|Q||Σ|/δ)/y)`.
-- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's probe budget,
+- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))`.
+- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
+  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))`, and its harvest's slope and
+  slack. Levels 4 and 5 also give how much of the probes' law any one walk start may hold
+  (`p₀Tol`) and how rarely reads may be wrong (`εwTol` at level 4, `κTol` at level 5), at no leaves
+  beyond level 3's `|Q| + 2`. `Level3ClaimSimple`, `Level4ClaimSimple` and `Level5ClaimSimple`
+  write the slope as `O(|Q| log L/y)` and the slack as `O(|Q||Σ| log(|Q||Σ|/δ)/y)`.
 
 ## The explicit theorems
 

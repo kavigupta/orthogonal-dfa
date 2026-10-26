@@ -6,15 +6,15 @@ import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 
 /-!
-# `LevelsClaim` and `Level2Claim`: the proofs
+# The level claims: the proofs
 
 The witnesses are the level theorems' premises read off `toVec x`, the counts and the rates'
 reciprocals, and are bounded there before being carried back to the records. Off the instances
 they take any value: level 2's budget is `0` where `ig < iε`, which no instance has and without
 which its shape is no bound, and the tolerances are `1` out of range. Levels 4 and 5 split their
 `δ/8` into `δ/16` for two probes colliding and `δ/16` for the race tail, at `t = 1/(λ + 2c)` and
-`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`. `LevelsClaimSimple` follows from
-`LevelsClaim`, the slope's and slack's tight shapes bounded by their products.
+`t' = 2t`, or at `t = 4/√δ` and `t' = 0` when `λ = c = 0`. Each `Level{3,4,5}ClaimSimple` follows
+from its tight claim, the slope's and slack's tight shapes bounded by their products.
 -/
 
 noncomputable section
@@ -768,69 +768,100 @@ theorem level2Claim_holds : Level2Claim := by
   simp only [lvS_cast, one_div_one_div]
   rfl
 
-theorem levelsClaim_holds : LevelsClaim := by
-  refine ⟨fun x => lvProbes (toVec x), fun x => lvSlope (toVec x),
-    fun x => lvSlack (toVec x), fun x => lvP₀ (toVec x), fun x => lvκ (toVec x),
-    fun x => lvεw (toVec x),
+theorem level3Claim_holds : Level3Claim := by
+  refine ⟨fun x => lvProbes (toVec x), fun x => lvSlope (toVec x), fun x => lvSlack (toVec x),
+    transfer lvProbes_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvSlope_isBigO fun x => by simp only [toVec],
+    transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf, ?_⟩
+  intro α _ _ σ _ M side U Ω _ μ _ R P C p₀
+  dsimp only
+  intro hx hP hpre
+  simp only [levelRegion, Set.mem_ofPred_eq] at hx
+  obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+  simp only [toVec] at hP ⊢
+  have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
+  refine le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
+    (level3RoundCorrect_holds M side U μ R P C p₀ hpre hδ hy hyε hε
+      (budget_le (Fintype.card σ) (Fintype.card α) hP))
+  exact fun hw => hd (endsWell_mono (slope_le _ _) (slack_le _ _ hp₀ hy hδ (by norm_num)
+    (by norm_num)) hw)
+
+theorem level4Claim_holds : Level4Claim := by
+  refine ⟨fun x => lvProbes (toVec x), fun x => lvSlope (toVec x), fun x => lvSlack (toVec x),
+    fun x => lvP₀ (toVec x), fun x => lvεw (toVec x),
+    transfer lvProbes_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvSlope_isBigO fun x => by simp only [toVec],
+    transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvP₀_isBigO fun x => by simp only [toVec]; ring_nf,
+    transfer lvεw_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
+    fun x => ⟨(tol_pos _).1, (tol_pos _).2.2⟩, ?_⟩
+  intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
+  dsimp only
+  intro hx hP hpre hp₀ hεw0 hεw
+  simp only [levelRegion, Set.mem_ofPred_eq] at hx
+  obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+  simp only [toVec] at hP hp₀ hεw ⊢
+  have hδ1 : C.δ < 1 := by linarith
+  have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
+  refine race_tail_apply hδ (by positivity) (by positivity)
+    (εw_race (Fintype.card σ) (Fintype.card α) P.L C.probeBudget hδ hP hεw)
+    (collision_le hδ hp₀0 hP hp₀) fun t t' ht ht' htc hfin =>
+      le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
+        (level4RoundCorrect_holds M side U εw μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
+          (budget_le (Fintype.card σ) (Fintype.card α) hP) ht ht' htc hfin)
+  exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
+    (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
+
+theorem level5Claim_holds : Level5Claim := by
+  refine ⟨fun x => lvProbes (toVec x), fun x => lvSlope (toVec x), fun x => lvSlack (toVec x),
+    fun x => lvP₀ (toVec x), fun x => lvκ (toVec x),
     transfer lvProbes_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvSlope_isBigO fun x => by simp only [toVec],
     transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvP₀_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvκ_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
-    transfer lvεw_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
-    fun x => tol_pos _, ?_, ?_, ?_⟩
-  · intro α _ _ σ _ M side U Ω _ μ _ R P C p₀
-    dsimp only
-    intro hx hP hpre
-    simp only [levelRegion, Set.mem_ofPred_eq] at hx
-    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
-    simp only [toVec] at hP ⊢
-    have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-    refine le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
-      (level3RoundCorrect_holds M side U μ R P C p₀ hpre hδ hy hyε hε
-        (budget_le (Fintype.card σ) (Fintype.card α) hP))
-    exact fun hw => hd (endsWell_mono (slope_le _ _) (slack_le _ _ hp₀ hy hδ (by norm_num)
-      (by norm_num)) hw)
-  · intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
-    dsimp only
-    intro hx hP hpre hp₀ hεw0 hεw
-    simp only [levelRegion, Set.mem_ofPred_eq] at hx
-    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
-    simp only [toVec] at hP hp₀ hεw ⊢
-    have hδ1 : C.δ < 1 := by linarith
-    have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-    refine race_tail_apply hδ (by positivity) (by positivity)
-      (εw_race (Fintype.card σ) (Fintype.card α) P.L C.probeBudget hδ hP hεw)
-      (collision_le hδ hp₀0 hP hp₀) fun t t' ht ht' htc hfin =>
-        le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
-          (level4RoundCorrect_holds M side U εw μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
-            (budget_le (Fintype.card σ) (Fintype.card α) hP) ht ht' htc hfin)
-    exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
-      (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
-  · intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
-    dsimp only
-    intro hx hP hpre hp₀ hκ0 hκ
-    simp only [levelRegion, Set.mem_ofPred_eq] at hx
-    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
-    simp only [toVec] at hP hp₀ hκ ⊢
-    have hδ1 : C.δ < 1 := by linarith
-    have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-    have hr := fun b c => κ_race (Fintype.card σ) (Fintype.card α) (iε := 1 / C.disagreementRate)
-      (iy := 1 / C.harvestRate) (L := P.L) b c hδ hδ1 hκ0 hκ
-    refine race_tail_apply hδ (hr _ 0).1 (hr 0 _).2.1 (hr _ _).2.2 (collision_le hδ hp₀0 hP hp₀)
-      fun t t' ht ht' htc hfin =>
-        le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
-          (level5RoundCorrect_holds M side U 0 κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
-            (budget_le (Fintype.card σ) (Fintype.card α) hP) le_rfl hκ0 ht ht' htc hfin)
-    exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
-      (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
+    fun x => ⟨(tol_pos _).1, (tol_pos _).2.1⟩, ?_⟩
+  intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
+  dsimp only
+  intro hx hP hpre hp₀ hκ0 hκ
+  simp only [levelRegion, Set.mem_ofPred_eq] at hx
+  obtain ⟨-, -, hδ, hδ2, hy, hyε, hε, hL⟩ := hx
+  simp only [toVec] at hP hp₀ hκ ⊢
+  have hδ1 : C.δ < 1 := by linarith
+  have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
+  have hr := fun b c => κ_race (Fintype.card σ) (Fintype.card α) (iε := 1 / C.disagreementRate)
+    (iy := 1 / C.harvestRate) (L := P.L) b c hδ hδ1 hκ0 hκ
+  refine race_tail_apply hδ (hr _ 0).1 (hr 0 _).2.1 (hr _ _).2.2 (collision_le hδ hp₀0 hP hp₀)
+    fun t t' ht ht' htc hfin =>
+      le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
+        (level5RoundCorrect_holds M side U 0 κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε hε
+          (budget_le (Fintype.card σ) (Fintype.card α) hP) le_rfl hκ0 ht ht' htc hfin)
+  exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _)
+    (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
 
-theorem levelsClaimSimple_holds : LevelsClaimSimple := by
-  obtain ⟨n, slope, slack, p₀, κ, εw, hn, hs, hk, hp, hκ, hε, hw⟩ := levelsClaim_holds
-  exact ⟨n, slope, slack, p₀, κ, εw, hn,
-    hs.trans (dominate slope_dom (fun x => by simp only [toVec])
-      fun x => by simp only [toVec]; ring_nf),
-    hk.trans (dominate slack_dom (fun x => by simp only [toVec]; ring_nf)
-      fun x => by simp only [toVec]; ring_nf), hp, hκ, hε, hw⟩
+private lemma slope_simple {f : LevelInputs → ℝ}
+    (h : f =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + Real.log x.L))) :
+    f =O[𝓟 levelRegion] (fun x => x.Q * Real.log x.L / x.y) :=
+  h.trans (dominate slope_dom (fun x => by simp only [toVec])
+    fun x => by simp only [toVec]; ring_nf)
+
+private lemma slack_simple {f : LevelInputs → ℝ}
+    (h : f =O[𝓟 levelRegion] (fun x =>
+      (x.Q * x.A * Real.log (x.Q * x.A) + Real.log (1 / x.δ)) / x.y)) :
+    f =O[𝓟 levelRegion] (fun x => x.Q * x.A * Real.log (x.Q * x.A / x.δ) / x.y) :=
+  h.trans (dominate slack_dom (fun x => by simp only [toVec]; ring_nf)
+    fun x => by simp only [toVec]; ring_nf)
+
+theorem level3ClaimSimple_holds : Level3ClaimSimple := by
+  obtain ⟨n, slope, slack, hn, hs, hk, hw⟩ := level3Claim_holds
+  exact ⟨n, slope, slack, hn, slope_simple hs, slack_simple hk, hw⟩
+
+theorem level4ClaimSimple_holds : Level4ClaimSimple := by
+  obtain ⟨n, slope, slack, p₀, εw, hn, hs, hk, hp, hε, hw⟩ := level4Claim_holds
+  exact ⟨n, slope, slack, p₀, εw, hn, slope_simple hs, slack_simple hk, hp, hε, hw⟩
+
+theorem level5ClaimSimple_holds : Level5ClaimSimple := by
+  obtain ⟨n, slope, slack, p₀, κ, hn, hs, hk, hp, hκ, hw⟩ := level5Claim_holds
+  exact ⟨n, slope, slack, p₀, κ, hn, slope_simple hs, slack_simple hk, hp, hκ, hw⟩
 
 end OrthoDFA
