@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 
 /-!
 # What a side's cap charges a clean family

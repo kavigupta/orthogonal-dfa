@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 import Mathlib.Probability.ConditionalProbability
 import Mathlib.Data.List.GetD
 

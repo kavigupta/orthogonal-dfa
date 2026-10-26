@@ -3,6 +3,9 @@ import OrthoDFA.Proofs.BandKappa
 import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
+import OrthoDFA.Proofs.ClaimClustering
+import OrthoDFA.Proofs.ClaimLevels
+import OrthoDFA.Proofs.ClaimLoop
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
@@ -27,26 +30,64 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LoopDFA`, holds: the learner's loop outputs a
-hypothesis that agrees with the target DFA but for chance `δ`.
+The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
+loop outputs a hypothesis that agrees with the target DFA but for chance `δ`.
 
-The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`,
-`ClusteringQualityGuarantee`, stated in `OrthoDFA.ClusteringQuality`, the family-read claims, stated
-in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2RoundCorrect`, stated
-in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
-stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
-and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
-at both. The loop runs level 5.
+The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.LowLevelClaims.Clustering`,
+`ClusteringQualityGuarantee`, stated in `OrthoDFA.LowLevelClaims.ClusteringQuality`, the family-read
+claims, stated in `OrthoDFA.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated in
+`OrthoDFA.LowLevelClaims.Probe`, `Level2RoundCorrect`, stated in
+`OrthoDFA.LowLevelClaims.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and
+`Level5RoundCorrect`, stated in `OrthoDFA.LowLevelClaims.Level3Claim`,
+`OrthoDFA.LowLevelClaims.Level4Claim` and `OrthoDFA.LowLevelClaims.Level5Claim`, and
+`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
+same claim with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely
+wrong, and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads
+tolerated at both. The loop runs level 5.
 
-The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
-`Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
+The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReadsBound`,
+`RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+
+The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
+`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopClaim` and
+`LoopClaimSimple`.
 -/
 
 namespace OrthoDFA
+
+theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
+
+#print axioms clustering_claim
+
+theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple_holds
+
+#print axioms clustering_claim_simple
+
+theorem level2_claim : Level2Claim := level2Claim_holds
+
+#print axioms level2_claim
+
+theorem level3_claim : Level3Claim := level3Claim_holds
+
+#print axioms level3_claim
+
+theorem level4_claim : Level4Claim := level4Claim_holds
+
+#print axioms level4_claim
+
+theorem level5_claim : Level5Claim := level5Claim_holds
+
+#print axioms level5_claim
+
+theorem loop_claim : LoopClaim := loopClaim_holds
+
+#print axioms loop_claim
+
+theorem loop_claim_simple : LoopClaimSimple := loopClaimSimple_holds
+
+#print axioms loop_claim_simple
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
