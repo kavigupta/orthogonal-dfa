@@ -7,6 +7,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
+    BestRound,
     _accumulate_harvest,
     _publish_pool,
     _StallDetector,
@@ -162,3 +163,36 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
+
+
+class TestBestRound(unittest.TestCase):
+    _COMMON = dict(tree=None, boundary=0.5, certified=None)
+
+    def test_a_score_outranks_consistency(self):
+        best = BestRound()
+        best.consider(
+            consistency=0.9, score=0.1, dfa="a", round_index=0, **self._COMMON
+        )
+        best.consider(
+            consistency=0.1, score=0.2, dfa="b", round_index=1, **self._COMMON
+        )
+        self.assertEqual("b", best.dfa)
+
+    def test_without_a_score_consistency_ranks(self):
+        best = BestRound()
+        best.consider(
+            consistency=0.9, score=None, dfa="a", round_index=0, **self._COMMON
+        )
+        best.consider(
+            consistency=0.1, score=None, dfa="b", round_index=1, **self._COMMON
+        )
+        self.assertEqual("a", best.dfa)
+
+    def test_a_certified_round_outranks_any_score(self):
+        best = BestRound()
+        best.consider(
+            consistency=0.9, score=0.3, dfa="a", round_index=0, **self._COMMON
+        )
+        certified = {**self._COMMON, "certified": "b"}
+        best.consider(consistency=0.9, score=0.1, dfa="b", round_index=1, **certified)
+        self.assertEqual("b", best.dfa)
