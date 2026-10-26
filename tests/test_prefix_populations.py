@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.prefix_populations import (
     prefixes_for_split,
 )
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
+from orthogonal_dfa.l_star.rejection_source import SourceDry
 
 #: Anything: the table below is never asked a membership question.
 _NO_ORACLE = None
@@ -178,6 +179,45 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
         self.assertEqual([("state", 9)], pst.table.dropped)
+
+
+class _DrySource(_Source):
+    """Worth drawing on and proven, but out of new strings."""
+
+    proven = True
+
+    def __init__(self):
+        super().__init__([], worth=True)
+
+    def draw(self):
+        raise SourceDry("dry")
+
+
+class TestADrySource(unittest.TestCase):
+    def test_before_any_search_walks_deeper_it_is_an_error(self):
+        state = _holding(("boundary", 1), _DrySource(), _words(3))
+        with self.assertRaises(SourceDry):
+            grow_population(_Pst(), state, ("boundary", 1))
+
+    def test_after_one_does_its_population_is_retired(self):
+        pst = _Pst()
+        state = _holding(("boundary", 1), _DrySource(), _words(3))
+        state.deepened = True
+
+        self.assertFalse(grow_population(pst, state, ("boundary", 1)))
+
+        self.assertEqual([("boundary", 1)], pst.table.dropped)
+        self.assertEqual(({}, set()), (state.held, state.seen))
+
+    def test_and_a_split_goes_ahead_without_it(self):
+        state = _holding(("boundary", 1), _DrySource(), _words(3))
+        state.deepened = True
+        state.reserves[("boundary", 1)] = [b"r"]
+
+        self.assertEqual(
+            [], prefixes_for_split(_Pst(), state, ("boundary", 1), wanted=2)
+        )
+        self.assertEqual([b"r"], state.reserves[("boundary", 1)])
 
 
 class _ProvenSource(_Source):

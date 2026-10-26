@@ -9,6 +9,7 @@ from hashlib import blake2b
 
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource, draw_many
+from .rejection_source import SourceDry
 
 
 class PoolState:
@@ -37,6 +38,9 @@ class PoolState:
         self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
+        #: Whether a round's search walked deeper than its start: a source whose
+        #: strings the deeper walks stopped reaching may then run dry.
+        self.deepened = False
 
     def retire(self, kind) -> None:
         """Forget last round's populations labelled (kind, ...): this round's are
@@ -114,18 +118,29 @@ def grow_population(pst, state, label) -> bool:
         return True
     source = state.sources.get(label)
     if not can_grow(state, label):
-        # Forgotten rather than held aside, so a later round that strands one
-        # of these again can pool it behind a source that does draw.
-        state.seen.difference_update(state.held.pop(label, ()))
-        state.seen.difference_update(state.reserves.pop(label, ()))
-        state.sources.pop(label, None)
-        pst.table.drop_population(label)
+        _retire(pst, state, label)
         return False
-    # As many as the uniform draw this stands in for adds.
-    drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
+    try:
+        # As many as the uniform draw this stands in for adds.
+        drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
+    except SourceDry:
+        if not state.deepened:
+            raise
+        print(f"  {label}'s source ran dry after a search walked deeper; retired")
+        _retire(pst, state, label)
+        return False
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
     return True
+
+
+def _retire(pst, state, label) -> None:
+    # Forgotten rather than held aside, so a later round that strands one of
+    # these again can pool it behind a source that does draw.
+    state.seen.difference_update(state.held.pop(label, ()))
+    state.seen.difference_update(state.reserves.pop(label, ()))
+    state.sources.pop(label, None)
+    pst.table.drop_population(label)
 
 
 def population_labels(state) -> list:
@@ -152,7 +167,13 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     fresh = []
     tabled = state.tabled()
     while len(taken) + len(fresh) < wanted:
-        string = source.draw()
+        try:
+            string = source.draw()
+        except SourceDry:
+            if not state.deepened:
+                raise
+            reserve[:0] = taken
+            return []
         if state.in_reserve(string) and string not in tabled:
             fresh.append(string)
     return taken + sorted(fresh)
