@@ -12,10 +12,9 @@ the learner will draw from:
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
 - non_start_zone_accuracy_ceiling: re-rooting the target at the best start state
-  (any state a sampled prefix lands in) still classifies almost every string,
-  without the re-rooted run leaving that start's non-start zone -- at every string
-  length from ``ceil(length / 2)`` to twice ``length``, taking the worst length for
-  each start
+  (a state in its own non-start zone) still classifies almost every string,
+  without the re-rooted run leaving that zone -- at every string length from
+  ``ceil(length / 2)`` to twice ``length``, taking the worst length for each start
 """
 
 import copy
@@ -156,9 +155,9 @@ def non_start_zone_states(
     sampler: Optional[Sampler] = None,
 ) -> dict:
     """
-    Per state s some sampled prefix lands in, its non-start zone
+    Per state s in its own non-start zone, that zone
 
-        {s} | {q : r_s(q) <= C * w(q)},   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - k)
+        {q : r_s(q) <= C * w(q)},   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - k)
 
     with w(q) the runs from q0 visiting q at positions k = start_length(L) to L, and
     r_s(q) the runs from s visiting q at positions 0 to L.
@@ -172,9 +171,9 @@ def non_start_zone_states(
     zones = {}
     for start in window:
         rerooted = Counter(q for s in strings for q in set(_run(dfa, s, start)))
-        zones[start] = {start} | {
-            q for q in dfa.states if rerooted[q] <= ratio * window[q]
-        }
+        zone = {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
+        if start in zone:
+            zones[start] = zone
     return zones
 
 
@@ -275,15 +274,15 @@ def non_start_zone_accuracy_ceiling(
     sampler: Optional[Sampler] = None,
 ) -> float:
     """
-    Best accuracy reachable when the classifier may only be started from a state
-    a sampled prefix lands in, counting a string only if the run from there stays
-    within that start's ``non_start_zone_states``.
+    Best accuracy reachable when the classifier may only be started from a start
+    of ``non_start_zone_states``, counting a string only if the run from there
+    stays within that start's zone.
 
     E-L* discovers states from where its sampled prefixes land, so it can only
-    anchor its automaton at such a state. Only the start is constrained, from
-    there we follow the target's true transitions and read off the endpoint's true
-    accept label. A run through a state the window lands in far less often than
-    the run does uses transitions the learner rarely checks.
+    anchor its automaton at a state they land in often. Only the start is
+    constrained, from there we follow the target's true transitions and read off
+    the endpoint's true accept label. A run through a state the window lands in
+    far less often than the run does uses transitions the learner rarely checks.
 
     A start's accuracy is its minimum over string lengths ``ceil(length / 2)`` to
     2 * ``length``; the ceiling is the best start's. A custom ``sampler`` is asked

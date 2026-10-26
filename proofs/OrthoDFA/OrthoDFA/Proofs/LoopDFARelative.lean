@@ -3,7 +3,9 @@ import OrthoDFA.Proofs.LoopDFA
 /-!
 # The learner's DFA under the relative rule: the proof
 
-At `c = ξ/(2C|Q|)` for `C = R(L+1)/(L+1−⌈L/2⌉)`, the non-start-zone states visited from `⌈L/2⌉` on by
+A start in its own non-start zone is visited from `⌈L/2⌉` on by at least `1/C` of the strings,
+`C = R(L+1)/(L+1−⌈L/2⌉)`, so covered at `c = ξ/(2C|Q|)` (`covered_of_self_nonStartZone`). The
+non-start-zone states visited from `⌈L/2⌉` on by
 fewer than `c` of the strings are visited from `q` by at most `|Q| C c = ξ/2` of them, and off
 those runs the relative rule's good strings from a start covered at `c` are the covered rule's
 (`covered_of_nonStartZone`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
@@ -17,6 +19,26 @@ namespace OrthoDFA
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
+
+omit [DecidableEq α] in
+theorem covered_of_self_nonStartZone {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L : ℕ)
+    {R C ξ : ℝ} (hC : 0 < C) (hCR : C = R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ))
+    (hξ1 : ξ ≤ 1) {q : σ} (hq : q ∈ nonStartZoneStates M L R q) :
+    q ∈ coveredStates M L (ξ / (2 * C * Fintype.card σ)) := by
+  have : Nonempty σ := ⟨M.start⟩
+  have hQ : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
+  have h1 : rerootVisitRate M L q q = 1 := by
+    have hu : {x : FreeMonoid α | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q} = Set.univ :=
+      Set.eq_univ_of_forall fun x => ⟨0, Nat.zero_le _, by simp [prefixOf]⟩
+    rw [rerootVisitRate, hu, probReal_univ]
+  have hw : 1 ≤ C * windowVisitRate M L q := by
+    have h := hq
+    change rerootVisitRate M L q q ≤ _ at h
+    rw [h1, ← hCR] at h
+    exact h
+  change ξ / (2 * C * Fintype.card σ) ≤ windowVisitRate M L q
+  rw [div_le_iff₀ (by positivity)]
+  nlinarith
 
 omit [DecidableEq α] in
 theorem covered_of_nonStartZone {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L : ℕ)
@@ -72,8 +94,8 @@ theorem covered_of_nonStartZone {σ : Type*} [Fintype σ] (M : _root_.DFA α σ)
 
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k C c L₁ N ε εcov δ' ι s τ J S B₃ Wm
-    W PB RB cap Kc n hL hη hη₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hk1 hk2 hk3 hk4
-  obtain ⟨q, hcov, hq⟩ := hdom
+    W PB RB cap Kc n hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
+  obtain ⟨q, hself, hq⟩ := hdom
   have hC : 0 < C := by
     have hk : 0 < L + 1 - k := by omega
     exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
@@ -81,6 +103,8 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
   have hQ : (1 : ℝ) ≤ Q := by
     change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
   have hc : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
+  have hcov := covered_of_self_nonStartZone M L hC rfl hξ1 hself
+  rw [← Set.insert_eq_of_mem hself] at hq
   have h := learner_loop_dfa_simple_holds M O L η₀ c (γ + ξ / 2) δ pAP (ξ / 2)
   dsimp only at h
   rw [show ∀ x : ℝ, ξ / 2 / (8 * x) = ξ / (16 * x) from fun x => by ring,
@@ -91,8 +115,8 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
 
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k C c L₁ N ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
-    P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hA2 hpAPu hdom hL₀
-  obtain ⟨q, hcov, hq⟩ := hdom
+    P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
+  obtain ⟨q, hself, hq⟩ := hdom
   have hC : 0 < C := by
     have hk : 0 < L + 1 - k := by omega
     exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
@@ -100,6 +124,8 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hQ : (1 : ℝ) ≤ Q := by
     change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
   have hc : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
+  have hcov := covered_of_self_nonStartZone M L hC rfl hξ1 hself
+  rw [← Set.insert_eq_of_mem hself] at hq
   have h := learner_loop_dfa_holds M O L η₀ c (γ + ξ / 2) δ pAP (ξ / 2)
   dsimp only at h
   rw [show (8 : ℝ) / (ξ / 2) = 16 / ξ by ring,

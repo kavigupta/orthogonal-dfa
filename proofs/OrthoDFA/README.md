@@ -103,10 +103,11 @@ least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the leas
 `LearnerLoopDFASimple`'s hypotheses 371.
 
 `LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
-rule instead: some `q ∈ coveredStates M L c` has accuracy at least `1 − γ` with
-`S = {q} ∪ nonStartZoneStates M L R q`, `nonStartZoneStates` being the states whose visit rate from `q` is
+rule instead: some `q ∈ nonStartZoneStates M L R q` has accuracy at least `1 − γ` with
+`S = nonStartZoneStates M L R q`, `nonStartZoneStates` being the states whose visit rate from `q` is
 at most `R` per position times that of a string from `⌈L/2⌉` on. With
-`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, it is `LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`, so its
+`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, `q` is covered at `1/C`, and it is `LearnerLoopDFA` at
+`c = ξ/(2C|Q|)` and `ξ/2`, so its
 probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
 `⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
 

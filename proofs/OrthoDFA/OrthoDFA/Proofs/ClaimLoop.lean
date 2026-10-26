@@ -10,10 +10,10 @@ import OrthoDFA.Proofs.BigO
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`. In the inverted coordinates `loopΘ` is a
 polynomial, so `loopCount` is `ℓ² Θ²/s⁴` times the log of a polynomial and `loopPool` a sum of
 logs of polynomials; `L₀` is the log of a polynomial over `log |Σ|`. The claims run it at
-`c = ξ/(2C|Q|)` and `ξ/2`, admitted by `covered_of_nonStartZone`, and `R ≤ C ≤ 2R` bounds these
-shapes in `1/c` by shapes in `R`. Since `c` moves with `L`, `L₀` is the bound on the threshold at
-`1/c = 4R|Q|/ξ`. `LoopClaimSimple` follows from `LoopClaim`, the prefix and suffix totals' tight
-shapes bounded by their products.
+`c = ξ/(2C|Q|)` and `ξ/2`, admitted by `covered_of_self_nonStartZone` and
+`covered_of_nonStartZone`, and `R ≤ C ≤ 2R` bounds these shapes in `1/c` by shapes in `R`. Since
+`c` moves with `L`, `L₀` is the bound on the threshold at `1/c = 4R|Q|/ξ`. `LoopClaimSimple`
+follows from `LoopClaim`, the prefix and suffix totals' tight shapes bounded by their products.
 -/
 
 noncomputable section
@@ -1346,7 +1346,9 @@ theorem loopClaim_holds : LoopClaim := by
     exact rel_probes_le hL hQ hA hiδ hic hicR
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨Q, A, δ, R, ξ, pAP, s₀⟩ := x
-  intro M O L γ k L₁ C c hx hQ hA hL hηle hpAPu hdom hL₀
+  intro M O L γ k L₁ hx hQ hA hL hηle hpAPu hdom hL₀
+  set C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ) with hCdef
+  set c : ℝ := ξ / (2 * C * Fintype.card σ) with hcdef
   have hr : ({ toLoopInputs := ⟨Q, A, δ, R, ξ, pAP, s₀⟩, L } : LoopRun) ∈ loopRunRegion := hx
   obtain ⟨-, hQ', hA', hiδ, -, hiξ, hip, his⟩ := toRunVec_mem hr
   obtain ⟨hic, hicR⟩ := relIc_bounds hr
@@ -1361,7 +1363,9 @@ theorem loopClaim_holds : LoopClaim := by
   have hC : R ≤ C ∧ C ≤ 2 * R := visitC_bounds L (by linarith)
   have hC0 : 0 < C := by linarith
   have hc : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC0) (by linarith))
-  obtain ⟨q, hcov, hq⟩ := hdom
+  obtain ⟨q, hself, hq⟩ := hdom
+  have hcov := covered_of_self_nonStartZone M L hC0 rfl hξ1 hself
+  rw [← Set.insert_eq_of_mem hself] at hq
   have hceil : ∃ q ∈ coveredStates M L c,
       1 - (γ + ξ / 2) ≤ rerootAccuracy M L (coveredStates M L c) q :=
     ⟨q, hcov, covered_of_nonStartZone M L hC0 rfl hξ hcov hq⟩

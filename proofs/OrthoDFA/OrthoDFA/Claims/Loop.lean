@@ -57,15 +57,12 @@ def LoopWithin.{u, v, w} (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalP
   -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
-  let C : ℝ := x.R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
-  -- The start's coverage, low enough that the non-start-zone states below it cost `ξ/2`.
-  let c : ℝ := x.ξ / (2 * C * Fintype.card Q)
   x ∈ loopRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  (∃ q ∈ coveredStates M L c,
-    1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L x.R q)) q) →
+  (∃ q, q ∈ nonStartZoneStates M L x.R q ∧
+    1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
