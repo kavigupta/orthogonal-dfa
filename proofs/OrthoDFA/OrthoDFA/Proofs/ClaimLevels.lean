@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 
 /-!
-# `LevelsClaim`: the proof
+# `LevelsClaim` and `Level2Claim`: the proofs
 
 The witnesses are the level theorems' premises read off `toVec x`, the counts and the rates'
 reciprocals, and are bounded there before being carried back to the records. Off the instances
@@ -751,31 +751,34 @@ private lemma dominate {f g : LevelVec → ℝ} {f' g' : LevelInputs → ℝ}
     f' =O[𝓟 levelRegion] g' :=
   (transfer h hg).congr_left hf
 
+theorem level2Claim_holds : Level2Claim := by
+  refine ⟨fun x => lvProbes₂ (toVec₂ x),
+    transfer₂ lvProbes₂_isBigO fun x => by
+      simp only [toVec₂]; rw [one_div_pow, div_one_div']; ring_nf, ?_⟩
+  intro α _ _ σ _ M read side C
+  dsimp only
+  intro hI hx D _
+  simp only [level2Region, Set.mem_ofPred_eq] at hx
+  obtain ⟨-, -, hδ, hδ2, hy, hyε, hε1⟩ := hx
+  refine Level2.level2RoundCorrect_holds M read side C _ hI hy hyε hε1 hδ (by linarith) ?_ D
+  have hg : 0 < C.disagreementRate - C.harvestRate := by linarith
+  simp only [toVec₂]
+  rw [lvProbes₂, if_pos (one_div_le_one_div_of_le hg (by linarith))]
+  refine le_trans (le_of_eq ?_) (Nat.le_ceil _)
+  simp only [lvS_cast, one_div_one_div]
+  rfl
+
 theorem levelsClaim_holds : LevelsClaim := by
-  refine ⟨fun x => lvProbes (toVec x), fun x => lvProbes₂ (toVec₂ x), fun x => lvSlope (toVec x),
+  refine ⟨fun x => lvProbes (toVec x), fun x => lvSlope (toVec x),
     fun x => lvSlack (toVec x), fun x => lvP₀ (toVec x), fun x => lvκ (toVec x),
     fun x => lvεw (toVec x),
     transfer lvProbes_isBigO fun x => by simp only [toVec]; ring_nf,
-    transfer₂ lvProbes₂_isBigO fun x => by
-      simp only [toVec₂]; rw [one_div_pow, div_one_div']; ring_nf,
     transfer lvSlope_isBigO fun x => by simp only [toVec],
     transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvP₀_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvκ_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
     transfer lvεw_isBigO fun x => by simp only [toVec, one_div, Real.sqrt_inv]; ring_nf,
-    fun x => tol_pos _, ?_, ?_, ?_, ?_⟩
-  · intro α _ _ σ _ M read side C
-    dsimp only
-    intro hI hx D _
-    simp only [level2Region, Set.mem_ofPred_eq] at hx
-    obtain ⟨-, -, hδ, hδ2, hy, hyε, hε1⟩ := hx
-    refine Level2.level2RoundCorrect_holds M read side C _ hI hy hyε hε1 hδ (by linarith) ?_ D
-    have hg : 0 < C.disagreementRate - C.harvestRate := by linarith
-    simp only [toVec₂]
-    rw [lvProbes₂, if_pos (one_div_le_one_div_of_le hg (by linarith))]
-    refine le_trans (le_of_eq ?_) (Nat.le_ceil _)
-    simp only [lvS_cast, one_div_one_div]
-    rfl
+    fun x => tol_pos _, ?_, ?_, ?_⟩
   · intro α _ _ σ _ M side U Ω _ μ _ R P C p₀
     dsimp only
     intro hx hP hpre
@@ -823,8 +826,8 @@ theorem levelsClaim_holds : LevelsClaim := by
       (slack_le _ _ hp₀0 hy hδ (by norm_num) le_rfl) hw)) id
 
 theorem levelsClaimSimple_holds : LevelsClaimSimple := by
-  obtain ⟨n, n₂, slope, slack, p₀, κ, εw, hn, hn₂, hs, hk, hp, hκ, hε, hw⟩ := levelsClaim_holds
-  exact ⟨n, n₂, slope, slack, p₀, κ, εw, hn, hn₂,
+  obtain ⟨n, slope, slack, p₀, κ, εw, hn, hs, hk, hp, hκ, hε, hw⟩ := levelsClaim_holds
+  exact ⟨n, slope, slack, p₀, κ, εw, hn,
     hs.trans (dominate slope_dom (fun x => by simp only [toVec])
       fun x => by simp only [toVec]; ring_nf),
     hk.trans (dominate slack_dom (fun x => by simp only [toVec]; ring_nf)
