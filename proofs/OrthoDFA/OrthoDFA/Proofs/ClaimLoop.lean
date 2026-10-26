@@ -958,12 +958,28 @@ private lemma loop_region' {L Q A iδ ic iξ ip is : ℝ}
   exact ⟨hb.1, loop_region hb.2⟩
 
 private lemma claimL0_isBigO : claimL0 =O[𝓟 vecRegion]
-    (fun (Q, A, iδ, ic, iξ, ip, is) => log (Q * A * iδ * ic * iξ * ip * is) / log A
+    (fun (Q, A, iδ, ic, iξ, ip, is) => 1 + log (Q * iδ * ic * iξ * ip * is) / log A
       : LoopVec → ℝ) := by
   refine isBigO_principal.2 ⟨1000, fun b hb => ?_⟩
   obtain ⟨Q, A, iδ, ic, iξ, ip, is⟩ := b
   obtain ⟨hQ, hA, hiδ, hic, hiξ, hip, his⟩ := loop_region hb
-  simpa only [Real.norm_eq_abs, claimL0] using claim_L0_le hQ hA hiδ hic hiξ hip his
+  have hlA : 0 < log A := Real.log_pos (by linarith)
+  have hX : 0 < Q * iδ * ic * iξ * ip * is := by
+    have : 0 < Q := by linarith
+    have : 0 < iδ := by linarith
+    have : 0 < ic := by linarith
+    have : 0 < iξ := by linarith
+    have : 0 < ip := by linarith
+    have : 0 < is := by linarith
+    positivity
+  have e : log (Q * A * iδ * ic * iξ * ip * is) / log A
+      = 1 + log (Q * iδ * ic * iξ * ip * is) / log A := by
+    rw [show Q * A * iδ * ic * iξ * ip * is = A * (Q * iδ * ic * iξ * ip * is) by ring,
+      Real.log_mul (by linarith : (0 : ℝ) < A).ne' hX.ne']
+    field_simp [hlA.ne']
+  have h := claim_L0_le hQ hA hiδ hic hiξ hip his
+  rw [e] at h
+  simpa only [Real.norm_eq_abs, claimL0] using h
 
 private lemma claimPref_isBigO : claimPref =O[𝓟 (Set.Ici 0 ×ˢ vecRegion)]
     (fun (L, Q, A, iδ, ic, iξ, ip, is) =>
