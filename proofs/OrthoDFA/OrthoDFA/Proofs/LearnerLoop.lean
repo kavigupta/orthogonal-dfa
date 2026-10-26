@@ -49,10 +49,10 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         RarerBounded N B.lo (B.hi + 1) p r crossLimit)
       ∧ (∀ pops, ∀ B ∈ schedule pops,
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
-        ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
+        ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
-        ≤ 2 * prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
+        ≤ 2 * prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
@@ -92,9 +92,9 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       simp [allHarvest] at hs)
   have hq : ∀ pops : Finset (Option (Fin K)), none ∈ pops → _ := fun pops hpops =>
     clustering_quality_sized O pops pops none (fun _ => ∅) Pre Suf η₀ indecisionLimit εcov
-      gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
-      (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0
-      hslack
+      (εcov / 512) gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
+      (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 (by positivity)
+      hδc hδc1 hc0 hslack
   refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
   · intro pops B hB
     dsimp only at hB
@@ -142,20 +142,44 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   · intro pops
     dsimp only
     split_ifs with hp
-    · have hsub : Classical.choose (hq pops hp) ⊆ schedule η₀ pops indecisionLimit εcov (δc / 2)
-          gateLevel pAP c 0 := fun B hB => by
+    · have hsub : Classical.choose (hq pops hp)
+          ⊆ schedule η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP c 0 :=
+          fun B hB => by
         have h := (Classical.choose_spec (hq pops hp)).2.1 hB
         rwa [hH] at h
       have h := le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub
         (fun _ _ _ => Nat.cast_nonneg _))
-        (schedule_npref_sum_le η₀ pops εcov (δc / 2) gateLevel pAP)
+        (schedule_npref_sum_le (εs := εcov / 512) η₀ pops εcov (δc / 2) gateLevel pAP)
       exact_mod_cast h
     · simp
   · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
     simp only [dif_pos hpops] at hcolD hcolH hslD htbD hcolSf ⊢
     set states := Classical.choose (hq pops hpops)
     obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
-    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
+    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+    have ha : 0 ≤ (1 - 2 * η₀) / (1 - η₀) := div_nonneg (by linarith) (by linarith)
+    have ha1 : (1 - 2 * η₀) / (1 - η₀) ≤ 1 := (div_le_one (by linarith)).2 (by linarith)
+    have hrs : rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) ≤ εcov / 2 := by
+      have h1 : rateScale η₀ indecisionLimit εcov ≤ εcov :=
+        (min_le_left _ _).trans (mul_le_of_le_one_right hε.le (pow_le_one₀ ha ha1))
+      have := mul_le_mul h1 (show 1 / 2 - η₀ ≤ 1 / 2 by linarith) (by linarith) hε.le
+      linarith
+    have hcolE : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
+        2 ^ 8 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εcov / 512 :=
+      fun B hB j hj t => by linarith [hcolD B hB j hj t]
+    have hmin : min εcov indecisionLimit / 512 ≤ min (εcov / 512) indecisionLimit :=
+      le_min (by linarith [min_le_left εcov indecisionLimit])
+        (by linarith [min_le_right εcov indecisionLimit, lt_min hε hι])
+    have hmin2 :
+        (min εcov indecisionLimit) ^ 2 / 2 ^ 18 ≤ min (εcov / 512) indecisionLimit ^ 2 := by
+      have := pow_le_pow_left₀ (by have := lt_min hε hι; positivity) hmin 2
+      linarith
+    have hcolH' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
+        2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
+      have h := hcolH B hB j hj t
+      nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
         ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
@@ -176,7 +200,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
             ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
             ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
-                ∂(D none) ≤ 513 / 512 * εcov + slack
+                ∂(D none) ≤ εcov + εcov / 512 + slack
             ∧ ∀ j ∈ pops,
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
@@ -187,7 +211,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         ⊆ streams (fun _ => ∅) none ⁻¹' SpecR := by
       rintro x ⟨⟨B, hret⟩, hall⟩
       exact ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' =>
-        ⟨(hall ⟨B', hB'⟩ hret').1, fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
+        ⟨by linarith [(hall ⟨B', hB'⟩ hret').1], fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
     have hmono := measureReal_mono (μ := runMeasure μ D Dsf) hsub (measure_ne_top _ _)
     have hcompl : (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR)ᶜ
         = 1 - (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR) :=
@@ -413,7 +437,8 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     poolCount η₀ pops indecisionLimit εcov (δc / 2) (pAP - ms) c ≤ NS) →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
-    prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c 0 ≤ NP) →
+    prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel (pAP - ms) c 0
+      ≤ NP) →
   2 ^ 19 * ((K : ℝ) + 4) * NP * cap ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) →
   2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap
     ≤ δc * min εcov indecisionLimit ^ 2 →
