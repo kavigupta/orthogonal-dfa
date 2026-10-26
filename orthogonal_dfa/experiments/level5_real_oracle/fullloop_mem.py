@@ -17,6 +17,7 @@ from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     counterexample_driven_synthesis,
 )
+from orthogonal_dfa.l_star.dfa_utils import held_out_phi
 from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
     gate_residual_oracle,
 )
@@ -48,12 +49,8 @@ def score(dfa, halves):
             st = dfa.transitions[st][c]
         return st
 
-    (sA, yA), (sB, yB) = halves
-    rA = np.array([walk(w) for w in sA])
-    rB = np.array([walk(w) for w in sB])
-    rate = {s: yA[rA == s].mean() for s in np.unique(rA)}
-    pred = np.array([rate.get(s, yA.mean()) for s in rB])
-    phi = 0.0 if pred.std() == 0 else abs(float(np.corrcoef(pred, yB)[0, 1]))
+    rB = np.array([walk(w) for w in halves[1][0]])
+    phi = held_out_phi(dfa, *halves)
     _, counts = np.unique(rB, return_counts=True)
     return phi, float(counts.max() / len(rB)), len(np.unique(rB))
 
@@ -222,6 +219,7 @@ def main():
         pst.config.counterexample_score_patience = 500
         pst.config.counterexample_fnr_harvest = True
         pst.config.counterexample_restarts = a.restarts if a.restarts > 1 else 3
+        pst.config.rank_rounds_by_held_out = True
         pst.config.fnr_plateau_tol = 0.01
     tracker = Tracker(halves, a.out)
     if a.no_halving:

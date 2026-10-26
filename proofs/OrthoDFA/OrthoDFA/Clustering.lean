@@ -30,14 +30,12 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` groups the pool by k-means and a merge test,
-takes the group whose rows read in another class than the seed least often on the prefixes the
-screen never saw, and fills the family from the rest by distance to that group's mean;
-`clusterAround` does none of these.  The proof only uses that the
-cluster holds the seed, lies in the screened pool, has `k` members when the pool holds that many
-and at most `k` otherwise, and is a function of the pool's reads on the prefixes, all of which
-`identify_cluster_around` also satisfies -- the last given `pst.rng`, which k-means draws its
-start from and which is independent of the certification sample.
+Known modelling gap.  The Python picks the family by k-means groups, χ² merges and the anchor
+group's ordering: `nearest_to_anchor_group` takes the `coherent_groups` group whose rows
+`misread_statistic` scores least against the seed on the prefixes `seed_scoring` holds out, then
+ranks that group's rows, and after them the rest of the pool, by weighted distance to the group's
+mean.  Here the family is the `k − 1` rows nearest the seed's reads (the count rule,
+`nearestRows`): the fewest prefixes of the whole table read unlike the seed.
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
@@ -327,42 +325,16 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-/-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
-`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`. -/
-noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  ((P.filter (fun p =>
-    ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
+/-- The seed with the `k − 1` candidates whose reads disagree with the seed's on the fewest
+prefixes of `P`, ties broken by `leastLossSubset`'s choice. -/
+noncomputable def nearestRows (mq : S → Ω → ℝ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+    Finset S :=
+  insert 1 (leastLossSubset (fun v => (screenCount mq P v ω : ℝ)) (cands.erase 1) (k - 1))
 
-/-- `hammingLoss`, zeroed off the candidates: `leastLossSubset` picks by `Classical.choose`,
-so it sees the loss as a function, and two draws agreeing on the reads must give the same one. -/
-noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
-
-/-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them.  The seed wins ties for the `k`-th
-place. -/
-noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    (F : Finset S) : Finset S :=
-  if ∀ w ∈ cands, w ∉ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) →
-      ∀ v ∈ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)),
-      clusterLoss mq F cn cd P cands ω v ≤ clusterLoss mq F cn cd P cands ω w
-  then insert (1 : S)
-    (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
-
-/-- `lloydStep` iterated to its fixed point, which `k·#P + 1` steps reach: the
-total loss is a natural number at most `k·#P` and falls at every improving step. -/
-noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
-    (k : ℕ) : Finset S :=
-  (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
-
-/-- The cluster without its seed, recentred at half the family. -/
+/-- The cluster without its seed. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (clusterAround mq 1 2 (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+  (nearestRows mq (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     (oracleNoise x) B.k).erase 1
 
 /-- The family the round returns, `vs`: the cluster with its seed. -/
@@ -529,31 +501,34 @@ noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the family it returns
-there cuts `≥ 1 − (513/512)·εcov` of the uniform pool the way the noiseless oracle does, reads
-no tame population backwards (cuts at least `1/2 − εcov/512` of each
+there cuts `≥ 1 − εcov − εs` of the uniform pool the way the noiseless oracle does, reads
+no tame population backwards (cuts at least `1/2 − εs` of each
 that way), and leaves at most `2·indecisionLimit` of each tame population undecided; no state
 draws more prefixes than the first count below, nor asks for a family or a suffix pool larger
 than the sizes below.  Some state draws no more than the second count, what validity costs
 and what makes a state's samplers rarely reject many of its draws, so a stop is covered from
-there; the first count is what the loop may need before a round passes.  Every state's band is wide enough that a vote over a family no
-larger than its own, whose mean lies above the band, lands at or below `lo`, or one whose mean
-lies at or below `lo` lands above `hi`, at most `crossLimit` of the time.
+there; the first count is what the loop may need before a round passes.  Every state's band is
+wide enough that a vote over a family no larger than its own, whose mean lies above the band,
+lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`, at most
+`crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
-the one population every prefix of the learner's distribution is drawn from.  `pAP` lower-bounds
+the one population every prefix of the learner's distribution is drawn from.  `εs` is the slack
+the samplers' redraws and the hash's split may cost the cut.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
-prefixes a state draws, at the rate scale times the signal: a draw then lands on what the
-state already holds rarely enough that its rejections are a binomial tail; and no string heavy
-against `δ` times the square of the rates, so the hash splits it evenly.  The suffix measure
-needs a collision mass small against the suffixes; the other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j`
-are the strings population `j` harvested; the first count grows with how many there are. -/
+prefixes a state draws, at the rate scale times the signal and at `εs`: a draw then lands on
+what the state already holds rarely enough that its rejections are a binomial tail; and no
+string heavy against `δ·min(εs, indecisionLimit)²`, so the hash splits it evenly.  The suffix
+measure needs a collision mass small against the suffixes; the other populations are arbitrary.
+A population is read only while `keptAt` keeps it.  `H j` are the strings population `j`
+harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ tame →
@@ -567,25 +542,28 @@ def ClusteringGuarantee : Prop :=
   α < 1 / 2 →
   0 < εcov →
   εcov ≤ 1 / 2 →
+  0 < εs →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      64000
+      161000
       * (populations.card : ℝ) ^ 2
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
       / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤ max
       (5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2)
-      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
-        / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
+      (max (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+          / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
+        (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs))
     ) ∧
     (∀ B ∈ states,
       (B.k : ℝ) ≤ 25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
@@ -605,8 +583,10 @@ def ClusteringGuarantee : Prop :=
         2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
           ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 33 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * min εcov indecisionLimit ^ 2) →
+        2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
+      (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
+        2 ^ 15 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δ * min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
         2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
@@ -614,10 +594,10 @@ def ClusteringGuarantee : Prop :=
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
           ∧ ∀ B : {B : State // B ∈ states},
             streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
-            1 - 513 / 512 * εcov
+            1 - εcov - εs
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
-            ∧ ∀ j ∈ tame, 1 / 2 - εcov / 512
+            ∧ ∀ j ∈ tame, 1 / 2 - εs
               ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
               ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)

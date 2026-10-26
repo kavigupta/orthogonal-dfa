@@ -247,17 +247,19 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
 
 include hL in
 /-- Round `r`'s level 3, where every earlier clustering and this one returned and nothing
-collides, fails its claim with chance at most `δ + δ/8 + #(strings of at most |Q| letters) cross/u`.
+collides, fails its claim with chance at most
+`δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`.
 -/
-theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
+theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (m u crossLimit : ℝ)
+    (hu : 0 ≤ u)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
-      ∀ p r ε₂ κ : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → 0 ≤ κ →
-        BandPasses N B.lo (B.hi + 1) p r crossLimit ε₂ κ)
+      ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
+        RarerBounded N B.lo (B.hi + 1) p r crossLimit)
     (hk : 1 ≤ settings.level3.walkStart) (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : RoundPremises σ α P.L settings.level3 crossLimit)
-    (hu : 0 < u)
+    (hprem : RoundPremises σ α settings.level3 crossLimit
+      (2 * prefixMax P.D settings.level3.walkStart))
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
     (hm1 : m ≤ 1 / 2)
     (r : ℕ) (hr : r < K) :
@@ -268,19 +270,25 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
             (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
         ∧ ¬ RoundSpec M O P (roundSlope σ P.L settings.level3)
             (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
-            (settings.level3.disagreementRate + u + m)
-            (settings.level3.harvestRate / 2) settings.level3.walkStart
+            (settings.level3.disagreementRate + m)
+            (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
-      ≤ settings.level3.δ + settings.level3.δ / 8
-        + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by
-  set δb := settings.level3.δ + settings.level3.δ / 8
-    + (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u with hδb
+      ≤ settings.level3.δ + Fintype.card σ * Fintype.card α
+        * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+            (2 * (Fintype.card σ + 1) * crossLimit) u := by
+  set δb := settings.level3.δ + Fintype.card σ * Fintype.card α
+    * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
+      (2 * (Fintype.card σ + 1) * crossLimit) u with hδb
   have hδb0 : 0 ≤ δb := by
     obtain ⟨hδ0, -⟩ := hprem
-    have : 0 ≤ (shortStrings (α := α) (Fintype.card σ)).card * crossLimit / u := by positivity
-    linarith
+    have := (prefixMax_pos P.D settings.level3.walkStart).le
+    have := misledTail_nonneg (T := (settings.level3.probeBudget : ℝ)) (u := u)
+      (by positivity : 0 ≤ 2 * prefixMax P.D settings.level3.walkStart)
+      (by positivity : (0 : ℝ) ≤ 2 * (Fintype.card σ + 1) * crossLimit)
+    have : (0 : ℝ) ≤ Fintype.card σ * Fintype.card α := by positivity
+    nlinarith
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
@@ -306,9 +314,9 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
       ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D k)) m
-          (settings.level3.disagreementRate + u + m) (settings.level3.harvestRate / 2) k
+          (settings.level3.disagreementRate + m) (settings.level3.harvestRate / 2) k E (u + m)
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
-    fun t ht => round_bad_exists M O hL P settings m u crossLimit hk hη1 hcross hprem hu
+    fun t ht => round_bad_exists M O hL P settings E m u crossLimit hu hk hη1 hcross hprem
       hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
@@ -453,9 +461,10 @@ theorem loop_round_le_persist (Ls NP N : ℕ) (m u crossLimit : ℝ)
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
     · obtain ⟨-, hk2, -⟩ := hband _ B hBs
-      have h1 := clusterAt_card_add_one (rule := lloydClusterer) O
+      have h1 := clusterAt_card_add_one (rule := nearestClusterer) O
         (loopPopulations K H.pops.length) B (clusterRun P.D Dsf H cd)
-      have h2 := lloydClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun P.D Dsf H cd)) = 1)
+      have h2 := nearestClusterer.card_le (fun w => O.mq w (oracleNoise (clusterRun P.D Dsf H cd))
+        = 1)
         (prefixesAt (loopPopulations K H.pops.length) B.npref (clusterRun P.D Dsf H cd))
         (screenedAt O.mq (loopPopulations K H.pops.length) B (clusterRun P.D Dsf H cd)) B.k
         (by omega)

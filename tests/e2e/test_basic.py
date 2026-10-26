@@ -205,6 +205,15 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3, sampler=DEFAULT_SAMPLER)
 
+    def test_specific_alternation_with_suffix_3_syms(self):
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*(1111|0000)11.*", alphabet_size=3),
+            noise_model,
+            seed,
+        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        assertDFA(self, dfa, oracle_creator, symbols=3, sampler=DEFAULT_SAMPLER)
+
     @parameterized.expand(POOR_CASE_TARGETS)
     def test_poor_case_learned_at_a_reachable_bar(self, _name, target):
         _assert_bar_is_what_the_target_allows(self, target)

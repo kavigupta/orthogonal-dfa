@@ -61,7 +61,7 @@ ap.add_argument("--tag")
 ap.add_argument(
     "--restarts",
     type=int,
-    help="counterexample_restarts, through _resolve_with_restarts",
+    help="counterexample_restarts, through _best_search",
 )
 ap.add_argument("--deepen", action="store_true", help="counterexample_deepen")
 a = ap.parse_args()
@@ -287,9 +287,10 @@ cxs.CounterexampleSearch.step = step
 t0 = time.time()
 if a.restarts:
     pst.config.counterexample_restarts = a.restarts
-    search, ending, *_ = cs._resolve_with_restarts(pst, vs, acc, 0)
-else:
-    search, ending = cs._counterexample_search(pst, vs, acc_threshold=acc)
+selection = cs._selection_sample(pst)
+search, ending, _ = cs._best_search(
+    pst, vs, acc_threshold=acc, index=0, selection=selection
+)
 last = snapshot(search, state["n"], "returned")
 harvest = sorted(set(map(bytes, ending.harvest)))
 family_for_reads.read_many(harvest)

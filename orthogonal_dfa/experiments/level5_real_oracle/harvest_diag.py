@@ -86,7 +86,7 @@ orig_search = cs._counterexample_search
 families = []
 
 
-def counterexample_search(pst, vs, *, acc_threshold):
+def counterexample_search(pst, vs, *, acc_threshold, selection):
     # Restarts search one family several times; save each family once.
     if not families or families[-1] is not vs:
         families.append(vs)
@@ -96,7 +96,7 @@ def counterexample_search(pst, vs, *, acc_threshold):
             log(dict(kind="dumped", round=len(families) - 1))
         except Exception:
             log(dict(kind="dump_failed", error=traceback.format_exc()))
-    return orig_search(pst, vs, acc_threshold=acc_threshold)
+    return orig_search(pst, vs, acc_threshold=acc_threshold, selection=selection)
 
 
 cs._counterexample_search = counterexample_search

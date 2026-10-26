@@ -1,6 +1,9 @@
 import OrthoDFA.Proofs.AdaptiveReads
+import OrthoDFA.Proofs.BandKappa
+import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
+import OrthoDFA.Proofs.ClaimClustering
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
@@ -10,12 +13,15 @@ import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.Level4
+import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsRound
-import OrthoDFA.Proofs.KappaRound
-import OrthoDFA.Proofs.RaceReads
+import OrthoDFA.Proofs.RaceTail
 import OrthoDFA.Proofs.RateTest
 import OrthoDFA.Proofs.SeqTest
+import OrthoDFA.Proofs.SpurAccount
+import OrthoDFA.Proofs.SpurCount
 import OrthoDFA.Proofs.SuccessiveDraws
 import OrthoDFA.Proofs.TripartiteSearch
 
@@ -31,14 +37,28 @@ in `OrthoDFA.FamilyRead`, `ProbeCorrect`, stated in `OrthoDFA.Probe`, `Level2Rou
 in `OrthoDFA.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`,
 stated in `OrthoDFA.Level3Claim`, `OrthoDFA.Level4Claim` and `OrthoDFA.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.FamilyOracle`. `LearnerLoopDFASimple` is the same claim
-with the simpler premises.
+with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely wrong,
+and level 5's wrong at most `εw` plus `κ` times as often as undecided, a few wrong reads tolerated
+at both. The loop runs level 5.
 
-The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceReadsBound`,
-`BitSumTails`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+The supporting claims are stated under `OrthoDFA.Utils`: `AdaptiveReadsBound`, `RaceTailBound`,
+`Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
+`CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+
+The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
+`ClusteringClaim` and `ClusteringClaimSimple`.
 -/
 
 namespace OrthoDFA
+
+theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
+
+#print axioms clustering_claim
+
+theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple_holds
+
+#print axioms clustering_claim_simple
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
@@ -93,6 +113,10 @@ theorem bit_sum_tails : BitSumTails := bitSumTails
 
 #print axioms bit_sum_tails
 
+theorem band_kappa_bound : BandKappaBound := bandKappaBound_holds
+
+#print axioms band_kappa_bound
+
 theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_holds
 
 #print axioms successive_draws_tails
@@ -113,16 +137,19 @@ theorem level3_round_correct : Level3RoundCorrect := Random.level3RoundCorrect_h
 
 #print axioms level3_round_correct
 
-theorem level4_round_correct : Level4RoundCorrect := Random.Eps.level4RoundCorrect_holds
+theorem level4_round_correct : Level4RoundCorrect := level4RoundCorrect_holds
 
 #print axioms level4_round_correct
 
-theorem race_reads_bound : RaceReadsBound := raceReadsBound_holds
+theorem race_tail_bound : RaceTailBound := raceTailBound_holds
 
-#print axioms race_reads_bound
+#print axioms race_tail_bound
 
-theorem level5_round_correct : Level5RoundCorrect :=
-  Random.Kappa.level5RoundCorrect_holds
+theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
+
+#print axioms level3_allowance_correct
+
+theorem level5_round_correct : Level5RoundCorrect := level5RoundCorrect_holds
 
 #print axioms level5_round_correct
 
