@@ -27,8 +27,8 @@ it, so but for chance at most half of them, and a little more, are misled.
 
 `LearnerLoopDFARelative` admits the target by a relative rule instead: a start covered at `c` may
 re-root it through itself and the states whose per-position visit rate from it is at most `R` times
-that of a string from `⌈L/2⌉` on (`dominatedStates`). With `C = R(L+1)/(L+1−⌈L/2⌉)`, it is
-`LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`: the dominated states that fewer than `c` of the
+that of a string from `⌈L/2⌉` on (`nonStartZoneStates`). With `C = R(L+1)/(L+1−⌈L/2⌉)`, it is
+`LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`: the non-start-zone states that fewer than `c` of the
 strings visit from `⌈L/2⌉` on cost the other `ξ/2`.
 
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
@@ -74,7 +74,7 @@ def rerootVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q q' : σ) : 
 
 /-- The states whose visit rate from `q` is at most `R` per position times that from `⌈L/2⌉` on:
 the factor is the run's `L + 1` positions over the window's. -/
-def dominatedStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (R : ℝ) (q : σ) : Set σ :=
+def nonStartZoneStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (R : ℝ) (q : σ) : Set σ :=
   {q' | rerootVisitRate M L q q' ≤
     R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * windowVisitRate M L q'}
 
@@ -255,7 +255,7 @@ def LearnerLoopDFA : Prop :=
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` that at
 least `c = ξ/(2C|Q|)` of the strings of length `L` visit from `k` on, `C = R(L+1)/(L+1−k)`,
 re-roots the target with accuracy at least `1 − γ` without leaving `q` and
-`dominatedStates M L R q`, the conclusion is `LearnerLoopDFASimple`'s. The settings are its at `c`,
+`nonStartZoneStates M L R q`, the conclusion is `LearnerLoopDFASimple`'s. The settings are its at `c`,
 with `ξ/2` in place of its `ξ`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
@@ -266,7 +266,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
-  -- The start's coverage, low enough that the dominated states below it cost `ξ/2`.
+  -- The start's coverage, low enough that the non-start-zone states below it cost `ξ/2`.
   let c : ℝ := ξ / (2 * C * Q)
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
@@ -318,8 +318,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's relative precondition: some state re-roots the target with error at most `γ`
-  -- through the states it dominates.
-  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) →
+  -- through its non-start-zone states.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) →
   -- The walk start's prefixes are spread thinly enough for the clustering's collisions,
   (A ^ k)⁻¹ ≤ cap * ε / 1536 →
   -- for each round's harvests to concentrate at every state's rate,
@@ -356,7 +356,7 @@ def LearnerLoopDFARelative : Prop :=
   -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
   let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
-  -- The start's coverage, low enough that the dominated states below it cost `ξ/2`.
+  -- The start's coverage, low enough that the non-start-zone states below it cost `ξ/2`.
   let c : ℝ := ξ / (2 * C * Q)
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
@@ -402,8 +402,8 @@ def LearnerLoopDFARelative : Prop :=
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's relative precondition: some state re-roots the target with error at most `γ`
-  -- through the states it dominates.
-  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) →
+  -- through its non-start-zone states.
+  (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) →
   -- The Python's length is long enough.
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
