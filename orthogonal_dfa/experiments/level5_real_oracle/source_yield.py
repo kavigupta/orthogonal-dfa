@@ -57,11 +57,11 @@ def recording_close(self, alphabet_size):
 cs.CounterexampleSearch.close = recording_close
 
 t0 = time.time()
-if a.restarts > 1:
-    pst.config.counterexample_restarts = a.restarts
-    search, ending, *_ = cs._resolve_with_restarts(pst, vs, acc, 0)
-else:
-    search, ending = cs._counterexample_search(pst, vs, acc_threshold=acc)
+pst.config.counterexample_restarts = a.restarts
+selection = cs._selection_sample(pst)
+search, ending, _ = cs._best_search(
+    pst, vs, acc_threshold=acc, index=0, selection=selection
+)
 search_min = (time.time() - t0) / 60
 strings, replay = cs._next_harvest(pst, search, ending, None)
 seen0 = set(map(bytes, strings))
