@@ -11,8 +11,8 @@ family as `ClusteringGuarantee` says but for chance `δ`, wherever the tame popu
 under `atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
 bounded below the same way. Each bound has one constant over all of `clusterRegion`.
 `ClusteringClaimSimple` states the same with each shape a single product. The algorithm runs at
-`η₀ = 1/2 − s₀`, `s₀` the signal, and at `α = δ/2`; `ε_u` is the indecision limit and `ε_w` the
-band's cross limit.
+`η₀ = 1/2 − s₀`, `s₀` the signal, and at `α = δ/2`; `ε_s` is the share of the cut its redraws and
+hash may cost, `ε_u` the indecision limit and `ε_w` the band's cross limit.
 -/
 
 namespace OrthoDFA
@@ -25,14 +25,15 @@ structure ClusterInputs where
   δ : ℝ
   pAP : ℝ
   εcov : ℝ
+  ε_s : ℝ
   ε_u : ℝ
   ε_w : ℝ
   s₀ : ℝ
 
 def clusterRegion : Set ClusterInputs :=
   {x | 1 ≤ x.nJ ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.pAP ∧ x.pAP ≤ 1 ∧
-    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧ 0 < x.ε_w ∧ x.ε_w ≤ 1 ∧
-    0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
+    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_s ∧ x.ε_s ≤ 1 / 2 ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧
+    0 < x.ε_w ∧ x.ε_w ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
   {S : Type*} [Stringlike S]
@@ -59,10 +60,10 @@ def ClusteringOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
             R ∈ ret O.mq populations uni (1 / 2 - x.s₀) x.ε_u x.εcov (x.δ / 2) B.val)
         ∧ ∀ B : {B : State // B ∈ states},
           R ∈ ret O.mq populations uni (1 / 2 - x.s₀) x.ε_u x.εcov (x.δ / 2) B.val →
-          1 - 513 / 512 * x.εcov
+          1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
-          ∧ ∀ j ∈ tame, 1 / 2 - x.εcov / 512
+          ∧ ∀ j ∈ tame, 1 / 2 - x.ε_s
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
@@ -96,13 +97,14 @@ def ClusteringClaim.{u, v, w} : Prop :=
         + log (x.nJ / x.δ) / x.pAP ^ 2) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
       x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.ε_w * x.s₀))
-          * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))) ∧
+          * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+        + log (x.nJ / x.δ) / x.ε_s) ∧
     (fun x => 1 / atomTol x) =O[𝓟 clusterRegion] (fun x =>
       x.nJ ^ 3 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.ε_w * x.s₀))
           * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
-          * (1 / (x.εcov * x.s₀ ^ 3) + 1 / (x.ε_u * x.s₀))
-        + x.nJ / x.δ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.ε_w * x.s₀))
-          * (1 / x.εcov ^ 2 + 1 / x.ε_u ^ 2)) ∧
+          * (1 / (x.εcov * x.s₀ ^ 3) + 1 / (x.ε_u * x.s₀) + 1 / x.ε_s)
+        + x.nJ / x.δ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.ε_w * x.s₀))
+          * (1 / x.ε_s ^ 2 + 1 / x.ε_u ^ 2)) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
       x.nJ / (x.δ * x.pAP) * (log (1 / (x.εcov * x.ε_u * x.ε_w * x.s₀)) / (x.pAP * x.s₀ ^ 2)
         + log (x.nJ / x.δ) / x.pAP ^ 2)) ∧
@@ -116,11 +118,11 @@ def ClusteringClaimSimple.{u, v, w} : Prop :=
     nsuff =O[𝓟 clusterRegion] (fun x =>
       log (x.nJ / (x.δ * x.εcov * x.ε_u * x.ε_w * x.s₀)) / (x.pAP ^ 2 * x.s₀ ^ 2)) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
-      x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.ε_w * x.s₀))
-        / (x.εcov ^ 2 * x.ε_u ^ 2 * x.s₀ ^ 8)) ∧
+      x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.ε_w * x.s₀))
+        / (x.εcov ^ 2 * x.ε_s * x.ε_u ^ 2 * x.s₀ ^ 8)) ∧
     (fun x => 1 / atomTol x) =O[𝓟 clusterRegion] (fun x =>
-      x.nJ ^ 3 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.ε_w * x.s₀))
-        / (x.δ * x.εcov ^ 3 * x.ε_u ^ 3 * x.s₀ ^ 11)) ∧
+      x.nJ ^ 3 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.ε_w * x.s₀))
+        / (x.δ * x.εcov ^ 3 * x.ε_s ^ 2 * x.ε_u ^ 3 * x.s₀ ^ 11)) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
       x.nJ * log (x.nJ / (x.δ * x.εcov * x.ε_u * x.ε_w * x.s₀)) / (x.δ * x.pAP ^ 3 * x.s₀ ^ 2)) ∧
     ClusteringWithin.{u, v, w} k nsuff npref atomTol collTol

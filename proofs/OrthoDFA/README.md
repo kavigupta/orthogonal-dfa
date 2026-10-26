@@ -15,11 +15,12 @@ population's atoms may be, appears as the largest the claim tolerates, its recip
 Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
-  signal, `ε_u` the indecision limit and `ε_w` the band's cross limit, and no strings harvested,
-  the band width, suffix pool and prefix count of every state it stops at, and the atom and
-  collision masses its populations must stay under; it fails with chance at most `δ`.
+  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
+  limit, and no strings harvested, the band width, suffix pool and prefix count of every state it
+  stops at, and the atom and collision masses its populations must stay under; it fails with
+  chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
-  `O(nJ² log(nJ/(δ pAP εcov ε_u ε_w s₀))/(εcov² ε_u² s₀⁸))`.
+  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `LevelsClaim` (`Claims/Levels.lean`): over `LevelInputs`, one round's probe budget at each
   level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))` at levels 3 to 5 and
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))` at level 2, its harvest's slope and slack, and at levels
@@ -37,12 +38,14 @@ clustering's family. One-step consistency at `L − 1` is not enough for this (`
 #438).
 
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
-  family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
-  polynomial number of queries. The samplers draw without replacement, and a draw lands on what a
+  family it returns cuts all but `εcov + εs` of the uniform pool as the noiseless oracle does, at a
+  polynomial number of queries; `εs` is what the samplers' redraws and the hash's split may cost.
+  The samplers draw without replacement, and a draw lands on what a
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
-  population need only keep every atom under `rateScale·(1/2 − η₀)/(2¹⁸(|J| + 3)·npref)`, and under
-  `δ·min(εcov, indecisionLimit)²/(2³³|J|(3 + 2⌊log₂ npref⌋))` for the hash to split it evenly.
+  population need only keep every atom under `rateScale·(1/2 − η₀)/(2¹⁸(|J| + 3)·npref)` and
+  `εs/(2⁸(|J| + 3)·npref)`, and under `δ·min(εs, indecisionLimit)²/(2¹⁵|J|(3 + 2⌊log₂ npref⌋))`
+  for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
   wrongly, or leaves it undecided, only a bounded share of the time.
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state

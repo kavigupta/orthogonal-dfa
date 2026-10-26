@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Budget
 # The loop's claim at explicit settings
 
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
-`poolCount_le` and `prefCount_le_poly` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
+`poolCount_le` and `prefCount_le_poly_of_le` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
 `K = |Q| + 1`, with the failure split evenly between the clustering's and level 3's `|Q| + 1`
 rounds.
 -/
@@ -38,7 +38,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     (hpAP1 : pAP ≤ 1) (hc : 0 ≤ cLog) :
     (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ)
         ≤ capPB η₀ ι εcov δ pAP cLog Jm
-      ∧ (prefCount η₀ pops ι εcov (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
+      ∧ (prefCount η₀ pops ι εcov (εcov / 512) (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
         ≤ capRB η₀ ι εcov α δ pAP cLog Jm := by
   have hsig : 0 < sig η₀ := by unfold sig; linarith
   have hδ2 : 0 < δ / 2 := by positivity
@@ -55,7 +55,8 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
   have hcross1 : Real.exp (-cLog) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
   set PB := capPB η₀ ι εcov δ pAP cLog Jm with hPB
   set pool := (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ) with hpool
-  set pref := (prefCount η₀ pops ι εcov (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ) with hpref
+  set pref := (prefCount η₀ pops ι εcov (εcov / 512) (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
+    with hpref
   -- the pool
   have hpoolB : pool ≤ PB := by
     have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hpop hδ2
@@ -79,8 +80,8 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
       nlinarith
     nlinarith
   refine ⟨hpoolB, ?_⟩
-  have h := prefCount_le_poly (hsz := 0) pops η₀ ι εcov (δ / 2) α pAP (Real.exp (-cLog)) hsig
-    hη0 hpop hι hε hδ2 hδ21 hα hα1 hpAP hpAP1
+  have h := prefCount_le_poly_of_le (hsz := 0) pops η₀ ι εcov (εcov / 512) (δ / 2) α pAP
+    (Real.exp (-cLog)) hsig hη0 hpop hι hε (by linarith) hδ2 hδ21 hα hα1 hpAP hpAP1
   rw [Nat.cast_zero, mul_zero, zero_div, add_zero] at h
   rw [hsig', hτ'] at h
   refine h.trans ?_
@@ -407,9 +408,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
   have hcounts : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))), none ∈ pops →
       (poolCount η₀ pops ι (εcov / 2) (δ' / 2) (pAP / 2) (Real.exp (-cLog)) : ℝ) ≤ PB
-        ∧ (prefCount η₀ pops ι (εcov / 2) (δ' / 2) (δ' / 4) (pAP / 2) (Real.exp (-cLog)) 0
-          : ℝ)
-          ≤ RB := by
+        ∧ (prefCount η₀ pops ι (εcov / 2) (εcov / 2 / 512) (δ' / 2) (δ' / 4) (pAP / 2)
+          (Real.exp (-cLog)) 0 : ℝ) ≤ RB := by
     intro pops hpops
     have hcard : (pops.card : ℝ) ≤ J := by
       have h1 := Finset.card_le_univ pops
