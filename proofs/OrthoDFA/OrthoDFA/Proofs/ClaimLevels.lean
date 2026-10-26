@@ -278,42 +278,48 @@ private lemma log_lvS_le {Q A iδ c P : ℝ} (k : ℕ) (hQ : 1 ≤ Q) (hA : 1 �
     _ = 896 * ((Q ^ 2 * A) ^ 2 * iδ) := by ring
     _ ≤ P ^ k := h
 
-private lemma log_lvS_le_twelve {Q A iδ c : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ)
+private lemma two_le_qa_iδ {Q A iδ : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ) :
+    2 ≤ Q * A * iδ := by
+  have := one_le_mul_of_one_le_of_one_le hQ hA
+  nlinarith
+
+private lemma log_lvS_le_fourteen {Q A iδ c : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ)
     (hc1 : 1 ≤ c) (hc : c ≤ 16) :
     0 ≤ Real.log (c * lvS Q A * (lvS Q A + 1) * iδ)
-      ∧ Real.log (c * lvS Q A * (lvS Q A + 1) * iδ) ≤ 12 * Real.log (Q ^ 2 * A * iδ) := by
-  have hQA : 1 ≤ Q ^ 2 * A := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) hA
-  have hx : 2 ≤ Q ^ 2 * A * iδ := by nlinarith
-  have h2 : (Q ^ 2 * A) ^ 2 * iδ ≤ (Q ^ 2 * A * iδ) ^ 2 := by
-    have : iδ ≤ iδ ^ 2 := by nlinarith
-    calc (Q ^ 2 * A) ^ 2 * iδ ≤ (Q ^ 2 * A) ^ 2 * iδ ^ 2 := by gcongr
-      _ = (Q ^ 2 * A * iδ) ^ 2 := by ring
-  have h10 : (1024 : ℝ) ≤ (Q ^ 2 * A * iδ) ^ 10 :=
-    (by norm_num : (1024 : ℝ) = 2 ^ 10).trans_le (pow_le_pow_left₀ (by norm_num) hx 10)
-  have h := log_lvS_le (Q := Q) (A := A) (iδ := iδ) (P := Q ^ 2 * A * iδ) 12 hQ hA (by linarith)
-    hc1 hc
+      ∧ Real.log (c * lvS Q A * (lvS Q A + 1) * iδ) ≤ 14 * Real.log (Q * A * iδ) := by
+  have hz := two_le_qa_iδ hQ hA hδ
+  have hu : 1 ≤ A ^ 2 * iδ ^ 3 :=
+    one_le_mul_of_one_le_of_one_le (one_le_pow₀ hA) (one_le_pow₀ (by linarith))
+  have h2 : (Q ^ 2 * A) ^ 2 * iδ ≤ (Q * A * iδ) ^ 4 := by
+    calc (Q ^ 2 * A) ^ 2 * iδ = (Q ^ 4 * A ^ 2 * iδ) * 1 := by ring
+      _ ≤ (Q ^ 4 * A ^ 2 * iδ) * (A ^ 2 * iδ ^ 3) := by gcongr
+      _ = (Q * A * iδ) ^ 4 := by ring
+  have h10 : (1024 : ℝ) ≤ (Q * A * iδ) ^ 10 :=
+    (by norm_num : (1024 : ℝ) = 2 ^ 10).trans_le (pow_le_pow_left₀ (by norm_num) hz 10)
+  have h := log_lvS_le (Q := Q) (A := A) (iδ := iδ) (c := c) (P := Q * A * iδ) 14 hQ hA
+    (by linarith) hc1 hc
     (by
-      calc 896 * ((Q ^ 2 * A) ^ 2 * iδ) ≤ (Q ^ 2 * A * iδ) ^ 10 * (Q ^ 2 * A * iδ) ^ 2 :=
+      calc 896 * ((Q ^ 2 * A) ^ 2 * iδ) ≤ (Q * A * iδ) ^ 10 * (Q * A * iδ) ^ 4 :=
           mul_le_mul (by linarith) h2 (by positivity) (by positivity)
-        _ = (Q ^ 2 * A * iδ) ^ 12 := by ring)
+        _ = (Q * A * iδ) ^ 14 := by ring)
   exact ⟨h.1, h.2.trans_eq (by norm_num)⟩
 
 private lemma probes_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hε : 1 ≤ iε)
     (hδ : 2 ≤ iδ) :
-    (lvProbes (Q, A, iε, iδ, iy, L) : ℝ) ≤ 3040 * (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ))
-      ∧ 1 ≤ 2 * (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) := by
+    (lvProbes (Q, A, iε, iδ, iy, L) : ℝ) ≤ 3544 * (Q ^ 2 * A * iε * Real.log (Q * A * iδ))
+      ∧ 1 ≤ 2 * (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) := by
   have hS1 := lvS_ge (by linarith : (0 : ℝ) ≤ Q) (by linarith : (0 : ℝ) ≤ A)
   have hS7 := lvS_le hQ hA
   have hQA : 1 ≤ Q ^ 2 * A := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) hA
-  have hℓ : 1 / 2 ≤ Real.log (Q ^ 2 * A * iδ) := half_le_log (by nlinarith)
-  have hX : Q ^ 2 * A ≤ 2 * (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) := by
-    have : 1 ≤ 2 * (iε * Real.log (Q ^ 2 * A * iδ)) := by nlinarith
+  have hℓ : 1 / 2 ≤ Real.log (Q * A * iδ) := half_le_log (two_le_qa_iδ hQ hA hδ)
+  have hX : Q ^ 2 * A ≤ 2 * (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) := by
+    have : 1 ≤ 2 * (iε * Real.log (Q * A * iδ)) := by nlinarith
     nlinarith
   refine ⟨?_, by linarith⟩
-  obtain ⟨hlog0, hlog⟩ := log_lvS_le_twelve (c := 16) hQ hA hδ (by norm_num) le_rfl
+  obtain ⟨hlog0, hlog⟩ := log_lvS_le_fourteen (c := 16) hQ hA hδ (by norm_num) le_rfl
   simp only [lvProbes, div_one_div']
   have h36 : 36 * lvS Q A * iε * Real.log (16 * lvS Q A * (lvS Q A + 1) * iδ)
-      ≤ 36 * (7 * (Q ^ 2 * A)) * iε * (12 * Real.log (Q ^ 2 * A * iδ)) := by
+      ≤ 36 * (7 * (Q ^ 2 * A)) * iε * (14 * Real.log (Q * A * iδ)) := by
     gcongr
   have h0 : 0 ≤ 36 * lvS Q A * iε * Real.log (16 * lvS Q A * (lvS Q A + 1) * iδ) := by
     positivity
@@ -324,13 +330,13 @@ private lemma probes_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 
 private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hε : 1 ≤ iε)
     (hδ : 2 ≤ iδ) :
     (lvProbes₂ (Q, A, iε, iδ, ig) : ℝ)
-        ≤ 1024 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ))
-      ∧ 0 ≤ Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ) := by
+        ≤ 1192 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ))
+      ∧ 0 ≤ Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ) := by
   have hS1 := lvS_ge (by linarith : (0 : ℝ) ≤ Q) (by linarith : (0 : ℝ) ≤ A)
   have hS7 := lvS_le hQ hA
   have hQA : 1 ≤ Q ^ 2 * A := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) hA
-  have hℓ : 1 / 2 ≤ Real.log (Q ^ 2 * A * iδ) := half_le_log (by nlinarith)
-  have hG0 : 0 ≤ Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ) := by positivity
+  have hℓ : 1 / 2 ≤ Real.log (Q * A * iδ) := half_le_log (two_le_qa_iδ hQ hA hδ)
+  have hG0 : 0 ≤ Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ) := by positivity
   refine ⟨?_, hG0⟩
   simp only [lvProbes₂]
   split_ifs with h
@@ -338,21 +344,21 @@ private lemma probes₂_pt {Q A iε iδ ig : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) 
     have e1 : 12 * lvS Q A * (1 / iε) / (1 / ig) ^ 2 = 12 * lvS Q A * (ig ^ 2 / iε) := by
       field_simp
     rw [e1, div_one_div']
-    obtain ⟨hlog0, hlog⟩ := log_lvS_le_twelve (c := 2) hQ hA hδ (by norm_num) (by norm_num)
+    obtain ⟨hlog0, hlog⟩ := log_lvS_le_fourteen (c := 2) hQ hA hδ (by norm_num) (by norm_num)
     have h12 : 12 * lvS Q A * (ig ^ 2 / iε) * Real.log (2 * lvS Q A * (lvS Q A + 1) * iδ)
-        ≤ 12 * (7 * (Q ^ 2 * A)) * (ig ^ 2 / iε) * (12 * Real.log (Q ^ 2 * A * iδ)) := by
+        ≤ 12 * (7 * (Q ^ 2 * A)) * (ig ^ 2 / iε) * (14 * Real.log (Q * A * iδ)) := by
       gcongr
     have h0 : 0 ≤ 12 * lvS Q A * (ig ^ 2 / iε) * Real.log (2 * lvS Q A * (lvS Q A + 1) * iδ) := by
       positivity
     have hc := Nat.ceil_lt_add_one (show 0 ≤ 12 * lvS Q A * (ig ^ 2 / iε)
       * Real.log (2 * lvS Q A * (lvS Q A + 1) * iδ) + lvS Q A by linarith)
-    have hX : Q ^ 2 * A ≤ 2 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ)) := by
-      have : 1 ≤ 2 * (ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ)) := by nlinarith
+    have hX : Q ^ 2 * A ≤ 2 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ)) := by
+      have : 1 ≤ 2 * (ig ^ 2 / iε * Real.log (Q * A * iδ)) := by nlinarith
       calc Q ^ 2 * A = Q ^ 2 * A * 1 := by ring
-        _ ≤ Q ^ 2 * A * (2 * (ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ))) := by gcongr
+        _ ≤ Q ^ 2 * A * (2 * (ig ^ 2 / iε * Real.log (Q * A * iδ))) := by gcongr
         _ = _ := by ring
-    have e3 : 12 * (7 * (Q ^ 2 * A)) * (ig ^ 2 / iε) * (12 * Real.log (Q ^ 2 * A * iδ))
-        = 1008 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ)) := by ring
+    have e3 : 12 * (7 * (Q ^ 2 * A)) * (ig ^ 2 / iε) * (14 * Real.log (Q * A * iδ))
+        = 1176 * (Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ)) := by ring
     linarith
   · simp only [Nat.cast_zero]; positivity
 
@@ -448,19 +454,19 @@ private lemma slack_pt {Q A iε iδ iy L : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (h
 private lemma p₀_pt {Q A iε iδ : ℝ} (iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hε : 1 ≤ iε)
     (hδ : 2 ≤ iδ) :
     0 ≤ 1 / lvP₀ (Q, A, iε, iδ, iy, L)
-      ∧ 0 ≤ (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) ^ 2 * iδ
+      ∧ 0 ≤ (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ
       ∧ 1 / lvP₀ (Q, A, iε, iδ, iy, L)
-        ≤ 8 * (3040 ^ 2 + 4) * ((Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) ^ 2 * iδ) := by
+        ≤ 8 * (3544 ^ 2 + 4) * ((Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ) := by
   obtain ⟨hn, hX1⟩ := probes_pt iy L hQ hA hε hδ
   simp only [lvP₀, if_pos (by linarith : (0 : ℝ) < iδ), one_div_one_div]
   have hn0 : (0 : ℝ) ≤ lvProbes (Q, A, iε, iδ, iy, L) := Nat.cast_nonneg _
   refine ⟨by positivity, by positivity, ?_⟩
-  set X := Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)
-  have h1 : ((lvProbes (Q, A, iε, iδ, iy, L) : ℕ) : ℝ) ^ 2 ≤ 3040 ^ 2 * X ^ 2 := by
+  set X := Q ^ 2 * A * iε * Real.log (Q * A * iδ)
+  have h1 : ((lvProbes (Q, A, iε, iδ, iy, L) : ℕ) : ℝ) ^ 2 ≤ 3544 ^ 2 * X ^ 2 := by
     rw [← mul_pow]; exact pow_le_pow_left₀ hn0 hn 2
   have h2 : 1 ≤ 4 * X ^ 2 := by nlinarith
   calc 8 * (((lvProbes (Q, A, iε, iδ, iy, L) : ℕ) : ℝ) ^ 2 + 1) * iδ
-      ≤ 8 * (3040 ^ 2 * X ^ 2 + 4 * X ^ 2) * iδ := by gcongr
+      ≤ 8 * (3544 ^ 2 * X ^ 2 + 4 * X ^ 2) * iδ := by gcongr
     _ = _ := by ring
 
 private lemma κ_pt {Q A iδ : ℝ} (iε iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ) :
@@ -474,25 +480,11 @@ private lemma κ_pt {Q A iδ : ℝ} (iε iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ 
   have hm0 := lvM_nonneg (by linarith : (0 : ℝ) ≤ Q) (by linarith : (0 : ℝ) ≤ A)
     (by linarith : 1 < iδ)
   have hQA : 1 ≤ Q ^ 2 * A := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) hA
-  have hz : 2 ≤ Q * A * iδ := by nlinarith
+  have hz := two_le_qa_iδ hQ hA hδ
   have hℓ : 1 / 2 ≤ Real.log (Q * A * iδ) := half_le_log hz
   have hs : 0 ≤ Real.sqrt iδ := Real.sqrt_nonneg _
   refine ⟨by positivity, by positivity, ?_⟩
-  have hu : 1 ≤ A ^ 2 * iδ ^ 3 :=
-    one_le_mul_of_one_le_of_one_le (one_le_pow₀ hA) (one_le_pow₀ (by linarith))
-  have h2 : (Q ^ 2 * A) ^ 2 * iδ ≤ (Q * A * iδ) ^ 4 := by
-    calc (Q ^ 2 * A) ^ 2 * iδ = (Q ^ 4 * A ^ 2 * iδ) * 1 := by ring
-      _ ≤ (Q ^ 4 * A ^ 2 * iδ) * (A ^ 2 * iδ ^ 3) := by gcongr
-      _ = (Q * A * iδ) ^ 4 := by ring
-  have h10 : (1024 : ℝ) ≤ (Q * A * iδ) ^ 10 :=
-    (by norm_num : (1024 : ℝ) = 2 ^ 10).trans_le (pow_le_pow_left₀ (by norm_num) hz 10)
-  obtain ⟨hlog0, hlog⟩ := log_lvS_le (Q := Q) (A := A) (iδ := iδ) (c := 8) (P := Q * A * iδ) 14
-    hQ hA (by linarith) (by norm_num) (by norm_num)
-    (by
-      calc 896 * ((Q ^ 2 * A) ^ 2 * iδ) ≤ (Q * A * iδ) ^ 10 * (Q * A * iδ) ^ 4 :=
-          mul_le_mul (by linarith) h2 (by positivity) (by positivity)
-        _ = (Q * A * iδ) ^ 14 := by ring)
-  simp only [Nat.cast_ofNat] at hlog
+  obtain ⟨hlog0, hlog⟩ := log_lvS_le_fourteen (c := 8) hQ hA hδ (by norm_num) (by norm_num)
   have hm : lvM Q A iδ + 2 ≤ 340 * (Q ^ 2 * A * Real.log (Q * A * iδ)) := by
     have h1 : 16 / 5 * lvS Q A * Real.log (8 * lvS Q A * (lvS Q A + 1) * iδ)
         ≤ 16 / 5 * (7 * (Q ^ 2 * A)) * (14 * Real.log (Q * A * iδ)) := by gcongr
@@ -508,9 +500,9 @@ private lemma κ_pt {Q A iδ : ℝ} (iε iy L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ 
 private lemma εw_pt {Q A iε iδ L : ℝ} (iy : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hε : 1 ≤ iε)
     (hδ : 2 ≤ iδ) (hL : 2 ≤ L) :
     0 ≤ 1 / lvεw (Q, A, iε, iδ, iy, L)
-      ∧ 0 ≤ Q ^ 3 * A * iε * Real.log (Q ^ 2 * A * iδ) * Real.log L * Real.sqrt iδ
-      ∧ 1 / lvεw (Q, A, iε, iδ, iy, L) ≤ 4 * exp 1 * 61000
-        * (Q ^ 3 * A * iε * Real.log (Q ^ 2 * A * iδ) * Real.log L * Real.sqrt iδ) := by
+      ∧ 0 ≤ Q ^ 3 * A * iε * Real.log (Q * A * iδ) * Real.log L * Real.sqrt iδ
+      ∧ 1 / lvεw (Q, A, iε, iδ, iy, L) ≤ 4 * exp 1 * 71100
+        * (Q ^ 3 * A * iε * Real.log (Q * A * iδ) * Real.log L * Real.sqrt iδ) := by
   obtain ⟨hn, hX1⟩ := probes_pt iy L hQ hA hε hδ
   simp only [lvεw, if_pos (⟨by linarith, by linarith, by linarith⟩ : 0 ≤ Q ∧ 0 ≤ A ∧ 0 < iδ),
     lvB, one_div_div, one_div iδ, Real.sqrt_inv, div_inv_eq_mul]
@@ -519,7 +511,7 @@ private lemma εw_pt {Q A iε iδ L : ℝ} (iy : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤
   have hk := clog_le hL
   have hlL : 1 / 2 ≤ Real.log L := half_le_log hL
   have hQA : 1 ≤ Q ^ 2 * A := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) hA
-  have hℓ : 1 / 2 ≤ Real.log (Q ^ 2 * A * iδ) := half_le_log (by nlinarith)
+  have hℓ : 1 / 2 ≤ Real.log (Q * A * iδ) := half_le_log (two_le_qa_iδ hQ hA hδ)
   have hs : 0 ≤ Real.sqrt iδ := Real.sqrt_nonneg _
   have hW : lvW Q L ≤ 20 * (Q * Real.log L) := by
     unfold lvW
@@ -536,8 +528,8 @@ private lemma εw_pt {Q A iε iδ L : ℝ} (iy : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤
     have : 0 ≤ (Q + 2) * A * (Q + 2) * (Q + 1) := by positivity
     linarith
   refine ⟨mul_nonneg (mul_nonneg (by positivity) hpos) hs, by positivity, ?_⟩
-  set X := Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ) with hXd
-  have hY : Q ^ 3 * A * iε * Real.log (Q ^ 2 * A * iδ) * Real.log L = Q * X * Real.log L := by
+  set X := Q ^ 2 * A * iε * Real.log (Q * A * iδ) with hXd
+  have hY : Q ^ 3 * A * iε * Real.log (Q * A * iδ) * Real.log L = Q * X * Real.log L := by
     rw [hXd]; ring
   have hXL : 1 ≤ 4 * (X * Real.log L) := by nlinarith
   have hQXL : Q ≤ 4 * (Q * X * Real.log L) := by nlinarith
@@ -545,26 +537,26 @@ private lemma εw_pt {Q A iε iδ L : ℝ} (iy : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤
     have := mul_le_mul_of_nonneg_left hX1 (by positivity : 0 ≤ Q * Real.log L)
     nlinarith
   have h1 : (lvProbes (Q, A, iε, iδ, iy, L) : ℝ) * lvW Q L
-      ≤ 3040 * X * (20 * (Q * Real.log L)) := mul_le_mul hn hW hW0 (by positivity)
+      ≤ 3544 * X * (20 * (Q * Real.log L)) := mul_le_mul hn hW hW0 (by positivity)
   have h2 : (Q + 2) * A * (Q + 2) * (Q + 1) ≤ 72 * (Q * X * Real.log L) := by
     have a : (Q + 2) * A * (Q + 2) * (Q + 1) ≤ 18 * (Q ^ 3 * A) := by
       have e1 : (Q + 2) * (Q + 2) ≤ 9 * Q ^ 2 := by nlinarith
       have e2 := mul_le_mul e1 (by linarith : Q + 1 ≤ 2 * Q) (by linarith) (by positivity)
       nlinarith [mul_le_mul_of_nonneg_right e2 (by linarith : (0 : ℝ) ≤ A)]
     have b : Q ^ 3 * A ≤ 4 * (Q * X * Real.log L) := by
-      have p1 : 1 / 2 ≤ iε * Real.log (Q ^ 2 * A * iδ) := by nlinarith
-      have p2 : 1 / 4 ≤ iε * Real.log (Q ^ 2 * A * iδ) * Real.log L := by nlinarith
+      have p1 : 1 / 2 ≤ iε * Real.log (Q * A * iδ) := by nlinarith
+      have p2 : 1 / 4 ≤ iε * Real.log (Q * A * iδ) * Real.log L := by nlinarith
       have := mul_le_mul_of_nonneg_left p2 (by positivity : 0 ≤ Q ^ 3 * A)
       rw [hXd]; linarith
     linarith
   have hsum : lvProbes (Q, A, iε, iδ, iy, L) * lvW Q L + (Q + 2) * A * (Q + 2) * (Q + 1)
-      + 2 * max (lvW Q L) (Q + 2) ≤ 61000 * (Q * X * Real.log L) := by
-    have : 3040 * X * (20 * (Q * Real.log L)) = 60800 * (Q * X * Real.log L) := by ring
+      + 2 * max (lvW Q L) (Q + 2) ≤ 71100 * (Q * X * Real.log L) := by
+    have : 3544 * X * (20 * (Q * Real.log L)) = 70880 * (Q * X * Real.log L) := by ring
     linarith
   rw [hY]
   calc 4 * exp 1 * (lvProbes (Q, A, iε, iδ, iy, L) * lvW Q L + (Q + 2) * A * (Q + 2) * (Q + 1)
         + 2 * max (lvW Q L) (Q + 2)) * Real.sqrt iδ
-      ≤ 4 * exp 1 * (61000 * (Q * X * Real.log L)) * Real.sqrt iδ := by gcongr
+      ≤ 4 * exp 1 * (71100 * (Q * X * Real.log L)) * Real.sqrt iδ := by gcongr
     _ = _ := by ring
 
 private lemma tol_pos (v : LevelVec) : 0 < lvP₀ v ∧ 0 < lvκ v ∧ 0 < lvεw v := by
@@ -592,8 +584,8 @@ private lemma level_region {Q A iε iδ iy L : ℝ} (hb : (Q, A, iε, iδ, iy, L
   simpa only [vecRegion, Set.mem_Ici, Prod.mk_le_mk] using hb
 
 private lemma lvProbes_isBigO : (fun v => (lvProbes v : ℝ)) =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _, _) => Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ) : LevelVec → ℝ) := by
-  refine isBigO_on 3040 fun b hb => ?_
+    (fun (Q, A, iε, iδ, _, _) => Q ^ 2 * A * iε * Real.log (Q * A * iδ) : LevelVec → ℝ) := by
+  refine isBigO_on 3544 fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
   obtain ⟨h, h1⟩ := probes_pt iy L hQ hA hε hδ
@@ -601,9 +593,9 @@ private lemma lvProbes_isBigO : (fun v => (lvProbes v : ℝ)) =O[𝓟 vecRegion]
   exact ⟨Nat.cast_nonneg _, by linarith, h⟩
 
 private lemma lvProbes₂_isBigO : (fun v => (lvProbes₂ v : ℝ)) =O[𝓟 vec2Region]
-    (fun (Q, A, iε, iδ, ig) => Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q ^ 2 * A * iδ)
+    (fun (Q, A, iε, iδ, ig) => Q ^ 2 * A * ig ^ 2 / iε * Real.log (Q * A * iδ)
       : Level2Vec → ℝ) := by
-  refine isBigO_on 1024 fun b hb => ?_
+  refine isBigO_on 1192 fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, ig⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -⟩ : 1 ≤ Q ∧ 1 ≤ A ∧ 1 ≤ iε ∧ 2 ≤ iδ ∧ 1 ≤ ig := by
     simpa only [vec2Region, Set.mem_Ici, Prod.mk_le_mk] using hb
@@ -627,9 +619,9 @@ private lemma lvSlack_isBigO : lvSlack =O[𝓟 vecRegion]
   exact slack_pt (iε := iε) (L := L) hQ hA hδ hy
 
 private lemma lvP₀_isBigO : (fun v => 1 / lvP₀ v) =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _, _) => (Q ^ 2 * A * iε * Real.log (Q ^ 2 * A * iδ)) ^ 2 * iδ
+    (fun (Q, A, iε, iδ, _, _) => (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ
       : LevelVec → ℝ) := by
-  refine isBigO_on (8 * (3040 ^ 2 + 4)) fun b hb => ?_
+  refine isBigO_on (8 * (3544 ^ 2 + 4)) fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -, -⟩ := level_region hb
   exact p₀_pt iy L hQ hA hε hδ
@@ -643,9 +635,9 @@ private lemma lvκ_isBigO : (fun v => 1 / lvκ v) =O[𝓟 vecRegion]
   exact κ_pt iε iy L hQ hA hδ
 
 private lemma lvεw_isBigO : (fun v => 1 / lvεw v) =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _, L) => Q ^ 3 * A * iε * Real.log (Q ^ 2 * A * iδ) * Real.log L
+    (fun (Q, A, iε, iδ, _, L) => Q ^ 3 * A * iε * Real.log (Q * A * iδ) * Real.log L
       * Real.sqrt iδ : LevelVec → ℝ) := by
-  refine isBigO_on (4 * exp 1 * 61000) fun b hb => ?_
+  refine isBigO_on (4 * exp 1 * 71100) fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, iy, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -, hL⟩ := level_region hb
   exact εw_pt iy hQ hA hε hδ hL

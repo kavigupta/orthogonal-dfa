@@ -38,7 +38,7 @@ every state's reads all undecided or all on its side. -/
 def Level2Claim.{u, v} : Prop :=
   ∃ nprobes₂ : Level2Inputs → ℕ,
     (fun x => (nprobes₂ x : ℝ)) =O[𝓟 level2Region] (fun x =>
-      x.Q ^ 2 * x.A * x.ε / (x.ε - x.y) ^ 2 * log (x.Q ^ 2 * x.A / x.δ)) ∧
+      x.Q ^ 2 * x.A * x.ε / (x.ε - x.y) ^ 2 * log (x.Q * x.A / x.δ)) ∧
     (∀ {α : Type u} [Fintype α] [DecidableEq α] {σ : Type v} [Fintype σ] (M : DFA α σ)
       (read : FreeMonoid α → ARU) (side : σ → Bool) (C : Level2.Settings),
       let y := C.harvestRate
@@ -77,7 +77,7 @@ slack, and its round ending well on every instance in `levelRegion` at them. -/
 def Level3Claim.{u, v, w} : Prop :=
   ∃ (nprobes : LevelInputs → ℕ) (slope slackRate : LevelInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ)) ∧
+      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
       (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
@@ -114,14 +114,14 @@ largest `p₀` and `εw` it tolerates, and its round ending well at them. -/
 def Level4Claim.{u, v, w} : Prop :=
   ∃ (nprobes : LevelInputs → ℕ) (slope slackRate p₀Tol εwTol : LevelInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ)) ∧
+      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
       (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
-      (x.Q ^ 2 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ)) ^ 2 / x.δ) ∧
+      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / εwTol x) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 3 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ) * log x.L / sqrt x.δ) ∧
+      x.Q ^ 3 * x.A / x.ε * log (x.Q * x.A / x.δ) * log x.L / sqrt x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < εwTol x) ∧
     (∀ {α : Type u} [Fintype α] [DecidableEq α] {σ : Type v} [Fintype σ] (M : DFA α σ)
       (side : σ → Bool) (U : σ → ℝ) (εw : ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -158,12 +158,12 @@ and slack, the largest `p₀` and `κ` it tolerates, and its round ending well a
 def Level5Claim.{u, v, w} : Prop :=
   ∃ (nprobes : LevelInputs → ℕ) (slope slackRate p₀Tol κTol : LevelInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 levelRegion] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ)) ∧
+      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.y + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
       (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.y) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
-      (x.Q ^ 2 * x.A / x.ε * log (x.Q ^ 2 * x.A / x.δ)) ^ 2 / x.δ) ∧
+      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / κTol x) =O[𝓟 levelRegion] (fun x =>
       x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / sqrt x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < κTol x) ∧

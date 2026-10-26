@@ -22,9 +22,9 @@ Each claim is proved from the explicit theorems below.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
-  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q|²|Σ|/δ))`.
+  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
-  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q|²|Σ|/δ))`, its harvest's slope
+  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`, its harvest's slope
   `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
   give how much of the probes' law any one walk start may hold (`p₀Tol`) and how rarely reads may
   be wrong (`εwTol` at level 4, `κTol` at level 5), at no leaves beyond level 3's `|Q| + 2`.
