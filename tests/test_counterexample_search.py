@@ -194,6 +194,18 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(3, search.probes)
 
 
+class TestDeepening(unittest.TestCase):
+    def test_a_harvest_that_repeats_a_string_walks_past_it(self):
+        # At k = 0 this stuck harvest ends the search (see TestTheTests).
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]), WITHOUT_EVEN_1, max_k=2, **SHIPPED_RATES
+        )
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual([1, 2], [k for _, k in search.deepenings])
+        self.assertEqual(31, search.deepenings[0][0])
+        self.assertEqual(SUCCESS, ending.kind)
+
+
 class TestExport(unittest.TestCase):
     def test_an_unlearned_edge_loops(self):
         search = quiet_search(parity_cut(()), {(EVEN, 1): (ODD, b"")})
