@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Budget
 # The loop's claim at explicit settings
 
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
-`poolCount_le` and `prefCount_le_poly` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
+`poolCount_le` and `prefCount_le_poly_of_le` (`counts_le`). `loop_simple_checks` takes `LoopCore` at
 `K = |Q| + 1`, with the failure split evenly between the clustering's and level 3's `|Q| + 1`
 rounds.
 -/
@@ -38,7 +38,7 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     (hpAP1 : pAP ≤ 1) (hc : 0 ≤ cLog) :
     (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ)
         ≤ capPB η₀ ι εcov δ pAP cLog Jm
-      ∧ (prefCount η₀ pops ι εcov (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
+      ∧ (prefCount η₀ pops ι εcov (εcov / 512) (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
         ≤ capRB η₀ ι εcov α δ pAP cLog Jm := by
   have hsig : 0 < sig η₀ := by unfold sig; linarith
   have hδ2 : 0 < δ / 2 := by positivity
@@ -55,7 +55,8 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
   have hcross1 : Real.exp (-cLog) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
   set PB := capPB η₀ ι εcov δ pAP cLog Jm with hPB
   set pool := (poolCount η₀ pops ι εcov (δ / 2) pAP (Real.exp (-cLog)) : ℝ) with hpool
-  set pref := (prefCount η₀ pops ι εcov (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ) with hpref
+  set pref := (prefCount η₀ pops ι εcov (εcov / 512) (δ / 2) α pAP (Real.exp (-cLog)) 0 : ℝ)
+    with hpref
   -- the pool
   have hpoolB : pool ≤ PB := by
     have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hpop hδ2
@@ -79,8 +80,8 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
       nlinarith
     nlinarith
   refine ⟨hpoolB, ?_⟩
-  have h := prefCount_le_poly (hsz := 0) pops η₀ ι εcov (δ / 2) α pAP (Real.exp (-cLog)) hsig
-    hη0 hpop hι hε hδ2 hδ21 hα hα1 hpAP hpAP1
+  have h := prefCount_le_poly_of_le (hsz := 0) pops η₀ ι εcov (εcov / 512) (δ / 2) α pAP
+    (Real.exp (-cLog)) hsig hη0 hpop hι hε (by linarith) hδ2 hδ21 hα hα1 hpAP hpAP1
   rw [Nat.cast_zero, mul_zero, zero_div, add_zero] at h
   rw [hsig', hτ'] at h
   refine h.trans ?_
@@ -108,43 +109,6 @@ namespace OrthoDFA
 open MeasureTheory
 
 open Random (prefixMax le_prefixMax prefixMax_pos)
-
-/-- The race tail at `t = 1/(λ + 2c)` and `t' = 2t`:
-
-    exp(t'λ)/(1 + t)² ≤ e² (λ + 2c)². -/
-lemma race_tail_choice {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 < lam + 2 * c) :
-    0 ≤ 1 / (lam + 2 * c) ∧ 0 ≤ 2 * (1 / (lam + 2 * c))
-      ∧ 1 / (lam + 2 * c) * c ≤ 1 - Real.exp (-(2 * (1 / (lam + 2 * c)) * c))
-      ∧ Real.exp (2 * (1 / (lam + 2 * c)) * lam) / (1 + 1 / (lam + 2 * c)) ^ 2
-        ≤ Real.exp 2 * (lam + 2 * c) ^ 2 := by
-  set t := 1 / (lam + 2 * c) with ht
-  have ht0 : 0 < t := by positivity
-  refine ⟨ht0.le, by positivity, ?_, ?_⟩
-  · set x := t * c with hx
-    have hx0 : 0 ≤ x := by positivity
-    have hx2 : x ≤ 1 / 2 := by
-      rw [hx, ht, div_mul_eq_mul_div, one_mul, div_le_iff₀ hpos]; linarith
-    have h1 : 1 + 2 * x ≤ Real.exp (2 * x) := by linarith [Real.add_one_le_exp (2 * x)]
-    have h2 : Real.exp (-(2 * x)) ≤ 1 / (1 + 2 * x) := by
-      rw [Real.exp_neg, ← one_div]
-      exact one_div_le_one_div_of_le (by positivity) h1
-    have h3 : 1 / (1 + 2 * x) ≤ 1 - x := by
-      rw [div_le_iff₀ (by positivity)]; nlinarith
-    have e : 2 * t * c = 2 * x := by rw [hx]; ring
-    rw [e]
-    linarith
-  · have h1 : 2 * t * lam ≤ 2 := by
-      rw [ht, show 2 * (1 / (lam + 2 * c)) * lam = 2 * (lam / (lam + 2 * c)) by ring]
-      have : lam / (lam + 2 * c) ≤ 1 := by rw [div_le_one hpos]; linarith
-      linarith
-    have h2 : t ^ 2 ≤ (1 + t) ^ 2 := pow_le_pow_left₀ ht0.le (by linarith) 2
-    have h3 : t ^ 2 * (lam + 2 * c) ^ 2 = 1 := by
-      rw [ht, ← mul_pow, one_div_mul_cancel hpos.ne', one_pow]
-    rw [div_le_iff₀ (by positivity)]
-    calc Real.exp (2 * t * lam) ≤ Real.exp 2 := Real.exp_le_exp.2 h1
-      _ = Real.exp 2 * (lam + 2 * c) ^ 2 * t ^ 2 := by
-          rw [mul_assoc, mul_comm _ (t ^ 2), h3, mul_one]
-      _ ≤ Real.exp 2 * (lam + 2 * c) ^ 2 * (1 + t) ^ 2 := by gcongr
 
 /-- Level 5's premises at the band's `κ = ζ`, once the round's undecided reads, weighted `ζ`,
 stay under `√δ/(4e)`, and the pairs of probes under `δ/16`. -/
@@ -318,6 +282,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
+      (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
+        (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
+          ∧ (roundSuffs (settings.schedule pops) x).card ≤ ⌊PB⌋₊ + 1) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -358,7 +325,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
   have hlogS : 0 ≤ Real.log (16 * S * (S + 1) / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
   set budget : ℕ := ⌈36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S⌉₊ with hbudd
   have hbud : (budget : ℝ) ≤ B₃ := by
     have := Nat.ceil_lt_add_one (show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S by
@@ -384,7 +351,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp, ?_⟩
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp,
+      fun _ _ => by simp [roundPrefs, roundSuffs], ?_⟩
     intro Dsf hDsf _ hpAPD _
     have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
     linarith
@@ -407,9 +375,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
   have hcounts : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))), none ∈ pops →
       (poolCount η₀ pops ι (εcov / 2) (δ' / 2) (pAP / 2) (Real.exp (-cLog)) : ℝ) ≤ PB
-        ∧ (prefCount η₀ pops ι (εcov / 2) (δ' / 2) (δ' / 4) (pAP / 2) (Real.exp (-cLog)) 0
-          : ℝ)
-          ≤ RB := by
+        ∧ (prefCount η₀ pops ι (εcov / 2) (εcov / 2 / 512) (δ' / 2) (δ' / 4) (pAP / 2)
+          (Real.exp (-cLog)) 0 : ℝ) ≤ RB := by
     intro pops hpops
     have hcard : (pops.card : ℝ) ≤ J := by
       have h1 := Finset.card_le_univ pops
@@ -603,7 +570,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       ≤ δ' / 4 := by
     have hB₃ε : 34 ≤ B₃ * ε := by
       set lg := Real.log (16 * S * (S + 1) / δ')
-      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith
+      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
       have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
       have hinv : (16 * S * (S + 1) / δ')⁻¹ ≤ 1 / 32 := by
         rw [inv_eq_one_div]; exact one_div_le_one_div_of_le (by norm_num) hx
@@ -612,7 +579,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         field_simp
         ring
       have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
-      nlinarith
+      have h31 : (31 / 32 : ℝ) ≤ lg := le_trans (by linarith only [hinv]) hl
+      have h2 : 0 ≤ (S + 1) * ε := mul_nonneg (by linarith only [hS1]) hεd.le
+      rw [e]
+      nlinarith only [h31.trans hSl, h2]
     have hB0 : 0 ≤ B₃ := hbud0.trans hbud
     obtain ⟨hTp, -⟩ := shared_key_le hB0 hbud hpm0 hεd hB₃ε hk3 hδ'1
     have hpε : 2 * (Q * A) * (2 * prefixMax P.D k) ≤ ε * δ' :=
@@ -622,7 +592,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         linarith) hB₃ε hk3
     have hWm : (Q + 2) * A * (Q + 1) ≤ Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
-        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
       show (Q + 2) * A * (Q + 1) ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3
         + (Q + 2) * A * (Q + 1)
       have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') := by positivity
@@ -635,7 +605,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε cross Tu C
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hnp, hmain⟩ := hcore hL hη hη₀ hι0
+  obtain ⟨settings, -, -, -, -, hC3, hnp, hreads, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
     (fun pops hpops => by
@@ -647,7 +617,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     hq1a hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by positivity) hmr (by linarith) hcr hprem hTu0 hcond
-  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, ?_⟩
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

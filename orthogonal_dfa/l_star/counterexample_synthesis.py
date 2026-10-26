@@ -18,6 +18,7 @@ from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .counterexample_config import counterexample_search_config
 from .counterexample_search import CounterexampleSearch
+from .dfa_utils import held_out_phi, labelled_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -155,13 +156,15 @@ class UncertifiedResult(UserWarning):
 
 @dataclass
 class BestRound:
-    """The certified round's hypothesis, or else the most consistent one. Rounds
+    """The certified round's hypothesis, or else the best by ``score`` where rounds
+    are scored and the most consistent one where they are not. Rounds
     are not monotone -- rebuilding the representative pool re-clusters, so a
     later family can classify worse -- so the run keeps this rather than the last
     round's. The boundary comes with it because denoising reads the labels
     against it."""
 
     consistency: float = -1.0
+    score: Optional[float] = None
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
@@ -169,12 +172,13 @@ class BestRound:
     #: The denoised DFA the certificate passed, if one did.
     certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
-        if (certified is not None, consistency) > (
-            self.certified is not None,
-            self.consistency,
-        ):
-            self.consistency = consistency
+    def consider(
+        self, *, consistency, score, dfa, tree, boundary, round_index, certified
+    ):
+        rank = consistency if score is None else score
+        held = self.consistency if self.score is None else self.score
+        if (certified is not None, rank) > (self.certified is not None, held):
+            self.consistency, self.score = consistency, score
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
             self.certified = certified
@@ -239,6 +243,53 @@ def _counterexample_search(pst, vs, *, acc_threshold):
     return search, ending
 
 
+def _best_search(pst, vs, *, acc_threshold, index, selection):
+    """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
+    searches on independent probe streams, the one with the best held-out phi."""
+    restarts = pst.config.counterexample_restarts
+    if restarts == 1:
+        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        return search, ending, _hypothesis_dfa(pst, search.hypothesis)
+    runs = []
+    for i, rng in enumerate(pst.rng.spawn(restarts)):
+        pst.rng = rng
+        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        phi = held_out_phi(dfa, *selection)
+        print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
+        runs.append((phi, rng, search, ending, dfa))
+    # The run goes on from the kept search's stream, as if it were the only one.
+    _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
+    return search, ending, dfa
+
+
+def _round_score(pst, dfa, selection, index) -> Optional[float]:
+    """What ``BestRound`` ranks an uncertified round on in place of consistency."""
+    if not pst.config.rank_rounds_by_held_out:
+        return None
+    score = held_out_phi(dfa, *selection)
+    print(f"[round {index}] held-out phi: {score:.4f}")
+    return score
+
+
+#: Strings in each half of the held-out sample.  At 2,000 the DFA picked on it
+#: scored 0.06 above its phi on fresh strings.
+SELECTION_HALF = 8000
+
+
+def _selection_sample(pst):
+    """The held-out ``(fit, read)`` pair, or ``None`` where nothing is scored."""
+    config = pst.config
+    if config.counterexample_restarts == 1 and not config.rank_rounds_by_held_out:
+        return None
+    # A child stream, so scoring leaves the run's own draws as they were.
+    rng = pst.rng.spawn(1)[0]
+    return tuple(
+        labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
+        for _ in range(2)
+    )
+
+
 def _hypothesis_dfa(pst, hypothesis):
     boundary = pst.decision_boundary
     decide, _ = oracle_decider(
@@ -261,7 +312,7 @@ def counterexample_driven_synthesis(
     the first refusal run out of patience, or max_rounds of them have run.
     Only a caller driving the loop itself can set that cap; `learn_dfa` does not
     forward one."""
-    # The cap is read at the foot of the body, so a round always runs.
+    # The cap is read once a round has run, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -272,6 +323,7 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform, pst.rng.bytes(16))
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    selection = _selection_sample(pst)
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
@@ -284,10 +336,12 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        search, ending, dfa = _best_search(
+            pst, vs, acc_threshold=acc_threshold, index=index, selection=selection
+        )
         hypothesis = search.hypothesis
         tracker.on_search_ended(ending, index)
-        dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
+        dt = hypothesis.tree
         print(
             f"[round {index}] {ending.kind} after {search.probes} probes: "
             f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
@@ -317,6 +371,7 @@ def counterexample_driven_synthesis(
             )
         best.consider(
             consistency=true_acc,
+            score=_round_score(pst, dfa, selection, index),
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
@@ -326,6 +381,10 @@ def counterexample_driven_synthesis(
         if output is not None:
             return best
         if _uncertified_too_long(index, uncertified_since):
+            return best
+        # Everything below readies the next round.
+        if max_rounds is not None and index + 1 >= max_rounds:
+            print(f"[round {index}] ran the {max_rounds} rounds asked for")
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
@@ -349,9 +408,6 @@ def counterexample_driven_synthesis(
             f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
-        if max_rounds is not None and index >= max_rounds:
-            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
-            return best
 
 
 def do_counterexample_driven_synthesis(

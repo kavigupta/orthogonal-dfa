@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 
 /-!
 # Clustering rules

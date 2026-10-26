@@ -19,7 +19,7 @@ open scoped ENNReal
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable {S : Type*} [Stringlike S] {rule : Clusterer S}
 variable {J : Type*} [Fintype J]
-variable {η₀ indecisionLimit : ℝ}
+variable {η₀ indecisionLimit εs : ℝ}
 
 /-- Population `j`'s window: its first `K` distinct draws outside the harvested strings. -/
 noncomputable def winAt (H : J → Finset S) (K : ℕ) (j : J) (r : Run Ω S J) : Finset S :=
@@ -485,17 +485,17 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     (hH : ∀ j, ∀ p ∈ H j, p ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (εcov α δ ρ pAP crossLimit : ℝ)
     (hsig : O.η < 1 / 2) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hεs : 0 < εs) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρu : ∀ t, (D uni).real {t} ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
       (allHarvest H).card)
     (hρsf : collisionMass Dsf
         ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     (runMeasure μ D Dsf).real {x | ∀ B : {B : State // B ∈ stoppable η₀ populations
-        indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card ρ},
+        indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
       streams H uni x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
         B.val}
       ≤ δ / 2 := by
@@ -506,7 +506,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   have hsigle : O.η ≤ 1 / 2 := hsig.le
   obtain ⟨B, hB, hpass⟩ := exists_passable (crossLimit := crossLimit) (hsz := (allHarvest H).card)
     O populations Dsf indecisionLimit εcov α δ ρ (collisionMass Dsf) pAP hsig hpop hηle hη₀
-    hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap hρsf
+    hεcov hε1 hεs hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap
+    hρsf
   obtain ⟨th, tap, q, E, Δ, g, u, x, a, e1, e2, lcut, f, c, t, L, θ, r, rs, G, hmpos, hkpos,
     hindLim', hind1', hth, htap, hΔ, hΔ40, hg, hf0, hpAP0, hlcut, hlcl,
     hc0, hr, hpAPBound', hρsf', hheavy, hL, hθ, hN2, hszG, hheavyN, hscreen, hu, hx, hsignal,
@@ -645,7 +646,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   have hNF0 : 0 ≤ namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B :=
     namedFail_nonneg _ _ _ _ ρ _ t L θ r rs G B hρ0 hρsf0
   have hsub : {x : Draws Ω S J | ∀ B' : {B : State // B ∈ stoppable η₀ populations
-          indecisionLimit εcov δ α pAP crossLimit (allHarvest H).card ρ},
+          indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
         Y x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B'.val}
       ⊆ Y ⁻¹' N ∪ ⋃ j ∈ populations,
         ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}

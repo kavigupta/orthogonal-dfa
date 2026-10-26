@@ -1,4 +1,10 @@
-import OrthoDFA.LearnerLoop
+import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.LowLevelClaims.Clustering
+import OrthoDFA.LowLevelClaims.FamilyRead
+import OrthoDFA.LowLevelClaims.CoveredStart
+import OrthoDFA.LowLevelClaims.Level2Claim
+import OrthoDFA.LowLevelClaims.Level5Claim
+import OrthoDFA.LowLevelClaims.Probe
 
 /-! # Definitions the loop's proofs use -/
 

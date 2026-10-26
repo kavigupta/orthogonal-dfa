@@ -1,4 +1,4 @@
-import OrthoDFA.FamilyOracle
+import OrthoDFA.LowLevelClaims.FamilyOracle
 import OrthoDFA.Proofs.SuffixFamily
 
 /-!

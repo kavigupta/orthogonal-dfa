@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 
 /-!
 # Drawing without replacement, against the draws themselves

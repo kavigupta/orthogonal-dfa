@@ -1,4 +1,4 @@
-import OrthoDFA.LoopDFA
+import OrthoDFA.LowLevelClaims.LoopDFA
 import OrthoDFA.Proofs.LoopPersist
 
 /-!

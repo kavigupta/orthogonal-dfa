@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.Hoeffding
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
