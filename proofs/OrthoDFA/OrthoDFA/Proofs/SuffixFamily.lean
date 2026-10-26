@@ -1,4 +1,4 @@
-import OrthoDFA.SuffixFamily
+import OrthoDFA.LowLevelClaims.SuffixFamily
 import OrthoDFA.Proofs.FamilyRead
 
 /-!

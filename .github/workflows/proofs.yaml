@@ -52,3 +52,8 @@ jobs:
               | tr -d ' ' | grep -vxE "propext|Classical\.choice|Quot\.sound"; then
             echo "::error::a claim depends on more than the core axioms"; exit 1
           fi
+      - name: Code does not import claims or proofs
+        run: |
+          if grep -rnE '^import OrthoDFA\.(LowLevelClaims|Claims|Proofs)' OrthoDFA/Code; then
+            echo "::error::Code/ must not import claims or proofs"; exit 1
+          fi

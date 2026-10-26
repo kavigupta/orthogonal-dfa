@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.TripartiteSearch
+import OrthoDFA.LowLevelClaims.TripartiteSearch
 import Mathlib.Tactic
 
 /-!
