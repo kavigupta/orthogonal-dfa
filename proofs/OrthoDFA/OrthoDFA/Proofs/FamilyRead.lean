@@ -1,4 +1,4 @@
-import OrthoDFA.FamilyRead
+import OrthoDFA.LowLevelClaims.FamilyRead
 import OrthoDFA.Proofs.Adaptive
 
 /-!

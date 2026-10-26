@@ -1,7 +1,7 @@
 import OrthoDFA.Proofs.LoopTransfer
 import OrthoDFA.Proofs.FamilyRead
-import OrthoDFA.FamilyOracle
-import OrthoDFA.ClusteringQuality
+import OrthoDFA.LowLevelClaims.FamilyOracle
+import OrthoDFA.LowLevelClaims.ClusteringQuality
 
 /-!
 # The loop stops in agreement once its rounds meet their claims

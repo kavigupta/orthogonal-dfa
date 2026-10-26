@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.BitSum
+import OrthoDFA.LowLevelClaims.BitSum
 import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.Hoeffding
 import Mathlib.Algebra.Polynomial.Derivative

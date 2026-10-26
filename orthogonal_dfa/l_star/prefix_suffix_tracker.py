@@ -63,6 +63,11 @@ class SearchConfig:
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
+    #: Searches per round on independent probe streams, keeping the one whose DFA
+    #: has the best held-out phi.
+    counterexample_restarts: int = 1
+    #: Rank uncertified rounds by held-out phi rather than consistency.
+    rank_rounds_by_held_out: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
@@ -70,6 +75,7 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
         # Past a half, a DFA no better than chance would be certified.
         assert 0 < self.certified_error < 1 / 2, self.certified_error
+        assert self.counterexample_restarts >= 1, self.counterexample_restarts
 
 
 def _draw_budget(count: int) -> int:

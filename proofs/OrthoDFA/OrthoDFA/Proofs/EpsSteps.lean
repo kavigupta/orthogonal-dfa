@@ -1,4 +1,4 @@
-import OrthoDFA.Level4Claim
+import OrthoDFA.LowLevelClaims.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsTrue
 
