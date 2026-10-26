@@ -3,10 +3,10 @@ import OrthoDFA.Proofs.LoopDFA
 /-!
 # The learner's DFA under the relative rule: the proof
 
-At `c = ξ/(2C|Q|)` for `C = R(L+1)/(L+1−⌈L/2⌉)`, the dominated states visited from `⌈L/2⌉` on by
+At `c = ξ/(2C|Q|)` for `C = R(L+1)/(L+1−⌈L/2⌉)`, the non-start-zone states visited from `⌈L/2⌉` on by
 fewer than `c` of the strings are visited from `q` by at most `|Q| C c = ξ/2` of them, and off
 those runs the relative rule's good strings from a start covered at `c` are the covered rule's
-(`covered_of_dominated`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
+(`covered_of_nonStartZone`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
 at `γ + ξ/2` and `ξ/2`.
 -/
 
@@ -19,17 +19,17 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
 
 omit [DecidableEq α] in
-theorem covered_of_dominated {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L : ℕ)
+theorem covered_of_nonStartZone {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (L : ℕ)
     {R C γ ξ : ℝ} (hC : 0 < C) (hCR : C = R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ))
     (hξ : 0 < ξ) {q : σ} (hqc : q ∈ coveredStates M L (ξ / (2 * C * Fintype.card σ)))
-    (hq : 1 - γ ≤ rerootAccuracy M L (insert q (dominatedStates M L R q)) q) :
+    (hq : 1 - γ ≤ rerootAccuracy M L (insert q (nonStartZoneStates M L R q)) q) :
     1 - (γ + ξ / 2) ≤ rerootAccuracy M L (coveredStates M L (ξ / (2 * C * Fintype.card σ))) q := by
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
   set c := ξ / (2 * C * Fintype.card σ) with hc
   have hc0 : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
-  set D := dominatedStates M L R q
+  set D := nonStartZoneStates M L R q
   set μL : Measure (FreeMonoid α) := uniformStrings L
   let T : Finset σ := Finset.univ.filter fun q' => q' ∈ D ∧ windowVisitRate M L q' < c
   let B : Set (FreeMonoid α) :=
@@ -87,7 +87,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
     show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
     show γ + ξ / 2 + ξ / 2 = γ + ξ by ring] at h
   exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hcov, covered_of_dominated M L hC rfl hξ hcov hq⟩ hk1 hk2 hk3 hk4
+    ⟨q, hcov, covered_of_nonStartZone M L hC rfl hξ hcov hq⟩ hk1 hk2 hk3 hk4
 
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k C c L₁ N ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
@@ -106,7 +106,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
     show γ + ξ / 2 + ξ / 2 = γ + ξ by ring] at h
   exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hcov, covered_of_dominated M L hC rfl hξ hcov hq⟩ hL₀
+    ⟨q, hcov, covered_of_nonStartZone M L hC rfl hξ hcov hq⟩ hL₀
 
 end OrthoDFA
 
