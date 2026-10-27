@@ -7,16 +7,15 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.random_dfa import (
-    _class_pair_bound,
     _class_preserving_fraction,
-    _some_string_preserves,
+    _is_minimal,
+    accessible_tables,
     dfa_from_table,
-    sample_accessible_tables,
     sample_minimal_admitted_dfa,
 )
 
 
-class TestSampleAccessibleTables(unittest.TestCase):
+class TestAccessibleTables(unittest.TestCase):
     def test_uniform_over_accessible_tables(self):
         # one symbol on 3 states: 0 -> a -> b -> anything, for a, b = 1, 2 or 2, 1
         expected = {
@@ -24,52 +23,46 @@ class TestSampleAccessibleTables(unittest.TestCase):
             for a, b in itertools.permutations([1, 2])
             for x in range(3)
         }
-        tables = sample_accessible_tables(
-            np.random.default_rng(0), num_states=3, alphabet_size=1, count=6000
+        counts = collections.Counter(
+            tuple(t[:, 0]) for t in accessible_tables(0, 3, 1, 6000)
         )
-        counts = collections.Counter(tuple(t[:, 0]) for t in tables)
         self.assertEqual(set(counts), expected)
         for count in counts.values():
             # 5 standard deviations of a count with mean 1000
             self.assertAlmostEqual(count, 1000, delta=5 * 30)
 
 
-class TestClassPreservingChecks(unittest.TestCase):
-    def setUp(self):
-        rng = np.random.default_rng(1)
-        self.tables = sample_accessible_tables(
-            rng, num_states=6, alphabet_size=2, count=300
-        )
-        self.finals = rng.random((300, 6)) < 0.5
-        self.exact = [
-            P.class_preserving_fraction(dfa_from_table(table, final), length=40)
-            for table, final in zip(self.tables, self.finals)
-        ]
-
-    def test_pair_bound_bounds(self):
-        bound = _class_pair_bound(self.tables, self.finals, 40)
-        for b, exact in zip(bound, self.exact):
-            self.assertLessEqual(exact, b + 1e-12)
-
-    def test_dense_chain_is_exact(self):
-        for table, final, exact in zip(self.tables, self.finals, self.exact):
+class TestCandidateChecks(unittest.TestCase):
+    @parameterized.expand([(6,), (10,)])
+    def test_match_automata_and_preconditions(self, num_states):
+        rng = np.random.default_rng(num_states)
+        tables = accessible_tables(num_states, num_states, 2, 200)
+        for table, final_mask in zip(tables, rng.integers(1 << num_states, size=200)):
+            aut = dfa_from_table(table, int(final_mask))
+            self.assertEqual(
+                _is_minimal(table, int(final_mask)),
+                len(aut.minify().states) == num_states,
+            )
             self.assertAlmostEqual(
-                _class_preserving_fraction(table, final, 40), exact, delta=1e-12
+                _class_preserving_fraction(table, int(final_mask), 40, -1.0),
+                P.class_preserving_fraction(aut, length=40),
+                delta=1e-12,
             )
 
-    def test_screen_passes_exactly_the_preserved(self):
-        screened = _some_string_preserves(
-            np.random.default_rng(2), self.tables, self.finals, length=40
-        )
-        for passed, exact in zip(screened, self.exact):
-            if exact == 0:
-                self.assertFalse(passed)
-            if exact >= P.MIN_CLASS_PRESERVING_FRAC:
-                self.assertTrue(passed)
+    def test_early_exit_only_below_the_bar(self):
+        rng = np.random.default_rng(0)
+        tables = accessible_tables(1, 8, 2, 300)
+        for table, final_mask in zip(tables, rng.integers(1 << 8, size=300)):
+            exact = _class_preserving_fraction(table, int(final_mask), 40, -1.0)
+            early = _class_preserving_fraction(table, int(final_mask), 40, 0.02)
+            if early < 0:
+                self.assertLess(exact, 0.02)
+            else:
+                self.assertAlmostEqual(early, exact, delta=1e-12)
 
 
 class TestSampleMinimalAdmittedDFA(unittest.TestCase):
-    @parameterized.expand([(3,), (5,)])
+    @parameterized.expand([(4,), (8,)])
     def test_minimal_of_the_size_and_admitted(self, num_states):
         for i in range(3):
             aut = sample_minimal_admitted_dfa(

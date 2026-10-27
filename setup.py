@@ -29,6 +29,7 @@ setuptools.setup(
         "permacache==5.0.1",
         "frozendict==2.4.6",
         "aalpy==1.5.3",
+        "numba>=0.60",
     ],
     # documentation
     project_urls={
