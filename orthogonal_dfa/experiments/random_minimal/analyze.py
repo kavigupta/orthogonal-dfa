@@ -1,42 +1,41 @@
 """
-Tables over the results `run` caches: per target size and noise level, how
-often E-L* learns the target and what it costs.
+Render E-L* on random minimal DFAs as LaTeX fragments to `\\input` into a paper.
+
+Two tables, both read from the results `run` caches, one row per target size
+and noise level:
+
+1. summary -- how often E-L* learns the target, exactly and at the right size,
+   and what it costs in membership queries.
+2. difficulty -- the Spearman correlation between a target's queries and each
+   of its `difficulty.target_metrics`.
 
     python -m orthogonal_dfa.experiments.random_minimal.analyze
-
-Writes ``summary.md`` and ``summary.csv`` next to the results.
 """
 
 from __future__ import annotations
 
-import argparse
-import csv
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Union
 
 import numpy as np
+import scipy.stats
 
+from ..capal_comparison.core import REPO_ROOT
+from ..capal_comparison.figures import SUCCESS_THRESHOLD, _pct, _sci, tabular
 from .run import DATA_DIR, RESULT_SCHEMA_VERSION
 
-LEARNED_ACCURACY = 0.99
+OUT_DIR = REPO_ROOT / "figures" / "random-minimal"
 
-COLUMNS = [
-    "states",
-    "eta",
-    "runs",
-    "learned",
-    "exact",
-    "right_size",
-    "accuracy_min",
-    "accuracy_median",
-    "queries_median",
-    "queries_p90",
-    "seconds_median",
-    "seconds_max",
-    "errors",
-]
+DIFFICULTY_METRICS = {
+    "endpoint_mass_min": "rarest state",
+    "class_preserving_fraction": "class-preserving",
+    "separating_length_max": "longest separator",
+    "synchronizing_probability": "synchronizing",
+    "depth_max": "deepest state",
+    "acceptance_rate": "acceptance",
+}
 
 
 def load_results(data_dir: Path) -> List[dict]:
@@ -53,101 +52,95 @@ def load_results(data_dir: Path) -> List[dict]:
     return results
 
 
-def _quantile(values: Sequence[float], q: float):
-    return None if not values else float(np.quantile(values, q))
+def succeeded(result: dict) -> bool:
+    return result["accuracy"] is not None and result["accuracy"] >= SUCCESS_THRESHOLD
 
 
-def summarize(results: Sequence[dict]) -> List[Dict]:
-    """One row per (states, eta). A run without an accuracy, from an error or
-    a timeout, counts as not learned."""
+def _by_size(results: Sequence[dict], cells) -> List[Union[List[str], str]]:
+    """``cells(runs)`` per (states, eta), with the size spanning its etas."""
     groups = defaultdict(list)
     for r in results:
         groups[r["target_states"], r["eta"]].append(r)
-    rows = []
-    for (states, eta), runs in sorted(groups.items()):
-        accuracy = [r["accuracy"] for r in runs if r["accuracy"] is not None]
-        queries = [r["queries_total"] for r in runs if r["accuracy"] is not None]
-        seconds = [r["seconds"] for r in runs]
+    rows: List[Union[List[str], str]] = []
+    for states in sorted({s for s, _ in groups}):
+        etas = sorted(e for s, e in groups if s == states)
+        if rows:
+            rows.append(r"\midrule")
+        # \multirow needs \usepackage{multirow} in the including document.
         rows.append(
-            {
-                "states": states,
-                "eta": eta,
-                "runs": len(runs),
-                "learned": sum(a >= LEARNED_ACCURACY for a in accuracy) / len(runs),
-                "exact": sum(a == 1.0 for a in accuracy) / len(runs),
-                "right_size": np.mean([r["learned_states"] == states for r in runs]),
-                "accuracy_min": min(accuracy, default=None),
-                "accuracy_median": _quantile(accuracy, 0.5),
-                "queries_median": _quantile(queries, 0.5),
-                "queries_p90": _quantile(queries, 0.9),
-                "seconds_median": _quantile(seconds, 0.5),
-                "seconds_max": max(seconds),
-                "errors": sum(r["error_type"] is not None for r in runs),
-            }
+            [f"\\multirow{{{len(etas)}}}{{*}}{{{states}}}", f"{etas[0]:g}"]
+            + cells(groups[states, etas[0]])
         )
+        rows += [["", f"{eta:g}"] + cells(groups[states, eta]) for eta in etas[1:]]
     return rows
 
 
-def failures(results: Sequence[dict]) -> List[Dict]:
-    """The runs short of `LEARNED_ACCURACY`, worst first."""
-    failed = [
-        r for r in results if r["accuracy"] is None or r["accuracy"] < LEARNED_ACCURACY
-    ]
-    failed.sort(key=lambda r: (-1 if r["accuracy"] is None else r["accuracy"]))
+def _summary_cells(runs: Sequence[dict]) -> List[str]:
+    """A run with an error or a timeout has no accuracy and counts as failed."""
+    queries = [r["queries_total"] for r in runs if r["accuracy"] is not None]
     return [
-        {
-            "target": r["benchmark"],
-            "eta": r["eta"],
-            "seed": r["seed"],
-            "accuracy": r["accuracy"],
-            "learned_states": r["learned_states"],
-            "error": r["error_type"],
-        }
-        for r in failed
+        str(len(runs)),
+        _pct(np.mean([succeeded(r) for r in runs])),
+        _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
+        _pct(np.mean([r["learned_states"] == r["target_states"] for r in runs])),
+        _sci(np.median(queries)) if queries else "--",
+        _sci(np.quantile(queries, 0.9)) if queries else "--",
     ]
 
 
-def _format(value) -> str:
-    if value is None:
-        return "-"
-    if isinstance(value, (float, np.floating)):
-        return f"{value:.3g}"
-    return str(value)
+def summary_rows(results: Sequence[dict]) -> List[Union[List[str], str]]:
+    return _by_size(results, _summary_cells)
 
 
-def markdown_table(rows: Sequence[Dict], columns: Sequence[str]) -> str:
-    lines = [
-        "| " + " | ".join(columns) + " |",
-        "|" + "---|" * len(columns),
-    ]
-    for row in rows:
-        lines.append("| " + " | ".join(_format(row[c]) for c in columns) + " |")
-    return "\n".join(lines)
+def _difficulty_cells(runs: Sequence[dict]) -> List[str]:
+    """Over the runs with an accuracy; -- where a metric is constant."""
+    scored = [r for r in runs if r["accuracy"] is not None]
+    queries = [r["queries_total"] for r in scored]
+    cells = []
+    for metric in DIFFICULTY_METRICS:
+        values = [r["target"][metric] for r in scored]
+        if len(set(values)) < 2 or len(set(queries)) < 2:
+            cells.append("--")
+            continue
+        rho = scipy.stats.spearmanr(values, queries).statistic
+        cells.append(f"${rho:+.2f}$")
+    return cells
+
+
+def difficulty_rows(results: Sequence[dict]) -> List[Union[List[str], str]]:
+    return _by_size(results, _difficulty_cells)
+
+
+def fragments(results: Sequence[dict]) -> Dict[str, str]:
+    return {
+        "summary": tabular(
+            [
+                "States",
+                r"$\eta$",
+                "Runs",
+                "Success",
+                "Exact",
+                "Right size",
+                "MQ median",
+                "MQ p90",
+            ],
+            "llrrrrrr",
+            summary_rows(results),
+        ),
+        "difficulty": tabular(
+            ["States", r"$\eta$"] + list(DIFFICULTY_METRICS.values()),
+            "ll" + "r" * len(DIFFICULTY_METRICS),
+            difficulty_rows(results),
+        ),
+    }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
-    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
-    args = parser.parse_args()
-
-    results = load_results(args.data_dir)
-    rows = summarize(results)
-    failed = failures(results)
-    with (args.data_dir / "summary.csv").open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
-    report = (
-        f"# E-L* on random minimal DFAs\n\n{len(results)} runs. Learned means "
-        f"accuracy at least {LEARNED_ACCURACY}; right_size means the learned DFA "
-        f"has the target's number of states.\n\n"
-        + markdown_table(rows, COLUMNS)
-        + f"\n\n## Runs not learned ({len(failed)})\n\n"
-        + (markdown_table(failed, list(failed[0])) if failed else "None.")
-        + "\n"
-    )
-    (args.data_dir / "summary.md").write_text(report)
-    print(report)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for name, fragment in fragments(load_results(DATA_DIR)).items():
+        tex_path = OUT_DIR / f"{name}.tex"
+        tex_path.write_text(fragment + "\n")
+        print(f"wrote {tex_path}")
 
 
 if __name__ == "__main__":

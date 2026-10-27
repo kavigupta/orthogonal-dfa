@@ -1,5 +1,4 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,47 +19,65 @@ def _result(states, eta, accuracy, *, learned_states, queries=100, error_type=No
         "queries_total": queries,
         "seconds": 1.0,
         "error_type": error_type,
+        # falling with queries, except acceptance_rate, which rises
+        "target": {
+            metric: queries if metric == "acceptance_rate" else 1 / queries
+            for metric in analyze.DIFFICULTY_METRICS
+        },
     }
 
 
 class TestAnalyze(unittest.TestCase):
     RESULTS = [
-        _result(4, 0.05, 1.0, learned_states=4),
-        _result(4, 0.05, 0.995, learned_states=4),
-        _result(4, 0.05, 0.9, learned_states=3),
+        _result(4, 0.05, 1.0, learned_states=4, queries=100),
+        _result(4, 0.05, 0.995, learned_states=4, queries=200),
+        _result(4, 0.05, 0.9, learned_states=3, queries=300),
         _result(4, 0.05, None, learned_states=None, error_type="Timeout"),
         _result(8, 0.05, 1.0, learned_states=8),
+        _result(8, 0.1, 1.0, learned_states=8),
     ]
 
     def test_summary(self):
-        rows = {(r["states"], r["eta"]): r for r in analyze.summarize(self.RESULTS)}
-        four = rows[4, 0.05]
-        self.assertEqual(four["runs"], 4)
-        self.assertEqual(four["learned"], 0.5)
-        self.assertEqual(four["exact"], 0.25)
-        self.assertEqual(four["right_size"], 0.5)
-        self.assertEqual(four["accuracy_min"], 0.9)
-        self.assertEqual(four["errors"], 1)
-        self.assertEqual(rows[8, 0.05]["learned"], 1.0)
+        rows = analyze.summary_rows(self.RESULTS)
+        self.assertEqual(
+            rows[0],
+            [
+                r"\multirow{1}{*}{4}",
+                "0.05",
+                "4",
+                r"50\%",
+                r"25\%",
+                r"50\%",
+                r"$2.00 \times 10^{2}$",
+                r"$2.80 \times 10^{2}$",
+            ],
+        )
+        self.assertEqual(rows[1], r"\midrule")
+        self.assertEqual(rows[2][:3], [r"\multirow{2}{*}{8}", "0.05", "1"])
+        self.assertEqual(rows[3][:3], ["", "0.1", "1"])
 
-    def test_failures_worst_first(self):
-        failed = analyze.failures(self.RESULTS)
-        self.assertEqual([f["accuracy"] for f in failed], [None, 0.9])
+    def test_difficulty(self):
+        rows = analyze.difficulty_rows(self.RESULTS)
+        rho = dict(zip(analyze.DIFFICULTY_METRICS, rows[0][2:]))
+        self.assertEqual(rho["endpoint_mass_min"], "$-1.00$")
+        self.assertEqual(rho["acceptance_rate"], "$+1.00$")
+        self.assertEqual(rows[2][2:], ["--"] * len(analyze.DIFFICULTY_METRICS))
 
-    def test_writes_reports_and_skips_stale_results(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp = Path(tmp)
-            (tmp / "results").mkdir()
+    def test_writes_fragments_and_skips_stale_results(self):
+        with tempfile.TemporaryDirectory() as data, tempfile.TemporaryDirectory() as out:
+            data, out = Path(data), Path(out)
+            (data / "results").mkdir()
             for i, r in enumerate(self.RESULTS):
-                (tmp / "results" / f"{i}.json").write_text(json.dumps(r))
+                (data / "results" / f"{i}.json").write_text(json.dumps(r))
             stale = dict(self.RESULTS[0], schema_version=run.RESULT_SCHEMA_VERSION - 1)
-            (tmp / "results" / "stale.json").write_text(json.dumps(stale))
-            with mock.patch.object(
-                sys, "argv", ["analyze", "--data-dir", str(tmp)]
+            (data / "results" / "stale.json").write_text(json.dumps(stale))
+            with mock.patch.object(analyze, "DATA_DIR", data), mock.patch.object(
+                analyze, "OUT_DIR", out
             ), mock.patch("builtins.print"):
                 analyze.main()
-            self.assertIn("5 runs", (tmp / "summary.md").read_text())
-            self.assertEqual(len((tmp / "summary.csv").read_text().splitlines()), 3)
+            summary = (out / "summary.tex").read_text()
+            self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 4 &", summary)
+            self.assertTrue((out / "difficulty.tex").exists())
 
 
 if __name__ == "__main__":
