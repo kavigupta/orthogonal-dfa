@@ -19,6 +19,7 @@ from .cluster import sample_suffix_family
 from .counterexample_config import counterexample_search_config
 from .counterexample_search import CounterexampleSearch
 from .dfa_utils import held_out_phi, labelled_sample
+from .fallbacks.members import MemberFallback
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -233,16 +234,17 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
 def _counterexample_search(pst, vs, *, acc_threshold):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
+    fallback, table = None, pst.table
+    if pst.config.counterexample_member_fallback:
+        fallback = MemberFallback(
+            [p for p, keep in zip(table.prefixes, table.representative) if keep]
+        )
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
-        members=(
-            [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep]
-            if pst.config.counterexample_member_fallback
-            else ()
-        ),
+        member_fallback=fallback,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -251,7 +253,8 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
-    search.close(pst.alphabet_size)
+    if fallback is not None:
+        fallback.close(search.hypothesis, pst.alphabet_size)
     return search, ending
 
 

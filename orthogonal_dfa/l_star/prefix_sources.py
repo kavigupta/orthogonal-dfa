@@ -81,10 +81,8 @@ def harvest_reader(
     if ending.kind == HARVEST_ENDS:
         return lambda charged: charged.ends
     if ending.kind == HARVEST_STUCK:
-        if search.members:
-            # Stuck reads do not recur: a later probe's members, tried witnesses
-            # first, place the edge.  Every stuck read is also an end.
-            return lambda charged: charged.ends
+        if search.member_fallback is not None:
+            return search.member_fallback.stuck_harvest
         return lambda charged: charged.stuck
     return lambda charged: charged.middle
 

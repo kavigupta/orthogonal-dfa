@@ -227,7 +227,7 @@ class TestMemberFallback(unittest.TestCase):
 
     def test_closing_learns_the_edges_members_can_place(self):
         search = quiet_search(parity_cut(()), WITHOUT_ODD_0, members=[b"\x00", b"\x01"])
-        search.close(2)
+        search.member_fallback.close(search.hypothesis, 2)
         self.assertEqual((ODD, b"\x01"), search.hypothesis.edges[(ODD, 0)])
 
 
