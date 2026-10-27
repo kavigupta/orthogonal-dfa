@@ -42,7 +42,8 @@ claims, stated in `OrthoDFA.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated i
 `Level5RoundCorrect`, stated in `OrthoDFA.LowLevelClaims.Level3Claim`,
 `OrthoDFA.LowLevelClaims.Level4Claim` and `OrthoDFA.LowLevelClaims.Level5Claim`, and
 `FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
-same claim with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely
+same claim with the simpler premises, and `LearnerLoopDFADist` the simpler one over strings drawn
+from an input distribution. Level 3's reads are randomly indecisive; level 4's are rarely
 wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong reads tolerated at
 both. The loop runs level 5.
 
@@ -52,8 +53,8 @@ The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReads
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
-`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopClaim` and
-`LoopClaimSimple`.
+`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopDistClaim`,
+`LoopClaim` and `LoopClaimSimple`.
 -/
 
 namespace OrthoDFA
@@ -81,6 +82,10 @@ theorem level4_claim : Level4Claim := level4Claim_holds
 theorem level5_claim : Level5Claim := level5Claim_holds
 
 #print axioms level5_claim
+
+theorem loop_dist_claim : LoopDistClaim := loopDistClaim_holds
+
+#print axioms loop_dist_claim
 
 theorem loop_claim : LoopClaim := loopClaim_holds
 
@@ -126,6 +131,10 @@ theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simpl
 theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
 
 #print axioms learner_loop_dfa
+
+theorem learner_loop_dfa_dist : LearnerLoopDFADist := learner_loop_dfa_dist_holds
+
+#print axioms learner_loop_dfa_dist
 
 theorem learner_loop_dfa_relative_simple : LearnerLoopDFARelativeSimple :=
   learner_loop_dfa_relative_simple_holds
