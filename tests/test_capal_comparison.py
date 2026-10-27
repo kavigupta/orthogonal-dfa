@@ -22,9 +22,7 @@ from orthogonal_dfa.experiments.capal_comparison import (
 )
 from orthogonal_dfa.experiments.capal_comparison.capal_targets import capal_benchmarks
 from orthogonal_dfa.experiments.capal_comparison.core import eval_words
-from orthogonal_dfa.experiments.capal_comparison.random_targets import random_benchmarks
 from orthogonal_dfa.experiments.capal_comparison.sweep import run_cell
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 from tests.test_capal_bridge import _ensure_capal_checkout
 
 #: Both are 2-state targets inside E-L*'s regime, so a cell on either is seconds.
@@ -123,20 +121,6 @@ class TestCapalComparison(unittest.TestCase):
         )
         self.assertIsNone(cell.error_type)
         self.assertGreater(cell.queries_total, 0)
-
-    def test_random_family(self):
-        benchmarks = random_benchmarks(sizes=[4, 6], count=2)
-        self.assertEqual(
-            [b.name for b in benchmarks],
-            ["random_04_000", "random_04_001", "random_06_000", "random_06_001"],
-        )
-        for b in benchmarks:
-            self.assertEqual(b.target.num_states, b.target_states)
-            self.assertTrue(b.regime_report().satisfied, b.name)
-            oracle = b.oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-            truth = b.truth()
-            for word in eval_words(b.symbols)[:200]:
-                self.assertEqual(oracle.membership_query(bytes(word)), truth(word))
 
     def test_written_experiment_records_completeness(self):
         cell = Cell(benchmark="b", family="f", learner=LEARNER_CAPAL, eta=0.05, seed=0)

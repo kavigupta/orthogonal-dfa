@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import time
 
-from . import run_capal_bench, run_our_bench, run_random_bench
+from . import run_capal_bench, run_our_bench
 
-EXPERIMENTS = [run_capal_bench, run_our_bench, run_random_bench]
+EXPERIMENTS = [run_capal_bench, run_our_bench]
 
 
 def main() -> None:

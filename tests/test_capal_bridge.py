@@ -11,14 +11,11 @@ import subprocess
 import unittest
 from pathlib import Path
 
-import numpy as np
-
 from orthogonal_dfa.capal_official import (
     PINNED_COMMIT,
     build_modulo_dfa,
     build_regex_dfa,
     fit_with_fallback,
-    from_automata_dfa,
     import_capal,
     make_learner,
     resolve_capal_dir,
@@ -26,7 +23,6 @@ from orthogonal_dfa.capal_official import (
     verify_pinned,
 )
 from orthogonal_dfa.capal_official.adapter import UPSTREAM_URL
-from orthogonal_dfa.l_star.examples.random_dfa import sample_random_dfa
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
 
@@ -158,16 +154,6 @@ class TestCapalBridge(unittest.TestCase):
                 self.assertEqual(
                     upstream.run(word), back.accepts_input(indices), (regex, word)
                 )
-
-    def test_from_automata_dfa_round_trips(self):
-        aut = sample_random_dfa(np.random.default_rng(0), num_states=6)
-        upstream = from_automata_dfa(aut)
-        self.assertEqual(upstream.alphabet, ("0", "1"))
-        back = to_automata_dfa(upstream)
-        for word in _all_words("01", 8):
-            indices = [int(c) for c in word]
-            self.assertEqual(upstream.run(word), aut.accepts_input(indices), word)
-            self.assertEqual(back.accepts_input(indices), aut.accepts_input(indices))
 
     def test_round_trip_is_total(self):
         # automata-lib rejects by dying; upstream requires every (state, symbol),
