@@ -43,7 +43,7 @@ from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
 from .difficulty import target_metrics
 
-SIZES = [6, 12]
+SIZES = [6, 12, 18]
 COUNT = 100
 ETAS = CAPAL_ETAS
 SEEDS = [0]
