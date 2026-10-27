@@ -32,13 +32,15 @@ class HarvestSource(RejectionSource):
     each attempt reads a fresh draw by one of their provenances, chosen in
     proportion to how many of them it found."""
 
-    def __init__(self, provenances, rng, *, known, acc_threshold):
+    def __init__(self, provenances, rng, *, known, acc_threshold, retirable):
         """``provenances`` maps each provenance to how many strings it found.
         Worth drawing on where an attempt turns up a boundary string at least
         ``1 - acc_threshold`` of the time, and not at half that: only a read that
         disagrees or cannot be placed turns one up, and a round the gate refuses
-        can disagree on no more than that share of them."""
+        can disagree on no more than that share of them.  A ``retirable`` source
+        that runs dry has its population retired rather than ending the run."""
         super().__init__()
+        self.retirable = retirable
         assert acc_threshold < 1, acc_threshold
         self._good = 1 - acc_threshold
         self._served.update(known)

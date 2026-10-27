@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.SeqTest
+import OrthoDFA.LowLevelClaims.SeqTest
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 

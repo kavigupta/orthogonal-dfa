@@ -72,7 +72,9 @@ class TestArmedMergeTarget(unittest.TestCase):
         # Nothing about the sampler stops this being learned exactly, so the shortfall
         # below is the learner's and not the target's.
         self.assertAlmostEqual(
-            P.covered_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
+            P.non_start_zone_accuracy_ceiling(
+                target, length=ARMED_LENGTH, sampler=sampler
+            ),
             1.0,
         )
 
@@ -129,7 +131,7 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
 
 
 #: (alphabet, arms, disarm).
-TRAPS = [(200, 4, 174), (200, 4, 180)]
+TRAPS = [(200, 4, 173), (200, 4, 180)]
 
 
 class TestTrapTargets(unittest.TestCase):

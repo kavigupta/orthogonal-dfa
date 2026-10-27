@@ -135,6 +135,16 @@ class TestMaxRounds(unittest.TestCase):
         # A caller recording nothing has no other route to the settled tree.
         self.assertIsNotNone(best.tree)
 
+    def test_restarts_and_ranks_on_held_out_phi(self):
+        pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
+        pst.config.counterexample_restarts = 2
+        pst.config.rank_rounds_by_held_out = True
+        best = counterexample_driven_synthesis(
+            pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
+        )
+        self.assertIsNotNone(best.dfa)
+        self.assertGreater(best.score, 0.0)
+
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.
         with self.assertRaises(AssertionError):
