@@ -208,7 +208,7 @@ def _next_harvest(pst, search, ending, blamed):
     a success the certificate refused shows the blamed state's undecided reads."""
     draw = UniformSource(pst).draw
     if blamed is None or ending.harvest:
-        return ending.harvest, Replay(search, harvest_reader(ending), draw)
+        return ending.harvest, Replay(search, harvest_reader(ending, search), draw)
     leaf = search.hypothesis.tree.path_of(blamed)
 
     def at_leaf(by_edge):
@@ -238,6 +238,11 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
+        members=(
+            [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep]
+            if pst.config.counterexample_member_fallback
+            else ()
+        ),
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -246,6 +251,7 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
+    search.close(pst.alphabet_size)
     return search, ending
 
 

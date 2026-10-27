@@ -74,11 +74,17 @@ class HarvestSource(RejectionSource):
         return "boundary"
 
 
-def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
-    """What a probe reads undecided where ``ending`` harvested."""
+def harvest_reader(
+    ending: Ending, search: CounterexampleSearch
+) -> Callable[[Charges], List[bytes]]:
+    """What a probe of ``search`` reads undecided where ``ending`` harvested."""
     if ending.kind == HARVEST_ENDS:
         return lambda charged: charged.ends
     if ending.kind == HARVEST_STUCK:
+        if search.members:
+            # Stuck reads do not recur: a later probe's members, tried witnesses
+            # first, place the edge.  Every stuck read is also an end.
+            return lambda charged: charged.ends
         return lambda charged: charged.stuck
     return lambda charged: charged.middle
 

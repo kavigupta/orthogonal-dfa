@@ -65,9 +65,9 @@ def quiet_config(**changes):
     return SimpleNamespace(**config)
 
 
-def quiet_search(cut, edges, *, max_k=0, **changes):
+def quiet_search(cut, edges, *, max_k=0, members=(), **changes):
     search = CounterexampleSearch(
-        quiet_config(**changes), cut, MidfixTree([]), max_k=max_k
+        quiet_config(**changes), cut, MidfixTree([]), max_k=max_k, members=members
     )
     search.hypothesis.edges = dict(edges)
     return search
