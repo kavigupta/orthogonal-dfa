@@ -11,9 +11,9 @@ A leaf's score sums `agreeAt` over the held-out strings. At distinct strings the
 independent, so the score is within `n t/2` of its mean given the strings, and that mean within
 `n t/2` of `n · agreeMean` (`scoreBad_le`). Where every leaf's score is within `n t` of its mean,
 the leaf of highest score misjudges at most `2t` more than the best leaf, and the mean is within
-the family's misread and undecided shares of the leaf's accuracy (`pickLeaf_le`). Uniform
-held-out strings repeat, or start with the first `k` letters of a given set, rarely
-(`batch_collide_le`).
+the family's misread and undecided shares of the leaf's accuracy (`pickLeaf_le`). Held-out strings
+from a law that holds little on any first `k` letters repeat, or start with the first `k` letters of
+a given set, rarely (`batch_collide_le`).
 -/
 
 noncomputable section
@@ -42,15 +42,15 @@ def agreeAt (s : List Bool) (x : FreeMonoid α) (ω : Ω) : ℝ :=
 /-- `agreeAt`'s mean over the noise. -/
 def agreeProb (s : List Bool) (x : FreeMonoid α) : ℝ := ∫ ω, agreeAt O H F kl kh s x ω ∂μ
 
-/-- `agreeProb`'s mean over the strings of length `L`. -/
-def agreeMean (L : ℕ) (s : List Bool) : ℝ :=
-  ∫ x, agreeProb O H F kl kh s x ∂(uniformStrings L)
+/-- `agreeProb`'s mean over `T`'s strings. -/
+def agreeMean (T : Measure (FreeMonoid α)) (s : List Bool) : ℝ :=
+  ∫ x, agreeProb O H F kl kh s x ∂T
 
 /-- Distinct held-out strings at which some leaf's score strays `n t` from its mean. -/
-def scoreBad (L n : ℕ) (t : ℝ) : Set (Ω × (Fin n → FreeMonoid α)) :=
+def scoreBad (T : Measure (FreeMonoid α)) (n : ℕ) (t : ℝ) : Set (Ω × (Fin n → FreeMonoid α)) :=
   {p | Function.Injective p.2 ∧ ∃ s ∈ H.tree.leaves,
-    n * (agreeMean O H F kl kh L s + t) ≤ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1
-      ∨ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1 ≤ n * (agreeMean O H F kl kh L s - t)}
+    n * (agreeMean O H F kl kh T s + t) ≤ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1
+      ∨ ∑ i, agreeAt O H F kl kh s (p.2 i) p.1 ≤ n * (agreeMean O H F kl kh T s - t)}
 
 omit [IsProbabilityMeasure μ] in
 theorem leafScore_eq (ω : Ω) {n : ℕ} (xs : Fin n → FreeMonoid α) (s : List Bool) :
@@ -77,16 +77,16 @@ theorem agreeAt_mem (s : List Bool) (x : FreeMonoid α) (ω : Ω) :
   unfold agreeAt
   split_ifs <;> simp
 
-theorem measurableSet_scoreBad (L n : ℕ) (t : ℝ) :
-    MeasurableSet (scoreBad O H F kl kh L n t) := by
+theorem measurableSet_scoreBad (T : Measure (FreeMonoid α)) (n : ℕ) (t : ℝ) :
+    MeasurableSet (scoreBad O H F kl kh T n t) := by
   classical
   refine measurableSet_prod_countable_right _ fun b => ?_
   have hm : ∀ s, Measurable fun ω => ∑ i, agreeAt O H F kl kh s (b i) ω := fun s =>
     Finset.measurable_sum _ fun i _ => measurable_agreeAt O H F kl kh s (b i)
-  have hset : {ω | (ω, b) ∈ scoreBad O H F kl kh L n t}
+  have hset : {ω | (ω, b) ∈ scoreBad O H F kl kh T n t}
       = {_ω | Function.Injective b} ∩ ⋃ s ∈ H.tree.leaves.toFinset,
-        ({ω | n * (agreeMean O H F kl kh L s + t) ≤ ∑ i, agreeAt O H F kl kh s (b i) ω}
-          ∪ {ω | ∑ i, agreeAt O H F kl kh s (b i) ω ≤ n * (agreeMean O H F kl kh L s - t)}) := by
+        ({ω | n * (agreeMean O H F kl kh T s + t) ≤ ∑ i, agreeAt O H F kl kh s (b i) ω}
+          ∪ {ω | ∑ i, agreeAt O H F kl kh s (b i) ω ≤ n * (agreeMean O H F kl kh T s - t)}) := by
     ext ω
     simp [scoreBad]
   rw [hset]
@@ -105,11 +105,12 @@ theorem agreeProb_mem (s : List Bool) (x : FreeMonoid α) :
         integral_mono hi (integrable_const 1) fun ω => (hb ω).2
     _ = 1 := by simp
 
-theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht : 0 ≤ t) :
-    (μ.prod (Measure.pi fun _ : Fin n => uniformStrings L)) (scoreBad O H F kl kh L n t)
+theorem scoreBad_le (hF : SuffixFree F) (T : Measure (FreeMonoid α)) [IsProbabilityMeasure T]
+    (n : ℕ) (t : ℝ) (ht : 0 ≤ t) :
+    (μ.prod (Measure.pi fun _ : Fin n => T)) (scoreBad O H F kl kh T n t)
       ≤ ENNReal.ofReal (H.tree.leaves.length * (4 * Real.exp (-(n * t ^ 2 / 2)))) := by
   classical
-  set β := Measure.pi fun _ : Fin n => uniformStrings (α := α) L with hβ
+  set β := Measure.pi fun _ : Fin n => T with hβ
   set e := Real.exp (-(n * t ^ 2 / 2)) with he
   have he0 : 0 ≤ e := (Real.exp_pos _).le
   have hlen := List.length_pos_of_ne_nil (DTree.leaves_ne_nil H.tree)
@@ -124,7 +125,7 @@ theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht 
     ∑ i, agreeAt O H F kl kh s (b i) ω with hXd
   set Y : List Bool → (Fin n → FreeMonoid α) → ℝ := fun s b =>
     ∑ i, agreeProb O H F kl kh s (b i) with hYd
-  set mn : List Bool → ℝ := fun s => agreeMean O H F kl kh L s with hmnd
+  set mn : List Bool → ℝ := fun s => agreeMean O H F kl kh T s with hmnd
   have hXm : ∀ s b, Measurable (X s b) := fun s b =>
     Finset.measurable_sum _ fun i _ => measurable_agreeAt O H F kl kh s (b i)
   set A1 : List Bool → Set (Ω × (Fin n → FreeMonoid α)) := fun s =>
@@ -133,7 +134,7 @@ theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht 
     {p | Function.Injective p.2 ∧ X s p.2 p.1 ≤ Y s p.2 - n * (t / 2)}
   set A3 : List Bool → Set (Fin n → FreeMonoid α) := fun s => {b | n * (mn s + t / 2) ≤ Y s b}
   set A4 : List Bool → Set (Fin n → FreeMonoid α) := fun s => {b | Y s b ≤ n * (mn s - t / 2)}
-  have hsub : scoreBad O H F kl kh L n t ⊆ ⋃ s ∈ H.tree.leaves.toFinset,
+  have hsub : scoreBad O H F kl kh T n t ⊆ ⋃ s ∈ H.tree.leaves.toFinset,
       ((A1 s ∪ A2 s) ∪ (Prod.snd ⁻¹' (A3 s ∪ A4 s))) := by
     rintro ⟨ω, b⟩ ⟨hinj, s, hs, h⟩
     refine Set.mem_iUnion₂.2 ⟨s, List.mem_toFinset.2 hs, ?_⟩
@@ -233,7 +234,7 @@ theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht 
       = ((Finset.univ : Finset (Fin n)).card : ℝ) * mn s := by
     intro s
     have : ∀ i : Fin n, β[fun b : Fin n → FreeMonoid α => agreeProb O H F kl kh s (b i)] = mn s :=
-      fun i => integral_comp_eval (μ := fun _ : Fin n => uniformStrings (α := α) L)
+      fun i => integral_comp_eval (μ := fun _ : Fin n => T)
         (hpm s).aestronglyMeasurable
     simp only [this, Finset.sum_const, nsmul_eq_mul]
   have hsnd : ∀ T : Set (Fin n → FreeMonoid α), (μ.prod β) (Prod.snd ⁻¹' T) = β T := by
@@ -274,7 +275,7 @@ theorem scoreBad_le [Nonempty α] (hF : SuffixFree F) (L n : ℕ) (t : ℝ) (ht 
       _ ≤ ENNReal.ofReal e + ENNReal.ofReal e + (ENNReal.ofReal e + ENNReal.ofReal e) :=
           add_le_add (add_le_add (h1 s) (h2 s)) (add_le_add (h3 s) (h4 s))
       _ = 4 * ENNReal.ofReal e := by ring
-  calc (μ.prod β) (scoreBad O H F kl kh L n t)
+  calc (μ.prod β) (scoreBad O H F kl kh T n t)
       ≤ (μ.prod β) (⋃ s ∈ H.tree.leaves.toFinset,
           ((A1 s ∪ A2 s) ∪ (Prod.snd ⁻¹' (A3 s ∪ A4 s)))) := measure_mono hsub
     _ ≤ ∑ s ∈ H.tree.leaves.toFinset, (μ.prod β) ((A1 s ∪ A2 s) ∪ (Prod.snd ⁻¹' (A3 s ∪ A4 s))) :=
@@ -294,23 +295,24 @@ end Score
 
 section Pick
 
-variable [Nonempty α] {σ : Type*} (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
+variable {σ : Type*} (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
   (H : HypothesisDFA α) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
 
 /-- Off `scoreBad`, the leaf of highest score misjudges at most `2t`, the family's undecided
 share `u` and twice its misread share `m` more than any leaf. -/
-theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L n : ℕ) (hn : 0 < n)
+theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
+    (T : Measure (FreeMonoid α)) [IsProbabilityMeasure T] (n : ℕ) (hn : 0 < n)
     (t u m γ : ℝ) (ω : Ω) (xs : Fin n → FreeMonoid α) (hxs : Function.Injective xs)
-    (hgood : (ω, xs) ∉ scoreBad O H F kl kh L n t)
-    (hu : ∫ x, readProb O F kl kh x .undecided ∂(uniformStrings L) ≤ u)
-    (hm : ∫ x, misreadProb O F kl kh x ∂(uniformStrings L) ≤ m)
-    (hs : ∃ s ∈ H.tree.leaves, (uniformStrings L).real
+    (hgood : (ω, xs) ∉ scoreBad O H F kl kh T n t)
+    (hu : ∫ x, readProb O F kl kh x .undecided ∂T ≤ u)
+    (hm : ∫ x, misreadProb O F kl kh x ∂T ≤ m)
+    (hs : ∃ s ∈ H.tree.leaves, T.real
       {x | ¬ H.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) :
-    (uniformStrings L).real {x | ¬ H.Classifies
+    T.real {x | ¬ H.Classifies
       (pickLeaf H (fun z => familyRead O.mq F kl kh z ω) xs) x (M.eval x.toList ∈ M.accept)}
       ≤ γ + 2 * t + u + 2 * m := by
   classical
-  set U := uniformStrings (α := α) L with hUd
+  set U := T with hUd
   set tgt : FreeMonoid α → Prop := fun x => M.eval x.toList ∈ M.accept
   set err : List Bool → ℝ := fun s => U.real {x | ¬ H.Classifies s x (tgt x)} with herrd
   set cl : List Bool → FreeMonoid α → ℝ := fun s x => if H.Classifies s x (tgt x) then 1 else 0
@@ -417,20 +419,28 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L 
     congr 1
     ext x
     simp
-  have hiU : ∀ g : FreeMonoid α → ℝ, Integrable g U := fun g => integrable_uniformStrings L g
+  have hcl01 : ∀ s x, cl s x ∈ Set.Icc (0 : ℝ) 1 := fun s x => by
+    simp only [cl]; split_ifs <;> norm_num
+  have hiC : ∀ s, Integrable (cl s) U := fun s => integrable_of_mem_Icc (hcl01 s)
+  have hiR : Integrable (fun x => readProb O F kl kh x .undecided) U :=
+    integrable_of_mem_Icc fun _ => ⟨measureReal_nonneg, measureReal_le_one⟩
+  have hiM : Integrable (fun x => misreadProb O F kl kh x) U :=
+    integrable_of_mem_Icc fun _ => ⟨measureReal_nonneg, measureReal_le_one⟩
+  have hiP : ∀ s, Integrable (agreeProb O H F kl kh s) U := fun s =>
+    integrable_of_mem_Icc (agreeProb_mem O H F kl kh s)
   have hmlo : ∀ s, 1 - err s - ∫ x, readProb O F kl kh x .undecided ∂U
-      - ∫ x, misreadProb O F kl kh x ∂U ≤ agreeMean O H F kl kh L s := by
+      - ∫ x, misreadProb O F kl kh x ∂U ≤ agreeMean O H F kl kh T s := by
     intro s
+    have hA : Integrable (fun x => cl s x - readProb O F kl kh x .undecided) U := (hiC s).sub hiR
     have h := integral_mono (f := fun x => cl s x - readProb O F kl kh x .undecided
-      - misreadProb O F kl kh x) (hiU _) (hiU _) (hplo s)
-    have hA : Integrable (fun x => cl s x - readProb O F kl kh x .undecided) U := hiU _
-    rw [integral_sub hA (hiU _), integral_sub (hiU _) (hiU _), hcl s] at h
+      - misreadProb O F kl kh x) (hA.sub hiM) (hiP s) (hplo s)
+    rw [integral_sub hA hiM, integral_sub (hiC s) hiR, hcl s] at h
     exact h
-  have hmhi : ∀ s, agreeMean O H F kl kh L s ≤ 1 - err s + ∫ x, misreadProb O F kl kh x ∂U := by
+  have hmhi : ∀ s, agreeMean O H F kl kh T s ≤ 1 - err s + ∫ x, misreadProb O F kl kh x ∂U := by
     intro s
-    have h := integral_mono (g := fun x => cl s x + misreadProb O F kl kh x) (hiU _) (hiU _)
-      (hphi s)
-    rw [integral_add (hiU _) (hiU _), hcl s] at h
+    have h := integral_mono (g := fun x => cl s x + misreadProb O F kl kh x) (hiP s)
+      ((hiC s).add hiM) (hphi s)
+    rw [integral_add (hiC s) hiM, hcl s] at h
     exact h
   -- the picked leaf
   set sc : FreeMonoid α → ARU := fun z => familyRead O.mq F kl kh z ω
@@ -444,8 +454,8 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L 
     exact_mod_cast List.le_of_mem_argmax hs₀ (Option.mem_def.2 hsh)
   rw [leafScore_eq, leafScore_eq] at hle
   have hok : ∀ s ∈ H.tree.leaves,
-      ∑ i, agreeAt O H F kl kh s (xs i) ω < n * (agreeMean O H F kl kh L s + t)
-      ∧ n * (agreeMean O H F kl kh L s - t) < ∑ i, agreeAt O H F kl kh s (xs i) ω := by
+      ∑ i, agreeAt O H F kl kh s (xs i) ω < n * (agreeMean O H F kl kh T s + t)
+      ∧ n * (agreeMean O H F kl kh T s - t) < ∑ i, agreeAt O H F kl kh s (xs i) ω := by
     intro s hs
     by_contra h
     apply hgood
@@ -454,12 +464,12 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L 
     · exact Or.inl (not_lt.1 h)
     · exact Or.inr (not_lt.1 h)
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  have hmean : agreeMean O H F kl kh L s₀ - 2 * t < agreeMean O H F kl kh L sh := by
+  have hmean : agreeMean O H F kl kh T s₀ - 2 * t < agreeMean O H F kl kh T sh := by
     have h1 := (hok sh hshm).1
     have h2 := (hok s₀ hs₀).2
     by_contra h
-    have h3 : (n : ℝ) * (agreeMean O H F kl kh L sh + t)
-        ≤ n * (agreeMean O H F kl kh L s₀ - t) :=
+    have h3 : (n : ℝ) * (agreeMean O H F kl kh T sh + t)
+        ≤ n * (agreeMean O H F kl kh T s₀ - t) :=
       mul_le_mul_of_nonneg_left (by linarith) hn'.le
     linarith
   rw [hpick]
@@ -472,32 +482,34 @@ end Pick
 
 section Collide
 
-variable [Nonempty α]
-
-/-- Held-out strings uniform of length `L` repeat, or one's first `k` letters fall in `S`, with
-chance at most `n |S| / |Σ|^k + n² / |Σ|^L`. -/
-theorem batch_collide_le (L k n : ℕ) (hk : k ≤ L) (S : Finset (FreeMonoid α)) :
-    (Measure.pi fun _ : Fin n => uniformStrings (α := α) L)
+/-- Held-out strings of length `L`, drawn from `T`, which holds at most `p₀` on any first `k`
+letters, repeat, or one's first `k` letters fall in `S`, with chance at most `n |S| p₀ + n² p₀`. -/
+theorem batch_collide_le (T : Measure (FreeMonoid α)) [IsProbabilityMeasure T] (L k n : ℕ)
+    {p₀ : ℝ} (hlen : T {x | x.toList.length ≠ L} = 0)
+    (hpre : ∀ u, T.real {x | prefixOf x k = u} ≤ p₀) (S : Finset (FreeMonoid α)) :
+    (Measure.pi fun _ : Fin n => T)
       {b | ¬ Function.Injective b ∨ ∃ i, (b i).toList.length ≠ L ∨ prefixOf (b i) k ∈ S}
-      ≤ ENNReal.ofReal (n * S.card / (Fintype.card α : ℝ) ^ k
-        + n ^ 2 / (Fintype.card α : ℝ) ^ L) := by
+      ≤ ENNReal.ofReal (n * S.card * p₀ + n ^ 2 * p₀) := by
   classical
-  set U := uniformStrings (α := α) L with hUd
+  set U := T with hUd
   set β := Measure.pi fun _ : Fin n => U with hβd
-  have hA : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
+  have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
   have hev : ∀ (i : Fin n) (T : Set (FreeMonoid α)), β {b | b i ∈ T} = U T := fun i T =>
     (measurePreserving_eval (fun _ : Fin n => U) i).measure_preimage
       (MeasurableSpace.measurableSet_top).nullMeasurableSet
-  have hatom : ∀ x : FreeMonoid α, U {x} ≤ ENNReal.ofReal (1 / (Fintype.card α : ℝ) ^ L) :=
+  have hatom : ∀ x : FreeMonoid α, U {x} ≤ ENNReal.ofReal p₀ :=
     fun x => by
       rw [← ofReal_measureReal]
-      exact ENNReal.ofReal_le_ofReal (uniformStrings_singleton_le L x)
+      refine ENNReal.ofReal_le_ofReal ((measureReal_mono (fun y hy => ?_)
+        (measure_ne_top _ _)).trans (hpre (prefixOf x k)))
+      simp only [Set.mem_singleton_iff] at hy
+      simp only [Set.mem_ofPred_eq, hy]
   -- a string of another length
   have h1 : ∀ i : Fin n, β {b | (b i).toList.length ≠ L} = 0 := fun i => by
-    exact (hev i {x | x.toList.length ≠ L}).trans (uniformStrings_length L)
+    exact (hev i {x | x.toList.length ≠ L}).trans hlen
   -- a string starting in `S`
   have h2 : ∀ i : Fin n, β {b | prefixOf (b i) k ∈ S}
-      ≤ ENNReal.ofReal (S.card / (Fintype.card α : ℝ) ^ k) := fun i => by
+      ≤ ENNReal.ofReal (S.card * p₀) := fun i => by
     refine (hev i {x | prefixOf x k ∈ S}).le.trans ?_
     rw [← ofReal_measureReal]
     refine ENNReal.ofReal_le_ofReal ?_
@@ -505,14 +517,12 @@ theorem batch_collide_le (L k n : ℕ) (hk : k ≤ L) (S : Finset (FreeMonoid α
       ext x; simp
     rw [hset]
     refine (measureReal_biUnion_finset_le _ _).trans ?_
-    calc ∑ u ∈ S, U.real {x | prefixOf x k = u} ≤ ∑ _u ∈ S, 1 / (Fintype.card α : ℝ) ^ k :=
-          Finset.sum_le_sum fun u _ => (le_ciSup (f := fun u => U.real {x | prefixOf x k = u})
-            ⟨1, by rintro _ ⟨v, rfl⟩; exact measureReal_le_one⟩ u).trans
-            (prefixMax_uniformStrings_le hk)
-      _ = S.card / (Fintype.card α : ℝ) ^ k := by rw [Finset.sum_const, nsmul_eq_mul]; ring
+    calc ∑ u ∈ S, U.real {x | prefixOf x k = u} ≤ ∑ _u ∈ S, p₀ :=
+          Finset.sum_le_sum fun u _ => hpre u
+      _ = S.card * p₀ := by rw [Finset.sum_const, nsmul_eq_mul]
   -- two draws that coincide
   have h3 : ∀ i j : Fin n, β {b | i ≠ j ∧ b i = b j}
-      ≤ ENNReal.ofReal (1 / (Fintype.card α : ℝ) ^ L) := fun i j => by
+      ≤ ENNReal.ofReal p₀ := fun i j => by
     by_cases hij : i = j
     · have : {b : Fin n → FreeMonoid α | i ≠ j ∧ b i = b j} = ∅ := by
         ext b; simp [hij]
@@ -534,9 +544,9 @@ theorem batch_collide_le (L k n : ℕ) (hk : k ≤ L) (S : Finset (FreeMonoid α
           rw [hind.measure_inter_preimage_eq_mul _ _ (measurableSet_singleton x)
             (measurableSet_singleton x)]
           exact congrArg₂ (· * ·) (hev i {x}) (hev j {x})
-      _ ≤ ∑' x : FreeMonoid α, U {x} * ENNReal.ofReal (1 / (Fintype.card α : ℝ) ^ L) :=
+      _ ≤ ∑' x : FreeMonoid α, U {x} * ENNReal.ofReal p₀ :=
           ENNReal.tsum_le_tsum fun x => by gcongr; exact hatom x
-      _ = ENNReal.ofReal (1 / (Fintype.card α : ℝ) ^ L) := by
+      _ = ENNReal.ofReal p₀ := by
           rw [ENNReal.tsum_mul_right]
           have : ∑' x : FreeMonoid α, U {x} = 1 := by
             rw [← measure_iUnion (fun x y hxy => Set.disjoint_singleton.2 hxy)
@@ -566,18 +576,19 @@ theorem batch_collide_le (L k n : ℕ) (hk : k ≤ L) (S : Finset (FreeMonoid α
           (add_le_add (measure_iUnion_fintype_le _ _) (measure_iUnion_fintype_le _ _)))
           ((measure_iUnion_fintype_le _ _).trans (Finset.sum_le_sum fun i _ =>
             measure_iUnion_fintype_le _ _)))
-    _ ≤ (∑ _i : Fin n, 0 + ∑ _i : Fin n, ENNReal.ofReal (S.card / (Fintype.card α : ℝ) ^ k))
-        + ∑ _i : Fin n, ∑ _j : Fin n, ENNReal.ofReal (1 / (Fintype.card α : ℝ) ^ L) := by
+    _ ≤ (∑ _i : Fin n, 0 + ∑ _i : Fin n, ENNReal.ofReal (S.card * p₀))
+        + ∑ _i : Fin n, ∑ _j : Fin n, ENNReal.ofReal p₀ := by
         exact add_le_add (add_le_add (Finset.sum_le_sum fun i _ => (h1 i).le)
           (Finset.sum_le_sum fun i _ => h2 i))
           (Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => h3 i j)
-    _ = ENNReal.ofReal (n * S.card / (Fintype.card α : ℝ) ^ k
-        + n ^ 2 / (Fintype.card α : ℝ) ^ L) := by
+    _ = ENNReal.ofReal (n * S.card * p₀ + n ^ 2 * p₀) := by
         simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_zero,
           zero_add]
-        rw [ENNReal.ofReal_add (by positivity) (by positivity), ← ENNReal.ofReal_natCast,
-          ← ENNReal.ofReal_mul hn0, ← ENNReal.ofReal_mul hn0, ← ENNReal.ofReal_mul hn0]
-        congr 2 <;> ring
+        rw [show (n : ℝ) * S.card * p₀ + n ^ 2 * p₀ = n * (S.card * p₀) + n * (n * p₀) by ring,
+          ENNReal.ofReal_add (mul_nonneg hn0 (mul_nonneg (Nat.cast_nonneg _) hp₀))
+            (mul_nonneg hn0 (mul_nonneg hn0 hp₀)),
+          ENNReal.ofReal_mul hn0, ENNReal.ofReal_mul hn0, ENNReal.ofReal_mul hn0,
+          ENNReal.ofReal_natCast]
 
 end Collide
 

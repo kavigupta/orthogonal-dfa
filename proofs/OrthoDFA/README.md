@@ -32,16 +32,29 @@ Each claim is proved from the explicit theorems below.
   their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
   slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
   `O(Q'|Σ| log(Q'|Σ|)/y)`.
-- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `R ≥ 1` the visit ratio of the relative
-  rule (`LearnerLoopDFARelative`'s premise), the length `L₀` past which the learner's DFA is right
-  but for `γ + ξ`, `O(1 + log(|Q|R/(δ ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked
-  on, `O(log(|Q|/δ)/ξ²)`, and, over `LoopRun` (the inputs with `L`), every prefix, suffix and
-  probe the whole run reads: `O(|Q|⁶(L + |Q|)²|Σ|²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes,
-  `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ ·
-  log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. The run is the coverage rule's at
-  `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The totals grow with `L` because the
-  settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the
-  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+- `LoopClaim` (`Claims/Loop.lean`): over an input distribution `D`, over
+  `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`) and `R ≥ 1` the visit ratio of the
+  relative rule (`LearnerLoopDFARelative`'s premise). The probes are `D`'s strings cut at a
+  length uniform over `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` (`windowLaw`), the suffixes their first
+  `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
+  over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
+  prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
+  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹⁴R⁴ log²(|Q|R/(β δ ξ pAP s₀))
+  /(β⁴ δ ξ⁴ pAP³ s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
+  `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
+  suffix and probe the whole run reads is bounded: `O(|Q|⁶(L + |Q|)²R² log(X')/(β² ξ²) ·
+  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and
+  `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
+  is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
+  totals grow with `L` because the settings the proof picks hold each round's disagreement rate
+  at `c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
+  the suffixes as `log L`.
+- `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
+  (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
+  `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁶(L + |Q|)²|Σ|²R²
+  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))`
+  suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
   `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
   suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
 
@@ -95,8 +108,10 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
 `ε/48`, drawing at most `B₃ = 36 S/ε · log(16 S(S+1)/δ') + S + 1` probes,
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
-every hypothesis an inequality; they follow from `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂`
-and `E₃` free of `L`, logarithmic in `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)`, `1/pAP`, `|Q|` and `|Σ|`.
+every hypothesis an inequality. Each of the four conditions on the walk start bounds the mass the
+probes' law puts on one first `k` letters, `|Σ|^-k` for uniform strings, and they follow from
+`(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`,
+`1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
 Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
 holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 
@@ -105,6 +120,24 @@ holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 421.6`; the
 least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 371.
+
+The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_counts`,
+proved in `Proofs/LoopDFA.lean`); the uniform theorems take `D` uniform over the strings of length
+`L + 2|Q| + 6`, whose first `n` letters are uniform (`prefixLaw_uniformStrings`). Uniformity entered
+in three places, each now a condition on `D`:
+
+1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
+   prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
+   largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
+   `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
+   for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
+2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
+   `edge_of_occupied` asks `D` to extend each prefix by each letter at least `1/Ae` of the time
+   (`prefixLaw_snoc_le`), and the edge-crossing rate is `c/((Ae+1)N)`. `Ae = 1/β` in general and
+   `|Σ|` for uniform strings (`uniformStrings_floor`).
+3. Coverage and `rerootAccuracy`. They are measured under `D`'s first `L` letters
+   (`coveredStatesOn`, `rerootAccuracyOn`), the law the window's probes of length `L` follow; the
+   occupancy a covered state gives the window is `occupancy_of_covered`.
 
 `LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
 rule instead: some `q ∈ nonStartZoneStates M L R q` has accuracy at least `1 − γ` with
@@ -150,22 +183,21 @@ covered state's edges are then true and it accepts as the target does, so the hy
 covered start's true leaf tracks the re-rooted target on every run that stays covered
 (`classify_start_le`).
 
-The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates
-on and off the language may differ, and agreement with such a read weighs a leaf's errors by
-`1 − 2η` of the string's true label, which can rank a worse leaf first. The family's read of a
-string of length `L` is wrong at most `(1025/1024) N εcov` of the time and undecided at most
-`(3/8) N εcov`, with `N εcov ≤ ξ/8`, so a leaf's
-mean score is within that of its accuracy. Reads persist per string, so the held-out strings'
-reads are fresh only where no held-out string repeats or begins with the first `k` letters of a
-prefix the last round's clustering read or of one of its probes: level 3 reads only short strings
-beginning with some probe's first `k` letters (`level3_congr_zone'`, `Proofs/LoopRenoise.lean`), and
-the earlier rounds read other suffixes. That collision has chance at most
-`n(6(|Q|+2)RB + B₃ + n)/|Σ|^k`, which `L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that
-can be last. Off it, given the loop, each leaf's score is within `nξ/8` of its mean given the
-strings, and that within `nξ/8` of `n` times its mean over the strings, but for chance
-`4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most `|Q| + 2` leaves, so the picked leaf
-misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ` (`pickLeaf_le`). `δ` splits half to
-the loop, a quarter to the scores and a quarter to collisions.
+The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates on
+and off the language may differ, and agreement with such a read weighs a leaf's errors by `1 − 2η`
+of the string's true label, which can rank a worse leaf first. The family's read of a string of
+length `L` is wrong at most `(1025/1024) N εcov` of the time and undecided at most `(3/8) N εcov`,
+with `N εcov ≤ ξ/8`, so a leaf's mean score is within that of its accuracy. Reads persist per
+string, so the held-out strings' reads are fresh only where no held-out string repeats or begins
+with the first `k` letters of a prefix the last round's clustering read or of one of its probes:
+level 3 reads only short strings beginning with some probe's first `k` letters
+(`level3_congr_zone'`, `Proofs/LoopRenoise.lean`), and the earlier rounds read other suffixes. That
+collision has chance at most `n(6(|Q|+2)RB + B₃ + n) p₀`, `p₀ = |Σ|^-k` for uniform strings, which
+`L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that can be last. Off it, given the loop, each
+leaf's score is within `nξ/8` of its mean given the strings, and that within `nξ/8` of `n` times its
+mean over the strings, but for chance `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most
+`|Q| + 2` leaves, so the picked leaf misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ`
+(`pickLeaf_le`). `δ` splits half to the loop, a quarter to the scores and a quarter to collisions.
 
 ## The loop
 
@@ -406,9 +438,10 @@ the time. Each level says what a state's chance of reading undecided is.
   with its reads and each state's read distribution.
 - `OrthoDFA/Code/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs
   level 3 reading the family at the gate's cut, and hands its harvest's sampler on as a population.
-- `OrthoDFA/Code/LoopDFA.lean` and `OrthoDFA/LowLevelClaims/LoopDFA.lean` — `LearnerLoopDFA` and
-  `LearnerLoopDFASimple`, `pickLeaf` and `rerootedDFA` (in `Code/`), and `windowStrings`, the
-  distribution the loop draws its probes from (in `LowLevelClaims/`).
+- `OrthoDFA/Code/LoopDFA.lean` and `OrthoDFA/LowLevelClaims/LoopDFA.lean` — `LearnerLoopDFA`,
+  `LearnerLoopDFASimple` and `LearnerLoopDFADist`, `pickLeaf` and `rerootedDFA` (in `Code/`), and
+  `windowLaw` and `windowStrings`, the distributions the loop draws its probes from over an input
+  distribution and over uniform strings (in `LowLevelClaims/`).
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -464,7 +497,8 @@ probability rather than the algorithm. They are proved under `OrthoDFA/Proofs/` 
   edges learned and true and is read on its true side, the hypothesis from a state's true leaf
   (`Random.leafOf`) misjudges at most `γ` of the uniform strings of length `L` when re-rooting the
   target at that state classifies `1 - γ` of them with its run staying in `S`
-  (`rerootAccuracy`). Also `uniformStrings`, the uniform distribution over the strings of a length.
+  (`rerootAccuracy`). Also `uniformStrings`, the uniform distribution over the strings of a length,
+  and `prefixLaw`, the law of a string's first `n` letters.
 
 - `OrthoDFA/LowLevelClaims/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
   `agrees` is where it points, the queries stay between the endpoints and number at most
