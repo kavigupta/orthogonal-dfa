@@ -19,11 +19,7 @@ def _result(states, eta, accuracy, *, learned_states, queries=100, error_type=No
         "queries_total": queries,
         "seconds": 1.0,
         "error_type": error_type,
-        # falling with queries, except acceptance_rate, which rises
-        "target": {
-            metric: queries if metric == "acceptance_rate" else 1 / queries
-            for metric in analyze.DIFFICULTY_METRICS
-        },
+        "target": {metric: 1 / queries for metric in analyze.DIFFICULTY_METRICS},
     }
 
 
@@ -55,12 +51,17 @@ class TestAnalyze(unittest.TestCase):
         self.assertEqual(rows[2][:3], [r"\multirow{2}{*}{8}", "0.05", r"100\%"])
         self.assertEqual(rows[3][:3], ["", "0.1", r"100\%"])
 
-    def test_difficulty(self):
-        rows = analyze.difficulty_rows(self.RESULTS)
-        rho = dict(zip(analyze.DIFFICULTY_METRICS, rows[0][2:]))
-        self.assertEqual(rho["endpoint_mass_min"], "$-1.00$")
-        self.assertEqual(rho["acceptance_rate"], "$+1.00$")
-        self.assertEqual(rows[2][2:], ["--"] * len(analyze.DIFFICULTY_METRICS))
+    def test_eta_fit(self):
+        results = [
+            _result(
+                6, eta, 1.0, learned_states=6, queries=round(1e4 * (1 - 2 * eta) ** -4)
+            )
+            for eta in [0.05, 0.1, 0.2, 0.3]
+        ] + [_result(6, 0.3, None, learned_states=None, error_type="Timeout")]
+        ((states, (scale, power)),) = analyze.eta_fit(results).items()
+        self.assertEqual(states, 6)
+        self.assertAlmostEqual(scale, 4, places=3)
+        self.assertAlmostEqual(power, 4, places=3)
 
     def test_writes_fragments_and_skips_stale_results(self):
         with tempfile.TemporaryDirectory() as data, tempfile.TemporaryDirectory() as out:
@@ -76,7 +77,8 @@ class TestAnalyze(unittest.TestCase):
                 analyze.main()
             summary = (out / "summary.tex").read_text()
             self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 50\% &", summary)
-            self.assertTrue((out / "difficulty.tex").exists())
+            self.assertTrue((out / "queries_vs_eta.pdf").exists())
+            self.assertTrue((out / "difficulty.pdf").exists())
 
 
 if __name__ == "__main__":

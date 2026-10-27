@@ -1,13 +1,13 @@
 """
-Render E-L* on random minimal DFAs as LaTeX fragments to `\\input` into a paper.
+Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
 
-Two tables, both read from the results `run` caches, one row per target size
-and noise level:
-
-1. summary -- how often E-L* learns the target and learns it exactly, the
-   lowest accuracy, and what it costs in membership queries.
-2. difficulty -- the Spearman correlation between a target's queries and each
-   of its `difficulty.target_metrics`.
+1. summary.tex -- per target size and noise level, how often E-L* learns the
+   target and learns it exactly, the lowest accuracy, and what it costs in
+   membership queries.
+2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
+   1 - 2 eta per size fit to log10 queries.
+3. difficulty.pdf -- how far each run's log10 queries sits above its size's
+   fit, against some of the target's `difficulty.target_metrics`.
 
     python -m orthogonal_dfa.experiments.random_minimal.analyze
 """
@@ -17,10 +17,12 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 import scipy.stats
+from matplotlib import pyplot as plt
+from matplotlib import ticker
 
 from ..capal_comparison.core import REPO_ROOT
 from ..capal_comparison.figures import SUCCESS_THRESHOLD, _pct, _sci, tabular
@@ -28,14 +30,14 @@ from .run import DATA_DIR, RESULT_SCHEMA_VERSION
 
 OUT_DIR = REPO_ROOT / "figures" / "random-minimal"
 
+# metric: (axis label, x scale), where an integer metric is jittered
 DIFFICULTY_METRICS = {
-    "endpoint_mass_min": "rarest state",
-    "class_preserving_fraction": "class-preserving",
-    "separating_length_max": "longest separator",
-    "synchronizing_probability": "synchronizing",
-    "depth_max": "deepest state",
-    "acceptance_rate": "acceptance",
+    "endpoint_mass_min": ("rarest state's share of length-40 endpoints", "log"),
+    "class_preserving_fraction": ("class-preserving fraction", "log"),
+    "separating_length_max": ("longest shortest separating suffix", "integer"),
+    "synchronizing_probability": ("probability a string synchronizes", "linear"),
 }
+SIZE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
 
 
 def load_results(data_dir: Path) -> List[dict]:
@@ -92,23 +94,110 @@ def summary_rows(results: Sequence[dict]) -> List[Union[List[str], str]]:
     return _by_size(results, _summary_cells)
 
 
-def _difficulty_cells(runs: Sequence[dict]) -> List[str]:
-    """Over the runs with an accuracy; -- where a metric is constant."""
-    scored = [r for r in runs if r["accuracy"] is not None]
-    queries = [r["queries_total"] for r in scored]
-    cells = []
-    for metric in DIFFICULTY_METRICS:
-        values = [r["target"][metric] for r in scored]
-        if len(set(values)) < 2 or len(set(queries)) < 2:
-            cells.append("--")
-            continue
-        rho = scipy.stats.spearmanr(values, queries).statistic
-        cells.append(f"${rho:+.2f}$")
-    return cells
+def _scored(results: Sequence[dict]) -> List[dict]:
+    return [r for r in results if r["accuracy"] is not None]
 
 
-def difficulty_rows(results: Sequence[dict]) -> List[Union[List[str], str]]:
-    return _by_size(results, _difficulty_cells)
+def eta_fit(results: Sequence[dict]) -> Dict[int, Tuple[float, float]]:
+    """Per size, the least-squares (scale, power) of
+
+        log10 queries = scale - power * log10(1 - 2 eta)
+
+    over the runs with an accuracy."""
+    fits = {}
+    for states in sorted({r["target_states"] for r in results}):
+        runs = [r for r in _scored(results) if r["target_states"] == states]
+        power, scale = np.polyfit(
+            [-np.log10(1 - 2 * r["eta"]) for r in runs],
+            np.log10([r["queries_total"] for r in runs]),
+            1,
+        )
+        fits[states] = float(scale), float(power)
+    return fits
+
+
+def _fitted(fit: Tuple[float, float], eta):
+    scale, power = fit
+    return scale - power * np.log10(1 - 2 * eta)
+
+
+def _style(ax):
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(color="0.9", linewidth=0.5)
+    ax.set_axisbelow(True)
+
+
+def plot_queries_vs_eta(results: Sequence[dict]):
+    fits = eta_fit(results)
+    rng = np.random.default_rng(0)
+    fig, ax = plt.subplots(figsize=(3.4, 2.6))
+    for color, (states, fit) in zip(SIZE_COLORS, fits.items()):
+        runs = [r for r in _scored(results) if r["target_states"] == states]
+        etas = np.array([r["eta"] for r in runs])
+        ax.scatter(
+            etas + rng.uniform(-0.006, 0.006, len(etas)),
+            [r["queries_total"] for r in runs],
+            s=4,
+            color=color,
+            alpha=0.35,
+            linewidths=0,
+        )
+        line = np.linspace(etas.min(), etas.max(), 100)
+        ax.plot(
+            line,
+            10 ** _fitted(fit, line),
+            color=color,
+            linewidth=1.5,
+            label=f"{states} states: "
+            f"$10^{{{fit[0]:.2f}}} (1 - 2\\eta)^{{-{fit[1]:.1f}}}$",
+        )
+    ax.set_yscale("log")
+    ax.set_xlabel(r"noise $\eta$")
+    ax.set_ylabel("membership queries")
+    ax.legend(frameon=False, fontsize=7)
+    _style(ax)
+    fig.tight_layout()
+    return fig
+
+
+def plot_difficulty(results: Sequence[dict]):
+    fits = eta_fit(results)
+    fig, axes = plt.subplots(2, 2, figsize=(6.8, 4.8), sharey=True)
+    rng = np.random.default_rng(0)
+    for ax, (metric, (label, scale)) in zip(axes.flat, DIFFICULTY_METRICS.items()):
+        for color, (states, fit) in zip(SIZE_COLORS, fits.items()):
+            runs = [r for r in _scored(results) if r["target_states"] == states]
+            values = np.array([r["target"][metric] for r in runs])
+            excess = [
+                np.log10(r["queries_total"]) - _fitted(fit, r["eta"]) for r in runs
+            ]
+            rho = scipy.stats.spearmanr(values, excess).statistic
+            ax.scatter(
+                values + (scale == "integer") * rng.uniform(-0.15, 0.15, len(values)),
+                excess,
+                s=4,
+                color=color,
+                alpha=0.35,
+                linewidths=0,
+                label=f"{states} states, $\\rho = {rho:+.2f}$",
+            )
+        if scale == "log":
+            ax.set_xscale("log")
+            decades = np.log10(ax.get_xlim()[1] / ax.get_xlim()[0])
+            subs = (1, 2, 5) if decades < 1.5 else (1,)
+            ax.xaxis.set_major_locator(ticker.LogLocator(subs=subs))
+            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+            ax.xaxis.set_minor_formatter(ticker.NullFormatter())
+        ax.axhline(0, color="0.5", linewidth=0.5)
+        ax.set_xlabel(label)
+        legend = ax.legend(frameon=False, fontsize=7, markerscale=2)
+        for handle in legend.legend_handles:
+            handle.set_alpha(1)
+        _style(ax)
+    for ax in axes[:, 0]:
+        ax.set_ylabel(r"$\log_{10}$ queries above fit")
+    fig.tight_layout()
+    return fig
 
 
 def fragments(results: Sequence[dict]) -> Dict[str, str]:
@@ -126,20 +215,26 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
             "llrrrrr",
             summary_rows(results),
         ),
-        "difficulty": tabular(
-            ["States", r"$\eta$"] + list(DIFFICULTY_METRICS.values()),
-            "ll" + "r" * len(DIFFICULTY_METRICS),
-            difficulty_rows(results),
-        ),
     }
 
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for name, fragment in fragments(load_results(DATA_DIR)).items():
+    results = load_results(DATA_DIR)
+    for name, fragment in fragments(results).items():
         tex_path = OUT_DIR / f"{name}.tex"
         tex_path.write_text(fragment + "\n")
         print(f"wrote {tex_path}")
+    for name, plot in [
+        ("queries_vs_eta", plot_queries_vs_eta),
+        ("difficulty", plot_difficulty),
+    ]:
+        fig = plot(results)
+        pdf_path = OUT_DIR / f"{name}.pdf"
+        # no creation date, so rerunning on the same results leaves the file alone
+        fig.savefig(pdf_path, metadata={"CreationDate": None})
+        plt.close(fig)
+        print(f"wrote {pdf_path}")
 
 
 if __name__ == "__main__":
