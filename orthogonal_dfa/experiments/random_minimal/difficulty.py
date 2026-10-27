@@ -10,15 +10,6 @@ from automata.fa.dfa import DFA
 from orthogonal_dfa.l_star import preconditions
 
 
-def _table(dfa: DFA):
-    states = sorted(dfa.states, key=str)
-    index = {q: i for i, q in enumerate(states)}
-    symbols = sorted(dfa.input_symbols)
-    table = np.array([[index[dfa.transitions[q][c]] for c in symbols] for q in states])
-    final = np.array([q in dfa.final_states for q in states])
-    return table, final, index[dfa.initial_state]
-
-
 def endpoint_distribution(table: np.ndarray, initial: int, length: int) -> np.ndarray:
     """Per state, the probability a random length-``length`` string ends there."""
     num_states, alphabet_size = table.shape
@@ -79,7 +70,7 @@ def target_metrics(dfa: DFA, *, length: int) -> Dict:
     report = preconditions.satisfies_preconditions(
         dfa, length=length, short_circuit=False
     )
-    table, final, initial = _table(dfa)
+    _, table, final, initial = preconditions.dfa_tables(dfa)
     endpoints = endpoint_distribution(table, initial, length)
     separating = separating_lengths(table, final)
     off_diagonal = separating[~np.eye(len(table), dtype=bool)]

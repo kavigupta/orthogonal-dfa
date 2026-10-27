@@ -8,8 +8,7 @@ import numpy as np
 
 from orthogonal_dfa.experiments.random_minimal import difficulty, run
 from orthogonal_dfa.l_star import preconditions as P
-from orthogonal_dfa.l_star.examples.random_dfa import (accessible_tables,
-                                                       dfa_from_table)
+from orthogonal_dfa.l_star.examples.random_dfa import accessible_tables, dfa_from_table
 
 
 class TestTargets(unittest.TestCase):
