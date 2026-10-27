@@ -60,26 +60,47 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, uniformStrings n
 
-/-- The states at least `c` of the strings of length `L` visit at some position from `⌈L/2⌉` to
-`L`. -/
-def coveredStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) : Set σ :=
-  {q | c ≤ (uniformStrings L).real
-    {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L ∧ M.eval (prefixOf x j).toList = q}}
+/-- `D`'s strings cut at a length uniform over `lo` to `hi`. -/
+def windowLaw (D : Measure (FreeMonoid α)) (lo hi : ℕ) : Measure (FreeMonoid α) :=
+  ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, prefixLaw D n
 
-/-- The share of the strings of length `L` that visit `q` at some position from `⌈L/2⌉` to `L`. -/
-def windowVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q : σ) : ℝ :=
-  (uniformStrings L).real
-    {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L ∧ M.eval (prefixOf x j).toList = q}
+/-- The share of `T`'s strings that visit `q` at some position from `⌈L/2⌉` to `L`. -/
+def windowVisitRateOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
+    (q : σ) : ℝ :=
+  T.real {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L ∧ M.eval (prefixOf x j).toList = q}
 
-/-- The share of the strings of length `L` whose run from `q` visits `q'` at some position. -/
-def rerootVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q q' : σ) : ℝ :=
-  (uniformStrings L).real {x : FreeMonoid α | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
+/-- The states at least `c` of `T`'s strings visit at some position from `⌈L/2⌉` to `L`. -/
+def coveredStatesOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
+    (c : ℝ) : Set σ :=
+  {q | c ≤ windowVisitRateOn T M L q}
+
+/-- The share of `T`'s strings whose run from `q` visits `q'` at some position up to `L`. -/
+def rerootVisitRateOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
+    (q q' : σ) : ℝ :=
+  T.real {x : FreeMonoid α | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
 
 /-- The states whose visit rate from `q` is at most `R` per position times that from `⌈L/2⌉` on:
 the factor is the run's `L + 1` positions over the window's. -/
+def nonStartZoneStatesOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
+    (R : ℝ) (q : σ) : Set σ :=
+  {q' | rerootVisitRateOn T M L q q' ≤
+    R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * windowVisitRateOn T M L q'}
+
+/-- `coveredStatesOn` the strings of length `L`. -/
+def coveredStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (c : ℝ) : Set σ :=
+  coveredStatesOn (uniformStrings L) M L c
+
+/-- `windowVisitRateOn` the strings of length `L`. -/
+def windowVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q : σ) : ℝ :=
+  windowVisitRateOn (uniformStrings L) M L q
+
+/-- `rerootVisitRateOn` the strings of length `L`. -/
+def rerootVisitRate {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (q q' : σ) : ℝ :=
+  rerootVisitRateOn (uniformStrings L) M L q q'
+
+/-- `nonStartZoneStatesOn` the strings of length `L`. -/
 def nonStartZoneStates {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (R : ℝ) (q : σ) : Set σ :=
-  {q' | rerootVisitRate M L q q' ≤
-    R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) * windowVisitRate M L q'}
+  nonStartZoneStatesOn (uniformStrings L) M L R q
 
 /-- The loop's re-rooted DFA misclassifies at most `γ + ξ` of the strings of length `L`, but for
 chance `δ`; every premise an explicit inequality. -/
@@ -409,6 +430,103 @@ def LearnerLoopDFARelative : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
+              o.result.hypothesis.rerootedDFA o.read q.2 x
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+      ≤ δ
+
+/-- `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s strings cut at a length
+uniform over `k` to `L₁`, the suffixes their first `Ls` letters, and the coverage, error and
+held-out strings are over their first `L` letters. `β` takes `1/|Σ|`'s place in `ε`, and `p₀`
+takes `|Σ|^-k`'s in the conditions on the walk start. -/
+def LearnerLoopDFADist : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (η₀ c γ δ pAP ξ β p₀ : ℝ),
+  let Q : ℝ := Fintype.card σ
+  let A : ℝ := Fintype.card α
+  -- Probes are walked from half the Python's length.
+  let k : ℕ := (L + 1) / 2
+  let L₁ : ℕ := L + Fintype.card σ + 3
+  let Ls : ℕ := L₁ + Fintype.card σ + 3
+  -- Probes are cut at the `N` lengths `k` to `L₁`.
+  let N : ℝ := L₁ + 1 - k
+  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
+  let ε : ℝ := c / (4 * (1 / β + 1) * N)
+  -- The clustering's accuracy.
+  let εcov : ℝ := min ε (ξ / (8 * N))
+  -- Each round's share of `δ`.
+  let δ' : ℝ := δ / (8 * (Q + 1))
+  -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
+  -- state read undecided more than `T` of the time, `T` a fixed threshold, so each harvest has a
+  -- new such state.
+  let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
+  let s : ℝ := 1 / 2 - η₀
+  -- The clustering gate's rate scale.
+  let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  -- The clustering's populations.
+  let J : ℝ := Q + 2
+  -- Bounds the hypotheses a round goes through.
+  let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  -- Each round's level-3 probe budget.
+  let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
+  -- level 5's race tail.
+  let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
+  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  -- The clustering's suffix pool.
+  let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+  -- The clustering's prefix count.
+  let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+    / (s ^ 4 * τ ^ 2)
+  -- No string may hold more than this of a population or of the suffixes.
+  let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
+        (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι / 2 / (8 * J * (RB + 1)))))
+    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+      (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
+  -- Counts the trees a round can grow, with an edge map into each one's leaves.
+  let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
+    * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
+  -- The held-out strings the start leaf is picked on.
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The oracle's language is the target's.
+  (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
+  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  0 < β → β * A ≤ 1 →
+  -- `D`'s strings are long enough for the suffixes,
+  (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
+  -- extend each prefix from `k` to `L` letters by each letter at least `β` of the time,
+  (∀ i, k ≤ i → i ≤ L → ∀ y a,
+    β * D.real {w | prefixOf w i = y} ≤ D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a}) →
+  -- and hold at most `p₀` on any first `k` letters.
+  (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
+  -- At least `pAP` of the suffixes keep every string's membership.
+  pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
+  (∃ q ∈ coveredStatesOn (prefixLaw D L) M L c,
+    1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) →
+  -- The walk start's prefixes are spread thinly enough for the clustering's collisions,
+  p₀ ≤ cap * ε / 1536 →
+  -- for each round's harvests to concentrate at every state's rate,
+  1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
+  -- for the held-out strings to read only fresh strings,
+  (Q + 1) * n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
+  -- and for no two of a round's probes to share their walk start.
+  16 * B₃ ^ 2 * p₀ ≤ δ' →
+  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
+  -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
+    settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+        (Measure.pi fun _ : Fin n => prefixLaw D L)).real
+      {q | let rounds := indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+            (persistDraws q.1)
+        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+            o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
