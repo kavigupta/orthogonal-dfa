@@ -747,28 +747,21 @@ lemma dfa_noise_tail {B₃ K₁ ℓ Ak E E₂ E₃ δ' : ℝ} (hℓ : 1 ≤ ℓ)
   have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
   linarith only [h5, e, hB2]
 
-lemma dfa_tail {A ℓ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁ δ δ' c s pAP Θ P₀ L T : ℝ} {k : ℕ}
-    (hA : 2 ≤ A) (hQ : 0 ≤ Q) (hL : 0 ≤ L) (hc : 0 < c) (hc1 : c ≤ 1) (hs0 : 0 < s)
-    (hs1 : s ≤ 1 / 2) (hpAP : 0 < pAP) (hδ'0 : 0 < δ') (hδ : 0 < δ) (hΘ1 : 1 ≤ Θ)
-    (hR₀ : 0 ≤ R₀) (hP₀ : 0 ≤ P₀) (hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1)) (hK₁0 : 0 ≤ K₁)
-    (hn : 0 ≤ n) (hℓd : ℓ = L + Q + 4) (hℓ1 : 1 ≤ ℓ) (hε0 : 0 < ε) (hinvε : 1 / ε ≤ aε * ℓ)
-    (hcap : 1 / (E₁ * ℓ ^ 5) ≤ cap) (hlg : 0 ≤ lg) (haεd : aε = 4 * (A + 1) / c)
+/-- `E + E₂ + E₃` is at least `1`. -/
+lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θ P₀ aε : ℝ}
+    (hA : 2 ≤ Ae) (hQ : 0 ≤ Q) (hc : 0 < c) (hc1 : c ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
+    (hpAP : 0 < pAP) (hδ'0 : 0 < δ') (hδ : 0 < δ) (hΘ1 : 1 ≤ Θ) (hR₀ : 0 ≤ R₀) (hP₀ : 0 ≤ P₀)
+    (hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1)) (hK₁0 : 0 ≤ K₁) (hn : 0 ≤ n) (hlg : 0 ≤ lg)
+    (haεd : aε = 4 * (Ae + 1) / c)
     (hE₁d : E₁ = (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
       + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
-    (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * ℓ ^ 3)
-    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hk : L ≤ 2 * k)
-    (hT : T = 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4)
-    (hL₀ : 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-      + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12)) ≤ L) :
-    (A ^ k)⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * (A ^ k)⁻¹ ≤ ε
-      ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4
-      ∧ 16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' := by
+    (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') :
+    1 ≤ aε ∧ 1 ≤ E₁ ∧ 1 ≤ E + E₂ ∧ 0 ≤ E₃ := by
   have haε : 1 ≤ aε := by
     rw [haεd, le_div_iff₀ hc, one_mul]
     linarith only [hA, hc1]
-  have haε0 : 0 < aε := by linarith only [haε]
   have hE₁ : 1 ≤ E₁ := by
     rw [hE₁d]
     have h1 : 1 ≤ 2 ^ 20 * Θ * (R₀ + 1) / s := by
@@ -787,21 +780,153 @@ lemma dfa_tail {A ℓ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁ δ 
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
     rw [hEd]
     linarith only [h1, h2, hE₂0]
-  have hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
-    dfa_pow hA hℓd hQ hL (by linarith only [hEE, hE₃0]) hk hT hL₀
+  exact ⟨haε, hE₁, hEE, hE₃0⟩
+
+/-- `ℓ⁶ (E + E₂ + E₃) ≤ Ak` gives the four conditions on a walk start's prefix mass `Ak⁻¹`. -/
+lemma dfa_mass {Ae ℓ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁ δ δ' c s pAP Θ P₀ Ak : ℝ}
+    (hA : 2 ≤ Ae) (hQ : 0 ≤ Q) (hc : 0 < c) (hc1 : c ≤ 1) (hs0 : 0 < s)
+    (hs1 : s ≤ 1 / 2) (hpAP : 0 < pAP) (hδ'0 : 0 < δ') (hδ : 0 < δ) (hΘ1 : 1 ≤ Θ)
+    (hR₀ : 0 ≤ R₀) (hP₀ : 0 ≤ P₀) (hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1)) (hK₁0 : 0 ≤ K₁)
+    (hn : 0 ≤ n) (hℓ1 : 1 ≤ ℓ) (hε0 : 0 < ε) (hinvε : 1 / ε ≤ aε * ℓ)
+    (hcap : 1 / (E₁ * ℓ ^ 5) ≤ cap) (hlg : 0 ≤ lg) (haεd : aε = 4 * (Ae + 1) / c)
+    (hE₁d : E₁ = (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+      + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
+    (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
+    (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
+    (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * ℓ ^ 3)
+    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hAk : 0 < Ak) (hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ Ak) :
+    Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
+      ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4
+      ∧ 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
+  obtain ⟨haε, hE₁, hEE, hE₃0⟩ := dfa_mass_one hA hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ hP₀
+    hlR₀ hK₁0 hn hlg haεd hE₁d hEd hE₂d hE₃d
+  have haε0 : 0 < aε := by linarith only [haε]
   have hℓ6 : 0 ≤ ℓ ^ 6 := pow_nonneg (by linarith only [hℓ1]) 6
-  have hpow : ℓ ^ 6 * (E + E₂) ≤ A ^ k :=
+  have hpow : ℓ ^ 6 * (E + E₂) ≤ Ak :=
     (mul_le_mul_of_nonneg_left (by linarith only [hE₃0]) hℓ6).trans hpow3
-  have hAk : 0 < A ^ k := pow_pos (by linarith only [hA]) k
-  obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := A ^ k) hAk hℓ1 hε0 hinvε haε0 hcap
+  obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := Ak) hAk hℓ1 hε0 hinvε haε0 hcap
     (by linarith only [hE₁]) hlg hEd hE₂d hQ hn hδ hJ hRB0 hRB hB₃0 hB₃ hpow
   exact ⟨h1, h2, h3, dfa_noise_tail hℓ1 hB₃0 hB₃ hE₃d hδ'0 hEE hpow3 hAk⟩
 
+/-- `LearnerLoopDFA`'s `Θ`, `A` the rate edges are crossed at. -/
+def loopΘ (Q A c ξ η₀ : ℝ) : ℝ :=
+  (4 * (A + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (4 * (A + 1) / c + 8 / ξ)
+    + 4608 * Q * (Q + 1) * (4 * (A + 1) / c)
+
+/-- `LearnerLoopDFA`'s `W₀`. -/
+def loopW₀ (Q A δ : ℝ) : ℝ :=
+  let δ' := δ / (8 * (Q + 1))
+  let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  Real.exp 1 * Real.sqrt δ'
+    * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+
+/-- Bounds `LearnerLoopDFASimple`'s suffix pool `PB` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
+def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let δ' := δ / (8 * (Q + 1))
+  let s := 1 / 2 - η₀
+  (50 * (max (Real.log (20 * loopΘ Q Ae c ξ η₀)) (Real.log (8 * loopW₀ Q A δ / δ'))
+      + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
+    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+
+/-- Bounds `LearnerLoopDFASimple`'s prefix count `RB` at `ℓ = L₁ + 1`. -/
+def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let δ' := δ / (8 * (Q + 1))
+  let Θ := loopΘ Q Ae c ξ η₀
+  161000 * (Q + 2) ^ 2 * Θ ^ 2 * ℓ ^ 2
+    * Real.log (16 * (Q + 4) * loopPool ℓ Q A Ae δ c ξ pAP η₀ * Θ * ℓ / (δ' ^ 2 * pAP))
+    / (1 / 2 - η₀) ^ 4
+
+/-- Bounds the probe budget `B₃` at `ℓ = L₁ + 1`. -/
+def loopBudget (ℓ Q A Ae δ c : ℝ) : ℝ :=
+  let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  (36 * S * (4 * (Ae + 1) / c) * Real.log (16 * S * (S + 1) / (δ / (8 * (Q + 1)))) + S + 1) * ℓ
+
+/-- `LearnerLoopDFA`'s `E + E₂ + E₃`, edges crossed at rate `Ae`, with `nQ` and `nA` standing for
+`|Q|` and `|Σ|` as exponents: a walk start's prefix mass of at most `1/(ℓ⁶ loopMassInv)` meets
+`LearnerLoopDFASimple`'s four conditions. -/
+def loopMassInv (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let δ' : ℝ := δ / (8 * (Q + 1))
+  let s : ℝ := 1 / 2 - η₀
+  let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let aε : ℝ := 4 * (Ae + 1) / c
+  let Θ : ℝ := loopΘ Q Ae c ξ η₀
+  let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
+  let W₀ : ℝ := loopW₀ Q A δ
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s
+      + 28) / pAP + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
+  let R₀ : ℝ := 161000 * (Q + 2) ^ 2 * Θ ^ 2
+    * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
+  let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
+    + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+  let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ nQ * (Q + 3) ^ ((nQ + 2) * nA)
+  let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
+  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
+  E + E₂ + E₃
+
+lemma loopMassInv_ge_one {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
+    (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
+    (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
+    1 ≤ loopMassInv Q A Ae nQ nA δ c ξ pAP η₀ := by
+  unfold loopMassInv
+  extract_lets δ' s S n aε Θ K₁ W₀ P₀ R₀ E₁ Kc E E₂ E₃
+  have hδ'0 : 0 < δ' := by positivity
+  have hδ'1 : δ' ≤ 1 := by
+    show δ / (8 * (Q + 1)) ≤ 1
+    rw [div_le_one (by positivity)]
+    linarith
+  have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
+  have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
+  have haε : 1 ≤ aε := by
+    show 1 ≤ 4 * (Ae + 1) / c
+    rw [le_div_iff₀ hc]; linarith
+  have hΘ1 : 1 ≤ Θ := by
+    show 1 ≤ (4 * (Ae + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (4 * (Ae + 1) / c + 8 / ξ)
+      + 4608 * Q * (Q + 1) * (4 * (Ae + 1) / c)
+    have h1 : 0 ≤ (4 * (Ae + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) := by
+      have : 0 < 1 / 2 - η₀ := by linarith
+      positivity
+    have h2 : 0 ≤ 4608 * Q * (Q + 1) * (4 * (Ae + 1) / c) := by positivity
+    have h3 : 0 ≤ 8 / ξ := by positivity
+    have : 1 ≤ 4 * (Ae + 1) / c := haε
+    linarith
+  have hS1 : 1 ≤ S := by
+    show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
+    have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
+    linarith
+  have hW₀ : 1 ≤ W₀ := by
+    show 1 ≤ Real.exp 1 * Real.sqrt δ'
+      * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+    have hl : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
+      Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
+    have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1) := by
+      positivity
+    have : 0 ≤ Real.exp 1 * Real.sqrt δ'
+        * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 := by
+      positivity
+    linarith
+  have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ hs0 hs1 hpAP hp1 hΘ1 hW₀ hδ'0 hδ'1
+  have hR₀ : 0 ≤ R₀ := by
+    have := log_count_nonneg hQ hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
+    show 0 ≤ 161000 * (Q + 2) ^ 2 * Θ ^ 2
+      * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
+    positivity
+  have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
+  have hK₁0 : 0 ≤ K₁ := by
+    have := log_budget_nonneg hS1 hδ'0 hδ'1
+    show 0 ≤ 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
+    positivity
+  have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ hA
+  have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
+    Real.log_nonneg (by
+      rw [le_div_iff₀ hδ'0]
+      nlinarith only [hδ'1, hQ, hKc1, mul_nonneg hQ (sub_nonneg.2 hKc1)])
+  obtain ⟨-, -, hEE, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
+    hAe hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
+    (Nat.cast_nonneg n) hlg rfl rfl rfl rfl rfl
+  linarith
+
 end OrthoDFA
-
-
-
-
-
 
 end
