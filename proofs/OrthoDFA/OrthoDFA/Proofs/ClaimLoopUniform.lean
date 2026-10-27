@@ -4,11 +4,11 @@ import OrthoDFA.Proofs.DFABridge
 /-!
 # The uniform claims from the general one
 
-`LoopClaim` is `LoopDistClaim` at `D` uniform over the strings of length `L + 2|Q| + 6` and
+`LoopClaimUniform` is `LoopClaim` at `D` uniform over the strings of length `L + 2|Q| + 6` and
 `β = 1/|Σ|`: uniform strings extend a prefix by each letter `1/|Σ|` of the time
 (`uniformStrings_floor`) and hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
 `C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives
-`(L + |Q|)⁶ C₀ G ≤ |Σ|^k` (`pow_of_tangent`). `LoopClaimSimple` follows from `LoopClaim`, the
+`(L + |Q|)⁶ C₀ G ≤ |Σ|^k` (`pow_of_tangent`). `LoopClaimSimple` follows from `LoopClaimUniform`, the
 prefix and suffix totals' shapes bounded by their products.
 -/
 
@@ -57,7 +57,7 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
     ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
     ((le_div_iff₀ hs).2 (by linarith)) le_rfl).1
 
-theorem loopClaim_of_dist (h : LoopDistClaim.{u, v, w}) : LoopClaim.{u, v, w} := by
+theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
   obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := max 1 C with hC₀d
@@ -173,7 +173,7 @@ theorem loopClaim_of_dist (h : LoopDistClaim.{u, v, w}) : LoopClaim.{u, v, w} :=
   rw [hwS, hpS, hpL] at hprob
   exact ⟨settings, hwk, hcnt, hprob⟩
 
-theorem loopClaimSimple_of_claim (h : LoopClaim.{u, v, w}) : LoopClaimSimple.{u, v, w} := by
+theorem loopClaimSimple_of_claim (h : LoopClaimUniform.{u, v, w}) : LoopClaimSimple.{u, v, w} := by
   obtain ⟨L₀, pref, suff, probes, heldOut, hL₀, hp, hs, hpr, hh, hw⟩ := h
   exact ⟨L₀, pref, suff, probes, heldOut, hL₀,
     hp.trans (isBigO_on 2 fun r hr => loop_pref_dom hr),

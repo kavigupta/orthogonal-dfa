@@ -1587,7 +1587,7 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
 
 open Asymptotics Filter
 
-/-- `LoopClaim`'s prefix shape against `LoopClaimSimple`'s. -/
+/-- `LoopClaimUniform`'s prefix shape against `LoopClaimSimple`'s. -/
 lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
     0 ≤ r.Q ^ 6 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
@@ -1638,7 +1638,7 @@ lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
         * (2 * (r.Q ^ 4 / r.s₀ ^ 8)) := mul_le_mul_of_nonneg_left hb hK
     _ = _ := by ring
 
-/-- `LoopClaim`'s suffix shape against `LoopClaimSimple`'s. -/
+/-- `LoopClaimUniform`'s suffix shape against `LoopClaimSimple`'s. -/
 lemma loop_suff_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
     0 ≤ r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP ^ 2)

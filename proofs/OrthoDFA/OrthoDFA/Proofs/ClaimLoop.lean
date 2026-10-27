@@ -10,7 +10,7 @@ import OrthoDFA.Proofs.ClaimLoopUniform
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
 `1/(ℓ⁶ loopMassInv)` on any first `k` letters. The claim runs it at `c = ξ/(2C|Q|)`, `ξ/2` and
 `1/β` in place of `|Σ|` where edges are crossed, admitted by `covered_of_self_nonStartZone` and
-`covered_of_nonStartZone`; `ClaimLoopArith` bounds those shapes. `LoopClaim` and
+`covered_of_nonStartZone`; `ClaimLoopArith` bounds those shapes. `LoopClaimUniform` and
 `LoopClaimSimple` follow (`ClaimLoopUniform`).
 -/
 
@@ -20,7 +20,7 @@ namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter Real
 
-theorem loopDistClaim_holds : LoopDistClaim := by
+theorem loopClaim_holds : LoopClaim := by
   refine ⟨distP₀Tol, distPref, distSuff, distProbes, distHeldOut, distP₀Tol_isBigO,
     distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distHeldOut_isBigO, distP₀Tol_pos, ?_⟩
   intro α _ _ _ σ _ Ω _ μ _ x
@@ -72,9 +72,9 @@ theorem loopDistClaim_holds : LoopDistClaim := by
   rw [show γ + ξ / 2 + ξ / 2 = γ + ξ by ring] at hprob
   exact hprob
 
-theorem loopClaim_holds : LoopClaim := loopClaim_of_dist loopDistClaim_holds
+theorem loopClaimUniform_holds : LoopClaimUniform := loopClaimUniform_of_loopClaim loopClaim_holds
 
-theorem loopClaimSimple_holds : LoopClaimSimple := loopClaimSimple_of_claim loopClaim_holds
+theorem loopClaimSimple_holds : LoopClaimSimple := loopClaimSimple_of_claim loopClaimUniform_holds
 
 end OrthoDFA
 

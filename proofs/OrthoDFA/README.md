@@ -32,30 +32,31 @@ Each claim is proved from the explicit theorems below.
   their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
   slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
   `O(Q'|Σ| log(Q'|Σ|)/y)`.
-- `LoopClaim` (`Claims/Loop.lean`): over `LoopInputs`, `R ≥ 1` the visit ratio of the relative
-  rule (`LearnerLoopDFARelative`'s premise), the length `L₀` past which the learner's DFA is right
-  but for `γ + ξ`, `O(1 + log(|Q|R/(δ ξ pAP s₀))/log|Σ|)`, the held-out strings its start is picked
-  on, `O(log(|Q|/δ)/ξ²)`, and, over `LoopRun` (the inputs with `L`), every prefix, suffix and
-  probe the whole run reads: `O(|Q|⁶(L + |Q|)²|Σ|²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes,
-  `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ ·
-  log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. The run is the coverage rule's at
-  `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The totals grow with `L` because the
-  settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N)` over the
-  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
-  `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(X)/(pAP² s₀²))`. Both are `LoopDistClaim` at uniform strings
-  (`loopClaim_of_dist`, `Proofs/ClaimLoopUniform.lean`).
-- `LoopDistClaim` (`Claims/Loop.lean`): `LoopClaim` over an input distribution `D`, over
-  `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`). The probes are `D`'s strings cut at a
+- `LoopClaim` (`Claims/Loop.lean`): over an input distribution `D`, over
+  `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`) and `R ≥ 1` the visit ratio of the
+  relative rule (`LearnerLoopDFARelative`'s premise). The probes are `D`'s strings cut at a
   length uniform over `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` (`windowLaw`), the suffixes their first
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
   `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹⁴R⁴ log²(|Q|R/(β δ ξ pAP s₀))
-  /(β⁴ δ ξ⁴ pAP³ s₀¹¹))`. There is no `L₀`. The totals are `LoopClaim`'s with `1/β` in place of
-  `|Σ|` where edges are crossed: `O(|Q|⁶(L + |Q|)²R² log(X')/(β² ξ²) · (1/s₀⁸ + |Q|⁴/s₀⁴))`
-  prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and
-  `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`.
+  /(β⁴ δ ξ⁴ pAP³ s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
+  `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
+  suffix and probe the whole run reads is bounded: `O(|Q|⁶(L + |Q|)²R² log(X')/(β² ξ²) ·
+  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and
+  `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
+  is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
+  totals grow with `L` because the settings the proof picks hold each round's disagreement rate
+  at `c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
+  the suffixes as `log L`.
+- `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
+  (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
+  `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁶(L + |Q|)²|Σ|²R²
+  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))`
+  suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
 
 ## The explicit theorems
 
@@ -127,7 +128,7 @@ in three places, each now a condition on `D`:
 
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
-   largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopDistClaim` asks
+   largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
    `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
    for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
 2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
