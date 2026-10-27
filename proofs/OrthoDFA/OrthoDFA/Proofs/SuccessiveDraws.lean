@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.SuccessiveDraws
+import OrthoDFA.LowLevelClaims.SuccessiveDraws
 import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.BitSum
 

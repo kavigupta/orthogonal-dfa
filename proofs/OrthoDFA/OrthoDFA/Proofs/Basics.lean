@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 
 /-! # Facts about the oracle and the retry loop -/
 

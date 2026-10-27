@@ -620,8 +620,9 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         elif not grow_population(pst, state, judged.blamed):
             anchored.pop(judged.blamed, None)
             # Fallback, this should very rarely happen. At this point, the
-            # algorithm has detected a precondition violation, so later
-            # results do not follow the theory.
+            # algorithm has detected a precondition violation, or a search has
+            # walked deeper and left this source dry, so later results do not
+            # follow the theory.
 
             # Likely precondition violation is too-high collision probability
             # among suffixes.

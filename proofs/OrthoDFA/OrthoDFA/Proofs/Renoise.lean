@@ -1,4 +1,4 @@
-import OrthoDFA.FamilyRead
+import OrthoDFA.LowLevelClaims.FamilyRead
 
 /-!
 # Re-noising an oracle on a set of strings

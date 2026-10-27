@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.AdaptiveReads
+import OrthoDFA.LowLevelClaims.AdaptiveReads
 
 /-!
 # A union bound over adaptively chosen reads: the proof

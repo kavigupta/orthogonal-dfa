@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.BandKappa
+import OrthoDFA.LowLevelClaims.BandKappa
 import OrthoDFA.Proofs.FamilyRead
 
 /-!
