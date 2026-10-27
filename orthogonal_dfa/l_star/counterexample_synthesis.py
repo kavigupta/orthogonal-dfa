@@ -28,7 +28,7 @@ from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
 from .progress import counter
 from .suffix_family import SuffixFamily
-from .tracker import SynthesisTracker
+from .tracker import RoundSummary, SynthesisTracker
 
 
 @dataclass
@@ -305,6 +305,24 @@ def _hypothesis_dfa(pst, hypothesis):
     return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
 
 
+def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
+    """``seconds`` is the round's ``(sampling, probing)`` time."""
+    tree = search.hypothesis.tree
+    assert tree.num_states >= 2
+    return RoundSummary(
+        prefixes=pst.num_prefixes,
+        representative_prefixes=int(pst.table.representative.sum()),
+        suffixes=pst.table.num_suffixes,
+        family_size=len(vs),
+        probes=search.probes,
+        ending=ending.kind,
+        hypothesis_states=tree.num_states,
+        hypothesis_edges=len(search.hypothesis.edges),
+        sampling_seconds=seconds[0],
+        probing_seconds=seconds[1],
+    )
+
+
 def counterexample_driven_synthesis(
     pst,
     *,
@@ -345,16 +363,19 @@ def counterexample_driven_synthesis(
         search, ending, dfa = _best_search(
             pst, vs, acc_threshold=acc_threshold, index=index, selection=selection
         )
-        hypothesis = search.hypothesis
-        tracker.on_search_ended(ending, index)
-        dt = hypothesis.tree
-        print(
-            f"[round {index}] {ending.kind} after {search.probes} probes: "
-            f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
-            f"family of {len(vs)} suffixes ({sampled - started:.1f}s sampling, "
-            f"{time.monotonic() - sampled:.1f}s probing)"
+        summary = _round_summary(
+            pst, vs, search, ending, (sampled - started, time.monotonic() - sampled)
         )
-        assert dt.num_states >= 2
+        tracker.on_search_ended(ending, index)
+        tracker.on_round_summarized(summary, index)
+        dt = search.hypothesis.tree
+        print(
+            f"[round {index}] {summary.ending} after {summary.probes} probes: "
+            f"{summary.hypothesis_states} states, {summary.hypothesis_edges} edges "
+            f"learned, over a family of {summary.family_size} suffixes "
+            f"({summary.sampling_seconds:.1f}s sampling, "
+            f"{summary.probing_seconds:.1f}s probing)"
+        )
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
         true_acc = estimate_agreement_rate(

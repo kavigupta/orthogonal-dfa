@@ -5,6 +5,25 @@ family, tree and DFA, so what a tracker keeps is not mutated by the rounds that
 follow -- it can be pickled and analysed after the run.
 """
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class RoundSummary:
+    """A round's table and family sizes and its search's cost, as of the end of
+    that search."""
+
+    prefixes: int
+    representative_prefixes: int
+    suffixes: int
+    family_size: int
+    probes: int
+    ending: str
+    hypothesis_states: int
+    hypothesis_edges: int
+    sampling_seconds: float
+    probing_seconds: float
+
 
 class SynthesisTracker:
     """No-op; override the rounds' artefacts you care about.
@@ -33,6 +52,9 @@ class SynthesisTracker:
         """Whether the certificate passed the round's denoised DFA; asked only
         of rounds that reached the consistency target."""
 
+    def on_round_summarized(self, summary, round_index):
+        """The round's `RoundSummary`."""
+
     def on_corrected_dfa_found(self, dfa, round_index):
         """The hypothesis the run settled on, denoised.  Fired once, by
         ``do_counterexample_driven_synthesis`` -- a caller driving
@@ -56,6 +78,7 @@ class RecordingTracker(SynthesisTracker):
         self.consistency = []
         #: round -> whether it was certified, for the rounds that were asked.
         self.certified = {}
+        self.summaries = []
         self.corrected = None
 
     def on_family_resolved(self, suffixes, boundary, round_index):
@@ -80,6 +103,10 @@ class RecordingTracker(SynthesisTracker):
 
     def on_certificate_decided(self, certified, round_index):
         self.certified[round_index] = certified
+
+    def on_round_summarized(self, summary, round_index):
+        assert len(self.summaries) == round_index
+        self.summaries.append(summary)
 
     def on_corrected_dfa_found(self, dfa, round_index):
         self.corrected = (dfa, round_index)

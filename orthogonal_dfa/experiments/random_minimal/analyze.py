@@ -18,7 +18,7 @@ from typing import Dict, List, Sequence
 
 import numpy as np
 
-from .run import DATA_DIR, SCHEMA_VERSION
+from .run import DATA_DIR, RESULT_SCHEMA_VERSION
 
 LEARNED_ACCURACY = 0.99
 
@@ -44,7 +44,7 @@ def load_results(data_dir: Path) -> List[dict]:
     stale = 0
     for path in sorted((data_dir / "results").glob("*.json")):
         payload = json.loads(path.read_text())
-        if payload.get("schema_version") != SCHEMA_VERSION:
+        if payload.get("schema_version") != RESULT_SCHEMA_VERSION:
             stale += 1
             continue
         results.append(payload)
