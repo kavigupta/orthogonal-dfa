@@ -1,4 +1,4 @@
-import OrthoDFA.Level5Claim
+import OrthoDFA.LowLevelClaims.Level5Claim
 import OrthoDFA.Proofs.SpurAccount
 import OrthoDFA.Proofs.SpurCount
 
@@ -277,9 +277,72 @@ end OrthoDFA
 
 namespace OrthoDFA
 
+namespace Random
+
+namespace Kappa
+
+open MeasureTheory
+
+/-- `ReadOracle` with each read on its state's wrong side with chance at most `εw + κ U q`. -/
+structure KappaEpsReadOracle {α : Type*} {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    {σ : Type*} (M : DFA α σ) (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) where
+  read : FreeMonoid α → Ω → ARU
+  measurable : ∀ z, Measurable (read z)
+  indep : ProbabilityTheory.iIndepFun read μ
+  undecided : ∀ z, μ.real {ω | read z ω = .undecided} = U (M.eval z.toList)
+  wrong : ∀ z, μ.real {ω | read z ω = if side (M.eval z.toList) then .reject else .accept}
+    ≤ εw + κ * U (M.eval z.toList)
+
+end Kappa
+
+end Random
+
 open MeasureTheory Random Random.Kappa Random.Spur RaceTail
 
-theorem level5RoundCorrect_holds : Level5RoundCorrect := by
+/-- `Level5RoundCorrect` with an added floor `εw` on each read's wrong chance. -/
+def Level5EpsRoundCorrect : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+    (side : σ → Bool) (U : σ → ℝ) (εw κ : ℝ) {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    [IsProbabilityMeasure μ] (R : KappaEpsReadOracle μ M side U εw κ) (P : PrefixDistribution α)
+    (C : Level3Settings) (p₀ : ℝ) (f : ℕ) (t t' : ℝ),
+    let y := C.harvestRate
+    let ε := C.disagreementRate
+    let δ := C.δ
+    let nQ := Fintype.card σ + f
+    let nα := Fintype.card α
+    let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+    let K : ℕ := (1 + (nQ + 1) ^ 3 * nα) ^ nQ * (nQ + 3) ^ ((nQ + 2) * nα)
+    let A : ℝ := (nQ + 1) * (6 / y + 16 * (2 + Nat.clog 2 P.L))
+    let η := p₀ * Real.log (16 * (nQ + 1) * K / δ)
+    let w : ℕ := min (P.L + 1) (3 + Nat.clog 2 P.L) * (nQ + 1)
+    let c : ℝ := εw * max w (nQ + 2) + κ
+    let b : ℝ := C.probeBudget * w + (nQ + 2) * nα * (nQ + 2) * (nQ + 1)
+    let m : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ) + 1 + (nQ + 2) * nα * (nQ + 1)
+    (∀ u, P.D.real {x | prefixOf x C.walkStart = u} ≤ p₀) → 0 < δ → δ < 1 → 0 < y →
+    y ≤ ε / 48 → ε < 1 →
+    36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
+    0 ≤ εw → 0 ≤ κ → 0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      + Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2) ≤ δ / 8 →
+    ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
+        {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
+          ¬ EndsWell
+            { target := M,
+              undecided := U,
+              harvestSlope := A,
+              harvestSlack := η / y,
+              probes := P.D,
+              disagreeRate := ε,
+              disagree := searchSet (R.read · ω) C.walkStart result.hypothesis
+                ∪ endsSet (R.read · ω) C.walkStart result.hypothesis,
+              walkStart := C.walkStart,
+              harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
+              yield := y,
+              ending := result.ending }
+          ∨ nQ + 2 < result.hypothesis.tree.leaves.length} ∂μ
+      ≤ ENNReal.ofReal δ
+
+theorem level5EpsRoundCorrect_holds : Level5EpsRoundCorrect := by
   intro α _ _ σ _ M side U εw κ Ω _ μ _ R P C p₀ f t t'
   dsimp only
   intro hpre hδ hδ1 hy0 hyρ hρ1 hP hεw hκ ht ht' htc hfin
@@ -430,5 +493,13 @@ theorem level5RoundCorrect_holds : Level5RoundCorrect := by
     _ = _ := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
         congr 1; ring
+
+theorem level5RoundCorrect_holds : Level5RoundCorrect := by
+  intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀ f t t'
+  dsimp only
+  intro hpre hδ hδ1 hy0 hyρ hρ1 hP hκ ht ht' htc hfin
+  exact level5EpsRoundCorrect_holds M side U 0 κ μ
+    ⟨R.read, R.measurable, R.indep, R.undecided, fun z => by simpa using R.wrong z⟩ P C p₀ f t t'
+    hpre hδ hδ1 hy0 hyρ hρ1 hP le_rfl hκ ht ht' (by simpa using htc) (by simpa using hfin)
 
 end OrthoDFA

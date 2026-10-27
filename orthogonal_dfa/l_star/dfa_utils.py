@@ -1,9 +1,42 @@
+from collections import Counter
+
+import numpy as np
+
+
 def states_intermediate(s0, y, dfa):
     states = [s0]
     for symbol in y:
         s_next = dfa.transitions[states[-1]][symbol]
         states.append(s_next)
     return states
+
+
+def labelled_sample(oracle, sampler, alphabet_size, n, rng):
+    """``n`` sampled strings and the oracle's 0/1 label for each."""
+    strings = [sampler.sample(rng, alphabet_size) for _ in range(n)]
+    return strings, np.asarray(oracle.membership_queries(strings), dtype=float)
+
+
+def held_out_phi(dfa, fit, read) -> float:
+    """|corr| between ``read``'s labels and the accept rate, over ``fit``, of the
+    state each of its strings ends in; a state no ``fit`` string ends in takes
+    ``fit``'s overall rate."""
+
+    def ends(strings):
+        return [states_intermediate(dfa.initial_state, w, dfa)[-1] for w in strings]
+
+    (fit_strings, fit_labels), (read_strings, read_labels) = fit, read
+    total, count = Counter(), Counter()
+    for state, label in zip(ends(fit_strings), fit_labels):
+        total[state] += label
+        count[state] += 1
+    overall = float(np.mean(fit_labels))
+    predicted = np.array(
+        [total[s] / count[s] if count[s] else overall for s in ends(read_strings)]
+    )
+    if predicted.std() == 0 or np.std(read_labels) == 0:
+        return 0.0
+    return abs(float(np.corrcoef(predicted, read_labels)[0, 1]))
 
 
 def uniform_weights(dfa):
