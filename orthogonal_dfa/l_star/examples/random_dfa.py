@@ -1,5 +1,4 @@
 import itertools
-import math
 from typing import List, Optional
 
 import numpy as np
@@ -65,12 +64,33 @@ def _functional_graph_components(f: np.ndarray) -> np.ndarray:
         label = new
 
 
-def sample_class_preserving_dfa(
-    rng: np.random.Generator, *, num_states: int, alphabet_size: int, length: int
-) -> Optional[DFA]:
+def sample_accessible_transitions(
+    rng: np.random.Generator, *, num_states: int, alphabet_size: int
+) -> np.ndarray:
     """
-    Uniformly random transitions, with accepting states chosen so that a random
-    length-``length`` string ``s`` preserves classes:
+    Uniform over transition tables on ``num_states`` states in which every state
+    is reachable from state 0, with ``table[q, c]`` the successor of ``q`` on ``c``.
+    """
+    while True:
+        table = rng.integers(num_states, size=(num_states, alphabet_size))
+        reached = np.zeros(num_states, dtype=bool)
+        reached[0] = True
+        while True:
+            grown = reached.copy()
+            grown[table[reached].ravel()] = True
+            if (grown == reached).all():
+                break
+            reached = grown
+        if reached.all():
+            return table
+
+
+def class_preserving_final_states(
+    rng: np.random.Generator, table: np.ndarray, *, length: int
+) -> Optional[np.ndarray]:
+    """
+    Accepting states chosen so that a random length-``length`` string ``s``
+    preserves classes:
 
         q in F  <=>  delta(q, s) in F
 
@@ -78,7 +98,7 @@ def sample_class_preserving_dfa(
     one whose acceptance rate at ``length`` is closest to 1/2. None if there is
     only one component, as there is when ``s`` synchronises the DFA.
     """
-    table = rng.integers(num_states, size=(num_states, alphabet_size))
+    num_states, alphabet_size = table.shape
     s = rng.integers(alphabet_size, size=length)
     f = np.arange(num_states)
     for c in s:
@@ -104,36 +124,35 @@ def sample_class_preserving_dfa(
         ),
         key=lambda chosen: abs(mass[list(chosen)].sum() - 0.5),
     )
-    return DFA(
-        states=set(range(num_states)),
-        input_symbols=set(range(alphabet_size)),
-        transitions={
-            q: {c: int(table[q, c]) for c in range(alphabet_size)}
-            for q in range(num_states)
-        },
-        initial_state=0,
-        final_states={q for q in range(num_states) if accepting[component[q]]},
-        allow_partial=False,
-    )
+    return np.array(accepting)[component]
 
 
 def sample_minimal_admitted_dfa(
     rng: np.random.Generator, *, num_states: int, alphabet_size: int, length: int
 ) -> DFA:
     """
-    A `sample_class_preserving_dfa`, minimised, with exactly ``num_states``
-    states, that satisfies the preconditions at ``length``.
+    A `sample_accessible_transitions` table with `class_preserving_final_states`,
+    kept if it is minimal and satisfies the preconditions at ``length``.
     """
-    # minimisation shrinks these by about a quarter
-    num_drawn = math.ceil(num_states * 4 / 3)
     while True:
-        aut = sample_class_preserving_dfa(
-            rng, num_states=num_drawn, alphabet_size=alphabet_size, length=length
+        table = sample_accessible_transitions(
+            rng, num_states=num_states, alphabet_size=alphabet_size
         )
-        if aut is None:
+        final = class_preserving_final_states(rng, table, length=length)
+        if final is None:
             continue
-        aut = aut.minify()
-        if len(aut.states) != num_states:
+        aut = DFA(
+            states=set(range(num_states)),
+            input_symbols=set(range(alphabet_size)),
+            transitions={
+                q: {c: int(table[q, c]) for c in range(alphabet_size)}
+                for q in range(num_states)
+            },
+            initial_state=0,
+            final_states={q for q in range(num_states) if final[q]},
+            allow_partial=False,
+        )
+        if len(aut.minify().states) != num_states:
             continue
         if preconditions.satisfies_preconditions(aut, length=length):
             return aut
