@@ -56,7 +56,7 @@ def _exact(length: int, sampler: Optional[Sampler]) -> bool:
     return type(sampler) is UniformSampler  # pylint: disable=unidiomatic-typecheck
 
 
-def _tables(dfa: DFA):
+def dfa_tables(dfa: DFA):
     """``(states, table, final, initial)``, with states indexed by position in
     ``states``, ``table[q, c]`` the successor of ``q`` on the ``c``-th symbol."""
     states = sorted(dfa.states, key=str)
@@ -148,7 +148,7 @@ def acceptance_rate(
 ) -> float:
     """Fraction of random length-``length`` strings the DFA accepts."""
     if _exact(length, sampler):
-        _, table, final, initial = _tables(dfa)
+        _, table, final, initial = dfa_tables(dfa)
         return float(_distribution_at(table, initial, length) @ final)
     accepts = sum(
         _endpoint(dfa, s) in dfa.final_states
@@ -168,7 +168,7 @@ def class_preserving_fraction(
     state ``q`` satisfies ``(q in F) == (delta*(q, s) in F)`` -- the suffixes
     that reset the whole state set into a single accept/reject class."""
     if _exact(length, sampler):
-        _, table, final, _ = _tables(dfa)
+        _, table, final, _ = dfa_tables(dfa)
         return _exact_class_preserving_fraction(table, final, length)
     finals = dfa.final_states
     states = list(dfa.states)
@@ -267,7 +267,7 @@ def non_start_zone_states(
     k = start_length(length)
     ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
     if _exact(length, sampler):
-        states, table, _, initial = _tables(dfa)
+        states, table, _, initial = dfa_tables(dfa)
         window = _exact_window_visits(table, initial, length)
         rerooted = _exact_visits(table, np.eye(len(states)), length)
         zone = rerooted <= ratio * window
@@ -335,7 +335,7 @@ def _worst_start_accuracies(
     zones = non_start_zone_states(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    states, table, final, initial = _tables(dfa)
+    states, table, final, initial = dfa_tables(dfa)
     index = {q: i for i, q in enumerate(states)}
     starts = np.array(sorted(index[q] for q in zones), dtype=int)
     allowed = np.array(
@@ -535,7 +535,7 @@ def satisfies_preconditions(
             "lands in far less than the run does)"
         )
     if _exact(length, sampler):
-        states, table, _, initial = _tables(dfa)
+        states, table, _, initial = dfa_tables(dfa)
         window = _exact_window_visits(table, initial, length)
         visited = {q for q, w in zip(states, window) if w >= MIN_RESOLVED_RATE}
     else:
