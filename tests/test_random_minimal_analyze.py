@@ -44,17 +44,16 @@ class TestAnalyze(unittest.TestCase):
             [
                 r"\multirow{1}{*}{4}",
                 "0.05",
-                "4",
                 r"50\%",
                 r"25\%",
-                r"50\%",
+                "0.900",
                 r"$2.00 \times 10^{2}$",
                 r"$2.80 \times 10^{2}$",
             ],
         )
         self.assertEqual(rows[1], r"\midrule")
-        self.assertEqual(rows[2][:3], [r"\multirow{2}{*}{8}", "0.05", "1"])
-        self.assertEqual(rows[3][:3], ["", "0.1", "1"])
+        self.assertEqual(rows[2][:3], [r"\multirow{2}{*}{8}", "0.05", r"100\%"])
+        self.assertEqual(rows[3][:3], ["", "0.1", r"100\%"])
 
     def test_difficulty(self):
         rows = analyze.difficulty_rows(self.RESULTS)
@@ -76,7 +75,7 @@ class TestAnalyze(unittest.TestCase):
             ), mock.patch("builtins.print"):
                 analyze.main()
             summary = (out / "summary.tex").read_text()
-            self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 4 &", summary)
+            self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 50\% &", summary)
             self.assertTrue((out / "difficulty.tex").exists())
 
 

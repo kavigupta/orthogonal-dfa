@@ -4,8 +4,8 @@ Render E-L* on random minimal DFAs as LaTeX fragments to `\\input` into a paper.
 Two tables, both read from the results `run` caches, one row per target size
 and noise level:
 
-1. summary -- how often E-L* learns the target, exactly and at the right size,
-   and what it costs in membership queries.
+1. summary -- how often E-L* learns the target and learns it exactly, the
+   lowest accuracy, and what it costs in membership queries.
 2. difficulty -- the Spearman correlation between a target's queries and each
    of its `difficulty.target_metrics`.
 
@@ -77,12 +77,12 @@ def _by_size(results: Sequence[dict], cells) -> List[Union[List[str], str]]:
 
 def _summary_cells(runs: Sequence[dict]) -> List[str]:
     """A run with an error or a timeout has no accuracy and counts as failed."""
-    queries = [r["queries_total"] for r in runs if r["accuracy"] is not None]
+    scored = [r for r in runs if r["accuracy"] is not None]
+    queries = [r["queries_total"] for r in scored]
     return [
-        str(len(runs)),
         _pct(np.mean([succeeded(r) for r in runs])),
         _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
-        _pct(np.mean([r["learned_states"] == r["target_states"] for r in runs])),
+        f"{min(r['accuracy'] for r in scored):.3f}" if scored else "--",
         _sci(np.median(queries)) if queries else "--",
         _sci(np.quantile(queries, 0.9)) if queries else "--",
     ]
@@ -117,14 +117,13 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
             [
                 "States",
                 r"$\eta$",
-                "Runs",
                 "Success",
                 "Exact",
-                "Right size",
+                "Lowest accuracy",
                 "MQ median",
                 "MQ p90",
             ],
-            "llrrrrrr",
+            "llrrrrr",
             summary_rows(results),
         ),
         "difficulty": tabular(
