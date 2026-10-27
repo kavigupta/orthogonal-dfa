@@ -32,6 +32,7 @@ from orthogonal_dfa.experiments.capal_comparison.core import (
     eval_words,
     run_elstar_cell,
 )
+from orthogonal_dfa.experiments.capal_comparison.sweep import ETAS as CAPAL_ETAS
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.random_dfa import (
     dfa_from_table,
@@ -43,9 +44,9 @@ from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
 from .difficulty import target_metrics
 
-SIZES = [12]
+SIZES = [6, 12]
 COUNT = 100
-ETAS = [0.30]
+ETAS = CAPAL_ETAS
 SEEDS = [0]
 ALPHABET_SIZE = 2
 TARGET_SCHEMA_VERSION = 1
