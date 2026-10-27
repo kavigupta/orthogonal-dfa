@@ -363,7 +363,7 @@ class TestPreconditionsOverTheSuperAlphabet(unittest.TestCase):
             self.contains_a_kmer, length=40, num_samples=400
         )
         self.assertFalse(report)
-        self.assertEqual(report.acceptance_rate, 1.0)
+        self.assertAlmostEqual(report.acceptance_rate, 1.0)
 
 
 class _NoTargetOracle(Oracle):

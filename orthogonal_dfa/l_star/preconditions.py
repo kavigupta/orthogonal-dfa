@@ -15,6 +15,10 @@ the learner will draw from:
   (a state in its own non-start zone) still classifies almost every string,
   without the re-rooted run leaving that zone -- at every string length from
   ``ceil(length / 2)`` to twice ``length``, taking the worst length for each start
+
+Under uniform sampling every condition is computed exactly, as a chain over
+states, pairs of states or sets of states; under any other sampler it is
+estimated from ``num_samples`` draws.
 """
 
 import copy
@@ -33,6 +37,55 @@ from .sampler import Sampler, UniformSampler
 DEFAULT_NUM_SAMPLES = 2000
 
 MAX_VISIT_RATIO = 10
+
+#: A rate below this counts as zero, which is all a sample of
+#: ``DEFAULT_NUM_SAMPLES`` strings could resolve.
+MIN_RESOLVED_RATE = 1 / DEFAULT_NUM_SAMPLES
+
+
+def _exact(length: int, sampler: Optional[Sampler]) -> bool:
+    """Whether ``sampler`` draws uniformly, so the checks need no sample."""
+    if sampler is None:
+        return True
+    assert sampler.length == length, (
+        f"sampler draws {sampler.length} symbols but the preconditions were "
+        f"asked for length {length}"
+    )
+    return type(sampler) is UniformSampler  # pylint: disable=unidiomatic-typecheck
+
+
+def _tables(dfa: DFA):
+    """``(states, table, final, initial)``, with states indexed by position in
+    ``states``, ``table[q, c]`` the successor of ``q`` on the ``c``-th symbol."""
+    states = sorted(dfa.states, key=str)
+    index = {q: i for i, q in enumerate(states)}
+    symbols = sorted(dfa.input_symbols)
+    table = np.array([[index[dfa.transitions[q][c]] for c in symbols] for q in states])
+    final = np.array([q in dfa.final_states for q in states])
+    return states, table, final, index[dfa.initial_state]
+
+
+def _step(dist: np.ndarray, table: np.ndarray) -> np.ndarray:
+    """``dist``, a distribution over states along its last axis, after one more
+    uniformly drawn symbol."""
+    n, k = table.shape
+    flat = dist.reshape(-1, n)
+    rows = np.arange(len(flat))[:, None] * n
+    out = sum(
+        np.bincount(
+            (rows + table[:, c]).ravel(), weights=flat.ravel(), minlength=flat.size
+        )
+        for c in range(k)
+    )
+    return (out / k).reshape(dist.shape)
+
+
+def _distribution_at(table: np.ndarray, initial: int, length: int) -> np.ndarray:
+    dist = np.zeros(len(table))
+    dist[initial] = 1.0
+    for _ in range(length):
+        dist = _step(dist, table)
+    return dist
 
 
 @lru_cache(maxsize=None)
@@ -92,6 +145,9 @@ def acceptance_rate(
     sampler: Optional[Sampler] = None,
 ) -> float:
     """Fraction of random length-``length`` strings the DFA accepts."""
+    if _exact(length, sampler):
+        _, table, final, initial = _tables(dfa)
+        return float(_distribution_at(table, initial, length) @ final)
     accepts = sum(
         _endpoint(dfa, s) in dfa.final_states
         for s in _samples(dfa, length, num_samples, sampler)
@@ -109,6 +165,9 @@ def class_preserving_fraction(
     """Fraction of random length-``length`` strings ``s`` for which *every*
     state ``q`` satisfies ``(q in F) == (delta*(q, s) in F)`` -- the suffixes
     that reset the whole state set into a single accept/reject class."""
+    if _exact(length, sampler):
+        _, table, final, _ = _tables(dfa)
+        return _exact_class_preserving_fraction(table, final, length)
     finals = dfa.final_states
     states = list(dfa.states)
     preserving = sum(
@@ -116,6 +175,24 @@ def class_preserving_fraction(
         for s in _samples(dfa, length, num_samples, sampler)
     )
     return preserving / num_samples
+
+
+def _exact_class_preserving_fraction(
+    table: np.ndarray, final: np.ndarray, length: int
+) -> float:
+    """
+    ``s`` preserves classes iff ``{q : delta(q, s) in F} == F``. Reading ``s``
+    last symbol first, that set is a chain over subsets of states starting at
+    ``F``: prepending ``c`` takes the set ``S`` to ``{q : delta(q, c) in S}``.
+    """
+    subsets, probs = final[None, :], np.ones(1)
+    k = table.shape[1]
+    for _ in range(length):
+        subsets = np.concatenate([subsets[:, table[:, c]] for c in range(k)])
+        probs = np.tile(probs, k) / k
+        subsets, inverse = np.unique(subsets, axis=0, return_inverse=True)
+        probs = np.bincount(inverse.ravel(), weights=probs)
+    return float(probs[(subsets == final).all(axis=1)].sum())
 
 
 def start_length(length: int) -> int:
@@ -147,6 +224,29 @@ def _window_visits(
     )
 
 
+def _exact_visits(table: np.ndarray, dist: np.ndarray, steps: int) -> np.ndarray:
+    """Per state ``q``, the probability a run whose distribution is ``dist`` (over
+    the last axis) visits ``q`` within the next ``steps`` steps, its current state
+    included."""
+    n = len(table)
+    # avoiding[..., q, x]: the run at x, with the mass that has visited q removed
+    avoiding = np.repeat(dist[..., None, :], n, axis=-2)
+    diagonal = (..., np.arange(n), np.arange(n))
+    visits = avoiding[diagonal].copy()
+    avoiding[diagonal] = 0
+    for _ in range(steps):
+        avoiding = _step(avoiding, table)
+        visits += avoiding[diagonal]
+        avoiding[diagonal] = 0
+    return visits
+
+
+def _exact_window_visits(table: np.ndarray, initial: int, length: int) -> np.ndarray:
+    """``_window_visits`` as probabilities."""
+    k = start_length(length)
+    return _exact_visits(table, _distribution_at(table, initial, k), length - k)
+
+
 def non_start_zone_states(
     dfa: DFA,
     *,
@@ -162,12 +262,22 @@ def non_start_zone_states(
     with w(q) the runs from q0 visiting q at positions k = start_length(L) to L, and
     r_s(q) the runs from s visiting q at positions 0 to L.
     """
-    strings = _samples(dfa, length, num_samples, sampler)
     k = start_length(length)
+    ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
+    if _exact(length, sampler):
+        states, table, _, initial = _tables(dfa)
+        window = _exact_window_visits(table, initial, length)
+        rerooted = _exact_visits(table, np.eye(len(states)), length)
+        zone = rerooted <= ratio * window
+        return {
+            states[s]: {q for q, inside in zip(states, zone[s]) if inside}
+            for s in range(len(states))
+            if window[s] > 0 and zone[s, s]
+        }
+    strings = _samples(dfa, length, num_samples, sampler)
     window = _window_visits(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
     zones = {}
     for start in window:
         rerooted = Counter(q for s in strings for q in set(_run(dfa, s, start)))
@@ -223,15 +333,21 @@ def _worst_start_accuracies(
     zones = non_start_zone_states(
         dfa, length=length, num_samples=num_samples, sampler=sampler
     )
-    states = sorted(dfa.states, key=str)
+    states, table, final, initial = _tables(dfa)
     index = {q: i for i, q in enumerate(states)}
-    symbols = sorted(dfa.input_symbols)
-    table = np.array([[index[dfa.transitions[q][c]] for c in symbols] for q in states])
-    final = np.array([q in dfa.final_states for q in states])
     starts = np.array(sorted(index[q] for q in zones), dtype=int)
     allowed = np.array(
         [[q in zones[states[s]] for q in states] for s in starts], dtype=bool
     ).reshape(len(starts), len(states))
+    if _exact(length, sampler):
+        return _exact_worst_start_accuracies(
+            table,
+            final,
+            initial,
+            starts=starts,
+            allowed=allowed,
+            string_lengths=string_lengths,
+        )
     worst = np.ones(len(starts))
     for ell in string_lengths:
         strings = _strings_at_length(dfa, ell, num_samples, sampler)
@@ -239,12 +355,33 @@ def _worst_start_accuracies(
             table,
             np.ones((1, len(states)), dtype=bool),
             strings,
-            np.array([index[dfa.initial_state]]),
+            np.array([initial]),
         )
         truth = final[initial_end[0]]
         ends, stayed = _run_from(table, allowed, strings, starts)
         accuracy = (stayed & (final[ends] == truth)).mean(axis=1)
         worst = np.minimum(worst, accuracy)
+    return worst
+
+
+def _exact_worst_start_accuracies(
+    table, final, initial, *, starts, allowed, string_lengths: range
+) -> np.ndarray:
+    """``_worst_start_accuracies`` under uniform sampling, from the joint
+    distribution of (run from the initial state, run from each start)."""
+    n = len(table)
+    pair_table = (table[:, None, :] * n + table[None, :, :]).reshape(n * n, -1)
+    # joint[s, x, y]: x the run from the initial state, y the run from starts[s],
+    # with the mass whose y-run has left the start's zone dropped
+    joint = np.zeros((len(starts), n, n))
+    joint[np.arange(len(starts)), initial, starts] = 1.0
+    agree = final[:, None] == final[None, :]
+    worst = np.ones(len(starts))
+    for ell in range(string_lengths.stop):
+        if ell in string_lengths:
+            worst = np.minimum(worst, (joint * agree).sum(axis=(1, 2)))
+        joint = _step(joint.reshape(len(starts), n * n), pair_table)
+        joint = joint.reshape(len(starts), n, n) * allowed[:, None, :]
     return worst
 
 
@@ -368,9 +505,9 @@ def satisfies_preconditions(
     """
     reasons: List[str] = []
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples, sampler=sampler)
-    if rate in (0.0, 1.0):
+    if min(rate, 1 - rate) < MIN_RESOLVED_RATE:
         reasons.append(
-            f"acceptance rate {rate} degenerate: every sampled string of length "
+            f"acceptance rate {rate} degenerate: almost every string of length "
             f"{length} has the same label"
         )
         if short_circuit:
@@ -395,8 +532,13 @@ def satisfies_preconditions(
             f"{min_non_start_zone_accuracy} (a decision rides on a state the window "
             "lands in far less than the run does)"
         )
-    visited = _window_visits(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
-    )
+    if _exact(length, sampler):
+        states, table, _, initial = _tables(dfa)
+        window = _exact_window_visits(table, initial, length)
+        visited = {q for q, w in zip(states, window) if w >= MIN_RESOLVED_RATE}
+    else:
+        visited = _window_visits(
+            dfa, length=length, num_samples=num_samples, sampler=sampler
+        )
     unvisited = sorted(str(q) for q in dfa.states if q not in visited)
     return PreconditionReport(length, rate, cp, ceiling, unvisited, tuple(reasons))
