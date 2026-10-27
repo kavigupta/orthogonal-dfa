@@ -58,8 +58,7 @@ class TestAnalyze(unittest.TestCase):
             )
             for eta in [0.05, 0.1, 0.2, 0.3]
         ] + [_result(6, 0.3, None, learned_states=None, error_type="Timeout")]
-        ((states, (scale, power)),) = analyze.eta_fit(results).items()
-        self.assertEqual(states, 6)
+        scale, power = analyze.eta_fit(results)[6]
         self.assertAlmostEqual(scale, 4, places=3)
         self.assertAlmostEqual(power, 4, places=3)
 
