@@ -36,9 +36,9 @@ from orthogonal_dfa.l_star.examples.random_dfa import (
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
-SIZES = [4, 8, 12]
+SIZES = [12]
 COUNT = 100
-ETAS = [0.05, 0.10, 0.20]
+ETAS = [0.30]
 SEEDS = [0]
 ALPHABET_SIZE = 2
 SCHEMA_VERSION = 1
