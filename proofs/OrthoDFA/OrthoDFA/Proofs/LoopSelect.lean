@@ -62,8 +62,8 @@ end Stage
 
 section Fail
 
-variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  (N Ls L n nL : ℕ) (t : ℝ) (r : ℕ) (hr : r < K)
+variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+  (D Dsf Dh : Measure (FreeMonoid α)) (N Ls L n nL : ℕ) (t : ℝ) (r : ℕ) (hr : r < K)
 
 /-- The stage values the selection is bounded at: round `r` ended consistent after `r` harvests. -/
 def SelG (y : Option (Stage4 α × ResCode α)) : Prop :=
@@ -92,7 +92,7 @@ open scoped Classical in
 `nL` leaves. -/
 def SelBad : Option (Stage4 α × ResCode α) → Set (Ω × (Fin n → FreeMonoid α))
   | some (t', h) => if SuffixFree t'.2.2.1 ∧ h.hyp.tree.leaves.length ≤ nL
-      then scoreBad O h.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) L n t else ∅
+      then scoreBad O h.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) Dh n t else ∅
   | none => ∅
 
 /-- Round `r` ended consistent, and its scores strayed or a held-out string collided. -/
@@ -100,7 +100,7 @@ def selFail : Set ((Ω × (Fin K → RoundDraws α K settings.level3.probeBudget
     × (Fin n → FreeMonoid α)) :=
   {q | SelG r (stageSel settings O D Dsf N r hr q.1.1 q.1.2)
     ∧ q.1.2 ∈ SelOk settings D Dsf Ls r hr (stageSel settings O D Dsf N r hr q.1.1 q.1.2)
-    ∧ ((q.1.1, q.2) ∈ SelBad O L n nL t (stageSel settings O D Dsf N r hr q.1.1 q.1.2)
+    ∧ ((q.1.1, q.2) ∈ SelBad O Dh n nL t (stageSel settings O D Dsf N r hr q.1.1 q.1.2)
       ∨ (q.1.2, q.2) ∉ SelDk settings D L n r hr (stageSel settings O D Dsf N r hr q.1.1 q.1.2))}
 
 end Fail
@@ -109,9 +109,10 @@ section Congr
 
 omit [IsProbabilityMeasure μ] in
 theorem scoreBad_congr (O : Oracle μ (FreeMonoid α)) (H : HypothesisDFA α)
-    (F : Finset (FreeMonoid α)) (kl kh L n : ℕ) (t : ℝ) {ω ω' : Ω} (b : Fin n → FreeMonoid α)
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (Dh : Measure (FreeMonoid α)) (n : ℕ) (t : ℝ)
+    {ω ω' : Ω} (b : Fin n → FreeMonoid α)
     (h : ∀ w ∈ readStrings (Finset.univ.image b) F, (O.mq w ω = 1 ↔ O.mq w ω' = 1))
-    (hb : (ω, b) ∈ scoreBad O H F kl kh L n t) : (ω', b) ∈ scoreBad O H F kl kh L n t := by
+    (hb : (ω, b) ∈ scoreBad O H F kl kh Dh n t) : (ω', b) ∈ scoreBad O H F kl kh Dh n t := by
   have he : ∀ s i, agreeAt O H F kl kh s (b i) ω = agreeAt O H F kl kh s (b i) ω' := fun s i => by
     unfold agreeAt
     rw [familyRead_congr O h (Finset.mem_image_of_mem b (Finset.mem_univ i))]
@@ -155,20 +156,18 @@ end Meas
 
 section Bound
 
-variable [Nonempty α]
-
 set_option maxHeartbeats 1000000 in -- the selection's many obligations
 theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
-    (Ls L n nL NP : ℕ) (t : ℝ) (ht : 0 ≤ t) (hkL : settings.level3.walkStart ≤ L)
+    (Dh : Measure (FreeMonoid α)) [IsProbabilityMeasure Dh] (Ls L n nL NP : ℕ) (t p₀ : ℝ)
+    (ht : 0 ≤ t) (hlen : Dh {x | x.toList.length ≠ L} = 0)
+    (hpre : ∀ u, Dh.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) (r : ℕ) (hr : r < K) :
     ((loopMeasure μ α K settings.level3.probeBudget).prod
-        (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      (selFail settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls L n nL t r hr)
+        (Measure.pi fun _ : Fin n => Dh)).real
+      (selFail settings O P.D Dsf Dh (P.L + settings.level3.probeBudget + 2) Ls L n nL t r hr)
       ≤ nL * (4 * Real.exp (-(n * t ^ 2 / 2)))
-        + (n * (6 * (K + 1) * NP + settings.level3.probeBudget)
-            / (Fintype.card α : ℝ) ^ settings.level3.walkStart
-          + n ^ 2 / (Fintype.card α : ℝ) ^ L) := by
+        + (n * (6 * (K + 1) * NP + settings.level3.probeBudget) * p₀ + n ^ 2 * p₀) := by
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
@@ -177,7 +176,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
   set rK : Fin K := ⟨r, hr⟩
   set dec := decodeHist P.D k with hdec
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
-  have hA0 : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
+  have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
   set Y := Option (Stage4 α × ResCode α)
   set stage := stageSel settings O P.D Dsf N r hr
   set W : Y → (Fin K → RoundDraws α K T) → Finset (FreeMonoid α) := fun y x => match y with
@@ -191,12 +190,11 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
     | some (t, _) => readStrings (Finset.univ.image b) t.2.2.1
     | none => ∅ with hZd
   set δ₁ : ℝ := nL * (4 * Real.exp (-(n * t ^ 2 / 2)))
-  set δ₂ : ℝ := n * (6 * (K + 1) * NP + T) / (Fintype.card α : ℝ) ^ k
-    + n ^ 2 / (Fintype.card α : ℝ) ^ L
+  set δ₂ : ℝ := n * (6 * (K + 1) * NP + T) * p₀ + n ^ 2 * p₀
   have hδ₁ : 0 ≤ δ₁ := by positivity
-  have hδ₂ : 0 ≤ δ₂ := by positivity
+  have hδ₂ : 0 ≤ δ₂ := add_nonneg (mul_nonneg (by positivity) hp₀) (mul_nonneg (by positivity) hp₀)
   have hmain := select_le O (Measure.pi fun _ : Fin K => roundLaw α K T)
-    (Measure.pi fun _ : Fin n => uniformStrings (α := α) L) stage (SelG r)
+    (Measure.pi fun _ : Fin n => Dh) stage (SelG r)
     (fun y hy => by
       obtain ⟨t', h', rfl, -, -⟩ := hy
       have hset : {p : Ω × (Fin K → RoundDraws α K T) | stage p.1 p.2 = some (t', h')}
@@ -250,13 +248,13 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
       rw [h4, Option.map_some, ← hres, he])
     (SelOk settings P.D Dsf Ls r hr)
     (measurableSet_selOk settings P.D Dsf Ls r hr)
-    (SelBad O L n nL t)
+    (SelBad O Dh n nL t)
     (fun y => by
       rcases y with _ | ⟨t', h'⟩
       · exact MeasurableSet.empty
       · show MeasurableSet (if _ then _ else _)
         split_ifs
-        · exact measurableSet_scoreBad O _ _ _ _ L n t
+        · exact measurableSet_scoreBad O _ _ _ _ Dh n t
         · exact MeasurableSet.empty)
     Z
     (fun y b ω ω' h hb => by
@@ -264,12 +262,12 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
       · exact hb
       · change (ω, b) ∈ (if SuffixFree t'.2.2.1
             ∧ h'.hyp.tree.leaves.length ≤ nL
-          then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) L n t else ∅) at hb
+          then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) Dh n t else ∅) at hb
         show (ω', b) ∈ (if SuffixFree t'.2.2.1
             ∧ h'.hyp.tree.leaves.length ≤ nL
-          then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) L n t else ∅)
+          then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) Dh n t else ∅)
         split_ifs at hb ⊢
-        · exact scoreBad_congr O _ _ _ _ L n t b h hb
+        · exact scoreBad_congr O _ _ _ _ Dh n t b h hb
         · exact hb)
     (SelDk settings P.D L n r hr)
     (fun y => by
@@ -336,9 +334,9 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
       obtain ⟨t', h', rfl, -, -⟩ := hy
       show (μ.prod _) (if SuffixFree t'.2.2.1
           ∧ h'.hyp.tree.leaves.length ≤ nL
-        then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) L n t else ∅) ≤ _
+        then scoreBad O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) Dh n t else ∅) ≤ _
       split_ifs with hc
-      · refine (scoreBad_le O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) hc.1 L n t ht).trans
+      · refine (scoreBad_le O h'.hyp t'.2.2.1 t'.2.1.lo (t'.2.1.hi + 1) hc.1 Dh n t ht).trans
           (ENNReal.ofReal_le_ofReal ?_)
         exact mul_le_mul_of_nonneg_right (by exact_mod_cast hc.2) (by positivity)
       · simp)
@@ -347,7 +345,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
       obtain ⟨c, B, F, K₀⟩ := t'
       obtain ⟨-, -, hK⟩ := hx
       set PK := probeKeys k (probesOf settings P.D K₀ (x rK).2)
-      refine (measure_mono ?_).trans ((batch_collide_le L k n hkL (K₀ ∪ PK)).trans
+      refine (measure_mono ?_).trans ((batch_collide_le Dh L k n hlen hpre (K₀ ∪ PK)).trans
         (ENNReal.ofReal_le_ofReal ?_))
       · intro b hb
         simp only [Set.mem_ofPred_eq] at hb ⊢
@@ -374,10 +372,9 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
           have h1 := Finset.card_union_le K₀ PK
           have h2 : ((K₀ ∪ PK).card : ℕ) ≤ 6 * (K + 1) * NP + T := by omega
           exact_mod_cast h2
-        have hAk : (0 : ℝ) < (Fintype.card α : ℝ) ^ k := by positivity
         have h3 : (n : ℝ) * ((K₀ ∪ PK).card : ℝ) ≤ n * (6 * (K + 1) * NP + T) :=
           mul_le_mul_of_nonneg_left hcard (Nat.cast_nonneg _)
-        exact add_le_add (div_le_div_of_nonneg_right h3 hAk.le) le_rfl)
+        exact add_le_add (mul_le_mul_of_nonneg_right h3 hp₀) le_rfl)
   rw [measureReal_def]
   refine ENNReal.toReal_le_of_le_ofReal (by positivity) (hmain.trans (le_of_eq ?_))
   rw [ENNReal.ofReal_add hδ₁ hδ₂]
