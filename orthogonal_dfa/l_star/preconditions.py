@@ -38,6 +38,8 @@ DEFAULT_NUM_SAMPLES = 2000
 
 MAX_VISIT_RATIO = 10
 
+MIN_CLASS_PRESERVING_FRAC = 0.02
+
 #: A rate below this counts as zero, which is all a sample of
 #: ``DEFAULT_NUM_SAMPLES`` strings could resolve.
 MIN_RESOLVED_RATE = 1 / DEFAULT_NUM_SAMPLES
@@ -480,7 +482,7 @@ def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
-    min_class_preserving_frac: float = 0.02,
+    min_class_preserving_frac: float = MIN_CLASS_PRESERVING_FRAC,
     min_non_start_zone_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,

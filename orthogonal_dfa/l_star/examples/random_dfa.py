@@ -1,5 +1,4 @@
-import itertools
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -53,106 +52,163 @@ def sample_admitted_dfas(
     return admitted
 
 
-def _functional_graph_components(f: np.ndarray) -> np.ndarray:
-    """A component label per state of the graph with edges ``q -> f[q]``."""
-    label = np.arange(len(f))
-    while True:
-        new = np.minimum(label, label[f])
-        np.minimum.at(new, f, new.copy())
-        if (new == label).all():
-            return label
-        label = new
+_BATCH = 1024
+_SCREEN_STRINGS = 1024
 
 
-def sample_accessible_transitions(
-    rng: np.random.Generator, *, num_states: int, alphabet_size: int
+def dfa_from_table(table: np.ndarray, final: np.ndarray) -> DFA:
+    """The DFA with ``table[q, c]`` the successor of ``q`` on ``c``, initial state 0."""
+    num_states, alphabet_size = table.shape
+    return DFA(
+        states=set(range(num_states)),
+        input_symbols=set(range(alphabet_size)),
+        transitions={
+            q: {c: int(table[q, c]) for c in range(alphabet_size)}
+            for q in range(num_states)
+        },
+        initial_state=0,
+        final_states={q for q in range(num_states) if final[q]},
+        allow_partial=False,
+    )
+
+
+def sample_accessible_tables(
+    rng: np.random.Generator, *, num_states: int, alphabet_size: int, count: int
 ) -> np.ndarray:
     """
-    Uniform over transition tables on ``num_states`` states in which every state
-    is reachable from state 0, with ``table[q, c]`` the successor of ``q`` on ``c``.
+    ``count`` transition tables, each uniform over those on ``num_states`` states
+    in which every state is reachable from state 0, with ``tables[b, q, c]`` the
+    successor of ``q`` on ``c``.
     """
-    while True:
-        table = rng.integers(num_states, size=(num_states, alphabet_size))
-        reached = np.zeros(num_states, dtype=bool)
-        reached[0] = True
-        while True:
-            grown = reached.copy()
-            grown[table[reached].ravel()] = True
-            if (grown == reached).all():
-                break
-            reached = grown
-        if reached.all():
-            return table
+    found = []
+    while sum(len(t) for t in found) < count:
+        tables = rng.integers(num_states, size=(count, num_states, alphabet_size))
+        edge = (tables[:, :, :, None] == np.arange(num_states)).any(axis=2)
+        reached = np.zeros((count, num_states), dtype=bool)
+        reached[:, 0] = True
+        for _ in range(num_states):
+            reached |= (reached[:, :, None] & edge).any(axis=1)
+        found.append(tables[reached.all(axis=1)])
+    return np.concatenate(found)[:count]
 
 
-def class_preserving_final_states(
-    rng: np.random.Generator, table: np.ndarray, *, length: int
-) -> Optional[np.ndarray]:
+def _class_pair_bound(tables: np.ndarray, finals: np.ndarray, length: int):
     """
-    Accepting states chosen so that a random length-``length`` string ``s``
-    preserves classes:
+    Per table, the least over pairs (p, q) of
 
-        q in F  <=>  delta(q, s) in F
+        P_s[ delta(p, s) in class(p)  and  delta(q, s) in class(q) ]
 
-    i.e. ``F`` is a union of components of ``delta(., s)``'s functional graph, the
-    one whose acceptance rate at ``length`` is closest to 1/2. None if there is
-    only one component, as there is when ``s`` synchronises the DFA.
+    over random length-``length`` strings ``s``, an upper bound on the
+    class-preserving fraction.
+    """
+    count, _, alphabet_size = tables.shape
+    # (p, q) and (q, p) give the same probability, so a rejecting p and accepting
+    # q need no chain of their own
+    classes = [(False, False), (True, True), (True, False)]
+    # kept[b, i, x, y]: the pair (x, y), required to end in classes[i]
+    kept = np.stack(
+        [(finals == a)[:, :, None] & (finals == b)[:, None, :] for a, b in classes],
+        axis=1,
+    ).astype(float)
+    starts = kept.astype(bool)
+    shape = kept.shape
+    # successor[c]: flat index into kept of each entry's successor pair on c
+    successor = [
+        np.ravel_multi_index(
+            np.broadcast_arrays(
+                np.arange(count)[:, None, None, None],
+                np.arange(len(classes))[None, :, None, None],
+                tables[:, None, :, None, c],
+                tables[:, None, None, :, c],
+            ),
+            shape,
+        ).ravel()
+        for c in range(alphabet_size)
+    ]
+    kept = kept.ravel()
+    for _ in range(length):
+        kept = sum(kept[index] for index in successor) / alphabet_size
+    kept = kept.reshape(shape)
+    return np.where(starts, kept, np.inf).min(axis=(1, 2, 3))
+
+
+def _some_string_preserves(
+    rng: np.random.Generator, tables: np.ndarray, finals: np.ndarray, *, length: int
+) -> np.ndarray:
+    """
+    Per table, whether any of ``_SCREEN_STRINGS`` random strings preserves its
+    classes. A DFA whose class-preserving fraction clears the bar fails this with
+    probability
+
+        (1 - MIN_CLASS_PRESERVING_FRAC) ** _SCREEN_STRINGS  ~  1e-9
+    """
+    count, num_states, alphabet_size = tables.shape
+    strings = rng.integers(alphabet_size, size=(_SCREEN_STRINGS, length))
+    # alive[b, i]: string i has kept the classes of every state run so far
+    alive = np.ones((count, _SCREEN_STRINGS), dtype=bool)
+    for q in range(num_states):
+        table, string = np.nonzero(alive)
+        ends = np.full(len(table), q)
+        for j in range(length):
+            ends = tables[table, ends, strings[string, j]]
+        alive[table, string] = finals[table, ends] == finals[table, q]
+    return alive.any(axis=1)
+
+
+def _class_preserving_fraction(
+    table: np.ndarray, final: np.ndarray, length: int
+) -> float:
+    """
+    `preconditions.class_preserving_fraction`, over all 2^n subsets as bitmasks:
+
+        h_0(S) = [S == F],   h_{t+1}(S) = mean_c h_t(pre_c(S)),   answer h_L(F)
+
+    with ``pre_c(S) = {q : delta(q, c) in S}``.
     """
     num_states, alphabet_size = table.shape
-    s = rng.integers(alphabet_size, size=length)
-    f = np.arange(num_states)
-    for c in s:
-        f = table[f, c]
-    _, component = np.unique(_functional_graph_components(f), return_inverse=True)
-    num_components = component.max() + 1
-    if num_components == 1:
-        return None
-
-    step = np.zeros((num_states, num_states))
-    for c in range(alphabet_size):
-        np.add.at(step, (np.arange(num_states), table[:, c]), 1 / alphabet_size)
-    mass = np.bincount(
-        component,
-        weights=np.linalg.matrix_power(step, length)[0],
-        minlength=num_components,
-    )
-    accepting = min(
-        (
-            chosen
-            for chosen in itertools.product([False, True], repeat=num_components)
-            if 0 < sum(chosen) < num_components
-        ),
-        key=lambda chosen: abs(mass[list(chosen)].sum() - 0.5),
-    )
-    return np.array(accepting)[component]
+    # pre[c, S], built up one state at a time
+    pre = np.zeros((alphabet_size, 1), dtype=np.int64)
+    for t in range(num_states):
+        sources = ((table[:, :] == t) * (1 << np.arange(num_states))[:, None]).sum(0)
+        pre = np.concatenate([pre, pre | sources[:, None]], axis=1)
+    target = int((final * (1 << np.arange(num_states))).sum())
+    h = np.zeros(1 << num_states)
+    h[target] = 1.0
+    for _ in range(length):
+        h = sum(h[pre[c]] for c in range(alphabet_size)) / alphabet_size
+    return float(h[target])
 
 
 def sample_minimal_admitted_dfa(
     rng: np.random.Generator, *, num_states: int, alphabet_size: int, length: int
 ) -> DFA:
     """
-    A `sample_accessible_transitions` table with `class_preserving_final_states`,
-    kept if it is minimal and satisfies the preconditions at ``length``.
+    A `sample_accessible_tables` table with each state accepting with
+    probability 1/2, kept if it is minimal and satisfies the preconditions at
+    ``length``.
+
+    Cheaper necessary conditions on the class-preserving fraction run first;
+    all are exact but `_some_string_preserves`.
     """
     while True:
-        table = sample_accessible_transitions(
-            rng, num_states=num_states, alphabet_size=alphabet_size
+        tables = sample_accessible_tables(
+            rng, num_states=num_states, alphabet_size=alphabet_size, count=_BATCH
         )
-        final = class_preserving_final_states(rng, table, length=length)
-        if final is None:
-            continue
-        aut = DFA(
-            states=set(range(num_states)),
-            input_symbols=set(range(alphabet_size)),
-            transitions={
-                q: {c: int(table[q, c]) for c in range(alphabet_size)}
-                for q in range(num_states)
-            },
-            initial_state=0,
-            final_states={q for q in range(num_states) if final[q]},
-            allow_partial=False,
+        finals = rng.random((_BATCH, num_states)) < 0.5
+        keep = (
+            _class_pair_bound(tables, finals, length)
+            >= preconditions.MIN_CLASS_PRESERVING_FRAC
         )
-        if len(aut.minify().states) != num_states:
-            continue
-        if preconditions.satisfies_preconditions(aut, length=length):
-            return aut
+        tables, finals = tables[keep], finals[keep]
+        keep = _some_string_preserves(rng, tables, finals, length=length)
+        for table, final in zip(tables[keep], finals[keep]):
+            if (
+                _class_preserving_fraction(table, final, length)
+                < preconditions.MIN_CLASS_PRESERVING_FRAC
+            ):
+                continue
+            aut = dfa_from_table(table, final)
+            if len(aut.minify().states) != num_states:
+                continue
+            if preconditions.satisfies_preconditions(aut, length=length):
+                return aut
