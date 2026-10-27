@@ -38,6 +38,7 @@ from orthogonal_dfa.l_star.examples.random_dfa import (
     sample_minimal_admitted_dfa,
 )
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
+from orthogonal_dfa.l_star.preconditions import acceptance_rate
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
@@ -48,6 +49,8 @@ COUNT = 100
 ETAS = CAPAL_ETAS
 SEEDS = [0]
 ALPHABET_SIZE = 2
+# targets with fewer than this share of strings on either side are redrawn
+MIN_MINORITY_RATE = 0.05
 TARGET_SCHEMA_VERSION = 1
 RESULT_SCHEMA_VERSION = 2
 DATA_DIR = REPO_ROOT / "data" / "random_minimal"
@@ -76,17 +79,31 @@ def write_json(path: Path, payload: Any) -> None:
     tmp.replace(path)
 
 
-def load_target(data_dir: Path, size: int, index: int) -> DFA:
-    """The ``index``-th target of ``size`` states, drawn with the rng seeded by
-    ``(size, index)`` the first time it is asked for and read back after."""
-    path = target_path(data_dir, size, index)
-    if not path.exists():
+def _balanced(aut: DFA) -> bool:
+    rate = acceptance_rate(aut, length=DEFAULT_SAMPLE_LENGTH)
+    return MIN_MINORITY_RATE <= rate <= 1 - MIN_MINORITY_RATE
+
+
+def _draw_target(size: int, index: int) -> DFA:
+    rng = np.random.default_rng((size, index))
+    while True:
         aut = sample_minimal_admitted_dfa(
-            np.random.default_rng((size, index)),
+            rng,
             num_states=size,
             alphabet_size=ALPHABET_SIZE,
             length=DEFAULT_SAMPLE_LENGTH,
         )
+        if _balanced(aut):
+            return aut
+
+
+def load_target(data_dir: Path, size: int, index: int) -> DFA:
+    """The ``index``-th target of ``size`` states: the first `_balanced` draw from
+    the rng seeded by ``(size, index)``, drawn the first time it is asked for and
+    read back after."""
+    path = target_path(data_dir, size, index)
+    if not path.exists():
+        aut = _draw_target(size, index)
         write_json(
             path,
             {
@@ -102,7 +119,9 @@ def load_target(data_dir: Path, size: int, index: int) -> DFA:
         )
     payload = json.loads(path.read_text())
     assert payload["schema_version"] == TARGET_SCHEMA_VERSION, path
-    return dfa_from_table(np.array(payload["table"]), payload["final_mask"])
+    aut = dfa_from_table(np.array(payload["table"]), payload["final_mask"])
+    assert _balanced(aut), path
+    return aut
 
 
 def has_current_result(path: Path) -> bool:
