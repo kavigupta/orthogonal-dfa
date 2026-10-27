@@ -11,9 +11,9 @@ A leaf's score sums `agreeAt` over the held-out strings. At distinct strings the
 independent, so the score is within `n t/2` of its mean given the strings, and that mean within
 `n t/2` of `n · agreeMean` (`scoreBad_le`). Where every leaf's score is within `n t` of its mean,
 the leaf of highest score misjudges at most `2t` more than the best leaf, and the mean is within
-the family's misread and undecided shares of the leaf's accuracy (`pickLeaf_le`). Uniform
-held-out strings repeat, or start with the first `k` letters of a given set, rarely
-(`batch_collide_le`).
+the family's misread and undecided shares of the leaf's accuracy (`pickLeaf_le`). Held-out strings
+from a law that holds little on any first `k` letters repeat, or start with the first `k` letters of
+a given set, rarely (`batch_collide_le`).
 -/
 
 noncomputable section
@@ -500,8 +500,8 @@ theorem batch_collide_le (T : Measure (FreeMonoid α)) [IsProbabilityMeasure T] 
   have hatom : ∀ x : FreeMonoid α, U {x} ≤ ENNReal.ofReal p₀ :=
     fun x => by
       rw [← ofReal_measureReal]
-      refine ENNReal.ofReal_le_ofReal ((measureReal_mono (fun y hy => ?_) (measure_ne_top _ _)).trans
-        (hpre (prefixOf x k)))
+      refine ENNReal.ofReal_le_ofReal ((measureReal_mono (fun y hy => ?_)
+        (measure_ne_top _ _)).trans (hpre (prefixOf x k)))
       simp only [Set.mem_singleton_iff] at hy
       simp only [Set.mem_ofPred_eq, hy]
   -- a string of another length

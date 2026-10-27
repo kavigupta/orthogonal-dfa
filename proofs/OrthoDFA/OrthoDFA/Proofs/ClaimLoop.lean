@@ -56,12 +56,12 @@ theorem loopDistClaim_holds : LoopDistClaim := by
     loopMassInv_ge_one _ _ (Nat.cast_nonneg _) (Nat.cast_nonneg _)
       ((show (2 : ℝ) ≤ Fintype.card α by exact_mod_cast hA2).trans hAAe) hδ (by linarith) hc0 hc1
       (by positivity) hpAP hpAP1 (by linarith) hη₀
-  have hp₀ : distP₀Tol { toLoopDistInputs := ⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩,
-      β⟩, L } ≤ 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * loopMassInv (Fintype.card σ)
+  have hp₀ : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
+      ≤ 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * loopMassInv (Fintype.card σ)
         (Fintype.card α) (1 / β) (Fintype.card σ) (Fintype.card α) δ c (ξ / 2) pAP
         (1 / 2 - s₀)) := by
-    have e : distP₀Tol { toLoopDistInputs := ⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩,
-        β⟩, L } = 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * max 1 (loopMassInv (Fintype.card σ)
+    have e : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
+        = 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * max 1 (loopMassInv (Fintype.card σ)
           (Fintype.card α) (1 / β) (Fintype.card σ) (Fintype.card α) δ c (ξ / 2) pAP
           (1 / 2 - s₀))) := rfl
     rw [e, max_eq_right hM1]

@@ -91,8 +91,8 @@ end Start
 
 theorem coveredStartCorrect_holds : CoveredStartCorrect := by
   intro α _ _ _ σ M side H hroot S hE hside L q₀ γ hacc
-  exact classify_start_le M side H hroot S hE hside (uniformStrings L) L (uniformStrings_length L) q₀
-    hacc
+  exact classify_start_le M side H hroot S hE hside (uniformStrings L) L (uniformStrings_length L)
+    q₀ hacc
 
 end OrthoDFA
 

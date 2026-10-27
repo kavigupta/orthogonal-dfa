@@ -16,6 +16,11 @@ settings the proof picks hold each round's disagreement rate at `c/(4(|Σ| + 1)N
 window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`. Each
 bound has one constant over all of `loopRegion`. `LoopClaimSimple` states the same with the prefix
 and suffix totals each a single product.
+
+`LoopDistClaim` states the same over an input distribution `D`, with `β` the least rate at which
+`D` extends a prefix by any one letter in place of `1/|Σ|`, and in place of `L ≥ L₀` the condition
+that `D` hold at most `p₀Tol` on any first `k` letters, `1/p₀Tol` polynomial in `L`. `LoopClaim` is
+it at `D` uniform, where `|Σ|^-k ≤ p₀Tol` once `L ≥ L₀`.
 -/
 
 namespace OrthoDFA

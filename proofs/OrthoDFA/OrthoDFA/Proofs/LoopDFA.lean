@@ -633,8 +633,8 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       apply hnb
       show (q.1.1, q.2) ∈ (if SuffixFree tt.2.2.1
           ∧ (resCode o.result).hyp.tree.leaves.length ≤ Fintype.card σ + 2
-        then scoreBad O (resCode o.result).hyp tt.2.2.1 tt.2.1.lo (tt.2.1.hi + 1) (prefixLaw D L) n t
-        else ∅)
+        then scoreBad O (resCode o.result).hyp tt.2.2.1 tt.2.1.lo (tt.2.1.hi + 1) (prefixLaw D L)
+          n t else ∅)
       rw [hF, hB, hhyp, if_pos ⟨hsf, hleaves⟩]
       exact h
     -- the best leaf, and the family's reads on `D`'s first `L` letters

@@ -50,6 +50,13 @@ lemma shape_toDist {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
   show _ / ((1 / (x.A : ℝ)) ^ 4 * x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 11) = _
   field_simp
 
+lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := by
+  obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
+  exact (loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀) (C₀ := 1)
+    (by exact_mod_cast hQ) (by exact_mod_cast hA) hR ((le_div_iff₀ hδ).2 (by linarith))
+    ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
+    ((le_div_iff₀ hs).2 (by linarith)) le_rfl).1
+
 theorem loopClaim_of_dist (h : LoopDistClaim.{u, v, w}) : LoopClaim.{u, v, w} := by
   obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
@@ -128,17 +135,8 @@ theorem loopClaim_of_dist (h : LoopDistClaim.{u, v, w}) : LoopClaim.{u, v, w} :=
   have hp₀ : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { toDist x with L } := by
     have hc := hC _ hrd
     have hpos' := hpos { toDist x with L }
-    have hsh : 0 ≤ ((L : ℝ) + x.Q) ^ 6 * loopG x := by
-      have := (loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀)
-      hQ' hA' hR ((le_div_iff₀ hδ).2 (by linarith))
-        ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
-        ((le_div_iff₀ hs).2 (by linarith)) hC₀).1
-      have : 1 ≤ loopG x := this
-      positivity
-    have hG1 : 1 ≤ loopG x := (loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀)
-      hQ' hA' hR ((le_div_iff₀ hδ).2 (by linarith))
-      ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
-      ((le_div_iff₀ hs).2 (by linarith)) hC₀).1
+    have hG1 : 1 ≤ loopG x := loopG_ge_one ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩
+    have hsh : 0 ≤ ((L : ℝ) + x.Q) ^ 6 * loopG x := by positivity
     have e := shape_toDist ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc

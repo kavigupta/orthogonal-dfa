@@ -34,6 +34,15 @@ through the states whose per-position visit rate from it is at most `R` times th
 the non-start-zone states that fewer than `c` of the strings visit from `⌈L/2⌉` on cost the other
 `ξ/2`.
 
+`LearnerLoopDFADist` is `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s
+strings cut at a length uniform over the window (`windowLaw`), the suffixes their first
+`L + 2|Q| + 6` letters, and the coverage, error and held-out strings are over their first `L`
+(`prefixLaw`, `coveredStatesOn`, `rerootAccuracyOn`). Where `D` extends each prefix by each letter
+at least `β` of the time, a wrong edge is crossed `c/((1/β+1)N)` of the time. Each collision the
+proof rules out, among suffixes, prefixes and held-out strings, lies within one cylinder of first
+`k` letters, so `D`'s largest such mass `p₀` takes `|Σ|^-k`'s place. The uniform claims are it at
+`β = 1/|Σ|`.
+
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
 
@@ -45,6 +54,10 @@ window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
 
 Known modelling gap. The Python starts its DFA at the leaf the empty string sifts to; here the
 start is picked on held-out strings.
+
+Known modelling gap. The Python draws its probes, prefixes and suffixes from one sampler of length
+`L`; `LearnerLoopDFADist` draws its suffixes as `D`'s first `L + 2|Q| + 6` letters, so `D`'s strings
+must be at least that long.
 -/
 
 noncomputable section

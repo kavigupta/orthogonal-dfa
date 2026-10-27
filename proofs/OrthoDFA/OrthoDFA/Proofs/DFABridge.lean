@@ -6,20 +6,23 @@ import OrthoDFA.Proofs.UniformStrings
 /-!
 # From a checked round to the learner's DFA
 
-The probes are uniform over the lengths `k` to `L₁`. A probe of length `i` and its extension by a
-letter that both agree, read nothing on a rarer side past a midfix and stop undecided at neither
-their start's sift nor their own, walk to the true leaves of their states, so the edge between those
-leaves is learned and true (`edge_of_pair`). A state visited `X ≥ c` of the time, summed over the
-window, has every edge out of it crossed by such pairs unless
+The probes are `D`'s strings cut at a length uniform over `k` to `L₁` (`windowLaw`). A probe of
+length `i` and its extension by a letter that both agree, read nothing on a rarer side past a
+midfix and stop undecided at neither their start's sift nor their own, walk to the true leaves of
+their states, so the edge between those leaves is learned and true (`edge_of_pair`). A state
+visited `X ≥ c` of the time, summed over the window, has every edge out of it crossed by such pairs
+unless
 
-    X ≤ (|Σ|+1)N β + X/2 + N β',
+    X ≤ (Ae+1)N β + X/2 + N β',
 
-the disagreeing probes holding `β` of the draws and the misled ones among the state's at most half
-of them plus `β'` (`edge_of_occupied`). A state the probes visit is read on its true side once the
-reads are rarely wrong or undecided (`sideOf_eq_of_mass`). Where every covered state's edges are
-true and it is read on its true side, the hypothesis from the covered start's leaf follows the
-re-rooted target along every run that stays covered (`classifies_of_matches`), so it misjudges at
-most what re-rooting does (`classify_start_le`).
+`D` extending each prefix by each letter at least `1/Ae` of the time (`prefixLaw_snoc_le`;
+`Ae = |Σ|` for uniform strings, `uniformStrings_floor`), the disagreeing probes holding `β` of the
+draws and the misled ones among the state's at most half of them plus `β'` (`edge_of_occupied`). A
+state the probes visit is read on its true side once the reads are rarely wrong or undecided
+(`sideOf_eq_of_mass`). Where every covered state's edges are true and it is read on its true side,
+the hypothesis from the covered start's leaf follows the re-rooted target along every run that
+stays covered (`classifies_of_matches`), so it misjudges at most what re-rooting does
+(`classify_start_le`).
 -/
 
 noncomputable section
@@ -40,10 +43,6 @@ variable [Nonempty α]
 /-- The average of `g` over the strings of length `ℓ`. -/
 def uavg (ℓ : ℕ) (g : FreeMonoid α → ℝ) : ℝ :=
   (∑ v : List.Vector α ℓ, g (FreeMonoid.ofList v.toList)) / (Fintype.card α : ℝ) ^ ℓ
-
-theorem integrable_uniformStrings (ℓ : ℕ) (g : FreeMonoid α → ℝ) :
-    Integrable g (uniformStrings ℓ) :=
-  (integrable_finsetSum_measure.2 fun _ _ => integrable_dirac (by simp)).smul_measure (by simp)
 
 theorem integral_uniformStrings (ℓ : ℕ) (g : FreeMonoid α → ℝ) :
     ∫ x, g x ∂(uniformStrings ℓ) = uavg ℓ g := by
@@ -116,73 +115,11 @@ theorem uavg_append (j t : ℕ) (h : FreeMonoid α → ℝ) :
   simp only [← FreeMonoid.ofList_append]
   field_simp
 
-theorem integrable_windowStrings {lo hi : ℕ} (h : lo ≤ hi) (g : FreeMonoid α → ℝ) :
-    Integrable g (windowStrings lo hi) :=
-  (integrable_finsetSum_measure.2 fun _ _ => integrable_uniformStrings _ g).smul_measure
-    (ENNReal.inv_ne_top.2 (Nat.cast_ne_zero.2 (by omega)))
-
-theorem integral_windowStrings {lo hi : ℕ} (h : lo ≤ hi) (g : FreeMonoid α → ℝ) :
-    ∫ x, g x ∂(windowStrings lo hi)
-      = (∑ n ∈ Finset.Icc lo hi, uavg n g) / ((hi : ℝ) + 1 - lo) := by
-  unfold windowStrings
-  rw [integral_smul_measure, integral_finsetSum_measure fun _ _ => integrable_uniformStrings _ g]
-  simp only [integral_uniformStrings, ENNReal.toReal_inv, ENNReal.toReal_natCast, smul_eq_mul]
-  rw [div_eq_inv_mul, Nat.cast_sub (by omega)]
-  push_cast
-  rfl
-
-theorem windowStrings_isProbability {lo hi : ℕ} (h : lo ≤ hi) :
-    IsProbabilityMeasure (windowStrings (α := α) lo hi) := by
-  constructor
-  unfold windowStrings
-  rw [Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply]
-  simp only [measure_univ, Finset.sum_const, Nat.card_Icc, nsmul_eq_mul, mul_one, smul_eq_mul]
-  exact ENNReal.inv_mul_cancel (Nat.cast_ne_zero.2 (by omega)) (ENNReal.natCast_ne_top _)
-
-theorem windowStrings_real {lo hi : ℕ} (h : lo ≤ hi) (S : Set (FreeMonoid α)) :
-    (windowStrings lo hi).real S
-      = (∑ n ∈ Finset.Icc lo hi, (uniformStrings n).real S) / ((hi : ℝ) + 1 - lo) := by
-  rw [← integral_indicator_one (MeasurableSpace.measurableSet_top), integral_windowStrings h]
-  simp only [uniformStrings_real_uavg]
-
-theorem windowStrings_length (lo hi : ℕ) :
-    ∀ᵐ x ∂(windowStrings (α := α) lo hi), lo ≤ x.toList.length ∧ x.toList.length ≤ hi := by
-  rw [ae_iff]
-  unfold windowStrings
-  rw [Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply]
-  have : ∀ n ∈ Finset.Icc lo hi, uniformStrings (α := α) n
-      {x | ¬ (lo ≤ x.toList.length ∧ x.toList.length ≤ hi)} = 0 := by
-    intro n hn
-    refine measure_mono_null (fun x hx => ?_) (uniformStrings_length n)
-    simp only [Finset.mem_Icc] at hn
-    simp only [Set.mem_setOf_eq] at hx ⊢
-    omega
-  rw [Finset.sum_eq_zero this, smul_zero]
-
 /-- A prefix of a uniform string is uniform. -/
 theorem uniformStrings_prefix {j n : ℕ} (h : j ≤ n) (S : Set (FreeMonoid α)) :
     (uniformStrings n).real {x | prefixOf x j ∈ S} = (uniformStrings j).real S := by
   rw [uniformStrings_real_uavg, uniformStrings_real_uavg, ← uavg_prefix h]
   rfl
-
-theorem prefixMax_windowStrings_le {k lo hi : ℕ} (hk : k ≤ lo) (h : lo ≤ hi) :
-    prefixMax (windowStrings (α := α) lo hi) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
-  unfold prefixMax
-  refine ciSup_le fun u => ?_
-  have hlh : (lo : ℝ) ≤ hi := by exact_mod_cast h
-  rw [windowStrings_real h, div_le_iff₀ (by linarith)]
-  have hn : ∀ n ∈ Finset.Icc lo hi, (uniformStrings n).real {x : FreeMonoid α | prefixOf x k = u}
-      ≤ 1 / (Fintype.card α : ℝ) ^ k := by
-    intro n hn
-    simp only [Finset.mem_Icc] at hn
-    have := uniformStrings_prefix (α := α) (show k ≤ n by omega) {u}
-    simp only [Set.mem_singleton_iff] at this
-    rw [this]
-    exact uniformStrings_singleton_le k u
-  refine (Finset.sum_le_sum hn).trans (le_of_eq ?_)
-  rw [Finset.sum_const, Nat.card_Icc, nsmul_eq_mul, Nat.cast_sub (by omega)]
-  push_cast
-  ring
 
 theorem uniformStrings_snoc_le (i : ℕ) (a : α) (S : Set (FreeMonoid α)) :
     (uniformStrings i).real {y | y * FreeMonoid.of a ∈ S}
@@ -417,12 +354,14 @@ theorem uniformStrings_prefix_le {k m : ℕ} (h : k ≤ m) (u : FreeMonoid α) :
 /-- Uniform strings extend every prefix by each letter `1/|Σ|` of the time. -/
 theorem uniformStrings_floor {i m : ℕ} (h : i + 1 ≤ m) (y : FreeMonoid α) (a : α) :
     (uniformStrings m).real {w | prefixOf w i = y}
-      ≤ Fintype.card α * (uniformStrings m).real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} := by
+      ≤ Fintype.card α
+        * (uniformStrings m).real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} := by
   have e1 := uniformStrings_prefix (α := α) (show i ≤ m by omega) {y}
   have e2 := uniformStrings_prefix (α := α) h {y * FreeMonoid.of a}
   simp only [Set.mem_singleton_iff] at e1 e2
   rw [e1, e2]
-  have hs : ({y} : Set (FreeMonoid α)) = {y' | y' * FreeMonoid.of a ∈ ({y * FreeMonoid.of a} : Set _)} := by
+  have hs : ({y} : Set (FreeMonoid α))
+      = {y' | y' * FreeMonoid.of a ∈ ({y * FreeMonoid.of a} : Set _)} := by
     ext y'
     simp only [Set.mem_singleton_iff, Set.mem_setOf_eq]
     exact ⟨fun h => h ▸ rfl, fun h => mul_right_cancel h⟩
