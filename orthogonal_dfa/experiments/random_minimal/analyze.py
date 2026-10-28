@@ -120,7 +120,7 @@ ETA = Variable(
     r"\eta",
     lambda r: r["eta"],
     lambda x: 1 / 2 - x,
-    r"(\frac{1}{2} - \eta)",
+    r"(1/2 - \eta)",
     False,
     0.006,
 )
