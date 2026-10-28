@@ -5,7 +5,7 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
    target and learns it exactly, the lowest accuracy, and what it costs in
    membership queries and rounds.
 2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
-   1 - 2 eta per size fit to log10 queries.
+   the signal level 1/2 - eta per size fit to log10 queries.
 3. queries_vs_states.pdf -- every run's queries against the target's size,
    with a power law in the size per eta.
 4. queries_vs_pap.pdf -- every run's queries against the target's
@@ -117,7 +117,12 @@ class Variable:
 
 
 ETA = Variable(
-    r"\eta", lambda r: r["eta"], lambda x: 1 - 2 * x, r"(1 - 2\eta)", False, 0.006
+    r"\eta",
+    lambda r: r["eta"],
+    lambda x: 1 / 2 - x,
+    r"(\frac{1}{2} - \eta)",
+    False,
+    0.006,
 )
 STATES = Variable("|Q|", lambda r: r["target_states"], lambda x: x, "|Q|", True, 0.03)
 PAP = Variable(

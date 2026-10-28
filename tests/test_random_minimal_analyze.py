@@ -61,7 +61,7 @@ class TestAnalyze(unittest.TestCase):
     def test_eta_fit(self):
         results = [
             _result(
-                6, eta, 1.0, learned_states=6, queries=round(1e4 * (1 - 2 * eta) ** -4)
+                6, eta, 1.0, learned_states=6, queries=round(1e4 * (1 / 2 - eta) ** -4)
             )
             for eta in [0.05, 0.1, 0.2, 0.3]
         ] + [_result(6, 0.3, None, learned_states=None, error_type="Timeout")]
