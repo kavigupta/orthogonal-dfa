@@ -4,7 +4,16 @@ from itertools import islice
 from typing import Iterable, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
-from .counterexample_probe import Charges, EdgeFound, Member, Outcome, charges, locate
+from .counterexample_probe import (
+    Charges,
+    EdgeFound,
+    End,
+    Member,
+    Outcome,
+    charges,
+    locate,
+)
+from .fallbacks.members import MemberFallback
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
@@ -20,6 +29,7 @@ class CounterexampleSearch:
         tree: MidfixTree,
         *,
         max_k: int,
+        member_fallback: Optional[MemberFallback] = None,
     ):
         """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
@@ -28,6 +38,7 @@ class CounterexampleSearch:
         self.counts = SiteCounts()
         self.probes = 0
         self.k, self.max_k = config.k, max_k
+        self.member_fallback = member_fallback
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -71,6 +82,11 @@ class CounterexampleSearch:
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         located = locate(self.hypothesis, self.k, x)
+        stuck = isinstance(located.outcome, End) and located.outcome.stuck
+        if stuck and self.member_fallback is not None:
+            located = self.member_fallback.read_stuck(
+                self.hypothesis, self.k, located, x
+            )
         return located.outcome, charges(located, self.k, x)
 
     def _split(self, found: EdgeFound):

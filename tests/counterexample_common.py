@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
+from orthogonal_dfa.l_star.fallbacks.members import MemberFallback
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 
 EVEN, ODD = (False,), (True,)
@@ -65,9 +66,13 @@ def quiet_config(**changes):
     return SimpleNamespace(**config)
 
 
-def quiet_search(cut, edges, *, max_k=0, **changes):
+def quiet_search(cut, edges, *, max_k=0, members=None, **changes):
     search = CounterexampleSearch(
-        quiet_config(**changes), cut, MidfixTree([]), max_k=max_k
+        quiet_config(**changes),
+        cut,
+        MidfixTree([]),
+        max_k=max_k,
+        member_fallback=None if members is None else MemberFallback(members),
     )
     search.hypothesis.edges = dict(edges)
     return search
