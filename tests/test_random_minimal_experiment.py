@@ -23,6 +23,21 @@ class TestTargets(unittest.TestCase):
             self.assertEqual(first, again)
             self.assertEqual(len(first.minify().states), 4)
 
+    def test_unbalanced_cached_target_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            path = run.target_path(tmp, 2, 0)
+            run.write_json(
+                path,
+                {
+                    "schema_version": run.TARGET_SCHEMA_VERSION,
+                    "table": [[0, 0], [0, 0]],
+                    "final_mask": 1,
+                },
+            )
+            with self.assertRaises(AssertionError):
+                run.load_target(tmp, 2, 0)
+
     def test_seeded_by_size_and_index(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             self.assertEqual(
