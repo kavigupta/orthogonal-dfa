@@ -6,8 +6,10 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
    membership queries.
 2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
    1 - 2 eta per size fit to log10 queries.
-3. difficulty.pdf -- how far each run's log10 queries sits above its size's
-   fit, against some of the target's `difficulty.target_metrics`.
+3. queries_vs_pap.pdf -- every run's queries over its size's eta fit, against
+   the target's class-preserving fraction p_AP, with a power law in p_AP per size.
+4. difficulty.pdf -- how far each run's log10 queries sits above its size's
+   eta fit, against some of the target's `difficulty.target_metrics`.
 
     python -m orthogonal_dfa.experiments.random_minimal.analyze
 """
@@ -33,7 +35,7 @@ OUT_DIR = REPO_ROOT / "figures" / "random-minimal"
 # metric: (axis label, x scale), where an integer metric is jittered
 DIFFICULTY_METRICS = {
     "endpoint_mass_min": ("rarest state's share of length-40 endpoints", "log"),
-    "class_preserving_fraction": ("class-preserving fraction", "log"),
+    "class_preserving_fraction": (r"$p_{\mathrm{AP}}$", "log"),
     "separating_length_max": ("longest shortest separating suffix", "integer"),
     "synchronizing_probability": ("probability a string synchronizes", "linear"),
 }
@@ -122,6 +124,40 @@ def _fitted(fit: Tuple[float, float], eta):
     return scale - power * np.log10(1 - 2 * eta)
 
 
+def _excess(fits: Dict[int, Tuple[float, float]], result: dict) -> float:
+    """log10 queries over the eta fit of the result's size."""
+    fit = fits[result["target_states"]]
+    return np.log10(result["queries_total"]) - _fitted(fit, result["eta"])
+
+
+def pap_fit(results: Sequence[dict]) -> Dict[int, Tuple[float, float]]:
+    """Per size, the least-squares (scale, power) of
+
+        _excess = scale - power * log10 p_AP
+
+    over the runs with an accuracy."""
+    fits = eta_fit(results)
+    out = {}
+    for states in fits:
+        runs = [r for r in _scored(results) if r["target_states"] == states]
+        slope, scale = np.polyfit(
+            np.log10([r["target"]["class_preserving_fraction"] for r in runs]),
+            [_excess(fits, r) for r in runs],
+            1,
+        )
+        out[states] = float(scale), float(-slope)
+    return out
+
+
+def _log_ticks(axis):
+    """Ticks at 1, 2 and 5 of each decade when the axis spans under 1.5 decades."""
+    low, high = axis.get_view_interval()
+    subs = (1, 2, 5) if np.log10(high / low) < 1.5 else (1,)
+    axis.set_major_locator(ticker.LogLocator(subs=subs))
+    axis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+    axis.set_minor_formatter(ticker.NullFormatter())
+
+
 def _style(ax):
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(color="0.9", linewidth=0.5)
@@ -161,17 +197,50 @@ def plot_queries_vs_eta(results: Sequence[dict]):
     return fig
 
 
+def plot_queries_vs_pap(results: Sequence[dict]):
+    fits = eta_fit(results)
+    fig, ax = plt.subplots(figsize=(3.4, 2.6))
+    for color, (states, (scale, power)) in zip(SIZE_COLORS, pap_fit(results).items()):
+        runs = [r for r in _scored(results) if r["target_states"] == states]
+        paps = np.array([r["target"]["class_preserving_fraction"] for r in runs])
+        ax.scatter(
+            paps,
+            [10 ** _excess(fits, r) for r in runs],
+            s=4,
+            color=color,
+            alpha=0.35,
+            linewidths=0,
+        )
+        line = np.geomspace(paps.min(), paps.max(), 2)
+        ax.plot(
+            line,
+            10**scale * line**-power,
+            color=color,
+            linewidth=1.5,
+            label=f"$|Q| = {states}$: "
+            f"$10^{{{scale:.2f}}} p_{{\\mathrm{{AP}}}}^{{-{power:.2f}}}$",
+        )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    _log_ticks(ax.xaxis)
+    _log_ticks(ax.yaxis)
+    ax.set_xlabel(r"$p_{\mathrm{AP}}$")
+    ax.set_ylabel(r"MQs / $\eta$ fit")
+    ax.legend(frameon=False, fontsize=7)
+    _style(ax)
+    fig.tight_layout()
+    return fig
+
+
 def plot_difficulty(results: Sequence[dict]):
     fits = eta_fit(results)
     fig, axes = plt.subplots(2, 2, figsize=(6.8, 4.8), sharey=True)
     rng = np.random.default_rng(0)
     for ax, (metric, (label, scale)) in zip(axes.flat, DIFFICULTY_METRICS.items()):
-        for color, (states, fit) in zip(SIZE_COLORS, fits.items()):
+        for color, states in zip(SIZE_COLORS, fits):
             runs = [r for r in _scored(results) if r["target_states"] == states]
             values = np.array([r["target"][metric] for r in runs])
-            excess = [
-                np.log10(r["queries_total"]) - _fitted(fit, r["eta"]) for r in runs
-            ]
+            excess = [_excess(fits, r) for r in runs]
             rho = scipy.stats.spearmanr(values, excess).statistic
             ax.scatter(
                 values + (scale == "integer") * rng.uniform(-0.15, 0.15, len(values)),
@@ -184,11 +253,7 @@ def plot_difficulty(results: Sequence[dict]):
             )
         if scale == "log":
             ax.set_xscale("log")
-            decades = np.log10(ax.get_xlim()[1] / ax.get_xlim()[0])
-            subs = (1, 2, 5) if decades < 1.5 else (1,)
-            ax.xaxis.set_major_locator(ticker.LogLocator(subs=subs))
-            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
-            ax.xaxis.set_minor_formatter(ticker.NullFormatter())
+            _log_ticks(ax.xaxis)
         ax.axhline(0, color="0.5", linewidth=0.5)
         ax.set_xlabel(label)
         legend = ax.legend(frameon=False, fontsize=7, markerscale=2)
@@ -228,6 +293,7 @@ def main() -> None:
         print(f"wrote {tex_path}")
     for name, plot in [
         ("queries_vs_eta", plot_queries_vs_eta),
+        ("queries_vs_pap", plot_queries_vs_pap),
         ("difficulty", plot_difficulty),
     ]:
         fig = plot(results)

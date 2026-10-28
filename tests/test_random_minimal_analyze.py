@@ -62,6 +62,19 @@ class TestAnalyze(unittest.TestCase):
         self.assertAlmostEqual(scale, 4, places=3)
         self.assertAlmostEqual(power, 4, places=3)
 
+    def test_pap_fit(self):
+        results = [
+            dict(
+                _result(6, eta, 1.0, learned_states=6, queries=round(q)),
+                target={"class_preserving_fraction": pap},
+            )
+            for eta in [0.05, 0.3]
+            for pap in [0.02, 0.2]
+            for q in [1e4 * (1 - 2 * eta) ** -4 * pap**-0.5]
+        ]
+        scale, power = analyze.pap_fit(results)[6]
+        self.assertAlmostEqual(power, 0.5, places=3)
+
     def test_writes_fragments_and_skips_stale_results(self):
         with tempfile.TemporaryDirectory() as data, tempfile.TemporaryDirectory() as out:
             data, out = Path(data), Path(out)
@@ -77,6 +90,7 @@ class TestAnalyze(unittest.TestCase):
             summary = (out / "summary.tex").read_text()
             self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 50\% &", summary)
             self.assertTrue((out / "queries_vs_eta.pdf").exists())
+            self.assertTrue((out / "queries_vs_pap.pdf").exists())
             self.assertTrue((out / "difficulty.pdf").exists())
 
 
