@@ -10,8 +10,6 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
    with a power law in the size per eta.
 4. queries_vs_pap.pdf -- every run's queries against the target's
    class-preserving fraction p_AP, with a power law in p_AP per eta.
-5. difficulty.pdf -- how far each run's log10 queries sits above its size's
-   eta fit, against some of the target's `difficulty.target_metrics`.
 
     python -m orthogonal_dfa.experiments.random_minimal.analyze
 """
@@ -25,7 +23,6 @@ from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Tuple, Union
 
 import numpy as np
-import scipy.stats
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 
@@ -35,13 +32,6 @@ from .run import DATA_DIR, RESULT_SCHEMA_VERSION
 
 OUT_DIR = REPO_ROOT / "figures" / "random-minimal"
 
-# metric: (axis label, x scale), where an integer metric is jittered
-DIFFICULTY_METRICS = {
-    "endpoint_mass_min": ("rarest state's share of length-40 endpoints", "log"),
-    "class_preserving_fraction": (r"$p_{\mathrm{AP}}$", "log"),
-    "separating_length_max": ("longest shortest separating suffix", "integer"),
-    "synchronizing_probability": ("probability a string synchronizes", "linear"),
-}
 # the paper's 1F5FA8, newwitness, darkdisagree and violet!85!black
 PAPER_COLORS = ["#1F5FA8", "#BF8330", "#A62A5A", "#6C006C"]
 # Type 3 fonts, matplotlib's default, are rejected by ACM
@@ -167,17 +157,6 @@ def power_fit(
     return fits
 
 
-def _fitted(fit: Tuple[float, float], x: Variable, values):
-    scale, power = fit
-    return scale + power * np.log10(x.base(values))
-
-
-def _excess(fits: Dict[float, Tuple[float, float]], result: dict) -> float:
-    """log10 queries over the eta fit of the result's size."""
-    fit = fits[result["target_states"]]
-    return np.log10(result["queries_total"]) - _fitted(fit, ETA, result["eta"])
-
-
 def _log_ticks(axis):
     """Ticks at 1, 2 and 5 of each decade when the axis spans under 1.5 decades."""
     low, high = axis.get_view_interval()
@@ -218,7 +197,7 @@ def plot_queries(results: Sequence[dict], x: Variable, z: Variable):
         scale, power = fits[stratum]
         ax.plot(
             line,
-            10 ** _fitted(fits[stratum], x, line),
+            10 ** (scale + power * np.log10(x.base(line))),
             color=color,
             linewidth=1.5,
             label=f"${z.symbol} = {stratum:g}$: "
@@ -243,41 +222,6 @@ def plot_queries(results: Sequence[dict], x: Variable, z: Variable):
         handlelength=1.2,
     )
     _style(ax)
-    return fig
-
-
-def plot_difficulty(results: Sequence[dict]):
-    fits = power_fit(results, ETA, STATES)
-    fig, axes = plt.subplots(2, 2, figsize=(6.8, 4.8), sharey=True)
-    rng = np.random.default_rng(0)
-    for ax, (metric, (label, scale)) in zip(axes.flat, DIFFICULTY_METRICS.items()):
-        for color, (states, runs) in zip(
-            PAPER_COLORS, _strata(results, STATES).items()
-        ):
-            values = np.array([r["target"][metric] for r in runs])
-            excess = [_excess(fits, r) for r in runs]
-            rho = scipy.stats.spearmanr(values, excess).statistic
-            ax.scatter(
-                values + (scale == "integer") * rng.uniform(-0.15, 0.15, len(values)),
-                excess,
-                s=4,
-                color=color,
-                alpha=0.35,
-                linewidths=0,
-                label=f"$|Q| = {states}$, $\\rho = {rho:+.2f}$",
-            )
-        if scale == "log":
-            ax.set_xscale("log")
-            _log_ticks(ax.xaxis)
-        ax.axhline(0, color="0.5", linewidth=0.5)
-        ax.set_xlabel(label)
-        legend = ax.legend(frameon=False, fontsize=7, markerscale=2)
-        for handle in legend.legend_handles:
-            handle.set_alpha(1)
-        _style(ax)
-    for ax in axes[:, 0]:
-        ax.set_ylabel(r"$\log_{10}$ queries above fit")
-    fig.tight_layout()
     return fig
 
 
@@ -313,7 +257,6 @@ def main() -> None:
             ("queries_vs_eta", lambda results: plot_queries(results, ETA, STATES)),
             ("queries_vs_states", lambda results: plot_queries(results, STATES, ETA)),
             ("queries_vs_pap", lambda results: plot_queries(results, PAP, ETA)),
-            ("difficulty", plot_difficulty),
         ]:
             fig = plot(results)
             pdf_path = OUT_DIR / f"{name}.pdf"

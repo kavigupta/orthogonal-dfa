@@ -24,7 +24,7 @@ def _result(
         "seconds": 1.0,
         "error_type": error_type,
         "rounds": [{}] * rounds,
-        "target": {metric: 1 / queries for metric in analyze.DIFFICULTY_METRICS},
+        "target": {"class_preserving_fraction": 1 / queries},
     }
 
 
@@ -115,7 +115,6 @@ class TestAnalyze(unittest.TestCase):
             self.assertTrue((out / "queries_vs_eta.pdf").exists())
             self.assertTrue((out / "queries_vs_states.pdf").exists())
             self.assertTrue((out / "queries_vs_pap.pdf").exists())
-            self.assertTrue((out / "difficulty.pdf").exists())
 
 
 if __name__ == "__main__":
