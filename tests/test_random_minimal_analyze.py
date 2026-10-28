@@ -65,9 +65,9 @@ class TestAnalyze(unittest.TestCase):
             )
             for eta in [0.05, 0.1, 0.2, 0.3]
         ] + [_result(6, 0.3, None, learned_states=None, error_type="Timeout")]
-        scale, power = analyze.eta_fit(results)[6]
+        scale, power = analyze.power_fit(results, analyze.ETA, analyze.STATES)[6]
         self.assertAlmostEqual(scale, 4, places=3)
-        self.assertAlmostEqual(power, 4, places=3)
+        self.assertAlmostEqual(power, -4, places=3)
 
     def test_pap_fit(self):
         results = [
@@ -79,7 +79,7 @@ class TestAnalyze(unittest.TestCase):
             for pap in [0.02, 0.2]
             for q in [1e4 * (1 - 2 * eta) ** -4 * pap**-0.5]
         ]
-        fits = analyze.pap_fit(results)
+        fits = analyze.power_fit(results, analyze.PAP, analyze.ETA)
         self.assertEqual(list(fits), [0.05, 0.3])
         for eta, (scale, power) in fits.items():
             self.assertAlmostEqual(scale, 4 - 4 * np.log10(1 - 2 * eta), places=3)
@@ -92,7 +92,9 @@ class TestAnalyze(unittest.TestCase):
             for states in [6, 18]
             for q in [1e4 * (1 - 2 * eta) ** -4 * states**1.5]
         ]
-        for eta, (scale, power) in analyze.states_fit(results).items():
+        for eta, (scale, power) in analyze.power_fit(
+            results, analyze.STATES, analyze.ETA
+        ).items():
             self.assertAlmostEqual(scale, 4 - 4 * np.log10(1 - 2 * eta), places=3)
             self.assertAlmostEqual(power, 1.5, places=3)
 

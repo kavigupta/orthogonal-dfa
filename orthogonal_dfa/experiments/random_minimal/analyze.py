@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 import scipy.stats
@@ -112,61 +113,69 @@ def _scored(results: Sequence[dict]) -> List[dict]:
     return [r for r in results if r["accuracy"] is not None]
 
 
-def eta_fit(results: Sequence[dict]) -> Dict[int, Tuple[float, float]]:
-    """Per size, the least-squares (scale, power) of
+@dataclass(frozen=True)
+class Variable:
+    symbol: str
+    value: Callable[[dict], float]
+    # fits are power laws in base(value)
+    base: Callable[[np.ndarray], np.ndarray]
+    base_symbol: str
+    log: bool
+    # a discrete variable is jittered by this much, in log10 units on a log axis,
+    # and ticked at its values
+    jitter: float
 
-        log10 queries = scale - power * log10(1 - 2 eta)
+
+ETA = Variable(
+    r"\eta", lambda r: r["eta"], lambda x: 1 - 2 * x, r"(1 - 2\eta)", False, 0.006
+)
+STATES = Variable("|Q|", lambda r: r["target_states"], lambda x: x, "|Q|", True, 0.03)
+PAP = Variable(
+    r"p_{\mathrm{AP}}",
+    lambda r: r["target"]["class_preserving_fraction"],
+    lambda x: x,
+    r"p_{\mathrm{AP}}",
+    True,
+    0,
+)
+
+
+def _strata(results: Sequence[dict], z: Variable) -> Dict[float, List[dict]]:
+    """The runs with an accuracy, by value of z in increasing order."""
+    strata = defaultdict(list)
+    for r in _scored(results):
+        strata[z.value(r)].append(r)
+    return dict(sorted(strata.items()))
+
+
+def power_fit(
+    results: Sequence[dict], x: Variable, z: Variable
+) -> Dict[float, Tuple[float, float]]:
+    """Per value of z, the least-squares (scale, power) of
+
+        log10 queries = scale + power * log10 x.base(x)
 
     over the runs with an accuracy."""
     fits = {}
-    for states in sorted({r["target_states"] for r in results}):
-        runs = [r for r in _scored(results) if r["target_states"] == states]
+    for stratum, runs in _strata(results, z).items():
         power, scale = np.polyfit(
-            [-np.log10(1 - 2 * r["eta"]) for r in runs],
+            np.log10(x.base(np.array([x.value(r) for r in runs], dtype=float))),
             np.log10([r["queries_total"] for r in runs]),
             1,
         )
-        fits[states] = float(scale), float(power)
+        fits[stratum] = float(scale), float(power)
     return fits
 
 
-def _fitted(fit: Tuple[float, float], eta):
+def _fitted(fit: Tuple[float, float], x: Variable, values):
     scale, power = fit
-    return scale - power * np.log10(1 - 2 * eta)
+    return scale + power * np.log10(x.base(values))
 
 
-def _excess(fits: Dict[int, Tuple[float, float]], result: dict) -> float:
+def _excess(fits: Dict[float, Tuple[float, float]], result: dict) -> float:
     """log10 queries over the eta fit of the result's size."""
     fit = fits[result["target_states"]]
-    return np.log10(result["queries_total"]) - _fitted(fit, result["eta"])
-
-
-def _power_fit_by_eta(results: Sequence[dict], x) -> Dict[float, Tuple[float, float]]:
-    """Per eta, over every size, the least-squares (scale, power) of
-
-        log10 queries = scale + power * log10 x(run)
-
-    over the runs with an accuracy."""
-    fits = {}
-    for eta in sorted({r["eta"] for r in results}):
-        runs = [r for r in _scored(results) if r["eta"] == eta]
-        power, scale = np.polyfit(
-            np.log10([x(r) for r in runs]),
-            np.log10([r["queries_total"] for r in runs]),
-            1,
-        )
-        fits[eta] = float(scale), float(power)
-    return fits
-
-
-def states_fit(results: Sequence[dict]) -> Dict[float, Tuple[float, float]]:
-    return _power_fit_by_eta(results, lambda r: r["target_states"])
-
-
-def pap_fit(results: Sequence[dict]) -> Dict[float, Tuple[float, float]]:
-    return _power_fit_by_eta(
-        results, lambda r: r["target"]["class_preserving_fraction"]
-    )
+    return np.log10(result["queries_total"]) - _fitted(fit, ETA, result["eta"])
 
 
 def _log_ticks(axis):
@@ -188,14 +197,43 @@ def _power_of_two(log10_scale: float) -> str:
     return f"2^{{{log10_scale * np.log2(10):.2g}}}"
 
 
-def _panel():
+def plot_queries(results: Sequence[dict], x: Variable, z: Variable):
     """One of three side-by-side panels, all with the same axes box."""
+    fits = power_fit(results, x, z)
+    rng = np.random.default_rng(0)
     fig = plt.figure(figsize=(1.8, 2.5))
-    return fig, fig.add_axes((0.24, 0.4, 0.72, 0.57))
-
-
-def _finish_panel(fig, ax, xlabel):
-    ax.set_xlabel(xlabel)
+    ax = fig.add_axes((0.24, 0.4, 0.72, 0.57))
+    for color, (stratum, runs) in zip(PAPER_COLORS, _strata(results, z).items()):
+        xs = np.array([x.value(r) for r in runs], dtype=float)
+        noise = rng.uniform(-x.jitter, x.jitter, len(xs))
+        ax.scatter(
+            xs * 10**noise if x.log else xs + noise,
+            [r["queries_total"] for r in runs],
+            s=4,
+            color=color,
+            alpha=0.35,
+            linewidths=0,
+        )
+        line = np.linspace(xs.min(), xs.max(), 100)
+        scale, power = fits[stratum]
+        ax.plot(
+            line,
+            10 ** _fitted(fits[stratum], x, line),
+            color=color,
+            linewidth=1.5,
+            label=f"${z.symbol} = {stratum:g}$: "
+            f"${_power_of_two(scale)} {x.base_symbol}^{{{power:.2g}}}$",
+        )
+    if x.log:
+        ax.set_xscale("log")
+    ax.set_yscale("log")
+    if x.jitter:
+        ax.set_xticks(sorted({x.value(r) for r in results}))
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+        ax.xaxis.set_minor_locator(ticker.NullLocator())
+    else:
+        _log_ticks(ax.xaxis)
+    ax.set_xlabel(f"${x.symbol}$")
     ax.set_ylabel("MQs")
     fig.legend(
         *ax.get_legend_handles_labels(),
@@ -205,99 +243,17 @@ def _finish_panel(fig, ax, xlabel):
         handlelength=1.2,
     )
     _style(ax)
-
-
-def plot_queries_vs_eta(results: Sequence[dict]):
-    fits = eta_fit(results)
-    rng = np.random.default_rng(0)
-    fig, ax = _panel()
-    for color, (states, fit) in zip(PAPER_COLORS, fits.items()):
-        runs = [r for r in _scored(results) if r["target_states"] == states]
-        etas = np.array([r["eta"] for r in runs])
-        ax.scatter(
-            etas + rng.uniform(-0.006, 0.006, len(etas)),
-            [r["queries_total"] for r in runs],
-            s=4,
-            color=color,
-            alpha=0.35,
-            linewidths=0,
-        )
-        line = np.linspace(etas.min(), etas.max(), 100)
-        ax.plot(
-            line,
-            10 ** _fitted(fit, line),
-            color=color,
-            linewidth=1.5,
-            label=f"$|Q| = {states}$: "
-            f"${_power_of_two(fit[0])} (1 - 2\\eta)^{{{-fit[1]:.2g}}}$",
-        )
-    ax.set_yscale("log")
-    ax.set_xticks(sorted({r["eta"] for r in results}))
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
-    _finish_panel(fig, ax, r"$\eta$")
-    return fig
-
-
-def _plot_power_fits_by_eta(results: Sequence[dict], fits, x, jitter, symbol):
-    """Log-log scatter of queries against ``x(run)`` per eta, with ``fits``; each
-    x is scaled by up to 10 ** jitter either way."""
-    rng = np.random.default_rng(0)
-    fig, ax = _panel()
-    for color, (eta, (scale, power)) in zip(PAPER_COLORS, fits.items()):
-        runs = [r for r in _scored(results) if r["eta"] == eta]
-        xs = np.array([x(r) for r in runs], dtype=float)
-        ax.scatter(
-            xs * 10 ** rng.uniform(-jitter, jitter, len(xs)),
-            [r["queries_total"] for r in runs],
-            s=4,
-            color=color,
-            alpha=0.35,
-            linewidths=0,
-        )
-        line = np.geomspace(xs.min(), xs.max(), 2)
-        ax.plot(
-            line,
-            10**scale * line**power,
-            color=color,
-            linewidth=1.5,
-            label=f"$\\eta = {eta:g}$: "
-            f"${_power_of_two(scale)} {symbol}^{{{power:.2g}}}$",
-        )
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    _finish_panel(fig, ax, f"${symbol}$")
-    return fig, ax
-
-
-def plot_queries_vs_states(results: Sequence[dict]):
-    fig, ax = _plot_power_fits_by_eta(
-        results, states_fit(results), lambda r: r["target_states"], 0.03, "|Q|"
-    )
-    ax.set_xticks(sorted({r["target_states"] for r in results}))
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
-    ax.xaxis.set_minor_locator(ticker.NullLocator())
-    return fig
-
-
-def plot_queries_vs_pap(results: Sequence[dict]):
-    fig, ax = _plot_power_fits_by_eta(
-        results,
-        pap_fit(results),
-        lambda r: r["target"]["class_preserving_fraction"],
-        0,
-        r"p_{\mathrm{AP}}",
-    )
-    _log_ticks(ax.xaxis)
     return fig
 
 
 def plot_difficulty(results: Sequence[dict]):
-    fits = eta_fit(results)
+    fits = power_fit(results, ETA, STATES)
     fig, axes = plt.subplots(2, 2, figsize=(6.8, 4.8), sharey=True)
     rng = np.random.default_rng(0)
     for ax, (metric, (label, scale)) in zip(axes.flat, DIFFICULTY_METRICS.items()):
-        for color, states in zip(PAPER_COLORS, fits):
-            runs = [r for r in _scored(results) if r["target_states"] == states]
+        for color, (states, runs) in zip(
+            PAPER_COLORS, _strata(results, STATES).items()
+        ):
             values = np.array([r["target"][metric] for r in runs])
             excess = [_excess(fits, r) for r in runs]
             rho = scipy.stats.spearmanr(values, excess).statistic
@@ -354,9 +310,9 @@ def main() -> None:
         print(f"wrote {tex_path}")
     with plt.rc_context(PAPER_RC):
         for name, plot in [
-            ("queries_vs_eta", plot_queries_vs_eta),
-            ("queries_vs_states", plot_queries_vs_states),
-            ("queries_vs_pap", plot_queries_vs_pap),
+            ("queries_vs_eta", lambda results: plot_queries(results, ETA, STATES)),
+            ("queries_vs_states", lambda results: plot_queries(results, STATES, ETA)),
+            ("queries_vs_pap", lambda results: plot_queries(results, PAP, ETA)),
             ("difficulty", plot_difficulty),
         ]:
             fig = plot(results)
