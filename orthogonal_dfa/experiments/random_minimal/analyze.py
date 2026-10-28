@@ -37,7 +37,8 @@ DIFFICULTY_METRICS = {
     "separating_length_max": ("longest shortest separating suffix", "integer"),
     "synchronizing_probability": ("probability a string synchronizes", "linear"),
 }
-SIZE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+# the paper's 1F5FA8, newwitness and darkdisagree
+SIZE_COLORS = ["#1F5FA8", "#BF8330", "#A62A5A"]
 
 
 def load_results(data_dir: Path) -> List[dict]:
@@ -148,12 +149,11 @@ def plot_queries_vs_eta(results: Sequence[dict]):
             10 ** _fitted(fit, line),
             color=color,
             linewidth=1.5,
-            label=f"{states} states: "
-            f"$10^{{{fit[0]:.2f}}} (1 - 2\\eta)^{{-{fit[1]:.1f}}}$",
+            label=f"$|Q| = {states}$",
         )
     ax.set_yscale("log")
-    ax.set_xlabel(r"noise $\eta$")
-    ax.set_ylabel("membership queries")
+    ax.set_xlabel(r"$\eta$")
+    ax.set_ylabel("MQs")
     ax.legend(frameon=False, fontsize=7)
     _style(ax)
     fig.tight_layout()
@@ -179,7 +179,7 @@ def plot_difficulty(results: Sequence[dict]):
                 color=color,
                 alpha=0.35,
                 linewidths=0,
-                label=f"{states} states, $\\rho = {rho:+.2f}$",
+                label=f"$|Q| = {states}$, $\\rho = {rho:+.2f}$",
             )
         if scale == "log":
             ax.set_xscale("log")
