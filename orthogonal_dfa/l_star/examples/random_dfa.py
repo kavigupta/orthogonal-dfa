@@ -144,10 +144,22 @@ def _is_minimal(table, final_mask):
 
 
 @njit(cache=True)
-def _subsets_reachable(table, final_mask):
+def _workspace(num_states, alphabet_size):
+    """Scratch for `_subsets_reachable` on tables of this shape, as
+    ``(index, subsets, successor)``."""
+    return (
+        np.full(1 << num_states, -1, np.int64),
+        np.empty(1 << num_states, np.int64),
+        np.empty((1 << num_states, alphabet_size), np.int64),
+    )
+
+
+@njit(cache=True)
+def _subsets_reachable(table, final_mask, workspace):
     """
     The subsets reachable from F under S -> pre_c(S) = {q : delta(q, c) in S},
-    numbered in discovery order with F as 0, as ``successor[i, c]``.
+    numbered in discovery order with F as 0, as ``successor[i, c]``: a view into
+    ``workspace``, valid until its next use.
     """
     num_states, alphabet_size = table.shape
     # pre_c(S) as an OR of lookups on S's nibbles: nibble[c, i, v] is pre_c of
@@ -160,9 +172,8 @@ def _subsets_reachable(table, final_mask):
             for v in range(16):
                 if (v >> (j & 3)) & 1:
                     nibble[c, j >> 2, v] |= 1 << q
-    index = np.full(1 << num_states, -1, np.int64)
-    subsets = np.empty(1 << num_states, np.int64)
-    successor = np.empty((1 << num_states, alphabet_size), np.int64)
+    # only the few subsets reached are touched, and index is reset to -1 after
+    index, subsets, successor = workspace
     index[final_mask] = 0
     subsets[0] = final_mask
     size = 1
@@ -178,6 +189,7 @@ def _subsets_reachable(table, final_mask):
                 size += 1
             successor[head, c] = index[image]
         head += 1
+    index[subsets[:size]] = -1
     return successor[:size]
 
 
@@ -215,7 +227,7 @@ def _steps_to_first(successor):
 
 
 @njit(cache=True)
-def _class_preserving_fraction(table, final_mask, length, reject_below):
+def _class_preserving_fraction(table, final_mask, length, reject_below, workspace):
     """
     `preconditions.class_preserving_fraction`, or -1 once it is sure to be below
     ``reject_below``: mass pushed from F along `_subsets_reachable`, dropping
@@ -224,7 +236,7 @@ def _class_preserving_fraction(table, final_mask, length, reject_below):
     num_states, alphabet_size = table.shape
     if final_mask in (0, (1 << num_states) - 1):
         return 1.0
-    successor = _subsets_reachable(table, final_mask)
+    successor = _subsets_reachable(table, final_mask, workspace)
     steps_to_final = _steps_to_first(successor)
     mass = np.zeros(len(successor))
     mass[0] = 1.0
@@ -256,6 +268,7 @@ def _search(seed, table, length, min_fraction, max_candidates):
     """
     np.random.seed(seed)
     num_states = table.shape[0]
+    workspace = _workspace(num_states, table.shape[1])
     for _ in range(max_candidates):
         _draw_accessible(table)
         final_mask = np.random.randint(0, 1 << num_states)
@@ -263,7 +276,10 @@ def _search(seed, table, length, min_fraction, max_candidates):
             continue
         if not _is_minimal(table, final_mask):
             continue
-        if _class_preserving_fraction(table, final_mask, length, min_fraction) >= 0:
+        fraction = _class_preserving_fraction(
+            table, final_mask, length, min_fraction, workspace
+        )
+        if fraction >= 0:
             return final_mask
     return -1
 
