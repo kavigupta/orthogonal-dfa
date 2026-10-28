@@ -43,6 +43,8 @@ DIFFICULTY_METRICS = {
 }
 # the paper's 1F5FA8, newwitness, darkdisagree and violet!85!black
 PAPER_COLORS = ["#1F5FA8", "#BF8330", "#A62A5A", "#6C006C"]
+# Type 3 fonts, matplotlib's default, are rejected by ACM
+PAPER_RC = {"font.size": 7, "legend.fontsize": 6, "pdf.fonttype": 42}
 
 
 def load_results(data_dir: Path) -> List[dict]:
@@ -175,10 +177,29 @@ def _style(ax):
     ax.set_axisbelow(True)
 
 
+def _panel():
+    """One of three side-by-side panels, all with the same axes box."""
+    fig = plt.figure(figsize=(1.8, 2.5))
+    return fig, fig.add_axes((0.24, 0.4, 0.72, 0.57))
+
+
+def _finish_panel(fig, ax, xlabel):
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("MQs")
+    fig.legend(
+        *ax.get_legend_handles_labels(),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.29),
+        frameon=False,
+        handlelength=1.2,
+    )
+    _style(ax)
+
+
 def plot_queries_vs_eta(results: Sequence[dict]):
     fits = eta_fit(results)
     rng = np.random.default_rng(0)
-    fig, ax = plt.subplots(figsize=(3.4, 2.6))
+    fig, ax = _panel()
     for color, (states, fit) in zip(PAPER_COLORS, fits.items()):
         runs = [r for r in _scored(results) if r["target_states"] == states]
         etas = np.array([r["eta"] for r in runs])
@@ -200,11 +221,9 @@ def plot_queries_vs_eta(results: Sequence[dict]):
             f"$10^{{{fit[0]:.2f}}} (1 - 2\\eta)^{{-{fit[1]:.1f}}}$",
         )
     ax.set_yscale("log")
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel("MQs")
-    ax.legend(frameon=False, fontsize=7)
-    _style(ax)
-    fig.tight_layout()
+    ax.set_xticks(sorted({r["eta"] for r in results}))
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+    _finish_panel(fig, ax, r"$\eta$")
     return fig
 
 
@@ -212,7 +231,7 @@ def _plot_power_fits_by_eta(results: Sequence[dict], fits, x, jitter, symbol):
     """Log-log scatter of queries against ``x(run)`` per eta, with ``fits``; each
     x is scaled by up to 10 ** jitter either way."""
     rng = np.random.default_rng(0)
-    fig, ax = plt.subplots(figsize=(3.4, 2.6))
+    fig, ax = _panel()
     for color, (eta, (scale, power)) in zip(PAPER_COLORS, fits.items()):
         runs = [r for r in _scored(results) if r["eta"] == eta]
         xs = np.array([x(r) for r in runs], dtype=float)
@@ -234,11 +253,7 @@ def _plot_power_fits_by_eta(results: Sequence[dict], fits, x, jitter, symbol):
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel(f"${symbol}$")
-    ax.set_ylabel("MQs")
-    ax.legend(frameon=False, fontsize=7)
-    _style(ax)
-    fig.tight_layout()
+    _finish_panel(fig, ax, f"${symbol}$")
     return fig, ax
 
 
@@ -323,18 +338,19 @@ def main() -> None:
         tex_path = OUT_DIR / f"{name}.tex"
         tex_path.write_text(fragment + "\n")
         print(f"wrote {tex_path}")
-    for name, plot in [
-        ("queries_vs_eta", plot_queries_vs_eta),
-        ("queries_vs_states", plot_queries_vs_states),
-        ("queries_vs_pap", plot_queries_vs_pap),
-        ("difficulty", plot_difficulty),
-    ]:
-        fig = plot(results)
-        pdf_path = OUT_DIR / f"{name}.pdf"
-        # no creation date, so rerunning on the same results leaves the file alone
-        fig.savefig(pdf_path, metadata={"CreationDate": None})
-        plt.close(fig)
-        print(f"wrote {pdf_path}")
+    with plt.rc_context(PAPER_RC):
+        for name, plot in [
+            ("queries_vs_eta", plot_queries_vs_eta),
+            ("queries_vs_states", plot_queries_vs_states),
+            ("queries_vs_pap", plot_queries_vs_pap),
+            ("difficulty", plot_difficulty),
+        ]:
+            fig = plot(results)
+            pdf_path = OUT_DIR / f"{name}.pdf"
+            # no creation date, so rerunning on the same results leaves the file alone
+            fig.savefig(pdf_path, metadata={"CreationDate": None})
+            plt.close(fig)
+            print(f"wrote {pdf_path}")
 
 
 if __name__ == "__main__":
