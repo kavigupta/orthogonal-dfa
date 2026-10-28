@@ -3,7 +3,7 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
 
 1. summary.tex -- per target size and noise level, how often E-L* learns the
    target and learns it exactly, the lowest accuracy, and what it costs in
-   membership queries.
+   membership queries and rounds.
 2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
    1 - 2 eta per size fit to log10 queries.
 3. queries_vs_states.pdf -- every run's queries against the target's size,
@@ -88,12 +88,15 @@ def _summary_cells(runs: Sequence[dict]) -> List[str]:
     """A run with an error or a timeout has no accuracy and counts as failed."""
     scored = [r for r in runs if r["accuracy"] is not None]
     queries = [r["queries_total"] for r in scored]
+    rounds = [len(r["rounds"]) for r in scored]
     return [
         _pct(np.mean([succeeded(r) for r in runs])),
         _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
         f"{min(r['accuracy'] for r in scored):.3f}" if scored else "--",
         _sci(np.median(queries)) if queries else "--",
         _sci(np.quantile(queries, 0.9)) if queries else "--",
+        f"{np.mean(rounds):.2f}" if rounds else "--",
+        str(max(rounds)) if rounds else "--",
     ]
 
 
@@ -329,8 +332,10 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
                 "Lowest accuracy",
                 "MQ median",
                 "MQ p90",
+                "Rounds mean",
+                "Rounds max",
             ],
-            "llrrrrr",
+            "llrrrrrrr",
             summary_rows(results),
         ),
     }

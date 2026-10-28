@@ -9,7 +9,9 @@ import numpy as np
 from orthogonal_dfa.experiments.random_minimal import analyze, run
 
 
-def _result(states, eta, accuracy, *, learned_states, queries=100, error_type=None):
+def _result(
+    states, eta, accuracy, *, learned_states, queries=100, rounds=1, error_type=None
+):
     return {
         "schema_version": run.RESULT_SCHEMA_VERSION,
         "benchmark": f"n{states:02d}_000",
@@ -21,6 +23,7 @@ def _result(states, eta, accuracy, *, learned_states, queries=100, error_type=No
         "queries_total": queries,
         "seconds": 1.0,
         "error_type": error_type,
+        "rounds": [{}] * rounds,
         "target": {metric: 1 / queries for metric in analyze.DIFFICULTY_METRICS},
     }
 
@@ -28,7 +31,7 @@ def _result(states, eta, accuracy, *, learned_states, queries=100, error_type=No
 class TestAnalyze(unittest.TestCase):
     RESULTS = [
         _result(4, 0.05, 1.0, learned_states=4, queries=100),
-        _result(4, 0.05, 0.995, learned_states=4, queries=200),
+        _result(4, 0.05, 0.995, learned_states=4, queries=200, rounds=3),
         _result(4, 0.05, 0.9, learned_states=3, queries=300),
         _result(4, 0.05, None, learned_states=None, error_type="Timeout"),
         _result(8, 0.05, 1.0, learned_states=8),
@@ -47,6 +50,8 @@ class TestAnalyze(unittest.TestCase):
                 "0.900",
                 r"$2.00 \times 10^{2}$",
                 r"$2.80 \times 10^{2}$",
+                "1.67",
+                "3",
             ],
         )
         self.assertEqual(rows[1], r"\midrule")
