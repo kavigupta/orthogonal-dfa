@@ -78,7 +78,18 @@ class TestAnalyze(unittest.TestCase):
         self.assertEqual(list(fits), [0.05, 0.3])
         for eta, (scale, power) in fits.items():
             self.assertAlmostEqual(scale, 4 - 4 * np.log10(1 - 2 * eta), places=3)
-            self.assertAlmostEqual(power, 0.5, places=3)
+            self.assertAlmostEqual(power, -0.5, places=3)
+
+    def test_states_fit(self):
+        results = [
+            _result(states, eta, 1.0, learned_states=states, queries=round(q))
+            for eta in [0.05, 0.3]
+            for states in [6, 18]
+            for q in [1e4 * (1 - 2 * eta) ** -4 * states**1.5]
+        ]
+        for eta, (scale, power) in analyze.states_fit(results).items():
+            self.assertAlmostEqual(scale, 4 - 4 * np.log10(1 - 2 * eta), places=3)
+            self.assertAlmostEqual(power, 1.5, places=3)
 
     def test_writes_fragments_and_skips_stale_results(self):
         with tempfile.TemporaryDirectory() as data, tempfile.TemporaryDirectory() as out:
@@ -95,6 +106,7 @@ class TestAnalyze(unittest.TestCase):
             summary = (out / "summary.tex").read_text()
             self.assertIn(r"\multirow{1}{*}{4} & 0.05 & 50\% &", summary)
             self.assertTrue((out / "queries_vs_eta.pdf").exists())
+            self.assertTrue((out / "queries_vs_states.pdf").exists())
             self.assertTrue((out / "queries_vs_pap.pdf").exists())
             self.assertTrue((out / "difficulty.pdf").exists())
 

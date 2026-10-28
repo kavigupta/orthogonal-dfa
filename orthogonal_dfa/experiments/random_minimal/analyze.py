@@ -6,9 +6,11 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
    membership queries.
 2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
    1 - 2 eta per size fit to log10 queries.
-3. queries_vs_pap.pdf -- every run's queries against the target's
+3. queries_vs_states.pdf -- every run's queries against the target's size,
+   with a power law in the size per eta.
+4. queries_vs_pap.pdf -- every run's queries against the target's
    class-preserving fraction p_AP, with a power law in p_AP per eta.
-4. difficulty.pdf -- how far each run's log10 queries sits above its size's
+5. difficulty.pdf -- how far each run's log10 queries sits above its size's
    eta fit, against some of the target's `difficulty.target_metrics`.
 
     python -m orthogonal_dfa.experiments.random_minimal.analyze
@@ -130,22 +132,32 @@ def _excess(fits: Dict[int, Tuple[float, float]], result: dict) -> float:
     return np.log10(result["queries_total"]) - _fitted(fit, result["eta"])
 
 
-def pap_fit(results: Sequence[dict]) -> Dict[float, Tuple[float, float]]:
+def _power_fit_by_eta(results: Sequence[dict], x) -> Dict[float, Tuple[float, float]]:
     """Per eta, over every size, the least-squares (scale, power) of
 
-        log10 queries = scale - power * log10 p_AP
+        log10 queries = scale + power * log10 x(run)
 
     over the runs with an accuracy."""
     fits = {}
     for eta in sorted({r["eta"] for r in results}):
         runs = [r for r in _scored(results) if r["eta"] == eta]
-        slope, scale = np.polyfit(
-            np.log10([r["target"]["class_preserving_fraction"] for r in runs]),
+        power, scale = np.polyfit(
+            np.log10([x(r) for r in runs]),
             np.log10([r["queries_total"] for r in runs]),
             1,
         )
-        fits[eta] = float(scale), float(-slope)
+        fits[eta] = float(scale), float(power)
     return fits
+
+
+def states_fit(results: Sequence[dict]) -> Dict[float, Tuple[float, float]]:
+    return _power_fit_by_eta(results, lambda r: r["target_states"])
+
+
+def pap_fit(results: Sequence[dict]) -> Dict[float, Tuple[float, float]]:
+    return _power_fit_by_eta(
+        results, lambda r: r["target"]["class_preserving_fraction"]
+    )
 
 
 def _log_ticks(axis):
@@ -196,36 +208,59 @@ def plot_queries_vs_eta(results: Sequence[dict]):
     return fig
 
 
-def plot_queries_vs_pap(results: Sequence[dict]):
+def _plot_power_fits_by_eta(results: Sequence[dict], fits, x, jitter, symbol):
+    """Log-log scatter of queries against ``x(run)`` per eta, with ``fits``; each
+    x is scaled by up to 10 ** jitter either way."""
+    rng = np.random.default_rng(0)
     fig, ax = plt.subplots(figsize=(3.4, 2.6))
-    for color, (eta, (scale, power)) in zip(PAPER_COLORS, pap_fit(results).items()):
+    for color, (eta, (scale, power)) in zip(PAPER_COLORS, fits.items()):
         runs = [r for r in _scored(results) if r["eta"] == eta]
-        paps = np.array([r["target"]["class_preserving_fraction"] for r in runs])
+        xs = np.array([x(r) for r in runs], dtype=float)
         ax.scatter(
-            paps,
+            xs * 10 ** rng.uniform(-jitter, jitter, len(xs)),
             [r["queries_total"] for r in runs],
             s=4,
             color=color,
             alpha=0.35,
             linewidths=0,
         )
-        line = np.geomspace(paps.min(), paps.max(), 2)
+        line = np.geomspace(xs.min(), xs.max(), 2)
         ax.plot(
             line,
-            10**scale * line**-power,
+            10**scale * line**power,
             color=color,
             linewidth=1.5,
-            label=f"$\\eta = {eta:g}$: "
-            f"$10^{{{scale:.2f}}} p_{{\\mathrm{{AP}}}}^{{{-power:.2f}}}$",
+            label=f"$\\eta = {eta:g}$: $10^{{{scale:.2f}}} {symbol}^{{{power:.2f}}}$",
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
-    _log_ticks(ax.xaxis)
-    ax.set_xlabel(r"$p_{\mathrm{AP}}$")
+    ax.set_xlabel(f"${symbol}$")
     ax.set_ylabel("MQs")
     ax.legend(frameon=False, fontsize=7)
     _style(ax)
     fig.tight_layout()
+    return fig, ax
+
+
+def plot_queries_vs_states(results: Sequence[dict]):
+    fig, ax = _plot_power_fits_by_eta(
+        results, states_fit(results), lambda r: r["target_states"], 0.03, "|Q|"
+    )
+    ax.set_xticks(sorted({r["target_states"] for r in results}))
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
+    return fig
+
+
+def plot_queries_vs_pap(results: Sequence[dict]):
+    fig, ax = _plot_power_fits_by_eta(
+        results,
+        pap_fit(results),
+        lambda r: r["target"]["class_preserving_fraction"],
+        0,
+        r"p_{\mathrm{AP}}",
+    )
+    _log_ticks(ax.xaxis)
     return fig
 
 
@@ -290,6 +325,7 @@ def main() -> None:
         print(f"wrote {tex_path}")
     for name, plot in [
         ("queries_vs_eta", plot_queries_vs_eta),
+        ("queries_vs_states", plot_queries_vs_states),
         ("queries_vs_pap", plot_queries_vs_pap),
         ("difficulty", plot_difficulty),
     ]:
