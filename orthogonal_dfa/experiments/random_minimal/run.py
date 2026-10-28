@@ -2,6 +2,7 @@
 E-L* on random minimal DFAs drawn by `sample_minimal_admitted_dfa`.
 
     python -m orthogonal_dfa.experiments.random_minimal.run --processes 4
+    python -m orthogonal_dfa.experiments.random_minimal.analyze
 
 Every target and every (target, eta, seed) result is its own JSON file under
 ``data/random_minimal``, written atomically. A target or a result of the current
