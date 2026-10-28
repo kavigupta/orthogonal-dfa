@@ -177,6 +177,10 @@ def _style(ax):
     ax.set_axisbelow(True)
 
 
+def _power_of_two(log10_scale: float) -> str:
+    return f"2^{{{log10_scale * np.log2(10):.2g}}}"
+
+
 def _panel():
     """One of three side-by-side panels, all with the same axes box."""
     fig = plt.figure(figsize=(1.8, 2.5))
@@ -218,7 +222,7 @@ def plot_queries_vs_eta(results: Sequence[dict]):
             color=color,
             linewidth=1.5,
             label=f"$|Q| = {states}$: "
-            f"$10^{{{fit[0]:.2f}}} (1 - 2\\eta)^{{-{fit[1]:.1f}}}$",
+            f"${_power_of_two(fit[0])} (1 - 2\\eta)^{{{-fit[1]:.2g}}}$",
         )
     ax.set_yscale("log")
     ax.set_xticks(sorted({r["eta"] for r in results}))
@@ -249,7 +253,8 @@ def _plot_power_fits_by_eta(results: Sequence[dict], fits, x, jitter, symbol):
             10**scale * line**power,
             color=color,
             linewidth=1.5,
-            label=f"$\\eta = {eta:g}$: $10^{{{scale:.2f}}} {symbol}^{{{power:.2f}}}$",
+            label=f"$\\eta = {eta:g}$: "
+            f"${_power_of_two(scale)} {symbol}^{{{power:.2g}}}$",
         )
     ax.set_xscale("log")
     ax.set_yscale("log")
