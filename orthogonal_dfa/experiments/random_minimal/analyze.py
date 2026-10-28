@@ -3,7 +3,7 @@ Render E-L* on random minimal DFAs for a paper, from the results `run` caches:
 
 1. summary.tex -- per target size and noise level, how often E-L* learns the
    target and learns it exactly, the lowest accuracy, and what it costs in
-   membership queries and rounds, as a geometric mean and 99th percentile.
+   membership queries and rounds, as a geometric mean and maximum.
 2. queries_vs_eta.pdf -- every run's queries against eta, with a power law in
    the signal level 1/2 - eta per size fit to log10 queries.
 3. queries_vs_states.pdf -- every run's queries against the target's size,
@@ -83,11 +83,6 @@ def _geometric_mean(values: Sequence[float]) -> float:
     return float(np.exp(np.mean(np.log(values))))
 
 
-def _p99(values: Sequence[float]) -> float:
-    """A value some run actually had."""
-    return float(np.quantile(values, 0.99, method="inverted_cdf"))
-
-
 def _summary_cells(runs: Sequence[dict]) -> List[str]:
     """A run with an error or a timeout has no accuracy and counts as failed."""
     scored = [r for r in runs if r["accuracy"] is not None]
@@ -98,9 +93,9 @@ def _summary_cells(runs: Sequence[dict]) -> List[str]:
         _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
         f"{min(r['accuracy'] for r in scored):.3f}" if scored else "--",
         _millions(_geometric_mean(queries)) if queries else "--",
-        _millions(_p99(queries)) if queries else "--",
+        _millions(max(queries)) if queries else "--",
         f"{_geometric_mean(rounds):.2f}" if rounds else "--",
-        f"{_p99(rounds):.0f}" if rounds else "--",
+        str(max(rounds)) if rounds else "--",
     ]
 
 
@@ -249,9 +244,9 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
                 "Exact",
                 "Lowest accuracy",
                 "MQ geo.\\ mean",
-                "MQ p99",
+                "MQ max",
                 "Rounds geo.\\ mean",
-                "Rounds p99",
+                "Rounds max",
             ],
             "llrrrrrrr",
             summary_rows(results),
