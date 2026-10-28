@@ -149,7 +149,8 @@ def plot_queries_vs_eta(results: Sequence[dict]):
             10 ** _fitted(fit, line),
             color=color,
             linewidth=1.5,
-            label=f"$|Q| = {states}$",
+            label=f"$|Q| = {states}$: "
+            f"$10^{{{fit[0]:.2f}}} (1 - 2\\eta)^{{-{fit[1]:.1f}}}$",
         )
     ax.set_yscale("log")
     ax.set_xlabel(r"$\eta$")
