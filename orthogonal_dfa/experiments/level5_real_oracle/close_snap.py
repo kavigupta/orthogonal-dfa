@@ -22,6 +22,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_search
 from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
     gate_residual_oracle,
 )
+from orthogonal_dfa.l_star.fallbacks.members import MemberFallback
 from orthogonal_dfa.l_star.suffix_family import SuffixFamily
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
@@ -43,13 +44,13 @@ for snap in snaps:
         counterexample_search_config(0.98, 0.01),
         lambda z: family.is_accept(z, b""),
         s["tree"],
-        members=members,
         max_k=0,
+        member_fallback=MemberFallback(members),
     )
     search.hypothesis.edges = dict(s["edges"])
     before = score(cs._hypothesis_dfa(pst, search.hypothesis), halves)
     learned_before = len(search.hypothesis.edges)
-    search.close(pst.alphabet_size)
+    search.member_fallback.close(search.hypothesis, pst.alphabet_size)
     after = score(cs._hypothesis_dfa(pst, search.hypothesis), halves)
     rec = dict(
         snap=os.path.basename(snap),

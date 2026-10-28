@@ -18,16 +18,25 @@ open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
+/-- The law of a string's first `n` letters, the string drawn from `D`. -/
+def prefixLaw (D : Measure (FreeMonoid α)) (n : ℕ) : Measure (FreeMonoid α) :=
+  D.map fun x => prefixOf x n
+
 /-- Uniform over the strings of length `n`. -/
 def uniformStrings (n : ℕ) : Measure (FreeMonoid α) :=
   ((Fintype.card α : ℝ≥0∞) ^ n)⁻¹
     • ∑ v : List.Vector α n, Measure.dirac (FreeMonoid.ofList v.toList)
 
-/-- The share of the strings of length `L` on which the target re-rooted at `q` stays in `S` and
+/-- The share of `T`'s strings on which the target re-rooted at `q` stays in `S` for `L` letters and
 classifies as the target does. -/
-def rerootAccuracy {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (S : Set σ) (q : σ) : ℝ :=
-  (uniformStrings L).real {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ S)
+def rerootAccuracyOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
+    (S : Set σ) (q : σ) : ℝ :=
+  T.real {x : FreeMonoid α | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ S)
     ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
+
+/-- `rerootAccuracyOn` the strings of length `L`. -/
+def rerootAccuracy {σ : Type*} (M : _root_.DFA α σ) (L : ℕ) (S : Set σ) (q : σ) : ℝ :=
+  rerootAccuracyOn (uniformStrings L) M L S q
 
 namespace Random
 

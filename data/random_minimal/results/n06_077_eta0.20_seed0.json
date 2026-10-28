@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "benchmark": "n06_077",
+  "family": "random_minimal",
+  "learner": "E-L*",
+  "eta": 0.2,
+  "seed": 0,
+  "target_states": 6,
+  "alphabet_size": 2,
+  "learner_config": {
+    "min_signal_strength": 0.3,
+    "min_suffix_frequency": 0.02
+  },
+  "learned_states": 6,
+  "accuracy": 1.0,
+  "converged": true,
+  "queries_total": 380604,
+  "equivalence_queries": 0,
+  "seconds": 17.378,
+  "error_type": null,
+  "error": null,
+  "target": {
+    "states": 6,
+    "alphabet_size": 2,
+    "accepting_states": 1,
+    "acceptance_rate": 0.7431617291731527,
+    "class_preserving_fraction": 0.06205001403668575,
+    "non_start_zone_accuracy_ceiling": 1.0,
+    "unvisited_states": 0,
+    "starts": 6,
+    "endpoint_mass_min": 0.017160653714199725,
+    "endpoint_mass_max": 0.7431617291731527,
+    "depth_max": 3,
+    "separating_length_max": 4,
+    "separating_length_mean": 1.3333333333333333,
+    "synchronizing_probability": 0.6802495747515422
+  },
+  "rounds": [
+    {
+      "prefixes": 400,
+      "representative_prefixes": 400,
+      "suffixes": 251,
+      "family_size": 63,
+      "probes": 165,
+      "ending": "harvest middles",
+      "hypothesis_states": 2,
+      "hypothesis_edges": 4,
+      "sampling_seconds": 4.849553406238556,
+      "probing_seconds": 1.742223709821701,
+      "queries_at_search_end": 119511,
+      "certified": null,
+      "consistency": 0.2
+    },
+    {
+      "prefixes": 431,
+      "representative_prefixes": 231,
+      "suffixes": 434,
+      "family_size": 61,
+      "probes": 408,
+      "ending": "success",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 12,
+      "sampling_seconds": 2.388637848198414,
+      "probing_seconds": 2.667833723127842,
+      "queries_at_search_end": 220156,
+      "certified": true,
+      "consistency": 1.0
+    }
+  ],
+  "chosen_round": 1
+}

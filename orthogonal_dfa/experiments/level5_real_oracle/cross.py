@@ -4,8 +4,8 @@ the family (suffixes and decision boundary) of another.
 
   cross.py POOL_CKPT FAMILY_CKPT --out DIR [--restarts K] [--probe-seed N] [--patience P] [--no-members]
 
---no-members gives the search no members, so it neither reads stuck edges on them
-nor closes from them.
+--no-members turns off the member fallback, so the search neither reads stuck edges
+on members nor closes from them.
 
 Writes DIR/summary.json: the family's FNR on the pool's representative prefixes,
 and the returned DFA's held-out phi on the 1111/2222 halves.
@@ -59,14 +59,7 @@ if a.probe_seed is not None:
 if a.patience is not None:
     pst.config.counterexample_score_patience = a.patience
 pst.config.counterexample_restarts = a.restarts
-if a.no_members:
-    orig_init = cs.CounterexampleSearch.__init__
-
-    def init_without_members(self, *args, **kw):
-        kw["members"] = ()
-        orig_init(self, *args, **kw)
-
-    cs.CounterexampleSearch.__init__ = init_without_members
+pst.config.counterexample_member_fallback = not a.no_members
 
 t0 = time.time()
 fnr, worst = pst.fnr_from_decision(pst.compute_decision(vs, pst.table.representative))

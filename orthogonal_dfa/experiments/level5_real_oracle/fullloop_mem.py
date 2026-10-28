@@ -211,6 +211,7 @@ def main():
     pst = build_pst(
         oc, min_signal_strength=0.05, seed=a.seed, sampler=SuperSampler(VOCAB, 36)
     )
+    pst.config.counterexample_member_fallback = True
     if a.restarts > 1:
         pst.config.counterexample_restarts = a.restarts
     if a.plateau:
