@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
+
 from orthogonal_dfa.experiments.random_minimal import analyze, run
 
 
@@ -72,8 +74,11 @@ class TestAnalyze(unittest.TestCase):
             for pap in [0.02, 0.2]
             for q in [1e4 * (1 - 2 * eta) ** -4 * pap**-0.5]
         ]
-        scale, power = analyze.pap_fit(results)[6]
-        self.assertAlmostEqual(power, 0.5, places=3)
+        fits = analyze.pap_fit(results)
+        self.assertEqual(list(fits), [0.05, 0.3])
+        for eta, (scale, power) in fits.items():
+            self.assertAlmostEqual(scale, 4 - 4 * np.log10(1 - 2 * eta), places=3)
+            self.assertAlmostEqual(power, 0.5, places=3)
 
     def test_writes_fragments_and_skips_stale_results(self):
         with tempfile.TemporaryDirectory() as data, tempfile.TemporaryDirectory() as out:
