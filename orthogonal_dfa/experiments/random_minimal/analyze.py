@@ -84,11 +84,8 @@ def _by_size(results: Sequence[dict], cells) -> List[Union[List[str], str]]:
     return rows
 
 
-def _thousands_or_millions(count: float) -> str:
-    """To three significant figures, e.g. 91.9k or 1.05M."""
-    count = float(f"{count:.3g}")
-    value, suffix = (count / 1e6, "M") if count >= 1e6 else (count / 1e3, "k")
-    return f"{value:.{max(0, 2 - int(np.floor(np.log10(value))))}f}{suffix}"
+def _millions(count: float) -> str:
+    return f"{count / 1e6:.2f}M"
 
 
 def _summary_cells(runs: Sequence[dict]) -> List[str]:
@@ -100,8 +97,8 @@ def _summary_cells(runs: Sequence[dict]) -> List[str]:
         _pct(np.mean([succeeded(r) for r in runs])),
         _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
         f"{min(r['accuracy'] for r in scored):.3f}" if scored else "--",
-        _thousands_or_millions(np.median(queries)) if queries else "--",
-        _thousands_or_millions(np.quantile(queries, 0.9)) if queries else "--",
+        _millions(np.median(queries)) if queries else "--",
+        _millions(np.quantile(queries, 0.9)) if queries else "--",
         f"{np.mean(rounds):.2f}" if rounds else "--",
         str(max(rounds)) if rounds else "--",
     ]

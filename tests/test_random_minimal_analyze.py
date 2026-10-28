@@ -30,9 +30,9 @@ def _result(
 
 class TestAnalyze(unittest.TestCase):
     RESULTS = [
-        _result(4, 0.05, 1.0, learned_states=4, queries=100),
-        _result(4, 0.05, 0.995, learned_states=4, queries=200, rounds=3),
-        _result(4, 0.05, 0.9, learned_states=3, queries=300),
+        _result(4, 0.05, 1.0, learned_states=4, queries=100_000),
+        _result(4, 0.05, 0.995, learned_states=4, queries=200_000, rounds=3),
+        _result(4, 0.05, 0.9, learned_states=3, queries=300_000),
         _result(4, 0.05, None, learned_states=None, error_type="Timeout"),
         _result(8, 0.05, 1.0, learned_states=8),
         _result(8, 0.1, 1.0, learned_states=8),
@@ -48,8 +48,8 @@ class TestAnalyze(unittest.TestCase):
                 r"50\%",
                 r"25\%",
                 "0.900",
-                "0.200k",
-                "0.280k",
+                "0.20M",
+                "0.28M",
                 "1.67",
                 "3",
             ],
