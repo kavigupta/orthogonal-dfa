@@ -19,11 +19,11 @@ namespace OrthoDFA
 
 open Real Asymptotics Filter MeasureTheory
 
-private def kB (s r εw : ℝ) : ℝ :=
-  25 * max (4 * log (20 / r)) (log (1 / εw)) / (8 * s ^ 2) + 5 / s + 7
+private def kB (s r c : ℝ) : ℝ :=
+  25 * max (4 * log (20 / r)) (log (1 / c)) / (8 * s ^ 2) + 5 / s + 7
 
-private def nsuffB (s r εw pAP nJ δ : ℝ) : ℝ :=
-  2 * kB s r εw / pAP + 16 * log ((nJ + 2) / δ) / pAP ^ 2
+private def nsuffB (s r c pAP nJ δ : ℝ) : ℝ :=
+  2 * kB s r c / pAP + 16 * log ((nJ + 2) / δ) / pAP ^ 2
 
 private def nprefB (s r δ α pAP εs nJ nH n : ℝ) : ℝ :=
   161000 * nJ ^ 2 * log (max 1 ((nJ + 2) * n / (δ * α * pAP * r))) / (s ^ 4 * r ^ 2)
@@ -56,7 +56,7 @@ private lemma rs_le {ie iu is : ℝ} (hie : 0 < ie) (hiu : 0 < iu) (his : 2 ≤ 
   have := mul_le_mul_of_nonneg_left this hie.le
   linarith
 
-/-- `(nJ, 1/δ, 1/pAP, 1/εcov, 1/ε_s, 1/ε_u, 1/ε_w, 1/s₀, nH)`. -/
+/-- `(nJ, 1/δ, 1/pAP, 1/εcov, 1/ε_s, 1/ε_u, 1/κ, 1/s₀, nH)`. -/
 private abbrev ClusterVec := ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ
 
 private def vecRegion : Set ClusterVec := Set.Ici (1, 2, 1, 2, 2, 2, 1, 2, 0)
@@ -80,8 +80,8 @@ private lemma prods {nJ iδ ip ie iu iw is : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ 
 
 private lemma kB_bound {ie iu iw is r : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw)
     (his : 2 ≤ is) (hr : 0 < r) (hr2 : 1 / r ≤ ie * is ^ 2 + iu) :
-    0 ≤ kB (1 / is) r (1 / iw)
-      ∧ kB (1 / is) r (1 / iw) ≤ 70 * (log (ie * iu * iw * is) * is ^ 2) := by
+    0 ≤ kB (1 / is) r ((1 / iw) ^ 4)
+      ∧ kB (1 / is) r ((1 / iw) ^ 4) ≤ 70 * (log (ie * iu * iw * is) * is ^ 2) := by
   have hl : ∀ x ∈ [ie, iu, iw, is], 1 ≤ x := fun x hx => by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
     rcases hx with rfl | rfl | rfl | rfl <;> linarith
@@ -110,11 +110,14 @@ private lemma kB_bound {ie iu iw is r : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (
     nlinarith
   have hw : log iw ≤ log P := Real.log_le_log (by linarith) hiwP
   have hw0 : 0 ≤ log iw := Real.log_nonneg hiw
-  have hm : max (4 * log (20 / r)) (log iw) ≤ 16 * log P := max_le (by linarith) (by linarith)
-  have hm0 : 0 ≤ max (4 * log (20 / r)) (log iw) := le_max_of_le_right hw0
+  have hlw : log (1 / (1 / iw) ^ 4) = 4 * log iw := by
+    rw [one_div_pow, one_div_one_div, Real.log_pow]; norm_num
+  have hm : max (4 * log (20 / r)) (4 * log iw) ≤ 16 * log P :=
+    max_le (by linarith) (by linarith)
+  have hm0 : 0 ≤ max (4 * log (20 / r)) (4 * log iw) := le_max_of_le_right (by linarith)
   unfold kB
-  rw [one_div_one_div]
-  generalize max (4 * log (20 / r)) (log iw) = m at *
+  rw [hlw]
+  generalize max (4 * log (20 / r)) (4 * log iw) = m at *
   rw [show 25 * m / (8 * (1 / is) ^ 2) + 5 / (1 / is) + 7 = 25 * m * is ^ 2 / 8 + 5 * is + 7 by
     field_simp]
   have h1 : is ≤ is ^ 2 * log P := by nlinarith
@@ -127,8 +130,8 @@ private lemma kB_bound {ie iu iw is r : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (
 private lemma nsuffB_bound {nJ iδ ip ie iu iw is r : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ)
     (hip : 1 ≤ ip) (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is) (hr : 0 < r)
     (hr2 : 1 / r ≤ ie * is ^ 2 + iu) :
-    0 ≤ nsuffB (1 / is) r (1 / iw) (1 / ip) nJ (1 / (2 * iδ))
-      ∧ nsuffB (1 / is) r (1 / iw) (1 / ip) nJ (1 / (2 * iδ))
+    0 ≤ nsuffB (1 / is) r ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ))
+      ∧ nsuffB (1 / is) r ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ))
       ≤ 140 * (log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2) := by
   obtain ⟨hk0, hk⟩ := kB_bound hie hiu hiw his hr hr2
   have hx : 2 ≤ nJ * iδ := by nlinarith
@@ -143,7 +146,7 @@ private lemma nsuffB_bound {nJ iδ ip ie iu iw is r : ℝ} (hJ : 1 ≤ nJ) (hiδ
     rw [div_one_div']; nlinarith)
   have hLJ : 0 ≤ log (nJ * iδ) := Real.log_nonneg (by linarith)
   unfold nsuffB
-  generalize kB (1 / is) r (1 / iw) = k at *
+  generalize kB (1 / is) r ((1 / iw) ^ 4) = k at *
   generalize log ((nJ + 2) / (1 / (2 * iδ))) = l at *
   rw [show 2 * k / (1 / ip) + 16 * l / (1 / ip) ^ 2 = 2 * k * ip + 16 * l * ip ^ 2 by field_simp]
   have := mul_le_mul_of_nonneg_right hk (show 0 ≤ ip by linarith)
@@ -302,14 +305,14 @@ private lemma one_le_mul' {a b : ℝ} (ha : 1 ≤ a) (hb : 1 ≤ b) : 1 ≤ a * 
   one_le_mul_of_one_le_of_one_le ha hb
 
 private def kW : ClusterVec → ℝ := fun (_, _, _, ie, _, iu, iw, is, _) =>
-  kB (1 / is) (rsc ie iu is) (1 / iw)
+  kB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4)
 
 private def nsuffW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, _, iu, iw, is, _) =>
-  nsuffB (1 / is) (rsc ie iu is) (1 / iw) (1 / ip) nJ (1 / (2 * iδ))
+  nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ))
 
 private def nprefW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
   nprefB (1 / is) (rsc ie iu is) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) (1 / isl) nJ nH
-    (nsuffB (1 / is) (rsc ie iu is) (1 / iw) (1 / ip) nJ (1 / (2 * iδ)))
+    (nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ)))
 
 open scoped Classical in
 private def atomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
@@ -426,7 +429,7 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
   dsimp only
   simp only [atomTolW, nprefW, if_pos hcond]
   set N := nprefB (1 / is) (rsc ie iu is) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) (1 / isl) nJ nH
-    (nsuffB (1 / is) (rsc ie iu is) (1 / iw) (1 / ip) nJ (1 / (2 * iδ)))
+    (nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ)))
   set L9 := log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) with hL9e
   set G := nJ ^ 2 * log (nJ * iδ * ip * ie * iu * iw * is)
     * (ie ^ 2 * is ^ 8 + iu ^ 2 * is ^ 4) + nH * (ie * is ^ 2 + iu)
@@ -525,7 +528,7 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     ⟨by linarith, by linarith, by linarith, by linarith, by linarith, by linarith, by linarith⟩
   dsimp only
   simp only [collTolW, nsuffW, if_pos hcond]
-  set N := nsuffB (1 / is) (rsc ie iu is) (1 / iw) (1 / ip) nJ (1 / (2 * iδ))
+  set N := nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) nJ (1 / (2 * iδ))
   set G := log (ie * iu * iw * is) * ip * is ^ 2 + log (nJ * iδ) * ip ^ 2
   have hG1 : 1 ≤ 140 * G := by
     have : 1 ≤ log (ie * iu * iw * is) * ip * is ^ 2 :=
@@ -731,7 +734,7 @@ private lemma coll_dom : (fun (nJ, iδ, ip, ie, _, iu, iw, is, _) =>
 
 /-- No strings harvested. -/
 private def toVec (x : ClusterInputs) : ClusterVec :=
-  (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_s, 1 / x.ε_u, 1 / x.ε_w, 1 / x.s₀, 0)
+  (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_s, 1 / x.ε_u, 1 / x.κ, 1 / x.s₀, 0)
 
 private lemma toVec_mem {x : ClusterInputs} (hx : x ∈ clusterRegion) : toVec x ∈ vecRegion := by
   obtain ⟨hJ, hδ, hδ1, hp, hp1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
@@ -763,7 +766,7 @@ theorem clusteringClaim_holds : ClusteringClaim := by
     transfer collTolW_isBigO fun x => by simp only [toVec]; ring_nf,
     fun x => tol_pos _, ?_⟩
   intro Ω _ μ _ S _ J _ x O populations tame uni Pre Suf hx hcard hηle huni htame hflat
-  obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, ε_w, s₀⟩ := x
+  obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, κ, s₀⟩ := x
   simp only [clusterRegion, Set.mem_ofPred_eq] at hx hcard hηle
   obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
   obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 1 / 2 - η₀ := ⟨1 / 2 - s₀, by ring⟩
@@ -772,14 +775,15 @@ theorem clusteringClaim_holds : ClusteringClaim := by
   have hη₀ : η₀ < 1 / 2 := by linarith
   simp only [ClusteringOutcome, toVec, sub_sub_cancel]
   set v : ClusterVec := ((populations.card : ℝ), 1 / δ, 1 / pAP, 1 / εcov, 1 / ε_s, 1 / ε_u,
-    1 / ε_w, 1 / (1 / 2 - η₀), 0) with hv
+    1 / κ, 1 / (1 / 2 - η₀), 0) with hv
   have hH0 : (allHarvest (fun _ : J => (∅ : Finset S))).card = 0 :=
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
-  obtain ⟨states, hnp, -, hkn, hband, hmain⟩ := clustering_guarantee_of_correct O
-    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP ε_w hηle hη₀
-    huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1 (by positivity)
-    (by linarith) he he1 hsl (by positivity) (by linarith) hw hw1
+  obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
+    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) hηle
+    hη₀ huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
+    (by positivity) (by linarith) he he1 hsl (by positivity) (by linarith) (by positivity)
+    (pow_le_one₀ hw.le hw1)
   simp only [hH0, CharP.cast_eq_zero] at hnp
   have hs0 : 0 < 1 / 2 - η₀ := by linarith
   have hcard : (0 : ℝ) < populations.card := by
@@ -792,10 +796,10 @@ theorem clusteringClaim_holds : ClusteringClaim := by
       ∧ 0 < 1 / ε_s ∧ 0 < 1 / ε_u ∧ 0 < 1 / (1 / 2 - η₀) :=
     ⟨hcard, by positivity, by positivity, by positivity, by positivity, by positivity,
       by positivity⟩
-  have ek : kW v = kB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) ε_w := by
+  have ek : kW v = kB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) (κ ^ 4) := by
     simp only [v, kW, rsc, one_div_one_div, sub_sub_cancel]
   have es : nsuffW v
-      = nsuffB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) ε_w pAP populations.card (δ / 2) := by
+      = nsuffB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) (κ ^ 4) pAP populations.card (δ / 2) := by
     simp only [v, nsuffW, rsc, one_div_one_div, sub_sub_cancel, half_eq]
   have ep : nprefW v = nprefB (1 / 2 - η₀) (rateScale η₀ ε_u εcov) (δ / 2) (δ / 2) pAP ε_s
       populations.card 0 (nsuffW v) := by
@@ -826,7 +830,8 @@ theorem clusteringClaim_holds : ClusteringClaim := by
     have hd' : (0 : ℝ) ≤ (1 / 2 - η₀) ^ 4 * rateScale η₀ ε_u εcov ^ 2 := by positivity
     exact add_le_add (add_le_add (div_le_div_of_nonneg_right
       (mul_le_mul_of_nonneg_left (log_le_log_max hX0 hX) hc) hd') le_rfl) le_rfl
-  refine ⟨states, fun B hB => ⟨hnpW B hB, hks B hB⟩, hband, ?_⟩
+  refine ⟨states, fun B hB => ⟨hnpW B hB, hks B hB⟩, hband,
+    fun B hB N hN p r => hκ B hB N hN κ p r hw.le le_rfl, ?_⟩
   intro D Dsf hD hDsf hpre hsuf hpAP' hatom hcoll
   rw [ea] at hatom
   rw [ec] at hcoll
