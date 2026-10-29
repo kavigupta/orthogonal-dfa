@@ -333,7 +333,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     show (budget : ℝ) ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     linarith
   have hbud0 : (0 : ℝ) ≤ budget := Nat.cast_nonneg _
-  set C : Random.Level3Settings := ⟨k, δ', ε / 48, ε, budget⟩ with hCd
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget⟩ with hCd
   -- the band's far side
   have hW1 : 1 ≤ W := le_max_right _ _
   set cross : ℝ := δ' / (8 * W) with hcrossd
@@ -616,7 +616,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by positivity) hmr (by linarith) hcr hprem hTu0 hcond
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom

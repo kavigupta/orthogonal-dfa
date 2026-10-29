@@ -23,17 +23,17 @@ Each claim is proved from the explicit theorems below.
   `ClusteringClaimSimple` bounds each by a single product, e.g. the band width by
   `O(log(1/(εcov ε_u κ s₀))/s₀²)` and the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
-- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
-  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q||Σ|/δ))`.
-- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
-  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`, its harvest's slope
-  `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
-  give how much of the probes' law any one walk start may hold (`p₀Tol`, `1/p₀Tol` of order the
-  budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
+- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
+  harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
+- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
+  harvest rate `y = ε/48`, one round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`,
+  its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/ε)`.
+  Levels 4 and 5 also give how much of the probes' law any one walk start may hold (`p₀Tol`,
+  `1/p₀Tol` of order the budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
   O(Q'³|Σ|/ε · log(|Q||Σ|/δ) log L)` at level 4, `1/κTol = O(Q'²|Σ| log(|Q||Σ|/δ))` at level 5),
   their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
   slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
-  `O(Q'|Σ| log(Q'|Σ|)/y)`.
+  `O(Q'|Σ| log(Q'|Σ|)/ε)`.
 - `LoopClaim` (`Claims/Loop.lean`): over an input distribution `D`, over
   `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`) and `R ≥ 1` the visit ratio of the
   relative rule (`LearnerLoopDFARelative`'s premise). The probes are `D`'s strings cut at a
@@ -389,9 +389,9 @@ the time. Each level says what a state's chance of reading undecided is.
   and tested after every probe: the ends (probes whose start or end sift stops undecided) and the
   middles each by `seqRate` against an alternative (twice `endsRate`, twice `middleRate`), and
   success, counting the searches and the ends together, by `seqRate` against half
-  `disagreementRate`. Its settings are the yield `y = harvestRate` and the disagreement rate `ε =
-  disagreementRate`; the tests' rates follow from them: `endsRate = y`, `middleRate = 1/4` and
-  `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
+  `disagreementRate`. Its settings include the disagreement rate `ε = disagreementRate`; the
+  yield `y = harvestRate = ε/48` and the tests' rates follow from it: `endsRate = y`, `middleRate =
+  1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
   2))`. A harvest is the site whose test fired, `ends` or `middles`.
 - `OrthoDFA/LowLevelClaims/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn
   once, independently, undecided with its state's chance and never on its state's wrong side, every
