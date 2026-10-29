@@ -68,6 +68,9 @@ class SearchConfig:
     counterexample_restarts: int = 1
     #: Rank uncertified rounds by held-out phi rather than consistency.
     rank_rounds_by_held_out: bool = False
+    #: Read an edge a probe leaves undecided on a representative prefix of its
+    #: source leaf instead.
+    counterexample_member_fallback: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

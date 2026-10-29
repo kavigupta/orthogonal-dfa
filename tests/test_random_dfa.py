@@ -9,6 +9,7 @@ from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.random_dfa import (
     _class_preserving_fraction,
     _is_minimal,
+    _workspace,
     accessible_tables,
     dfa_from_table,
     sample_minimal_admitted_dfa,
@@ -44,7 +45,9 @@ class TestCandidateChecks(unittest.TestCase):
                 len(aut.minify().states) == num_states,
             )
             self.assertAlmostEqual(
-                _class_preserving_fraction(table, int(final_mask), 40, -1.0),
+                _class_preserving_fraction(
+                    table, int(final_mask), 40, -1.0, _workspace(num_states, 2)
+                ),
                 P.class_preserving_fraction(aut, length=40),
                 delta=1e-12,
             )
@@ -52,9 +55,14 @@ class TestCandidateChecks(unittest.TestCase):
     def test_early_exit_only_below_the_bar(self):
         rng = np.random.default_rng(0)
         tables = accessible_tables(1, 8, 2, 300)
+        workspace = _workspace(8, 2)
         for table, final_mask in zip(tables, rng.integers(1 << 8, size=300)):
-            exact = _class_preserving_fraction(table, int(final_mask), 40, -1.0)
-            early = _class_preserving_fraction(table, int(final_mask), 40, 0.02)
+            exact = _class_preserving_fraction(
+                table, int(final_mask), 40, -1.0, workspace
+            )
+            early = _class_preserving_fraction(
+                table, int(final_mask), 40, 0.02, workspace
+            )
             if early < 0:
                 self.assertLess(exact, 0.02)
             else:
