@@ -189,7 +189,7 @@ that a twentieth of the pool is left for the draws the sampler redraws. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
   ⌈2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP⌉₊
-    + ⌈Real.log (128 / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊
+    + ⌈800 * Real.log (128 / δ) / (81 * pAP)⌉₊
 
 /-- The accept-preserving rows a pool of `M` guarantees besides the seed: half its findable
 share, the rest spent on the count's deviation and the sampler's redraws. -/

@@ -3565,22 +3565,24 @@ lemma measurable_badMassReal (O : Oracle μ S) (Dj : Measure S) (lo hi : ℕ) (A
 
 open scoped Classical in
 /-- A block of i.i.d. draws hits a set about as often as its mass.  The lower tail, for
-the suffix pool: a mass-`q` set is hit at least `M(q − t)` times. -/
+the suffix pool, relative to the mass: a mass-`q` set is hit at least `M(q − t)` times. -/
 lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : Set S)
     (q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t) (hW : q ≤ Dsf.real W) :
     (Measure.pi fun _ : Fin M => Dsf).real
         {r : Fin M → S | (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)
           ≤ (M : ℝ) * (q - t)}
-      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((M : ℝ) * (t ^ 2 / (2 * q)))) := by
   classical
   set ν : Measure (Fin M → S) := Measure.pi fun _ : Fin M => Dsf with hνdef
+  rcases Nat.eq_zero_or_pos M with hM | hM
+  · subst hM; simpa using measureReal_le_one
+  rcases hq.eq_or_lt with hq0 | hq0
+  · subst hq0; simpa using measureReal_le_one
   have hWm : MeasurableSet W := measurableSet_of_countable W
   set ind : S → ℝ := W.indicator 1 with hinddef
   have hindm : Measurable ind := measurable_const.indicator hWm
   set X : Fin M → (Fin M → S) → ℝ := fun i r => ind (r i) with hXdef
   have hindep : iIndepFun X ν := iIndepFun_pi (fun _ => hindm.aemeasurable)
-  have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
-    (hindm.comp (measurable_pi_apply _)).aemeasurable
   have hicc : ∀ i, ∀ᵐ r ∂ν, X i r ∈ Set.Icc (0 : ℝ) 1 := by
     intro i
     filter_upwards with r
@@ -3595,11 +3597,14 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
           rw [← hmp.map_eq,
             integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
       _ = Dsf.real W := by rw [hinddef, integral_indicator_one hWm]
-  have hsum : ((Finset.univ : Finset (Fin M)).card : ℝ) * q ≤ ∑ i, ν[X i] := by
-    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul]
-    have hc : (0 : ℝ) ≤ ((Finset.univ : Finset (Fin M)).card : ℝ) := Nat.cast_nonneg _
-    nlinarith [hW]
-  have hmain := sumLower_le X (Finset.univ : Finset (Fin M)) q t hmeas hindep hicc hsum ht
+  have hMR : (0 : ℝ) < M := Nat.cast_pos.2 hM
+  have hsum : (M : ℝ) * q ≤ ∑ i, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
+      Finset.card_univ, Fintype.card_fin]
+    exact mul_le_mul_of_nonneg_left hW hMR.le
+  have hmain := sumLower_rel X (Finset.univ : Finset (Fin M)) ((M : ℝ) * q) ((M : ℝ) * t)
+    (fun i => hindm.comp (measurable_pi_apply i)) hindep hicc (by positivity) hsum
+    (by positivity)
   have hcount : ∀ r : Fin M → S, ∑ i, X i r
       = (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ) := by
     intro r
@@ -3616,13 +3621,13 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
       Finset.sum_eq_zero (fun i hi => by
         simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
     rw [h1, h0, add_zero]
-  have hcard : ((Finset.univ : Finset (Fin M)).card : ℝ) = (M : ℝ) := by simp
-  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) ?_
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) (le_of_eq ?_)
   · intro r hr
     simp only [Set.mem_setOf_eq] at hr ⊢
-    rw [hcount r, hcard]
+    rw [hcount r]
     linarith [hr]
-  · rw [hcard]
+  · congr 1
+    field_simp
 
 open scoped Classical in
 /-- The pool is short of accept-preserving suffixes.  It reads the suffix draws and nothing
@@ -3641,7 +3646,7 @@ theorem measureReal_apShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measur
     (pAP t : ℝ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}) :
     (streamMeasure μ Pp Pc Dsf).real (apShort O M pAP t)
-      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((M : ℝ) * (t ^ 2 / (2 * pAP)))) := by
   classical
   rw [apShort]
   set W : Set S := {v | ∀ p, O.label (p * v) = O.label p} with hW

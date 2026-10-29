@@ -348,7 +348,7 @@ theorem measureReal_poolEvents_le (O : Oracle μ S) (populations : Finset J) (un
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
     (runMeasure μ D Dsf).real (streams H uni ⁻¹' poolEvents O populations B pAP tap rs)
-      ≤ poolFail tap ρsf rs B := by
+      ≤ poolFail tap pAP ρsf rs B := by
   classical
   set ν := runMeasure μ D Dsf with hν
   set Y := streams (Ω := Ω) H uni with hY
@@ -358,7 +358,7 @@ theorem measureReal_poolEvents_le (O : Oracle μ S) (populations : Finset J) (un
       measureReal_stalled_nearest_le O populations _ _ Dsf B (by omega) hscreen hpool.le ρsf rs
         hρsf hρsf0)
   have bn : ν.real (Y ⁻¹' apShort O B.nsuff pAP tap)
-      ≤ Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2) :=
+      ≤ Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP)))) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_apShort O B.nsuff pAP tap)
       (fun g => measureReal_apShort_le _ _ Dsf O B.nsuff pAP tap hpAP0 htap hpAPBound)
   have bp : ν.real (Y ⁻¹' {y | ¬ poolGood B.nsuff rs y})
@@ -625,7 +625,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     · exact Or.inr h
   have huniB : ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit
         εcov α B uni} \ Y ⁻¹' N)
-      ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B := by
+      ≤ roundFail populations l lcut th E L tap pAP ρ (collisionMass Dsf) t r rs B := by
     refine le_trans (measureReal_mono hsubU (measure_ne_top _ _)) ?_
     refine runMeasure_streams_le H uni D Dsf U hUm (fun g' => ?_)
     set Pp := sideLawT H uni D g'
@@ -655,7 +655,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     linarith
   -- the pool, once
   set P : Set (Run Ω S J) := poolEvents O populations B pAP tap rs with hPdef
-  have hPb : ν.real (Y ⁻¹' P) ≤ poolFail tap (collisionMass Dsf) rs B :=
+  have hPb : ν.real (Y ⁻¹' P) ≤ poolFail tap pAP (collisionMass Dsf) rs B :=
     measureReal_poolEvents_le O populations uni H D Dsf B hkpos hpool hscreen pAP tap
       (collisionMass Dsf) rs htap hpAP0 hpAPBound' hρsf' hρsf0
   -- the named populations
