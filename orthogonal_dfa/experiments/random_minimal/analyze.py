@@ -83,7 +83,7 @@ def _geometric_mean(values: Sequence[float]) -> float:
     return float(np.exp(np.mean(np.log(values))))
 
 
-def _summary_cells(runs: Sequence[dict]) -> List[str]:
+def summary_cells(runs: Sequence[dict]) -> List[str]:
     """A run with an error or a timeout has no accuracy and counts as failed."""
     scored = [r for r in runs if r["accuracy"] is not None]
     queries = [r["queries_total"] for r in scored]
@@ -100,7 +100,7 @@ def _summary_cells(runs: Sequence[dict]) -> List[str]:
 
 
 def summary_rows(results: Sequence[dict]) -> List[Union[List[str], str]]:
-    return _by_size(results, _summary_cells)
+    return _by_size(results, summary_cells)
 
 
 def _scored(results: Sequence[dict]) -> List[dict]:
