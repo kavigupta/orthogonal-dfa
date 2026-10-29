@@ -389,9 +389,9 @@ the time. Each level says what a state's chance of reading undecided is.
   and tested after every probe: the ends (probes whose start or end sift stops undecided) and the
   middles each by `seqRate` against an alternative (twice `endsRate`, twice `middleRate`), and
   success, counting the searches and the ends together, by `seqRate` against half
-  `disagreementRate`. Its settings are the yield `y = harvestRate` and the disagreement rate `ε =
-  disagreementRate`; the tests' rates follow from them: `endsRate = y`, `middleRate = 1/4` and
-  `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
+  `disagreementRate`. Its settings include the disagreement rate `ε = disagreementRate`; the
+  yield `y = harvestRate = ε/48` and the tests' rates follow from it: `endsRate = y`, `middleRate =
+  1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
   2))`. A harvest is the site whose test fired, `ends` or `middles`.
 - `OrthoDFA/LowLevelClaims/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn
   once, independently, undecided with its state's chance and never on its state's wrong side, every

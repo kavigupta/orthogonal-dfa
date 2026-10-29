@@ -46,7 +46,7 @@ def Level2Claim.{u, v} : Prop :=
       let ε := C.disagreementRate
       let δ := C.δ
       let x : Level2Inputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ }
-      Level2.ReadsByState read M side → x ∈ level2Region → y = ε / 2 →
+      Level2.ReadsByState read M side → x ∈ level2Region →
       ∀ (D : Measure (FreeMonoid A)) [IsProbabilityMeasure D],
         (Measure.pi fun _ : Fin (nprobes₂ x) => D).real
             {draws | let result := Level2.indecisiveLStarLevel2 C read draws
@@ -90,7 +90,7 @@ def Level3Claim.{u, v, w} : Prop :=
       let ε := C.disagreementRate
       let δ := C.δ
       let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, L := P.L }
-      x ∈ levelRegion → y = ε / 48 → C.probeBudget = nprobes x →
+      x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) →
       ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
           {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
@@ -135,7 +135,7 @@ def Level4Claim.{u, v, w} : Prop :=
       let ε := C.disagreementRate
       let δ := C.δ
       let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, L := P.L }
-      x ∈ levelRegion → y = ε / 48 → C.probeBudget = nprobes x →
+      x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol x →
       0 ≤ εw → εw ≤ εwTol x →
       ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
@@ -182,7 +182,7 @@ def Level5Claim.{u, v, w} : Prop :=
       let ε := C.disagreementRate
       let δ := C.δ
       let x : LevelInputs := { Q := Fintype.card Q, A := Fintype.card A, ε, δ, L := P.L }
-      x ∈ levelRegion → y = ε / 48 → C.probeBudget = nprobes x →
+      x ∈ levelRegion → C.probeBudget = nprobes x →
       (∀ u, P.D.real {w | prefixOf w C.walkStart = u} ≤ p₀) → p₀ ≤ p₀Tol x →
       0 ≤ κ → κ ≤ κTol x →
       ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)

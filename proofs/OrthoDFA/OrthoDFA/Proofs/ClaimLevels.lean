@@ -858,7 +858,8 @@ theorem level2Claim_holds : Level2Claim := by
     transfer₂ lvProbes₂_isBigO fun x => by simp only [toVec₂]; ring_nf, ?_⟩
   intro α _ _ σ _ M read side C
   dsimp only
-  intro hI hx hy D _
+  intro hI hx D _
+  have hy : C.harvestRate = C.disagreementRate / 2 := rfl
   simp only [level2Region, Set.mem_ofPred_eq] at hx
   obtain ⟨-, -, hδ, hδ2, hε0, hε1⟩ := hx
   refine Level2.level2RoundCorrect_holds M read side C _ hI (by rw [hy]; positivity)
@@ -877,9 +878,10 @@ theorem level3Claim_holds : Level3Claim := by
     transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf, ?_⟩
   intro α _ _ σ _ M side U Ω _ μ _ R P C p₀
   dsimp only
-  intro hx hyε hP hpre
+  intro hx hP hpre
   simp only [levelRegion, Set.mem_ofPred_eq] at hx
   obtain ⟨-, -, hδ, hδ2, hε0, hε, hL⟩ := hx
+  have hyε : C.harvestRate = C.disagreementRate / 48 := rfl
   have hy : 0 < C.harvestRate := by rw [hyε]; positivity
   simp only [toVec] at hP ⊢
   have hp₀ : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
@@ -902,9 +904,10 @@ theorem level4Claim_holds : Level4Claim := by
     fun x => ⟨(tol_pos _).1, (tol_pos _).2.2⟩, ?_⟩
   intro α _ _ σ _ M side U εw Ω _ μ _ R P C p₀
   dsimp only
-  intro hx hyε hP hpre hp₀ hεw0 hεw
+  intro hx hP hpre hp₀ hεw0 hεw
   simp only [levelRegion, Set.mem_ofPred_eq] at hx
   obtain ⟨-, -, hδ, hδ2, hε0, hε, hL⟩ := hx
+  have hyε : C.harvestRate = C.disagreementRate / 48 := rfl
   have hy : 0 < C.harvestRate := by rw [hyε]; positivity
   simp only [toVec, lvShift, ← Nat.cast_add] at hP hp₀ hεw ⊢
   have hδ1 : C.δ < 1 := by linarith
@@ -932,9 +935,10 @@ theorem level5Claim_holds : Level5Claim := by
     fun x => ⟨(tol_pos _).1, (tol_pos _).2.1⟩, ?_⟩
   intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
   dsimp only
-  intro hx hyε hP hpre hp₀ hκ0 hκ
+  intro hx hP hpre hp₀ hκ0 hκ
   simp only [levelRegion, Set.mem_ofPred_eq] at hx
   obtain ⟨-, -, hδ, hδ2, hε0, hε, hL⟩ := hx
+  have hyε : C.harvestRate = C.disagreementRate / 48 := rfl
   have hy : 0 < C.harvestRate := by rw [hyε]; positivity
   simp only [toVec, lvShift, ← Nat.cast_add] at hP hp₀ hκ ⊢
   have hδ1 : C.δ < 1 := by linarith
