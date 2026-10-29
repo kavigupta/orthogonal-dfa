@@ -179,23 +179,37 @@ def _ensure_target(args: Tuple[Path, int, int]) -> str:
 
 def _run_result(args: Tuple[Path, int, int, float, int]) -> str:
     data_dir, size, index, eta, seed = args
-    target = load_target(data_dir, size, index)
-    counting = _CountingDFAOracle(target)
-    recorder = _RoundRecorder(counting)
-    cell = run_elstar_cell(
-        lambda noise_model, s: NoisyOracle(counting, noise_model, s),
+    return run_and_write(
+        load_target(data_dir, size, index),
+        result_path(data_dir, size, index, eta, seed),
         benchmark=target_name(size, index),
         family=FAMILY,
         eta=eta,
         seed=seed,
-        symbols=ALPHABET_SIZE,
-        words=eval_words(ALPHABET_SIZE),
+    )
+
+
+def run_and_write(
+    target: DFA, path: Path, *, benchmark: str, family: str, eta: float, seed: int
+) -> str:
+    """E-L* on ``target``, its result written to ``path``; a line to log."""
+    alphabet_size = len(target.input_symbols)
+    counting = _CountingDFAOracle(target)
+    recorder = _RoundRecorder(counting)
+    cell = run_elstar_cell(
+        lambda noise_model, s: NoisyOracle(counting, noise_model, s),
+        benchmark=benchmark,
+        family=family,
+        eta=eta,
+        seed=seed,
+        symbols=alphabet_size,
+        words=eval_words(alphabet_size),
         truth=target.accepts_input,
-        target_states=size,
+        target_states=len(target.states),
         tracker=recorder,
     )
     write_json(
-        result_path(data_dir, size, index, eta, seed),
+        path,
         {
             "schema_version": RESULT_SCHEMA_VERSION,
             **asdict(cell),
