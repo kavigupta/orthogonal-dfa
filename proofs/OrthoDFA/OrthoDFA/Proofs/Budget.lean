@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.Nearest
 import OrthoDFA.Proofs.Correct
+import OrthoDFA.Proofs.BandKappa
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -1103,6 +1104,40 @@ lemma rejCountMin_le {J : Type*} [Fintype J] (populations : Finset J)
     linarith
   linarith
 
+/-- A vote over a family no larger than a rung's own reads its rarer decided side at most `κ`
+times as often as undecided, whatever its two rates, for any `κ` with `crossLimit ≤ κ⁴`. -/
+theorem kappa_of_mem_schedule {η₀ indecisionLimit εcov εs δ α pAP crossLimit κ p r : ℝ}
+    {populations : Finset J} {B : State} (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hcross : 0 < crossLimit) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (N : ℕ) (hN : N + 1 ≤ B.k) (hκ : 0 ≤ κ) (hcκ : crossLimit ≤ κ ^ 4)
+    (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
+    RarerBounded N B.lo (B.hi + 1) p r κ := by
+  obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hB
+  have hκ4 := famCount_kappa (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    (δ := δ) η₀ populations hη0 hη₀ hcross hε hind
+  have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
+  have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ hη₀
+  set κc : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκc
+  obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
+  have hb0 : (0 : ℝ) ≤ bandAt η₀ κc := Nat.cast_nonneg _
+  have hκ2 : ((κc / 2 : ℕ) : ℝ) = (κc : ℝ) / 2 := by
+    obtain ⟨m, hm⟩ := hev
+    rw [hm, show (m + m) / 2 = m by omega]; push_cast; ring
+  have hlo2 : loAt η₀ κc < κc / 2 := by
+    have : (loAt η₀ κc : ℝ) < ((κc / 2 : ℕ) : ℝ) := by rw [hκ2, hlo]; linarith
+    exact_mod_cast this
+  have hhi2 : κc / 2 < hiAt η₀ κc + 1 := by
+    have : ((κc / 2 : ℕ) : ℝ) < ((hiAt η₀ κc + 1 : ℕ) : ℝ) := by push_cast; rw [hκ2, hhi]; linarith
+    exact_mod_cast this
+  have hκ1 : bandKappa κc (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ κ :=
+    le_of_pow_le_pow_left₀ (by norm_num : (4 : ℕ) ≠ 0) hκ (hκ4.trans hcκ)
+  rw [hBlo, hBhi]
+  exact (bandKappaBound_holds N κc _ _ _ p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _) hp0 hp1
+    hr0 hr1).mono hκ1 hp0 hp1 hr0 hr1
+
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and the collision caps it names as the
 witnesses, `prefCount_le_poly` for the prefix count, `validCount_le` for the lowest rung, and
@@ -1151,7 +1186,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have hs : 0 < 1 / 2 - η₀ := by linarith
     refine ⟨{⟨0, 0, 0, 0, 0, 0, 0⟩}, fun B hB => ?_,
       ⟨⟨0, 0, 0, 0, 0, 0, 0⟩, Finset.mem_singleton_self _, ?_⟩, fun B hB => ?_,
-      fun B hB F hF => ?_, ?_⟩
+      fun B hB F hF => ?_, fun B hB N hN => ?_, ?_⟩
     · rw [Finset.mem_singleton.1 hB]
       simp only [Nat.cast_zero, mul_zero, zero_div, Real.log_zero, zero_add]
       have : (0 : ℝ) ≤ 2 ^ 11 * (hz : ℝ) / rateScale η₀ indecisionLimit εcov := by positivity
@@ -1163,6 +1198,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       constructor <;> positivity
     · rw [Finset.mem_singleton.1 hB] at hF
       simp at hF
+    · rw [Finset.mem_singleton.1 hB] at hN
+      simp at hN
     · intro D Dsf hD hDsf _ _ hpAPBound
       exact absurd (le_trans hpAPBound measureReal_le_one) hpAP1
   set ρ₀ : ℝ := collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz with hρ₀
@@ -1190,7 +1227,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   simp only [budgetLog, hscaleEq, sig] at hpoly'
   refine ⟨stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz ρ₀,
     ?_, ?_, ?_, fun B hB => cross_of_mem_schedule O hη0 hη₀ hζ
-      (Finset.mem_of_mem_filter _ hB), ?_⟩
+      (Finset.mem_of_mem_filter _ hB),
+    fun B hB N hN κ p r hκ hcκ hp0 hp1 hr0 hr1 => kappa_of_mem_schedule hη0 hη₀ hζ hεcov hindLim
+      (Finset.mem_of_mem_filter _ hB) N hN hκ hcκ hp0 hp1 hr0 hr1, ?_⟩
   · -- Every rung's count is the top one halved, and the top one is what `budgetCap` bounds.
     intro B hB
     have hsched : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz :=

@@ -15,12 +15,14 @@ population's atoms may be, appears as the largest the claim tolerates, its recip
 Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
-  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
-  limit, and no strings harvested, the band width, suffix pool and prefix count of every state it
-  stops at, and the atom and collision masses its populations must stay under; it fails with
-  chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
-  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
-  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
+  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit, the band's cross limit
+  `κ⁴`, and no strings harvested, the band width, suffix pool and prefix count of every state it
+  stops at, and the atom and collision masses its populations must stay under; every state's band
+  reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
+  with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
+  `ClusteringClaimSimple` bounds each by a single product, e.g. the band width by
+  `O(log(1/(εcov ε_u κ s₀))/s₀²)` and the prefix count by
+  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
   `O(|Q|²|Σ| ε/(ε − y)² · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
@@ -70,6 +72,8 @@ this (`parity_toggle`, #438).
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov + εs` of the uniform pool as the noiseless oracle does, at a
   polynomial number of queries; `εs` is what the samplers' redraws and the hash's split may cost.
+  Every state's band reads its rarer decided side at most `κ` times as often as undecided, for
+  any `κ` with `crossLimit ≤ κ⁴`.
   The samplers draw without replacement, and a draw lands on what a
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame

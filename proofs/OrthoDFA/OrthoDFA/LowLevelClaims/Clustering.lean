@@ -1,4 +1,5 @@
 import OrthoDFA.Code.Clustering
+import OrthoDFA.LowLevelClaims.FamilyRead
 
 /-! The guarantee of the clustering model in `Code/Clustering.lean`: `ClusteringGuarantee`. -/
 
@@ -62,7 +63,8 @@ and what makes a state's samplers rarely reject many of its draws, so a stop is 
 there; the first count is what the loop may need before a round passes.  Every state's band is
 wide enough that a vote over a family no larger than its own, whose mean lies above the band,
 lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`, at most
-`crossLimit` of the time.
+`crossLimit` of the time; and whatever its two rates, such a vote reads its rarer decided side at
+most `κ` times as often as undecided, for any `κ` with `crossLimit ≤ κ⁴`.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
 the one population every prefix of the learner's distribution is drawn from.  `εs` is the slack
@@ -126,6 +128,8 @@ def ClusteringGuarantee : Prop :=
     (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
       (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
       ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+    (∀ B ∈ states, ∀ N, N + 1 ≤ B.k → ∀ κ p r : ℝ, 0 ≤ κ → crossLimit ≤ κ ^ 4 →
+      0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 → RarerBounded N B.lo (B.hi + 1) p r κ) ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
