@@ -4,8 +4,8 @@ E-L* on `luhn_dfa`, the checksum credit card numbers satisfy.
     python -m orthogonal_dfa.experiments.luhn.run --processes 4
     python -m orthogonal_dfa.experiments.luhn.analyze
 
-Results are cached as in `random_minimal.run`, one JSON file per (eta, seed)
-under ``data/luhn``.
+Results are cached as in `random_minimal.run`, one JSON file per (sample
+length, eta, seed) under ``data/luhn``.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ from orthogonal_dfa.experiments.random_minimal.run import (
 )
 from orthogonal_dfa.l_star.examples.luhn import luhn_dfa
 
+# every sampled string is a 16-digit number, as a credit card number is
+SAMPLE_LENGTH = 16
 ETAS = [0.3]
 SEEDS = list(range(5))
 DATA_DIR = REPO_ROOT / "data" / "luhn"
@@ -29,7 +31,8 @@ FAMILY = "luhn"
 
 
 def result_path(data_dir: Path, eta: float, seed: int) -> Path:
-    return data_dir / "results" / f"luhn_eta{eta:.2f}_seed{seed}.json"
+    name = f"luhn_len{SAMPLE_LENGTH}_eta{eta:.2f}_seed{seed}.json"
+    return data_dir / "results" / name
 
 
 def _run_result(args: Tuple[Path, float, int]) -> str:
@@ -41,6 +44,7 @@ def _run_result(args: Tuple[Path, float, int]) -> str:
         family=FAMILY,
         eta=eta,
         seed=seed,
+        sample_length=SAMPLE_LENGTH,
     )
 
 

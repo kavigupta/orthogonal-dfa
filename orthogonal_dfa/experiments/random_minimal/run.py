@@ -186,11 +186,19 @@ def _run_result(args: Tuple[Path, int, int, float, int]) -> str:
         family=FAMILY,
         eta=eta,
         seed=seed,
+        sample_length=DEFAULT_SAMPLE_LENGTH,
     )
 
 
 def run_and_write(
-    target: DFA, path: Path, *, benchmark: str, family: str, eta: float, seed: int
+    target: DFA,
+    path: Path,
+    *,
+    benchmark: str,
+    family: str,
+    eta: float,
+    seed: int,
+    sample_length: int,
 ) -> str:
     """E-L* on ``target``, its result written to ``path``; a line to log."""
     alphabet_size = len(target.input_symbols)
@@ -205,6 +213,7 @@ def run_and_write(
         symbols=alphabet_size,
         words=eval_words(alphabet_size),
         truth=target.accepts_input,
+        sample_length=sample_length,
         target_states=len(target.states),
         tracker=recorder,
     )
@@ -213,7 +222,7 @@ def run_and_write(
         {
             "schema_version": RESULT_SCHEMA_VERSION,
             **asdict(cell),
-            "target": target_metrics(target, length=DEFAULT_SAMPLE_LENGTH),
+            "target": target_metrics(target, length=sample_length),
             "rounds": recorder.rounds,
             "chosen_round": recorder.chosen_round,
         },

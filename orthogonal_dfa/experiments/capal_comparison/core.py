@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
 #: Bump when the emitted record shape changes incompatibly.
@@ -318,6 +319,7 @@ def run_elstar_cell(
     symbols: int,
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
+    sample_length: int,
     target_states: Optional[int] = None,
     min_suffix_frequency: float = DEFAULT_MIN_SUFFIX_FREQUENCY,
     timeout: int = CELL_TIMEOUT_SECONDS,
@@ -338,6 +340,7 @@ def run_elstar_cell(
         learner_config={
             "min_signal_strength": signal_strength,
             "min_suffix_frequency": min_suffix_frequency,
+            "sample_length": sample_length,
         },
         equivalence_queries=0,
     )
@@ -373,6 +376,7 @@ def run_elstar_cell(
                 min_signal_strength=signal_strength,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
+                sampler=UniformSampler(sample_length),
                 tracker=tracker,
             )
     except CellTimeout:
