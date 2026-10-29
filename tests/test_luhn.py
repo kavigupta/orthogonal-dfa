@@ -1,6 +1,7 @@
 import itertools
 import unittest
 
+from orthogonal_dfa.experiments.luhn.analyze import EXAMPLE_COUNTS, example_rows
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.luhn import luhn_dfa, luhn_valid
 
@@ -24,6 +25,13 @@ class TestLuhn(unittest.TestCase):
         # accept states {a = 0} onto {b = const}
         self.assertTrue(P.satisfies_preconditions(luhn_dfa(), length=40))
         self.assertFalse(P.satisfies_preconditions(luhn_dfa(), length=39))
+
+    def test_example_rows(self):
+        rows = example_rows(0.3, seed=0)
+        self.assertEqual(len(rows), sum(EXAMPLE_COUNTS.values()))
+        for x, truth, _ in rows:
+            self.assertEqual(len(x), 16)
+            self.assertEqual(truth, int(luhn_valid([int(d) for d in x])))
 
 
 if __name__ == "__main__":
