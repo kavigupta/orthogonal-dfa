@@ -31,3 +31,6 @@ These scripts use the len40 oracle (`length=40`, `len_lo=35`, `len_hi=85`) from
 `gate_composition_residual_len40.py`, the version of `gate_composition_residual.py`
 #501's runs were fitted with; main's version is fitted around the default exon's query
 length (189) and rejects that band.
+
+`SAWTOOTH_COUNTING.md` records what the current learner finds on the old oracle
+(`gate_residual_oracle`): DFAs that count wildcards modulo 2 or 3.
