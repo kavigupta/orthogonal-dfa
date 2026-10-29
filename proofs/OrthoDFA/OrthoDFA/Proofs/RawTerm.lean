@@ -370,7 +370,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (runMeasure μ D Dsf).real
         ({x | streams H uni x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α
           B j} \ streams H uni ⁻¹' nearBad O populations B Δ a)
-      ≤ namedFail l lcut E tap ρ ρsf t L θ r rs G B := by
+      ≤ namedFail l lcut E tap pAP ρ ρsf t L θ r rs G B := by
   classical
   have hsig : O.η ≤ 1 / 2 := by linarith [hηle]
   have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρu 1)
@@ -415,7 +415,8 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B kk kk) (fun g =>
       measureReal_stalled_nearest_le O populations _ _ Dsf B (by omega) hscreen hpool.le ρsf rs
         hρsf hρsf0)
-  have bn : (runMeasure μ D Dsf).real (Y ⁻¹' En) ≤ Real.exp (-2 * (M : ℝ) * tap ^ 2) :=
+  have bn : (runMeasure μ D Dsf).real (Y ⁻¹' En)
+      ≤ Real.exp (-((M : ℝ) * (tap ^ 2 / (2 * pAP)))) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_apShort O M pAP tap)
       (fun g => measureReal_apShort_le _ _ Dsf O M pAP tap hpAP0 htap hpAPBound)
   have bc1 : (runMeasure μ D Dsf).real Ec1 ≤ ((M : ℝ) + 1) * Real.exp (-L) := by
@@ -602,7 +603,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     · exact Or.inr h
   have huniB : ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit
         εcov α B uni} \ Y ⁻¹' N)
-      ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B := by
+      ≤ roundFail populations l lcut th E L tap pAP ρ (collisionMass Dsf) t r rs B := by
     refine le_trans (measureReal_mono hsubU (measure_ne_top _ _)) ?_
     refine runMeasure_streams_le H uni D Dsf U hUm (fun g' => ?_)
     set Pp := sideLawT H uni D g'
@@ -634,17 +635,17 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   have hnamedB : ∀ j ∈ populations, j ≠ uni →
       ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
           \ Y ⁻¹' N)
-        ≤ namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B := fun j hj hju =>
+        ≤ namedFail l lcut E tap pAP ρ (collisionMass Dsf) t L θ r rs G B := fun j hj hju =>
     measureReal_named_le hflat O populations uni huni H D Dsf hsupp hH hsuppSf j hj hju B hN2
       hηle hη₀ εcov α hαpos (by linarith) l lcut f E Δ t L θ tap pAP a ρ
       (collisionMass Dsf) r rs G hE0 (by linarith) (by rw [hl]; exact hlcl) (by linarith) hl2 hf0
       hΔ hL hθ hlohi ht hkpos hpool hgate hszG hheavyN htap hpAP0 hpAPBound' hscreen ha hρu
       hρsf' hρsf0 hdec hcut
   -- every population
-  have hRF0 : 0 ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B :=
-    roundFail_nonneg populations _ _ _ _ _ _ ρ _ t r rs B hρ0 hρsf0
-  have hNF0 : 0 ≤ namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B :=
-    namedFail_nonneg _ _ _ _ ρ _ t L θ r rs G B hρ0 hρsf0
+  have hRF0 : 0 ≤ roundFail populations l lcut th E L tap pAP ρ (collisionMass Dsf) t r rs B :=
+    roundFail_nonneg populations _ _ _ _ _ _ _ ρ _ t r rs B hρ0 hρsf0
+  have hNF0 : 0 ≤ namedFail l lcut E tap pAP ρ (collisionMass Dsf) t L θ r rs G B :=
+    namedFail_nonneg _ _ _ _ _ ρ _ t L θ r rs G B hρ0 hρsf0
   have hsub : {x : Draws Ω S J | ∀ B' : {B : State // B ∈ stoppable η₀ populations
           indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
         Y x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B'.val}
@@ -666,8 +667,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   have hper : ∀ j ∈ populations,
       ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
           \ Y ⁻¹' N)
-        ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B
-          + namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B := by
+        ≤ roundFail populations l lcut th E L tap pAP ρ (collisionMass Dsf) t r rs B
+          + namedFail l lcut E tap pAP ρ (collisionMass Dsf) t L θ r rs G B := by
     intro j hj
     by_cases hju : j = uni
     · rw [hju]; linarith [huniB]

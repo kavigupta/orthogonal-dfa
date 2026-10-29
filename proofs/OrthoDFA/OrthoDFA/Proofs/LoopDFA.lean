@@ -236,7 +236,7 @@ lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s 
     (hcL : 0 ≤ cL) :
     0 ≤ 161000 * (Q + 2) ^ 2 * Real.log ((Q + 2 + 2)
         * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
-        + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2)
+        + 120 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP)
         / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / (s ^ 4 * τ ^ 2) := by
   have hm0 : 0 ≤ max (Real.log (20 / τ)) cL := le_max_of_le_right hcL
   have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) cL / s ^ 2 :=
@@ -245,7 +245,7 @@ lemma rb_nonneg {Q s pAP δ' τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s 
   have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP := by
     rw [le_div_iff₀ hp]
     linarith
-  have h2 : 0 ≤ 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := by
+  have h2 : 0 ≤ 120 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP := by
     refine div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg ?_)) (by positivity)
     rw [le_div_iff₀ (by positivity)]
     linarith
@@ -360,7 +360,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+      + 120 * Real.log ((J + 2) / (δ' / 2)) / pAP
     let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -528,7 +528,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; show _ ≤ Q + 2 + 2; linarith)
     have h1 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 := by positivity
     show 0 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+      + 120 * Real.log ((J + 2) / (δ' / 2)) / pAP
     positivity
   refine ⟨settings, hwalk, hdis, hbud, fun draws => ?_, ?_⟩
   · obtain ⟨hpr, hsu⟩ := loop_reads_le settings O (windowLaw D k L₁) (prefixLaw D Ls) draws _ _
@@ -833,7 +833,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set W₀ : ℝ := loopW₀ Q A δ with hW₀d
   set P₀ : ℝ :=
     (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2 with hP₀d
+    + 120 * Real.log ((Q + 4) / (δ' / 2)) / pAP with hP₀d
   set R₀ : ℝ := 161000 * (Q + 2) ^ 2 * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4 with hR₀d
   set E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
@@ -852,7 +852,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1 with hWd
   set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2 with hPBd
+    + 120 * Real.log ((J + 2) / (δ' / 2)) / pAP with hPBd
   set RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2) with hRBd
   set cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -903,7 +903,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     hδ'0 hδ'1 hs0 hs1 hpAP hp1
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hQ0 hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
   have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 64 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP ^ 2 := rfl
+      + 120 * Real.log ((Q + 2 + 2) / (δ' / 2)) / pAP := rfl
   obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hτ0 hτ1 hinvτ hΘ1 hℓ1
     (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
   have hR₀ : 0 ≤ R₀ := by

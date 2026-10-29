@@ -162,7 +162,7 @@ theorem poolCount_ge (populations : Finset J) (η indecisionLimit εcov δ pAP c
     linarith only [Nat.le_ceil (2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
         + 1) / pAP),
       (Nat.cast_nonneg _ : (0 : ℝ)
-        ≤ (⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊ : ℝ))]
+        ≤ (⌈800 * Real.log (128 * (populations.card : ℝ) / δ) / (81 * pAP)⌉₊ : ℝ))]
   have hdiv : 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
       ≤ 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP := by
     rw [le_div_iff₀ hpAP]
@@ -212,7 +212,7 @@ theorem prefCount_le_poly (populations : Finset J)
     linarith [Nat.le_ceil (2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
         + 1) / pAP),
       Nat.cast_nonneg (α := ℝ)
-        ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊]
+        ⌈800 * Real.log (128 * (populations.card : ℝ) / δ) / (81 * pAP)⌉₊]
   have hcl2 : cleanLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2
       ≤ max 0 (Real.log (16
         * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) / δ)) / 2 := by
@@ -904,7 +904,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   linarith only [hle, hmax, hcS, e1, e2]
 
 omit [Fintype J] in
-/-- The suffix pool: the family over `pAP`, and the findability tail over `pAP²`. -/
+/-- The suffix pool: the family and the findability tail, each over `pAP`. -/
 theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
     (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
@@ -912,7 +912,7 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
     (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
       ≤ 2 * (25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
             (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7) / pAP
-        + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2 := by
+        + 60 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP := by
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   set c : ℝ := (populations.card : ℝ) with hcdef
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
@@ -925,15 +925,9 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
       ≤ 2 * P / pAP := div_le_div_of_nonneg_right (by linarith only [hf]) hpAP.le
   -- `H = log ((c+2)/δ)` is at least `log 3`
   set H : ℝ := Real.log ((c + 2) / δ) with hHdef
-  have hl2 := half_le_log_two
   have hH3 : Real.log 3 ≤ H :=
     Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hδ]; linarith only [hc1, hδ1])
-  have hH2 : Real.log 2 ≤ H := le_trans (Real.log_le_log (by norm_num) (by norm_num)) hH3
-  have hp2pos : (0 : ℝ) < pAP ^ 2 := pow_pos hpAP 2
-  set R : ℝ := H / pAP ^ 2 with hRdef
-  have hRhalf : 1 / 2 ≤ R := by
-    rw [hRdef, le_div_iff₀ hp2pos]
-    linarith only [pow_le_one₀ hpAP.le hpAP1 (n := 2), hH2, hl2]
+  set R : ℝ := H / pAP with hRdef
   -- the findability tail, read at `9pAP/20`: `log 128 = 7 log 2`, and `H ≥ log 3 ≥ (3/2) log 2`
   have hl2' := Real.log_two_gt_d9
   have hlog3 : 3 / 2 * Real.log 2 ≤ Real.log 3 := by
@@ -951,35 +945,32 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
           (div_nonneg hcpos.le hδ.le) (by norm_num))
     rw [Real.log_mul (by norm_num) (by positivity), Real.log_pow, Nat.cast_ofNat] at h1
     linarith only [h1]
-  have hC : Real.log (128 * c / δ) / (2 * (9 * pAP / 20) ^ 2) + 2 ≤ 16 * R := by
-    have hpAP2 : pAP ^ 2 ≤ 1 := pow_le_one₀ hpAP.le hpAP1
-    have hR2 : 2 ≤ 2 / pAP ^ 2 := by
-      rw [le_div_iff₀ hp2pos]; linarith only [hpAP2]
-    have e : Real.log (128 * c / δ) / (2 * (9 * pAP / 20) ^ 2)
-        = 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 := by
-      field_simp
-      ring
+  have hC : 800 * Real.log (128 * c / δ) / (81 * pAP) + 2 ≤ 60 * R := by
+    have hR2 : 2 ≤ 2 / pAP := by
+      rw [le_div_iff₀ hpAP]; linarith only [hpAP1]
+    have e : 800 * Real.log (128 * c / δ) / (81 * pAP)
+        = 800 / 81 * Real.log (128 * c / δ) / pAP := by ring
     rw [e, hRdef]
-    have key : 200 / 81 * Real.log (128 * c / δ) + 2 ≤ 16 * H := by
+    have key : 800 / 81 * Real.log (128 * c / δ) + 2 ≤ 60 * H := by
       linarith only [hlog128', hH3, hlog3, hl2']
-    have key' : 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2 / pAP ^ 2 ≤ 16 * H / pAP ^ 2 := by
+    have key' : 800 / 81 * Real.log (128 * c / δ) / pAP + 2 / pAP ≤ 60 * H / pAP := by
       rw [← add_div]
-      exact div_le_div_of_nonneg_right key hp2pos.le
-    calc 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2
-        ≤ 200 / 81 * Real.log (128 * c / δ) / pAP ^ 2 + 2 / pAP ^ 2 := by linarith only [hR2]
-      _ ≤ 16 * H / pAP ^ 2 := key'
-      _ = 16 * (H / pAP ^ 2) := by ring
+      exact div_le_div_of_nonneg_right key hpAP.le
+    calc 800 / 81 * Real.log (128 * c / δ) / pAP + 2
+        ≤ 800 / 81 * Real.log (128 * c / δ) / pAP + 2 / pAP := by linarith only [hR2]
+      _ ≤ 60 * H / pAP := key'
+      _ = 60 * (H / pAP) := by ring
   have h1 := ceil_le_of_le hA (div_nonneg (by linarith only [hPnn]) hpAP.le)
-  have h2 := Nat.ceil_lt_add_one (show (0 : ℝ) ≤ Real.log (128 * c / δ)
-    / (2 * (9 * pAP / 20) ^ 2) from div_nonneg (Real.log_nonneg (by
-      rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1])) (by positivity))
+  have h2 := Nat.ceil_lt_add_one (show (0 : ℝ) ≤ 800 * Real.log (128 * c / δ)
+    / (81 * pAP) from div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
+      rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1]))) (by positivity))
   have hpoolval : (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
       = (⌈2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP⌉₊ : ℝ)
-        + (⌈Real.log (128 * c / δ) / (2 * (9 * pAP / 20) ^ 2)⌉₊ : ℝ) := by
+        + (⌈800 * Real.log (128 * c / δ) / (81 * pAP)⌉₊ : ℝ) := by
     rw [hcdef, poolCount]
     push_cast
     ring
-  rw [hpoolval, mul_div_assoc 16]
+  rw [hpoolval, mul_div_assoc 60]
   linarith only [h1, h2, hC]
 
 /-- The statement's three prefix hypotheses at the top rung are the collision cap. -/

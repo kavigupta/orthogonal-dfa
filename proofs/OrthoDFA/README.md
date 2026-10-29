@@ -21,8 +21,8 @@ Each claim is proved from the explicit theorems below.
   reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
   `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)` and the suffix
-  pool `O(ℓ_conf/(pAP s₀²) + log(nJ/δ)/pAP²)`. `ClusteringClaimSimple` bounds each by a single
-  product, e.g. the suffix pool by `O((ℓ_conf + log(nJ/δ))/(pAP² s₀²))` and the prefix count by
+  pool `O(ℓ_conf/(pAP s₀²) + log(nJ/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
+  product, e.g. the suffix pool by `O((ℓ_conf + log(nJ/δ))/(pAP s₀²))` and the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
   harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
@@ -43,10 +43,10 @@ Each claim is proved from the explicit theorems below.
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
   `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹⁴R⁴ log²(|Q|R/(β δ ξ pAP s₀))
-  /(β⁴ δ ξ⁴ pAP³ s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
+  /(β⁴ δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
   `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
   suffix and probe the whole run reads is bounded: `O(|Q|⁶(L + |Q|)²R² log(X')/(β² ξ²) ·
-  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and
+  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
   `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
   is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
   totals grow with `L` because the settings the proof picks hold each round's disagreement rate
@@ -56,10 +56,10 @@ Each claim is proved from the explicit theorems below.
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
   s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁶(L + |Q|)²|Σ|²R²
-  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))`
+  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP))`
   suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
   `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
+  suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
 
 ## The explicit theorems
 
