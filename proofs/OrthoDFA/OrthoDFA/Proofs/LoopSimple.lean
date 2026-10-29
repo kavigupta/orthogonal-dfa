@@ -23,7 +23,7 @@ open MeasureTheory
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
   2 * (25 * max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog / (8 * (1 / 2 - η₀) ^ 2)
       + 5 / (1 / 2 - η₀) + 7) / pAP
-    + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
+    + 16 * Real.log (3 / (δ / 2)) / pAP ^ 2
 
 /-- A bound on the prefix count. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
@@ -59,16 +59,13 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     with hpref
   -- the pool
   have hpoolB : pool ≤ PB := by
-    have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hpop hδ2
+    have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hδ2
       hδ21 hpAP hpAP1 hcross hcross1
     rw [hsig', hτ'] at h
     have e : Real.log (1 / Real.exp (-cLog)) = cLog := by
       rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
     rw [e] at h
-    refine h.trans (add_le_add le_rfl ?_)
-    refine div_le_div_of_nonneg_right ?_ (by positivity)
-    refine mul_le_mul_of_nonneg_left (Real.log_le_log (by positivity) ?_) (by norm_num)
-    exact div_le_div_of_nonneg_right (by linarith) hδ2.le
+    exact h
   -- the prefix count
   have hlogarg : 1 ≤ ((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ) := by
     have hpool256 : (64 : ℝ) ≤ pool :=
@@ -260,7 +257,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+      + 64 * Real.log (3 / (δ' / 2)) / pAP ^ 2
     let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -363,7 +360,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
     show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+      + 64 * Real.log (3 / (δ' / 2)) / pAP ^ 2
     unfold capPB
     rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
     field_simp
