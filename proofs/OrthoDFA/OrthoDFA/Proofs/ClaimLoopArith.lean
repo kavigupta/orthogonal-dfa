@@ -42,12 +42,12 @@ lemma loopPool_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
       = (50 * (max (log (20 * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is)))
           (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) + 2 * log ℓ) * is ^ 2
           + 20 * is + 28) * ip
-        + 120 * log (16 * (Q + 4) * (Q + 1) * iδ) * ip := by
+        + 120 * log (48 * (Q + 1) * iδ) * ip := by
   unfold loopPool
   dsimp only
   rw [sub_sub_cancel, show 8 * loopW₀ Q A (1 / iδ) / (1 / iδ / (8 * (Q + 1)))
     = 8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ) by field_simp,
-    show (Q + 4) / (1 / iδ / (8 * (Q + 1)) / 2) = 16 * (Q + 4) * (Q + 1) * iδ by field_simp; ring]
+    show 3 / (1 / iδ / (8 * (Q + 1)) / 2) = 48 * (Q + 1) * iδ by field_simp; ring]
   field_simp
 
 lemma loopCount_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
@@ -171,9 +171,9 @@ lemma loopPool_ge {ℓ Q A Ae iδ ic iξ ip is : ℝ} (hℓ : 1 ≤ ℓ) (hQ : 1
   have hm : 0 ≤ max (log (20 * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is)))
       (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) := le_max_of_le_left h1
   have h2 : 0 ≤ log ℓ := Real.log_nonneg hℓ
-  have h3 : 0 ≤ log (16 * (Q + 4) * (Q + 1) * iδ) :=
+  have h3 : 0 ≤ log (48 * (Q + 1) * iδ) :=
     Real.log_nonneg (one_le_mul_of_one_le_of_one_le (by nlinarith) hiδ)
-  have h4 : 0 ≤ 120 * log (16 * (Q + 4) * (Q + 1) * iδ) * ip := by positivity
+  have h4 : 0 ≤ 120 * log (48 * (Q + 1) * iδ) * ip := by positivity
   have h5 : 0 ≤ (50 * (max (log (20 * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is)))
       (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) + 2 * log ℓ) * is ^ 2 + 20 * is) :=
     by positivity
@@ -202,10 +202,12 @@ lemma loopPool_le_pow {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (
     refine max_le ?_ ?_ <;> nlinarith
   have hl : log ℓ ≤ X ^ 13 :=
     (Real.log_le_self (by linarith)).trans (hℓX.trans (le_self_pow₀ hX (by norm_num)))
-  have hl2 : log (16 * (Q + 4) * (Q + 1) * iδ) ≤ 16 * (5 * X) * (2 * X) * X := by
+  have hl2 : log (48 * (Q + 1) * iδ) ≤ 16 * (5 * X) * (2 * X) * X := by
     refine (Real.log_le_self (by positivity)).trans ?_
-    gcongr <;> linarith
-  have hlp : 0 ≤ log (16 * (Q + 4) * (Q + 1) * iδ) :=
+    have : 48 * (Q + 1) * iδ ≤ 48 * (2 * X) * X := by gcongr <;> linarith
+    have : 96 * X ^ 2 ≤ 160 * X ^ 3 := by nlinarith [mul_le_mul_of_nonneg_left hX (sq_nonneg X)]
+    nlinarith
+  have hlp : 0 ≤ log (48 * (Q + 1) * iδ) :=
     Real.log_nonneg (one_le_mul_of_one_le_of_one_le (by nlinarith) hiδ)
   have hm0 : 0 ≤ max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) :=
     le_max_of_le_left (Real.log_nonneg (by linarith))
@@ -218,7 +220,7 @@ lemma loopPool_le_pow {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (
     have h3 : 1 ≤ X ^ 15 := one_le_pow₀ hX
     have e : X ^ 13 * X ^ 2 = X ^ 15 := by ring
     nlinarith
-  have hb2 : 120 * log (16 * (Q + 4) * (Q + 1) * iδ) * ip ≤ 120 * (16 * (5 * X) * (2 * X) * X)
+  have hb2 : 120 * log (48 * (Q + 1) * iδ) * ip ≤ 120 * (16 * (5 * X) * (2 * X) * X)
       * X := by gcongr
   have h5 : X ^ 4 ≤ X ^ 16 := pow_le_pow_right₀ hX (by norm_num)
   have hb0 : 0 ≤ (50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + 2 * log ℓ)
@@ -275,10 +277,10 @@ lemma loopPool_le_log {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (
     have hl := Real.log_two_gt_d9
     nlinarith
   have hQδ : 2 ≤ Q * iδ := by nlinarith
-  have hc : log (16 * (Q + 4) * (Q + 1) * iδ) ≤ 10 * log (Q * iδ) := by
-    have hb : 16 * (Q + 4) * (Q + 1) * iδ ≤ 2 ^ 8 * (Q * iδ) ^ 2 := by
-      have e1 : 16 * (Q + 4) * (Q + 1) ≤ 160 * Q ^ 2 := by nlinarith
-      have e2 : 16 * (Q + 4) * (Q + 1) * iδ ≤ 160 * Q ^ 2 * iδ :=
+  have hc : log (48 * (Q + 1) * iδ) ≤ 10 * log (Q * iδ) := by
+    have hb : 48 * (Q + 1) * iδ ≤ 2 ^ 8 * (Q * iδ) ^ 2 := by
+      have e1 : 48 * (Q + 1) ≤ 160 * Q ^ 2 := by nlinarith
+      have e2 : 48 * (Q + 1) * iδ ≤ 160 * Q ^ 2 * iδ :=
         mul_le_mul_of_nonneg_right e1 (by linarith)
       have e3 : 160 * Q ^ 2 * iδ ≤ 160 * Q ^ 2 * iδ ^ 2 :=
         mul_le_mul_of_nonneg_left (by nlinarith) (by positivity)

@@ -100,7 +100,7 @@ def ClusteringClaim.{u, v, w} : Prop :=
   ∃ k nsuff npref atomTol collTol : ClusterInputs → ℝ,
     k =O[𝓟 clusterRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
     nsuff =O[𝓟 clusterRegion] (fun x =>
-      x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (x.nJ / x.δ) / x.pAP) ∧
+      x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
       x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
           * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
@@ -112,7 +112,7 @@ def ClusteringClaim.{u, v, w} : Prop :=
         + x.nJ / x.δ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
           * (1 / x.ε_s ^ 2 + 1 / x.ε_u ^ 2)) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
-      x.nJ / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (x.nJ / x.δ) / x.pAP)) ∧
+      x.nJ / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
     ClusteringWithin.{u, v, w} k nsuff npref atomTol collTol
 
 open Real in
@@ -121,7 +121,7 @@ def ClusteringClaimSimple.{u, v, w} : Prop :=
   ∃ k nsuff npref atomTol collTol : ClusterInputs → ℝ,
     k =O[𝓟 clusterRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
     nsuff =O[𝓟 clusterRegion] (fun x =>
-      (x.ℓ_conf + log (x.nJ / x.δ)) / (x.pAP * x.s₀ ^ 2)) ∧
+      (x.ℓ_conf + log (1 / x.δ)) / (x.pAP * x.s₀ ^ 2)) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
       x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
         / (x.εcov ^ 2 * x.ε_s * x.ε_u ^ 2 * x.s₀ ^ 8)) ∧
@@ -129,7 +129,7 @@ def ClusteringClaimSimple.{u, v, w} : Prop :=
       x.nJ ^ 3 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
         / (x.δ * x.εcov ^ 3 * x.ε_s ^ 2 * x.ε_u ^ 3 * x.s₀ ^ 11)) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
-      x.nJ * (x.ℓ_conf + log (x.nJ / x.δ)) / (x.δ * x.pAP ^ 2 * x.s₀ ^ 2)) ∧
+      x.nJ * (x.ℓ_conf + log (1 / x.δ)) / (x.δ * x.pAP ^ 2 * x.s₀ ^ 2)) ∧
     ClusteringWithin.{u, v, w} k nsuff npref atomTol collTol
 
 end OrthoDFA

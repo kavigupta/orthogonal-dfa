@@ -21,8 +21,8 @@ Each claim is proved from the explicit theorems below.
   reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
   `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)` and the suffix
-  pool `O(ℓ_conf/(pAP s₀²) + log(nJ/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
-  product, e.g. the suffix pool by `O((ℓ_conf + log(nJ/δ))/(pAP s₀²))` and the prefix count by
+  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
+  product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
   `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
   harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
