@@ -4,6 +4,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.dfa_utils import held_out_phi
+from tests.dfas import PARITY
 
 _PARITY = DFA(
     states={0, 1},
@@ -42,18 +43,11 @@ class TestHeldOutPhi(unittest.TestCase):
 
     def test_a_state_accepts_only_above_the_overall_rate(self):
         # The DFA accepts in state 0, but the fit puts state 1 above the overall rate.
-        dfa = DFA(
-            states={0, 1},
-            input_symbols={0, 1},
-            transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 0}},
-            initial_state=0,
-            final_states={0},
-        )
         fit = _labelled(
             [[0], [0, 0], [0, 0, 0], [1], [1, 0], [0, 1]], [0, 0, 1, 1, 1, 0]
         )
         read = _labelled([[0], [1]], [0, 1])
-        self.assertAlmostEqual(1.0, held_out_phi(dfa, fit, read))
+        self.assertAlmostEqual(1.0, held_out_phi(PARITY, fit, read))
 
 
 if __name__ == "__main__":
