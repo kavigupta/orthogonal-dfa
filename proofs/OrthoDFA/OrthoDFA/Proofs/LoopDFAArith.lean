@@ -67,10 +67,10 @@ lemma dfa_pow {A ℓ E L Q T : ℝ} {k : ℕ} (hA : 2 ≤ A) (hℓ : ℓ = L + Q
 lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hℓ : 1 ≤ ℓ) (hN1 : 1 ≤ N) (hNℓ : N ≤ ℓ) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
     (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
-    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
+    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min (c / (3 * N)) (ξ / (8 * N)))
     (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) (hs : s = 1 / 2 - η₀)
     (hτ : τ = min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι)
-    (haε : aε = 4 * (A + 1) / c) (hCe : Ce = aε + 8 / ξ)
+    (haε : aε = 4 * (A + 1) / c) (hCe : Ce = 3 / c + 8 / ξ)
     (hΘ : Θ = Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε) :
     0 < ε ∧ 1 / ε ≤ aε * ℓ ∧ 0 < ι ∧ 1 / ι ≤ Θ * ℓ ∧ 0 < τ ∧ 1 / τ ≤ Θ * ℓ ∧ 1 ≤ Θ
       ∧ 0 < aε := by
@@ -84,15 +84,20 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
     have e : 4 * (A + 1) / c * ℓ * c = 4 * (A + 1) * ℓ := by field_simp
     rw [e]; exact h1
   have hCe0 : 0 < Ce := by rw [hCe]; positivity
-  have haCe : aε ≤ Ce := by
+  have h3Ce : 3 / c ≤ Ce := by
     have : 0 ≤ 8 / ξ := by positivity
     rw [hCe]; linarith
-  have h8Ce : 8 / ξ ≤ Ce := by rw [hCe]; linarith
-  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min hε0 (by positivity)
+  have h8Ce : 8 / ξ ≤ Ce := by
+    have : 0 ≤ 3 / c := by positivity
+    rw [hCe]; linarith
+  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min (by positivity) (by positivity)
   have hinvεc : 1 / εcov ≤ Ce * ℓ := by
     rw [hεc]
-    rcases min_choice ε (ξ / (8 * N)) with h | h <;> rw [h]
-    · exact hinvε.trans (mul_le_mul_of_nonneg_right haCe (by linarith))
+    rcases min_choice (c / (3 * N)) (ξ / (8 * N)) with h | h <;> rw [h]
+    · rw [one_div_div]
+      calc 3 * N / c ≤ 3 * ℓ / c := by gcongr
+        _ = 3 / c * ℓ := by ring
+        _ ≤ Ce * ℓ := mul_le_mul_of_nonneg_right h3Ce (by linarith)
     · rw [one_div_div]
       calc 8 * N / ξ ≤ 8 * ℓ / ξ := by gcongr
         _ = 8 / ξ * ℓ := by ring
@@ -154,10 +159,8 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θ : ℝ} (h
         _ ≤ Θ * ℓ := mul_le_mul_of_nonneg_right hΘ2 (by linarith)
     · exact hinvι
   have hΘge : 1 ≤ Θ := by
-    have hc4 : c ≤ 4 * (A + 1) := by linarith
-    have h1 : 1 ≤ 4 * (A + 1) / c := (one_le_div hc).2 hc4
-    have hCe1 : 1 ≤ Ce := by
-      rw [hCe, haε]; exact h1.trans (le_add_of_nonneg_right (by positivity))
+    have h1 : 1 ≤ 3 / c := (one_le_div hc).2 (by linarith)
+    have hCe1 : 1 ≤ Ce := h1.trans h3Ce
     calc (1 : ℝ) ≤ 8 * Ce := by linarith
       _ ≤ 8 * Ce + 4608 * Q * (Q + 1) * aε := le_add_of_nonneg_right (by positivity)
       _ ≤ Θ := hΘ1
@@ -828,7 +831,7 @@ lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁
 
 /-- `LearnerLoopDFA`'s `Θ`, `A` the rate edges are crossed at. -/
 def loopΘ (Q A c ξ η₀ : ℝ) : ℝ :=
-  (4 * (A + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (4 * (A + 1) / c + 8 / ξ)
+  (3 / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (3 / c + 8 / ξ)
     + 4608 * Q * (Q + 1) * (4 * (A + 1) / c)
 
 /-- `LearnerLoopDFA`'s `W₀`. -/
@@ -900,14 +903,14 @@ lemma loopMassInv_ge_one {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 
     show 1 ≤ 4 * (Ae + 1) / c
     rw [le_div_iff₀ hc]; linarith
   have hΘ1 : 1 ≤ Θ := by
-    show 1 ≤ (4 * (Ae + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (4 * (Ae + 1) / c + 8 / ξ)
+    show 1 ≤ (3 / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + 8 * (3 / c + 8 / ξ)
       + 4608 * Q * (Q + 1) * (4 * (Ae + 1) / c)
-    have h1 : 0 ≤ (4 * (Ae + 1) / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) := by
+    have h1 : 0 ≤ (3 / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) := by
       have : 0 < 1 / 2 - η₀ := by linarith
       positivity
     have h2 : 0 ≤ 4608 * Q * (Q + 1) * (4 * (Ae + 1) / c) := by positivity
     have h3 : 0 ≤ 8 / ξ := by positivity
-    have : 1 ≤ 4 * (Ae + 1) / c := haε
+    have : 1 ≤ 3 / c := by rw [le_div_iff₀ hc]; linarith
     linarith
   have hS1 : 1 ≤ S := by
     show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1

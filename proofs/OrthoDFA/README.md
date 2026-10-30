@@ -46,8 +46,8 @@ Each claim is proved from the explicit theorems below.
   /(β⁴ δ ξ⁴ pAP² s₀¹¹))`, `Y = |Q|R/(β δ ξ pAP s₀)`. The learner's DFA is then right but for
   `γ + ξ`, its start picked on
   `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
-  suffix and probe the whole run reads is bounded: `O(|Q|⁵(L + |Q|)²R² log(X')/(β² ξ²) ·
-  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
+  suffix and probe the whole run reads is bounded: `O(|Q|⁵(L + |Q|)²R² log(X')/ξ² ·
+  (1/s₀⁸ + |Q|⁴/(β² s₀⁴)))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
   `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
   is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
   totals grow with `L` because the settings the proof picks hold each round's disagreement rate
@@ -56,8 +56,8 @@ Each claim is proved from the explicit theorems below.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁵(L + |Q|)²|Σ|²R²
-  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP))`
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁵(L + |Q|)²R²
+  log(X)/ξ² · (1/s₀⁸ + |Σ|²|Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP))`
   suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
   `LoopClaimSimple` bounds the prefixes by `O(|Q|⁹(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
   suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
@@ -185,9 +185,9 @@ so by Chebyshev (`meas_gt_le_of_pairs`) they weigh more than `x/2 + u` with chan
     2 prefixMax · e/((2 − 4e)(u − 2 B₃ prefixMax))
 
 where `2 B₃ prefixMax < u` and `e < 1/2` (`misledTail`), whatever `x`. The clustering, run at
-`εcov = min(ε, ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`). Every
-covered state's edges are then true and it accepts as the target does, so the hypothesis from the
-covered start's true leaf tracks the re-rooted target on every run that stays covered
+`εcov = min(c/(3N), ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`).
+Every covered state's edges are then true and it accepts as the target does, so the hypothesis from
+the covered start's true leaf tracks the re-rooted target on every run that stays covered
 (`classify_start_le`).
 
 The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates on

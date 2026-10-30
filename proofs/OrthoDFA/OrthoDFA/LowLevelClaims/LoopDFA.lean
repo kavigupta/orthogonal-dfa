@@ -131,7 +131,7 @@ def LearnerLoopDFASimple : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (8 * N))
+  let εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -227,7 +227,7 @@ def LearnerLoopDFA : Prop :=
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
   -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
-  let Ce : ℝ := aε + 8 / ξ
+  let Ce : ℝ := 3 / c + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -295,7 +295,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (16 * N))
+  let εcov : ℝ := min (c / (3 * N)) (ξ / (16 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -400,7 +400,7 @@ def LearnerLoopDFARelative : Prop :=
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
   -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
-  let Ce : ℝ := aε + 16 / ξ
+  let Ce : ℝ := 3 / c + 16 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -469,7 +469,7 @@ def LearnerLoopDFADist : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (1 / β + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (8 * N))
+  let εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a

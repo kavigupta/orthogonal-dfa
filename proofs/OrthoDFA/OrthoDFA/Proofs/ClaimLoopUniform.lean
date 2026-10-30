@@ -142,9 +142,9 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 5 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
+    show _ = r.Q ^ 5 * (r.L + r.Q) ^ 2 * r.R ^ 2
       * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-      * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)
+      * (1 / r.s₀ ^ 8 + r.A ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)
     simp only [Function.comp, toDistRun, toDist]
     have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
         = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp

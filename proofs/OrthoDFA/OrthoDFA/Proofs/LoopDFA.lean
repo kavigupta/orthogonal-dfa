@@ -301,20 +301,25 @@ end Select
 /-- The claim's rates, from the coverage `c`. -/
 lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N)
     (hℓ : 0 ≤ ℓ) (hNℓ : ℓ ≤ 2 * N) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
-    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
+    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min (c / (3 * N)) (ξ / (8 * N)))
     (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) :
-    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ ε ∧ 0 < ι ∧ ι ≤ εcov / 8
-      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 3 * εcov * N < c
+    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ 1 ∧ 0 < ι ∧ ι ≤ εcov / 8
+      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 3 * εcov * N ≤ c
       ∧ ℓ * ε < 3 / 8 := by
   have hX : 0 < 4 * (A + 1) * N := by positivity
   have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
   have he0 : 0 < ε := by rw [he]; positivity
-  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min he0 (by positivity)
-  have hεcε : εcov ≤ ε := by rw [hεc]; exact min_le_left _ _
+  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min (by positivity) (by positivity)
+  have hεcc : εcov ≤ c / (3 * N) := by rw [hεc]; exact min_le_left _ _
   have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
   have hι8 : ι ≤ εcov / 8 := by rw [hι]; exact min_le_left _ _
   have h12 : 12 ≤ 4 * (A + 1) * N := by nlinarith
-  refine ⟨he0, ?_, hεc0, hεcε, hι0, hι8, ?_, ?_, ?_⟩
+  have hcN : 3 * εcov * N ≤ c := by
+    have := mul_le_mul_of_nonneg_left hεcc (by positivity : (0 : ℝ) ≤ 3 * N)
+    rw [show 3 * N * (c / (3 * N)) = c by field_simp] at this
+    linarith
+  have hεc1 : εcov ≤ 1 := by nlinarith
+  refine ⟨he0, ?_, hεc0, hεc1, hι0, hι8, ?_, hcN, ?_⟩
   · have : ε * 12 ≤ 1 := by nlinarith
     linarith
   · have hεN : 0 < ε * N := by positivity
@@ -322,13 +327,6 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
       ring
     have e2 : c = 4 * (A + 1) * (ε * N) := by rw [← hq]; ring
     rw [e, e2]
-    nlinarith
-  · have h3 : 3 * εcov * N ≤ 3 * ε * N := by gcongr
-    have e : 3 * ε * N * (4 * (A + 1)) = 3 * c := by rw [← hq]; ring
-    have hA1 : (12 : ℝ) ≤ 4 * (A + 1) := by linarith
-    have : 3 * ε * N * 12 ≤ 3 * c := by
-      rw [← e]
-      exact mul_le_mul_of_nonneg_left hA1 (by positivity)
     nlinarith
   · have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
     have h3 : 2 * N * ε * (4 * (A + 1)) = 2 * c := by rw [← hq]; ring
@@ -349,7 +347,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min ε (ξ / (8 * N))
+    let εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
     let s : ℝ := 1 / 2 - η₀
@@ -433,10 +431,9 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     have : 2 + Nat.clog 2 L₁ ≤ L₁ + 1 := by omega
     have : 2 + (Nat.clog 2 L₁ : ℝ) ≤ L₁ + 1 := by exact_mod_cast this
     linarith
-  obtain ⟨hε0, hε12, hεc0, hεcε, hι0, hι8, hbad, hcN, hιL⟩ :=
+  obtain ⟨hε0, hε12, hεc0, hεcov1, hι0, hι8, hbad, hcN, hιL⟩ :=
     dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hAe2 hN1 (by positivity) hwN hc hc1 hξ rfl rfl
       rfl
-  have hεcov1 : εcov ≤ 1 := by linarith
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1' : δ' < 1 := by
     show δ / (8 * (Q + 1)) < 1
@@ -672,7 +669,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     · show 2 * ((Ae + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c
       exact hbad
     · show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
-      have h0 : 0 ≤ εcov * N := mul_nonneg hεc0.le (zero_le_one.trans hN1)
+      have h0 : 0 < εcov * N := mul_pos hεc0 (zero_lt_one.trans_le hN1)
       linarith only [hcN, h0]
   -- the loop's failure, and each round's selection
   have hBl : (μL.prod β).real (Prod.fst ⁻¹' Bloop) ≤ δ / 2 := by
@@ -846,7 +843,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set E₃ : ℝ := 16 * K₁ ^ 2 / δ' with hE₃d
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
   set Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  set εcov : ℝ := min ε (ξ / (8 * N)) with hεcd
+  set εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N)) with hεcd
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
@@ -862,12 +859,12 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
   obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
-    dfa_rate_bounds (ℓ := ℓ) (Ce := aε + 8 / ξ) (Θ := Θ) hQ1 hAe2 hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀
+    dfa_rate_bounds (ℓ := ℓ) (Ce := 3 / c + 8 / ξ) (Θ := Θ) hQ1 hAe2 hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀
       rfl rfl rfl rfl rfl rfl rfl rfl
   have hτ1 : τ ≤ 1 := by
     have h1 : ι ≤ εcov / 8 := min_le_left _ _
-    have h2 : εcov ≤ ε := min_le_left _ _
-    have h3 : ε ≤ 1 := rate_le_one hc1 hAe2 hN1
+    have h2 : εcov ≤ c / (3 * N) := min_le_left _ _
+    have h3 : c / (3 * N) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
     exact (min_le_right _ _).trans (by linarith)
   have hS1 : 1 ≤ S := by
     show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
@@ -919,7 +916,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       have : (1 - 2 * η₀) / (1 - η₀) = gateA η₀ := rfl
       rw [this]; exact pow_le_one₀ ha0 ha
     have hεc0 : 0 ≤ εcov / 2 := by
-      have : 0 < εcov := lt_min hε0 (by positivity)
+      have : 0 < εcov := lt_min (by positivity) (by positivity)
       positivity
     exact (min_le_left _ _).trans (mul_le_of_le_one_right hεc0 hsq)
   have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
