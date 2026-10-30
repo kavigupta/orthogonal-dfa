@@ -248,6 +248,18 @@ class TestDeepening(unittest.TestCase):
         self.assertEqual(2, search.k)
         self.assertEqual(SUCCESS, ending.kind)
 
+    def test_without_harvest_tests_a_repeating_harvest_still_walks_past_it(self):
+        search = quiet_search(
+            parity_cut([b"\x00\x01"]),
+            WITHOUT_EVEN_1,
+            max_k=2,
+            score_patience=ScorePatience(lambda h: 0, 10_000, harvest_tests=False),
+            **SHIPPED_RATES,
+        )
+        ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
+        self.assertEqual(2, search.k)
+        self.assertEqual(SUCCESS, ending.kind)
+
 
 class TestBestHypothesis(unittest.TestCase):
     def test_the_search_ends_on_its_best_scoring_hypothesis(self):
