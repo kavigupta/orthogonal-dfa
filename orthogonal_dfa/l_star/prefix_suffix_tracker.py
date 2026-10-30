@@ -60,6 +60,10 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+    #: Full families in a row whose FNR fails to drop by ``fnr_plateau_tol`` before
+    #: the family search takes the best one seen; ``None`` waits for ``fnr_limit``.
+    fnr_plateau_patience: Optional[int] = None
+    fnr_plateau_tol: float = 0.01
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
