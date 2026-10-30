@@ -80,7 +80,7 @@ def Level3Claim.{u, v, w} : Prop :=
       x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => x.Q * (1 / x.ε + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
-      (x.Q * x.A * log (x.Q * x.A) + log (1 / x.δ)) / x.ε) ∧
+      (x.Q * x.A * log (x.Q + 1) + log (1 / x.δ)) / x.ε) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
       (side : Q → Bool) (U : Q → ℝ) {Ω : Type w} [MeasurableSpace Ω] (μ : Measure Ω)
@@ -119,7 +119,7 @@ def Level4Claim.{u, v, w} : Prop :=
       (x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => (x.Q + log (1 / x.δ)) * (1 / x.ε + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
-      (x.Q + log (1 / x.δ)) * x.A * log ((x.Q + log (1 / x.δ)) * x.A) / x.ε) ∧
+      (x.Q + log (1 / x.δ)) * x.A * log (x.Q + log (1 / x.δ) + 1) / x.ε) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
       ((x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / εwTol x) =O[𝓟 levelRegion] (fun x =>
@@ -166,7 +166,7 @@ def Level5Claim.{u, v, w} : Prop :=
       (x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     slope =O[𝓟 levelRegion] (fun x => (x.Q + log (1 / x.δ)) * (1 / x.ε + log x.L)) ∧
     slackRate =O[𝓟 levelRegion] (fun x =>
-      (x.Q + log (1 / x.δ)) * x.A * log ((x.Q + log (1 / x.δ)) * x.A) / x.ε) ∧
+      (x.Q + log (1 / x.δ)) * x.A * log (x.Q + log (1 / x.δ) + 1) / x.ε) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 levelRegion] (fun x =>
       ((x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / κTol x) =O[𝓟 levelRegion] (fun x =>
