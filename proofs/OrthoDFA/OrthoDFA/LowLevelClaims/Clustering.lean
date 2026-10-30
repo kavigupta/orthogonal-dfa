@@ -114,10 +114,9 @@ def ClusteringGuarantee : Prop :=
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤ max
-      (5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2)
-      (max (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
-          / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
-        (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs))
+      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+        / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
+      (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs)
     ) ∧
     (∀ B ∈ states,
       (B.k : ℝ) ≤ 25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))

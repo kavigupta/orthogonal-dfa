@@ -271,8 +271,8 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
 
 The heavy hits' term is a relative tail: a hit rate of at most `cutBudget` reaches
-`(1 + 1/32)·cutBudget` at the rate `relRate`, `cutBudget/2112`; with it the undecided share's
-tail at `indecisionLimit/2`.
+`(1 + 1/32)·cutBudget` at the rate `relRate`, `cutBudget/2112`.  It also pays for the undecided
+share's tail, whose rate `undecRate` is larger.
 
 The first term is the count rule's: a heavy row's flip signal, `(15/16)·countSignal` a prefix,
 has to clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes, and `1/(4 sig⁴)` keeps
@@ -289,7 +289,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
       / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2)⌉₊
+        * (2112 / cutBudget η indecisionLimit εcov)⌉₊
     + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
         * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
@@ -308,11 +308,18 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     + ⌈128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov⌉₊
     + 1
 
+/-- The exponent rate of the FNR test missing an undecided share of at least
+`l = 3/2·indecisionLimit + rejFrac ≤ 27/16·indecisionLimit` by `t = indecisionLimit/2`, relative
+to the share:
+
+    t² / (2l) -/
+noncomputable def undecRate (indecisionLimit : ℝ) : ℝ := 2 * indecisionLimit / 27
+
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
 `δ/(128·|populations|)`.  The gate pays for its own soundness at every count. -/
 noncomputable def validCount (_η : ℝ) (populations : Finset J)
     (indecisionLimit _εcov δ _pAP _crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (indecisionLimit / 2) ^ 2)⌉₊ + 1
+  ⌈Real.log (128 * (populations.card : ℝ) / δ) / undecRate indecisionLimit⌉₊ + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
 meet. -/
@@ -354,7 +361,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
         (((populations.card * B.npref + (2 * B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
           : ℕ) : ℝ) * ρ)
         (rejCount η₀ indecisionLimit εcov εs B.npref)
-    + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
+    + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
