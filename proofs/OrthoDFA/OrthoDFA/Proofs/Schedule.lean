@@ -56,15 +56,15 @@ noncomputable def voteSlack (η : ℝ) : ℝ := 4 * sig η / 5
 
 /-- The share of a population the vote may misfire on, among the prefixes the family is usable
 at.  `indecisionLimit/2` is what the FNR test tolerates, and the last term is what the gate's
-charge leaves room for: a misfire is charged at most `1/a²` (`sideCharge_le_gateA`), on either
-side, so `5/8` of this takes at most `5/256` of the gate's limit per side. -/
+charge leaves room for: a misfire is charged `4/a²` at most (`sideCharge_le_gateA`), so `5/8` of
+this takes at most half the gate's limit. -/
 noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
   min (εcov / 8) (min (sig η / 10) (min (indecisionLimit / 2)
-    (gateA η ^ 2 * min εcov (1 / 2) / 32)))
+    (gateA η ^ 2 * min εcov (1 / 2) / 5)))
 
 /-- What the gate's limit leaves its deviations, per prefix, once the charge of a clean family and
 its sampler's redraws are paid. -/
-noncomputable def gateRoom (_η _indecisionLimit εcov : ℝ) : ℝ := min εcov (1 / 2) / 2
+noncomputable def gateRoom (_η _indecisionLimit εcov : ℝ) : ℝ := min εcov (1 / 2) / 5
 
 /-- The rate the count rule resolves, which no factor of the gate's charge enters. -/
 noncomputable def shiftScale (indecisionLimit εcov : ℝ) : ℝ :=
@@ -256,8 +256,9 @@ undecided share's tail, whose rate `undecRate` is larger.  The `dirtyRate` term 
 first draws, and the `64/shiftBudget` term a named population's heavy prefixes, Markov on the
 window and the hash's split of it.
 
-The `4096/9` term is the hash sides' imbalance on a named population, `G = ⌈√(m·log(128|J|/δ))⌉`,
-which is charged against the cut budget and has to fit in `3·cutBudget·m/64`.
+The `65536/9` term is the hash sides' imbalance on a named population,
+`G = ⌈√(m·log(128|J|/δ))⌉`, which is charged against the cut budget and has to fit in
+`3·cutBudget·m/256`.
 
 The `εs` term is the redraws' tail when `rejFrac` is `εs/4`: `rejFrac·m·log 2` must clear
 `log(256|J|/δ)`. -/
@@ -280,7 +281,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     + ⌈64 * Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / shiftBudget η indecisionLimit εcov⌉₊
-    + ⌈4096 * Real.log (128 * (populations.card : ℝ) / δ)
+    + ⌈65536 * Real.log (128 * (populations.card : ℝ) / δ)
         / (9 * cutBudget η indecisionLimit εcov ^ 2)⌉₊
     + ⌈6 * Real.log (256 * (populations.card : ℝ) / δ) / εs⌉₊
     + ⌈128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov⌉₊

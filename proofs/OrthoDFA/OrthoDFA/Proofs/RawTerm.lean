@@ -94,7 +94,7 @@ theorem named_retAtK (O : Oracle μ S) (populations : Finset J) (uni : J)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hΔ : 0 < Δ) (hL : 0 ≤ L)
     (hθ : 0 ≤ θ) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 0 < B.k) (hpool : B.k < B.nsuff)
     (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * B.npref
+      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)
@@ -430,7 +430,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hΔ : 0 < Δ) (hL : 0 ≤ L)
     (hθ : 0 < θ) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 2 ≤ B.k) (hpool : B.k < B.nsuff)
     (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * B.npref
+      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)

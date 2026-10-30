@@ -643,7 +643,7 @@ lemma budgetScale_le_sig (η₀ indecisionLimit εcov : ℝ) (hη0 : 0 ≤ η₀
 
 lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
-    budgetScale η₀ indecisionLimit εcov / 32 ≤ cutBudget η₀ indecisionLimit εcov := by
+    budgetScale η₀ indecisionLimit εcov / 10 ≤ cutBudget η₀ indecisionLimit εcov := by
   have hs := sig_pos η₀ hsig
   have hB := budgetScale_pos η₀ indecisionLimit εcov hε hind hη0 hsig
   have hmn : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
@@ -1646,7 +1646,7 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t)
     (hkpos : 0 < B.k) (hpool : B.k < B.nsuff)
     (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * B.npref
+      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)
@@ -1715,25 +1715,45 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     have := mul_le_mul_of_nonneg_right hlF hnR.le
     linarith
   -- each class's miscut: its bad prefixes, and the usable ones the vote misfires on
+  obtain ⟨gm, hgm⟩ : ∃ gm : Bool → ℝ, ∀ b, gm b = ((C.filter (fun p =>
+      (good p ∧ ¬ cutCorrect O B.lo B.hi F p ω) ∧ O.label p = sideClass b)).card : ℝ) :=
+    ⟨_, fun b => rfl⟩
   have hmis : ∀ b, ((C.filter (fun p => O.label p = sideClass b
-      ∧ ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ) ≤ M b + lmis * n := by
+      ∧ ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ) ≤ M b + gm b := by
     intro b
     have hsub : C.filter (fun p => O.label p = sideClass b ∧ ¬ cutCorrect O B.lo B.hi F p ω)
         ⊆ (C.filter (fun p => clsBadP O η₀ b F p))
-          ∪ (C.filter (fun p => good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)) := by
+          ∪ (C.filter (fun p => (good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)
+            ∧ O.label p = sideClass b)) := by
       intro p hp
       obtain ⟨hpC, hl, hq⟩ := Finset.mem_filter.1 hp
       by_cases hg : good p
-      · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hg, hq⟩)
+      · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, ⟨hg, hq⟩, hl⟩)
       · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hl,
           fun h => hg ⟨h, hsize⟩⟩)
     have hc := le_trans (Finset.card_le_card hsub) (Finset.card_union_le _ _)
     have hcR : ((C.filter (fun p => O.label p = sideClass b
         ∧ ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ)
-        ≤ ((C.filter (fun p => clsBadP O η₀ b F p)).card : ℝ)
-          + ((C.filter (fun p => good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ) := by
-      exact_mod_cast hc
-    linarith [hM b, hl8.2]
+        ≤ ((C.filter (fun p => clsBadP O η₀ b F p)).card : ℝ) + gm b := by
+      rw [hgm b]; exact_mod_cast hc
+    linarith [hM b]
+  -- the vote's misfires split between the classes
+  have hgmsum : gm true + gm false ≤ lmis * n := by
+    have h := Finset.card_filter_add_card_filter_not
+      (s := C.filter (fun p => good p ∧ ¬ cutCorrect O B.lo B.hi F p ω))
+      (fun p => O.label p = sideClass true)
+    have e : (C.filter (fun p => good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)).filter
+        (fun p => ¬ O.label p = sideClass true)
+        = C.filter (fun p => (good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)
+          ∧ O.label p = sideClass false) := by
+      rw [Finset.filter_filter]
+      refine Finset.filter_congr (fun p _ => ?_)
+      rcases O.label_bit p with hl | hl <;> simp [hl, sideClass]
+    rw [e, Finset.filter_filter] at h
+    have hR : gm true + gm false
+        = ((C.filter (fun p => good p ∧ ¬ cutCorrect O B.lo B.hi F p ω)).card : ℝ) := by
+      rw [hgm true, hgm false]; exact_mod_cast h
+    linarith [hl8.2]
   -- a reference
   have hRne : R.Nonempty := by
     have hfresh := (freshDraws_of_good ∅ (fun i => suffixDraw i x) B.nsuff rs h11).1
@@ -1762,17 +1782,18 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     · exact min_le_left _ _
     · exact min_le_right _ _
   have ha : 0 < gateA η₀ := gateA_pos (le_trans (eta_nonneg O) hηle) hη₀
-  have hcharge : ∀ b, (M b + lmis * n) * sideCharge O η₀ (!b)
-      ≤ lG * n + lmis / gateA η₀ ^ 2 * n := by
+  have hgm0 : ∀ b, 0 ≤ gm b := fun b => by rw [hgm b]; positivity
+  have hcharge : ∀ b, (M b + gm b) * sideCharge O η₀ (!b)
+      ≤ lG * n + gm b / gateA η₀ ^ 2 := by
     intro b
     have h1 := sideCharge_le_gateA O hηle hη₀ (!b)
-    have h2 : lmis * n * sideCharge O η₀ (!b) ≤ lmis * n * (1 / gateA η₀ ^ 2) :=
-      mul_le_mul_of_nonneg_left h1 (by positivity)
-    have e : lmis * n * (1 / gateA η₀ ^ 2) = lmis / gateA η₀ ^ 2 * n := by ring
+    have h2 : gm b * sideCharge O η₀ (!b) ≤ gm b * (1 / gateA η₀ ^ 2) :=
+      mul_le_mul_of_nonneg_left h1 (hgm0 b)
+    have e : gm b * (1 / gateA η₀ ^ 2) = gm b / gateA η₀ ^ 2 := by ring
     rw [add_mul]
     linarith [hMG b]
-  have hgate' : 4 * ((M false + lmis * n) * sideCharge O η₀ true
-        + (M true + lmis * n) * sideCharge O η₀ false)
+  have hgate' : 4 * ((M false + gm false) * sideCharge O η₀ true
+        + (M true + gm true) * sideCharge O η₀ false)
         + 4 * ((gateDevT η₀ + gateDevU η₀) * t
           + gateDevD η₀ * hoeffDev n (sizeLevel (gateLevel α populations B) n))
       ≤ n * gateLimit uni εcov j - hoeffDev n (sizeLevel (gateLevel α populations B) n) := by
@@ -1781,18 +1802,20 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     have hf := hcharge false
     have ht' := hcharge true
     simp only [Bool.not_false, Bool.not_true] at hf ht'
-    have hsum : 4 * ((M false + lmis * n) * sideCharge O η₀ true
-        + (M true + lmis * n) * sideCharge O η₀ false)
-        ≤ 4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * n := by
-      have e : 4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * n
-          = 4 * ((lG * n + lmis / gateA η₀ ^ 2 * n) + (lG * n + lmis / gateA η₀ ^ 2 * n)) := by
-        ring
-      rw [e]; linarith
+    have hsum : 4 * ((M false + gm false) * sideCharge O η₀ true
+        + (M true + gm true) * sideCharge O η₀ false)
+        ≤ 4 * (2 * lG + lmis / gateA η₀ ^ 2) * n := by
+      have hdiv : (gm false + gm true) / gateA η₀ ^ 2 ≤ lmis / gateA η₀ ^ 2 * n := by
+        rw [div_mul_eq_mul_div]
+        exact div_le_div_of_nonneg_right (by linarith) (by positivity)
+      have e : (gm false + gm true) / gateA η₀ ^ 2
+          = gm false / gateA η₀ ^ 2 + gm true / gateA η₀ ^ 2 := by ring
+      nlinarith
     linarith
   have hga := gateLevel_pos_le populations huni B hα0 hα1
   have hcert := certifiesAt_of_live_rates O hηle hη₀ B.lo B.hi F R C hRne
     (fun v hv p _ => hne1 v hv p) hmpos hCn (lim := gateLimit uni εcov j)
-    (a := gateLevel α populations B) (t := t) (fun b => M b + lmis * n) hga.1 hga.2 ht hlive
+    (a := gateLevel α populations B) (t := t) (fun b => M b + gm b) hga.1 hga.2 ht hlive
     hmis hgate'
   refine ⟨?_, ?_, hcert⟩
   · have : B.k ≤ F.card + 1 := by omega
@@ -1814,7 +1837,7 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
     (hUG : ∀ b, sideCharge O η₀ (!b) * (clsQ O η₀ Δ c g b * (33 / 32) + c) ≤ lG)
     (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 0 < B.k) (hpool : B.k < B.nsuff)
     (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * B.npref
+      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)
@@ -2007,7 +2030,7 @@ lemma log_sizeLevel_le {α c : ℝ} (hα : 0 < α) (hc : 0 < c) {m N : ℕ} (hNm
 
 lemma gateRoom_facts (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) :
     0 < gateRoom η₀ indecisionLimit εcov ∧ gateRoom η₀ indecisionLimit εcov ≤ 1 / 4
-      ∧ min εcov (1 / 2) / 2 ≤ gateRoom η₀ indecisionLimit εcov := by
+      ∧ min εcov (1 / 2) / 5 ≤ gateRoom η₀ indecisionLimit εcov := by
   have hmn0 : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
   have hmn1 : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
   unfold gateRoom
@@ -2024,7 +2047,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
       N ≤ (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref
         + rejCount η₀ indecisionLimit εcov εs
           (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref →
-      4 * (2 * (min εcov (1 / 2) / 32) + 2 * (5 / 8 * cutBudget η₀ indecisionLimit εcov)
+      4 * (2 * (min εcov (1 / 2) / 32) + 5 / 8 * cutBudget η₀ indecisionLimit εcov
             / gateA η₀ ^ 2)
           * (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz).npref
         + 4 * ((gateDevT η₀ + gateDevU η₀)
@@ -2083,7 +2106,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
   have hmn0 : 0 ≤ mn := le_min hε.le (by norm_num)
   obtain ⟨hgR0, hgR1, -⟩ := gateRoom_facts η₀ indecisionLimit εcov hε
   rw [← hgRdef] at hgR0 hgR1
-  have hgReq : gR = mn / 2 := by rw [hgRdef, gateRoom]
+  have hgReq : gR = mn / 5 := by rw [hgRdef, gateRoom]
   obtain ⟨hT0, hD0, hU0⟩ := gateDev_pos hη0 hsig
   have hW0 : 0 < W := by rw [hWdef]; linarith
   -- the references' and the seed's deviation, against two fifths of the room
@@ -2204,14 +2227,12 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
       _ = 2 * s := by rw [Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]
   have hDd : D * hoeffDev m (sizeLevel (sizeLevel (α / (7 * c)) m) m) ≤ D * s :=
     mul_le_mul_of_nonneg_left hdm hD0.le
-  have hcuta : 5 / 8 * cut / a ^ 2 ≤ 5 / 256 * mn := by
+  have hcuta : 5 / 8 * cut / a ^ 2 ≤ mn / 8 := by
     have h := cutBudget_le_gate η₀ indecisionLimit εcov
     rw [← hcutdef, ← hadef, ← hmndef] at h
     rw [div_le_iff₀ (by positivity)]
     nlinarith
-  have hch : 4 * (2 * (mn / 32) + 2 * (5 / 8 * cut) / a ^ 2) * m ≤ (mn / 4 + 5 / 32 * mn) * m := by
-    have e : 2 * (5 / 8 * cut) / a ^ 2 = 2 * (5 / 8 * cut / a ^ 2) := by ring
-    rw [e]
+  have hch : 4 * (2 * (mn / 32) + 5 / 8 * cut / a ^ 2) * m ≤ (mn / 4 + mn / 2) * m := by
     nlinarith
   have hNmn : (m : ℝ) * mn ≤ N * mn := mul_le_mul_of_nonneg_right hNR1 hmn0
   have hsD : 0 ≤ s := Real.sqrt_nonneg _
@@ -2327,7 +2348,7 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     -- the usable prefixes, and its deviations
     ∧ 0 ≤ t
     ∧ (∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + 2 * lmis / gateA η₀ ^ 2) * B.npref
+      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)
@@ -2658,8 +2679,8 @@ lemma named_share_le {s β εu mn Δ w f sc a cb L m X : ℝ} (hs : 0 < s) (hs1 
     (hw0 : 0 < w) (hw1 : w ≤ 1) (hf : s / 5 ≤ f) (hσ : 2 / 5 * s ^ 2 ≤ f * w)
     (hsc0 : 0 ≤ sc) (hsc : sc ≤ 5 / (2 * s ^ 2) * (f * w)) (ha : 0 < a) (hsca : sc ≤ 1 / a ^ 2)
     (hL : 0 ≤ L) (hm : 0 ≤ m) (hm64 : 64 * L ≤ Δ * m)
-    (hX0 : 0 ≤ X) (hX : X ≤ 1029 / 10000 * (cb * m)) (hcbu : cb ≤ εu / 2)
-    (hcba : cb ≤ a ^ 2 * mn / 32) :
+    (hX0 : 0 ≤ X) (hX : X ≤ 326 / 10000 * (cb * m)) (hcbu : cb ≤ εu / 2)
+    (hcba : cb ≤ a ^ 2 * mn / 5) :
     ((Δ / w) * m + 2 * Real.sqrt (L * ((Δ / w) * m)) + 2 * L) / f + X ≤ εu / 8 * m
     ∧ sc * (((Δ / w) * m + 2 * Real.sqrt (L * ((Δ / w) * m)) + 2 * L) / f + X)
       ≤ mn / 32 * m := by
@@ -2733,11 +2754,11 @@ lemma named_share_le {s β εu mn Δ w f sc a cb L m X : ℝ} (hs : 0 < s) (hs1 
       have := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hwL (by norm_num : (0 : ℝ) ≤ 2))
         hscs
       linarith
-    have g4 : sc * X ≤ 1029 / 10000 * (mn / 32 * m) := by
+    have g4 : sc * X ≤ 326 / 10000 * (mn / 5 * m) := by
       have h1 : sc * X ≤ 1 / a ^ 2 * X := mul_le_mul_of_nonneg_right hsca hX0
-      have h2 : 1 / a ^ 2 * X ≤ 1 / a ^ 2 * (1029 / 10000 * (cb * m)) :=
+      have h2 : 1 / a ^ 2 * X ≤ 1 / a ^ 2 * (326 / 10000 * (cb * m)) :=
         mul_le_mul_of_nonneg_left hX (by positivity)
-      have h3 : 1 / a ^ 2 * (cb * m) ≤ mn / 32 * m := by
+      have h3 : 1 / a ^ 2 * (cb * m) ≤ mn / 5 * m := by
         rw [one_div, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
         nlinarith
       nlinarith
@@ -2911,9 +2932,9 @@ lemma solved_heavyNamed (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J)
     have hle : ⌈64 * L / Δ⌉₊ ≤ m := by
       rw [hmdef, prefCount, ← hMdef, ← hΔdef, ← hLdef]; omega
     exact_mod_cast hle
-  have c2 : 4096 * l1 / (9 * cb ^ 2) ≤ (m : ℝ) := by
+  have c2 : 65536 * l1 / (9 * cb ^ 2) ≤ (m : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈4096 * l1 / (9 * cb ^ 2)⌉₊ ≤ m := by
+    have hle : ⌈65536 * l1 / (9 * cb ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount, ← hcb, ← hl1def]; omega
     exact_mod_cast hle
   have c3 : 128 * (hsz : ℝ) / cb ≤ (m : ℝ) := by
@@ -2925,14 +2946,14 @@ lemma solved_heavyNamed (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J)
   rw [div_le_iff₀ (by positivity)] at c2 c3
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hG1 : (G : ℝ) ≤ Real.sqrt ((m : ℝ) * l1) + 1 := (Nat.ceil_lt_add_one (by positivity)).le
-  have hT5 : Real.sqrt ((m : ℝ) * l1) ≤ 3 * cb * m / 64 := by
-    rw [show 3 * cb * (m : ℝ) / 64 = Real.sqrt ((3 * cb * m / 64) ^ 2) by
+  have hT5 : Real.sqrt ((m : ℝ) * l1) ≤ 3 * cb * m / 256 := by
+    rw [show 3 * cb * (m : ℝ) / 256 = Real.sqrt ((3 * cb * m / 256) ^ 2) by
       rw [Real.sqrt_sq (by positivity)]]
     refine Real.sqrt_le_sqrt ?_
-    have hlm : 4096 * l1 ≤ (m : ℝ) * (9 * cb ^ 2) := c2
-    have : (m : ℝ) * (4096 * l1) ≤ (m : ℝ) * ((m : ℝ) * (9 * cb ^ 2)) :=
+    have hlm : 65536 * l1 ≤ (m : ℝ) * (9 * cb ^ 2) := c2
+    have : (m : ℝ) * (65536 * l1) ≤ (m : ℝ) * ((m : ℝ) * (9 * cb ^ 2)) :=
       mul_le_mul_of_nonneg_left hlm hmR
-    have e : (m : ℝ) * ((m : ℝ) * (9 * cb ^ 2)) = 4096 * (3 * cb * m / 64) ^ 2 := by
+    have e : (m : ℝ) * ((m : ℝ) * (9 * cb ^ 2)) = 65536 * (3 * cb * m / 256) ^ 2 := by
       ring
     nlinarith
   have hcm1 : 8192 ≤ cb * (m : ℝ) := by
@@ -2940,7 +2961,7 @@ lemma solved_heavyNamed (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J)
     nlinarith
   have hsz' : (hsz : ℝ) ≤ cb * m / 128 := by linarith
   have hX0 : (0 : ℝ) ≤ (hsz : ℝ) + 2 * G + cb / 1024 * m := by positivity
-  have hX : (hsz : ℝ) + 2 * G + cb / 1024 * m ≤ 1029 / 10000 * (cb * m) := by nlinarith
+  have hX : (hsz : ℝ) + 2 * G + cb / 1024 * m ≤ 326 / 10000 * (cb * m) := by nlinarith
   have hs := sig_pos η₀ hη₀
   have hs1 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
   have hβ := shiftScale_pos hε hind

@@ -451,7 +451,7 @@ lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
     (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))⟩
 
 lemma cutBudget_le_gate (η₀ indecisionLimit εcov : ℝ) :
-    cutBudget η₀ indecisionLimit εcov ≤ gateA η₀ ^ 2 * min εcov (1 / 2) / 32 :=
+    cutBudget η₀ indecisionLimit εcov ≤ gateA η₀ ^ 2 * min εcov (1 / 2) / 5 :=
   (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
 
 lemma shiftScale_pos {indecisionLimit εcov : ℝ} (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
