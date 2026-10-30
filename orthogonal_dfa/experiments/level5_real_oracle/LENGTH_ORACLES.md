@@ -17,11 +17,9 @@ probes, selection samples and test strings, round 0 only, 4 restarts, seeds 0-3.
 stops and reverts on one held-out sample and the restart kept is the best on a second one
 (4176d2ea).
 
-The runs used 7daaa3b7 with 4176d2ea's change and two uncommitted ones: `held_out_phi`
-scoring each state's verdict (accept iff its fit strings beat the fit rate) rather than
-its rate, without taking |corr|, and cached cross-limit statistics.  The first changes
-what the searches stop on and the restarts are ranked by, so this branch does not rerun
-them exactly.
+The runs used 7daaa3b7 with the changes later committed as 4176d2ea and cd54dcba
+(`held_out_phi` scoring each state's verdict, which is what the searches stop on and the
+restarts are ranked by).
 
     PYTHONPATH=. python -u orthogonal_dfa/experiments/level5_real_oracle/length_oracles.py \
         --oracle saw --seed $s --out OUT/saw_s$s
