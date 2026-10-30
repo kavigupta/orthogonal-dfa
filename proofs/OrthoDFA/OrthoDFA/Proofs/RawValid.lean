@@ -87,17 +87,23 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
   set P : ℝ := (populations.card : ℝ) with hP
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set cb : ℝ := cutBudget η₀ indecisionLimit εcov with hcb
-  set ff : ℝ := flipFrac η₀ with hffdef
+  set Δ : ℝ := shiftBudget η₀ indecisionLimit εcov with hΔdef
   set L : ℝ := Real.log (128 * P * ((M : ℝ) + 1) / δ) with hLdef
   have hcb0 : 0 < cb := cutBudget_pos η₀ hη₀ hε hind
-  have hff0 : 0 < ff := flipFrac_pos η₀ hη₀
-  have hffle : ff ≤ 7 / 20 := by
-    rw [hffdef, flipFrac, sig, div_le_iff₀ (by linarith)]
-    nlinarith
+  have hΔ0 : 0 < Δ := shiftBudget_pos η₀ hη₀ hε hind
   have hcb16 : cb ≤ 1 / 16 := by
     have h := (cutBudget_le η₀ indecisionLimit εcov).2.1
     rw [sig] at h
     linarith
+  have hΔle : Δ ≤ 1 / 2048 := by
+    have hs := sig_pos η₀ hη₀
+    have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
+    have hβ : shiftScale indecisionLimit εcov ≤ 1 / 2 :=
+      (min_le_left _ _).trans (min_le_right _ _)
+    have hβ0 := shiftScale_pos hε hind
+    rw [hΔdef, shiftBudget]
+    have : sig η₀ ^ 2 ≤ 1 / 4 := by nlinarith
+    nlinarith
   have hMR : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
   have hNR0 : (0 : ℝ) ≤ (N : ℝ) := Nat.cast_nonneg _
   have hL4 : 4 ≤ L := by
@@ -112,10 +118,10 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
       calc Real.exp 1 ^ 4 ≤ 3 ^ 4 := pow_le_pow_left₀ he0.le h3 4
         _ = 81 := by norm_num
     nlinarith
-  have c1 : 2900 * L / (cb * ff) ≤ (N : ℝ) := by
+  have c1 : 64 * L / Δ ≤ (N : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈2900 * L / (cb * ff)⌉₊ ≤ N := by
-      rw [hNdef, prefCount, ← hMdef, ← hcb, ← hffdef, ← hP, ← hLdef]; omega
+    have hle : ⌈64 * L / Δ⌉₊ ≤ N := by
+      rw [hNdef, prefCount, ← hMdef, ← hΔdef, ← hP, ← hLdef]; omega
     exact_mod_cast hle
   have c3 : 128 * (hsz : ℝ) / cb ≤ (N : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
@@ -123,8 +129,7 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
       rw [hNdef, prefCount, ← hcb]; omega
     exact_mod_cast hle
   rw [div_le_iff₀ (by positivity)] at c1 c3
-  have hcf : cb * ff ≤ 7 / 320 := by nlinarith
-  have hNL : 132000 * L ≤ (N : ℝ) := by nlinarith
+  have hNL : 131072 * L ≤ (N : ℝ) := by nlinarith
   have hN20 : (2 : ℝ) ^ 19 ≤ N := by nlinarith
   have hlogR : 2048 * (3 + 2 * (Nat.log 2 N : ℝ)) ≤ N := by
     have hN20' : 2 ^ 19 ≤ N := by exact_mod_cast hN20
@@ -312,8 +317,9 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hc
   have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hind
   have hcle : c ≤ indecisionLimit / 256 := by
-    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ hη₀ hεcov hind).1
-    have h2 := (cutBudget_le η₀ indecisionLimit εcov).2.2
+    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.1
+    have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
+    have := mul_le_mul_of_nonneg_right hs2 hind.le
     linarith
   have he0 : 0 < e := div_pos (lt_min hεs hind) (by norm_num)
   have heε : e ≤ εs / 8 := by rw [hedef]; linarith [min_le_left εs indecisionLimit]

@@ -87,11 +87,6 @@ end Oracle
 section Flip
 variable {S : Type*} [MeasurableSpace S] [Monoid S] [MeasurableMul S]
 
-/-- The `Dj`-flip-mass of a suffix: the probability that `v` flips a `Dj`-drawn prefix.
-This is the *distributional* quantity `good`/`bad` are defined by. -/
-noncomputable def flipMass (O : Oracle μ S) (Dj : Measure S) (v : S) : ℝ :=
-  ∫ p, O.flip v p ∂Dj
-
 lemma flip_meas (O : Oracle μ S) (v : S) : Measurable (fun p => O.flip v p) := by
   have h1 : Measurable (fun p : S => O.label (p * v)) :=
     O.label_meas.comp (measurable_mul_const v)

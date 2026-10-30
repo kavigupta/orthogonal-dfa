@@ -165,11 +165,12 @@ lemma measurableSet_stalled (populations : Finset J) (B : State) (kmin kmax : �
     MeasurableSet (stalled rule O populations B kmin kmax) :=
   measurableSet_cluster_data O populations B (fun _ _ A => ¬ (kmin ≤ A.card ∧ A.card ≤ kmax))
 
-lemma measurableSet_dirty (populations : Finset J) (B : State) (Dj : Measure S) (Δp : ℝ) :
+lemma measurableSet_dirty (populations : Finset J) (B : State) (Dj : Measure S) (V : S → ℝ)
+    (Δp : ℝ) :
     MeasurableSet {x : Run Ω S J | ¬ ∑ v ∈ clusterBy rule O.mq populations x B,
-      flipMass O Dj v ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * Δp} :=
+      wMass O Dj V v ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * Δp} :=
   measurableSet_cluster_data O populations B
-    (fun _ _ A => ¬ ∑ v ∈ A, flipMass O Dj v ≤ (A.card : ℝ) * Δp)
+    (fun _ _ A => ¬ ∑ v ∈ A, wMass O Dj V v ≤ (A.card : ℝ) * Δp)
 
 end Measurability
 
