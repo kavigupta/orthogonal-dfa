@@ -1837,10 +1837,10 @@ lemma gap_eq_clsRate (O : Oracle μ S) (b : Bool) :
     O.gap = 1 - clsRate O (!b) - clsRate O b := by
   unfold Oracle.gap clsRate rightRate; cases b <;> simp <;> ring
 
-/-- A wrong prefix of class `b` is charged, on the side it lands on, at most `10/sig²` times its
-class's `σ_b` (`charge_le_sig`). -/
+/-- A wrong prefix of class `b` is charged, on the side it lands on, at most `5/(2 sig²)` times
+its class's `σ_b` (`charge_le_sig`). -/
 lemma sideCharge_le_clsSig (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (b : Bool) : sideCharge O η₀ (!b) ≤ 10 / sig η₀ ^ 2 * clsSig O η₀ b := by
+    (b : Bool) : sideCharge O η₀ (!b) ≤ 5 / (2 * sig η₀ ^ 2) * clsSig O η₀ b := by
   have h := charge_le_sig (x := clsRate O (!b)) (y := clsRate O b) (v := voteSlack η₀)
     (clsRate_le O hη _) (clsRate_le O hη _) hη₀ (by rw [voteSlack, sig])
   rw [← gap_eq_clsRate] at h
