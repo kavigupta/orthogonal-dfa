@@ -21,9 +21,11 @@ from .round_end import (
     HARVESTS,
     OUT_OF_PROBES,
     SCORE_STALLED,
+    SUCCESS,
     Ending,
     SiteCounts,
     ending_test,
+    succeeds_at,
 )
 
 
@@ -41,11 +43,13 @@ class CounterexampleSearch:
         patience: Optional[int] = None,
         max_k: int,
         member_fallback: Optional[MemberFallback] = None,
+        harvest_tests: bool = True,
     ):
         """``start`` is ``locate``'s.  With ``score``, ``run`` leaves the
         hypothesis at the best-scoring one it saw, and with ``patience`` stops once
         that many probes pass without a better one.  A harvest that repeats a
-        string increments ``k`` instead of ending the search, up to ``max_k``."""
+        string increments ``k`` instead of ending the search, up to ``max_k``.
+        Without ``harvest_tests`` only the success test ends it early."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
@@ -58,6 +62,7 @@ class CounterexampleSearch:
         #: Every distinct string read undecided, which a stalled score harvests.
         self.undecided = {}
         self.member_fallback = member_fallback
+        self.harvest_tests = harvest_tests
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -116,6 +121,10 @@ class CounterexampleSearch:
         self.undecided.update(
             dict.fromkeys(charged.ends + charged.stuck + charged.middle)
         )
+        if not self.harvest_tests:
+            if succeeds_at(self.counts, self.config, self.counts.probes):
+                return Ending(SUCCESS, [])
+            return None
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
         if ending is not None and self._deepens(ending):
             return None

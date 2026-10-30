@@ -78,6 +78,10 @@ class SearchConfig:
     #: Scale the round's harvest thresholds by the family's measured FNR over
     #: ``acceptable_fnr``: for oracles whose families only just make their FNR gate.
     counterexample_fnr_harvest: bool = False
+    #: Off, a round's search ends only on success or on its score stalling, and
+    #: harvests every distinct string it read undecided; needs
+    #: ``counterexample_score_patience``.
+    counterexample_harvest_tests: bool = True
     #: Read an edge a probe leaves undecided on a representative prefix of its
     #: source leaf instead.
     counterexample_member_fallback: bool = False

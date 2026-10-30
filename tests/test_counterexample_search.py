@@ -227,6 +227,22 @@ class TestStalledHarvest(unittest.TestCase):
         ending = search.run(itertools.cycle([b"\x01\x00", b"\x01"]))
         self.assertEqual(Ending(SCORE_STALLED, [b"\x01\x00"]), ending)
 
+    def test_without_harvest_tests_only_the_score_ends_it(self):
+        # The ends test of test_an_undecided_end_harvests_it, which fires at 14 probes.
+        search = CounterexampleSearch(
+            quiet_config(ends_rate=0.05, ends_alternative=0.1, level=1e-4),
+            parity_cut([b"\x01\x00"]),
+            MidfixTree([]),
+            max_k=0,
+            score=lambda h: 0,
+            patience=30,
+            harvest_tests=False,
+        )
+        search.hypothesis.edges = dict(PARITY_EDGES)
+        ending = search.run(itertools.repeat(b"\x01\x00"))
+        self.assertEqual((SCORE_STALLED, 30), (ending.kind, search.probes))
+        self.assertEqual([b"\x01\x00"], ending.harvest)
+
 
 class TestDeepening(unittest.TestCase):
     def test_a_harvest_that_repeats_a_string_walks_past_it(self):

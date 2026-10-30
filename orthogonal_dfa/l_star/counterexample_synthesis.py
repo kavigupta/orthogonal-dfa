@@ -241,6 +241,8 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         )
     boundary = pst.decision_boundary
     patience = pst.config.counterexample_score_patience
+    harvest_tests = pst.config.counterexample_harvest_tests
+    assert harvest_tests or patience is not None, "nothing would end the search"
 
     def start(hypothesis):
         """The leaf ``_hypothesis_dfa`` starts the DFA on."""
@@ -276,6 +278,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         patience=patience,
         max_k=start_length(pst.sampler.length),
         member_fallback=fallback,
+        harvest_tests=harvest_tests,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
