@@ -104,7 +104,7 @@ def ClusteringGuarantee : Prop :=
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
       161000
-      * (populations.card : ℝ) ^ 2
+      * (populations.card : ℝ)
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)

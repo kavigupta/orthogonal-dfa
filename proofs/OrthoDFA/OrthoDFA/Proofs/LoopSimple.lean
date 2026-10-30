@@ -27,7 +27,7 @@ def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
 
 /-- A bound on the prefix count. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
-  161000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
+  161000 * Jm * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
     / (δ / 2 * α * pAP * budgetScale η₀ ι εcov))
     / ((1 / 2 - η₀) ^ 4 * budgetScale η₀ ι εcov ^ 2)
 
@@ -91,12 +91,12 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
       ≤ Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
     refine Real.log_le_log (by linarith) (div_le_div_of_nonneg_right ?_ (by positivity))
     exact mul_le_mul (by linarith) hpoolB (by positivity) (by linarith)
-  have hsq : (pops.card : ℝ) ^ 2 ≤ Jm ^ 2 := pow_le_pow_left₀ (by positivity) hcard 2
-  calc 161000 * (pops.card : ℝ) ^ 2
+  have hJm : 0 ≤ Jm := (Nat.cast_nonneg _).trans hcard
+  calc 161000 * (pops.card : ℝ)
         * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ))
-      ≤ 161000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
+      ≤ 161000 * Jm * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
         gcongr
-    _ ≤ 161000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
+    _ ≤ 161000 * Jm * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
         gcongr
 
 end OrthoDFA
@@ -258,7 +258,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
-    let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+    let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
           (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
