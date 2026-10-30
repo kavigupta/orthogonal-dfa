@@ -9,7 +9,7 @@ import time
 import warnings
 from collections import Counter
 from dataclasses import dataclass, replace
-from typing import List, NamedTuple, Optional
+from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -20,6 +20,7 @@ from .counterexample_config import counterexample_search_config
 from .counterexample_search import CounterexampleSearch
 from .dfa_utils import held_out_phi, labelled_sample
 from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience, Selection
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -239,10 +240,11 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         fallback = MemberFallback(
             [p for p, keep in zip(table.prefixes, table.representative) if keep]
         )
+    score_patience = ScorePatience.from_config(
+        pst.config,
+        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+    )
     boundary = pst.decision_boundary
-    patience = pst.config.counterexample_score_patience
-    harvest_tests = pst.config.counterexample_harvest_tests
-    assert harvest_tests or patience is not None, "nothing would end the search"
 
     def start(hypothesis):
         """The leaf ``_hypothesis_dfa`` starts the DFA on."""
@@ -268,17 +270,9 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         start=start,
-        score=(
-            None
-            if patience is None
-            else lambda hypothesis: held_out_phi(
-                _hypothesis_dfa(pst, hypothesis), *selection
-            )
-        ),
-        patience=patience,
         max_k=start_length(pst.sampler.length),
         member_fallback=fallback,
-        harvest_tests=harvest_tests,
+        score_patience=score_patience,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -287,14 +281,16 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
+    if score_patience is not None:
+        score_patience.finish(search)
     if fallback is not None:
-        unclosed = search.snapshot()
-        fallback.close(search.hypothesis, pst.alphabet_size)
-        if (
-            search.score is not None
-            and search.score(search.hypothesis) < search.best_score
-        ):
-            search.restore(unclosed)
+        if score_patience is None:
+            fallback.close(search.hypothesis, pst.alphabet_size)
+        else:
+            score_patience.guarded(
+                search.hypothesis,
+                lambda: fallback.close(search.hypothesis, pst.alphabet_size),
+            )
     return search, ending
 
 
@@ -338,15 +334,6 @@ def _round_score(pst, dfa, selection, index) -> Optional[float]:
 #: Strings in each half of the held-out sample.  At 2,000 the DFA picked on it
 #: scored 0.06 above its phi on fresh strings.
 SELECTION_HALF = 8000
-
-
-class Selection(NamedTuple):
-    """Held-out ``(fit, read)`` pairs: ``search`` is what a search stops and reverts
-    on, ``pick`` what restarts and rounds are ranked on, so the ranking is not biased
-    by the stopping."""
-
-    search: tuple
-    pick: tuple
 
 
 def _selection_sample(pst):
