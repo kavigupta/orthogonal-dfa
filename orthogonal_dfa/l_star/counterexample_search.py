@@ -1,7 +1,7 @@
 """``indecisiveLStarLevel5`` of ``OrthoDFA/Level5.lean``, read through the round's suffix family."""
 
 from itertools import islice
-from typing import Iterable, Optional, Tuple
+from typing import Callable, Iterable, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import (
@@ -12,6 +12,7 @@ from .counterexample_probe import (
     Outcome,
     charges,
     locate,
+    plain_bisect,
 )
 from .fallbacks.members import MemberFallback
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
@@ -30,6 +31,7 @@ class CounterexampleSearch:
         *,
         max_k: int,
         member_fallback: Optional[MemberFallback] = None,
+        bisect: Callable = plain_bisect,
     ):
         """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
@@ -39,6 +41,7 @@ class CounterexampleSearch:
         self.probes = 0
         self.k, self.max_k = config.k, max_k
         self.member_fallback = member_fallback
+        self.bisect = bisect
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -81,7 +84,7 @@ class CounterexampleSearch:
         return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.k, x)
+        located = locate(self.hypothesis, self.k, x, bisect=self.bisect)
         stuck = isinstance(located.outcome, End) and located.outcome.stuck
         if stuck and self.member_fallback is not None:
             located = self.member_fallback.read_stuck(

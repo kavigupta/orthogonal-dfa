@@ -20,6 +20,7 @@ from .counterexample_config import counterexample_search_config
 from .counterexample_search import CounterexampleSearch
 from .dfa_utils import held_out_phi, labelled_sample
 from .fallbacks.members import MemberFallback
+from .fallbacks.skipping import skipping_search
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -239,12 +240,16 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         fallback = MemberFallback(
             [p for p, keep in zip(table.prefixes, table.representative) if keep]
         )
+    bisect = (
+        {"bisect": skipping_search} if pst.config.counterexample_skip_undecided else {}
+    )
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
         member_fallback=fallback,
+        **bisect,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
