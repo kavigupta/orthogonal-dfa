@@ -131,14 +131,12 @@ def read_rates(pst, decision_boundary):
     for is used only where it already holds ``max_coverage_error``.
     """
     return (
-        min(
-            pst.config.cross_limit,
-            cross_limit_for_coverage_error(
-                pst.config.min_signal_strength,
-                pst.acceptable_fnr,
-                pst.config.max_coverage_error,
-                center=decision_boundary,
-            ),
+        cross_limit_for_coverage_error(
+            pst.config.min_signal_strength,
+            pst.acceptable_fnr,
+            pst.config.max_coverage_error,
+            center=decision_boundary,
+            at_most=pst.config.cross_limit,
         ),
         pst.acceptable_fnr,
     )
