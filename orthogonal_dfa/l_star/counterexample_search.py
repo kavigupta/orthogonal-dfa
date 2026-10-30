@@ -15,6 +15,7 @@ from .counterexample_probe import (
     plain_bisect,
 )
 from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
@@ -32,6 +33,7 @@ class CounterexampleSearch:
         max_k: int,
         member_fallback: Optional[MemberFallback] = None,
         bisect: Callable = plain_bisect,
+        score_patience: Optional[ScorePatience] = None,
     ):
         """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
@@ -42,6 +44,7 @@ class CounterexampleSearch:
         self.k, self.max_k = config.k, max_k
         self.member_fallback = member_fallback
         self.bisect = bisect
+        self.score_patience = score_patience
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -52,6 +55,10 @@ class CounterexampleSearch:
         return Ending(OUT_OF_PROBES, [])
 
     def step(self, x: bytes) -> Optional[Ending]:
+        if self.score_patience is not None:
+            stalled = self.score_patience.observe(self)
+            if stalled is not None:
+                return stalled
         outcome, charged = self.probe(x)
         self.probes += 1
         if isinstance(outcome, Member):
@@ -64,6 +71,9 @@ class CounterexampleSearch:
             return None
         self.counts.add(charged, outcome)
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
+        if self.score_patience is not None:
+            self.score_patience.record(charged)
+            ending = self.score_patience.filter(ending, self.counts, self.config)
         if ending is not None and self._deepens(ending):
             return None
         return ending

@@ -21,6 +21,7 @@ from .counterexample_probe import plain_bisect
 from .counterexample_search import CounterexampleSearch
 from .dfa_utils import held_out_phi, labelled_sample
 from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience, Selection
 from .fallbacks.skipping import skipping_search
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
@@ -233,7 +234,7 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-def _counterexample_search(pst, vs, *, acc_threshold):
+def _counterexample_search(pst, vs, *, acc_threshold, selection):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
     fallback, table = None, pst.table
@@ -241,6 +242,10 @@ def _counterexample_search(pst, vs, *, acc_threshold):
         fallback = MemberFallback(
             [p for p, keep in zip(table.prefixes, table.representative) if keep]
         )
+    score_patience = ScorePatience.from_config(
+        pst.config,
+        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+    )
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
@@ -252,6 +257,7 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             if pst.config.counterexample_skip_undecided
             else plain_bisect
         ),
+        score_patience=score_patience,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -260,24 +266,40 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
+    if score_patience is not None:
+        score_patience.finish(search)
     if fallback is not None:
-        fallback.close(search.hypothesis, pst.alphabet_size)
+        if score_patience is None:
+            fallback.close(search.hypothesis, pst.alphabet_size)
+        else:
+            score_patience.guarded(
+                search.hypothesis,
+                lambda: fallback.close(search.hypothesis, pst.alphabet_size),
+            )
     return search, ending
 
 
 def _best_search(pst, vs, *, acc_threshold, index, selection):
     """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
-    searches on independent probe streams, the one with the best held-out phi."""
+    searches on independent probe streams, the one with the best phi on
+    ``selection.pick``."""
     restarts = pst.config.counterexample_restarts
     if restarts == 1:
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        search, ending = _counterexample_search(
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            selection=None if selection is None else selection.search,
+        )
         return search, ending, _hypothesis_dfa(pst, search.hypothesis)
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
+        search, ending = _counterexample_search(
+            pst, vs, acc_threshold=acc_threshold, selection=selection.search
+        )
         dfa = _hypothesis_dfa(pst, search.hypothesis)
-        phi = held_out_phi(dfa, *selection)
+        phi = held_out_phi(dfa, *selection.pick)
         print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
@@ -289,7 +311,7 @@ def _round_score(pst, dfa, selection, index) -> Optional[float]:
     """What ``BestRound`` ranks an uncertified round on in place of consistency."""
     if not pst.config.rank_rounds_by_held_out:
         return None
-    score = held_out_phi(dfa, *selection)
+    score = held_out_phi(dfa, *selection.pick)
     print(f"[round {index}] held-out phi: {score:.4f}")
     return score
 
@@ -300,16 +322,21 @@ SELECTION_HALF = 8000
 
 
 def _selection_sample(pst):
-    """The held-out ``(fit, read)`` pair, or ``None`` where nothing is scored."""
+    """The held-out samples, or ``None`` where nothing is scored."""
     config = pst.config
-    if config.counterexample_restarts == 1 and not config.rank_rounds_by_held_out:
+    if (
+        config.counterexample_restarts == 1
+        and not config.rank_rounds_by_held_out
+        and config.counterexample_score_patience is None
+    ):
         return None
     # A child stream, so scoring leaves the run's own draws as they were.
     rng = pst.rng.spawn(1)[0]
-    return tuple(
+    halves = [
         labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
-        for _ in range(2)
-    )
+        for _ in range(4)
+    ]
+    return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
 
 
 def _hypothesis_dfa(pst, hypothesis):
