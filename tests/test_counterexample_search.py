@@ -3,6 +3,7 @@
 import itertools
 import unittest
 
+from orthogonal_dfa.l_star.fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from orthogonal_dfa.l_star.round_end import (
     HARVEST_ENDS,
     HARVEST_MIDDLES,
@@ -194,6 +195,31 @@ class TestTheTests(unittest.TestCase):
         self.assertEqual(3, search.probes)
 
 
+class TestStalledHarvest(unittest.TestCase):
+    def test_a_stalled_score_harvests_the_strings_read_undecided(self):
+        search = quiet_search(
+            parity_cut([b"\x01\x00"]),
+            PARITY_EDGES,
+            score_patience=ScorePatience(lambda h: 0, 3, harvest_tests=True),
+        )
+        ending = search.run(itertools.cycle([b"\x01\x00", b"\x01"]))
+        self.assertEqual(Ending(SCORE_STALLED, [b"\x01\x00"]), ending)
+
+    def test_without_harvest_tests_only_the_score_ends_it(self):
+        # The ends test of test_an_undecided_end_harvests_it, which fires at 14 probes.
+        search = quiet_search(
+            parity_cut([b"\x01\x00"]),
+            PARITY_EDGES,
+            score_patience=ScorePatience(lambda h: 0, 30, harvest_tests=False),
+            ends_rate=0.05,
+            ends_alternative=0.1,
+            level=1e-4,
+        )
+        ending = search.run(itertools.repeat(b"\x01\x00"))
+        self.assertEqual((SCORE_STALLED, 30), (ending.kind, search.probes))
+        self.assertEqual([b"\x01\x00"], ending.harvest)
+
+
 class TestDeepening(unittest.TestCase):
     def test_a_harvest_that_repeats_a_string_walks_past_it(self):
         # At k = 0 this stuck harvest ends the search (see TestTheTests).
@@ -203,6 +229,30 @@ class TestDeepening(unittest.TestCase):
         ending = search.run(itertools.cycle([b"\x00\x01", b"\x00", b"\x00\x00"]))
         self.assertEqual(2, search.k)
         self.assertEqual(SUCCESS, ending.kind)
+
+
+class TestBestHypothesis(unittest.TestCase):
+    def test_the_search_ends_on_its_best_scoring_hypothesis(self):
+        search = quiet_search(
+            parity_cut(()),
+            {},
+            max_probes=4,
+            score_patience=ScorePatience(
+                lambda h: -len(h.edges), 100, harvest_tests=True
+            ),
+        )
+        search.run(itertools.repeat(b"\x01\x00"))
+        self.assertGreater(search.probes, 1)
+        self.assertEqual({}, search.hypothesis.edges)
+
+    def test_patience_ends_a_search_whose_score_stops_improving(self):
+        search = quiet_search(
+            parity_cut(()),
+            PARITY_EDGES,
+            score_patience=ScorePatience(lambda h: 0, 3, harvest_tests=True),
+        )
+        ending = search.run(itertools.repeat(b"\x01"))
+        self.assertEqual((SCORE_STALLED, 3), (ending.kind, search.probes))
 
 
 WITHOUT_ODD_0 = {e: t for e, t in PARITY_EDGES.items() if e != (ODD, 0)}

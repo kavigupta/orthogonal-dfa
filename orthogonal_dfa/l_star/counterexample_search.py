@@ -14,6 +14,7 @@ from .counterexample_probe import (
     locate,
 )
 from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
@@ -30,6 +31,7 @@ class CounterexampleSearch:
         *,
         max_k: int,
         member_fallback: Optional[MemberFallback] = None,
+        score_patience: Optional[ScorePatience] = None,
     ):
         """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
@@ -39,14 +41,23 @@ class CounterexampleSearch:
         self.probes = 0
         self.k, self.max_k = config.k, max_k
         self.member_fallback = member_fallback
+        self.score_patience = score_patience
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
+        if self.score_patience is not None:
+            self.score_patience.observe(self)
+        ending = Ending(OUT_OF_PROBES, [])
         for x in islice(draws, self.config.max_probes):
-            ending = self.step(x)
-            if ending is not None:
-                return ending
-        return Ending(OUT_OF_PROBES, [])
+            found = self.step(x)
+            if found is None and self.score_patience is not None:
+                found = self.score_patience.observe(self)
+            if found is not None:
+                ending = found
+                break
+        if self.score_patience is not None:
+            self.score_patience.restore_best(self.hypothesis)
+        return ending
 
     def step(self, x: bytes) -> Optional[Ending]:
         outcome, charged = self.probe(x)
@@ -61,6 +72,9 @@ class CounterexampleSearch:
             return None
         self.counts.add(charged, outcome)
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
+        if self.score_patience is not None:
+            self.score_patience.record(charged)
+            ending = self.score_patience.filter(ending, self.counts, self.config)
         if ending is not None and self._deepens(ending):
             return None
         return ending
