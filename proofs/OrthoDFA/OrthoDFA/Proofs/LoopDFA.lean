@@ -746,8 +746,8 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the explicit theorem's settings
-/-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/(ℓ⁴ (1 + log ℓ) loopMassInv)` on any
-first `k` letters, `ℓ = L + |Q| + 4`, with its reads bounded in closed form. -/
+/-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/loopTolInv ℓ` on any first `k`
+letters, `ℓ = L + |Q| + 4`, with its reads bounded in closed form. -/
 theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
     {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (D : Measure (FreeMonoid α))
@@ -773,8 +773,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     (∃ q ∈ coveredStatesOn (prefixLaw D L) M L c,
       1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) →
-    p₀ ≤ 1 / ((L + Q + 4) ^ 4 * (1 + Real.log (L + Q + 4))
-      * loopMassInv Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀) →
+    p₀ ≤ 1 / loopTolInv (L + Q + 4) Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -929,17 +928,22 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       rw [le_div_iff₀ hδ'0]
       nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
   -- the prefix mass, from the tolerance
-  obtain ⟨-, -, hEE, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
-    hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
+  obtain ⟨-, -, hE1, hE₂0, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂)
+    (E₃ := E₃) hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
     (Nat.cast_nonneg n) hlg rfl rfl rfl rfl rfl
   have hℓe : (L : ℝ) + Q + 4 = ℓ := by
     show (L : ℝ) + (Fintype.card σ : ℝ) + 4 = ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1
     push_cast; ring
-  have hMI : loopMassInv Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ = E + E₂ + E₃ :=
+  have hMI : loopTolInv ℓ Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀
+      = ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃ :=
     rfl
   have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ1; linarith
-  have hEs0 : 0 < ℓ ^ 4 * (1 + Real.log ℓ) * (E + E₂ + E₃) :=
-    mul_pos (mul_pos (pow_pos (by linarith) 4) (by linarith)) (by linarith only [hEE, hE₃0])
+  have hEs0 : 0 < ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃ := by
+    have h1 : 0 < ℓ ^ 4 * (1 + Real.log ℓ) * E :=
+      mul_pos (mul_pos (pow_pos (by linarith) 4) (by linarith)) (by linarith)
+    have h2 : 0 ≤ ℓ ^ 2 * (1 + Real.log ℓ) * E₂ := mul_nonneg (by positivity) hE₂0
+    have h3 : 0 ≤ ℓ ^ 2 * E₃ := mul_nonneg (by positivity) hE₃0
+    linarith
   have hp₀0 : 0 < p₀ := by
     by_contra h0
     push Not at h0
@@ -953,8 +957,9 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     have h := measure_iUnion_null hz
     rw [hU, measure_univ] at h
     exact one_ne_zero h
-  have hpow3 : ℓ ^ 4 * (1 + Real.log ℓ) * (E + E₂ + E₃) ≤ p₀⁻¹ := by
-    rw [hMI, hℓe, one_div] at hp₀
+  have hpow3 : ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃
+      ≤ p₀⁻¹ := by
+    rw [hℓe, hMI, one_div] at hp₀
     exact (le_inv_comm₀ hp₀0 hEs0).1 hp₀
   obtain ⟨h1, h2, h3, h4⟩ := dfa_mass (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
     hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
@@ -1007,21 +1012,14 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
       (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
   have hp₀ : (A ^ k)⁻¹
-      ≤ 1 / (((L : ℝ) + Q + 4) ^ 4 * (1 + Real.log ((L : ℝ) + Q + 4))
-        * loopMassInv Q A A (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀) := by
+      ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A A (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ := by
     have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-    have hℓ0 : (0 : ℝ) < (L : ℝ) + Q + 4 := by linarith
-    have hΛ1 : 1 ≤ 1 + Real.log ((L : ℝ) + Q + 4) := by
-      have := Real.log_nonneg (show (1 : ℝ) ≤ (L : ℝ) + Q + 4 by linarith); linarith
-    have hle : ((L : ℝ) + Q + 4) ^ 4 * (1 + Real.log ((L : ℝ) + Q + 4)) * (E + E₂ + E₃)
-        ≤ ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) := by
-      have := mul_le_mul_of_nonneg_left (one_add_log_le hℓ0)
-        (pow_nonneg hℓ0.le 4 : (0 : ℝ) ≤ ((L : ℝ) + Q + 4) ^ 4)
-      rw [show ((L : ℝ) + Q + 4) ^ 4 * ((L : ℝ) + Q + 4) = ((L : ℝ) + Q + 4) ^ 5 by ring] at this
-      exact mul_le_mul_of_nonneg_right this (by linarith)
-    rw [hMI, one_div]
-    exact inv_anti₀ (mul_pos (mul_pos (pow_pos hℓ0 4) (by linarith)) (by linarith))
-      (hle.trans hpow)
+    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A)
+      (Fintype.card σ) (Fintype.card α) (by linarith) hQ0 (by linarith) hA hδ hδ1 hc hc1 hξ hpAP
+      hp1 hη0 hη₀
+    rw [hMI] at hTle
+    rw [one_div]
+    exact inv_anti₀ (by linarith) (hTle.trans hpow)
   have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
       = uniformStrings L := prefixLaw_uniformStrings (by omega)
   have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
