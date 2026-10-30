@@ -1815,6 +1815,74 @@ lemma cert_hits_wrongSet (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityM
   · rw [Finset.card_range]
 
 open scoped Classical in
+/-- `cert_hits_wrongSet` relative to the mass, `exp(−m t²/(2l))`. -/
+lemma cert_hits_wrongSet_rel (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeasure (Pc j)]
+    (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj] (hPc : Pc j = iidStream Dj) (m : ℕ)
+    (W : Set S) (l t : ℝ) (hl : 0 < l) (ht : 0 ≤ t) (hW : l ≤ Dj.real W) :
+    (Measure.pi Pc).real
+        {c | (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) ≤ (m : ℝ) * (l - t)}
+      ≤ Real.exp (-((m : ℝ) * (t ^ 2 / (2 * l)))) := by
+  classical
+  rcases Nat.eq_zero_or_pos m with hm | hm
+  · subst hm; simpa using measureReal_le_one
+  set ν : Measure (J → ℕ → S) := Measure.pi Pc with hνdef
+  have hWm : MeasurableSet W := measurableSet_of_countable W
+  set ind : S → ℝ := W.indicator 1 with hinddef
+  have hindm : Measurable ind := measurable_const.indicator hWm
+  set X : ℕ → (J → ℕ → S) → ℝ := fun i c => ind (c j i) with hXdef
+  have hevalj : MeasurePreserving (fun c : J → ℕ → S => c j) ν (iidStream Dj) := by
+    rw [← hPc]; exact measurePreserving_eval Pc j
+  have hcoord : iIndepFun (fun (i : ℕ) (s : ℕ → S) => s i)
+      (Measure.infinitePi fun _ : ℕ => Dj) := iIndepFun_infinitePi (fun _ => measurable_id)
+  have hindep : iIndepFun X ν :=
+    (iIndepFun_comp_measurePreserving hevalj (fun _ => measurable_pi_apply _) hcoord).comp
+      (fun _ => ind) (fun _ => hindm)
+  have hmeas : ∀ i, Measurable (X i) := fun i =>
+    hindm.comp ((measurable_pi_apply _).comp (measurable_pi_apply _))
+  have hicc : ∀ i, ∀ᵐ c ∂ν, X i c ∈ Set.Icc (0 : ℝ) 1 := by
+    intro i
+    filter_upwards with c
+    by_cases h : c j i ∈ W
+    · simp [hXdef, hinddef, Set.indicator_of_mem h]
+    · simp [hXdef, hinddef, Set.indicator_of_notMem h]
+  have hmean : ∀ i, ν[X i] = Dj.real W := by
+    intro i
+    have hmp : MeasurePreserving (fun c : J → ℕ → S => c j i) ν (Dj) :=
+      (measurePreserving_eval_infinitePi _ i).comp hevalj
+    calc ν[X i] = ∫ s, ind s ∂(Dj) := by
+          rw [← hmp.map_eq,
+            integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
+      _ = Dj.real W := by rw [hinddef, integral_indicator_one hWm]
+  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
+  have hsum : (m : ℝ) * l ≤ ∑ i ∈ Finset.range m, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
+      Finset.card_range]
+    exact mul_le_mul_of_nonneg_left hW hmR.le
+  have hmain := sumLower_rel X (Finset.range m) ((m : ℝ) * l) ((m : ℝ) * t) hmeas hindep hicc
+    (by positivity) hsum (by positivity)
+  have hcount : ∀ c : J → ℕ → S, ∑ i ∈ Finset.range m, X i c
+      = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+    intro c
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c j i ∈ W)]
+    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c
+        = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c = (1 : ℝ) := by
+        intro i hi
+        simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
+      rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
+    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c j i ∈ W)), X i c = 0 :=
+      Finset.sum_eq_zero (fun i hi => by
+        simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
+    rw [h1, h0, add_zero]
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) (le_of_eq ?_)
+  · intro c hc
+    simp only [Set.mem_setOf_eq] at hc ⊢
+    rw [hcount c]
+    linarith [hc]
+  · congr 1
+    field_simp
+
+open scoped Classical in
 /-- The upper-tail twin: a set of mass at most `q` is hit at most `m(q + t)` times.  This
 is what prices the certification prefixes the family flips too much of, whose set is chosen
 by the noise while the draws are not. -/
@@ -4032,11 +4100,11 @@ theorem measureReal_undecidedShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf :
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
-    (hPc : Pc j = iidStream Dj) (B : State) (l t : ℝ) (hl : 0 ≤ l) (ht : 0 ≤ t) :
+    (hPc : Pc j = iidStream Dj) (B : State) (l t : ℝ) (hl : 0 < l) (ht : 0 ≤ t) :
     (streamMeasure μ Pp Pc Dsf).real (undecidedShort rule O populations Dj j B l t)
-      ≤ Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((B.npref : ℝ) * (t ^ 2 / (2 * l)))) := by
   classical
-  set E : ℝ := Real.exp (-2 * (B.npref : ℝ) * t ^ 2) with hEdef
+  set E : ℝ := Real.exp (-((B.npref : ℝ) * (t ^ 2 / (2 * l)))) with hEdef
   have hEnn : streamMeasure μ Pp Pc Dsf (undecidedShort rule O populations Dj j B l t)
       ≤ ENNReal.ofReal E := by
     refine streamMeasure_slice_cert_le Pp Pc Dsf _
@@ -4064,7 +4132,7 @@ theorem measureReal_undecidedShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf :
         ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
       rw [hEdef]
-      have hcert := cert_hits_wrongSet Pc j Dj hPc B.npref W l t hl ht hmass
+      have hcert := cert_hits_wrongSet_rel Pc j Dj hPc B.npref W l t hl ht hmass
       convert hcert using 3
       funext c
       congr!
