@@ -248,7 +248,7 @@ noncomputable def budgetLog (populations : Finset J)
 margins are a rate times `sig²`, and a deviation bound squares the margin it is given. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
-  k * (populations.card : ℝ) ^ 2
+  k * (populations.card : ℝ)
     * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
     / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
 
