@@ -7,15 +7,15 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 
 `LoopClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
-length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
-a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
+length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits a
+start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
 `totalPref` prefixes and `totalSuff` suffixes, and its rounds draw at most `totalProbes` probes,
-whatever they draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The run is the
-coverage rule's at `c = ξ/(2C|Q|)`, with `R ≤ C ≤ 2R`, so `1/c` enters the shapes as `R|Q|/ξ`. The
-totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
-`c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the
-suffixes as `log L`. Each bound has one constant over all of `loopDistRegion`.
+whatever they draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The
+run is the coverage rule's at `c = ξ/(2C|Q|)`, with `R ≤ C ≤ 2R`, so `1/c` enters the shapes as
+`R|Q|/ξ`. The totals grow with `L` because the settings the proof picks hold each round's
+disagreement rate at `c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as
+`(L + |Q|)²` and the suffixes as `log L`. Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
