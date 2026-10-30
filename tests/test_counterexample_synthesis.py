@@ -2,6 +2,7 @@
 
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 
@@ -9,6 +10,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     BestRound,
     _accumulate_harvest,
+    _counterexample_search,
     _publish_pool,
     _StallDetector,
 )
@@ -196,3 +198,51 @@ class TestBestRound(unittest.TestCase):
         certified = {**self._COMMON, "certified": "b"}
         best.consider(consistency=0.9, score=0.1, dfa="b", round_index=1, **certified)
         self.assertEqual("b", best.dfa)
+
+
+class _FakeSearch:
+    """Records the config it is built with, and ends at once."""
+
+    config = None
+
+    def __init__(self, config, _tree_key, _midfixes, **_options):
+        type(self).config = config
+        self.hypothesis = None
+
+    def run(self, _draws):
+        return None
+
+
+class TestFnrHarvest(unittest.TestCase):
+    _ACCEPTABLE_FNR = 0.05
+
+    def _harvest_multiple(self, *, flag, fnr):
+        pst = SimpleNamespace(
+            config=SimpleNamespace(
+                acceptable_fnr=self._ACCEPTABLE_FNR,
+                counterexample_fnr_harvest=flag,
+                counterexample_member_fallback=False,
+            ),
+            table=SimpleNamespace(representative=None, suffix=lambda i: b""),
+            sampler=SimpleNamespace(length=10),
+            compute_decision=lambda vs, representative: None,
+            fnr_from_decision=lambda decision: (fnr, None),
+        )
+        with mock.patch.multiple(
+            "orthogonal_dfa.l_star.counterexample_synthesis",
+            CounterexampleSearch=_FakeSearch,
+            SuffixFamily=mock.DEFAULT,
+            MidfixTree=mock.DEFAULT,
+            warmed_draws=mock.DEFAULT,
+        ):
+            _counterexample_search(pst, [0], acc_threshold=0.9)
+        return _FakeSearch.config.harvest_multiple
+
+    def test_off_leaves_the_multiple_alone(self):
+        self.assertEqual(5, self._harvest_multiple(flag=False, fnr=0.2))
+
+    def test_it_scales_by_fnr_over_acceptable(self):
+        self.assertAlmostEqual(20, self._harvest_multiple(flag=True, fnr=0.2))
+
+    def test_an_fnr_within_acceptable_does_not_shrink_it(self):
+        self.assertEqual(5, self._harvest_multiple(flag=True, fnr=0.01))

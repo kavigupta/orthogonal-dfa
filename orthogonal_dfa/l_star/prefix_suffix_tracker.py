@@ -68,6 +68,9 @@ class SearchConfig:
     counterexample_restarts: int = 1
     #: Rank uncertified rounds by held-out phi rather than consistency.
     rank_rounds_by_held_out: bool = False
+    #: Scale the round's harvest thresholds by the family's measured FNR over
+    #: ``acceptable_fnr``: for oracles whose families only just make their FNR gate.
+    counterexample_fnr_harvest: bool = False
     #: Read an edge a probe leaves undecided on a representative prefix of its
     #: source leaf instead.
     counterexample_member_fallback: bool = False
