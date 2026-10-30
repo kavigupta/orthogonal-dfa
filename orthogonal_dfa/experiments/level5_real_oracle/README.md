@@ -34,3 +34,7 @@ length (189) and rejects that band.
 
 `SAWTOOTH_COUNTING.md` records what the current learner finds on the old oracle
 (`gate_residual_oracle`): DFAs that count wildcards modulo 2 or 3.
+
+`LENGTH_ORACLES.md` compares round 0 on that oracle with one thresholded at each compiled
+length's own median (`length_oracles.py`, `length_oracles_label.py`,
+`length_oracles_figure.py`): wildcard counters on the first, the frame-0 rule on the second.
