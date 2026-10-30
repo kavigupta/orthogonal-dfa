@@ -1,7 +1,3 @@
-"""With fnr_plateau_patience set, the family search stops on the best full
-family once its FNR stops dropping by fnr_plateau_tol, rather than waiting for
-fnr_limit."""
-
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -13,14 +9,14 @@ FAMILY_SIZE = 4
 FNR_LIMIT = 0.05
 
 
-def _search(fnrs, patience, tol=0.01):
+def _search(fnrs, patience):
     """The family each round returns is [round] * FAMILY_SIZE, judged at fnrs[round], with boundary float(round)."""
     rounds = iter(range(len(fnrs)))
     pst = SimpleNamespace(
         config=SimpleNamespace(
             min_signal_strength=0.3,
             fnr_plateau_patience=patience,
-            fnr_plateau_tol=tol,
+            fnr_plateau_tol=0.01,
         ),
         decision_boundary=0.5,
         fnr_limit=FNR_LIMIT,
