@@ -200,19 +200,6 @@ class TestBestRound(unittest.TestCase):
         self.assertEqual("b", best.dfa)
 
 
-class _FakeSearch:
-    """Records the config it is built with, and ends at once."""
-
-    config = None
-
-    def __init__(self, config, _tree_key, _midfixes, **_options):
-        type(self).config = config
-        self.hypothesis = None
-
-    def run(self, _draws):
-        return None
-
-
 class TestFnrHarvest(unittest.TestCase):
     _ACCEPTABLE_FNR = 0.05
 
@@ -230,13 +217,13 @@ class TestFnrHarvest(unittest.TestCase):
         )
         with mock.patch.multiple(
             "orthogonal_dfa.l_star.counterexample_synthesis",
-            CounterexampleSearch=_FakeSearch,
+            CounterexampleSearch=mock.DEFAULT,
             SuffixFamily=mock.DEFAULT,
             MidfixTree=mock.DEFAULT,
             warmed_draws=mock.DEFAULT,
-        ):
+        ) as patched:
             _counterexample_search(pst, [0], acc_threshold=0.9)
-        return _FakeSearch.config.harvest_multiple
+        return patched["CounterexampleSearch"].call_args.args[0].harvest_multiple
 
     def test_off_leaves_the_multiple_alone(self):
         self.assertEqual(5, self._harvest_multiple(flag=False, fnr=0.2))
