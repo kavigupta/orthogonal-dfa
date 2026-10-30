@@ -242,6 +242,7 @@ class TestBestHypothesis(unittest.TestCase):
             ),
         )
         search.run(itertools.repeat(b"\x01\x00"))
+        search.score_patience.finish(search)
         self.assertGreater(search.probes, 1)
         self.assertEqual({}, search.hypothesis.edges)
 

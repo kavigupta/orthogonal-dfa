@@ -45,21 +45,17 @@ class CounterexampleSearch:
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
-        if self.score_patience is not None:
-            self.score_patience.observe(self)
-        ending = Ending(OUT_OF_PROBES, [])
         for x in islice(draws, self.config.max_probes):
-            found = self.step(x)
-            if found is None and self.score_patience is not None:
-                found = self.score_patience.observe(self)
-            if found is not None:
-                ending = found
-                break
-        if self.score_patience is not None:
-            self.score_patience.restore_best(self.hypothesis)
-        return ending
+            ending = self.step(x)
+            if ending is not None:
+                return ending
+        return Ending(OUT_OF_PROBES, [])
 
     def step(self, x: bytes) -> Optional[Ending]:
+        if self.score_patience is not None:
+            stalled = self.score_patience.observe(self)
+            if stalled is not None:
+                return stalled
         outcome, charged = self.probe(x)
         self.probes += 1
         if isinstance(outcome, Member):

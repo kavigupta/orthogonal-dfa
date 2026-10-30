@@ -259,6 +259,8 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
+    if score_patience is not None:
+        score_patience.finish(search)
     if fallback is not None:
         if score_patience is None:
             fallback.close(search.hypothesis, pst.alphabet_size)

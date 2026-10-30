@@ -86,9 +86,10 @@ class ScorePatience:
             return Ending(SCORE_STALLED, list(self.undecided))
         return None
 
-    def restore_best(self, hypothesis: HypothesisDFA) -> None:
-        if self._best is not None:
-            restore(hypothesis, self._best)
+    def finish(self, search: "CounterexampleSearch") -> None:
+        """Leave ``search`` at the best hypothesis it saw, its last one included."""
+        self.observe(search)
+        restore(search.hypothesis, self._best)
 
     def filter(
         self,
