@@ -24,14 +24,22 @@ restarts are ranked by).
     PYTHONPATH=. python -u orthogonal_dfa/experiments/level5_real_oracle/length_oracles.py \
         --oracle saw --seed $s --out OUT/saw_s$s
     PYTHONPATH=. python -u orthogonal_dfa/experiments/level5_real_oracle/length_oracles_label.py OUT/labels.npz
-    PYTHONPATH=. python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_figure.py \
-        OUT/labels.npz OUT/figure OUT/saw_s{0,1,2,3} OUT/flat_s{0,1,2,3}
+    PYTHONPATH=. python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_extract.py \
+        OUT/labels.npz OUT/length_oracles_data.json OUT/saw_s{0,1,2,3} OUT/flat_s{0,1,2,3}
+    python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_figure.py \
+        OUT/length_oracles_data.json OUT/figure
+
+The extract step is the last that needs the runs or this repo; `length_oracles_data.json`
+here is its output for the runs below, so the figure and tables re-render from it alone.
+It holds counts rather than rates: oracle accepts per half, stop count and frame pattern,
+and for every restart its DFA, pick and search scores, ending, probes, and the strings
+ending in each state per half, stop count and frame pattern with their oracle accepts.
 
 Runs took 2.1-6.9 h each (sawtooth mean 4.1 h, per-length 4.6 h).
 
 Every DFA below is read on the same 200,000 fresh strings, each with its own oracle's
 labels: a state accepts iff its strings in the first 100,000 accept above that half's
-rate, and phi is read on the other 100,000.  Drawn DFAs are minimised under those labels.
+rate, and phi and rule agreements are read on the other 100,000.  Drawn DFAs are minimised under those labels.
 
 ## The oracles
 
@@ -71,9 +79,8 @@ On the per-length oracle the kept DFAs of seeds 0 and 1 are exactly "no stop in 
 (seed 1's in 4 states: the phase, and a sink once a stop lands in frame 0), seed 2's
 agrees .97, and seed 3's is a weaker frame DFA (.71).  No restart counts.
 
-`decode.json` from the figure script has every restart's phi, pick score, state counts,
-NMI of its end state with wildcards mod k and with the frame pattern, stop self-loops,
-rule agreements and accept rate by frame pattern.
+The figure script prints every restart's phi, pick score, state counts, NMI of its end
+state with wildcards mod k and with the frame pattern, stop self-loops and rule agreements.
 
 ## Notes
 

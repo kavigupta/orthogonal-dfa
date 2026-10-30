@@ -37,4 +37,5 @@ length (189) and rejects that band.
 
 `LENGTH_ORACLES.md` compares round 0 on that oracle with one thresholded at each compiled
 length's own median (`length_oracles.py`, `length_oracles_label.py`,
-`length_oracles_figure.py`): wildcard counters on the first, the frame-0 rule on the second.
+`length_oracles_extract.py`, `length_oracles_figure.py`, data in `length_oracles_data.json`):
+wildcard counters on the first, the frame-0 rule on the second.
