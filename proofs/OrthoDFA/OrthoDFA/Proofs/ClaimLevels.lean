@@ -382,77 +382,53 @@ private lemma slope_pt {Q A iε iδ L : ℝ} (hQ : 1 ≤ Q) (hε : 1 ≤ iε) (h
 
 private lemma slack_pt {Q A iε iδ L : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ)
     (hε : 1 ≤ iε) :
-    0 ≤ lvSlack (Q, A, iε, iδ, L) ∧ 0 ≤ (Q * A * Real.log (Q * A) + Real.log iδ) * iε
+    0 ≤ lvSlack (Q, A, iε, iδ, L) ∧ 0 ≤ (Q * A * Real.log (Q + 1) + Real.log iδ) * iε
       ∧ lvSlack (Q, A, iε, iδ, L)
-        ≤ 3360 * ((Q * A * Real.log (Q * A) + Real.log iδ) * iε) := by
+        ≤ 2064 * ((Q * A * Real.log (Q + 1) + Real.log iδ) * iε) := by
   simp only [lvSlack, lvLogK]
   have hu1 : 1 ≤ Q * A := one_le_mul_of_one_le_of_one_le hQ hA
   have hQu : Q ≤ Q * A := le_mul_of_one_le_right (by linarith) hA
-  set u := Q * A with hu
-  have hlu : 0 ≤ Real.log u := Real.log_nonneg hu1
-  have hulu : u - 1 ≤ u * Real.log u := by
-    have h := mul_le_mul_of_nonneg_left (Real.one_sub_inv_le_log_of_pos (by linarith : 0 < u))
-      (by linarith : (0 : ℝ) ≤ u)
-    have hu0 : u ≠ 0 := by positivity
-    have e : u * (1 - u⁻¹) = u - 1 := by field_simp
-    linarith
-  have hδl : 1 ≤ 2 * Real.log iδ := by linarith [half_le_log hδ]
+  have hℓ : 1 / 2 ≤ Real.log (Q + 1) := half_le_log (by linarith)
+  set ℓ := Real.log (Q + 1) with hℓd
+  have hw : ℓ ≤ Q * A * ℓ := le_mul_of_one_le_left (by linarith) hu1
+  have hQw : Q * ℓ ≤ Q * A * ℓ := mul_le_mul_of_nonneg_right hQu (by linarith)
+  have hu2 : Q * A ≤ 2 * (Q * A * ℓ) := by nlinarith
   have t1 : Real.log 16 ≤ 15 := by
     linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 16)]
-  have t2 : Real.log (Q + 1) ≤ u := by
-    linarith [Real.log_le_sub_one_of_pos (by linarith : 0 < Q + 1)]
-  have t3 : Q * Real.log (1 + (Q + 1) ^ 3 * A) ≤ 8 * u + 3 * (u * Real.log u) := by
-    have hq : (Q + 1) ^ 3 ≤ 8 * Q ^ 3 := by
-      have := pow_le_pow_left₀ (by linarith) (by linarith : Q + 1 ≤ 2 * Q) 3
-      linarith [show (2 * Q) ^ 3 = 8 * Q ^ 3 by ring]
-    have hA3 : A ≤ A ^ 3 := by
-      have : 1 ≤ A ^ 2 := one_le_pow₀ hA
-      calc A = A * 1 := by ring
-        _ ≤ A * A ^ 2 := by gcongr
-        _ = A ^ 3 := by ring
-    have hQ3 : Q ^ 3 * A ≤ u ^ 3 := by
-      calc Q ^ 3 * A ≤ Q ^ 3 * A ^ 3 := by gcongr
-        _ = u ^ 3 := by rw [hu]; ring
-    have h9 : 1 + (Q + 1) ^ 3 * A ≤ 9 * u ^ 3 := by
-      have : (Q + 1) ^ 3 * A ≤ 8 * Q ^ 3 * A := by gcongr
-      have : 1 ≤ u ^ 3 := one_le_pow₀ hu1
-      linarith
-    have hl : Real.log (1 + (Q + 1) ^ 3 * A) ≤ Real.log 9 + 3 * Real.log u := by
-      have e : Real.log (9 * u ^ 3) = Real.log 9 + 3 * Real.log u := by
-        rw [Real.log_mul (by norm_num) (by positivity), Real.log_pow]; push_cast; ring
-      rw [← e]
-      exact Real.log_le_log (by positivity) h9
-    have hl9 : Real.log 9 ≤ 8 := by
-      linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 9)]
+  have t3 : Q * Real.log (1 + (Q + 1) ^ 3 * A) ≤ 6 * (Q * A * ℓ) := by
+    have h1 : 1 ≤ (Q + 1) ^ 3 * A :=
+      one_le_mul_of_one_le_of_one_le (one_le_pow₀ (by linarith)) hA
+    have h2 : 1 + (Q + 1) ^ 3 * A ≤ (Q + 1) ^ 4 * A := by
+      rw [show (Q + 1) ^ 4 * A = (Q + 1) ^ 3 * A * (Q + 1) by ring]; nlinarith
+    have hl : Real.log (1 + (Q + 1) ^ 3 * A) ≤ 4 * ℓ + A := by
+      have e : Real.log ((Q + 1) ^ 4 * A) = 4 * ℓ + Real.log A := by
+        rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]; push_cast; ring
+      have := Real.log_le_log (by positivity) h2
+      linarith [Real.log_le_sub_one_of_pos (by linarith : 0 < A)]
     have := mul_le_mul_of_nonneg_left hl (by linarith : 0 ≤ Q)
-    nlinarith [mul_le_mul_of_nonneg_right hQu hlu]
-  have t4 : (Q + 2) * A * Real.log (Q + 3) ≤ 9 * u + 3 * (u * Real.log u) := by
-    have h1 : (Q + 2) * A ≤ 3 * u := by
+    nlinarith
+  have t4 : (Q + 2) * A * Real.log (Q + 3) ≤ 6 * (Q * A * ℓ) := by
+    have h1 : (Q + 2) * A ≤ 3 * (Q * A) := by
       nlinarith [mul_le_mul_of_nonneg_right hQ (by linarith : (0 : ℝ) ≤ A)]
-    have h2 : Real.log (Q + 3) ≤ Real.log 4 + Real.log u := by
-      rw [← Real.log_mul (by norm_num) (by positivity)]
-      exact Real.log_le_log (by linarith) (by linarith)
-    have h4 : Real.log 4 ≤ 3 := by
-      linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 4)]
-    have h3 : 0 ≤ Real.log (Q + 3) := Real.log_nonneg (by linarith)
-    calc (Q + 2) * A * Real.log (Q + 3) ≤ 3 * u * (Real.log 4 + Real.log u) :=
-          mul_le_mul h1 h2 h3 (by positivity)
-      _ ≤ 9 * u + 3 * (u * Real.log u) := by nlinarith [mul_le_mul_of_nonneg_left h4 hlu]
-  have h16 : 0 ≤ Real.log 16 := Real.log_nonneg (by norm_num)
-  have hQ1 : 0 ≤ Real.log (Q + 1) := Real.log_nonneg (by linarith)
+    have h2 : Real.log (Q + 3) ≤ 2 * ℓ := by
+      have := Real.log_le_log (by linarith) (by nlinarith : Q + 3 ≤ (Q + 1) ^ 2)
+      rw [Real.log_pow] at this; push_cast at this; linarith
+    calc (Q + 2) * A * Real.log (Q + 3) ≤ 3 * (Q * A) * (2 * ℓ) :=
+          mul_le_mul h1 h2 (Real.log_nonneg (by linarith)) (by positivity)
+      _ = 6 * (Q * A * ℓ) := by ring
   have hc0 : 0 ≤ Q * Real.log (1 + (Q + 1) ^ 3 * A) :=
     mul_nonneg (by linarith) (Real.log_nonneg (le_add_of_nonneg_right (by positivity)))
   have hd0 : 0 ≤ (Q + 2) * A * Real.log (Q + 3) :=
     mul_nonneg (by positivity) (Real.log_nonneg (by linarith))
+  have h16 : 0 ≤ Real.log 16 := Real.log_nonneg (by norm_num)
   have hδ0 : 0 ≤ Real.log iδ := Real.log_nonneg (by linarith)
-  have hsum : Real.log 16 + Real.log (Q + 1)
+  have hsum : Real.log 16 + ℓ
         + (Q * Real.log (1 + (Q + 1) ^ 3 * A) + (Q + 2) * A * Real.log (Q + 3)) + Real.log iδ
-      ≤ 70 * (u * Real.log u + Real.log iδ) := by
-    have : 0 ≤ u * Real.log u := by positivity
+      ≤ 43 * (Q * A * ℓ + Real.log iδ) := by
     linarith
   refine ⟨mul_nonneg (by linarith) (by linarith),
     mul_nonneg (by positivity) (by linarith), ?_⟩
-  calc _ ≤ 70 * (u * Real.log u + Real.log iδ) * (48 * iε) :=
+  calc _ ≤ 43 * (Q * A * ℓ + Real.log iδ) * (48 * iε) :=
         mul_le_mul_of_nonneg_right hsum (by linarith)
     _ = _ := by ring
 
@@ -645,9 +621,9 @@ private lemma lvSlope_isBigO : lvSlope =O[𝓟 vecRegion]
   exact slope_pt (A := A) (iδ := iδ) hQ hε hL
 
 private lemma lvSlack_isBigO : lvSlack =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _) => (Q * A * Real.log (Q * A) + Real.log iδ) * iε
+    (fun (Q, A, iε, iδ, _) => (Q * A * Real.log (Q + 1) + Real.log iδ) * iε
       : LevelVec → ℝ) := by
-  refine isBigO_on 3360 fun b hb => ?_
+  refine isBigO_on 2064 fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -⟩ := level_region hb
   exact slack_pt (L := L) hQ hA hδ hε
@@ -768,47 +744,34 @@ private lemma slope_shift :
     _ = _ := by ring
 
 private lemma slack_shift :
-    ((fun (Q, A, iε, iδ, _) => (Q * A * Real.log (Q * A) + Real.log iδ) * iε
+    ((fun (Q, A, iε, iδ, _) => (Q * A * Real.log (Q + 1) + Real.log iδ) * iε
       : LevelVec → ℝ) ∘ lvShift) =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _) => (Q + Real.log iδ) * A * Real.log ((Q + Real.log iδ) * A) * iε
+    (fun (Q, A, iε, iδ, _) => (Q + Real.log iδ) * A * Real.log (Q + Real.log iδ + 1) * iε
       : LevelVec → ℝ) := by
-  refine isBigO_on 700 fun b hb => ?_
+  refine isBigO_on 563 fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -⟩ := level_region hb
   obtain ⟨-, hQ', hQR, -, -⟩ := shift_pt hQ hA hδ
-  have hl2 := Real.log_le_log (by norm_num) hδ
   have hR : 0 ≤ Real.log iδ := by linarith [half_le_log hδ]
   set R := Q + Real.log iδ
-  have hRA : 5 / 3 ≤ R * A := by
-    have : 5 / 3 ≤ R := by linarith [Real.log_two_gt_d9]
-    nlinarith
-  have hlRA : 2 / 5 ≤ Real.log (R * A) := by
-    have h := Real.one_sub_inv_le_log_of_pos (by linarith : 0 < R * A)
-    have : (R * A)⁻¹ ≤ (5 / 3)⁻¹ := inv_anti₀ (by norm_num) hRA
-    rw [show ((5 : ℝ) / 3)⁻¹ = 3 / 5 by norm_num] at this
-    linarith
-  have hQ'A : 1 ≤ (Q + lvF iδ) * A := one_le_mul_of_one_le_of_one_le hQ' hA
-  have h17 : Real.log (17 * (R * A)) ≤ 41 * Real.log (R * A) := by
-    rw [Real.log_mul (by norm_num) (by linarith)]
+  have hRA : R ≤ R * A := le_mul_of_one_le_right (by linarith) hA
+  have hl : 1 / 2 ≤ Real.log (R + 1) := half_le_log (by linarith)
+  have h17 : Real.log (Q + lvF iδ + 1) ≤ 33 * Real.log (R + 1) := by
+    have : Real.log (Q + lvF iδ + 1) ≤ Real.log (17 * (R + 1)) :=
+      Real.log_le_log (by linarith) (by linarith)
+    rw [Real.log_mul (by norm_num) (by linarith)] at this
     linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 17)]
-  have h1 : (Q + lvF iδ) * A * Real.log ((Q + lvF iδ) * A)
-      ≤ 17 * (R * A) * (41 * Real.log (R * A)) := by
-    have hle : (Q + lvF iδ) * A ≤ 17 * (R * A) := by nlinarith
-    calc (Q + lvF iδ) * A * Real.log ((Q + lvF iδ) * A)
-        ≤ 17 * (R * A) * Real.log (17 * (R * A)) :=
-          mul_le_mul hle (Real.log_le_log (by linarith) hle) (Real.log_nonneg hQ'A)
-            (by linarith)
-      _ ≤ _ := mul_le_mul_of_nonneg_left h17 (by linarith)
-  have h2 : Real.log iδ ≤ 5 / 2 * (R * A * Real.log (R * A)) := by
-    have : R ≤ R * A := le_mul_of_one_le_right (by linarith) hA
-    nlinarith
+  have h1 : (Q + lvF iδ) * A * Real.log (Q + lvF iδ + 1)
+      ≤ 17 * (R * A) * (33 * Real.log (R + 1)) :=
+    mul_le_mul (by nlinarith) h17 (Real.log_nonneg (by linarith)) (by positivity)
+  have h2 : Real.log iδ ≤ 2 * (R * A * Real.log (R + 1)) := by nlinarith
   simp only [Function.comp, lvShift]
-  have hlQ' : 0 ≤ (Q + lvF iδ) * A * Real.log ((Q + lvF iδ) * A) :=
-    mul_nonneg (by linarith) (Real.log_nonneg hQ'A)
+  have hlQ' : 0 ≤ (Q + lvF iδ) * A * Real.log (Q + lvF iδ + 1) :=
+    mul_nonneg (by positivity) (Real.log_nonneg (by linarith))
   refine ⟨mul_nonneg (by linarith) (by linarith),
-    mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by linarith), ?_⟩
-  calc ((Q + lvF iδ) * A * Real.log ((Q + lvF iδ) * A) + Real.log iδ) * iε
-      ≤ (700 * (R * A * Real.log (R * A))) * iε :=
+    mul_nonneg (mul_nonneg (by positivity) (by linarith)) (by linarith), ?_⟩
+  calc ((Q + lvF iδ) * A * Real.log (Q + lvF iδ + 1) + Real.log iδ) * iε
+      ≤ (563 * (R * A * Real.log (R + 1))) * iε :=
         mul_le_mul_of_nonneg_right (by linarith) (by linarith)
     _ = _ := by ring
 

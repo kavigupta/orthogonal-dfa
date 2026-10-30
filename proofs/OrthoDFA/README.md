@@ -28,13 +28,13 @@ Each claim is proved from the explicit theorems below.
   harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
   harvest rate `y = ε/48`, one round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`,
-  its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/ε)`.
+  its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q| + 1) + log(1/δ))/ε)`.
   Levels 4 and 5 also give how much of the probes' law any one walk start may hold (`p₀Tol`,
   `1/p₀Tol` of order the budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
   O(Q'³|Σ|/ε · log(|Q||Σ|/δ) log L / log(1/δ))` at level 4, `1/κTol = O(Q'²|Σ| log(|Q||Σ|/δ) /
   log(1/δ))` at level 5), their trees growing `spurious = O(log(1/δ))` leaves past level 3's
   `|Q| + 2`. Their budget and slope are level 3's with `|Q|` outside the log read as
-  `Q' = |Q| + log(1/δ)`, and their slack is `O(Q'|Σ| log(Q'|Σ|)/ε)`.
+  `Q' = |Q| + log(1/δ)`, and their slack is `O(Q'|Σ| log(Q' + 1)/ε)`.
 - `LoopClaim` (`Claims/Loop.lean`): over an input distribution `D`, over
   `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`) and `R ≥ 1` the visit ratio of the
   relative rule (`LearnerLoopDFARelative`'s premise). The probes are `D`'s strings cut at a
