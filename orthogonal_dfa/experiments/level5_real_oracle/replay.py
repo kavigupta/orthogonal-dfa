@@ -44,7 +44,7 @@ from orthogonal_dfa.l_star.counterexample_probe import (
     Middle,
     Start,
 )
-from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
 from orthogonal_dfa.l_star.suffix_family import SuffixFamily

@@ -26,7 +26,7 @@ from fullloop_mem import VOCAB, held_out, score
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.dfa_utils import held_out_phi, labelled_sample
-from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
 from orthogonal_dfa.spliceai.load_model import load_spliceai

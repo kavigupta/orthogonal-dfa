@@ -19,7 +19,7 @@ from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
 from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_search_config
-from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
 from orthogonal_dfa.l_star.fallbacks.members import MemberFallback

@@ -12,7 +12,7 @@ import family_ckpt
 from fullloop_mem import VOCAB
 
 from orthogonal_dfa.data.exon import default_exon
-from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
 from orthogonal_dfa.l_star.hypothesis_dfa import HypothesisDFA
