@@ -11,8 +11,8 @@ ending logged (`diag.jsonl`):
 `rounds.json` has each round's DFA states and held-out phi (fit on one half of
 2x6000 strings drawn with seeds 1111/2222, read on the other); `summary.json` the
 best round.  `--plateau` turns on every opt-in setting the PR's runs used: score
-patience 500, FNR-scaled harvests, `fnr_plateau_patience=3`, 3 restarts, and ranking
-rounds by held-out phi.
+patience 500 with the harvest tests off (a search ends only on success or a stalled
+score), `fnr_plateau_patience=3`, 3 restarts, and ranking rounds by held-out phi.
 
 Replay one round's counterexample search from a checkpoint (minutes instead of the
 hours the family search takes), logging every probe and every hypothesis:

@@ -218,7 +218,7 @@ def main():
         pst.config.fnr_limit = 0.10
         pst.config.fnr_plateau_patience = 3
         pst.config.counterexample_score_patience = 500
-        pst.config.counterexample_fnr_harvest = True
+        pst.config.counterexample_harvest_tests = False
         pst.config.counterexample_restarts = a.restarts if a.restarts > 1 else 3
         pst.config.rank_rounds_by_held_out = True
         pst.config.fnr_plateau_tol = 0.01

@@ -1,12 +1,12 @@
 # pylint: disable=wrong-import-position,wrong-import-order,protected-access,invalid-name,import-error,consider-using-with
 """Replays the round-0 searches of a length_oracles.py run from its family checkpoint, on
-the run's own probe streams and selection samples, optionally without the rate-based
-harvest tests or without the start fallback (which places an undecided empty string on
-the DFA's start leaf).  Writes OUT/search_<i>.pkl (as length_oracles.py does) and
+the run's own probe streams and selection samples, ending each search only on success or a
+stalled score, and optionally without the start fallback (which places an undecided empty
+string on the DFA's start leaf).  Writes OUT/search_<i>.pkl (as length_oracles.py does) and
 OUT/restarts.jsonl, which counts the probes the start fallback placed.
 
   python -u orthogonal_dfa/experiments/level5_real_oracle/search_ablation.py RUN_DIR \
-      --oracle saw|flat [--no-harvest-tests] [--no-start-fallback] --out OUT
+      --oracle saw|flat [--no-start-fallback] --out OUT
 """
 
 import argparse
@@ -30,7 +30,6 @@ from orthogonal_dfa.spliceai.load_model import load_spliceai
 ap = argparse.ArgumentParser()
 ap.add_argument("run")
 ap.add_argument("--oracle", required=True)
-ap.add_argument("--no-harvest-tests", action="store_true")
 ap.add_argument("--no-start-fallback", action="store_true")
 ap.add_argument("--out", required=True)
 a = ap.parse_args()
@@ -40,7 +39,7 @@ base = oracle(a.oracle, default_exon, load_spliceai(400, 0))
 ck = family_ckpt.load(f"{a.run}/family_r0.pkl", base, VOCAB)
 pst, acc, vs = ck["pst"], ck["acc_threshold"], ck["vs"]
 pst.config.counterexample_member_fallback = True
-pst.config.counterexample_harvest_tests = not a.no_harvest_tests
+pst.config.counterexample_harvest_tests = False
 
 
 class Search(LoggedSearch):

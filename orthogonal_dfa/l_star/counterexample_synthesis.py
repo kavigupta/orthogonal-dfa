@@ -8,7 +8,7 @@ the round harvests joins the next round's pool.
 import time
 import warnings
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
@@ -253,20 +253,8 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         )
         return hypothesis.tree.sift_with_path(lambda read: decide(b"", read), b"")[1]
 
-    config = counterexample_search_config(acc_threshold, pst.config.acceptable_fnr)
-    if pst.config.counterexample_fnr_harvest:
-        # The harvest tests take acceptable_fnr as a good state's undecided rate
-        # per read; a family that only made its FNR gate reads at its own FNR.
-        fnr, _ = pst.fnr_from_decision(
-            pst.compute_decision(vs, pst.table.representative)
-        )
-        config = replace(
-            config,
-            harvest_multiple=config.harvest_multiple
-            * max(1.0, fnr / pst.config.acceptable_fnr),
-        )
     search = CounterexampleSearch(
-        config,
+        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         start=start,

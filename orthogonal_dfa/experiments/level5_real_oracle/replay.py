@@ -100,7 +100,7 @@ if a.probe_seed is not None:
     pst.rng = np.random.default_rng(a.probe_seed)
 # What fullloop_mem.py --plateau sets; checkpoints may predate these fields.
 pst.config.counterexample_score_patience = 500
-pst.config.counterexample_fnr_harvest = True
+pst.config.counterexample_harvest_tests = False
 pst.config.counterexample_member_fallback = True
 if not hasattr(pst.config, "counterexample_restarts"):
     pst.config.counterexample_restarts = 1
