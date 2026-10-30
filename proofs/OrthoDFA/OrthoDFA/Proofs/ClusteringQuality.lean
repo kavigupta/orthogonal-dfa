@@ -420,7 +420,7 @@ def ClusteringQualitySized : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,
-        2 ^ 13 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
         1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
@@ -513,8 +513,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       (by
         have h := hcollSf _ htop
         rw [hδ'def]
-        change 2 ^ 13 * ((populations.card : ℝ) + 1)
-          * (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ)
+        change 2 ^ 14 * (poolCount η₀ populations indecisionLimit εcov δ' pAP crossLimit : ℝ)
           * collisionMass Dsf ≤ δ * pAP at h
         linarith)
   -- and against `slack`: the deviation tail over the ladder, and the table's own mass

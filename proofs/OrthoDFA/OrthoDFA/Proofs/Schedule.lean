@@ -423,8 +423,7 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
 draws, a twentieth of the findable share. -/
 noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  δ * pAP / (2 ^ 12 * ((populations.card : ℝ) + 1)
-    * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
+  δ * pAP / (2 ^ 13 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop

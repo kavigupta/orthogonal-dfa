@@ -143,7 +143,7 @@ def ClusteringGuarantee : Prop :=
         2 ^ 15 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
           ≤ δ * min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
-        2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)

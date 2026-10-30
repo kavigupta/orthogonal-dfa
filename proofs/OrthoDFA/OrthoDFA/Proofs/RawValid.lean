@@ -358,12 +358,9 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     have hR0 : ∀ j ∈ tame, D j (onSide Hs false g) ≠ 0 := fun j hj h => by
       have := (hthird j hj).2
       rw [measureReal_def, h] at this; norm_num at this
-    have hcoll := le_trans (poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
+    have hcoll := poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
         (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ
-        (tsum_nonneg (fun a => sq_nonneg _)) hρsf)
-      (show δ / (128 * ((populations.card : ℝ) + 1)) ≤ δ / 256 by
-        rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-        nlinarith)
+        (tsum_nonneg (fun a => sq_nonneg _)) hρsf
     have h := validity_of_returned (rule := rule) (crossLimit := crossLimit) (hsz := hz) hflat O
       populations tame uni huni htame (sideLawT H uni D g) (sideLawC H uni D g) Dsf
       (fun j => if j = uni then [] else (H j).toList) (tableLaw H uni D g) (certLaw H uni D g)
