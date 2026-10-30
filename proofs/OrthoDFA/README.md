@@ -20,8 +20,11 @@ Each claim is proved from the explicit theorems below.
   stops at, and the atom and collision masses its populations must stay under; every state's band
   reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
-  `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)` and the suffix
-  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
+  `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)`, the suffix
+  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)` and the prefix count
+  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁸) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
+  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's term is multiplied by
+  `nJ`, and its log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
   product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
   `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at

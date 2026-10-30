@@ -242,15 +242,23 @@ noncomputable def budgetLog (populations : Finset J)
     * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
     / (δ * α * pAP * budgetScale η indecisionLimit εcov))
 
+/-- The log factor of the count rule's levels, the one term multiplied by `|populations|`: a
+union bound over the pool alone, at `δ`. -/
+noncomputable def levelLog (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  Real.log (64 * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
+
 /-- What a budget of `k` buys.
 
-`sig` enters at the fourth power because the count rule's tail and the gate's bind: their
-margins are a rate times `sig²`, and a deviation bound squares the margin it is given. -/
+The count rule's term is the only one multiplied by `|populations|`, and the only one with
+`sig⁴` past what the scale carries: its margin is a rate times `sig²`, and a deviation bound
+squares the margin it is given. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
-  k * (populations.card : ℝ)
-    * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-    / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
+  k * ((populations.card : ℝ) * levelLog η populations indecisionLimit εcov δ pAP crossLimit
+      / sig η ^ 4
+    + budgetLog populations η indecisionLimit εcov δ α pAP crossLimit)
+    / budgetScale η indecisionLimit εcov ^ 2
 
 /-- What the harvested strings add to the budget: the table holds them in its count, so the
 count must be large against them. -/

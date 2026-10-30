@@ -557,16 +557,18 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hJ1 : 0 ≤ Jc + 1 := by linarith only [hJc0]
     have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 4 * (Jc + 1) * lg := by nlinarith
     exact mul_le_mul_of_nonneg_left h' hs2
-  have hpoly := prefCount_le_poly (hsz := hsz) populations η₀ indecisionLimit εcov εs δ' α pAP
+  have hpoly := prefCount_le_split (hsz := hsz) populations η₀ indecisionLimit εcov εs δ' α pAP
     crossLimit hsig hη0 hpop hind hε hεs hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit 160100
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit (2 ^ 24)
         + 6 * Real.log (256 * (populations.card : ℝ) / δ') / εs
         + harvestCap η₀ indecisionLimit εcov hsz := by
-    rw [budgetCap, harvestCap]
+    have := budgetCap_split populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0
+      hind hε hδ' (by linarith)
+    rw [harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov εs α δ'
-    ρ₀ pAP crossLimit 160100 hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+    ρ₀ pAP crossLimit (2 ^ 24) hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hεs hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=

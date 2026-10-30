@@ -102,12 +102,16 @@ def ClusteringClaim.{u, v, w} : Prop :=
     nsuff =O[𝓟 clusterRegion] (fun x =>
       x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
-      x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
+      x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
           * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+        + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
+          * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2)
         + log (x.nJ / x.δ) / x.ε_s) ∧
     (fun x => 1 / atomTol x) =O[𝓟 clusterRegion] (fun x =>
-      x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
-          * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+      x.nJ * (x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
+            * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+          + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
+            * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2))
           * (1 / (x.εcov * x.s₀ ^ 3) + 1 / (x.ε_u * x.s₀) + 1 / x.ε_s)
         + x.nJ / x.δ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
           * (1 / x.ε_s ^ 2 + 1 / x.ε_u ^ 2)) ∧
