@@ -166,7 +166,8 @@ class TestMaxRounds(unittest.TestCase):
             pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
         )
         self.assertIsNotNone(best.dfa)
-        self.assertGreater(best.score, 0.0)
+        # Its DFA ends every sampled string in one state, so the phi is exactly 0.
+        self.assertEqual(best.score, 0.0)
 
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.
