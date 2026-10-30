@@ -173,17 +173,7 @@ class GateCompositionResidualScore(CompositionResidualScore):
 
 
 def fit_gate_composition_residual(score_model, exon, *, device=None, **kw):
-    """Fit a GateCompositionResidualScore around score_model (eval mode).
-
-    The band must cover the exon's query length; E-L* also queries other lengths
-    (prefix+suffix), which the module warns about rather than silently miscalibrating.
-    """
-    q = exon.random_text_length
-    len_lo, len_hi = kw.get("len_lo", 90), kw.get("len_hi", 195)
-    assert len_lo <= q < len_hi, (
-        f"the exon's query length {q} is outside the fitted band [{len_lo}, {len_hi}); "
-        "widen len_lo/len_hi so the band covers the lengths E-L* will query"
-    )
+    """Fit a GateCompositionResidualScore around score_model (eval mode)."""
     fit = _fit_gate_bins(score_model, exon, device=device, **kw)
     flank_l, _ = flanks(exon)
     module = GateCompositionResidualScore(
@@ -211,6 +201,11 @@ def gate_residual_oracle(exon, model, *, length, device=None, **kw):
     """The composition-deconfounded (gate-backwards) oracle, median-thresholded."""
     from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 
+    len_lo, len_hi = kw.get("len_lo", 90), kw.get("len_hi", 195)
+    assert len_lo <= length < len_hi, (
+        f"the threshold length {length} is outside the fitted band "
+        f"[{len_lo}, {len_hi}); widen len_lo/len_hi"
+    )
     score_model = SpliceAIExonScore(model).eval()
     gscore = fit_gate_composition_residual(score_model, exon, device=device, **kw)
     threshold = median_threshold(gscore, exon, length)
