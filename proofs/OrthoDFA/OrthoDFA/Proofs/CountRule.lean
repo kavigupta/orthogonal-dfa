@@ -179,10 +179,6 @@ variable {S : Type*} [Stringlike S]
 noncomputable def seedRef (O : Oracle μ S) (p : S) (ω : Ω) : ℝ :=
   O.rate p + O.noise p ω * (1 - 2 * O.rate p)
 
-/-- What a flip at `p` adds to a row's mean disagreement: `(1 − r' − r)(1 − 2r)`. -/
-noncomputable def flipShift (O : Oracle μ S) (v p : S) : ℝ :=
-  O.flip v p * ((1 - O.rate (p * v) - O.rate p) * (1 - 2 * O.rate p))
-
 /-- A row's disagreement at `p` less `seedRef` and `flipShift`. -/
 noncomputable def rowTerm (O : Oracle μ S) (v p : S) (ω : Ω) : ℝ :=
   (1 - 2 * O.flip v p) * ((1 - 2 * O.noise p ω) * (O.noise (p * v) ω - O.rate (p * v))
