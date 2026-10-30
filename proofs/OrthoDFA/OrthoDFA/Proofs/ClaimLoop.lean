@@ -8,10 +8,10 @@ import OrthoDFA.Proofs.ClaimLoopUniform
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/(ℓ⁶ loopMassInv)` on any first `k` letters. The claim runs it at `c = ξ/(2C|Q|)`, `ξ/2` and
-`1/β` in place of `|Σ|` where edges are crossed, admitted by `covered_of_self_nonStartZone` and
-`covered_of_nonStartZone`; `ClaimLoopArith` bounds those shapes. `LoopClaimUniform` and
-`LoopClaimSimple` follow (`ClaimLoopUniform`).
+`1/(ℓ⁴ (1 + log ℓ) loopMassInv)` on any first `k` letters. The claim runs it at `c = ξ/(2C|Q|)`,
+`ξ/2` and `1/β` in place of `|Σ|` where edges are crossed, admitted by
+`covered_of_self_nonStartZone` and `covered_of_nonStartZone`; `ClaimLoopArith` bounds those
+shapes. `LoopClaimUniform` and `LoopClaimSimple` follow (`ClaimLoopUniform`).
 -/
 
 noncomputable section
@@ -57,13 +57,13 @@ theorem loopClaim_holds : LoopClaim := by
       ((show (2 : ℝ) ≤ Fintype.card α by exact_mod_cast hA2).trans hAAe) hδ (by linarith) hc0 hc1
       (by positivity) hpAP hpAP1 (by linarith) hη₀
   have hp₀ : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-      ≤ 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * loopMassInv (Fintype.card σ)
-        (Fintype.card α) (1 / β) (Fintype.card σ) (Fintype.card α) δ c (ξ / 2) pAP
-        (1 / 2 - s₀)) := by
+      ≤ 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 4 * (1 + log (L + (Fintype.card σ : ℝ) + 4))
+        * loopMassInv (Fintype.card σ) (Fintype.card α) (1 / β) (Fintype.card σ)
+          (Fintype.card α) δ c (ξ / 2) pAP (1 / 2 - s₀)) := by
     have e : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-        = 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * max 1 (loopMassInv (Fintype.card σ)
-          (Fintype.card α) (1 / β) (Fintype.card σ) (Fintype.card α) δ c (ξ / 2) pAP
-          (1 / 2 - s₀))) := rfl
+        = 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 4 * (1 + log (L + (Fintype.card σ : ℝ) + 4))
+          * max 1 (loopMassInv (Fintype.card σ) (Fintype.card α) (1 / β) (Fintype.card σ)
+            (Fintype.card α) δ c (ξ / 2) pAP (1 / 2 - s₀))) := rfl
     rw [e, max_eq_right hM1]
   obtain ⟨settings, hw, -, -, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D (1 / 2 - s₀) c
     (γ + ξ / 2) δ pAP (ξ / 2) (1 / β) _ hL hηle hη₀ hc0 hδ (by linarith) hpAP (by positivity)

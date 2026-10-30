@@ -9,9 +9,9 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
-letters, `1/p₀Tol` polynomial in `L`; over the whole run its clusterings read at most `totalPref`
-prefixes and `totalSuff` suffixes, and its rounds draw at most `totalProbes` probes, whatever they
-draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The run is the
+letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
+`totalPref` prefixes and `totalSuff` suffixes, and its rounds draw at most `totalProbes` probes,
+whatever they draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The run is the
 coverage rule's at `c = ξ/(2C|Q|)`, with `R ≤ C ≤ 2R`, so `1/c` enters the shapes as `R|Q|/ξ`. The
 totals grow with `L` because the settings the proof picks hold each round's disagreement rate at
 `c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the
@@ -113,7 +113,8 @@ first `k` letters, and `β` is the rate edges are crossed at. -/
 def LoopClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ) (heldOut : LoopDistInputs → ℕ),
     (fun r => 1 / p₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
-      (r.L + r.Q) ^ 6 * r.Q ^ 13 * r.R ^ 4
+      (r.L + r.Q) ^ 4 * r.Q ^ 13 * r.R ^ 4
+        * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
         * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
         / (r.β ^ 4 * r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) ∧
     totalPref =O[𝓟 loopDistRunRegion] (fun r =>

@@ -42,8 +42,9 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹³R⁴ log²(|Q|R/(β δ ξ pAP s₀))
-  /(β⁴ δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
+  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁴|Q|¹³R⁴ log((L + |Q|)Y) log²(Y)
+  /(β⁴ δ ξ⁴ pAP² s₀¹¹))`, `Y = |Q|R/(β δ ξ pAP s₀)`. The learner's DFA is then right but for
+  `γ + ξ`, its start picked on
   `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
   suffix and probe the whole run reads is bounded: `O(|Q|⁵(L + |Q|)²R² log(X')/(β² ξ²) ·
   (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
@@ -115,15 +116,16 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality. Each of the four conditions on the walk start bounds the mass the
 probes' law puts on one first `k` letters, `|Σ|^-k` for uniform strings, and they follow from
-`(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`,
-`1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
-Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
-holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
+`(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and
+polynomial in `|Q|`, `|Σ|`, `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
+Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent at
+`T = 2(log (E + E₂ + E₃) + 10)/log |Σ| + |Q| + 4`, that holds once `L ≥ L₀` (`dfa_pow`,
+`Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
+    L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 416.8`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 398.6`; the
+least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 387, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 367.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_counts`,
@@ -134,8 +136,8 @@ in three places, each now a condition on `D`:
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
    largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
-   `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
-   for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
+   `p₀ ≤ p₀Tol = 1/(ℓ⁴ (1 + log ℓ) loopMassInv)`, `ℓ = L + |Q| + 4` (`claim_mass_le`,
+   `Proofs/ClaimLoopArith.lean`); for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
 2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
    `edge_of_occupied` asks `D` to extend each prefix by each letter at least `1/Ae` of the time
    (`prefixLaw_snoc_le`), and the edge-crossing rate is `c/((Ae+1)N)`. `Ae = 1/β` in general and

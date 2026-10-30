@@ -224,7 +224,8 @@ def LearnerLoopDFA : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
@@ -243,10 +244,10 @@ def LearnerLoopDFA : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -396,7 +397,8 @@ def LearnerLoopDFARelative : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 16 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
@@ -415,10 +417,10 @@ def LearnerLoopDFARelative : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
