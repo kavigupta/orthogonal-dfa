@@ -205,6 +205,32 @@ class TestDeepening(unittest.TestCase):
         self.assertEqual(SUCCESS, ending.kind)
 
 
+WITHOUT_ODD_0 = {e: t for e, t in PARITY_EDGES.items() if e != (ODD, 0)}
+
+
+class TestMemberFallback(unittest.TestCase):
+    def test_an_edge_its_prefix_leaves_undecided_is_read_on_a_member(self):
+        search = quiet_search(
+            parity_cut([b"\x01\x00"]),
+            WITHOUT_ODD_0,
+            members=[b"\x00", b"\x01\x01\x01"],
+        )
+        search.step(b"\x01\x00")
+        self.assertEqual((ODD, b"\x01\x01\x01"), search.hypothesis.edges[(ODD, 0)])
+
+    def test_without_a_member_the_edge_stays_unlearned(self):
+        search = quiet_search(
+            parity_cut([b"\x01\x00"]), WITHOUT_ODD_0, members=[b"\x00"]
+        )
+        search.step(b"\x01\x00")
+        self.assertNotIn((ODD, 0), search.hypothesis.edges)
+
+    def test_closing_learns_the_edges_members_can_place(self):
+        search = quiet_search(parity_cut(()), WITHOUT_ODD_0, members=[b"\x00", b"\x01"])
+        search.member_fallback.close(search.hypothesis, 2)
+        self.assertEqual((ODD, b"\x01"), search.hypothesis.edges[(ODD, 0)])
+
+
 class TestExport(unittest.TestCase):
     def test_an_unlearned_edge_loops(self):
         search = quiet_search(parity_cut(()), {(EVEN, 1): (ODD, b"")})

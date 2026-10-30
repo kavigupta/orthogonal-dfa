@@ -112,16 +112,16 @@ first `k` letters, and `β` is the rate edges are crossed at. -/
 def LoopClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ) (heldOut : LoopDistInputs → ℕ),
     (fun r => 1 / p₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
-      (r.L + r.Q) ^ 6 * r.Q ^ 10 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
+      (r.L + r.Q) ^ 6 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
         * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
-        / (r.δ * r.ξ ^ 4 * r.pAP ^ 3 * r.s₀ ^ 11)) ∧
+        / (r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) ∧
     totalPref =O[𝓟 loopDistRunRegion] (fun r =>
-      r.Q ^ 4 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+      r.Q ^ 3 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
         * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopDistRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
-        + log (r.Q / r.δ) / r.pAP ^ 2)) ∧
+        + log (r.Q / r.δ) / r.pAP)) ∧
     totalProbes =O[𝓟 loopDistRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
@@ -173,12 +173,12 @@ def LoopClaimUniform.{u, v, w} : Prop :=
     L₀ =O[𝓟 loopRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 4 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+      r.Q ^ 3 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
         * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
-        + log (r.Q / r.δ) / r.pAP ^ 2)) ∧
+        + log (r.Q / r.δ) / r.pAP)) ∧
     totalProbes =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
@@ -192,11 +192,11 @@ def LoopClaimSimple.{u, v, w} : Prop :=
     L₀ =O[𝓟 loopRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 8 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+      r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
         / (r.ξ ^ 2 * r.s₀ ^ 8)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
-      r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+      r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)) ∧
     totalProbes =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧

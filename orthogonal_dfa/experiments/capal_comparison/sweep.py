@@ -13,6 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Sequence
 
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
 from .benchmark import Benchmark
@@ -85,6 +86,7 @@ def run_cell(
             symbols=b.symbols,
             words=words,
             truth=truth,
+            sample_length=DEFAULT_SAMPLE_LENGTH,
             target_states=b.target_states,
         )
     # Outside E-L*'s designed regime: this repo's own benchmark generator would

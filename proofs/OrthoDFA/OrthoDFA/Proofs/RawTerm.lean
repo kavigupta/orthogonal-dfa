@@ -8,7 +8,8 @@ uniform pool's tests are priced at each assignment of the hash by the stream-lev
 named population's are priced against its own table: the hash splits a window of its draws
 evenly, so the family's members flip on its certification sample about as often as on its
 table, where the count rule holds them to the table budget on average.  Nothing is asked of a
-named population's law.  The count rule's table event is one event of the round, charged once.
+named population's law.  The count rule's table event and the pool's are events of the whole
+round, charged once.
 -/
 
 namespace OrthoDFA
@@ -333,10 +334,51 @@ lemma measurableSet_hitsBad (H : J → Finset S) (K n : ℕ) (a : ℝ) (uni j : 
     (measurable_prefixStreamOf uni (measurableSet_acceptedAt ∅ n
       (fun F => a ≤ ((z ∩ F).card : ℝ)))))
 
+/-- The pool's events, which every population's round shares: the family's size, the pool short
+of accept-preserving rows, and its sampler redrawing too much. -/
+def poolEvents (O : Oracle μ S) (populations : Finset J) (B : State) (pAP tap : ℝ) (rs : ℕ) :
+    Set (Run Ω S J) :=
+  stalled nearestClusterer O populations B (B.k - 1) (B.k - 1) ∪ apShort O B.nsuff pAP tap
+    ∪ {y | ¬ poolGood B.nsuff rs y}
+
+theorem measureReal_poolEvents_le (O : Oracle μ S) (populations : Finset J) (uni : J)
+    (H : J → Finset S) (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (B : State) (hkpos : 2 ≤ B.k) (hpool : B.k < B.nsuff)
+    (hscreen : B.scd ≤ B.sc) (pAP tap ρsf : ℝ) (rs : ℕ) (htap : 0 ≤ tap) (hpAP0 : 0 ≤ pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
+    (runMeasure μ D Dsf).real (streams H uni ⁻¹' poolEvents O populations B pAP tap rs)
+      ≤ poolFail tap pAP ρsf rs B := by
+  classical
+  set ν := runMeasure μ D Dsf with hν
+  set Y := streams (Ω := Ω) H uni with hY
+  have bs : ν.real (Y ⁻¹' stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
+      ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
+    runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B _ _) (fun g =>
+      measureReal_stalled_nearest_le O populations _ _ Dsf B (by omega) hscreen hpool.le ρsf rs
+        hρsf hρsf0)
+  have bn : ν.real (Y ⁻¹' apShort O B.nsuff pAP tap)
+      ≤ Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP)))) :=
+    runMeasure_streams_le H uni D Dsf _ (measurableSet_apShort O B.nsuff pAP tap)
+      (fun g => measureReal_apShort_le _ _ Dsf O B.nsuff pAP tap hpAP0 htap hpAPBound)
+  have bp : ν.real (Y ⁻¹' {y | ¬ poolGood B.nsuff rs y})
+      ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
+    runMeasure_streams_le H uni D Dsf _ (measurableSet_notPoolGood B.nsuff rs) (fun g =>
+      measureReal_poolBad_le _ _ Dsf B.nsuff rs ρsf hρsf hρsf0)
+  have u1 := measureReal_union_le (μ := ν)
+    (Y ⁻¹' stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
+    (Y ⁻¹' apShort O B.nsuff pAP tap)
+  have u2 := measureReal_union_le (μ := ν)
+    (Y ⁻¹' stalled nearestClusterer O populations B (B.k - 1) (B.k - 1)
+      ∪ Y ⁻¹' apShort O B.nsuff pAP tap)
+    (Y ⁻¹' {y | ¬ poolGood B.nsuff rs y})
+  rw [poolEvents, Set.preimage_union, Set.preimage_union, poolFail]
+  linarith
+
 open scoped Classical in
 set_option maxHeartbeats 8000000 in
-/-- A named population fails the round at the top rung, off the count rule's table event, with
-chance at most `namedFail`. -/
+/-- A named population fails the round at the top rung, off the count rule's table event and the
+pool's, with chance at most `namedFail`. -/
 theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (uni : J) (huni : uni ∈ populations) (H : J → Finset S)
     (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
@@ -344,7 +386,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hH : ∀ j, ∀ p ∈ H j, p ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations)
     (hju : j ≠ uni) (B : State) (hN2 : 2 ≤ B.npref)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (εcov α : ℝ) (hα0 : 0 < α) (hα1 : α ≤ 1)
-    (l lcut f E Δ t L θ tap pAP a ρ ρsf : ℝ) (r rs G : ℕ)
+    (l lcut f E Δ t L θ tap pAP a ρ : ℝ) (r rs G : ℕ)
     (hE : 0 ≤ E) (hElcut : E ≤ lcut) (hlcl : lcut ≤ l) (hElm : E ≤ 5 / 8 * lcut)
     (hl2 : 2 * l ≤ indecisionLimit) (hf0 : 0 < f) (hΔ : 0 < Δ) (hL : 0 ≤ L) (hθ : 0 < θ)
     (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 2 ≤ B.k) (hpool : B.k < B.nsuff)
@@ -357,10 +399,8 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hszG : (allHarvest H).card + G ≤ B.npref)
     (hheavyN : (Δ * B.npref + 2 * Real.sqrt (L * (Δ * B.npref)) + 2 * L) / f
         + (allHarvest H).card + 2 * G + θ * B.npref ≤ lcut * B.npref)
-    (htap : 0 ≤ tap) (hpAP0 : 0 ≤ pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hscreen : B.scd ≤ B.sc) (ha : a ≤ (B.nsuff : ℝ) * (pAP - tap) - rs - 1)
-    (hρu : ∀ t, (D uni).real {t} ≤ ρ) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρu : ∀ t, (D uni).real {t} ≤ ρ)
     (hdec : ∀ (F : Finset S) (p : S), (1 : S) ∉ F → flipCount O F p ≤ (F.card : ℝ) * f →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ decided O.mq B.lo (B.hi + 1) (insert 1 F) p ω} ≤ E)
@@ -368,9 +408,10 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E) :
     (runMeasure μ D Dsf).real
-        ({x | streams H uni x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α
-          B j} \ streams H uni ⁻¹' nearBad O populations B Δ a)
-      ≤ namedFail l lcut E tap ρ ρsf t L θ r rs G B := by
+        (({x | streams H uni x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov
+          α B j} \ streams H uni ⁻¹' nearBad O populations B Δ a)
+          \ streams H uni ⁻¹' poolEvents O populations B pAP tap rs)
+      ≤ namedFail l lcut E ρ t L θ r G B := by
   classical
   have hsig : O.η ≤ 1 / 2 := by linarith [hηle]
   have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρu 1)
@@ -382,24 +423,22 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   set kk : ℕ := B.k - 1 with hkk
   set Y := streams (Ω := Ω) H uni with hY
   -- the events
-  set Es : Set (Run Ω S J) := stalled nearestClusterer O populations B kk kk with hEs
-  set En : Set (Run Ω S J) := apShort O M pAP tap with hEn
   set Et : Set (Run Ω S J) := {y | ¬ tabGood uni N r y} with hEt
   set El : Set (Run Ω S J) := lightMiss nearestClusterer O populations j B l lcut (5 / 8 * lcut) f
     kk kk with hEl
   set Ed : Set (Run Ω S J) := sidesDead nearestClusterer O populations j B N t with hEd
-  set Ep : Set (Run Ω S J) := {y | ¬ poolGood M rs y} with hEp
   set Ec1 : Set (Draws Ω S J) := coinSplitBad O H K M L j with hEc1
   set Ec2 : Set (Draws Ω S J) := coinCardBad H K G j with hEc2
   set Eh : Set (Draws Ω S J) := {x | x.1 ∈ hitsBad H K (N + r) (θ * N) uni j} with hEh
-  have hsub : {x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
-        \ Y ⁻¹' nearBad O populations B Δ a
-      ⊆ Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El
-        ∪ Y ⁻¹' Ed ∪ Y ⁻¹' Ep := by
-    rintro x ⟨hx, h3⟩
+  have hsub : ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
+        \ Y ⁻¹' nearBad O populations B Δ a) \ Y ⁻¹' poolEvents O populations B pAP tap rs
+      ⊆ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El ∪ Y ⁻¹' Ed := by
+    rintro x ⟨⟨hx, h3⟩, hP⟩
     by_contra hc
     simp only [Set.mem_union, not_or, Set.mem_preimage] at hc
-    obtain ⟨⟨⟨⟨⟨⟨⟨⟨h1, h2⟩, h4⟩, h5⟩, h6⟩, h7⟩, h8⟩, h10⟩, h11⟩ := hc
+    obtain ⟨⟨⟨⟨⟨h4, h5⟩, h6⟩, h7⟩, h8⟩, h10⟩ := hc
+    simp only [Set.mem_preimage, poolEvents, Set.mem_union, Set.mem_setOf_eq, not_or] at hP
+    obtain ⟨⟨h1, h2⟩, h11⟩ := hP
     have h6' : tabGood uni N r (Y x) := by by_contra h; exact h6 h
     have h11' : poolGood M rs (Y x) := by by_contra h; exact h11 h
     exact hx (named_retAtK O populations uni huni H j hj hju B x hN2 hηle hη₀ εcov α hα0 hα1
@@ -410,14 +449,6 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     fun g => ae_sideLawT_mem H uni D g populations hsupp hH
   have hsC : ∀ g, ∀ j ∈ populations, ∀ᵐ y ∂(sideLawC H uni D g j), ∀ i, y i ∈ Pre :=
     fun g => ae_sideLawC_mem H uni D g populations hsupp
-  have bs : (runMeasure μ D Dsf).real (Y ⁻¹' Es)
-      ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
-    runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B kk kk) (fun g =>
-      measureReal_stalled_nearest_le O populations _ _ Dsf B (by omega) hscreen hpool.le ρsf rs
-        hρsf hρsf0)
-  have bn : (runMeasure μ D Dsf).real (Y ⁻¹' En) ≤ Real.exp (-2 * (M : ℝ) * tap ^ 2) :=
-    runMeasure_streams_le H uni D Dsf _ (measurableSet_apShort O M pAP tap)
-      (fun g => measureReal_apShort_le _ _ Dsf O M pAP tap hpAP0 htap hpAPBound)
   have bc1 : (runMeasure μ D Dsf).real Ec1 ≤ ((M : ℝ) + 1) * Real.exp (-L) := by
     refine runMeasure_coins_le D Dsf _ (measurableSet_coinSplitBad O H K M L j)
       (by positivity) (fun x => ?_)
@@ -453,31 +484,23 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     runMeasure_streams_le H uni D Dsf _ (measurableSet_sidesDead O populations j B N t)
       (fun g => measureReal_sidesDead_le hflat O populations _ _ Dsf (hsT g) (hsC g) hsuppSf j hj
         B N ht)
-  have bp : (runMeasure μ D Dsf).real (Y ⁻¹' Ep)
-      ≤ ((M + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
-    runMeasure_streams_le H uni D Dsf _ (measurableSet_notPoolGood M rs) (fun g =>
-      measureReal_poolBad_le _ _ Dsf M rs ρsf hρsf hρsf0)
   set ν := runMeasure μ D Dsf with hν
   have u : ∀ A B' : Set (Draws Ω S J), ν.real (A ∪ B') ≤ ν.real A + ν.real B' :=
     fun A B' => measureReal_union_le A B'
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-  have := u (Y ⁻¹' Es) (Y ⁻¹' En)
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En) Ec1
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1) Ec2
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2) (Y ⁻¹' Et)
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et) Eh
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh) (Y ⁻¹' El)
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El) (Y ⁻¹' Ed)
-  have := u (Y ⁻¹' Es ∪ Y ⁻¹' En ∪ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El ∪ Y ⁻¹' Ed)
-    (Y ⁻¹' Ep)
+  have := u Ec1 Ec2
+  have := u (Ec1 ∪ Ec2) (Y ⁻¹' Et)
+  have := u (Ec1 ∪ Ec2 ∪ Y ⁻¹' Et) Eh
+  have := u (Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh) (Y ⁻¹' El)
+  have := u (Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El) (Y ⁻¹' Ed)
   unfold namedFail
   linarith
 
 open scoped Classical in
 set_option maxHeartbeats 4000000 in
 /-- The loop returns: except with chance `δ/2`, the top rung passes at every population, wild
-or tame, its gate read at the first look.  The count rule's table event is charged once; every
-population's own failures are priced off it. -/
+or tame, its gate read at the first look.  The count rule's table event and the pool's are charged
+once; every population's own failures are priced off them. -/
 theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (uni : J) (huni : uni ∈ populations) (H : J → Finset S)
     (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
@@ -602,7 +625,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     · exact Or.inr h
   have huniB : ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit
         εcov α B uni} \ Y ⁻¹' N)
-      ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B := by
+      ≤ roundFail populations l lcut th E L tap pAP ρ (collisionMass Dsf) t r rs B := by
     refine le_trans (measureReal_mono hsubU (measure_ne_top _ _)) ?_
     refine runMeasure_streams_le H uni D Dsf U hUm (fun g' => ?_)
     set Pp := sideLawT H uni D g'
@@ -630,50 +653,51 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         (relRate_shift_anti hΔf (by linarith) hth) (Nat.cast_nonneg _)))
     unfold roundFail
     linarith
+  -- the pool, once
+  set P : Set (Run Ω S J) := poolEvents O populations B pAP tap rs with hPdef
+  have hPb : ν.real (Y ⁻¹' P) ≤ poolFail tap pAP (collisionMass Dsf) rs B :=
+    measureReal_poolEvents_le O populations uni H D Dsf B hkpos hpool hscreen pAP tap
+      (collisionMass Dsf) rs htap hpAP0 hpAPBound' hρsf' hρsf0
   -- the named populations
-  have hnamedB : ∀ j ∈ populations, j ≠ uni →
-      ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
-          \ Y ⁻¹' N)
-        ≤ namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B := fun j hj hju =>
-    measureReal_named_le hflat O populations uni huni H D Dsf hsupp hH hsuppSf j hj hju B hN2
+  have hnamedB : ∀ j ∈ populations.erase uni,
+      ν.real (({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
+          \ Y ⁻¹' N) \ Y ⁻¹' P)
+        ≤ namedFail l lcut E ρ t L θ r G B := fun j hj =>
+    measureReal_named_le hflat O populations uni huni H D Dsf hsupp hH hsuppSf j
+      (Finset.mem_of_mem_erase hj) (Finset.ne_of_mem_erase hj) B hN2
       hηle hη₀ εcov α hαpos (by linarith) l lcut f E Δ t L θ tap pAP a ρ
-      (collisionMass Dsf) r rs G hE0 (by linarith) (by rw [hl]; exact hlcl) (by linarith) hl2 hf0
-      hΔ hL hθ hlohi ht hkpos hpool hgate hszG hheavyN htap hpAP0 hpAPBound' hscreen ha hρu
-      hρsf' hρsf0 hdec hcut
+      r rs G hE0 (by linarith) (by rw [hl]; exact hlcl) (by linarith) hl2 hf0
+      hΔ hL hθ hlohi ht hkpos hpool hgate hszG hheavyN hscreen ha hρu hdec hcut
   -- every population
-  have hRF0 : 0 ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B :=
-    roundFail_nonneg populations _ _ _ _ _ _ ρ _ t r rs B hρ0 hρsf0
-  have hNF0 : 0 ≤ namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B :=
-    namedFail_nonneg _ _ _ _ ρ _ t L θ r rs G B hρ0 hρsf0
+  have hNF0 : 0 ≤ namedFail l lcut E ρ t L θ r G B := namedFail_nonneg _ _ _ ρ t L θ r G B hρ0
   have hsub : {x : Draws Ω S J | ∀ B' : {B : State // B ∈ stoppable η₀ populations
           indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
         Y x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B'.val}
-      ⊆ Y ⁻¹' N ∪ ⋃ j ∈ populations,
-        ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
-          \ Y ⁻¹' N) := by
+      ⊆ Y ⁻¹' N ∪ Y ⁻¹' P
+        ∪ ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B uni}
+          \ Y ⁻¹' N)
+        ∪ ⋃ j ∈ populations.erase uni,
+          (({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
+            \ Y ⁻¹' N) \ Y ⁻¹' P) := by
     intro x hx
-    by_cases hxN : x ∈ Y ⁻¹' N
-    · exact Or.inl hxN
-    refine Or.inr ?_
     by_contra hc
-    simp only [Set.mem_iUnion, not_exists, exists_prop, Set.mem_sdiff, Set.mem_ofPred_eq,
-      not_and, not_not] at hc
-    exact hx ⟨B, hB⟩ (mem_retAll_of_retAtK O populations hpop uni η₀ indecisionLimit εcov α B
-      (Y x) (fun j hj => by_contra fun h => hxN (hc j hj h)))
+    simp only [Set.mem_union, not_or] at hc
+    obtain ⟨⟨⟨hxN, hxP⟩, hxu⟩, hxj⟩ := hc
+    refine hx ⟨B, hB⟩ (mem_retAll_of_retAtK O populations hpop uni η₀ indecisionLimit εcov α B
+      (Y x) (fun j hj => by_contra fun h => ?_))
+    by_cases hju : j = uni
+    · rw [hju] at h
+      exact hxu ⟨h, hxN⟩
+    · exact hxj (Set.mem_iUnion₂.2 ⟨j, Finset.mem_erase.2 ⟨hju, hj⟩, ⟨h, hxN⟩, hxP⟩)
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
-  refine le_trans (add_le_add hNb (measureReal_biUnion_finset_le _ _)) ?_
-  have hper : ∀ j ∈ populations,
-      ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit εcov α B j}
-          \ Y ⁻¹' N)
-        ≤ roundFail populations l lcut th E L tap ρ (collisionMass Dsf) t r rs B
-          + namedFail l lcut E tap ρ (collisionMass Dsf) t L θ r rs G B := by
-    intro j hj
-    by_cases hju : j = uni
-    · rw [hju]; linarith [huniB]
-    · linarith [hnamedB j hj hju]
-  have hsum := Finset.sum_le_sum hper
+  refine le_trans (add_le_add (measureReal_union_le _ _) (measureReal_biUnion_finset_le _ _)) ?_
+  have hNP := measureReal_union_le (μ := ν) (Y ⁻¹' N) (Y ⁻¹' P)
+  have hsum := Finset.sum_le_sum hnamedB
   rw [Finset.sum_const, nsmul_eq_mul] at hsum
+  have hcardle : ((populations.erase uni).card : ℝ) ≤ populations.card := by
+    exact_mod_cast Finset.card_erase_le
+  have := mul_le_mul_of_nonneg_right hcardle hNF0
   linarith
 
 end OrthoDFA

@@ -6,7 +6,8 @@ import Mathlib.Probability.Independence.InfinitePi
 # The model: the oracle and the algorithm
 
 `ClusteringGuarantee`, stated in `OrthoDFA.LowLevelClaims.Clustering`, mentions only what is
-defined here and there.  Each definition's doc names the Python it models.
+defined here and there, and `RarerBounded` (`OrthoDFA.LowLevelClaims.FamilyRead`).  Each
+definition's doc names the Python it models.
 
 Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
 `draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
