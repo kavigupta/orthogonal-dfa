@@ -601,41 +601,37 @@ theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y η₀ d t tu
 /-- What the rate-aware charge costs against the vote's margin on the wrong class:
 with `m = 1/2 − y` that margin, `D = 1 − η₀ − x` and `v ≤ 4(1/2 − η₀)/5`,
 
-    (1 − x − y)²/D² ≤ (10/(1/2 − η₀)²) · 2m(m − v). -/
+    (1 − x − y)²/D² ≤ (5/(2(1/2 − η₀)²)) · 2m(m − v).
+
+The charge is at most `m²/(1/2 − η₀)²`, and the margin keeps a fifth of `m`. -/
 lemma charge_le_sig {x y η₀ v : ℝ} (hxη : x ≤ η₀) (hyη : y ≤ η₀)
     (hη₀ : η₀ < 1 / 2) (hv : v ≤ 4 * (1 / 2 - η₀) / 5) :
     (1 - x - y) ^ 2 / (1 - η₀ - x) ^ 2
-      ≤ 10 / (1 / 2 - η₀) ^ 2 * (2 * (1 / 2 - y) * (1 / 2 - y - v)) := by
+      ≤ 5 / (2 * (1 / 2 - η₀) ^ 2) * (2 * (1 / 2 - y) * (1 / 2 - y - v)) := by
   set s : ℝ := 1 / 2 - η₀ with hs
   set mw : ℝ := 1 / 2 - y with hmw
   set mr : ℝ := 1 / 2 - x with hmr
   have hs0 : 0 < s := by rw [hs]; linarith
   have hmws : s ≤ mw := by rw [hmw, hs]; linarith
   have hmr0 : 0 ≤ mr := by rw [hmr]; linarith
+  have hmw0 : 0 ≤ mw := le_trans hs0.le hmws
   have hD : 1 - η₀ - x = s + mr := by rw [hs, hmr]; ring
   have hΔ : 1 - x - y = mw + mr := by rw [hmw, hmr]; ring
   rw [hD, hΔ]
-  -- `(mw + mr)/(mw (s + mr)) ≤ 2/s`, and the margin keeps a fifth of `mw`
-  have hmw0 : 0 ≤ mw := le_trans hs0.le hmws
-  have hratio : s * (mw + mr) ≤ 2 * mw * (s + mr) := by
-    nlinarith [mul_le_mul_of_nonneg_right hmws hmr0, mul_nonneg hs0.le hmw0,
-      mul_nonneg hmw0 hmr0]
-  have hσ : 2 / 5 * mw ^ 2 ≤ 2 * mw * (mw - v) := by
-    nlinarith [mul_le_mul_of_nonneg_left (show v ≤ 4 / 5 * mw by linarith) hmw0]
   have hD0 : 0 < s + mr := by linarith
-  have hs2 : 0 < s ^ 2 := by positivity
+  -- `(mw + mr)/(s + mr) ≤ mw/s`
+  have hratio : (mw + mr) * s ≤ mw * (s + mr) := by nlinarith [mul_le_mul_of_nonneg_right hmws hmr0]
+  have h1 : (mw + mr) ^ 2 / (s + mr) ^ 2 ≤ mw ^ 2 / s ^ 2 := by
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    have := pow_le_pow_left₀ (by positivity) hratio 2
+    nlinarith [this]
+  have h2 : mw ^ 2 ≤ 5 / 2 * (2 * mw * (mw - v)) := by
+    nlinarith [mul_le_mul_of_nonneg_left (show v ≤ 4 / 5 * mw by linarith) hmw0]
+  refine le_trans h1 ?_
   rw [div_le_iff₀ (by positivity)]
-  have hsq : (s * (mw + mr)) ^ 2 ≤ (2 * mw * (s + mr)) ^ 2 :=
-    pow_le_pow_left₀ (mul_nonneg hs0.le (by linarith)) hratio 2
-  have h4 : (mw + mr) ^ 2 * s ^ 2 ≤ 4 * mw ^ 2 * (s + mr) ^ 2 := by
-    have e1 : (s * (mw + mr)) ^ 2 = (mw + mr) ^ 2 * s ^ 2 := by ring
-    have e2 : (2 * mw * (s + mr)) ^ 2 = 4 * mw ^ 2 * (s + mr) ^ 2 := by ring
-    rw [e1, e2] at hsq; exact hsq
-  calc (mw + mr) ^ 2 = (mw + mr) ^ 2 * s ^ 2 / s ^ 2 := by field_simp
-    _ ≤ 4 * mw ^ 2 * (s + mr) ^ 2 / s ^ 2 := div_le_div_of_nonneg_right h4 hs2.le
-    _ ≤ 10 / s ^ 2 * (2 * mw * (mw - v)) * (s + mr) ^ 2 := by
-        rw [div_mul_eq_mul_div, div_mul_eq_mul_div]
-        refine div_le_div_of_nonneg_right ?_ hs2.le
-        nlinarith [mul_le_mul_of_nonneg_right hσ (sq_nonneg (s + mr))]
+  have e : 5 / (2 * s ^ 2) * (2 * mw * (mw - v)) * s ^ 2 = 5 / 2 * (2 * mw * (mw - v)) := by
+    field_simp
+  rw [e]
+  exact h2
 
 end OrthoDFA
