@@ -1011,10 +1011,9 @@ lemma cap_of_top {J : Type*} [Fintype J] (populations : Finset J)
 lemma poolCap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     (η₀ indecisionLimit εcov δ pAP crossLimit ρsf : ℝ)
     (hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ))
-    (h2 : 2 ^ 12 * ((populations.card : ℝ) + 1)
-        * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) * ρsf ≤ δ * pAP) :
+    (h2 : 2 ^ 13 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) * ρsf
+      ≤ δ * pAP) :
     ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit := by
-  have hJ : (0 : ℝ) < (populations.card : ℝ) + 1 := by positivity
   rw [poolCollisionCap, le_div_iff₀ (by positivity)]
   linarith
 
