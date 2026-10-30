@@ -153,9 +153,9 @@ def LearnerLoopDFASimple : Prop :=
   let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+    + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -232,8 +232,8 @@ def LearnerLoopDFA : Prop :=
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
   let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-  let R₀ : ℝ := 161000 * (Q + 2) ^ 2 * Θ ^ 2
+    + 120 * Real.log (3 / (δ' / 2)) / pAP
+  let R₀ : ℝ := 161000 * (Q + 2) * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
     + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -316,9 +316,9 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+    + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -404,8 +404,8 @@ def LearnerLoopDFARelative : Prop :=
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
   let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((Q + 4) / (δ' / 2)) / pAP ^ 2
-  let R₀ : ℝ := 161000 * (Q + 2) ^ 2 * Θ ^ 2
+    + 120 * Real.log (3 / (δ' / 2)) / pAP
+  let R₀ : ℝ := 161000 * (Q + 2) * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
     + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -489,9 +489,9 @@ def LearnerLoopDFADist : Prop :=
   let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-    + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+    + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))

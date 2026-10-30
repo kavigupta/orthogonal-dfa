@@ -23,11 +23,11 @@ open MeasureTheory
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
   2 * (25 * max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog / (8 * (1 / 2 - η₀) ^ 2)
       + 5 / (1 / 2 - η₀) + 7) / pAP
-    + 16 * Real.log ((Jm + 2) / (δ / 2)) / pAP ^ 2
+    + 60 * Real.log (3 / (δ / 2)) / pAP
 
 /-- A bound on the prefix count. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
-  161000 * Jm ^ 2 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
+  161000 * Jm * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
     / (δ / 2 * α * pAP * budgetScale η₀ ι εcov))
     / ((1 / 2 - η₀) ^ 4 * budgetScale η₀ ι εcov ^ 2)
 
@@ -59,16 +59,13 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
     with hpref
   -- the pool
   have hpoolB : pool ≤ PB := by
-    have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hpop hδ2
+    have h := poolCount_le pops η₀ ι εcov (δ / 2) pAP (Real.exp (-cLog)) hsig hη0 hι hε hδ2
       hδ21 hpAP hpAP1 hcross hcross1
     rw [hsig', hτ'] at h
     have e : Real.log (1 / Real.exp (-cLog)) = cLog := by
       rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
     rw [e] at h
-    refine h.trans (add_le_add le_rfl ?_)
-    refine div_le_div_of_nonneg_right ?_ (by positivity)
-    refine mul_le_mul_of_nonneg_left (Real.log_le_log (by positivity) ?_) (by norm_num)
-    exact div_le_div_of_nonneg_right (by linarith) hδ2.le
+    exact h
   -- the prefix count
   have hlogarg : 1 ≤ ((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ) := by
     have hpool256 : (64 : ℝ) ≤ pool :=
@@ -94,12 +91,12 @@ theorem counts_le {J : Type*} [Fintype J] (η₀ : ℝ) (pops : Finset J)
       ≤ Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
     refine Real.log_le_log (by linarith) (div_le_div_of_nonneg_right ?_ (by positivity))
     exact mul_le_mul (by linarith) hpoolB (by positivity) (by linarith)
-  have hsq : (pops.card : ℝ) ^ 2 ≤ Jm ^ 2 := pow_le_pow_left₀ (by positivity) hcard 2
-  calc 161000 * (pops.card : ℝ) ^ 2
+  have hJm : 0 ≤ Jm := (Nat.cast_nonneg _).trans hcard
+  calc 161000 * (pops.card : ℝ)
         * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ))
-      ≤ 161000 * Jm ^ 2 * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
+      ≤ 161000 * Jm * Real.log (((pops.card : ℝ) + 2) * pool / (δ / 2 * α * pAP * τ)) := by
         gcongr
-    _ ≤ 161000 * Jm ^ 2 * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
+    _ ≤ 161000 * Jm * Real.log ((Jm + 2) * PB / (δ / 2 * α * pAP * τ)) := by
         gcongr
 
 end OrthoDFA
@@ -260,8 +257,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
-    let RB : ℝ := 161000 * J ^ 2 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+      + 120 * Real.log (3 / (δ' / 2)) / pAP
+    let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
       / (s ^ 4 * τ ^ 2)
     let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
           (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
@@ -333,7 +330,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     show (budget : ℝ) ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     linarith
   have hbud0 : (0 : ℝ) ≤ budget := Nat.cast_nonneg _
-  set C : Random.Level3Settings := ⟨k, δ', ε / 48, ε, budget⟩ with hCd
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget⟩ with hCd
   -- the band's far side
   have hW1 : 1 ≤ W := le_max_right _ _
   set cross : ℝ := δ' / (8 * W) with hcrossd
@@ -363,7 +360,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
     show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
-      + 64 * Real.log ((J + 2) / (δ' / 2)) / pAP ^ 2
+      + 120 * Real.log (3 / (δ' / 2)) / pAP
     unfold capPB
     rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
     field_simp
@@ -616,7 +613,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by positivity) hmr (by linarith) hcr hprem hTu0 hcond
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom

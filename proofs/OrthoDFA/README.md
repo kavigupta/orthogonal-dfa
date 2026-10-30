@@ -15,23 +15,26 @@ population's atoms may be, appears as the largest the claim tolerates, its recip
 Each claim is proved from the explicit theorems below.
 
 - `ClusteringClaim` (`Claims/Clustering.lean`): over `ClusterInputs`, with `s₀ = 1/2 − η₀` the
-  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit and `ε_w` the band's cross
-  limit, and no strings harvested, the band width, suffix pool and prefix count of every state it
-  stops at, and the atom and collision masses its populations must stay under; it fails with
-  chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool.
-  `ClusteringClaimSimple` bounds each by a single product, e.g. the prefix count by
-  `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u ε_w s₀))/(εcov² ε_s ε_u² s₀⁸))`.
-- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget,
-  `O(|Q|²|Σ| ε/(ε − y)² · log(|Q||Σ|/δ))`.
-- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, one
-  round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`, its harvest's slope
-  `O(|Q|(1/y + log L))` and its slack `O((|Q||Σ| log(|Q||Σ|) + log(1/δ))/y)`. Levels 4 and 5 also
-  give how much of the probes' law any one walk start may hold (`p₀Tol`, `1/p₀Tol` of order the
-  budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
-  O(Q'³|Σ|/ε · log(|Q||Σ|/δ) log L)` at level 4, `1/κTol = O(Q'²|Σ| log(|Q||Σ|/δ))` at level 5),
-  their trees growing `spurious = O(log(1/δ))` leaves past level 3's `|Q| + 2`. Their budget and
-  slope are level 3's with `|Q|` outside the log read as `Q' = |Q| + log(1/δ)`, and their slack is
-  `O(Q'|Σ| log(Q'|Σ|)/y)`.
+  signal, `ε_s` the redraw and hash slack, `ε_u` the indecision limit, the band's cross limit
+  `κ⁴`, and no strings harvested, the band width, suffix pool and prefix count of every state it
+  stops at, and the atom and collision masses its populations must stay under; every state's band
+  reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
+  with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
+  `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)` and the suffix
+  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
+  product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
+  `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
+- `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
+  harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
+- `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
+  harvest rate `y = ε/48`, one round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`,
+  its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q| + 1) + log(1/δ))/ε)`.
+  Levels 4 and 5 also give how much of the probes' law any one walk start may hold (`p₀Tol`,
+  `1/p₀Tol` of order the budget squared over `δ`) and how rarely reads may be wrong (`1/εwTol =
+  O(Q'³|Σ|/ε · log(|Q||Σ|/δ) log L / log(1/δ))` at level 4, `1/κTol = O(Q'²|Σ| log(|Q||Σ|/δ) /
+  log(1/δ))` at level 5), their trees growing `spurious = O(log(1/δ))` leaves past level 3's
+  `|Q| + 2`. Their budget and slope are level 3's with `|Q|` outside the log read as
+  `Q' = |Q| + log(1/δ)`, and their slack is `O(Q'|Σ| log(Q' + 1)/ε)`.
 - `LoopClaim` (`Claims/Loop.lean`): over an input distribution `D`, over
   `LoopDistInputs` (`LoopInputs` with `β`, `0 < β ≤ 1/|Σ|`) and `R ≥ 1` the visit ratio of the
   relative rule (`LearnerLoopDFARelative`'s premise). The probes are `D`'s strings cut at a
@@ -39,11 +42,11 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹⁴R⁴ log²(|Q|R/(β δ ξ pAP s₀))
-  /(β⁴ δ ξ⁴ pAP³ s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
+  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹³R⁴ log²(|Q|R/(β δ ξ pAP s₀))
+  /(β⁴ δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
   `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
-  suffix and probe the whole run reads is bounded: `O(|Q|⁶(L + |Q|)²R² log(X')/(β² ξ²) ·
-  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP²))` suffixes and
+  suffix and probe the whole run reads is bounded: `O(|Q|⁵(L + |Q|)²R² log(X')/(β² ξ²) ·
+  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
   `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
   is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
   totals grow with `L` because the settings the proof picks hold each round's disagreement rate
@@ -52,11 +55,11 @@ Each claim is proved from the explicit theorems below.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁶(L + |Q|)²|Σ|²R²
-  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP²))`
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁵(L + |Q|)²|Σ|²R²
+  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP))`
   suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
-  `LoopClaimSimple` bounds the prefixes by `O(|Q|¹⁰(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(X)/(pAP² s₀²))`.
+  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁹(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
+  suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
 
 ## The explicit theorems
 
@@ -70,6 +73,8 @@ this (`parity_toggle`, #438).
 - `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
   family it returns cuts all but `εcov + εs` of the uniform pool as the noiseless oracle does, at a
   polynomial number of queries; `εs` is what the samplers' redraws and the hash's split may cost.
+  Every state's band reads its rarer decided side at most `κ` times as often as undecided, for
+  any `κ` with `crossLimit ≤ κ⁴`.
   The samplers draw without replacement, and a draw lands on what a
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
@@ -117,9 +122,9 @@ holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
 
     L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 421.6`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 421, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 371.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 416.8`; the
+least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 367.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_counts`,
 proved in `Proofs/LoopDFA.lean`); the uniform theorems take `D` uniform over the strings of length
@@ -385,9 +390,9 @@ the time. Each level says what a state's chance of reading undecided is.
   and tested after every probe: the ends (probes whose start or end sift stops undecided) and the
   middles each by `seqRate` against an alternative (twice `endsRate`, twice `middleRate`), and
   success, counting the searches and the ends together, by `seqRate` against half
-  `disagreementRate`. Its settings are the yield `y = harvestRate` and the disagreement rate `ε =
-  disagreementRate`; the tests' rates follow from them: `endsRate = y`, `middleRate = 1/4` and
-  `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
+  `disagreementRate`. Its settings include the disagreement rate `ε = disagreementRate`; the
+  yield `y = harvestRate = ε/48` and the tests' rates follow from it: `endsRate = y`, `middleRate =
+  1/4` and `searchShare = ε/6`. Under the `j`-th hypothesis each test runs at level `δ / (8 (j + 1) (j +
   2))`. A harvest is the site whose test fired, `ends` or `middles`.
 - `OrthoDFA/LowLevelClaims/Level3Claim.lean` — `Level3RoundCorrect`: with every string's read drawn
   once, independently, undecided with its state's chance and never on its state's wrong side, every

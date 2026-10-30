@@ -103,31 +103,11 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-    obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hs
-    have hκ4 := famCount_kappa (indecisionLimit := indecisionLimit) (crossLimit := c)
-      (δ := δc / 2) η₀ pops hη0 hη₀ hc0 hε hι
-    have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := c)
-      η₀ pops εcov (δc / 2)
+    obtain ⟨hBk, -, -⟩ := band_of_mem_schedule hs
     have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := c)
       η₀ pops εcov (δc / 2) hη₀
-    set κc : ℕ := famCount η₀ pops indecisionLimit εcov (δc / 2) c with hκc
-    obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
-    have hb0 : (0 : ℝ) ≤ bandAt η₀ κc := Nat.cast_nonneg _
-    have hκ2 : ((κc / 2 : ℕ) : ℝ) = (κc : ℝ) / 2 := by
-      obtain ⟨m, hm⟩ := hev
-      rw [hm, show (m + m) / 2 = m by omega]; push_cast; ring
-    have hlo2 : loAt η₀ κc < κc / 2 := by
-      have : (loAt η₀ κc : ℝ) < ((κc / 2 : ℕ) : ℝ) := by rw [hκ2, hlo]; linarith
-      exact_mod_cast this
-    have hhi2 : κc / 2 < hiAt η₀ κc + 1 := by
-      have : ((κc / 2 : ℕ) : ℝ) < ((hiAt η₀ κc + 1 : ℕ) : ℝ) := by push_cast; rw [hκ2, hhi]; linarith
-      exact_mod_cast this
-    have hκ1 : bandKappa κc (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ crossLimit :=
-      le_of_pow_le_pow_left₀ (by norm_num : (4 : ℕ) ≠ 0) hcross.le (hκ4.trans_eq hc)
-    refine ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 => ?_⟩
-    rw [hBlo, hBhi]
-    exact (bandKappaBound_holds N κc _ _ _ p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _) hp0 hp1
-      hr0 hr1).mono hκ1 hp0 hp1 hr0 hr1
+    exact ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 =>
+      kappa_of_mem_schedule hη0 hη₀ hc0 hε hι hs N hN hcross.le hc.le hp0 hp1 hr0 hr1⟩
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp

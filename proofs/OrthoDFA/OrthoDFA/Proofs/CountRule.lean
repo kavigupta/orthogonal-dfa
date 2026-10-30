@@ -1212,7 +1212,7 @@ theorem measureReal_famHeavy_le (O : Oracle μ S)
           * (Δ + c + g)} \ nearBad O populations B Δ a)
       ≤ rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
         + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
-        + Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2)
+        + Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP))))
         + (B.nsuff : ℝ) * Real.exp (-L) := by
   classical
   set m : ℕ := B.npref with hmdef

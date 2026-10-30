@@ -18,7 +18,7 @@ and half of it for success. Under the `j`-th hypothesis each test runs at level
 * the searches and the probes stopping undecided at their start or end, together, settling below
   `ε` of the probes end the round consistent.
 
-Here `y = harvestRate` and `ε = disagreementRate`.
+Here `y = harvestRate = ε/48` and `ε = disagreementRate`.
 -/
 
 namespace OrthoDFA
@@ -58,8 +58,6 @@ structure Level3Settings where
   walkStart : ℕ
   /-- The chance the round may fail to end well. -/
   δ : ℝ
-  /-- The yield a harvest's sampler must have. -/
-  harvestRate : ℝ
   /-- The rate of disagreements a consistent ending may have. -/
   disagreementRate : ℝ
   probeBudget : ℕ
@@ -67,6 +65,9 @@ structure Level3Settings where
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
   C.δ / (8 * (j + 1) * (j + 2))
+
+/-- The yield a harvest's sampler must have. -/
+noncomputable def Level3Settings.harvestRate (C : Level3Settings) : ℝ := C.disagreementRate / 48
 
 noncomputable def Level3Settings.endsRate (C : Level3Settings) : ℝ := C.harvestRate
 

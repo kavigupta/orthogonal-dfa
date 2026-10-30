@@ -27,12 +27,13 @@ variable {α : Type*}
 structure Settings where
   /-- Each probe is walked along the edges from its prefix this long. -/
   walkStart : ℕ
-  /-- The rate the undecided reads are tested against. -/
-  harvestRate : ℝ
   /-- The rate the disagreements are tested against. -/
   disagreementRate : ℝ
   /-- The chance the round may fail to end well. -/
   δ : ℝ
+
+/-- The rate the undecided reads are tested against. -/
+noncomputable def Settings.harvestRate (C : Settings) : ℝ := C.disagreementRate / 2
 
 /-- The rate each test weighs its rate against: the midpoint of the two. -/
 noncomputable def Settings.alternativeRate (C : Settings) : ℝ :=
