@@ -103,13 +103,16 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      161000
+      11600
       * (populations.card : ℝ)
+      * Real.log (64 * ((B.nsuff : ℝ) + 1) / δ)
+      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      + 2 ^ 24
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
-      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      / rateScale η₀ indecisionLimit εcov ^ 2
       + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
@@ -143,7 +146,7 @@ def ClusteringGuarantee : Prop :=
         2 ^ 15 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
           ≤ δ * min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
-        2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
