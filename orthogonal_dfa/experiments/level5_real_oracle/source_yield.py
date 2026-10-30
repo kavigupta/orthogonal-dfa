@@ -24,6 +24,8 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
+from orthogonal_dfa.l_star.fallbacks.members import MemberFallback
+from orthogonal_dfa.l_star.fallbacks.score_patience import restore, snapshot
 from orthogonal_dfa.l_star.rejection_source import proving_attempts
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
@@ -45,16 +47,16 @@ d = family_ckpt.load(a.ckpt, base, VOCAB)
 pst, vs, acc = d["pst"], d["vs"], d["acc_threshold"]
 
 pre_close = {}
-orig_close = cs.CounterexampleSearch.close
+orig_close = MemberFallback.close
 
 
-def recording_close(self, alphabet_size):
-    pre_close["snap"] = self.snapshot()
-    orig_close(self, alphabet_size)
-    pre_close["closed"] = self.snapshot()
+def recording_close(self, hypothesis, alphabet_size):
+    pre_close["snap"] = snapshot(hypothesis)
+    orig_close(self, hypothesis, alphabet_size)
+    pre_close["closed"] = snapshot(hypothesis)
 
 
-cs.CounterexampleSearch.close = recording_close
+MemberFallback.close = recording_close
 
 t0 = time.time()
 pst.config.counterexample_restarts = a.restarts
@@ -70,7 +72,7 @@ print(
     flush=True,
 )
 
-returned = search.snapshot()
+returned = snapshot(search.hypothesis)
 variants = {
     "returned": returned,
     "unclosed": pre_close.get("snap", returned),
@@ -80,7 +82,7 @@ edges_total = search.hypothesis.tree.num_states * pst.alphabet_size
 per_variant = {}
 landed = 0
 for name, snap in variants.items():
-    search.restore(snap)
+    restore(search.hypothesis, snap)
     seen = set(seen0)
     readers = {
         "stuck": lambda c: c.stuck,
@@ -149,7 +151,7 @@ for name, snap in variants.items():
         seconds_per_attempt=(time.time() - t_v) / a.attempts,
     )
     print(name, json.dumps(per_variant[name]), flush=True)
-search.restore(returned)
+restore(search.hypothesis, returned)
 
 good = 1 - acc
 summary = dict(

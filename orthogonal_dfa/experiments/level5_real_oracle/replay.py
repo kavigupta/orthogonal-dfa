@@ -234,14 +234,21 @@ orig_step = cxs.CounterexampleSearch.step
 
 def step(self, x):
     t, before = time.time(), dict(oracle_use)
-    outcome, charged = self.probe(x)
-    probe_s = time.time() - t
-    # Re-run the rest of step exactly as the original does, on this probe's results.
-    self.probe = lambda _x, _r=(outcome, charged): _r
+    probed = {"outcome": None, "seconds": 0.0}
+    probe = self.probe
+
+    def timed_probe(_x):
+        t_probe = time.time()
+        result = probe(_x)
+        probed.update(outcome=result[0], seconds=time.time() - t_probe)
+        return result
+
+    self.probe = timed_probe
     try:
         ending = orig_step(self, x)
     finally:
         del self.probe
+    outcome, probe_s = probed["outcome"], probed["seconds"]
     state["n"] += 1
     n, hyp, c, cfg = state["n"], self.hypothesis, self.counts, self.config
     rec = dict(
@@ -261,7 +268,7 @@ def step(self, x):
         oracle_strings=oracle_use["strings"] - before["strings"],
         oracle_s=oracle_use["seconds"] - before["seconds"],
         ending=None if ending is None else ending.kind,
-        best_score=getattr(self, "best_score", None),
+        best_score=getattr(self.score_patience, "best_score", None),
     )
     write("probes.jsonl", rec)
     if (
@@ -316,7 +323,7 @@ summary = dict(
     ],
     thresholds=thresholds,
     minutes=(time.time() - t0) / 60,
-    selection_score=getattr(search, "best_score", None),
+    selection_score=getattr(search.score_patience, "best_score", None),
     final_k=search.k,
     best_phi_seen=max(
         r["phi"] for r in map(json.loads, open(os.path.join(outdir, "snapshots.jsonl")))

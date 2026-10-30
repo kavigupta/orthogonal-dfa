@@ -73,7 +73,7 @@ for i, rng in enumerate(streams):
             dict(
                 ending=ending.kind,
                 probes=search.probes,
-                best_score=search.best_score,
+                best_score=getattr(search.score_patience, "best_score", None),
                 harvest=ending.harvest,
                 dfa=dfa,
                 trajectory=search.trajectory,
@@ -86,7 +86,7 @@ for i, rng in enumerate(streams):
         probes=search.probes,
         harvest=len(set(ending.harvest)),
         states=len(dfa.states),
-        search_score=search.best_score,
+        search_score=getattr(search.score_patience, "best_score", None),
         pick=held_out_phi(dfa, *selection.pick),
         minutes=(time.time() - t0) / 60,
     )

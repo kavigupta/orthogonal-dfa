@@ -29,6 +29,7 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     median_threshold,
     run_over_middles,
 )
+from orthogonal_dfa.l_star.fallbacks.score_patience import snapshot
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 
 LEN_LO, LEN_HI = 35, 85
@@ -83,7 +84,7 @@ class LoggedSearch(cs.CounterexampleSearch):
         version = self.hypothesis.version
         ending = super().step(x)
         if self.hypothesis.version != version:
-            self.trajectory.append((self.probes, self.snapshot()))
+            self.trajectory.append((self.probes, snapshot(self.hypothesis)))
         return ending
 
 
@@ -105,7 +106,7 @@ def main():
                 dict(
                     ending=ending.kind,
                     probes=search.probes,
-                    best_score=search.best_score,
+                    best_score=getattr(search.score_patience, "best_score", None),
                     dfa=cs._hypothesis_dfa(pst, search.hypothesis),
                     trajectory=search.trajectory,
                 ),

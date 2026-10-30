@@ -36,6 +36,11 @@ from orthogonal_dfa.l_star.dfa_utils import held_out_phi, labelled_sample
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     gate_residual_oracle,
 )
+from orthogonal_dfa.l_star.fallbacks.score_patience import (
+    ScorePatience,
+    restore,
+    snapshot,
+)
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 
@@ -151,7 +156,7 @@ class Traced(CounterexampleSearch):
                 top_state_share=top,
                 states_used=used,
             )
-            snapshots.append((self.probes, self.snapshot()))
+            snapshots.append((self.probes, snapshot(h)))
         if ending is not None:
             emit(
                 event="ending",
@@ -161,23 +166,30 @@ class Traced(CounterexampleSearch):
             )
         return ending
 
-    def _track_best(self):
-        if self.score is None or self.hypothesis.version == self._scored_version:
-            return
-        value = self.score(self.hypothesis)
-        new_best = self.best_score is None or value > self.best_score
-        if new_best:
-            self.best_score, self._best = value, self.snapshot()
-            self._best_at = self.probes
-        self._scored_version = self.hypothesis.version
-        emit(
-            event="score",
-            probe=self.probes,
-            version=self.hypothesis.version,
-            selection_score=value,
-            new_best=new_best,
-        )
 
+orig_observe = ScorePatience.observe
+
+
+def observe(self, search):
+    if search.hypothesis.version == self._scored_version:
+        return orig_observe(self, search)
+    best, values, score_fn = self.best_score, [], self.score
+    self.score = lambda hypothesis: values.append(score_fn(hypothesis)) or values[-1]
+    try:
+        ending = orig_observe(self, search)
+    finally:
+        self.score = score_fn
+    emit(
+        event="score",
+        probe=search.probes,
+        version=search.hypothesis.version,
+        selection_score=values[0],
+        new_best=self.best_score != best,
+    )
+    return ending
+
+
+ScorePatience.observe = observe
 
 cs.CounterexampleSearch = Traced
 search, ending = cs._counterexample_search(
@@ -187,13 +199,14 @@ search_minutes = (time.time() - t0) / 60
 hyp = search.hypothesis
 dfa = cs._hypothesis_dfa(pst, hyp)
 phi, top, used = score(dfa, halves)
-best_snap = search._best
+patience = search.score_patience
+best_snap = getattr(patience, "_best", None)
 unclosed_dfa = None
 if best_snap is not None:
-    final = search.snapshot()
-    search.restore(best_snap)
+    final = snapshot(search.hypothesis)
+    restore(search.hypothesis, best_snap)
     unclosed_dfa = cs._hypothesis_dfa(pst, search.hypothesis)
-    search.restore(final)
+    restore(search.hypothesis, final)
 summary = dict(
     ckpt=a.ckpt,
     restart=a.restart,
@@ -202,8 +215,8 @@ summary = dict(
     probes=search.probes,
     k=search.k,
     max_k=search.max_k,
-    best_at=search._best_at,
-    best_score=search.best_score,
+    best_at=getattr(patience, "_best_at", 0),
+    best_score=getattr(patience, "best_score", None),
     states=hyp.tree.num_states,
     edges=len(hyp.edges),
     selection_score=held_out_phi(dfa, *selection),
@@ -220,12 +233,12 @@ with open(os.path.join(a.out, "snapshots.pkl"), "wb") as f:
 with open(os.path.join(a.out, "final.pkl"), "wb") as f:
     pickle.dump(
         dict(
-            snapshot=search.snapshot(),
+            snapshot=snapshot(search.hypothesis),
             best_snapshot=best_snap,
             dfa=dfa,
             unclosed_dfa=unclosed_dfa,
             harvest=ending.harvest,
-            undecided=list(search.undecided),
+            undecided=list(getattr(patience, "undecided", ())),
         ),
         f,
     )
