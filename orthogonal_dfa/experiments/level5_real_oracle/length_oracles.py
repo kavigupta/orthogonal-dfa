@@ -20,7 +20,7 @@ sys.path.insert(0, EXP)
 import fullloop_mem
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
-from orthogonal_dfa.l_star.examples.gate_composition_residual_len40 import (
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     fit_gate_composition_residual,
     gate_residual_oracle,
 )
