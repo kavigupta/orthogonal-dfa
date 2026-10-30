@@ -9,7 +9,7 @@ import time
 import warnings
 from collections import Counter
 from dataclasses import dataclass, replace
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -297,21 +297,25 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
 
 def _best_search(pst, vs, *, acc_threshold, index, selection):
     """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
-    searches on independent probe streams, the one with the best held-out phi."""
+    searches on independent probe streams, the one with the best phi on
+    ``selection.pick``."""
     restarts = pst.config.counterexample_restarts
     if restarts == 1:
         search, ending = _counterexample_search(
-            pst, vs, acc_threshold=acc_threshold, selection=selection
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            selection=None if selection is None else selection.search,
         )
         return search, ending, _hypothesis_dfa(pst, search.hypothesis)
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
         search, ending = _counterexample_search(
-            pst, vs, acc_threshold=acc_threshold, selection=selection
+            pst, vs, acc_threshold=acc_threshold, selection=selection.search
         )
         dfa = _hypothesis_dfa(pst, search.hypothesis)
-        phi = held_out_phi(dfa, *selection)
+        phi = held_out_phi(dfa, *selection.pick)
         print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
@@ -323,7 +327,7 @@ def _round_score(pst, dfa, selection, index) -> Optional[float]:
     """What ``BestRound`` ranks an uncertified round on in place of consistency."""
     if not pst.config.rank_rounds_by_held_out:
         return None
-    score = held_out_phi(dfa, *selection)
+    score = held_out_phi(dfa, *selection.pick)
     print(f"[round {index}] held-out phi: {score:.4f}")
     return score
 
@@ -333,8 +337,17 @@ def _round_score(pst, dfa, selection, index) -> Optional[float]:
 SELECTION_HALF = 8000
 
 
+class Selection(NamedTuple):
+    """Held-out ``(fit, read)`` pairs: ``search`` is what a search stops and reverts
+    on, ``pick`` what restarts and rounds are ranked on, so the ranking is not biased
+    by the stopping."""
+
+    search: tuple
+    pick: tuple
+
+
 def _selection_sample(pst):
-    """The held-out ``(fit, read)`` pair, or ``None`` where nothing is scored."""
+    """The held-out samples, or ``None`` where nothing is scored."""
     config = pst.config
     if (
         config.counterexample_restarts == 1
@@ -344,10 +357,11 @@ def _selection_sample(pst):
         return None
     # A child stream, so scoring leaves the run's own draws as they were.
     rng = pst.rng.spawn(1)[0]
-    return tuple(
+    halves = [
         labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
-        for _ in range(2)
-    )
+        for _ in range(4)
+    ]
+    return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
 
 
 def _hypothesis_dfa(pst, hypothesis):
