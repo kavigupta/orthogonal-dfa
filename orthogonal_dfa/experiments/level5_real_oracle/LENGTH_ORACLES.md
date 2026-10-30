@@ -30,14 +30,18 @@ the precision shown, but rerunning will not give the same DFAs.
     PYTHONPATH=. python -u orthogonal_dfa/experiments/level5_real_oracle/length_oracles_label.py OUT/labels.npz
     PYTHONPATH=. python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_extract.py \
         OUT/labels.npz OUT/length_oracles_data.json OUT/saw_s{0,1,2,3} OUT/flat_s{0,1,2,3}
+    PYTHONPATH=. python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_random.py OUT/length_oracles_data.json
     python orthogonal_dfa/experiments/level5_real_oracle/length_oracles_figure.py \
         OUT/length_oracles_data.json OUT/figure
 
-The extract step is the last that needs the runs or this repo; `length_oracles_data.json`
-here is its output for the runs below, so the figure and tables re-render from it alone.
-It holds counts rather than rates: oracle accepts per half, stop count and frame pattern,
-and for every restart its DFA, pick and search scores, ending, probes, and the strings
-ending in each state per half, stop count and frame pattern with their oracle accepts.
+The extract and random steps are the last that need the runs or this repo;
+`length_oracles_data.json` here is their output for the runs below, so the figure and
+tables re-render from it alone.  It holds counts rather than rates: oracle accepts per
+half, stop count and frame pattern, and for every restart its DFA, pick and search scores,
+ending, probes, and the strings ending in each state per half, stop count and frame
+pattern with their oracle accepts.  `random_strings` holds both oracles' accepts on 20,000
+fresh uniform random strings at each length 35-84, with that length's median threshold
+(`random_strings_seed` is their seed).
 
 Runs took 2.1-6.9 h each (sawtooth mean 4.1 h, per-length 4.6 h).
 
