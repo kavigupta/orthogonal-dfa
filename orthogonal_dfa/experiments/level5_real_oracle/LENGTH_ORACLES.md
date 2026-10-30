@@ -19,7 +19,11 @@ stops and reverts on one held-out sample and the restart kept is the best on a s
 
 The runs used 7daaa3b7 with the changes later committed as 4176d2ea and cd54dcba
 (`held_out_phi` scoring each state's verdict, which is what the searches stop on and the
-restarts are ranked by).
+restarts are ranked by).  They loaded a cached gate-residual fit trained by older code;
+the fit this branch trains from source (deterministically) moves scores by up to 0.014
+and flips 0.07% of the sawtooth oracle's labels on the 200,000 strings below and none of
+the per-length one's.  Every rule phi and sawtooth rate below is the same under both to
+the precision shown, but rerunning will not give the same DFAs.
 
     PYTHONPATH=. python -u orthogonal_dfa/experiments/level5_real_oracle/length_oracles.py \
         --oracle saw --seed $s --out OUT/saw_s$s
