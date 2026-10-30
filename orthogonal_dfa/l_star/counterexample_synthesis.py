@@ -240,18 +240,10 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         fallback = MemberFallback(
             [p for p, keep in zip(table.prefixes, table.representative) if keep]
         )
-    patience = pst.config.counterexample_score_patience
-    harvest_tests = pst.config.counterexample_harvest_tests
-    assert harvest_tests or patience is not None, "nothing would end the search"
-    score_patience = None
-    if patience is not None:
-        score_patience = ScorePatience(
-            lambda hypothesis: held_out_phi(
-                _hypothesis_dfa(pst, hypothesis), *selection
-            ),
-            patience,
-            harvest_tests=harvest_tests,
-        )
+    score_patience = ScorePatience.from_config(
+        pst.config,
+        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+    )
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),

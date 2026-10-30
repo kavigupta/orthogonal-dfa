@@ -57,6 +57,18 @@ class ScorePatience:
         #: Every distinct string read undecided, which a stalled score harvests.
         self.undecided = {}
 
+    @classmethod
+    def from_config(
+        cls, config, score: Callable[[HypothesisDFA], float]
+    ) -> Optional["ScorePatience"]:
+        """``None`` where ``config`` sets no patience."""
+        patience = config.counterexample_score_patience
+        harvest_tests = config.counterexample_harvest_tests
+        assert harvest_tests or patience is not None, "nothing would end the search"
+        if patience is None:
+            return None
+        return cls(score, patience, harvest_tests=harvest_tests)
+
     def record(self, charged: Charges) -> None:
         self.undecided.update(dict.fromkeys(self.stalled_harvest(charged)))
 
