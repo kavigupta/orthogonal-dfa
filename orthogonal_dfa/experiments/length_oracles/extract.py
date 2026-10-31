@@ -14,6 +14,8 @@ import sys
 
 import numpy as np
 
+from orthogonal_dfa.l_star.dfa_utils import table_end_states
+
 from ..capal_comparison.core import REPO_ROOT
 from .label import COUNT, SEED, labels, strings
 from .oracles import LEN_HI, LEN_LO, SAW_LENGTH, SYMBOLS
@@ -32,13 +34,6 @@ def patterns(S):
         pos += np.where(stop, 3, 1)
     names = np.array(["".join("C" if c else "." for c in row) for row in closed])
     return np.array([PATTERNS.index(p) for p in names])
-
-
-def ends(T, start, S):
-    q = np.full(len(S), start)
-    for t in range(S.shape[1]):
-        q = T[q, S[:, t]]
-    return q
 
 
 def tally(keys, shape, weights=None):
@@ -70,7 +65,7 @@ def end_counts(dfa, S, y, keys):
     T = np.array(dfa["transitions"])
     half, stops, pat = keys
     shape = (2, len(T), SYMBOLS + 1, len(PATTERNS))
-    keys = (half, ends(T, dfa["start"], S), stops, pat)
+    keys = (half, table_end_states(T, dfa["start"], S), stops, pat)
     n, accepts = tally(keys, shape), tally(keys, shape, y)
     return [
         dict(

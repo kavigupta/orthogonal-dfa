@@ -1,4 +1,3 @@
-# pylint: disable=protected-access
 """Round 0 of synthesis with 4 restarts on one oracle.
 
     python -u -m orthogonal_dfa.experiments.length_oracles.run --oracle saw|flat \
@@ -15,9 +14,8 @@ import time
 import numpy as np
 
 from orthogonal_dfa.data.exon import default_exon
-from orthogonal_dfa.l_star import cluster
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
-from orthogonal_dfa.l_star.dfa_utils import held_out_phi
+from orthogonal_dfa.l_star.dfa_utils import dfa_table, held_out_phi
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 from orthogonal_dfa.spliceai.load_model import load_spliceai
@@ -51,62 +49,30 @@ def test_half(lifted, seed):
     return s, np.asarray(lifted.membership_queries(s), dtype=float)
 
 
-def dfa_table(dfa):
-    states = sorted(dfa.states, key=str)
-    index = {q: i for i, q in enumerate(states)}
-    return dict(
-        transitions=[
-            [index[dfa.transitions[q][c]] for c in range(VOCAB.alphabet_size)]
-            for q in states
-        ],
-        start=index[dfa.initial_state],
-        accepting=[int(q in dfa.final_states) for q in states],
-    )
+class RestartRecorder(SynthesisTracker):
+    """Writes ``out``/restarts.json as each restart ends."""
 
+    def __init__(self, out):
+        self.out, self.restarts, self.family = out, [], None
 
-def record(out):
-    """Patches the synthesis to keep every family judged, the selection sample, and
-    every restart."""
-    judged, selections, restarts = [], [], []
+    def on_family_resolved(self, suffixes, boundary, fnr, round_index):
+        self.family = dict(family_size=len(suffixes), family_fnr=fnr)
 
-    judge = cluster.judge_family
-
-    def judge_family(*args):
-        judged.append(judge(*args))
-        return judged[-1]
-
-    sample = cs._selection_sample
-
-    def selection_sample(pst):
-        selections.append(sample(pst))
-        return selections[-1]
-
-    search_once = cs._counterexample_search
-
-    def counterexample_search(pst, vs, **kwargs):
-        search, ending = search_once(pst, vs, **kwargs)
-        dfa = cs._hypothesis_dfa(pst, search.hypothesis)
-        family = [j for j in judged if list(j.vs) == list(vs)][-1]
-        restarts.append(
+    # pylint: disable=too-many-positional-arguments
+    def on_restart_ended(self, restart, search, ending, dfa, pick_score, round_index):
+        self.restarts.append(
             dict(
-                restart=len(restarts),
-                pick_score=held_out_phi(dfa, *selections[-1].pick),
+                restart=restart,
+                pick_score=pick_score,
                 search_score=search.score_patience.best_score,
                 ending=ending.kind,
                 probes=search.probes,
-                family_size=len(vs),
-                family_fnr=family.fnr,
+                **self.family,
                 dfa=dfa_table(dfa),
             )
         )
-        with open(f"{out}/restarts.json", "w") as f:
-            json.dump(restarts, f, indent=1)
-        return search, ending
-
-    cluster.judge_family = judge_family
-    cs._selection_sample = selection_sample
-    cs._counterexample_search = counterexample_search
-    return restarts
+        with open(f"{self.out}/restarts.json", "w") as f:
+            json.dump(self.restarts, f, indent=1)
 
 
 def git(*args):
@@ -132,15 +98,16 @@ def main():
         sampler=SuperSampler(VOCAB, SYMBOLS),
     )
     configure(pst)
-    restarts = record(a.out)
+    tracker = RestartRecorder(a.out)
     best = cs.counterexample_driven_synthesis(
         pst,
         acc_threshold=0.98,
-        tracker=SynthesisTracker(),
+        tracker=tracker,
         max_rounds=1,
         indecisive_fraction=0.1,
         min_indecisive=200,
     )
+    restarts = tracker.restarts
     assert len(restarts) == RESTARTS, len(restarts)
     with open(f"{a.out}/run.json", "w") as f:
         json.dump(
