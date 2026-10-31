@@ -18,9 +18,9 @@ def labelled_sample(oracle, sampler, alphabet_size, n, rng):
 
 
 def held_out_phi(dfa, fit, read) -> float:
-    """|corr| between ``read``'s labels and the accept rate, over ``fit``, of the
-    state each of its strings ends in; a state no ``fit`` string ends in takes
-    ``fit``'s overall rate."""
+    """corr between ``read``'s labels and the DFA's verdicts on its strings, where a
+    state accepts iff the ``fit`` strings ending in it accept above ``fit``'s overall
+    rate; the DFA's own accepting states are ignored."""
 
     def ends(strings):
         return [states_intermediate(dfa.initial_state, w, dfa)[-1] for w in strings]
@@ -31,12 +31,11 @@ def held_out_phi(dfa, fit, read) -> float:
         total[state] += label
         count[state] += 1
     overall = float(np.mean(fit_labels))
-    predicted = np.array(
-        [total[s] / count[s] if count[s] else overall for s in ends(read_strings)]
-    )
-    if predicted.std() == 0 or np.std(read_labels) == 0:
+    accepting = {s for s in count if total[s] / count[s] > overall}
+    verdicts = np.array([s in accepting for s in ends(read_strings)], dtype=float)
+    if verdicts.std() == 0 or np.std(read_labels) == 0:
         return 0.0
-    return abs(float(np.corrcoef(predicted, read_labels)[0, 1]))
+    return float(np.corrcoef(verdicts, read_labels)[0, 1])
 
 
 def uniform_weights(dfa):

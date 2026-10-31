@@ -7,7 +7,7 @@ import OrthoDFA.Proofs.DFABridge
 `LoopClaimUniform` is `LoopClaim` at `D` uniform over the strings of length `L + 2|Q| + 6` and
 `β = 1/|Σ|`: uniform strings extend a prefix by each letter `1/|Σ|` of the time
 (`uniformStrings_floor`) and hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
-`C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G = |Σ|⁷ Z³⁸` free of `L`, so `L ≥ L₀` gives `(L + |Q|)⁶ C₀ G ≤ |Σ|^k`
+`C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives `(L + |Q|)⁶ C₀ G ≤ |Σ|^k`
 (`pow_of_tangent`). `LoopClaimSimple` follows from `LoopClaimUniform`, the prefix and suffix
 totals' shapes bounded by their products.
 -/
@@ -30,153 +30,77 @@ lemma toDist_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toDist x ∈ loopDis
   · show 1 / (x.A : ℝ) * x.A ≤ 1
     rw [one_div_mul_cancel (by positivity)]
 
-/-- `|Σ|⁷ Z³⁸`, `Z = |Q| R/(δ ξ pAP s₀)`: `1/p₀Tol`'s shape at `β = 1/|Σ|` is at most
-`16 (L + |Q|)⁶ loopG`. -/
+/-- `1/p₀Tol`'s shape at `β = 1/|Σ|` is at most `2 (L + |Q|)⁵ loopG`. -/
 def loopG (x : LoopInputs) : ℝ :=
-  x.A ^ 7 * (x.Q * x.R * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 38
+  x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+    * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
+    * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11
 
-set_option maxHeartbeats 1000000 in -- three terms, each against `|Σ|⁷ Z³⁸`
 lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
-    0 ≤ p₀Shape { toDist x with L } ∧ p₀Shape { toDist x with L } ≤ 16 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
+    0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
+      ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
+      ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
   have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
   have hLQ : (1 : ℝ) ≤ (L : ℝ) + x.Q := by have : (0 : ℝ) ≤ L := Nat.cast_nonneg L; linarith
-  have hiδ : 1 ≤ 1 / x.δ := (le_div_iff₀ hδ).2 (by linarith)
-  have hiξ : 1 ≤ 1 / x.ξ := (le_div_iff₀ hξ).2 (by linarith)
-  have hip : 1 ≤ 1 / x.pAP := (le_div_iff₀ hp).2 (by linarith)
-  have his : 2 ≤ 1 / x.s₀ := (le_div_iff₀ hs).2 (by linarith)
-  set iδ := 1 / x.δ with hiδd
-  set iξ := 1 / x.ξ with hiξd
-  set ip := 1 / x.pAP with hipd
-  set is := 1 / x.s₀ with hisd
-  set Q : ℝ := (x.Q : ℝ)
-  set A : ℝ := (x.A : ℝ)
-  set R := x.R
-  set LQ : ℝ := (L : ℝ) + Q with hLQd
-  set Z := Q * R * iδ * iξ * ip * is with hZd
-  have hs1' : 1 ≤ is := by linarith
-  have hA1 : 1 ≤ A := by linarith
-  have hZ1 : 1 ≤ Z := one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
-    (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
-      (one_le_mul_of_one_le_of_one_le hQ' hR) hiδ) hiξ) hip) hs1'
-  have hl : ∀ y ∈ [Q, R, iδ, iξ, ip, is], 1 ≤ y := by simp [hQ', hR, hiδ, hiξ, hip, hs1']
-  have hsub (l : List ℝ) (hl' : l.Sublist [Q, R, iδ, iξ, ip, is]) : l.prod ≤ Z := by
-    simpa [mul_assoc, hZd] using prod_le_prod_of_sublist hl' hl
-  have hQZ : Q ≤ Z := by simpa using hsub [Q] (by simp)
-  have hRZ : R ≤ Z := by simpa using hsub [R] (by simp)
-  have hδZ : iδ ≤ Z := by simpa using hsub [iδ] (by simp)
-  have hξZ : iξ ≤ Z := by simpa using hsub [iξ] (by simp)
-  have hpZ : ip ≤ Z := by simpa using hsub [ip] (by simp)
-  have hsZ : is ≤ Z := by simpa using hsub [is] (by simp)
-  have hZ4 : 4 ≤ Z := by
-    have h := hsub [iδ, is] (by simp)
-    simp only [List.prod_cons, List.prod_nil, mul_one] at h
-    have : 4 ≤ iδ * is := by
-      have : 2 ≤ iδ := (le_div_iff₀ hδ).2 (by linarith)
+  set Y : ℝ := x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀) with hYd
+  have hY : 3 ≤ Y := by
+    have h1 : 2 ≤ (x.Q : ℝ) * x.R * x.A := by
+      have : 1 ≤ (x.Q : ℝ) * x.R := one_le_mul_of_one_le_of_one_le hQ' hR
       nlinarith
-    linarith
-  set Y := A * Z with hYd
-  have hY : 3 ≤ Y := by rw [hYd]; nlinarith
+    have h4 : 2 ≤ 1 / x.s₀ := (le_div_iff₀ hs).2 (by linarith)
+    have h5 : 1 ≤ (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        ((le_div_iff₀ hδ).2 (by linarith)) ((le_div_iff₀ hξ).2 (by linarith)))
+        ((le_div_iff₀ hp).2 (by linarith))
+    have e : Y = (x.Q * x.R * x.A) * ((1 / x.δ) * (1 / x.ξ) * (1 / x.pAP)) * (1 / x.s₀) := by
+      rw [hYd]; ring
+    rw [e]
+    nlinarith [mul_le_mul h1 h5 (by norm_num) (by linarith)]
   have hlY : 1 ≤ log Y := one_le_log_of_three_le hY
-  have hlYY : log Y ≤ A * Z := Real.log_le_self (by linarith)
-  have hlLY : log (LQ * Y) ≤ 2 * LQ * log Y := by
+  have hlLY : log (((L : ℝ) + x.Q) * Y) ≤ 2 * ((L : ℝ) + x.Q) * log Y := by
     rw [Real.log_mul (by linarith) (by linarith)]
-    have := Real.log_le_sub_one_of_pos (show (0 : ℝ) < LQ by linarith)
+    have := Real.log_le_sub_one_of_pos (show (0 : ℝ) < (L : ℝ) + x.Q by linarith)
     nlinarith
-  have hlLY0 : 0 ≤ log (LQ * Y) := Real.log_nonneg (by nlinarith)
-  have e1 : LQ * Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = LQ * Y := by
-    show LQ * Q * R / (1 / A * x.δ * x.ξ * x.pAP * x.s₀) = _
-    rw [hYd, hZd, hiδd, hiξd, hipd, hisd]; field_simp
-  have e2 : Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = Y := by
-    show Q * R / (1 / A * x.δ * x.ξ * x.pAP * x.s₀) = _
-    rw [hYd, hZd, hiδd, hiξd, hipd, hisd]; field_simp
-  set F₁ := A * R * Q ^ 4 * iξ * (R ^ 3 * Q ^ 3 * iξ ^ 3 * (is ^ 11 + Q ^ 6 * A ^ 3 * is ^ 5)
-    + R ^ 2 * Q ^ 2 * iξ ^ 2 * iδ * (is ^ 4 + Q ^ 4 * A ^ 2) + iδ * ip ^ 2 * is ^ 2) with hF₁d
-  set F₂ := Q ^ 5 * R ^ 2 * iξ ^ 4 * iδ * (is ^ 8 + Q ^ 4 * A ^ 2 * is ^ 4) with hF₂d
-  set F₃ := Q ^ 7 * A ^ 4 * R ^ 2 * iξ ^ 2 * iδ with hF₃d
-  have hsh : p₀Shape { toDist x with L }
-      = LQ ^ 4 * log (LQ * Y) * log Y * F₁ + LQ ^ 2 * log (LQ * Y) * log Y ^ 2 * F₂
-        + LQ ^ 2 * log Y ^ 2 * F₃ := by
-    show LQ ^ 4 * log (LQ * Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
-          * log (Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) * Q ^ 4 * R
-          / ((toDist x).β * x.ξ)
-          * (Q ^ 3 * R ^ 3 / x.ξ ^ 3 * (1 / x.s₀ ^ 11 + Q ^ 6 / ((toDist x).β ^ 3 * x.s₀ ^ 5))
-            + Q ^ 2 * R ^ 2 / (x.ξ ^ 2 * x.δ) * (1 / x.s₀ ^ 4 + Q ^ 4 / (toDist x).β ^ 2)
-            + 1 / (x.δ * x.pAP ^ 2 * x.s₀ ^ 2))
-        + LQ ^ 2 * log (LQ * Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
-          * log (Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2 * Q ^ 5 * R ^ 2
-          / (x.ξ ^ 4 * x.δ) * (1 / x.s₀ ^ 8 + Q ^ 4 / ((toDist x).β ^ 2 * x.s₀ ^ 4))
-        + LQ ^ 2 * log (Q * R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-          * Q ^ 7 * A ^ 2 * R ^ 2 / ((toDist x).β ^ 2 * x.ξ ^ 2 * x.δ) = _
-    rw [e1, e2]
-    rw [show (toDist x).β = 1 / A from rfl]
-    rw [hF₁d, hF₂d, hF₃d, hiδd, hiξd, hipd, hisd]
-    field_simp
-  have hmono : ∀ a b : ℕ, a ≤ 4 → b ≤ 26 → A ^ a * Z ^ b ≤ A ^ 4 * Z ^ 26 := fun a b ha hb =>
-    mul_le_mul (pow_le_pow_right₀ hA1 ha) (pow_le_pow_right₀ hZ1 hb) (by positivity) (by positivity)
-  have hF₁ : F₁ ≤ 5 * (A ^ 4 * Z ^ 26) := by
-    have h : F₁ ≤ A * Z * Z ^ 4 * Z * (Z ^ 3 * Z ^ 3 * Z ^ 3 * (Z ^ 11 + Z ^ 6 * A ^ 3 * Z ^ 5)
-        + Z ^ 2 * Z ^ 2 * Z ^ 2 * Z * (Z ^ 4 + Z ^ 4 * A ^ 2) + Z * Z ^ 2 * Z ^ 2) := by
-      rw [hF₁d]; gcongr
-    have e : A * Z * Z ^ 4 * Z * (Z ^ 3 * Z ^ 3 * Z ^ 3 * (Z ^ 11 + Z ^ 6 * A ^ 3 * Z ^ 5)
-        + Z ^ 2 * Z ^ 2 * Z ^ 2 * Z * (Z ^ 4 + Z ^ 4 * A ^ 2) + Z * Z ^ 2 * Z ^ 2)
-        = A ^ 1 * Z ^ 26 + A ^ 4 * Z ^ 26 + A ^ 1 * Z ^ 17 + A ^ 3 * Z ^ 17 + A ^ 1 * Z ^ 11 := by
-      ring
-    linarith [hmono 1 26 (by norm_num) (by norm_num), hmono 1 17 (by norm_num) (by norm_num),
-      hmono 3 17 (by norm_num) (by norm_num), hmono 1 11 (by norm_num) (by norm_num)]
-  have hF₂ : F₂ ≤ 2 * (A ^ 4 * Z ^ 26) := by
-    have h : F₂ ≤ Z ^ 5 * Z ^ 2 * Z ^ 4 * Z * (Z ^ 8 + Z ^ 4 * A ^ 2 * Z ^ 4) := by
-      rw [hF₂d]; gcongr
-    have e : Z ^ 5 * Z ^ 2 * Z ^ 4 * Z * (Z ^ 8 + Z ^ 4 * A ^ 2 * Z ^ 4)
-        = A ^ 0 * Z ^ 20 + A ^ 2 * Z ^ 20 := by ring
-    linarith [hmono 0 20 (by norm_num) (by norm_num), hmono 2 20 (by norm_num) (by norm_num)]
-  have hF₃ : F₃ ≤ A ^ 4 * Z ^ 26 := by
-    have h : F₃ ≤ Z ^ 7 * A ^ 4 * Z ^ 2 * Z ^ 2 * Z := by rw [hF₃d]; gcongr
-    have e : Z ^ 7 * A ^ 4 * Z ^ 2 * Z ^ 2 * Z = A ^ 4 * Z ^ 12 := by ring
-    linarith [hmono 4 12 (by norm_num) (by norm_num)]
-  have hF₁0 : 0 ≤ F₁ := by rw [hF₁d]; positivity
-  have hF₂0 : 0 ≤ F₂ := by rw [hF₂d]; positivity
-  have hF₃0 : 0 ≤ F₃ := by rw [hF₃d]; positivity
-  have hlY0 : 0 ≤ log Y := by linarith
-  rw [hsh]
+  have hlLY0 : 0 ≤ log (((L : ℝ) + x.Q) * Y) := Real.log_nonneg (by nlinarith)
+  have e1 : ((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)
+      = ((L : ℝ) + x.Q) * Y := by
+    show ((L : ℝ) + x.Q) * x.Q * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
+    rw [hYd]; field_simp
+  have e2 : (x.Q : ℝ) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = Y := by
+    show (x.Q : ℝ) * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
+    rw [hYd]; field_simp
+  have e4 : 1 / (toDist x).β + x.Q = x.A + x.Q := by
+    show 1 / (1 / (x.A : ℝ)) + x.Q = _
+    rw [one_div_one_div]
+  set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11 with hKd
+  have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11) = z * K := by
+    intro z
+    rw [hKd]; field_simp
+  have hG : loopG x = x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
+    rw [loopG, hKd]; ring
+  have hK0 : 0 ≤ K := by positivity
+  rw [e1, e2, e3, e4, hG]
   refine ⟨by positivity, ?_⟩
-  have hLQ6 : ∀ k : ℕ, k ≤ 6 → LQ ^ k ≤ LQ ^ 6 := fun k hk => pow_le_pow_right₀ hLQ hk
-  have hlY3 : log Y ^ 3 ≤ (A * Z) ^ 3 := pow_le_pow_left₀ hlY0 hlYY 3
-  have hlY2 : log Y ^ 2 ≤ log Y ^ 3 := by nlinarith
-  have hAZ : (A * Z) ^ 3 * (A ^ 4 * Z ^ 26) ≤ loopG x := by
-    show (A * Z) ^ 3 * (A ^ 4 * Z ^ 26) ≤ A ^ 7 * Z ^ 38
-    have : Z ^ 29 ≤ Z ^ 38 := pow_le_pow_right₀ hZ1 (by norm_num)
-    nlinarith [show (A * Z) ^ 3 * (A ^ 4 * Z ^ 26) = A ^ 7 * Z ^ 29 by ring,
-      pow_pos (show (0 : ℝ) < A by linarith) 7]
-  set W := A ^ 4 * Z ^ 26
-  have hW0 : 0 ≤ W := by positivity
-  have t1 : LQ ^ 4 * log (LQ * Y) * log Y * F₁ ≤ 10 * (LQ ^ 6 * (log Y ^ 3 * W)) := by
-    calc LQ ^ 4 * log (LQ * Y) * log Y * F₁ ≤ LQ ^ 4 * (2 * LQ * log Y) * log Y * (5 * W) := by
-          gcongr
-      _ = 10 * (LQ ^ 5 * (log Y ^ 2 * W)) := by ring
-      _ ≤ 10 * (LQ ^ 6 * (log Y ^ 3 * W)) := by
-          have := mul_le_mul (hLQ6 5 (by norm_num)) (mul_le_mul_of_nonneg_right hlY2 hW0)
-            (by positivity) (by positivity)
-          linarith
-  have t2 : LQ ^ 2 * log (LQ * Y) * log Y ^ 2 * F₂ ≤ 4 * (LQ ^ 6 * (log Y ^ 3 * W)) := by
-    calc LQ ^ 2 * log (LQ * Y) * log Y ^ 2 * F₂ ≤ LQ ^ 2 * (2 * LQ * log Y) * log Y ^ 2 * (2 * W) :=
-          by gcongr
-      _ = 4 * (LQ ^ 3 * (log Y ^ 3 * W)) := by ring
-      _ ≤ 4 * (LQ ^ 6 * (log Y ^ 3 * W)) := by
-          have := mul_le_mul_of_nonneg_right (hLQ6 3 (by norm_num))
-            (by positivity : 0 ≤ log Y ^ 3 * W)
-          linarith
-  have t3 : LQ ^ 2 * log Y ^ 2 * F₃ ≤ LQ ^ 6 * (log Y ^ 3 * W) := by
-    have := mul_le_mul (mul_le_mul (hLQ6 2 (by norm_num)) hlY2 (by positivity) (by positivity))
-      hF₃ hF₃0 (by positivity)
-    linarith [show LQ ^ 6 * log Y ^ 3 * W = LQ ^ 6 * (log Y ^ 3 * W) by ring]
-  have hfin : LQ ^ 6 * (log Y ^ 3 * W) ≤ LQ ^ 6 * loopG x := by
-    gcongr
-    calc log Y ^ 3 * W ≤ (A * Z) ^ 3 * W := by gcongr
-      _ ≤ loopG x := hAZ
-  have : 0 ≤ LQ ^ 6 * (log Y ^ 3 * W) := by positivity
-  linarith
+  have h5 : ((L : ℝ) + x.Q) ^ 5 ≤ ((L : ℝ) + x.Q) ^ 6 := pow_le_pow_right₀ hLQ (by norm_num)
+  have hb : 0 ≤ (x.Q : ℝ) ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
+    have : 0 ≤ log Y := by linarith
+    positivity
+  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log (((L : ℝ) + x.Q) * Y)
+        * log Y ^ 2 * K
+      ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+        * (2 * ((L : ℝ) + x.Q) * log Y) * log Y ^ 2 * K := by gcongr
+    _ = 2 * (((L : ℝ) + x.Q) ^ 5 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
+      ring
+    _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
+      gcongr
 
 lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
@@ -196,7 +120,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
     fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_on (245 + 6 * log C₀) fun x hx => ?_
+  · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
@@ -218,20 +142,20 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       nlinarith
     have e : (x.Q : ℝ) * x.R * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)
         = x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀) := by ring
-    refine ⟨by positivity, ?_, hle.trans_eq (by rw [e])⟩
+    rw [e] at hle
+    refine ⟨by positivity, ?_, hle⟩
     exact add_nonneg zero_le_one (div_nonneg (Real.log_nonneg hZ) hlA.le)
   · refine (isBigO_comp_on hpref hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 5 * (r.L + r.Q) ^ 2 * r.R ^ 2
+    show _ = r.Q ^ 3 * (r.L + r.Q) ^ 2 * r.R ^ 2
       * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-      * (1 / r.s₀ ^ 8 + r.A ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)
-    simp only [Function.comp, toDistRun, toDist]
+      * (1 / r.s₀ ^ 8 + (r.A + r.Q) ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)
+    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
     have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
         = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
     rw [e]
-    field_simp
   · refine (isBigO_comp_on hsuff hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
@@ -246,9 +170,8 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 4 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-    simp only [Function.comp, toDistRun, toDist]
-    field_simp
+    show _ = r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -263,13 +186,16 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hc := hC _ hrd
     have hpos' := hpos { toDist x with L }
     have hG1 : 1 ≤ loopG x := loopG_ge_one ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩
-    obtain ⟨hsh0, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
+    obtain ⟨-, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
+      obtain ⟨hs0, hsle⟩ := p₀Shape_le hrd
       change _ ≤ C * |p₀Shape { toDist x with L }| at hc
-      rw [abs_of_nonneg hsh0] at hc
-      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hsh0).trans ?_)
-      refine (mul_le_mul_of_nonneg_left hsh ?_).trans (le_of_eq ?_)
+      rw [abs_of_nonneg hs0] at hc
+      have h8 : p₀Shape { toDist x with L } ≤ 8 * (2 * (((L : ℝ) + x.Q) ^ 6 * loopG x)) :=
+        hsle.trans (mul_le_mul_of_nonneg_left hsh (by norm_num))
+      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hs0).trans ?_)
+      refine (mul_le_mul_of_nonneg_left h8 ?_).trans (le_of_eq ?_)
       · linarith [le_max_left 1 C]
       · rw [hC₀d]; ring
     have hpow := pow_of_tangent (E := C₀ * loopG x) hA' hQ'

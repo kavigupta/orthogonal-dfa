@@ -1,15 +1,13 @@
-import OrthoDFA.Proofs.LoopDFA
+import OrthoDFA.Proofs.LoopDFASummed
 
 /-!
 # The learner's DFA under the relative rule: the proof
 
-A start in its own non-start zone is visited from `⌈L/2⌉` on by at least `1/C` of the strings,
-`C = R(L+1)/(L+1−⌈L/2⌉)`, so covered at `c = ξ/(2C|Q|)` (`covered_of_self_nonStartZone`). The
-non-start-zone states visited from `⌈L/2⌉` on by
-fewer than `c` of the strings are visited from `q` by at most `|Q| C c = ξ/2` of them, and off
-those runs the relative rule's good strings from a start covered at `c` are the covered rule's
-(`covered_of_nonStartZone`). The claims are `LearnerLoopDFASimple` and `LearnerLoopDFA` at this `c`,
-at `γ + ξ/2` and `ξ/2`.
+The claims are `learner_loop_dfa_dist_core` and `learner_loop_dfa_dist_tol` at `D` uniform, the
+coverage `ξ/(2R)` and edges crossed at `|Σ| + |Q|`, so `ε = m/(3(|Σ|+|Q|+1)N)` at `m = 3ξ/(8R)`,
+with `ξ/4` and `γ + 3ξ/4` in place of `ξ` and `γ`: the last round's leaf misjudges at most
+`γ + 3ξ/4` (`summed_bridge`). A start in its own zone gives `R ≥ 1/2`, so the coverage is at most
+`1`.
 -/
 
 noncomputable section
@@ -18,123 +16,101 @@ namespace OrthoDFA
 
 open MeasureTheory
 
-variable {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
-
-omit [DecidableEq α] [Nonempty α] in
-theorem covered_of_self_nonStartZone {σ : Type*} [Fintype σ] (T : Measure (FreeMonoid α))
-    [IsProbabilityMeasure T] (M : _root_.DFA α σ) (L : ℕ)
-    {R C ξ : ℝ} (hC : 0 < C) (hCR : C = R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ))
-    (hξ1 : ξ ≤ 1) {q : σ} (hq : q ∈ nonStartZoneStatesOn T M L R q) :
-    q ∈ coveredStatesOn T M L (ξ / (2 * C * Fintype.card σ)) := by
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
-  have h1 : rerootVisitRateOn T M L q q = 1 := by
-    have hu : {x : FreeMonoid α | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q} = Set.univ :=
-      Set.eq_univ_of_forall fun x => ⟨0, Nat.zero_le _, by simp [prefixOf]⟩
-    rw [rerootVisitRateOn, hu, probReal_univ]
-  have hw : 1 ≤ C * windowVisitRateOn T M L q := by
-    have h := hq
-    change rerootVisitRateOn T M L q q ≤ _ at h
-    rw [h1, ← hCR] at h
-    exact h
-  change ξ / (2 * C * Fintype.card σ) ≤ windowVisitRateOn T M L q
-  rw [div_le_iff₀ (by positivity)]
-  nlinarith
-
-omit [DecidableEq α] [Nonempty α] in
-theorem covered_of_nonStartZone {σ : Type*} [Fintype σ] (T : Measure (FreeMonoid α))
-    [IsProbabilityMeasure T] (M : _root_.DFA α σ) (L : ℕ)
-    {R C γ ξ : ℝ} (hC : 0 < C) (hCR : C = R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ))
-    (hξ : 0 < ξ) {q : σ} (hqc : q ∈ coveredStatesOn T M L (ξ / (2 * C * Fintype.card σ)))
-    (hq : 1 - γ ≤ rerootAccuracyOn T M L (insert q (nonStartZoneStatesOn T M L R q)) q) :
-    1 - (γ + ξ / 2)
-      ≤ rerootAccuracyOn T M L (coveredStatesOn T M L (ξ / (2 * C * Fintype.card σ))) q := by
-  classical
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
-  set c := ξ / (2 * C * Fintype.card σ) with hc
-  have hc0 : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
-  set D := nonStartZoneStatesOn T M L R q
-  let S : Finset σ := Finset.univ.filter fun q' => q' ∈ D ∧ windowVisitRateOn T M L q' < c
-  let B : Set (FreeMonoid α) :=
-    ⋃ q' ∈ S, {x | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
-  let GD : Set (FreeMonoid α) :=
-    {x | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ insert q D)
-      ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
-  let GC : Set (FreeMonoid α) :=
-    {x | (∀ i ≤ L, M.evalFrom q (prefixOf x i).toList ∈ coveredStatesOn T M L c)
-      ∧ (M.evalFrom q x.toList ∈ M.accept ↔ M.eval x.toList ∈ M.accept)}
-  have hsub : GD ⊆ GC ∪ B := by
-    rintro x ⟨hD, hacc⟩
-    by_cases hx : x ∈ B
-    · exact Or.inr hx
-    · refine Or.inl ⟨fun i hi => ?_, hacc⟩
-      rcases hD i hi with hqi | hDi
-      · rw [hqi]; exact hqc
-      change c ≤ windowVisitRateOn T M L _
-      by_contra hlt
-      exact hx (Set.mem_iUnion₂.2 ⟨_, Finset.mem_filter.2
-        ⟨Finset.mem_univ _, hDi, not_le.1 hlt⟩, i, hi, rfl⟩)
-  have hB : T.real B ≤ ξ / 2 := by
-    refine (measureReal_biUnion_finset_le _ _).trans ?_
-    calc ∑ q' ∈ S, T.real {x | ∃ i ≤ L, M.evalFrom q (prefixOf x i).toList = q'}
-        ≤ ∑ _q' ∈ S, C * c := Finset.sum_le_sum fun q' hq' => by
-          obtain ⟨-, hD', hlt⟩ := Finset.mem_filter.1 hq'
-          have hD'' : rerootVisitRateOn T M L q q' ≤ C * windowVisitRateOn T M L q' := by
-            rw [hCR]; exact hD'
-          exact hD''.trans (mul_le_mul_of_nonneg_left hlt.le hC.le)
-      _ ≤ Fintype.card σ * (C * c) := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-          exact mul_le_mul_of_nonneg_right (by exact_mod_cast Finset.card_le_univ S)
-            (mul_pos hC hc0).le
-      _ = ξ / 2 := by rw [hc]; field_simp
-  have hmono : T.real GD ≤ T.real (GC ∪ B) := measureReal_mono hsub
-  have hu : T.real (GC ∪ B) ≤ T.real GC + T.real B := measureReal_union_le _ _
-  have hq' : 1 - γ ≤ T.real GD := hq
-  change 1 - (γ + ξ / 2) ≤ T.real GC
-  linarith
-
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k C c L₁ N ε εcov δ' ι s τ J S B₃ Wm
-    W PB RB cap Kc n hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε εcov δ' ι s τ J S B₃ Wm W PB RB
+    cap Kc n hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
   obtain ⟨q, hself, hq⟩ := hdom
-  have hC : 0 < C := by
-    have hk : 0 < L + 1 - k := by omega
-    exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ : (1 : ℝ) ≤ Q := by
-    change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-  have hc : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
-  have hcov := covered_of_self_nonStartZone (uniformStrings L) M L hC rfl hξ1 hself
-  rw [← Set.insert_eq_of_mem hself] at hq
-  have h := learner_loop_dfa_simple_holds M O L η₀ c (γ + ξ / 2) δ pAP (ξ / 2)
-  dsimp only at h
-  rw [show ∀ x : ℝ, ξ / 2 / (8 * x) = ξ / (16 * x) from fun x => by ring,
-    show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
-    show γ + ξ / 2 + ξ / 2 = γ + ξ by ring] at h
-  exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hcov, covered_of_nonStartZone (uniformStrings L) M L hC rfl hξ hcov hq⟩ hk1 hk2 hk3 hk4
+  have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
+  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
+  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
+  have hc1 : ξ / (2 * R) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
+  have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
+      = uniformStrings L := prefixLaw_uniformStrings (by omega)
+  have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
+      (L + Fintype.card σ + 3 + Fintype.card σ + 3)
+      = uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3) :=
+    prefixLaw_uniformStrings le_rfl
+  have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
+      ((L + 1) / 2) (L + Fintype.card σ + 3)
+      = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
+  have h := learner_loop_dfa_dist_core M O L
+    (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hη hη₀ (by positivity) hc1 hδ hδ1 hpAP
+    (by positivity) hA2 (by linarith) (uniformStrings_long _)
+    (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hpS]; exact hpAPu)
+    (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
+      (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩)
+  rw [show ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) from
+      fun x => by simp only [m]; field_simp; ring,
+    show ∀ x : ℝ, ξ / (2 * R) / (10 * x) = ξ / (20 * R * x) from fun x => by ring,
+    show ∀ x : ℝ, ξ / 4 / (8 * x) = ξ / (32 * x) from fun x => by ring,
+    show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
+    show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h
+  obtain ⟨settings, h1, h2, h3, -, h4⟩ := h hk1 hk2 hk3 hk4
+  rw [hpL, hpS, hwS] at h4
+  exact ⟨settings, h1, h2, h3, h4⟩
 
+set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k C c L₁ N ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
     P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
   obtain ⟨q, hself, hq⟩ := hdom
-  have hC : 0 < C := by
-    have hk : 0 < L + 1 - k := by omega
-    exact div_pos (mul_pos hR (by positivity)) (by exact_mod_cast hk)
+  have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have : Nonempty σ := ⟨M.start⟩
-  have hQ : (1 : ℝ) ≤ Q := by
-    change (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
-  have hc : 0 < c := div_pos hξ (mul_pos (mul_pos two_pos hC) (by linarith))
-  have hcov := covered_of_self_nonStartZone (uniformStrings L) M L hC rfl hξ1 hself
-  rw [← Set.insert_eq_of_mem hself] at hq
-  have h := learner_loop_dfa_holds M O L η₀ c (γ + ξ / 2) δ pAP (ξ / 2)
-  dsimp only at h
-  rw [show (8 : ℝ) / (ξ / 2) = 16 / ξ by ring,
-    show ∀ x : ℝ, 32 * x / (ξ / 2) ^ 2 = 128 * x / ξ ^ 2 from fun x => by ring,
-    show γ + ξ / 2 + ξ / 2 = γ + ξ by ring] at h
-  exact h hL hη hη₀ hc hδ hδ1 hpAP (by positivity) hA2 hpAPu
-    ⟨q, hcov, covered_of_nonStartZone (uniformStrings L) M L hC rfl hξ hcov hq⟩ hL₀
+  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
+  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
+  have hc0 : 0 < ξ / (2 * R) := by positivity
+  have hc1 : ξ / (2 * R) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
+  have hMI : loopMassInv Q A (A + Q) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4)
+      pAP η₀ = E + E₂ + E₃ := by
+    unfold loopMassInv loopMassTerms loopΘ
+    rw [show 4 * (A + Q + 1) / (ξ / (2 * R)) = aε by
+        simp only [aε, m]; field_simp; ring,
+      show (10 : ℝ) / (ξ / (2 * R)) = 20 * R / ξ by rw [div_div_eq_mul_div]; ring,
+      show (8 : ℝ) / (ξ / 4) = 32 / ξ by ring,
+      show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring]
+    rfl
+  have hEs1 : 1 ≤ E + E₂ + E₃ := by
+    rw [← hMI]
+    exact loopMassInv_ge_one _ _ hQ0 (by linarith) (by linarith) hδ hδ1 hc0 hc1 (by positivity)
+      hpAP hp1 hη0 hη₀
+  have hpow : ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) ≤ A ^ k :=
+    dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
+      (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
+  have hp₀ : (A ^ k)⁻¹ ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A (A + Q) (Fintype.card σ)
+      (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP η₀ := by
+    have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
+    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A + Q)
+      (Fintype.card σ) (Fintype.card α) (by linarith) hQ0 (by linarith) (by linarith) hδ hδ1 hc0
+      hc1 (by positivity) hpAP hp1 hη0 hη₀
+    rw [hMI] at hTle
+    rw [one_div]
+    exact inv_anti₀ (by linarith) (hTle.trans hpow)
+  have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
+      = uniformStrings L := prefixLaw_uniformStrings (by omega)
+  have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
+      (L + Fintype.card σ + 3 + Fintype.card σ + 3)
+      = uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3) :=
+    prefixLaw_uniformStrings le_rfl
+  have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
+      ((L + 1) / 2) (L + Fintype.card σ + 3)
+      = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
+  obtain ⟨settings, h1, h2, h3, -, h4⟩ := learner_loop_dfa_dist_tol M O L
+    (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hη hη₀ hc0 hc1 hδ hδ1 hpAP
+    (by positivity) hA2 (by linarith) (uniformStrings_long _)
+    (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
+    (by rw [hpS]; exact hpAPu)
+    (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
+      (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩) hp₀
+  have hε : ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) :=
+    fun x => by simp only [m]; field_simp; ring
+  rw [hε] at h2 h3
+  rw [hpL, hpS, hwS, show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
+    show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h4
+  exact ⟨settings, h1, h2, h3, h4⟩
 
 end OrthoDFA
 
