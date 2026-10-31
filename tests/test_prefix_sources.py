@@ -9,6 +9,7 @@ import unittest
 
 import numpy as np
 
+from orthogonal_dfa.l_star.fallbacks.score_patience import SCORE_STALLED
 from orthogonal_dfa.l_star.prefix_sources import HarvestSource, Replay, harvest_reader
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
@@ -118,6 +119,16 @@ class TestReplay(unittest.TestCase):
             parity_cut([b"\x00\x01", b"\x00"]), edges, members=[b"\x01"]
         )
         read = harvest_reader(Ending(HARVEST_STUCK, []), search)
+        self.assertEqual([b"\x00"], Replay(search, read, lambda: b"\x00").sample())
+
+    def test_a_stalled_score_harvest_reads_ends_stuck_and_middles(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
+        search = quiet_search(parity_cut([b"\x00\x01", b"\x00"]), edges)
+        read = harvest_reader(Ending(SCORE_STALLED, []), search)
+        # A stuck read is also an end, so it is read twice.
+        self.assertEqual(
+            [b"\x00\x01"] * 2, Replay(search, read, lambda: b"\x00\x01").sample()
+        )
         self.assertEqual([b"\x00"], Replay(search, read, lambda: b"\x00").sample())
 
 

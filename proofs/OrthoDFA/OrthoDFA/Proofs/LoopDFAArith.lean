@@ -422,7 +422,7 @@ lemma cap_ge {Q τ ι mn s Θ ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 0 �
           (δ' * mn ^ 2 / (2 ^ 35 * (Q + 2) * (3 + 2 * Real.logb 2 (RB + 1)))))
         (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (Q + 2 + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
           (ι / 2 / (8 * (Q + 2) * (RB + 1)))))
-      (min (min (δ' * pAP / (2 ^ 15 * (Q + 2 + 1) * (PB + 1)))
+      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1)))
           (ι / (12 * (Q + 2) ^ 2 * (RB + 1))))
         (min (pAP / (2 * (Q + 2) * (PB + 2))) (1 / (6 * (Q + 2) * (RB + 1))))) := by
   have hℓ0 : 0 < ℓ := by linarith
@@ -551,7 +551,7 @@ lemma cap_ge {Q τ ι mn s Θ ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 0 �
     have h1 : PB + 1 ≤ (P₀ + 2) * (ℓ ^ 3 * Λ) := by
       have h := mul_le_mul_of_nonneg_left hℓD (by positivity : (0 : ℝ) ≤ P₀ + 2)
       linarith only [h, hPB1]
-    have h2 : 2 ^ 15 * (Q + 2 + 1) ≤ 2 ^ 16 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
+    have h2 : (2 : ℝ) ^ 16 ≤ 2 ^ 16 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
     exact mul_le_mul h2 h1 (by positivity) (by positivity)
   · -- the earlier rounds' prefixes
     refine key _ _ X1 (by positivity) (by positivity) h1X1 ?_
