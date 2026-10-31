@@ -17,8 +17,7 @@ and `data/neural/length_oracles/random_strings.json`.  They hold counts, not rat
 can be re-aggregated:
 
 - `oracle_counts`: both oracles' accepts on 200,000 fresh strings (`label.py`, which
-  permacaches the labels), by half,
-  number of stops and frame pattern;
+  permacaches the labels), by half, number of stops and frame pattern;
 - `runs`: each run's commit, hours, family size and FNR, and its kept DFA's phi on its own
   test halves;
 - `restarts`: each restart's DFA, pick and search scores, ending and probes, and the
