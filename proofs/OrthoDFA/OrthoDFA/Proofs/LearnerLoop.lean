@@ -155,10 +155,24 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       have := pow_le_pow_left₀ (by have := lt_min hε hι; positivity) hmin 2
       linarith
     have hcolH' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
-        2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
+        512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          * (D j).real {t} ≤ min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
       have h := hcolH B hB j hj t
-      nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+      have hold : 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := by
+        nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+      have hl := Real.log_le_self (show 0 ≤ 128 * (pops.card : ℝ)
+        * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc by positivity)
+      have hD0 : 0 ≤ (D j).real {t} := measureReal_nonneg
+      calc 512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (D j).real {t}
+          ≤ 512 * (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (D j).real {t} := by gcongr
+        _ = 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+            / δc := by ring
+        _ ≤ δc * min (εcov / 512) indecisionLimit ^ 2 / δc :=
+            div_le_div_of_nonneg_right hold hδc.le
+        _ = min (εcov / 512) indecisionLimit ^ 2 := by field_simp
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
