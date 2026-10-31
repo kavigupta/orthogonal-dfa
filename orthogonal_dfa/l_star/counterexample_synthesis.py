@@ -23,6 +23,7 @@ from .dfa_utils import held_out_phi, labelled_sample
 from .fallbacks.members import MemberFallback
 from .fallbacks.score_patience import ScorePatience, Selection
 from .fallbacks.skipping import skipping_search
+from .fallbacks.split_gate import SplitGate
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -237,11 +238,12 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
 def _counterexample_search(pst, vs, *, acc_threshold, selection):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
-    fallback, table = None, pst.table
+    fallback, split_gate, table = None, None, pst.table
+    members = [p for p, keep in zip(table.prefixes, table.representative) if keep]
     if pst.config.counterexample_member_fallback:
-        fallback = MemberFallback(
-            [p for p, keep in zip(table.prefixes, table.representative) if keep]
-        )
+        fallback = MemberFallback(members)
+    if pst.config.counterexample_split_gate:
+        split_gate = SplitGate(members, pst.config.counterexample_split_gate)
     score_patience = ScorePatience.from_config(
         pst.config,
         lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
@@ -258,6 +260,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             else plain_bisect
         ),
         score_patience=score_patience,
+        split_gate=split_gate,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 

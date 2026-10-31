@@ -16,7 +16,8 @@ from .counterexample_probe import (
 )
 from .fallbacks.members import MemberFallback
 from .fallbacks.score_patience import ScorePatience
-from .hypothesis_dfa import Cut, HypothesisDFA, Path
+from .fallbacks.split_gate import SplitGate
+from .hypothesis_dfa import Cut, HypothesisDFA
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
 
@@ -34,6 +35,7 @@ class CounterexampleSearch:
         member_fallback: Optional[MemberFallback] = None,
         bisect: Callable = plain_bisect,
         score_patience: Optional[ScorePatience] = None,
+        split_gate: Optional[SplitGate] = None,
     ):
         """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
@@ -45,6 +47,7 @@ class CounterexampleSearch:
         self.member_fallback = member_fallback
         self.bisect = bisect
         self.score_patience = score_patience
+        self.split_gate = split_gate
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -102,21 +105,13 @@ class CounterexampleSearch:
             located = self.member_fallback.read_stuck(
                 self.hypothesis, self.k, located, x
             )
+        if isinstance(located.outcome, EdgeFound) and self.split_gate is not None:
+            located = self.split_gate.read(self.hypothesis, located)
         return located.outcome, charges(located, self.k, x)
 
     def _split(self, found: EdgeFound):
-        """Split the edge's source on its letter and the midfix where the probe's
-        target and the edge's part."""
         hypothesis = self.hypothesis
-        current = hypothesis.edges[(found.source, found.letter)][0]
-        midfix = hypothesis.tree.midfix_at(_common_prefix(found.target, current))
-        hypothesis.split_leaf(found.source, bytes([found.letter]) + midfix)
-
-
-def _common_prefix(a: Path, b: Path) -> Path:
-    out = []
-    for x, y in zip(a, b):
-        if x != y:
-            break
-        out.append(x)
-    return tuple(out)
+        hypothesis.split_leaf(
+            found.source,
+            hypothesis.split_node(found.source, found.letter, found.target),
+        )
