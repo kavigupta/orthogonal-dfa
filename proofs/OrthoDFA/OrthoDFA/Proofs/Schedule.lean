@@ -413,7 +413,8 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
 draws or the tables hold at most `(|J| + 3)·m·ρ` of the time, which against `rejFrac` makes its
 rejections a binomial tail of order `(m/N)·2^-(r+1)`; the uniform pool's draws land in a window
 of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`; and the hash
-splits every population evenly but for its sub-Gaussian tail at `ρ/e²`. -/
+splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which over the
+`|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
   min (min (rejFrac η indecisionLimit εcov εs
@@ -422,10 +423,10 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
       (min εs indecisionLimit
         / (128 * (populations.card : ℝ)
           * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
-    (δ * min εs indecisionLimit ^ 2
-      / (2 ^ 15 * (populations.card : ℝ)
+    (min εs indecisionLimit ^ 2
+      / (512 * Real.log (64 * (populations.card : ℝ)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
-          hsz) : ℝ))))
+          hsz) : ℝ)) / δ)))
 
 /-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
 draws, a twentieth of the findable share. -/

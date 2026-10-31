@@ -81,8 +81,8 @@ this (`parity_toggle`, #438).
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
   population need only keep every atom under `rateScale·(1/2 − η₀)/(2¹⁸(|J| + 3)·npref)` and
-  `εs/(2⁸(|J| + 3)·npref)`, and under `δ·min(εs, indecisionLimit)²/(2¹⁵|J|(3 + 2⌊log₂ npref⌋))`
-  for the hash to split it evenly.
+  `εs/(2⁸(|J| + 3)·npref)`, and under
+  `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
   wrongly, or leaves it undecided, only a bounded share of the time.
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state

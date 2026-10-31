@@ -1280,7 +1280,7 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
 lemma cap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     (η₀ indecisionLimit εcov εs δ α pAP crossLimit ρ : ℝ) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
     (hε : 0 < εcov) (hind : 0 < indecisionLimit) (hcard : (0 : ℝ) < (populations.card : ℝ))
-    (hρ0 : 0 ≤ ρ)
+    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hρ0 : 0 ≤ ρ)
     (hN : (0 : ℝ) < (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))
     (h1 : 2 ^ 18 * ((populations.card : ℝ) + 3)
         * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) * ρ
@@ -1288,10 +1288,10 @@ lemma cap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     (h1' : 2 ^ 8 * ((populations.card : ℝ) + 3)
         * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) * ρ
       ≤ εs)
-    (h2 : 2 ^ 15 * (populations.card : ℝ)
+    (h2 : 512 * Real.log (64 * (populations.card : ℝ)
         * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ α pAP
-          crossLimit hsz) : ℝ)) * ρ
-      ≤ δ * min εs indecisionLimit ^ 2) :
+          crossLimit hsz) : ℝ)) / δ) * ρ
+      ≤ min εs indecisionLimit ^ 2) :
     ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   set N : ℝ := (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
     with hNdef
@@ -1316,7 +1316,18 @@ lemma cap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     refine le_min (by linarith) ?_
     have h3 : ρ * (256 * (P + 3) * N) * 1024 ≤ B * sig η₀ := by linarith
     nlinarith
-  · rw [le_div_iff₀ (by positivity)]
+  · have hP1 : (1 : ℝ) ≤ P := by
+      have hc := hcard
+      rw [hP] at hc ⊢
+      exact Nat.one_le_cast.2 (by exact_mod_cast hc)
+    have hLg : 0 < Real.log (64 * P * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit
+        εcov εs δ α pAP crossLimit hsz) : ℝ)) / δ) := by
+      refine Real.log_pos ?_
+      rw [lt_div_iff₀ hδ]
+      have : (0 : ℝ) ≤ (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ α pAP
+        crossLimit hsz) : ℝ) := Nat.cast_nonneg _
+      nlinarith
+    rw [le_div_iff₀ (by positivity)]
     linarith
 
 /-- The statement's pool hypothesis at the top rung is the pool's collision cap. -/
@@ -1511,7 +1522,17 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have hρ₀0 : 0 ≤ ρ₀ := by
     rw [hρ₀, collisionCap]
     have hc0 := rejFrac_pos η₀ hη₀ hεcov hεs hindLim (indecisionLimit := indecisionLimit)
-    exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity)) (by positivity)
+    have hlog : 0 ≤ Real.log (64 * (populations.card : ℝ)
+        * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+          hz) : ℝ)) / δ) := by
+      refine Real.log_nonneg ?_
+      rw [le_div_iff₀ hδ]
+      have : (0 : ℝ) ≤ (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ α pAP
+        crossLimit hz) : ℝ) := Nat.cast_nonneg _
+      have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
+      nlinarith
+    exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity))
+      (div_nonneg (sq_nonneg _) (mul_nonneg (by norm_num) hlog))
   have htop := solvedState_mem_stoppable (α := α) (crossLimit := crossLimit) (hsz := hz) η₀
     populations hη0 hη₀ hεcov hεs hindLim hδ hδ1 hpAPPositive hcard hρ₀0 le_rfl
   have hpoly := prefCount_le_split (hsz := hz) populations η₀ indecisionLimit εcov εs δ α pAP
@@ -1580,7 +1601,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     linarith
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
     cap_of_top populations η₀ indecisionLimit εcov εs δ α pAP crossLimit ((D j).real {t}) hη0
-      hη₀ hεcov hindLim hcard measureReal_nonneg hN
+      hη₀ hεcov hindLim hcard hδ hδ1 measureReal_nonneg hN
       (by rw [hscaleEq, sig]; exact hcollD _ htop j hj t) (hcollE _ htop j hj t)
       (hcollH _ htop j hj t)
   have hcapsf : collisionMass Dsf
