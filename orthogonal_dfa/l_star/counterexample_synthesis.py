@@ -244,20 +244,10 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         pst.config,
         lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
     )
-    boundary = pst.decision_boundary
-
-    def start(hypothesis):
-        """The leaf ``_hypothesis_dfa`` starts the DFA on."""
-        decide, _ = oracle_decider(
-            pst.oracle, hypothesis.tree.base_family, boundary, boundary
-        )
-        return hypothesis.tree.sift_with_path(lambda read: decide(b"", read), b"")[1]
-
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
-        start=start,
         max_k=start_length(pst.sampler.length),
         member_fallback=fallback,
         score_patience=score_patience,

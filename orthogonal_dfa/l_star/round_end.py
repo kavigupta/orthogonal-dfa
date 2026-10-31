@@ -13,7 +13,6 @@ HARVEST_ENDS = "harvest ends"
 HARVEST_STUCK = "harvest stuck"
 HARVEST_MIDDLES = "harvest middles"
 OUT_OF_PROBES = "out of probes"
-SCORE_STALLED = "score stalled"
 HARVESTS = (HARVEST_ENDS, HARVEST_STUCK, HARVEST_MIDDLES)
 
 

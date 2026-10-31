@@ -1,7 +1,7 @@
 """``indecisiveLStarLevel5`` of ``OrthoDFA/Level5.lean``, read through the round's suffix family."""
 
 from itertools import islice
-from typing import Callable, Iterable, Optional, Tuple
+from typing import Iterable, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import (
@@ -29,19 +29,17 @@ class CounterexampleSearch:
         cut: Cut,
         tree: MidfixTree,
         *,
-        start: Optional[Callable[[HypothesisDFA], Optional[Path]]] = None,
         max_k: int,
         member_fallback: Optional[MemberFallback] = None,
         score_patience: Optional[ScorePatience] = None,
     ):
-        """``start`` is ``locate``'s.  A harvest that repeats a string increments ``k`` instead of ending the
+        """A harvest that repeats a string increments ``k`` instead of ending the
         search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
         self.probes = 0
         self.k, self.max_k = config.k, max_k
-        self.start = start
         self.member_fallback = member_fallback
         self.score_patience = score_patience
 
@@ -95,7 +93,7 @@ class CounterexampleSearch:
         return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.k, x, self.start)
+        located = locate(self.hypothesis, self.k, x)
         stuck = isinstance(located.outcome, End) and located.outcome.stuck
         if stuck and self.member_fallback is not None:
             located = self.member_fallback.read_stuck(

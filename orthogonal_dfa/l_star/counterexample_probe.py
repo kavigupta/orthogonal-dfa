@@ -1,7 +1,7 @@
 """One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from .hypothesis_dfa import Edge, HypothesisDFA, Path
 from .tripartite_search import (
@@ -102,22 +102,15 @@ def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     return [k + unlearned_step + 1, k + unlearned_step]
 
 
-def locate(
-    hypothesis: HypothesisDFA,
-    k: int,
-    x: bytes,
-    start: Optional[Callable[[HypothesisDFA], Optional[Path]]] = None,
-) -> Located:
+def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
     """``probe`` of ``OrthoDFA/Probe.lean``, proved by ``ProbeCorrect``, with the positions it
-    sifted; ``start`` places the empty string where the cut leaves it undecided."""
+    sifted."""
     routes = {}
 
     def sift(i) -> Tuple[Optional[Path], Optional[bytes]]:
         """The leaf at ``i``, and the string read undecided there."""
         if i not in routes:
             reads, path = hypothesis.tree.sift_with_path(hypothesis.cut, x[:i])
-            if path is None and i == 0 and start is not None:
-                path = start(hypothesis)
             routes[i] = path, reads[-1] if path is None else None
         return routes[i]
 

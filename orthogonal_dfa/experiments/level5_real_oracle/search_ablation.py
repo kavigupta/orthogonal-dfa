@@ -1,12 +1,11 @@
 # pylint: disable=wrong-import-position,wrong-import-order,protected-access,invalid-name,import-error,consider-using-with
 """Replays the round-0 searches of a length_oracles.py run from its family checkpoint, on
 the run's own probe streams and selection samples, ending each search only on success or a
-stalled score, and optionally without the start fallback (which places an undecided empty
-string on the DFA's start leaf).  Writes OUT/search_<i>.pkl (as length_oracles.py does) and
-OUT/restarts.jsonl, which counts the probes the start fallback placed.
+stalled score.  Writes OUT/search_<i>.pkl (as length_oracles.py does) and
+OUT/restarts.jsonl.
 
   python -u orthogonal_dfa/experiments/level5_real_oracle/search_ablation.py RUN_DIR \
-      --oracle saw|flat [--no-start-fallback] --out OUT
+      --oracle saw|flat --out OUT
 """
 
 import argparse
@@ -30,7 +29,6 @@ from orthogonal_dfa.spliceai.load_model import load_spliceai
 ap = argparse.ArgumentParser()
 ap.add_argument("run")
 ap.add_argument("--oracle", required=True)
-ap.add_argument("--no-start-fallback", action="store_true")
 ap.add_argument("--out", required=True)
 a = ap.parse_args()
 os.makedirs(a.out, exist_ok=True)
@@ -42,24 +40,7 @@ pst.config.counterexample_member_fallback = True
 pst.config.counterexample_harvest_tests = False
 
 
-class Search(LoggedSearch):
-    def __init__(self, *args, start=None, **kwargs):
-        self.start_fallbacks = 0
-        if a.no_start_fallback:
-            start = None
-        elif start is not None:
-            placed = start
-
-            def counted(hypothesis):
-                self.start_fallbacks += 1
-                return placed(hypothesis)
-
-            start = counted
-
-        super().__init__(*args, start=start, **kwargs)
-
-
-cs.CounterexampleSearch = Search
+cs.CounterexampleSearch = LoggedSearch
 
 # The checkpoint holds restart 0's fresh generator; the selection sample's was spawned
 # just before the restarts'.
@@ -107,7 +88,6 @@ for i, rng in enumerate(streams):
         probes=search.probes,
         harvest=len(set(ending.harvest)),
         states=len(dfa.states),
-        start_fallbacks=search.start_fallbacks,
         search_score=getattr(search.score_patience, "best_score", None),
         pick=held_out_phi(dfa, *selection.pick),
         minutes=(time.time() - t0) / 60,

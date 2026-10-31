@@ -3,10 +3,7 @@
 import itertools
 import unittest
 
-from orthogonal_dfa.l_star.counterexample_probe import Agree
-from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
 from orthogonal_dfa.l_star.fallbacks.score_patience import SCORE_STALLED, ScorePatience
-from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.round_end import (
     HARVEST_ENDS,
     HARVEST_MIDDLES,
@@ -23,7 +20,6 @@ from tests.counterexample_common import (
     WRONG_ODD_0,
     mod3_cut,
     parity_cut,
-    quiet_config,
     quiet_search,
 )
 
@@ -197,20 +193,6 @@ class TestTheTests(unittest.TestCase):
         search = quiet_search(parity_cut(()), PARITY_EDGES, max_probes=3)
         self.assertEqual(OUT_OF_PROBES, search.run(itertools.repeat(b"\x01")).kind)
         self.assertEqual(3, search.probes)
-
-
-class TestStartFallback(unittest.TestCase):
-    def test_an_undecided_empty_string_starts_where_start_says(self):
-        search = CounterexampleSearch(
-            quiet_config(),
-            parity_cut([b""]),
-            MidfixTree([]),
-            start=lambda _: EVEN,
-            max_k=0,
-        )
-        search.hypothesis.edges = dict(PARITY_EDGES)
-        outcome, _ = search.probe(b"\x01\x01")
-        self.assertEqual(Agree(), outcome)
 
 
 class TestStalledHarvest(unittest.TestCase):
