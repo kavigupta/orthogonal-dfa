@@ -1,8 +1,8 @@
-"""Both oracles' labels on the same fresh strings, lifted with seed 0.
+"""Both oracles' labels on the same fresh strings, lifted with seed 0, written to
+``data/neural/length_oracles/labels.npz`` (``saw`` and ``flat`` packed with
+``np.packbits``; the strings are ``strings(n)``).
 
-    python -u -m orthogonal_dfa.experiments.length_oracles.label
-
-fills the cache with both oracles' fits and labels."""
+    python -u -m orthogonal_dfa.experiments.length_oracles.label"""
 
 import numpy as np
 from permacache import permacache
@@ -12,11 +12,13 @@ from orthogonal_dfa.spliceai.load_model import load_spliceai
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 
+from ..capal_comparison.core import REPO_ROOT
 from .oracles import SYMBOLS, VOCAB, oracle
 
 SEED = 78
 COUNT = 200_000
 CHUNK = 20_000
+OUT = REPO_ROOT / "data" / "neural" / "length_oracles" / "labels.npz"
 
 
 def strings(n):
@@ -38,8 +40,11 @@ def labels(kind, n):
 
 
 def main():
-    for kind in ("saw", "flat"):
-        print(kind, "accept rate", labels(kind, COUNT).mean(), flush=True)
+    z = {kind: labels(kind, COUNT) for kind in ("saw", "flat")}
+    for kind, y in z.items():
+        print(kind, "accept rate", y.mean(), flush=True)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(OUT, n=COUNT, **{kind: np.packbits(y) for kind, y in z.items()})
 
 
 if __name__ == "__main__":

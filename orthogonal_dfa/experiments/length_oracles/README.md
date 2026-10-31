@@ -12,16 +12,12 @@ not improved for 500 probes, and the restart kept is the best on a second held-o
 
     orthogonal_dfa/experiments/length_oracles/reproduce.sh OUT 1 2 3 4 5 7
 
-runs all 8 (2-7 h each) and writes `data/neural/length_oracles/length_oracles_data.json`
-and `data/neural/length_oracles/random_strings.json`.  They hold counts, not rates, so they
-can be re-aggregated:
+runs all 8 (2-7 h each) and writes three files to `data/neural/length_oracles/`, holding
+only what needs the oracle or the runs:
 
-- `oracle_counts`: both oracles' accepts on 200,000 fresh strings (`label.py`, which
-  permacaches the labels), by half, number of stops and frame pattern;
-- `runs`: each run's commit, hours, family size and FNR, and its kept DFA's phi on its own
-  test halves;
-- `restarts`: each restart's DFA, pick and search scores, ending and probes, and the
-  strings ending in each of its states by half, stops and frame pattern, with their
-  accepts;
+- `labels.npz`: both oracles' labels on 200,000 fresh strings (`label.py`, which
+  permacaches them), packed with `np.packbits`; `label.strings` redraws the strings;
+- `runs.json`: each run's commit, hours, family size and FNR, and its kept DFA's phi on
+  its own test halves; and each restart's DFA, pick and search scores, ending and probes;
 - `random_strings.json`: both oracles' accepts on 20,000 uniform random strings at each
   length 35-85 (`random_strings.py`).
