@@ -66,7 +66,16 @@ def quiet_config(**changes):
     return SimpleNamespace(**config)
 
 
-def quiet_search(cut, edges, *, max_k=0, members=None, score_patience=None, **changes):
+def quiet_search(
+    cut,
+    edges,
+    *,
+    max_k=0,
+    members=None,
+    score_patience=None,
+    split_gate=None,
+    **changes,
+):
     search = CounterexampleSearch(
         quiet_config(**changes),
         cut,
@@ -74,6 +83,7 @@ def quiet_search(cut, edges, *, max_k=0, members=None, score_patience=None, **ch
         max_k=max_k,
         member_fallback=None if members is None else MemberFallback(members),
         score_patience=score_patience,
+        split_gate=split_gate,
     )
     search.hypothesis.edges = dict(edges)
     return search

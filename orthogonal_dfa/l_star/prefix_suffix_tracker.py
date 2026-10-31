@@ -85,6 +85,9 @@ class SearchConfig:
     #: Step past an undecided midpoint in a probe's search to the decided position
     #: nearest it.
     counterexample_skip_undecided: bool = False
+    #: Before a split, read its new node on up to this many other members of the
+    #: leaf it splits, and leave the probe undecided where one reads undecided.
+    counterexample_split_gate: int = 0
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
@@ -93,6 +96,7 @@ class SearchConfig:
         # Past a half, a DFA no better than chance would be certified.
         assert 0 < self.certified_error < 1 / 2, self.certified_error
         assert self.counterexample_restarts >= 1, self.counterexample_restarts
+        assert self.counterexample_split_gate >= 0, self.counterexample_split_gate
 
 
 def _draw_budget(count: int) -> int:

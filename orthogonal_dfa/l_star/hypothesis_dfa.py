@@ -28,6 +28,12 @@ class HypothesisDFA:
         self.edges[edge] = value
         self.version += 1
 
+    def split_node(self, source: Path, letter: int, target: Path) -> bytes:
+        """The midfix splitting source on its edge by letter: the letter, then the
+        midfix where target and the edge's target part."""
+        current = self.edges[(source, letter)][0]
+        return bytes([letter]) + self.tree.midfix_at(_common_prefix(target, current))
+
     def split_leaf(self, leaf: Path, midfix: bytes):
         """``HypothesisDFA.split`` of ``OrthoDFA/HypothesisDFA.lean``, which keeps every learned
         edge witnessed (``SplitAndLearnCorrect``)."""
@@ -68,3 +74,12 @@ class HypothesisDFA:
             final_states=self.tree.accepting_leaves(),
             allow_partial=False,
         )
+
+
+def _common_prefix(a: Path, b: Path) -> Path:
+    out = []
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        out.append(x)
+    return tuple(out)
