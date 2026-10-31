@@ -11,9 +11,9 @@ from ..capal_comparison.core import REPO_ROOT
 OUT = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
 
 
-def main():
+def extract(run_dirs):
     runs, restarts = [], []
-    for run in sys.argv[1:]:
+    for run in run_dirs:
         with open(f"{run}/run.json") as f:
             row = json.load(f)
         with open(f"{run}/restarts.json") as f:
@@ -27,4 +27,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    extract(sys.argv[1:])
