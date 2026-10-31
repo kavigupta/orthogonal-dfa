@@ -17,8 +17,8 @@ class _OrderedRecorder(RecordingTracker):
         super().__init__()
         self.calls = []
 
-    def on_family_resolved(self, suffixes, boundary, round_index):
-        super().on_family_resolved(suffixes, boundary, round_index)
+    def on_family_resolved(self, suffixes, boundary, fnr, round_index):
+        super().on_family_resolved(suffixes, boundary, fnr, round_index)
         self.calls.append(("family", round_index))
 
     def on_round_classified(self, classifier, round_index):
@@ -120,6 +120,21 @@ class TestSynthesisTracker(unittest.TestCase):
             self.assertGreater(summary.probes, 0)
             self.assertGreaterEqual(summary.prefixes, summary.representative_prefixes)
 
+    def test_families_report_an_fnr(self):
+        self.assertEqual(len(self.tracker.fnrs), len(self.tracker.families))
+        for fnr in self.tracker.fnrs:
+            self.assertGreaterEqual(fnr, 0)
+            self.assertLessEqual(fnr, 1)
+
+    def test_one_restart_per_round_without_a_selection_sample(self):
+        self.assertEqual(len(self.tracker.restarts), len(self.tracker.endings))
+        for restarts, ending in zip(self.tracker.restarts, self.tracker.endings):
+            (only,) = restarts
+            self.assertEqual(only.restart, 0)
+            self.assertEqual(only.ending, ending)
+            self.assertIsNone(only.pick_score)
+            self.assertIsNone(only.search_score)
+
     def test_recording_tracker_pickles(self):
         # The point of recording is reading it back later, so the families must
         # survive as suffixes rather than as rows of a table that did not.
@@ -162,12 +177,21 @@ class TestMaxRounds(unittest.TestCase):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         pst.config.counterexample_restarts = 2
         pst.config.rank_rounds_by_held_out = True
+        tracker = RecordingTracker()
         best = counterexample_driven_synthesis(
-            pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
+            pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
         )
         self.assertIsNotNone(best.dfa)
         # Its DFA ends every sampled string in one state, so the phi is exactly 0.
         self.assertEqual(best.score, 0.0)
+        self.assertEqual(len(tracker.restarts), 1)
+        restarts = tracker.restarts[0]
+        self.assertEqual([r.restart for r in restarts], [0, 1])
+        self.assertTrue(all(r.search_score is None for r in restarts))
+        self.assertEqual(max(r.pick_score for r in restarts), best.score)
+        self.assertIn(tracker.endings[0], [r.ending for r in restarts])
+        self.assertIn(tracker.summaries[0].probes, [r.probes for r in restarts])
+        self.assertEqual(len(tracker.fnrs), 1)
 
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.
