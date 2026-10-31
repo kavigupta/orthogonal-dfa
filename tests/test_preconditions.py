@@ -37,10 +37,10 @@ DIFFICULT09 = DFA(
 
 # The [336] false positive: every state is on a cycle (structurally recurrent),
 # yet length-40 strings only ever end in {1,3,4} -- states 0 and 2 get zero
-# prefix mass, so they are uncovered. The old infinite-reachability check
+# prefix mass, so they are unvisited. The old infinite-reachability check
 # admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the non-start-zone accuracy
 # ceiling catches it. Guards against reintroducing the structural check.
-RECURRENT_BUT_UNCOVERED = DFA(
+RECURRENT_BUT_UNVISITED = DFA(
     states={0, 1, 2, 3, 4},
     input_symbols={0, 1},
     transitions={
@@ -140,7 +140,7 @@ def _thin_pockets(alphabet, pockets, depth):
     ).minify()
 
 
-# Every pocket state is uncovered, but whole runs land in it at about the window's
+# Every pocket state is rarely visited, but whole runs land in it at about the window's
 # per-position rate, so it is outside the start zone.
 THIN_POCKETS = _thin_pockets(alphabet=48, pockets=3, depth=2)
 
@@ -222,14 +222,14 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertLess(P.non_start_zone_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
         self.assertFalse(P.satisfies_preconditions(DIFFICULT09, length=40))
 
-    def test_ceiling_catches_recurrent_but_uncovered_states(self):
+    def test_ceiling_catches_recurrent_but_unvisited_states(self):
         # The [336] regression: structural reachability admitted it (all states
-        # on cycles) but the decision lives in an uncovered state, so E-L* is
+        # on cycles) but the decision lives in an unvisited state, so E-L* is
         # capped well below 1.0 and the ceiling must reject it.
         self.assertLess(
-            P.non_start_zone_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
+            P.non_start_zone_accuracy_ceiling(RECURRENT_BUT_UNVISITED, length=40), 0.99
         )
-        self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
+        self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNVISITED, length=40))
 
     def test_thinly_sampled_but_non_start_zone_states_pass(self):
         report = P.satisfies_preconditions(THIN_POCKETS, length=40, short_circuit=False)
@@ -287,7 +287,7 @@ class TestExactMatchesSampled(unittest.TestCase):
         [
             ("mod3", MOD3),
             ("difficult09", DIFFICULT09),
-            ("recurrent_but_uncovered", RECURRENT_BUT_UNCOVERED),
+            ("recurrent_but_unvisited", RECURRENT_BUT_UNVISITED),
             ("mod9_skewed", MOD9_SKEWED),
             ("marginal_cp", MARGINAL_CLASS_PRESERVING),
             ("too_few_cp", TOO_FEW_CLASS_PRESERVING),

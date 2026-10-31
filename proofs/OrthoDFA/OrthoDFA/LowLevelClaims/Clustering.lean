@@ -74,7 +74,7 @@ the chance it passes a family wrong on more than its limit, over every state.  T
 on none of the distributions.  A tame population need only have no string heavy against the
 prefixes a state draws, at the rate scale times the signal and at `εs`: a draw then lands on
 what the state already holds rarely enough that its rejections are a binomial tail; and no
-string heavy against `δ·min(εs, indecisionLimit)²`, so the hash splits it evenly.  The suffix
+string heavy against `min(εs, indecisionLimit)²/log(|J|/δ)`, so the hash splits it evenly.  The suffix
 measure needs a collision mass small against the suffixes; the other populations are arbitrary.
 A population is read only while `keptAt` keeps it.  `H j` are the strings population `j`
 harvested; the first count grows with how many there are. -/
@@ -143,8 +143,8 @@ def ClusteringGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 15 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * min εs indecisionLimit ^ 2) →
+        512 * Real.log (64 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
+          * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
         2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
