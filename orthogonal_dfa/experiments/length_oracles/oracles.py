@@ -1,5 +1,10 @@
-"""The two oracles: ``saw`` thresholds every string at the median for compiled length
-40; ``flat`` thresholds each compiled length 35-85 at its own median."""
+"""The two oracles of the length-oracle experiment.  ``flat`` thresholds each compiled
+length 35-85 at its own median.
+
+``saw`` replicates a bug in #502's earlier real-oracle runs: every string is thresholded
+at the median for compiled length 40, so the accept rate moves with length, and a DFA
+counting wildcards (which tracks length) scores well.  Use it only to rerun that
+comparison, never as an oracle in its own right."""
 
 import numpy as np
 
