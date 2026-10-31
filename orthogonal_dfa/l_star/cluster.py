@@ -538,9 +538,9 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
-    split before it is returned.
+    split before it is returned, with its decision boundary and its FNR.
 
     ``v`` is the empty suffix from either caller, and the gate reads the split
     off its column on the strength of that: membership of ``p + v`` is
@@ -588,7 +588,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
-            return judged.vs, decision_boundary
+            return judged.vs, decision_boundary, judged.fnr
 
         # A full family that stops improving is reading the oracle's noise floor.
         patience = pst.config.fnr_plateau_patience
@@ -604,7 +604,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 plateaued += 1
                 if plateaued >= patience:
                     print(f"FNR plateaued at {best_fnr:.4f} (> limit {pst.fnr_limit})")
-                    return best_vs, best_boundary
+                    return best_vs, best_boundary, best_fnr
 
         if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so
