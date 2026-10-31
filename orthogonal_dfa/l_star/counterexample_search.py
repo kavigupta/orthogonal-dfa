@@ -73,9 +73,11 @@ class CounterexampleSearch:
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
         if self.score_patience is not None:
             self.score_patience.record(charged)
-            ending = self.score_patience.filter(ending, self.counts, self.config)
+        # Before the filter: without harvest tests a harvest still deepens.
         if ending is not None and self._deepens(ending):
             return None
+        if self.score_patience is not None:
+            ending = self.score_patience.filter(ending, self.counts, self.config)
         return ending
 
     def _deepens(self, ending: Ending) -> bool:
