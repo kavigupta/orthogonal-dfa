@@ -71,7 +71,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
-            2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
+            2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
           (runMeasure μ D Dsf).real
             {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
                 ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -155,10 +155,24 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       have := pow_le_pow_left₀ (by have := lt_min hε hι; positivity) hmin 2
       linarith
     have hcolH' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
-        2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
+        512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          * (D j).real {t} ≤ min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
       have h := hcolH B hB j hj t
-      nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+      have hold : 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := by
+        nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+      have hl := Real.log_le_self (show 0 ≤ 128 * (pops.card : ℝ)
+        * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc by positivity)
+      have hD0 : 0 ≤ (D j).real {t} := measureReal_nonneg
+      calc 512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (D j).real {t}
+          ≤ 512 * (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (D j).real {t} := by gcongr
+        _ = 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+            / δc := by ring
+        _ ≤ δc * min (εcov / 512) indecisionLimit ^ 2 / δc :=
+            div_le_div_of_nonneg_right hold hδc.le
+        _ = min (εcov / 512) indecisionLimit ^ 2 := by field_simp
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -424,7 +438,7 @@ def LoopCore : Prop :=
     ≤ δc * min εcov indecisionLimit ^ 2 →
   2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
-  2 ^ 14 * ((K : ℝ) + 2) * NS * cap ≤ δc * (pAP - ms) →
+  2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
   1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
@@ -628,14 +642,11 @@ theorem loop_core_holds : LoopCore := by
     · have hns : (B.nsuff : ℝ) ≤ NS := by
         rw [(hsizes pops B (by rw [hs]; exact hB)).1]
         exact_mod_cast hNSb pops hpops
-      have hc1 := hpopc pops
-      have hb := mul_le_mul hc1 hns (Nat.cast_nonneg _) (by positivity)
-      have hcc := mul_le_mul hb hcolS hcolS0 (by positivity)
-      calc 2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Lsf
-          = 2 ^ 13 * (((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Lsf) := by ring
-        _ ≤ 2 ^ 13 * (((K : ℝ) + 2) * NS * (2 * cap)) :=
-            mul_le_mul_of_nonneg_left hcc (by norm_num)
-        _ = 2 ^ 14 * ((K : ℝ) + 2) * NS * cap := by ring
+      have hcc := mul_le_mul hns hcolS hcolS0 (by positivity)
+      calc 2 ^ 14 * (B.nsuff : ℝ) * collisionMass Lsf
+          = 2 ^ 14 * ((B.nsuff : ℝ) * collisionMass Lsf) := by ring
+        _ ≤ 2 ^ 14 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
+        _ = 2 ^ 15 * NS * cap := by ring
         _ ≤ _ := hq3
   -- the history's reads number at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes a round
   have hcodes : ∀ (ω : Ω) (g : Fin K → RoundDraws α K T) (r : ℕ),
