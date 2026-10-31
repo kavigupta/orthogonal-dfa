@@ -32,13 +32,14 @@ lemma toDist_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toDist x ∈ loopDis
 
 /-- `1/p₀Tol` at `β = 1/|Σ|`, with `(L + |Q|)⁶` taken out. -/
 def loopG (x : LoopInputs) : ℝ :=
-  x.Q ^ 13 * x.R ^ 4 * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 2
-    * x.A ^ 4 * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11
+  x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+    * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 2
+    * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11
 
 lemma shape_toDist {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
-    ((L : ℝ) + x.Q) ^ 6 * x.Q ^ 13 * x.R ^ 4
+    ((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / ((toDist x).β ^ 4 * x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
       = ((L : ℝ) + x.Q) ^ 6 * loopG x := by
   obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hx
   have hA' : (0 : ℝ) < x.A := by exact_mod_cast (show 0 < x.A by omega)
@@ -47,7 +48,8 @@ lemma shape_toDist {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
     show (x.Q : ℝ) * x.R / (1 / x.A * x.δ * x.ξ * x.pAP * x.s₀) = _
     field_simp
   rw [e, loopG]
-  show _ / ((1 / (x.A : ℝ)) ^ 4 * x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11) = _
+  show ((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (1 / (x.A : ℝ)) + x.Q) ^ 4 * x.R ^ 4 * _ / _ = _
+  rw [one_div_one_div]
   field_simp
 
 lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := by
@@ -68,7 +70,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
     fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_on (241 + 6 * log C₀) fun x hx => ?_
+  · refine isBigO_on (259 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
@@ -97,14 +99,13 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 5 * (r.L + r.Q) ^ 2 * r.A ^ 2 * r.R ^ 2
+    show _ = r.Q ^ 3 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
       * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
       * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)
-    simp only [Function.comp, toDistRun, toDist]
+    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
     have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
         = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
     rw [e]
-    field_simp
   · refine (isBigO_comp_on hsuff hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
@@ -119,9 +120,8 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 4 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-    simp only [Function.comp, toDistRun, toDist]
-    field_simp
+    show _ = r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -140,9 +140,9 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have e := shape_toDist ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
-      change _ ≤ C * |((L : ℝ) + x.Q) ^ 6 * x.Q ^ 13 * x.R ^ 4
+      change _ ≤ C * |((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / ((toDist x).β ^ 4 * x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)| at hc
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)| at hc
       rw [e, abs_of_nonneg hsh] at hc
       exact hc.trans (mul_le_mul_of_nonneg_right hCC₀ hsh)
     have hpow := pow_of_tangent (E := C₀ * loopG x) hA' hQ'

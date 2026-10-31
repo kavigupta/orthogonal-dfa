@@ -74,7 +74,7 @@ the chance it passes a family wrong on more than its limit, over every state.  T
 on none of the distributions.  A tame population need only have no string heavy against the
 prefixes a state draws, at the rate scale times the signal and at `εs`: a draw then lands on
 what the state already holds rarely enough that its rejections are a binomial tail; and no
-string heavy against `δ·min(εs, indecisionLimit)²`, so the hash splits it evenly.  The suffix
+string heavy against `min(εs, indecisionLimit)²/log(|J|/δ)`, so the hash splits it evenly.  The suffix
 measure needs a collision mass small against the suffixes; the other populations are arbitrary.
 A population is read only while `keptAt` keeps it.  `H j` are the strings population `j`
 harvested; the first count grows with how many there are. -/
@@ -103,21 +103,23 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      161000
+      11600
       * (populations.card : ℝ)
+      * Real.log (64 * ((B.nsuff : ℝ) + 1) / δ)
+      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      + 2 ^ 24
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
-      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      / rateScale η₀ indecisionLimit εcov ^ 2
       + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤ max
-      (5 * Real.log (128 * (populations.card : ℝ) / δ) / indecisionLimit ^ 2)
-      (max (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
-          / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
-        (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs))
+      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+        / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
+      (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs)
     ) ∧
     (∀ B ∈ states,
       (B.k : ℝ) ≤ 25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
@@ -141,10 +143,10 @@ def ClusteringGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 15 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * min εs indecisionLimit ^ 2) →
+        512 * Real.log (64 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
+          * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
-        2 ^ 12 * ((populations.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
