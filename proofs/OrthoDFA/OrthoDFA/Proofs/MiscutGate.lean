@@ -300,12 +300,6 @@ theorem le_mul_wrongCap (n k ag ap : ℕ) (hk : k ≤ n) {x y yb d : ℝ} (hy : 
     rwa [mul_div_cancel₀ _ hnR.ne'] at h3
   · simpa using hkn
 
-/-- The class a side holds rightly, as a bit: `1` on the accept side. -/
-def sideClass (accept : Bool) : ℝ := if accept then 1 else 0
-
-lemma sideClass_bit (accept : Bool) : sideClass accept = 0 ∨ sideClass accept = 1 := by
-  cases accept <;> simp [sideClass]
-
 omit [IsProbabilityMeasure μ] in
 open scoped Classical in
 lemma againstOn_eq_sum (O : Oracle μ S) (accept : Bool) (A : Finset S) (ω : Ω) :
@@ -410,21 +404,6 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     _ ≤ _ := le_trans (measureReal_union_le _ _) (add_le_add_right (measureReal_union_le _ _) _)
     _ ≤ a + (a + a) := add_le_add hB1 (add_le_add hB2 hB3)
     _ = 3 * a := by ring
-
-/-- The noise rate of a side's right class, and of its wrong one. -/
-noncomputable def rightRate (O : Oracle μ S) (accept : Bool) : ℝ :=
-  if accept then O.ηIn else O.ηOut
-
-noncomputable def wrongRate (O : Oracle μ S) (accept : Bool) : ℝ :=
-  if accept then O.ηOut else O.ηIn
-
-omit [IsProbabilityMeasure μ] in
-lemma rate_of_label (O : Oracle μ S) (accept : Bool) (p : S) :
-    O.rate p = if O.label p = sideClass accept then rightRate O accept else wrongRate O accept := by
-  classical
-  unfold Oracle.rate rightRate wrongRate sideClass
-  by_cases hp : p ∈ O.L <;> cases accept <;>
-    simp [hp, Oracle.label, Set.indicator_of_mem, Set.indicator_of_notMem]
 
 open scoped Classical in
 /-- On a good side the means are those of `n − k` right prefixes and `k` wrong ones. -/
@@ -1852,6 +1831,36 @@ lemma one_sub_side_rates (O : Oracle μ S) (accept : Bool) :
   cases accept
   · simp only [Bool.false_eq_true, ↓reduceIte]; ring
   · simp only [↓reduceIte]
+
+omit [IsProbabilityMeasure μ] in
+lemma gap_eq_clsRate (O : Oracle μ S) (b : Bool) :
+    O.gap = 1 - clsRate O (!b) - clsRate O b := by
+  unfold Oracle.gap clsRate rightRate; cases b <;> simp <;> ring
+
+/-- A wrong prefix of class `b` is charged, on the side it lands on, at most `5/(2 sig²)` times
+its class's `σ_b` (`charge_le_sig`). -/
+lemma sideCharge_le_clsSig (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : sideCharge O η₀ (!b) ≤ 5 / (2 * sig η₀ ^ 2) * clsSig O η₀ b := by
+  have h := charge_le_sig (x := clsRate O (!b)) (y := clsRate O b) (v := voteSlack η₀)
+    (clsRate_le O hη _) (clsRate_le O hη _) hη₀ (by rw [voteSlack, sig])
+  rw [← gap_eq_clsRate] at h
+  unfold sideCharge clsSig sig
+  exact h
+
+lemma sideCharge_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (accept : Bool) : sideCharge O η₀ accept ≤ 1 / (1 - 2 * η₀) ^ 2 := by
+  have hx := clsRate_le O hη accept
+  have hg := gap_le_one O
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  unfold sideCharge
+  rw [show max (rightRate O accept) 0 = clsRate O accept from rfl]
+  have hD : 1 - 2 * η₀ ≤ 1 - η₀ - clsRate O accept := by
+    have := le_trans (eta_nonneg O) hη; linarith
+  have hD0 : 0 < 1 - 2 * η₀ := by linarith
+  calc O.gap ^ 2 / (1 - η₀ - clsRate O accept) ^ 2 ≤ 1 / (1 - η₀ - clsRate O accept) ^ 2 :=
+        div_le_div_of_nonneg_right (by nlinarith) (sq_nonneg _)
+    _ ≤ 1 / (1 - 2 * η₀) ^ 2 :=
+        div_le_div_of_nonneg_left zero_le_one (by positivity) (pow_le_pow_left₀ hD0.le hD 2)
 
 open scoped Classical in
 /-- `mul_sideCap_le` at the oracle's rates: `4·sideCharge` per wrong prefix, the deviations
