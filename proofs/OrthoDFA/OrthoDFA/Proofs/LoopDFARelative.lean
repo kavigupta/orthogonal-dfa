@@ -52,8 +52,8 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
 
 set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θ K₁ Wm W₀
-    P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θι Θ Θa K₁
+    Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
   obtain ⟨q, hself, hq⟩ := hdom
   have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have : Nonempty σ := ⟨M.start⟩
@@ -65,7 +65,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hc1 : ξ / (2 * R) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
   have hMI : loopMassInv Q A (A + Q) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4)
       pAP η₀ = E + E₂ + E₃ := by
-    unfold loopMassInv loopMassTerms loopΘ
+    unfold loopMassInv loopMassTerms loopΘ loopΘa loopΘι
     rw [show 4 * (A + Q + 1) / (ξ / (2 * R)) = aε by
         simp only [aε, m]; field_simp; ring,
       show (10 : ℝ) / (ξ / (2 * R)) = 20 * R / ξ by rw [div_div_eq_mul_div]; ring,

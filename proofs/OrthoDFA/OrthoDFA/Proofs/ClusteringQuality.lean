@@ -407,8 +407,8 @@ def ClusteringQualitySized : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
-          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
@@ -507,14 +507,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
     cap_of_top populations η₀ indecisionLimit εcov εs δ' α pAP crossLimit ((D j).real {t}) hη0
       hη₀ hε (by linarith) hind hcard hδ' hδ'1 measureReal_nonneg (by rw [← hmdef]; exact hm)
-      (by
-        have h : 2 ^ 18 * ((populations.card : ℝ) + 3)
-            * (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
-            * (D j).real {t} ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) :=
-          hcollD _ htop j hj t
-        have hr := rateScale_mul_sig_le (indecisionLimit := indecisionLimit) hη0 hη₀ hε hind
-        rw [sig] at hr ⊢
-        linarith) (hcollE _ htop j hj t) (by
+      (by rw [sig]; exact hcollD _ htop j hj t) (hcollE _ htop j hj t) (by
         have h := hcollH _ htop j hj t
         change 512 * Real.log (128 * (populations.card : ℝ)
             * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP

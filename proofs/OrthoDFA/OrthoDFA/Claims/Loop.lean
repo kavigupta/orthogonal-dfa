@@ -14,8 +14,9 @@ letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings
 whatever they draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The
 settings the proof picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`,
 `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths, so its inverse enters the shapes as
-`R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`. Each bound has
-one constant over all of `loopDistRegion`.
+`R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`. The prefix
+total's populations' group reads its log off the suffix pool alone, so that log grows as
+`log log L`. Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
@@ -115,18 +116,21 @@ def LoopClaim.{u, v, w} : Prop :=
       (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
           * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.R * (1 / r.β + r.Q)
           / r.ξ
-          * (r.R ^ 3 / r.ξ ^ 3 * (1 / r.s₀ ^ 11 + r.Q ^ 6 * (1 / r.β + r.Q) ^ 3 / r.s₀ ^ 5)
-            + r.R ^ 2 / (r.ξ ^ 2 * r.δ) * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
+          * (r.R ^ 3 * r.Q ^ 4 * (1 / r.β + r.Q) ^ 2 / r.ξ ^ 3
+              * (1 / r.s₀ ^ 6 + r.Q ^ 2 * (1 / r.β + r.Q) / r.s₀ ^ 5)
+            + r.R ^ 2 * r.Q ^ 4 * (1 / r.β + r.Q) ^ 2 / (r.ξ ^ 2 * r.δ)
             + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
         + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
-          * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 3 * r.R ^ 2
-          / (r.ξ ^ 4 * r.δ) * (1 / r.s₀ ^ 8 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2 / r.s₀ ^ 4)
+          * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 7 * (1 / r.β + r.Q) ^ 2
+          * r.R ^ 2 / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
         + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
           * r.Q ^ 5 * r.A ^ 2 * (1 / r.β + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.δ)) ∧
     totalPref =O[𝓟 loopDistRunRegion] (fun r =>
-      r.Q ^ 3 * (r.L + r.Q) ^ 2 * r.R ^ 2
-        * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-        * (1 / r.s₀ ^ 8 + (1 / r.β + r.Q) ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)) ∧
+      r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
+          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
+          * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) ∧
     totalSuff =O[𝓟 loopDistRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
@@ -181,9 +185,11 @@ def LoopClaimUniform.{u, v, w} : Prop :=
     L₀ =O[𝓟 loopRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 3 * (r.L + r.Q) ^ 2 * r.R ^ 2
-        * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-        * (1 / r.s₀ ^ 8 + (r.A + r.Q) ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)) ∧
+      r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
+          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (r.A + r.Q) ^ 2)
+          * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
@@ -202,7 +208,7 @@ def LoopClaimSimple.{u, v, w} : Prop :=
     totalPref =O[𝓟 loopRunRegion] (fun r =>
       r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
-        / (r.ξ ^ 2 * r.s₀ ^ 8)) ∧
+        / (r.ξ ^ 2 * r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
       r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)) ∧
     totalProbes =O[𝓟 loopRunRegion] (fun r =>

@@ -60,11 +60,11 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           (∀ j ∈ pops, D j Preᶜ = 0) → Dsf Sufᶜ = 0 →
           pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
-            2 ^ 18 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
-              ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+            2 ^ 17 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+              ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
-            2 ^ 34 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-              ≤ δc * min εcov indecisionLimit ^ 2) →
+            2 ^ 27 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+              * (D j).real {t} ≤ min εcov indecisionLimit ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
               ≤ δc * slack ^ 2) →
@@ -137,12 +137,11 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     set states := Classical.choose (hq pops hpops)
     obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
     have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-    have ha : 0 ≤ (1 - 2 * η₀) / (1 - η₀) := div_nonneg (by linarith) (by linarith)
-    have ha1 : (1 - 2 * η₀) / (1 - η₀) ≤ 1 := (div_le_one (by linarith)).2 (by linarith)
-    have hrs : rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) ≤ εcov / 2 := by
-      have h1 : rateScale η₀ indecisionLimit εcov ≤ εcov :=
-        (min_le_left _ _).trans (mul_le_of_le_one_right hε.le (pow_le_one₀ ha ha1))
-      have := mul_le_mul h1 (show 1 / 2 - η₀ ≤ 1 / 2 by linarith) (by linarith) hε.le
+    have hrs : (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit ≤ εcov / 2 := by
+      have h1 : min (εcov * (1 / 2 - η₀)) indecisionLimit ≤ εcov :=
+        (min_le_left _ _).trans (mul_le_of_le_one_right hε.le (by linarith))
+      have := mul_le_mul (show 1 / 2 - η₀ ≤ 1 / 2 by linarith) h1
+        (le_min (by nlinarith) hι.le) (by norm_num)
       linarith
     have hcolE : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
         2 ^ 8 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εcov / 512 :=
@@ -158,21 +157,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
           * (D j).real {t} ≤ min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
       have h := hcolH B hB j hj t
-      have hold : 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := by
-        nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
-      have hl := Real.log_le_self (show 0 ≤ 128 * (pops.card : ℝ)
-        * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc by positivity)
-      have hD0 : 0 ≤ (D j).real {t} := measureReal_nonneg
-      calc 512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
-            * (D j).real {t}
-          ≤ 512 * (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
-            * (D j).real {t} := by gcongr
-        _ = 2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-            / δc := by ring
-        _ ≤ δc * min (εcov / 512) indecisionLimit ^ 2 / δc :=
-            div_le_div_of_nonneg_right hold hδc.le
-        _ = min (εcov / 512) indecisionLimit ^ 2 := by field_simp
+      linarith
     have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -433,9 +418,9 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel (pAP - ms) c 0
       ≤ NP) →
-  2 ^ 19 * ((K : ℝ) + 4) * NP * cap ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) →
-  2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap
-    ≤ δc * min εcov indecisionLimit ^ 2 →
+  2 ^ 18 * ((K : ℝ) + 4) * NP * cap ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit →
+  2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
+    ≤ min εcov indecisionLimit ^ 2 →
   2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
   2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
@@ -600,9 +585,9 @@ theorem loop_core_holds : LoopCore := by
       have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
       have hLj := hLat j hj t
       have hc0 := hcap.le
-      calc 2 ^ 18 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (L j).real {t}
-          ≤ 2 ^ 18 * ((K : ℝ) + 1 + 3) * NP * (2 * cap) := by gcongr
-        _ = 2 ^ 19 * ((K : ℝ) + 4) * NP * cap := by ring
+      calc 2 ^ 17 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (L j).real {t}
+          ≤ 2 ^ 17 * ((K : ℝ) + 1 + 3) * NP * (2 * cap) := by gcongr
+        _ = 2 ^ 18 * ((K : ℝ) + 4) * NP * cap := by ring
         _ ≤ _ := hq1a
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
@@ -612,9 +597,22 @@ theorem loop_core_holds : LoopCore := by
       have hc0 := hcap.le
       have hlog : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
         exact_mod_cast Nat.log_mono_right hnpN
-      calc 2 ^ 34 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
-          ≤ 2 ^ 34 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * (2 * cap) := by gcongr
-        _ = 2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by ring
+      have hpc : (1 : ℝ) ≤ pops.card := by exact_mod_cast Finset.card_pos.2 ⟨none, hpops⟩
+      have hl0 : (0 : ℝ) ≤ (Nat.log 2 B.npref : ℝ) := Nat.cast_nonneg _
+      have hlg : Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          ≤ Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) :=
+        Real.log_le_log (div_pos (by nlinarith) hδc)
+          (div_le_div_of_nonneg_right (by nlinarith) hδc.le)
+      have hlg0 : 0 ≤ Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) :=
+        Real.log_nonneg (by rw [le_div_iff₀ hδc]; nlinarith)
+      calc 2 ^ 27 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (L j).real {t}
+          ≤ 2 ^ 27 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc)
+            * (2 * cap) :=
+            mul_le_mul (mul_le_mul_of_nonneg_left hlg (by norm_num)) hLj measureReal_nonneg
+              (mul_nonneg (by norm_num) (hlg0.trans hlg))
+        _ = 2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap := by
+          ring
         _ ≤ _ := hq1b
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
