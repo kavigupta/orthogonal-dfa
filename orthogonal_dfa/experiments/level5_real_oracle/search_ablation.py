@@ -37,6 +37,7 @@ base = oracle(a.oracle, default_exon, load_spliceai(400, 0))
 ck = family_ckpt.load(f"{a.run}/family_r0.pkl", base, VOCAB)
 pst, acc, vs = ck["pst"], ck["acc_threshold"], ck["vs"]
 pst.config.counterexample_member_fallback = True
+pst.config.counterexample_skip_undecided = True
 pst.config.counterexample_harvest_tests = False
 
 

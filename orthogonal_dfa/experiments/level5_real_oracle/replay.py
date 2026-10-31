@@ -102,6 +102,7 @@ if a.probe_seed is not None:
 pst.config.counterexample_score_patience = 500
 pst.config.counterexample_harvest_tests = False
 pst.config.counterexample_member_fallback = True
+pst.config.counterexample_skip_undecided = True
 if not hasattr(pst.config, "counterexample_restarts"):
     pst.config.counterexample_restarts = 1
 

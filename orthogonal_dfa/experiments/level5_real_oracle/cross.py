@@ -60,6 +60,7 @@ if a.patience is not None:
     pst.config.counterexample_score_patience = a.patience
 pst.config.counterexample_restarts = a.restarts
 pst.config.counterexample_member_fallback = not a.no_members
+pst.config.counterexample_skip_undecided = True
 
 t0 = time.time()
 fnr, worst = pst.fnr_from_decision(pst.compute_decision(vs, pst.table.representative))

@@ -60,6 +60,7 @@ MemberFallback.close = recording_close
 
 t0 = time.time()
 pst.config.counterexample_restarts = a.restarts
+pst.config.counterexample_skip_undecided = True
 selection = cs._selection_sample(pst)
 search, ending, _ = cs._best_search(
     pst, vs, acc_threshold=acc, index=0, selection=selection

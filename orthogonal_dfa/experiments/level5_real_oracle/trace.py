@@ -192,6 +192,7 @@ def observe(self, search):
 ScorePatience.observe = observe
 
 cs.CounterexampleSearch = Traced
+pst.config.counterexample_skip_undecided = True
 search, ending = cs._counterexample_search(
     pst, vs, acc_threshold=acc, selection=selection
 )
