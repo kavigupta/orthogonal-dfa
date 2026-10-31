@@ -363,20 +363,18 @@ end Bridge
 
 /-- The wrong states' occupancy at the summed rate `ε = c/(4(A+|Q|+1)N)`, against `3c/4`. -/
 lemma summed_bnd {Q A N c ε εcov : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 0 < N) (hc : 0 < c)
-    (he : ε = c / (4 * (A + Q + 1) * N)) (hεc : εcov ≤ ε) :
+    (he : ε = c / (4 * (A + Q + 1) * N)) (hεc : εcov ≤ c / (10 * N)) :
     N * (2 * ((A + 1) * (ε + ε / 96) + Q * (ε + ε / 96))
       + (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov)) < 3 * c / 4 := by
   have hq : ε * N * (4 * (A + Q + 1)) = c := by rw [he]; field_simp
-  have hX0 : 0 < ε * N := by
-    rw [he]; positivity
-  have hY : εcov * N ≤ ε * N := mul_le_mul_of_nonneg_right hεc hN.le
-  have h4 : 4 * (ε * N) ≤ (A + Q + 1) * (ε * N) :=
-    mul_le_mul_of_nonneg_right (by linarith) hX0.le
+  have hY : εcov * N ≤ c / 10 := by
+    have := mul_le_mul_of_nonneg_right hεc hN.le
+    rwa [show c / (10 * N) * N = c / 10 by field_simp] at this
   have e : N * (2 * ((A + 1) * (ε + ε / 96) + Q * (ε + ε / 96))
       + (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov))
       = 97 / 48 * ((A + Q + 1) * (ε * N)) + 1217 / 512 * (εcov * N) := by ring
-  rw [e, ← hq]
-  nlinarith
+  rw [e]
+  nlinarith [hq, hY, hc]
 
 lemma visitC_le {R : ℝ} (L : ℕ) (hR : 0 ≤ R) :
     R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) ≤ 2 * R := by
@@ -430,7 +428,7 @@ theorem summed_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {
     let L₁ : ℕ := L + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := ξ / (2 * R) / (4 * (Ae + Fintype.card σ + 1) * N)
-    let εcov : ℝ := min ε (ξ / 4 / (8 * N))
+    let εcov : ℝ := min (ξ / (2 * R) / (10 * N)) (ξ / 4 / (8 * N))
     ∀ o : LoopRound Ω α K,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
