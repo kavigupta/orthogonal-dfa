@@ -12,9 +12,6 @@ GPUS=("${@:-0}")
 PYTHON=${PYTHON:-python}
 M=orthogonal_dfa.experiments.length_oracles
 
-# The oracle fits are cached by name and arguments only, so a cache from older code
-# would serve an older fit.
-export XDG_CACHE_HOME="$OUT/cache"
 export PYTHONPATH=.
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 mkdir -p "$OUT"
