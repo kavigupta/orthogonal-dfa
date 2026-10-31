@@ -300,12 +300,6 @@ theorem le_mul_wrongCap (n k ag ap : ℕ) (hk : k ≤ n) {x y yb d : ℝ} (hy : 
     rwa [mul_div_cancel₀ _ hnR.ne'] at h3
   · simpa using hkn
 
-/-- The class a side holds rightly, as a bit: `1` on the accept side. -/
-def sideClass (accept : Bool) : ℝ := if accept then 1 else 0
-
-lemma sideClass_bit (accept : Bool) : sideClass accept = 0 ∨ sideClass accept = 1 := by
-  cases accept <;> simp [sideClass]
-
 omit [IsProbabilityMeasure μ] in
 open scoped Classical in
 lemma againstOn_eq_sum (O : Oracle μ S) (accept : Bool) (A : Finset S) (ω : Ω) :
@@ -410,21 +404,6 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     _ ≤ _ := le_trans (measureReal_union_le _ _) (add_le_add_right (measureReal_union_le _ _) _)
     _ ≤ a + (a + a) := add_le_add hB1 (add_le_add hB2 hB3)
     _ = 3 * a := by ring
-
-/-- The noise rate of a side's right class, and of its wrong one. -/
-noncomputable def rightRate (O : Oracle μ S) (accept : Bool) : ℝ :=
-  if accept then O.ηIn else O.ηOut
-
-noncomputable def wrongRate (O : Oracle μ S) (accept : Bool) : ℝ :=
-  if accept then O.ηOut else O.ηIn
-
-omit [IsProbabilityMeasure μ] in
-lemma rate_of_label (O : Oracle μ S) (accept : Bool) (p : S) :
-    O.rate p = if O.label p = sideClass accept then rightRate O accept else wrongRate O accept := by
-  classical
-  unfold Oracle.rate rightRate wrongRate sideClass
-  by_cases hp : p ∈ O.L <;> cases accept <;>
-    simp [hp, Oracle.label, Set.indicator_of_mem, Set.indicator_of_notMem]
 
 open scoped Classical in
 /-- On a good side the means are those of `n − k` right prefixes and `k` wrong ones. -/
@@ -1831,6 +1810,216 @@ theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     have := mul_le_mul_of_nonneg_left hdA hD.le
     have := mul_le_mul_of_nonneg_left hdR hD.le
     linarith
+  refine ⟨hC ▸ hn, ?_⟩
+  unfold miscutBound
+  rw [hC, ← hbdef, ← hA, ← hRs]
+  linarith
+
+/-- What the gate charges a wrong prefix on side `accept` at the oracle's own rates:
+`gap²/(1 − η₀ − x)²`, `x` the rate of the side's right class. -/
+noncomputable def sideCharge (O : Oracle μ S) (η₀ : ℝ) (accept : Bool) : ℝ :=
+  O.gap ^ 2 / (1 - η₀ - max (rightRate O accept) 0) ^ 2
+
+omit [IsProbabilityMeasure μ] in
+lemma sideCharge_nonneg (O : Oracle μ S) (η₀ : ℝ) (accept : Bool) : 0 ≤ sideCharge O η₀ accept :=
+  div_nonneg (sq_nonneg _) (sq_nonneg _)
+
+omit [IsProbabilityMeasure μ] in
+lemma one_sub_side_rates (O : Oracle μ S) (accept : Bool) :
+    1 - max (rightRate O accept) 0 - max (wrongRate O accept) 0 = O.gap := by
+  unfold rightRate wrongRate Oracle.gap
+  cases accept
+  · simp only [Bool.false_eq_true, ↓reduceIte]; ring
+  · simp only [↓reduceIte]
+
+omit [IsProbabilityMeasure μ] in
+lemma gap_eq_clsRate (O : Oracle μ S) (b : Bool) :
+    O.gap = 1 - clsRate O (!b) - clsRate O b := by
+  unfold Oracle.gap clsRate rightRate; cases b <;> simp <;> ring
+
+/-- A wrong prefix of class `b` is charged, on the side it lands on, at most `5/(2 sig²)` times
+its class's `σ_b` (`charge_le_sig`). -/
+lemma sideCharge_le_clsSig (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : sideCharge O η₀ (!b) ≤ 5 / (2 * sig η₀ ^ 2) * clsSig O η₀ b := by
+  have h := charge_le_sig (x := clsRate O (!b)) (y := clsRate O b) (v := voteSlack η₀)
+    (clsRate_le O hη _) (clsRate_le O hη _) hη₀ (by rw [voteSlack, sig])
+  rw [← gap_eq_clsRate] at h
+  unfold sideCharge clsSig sig
+  exact h
+
+lemma sideCharge_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (accept : Bool) : sideCharge O η₀ accept ≤ 1 / (1 - 2 * η₀) ^ 2 := by
+  have hx := clsRate_le O hη accept
+  have hg := gap_le_one O
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  unfold sideCharge
+  rw [show max (rightRate O accept) 0 = clsRate O accept from rfl]
+  have hD : 1 - 2 * η₀ ≤ 1 - η₀ - clsRate O accept := by
+    have := le_trans (eta_nonneg O) hη; linarith
+  have hD0 : 0 < 1 - 2 * η₀ := by linarith
+  calc O.gap ^ 2 / (1 - η₀ - clsRate O accept) ^ 2 ≤ 1 / (1 - η₀ - clsRate O accept) ^ 2 :=
+        div_le_div_of_nonneg_right (by nlinarith) (sq_nonneg _)
+    _ ≤ 1 / (1 - 2 * η₀) ^ 2 :=
+        div_le_div_of_nonneg_left zero_le_one (by positivity) (pow_le_pow_left₀ hD0.le hD 2)
+
+/-- A wrong prefix costs the gate at most `1/a²`: its charge is largest with the side's right class
+at `η₀`. -/
+lemma sideCharge_le_gateA (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (accept : Bool) : sideCharge O η₀ accept ≤ 1 / gateA η₀ ^ 2 := by
+  have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hx := clsRate_le O hη accept
+  have hx0 := clsRate_nonneg O accept
+  have hy0 := clsRate_nonneg O (!accept)
+  have hg := gap_eq_clsRate O (!accept)
+  rw [Bool.not_not] at hg
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  have hD : 0 < 1 - η₀ - clsRate O accept := by linarith
+  have ha : 0 < gateA η₀ := gateA_pos h0 hη₀
+  have key : O.gap * gateA η₀ ≤ 1 - η₀ - clsRate O accept := by
+    unfold gateA
+    rw [mul_div_assoc', div_le_iff₀ (by linarith)]
+    nlinarith [mul_le_mul_of_nonneg_right (show O.gap ≤ 1 - clsRate O accept by linarith)
+      (by linarith : (0 : ℝ) ≤ 1 - 2 * η₀)]
+  have hsq : (O.gap * gateA η₀) ^ 2 ≤ (1 - η₀ - clsRate O accept) ^ 2 :=
+    pow_le_pow_left₀ (mul_nonneg hg0 ha.le) key 2
+  unfold sideCharge
+  rw [show max (rightRate O accept) 0 = clsRate O accept from rfl,
+    div_le_div_iff₀ (by positivity) (by positivity)]
+  nlinarith [hsq]
+
+open scoped Classical in
+/-- `mul_sideCap_le` at the oracle's rates: `4·sideCharge` per wrong prefix, the deviations
+twice. -/
+theorem mul_sideCap_le_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (accept : Bool) (A R : Finset S) (hR : R.Nonempty)
+    (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu a : ℝ} {ω : Ω} (ht : 0 ≤ t) (htu : 0 ≤ tu)
+    (h : sideLive O accept A R t tu ω) :
+    A.card * sideCap O.mq accept A R a η₀ ω
+      ≤ 4 * (A.filter (fun p => O.label p ≠ sideClass accept)).card * sideCharge O η₀ accept
+        + 2 * (gateDevT η₀ * t + gateDevD η₀ * hoeffDev A.card a + gateDevU η₀ * tu) := by
+  classical
+  obtain ⟨hlo, hhi, hb⟩ := live_counts O (by linarith [lt_of_le_of_lt hη hη₀]) accept A R hR hne h
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  set kk := (A.filter (fun p => O.label p ≠ sideClass accept)).card with hkk
+  have hkA : kk ≤ A.card := Finset.card_le_card (Finset.filter_subset _ _)
+  set x := max (rightRate O accept) 0 with hx
+  set y := max (wrongRate O accept) 0 with hy
+  have hx0 : 0 ≤ x := le_max_right _ _
+  have hy0 : 0 ≤ y := le_max_right _ _
+  have hxη : x ≤ η₀ := max_le (rightRate_le O hη accept) hη0
+  have hyη : y ≤ η₀ := max_le (wrongRate_le O hη accept) hη0
+  have hx1 : ((A.card : ℝ) - kk) * x = ((A.card : ℝ) - kk) * rightRate O accept := by
+    by_cases hlt : kk < A.card
+    · obtain ⟨p, hpA, hp⟩ : ∃ p ∈ A, ¬ (O.label p ≠ sideClass accept) := by
+        by_contra hc
+        push Not at hc
+        have : A.filter (fun p => O.label p ≠ sideClass accept) = A := Finset.filter_true_of_mem hc
+        have : kk = A.card := by rw [hkk, this]
+        omega
+      have hr := O.rate_nonneg p
+      rw [rate_of_label O accept p, if_pos (not_not.1 hp)] at hr
+      rw [hx, max_eq_left hr]
+    · have : kk = A.card := le_antisymm hkA (not_lt.1 hlt)
+      rw [this]; ring
+  have hy1 : (kk : ℝ) * (1 - y) = kk * (1 - wrongRate O accept) := by
+    by_cases hpos : 0 < kk
+    · obtain ⟨p, hp⟩ : (A.filter (fun p => O.label p ≠ sideClass accept)).Nonempty :=
+        Finset.card_pos.1 hpos
+      have hr := O.rate_nonneg p
+      rw [rate_of_label O accept p, if_neg (Finset.mem_filter.1 hp).2] at hr
+      rw [hy, max_eq_left hr]
+    · have : kk = 0 := by omega
+      rw [this]; simp
+  have hx2 : ((A.card : ℝ) - kk) * (x * (1 - x))
+      = ((A.card : ℝ) - kk) * (rightRate O accept * (1 - rightRate O accept)) := by
+    by_cases hlt : kk < A.card
+    · have h := hx1
+      have hne0 : ((A.card : ℝ) - kk) ≠ 0 := by
+        have : (kk : ℝ) < A.card := by exact_mod_cast hlt
+        linarith
+      have := mul_left_cancel₀ hne0 h
+      rw [this]
+    · have : kk = A.card := le_antisymm hkA (not_lt.1 hlt)
+      rw [this]; ring
+  have hy2 : (kk : ℝ) * (y * (1 - y)) = kk * (wrongRate O accept * (1 - wrongRate O accept)) := by
+    by_cases hpos : 0 < kk
+    · have hne0 : (kk : ℝ) ≠ 0 := by exact_mod_cast hpos.ne'
+      have : 1 - y = 1 - wrongRate O accept := mul_left_cancel₀ hne0 hy1
+      have : y = wrongRate O accept := by linarith
+      rw [this]
+    · have : kk = 0 := by omega
+      rw [this]; simp
+  rw [← hx1, ← hy1] at hlo hhi
+  have hb' : 2 * (((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y))) - tu
+      ≤ refApart O.mq A R ω := by rw [hx2, hy2]; exact hb
+  unfold sideCap
+  have key := mul_wrongCap_le_rates A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hxη hy0 hyη
+    hη₀ hlo hhi hb' (d := hoeffDev A.card a)
+  have hg : 1 - x - y = O.gap := one_sub_side_rates O accept
+  rw [hg] at key
+  unfold sideCharge
+  rw [← hx]
+  linarith
+
+open scoped Classical in
+/-- `certifiesAt_of_live` at the oracle's rates.  `M b` bounds the sample's prefixes of class
+`b` the cut gets wrong; each is charged `4·sideCharge` on the side it lands on. -/
+theorem certifiesAt_of_live_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (lo hi : ℕ) (F R C : Finset S)
+    (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) {n : ℕ} (hn : 0 < n)
+    (hC : C.card = n) {lim a t : ℝ} (M : Bool → ℝ) (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t)
+    {ω : Ω} (hlive : sidesLive O lo hi F C R t t ω)
+    (hmis : ∀ b, ((C.filter (fun p => O.label p = sideClass b ∧ ¬ cutCorrect O lo hi F p ω)).card
+      : ℝ) ≤ M b)
+    (hgate : 4 * (M false * sideCharge O η₀ true + M true * sideCharge O η₀ false)
+        + 4 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
+        ≤ n * lim - hoeffDev n (sizeLevel a n)) :
+    certifiesAt O.mq η₀ lim a lo hi F R C ω := by
+  classical
+  have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  obtain ⟨hT, hD, hU⟩ := gateDev_pos h0 hη₀
+  set b : ℝ := sizeLevel a n with hbdef
+  have hb0 : 0 < b := sizeLevel_pos ha0 n
+  have hb1 : b ≤ 1 := sizeLevel_le ha0.le ha1 n
+  set A := acceptSide O.mq hi F C ω with hA
+  set Rs := rejectSide O.mq lo F C ω with hRs
+  have hAC : A.card ≤ n := hC ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  have hRC : Rs.card ≤ n := hC ▸ Finset.card_le_card (Finset.filter_subset _ _)
+  -- each side's wrong prefixes are the cut's mistakes on the other class
+  have hwA : ((A.filter (fun p => O.label p ≠ sideClass true)).card : ℝ) ≤ M false := by
+    refine le_trans ?_ (hmis false)
+    refine Nat.cast_le.2 (Finset.card_le_card (fun p hp => ?_))
+    obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 hp
+    obtain ⟨hpC, hv⟩ := Finset.mem_filter.1 hpA
+    have hl0 : O.label p = 0 := by
+      rcases O.label_bit p with h | h
+      · exact h
+      · exact absurd h (by simpa [sideClass] using hl)
+    exact Finset.mem_filter.2 ⟨hpC, by simpa [sideClass] using hl0,
+      fun hc => hl (by simpa [sideClass] using hc.1 hv)⟩
+  have hwR : ((Rs.filter (fun p => O.label p ≠ sideClass false)).card : ℝ) ≤ M true := by
+    refine le_trans ?_ (hmis true)
+    refine Nat.cast_le.2 (Finset.card_le_card (fun p hp => ?_))
+    obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 hp
+    obtain ⟨hpC, hv⟩ := Finset.mem_filter.1 hpA
+    have hl1 : O.label p = 1 := by
+      rcases O.label_bit p with h | h
+      · exact absurd h (by simpa [sideClass] using hl)
+      · exact h
+    exact Finset.mem_filter.2 ⟨hpC, by simpa [sideClass] using hl1,
+      fun hc => hl (by simpa [sideClass] using hc.2 hv)⟩
+  have hcapA := mul_sideCap_le_rates O hη hη₀ true A R hR
+    (fun v hv p hp => hneC v hv p (Finset.mem_filter.1 hp).1) ht ht hlive.1 (a := b)
+  have hcapR := mul_sideCap_le_rates O hη hη₀ false Rs R hR
+    (fun v hv p hp => hneC v hv p (Finset.mem_filter.1 hp).1) ht ht hlive.2 (a := b)
+  have hdA : hoeffDev A.card b ≤ hoeffDev n b := hoeffDev_mono hAC hb0 hb1
+  have hdR : hoeffDev Rs.card b ≤ hoeffDev n b := hoeffDev_mono hRC hb0 hb1
+  have hchA := sideCharge_nonneg O η₀ true
+  have hchR := sideCharge_nonneg O η₀ false
+  have h1 := mul_le_mul_of_nonneg_right hwA hchA
+  have h2 := mul_le_mul_of_nonneg_right hwR hchR
+  have h3 := mul_le_mul_of_nonneg_left hdA hD.le
+  have h4 := mul_le_mul_of_nonneg_left hdR hD.le
   refine ⟨hC ▸ hn, ?_⟩
   unfold miscutBound
   rw [hC, ← hbdef, ← hA, ← hRs]

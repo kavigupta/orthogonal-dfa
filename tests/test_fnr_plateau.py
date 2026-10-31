@@ -46,16 +46,18 @@ def _search(fnrs, patience):
 
 class TestFnrPlateau(unittest.TestCase):
     def test_returns_the_best_family_and_its_boundary(self):
-        vs, boundary = _search([0.5, 0.3, 0.295, 0.3, 0.29, 0.1], patience=3)
+        vs, boundary, fnr = _search([0.5, 0.3, 0.295, 0.3, 0.29, 0.1], patience=3)
         self.assertEqual([1] * FAMILY_SIZE, vs)
         self.assertEqual(1.0, boundary)
+        self.assertEqual(0.3, fnr)
 
     def test_an_improving_search_keeps_going_until_the_limit(self):
-        vs, _ = _search([0.5, 0.4, 0.3, 0.2, 0.1, 0.04], patience=2)
+        vs, _, fnr = _search([0.5, 0.4, 0.3, 0.2, 0.1, 0.04], patience=2)
         self.assertEqual([5] * FAMILY_SIZE, vs)
+        self.assertEqual(0.04, fnr)
 
     def test_unset_patience_waits_for_the_limit(self):
-        vs, _ = _search([0.3] * 10 + [0.04], patience=None)
+        vs, _, _ = _search([0.3] * 10 + [0.04], patience=None)
         self.assertEqual([10] * FAMILY_SIZE, vs)
 
 
