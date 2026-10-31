@@ -219,15 +219,23 @@ noncomputable def budgetLog (populations : Finset J)
     * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
     / (δ * α * pAP * budgetScale η indecisionLimit εcov))
 
+/-- The log factor of the terms multiplied by `|populations|`: a union bound over the pool alone,
+at `δ`. -/
+noncomputable def levelLog (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  Real.log (64 * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
+
 /-- What a budget of `k` buys.
 
-`sig` enters at the fourth power because the count rule's tail and the gate's bind: their
-margins are a rate times `sig²`, and a deviation bound squares the margin it is given. -/
+The count rule's and the dirty tail's terms are the ones multiplied by `|populations|`: their
+margins are `sig²·shiftScale`, and a deviation bound squares the margin it is given.  The rest
+are paid for by `budgetScale`, whose `a²` covers the gate's `1/sig²` deviations. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
-  k * (populations.card : ℝ)
-    * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-    / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2)
+  k * ((populations.card : ℝ) * levelLog η populations indecisionLimit εcov δ pAP crossLimit
+      / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2)
+    + budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
+      / budgetScale η indecisionLimit εcov ^ 2)
 
 /-- What the harvested strings add to the budget: the table holds them in its count, so the
 count must be large against them. -/
@@ -384,7 +392,8 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
 draws or the tables hold at most `(|J| + 3)·m·ρ` of the time, which against `rejFrac` makes its
 rejections a binomial tail of order `(m/N)·2^-(r+1)`; the uniform pool's draws land in a window
 of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`; and the hash
-splits every population evenly but for its sub-Gaussian tail at `ρ/e²`. -/
+splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which over the
+`|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
   min (min (rejFrac η indecisionLimit εcov εs
@@ -393,17 +402,16 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
       (min εs indecisionLimit
         / (128 * (populations.card : ℝ)
           * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
-    (δ * min εs indecisionLimit ^ 2
-      / (2 ^ 15 * (populations.card : ℝ)
+    (min εs indecisionLimit ^ 2
+      / (512 * Real.log (64 * (populations.card : ℝ)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
-          hsz) : ℝ))))
+          hsz) : ℝ)) / δ)))
 
 /-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
 draws, a twentieth of the findable share. -/
 noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  δ * pAP / (2 ^ 12 * ((populations.card : ℝ) + 1)
-    * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
+  δ * pAP / (2 ^ 13 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop

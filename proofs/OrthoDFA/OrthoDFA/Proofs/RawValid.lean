@@ -19,18 +19,6 @@ variable {S : Type*} [Stringlike S] {rule : Clusterer S}
 variable {J : Type*} [Fintype J]
 variable {η₀ indecisionLimit crossLimit εs : ℝ} {hsz : ℕ}
 
-lemma two_exp_le {e ρ : ℝ} (he : 0 < e) (hρ : 0 < ρ) :
-    2 * Real.exp (-(e / 2) ^ 2 / (2 * ρ)) ≤ 16 * ρ / e ^ 2 := by
-  set y : ℝ := (e / 2) ^ 2 / (2 * ρ) with hy
-  have hy0 : 0 < y := by positivity
-  have h1 : y + 1 ≤ Real.exp y := Real.add_one_le_exp y
-  have h2 : Real.exp (-((e / 2) ^ 2 / (2 * ρ))) = (Real.exp y)⁻¹ := by
-    rw [Real.exp_neg]
-  rw [show -(e / 2) ^ 2 / (2 * ρ) = -((e / 2) ^ 2 / (2 * ρ)) by ring, h2]
-  have h3 : (Real.exp y)⁻¹ ≤ y⁻¹ := inv_anti₀ hy0 (by linarith)
-  have h4 : 2 * y⁻¹ = 16 * ρ / e ^ 2 := by rw [hy]; field_simp; ring
-  linarith
-
 lemma log_ladder_le {N : ℕ} (hN : 2 ^ 19 ≤ N) : 2048 * (3 + 2 * Nat.log 2 N) ≤ N := by
   have hk : 19 ≤ Nat.log 2 N := Nat.le_log_of_pow_le (by norm_num) hN
   have hpow : 2 ^ Nat.log 2 N ≤ N := Nat.pow_log_le_self 2 (by omega)
@@ -71,14 +59,14 @@ population, and its windows' mass, are small against `δ` and `e = min εs il / 
 lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
     (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
     (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
-    (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (hρ0 : 0 ≤ ρ)
+    (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (hρ0 : 0 < ρ)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     2 ^ 19 ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
     ∧ (populations.card : ℝ) * Real.exp (-((prefCount η₀ populations indecisionLimit εcov εs δ α
         pAP crossLimit hsz : ℝ) / 2)) ≤ δ / 32
     ∧ (populations.card : ℝ) * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit
-        εcov εs δ α pAP crossLimit hsz) : ℝ)) * (16 * ρ / (min εs indecisionLimit / 8) ^ 2)
-        ≤ δ / 32
+        εcov εs δ α pAP crossLimit hsz) : ℝ))
+        * (2 * Real.exp (-(min εs indecisionLimit / 8 / 2) ^ 2 / (2 * ρ))) ≤ δ / 32
     ∧ (populations.card : ℝ) * (4 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP
         crossLimit hsz : ℝ)) * ρ ≤ min εs indecisionLimit / 8 / 4
     ∧ (hsz : ℝ) * ρ ≤ min εs indecisionLimit / 8 / 4 := by
@@ -142,10 +130,16 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
     have h := le_trans hρcap (le_trans (min_le_left _ _) (min_le_right _ _))
     rw [← hP, ← hNdef, le_div_iff₀ (by positivity)] at h
     exact h
-  have hhash : ρ * (2 ^ 15 * P * (3 + 2 * (Nat.log 2 N : ℝ)))
-      ≤ δ * min εs indecisionLimit ^ 2 := by
+  set Lg : ℝ := Real.log (64 * P * (3 + 2 * (Nat.log 2 N : ℝ)) / δ) with hLg
+  have hLg0 : 0 < Lg := by
+    rw [hLg]
+    refine Real.log_pos ?_
+    rw [lt_div_iff₀ hδ]
+    have : (0 : ℝ) ≤ (Nat.log 2 N : ℝ) := Nat.cast_nonneg _
+    nlinarith
+  have hhash : ρ * (512 * Lg) ≤ min εs indecisionLimit ^ 2 := by
     have h := le_trans hρcap (min_le_right _ _)
-    rw [← hP, ← hNdef, le_div_iff₀ (by positivity)] at h
+    rw [← hP, ← hNdef, ← hLg, le_div_iff₀ (by positivity)] at h
     exact h
   have hmin : min εs indecisionLimit = 8 * e := by rw [hedef]; ring
   rw [hmin] at hwin hhash
@@ -167,15 +161,20 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
           mul_le_mul_of_nonneg_left hexp (by linarith)
       _ ≤ δ / 32 := this
   · -- the hash's tails over every rung
-    have hlog0 : (0 : ℝ) ≤ 3 + 2 * (Nat.log 2 N : ℝ) := by positivity
-    rw [show P * (3 + 2 * (Nat.log 2 N : ℝ)) * (16 * ρ / e ^ 2)
-        = 16 * (ρ * (P * (3 + 2 * (Nat.log 2 N : ℝ)))) / e ^ 2 by ring,
-      div_le_iff₀ (by positivity)]
-    have e1 : ρ * (2 ^ 15 * P * (3 + 2 * (Nat.log 2 N : ℝ)))
-        = 2 ^ 15 * (ρ * (P * (3 + 2 * (Nat.log 2 N : ℝ)))) := by ring
-    have e2 : δ * (8 * e) ^ 2 = 2 ^ 6 * (δ * e ^ 2) := by ring
-    rw [e1, e2] at hhash
-    nlinarith
+    have hlog0 : (0 : ℝ) < 3 + 2 * (Nat.log 2 N : ℝ) := by positivity
+    have hLge : Lg ≤ (e / 2) ^ 2 / (2 * ρ) := by
+      rw [le_div_iff₀ (by positivity)]
+      nlinarith
+    have hexp : Real.exp (-(e / 2) ^ 2 / (2 * ρ)) ≤ Real.exp (-Lg) :=
+      Real.exp_le_exp.2 (by rw [neg_div]; linarith)
+    have hexpL : Real.exp (-Lg) = δ / (64 * P * (3 + 2 * (Nat.log 2 N : ℝ))) := by
+      rw [hLg, Real.exp_neg, Real.exp_log (by positivity)]
+      field_simp
+    rw [hexpL] at hexp
+    calc P * (3 + 2 * (Nat.log 2 N : ℝ)) * (2 * Real.exp (-(e / 2) ^ 2 / (2 * ρ)))
+        ≤ P * (3 + 2 * (Nat.log 2 N : ℝ)) * (2 * (δ / (64 * P * (3 + 2 * (Nat.log 2 N : ℝ))))) :=
+          by gcongr
+      _ = δ / 32 := by field_simp; ring
   · -- the windows' mass
     have e1 : ρ * (128 * P * N) = 128 * (P * (4 * (N : ℝ)) * ρ) / 4 := by ring
     rw [e1] at hwin
@@ -185,7 +184,7 @@ lemma solved_conversion (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP 
       rw [le_div_iff₀ (by positivity)]; linarith
     have h2 : 8 * e / (128 * P) ≤ e / 4 := by
       rw [div_le_div_iff₀ (by positivity) (by norm_num)]; nlinarith
-    calc (hsz : ℝ) * ρ ≤ N * ρ := mul_le_mul_of_nonneg_right hhszN hρ0
+    calc (hsz : ℝ) * ρ ≤ N * ρ := mul_le_mul_of_nonneg_right hhszN hρ0.le
       _ ≤ e / 4 := by linarith
 
 open scoped Classical in
@@ -308,7 +307,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   set hz : ℕ := (allHarvest H).card with hhz
   obtain ⟨hN20, hfillT, hhashT, hwinM, hhszM⟩ := solved_conversion (crossLimit := crossLimit)
     (hsz := hz) (α := α) (pAP := pAP) η₀ populations hη0 hη₀ hεcov hεs hind hind1 hδ hδ1 hcard
-    hρpos.le hρcap
+    hρpos hρcap
   set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz with hNdef
   set e : ℝ := min εs indecisionLimit / 8 with hedef
   set K : ℕ := 4 * N with hK
@@ -364,12 +363,9 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     have hR0 : ∀ j ∈ tame, D j (onSide Hs false g) ≠ 0 := fun j hj h => by
       have := (hthird j hj).2
       rw [measureReal_def, h] at this; norm_num at this
-    have hcoll := le_trans (poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
+    have hcoll := poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
         (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ
-        (tsum_nonneg (fun a => sq_nonneg _)) hρsf)
-      (show δ / (128 * ((populations.card : ℝ) + 1)) ≤ δ / 256 by
-        rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-        nlinarith)
+        (tsum_nonneg (fun a => sq_nonneg _)) hρsf
     have h := validity_of_returned (rule := rule) (crossLimit := crossLimit) (hsz := hz) hflat O
       populations tame uni huni htame (sideLawT H uni D g) (sideLawC H uni D g) Dsf
       (fun j => if j = uni then [] else (H j).toList) (tableLaw H uni D g) (certLaw H uni D g)
@@ -540,7 +536,6 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     exact ENNReal.toReal_le_of_le_ofReal h2 (h1 ▸ hint)
   -- the hash's tails
   set X : ℝ := 2 * Real.exp (-(e / 2) ^ 2 / (2 * ρ)) with hXdef
-  have hX : X ≤ 16 * ρ / e ^ 2 := two_exp_le he0 hρpos
   have hX0 : 0 ≤ X := by positivity
   have hBal : (coins S).real BalBad ≤ tame.card * X := by
     refine le_trans (measureReal_biUnion_finset_le _ _) ?_
@@ -586,14 +581,14 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   have hstc : (st.card : ℝ) ≤ (Nat.log 2 N : ℝ) + 1 := by
     exact_mod_cast card_stoppable_le populations εcov δ α pAP ρ
   have hcount : (tame.card : ℝ) * X + st.card * (tame.card * (2 * X))
-      ≤ populations.card * (3 + 2 * (Nat.log 2 N : ℝ)) * (16 * ρ / e ^ 2) := by
+      ≤ populations.card * (3 + 2 * (Nat.log 2 N : ℝ)) * X := by
     have h1 : (tame.card : ℝ) * X + st.card * (tame.card * (2 * X))
         = tame.card * (1 + 2 * st.card) * X := by ring
     rw [h1]
     have h2 : (tame.card : ℝ) * (1 + 2 * st.card)
         ≤ populations.card * (3 + 2 * (Nat.log 2 N : ℝ)) :=
       mul_le_mul htc (by linarith) (by positivity) (by positivity)
-    exact mul_le_mul h2 hX hX0 (by positivity)
+    exact mul_le_mul_of_nonneg_right h2 hX0
   show (runMeasure μ D Dsf).real E ≤ δ / 2 + α
   linarith
 

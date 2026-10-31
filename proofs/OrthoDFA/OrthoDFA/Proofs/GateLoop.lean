@@ -726,8 +726,7 @@ lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hε1
     have : 0 ≤ sig η₀ * indecisionLimit := by positivity
     nlinarith
 
-/-- What the pool's collision cap buys: its redraws cost a hundred-and-twenty-eighth of the error
-budget per population. -/
+/-- What the pool's collision cap buys: its redraws cost `δ/256`, once for every population. -/
 lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP ρsf : ℝ}
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hδ : 0 < δ) (hρsf0 : 0 ≤ ρsf)
     (hρsf : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
@@ -736,15 +735,14 @@ lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP �
         ^ 2 * ρsf
       / (2 * ((poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit) : ℝ)
         + 1))
-      ≤ δ / (128 * ((populations.card : ℝ) + 1)) := by
+      ≤ δ / 256 := by
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   have hrej : poolRej pAP M = ⌊pAP / 20 * M⌋₊ := by
     rw [poolRej]; congr 1; ring
   rw [hrej]
   have hrt := rejTerm_le (c := pAP / 20) (by positivity) (by linarith) M
-  have hJ0 : (0 : ℝ) ≤ (populations.card : ℝ) := Nat.cast_nonneg _
   have hM0 : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
-  have hcap : ρsf * (2 ^ 12 * ((populations.card : ℝ) + 1) * (M : ℝ)) ≤ δ * pAP := by
+  have hcap : ρsf * (2 ^ 13 * (M : ℝ)) ≤ δ * pAP := by
     rcases Nat.eq_zero_or_pos M with hM | hM
     · rw [hM]; simp; positivity
     · have h := hρsf
@@ -2653,8 +2651,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     rwa [show (populations.card : ℝ) * (δ / (256 * (populations.card : ℝ))) = δ / 256 by
       field_simp] at h
   have hε₀le : ε₀ ≤ δ / 128 := div_le_div_of_nonneg_left hδ.le (by norm_num) (by linarith)
-  have hpool' : pool ≤ δ / 256 :=
-    le_trans hpool (div_le_div_of_nonneg_left hδ.le (by norm_num) (by linarith))
+  have hpool' : pool ≤ δ / 256 := hpool
   have hcert' := h256 cert hcert_le
   have htab' := h256 tab htab_le
   have hJtab := hsum256 tab htab_le
