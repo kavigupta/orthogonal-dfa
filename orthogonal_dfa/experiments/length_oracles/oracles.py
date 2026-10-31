@@ -1,7 +1,6 @@
 """The two oracles: ``saw`` thresholds every string at the median for compiled length
 40; ``flat`` thresholds each compiled length 35-85 at its own median."""
 
-# pylint: disable=duplicate-code
 import numpy as np
 
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
@@ -11,7 +10,6 @@ from orthogonal_dfa.l_star.examples.gate_composition_residual import (
 from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     SpliceModelOracle,
     median_threshold,
-    run_over_middles,
 )
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
@@ -31,18 +29,10 @@ class PerLengthOracle(SpliceModelOracle):
         self._thresholds = np.array([thresholds[l] for l in sorted(thresholds)])
 
     def membership_queries(self, strings):
-        scores = run_over_middles(
-            self._score_model,
-            self._flank_l,
-            self._flank_r,
-            strings,
-            device=self._device,
-            chunk=self._chunk,
-        )
         idx = np.clip(
             np.array([len(s) for s in strings]) - self._lo, 0, len(self._thresholds) - 1
         )
-        return scores > self._thresholds[idx]
+        return self.scores(strings) > self._thresholds[idx]
 
 
 def oracle(kind, exon, model, device=None):

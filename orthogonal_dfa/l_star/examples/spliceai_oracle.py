@@ -98,8 +98,8 @@ class SpliceModelOracle(Oracle):
     def string_length(self) -> int:
         return self._length
 
-    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
-        scores = run_over_middles(
+    def scores(self, strings: List[bytes]) -> np.ndarray:
+        return run_over_middles(
             self._score_model,
             self._flank_l,
             self._flank_r,
@@ -107,7 +107,9 @@ class SpliceModelOracle(Oracle):
             device=self._device,
             chunk=self._chunk,
         )
-        return scores > self._threshold
+
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
+        return self.scores(strings) > self._threshold
 
     def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
