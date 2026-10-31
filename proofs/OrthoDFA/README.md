@@ -20,8 +20,11 @@ Each claim is proved from the explicit theorems below.
   stops at, and the atom and collision masses its populations must stay under; every state's band
   reads its rarer decided side at most `κ` times as often as undecided (`RarerBounded`), it fails
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
-  `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)` and the suffix
-  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)`. `ClusteringClaimSimple` bounds each by a single
+  `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)`, the suffix
+  pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)` and the prefix count
+  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁸) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
+  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's term is multiplied by
+  `nJ`, and its log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
   product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
   `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
@@ -42,24 +45,23 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|¹³R⁴ log²(|Q|R/(β δ ξ pAP s₀))
-  /(β⁴ δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`, its start picked on
-  `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with `L`), every prefix,
-  suffix and probe the whole run reads is bounded: `O(|Q|⁵(L + |Q|)²R² log(X')/(β² ξ²) ·
-  (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
-  `O(|Q|⁴|Σ|(L + |Q|)R/(β ξ) · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The run
-  is the coverage rule's at `c = ξ/(2C|Q|)`, `R ≤ C ≤ 2R`, so `1/c` enters as `R|Q|/ξ`. The
-  totals grow with `L` because the settings the proof picks hold each round's disagreement rate
-  at `c/(4(1/β + 1)N)` over the window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and
-  the suffixes as `log L`.
+  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|⁹(1/β + |Q|)⁴R⁴
+  log²(|Q|R/(β δ ξ pAP s₀))/(δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`,
+  its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with
+  `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|³(1/β + |Q|)²(L +
+  |Q|)²R² log(X')/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) +
+  log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
+  `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The totals grow with `L` because the settings the proof picks
+  hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's
+  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|⁵(L + |Q|)²|Σ|²R²
-  log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) + log(|Q|/δ)/pAP))`
-  suffixes and `O(|Q|⁴|Σ|²(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`.
-  `LoopClaimSimple` bounds the prefixes by `O(|Q|⁹(L + |Q|)²|Σ|²R² log(X)/(ξ² s₀⁸))` and the
-  suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|³(|Σ| + |Q|)²(L +
+  |Q|)²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) +
+  log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(|Σ| + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
+  `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. `LoopClaimSimple` bounds the prefixes by `O(|Q|⁷(|Σ| +
+  |Q|)²(L + |Q|)²R² log(X)/(ξ² s₀⁸))` and the suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
 
 ## The explicit theorems
 
@@ -79,8 +81,8 @@ this (`parity_toggle`, #438).
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
   population need only keep every atom under `rateScale·(1/2 − η₀)/(2¹⁸(|J| + 3)·npref)` and
-  `εs/(2⁸(|J| + 3)·npref)`, and under `δ·min(εs, indecisionLimit)²/(2¹⁵|J|(3 + 2⌊log₂ npref⌋))`
-  for the hash to split it evenly.
+  `εs/(2⁸(|J| + 3)·npref)`, and under
+  `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
   wrongly, or leaves it undecided, only a bounded share of the time.
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state
@@ -97,11 +99,13 @@ this (`parity_toggle`, #438).
 
 ## The learner's DFA
 
-`LearnerLoopDFA` asks for what the Python's `satisfies_preconditions` checks of the target, at its
-length `L`: `coveredStates M L c` are the states at least `c` (`min_coverage`) of the strings of
-length `L` visit at some position from `⌈L/2⌉` to `L`, and `rerootAccuracy M L S q` is the share
-of those strings whose run from `q` stays in `S` and is classified as the target classifies them
-(`covered_accuracy_ceiling` at the start `q`). Where some covered `q` has accuracy at least
+The Python's `satisfies_preconditions` admits a target at its length `L` by the relative rule
+(`LearnerLoopDFARelative`, below): some start `q` in its own `non_start_zone_states` zone re-roots it
+well (`non_start_zone_accuracy_ceiling`). `LearnerLoopDFA` admits it by a covered rule instead:
+`coveredStates M L c` are the states at least `c` of the strings of length `L` visit at some
+position from `⌈L/2⌉` to `L`, and `rerootAccuracy M L S q` is the share of those strings whose run
+from `q` stays in `S` and is classified as the target classifies them. Where some covered `q` has
+accuracy at least
 `1 − γ`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
 walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re-rooted DFA
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
@@ -126,10 +130,12 @@ At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1
 least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
 `LearnerLoopDFASimple`'s hypotheses 367.
 
-The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_counts`,
-proved in `Proofs/LoopDFA.lean`); the uniform theorems take `D` uniform over the strings of length
-`L + 2|Q| + 6`, whose first `n` letters are uniform (`prefixLaw_uniformStrings`). Uniformity entered
-in three places, each now a condition on `D`:
+The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
+proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
+as a hypothesis: `covered_bridge` gives it under the covered rule and `summed_bridge` under the
+relative one. The uniform theorems take `D` uniform over the strings of length `L + 2|Q| + 6`,
+whose first `n` letters are uniform (`prefixLaw_uniformStrings`). Uniformity entered in three
+places, each now a condition on `D`:
 
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
@@ -144,14 +150,19 @@ in three places, each now a condition on `D`:
    (`coveredStatesOn`, `rerootAccuracyOn`), the law the window's probes of length `L` follow; the
    occupancy a covered state gives the window is `occupancy_of_covered`.
 
-`LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by a relative
-rule instead: some `q ∈ nonStartZoneStates M L R q` has accuracy at least `1 − γ` with
+`LearnerLoopDFARelative` (proved in `Proofs/LoopDFARelative.lean`) admits the target by the
+relative rule: some `q ∈ nonStartZoneStates M L R q` has accuracy at least `1 − γ` with
 `S = nonStartZoneStates M L R q`, `nonStartZoneStates` being the states whose visit rate from `q` is
-at most `R` per position times that of a string from `⌈L/2⌉` on. With
-`C = R(L+1)/(L+1−⌈L/2⌉) ≈ 2R`, `q` is covered at `1/C`, and it is `LearnerLoopDFA` at
-`c = ξ/(2C|Q|)` and `ξ/2`, so its
-probe budget `B₃ ∝ 1/c` grows as `C|Q|/ξ` and `L₀` as its logarithm. `n` is
-`⌈128 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`.
+at most `C = R(L+1)/(L+1−⌈L/2⌉) ≤ 2R` times that of a string from `⌈L/2⌉` on. No state need be
+covered: the proof sums occupancy over the wrong states (`dfa_of_checks_summed`,
+`Proofs/LoopDFASummed.lean`). A state is wrong when an edge out of its true leaf is wrong or
+unlearned, or it is read on its wrong side. A string has one state, so summed over the wrong-edge
+states `edge_of_occupied`'s count (below) charges the disagreeing probes `(Ae+1)N β` once and the
+misled ones `N β'` per state (`wrongEdge_occupancy_le`), and the states read on their wrong side
+hold at most `2εr + εu` of the window (`wrongSide_mass_le`). At `ε = m/(3(|Σ|+|Q|+1)N)`, `m = 3ξ/(8R)`, the wrong states occupy
+the window less than `m`, so the runs from `q` through a wrong state of its zone cost at most
+`Cm ≤ 3ξ/4`, and the pick the other `ξ/4`: `n` is `⌈512 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`. The probe
+budget `B₃ ∝ 1/ε` grows as `R(|Σ| + |Q|)N/ξ` and `L₀` as its logarithm.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
 probe, so a probe and its extension by a letter that both agree, read nothing on a rarer side
