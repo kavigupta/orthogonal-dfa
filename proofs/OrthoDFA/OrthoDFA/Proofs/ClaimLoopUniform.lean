@@ -7,9 +7,9 @@ import OrthoDFA.Proofs.DFABridge
 `LoopClaimUniform` is `LoopClaim` at `D` uniform over the strings of length `L + 2|Q| + 6` and
 `β = 1/|Σ|`: uniform strings extend a prefix by each letter `1/|Σ|` of the time
 (`uniformStrings_floor`) and hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
-`C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives
-`(L + |Q|)⁶ C₀ G ≤ |Σ|^k` (`pow_of_tangent`). `LoopClaimSimple` follows from `LoopClaimUniform`, the
-prefix and suffix totals' shapes bounded by their products.
+`C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives `(L + |Q|)⁶ C₀ G ≤ |Σ|^k`
+(`pow_of_tangent`). `LoopClaimSimple` follows from `LoopClaimUniform`, the prefix and suffix
+totals' shapes bounded by their products.
 -/
 
 noncomputable section
@@ -30,27 +30,77 @@ lemma toDist_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toDist x ∈ loopDis
   · show 1 / (x.A : ℝ) * x.A ≤ 1
     rw [one_div_mul_cancel (by positivity)]
 
-/-- `1/p₀Tol` at `β = 1/|Σ|`, with `(L + |Q|)⁶` taken out. -/
+/-- `1/p₀Tol`'s shape at `β = 1/|Σ|` is at most `2 (L + |Q|)⁵ loopG`. -/
 def loopG (x : LoopInputs) : ℝ :=
   x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
-    * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 2
+    * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
     * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11
 
-lemma shape_toDist {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
-    ((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
+    0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
-      = ((L : ℝ) + x.Q) ^ 6 * loopG x := by
-  obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hx
-  have hA' : (0 : ℝ) < x.A := by exact_mod_cast (show 0 < x.A by omega)
-  have e : (x.Q : ℝ) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)
-      = x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀) := by
-    show (x.Q : ℝ) * x.R / (1 / x.A * x.δ * x.ξ * x.pAP * x.s₀) = _
-    field_simp
-  rw [e, loopG]
-  show ((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (1 / (x.A : ℝ)) + x.Q) ^ 4 * x.R ^ 4 * _ / _ = _
-  rw [one_div_one_div]
-  field_simp
+      ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
+      ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
+  obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
+  have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
+  have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
+  have hLQ : (1 : ℝ) ≤ (L : ℝ) + x.Q := by have : (0 : ℝ) ≤ L := Nat.cast_nonneg L; linarith
+  set Y : ℝ := x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀) with hYd
+  have hY : 3 ≤ Y := by
+    have h1 : 2 ≤ (x.Q : ℝ) * x.R * x.A := by
+      have : 1 ≤ (x.Q : ℝ) * x.R := one_le_mul_of_one_le_of_one_le hQ' hR
+      nlinarith
+    have h4 : 2 ≤ 1 / x.s₀ := (le_div_iff₀ hs).2 (by linarith)
+    have h5 : 1 ≤ (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
+        ((le_div_iff₀ hδ).2 (by linarith)) ((le_div_iff₀ hξ).2 (by linarith)))
+        ((le_div_iff₀ hp).2 (by linarith))
+    have e : Y = (x.Q * x.R * x.A) * ((1 / x.δ) * (1 / x.ξ) * (1 / x.pAP)) * (1 / x.s₀) := by
+      rw [hYd]; ring
+    rw [e]
+    nlinarith [mul_le_mul h1 h5 (by norm_num) (by linarith)]
+  have hlY : 1 ≤ log Y := one_le_log_of_three_le hY
+  have hlLY : log (((L : ℝ) + x.Q) * Y) ≤ 2 * ((L : ℝ) + x.Q) * log Y := by
+    rw [Real.log_mul (by linarith) (by linarith)]
+    have := Real.log_le_sub_one_of_pos (show (0 : ℝ) < (L : ℝ) + x.Q by linarith)
+    nlinarith
+  have hlLY0 : 0 ≤ log (((L : ℝ) + x.Q) * Y) := Real.log_nonneg (by nlinarith)
+  have e1 : ((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)
+      = ((L : ℝ) + x.Q) * Y := by
+    show ((L : ℝ) + x.Q) * x.Q * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
+    rw [hYd]; field_simp
+  have e2 : (x.Q : ℝ) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = Y := by
+    show (x.Q : ℝ) * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
+    rw [hYd]; field_simp
+  have e4 : 1 / (toDist x).β + x.Q = x.A + x.Q := by
+    show 1 / (1 / (x.A : ℝ)) + x.Q = _
+    rw [one_div_one_div]
+  set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 11 with hKd
+  have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11) = z * K := by
+    intro z
+    rw [hKd]; field_simp
+  have hG : loopG x = x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
+    rw [loopG, hKd]; ring
+  have hK0 : 0 ≤ K := by positivity
+  rw [e1, e2, e3, e4, hG]
+  refine ⟨by positivity, ?_⟩
+  have h5 : ((L : ℝ) + x.Q) ^ 5 ≤ ((L : ℝ) + x.Q) ^ 6 := pow_le_pow_right₀ hLQ (by norm_num)
+  have hb : 0 ≤ (x.Q : ℝ) ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
+    have : 0 ≤ log Y := by linarith
+    positivity
+  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log (((L : ℝ) + x.Q) * Y)
+        * log Y ^ 2 * K
+      ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+        * (2 * ((L : ℝ) + x.Q) * log Y) * log Y ^ 2 * K := by gcongr
+    _ = 2 * (((L : ℝ) + x.Q) ^ 5 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
+      ring
+    _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
+      gcongr
 
 lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
@@ -62,15 +112,15 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
 theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
   obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
-  set C₀ := max 1 C with hC₀d
-  have hC₀ : 1 ≤ C₀ := le_max_left _ _
-  have hCC₀ : C ≤ C₀ := le_max_right _ _
+  set C₀ := 2 * max 1 C with hC₀d
+  have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
+  have hCC₀ : C ≤ max 1 C := le_max_right _ _
   have hmapsR : Set.MapsTo toDistRun loopRunRegion loopDistRunRegion := fun r hr => toDist_mem hr
   have hmaps : Set.MapsTo toDist loopRegion loopDistRegion := fun x hx => toDist_mem hx
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
     fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_on (259 + 6 * log C₀) fun x hx => ?_
+  · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
@@ -136,15 +186,18 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hc := hC _ hrd
     have hpos' := hpos { toDist x with L }
     have hG1 : 1 ≤ loopG x := loopG_ge_one ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩
-    have hsh : 0 ≤ ((L : ℝ) + x.Q) ^ 6 * loopG x := by positivity
-    have e := shape_toDist ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
+    obtain ⟨hsh0, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
-      change _ ≤ C * |((L : ℝ) + x.Q) ^ 6 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+      change _ ≤ C * |((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)| at hc
-      rw [e, abs_of_nonneg hsh] at hc
-      exact hc.trans (mul_le_mul_of_nonneg_right hCC₀ hsh)
+      rw [abs_of_nonneg hsh0] at hc
+      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hsh0).trans ?_)
+      refine (mul_le_mul_of_nonneg_left hsh ?_).trans (le_of_eq ?_)
+      · linarith [le_max_left 1 C]
+      · rw [hC₀d]; ring
     have hpow := pow_of_tangent (E := C₀ * loopG x) hA' hQ'
       (one_le_mul_of_one_le_of_one_le hC₀ hG1) hL₀
     have h1 : 1 / p₀Tol { toDist x with L } ≤ (x.A : ℝ) ^ k := by
