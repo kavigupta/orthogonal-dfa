@@ -17,10 +17,12 @@ from automata.fa.dfa import DFA
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .counterexample_config import counterexample_search_config
+from .counterexample_probe import plain_bisect
 from .counterexample_search import CounterexampleSearch
 from .dfa_utils import held_out_phi, labelled_sample
 from .fallbacks.members import MemberFallback
 from .fallbacks.score_patience import ScorePatience, Selection
+from .fallbacks.skipping import skipping_search
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
@@ -250,6 +252,11 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
         member_fallback=fallback,
+        bisect=(
+            skipping_search
+            if pst.config.counterexample_skip_undecided
+            else plain_bisect
+        ),
         score_patience=score_patience,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
