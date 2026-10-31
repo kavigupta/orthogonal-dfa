@@ -128,9 +128,9 @@ Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent 
 
     L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 398.6`; the
-least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 387, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 367.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 405.9`; the
+least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 393, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 373.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
