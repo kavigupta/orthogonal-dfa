@@ -46,11 +46,17 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|⁹(1/β + |Q|)⁴R⁴
-  log²(|Q|R/(β δ ξ pAP s₀))/(δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`,
-  its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with
-  `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|³(1/β + |Q|)²(L +
-  |Q|)²R² log(X')/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) +
+  `p₀Tol` on any first `k` letters, with `b = 1/β + |Q|`, `Y = |Q|R/(β δ ξ pAP s₀)`,
+
+      1/p₀Tol = O((L + |Q|)⁴ log((L + |Q|)Y) log(Y) |Q|³R b/ξ
+                  · (R³/ξ³ (1/s₀¹¹ + |Q|⁶b³/s₀⁵) + R²/(ξ²δ) (1/s₀⁴ + |Q|⁴b²) + 1/(δ pAP² s₀²))
+                + (L + |Q|)² log((L + |Q|)Y) log²(Y) |Q|³R²/(ξ⁴δ) (1/s₀⁸ + |Q|⁴b²/s₀⁴)
+                + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
+
+  the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
+  `γ + ξ`, its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the
+  inputs with `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|³(L +
+  |Q|)²R² log(X')/ξ² · (1/s₀⁸ + (1/β + |Q|)²|Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) +
   log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
   `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The totals grow with `L` because the settings the proof picks
   hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's
@@ -58,8 +64,8 @@ Each claim is proved from the explicit theorems below.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|³(|Σ| + |Q|)²(L +
-  |Q|)²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) +
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|³(L + |Q|)²R²
+  log(X)/ξ² · (1/s₀⁸ + (|Σ| + |Q|)²|Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) +
   log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(|Σ| + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
   `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. `LoopClaimSimple` bounds the prefixes by `O(|Q|⁷(|Σ| +
   |Q|)²(L + |Q|)²R² log(X)/(ξ² s₀⁸))` and the suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
@@ -120,16 +126,18 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality. Each of the four conditions on the walk start bounds the mass the
 probes' law puts on one first `k` letters, `|Σ|^-k` for uniform strings, and they follow from
-`(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`,
-`1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
-Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
-holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
+`ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` at `ℓ = L₁ + 1` (`loopTolInv`), `E`, `E₂`
+and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`, `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and
+`1/pAP`, hence from `ℓ⁴ (1 + log ℓ) (E + E₂ + E₃) ≤ |Σ|^k`.
+Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent at
+`T = 2(log (E + E₂ + E₃) + 10)/log |Σ| + |Q| + 4`, that holds once `L ≥ L₀` (`dfa_pow`,
+`Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
+    L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 416.8`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 367.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 405.9`; the
+least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 393, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 373.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
@@ -141,8 +149,8 @@ places, each now a condition on `D`:
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
    largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
-   `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
-   for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
+   `p₀ ≤ p₀Tol = 1/loopTolInv ℓ`, `ℓ = L + |Q| + 4` (`claim_terms_le`,
+   `Proofs/ClaimLoopArith.lean`); for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
 2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
    `edge_of_occupied` asks `D` to extend each prefix by each letter at least `1/Ae` of the time
    (`prefixLaw_snoc_le`), and the edge-crossing rate is `c/((Ae+1)N)`. `Ae = 1/β` in general and
@@ -195,9 +203,9 @@ so by Chebyshev (`meas_gt_le_of_pairs`) they weigh more than `x/2 + u` with chan
     2 prefixMax · e/((2 − 4e)(u − 2 B₃ prefixMax))
 
 where `2 B₃ prefixMax < u` and `e < 1/2` (`misledTail`), whatever `x`. The clustering, run at
-`εcov = min(ε, ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`). Every
-covered state's edges are then true and it accepts as the target does, so the hypothesis from the
-covered start's true leaf tracks the re-rooted target on every run that stays covered
+`εcov = min(c/(10N), ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`).
+Every covered state's edges are then true and it accepts as the target does, so the hypothesis from
+the covered start's true leaf tracks the re-rooted target on every run that stays covered
 (`classify_start_le`).
 
 The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates on

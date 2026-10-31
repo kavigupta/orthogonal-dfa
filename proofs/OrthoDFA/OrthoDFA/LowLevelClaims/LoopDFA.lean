@@ -131,7 +131,7 @@ def LearnerLoopDFASimple : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (8 * N))
+  let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -224,9 +224,10 @@ def LearnerLoopDFA : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
-  let Ce : ℝ := aε + 8 / ξ
+  let Ce : ℝ := 10 / c + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -243,10 +244,10 @@ def LearnerLoopDFA : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -293,7 +294,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- than `m`.
   let ε : ℝ := m / (3 * (A + Q + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (32 * N))
+  let εcov : ℝ := min (ξ / (20 * R * N)) (ξ / (32 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -393,9 +394,10 @@ def LearnerLoopDFARelative : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 3 * (A + Q + 1) / m
-  let Ce : ℝ := aε + 32 / ξ
+  let Ce : ℝ := 20 * R / ξ + 32 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -412,10 +414,10 @@ def LearnerLoopDFARelative : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -464,7 +466,7 @@ def LearnerLoopDFADist : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (1 / β + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min ε (ξ / (8 * N))
+  let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a

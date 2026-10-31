@@ -302,20 +302,25 @@ end Select
 /-- The claim's rates, from the coverage `c`. -/
 lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N)
     (hℓ : 0 ≤ ℓ) (hNℓ : ℓ ≤ 2 * N) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
-    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min ε (ξ / (8 * N)))
+    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min (c / (10 * N)) (ξ / (8 * N)))
     (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) :
-    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ ε ∧ 0 < ι ∧ ι ≤ εcov / 8
-      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 3 * εcov * N < c
+    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ 1 ∧ 0 < ι ∧ ι ≤ εcov / 8
+      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 10 * εcov * N ≤ c
       ∧ ℓ * ε < 3 / 8 := by
   have hX : 0 < 4 * (A + 1) * N := by positivity
   have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
   have he0 : 0 < ε := by rw [he]; positivity
-  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min he0 (by positivity)
-  have hεcε : εcov ≤ ε := by rw [hεc]; exact min_le_left _ _
+  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min (by positivity) (by positivity)
+  have hεcc : εcov ≤ c / (10 * N) := by rw [hεc]; exact min_le_left _ _
   have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
   have hι8 : ι ≤ εcov / 8 := by rw [hι]; exact min_le_left _ _
   have h12 : 12 ≤ 4 * (A + 1) * N := by nlinarith
-  refine ⟨he0, ?_, hεc0, hεcε, hι0, hι8, ?_, ?_, ?_⟩
+  have hcN : 10 * εcov * N ≤ c := by
+    have := mul_le_mul_of_nonneg_left hεcc (by positivity : (0 : ℝ) ≤ 10 * N)
+    rw [show 10 * N * (c / (10 * N)) = c by field_simp] at this
+    linarith
+  have hεc1 : εcov ≤ 1 := by nlinarith
+  refine ⟨he0, ?_, hεc0, hεc1, hι0, hι8, ?_, hcN, ?_⟩
   · have : ε * 12 ≤ 1 := by nlinarith
     linarith
   · have hεN : 0 < ε * N := by positivity
@@ -323,13 +328,6 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
       ring
     have e2 : c = 4 * (A + 1) * (ε * N) := by rw [← hq]; ring
     rw [e, e2]
-    nlinarith
-  · have h3 : 3 * εcov * N ≤ 3 * ε * N := by gcongr
-    have e : 3 * ε * N * (4 * (A + 1)) = 3 * c := by rw [← hq]; ring
-    have hA1 : (12 : ℝ) ≤ 4 * (A + 1) := by linarith
-    have : 3 * ε * N * 12 ≤ 3 * c := by
-      rw [← e]
-      exact mul_le_mul_of_nonneg_left hA1 (by positivity)
     nlinarith
   · have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
     have h3 : 2 * N * ε * (4 * (A + 1)) = 2 * c := by rw [← hq]; ring
@@ -353,7 +351,7 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     let L₁ : ℕ := L + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min ε (ξ / (8 * N))
+    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     ∀ o : LoopRound Ω α K,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
@@ -372,7 +370,7 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     (by linarith) hc hc1 hξ rfl rfl rfl
   refine dfa_of_checks M O hL o L D hlong (by linarith) hfl hch (by positivity) hbad ?_ hceil
   show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
-  have h0 : 0 ≤ εcov * N := mul_nonneg hεc0.le (zero_le_one.trans hN1)
+  have h0 : 0 < εcov * N := mul_pos hεc0 (zero_lt_one.trans_le hN1)
   linarith only [hcN, h0]
 
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
@@ -389,7 +387,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min ε (ξ / (8 * N))
+    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
     let s : ℝ := 1 / 2 - η₀
@@ -472,10 +470,9 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     have : 2 + Nat.clog 2 L₁ ≤ L₁ + 1 := by omega
     have : 2 + (Nat.clog 2 L₁ : ℝ) ≤ L₁ + 1 := by exact_mod_cast this
     linarith
-  obtain ⟨hε0, hε12, hεc0, hεcε, hι0, hι8, -, -, hιL⟩ :=
+  obtain ⟨hε0, hε12, hεc0, hεcov1, hι0, hι8, -, -, hιL⟩ :=
     dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hAe2 hN1 (by positivity) hwN hc hc1 hξ rfl rfl
       rfl
-  have hεcov1 : εcov ≤ 1 := by linarith
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1' : δ' < 1 := by
     show δ / (8 * (Q + 1)) < 1
@@ -752,7 +749,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min ε (ξ / (8 * N))
+    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
     let s : ℝ := 1 / 2 - η₀
@@ -858,7 +855,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the explicit theorem's settings
-/-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/(ℓ⁶ loopMassInv)` on any first `k`
+/-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/loopTolInv ℓ` on any first `k`
 letters, `ℓ = L + |Q| + 4`, with its reads bounded in closed form. -/
 theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
     {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -871,7 +868,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min ε (ξ / (8 * N))
+    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
@@ -887,8 +884,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) →
-    p₀ ≤ 1 / ((L + Q + 4) ^ 6
-      * loopMassInv Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀) →
+    p₀ ≤ 1 / loopTolInv (L + Q + 4) Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
@@ -969,12 +965,12 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1))))) with hcapd
   obtain ⟨hε0, hinvε, hι0, hinvι, hτ0, hinvτ, hΘ1, haε0⟩ :=
-    dfa_rate_bounds (ℓ := ℓ) (Ce := aε + 8 / ξ) (Θ := Θ) hQ1 hAe2 hℓ1 hN1 hNℓ hc hc1 hξ hη0 hη₀
-      rfl rfl rfl rfl rfl rfl rfl rfl
+    dfa_rate_bounds (ℓ := ℓ) (Ce := 10 / c + 8 / ξ) (Θ := Θ) hQ1 hAe2 hℓ1 hN1 hNℓ hc hc1 hξ hη0
+      hη₀ rfl rfl rfl rfl rfl rfl rfl rfl
   have hτ1 : τ ≤ 1 := by
     have h1 : ι ≤ εcov / 8 := min_le_left _ _
-    have h2 : εcov ≤ ε := min_le_left _ _
-    have h3 : ε ≤ 1 := rate_le_one hc1 hAe2 hN1
+    have h2 : εcov ≤ c / (10 * N) := min_le_left _ _
+    have h3 : c / (10 * N) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
     exact (min_le_right _ _).trans (by linarith)
   have hS1 : 1 ≤ S := by
     show 1 ≤ Q * ((Q + 2) * A + 1) + 2 * A + 1
@@ -1026,7 +1022,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       have : (1 - 2 * η₀) / (1 - η₀) = gateA η₀ := rfl
       rw [this]; exact pow_le_one₀ ha0 ha
     have hεc0 : 0 ≤ εcov / 2 := by
-      have : 0 < εcov := lt_min hε0 (by positivity)
+      have : 0 < εcov := lt_min (by positivity) (by positivity)
       positivity
     exact (min_le_left _ _).trans (mul_le_of_le_one_right hεc0 hsq)
   have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
@@ -1039,16 +1035,22 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       rw [le_div_iff₀ hδ'0]
       nlinarith only [hδ'1, hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
   -- the prefix mass, from the tolerance
-  obtain ⟨-, -, hEE, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
-    hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
+  obtain ⟨-, -, hE1, hE₂0, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂)
+    (E₃ := E₃) hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
     (Nat.cast_nonneg n) hlg rfl rfl rfl rfl rfl
   have hℓe : (L : ℝ) + Q + 4 = ℓ := by
     show (L : ℝ) + (Fintype.card σ : ℝ) + 4 = ((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1
     push_cast; ring
-  have hMI : loopMassInv Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ = E + E₂ + E₃ :=
+  have hMI : loopTolInv ℓ Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀
+      = ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃ :=
     rfl
-  have hEs0 : 0 < ℓ ^ 6 * (E + E₂ + E₃) :=
-    mul_pos (pow_pos (by linarith) 6) (by linarith only [hEE, hE₃0])
+  have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ1; linarith
+  have hEs0 : 0 < ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃ := by
+    have h1 : 0 < ℓ ^ 4 * (1 + Real.log ℓ) * E :=
+      mul_pos (mul_pos (pow_pos (by linarith) 4) (by linarith)) (by linarith)
+    have h2 : 0 ≤ ℓ ^ 2 * (1 + Real.log ℓ) * E₂ := mul_nonneg (by positivity) hE₂0
+    have h3 : 0 ≤ ℓ ^ 2 * E₃ := mul_nonneg (by positivity) hE₃0
+    linarith
   have hp₀0 : 0 < p₀ := by
     by_contra h0
     push Not at h0
@@ -1062,12 +1064,13 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     have h := measure_iUnion_null hz
     rw [hU, measure_univ] at h
     exact one_ne_zero h
-  have hpow3 : ℓ ^ 6 * (E + E₂ + E₃) ≤ p₀⁻¹ := by
-    rw [hMI, hℓe, one_div] at hp₀
+  have hpow3 : ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃
+      ≤ p₀⁻¹ := by
+    rw [hℓe, hMI, one_div] at hp₀
     exact (le_inv_comm₀ hp₀0 hEs0).1 hp₀
   obtain ⟨h1, h2, h3, h4⟩ := dfa_mass (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
     hAe2 hQ0 hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
-    (Nat.cast_nonneg n) hℓ1 hε0 hinvε hcap hlg rfl rfl rfl rfl rfl rfl hRB0 hRB hB₃0 hB₃
+    (Nat.cast_nonneg n) hℓ1 hΛ1 hε0 hinvε hcap hlg rfl rfl rfl rfl rfl rfl hRB0 hRB hB₃0 hB₃
     (inv_pos.2 hp₀0) hpow3
   rw [inv_inv] at h1 h2 h3 h4
   obtain ⟨settings, hw, hd, hb, hreads, hprob⟩ := learner_loop_dfa_dist_core M O L D η₀ c γ δ
@@ -1112,15 +1115,18 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hEs1 : 1 ≤ E + E₂ + E₃ := by
     rw [← hMI]
     exact loopMassInv_ge_one _ _ hQ0 (by linarith) hA hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη₀
-  have hpow : ((L : ℝ) + Q + 4) ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
+  have hpow : ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) ≤ A ^ k :=
     dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
       (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
   have hp₀ : (A ^ k)⁻¹
-      ≤ 1 / (((L : ℝ) + Q + 4) ^ 6 * loopMassInv Q A A (Fintype.card σ) (Fintype.card α) δ c ξ
-        pAP η₀) := by
+      ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A A (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ := by
     have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-    rw [hMI, one_div]
-    exact inv_anti₀ (mul_pos (pow_pos (by linarith) 6) (by linarith)) hpow
+    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A)
+      (Fintype.card σ) (Fintype.card α) (by linarith) hQ0 (by linarith) hA hδ hδ1 hc hc1 hξ hpAP
+      hp1 hη0 hη₀
+    rw [hMI] at hTle
+    rw [one_div]
+    exact inv_anti₀ (by linarith) (hTle.trans hpow)
   have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
       = uniformStrings L := prefixLaw_uniformStrings (by omega)
   have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
