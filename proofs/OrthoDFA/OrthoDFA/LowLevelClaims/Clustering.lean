@@ -43,7 +43,7 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 
 /-! ## The theorem -/
 
-/-- The rate the counts resolve:
+/-- The rate the family's cut budget resolves:
 
     min(εcov·a², indecisionLimit),   a = (1 − 2η₀)/(1 − η₀)
 
@@ -72,12 +72,12 @@ the samplers' redraws and the hash's split may cost the cut.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
-prefixes a state draws, at the rate scale times the signal and at `εs`: a draw then lands on
-what the state already holds rarely enough that its rejections are a binomial tail; and no
-string heavy against `δ·min(εs, indecisionLimit)²`, so the hash splits it evenly.  The suffix
-measure needs a collision mass small against the suffixes; the other populations are arbitrary.
-A population is read only while `keptAt` keeps it.  `H j` are the strings population `j`
-harvested; the first count grows with how many there are. -/
+prefixes a state draws, at the signal times `min(εcov·signal, indecisionLimit)` and at `εs`: a
+draw then lands on what the state already holds rarely enough that its rejections are a
+binomial tail; and no string heavy against `δ·min(εs, indecisionLimit)²`, so the hash splits it
+evenly.  The suffix measure needs a collision mass small against the suffixes; the other
+populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j` are the
+strings population `j` harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -103,19 +103,19 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      161000
+      1900000
       * (populations.card : ℝ)
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)
       )
-      / ((1 / 2 - η₀) ^ 4 * rateScale η₀ indecisionLimit εcov ^ 2)
+      / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
       + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤ max
       (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
-        / (rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)))
+        / ((1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit))
       (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs)
     ) ∧
     (∀ B ∈ states,
@@ -135,8 +135,8 @@ def ClusteringGuarantee : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
-          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
