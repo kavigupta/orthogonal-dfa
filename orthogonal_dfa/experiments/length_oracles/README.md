@@ -12,11 +12,10 @@ not improved for 500 probes, and the restart kept is the best on a second held-o
 
     orthogonal_dfa/experiments/length_oracles/reproduce.sh OUT 1 2 3 4 5 7
 
-runs all 8 (2-7 h each) and writes three files to `data/neural/length_oracles/`, holding
-only what needs the oracle or the runs:
+runs all 8 (2-7 h each).  Both oracles' labels on 200,000 fresh strings are permacached
+(`label.labels`, on the strings `label.strings` draws).  Two files go to
+`data/neural/length_oracles/`:
 
-- `labels.npz`: both oracles' labels on 200,000 fresh strings (`label.py`, which
-  permacaches them), packed with `np.packbits`; `label.strings` redraws the strings;
 - `runs.json`: each run's commit, hours, family size and FNR, and its kept DFA's phi on
   its own test halves; and each restart's DFA, pick and search scores, ending and probes;
 - `random_strings.json`: both oracles' accepts on 20,000 uniform random strings at each
