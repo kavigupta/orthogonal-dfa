@@ -6,33 +6,35 @@ import OrthoDFA.LowLevelClaims.CoveredStart
 /-!
 # The learner's DFA
 
-The Python admits a target when re-rooting it at its best covered state classifies almost every
-string: `covered_states` are the states at least `min_coverage` of the strings of length `L` visit
-at some position from `⌈L/2⌉` to `L`, and `covered_accuracy_ceiling` is the best share, over
-covered starts, of the strings whose re-rooted run stays in the covered states and is classified
-as the target classifies them. `coveredStates` and `rerootAccuracy` are the same quantities, as
-probabilities rather than shares of a sample.
+The Python admits a target when re-rooting it at a start in its own non-start zone classifies
+almost every string: `non_start_zone_states` maps each such start `s` to its zone, the states whose
+visit rate from `s` at positions `0` to `L` is at most `C = R(L+1)/(L+1−⌈L/2⌉)` times that of a
+run from the target's start at positions `⌈L/2⌉` to `L`, and `non_start_zone_accuracy_ceiling` is
+the best share, over those starts, of the strings whose re-rooted run stays in the start's zone and
+is classified as the target classifies them. `nonStartZoneStates` and `rerootAccuracy` are the same
+quantities, as probabilities rather than shares of a sample.
 
-`LearnerLoopDFA`: where some covered start re-roots with accuracy at least `1 − γ`, the loop, its
-probes uniform over the lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within
-`|Q| + 1` rounds at a consistent round, and its re-rooted DFA (`rerootedDFA`) misclassifies at most
-`γ + ξ` of the strings of length `L`, but for chance `δ`. The final hypothesis is started at the
-leaf that scores best on `n` held-out strings of length `L`, drawn after the loop: each leaf is
-scored by how many of them its run classifies as the last round's family reads them, the undecided
-ones counting for none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the time across the
-window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the time at some
-length by probes that disagree in a consistent round, searching or stopping undecided at their
-start or end sift, unless the probe or its extension reads a string on its state's rarer side.
-Level 3's own success test bounds the disagreeing probes at its disagreement rate. Which probes
-cross the edge is fixed by the target before any read, and a misread is rare and independent of
-it, so but for chance at most half of them, and a little more, are misled.
+`LearnerLoopDFA` admits the target by a covered rule instead: some state that at least `c` of the
+strings of length `L` visit at some position from `⌈L/2⌉` to `L` (`coveredStates`) re-roots it with
+accuracy at least `1 − γ` through the covered states. Then the loop, its probes uniform over the
+lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within `|Q| + 1` rounds at a
+consistent round, and its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the
+strings of length `L`, but for chance `δ`. The final hypothesis is started at the leaf that scores
+best on `n` held-out strings of length `L`, drawn after the loop: each leaf is scored by how many
+of them its run classifies as the last round's family reads them, the undecided ones counting for
+none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the
+time across the window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the
+time at some length by probes that disagree in a consistent round, searching or stopping undecided
+at their start or end sift, unless the probe or its extension reads a string on its state's rarer
+side. Level 3's own success test bounds the disagreeing probes at its disagreement rate. Which
+probes cross the edge is fixed by the target before any read, and a misread is rare and independent
+of it, so but for chance at most half of them, and a little more, are misled.
 
-`LearnerLoopDFARelative` admits the target by a relative rule instead: a start may re-root it
-through the states whose per-position visit rate from it is at most `R` times that of a string from
-`⌈L/2⌉` on (`nonStartZoneStates`), itself among them. With `C = R(L+1)/(L+1−⌈L/2⌉)`, it is
-`LearnerLoopDFA` at `c = ξ/(2C|Q|)` and `ξ/2`: the start is in its own zone so covered at `1/C`, and
-the non-start-zone states that fewer than `c` of the strings visit from `⌈L/2⌉` on cost the other
-`ξ/2`.
+`LearnerLoopDFARelative` admits the target by the relative rule, and no state need be covered. A
+state is wrong when an edge out of its true leaf is wrong or unlearned, or it is read on its wrong
+side. Summed over the wrong states, their occupancy of the window is below `m = 3ξ/(8R)` at the
+disagreement rate `m/(3(|Σ|+|Q|+1)N)`, so the runs from the start through a wrong state of its zone
+cost at most `Cm ≤ 3ξ/4`; the pick of the start leaf costs the other `ξ/4`.
 
 `LearnerLoopDFADist` is `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s
 strings cut at a length uniform over the window (`windowLaw`), the suffixes their first
@@ -46,11 +48,9 @@ proof rules out, among suffixes, prefixes and held-out strings, lies within one 
 Known modelling gap. The Python draws its probes at one length; here they are uniform over the
 window of lengths, so that every position a run can use an edge at is some probe's last step.
 
-Known modelling gap. The Python estimates `non_start_zone_states` and
-`non_start_zone_accuracy_ceiling` on 2000 sampled strings; here they are exact probabilities.
-
-Known modelling gap. The Python's relative rule may start at any state its 2000 samples visit in the
-window; `LearnerLoopDFARelative`'s start must be covered at `c = ξ/(2C|Q|)`.
+Known modelling gap. Under a sampler other than the uniform one, the Python estimates
+`non_start_zone_states` and `non_start_zone_accuracy_ceiling` on sampled strings; here they are
+exact probabilities.
 
 Known modelling gap. The Python starts its DFA at the leaf the empty string sifts to; here the
 start is picked on held-out strings.
@@ -131,7 +131,7 @@ def LearnerLoopDFASimple : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N))
+  let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -162,7 +162,7 @@ def LearnerLoopDFASimple : Prop :=
         (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
       (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
-    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
@@ -227,7 +227,7 @@ def LearnerLoopDFA : Prop :=
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
   -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
-  let Ce : ℝ := 3 / c + 8 / ξ
+  let Ce : ℝ := 10 / c + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -275,8 +275,7 @@ def LearnerLoopDFA : Prop :=
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
 `nonStartZoneStates M L R q` re-roots the target with accuracy at least `1 − γ` without leaving it,
-the conclusion is `LearnerLoopDFASimple`'s. The settings are its at `c = ξ/(2C|Q|)`,
-`C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
+the conclusion is `LearnerLoopDFASimple`'s, at the disagreement rate `m/(3(|Σ|+|Q|+1)N)`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -285,17 +284,17 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let A : ℝ := Fintype.card α
   -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
-  let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
-  -- The coverage the learner runs at, low enough that the non-start-zone states below it cost
-  -- `ξ/2`.
-  let c : ℝ := ξ / (2 * C * Q)
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
-  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
-  let ε : ℝ := c / (4 * (A + 1) * N)
+  -- The runs from the start through wrong states cost at most `2R` times those states'
+  -- occupancy of the window, so at most `3ξ/4` while it is below `m`.
+  let m : ℝ := 3 * ξ / (8 * R)
+  -- Each round's disagreement rate, low enough that the wrong states occupy the window less
+  -- than `m`.
+  let ε : ℝ := m / (3 * (A + Q + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min (c / (3 * N)) (ξ / (16 * N))
+  let εcov : ℝ := min (ξ / (20 * R * N)) (ξ / (32 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -326,13 +325,13 @@ def LearnerLoopDFARelativeSimple : Prop :=
         (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
       (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
-    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -367,9 +366,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ≤ δ
 
-/-- `LearnerLoopDFA` with the target admitted by the relative rule, as in
-`LearnerLoopDFARelativeSimple`: its settings and `L₀` are `LearnerLoopDFA`'s at `c = ξ/(2C|Q|)`
-for `C = R(L+1)/(L+1−k)`, with `ξ/2` in place of its `ξ`. -/
+/-- `LearnerLoopDFARelativeSimple` once the Python's length `L` is at least `L₀`. -/
 def LearnerLoopDFARelative : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -378,15 +375,15 @@ def LearnerLoopDFARelative : Prop :=
   let A : ℝ := Fintype.card α
   -- Probes are walked from half the Python's length.
   let k : ℕ := (L + 1) / 2
-  let C : ℝ := R * (L + 1) / ((L + 1 - k : ℕ) : ℝ)
-  -- The coverage the learner runs at, low enough that the non-start-zone states below it cost
-  -- `ξ/2`.
-  let c : ℝ := ξ / (2 * C * Q)
   let L₁ : ℕ := L + Fintype.card σ + 3
   -- Probes are uniform over the `N` lengths `k` to `L₁`.
   let N : ℝ := L₁ + 1 - k
-  -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
-  let ε : ℝ := c / (4 * (A + 1) * N)
+  -- The runs from the start through wrong states cost at most `2R` times those states'
+  -- occupancy of the window, so at most `3ξ/4` while it is below `m`.
+  let m : ℝ := 3 * ξ / (8 * R)
+  -- Each round's disagreement rate, low enough that the wrong states occupy the window less
+  -- than `m`.
+  let ε : ℝ := m / (3 * (A + Q + 1) * N)
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -395,12 +392,12 @@ def LearnerLoopDFARelative : Prop :=
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈128 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
   -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
-  let aε : ℝ := 4 * (A + 1) / c
-  let Ce : ℝ := 3 / c + 16 / ξ
+  let aε : ℝ := 3 * (A + Q + 1) / m
+  let Ce : ℝ := 20 * R / ξ + 32 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
@@ -469,7 +466,7 @@ def LearnerLoopDFADist : Prop :=
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (1 / β + 1) * N)
   -- The clustering's accuracy.
-  let εcov : ℝ := min (c / (3 * N)) (ξ / (8 * N))
+  let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   -- The clustering's indecision limit: a harvest puts more than `3ι/T` of its population on a
@@ -500,7 +497,7 @@ def LearnerLoopDFADist : Prop :=
         (δ' * min (εcov / 2) ι ^ 2 / (2 ^ 35 * J * (3 + 2 * Real.logb 2 (RB + 1)))))
       (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
-    (min (min (δ' * pAP / (2 ^ 15 * (J + 1) * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
