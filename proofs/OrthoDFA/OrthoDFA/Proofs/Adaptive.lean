@@ -6,7 +6,7 @@ import OrthoDFA.Proofs.Grouping
 import OrthoDFA.Proofs.FreshDraws
 import OrthoDFA.Proofs.Windows
 import OrthoDFA.Proofs.RedrawTail
-import OrthoDFA.Utils.BandKappa
+import OrthoDFA.LowLevelClaims.BandKappa
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 import Mathlib.Analysis.Complex.ExponentialBounds
@@ -258,6 +258,7 @@ variable {η₀ : ℝ}
 variable {indecisionLimit : ℝ}
 variable {crossLimit : ℝ}
 variable {hsz : ℕ}
+variable {εs : ℝ}
 
 /-- The run's law when population `j`'s table stream has law `Pp j` and its certification
 stream `Pc j`. -/
@@ -319,43 +320,43 @@ union bound still closes. -/
 
 /-- The budget the loop is heading for: the top of the ladder. -/
 noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit : ℝ) (hsz : ℕ) : State :=
+    (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : State :=
   solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
 
 lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+    0 < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [ladderLen]; omega
 
 lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) :
-    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz
-      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [schedule, solvedState]
   refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
   norm_num
 
 /-- Every rung draws the same pool: only the prefix count halves along the ladder. -/
 lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
   rw [schedule] at hB
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   rfl
 
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz := by
+    0 < prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [prefCount]; omega
 
 /-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
 the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
 lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
+    ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
   classical
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hmdef
-  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz with hLdef
-  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz, (B.npref : ℝ)
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
+  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hLdef
+  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
       ≤ ∑ i ∈ Finset.range L,
           ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
             (m / 2 ^ i)).npref : ℝ) := by
@@ -416,7 +417,7 @@ lemma ladder_inv_sum_le (m V : ℕ) (n : ℕ) :
 /-- `ladder_inv_sum_le` over the rungs themselves. -/
 lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) (V : ℕ)
     (s : Finset State)
-    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz) :
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2 := by
   classical
   have hnn : ∀ B : State, 0 ≤ (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
@@ -424,10 +425,11 @@ lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pA
   refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg hs (fun B _ _ => hnn B)) ?_
   rw [schedule]
   refine le_trans (sum_image_le_sum _ hnn _ _) ?_
-  have hL := ladderLen_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+  have hL := ladderLen_pos (εs := εs) (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit)
     (hsz := hsz) η₀ populations εcov δ α pAP
   obtain ⟨n, hn⟩ :
-      ∃ n, ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz = n + 1 :=
+      ∃ n, ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz = n + 1 :=
     ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
   rw [hn]
   exact (ladder_inv_sum_le _ V n).1
@@ -477,26 +479,29 @@ lemma flipFrac_voteSlack (η₀ : ℝ) (hsig : η₀ < 1 / 2) :
   field_simp
   ring
 
-lemma rejFrac_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
-    (hind : 0 < indecisionLimit) : 0 < rejFrac η₀ indecisionLimit εcov := by
+lemma rejFrac_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
+    (hind : 0 < indecisionLimit) : 0 < rejFrac η₀ indecisionLimit εcov εs := by
   rw [rejFrac]
   have := cutBudget_pos η₀ hsig hε hind
   have := flipFrac_pos η₀ hsig
-  positivity
+  exact lt_min (by positivity) (by positivity)
 
 /-- The redraws are a hundred-and-twenty-eighth of the cut budget, and of the flip fraction. -/
 lemma rejFrac_le (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
     (hind : 0 < indecisionLimit) :
-    rejFrac η₀ indecisionLimit εcov ≤ cutBudget η₀ indecisionLimit εcov / 128
-    ∧ rejFrac η₀ indecisionLimit εcov
-      = 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀ := by
+    rejFrac η₀ indecisionLimit εcov εs ≤ cutBudget η₀ indecisionLimit εcov / 128
+    ∧ rejFrac η₀ indecisionLimit εcov εs
+      ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀
+    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ εs / 4 := by
   have hc := cutBudget_pos η₀ hsig hε hind
   have hf : 3 * flipFrac η₀ ≤ 1 := by
     have h1 : (0 : ℝ) < 5 * (1 - η₀) := by linarith
     rw [flipFrac, sig, mul_div_assoc', div_le_one h1]
     linarith
-  refine ⟨?_, by rw [rejFrac]; ring⟩
-  rw [rejFrac]
+  have h1 : rejFrac η₀ indecisionLimit εcov εs
+      ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀ := by
+    rw [rejFrac]; exact (min_le_left _ _).trans_eq (by ring)
+  refine ⟨?_, h1, min_le_right _ _⟩
   nlinarith [flipFrac_pos η₀ hsig]
 
 /-- A state that redraws a `c` fraction of its `m` draws pays `(m + r)²/(r + 1) ≤ 2m/c` for it
@@ -1810,6 +1815,74 @@ lemma cert_hits_wrongSet (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityM
   · rw [Finset.card_range]
 
 open scoped Classical in
+/-- `cert_hits_wrongSet` relative to the mass, `exp(−m t²/(2l))`. -/
+lemma cert_hits_wrongSet_rel (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeasure (Pc j)]
+    (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj] (hPc : Pc j = iidStream Dj) (m : ℕ)
+    (W : Set S) (l t : ℝ) (hl : 0 < l) (ht : 0 ≤ t) (hW : l ≤ Dj.real W) :
+    (Measure.pi Pc).real
+        {c | (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) ≤ (m : ℝ) * (l - t)}
+      ≤ Real.exp (-((m : ℝ) * (t ^ 2 / (2 * l)))) := by
+  classical
+  rcases Nat.eq_zero_or_pos m with hm | hm
+  · subst hm; simpa using measureReal_le_one
+  set ν : Measure (J → ℕ → S) := Measure.pi Pc with hνdef
+  have hWm : MeasurableSet W := measurableSet_of_countable W
+  set ind : S → ℝ := W.indicator 1 with hinddef
+  have hindm : Measurable ind := measurable_const.indicator hWm
+  set X : ℕ → (J → ℕ → S) → ℝ := fun i c => ind (c j i) with hXdef
+  have hevalj : MeasurePreserving (fun c : J → ℕ → S => c j) ν (iidStream Dj) := by
+    rw [← hPc]; exact measurePreserving_eval Pc j
+  have hcoord : iIndepFun (fun (i : ℕ) (s : ℕ → S) => s i)
+      (Measure.infinitePi fun _ : ℕ => Dj) := iIndepFun_infinitePi (fun _ => measurable_id)
+  have hindep : iIndepFun X ν :=
+    (iIndepFun_comp_measurePreserving hevalj (fun _ => measurable_pi_apply _) hcoord).comp
+      (fun _ => ind) (fun _ => hindm)
+  have hmeas : ∀ i, Measurable (X i) := fun i =>
+    hindm.comp ((measurable_pi_apply _).comp (measurable_pi_apply _))
+  have hicc : ∀ i, ∀ᵐ c ∂ν, X i c ∈ Set.Icc (0 : ℝ) 1 := by
+    intro i
+    filter_upwards with c
+    by_cases h : c j i ∈ W
+    · simp [hXdef, hinddef, Set.indicator_of_mem h]
+    · simp [hXdef, hinddef, Set.indicator_of_notMem h]
+  have hmean : ∀ i, ν[X i] = Dj.real W := by
+    intro i
+    have hmp : MeasurePreserving (fun c : J → ℕ → S => c j i) ν (Dj) :=
+      (measurePreserving_eval_infinitePi _ i).comp hevalj
+    calc ν[X i] = ∫ s, ind s ∂(Dj) := by
+          rw [← hmp.map_eq,
+            integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
+      _ = Dj.real W := by rw [hinddef, integral_indicator_one hWm]
+  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
+  have hsum : (m : ℝ) * l ≤ ∑ i ∈ Finset.range m, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
+      Finset.card_range]
+    exact mul_le_mul_of_nonneg_left hW hmR.le
+  have hmain := sumLower_rel X (Finset.range m) ((m : ℝ) * l) ((m : ℝ) * t) hmeas hindep hicc
+    (by positivity) hsum (by positivity)
+  have hcount : ∀ c : J → ℕ → S, ∑ i ∈ Finset.range m, X i c
+      = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+    intro c
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c j i ∈ W)]
+    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c
+        = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c = (1 : ℝ) := by
+        intro i hi
+        simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
+      rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
+    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c j i ∈ W)), X i c = 0 :=
+      Finset.sum_eq_zero (fun i hi => by
+        simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
+    rw [h1, h0, add_zero]
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) (le_of_eq ?_)
+  · intro c hc
+    simp only [Set.mem_setOf_eq] at hc ⊢
+    rw [hcount c]
+    linarith [hc]
+  · congr 1
+    field_simp
+
+open scoped Classical in
 /-- The upper-tail twin: a set of mass at most `q` is hit at most `m(q + t)` times.  This
 is what prices the certification prefixes the family flips too much of, whose set is chosen
 by the noise while the draws are not. -/
@@ -1938,8 +2011,8 @@ lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : F
 
 lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ : ℝ) :
-    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz : ℝ) := by
+    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
   classical
   refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
     (schedule_npref_sum_le η₀ populations εcov δ α pAP)
@@ -1948,9 +2021,9 @@ lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
 
 lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ : ℝ} {B : State}
-    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz ρ) :
-    Capped η₀ populations indecisionLimit εcov δ (3 * ρ) pAP
-      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit hsz)
+    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ) :
+    Capped η₀ populations indecisionLimit εcov εs δ (3 * ρ) pAP
+      (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
@@ -3560,22 +3633,24 @@ lemma measurable_badMassReal (O : Oracle μ S) (Dj : Measure S) (lo hi : ℕ) (A
 
 open scoped Classical in
 /-- A block of i.i.d. draws hits a set about as often as its mass.  The lower tail, for
-the suffix pool: a mass-`q` set is hit at least `M(q − t)` times. -/
+the suffix pool, relative to the mass: a mass-`q` set is hit at least `M(q − t)` times. -/
 lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : Set S)
     (q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t) (hW : q ≤ Dsf.real W) :
     (Measure.pi fun _ : Fin M => Dsf).real
         {r : Fin M → S | (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)
           ≤ (M : ℝ) * (q - t)}
-      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((M : ℝ) * (t ^ 2 / (2 * q)))) := by
   classical
   set ν : Measure (Fin M → S) := Measure.pi fun _ : Fin M => Dsf with hνdef
+  rcases Nat.eq_zero_or_pos M with hM | hM
+  · subst hM; simpa using measureReal_le_one
+  rcases hq.eq_or_lt with hq0 | hq0
+  · subst hq0; simpa using measureReal_le_one
   have hWm : MeasurableSet W := measurableSet_of_countable W
   set ind : S → ℝ := W.indicator 1 with hinddef
   have hindm : Measurable ind := measurable_const.indicator hWm
   set X : Fin M → (Fin M → S) → ℝ := fun i r => ind (r i) with hXdef
   have hindep : iIndepFun X ν := iIndepFun_pi (fun _ => hindm.aemeasurable)
-  have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
-    (hindm.comp (measurable_pi_apply _)).aemeasurable
   have hicc : ∀ i, ∀ᵐ r ∂ν, X i r ∈ Set.Icc (0 : ℝ) 1 := by
     intro i
     filter_upwards with r
@@ -3590,11 +3665,14 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
           rw [← hmp.map_eq,
             integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
       _ = Dsf.real W := by rw [hinddef, integral_indicator_one hWm]
-  have hsum : ((Finset.univ : Finset (Fin M)).card : ℝ) * q ≤ ∑ i, ν[X i] := by
-    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul]
-    have hc : (0 : ℝ) ≤ ((Finset.univ : Finset (Fin M)).card : ℝ) := Nat.cast_nonneg _
-    nlinarith [hW]
-  have hmain := sumLower_le X (Finset.univ : Finset (Fin M)) q t hmeas hindep hicc hsum ht
+  have hMR : (0 : ℝ) < M := Nat.cast_pos.2 hM
+  have hsum : (M : ℝ) * q ≤ ∑ i, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
+      Finset.card_univ, Fintype.card_fin]
+    exact mul_le_mul_of_nonneg_left hW hMR.le
+  have hmain := sumLower_rel X (Finset.univ : Finset (Fin M)) ((M : ℝ) * q) ((M : ℝ) * t)
+    (fun i => hindm.comp (measurable_pi_apply i)) hindep hicc (by positivity) hsum
+    (by positivity)
   have hcount : ∀ r : Fin M → S, ∑ i, X i r
       = (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ) := by
     intro r
@@ -3611,13 +3689,13 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
       Finset.sum_eq_zero (fun i hi => by
         simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
     rw [h1, h0, add_zero]
-  have hcard : ((Finset.univ : Finset (Fin M)).card : ℝ) = (M : ℝ) := by simp
-  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) ?_
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) (le_of_eq ?_)
   · intro r hr
     simp only [Set.mem_setOf_eq] at hr ⊢
-    rw [hcount r, hcard]
+    rw [hcount r]
     linarith [hr]
-  · rw [hcard]
+  · congr 1
+    field_simp
 
 open scoped Classical in
 /-- The pool is short of accept-preserving suffixes.  It reads the suffix draws and nothing
@@ -3636,7 +3714,7 @@ theorem measureReal_apShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measur
     (pAP t : ℝ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}) :
     (streamMeasure μ Pp Pc Dsf).real (apShort O M pAP t)
-      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((M : ℝ) * (t ^ 2 / (2 * pAP)))) := by
   classical
   rw [apShort]
   set W : Set S := {v | ∀ p, O.label (p * v) = O.label p} with hW
@@ -4022,11 +4100,11 @@ theorem measureReal_undecidedShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf :
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
-    (hPc : Pc j = iidStream Dj) (B : State) (l t : ℝ) (hl : 0 ≤ l) (ht : 0 ≤ t) :
+    (hPc : Pc j = iidStream Dj) (B : State) (l t : ℝ) (hl : 0 < l) (ht : 0 ≤ t) :
     (streamMeasure μ Pp Pc Dsf).real (undecidedShort rule O populations Dj j B l t)
-      ≤ Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := by
+      ≤ Real.exp (-((B.npref : ℝ) * (t ^ 2 / (2 * l)))) := by
   classical
-  set E : ℝ := Real.exp (-2 * (B.npref : ℝ) * t ^ 2) with hEdef
+  set E : ℝ := Real.exp (-((B.npref : ℝ) * (t ^ 2 / (2 * l)))) with hEdef
   have hEnn : streamMeasure μ Pp Pc Dsf (undecidedShort rule O populations Dj j B l t)
       ≤ ENNReal.ofReal E := by
     refine streamMeasure_slice_cert_le Pp Pc Dsf _
@@ -4054,7 +4132,7 @@ theorem measureReal_undecidedShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf :
         ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
       rw [hEdef]
-      have hcert := cert_hits_wrongSet Pc j Dj hPc B.npref W l t hl ht hmass
+      have hcert := cert_hits_wrongSet_rel Pc j Dj hPc B.npref W l t hl ht hmass
       convert hcert using 3
       funext c
       congr!

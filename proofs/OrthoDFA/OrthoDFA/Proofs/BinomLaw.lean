@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.LowLevelClaims.Clustering
 import Mathlib.Probability.Independence.Basic
 
 /-!

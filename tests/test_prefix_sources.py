@@ -9,6 +9,7 @@ import unittest
 
 import numpy as np
 
+from orthogonal_dfa.l_star.fallbacks.score_patience import SCORE_STALLED
 from orthogonal_dfa.l_star.prefix_sources import HarvestSource, Replay, harvest_reader
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
@@ -35,6 +36,7 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=known,
             acc_threshold=0.98,
+            retirable=False,
         )
 
     def test_a_find_is_served(self):
@@ -78,6 +80,7 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=(),
             acc_threshold=0.98,
+            retirable=False,
         )
         ends = [source.draw()[-1:] for _ in range(400)]
 
@@ -90,20 +93,43 @@ class TestReplay(unittest.TestCase):
         ending = Ending(HARVEST_ENDS, [])
         self.assertEqual(
             [b"\x01\x00"],
-            Replay(search, harvest_reader(ending), lambda: b"\x01\x00").sample(),
+            Replay(
+                search, harvest_reader(ending, search), lambda: b"\x01\x00"
+            ).sample(),
         )
         self.assertEqual(
-            [], Replay(search, harvest_reader(ending), lambda: b"\x01\x01").sample()
+            [],
+            Replay(
+                search, harvest_reader(ending, search), lambda: b"\x01\x01"
+            ).sample(),
         )
 
     def test_a_stuck_harvest_reads_only_what_sticks_at_an_unlearned_edge(self):
         edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
         search = quiet_search(parity_cut([b"\x00\x01", b"\x00"]), edges)
-        read = harvest_reader(Ending(HARVEST_STUCK, []))
+        read = harvest_reader(Ending(HARVEST_STUCK, []), search)
         self.assertEqual(
             [b"\x00\x01"], Replay(search, read, lambda: b"\x00\x01").sample()
         )
         self.assertEqual([], Replay(search, read, lambda: b"\x00").sample())
+
+    def test_with_members_a_stuck_harvest_reads_every_end(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
+        search = quiet_search(
+            parity_cut([b"\x00\x01", b"\x00"]), edges, members=[b"\x01"]
+        )
+        read = harvest_reader(Ending(HARVEST_STUCK, []), search)
+        self.assertEqual([b"\x00"], Replay(search, read, lambda: b"\x00").sample())
+
+    def test_a_stalled_score_harvest_reads_ends_stuck_and_middles(self):
+        edges = {e: t for e, t in PARITY_EDGES.items() if e != (EVEN, 1)}
+        search = quiet_search(parity_cut([b"\x00\x01", b"\x00"]), edges)
+        read = harvest_reader(Ending(SCORE_STALLED, []), search)
+        # A stuck read is also an end, so it is read twice.
+        self.assertEqual(
+            [b"\x00\x01"] * 2, Replay(search, read, lambda: b"\x00\x01").sample()
+        )
+        self.assertEqual([b"\x00"], Replay(search, read, lambda: b"\x00").sample())
 
 
 if __name__ == "__main__":

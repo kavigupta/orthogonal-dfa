@@ -49,10 +49,10 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         RarerBounded N B.lo (B.hi + 1) p r crossLimit)
       ∧ (∀ pops, ∀ B ∈ schedule pops,
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
-        ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
+        ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
-        ≤ 2 * prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel pAP
+        ≤ 2 * prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
@@ -71,7 +71,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
-            2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
+            2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
           (runMeasure μ D Dsf).real
             {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
                 ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -92,9 +92,9 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       simp [allHarvest] at hs)
   have hq : ∀ pops : Finset (Option (Fin K)), none ∈ pops → _ := fun pops hpops =>
     clustering_quality_sized O pops pops none (fun _ => ∅) Pre Suf η₀ indecisionLimit εcov
-      gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
-      (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 hδc hδc1 hc0
-      hslack
+      (εcov / 512) gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
+      (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 (by positivity)
+      hδc hδc1 hc0 hslack
   refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
   · intro pops B hB
     dsimp only at hB
@@ -103,31 +103,11 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-    obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hs
-    have hκ4 := famCount_kappa (indecisionLimit := indecisionLimit) (crossLimit := c)
-      (δ := δc / 2) η₀ pops hη0 hη₀ hc0 hε hι
-    have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := c)
-      η₀ pops εcov (δc / 2)
+    obtain ⟨hBk, -, -⟩ := band_of_mem_schedule hs
     have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := c)
       η₀ pops εcov (δc / 2) hη₀
-    set κc : ℕ := famCount η₀ pops indecisionLimit εcov (δc / 2) c with hκc
-    obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
-    have hb0 : (0 : ℝ) ≤ bandAt η₀ κc := Nat.cast_nonneg _
-    have hκ2 : ((κc / 2 : ℕ) : ℝ) = (κc : ℝ) / 2 := by
-      obtain ⟨m, hm⟩ := hev
-      rw [hm, show (m + m) / 2 = m by omega]; push_cast; ring
-    have hlo2 : loAt η₀ κc < κc / 2 := by
-      have : (loAt η₀ κc : ℝ) < ((κc / 2 : ℕ) : ℝ) := by rw [hκ2, hlo]; linarith
-      exact_mod_cast this
-    have hhi2 : κc / 2 < hiAt η₀ κc + 1 := by
-      have : ((κc / 2 : ℕ) : ℝ) < ((hiAt η₀ κc + 1 : ℕ) : ℝ) := by push_cast; rw [hκ2, hhi]; linarith
-      exact_mod_cast this
-    have hκ1 : bandKappa κc (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ crossLimit :=
-      le_of_pow_le_pow_left₀ (by norm_num : (4 : ℕ) ≠ 0) hcross.le (hκ4.trans_eq hc)
-    refine ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 => ?_⟩
-    rw [hBlo, hBhi]
-    exact (bandKappaBound_holds N κc _ _ _ p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _) hp0 hp1
-      hr0 hr1).mono hκ1 hp0 hp1 hr0 hr1
+    exact ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 =>
+      kappa_of_mem_schedule hη0 hη₀ hc0 hε hι hs N hN hcross.le hc.le hp0 hp1 hr0 hr1⟩
   · intro pops B hB
     dsimp only at hB
     split_ifs at hB with hp
@@ -142,20 +122,44 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
   · intro pops
     dsimp only
     split_ifs with hp
-    · have hsub : Classical.choose (hq pops hp) ⊆ schedule η₀ pops indecisionLimit εcov (δc / 2)
-          gateLevel pAP c 0 := fun B hB => by
+    · have hsub : Classical.choose (hq pops hp)
+          ⊆ schedule η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP c 0 :=
+          fun B hB => by
         have h := (Classical.choose_spec (hq pops hp)).2.1 hB
         rwa [hH] at h
       have h := le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub
         (fun _ _ _ => Nat.cast_nonneg _))
-        (schedule_npref_sum_le η₀ pops εcov (δc / 2) gateLevel pAP)
+        (schedule_npref_sum_le (εs := εcov / 512) η₀ pops εcov (δc / 2) gateLevel pAP)
       exact_mod_cast h
     · simp
   · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
     simp only [dif_pos hpops] at hcolD hcolH hslD htbD hcolSf ⊢
     set states := Classical.choose (hq pops hpops)
     obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
-    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
+    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+    have ha : 0 ≤ (1 - 2 * η₀) / (1 - η₀) := div_nonneg (by linarith) (by linarith)
+    have ha1 : (1 - 2 * η₀) / (1 - η₀) ≤ 1 := (div_le_one (by linarith)).2 (by linarith)
+    have hrs : rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) ≤ εcov / 2 := by
+      have h1 : rateScale η₀ indecisionLimit εcov ≤ εcov :=
+        (min_le_left _ _).trans (mul_le_of_le_one_right hε.le (pow_le_one₀ ha ha1))
+      have := mul_le_mul h1 (show 1 / 2 - η₀ ≤ 1 / 2 by linarith) (by linarith) hε.le
+      linarith
+    have hcolE : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
+        2 ^ 8 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εcov / 512 :=
+      fun B hB j hj t => by linarith [hcolD B hB j hj t]
+    have hmin : min εcov indecisionLimit / 512 ≤ min (εcov / 512) indecisionLimit :=
+      le_min (by linarith [min_le_left εcov indecisionLimit])
+        (by linarith [min_le_right εcov indecisionLimit, lt_min hε hι])
+    have hmin2 :
+        (min εcov indecisionLimit) ^ 2 / 2 ^ 18 ≤ min (εcov / 512) indecisionLimit ^ 2 := by
+      have := pow_le_pow_left₀ (by have := lt_min hε hι; positivity) hmin 2
+      linarith
+    have hcolH' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
+        2 ^ 16 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δc * min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
+      have h := hcolH B hB j hj t
+      nlinarith [mul_le_mul_of_nonneg_left hmin2 hδc.le]
+    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
         ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
@@ -176,7 +180,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
             ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
             ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
-                ∂(D none) ≤ 513 / 512 * εcov + slack
+                ∂(D none) ≤ εcov + εcov / 512 + slack
             ∧ ∀ j ∈ pops,
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
@@ -187,7 +191,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         ⊆ streams (fun _ => ∅) none ⁻¹' SpecR := by
       rintro x ⟨⟨B, hret⟩, hall⟩
       exact ⟨⟨B.val, B.property, hret⟩, fun B' hB' hret' =>
-        ⟨(hall ⟨B', hB'⟩ hret').1, fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
+        ⟨by linarith [(hall ⟨B', hB'⟩ hret').1], fun j hj => ((hall ⟨B', hB'⟩ hret').2 j hj).2⟩⟩
     have hmono := measureReal_mono (μ := runMeasure μ D Dsf) hsub (measure_ne_top _ _)
     have hcompl : (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR)ᶜ
         = 1 - (runMeasure μ D Dsf).real (streams (fun _ => ∅) none ⁻¹' SpecR) :=
@@ -347,6 +351,34 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
   calc ∑ t ∈ T, ν.real {t} ≤ ∑ _t ∈ T, q := Finset.sum_le_sum fun t _ => hq t
     _ = T.card * q := by rw [Finset.sum_const, nsmul_eq_mul]
 
+lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (a b : ℕ)
+    (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
+    ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.prefs.card).sum ≤ K * a
+      ∧ ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.suffs.card).sum ≤ K * b := by
+  have hlen : (indecisiveLStarLoop settings O D Dsf draws).length ≤ K :=
+    length_loopRounds_le settings O D Dsf draws K
+  have hmem : ∀ o ∈ indecisiveLStarLoop settings O D Dsf draws,
+      o.prefs.card ≤ a ∧ o.suffs.card ≤ b := by
+    intro o ho
+    unfold indecisiveLStarLoop at ho
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
+    obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws K i hi
+    rw [e]
+    exact h _ _
+  have hsum : ∀ (f : LoopRound Ω α K → ℕ) (c : ℕ),
+      (∀ o ∈ indecisiveLStarLoop settings O D Dsf draws, f o ≤ c) →
+      ((indecisiveLStarLoop settings O D Dsf draws).map f).sum ≤ K * c := fun f c hf => by
+    refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
+    · obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hn
+      exact hf o ho
+    · rw [List.length_map, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ hlen
+  exact ⟨hsum _ a fun o ho => (hmem o ho).1, hsum _ b fun o ho => (hmem o ho).2⟩
+
 /-- Every round the loop runs follows rounds whose clusterings returned, returns itself, and
 reads no prefix or suffix an earlier round read. -/
 def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
@@ -385,13 +417,14 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     poolCount η₀ pops indecisionLimit εcov (δc / 2) (pAP - ms) c ≤ NS) →
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
-    prefCount η₀ pops indecisionLimit εcov (δc / 2) gateLevel (pAP - ms) c 0 ≤ NP) →
+    prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel (pAP - ms) c 0
+      ≤ NP) →
   2 ^ 19 * ((K : ℝ) + 4) * NP * cap ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) →
   2 ^ 35 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap
     ≤ δc * min εcov indecisionLimit ^ 2 →
   2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
-  2 ^ 14 * ((K : ℝ) + 2) * NS * cap ≤ δc * (pAP - ms) →
+  2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
   1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
@@ -407,6 +440,9 @@ def LoopCore : Prop :=
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
     settings.gateLevel = gateLevel ∧ settings.level3 = C ∧
     (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
+    (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -445,12 +481,36 @@ theorem loop_core_holds : LoopCore := by
     · exact hband₀ pops B hB
     · simp at hB
   set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, C⟩ with hset
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
-  · intro pops
+  -- the schedule's sizes
+  have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
+      (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
+    simp only [hset, hschedd] at hB
+    split_ifs at hB with hp
+    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
+    · simp at hB
+  have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
     simp only [hset, hschedd]
     split_ifs with hp
     · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
     · simp
+  have hreads : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1 := by
+    intro pops x
+    have hpops : pops.card ≤ K + 1 := by
+      have := Finset.card_le_univ pops
+      simpa using this
+    refine ⟨(card_roundPrefs_le _ _ _).trans ?_, ?_⟩
+    · calc 3 * pops.card * ∑ B ∈ settings.schedule pops, B.npref
+          ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) (hNPsum pops)
+        _ = 6 * (K + 1) * NP := by ring
+    · by_cases hp : none ∈ pops
+      · exact (card_roundSuffs_le _ (fun B hB => (hsizes pops B hB).1) _).trans
+          (Nat.succ_le_succ (hNSb pops hp))
+      · have he : settings.schedule pops = ∅ := if_neg hp
+        rw [he]
+        exact (card_roundSuffs_le (n := 0) ∅ (by simp) x).trans (by omega)
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   set k := C.walkStart
   set T := C.probeBudget
@@ -469,18 +529,6 @@ theorem loop_core_holds : LoopCore := by
   have hcap4 : cap * C.harvestRate / 2 ≤ cap := by
     have : cap * C.harvestRate ≤ cap * 1 := mul_le_mul_of_nonneg_left hy1 hcap.le
     linarith
-  -- the schedule's sizes
-  have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
-      (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
-    simp only [hset, hschedd] at hB
-    split_ifs at hB with hp
-    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
-    · simp at hB
-  have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
-    simp only [hset, hschedd]
-    split_ifs with hp
-    · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
-    · simp
   have hDat : ∀ t, P.D.real {t} ≤ cap := fun t =>
     (real_singleton_le_prefixMax P.D k t).trans (hk1.trans hcap4)
   have hLs' : P.L < Ls := by omega
@@ -580,14 +628,11 @@ theorem loop_core_holds : LoopCore := by
     · have hns : (B.nsuff : ℝ) ≤ NS := by
         rw [(hsizes pops B (by rw [hs]; exact hB)).1]
         exact_mod_cast hNSb pops hpops
-      have hc1 := hpopc pops
-      have hb := mul_le_mul hc1 hns (Nat.cast_nonneg _) (by positivity)
-      have hcc := mul_le_mul hb hcolS hcolS0 (by positivity)
-      calc 2 ^ 13 * ((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Lsf
-          = 2 ^ 13 * (((pops.card : ℝ) + 1) * (B.nsuff : ℝ) * collisionMass Lsf) := by ring
-        _ ≤ 2 ^ 13 * (((K : ℝ) + 2) * NS * (2 * cap)) :=
-            mul_le_mul_of_nonneg_left hcc (by norm_num)
-        _ = 2 ^ 14 * ((K : ℝ) + 2) * NS * cap := by ring
+      have hcc := mul_le_mul hns hcolS hcolS0 (by positivity)
+      calc 2 ^ 14 * (B.nsuff : ℝ) * collisionMass Lsf
+          = 2 ^ 14 * ((B.nsuff : ℝ) * collisionMass Lsf) := by ring
+        _ ≤ 2 ^ 14 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
+        _ = 2 ^ 15 * NS * cap := by ring
         _ ≤ _ := hq3
   -- the history's reads number at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes a round
   have hcodes : ∀ (ω : Ω) (g : Fin K → RoundDraws α K T) (r : ℕ),

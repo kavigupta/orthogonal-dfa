@@ -1,4 +1,4 @@
-import OrthoDFA.Probe
+import OrthoDFA.LowLevelClaims.Probe
 import OrthoDFA.Proofs.DTree
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.TripartiteSearch

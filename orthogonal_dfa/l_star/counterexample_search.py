@@ -4,20 +4,44 @@ from itertools import islice
 from typing import Iterable, Optional, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
-from .counterexample_probe import Charges, EdgeFound, Member, Outcome, charges, locate
+from .counterexample_probe import (
+    Charges,
+    EdgeFound,
+    End,
+    Member,
+    Outcome,
+    charges,
+    locate,
+)
+from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
-from .round_end import OUT_OF_PROBES, Ending, SiteCounts, ending_test
+from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
 
 
 class CounterexampleSearch:
     """``Level5State``, splitting at every contradiction (Kearns–Vazirani)."""
 
-    def __init__(self, config: CounterexampleSearchConfig, cut: Cut, tree: MidfixTree):
+    def __init__(
+        self,
+        config: CounterexampleSearchConfig,
+        cut: Cut,
+        tree: MidfixTree,
+        *,
+        max_k: int,
+        member_fallback: Optional[MemberFallback] = None,
+        score_patience: Optional[ScorePatience] = None,
+    ):
+        """A harvest that repeats a string increments ``k`` instead of ending the
+        search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
         self.probes = 0
+        self.k, self.max_k = config.k, max_k
+        self.member_fallback = member_fallback
+        self.score_patience = score_patience
 
     def run(self, draws: Iterable[bytes]) -> Ending:
         """``step`` over the first ``max_probes`` of ``draws``."""
@@ -28,6 +52,10 @@ class CounterexampleSearch:
         return Ending(OUT_OF_PROBES, [])
 
     def step(self, x: bytes) -> Optional[Ending]:
+        if self.score_patience is not None:
+            stalled = self.score_patience.observe(self)
+            if stalled is not None:
+                return stalled
         outcome, charged = self.probe(x)
         self.probes += 1
         if isinstance(outcome, Member):
@@ -39,11 +67,39 @@ class CounterexampleSearch:
             self.counts = SiteCounts()
             return None
         self.counts.add(charged, outcome)
-        return ending_test(self.counts, self.config, self.hypothesis.tree.depth)
+        ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
+        if self.score_patience is not None:
+            self.score_patience.record(charged)
+        # Before the filter: without harvest tests a harvest still deepens.
+        if ending is not None and self._deepens(ending):
+            return None
+        if self.score_patience is not None:
+            ending = self.score_patience.filter(ending, self.counts, self.config)
+        return ending
+
+    def _deepens(self, ending: Ending) -> bool:
+        """Walk deeper in place of a harvest that repeats a string, which a deeper
+        start stops reaching.  The counts restart, or the test that just fired would
+        fire again at once."""
+        if (
+            self.k >= self.max_k
+            or ending.kind not in HARVESTS
+            or len(set(ending.harvest)) == len(ending.harvest)
+        ):
+            return False
+        self.k = min(self.k + 1, self.max_k)
+        self.counts = SiteCounts()
+        print(f"  {ending.kind} repeated a string; k now {self.k}")
+        return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.config.k, x)
-        return located.outcome, charges(located, self.config.k, x)
+        located = locate(self.hypothesis, self.k, x)
+        stuck = isinstance(located.outcome, End) and located.outcome.stuck
+        if stuck and self.member_fallback is not None:
+            located = self.member_fallback.read_stuck(
+                self.hypothesis, self.k, located, x
+            )
+        return located.outcome, charges(located, self.k, x)
 
     def _split(self, found: EdgeFound):
         """Split the edge's source on its letter and the midfix where the probe's

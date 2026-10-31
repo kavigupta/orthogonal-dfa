@@ -1,4 +1,4 @@
-import OrthoDFA.Level3Claim
+import OrthoDFA.LowLevelClaims.Level3Claim
 
 /-!
 # The round's risk at the proof's free parameters

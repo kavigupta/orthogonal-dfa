@@ -141,6 +141,10 @@ class MaskTable:
         self._suffix_index[v] = row
         return row
 
+    @property
+    def num_suffixes(self) -> int:
+        return len(self._suffixes)
+
     def contains_suffix(self, v: bytes) -> bool:
         return v in self._suffix_index
 

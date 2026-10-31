@@ -60,9 +60,28 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+    #: Full families in a row whose FNR fails to drop by ``fnr_plateau_tol`` before
+    #: the family search takes the best one seen; ``None`` waits for ``fnr_limit``.
+    fnr_plateau_patience: Optional[int] = None
+    fnr_plateau_tol: float = 0.01
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
+    #: Searches per round on independent probe streams, keeping the one whose DFA
+    #: has the best held-out phi.
+    counterexample_restarts: int = 1
+    #: Rank uncertified rounds by held-out phi rather than consistency.
+    rank_rounds_by_held_out: bool = False
+    #: When set, a round's search returns its best hypothesis by held-out phi, and
+    #: stops once this many probes pass without a better one.
+    counterexample_score_patience: Optional[int] = None
+    #: Off, a round's search ends only on success or on its score stalling, and
+    #: harvests every distinct string it read undecided; needs
+    #: ``counterexample_score_patience``.
+    counterexample_harvest_tests: bool = True
+    #: Read an edge a probe leaves undecided on a representative prefix of its
+    #: source leaf instead.
+    counterexample_member_fallback: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
@@ -70,6 +89,7 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
         # Past a half, a DFA no better than chance would be certified.
         assert 0 < self.certified_error < 1 / 2, self.certified_error
+        assert self.counterexample_restarts >= 1, self.counterexample_restarts
 
 
 def _draw_budget(count: int) -> int:

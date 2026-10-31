@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.HypothesisDFA
+import OrthoDFA.LowLevelClaims.HypothesisDFA
 import OrthoDFA.Proofs.DTree
 
 /-!

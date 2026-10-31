@@ -37,6 +37,10 @@ class _OrderedRecorder(RecordingTracker):
         super().on_consistency_estimated(consistency, round_index)
         self.calls.append(("consistency", round_index))
 
+    def on_round_summarized(self, summary, round_index):
+        super().on_round_summarized(summary, round_index)
+        self.calls.append(("summarized", round_index))
+
     def on_corrected_dfa_found(self, dfa, round_index):
         super().on_corrected_dfa_found(dfa, round_index)
         self.calls.append(("corrected", round_index))
@@ -64,7 +68,14 @@ class TestSynthesisTracker(unittest.TestCase):
 
     def test_every_round_reports_once(self):
         rounds = 1 + max(r for _, r in self.tracker.calls)
-        for name in ("family", "classified", "ended", "initial", "consistency"):
+        for name in (
+            "family",
+            "classified",
+            "ended",
+            "initial",
+            "consistency",
+            "summarized",
+        ):
             fired = [r for called, r in self.tracker.calls if called == name]
             self.assertEqual(fired, list(range(rounds)), name)
 
@@ -82,7 +93,8 @@ class TestSynthesisTracker(unittest.TestCase):
             if r == 0 and name != "corrected"  # which may also name round 0
         ]
         self.assertEqual(
-            first, ["family", "classified", "ended", "initial", "consistency"]
+            first,
+            ["family", "classified", "ended", "summarized", "initial", "consistency"],
         )
 
     def test_corrected_names_the_most_consistent_round(self):
@@ -96,6 +108,17 @@ class TestSynthesisTracker(unittest.TestCase):
         self.assertEqual(len(self.tracker.classifiers), rounds)
         self.assertEqual(len(self.tracker.endings), rounds)
         self.assertEqual(len(self.tracker.hypotheses), rounds)
+        self.assertEqual(len(self.tracker.summaries), rounds)
+
+    def test_summaries_agree_with_the_other_streams(self):
+        for r, summary in enumerate(self.tracker.summaries):
+            suffixes, _ = self.tracker.families[r]
+            self.assertEqual(summary.family_size, len(suffixes))
+            self.assertEqual(summary.ending, self.tracker.endings[r].kind)
+            _, tree = self.tracker.hypotheses[r]
+            self.assertEqual(summary.hypothesis_states, tree.num_states)
+            self.assertGreater(summary.probes, 0)
+            self.assertGreaterEqual(summary.prefixes, summary.representative_prefixes)
 
     def test_recording_tracker_pickles(self):
         # The point of recording is reading it back later, so the families must
@@ -134,6 +157,17 @@ class TestMaxRounds(unittest.TestCase):
         self.assertIsNotNone(best.dfa)
         # A caller recording nothing has no other route to the settled tree.
         self.assertIsNotNone(best.tree)
+
+    def test_restarts_and_ranks_on_held_out_phi(self):
+        pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
+        pst.config.counterexample_restarts = 2
+        pst.config.rank_rounds_by_held_out = True
+        best = counterexample_driven_synthesis(
+            pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
+        )
+        self.assertIsNotNone(best.dfa)
+        # Its DFA ends every sampled string in one state, so the phi is exactly 0.
+        self.assertEqual(best.score, 0.0)
 
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.

@@ -1,4 +1,4 @@
-import OrthoDFA.Utils.CoveredStart
+import OrthoDFA.LowLevelClaims.CoveredStart
 import OrthoDFA.Proofs.RandomRisk
 
 /-! # Uniform strings of one length: their mass, and their prefixes' -/
@@ -60,40 +60,6 @@ lemma uniformStrings_singleton_le (n : ℕ) (t : FreeMonoid α) :
     refine Finite.card_le_one_iff_subsingleton.mpr ⟨fun ⟨v, hv⟩ ⟨w, hw⟩ => ?_⟩
     exact Subtype.ext (ofList_toList_injective n (hv.trans hw.symm))
   exact div_le_div_of_nonneg_right (by exact_mod_cast this) (by positivity)
-
-lemma prefixMax_uniformStrings_le [Nonempty α] {n k : ℕ} (hk : k ≤ n) :
-    Random.prefixMax (uniformStrings (α := α) n) k ≤ 1 / (Fintype.card α : ℝ) ^ k := by
-  have hA : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
-  unfold Random.prefixMax
-  refine ciSup_le fun u => ?_
-  rw [uniformStrings_real]
-  have hinj : Function.Injective fun v : {v : List.Vector α n //
-      FreeMonoid.ofList v.toList ∈ {x : FreeMonoid α | prefixOf x k = u}} =>
-      (v.1.drop k : List.Vector α (n - k)) := by
-    rintro ⟨v, hv⟩ ⟨w, hw⟩ h
-    have hv' : v.toList.take k = u.toList := by
-      have := congrArg FreeMonoid.toList hv
-      simpa [prefixOf] using this
-    have hw' : w.toList.take k = u.toList := by
-      have := congrArg FreeMonoid.toList hw
-      simpa [prefixOf] using this
-    have hd : v.toList.drop k = w.toList.drop k := by
-      have := congrArg List.Vector.toList h
-      simpa using this
-    refine Subtype.ext (List.Vector.toList_injective ?_)
-    rw [← List.take_append_drop k v.toList, ← List.take_append_drop k w.toList, hv', hw', hd]
-  have hc := Nat.card_le_card_of_injective _ hinj
-  rw [Nat.card_eq_fintype_card (α := List.Vector α (n - k)), card_vector] at hc
-  have hc' : (Nat.card {v : List.Vector α n // FreeMonoid.ofList v.toList ∈
-      {x : FreeMonoid α | prefixOf x k = u}} : ℝ) ≤ (Fintype.card α : ℝ) ^ (n - k) := by
-    exact_mod_cast hc
-  have hpow : (Fintype.card α : ℝ) ^ n
-      = (Fintype.card α : ℝ) ^ k * (Fintype.card α : ℝ) ^ (n - k) := by
-    rw [← pow_add, Nat.add_sub_cancel' hk]
-  rw [div_le_div_iff₀ (by positivity) (by positivity), hpow, one_mul]
-  calc _ * (Fintype.card α : ℝ) ^ k ≤ (Fintype.card α : ℝ) ^ (n - k) * (Fintype.card α : ℝ) ^ k :=
-        mul_le_mul_of_nonneg_right hc' (by positivity)
-    _ = _ := mul_comm _ _
 
 end Uniform
 

@@ -18,15 +18,19 @@ from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .counterexample_config import counterexample_search_config
 from .counterexample_search import CounterexampleSearch
+from .dfa_utils import held_out_phi, labelled_sample
+from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience, Selection
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree, oracle_decider
+from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
 from .progress import counter
 from .suffix_family import SuffixFamily
-from .tracker import SynthesisTracker
+from .tracker import RoundSummary, SynthesisTracker
 
 
 @dataclass
@@ -103,6 +107,10 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         pst.rng,
         known=state.seen,
         acc_threshold=acc_threshold,
+        # Its search walked deeper because its reads repeated, so they may run out.
+        retirable=any(
+            read.round.k > read.round.config.k for read in state.harvest_reads
+        ),
     )
 
 
@@ -155,13 +163,15 @@ class UncertifiedResult(UserWarning):
 
 @dataclass
 class BestRound:
-    """The certified round's hypothesis, or else the most consistent one. Rounds
+    """The certified round's hypothesis, or else the best by ``score`` where rounds
+    are scored and the most consistent one where they are not. Rounds
     are not monotone -- rebuilding the representative pool re-clusters, so a
     later family can classify worse -- so the run keeps this rather than the last
     round's. The boundary comes with it because denoising reads the labels
     against it."""
 
     consistency: float = -1.0
+    score: Optional[float] = None
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
@@ -169,12 +179,13 @@ class BestRound:
     #: The denoised DFA the certificate passed, if one did.
     certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
-        if (certified is not None, consistency) > (
-            self.certified is not None,
-            self.consistency,
-        ):
-            self.consistency = consistency
+    def consider(
+        self, *, consistency, score, dfa, tree, boundary, round_index, certified
+    ):
+        rank = consistency if score is None else score
+        held = self.consistency if self.score is None else self.score
+        if (certified is not None, rank) > (self.certified is not None, held):
+            self.consistency, self.score = consistency, score
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
             self.certified = certified
@@ -199,7 +210,7 @@ def _next_harvest(pst, search, ending, blamed):
     a success the certificate refused shows the blamed state's undecided reads."""
     draw = UniformSource(pst).draw
     if blamed is None or ending.harvest:
-        return ending.harvest, Replay(search, harvest_reader(ending), draw)
+        return ending.harvest, Replay(search, harvest_reader(ending, search), draw)
     leaf = search.hypothesis.tree.path_of(blamed)
 
     def at_leaf(by_edge):
@@ -221,13 +232,25 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
-def _counterexample_search(pst, vs, *, acc_threshold):
+def _counterexample_search(pst, vs, *, acc_threshold, selection):
     """The round's search and how it ended."""
     family = SuffixFamily(pst, vs)
+    fallback, table = None, pst.table
+    if pst.config.counterexample_member_fallback:
+        fallback = MemberFallback(
+            [p for p, keep in zip(table.prefixes, table.representative) if keep]
+        )
+    score_patience = ScorePatience.from_config(
+        pst.config,
+        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+    )
     search = CounterexampleSearch(
         counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
+        max_k=start_length(pst.sampler.length),
+        member_fallback=fallback,
+        score_patience=score_patience,
     )
     with counter(search.config.max_probes, "Probing") as pbar:
 
@@ -236,7 +259,77 @@ def _counterexample_search(pst, vs, *, acc_threshold):
             return pst.sampler.sample(pst.rng, pst.alphabet_size)
 
         ending = search.run(warmed_draws(search, draw, family.read_many))
+    if score_patience is not None:
+        score_patience.finish(search)
+    if fallback is not None:
+        if score_patience is None:
+            fallback.close(search.hypothesis, pst.alphabet_size)
+        else:
+            score_patience.guarded(
+                search.hypothesis,
+                lambda: fallback.close(search.hypothesis, pst.alphabet_size),
+            )
     return search, ending
+
+
+def _best_search(pst, vs, *, acc_threshold, index, selection):
+    """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
+    searches on independent probe streams, the one with the best phi on
+    ``selection.pick``."""
+    restarts = pst.config.counterexample_restarts
+    if restarts == 1:
+        search, ending = _counterexample_search(
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            selection=None if selection is None else selection.search,
+        )
+        return search, ending, _hypothesis_dfa(pst, search.hypothesis)
+    runs = []
+    for i, rng in enumerate(pst.rng.spawn(restarts)):
+        pst.rng = rng
+        search, ending = _counterexample_search(
+            pst, vs, acc_threshold=acc_threshold, selection=selection.search
+        )
+        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        phi = held_out_phi(dfa, *selection.pick)
+        print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
+        runs.append((phi, rng, search, ending, dfa))
+    # The run goes on from the kept search's stream, as if it were the only one.
+    _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
+    return search, ending, dfa
+
+
+def _round_score(pst, dfa, selection, index) -> Optional[float]:
+    """What ``BestRound`` ranks an uncertified round on in place of consistency."""
+    if not pst.config.rank_rounds_by_held_out:
+        return None
+    score = held_out_phi(dfa, *selection.pick)
+    print(f"[round {index}] held-out phi: {score:.4f}")
+    return score
+
+
+#: Strings in each half of the held-out sample.  At 2,000 the DFA picked on it
+#: scored 0.06 above its phi on fresh strings.
+SELECTION_HALF = 8000
+
+
+def _selection_sample(pst):
+    """The held-out samples, or ``None`` where nothing is scored."""
+    config = pst.config
+    if (
+        config.counterexample_restarts == 1
+        and not config.rank_rounds_by_held_out
+        and config.counterexample_score_patience is None
+    ):
+        return None
+    # A child stream, so scoring leaves the run's own draws as they were.
+    rng = pst.rng.spawn(1)[0]
+    halves = [
+        labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
+        for _ in range(4)
+    ]
+    return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
 
 
 def _hypothesis_dfa(pst, hypothesis):
@@ -246,6 +339,24 @@ def _hypothesis_dfa(pst, hypothesis):
     )
     initial = hypothesis.tree.classify(b"", decide)
     return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+
+
+def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
+    """``seconds`` is the round's ``(sampling, probing)`` time."""
+    tree = search.hypothesis.tree
+    assert tree.num_states >= 2
+    return RoundSummary(
+        prefixes=pst.num_prefixes,
+        representative_prefixes=int(pst.table.representative.sum()),
+        suffixes=pst.table.num_suffixes,
+        family_size=len(vs),
+        probes=search.probes,
+        ending=ending.kind,
+        hypothesis_states=tree.num_states,
+        hypothesis_edges=len(search.hypothesis.edges),
+        sampling_seconds=seconds[0],
+        probing_seconds=seconds[1],
+    )
 
 
 def counterexample_driven_synthesis(
@@ -272,6 +383,7 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform, pst.rng.bytes(16))
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    selection = _selection_sample(pst)
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
@@ -284,17 +396,22 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        search, ending = _counterexample_search(pst, vs, acc_threshold=acc_threshold)
-        hypothesis = search.hypothesis
-        tracker.on_search_ended(ending, index)
-        dfa, dt = _hypothesis_dfa(pst, hypothesis), hypothesis.tree
-        print(
-            f"[round {index}] {ending.kind} after {search.probes} probes: "
-            f"{dt.num_states} states, {len(hypothesis.edges)} edges learned, over a "
-            f"family of {len(vs)} suffixes ({sampled - started:.1f}s sampling, "
-            f"{time.monotonic() - sampled:.1f}s probing)"
+        search, ending, dfa = _best_search(
+            pst, vs, acc_threshold=acc_threshold, index=index, selection=selection
         )
-        assert dt.num_states >= 2
+        summary = _round_summary(
+            pst, vs, search, ending, (sampled - started, time.monotonic() - sampled)
+        )
+        tracker.on_search_ended(ending, index)
+        tracker.on_round_summarized(summary, index)
+        dt = search.hypothesis.tree
+        print(
+            f"[round {index}] {summary.ending} after {summary.probes} probes: "
+            f"{summary.hypothesis_states} states, {summary.hypothesis_edges} edges "
+            f"learned, over a family of {summary.family_size} suffixes "
+            f"({summary.sampling_seconds:.1f}s sampling, "
+            f"{summary.probing_seconds:.1f}s probing)"
+        )
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -317,6 +434,7 @@ def counterexample_driven_synthesis(
             )
         best.consider(
             consistency=true_acc,
+            score=_round_score(pst, dfa, selection, index),
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,

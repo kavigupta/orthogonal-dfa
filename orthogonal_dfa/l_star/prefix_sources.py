@@ -7,6 +7,7 @@ import numpy as np
 
 from .counterexample_probe import Charges
 from .counterexample_search import CounterexampleSearch
+from .fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from .rejection_source import RejectionSource, proving_attempts
 from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
 
@@ -32,13 +33,15 @@ class HarvestSource(RejectionSource):
     each attempt reads a fresh draw by one of their provenances, chosen in
     proportion to how many of them it found."""
 
-    def __init__(self, provenances, rng, *, known, acc_threshold):
+    def __init__(self, provenances, rng, *, known, acc_threshold, retirable):
         """``provenances`` maps each provenance to how many strings it found.
         Worth drawing on where an attempt turns up a boundary string at least
         ``1 - acc_threshold`` of the time, and not at half that: only a read that
         disagrees or cannot be placed turns one up, and a round the gate refuses
-        can disagree on no more than that share of them."""
+        can disagree on no more than that share of them.  A ``retirable`` source
+        that runs dry has its population retired rather than ending the run."""
         super().__init__()
+        self.retirable = retirable
         assert acc_threshold < 1, acc_threshold
         self._good = 1 - acc_threshold
         self._served.update(known)
@@ -72,12 +75,18 @@ class HarvestSource(RejectionSource):
         return "boundary"
 
 
-def harvest_reader(ending: Ending) -> Callable[[Charges], List[bytes]]:
-    """What a probe reads undecided where ``ending`` harvested."""
+def harvest_reader(
+    ending: Ending, search: CounterexampleSearch
+) -> Callable[[Charges], List[bytes]]:
+    """What a probe of ``search`` reads undecided where ``ending`` harvested."""
     if ending.kind == HARVEST_ENDS:
         return lambda charged: charged.ends
     if ending.kind == HARVEST_STUCK:
+        if search.member_fallback is not None:
+            return search.member_fallback.stuck_harvest
         return lambda charged: charged.stuck
+    if ending.kind == SCORE_STALLED:
+        return ScorePatience.stalled_harvest
     return lambda charged: charged.middle
 
 
