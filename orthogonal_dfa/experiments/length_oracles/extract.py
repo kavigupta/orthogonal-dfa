@@ -1,6 +1,7 @@
-"""The runs and both oracles' labels as one JSON of counts and DFA tables.
+"""The runs and both oracles' labels as one JSON of counts and DFA tables, written to
+``data/neural/length_oracles/length_oracles_data.json``.
 
-    python -m orthogonal_dfa.experiments.length_oracles.extract LABELS.npz OUT.json RUN_DIR...
+    python -m orthogonal_dfa.experiments.length_oracles.extract RUN_DIR...
 
 Strings are split into halves (fit = the first half, read = the rest).  Counts are keyed
 by half, number of stops (the compiled length is 36 + 2 x stops) and frame pattern (which
@@ -13,10 +14,13 @@ import sys
 
 import numpy as np
 
+from ..capal_comparison.core import REPO_ROOT
+from .label import COUNT, SEED, labels, strings
 from .oracles import LEN_HI, LEN_LO, SAW_LENGTH, SYMBOLS
 
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 HALVES = ["fit", "read"]
+OUT = REPO_ROOT / "data" / "neural" / "length_oracles" / "length_oracles_data.json"
 
 
 def patterns(S):
@@ -82,9 +86,9 @@ def end_counts(dfa, S, y, keys):
 
 
 def main():
-    labels_path, out, runs = sys.argv[1], sys.argv[2], sys.argv[3:]
-    z = np.load(labels_path)
-    S = z["s"].astype(np.int64)
+    runs = sys.argv[1:]
+    z = {kind: labels(kind, COUNT) for kind in ("saw", "flat")}
+    S = np.array(strings(COUNT), dtype=np.int64)
     assert S.shape[1] == SYMBOLS, S.shape
     keys = ((np.arange(len(S)) >= len(S) // 2).astype(int), (S < 3).sum(1), patterns(S))
 
@@ -115,9 +119,9 @@ def main():
             )
         print(run, len(searches), "restarts", flush=True)
 
-    with open(labels_path, "rb") as f:
-        labels_sha256 = hashlib.sha256(f.read()).hexdigest()
-    with open(out, "w") as f:
+    labels_sha256 = hashlib.sha256(z["saw"].tobytes() + z["flat"].tobytes()).hexdigest()
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    with open(OUT, "w") as f:
         json.dump(
             dict(
                 strings=dict(
@@ -125,7 +129,7 @@ def main():
                     symbols=SYMBOLS,
                     alphabet=["TAG", "TAA", "TGA", "N", "N"],
                     labels_sha256=labels_sha256,
-                    note="drawn with seed 78, wildcards lifted with seed 0; "
+                    note=f"drawn with seed {SEED}, wildcards lifted with seed 0; "
                     "fit = first half, read = second",
                 ),
                 oracles=dict(

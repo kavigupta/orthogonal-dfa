@@ -20,9 +20,7 @@ cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 mkdir -p "$OUT"
 
 # Also fits both oracles into the cache before the runs read it.
-[ -f "$OUT/labels.npz" ] ||
-    CUDA_VISIBLE_DEVICES=${GPUS[0]} $PYTHON -u -m $M.label "$OUT/labels.npz" \
-        > "$OUT/label.log" 2>&1
+CUDA_VISIBLE_DEVICES=${GPUS[0]} $PYTHON -u -m $M.label > "$OUT/label.log" 2>&1
 
 runs=() pids=() i=0
 for oracle in saw flat; do
@@ -43,6 +41,5 @@ failed=0
 for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
 [ $failed -eq 0 ] || { echo "a run failed; see $OUT/*/log" >&2; exit 1; }
 
-$PYTHON -m $M.extract "$OUT/labels.npz" "$OUT/length_oracles_data.json" "${runs[@]}"
-CUDA_VISIBLE_DEVICES=${GPUS[0]} $PYTHON -u -m $M.random_strings "$OUT/length_oracles_data.json"
-echo "$OUT/length_oracles_data.json"
+$PYTHON -m $M.extract "${runs[@]}"
+CUDA_VISIBLE_DEVICES=${GPUS[0]} $PYTHON -u -m $M.random_strings
