@@ -46,23 +46,31 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|⁹(1/β + |Q|)⁴R⁴
-  log²(|Q|R/(β δ ξ pAP s₀))/(δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`,
-  its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with
-  `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|³(1/β + |Q|)²(L +
-  |Q|)²R² log(X')/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) +
-  log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
-  `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The totals grow with `L` because the settings the proof picks
-  hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's
-  `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  `p₀Tol` on any first `k` letters, with `b = 1/β + |Q|`, `Y = |Q|R/(β δ ξ pAP s₀)`,
+
+      1/p₀Tol = O((L + |Q|)⁴ log((L + |Q|)Y) log(Y) |Q|³R b/ξ
+                  · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + R²|Q|⁴b²/(ξ²δ) + 1/(δ pAP² s₀²))
+                + (L + |Q|)² log((L + |Q|)Y) log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
+                + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
+
+  the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
+  `γ + ξ`, its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the
+  inputs with `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|⁷b²(L +
+  |Q|)²R²/(ξ²s₀⁴) · log(|Q| log(X'')/(δ pAP s₀)) + |Q|²(L + |Q|)²R²/ξ² · (1/s₀⁴ + |Q|⁴b²) ·
+  log(X'))` prefixes, `O(|Q|(log(X'')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
+  `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`,
+  `X'' = (L + |Q|)R/(β δ ξ s₀)`. The prefixes' first term is the clustering's populations' group,
+  whose log reads the suffix pool alone, so its log grows as `log log L`. The totals grow with `L`
+  because the settings the proof picks hold each round's disagreement rate at
+  `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths: the prefixes grow
+  as `(L + |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `O(|Q|³(|Σ| + |Q|)²(L +
-  |Q|)²R² log(X)/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X)/(pAP s₀²) +
-  log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(|Σ| + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
-  `X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)`. `LoopClaimSimple` bounds the prefixes by `O(|Q|⁷(|Σ| +
-  |Q|)²(L + |Q|)²R² log(X)/(ξ² s₀⁸))` and the suffixes by `O(|Q| log(pAP X)/(pAP s₀²))`.
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `LoopClaim`'s at
+  `b = |Σ| + |Q|`, `X' = X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)` and `X'' = pAP X`. `LoopClaimSimple`
+  bounds the prefixes by `O(|Q|⁷(|Σ| + |Q|)²(L + |Q|)²R² log(X)/(ξ² s₀⁴))` and the suffixes by
+  `O(|Q| log(pAP X)/(pAP s₀²))`.
 
 ## The explicit theorems
 
@@ -81,7 +89,8 @@ this (`parity_toggle`, #438).
   The samplers draw without replacement, and a draw lands on what a
   state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
   more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
-  population need only keep every atom under `rateScale·(1/2 − η₀)/(2¹⁸(|J| + 3)·npref)` and
+  population need only keep every atom under
+  `(1/2 − η₀)·min(εcov(1/2 − η₀), indecisionLimit)/(2¹⁷(|J| + 3)·npref)` and
   `εs/(2⁸(|J| + 3)·npref)`, and under
   `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
@@ -120,16 +129,18 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality. Each of the four conditions on the walk start bounds the mass the
 probes' law puts on one first `k` letters, `|Σ|^-k` for uniform strings, and they follow from
-`(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`,
-`1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
-Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
-holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
+`ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` at `ℓ = L₁ + 1` (`loopTolInv`), `E`, `E₂`
+and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`, `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and
+`1/pAP`, hence from `ℓ⁴ (1 + log ℓ) (E + E₂ + E₃) ≤ |Σ|^k`.
+Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent at
+`T = 2(log (E + E₂ + E₃) + 10)/log |Σ| + |Q| + 4`, that holds once `L ≥ L₀` (`dfa_pow`,
+`Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
+    L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 416.8`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 367.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 404.5`; the
+least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 393, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 369.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
@@ -141,8 +152,8 @@ places, each now a condition on `D`:
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
    largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
-   `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
-   for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
+   `p₀ ≤ p₀Tol = 1/loopTolInv ℓ`, `ℓ = L + |Q| + 4` (`claim_terms_le`,
+   `Proofs/ClaimLoopArith.lean`); for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
 2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
    `edge_of_occupied` asks `D` to extend each prefix by each letter at least `1/Ae` of the time
    (`prefixLaw_snoc_le`), and the edge-crossing rate is `c/((Ae+1)N)`. `Ae = 1/β` in general and
@@ -195,9 +206,9 @@ so by Chebyshev (`meas_gt_le_of_pairs`) they weigh more than `x/2 + u` with chan
     2 prefixMax · e/((2 − 4e)(u − 2 B₃ prefixMax))
 
 where `2 B₃ prefixMax < u` and `e < 1/2` (`misledTail`), whatever `x`. The clustering, run at
-`εcov = min(ε, ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`). Every
-covered state's edges are then true and it accepts as the target does, so the hypothesis from the
-covered start's true leaf tracks the re-rooted target on every run that stays covered
+`εcov = min(c/(10N), ξ/(8N))`, reads every covered state on its true side (`sideOf_eq_of_mass`).
+Every covered state's edges are then true and it accepts as the target does, so the hypothesis from
+the covered start's true leaf tracks the re-rooted target on every run that stays covered
 (`classify_start_le`).
 
 The pick compares each leaf against the family's read, not the oracle's: the oracle's noise rates on
@@ -245,11 +256,13 @@ sampler yields at least `ε/96` and finds a string at most as often as the probe
 length-`k` prefix, so a population puts at most `96 prefixMax / ε` on a string, within `cap`, which
 also bounds the suffixes' atoms; its strings are at most `L₁ + |Q|` long, the tree's midfixes at
 most `|Q|`. Against `cap` the clustering's atom conditions hold, every population tame: its
-samplers' rejections, `NP·cap` under the rate scale times the signal; the hash's balance and the
-quality's deviation, `log₂ NP·cap` under `δ` times the rates squared; and the tables' own mass,
-`NP·cap` under the slack. The earlier rounds' reads, at most `6(K+1)NP` prefixes and `NS + 1`
-suffixes a round, hold at most `m` of any population and `ms` of the suffixes. `NS` and `NP` are
-bounded by `poolCount_le` and `prefCount_le_poly` (`counts_le`, `Proofs/LoopSimple.lean`).
+samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)`; the hash's balance,
+`log(|J| log₂ NP/δ)·cap` under `ι²`; the quality's deviation, `log₂ NP·cap` under `δ` times the
+slack squared; and the tables' own mass, `NP·cap` under the slack. The earlier rounds' reads, at
+most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any population and `ms`
+of the suffixes. `NS` and `NP` are bounded by `poolCount_le` and `prefCount_le_split_of_le`
+(`counts_le`, `Proofs/LoopSimple.lean`): `NP` is `|J| log(NS/δ)/(s₀⁴ι²)`, the populations'
+group at the count rule's scale `ι`, plus `log(|J| NS/(δ τ))/τ²` at the gate's `τ`.
 
 The rounds' draws are independent, and given the earlier rounds a round's clustering draws, the
 hash's sides included, are drawn as `runMeasure` draws them at their populations conditioned off

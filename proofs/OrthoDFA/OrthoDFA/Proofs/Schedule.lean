@@ -459,7 +459,7 @@ def ClusteringCorrect : Prop :=
   0 < δ →
   -- The budget the schedule is built from costs no more than `k` buys: a count that is
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
-  -- Derivable rather than assumed -- `prefCount_le_poly` discharges it -- and carried
+  -- Derivable rather than assumed -- `prefCount_le_split` discharges it -- and carried
   -- here so the statement says what the algorithm costs and not only that it works.
   (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card : ℝ)
     ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k

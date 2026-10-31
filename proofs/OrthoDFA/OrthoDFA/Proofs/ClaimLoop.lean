@@ -8,8 +8,8 @@ import OrthoDFA.Proofs.ClaimLoopUniform
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/(ℓ⁶ loopMassInv)` on any first `k` letters. The claim runs it at `c = ξ/(2R)`, `ξ/4` and
-`γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
+`1/loopTolInv ℓ` on any first `k` letters. The claim runs it at `c = ξ/(2R)`,
+`ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
 `ClaimLoopArith` bounds those shapes. `LoopClaimUniform` and `LoopClaimSimple` follow
 (`ClaimLoopUniform`).
 -/
@@ -43,19 +43,21 @@ theorem loopClaim_holds : LoopClaim := by
         = D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} / β := by ring
     rw [e, le_div_iff₀ hβ]
     linarith
-  have hM1 : 1 ≤ loopMassInv (Fintype.card σ) (Fintype.card α) (1 / β + Fintype.card σ)
-      (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP (1 / 2 - s₀) :=
-    loopMassInv_ge_one _ _ (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+  have hM1 : 1 ≤ loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
+      (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+      (1 / 2 - s₀) :=
+    (loopTolInv_le _ _ (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith)
+      (Nat.cast_nonneg _) (Nat.cast_nonneg _)
       (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hδ (by linarith) hc0
-      hc1 (by positivity) hpAP hpAP1 (by linarith) hη₀
+      hc1 (by positivity) hpAP hpAP1 (by linarith) hη₀).1
   have hp₀ : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-      ≤ 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * loopMassInv (Fintype.card σ)
-        (Fintype.card α) (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ
-        (ξ / (2 * R)) (ξ / 4) pAP (1 / 2 - s₀)) := by
+      ≤ 1 / loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
+        (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+        (1 / 2 - s₀) := by
     have e : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-        = 1 / ((L + (Fintype.card σ : ℝ) + 4) ^ 6 * max 1 (loopMassInv (Fintype.card σ)
-          (Fintype.card α) (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ
-          (ξ / (2 * R)) (ξ / 4) pAP (1 / 2 - s₀))) := rfl
+        = 1 / max 1 (loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
+          (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+          (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
   obtain ⟨settings, hw, -, -, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D (1 / 2 - s₀)
     (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
