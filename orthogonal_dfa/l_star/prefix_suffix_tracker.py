@@ -82,6 +82,9 @@ class SearchConfig:
     #: Read an edge a probe leaves undecided on a representative prefix of its
     #: source leaf instead.
     counterexample_member_fallback: bool = False
+    #: Step past an undecided midpoint in a probe's search to the decided position
+    #: nearest it.
+    counterexample_skip_undecided: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
