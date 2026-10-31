@@ -83,8 +83,8 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
       (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP η₀ := by
     have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
     obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A + Q)
-      (Fintype.card σ) (Fintype.card α) (by linarith) hQ0 (by linarith) (by linarith) hδ hδ1 hc0
-      hc1 (by positivity) hpAP hp1 hη0 hη₀
+      (c := ξ / (2 * R)) (ξ := ξ / 4) (Fintype.card σ) (Fintype.card α) (by linarith) hQ0
+      (by linarith) (by linarith) hδ hδ1 hc0 hc1 (by positivity) hpAP hp1 hη0 hη₀
     rw [hMI] at hTle
     rw [one_div]
     exact inv_anti₀ (by linarith) (hTle.trans hpow)
