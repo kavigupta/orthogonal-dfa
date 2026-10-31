@@ -22,11 +22,12 @@ Each claim is proved from the explicit theorems below.
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
   `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)`, the suffix
   pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)` and the prefix count
-  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁸) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
-  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's term is multiplied by
-  `nJ`, and its log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
+  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁴) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
+  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's and the dirty tail's
+  terms are multiplied by `nJ`, and their log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
   product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
-  `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
+  `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁴))` and the inverse atom tolerance
+  by `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov³ ε_s² ε_u³ s₀⁶))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
   harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
@@ -127,9 +128,9 @@ Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent 
 
     L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 398.6`; the
-least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 387, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 367.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 405.9`; the
+least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 393, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 373.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
