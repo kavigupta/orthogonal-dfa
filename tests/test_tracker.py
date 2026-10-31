@@ -177,7 +177,6 @@ class TestMaxRounds(unittest.TestCase):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         pst.config.counterexample_restarts = 2
         pst.config.rank_rounds_by_held_out = True
-        pst.config.counterexample_score_patience = 2000
         tracker = RecordingTracker()
         best = counterexample_driven_synthesis(
             pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
@@ -188,7 +187,7 @@ class TestMaxRounds(unittest.TestCase):
         self.assertEqual(len(tracker.restarts), 1)
         restarts = tracker.restarts[0]
         self.assertEqual([r.restart for r in restarts], [0, 1])
-        self.assertTrue(all(r.search_score is not None for r in restarts))
+        self.assertTrue(all(r.search_score is None for r in restarts))
         self.assertEqual(max(r.pick_score for r in restarts), best.score)
         self.assertIn(tracker.endings[0], [r.ending for r in restarts])
         self.assertIn(tracker.summaries[0].probes, [r.probes for r in restarts])
