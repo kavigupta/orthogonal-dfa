@@ -235,7 +235,7 @@ theorem hit_le_occupancy (L : ℕ) (q : σ) (W : Finset σ)
       simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_exists, not_and]
       exact fun j _ _ => hno _
     have h := hw
-    simp only [hwd, windowVisitRate, hempty, measureReal_empty] at h
+    simp only [hwd, windowVisitRate, windowVisitRateOn, hempty, measureReal_empty] at h
     exact lt_irrefl _ h
   -- the late hits, along a shortest word from `M`'s start
   have hlate : (uniformStrings L).real (hitSet M Bad q k L) ≤ G * X := by
@@ -339,6 +339,7 @@ section Bridge
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
+open scoped Classical in
 /-- A last round over `LearnerLoopDFA`'s probes, its misled probes counted among each state's
 strings shorter than `L + |Q| + 3`, has a leaf from which its hypothesis misjudges at most
 `γ + 2|Σ|^(|Q|-1) N(2((|Σ|+1)εB + |Q|εm) + 2εr + εu)/m`, where a state visited `m` of the time

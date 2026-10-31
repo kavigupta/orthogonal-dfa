@@ -208,6 +208,7 @@ section Bridge
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
+open scoped Classical in
 /-- A last round as in `dfa_of_checks`, its misled probes counted among each state's strings
 shorter than `J`, has a set of wrong states, off which every edge out of a state's true leaf is
 learned and every state is read on its true side, that occupies the window's lengths `⌈L/2⌉` to

@@ -149,8 +149,8 @@ def LearnerLoopDFATSRMain : Prop :=
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
   let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
-  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
-    + 120 * Real.log (3 / (δ' / 2)) / pAP
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s
+      + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 161000 * (Q + 2) * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
