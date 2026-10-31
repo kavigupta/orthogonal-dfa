@@ -1862,6 +1862,31 @@ lemma sideCharge_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη�
     _ ≤ 1 / (1 - 2 * η₀) ^ 2 :=
         div_le_div_of_nonneg_left zero_le_one (by positivity) (pow_le_pow_left₀ hD0.le hD 2)
 
+/-- A wrong prefix costs the gate at most `1/a²`: its charge is largest with the side's right class
+at `η₀`. -/
+lemma sideCharge_le_gateA (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (accept : Bool) : sideCharge O η₀ accept ≤ 1 / gateA η₀ ^ 2 := by
+  have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hx := clsRate_le O hη accept
+  have hx0 := clsRate_nonneg O accept
+  have hy0 := clsRate_nonneg O (!accept)
+  have hg := gap_eq_clsRate O (!accept)
+  rw [Bool.not_not] at hg
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  have hD : 0 < 1 - η₀ - clsRate O accept := by linarith
+  have ha : 0 < gateA η₀ := gateA_pos h0 hη₀
+  have key : O.gap * gateA η₀ ≤ 1 - η₀ - clsRate O accept := by
+    unfold gateA
+    rw [mul_div_assoc', div_le_iff₀ (by linarith)]
+    nlinarith [mul_le_mul_of_nonneg_right (show O.gap ≤ 1 - clsRate O accept by linarith)
+      (by linarith : (0 : ℝ) ≤ 1 - 2 * η₀)]
+  have hsq : (O.gap * gateA η₀) ^ 2 ≤ (1 - η₀ - clsRate O accept) ^ 2 :=
+    pow_le_pow_left₀ (mul_nonneg hg0 ha.le) key 2
+  unfold sideCharge
+  rw [show max (rightRate O accept) 0 = clsRate O accept from rfl,
+    div_le_div_iff₀ (by positivity) (by positivity)]
+  nlinarith [hsq]
+
 open scoped Classical in
 /-- `mul_sideCap_le` at the oracle's rates: `4·sideCharge` per wrong prefix, the deviations
 twice. -/
