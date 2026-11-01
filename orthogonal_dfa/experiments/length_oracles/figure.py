@@ -34,6 +34,12 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 #: TAG, TAA, TGA and the two wildcards, in the paper's symbols.
 NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
 PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
+#: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
+REPRESENTATIVES = {
+    "saw_1": ("saw", 0, 2),
+    "saw_2": ("saw", 1, 1),
+    "flat": ("flat", 0, 3),
+}
 WORD = {".": "open", "C": "closed"}
 #: TikZ cm per graphviz inch; graphviz's nodes and labels are sized to match the TikZ's
 #: 6mm states (lstarex) and 8pt labels.
@@ -368,34 +374,10 @@ def frame_grids(data, y):
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
-def representatives(described):
-    """The two sawtooth restarts, from different seeds, whose end state best tracks the
-    wildcard count modulo some k (kept ones first among ties), and the kept per-length
-    restart that best agrees with "frame0 open"."""
-
-    def counting(key):
-        d = described[key]
-        return d["by_modulus"][d["modulus"]]
-
-    saw = sorted(
-        (key for key in described if key[0] == "saw"),
-        key=lambda key: (round(counting(key), 6), described[key]["kept"]),
-        reverse=True,
-    )
-    picked = [saw[0], next(key for key in saw if key[1] != saw[0][1])]
-    out = [
-        (
-            key,
-            f"wildcards mod {described[key]['modulus']}: NMI {counting(key):.2f}",
-        )
-        for key in picked
-    ]
-    key = max(
-        (key for key in described if key[0] == "flat" and described[key]["kept"]),
-        key=lambda key: described[key]["agreement"]["frame0 open"],
-    )
-    caption = f"frame0 open: agrees {described[key]['agreement']['frame0 open']:.2f}"
-    return out + [(key, caption)]
+def caption(kind, d):
+    if kind == "saw":
+        return f"wildcards mod {d['modulus']}: NMI {d['by_modulus'][d['modulus']]:.2f}"
+    return f"frame0 open: agrees {d['agreement']['frame0 open']:.2f}"
 
 
 def write_rates(data, flat):
@@ -414,22 +396,8 @@ def write_rates(data, flat):
     (OUT_DIR / "frames.tex").write_text(frame_grids(data, flat))
 
 
-def main():
-    strings, labels = saved_labels()
-    data = Strings(np.array(strings, dtype=np.int64))
-    y = {kind: labels[kind].astype(float) for kind in KINDS}
-    with open(RUNS) as f:
-        restarts = {
-            (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
-        }
-
-    read = data.read
-    for kind in KINDS:
-        cells = [
-            f"{name} {phi(rule[read].astype(float), y[kind][read]):+.3f}"
-            for name, rule in data.rules.items()
-        ]
-        print(kind, "rule phi:", "  ".join(cells))
+def describe_all(restarts, y, data):
+    """Each restart's description, printed as a row."""
     described = {}
     for key, r in restarts.items():
         d = described[key] = describe(r, y[r["oracle"]], data)
@@ -448,6 +416,26 @@ def main():
             f"stop self-loops {d['stop_self_loops']:.2f}  "
             + "  ".join(f"{k} {a:.2f}" for k, a in d["agreement"].items())
         )
+    return described
+
+
+def main():
+    strings, labels = saved_labels()
+    data = Strings(np.array(strings, dtype=np.int64))
+    y = {kind: labels[kind].astype(float) for kind in KINDS}
+    with open(RUNS) as f:
+        restarts = {
+            (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
+        }
+
+    read = data.read
+    for kind in KINDS:
+        cells = [
+            f"{name} {phi(rule[read].astype(float), y[kind][read]):+.3f}"
+            for name, rule in data.rules.items()
+        ]
+        print(kind, "rule phi:", "  ".join(cells))
+    described = describe_all(restarts, y, data)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fig = plt.figure(figsize=(11, 8.5))
@@ -481,17 +469,17 @@ def main():
 
     saw_rows = grid[1, 0].subgridspec(2, 1, hspace=0.35)
     with tempfile.TemporaryDirectory() as drawings:
-        for k, (name, (key, caption)) in enumerate(
-            zip(["saw_1", "saw_2", "flat"], representatives(described))
-        ):
+        for k, (name, key) in enumerate(REPRESENTATIVES.items()):
             d = described[key]
+            if not d["kept"]:
+                raise ValueError(f"{key} is not the restart its run kept")
             path = Path(drawings) / f"{key[0]}_s{key[1]}_r{key[2]}.png"
             draw(d["minimal"], path)
             (OUT_DIR / f"dfa_{name}.tex").write_text(
                 dfa_tikz(d["minimal"], path.with_suffix(".dot"))
             )
             print(
-                f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption}, "
+                f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption(key[0], d)}, "
                 f"{len(d['minimal'].states)} states, phi {d['phi']:.3f}"
             )
             ax = fig.add_subplot(saw_rows[k] if key[0] == "saw" else grid[1, 1])
@@ -499,7 +487,7 @@ def main():
             ax.axis("off")
             ax.set_title(
                 f"{KINDS[key[0]].split(' (')[0]}, seed {key[1]} restart {key[2]}"
-                f"{' (kept)' if d['kept'] else ''}: {caption}\n"
+                f" (kept): {caption(key[0], d)}\n"
                 f"({len(d['minimal'].states)} states, phi {d['phi']:.3f})",
                 fontsize=9,
             )
