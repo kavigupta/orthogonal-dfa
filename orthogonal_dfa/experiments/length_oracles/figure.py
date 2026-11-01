@@ -129,10 +129,10 @@ def edge_label(symbols, tex):
     """Graphviz gets the plain text of the TikZ label, so it leaves room for it."""
     symbols, parts = set(symbols), []
     if {0, 1, 2} <= symbols:
-        parts.append("stop")
+        parts.append("S")
         symbols -= {0, 1, 2}
     if {3, 4} <= symbols:
-        parts.append("wild")
+        parts.append("W")
         symbols -= {3, 4}
     names = [f"${n}$" if tex else n.replace("_", "") for n in NAMES]
     return ", ".join(parts + [names[c] for c in sorted(symbols)])
@@ -175,7 +175,7 @@ def draw(dfa, path):
         for t in sorted(set(row.values())):
             label = edge_label([c for c in row if row[c] == t], tex=False)
             lines.append(f'q{q}->q{t}[label="{label}"];')
-    lines[0] += " margin=0;"
+    lines[0] += " margin=0; mindist=0.6;"
     path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
     subprocess.run(
         [layout(dfa), "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
@@ -183,47 +183,42 @@ def draw(dfa, path):
     )
 
 
-def dfa_tikz(dfa, dot_path):
-    """In the paper's lstarex style, along graphviz's node positions, edge curves and
-    label positions.  On a ring, self-loops point away from its center instead, where
-    graphviz would draw them across the ring's edges."""
-    plain = subprocess.run(
-        [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
-    ).stdout
-    rows = [shlex.split(line) for line in plain.splitlines()]
-    xy = {f[1]: (float(f[2]), float(f[3])) for f in rows if f[0] == "node"}
-    lines = [r"\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]"]
+def ring_edges(dfa, xy):
+    """Straight edges with their labels, and self-loops, all on the ring's outside."""
+    center = np.mean([xy[f"q{q}"] for q in dfa.states], axis=0)
+
+    def outward(*states):
+        offset = np.mean([xy[f"q{q}"] for q in states], axis=0) - center
+        return np.degrees(np.arctan2(offset[1], offset[0]))
+
+    # the start state's loop and arrow share its outward side
+    start = outward(dfa.initial_state) - 40
+    lines = [rf"\draw[<-] (q{dfa.initial_state}.{start:.0f}) -- ++({start:.0f}:0.5cm);"]
     for q in sorted(dfa.states):
-        accepting = ", accepting" if q in dfa.final_states else ""
-        lines.append(rf"\node[state{accepting}] (q{q}) at {xy[f'q{q}']} {{}};")
-    ring = is_ring(dfa)
-    if ring:
-        center = np.mean([xy[f"q{q}"] for q in dfa.states], axis=0)
-        outward = {
-            q: np.degrees(np.arctan2(*(np.array(xy[f"q{q}"]) - center)[::-1]))
-            for q in dfa.states
-        }
-        # the start state's loop and arrow share its outward side
-        start = outward[dfa.initial_state] - 40
-        outward[dfa.initial_state] += 40
-        lines.append(
-            rf"\draw[<-] (q{dfa.initial_state}.{start:.0f})"
-            rf" -- ++({start:.0f}:0.5cm);"
-        )
-    else:
-        lines.append(rf"\draw[->] {xy['start']} -- (q{dfa.initial_state});")
+        row = dfa.transitions[q]
+        for t in sorted(set(row.values())):
+            label = edge_label([c for c in row if row[c] == t], tex=True)
+            if t != q:
+                d = outward(q, t)
+                lines.append(
+                    rf"\draw[->] (q{q}) -- node[font=\footnotesize,"
+                    rf" anchor={(d + 180) % 360:.0f}] {{{label}}} (q{t});"
+                )
+                continue
+            d = outward(q) + (40 if q == dfa.initial_state else 0)
+            lines.append(
+                rf"\path[->] (q{q}) edge[out={d + 20:.0f}, in={d - 20:.0f},"
+                rf" looseness=8, min distance=5mm] node[font=\footnotesize,"
+                rf" anchor={(d + 180) % 360:.0f}] {{{label}}} (q{q});"
+            )
+    return lines
+
+
+def spline_edges(dfa, rows, xy):
+    """Along graphviz's edge curves, with its label positions."""
+    lines = [rf"\draw[->] {xy['start']} -- (q{dfa.initial_state});"]
     for f in rows:
         if f[0] != "edge" or f[1] == "start":
-            continue
-        if ring and f[1] == f[2]:
-            q = int(f[1][1:])
-            row = dfa.transitions[q]
-            label = edge_label([c for c in row if row[c] == q], tex=True)
-            d = outward[q]
-            lines.append(
-                rf"\path[->] (q{q}) edge[out={d + 20:.0f}, in={d - 20:.0f}, looseness=8, min distance=5mm]"
-                rf" node[font=\footnotesize, anchor={(d + 180) % 360:.0f}] {{{label}}} (q{q});"
-            )
             continue
         n = int(f[3])
         points = [f"({f[4 + 2 * i]}, {f[5 + 2 * i]})" for i in range(n)]
@@ -236,8 +231,25 @@ def dfa_tikz(dfa, dot_path):
         label = edge_label([c for c in row if row[c] == int(f[2][1:])], tex=True)
         lines += [
             rf"\draw[->] {path};",
-            rf"\node[font=\footnotesize] at ({f[5 + 2 * n]}, {f[6 + 2 * n]}) {{{label}}};",
+            rf"\node[font=\footnotesize] at ({f[5 + 2 * n]}, {f[6 + 2 * n]})"
+            rf" {{{label}}};",
         ]
+    return lines
+
+
+def dfa_tikz(dfa, dot_path):
+    """In the paper's lstarex style, at graphviz's node positions.  A ring's edges are
+    drawn on its outside, where graphviz's would cross it."""
+    plain = subprocess.run(
+        [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
+    ).stdout
+    rows = [shlex.split(line) for line in plain.splitlines()]
+    xy = {f[1]: (float(f[2]), float(f[3])) for f in rows if f[0] == "node"}
+    lines = [r"\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]"]
+    for q in sorted(dfa.states):
+        accepting = ", accepting" if q in dfa.final_states else ""
+        lines.append(rf"\node[state{accepting}] (q{q}) at {xy[f'q{q}']} {{}};")
+    lines += ring_edges(dfa, xy) if is_ring(dfa) else spline_edges(dfa, rows, xy)
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
