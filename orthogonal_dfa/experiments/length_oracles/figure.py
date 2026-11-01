@@ -4,9 +4,11 @@ runs and labels alone.
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-the rules' agreements are on the read half.  Writes figures/length-oracles/figure.pdf."""
+the rules' agreements are on the read half.  Writes figures/length-oracles/figure.pdf, and
+the paper's panels: lengths.pdf, frames.tex and dfa_{saw_1,saw_2,flat}.tex."""
 
 import json
+import shlex
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,17 +17,24 @@ import numpy as np
 from automata.fa.dfa import DFA
 from matplotlib import image as mpimg
 from matplotlib import pyplot as plt
+from matplotlib import transforms
 
 from orthogonal_dfa.l_star.dfa_utils import table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
-from ..random_minimal.analyze import PAPER_RC
+from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
 from .label import saved_labels
 from .oracles import SYMBOLS
 
 RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
+RANDOM_STRINGS = (
+    REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
+)
 OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
-NAMES = ["TAG", "TAA", "TGA", "N", "N"]
+#: TAG, TAA, TGA and the two wildcards, in the paper's symbols.
+NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
+PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
+WORD = {".": "open", "C": "closed"}
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 KINDS = {
@@ -85,9 +94,11 @@ def describe(restart, y, data):
     verdict = accepts > y[fit].mean() * count
     v = verdict[end]
     by_modulus = {k: nmi(end, (SYMBOLS - data.stops) % k) for k in range(2, 8)}
-    # Every multiple of a counter's period ties with it.
-    modulus = min(
-        k for k, v in by_modulus.items() if v > max(by_modulus.values()) - 1e-6
+    # The divisors and the multiples of a counter's period tie with it: a mod-6
+    # counter ties at 2, 3 and 6, a mod-2 one at 2, 4 and 6.
+    tied = [k for k, v in by_modulus.items() if v > max(by_modulus.values()) - 1e-6]
+    modulus = next(
+        (k for k in tied if all(k % j == 0 or j % k == 0 for j in tied)), min(tied)
     )
     return dict(
         minimal=DFA(
@@ -114,15 +125,17 @@ def describe(restart, y, data):
     )
 
 
-def edge_label(symbols):
+def edge_label(symbols, tex):
+    """Graphviz gets the plain text of the TikZ label, so it leaves room for it."""
     symbols, parts = set(symbols), []
     if {0, 1, 2} <= symbols:
         parts.append("stop")
         symbols -= {0, 1, 2}
     if {3, 4} <= symbols:
-        parts.append("N")
+        parts.append("wild")
         symbols -= {3, 4}
-    return ", ".join(parts + [NAMES[c] for c in sorted(symbols)])
+    names = [f"${n}$" if tex else n.replace("_", "") for n in NAMES]
+    return ", ".join(parts + [names[c] for c in sorted(symbols)])
 
 
 def draw(dfa, path):
@@ -141,13 +154,135 @@ def draw(dfa, path):
         lines.append(f"q{q}[{style}];")
         row = dfa.transitions[q]
         for t in sorted(set(row.values())):
-            label = edge_label([c for c in row if row[c] == t])
+            label = edge_label([c for c in row if row[c] == t], tex=False)
             lines.append(f'q{q}->q{t}[label="{label}"];')
+    lines[0] += " margin=0;"
     path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
     subprocess.run(
         ["dot", "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
         check=True,
     )
+
+
+def dfa_tikz(dfa, dot_path):
+    """In the paper's lstarex style, along graphviz's node positions, edge curves and
+    label positions."""
+    plain = subprocess.run(
+        ["dot", "-Tplain", dot_path], capture_output=True, text=True, check=True
+    ).stdout
+    rows = [shlex.split(line) for line in plain.splitlines()]
+    pos = {f[1]: f"({f[2]}, {f[3]})" for f in rows if f[0] == "node"}
+    lines = [r"\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]"]
+    for q in sorted(dfa.states):
+        accepting = ", accepting" if q in dfa.final_states else ""
+        lines.append(rf"\node[state{accepting}] (q{q}) at {pos[f'q{q}']} {{}};")
+    lines.append(rf"\draw[->] {pos['start']} -- (q{dfa.initial_state});")
+    for f in rows:
+        if f[0] != "edge" or f[1] == "start":
+            continue
+        n = int(f[3])
+        points = [f"({f[4 + 2 * i]}, {f[5 + 2 * i]})" for i in range(n)]
+        # cubic B-spline segments; the ends attach to the nodes' borders
+        points[0], points[-1] = f"({f[1]})", f"({f[2]})"
+        path = points[0]
+        for i in range(1, n, 3):
+            path += f" .. controls {points[i]} and {points[i + 1]} .. {points[i + 2]}"
+        row = dfa.transitions[int(f[1][1:])]
+        label = edge_label([c for c in row if row[c] == int(f[2][1:])], tex=True)
+        lines += [
+            rf"\draw[->] {path};",
+            rf"\node[font=\footnotesize] at ({f[5 + 2 * n]}, {f[6 + 2 * n]}) {{{label}}};",
+        ]
+    return "\n".join(lines + [r"\end{tikzpicture}", ""])
+
+
+def plot_lengths(data, random_strings):
+    """Each oracle's accept rate on uniform random strings of the compiled lengths up to
+    their 99th percentile, drawn at the size it is printed."""
+    lengths = 36 + 2 * data.stops
+    rows = [
+        r
+        for r in random_strings
+        if lengths.min() <= r["length"] <= np.percentile(lengths, 99)
+        and (r["length"] - 36) % 2 == 0
+    ]
+    xs = [r["length"] for r in rows]
+    fig = plt.figure(figsize=(2.2, 2.5))
+    ax = fig.add_axes((0.22, 0.45, 0.74, 0.52))
+    for color, (kind, name) in zip(PAPER_COLORS, PAPER_NAMES.items()):
+        ys = [r[f"{kind}_accepts"] / r["n"] for r in rows]
+        ax.plot(xs, ys, "o-", color=color, label=name, ms=3, linewidth=1.5)
+    ax.set_xticks(
+        xs,
+        [f"{x}\n{(x - 36) // 2}\n{SYMBOLS - (x - 36) // 2}" for x in xs],
+    )
+    # row headers for the three lines of each tick label
+    ax.text(
+        0,
+        0,
+        "length\nstops\nwilds",
+        ha="right",
+        va="top",
+        transform=transforms.offset_copy(
+            ax.transAxes,
+            fig,
+            x=-6,
+            y=-plt.rcParams["xtick.major.size"] - plt.rcParams["xtick.major.pad"],
+            units="points",
+        ),
+    )
+    ax.set_xlabel("uniformly random string")
+    ax.set_ylabel("oracle accept rate")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(color="0.9", linewidth=0.5)
+    ax.set_axisbelow(True)
+    fig.legend(
+        *ax.get_legend_handles_labels(),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.17),
+        frameon=False,
+        handlelength=1.2,
+        ncol=2,
+    )
+    return fig
+
+
+def frame_grids(data, y):
+    """TikZ: the Length-Flat oracle's accept rate, a grid of frame 1 by frame 2 for each
+    state of frame 0, shaded with the paper's agree above .5 and disagree below."""
+    lines = [
+        r"\begin{tikzpicture}[x=0.9cm, y=0.55cm, font=\footnotesize,"
+        r" every node/.style={text height=1.5ex, text depth=0.4ex, inner sep=1pt}]",
+        r"\node[rotate=90] at (-1.45, -1) {Frame 1};",
+    ]
+    for f1 in range(2):
+        lines.append(
+            rf"\node[anchor=east] at (-0.1, {-f1 - 0.5}) {{{WORD['.C'[f1]]}}};"
+        )
+    for f0 in range(2):
+        x0 = 2.5 * f0
+        lines += [
+            rf"\node at ({x0 + 1}, 2.2) {{Frame 0 {WORD['.C'[f0]]}}};",
+            rf"\draw[black!50] ({x0 + 0.05}, 1.85) -- ({x0 + 1.95}, 1.85);",
+            rf"\node at ({x0 + 1}, 1.35) {{Frame 2}};",
+            rf"\draw[black!50] ({x0 + 0.05}, 1) -- ({x0 + 1.95}, 1);",
+        ]
+        for f2 in range(2):
+            lines.append(rf"\node at ({x0 + f2 + 0.5}, 0.5) {{{WORD['.C'[f2]]}}};")
+        for f1 in range(2):
+            for f2 in range(2):
+                v = y[
+                    data.pattern == PATTERNS.index(".C"[f0] + ".C"[f1] + ".C"[f2])
+                ].mean()
+                color = "agree" if v >= 0.5 else "disagree"
+                shade = round(min(abs(v - 0.5) * 300, 100))
+                cell = f"({x0 + f2}, {-f1 - 1}) rectangle +(1, 1)"
+                lines += [
+                    rf"\fill[{color}!{shade}!white] {cell};",
+                    rf"\draw[white, line width=0.8pt] {cell};",
+                    rf"\node at ({x0 + f2 + 0.5}, {-f1 - 0.5}) {{{v:.2f}}};",
+                ]
+    return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
 def representatives(described):
@@ -178,6 +313,22 @@ def representatives(described):
     )
     caption = f"frame0 open: agrees {described[key]['agreement']['frame0 open']:.2f}"
     return out + [(key, caption)]
+
+
+def write_rates(data, flat):
+    with open(RANDOM_STRINGS) as f:
+        random_strings = json.load(f)["rows"]
+    with plt.rc_context(PAPER_RC):
+        fig = plot_lengths(data, random_strings)
+        # no creation date, so rerunning on the same data leaves the file alone
+        fig.savefig(
+            OUT_DIR / "lengths.pdf",
+            bbox_inches="tight",
+            pad_inches=0.02,
+            metadata={"CreationDate": None},
+        )
+        plt.close(fig)
+    (OUT_DIR / "frames.tex").write_text(frame_grids(data, flat))
 
 
 def main():
@@ -247,10 +398,19 @@ def main():
 
     saw_rows = grid[1, 0].subgridspec(2, 1, hspace=0.35)
     with tempfile.TemporaryDirectory() as drawings:
-        for k, (key, caption) in enumerate(representatives(described)):
+        for k, (name, (key, caption)) in enumerate(
+            zip(["saw_1", "saw_2", "flat"], representatives(described))
+        ):
             d = described[key]
             path = Path(drawings) / f"{key[0]}_s{key[1]}_r{key[2]}.png"
             draw(d["minimal"], path)
+            (OUT_DIR / f"dfa_{name}.tex").write_text(
+                dfa_tikz(d["minimal"], path.with_suffix(".dot"))
+            )
+            print(
+                f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption}, "
+                f"{len(d['minimal'].states)} states, phi {d['phi']:.3f}"
+            )
             ax = fig.add_subplot(saw_rows[k] if key[0] == "saw" else grid[1, 1])
             ax.imshow(mpimg.imread(path))
             ax.axis("off")
@@ -262,6 +422,8 @@ def main():
             )
     with plt.rc_context({"pdf.fonttype": PAPER_RC["pdf.fonttype"]}):
         fig.savefig(OUT_DIR / "figure.pdf", bbox_inches="tight")
+    plt.close(fig)
+    write_rates(data, y["flat"])
 
 
 if __name__ == "__main__":

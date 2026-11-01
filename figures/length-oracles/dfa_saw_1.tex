@@ -1,0 +1,13 @@
+\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]
+\node[state] (q0) at (0.7475, 0.23423) {};
+\node[state, accepting] (q1) at (1.8794, 0.23423) {};
+\draw[->] (0.03, 0.23423) -- (q0);
+\draw[->] (q0) .. controls (0.65351, 0.52436) and (0.67589, 0.65784) .. (0.7475, 0.65784) .. controls (0.80345, 0.65784) and (0.82935, 0.57637) .. (q0);
+\node[font=\footnotesize] at (0.7475, 0.73423) {stop};
+\draw[->] (q0) .. controls (1.0975, 0.23423) and (1.3747, 0.23423) .. (q1);
+\node[font=\footnotesize] at (1.2961, 0.31062) {wild};
+\draw[->] (q1) .. controls (1.6144, 0.090638) and (1.5159, 0.047015) .. (1.4211, 0.025893) .. controls (1.3127, 0.0017357) and (1.2792, 0) .. (1.1711, 0.025893) .. controls (1.1035, 0.042107) and (1.0344, 0.071442) .. (q0);
+\node[font=\footnotesize] at (1.2961, 0.10228) {wild};
+\draw[->] (q1) .. controls (1.7501, 0.55782) and (1.7826, 0.69256) .. (1.8794, 0.69256) .. controls (1.9551, 0.69256) and (1.9915, 0.61032) .. (q1);
+\node[font=\footnotesize] at (1.8794, 0.76895) {stop};
+\end{tikzpicture}

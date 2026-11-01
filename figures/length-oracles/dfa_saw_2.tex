@@ -1,0 +1,33 @@
+\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]
+\node[state] (q0) at (0.7475, 0.22222) {};
+\node[state, accepting] (q1) at (6.3378, 0.22222) {};
+\node[state] (q2) at (5.2058, 0.58333) {};
+\node[state, accepting] (q3) at (4.0739, 0.59722) {};
+\node[state] (q4) at (1.8447, 0.56944) {};
+\node[state] (q5) at (2.9419, 0.58333) {};
+\draw[->] (0.03, 0.22222) -- (q0);
+\draw[->] (q0) .. controls (0.65351, 0.51235) and (0.67589, 0.64583) .. (0.7475, 0.64583) .. controls (0.80345, 0.64583) and (0.82935, 0.56436) .. (q0);
+\node[font=\footnotesize] at (0.7475, 0.72222) {stop};
+\draw[->] (q0) .. controls (1.0925, 0.32973) and (1.3879, 0.42564) .. (q4);
+\node[font=\footnotesize] at (1.2961, 0.50694) {wild};
+\draw[->] (q4) .. controls (1.725, 0.85652) and (1.753, 0.99306) .. (1.8447, 0.99306) .. controls (1.9164, 0.99306) and (1.9491, 0.90972) .. (q4);
+\node[font=\footnotesize] at (1.8447, 1.0694) {stop};
+\draw[->] (q4) .. controls (2.1964, 0.57383) and (2.4777, 0.57748) .. (q5);
+\node[font=\footnotesize] at (2.3933, 0.64583) {wild};
+\draw[->] (q1) .. controls (5.9167, 0.094567) and (5.5463, 0) .. (5.2197, 0) .. controls (1.8308, 0) and (1.8308, 0) .. (1.8308, 0) .. controls (1.5405, 0) and (1.2148, 0.079506) .. (q0);
+\node[font=\footnotesize] at (3.4906, 0.076389) {wild};
+\draw[->] (q1) .. controls (6.2084, 0.54581) and (6.2409, 0.68056) .. (6.3378, 0.68056) .. controls (6.4134, 0.68056) and (6.4498, 0.59831) .. (q1);
+\node[font=\footnotesize] at (6.3378, 0.75694) {stop};
+\draw[->] (q2) .. controls (5.549, 0.47564) and (5.8402, 0.38041) .. (q1);
+\node[font=\footnotesize] at (5.7544, 0.52083) {wild};
+\draw[->] (q2) .. controls (5.0861, 0.87041) and (5.1141, 1.0069) .. (5.2058, 1.0069) .. controls (5.2775, 1.0069) and (5.3102, 0.92361) .. (q2);
+\node[font=\footnotesize] at (5.2058, 1.0833) {stop};
+\draw[->] (q3) .. controls (4.4702, 0.59241) and (4.7475, 0.58892) .. (q2);
+\node[font=\footnotesize] at (4.6572, 0.65972) {wild};
+\draw[->] (q3) .. controls (3.9445, 0.92081) and (3.977, 1.0556) .. (4.0739, 1.0556) .. controls (4.1495, 1.0556) and (4.186, 0.97331) .. (q3);
+\node[font=\footnotesize] at (4.0739, 1.1319) {stop};
+\draw[->] (q5) .. controls (3.292, 0.58756) and (3.5692, 0.59105) .. (q3);
+\node[font=\footnotesize] at (3.4906, 0.65972) {wild};
+\draw[->] (q5) .. controls (2.8222, 0.87041) and (2.8502, 1.0069) .. (2.9419, 1.0069) .. controls (3.0136, 1.0069) and (3.0464, 0.92361) .. (q5);
+\node[font=\footnotesize] at (2.9419, 1.0833) {stop};
+\end{tikzpicture}
