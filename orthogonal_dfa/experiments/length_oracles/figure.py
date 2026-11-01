@@ -33,7 +33,7 @@ RANDOM_STRINGS = (
 OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 #: TAG, TAA, TGA and the two wildcards, in the paper's symbols.
 NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
-PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
+PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {"saw": ("saw", 1, 1), "flat": ("flat", 0, 3)}
 #: A kept DFA tracks the phase if it agrees this much with "frame0 open".
@@ -326,7 +326,7 @@ def plot_lengths(data, random_strings):
         bbox_to_anchor=(0.5, 0.2),
         frameon=False,
         handlelength=1.2,
-        ncol=2,
+        ncol=1,
     )
     return fig
 
@@ -441,9 +441,11 @@ def dfa_accepts(dfa, string):
     return q in dfa.final_states
 
 
-def either(items):
+def join_words(items, conjunction):
     items = [str(x) for x in items]
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " or " + items[-1]
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
 def values(described, data):
@@ -467,18 +469,20 @@ def values(described, data):
                 macro(f"{prefix}Modulus", k),
                 macro(
                     f"{prefix}Wildcards",
-                    either(w for w in range(k) if dfa_accepts(dfa, [3] * w)),
-                ),
-                macro(
-                    f"{prefix}Lengths",
-                    either(
-                        L
-                        for L in compiled_lengths(data)
-                        if dfa_accepts(
-                            dfa, [0] * ((L - 36) // 2) + [3] * ((108 - L) // 2)
-                        )
+                    join_words(
+                        [w for w in range(k) if dfa_accepts(dfa, [3] * w)], "or"
                     ),
                 ),
+            ]
+            lengths = [
+                L
+                for L in compiled_lengths(data)
+                if dfa_accepts(dfa, [0] * ((L - 36) // 2) + [3] * ((108 - L) // 2))
+            ]
+            # "lengths 38 or 42" for which lengths it accepts, "38 and 42" for both
+            lines += [
+                macro(f"{prefix}Lengths", join_words(lengths, "or")),
+                macro(f"{prefix}LengthsAnd", join_words(lengths, "and")),
             ]
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
