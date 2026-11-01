@@ -38,11 +38,11 @@ def loopG (x : LoopInputs) : ℝ :=
 
 lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
     0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
-        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
       ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
-        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)
       ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
@@ -69,10 +69,17 @@ lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
     rw [Real.log_mul (by linarith) (by linarith)]
     have := Real.log_le_sub_one_of_pos (show (0 : ℝ) < (L : ℝ) + x.Q by linarith)
     nlinarith
-  have hlLY0 : 0 ≤ log (((L : ℝ) + x.Q) * Y) := Real.log_nonneg (by nlinarith)
-  have e1 : ((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)
-      = ((L : ℝ) + x.Q) * Y := by
-    show ((L : ℝ) + x.Q) * x.Q * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
+  have hQ0 : (0 : ℝ) < x.Q := by linarith
+  have hLY0 : 0 < ((L : ℝ) + x.Q) * Y := mul_pos (by linarith) (by linarith)
+  have hlLQ : log (((L : ℝ) + x.Q) * Y / x.Q) ≤ 2 * ((L : ℝ) + x.Q) * log Y :=
+    (Real.log_le_log (div_pos hLY0 hQ0) (div_le_self hLY0.le hQ')).trans hlLY
+  have hlLY0 : 0 ≤ log (((L : ℝ) + x.Q) * Y / x.Q) := Real.log_nonneg (by
+    rw [le_div_iff₀ hQ0]
+    nlinarith [mul_nonneg (show (0 : ℝ) ≤ (L : ℝ) + x.Q by linarith)
+      (show (0 : ℝ) ≤ Y - 3 by linarith), Nat.cast_nonneg (α := ℝ) L])
+  have e1 : ((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)
+      = ((L : ℝ) + x.Q) * Y / x.Q := by
+    show ((L : ℝ) + x.Q) * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
     rw [hYd]; field_simp
   have e2 : (x.Q : ℝ) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = Y := by
     show (x.Q : ℝ) * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
@@ -93,8 +100,8 @@ lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
   have hb : 0 ≤ (x.Q : ℝ) ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
     have : 0 ≤ log Y := by linarith
     positivity
-  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log (((L : ℝ) + x.Q) * Y)
-        * log Y ^ 2 * K
+  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * Y / x.Q) * log Y ^ 2 * K
       ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
         * (2 * ((L : ℝ) + x.Q) * log Y) * log Y ^ 2 * K := by gcongr
     _ = 2 * (((L : ℝ) + x.Q) ^ 5 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
@@ -190,7 +197,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
       change _ ≤ C * |((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
-        * log (((L : ℝ) + x.Q) * x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
+        * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)| at hc
       rw [abs_of_nonneg hsh0] at hc
