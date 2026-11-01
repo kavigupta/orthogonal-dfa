@@ -40,8 +40,8 @@ WORD = {".": "open", "C": "closed"}
 CM_PER_INCH = 1.15
 NODE_INCHES = 0.6 / CM_PER_INCH
 LABEL_POINTS = 8 * 2.54 / CM_PER_INCH
-#: A ring's height over its width; circo's rings are round, and too tall in a row.
-RING_SQUASH = 0.6
+#: A ring is drawn as two rows, this far apart and with its states this far apart.
+RING_ROWS_CM, RING_STEP_CM = 1.1, 1.4
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 KINDS = {
@@ -159,6 +159,26 @@ def is_ring(dfa):
     return q == dfa.initial_state and seen == set(dfa.states)
 
 
+def ring_positions(dfa):
+    """Along the cycle from the start state: the top row left to right, then the
+    bottom row right to left, in graphviz inches."""
+    order = [dfa.initial_state]
+    while len(order) < len(dfa.states):
+        (q,) = {t for t in dfa.transitions[order[-1]].values() if t != order[-1]}
+        order.append(q)
+    top = (len(order) + 1) // 2
+    xs = list(range(top)) + [
+        top - 1 - j - (len(order) % 2) / 2 for j in range(len(order) - top)
+    ]
+    return {
+        f"q{q}": (
+            x * RING_STEP_CM / CM_PER_INCH,
+            RING_ROWS_CM / CM_PER_INCH * (i < top),
+        )
+        for i, (q, x) in enumerate(zip(order, xs))
+    }
+
+
 def layout(dfa):
     return "circo" if is_ring(dfa) else "dot"
 
@@ -182,7 +202,7 @@ def draw(dfa, path):
         for t in sorted(set(row.values())):
             label = edge_label([c for c in row if row[c] == t], tex=False)
             lines.append(f'q{q}->q{t}[label="{label}"];')
-    lines[0] += " margin=0; mindist=1.1;"
+    lines[0] += " margin=0;"
     path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
     subprocess.run(
         [layout(dfa), "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
@@ -191,33 +211,27 @@ def draw(dfa, path):
 
 
 def ring_edges(dfa, xy):
-    """Straight edges with their labels, and self-loops, all on the ring's outside."""
-    center = np.mean([xy[f"q{q}"] for q in dfa.states], axis=0)
-
-    def outward(*states):
-        offset = np.mean([xy[f"q{q}"] for q in states], axis=0) - center
-        return np.degrees(np.arctan2(offset[1], offset[0]))
-
-    # the start state's loop and arrow share its outward side
-    start = outward(dfa.initial_state) - 40
-    lines = [rf"\draw[<-] (q{dfa.initial_state}.{start:.0f}) -- ++({start:.0f}:0.5cm);"]
+    """On the two rows' outside: a row's loops and edge labels above the top row and
+    below the bottom one, and the end edges' labels beside them."""
+    center = np.mean([xy[f"q{q}"][0] for q in dfa.states])
+    top = {q: xy[f"q{q}"][1] > 0 for q in dfa.states}
+    lines = [rf"\draw[<-] (q{dfa.initial_state}.west) -- ++(-0.5cm, 0);"]
     for q in sorted(dfa.states):
         row = dfa.transitions[q]
         for t in sorted(set(row.values())):
             label = edge_label([c for c in row if row[c] == t], tex=True)
+            if top[q] == top[t]:
+                d = 90 if top[q] else 270
+            else:
+                d = 180 if xy[f"q{q}"][0] < center else 0
+            node = rf"node[font=\footnotesize, anchor={(d + 180) % 360}] {{{label}}}"
             if t != q:
-                d = outward(q, t)
+                lines.append(rf"\draw[->] (q{q}) -- {node} (q{t});")
+            else:
                 lines.append(
-                    rf"\draw[->] (q{q}) -- node[font=\footnotesize,"
-                    rf" anchor={(d + 180) % 360:.0f}] {{{label}}} (q{t});"
+                    rf"\path[->] (q{q}) edge[out={d + 20}, in={d - 20},"
+                    rf" looseness=8, min distance=5mm] {node} (q{q});"
                 )
-                continue
-            d = outward(q) + (40 if q == dfa.initial_state else 0)
-            lines.append(
-                rf"\path[->] (q{q}) edge[out={d + 20:.0f}, in={d - 20:.0f},"
-                rf" looseness=8, min distance=5mm] node[font=\footnotesize,"
-                rf" anchor={(d + 180) % 360:.0f}] {{{label}}} (q{q});"
-            )
     return lines
 
 
@@ -245,15 +259,18 @@ def spline_edges(dfa, rows, xy):
 
 
 def dfa_tikz(dfa, dot_path):
-    """In the paper's lstarex style, at graphviz's node positions.  A ring's edges are
-    drawn on its outside, where graphviz's would cross it."""
+    """In the paper's lstarex style, at graphviz's node positions.  A ring is drawn as
+    two rows instead, with its edges on its outside."""
     plain = subprocess.run(
         [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
     ).stdout
     rows = [shlex.split(line) for line in plain.splitlines()]
     ring = is_ring(dfa)
-    squash = RING_SQUASH if ring else 1
-    xy = {f[1]: (float(f[2]), float(f[3]) * squash) for f in rows if f[0] == "node"}
+    xy = (
+        ring_positions(dfa)
+        if ring
+        else {f[1]: (float(f[2]), float(f[3])) for f in rows if f[0] == "node"}
+    )
     lines = [rf"\begin{{tikzpicture}}[lstarex, x={CM_PER_INCH}cm, y={CM_PER_INCH}cm]"]
     for q in sorted(dfa.states):
         accepting = ", accepting" if q in dfa.final_states else ""
