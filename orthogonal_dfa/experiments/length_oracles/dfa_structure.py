@@ -20,15 +20,16 @@ def counts_wildcards(dfa):
     """Some cycle of wildcard transitions passes both accepting and rejecting states, so
     the verdict moves with the wildcard count; a DFA tracking the phase instead has
     wildcard cycles of one verdict, and uses the phase only to send stops elsewhere."""
-    for wildcard in (3, 4):
-        for q in dfa.states:
-            path = []
-            while q not in path:
-                path.append(q)
-                q = dfa.transitions[q][wildcard]
-            cycle = set(path[path.index(q) :])
-            if 0 < len(cycle & dfa.final_states) < len(cycle):
-                return True
+    if any(dfa.transitions[q][3] != dfa.transitions[q][4] for q in dfa.states):
+        raise ValueError("the two wildcards go to different states")
+    for q in dfa.states:
+        path = []
+        while q not in path:
+            path.append(q)
+            q = dfa.transitions[q][3]
+        cycle = set(path[path.index(q) :])
+        if 0 < len(cycle & dfa.final_states) < len(cycle):
+            return True
     return False
 
 
