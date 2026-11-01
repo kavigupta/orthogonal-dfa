@@ -42,6 +42,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩)
   rw [show ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) from
       fun x => by simp only [m]; field_simp; ring,
+    show ∀ x : ℝ, ξ / (2 * R) / (10 * x) = ξ / (20 * R * x) from fun x => by ring,
     show ∀ x : ℝ, ξ / 4 / (8 * x) = ξ / (32 * x) from fun x => by ring,
     show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
     show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h
@@ -67,6 +68,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     unfold loopMassInv loopΘ
     rw [show 4 * (A + Q + 1) / (ξ / (2 * R)) = aε by
         simp only [aε, m]; field_simp; ring,
+      show (10 : ℝ) / (ξ / (2 * R)) = 20 * R / ξ by rw [div_div_eq_mul_div]; ring,
       show (8 : ℝ) / (ξ / 4) = 32 / ξ by ring,
       show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring]
     rfl
