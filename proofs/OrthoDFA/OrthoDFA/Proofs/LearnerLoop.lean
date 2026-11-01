@@ -66,8 +66,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
             2 ^ 27 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
               * (D j).real {t} ≤ min εcov indecisionLimit ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
-            2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-              ≤ δc * slack ^ 2) →
+            2 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+              * (D j).real {t} ≤ slack ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
@@ -421,7 +421,8 @@ def LoopCore : Prop :=
   2 ^ 18 * ((K : ℝ) + 4) * NP * cap ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit →
   2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
     ≤ min εcov indecisionLimit ^ 2 →
-  2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
+  4 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
+    ≤ (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
   2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
@@ -614,18 +615,26 @@ theorem loop_core_holds : LoopCore := by
         _ = 2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap := by
           ring
         _ ≤ _ := hq1b
-    · have hnp : (B.npref : ℝ) ≤ NP := by
-        exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
-      have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
+    · have hnpN : B.npref ≤ NP := (hsizes pops B (by rw [hs]; exact hB)).2.1
       have hpk : (pops.card : ℝ) ≤ (K : ℝ) + 1 := by linarith only [hpopc pops]
       have hLj := hLat j hj t
-      have hc0 := hcap.le
       have hlog : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
         exact_mod_cast Nat.log_mono_right hnpN
-      calc 2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
-          ≤ 2 ^ 4 * ((K : ℝ) + 1 + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * (2 * cap) := by
-            gcongr
-        _ = 2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by ring
+      have hpc : (1 : ℝ) ≤ pops.card := by exact_mod_cast Finset.card_pos.2 ⟨none, hpops⟩
+      have hl0 : (0 : ℝ) ≤ (Nat.log 2 B.npref : ℝ) := Nat.cast_nonneg _
+      have hlg : Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          ≤ Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) :=
+        Real.log_le_log (div_pos (by nlinarith) hδc)
+          (div_le_div_of_nonneg_right (by nlinarith) hδc.le)
+      have hlg0 : 0 ≤ Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) :=
+        Real.log_nonneg (by rw [le_div_iff₀ hδc]; nlinarith)
+      calc 2 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            * (L j).real {t}
+          ≤ 2 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * (2 * cap) :=
+            mul_le_mul (mul_le_mul_of_nonneg_left hlg (by norm_num)) hLj measureReal_nonneg
+              (mul_nonneg (by norm_num) (hlg0.trans hlg))
+        _ = 4 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap := by
+          ring
         _ ≤ _ := hq2a
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1

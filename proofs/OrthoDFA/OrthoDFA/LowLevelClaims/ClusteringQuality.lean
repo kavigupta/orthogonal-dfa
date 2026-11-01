@@ -71,8 +71,8 @@ def ClusteringQualityGuarantee : Prop :=
         512 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
           * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * slack ^ 2) →
+        2 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
+          * (D j).real {t} ≤ slack ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,
