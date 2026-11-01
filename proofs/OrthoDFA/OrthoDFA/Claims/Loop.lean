@@ -117,9 +117,9 @@ def LoopClaim.{u, v, w} : Prop :=
         * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
         / (r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) ∧
     totalPref =O[𝓟 loopDistRunRegion] (fun r =>
-      r.Q ^ 3 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+      r.Q ^ 3 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-        * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) ∧
+        * (1 / r.s₀ ^ 8 + (1 / r.β + r.Q) ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopDistRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
@@ -174,9 +174,9 @@ def LoopClaimUniform.{u, v, w} : Prop :=
     L₀ =O[𝓟 loopRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
     totalPref =O[𝓟 loopRunRegion] (fun r =>
-      r.Q ^ 3 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+      r.Q ^ 3 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
-        * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) ∧
+        * (1 / r.s₀ ^ 8 + (r.A + r.Q) ^ 2 * r.Q ^ 4 / r.s₀ ^ 4)) ∧
     totalSuff =O[𝓟 loopRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
