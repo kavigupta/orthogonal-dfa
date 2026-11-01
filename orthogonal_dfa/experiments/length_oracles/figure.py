@@ -138,16 +138,35 @@ def edge_label(symbols, tex):
     return ", ".join(parts + [names[c] for c in sorted(symbols)])
 
 
+def is_ring(dfa):
+    """A single cycle of at least 3 states, every other edge a self-loop: a counter."""
+    successors = {
+        q: {t for t in dfa.transitions[q].values() if t != q} for q in dfa.states
+    }
+    if len(dfa.states) < 3 or any(len(t) != 1 for t in successors.values()):
+        return False
+    q, seen = dfa.initial_state, set()
+    while q not in seen:
+        seen.add(q)
+        (q,) = successors[q]
+    return q == dfa.initial_state and seen == set(dfa.states)
+
+
+def layout(dfa):
+    return "circo" if is_ring(dfa) else "dot"
+
+
 def draw(dfa, path):
     lines = [
         "digraph{rankdir=LR; bgcolor=transparent;",
-        'node[shape=circle,fontname=Helvetica,width=.35,fixedsize=true,label=""];',
-        "edge[fontname=Helvetica,fontsize=10,arrowsize=.6];",
+        'node[shape=circle,fontname=Helvetica,width=.45,fixedsize=true,label=""];',
+        # the TikZ's 8pt labels, at 1.33cm per graphviz inch
+        "edge[fontname=Helvetica,fontsize=15,arrowsize=.6];",
         f"start[shape=point,width=.06]; start->q{dfa.initial_state};",
     ]
     for q in sorted(dfa.states):
         style = (
-            'shape=doublecircle,width=.3,style=filled,fillcolor="#cfe8cf"'
+            'shape=doublecircle,width=.45,style=filled,fillcolor="#cfe8cf"'
             if q in dfa.final_states
             else 'style=filled,fillcolor="#eeeeee"'
         )
@@ -159,26 +178,52 @@ def draw(dfa, path):
     lines[0] += " margin=0;"
     path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
     subprocess.run(
-        ["dot", "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
+        [layout(dfa), "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
         check=True,
     )
 
 
 def dfa_tikz(dfa, dot_path):
     """In the paper's lstarex style, along graphviz's node positions, edge curves and
-    label positions."""
+    label positions.  On a ring, self-loops point away from its center instead, where
+    graphviz would draw them across the ring's edges."""
     plain = subprocess.run(
-        ["dot", "-Tplain", dot_path], capture_output=True, text=True, check=True
+        [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
     ).stdout
     rows = [shlex.split(line) for line in plain.splitlines()]
-    pos = {f[1]: f"({f[2]}, {f[3]})" for f in rows if f[0] == "node"}
+    xy = {f[1]: (float(f[2]), float(f[3])) for f in rows if f[0] == "node"}
     lines = [r"\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]"]
     for q in sorted(dfa.states):
         accepting = ", accepting" if q in dfa.final_states else ""
-        lines.append(rf"\node[state{accepting}] (q{q}) at {pos[f'q{q}']} {{}};")
-    lines.append(rf"\draw[->] {pos['start']} -- (q{dfa.initial_state});")
+        lines.append(rf"\node[state{accepting}] (q{q}) at {xy[f'q{q}']} {{}};")
+    ring = is_ring(dfa)
+    if ring:
+        center = np.mean([xy[f"q{q}"] for q in dfa.states], axis=0)
+        outward = {
+            q: np.degrees(np.arctan2(*(np.array(xy[f"q{q}"]) - center)[::-1]))
+            for q in dfa.states
+        }
+        # the start state's loop and arrow share its outward side
+        start = outward[dfa.initial_state] - 40
+        outward[dfa.initial_state] += 40
+        lines.append(
+            rf"\draw[<-] (q{dfa.initial_state}.{start:.0f})"
+            rf" -- ++({start:.0f}:0.5cm);"
+        )
+    else:
+        lines.append(rf"\draw[->] {xy['start']} -- (q{dfa.initial_state});")
     for f in rows:
         if f[0] != "edge" or f[1] == "start":
+            continue
+        if ring and f[1] == f[2]:
+            q = int(f[1][1:])
+            row = dfa.transitions[q]
+            label = edge_label([c for c in row if row[c] == q], tex=True)
+            d = outward[q]
+            lines.append(
+                rf"\path[->] (q{q}) edge[out={d + 20:.0f}, in={d - 20:.0f}, looseness=8, min distance=5mm]"
+                rf" node[font=\footnotesize, anchor={(d + 180) % 360:.0f}] {{{label}}} (q{q});"
+            )
             continue
         n = int(f[3])
         points = [f"({f[4 + 2 * i]}, {f[5 + 2 * i]})" for i in range(n)]
