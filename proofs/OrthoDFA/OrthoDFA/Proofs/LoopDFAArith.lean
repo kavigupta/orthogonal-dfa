@@ -70,7 +70,7 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θι Θ Θa 
     (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2)
     (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min (c / (10 * N)) (ξ / (8 * N)))
     (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) (hs : s = 1 / 2 - η₀)
-    (hτ : τ = min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι)
+    (hτ : τ = min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι)
     (haε : aε = 4 * (A + 1) / c) (hCe : Ce = 10 / c + 8 / ξ)
     (hΘι : Θι = 8 * Ce + 4608 * Q * (Q + 1) * aε) (hΘ : Θ = Ce / (2 * s ^ 2) + Θι)
     (hΘa : Θa = 2 * Ce / s + Θι) :
@@ -128,14 +128,10 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θι Θ Θa 
         rw [e]
         exact mul_le_mul_of_nonneg_right this (by linarith)
       linarith
-  have ha : 2 * s ≤ (1 - 2 * η₀) / (1 - η₀) := by
-    rw [le_div_iff₀ (by linarith), hs]
-    have := mul_le_mul_of_nonneg_left (show 1 - η₀ ≤ 1 by linarith)
-      (show (0 : ℝ) ≤ 1 - 2 * η₀ by linarith)
-    linarith
+  have ha : 2 * s ≤ 1 - 2 * η₀ := by rw [hs]; linarith
   have hτ0 : 0 < τ := by
     rw [hτ]
-    exact lt_min (mul_pos (by positivity) (pow_pos (div_pos (by linarith) (by linarith)) 2)) hι0
+    exact lt_min (mul_pos (by positivity) (pow_pos (by linarith) 2)) hι0
   have hΘιΘ : Θι ≤ Θ := by
     rw [hΘ]; have : 0 ≤ Ce / (2 * s ^ 2) := by positivity
     linarith
@@ -144,16 +140,16 @@ lemma dfa_rate_bounds {Q A ℓ N c ξ η₀ ε εcov ι τ s aε Ce Θι Θ Θa 
     linarith
   have hinvτ : 1 / τ ≤ Θ * ℓ := by
     rw [hτ]
-    rcases min_choice ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with h | h <;> rw [h]
-    · have hsq : (2 * s) ^ 2 ≤ ((1 - 2 * η₀) / (1 - η₀)) ^ 2 :=
+    rcases min_choice ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι with h | h <;> rw [h]
+    · have hsq : (2 * s) ^ 2 ≤ (1 - 2 * η₀) ^ 2 :=
         pow_le_pow_left₀ (by positivity) ha 2
-      have hlow : 2 * s ^ 2 * εcov ≤ (εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2 := by
+      have hlow : 2 * s ^ 2 * εcov ≤ (εcov / 2) * (1 - 2 * η₀) ^ 2 := by
         have := mul_le_mul_of_nonneg_left hsq (show 0 ≤ εcov / 2 by positivity)
         nlinarith
       have hΘ2 : Ce / (2 * s ^ 2) ≤ Θ := by
         rw [hΘ]; have : 0 ≤ Θι := by rw [hΘι]; positivity
         linarith
-      calc 1 / ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ≤ 1 / (2 * s ^ 2 * εcov) :=
+      calc 1 / ((εcov / 2) * (1 - 2 * η₀) ^ 2) ≤ 1 / (2 * s ^ 2 * εcov) :=
             one_div_le_one_div_of_le (by positivity) hlow
         _ = 1 / (2 * s ^ 2) * (1 / εcov) := by field_simp
         _ ≤ 1 / (2 * s ^ 2) * (Ce * ℓ) :=

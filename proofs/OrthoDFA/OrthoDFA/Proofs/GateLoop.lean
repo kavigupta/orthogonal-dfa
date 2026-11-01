@@ -626,19 +626,16 @@ lemma budgetScale_pos (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hin
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) : 0 < budgetScale η₀ indecisionLimit εcov :=
   lt_min (mul_pos (lt_min hε (by norm_num)) (pow_pos (gateA_pos hη0 hsig) 2)) hind
 
-/-- The scale sits under the signal: `a²/2 ≤ sig` since `a ≤ 1 − η₀`. -/
+/-- The scale sits under the signal: `a²/2 ≤ sig` since `a = 2 sig ≤ 1`. -/
 lemma budgetScale_le_sig (η₀ indecisionLimit εcov : ℝ) (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     budgetScale η₀ indecisionLimit εcov ≤ sig η₀ := by
   have ha := gateA_pos hη0 hsig
-  have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-  have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by unfold gateA; field_simp
-  have ha1 : gateA η₀ ≤ 1 - η₀ := by nlinarith
+  have ha2 : gateA η₀ ^ 2 ≤ 2 * sig η₀ := by unfold gateA sig; nlinarith
   have hmn : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
   have h : min εcov (1 / 2) * gateA η₀ ^ 2 ≤ sig η₀ := by
-    rw [sig]
     rcases le_or_gt 0 (min εcov (1 / 2)) with h0 | h0
-    · nlinarith [mul_le_mul_of_nonneg_left ha1 ha.le]
-    · nlinarith [sq_nonneg (gateA η₀)]
+    · nlinarith [mul_le_mul_of_nonneg_left ha2 h0, sq_nonneg (gateA η₀)]
+    · nlinarith [sq_nonneg (gateA η₀), sig_pos η₀ hsig]
   exact (min_le_left _ _).trans h
 
 lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
@@ -671,11 +668,7 @@ lemma shiftBudget_le_cutBudget (η₀ indecisionLimit εcov : ℝ) (hind : 0 < i
   have hβu : shiftScale indecisionLimit εcov ≤ indecisionLimit := min_le_right _ _
   have hmε : min εcov (1 / 2) ≤ εcov := min_le_left _ _
   have hm2 : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
-  have ha : 2 * sig η₀ ≤ gateA η₀ := by
-    have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by
-      have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-      unfold gateA; field_simp
-    rw [sig]; nlinarith [gateA_pos hη0 hsig]
+  have ha : 2 * sig η₀ ≤ gateA η₀ := by unfold sig gateA; linarith
   have hsβ : sig η₀ ^ 2 * shiftScale indecisionLimit εcov ≤ shiftScale indecisionLimit εcov :=
     mul_le_of_le_one_left hβ.le (by nlinarith)
   rw [shiftBudget, cutBudget]
@@ -684,10 +677,7 @@ lemma shiftBudget_le_cutBudget (η₀ indecisionLimit εcov : ℝ) (hind : 0 < i
   nlinarith [mul_le_mul_of_nonneg_right h4 (le_trans hβ.le hβm)]
 
 lemma two_sig_le_gateA {η₀ : ℝ} (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) : 2 * sig η₀ ≤ gateA η₀ := by
-  have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by
-    have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-    unfold gateA; field_simp
-  rw [sig]; nlinarith [gateA_pos hη0 hsig]
+  unfold sig gateA; linarith
 
 /-- The redraws are a hundred-and-twenty-eighth of the cut budget. -/
 lemma rejFrac_le_cut (η₀ indecisionLimit εcov εs : ℝ) (hind : 0 < indecisionLimit)

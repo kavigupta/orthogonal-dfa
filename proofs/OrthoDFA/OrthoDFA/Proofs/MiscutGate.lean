@@ -1764,7 +1764,7 @@ theorem mul_sideCap_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (h
   have hb' : 2 * (((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y))) - tu
       ≤ refApart O.mq A R ω := by rw [hx2, hy2]; exact hb
   unfold sideCap
-  exact mul_wrongCap_le A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hxη hy0 hyη hη₀
+  exact mul_wrongCap_le A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hy0 hyη (by linarith) hη₀
     hlo hhi hb'
 
 open scoped Classical in
@@ -1877,9 +1877,7 @@ lemma sideCharge_le_gateA (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀)
   have ha : 0 < gateA η₀ := gateA_pos h0 hη₀
   have key : O.gap * gateA η₀ ≤ 1 - η₀ - clsRate O accept := by
     unfold gateA
-    rw [mul_div_assoc', div_le_iff₀ (by linarith)]
-    nlinarith [mul_le_mul_of_nonneg_right (show O.gap ≤ 1 - clsRate O accept by linarith)
-      (by linarith : (0 : ℝ) ≤ 1 - 2 * η₀)]
+    nlinarith [mul_le_mul_of_nonneg_right (gap_le_one O) (by linarith : (0 : ℝ) ≤ 1 - 2 * η₀)]
   have hsq : (O.gap * gateA η₀) ^ 2 ≤ (1 - η₀ - clsRate O accept) ^ 2 :=
     pow_le_pow_left₀ (mul_nonneg hg0 ha.le) key 2
   unfold sideCharge
@@ -1953,7 +1951,7 @@ theorem mul_sideCap_le_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
   have hb' : 2 * (((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y))) - tu
       ≤ refApart O.mq A R ω := by rw [hx2, hy2]; exact hb
   unfold sideCap
-  have key := mul_wrongCap_le_rates A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hxη hy0 hyη
+  have key := mul_wrongCap_le_rates A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hy0 hyη (by linarith)
     hη₀ hlo hhi hb' (d := hoeffDev A.card a)
   have hg : 1 - x - y = O.gap := one_sub_side_rates O accept
   rw [hg] at key
