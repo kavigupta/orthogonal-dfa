@@ -264,8 +264,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-        (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
-          (ι / 2 / (8 * J * (RB + 1)))))
+        (ι / 2 / (8 * J * (RB + 1))))
       (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ * (Q + 3) ^ ((Fintype.card σ + 2)
@@ -410,20 +409,17 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hcap0 : 0 < cap := by
     show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-        (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
-          (ι / 2 / (8 * J * (RB + 1)))))
+        (ι / 2 / (8 * J * (RB + 1))))
       (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     refine lt_min (lt_min (lt_min (by positivity) (div_pos (by positivity) (by positivity)))
-      (lt_min (div_pos (by positivity) (by positivity)) (by positivity))) (by positivity)
+      (by positivity)) (by positivity)
   -- the cap's terms
   have hmul : ∀ {x b a : ℝ}, 0 < b → x ≤ b → cap ≤ a / b → x * cap ≤ a := fun hb hx h => by
     rw [le_div_iff₀ hb] at h
     exact (mul_le_mul_of_nonneg_right hx hcap0.le).trans (by linarith)
   have hNSr : ((⌊PB⌋₊ : ℕ) : ℝ) ≤ PB := Nat.floor_le hPB0
   have hNPr : ((⌊RB⌋₊ : ℕ) : ℝ) ≤ RB := Nat.floor_le hRB0
-  have hK2 : (((Fintype.card σ + 1 : ℕ) : ℝ)) + 2 = J + 1 := by
-    push_cast; show _ = (Fintype.card σ : ℝ) + 2 + 1; ring
   have hK1 : (((Fintype.card σ + 1 : ℕ) : ℝ)) + 1 = J := by
     push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
   have hKJ : (((Fintype.card σ + 1 : ℕ) : ℝ)) ≤ J := by linarith
@@ -445,27 +441,34 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     change _ ≤ s * min (εcov / 2 * s) ι
     exact hmul (b := 2 ^ 18 * (J + 3) * (RB + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
-  have hq1b : 2 ^ 28 * Real.log (128 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
-      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ min (εcov / 2) ι ^ 2 := by
-    rw [hK1, min_eq_right (by linarith : ι ≤ εcov / 2)]
-    have hl0 : (0 : ℝ) ≤ ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := Nat.cast_nonneg _
+  have hl0 : (0 : ℝ) ≤ ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := Nat.cast_nonneg _
+  have hhash : 2 ^ 28 * Real.log (128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap
+      ≤ ι ^ 2 := by
     have hlg : Real.log (128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ')
         ≤ Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ') :=
       Real.log_le_log (by positivity) (div_le_div_of_nonneg_right (by gcongr) hδ'0.le)
     exact hmul (b := 2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))
       (by positivity) (by gcongr)
       (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
-  have hq2a : 2 ^ 5 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 2)
-      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) * cap ≤ δ' * (ι - ι / 2) ^ 2 := by
-    rw [hK2, show ι - ι / 2 = ι / 2 by ring]
-    exact hmul (b := 2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))) (by positivity)
-      (by gcongr)
-      (((min_le_left _ _).trans (min_le_right _ _)).trans (min_le_left _ _))
+  have hq1b : 2 ^ 28 * Real.log (128 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
+      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ min (εcov / 2) ι ^ 2 := by
+    rw [hK1, min_eq_right (by linarith : ι ≤ εcov / 2)]
+    exact hhash
+  -- the quality's ladder tail is the hash's log at a smaller constant
+  have hq2a : 4 * Real.log (128 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
+      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ (ι - ι / 2) ^ 2 := by
+    rw [hK1, show ι - ι / 2 = ι / 2 by ring]
+    have h0 : 0 ≤ Real.log (128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap := by
+      refine mul_nonneg (Real.log_nonneg ?_) hcap0.le
+      rw [le_div_iff₀ hδ'0]
+      have : 1 ≤ J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by nlinarith
+      nlinarith
+    nlinarith [hhash, h0]
   have hq2b : 8 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
       ≤ ι - ι / 2 := by
     rw [hK1, show ι - ι / 2 = ι / 2 by ring]
     exact hmul (b := 8 * J * (RB + 1)) (by positivity) (by gcongr; linarith)
-      (((min_le_left _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
+      ((min_le_left _ _).trans (min_le_right _ _))
   have hq3 : 2 ^ 15 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ δ' * (pAP - pAP / 2) := by
     have h := hmul (x := 2 ^ 16 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := δ' * pAP)
       (b := 2 ^ 16 * (PB + 1)) (by positivity) (by gcongr; linarith)

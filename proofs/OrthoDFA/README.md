@@ -50,7 +50,7 @@ Each claim is proved from the explicit theorems below.
   `Y = |Q|R/(β δ ξ pAP s₀)`,
 
       1/p₀Tol = O((L + |Q|)⁴ log(X') log(Y) |Q|³R b/ξ
-                  · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + R²|Q|⁴b²/(ξ²δ) + 1/(δ pAP² s₀²))
+                  · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + 1/(δ pAP² s₀²))
                 + (L + |Q|)² log(X') log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
@@ -94,7 +94,9 @@ this (`parity_toggle`, #438).
   `εs/(2⁸(|J| + 3)·npref)`, and under
   `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
-  wrongly, or leaves it undecided, only a bounded share of the time.
+  wrongly, or leaves it undecided, only a bounded share of the time. Off the table's prefixes the
+  family's verdicts are independent across prefixes, so a weighted Hoeffding bound over the ladder
+  needs a tame population's atoms under `slack²/(2 log(128|J|(3 + 2⌊log₂ npref⌋)/δ))`.
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state
   has one distribution its strings read with, and the band's check bounds each.
 - `TripartiteSearchCorrect`: the search the probes use to find where the walk and the sift part
@@ -257,8 +259,8 @@ length-`k` prefix, so a population puts at most `96 prefixMax / ε` on a string,
 also bounds the suffixes' atoms; its strings are at most `L₁ + |Q|` long, the tree's midfixes at
 most `|Q|`. Against `cap` the clustering's atom conditions hold, every population tame: its
 samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)`; the hash's balance,
-`log(|J| log₂ NP/δ)·cap` under `ι²`; the quality's deviation, `log₂ NP·cap` under `δ` times the
-slack squared; and the tables' own mass, `NP·cap` under the slack. The earlier rounds' reads, at
+`log(|J| log₂ NP/δ)·cap` under `ι²`; the quality's deviation, `log(|J| log₂ NP/δ)·cap` under the
+slack squared, which the hash's term already gives; and the tables' own mass, `NP·cap` under the slack. The earlier rounds' reads, at
 most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any population and `ms`
 of the suffixes. `NS` and `NP` are bounded by `poolCount_le` and `prefCount_le_split_of_le`
 (`counts_le`, `Proofs/LoopSimple.lean`): `NP` is `|J| log(NS/δ)/(s₀⁴ι²)`, the populations'
