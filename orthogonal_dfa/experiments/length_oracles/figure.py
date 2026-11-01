@@ -35,6 +35,13 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
 PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
 WORD = {".": "open", "C": "closed"}
+#: TikZ cm per graphviz inch; graphviz's nodes and labels are sized to match the TikZ's
+#: 6mm states (lstarex) and 8pt labels.
+CM_PER_INCH = 1.15
+NODE_INCHES = 0.6 / CM_PER_INCH
+LABEL_POINTS = 8 * 2.54 / CM_PER_INCH
+#: A ring's height over its width; circo's rings are round, and too tall in a row.
+RING_SQUASH = 0.6
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 KINDS = {
@@ -159,14 +166,14 @@ def layout(dfa):
 def draw(dfa, path):
     lines = [
         "digraph{rankdir=LR; bgcolor=transparent;",
-        'node[shape=circle,fontname=Helvetica,width=.45,fixedsize=true,label=""];',
-        # the TikZ's 8pt labels, at 1.33cm per graphviz inch
-        "edge[fontname=Helvetica,fontsize=15,arrowsize=.6];",
+        f"node[shape=circle,fontname=Helvetica,width={NODE_INCHES:.2f},"
+        'fixedsize=true,label=""];',
+        f"edge[fontname=Helvetica,fontsize={LABEL_POINTS:.1f},arrowsize=.6];",
         f"start[shape=point,width=.06]; start->q{dfa.initial_state};",
     ]
     for q in sorted(dfa.states):
         style = (
-            'shape=doublecircle,width=.45,style=filled,fillcolor="#cfe8cf"'
+            f'shape=doublecircle,width={NODE_INCHES:.2f},style=filled,fillcolor="#cfe8cf"'
             if q in dfa.final_states
             else 'style=filled,fillcolor="#eeeeee"'
         )
@@ -175,7 +182,7 @@ def draw(dfa, path):
         for t in sorted(set(row.values())):
             label = edge_label([c for c in row if row[c] == t], tex=False)
             lines.append(f'q{q}->q{t}[label="{label}"];')
-    lines[0] += " margin=0; mindist=0.6;"
+    lines[0] += " margin=0; mindist=1.1;"
     path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
     subprocess.run(
         [layout(dfa), "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
@@ -244,12 +251,14 @@ def dfa_tikz(dfa, dot_path):
         [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
     ).stdout
     rows = [shlex.split(line) for line in plain.splitlines()]
-    xy = {f[1]: (float(f[2]), float(f[3])) for f in rows if f[0] == "node"}
-    lines = [r"\begin{tikzpicture}[lstarex, x=1.33cm, y=1.33cm]"]
+    ring = is_ring(dfa)
+    squash = RING_SQUASH if ring else 1
+    xy = {f[1]: (float(f[2]), float(f[3]) * squash) for f in rows if f[0] == "node"}
+    lines = [rf"\begin{{tikzpicture}}[lstarex, x={CM_PER_INCH}cm, y={CM_PER_INCH}cm]"]
     for q in sorted(dfa.states):
         accepting = ", accepting" if q in dfa.final_states else ""
         lines.append(rf"\node[state{accepting}] (q{q}) at {xy[f'q{q}']} {{}};")
-    lines += ring_edges(dfa, xy) if is_ring(dfa) else spline_edges(dfa, rows, xy)
+    lines += ring_edges(dfa, xy) if ring else spline_edges(dfa, rows, xy)
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
@@ -264,8 +273,8 @@ def plot_lengths(data, random_strings):
         and (r["length"] - 36) % 2 == 0
     ]
     xs = [r["length"] for r in rows]
-    fig = plt.figure(figsize=(2.2, 2.5))
-    ax = fig.add_axes((0.22, 0.45, 0.74, 0.52))
+    fig = plt.figure(figsize=(2.2, 2.1))
+    ax = fig.add_axes((0.22, 0.5, 0.74, 0.47))
     for color, (kind, name) in zip(PAPER_COLORS, PAPER_NAMES.items()):
         ys = [r[f"{kind}_accepts"] / r["n"] for r in rows]
         ax.plot(xs, ys, "o-", color=color, label=name, ms=3, linewidth=1.5)
@@ -296,7 +305,7 @@ def plot_lengths(data, random_strings):
     fig.legend(
         *ax.get_legend_handles_labels(),
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.17),
+        bbox_to_anchor=(0.5, 0.2),
         frameon=False,
         handlelength=1.2,
         ncol=2,
