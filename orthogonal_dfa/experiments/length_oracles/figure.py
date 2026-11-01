@@ -1,13 +1,15 @@
-"""The length-oracle figure, and one printed row per restart, from the runs and the
-labelled strings.
+"""The length-oracle figure, and one printed row per restart, from the checked-in
+runs and labels alone.
 
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-the rules' agreements are on the read half.  Writes figures/length_oracles/."""
+the rules' agreements are on the read half.  Writes figures/length-oracles/figure.pdf."""
 
 import json
 import subprocess
+import tempfile
+from pathlib import Path
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -18,11 +20,11 @@ from orthogonal_dfa.l_star.dfa_utils import table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
 from ..random_minimal.analyze import PAPER_RC
-from .label import COUNT, labels, strings
+from .label import saved_labels
 from .oracles import SYMBOLS
 
 RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
-OUT_DIR = REPO_ROOT / "figures" / "length_oracles"
+OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 NAMES = ["TAG", "TAA", "TGA", "N", "N"]
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
@@ -83,7 +85,10 @@ def describe(restart, y, data):
     verdict = accepts > y[fit].mean() * count
     v = verdict[end]
     by_modulus = {k: nmi(end, (SYMBOLS - data.stops) % k) for k in range(2, 8)}
-    modulus = max(by_modulus, key=by_modulus.get)
+    # Every multiple of a counter's period ties with it.
+    modulus = min(
+        k for k, v in by_modulus.items() if v > max(by_modulus.values()) - 1e-6
+    )
     return dict(
         minimal=DFA(
             states=set(range(len(transitions))),
@@ -147,14 +152,18 @@ def draw(dfa, path):
 
 def representatives(described):
     """The two sawtooth restarts, from different seeds, whose end state best tracks the
-    wildcard count modulo some k, and the kept per-length restart that best agrees
-    with "frame0 open"."""
+    wildcard count modulo some k (kept ones first among ties), and the kept per-length
+    restart that best agrees with "frame0 open"."""
 
     def counting(key):
         d = described[key]
         return d["by_modulus"][d["modulus"]]
 
-    saw = sorted((key for key in described if key[0] == "saw"), key=counting)[::-1]
+    saw = sorted(
+        (key for key in described if key[0] == "saw"),
+        key=lambda key: (round(counting(key), 6), described[key]["kept"]),
+        reverse=True,
+    )
     picked = [saw[0], next(key for key in saw if key[1] != saw[0][1])]
     out = [
         (
@@ -172,8 +181,9 @@ def representatives(described):
 
 
 def main():
-    data = Strings(np.array(strings(COUNT), dtype=np.int64))
-    y = {kind: labels(kind, COUNT).astype(float) for kind in KINDS}
+    strings, labels = saved_labels()
+    data = Strings(np.array(strings, dtype=np.int64))
+    y = {kind: labels[kind].astype(float) for kind in KINDS}
     with open(RUNS) as f:
         restarts = {
             (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
@@ -189,8 +199,11 @@ def main():
     described = {}
     for key, r in restarts.items():
         d = described[key] = describe(r, y[r["oracle"]], data)
-        picks = [s["pick_score"] for k, s in restarts.items() if k[:2] == key[:2]]
-        d["kept"] = r["pick_score"] == max(picks)
+        picks = [
+            s["pick_score"] for k, s in sorted(restarts.items()) if k[:2] == key[:2]
+        ]
+        # As counterexample_synthesis keeps it: the first best.
+        d["kept"] = key[2] == int(np.argmax(picks))
         print(
             f"{key[0]:4s} s{key[1]} r{key[2]}{'*' if d['kept'] else ' '} "
             f"pick {r['pick_score']:.3f} phi {d['phi']:+.3f} "
@@ -233,20 +246,20 @@ def main():
             )
 
     saw_rows = grid[1, 0].subgridspec(2, 1, hspace=0.35)
-    for k, (key, caption) in enumerate(representatives(described)):
-        d = described[key]
-        path = OUT_DIR / f"dfa_{key[0]}_s{key[1]}_r{key[2]}.png"
-        draw(d["minimal"], path)
-        ax = fig.add_subplot(saw_rows[k] if key[0] == "saw" else grid[1, 1])
-        ax.imshow(mpimg.imread(path))
-        ax.axis("off")
-        ax.set_title(
-            f"{KINDS[key[0]].split(' (')[0]}, seed {key[1]} restart {key[2]}"
-            f"{' (kept)' if d['kept'] else ''}: {caption}\n"
-            f"({len(d['minimal'].states)} states, phi {d['phi']:.3f})",
-            fontsize=9,
-        )
-    fig.savefig(OUT_DIR / "figure.png", dpi=150, bbox_inches="tight")
+    with tempfile.TemporaryDirectory() as drawings:
+        for k, (key, caption) in enumerate(representatives(described)):
+            d = described[key]
+            path = Path(drawings) / f"{key[0]}_s{key[1]}_r{key[2]}.png"
+            draw(d["minimal"], path)
+            ax = fig.add_subplot(saw_rows[k] if key[0] == "saw" else grid[1, 1])
+            ax.imshow(mpimg.imread(path))
+            ax.axis("off")
+            ax.set_title(
+                f"{KINDS[key[0]].split(' (')[0]}, seed {key[1]} restart {key[2]}"
+                f"{' (kept)' if d['kept'] else ''}: {caption}\n"
+                f"({len(d['minimal'].states)} states, phi {d['phi']:.3f})",
+                fontsize=9,
+            )
     with plt.rc_context({"pdf.fonttype": PAPER_RC["pdf.fonttype"]}):
         fig.savefig(OUT_DIR / "figure.pdf", bbox_inches="tight")
 
