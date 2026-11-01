@@ -504,13 +504,17 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       hε hpAP hpAP1
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
-  have hscaleEq :
-      budgetScale η₀ indecisionLimit εcov = rateScale η₀ indecisionLimit εcov := by
-    unfold budgetScale rateScale gateA; rw [min_eq_left hε1]
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
     cap_of_top populations η₀ indecisionLimit εcov εs δ' α pAP crossLimit ((D j).real {t}) hη0
-      hη₀ hε hind hcard hδ' hδ'1 measureReal_nonneg (by rw [← hmdef]; exact hm)
-      (by rw [hscaleEq, sig]; exact hcollD _ htop j hj t) (hcollE _ htop j hj t) (by
+      hη₀ hε (by linarith) hind hcard hδ' hδ'1 measureReal_nonneg (by rw [← hmdef]; exact hm)
+      (by
+        have h : 2 ^ 18 * ((populations.card : ℝ) + 3)
+            * (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
+            * (D j).real {t} ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) :=
+          hcollD _ htop j hj t
+        have hr := rateScale_mul_sig_le (indecisionLimit := indecisionLimit) hη0 hη₀ hε hind
+        rw [sig] at hr ⊢
+        linarith) (hcollE _ htop j hj t) (by
         have h := hcollH _ htop j hj t
         change 512 * Real.log (128 * (populations.card : ℝ)
             * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP
@@ -573,15 +577,15 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpoly := prefCount_le_split (hsz := hsz) populations η₀ indecisionLimit εcov εs δ' α pAP
     crossLimit hsig hη0 hpop hind hε hεs hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit (2 ^ 24)
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit (2 ^ 26)
         + 6 * Real.log (256 * (populations.card : ℝ) / δ') / εs
         + harvestCap η₀ indecisionLimit εcov hsz := by
-    have := budgetCap_split populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0
-      hind hε hδ' (by linarith)
+    have := budgetCap_split populations η₀ indecisionLimit εcov δ' α pAP crossLimit hind hε hδ'
+      (by linarith)
     rw [harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov εs α δ'
-    ρ₀ pAP crossLimit (2 ^ 24) hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+    ρ₀ pAP crossLimit (2 ^ 26) hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hεs hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
@@ -720,7 +724,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hPc : (P.card : ℝ) * ρ ≤ Jc * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
     nlinarith
   have hrej : 2 * rejFrac η₀ iL εcov εs ≤ εs / 2 := by
-    have h := (rejFrac_le (εs := εs) (indecisionLimit := iL) η₀ hη₀ hε hind').2.2
+    have h := (rejFrac_le (εs := εs) (indecisionLimit := iL) η₀ (εcov := εcov)).2.2
     linarith
   have hsj : ∀ j, (if j = uni then (0 : ℝ) else εs / 2) ≤ εs / 2 := by
     intro j; split_ifs <;> linarith

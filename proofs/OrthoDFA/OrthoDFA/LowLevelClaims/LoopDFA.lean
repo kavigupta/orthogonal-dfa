@@ -155,7 +155,7 @@ def LearnerLoopDFASimple : Prop :=
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 1901000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -224,7 +224,8 @@ def LearnerLoopDFA : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 4 * (A + 1) / c
   let Ce : ℝ := aε + 8 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
@@ -233,7 +234,7 @@ def LearnerLoopDFA : Prop :=
   let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
-  let R₀ : ℝ := 161000 * (Q + 2) * Θ ^ 2
+  let R₀ : ℝ := 1901000 * (Q + 2) * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
     + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -243,10 +244,10 @@ def LearnerLoopDFA : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -317,7 +318,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 1901000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))
@@ -393,7 +394,8 @@ def LearnerLoopDFARelative : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
-  -- `1/cap ≤ ℓ⁵ E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ³ R₀`, the budget `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
+  -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget
+  -- `≤ ℓ K₁`, `W ≤ ℓ² W₀`.
   let aε : ℝ := 3 * (A + Q + 1) / m
   let Ce : ℝ := aε + 32 / ξ
   let Θ : ℝ := Ce / (2 * s ^ 2) + 8 * Ce + 4608 * Q * (Q + 1) * aε
@@ -402,7 +404,7 @@ def LearnerLoopDFARelative : Prop :=
   let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
-  let R₀ : ℝ := 161000 * (Q + 2) * Θ ^ 2
+  let R₀ : ℝ := 1901000 * (Q + 2) * Θ ^ 2
     * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) / s ^ 4
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
     + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -412,10 +414,10 @@ def LearnerLoopDFARelative : Prop :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  -- `log ℓ` is bounded by its tangent at `T`.
-  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 12) / Real.log A + Q + 4
-  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 6 * Real.log T) / Real.log A
-    + 144 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 12))
+  -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
+  let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
+  let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
+    + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -488,7 +490,7 @@ def LearnerLoopDFADist : Prop :=
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   -- The clustering's prefix count.
-  let RB : ℝ := 161000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
+  let RB : ℝ := 1901000 * J * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ))
     / (s ^ 4 * τ ^ 2)
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (τ * s / (2 ^ 19 * (J + 3) * (RB + 1)))

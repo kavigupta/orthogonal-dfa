@@ -22,11 +22,12 @@ Each claim is proved from the explicit theorems below.
   with chance at most `δ`, and the family cuts all but `εcov + ε_s` of the uniform pool. With
   `ℓ_conf = log max(1/(εcov s₀), 1/ε_u, 1/κ)`, the band width is `O(ℓ_conf/s₀²)`, the suffix
   pool `O(ℓ_conf/(pAP s₀²) + log(1/δ)/pAP)` and the prefix count
-  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁸) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
-  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's term is multiplied by
-  `nJ`, and its log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
+  `O(nJ log(ℓ_conf/(δ pAP s₀))(1/(εcov² s₀⁴) + 1/(ε_u² s₀⁴)) + log(nJ X)(1/(εcov² s₀⁴) + 1/ε_u²)
+  + log(nJ/δ)/ε_s)`, `X = 1/(δ pAP εcov ε_u κ s₀)`: only the count rule's and the dirty tail's
+  terms are multiplied by `nJ`, and their log is over the suffix pool alone. `ClusteringClaimSimple` bounds each by a single
   product, e.g. the suffix pool by `O((ℓ_conf + log(1/δ))/(pAP s₀²))` and the prefix count by
-  `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁸))`.
+  `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁴))` and the inverse atom tolerance
+  by `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov³ ε_s² ε_u³ s₀⁶))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
   harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
@@ -45,13 +46,13 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁶|Q|⁹(1/β + |Q|)⁴R⁴
-  log²(|Q|R/(β δ ξ pAP s₀))/(δ ξ⁴ pAP² s₀¹¹))`. The learner's DFA is then right but for `γ + ξ`,
-  its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the inputs with
-  `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|³(1/β + |Q|)²(L +
-  |Q|)²R² log(X')/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))` prefixes, `O(|Q|(log(X')/(pAP s₀²) +
-  log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes,
-  `X' = (L + |Q|)R/(β δ ξ pAP s₀)`. The totals grow with `L` because the settings the proof picks
+  `p₀Tol` on any first `k` letters, `1/p₀Tol = O((L + |Q|)⁴|Q|⁹(1/β + |Q|)⁴R⁴ log(X')
+  log²(Y)/(δ ξ⁴ pAP² s₀¹¹))`, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`, `Y = |Q|R/(β δ ξ pAP s₀)`. The
+  learner's DFA is then right but for `γ + ξ`, its start picked on `O(log(|Q|/δ)/ξ²)` held-out
+  strings, and, over `LoopDistRun` (the inputs with `L`), every prefix, suffix and probe the whole
+  run reads is bounded: `O(|Q|³(1/β + |Q|)²(L + |Q|)²R² log(X')/ξ² · (1/s₀⁸ + |Q|⁴/s₀⁴))`
+  prefixes, `O(|Q|(log(X')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L +
+  |Q|)R/ξ · log(|Q||Σ|/δ))` probes. The totals grow with `L` because the settings the proof picks
   hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's
   `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
@@ -119,16 +120,17 @@ them, undecided reads scoring none, and the first leaf of highest score is the s
 `S = |Q|((|Q|+2)|Σ|+1) + 2|Σ| + 1`. `LearnerLoopDFASimple` states the same at explicit settings,
 every hypothesis an inequality. Each of the four conditions on the walk start bounds the mass the
 probes' law puts on one first `k` letters, `|Σ|^-k` for uniform strings, and they follow from
-`(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and polynomial in `|Q|`, `|Σ|`,
-`1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
-Bounding `log (L₁ + 1)` by its tangent at `T = 2(log (E + E₂ + E₃) + 12)/log |Σ| + |Q| + 4`, that
-holds once `L ≥ L₀` (`dfa_pow`, `Proofs/LoopDFAArith.lean`), where
+`(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k`, `E`, `E₂` and `E₃` free of `L` and
+polynomial in `|Q|`, `|Σ|`, `1/δ`, `1/c`, `1/ξ`, `1/(1/2 − η₀)` and `1/pAP`.
+Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent at
+`T = 2(log (E + E₂ + E₃) + 10)/log |Σ| + |Q| + 4`, that holds once `L ≥ L₀` (`dfa_pow`,
+`Proofs/LoopDFAArith.lean`), where
 
-    L₀ = 2(log (E + E₂ + E₃) + 6 log T)/log |Σ| + 144(log T − 2)/(log |Σ| (T log |Σ| − 12)).
+    L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 416.8`; the
-least `L` with `(L₁ + 1)⁶ (E + E₂ + E₃) ≤ |Σ|^k` is 417, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 367.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 405.9`; the
+least `L` with `(L₁ + 1)⁴ (1 + log (L₁ + 1)) (E + E₂ + E₃) ≤ |Σ|^k` is 393, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 373.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
@@ -140,8 +142,8 @@ places, each now a condition on `D`:
 1. The walk start's prefix mass. Every collision the proof rules out, among the suffixes, the
    prefixes and the held-out strings, lies within one cylinder of first `k` letters, so `D`'s
    largest such mass `p₀` takes `|Σ|^-k`'s place in the four conditions. `LoopClaim` asks
-   `p₀ ≤ p₀Tol = 1/((L + |Q| + 4)⁶ loopMassInv)` (`claim_mass_le`, `Proofs/ClaimLoopArith.lean`);
-   for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
+   `p₀ ≤ p₀Tol = 1/(ℓ⁴ (1 + log ℓ) loopMassInv)`, `ℓ = L + |Q| + 4` (`claim_mass_le`,
+   `Proofs/ClaimLoopArith.lean`); for uniform strings `L ≥ L₀` gives it (`pow_of_tangent`).
 2. Crossing every edge. A probe of length `i` and its extension by `a` both need mass, so
    `edge_of_occupied` asks `D` to extend each prefix by each letter at least `1/Ae` of the time
    (`prefixLaw_snoc_le`), and the edge-crossing rate is `c/((Ae+1)N)`. `Ae = 1/β` in general and

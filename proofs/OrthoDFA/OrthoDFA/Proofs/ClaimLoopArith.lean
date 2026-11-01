@@ -53,7 +53,7 @@ lemma loopPool_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
 
 lemma loopCount_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
     loopCount ℓ Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is)
-      = 161000 * (Q + 2) * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is) ^ 2 * ℓ ^ 2
+      = 1901000 * (Q + 2) * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is) ^ 2 * ℓ ^ 2
         * log (16 * (Q + 4)
           * loopPool ℓ Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is)
           * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is) * ℓ * (8 * (Q + 1) * iδ) ^ 2 * ip)
@@ -304,7 +304,7 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
         * loopCount (L + Q + 4) Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is))
       ∧ (Q + 1) * (6 * (Q + 2)
         * loopCount (L + Q + 4) Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is))
-        ≤ 2 ^ 74 * (Q ^ 3 * (L + Q) ^ 2 * log ((L + Q) * Ae * iδ * ic * iξ * ip * is)
+        ≤ 2 ^ 75 * (Q ^ 3 * (L + Q) ^ 2 * log ((L + Q) * Ae * iδ * ic * iξ * ip * is)
           * ((Ae ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * Ae ^ 2 * ic ^ 2 * is ^ 4)) := by
   have hA1 : 1 ≤ A := by linarith
   have hAe1 : 1 ≤ Ae := by linarith
@@ -385,12 +385,12 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
     have h6 := mul_le_mul_of_nonneg_right h3 (by positivity : (0 : ℝ) ≤ is ^ 4 * is ^ 4)
     have h7 : 0 ≤ Q ^ 4 * Ae ^ 2 * ic ^ 2 * is ^ 4 := by positivity
     linarith only [h4, h5, h6, h7]
-  have hcnt0 : 0 ≤ 161000 * (Q + 2) * Θ ^ 2 * ℓ ^ 2 * log Y * is ^ 4 := by positivity
+  have hcnt0 : 0 ≤ 1901000 * (Q + 2) * Θ ^ 2 * ℓ ^ 2 * log Y * is ^ 4 := by positivity
   constructor
   · positivity
   · have hlX0 : 0 ≤ log X := Real.log_nonneg (by linarith)
-    have e : (Q + 1) * (6 * (Q + 2) * (161000 * (Q + 2) * Θ ^ 2 * ℓ ^ 2 * log Y * is ^ 4))
-        = 966000 * ((Q + 1) * (Q + 2) ^ 2 * ℓ ^ 2 * log Y) * (Θ ^ 2 * is ^ 4) := by ring
+    have e : (Q + 1) * (6 * (Q + 2) * (1901000 * (Q + 2) * Θ ^ 2 * ℓ ^ 2 * log Y * is ^ 4))
+        = 11406000 * ((Q + 1) * (Q + 2) ^ 2 * ℓ ^ 2 * log Y) * (Θ ^ 2 * is ^ 4) := by ring
     rw [e]
     have a1 : Q + 1 ≤ 2 * Q := by linarith only [hQ]
     have a2 : Q + 2 ≤ 3 * Q := by linarith only [hQ]
@@ -400,12 +400,12 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
     have hG0 : 0 ≤ (Ae ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * Ae ^ 2 * ic ^ 2 * is ^ 4 := by
       positivity
     have hq0 : 0 ≤ (Q + 1) * (Q + 2) ^ 2 * ℓ ^ 2 * log Y := by positivity
-    calc 966000 * ((Q + 1) * (Q + 2) ^ 2 * ℓ ^ 2 * log Y) * (Θ ^ 2 * is ^ 4)
-        ≤ 966000 * ((2 * Q) * (3 * Q) ^ 2 * (5 * (L + Q)) ^ 2 * (95 * log X))
+    calc 11406000 * ((Q + 1) * (Q + 2) ^ 2 * ℓ ^ 2 * log Y) * (Θ ^ 2 * is ^ 4)
+        ≤ 11406000 * ((2 * Q) * (3 * Q) ^ 2 * (5 * (L + Q)) ^ 2 * (95 * log X))
           * (2 ^ 36 * ((Ae ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8
             + Q ^ 4 * Ae ^ 2 * ic ^ 2 * is ^ 4)) := by
           gcongr
-      _ = (966000 * 2 * 9 * 25 * 95 * 2 ^ 36) * (Q ^ 3 * (L + Q) ^ 2 * log X
+      _ = (11406000 * 2 * 9 * 25 * 95 * 2 ^ 36) * (Q ^ 3 * (L + Q) ^ 2 * log X
           * ((Ae ^ 2 * ic ^ 2 + iξ ^ 2) * is ^ 8 + Q ^ 4 * Ae ^ 2 * ic ^ 2 * is ^ 4)) := by ring
       _ ≤ _ := by gcongr; norm_num
 
@@ -674,7 +674,7 @@ lemma rel_pref_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
         (1 / (4 * iξ)) (1 / ip) (1 / 2 - 1 / is))
       ∧ (Q + 1) * (6 * (Q + 2) * loopCount (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
         (1 / (4 * iξ)) (1 / ip) (1 / 2 - 1 / is))
-        ≤ 2 ^ 81 * (Q ^ 3 * (Ae + Q) ^ 2 * (L + Q) ^ 2 * R ^ 2
+        ≤ 2 ^ 82 * (Q ^ 3 * (Ae + Q) ^ 2 * (L + Q) ^ 2 * R ^ 2
           * log ((L + Q) * Ae * iδ * R * iξ * ip * is) * iξ ^ 2 * (is ^ 8 + Q ^ 4 * is ^ 4)) := by
   obtain ⟨h0, h⟩ := claim_pref_le (Ae := Ae + Q) (ic := 2 * R * iξ) (iξ := 4 * iξ) hL hQ hA
     (by linarith) hiδ (by nlinarith) (by linarith) hip his
@@ -714,13 +714,13 @@ lemma rel_pref_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
           * log ((L + Q) * Ae * iδ * R * iξ * ip * is)) * (iξ ^ 2 * (is ^ 8 + Q ^ 4 * is ^ 4)) := by
           positivity
       _ = _ := by ring
-  calc 2 ^ 74 * (Q ^ 3 * (L + Q) ^ 2
+  calc 2 ^ 75 * (Q ^ 3 * (L + Q) ^ 2
         * log ((L + Q) * (Ae + Q) * iδ * (2 * R * iξ) * (4 * iξ) * ip * is)
         * (((Ae + Q) ^ 2 * (2 * R * iξ) ^ 2 + (4 * iξ) ^ 2) * is ^ 8
           + Q ^ 4 * (Ae + Q) ^ 2 * (2 * R * iξ) ^ 2 * is ^ 4))
-      ≤ 2 ^ 74 * (Q ^ 3 * (L + Q) ^ 2 * (4 * log ((L + Q) * Ae * iδ * R * iξ * ip * is))
+      ≤ 2 ^ 75 * (Q ^ 3 * (L + Q) ^ 2 * (4 * log ((L + Q) * Ae * iδ * R * iξ * ip * is))
         * (20 * (P * (is ^ 8 + Q ^ 4 * is ^ 4)))) := by gcongr
-    _ = 80 * 2 ^ 74 * (Q ^ 3 * (Ae + Q) ^ 2 * (L + Q) ^ 2 * R ^ 2
+    _ = 80 * 2 ^ 75 * (Q ^ 3 * (Ae + Q) ^ 2 * (L + Q) ^ 2 * R ^ 2
           * log ((L + Q) * Ae * iδ * R * iξ * ip * is) * iξ ^ 2 * (is ^ 8 + Q ^ 4 * is ^ 4)) := by
         rw [hPd]; ring
     _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) hT
@@ -788,7 +788,7 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
   have hn : n = ⌈32 * log (16 * (Q + 1) * (Q + 2) / (1 / iδ)) / (1 / iξ) ^ 2⌉₊ := rfl
   have haε : aε = 4 * (Ae + 1) / (1 / ic) := rfl
   have hK₁ : K₁ = 36 * S * aε * log (16 * S * (S + 1) / δ') + S + 1 := rfl
-  have hR₀ : R₀ = 161000 * (Q + 2) * Θ ^ 2
+  have hR₀ : R₀ = 1901000 * (Q + 2) * Θ ^ 2
       * (log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * (1 / ip))) + 2) / s ^ 4 := rfl
   have hE₁ : E₁ = (Q + 3) ^ 2 * (2 ^ 20 * Θ * (R₀ + 1) / s
       + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ'
@@ -955,17 +955,17 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
     push_cast at this
     linarith
   have hlZ0 : 0 ≤ log Z := Real.log_nonneg hZ1
-  have hR₀e : R₀ = 161000 * (Q + 2) * Θ ^ 2 * (log Z + 2) * is ^ 4 := by
+  have hR₀e : R₀ = 1901000 * (Q + 2) * Θ ^ 2 * (log Z + 2) * is ^ 4 := by
     rw [hR₀, hsis]; field_simp
   have hR₀0 : 0 ≤ R₀ := by rw [hR₀e]; positivity
-  have hR₀ : R₀ ≤ (2 ^ 65 : ℝ) * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by
+  have hR₀ : R₀ ≤ (2 ^ 67 : ℝ) * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by
     rw [hR₀e]
     have hq : Q + 2 ≤ 3 * Q := by linarith
     have hΘ2 : Θ ^ 2 ≤ (2 ^ 19 * Θ₀) ^ 2 := pow_le_pow_left₀ (by linarith) hΘ 2
-    calc 161000 * (Q + 2) * Θ ^ 2 * (log Z + 2) * is ^ 4
-        ≤ 161000 * (3 * Q) * (2 ^ 19 * Θ₀) ^ 2 * (50 * lX) * is ^ 4 := by gcongr
-      _ = 161000 * 3 * 2 ^ 38 * 50 * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by rw [hΘ₀d]; ring
-      _ ≤ 2 ^ 65 * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by
+    calc 1901000 * (Q + 2) * Θ ^ 2 * (log Z + 2) * is ^ 4
+        ≤ 1901000 * (3 * Q) * (2 ^ 19 * Θ₀) ^ 2 * (50 * lX) * is ^ 4 := by gcongr
+      _ = 1901000 * 3 * 2 ^ 38 * 50 * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by rw [hΘ₀d]; ring
+      _ ≤ 2 ^ 67 * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX) := by
           have : 0 ≤ Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX := by positivity
           exact mul_le_mul_of_nonneg_right (by norm_num) this
   set Rs := Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX with hRsd
@@ -976,8 +976,8 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
         (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hAe1) (one_le_pow₀ hic)) (one_le_pow₀ hQ))
         (one_le_pow₀ hs1)
     exact one_le_mul_of_one_le_of_one_le this (by linarith)
-  have hR₀1 : R₀ + 1 ≤ 2 * (2 ^ 65 : ℝ) * Rs := by
-    have : 1 ≤ (2 ^ 65 : ℝ) * Rs := one_le_mul_of_one_le_of_one_le (by norm_num) hRs1
+  have hR₀1 : R₀ + 1 ≤ 2 * (2 ^ 67 : ℝ) * Rs := by
+    have : 1 ≤ (2 ^ 67 : ℝ) * Rs := one_le_mul_of_one_le_of_one_le (by norm_num) hRs1
     linarith
   have hR₀X : R₀ + 1 ≤ X ^ 82 := by
     have hRsX : Rs ≤ X ^ 18 := by
@@ -986,10 +986,10 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
       calc Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX ≤ X ^ 2 * X ^ 2 * X ^ 5 * X ^ 8 * X := by
             gcongr
         _ = X ^ 18 := by ring
-    have hK : 2 * (2 ^ 65 : ℝ) ≤ X ^ 64 := by
-      have : 2 * (2 ^ 65 : ℝ) ≤ 2 ^ (3 * 64) := by norm_num
+    have hK : 2 * (2 ^ 67 : ℝ) ≤ X ^ 64 := by
+      have : 2 * (2 ^ 67 : ℝ) ≤ 2 ^ (3 * 64) := by norm_num
       exact this.trans (h2pow 64)
-    calc R₀ + 1 ≤ 2 * (2 ^ 65 : ℝ) * Rs := hR₀1
+    calc R₀ + 1 ≤ 2 * (2 ^ 67 : ℝ) * Rs := hR₀1
       _ ≤ X ^ 64 * X ^ 18 := mul_le_mul hK hRsX (by linarith) (hXp 64)
       _ = X ^ 82 := by ring
   have hlb : 13 + 2 * Real.logb 2 (R₀ + 1) ≤ 250 * lX := by
@@ -1022,7 +1022,7 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
       have : (Q + 3) ^ 2 ≤ (4 * Q) ^ 2 := pow_le_pow_left₀ (by linarith) (by linarith) 2
       linarith [show (4 * Q) ^ 2 = 16 * Q ^ 2 by ring]
     have ha : 2 ^ 20 * Θ * (R₀ + 1) * is
-        ≤ 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 65 : ℝ) * Rs) * is := by
+        ≤ 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 67 : ℝ) * Rs) * is := by
       gcongr
     have hb : 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) * D
         ≤ 2 ^ 36 * (2 ^ 19 * Θ₀) ^ 2 * (250 * lX) * (16 * (Q * iδ)) := by
@@ -1039,10 +1039,10 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
     -- each of the three against `Ae³ ic³ Q⁷ iδ ip² is¹¹ lX`
     set T₀ := Ae ^ 3 * ic ^ 3 * Q ^ 7 * iδ * ip ^ 2 * is ^ 11 * lX with hT₀d
     have hT₀0 : 0 ≤ T₀ := by rw [hT₀d]; positivity
-    have ta : 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 65 : ℝ) * Rs) * is
-        ≤ 2 ^ 39 * (2 * (2 ^ 65 : ℝ)) * T₀ := by
-      have e : 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 65 : ℝ) * Rs) * is
-          = 2 ^ 39 * (2 * (2 ^ 65 : ℝ)) * (Ae ^ 3 * ic ^ 3 * Q ^ 7 * is ^ 11 * lX) := by
+    have ta : 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 67 : ℝ) * Rs) * is
+        ≤ 2 ^ 39 * (2 * (2 ^ 67 : ℝ)) * T₀ := by
+      have e : 2 ^ 20 * (2 ^ 19 * Θ₀) * (2 * (2 ^ 67 : ℝ) * Rs) * is
+          = 2 ^ 39 * (2 * (2 ^ 67 : ℝ)) * (Ae ^ 3 * ic ^ 3 * Q ^ 7 * is ^ 11 * lX) := by
         rw [hΘ₀d, hRsd]; ring
       rw [e, hT₀d]
       have : Ae ^ 3 * ic ^ 3 * Q ^ 7 * is ^ 11 * lX
@@ -1092,7 +1092,7 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
       gcongr
     have hsum : 2 ^ 20 * Θ * (R₀ + 1) * is + 2 ^ 36 * Θ ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) * D
         + 2 ^ 16 * (P₀ + 2) * ip * D ≤ 2 ^ 225 * T₀ := by
-      have hK : 2 ^ 39 * (2 * (2 ^ 65 : ℝ)) + 2 ^ 82 * 250 + 2 ^ 20 * 3602 ≤ (2 : ℝ) ^ 225 := by
+      have hK : 2 ^ 39 * (2 * (2 ^ 67 : ℝ)) + 2 ^ 82 * 250 + 2 ^ 20 * 3602 ≤ (2 : ℝ) ^ 225 := by
         norm_num
       have := mul_le_mul_of_nonneg_right hK hT₀0
       linarith
@@ -1271,12 +1271,12 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
           (one_le_pow₀ hs1)
       exact one_le_mul_of_one_le_of_one_le this (by linarith)
     have hin : 6 * (Q + 2) * R₀ + K₁ + n ≤ 2 ^ 75 * U := by
-      have h1 : 6 * (Q + 2) * R₀ ≤ 18 * (2 ^ 65 : ℝ) * U := by
+      have h1 : 6 * (Q + 2) * R₀ ≤ 18 * (2 ^ 67 : ℝ) * U := by
         have : 6 * (Q + 2) ≤ 18 * Q := by linarith
         calc 6 * (Q + 2) * R₀
-            ≤ (18 * Q) * ((2 ^ 65 : ℝ) * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX)) :=
+            ≤ (18 * Q) * ((2 ^ 67 : ℝ) * (Ae ^ 2 * ic ^ 2 * Q ^ 5 * is ^ 8 * lX)) :=
               mul_le_mul this hR₀ hR₀0 (by positivity)
-          _ = 18 * (2 ^ 65 : ℝ) * U := by rw [hUd]; ring
+          _ = 18 * (2 ^ 67 : ℝ) * U := by rw [hUd]; ring
       have h2 : Q ^ 2 * A * Ae * ic * lX ≤ U := by
         rw [hUd]
         have h1 : Q ^ 2 * A * Ae * ic * lX ≤ Q ^ 2 * Ae * Ae * ic * lX := by gcongr
@@ -1296,7 +1296,7 @@ lemma claim_mass_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q)
         have := mul_le_mul_of_nonneg_left h2 h0
         calc _ ≤ lX * ic ^ 2 * (Ae ^ 2 * Q ^ 6 * is ^ 8) := by linarith
           _ = _ := by ring
-      have hK : 18 * (2 ^ 65 : ℝ) + 2 ^ 16 + 2 ^ 11 ≤ (2 : ℝ) ^ 75 := by norm_num
+      have hK : 18 * (2 ^ 67 : ℝ) + 2 ^ 16 + 2 ^ 11 ≤ (2 : ℝ) ^ 75 := by norm_num
       have := mul_le_mul_of_nonneg_right hK (by linarith : (0 : ℝ) ≤ U)
       linarith
     have hin0 : 0 ≤ 6 * (Q + 2) * R₀ + K₁ + n := by positivity
@@ -1451,11 +1451,11 @@ set_option maxHeartbeats 1000000 in -- `G`'s bound chains through many `gcongr` 
 coordinates. -/
 lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hR : 1 ≤ R) (hiδ : 2 ≤ iδ)
     (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) (hC₀ : 1 ≤ C₀) :
-    1 ≤ Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log (Q * R * A * iδ * iξ * ip * is) ^ 2 * iδ * iξ ^ 4
+    1 ≤ Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log (Q * R * A * iδ * iξ * ip * is) ^ 3 * iδ * iξ ^ 4
         * ip ^ 2 * is ^ 11
-      ∧ 1 + 4 * (log (C₀ * (Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log (Q * R * A * iδ * iξ * ip * is) ^ 2
+      ∧ 1 + 4 * (log (C₀ * (Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log (Q * R * A * iδ * iξ * ip * is) ^ 3
           * iδ * iξ ^ 4 * ip ^ 2 * is ^ 11)) + 6 * log (Q + 4) + 24) / log A
-        ≤ (259 + 6 * log C₀) * (1 + log (Q * R * iδ * iξ * ip * is) / log A) := by
+        ≤ (263 + 6 * log C₀) * (1 + log (Q * R * iδ * iξ * ip * is) / log A) := by
   have hl2 := Real.log_two_gt_d9
   have hδ1 : 1 ≤ iδ := by linarith
   have hs1 : 1 ≤ is := by linarith
@@ -1475,17 +1475,17 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
   have hY8 : 8 ≤ Y := by rw [hYZ]; nlinarith
   have hlY1 : 1 ≤ log Y := one_le_log_of_three_le (by linarith)
   have hlYY : log Y ≤ Y := Real.log_le_self (by linarith)
-  set G := Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log Y ^ 2 * iδ * iξ ^ 4 * ip ^ 2 * is ^ 11 with hGd
+  set G := Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log Y ^ 3 * iδ * iξ ^ 4 * ip ^ 2 * is ^ 11 with hGd
   have hG1 : 1 ≤ G := by
     rw [hGd]
-    have : 1 ≤ log Y ^ 2 := one_le_pow₀ hlY1
+    have : 1 ≤ log Y ^ 3 := one_le_pow₀ hlY1
     exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
       (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
         (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
           (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ) (one_le_pow₀ (by linarith)))
           (one_le_pow₀ hR)) this) hδ1) (one_le_pow₀ hiξ)) (one_le_pow₀ hip)) (one_le_pow₀ hs1)
   refine ⟨hG1, ?_⟩
-  -- `G ≤ A⁶ Z³⁷`
+  -- `G ≤ 16 A⁷ Z³⁸`
   have hQZ : Q ≤ Z := by
     have : 1 ≤ R * iδ * iξ * ip * is :=
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
@@ -1528,19 +1528,19 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
     calc is = is * 1 := by ring
       _ ≤ is * (Q * R * iδ * iξ * ip) := mul_le_mul_of_nonneg_left this (by linarith)
       _ = Z := by rw [hZd]; ring
-  have hlY2 : log Y ^ 2 ≤ Y ^ 2 := pow_le_pow_left₀ (by linarith) hlYY 2
+  have hlY2 : log Y ^ 3 ≤ Y ^ 3 := pow_le_pow_left₀ (by linarith) hlYY 3
   have hAQ : A + Q ≤ 2 * A * Z := by
     have h1 : A + Q ≤ 2 * A * Q := by
       nlinarith only [mul_nonneg (sub_nonneg.2 hA1) (sub_nonneg.2 hQ), hA1, hQ]
     have h2 : 2 * A * Q ≤ 2 * A * Z := mul_le_mul_of_nonneg_left hQZ (by linarith)
     linarith
   have hAQ0 : 0 ≤ A + Q := by linarith
-  have hGZ : G ≤ 16 * A ^ 6 * Z ^ 37 := by
+  have hGZ : G ≤ 16 * A ^ 7 * Z ^ 38 := by
     rw [hGd]
-    calc Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log Y ^ 2 * iδ * iξ ^ 4 * ip ^ 2 * is ^ 11
-        ≤ Z ^ 9 * (2 * A * Z) ^ 4 * Z ^ 4 * Y ^ 2 * Z * Z ^ 4 * Z ^ 2 * Z ^ 11 := by
+    calc Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log Y ^ 3 * iδ * iξ ^ 4 * ip ^ 2 * is ^ 11
+        ≤ Z ^ 9 * (2 * A * Z) ^ 4 * Z ^ 4 * Y ^ 3 * Z * Z ^ 4 * Z ^ 2 * Z ^ 11 := by
           gcongr
-      _ = 16 * A ^ 6 * Z ^ 37 := by rw [hYZ]; ring
+      _ = 16 * A ^ 7 * Z ^ 38 := by rw [hYZ]; ring
   have hlA : log 2 ≤ log A := log_two_le_log hA
   have hlA0 : 0 < log A := by linarith
   have hlZ0 : 0 ≤ log Z := Real.log_nonneg hZ1
@@ -1551,14 +1551,14 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
     have h1 : (2.7 : ℝ) ≤ Real.exp 1 := by have := Real.exp_one_gt_d9; linarith
     have := pow_le_pow_left₀ (by norm_num) h1 3
     rw [e]; norm_num at this ⊢; linarith
-  have hlG : log G ≤ 3 + 6 * log A + 37 * log Z := by
+  have hlG : log G ≤ 3 + 7 * log A + 38 * log Z := by
     have := Real.log_le_log (by linarith) hGZ
-    have e : log (16 * A ^ 6 * Z ^ 37) = log 16 + 6 * log A + 37 * log Z := by
+    have e : log (16 * A ^ 7 * Z ^ 38) = log 16 + 7 * log A + 38 * log Z := by
       rw [Real.log_mul (by positivity) (by positivity), Real.log_mul (by norm_num) (by positivity),
         Real.log_pow, Real.log_pow]
       push_cast; ring
     linarith
-  have hlCG : log (C₀ * G) ≤ log C₀ + 3 + 6 * log A + 37 * log Z := by
+  have hlCG : log (C₀ * G) ≤ log C₀ + 3 + 7 * log A + 38 * log Z := by
     rw [Real.log_mul (by linarith) (by linarith)]; linarith
   have hlQ4 : log (Q + 4) ≤ 2 + log Z := by
     have h5 : Q + 4 ≤ 5 * Z := by linarith
@@ -1573,12 +1573,12 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
     linarith
   -- assemble
   have hnum : 4 * (log (C₀ * G) + 6 * log (Q + 4) + 24)
-      ≤ 24 * log A + (4 * log C₀ + 156) + 172 * log Z := by linarith
+      ≤ 28 * log A + (4 * log C₀ + 156) + 176 * log Z := by linarith
   have hdiv : 4 * (log (C₀ * G) + 6 * log (Q + 4) + 24) / log A
-      ≤ 24 + (4 * log C₀ + 156) / log A + 172 * (log Z / log A) := by
+      ≤ 28 + (4 * log C₀ + 156) / log A + 176 * (log Z / log A) := by
     rw [div_le_iff₀ hlA0]
-    have e : (24 + (4 * log C₀ + 156) / log A + 172 * (log Z / log A)) * log A
-        = 24 * log A + (4 * log C₀ + 156) + 172 * log Z := by field_simp
+    have e : (28 + (4 * log C₀ + 156) / log A + 176 * (log Z / log A)) * log A
+        = 28 * log A + (4 * log C₀ + 156) + 176 * log Z := by field_simp
     rw [e]; exact hnum
   have hc : (4 * log C₀ + 156) / log A ≤ 6 * log C₀ + 234 := by
     rw [div_le_iff₀ hlA0]
@@ -1694,7 +1694,7 @@ def distC (r : LoopDistRun) : ℝ := r.ξ / (2 * r.R)
 
 /-- The most `D` may hold on any first `k` letters. -/
 def distP₀Tol (r : LoopDistRun) : ℝ :=
-  1 / ((r.L + r.Q + 4) ^ 6 * max 1
+  1 / ((r.L + r.Q + 4) ^ 4 * (1 + log (r.L + r.Q + 4)) * max 1
     (loopMassInv r.Q r.A (1 / r.β + r.Q) r.Q r.A r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)))
 
 def distPref (r : LoopDistRun) : ℝ :=
@@ -1738,7 +1738,7 @@ lemma distPref_isBigO : distPref =O[𝓟 loopDistRunRegion] (fun r =>
       r.Q ^ 3 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) / r.ξ ^ 2
         * (1 / r.s₀ ^ 8 + r.Q ^ 4 / r.s₀ ^ 4)) := by
-  refine bigO_dist (2 ^ 81) (by norm_num) fun r hr => ?_
+  refine bigO_dist (2 ^ 82) (by norm_num) fun r hr => ?_
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
   have h := rel_pref_le hL hQ hA hAAe hiδ hR hiξ hip his
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
@@ -1764,13 +1764,15 @@ lemma distProbes_isBigO : distProbes =O[𝓟 loopDistRunRegion] (fun r =>
 lemma distP₀Tol_pos (r : LoopDistRun) : 0 < distP₀Tol r := by
   unfold distP₀Tol
   have : (0 : ℝ) < (r.L : ℝ) + r.Q + 4 := by positivity
+  have : 0 ≤ log ((r.L : ℝ) + r.Q + 4) := Real.log_nonneg (by linarith)
   exact one_div_pos.2 (mul_pos (by positivity) (lt_of_lt_of_le one_pos (le_max_left _ _)))
 
 lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
-      (r.L + r.Q) ^ 6 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
+      (r.L + r.Q) ^ 4 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
+        * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
         * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
         / (r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) := by
-  refine bigO_dist (15625 * (2 ^ 251 * 144)) (by norm_num) fun r hr => ?_
+  refine bigO_dist (1250 * (2 ^ 251 * 144)) (by norm_num) fun r hr => ?_
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, hc0, hc1⟩ := dist_coords hr
   obtain ⟨⟨-, -, hδ, hδ2, -, hξ, hξ1, hp, hp1, hs, hs1⟩, hβ, -⟩ := hr
   have hM := rel_mass_le (nQ := r.Q) (nA := r.A) hQ hA hAAe hiδ hR hiξ hip his le_rfl le_rfl
@@ -1779,24 +1781,48 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
       (1 / 2 - r.s₀) :=
     loopMassInv_ge_one _ _ (by linarith) (by linarith) (by linarith) hδ (by linarith) hc0 hc1
       (by positivity) hp hp1 (by linarith) (by linarith)
-  have hinv : 1 / distP₀Tol r = ((r.L : ℝ) + r.Q + 4) ^ 6 * loopMassInv r.Q r.A (1 / r.β + r.Q)
-      r.Q r.A r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀) := by
+  set ℓ : ℝ := (r.L : ℝ) + r.Q + 4 with hℓd
+  have hinv : 1 / distP₀Tol r = ℓ ^ 4 * (1 + log ℓ) * loopMassInv r.Q r.A (1 / r.β + r.Q) r.Q
+      r.A r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀) := by
     unfold distP₀Tol
     rw [one_div_one_div, max_eq_right hM1]
-  have hℓ : ((r.L : ℝ) + r.Q + 4) ^ 6 ≤ 15625 * ((r.L : ℝ) + r.Q) ^ 6 := by
-    have : (r.L : ℝ) + r.Q + 4 ≤ 5 * ((r.L : ℝ) + r.Q) := by linarith
-    have := pow_le_pow_left₀ (by positivity) this 6
-    linarith [show (5 * ((r.L : ℝ) + r.Q)) ^ 6 = 15625 * ((r.L : ℝ) + r.Q) ^ 6 by ring]
+  set Y : ℝ := r.Q * r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) with hYd
+  set Z : ℝ := r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) with hZd
+  have hZ8 : 8 ≤ Z := by
+    have h2 : 2 ≤ r.R * (1 / r.β) := by nlinarith only [hR, hA, hAAe]
+    have h3 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) := by nlinarith only [h2, hiδ]
+    have h4 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) := by nlinarith only [h3, hiξ]
+    have h5 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) := by
+      nlinarith only [h4, hip]
+    rw [hZd]; nlinarith only [h5, his]
+  have hLQ1 : (1 : ℝ) ≤ r.L + r.Q := by linarith
+  have hlZ : 1 ≤ log Z := one_le_log_of_three_le (by linarith)
+  have hlLZ : log Z ≤ log ((r.L + r.Q) * Z) :=
+    Real.log_le_log (by linarith) (le_mul_of_one_le_left (by linarith) hLQ1)
+  have hΛ : 1 + log ℓ ≤ 2 * log ((r.L + r.Q) * Z) := by
+    have : log ℓ ≤ log ((r.L + r.Q) * Z) :=
+      Real.log_le_log (by positivity) (by rw [hℓd]; nlinarith only [hZ8, hLQ1])
+    linarith
+  have hℓ : ℓ ^ 4 ≤ 625 * ((r.L : ℝ) + r.Q) ^ 4 := by
+    have : ℓ ≤ 5 * ((r.L : ℝ) + r.Q) := by linarith
+    have := pow_le_pow_left₀ (by positivity) this 4
+    linarith [show (5 * ((r.L : ℝ) + r.Q)) ^ 4 = 625 * ((r.L : ℝ) + r.Q) ^ 4 by ring]
+  have e1 : ((r.L : ℝ) + r.Q) * Z
+      = (r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
+    rw [hZd]; field_simp
+  have e2 : Y = r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
+    rw [hYd]; field_simp
   rw [hinv]
-  refine ⟨by positivity, ?_⟩
-  calc ((r.L : ℝ) + r.Q + 4) ^ 6 * loopMassInv r.Q r.A (1 / r.β + r.Q) r.Q r.A r.δ (distC r)
+  refine ⟨by have := Real.log_nonneg (show (1 : ℝ) ≤ ℓ by linarith); positivity, ?_⟩
+  have hl0 : 0 ≤ 1 + log ℓ := by have := Real.log_nonneg (show (1 : ℝ) ≤ ℓ by linarith); linarith
+  calc ℓ ^ 4 * (1 + log ℓ) * loopMassInv r.Q r.A (1 / r.β + r.Q) r.Q r.A r.δ (distC r)
         (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
-      ≤ (15625 * ((r.L : ℝ) + r.Q) ^ 6) * (2 ^ 251 * 144 * ((r.Q : ℝ) ^ 9 * (1 / r.β + r.Q) ^ 4
-        * r.R ^ 4 * log (r.Q * r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP)
-          * (1 / r.s₀)) ^ 2
-        * (1 / r.δ) * (1 / r.ξ) ^ 4 * (1 / r.pAP) ^ 2 * (1 / r.s₀) ^ 11)) :=
-        mul_le_mul hℓ hM (by linarith) (by positivity)
-    _ = _ := by ring_nf
+      ≤ (625 * ((r.L : ℝ) + r.Q) ^ 4) * (2 * log ((r.L + r.Q) * Z)) * (2 ^ 251 * 144
+        * ((r.Q : ℝ) ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4 * log Y ^ 2
+          * (1 / r.δ) * (1 / r.ξ) ^ 4 * (1 / r.pAP) ^ 2 * (1 / r.s₀) ^ 11)) :=
+        mul_le_mul (mul_le_mul hℓ hΛ hl0 (by positivity)) hM (by linarith)
+          (mul_nonneg (by positivity) (by linarith))
+    _ = _ := by rw [e1, e2]; ring
 
 lemma distHeldOut_isBigO : (fun x => (distHeldOut x : ℝ)) =O[𝓟 loopDistRegion]
     (fun x => log (x.Q / x.δ) / x.ξ ^ 2) := by

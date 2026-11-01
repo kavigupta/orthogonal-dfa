@@ -142,32 +142,30 @@ lemma gap_of_flip (O : Oracle μ S) {v p : S} (h : O.flip v p = 1) :
     linarith [max_eq_left h1, max_eq_left h0]
   · simp [Oracle.flip, Oracle.label, hx, hy] at h
 
-/-- A member's mean at a rejecting prefix: its own rate, or the other class's read where it
-flips. -/
+/-- A member's mean at a rejecting prefix: the prefix's rate, or the other class's read where
+it flips. -/
 lemma mq_mean_le_flip (O : Oracle μ S) (v p : S) (hp : O.label p = 0) :
-    μ[O.mq (p * v)] ≤ O.η + O.gap * O.flip v p := by
+    μ[O.mq (p * v)] ≤ O.rate p + O.gap * O.flip v p := by
   have hlab : O.label (p * v) = O.flip v p := by
     show O.label (p * v) = O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
     rw [hp]; ring
   rw [mq_mean, hlab]
-  have hr1 := O.rate_le_eta (p * v)
   rcases O.flip_bit v p with h | h
-  · rw [h]; linarith
+  · have hr := O.rate_eq_of_label_eq (hlab.trans (h.trans hp.symm))
+    rw [h, hr]; linarith
   · have hg := gap_of_flip O h
-    have hr0 := O.rate_le_eta p
     rw [h, hg]; linarith
 
 lemma mq_mean_ge_flip (O : Oracle μ S) (v p : S) (hp : O.label p = 1) :
-    1 - O.η - O.gap * O.flip v p ≤ μ[O.mq (p * v)] := by
+    1 - O.rate p - O.gap * O.flip v p ≤ μ[O.mq (p * v)] := by
   have hlab : O.label (p * v) = 1 - O.flip v p := by
     show O.label (p * v) = 1 - (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p)
     rw [hp]; ring
   rw [mq_mean, hlab]
-  have hr1 := O.rate_le_eta (p * v)
   rcases O.flip_bit v p with h | h
-  · rw [h]; linarith
+  · have hr := O.rate_eq_of_label_eq (show O.label (p * v) = O.label p by rw [hlab, h, hp]; ring)
+    rw [h, hr]; linarith
   · have hg := gap_of_flip O h
-    have hr0 := O.rate_le_eta p
     rw [h, hg]; linarith
 
 lemma mq_integrable (O : Oracle μ S) (w : S) : Integrable (O.mq w) μ :=
@@ -440,11 +438,10 @@ lemma sig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < sig η₀ := by
 lemma cutBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
     (hind : 0 < indecisionLimit) : 0 < cutBudget η₀ indecisionLimit εcov := by
   rw [cutBudget]
+  have ha : 0 < gateA η₀ := by unfold gateA; exact div_pos (by linarith) (by linarith)
+  have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
   exact lt_min (div_pos hε (by norm_num))
-    (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (lt_min (by linarith) (by
-      have := gateKappa_pos hsig
-      have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
-      positivity)))
+    (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (lt_min (by linarith) (by positivity)))
 
 lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
     cutBudget η₀ indecisionLimit εcov ≤ εcov / 8
@@ -454,55 +451,37 @@ lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
     (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))⟩
 
 lemma cutBudget_le_gate (η₀ indecisionLimit εcov : ℝ) :
-    cutBudget η₀ indecisionLimit εcov ≤ 32 * gateKappa η₀ * min εcov (1 / 2) / 65 :=
+    cutBudget η₀ indecisionLimit εcov ≤ gateA η₀ ^ 2 * min εcov (1 / 2) / 5 :=
   (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
+
+lemma shiftScale_pos {indecisionLimit εcov : ℝ} (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
+    0 < shiftScale indecisionLimit εcov :=
+  lt_min (lt_min hε (by norm_num)) hind
+
+lemma shiftBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
+    (hind : 0 < indecisionLimit) : 0 < shiftBudget η₀ indecisionLimit εcov := by
+  have := sig_pos η₀ hsig
+  have := shiftScale_pos hε hind
+  unfold shiftBudget; positivity
 
 lemma voteSlack_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSlack η₀ := by
   rw [voteSlack]
   have := sig_pos η₀ hsig
   positivity
 
-lemma flipFrac_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < flipFrac η₀ := by
-  rw [flipFrac]
-  have := sig_pos η₀ hsig
-  exact div_pos (by linarith) (by linarith)
-
-lemma flipFrac_lt_one (η₀ : ℝ) (hsig : η₀ < 1 / 2) : flipFrac η₀ < 1 := by
-  rw [flipFrac, sig, div_lt_one (by linarith)]
-  linarith
-
-/-- The split `flipFrac`/`voteSlack` was solved against. -/
-lemma flipFrac_voteSlack (η₀ : ℝ) (hsig : η₀ < 1 / 2) :
-    (1 - η₀) * flipFrac η₀ + voteSlack η₀ = sig η₀ := by
-  have hne : (1 : ℝ) - η₀ ≠ 0 := by intro h; rw [sub_eq_zero] at h; linarith [h.symm]
-  rw [flipFrac, voteSlack]
-  field_simp
-  ring
-
 lemma rejFrac_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
     (hind : 0 < indecisionLimit) : 0 < rejFrac η₀ indecisionLimit εcov εs := by
   rw [rejFrac]
-  have := cutBudget_pos η₀ hsig hε hind
-  have := flipFrac_pos η₀ hsig
-  exact lt_min (by positivity) (by positivity)
+  have := sig_pos η₀ hsig
+  have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
+  exact lt_min (lt_min (by positivity) (by positivity)) (by positivity)
 
-/-- The redraws are a hundred-and-twenty-eighth of the cut budget, and of the flip fraction. -/
-lemma rejFrac_le (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
-    (hind : 0 < indecisionLimit) :
-    rejFrac η₀ indecisionLimit εcov εs ≤ cutBudget η₀ indecisionLimit εcov / 128
-    ∧ rejFrac η₀ indecisionLimit εcov εs
-      ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀
-    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ εs / 4 := by
-  have hc := cutBudget_pos η₀ hsig hε hind
-  have hf : 3 * flipFrac η₀ ≤ 1 := by
-    have h1 : (0 : ℝ) < 5 * (1 - η₀) := by linarith
-    rw [flipFrac, sig, mul_div_assoc', div_le_one h1]
-    linarith
-  have h1 : rejFrac η₀ indecisionLimit εcov εs
-      ≤ 3 * cutBudget η₀ indecisionLimit εcov / 128 * flipFrac η₀ := by
-    rw [rejFrac]; exact (min_le_left _ _).trans_eq (by ring)
-  refine ⟨?_, h1, min_le_right _ _⟩
-  nlinarith [flipFrac_pos η₀ hsig]
+lemma rejFrac_le (η₀ : ℝ) {εcov : ℝ} :
+    rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ ^ 2 * min εcov (1 / 2) / 1024
+    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ * indecisionLimit / 128
+    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ εs / 4 :=
+  ⟨(min_le_left _ _).trans (min_le_left _ _), (min_le_left _ _).trans (min_le_right _ _),
+    min_le_right _ _⟩
 
 /-- A state that redraws a `c` fraction of its `m` draws pays `(m + r)²/(r + 1) ≤ 2m/c` for it
 under Markov's inequality, linearly in `m`. -/
@@ -585,50 +564,8 @@ lemma redrawCost_le {c : ℝ} (hc0 : 0 < c) (hc : c ≤ 1 / 4) (m : ℕ) {P ρ :
   rw [hsplit, e]
   nlinarith
 
-/-- The fraction of the family the vote absorbs flipping, at this oracle's own rates.  A flip
-moves a member's mean by `gap`, and the worse class's clean mean sits `sig O.η` from the centre:
-
-    gap · flipFracOf O η₀ + voteSlack η₀ = sig O.η
-
-The screen sees each flip at `gap·(1 − 2η)`, so the `gap` cancels between the two
-(`flipFracOf_sep`); `flipFrac` is what is left once `gap` is bounded by `1 − η`. -/
-noncomputable def flipFracOf (O : Oracle μ S) (η₀ : ℝ) : ℝ := (sig O.η - voteSlack η₀) / O.gap
-
 lemma gap_pos (O : Oracle μ S) (hsig : O.η < 1 / 2) : 0 < O.gap := by
   linarith [gap_ge O]
-
-lemma gap_mul_flipFracOf (O : Oracle μ S) (η₀ : ℝ) (hsig : O.η < 1 / 2) :
-    O.gap * flipFracOf O η₀ = sig O.η - voteSlack η₀ := by
-  rw [flipFracOf]
-  field_simp [(gap_pos O hsig).ne']
-
-lemma flipFrac_le_flipFracOf (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) :
-    flipFrac η₀ ≤ flipFracOf O η₀ := by
-  have hg := gap_pos O (lt_of_le_of_lt hηle hη₀)
-  have hgle := gap_le O
-  rw [flipFrac, flipFracOf, voteSlack, div_le_div_iff₀ (by linarith) hg]
-  simp only [sig]
-  have hs : 0 ≤ 1 / 2 - η₀ := by linarith
-  nlinarith [mul_le_mul_of_nonneg_left hgle (by linarith : (0 : ℝ) ≤ 1 / 2 - η₀),
-    mul_nonneg (sub_nonneg.2 hηle) (by linarith : (0 : ℝ) ≤ 9 / 2 - 4 * η₀)]
-
-/-- What a `flipFracOf` fraction flipping shows the count rule, against what `countSignal` was
-solved at. -/
-lemma flipFracOf_sep (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) :
-    flipFrac η₀ * ((1 - η₀) * (1 - 2 * η₀))
-      ≤ flipFracOf O η₀ * (O.gap * (1 - 2 * O.η)) := by
-  have hsplit := flipFrac_voteSlack η₀ hη₀
-  have hg := gap_mul_flipFracOf O η₀ (lt_of_le_of_lt hηle hη₀)
-  rw [show flipFracOf O η₀ * (O.gap * (1 - 2 * O.η))
-      = (O.gap * flipFracOf O η₀) * (1 - 2 * O.η) by ring, hg,
-    show flipFrac η₀ * ((1 - η₀) * (1 - 2 * η₀)) = ((1 - η₀) * flipFrac η₀) * (1 - 2 * η₀) by ring]
-  have hvs : voteSlack η₀ = 4 * (1 / 2 - η₀) / 5 := by rw [voteSlack, sig]
-  simp only [sig] at hsplit ⊢
-  exact mul_le_mul (by linarith) (by linarith) (by linarith) (by linarith)
-
-lemma flipFracOf_pos (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) :
-    0 < flipFracOf O η₀ :=
-  lt_of_lt_of_le (flipFrac_pos η₀ hη₀) (flipFrac_le_flipFracOf O hηle hη₀)
 
 lemma binomSfGe_le_one {n : ℕ} {q : ℝ} (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (j : ℕ) :
     binomSfGe n q j ≤ 1 :=
@@ -1189,19 +1126,6 @@ lemma famCount_kappa (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (h�
     populations εcov δ with h | h
   · exact h.2.2.2.2.2
   · exact famHoeff_kappa η₀ populations hη0 hsig hζ hε hind _ h
-
-lemma tableBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
-    (hind : 0 < indecisionLimit) : 0 < tableBudget η₀ indecisionLimit εcov := by
-  have := cutBudget_pos η₀ hsig hε hind
-  have := flipFrac_pos η₀ hsig
-  unfold tableBudget; positivity
-
-lemma countSignal_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
-    (hind : 0 < indecisionLimit) : 0 < countSignal η₀ indecisionLimit εcov := by
-  have := tableBudget_pos η₀ hsig hε hind
-  have h1 : 0 < 1 - 2 * η₀ := by linarith
-  have h2 : 0 < 1 - η₀ := by linarith
-  unfold countSignal; positivity
 
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
@@ -2145,9 +2069,9 @@ candidate at all, and the iterate can only choose among what is left. -/
 
 The band is what turns "few members flip" into "the cut is right".  A rejecting prefix is
 accepted only when the vote clears the centre, and members preserving at `p` contribute only
-through noise, so with a fraction `f` flipping the vote's mean is at most `η + gap·f`.  The
-vote stays decisive with a flipping `flipFracOf` of the family, and Markov over the members'
-flip masses charges the heavy mass at `Δ/flipFracOf`. -/
+through noise, so with a fraction `f` flipping the vote's mean is at most `r + gap·f`, `r` the
+prefix's rate.  The vote stays decisive with a flipping `fracAt` of the family, and Markov over
+the members' shift on each class charges that class's heavy mass at `Δ/σ_b` (`clsBad_mass_le`). -/
 
 open scoped Classical in
 /-- The number of the family's members that flip at a prefix, as a real. -/
@@ -2181,46 +2105,6 @@ lemma flipCount_eq_sum (O : Oracle μ S) (F : Finset S) (p : S) :
     · exact h
     · exact absurd h hne
   rw [h1, h0, add_zero]
-
-lemma flip_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v : S) :
-    Integrable (fun p => O.flip v p) Dj :=
-  MeasureTheory.Integrable.of_mem_Icc 0 1 (flip_meas O v).aemeasurable
-    (Filter.Eventually.of_forall (fun p => flip_icc O v p))
-
-/-- Markov over the family's flip masses.  If the members flip a `Δ` mass of the population on
-average, the mass of prefixes where a `c` fraction of the family flips is at most `Δ / c`.
-
-This is what turns per-member flip mass into misclassified mass.  The round puts `c` at the
-flip fraction the vote's margin absorbs, a constant, so nothing here scales with `|F|` — a
-union bound over the members would have cost a factor of the family's size. -/
-theorem flipCount_mass_le (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj]
-    (F : Finset S) (Δ c : ℝ) (hc : 0 < c) (hFne : 0 < F.card)
-    (hF : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ) :
-    Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p} ≤ Δ / c := by
-  classical
-  have hcard : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hFne
-  have hsum : ∀ p, flipCount O F p = ∑ v ∈ F, O.flip v p := flipCount_eq_sum O F
-  have hint : Integrable (fun p => flipCount O F p) Dj := by
-    refine ((integrable_finset_sum F (fun v _ => flip_integrable O Dj v)).congr ?_)
-    exact Filter.Eventually.of_forall (fun p => (hsum p).symm)
-  have hnn : 0 ≤ᵐ[Dj] fun p => flipCount O F p :=
-    Filter.Eventually.of_forall (fun p => Nat.cast_nonneg _)
-  have hInt : ∫ p, flipCount O F p ∂Dj = ∑ v ∈ F, flipMass O Dj v := by
-    rw [integral_congr_ae (Filter.Eventually.of_forall hsum),
-      integral_finset_sum _ (fun v _ => flip_integrable O Dj v)]
-    rfl
-  have hmark := mul_meas_ge_le_integral_of_nonneg hnn hint (c * (F.card : ℝ))
-  rw [hInt] at hmark
-  have hle : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ := hF
-  have hstep : (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})
-      ≤ (F.card : ℝ) * Δ := by
-    calc (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})
-        = c * (F.card : ℝ) * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p} := by ring
-      _ ≤ ∑ v ∈ F, flipMass O Dj v := hmark
-      _ ≤ (F.card : ℝ) * Δ := hle
-  have := le_of_mul_le_mul_left hstep hcard
-  rw [le_div_iff₀ hc]
-  linarith
 
 open scoped Classical in
 /-- The vote as a sum of reads, which is what concentrates; a.e. equal to `voteCount`. -/
@@ -2306,11 +2190,11 @@ lemma measureReal_mq_eq_one (O : Oracle μ S) (w : S) :
     · simp [h]
   rw [integral_congr_ae hae, integral_indicator_one hmeas]
 
-/-- On a rejecting prefix a clean member reads accepting at most at rate `η` and a flipping one
-`gap` higher, so a flip fraction of `f` lifts the vote's mean only to `η + gap·f`. -/
+/-- On a rejecting prefix a clean member reads accepting at the prefix's rate and a flipping one
+`gap` higher, so a flip fraction of `f` lifts the vote's mean only to `r + gap·f`. -/
 lemma meanVote_le_flip (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 0) (f : ℝ)
     (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) :
-    meanVote O F p ≤ (F.card : ℝ) * (O.η + O.gap * f) := by
+    meanVote O F p ≤ (F.card : ℝ) * (O.rate p + O.gap * f) := by
   classical
   rw [meanVote, Finset.sum_congr rfl fun v _ => measureReal_mq_eq_one O (p * v)]
   refine le_trans (Finset.sum_le_sum fun v _ => mq_mean_le_flip O v p hp) ?_
@@ -2322,7 +2206,7 @@ lemma meanVote_le_flip (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p 
 /-- On an accepting prefix, the mirror of `meanVote_le_flip`. -/
 lemma meanVote_ge_flip (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 1) (f : ℝ)
     (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) :
-    (F.card : ℝ) * (1 - O.η - O.gap * f) ≤ meanVote O F p := by
+    (F.card : ℝ) * (1 - O.rate p - O.gap * f) ≤ meanVote O F p := by
   classical
   rw [meanVote, Finset.sum_congr rfl fun v _ => measureReal_mq_eq_one O (p * v)]
   refine le_trans ?_ (Finset.sum_le_sum fun v _ => mq_mean_ge_flip O v p hp)
@@ -2364,11 +2248,11 @@ lemma vote_upper_binom (O : Oracle μ S) (F : Finset S) (p : S) (q : ℝ) (c : �
   rwa [binomSfGe_symm (1 - q) F.card c (by omega), sub_sub_cancel] at h
 
 /-- The cut is correct at a prefix the family barely flips: a flip fraction of `f` moves the
-vote's mean by up to `gap·f`, and `q` is what is left of the side the prefix is on.  Only that
-side can fail, so one tail pays for it. -/
+vote's mean by up to `gap·f`, and `q` is what is left of the side the prefix is on, at the
+prefix's rate.  Only that side can fail, so one tail pays for it. -/
 theorem cutCorrect_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f q E : ℝ)
     (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hq0 : 0 ≤ q) (hq1 : q ≤ 1)
-    (hqa : q ≤ 1 - O.η - O.gap * f) (hqr : O.η + O.gap * f ≤ 1 - q)
+    (hqa : q ≤ 1 - O.rate p - O.gap * f) (hqr : O.rate p + O.gap * f ≤ 1 - q)
     (hlo : (lo : ℝ) + 2 ≤ (F.card : ℝ) * q) (hhi : (F.card : ℝ) * (1 - q) + 2 ≤ (hi : ℝ) + 1)
     (hhiF : hi + 1 ≤ F.card)
     (hEa : 1 - binomSfGe F.card q (lo + 1) ≤ E) (hEr : 1 - binomSfGe F.card q (F.card - hi) ≤ E) :
@@ -2826,7 +2710,7 @@ theorem streamMeasure_pool_selection_le (Pp Pc : J → Measure (ℕ → S)) (Dsf
 /-! ### Level 2: the empirical flip rate is honest
 
 The clustering only ever sees a candidate's flips on the prefixes actually drawn.  Where those
-are `m` i.i.d. draws from the population, the count concentrates around `m · flipMass` and a
+are `m` i.i.d. draws from the population, the count concentrates around `m · wMass` and a
 candidate that looks clean on them is clean. -/
 
 /-- A table stream's own law. -/
@@ -2855,19 +2739,6 @@ lemma map_prefixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
       ← Measure.map_map (by fun_prop) (measurable_prefixStream j),
     map_prefixStream Pp Pc Dsf j, hPp]
   exact (measurePreserving_finRestrict Dj m).map_eq
-
-lemma pi_flip_mean (Dj : Measure S) [IsProbabilityMeasure Dj] (O : Oracle μ S) (m : ℕ)
-    (v : S) (i : Fin m) :
-    (Measure.pi fun _ : Fin m => Dj)[fun q : Fin m → S => O.flip v (q i)]
-      = flipMass O Dj v := by
-  have hmap : Measure.map (fun q : Fin m → S => q i) (Measure.pi fun _ : Fin m => Dj) = Dj :=
-    (measurePreserving_eval (fun _ : Fin m => Dj) i).map_eq
-  calc (Measure.pi fun _ : Fin m => Dj)[fun q : Fin m → S => O.flip v (q i)]
-      = ∫ w, O.flip v w ∂(Measure.map (fun q : Fin m → S => q i)
-          (Measure.pi fun _ : Fin m => Dj)) := by
-        rw [integral_map (measurable_pi_apply i).aemeasurable
-          (flip_meas O v).aestronglyMeasurable]
-    _ = flipMass O Dj v := by rw [hmap]; rfl
 
 lemma streamMeasure_prefix_apply (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
@@ -2992,7 +2863,7 @@ lemma map_suffixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
 fraction of `f` moves the mean by up to `gap·f`, and `q` is what is left of the prefix's side. -/
 theorem decided_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f q E : ℝ)
     (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hq0 : 0 ≤ q) (hq1 : q ≤ 1)
-    (hqa : q ≤ 1 - O.η - O.gap * f) (hqr : O.η + O.gap * f ≤ 1 - q)
+    (hqa : q ≤ 1 - O.rate p - O.gap * f) (hqr : O.rate p + O.gap * f ≤ 1 - q)
     (hhi : (hi : ℝ) + 2 ≤ (F.card : ℝ) * q) (hlo : (F.card : ℝ) * (1 - q) + 2 ≤ (lo : ℝ) + 1)
     (hloF : lo + 1 ≤ F.card)
     (hEa : 1 - binomSfGe F.card q (hi + 1) ≤ E) (hEr : 1 - binomSfGe F.card q (F.card - lo) ≤ E) :
@@ -3046,14 +2917,6 @@ theorem decided_whp_gap (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the table, which holds every population's sample. -/
-
-open scoped Classical in
-lemma sum_prefixesOf_le_prefixesAt (O : Oracle μ S) (populations : Finset J) (j : J)
-    (hj : j ∈ populations) (m : ℕ) (x : Run Ω S J) (v : S) :
-    ∑ p ∈ prefixesOf j m x, O.flip v p ≤ ∑ p ∈ prefixesAt populations m x, O.flip v p := by
-  classical
-  refine Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun p _ _ => (flip_icc O v p).1)
-  exact fun p hp => Finset.mem_biUnion.2 ⟨j, hj, hp⟩
 
 open scoped Classical in
 lemma card_prefixesAt_le (populations : Finset J) (m : ℕ) (x : Run Ω S J) :
@@ -3890,61 +3753,53 @@ lemma card_filter_fin_eq (m : ℕ) (Q : S → Prop) [DecidablePred Q] (y : ℕ �
   card_filter_univ_fin m (fun i => Q (y i))
 
 open scoped Classical in
-/-- The draws are not mostly prefixes the family flips.  The heavy set is chosen by the
-noise and the table; the certification draws are neither, so their hit count is the upper
-tail relative to its mass. -/
+/-- The draws are not mostly prefixes bad for the family.  The bad set is chosen by the noise and
+the table; the certification draws are neither, so their hit count is the upper tail relative
+to its mass. -/
 noncomputable def heavyHits (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
-    (Dj : Measure S) (j : J) (B : State) (f q t : ℝ) : Set (Run Ω S J) :=
-  {x | Dj.real {p | ¬ (flipCount O (clusterBy rule O.mq populations x B) p
-        ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * f)} ≤ q
+    (Dj : Measure S) (j : J) (B : State) (bad : Finset S → S → Prop) (q t : ℝ) :
+    Set (Run Ω S J) :=
+  {x | Dj.real {p | bad (clusterBy rule O.mq populations x B) p} ≤ q
     ∧ (B.npref : ℝ) * (q + t)
         ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i =>
-          ¬ (flipCount O (clusterBy rule O.mq populations x B) (certPrefix j i.val x)
-            ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * f))).card : ℝ)}
+          bad (clusterBy rule O.mq populations x B) (certPrefix j i.val x))).card : ℝ)}
 
 open scoped Classical in
 lemma measurableSet_heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
-    (j : J) (B : State) (f q t : ℝ) :
-    MeasurableSet (heavyHits rule O populations Dj j B f q t) := by
+    (j : J) (B : State) (bad : Finset S → S → Prop) (q t : ℝ) :
+    MeasurableSet (heavyHits rule O populations Dj j B bad q t) := by
   classical
   have hR : ∀ (P C : Finset S) (tt : Fin B.npref → S), MeasurableSet (if (1 : S) ∈ C then
-      {x : Run Ω S J | Dj.real {p | ¬ (flipCount O
-            (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p
-          ≤ ((clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)).card : ℝ) * f)} ≤ q
+      {x : Run Ω S J | Dj.real {p | bad (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p}
+          ≤ q
         ∧ (B.npref : ℝ) * (q + t)
             ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i =>
-              ¬ (flipCount O (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) (tt i)
-                ≤ ((clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)).card : ℝ) * f))).card
-                  : ℝ)} else ∅) := by
+              bad (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) (tt i))).card : ℝ)}
+      else ∅) := by
     intro P C tt
     split_ifs with hone
     · refine measurable_nz (measurableSet_of_fam (T := C.powerset)
         (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd P C B.k ω hone))
         (fun A₀ => measurableSet_clusterOf O B.sc B.scd P C B.k hone A₀)
-        (fun A₀ => {_ω : Ω |
-          Dj.real {p | ¬ (flipCount O A₀ p ≤ (A₀.card : ℝ) * f)} ≤ q
+        (fun A₀ => {_ω : Ω | Dj.real {p | bad A₀ p} ≤ q
           ∧ (B.npref : ℝ) * (q + t)
-              ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i =>
-                ¬ (flipCount O A₀ (tt i) ≤ (A₀.card : ℝ) * f))).card : ℝ)})
+              ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i => bad A₀ (tt i))).card
+                : ℝ)})
         (fun A₀ => ?_))
-      by_cases hcond : Dj.real {p | ¬ (flipCount O A₀ p
-            ≤ (A₀.card : ℝ) * f)} ≤ q
+      by_cases hcond : Dj.real {p | bad A₀ p} ≤ q
           ∧ (B.npref : ℝ) * (q + t)
-            ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i =>
-              ¬ (flipCount O A₀ (tt i) ≤ (A₀.card : ℝ) * f))).card : ℝ)
+            ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i => bad A₀ (tt i))).card : ℝ)
       · simpa [hcond] using MeasurableSet.univ
       · simpa [hcond] using MeasurableSet.empty
     · exact MeasurableSet.empty
-  have hrw : heavyHits rule O populations Dj j B f q t
+  have hrw : heavyHits rule O populations Dj j B bad q t
       = {x : Run Ω S J | x ∈ (fun P C tt => if (1 : S) ∈ C then
-          {x : Run Ω S J | Dj.real {p | ¬ (flipCount O
-                (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p
-              ≤ ((clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)).card : ℝ) * f)} ≤ q
+          {x : Run Ω S J | Dj.real {p | bad (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) p}
+              ≤ q
             ∧ (B.npref : ℝ) * (q + t)
                 ≤ (((Finset.univ : Finset (Fin B.npref)).filter (fun i =>
-                  ¬ (flipCount O (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) (tt i)
-                    ≤ ((clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)).card : ℝ)
-                      * f))).card : ℝ)} else ∅)
+                  bad (clusterOf rule O B.sc B.scd P C B.k (oracleNoise x)) (tt i))).card : ℝ)}
+          else ∅)
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
@@ -3954,29 +3809,28 @@ lemma measurableSet_heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : M
   exact measurableSet_of_run_data_cert populations j B _ hR
 
 open scoped Classical in
-/-- The flip-heavy prefixes are a `q` fraction of the population, so the first `m` draws hold at
-most `m(q + t)` of them. -/
+/-- The bad prefixes are a `q` fraction of the population, so the first `m` draws hold at most
+`m(q + t)` of them. -/
 theorem measureReal_heavyHits_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (populations : Finset J) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj]
-    (hPc : Pc j = iidStream Dj) (B : State) (f q t : ℝ) (ht : 0 ≤ t) :
-    (streamMeasure μ Pp Pc Dsf).real (heavyHits rule O populations Dj j B f q t)
+    (hPc : Pc j = iidStream Dj) (B : State) (bad : Finset S → S → Prop) (q t : ℝ)
+    (ht : 0 ≤ t) :
+    (streamMeasure μ Pp Pc Dsf).real (heavyHits rule O populations Dj j B bad q t)
       ≤ Real.exp (-((B.npref : ℝ) * relRate (q + t) q)) := by
   classical
-  have hEnn : streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B f q t)
+  have hEnn : streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B bad q t)
       ≤ ENNReal.ofReal (Real.exp (-((B.npref : ℝ) * relRate (q + t) q))) := by
     refine streamMeasure_slice_cert_le Pp Pc Dsf _
-      (measurableSet_heavyHits O populations Dj j B f q t) _ ?_
+      (measurableSet_heavyHits O populations Dj j B bad q t) _ ?_
     intro y
     set F : Finset S :=
       clusterBy rule O.mq populations ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J) B with hF
-    set W : Set S := {p | ¬ (flipCount O F p ≤ (F.card : ℝ) * f)} with hW
-    have hFeq : ∀ c : J → ℕ → S,
-        clusterBy rule O.mq populations ((y.1, (y.2, c)) : Run Ω S J) B = F := fun c => rfl
+    set W : Set S := {p | bad F p} with hW
     by_cases hmass : Dj.real W ≤ q
     · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-            ∈ heavyHits rule O populations Dj j B f q t}
+            ∈ heavyHits rule O populations Dj j B bad q t}
           ⊆ {c | (B.npref : ℝ) * (q + t)
             ≤ (((Finset.range B.npref).filter (fun i => c j i ∈ W)).card : ℝ)} := by
         rintro c ⟨-, hcount⟩
@@ -3989,19 +3843,16 @@ theorem measureReal_heavyHits_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Meas
       rw [← ENNReal.ofReal_toReal (measure_ne_top
           (Measure.pi Pc) _), ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
-      have hcert := cert_hits_upper Pc j Dj hPc B.npref W q t ht hmass
-      convert hcert using 3
-      funext c
-      congr!
+      exact cert_hits_upper Pc j Dj hPc B.npref W q t ht hmass
     · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-          ∈ heavyHits rule O populations Dj j B f q t} = (∅ : Set (J → ℕ → S)) := by
+          ∈ heavyHits rule O populations Dj j B bad q t} = (∅ : Set (J → ℕ → S)) := by
         ext c
         simp only [Set.mem_empty_iff_false, iff_false]
         rintro ⟨hm, -⟩
         exact hmass hm
       simp [hsec]
   rw [measureReal_def]
-  calc (streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B f q t)).toReal
+  calc (streamMeasure μ Pp Pc Dsf (heavyHits rule O populations Dj j B bad q t)).toReal
       ≤ (ENNReal.ofReal (Real.exp (-((B.npref : ℝ) * relRate (q + t) q)))).toReal :=
         ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = Real.exp (-((B.npref : ℝ) * relRate (q + t) q)) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
@@ -4149,10 +4000,10 @@ theorem measureReal_undecidedShort_le (Pp Pc : J → Measure (ℕ → S)) (Dsf :
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
-/-- The family is usable at `p`: at most an `f` fraction of it flips there, and the family
+/-- The family is usable at `p`: at most an `f p` fraction of it flips there, and the family
 is neither too small for the thresholds nor larger than the round allows. -/
-def famGood (O : Oracle μ S) (f : ℝ) (kmin kmax : ℕ) (F : Finset S) (p : S) : Prop :=
-  flipCount O F p ≤ (F.card : ℝ) * f ∧ kmin ≤ F.card ∧ F.card ≤ kmax
+def famGood (O : Oracle μ S) (f : S → ℝ) (kmin kmax : ℕ) (F : Finset S) (p : S) : Prop :=
+  flipCount O F p ≤ (F.card : ℝ) * f p ∧ kmin ≤ F.card ∧ F.card ≤ kmax
 
 open scoped Classical in
 /-- What a certification sample found in time says about its population's first draws: it is
@@ -4438,5 +4289,276 @@ theorem measureReal_drawsBadOn_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Mea
       (fun t => (hρ j hj t).1)
 
 end Loop
+
+/-! ### Per class
+
+A prefix of class `b` (label `sideClass b`) reads at its class's rate `r_b`.  A flip there moves
+a row's disagreement with the seed by `w_b = gap·(1 − 2r_b)`, and the vote absorbs the fraction
+`f_b = (½ − r_b − voteSlack)/gap` of the family flipping there, so a prefix where more than
+`f_b` of the family flips carries more than `σ_b = f_b·w_b = 2(½ − r_b)(½ − r_b − voteSlack)`
+of the family's shift.  Markov over the prefixes charges each class's heavy mass at its own
+`σ_b`. -/
+
+/-- The class a side holds rightly, as a bit: `1` on the accept side. -/
+def sideClass (accept : Bool) : ℝ := if accept then 1 else 0
+
+lemma sideClass_bit (accept : Bool) : sideClass accept = 0 ∨ sideClass accept = 1 := by
+  cases accept <;> simp [sideClass]
+
+
+/-- The noise rate of a side's right class, and of its wrong one. -/
+noncomputable def rightRate (O : Oracle μ S) (accept : Bool) : ℝ :=
+  if accept then O.ηIn else O.ηOut
+
+noncomputable def wrongRate (O : Oracle μ S) (accept : Bool) : ℝ :=
+  if accept then O.ηOut else O.ηIn
+
+omit [IsProbabilityMeasure μ] in
+lemma rate_of_label (O : Oracle μ S) (accept : Bool) (p : S) :
+    O.rate p = if O.label p = sideClass accept then rightRate O accept else wrongRate O accept := by
+  classical
+  unfold Oracle.rate rightRate wrongRate sideClass
+  by_cases hp : p ∈ O.L <;> cases accept <;>
+    simp [hp, Oracle.label, Set.indicator_of_mem, Set.indicator_of_notMem]
+
+
+/-- What a flip at `p` adds to a row's mean disagreement: `(1 − r' − r)(1 − 2r)`. -/
+noncomputable def flipShift (O : Oracle μ S) (v p : S) : ℝ :=
+  O.flip v p * ((1 - O.rate (p * v) - O.rate p) * (1 - 2 * O.rate p))
+
+
+noncomputable def clsRate (O : Oracle μ S) (b : Bool) : ℝ := max (rightRate O b) 0
+
+noncomputable def clsFrac (O : Oracle μ S) (η₀ : ℝ) (b : Bool) : ℝ :=
+  (1 / 2 - clsRate O b - voteSlack η₀) / O.gap
+
+noncomputable def clsSig (O : Oracle μ S) (η₀ : ℝ) (b : Bool) : ℝ :=
+  2 * (1 / 2 - clsRate O b) * (1 / 2 - clsRate O b - voteSlack η₀)
+
+noncomputable def clsShift (O : Oracle μ S) (b : Bool) : ℝ := O.gap * (1 - 2 * clsRate O b)
+
+open scoped Classical in
+/-- `w_b` on class `b`, nothing elsewhere: weighted by it, a member's flips are its shift on the
+class. -/
+noncomputable def clsW (O : Oracle μ S) (b : Bool) (p : S) : ℝ :=
+  if O.label p = sideClass b then clsShift O b else 0
+
+/-- The vote's absorbed fraction at `p`'s own rate. -/
+noncomputable def fracAt (O : Oracle μ S) (η₀ : ℝ) (p : S) : ℝ :=
+  (1 / 2 - O.rate p - voteSlack η₀) / O.gap
+
+/-- `∫ V(p)·flip(v, p)`: `v`'s flips weighted by the prefix. -/
+noncomputable def wMass (O : Oracle μ S) (Dj : Measure S) (V : S → ℝ) (v : S) : ℝ :=
+  ∫ p, V p * O.flip v p ∂Dj
+
+lemma rate_eq_clsRate (O : Oracle μ S) {b : Bool} {p : S} (hp : O.label p = sideClass b) :
+    O.rate p = clsRate O b := by
+  have h := rate_of_label O b p
+  rw [if_pos hp] at h
+  have h0 := O.rate_nonneg p
+  rw [clsRate, ← h, max_eq_left h0]
+
+lemma fracAt_eq (O : Oracle μ S) (η₀ : ℝ) {b : Bool} {p : S} (hp : O.label p = sideClass b) :
+    fracAt O η₀ p = clsFrac O η₀ b := by
+  rw [fracAt, clsFrac, rate_eq_clsRate O hp]
+
+omit [IsProbabilityMeasure μ] in
+lemma clsRate_nonneg (O : Oracle μ S) (b : Bool) : 0 ≤ clsRate O b := le_max_right _ _
+
+lemma clsRate_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (b : Bool) : clsRate O b ≤ η₀ := by
+  have h1 : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
+  have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
+  refine max_le ?_ (le_trans (eta_nonneg O) hη)
+  unfold rightRate; split_ifs <;> assumption
+
+omit [IsProbabilityMeasure μ] in
+lemma gap_le_one (O : Oracle μ S) : O.gap ≤ 1 := by
+  unfold Oracle.gap; linarith [le_max_right O.ηIn 0, le_max_right O.ηOut 0]
+
+lemma clsShift_pos (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    0 < clsShift O b := by
+  have := clsRate_le O hη b
+  exact mul_pos (gap_pos O (lt_of_le_of_lt hη hη₀)) (by linarith)
+
+lemma clsShift_le_one (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    clsShift O b ≤ 1 := by
+  have := clsRate_le O hη b
+  have := clsRate_nonneg O b
+  have hg := gap_le_one O
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  unfold clsShift
+  nlinarith
+
+lemma clsW_nonneg (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool)
+    (p : S) : 0 ≤ clsW O b p := by
+  unfold clsW; split_ifs
+  · exact (clsShift_pos O hη hη₀ b).le
+  · exact le_rfl
+
+lemma clsW_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool)
+    (p : S) : clsW O b p ≤ clsShift O b := by
+  unfold clsW; split_ifs
+  · exact le_rfl
+  · exact (clsShift_pos O hη hη₀ b).le
+
+/-- Weighted by `w_b`, a flip on class `b` is the shift it adds. -/
+lemma clsW_mul_flip (O : Oracle μ S) (b : Bool) (v p : S) (hp : O.label p = sideClass b) :
+    clsW O b p * O.flip v p = flipShift O v p := by
+  unfold clsW flipShift clsShift
+  rw [if_pos hp]
+  rcases O.flip_bit v p with h | h
+  · rw [h]; simp
+  · rw [h, ← gap_of_flip O h, rate_eq_clsRate O hp]; ring
+
+lemma flipShift_nonneg (O : Oracle μ S) (hsig : O.η ≤ 1 / 2) (v p : S) : 0 ≤ flipShift O v p := by
+  unfold flipShift
+  rcases O.flip_bit v p with h | h
+  · rw [h]; simp
+  · rw [h, ← gap_of_flip O h]
+    have := O.rate_le_eta p
+    have := gap_ge O
+    have : 0 ≤ O.gap * (1 - 2 * O.rate p) := mul_nonneg (by linarith) (by linarith)
+    linarith
+
+lemma clsW_mul_flip_le (O : Oracle μ S) (hsig : O.η ≤ 1 / 2) (b : Bool) (v p : S) :
+    clsW O b p * O.flip v p ≤ flipShift O v p := by
+  by_cases hp : O.label p = sideClass b
+  · exact le_of_eq (clsW_mul_flip O b v p hp)
+  · unfold clsW; rw [if_neg hp, zero_mul]; exact flipShift_nonneg O hsig v p
+
+omit [IsProbabilityMeasure μ] in
+lemma clsFrac_mul_clsShift (O : Oracle μ S) (η₀ : ℝ) (hg : 0 < O.gap) (b : Bool) :
+    clsFrac O η₀ b * clsShift O b = clsSig O η₀ b := by
+  unfold clsFrac clsShift clsSig
+  field_simp
+
+/-- `σ_b ≥ (2/5)·sig²`: the margin is at least `sig`, and `voteSlack` takes four fifths of `sig`. -/
+lemma clsSig_ge (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    2 / 5 * sig η₀ ^ 2 ≤ clsSig O η₀ b := by
+  have hr := clsRate_le O hη b
+  unfold clsSig voteSlack sig at *
+  nlinarith [mul_le_mul hr hr (clsRate_nonneg O b) (le_trans (clsRate_nonneg O b) hr)]
+
+lemma clsSig_pos (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    0 < clsSig O η₀ b :=
+  lt_of_lt_of_le (by have := sig_pos η₀ hη₀; positivity) (clsSig_ge O hη hη₀ b)
+
+lemma clsSig_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    clsSig O η₀ b ≤ 1 / 2 := by
+  have h0 := clsRate_nonneg O b
+  have hr := clsRate_le O hη b
+  have hv := voteSlack_pos η₀ hη₀
+  unfold clsSig
+  have h1 : 0 ≤ 1 / 2 - clsRate O b := by linarith
+  nlinarith [mul_nonneg h1 hv.le]
+
+/-- A redraw hides at most `w_b` of class `b`'s shift, which Markov charges at `w_b/σ_b`. -/
+lemma clsShift_div_clsSig_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : clsShift O b / clsSig O η₀ b ≤ 5 / sig η₀ := by
+  have hr := clsRate_le O hη b
+  have hs := sig_pos η₀ hη₀
+  have hg := gap_le_one O
+  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+  have hσ := clsSig_pos O hη hη₀ b
+  rw [div_le_div_iff₀ hσ hs]
+  unfold clsShift clsSig voteSlack sig at *
+  have h1 : 0 ≤ 1 / 2 - clsRate O b := by linarith
+  have h2 : (1 / 2 - η₀) / 5 ≤ 1 / 2 - clsRate O b - 4 * (1 / 2 - η₀) / 5 := by linarith
+  have h3 : O.gap * (1 - 2 * clsRate O b) * (1 / 2 - η₀)
+      ≤ 1 * (1 - 2 * clsRate O b) * (1 / 2 - η₀) := by
+    have : 0 ≤ (1 - 2 * clsRate O b) * (1 / 2 - η₀) := mul_nonneg (by linarith) hs.le
+    nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left h2 (by linarith : (0 : ℝ) ≤ 2 * (1 / 2 - clsRate O b))]
+
+/-- The vote absorbs at least a fifth of `sig` flipping: the margin is at least `sig`, `voteSlack`
+takes four fifths of it, and `gap ≤ 1`. -/
+lemma clsFrac_ge (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
+    sig η₀ / 5 ≤ clsFrac O η₀ b := by
+  have hr := clsRate_le O hη b
+  have hg := gap_le_one O
+  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+  have hs := sig_pos η₀ hη₀
+  unfold clsFrac
+  rw [le_div_iff₀ hg0]
+  unfold voteSlack sig at *
+  nlinarith
+
+lemma fracAt_nonneg (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (p : S) :
+    0 ≤ fracAt O η₀ p := by
+  have hr := le_trans (O.rate_le_eta p) hη
+  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+  unfold fracAt voteSlack sig
+  exact div_nonneg (by linarith) hg0.le
+
+/-- At the prefix's own fraction the vote leaves exactly `voteSlack` toward its side. -/
+lemma rate_add_gap_fracAt (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (p : S) :
+    O.rate p + O.gap * fracAt O η₀ p = 1 / 2 - voteSlack η₀ := by
+  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+  unfold fracAt
+  field_simp
+  ring
+
+lemma wMass_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (V : S → ℝ)
+    {B : ℝ} (hV0 : ∀ p, 0 ≤ V p) (hVB : ∀ p, V p ≤ B) (v : S) :
+    Integrable (fun p => V p * O.flip v p) Dj :=
+  Integrable.of_mem_Icc 0 B (measurable_of_countable _).aemeasurable
+    (Filter.Eventually.of_forall (fun p => ⟨mul_nonneg (hV0 p) (flip_icc O v p).1,
+      le_trans (mul_le_of_le_one_right (hV0 p) (flip_icc O v p).2) (hVB p)⟩))
+
+/-- Markov over the weighted flips: the prefixes where the family's weighted flips reach `T`
+have mass at most their total over `T`. -/
+theorem wMass_markov (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (V : S → ℝ)
+    {B : ℝ} (hV0 : ∀ p, 0 ≤ V p) (hVB : ∀ p, V p ≤ B) (F : Finset S) {T : ℝ} (hT : 0 < T) :
+    Dj.real {p | T ≤ ∑ v ∈ F, V p * O.flip v p} ≤ (∑ v ∈ F, wMass O Dj V v) / T := by
+  have hint : Integrable (fun p => ∑ v ∈ F, V p * O.flip v p) Dj :=
+    integrable_finsetSum F (fun v _ => wMass_integrable O Dj V hV0 hVB v)
+  have hnn : 0 ≤ᵐ[Dj] fun p => ∑ v ∈ F, V p * O.flip v p :=
+    Filter.Eventually.of_forall (fun p => Finset.sum_nonneg (fun v _ =>
+      mul_nonneg (hV0 p) (flip_icc O v p).1))
+  have hmk := mul_meas_ge_le_integral_of_nonneg hnn hint T
+  rw [integral_finsetSum F (fun v _ => wMass_integrable O Dj V hV0 hVB v)] at hmk
+  rw [le_div_iff₀ hT]
+  have : ∑ v ∈ F, ∫ p, V p * O.flip v p ∂Dj = ∑ v ∈ F, wMass O Dj V v := rfl
+  linarith
+
+/-- The prefixes of class `b` the family flips more than the vote absorbs at. -/
+def clsBadP (O : Oracle μ S) (η₀ : ℝ) (b : Bool) (F : Finset S) (p : S) : Prop :=
+  O.label p = sideClass b ∧ ¬ flipCount O F p ≤ F.card * fracAt O η₀ p
+
+/-- Markov at class `b`'s own fraction: if the family's `w_b`-weighted flips average at most
+`Δ`, its heavy prefixes of class `b` have mass at most `Δ/σ_b`. -/
+theorem clsBad_mass_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (Dj : Measure S) [IsProbabilityMeasure Dj] (F : Finset S) (b : Bool) (Δ : ℝ) (hΔ : 0 ≤ Δ)
+    (hW : ∑ v ∈ F, wMass O Dj (clsW O b) v ≤ F.card * Δ) :
+    Dj.real {p | clsBadP O η₀ b F p} ≤ Δ / clsSig O η₀ b := by
+  classical
+  rcases Nat.eq_zero_or_pos F.card with hF0 | hF
+  · have hz : {p | clsBadP O η₀ b F p} = (∅ : Set S) := by
+      ext p
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, clsBadP, not_and, not_not]
+      intro _
+      simp [flipCount, Finset.card_eq_zero.1 hF0]
+    rw [hz, measureReal_empty]
+    exact div_nonneg hΔ (clsSig_pos O hη hη₀ b).le
+  have hg := gap_pos O (lt_of_le_of_lt hη hη₀)
+  have hw := clsShift_pos O hη hη₀ b
+  have hσ := clsSig_pos O hη hη₀ b
+  have hFR : (0 : ℝ) < F.card := by exact_mod_cast hF
+  have hsub : {p | clsBadP O η₀ b F p}
+      ⊆ {p | F.card * clsSig O η₀ b ≤ ∑ v ∈ F, clsW O b p * O.flip v p} := by
+    rintro p ⟨hp, hbad⟩
+    simp only [Set.mem_setOf_eq]
+    rw [fracAt_eq O η₀ hp] at hbad
+    have hsum : ∑ v ∈ F, clsW O b p * O.flip v p = clsShift O b * flipCount O F p := by
+      rw [← Finset.mul_sum, ← flipCount_eq_sum]
+      unfold clsW; rw [if_pos hp]
+    rw [hsum, ← clsFrac_mul_clsShift O η₀ hg b]
+    have := mul_le_mul_of_nonneg_left (not_le.1 hbad).le hw.le
+    linarith
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (wMass_markov O Dj (clsW O b) (clsW_nonneg O hη hη₀ b)
+    (clsW_le O hη hη₀ b) F (by positivity)) ?_
+  rw [div_le_div_iff₀ (by positivity) hσ]
+  nlinarith
 
 end OrthoDFA

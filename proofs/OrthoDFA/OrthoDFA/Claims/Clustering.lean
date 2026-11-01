@@ -103,16 +103,16 @@ def ClusteringClaim.{u, v, w} : Prop :=
       x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
       x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
-          * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+          * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
         + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
           * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2)
         + log (x.nJ / x.δ) / x.ε_s) ∧
     (fun x => 1 / atomTol x) =O[𝓟 clusterRegion] (fun x =>
       x.nJ * (x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
-            * (1 / (x.εcov ^ 2 * x.s₀ ^ 8) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+            * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
           + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
             * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2))
-          * (1 / (x.εcov * x.s₀ ^ 3) + 1 / (x.ε_u * x.s₀) + 1 / x.ε_s)
+          * (1 / (x.εcov * x.s₀ ^ 2) + 1 / (x.ε_u * x.s₀) + 1 / x.ε_s)
         + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀)) / x.ε_s ^ 2) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
       1 / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
@@ -127,10 +127,10 @@ def ClusteringClaimSimple.{u, v, w} : Prop :=
       (x.ℓ_conf + log (1 / x.δ)) / (x.pAP * x.s₀ ^ 2)) ∧
     npref =O[𝓟 clusterRegion] (fun x =>
       x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
-        / (x.εcov ^ 2 * x.ε_s * x.ε_u ^ 2 * x.s₀ ^ 8)) ∧
+        / (x.εcov ^ 2 * x.ε_s * x.ε_u ^ 2 * x.s₀ ^ 4)) ∧
     (fun x => 1 / atomTol x) =O[𝓟 clusterRegion] (fun x =>
       x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
-        / (x.εcov ^ 3 * x.ε_s ^ 2 * x.ε_u ^ 3 * x.s₀ ^ 11)) ∧
+        / (x.εcov ^ 3 * x.ε_s ^ 2 * x.ε_u ^ 3 * x.s₀ ^ 6)) ∧
     (fun x => 1 / collTol x) =O[𝓟 clusterRegion] (fun x =>
       (x.ℓ_conf + log (1 / x.δ)) / (x.δ * x.pAP ^ 2 * x.s₀ ^ 2)) ∧
     ClusteringWithin.{u, v, w} k nsuff npref atomTol collTol

@@ -279,7 +279,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
     return search, ending
 
 
-def _best_search(pst, vs, *, acc_threshold, index, selection):
+def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
     """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
     searches on independent probe streams, the one with the best phi on
     ``selection.pick``."""
@@ -291,7 +291,10 @@ def _best_search(pst, vs, *, acc_threshold, index, selection):
             acc_threshold=acc_threshold,
             selection=None if selection is None else selection.search,
         )
-        return search, ending, _hypothesis_dfa(pst, search.hypothesis)
+        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
+        tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
+        return search, ending, dfa
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
@@ -301,6 +304,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection):
         dfa = _hypothesis_dfa(pst, search.hypothesis)
         phi = held_out_phi(dfa, *selection.pick)
         print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
+        tracker.on_restart_ended(i, search, ending, dfa, phi, index)
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
     _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
@@ -397,14 +401,23 @@ def counterexample_driven_synthesis(
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        vs, boundary, fnr = sample_suffix_family(
+            pst, pst.table.intern_suffix(b""), state
+        )
         pst.decision_boundary = boundary
-        tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
+        tracker.on_family_resolved(
+            [pst.table.suffix(i) for i in vs], boundary, fnr, index
+        )
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
         search, ending, dfa = _best_search(
-            pst, vs, acc_threshold=acc_threshold, index=index, selection=selection
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            index=index,
+            selection=selection,
+            tracker=tracker,
         )
         summary = _round_summary(
             pst, vs, search, ending, (sampled - started, time.monotonic() - sampled)
