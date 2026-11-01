@@ -5,9 +5,9 @@ checked-in runs and labels alone.
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
 the rules' agreements are on the read half.  Writes to figures/length-oracles/ the panels
-(lengths.pdf, frames.tex, dfa_{saw_a,saw_b,flat}.tex), values.tex (macros for the drawn
-DFAs' numbers), rules.tex (each oracle's phi with each rule) and restarts.tex (every
-restart's statistics)."""
+(lengths.pdf, dfa_saw.tex, dfa_flat.tex), values.tex (macros for the caption's numbers),
+rules.tex (each oracle's phi with each rule) and restarts.tex (every restart's
+statistics)."""
 
 import json
 import shlex
@@ -35,11 +35,9 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
 PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
-REPRESENTATIVES = {
-    "saw_a": ("saw", 0, 2),
-    "saw_b": ("saw", 1, 1),
-    "flat": ("flat", 0, 3),
-}
+REPRESENTATIVES = {"saw": ("saw", 1, 1), "flat": ("flat", 0, 3)}
+#: A kept DFA tracks the phase if it agrees this much with "frame0 open".
+PHASE_AGREEMENT = 0.9
 #: Each rule's name in rules.tex, and in restarts.tex's narrower columns.
 RULE_NAMES = {
     "frame0 open": ("No stop in frame 0", "No F0 stop"),
@@ -47,14 +45,13 @@ RULE_NAMES = {
     "odd stops": ("Odd number of stops", "Odd stops"),
     "one stop": ("Exactly one stop", "One stop"),
 }
-WORD = {".": "open", "C": "closed"}
 #: TikZ cm per graphviz inch; graphviz's nodes and labels are sized to match the TikZ's
 #: 6mm states (lstarex) and 8pt labels.
-CM_PER_INCH = 1.15
+CM_PER_INCH = 1.05
 NODE_INCHES = 0.6 / CM_PER_INCH
 LABEL_POINTS = 8 * 2.54 / CM_PER_INCH
 #: A ring is drawn as two rows, this far apart and with its states this far apart.
-RING_ROWS_CM, RING_STEP_CM = 1.1, 1.4
+RING_ROWS_CM, RING_STEP_CM = 1.1, 1.25
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 
@@ -283,19 +280,19 @@ def dfa_tikz(dfa):
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
-def plot_lengths(data, random_strings):
-    """Each oracle's accept rate on uniform random strings of the compiled lengths up to
-    their 99th percentile, drawn at the size it is printed."""
+def compiled_lengths(data):
+    """From the shortest to the 99th percentile."""
     lengths = 36 + 2 * data.stops
-    rows = [
-        r
-        for r in random_strings
-        if lengths.min() <= r["length"] <= np.percentile(lengths, 99)
-        and (r["length"] - 36) % 2 == 0
-    ]
+    return list(range(lengths.min(), int(np.percentile(lengths, 99)) + 1, 2))
+
+
+def plot_lengths(data, random_strings):
+    """Each oracle's accept rate on uniform random strings of the compiled lengths,
+    drawn at the size it is printed."""
+    rows = [r for r in random_strings if r["length"] in compiled_lengths(data)]
     xs = [r["length"] for r in rows]
-    fig = plt.figure(figsize=(2.2, 2.1))
-    ax = fig.add_axes((0.22, 0.5, 0.74, 0.47))
+    fig = plt.figure(figsize=(1.85, 2.1))
+    ax = fig.add_axes((0.26, 0.5, 0.7, 0.47))
     for color, (kind, name) in zip(PAPER_COLORS, PAPER_NAMES.items()):
         ys = [r[f"{kind}_accepts"] / r["n"] for r in rows]
         ax.plot(xs, ys, "o-", color=color, label=name, ms=3, linewidth=1.5)
@@ -334,45 +331,7 @@ def plot_lengths(data, random_strings):
     return fig
 
 
-def frame_grids(data, y):
-    """TikZ: the Length-Flat oracle's accept rate, a grid of frame 1 by frame 2 for each
-    state of frame 0, shaded with the paper's agree above .5 and disagree below."""
-    lines = [
-        r"\begin{tikzpicture}[x=0.9cm, y=0.55cm, font=\footnotesize,"
-        r" every node/.style={text height=1.5ex, text depth=0.4ex, inner sep=1pt}]",
-        r"\node[rotate=90] at (-1.45, -1) {Frame 1};",
-    ]
-    for f1 in range(2):
-        lines.append(
-            rf"\node[anchor=east] at (-0.1, {-f1 - 0.5}) {{{WORD['.C'[f1]]}}};"
-        )
-    for f0 in range(2):
-        x0 = 2.5 * f0
-        lines += [
-            rf"\node at ({x0 + 1}, 2.2) {{Frame 0 {WORD['.C'[f0]]}}};",
-            rf"\draw[black!50] ({x0 + 0.05}, 1.85) -- ({x0 + 1.95}, 1.85);",
-            rf"\node at ({x0 + 1}, 1.35) {{Frame 2}};",
-            rf"\draw[black!50] ({x0 + 0.05}, 1) -- ({x0 + 1.95}, 1);",
-        ]
-        for f2 in range(2):
-            lines.append(rf"\node at ({x0 + f2 + 0.5}, 0.5) {{{WORD['.C'[f2]]}}};")
-        for f1 in range(2):
-            for f2 in range(2):
-                v = y[
-                    data.pattern == PATTERNS.index(".C"[f0] + ".C"[f1] + ".C"[f2])
-                ].mean()
-                color = "agree" if v >= 0.5 else "disagree"
-                shade = round(min(abs(v - 0.5) * 300, 100))
-                cell = f"({x0 + f2}, {-f1 - 1}) rectangle +(1, 1)"
-                lines += [
-                    rf"\fill[{color}!{shade}!white] {cell};",
-                    rf"\draw[white, line width=0.8pt] {cell};",
-                    rf"\node at ({x0 + f2 + 0.5}, {-f1 - 0.5}) {{{v:.2f}}};",
-                ]
-    return "\n".join(lines + [r"\end{tikzpicture}", ""])
-
-
-def write_rates(data, flat):
+def write_lengths(data):
     with open(RANDOM_STRINGS) as f:
         random_strings = json.load(f)["rows"]
     with plt.rc_context(PAPER_RC):
@@ -385,7 +344,6 @@ def write_rates(data, flat):
             metadata={"CreationDate": None},
         )
         plt.close(fig)
-    (OUT_DIR / "frames.tex").write_text(frame_grids(data, flat))
 
 
 def describe_all(restarts, y, data):
@@ -418,6 +376,22 @@ def rule_table(data, y):
     )
 
 
+def counts_wildcards(dfa):
+    """Some cycle of wildcard transitions passes both accepting and rejecting states, so
+    the verdict moves with the wildcard count; a DFA tracking the phase instead has
+    wildcard cycles of one verdict, and uses the phase only to send stops elsewhere."""
+    for wildcard in (3, 4):
+        for q in dfa.states:
+            path = []
+            while q not in path:
+                path.append(q)
+                q = dfa.transitions[q][wildcard]
+            cycle = set(path[path.index(q) :])
+            if 0 < len(cycle & dfa.final_states) < len(cycle):
+                return True
+    return False
+
+
 def restart_table(described):
     """A row per restart, the kept ones starred; agreements are with each rule."""
     rows = []
@@ -434,6 +408,7 @@ def restart_table(described):
                     f"{d['pick_score']:.3f}",
                     f"{d['phi']:+.3f}",
                     f"{d['states']} / {len(d['minimal'].states)}",
+                    "yes" if counts_wildcards(d["minimal"]) else "no",
                     f"{d['modulus']}: {d['by_modulus'][d['modulus']]:.2f}",
                     f"{d['nmi_frame']:.2f}",
                     f"{d['stop_self_loops']:.2f}",
@@ -448,28 +423,71 @@ def restart_table(described):
             "Pick",
             r"$\phi$",
             "States / min.",
-            "Counts mod",
+            "Counts",
+            "Best mod",
             "Frame NMI",
             "Stop loops",
         ]
         + [short for _, short in RULE_NAMES.values()],
-        "lrrrrrrrr" + "r" * len(RULE_NAMES),
+        "lrrrrrlrrr" + "r" * len(RULE_NAMES),
         rows,
     )
 
 
-def values(described):
-    """Macros for each drawn DFA's numbers, named after it: saw_a gives \\loSawAPhi."""
+def dfa_accepts(dfa, string):
+    q = dfa.initial_state
+    for c in string:
+        q = dfa.transitions[q][c]
+    return q in dfa.final_states
+
+
+def either(items):
+    items = [str(x) for x in items]
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " or " + items[-1]
+
+
+def values(described, data):
+    """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
+    \\loSawPhi), and how many kept DFAs of each oracle count wildcards or agree with
+    "frame0 open"."""
+
+    def macro(name, value):
+        return rf"\newcommand{{\lo{name}}}{{{value}}}"
+
     lines = []
     for name, key in REPRESENTATIVES.items():
-        d = described[key]
-        macro = "lo" + "".join(part.title() for part in name.split("_"))
+        d, prefix = described[key], name.title()
         lines += [
-            rf"\newcommand{{\{macro}Phi}}{{{d['phi']:.3f}}}",
-            rf"\newcommand{{\{macro}States}}{{{len(d['minimal'].states)}}}",
+            macro(f"{prefix}Phi", f"{d['phi']:.3f}"),
+            macro(f"{prefix}States", len(d["minimal"].states)),
         ]
         if key[0] == "saw":
-            lines.append(rf"\newcommand{{\{macro}Modulus}}{{{d['modulus']}}}")
+            k, dfa = d["modulus"], d["minimal"]
+            lines += [
+                macro(f"{prefix}Modulus", k),
+                macro(
+                    f"{prefix}Wildcards",
+                    either(w for w in range(k) if dfa_accepts(dfa, [3] * w)),
+                ),
+                macro(
+                    f"{prefix}Lengths",
+                    either(
+                        L
+                        for L in compiled_lengths(data)
+                        if dfa_accepts(
+                            dfa, [0] * ((L - 36) // 2) + [3] * ((108 - L) // 2)
+                        )
+                    ),
+                ),
+            ]
+    for kind in PAPER_NAMES:
+        kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
+        counting = sum(counts_wildcards(d["minimal"]) for d in kept)
+        phase = sum(d["agreement"]["frame0 open"] >= PHASE_AGREEMENT for d in kept)
+        lines += [
+            macro(f"{kind.title()}Counting", f"{counting}/{len(kept)}"),
+            macro(f"{kind.title()}Phase", f"{phase}/{len(kept)}"),
+        ]
     return "\n".join(lines + [""])
 
 
@@ -488,10 +506,10 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described))
+    (OUT_DIR / "values.tex").write_text(values(described, data))
     (OUT_DIR / "rules.tex").write_text(rule_table(data, y) + "\n")
     (OUT_DIR / "restarts.tex").write_text(restart_table(described) + "\n")
-    write_rates(data, y["flat"])
+    write_lengths(data)
 
 
 if __name__ == "__main__":
