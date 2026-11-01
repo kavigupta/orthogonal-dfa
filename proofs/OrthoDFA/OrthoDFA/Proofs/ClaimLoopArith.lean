@@ -1761,7 +1761,7 @@ lemma distP₀Tol_pos (r : LoopDistRun) : 0 < distP₀Tol r := by
   unfold distP₀Tol
   exact one_div_pos.2 (lt_of_lt_of_le one_pos (le_max_left _ _))
 
-/-- `LoopClaim`'s `1/p₀Tol` shape, `P = L + |Q|`, `b = 1/β + |Q|`, `lL = log (P Y)` and
+/-- `LoopClaim`'s `1/p₀Tol` shape, `P = L + |Q|`, `b = 1/β + |Q|`, `lL = log (P Y/|Q|)` and
 `lY = log Y`, in the inverted coordinates. -/
 def p₀ShapeInv (P Q A b R iδ iξ ip is lL lY : ℝ) : ℝ :=
   P ^ 4 * lL * lY * (b * R * Q ^ 3 * iξ
@@ -1843,13 +1843,13 @@ lemma p₀ShapeInv_le {P Q A b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ :
 
 /-- `LoopClaim`'s shape for `1/p₀Tol`. -/
 def p₀Shape (r : LoopDistRun) : ℝ :=
-  (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
+  (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.R * (1 / r.β + r.Q)
       / r.ξ
       * (r.R ^ 3 / r.ξ ^ 3 * (1 / r.s₀ ^ 11 + r.Q ^ 6 * (1 / r.β + r.Q) ^ 3 / r.s₀ ^ 5)
         + r.R ^ 2 / (r.ξ ^ 2 * r.δ) * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
         + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
-    + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
+    + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 3 * r.R ^ 2
       / (r.ξ ^ 4 * r.δ) * (1 / r.s₀ ^ 8 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2 / r.s₀ ^ 4)
     + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
@@ -1857,7 +1857,7 @@ def p₀Shape (r : LoopDistRun) : ℝ :=
 
 lemma p₀Shape_eq (r : LoopDistRun) :
     p₀Shape r = p₀ShapeInv (r.L + r.Q) r.Q r.A (1 / r.β + r.Q) r.R (1 / r.δ) (1 / r.ξ)
-      (1 / r.pAP) (1 / r.s₀) (log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)))
+      (1 / r.pAP) (1 / r.s₀) (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)))
       (log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) := by
   unfold p₀Shape p₀ShapeInv; ring
 
@@ -1899,11 +1899,20 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
       nlinarith only [h4, hip]
     rw [hYd]; nlinarith only [h5, his]
   have hlY : 1 ≤ log Y := one_le_log_of_three_le (by linarith)
-  have hlLY : log Y ≤ log ((r.L + r.Q) * Y) :=
+  set Z : ℝ := r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) with hZd
+  have hZ8 : 8 ≤ Z := by
+    have h2 : 2 ≤ r.R * (1 / r.β) := by nlinarith only [hR, hA, hAAe]
+    have h3 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) := by nlinarith only [h2, hiδ]
+    have h4 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) := by nlinarith only [h3, hiξ]
+    have h5 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) := by
+      nlinarith only [h4, hip]
+    rw [hZd]; nlinarith only [h5, his]
+  have hlZ : 1 ≤ log Z := one_le_log_of_three_le (by linarith)
+  have hlLZ : log Z ≤ log ((r.L + r.Q) * Z) :=
     Real.log_le_log (by linarith) (le_mul_of_one_le_left (by linarith) hLQ1)
-  have hΛ : 1 + log ℓ ≤ 2 * log ((r.L + r.Q) * Y) := by
-    have : log ℓ ≤ log ((r.L + r.Q) * Y) :=
-      Real.log_le_log (by positivity) (by rw [hℓd]; nlinarith only [hY8, hLQ1])
+  have hΛ : 1 + log ℓ ≤ 2 * log ((r.L + r.Q) * Z) := by
+    have : log ℓ ≤ log ((r.L + r.Q) * Z) :=
+      Real.log_le_log (by positivity) (by rw [hℓd]; nlinarith only [hZ8, hLQ1])
     linarith
   have hΛ0 : 0 ≤ 1 + log ℓ := by have := Real.log_nonneg hℓ1; linarith
   have hℓ4 : ℓ ^ 4 ≤ 625 * ((r.L : ℝ) + r.Q) ^ 4 := by
@@ -1913,7 +1922,7 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
     have := pow_le_pow_left₀ (by positivity) (show ℓ ≤ 5 * ((r.L : ℝ) + r.Q) by linarith) 2
     linarith [show (5 * ((r.L : ℝ) + r.Q)) ^ 2 = 25 * ((r.L : ℝ) + r.Q) ^ 2 by ring]
   set lY := log Y with hlYd
-  set lL := log ((r.L + r.Q) * Y) with hlLd
+  set lL := log ((r.L + r.Q) * Z) with hlLd
   have hlL0 : 0 ≤ lL := by linarith
   have hb0 : 0 ≤ 1 / r.β + r.Q := by linarith
   have hδ0 : 0 ≤ 1 / r.δ := by linarith
@@ -1949,9 +1958,9 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
     calc ℓ ^ 2 * t.2.2 ≤ 25 * ((r.L : ℝ) + r.Q) ^ 2 * (2 ^ 46 * (F₃ * lY ^ 2)) := this
       _ = 25 * 2 ^ 46 * (((r.L : ℝ) + r.Q) ^ 2 * lY ^ 2 * F₃) := by ring
       _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
-  have e1 : ((r.L : ℝ) + r.Q) * Y
-      = (r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
-    rw [hYd]; field_simp
+  have e1 : ((r.L : ℝ) + r.Q) * Z
+      = (r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
+    rw [hZd]; field_simp
   have e2 : Y = r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
     rw [hYd]; field_simp
   have hsum := add_le_add (add_le_add a1 a2) a3
@@ -1963,7 +1972,7 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
 /-- `p₀Shape` against its largest monomial. -/
 lemma p₀Shape_le {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ p₀Shape r ∧ p₀Shape r ≤ 8 * ((r.L + r.Q) ^ 4 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
-      * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
+      * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
       / (r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
@@ -1980,16 +1989,20 @@ lemma p₀Shape_le {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
       nlinarith only [h4, hip]
     rw [hYe]; nlinarith only [h5, his]
   have hLQ1 : (1 : ℝ) ≤ r.L + r.Q := by linarith
-  have eL : (r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) = (r.L + r.Q) * Y := by
-    rw [hYd]; ring
+  set X : ℝ := (r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) with hXd
+  have hD : 0 < r.β * r.δ * r.ξ * r.pAP * r.s₀ := by
+    obtain ⟨⟨-, -, hδ, -, -, hξ, -, hp, -, hs, -⟩, hβ, -⟩ := hr
+    exact mul_pos (mul_pos (mul_pos (mul_pos hβ hδ) hξ) hp) hs
   have hlY : 1 ≤ log Y := one_le_log_of_three_le (by linarith)
-  have hlL : log Y ≤ log ((r.L + r.Q) * Y) :=
-    Real.log_le_log (by linarith) (le_mul_of_one_le_left (by linarith) hLQ1)
-  rw [eL]
+  have hlL : log Y ≤ log X :=
+    Real.log_le_log (by linarith) (by
+      rw [hYd, hXd]
+      exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_right (by linarith) (by linarith))
+        hD.le)
   have hb : 0 ≤ 1 / r.β + r.Q := by linarith
   have hδ0 : 0 ≤ 1 / r.δ := by linarith
   have hip0 : 0 ≤ 1 / r.pAP := by linarith
-  have hlL0 : 0 ≤ log ((r.L + r.Q) * Y) := by linarith
+  have hlL0 : 0 ≤ log X := by linarith
   refine ⟨by unfold p₀ShapeInv; positivity, ?_⟩
   refine (p₀ShapeInv_le hLQ1 hQ (by linarith) (by linarith) hR (by linarith) hiξ hip
     (by linarith) hlY hlL (by linarith)).trans (le_of_eq ?_)
