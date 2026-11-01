@@ -4,10 +4,9 @@ checked-in runs and labels alone.
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-the rules' agreements are on the read half.  Writes to figures/length-oracles/ the panels
-(lengths.pdf, dfa_saw.tex, dfa_flat.tex), values.tex (macros for the caption's numbers),
-rules.tex (each oracle's phi with each rule) and restarts.tex (every restart's
-statistics)."""
+agreement with "frame0 open" are on the read half.  Writes to figures/length-oracles/ the
+panels (lengths.pdf, dfa_saw.tex, dfa_flat.tex) and values.tex (macros for the caption's
+numbers)."""
 
 import json
 import shlex
@@ -21,7 +20,6 @@ from matplotlib import transforms
 from orthogonal_dfa.l_star.dfa_utils import table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
-from ..capal_comparison.figures import tabular
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
 from .label import saved_labels
 from .oracles import SYMBOLS
@@ -38,13 +36,6 @@ PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 REPRESENTATIVES = {"saw": ("saw", 1, 1), "flat": ("flat", 0, 3)}
 #: A kept DFA tracks the phase if it agrees this much with "frame0 open".
 PHASE_AGREEMENT = 0.9
-#: Each rule's name in rules.tex, and in restarts.tex's narrower columns.
-RULE_NAMES = {
-    "frame0 open": ("No stop in frame 0", "No F0 stop"),
-    "frames01 not both": ("Frames 0 and 1 not both closed", "F0, F1 not both"),
-    "odd stops": ("Odd number of stops", "Odd stops"),
-    "one stop": ("Exactly one stop", "One stop"),
-}
 #: TikZ cm per graphviz inch; graphviz's nodes and labels are sized to match the TikZ's
 #: 6mm states (lstarex) and 8pt labels.
 CM_PER_INCH = 1.05
@@ -52,8 +43,6 @@ NODE_INCHES = 0.6 / CM_PER_INCH
 LABEL_POINTS = 8 * 2.54 / CM_PER_INCH
 #: A ring is drawn as two rows, this far apart and with its states this far apart.
 RING_ROWS_CM, RING_STEP_CM = 1.1, 1.25
-#: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
-PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
 
 
 class Strings:
@@ -61,20 +50,13 @@ class Strings:
         self.s = s
         self.read = np.arange(len(s)) >= len(s) // 2
         self.stops = (s < 3).sum(1)
-        closed = np.zeros((len(s), 3), bool)
+        # no stop starts at a base position divisible by 3
+        self.frame0_open = np.ones(len(s), bool)
         position = np.zeros(len(s), int)
         for t in range(s.shape[1]):
             stop = s[:, t] < 3
-            closed[stop, position[stop] % 3] = True
+            self.frame0_open[stop & (position % 3 == 0)] = False
             position += np.where(stop, 3, 1)
-        names = ["".join("C" if c else "." for c in row) for row in closed]
-        self.pattern = np.array([PATTERNS.index(p) for p in names])
-        self.rules = {
-            "frame0 open": ~closed[:, 0],
-            "frames01 not both": ~(closed[:, 0] & closed[:, 1]),
-            "odd stops": self.stops % 2 == 1,
-            "one stop": self.stops == 1,
-        }
 
 
 def phi(v, y):
@@ -125,16 +107,8 @@ def describe(restart, y, data):
             final_states={q for q in range(len(transitions)) if verdict[q]},
         ).minify(),
         phi=phi(v[read], y[read]),
-        agreement={
-            name: float((v[read] == rule[read]).mean())
-            for name, rule in data.rules.items()
-        },
-        by_modulus=by_modulus,
+        frame0_agreement=float((v[read] == data.frame0_open[read]).mean()),
         modulus=modulus,
-        nmi_frame=nmi(end, data.pattern),
-        stop_self_loops=float(
-            (transitions[:, :3] == np.arange(len(transitions))[:, None]).mean()
-        ),
     )
 
 
@@ -355,25 +329,7 @@ def describe_all(restarts, y, data):
         ]
         # As counterexample_synthesis keeps it: the first best.
         d["kept"] = key[2] == int(np.argmax(picks))
-        d["pick_score"] = r["pick_score"]
-        d["states"] = len(r["dfa"]["transitions"])
     return described
-
-
-def rule_table(data, y):
-    read = data.read
-    return tabular(
-        ["Rule"] + list(PAPER_NAMES.values()),
-        "lrr",
-        [
-            [RULE_NAMES[name][0]]
-            + [
-                f"{phi(rule[read].astype(float), y[kind][read]):+.3f}"
-                for kind in PAPER_NAMES
-            ]
-            for name, rule in data.rules.items()
-        ],
-    )
 
 
 def counts_wildcards(dfa):
@@ -390,48 +346,6 @@ def counts_wildcards(dfa):
             if 0 < len(cycle & dfa.final_states) < len(cycle):
                 return True
     return False
-
-
-def restart_table(described):
-    """A row per restart, the kept ones starred; agreements are with each rule."""
-    rows = []
-    for kind, oracle in PAPER_NAMES.items():
-        if rows:
-            rows.append(r"\midrule")
-        for key in sorted(k for k in described if k[0] == kind):
-            d = described[key]
-            rows.append(
-                [
-                    oracle,
-                    str(key[1]),
-                    f"{key[2]}{'$^*$' if d['kept'] else ''}",
-                    f"{d['pick_score']:.3f}",
-                    f"{d['phi']:+.3f}",
-                    f"{d['states']} / {len(d['minimal'].states)}",
-                    "yes" if counts_wildcards(d["minimal"]) else "no",
-                    f"{d['modulus']}: {d['by_modulus'][d['modulus']]:.2f}",
-                    f"{d['nmi_frame']:.2f}",
-                    f"{d['stop_self_loops']:.2f}",
-                ]
-                + [f"{d['agreement'][name]:.2f}" for name in RULE_NAMES]
-            )
-    return tabular(
-        [
-            "Oracle",
-            "Seed",
-            "Restart",
-            "Pick",
-            r"$\phi$",
-            "States / min.",
-            "Counts",
-            "Best mod",
-            "Frame NMI",
-            "Stop loops",
-        ]
-        + [short for _, short in RULE_NAMES.values()],
-        "lrrrrrlrrr" + "r" * len(RULE_NAMES),
-        rows,
-    )
 
 
 def dfa_accepts(dfa, string):
@@ -487,7 +401,7 @@ def values(described, data):
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
-        phase = sum(d["agreement"]["frame0 open"] >= PHASE_AGREEMENT for d in kept)
+        phase = sum(d["frame0_agreement"] >= PHASE_AGREEMENT for d in kept)
         lines += [
             macro(f"{kind.title()}Counting", f"{counting}/{len(kept)}"),
             macro(f"{kind.title()}Phase", f"{phase}/{len(kept)}"),
@@ -511,8 +425,6 @@ def main():
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
     (OUT_DIR / "values.tex").write_text(values(described, data))
-    (OUT_DIR / "rules.tex").write_text(rule_table(data, y) + "\n")
-    (OUT_DIR / "restarts.tex").write_text(restart_table(described) + "\n")
     write_lengths(data)
 
 
