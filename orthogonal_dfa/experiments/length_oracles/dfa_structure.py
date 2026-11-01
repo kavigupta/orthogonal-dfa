@@ -16,21 +16,43 @@ def is_ring(dfa):
     return q == dfa.initial_state and seen == set(dfa.states)
 
 
-def counts_wildcards(dfa):
-    """Some cycle of wildcard transitions passes both accepting and rejecting states, so
-    the verdict moves with the wildcard count; a DFA tracking the phase instead has
-    wildcard cycles of one verdict, and uses the phase only to send stops elsewhere."""
+def wildcard_cycles(dfa):
+    """The cycles reached by reading only wildcards, each as a set of states."""
     if any(dfa.transitions[q][3] != dfa.transitions[q][4] for q in dfa.states):
         raise ValueError("the two wildcards go to different states")
+    cycles = set()
     for q in dfa.states:
         path = []
         while q not in path:
             path.append(q)
             q = dfa.transitions[q][3]
-        cycle = set(path[path.index(q) :])
-        if 0 < len(cycle & dfa.final_states) < len(cycle):
-            return True
-    return False
+        cycles.add(frozenset(path[path.index(q) :]))
+    return cycles
+
+
+def counts_wildcards(dfa):
+    """Some wildcard cycle passes both accepting and rejecting states, so the verdict
+    moves with the wildcard count."""
+    return any(
+        0 < len(cycle & dfa.final_states) < len(cycle) for cycle in wildcard_cycles(dfa)
+    )
+
+
+def tracks_phase(dfa):
+    """Some wildcard cycle of a multiple of 3 states, all of one verdict, follows the
+    reading frame (a stop is 3 bases, a wildcard 1), and a stop at one of its phases goes
+    straight to a rejecting trap."""
+    traps = {
+        q
+        for q in dfa.states - dfa.final_states
+        if all(t == q for t in dfa.transitions[q].values())
+    }
+    return any(
+        len(cycle) % 3 == 0
+        and len(cycle & dfa.final_states) in (0, len(cycle))
+        and any(dfa.transitions[q][stop] in traps for q in cycle for stop in (0, 1, 2))
+        for cycle in wildcard_cycles(dfa)
+    )
 
 
 def dfa_accepts(dfa, string):

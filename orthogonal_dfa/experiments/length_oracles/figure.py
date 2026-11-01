@@ -3,8 +3,8 @@ checked-in runs and labels alone.
 
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
-A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-agreement with "frame0 open" are on the read half.  Writes to figures/length-oracles/ the
+A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi is on
+the read half.  Writes to figures/length-oracles/ the
 panels (lengths.pdf, dfa_saw.tex, dfa_flat.tex) and values.tex (macros for the caption's
 numbers)."""
 
@@ -19,7 +19,7 @@ from orthogonal_dfa.l_star.dfa_utils import table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
-from .dfa_structure import counts_wildcards, dfa_accepts
+from .dfa_structure import counts_wildcards, dfa_accepts, tracks_phase
 from .label import saved_labels
 from .oracles import SYMBOLS, VOCAB
 from .render_dfa import dfa_tikz
@@ -32,8 +32,6 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {"saw": ("saw", 1, 1), "flat": ("flat", 0, 3)}
-#: A kept DFA tracks the phase if it agrees this much with "frame0 open".
-PHASE_AGREEMENT = 0.9
 
 
 class Strings:
@@ -41,13 +39,6 @@ class Strings:
         self.s = s
         self.read = np.arange(len(s)) >= len(s) // 2
         self.stops = (s < 3).sum(1)
-        # no stop starts at a base position divisible by 3
-        self.frame0_open = np.ones(len(s), bool)
-        position = np.zeros(len(s), int)
-        for t in range(s.shape[1]):
-            stop = s[:, t] < 3
-            self.frame0_open[stop & (position % 3 == 0)] = False
-            position += np.where(stop, 3, 1)
 
 
 def phi(v, y):
@@ -98,7 +89,6 @@ def describe(restart, y, data):
             final_states={q for q in range(len(transitions)) if verdict[q]},
         ).minify(),
         phi=phi(v[read], y[read]),
-        frame0_agreement=float((v[read] == data.frame0_open[read]).mean()),
         modulus=modulus,
     )
 
@@ -190,8 +180,8 @@ def join_words(items, conjunction):
 
 def values(described, data):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
-    \\loSawPhi), and how many kept DFAs of each oracle count wildcards or agree with
-    "frame0 open"."""
+    \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
+    phase."""
 
     def macro(name, value):
         return rf"\newcommand{{\lo{name}}}{{{value}}}"
@@ -227,7 +217,7 @@ def values(described, data):
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
-        phase = sum(d["frame0_agreement"] >= PHASE_AGREEMENT for d in kept)
+        phase = sum(tracks_phase(d["minimal"]) for d in kept)
         lines += [
             macro(f"{kind.title()}Counting", f"{counting}/{len(kept)}"),
             macro(f"{kind.title()}Phase", f"{phase}/{len(kept)}"),
