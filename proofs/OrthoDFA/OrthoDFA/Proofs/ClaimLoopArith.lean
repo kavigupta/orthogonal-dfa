@@ -1761,7 +1761,7 @@ lemma distP₀Tol_pos (r : LoopDistRun) : 0 < distP₀Tol r := by
 
 lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
       (r.L + r.Q) ^ 4 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
-        * log ((r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
+        * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
         * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
         / (r.δ * r.ξ ^ 4 * r.pAP ^ 2 * r.s₀ ^ 11)) := by
   refine bigO_dist (1250 * (2 ^ 251 * 144)) (by norm_num) fun r hr => ?_
@@ -1779,29 +1779,29 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
     unfold distP₀Tol
     rw [one_div_one_div, max_eq_right hM1]
   set Y : ℝ := r.Q * r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) with hYd
-  have hY8 : 8 ≤ Y := by
-    have h1 : 1 ≤ (r.Q : ℝ) * r.R := one_le_mul_of_one_le_of_one_le hQ hR
-    have h2 : 2 ≤ (r.Q : ℝ) * r.R * (1 / r.β) := by nlinarith only [h1, hA, hAAe]
-    have h3 : 4 ≤ (r.Q : ℝ) * r.R * (1 / r.β) * (1 / r.δ) := by nlinarith only [h2, hiδ]
-    have h4 : 4 ≤ (r.Q : ℝ) * r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) := by nlinarith only [h3, hiξ]
-    have h5 : 4 ≤ (r.Q : ℝ) * r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) := by
+  set Z : ℝ := r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) with hZd
+  have hZ8 : 8 ≤ Z := by
+    have h2 : 2 ≤ r.R * (1 / r.β) := by nlinarith only [hR, hA, hAAe]
+    have h3 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) := by nlinarith only [h2, hiδ]
+    have h4 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) := by nlinarith only [h3, hiξ]
+    have h5 : 4 ≤ r.R * (1 / r.β) * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) := by
       nlinarith only [h4, hip]
-    rw [hYd]; nlinarith only [h5, his]
+    rw [hZd]; nlinarith only [h5, his]
   have hLQ1 : (1 : ℝ) ≤ r.L + r.Q := by linarith
-  have hlY : 1 ≤ log Y := one_le_log_of_three_le (by linarith)
-  have hlLY : log Y ≤ log ((r.L + r.Q) * Y) :=
+  have hlZ : 1 ≤ log Z := one_le_log_of_three_le (by linarith)
+  have hlLZ : log Z ≤ log ((r.L + r.Q) * Z) :=
     Real.log_le_log (by linarith) (le_mul_of_one_le_left (by linarith) hLQ1)
-  have hΛ : 1 + log ℓ ≤ 2 * log ((r.L + r.Q) * Y) := by
-    have : log ℓ ≤ log ((r.L + r.Q) * Y) :=
-      Real.log_le_log (by positivity) (by rw [hℓd]; nlinarith only [hY8, hLQ1])
+  have hΛ : 1 + log ℓ ≤ 2 * log ((r.L + r.Q) * Z) := by
+    have : log ℓ ≤ log ((r.L + r.Q) * Z) :=
+      Real.log_le_log (by positivity) (by rw [hℓd]; nlinarith only [hZ8, hLQ1])
     linarith
   have hℓ : ℓ ^ 4 ≤ 625 * ((r.L : ℝ) + r.Q) ^ 4 := by
     have : ℓ ≤ 5 * ((r.L : ℝ) + r.Q) := by linarith
     have := pow_le_pow_left₀ (by positivity) this 4
     linarith [show (5 * ((r.L : ℝ) + r.Q)) ^ 4 = 625 * ((r.L : ℝ) + r.Q) ^ 4 by ring]
-  have e1 : ((r.L : ℝ) + r.Q) * Y
-      = (r.L + r.Q) * r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
-    rw [hYd]; field_simp
+  have e1 : ((r.L : ℝ) + r.Q) * Z
+      = (r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
+    rw [hZd]; field_simp
   have e2 : Y = r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
     rw [hYd]; field_simp
   rw [hinv]
@@ -1809,7 +1809,7 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
   have hl0 : 0 ≤ 1 + log ℓ := by have := Real.log_nonneg (show (1 : ℝ) ≤ ℓ by linarith); linarith
   calc ℓ ^ 4 * (1 + log ℓ) * loopMassInv r.Q r.A (1 / r.β + r.Q) r.Q r.A r.δ (distC r)
         (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
-      ≤ (625 * ((r.L : ℝ) + r.Q) ^ 4) * (2 * log ((r.L + r.Q) * Y)) * (2 ^ 251 * 144
+      ≤ (625 * ((r.L : ℝ) + r.Q) ^ 4) * (2 * log ((r.L + r.Q) * Z)) * (2 ^ 251 * 144
         * ((r.Q : ℝ) ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4 * log Y ^ 2
           * (1 / r.δ) * (1 / r.ξ) ^ 4 * (1 / r.pAP) ^ 2 * (1 / r.s₀) ^ 11)) :=
         mul_le_mul (mul_le_mul hℓ hΛ hl0 (by positivity)) hM (by linarith)
