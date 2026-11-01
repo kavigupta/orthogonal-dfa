@@ -1,21 +1,18 @@
-"""The length-oracle figure, and one printed row per restart, from the checked-in
-runs and labels alone.
+"""The length-oracle figure's panels, and one printed row per restart, from the
+checked-in runs and labels alone.
 
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-the rules' agreements are on the read half.  Writes figures/length-oracles/figure.pdf, and
-the paper's panels: lengths.pdf, frames.tex and dfa_{saw_1,saw_2,flat}.tex."""
+the rules' agreements are on the read half.  Writes lengths.pdf, frames.tex and
+dfa_{saw_1,saw_2,flat}.tex to figures/length-oracles/."""
 
 import json
 import shlex
 import subprocess
-import tempfile
-from pathlib import Path
 
 import numpy as np
 from automata.fa.dfa import DFA
-from matplotlib import image as mpimg
 from matplotlib import pyplot as plt
 from matplotlib import transforms
 
@@ -50,10 +47,6 @@ LABEL_POINTS = 8 * 2.54 / CM_PER_INCH
 RING_ROWS_CM, RING_STEP_CM = 1.1, 1.4
 #: Which of frames 0, 1, 2 (base position mod 3) a stop starts in, "C" closed.
 PATTERNS = ["...", "..C", ".C.", "C..", ".CC", "C.C", "CC.", "CCC"]
-KINDS = {
-    "saw": "Sawtooth oracle (one threshold, at length 40)",
-    "flat": "Per-length oracle (each length at its own median)",
-}
 
 
 class Strings:
@@ -189,31 +182,22 @@ def layout(dfa):
     return "circo" if is_ring(dfa) else "dot"
 
 
-def draw(dfa, path):
+def dot_source(dfa):
     lines = [
-        "digraph{rankdir=LR; bgcolor=transparent;",
+        "digraph{rankdir=LR; margin=0;",
         f"node[shape=circle,fontname=Helvetica,width={NODE_INCHES:.2f},"
         'fixedsize=true,label=""];',
         f"edge[fontname=Helvetica,fontsize={LABEL_POINTS:.1f},arrowsize=.6];",
         f"start[shape=point,width=.06]; start->q{dfa.initial_state};",
     ]
     for q in sorted(dfa.states):
-        style = (
-            f'shape=doublecircle,width={NODE_INCHES:.2f},style=filled,fillcolor="#cfe8cf"'
-            if q in dfa.final_states
-            else 'style=filled,fillcolor="#eeeeee"'
-        )
-        lines.append(f"q{q}[{style}];")
+        if q in dfa.final_states:
+            lines.append(f"q{q}[shape=doublecircle];")
         row = dfa.transitions[q]
         for t in sorted(set(row.values())):
             label = edge_label([c for c in row if row[c] == t], tex=False)
             lines.append(f'q{q}->q{t}[label="{label}"];')
-    lines[0] += " margin=0;"
-    path.with_suffix(".dot").write_text("\n".join(lines + ["}"]))
-    subprocess.run(
-        [layout(dfa), "-Tpng", "-Gdpi=200", path.with_suffix(".dot"), "-o", path],
-        check=True,
-    )
+    return "\n".join(lines + ["}"])
 
 
 def ring_edges(dfa, xy):
@@ -264,11 +248,15 @@ def spline_edges(dfa, rows, xy):
     return lines
 
 
-def dfa_tikz(dfa, dot_path):
+def dfa_tikz(dfa):
     """In the paper's lstarex style, at graphviz's node positions.  A ring is drawn as
     two rows instead, with its edges on its outside."""
     plain = subprocess.run(
-        [layout(dfa), "-Tplain", dot_path], capture_output=True, text=True, check=True
+        [layout(dfa), "-Tplain"],
+        input=dot_source(dfa),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     rows = [shlex.split(line) for line in plain.splitlines()]
     ring = is_ring(dfa)
@@ -422,14 +410,14 @@ def describe_all(restarts, y, data):
 def main():
     strings, labels = saved_labels()
     data = Strings(np.array(strings, dtype=np.int64))
-    y = {kind: labels[kind].astype(float) for kind in KINDS}
+    y = {kind: labels[kind].astype(float) for kind in PAPER_NAMES}
     with open(RUNS) as f:
         restarts = {
             (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
         }
 
     read = data.read
-    for kind in KINDS:
+    for kind in PAPER_NAMES:
         cells = [
             f"{name} {phi(rule[read].astype(float), y[kind][read]):+.3f}"
             for name, rule in data.rules.items()
@@ -438,62 +426,15 @@ def main():
     described = describe_all(restarts, y, data)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    fig = plt.figure(figsize=(11, 8.5))
-    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.15], hspace=0.3, wspace=0.18)
-    colors = plt.cm.tab10(np.arange(len(PATTERNS)))  # pylint: disable=no-member
-    for col, (kind, title) in enumerate(KINDS.items()):
-        ax = fig.add_subplot(grid[0, col])
-        for j, pattern in enumerate(PATTERNS):
-            xs, ys = [], []
-            for stops in range(6):
-                cell = (data.pattern == j) & (data.stops == stops)
-                if cell.sum() >= 400:
-                    xs.append(36 + 2 * stops)
-                    ys.append(y[kind][cell].mean())
-            ax.plot(xs, ys, "o-", color=colors[j], label=pattern, ms=4)
-        ax.set_title(title, fontsize=11)
-        ax.set_xlabel("compiled length (bases) = 36 + 2 x stops")
-        ax.set_xticks([36 + 2 * k for k in range(6)])
-        ax.set_ylim(0.15, 0.95)
-        ax.grid(alpha=0.3)
-        if col == 0:
-            ax.set_ylabel("oracle accept rate")
-        else:
-            ax.legend(
-                title="frame pattern",
-                fontsize=8,
-                title_fontsize=8,
-                ncol=2,
-                loc="lower left",
-            )
-
-    saw_rows = grid[1, 0].subgridspec(2, 1, hspace=0.35)
-    with tempfile.TemporaryDirectory() as drawings:
-        for k, (name, key) in enumerate(REPRESENTATIVES.items()):
-            d = described[key]
-            if not d["kept"]:
-                raise ValueError(f"{key} is not the restart its run kept")
-            path = Path(drawings) / f"{key[0]}_s{key[1]}_r{key[2]}.png"
-            draw(d["minimal"], path)
-            (OUT_DIR / f"dfa_{name}.tex").write_text(
-                dfa_tikz(d["minimal"], path.with_suffix(".dot"))
-            )
-            print(
-                f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption(key[0], d)}, "
-                f"{len(d['minimal'].states)} states, phi {d['phi']:.3f}"
-            )
-            ax = fig.add_subplot(saw_rows[k] if key[0] == "saw" else grid[1, 1])
-            ax.imshow(mpimg.imread(path))
-            ax.axis("off")
-            ax.set_title(
-                f"{KINDS[key[0]].split(' (')[0]}, seed {key[1]} restart {key[2]}"
-                f" (kept): {caption(key[0], d)}\n"
-                f"({len(d['minimal'].states)} states, phi {d['phi']:.3f})",
-                fontsize=9,
-            )
-    with plt.rc_context({"pdf.fonttype": PAPER_RC["pdf.fonttype"]}):
-        fig.savefig(OUT_DIR / "figure.pdf", bbox_inches="tight")
-    plt.close(fig)
+    for name, key in REPRESENTATIVES.items():
+        d = described[key]
+        if not d["kept"]:
+            raise ValueError(f"{key} is not the restart its run kept")
+        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
+        print(
+            f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption(key[0], d)}, "
+            f"{len(d['minimal'].states)} states, phi {d['phi']:.3f}"
+        )
     write_rates(data, y["flat"])
 
 
