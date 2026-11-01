@@ -849,7 +849,7 @@ lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ)
     bandKappa = h / (P(Y ≥ n/2) − h),   h = P(Y ≤ lo),   Y ~ Bin(n, 1/2) -/
 lemma bandKappa_centre {n lo hi : ℕ} (hsum : lo + hi + 1 = n) (hlo : lo < n / 2)
     (hhi : n / 2 ≤ hi) (hev : Even n) :
-    bandKappa n lo (n / 2) (hi + 1)
+    bandKappa n (1 / 2) lo (n / 2) (hi + 1)
       = (1 - binomSfGe n (1 / 2) (lo + 1))
         / (binomSfGe n (1 / 2) (n / 2) - (1 - binomSfGe n (1 / 2) (lo + 1))) := by
   obtain ⟨m, rfl⟩ := hev
@@ -880,7 +880,7 @@ omit [Fintype J] in
 lemma famHoeff_kappa (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (κ : ℕ) (hκ : κ = famHoeff η₀ populations indecisionLimit εcov δ crossLimit) :
-    bandKappa κ (loAt η₀ κ) (κ / 2) (hiAt η₀ κ + 1) ^ 4 ≤ crossLimit := by
+    bandKappa κ (1 / 2) (loAt η₀ κ) (κ / 2) (hiAt η₀ κ + 1) ^ 4 ≤ crossLimit := by
   have hL := famHoeff_cross (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
   have hT1 := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
@@ -1120,7 +1120,7 @@ omit [Fintype J] in
 lemma famCount_kappa (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
     let κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
-    bandKappa κ (loAt η₀ κ) (κ / 2) (hiAt η₀ κ + 1) ^ 4 ≤ crossLimit := by
+    bandKappa κ (1 / 2) (loAt η₀ κ) (κ / 2) (hiAt η₀ κ + 1) ^ 4 ≤ crossLimit := by
   intro κ
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
