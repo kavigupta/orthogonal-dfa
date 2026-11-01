@@ -119,7 +119,7 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
 theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
   obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
-  set C₀ := 2 * max 1 C with hC₀d
+  set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
   have hCC₀ : C ≤ max 1 C := le_max_right _ _
   have hmapsR : Set.MapsTo toDistRun loopRunRegion loopDistRunRegion := fun r hr => toDist_mem hr
@@ -193,16 +193,16 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hc := hC _ hrd
     have hpos' := hpos { toDist x with L }
     have hG1 : 1 ≤ loopG x := loopG_ge_one ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩
-    obtain ⟨hsh0, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
+    obtain ⟨-, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
     have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
       rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
-      change _ ≤ C * |((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
-        * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
-        * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 11)| at hc
-      rw [abs_of_nonneg hsh0] at hc
-      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hsh0).trans ?_)
-      refine (mul_le_mul_of_nonneg_left hsh ?_).trans (le_of_eq ?_)
+      obtain ⟨hs0, hsle⟩ := p₀Shape_le hrd
+      change _ ≤ C * |p₀Shape { toDist x with L }| at hc
+      rw [abs_of_nonneg hs0] at hc
+      have h8 : p₀Shape { toDist x with L } ≤ 8 * (2 * (((L : ℝ) + x.Q) ^ 6 * loopG x)) :=
+        hsle.trans (mul_le_mul_of_nonneg_left hsh (by norm_num))
+      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hs0).trans ?_)
+      refine (mul_le_mul_of_nonneg_left h8 ?_).trans (le_of_eq ?_)
       · linarith [le_max_left 1 C]
       · rw [hC₀d]; ring
     have hpow := pow_of_tangent (E := C₀ * loopG x) hA' hQ'

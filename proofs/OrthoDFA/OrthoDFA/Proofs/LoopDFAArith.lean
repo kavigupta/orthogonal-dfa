@@ -606,7 +606,7 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
     (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂ : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ) (hQ : 0 ≤ Q) (hn : 0 ≤ n)
     (hδ : 0 < δ) (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * (ℓ ^ 2 * Λ))
-    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hpow : ℓ ^ 4 * Λ * (E + E₂) ≤ Ak) :
+    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hpow : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ ≤ Ak) :
     Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
       ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4 := by
   have hℓ0 : 0 < ℓ := by linarith
@@ -628,8 +628,9 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
   have hℓ3 : 1 ≤ ℓ ^ 3 := one_le_pow₀ hℓ
   have hℓ1 : ℓ ≤ ℓ ^ 4 * Λ :=
     (le_self_pow₀ hℓ (by norm_num : 4 ≠ 0)).trans (le_mul_of_one_le_right (by positivity) hΛ)
-  have hℓ2 : ℓ ^ 2 * Λ ≤ ℓ ^ 4 * Λ :=
-    mul_le_mul_of_nonneg_right (pow_le_pow_right₀ hℓ (by norm_num)) hΛ0.le
+  have hpE : ℓ ^ 4 * Λ * E ≤ Ak := by
+    have : 0 ≤ ℓ ^ 2 * Λ * E₂ := by positivity
+    linarith
   refine ⟨?_, ?_, ?_⟩
   · -- the cap
     have hc : 1 / (1536 * aε * E₁ * (ℓ ^ 4 * Λ)) ≤ cap * ε / 1536 := by
@@ -641,8 +642,8 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
       gcongr
     refine le_trans ?_ hc
     rw [one_div]
-    refine inv_anti₀ (by positivity) (le_trans ?_ hpow)
-    have : 1536 * aε * E₁ ≤ E + E₂ := by
+    refine inv_anti₀ (by positivity) (le_trans ?_ hpE)
+    have : 1536 * aε * E₁ ≤ E := by
       rw [hE]; have : 0 ≤ 1536 * lg * aε := by positivity
       linarith
     have := mul_le_mul_of_nonneg_left this (show 0 ≤ ℓ ^ 4 * Λ by positivity)
@@ -650,16 +651,16 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
   · -- the prefix mass against the noise's tails
     rcases eq_or_lt_of_le hlg with h0 | hlg0
     · rw [← h0]; simp [hε0.le]
-    have h1 : 1536 * lg * aε * ℓ ≤ ℓ ^ 4 * Λ * (E + E₂) := by
-      have : 1536 * lg * aε ≤ E + E₂ := by
+    have h1 : 1536 * lg * aε * ℓ ≤ ℓ ^ 4 * Λ * E := by
+      have : 1536 * lg * aε ≤ E := by
         rw [hE]; have : 0 ≤ 1536 * aε * E₁ := by positivity
         linarith
-      calc 1536 * lg * aε * ℓ ≤ (E + E₂) * (ℓ ^ 4 * Λ) :=
+      calc 1536 * lg * aε * ℓ ≤ E * (ℓ ^ 4 * Λ) :=
             mul_le_mul this hℓ1 hℓ0.le (by positivity)
-        _ = ℓ ^ 4 * Λ * (E + E₂) := by ring
+        _ = ℓ ^ 4 * Λ * E := by ring
     have h3 : 1536 * lg * Ak⁻¹ ≤ 1 / (aε * ℓ) := by
       rw [le_div_iff₀ (by positivity)]
-      have h4 : 1536 * lg * aε * ℓ ≤ Ak := h1.trans hpow
+      have h4 : 1536 * lg * aε * ℓ ≤ Ak := h1.trans hpE
       calc 1536 * lg * Ak⁻¹ * (aε * ℓ) = (1536 * lg * aε * ℓ) * Ak⁻¹ := by ring
         _ ≤ Ak * Ak⁻¹ := mul_le_mul_of_nonneg_right h4 (by positivity)
         _ = 1 := mul_inv_cancel₀ hAk.ne'
@@ -685,9 +686,7 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
       linarith
     have h2 : ℓ ^ 2 * Λ * (E₂ * δ / 4) ≤ Ak * (δ / 4) := by
       have : ℓ ^ 2 * Λ * E₂ ≤ Ak := by
-        have := mul_le_mul_of_nonneg_right hℓ2 hE₂0
-        have : ℓ ^ 4 * Λ * E₂ ≤ ℓ ^ 4 * Λ * (E + E₂) :=
-          mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+        have : 0 ≤ ℓ ^ 4 * Λ * E := by positivity
         linarith
       have := mul_le_mul_of_nonneg_right this (show 0 ≤ δ / 4 by positivity)
       calc ℓ ^ 2 * Λ * (E₂ * δ / 4) = ℓ ^ 2 * Λ * E₂ * (δ / 4) := by ring
@@ -745,23 +744,20 @@ lemma kc_ge_one {Q A : ℝ} {m e : ℕ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) :
   exact one_le_mul_of_one_le_of_one_le h1 h2
 
 lemma dfa_noise_tail {B₃ K₁ ℓ Λ Ak E E₂ E₃ δ' : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (hB₃0 : 0 ≤ B₃)
-    (hB₃ : B₃ ≤ K₁ * ℓ) (hE₃ : E₃ = 16 * K₁ ^ 2 / δ') (hδ'0 : 0 < δ') (hEE : 1 ≤ E + E₂)
-    (hpow3 : ℓ ^ 4 * Λ * (E + E₂ + E₃) ≤ Ak) (hAk : 0 < Ak) : 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
-  have hℓ6 : 0 ≤ ℓ ^ 4 * Λ := by have : (0 : ℝ) ≤ ℓ := by linarith
-                                 positivity
-  have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * (ℓ ^ 4 * Λ) := by
+    (hB₃ : B₃ ≤ K₁ * ℓ) (hE₃ : E₃ = 16 * K₁ ^ 2 / δ') (hδ'0 : 0 < δ') (hE0 : 0 ≤ E)
+    (hE₂0 : 0 ≤ E₂) (hpow3 : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ + ℓ ^ 2 * E₃ ≤ Ak) (hAk : 0 < Ak) :
+    16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
+  have hℓ0 : 0 ≤ ℓ := by linarith
+  have hB2 : B₃ ^ 2 ≤ K₁ ^ 2 * ℓ ^ 2 := by
     have h1 : B₃ ^ 2 ≤ (K₁ * ℓ) ^ 2 := pow_le_pow_left₀ hB₃0 hB₃ 2
-    have h2 : ℓ ^ 2 ≤ ℓ ^ 4 * Λ := (pow_le_pow_right₀ hℓ (by norm_num : 2 ≤ 4)).trans
-      (le_mul_of_one_le_right (by positivity) hΛ)
-    have h3 : (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 := by ring
-    have h4 := mul_le_mul_of_nonneg_left h2 (sq_nonneg K₁)
-    linarith only [h1, h3, h4]
-  have hE3 : ℓ ^ 4 * Λ * E₃ ≤ Ak := by
-    have : ℓ ^ 4 * Λ * E₃ ≤ ℓ ^ 4 * Λ * (E + E₂ + E₃) :=
-      mul_le_mul_of_nonneg_left (by linarith only [hEE]) hℓ6
+    linarith only [h1, show (K₁ * ℓ) ^ 2 = K₁ ^ 2 * ℓ ^ 2 by ring]
+  have hE3 : ℓ ^ 2 * E₃ ≤ Ak := by
+    have : 0 ≤ ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ := by
+      have : 0 ≤ Λ := by linarith
+      positivity
     linarith only [this, hpow3]
   rw [← div_eq_mul_inv, div_le_iff₀ hAk]
-  have e : ℓ ^ 4 * Λ * E₃ * δ' = 16 * K₁ ^ 2 * (ℓ ^ 4 * Λ) := by
+  have e : ℓ ^ 2 * E₃ * δ' = 16 * K₁ ^ 2 * ℓ ^ 2 := by
     rw [hE₃]; field_simp
   have h5 := mul_le_mul_of_nonneg_right hE3 hδ'0.le
   linarith only [h5, e, hB2]
@@ -777,7 +773,7 @@ lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θ P₀ 
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') :
-    1 ≤ aε ∧ 1 ≤ E₁ ∧ 1 ≤ E + E₂ ∧ 0 ≤ E₃ := by
+    1 ≤ aε ∧ 1 ≤ E₁ ∧ 1 ≤ E ∧ 0 ≤ E₂ ∧ 0 ≤ E₃ := by
   have haε : 1 ≤ aε := by
     rw [haεd, le_div_iff₀ hc, one_mul]
     linarith only [hA, hc1]
@@ -793,15 +789,16 @@ lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θ P₀ 
     exact one_le_mul_of_one_le_of_one_le h4 (by linarith only [h1, h2, h3])
   have hE₂0 : 0 ≤ E₂ := by rw [hE₂d]; positivity
   have hE₃0 : 0 ≤ E₃ := by rw [hE₃d]; positivity
-  have hEE : 1 ≤ E + E₂ := by
+  have hE1 : 1 ≤ E := by
     have h1 : 0 ≤ 1536 * lg * aε := by positivity
     have h2 : 1 ≤ 1536 * aε * E₁ :=
       one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by norm_num) haε) hE₁
     rw [hEd]
-    linarith only [h1, h2, hE₂0]
-  exact ⟨haε, hE₁, hEE, hE₃0⟩
+    linarith only [h1, h2]
+  exact ⟨haε, hE₁, hE1, hE₂0, hE₃0⟩
 
-/-- `ℓ⁴ Λ (E + E₂ + E₃) ≤ Ak` gives the four conditions on a walk start's prefix mass `Ak⁻¹`. -/
+/-- `ℓ⁴ Λ E + ℓ² Λ E₂ + ℓ² E₃ ≤ Ak` gives the four conditions on a walk start's prefix mass
+`Ak⁻¹`. -/
 lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁ δ δ' c s pAP Θ P₀ Ak : ℝ}
     (hA : 2 ≤ Ae) (hQ : 0 ≤ Q) (hc : 0 < c) (hc1 : c ≤ 1) (hs0 : 0 < s)
     (hs1 : s ≤ 1 / 2) (hpAP : 0 < pAP) (hδ'0 : 0 < δ') (hδ : 0 < δ) (hΘ1 : 1 ≤ Θ)
@@ -814,20 +811,20 @@ lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁
     (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB)
     (hRB : RB ≤ R₀ * (ℓ ^ 2 * Λ)) (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hAk : 0 < Ak)
-    (hpow3 : ℓ ^ 4 * Λ * (E + E₂ + E₃) ≤ Ak) :
+    (hpow3 : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ + ℓ ^ 2 * E₃ ≤ Ak) :
     Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
       ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4
       ∧ 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
-  obtain ⟨haε, hE₁, hEE, hE₃0⟩ := dfa_mass_one hA hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ hP₀
-    hlR₀ hK₁0 hn hlg haεd hE₁d hEd hE₂d hE₃d
+  obtain ⟨haε, hE₁, hE1, hE₂0, hE₃0⟩ := dfa_mass_one hA hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀
+    hP₀ hlR₀ hK₁0 hn hlg haεd hE₁d hEd hE₂d hE₃d
   have haε0 : 0 < aε := by linarith only [haε]
-  have hℓ6 : 0 ≤ ℓ ^ 4 * Λ :=
-    mul_nonneg (pow_nonneg (by linarith only [hℓ1]) 4) (by linarith only [hΛ])
-  have hpow : ℓ ^ 4 * Λ * (E + E₂) ≤ Ak :=
-    (mul_le_mul_of_nonneg_left (by linarith only [hE₃0]) hℓ6).trans hpow3
+  have hpow : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ ≤ Ak := by
+    have : 0 ≤ ℓ ^ 2 * E₃ := mul_nonneg (sq_nonneg ℓ) hE₃0
+    linarith only [this, hpow3]
   obtain ⟨h1, h2, h3⟩ := dfa_final (Ak := Ak) hAk hℓ1 hΛ hε0 hinvε haε0 hcap
     (by linarith only [hE₁]) hlg hEd hE₂d hQ hn hδ hJ hRB0 hRB hB₃0 hB₃ hpow
-  exact ⟨h1, h2, h3, dfa_noise_tail hℓ1 hΛ hB₃0 hB₃ hE₃d hδ'0 hEE hpow3 hAk⟩
+  exact ⟨h1, h2, h3,
+    dfa_noise_tail hℓ1 hΛ hB₃0 hB₃ hE₃d hδ'0 (by linarith only [hE1]) hE₂0 hpow3 hAk⟩
 
 /-- `LearnerLoopDFA`'s `Θ`, `A` the rate edges are crossed at. -/
 def loopΘ (Q A c ξ η₀ : ℝ) : ℝ :=
@@ -862,10 +859,9 @@ def loopBudget (ℓ Q A Ae δ c : ℝ) : ℝ :=
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
   (36 * S * (4 * (Ae + 1) / c) * Real.log (16 * S * (S + 1) / (δ / (8 * (Q + 1)))) + S + 1) * ℓ
 
-/-- `LearnerLoopDFA`'s `E + E₂ + E₃`, edges crossed at rate `Ae`, with `nQ` and `nA` standing for
-`|Q|` and `|Σ|` as exponents: a walk start's prefix mass of at most
-`1/(ℓ⁴ (1 + log ℓ) loopMassInv)` meets `LearnerLoopDFASimple`'s four conditions. -/
-def loopMassInv (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+/-- `LearnerLoopDFA`'s `(E, E₂, E₃)`, edges crossed at rate `Ae`, with `nQ` and `nA` standing for
+`|Q|` and `|Σ|` as exponents. -/
+def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ × ℝ × ℝ :=
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
@@ -884,13 +880,26 @@ def loopMassInv (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
-  E + E₂ + E₃
+  (E, E₂, E₃)
 
-lemma loopMassInv_ge_one {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
+/-- `LearnerLoopDFA`'s `E + E₂ + E₃`. -/
+def loopMassInv (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
+  t.1 + t.2.1 + t.2.2
+
+/-- A walk start's prefix mass of at most `1/loopTolInv ℓ` meets `LearnerLoopDFASimple`'s four
+conditions at `ℓ = L₁ + 1`. -/
+def loopTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
+  ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1 + ℓ ^ 2 * t.2.2
+
+lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
     (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
     (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
-    1 ≤ loopMassInv Q A Ae nQ nA δ c ξ pAP η₀ := by
-  unfold loopMassInv
+    1 ≤ (loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀).1
+      ∧ 0 ≤ (loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀).2.1
+      ∧ 0 ≤ (loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀).2.2 := by
+  unfold loopMassTerms
   extract_lets δ' s S n aε Θ K₁ W₀ P₀ R₀ E₁ Kc E E₂ E₃
   have hδ'0 : 0 < δ' := by positivity
   have hδ'1 : δ' ≤ 1 := by
@@ -943,10 +952,50 @@ lemma loopMassInv_ge_one {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 
     Real.log_nonneg (by
       rw [le_div_iff₀ hδ'0]
       nlinarith only [hδ'1, hQ, hKc1, mul_nonneg hQ (sub_nonneg.2 hKc1)])
-  obtain ⟨-, -, hEE, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂) (E₃ := E₃)
-    hAe hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
+  obtain ⟨-, -, hE1, hE₂0, hE₃0⟩ := dfa_mass_one (aε := aε) (E₁ := E₁) (E := E) (E₂ := E₂)
+    (E₃ := E₃) hAe hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ hΘ1 hR₀ (by linarith only [hP₀1]) hlR₀ hK₁0
     (Nat.cast_nonneg n) hlg rfl rfl rfl rfl rfl
+  exact ⟨hE1, hE₂0, hE₃0⟩
+
+lemma loopMassInv_ge_one {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
+    (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
+    (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
+    1 ≤ loopMassInv Q A Ae nQ nA δ c ξ pAP η₀ := by
+  obtain ⟨h1, h2, h3⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
+  unfold loopMassInv
   linarith
+
+/-- `loopTolInv` is at least `1`, and at most `ℓ⁵ loopMassInv`. -/
+lemma loopTolInv_le {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ : 1 ≤ ℓ) (hQ : 0 ≤ Q)
+    (hA : 0 ≤ A) (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1)
+    (hξ : 0 < ξ) (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
+    1 ≤ loopTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀
+      ∧ loopTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀ ≤ ℓ ^ 5 * loopMassInv Q A Ae nQ nA δ c ξ pAP η₀ := by
+  obtain ⟨h1, h2, h3⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
+  unfold loopTolInv loopMassInv
+  set t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
+  have hℓ0 : 0 < ℓ := by linarith
+  have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ; linarith
+  have hΛ : 1 + Real.log ℓ ≤ ℓ := one_add_log_le hℓ0
+  have h4 : 1 ≤ ℓ ^ 4 * (1 + Real.log ℓ) :=
+    one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ) hΛ1
+  have h5a : ℓ ^ 4 * (1 + Real.log ℓ) ≤ ℓ ^ 5 := by
+    have := mul_le_mul_of_nonneg_left hΛ (pow_nonneg hℓ0.le 4)
+    linarith [show ℓ ^ 4 * ℓ = ℓ ^ 5 by ring]
+  have h5b : ℓ ^ 2 * (1 + Real.log ℓ) ≤ ℓ ^ 5 := by
+    have := mul_le_mul_of_nonneg_left hΛ (pow_nonneg hℓ0.le 2)
+    have : ℓ ^ 3 ≤ ℓ ^ 5 := pow_le_pow_right₀ hℓ (by norm_num)
+    nlinarith [show ℓ ^ 2 * ℓ = ℓ ^ 3 by ring]
+  have h5c : ℓ ^ 2 ≤ ℓ ^ 5 := pow_le_pow_right₀ hℓ (by norm_num)
+  refine ⟨?_, ?_⟩
+  · have : 1 ≤ ℓ ^ 4 * (1 + Real.log ℓ) * t.1 := one_le_mul_of_one_le_of_one_le h4 h1
+    have : 0 ≤ ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1 := mul_nonneg (by positivity) h2
+    have : 0 ≤ ℓ ^ 2 * t.2.2 := mul_nonneg (by positivity) h3
+    linarith
+  · have a := mul_le_mul_of_nonneg_right h5a (by linarith : 0 ≤ t.1)
+    have b := mul_le_mul_of_nonneg_right h5b h2
+    have c := mul_le_mul_of_nonneg_right h5c h3
+    linarith
 
 end OrthoDFA
 
