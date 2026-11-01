@@ -1,8 +1,12 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from permacache import no_cache_global
 
+from orthogonal_dfa.experiments.length_oracles import label
 from orthogonal_dfa.experiments.length_oracles.oracles import PerLengthOracle, oracle
 from orthogonal_dfa.l_star.examples.spliceai_oracle import median_threshold
 from tests.spliceai_small import (
@@ -69,6 +73,25 @@ class TestOracle(unittest.TestCase):
         module, exon = small_module_and_exon()
         with self.assertRaises(AssertionError):
             oracle("sloped", exon, module, device="cpu")
+
+
+class TestSavedLabels(unittest.TestCase):
+    def test_main_saves_what_saved_labels_reads_back(self):
+        given = {
+            "saw": np.array([1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1], dtype=np.int8),
+            "flat": np.array([0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1], dtype=np.int8),
+        }
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.multiple(
+            label,
+            COUNT=11,
+            SAVED=Path(tmp) / "labels.npz",
+            labels=lambda kind, n: given[kind],
+        ), mock.patch("builtins.print"):
+            label.main()
+            strings, saved = label.saved_labels()
+        self.assertEqual(label.strings(11), strings)
+        for kind, y in given.items():
+            np.testing.assert_array_equal(y, saved[kind])
 
 
 if __name__ == "__main__":

@@ -63,16 +63,16 @@ def ClusteringQualityGuarantee : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
-          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         512 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
           * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * slack ^ 2) →
+        2 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
+          * (D j).real {t} ≤ slack ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,

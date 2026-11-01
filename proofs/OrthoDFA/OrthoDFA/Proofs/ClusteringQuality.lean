@@ -28,14 +28,15 @@ variable {J : Type*} [Fintype J]
 
 open scoped Classical in
 /-- Weighted Hoeffding for failures decided by disjoint blocks: the weighted failure mass falls
-`t` below its mean with chance at most `∑ w²/t²`. -/
+`t` below its mean with chance at most `exp(−2t²/ρ)`, `ρ ≥ ∑ w²`. -/
 theorem weighted_dev_le (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
     (hblk : ∀ p ∈ C, ∀ q ∈ C, p ≠ q → Disjoint (blk p) (blk q))
     (Bad : S → Set Ω) (hmeasB : ∀ p, MeasurableSet[noiseAlg O ↑(blk p)] (Bad p))
-    (w : S → ℝ) (hw : ∀ p, 0 ≤ w p) (t : ℝ) (ht : 0 < t) :
+    (w : S → ℝ) (hw : ∀ p, 0 ≤ w p) (t : ℝ) (ht : 0 < t) (ρ : ℝ)
+    (hρ : ∑ p ∈ C, w p ^ 2 ≤ ρ) :
     μ.real {ω | t ≤ ∑ p ∈ C, w p * μ.real (Bad p)
         - ∑ p ∈ C.filter (fun p => ω ∈ Bad p), w p}
-      ≤ (∑ p ∈ C, w p ^ 2) / t ^ 2 := by
+      ≤ Real.exp (-(2 * t ^ 2 / ρ)) := by
   classical
   by_cases hz : ∑ p ∈ C, w p ^ 2 = 0
   · have hw0 : ∀ p ∈ C, w p = 0 := fun p hp =>
@@ -48,8 +49,9 @@ theorem weighted_dev_le (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
       rw [Finset.sum_eq_zero (fun p hp => by rw [hw0 p hp, zero_mul]),
         Finset.sum_eq_zero (fun p hp => hw0 p (Finset.mem_filter.1 hp).1)]
       simpa using ht
-    rw [hempty, hz]
-    simp
+    rw [hempty]
+    simp only [measureReal_empty]
+    exact (Real.exp_pos _).le
   have hpos : 0 < ∑ p ∈ C, w p ^ 2 :=
     lt_of_le_of_ne (Finset.sum_nonneg (fun p _ => sq_nonneg _)) (Ne.symm hz)
   have hmeasA : ∀ p, MeasurableSet (Bad p) := fun p => noiseAlg_le O _ _ (hmeasB p)
@@ -109,20 +111,13 @@ theorem weighted_dev_le (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
   rw [hset]
   refine le_trans hmain ?_
   rw [hc]
-  have hexp : ∀ y : ℝ, 0 < y → Real.exp (-y) ≤ 1 / y := by
-    intro y hy
-    rw [Real.exp_neg, one_div]
-    exact inv_anti₀ hy (by linarith [Real.add_one_le_exp y])
-  have hy : 0 < 2 * t ^ 2 / ∑ p ∈ C, w p ^ 2 := by positivity
   calc Real.exp (-t ^ 2 / (2 * ((∑ p ∈ C, w p ^ 2) / 4)))
       = Real.exp (-(2 * t ^ 2 / ∑ p ∈ C, w p ^ 2)) := by
         congr 1
         field_simp
         ring
-    _ ≤ 1 / (2 * t ^ 2 / ∑ p ∈ C, w p ^ 2) := hexp _ hy
-    _ ≤ (∑ p ∈ C, w p ^ 2) / t ^ 2 := by
-        rw [one_div_div, div_le_div_iff₀ (by positivity) (by positivity)]
-        nlinarith
+    _ ≤ Real.exp (-(2 * t ^ 2 / ρ)) := by
+        gcongr
 
 /-! ## The family is chosen by noise it does not score -/
 
@@ -137,10 +132,11 @@ theorem selected_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     (Ev : Finset S → S → Ω → Prop)
     (hEv : ∀ (A₀ : Finset S) (p : S) (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
       MeasurableSet[noiseAlg O U] {ω | Ev A₀ p ω})
-    (w : S → ℝ) (hw : ∀ p, 0 ≤ w p) (t : ℝ) (ht : 0 < t) :
+    (w : S → ℝ) (hw : ∀ p, 0 ≤ w p) (t : ℝ) (ht : 0 < t) (ρ : ℝ)
+    (hρ : ∑ p ∈ C, w p ^ 2 ≤ ρ) :
     μ.real {ω | t ≤ ∑ p ∈ C, w p * μ.real {ω' | Ev (fam ω) p ω'}
         - ∑ p ∈ C.filter (fun p => Ev (fam ω) p ω), w p}
-      ≤ (∑ p ∈ C, w p ^ 2) / t ^ 2 := by
+      ≤ Real.exp (-(2 * t ^ 2 / ρ)) := by
   classical
   set R : Finset S := C.biUnion (fun p => cands.image (fun v => p * v)) with hR
   have hdisjR : Disjoint (↑R : Set S) (↑(readSet P cands) : Set S) := by
@@ -159,12 +155,12 @@ theorem selected_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
       (fun p hp => hEv A₀ p ↑R (fun v hv => Finset.mem_coe.2 (Finset.mem_biUnion.2
         ⟨p, hp, Finset.mem_image_of_mem _ (Finset.mem_powerset.1 hA₀ hv)⟩)))
       (fun U => t ≤ ∑ p ∈ C, w p * μ.real {ω' | Ev A₀ p ω'} - ∑ p ∈ U, w p)
-  have hfixed : ∀ A₀ ∈ cands.powerset, μ.real (Bad A₀) ≤ (∑ p ∈ C, w p ^ 2) / t ^ 2 := by
+  have hfixed : ∀ A₀ ∈ cands.powerset, μ.real (Bad A₀) ≤ Real.exp (-(2 * t ^ 2 / ρ)) := by
     intro A₀ hA₀
     refine weighted_dev_le O C (fun p => A₀.image (fun v => p * v)) ?_
       (fun p => {ω | Ev A₀ p ω})
       (fun p => hEv A₀ p _ (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv)))
-      w hw t ht
+      w hw t ht ρ hρ
     intro p hp q hq hpq
     rw [Finset.disjoint_left]
     intro z hz hz'
@@ -174,8 +170,7 @@ theorem selected_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
       (hV v' (Finset.mem_powerset.1 hA₀ hv'A)) hv'.symm)
   exact selection_block_bound O R (readSet P cands) hdisjR cands.powerset ∅
     (Finset.empty_mem_powerset _) fam (fun ω => Finset.mem_powerset.2 (hfam ω)) hcongr Bad
-    hmeasU hmeasR _ (div_nonneg (Finset.sum_nonneg (fun _ _ => sq_nonneg _)) (sq_nonneg _))
-    hfixed
+    hmeasU hmeasR _ (Real.exp_pos _).le hfixed
 
 /-! ## Over the run -/
 
@@ -236,11 +231,11 @@ theorem streamMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       MeasurableSet[noiseAlg O U] {ω | Ev A₀ p ω})
     (t : ℝ) (ht : 0 < t) (ρ : ℝ) (hρ : ∑ p ∈ F, Dj.real {p} ^ 2 ≤ ρ) :
     (streamMeasure μ Pp Pc Dsf).real {x | t ≤ devAt rule O populations B Dj F Ev x}
-      ≤ ρ / t ^ 2 := by
+      ≤ Real.exp (-(2 * t ^ 2 / ρ)) := by
   classical
   have hmeas := measurableSet_devAt (rule := rule) O populations B Dj F Ev hEv t
   have hEnn : streamMeasure μ Pp Pc Dsf {x | t ≤ devAt rule O populations B Dj F Ev x}
-      ≤ ENNReal.ofReal (ρ / t ^ 2) := by
+      ≤ ENNReal.ofReal (Real.exp (-(2 * t ^ 2 / ρ))) := by
     refine streamMeasure_slice_le Pp Pc Dsf _ hmeas _ ?_
     filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
       ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf] with d hd hdS
@@ -267,17 +262,12 @@ theorem streamMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       (fun p hp => hF p (Finset.mem_sdiff.1 hp).1) Finset.disjoint_sdiff
       (fun ω => familyBy rule O.mq populations ((ω, d) : Run Ω S J) B) hfsub hfcongr Ev hEv
       (fun p => Dj.real {p})
-      (fun p => measureReal_nonneg) t ht
-    have hle : (∑ p ∈ F \ P, Dj.real {p} ^ 2) / t ^ 2 ≤ ρ / t ^ 2 := by
-      gcongr
-      exact le_trans (Finset.sum_le_sum_of_subset_of_nonneg Finset.sdiff_subset
-        (fun _ _ _ => sq_nonneg _)) hρ
-    exact (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _)
-      (div_nonneg (le_trans (Finset.sum_nonneg (fun _ _ => sq_nonneg _)) hρ) (sq_nonneg _))).2
-      (le_trans h hle)
+      (fun p => measureReal_nonneg) t ht ρ
+      (le_trans (Finset.sum_le_sum_of_subset_of_nonneg Finset.sdiff_subset
+        (fun _ _ _ => sq_nonneg _)) hρ)
+    exact (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _) (Real.exp_pos _).le).2 h
   rw [measureReal_def]
-  exact ENNReal.toReal_le_of_le_ofReal
-    (div_nonneg (le_trans (Finset.sum_nonneg (fun _ _ => sq_nonneg _)) hρ) (sq_nonneg _)) hEnn
+  exact ENNReal.toReal_le_of_le_ofReal (Real.exp_pos _).le hEnn
 
 /-! ## Mass bookkeeping -/
 
@@ -407,16 +397,16 @@ def ClusteringQualitySized : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 18 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
-          ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀)) →
+        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         512 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
           * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * slack ^ 2) →
+        2 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
+          * (D j).real {t} ≤ slack ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,
@@ -507,14 +497,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
     cap_of_top populations η₀ indecisionLimit εcov εs δ' α pAP crossLimit ((D j).real {t}) hη0
       hη₀ hε (by linarith) hind hcard hδ' hδ'1 measureReal_nonneg (by rw [← hmdef]; exact hm)
-      (by
-        have h : 2 ^ 18 * ((populations.card : ℝ) + 3)
-            * (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
-            * (D j).real {t} ≤ rateScale η₀ indecisionLimit εcov * (1 / 2 - η₀) :=
-          hcollD _ htop j hj t
-        have hr := rateScale_mul_sig_le (indecisionLimit := indecisionLimit) hη0 hη₀ hε hind
-        rw [sig] at hr ⊢
-        linarith) (hcollE _ htop j hj t) (by
+      (by rw [sig]; exact hcollD _ htop j hj t) (hcollE _ htop j hj t) (by
         have h := hcollH _ htop j hj t
         change 512 * Real.log (128 * (populations.card : ℝ)
             * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP
@@ -537,27 +520,32 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   set lg : ℝ := 3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP
     crossLimit hsz) : ℝ) with hlgdef
   have hlg0 : 0 < lg := by rw [hlgdef]; positivity
-  set ρs : ℝ := min (δ * slack ^ 2 / (2 ^ 4 * (Jc + 1) * lg)) (slack / (4 * Jc * m)) with hρsdef
-  have hslackj : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρs := by
+  set X : ℝ := 128 * Jc * lg / δ with hXdef
+  have hX1 : 1 < X := by
+    rw [hXdef, one_lt_div hδ]
+    have hlg3 : 3 ≤ lg := by
+      have : (0 : ℝ) ≤ (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP
+        crossLimit hsz) : ℝ) := Nat.cast_nonneg _
+      rw [hlgdef]; linarith
+    have hc1 : (1 : ℝ) ≤ Jc := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
+    nlinarith
+  have hlX : 0 < Real.log X := Real.log_pos hX1
+  set σ : ℝ := slack ^ 2 / (2 * Real.log X) with hσdef
+  set ρ : ℝ := slack / (4 * Jc * m) with hρdef
+  have hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ := by
     intro j hj t
-    have h1 := hslackD _ htop j hj t
     have h2 := htabD _ htop j hj t
-    change 2 ^ 4 * ((populations.card : ℝ) + 1) * lg * (D j).real {t} ≤ δ * slack ^ 2 at h1
     change 4 * (populations.card : ℝ) * m * (D j).real {t} ≤ slack at h2
-    rw [← hJcdef] at h1 h2
-    refine le_min ?_ ?_
-    · rw [le_div_iff₀ (by positivity)]; linarith
-    · rw [le_div_iff₀ (by positivity)]; linarith
-  obtain ⟨ρ, hρdef⟩ : ∃ ρ : ℝ, ρ = min ρ₀ ρs := ⟨_, rfl⟩
-  have hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ := fun j hj t =>
-    hρdef ▸ le_min (hcaps j hj t) (hslackj j hj t)
-  have hρc : ∀ j ∈ tame, collisionMass (D j) ≤ ρ := fun j hj =>
-    collisionMass_le_of_atoms (D j) (hρ j hj)
-  have hρ0 : 0 ≤ ρ := hρdef ▸ le_min hρ₀0 (by rw [hρsdef]; positivity)
-  have hρs : ρ ≤ ρs := hρdef ▸ min_le_right _ _
+    rw [← hJcdef] at h2
+    rw [hρdef, le_div_iff₀ (by positivity)]; linarith
+  have hσc : ∀ j ∈ tame, collisionMass (D j) ≤ σ := fun j hj => by
+    refine collisionMass_le_of_atoms (D j) fun t => ?_
+    have h1 := hslackD _ htop j hj t
+    change 2 * Real.log X * (D j).real {t} ≤ slack ^ 2 at h1
+    rw [hσdef, le_div_iff₀ (by positivity)]; linarith
+  have hρ0 : 0 ≤ ρ := by rw [hρdef]; positivity
   have hρtab : ρ * (4 * Jc * m) ≤ slack := by
-    have h := le_trans hρs (min_le_right _ _)
-    rwa [le_div_iff₀ (by positivity)] at h
+    rw [hρdef, div_mul_cancel₀ _ (by positivity)]
   have hLm : L + 1 ≤ lg := by
     have : (ladderLen η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
         = (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz)
@@ -567,13 +555,6 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have : (0 : ℝ) ≤ (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP
       crossLimit hsz) : ℝ) := Nat.cast_nonneg _
     linarith
-  have hρ2 : ρ ≤ δ * slack ^ 2 / (16 * (L + 1) * (Jc + 1)) := by
-    refine le_trans (le_trans hρs (min_le_left _ _)) ?_
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have hs2 : 0 ≤ δ * slack ^ 2 := by positivity
-    have hJ1 : 0 ≤ Jc + 1 := by linarith only [hJc0]
-    have h' : 16 * (L + 1) * (Jc + 1) ≤ 2 ^ 4 * (Jc + 1) * lg := by nlinarith
-    exact mul_le_mul_of_nonneg_left h' hs2
   have hpoly := prefCount_le_split (hsz := hsz) populations η₀ indecisionLimit εcov εs δ' α pAP
     crossLimit hsig hη0 hpop hind hε hεs hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
@@ -610,13 +591,14 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     fun B j => {x | slack / 2 ≤ devAt rule O populations B (D j) (F j) (EvU B) x} with hbadU
   set Bad : Set (Draws Ω S J) := streams H uni ⁻¹' ⋃ B ∈ states, ⋃ j ∈ tame,
     (badC B j ∪ badU B j) with hBaddef
-  have hsq : ∀ j ∈ tame, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ ρ := fun j hj =>
-    le_trans (sum_sq_le_collisionMass (D j) (F j)) (hρc j hj)
+  have hsq : ∀ j ∈ tame, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ σ := fun j hj =>
+    le_trans (sum_sq_le_collisionMass (D j) (F j)) (hσc j hj)
   have hper : ∀ B, ∀ j ∈ tame,
-      (runMeasure μ D Dsf).real (streams H uni ⁻¹' (badC B j ∪ badU B j))
-        ≤ 8 * ρ / slack ^ 2 := by
+      (runMeasure μ D Dsf).real (streams H uni ⁻¹' (badC B j ∪ badU B j)) ≤ 2 / X := by
     intro B j hj
-    have e : ρ / (slack / 2) ^ 2 = 4 * ρ / slack ^ 2 := by field_simp; ring
+    have e : Real.exp (-(2 * (slack / 2) ^ 2 / σ)) = 1 / X := by
+      rw [show 2 * (slack / 2) ^ 2 / σ = Real.log X by rw [hσdef]; field_simp,
+        Real.exp_neg, Real.exp_log (by linarith), one_div]
     refine runMeasure_streams_le H uni D Dsf _
       ((measurableSet_devAt (rule := rule) O populations B (D j) (F j) (EvC B) (hEvCm B)
         (slack / 2)).union (measurableSet_devAt (rule := rule) O populations B (D j) (F j)
@@ -624,17 +606,17 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hsT := ae_sideLawT_mem H uni D g populations hsupp hH
     have h1 := streamMeasure_dev_le (rule := rule) hflat O (sideLawT H uni D g)
       (sideLawC H uni D g) Dsf populations hsT hsuppSf B (D j)
-      (F j) (hFPre j) (EvC B) (hEvCm B) (slack / 2) (by positivity) ρ (hsq j hj)
+      (F j) (hFPre j) (EvC B) (hEvCm B) (slack / 2) (by positivity) σ (hsq j hj)
     have h2 := streamMeasure_dev_le (rule := rule) hflat O (sideLawT H uni D g)
       (sideLawC H uni D g) Dsf populations hsT hsuppSf B (D j)
-      (F j) (hFPre j) (EvU B) (hEvUm B) (slack / 2) (by positivity) ρ (hsq j hj)
+      (F j) (hFPre j) (EvU B) (hEvUm B) (slack / 2) (by positivity) σ (hsq j hj)
     calc (streamMeasure μ (sideLawT H uni D g) (sideLawC H uni D g) Dsf).real
           (badC B j ∪ badU B j)
         ≤ (streamMeasure μ (sideLawT H uni D g) (sideLawC H uni D g) Dsf).real (badC B j)
           + (streamMeasure μ (sideLawT H uni D g) (sideLawC H uni D g) Dsf).real (badU B j) :=
           measureReal_union_le _ _
-      _ ≤ 4 * ρ / slack ^ 2 + 4 * ρ / slack ^ 2 := add_le_add (h1.trans e.le) (h2.trans e.le)
-      _ = 8 * ρ / slack ^ 2 := by ring
+      _ ≤ 1 / X + 1 / X := add_le_add (h1.trans e.le) (h2.trans e.le)
+      _ = 2 / X := by ring
   have hcardst : (states.card : ℝ) ≤ L := by
     have : states.card ≤ ladderLen η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz :=
       le_trans (Finset.card_le_card (Finset.filter_subset _ _))
@@ -642,11 +624,9 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     rw [hLdef]
     exact_mod_cast this
   have hBad : (runMeasure μ D Dsf).real Bad ≤ δ / 2 := by
-    have hρ2' : 16 * (L + 1) * (Jc + 1) * ρ ≤ δ * slack ^ 2 := by
-      rw [le_div_iff₀ (by positivity)] at hρ2
-      linarith
     have hpre : Bad = ⋃ B ∈ states, ⋃ j ∈ tame, streams H uni ⁻¹' (badC B j ∪ badU B j) := by
       rw [hBaddef]; simp only [Set.preimage_iUnion]
+    have hX0 : 0 < X := by linarith
     calc (runMeasure μ D Dsf).real Bad
         ≤ ∑ B ∈ states, (runMeasure μ D Dsf).real
             (⋃ j ∈ tame, streams H uni ⁻¹' (badC B j ∪ badU B j)) := by
@@ -654,22 +634,20 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       _ ≤ ∑ B ∈ states, ∑ j ∈ tame,
             (runMeasure μ D Dsf).real (streams H uni ⁻¹' (badC B j ∪ badU B j)) :=
           Finset.sum_le_sum (fun B _ => measureReal_biUnion_finset_le _ _)
-      _ ≤ ∑ _B ∈ states, ∑ _j ∈ tame, 8 * ρ / slack ^ 2 :=
+      _ ≤ ∑ _B ∈ states, ∑ _j ∈ tame, 2 / X :=
           Finset.sum_le_sum (fun B _ => Finset.sum_le_sum (fun j hj => hper B j hj))
-      _ = (states.card : ℝ) * ((tame.card : ℝ) * (8 * ρ / slack ^ 2)) := by
+      _ = (states.card : ℝ) * ((tame.card : ℝ) * (2 / X)) := by
           simp only [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ (states.card : ℝ) * (Jc * (8 * ρ / slack ^ 2)) := by
+      _ ≤ (states.card : ℝ) * (Jc * (2 / X)) := by
           have htc : (tame.card : ℝ) ≤ Jc := by
             rw [hJcdef]; exact_mod_cast Finset.card_le_card htame
           gcongr
-      _ ≤ L * (Jc * (8 * ρ / slack ^ 2)) := mul_le_mul_of_nonneg_right hcardst (by positivity)
-      _ ≤ δ / 2 := by
-          rw [show L * (Jc * (8 * ρ / slack ^ 2)) = 8 * L * Jc * ρ / slack ^ 2 by ring,
-            div_le_iff₀ (by positivity)]
-          have h2 := hρ2
-          rw [le_div_iff₀ (by positivity)] at h2
-          have hLJ : L * Jc ≤ (L + 1) * (Jc + 1) := by linarith only [hL0, hJc0]
-          linarith only [h2, mul_le_mul_of_nonneg_right hLJ hρ0]
+      _ ≤ lg * (Jc * (2 / X)) :=
+          mul_le_mul_of_nonneg_right (hcardst.trans (by linarith)) (by positivity)
+      _ = δ / 64 := by
+          have hJc0' : Jc ≠ 0 := hcard.ne'
+          rw [hXdef]; field_simp; ring
+      _ ≤ δ / 2 := by linarith
   have key : ∀ T : Set (Draws Ω S J), {x | (∃ B : {B : State // B ∈ states},
           streams H uni x ∈ retBy rule O.mq populations uni η₀ iL εcov α B.val) ∧
         ∀ B : {B : State // B ∈ states},
