@@ -1,7 +1,7 @@
 """One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from .hypothesis_dfa import Edge, HypothesisDFA, Path
 from .tripartite_search import (
@@ -102,7 +102,11 @@ def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     return [k + unlearned_step + 1, k + unlearned_step]
 
 
-def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
+def plain_bisect(agrees, lo, hi):
+    return tripartite_search(agrees, lo, hi, recover=False)
+
+
+def locate(hypothesis: HypothesisDFA, k: int, x: bytes, *, bisect: Callable) -> Located:
     """``probe`` of ``OrthoDFA/Probe.lean``, proved by ``ProbeCorrect``, with the positions it
     sifted."""
     routes = {}
@@ -128,7 +132,7 @@ def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
         here = sift(i)[0]
         return None if here is None else here == walk[max(i - k, 0)]
 
-    found = tripartite_search(agrees, k, hi, recover=False)
+    found = bisect(agrees, k, hi)
     kind, j = found.kind, found.position
     if kind == UNDECIDED_LO:
         outcome = Start(sift(k)[1])

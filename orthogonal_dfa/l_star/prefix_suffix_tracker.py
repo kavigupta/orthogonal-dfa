@@ -72,9 +72,19 @@ class SearchConfig:
     counterexample_restarts: int = 1
     #: Rank uncertified rounds by held-out phi rather than consistency.
     rank_rounds_by_held_out: bool = False
+    #: When set, a round's search returns its best hypothesis by held-out phi, and
+    #: stops once this many probes pass without a better one.
+    counterexample_score_patience: Optional[int] = None
+    #: Off, a round's search ends only on success or on its score stalling, and
+    #: harvests every distinct string it read undecided; needs
+    #: ``counterexample_score_patience``.
+    counterexample_harvest_tests: bool = True
     #: Read an edge a probe leaves undecided on a representative prefix of its
     #: source leaf instead.
     counterexample_member_fallback: bool = False
+    #: Step past an undecided midpoint in a probe's search to the decided position
+    #: nearest it.
+    counterexample_skip_undecided: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

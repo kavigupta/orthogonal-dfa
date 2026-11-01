@@ -11,6 +11,25 @@ def states_intermediate(s0, y, dfa):
     return states
 
 
+def dfa_table(dfa):
+    states = sorted(dfa.states, key=str)
+    index = {q: i for i, q in enumerate(states)}
+    symbols = sorted(dfa.input_symbols)
+    return dict(
+        transitions=[[index[dfa.transitions[q][c]] for c in symbols] for q in states],
+        start=index[dfa.initial_state],
+        accepting=[int(q in dfa.final_states) for q in states],
+    )
+
+
+def table_end_states(transitions, start, strings):
+    """End state of each row of ``strings``, an array of equal-length symbol strings."""
+    q = np.full(len(strings), start)
+    for t in range(strings.shape[1]):
+        q = transitions[q, strings[:, t]]
+    return q
+
+
 def labelled_sample(oracle, sampler, alphabet_size, n, rng):
     """``n`` sampled strings and the oracle's 0/1 label for each."""
     strings = [sampler.sample(rng, alphabet_size) for _ in range(n)]

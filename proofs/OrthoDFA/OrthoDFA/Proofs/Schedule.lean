@@ -41,50 +41,44 @@ instance : Countable State :=
 /-- `s = 1/2 − η`. -/
 noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 
-/-- The scale the counts are resolved against: the smallest rate the round has to clear.
+/-- The smallest rate any of the round's tails resolves, the gate's charge on a misfire
+included.  Only logs read it: the counts' polynomial part is in `shiftScale`.
 
 Stated in the rates themselves rather than in `cutBudget`, which is one particular way of
-taking their minimum.  What a reader checks is that the budget is polynomial in the rates
-asked for; which divisors the proof chose to hold each of them at is the proof's business. -/
+taking their minimum. -/
 noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
   min (min εcov (1 / 2) * gateA η ^ 2) indecisionLimit
 
-/-- What fraction of the family the vote absorbs flipping, at any rates under `η`.  A flip moves
-a member's mean by the gap between the classes, at most `1 − η`, and what is left is
-`voteSlack`:
-
-    (1 − η) · flipFrac η + voteSlack η = sig η
-
-It takes a fifth of `sig`.  The family's size goes as `1/voteSlack²` and the count rule's and the
-flip understatement's counts as `1/flipFrac²`; a fifth is where those counts have grown by two.
-
-Only termination needs this: the gate certifies the miscut itself, but a family it can pass
-has to be found whose members flip `tableBudget` on average.
-
-An oracle with a narrower gap absorbs proportionally more flips, and the count rule sees each one
-proportionally less; `countSignal` is solved at that pairing, not at this fraction. -/
-noncomputable def flipFrac (η : ℝ) : ℝ := sig η / (5 * (1 - η))
-
-/-- How far into the margin left by `flipFrac` the vote's count is read. -/
+/-- How far from the centre the vote's count is read.  A class at rate `r` leaves its prefixes'
+vote `1/2 − r ≥ sig` from the centre, so a family a fraction `(1/2 − r − voteSlack)/gap` of which
+flips still clears it (`clsFrac`). -/
 noncomputable def voteSlack (η : ℝ) : ℝ := 4 * sig η / 5
 
-/-- The share of a population a round lets its family cut wrongly.  `εcov/8` and `s/10` hold the
-vote's misfire rate and the count rule's budget, `indecisionLimit/2` is what the FNR test tolerates,
-and the last term is what the gate's charge leaves room for: a clean family is wrong on at most
-`13/8` of this, and the gate charges each wrong prefix `1/gateKappa`, so the charge takes at most
-`4/5` of the gate's limit. -/
+/-- The share of a population the vote may misfire on, among the prefixes the family is usable
+at.  `indecisionLimit/2` is what the FNR test tolerates, and the last term is what the gate's
+charge leaves room for: a misfire is charged `4/a²` at most (`sideCharge_le_gateA`), so `5/8` of
+this takes at most half the gate's limit. -/
 noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
   min (εcov / 8) (min (sig η / 10) (min (indecisionLimit / 2)
-    (32 * gateKappa η * min εcov (1 / 2) / 65)))
+    (gateA η ^ 2 * min εcov (1 / 2) / 5)))
 
-/-- What the gate's limit leaves a clean family once its charge and its sampler's redraws are
-paid: the room its deviations must fit in, per prefix. -/
-noncomputable def gateRoom (η indecisionLimit εcov : ℝ) : ℝ :=
-  min εcov (1 / 2) - 13 * cutBudget η indecisionLimit εcov / (8 * gateKappa η)
-    - cutBudget η indecisionLimit εcov / 128
+/-- What the gate's limit leaves its deviations, per prefix, once the charge of a clean family and
+its sampler's redraws are paid. -/
+noncomputable def gateRoom (_η _indecisionLimit εcov : ℝ) : ℝ := min εcov (1 / 2) / 5
+
+/-- The rate the count rule resolves, which no factor of the gate's charge enters. -/
+noncomputable def shiftScale (indecisionLimit εcov : ℝ) : ℝ :=
+  min (min εcov (1 / 2)) indecisionLimit
+
+/-- What the family may shift a population, on average over its members, in the count rule's own
+units: Markov per class charges a class's heavy mass at `σ_b ≥ (2/5)·sig²`, and the gate charges
+it at most `5/(2 sig²)·σ_b` a prefix, so `sig²·shiftScale` resolves both the FNR test and the
+gate. -/
+noncomputable def shiftBudget (η indecisionLimit εcov : ℝ) : ℝ :=
+  sig η ^ 2 * shiftScale indecisionLimit εcov / 256
 
 /-- Hoeffding's size for the family, which `famCount` never exceeds.  Its vote fails at
-`exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre, a flipping `flipFrac` of the
+`exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre, a flipping `clsFrac` of the
 family spends all but `voteSlack` of that, and the band's far edge takes half of the rest.  That
 rate only has to sit under half the cut budget: the misfires on the certification sample are
 independent given the family, so their count concentrates below the budget.
@@ -95,7 +89,7 @@ loop's band check.  Each tail asks for its own size, and the family takes the la
 pays for the seed: the family returned is one member larger than the band is centred for, which
 its vote pays for out of the slack, at `decSlack`.
 
-The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
+The size is even, and the `+ 1` is inside the doubling, because `clsFrac` spends its side of
 the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
 `voteSlack` has left to pay with. -/
 noncomputable def famHoeff (η : ℝ) (_populations : Finset J)
@@ -159,31 +153,6 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ crossLimit : ℝ) : ℕ :=
   bandAt η (famCount η populations indecisionLimit εcov δ crossLimit)
 
-/-- What the family may flip of a population, on average over its members, at the vote's
-flip fraction: Markov over the members charges it to the cut budget at that fraction, not at the
-family's size.  It takes fifty-five sixty-fourths of the cut budget; the heavy-prefix count's
-slack and threshold, whose tails are cheap, and the prefixes the samplers redraw share the
-rest. -/
-noncomputable def tableBudget (η indecisionLimit εcov : ℝ) : ℝ :=
-  55 * cutBudget η indecisionLimit εcov * flipFrac η / 64
-
-/-- The exponent rate of the drawn prefixes understating a member's flip mass by
-`g = cutBudget·flipFrac/32`, relative to a mass of at most half the cut budget:
-
-    g² / cutBudget -/
-noncomputable def dirtyRate (η indecisionLimit εcov : ℝ) : ℝ :=
-  (cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2 / cutBudget η indecisionLimit εcov
-
-/-- What a row flipping the table budget adds to its disagreement with the seed, per prefix:
-
-    (1 − 2η)(1 − η) · tableBudget
-
-A flip at `p` moves the row's mean disagreement by `gap·(1 − 2r)`, and the vote absorbs a
-fraction `f` flipping with `gap·f ≥ (1 − η)·flipFrac`, so `gap` cancels against the budget's
-scaling to the vote. -/
-noncomputable def countSignal (η indecisionLimit εcov : ℝ) : ℝ :=
-  (1 - 2 * η) * (1 - η) * tableBudget η indecisionLimit εcov
-
 /-- Enough suffixes that a family of `k` fits inside the findable fraction, read at `9pAP/20` so
 that a twentieth of the pool is left for the draws the sampler redraws. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
@@ -208,22 +177,30 @@ noncomputable def cleanLevel (η : ℝ) (populations : Finset J)
 
 /-- How far below its mean a heavy row has to read to be picked, in units of `√(|J|·m)`:
 
-    x = max(1, √((11/20) log(15(M + 1)/(κ ε)))),   ε = δ/16,
+    x = max(2, √((5/2) log(15(M + 1)/(κ ε)))),   ε = δ/16,
 
 the `15` being `θ/(1 − θ)` at `θ = 15/16`, the share of the table budget the heavy rows are
 charged at. -/
 noncomputable def heavyLevel (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  max 1 (Real.sqrt (11 / 20 * Real.log (15
+  max 2 (Real.sqrt (5 / 2 * Real.log (15
     * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1)
     / ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) * (δ / 16)))))
 
-/-- The fraction of a state's prefix draws the samplers may redraw.  Every margin it is charged
-against is a fraction of the cut budget, the flip margins at the flip fraction, so the first term
-is both at once with room to spare.  Twice it is what the redraws can bias the verdict by, which
-the second holds to `εs/2`. -/
+/-- The fraction of a state's prefix draws the samplers may redraw.  A redraw hides at most a
+flip's shift on a class, which Markov charges at `w_b/σ_b ≤ 5/sig` against the FNR test and the
+gate at `5/(2 sig²)` against its limit: the first two terms.  Twice it is what the redraws can bias
+the verdict by, which the third holds to `εs/2`. -/
 noncomputable def rejFrac (η indecisionLimit εcov εs : ℝ) : ℝ :=
-  min (3 * cutBudget η indecisionLimit εcov * flipFrac η / 128) (εs / 4)
+  min (min (sig η ^ 2 * min εcov (1 / 2) / 1024) (sig η * indecisionLimit / 128)) (εs / 4)
+
+/-- The exponent rate of the drawn prefixes understating a member's shift mass on a class by
+`g = shiftBudget`, relative to a mass of at most `shiftBudget + rejFrac + g`:
+
+    g²/(4 (shiftBudget + rejFrac)) -/
+noncomputable def dirtyRate (η indecisionLimit εcov εs : ℝ) : ℝ :=
+  shiftBudget η indecisionLimit εcov ^ 2
+    / (4 * (shiftBudget η indecisionLimit εcov + rejFrac η indecisionLimit εcov εs))
 
 /-- The draws the samplers may redraw at a prefix count. -/
 noncomputable def rejCount (η indecisionLimit εcov εs : ℝ) (m : ℕ) : ℕ :=
@@ -242,15 +219,23 @@ noncomputable def budgetLog (populations : Finset J)
     * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
     / (δ * α * pAP * budgetScale η indecisionLimit εcov))
 
+/-- The log factor of the terms multiplied by `|populations|`: a union bound over the pool alone,
+at `δ`. -/
+noncomputable def levelLog (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
+  Real.log (64 * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
+
 /-- What a budget of `k` buys.
 
-`sig` enters at the fourth power because the count rule's tail and the gate's bind: their
-margins are a rate times `sig²`, and a deviation bound squares the margin it is given. -/
+The count rule's and the dirty tail's terms are the ones multiplied by `|populations|`: their
+margins are `sig²·shiftScale`, and a deviation bound squares the margin it is given.  The rest
+are paid for by `budgetScale`, whose `a²` covers the gate's `1/sig²` deviations. -/
 noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
-  k * (populations.card : ℝ)
-    * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-    / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 2)
+  k * ((populations.card : ℝ) * levelLog η populations indecisionLimit εcov δ pAP crossLimit
+      / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2)
+    + budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
+      / budgetScale η indecisionLimit εcov ^ 2)
 
 /-- What the harvested strings add to the budget: the table holds them in its count, so the
 count must be large against them. -/
@@ -264,22 +249,24 @@ noncomputable def gateLogCount (K k : ℝ) : ℝ :=
 /-- The counts the round's tails ask for, summed so each is met.  The gate's two terms pay for
 its deviations in `gateRoom`: the seed's and the references', at `log(32|J|(M + 3)/δ)`, take
 two fifths of it, and the levels', which shrink with the prefix count `n`, the rest.  With
-`K = (50/9)(gateDevD + 1)²/gateRoom²` the latter need
+`K = (200/9)(gateDevD + 1)²/gateRoom²` the latter need
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
 which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
 
-The heavy hits' term is a relative tail: a hit rate of at most `cutBudget` reaches
-`(1 + 1/32)·cutBudget` at the rate `relRate`, `cutBudget/2112`; with it the undecided share's
-tail at `indecisionLimit/2`.
+The first term is the count rule's: a heavy row's shift, `(15/16)·shiftBudget` a prefix, has to
+clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes.
 
-The first term is the count rule's: a heavy row's flip signal, `(15/16)·countSignal` a prefix,
-has to clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes, and `1/(4 sig⁴)` keeps
-the heavy rows' charge largest at the least of them.
+The class tails are relative: a class's heavy hit rate `q ≥ 2·shiftBudget` reaches
+`(1 + 1/32)·q` at the rate `relRate`, at least `shiftBudget/1056`.  That term also pays for the
+undecided share's tail, whose rate `undecRate` is larger.  The `dirtyRate` term is a member's shift on a class read off its
+first draws, and the `64/shiftBudget` term a named population's heavy prefixes, Markov on the
+window and the hash's split of it.
 
-The `4096/9` term is the hash sides' imbalance on a named population, `G = ⌈√(m·log(128|J|/δ))⌉`,
-which is charged against the cut budget and has to fit in `3·cutBudget·m/64`.
+The `65536/9` term is the hash sides' imbalance on a named population,
+`G = ⌈√(m·log(128|J|/δ))⌉`, which is charged against the cut budget and has to fit in
+`3·cutBudget·m/256`.
 
 The `εs` term is the redraws' tail when `rejFrac` is `εs/4`: `rejFrac·m·log 2` must clear
 `log(256|J|/δ)`. -/
@@ -287,32 +274,39 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   ⌈(populations.card : ℝ) * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
-      / (15 / 16 * countSignal η indecisionLimit εcov) ^ 2 + 1 / (4 * sig η ^ 4)⌉₊
+      / (15 / 16 * shiftBudget η indecisionLimit εcov) ^ 2⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        * (2112 / cutBudget η indecisionLimit εcov + 2 / indecisionLimit ^ 2)⌉₊
-    + ⌈25 / 2 * (gateDevT η + gateDevU η) ^ 2
+        * (1056 / shiftBudget η indecisionLimit εcov)⌉₊
+    + ⌈50 * (gateDevT η + gateDevU η) ^ 2
         * Real.log (32 * (populations.card : ℝ)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
         / gateRoom η indecisionLimit εcov ^ 2⌉₊
-    + ⌈gateLogCount (50 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
+    + ⌈gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / dirtyRate η indecisionLimit εcov⌉₊
-    + ⌈2900 * Real.log (128 * (populations.card : ℝ)
+        / dirtyRate η indecisionLimit εcov εs⌉₊
+    + ⌈64 * Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (cutBudget η indecisionLimit εcov * flipFrac η)⌉₊
-    + ⌈4096 * Real.log (128 * (populations.card : ℝ) / δ)
+        / shiftBudget η indecisionLimit εcov⌉₊
+    + ⌈65536 * Real.log (128 * (populations.card : ℝ) / δ)
         / (9 * cutBudget η indecisionLimit εcov ^ 2)⌉₊
     + ⌈6 * Real.log (256 * (populations.card : ℝ) / δ) / εs⌉₊
     + ⌈128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov⌉₊
     + 1
 
+/-- The exponent rate of the FNR test missing an undecided share of at least
+`l = 3/2·indecisionLimit + rejFrac ≤ 27/16·indecisionLimit` by `t = indecisionLimit/2`, relative
+to the share:
+
+    t² / (2l) -/
+noncomputable def undecRate (indecisionLimit : ℝ) : ℝ := 2 * indecisionLimit / 27
+
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
 `δ/(128·|populations|)`.  The gate pays for its own soundness at every count. -/
 noncomputable def validCount (_η : ℝ) (populations : Finset J)
     (indecisionLimit _εcov δ _pAP _crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (indecisionLimit / 2) ^ 2)⌉₊ + 1
+  ⌈Real.log (128 * (populations.card : ℝ) / δ) / undecRate indecisionLimit⌉₊ + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
 meet. -/
@@ -354,7 +348,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
         (((populations.card * B.npref + (2 * B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
           : ℕ) : ℝ) * ρ)
         (rejCount η₀ indecisionLimit εcov εs B.npref)
-    + Real.exp (-2 * (B.npref : ℝ) * (indecisionLimit / 2) ^ 2))
+    + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
@@ -398,7 +392,8 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
 draws or the tables hold at most `(|J| + 3)·m·ρ` of the time, which against `rejFrac` makes its
 rejections a binomial tail of order `(m/N)·2^-(r+1)`; the uniform pool's draws land in a window
 of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`; and the hash
-splits every population evenly but for its sub-Gaussian tail at `ρ/e²`. -/
+splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which over the
+`|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
   min (min (rejFrac η indecisionLimit εcov εs
@@ -407,17 +402,16 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
       (min εs indecisionLimit
         / (128 * (populations.card : ℝ)
           * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
-    (δ * min εs indecisionLimit ^ 2
-      / (2 ^ 15 * (populations.card : ℝ)
+    (min εs indecisionLimit ^ 2
+      / (512 * Real.log (64 * (populations.card : ℝ)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
-          hsz) : ℝ))))
+          hsz) : ℝ)) / δ)))
 
 /-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
 draws, a twentieth of the findable share. -/
 noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  δ * pAP / (2 ^ 12 * ((populations.card : ℝ) + 1)
-    * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
+  δ * pAP / (2 ^ 13 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop

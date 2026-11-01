@@ -257,25 +257,29 @@ theorem prefixLaw_prefix_le {k n : ℕ} (hk : k ≤ n) {p₀ : ℝ}
   simp only [Set.mem_setOf_eq, prefixOf_prefixOf _ hk]
   exact hp u
 
-/-- Where `D` extends every string's first `i` letters by `a` at least `1/Ae` of the time, a
-string of `i` letters extended by `a` lands in `S` at most `Ae` times as often as one of `i + 1`. -/
-theorem prefixLaw_snoc_le {i : ℕ} (a : α) {Ae : ℝ} (hAe : 0 ≤ Ae)
+/-- Where `D` extends every string's first `i` letters `y` by `f y` at least `1/Ae` of the time, a
+string of `i` letters extended by its letter lands in `S` at most `Ae` times as often as one of
+`i + 1`. -/
+theorem prefixLaw_snoc_le {i : ℕ} (f : FreeMonoid α → α) {Ae : ℝ} (hAe : 0 ≤ Ae)
     (hfl : ∀ y, D.real {w | prefixOf w i = y}
-      ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a})
+      ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of (f y)})
     (S : Set (FreeMonoid α)) :
-    (prefixLaw D i).real {y | y * FreeMonoid.of a ∈ S} ≤ Ae * (prefixLaw D (i + 1)).real S := by
-  set T : Set (FreeMonoid α) := {y | y * FreeMonoid.of a ∈ S}
+    (prefixLaw D i).real {y | y * FreeMonoid.of (f y) ∈ S}
+      ≤ Ae * (prefixLaw D (i + 1)).real S := by
+  set T : Set (FreeMonoid α) := {y | y * FreeMonoid.of (f y) ∈ S}
   have hcyl : ∀ y : FreeMonoid α, D {w | prefixOf w i = y}
-      ≤ ENNReal.ofReal Ae * D {w | prefixOf w (i + 1) = y * FreeMonoid.of a} := by
+      ≤ ENNReal.ofReal Ae * D {w | prefixOf w (i + 1) = y * FreeMonoid.of (f y)} := by
     intro y
     rw [← ofReal_measureReal, ← ofReal_measureReal, ← ENNReal.ofReal_mul hAe]
     exact ENNReal.ofReal_le_ofReal (hfl y)
   have hdis : Pairwise (Function.onFun Disjoint fun y : T =>
-      {w : FreeMonoid α | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of a}) := by
+      {w : FreeMonoid α | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of (f y)}) := by
     intro y y' hyy'
     refine Set.disjoint_left.2 fun w h h' => hyy' (Subtype.ext ?_)
     simp only [Set.mem_setOf_eq] at h h'
-    exact mul_right_cancel (h.symm.trans h')
+    have e := congrArg FreeMonoid.toList (h.symm.trans h')
+    simp only [FreeMonoid.toList_mul, FreeMonoid.toList_of] at e
+    exact FreeMonoid.toList.injective (List.append_inj_left' e rfl)
   have hle : prefixLaw D i T ≤ ENNReal.ofReal Ae * prefixLaw D (i + 1) S := by
     rw [prefixLaw_apply, prefixLaw_apply]
     calc D {x | prefixOf x i ∈ T}
@@ -283,10 +287,10 @@ theorem prefixLaw_snoc_le {i : ℕ} (a : α) {Ae : ℝ} (hAe : 0 ≤ Ae)
           (tsum_measure_preimage_singleton (Set.to_countable T)
             fun _ _ => MeasurableSpace.measurableSet_top).symm
       _ ≤ ∑' y : T, ENNReal.ofReal Ae
-            * D {w | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of a} :=
+            * D {w | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of (f y)} :=
           ENNReal.tsum_le_tsum fun y => hcyl y
       _ = ENNReal.ofReal Ae * D (⋃ y : T,
-            {w | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of a}) := by
+            {w | prefixOf w (i + 1) = (y : FreeMonoid α) * FreeMonoid.of (f y)}) := by
           rw [ENNReal.tsum_mul_left,
             measure_iUnion hdis fun _ => MeasurableSpace.measurableSet_top]
       _ ≤ ENNReal.ofReal Ae * D {x | prefixOf x (i + 1) ∈ S} := by
@@ -556,7 +560,7 @@ theorem edge_of_occupied (H : HypothesisDFA α) (D : Measure (FreeMonoid α))
     rw [hnull i (by omega), add_zero]
     refine (measureReal_union_le _ _).trans (add_le_add ?_ le_rfl)
     refine (measureReal_union_le _ _).trans (add_le_add le_rfl ?_)
-    exact prefixLaw_snoc_le D a hAe (hfl i hi.1 hi.2) Bad
+    exact prefixLaw_snoc_le D (fun _ => a) hAe (hfl i hi.1 hi.2) Bad
   have hsum := Finset.sum_le_sum hi
   rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum] at hsum
   have h1 : ∑ i ∈ Finset.Ico k J, (prefixLaw D i).real Bad

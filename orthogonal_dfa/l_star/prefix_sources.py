@@ -7,6 +7,7 @@ import numpy as np
 
 from .counterexample_probe import Charges
 from .counterexample_search import CounterexampleSearch
+from .fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from .rejection_source import RejectionSource, proving_attempts
 from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
 
@@ -84,6 +85,8 @@ def harvest_reader(
         if search.member_fallback is not None:
             return search.member_fallback.stuck_harvest
         return lambda charged: charged.stuck
+    if ending.kind == SCORE_STALLED:
+        return ScorePatience.stalled_harvest
     return lambda charged: charged.middle
 
 
