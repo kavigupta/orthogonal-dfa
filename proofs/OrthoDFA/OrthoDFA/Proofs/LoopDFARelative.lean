@@ -74,14 +74,25 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     rw [← hMI]
     exact loopMassInv_ge_one _ _ hQ0 (by linarith) (by linarith) hδ hδ1 hc0 hc1 (by positivity)
       hpAP hp1 hη0 hη₀
-  have hpow : ((L : ℝ) + Q + 4) ^ 6 * (E + E₂ + E₃) ≤ A ^ k :=
+  have hpow : ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) ≤ A ^ k :=
     dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
       (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
-  have hp₀ : (A ^ k)⁻¹ ≤ 1 / (((L : ℝ) + Q + 4) ^ 6 * loopMassInv Q A (A + Q) (Fintype.card σ)
-      (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP η₀) := by
+  have hp₀ : (A ^ k)⁻¹ ≤ 1 / (((L : ℝ) + Q + 4) ^ 4 * (1 + Real.log ((L : ℝ) + Q + 4))
+      * loopMassInv Q A (A + Q) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+        η₀) := by
     have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
+    have hℓ0 : (0 : ℝ) < (L : ℝ) + Q + 4 := by linarith
+    have hΛ1 : 1 ≤ 1 + Real.log ((L : ℝ) + Q + 4) := by
+      have := Real.log_nonneg (show (1 : ℝ) ≤ (L : ℝ) + Q + 4 by linarith); linarith
+    have hle : ((L : ℝ) + Q + 4) ^ 4 * (1 + Real.log ((L : ℝ) + Q + 4)) * (E + E₂ + E₃)
+        ≤ ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) := by
+      have := mul_le_mul_of_nonneg_left (one_add_log_le hℓ0)
+        (pow_nonneg hℓ0.le 4 : (0 : ℝ) ≤ ((L : ℝ) + Q + 4) ^ 4)
+      rw [show ((L : ℝ) + Q + 4) ^ 4 * ((L : ℝ) + Q + 4) = ((L : ℝ) + Q + 4) ^ 5 by ring] at this
+      exact mul_le_mul_of_nonneg_right this (by linarith)
     rw [hMI, one_div]
-    exact inv_anti₀ (mul_pos (pow_pos (by linarith) 6) (by linarith)) hpow
+    exact inv_anti₀ (mul_pos (mul_pos (pow_pos hℓ0 4) (by linarith)) (by linarith))
+      (hle.trans hpow)
   have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
       = uniformStrings L := prefixLaw_uniformStrings (by omega)
   have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
