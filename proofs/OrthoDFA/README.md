@@ -46,11 +46,12 @@ Each claim is proved from the explicit theorems below.
   `Ls = L₁ + |Q| + 3` letters, and the coverage, `rerootAccuracy`, error and held-out strings are
   over their first `L` (`prefixLaw`). `D`'s strings must be at least `Ls` long, must extend each
   prefix of `k` to `L` letters by each letter at least `β` of the time, and must hold at most
-  `p₀Tol` on any first `k` letters, with `b = 1/β + |Q|`, `Y = |Q|R/(β δ ξ pAP s₀)`,
+  `p₀Tol` on any first `k` letters, with `b = 1/β + |Q|`, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`,
+  `Y = |Q|R/(β δ ξ pAP s₀)`,
 
-      1/p₀Tol = O((L + |Q|)⁴ log((L + |Q|)Y) log(Y) |Q|³R b/ξ
+      1/p₀Tol = O((L + |Q|)⁴ log(X') log(Y) |Q|³R b/ξ
                   · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + R²|Q|⁴b²/(ξ²δ) + 1/(δ pAP² s₀²))
-                + (L + |Q|)² log((L + |Q|)Y) log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
+                + (L + |Q|)² log(X') log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
   the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
@@ -58,12 +59,11 @@ Each claim is proved from the explicit theorems below.
   inputs with `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|⁷b²(L +
   |Q|)²R²/(ξ²s₀⁴) · log(|Q| log(X'')/(δ pAP s₀)) + |Q|²(L + |Q|)²R²/ξ² · (1/s₀⁴ + |Q|⁴b²) ·
   log(X'))` prefixes, `O(|Q|(log(X'')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
-  `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X' = (L + |Q|)R/(β δ ξ pAP s₀)`,
-  `X'' = (L + |Q|)R/(β δ ξ s₀)`. The prefixes' first term is the clustering's populations' group,
-  whose log reads the suffix pool alone, so its log grows as `log log L`. The totals grow with `L`
-  because the settings the proof picks hold each round's disagreement rate at
-  `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths: the prefixes grow
-  as `(L + |Q|)²` and the suffixes as `log L`.
+  `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X'' = (L + |Q|)R/(β δ ξ s₀)`. The
+  prefixes' first term is the clustering's populations' group, whose log reads the suffix pool
+  alone, so its log grows as `log log L`. The totals grow with `L` because the settings the proof
+  picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
+  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
