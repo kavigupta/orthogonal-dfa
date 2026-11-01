@@ -4,8 +4,10 @@ checked-in runs and labels alone.
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi and
-the rules' agreements are on the read half.  Writes lengths.pdf, frames.tex and
-dfa_{saw_1,saw_2,flat}.tex to figures/length-oracles/."""
+the rules' agreements are on the read half.  Writes to figures/length-oracles/ the panels
+(lengths.pdf, frames.tex, dfa_{saw_a,saw_b,flat}.tex), values.tex (macros for the drawn
+DFAs' numbers), rules.tex (each oracle's phi with each rule) and restarts.tex (every
+restart's statistics)."""
 
 import json
 import shlex
@@ -19,6 +21,7 @@ from matplotlib import transforms
 from orthogonal_dfa.l_star.dfa_utils import table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
+from ..capal_comparison.figures import tabular
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
 from .label import saved_labels
 from .oracles import SYMBOLS
@@ -33,9 +36,16 @@ NAMES = ["S_1", "S_0", "S_2", "X", "Y"]
 PAPER_NAMES = {"saw": "Length-Sawtooth", "flat": "Length-Flat"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {
-    "saw_1": ("saw", 0, 2),
-    "saw_2": ("saw", 1, 1),
+    "saw_a": ("saw", 0, 2),
+    "saw_b": ("saw", 1, 1),
     "flat": ("flat", 0, 3),
+}
+#: Each rule's name in rules.tex, and in restarts.tex's narrower columns.
+RULE_NAMES = {
+    "frame0 open": ("No stop in frame 0", "No F0 stop"),
+    "frames01 not both": ("Frames 0 and 1 not both closed", "F0, F1 not both"),
+    "odd stops": ("Odd number of stops", "Odd stops"),
+    "one stop": ("Exactly one stop", "One stop"),
 }
 WORD = {".": "open", "C": "closed"}
 #: TikZ cm per graphviz inch; graphviz's nodes and labels are sized to match the TikZ's
@@ -362,12 +372,6 @@ def frame_grids(data, y):
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
 
 
-def caption(kind, d):
-    if kind == "saw":
-        return f"wildcards mod {d['modulus']}: NMI {d['by_modulus'][d['modulus']]:.2f}"
-    return f"frame0 open: agrees {d['agreement']['frame0 open']:.2f}"
-
-
 def write_rates(data, flat):
     with open(RANDOM_STRINGS) as f:
         random_strings = json.load(f)["rows"]
@@ -385,7 +389,6 @@ def write_rates(data, flat):
 
 
 def describe_all(restarts, y, data):
-    """Each restart's description, printed as a row."""
     described = {}
     for key, r in restarts.items():
         d = described[key] = describe(r, y[r["oracle"]], data)
@@ -394,17 +397,80 @@ def describe_all(restarts, y, data):
         ]
         # As counterexample_synthesis keeps it: the first best.
         d["kept"] = key[2] == int(np.argmax(picks))
-        print(
-            f"{key[0]:4s} s{key[1]} r{key[2]}{'*' if d['kept'] else ' '} "
-            f"pick {r['pick_score']:.3f} phi {d['phi']:+.3f} "
-            f"states {len(r['dfa']['transitions']):2d} "
-            f"(minimal {len(d['minimal'].states):2d})  "
-            f"NMI(wildcards mod {d['modulus']}) {d['by_modulus'][d['modulus']]:.2f} "
-            f"NMI(frame) {d['nmi_frame']:.2f}  "
-            f"stop self-loops {d['stop_self_loops']:.2f}  "
-            + "  ".join(f"{k} {a:.2f}" for k, a in d["agreement"].items())
-        )
+        d["pick_score"] = r["pick_score"]
+        d["states"] = len(r["dfa"]["transitions"])
     return described
+
+
+def rule_table(data, y):
+    read = data.read
+    return tabular(
+        ["Rule"] + list(PAPER_NAMES.values()),
+        "lrr",
+        [
+            [RULE_NAMES[name][0]]
+            + [
+                f"{phi(rule[read].astype(float), y[kind][read]):+.3f}"
+                for kind in PAPER_NAMES
+            ]
+            for name, rule in data.rules.items()
+        ],
+    )
+
+
+def restart_table(described):
+    """A row per restart, the kept ones starred; agreements are with each rule."""
+    rows = []
+    for kind, oracle in PAPER_NAMES.items():
+        if rows:
+            rows.append(r"\midrule")
+        for key in sorted(k for k in described if k[0] == kind):
+            d = described[key]
+            rows.append(
+                [
+                    oracle,
+                    str(key[1]),
+                    f"{key[2]}{'$^*$' if d['kept'] else ''}",
+                    f"{d['pick_score']:.3f}",
+                    f"{d['phi']:+.3f}",
+                    f"{d['states']} / {len(d['minimal'].states)}",
+                    f"{d['modulus']}: {d['by_modulus'][d['modulus']]:.2f}",
+                    f"{d['nmi_frame']:.2f}",
+                    f"{d['stop_self_loops']:.2f}",
+                ]
+                + [f"{d['agreement'][name]:.2f}" for name in RULE_NAMES]
+            )
+    return tabular(
+        [
+            "Oracle",
+            "Seed",
+            "Restart",
+            "Pick",
+            r"$\phi$",
+            "States / min.",
+            "Counts mod",
+            "Frame NMI",
+            "Stop loops",
+        ]
+        + [short for _, short in RULE_NAMES.values()],
+        "lrrrrrrrr" + "r" * len(RULE_NAMES),
+        rows,
+    )
+
+
+def values(described):
+    """Macros for each drawn DFA's numbers, named after it: saw_a gives \\loSawAPhi."""
+    lines = []
+    for name, key in REPRESENTATIVES.items():
+        d = described[key]
+        macro = "lo" + "".join(part.title() for part in name.split("_"))
+        lines += [
+            rf"\newcommand{{\{macro}Phi}}{{{d['phi']:.3f}}}",
+            rf"\newcommand{{\{macro}States}}{{{len(d['minimal'].states)}}}",
+        ]
+        if key[0] == "saw":
+            lines.append(rf"\newcommand{{\{macro}Modulus}}{{{d['modulus']}}}")
+    return "\n".join(lines + [""])
 
 
 def main():
@@ -415,26 +481,16 @@ def main():
         restarts = {
             (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
         }
-
-    read = data.read
-    for kind in PAPER_NAMES:
-        cells = [
-            f"{name} {phi(rule[read].astype(float), y[kind][read]):+.3f}"
-            for name, rule in data.rules.items()
-        ]
-        print(kind, "rule phi:", "  ".join(cells))
     described = describe_all(restarts, y, data)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for name, key in REPRESENTATIVES.items():
-        d = described[key]
-        if not d["kept"]:
+        if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
-        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
-        print(
-            f"dfa_{name}: {key[0]} s{key[1]} r{key[2]}: {caption(key[0], d)}, "
-            f"{len(d['minimal'].states)} states, phi {d['phi']:.3f}"
-        )
+        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
+    (OUT_DIR / "values.tex").write_text(values(described))
+    (OUT_DIR / "rules.tex").write_text(rule_table(data, y) + "\n")
+    (OUT_DIR / "restarts.tex").write_text(restart_table(described) + "\n")
     write_rates(data, y["flat"])
 
 
