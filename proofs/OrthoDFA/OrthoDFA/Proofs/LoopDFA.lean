@@ -235,26 +235,26 @@ theorem integral_prefixLaw_le_window (D : Measure (FreeMonoid α)) [IsProbabilit
 lemma rb_nonneg {Q s pAP δ' ι τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hι0 : 0 < ι) (hτ0 : 0 < τ)
     (hτ1 : τ ≤ 1) (hcL : 0 ≤ cL) :
-    0 ≤ 2 ^ 20 * (Q + 2) * Real.log (128 * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s
+    0 ≤ 2 ^ 20 * (Q + 2) * Real.log (128 * ((50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 + 20 / s
           + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((Q + 2 + 2)
-        * ((50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
+        * ((50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP)
         / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2 := by
   have hm0 : 0 ≤ max (Real.log (20 / τ)) cL := le_max_of_le_right hcL
-  have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) cL / s ^ 2 :=
-    div_nonneg (mul_nonneg (by norm_num) hm0) (sq_nonneg s)
+  have hN0 : 0 ≤ 50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 :=
+    div_nonneg (mul_nonneg (by norm_num) (by linarith)) (sq_nonneg s)
   have hN1 : 0 ≤ 20 / s := by positivity
-  have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP := by
+  have h1 : 1 ≤ (50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 + 20 / s + 28) / pAP := by
     rw [le_div_iff₀ hp]
     linarith
   have h2 : 0 ≤ 120 * Real.log (3 / (δ' / 2)) / pAP := by
     refine div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg ?_)) (by positivity)
     rw [le_div_iff₀ (by positivity)]
     linarith
-  have hPB1 : 1 ≤ (50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
+  have hPB1 : 1 ≤ (50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP := by linarith
-  generalize (50 * max (Real.log (20 / τ)) cL / s ^ 2 + 20 / s + 28) / pAP
+  generalize (50 * (max (Real.log (20 / τ)) cL + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP = PB at hPB1 ⊢
   have hl1 : 0 ≤ Real.log (128 * (PB + 1) / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
@@ -408,7 +408,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
-    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
@@ -573,8 +573,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       le_max_of_le_left (Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith))
     have hl : 0 ≤ Real.log (3 / (δ' / 2)) :=
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
-    have h1 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 := by positivity
-    show 0 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    have h1 : 0 ≤ 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 := by positivity
+    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     positivity
   refine ⟨settings, hwalk, hdis, hbud, fun draws => ?_, ?_⟩
@@ -770,7 +770,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
-    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
@@ -949,7 +949,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1 with hK₁d
   set W₀ : ℝ := loopW₀ Q A δ with hW₀d
   set P₀ : ℝ :=
-    (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
+    (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP with hP₀d
   set R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) with hR₀d
@@ -967,7 +967,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1 with hWd
-  set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+  set PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP with hPBd
   set RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2 with hRBd
@@ -1020,7 +1020,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   obtain ⟨hPB1, hPB⟩ := pb_le (W := W) (W₀ := W₀) hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hWW
     hδ'0 hδ'1 hs0 hs1 hpAP hp1
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
-  have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+  have hPBJ : PB = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP := rfl
   obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hι0 hinvι hτ0 hτ1 hinvτ hΘ1
     hℓ1 (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1

@@ -83,11 +83,12 @@ family spends all but `voteSlack` of that, and the band's far edge takes half of
 rate only has to sit under half the cut budget: the misfires on the certification sample are
 independent given the family, so their count concentrates below the budget.
 
-The band is about `κ·voteSlack` wide and a crossing vote travels all of it, so its tail is
-`exp (-2κ·voteSlack²)`, which the second term puts under `crossLimit`, with `e⁴` to spare for the
-loop's band check.  Each tail asks for its own size, and the family takes the larger.  The third
-pays for the seed: the family returned is one member larger than the band is centred for, which
-its vote pays for out of the slack, at `decSlack`.
+The band is about `κ·voteSlack` wide.  Its check is read against a binomial whose median is the
+band's centre, whose mean Hoeffding places within a quarter of the band of it, so each edge is
+half the band from the mean; the second term puts that tail, `exp (-κ·voteSlack²/2)`, under
+`crossLimit^(1/4)` with `e` to spare.  Each tail asks for its own size, and the family takes the
+larger.  The third pays for the seed: the family returned is one member larger than the band is
+centred for, which its vote pays for out of the slack, at `decSlack`.
 
 The size is even, and the `+ 1` is inside the doubling, because `clsFrac` spends its side of
 the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
@@ -95,49 +96,57 @@ the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round t
 noncomputable def famHoeff (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
   2 * (max ⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
-      ⌈(Real.log (1 / crossLimit) + 4) / (4 * voteSlack η ^ 2)⌉₊
-    + ⌈1 / voteSlack η⌉₊ + 1)
+      ⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η ^ 2⌉₊
+    + ⌈2 / voteSlack η⌉₊ + 1)
 
 /-- How far `famHoeff`'s vote, seed included, clears its cut at `lo` and `hi + 1`: the band's
-`voteSlack/2`, less the half read the extra member costs spread over all of them. -/
+`voteSlack/2`, less a read for the extra member and the centre's place, spread over all of
+them. -/
 noncomputable def decSlack (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ crossLimit : ℝ) : ℝ :=
   voteSlack η / 2
-    - 1 / (2 * ((famHoeff η populations indecisionLimit εcov δ crossLimit : ℝ) + 1))
+    - 1 / ((famHoeff η populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
 
 /-- How many counts the band of a family of `κ` reaches either side of its centre. -/
 noncomputable def bandAt (η : ℝ) (κ : ℕ) : ℕ := ⌊(κ : ℝ) * voteSlack η / 2⌋₊
 
-/-- The family of `κ` rejects at or below this count. -/
-noncomputable def loAt (η : ℝ) (κ : ℕ) : ℕ := ⌈(κ : ℝ) / 2⌉₊ - bandAt η κ - 1
+/-- The family of `κ`, its band centred at count `m`, rejects at or below this count. -/
+noncomputable def loAt (η : ℝ) (κ m : ℕ) : ℕ := m - bandAt η κ - 1
 
-/-- The family of `κ` accepts above this count. -/
-noncomputable def hiAt (η : ℝ) (κ : ℕ) : ℕ := ⌈(κ : ℝ) / 2⌉₊ + bandAt η κ
+/-- The family of `κ`, its band centred at count `m`, accepts above this count. -/
+noncomputable def hiAt (η : ℝ) (κ m : ℕ) : ℕ := m + bandAt η κ
 
-/-- The vote of a family of `κ` with its seed, at a mean rate of `1/2 + voteSlack`, failing to
-clear `hi + 1`. -/
-noncomputable def misfireTail (η : ℝ) (κ : ℕ) : ℝ :=
-  1 - binomSfGe (κ + 1) (1 / 2 + voteSlack η) (hiAt η κ + 2)
+/-- The counts a family of `κ` may centre its band at: a class whose rate sits `sig` beyond the
+centre's share is still a rate. -/
+def centres (η : ℝ) (κ : ℕ) : Set ℕ := {m | sig η * κ ≤ m ∧ (m : ℝ) ≤ (1 - sig η) * κ}
+
+/-- The vote of a family of `κ` with its seed, at a mean rate of `voteSlack` past the centre's
+share, failing to clear `hi + 1`. -/
+noncomputable def misfireTail (η : ℝ) (κ m : ℕ) : ℝ :=
+  1 - binomSfGe (κ + 1) ((m : ℝ) / κ + voteSlack η) (hiAt η κ m + 2)
 
 /-- A vote over `κ` reads whose mean is `hi` landing at or below `lo`. -/
-noncomputable def crossTail (η : ℝ) (κ : ℕ) : ℝ :=
-  1 - binomSfGe κ ((hiAt η κ : ℝ) / κ) (loAt η κ + 1)
+noncomputable def crossTail (η : ℝ) (κ m : ℕ) : ℝ :=
+  1 - binomSfGe κ ((hiAt η κ m : ℝ) / κ) (loAt η κ m + 1)
 
-/-- A vote over `κ` reads whose mean is the band's centre landing at or below `lo`. -/
-noncomputable def halfTail (η : ℝ) (κ : ℕ) : ℝ :=
-  1 - binomSfGe κ (1 / 2) (loAt η κ + 1)
+/-- The band of a family of `κ` centred at `m` passes the loop's band check: against some
+binomial over `κ` reads, from some count inside the band, `bandKappa` is under
+`crossLimit^(1/4)`. -/
+def BandChecked (crossLimit : ℝ) (κ lo hi : ℕ) : Prop :=
+  ∃ q : ℝ, ∃ c : ℕ, 0 < q ∧ q < 1 ∧ lo < c ∧ c < hi + 1 ∧ c ≤ κ
+    ∧ bandKappa κ q lo c (hi + 1) ^ 4 ≤ crossLimit
 
-/-- A family of `κ` the exact tails allow.  The tails are binomials, which bound a vote's reads
-whatever their rates (`BitSumTails`).  The band spans at least five counts, which that bound asks
-of it, and the family is at least 32 strong, which keeps the pool at 64 for the budget's
-bounds.
+/-- A family of `κ` the exact tails allow, at every centre.  The tails are binomials, which bound
+a vote's reads whatever their rates (`BitSumTails`).  The band spans at least five counts, which
+that bound asks of it, and the family is at least 32 strong, which keeps the pool at 64 for the
+budget's bounds.
 
 The last is for the loop's band check, at `ζ = crossLimit^(1/4)`: whatever the read's two rates,
 it is on its rarer decided side at most `ζ` times as often as undecided (`BandKappaBound`). -/
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
   Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
-    ∧ misfireTail η κ ≤ cut / 2 ∧ crossTail η κ ≤ crossLimit
-    ∧ bandKappa κ (1 / 2) (loAt η κ) (κ / 2) (hiAt η κ + 1) ^ 4 ≤ crossLimit
+    ∧ ∀ m ∈ centres η κ, misfireTail η κ m ≤ cut / 2 ∧ crossTail η κ m ≤ crossLimit
+      ∧ BandChecked crossLimit κ (loAt η κ m) (hiAt η κ m)
 
 open scoped Classical in
 /-- The family's size: the least that `FamilyFits`, searched no further than `famHoeff`, which
@@ -315,10 +324,10 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   nsuff := poolCount η populations indecisionLimit εcov δ pAP crossLimit
   npref := mi
   k := famCount η populations indecisionLimit εcov δ crossLimit + 1
-  lo := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
-    - bandHalf η populations indecisionLimit εcov δ crossLimit - 1
-  hi := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
-    + bandHalf η populations indecisionLimit εcov δ crossLimit
+  lo := loAt η (famCount η populations indecisionLimit εcov δ crossLimit)
+    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
+  hi := hiAt η (famCount η populations indecisionLimit εcov δ crossLimit)
+    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
   sc := 1
   scd := 1
 

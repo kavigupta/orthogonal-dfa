@@ -122,10 +122,10 @@ def ClusteringGuarantee : Prop :=
       (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs)
     ) ∧
     (∀ B ∈ states,
-      (B.k : ℝ) ≤ 25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
-          (Real.log (1 / crossLimit)) / (8 * (1 / 2 - η₀) ^ 2) + 5 / (1 / 2 - η₀) + 7
-      ∧ (B.nsuff : ℝ) ≤ 2 * (25 * max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
-          (Real.log (1 / crossLimit)) / (8 * (1 / 2 - η₀) ^ 2) + 5 / (1 / 2 - η₀) + 7) / pAP
+      (B.k : ℝ) ≤ 25 * (max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
+          (Real.log (1 / crossLimit)) + 12) / (8 * (1 / 2 - η₀) ^ 2) + 5 / (1 / 2 - η₀) + 7
+      ∧ (B.nsuff : ℝ) ≤ 2 * (25 * (max (4 * Real.log (20 / rateScale η₀ indecisionLimit εcov))
+          (Real.log (1 / crossLimit)) + 12) / (8 * (1 / 2 - η₀) ^ 2) + 5 / (1 / 2 - η₀) + 7) / pAP
         + 60 * Real.log (3 / δ) / pAP) ∧
     (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
       (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)

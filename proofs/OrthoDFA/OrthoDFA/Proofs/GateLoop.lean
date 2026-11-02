@@ -84,7 +84,9 @@ lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
     (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1
       ∧ B.lo = loAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)
-      ∧ B.hi = hiAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) := by
+          (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2)
+      ∧ B.hi = hiAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)
+          (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2) := by
   rw [schedule] at hB
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   exact ⟨rfl, rfl, rfl⟩
@@ -110,6 +112,7 @@ theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov 
     (crossLimit := crossLimit) η₀ populations εcov δ hη0 hη₀ hcross
   have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ
+  replace hct := hct _ (half_mem_centres η₀ hev hη0)
   have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη₀
   rw [bandHalf] at hb1
@@ -120,29 +123,29 @@ theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov 
   have hb1R : (1 : ℝ) ≤ bandAt η₀ κ := by exact_mod_cast hb1
   have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hb := bandAt_le η₀ κ hη₀
-  have hlo0 : (0 : ℝ) ≤ loAt η₀ κ := Nat.cast_nonneg _
-  have hsum : loAt η₀ κ + hiAt η₀ κ + 1 = κ := by
-    have : ((loAt η₀ κ + hiAt η₀ κ + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
+  have hlo0 : (0 : ℝ) ≤ loAt η₀ κ (κ / 2) := Nat.cast_nonneg _
+  have hsum : loAt η₀ κ (κ / 2) + hiAt η₀ κ (κ / 2) + 1 = κ := by
+    have : ((loAt η₀ κ (κ / 2) + hiAt η₀ κ (κ / 2) + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
     exact_mod_cast this
   rw [hBlo, hBhi]
   refine ⟨fun hm => ?_, fun hm => ?_⟩
-  · have h := (vote_tails O F p κ ((hiAt η₀ κ : ℝ) / κ) hFk (by positivity)
-      (by rw [div_le_one (by linarith)]; rw [hhi]; nlinarith)).1 (loAt η₀ κ)
+  · have h := (vote_tails O F p κ ((hiAt η₀ κ (κ / 2) : ℝ) / κ) hFk (by positivity)
+      (by rw [div_le_one (by linarith)]; rw [hhi]; nlinarith)).1 (loAt η₀ κ (κ / 2))
       (by rw [mul_div_cancel₀ _ (by linarith)]; exact hm.le)
       (by rw [mul_div_cancel₀ _ (by linarith), hhi, hlo]; linarith)
     exact h.trans hct
-  · have h := (vote_tails O F p κ ((loAt η₀ κ : ℝ) / κ) hFk (by positivity)
-      (by rw [div_le_one (by linarith)]; rw [hlo]; linarith)).2 (hiAt η₀ κ + 1)
+  · have h := (vote_tails O F p κ ((loAt η₀ κ (κ / 2) : ℝ) / κ) hFk (by positivity)
+      (by rw [div_le_one (by linarith)]; rw [hlo]; linarith)).2 (hiAt η₀ κ (κ / 2) + 1)
       (by rw [mul_div_cancel₀ _ (by linarith)]; exact hm)
       (by rw [mul_div_cancel₀ _ (by linarith)]; push_cast; rw [hhi, hlo]; linarith)
     refine le_trans (measureReal_mono fun ω hω => hω) (le_trans h (le_trans ?_ hct))
-    rw [binomSfGe_symm _ κ (hiAt η₀ κ + 1) (by omega),
-      show κ + 1 - (hiAt η₀ κ + 1) = loAt η₀ κ + 1 by omega, crossTail]
-    refine sub_le_sub_left (binomSfGe_mono (by positivity) ?_ ?_ κ (loAt η₀ κ + 1)) 1
-    · have : (0 : ℝ) ≤ (loAt η₀ κ : ℝ) / κ := by positivity
+    rw [binomSfGe_symm _ κ (hiAt η₀ κ (κ / 2) + 1) (by omega),
+      show κ + 1 - (hiAt η₀ κ (κ / 2) + 1) = loAt η₀ κ (κ / 2) + 1 by omega, crossTail]
+    refine sub_le_sub_left (binomSfGe_mono (by positivity) ?_ ?_ κ (loAt η₀ κ (κ / 2) + 1)) 1
+    · have : (0 : ℝ) ≤ (loAt η₀ κ (κ / 2) : ℝ) / κ := by positivity
       linarith
     · rw [le_sub_iff_add_le, ← add_div, div_le_one (by linarith)]
-      have : ((loAt η₀ κ + hiAt η₀ κ + 1 : ℕ) : ℝ) = κ := by exact_mod_cast hsum
+      have : ((loAt η₀ κ (κ / 2) + hiAt η₀ κ (κ / 2) + 1 : ℕ) : ℝ) = κ := by exact_mod_cast hsum
       push_cast at this
       linarith
 
@@ -2422,7 +2425,8 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
         (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
       + roundFail populations (indecisionLimit / 2) (5 / 8 * cutBudget η₀ indecisionLimit εcov)
           (shiftBudget η₀ indecisionLimit εcov / 1056)
-          (misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit))
+          (misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)
+            (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2))
           (Real.log (128 * (populations.card : ℝ)
             * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ))
           (9 * pAP / 20) pAP ρ ρsf
@@ -2435,7 +2439,8 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
           (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
       + (populations.card : ℝ)
         * namedFail (indecisionLimit / 2) (5 / 8 * cutBudget η₀ indecisionLimit εcov)
-            (misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)) ρ
+            (misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit)
+            (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2)) ρ
             (hoeffDev (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
               (δ / (32 * populations.card
                 * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3))))
@@ -2471,18 +2476,20 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
       (crossLimit := crossLimit) η₀ populations εcov δ α pAP
   have hMR : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
   -- the vote's misfire rate sits under half the cut budget
-  have hEc : misfireTail η₀ κ ≤ cutBudget η₀ indecisionLimit εcov / 2 :=
-    (famCount_misfire η₀ populations hη0 hsig hε hind).1
+  have hEc : misfireTail η₀ κ (κ / 2) ≤ cutBudget η₀ indecisionLimit εcov / 2 :=
+    (famCount_misfire η₀ populations hη0 hsig hε hind).1 _
+      (half_mem_centres η₀ (famCount_even η₀ populations εcov δ) hη0)
   -- the light counts' rates, against the heavy hits'
   set cb : ℝ := cutBudget η₀ indecisionLimit εcov with hcbdef
-  have hE0 : 0 ≤ misfireTail η₀ κ := misfireTail_nonneg η₀ κ hsig hη0
+  have hE0 : 0 ≤ misfireTail η₀ κ (κ / 2) :=
+    misfireTail_nonneg η₀ (half_mem_centres η₀ (famCount_even η₀ populations εcov δ) hη0) hsig hη0
   have hr1 : cb / 2112 ≤ relRate cb (cb / 2) := by
     unfold relRate
     rw [div_le_div_iff₀ (by norm_num) (by linarith)]
     nlinarith
-  have hrl : cb / 2112 ≤ relRate (indecisionLimit / 2) (misfireTail η₀ κ) :=
+  have hrl : cb / 2112 ≤ relRate (indecisionLimit / 2) (misfireTail η₀ κ (κ / 2)) :=
     le_trans hr1 (relRate_anti hE0 hEc (by linarith) hcutlim)
-  have hrm : cb / 2112 ≤ relRate (5 / 8 * cb) (misfireTail η₀ κ) := by
+  have hrm : cb / 2112 ≤ relRate (5 / 8 * cb) (misfireTail η₀ κ (κ / 2)) := by
     have h2 : cb / 2112 ≤ relRate (5 / 8 * cb) (cb / 2) := by
       unfold relRate
       rw [div_le_div_iff₀ (by norm_num) (by linarith)]
@@ -2495,9 +2502,9 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     le_trans (Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_left
       (le_trans (by linarith : shiftBudget η₀ indecisionLimit εcov / 1056 ≤ cb / 2112) hr) hmR)))
       tth
-  have tl : Real.exp (-((m : ℝ) * relRate (indecisionLimit / 2) (misfireTail η₀ κ))) ≤ ε₀ :=
+  have tl : Real.exp (-((m : ℝ) * relRate (indecisionLimit / 2) (misfireTail η₀ κ (κ / 2)))) ≤ ε₀ :=
     hexp _ hrl
-  have tlm : Real.exp (-((m : ℝ) * relRate (5 / 8 * cb) (misfireTail η₀ κ))) ≤ ε₀ :=
+  have tlm : Real.exp (-((m : ℝ) * relRate (5 / 8 * cb) (misfireTail η₀ κ (κ / 2)))) ≤ ε₀ :=
     hexp _ hrm
   -- the gate's liveness, at `4ε₀/(M + 3)` a side
   have hb0 : 0 < δ / (32 * (populations.card : ℝ) * ((M : ℝ) + 3)) := by positivity
@@ -3119,16 +3126,20 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hb := bandAt_le η₀ κ hη₀
   have hb0 : (0 : ℝ) ≤ bandAt η₀ κ := Nat.cast_nonneg _
   have hκR : (4 : ℝ) ≤ (κ : ℝ) := by exact_mod_cast h4
-  have hsum : loAt η₀ κ + hiAt η₀ κ + 1 = κ := by
-    have : ((loAt η₀ κ + hiAt η₀ κ + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
+  have hsum : loAt η₀ κ (κ / 2) + hiAt η₀ κ (κ / 2) + 1 = κ := by
+    have : ((loAt η₀ κ (κ / 2) + hiAt η₀ κ (κ / 2) + 1 : ℕ) : ℝ) = κ := by push_cast; rw [hlo, hhi]; ring
     exact_mod_cast this
-  have hlohi : loAt η₀ κ ≤ hiAt η₀ κ := by unfold loAt hiAt; omega
+  have hlohi : loAt η₀ κ (κ / 2) ≤ hiAt η₀ κ (κ / 2) := by unfold loAt hiAt; omega
   have hv5 : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
   have hq0 : (0 : ℝ) ≤ 1 / 2 + voteSlack η₀ := by linarith
   have hq1 : 1 / 2 + voteSlack η₀ ≤ 1 := by linarith
-  have hmisle : 1 - binomSfGe κ (1 / 2 + voteSlack η₀) (loAt η₀ κ + 1) ≤ misfireTail η₀ κ := by
-    rw [misfireTail]
-    refine sub_le_sub_left (le_trans (binomSfGe_succ_le hq0 hq1 (hiAt η₀ κ + 1)) ?_) 1
+  replace hmisκ := hmisκ _ (half_mem_centres η₀ hev hη0')
+  have hhalf : ((κ / 2 : ℕ) : ℝ) / κ = 1 / 2 := by
+    rw [cast_half_of_even hev]; field_simp
+  have hmisle : 1 - binomSfGe κ (1 / 2 + voteSlack η₀) (loAt η₀ κ (κ / 2) + 1)
+      ≤ misfireTail η₀ κ (κ / 2) := by
+    rw [misfireTail, hhalf]
+    refine sub_le_sub_left (le_trans (binomSfGe_succ_le hq0 hq1 (hiAt η₀ κ (κ / 2) + 1)) ?_) 1
     exact binomSfGe_antitone' hq0 hq1 (by omega)
   have hκpos : 0 < κ := by omega
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
@@ -3142,8 +3153,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hBkappa : (B.k - 1 : ℕ) = κ := by rw [hBk]; omega
   have hBkR : (B.k : ℝ) = κ + 1 := by rw [hBk]; push_cast; ring
   have hBM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := rfl
-  have hBlo : B.lo = loAt η₀ κ := rfl
-  have hBhi : B.hi = hiAt η₀ κ := rfl
+  have hBlo : B.lo = loAt η₀ κ (κ / 2) := rfl
+  have hBhi : B.hi = hiAt η₀ κ (κ / 2) := rfl
   have hBscd : B.scd = 1 := rfl
   have hBsc : B.sc = 1 := rfl
   have hMceil : 2 * ((κ : ℝ) + 1) / pAP ≤ ((B.nsuff : ℕ) : ℝ) := by
@@ -3192,7 +3203,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hβ := shiftScale_pos hεcov hindLim
   have hgap := gap_pos O hsig
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
-    9 * pAP / 20, 1 / 2 + voteSlack η₀, misfireTail η₀ κ,
+    9 * pAP / 20, 1 / 2 + voteSlack η₀, misfireTail η₀ κ (κ / 2),
     shiftBudget η₀ indecisionLimit εcov, shiftBudget η₀ indecisionLimit εcov,
     cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
     heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
@@ -3340,13 +3351,14 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     rw [hBm, hBM] at hgate
     exact hgate
   -- the misfire
-  · exact misfireTail_nonneg η₀ κ hη₀ hη0'
+  · exact misfireTail_nonneg η₀ (half_mem_centres η₀ hev hη0') hη₀ hη0'
   · linarith
   · linarith [hcutle.2.2]
-  · rw [hBk, hBhi]; exact le_rfl
-  · rw [hBk, hBlo, show κ + 1 - loAt η₀ κ = hiAt η₀ κ + 1 + 1 by omega]; exact le_rfl
+  · rw [hBk, hBhi, misfireTail, hhalf]
+  · rw [hBk, hBlo, show κ + 1 - loAt η₀ κ (κ / 2) = hiAt η₀ κ (κ / 2) + 1 + 1 by omega,
+      misfireTail, hhalf]
   · rw [hBkappa, hBlo]; exact hmisle
-  · rw [hBkappa, hBhi, show κ - hiAt η₀ κ = loAt η₀ κ + 1 by omega]; exact hmisle
+  · rw [hBkappa, hBhi, show κ - hiAt η₀ κ (κ / 2) = loAt η₀ κ (κ / 2) + 1 by omega]; exact hmisle
   · have h := solved_roundFail (crossLimit := crossLimit) (α := α) (ρ := ρ) (ρsf := ρsf)
       η₀ populations hη₀ hη0' hεcov hεs hδ hδ1 hpAPPositive hpAP1 hindLim
       hcard hρ0 hρsf0 hρcap hρsfcap
