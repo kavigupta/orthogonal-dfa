@@ -4395,10 +4395,6 @@ lemma rate_of_label (O : Oracle μ S) (accept : Bool) (p : S) :
     simp [hp, Oracle.label, Set.indicator_of_mem, Set.indicator_of_notMem]
 
 
-/-- The larger of the centre's distances to `0` and `1`: the most one read moves the misread
-statistic, in its own units. -/
-noncomputable def span (ctr : ℝ) : ℝ := max ctr (1 - ctr)
-
 lemma half_le_span (ctr : ℝ) : 1 / 2 ≤ span ctr := by
   unfold span
   rcases le_total ctr (1 / 2) with h | h

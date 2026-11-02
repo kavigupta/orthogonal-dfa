@@ -113,7 +113,7 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
         ∧ (∀ j ∈ pops, keptAt pops j B.npref x → (((certOf P j B.npref x).filter fun p =>
           ¬ decided O.mq B.lo (B.hi + 1) (insert 1 (cl ω'')) p ω'').card : ℝ)
             ≤ ι * (certOf P j B.npref x).card)
-        ∧ ∀ j ∈ pops, keptAt pops j B.npref x → ∃ e ≤ B.npref, certifiesAt O.mq
+        ∧ ∀ j ∈ pops, keptAt pops j B.npref x → ∃ e ≤ B.npref, certifiesAt O.mq B.centre
           (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
           (gateLimit uni εc j) (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
           (certOf P j (B.npref + e) x) ω'') := by

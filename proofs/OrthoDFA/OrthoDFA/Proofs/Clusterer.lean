@@ -200,7 +200,7 @@ noncomputable def refsBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
 `rule`. -/
 def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ εcov α : ℝ) (B : State) (j : J) (e : ℕ) (x : Run Ω S J) : Prop :=
-  certifiesAt mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
+  certifiesAt mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
     (gateLevel α populations B) B.lo B.hi
     (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
     (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)

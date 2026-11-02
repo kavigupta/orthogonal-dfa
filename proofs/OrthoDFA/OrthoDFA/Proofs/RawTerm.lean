@@ -538,7 +538,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       ≤ 2 * (((M : ℝ) + 3) * Real.exp (-2 * t ^ 2 / N)) :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_sidesDead O populations j B N t)
       (fun g => measureReal_sidesDead_le hflat O populations _ _ Dsf (hsT g) (hsC g) hsuppSf j hj
-        B N ht)
+        B (by rw [hcB]; norm_num) (by rw [hcB]; norm_num) N ht)
   set ν := runMeasure μ D Dsf with hν
   have u : ∀ A B' : Set (Draws Ω S J), ν.real (A ∪ B') ≤ ν.real A + ν.real B' :=
     fun A B' => measureReal_union_le A B'
@@ -768,7 +768,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       have := hheavy false
       linarith
     refine le_trans (measureReal_failUnion_le hflat O populations Pp Pc Dsf (hsT g') (hsC g')
-      hsuppSf uni huni B l lmis E t (collisionMass Dsf) (fracAt O η₀) r rs κ κ hE0
+      hsuppSf uni huni B (by rw [hcB]; norm_num) (by rw [hcB]; norm_num) l lmis E t
+      (collisionMass Dsf) (fracAt O η₀) r rs κ κ hE0
       (by rw [hl]; exact hEl) hElm ht hρsf' hρsf0 _ hcertB _ hstallB _ _ hDB _ _ hHB hdec hcut) ?_
     unfold roundFail
     linarith
