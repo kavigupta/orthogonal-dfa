@@ -552,4 +552,238 @@ lemma missAcc_prob_le (O : Oracle μ S) {η₀ : ℝ} {B : State} (F : Finset S)
         · intro h; exact h.elim
       rw [hz, measureReal_empty]; exact hE0
 
+open scoped Classical in
+lemma measurableSet_missRej (O : Oracle μ S) (η₀ : ℝ) (B : State) (A₀ : Finset S) (p : S)
+    {U : Set S} (hU : ∀ v ∈ A₀, p * v ∈ U) :
+    MeasurableSet[noiseAlg O U] {ω | missRej O η₀ B A₀ p ω} := by
+  classical
+  have e : {ω | missRej O η₀ B A₀ p ω} = {ω | (fun W : Finset S =>
+      (O.label p = 0 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 20)
+        ∧ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀)) < (W.card : ℝ))
+      ∨ (O.label p = 1 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 2)
+        ∧ (W.card : ℝ) ≤ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀))))
+      (A₀.filter (fun v => O.mq (p * v) ω = 1))} := rfl
+  rw [e]
+  exact measurableSet_filter_pred_map O (T := U) (A := A₀) (fun v => p * v) hU (fun W : Finset S =>
+      (O.label p = 0 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 20)
+        ∧ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀)) < (W.card : ℝ))
+      ∨ (O.label p = 1 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 2)
+        ∧ (W.card : ℝ) ≤ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀))))
+
+open scoped Classical in
+lemma measurableSet_missAcc (O : Oracle μ S) (η₀ : ℝ) (B : State) (A₀ : Finset S) (p : S)
+    {U : Set S} (hU : ∀ v ∈ A₀, p * v ∈ U) :
+    MeasurableSet[noiseAlg O U] {ω | missAcc O η₀ B A₀ p ω} := by
+  classical
+  have e : {ω | missAcc O η₀ B A₀ p ω} = {ω | (fun W : Finset S =>
+      (O.label p = 1 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 20)
+        ∧ (W.card : ℝ) < ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)))
+      ∨ (O.label p = 0 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 2)
+        ∧ ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)) ≤ (W.card : ℝ)))
+      (A₀.filter (fun v => O.mq (p * v) ω = 1))} := rfl
+  rw [e]
+  exact measurableSet_filter_pred_map O (T := U) (A := A₀) (fun v => p * v) hU (fun W : Finset S =>
+      (O.label p = 1 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 20)
+        ∧ (W.card : ℝ) < ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)))
+      ∨ (O.label p = 0 ∧ flipCount O A₀ p ≤ A₀.card * (1 / 2)
+        ∧ ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)) ≤ (W.card : ℝ)))
+
+variable {J : Type*} [Fintype J] {rule : Clusterer S}
+
+open scoped Classical in
+/-- The uniform pool's sample, filled and outside the table, holds more than `e` of its size of
+prefixes whose vote misses a strong threshold, on either side. -/
+noncomputable def checkMiss (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (uni : J) (η₀ : ℝ) (B : State) (e : ℝ) : Set (Run Ω S J) :=
+  {x | Disjoint (prefixesAt populations B.npref x)
+      (certOf (prefixesAt populations B.npref x) uni B.npref x)
+    ∧ (certOf (prefixesAt populations B.npref x) uni B.npref x).card = B.npref
+    ∧ 0 < (certOf (prefixesAt populations B.npref x) uni B.npref x).card
+    ∧ ¬ ((((certOf (prefixesAt populations B.npref x) uni B.npref x).filter (fun p =>
+            (clusterBy rule O.mq populations x B).card = B.k - 1
+              ∧ missRej O η₀ B (clusterBy rule O.mq populations x B) p (oracleNoise x))).card : ℝ)
+          ≤ e * ((certOf (prefixesAt populations B.npref x) uni B.npref x).card : ℝ)
+        ∧ (((certOf (prefixesAt populations B.npref x) uni B.npref x).filter (fun p =>
+            (clusterBy rule O.mq populations x B).card = B.k - 1
+              ∧ missAcc O η₀ B (clusterBy rule O.mq populations x B) p (oracleNoise x))).card : ℝ)
+          ≤ e * ((certOf (prefixesAt populations B.npref x) uni B.npref x).card : ℝ))}
+
+open scoped Classical in
+lemma measurableSet_checkMiss (O : Oracle μ S) (populations : Finset J) (uni : J) (η₀ : ℝ)
+    (B : State) (e : ℝ) : MeasurableSet (checkMiss rule O populations uni η₀ B e) := by
+  classical
+  set Φ : Finset S → Finset S → Finset S → Ω → Prop := fun P C A ω =>
+    ¬ (((A.filter (fun p => (clusterOf rule O B.sc B.scd P C B.k ω).card = B.k - 1
+            ∧ missRej O η₀ B (clusterOf rule O B.sc B.scd P C B.k ω) p ω)).card : ℝ)
+          ≤ e * (A.card : ℝ)
+        ∧ ((A.filter (fun p => (clusterOf rule O B.sc B.scd P C B.k ω).card = B.k - 1
+            ∧ missAcc O η₀ B (clusterOf rule O B.sc B.scd P C B.k ω) p ω)).card : ℝ)
+          ≤ e * (A.card : ℝ)) with hΦ
+  have hR : ∀ (P C : Finset S) (A : Finset S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | (Disjoint P A ∧ A.card = B.npref ∧ 0 < A.card) ∧ Φ P C A (oracleNoise x)}
+      else ∅) := by
+    intro P C A
+    split_ifs with hone
+    · have hω : MeasurableSet {ω : Ω | Φ P C A ω} := by
+        refine measurableSet_of_fam (T := C.powerset)
+          (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd P C B.k ω hone))
+          (fun A₀ => measurableSet_clusterOf O B.sc B.scd P C B.k hone A₀)
+          (fun A₀ => {ω : Ω |
+            ¬ (((A.filter (fun p => A₀.card = B.k - 1 ∧ missRej O η₀ B A₀ p ω)).card : ℝ)
+                ≤ e * (A.card : ℝ)
+              ∧ ((A.filter (fun p => A₀.card = B.k - 1 ∧ missAcc O η₀ B A₀ p ω)).card : ℝ)
+                ≤ e * (A.card : ℝ))})
+          (fun A₀ => ?_)
+        have hd : MeasurableSet[noiseAlg O Set.univ] {ω | ((A.filter (fun p =>
+            A₀.card = B.k - 1 ∧ missRej O η₀ B A₀ p ω)).card : ℝ) ≤ e * (A.card : ℝ)} := by
+          refine measurableSet_filter_pred' O
+            (fun p ω => A₀.card = B.k - 1 ∧ missRej O η₀ B A₀ p ω)
+            (fun p _ => ?_) (fun U => ((U.card : ℝ) ≤ e * (A.card : ℝ)))
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using measurableSet_missRej O η₀ B A₀ p (U := Set.univ)
+              (fun v _ => Set.mem_univ _)
+          · simp [hg]
+        have hc : MeasurableSet[noiseAlg O Set.univ] {ω | ((A.filter (fun p =>
+            A₀.card = B.k - 1 ∧ missAcc O η₀ B A₀ p ω)).card : ℝ) ≤ e * (A.card : ℝ)} := by
+          refine measurableSet_filter_pred' O
+            (fun p ω => A₀.card = B.k - 1 ∧ missAcc O η₀ B A₀ p ω)
+            (fun p _ => ?_) (fun U => ((U.card : ℝ) ≤ e * (A.card : ℝ)))
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using measurableSet_missAcc O η₀ B A₀ p (U := Set.univ)
+              (fun v _ => Set.mem_univ _)
+          · simp [hg]
+        exact (noiseAlg_le O Set.univ _ (hd.inter hc)).compl
+      by_cases hdraw : Disjoint P A ∧ A.card = B.npref ∧ 0 < A.card
+      · have hset : {x : Run Ω S J | (Disjoint P A ∧ A.card = B.npref ∧ 0 < A.card)
+            ∧ Φ P C A (oracleNoise x)} = oracleNoise ⁻¹' {ω : Ω | Φ P C A ω} := by
+          ext x
+          exact ⟨fun h => h.2, fun h => ⟨hdraw, h⟩⟩
+        rw [hset]
+        exact measurable_nz hω
+      · have hempty : {x : Run Ω S J | (Disjoint P A ∧ A.card = B.npref ∧ 0 < A.card)
+            ∧ Φ P C A (oracleNoise x)} = (∅ : Set (Run Ω S J)) := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_and]
+          exact fun h => absurd h hdraw
+        rw [hempty]
+        exact MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : checkMiss rule O populations uni η₀ B e
+      = {x : Run Ω S J | x ∈ (fun P C A => if (1 : S) ∈ C then
+          {x : Run Ω S J | (Disjoint P A ∧ A.card = B.npref ∧ 0 < A.card)
+            ∧ Φ P C A (oracleNoise x)} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), checkMiss, hΦ,
+      ← clusterAt_eq_clusterOf O populations B x, and_assoc]
+  rw [hrw]
+  exact measurableSet_of_run_data_certSet populations uni B _ hR
+
+open scoped Classical in
+/-- `frac_selected_le` for both strong thresholds, lifted to the run. -/
+theorem measureReal_checkMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
+    (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre)
+    (hsuppSf : Dsf Sufᶜ = 0) (uni : J) (huni : uni ∈ populations) (η₀ : ℝ) (B : State)
+    (e Es : ℝ) (hEs0 : 0 ≤ Es) (hEse : Es ≤ e)
+    (hEs : ∀ (F : Finset S) (p : S), (1 : S) ∉ F → F.card = B.k - 1 →
+      μ.real {ω | missRej O η₀ B F p ω} ≤ Es ∧ μ.real {ω | missAcc O η₀ B F p ω} ≤ Es) :
+    (streamMeasure μ Pp Pc Dsf).real (checkMiss rule O populations uni η₀ B e)
+      ≤ 2 * Real.exp (-((B.npref : ℝ) * relRate e Es)) := by
+  classical
+  set R : ℝ := 2 * Real.exp (-((B.npref : ℝ) * relRate e Es)) with hR
+  have hR0 : 0 ≤ R := by rw [hR]; positivity
+  have hEnn : streamMeasure μ Pp Pc Dsf (checkMiss rule O populations uni η₀ B e)
+      ≤ ENNReal.ofReal R := by
+    refine streamMeasure_slice_le Pp Pc Dsf _
+      (measurableSet_checkMiss O populations uni η₀ B e) _ ?_
+    filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
+      ae_cert_mem_Pre Pp Pc Dsf Pre populations hsuppC, ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf]
+      with d hdP hdC hdS
+    set Pd : Finset S := populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
+    set Cd : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff) with hCd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
+    set Ad : Finset S := freshDraws Pd (fun i => d.2 uni i) B.npref with hAd
+    have hPx : ∀ ω : Ω, prefixesAt populations B.npref ((ω, d) : Run Ω S J) = Pd := fun ω => rfl
+    have hCx : ∀ ω : Ω, poolAt B.nsuff ((ω, d) : Run Ω S J) = Cd := fun ω => rfl
+    have hAx : ∀ ω : Ω, certOf (prefixesAt populations B.npref ((ω, d) : Run Ω S J)) uni B.npref
+        ((ω, d) : Run Ω S J) = Ad := fun ω => rfl
+    have hP : ∀ q ∈ Pd, q ∈ Pre :=
+      table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hdP
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, rfl⟩ := mem_freshDraws hp
+      exact hdC uni huni i
+    by_cases hdraw : Disjoint Pd Ad ∧ Ad.card = B.npref ∧ 0 < Ad.card
+    · obtain ⟨hdisj, hAdm, -⟩ := hdraw
+      set fam : Ω → Finset S :=
+        fun ω => clusterBy rule O.mq populations ((ω, d) : Run Ω S J) B with hfamdef
+      set T : Finset (Finset S) := (Cd.erase 1).powerset with hT
+      have hfamT : ∀ ω, fam ω ∈ T := fun ω => Finset.mem_powerset.2
+        (fun v hv => Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1,
+          hCx ω ▸ clusterAt_subset O populations B _ hv⟩)
+      have hT1 : ∀ t ∈ T, (1 : S) ∉ t := fun t ht h1 =>
+        (Finset.mem_erase.1 (Finset.mem_powerset.1 ht h1)).1 rfl
+      have hTC : ∀ t ∈ T, t ⊆ Cd := fun t ht =>
+        (Finset.mem_powerset.1 ht).trans (Finset.erase_subset _ _)
+      have hcongr : ∀ ω ω', (∀ w ∈ readSet Pd Cd, O.noise w ω = O.noise w ω') → fam ω = fam ω' :=
+        fun ω ω' h => clusterAt_congr O populations B d (by rw [hPx ω, hCx ω]; exact h)
+      have h1 := frac_selected_le hflat O Pd Cd Ad hP hV hA hdisj T ∅
+        (Finset.mem_powerset.2 (Finset.empty_subset _)) hTC fam hfamT hcongr
+        (fun A₀ p ω => A₀.card = B.k - 1 ∧ missRej O η₀ B A₀ p ω)
+        (fun A₀ p U hU => by
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using measurableSet_missRej O η₀ B A₀ p hU
+          · simp [hg])
+        Es e hEs0 hEse (fun p _ A₀ hA₀ => by
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using (hEs A₀ p (hT1 A₀ hA₀) hg).1
+          · simpa [hg] using hEs0)
+      have h2 := frac_selected_le hflat O Pd Cd Ad hP hV hA hdisj T ∅
+        (Finset.mem_powerset.2 (Finset.empty_subset _)) hTC fam hfamT hcongr
+        (fun A₀ p ω => A₀.card = B.k - 1 ∧ missAcc O η₀ B A₀ p ω)
+        (fun A₀ p U hU => by
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using measurableSet_missAcc O η₀ B A₀ p hU
+          · simp [hg])
+        Es e hEs0 hEse (fun p _ A₀ hA₀ => by
+          by_cases hg : A₀.card = B.k - 1
+          · simpa [hg] using (hEs A₀ p (hT1 A₀ hA₀) hg).2
+          · simpa [hg] using hEs0)
+      have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ checkMiss rule O populations uni η₀ B e}
+          ⊆ {ω : Ω | e * (Ad.card : ℝ) < ((Ad.filter (fun p =>
+                (fam ω).card = B.k - 1 ∧ missRej O η₀ B (fam ω) p ω)).card : ℝ)}
+            ∪ {ω : Ω | e * (Ad.card : ℝ) < ((Ad.filter (fun p =>
+                (fam ω).card = B.k - 1 ∧ missAcc O η₀ B (fam ω) p ω)).card : ℝ)} := by
+        rintro ω ⟨-, -, -, hbad⟩
+        rw [hAx ω] at hbad
+        simp only [Set.mem_union, Set.mem_setOf_eq]
+        by_contra hc
+        push_neg at hc
+        exact hbad hc
+      have hcardR : (Ad.card : ℝ) = (B.npref : ℝ) := by exact_mod_cast hAdm
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal ((measureReal_union_le _ _).trans ?_)
+      rw [hR, ← hcardR, two_mul]
+      convert add_le_add h1 h2
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J)
+          ∈ checkMiss rule O populations uni η₀ B e} = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, h2, h3, -⟩
+        rw [hAx ω, hPx ω] at h1
+        rw [hAx ω] at h2 h3
+        exact hdraw ⟨h1, h2, h3⟩
+      simp [hsec]
+  rw [measureReal_def]
+  calc (streamMeasure μ Pp Pc Dsf (checkMiss rule O populations uni η₀ B e)).toReal
+      ≤ (ENNReal.ofReal R).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = R := ENNReal.toReal_ofReal hR0
+
 end OrthoDFA
