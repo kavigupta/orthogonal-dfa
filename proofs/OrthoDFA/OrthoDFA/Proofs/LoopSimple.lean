@@ -28,7 +28,7 @@ def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
 /-- A bound on the prefix count: the populations' group at the count rule's scale `ι`, the rest at
 `budgetScale`. -/
 def capRB (η₀ ι εcov α δ pAP cLog Jm : ℝ) : ℝ :=
-  2 ^ 20 * Jm * Real.log (128 * (capPB η₀ ι εcov δ pAP cLog Jm + 1) / δ)
+  2 ^ 22 * Jm * Real.log (128 * (capPB η₀ ι εcov δ pAP cLog Jm + 1) / δ)
       / ((1 / 2 - η₀) ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((Jm + 2) * capPB η₀ ι εcov δ pAP cLog Jm
       / (δ / 2 * α * pAP * budgetScale η₀ ι εcov)) / budgetScale η₀ ι εcov ^ 2
@@ -260,7 +260,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
-    let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
+    let RB : ℝ := 2 ^ 22 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))

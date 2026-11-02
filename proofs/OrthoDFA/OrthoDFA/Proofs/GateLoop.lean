@@ -2815,9 +2815,9 @@ lemma named_share_le {s β εu mn Δ w f sc a cb L m X : ℝ} (hs : 0 < s) (hs1 
     nlinarith
 
 set_option maxHeartbeats 1000000 in
-/-- A class's share at the uniform pool, in the reals: Markov at `σ ≥ (2/5)·sig²` of the table
+/-- A class's share at the uniform pool, in the reals: Markov at `σ ≥ sig²/5` of the table
 budget `Δ`, the redraws' `c·w` and the understatement `Δ`, against the FNR test's share and, at a
-charge of at most `5/(2 sig²)·σ` and `1/a²`, the gate's. -/
+charge of at most `5/sig²·σ` and `1/a²`, the gate's. -/
 lemma uni_share_le {s β εu mn Δ c w σ sc a : ℝ} (hs : 0 < s) (hs1 : s ≤ 1 / 2) (hβ : 0 < β)
     (hβu : β ≤ εu) (hβm : β ≤ mn) (hΔ : Δ = s ^ 2 * β / 512) (hc0 : 0 ≤ c)
     (hcm : c ≤ s ^ 2 * mn / 1024) (hcu : c ≤ s * εu / 128)

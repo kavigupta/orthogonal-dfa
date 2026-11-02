@@ -269,9 +269,9 @@ lemma count_le {Q ι τ Θι Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0
     (hinvι : 1 / ι ≤ Θι * ℓ) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ PBf)
     (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP) (hp1 : pAP ≤ 1) :
-    2 ^ 20 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
+    2 ^ 22 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
         + 2 ^ 27 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
-      ≤ 2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (PBf + 1) / δ') / s ^ 4
+      ≤ 2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (PBf + 1) / δ') / s ^ 4
         + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * Real.log (16 * (Q + 4) * PBf * Θ * ℓ / (δ' ^ 2 * pAP)) := by
   refine add_le_add ?_ ?_
   · have hl0 : 0 ≤ Real.log (128 * (PB + 1) / δ') :=
@@ -281,11 +281,11 @@ lemma count_le {Q ι τ Θι Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0
     have hinv2 : 1 / ι ^ 2 ≤ Θι ^ 2 * ℓ ^ 2 := by
       rw [show 1 / ι ^ 2 = (1 / ι) ^ 2 by ring, show Θι ^ 2 * ℓ ^ 2 = (Θι * ℓ) ^ 2 by ring]
       exact pow_le_pow_left₀ (by positivity) hinvι 2
-    have e : 2 ^ 20 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
-        = 2 ^ 20 * (Q + 2) / s ^ 4 * (Real.log (128 * (PB + 1) / δ') * (1 / ι ^ 2)) := by
+    have e : 2 ^ 22 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
+        = 2 ^ 22 * (Q + 2) / s ^ 4 * (Real.log (128 * (PB + 1) / δ') * (1 / ι ^ 2)) := by
       field_simp
-    have e2 : 2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (PBf + 1) / δ') / s ^ 4
-        = 2 ^ 20 * (Q + 2) / s ^ 4 * (Real.log (128 * (PBf + 1) / δ') * (Θι ^ 2 * ℓ ^ 2)) := by
+    have e2 : 2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (PBf + 1) / δ') / s ^ 4
+        = 2 ^ 22 * (Q + 2) / s ^ 4 * (Real.log (128 * (PBf + 1) / δ') * (Θι ^ 2 * ℓ ^ 2)) := by
       ring
     rw [e, e2]
     have := hl0.trans hl
@@ -375,11 +375,11 @@ lemma rb_le {Q ι τ Θι Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0 :
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ P₀ * ℓ)
     (hP₀ : 1 ≤ P₀) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1) :
-    0 ≤ 2 ^ 20 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
+    0 ≤ 2 ^ 22 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
         + 2 ^ 27 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
-      ∧ 2 ^ 20 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
+      ∧ 2 ^ 22 * (Q + 2) * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
         + 2 ^ 27 * Real.log ((Q + 2 + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
-      ≤ (2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
+      ≤ (2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
           + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2))
         * (ℓ ^ 2 * (1 + Real.log ℓ)) := by
   refine ⟨?_, (count_le hQ hι0 hinvι hτ0 hτ1 hinvτ hPB1 hPB hδ'0 hδ'1 hs0 hp hp1).trans ?_⟩
@@ -427,9 +427,9 @@ lemma rb_le {Q ι τ Θι Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0 :
     push_cast
     have := mul_nonneg hY hlℓ
     nlinarith
-  calc 2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P₀ * ℓ + 1) / δ') / s ^ 4
+  calc 2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P₀ * ℓ + 1) / δ') / s ^ 4
         + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * Real.log (16 * (Q + 4) * (P₀ * ℓ) * Θ * ℓ / (δ' ^ 2 * pAP))
-      ≤ 2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * ((Real.log y₁ + 1) * (1 + Real.log ℓ)) / s ^ 4
+      ≤ 2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * ((Real.log y₁ + 1) * (1 + Real.log ℓ)) / s ^ 4
         + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * ((Real.log y + 2) * (1 + Real.log ℓ)) := by
         gcongr
     _ = _ := by ring
@@ -926,7 +926,7 @@ def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let Θι := loopΘι Q Ae c ξ
   let Θ := loopΘ Q Ae c ξ η₀
   let P := loopPool ℓ Q A Ae δ c ξ pAP η₀
-  2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P + 1) / δ') / (1 / 2 - η₀) ^ 4
+  2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P + 1) / δ') / (1 / 2 - η₀) ^ 4
     + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * Real.log (16 * (Q + 4) * P * Θ * ℓ / (δ' ^ 2 * pAP))
 
 /-- Bounds the probe budget `B₃` at `ℓ = L₁ + 1`. -/
@@ -949,7 +949,7 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
   let W₀ : ℝ := loopW₀ Q A δ
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s
       + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
-  let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
+  let R₀ : ℝ := 2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
   let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θa * (R₀ + 1) / s
     + 2 ^ 40 * Θι ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ' + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
@@ -1025,7 +1025,7 @@ lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 �
   have hR₀ : 0 ≤ R₀ := by
     have := log_count_nonneg hQ hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
     have : 0 ≤ Real.log (256 * P₀ / δ') := Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
-    show 0 ≤ 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
+    show 0 ≤ 2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
       + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
     positivity
   have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith)
