@@ -666,7 +666,7 @@ omit [Fintype J] in
 /-- `famHoeff` cast, with its two tails' terms. -/
 lemma famHoeff_eq (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
     (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
-      = 2 * (max (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+      = 2 * (max (⌈2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
           (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
         + (⌈2 / voteSlack η₀⌉₊ : ℝ) + 1) := by
   rw [famHoeff]; push_cast; ring
@@ -675,19 +675,39 @@ omit [Fintype J] in
 /-- What `famHoeff` gives each of its terms: half the family clears the misfire term and the
 seed's, and separately the crossing term and the seed's. -/
 lemma famHoeff_terms (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
-    Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 + 2 / voteSlack η₀ + 1
+    2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 + 2 / voteSlack η₀ + 1
         ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2
       ∧ (max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2 + 2 / voteSlack η₀ + 1
         ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
   rw [famHoeff_eq]
-  have h1 := Nat.le_ceil (Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2)
+  have h1 := Nat.le_ceil (2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2)
   have h2 := Nat.le_ceil ((max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2)
   have h3 := Nat.le_ceil (2 / voteSlack η₀)
-  have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m1 := le_max_left
+    (⌈2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-  have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m2 := le_max_right
+    (⌈2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
   constructor <;> linarith
+
+omit [Fintype J] in
+/-- The misfire term of `famHoeff`, at its single weight. -/
+lemma famHoeff_terms_one (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
+    Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 + 2 / voteSlack η₀ + 1
+      ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
+  obtain ⟨h1, h2⟩ := famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
+  set l := Real.log (2 / cutBudget η₀ indecisionLimit εcov)
+  have hv : 0 ≤ voteSlack η₀ ^ 2 := sq_nonneg _
+  rcases le_or_gt 0 l with hl | hl
+  · have : l / voteSlack η₀ ^ 2 ≤ 2 * l / voteSlack η₀ ^ 2 :=
+      div_le_div_of_nonneg_right (by linarith) hv
+    linarith
+  · have : l / voteSlack η₀ ^ 2 ≤ 0 := div_nonpos_of_nonpos_of_nonneg hl.le hv
+    have : 0 ≤ (max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2 :=
+      div_nonneg (by linarith [le_max_right (Real.log (1 / crossLimit)) 0]) hv
+    linarith
 
 /-- To put `exp (-a)` under `ε` it is enough that `a` clears `log (1/ε)`. -/
 lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) ≤ a) :
@@ -707,7 +727,7 @@ lemma famHoeff_seed (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsi
     rw [famHoeff_eq]
     have := Nat.le_ceil (2 / voteSlack η₀)
     have : (0 : ℝ) ≤ max
-        (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+        (⌈2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
         (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ) :=
       le_trans (Nat.cast_nonneg _) (le_max_left _ _)
     linarith
@@ -735,8 +755,8 @@ lemma famHoeff_tail_seed (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
       ≤ cutBudget η₀ indecisionLimit εcov / 2 := by
   have hs := voteSlack_pos η₀ hsig
   have hcut := cutBudget_pos η₀ hsig hε hind
-  have hT := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
-    η₀ populations εcov δ).1
+  have hT := famHoeff_terms_one (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
   set κ : ℝ := (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) with hκdef
   set v : ℝ := voteSlack η₀ with hvdef
   have hκ0 : 0 ≤ κ := Nat.cast_nonneg _
@@ -867,12 +887,12 @@ lemma famHoeff_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
   omega
 
 omit [Fintype J] in
-/-- `famHoeff` is at least 32 and its band spans five counts: the cut budget is under `1/8`, and
+/-- `famHoeff` is at least 32 and its band spans eight counts: the cut budget is under `1/8`, and
 the vote's slack under `2/5`. -/
 lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
     (32 : ℝ) ≤ famHoeff η₀ populations indecisionLimit εcov δ crossLimit
-      ∧ 5 ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+      ∧ 8 ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   have hcutpos := cutBudget_pos η₀ hsig hε hind
   have hcut8 : cutBudget η₀ indecisionLimit εcov ≤ 1 / 8 := by
     have := (cutBudget_le η₀ indecisionLimit εcov).2.1
@@ -885,8 +905,8 @@ lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 
     linarith only [h, Real.log_two_gt_d9]
   have hv0 := voteSlack_pos η₀ hsig
   have hv : voteSlack η₀ ≤ 2 / 5 := by rw [voteSlack, sig]; linarith
-  have hT := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
-    η₀ populations εcov δ).1
+  have hT := famHoeff_terms_one (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
   set κ : ℝ := (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
   have ha : 17 ≤ Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2 := by
     rw [le_div_iff₀ (by positivity)]
@@ -1211,10 +1231,10 @@ lemma famCount_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 
   · rw [h]; exact (famHoeff_ge η₀ populations hη0 hsig hε hind).1
 
 omit [Fintype J] in
-/-- A band at least five counts wide, whatever `crossLimit`. -/
+/-- A band at least eight counts wide, whatever `crossLimit`. -/
 lemma famCount_wide (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
-    5 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+    8 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
   · exact h.2.2.1
@@ -1227,13 +1247,34 @@ lemma famCount_misfire (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (
     (∀ m ∈ centres η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit),
       misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) m
         ≤ cutBudget η₀ indecisionLimit εcov / 2)
-      ∧ 5 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+      ∧ 8 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   refine ⟨fun m hm => ?_, famCount_wide η₀ populations hη0 hsig hε hind⟩
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
-  · exact (h.2.2.2 m hm).1
+  · exact (h.2.2.2.2 m hm).1
   · rw [h] at hm ⊢
     exact famHoeff_misfire η₀ populations hη0 hsig hε hind hm
+
+omit [Fintype J] in
+/-- The family is large enough that a vote `2sig/5` from its mean misses at most `(cut/2)²`. -/
+lemma famCount_hoeff (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
+    2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov)
+      ≤ 8 * (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * sig η₀ ^ 2 / 25 := by
+  rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
+    populations εcov δ with h | h
+  · exact h.2.2.2.1
+  · rw [h]
+    have hT := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      η₀ populations εcov δ).1
+    have hv := voteSlack_pos η₀ hsig
+    have hv2 : 0 < voteSlack η₀ ^ 2 := by positivity
+    have h0 : 0 ≤ 2 / voteSlack η₀ := by positivity
+    have h1 : 2 * Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2
+        ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by linarith
+    rw [div_le_iff₀ hv2] at h1
+    have e : voteSlack η₀ ^ 2 = 16 * sig η₀ ^ 2 / 25 := by rw [voteSlack]; ring
+    rw [e] at h1
+    linarith
 
 omit [Fintype J] in
 /-- The crossing tail at the family, at any centre, and a band at least one count wide. -/
@@ -1246,7 +1287,7 @@ lemma famCount_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (h�
   refine ⟨fun m hm => ?_, ?_⟩
   · rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
       populations εcov δ with h | h
-    · exact (h.2.2.2 m hm).2.1
+    · exact (h.2.2.2.2 m hm).2.1
     · rw [h] at hm ⊢
       exact famHoeff_crossTail η₀ populations hη0 hsig hζ hm
   · rw [bandHalf]
@@ -1270,7 +1311,7 @@ lemma famCount_kappa (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (h�
   intro m hm
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
-  · exact (h.2.2.2 m hm).2.2
+  · exact (h.2.2.2.2 m hm).2.2
   · rw [h] at hm ⊢
     exact famHoeff_bandChecked η₀ populations hη0 hsig hζ hε hind hm
 

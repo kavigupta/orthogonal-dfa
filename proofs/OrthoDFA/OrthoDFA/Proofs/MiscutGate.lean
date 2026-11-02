@@ -2510,4 +2510,31 @@ theorem measureReal_fitsBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Ora
       ≤ (ENNReal.ofReal (2 * a)).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = 2 * a := ENNReal.toReal_ofReal (by positivity)
 
+lemma centreFits_congr (O : Oracle μ S) (η₀ a : ℝ) (B : State) (F A : Finset S) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet A (insert 1 F), (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    centreFits O.mq η₀ a B F A ω → centreFits O.mq η₀ a B F A ω' := by
+  classical
+  have hAC : ∀ p ∈ A, ∀ u ∈ insert 1 F, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) :=
+    fun p hp u hu => h _ (mem_readSet hp hu)
+  have hA : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by
+    simpa using hAC p hp 1 (Finset.mem_insert_self _ _)
+  have hvc : ∀ p ∈ A, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+    voteCount_congr O F p (fun u hu => hAC p hp u (Finset.mem_insert_of_mem hu))
+  have hrej : strongReject O.mq η₀ B F A ω = strongReject O.mq η₀ B F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  have hacc : strongAccept O.mq η₀ B F A ω = strongAccept O.mq η₀ B F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  have hag : ∀ (b : Bool) (X : Finset S), X ⊆ A → againstOn O.mq b X ω = againstOn O.mq b X ω' :=
+    fun b X hX => congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [hA p (hX hp)]))
+  have hrb : ∀ (b : Bool) (X : Finset S), X ⊆ A → readBound O.mq b X a ω = readBound O.mq b X a ω' :=
+    fun b X hX => by unfold readBound; rw [hag b X hX]
+  unfold centreFits
+  rw [hrej, hacc, hrb false _ (by rw [← hrej]; exact Finset.filter_subset _ _),
+    hrb true _ (by rw [← hacc]; exact Finset.filter_subset _ _)]
+  exact id
+
+lemma measurableSet_centreFits (O : Oracle μ S) (η₀ a : ℝ) (B : State) (F A : Finset S) :
+    MeasurableSet {ω | centreFits O.mq η₀ a B F A ω} :=
+  measurableSet_of_readCongr O _ _ (fun ω ω' h => centreFits_congr O η₀ a B F A h)
+
 end OrthoDFA

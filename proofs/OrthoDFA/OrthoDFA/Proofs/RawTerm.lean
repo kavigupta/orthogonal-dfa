@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.RawEvents
+import OrthoDFA.Proofs.CentreTerm
 
 /-!
 # The loop returns, whatever the named populations are

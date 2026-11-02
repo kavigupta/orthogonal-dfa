@@ -81,7 +81,8 @@ noncomputable def shiftBudget (η indecisionLimit εcov : ℝ) : ℝ :=
 `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre, a flipping `clsFrac` of the
 family spends all but `voteSlack` of that, and the band's far edge takes half of the rest.  That
 rate only has to sit under half the cut budget: the misfires on the certification sample are
-independent given the family, so their count concentrates below the budget.
+independent given the family, so their count concentrates below the budget.  It sits under the
+square of that, which is what the centre check's strong thresholds ask of a vote `sig` from them.
 
 The band is about `κ·voteSlack` wide.  Its check is read against a binomial whose median is the
 band's centre, whose mean Hoeffding places within a quarter of the band of it, so each edge is
@@ -95,7 +96,7 @@ the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round t
 `voteSlack` has left to pay with. -/
 noncomputable def famHoeff (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
-  2 * (max ⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
+  2 * (max ⌈2 * Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
       ⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η ^ 2⌉₊
     + ⌈2 / voteSlack η⌉₊ + 1)
 
@@ -137,14 +138,17 @@ def BandChecked (crossLimit : ℝ) (κ lo hi : ℕ) : Prop :=
     ∧ bandKappa κ q lo c (hi + 1) ^ 4 ≤ crossLimit
 
 /-- A family of `κ` the exact tails allow, at every centre.  The tails are binomials, which bound
-a vote's reads whatever their rates (`BitSumTails`).  The band spans at least five counts, which
-that bound asks of it, and the family is at least 32 strong, which keeps the pool at 64 for the
-budget's bounds.
+a vote's reads whatever their rates (`BitSumTails`).  The band spans at least eight counts: five
+for that bound, the rest so that the centre check's strong thresholds, `sig` past the centre,
+are ten counts clear of it.  The family is at least 32 strong, which keeps the pool at 64 for
+the budget's bounds.
 
-The last is for the loop's band check, at `ζ = crossLimit^(1/4)`: whatever the read's two rates,
+The fourth puts the centre check's misses, `exp(−8κ·sig²/25)`, under `(cut/2)²`.  The last is
+for the loop's band check, at `ζ = crossLimit^(1/4)`: whatever the read's two rates,
 it is on its rarer decided side at most `ζ` times as often as undecided (`BandKappaBound`). -/
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
-  Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
+  Even κ ∧ 32 ≤ κ ∧ 8 ≤ (κ : ℝ) * voteSlack η
+    ∧ 2 * Real.log (2 / cut) ≤ 8 * κ * sig η ^ 2 / 25
     ∧ ∀ m ∈ centres η κ, misfireTail η κ m ≤ cut / 2 ∧ crossTail η κ m ≤ crossLimit
       ∧ BandChecked crossLimit κ (loAt η κ m) (hiAt η κ m)
 
