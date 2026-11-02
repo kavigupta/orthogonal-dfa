@@ -33,7 +33,7 @@ theorem clustering_correct : ClusteringCorrect := by
   set Bad := streams H uni ⁻¹' ⋃ B : {B : State // B ∈ st},
       (retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val
         ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := nearestClusterer) O populations uni D εcov εs
-          (rejFrac η₀ indecisionLimit εcov εs) indecisionLimit y B.val j}) with hBad
+          (certFrac indecisionLimit εs) indecisionLimit y B.val j}) with hBad
   set NoRet := {x : Draws Ω S J | ∀ B : {B : State // B ∈ st},
       streams H uni x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
         B.val}
@@ -45,7 +45,7 @@ theorem clustering_correct : ClusteringCorrect := by
       ∀ B : {B : State // B ∈ st},
         streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
           B.val →
-        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov εs
+        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise

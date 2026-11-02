@@ -262,10 +262,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
-    let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
+    let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ * (Q + 3) ^ ((Fintype.card σ + 2)
       * Fintype.card α)
@@ -407,10 +407,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [one_lt_div hδ'0]
     nlinarith [mul_le_mul hJ3 hX3 (by norm_num) (by linarith)]
   have hcap0 : 0 < cap := by
-    show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
+    show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     refine lt_min (lt_min (lt_min (by positivity) (div_pos (by positivity) (by positivity)))
       (by positivity)) (by positivity)
@@ -433,14 +433,21 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       push_cast at h1
       refine h1.trans (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hpos) ?_)
       linarith
-  have hq1a : 2 ^ 18 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 4) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
+  have hq1a : 2 ^ 20 * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
       ≤ (1 / 2 - η₀) * min (εcov / 2 * (1 / 2 - η₀)) ι := by
+    change _ ≤ s * min (εcov / 2 * s) ι
+    exact hmul (b := 2 ^ 20 * (RB + 1)) (by positivity) (by gcongr; linarith)
+      (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
+  have hJ2 : J + 3 ≤ J ^ 2 := by
+    have : 3 ≤ J := by show 3 ≤ Q + 2; linarith
+    nlinarith
+  have hq1c : 2 ^ 24 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 4) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
+      ≤ min (εcov / 2) ι := by
     have hK4 : (((Fintype.card σ + 1 : ℕ) : ℝ)) + 4 = J + 3 := by
       push_cast; show _ = (Fintype.card σ : ℝ) + 2 + 3; ring
-    rw [hK4]
-    change _ ≤ s * min (εcov / 2 * s) ι
-    exact hmul (b := 2 ^ 18 * (J + 3) * (RB + 1)) (by positivity) (by gcongr; linarith)
-      (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
+    rw [hK4, min_eq_right (by linarith : ι ≤ εcov / 2)]
+    exact hmul (b := 2 ^ 24 * J ^ 2 * (RB + 1)) (by positivity) (by gcongr; linarith)
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
   have hl0 : (0 : ℝ) ≤ ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := Nat.cast_nonneg _
   have hhash : 2 ^ 28 * Real.log (128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap
       ≤ ι ^ 2 := by
@@ -478,11 +485,13 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       * ((⌊RB⌋₊ : ℕ) : ℝ) * cap ≤ ι / 2 := by
     rw [hK1]
     have h := hmul (x := 12 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * J * ((⌊RB⌋₊ : ℕ) : ℝ)) (a := ι)
-      (b := 12 * J ^ 2 * (RB + 1)) (by positivity)
+      (b := 2 ^ 24 * J ^ 2 * (RB + 1)) (by positivity)
       (by
+        have : 0 ≤ J ^ 2 * (RB + 1) := by positivity
         calc 12 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * J * ((⌊RB⌋₊ : ℕ) : ℝ)
             ≤ 12 * J * J * (RB + 1) := by gcongr; linarith
-          _ = 12 * J ^ 2 * (RB + 1) := by ring)
+          _ = 12 * (J ^ 2 * (RB + 1)) := by ring
+          _ ≤ 2 ^ 24 * J ^ 2 * (RB + 1) := by linarith)
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
     linarith only [h]
   have hqms : (((Fintype.card σ + 1 : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) * cap ≤ pAP / 2 := by
@@ -626,7 +635,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (fun pops hpops => by
       rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).2)
-    hq1a hq1b hq2a hq2b hq3 hqm hqms hk0
+    hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩

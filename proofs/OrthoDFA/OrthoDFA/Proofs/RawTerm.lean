@@ -93,12 +93,11 @@ theorem named_retAtK (O : Oracle μ S) (populations : Finset J) (uni : J)
     (hscreen : B.scd ≤ B.sc) (ha : a ≤ (B.nsuff : ℝ) * (pAP - tap) - rs - 1)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hΔ : 0 < Δ) (hL : 0 ≤ L)
     (hθ : 0 ≤ θ) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 0 < B.k) (hpool : B.k < B.nsuff)
-    (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
+    (hgate : 4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
-          + ((N : ℝ) - B.npref)
-        ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations B) N))
+        ≤ B.npref * min εcov (1 / 2)
+          - hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
     (hszG : (allHarvest H).card + G ≤ B.npref)
     (hNF : ∀ b, namedQ O η₀ Δ L θ (allHarvest H).card G B.npref b ≤ lF * B.npref)
     (hNG : ∀ b, sideCharge O η₀ (!b) * namedQ O η₀ Δ L θ (allHarvest H).card G B.npref b
@@ -307,7 +306,7 @@ theorem named_retAtK (O : Oracle μ S) (populations : Finset J) (uni : J)
     unfold namedQ
     linarith
   have hret := retAt_of_light O populations uni huni j B y (by omega) hηle hη₀ εcov α hα0 hα1
-    l lF lG lmis t (fun b => namedQ O η₀ Δ L θ (allHarvest H).card G N b) r rs kmin kmax hkmin
+    l lF lG lmis t (fun b => namedQ O η₀ Δ L θ (allHarvest H).card G N b) rs kmin kmax hkmin
     hlF hlmis hlohi ht hkpos hpool hgate hsize hCn hM hNF
     (fun b => (mul_comm _ _).trans_le (hNG b)) h8 h10 h11
   exact ⟨hret.2.1, hret.2.2⟩
@@ -429,12 +428,11 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hE : 0 ≤ E) (hEl : E ≤ l) (hElm : E ≤ lmis)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hΔ : 0 < Δ) (hL : 0 ≤ L)
     (hθ : 0 < θ) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t) (hkpos : 2 ≤ B.k) (hpool : B.k < B.nsuff)
-    (hgate : ∀ N : ℕ, B.npref ≤ N → N ≤ B.npref + r →
-      4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
+    (hgate : 4 * (2 * lG + lmis / gateA η₀ ^ 2) * B.npref
           + 4 * ((gateDevT η₀ + gateDevU η₀) * t
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
-          + ((N : ℝ) - B.npref)
-        ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations B) N))
+        ≤ B.npref * min εcov (1 / 2)
+          - hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
     (hszG : (allHarvest H).card + G ≤ B.npref)
     (hNF : ∀ b, namedQ O η₀ Δ L θ (allHarvest H).card G B.npref b ≤ lF * B.npref)
     (hNG : ∀ b, sideCharge O η₀ (!b) * namedQ O η₀ Δ L θ (allHarvest H).card G B.npref b
@@ -584,8 +582,9 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     O populations Dsf indecisionLimit εcov α δ ρ (collisionMass Dsf) pAP hsig hpop hηle hη₀
     hεcov hε1 hεs hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap
     hρsf
-  obtain ⟨tap, q, E, Δ, g, u, x, a, e1, e2, lF, lG, lmis, c, t, L, θ, r, rs, G, hmpos, hkpos,
-    hindLim', hind1', htap, hΔ, hg, hpAP0, hlmis, hc0, hr, hpAPBound', hρsf', hUF, hUG, hL, hθ,
+  obtain ⟨tap, q, E, Δ, g, u, x, a, e1, e2, lF, lG, lmis, c, cC, t, L, θ, r, rC, rs, G, hmpos,
+    hkpos, hindLim', hind1', htap, hΔ, hg, hpAP0, hlmis, hc0, hr, hrC, hpAPBound', hρsf',
+    hUF, hUG, hL, hθ,
     hN2, hszG, hNF, hNG, hlF, hscreen, hu, hx, hsignal, ha, hκa, hmass, hE1, hE2,
     hcount, hpool, hq0, hq1, hqp, hhiUp, hloUp, hhiLo, hloLo, hhiκ, hlohi, ht, hgate, hE0,
     hElm, hEl, hEa, hEb, hEc, hEd, hbudget⟩ := hpass
@@ -647,22 +646,24 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
           * (Δ + c * clsShift O false + g)} with hDf
   set Ht : Set (Run Ω S J) := heavyHits nearestClusterer O populations (D uni) uni B
-    (clsBadP O η₀ true) (clsQ O η₀ Δ c g true) (clsQ O η₀ Δ c g true / 32) with hHt
+    (B.npref + rC) (clsBadP O η₀ true) (clsQ O η₀ Δ c g true) (clsQ O η₀ Δ c g true / 32)
+    with hHt
   set Hf : Set (Run Ω S J) := heavyHits nearestClusterer O populations (D uni) uni B
-    (clsBadP O η₀ false) (clsQ O η₀ Δ c g false) (clsQ O η₀ Δ c g false / 32) with hHf
-  set U : Set (Run Ω S J) := {x | ¬ certGood populations uni B.npref r x}
+    (B.npref + rC) (clsBadP O η₀ false) (clsQ O η₀ Δ c g false) (clsQ O η₀ Δ c g false / 32)
+    with hHf
+  set U : Set (Run Ω S J) := {x | ¬ certGood populations uni B.npref rC x}
       ∪ stalled nearestClusterer O populations B κ κ
       ∪ ((Dt \ N) ∪ (Df \ N)) ∪ (Ht ∪ Hf)
       ∪ lightMiss nearestClusterer O populations uni B l lmis (fracAt O η₀) κ κ
       ∪ sidesDead nearestClusterer O populations uni B B.npref t
       ∪ {x | ¬ poolGood B.nsuff rs x} with hU
   have hUm : MeasurableSet U :=
-    ((((((measurableSet_notCertGood populations uni B.npref r).union
+    ((((((measurableSet_notCertGood populations uni B.npref rC).union
       (measurableSet_stalled O populations B κ κ)).union
       (((measurableSet_dirty O populations B (D uni) (clsW O true) _).diff hNm).union
         ((measurableSet_dirty O populations B (D uni) (clsW O false) _).diff hNm))).union
-      ((measurableSet_heavyHits O populations (D uni) uni B _ _ _).union
-        (measurableSet_heavyHits O populations (D uni) uni B _ _ _))).union
+      ((measurableSet_heavyHits O populations (D uni) uni B _ _ _ _).union
+        (measurableSet_heavyHits O populations (D uni) uni B _ _ _ _))).union
       (measurableSet_lightMiss O populations uni B l lmis (fracAt O η₀) κ κ)).union
       (measurableSet_sidesDead O populations uni B B.npref t)).union
       (measurableSet_notPoolGood B.nsuff rs)
@@ -672,8 +673,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     have hx' : Y x ∉ retAt nearestClusterer O populations uni η₀ indecisionLimit εcov α B uni :=
       fun h => hx (retAt_subset_retAtK O populations uni η₀ indecisionLimit εcov α B uni h)
     have h := notRetAt_subset (rule := nearestClusterer) O populations uni huni uni (D uni) B
-      hmpos hηle hη₀ εcov α hαpos (by linarith) l lF lG lmis Δ c g t r rs κ κ
-      (by omega) hlF hlmis hΔ.le hc0 hg.le hr hUF hUG hlohi ht (by omega) hpool hgate hx'
+      hmpos hηle hη₀ εcov α hαpos (by linarith) l lF lG lmis Δ c cC g t rC rs κ κ
+      (by omega) hlF hlmis hΔ.le hc0 hg.le hrC hUF hUG hlohi ht (by omega) hpool hgate hx'
     simp only [Set.mem_union, Set.mem_preimage] at h ⊢
     rcases h with ((((((h | h) | (h | h)) | (h | h)) | h) | h) | h)
     · exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inl (Or.inl h)))))
@@ -687,18 +688,18 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     · exact Or.inr h
   have huniB : ν.real ({x | Y x ∉ retAtK nearestClusterer O populations uni η₀ indecisionLimit
         εcov α B uni} \ Y ⁻¹' N)
-      ≤ roundFail populations l lmis (g / 1056) E L tap pAP ρ (collisionMass Dsf) t r rs B := by
+      ≤ roundFail populations l lmis (g / 1056) E L tap pAP ρ (collisionMass Dsf) t r rC rs B := by
     refine le_trans (measureReal_mono hsubU (measure_ne_top _ _)) ?_
     refine runMeasure_streams_le H uni D Dsf U hUm (fun g' => ?_)
     set Pp := sideLawT H uni D g'
     set Pc := sideLawC H uni D g'
-    have hcertB : (streamMeasure μ Pp Pc Dsf).real {x | ¬ certGood populations uni B.npref r x}
-        ≤ rejTail (2 * B.npref + r)
-          (((populations.card * B.npref + (2 * B.npref + r) : ℕ) : ℝ) * ρ) r :=
+    have hcertB : (streamMeasure μ Pp Pc Dsf).real {x | ¬ certGood populations uni B.npref rC x}
+        ≤ rejTail (2 * B.npref + rC)
+          (((populations.card * B.npref + (2 * B.npref + rC) : ℕ) : ℝ) * ρ) rC :=
       le_trans (measureReal_mono (fun x hx h2 => hx (certGood_of_certGood2 populations uni
-          B.npref r x h2)) (measure_ne_top _ _))
+          B.npref rC x h2)) (measure_ne_top _ _))
         (measureReal_certBad2_le Pp Pc Dsf populations uni (D uni) (sideLawC_uni H uni D g')
-          B.npref r ρ hρu)
+          B.npref rC ρ hρu)
     have hstallB := measureReal_stalled_nearest_le O populations Pp Pc Dsf B (by omega) hscreen
       hpool.le (collisionMass Dsf) rs hρsf' hρsf0
     have hdirty : ∀ b, (streamMeasure μ Pp Pc Dsf).real ({x : Run Ω S J |
@@ -739,13 +740,14 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       rw [le_div_iff₀ hσ]
       nlinarith [mul_nonneg hc0 hw0]
     have hheavy : ∀ b, (streamMeasure μ Pp Pc Dsf).real (heavyHits nearestClusterer O populations
-        (D uni) uni B (clsBadP O η₀ b) (clsQ O η₀ Δ c g b) (clsQ O η₀ Δ c g b / 32))
+        (D uni) uni B (B.npref + rC) (clsBadP O η₀ b) (clsQ O η₀ Δ c g b)
+          (clsQ O η₀ Δ c g b / 32))
         ≤ Real.exp (-((B.npref : ℝ) * (g / 1056))) := by
       intro b
       have hq0 : 0 ≤ clsQ O η₀ Δ c g b := le_trans (by linarith) (hQ b)
       refine le_trans (measureReal_heavyHits_le Pp Pc Dsf O populations uni (D uni)
-        (sideLawC_uni H uni D g') B _ _ _ (by positivity)) (Real.exp_le_exp.2 (neg_le_neg
-          (mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _))))
+        (sideLawC_uni H uni D g') B (B.npref + rC) _ _ _ (by positivity))
+        (Real.exp_le_exp.2 (neg_le_neg ?_))
       have e : relRate (clsQ O η₀ Δ c g b + clsQ O η₀ Δ c g b / 32) (clsQ O η₀ Δ c g b)
           = clsQ O η₀ Δ c g b / 2112 := by
         unfold relRate
@@ -753,7 +755,9 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         · rw [← h0]; simp
         · field_simp; ring
       rw [e]
-      linarith [hQ b]
+      have hg1 : g / 1056 ≤ clsQ O η₀ Δ c g b / 2112 := by linarith [hQ b]
+      have hn : (B.npref : ℝ) ≤ ((B.npref + rC : ℕ) : ℝ) := by exact_mod_cast Nat.le_add_right _ _
+      nlinarith [mul_le_mul hn hg1 (by positivity) (Nat.cast_nonneg _)]
     have hHB : (streamMeasure μ Pp Pc Dsf).real (Ht ∪ Hf)
         ≤ 2 * Real.exp (-((B.npref : ℝ) * (g / 1056))) := by
       refine le_trans (measureReal_union_le _ _) ?_
@@ -761,7 +765,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       have := hheavy false
       linarith
     refine le_trans (measureReal_failUnion_le hflat O populations Pp Pc Dsf (hsT g') (hsC g')
-      hsuppSf uni huni B l lmis E t (collisionMass Dsf) (fracAt O η₀) r rs κ κ hE0
+      hsuppSf uni huni B l lmis E t (collisionMass Dsf) (fracAt O η₀) rC rs κ κ hE0
       (by rw [hl]; exact hEl) hElm ht hρsf' hρsf0 _ hcertB _ hstallB _ _ hDB _ _ hHB hdec hcut) ?_
     unfold roundFail
     linarith

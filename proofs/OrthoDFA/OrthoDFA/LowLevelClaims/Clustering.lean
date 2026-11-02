@@ -72,12 +72,13 @@ the samplers' redraws and the hash's split may cost the cut.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
-prefixes a state draws, at the signal times `min(εcov·signal, indecisionLimit)` and at `εs`: a
-draw then lands on what the state already holds rarely enough that its rejections are a
-binomial tail; and no string heavy against `min(εs, indecisionLimit)²/log(|J|/δ)`, so the hash
-splits it evenly.  The suffix measure needs a collision mass small against the suffixes; the
-other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j` are
-the strings population `j` harvested; the first count grows with how many there are. -/
+prefixes a state draws at the signal times `min(εcov·signal, indecisionLimit)`, and none against
+`|J| + 3` times them at `min(εs, indecisionLimit)`: a draw then lands on what the state already
+holds rarely enough that its rejections are a binomial tail; and no string heavy against
+`min(εs, indecisionLimit)²/log(|J|/δ)`, so the hash splits it evenly.  The suffix measure needs
+a collision mass small against the suffixes; the other populations are arbitrary.  A population
+is read only while `keptAt` keeps it.  `H j` are the strings population `j` harvested; the first
+count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -138,10 +139,11 @@ def ClusteringGuarantee : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+        2 ^ 19 * (B.npref : ℝ) * (D j).real {t}
           ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
+        2 ^ 14 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ min εs indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         512 * Real.log (64 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
           * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →

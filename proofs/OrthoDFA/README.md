@@ -50,7 +50,7 @@ Each claim is proved from the explicit theorems below.
   `Y = |Q|R/(β δ ξ pAP s₀)`,
 
       1/p₀Tol = O((L + |Q|)⁴ log(X') log(Y) |Q|³R b/ξ
-                  · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + 1/(δ pAP² s₀²))
+                  · (R³|Q|²b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵ + |Q|⁴b/s₀⁴) + 1/(δ pAP² s₀²))
                 + (L + |Q|)² log(X') log²(Y) |Q|⁶b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
@@ -86,12 +86,12 @@ this (`parity_toggle`, #438).
   polynomial number of queries; `εs` is what the samplers' redraws and the hash's split may cost.
   Every state's band reads its rarer decided side at most `κ` times as often as undecided, for
   any `κ` with `crossLimit ≤ κ⁴`.
-  The samplers draw without replacement, and a draw lands on what a
-  state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
-  more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
-  population need only keep every atom under
-  `(1/2 − η₀)·min(εcov(1/2 − η₀), indecisionLimit)/(2¹⁷(|J| + 3)·npref)` and
-  `εs/(2⁸(|J| + 3)·npref)`, and under
+  The samplers draw without replacement: a table's draws land on what the state already holds
+  at most `O(npref)` times the largest atom, and its certificates' draws at most
+  `(|J| + 3)·npref` times, so each sampler rejects more than `tabCount` or `certCount` of its
+  draws only on a binomial tail (`SuccessiveDrawsTails`); a tame population need only keep every
+  atom under `(1/2 − η₀)·min(εcov(1/2 − η₀), indecisionLimit)/(2¹⁹·npref)` and
+  `min(εs, indecisionLimit)/(2¹⁴(|J| + 3)·npref)`, and under
   `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
   wrongly, or leaves it undecided, only a bounded share of the time. Off the table's prefixes the
@@ -140,9 +140,9 @@ Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent 
 
     L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 404.5`; the
-least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 393, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 369.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 410.1`; the
+least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 397, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 383.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
@@ -260,7 +260,8 @@ sampler yields at least `ε/96` and finds a string at most as often as the probe
 length-`k` prefix, so a population puts at most `96 prefixMax / ε` on a string, within `cap`, which
 also bounds the suffixes' atoms; its strings are at most `L₁ + |Q|` long, the tree's midfixes at
 most `|Q|`. Against `cap` the clustering's atom conditions hold, every population tame: its
-samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)`; the hash's balance,
+samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)` for the tables and `|J| NP·cap` under
+`ι` for the certificates; the hash's balance,
 `log(|J| log₂ NP/δ)·cap` under `ι²`; the quality's deviation, `log(|J| log₂ NP/δ)·cap` under the
 slack squared, which the hash's term already gives; and the tables' own mass, `NP·cap` under the slack. The earlier rounds' reads, at
 most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any population and `ms`
