@@ -12,9 +12,9 @@ true centre
 with the gap `1 − ηIn − ηOut` at least `4·sig`, the strongly rejected prefixes are the
 complement's, but for those the family flips more than a twentieth of the time and those its
 vote misfires on, and the language's only where at least half the family flips them or the vote
-misfires.  A language prefix there reads accept `gap` more often than the complement's, so a tenth
-of them moves the estimate by a tenth of the gap, and the threshold `centre − sig` sits a fifth
-of the gap above `ηOut`.
+misfires.  A language prefix there reads accept `gap` more often than the complement's, so a
+share `3/20` of them moves the estimate by `3/20` of the gap, the deviations take `1/20`, and
+the threshold `centre − sig` sits a fifth of the gap above `ηOut`.
 -/
 
 namespace OrthoDFA
@@ -116,8 +116,8 @@ lemma card_filter_or_le (A : Finset S) (X Y : S → Prop) :
 
 open scoped Classical in
 /-- The strong reject side passes the check once the sample's counts are in order: its size is
-at least `Smin`, the language holds at most a tenth of it, and the deviations fit in a tenth of
-the gap. -/
+at least `Smin`, the language holds at most `3/20` of it, and the deviations fit in `1/20` of the
+gap. -/
 lemma readBound_rej_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : State}
     {F A : Finset S} {ω : Ω} (hFk : F.card = B.k - 1) (hη₀ : η₀ ≤ 1 / 2)
     (hg : 4 * (1 / 2 - η₀) ≤ O.gap) (hc : |B.centre - O.cmid| ≤ (1 / 2 - η₀) / 5)
@@ -128,8 +128,9 @@ lemma readBound_rej_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
     (hheavyI : ((A.filter (flipHeavy O true (1 / 20) F)).card : ℝ) ≤ n * h)
     (hmiss : ((A.filter (fun p => missRej O η₀ B F p ω)).card : ℝ) ≤ n * e)
     (hlive : readLive O false (strongReject O.mq η₀ B F A ω) aT ω)
-    (hSmin : 0 < Smin) (hsize : Smin ≤ n * (εb - h - e)) (hcont : n * (h + e) ≤ Smin / 10)
-    (hdev : ∀ s : ℕ, Smin ≤ s → hoeffDev s a + hoeffDev s aT ≤ O.gap / 10 * s) :
+    (hSmin : 0 < Smin) (hsize : Smin ≤ n * (εb - h - e))
+    (hcont : n * (h + e) ≤ 3 * Smin / 20)
+    (hdev : ∀ s : ℕ, Smin ≤ s → hoeffDev s a + hoeffDev s aT ≤ O.gap / 20 * s) :
     readBound O.mq false (strongReject O.mq η₀ B F A ω) a ω ≤ B.centre - 1 / 2 + η₀ := by
   classical
   obtain ⟨hR, -, -, hm'⟩ := mid_facts O hg hc
@@ -177,7 +178,7 @@ lemma readBound_rej_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
       have : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
       linarith
     · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpA, Or.inr ⟨hl, not_lt.1 hh, hv⟩⟩)
-  have hinCard : ((SR.filter (fun p => O.label p = 1)).card : ℝ) ≤ SR.card / 10 := by
+  have hinCard : ((SR.filter (fun p => O.label p = 1)).card : ℝ) ≤ 3 * SR.card / 20 := by
     have h1 := Finset.card_le_card hinS
     have h2 := Finset.card_union_le (A.filter (flipHeavy O true (1 / 20) F))
       (A.filter (fun p => missRej O η₀ B F p ω))
@@ -231,8 +232,9 @@ lemma readBound_acc_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
     (hheavyI : ((A.filter (flipHeavy O true (1 / 20) F)).card : ℝ) ≤ n * h)
     (hmiss : ((A.filter (fun p => missAcc O η₀ B F p ω)).card : ℝ) ≤ n * e)
     (hlive : readLive O true (strongAccept O.mq η₀ B F A ω) aT ω)
-    (hSmin : 0 < Smin) (hsize : Smin ≤ n * (εb - h - e)) (hcont : n * (h + e) ≤ Smin / 10)
-    (hdev : ∀ s : ℕ, Smin ≤ s → hoeffDev s a + hoeffDev s aT ≤ O.gap / 10 * s) :
+    (hSmin : 0 < Smin) (hsize : Smin ≤ n * (εb - h - e))
+    (hcont : n * (h + e) ≤ 3 * Smin / 20)
+    (hdev : ∀ s : ℕ, Smin ≤ s → hoeffDev s a + hoeffDev s aT ≤ O.gap / 20 * s) :
     readBound O.mq true (strongAccept O.mq η₀ B F A ω) a ω ≤ 1 / 2 - B.centre + η₀ := by
   classical
   obtain ⟨-, hA, hm, -⟩ := mid_facts O hg hc
@@ -278,7 +280,7 @@ lemma readBound_acc_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
       have : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
       linarith
     · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpA, Or.inr ⟨hl, not_lt.1 hh, hv⟩⟩)
-  have houtCard : ((SA.filter (fun p => O.label p = 0)).card : ℝ) ≤ SA.card / 10 := by
+  have houtCard : ((SA.filter (fun p => O.label p = 0)).card : ℝ) ≤ 3 * SA.card / 20 := by
     have h1 := Finset.card_le_card houtS
     have h2 := Finset.card_union_le (A.filter (flipHeavy O false (1 / 20) F))
       (A.filter (fun p => missAcc O η₀ B F p ω))
@@ -319,6 +321,37 @@ lemma readBound_acc_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
   have hgout := mul_le_mul_of_nonneg_right houtCard hg0
   have hAS := mul_le_mul_of_nonneg_left hA (Nat.cast_nonneg SA.card : (0 : ℝ) ≤ SA.card)
   nlinarith
+
+open scoped Classical in
+/-- The check passes once the sample's counts are in order on both strong sides. -/
+lemma centreFits_of_counts (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : State}
+    {F A : Finset S} {ω : Ω} (hFk : F.card = B.k - 1) (hη₀ : η₀ ≤ 1 / 2)
+    (hg : 4 * (1 / 2 - η₀) ≤ O.gap) (hc : |B.centre - O.cmid| ≤ (1 / 2 - η₀) / 5)
+    (hn : (A.card : ℝ) = n)
+    (hcls : ∀ b, n * εb ≤ ((A.filter (fun p => O.label p = sideClass b)).card : ℝ))
+    (hheavy : ∀ b, ((A.filter (flipHeavy O b (1 / 20) F)).card : ℝ) ≤ n * h)
+    (hmissR : ((A.filter (fun p => missRej O η₀ B F p ω)).card : ℝ) ≤ n * e)
+    (hmissA : ((A.filter (fun p => missAcc O η₀ B F p ω)).card : ℝ) ≤ n * e)
+    (hliveR : readLive O false (strongReject O.mq η₀ B F A ω) aT ω)
+    (hliveA : readLive O true (strongAccept O.mq η₀ B F A ω) aT ω)
+    (hSmin : 0 < Smin) (hsize : Smin ≤ n * (εb - h - e))
+    (hcont : n * (h + e) ≤ 3 * Smin / 20)
+    (hdev : ∀ s : ℕ, Smin ≤ s → hoeffDev s a + hoeffDev s aT ≤ O.gap / 20 * s) :
+    centreFits O.mq η₀ a B F A ω := by
+  classical
+  have hh0 : 0 ≤ n * h := le_trans (Nat.cast_nonneg _) (hheavy true)
+  have he0 : 0 ≤ n * e := le_trans (Nat.cast_nonneg _) hmissR
+  have hcount : ∀ b, 0 < ((A.filter (fun p => O.label p = sideClass b)).card : ℝ) := fun b => by
+    have := hcls b; nlinarith
+  have hex : ∀ b, ∃ p, O.label p = sideClass b := fun b => by
+    obtain ⟨p, hp⟩ := Finset.card_pos.1 (by exact_mod_cast hcount b)
+    exact ⟨p, (Finset.mem_filter.1 hp).2⟩
+  obtain ⟨pin, hpin⟩ := hex true
+  obtain ⟨pout, hpout⟩ := hex false
+  exact ⟨readBound_rej_le O hFk hη₀ hg hc hn (hcls false) ⟨pin, by simpa [sideClass] using hpin⟩
+      (hheavy false) (hheavy true) hmissR hliveR hSmin hsize hcont hdev,
+    readBound_acc_le O hFk hη₀ hg hc hn (hcls true) ⟨pout, by simpa [sideClass] using hpout⟩
+      (hheavy false) (hheavy true) hmissA hliveA hSmin hsize hcont hdev⟩
 
 /-- A light prefix's vote misses the strong reject threshold at most `exp(−κ v²/2)` of the time,
 `v = voteSlack`, near the true centre and with a family of at least `10/sig`. -/
@@ -785,5 +818,310 @@ theorem measureReal_checkMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
   calc (streamMeasure μ Pp Pc Dsf (checkMiss rule O populations uni η₀ B e)).toReal
       ≤ (ENNReal.ofReal R).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = R := ENNReal.toReal_ofReal hR0
+
+
+open scoped Classical in
+lemma read_live_tail (O : Oracle μ S) (accept : Bool) (A : Finset S) {a : ℝ} (ha0 : 0 < a)
+    (ha1 : a ≤ 1) : μ.real {ω | ¬ readLive O accept A a ω} ≤ a := by
+  classical
+  set c : ℝ := sideClass accept with hcdef
+  rcases Nat.eq_zero_or_pos A.card with hA0 | hApos
+  · have hAe : A = ∅ := Finset.card_eq_zero.1 hA0
+    have hz : {ω | ¬ readLive O accept A a ω} = (∅ : Set Ω) := by
+      ext ω
+      simp [readLive, hAe, hoeffDev, againstOn]
+    rw [hz, measureReal_empty]
+    positivity
+  set n : ℕ := A.card with hndef
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hApos
+  set d : ℝ := hoeffDev n a with hd
+  have hd0 : 0 ≤ d := Real.sqrt_nonneg _
+  set X : A → Ω → ℝ := fun i => againstVar O c i.1 with hX
+  have hXind : iIndepFun X μ := by
+    refine iIndepFun_of_blocks O (fun i : A => ({i.1} : Finset S)) ?_ X (fun i => ?_)
+    · intro i j hij
+      simp only [Finset.disjoint_singleton]
+      exact fun h => hij (Subtype.ext h)
+    · exact againstVar_meas_alg O c (by simp)
+  set EX : ℝ := ∑ p ∈ A, μ[againstVar O c p] with hEX
+  have hcard : ((Finset.univ : Finset A).card : ℝ) = n := by simp [hndef]
+  have hEXs : ∑ i : A, μ[X i] = EX := Finset.sum_coe_sort A (fun p => μ[againstVar O c p])
+  have hXm : ∀ i, AEMeasurable (X i) μ := fun i =>
+    (againstVar_meas_alg O c (T := Set.univ) (Set.mem_univ _)).mono (noiseAlg_le O _) le_rfl
+      |>.aemeasurable
+  have hXi : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1 := fun i =>
+    Filter.Eventually.of_forall (fun ω => againstVar_icc O c _ ω)
+  have hdn : 0 ≤ d / n := div_nonneg hd0 hnR.le
+  have hB1 : μ.real {ω | (n : ℝ) * (EX / n + d / n) ≤ ∑ i : A, X i ω} ≤ a := by
+    have h := sumUpper_le X Finset.univ (EX / n) (d / n) hXm hXind hXi
+      (by rw [hcard, hEXs, mul_div_cancel₀ _ hnR.ne']) hdn
+    rwa [hcard, exp_hoeffDev n hApos ha0 ha1] at h
+  refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) hB1
+  simp only [Set.mem_setOf_eq, readLive, not_le] at hω ⊢
+  rw [againstOn_eq_sum] at hω
+  rw [Finset.sum_coe_sort A (fun p => againstVar O c p ω),
+    show (n : ℝ) * (EX / n + d / n) = EX + d by field_simp]
+  exact hω.le
+
+omit [IsProbabilityMeasure μ] in
+lemma readLive_congr (O : Oracle μ S) (accept : Bool) (A : Finset S) (a : ℝ) {ω ω' : Ω}
+    (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
+    readLive O accept A a ω → readLive O accept A a ω' := by
+  classical
+  have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
+    unfold againstOn
+    exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [h p hp]))
+  unfold readLive
+  rw [ha]
+  exact id
+
+open scoped Classical in
+/-- `readsGood_whp` from above. -/
+theorem readsLive_whp (O : Oracle μ S) (P F : Finset S) (η₀ : ℝ) (B : State)
+    (hinj : ∀ p ∈ P, ∀ p' ∈ P, ∀ u ∈ insert 1 F, ∀ u' ∈ insert 1 F,
+      p * u = p' * u' → p = p' ∧ u = u')
+    (h1F : (1 : S) ∉ F) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    μ.real {ω | ¬ (readLive O false (strongReject O.mq η₀ B F P ω) a ω
+      ∧ readLive O true (strongAccept O.mq η₀ B F P ω) a ω)} ≤ 2 * a := by
+  classical
+  have h1mem : (1 : S) ∈ insert 1 F := Finset.mem_insert_self _ _
+  have humem : ∀ u ∈ F, u ∈ insert 1 F := fun u hu => Finset.mem_insert_of_mem hu
+  set Q : Finset S := (P ×ˢ F).image (fun q => q.1 * q.2) with hQ
+  have hdisj : Disjoint (↑P : Set S) (↑Q : Set S) := by
+    rw [Finset.disjoint_coe]
+    refine Finset.disjoint_left.2 (fun w hwC hwQ => ?_)
+    obtain ⟨⟨p', u⟩, hpu, rfl⟩ := Finset.mem_image.1 hwQ
+    obtain ⟨hp', hu⟩ := Finset.mem_product.1 hpu
+    have := (hinj _ hwC p' hp' 1 h1mem u (humem u hu) (mul_one _)).2
+    exact h1F (this ▸ hu)
+  set T : Finset (Finset S × Finset S) := P.powerset ×ˢ P.powerset with hT
+  set sel : Ω → Finset S × Finset S := fun ω =>
+    (strongReject O.mq η₀ B F P ω, strongAccept O.mq η₀ B F P ω) with hseldef
+  have hsel : ∀ ω, sel ω ∈ T := fun ω =>
+    Finset.mem_product.2 ⟨Finset.mem_powerset.2 (Finset.filter_subset _ _),
+      Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩
+  have hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sel ω = sel ω' := by
+    intro ω ω' h
+    have hvc : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+      voteCount_congr O F p (fun u hu => by
+        rw [mq_congr O (h _ (Finset.mem_image.2 ⟨(p, u), Finset.mem_product.2 ⟨hp, hu⟩, rfl⟩))])
+    exact Prod.ext (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+      (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
+  set Bad : Finset S × Finset S → Set Ω := fun t =>
+    if t.1 ⊆ P ∧ t.2 ⊆ P then
+      {ω | ¬ (readLive O false t.1 a ω ∧ readLive O true t.2 a ω)}
+    else ∅ with hBaddef
+  have hBadcongr : ∀ t ω ω', (∀ w ∈ P, O.noise w ω = O.noise w ω') → ω ∈ Bad t → ω' ∈ Bad t := by
+    intro t ω ω' h hω
+    simp only [hBaddef] at hω ⊢
+    split_ifs at hω ⊢ with ht
+    · have hpp : ∀ D ⊆ P, ∀ p ∈ D, (O.mq p ω' = 1 ↔ O.mq p ω = 1) := fun D hD p hp => by
+        rw [mq_congr O (h p (hD hp))]
+      intro hgood
+      exact hω ⟨readLive_congr O false t.1 a (hpp t.1 ht.1) hgood.1,
+        readLive_congr O true t.2 a (hpp t.2 ht.2) hgood.2⟩
+    · exact hω
+  have hbad : ∀ t ∈ T, μ.real (Bad t) ≤ 2 * a := by
+    rintro ⟨A₀, R₀⟩ ht
+    obtain ⟨hA, hR⟩ := Finset.mem_product.1 ht
+    have hAP := Finset.mem_powerset.1 hA
+    have hRP := Finset.mem_powerset.1 hR
+    have hs1 := read_live_tail (μ := μ) O false A₀ ha0 ha1
+    have hs2 := read_live_tail (μ := μ) O true R₀ ha0 ha1
+    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ readLive O false A₀ a ω}
+        ∪ {ω | ¬ readLive O true R₀ a ω} := by
+      intro ω hω
+      simp only [hBaddef, if_pos (And.intro hAP hRP), Set.mem_setOf_eq] at hω
+      by_contra hc
+      simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hc
+      exact hω hc
+    exact le_trans (measureReal_mono hsub (measure_ne_top _ _))
+      (le_trans (measureReal_union_le _ _) (by linarith))
+  have hmain := selection_congr_bound O P Q hdisj T (∅, ∅)
+    (Finset.mem_product.2 ⟨Finset.empty_mem_powerset P, Finset.empty_mem_powerset P⟩)
+    sel hsel hcongr Bad hBadcongr (2 * a) (by positivity) hbad
+  refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) hmain
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  have hselP : (sel ω).1 ⊆ P ∧ (sel ω).2 ⊆ P := ⟨Finset.filter_subset _ _, Finset.filter_subset _ _⟩
+  simp only [hBaddef, if_pos hselP, Set.mem_setOf_eq]
+  exact hω
+
+open scoped Classical in
+noncomputable def livesBadOf (rule : Clusterer S) (O : Oracle μ S) (η₀ : ℝ) (B : State) (a : ℝ)
+    (P C A : Finset S) (ω : Ω) : Prop :=
+  ¬ (readLive O false (strongReject O.mq η₀ B (clusterOf rule O B.sc B.scd P C B.k ω) A ω) a ω
+    ∧ readLive O true (strongAccept O.mq η₀ B (clusterOf rule O B.sc B.scd P C B.k ω) A ω) a ω)
+
+/-- The strong sides' counts at the uniform pool's sample of `B`, not both within their
+deviation from above. -/
+noncomputable def livesBad (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
+    (uni : J) (η₀ : ℝ) (B : State) (a : ℝ) : Set (Run Ω S J) :=
+  {x | livesBadOf rule O η₀ B a (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+    (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)}
+
+lemma readsLive_of_not_livesBad (O : Oracle μ S) (populations : Finset J) (uni : J) (η₀ : ℝ)
+    (B : State) (a : ℝ) {x : Run Ω S J} (h : x ∉ livesBad rule O populations uni η₀ B a) :
+    readLive O false (strongReject O.mq η₀ B (clusterBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)) a
+        (oracleNoise x)
+      ∧ readLive O true (strongAccept O.mq η₀ B (clusterBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)) a
+        (oracleNoise x) := by
+  by_contra hc
+  exact h hc
+
+open scoped Classical in
+lemma readsLive_congr_mq (O : Oracle μ S) (η₀ : ℝ) (B : State) (F A C : Finset S)
+    (hone : (1 : S) ∈ C) (hF : F ⊆ C) (a : ℝ) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    (readLive O false (strongReject O.mq η₀ B F A ω) a ω
+      ∧ readLive O true (strongAccept O.mq η₀ B F A ω) a ω)
+    → (readLive O false (strongReject O.mq η₀ B F A ω') a ω'
+      ∧ readLive O true (strongAccept O.mq η₀ B F A ω') a ω') := by
+  classical
+  have hAC : ∀ p ∈ A, ∀ u ∈ C, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) := fun p hp u hu =>
+    h _ (mem_readSet hp hu)
+  have hA : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => by simpa using hAC p hp 1 hone
+  have hvc : ∀ p ∈ A, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
+    voteCount_congr O F p (fun u hu => hAC p hp u (hF hu))
+  have hrej : strongReject O.mq η₀ B F A ω = strongReject O.mq η₀ B F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  have hacc : strongAccept O.mq η₀ B F A ω = strongAccept O.mq η₀ B F A ω' :=
+    Finset.filter_congr (fun p hp => by rw [hvc p hp])
+  rintro ⟨h1, h2⟩
+  refine ⟨?_, ?_⟩
+  · rw [← hrej]
+    exact readLive_congr O false _ a (fun p hp => hA p (Finset.mem_filter.1 hp).1) h1
+  · rw [← hacc]
+    exact readLive_congr O true _ a (fun p hp => hA p (Finset.mem_filter.1 hp).1) h2
+
+open scoped Classical in
+lemma livesBadOf_congr (O : Oracle μ S) (η₀ : ℝ) (B : State) (a : ℝ) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet P C ∪ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    livesBadOf rule O η₀ B a P C A ω → livesBadOf rule O η₀ B a P C A ω' := by
+  have hfam : clusterOf rule O B.sc B.scd P C B.k ω = clusterOf rule O B.sc B.scd P C B.k ω' :=
+    clusterOf_congr_mq O B.sc B.scd P C B.k hone (fun w hw => h w (Finset.mem_union_left _ hw))
+  have hsub : clusterOf rule O B.sc B.scd P C B.k ω' ⊆ C :=
+    clusterOf_subset O B.sc B.scd P C B.k ω' hone
+  unfold livesBadOf
+  rw [hfam]
+  intro hbad hgood
+  exact hbad (readsLive_congr_mq O η₀ B _ A C hone hsub a
+    (fun w hw => (h w (Finset.mem_union_right _ hw)).symm) hgood)
+
+open scoped Classical in
+lemma measurableSet_livesBad (O : Oracle μ S) (populations : Finset J) (uni : J) (η₀ : ℝ)
+    (B : State) (a : ℝ) : MeasurableSet (livesBad rule O populations uni η₀ B a) := by
+  classical
+  have hR : ∀ P C A : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      oracleNoise ⁻¹' {ω | livesBadOf rule O η₀ B a P C A ω} else (∅ : Set (Run Ω S J))) := by
+    intro P C A
+    split_ifs with hone
+    · exact measurable_nz (measurableSet_of_readCongr O _ _
+        (fun ω ω' h => livesBadOf_congr O η₀ B a P C A hone h))
+    · exact MeasurableSet.empty
+  have hrw : livesBad rule O populations uni η₀ B a
+      = {x : Run Ω S J | x ∈ (fun P C A => if (1 : S) ∈ C then
+          oracleNoise ⁻¹' {ω | livesBadOf rule O η₀ B a P C A ω} else ∅)
+        (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage, livesBad]
+  rw [hrw]
+  exact measurableSet_of_run_data_certAt populations uni B B.npref _ hR
+
+open scoped Classical in
+set_option maxHeartbeats 1000000 in
+/-- `readsLive_whp` over the run. -/
+theorem measureReal_livesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (populations : Finset J) (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
+    [IsProbabilityMeasure Dsf]
+    (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
+    (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
+    (uni : J) (huni : uni ∈ populations) (η₀ : ℝ) (B : State) {a : ℝ} (ha0 : 0 < a)
+    (ha1 : a ≤ 1) :
+    (streamMeasure μ Pp Pc Dsf).real (livesBad rule O populations uni η₀ B a) ≤ 2 * a := by
+  classical
+  have hEnn : streamMeasure μ Pp Pc Dsf (livesBad rule O populations uni η₀ B a)
+      ≤ ENNReal.ofReal (2 * a) := by
+    refine streamMeasure_slice_le Pp Pc Dsf _ (measurableSet_livesBad O populations uni η₀ B a)
+      _ ?_
+    filter_upwards [ae_draws_mem_Pre Pp Pc Dsf Pre populations hsuppP,
+      ae_cert_mem_Pre Pp Pc Dsf Pre populations hsuppC, ae_sfx_mem_Suf Pp Pc Dsf Suf hsuppSf]
+      with d hdP hdC hdS
+    set Pd : Finset S := populations.biUnion
+      (fun j => freshDraws ∅ (fun i => d.1.2 j i) B.npref) with hPd
+    set Cd : Finset S := insert 1 (freshDraws ∅ (fun i => d.1.1 i) B.nsuff) with hCd
+    set Ad : Finset S := freshDraws Pd (fun i => d.2 uni i) B.npref with hAd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
+    have hP : ∀ q ∈ Pd, q ∈ Pre := table_mem_Pre populations B.npref (fun j i => d.1.2 j i) hdP
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, rfl⟩ := mem_freshDraws hp
+      exact hdC uni huni i
+    have hone : (1 : S) ∈ Cd := Finset.mem_insert_self _ _
+    have hdisjPA : Disjoint Ad Pd := disjoint_freshDraws _ _ _
+    have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ livesBad rule O populations uni η₀ B a}
+        = {ω | livesBadOf rule O η₀ B a Pd Cd Ad ω} := rfl
+    rw [hsec]
+    set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
+    set Bad : Finset S → Set Ω := fun F =>
+      if F ⊆ Cd ∧ (1 : S) ∉ F then
+        {ω | ¬ (readLive O false (strongReject O.mq η₀ B F Ad ω) a ω
+          ∧ readLive O true (strongAccept O.mq η₀ B F Ad ω) a ω)}
+      else ∅ with hBaddef
+    have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
+      rw [Finset.disjoint_coe, Finset.disjoint_left]
+      intro w hw hw'
+      obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hw'
+      obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+      obtain ⟨hq', hv'⟩ := Finset.mem_product.1 hqv
+      have := hflat q (hP q hq') p (hA p hp) v' (hV v' hv') v (hV v hv) hq
+      exact Finset.disjoint_left.1 hdisjPA hp (this ▸ hq')
+    have hmain := selection_congr_bound O (readSet Ad Cd) (readSet Pd Cd) hdisj Cd.powerset ∅
+      (Finset.empty_mem_powerset _) sel
+      (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone))
+      (fun ω ω' h => clusterOf_congr_mq O B.sc B.scd Pd Cd B.k hone
+        (fun w hw => by rw [mq_congr O (h w hw)]))
+      Bad (fun F ω ω' h hω => by
+        simp only [hBaddef] at hω ⊢
+        split_ifs at hω ⊢ with hF
+        · intro hgood
+          exact hω (readsLive_congr_mq O η₀ B F Ad Cd hone hF.1 a
+            (fun w hw => by rw [mq_congr O (h w hw)]) hgood)
+        · exact hω)
+      (2 * a) (by positivity) (fun F _ => by
+        simp only [hBaddef]
+        split_ifs with hF
+        · refine readsLive_whp O Ad F η₀ B ?_ hF.2 ha0 ha1
+          intro p hp p' hp' u hu u' hu' heq
+          have hmem : ∀ u ∈ insert 1 F, u ∈ insert 1 Suf := by
+            intro u hu
+            rcases Finset.mem_insert.1 hu with rfl | hu
+            · exact Set.mem_insert _ _
+            · exact hV u (hF.1 hu)
+          have hpp := hflat p (hA p hp) p' (hA p' hp') u (hmem u hu) u' (hmem u' hu') heq
+          subst hpp
+          exact ⟨rfl, mul_left_cancel heq⟩
+        · rw [measureReal_empty]; positivity)
+    have hsub : {ω | livesBadOf rule O η₀ B a Pd Cd Ad ω} ⊆ {ω | ω ∈ Bad (sel ω)} := by
+      intro ω hω
+      change ω ∈ Bad (sel ω)
+      have hF : sel ω ⊆ Cd ∧ (1 : S) ∉ sel ω :=
+        ⟨clusterOf_subset O B.sc B.scd Pd Cd B.k ω hone, Finset.notMem_erase _ _⟩
+      simp only [hBaddef, if_pos hF, Set.mem_setOf_eq]
+      simpa only [livesBadOf, hseldef, Set.mem_setOf_eq] using hω
+    calc μ {ω | livesBadOf rule O η₀ B a Pd Cd Ad ω} ≤ μ {ω | ω ∈ Bad (sel ω)} := measure_mono hsub
+      _ = ENNReal.ofReal (μ.real {ω | ω ∈ Bad (sel ω)}) :=
+          (ENNReal.ofReal_toReal (measure_ne_top μ _)).symm
+      _ ≤ ENNReal.ofReal (2 * a) := ENNReal.ofReal_le_ofReal hmain
+  rw [measureReal_def]
+  calc (streamMeasure μ Pp Pc Dsf (livesBad rule O populations uni η₀ B a)).toReal
+      ≤ (ENNReal.ofReal (2 * a)).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = 2 * a := ENNReal.toReal_ofReal (by positivity)
+
 
 end OrthoDFA
