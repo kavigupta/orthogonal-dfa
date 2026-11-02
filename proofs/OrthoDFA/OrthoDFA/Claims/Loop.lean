@@ -120,7 +120,7 @@ def LoopClaim.{u, v, w} : Prop :=
               * (1 / r.s₀ ^ 6 + r.Q ^ 2 * (1 / r.β + r.Q) / r.s₀ ^ 5)
             + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
         + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
-          * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 7 * (1 / r.β + r.Q) ^ 2
+          * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 6 * (1 / r.β + r.Q) ^ 2
           * r.R ^ 2 / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
         + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
           * r.Q ^ 5 * r.A ^ 2 * (1 / r.β + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.δ)) ∧

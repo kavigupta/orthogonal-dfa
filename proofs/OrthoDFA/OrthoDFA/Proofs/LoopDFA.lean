@@ -23,9 +23,9 @@ true leaf misjudges at most what re-rooting does (`classify_start_le`).
 
 The family reads a string of `D`'s first `L` letters wrongly at most `(1025/1024) N εcov` of the
 time and leaves it undecided at most `(3/8) N εcov`, with `N εcov ≤ ξ/8`, so off a stray score the
-picked leaf misjudges at most `ξ` more (`pickLeaf_le`). Each round that can be last strays or
-collides with chance at most `δ/(2(|Q|+1))` (`loop_select_round_le`), so the selection costs half
-of `δ` and the loop the other half.
+picked leaf misjudges at most `ξ` more (`pickLeaf_le`). The round that is last strays or
+collides with chance at most `δ/2` over all rounds at once (`loop_select_le`), and the loop costs
+the other half of `δ`.
 -/
 
 noncomputable section
@@ -269,44 +269,33 @@ lemma rb_nonneg {Q s pAP δ' ι τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 :
     (div_nonneg (mul_nonneg (by norm_num) hl2) (by positivity))
 
 lemma dfa_select_arith {Q δ ξ RB KpG T NPf p₀ : ℝ} {n : ℕ} (hQ : 0 ≤ Q) (hδ : 0 < δ) (hξ : 0 < ξ)
-    (hp₀ : 0 ≤ p₀) (hn : 32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2 ≤ n)
+    (hp₀ : 0 ≤ p₀) (hn : 32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2 ≤ n)
     (hT : T ≤ KpG) (hNP : NPf ≤ RB)
-    (h3 : (Q + 1) * n * (6 * (Q + 2) * RB + KpG + n) * p₀ ≤ δ / 4) :
+    (h3 : n * (6 * (Q + 2) * RB + KpG + n) * p₀ ≤ δ / 4) :
     (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2)))
-      + (n * (6 * (Q + 2) * NPf + T) * p₀ + n ^ 2 * p₀) ≤ δ / (2 * (Q + 1)) := by
-  set X : ℝ := 16 * (Q + 1) * (Q + 2) / δ with hXd
+      + (n * (6 * (Q + 2) * NPf + T) * p₀ + n ^ 2 * p₀) ≤ δ / 2 := by
+  set X : ℝ := 16 * (Q + 2) / δ with hXd
   have hX0 : 0 < X := by positivity
   have hnX : Real.log X ≤ n * (ξ / 4) ^ 2 / 2 := by
     rw [div_le_iff₀ (by positivity)] at hn
     have e : (n : ℝ) * (ξ / 4) ^ 2 / 2 = (n : ℝ) * ξ ^ 2 / 32 := by ring
     rw [e]
     linarith
-  have hexp : Real.exp (-(n * (ξ / 4) ^ 2 / 2)) ≤ δ / (16 * (Q + 1) * (Q + 2)) := by
+  have hexp : Real.exp (-(n * (ξ / 4) ^ 2 / 2)) ≤ δ / (16 * (Q + 2)) := by
     calc Real.exp (-(n * (ξ / 4) ^ 2 / 2)) ≤ Real.exp (-Real.log X) :=
           Real.exp_le_exp.2 (by linarith)
-      _ = δ / (16 * (Q + 1) * (Q + 2)) := by rw [Real.exp_neg, Real.exp_log hX0, hXd, inv_div]
-  have h1 : (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2))) ≤ δ / (4 * (Q + 1)) := by
+      _ = δ / (16 * (Q + 2)) := by rw [Real.exp_neg, Real.exp_log hX0, hXd, inv_div]
+  have h1 : (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2))) ≤ δ / 4 := by
     calc (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2)))
-        ≤ (Q + 2) * (4 * (δ / (16 * (Q + 1) * (Q + 2)))) := by gcongr
-      _ = δ / (4 * (Q + 1)) := by field_simp; ring
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg _
-  have hb2 : (n : ℝ) * (6 * (Q + 2) * NPf + T) ≤ n * (6 * (Q + 2) * RB + KpG) := by
-    gcongr
-  have hQ1 : (0 : ℝ) < Q + 1 := by linarith
-  have h3' : (n : ℝ) * (6 * (Q + 2) * RB + KpG + n) * p₀ ≤ δ / (4 * (Q + 1)) := by
-    rw [le_div_iff₀ (by positivity)]
-    nlinarith
-  have h2 : (n : ℝ) * (6 * (Q + 2) * NPf + T) * p₀ + (n : ℝ) ^ 2 * p₀
-      ≤ δ / (4 * (Q + 1)) := by
+        ≤ (Q + 2) * (4 * (δ / (16 * (Q + 2)))) := by gcongr
+      _ = δ / 4 := by field_simp; ring
+  have h2 : (n : ℝ) * (6 * (Q + 2) * NPf + T) * p₀ + (n : ℝ) ^ 2 * p₀ ≤ δ / 4 := by
     calc (n : ℝ) * (6 * (Q + 2) * NPf + T) * p₀ + (n : ℝ) ^ 2 * p₀
         ≤ n * (6 * (Q + 2) * RB + KpG) * p₀ + (n : ℝ) ^ 2 * p₀ := by
           gcongr
       _ = (n : ℝ) * (6 * (Q + 2) * RB + KpG + n) * p₀ := by ring
-      _ ≤ δ / (4 * (Q + 1)) := h3'
-  calc (Q + 2) * (4 * Real.exp (-(n * (ξ / 4) ^ 2 / 2)))
-        + ((n : ℝ) * (6 * (Q + 2) * NPf + T) * p₀ + (n : ℝ) ^ 2 * p₀)
-      ≤ δ / (4 * (Q + 1)) + δ / (4 * (Q + 1)) := add_le_add h1 h2
-    _ = δ / (2 * (Q + 1)) := by field_simp; ring
+      _ ≤ δ / 4 := h3
+  linarith
 
 end Select
 
@@ -419,7 +408,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
-    let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+    let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae →
@@ -433,7 +422,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) →
     p₀ ≤ cap * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
-    (Q + 1) * n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
+    n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
     16 * B₃ ^ 2 * p₀ ≤ δ' →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
@@ -619,11 +608,6 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
           o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) (shortAt M (L + 1))
             (ε + ε / 96))
         ∧ RoundsFresh settings O P.D Dsf Nn Ls p)} with hBloopd
-  set Sel : ℕ → Set ((Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
-      × (Fin n → FreeMonoid α)) := fun r =>
-    if hr : r < Fintype.card σ + 1 then
-      selFail settings O P.D Dsf (prefixLaw D L) Nn Ls L n (Fintype.card σ + 2) t r hr else ∅
-    with hSeld
   -- the loop's last round, consistent and fresh, picks well unless its scores stray or a
   -- held-out string collides
   have hsub : {q : (Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1) T))
@@ -634,7 +618,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
           o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
             o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
               (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
-      ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Sel r := by
+      ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r : Fin (Fintype.card σ + 1),
+          selFail settings O P.D Dsf (prefixLaw D L) Nn Ls L n (Fintype.card σ + 2) t r r.2 := by
     intro q hq
     by_cases hlp : q.1 ∈ Bloop
     · exact Or.inl hlp
@@ -644,8 +629,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     have hcons : o.result.ending = .consistent := hch.1.1
     obtain ⟨r, hr, -, tt, hst, hG, hOk, hB, hF, hread, hhyp⟩ :=
       stageSel_last settings O P Dsf Ls q.1 hfr o ho hcons
-    refine Set.mem_iUnion₂.2 ⟨r, Finset.mem_range.2 hr, ?_⟩
-    simp only [hSeld, dif_pos hr]
+    refine Set.mem_iUnion.2 ⟨⟨r, hr⟩, ?_⟩
     by_contra hnot
     apply hq
     refine ⟨hlen, o, ho, hcons, ?_⟩
@@ -688,7 +672,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     have hn : 0 < n := by
       refine Nat.ceil_pos.2 (div_pos (mul_pos (by norm_num) (Real.log_pos ?_)) (by positivity))
       rw [one_lt_div hδ]
-      nlinarith only [hQ0, hδ1, mul_nonneg hQ0 hQ0]
+      linarith only [hQ0, hδ1]
     have hεcov_ξ : εcov ≤ ξ / (8 * N) := min_le_right _ _
     have hNε : N * εcov ≤ ξ / 8 := by
       have h := mul_le_mul_of_nonneg_left hεcov_ξ (by linarith : (0 : ℝ) ≤ N)
@@ -714,7 +698,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       have h0 : 0 ≤ N * εcov := mul_nonneg (zero_le_one.trans hN1) hεc0.le
       rw [htd]; linarith
     exact h.trans this
-  -- the loop's failure, and each round's selection
+  -- the loop's failure, and the selection
   have hBl : (μL.prod β).real (Prod.fst ⁻¹' Bloop) ≤ δ / 2 := by
     have e : (μL.prod β).real (Prod.fst ⁻¹' Bloop) = μL.real Bloop := by
       rw [← Set.prod_univ, measureReal_def, measureReal_def, Measure.prod_prod, measure_univ,
@@ -726,27 +710,19 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     rw [e]; linarith
   have hpreL : ∀ u, (prefixLaw D L).real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀ :=
     fun u => by rw [hwalk]; exact prefixLaw_prefix_le D hkL hpre u
-  have hsel : ∀ r ∈ Finset.range (Fintype.card σ + 1), (μL.prod β).real (Sel r)
-      ≤ δ / (2 * (Q + 1)) := by
-    intro r hr
-    have hr' := Finset.mem_range.1 hr
-    simp only [hSeld, dif_pos hr']
-    refine (loop_select_round_le settings O P Dsf (prefixLaw D L) Ls L n (Fintype.card σ + 2)
+  have hsel : (μL.prod β).real (⋃ r : Fin (Fintype.card σ + 1),
+      selFail settings O P.D Dsf (prefixLaw D L) Nn Ls L n (Fintype.card σ + 2) t r r.2)
+      ≤ δ / 2 := by
+    refine (loop_select_le settings O P Dsf (prefixLaw D L) Ls L n (Fintype.card σ + 2)
       ⌊RB⌋₊ t p₀ (by positivity) (prefixLaw_length D (hlong.mono fun x hx => hLLs.trans hx))
-      hpreL hnp r hr').trans ?_
+      hpreL hnp).trans ?_
     have e1 : ((Fintype.card σ + 2 : ℕ) : ℝ) = Q + 2 := by push_cast; rfl
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring
     rw [e1, e2, htd]
     exact dfa_select_arith hQ0 hδ hξ hp₀0.le (Nat.le_ceil _) hbud (Nat.floor_le hRB0) hk3
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
   refine (measureReal_union_le _ _).trans ?_
-  refine (add_le_add hBl ((measureReal_biUnion_finset_le _ _).trans
-    (Finset.sum_le_sum hsel))).trans (le_of_eq ?_)
-  rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-  show δ / 2 + ((Fintype.card σ + 1 : ℕ) : ℝ) * (δ / (2 * (Q + 1))) = δ
-  push_cast
-  field_simp
-  ring
+  linarith
 
 theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
     {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -780,7 +756,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
-    let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+    let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
     A ≤ Ae →
@@ -793,7 +769,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) →
     p₀ ≤ cap * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
-    (Q + 1) * n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
+    n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
     16 * B₃ ^ 2 * p₀ ≤ δ' →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
@@ -881,7 +857,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     let δ' : ℝ := δ / (8 * (Q + 1))
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-    let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+    let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae →
@@ -958,7 +934,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   set Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α) with hKcd
   set E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε with hEd
-  set E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ with hE₂d
+  set E₂ : ℝ := 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ with hE₂d
   set E₃ : ℝ := 16 * K₁ ^ 2 / δ' with hE₃d
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
   set Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
