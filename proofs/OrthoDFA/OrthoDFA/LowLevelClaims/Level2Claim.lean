@@ -47,7 +47,8 @@ open MeasureTheory Level2
 `0 < δ < 1`, and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S` probes, level 2 fails to
 end well (`OrthoDFA.LowLevelClaims.RoundEnd`), a state reading undecided where all its strings do,
 with chance at most `δ`. `S` bounds the hypotheses: each split adds a leaf, at most `|Q| + 2` of
-them, and between splits each of a leaf's edges is learned once. A consistent ending has its
+them, and an edge a split drops leaves the target edge of its witness undecided for good, so at
+most `|Q||Σ|` are dropped over the round. A consistent ending has its
 hypothesis and tree parting on at most `ε` of the probes, and a harvest's sampler yields `y`. -/
 def Level2RoundCorrect : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] (M : DFA α σ)
@@ -57,7 +58,7 @@ def Level2RoundCorrect : Prop :=
     let δ := C.δ
     let nQ := Fintype.card σ
     let nα := Fintype.card α
-    let S : ℕ := nQ * ((nQ + 2) * nα + 1) + 2 * nα + 1
+    let S : ℕ := nQ * (3 * nα + 1) + 2 * nα + 1
     ReadsByState read M side → 0 < y → y < ε → ε < 1 → 0 < δ → δ < 1 →
     12 * (S : ℝ) * ε / (ε - y) ^ 2 * Real.log (2 * S * (S + 1) / δ) + S ≤ P →
     ∀ (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],

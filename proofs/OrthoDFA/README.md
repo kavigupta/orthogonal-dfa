@@ -29,7 +29,7 @@ Each claim is proved from the explicit theorems below.
   `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁴))` and the inverse atom tolerance
   by `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov³ ε_s² ε_u³ s₀⁶))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
-  harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
+  harvest rate `y = ε/2`, `O(|Q||Σ|/ε · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
   harvest rate `y = ε/48`, one round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`,
   its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q| + 1) + log(1/δ))/ε)`.
@@ -334,6 +334,10 @@ the time. Each level says what a state's chance of reading undecided is.
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
   where the read's chance is `κ U` at the state of `y·m`; no claim the loop proves bounds `U` at
   `y·m` under the probes' law, only at the populations' own strings.
+- **Levels 3 to 5 count `|Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` hypotheses** (#574), level 2
+  `|Q|(3|Σ| + 1) + 2|Σ| + 1`. With reads drawn per string a split can drop an edge whose target
+  edge stays live, and `Θ(|Q|²|Σ|)` drops happen with positive chance, so a smaller count there
+  would hold only with high probability.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
@@ -408,7 +412,7 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/LowLevelClaims/Level2Claim.lean` — `Level2RoundCorrect`: with every state's reads all
   undecided or all on its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`,
   `disagreementRate`), `0 < δ < 1` and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S`
-  probes, `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent
+  probes, `S = |Q|(3|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent
   with its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler
   yields `y`, but for chance at most `δ`. A harvest's sampler (`harvestLaw`, defined there) draws a
   fresh probe, walks it under the final hypothesis, and finds the undecided read it stops at.

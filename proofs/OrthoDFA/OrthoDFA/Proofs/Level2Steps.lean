@@ -16,9 +16,14 @@ A disagreement at decided reads at the edge `(p, c)` has two strings at `p`, the
 the edge's witness, whose successors sift to different leaves. They read decidedly apart at `c`
 and the midfix where those leaves part, so both new leaves of the split are reached, and with
 reads fixed by the target state the reached leaves are at most `|Q|`. Each step that does not end
-the round lowers `Θ`: a split or a learned edge lowers `Ψ`, which counts the splits left and the
-unlearned edges, and a probe that keeps the hypothesis adds to the stretch, which stays below
-its `ends`.
+the round lowers `Θ`: a split or a learned edge lowers `Φ`, and a probe that keeps the hypothesis
+adds to the stretch, which stays below its `ends`.
+
+`Φ` counts the splits left, at `2|Σ| + 1` each, the unlearned edges, and the target's live edges
+`(r, c)`, along which some string of `r` sifts decidedly. A sift is fixed by the target state, so
+an edge a split drops kills the target edge of its witness, and no two dropped edges kill the same
+one: the witnesses' states fix the edges' leaf. `Ψ` is levels 3 to 5's count, without the live
+edges and with each split weighed by all the edges it can drop.
 -/
 
 namespace OrthoDFA
@@ -79,6 +84,9 @@ variable [DecidableEq α]
 /-- At most this many hypotheses: each split adds a leaf, at most `|Q| + 2` of them, and between
 splits each of a leaf's edges is learned once. -/
 def stretches (nσ nα : ℕ) : ℕ := nσ * ((nσ + 2) * nα + 1) + 2 * nα + 1
+
+/-- At most this many hypotheses with reads fixed by the target state, by `Φ`. -/
+def stretchesByState (nσ nα : ℕ) : ℕ := nσ * (3 * nα + 1) + 2 * nα + 1
 
 /-- The fewest probes by which, whatever count `d` of disagreements and at least as many undecided
 reads they hold, one of the sequential tests at level `a` against `m` fires: the undecided reads'
@@ -210,11 +218,6 @@ def X : ℕ := (nσ + 2) * Fintype.card α + 1
 
 def Ψ (s : State α) : ℕ := (nσ + 2 - s.tree.leaves.length) * X (α := α) nσ + unlearned s
 
-/-- The probes left: the current stretch's, and those of the `Ψ` hypotheses that can follow. -/
-noncomputable def Θ (s : State α) : ℕ :=
-  ∑ i ∈ Ico (s.hypotheses + 1) (s.hypotheses + 1 + Ψ nσ s), C.ends i
-    + (C.ends s.hypotheses - 1 - s.probes)
-
 omit [DecidableEq α] in
 theorem unlearned_le (s : State α) : unlearned s ≤ s.tree.leaves.length * Fintype.card α := by
   unfold unlearned unlearnedOf
@@ -270,25 +273,6 @@ theorem sum_Ico_succ_le {M : Type*} [AddCommMonoid M] [PartialOrder M]
   rw [← sum_eq_sum_Ico_succ_bot (by omega : j + 1 < j + 2 + k)]
   exact sum_le_sum_of_subset_of_nonneg (Ico_subset_Ico le_rfl (by omega)) fun i _ _ => hf i
 
-theorem Θ_lt_same {s s' : State α} (ht : s'.tree = s.tree) (he : s'.edges = s.edges)
-    (hh : s'.hypotheses = s.hypotheses) (hp : s'.probes = s.probes + 1)
-    (hlt : s'.probes < C.ends s'.hypotheses) : Θ C nσ s' < Θ C nσ s := by
-  have hΨ : Ψ nσ s' = Ψ nσ s := by unfold Ψ unlearned; rw [ht, he]
-  unfold Θ
-  rw [hΨ, hh]
-  rw [hh] at hlt
-  omega
-
-theorem Θ_lt_change {s : State α} (hs : s.probes < C.ends s.hypotheses) (T : DTree α)
-    (E : Edges α) (hn : 1 ≤ C.ends (s.hypotheses + 1))
-    (hΨ : Ψ nσ (newHypothesis T E (s.hypotheses + 1)) < Ψ nσ s) :
-    Θ C nσ (newHypothesis T E (s.hypotheses + 1)) < Θ C nσ s := by
-  have := sum_Ico_succ_le (C.ends) (fun _ => Nat.zero_le _) (j := s.hypotheses) hΨ
-  unfold Θ
-  simp only [newHypothesis] at this ⊢
-  rw [show s.hypotheses + 1 + 1 = s.hypotheses + 2 by omega]
-  omega
-
 omit [DecidableEq α] in
 theorem leaves_start : (initialState : State α).tree.leaves = [[false], [true]] := by
   simp [initialState, newHypothesis, DTree.leaves]
@@ -302,19 +286,203 @@ theorem Ψ_start : Ψ nσ (initialState : State α) + 1 ≤ stretches nσ (Finty
   rw [show nσ + 2 - 2 = nσ by omega]
   omega
 
+end Potential
+
+/-! ## The potential with reads fixed by the target state -/
+
+section ByState
+
+omit [DecidableEq α] in
+theorem eq_of_prefix_leaves : ∀ (T : DTree α) {p q : List Bool}, p ∈ T.leaves → q ∈ T.leaves →
+    p <+: q → p = q
+  | .leaf, p, q, hp, hq, _ => by
+    simp only [DTree.leaves, List.mem_singleton] at hp hq; rw [hp, hq]
+  | .node _ r a, p, q, hp, hq, h => by
+    simp only [DTree.leaves, List.mem_append, List.mem_map] at hp hq
+    rcases hp with ⟨p', hp', rfl⟩ | ⟨p', hp', rfl⟩ <;>
+      rcases hq with ⟨q', hq', rfl⟩ | ⟨q', hq', rfl⟩ <;>
+      simp only [List.cons_prefix_cons, List.cons.injEq, true_and, Bool.false_eq_true,
+        Bool.true_eq_false, false_and] at h ⊢
+    · exact eq_of_prefix_leaves r hp' hq' h
+    · exact eq_of_prefix_leaves a hp' hq' h
+
+variable [Fintype α] {σ : Type*} [Fintype σ] (M : DFA α σ)
+
+open scoped Classical in
+/-- The target's edges `(r, c)` along which some string of `r` sifts decidedly. -/
+noncomputable def liveOf (T : DTree α) : Finset (σ × α) :=
+  univ.filter fun rc => ∃ w : FreeMonoid α, M.eval w.toList = rc.1 ∧
+    ∃ q, T.sift read (w * FreeMonoid.of rc.2) = .inl q
+
+noncomputable def Φ (s : State α) : ℕ :=
+  (Fintype.card σ + 2 - s.tree.leaves.length) * (2 * Fintype.card α + 1) + unlearned s
+    + (liveOf read M s.tree).card
+
+/-- The probes left: the current stretch's, and those of the `Φ` hypotheses that can follow. -/
+noncomputable def Θ (s : State α) : ℕ :=
+  ∑ i ∈ Ico (s.hypotheses + 1) (s.hypotheses + 1 + Φ read M s), C.ends i
+    + (C.ends s.hypotheses - 1 - s.probes)
+
+theorem Φ_lt_learn {s : State α} {p : List Bool} {c : α} (hp : p ∈ s.tree.leaves)
+    (hE : s.edges (p, c) = none) (v : List Bool × FreeMonoid α) (j : ℕ) :
+    Φ read M (newHypothesis s.tree (Function.update s.edges (p, c) (some v)) j) < Φ read M s := by
+  have := Ψ_lt_learn (Fintype.card σ) hp hE v j
+  simp only [Ψ, Φ, unlearned, newHypothesis] at this ⊢
+  omega
+
+omit [DecidableEq α] in
+/-- A split adds at most its new leaves' edges and the edges it drops to the unlearned ones, and
+each dropped edge kills a live target edge of its own. -/
+theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DTree α} {E : Edges α}
+    (hE : EdgesOK read T E) {p : List Bool} (hp : p ∈ T.leaves) (d : FreeMonoid α) :
+    unlearnedOf (T.splitAt d p) (retarget read (T.splitAt d p) p E)
+        + (liveOf read M (T.splitAt d p)).card
+      ≤ unlearnedOf T E + 2 * Fintype.card α + (liveOf read M T).card := by
+  classical
+  set T' := T.splitAt d p
+  set E' := retarget read T' p E
+  set Dr := (T.leaves.toFinset ×ˢ (univ : Finset α)).filter fun qc =>
+    ∃ w, E qc = some (p, w) ∧ ∃ z, T'.sift read (w * FreeMonoid.of qc.2) = .inr z
+  have hU : unlearnedOf T' E' ≤ unlearnedOf T E + 2 * Fintype.card α + Dr.card := by
+    have hsub : (T'.leaves.toFinset ×ˢ (univ : Finset α)).filter (fun qc => E' qc = none)
+        ⊆ ((T.leaves.toFinset ×ˢ (univ : Finset α)).filter fun qc => E qc = none)
+          ∪ (({p ++ [false], p ++ [true]} : Finset (List Bool)) ×ˢ (univ : Finset α)) ∪ Dr := by
+      rintro ⟨q, c⟩ hqc
+      simp only [mem_filter, mem_product, List.mem_toFinset, mem_univ, and_true] at hqc
+      obtain ⟨hq, hnone⟩ := hqc
+      simp only [mem_union, mem_filter, mem_product, List.mem_toFinset, mem_univ, and_true,
+        mem_insert, mem_singleton, Dr]
+      rcases (DTree.mem_leaves_splitAt d T p hp q).1 hq with ⟨hqT, hne⟩ | rfl | rfl
+      · have hpq : p.isPrefixOf q = false := by
+          by_contra h
+          simp only [Bool.not_eq_false, List.isPrefixOf_iff_prefix] at h
+          exact hne (eq_of_prefix_leaves T hp hqT h).symm
+        simp only [E', retarget, hpq, Bool.false_eq_true, if_false] at hnone
+        rcases hEq : E (q, c) with _ | ⟨t, w⟩
+        · exact Or.inl (Or.inl ⟨hqT, rfl⟩)
+        · rw [hEq] at hnone
+          simp only at hnone
+          split_ifs at hnone with ht
+          · subst ht
+            rcases hs : T'.sift read (w * FreeMonoid.of c) with t' | z
+            · rw [hs] at hnone; simp at hnone
+            · exact Or.inr ⟨hqT, w, rfl, z, hs⟩
+      · exact Or.inl (Or.inr (Or.inl rfl))
+      · exact Or.inl (Or.inr (Or.inr rfl))
+    have h2 : ({p ++ [false], p ++ [true]} : Finset (List Bool)).card ≤ 2 := card_le_two
+    have h2A := Nat.mul_le_mul_right (Fintype.card α) h2
+    have hc := (card_le_card hsub).trans ((card_union_le _ _).trans
+      (Nat.add_le_add_right (card_union_le _ _) _))
+    rw [card_product, card_univ] at hc
+    unfold unlearnedOf
+    omega
+  have hlive : (liveOf read M T').card + Dr.card ≤ (liveOf read M T).card := by
+    have hsub : liveOf read M T' ⊆ liveOf read M T := by
+      intro rc h
+      simp only [liveOf, mem_filter, mem_univ, true_and] at h ⊢
+      obtain ⟨w, hw, q, hq⟩ := h
+      refine ⟨w, hw, ?_⟩
+      rcases hs : T.sift read (w * FreeMonoid.of rc.2) with q' | z
+      · exact ⟨q', rfl⟩
+      · simp only [T', DTree.sift_splitAt, hs, Sum.elim_inr, reduceCtorEq] at hq
+    let f : List Bool × α → σ × α := fun qc => match E qc with
+      | some (_, w) => (M.eval w.toList, qc.2)
+      | none => (M.eval [], qc.2)
+    have hf : ∀ {q c w}, E (q, c) = some (p, w) → f (q, c) = (M.eval w.toList, c) := by
+      intro q c w h; simp only [f, h]
+    have hmaps : ∀ qc ∈ Dr, f qc ∈ liveOf read M T \ liveOf read M T' := by
+      rintro ⟨q, c⟩ hqc
+      simp only [Dr, mem_filter, mem_product, List.mem_toFinset, mem_univ, and_true] at hqc
+      obtain ⟨hq, w, hEq, z, hz⟩ := hqc
+      rw [hf hEq]
+      simp only [mem_sdiff, liveOf, mem_filter, mem_univ, true_and, not_exists, not_and]
+      refine ⟨⟨w, rfl, p, (hE q hq c p w hEq).2⟩, fun w' hw' q' hq' => ?_⟩
+      have := DTree.sift_congr read (w' * FreeMonoid.of c) (w * FreeMonoid.of c)
+        (fun m => by rw [mul_assoc, mul_assoc]; exact read_mul_congr read hI hw' _) T' q' hq'
+      rw [hz] at this
+      cases this
+    have hinj : Set.InjOn f Dr := by
+      rintro ⟨q₁, c₁⟩ h₁ ⟨q₂, c₂⟩ h₂ heq
+      simp only [Dr, coe_filter, mem_product, List.mem_toFinset, mem_univ, and_true,
+        Set.mem_ofPred_eq] at h₁ h₂
+      obtain ⟨hq₁, w₁, hE₁, -⟩ := h₁
+      obtain ⟨hq₂, w₂, hE₂, -⟩ := h₂
+      rw [hf hE₁, hf hE₂, Prod.mk.injEq] at heq
+      obtain ⟨hw, rfl⟩ := heq
+      have h1 := DTree.sift_congr read w₁ w₂ (read_mul_congr read hI hw) T q₁
+        (hE q₁ hq₁ c₁ p w₁ hE₁).1
+      rw [(hE q₂ hq₂ c₁ p w₂ hE₂).1, Sum.inl.injEq] at h1
+      rw [h1]
+    have h1 := card_le_card_of_injOn f hmaps hinj
+    have h2 := card_sdiff_add_card_eq_card hsub
+    omega
+  omega
+
+omit [DecidableEq α] in
+/-- A split within `|Q| + 2` leaves lowers `Φ`. -/
+theorem Φ_lt_split {side : σ → Bool} (hI : ReadsByState read M side) {s : State α}
+    (hE : EdgesOK read s.tree s.edges) {p : List Bool} (hp : p ∈ s.tree.leaves) (d : FreeMonoid α)
+    (hsz : (s.tree.splitAt d p).leaves.length ≤ Fintype.card σ + 2) (j : ℕ) :
+    Φ read M (newHypothesis (s.tree.splitAt d p) (retarget read (s.tree.splitAt d p) p s.edges) j)
+      < Φ read M s := by
+  have h := split_count read M hI hE hp d
+  simp only [Φ, unlearned, newHypothesis]
+  rw [DTree.length_leaves_splitAt d s.tree p hp] at hsz ⊢
+  have h2 : Fintype.card σ + 2 - s.tree.leaves.length
+      = Fintype.card σ + 2 - (s.tree.leaves.length + 1) + 1 := by omega
+  rw [h2, Nat.add_mul, one_mul]
+  omega
+
+omit [DecidableEq α] in
+theorem Φ_start :
+    Φ read M (initialState : State α) + 1 ≤ stretchesByState (Fintype.card σ) (Fintype.card α) := by
+  have hu := unlearned_le (initialState : State α)
+  have hl : (liveOf read M (initialState : State α).tree).card
+      ≤ Fintype.card σ * Fintype.card α := by
+    simpa [Fintype.card_prod] using card_le_univ (liveOf read M (initialState : State α).tree)
+  rw [leaves_start] at hu
+  unfold Φ stretchesByState
+  rw [leaves_start]
+  simp only [List.length_cons, List.length_nil, zero_add, Nat.reduceAdd] at hu ⊢
+  rw [show Fintype.card σ + 2 - 2 = Fintype.card σ by omega]
+  have : Fintype.card σ * (3 * Fintype.card α + 1)
+      = Fintype.card σ * (2 * Fintype.card α + 1) + Fintype.card σ * Fintype.card α := by ring
+  omega
+
+theorem Θ_lt_same {s s' : State α} (ht : s'.tree = s.tree) (he : s'.edges = s.edges)
+    (hh : s'.hypotheses = s.hypotheses) (hp : s'.probes = s.probes + 1)
+    (hlt : s'.probes < C.ends s'.hypotheses) : Θ read C M s' < Θ read C M s := by
+  have hΦ : Φ read M s' = Φ read M s := by unfold Φ unlearned; rw [ht, he]
+  unfold Θ
+  rw [hΦ, hh]
+  rw [hh] at hlt
+  omega
+
+theorem Θ_lt_change {s : State α} (hs : s.probes < C.ends s.hypotheses) (T : DTree α)
+    (E : Edges α) (hn : 1 ≤ C.ends (s.hypotheses + 1))
+    (hΦ : Φ read M (newHypothesis T E (s.hypotheses + 1)) < Φ read M s) :
+    Θ read C M (newHypothesis T E (s.hypotheses + 1)) < Θ read C M s := by
+  have := sum_Ico_succ_le (C.ends) (fun _ => Nat.zero_le _) (j := s.hypotheses) hΦ
+  unfold Θ
+  simp only [newHypothesis] at this ⊢
+  rw [show s.hypotheses + 1 + 1 = s.hypotheses + 2 by omega]
+  omega
+
 theorem Θ_start (hn : 1 ≤ C.ends 0) :
-    Θ C nσ (initialState : State α) < ∑ j ∈ range (stretches nσ (Fintype.card α)), C.ends j := by
-  have hΨ := Ψ_start nσ (α := α)
-  have key := sum_range_add_sum_Ico C.ends (show 1 ≤ 1 + Ψ nσ (initialState : State α) by omega)
-  have hsum : ∑ j ∈ range (1 + Ψ nσ (initialState : State α)), C.ends j
-      ≤ ∑ j ∈ range (stretches nσ (Fintype.card α)), C.ends j :=
+    Θ read C M (initialState : State α)
+      < ∑ j ∈ range (stretchesByState (Fintype.card σ) (Fintype.card α)), C.ends j := by
+  have hΦ := Φ_start read M (α := α)
+  have key := sum_range_add_sum_Ico C.ends
+    (show 1 ≤ 1 + Φ read M (initialState : State α) by omega)
+  have hsum : ∑ j ∈ range (1 + Φ read M (initialState : State α)), C.ends j
+      ≤ ∑ j ∈ range (stretchesByState (Fintype.card σ) (Fintype.card α)), C.ends j :=
     sum_le_sum_of_subset (range_mono (by omega))
   simp only [range_one, sum_singleton] at key
   unfold Θ
   simp only [initialState, newHypothesis, Nat.zero_add] at hsum key ⊢
   omega
 
-end Potential
+end ByState
 
 /-! ## One step -/
 
@@ -326,13 +494,13 @@ theorem inv_fresh {T : DTree α} {E : Edges α} {j : ℕ} (hn : 1 ≤ C.ends j)
     (hE : EdgesOK read T E) (hr : Reached read T) : Inv read C (newHypothesis T E j) :=
   ⟨hE, hr, le_rfl, le_rfl, by simp [newHypothesis]; omega⟩
 
-/-- A step that changes the hypothesis: a split or a learned edge, keeping `Inv`, lowering `Ψ`. -/
+/-- A step that changes the hypothesis: a split or a learned edge, keeping `Inv`, lowering `Φ`. -/
 theorem step_change [Fintype α] (hI : ReadsByState read M side)
     {s : State α} (hn : 1 ≤ C.ends (s.hypotheses + 1)) (hs : Inv read C s) {x : FreeMonoid α}
     (hc : Changes (probeOrAgree read s.tree s.edges C.walkStart x)) :
     ∃ T E, applyProbe read C s x = .inl (newHypothesis T E (s.hypotheses + 1))
       ∧ Inv read C (newHypothesis T E (s.hypotheses + 1))
-      ∧ Ψ (Fintype.card σ) (newHypothesis T E (s.hypotheses + 1)) < Ψ (Fintype.card σ) s := by
+      ∧ Φ read M (newHypothesis T E (s.hypotheses + 1)) < Φ read M s := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
   unfold applyProbe
   revert hc hOK
@@ -345,7 +513,7 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side)
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_upd read hs.edges hu huc) hs.reached,
-      Ψ_lt_learn _ hp hE _ _⟩
+      Φ_lt_learn read M hp hE _ _⟩
   | wrongEdge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, ht₀⟩ := hOK
     obtain ⟨hw₀, hw₀c⟩ := hs.edges p hp c t₀ w₀ hE
@@ -358,7 +526,7 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side)
       · simpa [mul_assoc] using hpart.2.2
     simp only [hE]
     exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_retarget read hs.edges hp _) hreach,
-      Ψ_lt_split _ hp (leaves_le_of_reached read hI hreach) _ _⟩
+      Φ_lt_split read M hI hs.edges hp _ (leaves_le_of_reached read hI hreach) _⟩
 
 omit [DecidableEq α] in
 /-- Counting a probe that keeps the hypothesis keeps `Inv` where neither test fires. -/
