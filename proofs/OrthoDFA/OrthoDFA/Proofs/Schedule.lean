@@ -291,7 +291,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
         / gateRoom η indecisionLimit εcov ^ 2⌉₊
     + ⌈gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
-        (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
+        (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / dirtyRate η indecisionLimit εcov εs⌉₊

@@ -57,7 +57,7 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
       / gateRoom η indecisionLimit εcov ^ 2,
     gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
-      (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α))),
+      (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ) / α))),
     Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / dirtyRate η indecisionLimit εcov εs,
@@ -531,7 +531,7 @@ theorem prefCount_le_split (populations : Finset J)
     rw [hKdef, le_div_iff₀ hgR2]
     have : 1 ≤ (Dg + 1) ^ 2 := by nlinarith only [hD0']
     nlinarith only [this, hgR1, hgR0]
-  set q : ℝ := 7 * c / α with hqdef
+  set q : ℝ := 9 * c / α with hqdef
   have hq1 : 1 ≤ q := by rw [hqdef, le_div_iff₀ hα]; linarith only [hc1, hα1]
   have hr1 : 1 ≤ Real.sqrt (Real.sqrt q) := Real.one_le_sqrt.2 (Real.one_le_sqrt.2 hq1)
   set y : ℝ := Real.log (4 * K * (4 * Real.sqrt (Real.sqrt q))) with hydef

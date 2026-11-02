@@ -204,6 +204,8 @@ def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (gateLevel α populations B) B.lo B.hi
     (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
     (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
+  ∧ centreFits mq η₀ (gateLevel α populations B) B (clusterBy rule mq populations x B)
+    (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)
 
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/

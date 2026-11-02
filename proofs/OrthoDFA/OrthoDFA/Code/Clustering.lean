@@ -447,6 +447,33 @@ def certifiesAt (mq : S → Ω → ℝ) (c yAcc yRej lim a : ℝ) (lo hi : ℕ) 
   0 < P.card ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P c yAcc yRej ω
     ≤ P.card * lim - hoeffDev P.card (sizeLevel a P.card)
 
+open scoped Classical in
+/-- The prefixes of `P` whose vote over `F` falls `½ − η₀` of the family or more below the
+state's centre. -/
+noncomputable def strongReject (mq : S → Ω → ℝ) (η₀ : ℝ) (B : State) (F P : Finset S) (ω : Ω) :
+    Finset S :=
+  P.filter (fun p => (voteCount mq F p ω : ℝ) ≤ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀)))
+
+open scoped Classical in
+/-- The prefixes of `P` whose vote over `F` rises `½ − η₀` of the family or more above the
+state's centre. -/
+noncomputable def strongAccept (mq : S → Ω → ℝ) (η₀ : ℝ) (B : State) (F P : Finset S) (ω : Ω) :
+    Finset S :=
+  P.filter (fun p => ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)) ≤ (voteCount mq F p ω : ℝ))
+
+/-- An upper bound at level `a` on how often a prefix of `A` reads against side `accept`, `1` on
+an empty `A`.  Every prefix reads accept at least as often as the language's complement does,
+and reject at least as often as the language does, so it bounds those two rates whatever `A`
+holds. -/
+noncomputable def readBound (mq : S → Ω → ℝ) (accept : Bool) (A : Finset S) (a : ℝ) (ω : Ω) : ℝ :=
+  if A.card = 0 then 1 else ((againstOn mq accept A ω : ℝ) + hoeffDev A.card a) / A.card
+
+/-- The uniform pool's sample bears out the state's centre: the rates its strongly decided
+prefixes read the other way at are no more than those the gate reads the wrong class at. -/
+def centreFits (mq : S → Ω → ℝ) (η₀ a : ℝ) (B : State) (F P : Finset S) (ω : Ω) : Prop :=
+  readBound mq false (strongReject mq η₀ B F P ω) a ω ≤ B.centre - 1 / 2 + η₀
+    ∧ readBound mq true (strongAccept mq η₀ B F P ω) a ω ≤ 1 / 2 - B.centre + η₀
+
 /-- Population `j` is read at a state of `m` prefixes: its table and its certification sample
 both find their `m` strings. -/
 def keptAt (populations : Finset J) (j : J) (m : ℕ) (x : Run Ω S J) : Prop :=
@@ -462,10 +489,10 @@ open scoped Classical in
 /-- `misclassification_limit`: `εcov` on the uniform pool, a half elsewhere. -/
 noncomputable def gateLimit (uni : J) (εcov : ℝ) (j : J) : ℝ := if j = uni then εcov else 1 / 2
 
-/-- The level the gate spends at a state: `α` over the gate's seven tails per population,
-and over the states by their prefix counts. -/
+/-- The level the gate spends at a state: `α` over the gate's seven tails per population and the
+centre check's two, and over the states by their prefix counts. -/
 noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
-  sizeLevel (α / (7 * populations.card)) B.npref
+  sizeLevel (α / (9 * populations.card)) B.npref
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
@@ -473,7 +500,7 @@ test on `certOf`, and the gate, at each population `keptAt` keeps, the gate draw
 population further when the split reads uncertified, to at most twice its size.  The FNR reads
 the family with its seed; the gate reads it without, since the seed's read is the bit the gate
 scores.  The gate reads each side's wrong class at the rate `½ − η₀` short of the band's
-centre. -/
+centre, once the uniform pool's sample bears that centre out (`centreFits`). -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
@@ -486,6 +513,8 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
       certifiesAt mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
         (gateLevel α populations B) B.lo B.hi
         (clusterAt mq populations x B) (refsAt mq populations x B)
-        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)}
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
+      ∧ centreFits mq η₀ (gateLevel α populations B) B (clusterAt mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)}
 
 end OrthoDFA

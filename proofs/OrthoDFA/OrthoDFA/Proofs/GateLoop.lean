@@ -292,7 +292,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (indecisionLimit εcov α u : ℝ)
     (hil : 0 < indecisionLimit) (hα0 : 0 < α) (hα1 : α ≤ 1) (B : State)
-    (hstr : O.Straddles B.centre η₀) (hk : 0 < B.k)
+    (hgap : 0 ≤ O.gap) (hc0B : 0 ≤ B.centre) (hc1B : B.centre ≤ 1) (hk : 0 < B.k)
     (r : ℕ) (c : ℝ) (hc0 : 0 ≤ c) (hr : (r : ℝ) ≤ c * B.npref)
     (hu : 3 / 2 * indecisionLimit + c ≤ u) (hc316 : c ≤ 3 / 16 * indecisionLimit)
     (ρ : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ ρ ∧ (Dp j).real {t} ≤ ρ)
@@ -300,7 +300,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hG : ∀ x ∉ G, ∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p) :
     (streamMeasure μ Pp Pc Dsf).real ((retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
         ∩ FailAt rule O populations tame uni Dc εcov c u B) \ G)
-      ≤ 7 * populations.card * gateLevel α populations B
+      ≤ 9 * populations.card * gateLevel α populations B
         + ((tame.card : ℝ) * (rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
             + rejTail (2 * B.npref + r)
               (((populations.card * B.npref + (2 * B.npref + r) : ℕ) : ℝ) * ρ) r)
@@ -324,9 +324,13 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     with hindJ
   have hsub : ((retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
         ∩ FailAt rule O populations tame uni Dc εcov c u B) \ G)
-      ⊆ (⋃ j ∈ tame, (gateJ j ∪ indJ j))
-        ∪ {x : Run Ω S J | ¬ drawsGoodOn populations tame B.npref r x} := by
+      ⊆ ((⋃ j ∈ tame, (gateJ j ∪ indJ j))
+        ∪ {x : Run Ω S J | ¬ drawsGoodOn populations tame B.npref r x})
+        ∪ fitsBad rule O populations uni η₀ B a := by
     rintro x ⟨⟨hret, hfail⟩, hxG⟩
+    by_cases hfb : x ∈ fitsBad rule O populations uni η₀ B a
+    · exact Or.inr hfb
+    refine Or.inl ?_
     obtain ⟨hsize, hfnr, hgate⟩ := hret
     simp only [FailAt, Set.mem_setOf_eq, not_forall] at hfail
     obtain ⟨j, hj, hfj⟩ := hfail
@@ -360,11 +364,16 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
               (oracleNoise x)}ᶜ from rfl,
           measureReal_compl (measurableSet_of_countable _), probReal_univ]
         linarith [not_le.1 hmass]
-      have hin := falseCertify_subset (rule := rule) O (wrongRate_le_centre O hstr).1
-        (wrongRate_le_centre O hstr).2 populations (Dc j) j B
-        (gateLimit uni εcov j) c a r hc0 hr ⟨hgate j (htame hj) hkept, hG x hxG, hgt, hc2⟩
+      obtain ⟨e, he, hcert, hfit⟩ := hgate j (htame hj) hkept
+      have hrates := wrongRate_le_of_fits O hgap
+        (readsGood_of_not_fitsBad O populations uni η₀ B a hfb) hfit
+      have hin := falseCertify_subset (rule := rule) O hrates.1 hrates.2 populations (Dc j) j B
+        (gateLimit uni εcov j) c a r hc0 hr ⟨⟨e, he, hcert⟩, hG x hxG, hgt, hc2⟩
       exact Or.inl (Set.mem_biUnion hj (Or.inl hin))
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_union_le _ _) ?_
+  have hfits := measureReal_fitsBad_le (rule := rule) hflat O populations Pp Pc Dsf hsuppP hsuppC
+    hsuppSf uni (htame huni) η₀ B ha0 ha1
   have h2 : (streamMeasure μ Pp Pc Dsf).real ((⋃ j ∈ tame, (gateJ j ∪ indJ j))
         ∪ {x : Run Ω S J | ¬ drawsGoodOn populations tame B.npref r x})
       ≤ tame.card * (7 * a + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
@@ -377,8 +386,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     rw [← nsmul_eq_mul, ← Finset.sum_const]
     refine Finset.sum_le_sum (fun j hj => le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_))
     · exact measureReal_popGate_le hflat O populations Pp Pc Dsf hsuppP hsuppC hsuppSf j
-        (htame hj) (Dc j) (hPc j hj) B (centre_unit_of_straddles O hstr hη₀.le).1
-        (centre_unit_of_straddles O hstr hη₀.le).2 ha0 ha1
+        (htame hj) (Dc j) (hPc j hj) B hc0B hc1B ha0 ha1
     · refine le_trans (measureReal_undecidedShort_le Pp Pc Dsf O populations j (Dc j)
         (hPc j hj) B _ _ (by linarith) (by linarith)) (Real.exp_le_exp.2 ?_)
       have hrate : undecRate indecisionLimit
@@ -388,7 +396,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       have hm0 : (0 : ℝ) ≤ B.npref := Nat.cast_nonneg _
       nlinarith [mul_le_mul_of_nonneg_left hrate hm0]
   have he0 : 0 ≤ Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)) := Real.exp_nonneg _
-  have hgl : 7 * (tame.card : ℝ) * a ≤ 7 * populations.card * a := by nlinarith
+  have hgl : 7 * (tame.card : ℝ) * a + 2 * a ≤ 9 * populations.card * a := by nlinarith
   have hel : (tame.card : ℝ) * Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit))
       ≤ populations.card * Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)) :=
     mul_le_mul_of_nonneg_right htc he0
@@ -449,13 +457,13 @@ lemma schedule_npref_inj {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP
 lemma gateLevel_sum_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (hα : 0 ≤ α)
     (hpop : populations.Nonempty) (s : Finset State)
     (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
-    ∑ B ∈ s, 7 * (populations.card : ℝ) * gateLevel α populations B ≤ α := by
+    ∑ B ∈ s, 9 * (populations.card : ℝ) * gateLevel α populations B ≤ α := by
   classical
   have hJ : (0 : ℝ) < populations.card := by exact_mod_cast Finset.card_pos.2 hpop
-  have e : ∀ B : State, 7 * (populations.card : ℝ) * gateLevel α populations B
+  have e : ∀ B : State, 9 * (populations.card : ℝ) * gateLevel α populations B
       = sizeLevel α B.npref := by
     intro B
-    have h13 : (7 * (populations.card : ℝ)) ≠ 0 := by positivity
+    have h13 : (9 * (populations.card : ℝ)) ≠ 0 := by positivity
     unfold gateLevel sizeLevel
     field_simp
   rw [Finset.sum_congr rfl (fun B _ => e B)]
@@ -539,7 +547,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       ((retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
         ∩ FailAt rule O populations tame uni Dc εcov
             (rejFrac η₀ indecisionLimit εcov εs) u B) \ G)
-      ≤ 7 * populations.card * gateLevel α populations B
+      ≤ 9 * populations.card * gateLevel α populations B
         + (δ * (B.npref : ℝ) / (8 * N) + if V ≤ B.npref then δ * (V : ℝ) / (16 * B.npref) else 0) := by
     intro B hB
     have hcap := capped_of_mem_stoppable hB
@@ -570,8 +578,9 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
         _ (familyBy_card_le O populations B hk x)
     have h := per_state_le (rule := rule) hflat O populations tame uni huni htame Pp Pc Dsf L Dp
       Dc hL hPp hPc hsuppP hsuppC hsuppSf hηle hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B
-      (by rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hsched]
-          exact straddles_half O hηle) hk
+      (by linarith [gap_ge O, lt_of_le_of_lt hηle hη₀])
+      (by rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hsched]; norm_num)
+      (by rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hsched]; norm_num) hk
       r c hc0.le hr hu (by
         have h1 := (rejFrac_le (εs := εs) (indecisionLimit := iLc) η₀ (εcov := εcov)).2.1
         have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith [eta_nonneg O]
@@ -625,11 +634,11 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
             indecisionLimit εcov α B ∩ FailAt rule O populations tame uni Dc εcov
                 (rejFrac η₀ indecisionLimit εcov εs) u B)
               \ G) := measureReal_biUnion_finset_le _ _
-      _ ≤ ∑ B ∈ st, (7 * populations.card * gateLevel α populations B
+      _ ≤ ∑ B ∈ st, (9 * populations.card * gateLevel α populations B
             + (δ * (B.npref : ℝ) / (8 * N)
               + if V ≤ B.npref then δ * (V : ℝ) / (16 * B.npref) else 0)) :=
           Finset.sum_le_sum hper
-      _ = ∑ B ∈ st, 7 * (populations.card : ℝ) * gateLevel α populations B
+      _ = ∑ B ∈ st, 9 * (populations.card : ℝ) * gateLevel α populations B
             + ((δ / (8 * N)) * ∑ B ∈ st, (B.npref : ℝ)
               + δ / 16 * ∑ B ∈ st, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0)) := by
           rw [Finset.sum_add_distrib, Finset.sum_add_distrib, Finset.mul_sum, Finset.mul_sum]
@@ -1677,7 +1686,9 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     (hMF : ∀ b, M b ≤ lF * B.npref)
     (hMG : ∀ b, M b * sideCharge O B.centre η₀ (!b) ≤ lG * B.npref)
     (h8 : x ∉ lightMiss rule O populations j B l lmis (fracAt O B.centre η₀) kmin kmax)
-    (h10 : x ∉ sidesDead rule O populations j B B.npref t) (h11 : poolGood B.nsuff rs x) :
+    (h10 : x ∉ sidesDead rule O populations j B B.npref t) (h11 : poolGood B.nsuff rs x)
+    (hfit : centreFits O.mq η₀ (gateLevel α populations B) B (clusterBy rule O.mq populations x B)
+      (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)) :
     x ∈ retAt rule O populations uni η₀ indecisionLimit εcov α B j := by
   classical
   set n : ℕ := B.npref with hndef
@@ -1838,7 +1849,7 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
   have hcert' : certifiesAt O.mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
       (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi F R C (oracleNoise x) := by
     simpa only [sideRate, ↓reduceIte, Bool.false_eq_true] using hcert
-  refine ⟨?_, ?_, hcert'⟩
+  refine ⟨?_, ?_, hcert', hfit⟩
   · have : B.k ≤ F.card + 1 := by omega
     exact this
   · rw [hCn]
@@ -1864,7 +1875,9 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
             + gateDevD η₀ * hoeffDev B.npref (sizeLevel (gateLevel α populations B) B.npref))
           + ((N : ℝ) - B.npref)
         ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations B) N)) :
-    {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ indecisionLimit εcov α B j}
+    {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ indecisionLimit εcov α B j
+      ∧ centreFits O.mq η₀ (gateLevel α populations B) B (clusterBy rule O.mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)}
       ⊆ {x | ¬ certGood populations j B.npref r x} ∪ stalled rule O populations B kmin kmax
         ∪ ({x | ¬ ∑ v ∈ clusterBy rule O.mq populations x B, wMass O Dj (clsW O B.centre true) v
               ≤ ((clusterBy rule O.mq populations x B).card : ℝ) *
@@ -1881,7 +1894,7 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
         ∪ lightMiss rule O populations j B l lmis (fracAt O B.centre η₀) kmin kmax
         ∪ sidesDead rule O populations j B B.npref t ∪ {x | ¬ poolGood B.nsuff rs x} := by
   classical
-  intro x hx
+  rintro x ⟨hx, hfit⟩
   by_contra hcon
   simp only [Set.mem_union, not_or] at hcon
   obtain ⟨⟨⟨⟨⟨⟨h1, h5⟩, ⟨h6t, h6f⟩⟩, ⟨h7t, h7f⟩⟩, h8⟩, h10⟩, h11⟩ := hcon
@@ -1923,7 +1936,7 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
   refine hx (retAt_of_light O populations uni huni j B x hmpos hstr hη₀ εcov α hα0 hα1 l lF lG
     lmis t (fun b => B.npref * (clsQ O B.centre η₀ Δ c g b + clsQ O B.centre η₀ Δ c g b / 32) + r) r
       rs kmin kmax
-    hkmin hlF hlmis hlohi ht hkpos hpool hgate h5' hCn (fun b => ?_) hMF hMG h8 h10 h11)
+    hkmin hlF hlmis hlohi ht hkpos hpool hgate h5' hCn (fun b => ?_) hMF hMG h8 h10 h11 hfit)
   cases b
   · exact hcnt false h7f h6f
   · exact hcnt true h7t h6t
@@ -2030,15 +2043,15 @@ lemma hoeffDev_le_sqrt {n : ℕ} {a Λ : ℝ} (hlog : Real.log (1 / a) ≤ Λ) :
   linarith
 
 /-- The levels the gate reads at a look of `N ≤ 2m` draws at a state of `m` prefixes: none below
-`α/(7|J|(2m + 2)⁴)`. -/
+`α/(9|J|(2m + 2)⁴)`. -/
 lemma log_sizeLevel_le {α c : ℝ} (hα : 0 < α) (hc : 0 < c) {m N : ℕ} (hNm : N ≤ 2 * m) :
-    Real.log (1 / sizeLevel (sizeLevel (α / (7 * c)) m) N)
-      ≤ Real.log (7 * c / α) + 4 * Real.log (2 * m + 2) := by
+    Real.log (1 / sizeLevel (sizeLevel (α / (9 * c)) m) N)
+      ≤ Real.log (9 * c / α) + 4 * Real.log (2 * m + 2) := by
   have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg _
   have hN : (N : ℝ) ≤ 2 * m := by exact_mod_cast hNm
   have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
-  have e : 1 / sizeLevel (sizeLevel (α / (7 * c)) m) N
-      = 7 * c / α * (((m : ℝ) + 1) * ((m : ℝ) + 2) * (((N : ℝ) + 1) * ((N : ℝ) + 2))) := by
+  have e : 1 / sizeLevel (sizeLevel (α / (9 * c)) m) N
+      = 9 * c / α * (((m : ℝ) + 1) * ((m : ℝ) + 2) * (((N : ℝ) + 1) * ((N : ℝ) + 2))) := by
     unfold sizeLevel
     field_simp
   rw [e, Real.log_mul (by positivity) (by positivity)]
@@ -2104,7 +2117,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     rfl
   have hga : ∀ N : ℕ, sizeLevel (gateLevel α populations
         (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)) N
-      = sizeLevel (sizeLevel (α / (7 * (populations.card : ℝ))) m) N := fun N => rfl
+      = sizeLevel (sizeLevel (α / (9 * (populations.card : ℝ))) m) N := fun N => rfl
   rw [hBm, hBM]
   simp only [hga]
   -- the two counts the gate's terms ask for
@@ -2113,7 +2126,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
         / gateRoom η₀ indecisionLimit εcov ^ 2⌉₊ ≤ m := by
     rw [hmdef, prefCount, ← hMdef]; omega
   have hc2 : ⌈gateLogCount (200 / 9 * (gateDevD η₀ + 1) ^ 2 / gateRoom η₀ indecisionLimit εcov ^ 2)
-        (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊ ≤ m := by
+        (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ) / α)))⌉₊ ≤ m := by
     rw [hmdef, prefCount]; omega
   have hmR1 : (1 : ℝ) ≤ m := by
     have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
@@ -2158,7 +2171,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     linarith
   -- the levels' deviations, against the rest
   set K : ℝ := 200 / 9 * (D + 1) ^ 2 / gR ^ 2 with hKdef
-  set q : ℝ := 7 * c / α with hqdef
+  set q : ℝ := 9 * c / α with hqdef
   set kk : ℝ := 4 * Real.sqrt (Real.sqrt q) with hkkdef
   have hq1 : 1 ≤ q := by rw [hqdef, le_div_iff₀ hα]; linarith
   have hkk4 : 4 ≤ kk := by
@@ -2206,7 +2219,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     have : 0 ≤ Real.log (2 * (m : ℝ) + 2) := Real.log_nonneg (by linarith)
     rw [hΛ]; linarith
   have hsl : ∀ N : ℕ, N ≤ 2 * m →
-      Real.log (1 / sizeLevel (sizeLevel (α / (7 * c)) m) N) ≤ Λ := by
+      Real.log (1 / sizeLevel (sizeLevel (α / (9 * c)) m) N) ≤ Λ := by
     intro N hN
     exact log_sizeLevel_le (m := m) hα (by positivity) hN
   set s : ℝ := Real.sqrt (m * Λ / 2) with hsdef
@@ -2244,7 +2257,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
       linarith
     linarith only [hNR2, this]
   have hN2m : N ≤ 2 * m := by exact_mod_cast hN2mR
-  have hdN : hoeffDev N (sizeLevel (sizeLevel (α / (7 * c)) m) N) ≤ 2 * s := by
+  have hdN : hoeffDev N (sizeLevel (sizeLevel (α / (9 * c)) m) N) ≤ 2 * s := by
     refine le_trans (hoeffDev_le_sqrt (hsl N hN2m)) ?_
     calc Real.sqrt (N * Λ / 2) ≤ Real.sqrt (2 ^ 2 * (m * Λ / 2)) :=
           Real.sqrt_le_sqrt (by
@@ -2252,7 +2265,7 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
             have := mul_nonneg hm0.le hΛ0
             linarith only [this, ‹(N : ℝ) * Λ ≤ 2 * m * Λ›])
       _ = 2 * s := by rw [Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]
-  have hDd : D * hoeffDev m (sizeLevel (sizeLevel (α / (7 * c)) m) m) ≤ D * s :=
+  have hDd : D * hoeffDev m (sizeLevel (sizeLevel (α / (9 * c)) m) m) ≤ D * s :=
     mul_le_mul_of_nonneg_left hdm hD0.le
   have hcuta : 5 / 8 * cut / a ^ 2 ≤ mn / 8 := by
     have h := cutBudget_le_gate η₀ indecisionLimit εcov
