@@ -320,4 +320,236 @@ lemma readBound_acc_le (O : Oracle μ S) {η₀ a aT n εb h e Smin : ℝ} {B : 
   have hAS := mul_le_mul_of_nonneg_left hA (Nat.cast_nonneg SA.card : (0 : ℝ) ≤ SA.card)
   nlinarith
 
+/-- A light prefix's vote misses the strong reject threshold at most `exp(−κ v²/2)` of the time,
+`v = voteSlack`, near the true centre and with a family of at least `10/sig`. -/
+lemma missRej_prob_le (O : Oracle μ S) {η₀ : ℝ} {B : State} (F : Finset S) (p : S)
+    (hFk : F.card = B.k - 1) (hη₀ : η₀ < 1 / 2)
+    (hg : 4 * (1 / 2 - η₀) ≤ O.gap) (hc : |B.centre - O.cmid| ≤ (1 / 2 - η₀) / 5)
+    (hκ : 10 ≤ (F.card : ℝ) * (1 / 2 - η₀)) :
+    μ.real {ω | missRej O η₀ B F p ω}
+      ≤ Real.exp (-2 * F.card * (2 * (1 / 2 - η₀) / 5) ^ 2) := by
+  classical
+  have hσ : 0 < 1 / 2 - η₀ := by linarith
+  obtain ⟨hR, -, hm, hm'⟩ := mid_facts O hg hc
+  have hg0 : 0 ≤ O.gap := by linarith
+  have hgle : O.gap ≤ 1 := by
+    unfold Oracle.gap; linarith [le_max_right O.ηIn 0, le_max_right O.ηOut 0]
+  have hc0 := abs_le.1 hc
+  have hθ : ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀))
+      = F.card * (B.centre - (1 / 2 - η₀)) := by rw [hFk]
+  have hγ0 : (0 : ℝ) ≤ 2 * (1 / 2 - η₀) / 5 := by positivity
+  have hE0 : 0 ≤ Real.exp (-2 * F.card * (2 * (1 / 2 - η₀) / 5) ^ 2) := (Real.exp_pos _).le
+  set κ : ℝ := (F.card : ℝ) with hκdef
+  have hκ0 : 0 ≤ κ := Nat.cast_nonneg _
+  have hθ0 : 0 ≤ κ * (B.centre - (1 / 2 - η₀)) := by
+    have : 0 ≤ B.centre - (1 / 2 - η₀) := by linarith [le_max_right O.ηOut 0]
+    positivity
+  rcases O.label_bit p with hl | hl
+  · by_cases hfl : flipCount O F p ≤ F.card * (1 / 20)
+    · have hr0 : 0 ≤ O.ηOut := by
+        have := O.rate_nonneg p
+        rw [rate_of_label O false p, if_pos (by simp [sideClass, hl])] at this
+        simpa [rightRate] using this
+      have hrate : O.rate p = O.ηOut := by
+        rw [rate_of_label O false p, if_pos (by simp [sideClass, hl])]; rfl
+      set c' : ℕ := ⌊κ * (B.centre - (1 / 2 - η₀))⌋₊ + 1 with hc'
+      have hc'R : κ * (B.centre - (1 / 2 - η₀)) < c' := by
+        rw [hc']; push_cast; exact Nat.lt_floor_add_one _
+      have hsub : {ω | missRej O η₀ B F p ω} ⊆ {ω | c' ≤ voteCount O.mq F p ω} := by
+        intro ω hω
+        rcases hω with ⟨-, -, hv⟩ | ⟨hl1, -⟩
+        · rw [hθ] at hv
+          show c' ≤ voteCount O.mq F p ω
+          rw [hc']
+          exact (Nat.floor_lt hθ0).2 hv
+        · rw [hl] at hl1; norm_num at hl1
+      set q : ℝ := max O.ηOut 0 + O.gap / 20 with hq
+      have hq0 : 0 ≤ q := by positivity
+      have hq1 : q ≤ 1 := by
+        have : max O.ηOut 0 ≤ 1 - O.gap := by
+          unfold Oracle.gap; linarith [le_max_right O.ηIn 0]
+        rw [hq]; linarith
+      have hmean : meanVote O F p ≤ F.card * q := by
+        have := meanVote_le_flip O F p hl (1 / 20) hg0 hfl
+        rw [hrate] at this
+        have : O.ηOut ≤ max O.ηOut 0 := le_max_left _ _
+        rw [hq]; nlinarith
+      have hc'2 : κ * q + 2 ≤ c' := by
+        have : κ * q + 2 ≤ κ * (B.centre - (1 / 2 - η₀)) := by
+          rw [hq]; nlinarith
+        linarith
+      have htail := (vote_tails O F p F.card q le_rfl hq0 hq1).2 c' hmean hc'2
+      have hexp := binomSfGe_le_exp F.card c' hq0 hq1 hγ0 (by
+        have : κ * (q + 2 * (1 / 2 - η₀) / 5) ≤ κ * (B.centre - (1 / 2 - η₀)) := by
+          rw [hq]; nlinarith
+        linarith)
+      exact le_trans (measureReal_mono hsub (measure_ne_top _ _)) (htail.trans hexp)
+    · have hz : {ω | missRej O η₀ B F p ω} = (∅ : Set Ω) := by
+        ext ω
+        constructor
+        · rintro (⟨-, h2, -⟩ | ⟨h1, -⟩)
+          · exact absurd h2 hfl
+          · rw [hl] at h1; norm_num at h1
+        · intro h; exact h.elim
+      rw [hz, measureReal_empty]; exact hE0
+  · by_cases hfl : flipCount O F p ≤ F.card * (1 / 2)
+    · have hr0 : 0 ≤ O.ηIn := by
+        have := O.rate_nonneg p
+        rw [rate_of_label O true p, if_pos (by simp [sideClass, hl])] at this
+        simpa [rightRate] using this
+      have hrate : O.rate p = O.ηIn := by
+        rw [rate_of_label O true p, if_pos (by simp [sideClass, hl])]; rfl
+      rw [max_eq_left hr0] at hm'
+      set b : ℕ := ⌊κ * (B.centre - (1 / 2 - η₀))⌋₊ with hb
+      have hbR : (b : ℝ) ≤ κ * (B.centre - (1 / 2 - η₀)) := Nat.floor_le hθ0
+      have hsub : {ω | missRej O η₀ B F p ω} ⊆ {ω | voteCount O.mq F p ω ≤ b} := by
+        intro ω hω
+        rcases hω with ⟨hl0, -⟩ | ⟨-, -, hv⟩
+        · rw [hl] at hl0; norm_num at hl0
+        · rw [hθ] at hv
+          show voteCount O.mq F p ω ≤ b
+          exact Nat.le_floor hv
+      have hq0 : 0 ≤ O.cmid := by rw [hm]; positivity
+      have hq1 : O.cmid ≤ 1 := by linarith
+      have hmean : F.card * O.cmid ≤ meanVote O F p := by
+        have := meanVote_ge_flip O F p hl (1 / 2) hg0 hfl
+        rw [hrate] at this
+        have e : 1 - O.ηIn - O.gap * (1 / 2) = O.cmid := by linarith
+        rwa [e] at this
+      have hcs : B.centre - (1 / 2 - η₀) ≤ O.cmid - 4 * (1 / 2 - η₀) / 5 := by linarith [hc0.2]
+      have hκc := mul_le_mul_of_nonneg_left hcs hκ0
+      have hb2 : (b : ℝ) + 2 ≤ κ * O.cmid := by
+        have e : κ * (O.cmid - 4 * (1 / 2 - η₀) / 5) = κ * O.cmid - 4 / 5 * (κ * (1 / 2 - η₀)) := by
+          ring
+        linarith
+      have htail := (vote_tails O F p F.card O.cmid le_rfl hq0 hq1).1 b hmean hb2
+      have hexp := one_sub_binomSfGe_le_exp F.card b hq0 hq1 hγ0 (by
+        have h2 : κ * (O.cmid - 4 * (1 / 2 - η₀) / 5) ≤ κ * (O.cmid - 2 * (1 / 2 - η₀) / 5) :=
+          mul_le_mul_of_nonneg_left (by linarith) hκ0
+        linarith)
+      exact le_trans (measureReal_mono hsub (measure_ne_top _ _)) (htail.trans hexp)
+    · have hz : {ω | missRej O η₀ B F p ω} = (∅ : Set Ω) := by
+        ext ω
+        constructor
+        · rintro (⟨h1, -⟩ | ⟨-, h2, -⟩)
+          · rw [hl] at h1; norm_num at h1
+          · exact absurd h2 hfl
+        · intro h; exact h.elim
+      rw [hz, measureReal_empty]; exact hE0
+
+/-- `missRej_prob_le` at the strong accept threshold. -/
+lemma missAcc_prob_le (O : Oracle μ S) {η₀ : ℝ} {B : State} (F : Finset S) (p : S)
+    (hFk : F.card = B.k - 1) (hη₀ : η₀ < 1 / 2)
+    (hg : 4 * (1 / 2 - η₀) ≤ O.gap) (hc : |B.centre - O.cmid| ≤ (1 / 2 - η₀) / 5)
+    (hκ : 10 ≤ (F.card : ℝ) * (1 / 2 - η₀)) :
+    μ.real {ω | missAcc O η₀ B F p ω}
+      ≤ Real.exp (-2 * F.card * (2 * (1 / 2 - η₀) / 5) ^ 2) := by
+  classical
+  have hσ : 0 < 1 / 2 - η₀ := by linarith
+  obtain ⟨hR, hA, hm, hm'⟩ := mid_facts O hg hc
+  have hg0 : 0 ≤ O.gap := by linarith
+  have hc0 := abs_le.1 hc
+  have hθ : ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀))
+      = F.card * (B.centre + (1 / 2 - η₀)) := by rw [hFk]
+  have hγ0 : (0 : ℝ) ≤ 2 * (1 / 2 - η₀) / 5 := by positivity
+  have hE0 : 0 ≤ Real.exp (-2 * F.card * (2 * (1 / 2 - η₀) / 5) ^ 2) := (Real.exp_pos _).le
+  set κ : ℝ := (F.card : ℝ) with hκdef
+  have hκ0 : 0 ≤ κ := Nat.cast_nonneg _
+  have hθ0 : 0 ≤ κ * (B.centre + (1 / 2 - η₀)) := by
+    have : 0 ≤ B.centre + (1 / 2 - η₀) := by linarith [le_max_right O.ηOut 0]
+    positivity
+  have hκg : 40 ≤ κ * O.gap := by nlinarith
+  rcases O.label_bit p with hl | hl
+  · by_cases hfl : flipCount O F p ≤ F.card * (1 / 2)
+    · have hr0 : 0 ≤ O.ηOut := by
+        have := O.rate_nonneg p
+        rw [rate_of_label O false p, if_pos (by simp [sideClass, hl])] at this
+        simpa [rightRate] using this
+      have hrate : O.rate p = O.ηOut := by
+        rw [rate_of_label O false p, if_pos (by simp [sideClass, hl])]; rfl
+      rw [max_eq_left hr0] at hm
+      set c' : ℕ := ⌈κ * (B.centre + (1 / 2 - η₀))⌉₊ with hc'
+      have hc'R : κ * (B.centre + (1 / 2 - η₀)) ≤ c' := Nat.le_ceil _
+      have hsub : {ω | missAcc O η₀ B F p ω} ⊆ {ω | c' ≤ voteCount O.mq F p ω} := by
+        intro ω hω
+        rcases hω with ⟨hl1, -⟩ | ⟨-, -, hv⟩
+        · rw [hl] at hl1; norm_num at hl1
+        · rw [hθ] at hv
+          show c' ≤ voteCount O.mq F p ω
+          exact Nat.ceil_le.2 hv
+      have hq0 : 0 ≤ O.cmid := by rw [hm]; positivity
+      have hq1 : O.cmid ≤ 1 := by linarith [le_max_right O.ηIn 0]
+      have hmean : meanVote O F p ≤ F.card * O.cmid := by
+        have := meanVote_le_flip O F p hl (1 / 2) hg0 hfl
+        rw [hrate] at this
+        have e : O.ηOut + O.gap * (1 / 2) = O.cmid := by linarith
+        rwa [e] at this
+      have hcs : O.cmid + 4 * (1 / 2 - η₀) / 5 ≤ B.centre + (1 / 2 - η₀) := by linarith [hc0.1]
+      have hκc := mul_le_mul_of_nonneg_left hcs hκ0
+      have hc'2 : κ * O.cmid + 2 ≤ c' := by
+        have e : κ * (O.cmid + 4 * (1 / 2 - η₀) / 5) = κ * O.cmid + 4 / 5 * (κ * (1 / 2 - η₀)) := by
+          ring
+        linarith
+      have htail := (vote_tails O F p F.card O.cmid le_rfl hq0 hq1).2 c' hmean hc'2
+      have hexp := binomSfGe_le_exp F.card c' hq0 hq1 hγ0 (by
+        have h2 : κ * (O.cmid + 2 * (1 / 2 - η₀) / 5) ≤ κ * (O.cmid + 4 * (1 / 2 - η₀) / 5) :=
+          mul_le_mul_of_nonneg_left (by linarith) hκ0
+        linarith)
+      exact le_trans (measureReal_mono hsub (measure_ne_top _ _)) (htail.trans hexp)
+    · have hz : {ω | missAcc O η₀ B F p ω} = (∅ : Set Ω) := by
+        ext ω
+        constructor
+        · rintro (⟨h1, -⟩ | ⟨-, h2, -⟩)
+          · rw [hl] at h1; norm_num at h1
+          · exact absurd h2 hfl
+        · intro h; exact h.elim
+      rw [hz, measureReal_empty]; exact hE0
+  · by_cases hfl : flipCount O F p ≤ F.card * (1 / 20)
+    · have hr0 : 0 ≤ O.ηIn := by
+        have := O.rate_nonneg p
+        rw [rate_of_label O true p, if_pos (by simp [sideClass, hl])] at this
+        simpa [rightRate] using this
+      have hrate : O.rate p = O.ηIn := by
+        rw [rate_of_label O true p, if_pos (by simp [sideClass, hl])]; rfl
+      rw [max_eq_left hr0] at hA hm'
+      set b : ℕ := ⌊κ * (B.centre + (1 / 2 - η₀))⌋₊ with hb
+      have hbR : (b : ℝ) ≤ κ * (B.centre + (1 / 2 - η₀)) := Nat.floor_le hθ0
+      have hsub : {ω | missAcc O η₀ B F p ω} ⊆ {ω | voteCount O.mq F p ω ≤ b} := by
+        intro ω hω
+        rcases hω with ⟨-, -, hv⟩ | ⟨hl0, -⟩
+        · rw [hθ] at hv
+          show voteCount O.mq F p ω ≤ b
+          exact Nat.le_floor hv.le
+        · rw [hl] at hl0; norm_num at hl0
+      set q : ℝ := 1 - O.ηIn - O.gap / 20 with hq
+      have hq1 : q ≤ 1 := by rw [hq]; linarith
+      have hq0 : 0 ≤ q := by
+        have : O.ηIn + O.gap ≤ 1 := by
+          unfold Oracle.gap; rw [max_eq_left hr0]; linarith [le_max_right O.ηOut 0]
+        rw [hq]; linarith
+      have hmean : F.card * q ≤ meanVote O F p := by
+        have := meanVote_ge_flip O F p hl (1 / 20) hg0 hfl
+        rw [hrate] at this
+        have e : 1 - O.ηIn - O.gap * (1 / 20) = q := by rw [hq]; ring
+        rwa [e] at this
+      have hcs : B.centre + (1 / 2 - η₀) ≤ q - 3 * O.gap / 20 := by rw [hq]; linarith
+      have hκc := mul_le_mul_of_nonneg_left hcs hκ0
+      have hb2 : (b : ℝ) + 2 ≤ κ * q := by
+        have e : κ * (q - 3 * O.gap / 20) = κ * q - 3 / 20 * (κ * O.gap) := by ring
+        linarith
+      have htail := (vote_tails O F p F.card q le_rfl hq0 hq1).1 b hmean hb2
+      have hexp := one_sub_binomSfGe_le_exp F.card b hq0 hq1 hγ0 (by
+        have h2 : κ * (q - 3 * O.gap / 20) ≤ κ * (q - 2 * (1 / 2 - η₀) / 5) :=
+          mul_le_mul_of_nonneg_left (by linarith) hκ0
+        linarith)
+      exact le_trans (measureReal_mono hsub (measure_ne_top _ _)) (htail.trans hexp)
+    · have hz : {ω | missAcc O η₀ B F p ω} = (∅ : Set Ω) := by
+        ext ω
+        constructor
+        · rintro (⟨-, h2, -⟩ | ⟨h1, -⟩)
+          · exact absurd h2 hfl
+          · rw [hl] at h1; norm_num at h1
+        · intro h; exact h.elim
+      rw [hz, measureReal_empty]; exact hE0
+
 end OrthoDFA
