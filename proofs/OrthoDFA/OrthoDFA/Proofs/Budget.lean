@@ -1222,10 +1222,11 @@ theorem kappa_of_mem_schedule {η₀ indecisionLimit εcov εs δ α pAP crossLi
   have hhi2 : κc / 2 < hiAt η₀ κc + 1 := by
     have : ((κc / 2 : ℕ) : ℝ) < ((hiAt η₀ κc + 1 : ℕ) : ℝ) := by push_cast; rw [hκ2, hhi]; linarith
     exact_mod_cast this
-  have hκ1 : bandKappa κc (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ κ :=
+  have hκ1 : bandKappa κc (1 / 2) (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ κ :=
     le_of_pow_le_pow_left₀ (by norm_num : (4 : ℕ) ≠ 0) hκ (hκ4.trans hcκ)
   rw [hBlo, hBhi]
-  exact (bandKappaBound_holds N κc _ _ _ p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _) hp0 hp1
+  exact (bandKappaBound_holds N κc _ _ _ (1 / 2) p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _)
+    (by norm_num) (by norm_num) hp0 hp1
     hr0 hr1).mono hκ1 hp0 hp1 hr0 hr1
 
 open MeasureTheory ProbabilityTheory in

@@ -137,7 +137,7 @@ it is on its rarer decided side at most `ζ` times as often as undecided (`BandK
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
   Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
     ∧ misfireTail η κ ≤ cut / 2 ∧ crossTail η κ ≤ crossLimit
-    ∧ bandKappa κ (loAt η κ) (κ / 2) (hiAt η κ + 1) ^ 4 ≤ crossLimit
+    ∧ bandKappa κ (1 / 2) (loAt η κ) (κ / 2) (hiAt η κ + 1) ^ 4 ≤ crossLimit
 
 open scoped Classical in
 /-- The family's size: the least that `FamilyFits`, searched no further than `famHoeff`, which
