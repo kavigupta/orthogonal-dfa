@@ -51,7 +51,7 @@ Each claim is proved from the explicit theorems below.
 
       1/p₀Tol = O((L + |Q|)⁴ log(X') log(Y) |Q|³R b/ξ
                   · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + 1/(δ pAP² s₀²))
-                + (L + |Q|)² log(X') log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
+                + (L + |Q|)² log(X') log²(Y) |Q|⁶b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
   the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
@@ -123,7 +123,7 @@ walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
 misclassifies at most `γ + ξ` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`. A run
 that reaches an unlearned edge counts as wrong. The start leaf (`pickLeaf`) is picked as follows: after
-the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
+the loop, `n = ⌈32 log(16(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
 `N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
@@ -175,7 +175,7 @@ states `edge_of_occupied`'s count (below) charges the disagreeing probes `(Ae+1)
 misled ones `N β'` per state (`wrongEdge_occupancy_le`), and the states read on their wrong side
 hold at most `2εr + εu` of the window (`wrongSide_mass_le`). At `ε = m/(3(|Σ|+|Q|+1)N)`, `m = 3ξ/(8R)`, the wrong states occupy
 the window less than `m`, so the runs from `q` through a wrong state of its zone cost at most
-`Cm ≤ 3ξ/4`, and the pick the other `ξ/4`: `n` is `⌈512 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`. The probe
+`Cm ≤ 3ξ/4`, and the pick the other `ξ/4`: `n` is `⌈512 log(16(|Q|+2)/δ)/ξ²⌉`. The probe
 budget `B₃ ∝ 1/ε` grows as `R(|Σ| + |Q|)N/ξ` and `L₀` as its logarithm.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
@@ -223,7 +223,9 @@ with the first `k` letters of a prefix the last round's clustering read or of on
 level 3 reads only short strings beginning with some probe's first `k` letters
 (`level3_congr_zone'`, `Proofs/LoopRenoise.lean`), and the earlier rounds read other suffixes. That
 collision has chance at most `n(6(|Q|+2)RB + B₃ + n) p₀`, `p₀ = |Σ|^-k` for uniform strings, which
-`L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that can be last. Off it, given the loop, each
+`L ≥ L₀` makes at most `δ/4`. It and the scores below are charged once, not once per round: at
+most one round ends consistent with every round before it harvested (`selG_unique`,
+`Proofs/LoopSelect.lean`). Off it, given the loop, each
 leaf's score is within `nξ/8` of its mean given the strings, and that within `nξ/8` of `n` times its
 mean over the strings, but for chance `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most
 `|Q| + 2` leaves, so the picked leaf misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ`

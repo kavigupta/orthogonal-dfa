@@ -656,11 +656,11 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
     (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (hε0 : 0 < ε) (hinvε : 1 / ε ≤ aε * ℓ) (haε : 0 < aε)
     (hcap : 1 / (E₁ * (ℓ ^ 3 * Λ)) ≤ cap) (hE₁ : 0 < E₁) (hlg : 0 ≤ lg)
     (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
-    (hE₂ : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ) (hQ : 0 ≤ Q) (hn : 0 ≤ n)
+    (hE₂ : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ) (hQ : 0 ≤ Q) (hn : 0 ≤ n)
     (hδ : 0 < δ) (hJ : J = Q + 2) (hRB0 : 0 ≤ RB) (hRB : RB ≤ R₀ * (ℓ ^ 2 * Λ))
     (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hpow : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ ≤ Ak) :
     Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
-      ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4 := by
+      ∧ n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4 := by
   have hℓ0 : 0 < ℓ := by linarith
   have hΛ0 : 0 < Λ := by linarith
   have hR₀ : 0 ≤ R₀ := hRB0.trans hRB |> fun h => by
@@ -718,11 +718,11 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
         _ = 1 := mul_inv_cancel₀ hAk.ne'
     exact h3.trans hε
   · -- the held-out strings' collisions
-    have h1 : (Q + 1) * n * (6 * J * RB + B₃ + n) ≤ ℓ ^ 2 * Λ * (E₂ * δ / 4) := by
+    have h1 : n * (6 * J * RB + B₃ + n) ≤ ℓ ^ 2 * Λ * (E₂ * δ / 4) := by
       have hℓ2Λ : 1 ≤ ℓ ^ 2 * Λ := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ) hΛ
       have hℓ12 : ℓ ≤ ℓ ^ 2 * Λ :=
         (le_self_pow₀ hℓ (by norm_num : 2 ≠ 0)).trans (le_mul_of_one_le_right (by positivity) hΛ)
-      have e : E₂ * δ / 4 = (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) := by
+      have e : E₂ * δ / 4 = n * (6 * (Q + 2) * R₀ + K₁ + n) := by
         rw [hE₂]; field_simp
       rw [e, hJ]
       have a1 : 6 * (Q + 2) * RB ≤ ℓ ^ 2 * Λ * (6 * (Q + 2) * R₀) := by
@@ -734,7 +734,7 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
       have a3 : (n : ℝ) ≤ ℓ ^ 2 * Λ * n := le_mul_of_one_le_left hn hℓ2Λ
       have h5 : 6 * (Q + 2) * RB + B₃ + n ≤ ℓ ^ 2 * Λ * (6 * (Q + 2) * R₀ + K₁ + n) := by
         linarith
-      have := mul_le_mul_of_nonneg_left h5 (show 0 ≤ (Q + 1) * n by positivity)
+      have := mul_le_mul_of_nonneg_left h5 hn
       linarith
     have h2 : ℓ ^ 2 * Λ * (E₂ * δ / 4) ≤ Ak * (δ / 4) := by
       have : ℓ ^ 2 * Λ * E₂ ≤ Ak := by
@@ -743,7 +743,7 @@ lemma dfa_final {Ak ℓ Λ ε cap aε E₁ E E₂ lg Q n J RB R₀ B₃ K₁ δ 
       have := mul_le_mul_of_nonneg_right this (show 0 ≤ δ / 4 by positivity)
       calc ℓ ^ 2 * Λ * (E₂ * δ / 4) = ℓ ^ 2 * Λ * E₂ * (δ / 4) := by ring
         _ ≤ Ak * (δ / 4) := this
-    calc (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ Ak * (δ / 4) * Ak⁻¹ :=
+    calc n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ Ak * (δ / 4) * Ak⁻¹ :=
           mul_le_mul_of_nonneg_right (h1.trans h2) (by positivity)
       _ = δ / 4 := by field_simp
 
@@ -824,7 +824,7 @@ lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θι Θa
       + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
       + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
-    (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
+    (hE₂d : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') :
     1 ≤ aε ∧ 1 ≤ E₁ ∧ 1 ≤ E ∧ 0 ≤ E₂ ∧ 0 ≤ E₃ := by
   have haε : 1 ≤ aε := by
@@ -865,12 +865,12 @@ lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁
       + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
       + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
-    (hE₂d : E₂ = 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
+    (hE₂d : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB)
     (hRB : RB ≤ R₀ * (ℓ ^ 2 * Λ)) (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hAk : 0 < Ak)
     (hpow3 : ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ + ℓ ^ 2 * E₃ ≤ Ak) :
     Ak⁻¹ ≤ cap * ε / 1536 ∧ 1536 * lg * Ak⁻¹ ≤ ε
-      ∧ (Q + 1) * n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4
+      ∧ n * (6 * J * RB + B₃ + n) * Ak⁻¹ ≤ δ / 4
       ∧ 16 * B₃ ^ 2 * Ak⁻¹ ≤ δ' := by
   obtain ⟨haε, hE₁, hE1, hE₂0, hE₃0⟩ := dfa_mass_one hA hQ hc hc1 hs0 hs1 hpAP hδ'0 hδ'1 hδ hΘ1
     hR₀ hP₀ hlR₀ hK₁0 hn hlg haεd hE₁d hEd hE₂d hE₃d
@@ -930,7 +930,7 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
   let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
-  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   let aε : ℝ := 4 * (Ae + 1) / c
   let Θι : ℝ := loopΘι Q Ae c ξ
   let Θ : ℝ := loopΘ Q Ae c ξ η₀
@@ -946,7 +946,7 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
     + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ nQ * (Q + 3) ^ ((nQ + 2) * nA)
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
-  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let E₂ : ℝ := 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
   (E, E₂, E₃)
 

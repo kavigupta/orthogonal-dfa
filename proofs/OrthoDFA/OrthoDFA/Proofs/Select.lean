@@ -165,6 +165,84 @@ theorem select_le (O : Oracle μ (FreeMonoid α)) {X B Y : Type*} [MeasurableSpa
     _ ≤ δ₁ * 1 + δ₂ * 1 := by gcongr
     _ = δ₁ + δ₂ := by rw [mul_one, mul_one]
 
+/-- `select_le` over stages indexed by `r`, at most one of which lands where its `G` holds. -/
+theorem select_family_le (O : Oracle μ (FreeMonoid α)) {X B R : Type*} {Y : R → Type*}
+    [MeasurableSpace X] [MeasurableSpace B] [Countable R] [∀ r, Countable (Y r)]
+    (ν : Measure X) [IsProbabilityMeasure ν] (β : Measure B) [IsProbabilityMeasure β]
+    (stage : ∀ r, Ω → X → Y r) (G : ∀ r, Y r → Prop)
+    (huniq : ∀ r r' ω x, G r (stage r ω x) → G r' (stage r' ω x) → r = r')
+    (hmeas : ∀ r y, G r y → MeasurableSet {p : Ω × X | stage r p.1 p.2 = y})
+    (W : ∀ r, Y r → X → Finset (FreeMonoid α))
+    (hW : ∀ r y x ω ω', G r y → stage r ω x = y →
+      (∀ w ∈ W r y x, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) → stage r ω' x = y)
+    (Ok : ∀ r, Y r → Set X) (hmOk : ∀ r y, MeasurableSet (Ok r y))
+    (Bad : ∀ r, Y r → Set (Ω × B)) (hmBad : ∀ r y, MeasurableSet (Bad r y))
+    (Z : ∀ r, Y r → B → Finset (FreeMonoid α))
+    (hZ : ∀ r y b ω ω', (∀ w ∈ Z r y b, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) → (ω, b) ∈ Bad r y →
+      (ω', b) ∈ Bad r y)
+    (Dj : ∀ r, Y r → Set (X × B)) (hmDj : ∀ r y, MeasurableSet (Dj r y))
+    (hDj : ∀ r y x b, G r y → x ∈ Ok r y → (x, b) ∈ Dj r y → Disjoint (W r y x) (Z r y b))
+    (δ₁ δ₂ : ℝ≥0∞) (hBad : ∀ r y, G r y → (μ.prod β) (Bad r y) ≤ δ₁)
+    (hcoll : ∀ r y, G r y → ∀ x ∈ Ok r y, β {b | (x, b) ∉ Dj r y} ≤ δ₂) :
+    ((μ.prod ν).prod β) (⋃ r, {q | G r (stage r q.1.1 q.1.2)
+      ∧ q.1.2 ∈ Ok r (stage r q.1.1 q.1.2) ∧ ((q.1.1, q.2) ∈ Bad r (stage r q.1.1 q.1.2)
+        ∨ (q.1.2, q.2) ∉ Dj r (stage r q.1.1 q.1.2))})
+      ≤ δ₁ + δ₂ := by
+  classical
+  obtain ⟨st, hst, hsome⟩ : ∃ st : Ω → X → Option (Σ r, Y r),
+      (∀ r ω x, G r (stage r ω x) → st ω x = some ⟨r, stage r ω x⟩)
+        ∧ ∀ r y ω x, st ω x = some ⟨r, y⟩ → stage r ω x = y := by
+    refine ⟨fun ω x => if h : ∃ r, G r (stage r ω x) then some ⟨h.choose, stage h.choose ω x⟩
+      else none, fun r ω x hG => ?_, fun r y ω x he => ?_⟩
+    · have h : ∃ r, G r (stage r ω x) := ⟨r, hG⟩
+      have hc : h.choose = r := huniq _ _ ω x h.choose_spec hG
+      simp only [dif_pos h]
+      rw [hc]
+    · simp only at he
+      split_ifs at he with h
+      · generalize h.choose = c at he
+        obtain ⟨rfl, he⟩ := Sigma.mk.inj_iff.1 (Option.some.inj he)
+        exact eq_of_heq he
+  let G' : Option (Σ r, Y r) → Prop
+    | some ⟨r, y⟩ => G r y
+    | none => False
+  have hmain := select_le O ν β st G'
+    (fun y' hy => by
+      rcases y' with _ | ⟨r, y⟩
+      · exact hy.elim
+      have hset : {p : Ω × X | st p.1 p.2 = some ⟨r, y⟩} = {p | stage r p.1 p.2 = y} := by
+        ext p
+        refine ⟨hsome r y p.1 p.2, fun he => ?_⟩
+        have hG : G r (stage r p.1 p.2) := he ▸ hy
+        change st p.1 p.2 = _
+        rw [hst r p.1 p.2 hG, he]
+      rw [hset]
+      exact hmeas r y hy)
+    (fun | some ⟨r, y⟩ => W r y | none => fun _ => ∅)
+    (fun y' x ω ω' hy hs h => by
+      rcases y' with _ | ⟨r, y⟩
+      · exact hy.elim
+      have h' := hW r y x ω ω' hy (hsome r y ω x hs) h
+      have hG : G r (stage r ω' x) := h' ▸ hy
+      rw [hst r ω' x hG, h'])
+    (fun | some ⟨r, y⟩ => Ok r y | none => Set.univ)
+    (fun | some ⟨r, y⟩ => hmOk r y | none => MeasurableSet.univ)
+    (fun | some ⟨r, y⟩ => Bad r y | none => ∅)
+    (fun | some ⟨r, y⟩ => hmBad r y | none => MeasurableSet.empty)
+    (fun | some ⟨r, y⟩ => Z r y | none => fun _ => ∅)
+    (fun | some ⟨r, y⟩ => hZ r y | none => fun _ _ _ _ h => h)
+    (fun | some ⟨r, y⟩ => Dj r y | none => Set.univ)
+    (fun | some ⟨r, y⟩ => hmDj r y | none => MeasurableSet.univ)
+    (fun | some ⟨r, y⟩ => hDj r y | none => fun _ _ h => h.elim)
+    δ₁ δ₂
+    (fun | some ⟨r, y⟩ => hBad r y | none => fun h => h.elim)
+    (fun | some ⟨r, y⟩ => hcoll r y | none => fun h => h.elim)
+  refine (measure_mono fun q hq => ?_).trans hmain
+  obtain ⟨r, hq⟩ := Set.mem_iUnion.1 hq
+  change G' (st q.1.1 q.1.2) ∧ _
+  rw [hst r q.1.1 q.1.2 hq.1]
+  exact hq
+
 end Select
 
 end OrthoDFA
