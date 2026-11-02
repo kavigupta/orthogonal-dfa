@@ -914,8 +914,8 @@ lemma tail_le_of_rate_scaled {a ε c V m : ℝ} (ha : 0 < a) (hε : 0 < ε) (hε
 
 /-- At atoms within the cap, a rung's table sampler is rejected more than `tabCount` of its draws,
 and its certification sampler more than `certCount`, each with chance at most `(m/N)·2^-(r+1)`:
-the table's draws land on what is already held at most `(m + r)·3ρ` of the time, a `(m/N)/8` share of
-`tabFrac`, and the certification sample's `(|J| + 3)·m·3ρ`, the same share of `certFrac`. -/
+the table's draws land on what is already held at most `(m + r)·3ρ` of the time, a `(m/N)/8` share
+of `tabFrac`, and the certification sample's `(|J| + 3)·m·3ρ`, the same share of `certFrac`. -/
 lemma rung_tails_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hεs : 0 < εs)
     (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2)

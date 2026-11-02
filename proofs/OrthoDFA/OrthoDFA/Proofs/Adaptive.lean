@@ -4041,6 +4041,7 @@ lemma certOf_of_good (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S 
   rw [hfinR]
   exact hc
 
+omit [MeasurableSpace Ω] [Fintype J] in
 open scoped Classical in
 /-- A sample found within its first `m + r` draws holds no more of any kind than they do. -/
 lemma certOf_filter_le_draws (populations : Finset J) (j : J) (m r : ℕ) (x : Run Ω S J)
