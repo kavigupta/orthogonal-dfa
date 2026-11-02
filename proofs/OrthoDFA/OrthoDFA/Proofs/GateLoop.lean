@@ -339,7 +339,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hPc : ∀ j ∈ tame, Pc j = iidStream (Dc j))
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (indecisionLimit εcov α u : ℝ)
+    (hη₀ : η₀ < 1 / 2) (indecisionLimit εcov α u : ℝ)
     (hil : 0 < indecisionLimit) (hα0 : 0 < α) (hα1 : α ≤ 1) (B : State)
     (hgap : 0 ≤ O.gap) (hc0B : 0 ≤ B.centre) (hc1B : B.centre ≤ 1) (hk : 0 < B.k)
     (r : ℕ) (c : ℝ) (hc0 : 0 ≤ c) (hr : (r : ℝ) ≤ c * B.npref)
@@ -523,6 +523,7 @@ Except with probability `7δ/16 + α`, no rung the loop may stop at returns an i
 The pool's findability and its redraws are one event for the whole ladder, at `δ/16`; each rung
 carries its share of `3δ/8`, and the gate spends `α` over all of them. -/
 theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (ruleOf : State → Clusterer S)
     (populations tame : Finset J) (uni : J) (huni : uni ∈ tame) (htame : tame ⊆ populations)
     (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
@@ -534,7 +535,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α u : ℝ) (hindLim : 0 < indecisionLimit)
     (hu : 3 / 2 * indecisionLimit + rejFrac η₀ indecisionLimit εcov εs ≤ u)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hgap : 0 ≤ O.gap) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ 3 * ρ ∧ (Dp j).real {t} ≤ 3 * ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hεcov : 0 < εcov) (hεs : 0 < εs) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
@@ -549,8 +550,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (streamMeasure μ Pp Pc Dsf).real
         (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs
             δ α pAP crossLimit hsz ρ},
-          retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
-            ∩ FailAt rule O populations tame uni Dc εcov
+          retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
+            ∩ FailAt (ruleOf B.val) O populations tame uni Dc εcov
                 (rejFrac η₀ indecisionLimit εcov εs) u B.val) ≤ 7 * δ / 16 + α := by
   classical
   set iLc : ℝ := indecisionLimit with hiLc
@@ -575,8 +576,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   set D : ℕ → Set (Run Ω S J) := fun n =>
     {x | ¬ drawsGoodOn populations tame n (rejCount η₀ iLc εcov εs n) x} with hDdef
   set Y : State → Set (Run Ω S J) := fun B : State =>
-    ((retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
-        ∩ FailAt rule O populations tame uni Dc εcov
+    ((retBy (ruleOf B) O.mq populations uni η₀ indecisionLimit εcov α B
+        ∩ FailAt (ruleOf B) O populations tame uni Dc εcov
             (rejFrac η₀ indecisionLimit εcov εs) u B) \ G) \ D (State.npref B) with hYdef
   set κ : ℕ := famCount η₀ populations iLc εcov δ crossLimit with hκdef
   set P : ℝ := (populations.card : ℝ) with hP
@@ -602,7 +603,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hiLc0
     set r : ℕ := rejCount η₀ iLc εcov εs B.npref with hrdef
     have hr : (r : ℝ) ≤ c * B.npref := Nat.floor_le (by positivity)
-    have hG' : ∀ x ∉ G, ∃ v ∈ refsBy rule O.mq populations x B,
+    have hG' : ∀ x ∉ G, ∃ v ∈ refsBy (ruleOf B) O.mq populations x B,
         ∀ p, O.label (p * v) = O.label p := by
       intro x hx
       simp only [hGdef, Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hx
@@ -613,12 +614,12 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       rw [hBM]
       exact exists_apRef O M pAP (9 * pAP / 20) rs B.k (by exact_mod_cast hcount) x hx.1 hx.2
         _ (familyBy_card_le O populations B hk x)
-    obtain ⟨hc0B, hc1B⟩ := centre_mem_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hεcov
+    obtain ⟨hc0B, hc1B⟩ := centre_mem_of_mem_schedule hη0 hη₀ hεcov
       hiLc0 hsched
     have hs0 := sig_pos η₀ hη₀
-    exact per_state_le (rule := rule) hflat O populations tame uni huni htame Pp Pc Dsf L Dp
-      Dc hL hPp hPc hsuppP hsuppC hsuppSf hηle hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B
-      (by linarith [gap_ge O, lt_of_le_of_lt hηle hη₀]) (by linarith) (by linarith) hk
+    exact per_state_le (rule := ruleOf B) hflat O populations tame uni huni htame Pp Pc Dsf L Dp
+      Dc hL hPp hPc hsuppP hsuppC hsuppSf hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B
+      hgap (by linarith) (by linarith) hk
       r c hc0.le hr hu (by
         have h1 := (rejFrac_le (εs := εs) (indecisionLimit := iLc) η₀ (εcov := εcov)).2.1
         have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith [eta_nonneg O]
@@ -630,8 +631,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     exact le_trans (measureReal_drawsBadOn_le Pp Pc Dsf populations tame L Dp Dc hL hPp hPc n
       (rejCount η₀ iLc εcov εs n) (3 * ρ) hρ) (mul_le_mul_of_nonneg_right htc (hT0 n))
   have hsplit : (⋃ B : {B : State // B ∈ st},
-        retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
-          ∩ FailAt rule O populations tame uni Dc εcov
+        retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
+          ∩ FailAt (ruleOf B.val) O populations tame uni Dc εcov
               (rejFrac η₀ indecisionLimit εcov εs) u B.val)
       ⊆ ((⋃ B ∈ st, Y B) ∪ ⋃ n ∈ st.image State.npref, D n) ∪ G := by
     intro x hx
@@ -2546,11 +2547,11 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     ∧ 1 - binomSfGe B.k qa (B.hi + 1 + 1) ≤ E ∧ 1 - binomSfGe B.k qr (B.k - B.lo) ≤ E
     ∧ 1 - binomSfGe (B.k - 1) qa (B.lo + 1) ≤ E ∧ 1 - binomSfGe (B.k - 1) qr (B.k - 1 - B.hi) ≤ E
     -- and the whole round, the count rule's table event and the pool's once and every
-    -- population, fits in the budget
+    -- population, fits in the budget, the centre check's `δ/16` aside
     ∧ (e1 + e2 + poolFail tap pAP ρsf rs B
         + roundFail populations (indecisionLimit / 2) lmis (g / 1056) E L tap pAP ρ ρsf t r rs B
         + (populations.card : ℝ) * namedFail (indecisionLimit / 2) lmis E ρ t L θ r G B
-      ≤ δ / 2)
+      ≤ 7 * δ / 16)
 
 /-- At the top count the uniform pool's share of a window is a tail in `cutBudget/1024` of its
 count, which clears `log(256|J|/δ)` with room: the cut budget is `32·shiftBudget` or more, and
@@ -2642,7 +2643,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
                 hsz : ℝ)
               * Real.log (128 * (populations.card : ℝ) / δ))⌉₊
             B
-      ≤ 3 * δ / 8 := by
+      ≤ 5 * δ / 16 := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
   have hcutlim := (cutBudget_le η₀ indecisionLimit εcov).2.2

@@ -576,9 +576,10 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
 
 open scoped Classical in
 set_option maxHeartbeats 4000000 in
-/-- The loop returns: except with chance `δ/2`, the top rung passes at every population, wild
-or tame, its gate read at the first look.  The count rule's table event and the pool's are charged
-once; every population's own failures are priced off them. -/
+/-- The loop returns: except with chance `δ/2`, the top rung at the centre count nearest the
+true centre passes at every population, wild or tame, its gate read at the first look.  The
+count rule's table event, the pool's and the centre check's are charged once; every
+population's own failures are priced off them. -/
 theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (uni : J) (huni : uni ∈ populations) (H : J → Finset S)
     (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
@@ -600,7 +601,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
       streams H uni x ∉ retAll (nearestClusterer B.val.centre) O.mq populations uni η₀
         indecisionLimit εcov α B.val}
-      ≤ 9 * δ / 16 := by
+      ≤ δ / 2 := by
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hρ0 : 0 ≤ ρ := le_trans measureReal_nonneg (hρu 1)

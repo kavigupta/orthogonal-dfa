@@ -116,7 +116,8 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
         ∧ ∀ j ∈ pops, keptAt pops j B.npref x → ∃ e ≤ B.npref, certifiesAt O.mq B.centre
           (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
           (gateLimit uni εc j) (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
-          (certOf P j (B.npref + e) x) ω'') := by
+          (certOf P j (B.npref + e) x) ω''
+          ∧ centreFits O.mq η₀ (gateLevel a pops B) B (cl ω'') (certOf P uni B.npref x) ω'') := by
     intro ω''
     simp only [ret, familyAt, refsAt, clusterAt_eq, clusterAt_eq_clusterOf, Set.mem_setOf_eq]
     rfl
@@ -136,10 +137,18 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
   · refine forall₂_congr fun j hj => imp_congr_right fun _ =>
       exists_congr fun e => and_congr_right fun he => ?_
     have hc := hcert j hj e he
-    exact certifiesAt_alike O
+    have hcu : certOf P uni B.npref x ⊆ roundPrefs sched pops x := by
+      have := hcert uni huni 0 (Nat.zero_le _); simpa using this
+    have hfr : ∀ w ∈ readSet (certOf P uni B.npref x) (insert 1 (cl ω)),
+        (O.mq w ω = 1 ↔ O.mq w ω' = 1) := fun w hw => by
+      obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+      exact hread _ hcu p hp v hv
+    refine and_congr (certifiesAt_alike O
       (fun p hp v hv => hread _ hc p hp v (Finset.mem_insert_of_mem hv))
       (fun p hp v hv => h _ (mem_readSet (hc hp) (hCs (Finset.mem_sdiff.1 hv).1)))
-      (fun p hp => hseed _ hc p hp)
+      (fun p hp => hseed _ hc p hp)) ⟨centreFits_congr O η₀ _ B _ _ hfr,
+        centreFits_congr O η₀ _ B _ _ (fun w hw => (hfr w hw).symm)⟩
 
 lemma clusterAt_congr_sched (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
     (pops : Finset (Option (Fin K))) {B : State} (hB : B ∈ sched) {ω ω' : Ω}
