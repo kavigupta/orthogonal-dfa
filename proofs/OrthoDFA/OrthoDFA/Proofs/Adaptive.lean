@@ -2315,30 +2315,33 @@ lemma vote_upper_binom (O : Oracle μ S) (F : Finset S) (p : S) (q : ℝ) (c : �
   rwa [binomSfGe_symm (1 - q) F.card c (by omega), sub_sub_cancel] at h
 
 /-- The cut is correct at a prefix the family barely flips: a flip fraction of `f` moves the
-vote's mean by up to `gap·f`, and `q` is what is left of the side the prefix is on, at the
-prefix's rate.  Only that side can fail, so one tail pays for it. -/
-theorem cutCorrect_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f q E : ℝ)
-    (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hq0 : 0 ≤ q) (hq1 : q ≤ 1)
-    (hqa : q ≤ 1 - O.rate p - O.gap * f) (hqr : O.rate p + O.gap * f ≤ 1 - q)
-    (hlo : (lo : ℝ) + 2 ≤ (F.card : ℝ) * q) (hhi : (F.card : ℝ) * (1 - q) + 2 ≤ (hi : ℝ) + 1)
+vote's mean by up to `gap·f`, and `qa` (`qr`) is what is left of the accept (reject) side at
+the prefix's rate.  Only the prefix's own side can fail, so one tail pays for it. -/
+theorem cutCorrect_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f qa qr E : ℝ)
+    (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hqa0 : 0 ≤ qa)
+    (hqa1 : qa ≤ 1) (hqr0 : 0 ≤ qr) (hqr1 : qr ≤ 1)
+    (hqa : O.label p = 1 → qa ≤ 1 - O.rate p - O.gap * f)
+    (hqr : O.label p = 0 → O.rate p + O.gap * f ≤ 1 - qr)
+    (hlo : (lo : ℝ) + 2 ≤ (F.card : ℝ) * qa) (hhi : (F.card : ℝ) * (1 - qr) + 2 ≤ (hi : ℝ) + 1)
     (hhiF : hi + 1 ≤ F.card)
-    (hEa : 1 - binomSfGe F.card q (lo + 1) ≤ E) (hEr : 1 - binomSfGe F.card q (F.card - hi) ≤ E) :
+    (hEa : 1 - binomSfGe F.card qa (lo + 1) ≤ E)
+    (hEr : 1 - binomSfGe F.card qr (F.card - hi) ≤ E) :
     μ.real {ω | ¬ cutCorrect O lo hi F p ω} ≤ E := by
   classical
   have hc0 : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
   rcases O.label_bit p with hp | hp
-  · have hm : meanVote O F p ≤ (F.card : ℝ) * (1 - q) :=
-      le_trans (meanVote_le_flip O F p hp f hsig hf) (mul_le_mul_of_nonneg_left hqr hc0)
-    have h := vote_upper_binom O F p q (hi + 1) hq0 hq1 hm (by push_cast; linarith) hhiF
+  · have hm : meanVote O F p ≤ (F.card : ℝ) * (1 - qr) :=
+      le_trans (meanVote_le_flip O F p hp f hsig hf) (mul_le_mul_of_nonneg_left (hqr hp) hc0)
+    have h := vote_upper_binom O F p qr (hi + 1) hqr0 hqr1 hm (by push_cast; linarith) hhiF
     rw [show F.card + 1 - (hi + 1) = F.card - hi by omega] at h
     refine le_trans (measureReal_mono (fun ω hω => ?_)) (h.trans hEr)
     have hacc : ¬ (hi < voteCount O.mq F p ω → O.label p = 1) := fun hacc =>
       hω ⟨hacc, fun _ => hp⟩
     by_contra hc
     exact hacc fun h' => absurd (Nat.succ_le_of_lt h') hc
-  · have hm : (F.card : ℝ) * q ≤ meanVote O F p :=
-      le_trans (mul_le_mul_of_nonneg_left hqa hc0) (meanVote_ge_flip O F p hp f hsig hf)
-    have h := (vote_tails O F p F.card q le_rfl hq0 hq1).1 lo hm hlo
+  · have hm : (F.card : ℝ) * qa ≤ meanVote O F p :=
+      le_trans (mul_le_mul_of_nonneg_left (hqa hp) hc0) (meanVote_ge_flip O F p hp f hsig hf)
+    have h := (vote_tails O F p F.card qa le_rfl hqa0 hqa1).1 lo hm hlo
     refine le_trans (measureReal_mono (fun ω hω => ?_)) (h.trans hEa)
     have hrej : ¬ (voteCount O.mq F p ω ≤ lo → O.label p = 0) := fun hrej =>
       hω ⟨fun _ => hp, hrej⟩
@@ -2928,26 +2931,29 @@ lemma map_suffixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
 
 /-- The vote is decisive at a prefix the family barely flips.  As in `cutCorrect_exact` a flip
 fraction of `f` moves the mean by up to `gap·f`, and `q` is what is left of the prefix's side. -/
-theorem decided_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f q E : ℝ)
-    (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hq0 : 0 ≤ q) (hq1 : q ≤ 1)
-    (hqa : q ≤ 1 - O.rate p - O.gap * f) (hqr : O.rate p + O.gap * f ≤ 1 - q)
-    (hhi : (hi : ℝ) + 2 ≤ (F.card : ℝ) * q) (hlo : (F.card : ℝ) * (1 - q) + 2 ≤ (lo : ℝ) + 1)
+theorem decided_exact (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f qa qr E : ℝ)
+    (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hqa0 : 0 ≤ qa)
+    (hqa1 : qa ≤ 1) (hqr0 : 0 ≤ qr) (hqr1 : qr ≤ 1)
+    (hqa : O.label p = 1 → qa ≤ 1 - O.rate p - O.gap * f)
+    (hqr : O.label p = 0 → O.rate p + O.gap * f ≤ 1 - qr)
+    (hhi : (hi : ℝ) + 2 ≤ (F.card : ℝ) * qa) (hlo : (F.card : ℝ) * (1 - qr) + 2 ≤ (lo : ℝ) + 1)
     (hloF : lo + 1 ≤ F.card)
-    (hEa : 1 - binomSfGe F.card q (hi + 1) ≤ E) (hEr : 1 - binomSfGe F.card q (F.card - lo) ≤ E) :
+    (hEa : 1 - binomSfGe F.card qa (hi + 1) ≤ E)
+    (hEr : 1 - binomSfGe F.card qr (F.card - lo) ≤ E) :
     μ.real {ω | ¬ decided O.mq lo hi F p ω} ≤ E := by
   classical
   have hc0 : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
   rcases O.label_bit p with hp | hp
-  · have hm : meanVote O F p ≤ (F.card : ℝ) * (1 - q) :=
-      le_trans (meanVote_le_flip O F p hp f hsig hf) (mul_le_mul_of_nonneg_left hqr hc0)
-    have h := vote_upper_binom O F p q (lo + 1) hq0 hq1 hm (by push_cast; linarith) hloF
+  · have hm : meanVote O F p ≤ (F.card : ℝ) * (1 - qr) :=
+      le_trans (meanVote_le_flip O F p hp f hsig hf) (mul_le_mul_of_nonneg_left (hqr hp) hc0)
+    have h := vote_upper_binom O F p qr (lo + 1) hqr0 hqr1 hm (by push_cast; linarith) hloF
     rw [show F.card + 1 - (lo + 1) = F.card - lo by omega] at h
     refine le_trans (measureReal_mono (fun ω hω => ?_)) (h.trans hEr)
     by_contra hc
     exact hω (Or.inr (by simp only [Set.mem_ofPred_eq, not_le] at hc; omega))
-  · have hm : (F.card : ℝ) * q ≤ meanVote O F p :=
-      le_trans (mul_le_mul_of_nonneg_left hqa hc0) (meanVote_ge_flip O F p hp f hsig hf)
-    have h := (vote_tails O F p F.card q le_rfl hq0 hq1).1 hi hm hhi
+  · have hm : (F.card : ℝ) * qa ≤ meanVote O F p :=
+      le_trans (mul_le_mul_of_nonneg_left (hqa hp) hc0) (meanVote_ge_flip O F p hp f hsig hf)
+    have h := (vote_tails O F p F.card qa le_rfl hqa0 hqa1).1 hi hm hhi
     refine le_trans (measureReal_mono (fun ω hω => ?_)) (h.trans hEa)
     by_contra hc
     exact hω (Or.inl (by simp only [Set.mem_ofPred_eq, not_le] at hc; exact hc))

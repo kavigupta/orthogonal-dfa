@@ -2325,7 +2325,7 @@ enters.  The count rule's heavy rows are charged at `θ = 15/16` of the table bu
 count rule's own shift units, and each class's heavy prefixes at that class's rates. -/
 def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : Measure S)
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ) (hsz : ℕ) (B : State) : Prop :=
-  ∃ (tap q E Δ g u x a e1 e2 lF lG lmis c t L θ : ℝ) (r rs G : ℕ),
+  ∃ (tap qa qr E Δ g u x a e1 e2 lF lG lmis c t L θ : ℝ) (r rs G : ℕ),
     0 < B.npref ∧ 2 ≤ B.k ∧ 0 < indecisionLimit ∧ indecisionLimit ≤ 1 / 2
     ∧ 0 ≤ tap ∧ 0 < Δ ∧ 0 < g ∧ 0 ≤ pAP ∧ 0 ≤ lmis
     -- the samplers redraw at most a `c` fraction of the prefix draws
@@ -2355,15 +2355,17 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     ∧ ((B.k : ℝ) + rs ≤ (B.nsuff : ℝ) * (pAP - tap))
     ∧ B.k < B.nsuff
     -- the thresholds decide, and decide right, on a family of the round's size flipping at most
-    -- `fracAt` at each prefix, whose reads' mean that leaves `q` toward the prefix's side; the
-    -- FNR reads the family with its seed, cut one count higher
-    ∧ 0 ≤ q ∧ q ≤ 1
-    ∧ (∀ p, 0 ≤ fracAt O η₀ p ∧ q ≤ 1 - O.rate p - O.gap * fracAt O η₀ p
-      ∧ O.rate p + O.gap * fracAt O η₀ p ≤ 1 - q)
-    ∧ ((B.hi : ℝ) + 1 + 2 ≤ (B.k : ℝ) * q)
-    ∧ ((B.k : ℝ) * (1 - q) + 2 ≤ (B.lo : ℝ) + 1)
-    ∧ ((B.lo : ℝ) + 2 ≤ ((B.k - 1 : ℕ) : ℝ) * q)
-    ∧ (((B.k - 1 : ℕ) : ℝ) * (1 - q) + 2 ≤ (B.hi : ℝ) + 1)
+    -- `fracAt` at each prefix, whose reads' mean that leaves `qa` toward the accept side on the
+    -- language and `qr` toward the reject side off it; the FNR reads the family with its seed,
+    -- cut one count higher
+    ∧ 0 ≤ qa ∧ qa ≤ 1 ∧ 0 ≤ qr ∧ qr ≤ 1
+    ∧ (∀ p, 0 ≤ fracAt O η₀ p
+      ∧ (O.label p = 1 → qa ≤ 1 - O.rate p - O.gap * fracAt O η₀ p)
+      ∧ (O.label p = 0 → O.rate p + O.gap * fracAt O η₀ p ≤ 1 - qr))
+    ∧ ((B.hi : ℝ) + 1 + 2 ≤ (B.k : ℝ) * qa)
+    ∧ ((B.k : ℝ) * (1 - qr) + 2 ≤ (B.lo : ℝ) + 1)
+    ∧ ((B.lo : ℝ) + 2 ≤ ((B.k - 1 : ℕ) : ℝ) * qa)
+    ∧ (((B.k - 1 : ℕ) : ℝ) * (1 - qr) + 2 ≤ (B.hi : ℝ) + 1)
     ∧ B.hi + 1 ≤ B.k - 1
     ∧ B.lo ≤ B.hi
     -- the gate clears the charge of a family within its shares, of the vote's misfires on
@@ -2377,8 +2379,8 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
         ≤ N * min εcov (1 / 2) - hoeffDev N (sizeLevel (gateLevel α populations B) N))
     -- the vote misfires, on either side and with or without its seed, at `E`
     ∧ 0 ≤ E ∧ E ≤ lmis ∧ E ≤ indecisionLimit / 2
-    ∧ 1 - binomSfGe B.k q (B.hi + 1 + 1) ≤ E ∧ 1 - binomSfGe B.k q (B.k - B.lo) ≤ E
-    ∧ 1 - binomSfGe (B.k - 1) q (B.lo + 1) ≤ E ∧ 1 - binomSfGe (B.k - 1) q (B.k - 1 - B.hi) ≤ E
+    ∧ 1 - binomSfGe B.k qa (B.hi + 1 + 1) ≤ E ∧ 1 - binomSfGe B.k qr (B.k - B.lo) ≤ E
+    ∧ 1 - binomSfGe (B.k - 1) qa (B.lo + 1) ≤ E ∧ 1 - binomSfGe (B.k - 1) qr (B.k - 1 - B.hi) ≤ E
     -- and the whole round, the count rule's table event and the pool's once and every
     -- population, fits in the budget
     ∧ (e1 + e2 + poolFail tap pAP ρsf rs B
@@ -3224,7 +3226,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hβ := shiftScale_pos hεcov hindLim
   have hgap := gap_pos O hsig
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
-    9 * pAP / 20, 1 / 2 + voteSlack η₀, misfireTail η₀ κ (κ / 2),
+    9 * pAP / 20, 1 / 2 + voteSlack η₀, 1 / 2 + voteSlack η₀, misfireTail η₀ κ (κ / 2),
     shiftBudget η₀ indecisionLimit εcov, shiftBudget η₀ indecisionLimit εcov,
     cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
     heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
@@ -3241,7 +3243,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     ⌈Real.sqrt ((m : ℝ) * Real.log (128 * (populations.card : ℝ) / δ))⌉₊,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
   · rw [hBdef]
     exact solvedState_mem_schedule η₀ populations εcov δ α pAP
@@ -3357,9 +3359,11 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   -- the thresholds decide, and decide right
   · exact hq0
   · exact hq1
+  · exact hq0
+  · exact hq1
   · intro p
     have h := rate_add_gap_fracAt O hηle hη₀ p
-    exact ⟨fracAt_nonneg O hηle hη₀ p, by linarith, by linarith⟩
+    exact ⟨fracAt_nonneg O hηle hη₀ p, fun _ => by linarith, fun _ => by linarith⟩
   · rw [hBhi, hBkR, hhi]; nlinarith
   · rw [hBlo, hBkR, hlo]; nlinarith
   · rw [hBlo, hBkappa, hlo]; nlinarith

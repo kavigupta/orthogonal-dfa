@@ -586,10 +586,11 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     O populations Dsf indecisionLimit εcov α δ ρ (collisionMass Dsf) pAP hsig hpop hηle hη₀
     hεcov hε1 hεs hδ hδ1 hαpos hα hindLim hind1 hpAPPositive hpAPBound hρ0 le_rfl hρsf0 hρcap
     hρsf
-  obtain ⟨tap, q, E, Δ, g, u, x, a, e1, e2, lF, lG, lmis, c, t, L, θ, r, rs, G, hmpos, hkpos,
+  obtain ⟨tap, qa, qr, E, Δ, g, u, x, a, e1, e2, lF, lG, lmis, c, t, L, θ, r, rs, G, hmpos, hkpos,
     hindLim', hind1', htap, hΔ, hg, hpAP0, hlmis, hc0, hr, hpAPBound', hρsf', hUF, hUG, hL, hθ,
     hN2, hszG, hNF, hNG, hlF, hscreen, hu, hx, hsignal, ha, hκa, hmass, hE1, hE2,
-    hcount, hpool, hq0, hq1, hqp, hhiUp, hloUp, hhiLo, hloLo, hhiκ, hlohi, ht, hgate, hE0,
+    hcount, hpool, hqa0, hqa1, hqr0, hqr1, hqp, hhiUp, hloUp, hhiLo, hloLo, hhiκ, hlohi, ht,
+    hgate, hE0,
     hElm, hEl, hEa, hEb, hEc, hEd, hbudget⟩ := hpass
   have hcB : B.centre = 1 / 2 :=
     centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ (Finset.mem_filter.1 hB).1
@@ -608,7 +609,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     have hflI : flipCount O (insert 1 F) p ≤ ((insert 1 F).card : ℝ) * fracAt O η₀ p :=
       le_trans (flipCount_insert_one O F p)
         (le_trans hfl (mul_le_mul_of_nonneg_right hcle (hqp p).1))
-    refine decided_exact O (insert 1 F) p B.lo (B.hi + 1) (fracAt O η₀ p) q E hsigle hflI hq0 hq1
+    refine decided_exact O (insert 1 F) p B.lo (B.hi + 1) (fracAt O η₀ p) qa qr E hsigle hflI
+      hqa0 hqa1 hqr0 hqr1
       (hqp p).2.1 (hqp p).2.2 ?_ ?_ ?_ ?_ ?_ <;> rw [hcardI]
     · push_cast; exact hhiUp
     · exact hloUp
@@ -620,7 +622,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E := by
     intro F p hfl hmin hmax
     have hcardF : F.card = κ := le_antisymm hmax hmin
-    refine cutCorrect_exact O F p B.lo B.hi (fracAt O η₀ p) q E hsigle hfl hq0 hq1 (hqp p).2.1
+    refine cutCorrect_exact O F p B.lo B.hi (fracAt O η₀ p) qa qr E hsigle hfl hqa0 hqa1 hqr0 hqr1
+      (hqp p).2.1
       (hqp p).2.2 ?_ ?_ ?_ ?_ ?_ <;> rw [hcardF]
     · exact hhiLo
     · exact hloLo
