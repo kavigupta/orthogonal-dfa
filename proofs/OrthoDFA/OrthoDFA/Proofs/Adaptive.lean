@@ -316,53 +316,113 @@ the loop has passed through, and the guarantee is uniform over *all* histories a
 budgets — whatever the algorithm chooses, it is covered.  Histories are countable, so the
 union bound still closes. -/
 
-/-- The budget the loop is heading for: the top of the ladder. -/
+/-- The budget the loop is heading for: the top of the ladder, at the family's middle count. -/
 noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : State :=
   solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
     (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2)
 
 lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
     0 < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [ladderLen]; omega
 
-lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) :
-    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
-      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
-  rw [schedule, solvedState]
-  refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
-  norm_num
+lemma mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State} :
+    B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ↔ ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
+        ∃ m ∈ centreSet η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit),
+          B = solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
+            (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i) m := by
+  rw [schedule, Finset.mem_image]
+  constructor
+  · rintro ⟨⟨i, m⟩, him, rfl⟩
+    obtain ⟨hi, hm⟩ := Finset.mem_product.1 him
+    exact ⟨i, Finset.mem_range.1 hi, m, hm, rfl⟩
+  · rintro ⟨i, hi, m, hm, rfl⟩
+    exact ⟨(i, m), Finset.mem_product.2 ⟨Finset.mem_range.2 hi, hm⟩, rfl⟩
 
 /-- Every rung draws the same pool: only the prefix count halves along the ladder. -/
 lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
     (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
-  rw [schedule] at hB
-  obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
+  obtain ⟨i, -, m, -, rfl⟩ := mem_schedule.1 hB
   rfl
+
+lemma k_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1 := by
+  obtain ⟨i, -, m, -, rfl⟩ := mem_schedule.1 hB
+  rfl
+
+lemma npref_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
+      B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i := by
+  obtain ⟨i, hi, m, -, rfl⟩ := mem_schedule.1 hB
+  exact ⟨i, hi, rfl⟩
 
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
     0 < prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [prefCount]; omega
 
+/-- The states of the schedule at one prefix count are its centres. -/
+lemma schedule_fibre_card_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (n : ℕ)
+    (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    (s.filter (fun B => B.npref = n)).card
+      ≤ famCount η₀ populations indecisionLimit εcov δ crossLimit + 1 := by
+  classical
+  set κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
+  have hsub : s.filter (fun B => B.npref = n)
+      ⊆ (centreSet η₀ κ).image
+        (fun m => solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit n m) := by
+    intro B hB
+    obtain ⟨hBs, hBn⟩ := Finset.mem_filter.1 hB
+    obtain ⟨i, -, m, hm, rfl⟩ := mem_schedule.1 (hs hBs)
+    refine Finset.mem_image.2 ⟨m, hm, ?_⟩
+    rw [← hBn]
+    rfl
+  refine le_trans (Finset.card_le_card hsub) (le_trans Finset.card_image_le ?_)
+  rw [centreSet]
+  exact le_trans (Finset.card_filter_le _ _) (by simp)
+
+/-- A sum over states of what depends only on the prefix count is at most `k` times the sum over
+the counts. -/
+lemma sum_le_fibre {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (f : ℕ → ℝ) (hf : ∀ n, 0 ≤ f n) :
+    ∑ B ∈ s, f B.npref
+      ≤ ((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
+        * ∑ n ∈ s.image State.npref, f n := by
+  classical
+  rw [Finset.sum_comp, Finset.mul_sum]
+  refine Finset.sum_le_sum (fun n _ => ?_)
+  rw [nsmul_eq_mul]
+  refine mul_le_mul_of_nonneg_right ?_ (hf n)
+  exact_mod_cast schedule_fibre_card_le (εs := εs) (hsz := hsz) (α := α) n s hs
+
 /-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
 the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
-lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
+lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ)
+    (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    ∑ n ∈ s.image State.npref, (n : ℝ)
       ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
   classical
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set L : ℕ := ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hLdef
-  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
-      ≤ ∑ i ∈ Finset.range L,
-          ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-            (m / 2 ^ i)).npref : ℝ) := by
-        rw [schedule, ← hmdef, ← hLdef]
-        exact sum_image_le_sum _ (fun B => Nat.cast_nonneg _) _ _
+  have hsub : s.image State.npref ⊆ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)) := by
+    intro n hn
+    obtain ⟨B, hB, rfl⟩ := Finset.mem_image.1 hn
+    obtain ⟨i, hi, he⟩ := npref_of_mem_schedule (hs hB)
+    exact Finset.mem_image.2 ⟨i, Finset.mem_range.2 hi, he.symm⟩
+  calc ∑ n ∈ s.image State.npref, (n : ℝ)
+      ≤ ∑ n ∈ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)), (n : ℝ) :=
+        Finset.sum_le_sum_of_subset_of_nonneg hsub (fun _ _ _ => Nat.cast_nonneg _)
+    _ ≤ ∑ i ∈ Finset.range L, ((m / 2 ^ i : ℕ) : ℝ) :=
+        sum_image_le_sum _ (fun n => Nat.cast_nonneg n) _ _
     _ ≤ ∑ i ∈ Finset.range L, (m : ℝ) * (1 / 2) ^ i := by
         refine Finset.sum_le_sum (fun i _ => ?_)
-        show ((m / 2 ^ i : ℕ) : ℝ) ≤ (m : ℝ) * (1 / 2) ^ i
         have h2 : ((2 ^ i : ℕ) : ℝ) = (2 : ℝ) ^ i := by push_cast; ring
         refine le_trans Nat.cast_div_le (le_of_eq ?_)
         rw [h2, div_pow, one_pow, mul_one_div]
@@ -412,23 +472,26 @@ lemma ladder_inv_sum_le (m V : ℕ) (n : ℕ) :
     · rw [if_neg h]
       exact ⟨by linarith [ih.1], fun h' => absurd h' h⟩
 
-/-- `ladder_inv_sum_le` over the rungs themselves. -/
+/-- `ladder_inv_sum_le` over the rungs' counts. -/
 lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) (V : ℕ)
     (s : Finset State)
     (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
-    ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2 := by
+    ∑ n ∈ s.image State.npref, (if V ≤ n then (V : ℝ) / (n : ℝ) else 0) ≤ 2 := by
   classical
-  have hnn : ∀ B : State, 0 ≤ (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
-    intro B; split_ifs <;> positivity
-  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg hs (fun B _ _ => hnn B)) ?_
-  rw [schedule]
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
+  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hLdef
+  have hnn : ∀ n : ℕ, 0 ≤ (if V ≤ n then (V : ℝ) / (n : ℝ) else 0) := by
+    intro n; split_ifs <;> positivity
+  have hsub : s.image State.npref ⊆ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)) := by
+    intro n hn
+    obtain ⟨B, hB, rfl⟩ := Finset.mem_image.1 hn
+    obtain ⟨i, hi, he⟩ := npref_of_mem_schedule (hs hB)
+    exact Finset.mem_image.2 ⟨i, Finset.mem_range.2 hi, he.symm⟩
+  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub (fun n _ _ => hnn n)) ?_
   refine le_trans (sum_image_le_sum _ hnn _ _) ?_
   have hL := ladderLen_pos (εs := εs) (indecisionLimit := indecisionLimit)
-    (crossLimit := crossLimit)
-    (hsz := hsz) η₀ populations εcov δ α pAP
-  obtain ⟨n, hn⟩ :
-      ∃ n, ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz = n + 1 :=
-    ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
+    (crossLimit := crossLimit) (hsz := hsz) η₀ populations εcov δ α pAP
+  obtain ⟨n, hn⟩ : ∃ n, L = n + 1 := ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
   rw [hn]
   exact (ladder_inv_sum_le _ V n).1
 
@@ -1120,6 +1183,22 @@ lemma famCount_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
     populations εcov δ with h | h
   · have := h.2.1; omega
   · rw [h]; exact famHoeff_ge_four η₀ populations εcov δ hsig
+
+omit [Fintype J] in
+lemma half_mem_centreSet (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hη0 : 0 ≤ η₀) :
+    famCount η₀ populations indecisionLimit εcov δ crossLimit / 2
+      ∈ centreSet η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) := by
+  classical
+  rw [centreSet, Finset.mem_filter, Finset.mem_range]
+  exact ⟨by omega, half_mem_centres η₀ (famCount_even η₀ populations εcov δ) hη0⟩
+
+lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
+    (εcov δ α pAP : ℝ) (hη0 : 0 ≤ η₀) :
+    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
+  refine mem_schedule.2 ⟨0, ladderLen_pos _ _ _ _ _ _, _,
+    half_mem_centreSet η₀ populations εcov δ hη0, ?_⟩
+  rw [solvedState, pow_zero, Nat.div_one]
 
 omit [Fintype J] in
 /-- The family is at least 32 strong, whatever `crossLimit`. -/
@@ -2000,16 +2079,6 @@ lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : F
     ENNReal.tsum_toReal_eq (fun a => by
       rw [hbox a]; exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
   exact tsum_congr (fun a => by rw [hbox a, ENNReal.toReal_mul, sq, measureReal_def])
-
-lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP ρ : ℝ) :
-    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
-  classical
-  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
-    (schedule_npref_sum_le η₀ populations εcov δ α pAP)
-  rw [stoppable]
-  exact Finset.filter_subset _ _
 
 lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ : ℝ} {B : State}

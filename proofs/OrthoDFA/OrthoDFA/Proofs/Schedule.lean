@@ -262,7 +262,8 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
-which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
+which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (9|J|κ/α)^(1/4)` over the `κ`
+centres.
 
 The first term is the count rule's: a heavy row's shift, `(15/16)·shiftBudget` a prefix, has to
 clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes.
@@ -291,7 +292,8 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
         / gateRoom η indecisionLimit εcov ^ 2⌉₊
     + ⌈gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
-        (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ) / α)))⌉₊
+        (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ)
+          * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / dirtyRate η indecisionLimit εcov εs⌉₊
@@ -312,24 +314,30 @@ to the share:
 noncomputable def undecRate (indecisionLimit : ℝ) : ℝ := 2 * indecisionLimit / 27
 
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
-`δ/(128·|populations|)`.  The gate pays for its own soundness at every count. -/
-noncomputable def validCount (_η : ℝ) (populations : Finset J)
-    (indecisionLimit _εcov δ _pAP _crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (128 * (populations.card : ℝ) / δ) / undecRate indecisionLimit⌉₊ + 1
+`δ/(128·|populations|·k)`, over the family's `k` centres.  The gate pays for its own soundness
+at every count. -/
+noncomputable def validCount (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ _pAP crossLimit : ℝ) : ℕ :=
+  ⌈Real.log (128 * (populations.card : ℝ)
+      * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ)
+    / undecRate indecisionLimit⌉₊ + 1
 
-/-- The state at a given prefix count: every other field read off the condition it has to
-meet. -/
+/-- The state at a given prefix count, its band centred at count `m`: every other field read
+off the condition it has to meet. -/
 noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ pAP crossLimit : ℝ) (mi : ℕ) : State where
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) (mi m : ℕ) : State where
   nsuff := poolCount η populations indecisionLimit εcov δ pAP crossLimit
   npref := mi
   k := famCount η populations indecisionLimit εcov δ crossLimit + 1
-  lo := loAt η (famCount η populations indecisionLimit εcov δ crossLimit)
-    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
-  hi := hiAt η (famCount η populations indecisionLimit εcov δ crossLimit)
-    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
+  lo := loAt η (famCount η populations indecisionLimit εcov δ crossLimit) m
+  hi := hiAt η (famCount η populations indecisionLimit εcov δ crossLimit) m
   sc := 1
   scd := 1
+
+open scoped Classical in
+/-- The centre counts the family's band is tried at. -/
+noncomputable def centreSet (η : ℝ) (κ : ℕ) : Finset ℕ :=
+  (Finset.range (κ + 1)).filter (· ∈ centres η κ)
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
@@ -337,17 +345,19 @@ noncomputable def ladderLen (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz) + 1
 
-/-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
+/-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`, each count at every
+centre. -/
 noncomputable def schedule (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : Finset State :=
-  (Finset.range (ladderLen η populations indecisionLimit εcov εs δ α pAP crossLimit hsz)).image
-    (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
-      (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i))
+  (Finset.range (ladderLen η populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+      ×ˢ centreSet η (famCount η populations indecisionLimit εcov δ crossLimit)).image
+    (fun ic => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
+      (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ ic.1) ic.2)
 
 /-- What one tested state may cost, summed over the populations: each table and certification
 sampler rejecting more than `rejCount` of its draws, a binomial tail at what a draw can land on,
-and the draws missing the undecided set.  The gate's own tails are not here: they are spent at
-`gateLevel`, which sums to `α` over the states. -/
+and the draws missing the undecided set at each of the `k` centres.  The gate's own tails are not
+here: they are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov εs ρ : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (rejTail (B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
@@ -357,7 +367,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
         (((populations.card * B.npref + (2 * B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
           : ℕ) : ℝ) * ρ)
         (rejCount η₀ indecisionLimit εcov εs B.npref)
-    + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
+    + (B.k : ℝ) * Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.

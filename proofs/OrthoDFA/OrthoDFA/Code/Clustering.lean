@@ -490,9 +490,10 @@ open scoped Classical in
 noncomputable def gateLimit (uni : J) (εcov : ℝ) (j : J) : ℝ := if j = uni then εcov else 1 / 2
 
 /-- The level the gate spends at a state: `α` over the gate's seven tails per population and the
-centre check's two, and over the states by their prefix counts. -/
+centre check's two, over the at most `k` centres a prefix count is tried at, and over the
+states by their prefix counts. -/
 noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
-  sizeLevel (α / (9 * populations.card)) B.npref
+  sizeLevel (α / (9 * populations.card * B.k)) B.npref
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
