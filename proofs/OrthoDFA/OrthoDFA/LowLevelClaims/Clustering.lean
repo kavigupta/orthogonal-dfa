@@ -44,7 +44,7 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 /-- The rates sit at least `½ − η₀` either side of `c`: the language reads accept at least that
 far above it, the rest at most that far below. -/
 def Oracle.Straddles (O : Oracle μ S) (c η₀ : ℝ) : Prop :=
-  O.ηIn ≤ η₀ + 1 / 2 - c ∧ O.ηOut ≤ η₀ - 1 / 2 + c
+  max O.ηIn 0 ≤ η₀ + 1 / 2 - c ∧ max O.ηOut 0 ≤ η₀ - 1 / 2 + c
 
 /-! ## The theorem -/
 

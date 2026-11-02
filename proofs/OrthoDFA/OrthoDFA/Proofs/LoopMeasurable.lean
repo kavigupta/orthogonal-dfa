@@ -341,12 +341,13 @@ lemma voteCount_alike (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α
   rw [Finset.filter_congr fun v hv => h v hv]
 
 omit [IsProbabilityMeasure μ] in
-lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a yAcc yRej : ℝ} {lo hi : ℕ}
+lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a c yAcc yRej : ℝ} {lo hi : ℕ}
     {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    miscutBound O.mq a lo hi F R P yAcc yRej ω = miscutBound O.mq a lo hi F R P yAcc yRej ω' := by
+    miscutBound O.mq a lo hi F R P c yAcc yRej ω
+      = miscutBound O.mq a lo hi F R P c yAcc yRej ω' := by
   classical
   have hv : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
     voteCount_alike O (hF p hp)
@@ -357,19 +358,18 @@ lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a yAcc yRej : ℝ} {lo 
     unfold rejectSide
     exact Finset.filter_congr fun p hp => by rw [hv p hp]
   have hside : ∀ (accept : Bool) (A : Finset (FreeMonoid α)), A ⊆ P → ∀ y : ℝ,
-      sideCap O.mq accept A R a y ω = sideCap O.mq accept A R a y ω' := by
+      sideCap O.mq accept c A R a y ω = sideCap O.mq accept c A R a y ω' := by
     intro accept A hA y
     unfold sideCap
     have h1 : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
       unfold againstOn
       congr 1
       exact Finset.filter_congr fun p hp => by rw [hs p (hA hp)]
-    have h2 : refApart O.mq A R ω = refApart O.mq A R ω' := by
+    have h2 : refApart O.mq c A R ω = refApart O.mq c A R ω' := by
       unfold refApart
       split_ifs with h
       · refine Finset.inf'_congr h rfl fun v hv => ?_
-        congr 1
-        exact Finset.filter_congr fun p hp => by rw [hR p (hA hp) v hv, hs p (hA hp)]
+        exact Finset.sum_congr rfl fun p hp => apartCost_congr c (hs p (hA hp)) (hR p (hA hp) v hv)
       · rfl
     rw [h1, h2]
   unfold miscutBound
@@ -378,13 +378,13 @@ lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a yAcc yRej : ℝ} {lo 
   rw [hacc, hrej, hside true _ hA, hside false _ hR']
 
 omit [IsProbabilityMeasure μ] in
-lemma certifiesAt_alike (O : Oracle μ (FreeMonoid α)) {yAcc yRej lim a : ℝ} {lo hi : ℕ}
+lemma certifiesAt_alike (O : Oracle μ (FreeMonoid α)) {c yAcc yRej lim a : ℝ} {lo hi : ℕ}
     {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    certifiesAt O.mq yAcc yRej lim a lo hi F R P ω
-      ↔ certifiesAt O.mq yAcc yRej lim a lo hi F R P ω' := by
+    certifiesAt O.mq c yAcc yRej lim a lo hi F R P ω
+      ↔ certifiesAt O.mq c yAcc yRej lim a lo hi F R P ω' := by
   unfold certifiesAt
   rw [miscutBound_alike O hF hR hs]
 
