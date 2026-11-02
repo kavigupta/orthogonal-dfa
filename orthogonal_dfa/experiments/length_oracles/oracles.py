@@ -33,11 +33,14 @@ class PerLengthOracle(SpliceModelOracle):
         self._lo = min(thresholds)
         self._thresholds = np.array([thresholds[l] for l in sorted(thresholds)])
 
-    def membership_queries(self, strings):
+    def thresholds_of(self, strings):
         idx = np.clip(
             np.array([len(s) for s in strings]) - self._lo, 0, len(self._thresholds) - 1
         )
-        return self.scores(strings) > self._thresholds[idx]
+        return self._thresholds[idx]
+
+    def membership_queries(self, strings):
+        return self.scores(strings) > self.thresholds_of(strings)
 
 
 def oracle(kind, exon, model, device=None):
