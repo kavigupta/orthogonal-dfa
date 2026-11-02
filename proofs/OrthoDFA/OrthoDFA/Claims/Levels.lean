@@ -38,7 +38,7 @@ every state's reads all undecided or all on its side. -/
 def Level2Claim.{u, v} : Prop :=
   ∃ nprobes₂ : Level2Inputs → ℕ,
     (fun x => (nprobes₂ x : ℝ)) =O[𝓟 level2Region] (fun x =>
-      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
+      x.Q * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
       (read : FreeMonoid A → ARU) (side : Q → Bool) (C : Level2.Settings),
