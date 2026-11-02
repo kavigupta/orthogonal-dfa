@@ -9,9 +9,7 @@ Each (target, eta, seed) result is its own JSON file under
 
 from __future__ import annotations
 
-import argparse
 import json
-import multiprocessing
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Tuple
@@ -19,11 +17,21 @@ from typing import Any, Tuple
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.capal_official import import_capal
-from orthogonal_dfa.experiments.capal_comparison.core import (eval_words,
-                                                              run_capal_cell)
+from orthogonal_dfa.experiments.capal_comparison.core import eval_words, run_capal_cell
 
-from .run import (COUNT, DATA_DIR, ETAS, FAMILY, SEEDS, SIZES, load_target,
-                  target_name, write_json)
+from .run import (
+    COUNT,
+    DATA_DIR,
+    ETAS,
+    FAMILY,
+    SEEDS,
+    SIZES,
+    experiment_parser,
+    load_target,
+    run_results,
+    target_name,
+    write_json,
+)
 
 RESULT_SCHEMA_VERSION = 1
 
@@ -84,14 +92,11 @@ def _run_result(args: Tuple[Path, int, int, float, int]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
-    parser.add_argument("--processes", type=int, required=True)
+    parser = experiment_parser(
+        __doc__.split("\n\n", maxsplit=1)[0], etas=ETAS, seeds=SEEDS, data_dir=DATA_DIR
+    )
     parser.add_argument("--count", type=int, default=COUNT)
-    parser.add_argument("--etas", type=float, nargs="+", default=ETAS)
-    parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
-    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     args = parser.parse_args()
-
     results = [
         (args.data_dir, size, index, eta, seed)
         for eta in args.etas
@@ -102,10 +107,7 @@ def main() -> None:
             capal_result_path(args.data_dir, size, index, eta, seed)
         )
     ]
-    print(f"{len(results)} results to run", flush=True)
-    with multiprocessing.Pool(args.processes) as pool:
-        for i, line in enumerate(pool.imap_unordered(_run_result, results)):
-            print(f"[result {i + 1}/{len(results)}] {line}", flush=True)
+    run_results(args.processes, _run_result, results)
 
 
 if __name__ == "__main__":
