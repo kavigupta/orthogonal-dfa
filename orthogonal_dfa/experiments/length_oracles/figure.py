@@ -31,7 +31,7 @@ RANDOM_STRINGS = (
 OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
-REPRESENTATIVES = {"saw": ("saw", 1, 1), "flat": ("flat", 0, 3)}
+REPRESENTATIVES = {"saw": ("saw", 1, 0), "flat": ("flat", 0, 1)}
 
 
 class Strings:

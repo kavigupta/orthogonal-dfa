@@ -1,21 +1,13 @@
 \begin{tikzpicture}[lstarex, x=1.05cm, y=1.05cm]
-\node[state] (q0) at (0.0, 1.0476190476190477) {};
-\node[state, accepting] (q1) at (0.0, 0.0) {};
-\node[state] (q2) at (1.1904761904761905, 0.0) {};
-\node[state, accepting] (q3) at (2.380952380952381, 0.0) {};
-\node[state] (q4) at (1.1904761904761905, 1.0476190476190477) {};
-\node[state] (q5) at (2.380952380952381, 1.0476190476190477) {};
-\draw[<-] (q0.west) -- ++(-0.5cm, 0);
-\path[->] (q0) edge[out=110, in=70, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=270] {S} (q0);
-\draw[->] (q0) -- node[font=\footnotesize, anchor=270] {W} (q4);
-\draw[->] (q1) -- node[font=\footnotesize, anchor=0] {W} (q0);
-\path[->] (q1) edge[out=290, in=250, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=90] {S} (q1);
-\draw[->] (q2) -- node[font=\footnotesize, anchor=90] {W} (q1);
-\path[->] (q2) edge[out=290, in=250, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=90] {S} (q2);
-\draw[->] (q3) -- node[font=\footnotesize, anchor=90] {W} (q2);
-\path[->] (q3) edge[out=290, in=250, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=90] {S} (q3);
-\path[->] (q4) edge[out=110, in=70, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=270] {S} (q4);
-\draw[->] (q4) -- node[font=\footnotesize, anchor=270] {W} (q5);
-\draw[->] (q5) -- node[font=\footnotesize, anchor=180] {W} (q3);
-\path[->] (q5) edge[out=110, in=70, looseness=8, min distance=5mm] node[font=\footnotesize, anchor=270] {S} (q5);
+\node[state] (q0) at (0.85861, 0.36821) {};
+\node[state, accepting] (q1) at (2.2614, 0.36821) {};
+\draw[->] (0.03, 0.36821) -- (q0);
+\draw[->] (q0) .. controls (0.74844, 0.77725) and (0.78027, 0.90293) .. (0.85861, 0.90293) .. controls (0.91982, 0.90293) and (0.95263, 0.82622) .. (q0);
+\node[font=\footnotesize] at (0.85861, 1.0488) {S};
+\draw[->] (q0) .. controls (1.3404, 0.36821) and (1.609, 0.36821) .. (q1);
+\node[font=\footnotesize] at (1.5322, 0.51404) {W};
+\draw[->] (q1) .. controls (1.8197, 0.055418) and (1.5971, -0.040712) .. (1.3933, 0.020984) .. controls (1.3091, 0.046492) and (1.226, 0.09062) .. (q0);
+\node[font=\footnotesize] at (1.5322, 0.16682) {W};
+\draw[->] (q1) .. controls (2.1142, 0.83049) and (2.1584, 0.95848) .. (2.2614, 0.95848) .. controls (2.3434, 0.95848) and (2.3882, 0.87721) .. (q1);
+\node[font=\footnotesize] at (2.2614, 1.1043) {S};
 \end{tikzpicture}
