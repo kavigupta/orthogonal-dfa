@@ -295,7 +295,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
         populations indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
       (retBy rule O.mq populations uni η₀ indecisionLimit εcov α B.val
         ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := rule) O populations uni D εcov εs
-          (rejFrac η₀ indecisionLimit εcov εs) indecisionLimit y B.val j}))
+          (certFrac indecisionLimit εs) indecisionLimit y B.val j}))
       ≤ δ / 2 + α := by
   classical
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
@@ -313,13 +313,9 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   set K : ℕ := 4 * N with hK
   set Hs : Finset S := allHarvest H with hHs
   set st := stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz ρ with hst
-  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hc
-  have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hind
-  have hcle : c ≤ indecisionLimit / 256 := by
-    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.1
-    have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
-    have := mul_le_mul_of_nonneg_right hs2 hind.le
-    linarith
+  set c : ℝ := certFrac indecisionLimit εs with hc
+  have hc0 : 0 < c := certFrac_pos hεs hind
+  have hcle : c ≤ indecisionLimit / 256 := (certFrac_le (indecisionLimit := indecisionLimit)).1
   have he0 : 0 < e := div_pos (lt_min hεs hind) (by norm_num)
   have heε : e ≤ εs / 8 := by rw [hedef]; linarith [min_le_left εs indecisionLimit]
   have heil : e ≤ indecisionLimit / 8 := by
@@ -397,7 +393,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
             if_neg (show ¬ (D j (onSide (allHarvest H) false g) = 0) from hR0 j hj)]
           exact ⟨cond_atom_le (D j) (hρ j hj) _ (hthird j hj).2 t,
             cond_atom_le (D j) (hρ j hj) _ (hthird j hj).1 t⟩)
-      le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hεcov hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
+      le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
       hcoll
     exact h
   -- off the bad events, a family bad for a population's law is bad for its reserve side's

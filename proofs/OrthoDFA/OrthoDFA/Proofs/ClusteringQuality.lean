@@ -397,10 +397,11 @@ def ClusteringQualitySized : Prop :=
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 17 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+        2 ^ 19 * (B.npref : ℝ) * (D j).real {t}
           ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
+        2 ^ 14 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
+          ≤ min εs indecisionLimit) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         512 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
           * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
@@ -464,7 +465,8 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       hρ₀def
   have hρ₀0 : 0 ≤ ρ₀ := by
     rw [hρ₀def, collisionCap]
-    have hc0 := rejFrac_pos η₀ hη₀ hε hεs hind (indecisionLimit := indecisionLimit)
+    have hc0 := tabFrac_pos η₀ hη₀ hε hind (indecisionLimit := indecisionLimit)
+    have hcC0 := certFrac_pos hεs hind (indecisionLimit := indecisionLimit)
     have hδ'1 : δ' ≤ 1 := by rw [hδ'def]; linarith
     have hlog : 0 ≤ Real.log (64 * (populations.card : ℝ)
         * (3 + 2 * (Nat.log 2 (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit
@@ -475,11 +477,12 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
         crossLimit hsz) : ℝ) := Nat.cast_nonneg _
       have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
       nlinarith
-    exact le_min (le_min (div_nonneg hc0.le (by positivity)) (by positivity))
+    exact le_min (le_min (le_min (div_nonneg hc0.le (by positivity))
+      (div_nonneg hcC0.le (by positivity))) (by positivity))
       (div_nonneg (sq_nonneg _) (mul_nonneg (by norm_num) hlog))
   have hδ'1 : δ' ≤ 1 := by rw [hδ'def]; linarith
   have htop := solvedState_mem_stoppable (α := α) (crossLimit := crossLimit) (hsz := hsz) η₀
-    populations hη0 hη₀ hε hεs hind hδ' hδ'1 hpAP hcard hρ₀0 le_rfl
+    populations hη0 hη₀ hε hεs hind hind1 hδ' hδ'1 hpAP hcard hρ₀0 le_rfl
   set states := stoppable η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz ρ₀
     with hstates
   refine ⟨states, fun B hB =>
@@ -495,7 +498,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     linarith
   -- the statement's hypotheses, read at the top rung, are the caps at `δ/2`
   have hcaps : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ₀ := fun j hj t =>
-    cap_of_top populations η₀ indecisionLimit εcov εs δ' α pAP crossLimit ((D j).real {t}) hη0
+    cap_of_top populations η₀ indecisionLimit εcov εs δ' α pAP crossLimit ((D j).real {t})
       hη₀ hε (by linarith) hind hcard hδ' hδ'1 measureReal_nonneg (by rw [← hmdef]; exact hm)
       (by rw [sig]; exact hcollD _ htop j hj t) (hcollE _ htop j hj t) (by
         have h := hcollH _ htop j hj t
@@ -652,7 +655,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
           streams H uni x ∈ retBy rule O.mq populations uni η₀ iL εcov α B.val) ∧
         ∀ B : {B : State // B ∈ states},
           streams H uni x ∈ retBy rule O.mq populations uni η₀ iL εcov α B.val →
-          ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ iL εcov εs
+          ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac iL εs
               - (if j = uni then 0 else εs / 2)
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
@@ -701,8 +704,8 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hPm := measureReal_finset_le_card (D j) hρj P
     have hPc : (P.card : ℝ) * ρ ≤ Jc * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
     nlinarith
-  have hrej : 2 * rejFrac η₀ iL εcov εs ≤ εs / 2 := by
-    have h := (rejFrac_le (εs := εs) (indecisionLimit := iL) η₀ (εcov := εcov)).2.2
+  have hrej : 2 * certFrac iL εs ≤ εs / 2 := by
+    have h := (certFrac_le (indecisionLimit := iL) (εs := εs)).2
     linarith
   have hsj : ∀ j, (if j = uni then (0 : ℝ) else εs / 2) ≤ εs / 2 := by
     intro j; split_ifs <;> linarith
