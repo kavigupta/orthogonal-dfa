@@ -55,17 +55,17 @@ lemma stalled_subset (O : Oracle μ S) (populations : Finset J) (B : State) (hkp
 open scoped Classical in
 /-- The liveness half's obligation for the count rule, whose screen admits every candidate:
 the family has the round's size unless the pool's sampler redraws too often. -/
-theorem measureReal_stalled_nearest_le (O : Oracle μ S) (populations : Finset J)
+theorem measureReal_stalled_nearest_le (O : Oracle μ S) (populations : Finset J) (c : ℝ)
     (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (B : State) (hkpos : 0 < B.k) (hscreen : B.scd ≤ B.sc)
     (hkM : B.k ≤ B.nsuff) (ρsf : ℝ) (rs : ℕ) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
     (streamMeasure μ Pp Pc Dsf).real
-        (stalled (nearestClusterer (1 / 2)) O populations B (B.k - 1) (B.k - 1))
+        (stalled (nearestClusterer c) O populations B (B.k - 1) (B.k - 1))
       ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) := by
   refine le_trans (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _))
     (measureReal_poolBad_le Pp Pc Dsf B.nsuff rs ρsf hρsf hρsf0)
-  have h := stalled_subset (rule := (nearestClusterer (1 / 2))) O populations B hkpos hx
+  have h := stalled_subset (rule := (nearestClusterer c)) O populations B hkpos hx
   simp only [Set.mem_setOf_eq] at h ⊢
   intro hgood
   apply h
@@ -2330,7 +2330,7 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ) (hsz : ℕ) (B : State) : Prop :=
   ∃ (tap qa qr E Δ g u x a e1 e2 lF lG lmis c t L θ : ℝ) (r rs G : ℕ),
     0 < B.npref ∧ 2 ≤ B.k ∧ 0 < indecisionLimit ∧ indecisionLimit ≤ 1 / 2
-    ∧ 0 ≤ tap ∧ 0 < Δ ∧ 0 < g ∧ 0 ≤ pAP ∧ 0 ≤ lmis
+    ∧ 0 ≤ tap ∧ 0 < Δ ∧ 0 < g ∧ g ≤ Δ ∧ 0 ≤ pAP ∧ 0 ≤ lmis
     -- the samplers redraw at most a `c` fraction of the prefix draws
     ∧ 0 ≤ c ∧ (r : ℝ) ≤ c * B.npref
     -- the pool's findability
@@ -3304,7 +3304,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     ⌈Real.sqrt ((m : ℝ) * Real.log (128 * (populations.card : ℝ) / δ))⌉₊,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
   · rw [hBdef]
     exact solvedState_mem_schedule η₀ populations εcov δ α pAP
@@ -3328,6 +3328,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   · positivity
   · exact hΔ0
   · exact hΔ0
+  · exact le_rfl
   · linarith
   · positivity
   · exact hc0.le
