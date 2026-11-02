@@ -1803,7 +1803,8 @@ lemma sideCharge_le_clsSig (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles 
   unfold sideCharge clsSig
   rw [hg, hD]
   have hsp := span_pos ctr
-  calc _ ≤ 5 / sig η₀ ^ 2 * ((1 / 2 - clsRate O ctr b) * (1 / 2 - clsRate O ctr b - voteSlack η₀)) :=
+  calc _ ≤ 5 / sig η₀ ^ 2 *
+        ((1 / 2 - clsRate O ctr b) * (1 / 2 - clsRate O ctr b - voteSlack η₀)) :=
         key
     _ = _ := by field_simp
 

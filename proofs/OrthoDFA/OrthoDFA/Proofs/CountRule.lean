@@ -103,7 +103,8 @@ theorem mgf_signed_le {e b : Ω → ℝ} (he : Measurable e) (hb : Measurable b)
     filter_upwards [hebit] with ω hω
     rcases hω with h | h <;> rw [h, Real.norm_eq_abs] <;>
       linarith [abs_nonneg (g 0), abs_nonneg (g 1)]
-  have hBa : ∀ a : ℝ, |a| ≤ 1 → μ[fun ω => Real.exp (t * a * (b ω - bm))] ≤ Real.exp (t ^ 2 / 8) := by
+  have hBa : ∀ a : ℝ, |a| ≤ 1 →
+      μ[fun ω => Real.exp (t * a * (b ω - bm))] ≤ Real.exp (t ^ 2 / 8) := by
     intro a ha
     refine le_trans (hB (t * a)) (Real.exp_le_exp.2 ?_)
     have : a ^ 2 ≤ 1 := by nlinarith [abs_le.1 ha]
@@ -165,7 +166,8 @@ theorem subG_signed {e b : Ω → ℝ} (he : Measurable e) (hb : Measurable b)
           _ = 1 := one_mul 1
       have := abs_add_le ((a₀ + (a₁ - a₀) * e ω) * (b ω - μ[b])) (κ * (e ω - μ[e]))
       rw [Set.mem_Icc]
-      constructor <;> [linarith [neg_abs_le ((a₀ + (a₁ - a₀) * e ω) * (b ω - μ[b]) + κ * (e ω - μ[e]))];
+      constructor <;> [linarith [neg_abs_le ((a₀ + (a₁ - a₀) * e ω) * (b ω - μ[b]) + κ *
+        (e ω - μ[e]))];
         linarith [le_abs_self ((a₀ + (a₁ - a₀) * e ω) * (b ω - μ[b]) + κ * (e ω - μ[e]))]]
     exact integrable_exp_mul_of_mem_Icc (by fun_prop) hbd
   mgf_le t := by
@@ -286,7 +288,8 @@ theorem subG_rowTerm (O : Oracle μ S) (c : ℝ) (v p : S) (hv : p * v ≠ p) :
   set l := O.label p with hl
   set l' := O.label (p * v) with hl'
   set G := acceptChance O (p * v) - acceptChance O p with hG
-  have hs1 : |1 - 2 * l'| = 1 := by rcases O.label_bit (p * v) with h | h <;> rw [hl', h] <;> norm_num
+  have hs1 : |1 - 2 * l'| = 1 := by rcases O.label_bit (p * v) with h | h <;> rw [hl', h] <;>
+    norm_num
   have hs1' : (1 - 2 * l) ^ 2 = 1 := by rcases O.label_bit p with h | h <;> rw [hl, h] <;> norm_num
   have hbit1 : (1 - l) = 0 ∨ (1 - l) = 1 := by
     rcases O.label_bit p with h | h <;> rw [hl, h] <;> norm_num
@@ -487,7 +490,8 @@ lemma measurable_misLoss (O : Oracle μ S) (c : ℝ) (P : Finset S) (v : S) :
       exact Measurable.ite (measurableSet_eq_fun (mq_meas O _) measurable_const) measurable_const
         measurable_const)
   have e : misLoss O c P v = fun ω => ((screenCount O.mq P v ω : ℝ)
-      - (1 - 2 * c) * ((P.filter (fun p => O.mq (p * v) ω = 1)).card : ℝ)) / (2 * max c (1 - c)) := by
+      - (1 - 2 * c) * ((P.filter (fun p => O.mq (p * v) ω = 1)).card : ℝ)) /
+        (2 * max c (1 - c)) := by
     funext ω
     unfold misLoss misreadLoss
     rw [← congrFun (screenCount_eq_readLoss O.mq P ω) v]
@@ -498,7 +502,8 @@ lemma measurable_seedBase (O : Oracle μ S) (c : ℝ) (P : Finset S) :
     Measurable (seedBase O c P) := by
   unfold seedBase seedRef
   exact Finset.measurable_sum P (fun p _ =>
-    ((mq_meas O p).add ((measurable_const.sub (mq_meas O p)).const_mul 2 |>.mul_const _)).div_const _)
+    ((mq_meas O p).add ((measurable_const.sub (mq_meas O p)).const_mul 2 |>.mul_const _)).div_const
+      _)
 
 /-- The `k` least of a loss sit below any level that `k` of the candidates sit below. -/
 lemma leastLossSubset_lt {ℓ : S → ℝ} {cands T : Finset S} {k : ℕ} (hk : k ≤ cands.card)
@@ -1144,7 +1149,8 @@ theorem measureReal_nearShift_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf]
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (hpop : populations.Nonempty) (B : State) {η₀ : ℝ} (hstr : O.Straddles B.centre η₀) (hη₀ : η₀ ≤ 1 / 2) (hk2 : 2 ≤ B.k)
+    (hpop : populations.Nonempty) (B : State) {η₀ : ℝ} (hstr : O.Straddles B.centre η₀)
+      (hη₀ : η₀ ≤ 1 / 2) (hk2 : 2 ≤ B.k)
     (hmpos : 0 < B.npref) (Δ θ u x a : ℝ) (hΔ0 : 0 < Δ) (hθ0 : 0 < θ)
     (hθ1 : θ < 1) (hu : 0 ≤ u) (hx : 2 ≤ x)
     (hsignal : (u + x) * Real.sqrt ((populations.card : ℝ) * B.npref) ≤ θ * Δ * B.npref)

@@ -1867,13 +1867,16 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
     {x : Run Ω S J | x ∉ retAt rule O populations uni η₀ indecisionLimit εcov α B j}
       ⊆ {x | ¬ certGood populations j B.npref r x} ∪ stalled rule O populations B kmin kmax
         ∪ ({x | ¬ ∑ v ∈ clusterBy rule O.mq populations x B, wMass O Dj (clsW O B.centre true) v
-              ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * (Δ + c * clsShift O B.centre true + g)}
+              ≤ ((clusterBy rule O.mq populations x B).card : ℝ) *
+                (Δ + c * clsShift O B.centre true + g)}
           ∪ {x | ¬ ∑ v ∈ clusterBy rule O.mq populations x B, wMass O Dj (clsW O B.centre false) v
               ≤ ((clusterBy rule O.mq populations x B).card : ℝ)
                 * (Δ + c * clsShift O B.centre false + g)})
-        ∪ (heavyHits rule O populations Dj j B (clsBadP O B.centre η₀ true) (clsQ O B.centre η₀ Δ c g true)
+        ∪ (heavyHits rule O populations Dj j B (clsBadP O B.centre η₀ true)
+          (clsQ O B.centre η₀ Δ c g true)
               (clsQ O B.centre η₀ Δ c g true / 32)
-          ∪ heavyHits rule O populations Dj j B (clsBadP O B.centre η₀ false) (clsQ O B.centre η₀ Δ c g false)
+          ∪ heavyHits rule O populations Dj j B (clsBadP O B.centre η₀ false)
+            (clsQ O B.centre η₀ Δ c g false)
               (clsQ O B.centre η₀ Δ c g false / 32))
         ∪ lightMiss rule O populations j B l lmis (fracAt O B.centre η₀) kmin kmax
         ∪ sidesDead rule O populations j B B.npref t ∪ {x | ¬ poolGood B.nsuff rs x} := by
@@ -1918,7 +1921,8 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
     have h3 := mul_le_mul_of_nonneg_left (hUG b) hmR
     nlinarith
   refine hx (retAt_of_light O populations uni huni j B x hmpos hstr hη₀ εcov α hα0 hα1 l lF lG
-    lmis t (fun b => B.npref * (clsQ O B.centre η₀ Δ c g b + clsQ O B.centre η₀ Δ c g b / 32) + r) r rs kmin kmax
+    lmis t (fun b => B.npref * (clsQ O B.centre η₀ Δ c g b + clsQ O B.centre η₀ Δ c g b / 32) + r) r
+      rs kmin kmax
     hkmin hlF hlmis hlohi ht hkpos hpool hgate h5' hCn (fun b => ?_) hMF hMG h8 h10 h11)
   cases b
   · exact hcnt false h7f h6f
@@ -2341,7 +2345,8 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     ∧ (∀ b, sideCharge O B.centre η₀ (!b) * (clsQ O B.centre η₀ Δ c g b * (33 / 32) + c) ≤ lG)
     ∧ 0 ≤ L ∧ 0 < θ ∧ 2 ≤ B.npref ∧ hsz + G ≤ B.npref
     ∧ (∀ b, namedQ O B.centre η₀ Δ L θ hsz G B.npref b ≤ lF * B.npref)
-    ∧ (∀ b, sideCharge O B.centre η₀ (!b) * namedQ O B.centre η₀ Δ L θ hsz G B.npref b ≤ lG * B.npref)
+    ∧ (∀ b, sideCharge O B.centre η₀ (!b) * namedQ O B.centre η₀ Δ L θ hsz G B.npref b ≤ lG *
+      B.npref)
     ∧ 2 * lF + indecisionLimit / 2 ≤ indecisionLimit
     -- the screen admits every candidate, and the count rule picks the family
     ∧ B.scd ≤ B.sc
