@@ -16,12 +16,17 @@ theorem clustering_correct : ClusteringCorrect := by
     εs α δ ρ pAP crossLimit k hηle hη₀ huni htame hflat hH hsupp hsuppSf hρ hpAPPositive hpAPBound
     hindLim hind1 hαpos hα hεcov hε1 hεs hδ _hbudget hρcap hρsf
   classical
+  have hcen : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
+      crossLimit (allHarvest H).card ρ},
+      nearestClusterer (S := S) B.val.centre = nearestClusterer (1 / 2) := fun B => by
+    rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ (Finset.mem_filter.1 B.2).1]
+  simp only [hcen]
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
   rw [O.apSet_eq] at hpAPBound
   by_cases hδ1 : δ ≤ 1
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ - α ≤ 0) measureReal_nonneg
-  have hvalid := raw_valid (rule := nearestClusterer) (crossLimit := crossLimit) hflat O
+  have hvalid := raw_valid (rule := (nearestClusterer (1 / 2))) (crossLimit := crossLimit) hflat O
     populations tame uni
     huni htame H D Dsf hsupp hH hsuppSf εcov α δ ρ pAP hηle hη₀ hindLim hind1 hαpos
     (by linarith) hεcov hεs hδ hδ1 hpAPPositive hpAPBound hρ hρcap hρsf
@@ -31,27 +36,27 @@ theorem clustering_correct : ClusteringCorrect := by
   set st := stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
     (allHarvest H).card ρ with hst
   set Bad := streams H uni ⁻¹' ⋃ B : {B : State // B ∈ st},
-      (retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := nearestClusterer) O populations uni D εcov εs
+      (retBy (nearestClusterer (1 / 2)) O.mq populations uni η₀ indecisionLimit εcov α B.val
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := (nearestClusterer (1 / 2))) O populations uni D εcov εs
           (rejFrac η₀ indecisionLimit εcov εs) indecisionLimit y B.val j}) with hBad
   set NoRet := {x : Draws Ω S J | ∀ B : {B : State // B ∈ st},
-      streams H uni x ∉ retAll nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+      streams H uni x ∉ retAll (nearestClusterer (1 / 2)) O.mq populations uni η₀ indecisionLimit εcov α
         B.val}
     with hNoRet
   set ν := runMeasure μ D Dsf with hν
   have hgood : (Bad ∪ NoRet)ᶜ ⊆ {x | (∃ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer (1 / 2)) O.mq populations uni η₀ indecisionLimit εcov α
           B.val) ∧
       ∀ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer (1 / 2)) O.mq populations uni η₀ indecisionLimit εcov α
           B.val →
         ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer (1 / 2)) O.mq populations (streams H uni x) B.val) p (oracleNoise
                 x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer (1 / 2)) O.mq populations (streams H uni x) B.val) p (oracleNoise
                 x.1)}
             ≤ 2 * indecisionLimit} := by
     intro x hx
@@ -60,7 +65,7 @@ theorem clustering_correct : ClusteringCorrect := by
     refine ⟨?_, fun B hB j hj => ?_⟩
     · simp only [hNoRet, Set.mem_ofPred_eq, not_forall, not_not] at hxN
       obtain ⟨B, hB⟩ := hxN
-      exact ⟨B, retAll_subset_retBy nearestClusterer O.mq η₀ indecisionLimit εcov α B.val hB⟩
+      exact ⟨B, retAll_subset_retBy (nearestClusterer (1 / 2)) O.mq η₀ indecisionLimit εcov α B.val hB⟩
     · by_contra hc
       apply hxB
       refine Set.mem_preimage.2 (Set.mem_iUnion.2 ⟨B, hB, fun hall => hc ?_⟩)

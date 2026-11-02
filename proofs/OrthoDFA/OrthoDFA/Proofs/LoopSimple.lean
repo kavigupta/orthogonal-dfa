@@ -252,7 +252,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let L : ℝ := P.L
     let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
     let s : ℝ := 1 / 2 - η₀
-    let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+    let τ : ℝ := min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
     let J : ℝ := Q + 2
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
@@ -357,7 +357,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     linarith
   have hτb : budgetScale η₀ ι (εcov / 2) = τ := by
     show min (min (εcov / 2) (1 / 2) * gateA η₀ ^ 2) ι
-      = min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+      = min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
     rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
@@ -392,7 +392,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hRB0 : 0 ≤ RB := (Nat.cast_nonneg _).trans hRB0'
   have hJ0 : 0 < J := by show 0 < Q + 2; linarith
   have hτ0 : 0 < τ := by
-    have ha : 0 < (1 - 2 * η₀) / (1 - η₀) := gateA_pos hη0 hη₀
+    have ha : 0 < (1 - 2 * η₀) := gateA_pos hη0 hη₀
     exact lt_min (mul_pos (by positivity) (pow_pos ha 2)) hι0
   have hlgRB : 0 < 3 + 2 * Real.logb 2 (RB + 1) := by
     have : 0 ≤ Real.logb 2 (RB + 1) := Real.logb_nonneg (by norm_num) (by linarith)

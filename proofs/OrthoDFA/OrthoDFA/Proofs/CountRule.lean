@@ -956,16 +956,16 @@ lemma screened_eq_of_le (mq : S → Ω → ℝ) {sc scd : ℕ} (h : scd ≤ sc) 
 open scoped Classical in
 lemma clusterBy_nearest_eq (O : Oracle μ S) (populations : Finset J) (B : State)
     (hscreen : B.scd ≤ B.sc) (x : Run Ω S J) :
-    clusterBy nearestClusterer O.mq populations x B
+    clusterBy (nearestClusterer (1 / 2)) O.mq populations x B
       = leastLossSubset (fun v => (screenCount O.mq (prefixesAt populations B.npref x) v
           (oracleNoise x) : ℝ)) ((poolAt B.nsuff x).erase 1) (B.k - 1) := by
   have hscr : screenedAt O.mq populations B x = poolAt B.nsuff x :=
     screened_eq_of_le O.mq hscreen _ _ _
   unfold clusterBy
   rw [hscr]
-  show (insert 1 (leastLossSubset (readLoss (fun w => O.mq w (oracleNoise x) = 1)
+  show (insert 1 (leastLossSubset (misreadLoss (1 / 2) (fun w => O.mq w (oracleNoise x) = 1)
     (prefixesAt populations B.npref x)) ((poolAt B.nsuff x).erase 1) (B.k - 1))).erase 1 = _
-  rw [← screenCount_eq_readLoss]
+  rw [misreadLoss_half, ← screenCount_eq_readLoss]
   refine Finset.erase_insert (fun h => ?_)
   exact Finset.notMem_erase 1 _ (leastLossSubset_subset' _ _ _ h)
 
@@ -1006,7 +1006,7 @@ lemma famShift_of_not_nearShift (O : Oracle μ S) (populations : Finset J) (B : 
     (hAP : a ≤ ((((poolAt B.nsuff x).erase 1).filter
       (fun v => ∀ p, O.label (p * v) = O.label p)).card : ℝ))
     (hC : (poolAt B.nsuff x).card ≤ B.nsuff + 1) :
-    ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
+    ∑ v ∈ clusterBy (nearestClusterer (1 / 2)) O.mq populations x B,
         ∑ p ∈ prefixesAt populations B.npref x, flipShift O v p
       ≤ ((B.k - 1 : ℕ) : ℝ) * (Δ * B.npref) := by
   rw [clusterBy_nearest_eq O populations B hscreen x]
@@ -1173,8 +1173,8 @@ theorem measureReal_famShift_le (O : Oracle μ S)
     (hρ : ∀ t, Dj.real {t} ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
     (streamMeasure μ Pp Pc Dsf).real ({x : Run Ω S J |
-        ¬ ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
-        wMass O Dj V v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
+        ¬ ∑ v ∈ clusterBy (nearestClusterer (1 / 2)) O.mq populations x B,
+        wMass O Dj V v ≤ ((clusterBy (nearestClusterer (1 / 2)) O.mq populations x B).card : ℝ)
           * (Δ + c + g)} \ nearShift O populations B Δ a)
       ≤ rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
         + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
@@ -1205,8 +1205,8 @@ theorem measureReal_famShift_le (O : Oracle μ S)
     field_simp
   have hX01 : ∀ v p, 0 ≤ V p * O.flip v p := fun v p => mul_nonneg (hV0 p) (flip_icc O v p).1
   have hwm0 : ∀ v, 0 ≤ wMass O Dj V v := fun v => integral_nonneg (fun p => hX01 v p)
-  have hsub : ({x : Run Ω S J | ¬ ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
-        wMass O Dj V v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
+  have hsub : ({x : Run Ω S J | ¬ ∑ v ∈ clusterBy (nearestClusterer (1 / 2)) O.mq populations x B,
+        wMass O Dj V v ≤ ((clusterBy (nearestClusterer (1 / 2)) O.mq populations x B).card : ℝ)
           * (Δ + c + g)} \ nearShift O populations B Δ a)
       ⊆ E1 ∪ E2 ∪ E3 ∪ E5 := by
     rintro x ⟨hx, hcr⟩
@@ -1216,7 +1216,7 @@ theorem measureReal_famShift_le (O : Oracle μ S)
     simp only [hE1, hE2, hE5, Set.mem_setOf_eq, not_not] at h1 h2 h5
     set P : Finset S := prefixesAt populations B.npref x with hP
     set C : Finset S := poolAt B.nsuff x with hC
-    set F : Finset S := clusterBy nearestClusterer O.mq populations x B with hF
+    set F : Finset S := clusterBy (nearestClusterer (1 / 2)) O.mq populations x B with hF
     have hAPc := apRows_ge O M rs pAP tap a x ha h2 h3
     have hCle : C.card ≤ M + 1 := card_poolAt_le' M x
     have hκC : κ ≤ (C.erase 1).card := by
