@@ -573,7 +573,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       (by rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hsched]
           exact straddles_half O hηle) hk
       r c hc0.le hr hu (by
-        have h1 := (rejFrac_le_half (εs := εs) (indecisionLimit := iLc) η₀ (εcov := εcov)).2.1
+        have h1 := (rejFrac_le (εs := εs) (indecisionLimit := iLc) η₀ (εcov := εcov)).2.1
         have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith [eta_nonneg O]
         have := mul_le_mul_of_nonneg_right hs2 hiLc0.le
         linarith) (3 * ρ) hρ G hG'
@@ -712,7 +712,7 @@ lemma two_sig_le_gateA {η₀ : ℝ} (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2)
 lemma rejFrac_le_cut (η₀ indecisionLimit εcov εs : ℝ) (hind : 0 < indecisionLimit)
     (hε : 0 < εcov) (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     rejFrac η₀ indecisionLimit εcov εs ≤ cutBudget η₀ indecisionLimit εcov / 128 := by
-  obtain ⟨hcm, hcu, -⟩ := rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀
+  obtain ⟨hcm, hcu, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀
     (εcov := εcov)
   have hs := sig_pos η₀ hsig
   have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
@@ -730,7 +730,7 @@ lemma rejFrac_le_cut (η₀ indecisionLimit εcov εs : ℝ) (hind : 0 < indecis
 coverage times the signal and the FNR test's limit, or a quarter of `εs`. -/
 lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
     (hind : 0 < indecisionLimit) (hsig : η₀ < 1 / 2) :
-    min (sig η₀ * min (εcov * sig η₀) indecisionLimit / 4096) (εs / 4)
+    min (sig η₀ * min (εcov * sig η₀) indecisionLimit / 2048) (εs / 4)
       ≤ rejFrac η₀ indecisionLimit εcov εs := by
   have hs := sig_pos η₀ hsig
   have h1 : min (εcov * sig η₀) indecisionLimit ≤ εcov * sig η₀ := min_le_left _ _
@@ -944,7 +944,7 @@ lemma rung_tails_le (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ :
   set P : ℝ := (populations.card : ℝ) with hP
   have hc0 : 0 < c := rejFrac_pos η₀ hsig hε hεs hind
   have hc4 : c ≤ 1 / 4 := by
-    have hcle := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
+    have hcle := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
     have h1 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
     have h2 : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
     have h3 := sig_pos η₀ hsig
@@ -2224,11 +2224,9 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     have h1 : ((rejCount η₀ indecisionLimit εcov εs m : ℕ) : ℝ)
         ≤ rejFrac η₀ indecisionLimit εcov εs * m := Nat.floor_le (by
       have := rejFrac_pos η₀ hsig hε hεs hind; positivity)
-    have h2 := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
-    have h3 : sig η₀ ^ 2 * min εcov (1 / 2) / 2048 ≤ mn / 1024 := by
-      have := mul_le_mul_of_nonneg_right hs1 hmn0
-      have : 0 ≤ sig η₀ ^ 2 * mn := by positivity
-      nlinarith
+    have h2 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
+    have h3 : sig η₀ ^ 2 * mn / 1024 ≤ mn / 1024 := by
+      have := mul_le_mul_of_nonneg_right hs1 hmn0; linarith
     have := mul_le_mul_of_nonneg_right (h2.trans h3) hm0.le
     linarith only [h1, this]
   have hNR1 : (m : ℝ) ≤ N := by exact_mod_cast hN1
@@ -2821,10 +2819,10 @@ set_option maxHeartbeats 1000000 in
 budget `Δ`, the redraws' `c·w` and the understatement `Δ`, against the FNR test's share and, at a
 charge of at most `5/(2 sig²)·σ` and `1/a²`, the gate's. -/
 lemma uni_share_le {s β εu mn Δ c w σ sc a : ℝ} (hs : 0 < s) (hs1 : s ≤ 1 / 2) (hβ : 0 < β)
-    (hβu : β ≤ εu) (hβm : β ≤ mn) (hΔ : Δ = s ^ 2 * β / 256) (hc0 : 0 ≤ c)
+    (hβu : β ≤ εu) (hβm : β ≤ mn) (hΔ : Δ = s ^ 2 * β / 512) (hc0 : 0 ≤ c)
     (hcm : c ≤ s ^ 2 * mn / 1024) (hcu : c ≤ s * εu / 128)
-    (hw0 : 0 < w) (hw1 : w ≤ 1) (hσ : 2 / 5 * s ^ 2 ≤ σ) (hwσ : w / σ ≤ 5 / s)
-    (hsc0 : 0 ≤ sc) (hsc : sc ≤ 5 / (2 * s ^ 2) * σ) (hsca : sc ≤ 1 / a ^ 2) (ha : 2 * s ≤ a) :
+    (hw0 : 0 < w) (hw1 : w ≤ 1) (hσ : s ^ 2 / 5 ≤ σ) (hwσ : w / σ ≤ 5 / s)
+    (hsc0 : 0 ≤ sc) (hsc : sc ≤ 5 / s ^ 2 * σ) (hsca : sc ≤ 1 / a ^ 2) (ha : 2 * s ≤ a) :
     (Δ + c * w + Δ) / σ * (33 / 32) + c ≤ εu / 8
     ∧ sc * ((Δ + c * w + Δ) / σ * (33 / 32) + c) ≤ mn / 32 := by
   have hσ0 : 0 < σ := lt_of_lt_of_le (by positivity) hσ
@@ -2842,19 +2840,19 @@ lemma uni_share_le {s β εu mn Δ c w σ sc a : ℝ} (hs : 0 < s) (hs1 : s ≤ 
   have hmn : 0 ≤ mn := le_trans hβ.le hβm
   constructor
   · rw [hsplit]; nlinarith
-  · have hscQ : sc * ((Δ + c * w + Δ) / σ) ≤ 5 / (2 * s ^ 2) * (2 * Δ + c) := by
+  · have hscQ : sc * ((Δ + c * w + Δ) / σ) ≤ 5 / s ^ 2 * (2 * Δ + c) := by
       have h1 := mul_le_mul_of_nonneg_right hsc (by positivity : (0 : ℝ) ≤ (Δ + c * w + Δ) / σ)
-      have e : 5 / (2 * s ^ 2) * σ * ((Δ + c * w + Δ) / σ) = 5 / (2 * s ^ 2) * (2 * Δ + c * w) := by
+      have e : 5 / s ^ 2 * σ * ((Δ + c * w + Δ) / σ) = 5 / s ^ 2 * (2 * Δ + c * w) := by
         field_simp; ring
-      have h2 : 5 / (2 * s ^ 2) * (2 * Δ + c * w) ≤ 5 / (2 * s ^ 2) * (2 * Δ + c) :=
+      have h2 : 5 / s ^ 2 * (2 * Δ + c * w) ≤ 5 / s ^ 2 * (2 * Δ + c) :=
         mul_le_mul_of_nonneg_left (by nlinarith) (by positivity)
       linarith
-    have hval : 5 / (2 * s ^ 2) * (2 * Δ + c) ≤ 5 * β / 256 + 5 * mn / 2048 := by
+    have hval : 5 / s ^ 2 * (2 * Δ + c) ≤ 5 * β / 256 + 5 * mn / 1024 := by
       rw [hΔ]
-      have e : 5 / (2 * s ^ 2) * (2 * (s ^ 2 * β / 256) + c) = 5 * β / 256 + 5 / (2 * s ^ 2) * c := by
-        field_simp
+      have e : 5 / s ^ 2 * (2 * (s ^ 2 * β / 512) + c) = 5 * β / 256 + 5 / s ^ 2 * c := by
+        field_simp; ring
       rw [e]
-      have : 5 / (2 * s ^ 2) * c ≤ 5 * mn / 2048 := by
+      have : 5 / s ^ 2 * c ≤ 5 * mn / 1024 := by
         rw [div_mul_eq_mul_div, div_le_iff₀ (by positivity)]; nlinarith
       linarith
     have hscc : sc * c ≤ mn / 4096 := by
@@ -3251,41 +3249,17 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   rw [← hκdef] at hE1 hE2
   clear_value B κ m
   have hc0 : 0 < rejFrac η₀ indecisionLimit εcov εs := rejFrac_pos η₀ hη₀ hεcov hεs hindLim
-  obtain ⟨hcm, hcu, -⟩ := rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀
+  obtain ⟨hcm, hcu, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀
     (εcov := εcov)
   have hΔ0 := shiftBudget_pos η₀ hη₀ hεcov hindLim
   have hs1 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
   have hβ := shiftScale_pos hεcov hindLim
-  obtain ⟨hs', hs'2, -⟩ := half_sig_facts hs
-  have hsq2 : Real.sqrt 2 ≤ 2 := by
-    have : Real.sqrt 2 ≤ Real.sqrt (2 ^ 2) := Real.sqrt_le_sqrt (by norm_num)
-    rwa [Real.sqrt_sq (by norm_num)] at this
-  have hcm' : rejFrac η₀ indecisionLimit εcov εs
-      ≤ (sig η₀ / Real.sqrt 2) ^ 2 * min εcov (1 / 2) / 1024 := by
-    rw [hs'2]; linarith [hcm]
-  have hcu' : rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ / Real.sqrt 2 * indecisionLimit / 128 := by
-    refine le_trans hcu ?_
-    rw [div_mul_eq_mul_div, div_div, le_div_iff₀ (by positivity)]
-    have : 0 ≤ sig η₀ * indecisionLimit := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hsq2 this]
   have hspan : span B.centre ≤ 1 := span_le_one_of_straddles O hstr hη₀.le
-  have hsc' : ∀ b, sideCharge O B.centre η₀ (!b)
-      ≤ 5 / (2 * (sig η₀ / Real.sqrt 2) ^ 2) * clsSig O B.centre η₀ b := by
+  have hsc' : ∀ b, sideCharge O B.centre η₀ (!b) ≤ 5 / sig η₀ ^ 2 * clsSig O B.centre η₀ b := by
     intro b
     refine le_trans (sideCharge_le_clsSig O hstr hη₀ b) (mul_le_mul_of_nonneg_right ?_
       (clsSig_pos O hstr hη₀ b).le)
-    rw [hs'2, show 5 / (2 * (sig η₀ ^ 2 / 2)) = 5 / sig η₀ ^ 2 by field_simp]
     exact div_le_div_of_nonneg_right (by linarith) (by positivity)
-  have hσ' : ∀ b, 2 / 5 * (sig η₀ / Real.sqrt 2) ^ 2 ≤ clsSig O B.centre η₀ b := fun b => by
-    rw [hs'2]; linarith [clsSig_ge O hstr hη₀ b]
-  have hwσ' : ∀ b, clsShift O B.centre b / clsSig O B.centre η₀ b ≤ 5 / (sig η₀ / Real.sqrt 2) :=
-    fun b => le_trans (clsShift_div_clsSig_le O hstr hη₀ b)
-      (div_le_div_of_nonneg_left (by norm_num) hs'.1 hs'.2)
-  have hΔs' : shiftBudget η₀ indecisionLimit εcov
-      = (sig η₀ / Real.sqrt 2) ^ 2 * shiftScale indecisionLimit εcov / 256 := by
-    rw [hs'2, shiftBudget]; ring
-  have ha' : 2 * (sig η₀ / Real.sqrt 2) ≤ gateA η₀ := by
-    linarith [two_sig_le_gateA hη0' hη₀, hs'.2]
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
     9 * pAP / 20, 1 / 2 + voteSlack η₀, 1 / 2 + voteSlack η₀, misfireTail η₀ κ (κ / 2),
     shiftBudget η₀ indecisionLimit εcov, shiftBudget η₀ indecisionLimit εcov,
@@ -3338,15 +3312,15 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   · exact hρsf
   -- each class's heavy prefixes at the uniform pool
   · intro b
-    exact (uni_share_le hs'.1 (by linarith [hs'.2]) hβ (min_le_right _ _) (min_le_left _ _) hΔs'
-      hc0.le hcm' hcu' (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (hσ' b)
-      (hwσ' b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b) (sideCharge_le_gateA O hstr hη₀ _)
-      ha').1
+    exact (uni_share_le hs hs1 hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm hcu
+      (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (clsSig_ge O hstr hη₀ b)
+      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)
+      (sideCharge_le_gateA O hstr hη₀ _) (two_sig_le_gateA hη0' hη₀)).1
   · intro b
-    exact (uni_share_le hs'.1 (by linarith [hs'.2]) hβ (min_le_right _ _) (min_le_left _ _) hΔs'
-      hc0.le hcm' hcu' (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (hσ' b)
-      (hwσ' b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b) (sideCharge_le_gateA O hstr hη₀ _)
-      ha').2
+    exact (uni_share_le hs hs1 hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm hcu
+      (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (clsSig_ge O hstr hη₀ b)
+      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)
+      (sideCharge_le_gateA O hstr hη₀ _) (two_sig_le_gateA hη0' hη₀)).2
   · exact Real.log_nonneg (by
       rw [le_div_iff₀ hδ]
       have : (0 : ℝ) ≤ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) :=

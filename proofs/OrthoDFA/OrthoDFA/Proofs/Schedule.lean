@@ -201,7 +201,7 @@ flip's shift on a class, which Markov charges at `w_b/σ_b ≤ 5/sig` against th
 gate at `5/sig²` against its limit: the first two terms.  Twice it is what the redraws can bias
 the verdict by, which the third holds to `εs/2`. -/
 noncomputable def rejFrac (η indecisionLimit εcov εs : ℝ) : ℝ :=
-  min (min (sig η ^ 2 * min εcov (1 / 2) / 2048) (sig η * indecisionLimit / 256)) (εs / 4)
+  min (min (sig η ^ 2 * min εcov (1 / 2) / 1024) (sig η * indecisionLimit / 128)) (εs / 4)
 
 /-- The exponent rate of the drawn prefixes understating a member's shift mass on a class by
 `g = shiftBudget`, relative to a mass of at most `shiftBudget + rejFrac + g`:

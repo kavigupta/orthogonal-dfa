@@ -190,10 +190,10 @@ theorem prefCount_le_split (populations : Finset J)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
-      ≤ 2 ^ 20 * (populations.card : ℝ)
+      ≤ 2 ^ 22 * (populations.card : ℝ)
           * levelLog η populations indecisionLimit εcov δ pAP crossLimit
           / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2)
-        + 2 ^ 26 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
+        + 3 * 2 ^ 25 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
           / budgetScale η indecisionLimit εcov ^ 2
         + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
         + 128 * (hsz : ℝ) / cutBudget η indecisionLimit εcov := by
@@ -339,7 +339,7 @@ theorem prefCount_le_split (populations : Finset J)
   have hmnε : min εcov (1 / 2) ≤ εcov := min_le_left _ _
   -- the count rule's budget and the cut budget, against `sig²·B'`
   have hΔeq : shiftBudget η indecisionLimit εcov
-      = s ^ 2 * shiftScale indecisionLimit εcov / 256 := by rw [shiftBudget, ← hsdef]
+      = s ^ 2 * shiftScale indecisionLimit εcov / 512 := by rw [shiftBudget, ← hsdef]
   have ha2 : 4 * s ^ 2 ≤ gateA η ^ 2 := by
     have := two_sig_le_gateA hη hηlt
     rw [← hsdef] at this
@@ -351,7 +351,7 @@ theorem prefCount_le_split (populations : Finset J)
     refine le_min (by nlinarith) (le_min (by nlinarith) (le_min (by nlinarith) ?_))
     nlinarith [mul_le_mul_of_nonneg_right ha2 (le_trans hB'pos.le hB'm)]
   have hrej : rejFrac η indecisionLimit εcov εs ≤ s ^ 2 * min εcov (1 / 2) / 1024 := by
-    have := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η (εcov := εcov)).1
+    have := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η (εcov := εcov)).1
     rwa [← hsdef] at this
   have hrej0 := rejFrac_pos η hηlt hεcov hεs hind
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
@@ -489,24 +489,24 @@ theorem prefCount_le_split (populations : Finset J)
       _ = 49 / 64 * u ^ 2 := by ring
   obtain ⟨hT0', hD0', hU0'⟩ := gateDev_pos hη hηlt
   set Wg : ℝ := gateDevT η + gateDevU η with hWgdef
-  have hW : Wg ≤ 191 / 50 * u ^ 2 := by
-    have eW : Wg = 16 / 5 * (1 / g) + 63 / 20 * (1 / g ^ 2) := by
+  have hW : Wg ≤ 451 / 100 * u ^ 2 := by
+    have eW : Wg = 16 / 5 * (1 / g) + 81 / 20 * (1 / g ^ 2) := by
       rw [hWgdef]; unfold gateDevT gateDevU; rw [← hgdef]; ring
     have huu : 14 / 5 * u ≤ 7 / 5 * u ^ 2 := by nlinarith only [hu2]
     rw [eW]
     have h1 := mul_le_mul_of_nonneg_left hig (by norm_num : (0 : ℝ) ≤ 16 / 5)
-    have h2 := mul_le_mul_of_nonneg_left hig2 (by norm_num : (0 : ℝ) ≤ 63 / 20)
+    have h2 := mul_le_mul_of_nonneg_left hig2 (by norm_num : (0 : ℝ) ≤ 81 / 20)
     nlinarith only [h1, h2, huu, sq_nonneg u]
-  have hW2 : Wg ^ 2 ≤ 73 / 5 * u ^ 4 := by
+  have hW2 : Wg ^ 2 ≤ 41 / 2 * u ^ 4 := by
     have := pow_le_pow_left₀ (by linarith only [hT0', hU0'] : 0 ≤ Wg) hW 2
     nlinarith only [this, pow_nonneg (by linarith only [hu2] : (0 : ℝ) ≤ u) 4]
   set Dg : ℝ := gateDevD η with hDgdef
-  have hD1 : Dg + 1 ≤ 58 / 25 * u ^ 2 := by
-    have eD : Dg = 27 / 10 * (1 / g ^ 2) := by
+  have hD1 : Dg + 1 ≤ 301 / 100 * u ^ 2 := by
+    have eD : Dg = 18 / 5 * (1 / g ^ 2) := by
       rw [hDgdef]; unfold gateDevD; rw [← hgdef]; ring
     rw [eD]
     nlinarith only [hig2, hu2]
-  have hD2 : (Dg + 1) ^ 2 ≤ 27 / 5 * u ^ 4 := by
+  have hD2 : (Dg + 1) ^ 2 ≤ 907 / 100 * u ^ 4 := by
     have := pow_le_pow_left₀ (by linarith only [hD0'] : 0 ≤ Dg + 1) hD1 2
     nlinarith only [this, pow_nonneg (by linarith only [hu2] : (0 : ℝ) ≤ u) 4]
   have hBgR : B' ^ 2 ≤ 25 * gR ^ 2 := by nlinarith only [hgRB, hB'pos, hgR0]
@@ -518,13 +518,13 @@ theorem prefCount_le_split (populations : Finset J)
   -- the levels' term: `n ≥ 4K (log(4Kk) + 2 log log(4Kk))`, with `K·B'² ≤ 3000/sig⁴`
   set K : ℝ := 200 / 9 * (Dg + 1) ^ 2 / gR ^ 2 with hKdef
   have hgR2 : 0 < gR ^ 2 := by positivity
-  have hKB : K * B' ^ 2 ≤ 3000 * u ^ 4 := by
+  have hKB : K * B' ^ 2 ≤ 5100 * u ^ 4 := by
     have e : K * B' ^ 2 * gR ^ 2 = 200 / 9 * (Dg + 1) ^ 2 * B' ^ 2 := by
       rw [hKdef]; field_simp
-    have h1 : 200 / 9 * (Dg + 1) ^ 2 * B' ^ 2 ≤ 3000 * u ^ 4 * gR ^ 2 := by
+    have h1 : 200 / 9 * (Dg + 1) ^ 2 * B' ^ 2 ≤ 5100 * u ^ 4 * gR ^ 2 := by
       nlinarith only [mul_le_mul hD2 hBgR (sq_nonneg B') (by positivity), sq_nonneg (Dg + 1)]
     exact le_of_mul_le_mul_right (by linarith only [e, h1]) hgR2
-  have hKB0 : K * B ^ 2 ≤ 3000 * u ^ 4 := by
+  have hKB0 : K * B ^ 2 ≤ 5100 * u ^ 4 := by
     have : B ^ 2 ≤ B' ^ 2 := pow_le_pow_left₀ hBpos.le hBB' 2
     nlinarith only [hKB, this, show 0 ≤ K by rw [hKdef]; positivity]
   have hK4 : 4 ≤ K := by
@@ -545,7 +545,7 @@ theorem prefCount_le_split (populations : Finset J)
     have hT7 : 7 ≤ T := by nlinarith only [hTB, hB2, hBpos]
     have hcT : c ≤ T := by nlinarith only [hT1, hM64, hcpos]
     have h16 : 16 * K ≤ T ^ 6 := by
-      have hB6 : 16 * K * B ^ 6 ≤ 48000 := by
+      have hB6 : 16 * K * B ^ 6 ≤ 81600 := by
         have h4 : (u * B) ^ 4 ≤ 1 := pow_le_one₀ (by positivity) huB
         have : 16 * K * B ^ 6 = 16 * (K * B ^ 2) * B ^ 4 := by ring
         rw [this]
@@ -612,7 +612,7 @@ theorem prefCount_le_split (populations : Finset J)
     exact mul_le_mul_of_nonneg_left hB8 (mul_nonneg hk hL0)
   have u1 : c * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
-      / (15 / 16 * Δ) ^ 2 ≤ 1044000 * Q1 := by
+      / (15 / 16 * Δ) ^ 2 ≤ 4176000 * Q1 := by
     have hcl : cleanLevel η populations indecisionLimit εcov δ pAP crossLimit ^ 2 ≤ Λ / 2 := by
       refine le_trans hcl2 ?_
       have hl : Real.log (16 * M / δ) ≤ Λ := by
@@ -633,13 +633,13 @@ theorem prefCount_le_split (populations : Finset J)
     have hstep : c * (cleanLevel η populations indecisionLimit εcov δ pAP crossLimit
         + heavyLevel η populations indecisionLimit εcov δ pAP crossLimit) ^ 2
         ≤ c * (14 * Λ) := mul_le_mul_of_nonneg_left hux hcpos.le
-    have e : 1044000 * Q1 * (15 / 16 * Δ) ^ 2
-        = 1044000 * (15 / 16) ^ 2 / 256 ^ 2 * (Q1 * (s ^ 4 * B' ^ 2)) := by
+    have e : 4176000 * Q1 * (15 / 16 * Δ) ^ 2
+        = 4176000 * (15 / 16) ^ 2 / 512 ^ 2 * (Q1 * (s ^ 4 * B' ^ 2)) := by
       rw [hΔeq]; ring
     rw [e, hQ1eq]
     nlinarith only [hstep, mul_nonneg hcpos.le (by linarith only [hΛ1] : (0 : ℝ) ≤ Λ)]
   have u5 : Real.log (128 * c * (M + 1) / δ) / dirtyRate η indecisionLimit εcov εs
-      ≤ 480 * Q1 := by
+      ≤ 1152 * Q1 := by
     have hdr : dirtyRate η indecisionLimit εcov εs = Δ ^ 2 / (4 * (Δ + cr)) := by
       rw [dirtyRate, ← hΔdef, ← hcrdef]
     rw [hdr, div_div_eq_mul_div]
@@ -651,15 +651,15 @@ theorem prefCount_le_split (populations : Finset J)
       nlinarith only [h1, hΛ1, hc1]
     have hY0 : 0 ≤ Real.log (128 * c * (M + 1) / δ) :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1, hM64])
-    have hk : 4 * (Δ + cr) * (s ^ 4 * B' ^ 2) ≤ 160 * Δ ^ 2 := by
+    have hk : 4 * (Δ + cr) * (s ^ 4 * B' ^ 2) ≤ 384 * Δ ^ 2 := by
       rw [hΔeq]
-      have h1 : 4 * (s ^ 2 * B' / 256) * (s ^ 4 * B' ^ 2) ≤ 128 * (s ^ 2 * B' / 256) ^ 2 := by
+      have h1 : 4 * (s ^ 2 * B' / 512) * (s ^ 4 * B' ^ 2) ≤ 256 * (s ^ 2 * B' / 512) ^ 2 := by
         have : 0 ≤ s ^ 2 * B' := by positivity
         nlinarith only [hsB8, this, sq_nonneg (s ^ 2 * B')]
-      have h2 : 4 * cr * (s ^ 4 * B' ^ 2) ≤ 32 * (s ^ 2 * B' / 256) ^ 2 := by
+      have h2 : 4 * cr * (s ^ 4 * B' ^ 2) ≤ 128 * (s ^ 2 * B' / 512) ^ 2 := by
         have hcr' : cr * (s ^ 4 * B' ^ 2) ≤ s ^ 2 * mn / 1024 * (s ^ 4 * B' ^ 2) :=
           mul_le_mul_of_nonneg_right hcr (by positivity)
-        have hm : s ^ 2 * mn / 1024 * (s ^ 4 * B' ^ 2) ≤ 8 * (s ^ 2 * B' / 256) ^ 2 := by
+        have hm : s ^ 2 * mn / 1024 * (s ^ 4 * B' ^ 2) ≤ 32 * (s ^ 2 * B' / 512) ^ 2 := by
           have h3 : s ^ 2 * mn ≤ 1 / 8 := by nlinarith only [hs2sq, hmn2, hmn0]
           have : 0 ≤ s ^ 4 * B' ^ 2 := by positivity
           nlinarith only [mul_le_mul_of_nonneg_right h3 this]
@@ -667,62 +667,63 @@ theorem prefCount_le_split (populations : Finset J)
       nlinarith only [h1, h2]
     rw [div_le_iff₀ (by positivity), ← mul_le_mul_iff_of_pos_right hD]
     have hk' : Real.log (128 * c * (M + 1) / δ) * (4 * (Δ + cr)) * (s ^ 4 * B' ^ 2)
-        ≤ 3 * (c * Λ) * (160 * Δ ^ 2) := by
+        ≤ 3 * (c * Λ) * (384 * Δ ^ 2) := by
       rw [mul_assoc]
       exact mul_le_mul hlog3 hk (by positivity) (by positivity)
-    have e : 480 * Q1 * Δ ^ 2 * (s ^ 4 * B' ^ 2) = 480 * (Q1 * (s ^ 4 * B' ^ 2)) * Δ ^ 2 := by
+    have e : 1152 * Q1 * Δ ^ 2 * (s ^ 4 * B' ^ 2) = 1152 * (Q1 * (s ^ 4 * B' ^ 2)) * Δ ^ 2 := by
       ring
     rw [e, hQ1eq]
     linarith only [hk']
-  have u2 : Real.log (128 * c / δ) * (1056 / Δ) ≤ 2170000 * Q2 := by
+  have u2 : Real.log (128 * c / δ) * (1056 / Δ) ≤ 4330000 * Q2 := by
     have e : Real.log (128 * c / δ) * (1056 / Δ)
-        = 270336 * Real.log (128 * c / δ) / (s ^ 2 * B') := by
+        = 540672 * Real.log (128 * c / δ) / (s ^ 2 * B') := by
       rw [hΔeq]; field_simp; ring
     rw [e]
     refine le_trans (div_le_div_of_nonneg_right (by nlinarith only [hR]) (by positivity))
-      (le_trans (hinv2 270336 (by norm_num)) (by nlinarith only [hQ2nn]))
-  have u3 : 50 * Wg ^ 2 * Real.log (32 * c * (M + 3) / δ) / gR ^ 2 ≤ 9350000 * Q2 := by
+      (le_trans (hinv2 540672 (by norm_num)) (by nlinarith only [hQ2nn]))
+  have u3 : 50 * Wg ^ 2 * Real.log (32 * c * (M + 3) / δ) / gR ^ 2 ≤ 13120000 * Q2 := by
     have hL₁0 : 0 ≤ Real.log (32 * c * (M + 3) / δ) :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith only [hc1, hδ1, hM64])
-    have h := tail_le (w := 1460 * u ^ 4) (N := 1) (K := 9350000) (D := B ^ 2) (L := L)
+    have h := tail_le (w := 2050 * u ^ 4) (N := 1) (K := 13120000) (D := B ^ 2) (L := L)
       (V := 50 * Wg ^ 2 * Real.log (32 * c * (M + 3) / δ)) (G := gR ^ 2)
       (by nlinarith only [mul_le_mul hW2 hY32 hL₁0 (by positivity), sq_nonneg Wg]) hL0
       (by positivity) hB2pos (by
-        have e : 1460 * u ^ 4 * B ^ 2 ≤ 1460 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) :=
+        have e : 2050 * u ^ 4 * B ^ 2 ≤ 2050 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) :=
           mul_le_mul_of_nonneg_left hBgR2 (by positivity)
-        have e2 : 1460 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) = 9344000 * gR ^ 2 := by
-          rw [show 1460 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) = 9344000 * gR ^ 2 * (u ^ 4 * s ^ 4) by
+        have e2 : 2050 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) = 13120000 * gR ^ 2 := by
+          rw [show 2050 * u ^ 4 * (6400 * s ^ 4 * gR ^ 2) = 13120000 * gR ^ 2 * (u ^ 4 * s ^ 4) by
             ring, hus4, mul_one]
         nlinarith only [e, e2, sq_nonneg gR])
     rw [one_mul] at h
     exact h
-  have u4 : gateLogCount K (4 * Real.sqrt (Real.sqrt q)) ≤ 33030000 * Q2 := by
+  have u4 : gateLogCount K (4 * Real.sqrt (Real.sqrt q)) ≤ 55470000 * Q2 := by
     unfold gateLogCount
     rw [← hydef]
     have h1 : 4 * K * (y + 2 * Real.log y) ≤ 43 * K * L := by
       nlinarith only [hyL, hlogy, hK4]
-    have hKB' : K * B ^ 2 ≤ 768000 := by
+    have hKB' : K * B ^ 2 ≤ 1290000 := by
       have e : K * B ^ 2 * gR ^ 2 = 200 / 9 * (Dg + 1) ^ 2 * B ^ 2 := by
         rw [hKdef]; field_simp
       have h2 : 200 / 9 * (Dg + 1) ^ 2 * B ^ 2
-          ≤ 200 / 9 * (27 / 5 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2) :=
+          ≤ 200 / 9 * (907 / 100 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2) :=
         mul_le_mul (mul_le_mul_of_nonneg_left hD2 (by norm_num)) hBgR2 (sq_nonneg B)
           (by positivity)
-      have e2 : 200 / 9 * (27 / 5 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2) = 768000 * gR ^ 2 := by
-        rw [show 200 / 9 * (27 / 5 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2)
-          = 768000 * gR ^ 2 * (u ^ 4 * s ^ 4) by ring, hus4, mul_one]
+      have e2 : 200 / 9 * (907 / 100 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2) ≤ 1290000 * gR ^ 2 := by
+        rw [show 200 / 9 * (907 / 100 * u ^ 4) * (6400 * s ^ 4 * gR ^ 2)
+          = 11609600 / 9 * gR ^ 2 * (u ^ 4 * s ^ 4) by ring, hus4, mul_one]
+        nlinarith [sq_nonneg gR]
       exact le_of_mul_le_mul_right (by linarith only [e, h2, e2]) hgR2
     refine le_trans h1 ?_
-    rw [hQ2def, show 33030000 * (L / B ^ 2) = 33030000 * L / B ^ 2 by ring, le_div_iff₀ hB2pos]
+    rw [hQ2def, show 55470000 * (L / B ^ 2) = 55470000 * L / B ^ 2 by ring, le_div_iff₀ hB2pos]
     nlinarith only [mul_le_mul_of_nonneg_left hKB' (by linarith only [hL0] : (0 : ℝ) ≤ 43 * L),
       hL0]
-  have u6 : 64 * Real.log (128 * c * (M + 1) / δ) / Δ ≤ 262200 * Q2 := by
+  have u6 : 64 * Real.log (128 * c * (M + 1) / δ) / Δ ≤ 524400 * Q2 := by
     have e : 64 * Real.log (128 * c * (M + 1) / δ) / Δ
-        = 16384 * Real.log (128 * c * (M + 1) / δ) / (s ^ 2 * B') := by
+        = 32768 * Real.log (128 * c * (M + 1) / δ) / (s ^ 2 * B') := by
       rw [hΔeq]; field_simp; ring
     rw [e]
     refine le_trans (div_le_div_of_nonneg_right (by nlinarith only [hY]) (by positivity))
-      (le_trans (hinv2 32768 (by norm_num)) (by nlinarith only [hQ2nn]))
+      (le_trans (hinv2 65536 (by norm_num)) (by nlinarith only [hQ2nn]))
   have u8 : 65536 * Real.log (128 * c / δ) / (9 * cut ^ 2) ≤ 728200 * Q2 := by
     have h := tail_le (V := 65536 * Real.log (128 * c / δ)) (L := L) (G := 9 * cut ^ 2)
       (w := 65536) (N := 1) (K := 728200) (D := B ^ 2) (by linarith only [hR]) hL0
@@ -752,14 +753,14 @@ theorem prefCount_le_split (populations : Finset J)
   have m9 : max (6 * Real.log (256 * c / δ) / εs) 0 = 6 * Real.log (256 * c / δ) / εs :=
     max_eq_left (div_nonneg (by linarith only [h256]) hεs.le)
   rw [hh, m9] at hbound
-  rw [hLeq, show 2 ^ 20 * c * Λ / (s ^ 4 * B' ^ 2) = 2 ^ 20 * Q1 by rw [hQ1def]; ring,
-    show 2 ^ 26 * L / B ^ 2 = 2 ^ 26 * Q2 by rw [hQ2def]; ring]
-  have n1 := max_le u1 (by positivity : (0 : ℝ) ≤ 1044000 * Q1)
-  have n2 := max_le u2 (by positivity : (0 : ℝ) ≤ 2170000 * Q2)
-  have n3 := max_le u3 (by positivity : (0 : ℝ) ≤ 9350000 * Q2)
-  have n4 := max_le u4 (by positivity : (0 : ℝ) ≤ 33030000 * Q2)
-  have n5 := max_le u5 (by positivity : (0 : ℝ) ≤ 480 * Q1)
-  have n6 := max_le u6 (by positivity : (0 : ℝ) ≤ 262200 * Q2)
+  rw [hLeq, show 2 ^ 22 * c * Λ / (s ^ 4 * B' ^ 2) = 2 ^ 22 * Q1 by rw [hQ1def]; ring,
+    show 3 * 2 ^ 25 * L / B ^ 2 = 3 * 2 ^ 25 * Q2 by rw [hQ2def]; ring]
+  have n1 := max_le u1 (by positivity : (0 : ℝ) ≤ 4176000 * Q1)
+  have n2 := max_le u2 (by positivity : (0 : ℝ) ≤ 4330000 * Q2)
+  have n3 := max_le u3 (by positivity : (0 : ℝ) ≤ 13120000 * Q2)
+  have n4 := max_le u4 (by positivity : (0 : ℝ) ≤ 55470000 * Q2)
+  have n5 := max_le u5 (by positivity : (0 : ℝ) ≤ 1152 * Q1)
+  have n6 := max_le u6 (by positivity : (0 : ℝ) ≤ 524400 * Q2)
   have n8 := max_le u8 (by positivity : (0 : ℝ) ≤ 728200 * Q2)
   linarith only [hbound, n1, n2, n3, n4, n5, n6, n8, u7, hQ2nn, hQ1nn]
 
@@ -774,7 +775,7 @@ theorem prefCount_le_split_of_le (populations : Finset J)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
-      ≤ 2 ^ 20 * (populations.card : ℝ)
+      ≤ 2 ^ 22 * (populations.card : ℝ)
           * levelLog η populations indecisionLimit εcov δ pAP crossLimit
           / (sig η ^ 4 * indecisionLimit ^ 2)
         + 2 ^ 27 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
@@ -824,24 +825,28 @@ theorem prefCount_le_split_of_le (populations : Finset J)
       _ = 2 * L := by rw [Real.log_pow, hLT]; push_cast; ring
   have hL0 : 0 ≤ L := by linarith
   clear_value c B M L
-  have key : 6 * Real.log (256 * c / δ) / εs ≤ 2 ^ 26 * L / B ^ 2 := by
+  have key : 6 * Real.log (256 * c / δ) / εs ≤ 2 ^ 10 * L / B ^ 2 := by
     have hBsq : B ^ 2 ≤ εcov / 8 := by nlinarith
     rw [div_le_div_iff₀ hεs0 (by positivity)]
     have s1 : 6 * Real.log (256 * c / δ) * B ^ 2 ≤ 12 * L * (εcov / 8) :=
       mul_le_mul (by linarith) hBsq (sq_nonneg B) (by linarith)
     nlinarith [mul_nonneg hL0 hεs0.le]
-  have e : 2 ^ 27 * L / B ^ 2 = 2 ^ 26 * L / B ^ 2 + 2 ^ 26 * L / B ^ 2 := by ring
+  have e : 2 ^ 27 * L / B ^ 2 = 3 * 2 ^ 25 * L / B ^ 2 + 2 ^ 10 * L / B ^ 2
+      + (2 ^ 25 - 2 ^ 10) * L / B ^ 2 := by ring
+  have : 0 ≤ (2 ^ 25 - 2 ^ 10) * L / B ^ 2 := by
+    have : (0 : ℝ) ≤ 2 ^ 25 - 2 ^ 10 := by norm_num
+    positivity
   linarith
 
-/-- `prefCount_le_split`'s two log terms are under `budgetCap` at `2²⁶`. -/
+/-- `prefCount_le_split`'s two log terms are under `budgetCap` at `3·2²⁵`. -/
 theorem budgetCap_split (populations : Finset J) (η indecisionLimit εcov δ α pAP crossLimit : ℝ)
     (hind : 0 < indecisionLimit) (hεcov : 0 < εcov) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
-    2 ^ 20 * (populations.card : ℝ)
+    2 ^ 22 * (populations.card : ℝ)
           * levelLog η populations indecisionLimit εcov δ pAP crossLimit
           / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2)
-        + 2 ^ 26 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
+        + 3 * 2 ^ 25 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
           / budgetScale η indecisionLimit εcov ^ 2
-      ≤ budgetCap populations η indecisionLimit εcov δ α pAP crossLimit (2 ^ 26) := by
+      ≤ budgetCap populations η indecisionLimit εcov δ α pAP crossLimit (3 * 2 ^ 25) := by
   have hB' := shiftScale_pos hεcov hind
   have hΛ : 0 ≤ levelLog η populations indecisionLimit εcov δ pAP crossLimit := by
     have : (0 : ℝ) ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) :=
@@ -851,12 +856,12 @@ theorem budgetCap_split (populations : Finset J) (η indecisionLimit εcov δ α
     * levelLog η populations indecisionLimit εcov δ pAP crossLimit
     / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2) with hX
   have hX0 : 0 ≤ X := div_nonneg (mul_nonneg (Nat.cast_nonneg _) hΛ) (by positivity)
-  have e1 : 2 ^ 20 * (populations.card : ℝ)
+  have e1 : 2 ^ 22 * (populations.card : ℝ)
       * levelLog η populations indecisionLimit εcov δ pAP crossLimit
-      / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2) = 2 ^ 20 * X := by rw [hX]; ring
-  have e2 : budgetCap populations η indecisionLimit εcov δ α pAP crossLimit (2 ^ 26)
-      = 2 ^ 26 * X + 2 ^ 26 * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-        / budgetScale η indecisionLimit εcov ^ 2 := by
+      / (sig η ^ 4 * shiftScale indecisionLimit εcov ^ 2) = 2 ^ 22 * X := by rw [hX]; ring
+  have e2 : budgetCap populations η indecisionLimit εcov δ α pAP crossLimit (3 * 2 ^ 25)
+      = 3 * 2 ^ 25 * X + 3 * 2 ^ 25 * budgetLog populations η indecisionLimit εcov δ α pAP
+        crossLimit / budgetScale η indecisionLimit εcov ^ 2 := by
     rw [budgetCap, hX]; ring
   rw [e1, e2]
   linarith
@@ -1263,7 +1268,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       have : (0 : ℝ) ≤ 2 ^ 11 * (hz : ℝ) / rateScale η₀ indecisionLimit εcov := by positivity
       have h64 : 0 ≤ Real.log (64 * 1 / δ) := Real.log_nonneg (by rw [le_div_iff₀ hδ]; linarith)
       have hm : 0 < min εcov indecisionLimit := lt_min hεcov hindLim
-      have : 0 ≤ 2 ^ 20 * (populations.card : ℝ) * Real.log (64 * 1 / δ)
+      have : 0 ≤ 2 ^ 22 * (populations.card : ℝ) * Real.log (64 * 1 / δ)
           / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2) := by positivity
       linarith
     · simp only [Nat.cast_zero]
@@ -1377,7 +1382,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     poolCap_of_top populations η₀ indecisionLimit εcov δ pAP crossLimit (collisionMass Dsf) hM
       (hcollSf _ htop)
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit (2 ^ 26)
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit (3 * 2 ^ 25)
         + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
         + harvestCap η₀ indecisionLimit εcov hz :=
     hpoly.trans (by
@@ -1386,12 +1391,12 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
         hδ hδ1
       linarith)
   refine le_trans (clustering_correct O populations tame uni H D Dsf Pre Suf η₀
-    indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (2 ^ 26) hηle hη₀ huni htame hflat hH hsupp
+    indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) hηle hη₀ huni htame hflat hH hsupp
     hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs hδ hbudget
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
   have hrej : 2 * rejFrac η₀ indecisionLimit εcov εs ≤ εs / 2 := by
-    have h := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.2
+    have h := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.2
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
