@@ -4,11 +4,12 @@ import OrthoDFA.Proofs.GateCharge
 /-!
 # The gate's miscut bound is sound
 
-`certifiesAt` bounds how much of a population the family's cut misclassifies, reading each
-class's noise rate at `η₀`.  On a side of the cut, `p` reads against the side on the seed at
-`t_p`: its noise rate `r_p` where the cut is right, `1 − r_p` where it is wrong.  An
-accept-preserving reference disagrees with the seed at `2r_p(1 − r_p)`, which pins the noise's
-share of the spread of the `t_p`; a wrong prefix adds at least `(1 − η₀ − t̄)²` to the rest.
+`certifiesAt` bounds how much of a population the family's cut misclassifies.  On a side of
+the cut, `p` reads against the side on the seed at `t_p`: its noise rate `r_p` where the cut is
+right, `1 − r_p` where it is wrong.  An accept-preserving reference's `apartCost` has mean
+`r_p(1 − r_p)`, which pins the noise's share of the spread of the `t_p`; a wrong prefix adds at
+least `(1 − y − t̄)²` to the rest, `y` the rate the side's wrong class is read at.  No reference's
+`apartCost` has a smaller mean while `ηIn ≤ 1 − c` and `ηOut ≤ c`, so a clean family passes.
 -/
 
 namespace OrthoDFA
@@ -128,10 +129,9 @@ open scoped Classical in
 noncomputable def againstVar (O : Oracle μ S) (c : ℝ) (p : S) (ω : Ω) : ℝ :=
   if (O.mq p ω = 1 ↔ c = 1) then 0 else 1
 
-open scoped Classical in
-/-- Whether a reference `v`'s read of `p · v` disagrees with the seed's read of `p`. -/
-noncomputable def apartVar (O : Oracle μ S) (v p : S) (ω : Ω) : ℝ :=
-  if ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)) then 0 else 1
+/-- A reference `v`'s `apartCost` on `p`. -/
+noncomputable def apartVar (O : Oracle μ S) (c : ℝ) (v p : S) (ω : Ω) : ℝ :=
+  apartCost c (O.mq p ω) (O.mq (p * v) ω)
 
 lemma againstVar_meas_alg (O : Oracle μ S) (c : ℝ) {T : Set S} {p : S} (hp : p ∈ T) :
     Measurable[noiseAlg O T] (againstVar O c p) := by
@@ -144,18 +144,19 @@ lemma againstVar_meas_alg (O : Oracle μ S) (c : ℝ) {T : Set S} {p : S} (hp : 
   rw [this]
   exact Measurable.ite hset measurable_const measurable_const
 
-lemma apartVar_meas_alg (O : Oracle μ S) {T : Set S} {v p : S} (hp : p ∈ T) (hpv : p * v ∈ T) :
-    Measurable[noiseAlg O T] (apartVar O v p) := by
+lemma apartVar_meas_alg (O : Oracle μ S) (c : ℝ) {T : Set S} {v p : S} (hp : p ∈ T)
+    (hpv : p * v ∈ T) : Measurable[noiseAlg O T] (apartVar O c v p) := by
   classical
   have h1 : MeasurableSet[noiseAlg O T] {ω | O.mq (p * v) ω = 1} := measurableSet_mq_eq_one O hpv
   have h2 : MeasurableSet[noiseAlg O T] {ω | O.mq p ω = 1} := measurableSet_mq_eq_one O hp
-  have : apartVar O v p = fun ω => if ω ∈ ({ω | O.mq (p * v) ω = 1} ∩ {ω | O.mq p ω = 1})
-      ∪ ({ω | O.mq (p * v) ω = 1}ᶜ ∩ {ω | O.mq p ω = 1}ᶜ) then 0 else 1 := by
-    funext ω; unfold apartVar
+  have : apartVar O c v p = fun ω => if ω ∈ ({ω | O.mq (p * v) ω = 1} ∩ {ω | O.mq p ω = 1})
+      ∪ ({ω | O.mq (p * v) ω = 1}ᶜ ∩ {ω | O.mq p ω = 1}ᶜ) then 0
+      else if ω ∈ {ω | O.mq p ω = 1} then 1 - c else c := by
+    funext ω; unfold apartVar apartCost
     by_cases ha : O.mq (p * v) ω = 1 <;> by_cases hb : O.mq p ω = 1 <;> simp [ha, hb]
   rw [this]
   exact Measurable.ite ((h1.inter h2).union (h1.compl.inter h2.compl)) measurable_const
-    measurable_const
+    (Measurable.ite h2 measurable_const measurable_const)
 
 omit [IsProbabilityMeasure μ] in
 lemma againstVar_icc (O : Oracle μ S) (c : ℝ) (p : S) (ω : Ω) :
@@ -163,9 +164,31 @@ lemma againstVar_icc (O : Oracle μ S) (c : ℝ) (p : S) (ω : Ω) :
   unfold againstVar; split_ifs <;> norm_num
 
 omit [IsProbabilityMeasure μ] in
-lemma apartVar_icc (O : Oracle μ S) (v p : S) (ω : Ω) :
-    apartVar O v p ω ∈ Set.Icc (0 : ℝ) 1 := by
-  unfold apartVar; split_ifs <;> norm_num
+lemma half_le_span (c : ℝ) : 1 / 2 ≤ span c := by
+  unfold span
+  rcases le_total c (1 / 2) with h | h
+  · exact le_trans (by linarith) (le_max_right _ _)
+  · exact le_trans h (le_max_left _ _)
+
+lemma span_pos (c : ℝ) : 0 < span c := lt_of_lt_of_le (by norm_num) (half_le_span c)
+
+lemma span_half : span (1 / 2) = 1 / 2 := by unfold span; norm_num
+
+omit [IsProbabilityMeasure μ] in
+lemma apartVar_div_icc (O : Oracle μ S) {c : ℝ} (hc0 : 0 ≤ c) (hc1 : c ≤ 1) (v p : S) (ω : Ω) :
+    apartVar O c v p ω / span c ∈ Set.Icc (0 : ℝ) 1 := by
+  have hs := span_pos c
+  have h1 : c ≤ span c := le_max_left _ _
+  have h2 : 1 - c ≤ span c := le_max_right _ _
+  rw [Set.mem_Icc, div_le_one hs]
+  unfold apartVar apartCost
+  split_ifs <;> constructor <;> first | positivity | (apply div_nonneg <;> linarith) | linarith
+
+omit [IsProbabilityMeasure μ] in
+lemma apartCost_congr (c : ℝ) {a b a' b' : ℝ} (ha : a = 1 ↔ a' = 1) (hb : b = 1 ↔ b' = 1) :
+    apartCost c a b = apartCost c a' b' := by
+  classical
+  simp only [apartCost, ha, hb]
 
 /-- The seed reads against its side at its rate where the cut is right, and at one less it
 where the cut is wrong. -/
@@ -185,10 +208,15 @@ lemma againstVar_mean (O : Oracle μ S) {c : ℝ} (hc : c = 0 ∨ c = 1) (p : S)
       from rfl, prob_mq_ne_one]
     rcases O.label_bit p with hl | hl <;> rw [hl] <;> norm_num <;> ring
 
-/-- An accept-preserving reference disagrees with the seed at `2r(1 − r)`. -/
-lemma apartVar_mean (O : Oracle μ S) {v p : S} (hap : O.label (p * v) = O.label p)
-    (hne : p * v ≠ p) :
-    μ[apartVar O v p] = 2 * O.rate p * (1 - O.rate p) := by
+/-- With `q'` and `q` the chances `p · v` and `p` read accept,
+
+    E[apartCost] = (1 − c)(1 − q')q + c q'(1 − q). -/
+lemma apartVar_mean_eq (O : Oracle μ S) (c : ℝ) {v p : S} (hne : p * v ≠ p) :
+    μ[apartVar O c v p]
+      = (1 - c) * (1 - (O.rate (p * v) + (1 - 2 * O.rate (p * v)) * O.label (p * v)))
+          * (O.rate p + (1 - 2 * O.rate p) * O.label p)
+        + c * (O.rate (p * v) + (1 - 2 * O.rate (p * v)) * O.label (p * v))
+          * (1 - (O.rate p + (1 - 2 * O.rate p) * O.label p)) := by
   classical
   set a : Set Ω := {ω | O.mq (p * v) ω = 1} with ha
   set b : Set Ω := {ω | O.mq p ω = 1} with hb
@@ -203,19 +231,23 @@ lemma apartVar_mean (O : Oracle μ S) {v p : S} (hap : O.label (p * v) = O.label
       hind.measure_inter_preimage_eq_mul s t hs ht, ENNReal.toReal_mul]
   have h1 := hprod {1} {1}ᶜ (measurableSet_singleton 1) (measurableSet_singleton 1).compl
   have h2 := hprod {1}ᶜ {1} (measurableSet_singleton 1).compl (measurableSet_singleton 1)
-  have hset : apartVar O v p = ((a ∩ bᶜ) ∪ (aᶜ ∩ b)).indicator 1 := by
-    funext ω; unfold apartVar
-    by_cases h1 : O.mq (p * v) ω = 1 <;> by_cases h2 : O.mq p ω = 1 <;> simp [ha, hb, h1, h2]
-  have hdisj : Disjoint (a ∩ bᶜ) (aᶜ ∩ b) :=
-    Set.disjoint_left.2 (fun ω h h' => h'.1 h.1)
-  rw [hset, integral_indicator_one ((ham.inter hbm.compl).union (ham.compl.inter hbm)),
-    measureReal_union hdisj (ham.compl.inter hbm)]
+  have hset : apartVar O c v p
+      = fun ω => (1 - c) * (aᶜ ∩ b).indicator 1 ω + c * (a ∩ bᶜ).indicator 1 ω := by
+    funext ω; unfold apartVar apartCost
+    by_cases h1 : O.mq (p * v) ω = 1 <;> by_cases h2 : O.mq p ω = 1 <;>
+      simp [ha, hb, h1, h2, Set.indicator]
+  have hi1 : Integrable ((aᶜ ∩ b).indicator (1 : Ω → ℝ)) μ :=
+    (integrable_const (1 : ℝ)).indicator (ham.compl.inter hbm)
+  have hi2 : Integrable ((a ∩ bᶜ).indicator (1 : Ω → ℝ)) μ :=
+    (integrable_const (1 : ℝ)).indicator (ham.inter hbm.compl)
+  rw [hset, integral_add (hi1.const_mul _) (hi2.const_mul _), integral_const_mul,
+    integral_const_mul, integral_indicator_one (ham.compl.inter hbm),
+    integral_indicator_one (ham.inter hbm.compl)]
   have e1 : a ∩ bᶜ = O.mq (p * v) ⁻¹' {1} ∩ O.mq p ⁻¹' {1}ᶜ := rfl
   have e2 : aᶜ ∩ b = O.mq (p * v) ⁻¹' {1}ᶜ ∩ O.mq p ⁻¹' {1} := rfl
   rw [e1, e2, h1, h2]
-  have pa : μ.real (O.mq (p * v) ⁻¹' {1}) = O.rate p + (1 - 2 * O.rate p) * O.label p := by
-    rw [show O.mq (p * v) ⁻¹' {1} = {ω | O.mq (p * v) ω = 1} from rfl, prob_mq_one,
-      hap, O.rate_eq_of_label_eq hap]
+  have pa : μ.real (O.mq (p * v) ⁻¹' {1})
+      = O.rate (p * v) + (1 - 2 * O.rate (p * v)) * O.label (p * v) := prob_mq_one O (p * v)
   have pb : μ.real (O.mq p ⁻¹' {1}) = O.rate p + (1 - 2 * O.rate p) * O.label p := prob_mq_one O p
   have pa' : μ.real (O.mq (p * v) ⁻¹' {1}ᶜ) = 1 - μ.real (O.mq (p * v) ⁻¹' {1}) := by
     rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
@@ -224,6 +256,13 @@ lemma apartVar_mean (O : Oracle μ S) {v p : S} (hap : O.label (p * v) = O.label
     rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
       (mq_meas O _)), probReal_univ]
   rw [pa', pb', pa, pb]
+  ring
+
+/-- An accept-preserving reference's `apartCost` has mean `r(1 − r)`. -/
+lemma apartVar_mean (O : Oracle μ S) (c : ℝ) {v p : S} (hap : O.label (p * v) = O.label p)
+    (hne : p * v ≠ p) :
+    μ[apartVar O c v p] = O.rate p * (1 - O.rate p) := by
+  rw [apartVar_mean_eq O c hne, hap, O.rate_eq_of_label_eq hap]
   rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
 
 lemma exp_hoeffDev (n : ℕ) (hn : 0 < n) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
@@ -244,23 +283,14 @@ lemma card_filter_eq_sum_againstVar (O : Oracle μ S) (c : ℝ) (A : Finset S) (
   refine Finset.sum_congr rfl (fun p _ => ?_)
   unfold againstVar; split_ifs <;> simp_all
 
-omit [IsProbabilityMeasure μ] in
-open scoped Classical in
-lemma card_filter_eq_sum_apartVar (O : Oracle μ S) (v : S) (A : Finset S) (ω : Ω) :
-    ((A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card : ℝ)
-      = ∑ p ∈ A, apartVar O v p ω := by
-  rw [Finset.card_filter, Nat.cast_sum]
-  refine Finset.sum_congr rfl (fun p _ => ?_)
-  unfold apartVar; split_ifs <;> simp_all
-
 /-! ### What a side's caps bound -/
 
 /-- A side's cap bounds its wrong count, once its two counts sit within `d` of their means. -/
-theorem le_mul_wrongCap (n k ag ap : ℕ) (hk : k ≤ n) {x y yb d : ℝ} (hy : y ≤ yb)
+theorem le_mul_wrongCap (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) {x y yb d s : ℝ} (hy : y ≤ yb)
     (hlo : ((n : ℝ) - k) * x + k * (1 - y) - d ≤ ag)
     (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + d)
-    (hb : (ap : ℝ) ≤ 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + d) :
-    (k : ℝ) ≤ n * wrongCap n ag ap d yb := by
+    (hb : ap ≤ ((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y)) + s * d) :
+    (k : ℝ) ≤ n * wrongCap n ag ap d yb s := by
   rcases Nat.eq_zero_or_pos n with hn0 | hnpos
   · have : k = 0 := by omega
     subst this; subst hn0; simp
@@ -281,19 +311,19 @@ theorem le_mul_wrongCap (n k ag ap : ℕ) (hk : k ≤ n) {x y yb d : ℝ} (hy : 
       rcases le_total 0 (1 - 2 * c) with h | h
       · exact le_trans (mul_le_mul_of_nonneg_left (by linarith) h) (le_max_right _ _)
       · exact le_trans (mul_le_mul_of_nonpos_left (by linarith) h) (le_max_left _ _)
-    have hfl : ((ap : ℝ) - d) / (2 * n) ≤ (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n := by
-      rw [div_le_div_iff₀ (by positivity) hnR]; nlinarith
+    have hfl : (ap - s * d) / n ≤ (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n :=
+      div_le_div_of_nonneg_right (by linarith) hnR.le
     have hspread : (n - k) / n * (x - c) ^ 2 + k / n * (1 - y - c) ^ 2
-        ≤ spreadBound n ag ap d c := by
+        ≤ spreadBound n ag ap d c s := by
       unfold spreadBound
       rw [hid]; linarith
     have h1 : (k : ℝ) / n * (1 - yb - c) ^ 2 ≤ k / n * (1 - y - c) ^ 2 :=
       mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hden.le (by linarith) 2) (by positivity)
     have h2 : 0 ≤ ((n : ℝ) - k) / n * (x - c) ^ 2 :=
       mul_nonneg (div_nonneg (by linarith) hnR.le) (sq_nonneg _)
-    have hkappa : (k : ℝ) / n ≤ max 0 (spreadBound n ag ap d c) / (1 - yb - c) ^ 2 := by
+    have hkappa : (k : ℝ) / n ≤ max 0 (spreadBound n ag ap d c s) / (1 - yb - c) ^ 2 := by
       rw [le_div_iff₀ (by positivity)]
-      linarith [le_max_right 0 (spreadBound n ag ap d c)]
+      linarith [le_max_right 0 (spreadBound n ag ap d c s)]
     have hkappa1 : (k : ℝ) / n ≤ 1 := by rw [div_le_one hnR]; exact hkn
     have := le_min hkappa1 hkappa
     have h3 := mul_le_mul_of_nonneg_left this hnR.le
@@ -312,26 +342,26 @@ lemma againstOn_eq_sum (O : Oracle μ S) (accept : Bool) (A : Finset S) (ω : Ω
 
 open scoped Classical in
 /-- A side's three counts sit within `hoeffDev #A a` of their means: the seed's count against
-the side, both ways, and the reference `v`'s count of disagreements, from above. -/
-def sideGood (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ) (ω : Ω) : Prop :=
+the side, both ways, and the reference `v`'s `apartCost`, from above. -/
+def sideGood (O : Oracle μ S) (accept : Bool) (c : ℝ) (A : Finset S) (v : S) (a : ℝ) (ω : Ω) :
+    Prop :=
   ∑ p ∈ A, μ[againstVar O (sideClass accept) p] - hoeffDev A.card a ≤ againstOn O.mq accept A ω
   ∧ (againstOn O.mq accept A ω : ℝ) ≤ ∑ p ∈ A, μ[againstVar O (sideClass accept) p]
       + hoeffDev A.card a
-  ∧ ((A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card : ℝ)
-      ≤ ∑ p ∈ A, μ[apartVar O v p] + hoeffDev A.card a
+  ∧ ∑ p ∈ A, apartVar O c v p ω ≤ ∑ p ∈ A, μ[apartVar O c v p] + span c * hoeffDev A.card a
 
 open scoped Classical in
 /-- Each of a side's three counts strays from its mean with chance at most `a`. -/
-theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
-    (hne : ∀ p ∈ A, p * v ≠ p)
+theorem side_tails (O : Oracle μ S) (accept : Bool) {cc : ℝ} (hc0 : 0 ≤ cc) (hc1 : cc ≤ 1)
+    (A : Finset S) {v : S} (hne : ∀ p ∈ A, p * v ≠ p)
     (hblk : ∀ p ∈ A, ∀ p' ∈ A, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v})
     {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
-    μ.real {ω | ¬ sideGood O accept A v a ω} ≤ 3 * a := by
+    μ.real {ω | ¬ sideGood O accept cc A v a ω} ≤ 3 * a := by
   classical
   set c : ℝ := sideClass accept with hcdef
   rcases Nat.eq_zero_or_pos A.card with hA0 | hApos
   · have hAe : A = ∅ := Finset.card_eq_zero.1 hA0
-    have hz : {ω | ¬ sideGood O accept A v a ω} = (∅ : Set Ω) := by
+    have hz : {ω | ¬ sideGood O accept cc A v a ω} = (∅ : Set Ω) := by
       ext ω
       simp [sideGood, hAe, hoeffDev, againstOn]
     rw [hz, measureReal_empty]
@@ -341,7 +371,7 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
   set d : ℝ := hoeffDev n a with hd
   have hd0 : 0 ≤ d := Real.sqrt_nonneg _
   set X : A → Ω → ℝ := fun i => againstVar O c i.1 with hX
-  set Y : A → Ω → ℝ := fun i => apartVar O v i.1 with hY
+  set Y : A → Ω → ℝ := fun i => fun ω => apartVar O cc v i.1 ω / span cc with hY
   have hXind : iIndepFun X μ := by
     refine iIndepFun_of_blocks O (fun i : A => ({i.1} : Finset S)) ?_ X (fun i => ?_)
     · intro i j hij
@@ -352,22 +382,24 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     refine iIndepFun_of_blocks O (fun i : A => ({i.1, i.1 * v} : Finset S)) ?_ Y (fun i => ?_)
     · intro i j hij
       exact hblk i.1 i.2 j.1 j.2 (fun h => hij (Subtype.ext h))
-    · exact apartVar_meas_alg O (by simp) (by simp)
+    · exact (apartVar_meas_alg O cc (by simp) (by simp)).div_const _
   set EX : ℝ := ∑ p ∈ A, μ[againstVar O c p] with hEX
-  set EY : ℝ := ∑ p ∈ A, μ[apartVar O v p] with hEY
+  set EY : ℝ := ∑ p ∈ A, μ[apartVar O cc v p] / span cc with hEY
   have hcard : ((Finset.univ : Finset A).card : ℝ) = n := by simp [hndef]
   have hEXs : ∑ i : A, μ[X i] = EX := Finset.sum_coe_sort A (fun p => μ[againstVar O c p])
-  have hEYs : ∑ i : A, μ[Y i] = EY := Finset.sum_coe_sort A (fun p => μ[apartVar O v p])
+  have hEYs : ∑ i : A, μ[Y i] = EY := by
+    rw [hEY, ← Finset.sum_coe_sort A (fun p => μ[apartVar O cc v p] / span cc)]
+    exact Finset.sum_congr rfl (fun i _ => integral_div _ _)
   have hXm : ∀ i, AEMeasurable (X i) μ := fun i =>
     (againstVar_meas_alg O c (T := Set.univ) (Set.mem_univ _)).mono (noiseAlg_le O _) le_rfl
       |>.aemeasurable
   have hYm : ∀ i, AEMeasurable (Y i) μ := fun i =>
-    (apartVar_meas_alg O (T := Set.univ) (Set.mem_univ _) (Set.mem_univ _)).mono
-      (noiseAlg_le O _) le_rfl |>.aemeasurable
+    ((apartVar_meas_alg O cc (T := Set.univ) (Set.mem_univ _) (Set.mem_univ _)).mono
+      (noiseAlg_le O _) le_rfl).div_const _ |>.aemeasurable
   have hXi : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1 := fun i =>
     Filter.Eventually.of_forall (fun ω => againstVar_icc O c _ ω)
   have hYi : ∀ i, ∀ᵐ ω ∂μ, Y i ω ∈ Set.Icc (0 : ℝ) 1 := fun i =>
-    Filter.Eventually.of_forall (fun ω => apartVar_icc O v _ ω)
+    Filter.Eventually.of_forall (fun ω => apartVar_div_icc O hc0 hc1 v _ ω)
   have hdn : 0 ≤ d / n := div_nonneg hd0 hnR.le
   have hB1 : μ.real {ω | ∑ i : A, X i ω ≤ (n : ℝ) * (EX / n - d / n)} ≤ a := by
     have h := sumLower_le X Finset.univ (EX / n) (d / n) hXm hXind hXi
@@ -381,7 +413,7 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     have h := sumUpper_le Y Finset.univ (EY / n) (d / n) hYm hYind hYi
       (by rw [hcard, hEYs, mul_div_cancel₀ _ hnR.ne']) hdn
     rwa [hcard, exp_hoeffDev n hApos ha0 ha1] at h
-  have hsub : {ω | ¬ sideGood O accept A v a ω}
+  have hsub : {ω | ¬ sideGood O accept cc A v a ω}
       ⊆ {ω | ∑ i : A, X i ω ≤ (n : ℝ) * (EX / n - d / n)}
         ∪ ({ω | (n : ℝ) * (EX / n + d / n) ≤ ∑ i : A, X i ω}
           ∪ {ω | (n : ℝ) * (EY / n + d / n) ≤ ∑ i : A, Y i ω}) := by
@@ -395,11 +427,14 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     have e3 : (n : ℝ) * (EY / n + d / n) = EY + d := by field_simp
     rw [e1, Finset.sum_coe_sort A (fun p => againstVar O c p ω)] at h1
     rw [e2, Finset.sum_coe_sort A (fun p => againstVar O c p ω)] at h2
-    rw [e3, Finset.sum_coe_sort A (fun p => apartVar O v p ω)] at h3
+    rw [e3, Finset.sum_coe_sort A (fun p => apartVar O cc v p ω / span cc), ← Finset.sum_div,
+      hEY, ← Finset.sum_div, div_lt_iff₀ (span_pos cc), add_mul,
+      div_mul_cancel₀ _ (span_pos cc).ne']
+      at h3
     refine ⟨?_, ?_, ?_⟩
     · rw [againstOn_eq_sum]; exact h1.le
     · rw [againstOn_eq_sum]; exact h2.le
-    · rw [card_filter_eq_sum_apartVar]; exact h3.le
+    · linarith
   calc _ ≤ _ := measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ _ := le_trans (measureReal_union_le _ _) (add_le_add_right (measureReal_union_le _ _) _)
     _ ≤ a + (a + a) := add_le_add hB1 (add_le_add hB2 hB3)
@@ -407,17 +442,17 @@ theorem side_tails (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
 
 open scoped Classical in
 /-- On a good side the means are those of `n − k` right prefixes and `k` wrong ones. -/
-lemma side_means (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
+lemma side_means (O : Oracle μ S) (accept : Bool) (cc : ℝ) (A : Finset S) {v : S}
     (hap : ∀ p, O.label (p * v) = O.label p) (hne : ∀ p ∈ A, p * v ≠ p) :
     ∑ p ∈ A, μ[againstVar O (sideClass accept) p]
         = ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
             * rightRate O accept
           + (A.filter (fun p => O.label p ≠ sideClass accept)).card * (1 - wrongRate O accept)
-      ∧ ∑ p ∈ A, μ[apartVar O v p]
-        = 2 * (((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
+      ∧ ∑ p ∈ A, μ[apartVar O cc v p]
+        = ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
             * (rightRate O accept * (1 - rightRate O accept))
           + (A.filter (fun p => O.label p ≠ sideClass accept)).card
-            * (wrongRate O accept * (1 - wrongRate O accept))) := by
+            * (wrongRate O accept * (1 - wrongRate O accept)) := by
   classical
   set c := sideClass accept with hc
   set x := rightRate O accept with hx
@@ -433,21 +468,19 @@ lemma side_means (O : Oracle μ S) (accept : Bool) (A : Finset S) {v : S}
     intro p _
     rw [againstVar_mean O (sideClass_bit accept) p, rate_of_label O accept p]
     split_ifs <;> rfl
-  have h2 : ∀ p ∈ A, μ[apartVar O v p]
-      = if O.label p = c then 2 * (x * (1 - x)) else 2 * (y * (1 - y)) := by
+  have h2 : ∀ p ∈ A, μ[apartVar O cc v p]
+      = if O.label p = c then x * (1 - x) else y * (1 - y) := by
     intro p hp
-    rw [apartVar_mean O (hap p) (hne p hp), rate_of_label O accept p]
+    rw [apartVar_mean O cc (hap p) (hne p hp), rate_of_label O accept p]
     split_ifs <;> ring
   constructor
   · rw [Finset.sum_congr rfl h1, Finset.sum_ite, Finset.sum_const, Finset.sum_const,
       nsmul_eq_mul, nsmul_eq_mul, hcnt]
   · rw [Finset.sum_congr rfl h2, Finset.sum_ite, Finset.sum_const, Finset.sum_const,
       nsmul_eq_mul, nsmul_eq_mul, hcnt]
-    simp only [ne_eq]
-    ring
 
-lemma refApart_le_of_mem (mq : S → Ω → ℝ) (A R : Finset S) {v : S} (hv : v ∈ R) (ω : Ω) :
-    refApart mq A R ω ≤ (A.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card := by
+lemma refApart_le_of_mem (mq : S → Ω → ℝ) (c : ℝ) (A R : Finset S) {v : S} (hv : v ∈ R)
+    (ω : Ω) : refApart mq c A R ω ≤ ∑ p ∈ A, apartCost c (mq p ω) (mq (p * v) ω) := by
   classical
   unfold refApart
   rw [dif_pos ⟨v, hv⟩]
@@ -455,24 +488,27 @@ lemma refApart_le_of_mem (mq : S → Ω → ℝ) (A R : Finset S) {v : S} (hv : 
 
 open scoped Classical in
 /-- On a good side whose wrong class's rate is at most `y`, the cap bounds the wrong count. -/
-theorem wrong_le_sideCap (O : Oracle μ S) (accept : Bool) (A R : Finset S) {v : S} (hvR : v ∈ R)
+theorem wrong_le_sideCap (O : Oracle μ S) (accept : Bool) (cc : ℝ) (A R : Finset S) {v : S}
+    (hvR : v ∈ R)
     (hap : ∀ p, O.label (p * v) = O.label p) (hne : ∀ p ∈ A, p * v ≠ p) {a y : ℝ} {ω : Ω}
-    (hgood : sideGood O accept A v a ω) (hy : wrongRate O accept ≤ y) :
+    (hgood : sideGood O accept cc A v a ω) (hy : wrongRate O accept ≤ y) :
     ((A.filter (fun p => O.label p ≠ sideClass accept)).card : ℝ)
-      ≤ A.card * sideCap O.mq accept A R a y ω := by
+      ≤ A.card * sideCap O.mq accept cc A R a y ω := by
   obtain ⟨hlo, hhi, hb⟩ := hgood
-  obtain ⟨hEa, hEb⟩ := side_means O accept A hap hne
+  obtain ⟨hEa, hEb⟩ := side_means O accept cc A hap hne
   rw [hEa] at hlo hhi
   rw [hEb] at hb
-  have hap' := refApart_le_of_mem O.mq A R hvR ω
+  have hap' := refApart_le_of_mem O.mq cc A R hvR ω
   unfold sideCap
   exact le_mul_wrongCap A.card _ _ _ (Finset.card_le_card (Finset.filter_subset _ _)) hy hlo hhi
-    (le_trans (by exact_mod_cast hap') hb)
+    (le_trans hap' hb)
 
 open scoped Classical in
 /-- Both sides of a sample good for the reference `v`. -/
-def sidesGood (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (v : S) (a : ℝ) (ω : Ω) : Prop :=
-  sideGood O true (acceptSide O.mq hi F P ω) v a ω ∧ sideGood O false (rejectSide O.mq lo F P ω) v a ω
+def sidesGood (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (c : ℝ) (v : S) (a : ℝ) (ω : Ω) :
+    Prop :=
+  sideGood O true c (acceptSide O.mq hi F P ω) v a ω
+    ∧ sideGood O false c (rejectSide O.mq lo F P ω) v a ω
 
 omit [IsProbabilityMeasure μ] in
 open scoped Classical in
@@ -516,13 +552,20 @@ lemma wrongRate_le_centre (O : Oracle μ S) {c η₀ : ℝ} (h : O.Straddles c �
     wrongRate O true ≤ c - 1 / 2 + η₀ ∧ wrongRate O false ≤ 1 / 2 - c + η₀ := by
   unfold wrongRate Oracle.Straddles at *
   simp only [↓reduceIte, Bool.false_eq_true]
-  constructor <;> linarith [h.1, h.2]
+  constructor <;> linarith [h.1, h.2, le_max_left O.ηIn 0, le_max_left O.ηOut 0]
 
-omit [IsProbabilityMeasure μ] in
 lemma straddles_half (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) : O.Straddles (1 / 2) η₀ := by
   have h1 : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
   have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
-  unfold Oracle.Straddles; constructor <;> linarith
+  have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  unfold Oracle.Straddles
+  constructor <;> refine max_le ?_ ?_ <;> linarith
+
+omit [IsProbabilityMeasure μ] in
+lemma centre_mem_of_straddles (O : Oracle μ S) {c η₀ : ℝ} (h : O.Straddles c η₀)
+    (hη₀ : η₀ ≤ 1 / 2) : 0 ≤ c ∧ c ≤ 1 := by
+  have := h.1; have := h.2
+  constructor <;> linarith [le_max_right O.ηIn 0, le_max_right O.ηOut 0]
 
 open scoped Classical in
 /-- With both of the sample's sides good, the cut's wrong count on the sample is at most
@@ -530,12 +573,12 @@ open scoped Classical in
 theorem miscut_le_miscutBound (O : Oracle μ S) {yAcc yRej : ℝ} (hAcc : wrongRate O true ≤ yAcc)
     (hRej : wrongRate O false ≤ yRej) (lo hi : ℕ)
     (F R P : Finset S) {v : S} (hvR : v ∈ R) (hap : ∀ p, O.label (p * v) = O.label p)
-    (hneP : ∀ p ∈ P, p * v ≠ p) {a : ℝ} {ω : Ω} (hP : sidesGood O lo hi F P v a ω) :
+    (hneP : ∀ p ∈ P, p * v ≠ p) {c a : ℝ} {ω : Ω} (hP : sidesGood O lo hi F P c v a ω) :
     ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
-      ≤ miscutBound O.mq a lo hi F R P yAcc yRej ω := by
-  have hA := wrong_le_sideCap O true (acceptSide O.mq hi F P ω) R hvR hap
+      ≤ miscutBound O.mq a lo hi F R P c yAcc yRej ω := by
+  have hA := wrong_le_sideCap O true c (acceptSide O.mq hi F P ω) R hvR hap
     (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.1 hAcc
-  have hR := wrong_le_sideCap O false (rejectSide O.mq lo F P ω) R hvR hap
+  have hR := wrong_le_sideCap O false c (rejectSide O.mq lo F P ω) R hvR hap
     (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.2 hRej
   refine le_trans (miscut_le_sides O lo hi F P ω) ?_
   unfold miscutBound
@@ -614,18 +657,18 @@ theorem selection_congr_bound (O : Oracle μ S) (C Q : Finset S)
     _ = μ.real {ω | ω ∈ Bad' (sel' ω)} := by rw [noiseClean_ae O Q, noiseClean_ae O C]; ring
     _ ≤ E := hmain
 
-lemma sideGood_congr (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ) {ω ω' : Ω}
+lemma sideGood_congr (O : Oracle μ S) (accept : Bool) (c : ℝ) (A : Finset S) (v : S) (a : ℝ)
+    {ω ω' : Ω}
     (h : ∀ p ∈ A, O.noise p ω = O.noise p ω' ∧ O.noise (p * v) ω = O.noise (p * v) ω') :
-    sideGood O accept A v a ω → sideGood O accept A v a ω' := by
+    sideGood O accept c A v a ω → sideGood O accept c A v a ω' := by
   classical
   have h1 : ∀ p ∈ A, O.mq p ω = O.mq p ω' := fun p hp => mq_congr O (h p hp).1
   have h2 : ∀ p ∈ A, O.mq (p * v) ω = O.mq (p * v) ω' := fun p hp => mq_congr O (h p hp).2
   have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
     unfold againstOn
     exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [h1 p hp]))
-  have hb : (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
-      = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
-    congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [h1 p hp, h2 p hp]))
+  have hb : ∑ p ∈ A, apartVar O c v p ω = ∑ p ∈ A, apartVar O c v p ω' :=
+    Finset.sum_congr rfl (fun p hp => by unfold apartVar; rw [h1 p hp, h2 p hp])
   unfold sideGood
   rw [ha, hb]
   exact id
@@ -633,11 +676,12 @@ lemma sideGood_congr (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a
 open scoped Classical in
 /-- Both sides of a sample good, with the sample, the voters and the reference fixed and the cut
 chosen by the votes: chance at most `6a` they are not. -/
-theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
+theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {c : ℝ} (hc0 : 0 ≤ c)
+    (hc1 : c ≤ 1) {v : S}
     (hinj : ∀ p ∈ P, ∀ p' ∈ P, ∀ u ∈ insert 1 (insert v F), ∀ u' ∈ insert 1 (insert v F),
       p * u = p' * u' → p = p' ∧ u = u')
     (hvF : v ∉ F) (h1F : (1 : S) ∉ F) (hv1 : v ≠ 1) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
-    μ.real {ω | ¬ sidesGood O lo hi F P v a ω} ≤ 6 * a := by
+    μ.real {ω | ¬ sidesGood O lo hi F P c v a ω} ≤ 6 * a := by
   classical
   have h1mem : (1 : S) ∈ insert 1 (insert v F) := Finset.mem_insert_self _ _
   have hvmem : v ∈ insert 1 (insert v F) := Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)
@@ -671,7 +715,7 @@ theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
       (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
   set Bad : Finset S × Finset S → Set Ω := fun t =>
     if t.1 ⊆ P ∧ t.2 ⊆ P then
-      {ω | ¬ (sideGood O true t.1 v a ω ∧ sideGood O false t.2 v a ω)}
+      {ω | ¬ (sideGood O true c t.1 v a ω ∧ sideGood O false c t.2 v a ω)}
     else ∅ with hBaddef
   have hBadcongr : ∀ t ω ω', (∀ w ∈ C, O.noise w ω = O.noise w ω') → ω ∈ Bad t → ω' ∈ Bad t := by
     intro t ω ω' h hω
@@ -682,8 +726,8 @@ theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
         ⟨(h p (Finset.mem_union_left _ (hD hp))).symm,
           (h _ (Finset.mem_union_right _ (Finset.mem_image_of_mem _ (hD hp)))).symm⟩
       intro hgood
-      exact hω ⟨sideGood_congr O true t.1 v a (hpp t.1 ht.1) hgood.1,
-        sideGood_congr O false t.2 v a (hpp t.2 ht.2) hgood.2⟩
+      exact hω ⟨sideGood_congr O true c t.1 v a (hpp t.1 ht.1) hgood.1,
+        sideGood_congr O false c t.2 v a (hpp t.2 ht.2) hgood.2⟩
     · exact hω
   have hside : ∀ D ⊆ P, (∀ p ∈ D, p * v ≠ p)
       ∧ ∀ p ∈ D, ∀ p' ∈ D, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v} := by
@@ -703,10 +747,10 @@ theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
     obtain ⟨hA, hR⟩ := Finset.mem_product.1 ht
     have hAP := Finset.mem_powerset.1 hA
     have hRP := Finset.mem_powerset.1 hR
-    have hs1 := side_tails (μ := μ) O true A₀ (hside A₀ hAP).1 (hside A₀ hAP).2 ha0 ha1
-    have hs2 := side_tails (μ := μ) O false R₀ (hside R₀ hRP).1 (hside R₀ hRP).2 ha0 ha1
-    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ sideGood O true A₀ v a ω}
-        ∪ {ω | ¬ sideGood O false R₀ v a ω} := by
+    have hs1 := side_tails (μ := μ) O true hc0 hc1 A₀ (hside A₀ hAP).1 (hside A₀ hAP).2 ha0 ha1
+    have hs2 := side_tails (μ := μ) O false hc0 hc1 R₀ (hside R₀ hRP).1 (hside R₀ hRP).2 ha0 ha1
+    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ sideGood O true c A₀ v a ω}
+        ∪ {ω | ¬ sideGood O false c R₀ v a ω} := by
       intro ω hω
       simp only [hBaddef, if_pos (And.intro hAP hRP), Set.mem_setOf_eq] at hω
       by_contra hc
@@ -727,29 +771,29 @@ theorem sidesGood_whp (O : Oracle μ S) (P F : Finset S) (lo hi : ℕ) {v : S}
 
 open scoped Classical in
 /-- A side's counts within `t` and `tu` of their means the other way: the seed's count against
-the side both ways, and every reference's count of disagreements from below. -/
-def sideLive (O : Oracle μ S) (accept : Bool) (A R : Finset S) (t tu : ℝ) (ω : Ω) : Prop :=
+the side both ways, and every reference's `apartCost` from below. -/
+def sideLive (O : Oracle μ S) (accept : Bool) (c : ℝ) (A R : Finset S) (t tu : ℝ) (ω : Ω) :
+    Prop :=
   |(againstOn O.mq accept A ω : ℝ) - ∑ p ∈ A, μ[againstVar O (sideClass accept) p]| ≤ t
-  ∧ ∀ v ∈ R, ∑ p ∈ A, μ[apartVar O v p] - tu
-      ≤ ((A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card : ℝ)
+  ∧ ∀ v ∈ R, ∑ p ∈ A, μ[apartVar O c v p] - span c * tu ≤ ∑ p ∈ A, apartVar O c v p ω
 
 open scoped Classical in
-theorem side_live_tails (O : Oracle μ S) (accept : Bool) (A R : Finset S)
-    (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p)
+theorem side_live_tails (O : Oracle μ S) (accept : Bool) {cc : ℝ} (hc0 : 0 ≤ cc) (hc1 : cc ≤ 1)
+    (A R : Finset S) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p)
     (hblk : ∀ v ∈ R, ∀ p ∈ A, ∀ p' ∈ A, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v})
     {t tu : ℝ} (ht : 0 ≤ t) (htu : 0 ≤ tu) (N : ℕ) (hN : A.card ≤ N) :
-    μ.real {ω | ¬ sideLive O accept A R t tu ω}
+    μ.real {ω | ¬ sideLive O accept cc A R t tu ω}
       ≤ 2 * Real.exp (-2 * t ^ 2 / N) + R.card * Real.exp (-2 * tu ^ 2 / N) := by
   classical
   set c : ℝ := sideClass accept with hcdef
   rcases Nat.eq_zero_or_pos A.card with hA0 | hApos
   · have hAe : A = ∅ := Finset.card_eq_zero.1 hA0
-    have hz : {ω | ¬ sideLive O accept A R t tu ω} = (∅ : Set Ω) := by
+    have hz : {ω | ¬ sideLive O accept cc A R t tu ω} = (∅ : Set Ω) := by
       ext ω
       simp only [sideLive, hAe, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_and,
         not_forall, Finset.sum_empty, Finset.filter_empty, Finset.card_empty, CharP.cast_eq_zero,
         againstOn, sub_zero, abs_zero, zero_sub]
-      exact ⟨ht, fun ⟨v, _, h⟩ => h (by linarith)⟩
+      exact ⟨ht, fun ⟨v, _, h⟩ => h (by nlinarith [span_pos cc])⟩
     rw [hz, measureReal_empty]
     positivity
   set n : ℕ := A.card with hndef
@@ -798,30 +842,32 @@ theorem side_live_tails (O : Oracle μ S) (accept : Bool) (A R : Finset S)
       (by rw [hcard, hEXs, mul_div_cancel₀ _ hnR.ne']) htn
     rw [hcard] at h
     exact le_trans h hexp
-  have hB3 : ∀ v ∈ R, μ.real {ω | ∑ i : A, apartVar O v i.1 ω
-        ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - tu / n)}
+  have hB3 : ∀ v ∈ R, μ.real {ω | ∑ i : A, apartVar O cc v i.1 ω / span cc
+        ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O cc v p] / span cc) / n - tu / n)}
       ≤ Real.exp (-2 * tu ^ 2 / N) := by
     intro v hv
-    have hYind : iIndepFun (fun i : A => apartVar O v i.1) μ := by
+    have hYind : iIndepFun (fun i : A => fun ω => apartVar O cc v i.1 ω / span cc) μ := by
       refine iIndepFun_of_blocks O (fun i : A => ({i.1, i.1 * v} : Finset S)) ?_ _ (fun i => ?_)
       · intro i j hij
         exact hblk v hv i.1 i.2 j.1 j.2 (fun h => hij (Subtype.ext h))
-      · exact apartVar_meas_alg O (by simp) (by simp)
-    have hs : ∑ i : A, μ[apartVar O v i.1] = ∑ p ∈ A, μ[apartVar O v p] :=
-      Finset.sum_coe_sort A (fun p => μ[apartVar O v p])
-    have h := sumLower_le (fun i : A => apartVar O v i.1) Finset.univ
-      ((∑ p ∈ A, μ[apartVar O v p]) / n) (tu / n)
-      (fun i => (apartVar_meas_alg O (T := Set.univ) (Set.mem_univ _) (Set.mem_univ _)).mono
-        (noiseAlg_le O _) le_rfl |>.aemeasurable)
-      hYind (fun i => Filter.Eventually.of_forall (fun ω => apartVar_icc O v _ ω))
+      · exact (apartVar_meas_alg O cc (by simp) (by simp)).div_const _
+    have hs : ∑ i : A, μ[fun ω => apartVar O cc v i.1 ω / span cc]
+        = ∑ p ∈ A, μ[apartVar O cc v p] / span cc := by
+      rw [← Finset.sum_coe_sort A (fun p => μ[apartVar O cc v p] / span cc)]
+      exact Finset.sum_congr rfl (fun i _ => integral_div _ _)
+    have h := sumLower_le (fun i : A => fun ω => apartVar O cc v i.1 ω / span cc) Finset.univ
+      ((∑ p ∈ A, μ[apartVar O cc v p] / span cc) / n) (tu / n)
+      (fun i => ((apartVar_meas_alg O cc (T := Set.univ) (Set.mem_univ _) (Set.mem_univ _)).mono
+        (noiseAlg_le O _) le_rfl).div_const _ |>.aemeasurable)
+      hYind (fun i => Filter.Eventually.of_forall (fun ω => apartVar_div_icc O hc0 hc1 v _ ω))
       (by rw [hcard, hs, mul_div_cancel₀ _ hnR.ne']) htun
     rw [hcard] at h
     exact le_trans h hexpu
-  have hsub : {ω | ¬ sideLive O accept A R t tu ω}
+  have hsub : {ω | ¬ sideLive O accept cc A R t tu ω}
       ⊆ ({ω | ∑ i : A, X i ω ≤ (n : ℝ) * (EX / n - t / n)}
           ∪ {ω | (n : ℝ) * (EX / n + t / n) ≤ ∑ i : A, X i ω})
-        ∪ ⋃ v ∈ R, {ω | ∑ i : A, apartVar O v i.1 ω
-            ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - tu / n)} := by
+        ∪ ⋃ v ∈ R, {ω | ∑ i : A, apartVar O cc v i.1 ω / span cc
+            ≤ (n : ℝ) * ((∑ p ∈ A, μ[apartVar O cc v p] / span cc) / n - tu / n)} := by
     intro ω hω
     by_contra hc'
     simp only [Set.mem_union, Set.mem_setOf_eq, Set.mem_iUnion, not_or, not_exists, not_le]
@@ -836,11 +882,12 @@ theorem side_live_tails (O : Oracle μ S) (accept : Bool) (A R : Finset S)
     · rw [againstOn_eq_sum, abs_le]
       exact ⟨by linarith, by linarith⟩
     · have h := h3 v hv
-      rw [Finset.sum_coe_sort A (fun p => apartVar O v p ω),
-        show (n : ℝ) * ((∑ p ∈ A, μ[apartVar O v p]) / n - tu / n)
-          = (∑ p ∈ A, μ[apartVar O v p]) - tu by field_simp,
-        ← card_filter_eq_sum_apartVar] at h
-      exact h.le
+      rw [Finset.sum_coe_sort A (fun p => apartVar O cc v p ω / span cc),
+        show (n : ℝ) * ((∑ p ∈ A, μ[apartVar O cc v p] / span cc) / n - tu / n)
+          = (∑ p ∈ A, μ[apartVar O cc v p] / span cc) - tu by field_simp,
+        ← Finset.sum_div, ← Finset.sum_div, lt_div_iff₀ (span_pos cc), sub_mul,
+        div_mul_cancel₀ _ (span_pos cc).ne'] at h
+      linarith
   calc _ ≤ _ := measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ _ := measureReal_union_le _ _
     _ ≤ (Real.exp (-2 * t ^ 2 / N) + Real.exp (-2 * t ^ 2 / N))
@@ -852,35 +899,36 @@ theorem side_live_tails (O : Oracle μ S) (accept : Bool) (A R : Finset S)
 
 open scoped Classical in
 /-- Both sides of a sample live against the references `R`. -/
-def sidesLive (O : Oracle μ S) (lo hi : ℕ) (F P R : Finset S) (t tu : ℝ) (ω : Ω) : Prop :=
-  sideLive O true (acceptSide O.mq hi F P ω) R t tu ω
-    ∧ sideLive O false (rejectSide O.mq lo F P ω) R t tu ω
+def sidesLive (O : Oracle μ S) (lo hi : ℕ) (F P R : Finset S) (c t tu : ℝ) (ω : Ω) : Prop :=
+  sideLive O true c (acceptSide O.mq hi F P ω) R t tu ω
+    ∧ sideLive O false c (rejectSide O.mq lo F P ω) R t tu ω
 
-lemma sideLive_congr_mq (O : Oracle μ S) (accept : Bool) (A R : Finset S) (t tu : ℝ) {ω ω' : Ω}
+lemma sideLive_congr_mq (O : Oracle μ S) (accept : Bool) (c : ℝ) (A R : Finset S) (t tu : ℝ)
+    {ω ω' : Ω}
     (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1)
       ∧ ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
-    sideLive O accept A R t tu ω → sideLive O accept A R t tu ω' := by
+    sideLive O accept c A R t tu ω → sideLive O accept c A R t tu ω' := by
   classical
   have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
     unfold againstOn
     exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1]))
   rintro ⟨h1, h2⟩
   refine ⟨by rw [← ha]; exact h1, fun v hv => ?_⟩
-  have hb : (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
-      = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
-    congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1, (h p hp).2 v hv]))
+  have hb : ∑ p ∈ A, apartVar O c v p ω = ∑ p ∈ A, apartVar O c v p ω' :=
+    Finset.sum_congr rfl (fun p hp => apartCost_congr c (h p hp).1 ((h p hp).2 v hv))
   rw [← hb]
   exact h2 v hv
 
 open scoped Classical in
 /-- Both sides of a sample live, with the sample, the voters and the references fixed and the
 cut chosen by the votes. -/
-theorem sidesLive_whp (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ)
+theorem sidesLive_whp (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ) {c : ℝ} (hc0 : 0 ≤ c)
+    (hc1 : c ≤ 1)
     (hinj : ∀ p ∈ P, ∀ p' ∈ P, ∀ u ∈ insert 1 (F ∪ R), ∀ u' ∈ insert 1 (F ∪ R),
       p * u = p' * u' → p = p' ∧ u = u')
     (hFR : Disjoint F R) (h1F : (1 : S) ∉ F) (h1R : (1 : S) ∉ R) {t tu : ℝ} (ht : 0 ≤ t)
     (htu : 0 ≤ tu) (N : ℕ) (hN : P.card ≤ N) :
-    μ.real {ω | ¬ sidesLive O lo hi F P R t tu ω}
+    μ.real {ω | ¬ sidesLive O lo hi F P R c t tu ω}
       ≤ 2 * (2 * Real.exp (-2 * t ^ 2 / N) + R.card * Real.exp (-2 * tu ^ 2 / N)) := by
   classical
   have h1mem : (1 : S) ∈ insert 1 (F ∪ R) := Finset.mem_insert_self _ _
@@ -917,7 +965,7 @@ theorem sidesLive_whp (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ)
       (Finset.filter_congr (fun p hp => by rw [hvc p hp]))
   set Bad : Finset S × Finset S → Set Ω := fun t' =>
     if t'.1 ⊆ P ∧ t'.2 ⊆ P then
-      {ω | ¬ (sideLive O true t'.1 R t tu ω ∧ sideLive O false t'.2 R t tu ω)}
+      {ω | ¬ (sideLive O true c t'.1 R t tu ω ∧ sideLive O false c t'.2 R t tu ω)}
     else ∅ with hBaddef
   have hBadcongr : ∀ t' ω ω', (∀ w ∈ C, O.noise w ω = O.noise w ω') → ω ∈ Bad t' →
       ω' ∈ Bad t' := by
@@ -930,8 +978,8 @@ theorem sidesLive_whp (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ)
           fun v hv => by rw [mq_congr O (h _ (Finset.mem_union_right _
             (Finset.mem_image.2 ⟨(p, v), Finset.mem_product.2 ⟨hD hp, hv⟩, rfl⟩)))]⟩
       intro hgood
-      exact hω ⟨sideLive_congr_mq O true t'.1 R t tu (hpp t'.1 ht'.1) hgood.1,
-        sideLive_congr_mq O false t'.2 R t tu (hpp t'.2 ht'.2) hgood.2⟩
+      exact hω ⟨sideLive_congr_mq O true c t'.1 R t tu (hpp t'.1 ht'.1) hgood.1,
+        sideLive_congr_mq O false c t'.2 R t tu (hpp t'.2 ht'.2) hgood.2⟩
     · exact hω
   have hside : ∀ D ⊆ P, (∀ v ∈ R, ∀ p ∈ D, p * v ≠ p)
       ∧ ∀ v ∈ R, ∀ p ∈ D, ∀ p' ∈ D, p ≠ p' → Disjoint ({p, p * v} : Finset S) {p', p' * v} := by
@@ -954,12 +1002,14 @@ theorem sidesLive_whp (O : Oracle μ S) (P F R : Finset S) (lo hi : ℕ)
     obtain ⟨hA, hR⟩ := Finset.mem_product.1 ht'
     have hAP := Finset.mem_powerset.1 hA
     have hRP := Finset.mem_powerset.1 hR
-    have hs1 := side_live_tails (μ := μ) O true A₀ R (hside A₀ hAP).1 (hside A₀ hAP).2 ht htu N
+    have hs1 := side_live_tails (μ := μ) O true hc0 hc1 A₀ R (hside A₀ hAP).1 (hside A₀ hAP).2 ht
+      htu N
       (le_trans (Finset.card_le_card hAP) hN)
-    have hs2 := side_live_tails (μ := μ) O false R₀ R (hside R₀ hRP).1 (hside R₀ hRP).2 ht htu N
+    have hs2 := side_live_tails (μ := μ) O false hc0 hc1 R₀ R (hside R₀ hRP).1 (hside R₀ hRP).2 ht
+      htu N
       (le_trans (Finset.card_le_card hRP) hN)
-    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ sideLive O true A₀ R t tu ω}
-        ∪ {ω | ¬ sideLive O false R₀ R t tu ω} := by
+    have hsub : Bad (A₀, R₀) ⊆ {ω | ¬ sideLive O true c A₀ R t tu ω}
+        ∪ {ω | ¬ sideLive O false c R₀ R t tu ω} := by
       intro ω hω
       simp only [hBaddef, if_pos (And.intro hAP hRP), Set.mem_setOf_eq] at hω
       by_contra hc
@@ -1026,17 +1076,16 @@ lemma measurableSet_of_run_data_certAt (populations : Finset J) (j : J) (B : Sta
       (measurableSet_poolAt B.nsuff z.2.1)).inter
       (measurableSet_certOf populations B.npref j m z.2.2)).inter (hR _ _ _))
 
-lemma sideGood_congr_mq (O : Oracle μ S) (accept : Bool) (A : Finset S) (v : S) (a : ℝ)
+lemma sideGood_congr_mq (O : Oracle μ S) (accept : Bool) (c : ℝ) (A : Finset S) (v : S) (a : ℝ)
     {ω ω' : Ω}
     (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1) ∧ (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
-    sideGood O accept A v a ω → sideGood O accept A v a ω' := by
+    sideGood O accept c A v a ω → sideGood O accept c A v a ω' := by
   classical
   have ha : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
     unfold againstOn
     exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1]))
-  have hb : (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
-      = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
-    congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [(h p hp).1, (h p hp).2]))
+  have hb : ∑ p ∈ A, apartVar O c v p ω = ∑ p ∈ A, apartVar O c v p ω' :=
+    Finset.sum_congr rfl (fun p hp => apartCost_congr c (h p hp).1 (h p hp).2)
   unfold sideGood
   rw [ha, hb]
   exact id
@@ -1045,9 +1094,9 @@ open scoped Classical in
 /-- The sides of a sample `A` read against the family `F`, decided by the reads of `A` and
 `A · C`, for `F` and `v` in the pool `C`. -/
 lemma sidesGood_congr_mq (O : Oracle μ S) (lo hi : ℕ) (F A C : Finset S) (hone : (1 : S) ∈ C)
-    (hF : F ⊆ C) {v : S} (hv : v ∈ C) (a : ℝ) {ω ω' : Ω}
+    (hF : F ⊆ C) (c : ℝ) {v : S} (hv : v ∈ C) (a : ℝ) {ω ω' : Ω}
     (h : ∀ w ∈ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    sidesGood O lo hi F A v a ω → sidesGood O lo hi F A v a ω' := by
+    sidesGood O lo hi F A c v a ω → sidesGood O lo hi F A c v a ω' := by
   classical
   have hAC : ∀ p ∈ A, ∀ u ∈ C, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) := fun p hp u hu =>
     h _ (mem_readSet hp hu)
@@ -1061,10 +1110,10 @@ lemma sidesGood_congr_mq (O : Oracle μ S) (lo hi : ℕ) (F A C : Finset S) (hon
   rintro ⟨h1, h2⟩
   refine ⟨?_, ?_⟩
   · rw [← hacc]
-    exact sideGood_congr_mq O true _ v a (fun p hp =>
+    exact sideGood_congr_mq O true c _ v a (fun p hp =>
       ⟨hA p (Finset.mem_filter.1 hp).1, hAC p (Finset.mem_filter.1 hp).1 v hv⟩) h1
   · rw [← hrej]
-    exact sideGood_congr_mq O false _ v a (fun p hp =>
+    exact sideGood_congr_mq O false c _ v a (fun p hp =>
       ⟨hA p (Finset.mem_filter.1 hp).1, hAC p (Finset.mem_filter.1 hp).1 v hv⟩) h2
 
 open scoped Classical in
@@ -1075,7 +1124,7 @@ noncomputable def sidesBad (rule : Clusterer S) (O : Oracle μ S) (populations :
   {x | (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
     ∧ ∀ v ∈ refsBy rule O.mq populations x B, (∀ p, O.label (p * v) = O.label p) →
       ¬ sidesGood O B.lo B.hi (clusterBy rule O.mq populations x B)
-        (certOf (prefixesAt populations B.npref x) j m x) v a (oracleNoise x)}
+        (certOf (prefixesAt populations B.npref x) j m x) B.centre v a (oracleNoise x)}
 
 open scoped Classical in
 noncomputable def sidesBadOf (rule : Clusterer S) (O : Oracle μ S) (B : State) (a : ℝ)
@@ -1083,7 +1132,7 @@ noncomputable def sidesBadOf (rule : Clusterer S) (O : Oracle μ S) (B : State) 
   (∃ v ∈ C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω), ∀ p, O.label (p * v) = O.label p)
     ∧ ∀ v ∈ C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω),
       (∀ p, O.label (p * v) = O.label p) →
-      ¬ sidesGood O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) A v a ω
+      ¬ sidesGood O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) A B.centre v a ω
 
 open scoped Classical in
 lemma sidesBadOf_congr (O : Oracle μ S) (B : State) (a : ℝ) (P C A : Finset S)
@@ -1098,7 +1147,7 @@ lemma sidesBadOf_congr (O : Oracle μ S) (B : State) (a : ℝ) (P C A : Finset S
   rw [hfam]
   rintro ⟨hex, hall⟩
   refine ⟨hex, fun v hv hap hgood => hall v hv hap ?_⟩
-  exact sidesGood_congr_mq O B.lo B.hi _ A C hone hsub (Finset.mem_sdiff.1 hv).1 a
+  exact sidesGood_congr_mq O B.lo B.hi _ A C hone hsub B.centre (Finset.mem_sdiff.1 hv).1 a
     (fun w hw => (h w (Finset.mem_union_right _ hw)).symm) hgood
 
 open scoped Classical in
@@ -1132,7 +1181,8 @@ theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     [IsProbabilityMeasure Dsf]
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (j : J) (hj : j ∈ populations) (B : State) (hc0 : 0 ≤ B.centre) (hc1 : B.centre ≤ 1) (m : ℕ)
+    {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
     (streamMeasure μ Pp Pc Dsf).real (sidesBad rule O populations j B m a) ≤ 6 * a := by
   classical
   have hEnn : streamMeasure μ Pp Pc Dsf (sidesBad rule O populations j B m a)
@@ -1159,7 +1209,7 @@ theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
     set Bad : Finset S → Set Ω := fun F =>
       if hF : F ⊆ Cd ∧ (1 : S) ∉ F ∧ ∃ v ∈ Cd \ insert 1 F, ∀ p, O.label (p * v) = O.label p then
-        {ω | ¬ sidesGood O B.lo B.hi F Ad hF.2.2.choose a ω}
+        {ω | ¬ sidesGood O B.lo B.hi F Ad B.centre hF.2.2.choose a ω}
       else ∅ with hBaddef
     have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
       rw [Finset.disjoint_coe, Finset.disjoint_left]
@@ -1179,7 +1229,7 @@ theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
         simp only [hBaddef] at hω ⊢
         split_ifs at hω ⊢ with hF
         · intro hgood
-          exact hω (sidesGood_congr_mq O B.lo B.hi F Ad Cd hone hF.1
+          exact hω (sidesGood_congr_mq O B.lo B.hi F Ad Cd hone hF.1 B.centre
             (Finset.mem_sdiff.1 hF.2.2.choose_spec.1).1 a
             (fun w hw => by rw [mq_congr O (h w hw)]) hgood)
         · exact hω)
@@ -1190,7 +1240,8 @@ theorem measureReal_sidesBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
           set v := hF.2.2.choose
           have hvC := (Finset.mem_sdiff.1 hvR).1
           have hvF : v ∉ insert 1 F := (Finset.mem_sdiff.1 hvR).2
-          refine sidesGood_whp O Ad F B.lo B.hi ?_ (fun h => hvF (Finset.mem_insert_of_mem h))
+          refine sidesGood_whp O Ad F B.lo B.hi hc0 hc1 ?_
+            (fun h => hvF (Finset.mem_insert_of_mem h))
             hF.2.1 (fun h => hvF (h ▸ Finset.mem_insert_self _ _)) ha0 ha1
           intro p hp p' hp' u hu u' hu' heq
           have hmem : ∀ u ∈ insert 1 (insert v F), u ∈ insert 1 Suf := by
@@ -1471,7 +1522,7 @@ theorem falseCertify_subset (O : Oracle μ S) {yAcc yRej : ℝ} (hAcc : wrongRat
     (populations : Finset J) (Dj : Measure S) (j : J) (B : State) (lim s a : ℝ) (r : ℕ)
     (hs : 0 ≤ s) (hr : (r : ℝ) ≤ s * B.npref) :
     {x : Run Ω S J |
-      (∃ e ≤ B.npref, certifiesAt O.mq yAcc yRej lim a B.lo B.hi
+      (∃ e ≤ B.npref, certifiesAt O.mq B.centre yAcc yRej lim a B.lo B.hi
         (clusterBy rule O.mq populations x B)
         (refsBy rule O.mq populations x B)
         (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x))
@@ -1496,7 +1547,7 @@ theorem falseCertify_subset (O : Oracle μ S) {yAcc yRej : ℝ} (hAcc : wrongRat
   have hgood : ∀ {m' : ℕ} {j' : J} {a' : ℝ},
       x ∉ sidesBad rule O populations j' B m' a' →
       ∃ w ∈ R, (∀ p, O.label (p * w) = O.label p)
-        ∧ sidesGood O B.lo B.hi F (certOf T j' m' x) w a' (oracleNoise x) := by
+        ∧ sidesGood O B.lo B.hi F (certOf T j' m' x) B.centre w a' (oracleNoise x) := by
     intro m' j' a' hb
     by_contra hc
     push_neg at hc
@@ -1548,7 +1599,8 @@ theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Ora
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (j : J) (hj : j ∈ populations) (Dj : Measure S) [IsProbabilityMeasure Dj]
-    (hPc : Pc j = iidStream Dj) (B : State) {lim a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
+    (hPc : Pc j = iidStream Dj) (B : State) (hc0 : 0 ≤ B.centre) (hc1 : B.centre ≤ 1) {lim a : ℝ}
+    (ha0 : 0 < a) (ha1 : a ≤ 1) :
     (streamMeasure μ Pp Pc Dsf).real ((⋃ e ∈ Finset.range (B.npref + 1),
         sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
       ∪ ⋃ N : ℕ, rawShortAt rule O populations Dj j B lim a (N + 1)) ≤ 7 * a := by
@@ -1560,7 +1612,8 @@ theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Ora
           (sidesBad rule O populations j B (B.npref + e) (sizeLevel a (B.npref + e)))
         ≤ ∑ e ∈ Finset.range (B.npref + 1), 6 * sizeLevel a (B.npref + e) :=
           Finset.sum_le_sum (fun e _ => measureReal_sidesBad_le hflat O populations Pp Pc Dsf
-            hsuppP hsuppC hsuppSf j hj B _ (sizeLevel_pos ha0 _) (sizeLevel_le ha0.le ha1 _))
+            hsuppP hsuppC hsuppSf j hj B hc0 hc1 _ (sizeLevel_pos ha0 _)
+            (sizeLevel_le ha0.le ha1 _))
       _ = 6 * ∑ e ∈ Finset.range (B.npref + 1), sizeLevel a (B.npref + e) := by
           rw [Finset.mul_sum]
       _ ≤ 6 * a := by
@@ -1572,55 +1625,23 @@ theorem measureReal_popGate_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Ora
 
 /-! ### A clean family is certified -/
 
-/-- Any reference disagrees with the seed at least as often as an accept-preserving one:
-reading the other class costs `(1 − 2r)(1 − r − r') ≥ 0` more. -/
-lemma apartVar_mean_ge (O : Oracle μ S) (hη : O.η ≤ 1 / 2) {v p : S} (hne : p * v ≠ p) :
-    2 * O.rate p * (1 - O.rate p) ≤ μ[apartVar O v p] := by
+/-- Any reference's `apartCost` has mean at least an accept-preserving one's: with `q'` and `q`
+the chances `p · v` and `p` read accept, it is `r(1 − r) + (q' − q)(c − q)`. -/
+lemma apartVar_mean_ge (O : Oracle μ S) {c : ℝ} (hin : O.ηIn ≤ 1 - c) (hout : O.ηOut ≤ c)
+    {v p : S} (hne : p * v ≠ p) :
+    O.rate p * (1 - O.rate p) ≤ μ[apartVar O c v p] := by
   classical
-  set a : Set Ω := {ω | O.mq (p * v) ω = 1} with ha
-  set b : Set Ω := {ω | O.mq p ω = 1} with hb
-  have ham : MeasurableSet a := measurableSet_eq_fun (mq_meas O _) measurable_const
-  have hbm : MeasurableSet b := measurableSet_eq_fun (mq_meas O _) measurable_const
-  have hind : IndepFun (O.mq (p * v)) (O.mq p) μ := (mq_indep O).indepFun hne
-  have hprod : ∀ s t : Set ℝ, MeasurableSet s → MeasurableSet t →
-      μ.real (O.mq (p * v) ⁻¹' s ∩ O.mq p ⁻¹' t)
-        = μ.real (O.mq (p * v) ⁻¹' s) * μ.real (O.mq p ⁻¹' t) := by
-    intro s t hs ht
-    simp only [measureReal_def,
-      hind.measure_inter_preimage_eq_mul s t hs ht, ENNReal.toReal_mul]
-  have h1 := hprod {1} {1}ᶜ (measurableSet_singleton 1) (measurableSet_singleton 1).compl
-  have h2 := hprod {1}ᶜ {1} (measurableSet_singleton 1).compl (measurableSet_singleton 1)
-  have hset : apartVar O v p = ((a ∩ bᶜ) ∪ (aᶜ ∩ b)).indicator 1 := by
-    funext ω; unfold apartVar
-    by_cases h1 : O.mq (p * v) ω = 1 <;> by_cases h2 : O.mq p ω = 1 <;> simp [ha, hb, h1, h2]
-  have hdisj : Disjoint (a ∩ bᶜ) (aᶜ ∩ b) :=
-    Set.disjoint_left.2 (fun ω h h' => h'.1 h.1)
-  rw [hset, integral_indicator_one ((ham.inter hbm.compl).union (ham.compl.inter hbm)),
-    measureReal_union hdisj (ham.compl.inter hbm)]
-  have e1 : a ∩ bᶜ = O.mq (p * v) ⁻¹' {1} ∩ O.mq p ⁻¹' {1}ᶜ := rfl
-  have e2 : aᶜ ∩ b = O.mq (p * v) ⁻¹' {1}ᶜ ∩ O.mq p ⁻¹' {1} := rfl
-  rw [e1, e2, h1, h2]
-  have pa : μ.real (O.mq (p * v) ⁻¹' {1})
-      = O.rate (p * v) + (1 - 2 * O.rate (p * v)) * O.label (p * v) := prob_mq_one O (p * v)
-  have pb : μ.real (O.mq p ⁻¹' {1}) = O.rate p + (1 - 2 * O.rate p) * O.label p := prob_mq_one O p
-  have pa' : μ.real (O.mq (p * v) ⁻¹' {1}ᶜ) = 1 - μ.real (O.mq (p * v) ⁻¹' {1}) := by
-    rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
-      (mq_meas O _)), probReal_univ]
-  have pb' : μ.real (O.mq p ⁻¹' {1}ᶜ) = 1 - μ.real (O.mq p ⁻¹' {1}) := by
-    rw [Set.preimage_compl, measureReal_compl (measurableSet_singleton 1 |>.preimage
-      (mq_meas O _)), probReal_univ]
-  rw [pa', pb', pa, pb]
-  have hr0 := O.rate_nonneg p
-  have hr1 : O.rate p ≤ 1 / 2 := le_trans (O.rate_le_eta p) hη
-  have hr1' : O.rate (p * v) ≤ 1 / 2 := le_trans (O.rate_le_eta _) hη
-  have key : 0 ≤ (1 - 2 * O.rate p) * (1 - O.rate p - O.rate (p * v)) :=
-    mul_nonneg (by linarith) (by linarith)
-  rcases O.label_bit (p * v) with hl | hl <;> rcases O.label_bit p with hl' | hl' <;>
-    rw [hl, hl']
-  · rw [O.rate_eq_of_label_eq (hl.trans hl'.symm)]; nlinarith
+  rw [apartVar_mean_eq O c hne]
+  unfold Oracle.rate Oracle.label
+  by_cases hp : p ∈ O.L <;> by_cases hpv : p * v ∈ O.L <;>
+    simp only [hp, hpv, if_true, if_false, Set.indicator_of_mem, Set.indicator_of_notMem,
+      not_false_eq_true, Pi.one_apply]
   · nlinarith
+  · nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 1 - O.ηIn - O.ηOut)
+      (by linarith : (0 : ℝ) ≤ 1 - c - O.ηIn)]
+  · nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 1 - O.ηIn - O.ηOut)
+      (by linarith : (0 : ℝ) ≤ c - O.ηOut)]
   · nlinarith
-  · rw [O.rate_eq_of_label_eq (hl.trans hl'.symm)]; nlinarith
 
 lemma hoeffDev_mono {n n' : ℕ} (h : n ≤ n') {a : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) :
     hoeffDev n a ≤ hoeffDev n' a := by
@@ -1633,9 +1654,10 @@ lemma hoeffDev_mono {n n' : ℕ} (h : n ≤ n') {a : ℝ} (ha0 : 0 < a) (ha1 : a
 
 open scoped Classical in
 /-- A live side's counts, read against its `n − k` right prefixes and `k` wrong ones. -/
-lemma live_counts (O : Oracle μ S) (hη : O.η ≤ 1 / 2) (accept : Bool) (A R : Finset S)
+lemma live_counts (O : Oracle μ S) {c : ℝ} (hin : O.ηIn ≤ 1 - c) (hout : O.ηOut ≤ c)
+    (accept : Bool) (A R : Finset S)
     (hR : R.Nonempty) (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu : ℝ} {ω : Ω}
-    (h : sideLive O accept A R t tu ω) :
+    (h : sideLive O accept c A R t tu ω) :
     ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
           * rightRate O accept
         + (A.filter (fun p => O.label p ≠ sideClass accept)).card * (1 - wrongRate O accept) - t
@@ -1644,28 +1666,28 @@ lemma live_counts (O : Oracle μ S) (hη : O.η ≤ 1 / 2) (accept : Bool) (A R 
       ≤ ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
           * rightRate O accept
         + (A.filter (fun p => O.label p ≠ sideClass accept)).card * (1 - wrongRate O accept) + t
-    ∧ 2 * (((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
+    ∧ ((A.card : ℝ) - (A.filter (fun p => O.label p ≠ sideClass accept)).card)
             * (rightRate O accept * (1 - rightRate O accept))
           + (A.filter (fun p => O.label p ≠ sideClass accept)).card
-            * (wrongRate O accept * (1 - wrongRate O accept))) - tu
-      ≤ refApart O.mq A R ω := by
+            * (wrongRate O accept * (1 - wrongRate O accept)) - span c * tu
+      ≤ refApart O.mq c A R ω := by
   classical
-  set c := sideClass accept with hc
+  set cl := sideClass accept with hcl
   set x := rightRate O accept with hx
   set y := wrongRate O accept with hy
-  have hcnt : ((A.filter (fun p => O.label p = c)).card : ℝ)
-      = (A.card : ℝ) - (A.filter (fun p => ¬ O.label p = c)).card := by
-    have := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = c)
-    have : ((A.filter (fun p => O.label p = c)).card : ℝ)
-        + ((A.filter (fun p => ¬ O.label p = c)).card : ℝ) = A.card := by exact_mod_cast this
+  have hcnt : ((A.filter (fun p => O.label p = cl)).card : ℝ)
+      = (A.card : ℝ) - (A.filter (fun p => ¬ O.label p = cl)).card := by
+    have := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = cl)
+    have : ((A.filter (fun p => O.label p = cl)).card : ℝ)
+        + ((A.filter (fun p => ¬ O.label p = cl)).card : ℝ) = A.card := by exact_mod_cast this
     linarith
-  have h1 : ∀ p ∈ A, μ[againstVar O c p] = if O.label p = c then x else 1 - y := by
+  have h1 : ∀ p ∈ A, μ[againstVar O cl p] = if O.label p = cl then x else 1 - y := by
     intro p _
     rw [againstVar_mean O (sideClass_bit accept) p, rate_of_label O accept p]
     split_ifs <;> rfl
-  have hEa : ∑ p ∈ A, μ[againstVar O c p]
-      = ((A.card : ℝ) - (A.filter (fun p => ¬ O.label p = c)).card) * x
-        + (A.filter (fun p => ¬ O.label p = c)).card * (1 - y) := by
+  have hEa : ∑ p ∈ A, μ[againstVar O cl p]
+      = ((A.card : ℝ) - (A.filter (fun p => ¬ O.label p = cl)).card) * x
+        + (A.filter (fun p => ¬ O.label p = cl)).card * (1 - y) := by
     rw [Finset.sum_congr rfl h1, Finset.sum_ite, Finset.sum_const, Finset.sum_const,
       nsmul_eq_mul, nsmul_eq_mul, hcnt]
   obtain ⟨hag, hap⟩ := h
@@ -1674,16 +1696,15 @@ lemma live_counts (O : Oracle μ S) (hη : O.η ≤ 1 / 2) (accept : Bool) (A R 
   obtain ⟨hagl, hagh⟩ := abs_le.1 hag
   refine ⟨by linarith, by linarith, ?_⟩
   obtain ⟨v, hv, hveq⟩ := Finset.exists_mem_eq_inf' hR
-    (fun v => (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card)
-  have href : refApart O.mq A R ω
-      = (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card := by
+    (fun v => ∑ p ∈ A, apartCost c (O.mq p ω) (O.mq (p * v) ω))
+  have href : refApart O.mq c A R ω = ∑ p ∈ A, apartVar O c v p ω := by
     unfold refApart; rw [dif_pos hR]; exact hveq
   rw [href]
   refine le_trans ?_ (hap v hv)
-  have h2 : ∀ p ∈ A, (if O.label p = c then 2 * (x * (1 - x)) else 2 * (y * (1 - y)))
-      ≤ μ[apartVar O v p] := by
+  have h2 : ∀ p ∈ A, (if O.label p = cl then x * (1 - x) else y * (1 - y))
+      ≤ μ[apartVar O c v p] := by
     intro p hp
-    have := apartVar_mean_ge O hη (hne v hv p hp)
+    have := apartVar_mean_ge O hin hout (hne v hv p hp)
     rw [rate_of_label O accept p] at this
     split_ifs at this ⊢ <;> linarith
   have hsum := Finset.sum_le_sum h2
@@ -1738,12 +1759,15 @@ open scoped Classical in
 theorem mul_sideCap_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
     (accept : Bool) (A R : Finset S) (hR : R.Nonempty)
     (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu a : ℝ} {ω : Ω} (ht : 0 ≤ t) (htu : 0 ≤ tu)
-    (h : sideLive O accept A R t tu ω) :
-    A.card * sideCap O.mq accept A R a η₀ ω
+    (h : sideLive O accept (1 / 2) A R t tu ω) :
+    A.card * sideCap O.mq accept (1 / 2) A R a η₀ ω
       ≤ (A.filter (fun p => O.label p ≠ sideClass accept)).card / gateKappa η₀
         + gateDevT η₀ * t + gateDevD η₀ * hoeffDev A.card a + gateDevU η₀ * tu := by
   classical
-  obtain ⟨hlo, hhi, hb⟩ := live_counts O (by linarith [lt_of_le_of_lt hη hη₀]) accept A R hR hne h
+  obtain ⟨hlo, hhi, hb⟩ := live_counts O
+    (by linarith [(le_trans (le_max_left _ _) hη : O.ηIn ≤ η₀)])
+    (by linarith [(le_trans (le_max_right _ _) hη : O.ηOut ≤ η₀)]) accept A R hR hne h
+  rw [span_half] at hb
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   set kk := (A.filter (fun p => O.label p ≠ sideClass accept)).card with hkk
   have hkA : kk ≤ A.card := Finset.card_le_card (Finset.filter_subset _ _)
@@ -1779,10 +1803,12 @@ theorem mul_sideCap_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (h
         rw [this]; simp
       exact ⟨0, le_rfl, hη0, by rw [h0]; ring, by rw [h0]; ring⟩
   rw [← hx1, ← hy1] at hlo hhi
-  have hb' : 2 * (((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y))) - tu
-      ≤ refApart O.mq A R ω := by rw [hx2, hy2]; exact hb
+  have hb' : ((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y)) - 1 / 2 * tu
+      ≤ refApart O.mq (1 / 2) A R ω := by rw [hx2, hy2]; exact hb
   unfold sideCap
-  exact mul_wrongCap_le A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hy0 hyη (by linarith) hη₀
+  rw [span_half]
+  exact mul_wrongCap_le A.card _ _ _ hkA (by norm_num) le_rfl (Real.sqrt_nonneg _) ht htu hx0 hy0
+    hyη (by linarith) hη₀
     hlo hhi hb'
 
 open scoped Classical in
@@ -1792,12 +1818,12 @@ theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     (lo hi : ℕ) (hlohi : lo ≤ hi) (F R C : Finset S)
     (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) {n : ℕ} (hn : 0 < n)
     (hC : C.card = n) {lim a t M : ℝ} (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t)
-    {ω : Ω} (hlive : sidesLive O lo hi F C R t t ω)
+    {ω : Ω} (hlive : sidesLive O lo hi F C R (1 / 2) t t ω)
     (hmis : ((C.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ) ≤ M)
     (hgate : M / gateKappa η₀
         + 2 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
         ≤ n * lim - hoeffDev n (sizeLevel a n)) :
-    certifiesAt O.mq η₀ η₀ lim a lo hi F R C ω := by
+    certifiesAt O.mq (1 / 2) η₀ η₀ lim a lo hi F R C ω := by
   classical
   have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hκ := (gateKappa_facts h0 hη₀).1
@@ -1909,12 +1935,15 @@ twice. -/
 theorem mul_sideCap_le_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
     (accept : Bool) (A R : Finset S) (hR : R.Nonempty)
     (hne : ∀ v ∈ R, ∀ p ∈ A, p * v ≠ p) {t tu a : ℝ} {ω : Ω} (ht : 0 ≤ t) (htu : 0 ≤ tu)
-    (h : sideLive O accept A R t tu ω) :
-    A.card * sideCap O.mq accept A R a η₀ ω
+    (h : sideLive O accept (1 / 2) A R t tu ω) :
+    A.card * sideCap O.mq accept (1 / 2) A R a η₀ ω
       ≤ 4 * (A.filter (fun p => O.label p ≠ sideClass accept)).card * sideCharge O η₀ accept
         + 2 * (gateDevT η₀ * t + gateDevD η₀ * hoeffDev A.card a + gateDevU η₀ * tu) := by
   classical
-  obtain ⟨hlo, hhi, hb⟩ := live_counts O (by linarith [lt_of_le_of_lt hη hη₀]) accept A R hR hne h
+  obtain ⟨hlo, hhi, hb⟩ := live_counts O
+    (by linarith [(le_trans (le_max_left _ _) hη : O.ηIn ≤ η₀)])
+    (by linarith [(le_trans (le_max_right _ _) hη : O.ηOut ≤ η₀)]) accept A R hR hne h
+  rw [span_half] at hb
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   set kk := (A.filter (fun p => O.label p ≠ sideClass accept)).card with hkk
   have hkA : kk ≤ A.card := Finset.card_le_card (Finset.filter_subset _ _)
@@ -1966,10 +1995,12 @@ theorem mul_sideCap_le_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     · have : kk = 0 := by omega
       rw [this]; simp
   rw [← hx1, ← hy1] at hlo hhi
-  have hb' : 2 * (((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y))) - tu
-      ≤ refApart O.mq A R ω := by rw [hx2, hy2]; exact hb
+  have hb' : ((A.card : ℝ) - kk) * (x * (1 - x)) + kk * (y * (1 - y)) - 1 / 2 * tu
+      ≤ refApart O.mq (1 / 2) A R ω := by rw [hx2, hy2]; exact hb
   unfold sideCap
-  have key := mul_wrongCap_le_rates A.card _ _ _ hkA (Real.sqrt_nonneg _) ht htu hx0 hy0 hyη (by linarith)
+  rw [span_half]
+  have key := mul_wrongCap_le_rates A.card _ _ _ hkA (by norm_num) le_rfl (Real.sqrt_nonneg _) ht
+    htu hx0 hy0 hyη (by linarith)
     hη₀ hlo hhi hb' (d := hoeffDev A.card a)
   have hg : 1 - x - y = O.gap := one_sub_side_rates O accept
   rw [hg] at key
@@ -1984,13 +2015,13 @@ theorem certifiesAt_of_live_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η �
     (lo hi : ℕ) (F R C : Finset S)
     (hR : R.Nonempty) (hneC : ∀ v ∈ R, ∀ p ∈ C, p * v ≠ p) {n : ℕ} (hn : 0 < n)
     (hC : C.card = n) {lim a t : ℝ} (M : Bool → ℝ) (ha0 : 0 < a) (ha1 : a ≤ 1) (ht : 0 ≤ t)
-    {ω : Ω} (hlive : sidesLive O lo hi F C R t t ω)
+    {ω : Ω} (hlive : sidesLive O lo hi F C R (1 / 2) t t ω)
     (hmis : ∀ b, ((C.filter (fun p => O.label p = sideClass b ∧ ¬ cutCorrect O lo hi F p ω)).card
       : ℝ) ≤ M b)
     (hgate : 4 * (M false * sideCharge O η₀ true + M true * sideCharge O η₀ false)
         + 4 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
         ≤ n * lim - hoeffDev n (sizeLevel a n)) :
-    certifiesAt O.mq η₀ η₀ lim a lo hi F R C ω := by
+    certifiesAt O.mq (1 / 2) η₀ η₀ lim a lo hi F R C ω := by
   classical
   have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   obtain ⟨hT, hD, hU⟩ := gateDev_pos h0 hη₀
@@ -2044,10 +2075,10 @@ theorem certifiesAt_of_live_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η �
 /-! ### Liveness over the run -/
 
 open scoped Classical in
-lemma sidesLive_congr_reads (O : Oracle μ S) (lo hi : ℕ) (F A C R : Finset S) (t tu : ℝ)
+lemma sidesLive_congr_reads (O : Oracle μ S) (lo hi : ℕ) (F A C R : Finset S) (c t tu : ℝ)
     (hone : (1 : S) ∈ C) (hF : F ⊆ C) (hRC : R ⊆ C) {ω ω' : Ω}
     (h : ∀ w ∈ readSet A C, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    sidesLive O lo hi F A R t tu ω → sidesLive O lo hi F A R t tu ω' := by
+    sidesLive O lo hi F A R c t tu ω → sidesLive O lo hi F A R c t tu ω' := by
   classical
   have hAC : ∀ p ∈ A, ∀ u ∈ C, (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) := fun p hp u hu =>
     h _ (mem_readSet hp hu)
@@ -2061,10 +2092,10 @@ lemma sidesLive_congr_reads (O : Oracle μ S) (lo hi : ℕ) (F A C R : Finset S)
   rintro ⟨h1, h2⟩
   refine ⟨?_, ?_⟩
   · rw [← hacc]
-    exact sideLive_congr_mq O true _ R t tu (fun p hp =>
+    exact sideLive_congr_mq O true c _ R t tu (fun p hp =>
       ⟨hA p (Finset.mem_filter.1 hp).1, fun v hv => hAC p (Finset.mem_filter.1 hp).1 v (hRC hv)⟩) h1
   · rw [← hrej]
-    exact sideLive_congr_mq O false _ R t tu (fun p hp =>
+    exact sideLive_congr_mq O false c _ R t tu (fun p hp =>
       ⟨hA p (Finset.mem_filter.1 hp).1, fun v hv => hAC p (Finset.mem_filter.1 hp).1 v (hRC hv)⟩) h2
 
 open scoped Classical in
@@ -2073,14 +2104,14 @@ against the references. -/
 noncomputable def sidesDead (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
     (j : J) (B : State) (m : ℕ) (t : ℝ) : Set (Run Ω S J) :=
   {x | ¬ sidesLive O B.lo B.hi (clusterBy rule O.mq populations x B)
-    (certOf (prefixesAt populations B.npref x) j m x) (refsBy rule O.mq populations x B) t t
-    (oracleNoise x)}
+    (certOf (prefixesAt populations B.npref x) j m x) (refsBy rule O.mq populations x B) B.centre t
+    t (oracleNoise x)}
 
 open scoped Classical in
 noncomputable def sidesDeadOf (rule : Clusterer S) (O : Oracle μ S) (B : State) (t : ℝ)
     (P C A : Finset S) (ω : Ω) : Prop :=
   ¬ sidesLive O B.lo B.hi (clusterOf rule O B.sc B.scd P C B.k ω) A
-    (C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) t t ω
+    (C \ insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) B.centre t t ω
 
 open scoped Classical in
 lemma sidesDeadOf_congr (O : Oracle μ S) (B : State) (t : ℝ) (P C A : Finset S)
@@ -2094,7 +2125,7 @@ lemma sidesDeadOf_congr (O : Oracle μ S) (B : State) (t : ℝ) (P C A : Finset 
   unfold sidesDeadOf
   rw [hfam]
   intro hdead hlive
-  exact hdead (sidesLive_congr_reads O B.lo B.hi _ A C _ t t hone hsub Finset.sdiff_subset
+  exact hdead (sidesLive_congr_reads O B.lo B.hi _ A C _ B.centre t t hone hsub Finset.sdiff_subset
     (fun w hw => (h w (Finset.mem_union_right _ hw)).symm) hlive)
 
 open scoped Classical in
@@ -2127,7 +2158,8 @@ theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     [IsProbabilityMeasure Dsf]
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (j : J) (hj : j ∈ populations) (B : State) (m : ℕ) {t : ℝ} (ht : 0 ≤ t) :
+    (j : J) (hj : j ∈ populations) (B : State) (hc0 : 0 ≤ B.centre) (hc1 : B.centre ≤ 1) (m : ℕ)
+    {t : ℝ} (ht : 0 ≤ t) :
     (streamMeasure μ Pp Pc Dsf).real (sidesDead rule O populations j B m t)
       ≤ 2 * (((B.nsuff : ℝ) + 3) * Real.exp (-2 * t ^ 2 / m)) := by
   classical
@@ -2160,7 +2192,8 @@ theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     rw [hsec]
     set sel : Ω → Finset S := fun ω => clusterOf rule O B.sc B.scd Pd Cd B.k ω with hseldef
     set Bad : Finset S → Set Ω := fun F =>
-      if F ⊆ Cd ∧ (1 : S) ∉ F then {ω | ¬ sidesLive O B.lo B.hi F Ad (Cd \ insert 1 F) t t ω}
+      if F ⊆ Cd ∧ (1 : S) ∉ F then
+        {ω | ¬ sidesLive O B.lo B.hi F Ad (Cd \ insert 1 F) B.centre t t ω}
       else ∅ with hBaddef
     have hdisj : Disjoint (↑(readSet Ad Cd) : Set S) (↑(readSet Pd Cd) : Set S) := by
       rw [Finset.disjoint_coe, Finset.disjoint_left]
@@ -2180,7 +2213,8 @@ theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
         simp only [hBaddef] at hω ⊢
         split_ifs at hω ⊢ with hF
         · intro hlive
-          exact hω (sidesLive_congr_reads O B.lo B.hi F Ad Cd _ t t hone hF.1 Finset.sdiff_subset
+          exact hω (sidesLive_congr_reads O B.lo B.hi F Ad Cd _ B.centre t t hone hF.1
+            Finset.sdiff_subset
             (fun w hw => by rw [mq_congr O (h w hw)]) hlive)
         · exact hω)
       E hE0 (fun F _ => by
@@ -2188,7 +2222,7 @@ theorem measureReal_sidesDead_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
         split_ifs with hF
         · have hsub : insert 1 (F ∪ (Cd \ insert 1 F)) ⊆ Cd :=
             Finset.insert_subset hone (Finset.union_subset hF.1 Finset.sdiff_subset)
-          refine le_trans (sidesLive_whp O Ad F (Cd \ insert 1 F) B.lo B.hi ?_
+          refine le_trans (sidesLive_whp O Ad F (Cd \ insert 1 F) B.lo B.hi hc0 hc1 ?_
             (Finset.disjoint_left.2 (fun v hv hv' =>
               (Finset.mem_sdiff.1 hv').2 (Finset.mem_insert_of_mem hv)))
             hF.2 (fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_insert_self _ _)) ht ht m

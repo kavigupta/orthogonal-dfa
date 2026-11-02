@@ -18,16 +18,15 @@ variable {J : Type*} [Fintype J]
 variable (O : Oracle μ S)
 
 open scoped Classical in
-lemma refApart_congr (A R : Finset S) {ω ω' : Ω}
+lemma refApart_congr (c : ℝ) (A R : Finset S) {ω ω' : Ω}
     (h : ∀ p ∈ A, (O.mq p ω = 1 ↔ O.mq p ω' = 1)
       ∧ ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1)) :
-    refApart O.mq A R ω = refApart O.mq A R ω' := by
+    refApart O.mq c A R ω = refApart O.mq c A R ω' := by
   unfold refApart
   split_ifs with hR
-  · have hf : ∀ v ∈ R, (A.filter (fun p => ¬ ((O.mq (p * v) ω = 1) ↔ (O.mq p ω = 1)))).card
-        = (A.filter (fun p => ¬ ((O.mq (p * v) ω' = 1) ↔ (O.mq p ω' = 1)))).card :=
-      fun v hv => congrArg Finset.card (Finset.filter_congr (fun p hp => by
-        rw [(h p hp).1, (h p hp).2 v hv]))
+  · have hf : ∀ v ∈ R, ∑ p ∈ A, apartCost c (O.mq p ω) (O.mq (p * v) ω)
+        = ∑ p ∈ A, apartCost c (O.mq p ω') (O.mq (p * v) ω') :=
+      fun v hv => Finset.sum_congr rfl (fun p hp => apartCost_congr c (h p hp).1 ((h p hp).2 v hv))
     exact le_antisymm
       (Finset.le_inf' _ _ (fun v hv => (Finset.inf'_le _ hv).trans_eq (hf v hv)))
       (Finset.le_inf' _ _ (fun v hv => (Finset.inf'_le _ hv).trans_eq (hf v hv).symm))
@@ -35,10 +34,10 @@ lemma refApart_congr (A R : Finset S) {ω ω' : Ω}
 
 open scoped Classical in
 /-- The gate reads the sample, the family's votes on it and the references' reads on it. -/
-lemma certifiesAt_congr (yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) {ω ω' : Ω}
+lemma certifiesAt_congr (c yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) {ω ω' : Ω}
     (h : ∀ w ∈ readSet P (insert 1 (F ∪ R)), (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    certifiesAt O.mq yAcc yRej lim a lo hi F R P ω
-      → certifiesAt O.mq yAcc yRej lim a lo hi F R P ω' := by
+    certifiesAt O.mq c yAcc yRej lim a lo hi F R P ω
+      → certifiesAt O.mq c yAcc yRej lim a lo hi F R P ω' := by
   classical
   have hPC : ∀ p ∈ P, ∀ u ∈ insert 1 (F ∪ R), (O.mq (p * u) ω = 1 ↔ O.mq (p * u) ω' = 1) :=
     fun p hp u hu => h _ (mem_readSet hp hu)
@@ -52,17 +51,17 @@ lemma certifiesAt_congr (yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S)
   have hrej : rejectSide O.mq lo F P ω = rejectSide O.mq lo F P ω' :=
     Finset.filter_congr (fun p hp => by rw [hvc p hp])
   have hside : ∀ (accept : Bool) (A : Finset S), A ⊆ P → ∀ a' y : ℝ,
-      sideCap O.mq accept A R a' y ω = sideCap O.mq accept A R a' y ω' := by
+      sideCap O.mq accept c A R a' y ω = sideCap O.mq accept c A R a' y ω' := by
     intro accept A hA a' y
     have hag : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
       unfold againstOn
       exact congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [hP p (hA hp)]))
-    have hra := refApart_congr O A R (ω := ω) (ω' := ω') (fun p hp => ⟨hP p (hA hp),
+    have hra := refApart_congr O c A R (ω := ω) (ω' := ω') (fun p hp => ⟨hP p (hA hp),
       fun v hv => hPC p (hA hp) v (Finset.mem_insert_of_mem (Finset.mem_union_right _ hv))⟩)
     unfold sideCap
     rw [hag, hra]
-  have hmis : miscutBound O.mq (sizeLevel a P.card) lo hi F R P yAcc yRej ω
-      = miscutBound O.mq (sizeLevel a P.card) lo hi F R P yAcc yRej ω' := by
+  have hmis : miscutBound O.mq (sizeLevel a P.card) lo hi F R P c yAcc yRej ω
+      = miscutBound O.mq (sizeLevel a P.card) lo hi F R P c yAcc yRej ω' := by
     unfold miscutBound
     rw [hside true (acceptSide O.mq hi F P ω) (Finset.filter_subset _ _),
       hside false (rejectSide O.mq lo F P ω) (Finset.filter_subset _ _), hacc, hrej]
@@ -70,10 +69,10 @@ lemma certifiesAt_congr (yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S)
   rw [hmis]
   exact id
 
-lemma measurableSet_certifiesAt (yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) :
-    MeasurableSet {ω | certifiesAt O.mq yAcc yRej lim a lo hi F R P ω} :=
+lemma measurableSet_certifiesAt (c yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) :
+    MeasurableSet {ω | certifiesAt O.mq c yAcc yRej lim a lo hi F R P ω} :=
   measurableSet_of_readCongr O _ _
-    (fun _ _ h => certifiesAt_congr O yAcc yRej lim a lo hi F R P h)
+    (fun _ _ h => certifiesAt_congr O c yAcc yRej lim a lo hi F R P h)
 
 open scoped Classical in
 /-- An event about the pool, the family and the noise, at fixed samples, is measurable when it
@@ -187,9 +186,9 @@ lemma measurableSet_retBy (populations : Finset J) (uni : J) (η₀ indecisionLi
   have hgate : ∀ j e, MeasurableSet {x : Run Ω S J |
       gateAt rule O.mq populations uni η₀ εcov α B j e x} :=
     fun j e => measurableSet_family_cert O populations j B (B.npref + e)
-      (fun C A A₀ ω => certifiesAt O.mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
+      (fun C A A₀ ω => certifiesAt O.mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
         (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi A₀ (C \ insert 1 A₀) A ω)
-      (fun C A A₀ => measurableSet_certifiesAt O _ _ _ _ _ _ _ _ _)
+      (fun C A A₀ => measurableSet_certifiesAt O _ _ _ _ _ _ _ _ _ _)
   have hrw : retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
       = {x : Run Ω S J | B.k ≤ (clusterBy rule O.mq populations x B).card + 1}
         ∩ (⋂ j ∈ populations, ({x | keptAt populations j B.npref x}ᶜ
