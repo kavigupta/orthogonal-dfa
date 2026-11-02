@@ -20,7 +20,7 @@ namespace OrthoDFA
 open Real Asymptotics Filter MeasureTheory
 
 private def kB (s r c : ℝ) : ℝ :=
-  25 * max (4 * log (20 / r)) (log (1 / c)) / (8 * s ^ 2) + 5 / s + 7
+  25 * (max (4 * log (20 / r)) (log (1 / c)) + 12) / (8 * s ^ 2) + 5 / s + 7
 
 private def nsuffB (s r c pAP δ : ℝ) : ℝ :=
   2 * kB s r c / pAP + 60 * log (3 / δ) / pAP
@@ -82,7 +82,7 @@ private lemma prods {nJ iδ ip ie iu iw is : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ 
 private lemma kB_bound {ie iu iw is r : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw)
     (his : 2 ≤ is) (hr : 0 < r) (hr2 : 1 / r ≤ ie * is ^ 2 + iu) :
     0 ≤ kB (1 / is) r ((1 / iw) ^ 4)
-      ∧ kB (1 / is) r ((1 / iw) ^ 4) ≤ 70 * (log (max (ie * is) (max iu iw)) * is ^ 2) := by
+      ∧ kB (1 / is) r ((1 / iw) ^ 4) ≤ 110 * (log (max (ie * is) (max iu iw)) * is ^ 2) := by
   have hieM : ie * is ≤ max (ie * is) (max iu iw) := le_max_left _ _
   have hiuM : iu ≤ max (ie * is) (max iu iw) := (le_max_left _ _).trans (le_max_right _ _)
   have hiwM : iw ≤ max (ie * is) (max iu iw) := (le_max_right _ _).trans (le_max_right _ _)
@@ -111,8 +111,8 @@ private lemma kB_bound {ie iu iw is r : ℝ} (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (
   unfold kB
   rw [hlw]
   generalize max (4 * log (20 / r)) (4 * log iw) = m at *
-  rw [show 25 * m / (8 * (1 / is) ^ 2) + 5 / (1 / is) + 7 = 25 * m * is ^ 2 / 8 + 5 * is + 7 by
-    field_simp]
+  rw [show 25 * (m + 12) / (8 * (1 / is) ^ 2) + 5 / (1 / is) + 7
+      = 25 * (m + 12) * is ^ 2 / 8 + 5 * is + 7 by field_simp]
   have h1 : 2 * is ≤ is ^ 2 * log M := by nlinarith
   have h2 : 4 ≤ is ^ 2 * log M := by nlinarith
   have h3 := mul_le_mul_of_nonneg_right hm (sq_nonneg is)
@@ -445,7 +445,7 @@ private lemma logM_nonneg {ie iu iw is : ℝ} (hie : 2 ≤ ie) (his : 2 ≤ is) 
 
 private lemma kW_isBigO : kW =O[𝓟 vecRegion] (fun (_, _, _, ie, _, iu, iw, is, _) =>
     log (max (ie * is) (max iu iw)) * is ^ 2 : ClusterVec → ℝ) := by
-  refine isBigO_on 70 fun b hb => ?_
+  refine isBigO_on 110 fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨hJ, hiδ, hip, hie, -, hiu, hiw, his, -⟩ := region hb
   have := logM_nonneg (iu := iu) (iw := iw) hie his

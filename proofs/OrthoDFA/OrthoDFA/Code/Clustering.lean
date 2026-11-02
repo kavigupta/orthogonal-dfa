@@ -39,9 +39,9 @@ mean.  Here the family is the `k − 1` rows nearest the seed's reads (the count
 `nearestRows`): the fewest prefixes of the whole table read unlike the seed.
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
-(`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
-the band is sized so that a vote whose mean lies outside it lands on its far side at most
-`crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
+(`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1`,
+one size for every centre its band may take, and the band is sized so that a vote whose mean
+lies outside it lands on its far side at most `crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
 by the seed's one read than the gate's cut over the family without it, where the Python cuts both
 at one rate.
 
