@@ -476,12 +476,13 @@ lemma rejFrac_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < 
   have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
   exact lt_min (lt_min (by positivity) (by positivity)) (by positivity)
 
-lemma rejFrac_le (η₀ : ℝ) {εcov : ℝ} :
-    rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ ^ 2 * min εcov (1 / 2) / 1024
-    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ * indecisionLimit / 128
+lemma rejFrac_le_half (η₀ : ℝ) {εcov : ℝ} :
+    rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ ^ 2 * min εcov (1 / 2) / 2048
+    ∧ rejFrac η₀ indecisionLimit εcov εs ≤ sig η₀ * indecisionLimit / 256
     ∧ rejFrac η₀ indecisionLimit εcov εs ≤ εs / 4 :=
   ⟨(min_le_left _ _).trans (min_le_left _ _), (min_le_left _ _).trans (min_le_right _ _),
     min_le_right _ _⟩
+
 
 /-- A state that redraws a `c` fraction of its `m` draws pays `(m + r)²/(r + 1) ≤ 2m/c` for it
 under Markov's inequality, linearly in `m`. -/

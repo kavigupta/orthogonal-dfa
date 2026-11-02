@@ -71,11 +71,11 @@ noncomputable def shiftScale (indecisionLimit εcov : ℝ) : ℝ :=
   min (min εcov (1 / 2)) indecisionLimit
 
 /-- What the family may shift a population, on average over its members, in the count rule's own
-units: Markov per class charges a class's heavy mass at `σ_b ≥ (2/5)·sig²`, and the gate charges
-it at most `5/(2 sig²)·σ_b` a prefix, so `sig²·shiftScale` resolves both the FNR test and the
+units: Markov per class charges a class's heavy mass at `σ_b ≥ sig²/5`, and the gate charges
+it at most `5/sig²·σ_b` a prefix, so `sig²·shiftScale` resolves both the FNR test and the
 gate. -/
 noncomputable def shiftBudget (η indecisionLimit εcov : ℝ) : ℝ :=
-  sig η ^ 2 * shiftScale indecisionLimit εcov / 256
+  sig η ^ 2 * shiftScale indecisionLimit εcov / 512
 
 /-- Hoeffding's size for the family, which `famCount` never exceeds.  Its vote fails at
 `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre, a flipping `clsFrac` of the
@@ -198,10 +198,10 @@ noncomputable def heavyLevel (η : ℝ) (populations : Finset J)
 
 /-- The fraction of a state's prefix draws the samplers may redraw.  A redraw hides at most a
 flip's shift on a class, which Markov charges at `w_b/σ_b ≤ 5/sig` against the FNR test and the
-gate at `5/(2 sig²)` against its limit: the first two terms.  Twice it is what the redraws can bias
+gate at `5/sig²` against its limit: the first two terms.  Twice it is what the redraws can bias
 the verdict by, which the third holds to `εs/2`. -/
 noncomputable def rejFrac (η indecisionLimit εcov εs : ℝ) : ℝ :=
-  min (min (sig η ^ 2 * min εcov (1 / 2) / 1024) (sig η * indecisionLimit / 128)) (εs / 4)
+  min (min (sig η ^ 2 * min εcov (1 / 2) / 2048) (sig η * indecisionLimit / 256)) (εs / 4)
 
 /-- The exponent rate of the drawn prefixes understating a member's shift mass on a class by
 `g = shiftBudget`, relative to a mass of at most `shiftBudget + rejFrac + g`:

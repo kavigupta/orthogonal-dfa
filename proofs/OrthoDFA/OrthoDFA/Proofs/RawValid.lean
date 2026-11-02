@@ -316,7 +316,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hc
   have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hind
   have hcle : c ≤ indecisionLimit / 256 := by
-    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.1
+    have h1 := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.1
     have hs2 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
     have := mul_le_mul_of_nonneg_right hs2 hind.le
     linarith

@@ -351,7 +351,7 @@ theorem prefCount_le_split (populations : Finset J)
     refine le_min (by nlinarith) (le_min (by nlinarith) (le_min (by nlinarith) ?_))
     nlinarith [mul_le_mul_of_nonneg_right ha2 (le_trans hB'pos.le hB'm)]
   have hrej : rejFrac η indecisionLimit εcov εs ≤ s ^ 2 * min εcov (1 / 2) / 1024 := by
-    have := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η (εcov := εcov)).1
+    have := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η (εcov := εcov)).1
     rwa [← hsdef] at this
   have hrej0 := rejFrac_pos η hηlt hεcov hεs hind
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
@@ -1391,7 +1391,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
   have hrej : 2 * rejFrac η₀ indecisionLimit εcov εs ≤ εs / 2 := by
-    have h := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.2
+    have h := (rejFrac_le_half (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).2.2
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP

@@ -716,7 +716,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hPc : (P.card : ℝ) * ρ ≤ Jc * m * ρ := mul_le_mul_of_nonneg_right hcard hρ0
     nlinarith
   have hrej : 2 * rejFrac η₀ iL εcov εs ≤ εs / 2 := by
-    have h := (rejFrac_le (εs := εs) (indecisionLimit := iL) η₀ (εcov := εcov)).2.2
+    have h := (rejFrac_le_half (εs := εs) (indecisionLimit := iL) η₀ (εcov := εcov)).2.2
     linarith
   have hsj : ∀ j, (if j = uni then (0 : ℝ) else εs / 2) ≤ εs / 2 := by
     intro j; split_ifs <;> linarith
