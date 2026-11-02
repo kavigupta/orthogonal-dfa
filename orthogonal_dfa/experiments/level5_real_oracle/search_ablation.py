@@ -1,8 +1,7 @@
 # pylint: disable=wrong-import-position,wrong-import-order,protected-access,invalid-name,import-error,consider-using-with
-"""Replays the round-0 searches of a length_oracles.py run from its family checkpoint, on
-the run's own probe streams and selection samples, ending each search only on success or a
-stalled score.  Writes OUT/search_<i>.pkl (as length_oracles.py does) and
-OUT/restarts.jsonl.
+"""Replays the round-0 searches of a run by #502's former length_oracles.py from its family
+checkpoint, on the run's own probe streams and selection samples, ending each search only on
+success or a stalled score.  Writes OUT/search_<i>.pkl and OUT/restarts.jsonl.
 
   python -u orthogonal_dfa/experiments/level5_real_oracle/search_ablation.py RUN_DIR \
       --oracle saw|flat --out OUT
@@ -19,11 +18,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import family_ckpt
 import numpy as np
 from fullloop_mem import VOCAB
-from length_oracles import LoggedSearch, oracle
 
 from orthogonal_dfa.data.exon import default_exon
+from orthogonal_dfa.experiments.length_oracles.oracles import oracle
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.dfa_utils import held_out_phi, labelled_sample
+from orthogonal_dfa.l_star.fallbacks.score_patience import snapshot
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
 ap = argparse.ArgumentParser()
@@ -39,6 +39,19 @@ pst, acc, vs = ck["pst"], ck["acc_threshold"], ck["vs"]
 pst.config.counterexample_member_fallback = True
 pst.config.counterexample_skip_undecided = True
 pst.config.counterexample_harvest_tests = False
+
+
+class LoggedSearch(cs.CounterexampleSearch):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trajectory = []
+
+    def step(self, x):
+        version = self.hypothesis.version
+        found = super().step(x)
+        if self.hypothesis.version != version:
+            self.trajectory.append((self.probes, snapshot(self.hypothesis)))
+        return found
 
 
 cs.CounterexampleSearch = LoggedSearch

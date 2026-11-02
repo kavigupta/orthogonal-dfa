@@ -36,6 +36,5 @@ fit is cached under a different permacache key; the first run after it refits.
 (`gate_residual_oracle`): DFAs that count wildcards modulo 2 or 3.
 
 `LENGTH_ORACLES.md` compares round 0 on that oracle with one thresholded at each compiled
-length's own median (`length_oracles.py`, `length_oracles_label.py`,
-`length_oracles_extract.py`, `length_oracles_figure.py`, data in `length_oracles_data.json`):
-wildcard counters on the first, the frame-0 rule on the second.
+length's own median: wildcard counters on the first, the frame-0 rule on the second.  The
+experiment now lives on main in `orthogonal_dfa/experiments/length_oracles/`.
