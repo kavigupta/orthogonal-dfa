@@ -135,33 +135,48 @@ noncomputable def readLoss (reads : S → Prop) (P : Finset S) (v : S) : ℝ :=
   ((P.filter (fun p => ¬ (reads (p * v) ↔ reads p))).card : ℝ)
 
 open scoped Classical in
-/-- `nearestRows` over the reads it is handed. -/
-noncomputable def nearestClusterer : Clusterer S where
+/-- `misreadAt` over the reads it is handed. -/
+noncomputable def misreadLoss (c : ℝ) (reads : S → Prop) (P : Finset S) (v : S) : ℝ :=
+  readLoss reads P v - (1 - 2 * c) * ((P.filter (fun p => reads (p * v))).card : ℝ)
+
+lemma misreadLoss_half (reads : S → Prop) (P : Finset S) :
+    misreadLoss (1 / 2) reads P = readLoss reads P := by
+  funext v; unfold misreadLoss; ring
+
+open scoped Classical in
+/-- `nearestRows` at centre `c` over the reads it is handed. -/
+noncomputable def nearestClusterer (c : ℝ) : Clusterer S where
   pick := fun reads P cands k =>
-    insert 1 (leastLossSubset (readLoss reads P) (cands.erase 1) (k - 1))
+    insert 1 (leastLossSubset (misreadLoss c reads P) (cands.erase 1) (k - 1))
   seed_mem := fun _ _ _ _ _ => Finset.mem_insert_self _ _
   subset := fun reads P cands k hone => Finset.insert_subset hone
     ((leastLossSubset_subset' _ _ _).trans (Finset.erase_subset _ _))
   card_le := fun reads P cands k hk => by
     refine le_trans (Finset.card_insert_le _ _) ?_
-    have := leastLossSubset_card_le (readLoss reads P) (cands.erase 1) (k - 1)
+    have := leastLossSubset_card_le (misreadLoss c reads P) (cands.erase 1) (k - 1)
     omega
   card_eq := fun reads P cands k hone hk hkpos => by
     have hc : k - 1 ≤ (cands.erase 1).card := by
       rw [Finset.card_erase_of_mem hone]; omega
-    have h1 : (1 : S) ∉ leastLossSubset (readLoss reads P) (cands.erase 1) (k - 1) := fun h =>
-      (Finset.notMem_erase 1 cands) (leastLossSubset_subset _ _ _ hc h)
+    have h1 : (1 : S) ∉ leastLossSubset (misreadLoss c reads P) (cands.erase 1) (k - 1) :=
+      fun h => (Finset.notMem_erase 1 cands) (leastLossSubset_subset _ _ _ hc h)
     rw [Finset.card_insert_of_notMem h1, leastLossSubset_card _ _ _ hc]
     omega
   congr := fun reads reads' P cands k hone h => by
-    have hl : ∀ v ∈ cands.erase 1, readLoss reads P v = readLoss reads' P v := by
+    have hl : ∀ v ∈ cands.erase 1, misreadLoss c reads P v = misreadLoss c reads' P v := by
       intro v hv
-      unfold readLoss
-      refine congrArg (fun t : Finset S => (t.card : ℝ)) (Finset.filter_congr (fun p hp => ?_))
-      have h1 := h p hp v (Finset.mem_of_mem_erase hv)
-      have h0 := h p hp 1 hone
-      rw [mul_one] at h0
-      rw [h1, h0]
+      have hv1 := Finset.mem_of_mem_erase hv
+      unfold misreadLoss readLoss
+      have e1 : P.filter (fun p => ¬ (reads (p * v) ↔ reads p))
+          = P.filter (fun p => ¬ (reads' (p * v) ↔ reads' p)) := by
+        refine Finset.filter_congr (fun p hp => ?_)
+        have h1 := h p hp v hv1
+        have h0 := h p hp 1 hone
+        rw [mul_one] at h0
+        rw [h1, h0]
+      have e2 : P.filter (fun p => reads (p * v)) = P.filter (fun p => reads' (p * v)) :=
+        Finset.filter_congr (fun p hp => h p hp v hv1)
+      rw [e1, e2]
     rw [leastLossSubset_congr hl]
 
 /-- The cluster without its seed. -/
@@ -184,7 +199,8 @@ noncomputable def refsBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
 `rule`. -/
 def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ εcov α : ℝ) (B : State) (j : J) (e : ℕ) (x : Run Ω S J) : Prop :=
-  certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
+  certifiesAt mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
+    (gateLevel α populations B) B.lo B.hi
     (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
     (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
 

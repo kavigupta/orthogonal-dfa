@@ -1224,7 +1224,6 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   set hz : ℕ := (allHarvest H).card with hhz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   simp only [ret_eq, familyAt_eq]
-  set rule : Clusterer S := nearestClusterer with hrule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
@@ -1396,10 +1395,10 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
-      crossLimit hz ρ₀}, streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit
+      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit
         εcov α B.val →
       1 - εcov - εs ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-        (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
+        (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
     fun B hB => by
       have h := (hall B hB uni huni).1
       simp only [gateLimit, if_pos rfl, if_true, sub_zero] at h

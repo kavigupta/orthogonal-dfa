@@ -41,6 +41,11 @@ over `h` strings.  Drawing without replacement redraws a repeat, and the claim a
 draws redraw only a small fraction of the time. -/
 noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
 
+/-- The rates sit at least `½ − η₀` either side of `c`: the language reads accept at least that
+far above it, the rest at most that far below. -/
+def Oracle.Straddles (O : Oracle μ S) (c η₀ : ℝ) : Prop :=
+  O.ηIn ≤ η₀ + 1 / 2 - c ∧ O.ηOut ≤ η₀ - 1 / 2 + c
+
 /-! ## The theorem -/
 
 /-- The rate the family's cut budget resolves:

@@ -509,18 +509,34 @@ lemma wrongRate_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (accep
   have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
   unfold wrongRate; split_ifs <;> assumption
 
+omit [IsProbabilityMeasure μ] in
+/-- The rates the gate reads a state's sides at bound the sides' wrong classes when the oracle
+straddles its centre. -/
+lemma wrongRate_le_centre (O : Oracle μ S) {c η₀ : ℝ} (h : O.Straddles c η₀) :
+    wrongRate O true ≤ c - 1 / 2 + η₀ ∧ wrongRate O false ≤ 1 / 2 - c + η₀ := by
+  unfold wrongRate Oracle.Straddles at *
+  simp only [↓reduceIte, Bool.false_eq_true]
+  constructor <;> linarith [h.1, h.2]
+
+omit [IsProbabilityMeasure μ] in
+lemma straddles_half (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) : O.Straddles (1 / 2) η₀ := by
+  have h1 : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
+  have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
+  unfold Oracle.Straddles; constructor <;> linarith
+
 open scoped Classical in
 /-- With both of the sample's sides good, the cut's wrong count on the sample is at most
 `miscutBound`. -/
-theorem miscut_le_miscutBound (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (lo hi : ℕ)
+theorem miscut_le_miscutBound (O : Oracle μ S) {yAcc yRej : ℝ} (hAcc : wrongRate O true ≤ yAcc)
+    (hRej : wrongRate O false ≤ yRej) (lo hi : ℕ)
     (F R P : Finset S) {v : S} (hvR : v ∈ R) (hap : ∀ p, O.label (p * v) = O.label p)
     (hneP : ∀ p ∈ P, p * v ≠ p) {a : ℝ} {ω : Ω} (hP : sidesGood O lo hi F P v a ω) :
     ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
-      ≤ miscutBound O.mq a lo hi F R P η₀ ω := by
+      ≤ miscutBound O.mq a lo hi F R P yAcc yRej ω := by
   have hA := wrong_le_sideCap O true (acceptSide O.mq hi F P ω) R hvR hap
-    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.1 (wrongRate_le O hη true)
+    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.1 hAcc
   have hR := wrong_le_sideCap O false (rejectSide O.mq lo F P ω) R hvR hap
-    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.2 (wrongRate_le O hη false)
+    (fun p hp => hneP p (Finset.mem_filter.1 hp).1) hP.2 hRej
   refine le_trans (miscut_le_sides O lo hi F P ω) ?_
   unfold miscutBound
   linarith
@@ -1450,11 +1466,13 @@ open scoped Classical in
 population `j`, though the references hold an accept-preserving suffix and the certification
 draws redraw at most `r ≤ s·npref` times before their largest look.  Then some look's sides
 failed, or the draws undercounted the population. -/
-theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀)
+theorem falseCertify_subset (O : Oracle μ S) {yAcc yRej : ℝ} (hAcc : wrongRate O true ≤ yAcc)
+    (hRej : wrongRate O false ≤ yRej)
     (populations : Finset J) (Dj : Measure S) (j : J) (B : State) (lim s a : ℝ) (r : ℕ)
     (hs : 0 ≤ s) (hr : (r : ℝ) ≤ s * B.npref) :
     {x : Run Ω S J |
-      (∃ e ≤ B.npref, certifiesAt O.mq η₀ lim a B.lo B.hi (clusterBy rule O.mq populations x B)
+      (∃ e ≤ B.npref, certifiesAt O.mq yAcc yRej lim a B.lo B.hi
+        (clusterBy rule O.mq populations x B)
         (refsBy rule O.mq populations x B)
         (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x))
       ∧ (∃ v ∈ refsBy rule O.mq populations x B, ∀ p, O.label (p * v) = O.label p)
@@ -1488,7 +1506,7 @@ theorem falseCertify_subset (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     (Finset.mem_sdiff.1 hu).2 (by
       have : u = 1 := mul_left_cancel (a := p) (by rw [h, mul_one])
       rw [this]; exact Finset.mem_insert_self _ _)
-  have hcount := miscut_le_miscutBound O hη B.lo B.hi F R (certOf T j m x) hvR hapv
+  have hcount := miscut_le_miscutBound O hAcc hRej B.lo B.hi F R (certOf T j m x) hvR hapv
     (fun p _ => hne1 v hvR p) hgv
   have hmr : m ≤ (acceptedAt T y (m + r)).card :=
     le_card_acceptedAt_of_le T y (show m ≤ 2 * B.npref by omega) hdraws
@@ -1779,7 +1797,7 @@ theorem certifiesAt_of_live (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η�
     (hgate : M / gateKappa η₀
         + 2 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
         ≤ n * lim - hoeffDev n (sizeLevel a n)) :
-    certifiesAt O.mq η₀ lim a lo hi F R C ω := by
+    certifiesAt O.mq η₀ η₀ lim a lo hi F R C ω := by
   classical
   have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hκ := (gateKappa_facts h0 hη₀).1
@@ -1972,7 +1990,7 @@ theorem certifiesAt_of_live_rates (O : Oracle μ S) {η₀ : ℝ} (hη : O.η �
     (hgate : 4 * (M false * sideCharge O η₀ true + M true * sideCharge O η₀ false)
         + 4 * ((gateDevT η₀ + gateDevU η₀) * t + gateDevD η₀ * hoeffDev n (sizeLevel a n))
         ≤ n * lim - hoeffDev n (sizeLevel a n)) :
-    certifiesAt O.mq η₀ lim a lo hi F R C ω := by
+    certifiesAt O.mq η₀ η₀ lim a lo hi F R C ω := by
   classical
   have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   obtain ⟨hT, hD, hU⟩ := gateDev_pos h0 hη₀

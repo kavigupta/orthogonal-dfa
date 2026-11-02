@@ -28,15 +28,15 @@ cannot be filled at all.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
-family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
-the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
+family's vote there; here the state's cut (`lo`, `hi`) is centred where the schedule puts it, and
+the count rule and the gate read the rates at that centre (`State.centre`).
 
 Known modelling gap.  The Python picks the family by k-means groups, χ² merges and the anchor
 group's ordering: `nearest_to_anchor_group` takes the `coherent_groups` group whose rows
 `misread_statistic` scores least against the seed on the prefixes `seed_scoring` holds out, then
 ranks that group's rows, and after them the rest of the pool, by weighted distance to the group's
-mean.  Here the family is the `k − 1` rows nearest the seed's reads (the count rule,
-`nearestRows`): the fewest prefixes of the whole table read unlike the seed.
+mean.  Here the family is the `k − 1` rows of least `misread_statistic` against the seed over
+the whole table, at rates centred on the state's centre (the count rule, `nearestRows`).
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1`,
@@ -244,6 +244,9 @@ structure State where
   sc : ℕ
   scd : ℕ
 
+/-- The band's centre as a share of the cluster, which `lo` and `hi + 1` sit evenly about. -/
+noncomputable def State.centre (B : State) : ℝ := ((B.lo : ℝ) + B.hi + 1) / (2 * ((B.k : ℝ) - 1))
+
 /-! ## The algorithm
 
 `sample_suffix_family` in the order it runs: draw, screen, cluster, read the cut off the
@@ -322,16 +325,23 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-/-- The seed with the `k − 1` candidates whose reads disagree with the seed's on the fewest
-prefixes of `P`, ties broken by `leastLossSubset`'s choice. -/
-noncomputable def nearestRows (mq : S → Ω → ℝ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+/-- `misread_statistic` against the seed at rates centred on `c`, less what every candidate
+shares: with `x` the candidate's reads and `y` the seed's over `P`,
+
+    ∑ (x − y)² − (1 − 2c) ∑ x -/
+noncomputable def misreadAt (mq : S → Ω → ℝ) (c : ℝ) (P : Finset S) (v : S) (ω : Ω) : ℝ :=
+  screenCount mq P v ω - (1 - 2 * c) * (P.filter (fun p => mq (p * v) ω = 1)).card
+
+/-- The seed with the `k − 1` candidates of least `misreadAt c`, ties broken by
+`leastLossSubset`'s choice. -/
+noncomputable def nearestRows (mq : S → Ω → ℝ) (c : ℝ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
     Finset S :=
-  insert 1 (leastLossSubset (fun v => (screenCount mq P v ω : ℝ)) (cands.erase 1) (k - 1))
+  insert 1 (leastLossSubset (fun v => misreadAt mq c P v ω) (cands.erase 1) (k - 1))
 
 /-- The cluster without its seed. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (nearestRows mq (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+  (nearestRows mq B.centre (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     (oracleNoise x) B.k).erase 1
 
 /-- The family the round returns, `vs`: the cluster with its seed. -/
@@ -410,19 +420,19 @@ noncomputable def sideCap (mq : S → Ω → ℝ) (accept : Bool) (A R : Finset 
   wrongCap A.card (againstOn mq accept A ω) (refApart mq A R ω) (hoeffDev A.card a) y
 
 /-- An upper bound on how many of `P` the cut puts on the wrong side: the accept side's wrong
-prefixes lie outside the language and the reject side's inside it, each class's rate at most
-`η₀`. -/
-noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S) (η₀ : ℝ)
-    (ω : Ω) : ℝ :=
-  (acceptSide mq hi F P ω).card * sideCap mq true (acceptSide mq hi F P ω) R a η₀ ω
-    + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a η₀ ω
+prefixes lie outside the language, their rate at most `yAcc`, and the reject side's inside it,
+their rate at most `yRej`. -/
+noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S)
+    (yAcc yRej : ℝ) (ω : Ω) : ℝ :=
+  (acceptSide mq hi F P ω).card * sideCap mq true (acceptSide mq hi F P ω) R a yAcc ω
+    + (rejectSide mq lo F P ω).card * sideCap mq false (rejectSide mq lo F P ω) R a yRej ω
 
 /-- `drift_verdict`'s ADMITTED, as modelled: the family's cut misclassifies at most `lim` of the
 population.  `P` is the sample, drawn without replacement, and `R` the references; `miscutBound`
 and the passage from the sample to the population are both read at `sizeLevel a #P`. -/
-def certifiesAt (mq : S → Ω → ℝ) (η₀ lim a : ℝ) (lo hi : ℕ) (F R P : Finset S) (ω : Ω) :
-    Prop :=
-  0 < P.card ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P η₀ ω
+def certifiesAt (mq : S → Ω → ℝ) (yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S)
+    (ω : Ω) : Prop :=
+  0 < P.card ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P yAcc yRej ω
     ≤ P.card * lim - hoeffDev P.card (sizeLevel a P.card)
 
 /-- Population `j` is read at a state of `m` prefixes: its table and its certification sample
@@ -450,7 +460,8 @@ open scoped Classical in
 test on `certOf`, and the gate, at each population `keptAt` keeps, the gate drawing that
 population further when the split reads uncertified, to at most twice its size.  The FNR reads
 the family with its seed; the gate reads it without, since the seed's read is the bit the gate
-scores. -/
+scores.  The gate reads each side's wrong class at the rate `½ − η₀` short of the band's
+centre. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
@@ -460,7 +471,8 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∀ j ∈ populations, keptAt populations j B.npref x → ∃ e ≤ B.npref,
-      certifiesAt mq η₀ (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
+      certifiesAt mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
+        (gateLevel α populations B) B.lo B.hi
         (clusterAt mq populations x B) (refsAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)}
 

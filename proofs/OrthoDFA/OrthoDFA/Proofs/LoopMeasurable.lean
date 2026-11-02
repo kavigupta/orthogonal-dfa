@@ -341,12 +341,12 @@ lemma voteCount_alike (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α
   rw [Finset.filter_congr fun v hv => h v hv]
 
 omit [IsProbabilityMeasure μ] in
-lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a η₀ : ℝ} {lo hi : ℕ}
+lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a yAcc yRej : ℝ} {lo hi : ℕ}
     {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    miscutBound O.mq a lo hi F R P η₀ ω = miscutBound O.mq a lo hi F R P η₀ ω' := by
+    miscutBound O.mq a lo hi F R P yAcc yRej ω = miscutBound O.mq a lo hi F R P yAcc yRej ω' := by
   classical
   have hv : ∀ p ∈ P, voteCount O.mq F p ω = voteCount O.mq F p ω' := fun p hp =>
     voteCount_alike O (hF p hp)
@@ -356,9 +356,9 @@ lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a η₀ : ℝ} {lo hi :
   have hrej : rejectSide O.mq lo F P ω = rejectSide O.mq lo F P ω' := by
     unfold rejectSide
     exact Finset.filter_congr fun p hp => by rw [hv p hp]
-  have hside : ∀ (accept : Bool) (A : Finset (FreeMonoid α)), A ⊆ P →
-      sideCap O.mq accept A R a η₀ ω = sideCap O.mq accept A R a η₀ ω' := by
-    intro accept A hA
+  have hside : ∀ (accept : Bool) (A : Finset (FreeMonoid α)), A ⊆ P → ∀ y : ℝ,
+      sideCap O.mq accept A R a y ω = sideCap O.mq accept A R a y ω' := by
+    intro accept A hA y
     unfold sideCap
     have h1 : againstOn O.mq accept A ω = againstOn O.mq accept A ω' := by
       unfold againstOn
@@ -378,12 +378,13 @@ lemma miscutBound_alike (O : Oracle μ (FreeMonoid α)) {a η₀ : ℝ} {lo hi :
   rw [hacc, hrej, hside true _ hA, hside false _ hR']
 
 omit [IsProbabilityMeasure μ] in
-lemma certifiesAt_alike (O : Oracle μ (FreeMonoid α)) {η₀ lim a : ℝ} {lo hi : ℕ}
+lemma certifiesAt_alike (O : Oracle μ (FreeMonoid α)) {yAcc yRej lim a : ℝ} {lo hi : ℕ}
     {F R P : Finset (FreeMonoid α)} {ω ω' : Ω}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (O.mq (p * v) ω = 1 ↔ O.mq (p * v) ω' = 1))
     (hs : ∀ p ∈ P, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
-    certifiesAt O.mq η₀ lim a lo hi F R P ω ↔ certifiesAt O.mq η₀ lim a lo hi F R P ω' := by
+    certifiesAt O.mq yAcc yRej lim a lo hi F R P ω
+      ↔ certifiesAt O.mq yAcc yRej lim a lo hi F R P ω' := by
   unfold certifiesAt
   rw [miscutBound_alike O hF hR hs]
 
@@ -404,10 +405,10 @@ theorem measurableSet_clusterAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (
     (fun y => (measurableSet_prefixesAt pops B.npref y.1).inter (measurableSet_poolAt B.nsuff y.2)
       |> fun h => by convert h using 1; ext x; simp [Prod.ext_iff])
     (fun y => if (1 : FreeMonoid α) ∈ y.2 then Prod.fst ⁻¹'
-        {ω | clusterOf nearestClusterer O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
+        {ω | clusterOf (nearestClusterer B.centre) O B.sc B.scd y.1 y.2 B.k ω = F} else ∅)
     (fun y => by
       split_ifs with hone
-      · exact measurable_fst (measurableSet_clusterOf (rule := nearestClusterer) O B.sc B.scd y.1
+      · exact measurable_fst (measurableSet_clusterOf (rule := nearestClusterer B.centre) O B.sc B.scd y.1
         y.2
           B.k hone F)
       · exact MeasurableSet.empty) |> fun h => by
