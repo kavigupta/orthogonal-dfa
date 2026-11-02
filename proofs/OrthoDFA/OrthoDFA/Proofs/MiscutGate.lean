@@ -516,13 +516,15 @@ lemma wrongRate_le_centre (O : Oracle μ S) {c η₀ : ℝ} (h : O.Straddles c �
     wrongRate O true ≤ c - 1 / 2 + η₀ ∧ wrongRate O false ≤ 1 / 2 - c + η₀ := by
   unfold wrongRate Oracle.Straddles at *
   simp only [↓reduceIte, Bool.false_eq_true]
-  constructor <;> linarith [h.1, h.2]
+  constructor <;> linarith [h.1, h.2, le_max_left O.ηIn 0, le_max_left O.ηOut 0]
 
 omit [IsProbabilityMeasure μ] in
 lemma straddles_half (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) : O.Straddles (1 / 2) η₀ := by
   have h1 : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
   have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
-  unfold Oracle.Straddles; constructor <;> linarith
+  have h0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  unfold Oracle.Straddles
+  constructor <;> refine max_le ?_ ?_ <;> linarith
 
 open scoped Classical in
 /-- With both of the sample's sides good, the cut's wrong count on the sample is at most

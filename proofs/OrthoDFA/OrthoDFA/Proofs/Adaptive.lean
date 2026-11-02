@@ -4395,181 +4395,294 @@ lemma rate_of_label (O : Oracle μ S) (accept : Bool) (p : S) :
     simp [hp, Oracle.label, Set.indicator_of_mem, Set.indicator_of_notMem]
 
 
-/-- What a flip at `p` adds to a row's mean disagreement: `(1 − r' − r)(1 − 2r)`. -/
-noncomputable def flipShift (O : Oracle μ S) (v p : S) : ℝ :=
-  O.flip v p * ((1 - O.rate (p * v) - O.rate p) * (1 - 2 * O.rate p))
+/-- The larger of the centre's distances to `0` and `1`: the most one read moves the misread
+statistic, in its own units. -/
+noncomputable def span (ctr : ℝ) : ℝ := max ctr (1 - ctr)
 
+lemma half_le_span (ctr : ℝ) : 1 / 2 ≤ span ctr := by
+  unfold span
+  rcases le_total ctr (1 / 2) with h | h
+  · exact le_trans (by linarith) (le_max_right _ _)
+  · exact le_trans h (le_max_left _ _)
 
-noncomputable def clsRate (O : Oracle μ S) (b : Bool) : ℝ := max (rightRate O b) 0
+lemma span_pos (ctr : ℝ) : 0 < span ctr := lt_of_lt_of_le (by norm_num) (half_le_span ctr)
 
-noncomputable def clsFrac (O : Oracle μ S) (η₀ : ℝ) (b : Bool) : ℝ :=
-  (1 / 2 - clsRate O b - voteSlack η₀) / O.gap
+/-- `p`'s rate against its side, read from the centre `ctr` as it would be from `½`. -/
+noncomputable def Oracle.crate (O : Oracle μ S) (ctr : ℝ) (p : S) : ℝ :=
+  O.rate p + (ctr - 1 / 2) * (2 * O.label p - 1)
 
-noncomputable def clsSig (O : Oracle μ S) (η₀ : ℝ) (b : Bool) : ℝ :=
-  2 * (1 / 2 - clsRate O b) * (1 / 2 - clsRate O b - voteSlack η₀)
+/-- What a flip at `p` adds to a row's mean misread statistic: `(1 − r' − r)(½ − r_c)/span`. -/
+noncomputable def flipShift (O : Oracle μ S) (ctr : ℝ) (v p : S) : ℝ :=
+  O.flip v p * ((1 - O.rate (p * v) - O.rate p) * (1 / 2 - O.crate ctr p) / span ctr)
 
-noncomputable def clsShift (O : Oracle μ S) (b : Bool) : ℝ := O.gap * (1 - 2 * clsRate O b)
+/-- The sign a side's class is read from the centre with. -/
+def sideSign (b : Bool) : ℝ := if b then 1 else -1
+
+noncomputable def clsRate (O : Oracle μ S) (ctr : ℝ) (b : Bool) : ℝ :=
+  max (max (rightRate O b) 0 + (ctr - 1 / 2) * sideSign b) (1 / 2 - span ctr)
+
+noncomputable def clsFrac (O : Oracle μ S) (ctr η₀ : ℝ) (b : Bool) : ℝ :=
+  (1 / 2 - clsRate O ctr b - voteSlack η₀) / O.gap
+
+noncomputable def clsSig (O : Oracle μ S) (ctr η₀ : ℝ) (b : Bool) : ℝ :=
+  (1 / 2 - clsRate O ctr b) * (1 / 2 - clsRate O ctr b - voteSlack η₀) / span ctr
+
+noncomputable def clsShift (O : Oracle μ S) (ctr : ℝ) (b : Bool) : ℝ :=
+  O.gap * (1 / 2 - clsRate O ctr b) / span ctr
 
 open scoped Classical in
 /-- `w_b` on class `b`, nothing elsewhere: weighted by it, a member's flips are its shift on the
 class. -/
-noncomputable def clsW (O : Oracle μ S) (b : Bool) (p : S) : ℝ :=
-  if O.label p = sideClass b then clsShift O b else 0
+noncomputable def clsW (O : Oracle μ S) (ctr : ℝ) (b : Bool) (p : S) : ℝ :=
+  if O.label p = sideClass b then clsShift O ctr b else 0
 
 /-- The vote's absorbed fraction at `p`'s own rate. -/
-noncomputable def fracAt (O : Oracle μ S) (η₀ : ℝ) (p : S) : ℝ :=
-  (1 / 2 - O.rate p - voteSlack η₀) / O.gap
+noncomputable def fracAt (O : Oracle μ S) (ctr η₀ : ℝ) (p : S) : ℝ :=
+  (1 / 2 - O.crate ctr p - voteSlack η₀) / O.gap
 
 /-- `∫ V(p)·flip(v, p)`: `v`'s flips weighted by the prefix. -/
 noncomputable def wMass (O : Oracle μ S) (Dj : Measure S) (V : S → ℝ) (v : S) : ℝ :=
   ∫ p, V p * O.flip v p ∂Dj
 
-lemma rate_eq_clsRate (O : Oracle μ S) {b : Bool} {p : S} (hp : O.label p = sideClass b) :
-    O.rate p = clsRate O b := by
+omit [IsProbabilityMeasure μ] in
+lemma eta0_nonneg_of_straddles (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) :
+    0 ≤ η₀ := by
+  have := le_max_right O.ηIn 0
+  have := le_max_right O.ηOut 0
+  unfold Oracle.Straddles at h
+  linarith [h.1, h.2]
+
+omit [IsProbabilityMeasure μ] in
+lemma gap_ge_of_straddles (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) :
+    1 - 2 * η₀ ≤ O.gap := by
+  unfold Oracle.Straddles at h
+  unfold Oracle.gap
+  linarith [h.1, h.2]
+
+omit [IsProbabilityMeasure μ] in
+lemma gap_pos_of_straddles (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀)
+    (hη₀ : η₀ < 1 / 2) : 0 < O.gap := by
+  linarith [gap_ge_of_straddles O h]
+
+/-- The centre a straddle allows is a share. -/
+lemma centre_mem_of_straddles (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) :
+    1 / 2 - η₀ ≤ ctr ∧ ctr ≤ 1 / 2 + η₀ := by
+  have := le_max_right O.ηIn 0
+  have := le_max_right O.ηOut 0
+  unfold Oracle.Straddles at h
+  constructor <;> linarith [h.1, h.2]
+
+lemma crate_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (p : S) :
+    O.crate ctr p ≤ η₀ := by
+  unfold Oracle.crate
+  unfold Oracle.Straddles at h
+  rcases O.label_bit p with hp | hp
+  · have hr : O.rate p = O.ηOut := by
+      unfold Oracle.rate; rw [if_neg]; intro hm; simp [Oracle.label, hm] at hp
+    rw [hp, hr]; linarith [h.2, le_max_left O.ηOut 0]
+  · have hr : O.rate p = O.ηIn := by
+      unfold Oracle.rate; rw [if_pos]; by_contra hm; simp [Oracle.label, hm] at hp
+    rw [hp, hr]; linarith [h.1, le_max_left O.ηIn 0]
+
+lemma crate_ge (O : Oracle μ S) (ctr : ℝ) (p : S) : 1 / 2 - span ctr ≤ O.crate ctr p := by
+  have h0 := O.rate_nonneg p
+  have h1 := le_max_left ctr (1 - ctr)
+  have h2 := le_max_right ctr (1 - ctr)
+  unfold Oracle.crate span at *
+  rcases O.label_bit p with hp | hp <;> rw [hp] <;> nlinarith
+
+lemma crate_eq_clsRate (O : Oracle μ S) (ctr : ℝ) {b : Bool} {p : S}
+    (hp : O.label p = sideClass b) : O.crate ctr p = clsRate O ctr b := by
   have h := rate_of_label O b p
   rw [if_pos hp] at h
   have h0 := O.rate_nonneg p
-  rw [clsRate, ← h, max_eq_left h0]
+  have hge := crate_ge O ctr p
+  have hm : max (rightRate O b) 0 = O.rate p := by rw [← h, max_eq_left h0]
+  have hc : O.crate ctr p = max (rightRate O b) 0 + (ctr - 1 / 2) * sideSign b := by
+    rw [hm]; unfold Oracle.crate sideSign; rw [hp]
+    cases b <;> simp [sideClass] <;> ring
+  rw [clsRate, ← hc, max_eq_left hge]
 
-lemma fracAt_eq (O : Oracle μ S) (η₀ : ℝ) {b : Bool} {p : S} (hp : O.label p = sideClass b) :
-    fracAt O η₀ p = clsFrac O η₀ b := by
-  rw [fracAt, clsFrac, rate_eq_clsRate O hp]
+lemma fracAt_eq (O : Oracle μ S) (ctr η₀ : ℝ) {b : Bool} {p : S}
+    (hp : O.label p = sideClass b) : fracAt O ctr η₀ p = clsFrac O ctr η₀ b := by
+  rw [fracAt, clsFrac, crate_eq_clsRate O ctr hp]
+
+lemma clsRate_ge (O : Oracle μ S) (ctr : ℝ) (b : Bool) : 1 / 2 - span ctr ≤ clsRate O ctr b :=
+  le_max_right _ _
 
 omit [IsProbabilityMeasure μ] in
-lemma clsRate_nonneg (O : Oracle μ S) (b : Bool) : 0 ≤ clsRate O b := le_max_right _ _
-
-lemma clsRate_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (b : Bool) : clsRate O b ≤ η₀ := by
-  have h1 : O.ηIn ≤ η₀ := le_trans (le_max_left _ _) hη
-  have h2 : O.ηOut ≤ η₀ := le_trans (le_max_right _ _) hη
-  refine max_le ?_ (le_trans (eta_nonneg O) hη)
-  unfold rightRate; split_ifs <;> assumption
+lemma clsRate_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (b : Bool) :
+    clsRate O ctr b ≤ η₀ := by
+  have he := eta0_nonneg_of_straddles O h
+  have hs := le_max_left ctr (1 - ctr)
+  have hs' := le_max_right ctr (1 - ctr)
+  refine max_le ?_ ?_
+  · unfold Oracle.Straddles at h
+    unfold rightRate sideSign
+    cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> linarith [h.1, h.2]
+  · unfold span; linarith
 
 omit [IsProbabilityMeasure μ] in
 lemma gap_le_one (O : Oracle μ S) : O.gap ≤ 1 := by
   unfold Oracle.gap; linarith [le_max_right O.ηIn 0, le_max_right O.ηOut 0]
 
-lemma clsShift_pos (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    0 < clsShift O b := by
-  have := clsRate_le O hη b
-  exact mul_pos (gap_pos O (lt_of_le_of_lt hη hη₀)) (by linarith)
+/-- A class's margin from the centre: at least `sig`, at most the span. -/
+lemma margin_mem (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (b : Bool) :
+    sig η₀ ≤ 1 / 2 - clsRate O ctr b ∧ 1 / 2 - clsRate O ctr b ≤ span ctr := by
+  have h1 := clsRate_le O h b
+  have h2 := clsRate_ge O ctr b
+  unfold sig
+  constructor <;> linarith
 
-lemma clsShift_le_one (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    clsShift O b ≤ 1 := by
-  have := clsRate_le O hη b
-  have := clsRate_nonneg O b
-  have hg := gap_le_one O
-  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
+lemma clsShift_pos (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : 0 < clsShift O ctr b := by
+  have hm := (margin_mem O h b).1
+  have hs := sig_pos η₀ hη₀
   unfold clsShift
+  exact div_pos (mul_pos (gap_pos_of_straddles O h hη₀) (by linarith)) (span_pos ctr)
+
+lemma clsShift_le_one (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : clsShift O ctr b ≤ 1 := by
+  obtain ⟨hm0, hm1⟩ := margin_mem O h b
+  have hs := sig_pos η₀ hη₀
+  have hg := gap_le_one O
+  have hg0 := (gap_pos_of_straddles O h hη₀).le
+  have hsp := span_pos ctr
+  unfold clsShift
+  rw [div_le_one hsp]
   nlinarith
 
-lemma clsW_nonneg (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool)
-    (p : S) : 0 ≤ clsW O b p := by
+lemma clsW_nonneg (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) (p : S) : 0 ≤ clsW O ctr b p := by
   unfold clsW; split_ifs
-  · exact (clsShift_pos O hη hη₀ b).le
+  · exact (clsShift_pos O h hη₀ b).le
   · exact le_rfl
 
-lemma clsW_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool)
-    (p : S) : clsW O b p ≤ clsShift O b := by
+lemma clsW_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) (p : S) : clsW O ctr b p ≤ clsShift O ctr b := by
   unfold clsW; split_ifs
   · exact le_rfl
-  · exact (clsShift_pos O hη hη₀ b).le
+  · exact (clsShift_pos O h hη₀ b).le
 
 /-- Weighted by `w_b`, a flip on class `b` is the shift it adds. -/
-lemma clsW_mul_flip (O : Oracle μ S) (b : Bool) (v p : S) (hp : O.label p = sideClass b) :
-    clsW O b p * O.flip v p = flipShift O v p := by
+lemma clsW_mul_flip (O : Oracle μ S) (ctr : ℝ) (b : Bool) (v p : S)
+    (hp : O.label p = sideClass b) : clsW O ctr b p * O.flip v p = flipShift O ctr v p := by
   unfold clsW flipShift clsShift
   rw [if_pos hp]
-  rcases O.flip_bit v p with h | h
-  · rw [h]; simp
-  · rw [h, ← gap_of_flip O h, rate_eq_clsRate O hp]; ring
+  rcases O.flip_bit v p with hf | hf
+  · rw [hf]; simp
+  · rw [hf, ← gap_of_flip O hf, crate_eq_clsRate O ctr hp]; ring
 
-lemma flipShift_nonneg (O : Oracle μ S) (hsig : O.η ≤ 1 / 2) (v p : S) : 0 ≤ flipShift O v p := by
+lemma flipShift_nonneg (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ ≤ 1 / 2)
+    (v p : S) : 0 ≤ flipShift O ctr v p := by
   unfold flipShift
-  rcases O.flip_bit v p with h | h
-  · rw [h]; simp
-  · rw [h, ← gap_of_flip O h]
-    have := O.rate_le_eta p
-    have := gap_ge O
-    have : 0 ≤ O.gap * (1 - 2 * O.rate p) := mul_nonneg (by linarith) (by linarith)
+  rcases O.flip_bit v p with hf | hf
+  · rw [hf]; simp
+  · rw [hf, ← gap_of_flip O hf]
+    have := crate_le O h p
+    have hg := gap_ge_of_straddles O h
+    have : 0 ≤ O.gap * (1 / 2 - O.crate ctr p) / span ctr :=
+      div_nonneg (mul_nonneg (by linarith) (by linarith)) (span_pos ctr).le
     linarith
 
-lemma clsW_mul_flip_le (O : Oracle μ S) (hsig : O.η ≤ 1 / 2) (b : Bool) (v p : S) :
-    clsW O b p * O.flip v p ≤ flipShift O v p := by
+lemma clsW_mul_flip_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀)
+    (hη₀ : η₀ ≤ 1 / 2) (b : Bool) (v p : S) :
+    clsW O ctr b p * O.flip v p ≤ flipShift O ctr v p := by
   by_cases hp : O.label p = sideClass b
-  · exact le_of_eq (clsW_mul_flip O b v p hp)
-  · unfold clsW; rw [if_neg hp, zero_mul]; exact flipShift_nonneg O hsig v p
+  · exact le_of_eq (clsW_mul_flip O ctr b v p hp)
+  · unfold clsW; rw [if_neg hp, zero_mul]; exact flipShift_nonneg O h hη₀ v p
 
 omit [IsProbabilityMeasure μ] in
-lemma clsFrac_mul_clsShift (O : Oracle μ S) (η₀ : ℝ) (hg : 0 < O.gap) (b : Bool) :
-    clsFrac O η₀ b * clsShift O b = clsSig O η₀ b := by
+lemma clsFrac_mul_clsShift (O : Oracle μ S) (ctr η₀ : ℝ) (hg : 0 < O.gap) (b : Bool) :
+    clsFrac O ctr η₀ b * clsShift O ctr b = clsSig O ctr η₀ b := by
   unfold clsFrac clsShift clsSig
   field_simp
 
-/-- `σ_b ≥ (2/5)·sig²`: the margin is at least `sig`, and `voteSlack` takes four fifths of `sig`. -/
-lemma clsSig_ge (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    2 / 5 * sig η₀ ^ 2 ≤ clsSig O η₀ b := by
-  have hr := clsRate_le O hη b
-  unfold clsSig voteSlack sig at *
-  nlinarith [mul_le_mul hr hr (clsRate_nonneg O b) (le_trans (clsRate_nonneg O b) hr)]
-
-lemma clsSig_pos (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    0 < clsSig O η₀ b :=
-  lt_of_lt_of_le (by have := sig_pos η₀ hη₀; positivity) (clsSig_ge O hη hη₀ b)
-
-lemma clsSig_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    clsSig O η₀ b ≤ 1 / 2 := by
-  have h0 := clsRate_nonneg O b
-  have hr := clsRate_le O hη b
-  have hv := voteSlack_pos η₀ hη₀
-  unfold clsSig
-  have h1 : 0 ≤ 1 / 2 - clsRate O b := by linarith
-  nlinarith [mul_nonneg h1 hv.le]
-
-/-- A redraw hides at most `w_b` of class `b`'s shift, which Markov charges at `w_b/σ_b`. -/
-lemma clsShift_div_clsSig_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (b : Bool) : clsShift O b / clsSig O η₀ b ≤ 5 / sig η₀ := by
-  have hr := clsRate_le O hη b
+/-- `σ_b ≥ sig²/5`: the margin is at least `sig`, `voteSlack` takes four fifths of `sig`, and the
+span is at most `1`. -/
+lemma clsSig_ge (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : sig η₀ ^ 2 / 5 ≤ clsSig O ctr η₀ b := by
+  obtain ⟨hm0, hm1⟩ := margin_mem O h b
   have hs := sig_pos η₀ hη₀
-  have hg := gap_le_one O
-  have hg0 := (gap_pos O (lt_of_le_of_lt hη hη₀)).le
-  have hσ := clsSig_pos O hη hη₀ b
-  rw [div_le_div_iff₀ hσ hs]
-  unfold clsShift clsSig voteSlack sig at *
-  have h1 : 0 ≤ 1 / 2 - clsRate O b := by linarith
-  have h2 : (1 / 2 - η₀) / 5 ≤ 1 / 2 - clsRate O b - 4 * (1 / 2 - η₀) / 5 := by linarith
-  have h3 : O.gap * (1 - 2 * clsRate O b) * (1 / 2 - η₀)
-      ≤ 1 * (1 - 2 * clsRate O b) * (1 / 2 - η₀) := by
-    have : 0 ≤ (1 - 2 * clsRate O b) * (1 / 2 - η₀) := mul_nonneg (by linarith) hs.le
-    nlinarith
-  nlinarith [mul_le_mul_of_nonneg_left h2 (by linarith : (0 : ℝ) ≤ 2 * (1 / 2 - clsRate O b))]
+  have hc := centre_mem_of_straddles O h
+  have he := eta0_nonneg_of_straddles O h
+  have hsp1 : span ctr ≤ 1 := max_le (by linarith) (by linarith)
+  have hsp := span_pos ctr
+  unfold clsSig
+  rw [le_div_iff₀ hsp]
+  have hv : voteSlack η₀ = 4 * sig η₀ / 5 := rfl
+  rw [hv]
+  have h1 : sig η₀ / 5 ≤ 1 / 2 - clsRate O ctr b - 4 * sig η₀ / 5 := by linarith
+  have h2 : sig η₀ * (sig η₀ / 5) ≤ (1 / 2 - clsRate O ctr b) * (1 / 2 - clsRate O ctr b
+      - 4 * sig η₀ / 5) := mul_le_mul hm0 h1 (by positivity) (by linarith)
+  nlinarith
+
+lemma clsSig_pos (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : 0 < clsSig O ctr η₀ b :=
+  lt_of_lt_of_le (by have := sig_pos η₀ hη₀; positivity) (clsSig_ge O h hη₀ b)
+
+lemma clsSig_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : clsSig O ctr η₀ b ≤ 1 := by
+  obtain ⟨hm0, hm1⟩ := margin_mem O h b
+  have hs := sig_pos η₀ hη₀
+  have hv := voteSlack_pos η₀ hη₀
+  have hc := centre_mem_of_straddles O h
+  have he := eta0_nonneg_of_straddles O h
+  have hsp1 : span ctr ≤ 1 := max_le (by linarith) (by linarith)
+  have hsp := span_pos ctr
+  unfold clsSig
+  rw [div_le_one hsp]
+  nlinarith
 
 /-- The vote absorbs at least a fifth of `sig` flipping: the margin is at least `sig`, `voteSlack`
 takes four fifths of it, and `gap ≤ 1`. -/
-lemma clsFrac_ge (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (b : Bool) :
-    sig η₀ / 5 ≤ clsFrac O η₀ b := by
-  have hr := clsRate_le O hη b
+lemma clsFrac_ge (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (b : Bool) : sig η₀ / 5 ≤ clsFrac O ctr η₀ b := by
+  have hm := (margin_mem O h b).1
   have hg := gap_le_one O
-  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+  have hg0 := gap_pos_of_straddles O h hη₀
   have hs := sig_pos η₀ hη₀
   unfold clsFrac
   rw [le_div_iff₀ hg0]
-  unfold voteSlack sig at *
+  unfold voteSlack at *
   nlinarith
 
-lemma fracAt_nonneg (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (p : S) :
-    0 ≤ fracAt O η₀ p := by
-  have hr := le_trans (O.rate_le_eta p) hη
-  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+/-- A redraw hides at most `w_b` of class `b`'s shift, which Markov charges at `w_b/σ_b`. -/
+lemma clsShift_div_clsSig_le (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀)
+    (hη₀ : η₀ < 1 / 2) (b : Bool) : clsShift O ctr b / clsSig O ctr η₀ b ≤ 5 / sig η₀ := by
+  have hg0 := gap_pos_of_straddles O h hη₀
+  have hw := clsShift_pos O h hη₀ b
+  have hs := sig_pos η₀ hη₀
+  have hf := clsFrac_ge O h hη₀ b
+  have hf0 : 0 < clsFrac O ctr η₀ b := lt_of_lt_of_le (by positivity) hf
+  rw [← clsFrac_mul_clsShift O ctr η₀ hg0 b, div_le_div_iff₀ (mul_pos hf0 hw) hs]
+  nlinarith [mul_le_mul_of_nonneg_right hf hw.le]
+
+lemma fracAt_nonneg (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀) (hη₀ : η₀ < 1 / 2)
+    (p : S) : 0 ≤ fracAt O ctr η₀ p := by
+  have hr := crate_le O h p
+  have hg0 := gap_pos_of_straddles O h hη₀
   unfold fracAt voteSlack sig
   exact div_nonneg (by linarith) hg0.le
 
 /-- At the prefix's own fraction the vote leaves exactly `voteSlack` toward its side. -/
-lemma rate_add_gap_fracAt (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (p : S) :
-    O.rate p + O.gap * fracAt O η₀ p = 1 / 2 - voteSlack η₀ := by
-  have hg0 := gap_pos O (lt_of_le_of_lt hη hη₀)
+lemma crate_add_gap_fracAt (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀)
+    (hη₀ : η₀ < 1 / 2) (p : S) :
+    O.crate ctr p + O.gap * fracAt O ctr η₀ p = 1 / 2 - voteSlack η₀ := by
+  have hg0 := gap_pos_of_straddles O h hη₀
   unfold fracAt
   field_simp
   ring
+
+/-- On the language the vote's mean at the prefix's fraction is `voteSlack` above the centre;
+off it, `voteSlack` below. -/
+lemma rate_add_gap_fracAt (O : Oracle μ S) {ctr η₀ : ℝ} (h : O.Straddles ctr η₀)
+    (hη₀ : η₀ < 1 / 2) (p : S) :
+    (O.label p = 1 → 1 - O.rate p - O.gap * fracAt O ctr η₀ p = ctr + voteSlack η₀)
+      ∧ (O.label p = 0 → O.rate p + O.gap * fracAt O ctr η₀ p = ctr - voteSlack η₀) := by
+  have e := crate_add_gap_fracAt O h hη₀ p
+  unfold Oracle.crate at e
+  refine ⟨fun hp => ?_, fun hp => ?_⟩ <;> rw [hp] at e <;> linarith
 
 lemma wMass_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (V : S → ℝ)
     {B : ℝ} (hV0 : ∀ p, 0 ≤ V p) (hVB : ∀ p, V p ≤ B) (v : S) :
@@ -4595,41 +4708,42 @@ theorem wMass_markov (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj
   linarith
 
 /-- The prefixes of class `b` the family flips more than the vote absorbs at. -/
-def clsBadP (O : Oracle μ S) (η₀ : ℝ) (b : Bool) (F : Finset S) (p : S) : Prop :=
-  O.label p = sideClass b ∧ ¬ flipCount O F p ≤ F.card * fracAt O η₀ p
+def clsBadP (O : Oracle μ S) (ctr η₀ : ℝ) (b : Bool) (F : Finset S) (p : S) : Prop :=
+  O.label p = sideClass b ∧ ¬ flipCount O F p ≤ F.card * fracAt O ctr η₀ p
 
 /-- Markov at class `b`'s own fraction: if the family's `w_b`-weighted flips average at most
 `Δ`, its heavy prefixes of class `b` have mass at most `Δ/σ_b`. -/
-theorem clsBad_mass_le (O : Oracle μ S) {η₀ : ℝ} (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+theorem clsBad_mass_le (O : Oracle μ S) {ctr η₀ : ℝ} (hη : O.Straddles ctr η₀)
+    (hη₀ : η₀ < 1 / 2)
     (Dj : Measure S) [IsProbabilityMeasure Dj] (F : Finset S) (b : Bool) (Δ : ℝ) (hΔ : 0 ≤ Δ)
-    (hW : ∑ v ∈ F, wMass O Dj (clsW O b) v ≤ F.card * Δ) :
-    Dj.real {p | clsBadP O η₀ b F p} ≤ Δ / clsSig O η₀ b := by
+    (hW : ∑ v ∈ F, wMass O Dj (clsW O ctr b) v ≤ F.card * Δ) :
+    Dj.real {p | clsBadP O ctr η₀ b F p} ≤ Δ / clsSig O ctr η₀ b := by
   classical
   rcases Nat.eq_zero_or_pos F.card with hF0 | hF
-  · have hz : {p | clsBadP O η₀ b F p} = (∅ : Set S) := by
+  · have hz : {p | clsBadP O ctr η₀ b F p} = (∅ : Set S) := by
       ext p
       simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, clsBadP, not_and, not_not]
       intro _
       simp [flipCount, Finset.card_eq_zero.1 hF0]
     rw [hz, measureReal_empty]
     exact div_nonneg hΔ (clsSig_pos O hη hη₀ b).le
-  have hg := gap_pos O (lt_of_le_of_lt hη hη₀)
+  have hg := gap_pos_of_straddles O hη hη₀
   have hw := clsShift_pos O hη hη₀ b
   have hσ := clsSig_pos O hη hη₀ b
   have hFR : (0 : ℝ) < F.card := by exact_mod_cast hF
-  have hsub : {p | clsBadP O η₀ b F p}
-      ⊆ {p | F.card * clsSig O η₀ b ≤ ∑ v ∈ F, clsW O b p * O.flip v p} := by
+  have hsub : {p | clsBadP O ctr η₀ b F p}
+      ⊆ {p | F.card * clsSig O ctr η₀ b ≤ ∑ v ∈ F, clsW O ctr b p * O.flip v p} := by
     rintro p ⟨hp, hbad⟩
     simp only [Set.mem_setOf_eq]
-    rw [fracAt_eq O η₀ hp] at hbad
-    have hsum : ∑ v ∈ F, clsW O b p * O.flip v p = clsShift O b * flipCount O F p := by
+    rw [fracAt_eq O ctr η₀ hp] at hbad
+    have hsum : ∑ v ∈ F, clsW O ctr b p * O.flip v p = clsShift O ctr b * flipCount O F p := by
       rw [← Finset.mul_sum, ← flipCount_eq_sum]
       unfold clsW; rw [if_pos hp]
-    rw [hsum, ← clsFrac_mul_clsShift O η₀ hg b]
+    rw [hsum, ← clsFrac_mul_clsShift O ctr η₀ hg b]
     have := mul_le_mul_of_nonneg_left (not_le.1 hbad).le hw.le
     linarith
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-  refine le_trans (wMass_markov O Dj (clsW O b) (clsW_nonneg O hη hη₀ b)
+  refine le_trans (wMass_markov O Dj (clsW O ctr b) (clsW_nonneg O hη hη₀ b)
     (clsW_le O hη hη₀ b) F (by positivity)) ?_
   rw [div_le_div_iff₀ (by positivity) hσ]
   nlinarith
