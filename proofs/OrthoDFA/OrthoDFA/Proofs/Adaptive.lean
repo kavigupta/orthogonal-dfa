@@ -107,10 +107,6 @@ lemma mq_mean_centred (O : Oracle μ S) (w : S) :
 lemma eta_nonneg (O : Oracle μ S) : 0 ≤ O.η :=
   le_trans (O.rate_nonneg (1 : S)) (O.rate_le_eta 1)
 
-/-- How far a flip moves a read's mean, `1 − ηIn − ηOut`.  A class no string is in leaves its
-rate unconstrained, hence the clamps. -/
-noncomputable def Oracle.gap (O : Oracle μ S) : ℝ := 1 - max O.ηIn 0 - max O.ηOut 0
-
 lemma gap_ge (O : Oracle μ S) : 1 - 2 * O.η ≤ O.gap := by
   have h0 := eta_nonneg O
   unfold Oracle.gap

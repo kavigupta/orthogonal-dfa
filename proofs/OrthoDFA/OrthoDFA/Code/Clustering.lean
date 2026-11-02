@@ -112,6 +112,11 @@ true bit by at least that much. -/
 noncomputable def Oracle.η {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : ℝ :=
   max O.ηIn O.ηOut
 
+/-- How far a flip moves a read's mean, `1 − ηIn − ηOut`.  A class no string is in leaves its
+rate unconstrained, hence the clamps. -/
+noncomputable def Oracle.gap {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : ℝ :=
+  1 - max O.ηIn 0 - max O.ηOut 0
+
 /-- Membership as a bit, `ℓ(w) = 1[w ∈ L]`. -/
 noncomputable def Oracle.label {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : S → ℝ :=
   Set.indicator O.L 1

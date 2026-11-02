@@ -446,12 +446,14 @@ pool and a half elsewhere, twice the redraw fraction, and on a named population 
 reading it through one side of the hash, and leaves at most `2·indecisionLimit` of each
 undecided.
 
-The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
-`min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
-it, never from `O.η`.  The gate reads each class's rate at `η₀`, so it needs none of them.
+The algorithm is not told the noise rates, only `η₀`, whose signal `½ − η₀` is a quarter of the
+gap `1 − ηIn − ηOut` or less, and every computed field of `State` is solved from it.  The gate
+estimates where the two rates sit from the uniform pool's strongly decided prefixes, trying the
+band at every centre, so it needs neither rate.
 
-The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; the uniform pool is a population; the populations, the harvested strings and
+The hypotheses, in the order they appear: the gap is at least `4·(½ − η₀)`, which has signal;
+the uniform pool is a population holding at least `2·εcov` of each class, so that a cut wrong on
+`εcov` of it is not vacuous; the populations, the harvested strings and
 the suffix measure are supported on a `Flat` pair of sets; no string has more than `ρ` of a tame
 population and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`,
 `εs` and `δ` are in range; and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits
@@ -463,9 +465,11 @@ def ClusteringCorrect : Prop :=
     (H : J → Finset S) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ ρ pAP crossLimit k : ℝ),
-  O.η ≤ η₀ →
+  4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
+  2 * εcov ≤ (D uni).real {p | p ∈ O.L} →
+  2 * εcov ≤ (D uni).real {p | p ∉ O.L} →
   tame ⊆ populations →
   Flat Pre Suf →
   (∀ j, ∀ p ∈ H j, p ∈ Pre) →
