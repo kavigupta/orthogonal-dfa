@@ -322,7 +322,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hρsfcap : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ
-      ∧ PassableAt O η₀ populations Dsf indecisionLimit εcov α δ ρ ρsf pAP hsz B
+      ∧ PassableAt O η₀ populations Dsf indecisionLimit εcov α δ ρ ρsf pAP
+          (shiftBudget η₀ indecisionLimit εcov) (rejFrac η₀ indecisionLimit εcov εs)
+          (shiftBudget η₀ indecisionLimit εcov) hsz B
       ∧ |B.centre - O.cmid| ≤ sig η₀ / 5
       ∧ B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
       ∧ B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
@@ -454,12 +456,11 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   have hκv : 8 ≤ (κ : ℝ) * voteSlack η₀ := h5
   refine ⟨B, Finset.mem_filter.2 ⟨hsched, ⟨?_, ?_, ?_, ?_⟩⟩, ⟨9 * pAP / 20, qa, qr,
     cutBudget η₀ indecisionLimit εcov / 2,
-    shiftBudget η₀ indecisionLimit εcov, shiftBudget η₀ indecisionLimit εcov,
     cleanLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
     heavyLevel η₀ populations indecisionLimit εcov δ pAP crossLimit,
     apFloor pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit),
     δ / 16, δ / 16, indecisionLimit / 8, min εcov (1 / 2) / 32,
-    5 / 8 * cutBudget η₀ indecisionLimit εcov, rejFrac η₀ indecisionLimit εcov εs,
+    5 / 8 * cutBudget η₀ indecisionLimit εcov,
     hoeffDev m (δ / (32 * populations.card
       * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3))),
     Real.log (128 * (populations.card : ℝ)

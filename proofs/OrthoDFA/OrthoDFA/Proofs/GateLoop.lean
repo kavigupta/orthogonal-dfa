@@ -2487,8 +2487,8 @@ the oracle's rates, the suffix distribution's findability and the error budget; 
 enters.  The count rule's heavy rows are charged at `θ = 15/16` of the table budget `Δ`, in the
 count rule's own shift units, and each class's heavy prefixes at that class's rates. -/
 def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : Measure S)
-    (indecisionLimit εcov α δ ρ ρsf pAP : ℝ) (hsz : ℕ) (B : State) : Prop :=
-  ∃ (tap qa qr E Δ g u x a e1 e2 lF lG lmis c t L θ : ℝ) (r rs G : ℕ),
+    (indecisionLimit εcov α δ ρ ρsf pAP Δ c g : ℝ) (hsz : ℕ) (B : State) : Prop :=
+  ∃ (tap qa qr E u x a e1 e2 lF lG lmis t L θ : ℝ) (r rs G : ℕ),
     0 < B.npref ∧ 2 ≤ B.k ∧ 0 < indecisionLimit ∧ indecisionLimit ≤ 1 / 2
     ∧ 0 ≤ tap ∧ 0 < Δ ∧ 0 < g ∧ g ≤ Δ ∧ 0 ≤ pAP ∧ 0 ≤ lmis
     -- the samplers redraw at most a `c` fraction of the prefix draws
