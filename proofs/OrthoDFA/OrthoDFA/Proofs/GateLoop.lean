@@ -2184,6 +2184,84 @@ lemma gateRoom_facts (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) :
   unfold gateRoom
   refine ⟨by linarith, by linarith, le_rfl⟩
 
+/-- The top count clears the gate's levels: their log over `K`, the levels' share of the
+room. -/
+lemma solved_level_room (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
+    (hsig : η₀ < 1 / 2) (hη0 : 0 ≤ η₀) (hε : 0 < εcov) (hα : 0 < α) (hα1 : α ≤ 1)
+    (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
+    200 * (gateDevD η₀ + 1) ^ 2
+        * (Real.log (9 * ((populations.card : ℝ)
+            * ((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1)) / α)
+          + 4 * Real.log (2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
+            hsz : ℝ) + 2))
+      ≤ 9 * gateRoom η₀ indecisionLimit εcov ^ 2
+        * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)
+    ∧ 1 ≤ 9 * ((populations.card : ℝ)
+            * ((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1)) / α := by
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
+  set κ1 : ℝ := (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1 with hκ1def
+  have hc2 : ⌈gateLogCount (200 / 9 * (gateDevD η₀ + 1) ^ 2 / gateRoom η₀ indecisionLimit εcov ^ 2)
+        (4 * Real.sqrt (Real.sqrt (9 * ((populations.card : ℝ) * κ1) / α)))⌉₊ ≤ m := by
+    rw [hmdef, prefCount, hκ1def, ← mul_assoc]; omega
+  have hmR1 : (1 : ℝ) ≤ m := by
+    have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      (hsz := hsz) η₀ populations εcov δ α pAP
+    exact_mod_cast this
+  have hm0 : (0 : ℝ) < m := by linarith
+  obtain ⟨hgR0, hgR1, -⟩ := gateRoom_facts η₀ indecisionLimit εcov hε
+  set gR : ℝ := gateRoom η₀ indecisionLimit εcov with hgRdef
+  set D : ℝ := gateDevD η₀ with hDdef
+  obtain ⟨-, hD0, -⟩ := gateDev_pos hη0 hsig
+  rw [← hDdef] at hD0
+  have hκ1 : 1 ≤ κ1 := by rw [hκ1def]; linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤
+    (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ))]
+  set cg : ℝ := (populations.card : ℝ) * κ1 with hcgdef
+  have hcg : 1 ≤ cg := by rw [hcgdef]; nlinarith
+  set K : ℝ := 200 / 9 * (D + 1) ^ 2 / gR ^ 2 with hKdef
+  set q : ℝ := 9 * cg / α with hqdef
+  set kk : ℝ := 4 * Real.sqrt (Real.sqrt q) with hkkdef
+  have hq1 : 1 ≤ q := by rw [hqdef, le_div_iff₀ hα]; linarith
+  have hkk4 : 4 ≤ kk := by
+    have : 1 ≤ Real.sqrt (Real.sqrt q) := Real.one_le_sqrt.2 (Real.one_le_sqrt.2 hq1)
+    rw [hkkdef]; linarith
+  have hK4 : 4 ≤ K := by
+    rw [hKdef, le_div_iff₀ (by positivity)]
+    have h1 : gR ^ 2 ≤ 1 / 16 := by nlinarith only [hgR0, hgR1]
+    have h2 : 1 ≤ (D + 1) ^ 2 := by nlinarith only [hD0]
+    linarith only [h1, h2]
+  have hy : 2 ≤ Real.log (4 * K * kk) := by
+    have h64 : Real.log 64 ≤ Real.log (4 * K * kk) :=
+      Real.log_le_log (by norm_num) (by
+        have := mul_le_mul hK4 hkk4 (by norm_num) (by linarith)
+        linarith only [this])
+    have e64 : Real.log 64 = 6 * Real.log 2 := by
+      rw [show (64 : ℝ) = 2 ^ 6 by norm_num, Real.log_pow]; norm_num
+    linarith [Real.log_two_gt_d9]
+  have hP2 : 4 * K * Real.log (kk * m) ≤ m := by
+    refine mul_log_mul_le (by positivity) (by positivity) hy ?_
+    exact le_trans (Nat.le_ceil _) (by exact_mod_cast hc2)
+  set Λ : ℝ := Real.log q + 4 * Real.log (2 * m + 2) with hΛ
+  have hΛkk : Λ ≤ 4 * Real.log (kk * m) := by
+    have hl4 : Real.log (Real.sqrt (Real.sqrt q)) = Real.log q / 4 := by
+      rw [Real.log_sqrt (Real.sqrt_nonneg _), Real.log_sqrt (by linarith)]; ring
+    have hsq0 : 0 < Real.sqrt (Real.sqrt q) := by positivity
+    have e : Real.log (kk * m) = Real.log 4 + Real.log q / 4 + Real.log m := by
+      rw [hkkdef, Real.log_mul (by positivity) (by positivity),
+        Real.log_mul (by norm_num) hsq0.ne', hl4]
+    have h4m : Real.log (2 * (m : ℝ) + 2) ≤ Real.log 4 + Real.log m := by
+      rw [← Real.log_mul (by norm_num) (by positivity)]
+      exact Real.log_le_log (by linarith) (by linarith)
+    rw [hΛ, e]; linarith
+  refine ⟨?_, hq1⟩
+  have h1 : K * Λ ≤ m := by
+    have := mul_le_mul_of_nonneg_left hΛkk (by linarith : 0 ≤ K)
+    linarith only [this, hP2]
+  rw [hKdef] at h1
+  have e : 200 / 9 * (D + 1) ^ 2 / gR ^ 2 * Λ * (9 * gR ^ 2) = 200 * (D + 1) ^ 2 * Λ := by
+    field_simp
+  have := mul_le_mul_of_nonneg_right h1 (by positivity : (0 : ℝ) ≤ 9 * gR ^ 2)
+  linarith
+
 set_option maxHeartbeats 2000000 in
 /-- The top rung's gate clears its charge and its deviations at every count of draws its
 redraws allow. -/
@@ -2230,9 +2308,6 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
         * Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 3) / δ)
         / gateRoom η₀ indecisionLimit εcov ^ 2⌉₊ ≤ m := by
     rw [hmdef, prefCount, ← hMdef]; omega
-  have hc2 : ⌈gateLogCount (200 / 9 * (gateDevD η₀ + 1) ^ 2 / gateRoom η₀ indecisionLimit εcov ^ 2)
-        (4 * Real.sqrt (Real.sqrt (9 * ((populations.card : ℝ) * κ1) / α)))⌉₊ ≤ m := by
-    rw [hmdef, prefCount, hκ1def, ← mul_assoc]; omega
   have hmR1 : (1 : ℝ) ≤ m := by
     have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
       (hsz := hsz) η₀
@@ -2275,54 +2350,15 @@ lemma solved_gate (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     have := mul_le_mul_of_nonneg_left ht hW0.le
     linarith
   -- the levels' deviations, against the rest
-  set K : ℝ := 200 / 9 * (D + 1) ^ 2 / gR ^ 2 with hKdef
-  have hκ1 : 1 ≤ κ1 := by rw [hκ1def]; linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤
-    (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ))]
+  obtain ⟨hKΛ, hq1⟩ := solved_level_room (εs := εs) (hsz := hsz) (pAP := pAP)
+    (crossLimit := crossLimit) (indecisionLimit := indecisionLimit) η₀ populations
+    (δ := δ) hsig hη0 hε hα hα1 hcard
+  rw [← hmdef, ← hκ1def] at hKΛ
+  rw [← hκ1def] at hq1
   set cg : ℝ := c * κ1 with hcgdef
-  have hcg : 1 ≤ cg := by rw [hcgdef]; nlinarith
   set q : ℝ := 9 * cg / α with hqdef
-  set kk : ℝ := 4 * Real.sqrt (Real.sqrt q) with hkkdef
-  have hq1 : 1 ≤ q := by rw [hqdef, le_div_iff₀ hα]; linarith
-  have hkk4 : 4 ≤ kk := by
-    have : 1 ≤ Real.sqrt (Real.sqrt q) := Real.one_le_sqrt.2 (Real.one_le_sqrt.2 hq1)
-    rw [hkkdef]; linarith
-  have hK4 : 4 ≤ K := by
-    rw [hKdef, le_div_iff₀ (by positivity)]
-    have h1 : gR ^ 2 ≤ 1 / 16 := by nlinarith only [hgR0, hgR1]
-    have h2 : 1 ≤ (D + 1) ^ 2 := by nlinarith only [hD0]
-    linarith only [h1, h2]
-  have hy : 2 ≤ Real.log (4 * K * kk) := by
-    have h64 : Real.log 64 ≤ Real.log (4 * K * kk) :=
-      Real.log_le_log (by norm_num) (by
-        have := mul_le_mul hK4 hkk4 (by norm_num) (by linarith)
-        linarith only [this])
-    have e64 : Real.log 64 = 6 * Real.log 2 := by
-      rw [show (64 : ℝ) = 2 ^ 6 by norm_num, Real.log_pow]; norm_num
-    linarith [Real.log_two_gt_d9]
-  have hP2 : 4 * K * Real.log (kk * m) ≤ m := by
-    refine mul_log_mul_le (by positivity) (by positivity) hy ?_
-    exact le_trans (Nat.le_ceil _) (by exact_mod_cast hc2)
   set Λ : ℝ := Real.log q + 4 * Real.log (2 * m + 2) with hΛ
-  have hΛkk : Λ ≤ 4 * Real.log (kk * m) := by
-    have hl4 : Real.log (Real.sqrt (Real.sqrt q)) = Real.log q / 4 := by
-      rw [Real.log_sqrt (Real.sqrt_nonneg _), Real.log_sqrt (by linarith)]; ring
-    have hsq0 : 0 < Real.sqrt (Real.sqrt q) := by positivity
-    have e : Real.log (kk * m) = Real.log 4 + Real.log q / 4 + Real.log m := by
-      rw [hkkdef, Real.log_mul (by positivity) (by positivity),
-        Real.log_mul (by norm_num) hsq0.ne', hl4]
-    have h4m : Real.log (2 * (m : ℝ) + 2) ≤ Real.log 4 + Real.log m := by
-      rw [← Real.log_mul (by norm_num) (by positivity)]
-      exact Real.log_le_log (by linarith) (by linarith)
-    rw [hΛ, e]; linarith
-  have hKΛ : 200 * (D + 1) ^ 2 * Λ ≤ 9 * gR ^ 2 * m := by
-    have h1 : K * Λ ≤ m := by
-      have := mul_le_mul_of_nonneg_left hΛkk (by linarith : 0 ≤ K)
-      linarith only [this, hP2]
-    rw [hKdef] at h1
-    have e : 200 / 9 * (D + 1) ^ 2 / gR ^ 2 * Λ * (9 * gR ^ 2) = 200 * (D + 1) ^ 2 * Λ := by
-      field_simp
-    have := mul_le_mul_of_nonneg_right h1 (by positivity : (0 : ℝ) ≤ 9 * gR ^ 2)
-    linarith
+  rw [← hgRdef, ← hDdef] at hKΛ
   have hΛ0 : 0 ≤ Λ := by
     have : 0 ≤ Real.log q := Real.log_nonneg hq1
     have : 0 ≤ Real.log (2 * (m : ℝ) + 2) := Real.log_nonneg (by linarith)

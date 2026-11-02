@@ -117,7 +117,11 @@ theorem named_retAtK (O : Oracle μ S) (populations : Finset J) (uni : J)
       (fracAt O B.centre η₀)
       kmin kmax)
     (h10 : streams H uni x ∉ sidesDead (nearestClusterer B.centre) O populations j B B.npref t)
-    (h11 : poolGood B.nsuff rs (streams H uni x)) :
+    (h11 : poolGood B.nsuff rs (streams H uni x))
+    (hfit : centreFits O.mq η₀ (gateLevel α populations B)
+      B (clusterBy (nearestClusterer B.centre) O.mq populations (streams H uni x) B)
+      (certOf (prefixesAt populations B.npref (streams H uni x)) uni B.npref (streams H uni x))
+      (oracleNoise (streams H uni x))) :
     streams H uni x ∈ retAtK (nearestClusterer B.centre) O populations uni η₀ indecisionLimit εcov α
       B j := by
   classical
@@ -316,7 +320,7 @@ theorem named_retAtK (O : Oracle μ S) (populations : Finset J) (uni : J)
     l lF lG lmis t (fun b => namedQ O B.centre η₀ Δ L θ (allHarvest H).card G N b) r rs kmin kmax
       hkmin
     hlF hlmis hlohi ht hkpos hpool hgate hsize hCn hM hNF
-    (fun b => (mul_comm _ _).trans_le (hNG b)) h8 h10 h11
+    (fun b => (mul_comm _ _).trans_le (hNG b)) h8 h10 h11 hfit
   exact ⟨hret.2.1, hret.2.2⟩
 
 lemma card_poolAt_le (M : ℕ) (r : Run Ω S J) : (poolAt M r).card ≤ M + 1 :=
@@ -461,8 +465,11 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E) :
     (runMeasure μ D Dsf).real
         (({x | streams H uni x ∉ retAtK (nearestClusterer B.centre) O populations uni η₀
-          indecisionLimit εcov
-          α B j} \ streams H uni ⁻¹' nearShift O populations B Δ a)
+          indecisionLimit εcov α B j ∧ centreFits O.mq η₀ (gateLevel α populations B)
+            B (clusterBy (nearestClusterer B.centre) O.mq populations (streams H uni x) B)
+            (certOf (prefixesAt populations B.npref (streams H uni x)) uni B.npref (streams H uni x))
+            (oracleNoise (streams H uni x))}
+          \ streams H uni ⁻¹' nearShift O populations B Δ a)
           \ streams H uni ⁻¹' poolEvents O populations B pAP tap rs)
       ≤ namedFail l lmis E ρ t L θ r G B := by
   classical
@@ -483,10 +490,13 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   set Ec2 : Set (Draws Ω S J) := coinCardBad H K G j with hEc2
   set Eh : Set (Draws Ω S J) := {x | x.1 ∈ hitsBad H K (N + r) (θ * N) uni j} with hEh
   have hsub : ({x | Y x ∉ retAtK (nearestClusterer B.centre) O populations uni η₀ indecisionLimit
-    εcov α B j}
+    εcov α B j ∧ centreFits O.mq η₀ (gateLevel α populations B)
+        B (clusterBy (nearestClusterer B.centre) O.mq populations (Y x) B)
+        (certOf (prefixesAt populations B.npref (Y x)) uni B.npref (Y x))
+        (oracleNoise (Y x))}
         \ Y ⁻¹' nearShift O populations B Δ a) \ Y ⁻¹' poolEvents O populations B pAP tap rs
       ⊆ Ec1 ∪ Ec2 ∪ Y ⁻¹' Et ∪ Eh ∪ Y ⁻¹' El ∪ Y ⁻¹' Ed := by
-    rintro x ⟨⟨hx, h3⟩, hP⟩
+    rintro x ⟨⟨⟨hx, hfit⟩, h3⟩, hP⟩
     by_contra hc
     simp only [Set.mem_union, not_or, Set.mem_preimage] at hc
     obtain ⟨⟨⟨⟨⟨h4, h5⟩, h6⟩, h7⟩, h8⟩, h10⟩ := hc
@@ -496,7 +506,7 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     have h11' : poolGood M rs (Y x) := by by_contra h; exact h11 h
     exact hx (named_retAtK O populations uni huni H j hj hju B x hN2 hstr hη₀ εcov α hα0 hα1
       l lF lG lmis Δ t L θ a pAP tap r rs kk kk G (by omega) hscreen ha hlF hlmis hΔ hL hθ.le hlohi
-      ht (by omega) hpool hgate hszG hNF hNG h1 h2 h3 h4 h5 h6' h7 h8 h10 h11')
+      ht (by omega) hpool hgate hszG hNF hNG h1 h2 h3 h4 h5 h6' h7 h8 h10 h11' hfit)
   -- each event's price
   have hsT : ∀ g, ∀ j ∈ populations, ∀ᵐ y ∂(sideLawT H uni D g j), ∀ i, y i ∈ Pre :=
     fun g => ae_sideLawT_mem H uni D g populations hsupp hH

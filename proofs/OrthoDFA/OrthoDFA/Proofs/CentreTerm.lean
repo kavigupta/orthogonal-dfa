@@ -636,6 +636,299 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     exact (hmisle (κ - mc) hmc').trans (hmisκ (κ - mc) hmc')
   · rw [hmdef]; linarith [hround]
 
+/-- `log (1/sizeLevel c N)` is `log (1/c)` and at most `4 log (2N + 2)` more. -/
+lemma log_sizeLevel_one_le {c : ℝ} (hc : 0 < c) (N : ℕ) :
+    Real.log (1 / sizeLevel c N) ≤ Real.log (1 / c) + 4 * Real.log (2 * N + 2) := by
+  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
+  have e : 1 / sizeLevel c N = 1 / c * (((N : ℝ) + 1) * ((N : ℝ) + 2)) := by
+    unfold sizeLevel; field_simp
+  rw [e, Real.log_mul (by positivity) (by positivity)]
+  have hle : ((N : ℝ) + 1) * ((N : ℝ) + 2) ≤ (2 * N + 2) ^ 4 := by
+    have h1 : (1 : ℝ) ≤ 2 * N + 2 := by linarith
+    nlinarith [pow_le_pow_right₀ h1 (show 2 ≤ 4 by norm_num)]
+  have := Real.log_le_log (by positivity) hle
+  rw [Real.log_pow] at this
+  push_cast at this
+  linarith
+
+/-- `√(sΛ/2)` is within `gap·s/40` once `s` is `800Λ/gap²`. -/
+lemma sqrt_le_gap_mul {s Λ γ : ℝ} (hs : 0 ≤ s) (hγ : 0 ≤ γ) (h : 800 * Λ ≤ γ ^ 2 * s) :
+    Real.sqrt (s * Λ / 2) ≤ γ / 40 * s := by
+  rw [show γ / 40 * s = Real.sqrt ((γ / 40 * s) ^ 2) from (Real.sqrt_sq (by positivity)).symm]
+  refine Real.sqrt_le_sqrt ?_
+  have := mul_le_mul_of_nonneg_left h hs
+  nlinarith
+
+set_option maxHeartbeats 2000000 in
+/-- At the top count the centre check's numbers hold: the flip-heavy share `εcov/32` with the
+misses' `εcov/25` fits the contamination the check allows, the deviations fit `gap/20`, the
+misses' rate sits under half of `εcov/25`, and the tails sum to `δ/16`. -/
+lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP : ℝ}
+    (hη₀ : η₀ < 1 / 2) (hgap : 4 * sig η₀ ≤ O.gap) (hεcov : 0 < εcov) (hε4 : εcov ≤ 1 / 4)
+    (hεs : 0 < εs) (hind : 0 < indecisionLimit) (hα : 0 < α) (hα1 : α ≤ 1) (hδ : 0 < δ)
+    (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (B : State)
+    (hBm : B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (hBk : B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
+    (hstr : O.Straddles B.centre η₀) :
+    (∀ b, flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+        (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b * (33 / 32)
+        + rejFrac η₀ indecisionLimit εcov εs ≤ εcov / 32)
+    ∧ (∀ b, 0 ≤ flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+        (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b)
+    ∧ (∀ s : ℕ, (B.npref : ℝ) * εcov / 2 ≤ s →
+        hoeffDev s (gateLevel α populations B) + hoeffDev s (δ / 128) ≤ O.gap / 20 * s)
+    ∧ 10 ≤ ((B.k - 1 : ℕ) : ℝ) * sig η₀
+    ∧ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 50
+    ∧ 2 * Real.exp (-((B.npref : ℝ) * relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov)))
+        + (Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre (shiftBudget η₀ indecisionLimit
+              εcov) (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true
+              + flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true / 32)
+              (flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true)))
+          + Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre (shiftBudget η₀ indecisionLimit
+              εcov) (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) false
+              + flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) false
+                / 32)
+              (flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
+                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov)
+                false))))
+        + 2 * Real.exp (-((B.npref : ℝ) * relRate (εcov / 25)
+            (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2))))
+        + 2 * (δ / 128) ≤ δ / 16 := by
+  have hs := sig_pos η₀ hη₀
+  have hg1 := gap_le_one O
+  have hs4 : sig η₀ ≤ 1 / 4 := by linarith
+  have hη0 : 0 ≤ η₀ := by rw [sig] at hs4; linarith
+  set N : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hNdef
+  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
+  set Δ : ℝ := shiftBudget η₀ indecisionLimit εcov with hΔdef
+  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hcdef
+  have hΔ0 : 0 < Δ := shiftBudget_pos η₀ hη₀ hεcov hind
+  have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hind
+  have hNR : (B.npref : ℝ) = N := by rw [hBm]
+  have hN1 : (1 : ℝ) ≤ N := by
+    have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit)
+      (crossLimit := crossLimit) (hsz := hsz) η₀ populations εcov δ α pAP
+    exact_mod_cast this
+  have hkκ : ((B.k - 1 : ℕ) : ℝ) = κ := by rw [hBk]; simp
+  have hκv : 8 ≤ (κ : ℝ) * voteSlack η₀ := famCount_wide (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit) (δ := δ) η₀ populations hη0 hη₀ hεcov hind
+  have hκs : 10 ≤ (κ : ℝ) * sig η₀ := by
+    have e : (κ : ℝ) * voteSlack η₀ = 4 / 5 * ((κ : ℝ) * sig η₀) := by rw [voteSlack]; ring
+    linarith
+  have hs2 : sig η₀ ^ 2 ≤ 1 / 16 := by nlinarith
+  -- the shift budget and the redraws are small against `εcov`
+  have hΔle : Δ ≤ sig η₀ ^ 2 * εcov / 512 := by
+    have h1 : shiftScale indecisionLimit εcov ≤ εcov := (min_le_left _ _).trans (min_le_left _ _)
+    rw [hΔdef, shiftBudget]
+    have := mul_le_mul_of_nonneg_left h1 (sq_nonneg (sig η₀))
+    linarith
+  have hcle : c ≤ εcov / 16384 := by
+    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
+    have h2 : min εcov (1 / 2) ≤ εcov := min_le_left _ _
+    have h3 : 0 ≤ min εcov (1 / 2) := le_min hεcov.le (by norm_num)
+    have := mul_le_mul hs2 h2 h3 (by norm_num)
+    rw [← hcdef] at h1
+    linarith
+  -- the flip-heavy mass
+  have hw : ∀ b, 4 * sig η₀ ^ 2 ≤ clsShift O B.centre b := clsShift_ge_of_gap O hstr hη₀ hgap
+  have hw1 : ∀ b, clsShift O B.centre b ≤ 1 := clsShift_le_one O hstr hη₀
+  have hq : ∀ b, flipQ O B.centre Δ c Δ b ≤ 5 * εcov / 256 + 20 * c := by
+    intro b
+    have hwp : 0 < clsShift O B.centre b := by nlinarith [hw b]
+    unfold flipQ
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [hw b, hΔle]
+  have hqge : ∀ b, 40 * Δ ≤ flipQ O B.centre Δ c Δ b := by
+    intro b
+    have hwp : 0 < clsShift O B.centre b := by nlinarith [hw b]
+    unfold flipQ
+    rw [le_div_iff₀ (by positivity)]
+    nlinarith [hw1 b, mul_nonneg hc0.le hwp.le]
+  have hq0 : ∀ b, 0 ≤ flipQ O B.centre Δ c Δ b := fun b => le_trans (by positivity) (hqge b)
+  -- the references' count, which the strong sides' reads and the class tails take
+  have hc1 : ⌈50 * (gateDevT η₀ + gateDevU η₀) ^ 2
+        * Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 3) / δ)
+        / gateRoom η₀ indecisionLimit εcov ^ 2⌉₊ ≤ N := by
+    rw [hNdef, prefCount, ← hMdef]; omega
+  set W : ℝ := gateDevT η₀ + gateDevU η₀ with hWdef
+  set L₁ : ℝ := Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 3) / δ) with hL₁
+  have hgR : gateRoom η₀ indecisionLimit εcov = εcov / 5 := by
+    rw [gateRoom, min_eq_left (by linarith)]
+  have hP1 : 50 * W ^ 2 * L₁ ≤ N * (εcov / 5) ^ 2 := by
+    have := le_trans (Nat.le_ceil _) (by exact_mod_cast hc1 :
+      ((⌈50 * W ^ 2 * L₁ / gateRoom η₀ indecisionLimit εcov ^ 2⌉₊ : ℕ) : ℝ) ≤ N)
+    rw [hgR, div_le_iff₀ (by positivity)] at this
+    exact this
+  have hgG : gateGap η₀ ≤ 2 * sig η₀ := by
+    have := gateKappa_pos hη₀
+    unfold gateGap gateA; rw [sig]; linarith
+  have hgG0 := gateGap_pos hη0 hη₀
+  have hU : 9 / 20 ≤ gateDevU η₀ * sig η₀ ^ 2 := by
+    unfold gateDevU
+    rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+    nlinarith [mul_le_mul hgG hgG hgG0.le (by linarith)]
+  have hD : 9 / 10 ≤ gateDevD η₀ * sig η₀ ^ 2 := by
+    unfold gateDevD
+    rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+    nlinarith [mul_le_mul hgG hgG hgG0.le (by linarith)]
+  obtain ⟨hT0, hD0, hU0⟩ := gateDev_pos hη0 hη₀
+  have hW : 81 / 400 ≤ W ^ 2 * sig η₀ ^ 4 := by
+    have h1 : 9 / 20 ≤ W * sig η₀ ^ 2 := by
+      rw [hWdef]; nlinarith [mul_pos hT0 (pow_pos hs 2)]
+    nlinarith [h1]
+  set LT : ℝ := Real.log (128 / δ) with hLT
+  have hM1 : (1 : ℝ) ≤ M := by
+    have h : 0 < ⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ := Nat.ceil_pos.2 (by positivity)
+    have : 1 ≤ M := by rw [hMdef, poolCount, ← hκdef]; omega
+    exact_mod_cast this
+  have hLmaster : 10 * LT ≤ N * εcov ^ 2 * sig η₀ ^ 4 / 25 := by
+    rcases le_or_gt LT 0 with h | h
+    · have : 0 ≤ N * εcov ^ 2 * sig η₀ ^ 4 / 25 := by positivity
+      linarith
+    · have hLL : LT ≤ L₁ := Real.log_le_log (by positivity)
+        (div_le_div_of_nonneg_right (by nlinarith) hδ.le)
+      have h1 := mul_le_mul_of_nonneg_right hP1 (by positivity : (0 : ℝ) ≤ sig η₀ ^ 4)
+      have h2 : 50 * (81 / 400) * L₁ ≤ 50 * W ^ 2 * L₁ * sig η₀ ^ 4 := by
+        have := mul_le_mul_of_nonneg_left hW (by linarith : (0 : ℝ) ≤ 50 * L₁)
+        linarith
+      nlinarith
+  have hε2 : εcov ^ 2 ≤ εcov / 4 := by nlinarith
+  have hs4' : sig η₀ ^ 4 ≤ sig η₀ ^ 2 / 16 := by nlinarith
+  have hEsκ : Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 50 := by
+    have hEs := famCount_hoeff (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      η₀ populations εcov δ hη₀
+    rw [← hκdef] at hEs
+    set cut : ℝ := cutBudget η₀ indecisionLimit εcov with hcutdef
+    have hcut0 : 0 < cut := cutBudget_pos η₀ hη₀ hεcov hind
+    obtain ⟨hcut1, hcut2, -⟩ := cutBudget_le η₀ indecisionLimit εcov
+    rw [← hcutdef] at hcut1 hcut2
+    have e1 : -2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2 = -(8 * κ * sig η₀ ^ 2 / 25) := by ring
+    rw [e1]
+    have h1 : Real.exp (-(8 * κ * sig η₀ ^ 2 / 25)) ≤ Real.exp (-(2 * Real.log (2 / cut))) :=
+      Real.exp_le_exp.2 (by linarith)
+    have h2 : Real.exp (-(2 * Real.log (2 / cut))) = (cut / 2) ^ 2 := by
+      rw [show -(2 * Real.log (2 / cut)) = -Real.log (2 / cut) + -Real.log (2 / cut) by ring,
+        Real.exp_add, Real.exp_neg, Real.exp_log (by positivity)]
+      field_simp
+    have h3 : (cut / 2) ^ 2 ≤ εcov / 50 := by
+      have : cut ≤ 1 / 40 := by linarith
+      nlinarith
+    linarith
+  refine ⟨fun b => ?_, hq0, ?_, by rw [hkκ]; exact hκs, ?_, ?_⟩
+  · have := hq b
+    nlinarith [hcle]
+  · -- the deviations
+    intro s hs'
+    have hgl : gateLevel α populations B
+        = sizeLevel (α / (9 * ((populations.card : ℝ) * ((κ : ℝ) + 1)))) N := by
+      simp only [gateLevel, hBm, hBk, Nat.cast_add, Nat.cast_one, mul_assoc]
+    obtain ⟨hKΛ, hq1⟩ := solved_level_room (εs := εs) (hsz := hsz) (pAP := pAP)
+      (crossLimit := crossLimit) (indecisionLimit := indecisionLimit) η₀ populations
+      (δ := δ) hη₀ hη0 hεcov hα hα1 hcard
+    rw [← hNdef, ← hκdef, hgR] at hKΛ
+    rw [← hκdef] at hq1
+    set q : ℝ := 9 * ((populations.card : ℝ) * ((κ : ℝ) + 1)) / α with hqdef
+    set Λ : ℝ := Real.log q + 4 * Real.log (2 * (N : ℝ) + 2) with hΛdef
+    have hΛa : Real.log (1 / gateLevel α populations B) ≤ Λ := by
+      rw [hgl]
+      have hc' : 0 < α / (9 * ((populations.card : ℝ) * ((κ : ℝ) + 1))) := by positivity
+      have := log_sizeLevel_one_le hc' N
+      rwa [one_div_div] at this
+    have hΛ : 100 * Λ ≤ sig η₀ ^ 2 * εcov * N := by
+      rcases le_or_gt Λ 0 with h | h
+      · have : 0 ≤ sig η₀ ^ 2 * εcov * N := by positivity
+        linarith
+      · have hX : 81 / 100 ≤ (gateDevD η₀ + 1) ^ 2 * sig η₀ ^ 4 := by
+          have h1 : 9 / 10 ≤ (gateDevD η₀ + 1) * sig η₀ ^ 2 := by nlinarith [hD]
+          nlinarith [h1]
+        have h2 := mul_le_mul_of_nonneg_right hKΛ (by positivity : (0 : ℝ) ≤ sig η₀ ^ 4)
+        have h3 : 200 * (81 / 100) * Λ ≤ 200 * (gateDevD η₀ + 1) ^ 2 * Λ * sig η₀ ^ 4 := by
+          have := mul_le_mul_of_nonneg_left hX (by linarith : (0 : ℝ) ≤ 200 * Λ)
+          linarith
+        have h4 : 9 * (εcov / 5) ^ 2 * N * sig η₀ ^ 4 ≤ sig η₀ ^ 2 * εcov * N := by
+          have a1 : (εcov / 5) ^ 2 ≤ εcov / 100 := by nlinarith only [hε4, hεcov]
+          have a2 := mul_le_mul a1 hs4' (by positivity) (by positivity)
+          have a3 := mul_le_mul_of_nonneg_left a2 (by positivity : (0 : ℝ) ≤ 9 * N)
+          have a4 : 0 ≤ sig η₀ ^ 2 * εcov * N := by positivity
+          linarith
+        linarith
+    have hΛT : 100 * LT ≤ sig η₀ ^ 2 * εcov * N := by
+      have : N * εcov ^ 2 * sig η₀ ^ 4 / 25 ≤ sig η₀ ^ 2 * εcov * N / 10 := by
+        have a2 := mul_le_mul hε2 hs4' (by positivity) (by positivity)
+        have a3 := mul_le_mul_of_nonneg_left a2 (by positivity : (0 : ℝ) ≤ N / 25)
+        have a4 : 0 ≤ sig η₀ ^ 2 * εcov * N := by positivity
+        linarith
+      linarith
+    have hsR : (0 : ℝ) ≤ s := Nat.cast_nonneg _
+    have hg0 : 0 ≤ O.gap := by linarith
+    have hsN : (N : ℝ) * εcov / 2 ≤ s := by rw [← hNR]; exact hs'
+    have key : ∀ Λ', 100 * Λ' ≤ sig η₀ ^ 2 * εcov * N → 800 * Λ' ≤ O.gap ^ 2 * s := by
+      intro Λ' h
+      have hg2 : 16 * sig η₀ ^ 2 ≤ O.gap ^ 2 := by nlinarith only [hgap, hs]
+      have := mul_le_mul hg2 hsN (by positivity) (by positivity)
+      linarith
+    have hdT : hoeffDev s (δ / 128) ≤ Real.sqrt (s * LT / 2) :=
+      hoeffDev_le_sqrt (by rw [one_div_div])
+    calc hoeffDev s (gateLevel α populations B) + hoeffDev s (δ / 128)
+        ≤ Real.sqrt (s * Λ / 2) + Real.sqrt (s * LT / 2) :=
+          add_le_add (hoeffDev_le_sqrt hΛa) hdT
+      _ ≤ O.gap / 40 * s + O.gap / 40 * s :=
+          add_le_add (sqrt_le_gap_mul hsR hg0 (key Λ hΛ)) (sqrt_le_gap_mul hsR hg0 (key LT hΛT))
+      _ = O.gap / 20 * s := by ring
+  · rw [hkκ]; exact hEsκ
+  · -- the tails
+    rw [hNR, hkκ]
+    obtain ⟨-, tth, -⟩ := solved_tails (α := α) (crossLimit := crossLimit) (εs := εs) (hsz := hsz)
+      η₀ populations hη0 hη₀ hεcov hind hδ hpAP (by linarith)
+    rw [← hNdef, ← hΔdef] at tth
+    have hδJ : δ / (128 * (populations.card : ℝ)) ≤ δ / 128 :=
+      div_le_div_of_nonneg_left hδ.le (by norm_num) (by linarith)
+    have hN0 : (0 : ℝ) ≤ N := by linarith
+    have tail : ∀ r : ℝ, LT ≤ N * r → Real.exp (-(N * r)) ≤ δ / 128 := fun r h =>
+      exp_neg_le_of_log_le (by positivity) (by rw [one_div_div]; exact h)
+    have hr1 : εcov ^ 2 / 2 ≤ relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov) := by
+      unfold relRate
+      rw [le_div_iff₀ (by linarith)]
+      nlinarith only [pow_pos hεcov 3]
+    have hLN : LT ≤ N * εcov ^ 2 / 250 := by
+      have b1 : sig η₀ ^ 4 ≤ 1 := by nlinarith only [hs4', hs2]
+      have b2 := mul_le_mul_of_nonneg_left b1 (by positivity : (0 : ℝ) ≤ N * εcov ^ 2 / 25)
+      linarith
+    have hLN2 : LT ≤ N * (εcov / 200) := by
+      have b3 := mul_le_mul_of_nonneg_left hε2 hN0
+      have b4 : 0 ≤ N * εcov := by positivity
+      linarith
+    have hT1 : Real.exp (-(N * relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov))) ≤ δ / 128 :=
+      tail _ (le_trans (by nlinarith only [hLN, hN0, sq_nonneg εcov])
+        (mul_le_mul_of_nonneg_left hr1 hN0))
+    have hT2 : ∀ b, Real.exp (-(N * relRate (flipQ O B.centre Δ c Δ b
+        + flipQ O B.centre Δ c Δ b / 32) (flipQ O B.centre Δ c Δ b))) ≤ δ / 128 := by
+      intro b
+      have hqp : 0 < flipQ O B.centre Δ c Δ b := lt_of_lt_of_le (by positivity) (hqge b)
+      have hr2 : Δ / 1056 ≤ relRate (flipQ O B.centre Δ c Δ b + flipQ O B.centre Δ c Δ b / 32)
+          (flipQ O B.centre Δ c Δ b) := by
+        unfold relRate
+        rw [le_div_iff₀ (by positivity)]
+        have := mul_le_mul_of_nonneg_left (hqge b) hqp.le
+        nlinarith only [this, mul_pos hΔ0 hqp]
+      refine le_trans (Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_left hr2 hN0)))
+        (le_trans tth hδJ)
+    have hEs' := hEsκ
+    have hr3 : εcov / 200 ≤ relRate (εcov / 25) (Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2)) := by
+      have h := relRate_anti (l := εcov / 25) (l' := εcov / 25) (Real.exp_pos _).le hEs'
+        (by linarith) le_rfl
+      have e : relRate (εcov / 25) (εcov / 50) = εcov / 200 := by
+        unfold relRate; field_simp; ring
+      linarith
+    have hT3 : Real.exp (-(N * relRate (εcov / 25)
+        (Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2)))) ≤ δ / 128 :=
+      tail _ (le_trans hLN2 (mul_le_mul_of_nonneg_left hr3 hN0))
+    linarith [hT2 true, hT2 false]
+
 end Passable
 
 end OrthoDFA
