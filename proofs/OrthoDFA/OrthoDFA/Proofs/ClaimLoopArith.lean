@@ -99,7 +99,7 @@ lemma loopPool_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
 
 lemma loopCount_inv (ℓ Q A Ae iδ ic iξ ip is : ℝ) :
     loopCount ℓ Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is)
-      = 2 ^ 20 * (Q + 2) * loopΘι Q Ae (1 / ic) (1 / iξ) ^ 2 * ℓ ^ 2
+      = 2 ^ 22 * (Q + 2) * loopΘι Q Ae (1 / ic) (1 / iξ) ^ 2 * ℓ ^ 2
           * log (128 * (loopPool ℓ Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / ip) (1 / 2 - 1 / is) + 1)
             * (8 * (Q + 1) * iδ)) * is ^ 4
         + 2 ^ 27 * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is) ^ 2 * ℓ ^ 2
@@ -544,7 +544,7 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
       _ ≤ 2 ^ 36 * ic ^ 2 * (2 * (is ^ 4 + Q ^ 4 * Ae ^ 2)) := h3
       _ = _ := by ring
   constructor
-  · have : 0 ≤ 2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * log (128 * (PB + 1) * (8 * (Q + 1) * iδ))
+  · have : 0 ≤ 2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * log (128 * (PB + 1) * (8 * (Q + 1) * iδ))
         * is ^ 4 := by positivity
     have : 0 ≤ 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * log Y := by positivity
     positivity
@@ -559,19 +559,19 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
     have f1' : (Q + 1) * (Q + 2) ≤ 6 * Q ^ 2 := by
       have := mul_le_mul a1 a2 (by linarith) (by linarith)
       nlinarith only [this]
-    have b1 : (Q + 1) * (6 * (Q + 2) * (2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
+    have b1 : (Q + 1) * (6 * (Q + 2) * (2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
           * log (128 * (PB + 1) * (8 * (Q + 1) * iδ)) * is ^ 4))
         ≤ 2 ^ 84 * (Q ^ 7 * Ae ^ 2 * ic ^ 2 * (L + Q) ^ 2 * is ^ 4 * log Z) := by
       have m := mul_le_mul (mul_le_mul (mul_le_mul f1 hT1 (sq_nonneg _) (by positivity)) hℓ2'
         (sq_nonneg _) (by positivity)) hlW hlW0 (by positivity)
-      calc (Q + 1) * (6 * (Q + 2) * (2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
+      calc (Q + 1) * (6 * (Q + 2) * (2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
             * log (128 * (PB + 1) * (8 * (Q + 1) * iδ)) * is ^ 4))
-          = 6 * 2 ^ 20 * ((Q + 1) * (Q + 2) ^ 2 * Θι ^ 2 * ℓ ^ 2
+          = 6 * 2 ^ 22 * ((Q + 1) * (Q + 2) ^ 2 * Θι ^ 2 * ℓ ^ 2
             * log (128 * (PB + 1) * (8 * (Q + 1) * iδ))) * is ^ 4 := by ring
-        _ ≤ 6 * 2 ^ 20 * (18 * Q ^ 3 * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2))
+        _ ≤ 6 * 2 ^ 22 * (18 * Q ^ 3 * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2))
             * (25 * (L + Q) ^ 2) * (10 * log Z)) * is ^ 4 :=
           mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left m (by norm_num)) (by positivity)
-        _ = 6 * 18 * 25 * 10 * 2 ^ 54
+        _ = 6 * 18 * 25 * 10 * 2 ^ 56
             * (Q ^ 7 * Ae ^ 2 * ic ^ 2 * (L + Q) ^ 2 * is ^ 4 * log Z) := by ring
         _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
     have b2 : (Q + 1) * (6 * (Q + 2) * (2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * log Y))
@@ -585,9 +585,9 @@ lemma claim_pref_le {L Q A Ae iδ ic iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤
         _ = 6 * 6 * 25 * 95 * 2 ^ 64
             * (Q ^ 2 * (L + Q) ^ 2 * ic ^ 2 * (is ^ 4 + Q ^ 4 * Ae ^ 2) * log X) := by ring
         _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
-    have e : (Q + 1) * (6 * (Q + 2) * (2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
+    have e : (Q + 1) * (6 * (Q + 2) * (2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
           * log (128 * (PB + 1) * (8 * (Q + 1) * iδ)) * is ^ 4 + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * log Y))
-        = (Q + 1) * (6 * (Q + 2) * (2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
+        = (Q + 1) * (6 * (Q + 2) * (2 ^ 22 * (Q + 2) * Θι ^ 2 * ℓ ^ 2
           * log (128 * (PB + 1) * (8 * (Q + 1) * iδ)) * is ^ 4))
           + (Q + 1) * (6 * (Q + 2) * (2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * log Y)) := by ring
     rw [e]
@@ -1002,7 +1002,7 @@ lemma claim_terms_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q
   have hn : n = ⌈32 * log (16 * (Q + 1) * (Q + 2) / (1 / iδ)) / (1 / iξ) ^ 2⌉₊ := rfl
   have haε : aε = 4 * (Ae + 1) / (1 / ic) := rfl
   have hK₁ : K₁ = 36 * S * aε * log (16 * S * (S + 1) / δ') + S + 1 := rfl
-  have hR₀ : R₀ = 2 ^ 20 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ / δ') + 1) / s ^ 4
+  have hR₀ : R₀ = 2 ^ 22 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ / δ') + 1) / s ^ 4
       + 2 ^ 27 * Θ ^ 2 * (log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * (1 / ip))) + 2) := rfl
   have hE₁ : E₁ = (Q + 3) ^ 2 * (2 ^ 20 * Θa * (R₀ + 1) / s
       + 2 ^ 40 * Θι ^ 2 * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ'
@@ -1187,7 +1187,7 @@ lemma claim_terms_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q
     push_cast at this
     linarith
   have hlW0 : 0 ≤ log (256 * P₀ * D) := Real.log_nonneg hWl1
-  have hR₀e : R₀ = 2 ^ 20 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ * D) + 1) * is ^ 4
+  have hR₀e : R₀ = 2 ^ 22 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ * D) + 1) * is ^ 4
       + 2 ^ 27 * Θ ^ 2 * (log Z + 2) := by
     rw [hR₀, hδ'D (256 * P₀), hsis]
     congr 1
@@ -1207,8 +1207,8 @@ lemma claim_terms_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q
   have hR₀ : R₀ ≤ 2 ^ 71 * Rs := by
     rw [hR₀e]
     have hq : Q + 2 ≤ 3 * Q := by linarith
-    have t1 : 2 ^ 20 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ * D) + 1) * is ^ 4
-        ≤ 2 ^ 20 * (3 * Q) * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2)) * (35 * lX) * is ^ 4 := by
+    have t1 : 2 ^ 22 * (Q + 2) * Θι ^ 2 * (log (256 * P₀ * D) + 1) * is ^ 4
+        ≤ 2 ^ 22 * (3 * Q) * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2)) * (35 * lX) * is ^ 4 := by
       gcongr
     have hb : is ^ 4 + Q ^ 4 * Ae ^ 2 ≤ Q ^ 5 * Ae ^ 2 * is ^ 4 := by
       have hs4 : 16 ≤ is ^ 4 := by
@@ -1223,8 +1223,8 @@ lemma claim_terms_le {Q A Ae iδ ic iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q
       have := mul_le_mul_of_nonneg_left hb (by positivity : (0 : ℝ) ≤ ic ^ 2)
       gcongr
       exact hΘ2.trans (mul_le_mul_of_nonneg_left this (by norm_num))
-    have e1 : 2 ^ 20 * (3 * Q) * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2)) * (35 * lX) * is ^ 4
-        = 2 ^ 54 * 105 * Rs := by rw [hRsd]; ring
+    have e1 : 2 ^ 22 * (3 * Q) * (2 ^ 34 * (Q ^ 4 * Ae ^ 2 * ic ^ 2)) * (35 * lX) * is ^ 4
+        = 2 ^ 56 * 105 * Rs := by rw [hRsd]; ring
     have e2 : 2 ^ 27 * (2 ^ 37 * (ic ^ 2 * (Q ^ 5 * Ae ^ 2 * is ^ 4))) * (50 * lX)
         = 2 ^ 64 * 50 * Rs := by rw [hRsd]; ring
     have hRs0 : 0 ≤ Rs := by linarith

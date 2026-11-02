@@ -33,6 +33,7 @@ theorem clustering_correct : ClusteringCorrect := by
   have hterm := raw_terminates hflat O populations uni (htame huni) H D Dsf hsupp
     hH hsuppSf εcov α δ ρ pAP crossLimit hsig hηle hη₀ hεcov hε1 hεs hδ hδ1 hαpos hα hindLim hind1
     hpAPPositive hpAPBound (hρ uni huni) hρcap hρsf
+  simp only [hcen] at hterm
   set st := stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
     (allHarvest H).card ρ with hst
   set Bad := streams H uni ⁻¹' ⋃ B : {B : State // B ∈ st},
