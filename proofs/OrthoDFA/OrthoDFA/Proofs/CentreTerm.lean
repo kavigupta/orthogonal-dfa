@@ -661,9 +661,9 @@ lemma sqrt_le_gap_mul {s Λ γ : ℝ} (hs : 0 ≤ s) (hγ : 0 ≤ γ) (h : 800 *
   nlinarith
 
 set_option maxHeartbeats 2000000 in
-/-- At the top count the centre check's numbers hold: the flip-heavy share `εcov/32` with the
-misses' `εcov/25` fits the contamination the check allows, the deviations fit `gap/20`, the
-misses' rate sits under half of `εcov/25`, and the tails sum to `δ/16`. -/
+/-- At the top count the centre check's numbers hold: the flip-heavy share `εcov/40` with the
+misses' `εcov/20` fits the contamination the check allows, the deviations fit `gap/20`, the
+misses' rate sits under half of `εcov/20`, and the tails sum to `δ/16`. -/
 lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP : ℝ}
     (hη₀ : η₀ < 1 / 2) (hgap : 4 * sig η₀ ≤ O.gap) (hεcov : 0 < εcov) (hε4 : εcov ≤ 1 / 4)
     (hεs : 0 < εs) (hind : 0 < indecisionLimit) (hα : 0 < α) (hα1 : α ≤ 1) (hδ : 0 < δ)
@@ -673,13 +673,13 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
     (hstr : O.Straddles B.centre η₀) :
     (∀ b, flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
         (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b * (33 / 32)
-        + rejFrac η₀ indecisionLimit εcov εs ≤ εcov / 32)
+        + rejFrac η₀ indecisionLimit εcov εs ≤ εcov / 40)
     ∧ (∀ b, 0 ≤ flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
         (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b)
     ∧ (∀ s : ℕ, (B.npref : ℝ) * εcov / 2 ≤ s →
         hoeffDev s (gateLevel α populations B) + hoeffDev s (δ / 128) ≤ O.gap / 20 * s)
     ∧ 10 ≤ ((B.k - 1 : ℕ) : ℝ) * sig η₀
-    ∧ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 50
+    ∧ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 40
     ∧ 2 * Real.exp (-((B.npref : ℝ) * relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov)))
         + (Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre (shiftBudget η₀ indecisionLimit
               εcov) (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true
@@ -695,7 +695,7 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
               (flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
                 (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov)
                 false))))
-        + 2 * Real.exp (-((B.npref : ℝ) * relRate (εcov / 25)
+        + 2 * Real.exp (-((B.npref : ℝ) * relRate (εcov / 20)
             (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2))))
         + 2 * (δ / 128) ≤ δ / 16 := by
   have hs := sig_pos η₀ hη₀
@@ -799,7 +799,7 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
       nlinarith
   have hε2 : εcov ^ 2 ≤ εcov / 4 := by nlinarith
   have hs4' : sig η₀ ^ 4 ≤ sig η₀ ^ 2 / 16 := by nlinarith
-  have hEsκ : Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 50 := by
+  have hEsκ : Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 40 := by
     have hEs := famCount_hoeff (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
       η₀ populations εcov δ hη₀
     rw [← hκdef] at hEs
@@ -809,15 +809,22 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
     rw [← hcutdef] at hcut1 hcut2
     have e1 : -2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2 = -(8 * κ * sig η₀ ^ 2 / 25) := by ring
     rw [e1]
-    have h1 : Real.exp (-(8 * κ * sig η₀ ^ 2 / 25)) ≤ Real.exp (-(2 * Real.log (2 / cut))) :=
+    have h1 : Real.exp (-(8 * κ * sig η₀ ^ 2 / 25)) ≤ Real.exp (-Real.log (2 / cut)) :=
       Real.exp_le_exp.2 (by linarith)
-    have h2 : Real.exp (-(2 * Real.log (2 / cut))) = (cut / 2) ^ 2 := by
-      rw [show -(2 * Real.log (2 / cut)) = -Real.log (2 / cut) + -Real.log (2 / cut) by ring,
-        Real.exp_add, Real.exp_neg, Real.exp_log (by positivity)]
+    have h2 : Real.exp (-Real.log (2 / cut)) = cut / 2 := by
+      rw [Real.exp_neg, Real.exp_log (by positivity)]
       field_simp
-    have h3 : (cut / 2) ^ 2 ≤ εcov / 50 := by
-      have : cut ≤ 1 / 40 := by linarith
-      nlinarith
+    have h3 : cut / 2 ≤ εcov / 40 := by
+      have hg := cutBudget_le_gate η₀ indecisionLimit εcov
+      rw [← hcutdef] at hg
+      have ha : gateA η₀ = 2 * sig η₀ := by rw [gateA, sig]; ring
+      have hm : min εcov (1 / 2) ≤ εcov := min_le_left _ _
+      have hm0 : 0 ≤ min εcov (1 / 2) := le_min hεcov.le (by norm_num)
+      rw [ha] at hg
+      have : (2 * sig η₀) ^ 2 * min εcov (1 / 2) ≤ 1 / 4 * εcov := by
+        have h4 : (2 * sig η₀) ^ 2 ≤ 1 / 4 := by nlinarith
+        exact mul_le_mul h4 hm hm0 (by norm_num)
+      linarith
     linarith
   refine ⟨fun b => ?_, hq0, ?_, by rw [hkκ]; exact hκs, ?_, ?_⟩
   · have := hq b
@@ -899,7 +906,7 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
       have b1 : sig η₀ ^ 4 ≤ 1 := by nlinarith only [hs4', hs2]
       have b2 := mul_le_mul_of_nonneg_left b1 (by positivity : (0 : ℝ) ≤ N * εcov ^ 2 / 25)
       linarith
-    have hLN2 : LT ≤ N * (εcov / 200) := by
+    have hLN2 : LT ≤ N * (εcov / 160) := by
       have b3 := mul_le_mul_of_nonneg_left hε2 hN0
       have b4 : 0 ≤ N * εcov := by positivity
       linarith
@@ -919,13 +926,14 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
       refine le_trans (Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_left hr2 hN0)))
         (le_trans tth hδJ)
     have hEs' := hEsκ
-    have hr3 : εcov / 200 ≤ relRate (εcov / 25) (Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2)) := by
-      have h := relRate_anti (l := εcov / 25) (l' := εcov / 25) (Real.exp_pos _).le hEs'
+    have hr3 : εcov / 160
+        ≤ relRate (εcov / 20) (Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2)) := by
+      have h := relRate_anti (l := εcov / 20) (l' := εcov / 20) (Real.exp_pos _).le hEs'
         (by linarith) le_rfl
-      have e : relRate (εcov / 25) (εcov / 50) = εcov / 200 := by
+      have e : relRate (εcov / 20) (εcov / 40) = εcov / 160 := by
         unfold relRate; field_simp; ring
       linarith
-    have hT3 : Real.exp (-(N * relRate (εcov / 25)
+    have hT3 : Real.exp (-(N * relRate (εcov / 20)
         (Real.exp (-2 * (κ : ℝ) * (2 * sig η₀ / 5) ^ 2)))) ≤ δ / 128 :=
       tail _ (le_trans hLN2 (mul_le_mul_of_nonneg_left hr3 hN0))
     linarith [hT2 true, hT2 false]

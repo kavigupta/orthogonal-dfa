@@ -724,7 +724,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       (clusterBy (nearestClusterer B.centre) O.mq populations y B)
       (certOf (prefixesAt populations B.npref y) uni B.npref y) (oracleNoise y)} with hFitdef
   set Zc : Set (Run Ω S J) := centreBad (nearestClusterer B.centre) O populations uni (D uni) η₀
-    εcov Δ c Δ (εcov / 25) (δ / 128) B with hZcdef
+    εcov Δ c Δ (εcov / 20) (δ / 128) B with hZcdef
   have hZcm : MeasurableSet Zc :=
     measurableSet_centreBad O populations uni (D uni) η₀ εcov Δ c Δ _ _ B
   have hcsmall : c ≤ εcov / 1024 := by
@@ -776,8 +776,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
           = B.k - 1 := by
         simp only [stalled, Set.mem_setOf_eq, not_not] at hst
         omega
-      refine centreFits_of_clean O populations uni (D uni) B (Y x) (e := εcov / 25)
-        (h := εcov / 32) (aT := δ / 128) hη₀ hgap hcm hεcov hbal hmpos hc0 hr hΔ.le hΔ.le hcg hfull
+      refine centreFits_of_clean O populations uni (D uni) B (Y x) (e := εcov / 20)
+        (h := εcov / 40) (aT := δ / 128) hη₀ hgap hcm hεcov hbal hmpos hc0 hr hΔ.le hΔ.le hcg hfull
         (fun b => ?_) hZ' hcf (by linarith) (by linarith) hcdev
       by_contra hd
       cases b

@@ -57,7 +57,8 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
       / gateRoom η indecisionLimit εcov ^ 2,
     gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
-      (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ) / α))),
+      (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ)
+        * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / α))),
     Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / dirtyRate η indecisionLimit εcov εs,
@@ -304,6 +305,13 @@ theorem prefCount_le_split (populations : Finset J)
       rw [Real.sq_sqrt h0]
       exact le_trans (by linarith) (le_max_right _ _)
     · rw [max_eq_left h]; norm_num
+  have hK1M : (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1
+      ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
+    rw [div_le_iff₀ hpAP] at hMκ
+    nlinarith only [hMκ, hpAP1, hκ4, hpAP]
+  set K1 : ℝ := (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1 with hK1def
+  clear_value K1
+  have hK1 : 1 ≤ K1 := by linarith only [hκ4, hK1def]
   set c : ℝ := (populations.card : ℝ) with hcdef
   clear_value c
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
@@ -531,8 +539,9 @@ theorem prefCount_le_split (populations : Finset J)
     rw [hKdef, le_div_iff₀ hgR2]
     have : 1 ≤ (Dg + 1) ^ 2 := by nlinarith only [hD0']
     nlinarith only [this, hgR1, hgR0]
-  set q : ℝ := 9 * c / α with hqdef
-  have hq1 : 1 ≤ q := by rw [hqdef, le_div_iff₀ hα]; linarith only [hc1, hα1]
+  set q : ℝ := 9 * c * K1 / α with hqdef
+  have hq1 : 1 ≤ q := by
+    rw [hqdef, le_div_iff₀ hα]; nlinarith only [hc1, hα1, hK1]
   have hr1 : 1 ≤ Real.sqrt (Real.sqrt q) := Real.one_le_sqrt.2 (Real.one_le_sqrt.2 hq1)
   set y : ℝ := Real.log (4 * K * (4 * Real.sqrt (Real.sqrt q))) with hydef
   have hy0 : 0 < y := Real.log_pos (by nlinarith only [hK4, hr1])
@@ -556,8 +565,14 @@ theorem prefCount_le_split (populations : Finset J)
       exact le_of_mul_le_mul_right (by nlinarith only [hB6, hT6]) (pow_pos hBpos 6)
     have hq : q ≤ T ^ 3 := by
       rw [hqdef, div_le_iff₀ hα]
-      nlinarith only [mul_le_mul hT7 hcT hcpos.le (by linarith only [hT7]), hTα,
-        mul_nonneg (by linarith only [hT7] : (0 : ℝ) ≤ T) (by linarith only [hT7] : (0 : ℝ) ≤ T)]
+      have hT60 : 60 ≤ T := by nlinarith only [hTB, hB2, hBpos]
+      have hcK : c * K1 ≤ T := by
+        have := mul_le_mul_of_nonneg_left hK1M hcpos.le
+        nlinarith only [hT1, this, hM64]
+      have h2 : T ^ 2 ≤ T ^ 3 * α := by
+        have := mul_le_mul_of_nonneg_left hTα (by positivity : (0 : ℝ) ≤ T ^ 2)
+        nlinarith only [this]
+      nlinarith only [hcK, h2, hT60]
     have l1 := log_le_of_le_pow (by positivity) 6 h16
     have l2 := log_le_of_le_pow (by positivity) 3 hq
     rw [← hLdef] at l1 l2
@@ -744,7 +759,7 @@ theorem prefCount_le_split (populations : Finset J)
   have hbound := prefCount_le_terms (hsz := hsz) populations η indecisionLimit εcov εs δ α pAP
     crossLimit
   simp only [prefTerms, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
-    ← hcdef, ← hcutdef, ← hMdef, ← hgRdef, ← hWgdef, ← hDgdef, ← hKdef,
+    ← hcdef, ← hK1def, ← hcutdef, ← hMdef, ← hgRdef, ← hWgdef, ← hDgdef, ← hKdef,
     ← hqdef, ← hΔdef] at hbound
   have hh : max (128 * (hsz : ℝ) / cut) 0 = 128 * (hsz : ℝ) / cut :=
     max_eq_left (by positivity)
@@ -870,12 +885,15 @@ theorem budgetCap_split (populations : Finset J) (η indecisionLimit εcov δ α
 theorem validCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
     (hind : 0 < indecisionLimit) (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
     (validCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 27 * Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit) + 2 := by
+      ≤ 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) + 2 := by
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
-  have hlog : 0 ≤ Real.log (128 * (populations.card : ℝ) / δ) :=
+  have hK1 : (1 : ℝ) ≤ ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by
+    linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤ (famCount η populations indecisionLimit εcov δ
+      crossLimit : ℝ))]
+  have hlog : 0 ≤ Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  have e : Real.log (128 * (populations.card : ℝ) / δ) / undecRate indecisionLimit
-      = 27 * Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit) := by
+  have e : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / undecRate indecisionLimit
+      = 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) := by
     rw [undecRate]; field_simp
   rw [validCount]
   push_cast
@@ -888,11 +906,15 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
     (hη : 0 ≤ η) (hηlt : η < 1 / 2) (hεcov : 0 < εcov) (hind : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2) (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
     2 * (validCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+      ≤ 2 ^ 13 * Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ)
         / (sig η * min (εcov * sig η) indecisionLimit) := by
   have hv := validCount_le populations η indecisionLimit εcov δ pAP crossLimit hind hpop hδ hδ1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
-  set L32 : ℝ := Real.log (32 * (populations.card : ℝ) / δ) with hL32
+  have hK1 : (1 : ℝ) ≤ ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by
+    linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤ (famCount η populations indecisionLimit εcov δ
+      crossLimit : ℝ))]
+  have hcK : (1 : ℝ) ≤ (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by nlinarith
+  set L32 : ℝ := Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) with hL32
   have hL3 : 3 ≤ L32 := by
     rw [hL32, Real.le_log_iff_exp_le (by positivity)]
     have h3 : Real.exp 3 = Real.exp 1 ^ 3 := by rw [← Real.exp_nat_mul]; norm_num
@@ -902,8 +924,8 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
       have : Real.exp 1 ^ 3 ≤ (2.7182818286 : ℝ) ^ 3 :=
         pow_le_pow_left₀ h0.le Real.exp_one_lt_d9.le 3
       nlinarith only [this]
-    nlinarith only [this, hc1, hδ1, mul_le_mul_of_nonneg_right this hδ.le]
-  have h128 : Real.log (128 * (populations.card : ℝ) / δ) ≤ 2 * L32 := by
+    nlinarith only [this, hcK, hδ1, mul_le_mul_of_nonneg_right this hδ.le]
+  have h128 : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) ≤ 2 * L32 := by
     have e : 128 * (populations.card : ℝ) / δ = 4 * (32 * (populations.card : ℝ) / δ) := by
       ring
     rw [e, Real.log_mul (by norm_num) (by positivity), ← hL32]
@@ -920,7 +942,7 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
       ≤ 2 ^ 13 * L32 / (sig η * min (εcov * sig η) indecisionLimit) := by
     rw [div_le_div_iff₀ hind (by positivity)]
     nlinarith only [mul_le_mul_of_nonneg_left hRs (by linarith only [hL3] : (0 : ℝ) ≤ L32)]
-  have hB : 27 * Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit)
+  have hB : 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit)
       ≤ 27 * L32 / indecisionLimit := by
     rw [div_le_div_iff₀ (by positivity) hind]
     nlinarith only [mul_le_mul_of_nonneg_right h128 hind.le]
