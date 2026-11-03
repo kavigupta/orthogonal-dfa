@@ -356,6 +356,63 @@ theorem harvestSample_biUnion_le [IsProbabilityMeasure D] {ι : Type*} (cs : Fin
       (hγy i hi) (hideal i hi) (hyield i hi)) ?_
   rw [Finset.sum_const, nsmul_eq_mul]
 
+open scoped Classical in
+/-- The `prod_biUnion` bad set, under a family's reads over the noise, is measurable. -/
+theorem measurableSet_harvestSample_prod_bad [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
+    {μ : Measure Ω} [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α))
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (site : Level3Site) (D' : Measure (FreeMonoid α))
+    {ι : Type*} (cs : Finset ι) (Hf : ι → HypothesisDFA α) (Sf : ι → Set (FreeMonoid α)) (γ : ℝ)
+    {T : ℕ} :
+    MeasurableSet {p : Ω × (Fin T → FreeMonoid α) | ∃ i ∈ cs,
+      γ < (harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ ∧
+        ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ - γ)
+          < (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z p.1) k (Hf i) site p.2)).real
+            (Sf i)} := by
+  classical
+  have hbody : ∀ i, MeasurableSet {p : Ω × (Fin T → FreeMonoid α) |
+      γ < (harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ ∧
+        ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ - γ)
+          < (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z p.1) k (Hf i) site p.2)).real
+            (Sf i)} := by
+    intro i
+    have hrealU : Measurable fun ω =>
+        (harvestLaw (fun z => familyRead O.mq F kl kh z ω) D' k (Hf i) site).real Set.univ :=
+      (measurable_harvestLaw O F kl kh k D' (Hf i) site Set.univ).ennreal_toReal
+    have hrealS : Measurable fun ω =>
+        (harvestLaw (fun z => familyRead O.mq F kl kh z ω) D' k (Hf i) site).real (Sf i) :=
+      (measurable_harvestLaw O F kl kh k D' (Hf i) site (Sf i)).ennreal_toReal
+    have hpop : Measurable fun p : Ω × (Fin T → FreeMonoid α) =>
+        (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z p.1) k (Hf i) site p.2)).real
+          (Sf i) :=
+      measurable_from_prod_countable_left fun xs =>
+        measurable_popLaw_harvestSample_real k (Hf i) O F kl kh site xs (Sf i)
+    have hthr : Measurable fun p : Ω × (Fin T → FreeMonoid α) =>
+        ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ
+            - γ) :=
+      ((hrealS.comp measurable_fst).add measurable_const).div
+        ((hrealU.comp measurable_fst).sub measurable_const)
+    exact (measurableSet_lt measurable_const (hrealU.comp measurable_fst)).inter
+      (measurableSet_lt hthr hpop)
+  have hset : {p : Ω × (Fin T → FreeMonoid α) | ∃ i ∈ cs,
+      γ < (harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ ∧
+        ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ - γ)
+          < (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z p.1) k (Hf i) site p.2)).real
+            (Sf i)}
+      = ⋃ i ∈ (cs : Set ι), {p : Ω × (Fin T → FreeMonoid α) |
+          γ < (harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real Set.univ ∧
+            ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real (Sf i) + γ)
+              / ((harvestLaw (fun z => familyRead O.mq F kl kh z p.1) D' k (Hf i) site).real
+                Set.univ - γ)
+              < (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z p.1) k (Hf i) site
+                p.2)).real (Sf i)} := by
+    ext p; simp only [Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_coe, exists_prop]
+  rw [hset]
+  exact MeasurableSet.biUnion (Finset.countable_toSet cs) fun i _ => hbody i
+
 /-- The `(ω, draws)` pairs where the empirical population (under the read `r ω`) exceeds its own
 ideal-normalized threshold for some event in `cs` have measure at most `cs.card · 2·exp(-2mγ²)`,
 uniformly in the noise `ω`. -/
