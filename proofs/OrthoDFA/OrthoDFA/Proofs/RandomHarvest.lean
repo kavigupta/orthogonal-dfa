@@ -84,6 +84,15 @@ theorem harvestLaw_apply (site : Level3Site) (A : Set (FreeMonoid α))
       = ∫⁻ x, (((siteHarvest read k H site x).filter (· ∈ A)).length : ℝ≥0∞) ∂D :=
   bind_diracSum_apply D _ A
 
+/-- The `m`-draw harvest's mass on `A` counts the probes that harvest a string into `A`. -/
+theorem harvestSample_apply (site : Level3Site) {m : ℕ} (xs : Fin m → FreeMonoid α)
+    (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
+    harvestSample read k H site xs A
+      = ∑ i, (((siteHarvest read k H site (xs i)).filter (· ∈ A)).length : ℝ≥0∞) := by
+  unfold harvestSample
+  rw [Measure.finsetSum_apply]
+  exact Finset.sum_congr rfl fun i _ => diracSum_apply _ A
+
 theorem harvestLaw_spread [IsFiniteMeasure D] (site : Level3Site) :
     Spread D k (harvestLaw read D k H site) :=
   spread_of_fresh D k _ (siteHarvest_nodup read k H site) fun x z hz =>
