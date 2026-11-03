@@ -3,6 +3,7 @@ import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.LoopLaw
+import OrthoDFA.Proofs.LoopMeasurable
 
 /-! The `m`-draw harvest law concentrates to its ideal.
 
@@ -267,6 +268,68 @@ theorem harvestSample_le_of_ideal [IsProbabilityMeasure D] (H : HypothesisDFA α
   have hyγ0 : (0 : ℝ) < y - γ := by linarith
   rw [div_le_div_iff₀ hbnpos hyγ0]
   nlinarith [hcn1, hbn1, hGγ, hyγ, mul_pos hmr hyγ0, hsS0, hγ]
+
+open scoped Classical in
+/-- `popLaw(harvestSample)`'s mass on `S`, under a family's reads over the noise, is measurable in
+the noise: it is a ratio of two probe counts, each fixed by finitely many oracle answers. -/
+theorem measurable_popLaw_harvestSample_real [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
+    {μ : Measure Ω} [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
+    (kl kh : ℕ) (site : Level3Site) {T : ℕ} (xs : Fin T → FreeMonoid α) (S : Set (FreeMonoid α)) :
+    Measurable fun ω =>
+      (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z ω) k H site xs)).real S := by
+  classical
+  have hcnt : ∀ A : Set (FreeMonoid α), Measurable fun ω =>
+      ((Finset.univ.filter fun i =>
+        siteHit (fun z => familyRead O.mq F kl kh z ω) k H site A (xs i)).card : ℕ) := by
+    intro A
+    have heq : (fun ω => ((Finset.univ.filter fun i =>
+          siteHit (fun z => familyRead O.mq F kl kh z ω) k H site A (xs i)).card : ℕ))
+        = fun ω => ∑ i : Fin T, if siteHit (fun z => familyRead O.mq F kl kh z ω) k H site A (xs i)
+          then (1 : ℕ) else 0 := by
+      funext ω; rw [Finset.card_filter]
+    rw [heq]
+    refine Finset.measurable_sum _ fun i _ => ?_
+    refine Measurable.ite ?_ measurable_const measurable_const
+    have hm := measurable_siteCount O F kl kh k site H (xs i) A
+    have hset : {ω | siteHit (fun z => familyRead O.mq F kl kh z ω) k H site A (xs i)}
+        = (fun ω => ((siteHarvest (fun z => familyRead O.mq F kl kh z ω) k H site
+            (xs i)).filter (· ∈ A)).length) ⁻¹' {0}ᶜ := by
+      ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_compl_iff, Set.mem_singleton_iff]
+      rw [siteHarvest_filter_length (fun z => familyRead O.mq F kl kh z ω) k H site A (xs i)]
+      split_ifs with h <;> simp [h]
+    rw [hset]
+    exact hm (measurableSet_singleton 0).compl
+  have hpop : (fun ω =>
+      (popLaw (harvestSample (fun z => familyRead O.mq F kl kh z ω) k H site xs)).real S)
+      = fun ω => if (Finset.univ.filter fun i =>
+            siteHit (fun z => familyRead O.mq F kl kh z ω) k H site Set.univ (xs i)).card = 0
+          then (if (1 : FreeMonoid α) ∈ S then (1 : ℝ) else 0)
+          else ((Finset.univ.filter fun i =>
+              siteHit (fun z => familyRead O.mq F kl kh z ω) k H site S (xs i)).card : ℝ)
+            / ((Finset.univ.filter fun i =>
+              siteHit (fun z => familyRead O.mq F kl kh z ω) k H site Set.univ (xs i)).card : ℝ) := by
+    funext ω
+    set rd : FreeMonoid α → ARU := fun z => familyRead O.mq F kl kh z ω with hrdd
+    have hU : harvestSample rd k H site xs Set.univ
+        = ((Finset.univ.filter fun i => siteHit rd k H site Set.univ (xs i)).card : ℝ≥0∞) :=
+      harvestSample_apply_card rd k H site Set.univ xs
+    have hUtop : harvestSample rd k H site xs Set.univ ≠ ∞ := by rw [hU]; exact ENNReal.natCast_ne_top _
+    by_cases hz : (Finset.univ.filter fun i => siteHit rd k H site Set.univ (xs i)).card = 0
+    · have hU0 : harvestSample rd k H site xs Set.univ = 0 := by rw [hU, hz]; simp
+      rw [popLaw, if_pos (Or.inl hU0), if_pos hz, measureReal_def,
+        Measure.dirac_apply' _ (by trivial : MeasurableSet S)]
+      by_cases h1 : (1 : FreeMonoid α) ∈ S
+      · rw [if_pos h1, Set.indicator_of_mem h1]; simp
+      · rw [if_neg h1, Set.indicator_of_notMem h1]; simp
+    · have hU0 : harvestSample rd k H site xs Set.univ ≠ 0 := by
+        rw [hU]; exact_mod_cast hz
+      rw [popLaw_real hU0 hUtop, if_neg hz, measureReal_def, measureReal_def, hU,
+        harvestSample_apply_card rd k H site S xs, ENNReal.toReal_natCast, ENNReal.toReal_natCast]
+  rw [hpop]
+  refine Measurable.ite ((hcnt Set.univ) (measurableSet_singleton 0)) measurable_const ?_
+  exact ((measurable_from_nat (f := (Nat.cast : ℕ → ℝ))).comp (hcnt S)).div
+    ((measurable_from_nat (f := (Nat.cast : ℕ → ℝ))).comp (hcnt Set.univ))
 
 /-- A finite union of `harvestSample_le_of_ideal`: over `cs` events, each with its own hypothesis,
 set, ideal bound and yield, the draws where any one exceeds its threshold have measure at most
