@@ -10,15 +10,15 @@ length, eta, seed) under ``data/luhn``.
 
 from __future__ import annotations
 
+import argparse
+import multiprocessing
 from pathlib import Path
 from typing import Tuple
 
 from orthogonal_dfa.experiments.capal_comparison.core import REPO_ROOT
 from orthogonal_dfa.experiments.random_minimal.run import (
-    experiment_parser,
     has_current_result,
     run_and_write,
-    run_results,
 )
 from orthogonal_dfa.l_star.examples.luhn import luhn_dfa
 
@@ -49,16 +49,23 @@ def _run_result(args: Tuple[Path, float, int]) -> str:
 
 
 def main() -> None:
-    args = experiment_parser(
-        __doc__.split("\n\n", maxsplit=1)[0], etas=ETAS, seeds=SEEDS, data_dir=DATA_DIR
-    ).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
+    parser.add_argument("--processes", type=int, required=True)
+    parser.add_argument("--etas", type=float, nargs="+", default=ETAS)
+    parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
+    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
+    args = parser.parse_args()
+
     results = [
         (args.data_dir, eta, seed)
         for eta in args.etas
         for seed in args.seeds
         if not has_current_result(result_path(args.data_dir, eta, seed))
     ]
-    run_results(args.processes, _run_result, results)
+    print(f"{len(results)} results to run", flush=True)
+    with multiprocessing.Pool(args.processes) as pool:
+        for i, line in enumerate(pool.imap_unordered(_run_result, results)):
+            print(f"[result {i + 1}/{len(results)}] {line}", flush=True)
 
 
 if __name__ == "__main__":

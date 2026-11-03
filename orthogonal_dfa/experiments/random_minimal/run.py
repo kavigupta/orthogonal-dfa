@@ -22,7 +22,7 @@ import multiprocessing
 import os
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, List, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -235,33 +235,14 @@ def run_and_write(
     )
 
 
-def experiment_parser(
-    description: str, *, etas: List[float], seeds: List[int], data_dir: Path
-) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--processes", type=int, required=True)
-    parser.add_argument("--etas", type=float, nargs="+", default=etas)
-    parser.add_argument("--seeds", type=int, nargs="+", default=seeds)
-    parser.add_argument("--data-dir", type=Path, default=data_dir)
-    return parser
-
-
-def run_results(
-    processes: int, run_result: Callable[[Any], str], results: List[Any]
-) -> None:
-    """``run_result`` on each of ``results`` in a pool, printing the line each returns."""
-    print(f"{len(results)} results to run", flush=True)
-    with multiprocessing.Pool(processes) as pool:
-        for i, line in enumerate(pool.imap_unordered(run_result, results)):
-            print(f"[result {i + 1}/{len(results)}] {line}", flush=True)
-
-
 def main() -> None:
-    parser = experiment_parser(
-        __doc__.split("\n\n", maxsplit=1)[0], etas=ETAS, seeds=SEEDS, data_dir=DATA_DIR
-    )
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
+    parser.add_argument("--processes", type=int, required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=SIZES)
     parser.add_argument("--count", type=int, default=COUNT)
+    parser.add_argument("--etas", type=float, nargs="+", default=ETAS)
+    parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
+    parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     args = parser.parse_args()
 
     targets = [
@@ -278,11 +259,12 @@ def main() -> None:
         for seed in args.seeds
         if not has_current_result(result_path(args.data_dir, size, index, eta, seed))
     ]
-    print(f"{len(targets)} targets to draw", flush=True)
+    print(f"{len(targets)} targets to draw, {len(results)} results to run", flush=True)
     with multiprocessing.Pool(args.processes) as pool:
         for i, name in enumerate(pool.imap_unordered(_ensure_target, targets)):
             print(f"[target {i + 1}/{len(targets)}] {name}", flush=True)
-    run_results(args.processes, _run_result, results)
+        for i, line in enumerate(pool.imap_unordered(_run_result, results)):
+            print(f"[result {i + 1}/{len(results)}] {line}", flush=True)
 
 
 if __name__ == "__main__":
