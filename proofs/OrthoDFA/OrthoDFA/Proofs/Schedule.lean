@@ -187,24 +187,37 @@ noncomputable def heavyLevel (η : ℝ) (populations : Finset J)
     * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1)
     / ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) * (δ / 16)))))
 
-/-- The fraction of a state's prefix draws the samplers may redraw.  A redraw hides at most a
+/-- The fraction of a state's table draws the sampler may redraw.  A redraw hides at most a
 flip's shift on a class, which Markov charges at `w_b/σ_b ≤ 5/sig` against the FNR test and the
-gate at `5/(2 sig²)` against its limit: the first two terms.  Twice it is what the redraws can bias
-the verdict by, which the third holds to `εs/2`. -/
+gate at `5/(2 sig²)` against its limit. -/
+noncomputable def tabFrac (η indecisionLimit εcov : ℝ) : ℝ :=
+  min (sig η ^ 2 * min εcov (1 / 2) / 1024) (sig η * indecisionLimit / 128)
+
+/-- The fraction of a certification sample's draws the sampler may redraw.  The class counts are
+read over the first `m + r` draws, so a redraw only stretches them; what it can hide from the FNR
+test and the verdict is additive, and twice it is held to `εs/2`. -/
+noncomputable def certFrac (indecisionLimit εs : ℝ) : ℝ :=
+  min (indecisionLimit / 256) (εs / 4)
+
+/-- The smaller of the two: the rate both samplers' rejection tails decay at. -/
 noncomputable def rejFrac (η indecisionLimit εcov εs : ℝ) : ℝ :=
-  min (min (sig η ^ 2 * min εcov (1 / 2) / 1024) (sig η * indecisionLimit / 128)) (εs / 4)
+  min (tabFrac η indecisionLimit εcov) (certFrac indecisionLimit εs)
 
 /-- The exponent rate of the drawn prefixes understating a member's shift mass on a class by
-`g = shiftBudget`, relative to a mass of at most `shiftBudget + rejFrac + g`:
+`g = shiftBudget`, relative to a mass of at most `shiftBudget + tabFrac + g`:
 
-    g²/(4 (shiftBudget + rejFrac)) -/
-noncomputable def dirtyRate (η indecisionLimit εcov εs : ℝ) : ℝ :=
+    g²/(4 (shiftBudget + tabFrac)) -/
+noncomputable def dirtyRate (η indecisionLimit εcov : ℝ) : ℝ :=
   shiftBudget η indecisionLimit εcov ^ 2
-    / (4 * (shiftBudget η indecisionLimit εcov + rejFrac η indecisionLimit εcov εs))
+    / (4 * (shiftBudget η indecisionLimit εcov + tabFrac η indecisionLimit εcov))
 
-/-- The draws the samplers may redraw at a prefix count. -/
-noncomputable def rejCount (η indecisionLimit εcov εs : ℝ) (m : ℕ) : ℕ :=
-  ⌊rejFrac η indecisionLimit εcov εs * m⌋₊
+/-- The table draws the sampler may redraw at a prefix count. -/
+noncomputable def tabCount (η indecisionLimit εcov : ℝ) (m : ℕ) : ℕ :=
+  ⌊tabFrac η indecisionLimit εcov * m⌋₊
+
+/-- The certification draws the sampler may redraw at a prefix count. -/
+noncomputable def certCount (indecisionLimit εs : ℝ) (m : ℕ) : ℕ :=
+  ⌊certFrac indecisionLimit εs * m⌋₊
 
 /-- The suffix draws the pool's sampler may redraw: a twentieth of the findable share. -/
 noncomputable def poolRej (pAP : ℝ) (M : ℕ) : ℕ :=
@@ -268,7 +281,7 @@ The `65536/9` term is the hash sides' imbalance on a named population,
 `G = ⌈√(m·log(128|J|/δ))⌉`, which is charged against the cut budget and has to fit in
 `3·cutBudget·m/256`.
 
-The `εs` term is the redraws' tail when `rejFrac` is `εs/4`: `rejFrac·m·log 2` must clear
+The `εs` term is the redraws' tail when `certFrac` is `εs/4`: `certFrac·m·log 2` must clear
 `log(256|J|/δ)`. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
@@ -285,7 +298,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
         (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / dirtyRate η indecisionLimit εcov εs⌉₊
+        / dirtyRate η indecisionLimit εcov⌉₊
     + ⌈64 * Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / shiftBudget η indecisionLimit εcov⌉₊
@@ -296,7 +309,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     + 1
 
 /-- The exponent rate of the FNR test missing an undecided share of at least
-`l = 3/2·indecisionLimit + rejFrac ≤ 27/16·indecisionLimit` by `t = indecisionLimit/2`, relative
+`l = 3/2·indecisionLimit + certFrac ≤ 27/16·indecisionLimit` by `t = indecisionLimit/2`, relative
 to the share:
 
     t² / (2l) -/
@@ -335,19 +348,19 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
     (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
       (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i))
 
-/-- What one tested state may cost, summed over the populations: each table and certification
-sampler rejecting more than `rejCount` of its draws, a binomial tail at what a draw can land on,
-and the draws missing the undecided set.  The gate's own tails are not here: they are spent at
-`gateLevel`, which sums to `α` over the states. -/
+/-- What one tested state may cost, summed over the populations: the table sampler rejecting more
+than `tabCount` of its draws and the certification sampler more than `certCount`, binomial tails at
+what a draw can land on, and the draws missing the undecided set.  The gate's own tails are not
+here: they are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov εs ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * (rejTail (B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
-        (((B.npref + rejCount η₀ indecisionLimit εcov εs B.npref : ℕ) : ℝ) * ρ)
-        (rejCount η₀ indecisionLimit εcov εs B.npref)
-      + rejTail (2 * B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
-        (((populations.card * B.npref + (2 * B.npref + rejCount η₀ indecisionLimit εcov εs B.npref)
+  (populations.card : ℝ) * (rejTail (B.npref + tabCount η₀ indecisionLimit εcov B.npref)
+        (((B.npref + tabCount η₀ indecisionLimit εcov B.npref : ℕ) : ℝ) * ρ)
+        (tabCount η₀ indecisionLimit εcov B.npref)
+      + rejTail (2 * B.npref + certCount indecisionLimit εs B.npref)
+        (((populations.card * B.npref + (2 * B.npref + certCount indecisionLimit εs B.npref)
           : ℕ) : ℝ) * ρ)
-        (rejCount η₀ indecisionLimit εcov εs B.npref)
+        (certCount indecisionLimit εs B.npref)
     + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
@@ -388,17 +401,20 @@ noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
       (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
 
-/-- How much any one string may hold of a tame population.  A rung's draws land on what earlier
-draws or the tables hold at most `(|J| + 3)·m·ρ` of the time, which against `rejFrac` makes its
-rejections a binomial tail of order `(m/N)·2^-(r+1)`; the uniform pool's draws land in a window
-of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`; and the hash
-splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which over the
-`|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
+/-- How much any one string may hold of a tame population.  A rung's table draws land on what
+earlier ones hold at most `(m + r)·ρ` of the time, which against `tabFrac` makes their rejections
+a binomial tail of order `(m/N)·2^-(r+1)`; its certification draws land on what the tables or
+earlier ones hold at most `(|J| + 3)·m·ρ` of the time, against `certFrac`; the uniform pool's draws
+land in a window of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`;
+and the hash splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which
+over the `|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
-  min (min (rejFrac η indecisionLimit εcov εs
-        / (64 * ((populations.card : ℝ) + 3)
-          * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)))
+  min (min (min (tabFrac η indecisionLimit εcov
+          / (256 * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ)))
+        (certFrac indecisionLimit εs
+          / (64 * ((populations.card : ℝ) + 3)
+            * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
       (min εs indecisionLimit
         / (128 * (populations.card : ℝ)
           * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
@@ -417,8 +433,8 @@ open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop
 terminates, and the family the count rule returns — at whatever state it stops — cuts each tame
 population the way the noiseless oracle does on all but its gate's limit, `εcov` on the uniform
-pool and a half elsewhere, twice the redraw fraction, and on a named population `εs/2` for
-reading it through one side of the hash, and leaves at most `2·indecisionLimit` of each
+pool and a half elsewhere, twice the certification redraw fraction, and on a named population
+`εs/2` for reading it through one side of the hash, and leaves at most `2·indecisionLimit` of each
 undecided.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
@@ -477,7 +493,7 @@ def ClusteringCorrect : Prop :=
         α pAP crossLimit (allHarvest H).card ρ},
         streams H uni x ∈ retBy nearestClusterer O.mq populations uni η₀ indecisionLimit εcov α
           B.val →
-        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * rejFrac η₀ indecisionLimit εcov εs
+        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy nearestClusterer O.mq populations (streams H uni x) B.val) p (oracleNoise
