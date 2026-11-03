@@ -293,6 +293,63 @@ theorem harvestSample_biUnion_le [IsProbabilityMeasure D] {ι : Type*} (cs : Fin
       (hγy i hi) (hideal i hi) (hyield i hi)) ?_
   rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- The `(ω, draws)` pairs where the empirical population (under the read `r ω`) exceeds its own
+ideal-normalized threshold for some event in `cs` have measure at most `cs.card · 2·exp(-2mγ²)`,
+uniformly in the noise `ω`. -/
+theorem harvestSample_prod_biUnion_le {Ω' : Type*} [MeasurableSpace Ω'] (ρ : Measure Ω')
+    [IsProbabilityMeasure ρ] [IsProbabilityMeasure D] {ι : Type*} (cs : Finset ι) (m : ℕ)
+    (hm : 1 ≤ m) (γ : ℝ) (hγ : 0 < γ) (r : Ω' → FreeMonoid α → ARU) (Hf : ι → HypothesisDFA α)
+    (site : Level3Site) (Sf : ι → Set (FreeMonoid α))
+    (hmeas : MeasurableSet {p : Ω' × (Fin m → FreeMonoid α) | ∃ i ∈ cs,
+      γ < (harvestLaw (r p.1) D k (Hf i) site).real Set.univ ∧
+        ((harvestLaw (r p.1) D k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (r p.1) D k (Hf i) site).real Set.univ - γ)
+          < (popLaw (harvestSample (r p.1) k (Hf i) site p.2)).real (Sf i)}) :
+    (ρ.prod (Measure.pi fun _ : Fin m => D)) {p : Ω' × (Fin m → FreeMonoid α) | ∃ i ∈ cs,
+        γ < (harvestLaw (r p.1) D k (Hf i) site).real Set.univ ∧
+          ((harvestLaw (r p.1) D k (Hf i) site).real (Sf i) + γ)
+            / ((harvestLaw (r p.1) D k (Hf i) site).real Set.univ - γ)
+            < (popLaw (harvestSample (r p.1) k (Hf i) site p.2)).real (Sf i)}
+      ≤ ENNReal.ofReal (cs.card * (2 * Real.exp (-2 * m * γ ^ 2))) := by
+  classical
+  rw [Measure.prod_apply hmeas]
+  have hbd : ∀ ω : Ω', (Measure.pi fun _ : Fin m => D)
+      (Prod.mk ω ⁻¹' {p : Ω' × (Fin m → FreeMonoid α) | ∃ i ∈ cs,
+        γ < (harvestLaw (r p.1) D k (Hf i) site).real Set.univ ∧
+          ((harvestLaw (r p.1) D k (Hf i) site).real (Sf i) + γ)
+            / ((harvestLaw (r p.1) D k (Hf i) site).real Set.univ - γ)
+            < (popLaw (harvestSample (r p.1) k (Hf i) site p.2)).real (Sf i)})
+      ≤ ENNReal.ofReal (cs.card * (2 * Real.exp (-2 * m * γ ^ 2))) := by
+    intro ω
+    set cs' := cs.filter fun i => γ < (harvestLaw (r ω) D k (Hf i) site).real Set.univ with hcs'
+    have hsliceeq : (Prod.mk ω ⁻¹' {p : Ω' × (Fin m → FreeMonoid α) | ∃ i ∈ cs,
+        γ < (harvestLaw (r p.1) D k (Hf i) site).real Set.univ ∧
+          ((harvestLaw (r p.1) D k (Hf i) site).real (Sf i) + γ)
+            / ((harvestLaw (r p.1) D k (Hf i) site).real Set.univ - γ)
+            < (popLaw (harvestSample (r p.1) k (Hf i) site p.2)).real (Sf i)})
+        = {xs : Fin m → FreeMonoid α | ∃ i ∈ cs',
+          ((harvestLaw (r ω) D k (Hf i) site).real (Sf i) + γ)
+            / ((harvestLaw (r ω) D k (Hf i) site).real Set.univ - γ)
+            < (popLaw (harvestSample (r ω) k (Hf i) site xs)).real (Sf i)} := by
+      ext xs
+      simp only [Set.mem_preimage, Set.mem_setOf_eq, hcs', Finset.mem_filter]
+      constructor
+      · rintro ⟨i, hi, hγu, hlt⟩; exact ⟨i, ⟨hi, hγu⟩, hlt⟩
+      · rintro ⟨i, ⟨hi, hγu⟩, hlt⟩; exact ⟨i, hi, hγu, hlt⟩
+    rw [hsliceeq]
+    have hfin : (Measure.pi fun _ : Fin m => D) {xs : Fin m → FreeMonoid α | ∃ i ∈ cs',
+        ((harvestLaw (r ω) D k (Hf i) site).real (Sf i) + γ)
+          / ((harvestLaw (r ω) D k (Hf i) site).real Set.univ - γ)
+          < (popLaw (harvestSample (r ω) k (Hf i) site xs)).real (Sf i)} ≠ ⊤ := measure_ne_top _ _
+    rw [← ENNReal.ofReal_toReal hfin, ← measureReal_def]
+    refine ENNReal.ofReal_le_ofReal ((harvestSample_biUnion_le (read := r ω) D k cs' m Hf site Sf
+        (fun i => (harvestLaw (r ω) D k (Hf i) site).real (Sf i))
+        (fun i => (harvestLaw (r ω) D k (Hf i) site).real Set.univ) γ hm hγ
+        (fun i hi => (Finset.mem_filter.1 hi).2) (fun _ _ => le_rfl) (fun _ _ => le_rfl)).trans ?_)
+    exact mul_le_mul_of_nonneg_right (Nat.cast_le.2 (Finset.card_filter_le _ _)) (by positivity)
+  refine le_trans (lintegral_mono hbd) ?_
+  rw [lintegral_const, measure_univ, mul_one]
+
 end Random
 
 end OrthoDFA
