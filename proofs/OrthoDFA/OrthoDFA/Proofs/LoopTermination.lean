@@ -258,6 +258,9 @@ def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)
     (Random.harvestLaw o.read P.D k o.result.hypothesis) y o.result.ending
   ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
   ∧ FewMisled M dist o.read k o.result.hypothesis.tree P.D E u
+  ∧ ∀ site, o.result.ending = .harvest site → ∀ T, 0 ≤ T →
+      (popLaw (Random.harvestSampleList o.read k o.result.hypothesis site o.harvestProbes)).real
+          {z | dist (M.eval z.toList) .undecided ≤ T} ≤ A * T + sl + m / y
 
 /-- The round agrees, at most `εd` of `D` is in `disagreeSet`, its tree is in `classSet |Q|`, and
 its misled probes are few in each `E q`. -/
@@ -373,7 +376,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       L[i].Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack) c εd E u := by
     intro i hi hiσ hn
     obtain ⟨hlh, h1, hmis, hund⟩ := hround i hi hiσ
-    obtain ⟨h4, hcls, hfew⟩ := (hspec i hi hiσ).2
+    obtain ⟨h4, hcls, hfew, -⟩ := (hspec i hi hiσ).2
     have hcons : L[i].result.ending = .consistent ∧
         P.D.real (disagreeSet L[i].read k L[i].result.hypothesis) ≤ εd := by
       rcases hE : L[i].result.ending with _ | zs | _
@@ -427,10 +430,10 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
           (L[i]'(by omega)).result.ending.harvested = some h :=
         fun i hi => Option.ne_none_iff_exists'.1 (hno i (by omega) hi)
       choose hv hzs using hzs
-      -- the population each harvest hands on
+      -- the population each harvest hands on: the empirical law over the round's own probes
       set ν : ∀ i, i ≤ Fintype.card σ → Measure (FreeMonoid α) := fun i hi =>
-        popLaw (Random.harvestLaw (L[i]'(by omega)).read P.D k
-          (L[i]'(by omega)).result.hypothesis (hv i hi))
+        popLaw (Random.harvestSampleList (L[i]'(by omega)).read k
+          (L[i]'(by omega)).result.hypothesis (hv i hi) (L[i]'(by omega)).harvestProbes)
       have hpop : ∀ i (hi : i ≤ Fintype.card σ), (L[i]'(by omega)).population P.D k
           = some (ν i hi) := by
         intro i hi
@@ -445,47 +448,31 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
             ((L[i]'(by omega)).state.hi + 1) q .undecided ≤ T
           ∧ c < T * (ν i hi).real {z | M.eval z.toList = q} := by
         intro i hi
-        have h4 := (hspec i (by omega) hi).2.1
+        have hemp := (hspec i (by omega) hi).2.2.2.2
         have he : (L[i]'(by omega)).result.ending = .harvest (hv i hi) := by
           have := hzs i hi
           revert this
           cases (L[i]'(by omega)).result.ending <;> simp [RoundEnd.harvested]
-        rw [he] at h4
-        set law := Random.harvestLaw (L[i]'(by omega)).read P.D k
-          (L[i]'(by omega)).result.hypothesis (hv i hi)
         set U := fun q => familyReadDist O M (L[i]'(by omega)).family
-          (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided
+          (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided with hUdef
         set bad := fun q => ¬ U q ≤ T
-        have hlow : law.real {z | U (M.eval z.toList) ≤ T}
-            ≤ (A * T + sl) * law.real Set.univ + m := h4.1 T hT.le
-        have hyl : y ≤ law.real Set.univ := h4.2.2
-        have htop : law Set.univ ≠ ⊤ :=
-          Random.harvestLaw_univ_ne_top _ P.D k _ (hv i hi)
-        have hpos : 0 < law.real Set.univ := lt_of_lt_of_le hy hyl
-        have h0 : law Set.univ ≠ 0 := fun h0 => by
-          rw [measureReal_def, h0, ENNReal.toReal_zero] at hpos; exact lt_irrefl _ hpos
-        have hsplit : law.real {z | bad (M.eval z.toList)}
-            = law.real Set.univ - law.real {z | U (M.eval z.toList) ≤ T} := by
+        -- the empirical good bound at this round's harvested site, on the population `ν i hi`
+        have hgb : (ν i hi).real {z | U (M.eval z.toList) ≤ T} ≤ A * T + sl + m / y :=
+          hemp (hv i hi) he T hT.le
+        have huniv1 : (ν i hi).real Set.univ = 1 := by simp [measureReal_def, measure_univ]
+        have hbadmass : (ν i hi).real {z | bad (M.eval z.toList)}
+            = 1 - (ν i hi).real {z | U (M.eval z.toList) ≤ T} := by
           have hc' : {z : FreeMonoid α | bad (M.eval z.toList)}
               = {z | U (M.eval z.toList) ≤ T}ᶜ := by ext z; simp [bad]
-          have hu := measureReal_union (μ := law) (disjoint_compl_right (a := {z : FreeMonoid α |
-            U (M.eval z.toList) ≤ T})) (Set.to_countable _).measurableSet
-            (measure_ne_top_of_subset (Set.subset_univ _) htop)
-            (measure_ne_top_of_subset (Set.subset_univ _) htop)
-          rw [Set.union_compl_self] at hu
-          rw [hc']
-          linarith
-        have hmy : m / law.real Set.univ ≤ m / y := div_le_div_of_nonneg_left hm0 hy hyl
-        have hpb : Fintype.card σ * c / T < (popLaw law).real {z | bad (M.eval z.toList)} := by
-          rw [popLaw_real h0 htop, hsplit, sub_div, div_self hpos.ne']
-          have : law.real {z | U (M.eval z.toList) ≤ T} / law.real Set.univ
-              ≤ A * T + sl + m / law.real Set.univ := by
-            rw [div_le_iff₀ hpos, add_mul, div_mul_cancel₀ _ hpos.ne']
-            exact hlow
+          rw [hc', measureReal_compl (Set.to_countable _).measurableSet, huniv1]
+        have hpb : Fintype.card σ * c / T < (ν i hi).real {z | bad (M.eval z.toList)} := by
+          rw [hbadmass, lt_sub_iff_add_lt]
+          have hc2 : A * T + sl + m / y
+              + Fintype.card σ * (2 * settings.indecisionLimit + slack) / T < 1 := hcond
+          rw [← hcd] at hc2
           linarith
         have hQc : 0 < Fintype.card σ * c := mul_pos hQ hc
         have hpb' : 1 < T / (Fintype.card σ * c) * (ν i hi).real {z | bad (M.eval z.toList)} := by
-          change 1 < T / (Fintype.card σ * c) * (popLaw law).real {z | bad (M.eval z.toList)}
           calc (1 : ℝ) = T / (Fintype.card σ * c) * (Fintype.card σ * c / T) := by
                 field_simp
             _ < _ := mul_lt_mul_of_pos_left hpb (by positivity)
