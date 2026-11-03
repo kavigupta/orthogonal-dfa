@@ -95,10 +95,12 @@ def loopDistributions {K : ℕ} (D : Measure (FreeMonoid α))
 def offLaw (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) : Measure (FreeMonoid α) :=
   popLaw (ν.restrict (↑T)ᶜ)
 
-/-- What the earlier rounds hand on: their harvests' populations, and every prefix and suffix
-their clusterings read. -/
+/-- What the earlier rounds hand on: their harvests' populations, the sift reads each population's
+draw costs (its harvest's hypothesis has this many midfix nodes, one `familyRead` sifted at each),
+and every prefix and suffix their clusterings read. -/
 structure LoopHist (α : Type*) [Countable α] where
   pops : List (Measure (FreeMonoid α))
+  popCosts : List ℕ
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
 
@@ -229,10 +231,17 @@ def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : 
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
 
-/-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
+/-- A leaf count bounding the sift reads one draw from a round's harvest population costs: a probe
+sifted through the harvest's hypothesis reads one `familyRead` at each of its fewer-than-`leaves`
+midfix nodes. -/
+def LoopRound.populationCost {K : ℕ} (o : LoopRound Ω α K) : Option ℕ :=
+  o.result.ending.harvested.map fun _ => o.result.hypothesis.tree.leaves.length
+
+/-- What the rounds hand on: their harvests' populations and those populations' draw costs, and
+what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
     LoopHist α :=
-  ⟨rounds.filterMap fun o => o.population D k,
+  ⟨rounds.filterMap fun o => o.population D k, rounds.filterMap fun o => o.populationCost,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
 /-- The first `r` rounds, cut short at a round that does not end in a harvest. -/

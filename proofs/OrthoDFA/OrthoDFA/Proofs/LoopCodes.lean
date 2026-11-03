@@ -183,8 +183,8 @@ def decodePop (D : Measure (FreeMonoid α)) (k : ℕ) (c : HarvestCode α) :
 
 /-- The history the data hand on. -/
 def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode α)) : LoopHist α :=
-  ⟨cs.map (decodePop D k), cs.foldr (fun c T => c.2.2.2.1 ∪ T) ∅,
-    cs.foldr (fun c T => c.2.2.2.2 ∪ T) ∅⟩
+  ⟨cs.map (decodePop D k), cs.map fun c => c.2.1.1.leaves.length,
+    cs.foldr (fun c T => c.2.2.2.1 ∪ T) ∅, cs.foldr (fun c T => c.2.2.2.2 ∪ T) ∅⟩
 
 omit [MeasurableSpace Ω] in
 /-- A round's population is the one its data hand on, where its probes and replays are at most
@@ -228,6 +228,57 @@ def codesOf (N : ℕ) (rounds : List (LoopRound Ω α K)) : List (HarvestCode α
   rounds.filterMap (popCode N)
 
 omit [MeasurableSpace Ω] in
+/-- A harvest's code carries its population's draw cost: the leaf count of the tree it records. -/
+theorem popCode_cost (N : ℕ) (o : LoopRound Ω α K) :
+    (popCode N o).map (fun c => c.2.1.1.leaves.length) = o.populationCost := by
+  rcases ho : o.result.ending.harvested with _ | site <;>
+    simp [popCode, LoopRound.populationCost, ho]
+
+omit [MeasurableSpace Ω] in
+/-- The draw costs the data hand on are the rounds' populations' costs. -/
+theorem codesOf_decodeCost (N : ℕ) (rounds : List (LoopRound Ω α K)) :
+    (codesOf N rounds).map (fun c => c.2.1.1.leaves.length)
+      = rounds.filterMap LoopRound.populationCost := by
+  rw [codesOf, List.map_filterMap]
+  congr 1
+  funext o
+  exact popCode_cost N o
+
+omit [MeasurableSpace Ω] in
+/-- Where every round harvested, the prefixes the data hand on are the rounds' clusterings'. -/
+theorem codesOf_foldr_prefs (N : ℕ) (rounds : List (LoopRound Ω α K))
+    (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
+    (codesOf N rounds).foldr (fun c T => c.2.2.2.1 ∪ T) ∅
+      = rounds.foldr (fun o T => o.prefs ∪ T) ∅ := by
+  unfold codesOf
+  induction rounds with
+  | nil => rfl
+  | cons o rounds ih =>
+    obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
+    have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+        edgeGraph o.result.hypothesis.edges), readGraph N o.read, o.prefs, o.suffs) := by
+      simp [popCode, hh]
+    simp only [List.filterMap_cons, hc, List.foldr_cons]
+    rw [ih fun o' ho' => hall o' (by simp [ho'])]
+
+omit [MeasurableSpace Ω] in
+/-- Where every round harvested, the suffixes the data hand on are the rounds' clusterings'. -/
+theorem codesOf_foldr_suffs (N : ℕ) (rounds : List (LoopRound Ω α K))
+    (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
+    (codesOf N rounds).foldr (fun c T => c.2.2.2.2 ∪ T) ∅
+      = rounds.foldr (fun o T => o.suffs ∪ T) ∅ := by
+  unfold codesOf
+  induction rounds with
+  | nil => rfl
+  | cons o rounds ih =>
+    obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
+    have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+        edgeGraph o.result.hypothesis.edges), readGraph N o.read, o.prefs, o.suffs) := by
+      simp [popCode, hh]
+    simp only [List.filterMap_cons, hc, List.foldr_cons]
+    rw [ih fun o' ho' => hall o' (by simp [ho'])]
+
+omit [MeasurableSpace Ω] in
 theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Level3Settings)
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + C.probeBudget ≤ N)
     (k : ℕ) (rounds : List (LoopRound Ω α K))
@@ -256,29 +307,11 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random
     (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
     decodeHist D k (codesOf N rounds) = histOf D k rounds := by
   have hp := codesOf_decode C hlen hN k rounds hr
+  have hpc := codesOf_decodeCost N rounds
+  have hpre := codesOf_foldr_prefs N rounds hall
+  have hsuf := codesOf_foldr_suffs N rounds hall
+  unfold harvestsOf at hp
   unfold decodeHist histOf
-  congr 1
-  · induction rounds with
-    | nil => rfl
-    | cons o rounds ih =>
-      obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
-          edgeGraph o.result.hypothesis.edges),
-          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
-      simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
-      congr 1
-      exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
-        (codesOf_decode C hlen hN k rounds fun o' ho' => hr o' (by simp [ho']))
-  · induction rounds with
-    | nil => rfl
-    | cons o rounds ih =>
-      obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
-          edgeGraph o.result.hypothesis.edges),
-          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
-      simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
-      congr 1
-      exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
-        (codesOf_decode C hlen hN k rounds fun o' ho' => hr o' (by simp [ho']))
+  rw [hp, hpc, hpre, hsuf]
 
 end OrthoDFA

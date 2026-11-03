@@ -312,6 +312,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 96))
                 ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2)
                   (P.L + Fintype.card σ + 3) p)}
+          ≤ (Q + 1) * (5 * δ' / 2) ∧
+        (loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).real
+            {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
+              ∃ i, i ≤ Fintype.card σ ∧ ∃ _ : i < rounds.length,
+                rounds[i].result.hypothesis.tree ∉ Random.classSet (Fintype.card σ)}
           ≤ (Q + 1) * (5 * δ' / 2) := by
   intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hL1 hk0 hLε hk1 hk2 hk3
@@ -621,22 +626,23 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
-  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
-  · intro draws hd hgood
-    apply hd
-    obtain ⟨⟨h1, o, ho, hag⟩, hfr⟩ := hgood
-    have hag' : o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 1536) :=
-      checks_mono (by linarith) (by linarith) hag
-    exact ⟨⟨h1, o, ho, ⟨hag'.1, hag'.2.1.trans (by linarith), hag'.2.2⟩⟩, hfr⟩
-  · have hδ8 := hshort
-    have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
-    show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ'
+  have hfin : ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ'
       + rarerTail budget (2 * prefixMax P.D k) ((Q + 1) * cross) ε))
-        ≤ (Q + 1) * (5 * δ' / 2)
-    have : δ' + δ' / 4 + (δ'
+        ≤ (Q + 1) * (5 * δ' / 2) := by
+    have hδ8 := hshort
+    have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
+    have hstep : δ' + δ' / 4 + (δ'
         + rarerTail budget (2 * prefixMax P.D k) ((Q + 1) * cross) ε)
           ≤ 5 * δ' / 2 := by
       linarith
-    exact mul_le_mul_of_nonneg_left this hQ0
+    exact mul_le_mul_of_nonneg_left hstep hQ0
+  refine ⟨le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (le_trans h.1 hfin),
+    le_trans h.2 hfin⟩
+  intro draws hd hgood
+  apply hd
+  obtain ⟨⟨h1, o, ho, hag⟩, hfr⟩ := hgood
+  have hag' : o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε + ε / 1536) :=
+    checks_mono (by linarith) (by linarith) hag
+  exact ⟨⟨h1, o, ho, ⟨hag'.1, hag'.2.1.trans (by linarith), hag'.2.2⟩⟩, hfr⟩
 
 end OrthoDFA

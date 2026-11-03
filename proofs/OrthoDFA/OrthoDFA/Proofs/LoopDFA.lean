@@ -427,7 +427,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
     have : cap * ε ≤ cap * 1 := mul_le_mul_of_nonneg_left (by linarith) hcap0.le
     linarith
   set Dsf : Measure (FreeMonoid α) := uniformStrings (L₁ + Fintype.card σ + 3) with hDsfd
-  have hD := hmain Dsf inferInstance (uniformStrings_length _) hpAPu hatom
+  have hD := (hmain Dsf inferInstance (uniformStrings_length _) hpAPu hatom).1
   set T := settings.level3.probeBudget
   set μL := loopMeasure μ α (Fintype.card σ + 1) T
   set β := Measure.pi fun _ : Fin n => uniformStrings (α := α) L
