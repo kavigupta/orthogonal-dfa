@@ -735,7 +735,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
+        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu cap k E (u + mr)
             (loopRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -754,8 +754,8 @@ theorem loop_core_holds : LoopCore := by
   set δ3 : ℝ := C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
     (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_round_le_persist M O hL P Dsf settings E Ls NP N mr u cross Tu hu.le hT.le hN hNPsum hband
-      hk0 hη1 hcr hprem hmr hmr1 r hr
+    loop_round_le_persist M O hL P Dsf settings E Ls NP N mr u cross Tu cap hu.le hT.le hN hNPsum
+      hband hk0 hη1 hcr hprem hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -794,7 +794,7 @@ theorem loop_core_holds : LoopCore := by
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
             Lr[i].run
-          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
+          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu cap k E (u + mr)
             Lr[i])
         ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
@@ -825,7 +825,7 @@ theorem loop_core_holds : LoopCore := by
           simp only [List.length_take] at hj
           rw [List.getElem_take] at hoν hprobes
           have hji : j < i := by omega
-          obtain ⟨h4, hcls, -⟩ := (ih j hji (by omega) (by omega)).1.2
+          obtain ⟨-, hcls, -, hemp⟩ := (ih j hji (by omega) (by omega)).1.2
           have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hprobes hoν
           unfold LoopRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
@@ -835,14 +835,7 @@ theorem loop_core_holds : LoopCore := by
           have he : (Lr[j]'(by omega)).result.ending = .harvest h := by
             revert hh
             cases (Lr[j]'(by omega)).result.ending <;> simp [RoundEnd.harvested]
-          rw [he] at h4
-          obtain ⟨-, hsp, hyl⟩ := h4
-          have hatc : ∀ t, (popLaw (Random.harvestLaw (Lr[j]'(by omega)).read P.D k
-              (Lr[j]'(by omega)).result.hypothesis h)).real {t} ≤ cap := fun t =>
-            (popLaw_atom_le (by positivity : (0 : ℝ) < C.harvestRate / 2) hyl
-              (Random.harvestLaw_univ_ne_top _ P.D k _ h) (le_prefixMax_of_spread hsp) t).trans
-              (by rw [div_le_iff₀ (by positivity)]; linarith)
-          exact ⟨hatc, hsupp⟩
+          exact ⟨(hemp h he).2, hsupp⟩
         have hpl : (dec cH).pops.length = i := by simp [hdecd, decodeHist, cH, hlen]
         have hatoms : ∀ j ∈ loopPopulations K i, ∀ t,
             (loopDistributions P.D (dec cH).pops j).real {t} ≤ cap := by
@@ -891,7 +884,7 @@ theorem loop_core_holds : LoopCore := by
             (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
-        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
+        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu cap k E (u + mr)
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
@@ -899,7 +892,8 @@ theorem loop_core_holds : LoopCore := by
         rw [← histOf_pops, ← hdec, e]
         exact ⟨⟨hcs, h4⟩, hK', hok, hret, hnc⟩
     have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl (513 / 512 * εcov)
-      slack A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu E (u + mr) hK hT (by linarith)
+      slack A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu cap E (u + mr) hK hT
+      (by linarith)
       ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
       (fun pops B hB => (hband pops B hB).1)
       fun i hi hiσ => (hspec i hiσ hi).1

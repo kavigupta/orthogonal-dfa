@@ -250,7 +250,7 @@ and putting at most `A·T + sl` of its law, past `m`, on the states the round's 
 undecided at most `T` of the time, and a consistent round with at most `ε` of the probes in
 `disagreeSet`; its tree is in `classSet |Q|`; and its misled probes are few in each `E q`. -/
 def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (P : PrefixDistribution α) (A sl m ε y T : ℝ) (k : ℕ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
+    (P : PrefixDistribution α) (A sl m ε y T ca : ℝ) (k : ℕ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
     (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   LooseEndsWell M (fun q => dist q .undecided) A sl m P.D ε
@@ -261,6 +261,8 @@ def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)
   ∧ ∀ site, o.result.ending = .harvest site →
       (popLaw (Random.harvestSampleList o.read k o.result.hypothesis site o.harvestProbes)).real
           {z | dist (M.eval z.toList) .undecided ≤ T} ≤ A * T + sl + m / y
+      ∧ ∀ t, (popLaw (Random.harvestSampleList o.read k o.result.hypothesis site
+          o.harvestProbes)).real {t} ≤ ca
 
 /-- The round agrees, at most `εd` of `D` is in `disagreeSet`, its tree is in `classSet |Q|`, and
 its misled probes are few in each `E q`. -/
@@ -333,7 +335,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (k : ℕ)
-    (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
+    (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T ca : ℝ)
     (E : σ → Set (FreeMonoid α)) (u : ℝ)
     (hK : Fintype.card σ + 1 ≤ K) (hT : 0 < T) (hy : 0 < y) (hm0 : 0 ≤ m)
     (hc : 0 < 2 * settings.indecisionLimit + slack)
@@ -344,7 +346,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       ClusterSpec settings O P.D εcov slack
           (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
           (loopRounds settings O P.D Dsf draws K)[i].run
-        ∧ RoundSpec M O P A sl m εd y T k E u (loopRounds settings O P.D Dsf draws K)[i]) :
+        ∧ RoundSpec M O P A sl m εd y T ca k E u (loopRounds settings O P.D Dsf draws K)[i]) :
     (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
       ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
         o.Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
@@ -458,7 +460,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         set bad := fun q => ¬ U q ≤ T
         -- the empirical good bound at this round's harvested site, on the population `ν i hi`
         have hgb : (ν i hi).real {z | U (M.eval z.toList) ≤ T} ≤ A * T + sl + m / y :=
-          hemp (hv i hi) he
+          (hemp (hv i hi) he).1
         have huniv1 : (ν i hi).real Set.univ = 1 := by simp [measureReal_def, measure_univ]
         have hbadmass : (ν i hi).real {z | bad (M.eval z.toList)}
             = 1 - (ν i hi).real {z | U (M.eval z.toList) ≤ T} := by
