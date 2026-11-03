@@ -178,15 +178,15 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   obtain ⟨rfl, -⟩ := ha'
   obtain ⟨c', B', F', K₀'⟩ := a'
   obtain ⟨-, hc', -⟩ := (stage4_eq_some settings O P.D Dsf N r' hr' ω x c' B' F' K₀').1 h4'
-  have hcl : ((loopRounds settings O P.D Dsf draws r').filterMap (popCode N)).length = r' :=
+  have hcl : ((loopRounds settings O P.D Dsf draws r').filterMap (popCode N settings.level3.walkStart)).length = r' :=
     (congrArg List.length hc').trans hlen'
   have hlr : (loopRounds settings O P.D Dsf draws r').length = r' := by
-    have := List.length_filterMap_le (popCode N) (loopRounds settings O P.D Dsf draws r')
+    have := List.length_filterMap_le (popCode N settings.level3.walkStart) (loopRounds settings O P.D Dsf draws r')
     have := length_loopRounds_le settings O P.D Dsf draws r'
     omega
   have hall : ∀ o ∈ loopRounds settings O P.D Dsf draws r', o.result.ending.harvested ≠ none := by
     intro o ho hno
-    have := (List.length_filterMap_lt_length_iff_exists (f := popCode N)
+    have := (List.length_filterMap_lt_length_iff_exists (f := popCode N settings.level3.walkStart)
       (xs := loopRounds settings O P.D Dsf draws r')).2 ⟨o, ho, by simp [popCode, hno]⟩
     omega
   have htake := take_loopRounds settings O P.D Dsf draws (le_of_lt hr')
