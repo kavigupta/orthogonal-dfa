@@ -24,6 +24,22 @@ noncomputable def harvestLaw [Countable α] (read : FreeMonoid α → ARU) (D : 
     Measure (FreeMonoid α) :=
   D.bind fun x => ((siteHarvest read k H site x).map Measure.dirac).sum
 
+/-- The law of what an `m`-probe sample finds at the site: each drawn probe, walked under `H`,
+contributes the strings it leaves undecided there. Unlike `harvestLaw`, which integrates over all
+of `D`, this reads the oracle only at the `m` sampled probes. -/
+noncomputable def harvestSample [Countable α] (read : FreeMonoid α → ARU) (k : ℕ)
+    (H : HypothesisDFA α) (site : Level3Site) {m : ℕ} (xs : Fin m → FreeMonoid α) :
+    Measure (FreeMonoid α) :=
+  ∑ i, ((siteHarvest read k H site (xs i)).map Measure.dirac).sum
+
+/-- `harvestLaw` is `harvestSample` on a single draw, averaged over that draw from `D`. -/
+theorem harvestLaw_eq_bind_sample [Countable α] (read : FreeMonoid α → ARU)
+    (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) (site : Level3Site) :
+    harvestLaw read D k H site
+      = D.bind fun x => harvestSample read k H site (fun _ : Fin 1 => x) := by
+  unfold harvestLaw harvestSample
+  simp
+
 end Random
 
 end OrthoDFA
