@@ -5,7 +5,8 @@ checked-in runs and labels alone.
 
 A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
 is on the read half.  A residual run's first stage and product are scored the same way
-on the flat labels; its residual DFA keeps the accepting states saved with it.  Writes to figures/length-oracles/
+on the flat labels, as are rules on which frames hold a stop; its residual DFA keeps the
+accepting states saved with it.  Writes to figures/length-oracles/
 the panels (lengths.pdf, dfa_saw.tex, and dfa_first.tex, dfa_residual.tex and
 dfa_product.tex for the product) and values.tex (macros for the caption's numbers)."""
 
@@ -42,6 +43,11 @@ PRODUCT_SEED = 1
 #: reads the residual oracle, whose labels are not saved, so it keeps the accepting states
 #: saved with it and has no phi.
 PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "product"}
+#: Rules on which frames are closed, by (string, frame), scored on the flat labels.
+FRAME_RULES = {
+    "FramesZeroOneOpen": lambda closed: ~closed[:, 0] & ~closed[:, 1],
+    "SomeFrameOpen": lambda closed: ~closed.all(1),
+}
 
 
 class Strings:
@@ -49,6 +55,14 @@ class Strings:
         self.s = s
         self.read = np.arange(len(s)) >= len(s) // 2
         self.stops = (s < 3).sum(1)
+        # A stop closes the frame of the base it starts at, mod 3; a stop is 3 bases, a
+        # wildcard 1.
+        self.closed = np.zeros((len(s), 3), bool)
+        position = np.zeros(len(s), int)
+        for t in range(s.shape[1]):
+            stop = s[:, t] < 3
+            self.closed[stop, position[stop] % 3] = True
+            position += np.where(stop, 3, 1)
 
 
 def phi(v, y):
@@ -222,10 +236,10 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data, parts):
+def values(described, data, parts, y):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
-    \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
-    phase."""
+    \\loSawPhi), each frame rule's phi, and how many kept DFAs of each oracle count
+    wildcards or track the phase."""
 
     def macro(name, value):
         return rf"\newcommand{{\lo{name}}}{{{value}}}"
@@ -262,6 +276,9 @@ def values(described, data, parts):
         lines.append(macro(f"{name.title()}States", len(d["minimal"].states)))
         if "phi" in d:
             lines.append(macro(f"{name.title()}Phi", f"{d['phi']:.3f}"))
+    for name, rule in FRAME_RULES.items():
+        v = rule(data.closed)[data.read].astype(float)
+        lines.append(macro(f"{name}Phi", f"{phi(v, y['flat'][data.read]):.3f}"))
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -293,7 +310,7 @@ def main():
     parts = product_parts(y, data)
     for name, d in parts.items():
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described, data, parts))
+    (OUT_DIR / "values.tex").write_text(values(described, data, parts, y))
     write_lengths(data)
 
 
