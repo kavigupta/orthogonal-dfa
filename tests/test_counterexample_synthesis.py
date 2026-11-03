@@ -10,8 +10,12 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     BestRound,
     _accumulate_harvest,
     _publish_pool,
+    _reroot_start,
     _StallDetector,
 )
+from orthogonal_dfa.l_star.fallbacks.score_patience import Selection
+from orthogonal_dfa.l_star.hypothesis_dfa import HypothesisDFA
+from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 
 #: What draws more like the harvest, which these tests never ask.
@@ -163,6 +167,68 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
+
+
+def _funnel_hypothesis():
+    """Three leaves over a two-symbol alphabet: leaf 0 (accepting) absorbs, leaf 1
+    absorbs, and leaf 2 routes symbol 1 to leaf 0 and stays on symbol 0. Started at
+    leaf 2 a string reaches leaf 0 iff it holds a symbol 1; started at leaf 0 every
+    string absorbs, so only leaf 2 discriminates."""
+    tree = MidfixTree([b""])
+    tree.split(1, b"m")
+    hypothesis = HypothesisDFA(lambda _s: None, tree)
+    leaf0, leaf2 = (True,), (False, False)
+    edges = {
+        (leaf0, 0): leaf0,
+        (leaf0, 1): leaf0,
+        ((False, True), 0): (False, True),
+        ((False, True), 1): (False, True),
+        (leaf2, 0): leaf2,
+        (leaf2, 1): leaf0,
+    }
+    hypothesis.edges = {edge: (target, b"w") for edge, target in edges.items()}
+    return hypothesis
+
+
+def _contains_one(strings):
+    labels = [float(1 in s) for s in strings]
+    return [bytes(s) for s in strings], np.asarray(labels, dtype=float)
+
+
+class TestReroot(unittest.TestCase):
+    _HELD_OUT = Selection(
+        search=((), ()),
+        pick=(
+            _contains_one([[1], [0], [1, 0], [0, 0], [0, 1], [0, 0, 0]]),
+            _contains_one([[1], [0], [0, 1], [0, 0]]),
+        ),
+    )
+
+    def _pst(self, *, reroot):
+        return SimpleNamespace(
+            alphabet_size=2,
+            config=SimpleNamespace(counterexample_reroot=reroot),
+        )
+
+    def test_it_starts_at_the_leaf_that_scores_best_held_out(self):
+        hypothesis = _funnel_hypothesis()
+        dfa = hypothesis.to_dfa(2, 0)
+        rerooted = _reroot_start(
+            self._pst(reroot=True), hypothesis, dfa, self._HELD_OUT
+        )
+        self.assertEqual(2, rerooted.initial_state)
+
+    def test_off_it_keeps_the_given_start(self):
+        hypothesis = _funnel_hypothesis()
+        dfa = hypothesis.to_dfa(2, 0)
+        kept = _reroot_start(self._pst(reroot=False), hypothesis, dfa, self._HELD_OUT)
+        self.assertIs(dfa, kept)
+
+    def test_without_a_held_out_sample_it_keeps_the_given_start(self):
+        hypothesis = _funnel_hypothesis()
+        dfa = hypothesis.to_dfa(2, 0)
+        kept = _reroot_start(self._pst(reroot=True), hypothesis, dfa, None)
+        self.assertIs(dfa, kept)
 
 
 class TestBestRound(unittest.TestCase):

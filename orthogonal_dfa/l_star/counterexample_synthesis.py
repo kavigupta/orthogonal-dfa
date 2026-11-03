@@ -294,7 +294,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
         dfa = _hypothesis_dfa(pst, search.hypothesis)
         pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
         tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
-        return search, ending, dfa
+        return search, ending, _reroot_start(pst, search.hypothesis, dfa, selection)
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
@@ -308,7 +308,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
     _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
-    return search, ending, dfa
+    return search, ending, _reroot_start(pst, search.hypothesis, dfa, selection)
 
 
 def _round_score(pst, dfa, selection, index) -> Optional[float]:
@@ -350,6 +350,23 @@ def _hypothesis_dfa(pst, hypothesis):
     )
     initial = hypothesis.tree.classify(b"", decide)
     return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+
+
+def _reroot_start(pst, hypothesis, dfa, selection):
+    """``dfa`` restarted at the leaf of best held-out phi on ``selection.pick``, the
+    port of ``LoopDFA.lean``'s ``pickLeaf``; ``dfa``'s own start keeps ties. A no-op
+    with re-rooting off or no held-out set to score on."""
+    if not pst.config.counterexample_reroot or selection is None:
+        return dfa
+    best, best_phi = dfa, held_out_phi(dfa, *selection.pick)
+    for leaf in hypothesis.tree.leaves():
+        if leaf == dfa.initial_state:
+            continue
+        candidate = hypothesis.to_dfa(pst.alphabet_size, leaf)
+        phi = held_out_phi(candidate, *selection.pick)
+        if phi > best_phi:
+            best, best_phi = candidate, phi
+    return best
 
 
 def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
