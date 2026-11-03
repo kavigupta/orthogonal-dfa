@@ -3,10 +3,13 @@ checked-in runs and labels alone.
 
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
-A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi is on
-the read half.  Writes to figures/length-oracles/ the
-panels (lengths.pdf, dfa_saw.tex, dfa_flat.tex) and values.tex (macros for the caption's
-numbers)."""
+A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
+is on the read half.  A residual run's first stage and product are scored the same way
+on the flat labels, as are rules on which frames hold a stop; its residual DFA keeps the
+accepting states saved with it.  Writes to figures/length-oracles/
+the panels (lengths.pdf, dfa_saw.tex, and dfa_first.tex, dfa_residual.tex and
+dfa_product.tex for the product), values.tex (macros for the caption's numbers) and
+phis.tex (macros for the phis the text compares)."""
 
 import json
 
@@ -15,7 +18,7 @@ from automata.fa.dfa import DFA
 from matplotlib import pyplot as plt
 from matplotlib import transforms
 
-from orthogonal_dfa.l_star.dfa_utils import table_end_states
+from orthogonal_dfa.l_star.dfa_utils import phi_maximizing_states, table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
@@ -28,10 +31,26 @@ RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
 RANDOM_STRINGS = (
     REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
 )
+RESIDUAL_PRODUCTS = (
+    REPO_ROOT / "data" / "neural" / "length_oracles" / "residual_products.json"
+)
 OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
-REPRESENTATIVES = {"saw": ("saw", 1, 0), "flat": ("flat", 0, 1)}
+REPRESENTATIVES = {"saw": ("saw", 1, 0)}
+#: The residual seed whose first stage, residual DFA and product are drawn.
+PRODUCT_SEED = 1
+#: Each drawn part of that run, by its key in residual_products.json.  The residual DFA
+#: reads the residual oracle, whose labels are not saved, so it keeps the accepting states
+#: saved with it and has no phi.
+PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "product"}
+#: The parts with a phi, by their name in phis.tex.
+PHI_NAMES = {"first": "Original", "product": "Product"}
+#: Rules on which frames are closed, by (string, frame), scored on the flat labels.
+FRAME_RULES = {
+    "NotFramesZeroAndOneClosed": lambda closed: ~(closed[:, 0] & closed[:, 1]),
+    "NotAllFramesClosed": lambda closed: ~closed.all(1),
+}
 
 
 class Strings:
@@ -39,6 +58,14 @@ class Strings:
         self.s = s
         self.read = np.arange(len(s)) >= len(s) // 2
         self.stops = (s < 3).sum(1)
+        # A stop closes the frame of the base it starts at, mod 3; a stop is 3 bases, a
+        # wildcard 1.
+        self.closed = np.zeros((len(s), 3), bool)
+        position = np.zeros(len(s), int)
+        for t in range(s.shape[1]):
+            stop = s[:, t] < 3
+            self.closed[stop, position[stop] % 3] = True
+            position += np.where(stop, 3, 1)
 
 
 def phi(v, y):
@@ -78,19 +105,53 @@ def describe(restart, y, data):
         (k for k in tied if all(k % j == 0 or j % k == 0 for j in tied)), min(tied)
     )
     return dict(
-        minimal=DFA(
-            states=set(range(len(transitions))),
-            input_symbols=set(range(VOCAB.alphabet_size)),
-            transitions={
-                q: {c: int(t) for c, t in enumerate(row)}
-                for q, row in enumerate(transitions)
-            },
-            initial_state=start,
-            final_states={q for q in range(len(transitions)) if verdict[q]},
-        ).minify(),
+        minimal=minimal_dfa(restart["dfa"], verdict),
         phi=phi(v[read], y[read]),
         modulus=modulus,
     )
+
+
+def minimal_dfa(table, accepting):
+    return DFA(
+        states=set(range(len(table["transitions"]))),
+        input_symbols=set(range(VOCAB.alphabet_size)),
+        transitions={
+            q: {c: int(t) for c, t in enumerate(row)}
+            for q, row in enumerate(table["transitions"])
+        },
+        initial_state=table["start"],
+        final_states={q for q, a in enumerate(accepting) if a},
+    ).minify()
+
+
+def product_parts(y, data):
+    """Each part's minimal DFA, and its phi on the flat labels where it reads them, with
+    accepting states as held_out_phi fits them."""
+    with open(RESIDUAL_PRODUCTS) as f:
+        (run,) = [r for r in json.load(f) if r["seed"] == PRODUCT_SEED]
+    parts = {}
+    for key, name in PRODUCT_PARTS.items():
+        table = run[key]
+        if key == "residual":
+            parts[name] = dict(minimal=minimal_dfa(table, table["accepting"]))
+            continue
+        transitions = np.array(table["transitions"])
+        end = table_end_states(transitions, table["start"], data.s)
+        fit, read = ~data.read, data.read
+        counts = np.bincount(end[fit], minlength=len(transitions))
+        accepts = np.bincount(
+            end[fit], weights=y["flat"][fit], minlength=len(transitions)
+        )
+        chosen = phi_maximizing_states(
+            {q: c for q, c in enumerate(counts) if c},
+            {q: a for q, a in enumerate(accepts) if counts[q]},
+        )
+        accepting = np.isin(np.arange(len(transitions)), list(chosen))
+        parts[name] = dict(
+            minimal=minimal_dfa(table, accepting),
+            phi=phi(accepting[end][read].astype(float), y["flat"][read]),
+        )
+    return parts
 
 
 def compiled_lengths(data):
@@ -178,7 +239,7 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data):
+def values(described, data, parts):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
     \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
     phase."""
@@ -214,6 +275,8 @@ def values(described, data):
                 macro(f"{prefix}Lengths", join_words(lengths, "or")),
                 macro(f"{prefix}LengthsAnd", join_words(lengths, "and")),
             ]
+    for name, d in parts.items():
+        lines.append(macro(f"{name.title()}States", len(d["minimal"].states)))
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -223,6 +286,18 @@ def values(described, data):
             macro(f"{kind.title()}Phase", f"{phase}/{len(kept)}"),
         ]
     return "\n".join(lines + [""])
+
+
+def phis(data, parts, y):
+    """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct."""
+    found = {phi_name: parts[name]["phi"] for name, phi_name in PHI_NAMES.items()}
+    for name, rule in FRAME_RULES.items():
+        v = rule(data.closed)[data.read].astype(float)
+        found[name] = phi(v, y["flat"][data.read])
+    return "".join(
+        rf"\newcommand{{\phi{name}}}{{{value:.3f}}}" + "\n"
+        for name, value in found.items()
+    )
 
 
 def main():
@@ -242,7 +317,11 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described, data))
+    parts = product_parts(y, data)
+    for name, d in parts.items():
+        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
+    (OUT_DIR / "values.tex").write_text(values(described, data, parts))
+    (OUT_DIR / "phis.tex").write_text(phis(data, parts, y))
     write_lengths(data)
 
 
