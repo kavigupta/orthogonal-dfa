@@ -162,7 +162,7 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
     (Dh : Measure (FreeMonoid α)) [IsProbabilityMeasure Dh] (Ls L n nL NP : ℕ) (t p₀ : ℝ)
     (ht : 0 ≤ t) (hlen : Dh {x | x.toList.length ≠ L} = 0)
     (hpre : ∀ u, Dh.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
-    (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) (r : ℕ) (hr : r < K) :
+    (hNP : ∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP) (r : ℕ) (hr : r < K) :
     ((loopMeasure μ α K settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => Dh)).real
       (selFail settings O P.D Dsf Dh (P.L + settings.level3.probeBudget + 2) Ls L n nL t r hr)
@@ -364,8 +364,8 @@ theorem loop_select_round_le (settings : LoopSettings K) (O : Oracle μ (FreeMon
             simpa using this
           have := hNP (loopPopulations K (histAt settings P.D c r).pops.length)
           calc 3 * (loopPopulations K (histAt settings P.D c r).pops.length).card
-                * ∑ B ∈ settings.schedule (loopPopulations K (histAt settings P.D c r).pops.length),
-                  B.npref
+                * ∑ n ∈ (settings.schedule (loopPopulations K (histAt settings P.D c r).pops.length)).image
+                  State.npref, n
               ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) this
             _ = 6 * (K + 1) * NP := by ring
         have hcard : ((K₀ ∪ PK).card : ℝ) ≤ 6 * (K + 1) * NP + T := by

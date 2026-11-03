@@ -18,7 +18,7 @@ open MeasureTheory
 
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε εcov δ' ι s τ J S B₃ Wm W PB RB
-    cap Kc n hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
+    cap Kc n hL hgap hη₀ hbalL hbalN hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
   obtain ⟨q, hself, hq⟩ := hdom
   have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
@@ -35,7 +35,10 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
   have h := learner_loop_dfa_dist_core M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
-    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hη hη₀ (by positivity) hc1 hδ hδ1 hpAP
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hgap hη₀
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
+    (by positivity) hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hpS]; exact hpAPu)
     (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
@@ -53,13 +56,13 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
 set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θι Θ Θa K₁
-    Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
+    Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ hL hgap hη₀ hbalL hbalN hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
   obtain ⟨q, hself, hq⟩ := hdom
   have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have : Nonempty σ := ⟨M.start⟩
   have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
   have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
   have hc0 : 0 < ξ / (2 * R) := by positivity
   have hc1 : ξ / (2 * R) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
@@ -99,7 +102,10 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
   obtain ⟨settings, h1, h2, h3, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
-    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hη hη₀ hc0 hc1 hδ hδ1 hpAP
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hgap hη₀
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
+    hc0 hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
     (by rw [hpS]; exact hpAPu)

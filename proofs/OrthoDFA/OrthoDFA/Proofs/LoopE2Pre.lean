@@ -176,27 +176,37 @@ lemma card_biUnion_freshDraws_le {S : Type*} [Stringlike S] (T : Finset S) (y : 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
 /-- The prefixes a round's clustering reads number at most three per population per prefix the
-schedule draws. -/
+schedule draws; states at one prefix count read the same ones. -/
 lemma card_roundPrefs_le (sched : Finset State) (pops : Finset (Option (Fin K)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
-    (roundPrefs sched pops x).card ≤ 3 * pops.card * ∑ B ∈ sched, B.npref := by
+    (roundPrefs sched pops x).card ≤ 3 * pops.card * ∑ n ∈ sched.image State.npref, n := by
   classical
-  unfold roundPrefs
+  set g : ℕ → Finset (FreeMonoid α) := fun n => prefixesAt pops n x
+    ∪ pops.biUnion fun j => (Finset.range (n + 1)).biUnion fun e =>
+      certOf (prefixesAt pops n x) j (n + e) x with hg
+  have hR : roundPrefs sched pops x = (sched.image State.npref).biUnion g := by
+    unfold roundPrefs
+    ext p
+    simp only [Finset.mem_biUnion, Finset.mem_image, hg]
+    constructor
+    · rintro ⟨B, hB, hp⟩; exact ⟨B.npref, ⟨B, hB, rfl⟩, hp⟩
+    · rintro ⟨n, ⟨B, hB, rfl⟩, hp⟩; exact ⟨B, hB, hp⟩
+  rw [hR]
   refine Finset.card_biUnion_le.trans ?_
   rw [Finset.mul_sum]
-  refine Finset.sum_le_sum fun B _ => (Finset.card_union_le _ _).trans ?_
-  have h1 : (prefixesAt pops B.npref x).card ≤ pops.card * B.npref := by
+  refine Finset.sum_le_sum fun n _ => (Finset.card_union_le _ _).trans ?_
+  have h1 : (prefixesAt pops n x).card ≤ pops.card * n := by
     unfold prefixesAt
     refine Finset.card_biUnion_le.trans ?_
-    calc ∑ j ∈ pops, (prefixesOf j B.npref x).card ≤ ∑ _j ∈ pops, B.npref :=
+    calc ∑ j ∈ pops, (prefixesOf j n x).card ≤ ∑ _j ∈ pops, n :=
           Finset.sum_le_sum fun j _ => card_freshDraws_le _ _ _
       _ = _ := by rw [Finset.sum_const, smul_eq_mul]
-  have h2 : (pops.biUnion fun j => (Finset.range (B.npref + 1)).biUnion fun e =>
-      certOf (prefixesAt pops B.npref x) j (B.npref + e) x).card ≤ pops.card * (2 * B.npref) := by
+  have h2 : (pops.biUnion fun j => (Finset.range (n + 1)).biUnion fun e =>
+      certOf (prefixesAt pops n x) j (n + e) x).card ≤ pops.card * (2 * n) := by
     refine Finset.card_biUnion_le.trans ?_
-    calc ∑ j ∈ pops, ((Finset.range (B.npref + 1)).biUnion fun e =>
-          certOf (prefixesAt pops B.npref x) j (B.npref + e) x).card
-        ≤ ∑ _j ∈ pops, 2 * B.npref :=
+    calc ∑ j ∈ pops, ((Finset.range (n + 1)).biUnion fun e =>
+          certOf (prefixesAt pops n x) j (n + e) x).card
+        ≤ ∑ _j ∈ pops, 2 * n :=
           Finset.sum_le_sum fun j _ => card_biUnion_freshDraws_le _ _ _
       _ = _ := by rw [Finset.sum_const, smul_eq_mul]
   nlinarith

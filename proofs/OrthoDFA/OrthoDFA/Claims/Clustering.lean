@@ -11,7 +11,8 @@ family as `ClusteringGuarantee` says but for chance `δ`, wherever the tame popu
 under `atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
 bounded below the same way. Each bound has one constant over all of `clusterRegion`.
 `ClusteringClaimSimple` states the same with each shape a single product. The algorithm runs at
-`η₀ = 1/2 − s₀`, `s₀` the signal, at `α = δ/2` and at cross limit `κ⁴`; `ε_s` is the share of the
+`η₀ = 1/2 − s₀`, `s₀` the signal, a quarter of the gap `1 − ηIn − ηOut` or less, at `α = δ/2`
+and at cross limit `κ⁴`, and the uniform pool holds `2·εcov` of each class; `ε_s` is the share of the
 cut its redraws and hash may cost, `ε_u` the indecision limit, and every state's band reads its
 rarer decided side at most `κ` times as often as undecided.
 -/
@@ -57,6 +58,8 @@ def ClusteringOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
   ∀ (D : J → Measure S) (Dsf : Measure S),
     (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
     (∀ j ∈ populations, D j Preᶜ = 0) →
+    2 * x.εcov ≤ (D uni).real {p | p ∈ O.L} →
+    2 * x.εcov ≤ (D uni).real {p | p ∉ O.L} →
     Dsf Sufᶜ = 0 →
     x.pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     (∀ j ∈ tame, ∀ t : S, (D j).real {t} ≤ atomTol) →
@@ -87,7 +90,7 @@ def ClusteringWithin.{u, v, w} (k nsuff npref atomTol collTol : ClusterInputs �
       (Pre Suf : Set S),
     x ∈ clusterRegion →
     populations.card = x.nJ →
-    O.η ≤ 1 / 2 - x.s₀ →
+    4 * x.s₀ ≤ O.gap →
     uni ∈ tame →
     tame ⊆ populations →
     Flat Pre Suf →

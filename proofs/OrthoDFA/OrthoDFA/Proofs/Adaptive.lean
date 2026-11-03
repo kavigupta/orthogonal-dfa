@@ -361,6 +361,22 @@ lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : �
     0 < prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [prefCount]; omega
 
+omit [Fintype J] in
+/-- The pool holds a family: `2(κ + 1)/pAP` is at least `κ + 1`. -/
+lemma poolCount_ge_famCount (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) {pAP : ℝ}
+    (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
+    famCount η₀ populations indecisionLimit εcov δ crossLimit + 1
+      ≤ poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
+  set κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
+  have h1 : (κ : ℝ) + 1 ≤ 2 * ((κ : ℝ) + 1) / pAP := by
+    rw [le_div_iff₀ hpAP]; nlinarith [(Nat.cast_nonneg κ : (0 : ℝ) ≤ κ)]
+  have h2 : ((κ + 1 : ℕ) : ℝ) ≤ (⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ : ℝ) := by
+    push_cast; exact h1.trans (Nat.le_ceil _)
+  have h3 : κ + 1 ≤ ⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ := by exact_mod_cast h2
+  have e : poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
+      = ⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ + ⌈800 * Real.log (128 / δ) / (81 * pAP)⌉₊ := rfl
+  omega
+
 /-- The states of the schedule at one prefix count are its centres. -/
 lemma schedule_fibre_card_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (n : ℕ)
     (s : Finset State)

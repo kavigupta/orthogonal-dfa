@@ -173,6 +173,8 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
         (∀ j, IsProbabilityMeasure (L j)) → IsProbabilityMeasure Lsf →
         (∀ j ∈ pops, L j {p | Ls ≤ p.toList.length} = 0) →
         (∀ j ∈ pops, ∀ t, (L j).real {t} ≤ 2 * cap) →
+        2 * settings.εcov ≤ (L none).real {p | p ∈ O.L} →
+        2 * settings.εcov ≤ (L none).real {p | p ∉ O.L} →
         Lsf {v | v.toList.length ≠ Ls} = 0 →
         pAP - ms ≤ Lsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ t, Lsf.real {t} ≤ 2 * capSf) →
@@ -189,7 +191,10 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
                   (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                   ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc)
-    (hLs : P.L < Ls) (hDat : ∀ t, P.D.real {t} ≤ cap) (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
+    (hLs : P.L < Ls) (hDat : ∀ t, P.D.real {t} ≤ cap)
+    (hbalL : 2 * settings.εcov + m ≤ P.D.real {p | p ∈ O.L})
+    (hbalN : 2 * settings.εcov + m ≤ P.D.real {p | p ∉ O.L})
+    (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0)
     (hpAP : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}) (hsfat : ∀ t, Dsf.real {t} ≤ capSf)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
@@ -321,6 +326,24 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
           (fun j hj => offLaw_null (compl_ne_zero ((hpm' j hj).trans hm)) (hsupp j hj))
           (fun j hj t => (offLaw_atom_le ((hpm' j hj).trans hm) t).trans (by
             linarith [hat j hj t]))
+          (by
+            have hle := le_offLaw_real ((hpm' none (Finset.mem_insert_self _ _)).trans hm)
+              {p : FreeMonoid α | p ∈ O.L}
+            have := hpm' none (Finset.mem_insert_self _ _)
+            change 2 * settings.εcov ≤ (offLaw P.D h.prefs).real {p | p ∈ O.L}
+            change P.D.real {p | p ∈ O.L} - P.D.real ↑h.prefs
+              ≤ (offLaw P.D h.prefs).real {p | p ∈ O.L} at hle
+            change P.D.real ↑h.prefs ≤ m at this
+            linarith)
+          (by
+            have hle := le_offLaw_real ((hpm' none (Finset.mem_insert_self _ _)).trans hm)
+              {p : FreeMonoid α | p ∉ O.L}
+            have := hpm' none (Finset.mem_insert_self _ _)
+            change 2 * settings.εcov ≤ (offLaw P.D h.prefs).real {p | p ∉ O.L}
+            change P.D.real {p | p ∉ O.L} - P.D.real ↑h.prefs
+              ≤ (offLaw P.D h.prefs).real {p | p ∉ O.L} at hle
+            change P.D.real ↑h.prefs ≤ m at this
+            linarith)
           (offLaw_null (compl_ne_zero hsm') hDsf)
           (by linarith [le_offLaw_real hsm' {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}])
           (fun t => (offLaw_atom_le hsm' t).trans (by linarith [hsfat t]))

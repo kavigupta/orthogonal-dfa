@@ -253,7 +253,7 @@ collides, fails its claim with chance at most
 theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (m u crossLimit : ℝ)
     (hu : 0 ≤ u)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
-    (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
+    (hNP : ∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
         RarerBounded N B.lo (B.hi + 1) p r crossLimit)
@@ -481,7 +481,7 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
         simpa using this
       have := hNP (loopPopulations K H.pops.length)
       calc 3 * (loopPopulations K H.pops.length).card
-            * ∑ B ∈ settings.schedule (loopPopulations K H.pops.length), B.npref
+            * ∑ n ∈ (settings.schedule (loopPopulations K H.pops.length)).image State.npref, n
           ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) this
         _ = 6 * (K + 1) * NP := by ring
   show (p.1, (id (p.2 rK)).2) ∈ Bad (stage4 settings O P.D Dsf N r hr p.1 p.2)

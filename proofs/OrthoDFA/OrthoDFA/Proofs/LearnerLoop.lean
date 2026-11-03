@@ -39,7 +39,7 @@ harvested into a table, and every population is tame. -/
 theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (K : ℕ) (Pre Suf : Set (FreeMonoid α))
     (η₀ indecisionLimit gateLevel crossLimit εcov δc slack pAP : ℝ)
-    (hη : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hflat : Flat Pre Suf) (hpAP : 0 < pAP)
+    (hgap : 4 * (1 / 2 - η₀) ≤ O.gap) (hη₀ : η₀ < 1 / 2) (hflat : Flat Pre Suf) (hpAP : 0 < pAP)
     (hι : 0 < indecisionLimit) (hι1 : indecisionLimit ≤ 1 / 2) (hg : 0 < gateLevel)
     (hg1 : gateLevel < 1 / 2) (hcross : 0 < crossLimit) (hε : 0 < εcov) (hε1 : εcov ≤ 1 / 2)
     (hδc : 0 < δc) (hδc1 : δc ≤ 1) (hslack : 0 < slack) :
@@ -51,23 +51,26 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
         ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
-      ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
+      ∧ (∀ pops, ∑ n ∈ (schedule pops).image State.npref, n
         ≤ 2 * prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
       ∧ ∀ pops : Finset (Option (Fin K)), none ∈ pops →
         ∀ (D : Option (Fin K) → Measure (FreeMonoid α)) (Dsf : Measure (FreeMonoid α)),
           (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
-          (∀ j ∈ pops, D j Preᶜ = 0) → Dsf Sufᶜ = 0 →
+          (∀ j ∈ pops, D j Preᶜ = 0) →
+          2 * εcov ≤ (D none).real {p | p ∈ O.L} → 2 * εcov ≤ (D none).real {p | p ∉ O.L} →
+          Dsf Sufᶜ = 0 →
           pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             2 ^ 17 * ((pops.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t}
               ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
-            2 ^ 27 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+            2 ^ 27 * Real.log (128 * (pops.card : ℝ) * B.nsuff
+                * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
               * (D j).real {t} ≤ min εcov indecisionLimit ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
-            2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-              ≤ δc * slack ^ 2) →
+            2 ^ 4 * ((pops.card : ℝ) + 1) * B.nsuff * (3 + 2 * (Nat.log 2 B.npref : ℝ))
+              * (D j).real {t} ≤ δc * slack ^ 2) →
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
@@ -92,7 +95,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       simp [allHarvest] at hs)
   have hq : ∀ pops : Finset (Option (Fin K)), none ∈ pops → _ := fun pops hpops =>
     clustering_quality_sized O pops pops none (fun _ => ∅) Pre Suf η₀ indecisionLimit εcov
-      (εcov / 512) gateLevel δc pAP c slack hη hη₀ hpops subset_rfl hflat
+      (εcov / 512) gateLevel δc pAP c slack hgap hη₀ hpops subset_rfl hflat
       (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 (by positivity)
       hδc hδc1 hc0 hslack
   refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
@@ -102,8 +105,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     swap
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
-    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-    obtain ⟨hBk, -, -⟩ := band_of_mem_schedule hs
+    have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
+    obtain ⟨-, -, hBk, -, -⟩ := band_of_mem_schedule hs
     have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := c)
       η₀ pops εcov (δc / 2) hη₀
     exact ⟨lohi_of_mem_schedule hs, by rw [hBk]; omega, fun N hN p r hp0 hp1 hr0 hr1 =>
@@ -116,8 +119,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     rw [hH] at hs
     refine ⟨nsuff_of_mem_schedule hs, ?_⟩
-    obtain ⟨i, -, hi⟩ := Finset.mem_image.1 hs
-    rw [← hi]
+    obtain ⟨i, -, hi⟩ := npref_of_mem_schedule hs
+    rw [hi]
     exact Nat.div_le_self _ _
   · intro pops
     dsimp only
@@ -127,16 +130,20 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           fun B hB => by
         have h := (Classical.choose_spec (hq pops hp)).2.1 hB
         rwa [hH] at h
-      have h := le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub
-        (fun _ _ _ => Nat.cast_nonneg _))
-        (schedule_npref_sum_le (εs := εcov / 512) η₀ pops εcov (δc / 2) gateLevel pAP)
-      exact_mod_cast h
+      have h := schedule_npref_sum_le (εs := εcov / 512) η₀ pops εcov (δc / 2) gateLevel pAP
+        _ hsub
+      have h' : ((∑ n ∈ (Classical.choose (hq pops hp)).image State.npref, n : ℕ) : ℝ)
+          ≤ ((2 * prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP c 0
+            : ℕ) : ℝ) := by
+        rw [Nat.cast_sum]; push_cast; exact h
+      exact_mod_cast h'
     · simp
-  · intro pops hpops D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
+  · intro pops hpops D Dsf hD hDsf hsupp hbalL hbalN hsuppSf hpAPDsf hcolD hcolH hslD htbD hcolSf
     simp only [dif_pos hpops] at hcolD hcolH hslD htbD hcolSf ⊢
     set states := Classical.choose (hq pops hpops)
-    obtain ⟨-, -, hgood⟩ := Classical.choose_spec (hq pops hpops)
-    have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+    obtain ⟨-, hstates, hgood⟩ := Classical.choose_spec (hq pops hpops)
+    have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
+    have hpAP1 : pAP ≤ 1 := le_trans hpAPDsf measureReal_le_one
     have hrs : (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit ≤ εcov / 2 := by
       have h1 : min (εcov * (1 / 2 - η₀)) indecisionLimit ≤ εcov :=
         (min_le_left _ _).trans (mul_le_of_le_one_right hε.le (by linarith))
@@ -153,12 +160,46 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
         (min εcov indecisionLimit) ^ 2 / 2 ^ 18 ≤ min (εcov / 512) indecisionLimit ^ 2 := by
       have := pow_le_pow_left₀ (by have := lt_min hε hι; positivity) hmin 2
       linarith
+    have hkn : ∀ B ∈ states, (B.k : ℝ) ≤ B.nsuff ∧ (1 : ℝ) ≤ B.k := fun B hB => by
+      have hs := hstates hB
+      rw [hH] at hs
+      have h1 := poolCount_ge_famCount (indecisionLimit := indecisionLimit) (crossLimit := c)
+        η₀ pops εcov (δc / 2) hpAP hpAP1
+      have e1 := k_of_mem_schedule hs
+      have e2 := nsuff_of_mem_schedule hs
+      constructor
+      · have : B.k ≤ B.nsuff := by omega
+        exact_mod_cast this
+      · have : 1 ≤ B.k := by omega
+        exact_mod_cast this
+    have hpc : (1 : ℝ) ≤ pops.card := by exact_mod_cast Finset.card_pos.2 ⟨none, hpops⟩
     have hcolH' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
-        512 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+        512 * Real.log (128 * (pops.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
           * (D j).real {t} ≤ min (εcov / 512) indecisionLimit ^ 2 := fun B hB j hj t => by
       have h := hcolH B hB j hj t
+      obtain ⟨hk, hk1⟩ := hkn B hB
+      have hl0 : 0 ≤ (3 + 2 * (Nat.log 2 B.npref : ℝ)) := by positivity
+      have hpos : 0 < 128 * (pops.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc := by
+        positivity
+      have hlog : Real.log (128 * (pops.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          ≤ Real.log (128 * (pops.card : ℝ) * B.nsuff * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) :=
+        Real.log_le_log hpos (div_le_div_of_nonneg_right (by gcongr) hδc.le)
+      have hD0 : 0 ≤ (D j).real {t} := measureReal_nonneg
+      have h3 := mul_le_mul_of_nonneg_right hlog hD0
       linarith
-    have hg := hgood D Dsf hD hDsf hsupp hsuppSf hpAPDsf hcolD hcolE hcolH' hslD htbD hcolSf
+    have hslD' : ∀ B ∈ states, ∀ j ∈ pops, ∀ t,
+        2 ^ 4 * ((pops.card : ℝ) + 1) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
+          ≤ δc * slack ^ 2 := fun B hB j hj t => by
+      have h := hslD B hB j hj t
+      obtain ⟨hk, -⟩ := hkn B hB
+      have hD0 : 0 ≤ (D j).real {t} := measureReal_nonneg
+      have h0 : 0 ≤ 2 ^ 4 * ((pops.card : ℝ) + 1) := by positivity
+      have hl0 : 0 ≤ (3 + 2 * (Nat.log 2 B.npref : ℝ)) := by positivity
+      have h3 := mul_le_mul_of_nonneg_right
+        (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hk h0) hl0) hD0
+      exact h3.trans h
+    have hg := hgood D Dsf hD hDsf hsupp hbalL hbalN hsuppSf hpAPDsf hcolD hcolE hcolH' hslD' htbD
+      hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
         ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
@@ -404,10 +445,11 @@ def LoopCore : Prop :=
     (C : Random.Level3Settings),
   let c : ℝ := cross ^ 4
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
   0 < gateLevel → gateLevel < 1 / 2 →
   0 < εcov → εcov ≤ 1 / 2 →
+  2 * εcov + m ≤ P.D.real {p | p ∈ O.L} → 2 * εcov + m ≤ P.D.real {p | p ∉ O.L} →
   0 < δc → δc ≤ 1 →
   0 < slack → 0 < pAP → 1 ≤ P.L →
   Fintype.card σ + 1 ≤ K →
@@ -419,9 +461,11 @@ def LoopCore : Prop :=
     prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel (pAP - ms) c 0
       ≤ NP) →
   2 ^ 18 * ((K : ℝ) + 4) * NP * cap ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit →
-  2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
+  2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * ((NS : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc)
+      * cap
     ≤ min εcov indecisionLimit ^ 2 →
-  2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap ≤ δc * (slack - m) ^ 2 →
+  2 ^ 5 * ((K : ℝ) + 2) * ((NS : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap
+    ≤ δc * (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
   2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
   6 * K * (K + 1) * NP * cap ≤ m →
@@ -438,7 +482,7 @@ def LoopCore : Prop :=
   ∃ settings : LoopSettings K,
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
     settings.gateLevel = gateLevel ∧ settings.level3 = C ∧
-    (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) ∧
+    (∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP) ∧
     (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1) ∧
@@ -459,14 +503,14 @@ def LoopCore : Prop :=
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
-    c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
+    c hL hgap hη₀ hι hι1 hg hg1 hε hε1 hbalL hbalN hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
     hms1 hNSb hNPb hq1a hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
   obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
-    η₀ ι gate cross εcov δc (slack - m) (pAP - ms) hη hη₀ (flat_of_length Ls) (by linarith)
+    η₀ ι gate cross εcov δc (slack - m) (pAP - ms) hgap hη₀ (flat_of_length Ls) (by linarith)
     hι hι1 hg hg1 hcr hε hε1 hδc hδc1 (by linarith)
   rw [hc] at hsize₀ hsum₀
   -- the loop's populations always hold `D`'s
@@ -487,7 +531,7 @@ theorem loop_core_holds : LoopCore := by
     split_ifs at hB with hp
     · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
     · simp at hB
-  have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
+  have hNPsum : ∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP := fun pops => by
     simp only [hset, hschedd]
     split_ifs with hp
     · exact (hsum₀ pops).trans (Nat.mul_le_mul_left 2 (hNPb pops hp))
@@ -500,7 +544,7 @@ theorem loop_core_holds : LoopCore := by
       have := Finset.card_le_univ pops
       simpa using this
     refine ⟨(card_roundPrefs_le _ _ _).trans ?_, ?_⟩
-    · calc 3 * pops.card * ∑ B ∈ settings.schedule pops, B.npref
+    · calc 3 * pops.card * ∑ n ∈ (settings.schedule pops).image State.npref, n
           ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) (hNPsum pops)
         _ = 6 * (K + 1) * NP := by ring
     · by_cases hp : none ∈ pops
@@ -539,12 +583,18 @@ theorem loop_core_holds : LoopCore := by
       simpa using this
     have : ((pops.card : ℕ) : ℝ) ≤ K + 1 := by exact_mod_cast this
     linarith
-  have hη1 : O.η ≤ 1 := by linarith
+  have hη1 : O.η ≤ 1 := by
+    have hs : 0 < 1 / 2 - η₀ := by linarith
+    unfold Oracle.gap at hgap
+    exact max_le (by linarith [le_max_left O.ηIn 0, le_max_right O.ηOut 0])
+      (by linarith [le_max_right O.ηIn 0, le_max_left O.ηOut 0])
   have hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),
         (∀ j, IsProbabilityMeasure (L j)) → IsProbabilityMeasure Lsf →
         (∀ j ∈ pops, L j {p | Ls ≤ p.toList.length} = 0) →
         (∀ j ∈ pops, ∀ t, (L j).real {t} ≤ 2 * cap) →
+        2 * settings.εcov ≤ (L none).real {p | p ∈ O.L} →
+        2 * settings.εcov ≤ (L none).real {p | p ∉ O.L} →
         Lsf {v | v.toList.length ≠ Ls} = 0 →
         pAP - ms ≤ Lsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ t, Lsf.real {t} ≤ 2 * cap) →
@@ -561,7 +611,7 @@ theorem loop_core_holds : LoopCore := by
                 ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
                   (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
                   ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} ≤ δc + gate := by
-    intro pops hpops L Lsf hLp hLsfp hLs hLat hLsfLen hpAPL hLsfat
+    intro pops hpops L Lsf hLp hLsfp hLs hLat hLbalL hLbalN hLsfLen hpAPL hLsfat
     have hs : settings.schedule pops = schedule₀ pops := if_pos hpops
     rw [hs]
     have hLat0 : ∀ j t, 0 ≤ (L j).real {t} := fun _ _ => measureReal_nonneg
@@ -569,7 +619,7 @@ theorem loop_core_holds : LoopCore := by
     have hcolS0 : 0 ≤ collisionMass Lsf := tsum_nonneg fun t => sq_nonneg _
     have hNP0 : (0 : ℝ) ≤ NP := Nat.cast_nonneg _
     have hNS0 : (0 : ℝ) ≤ NS := Nat.cast_nonneg _
-    refine hclust₀ pops hpops L Lsf hLp hLsfp (fun j hj => ?_) ?_ hpAPL
+    refine hclust₀ pops hpops L Lsf hLp hLsfp (fun j hj => ?_) hLbalL hLbalN ?_ hpAPL
       (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_)
       (fun B hB j hj t => ?_) (fun B hB => ?_)
     · refine measure_mono_null (fun p hp => ?_) (hLs j hj)
@@ -599,19 +649,34 @@ theorem loop_core_holds : LoopCore := by
         exact_mod_cast Nat.log_mono_right hnpN
       have hpc : (1 : ℝ) ≤ pops.card := by exact_mod_cast Finset.card_pos.2 ⟨none, hpops⟩
       have hl0 : (0 : ℝ) ≤ (Nat.log 2 B.npref : ℝ) := Nat.cast_nonneg _
-      have hlg : Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
-          ≤ Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) :=
-        Real.log_le_log (div_pos (by nlinarith) hδc)
-          (div_le_div_of_nonneg_right (by nlinarith) hδc.le)
-      have hlg0 : 0 ≤ Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) :=
+      have hBs := hsizes pops B (by rw [hs]; exact hB)
+      have hns : (B.nsuff : ℝ) ≤ NS := by rw [hBs.1]; exact_mod_cast hNSb pops hpops
+      have hns1 : (1 : ℝ) ≤ B.nsuff := by
+        rw [hBs.1]
+        have : 0 < poolCount η₀ pops ι εcov (δc / 2) (pAP - ms) c := by
+          rw [poolCount]
+          have : 0 < ⌈2 * ((famCount η₀ pops ι εcov (δc / 2) c : ℝ) + 1) / (pAP - ms)⌉₊ :=
+            Nat.ceil_pos.2 (div_pos (by positivity) (by linarith))
+          omega
+        exact_mod_cast this
+      have hlg : Real.log (128 * (pops.card : ℝ) * B.nsuff * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
+          ≤ Real.log (128 * ((K : ℝ) + 1) * ((NS : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) := by
+        refine Real.log_le_log (div_pos (by positivity) hδc)
+          (div_le_div_of_nonneg_right ?_ hδc.le)
+        gcongr
+        all_goals linarith
+      have hpc1 : (1 : ℝ) ≤ (pops.card : ℝ) * B.nsuff := one_le_mul_of_one_le_of_one_le hpc hns1
+      have hlg0 : 0 ≤ Real.log (128 * (pops.card : ℝ) * B.nsuff
+          * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) :=
         Real.log_nonneg (by rw [le_div_iff₀ hδc]; nlinarith)
-      calc 2 ^ 27 * Real.log (128 * (pops.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc)
-            * (L j).real {t}
-          ≤ 2 ^ 27 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc)
-            * (2 * cap) :=
+      calc 2 ^ 27 * Real.log (128 * (pops.card : ℝ) * B.nsuff
+              * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δc) * (L j).real {t}
+          ≤ 2 ^ 27 * Real.log (128 * ((K : ℝ) + 1) * ((NS : ℝ) + 1)
+              * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * (2 * cap) :=
             mul_le_mul (mul_le_mul_of_nonneg_left hlg (by norm_num)) hLj measureReal_nonneg
               (mul_nonneg (by norm_num) (hlg0.trans hlg))
-        _ = 2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap := by
+        _ = 2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * ((NS : ℝ) + 1)
+              * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap := by
           ring
         _ ≤ _ := hq1b
     · have hnp : (B.npref : ℝ) ≤ NP := by
@@ -622,10 +687,16 @@ theorem loop_core_holds : LoopCore := by
       have hc0 := hcap.le
       have hlog : (Nat.log 2 B.npref : ℝ) ≤ (Nat.log 2 NP : ℝ) := by
         exact_mod_cast Nat.log_mono_right hnpN
-      calc 2 ^ 4 * ((pops.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (L j).real {t}
-          ≤ 2 ^ 4 * ((K : ℝ) + 1 + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * (2 * cap) := by
+      have hBs := hsizes pops B (by rw [hs]; exact hB)
+      have hns : (B.nsuff : ℝ) ≤ NS := by rw [hBs.1]; exact_mod_cast hNSb pops hpops
+      calc 2 ^ 4 * ((pops.card : ℝ) + 1) * B.nsuff * (3 + 2 * (Nat.log 2 B.npref : ℝ))
+            * (L j).real {t}
+          ≤ 2 ^ 4 * ((K : ℝ) + 1 + 1) * ((NS : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ))
+            * (2 * cap) := by
             gcongr
-        _ = 2 ^ 5 * ((K : ℝ) + 2) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by ring
+            linarith
+        _ = 2 ^ 5 * ((K : ℝ) + 2) * ((NS : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) * cap := by
+          ring
         _ ≤ _ := hq2a
     · have hnp : (B.npref : ℝ) ≤ NP := by
         exact_mod_cast (hsizes pops B (by rw [hs]; exact hB)).2.1
@@ -664,7 +735,7 @@ theorem loop_core_holds : LoopCore := by
     refine ⟨?_, ?_⟩
     · rw [h1]
       refine (card_roundPrefs_le _ _ _).trans ?_
-      calc 3 * pops.card * ∑ B ∈ settings.schedule pops, B.npref
+      calc 3 * pops.card * ∑ n ∈ (settings.schedule pops).image State.npref, n
           ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) (hNPsum pops)
         _ = 6 * (K + 1) * NP := by ring
     · rw [h2]
@@ -714,7 +785,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls N (513 / 512 * εcov) (δc + gate) slack cap cap
-      m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hDsfLen hpAPDsf hatom r hr
+      m ms pAP (by linarith) hN hm1 hms1 hclust hLs' hDat hbalL hbalN hDsfLen hpAPDsf hatom r hr
   set δ3 : ℝ := C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
     (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>

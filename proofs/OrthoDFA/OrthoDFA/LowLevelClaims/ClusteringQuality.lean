@@ -28,14 +28,15 @@ family it returns there, averaged over a tame population, decides a prefix the w
 most `εcov + εs + slack` of the time on the uniform pool and at most
 `1/2 + εs + slack` on any tame population, and leaves it undecided at most
 `2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as
-`ClusteringGuarantee`'s.  The tame populations' atoms are held as there, at `δ/2`, and also
-against `slack`: the table's own prefixes are read with the noise the family was chosen on. -/
+`ClusteringGuarantee`'s, whose gap and class balance it asks for.  The tame populations' atoms
+are held as there, at `δ/2`, and also against `slack`: the table's own prefixes are read with
+the noise the family was chosen on. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
     (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit slack : ℝ),
-  O.η ≤ η₀ →
+  4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
   tame ⊆ populations →
@@ -60,6 +61,8 @@ def ClusteringQualityGuarantee : Prop :=
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
+      2 * εcov ≤ (D uni).real {p | p ∈ O.L} →
+      2 * εcov ≤ (D uni).real {p | p ∉ O.L} →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
@@ -68,11 +71,11 @@ def ClusteringQualityGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        512 * Real.log (128 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
-          * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
+        512 * Real.log (128 * (populations.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ))
+          / δ) * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        2 ^ 4 * ((populations.card : ℝ) + 1) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) * (D j).real {t}
-          ≤ δ * slack ^ 2) →
+        2 ^ 4 * ((populations.card : ℝ) + 1) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ))
+          * (D j).real {t} ≤ δ * slack ^ 2) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,

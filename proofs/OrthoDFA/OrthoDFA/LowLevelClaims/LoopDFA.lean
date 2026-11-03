@@ -159,8 +159,8 @@ def LearnerLoopDFASimple : Prop :=
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
-        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
@@ -171,7 +171,8 @@ def LearnerLoopDFASimple : Prop :=
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+  2 * εcov ≤ (windowStrings k L₁).real {p | p ∈ O.L} → 2 * εcov ≤ (windowStrings k L₁).real {p | p ∉ O.L} → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
@@ -253,7 +254,8 @@ def LearnerLoopDFA : Prop :=
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+  2 * εcov ≤ (windowStrings k L₁).real {p | p ∈ O.L} → 2 * εcov ≤ (windowStrings k L₁).real {p | p ∉ O.L} → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   -- The Python's precondition: some covered state re-roots the target with error at most `γ`.
@@ -325,8 +327,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
-        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
@@ -337,7 +339,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+  2 * εcov ≤ (windowStrings k L₁).real {p | p ∈ O.L} → 2 * εcov ≤ (windowStrings k L₁).real {p | p ∉ O.L} → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
   2 ≤ Fintype.card α →
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -426,7 +429,8 @@ def LearnerLoopDFARelative : Prop :=
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+  2 * εcov ≤ (windowStrings k L₁).real {p | p ∈ O.L} → 2 * εcov ≤ (windowStrings k L₁).real {p | p ∉ O.L} → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
   2 ≤ Fintype.card α →
   -- At least `pAP` of the suffixes keep every string's membership.
   pAP ≤ (uniformStrings (L₁ + Fintype.card σ + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -500,8 +504,8 @@ def LearnerLoopDFADist : Prop :=
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
-        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
+        (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
+      (min (δ' * (ι / 2) ^ 2 / (2 ^ 5 * (J + 1) * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1))))
         (ι / 2 / (8 * J * (RB + 1)))))
     (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
@@ -512,7 +516,8 @@ def LearnerLoopDFADist : Prop :=
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
+  4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+  2 * εcov ≤ (windowLaw D k L₁).real {p | p ∈ O.L} → 2 * εcov ≤ (windowLaw D k L₁).real {p | p ∉ O.L} → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
   0 < β → β * A ≤ 1 →
   -- `D`'s strings are long enough for the suffixes,
   (∀ᵐ w ∂D, Ls ≤ w.toList.length) →

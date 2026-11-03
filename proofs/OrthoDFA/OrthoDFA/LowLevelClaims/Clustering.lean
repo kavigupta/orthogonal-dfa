@@ -71,16 +71,19 @@ lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`
 `crossLimit` of the time; and whatever its two rates, such a vote reads its rarer decided side at
 most `κ` times as often as undecided, for any `κ` with `crossLimit ≤ κ⁴`.
 
-The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
-the one population every prefix of the learner's distribution is drawn from.  `εs` is the slack
+The algorithm is told only `η₀`, whose signal `½ − η₀` is at most a quarter of the gap
+`1 − ηIn − ηOut`; it reads where the two rates sit off the data.  `uni` is the uniform pool,
+the one population every prefix of the learner's distribution is drawn from, and it holds at
+least `2·εcov` of the language and of its complement.  The second count's log reads the
+family's size: the band is tried at each of its centres.  `εs` is the slack
 the samplers' redraws and the hash's split may cost the cut.  `pAP` lower-bounds
 the share of suffixes that preserve membership for every prefix.  `α` is what the gate spends:
 the chance it passes a family wrong on more than its limit, over every state.  The states depend
 on none of the distributions.  A tame population need only have no string heavy against the
 prefixes a state draws, at the signal times `min(εcov·signal, indecisionLimit)` and at `εs`: a
 draw then lands on what the state already holds rarely enough that its rejections are a
-binomial tail; and no string heavy against `min(εs, indecisionLimit)²/log(|J|/δ)`, so the hash
-splits it evenly.  The suffix measure needs a collision mass small against the suffixes; the
+binomial tail; and no string heavy against `min(εs, indecisionLimit)²/log(|J|·k/δ)`, so the
+hash splits it evenly at every centre.  The suffix measure needs a collision mass small against the suffixes; the
 other populations are arbitrary.  A population is read only while `keptAt` keeps it.  `H j` are
 the strings population `j` harvested; the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
@@ -88,7 +91,7 @@ def ClusteringGuarantee : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
     (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit : ℝ),
-  O.η ≤ η₀ →
+  4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
   tame ⊆ populations →
@@ -122,7 +125,7 @@ def ClusteringGuarantee : Prop :=
       + 2 ^ 11 * ((allHarvest H).card : ℝ) / rateScale η₀ indecisionLimit εcov
     ) ∧
     (∃ B ∈ states, (B.npref : ℝ) ≤ max
-      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) / δ)
+      (2 ^ 13 * Real.log (32 * (populations.card : ℝ) * B.k / δ)
         / ((1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit))
       (12 * Real.log (32 * (populations.card : ℝ) / δ) / εs)
     ) ∧
@@ -140,6 +143,8 @@ def ClusteringGuarantee : Prop :=
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
+      2 * εcov ≤ (D uni).real {p | p ∈ O.L} →
+      2 * εcov ≤ (D uni).real {p | p ∉ O.L} →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
@@ -148,8 +153,8 @@ def ClusteringGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         2 ^ 8 * ((populations.card : ℝ) + 3) * (B.npref : ℝ) * (D j).real {t} ≤ εs) →
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
-        512 * Real.log (64 * (populations.card : ℝ) * (3 + 2 * (Nat.log 2 B.npref : ℝ)) / δ)
-          * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
+        512 * Real.log (64 * (populations.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ))
+          / δ) * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
       (∀ B ∈ states,
         2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
