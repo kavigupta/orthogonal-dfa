@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.RandomHarvest
 import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.Hoeffding
+import OrthoDFA.Proofs.BitSum
 
 /-! The `m`-draw harvest law concentrates to its ideal.
 
@@ -78,6 +79,27 @@ theorem harvestSample_lower_tail [IsProbabilityMeasure D] (site : Level3Site)
     simp [measureReal_def, measure_univ]
   rw [hcompl, harvestSample_upper_tail read D k H site A m (b + 1), huniv] at hm
   linarith [hm]
+
+/-- The ideal law's mass on a set is a probability. -/
+theorem harvestLaw_real_le_one [IsProbabilityMeasure D] (site : Level3Site)
+    (A : Set (FreeMonoid α)) : (harvestLaw read D k H site).real A ≤ 1 := by
+  classical
+  rw [← siteHit_prob read D k H site A]
+  exact measureReal_le_one
+
+open scoped Classical in
+/-- Hoeffding's lower tail for the harvest: the sample finds at most `b` of its mass in `A` with
+chance `exp(-2mγ²)` once `b ≤ m·(harvestLaw A − γ)`. With `A = Set.univ` this floors the sample's
+yield; the derived draw budget `m` is what drives `exp(-2mγ²)` below the failure budget. -/
+theorem harvestSample_lower_exp [IsProbabilityMeasure D] (site : Level3Site)
+    (A : Set (FreeMonoid α)) (m b : ℕ) {γ : ℝ} (hγ : 0 ≤ γ)
+    (hb : (b : ℝ) ≤ m * ((harvestLaw read D k H site).real A - γ)) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | harvestSample read k H site xs A ≤ (b : ℝ≥0∞)}
+      ≤ Real.exp (-2 * m * γ ^ 2) := by
+  rw [harvestSample_lower_tail read D k H site A m b]
+  exact one_sub_binomSfGe_le_exp m b measureReal_nonneg
+    (harvestLaw_real_le_one read D k H site A) hγ hb
 
 end Random
 
