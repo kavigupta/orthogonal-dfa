@@ -47,6 +47,19 @@ theorem harvestSampleList_ofFn [Countable α] (read : FreeMonoid α → ARU) (k 
   rw [List.map_ofFn, List.sum_ofFn]
   rfl
 
+/-- The strings a list of probes leaves at the site, flattened across probes. -/
+noncomputable def harvestStrings [Countable α] (read : FreeMonoid α → ARU) (k : ℕ)
+    (H : HypothesisDFA α) (site : Level3Site) (l : List (FreeMonoid α)) : List (FreeMonoid α) :=
+  (l.map (siteHarvest read k H site)).flatten
+
+theorem harvestSampleList_eq_strings [Countable α] (read : FreeMonoid α → ARU) (k : ℕ)
+    (H : HypothesisDFA α) (site : Level3Site) (l : List (FreeMonoid α)) :
+    harvestSampleList read k H site l
+      = ((harvestStrings read k H site l).map Measure.dirac).sum := by
+  unfold harvestSampleList harvestStrings
+  rw [List.map_flatten, List.sum_flatten, List.map_map, List.map_map]
+  rfl
+
 /-- `harvestLaw` is `harvestSample` on a single draw, averaged over that draw from `D`. -/
 theorem harvestLaw_eq_bind_sample [Countable α] (read : FreeMonoid α → ARU)
     (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) (site : Level3Site) :

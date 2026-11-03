@@ -146,6 +146,17 @@ theorem siteHarvest_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (Fre
   have hp := probeOrAgree_congr_reads O (kl := kl) (kh := kh) k H x h
   cases site <;> simp only [Random.siteHarvest, hp]
 
+theorem harvestStrings_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (FreeMonoid α)}
+    {kl kh : ℕ} (k : ℕ) (site : Random.Level3Site) (H : HypothesisDFA α) (l : List (FreeMonoid α))
+    {ω ω' : Ω}
+    (h : ∀ x ∈ l, ∀ p ∈ readStrings (shortStrings (x.toList.length + midLen H.tree)) F,
+      (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
+    Random.harvestStrings (fun z => familyRead O.mq F kl kh z ω) k H site l
+      = Random.harvestStrings (fun z => familyRead O.mq F kl kh z ω') k H site l := by
+  unfold Random.harvestStrings
+  congr 1
+  exact List.map_congr_left fun x hx => siteHarvest_congr_reads O k site H x (h x hx)
+
 theorem measurable_siteCount (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
     (kl kh k : ℕ) (site : Random.Level3Site) (H : HypothesisDFA α) (x : FreeMonoid α)
     (A : Set (FreeMonoid α)) [DecidablePred (· ∈ A)] :
@@ -190,7 +201,7 @@ def roundAt (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   ⟨x₀, B, F, fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1,
     Random.indecisiveLStarLevel3 settings.level3 (fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1)
       d.2,
-    Pr, Sf⟩
+    Pr, Sf, List.ofFn d.2⟩
 
 /-- The round's probes, drawn by uniforms from `D` avoiding `K₀`. -/
 def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α))
@@ -620,7 +631,7 @@ theorem measurable_probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid
 theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (N : ℕ) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) (oc : Option (HarvestCode α)) :
     MeasurableSet {d : LoopRoundDraws Ω α K settings.level3.probeBudget |
-      popCode N (loopRound settings O D Dsf h d) = oc} := by
+      popCode N settings.level3.walkStart (loopRound settings O D Dsf h d) = oc} := by
   classical
   set pops := loopPopulations K h.pops.length
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
@@ -630,7 +641,7 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
   have hlv : Measurable fun d : LoopRoundDraws Ω α K settings.level3.probeBudget => (d.1, d.2.2) :=
     measurable_fst.prodMk (measurable_snd.comp measurable_snd)
   have hset : {d : LoopRoundDraws Ω α K settings.level3.probeBudget |
-      popCode N (loopRound settings O D Dsf h d) = oc}
+      popCode N settings.level3.walkStart (loopRound settings O D Dsf h d) = oc}
       = ⋃ BFK : State × Finset (FreeMonoid α) × Finset (FreeMonoid α)
           × (Finset (FreeMonoid α) × Finset (FreeMonoid α)),
         ((fun d : LoopRoundDraws Ω α K settings.level3.probeBudget =>
@@ -644,7 +655,8 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
           ((fun e : Ω × (Fin settings.level3.probeBudget → unitInterval) =>
             (e.1, probesOf settings D BFK.2.2.1 e.2)) ⁻¹'
             {d₂ : Ω × (Fin settings.level3.probeBudget → FreeMonoid α) |
-              popCode N (roundAt settings O x₀ BFK.1 BFK.2.1 BFK.2.2.2.1 BFK.2.2.2.2 d₂)
+              popCode N settings.level3.walkStart
+                  (roundAt settings O x₀ BFK.1 BFK.2.1 BFK.2.2.2.1 BFK.2.2.2.2 d₂)
                 = oc})) := by
     ext d
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage]
@@ -679,41 +691,70 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
   have h2 : ∀ p ∈ readStrings (shortStrings N) BFK.2.1, (O.mq p ω' = 1 ↔ O.mq p ω = 1) :=
     fun p hp => (h' p (Finset.mem_union_right _ hp)).symm
   have hres := level3_result_congr O settings.level3 BFK.2.1 BFK.1.lo (BFK.1.hi + 1) xs h1
-  have hgraph : readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω')
-      = readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) := by
-    unfold readGraph
-    refine Finset.image_congr fun z hz => ?_
-    simp only [Prod.mk.injEq, true_and]
-    exact familyRead_congr O h2 hz
+  have hmid : Random.MidsLe settings.level3.probeBudget
+      (Random.indecisiveLStarLevel3 settings.level3
+        (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) xs).hypothesis.tree := by
+    have := (Random.runProbes_tree (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω)
+      settings.level3 (List.ofFn xs)).2.2
+    rwa [List.length_ofFn] at this
+  have hstr : ∀ site,
+      Random.harvestStrings (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω')
+        settings.level3.walkStart (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) xs).hypothesis site
+        (List.ofFn xs)
+      = Random.harvestStrings (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω)
+        settings.level3.walkStart (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) xs).hypothesis site
+        (List.ofFn xs) := by
+    intro site
+    refine (harvestStrings_congr_reads O settings.level3.walkStart site _ (List.ofFn xs) ?_).symm
+    intro x hx p hp
+    simp only [List.mem_ofFn, Set.mem_range] at hx
+    obtain ⟨i, rfl⟩ := hx
+    have hle : (xs i).toList.length + midLen (Random.indecisiveLStarLevel3 settings.level3
+        (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) xs).hypothesis.tree
+        ≤ probesLen xs + 1 + settings.level3.probeBudget + 2 := by
+      have := le_probesLen xs i
+      have hml : midLen (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) xs).hypothesis.tree
+          ≤ settings.level3.probeBudget := Finset.sup_le fun m hm => hmid m hm
+      omega
+    refine (h1 p ?_).symm
+    simp only [readStrings, Finset.mem_image, Finset.mem_product] at hp ⊢
+    obtain ⟨⟨a, b⟩, ⟨ha, hb⟩, hab⟩ := hp
+    exact ⟨(a, b), ⟨mem_shortStrings.2 (le_trans (mem_shortStrings.1 ha) hle), hb⟩, hab⟩
   unfold popCode roundAt
   dsimp only
-  rw [hres, hgraph]
+  rw [hres]
+  simp only [hstr]
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
-lemma codesOf_append_single (N : ℕ) (rounds : List (LoopRound Ω α K)) (o : LoopRound Ω α K) :
-    codesOf N (rounds ++ [o]) = codesOf N rounds ++ (popCode N o).toList := by
+lemma codesOf_append_single (N k : ℕ) (rounds : List (LoopRound Ω α K)) (o : LoopRound Ω α K) :
+    codesOf N k (rounds ++ [o]) = codesOf N k rounds ++ (popCode N k o).toList := by
   unfold codesOf
   rw [List.filterMap_append]
-  cases h : popCode N o <;> simp [h]
+  cases h : popCode N k o <;> simp [h]
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
     (rounds : List (LoopRound Ω α K)) :
-    (codesOf N rounds).length = (harvestsOf D k rounds).length := by
+    (codesOf N k rounds).length = (harvestsOf D k rounds).length := by
   induction rounds with
   | nil => rfl
   | cons o rounds ih =>
     unfold codesOf harvestsOf at ih ⊢
     rw [List.filterMap_cons, List.filterMap_cons]
     rcases h : o.result.ending.harvested with _ | hv
-    · have h1 : popCode N o = none := by simp [popCode, h]
+    · have h1 : popCode N k o = none := by simp [popCode, h]
       have h2 : o.population D k = none := by simp [LoopRound.population, h]
       rw [h1, h2]; exact ih
-    · have h1 : popCode N o = some (hv, (o.result.hypothesis.tree,
+    · have h1 : popCode N k o = some (hv, (o.result.hypothesis.tree,
           edgeGraph o.result.hypothesis.edges),
-          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, h]
+          Random.harvestStrings o.read k o.result.hypothesis hv o.harvestProbes,
+          o.prefs, o.suffs) := by simp [popCode, h]
       have h2 : o.population D k
-          = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis hv)) := by
+          = some (popLaw (Random.harvestSampleList o.read k o.result.hypothesis hv
+            o.harvestProbes)) := by
         simp [LoopRound.population, h]
       rw [h1, h2]
       simp [ih]
@@ -735,13 +776,13 @@ lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMo
     (D Dsf : Measure (FreeMonoid α)) {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget ≤ N)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (r : ℕ) (hrK : r < K) :
-    codesOf N (loopRounds settings O D Dsf draws (r + 1))
-      = if (codesOf N (loopRounds settings O D Dsf draws r)).length = r then
-          codesOf N (loopRounds settings O D Dsf draws r)
-            ++ (popCode N (loopRound settings O D Dsf
+    codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws (r + 1))
+      = if (codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r)).length = r then
+          codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r)
+            ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf
               (decodeHist D settings.level3.walkStart
-                (codesOf N (loopRounds settings O D Dsf draws r))) (draws ⟨r, hrK⟩))).toList
-        else codesOf N (loopRounds settings O D Dsf draws r) := by
+                (codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r))) (draws ⟨r, hrK⟩))).toList
+        else codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r) := by
   have hlenc := length_codesOf N D settings.level3.walkStart (loopRounds settings O D Dsf draws r)
   rw [loopRounds_succ]
   split_ifs with h1 h2 h2
@@ -773,7 +814,7 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
     (D Dsf : Measure (FreeMonoid α)) {L N : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget ≤ N) (r : ℕ) (c : List (HarvestCode α)) :
     MeasurableSet {draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget |
-      codesOf N (loopRounds settings O D Dsf draws r) = c} := by
+      codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r) = c} := by
   classical
   induction r generalizing c with
   | zero =>
@@ -782,11 +823,11 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
   | succ r ih =>
     by_cases hrK : r < K
     · have hset : {draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget |
-          codesOf N (loopRounds settings O D Dsf draws (r + 1)) = c}
-          = ⋃ c', {draws | codesOf N (loopRounds settings O D Dsf draws r) = c'}
+          codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws (r + 1)) = c}
+          = ⋃ c', {draws | codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws r) = c'}
             ∩ (fun draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget =>
               draws ⟨r, hrK⟩) ⁻¹' {d | (if c'.length = r then
-                c' ++ (popCode N (loopRound settings O D Dsf
+                c' ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf
                   (decodeHist D settings.level3.walkStart c') d)).toList else c') = c} := by
         ext draws
         simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage,
@@ -797,11 +838,11 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
       by_cases hc : c'.length = r
       · simp only [hc, if_true]
         have : {d : LoopRoundDraws Ω α K settings.level3.probeBudget |
-            c' ++ (popCode N (loopRound settings O D Dsf
+            c' ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf
               (decodeHist D settings.level3.walkStart c') d)).toList = c}
             = ⋃ oc : Option (HarvestCode α),
               if c' ++ oc.toList = c then
-                {d | popCode N (loopRound settings O D Dsf
+                {d | popCode N settings.level3.walkStart (loopRound settings O D Dsf
                   (decodeHist D settings.level3.walkStart c') d) = oc} else ∅ := by
           ext d
           simp only [Set.mem_setOf_eq, Set.mem_iUnion]

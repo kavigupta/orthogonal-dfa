@@ -241,8 +241,8 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
       clusterRun D Dsf h (ω, d.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
         settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     (hr : ∀ w ∈ roundReads settings D Dsf N h ω d, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    popCode N (loopRound settings O D Dsf h (ω, d))
-      = popCode N (loopRound settings O D Dsf h (ω', d)) := by
+    popCode N settings.level3.walkStart (loopRound settings O D Dsf h (ω, d))
+      = popCode N settings.level3.walkStart (loopRound settings O D Dsf h (ω', d)) := by
   classical
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
@@ -259,7 +259,7 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   rw [loopRound_eq_mkRound, loopRound_eq_mkRound]
   simp only []
   rw [← hst]
-  change popCode N (roundAt settings O _ B F _ _ (ω, _)) = popCode N (roundAt settings O _ B
+  change popCode N settings.level3.walkStart (roundAt settings O _ B F _ _ (ω, _)) = popCode N settings.level3.walkStart (roundAt settings O _ B
     (clusterAt O.mq pops (clusterRun D Dsf h (ω', d.1)) B) _ _ (ω', _))
   rw [← show F = clusterAt O.mq pops (clusterRun D Dsf h (ω', d.1)) B from hF]
   have hroundKeys : roundKeys settings D Dsf h (ω', d.1) = roundKeys settings D Dsf h (ω, d.1) :=
@@ -289,15 +289,37 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   have h2 : ∀ p ∈ readStrings (shortStrings N) F, (O.mq p ω = 1 ↔ O.mq p ω' = 1) :=
     fun p hp => hr p (hsub _ (le_max_left _ _) hp)
   have hres := level3_result_congr O settings.level3 F B.lo (B.hi + 1) xs h1
-  have hgraph : readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
-      = readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω') := by
-    unfold readGraph
-    refine Finset.image_congr fun z hz => ?_
-    simp only [Prod.mk.injEq, true_and]
-    exact familyRead_congr O h2 hz
+  have hmid : Random.MidsLe settings.level3.probeBudget
+      (Random.indecisiveLStarLevel3 settings.level3
+        (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) xs).hypothesis.tree := by
+    have := (Random.runProbes_tree (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
+      settings.level3 (List.ofFn xs)).2.2
+    rwa [List.length_ofFn] at this
+  have hstr : ∀ site,
+      Random.harvestStrings (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
+        settings.level3.walkStart (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) xs).hypothesis site (List.ofFn xs)
+      = Random.harvestStrings (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω')
+        settings.level3.walkStart (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) xs).hypothesis site (List.ofFn xs) := by
+    intro site
+    refine harvestStrings_congr_reads O settings.level3.walkStart site _ (List.ofFn xs) ?_
+    intro x hx p hp
+    simp only [List.mem_ofFn, Set.mem_range] at hx
+    obtain ⟨i, rfl⟩ := hx
+    have hle : (xs i).toList.length + midLen (Random.indecisiveLStarLevel3 settings.level3
+        (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) xs).hypothesis.tree
+        ≤ probesLen xs + 1 + settings.level3.probeBudget + 2 := by
+      have := le_probesLen xs i
+      have hml : midLen (Random.indecisiveLStarLevel3 settings.level3
+          (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) xs).hypothesis.tree
+          ≤ settings.level3.probeBudget := Finset.sup_le fun m hm => hmid m hm
+      omega
+    exact h1 p (readStrings_mono (shortStrings_mono hle) (Finset.Subset.refl _) hp)
   unfold popCode roundAt
   dsimp only
-  rw [hres, hgraph]
+  simp only [hstr]
+  rw [hres]
 
 end Round
 
@@ -309,7 +331,7 @@ variable [IsProbabilityMeasure μ] (settings : LoopSettings K) (O : Oracle μ (F
 /-- The earlier rounds' harvest data, at the noise `ω`. -/
 def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) :
     List (HarvestCode α) :=
-  codesOf N (loopRounds settings O D Dsf (fun i => (ω, g i)) r)
+  codesOf N settings.level3.walkStart (loopRounds settings O D Dsf (fun i => (ω, g i)) r)
 
 /-- The history the first `i` of the harvest data `c` hand on. -/
 abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : LoopHist α :=
@@ -375,14 +397,14 @@ theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     obtain ⟨hokω', hc'⟩ := hist_congr hlen hN g r ω ω' hok' fun w hw => h w
       ((histReads_mono settings D Dsf N g ω (Nat.le_succ r) hpre fun i _ hi => hi.trans hlenle) hw)
     by_cases hrK : r < K
-    · have hy : y = if c.length = r then c ++ (popCode N (loopRound settings O D Dsf (dec c)
+    · have hy : y = if c.length = r then c ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf (dec c)
           (ω, g ⟨r, hrK⟩))).toList else c :=
         codesOf_loopRounds_succ settings O D Dsf hlen hN (fun i => (ω, g i)) r hrK
       have hy' : histCodes settings O D Dsf N ω' g (r + 1) = if c.length = r then
-          c ++ (popCode N (loopRound settings O D Dsf (dec c) (ω', g ⟨r, hrK⟩))).toList
+          c ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf (dec c) (ω', g ⟨r, hrK⟩))).toList
             else c := by
         have := codesOf_loopRounds_succ settings O D Dsf hlen hN (fun i => (ω', g i)) r hrK
-        rw [show codesOf N (loopRounds settings O D Dsf (fun i => (ω', g i)) r) = c from hc']
+        rw [show codesOf N settings.level3.walkStart (loopRounds settings O D Dsf (fun i => (ω', g i)) r) = c from hc']
           at this
         exact this
       by_cases hcl : c.length = r

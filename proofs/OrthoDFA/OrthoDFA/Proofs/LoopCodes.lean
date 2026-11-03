@@ -166,20 +166,22 @@ theorem decodeReads_readGraph {N : ℕ} (rd : FreeMonoid α → ARU) {z : FreeMo
 prefixes and suffixes its round's clustering read. -/
 abbrev HarvestCode (α : Type*) :=
   Random.Level3Site × (DTree α × Finset ((List Bool × α) × (List Bool × FreeMonoid α)))
-    × Finset (FreeMonoid α × ARU) × Finset (FreeMonoid α) × Finset (FreeMonoid α)
+    × List (FreeMonoid α) × Finset (FreeMonoid α) × Finset (FreeMonoid α)
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
-/-- A round's harvest, with its reads of the strings at most `N` long. -/
-def popCode (N : ℕ) (o : LoopRound Ω α K) : Option (HarvestCode α) :=
+/-- A round's harvest: the strings its sampler left at the site, with the tree, edges and the
+round's prefixes and suffixes. -/
+def popCode (N k : ℕ) (o : LoopRound Ω α K) : Option (HarvestCode α) :=
   o.result.ending.harvested.map fun site =>
     (site, (o.result.hypothesis.tree, edgeGraph o.result.hypothesis.edges),
-      readGraph N o.read, o.prefs, o.suffs)
+      Random.harvestStrings o.read k o.result.hypothesis site o.harvestProbes, o.prefs, o.suffs)
 
-/-- The population the data hand on. -/
-def decodePop (D : Measure (FreeMonoid α)) (k : ℕ) (c : HarvestCode α) :
+/-- The population the data hand on: the empirical law of the stored harvest strings. `D` and `k`
+are ignored (the strings already determine the law); they are kept so callers need not change. -/
+def decodePop (_D : Measure (FreeMonoid α)) (_k : ℕ) (c : HarvestCode α) :
     Measure (FreeMonoid α) :=
-  popLaw (Random.harvestLaw (decodeReads c.2.2.1) D k ⟨c.2.1.1, decodeEdges c.2.1.2⟩ c.1)
+  popLaw ((c.2.2.1.map Measure.dirac).sum)
 
 /-- The history the data hand on. -/
 def decodeHist (D : Measure (FreeMonoid α)) (k : ℕ) (cs : List (HarvestCode α)) : LoopHist α :=
@@ -193,39 +195,16 @@ theorem decodePop_popCode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + C.probeBudget ≤ N)
     (k : ℕ) (o : LoopRound Ω α K) (xs : Fin C.probeBudget → FreeMonoid α)
     (ho : o.result = Random.indecisiveLStarLevel3 C o.read xs) :
-    (popCode N o).map (decodePop D k) = o.population D k := by
+    (popCode N k o).map (decodePop D k) = o.population D k := by
   unfold popCode LoopRound.population
   rcases hh : o.result.ending.harvested with _ | site
   · rfl
-  have hfin := result_fin C o.read xs
-  have hmid := (Random.runProbes_tree o.read C (List.ofFn xs)).2.2
-  rw [List.length_ofFn] at hmid
-  rw [← ho] at hfin
-  simp only [Option.map_some, decodePop]
-  congr 1
-  have hv : (⟨o.result.hypothesis.tree,
-      decodeEdges (edgeGraph o.result.hypothesis.edges)⟩ : HypothesisDFA α)
-      = o.result.hypothesis := by
-    rw [decodeEdges_edgeGraph hfin]
-  rw [hv]
-  refine congrArg popLaw (Random.harvestLaw_congr_zone D k _ {x | x.toList.length ≤ L}
-    (by rw [ae_iff] at hlen; convert hlen using 2; ext x; simp) (fun x hx j _ hj m hm => ?_)
-    site)
-  have hmT : m.toList.length ≤ C.probeBudget := by
-    have : o.result.hypothesis.tree
-        = (Random.runProbes o.read C Random.initialState (List.ofFn xs)).1.tree := by
-      rw [ho]; rfl
-    rw [this] at hm
-    exact hmid m hm
-  have hx' : x.toList.length ≤ L := hx
-  refine decodeReads_readGraph o.read ?_
-  have : (prefixOf x j).toList.length ≤ x.toList.length := by simp [prefixOf]
-  simp only [FreeMonoid.toList_mul, List.length_append]
-  omega
+  simp only [Option.map_some, decodePop,
+    Random.harvestSampleList_eq_strings o.read k o.result.hypothesis site o.harvestProbes]
 
 /-- The data of the rounds' harvests, in order. -/
-def codesOf (N : ℕ) (rounds : List (LoopRound Ω α K)) : List (HarvestCode α) :=
-  rounds.filterMap (popCode N)
+def codesOf (N k : ℕ) (rounds : List (LoopRound Ω α K)) : List (HarvestCode α) :=
+  rounds.filterMap (popCode N k)
 
 omit [MeasurableSpace Ω] in
 theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Level3Settings)
@@ -233,7 +212,7 @@ theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Lev
     (k : ℕ) (rounds : List (LoopRound Ω α K))
     (hr : ∀ o ∈ rounds, ∃ xs : Fin C.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 C o.read xs) :
-    (codesOf N rounds).map (decodePop D k) = harvestsOf D k rounds := by
+    (codesOf N k rounds).map (decodePop D k) = harvestsOf D k rounds := by
   induction rounds with
   | nil => rfl
   | cons o rounds ih =>
@@ -242,7 +221,7 @@ theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Lev
     have h2 := ih fun o' ho' => hr o' (by simp [ho'])
     unfold codesOf harvestsOf at h2 ⊢
     rw [List.filterMap_cons, List.filterMap_cons]
-    rcases hp : popCode N o with _ | c <;> rw [hp] at h1 <;> simp only [Option.map] at h1
+    rcases hp : popCode N k o with _ | c <;> rw [hp] at h1 <;> simp only [Option.map] at h1
     · rw [← h1]; exact h2
     · rw [← h1, List.map_cons, h2]
 
@@ -254,7 +233,7 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random
     (hr : ∀ o ∈ rounds, ∃ xs : Fin C.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 C o.read xs)
     (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
-    decodeHist D k (codesOf N rounds) = histOf D k rounds := by
+    decodeHist D k (codesOf N k rounds) = histOf D k rounds := by
   have hp := codesOf_decode C hlen hN k rounds hr
   unfold decodeHist histOf
   congr 1
@@ -262,9 +241,10 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random
     | nil => rfl
     | cons o rounds ih =>
       obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+      have hc : popCode N k o = some (h, (o.result.hypothesis.tree,
           edgeGraph o.result.hypothesis.edges),
-          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
+          Random.harvestStrings o.read k o.result.hypothesis h o.harvestProbes,
+          o.prefs, o.suffs) := by simp [popCode, hh]
       simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
       congr 1
       exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
@@ -273,9 +253,10 @@ theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random
     | nil => rfl
     | cons o rounds ih =>
       obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.1 (hall o (by simp))
-      have hc : popCode N o = some (h, (o.result.hypothesis.tree,
+      have hc : popCode N k o = some (h, (o.result.hypothesis.tree,
           edgeGraph o.result.hypothesis.edges),
-          readGraph N o.read, o.prefs, o.suffs) := by simp [popCode, hh]
+          Random.harvestStrings o.read k o.result.hypothesis h o.harvestProbes,
+          o.prefs, o.suffs) := by simp [popCode, hh]
       simp only [codesOf, List.filterMap_cons, hc, List.foldr_cons]
       congr 1
       exact ih (fun o' ho' => hr o' (by simp [ho'])) (fun o' ho' => hall o' (by simp [ho']))
