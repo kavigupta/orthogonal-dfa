@@ -53,6 +53,31 @@ theorem harvestSample_congr {read' : FreeMonoid α → ARU} (site : Level3Site) 
   unfold harvestSample
   exact Finset.sum_congr rfl fun i _ => by rw [siteHarvest_congr read k H site (xs i) (h i)]
 
+open scoped Classical in
+/-- Every string the `m`-draw harvest can read: the union of its probes' potential reads. -/
+noncomputable def harvestReads {m : ℕ} (xs : Fin m → FreeMonoid α) : Finset (FreeMonoid α) :=
+  Finset.univ.biUnion fun i => pot k (xs i) H.tree
+
+/-- The `m`-draw harvest law is fixed by the oracle's answers on `harvestReads`. -/
+theorem harvestSample_congr_reads {read' : FreeMonoid α → ARU} (site : Level3Site) {m : ℕ}
+    (xs : Fin m → FreeMonoid α) (h : ∀ z ∈ harvestReads k H xs, read z = read' z) :
+    harvestSample read k H site xs = harvestSample read' k H site xs :=
+  harvestSample_congr read k H site xs fun i z hz =>
+    h z (by classical exact Finset.mem_biUnion.2 ⟨i, Finset.mem_univ i, hz⟩)
+
+/-- The harvest reads at most `m · (L + 1) · |mids H.tree|` strings for probes of length `≤ L`. -/
+theorem harvestReads_card_le {m : ℕ} (xs : Fin m → FreeMonoid α) {L : ℕ}
+    (hL : ∀ i, (xs i).toList.length ≤ L) :
+    (harvestReads k H xs).card ≤ m * ((L + 1) * (mids H.tree).card) := by
+  classical
+  refine Finset.card_biUnion_le.trans ?_
+  calc ∑ i, (pot k (xs i) H.tree).card
+      ≤ ∑ _i : Fin m, (L + 1) * (mids H.tree).card := Finset.sum_le_sum fun i _ =>
+          (card_pot k (xs i) H.tree).trans
+            (Nat.mul_le_mul (by have := hL i; omega) (le_refl _))
+    _ = m * ((L + 1) * (mids H.tree).card) := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+
 theorem harvestLaw_apply (site : Level3Site) (A : Set (FreeMonoid α))
     [DecidablePred (· ∈ A)] :
     harvestLaw read D k H site A
