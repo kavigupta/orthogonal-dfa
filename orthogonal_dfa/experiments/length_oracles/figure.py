@@ -48,7 +48,7 @@ PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "pro
 PHI_NAMES = {"first": "Original", "product": "Product"}
 #: Rules on which frames are closed, by (string, frame), scored on the flat labels.
 FRAME_RULES = {
-    "NotFrameZeroOrOneClosed": lambda closed: ~(closed[:, 0] | closed[:, 1]),
+    "NotFramesZeroAndOneClosed": lambda closed: ~(closed[:, 0] & closed[:, 1]),
     "NotAllFramesClosed": lambda closed: ~closed.all(1),
 }
 
