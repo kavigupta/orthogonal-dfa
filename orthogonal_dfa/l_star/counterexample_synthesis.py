@@ -420,10 +420,10 @@ def counterexample_driven_synthesis(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    uniform = [
-        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-    ]
-    state = PoolState(uniform, pst.rng.bytes(16))
+    state = PoolState(
+        [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep],
+        pst.rng.bytes(16),
+    )
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     selection = _selection_sample(pst)
