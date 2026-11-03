@@ -268,6 +268,31 @@ theorem harvestSample_le_of_ideal [IsProbabilityMeasure D] (H : HypothesisDFA α
   rw [div_le_div_iff₀ hbnpos hyγ0]
   nlinarith [hcn1, hbn1, hGγ, hyγ, mul_pos hmr hyγ0, hsS0, hγ]
 
+/-- A finite union of `harvestSample_le_of_ideal`: over `cs` events, each with its own hypothesis,
+set, ideal bound and yield, the draws where any one exceeds its threshold have measure at most
+`cs.card · 2·exp(-2mγ²)`. -/
+theorem harvestSample_biUnion_le [IsProbabilityMeasure D] {ι : Type*} (cs : Finset ι) (m : ℕ)
+    (Hf : ι → HypothesisDFA α) (site : Level3Site) (Sf : ι → Set (FreeMonoid α))
+    (G y : ι → ℝ) (γ : ℝ) (hm : 1 ≤ m) (hγ : 0 < γ) (hγy : ∀ i ∈ cs, γ < y i)
+    (hideal : ∀ i ∈ cs, (harvestLaw read D k (Hf i) site).real (Sf i) ≤ G i)
+    (hyield : ∀ i ∈ cs, y i ≤ (harvestLaw read D k (Hf i) site).real Set.univ) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | ∃ i ∈ cs, (G i + γ) / (y i - γ)
+          < (popLaw (harvestSample read k (Hf i) site xs)).real (Sf i)}
+      ≤ cs.card * (2 * Real.exp (-2 * m * γ ^ 2)) := by
+  classical
+  have hset : {xs : Fin m → FreeMonoid α | ∃ i ∈ cs, (G i + γ) / (y i - γ)
+        < (popLaw (harvestSample read k (Hf i) site xs)).real (Sf i)}
+      = ⋃ i ∈ cs, {xs | (G i + γ) / (y i - γ)
+        < (popLaw (harvestSample read k (Hf i) site xs)).real (Sf i)} := by
+    ext xs; simp only [Set.mem_setOf_eq, Set.mem_iUnion, exists_prop]
+  rw [hset]
+  refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+  refine le_trans (Finset.sum_le_sum fun i hi =>
+    harvestSample_le_of_ideal read D k (Hf i) site (Sf i) m (G i) (y i) (γ := γ) hm hγ
+      (hγy i hi) (hideal i hi) (hyield i hi)) ?_
+  rw [Finset.sum_const, nsmul_eq_mul]
+
 end Random
 
 end OrthoDFA
