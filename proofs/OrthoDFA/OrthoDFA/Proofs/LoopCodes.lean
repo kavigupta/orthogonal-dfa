@@ -160,6 +160,51 @@ theorem decodeReads_readGraph {N : ℕ} (rd : FreeMonoid α → ARU) {z : FreeMo
   simp only [Prod.mk.injEq] at h
   rw [← h.2, h.1]
 
+/-! ## A finite class of the level-3 hypotheses -/
+
+open scoped Classical in
+/-- Every hypothesis a level-3 run can produce from probes at most `L` long, whose tree has class
+`n`: its tree is in `Random.classSet n` and its edges run leaf-to-leaf with witnesses at most `L` long. -/
+def hypClass (L n : ℕ) : Finset (HypothesisDFA α) :=
+  (Random.classSet n).biUnion fun T =>
+    (((T.leaves.toFinset ×ˢ (Finset.univ : Finset α)) ×ˢ
+      (T.leaves.toFinset ×ˢ shortStrings L)).powerset).image fun G => ⟨T, decodeEdges G⟩
+
+open scoped Classical in
+theorem hypothesis_mem_hypClass (C : Random.Level3Settings) (read : FreeMonoid α → ARU) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) {L n : ℕ} (hlen : ∀ j, (draws j).toList.length ≤ L)
+    (hcls : (Random.indecisiveLStarLevel3 C read draws).hypothesis.tree ∈ Random.classSet n) :
+    (Random.indecisiveLStarLevel3 C read draws).hypothesis ∈ hypClass L n := by
+  classical
+  set r := Random.runProbes read C Random.initialState (List.ofFn draws) with hr
+  have hinv := Random.runProbes_tree read C (List.ofFn draws)
+  have hEfin : EdgesFin r.1.edges := result_fin C read draws
+  refine Finset.mem_biUnion.2 ⟨r.1.tree, hcls, Finset.mem_image.2
+    ⟨edgeGraph r.1.edges, ?_, ?_⟩⟩
+  · rw [Finset.mem_powerset]
+    intro e he
+    rw [edgeGraph, dif_pos hEfin] at he
+    obtain ⟨qc, hqc, rfl⟩ := Finset.mem_image.1 he
+    rw [Set.Finite.mem_toFinset, Set.mem_setOf_eq] at hqc
+    obtain ⟨t, w, hqcv⟩ : ∃ t w, r.1.edges qc = some (t, w) := by
+      rcases h : r.1.edges qc with _ | ⟨t, w⟩
+      · exact absurd h hqc
+      · exact ⟨t, w, rfl⟩
+    rw [hqcv, Option.getD_some]
+    have hq : qc.1 ∈ r.1.tree.leaves := hinv.1.keys qc t w hqcv
+    have ht : t ∈ r.1.tree.leaves := by
+      have hok := hinv.1.inv.edges qc.1 hq qc.2 t w (by rw [← hqcv])
+      exact DTree.sift_inl_mem read _ _ t hok.2
+    obtain ⟨x, hx, i, -, hix, hwpre, -⟩ := hinv.1.wit qc t w hqcv
+    have hwlen : w.toList.length ≤ L := by
+      obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hx
+      rw [hwpre]
+      exact le_trans (by simp [prefixOf]) (hlen j)
+    exact Finset.mem_product.2
+      ⟨Finset.mem_product.2 ⟨List.mem_toFinset.2 hq, Finset.mem_univ _⟩,
+       Finset.mem_product.2 ⟨List.mem_toFinset.2 ht, mem_shortStrings.2 hwlen⟩⟩
+  · rw [decodeEdges_edgeGraph hEfin]; rfl
+
 /-! ## A round's population from its data -/
 
 /-- A harvest as finite data: its site, its hypothesis's tree and edge graph, and reads, and the
