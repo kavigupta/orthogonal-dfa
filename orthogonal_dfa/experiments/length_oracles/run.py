@@ -1,6 +1,6 @@
 """Round 0 of synthesis with 4 restarts on one oracle.
 
-    python -u -m orthogonal_dfa.experiments.length_oracles.run --oracle saw|flat \
+    python -u -m orthogonal_dfa.experiments.length_oracles.run --oracle saw|flat|residual \
         --seed S --out OUT
 
 Writes OUT/restarts.json as each restart ends, and OUT/run.json at the end."""
@@ -21,6 +21,7 @@ from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 
 from .oracles import SYMBOLS, VOCAB, oracle
+from .residual import ResidualOracle, first_stage
 
 RESTARTS = 4
 
@@ -71,15 +72,22 @@ def git(*args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--oracle", required=True, choices=("saw", "flat"))
+    ap.add_argument("--oracle", required=True, choices=("saw", "flat", "residual"))
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     started = time.time()
-    base = oracle(a.oracle, default_exon, load_spliceai(400, 0))
+    if a.oracle == "residual":
+        flat, stage = oracle("flat", default_exon, load_spliceai(400, 0)), first_stage(
+            a.seed
+        )
+        creator = lambda _noise, s: ResidualOracle(flat, stage, seed=s)
+    else:
+        base = oracle(a.oracle, default_exon, load_spliceai(400, 0))
+        creator = lambda _noise, s: LiftedOracle(base, VOCAB, seed=s)
     pst = build_pst(
-        lambda _noise, s: LiftedOracle(base, VOCAB, seed=s),
+        creator,
         min_signal_strength=0.05,
         seed=a.seed,
         sampler=SuperSampler(VOCAB, SYMBOLS),

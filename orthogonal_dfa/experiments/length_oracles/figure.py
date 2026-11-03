@@ -231,7 +231,9 @@ def main():
     y = {kind: labels[kind].astype(float) for kind in PAPER_NAMES}
     with open(RUNS) as f:
         restarts = {
-            (r["oracle"], r["seed"], r["restart"]): r for r in json.load(f)["restarts"]
+            (r["oracle"], r["seed"], r["restart"]): r
+            for r in json.load(f)["restarts"]
+            if r["oracle"] in PAPER_NAMES
         }
     described = describe_all(restarts, y, data)
 
