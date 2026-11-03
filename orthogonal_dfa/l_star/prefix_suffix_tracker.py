@@ -86,9 +86,9 @@ class SearchConfig:
     #: nearest it.
     counterexample_skip_undecided: bool = False
     #: Restart the round's DFA at the leaf scoring best on held-out strings, the
-    #: port of ``LoopDFA.lean``'s ``pickLeaf``. A no-op in a config that samples no
-    #: held-out set, so it never draws one of its own.
-    counterexample_reroot: bool = True
+    #: port of ``LoopDFA.lean``'s ``pickLeaf``. Draws its own held-out sample once a
+    #: run where no other setting leaves one to reuse.
+    counterexample_reroot: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

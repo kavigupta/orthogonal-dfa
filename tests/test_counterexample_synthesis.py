@@ -10,6 +10,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     BestRound,
     _accumulate_harvest,
     _publish_pool,
+    _reroot_pick,
     _reroot_start,
     _StallDetector,
 )
@@ -195,40 +196,56 @@ def _contains_one(strings):
     return [bytes(s) for s in strings], np.asarray(labels, dtype=float)
 
 
+class _ContainsOneOracle:
+    def membership_queries(self, strings):
+        return [int(1 in s) for s in strings]
+
+
+class _BitSampler:
+    def sample(self, rng, alphabet_size):
+        length = int(rng.integers(1, 4))
+        return bytes(int(rng.integers(alphabet_size)) for _ in range(length))
+
+
 class TestReroot(unittest.TestCase):
-    _HELD_OUT = Selection(
-        search=((), ()),
-        pick=(
-            _contains_one([[1], [0], [1, 0], [0, 0], [0, 1], [0, 0, 0]]),
-            _contains_one([[1], [0], [0, 1], [0, 0]]),
-        ),
+    _PICK = (
+        _contains_one([[1], [0], [1, 0], [0, 0], [0, 1], [0, 0, 0]]),
+        _contains_one([[1], [0], [0, 1], [0, 0]]),
     )
 
-    def _pst(self, *, reroot):
+    def _pst(self, *, reroot, drawing=False):
+        config = SimpleNamespace(counterexample_reroot=reroot)
+        if not drawing:
+            return SimpleNamespace(alphabet_size=2, config=config)
         return SimpleNamespace(
             alphabet_size=2,
-            config=SimpleNamespace(counterexample_reroot=reroot),
+            config=config,
+            rng=np.random.default_rng(0),
+            oracle=_ContainsOneOracle(),
+            sampler=_BitSampler(),
         )
 
-    def test_it_starts_at_the_leaf_that_scores_best_held_out(self):
+    def test_enabled_it_starts_at_the_leaf_that_scores_best_held_out(self):
         hypothesis = _funnel_hypothesis()
         dfa = hypothesis.to_dfa(2, 0)
-        rerooted = _reroot_start(
-            self._pst(reroot=True), hypothesis, dfa, self._HELD_OUT
-        )
-        self.assertEqual(2, rerooted.initial_state)
+        pst = self._pst(reroot=True)
+        pick = _reroot_pick(pst, Selection(search=((), ()), pick=self._PICK))
+        self.assertEqual(2, _reroot_start(pst, hypothesis, dfa, pick).initial_state)
 
     def test_off_it_keeps_the_given_start(self):
         hypothesis = _funnel_hypothesis()
         dfa = hypothesis.to_dfa(2, 0)
-        kept = _reroot_start(self._pst(reroot=False), hypothesis, dfa, self._HELD_OUT)
-        self.assertIs(dfa, kept)
+        pst = self._pst(reroot=False)
+        pick = _reroot_pick(pst, Selection(search=((), ()), pick=self._PICK))
+        self.assertIsNone(pick)
+        self.assertIs(dfa, _reroot_start(pst, hypothesis, dfa, pick))
 
-    def test_without_a_held_out_sample_it_keeps_the_given_start(self):
+    def test_enabled_without_a_selection_it_draws_its_own_set(self):
         hypothesis = _funnel_hypothesis()
         dfa = hypothesis.to_dfa(2, 0)
-        kept = _reroot_start(self._pst(reroot=True), hypothesis, dfa, None)
-        self.assertIs(dfa, kept)
+        pst = self._pst(reroot=True, drawing=True)
+        pick = _reroot_pick(pst, None)
+        self.assertEqual(2, _reroot_start(pst, hypothesis, dfa, pick).initial_state)
 
 
 class TestBestRound(unittest.TestCase):
