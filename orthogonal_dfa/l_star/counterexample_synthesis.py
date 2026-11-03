@@ -142,9 +142,6 @@ STALL_PATIENCE = 2
 #: consistency target.
 CERTIFICATE_PATIENCE = 5
 
-#: The tightest the FNR limit gets, as a share of where it starts.
-FNR_FLOOR = 0.25
-
 
 class _StallDetector:
     """Stops a run whose rounds have stopped handing the next one new strings or a
@@ -472,7 +469,10 @@ def counterexample_driven_synthesis(
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        halved = taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
+        halved = (
+            taken == 0
+            and pst.fnr_limit / 2 >= pst.config.fnr_floor * pst.config.fnr_limit
+        )
         if halved:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
