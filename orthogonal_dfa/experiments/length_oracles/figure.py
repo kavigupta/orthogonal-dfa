@@ -3,10 +3,10 @@ checked-in runs and labels alone.
 
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
-A DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi is on
-the read half.  Writes to figures/length-oracles/ the
-panels (lengths.pdf, dfa_saw.tex, dfa_flat.tex) and values.tex (macros for the caption's
-numbers)."""
+A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
+is on the read half.  The residual DFA is drawn with the accepting states saved in
+residual_products.json.  Writes to figures/length-oracles/ the panels (lengths.pdf,
+dfa_saw.tex, dfa_residual.tex) and values.tex (macros for the caption's numbers)."""
 
 import json
 
@@ -28,10 +28,15 @@ RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
 RANDOM_STRINGS = (
     REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
 )
+RESIDUAL_PRODUCTS = (
+    REPO_ROOT / "data" / "neural" / "length_oracles" / "residual_products.json"
+)
 OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
-REPRESENTATIVES = {"saw": ("saw", 1, 0), "flat": ("flat", 0, 1)}
+REPRESENTATIVES = {"saw": ("saw", 1, 0)}
+#: The residual run whose kept DFA is drawn.
+RESIDUAL_SEED = 1
 
 
 class Strings:
@@ -78,19 +83,29 @@ def describe(restart, y, data):
         (k for k in tied if all(k % j == 0 or j % k == 0 for j in tied)), min(tied)
     )
     return dict(
-        minimal=DFA(
-            states=set(range(len(transitions))),
-            input_symbols=set(range(VOCAB.alphabet_size)),
-            transitions={
-                q: {c: int(t) for c, t in enumerate(row)}
-                for q, row in enumerate(transitions)
-            },
-            initial_state=start,
-            final_states={q for q in range(len(transitions)) if verdict[q]},
-        ).minify(),
+        minimal=minimal_dfa(restart["dfa"], verdict),
         phi=phi(v[read], y[read]),
         modulus=modulus,
     )
+
+
+def minimal_dfa(table, accepting):
+    return DFA(
+        states=set(range(len(table["transitions"]))),
+        input_symbols=set(range(VOCAB.alphabet_size)),
+        transitions={
+            q: {c: int(t) for c, t in enumerate(row)}
+            for q, row in enumerate(table["transitions"])
+        },
+        initial_state=table["start"],
+        final_states={q for q, a in enumerate(accepting) if a},
+    ).minify()
+
+
+def residual_dfa():
+    with open(RESIDUAL_PRODUCTS) as f:
+        (run,) = [r for r in json.load(f) if r["seed"] == RESIDUAL_SEED]
+    return minimal_dfa(run["residual"], run["residual"]["accepting"])
 
 
 def compiled_lengths(data):
@@ -178,7 +193,7 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data):
+def values(described, data, residual):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
     \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
     phase."""
@@ -214,6 +229,7 @@ def values(described, data):
                 macro(f"{prefix}Lengths", join_words(lengths, "or")),
                 macro(f"{prefix}LengthsAnd", join_words(lengths, "and")),
             ]
+    lines.append(macro("ResidualStates", len(residual.states)))
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -242,7 +258,9 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described, data))
+    residual = residual_dfa()
+    (OUT_DIR / "dfa_residual.tex").write_text(dfa_tikz(residual))
+    (OUT_DIR / "values.tex").write_text(values(described, data, residual))
     write_lengths(data)
 
 
