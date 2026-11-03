@@ -319,7 +319,7 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
   | cons o rounds ih =>
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 (h o (by simp))
     have hpo : o.population D k
-        = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis zo)) := by
+        = some (popLaw (Random.harvestSampleList o.read k o.result.hypothesis zo o.harvestProbes)) := by
       simp [LoopRound.population, hzo]
     simp only [harvestsOf, List.filterMap_cons, hpo, List.length_cons] at ih ⊢
     rw [ih fun o' ho' => h o' (by simp [ho'])]

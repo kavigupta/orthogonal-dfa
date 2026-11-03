@@ -32,6 +32,21 @@ noncomputable def harvestSample [Countable α] (read : FreeMonoid α → ARU) (k
     Measure (FreeMonoid α) :=
   ∑ i, ((siteHarvest read k H site (xs i)).map Measure.dirac).sum
 
+/-- The law of what a list of probes finds at the site, each walked under `H`. Stored by a round
+as a list (so its length need not sit in the type); `harvestSampleList_ofFn` identifies it with
+`harvestSample` on the probes indexed by `Fin`. -/
+noncomputable def harvestSampleList [Countable α] (read : FreeMonoid α → ARU) (k : ℕ)
+    (H : HypothesisDFA α) (site : Level3Site) (l : List (FreeMonoid α)) :
+    Measure (FreeMonoid α) :=
+  (l.map fun x => ((siteHarvest read k H site x).map Measure.dirac).sum).sum
+
+theorem harvestSampleList_ofFn [Countable α] (read : FreeMonoid α → ARU) (k : ℕ)
+    (H : HypothesisDFA α) (site : Level3Site) {m : ℕ} (xs : Fin m → FreeMonoid α) :
+    harvestSampleList read k H site (List.ofFn xs) = harvestSample read k H site xs := by
+  unfold harvestSampleList harvestSample
+  rw [List.map_ofFn, List.sum_ofFn]
+  rfl
+
 /-- `harvestLaw` is `harvestSample` on a single draw, averaged over that draw from `D`. -/
 theorem harvestLaw_eq_bind_sample [Countable α] (read : FreeMonoid α → ARU)
     (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α) (site : Level3Site) :

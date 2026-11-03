@@ -174,6 +174,8 @@ structure LoopRound (Ω α : Type*) (K : ℕ) where
   result : Random.Level3Result α
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
+  /-- The probes the round drew, which its harvest samples from. -/
+  harvestProbes : List (FreeMonoid α)
 
 variable {μ : Measure Ω}
 
@@ -200,6 +202,10 @@ def avoidLaw (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid 
     Measure (FreeMonoid α) :=
   popLaw (D.restrict {x | k ≤ x.toList.length → prefixOf x k ∉ K₀})
 
+def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
+  | .harvest h => some h
+  | _ => none
+
 /-- The round after the history `h`. Its clustering draws off what the earlier rounds read, and
 level 3 draws its probes from `D` avoiding the first `k` letters of the prefixes the clustering
 read. -/
@@ -213,20 +219,18 @@ def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
   let F := clusterAt O.mq ps x B
   let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
   let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
-  ⟨x, B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
-    (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)),
-    roundPrefs (settings.schedule ps) ps x, roundSuffs (settings.schedule ps) x⟩
+  let probes := fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)
+  let result := Random.indecisiveLStarLevel3 settings.level3 read probes
+  ⟨x, B, F, read, result, roundPrefs (settings.schedule ps) ps x,
+    roundSuffs (settings.schedule ps) x, List.ofFn probes⟩
 
-def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
-  | .harvest h => some h
-  | _ => none
-
-/-- The population a round's harvest hands on: its sampler's law over probes from `D`, walked
-from `k`, scaled to a probability. -/
-def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
+/-- The population a round's harvest hands on: its sampler's law over the round's own probes,
+walked from `k`, scaled to a probability. `D` is kept only so callers need not change; the harvest
+now reads the probes the round already drew, so it no longer integrates over `D`. -/
+def LoopRound.population {K : ℕ} (_D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
     Option (Measure (FreeMonoid α)) :=
   o.result.ending.harvested.map fun site =>
-    popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
+    popLaw (Random.harvestSampleList o.read k o.result.hypothesis site o.harvestProbes)
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
