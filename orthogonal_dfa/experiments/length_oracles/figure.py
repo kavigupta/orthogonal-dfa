@@ -124,11 +124,9 @@ def minimal_dfa(table, accepting):
     ).minify()
 
 
-def product_parts(y, data):
+def product_parts(y, data, run):
     """Each part's minimal DFA, and its phi on the flat labels where it reads them, with
     accepting states as held_out_phi fits them."""
-    with open(RESIDUAL_PRODUCTS) as f:
-        (run,) = [r for r in json.load(f) if r["seed"] == PRODUCT_SEED]
     parts = {}
     for key, name in PRODUCT_PARTS.items():
         table = run[key]
@@ -288,9 +286,11 @@ def values(described, data, parts):
     return "\n".join(lines + [""])
 
 
-def phis(data, parts, y):
-    """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct."""
+def phis(data, parts, product_phis, y):
+    """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct, and
+    \\phiMin, the lowest product phi over the residual seeds."""
     found = {phi_name: parts[name]["phi"] for name, phi_name in PHI_NAMES.items()}
+    found["Min"] = min(product_phis)
     for name, rule in FRAME_RULES.items():
         v = rule(data.closed)[data.read].astype(float)
         found[name] = phi(v, y["flat"][data.read])
@@ -317,11 +317,20 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    parts = product_parts(y, data)
+    with open(RESIDUAL_PRODUCTS) as f:
+        runs = {r["seed"]: r for r in json.load(f)}
+    parts = product_parts(y, data, runs[PRODUCT_SEED])
+    product_phis = [
+        product_parts(y, data, run)["product"]["phi"] for run in runs.values()
+    ]
+    if parts["product"]["phi"] != max(product_phis):
+        raise ValueError(
+            f"seed {PRODUCT_SEED}'s product is not the best of {product_phis}"
+        )
     for name, d in parts.items():
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
     (OUT_DIR / "values.tex").write_text(values(described, data, parts))
-    (OUT_DIR / "phis.tex").write_text(phis(data, parts, y))
+    (OUT_DIR / "phis.tex").write_text(phis(data, parts, product_phis, y))
     write_lengths(data)
 
 
