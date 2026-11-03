@@ -102,7 +102,8 @@ include hL in
 reads. Its chance is at most `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`, it is fixed
 by the answers at the strings level 3 reads off the clustering's prefixes, and off it the actual
 round meets its claim. -/
-theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ) (hu : 0 ≤ u)
+theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu : ℝ) (hu : 0 ≤ u)
+    (hTu : 0 ≤ Tu)
     (hk : 1 ≤ settings.level3.walkStart)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : RoundPremises σ α settings.level3 crossLimit
@@ -125,7 +126,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
           (settings.level3.disagreementRate + m)
-          (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
+          (settings.level3.harvestRate / 2) Tu settings.level3.walkStart E (u + m)
           (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
   classical
   obtain ⟨hδ0, hδ1, hy0, hyρ, hρ1, hP, hκ0, t, t', ht, ht', htc, hfin⟩ := hprem
@@ -254,7 +255,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
         exact hw
       refine ⟨hkx, hr.imp (hrr x rfl hkx) (hrr _ ?_ (by simp; omega))⟩
       exact prefixOf_mul_of_le hkx _
-    refine ⟨?_, ?_, fun q a => ?_⟩
+    refine ⟨?_, ?_, fun q a => ?_, ?_⟩
     · have hq' := hq.mono (m' := m) (ε' := C.disagreementRate + m)
         (y' := C.harvestRate / 2) hm' (by linarith) (by nlinarith)
       exact hq'
@@ -264,6 +265,8 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
     · have h := real_inter_le_of_avoiding P.D (E := E q) (hmis a) hu (by linarith)
         (by rw [hH, ← hdist]; exact hfew q a)
       exact h.trans (by linarith)
+    · -- the empirical population's good bound, via concentration (harvestSample_ratio_le)
+      sorry
 
 end Bad
 

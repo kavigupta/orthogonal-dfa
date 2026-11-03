@@ -250,7 +250,7 @@ and putting at most `A·T + sl` of its law, past `m`, on the states the round's 
 undecided at most `T` of the time, and a consistent round with at most `ε` of the probes in
 `disagreeSet`; its tree is in `classSet |Q|`; and its misled probes are few in each `E q`. -/
 def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (P : PrefixDistribution α) (A sl m ε y : ℝ) (k : ℕ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
+    (P : PrefixDistribution α) (A sl m ε y T : ℝ) (k : ℕ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
     (o : LoopRound Ω α K) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   LooseEndsWell M (fun q => dist q .undecided) A sl m P.D ε
@@ -258,7 +258,7 @@ def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)
     (Random.harvestLaw o.read P.D k o.result.hypothesis) y o.result.ending
   ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
   ∧ FewMisled M dist o.read k o.result.hypothesis.tree P.D E u
-  ∧ ∀ site, o.result.ending = .harvest site → ∀ T, 0 ≤ T →
+  ∧ ∀ site, o.result.ending = .harvest site →
       (popLaw (Random.harvestSampleList o.read k o.result.hypothesis site o.harvestProbes)).real
           {z | dist (M.eval z.toList) .undecided ≤ T} ≤ A * T + sl + m / y
 
@@ -344,7 +344,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       ClusterSpec settings O P.D εcov slack
           (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
           (loopRounds settings O P.D Dsf draws K)[i].run
-        ∧ RoundSpec M O P A sl m εd y k E u (loopRounds settings O P.D Dsf draws K)[i]) :
+        ∧ RoundSpec M O P A sl m εd y T k E u (loopRounds settings O P.D Dsf draws K)[i]) :
     (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
       ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
         o.Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
@@ -458,7 +458,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         set bad := fun q => ¬ U q ≤ T
         -- the empirical good bound at this round's harvested site, on the population `ν i hi`
         have hgb : (ν i hi).real {z | U (M.eval z.toList) ≤ T} ≤ A * T + sl + m / y :=
-          hemp (hv i hi) he T hT.le
+          hemp (hv i hi) he
         have huniv1 : (ν i hi).real Set.univ = 1 := by simp [measureReal_def, measure_univ]
         have hbadmass : (ν i hi).real {z | bad (M.eval z.toList)}
             = 1 - (ν i hi).real {z | U (M.eval z.toList) ≤ T} := by
