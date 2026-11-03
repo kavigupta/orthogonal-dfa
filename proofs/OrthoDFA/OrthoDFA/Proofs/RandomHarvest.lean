@@ -39,6 +39,20 @@ theorem siteHarvest_nodup (site : Level3Site) (x : FreeMonoid α) :
   have hl := siteHarvest_length read k H site x
   rcases h : siteHarvest read k H site x with _ | ⟨a, _ | ⟨b, l⟩⟩ <;> simp_all
 
+/-- A probe's harvest is fixed by the oracle's answers at the strings that probe can read. -/
+theorem siteHarvest_congr {read' : FreeMonoid α → ARU} (site : Level3Site) (x : FreeMonoid α)
+    (h : ∀ z ∈ pot k x H.tree, read z = read' z) :
+    siteHarvest read k H site x = siteHarvest read' k H site x := by
+  cases site <;> simp only [siteHarvest, probeOrAgree_congr read H.tree H.edges k x h]
+
+/-- The `m`-draw harvest law is fixed by the oracle's answers at the strings its `m` probes read:
+`⋃ i, pot k (xs i) H.tree`. This is what makes the harvest's reads a bounded, tracked set. -/
+theorem harvestSample_congr {read' : FreeMonoid α → ARU} (site : Level3Site) {m : ℕ}
+    (xs : Fin m → FreeMonoid α) (h : ∀ i, ∀ z ∈ pot k (xs i) H.tree, read z = read' z) :
+    harvestSample read k H site xs = harvestSample read' k H site xs := by
+  unfold harvestSample
+  exact Finset.sum_congr rfl fun i _ => by rw [siteHarvest_congr read k H site (xs i) (h i)]
+
 theorem harvestLaw_apply (site : Level3Site) (A : Set (FreeMonoid α))
     [DecidablePred (· ∈ A)] :
     harvestLaw read D k H site A
