@@ -76,6 +76,22 @@ lemma avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D
     (Measure.restrict_le_self.absolutelyContinuous (ae_iff.1 hlen))) ?_)
   simp
 
+lemma drawFrom_avoidLaw_len (D : Measure (FreeMonoid α)) {L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) (K₀ : Finset (FreeMonoid α)) (u : unitInterval) :
+    (drawFrom (avoidLaw D k K₀) u).toList.length ≤ L := by
+  rcases drawFrom_pos_or_one (avoidLaw D k K₀) u with h | h
+  · by_contra hlong
+    push_neg at hlong
+    have hae := avoidLaw_len D hlen k K₀
+    rw [ae_iff] at hae
+    have hmem : drawFrom (avoidLaw D k K₀) u ∈ {x : FreeMonoid α | ¬ x.toList.length ≤ L} := by
+      simp only [Set.mem_setOf_eq, not_le]; exact hlong
+    have hnull : avoidLaw D k K₀ {drawFrom (avoidLaw D k K₀) u} = 0 :=
+      measure_mono_null (Set.singleton_subset_iff.2 hmem) hae
+    rw [measureReal_def, hnull] at h
+    simp at h
+  · rw [h]; simp
+
 section Bad
 
 /-- Level 5's premises at `f = 0`, one spurious leaf tolerated within level 3's `|Q| + 2`, for

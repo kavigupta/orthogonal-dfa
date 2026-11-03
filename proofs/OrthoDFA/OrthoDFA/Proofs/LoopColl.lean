@@ -233,7 +233,7 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     · have hy := codesOf_loopRounds_succ settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf N ω g r with hcd
       have hy' : histCodes settings O D Dsf N ω g (r + 1) = if c.length = r then
-          c ++ (popCode N (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
+          c ++ (popCode N settings.level3.walkStart (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
             (ω, g ⟨r, hrK⟩))).toList else c := hy
       have ih := histCodes_getElem hlen hN ω g r
       by_cases hcl : c.length = r
@@ -249,7 +249,7 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
           · rw [ht]; exact h1
           · rw [ht]; exact h2
         · revert hi
-          rcases ho : popCode N (loopRound settings O D Dsf
+          rcases ho : popCode N settings.level3.walkStart (loopRound settings O D Dsf
               (decodeHist D settings.level3.walkStart c) (ω, g ⟨r, hrK⟩)) with _ | code
           · intro hi
             simp only [Option.toList_none, List.append_nil] at hi

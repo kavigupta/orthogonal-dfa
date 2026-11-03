@@ -201,12 +201,34 @@ section Pops
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
+/-- Every round in the loop draws its probes from `D` (avoiding keys), so they are as short. -/
+lemma loopRounds_harvestProbes_len (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (D Dsf : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (r : ℕ)
+    {o : LoopRound Ω α K} (ho : o ∈ loopRounds settings O D Dsf draws r) :
+    ∀ x ∈ o.harvestProbes, x.toList.length ≤ L := by
+  induction r with
+  | zero => simp [loopRounds] at ho
+  | succ r ih =>
+    rw [loopRounds] at ho
+    split_ifs at ho with h
+    · rw [List.mem_append, List.mem_singleton] at ho
+      rcases ho with ho | rfl
+      · exact ih ho
+      · intro x hx
+        unfold loopRound at hx
+        simp only [List.mem_ofFn, Set.mem_range] at hx
+        obtain ⟨i, rfl⟩ := hx
+        exact drawFrom_avoidLaw_len D hlen settings.level3.walkStart _ _
+    · exact ih ho
+
 omit [MeasurableSpace Ω] in
 /-- A round whose tree is in `classSet |Q|` hands on a population supported on strings shorter
 than `Ls`. -/
 lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls : ℕ}
     (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : LoopRound Ω α K)
     (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
+    (hprobes : ∀ x ∈ o.harvestProbes, x.toList.length ≤ P.L)
     {ν : Measure (FreeMonoid α)} (hν : o.population P.D k = some ν) :
     ν {p | Ls ≤ p.toList.length} = 0 := by
   unfold LoopRound.population at hν
@@ -215,7 +237,8 @@ lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls
   rw [hh, Option.map_some, Option.some.injEq] at hν
   subst hν
   refine popLaw_null (measure_mono_null (fun p hp => ?_)
-    (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)) ?_
+    (Random.harvestSampleList_short o.read k (Random.classSet_props _ _ hcls).1 site
+      o.harvestProbes hprobes)) ?_
   · simp only [Set.mem_ofPred_eq] at hp ⊢
     omega
   · simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one, List.length_nil, not_le]
@@ -299,7 +322,7 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.probe
     settings.level3.walkStart
     (loopRounds settings O D Dsf draws i) (loopRounds_result settings O D Dsf draws i) hall
   have hc : histCodes settings O D Dsf N p.1 p.2 i
-      = codesOf N (loopRounds settings O D Dsf draws i) := rfl
+      = codesOf N settings.level3.walkStart (loopRounds settings O D Dsf draws i) := rfl
   refine ⟨hK, ?_, ?_, ?_⟩
   · rw [hc, length_codesOf N D settings.level3.walkStart, length_harvestsOf hall,
       length_eq_of_allHarvested settings O D Dsf draws hiK hall]
@@ -712,7 +735,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
             (loopRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -731,8 +754,8 @@ theorem loop_core_holds : LoopCore := by
   set δ3 : ℝ := C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
     (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_round_le_persist M O hL P Dsf settings E Ls NP N mr u cross hu.le hN hNPsum hband hk0
-      hη1 hcr hprem hmr hmr1 r hr
+    loop_round_le_persist M O hL P Dsf settings E Ls NP N mr u cross Tu hu.le hT.le hN hNPsum hband
+      hk0 hη1 hcr hprem hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls N hN hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -771,7 +794,7 @@ theorem loop_core_holds : LoopCore := by
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
             Lr[i].run
-          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
             Lr[i])
         ∧ ∃ hK : i < K, HistOK settings O P.D Dsf N p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf N p.1 p.2 i))
@@ -796,12 +819,14 @@ theorem loop_core_holds : LoopCore := by
           rw [hdec, histOf_pops]
           intro ν hν
           obtain ⟨o, ho, hoν⟩ := List.mem_filterMap.1 hν
+          have hprobes := loopRounds_harvestProbes_len settings O P.D Dsf P.length_le
+            (persistDraws p) K (List.take_subset _ _ ho)
           obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem ho
           simp only [List.length_take] at hj
-          rw [List.getElem_take] at hoν
+          rw [List.getElem_take] at hoν hprobes
           have hji : j < i := by omega
           obtain ⟨h4, hcls, -⟩ := (ih j hji (by omega) (by omega)).1.2
-          have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hoν
+          have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hprobes hoν
           unfold LoopRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
           · rw [hh] at hoν; cases hoν
@@ -866,7 +891,7 @@ theorem loop_core_holds : LoopCore := by
             (clusterRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
-        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu k E (u + mr)
             (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩

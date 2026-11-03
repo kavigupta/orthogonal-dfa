@@ -250,8 +250,8 @@ include hL in
 collides, fails its claim with chance at most
 `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`.
 -/
-theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (m u crossLimit : ℝ)
-    (hu : 0 ≤ u)
+theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (m u crossLimit Tu : ℝ)
+    (hu : 0 ≤ u) (hTu : 0 ≤ Tu)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
@@ -271,7 +271,7 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
         ∧ ¬ RoundSpec M O P (roundSlope σ P.L settings.level3)
             (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
             (settings.level3.disagreementRate + m)
-            (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
+            (settings.level3.harvestRate / 2) Tu settings.level3.walkStart E (u + m)
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
               (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
@@ -314,9 +314,9 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
       ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D k)) m
-          (settings.level3.disagreementRate + m) (settings.level3.harvestRate / 2) k E (u + m)
+          (settings.level3.disagreementRate + m) (settings.level3.harvestRate / 2) Tu k E (u + m)
           (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
-    fun t ht => round_bad_exists M O hL P settings E m u crossLimit hu hk hη1 hcross hprem
+    fun t ht => round_bad_exists M O hL P settings E m u crossLimit Tu hu hTu hk hη1 hcross hprem
       hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2

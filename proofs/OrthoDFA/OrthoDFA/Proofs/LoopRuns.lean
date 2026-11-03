@@ -322,6 +322,40 @@ theorem harvestLaw_short (read : FreeMonoid α → ARU) {D : Measure (FreeMonoid
   rw [this]
   simp
 
+/-- A sum of diracs over a list of strings puts no mass on a set the strings avoid. -/
+lemma dirac_list_sum_apply_zero (strs : List (FreeMonoid α)) (S : Set (FreeMonoid α))
+    (h : ∀ z ∈ strs, z ∉ S) : ((strs.map Measure.dirac).sum) S = 0 := by
+  induction strs with
+  | nil => simp
+  | cons z zs ih =>
+    rw [List.map_cons, List.sum_cons, Measure.add_apply,
+      ih fun y hy => h y (List.mem_cons_of_mem _ hy), add_zero,
+      Measure.dirac_apply' _ (by trivial)]
+    simp [Set.indicator_of_notMem (h z (by simp))]
+
+/-- `harvestSampleList`, the empirical sampler, finds only strings at most `L + n` long, over
+probes at most `L` long and a tree whose midfixes are at most `n` long. -/
+theorem harvestSampleList_short (read : FreeMonoid α → ARU) {L n : ℕ} (k : ℕ)
+    {H : HypothesisDFA α} (hT : MidsLe n H.tree) (site : Level3Site) (l : List (FreeMonoid α))
+    (hl : ∀ x ∈ l, x.toList.length ≤ L) :
+    harvestSampleList read k H site l {z | L + n < z.toList.length} = 0 := by
+  rw [harvestSampleList_eq_strings]
+  refine dirac_list_sum_apply_zero _ _ fun z hz => ?_
+  simp only [Set.mem_setOf_eq, not_lt]
+  unfold harvestStrings at hz
+  rw [List.mem_flatten] at hz
+  obtain ⟨ls, hls, hzls⟩ := hz
+  rw [List.mem_map] at hls
+  obtain ⟨x, hx, rfl⟩ := hls
+  obtain ⟨p, hp, m, hm, rfl⟩ : ∃ p ∈ Finset.Icc k x.toList.length,
+      ∃ m ∈ mids H.tree, prefixOf x p * m = z := by
+    simpa [pot] using (siteHarvest_pot read k H site x z hzls).1
+  have h1 := hT m hm
+  have h2 : (prefixOf x p).toList.length ≤ x.toList.length := by simp [prefixOf]
+  have := hl x hx
+  simp only [FreeMonoid.toList_mul, List.length_append]
+  omega
+
 /-- Reads agreeing on every prefix of a probe past its first `k` letters followed by a midfix of
 the tree give the same sampler. -/
 theorem harvestLaw_congr_zone {r r' : FreeMonoid α → ARU} (D : Measure (FreeMonoid α)) (k : ℕ)
