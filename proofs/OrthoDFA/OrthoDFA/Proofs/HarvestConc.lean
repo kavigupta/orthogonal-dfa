@@ -101,6 +101,39 @@ theorem harvestSample_lower_exp [IsProbabilityMeasure D] (site : Level3Site)
   exact one_sub_binomSfGe_le_exp m b measureReal_nonneg
     (harvestLaw_real_le_one read D k H site A) hγ hb
 
+open scoped Classical in
+/-- Hoeffding's upper tail for the harvest: the sample finds at least `c` of its mass in `A` with
+chance `exp(-2mγ²)` once `c ≥ m·(harvestLaw A + γ)`. The count is `Bin(m, harvestLaw A)`, and
+`binomSfGe_symm` turns its upper tail into the complement's lower tail. This caps the numerator of
+the sample's set-mass ratio. -/
+theorem harvestSample_upper_exp [IsProbabilityMeasure D] (site : Level3Site)
+    (A : Set (FreeMonoid α)) (m c : ℕ) {γ : ℝ} (hγ : 0 ≤ γ)
+    (hc : (m : ℝ) * ((harvestLaw read D k H site).real A + γ) ≤ c) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | (c : ℝ≥0∞) ≤ harvestSample read k H site xs A}
+      ≤ Real.exp (-2 * m * γ ^ 2) := by
+  have hp0 : 0 ≤ (harvestLaw read D k H site).real A := measureReal_nonneg
+  have hp1 : (harvestLaw read D k H site).real A ≤ 1 := harvestLaw_real_le_one read D k H site A
+  rcases le_or_gt c m with hcm | hcm
+  · rw [harvestSample_upper_tail read D k H site A m c, binomSfGe_symm _ m c (by omega),
+      show m + 1 - c = (m - c) + 1 by omega]
+    have hb : ((m - c : ℕ) : ℝ) ≤ m * ((1 - (harvestLaw read D k H site).real A) - γ) := by
+      rw [Nat.cast_sub hcm]
+      have hrw : (m : ℝ) * ((1 - (harvestLaw read D k H site).real A) - γ)
+          = m - m * ((harvestLaw read D k H site).real A + γ) := by ring
+      rw [hrw]; linarith [hc]
+    exact one_sub_binomSfGe_le_exp m (m - c) (by linarith) (by linarith) hγ hb
+  · have hempty : {xs : Fin m → FreeMonoid α | (c : ℝ≥0∞) ≤ harvestSample read k H site xs A}
+        = ∅ := by
+      ext xs
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_le]
+      rw [harvestSample_apply_card read k H site A xs, Nat.cast_lt]
+      have : (Finset.univ.filter fun i => siteHit read k H site A (xs i)).card ≤ m := by
+        simpa using Finset.card_filter_le (Finset.univ : Finset (Fin m)) _
+      exact lt_of_le_of_lt this hcm
+    rw [hempty, measureReal_empty]
+    positivity
+
 /-- Hoeffding's `exp(-2mγ²)` is below the failure budget `δ` once the draws reach
 `m ≥ log(1/δ)/(2γ²)` -- the budget as a function of the slack `γ` and `δ`. -/
 theorem exp_neg_two_mul_le {γ δ : ℝ} (m : ℝ) (hδ : 0 < δ) (hm : Real.log (1 / δ) ≤ 2 * m * γ ^ 2) :
