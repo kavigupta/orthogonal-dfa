@@ -101,6 +101,25 @@ theorem harvestSample_lower_exp [IsProbabilityMeasure D] (site : Level3Site)
   exact one_sub_binomSfGe_le_exp m b measureReal_nonneg
     (harvestLaw_real_le_one read D k H site A) hγ hb
 
+/-- Hoeffding's `exp(-2mγ²)` is below the failure budget `δ` once the draws reach
+`m ≥ log(1/δ)/(2γ²)` -- the budget as a function of the slack `γ` and `δ`. -/
+theorem exp_neg_two_mul_le {γ δ : ℝ} (m : ℝ) (hδ : 0 < δ) (hm : Real.log (1 / δ) ≤ 2 * m * γ ^ 2) :
+    Real.exp (-2 * m * γ ^ 2) ≤ δ := by
+  calc Real.exp (-2 * m * γ ^ 2) ≤ Real.exp (-Real.log (1 / δ)) :=
+        Real.exp_le_exp.2 (by linarith)
+    _ = δ := by rw [Real.exp_neg, Real.exp_log (by positivity), one_div, inv_inv]
+
+open scoped Classical in
+/-- The sample's yield-style undershoot on `A` stays within the failure budget `δ` once the draw
+budget `m` reaches `log(1/δ)/(2γ²)`: the draws per harvested probe as a function of the slack. -/
+theorem harvestSample_lower_budget [IsProbabilityMeasure D] (site : Level3Site)
+    (A : Set (FreeMonoid α)) (m b : ℕ) {γ δ : ℝ} (hγ : 0 ≤ γ) (hδ : 0 < δ)
+    (hm : Real.log (1 / δ) ≤ 2 * m * γ ^ 2)
+    (hb : (b : ℝ) ≤ m * ((harvestLaw read D k H site).real A - γ)) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | harvestSample read k H site xs A ≤ (b : ℝ≥0∞)} ≤ δ :=
+  (harvestSample_lower_exp read D k H site A m b hγ hb).trans (exp_neg_two_mul_le m hδ hm)
+
 end Random
 
 end OrthoDFA
