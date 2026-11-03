@@ -16,6 +16,7 @@ import OrthoDFA.Proofs.Level2Round
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.LoopDFARelative
+import OrthoDFA.Proofs.LoopQueryTotal
 import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5
 import OrthoDFA.Proofs.RandomCorrect
@@ -208,5 +209,9 @@ theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
 
 #print axioms covered_start_correct
+
+theorem learner_loop_total_queries : LearnerLoopTotalQueries := learner_loop_total_queries_holds
+
+#print axioms learner_loop_total_queries
 
 end OrthoDFA
