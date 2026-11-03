@@ -4,10 +4,10 @@ checked-in runs and labels alone.
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
-is on the read half.  The product DFA keeps the accepting states saved in
-residual_products.json, and its phi is on the flat labels.  Writes to
-figures/length-oracles/ the panels (lengths.pdf, dfa_saw.tex, dfa_product.tex) and
-values.tex (macros for the caption's numbers)."""
+is on the read half.  A residual run's first stage and product are scored the same way
+on the flat labels; its residual DFA keeps the accepting states saved with it.  Writes to figures/length-oracles/
+the panels (lengths.pdf, dfa_saw.tex, and dfa_first.tex, dfa_residual.tex and
+dfa_product.tex for the product) and values.tex (macros for the caption's numbers)."""
 
 import json
 
@@ -16,7 +16,7 @@ from automata.fa.dfa import DFA
 from matplotlib import pyplot as plt
 from matplotlib import transforms
 
-from orthogonal_dfa.l_star.dfa_utils import table_end_states
+from orthogonal_dfa.l_star.dfa_utils import phi_maximizing_states, table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
@@ -36,8 +36,12 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {"saw": ("saw", 1, 0)}
-#: The residual seed whose product with its first stage is drawn.
-PRODUCT_SEED = 3
+#: The residual seed whose first stage, residual DFA and product are drawn.
+PRODUCT_SEED = 1
+#: Each drawn part of that run, by its key in residual_products.json.  The residual DFA
+#: reads the residual oracle, whose labels are not saved, so it keeps the accepting states
+#: saved with it and has no phi.
+PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "product"}
 
 
 class Strings:
@@ -103,16 +107,34 @@ def minimal_dfa(table, accepting):
     ).minify()
 
 
-def product(y, data):
+def product_parts(y, data):
+    """Each part's minimal DFA, and its phi on the flat labels where it reads them, with
+    accepting states as held_out_phi fits them."""
     with open(RESIDUAL_PRODUCTS) as f:
         (run,) = [r for r in json.load(f) if r["seed"] == PRODUCT_SEED]
-    table = run["product"]
-    accepting = np.array(table["accepting"], bool)
-    end = table_end_states(np.array(table["transitions"]), table["start"], data.s)
-    return dict(
-        minimal=minimal_dfa(table, accepting),
-        phi=phi(accepting[end][data.read].astype(float), y["flat"][data.read]),
-    )
+    parts = {}
+    for key, name in PRODUCT_PARTS.items():
+        table = run[key]
+        if key == "residual":
+            parts[name] = dict(minimal=minimal_dfa(table, table["accepting"]))
+            continue
+        transitions = np.array(table["transitions"])
+        end = table_end_states(transitions, table["start"], data.s)
+        fit, read = ~data.read, data.read
+        counts = np.bincount(end[fit], minlength=len(transitions))
+        accepts = np.bincount(
+            end[fit], weights=y["flat"][fit], minlength=len(transitions)
+        )
+        chosen = phi_maximizing_states(
+            {q: c for q, c in enumerate(counts) if c},
+            {q: a for q, a in enumerate(accepts) if counts[q]},
+        )
+        accepting = np.isin(np.arange(len(transitions)), list(chosen))
+        parts[name] = dict(
+            minimal=minimal_dfa(table, accepting),
+            phi=phi(accepting[end][read].astype(float), y["flat"][read]),
+        )
+    return parts
 
 
 def compiled_lengths(data):
@@ -200,7 +222,7 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data, drawn_product):
+def values(described, data, parts):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
     \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
     phase."""
@@ -236,10 +258,10 @@ def values(described, data, drawn_product):
                 macro(f"{prefix}Lengths", join_words(lengths, "or")),
                 macro(f"{prefix}LengthsAnd", join_words(lengths, "and")),
             ]
-    lines += [
-        macro("ProductPhi", f"{drawn_product['phi']:.3f}"),
-        macro("ProductStates", len(drawn_product["minimal"].states)),
-    ]
+    for name, d in parts.items():
+        lines.append(macro(f"{name.title()}States", len(d["minimal"].states)))
+        if "phi" in d:
+            lines.append(macro(f"{name.title()}Phi", f"{d['phi']:.3f}"))
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -268,9 +290,10 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    drawn_product = product(y, data)
-    (OUT_DIR / "dfa_product.tex").write_text(dfa_tikz(drawn_product["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described, data, drawn_product))
+    parts = product_parts(y, data)
+    for name, d in parts.items():
+        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
+    (OUT_DIR / "values.tex").write_text(values(described, data, parts))
     write_lengths(data)
 
 
