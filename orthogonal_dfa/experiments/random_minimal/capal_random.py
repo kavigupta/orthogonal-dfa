@@ -5,8 +5,9 @@ CAPAL, at `make_learner`'s defaults, on the random minimal targets `run` draws.
 
 Each (target, eta, seed) result is its own JSON file under
 ``data/random_minimal/capal_results``, resumable the same way as `run`'s. Once
-all are in, how many of the `QUOTED_SIZE`-state targets CAPAL succeeds on at
-`QUOTED_ETA` is written to ``figures/random-minimal/capal_successes.tex``.
+all are in, how many targets CAPAL succeeds on per size and eta is written to
+``figures/random-minimal/capal_successes.tex`` as macros, e.g. 12 states at
+eta = 0.10 as ``\\capalSuccessesTwelveEtaTen``.
 """
 
 from __future__ import annotations
@@ -37,8 +38,11 @@ from .run import (
 )
 
 RESULT_SCHEMA_VERSION = 1
-QUOTED_SIZE = 12
-QUOTED_ETA = 0.10
+_ONES = (
+    "Zero One Two Three Four Five Six Seven Eight Nine Ten Eleven Twelve "
+    "Thirteen Fourteen Fifteen Sixteen Seventeen Eighteen Nineteen"
+).split()
+_TENS = "_ _ Twenty Thirty Forty Fifty Sixty Seventy Eighty Ninety".split()
 
 
 def capal_result_path(
@@ -113,22 +117,35 @@ def main() -> None:
         )
     ]
     run_results(args.processes, _run_result, results)
-    write_quoted_successes(args.data_dir)
+    write_success_macros(args.data_dir)
 
 
-def write_quoted_successes(data_dir: Path) -> None:
-    results = [
-        json.loads(
-            capal_result_path(
-                data_dir, QUOTED_SIZE, index, QUOTED_ETA, seed
-            ).read_text()
-        )
-        for index in range(COUNT)
-        for seed in SEEDS
-    ]
+def _number_name(n: int) -> str:
+    """For n < 100, since LaTeX macro names cannot contain digits."""
+    if n < 20:
+        return _ONES[n]
+    return _TENS[n // 10] + (_ONES[n % 10] if n % 10 else "")
+
+
+def write_success_macros(data_dir: Path) -> None:
+    lines = []
+    for size in SIZES:
+        for eta in ETAS:
+            successes = sum(
+                succeeded(
+                    json.loads(
+                        capal_result_path(data_dir, size, index, eta, seed).read_text()
+                    )
+                )
+                for index in range(COUNT)
+                for seed in SEEDS
+            )
+            name = (
+                f"capalSuccesses{_number_name(size)}Eta{_number_name(round(eta * 100))}"
+            )
+            lines.append(f"\\newcommand{{\\{name}}}{{{successes}}}\n")
     path = OUT_DIR / "capal_successes.tex"
-    # the % stops \input's trailing newline from becoming a space
-    path.write_text(f"{sum(succeeded(r) for r in results)}%\n")
+    path.write_text("".join(lines))
     print(f"wrote {path}")
 
 
