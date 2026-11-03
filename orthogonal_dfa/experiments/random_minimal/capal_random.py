@@ -4,7 +4,9 @@ CAPAL, at `make_learner`'s defaults, on the random minimal targets `run` draws.
     python -m orthogonal_dfa.experiments.random_minimal.capal_random --processes 12
 
 Each (target, eta, seed) result is its own JSON file under
-``data/random_minimal/capal_results``, resumable the same way as `run`'s.
+``data/random_minimal/capal_results``, resumable the same way as `run`'s. Once
+all are in, how many of the `QUOTED_SIZE`-state targets CAPAL succeeds on at
+`QUOTED_ETA` is written to ``figures/random-minimal/capal_successes.tex``.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from automata.fa.dfa import DFA
 from orthogonal_dfa.capal_official import import_capal
 from orthogonal_dfa.experiments.capal_comparison.core import eval_words, run_capal_cell
 
+from .analyze import OUT_DIR, succeeded
 from .run import (
     COUNT,
     DATA_DIR,
@@ -34,6 +37,8 @@ from .run import (
 )
 
 RESULT_SCHEMA_VERSION = 1
+QUOTED_SIZE = 12
+QUOTED_ETA = 0.10
 
 
 def capal_result_path(
@@ -108,6 +113,23 @@ def main() -> None:
         )
     ]
     run_results(args.processes, _run_result, results)
+    write_quoted_successes(args.data_dir)
+
+
+def write_quoted_successes(data_dir: Path) -> None:
+    results = [
+        json.loads(
+            capal_result_path(
+                data_dir, QUOTED_SIZE, index, QUOTED_ETA, seed
+            ).read_text()
+        )
+        for index in range(COUNT)
+        for seed in SEEDS
+    ]
+    path = OUT_DIR / "capal_successes.tex"
+    # the % stops \input's trailing newline from becoming a space
+    path.write_text(f"{sum(succeeded(r) for r in results)}%\n")
+    print(f"wrote {path}")
 
 
 if __name__ == "__main__":
