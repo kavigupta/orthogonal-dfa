@@ -8,7 +8,8 @@ is on the read half.  A residual run's first stage and product are scored the sa
 on the flat labels, as are rules on which frames hold a stop; its residual DFA keeps the
 accepting states saved with it.  Writes to figures/length-oracles/
 the panels (lengths.pdf, dfa_saw.tex, and dfa_first.tex, dfa_residual.tex and
-dfa_product.tex for the product) and values.tex (macros for the caption's numbers)."""
+dfa_product.tex for the product), values.tex (macros for the caption's numbers) and
+phis.tex (macros for the phis the text compares)."""
 
 import json
 
@@ -43,10 +44,12 @@ PRODUCT_SEED = 1
 #: reads the residual oracle, whose labels are not saved, so it keeps the accepting states
 #: saved with it and has no phi.
 PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "product"}
+#: The parts with a phi, by their name in phis.tex.
+PHI_NAMES = {"first": "Original", "product": "Product"}
 #: Rules on which frames are closed, by (string, frame), scored on the flat labels.
 FRAME_RULES = {
-    "FramesZeroOneOpen": lambda closed: ~closed[:, 0] & ~closed[:, 1],
-    "SomeFrameOpen": lambda closed: ~closed.all(1),
+    "NotFrameZeroOrOneClosed": lambda closed: ~(closed[:, 0] | closed[:, 1]),
+    "NotAllFramesClosed": lambda closed: ~closed.all(1),
 }
 
 
@@ -236,10 +239,10 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data, parts, y):
+def values(described, data, parts):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
-    \\loSawPhi), each frame rule's phi, and how many kept DFAs of each oracle count
-    wildcards or track the phase."""
+    \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
+    phase."""
 
     def macro(name, value):
         return rf"\newcommand{{\lo{name}}}{{{value}}}"
@@ -274,11 +277,6 @@ def values(described, data, parts, y):
             ]
     for name, d in parts.items():
         lines.append(macro(f"{name.title()}States", len(d["minimal"].states)))
-        if "phi" in d:
-            lines.append(macro(f"{name.title()}Phi", f"{d['phi']:.3f}"))
-    for name, rule in FRAME_RULES.items():
-        v = rule(data.closed)[data.read].astype(float)
-        lines.append(macro(f"{name}Phi", f"{phi(v, y['flat'][data.read]):.3f}"))
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -288,6 +286,18 @@ def values(described, data, parts, y):
             macro(f"{kind.title()}Phase", f"{phase}/{len(kept)}"),
         ]
     return "\n".join(lines + [""])
+
+
+def phis(data, parts, y):
+    """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct."""
+    found = {phi_name: parts[name]["phi"] for name, phi_name in PHI_NAMES.items()}
+    for name, rule in FRAME_RULES.items():
+        v = rule(data.closed)[data.read].astype(float)
+        found[name] = phi(v, y["flat"][data.read])
+    return "".join(
+        rf"\newcommand{{\phi{name}}}{{{value:.3f}}}" + "\n"
+        for name, value in found.items()
+    )
 
 
 def main():
@@ -310,7 +320,8 @@ def main():
     parts = product_parts(y, data)
     for name, d in parts.items():
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
-    (OUT_DIR / "values.tex").write_text(values(described, data, parts, y))
+    (OUT_DIR / "values.tex").write_text(values(described, data, parts))
+    (OUT_DIR / "phis.tex").write_text(phis(data, parts, y))
     write_lengths(data)
 
 
