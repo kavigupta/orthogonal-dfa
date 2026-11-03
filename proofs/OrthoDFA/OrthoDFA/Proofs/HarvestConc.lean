@@ -228,6 +228,46 @@ theorem harvestSample_ratio_le [IsProbabilityMeasure D] (site : Level3Site)
         · exact harvestSample_upper_exp read D k H site S m cn hγn hcn
         · exact harvestSample_lower_exp read D k H site Set.univ m bn hγd hbn
 
+/-- From an ideal set-mass bound `G` and yield `y` for `harvestLaw`, off a set of draws of measure
+`2·exp(-2mγ²)` the empirical population puts at most `(G + γ)/(y − γ)` on `S`. -/
+theorem harvestSample_le_of_ideal [IsProbabilityMeasure D] (H : HypothesisDFA α)
+    (site : Level3Site) (S : Set (FreeMonoid α)) (m : ℕ) (G y γ : ℝ) (hm : 1 ≤ m) (hγ : 0 < γ)
+    (hγy : γ < y) (hideal : (harvestLaw read D k H site).real S ≤ G)
+    (hyield : y ≤ (harvestLaw read D k H site).real Set.univ) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | (G + γ) / (y - γ) < (popLaw (harvestSample read k H site xs)).real S}
+      ≤ 2 * Real.exp (-2 * m * γ ^ 2) := by
+  haveI : IsProbabilityMeasure (Measure.pi fun _ : Fin m => D) := inferInstance
+  set sS := (harvestLaw read D k H site).real S with hsS
+  set sU := (harvestLaw read D k H site).real Set.univ with hsU
+  have hsS0 : 0 ≤ sS := measureReal_nonneg
+  have hmr : (0 : ℝ) < m := by exact_mod_cast hm
+  set cn : ℕ := ⌈(m : ℝ) * (sS + γ)⌉₊ with hcnd
+  set bn : ℕ := ⌊(m : ℝ) * (sU - γ)⌋₊ with hbnd
+  have hcn : (m : ℝ) * (sS + γ) ≤ cn := Nat.le_ceil _
+  have hbn : (bn : ℝ) ≤ (m : ℝ) * (sU - γ) := by
+    rw [hbnd]; exact Nat.floor_le (by nlinarith [hyield, hγy, hmr])
+  have hratio := harvestSample_ratio_le read D k H site S m cn bn hγ.le hγ.le
+    (by rw [← hsS]; exact hcn) (by rw [← hsU]; exact hbn)
+  have hfin : (Measure.pi fun _ : Fin m => D)
+      {xs | ((cn : ℝ) - 1) / ((bn : ℝ) + 1)
+        < (popLaw (harvestSample read k H site xs)).real S} ≠ ⊤ := measure_ne_top _ _
+  refine le_trans (measureReal_mono ?_ hfin) (hratio.trans_eq (by ring))
+  intro xs hxs
+  simp only [Set.mem_setOf_eq] at hxs ⊢
+  refine lt_of_le_of_lt ?_ hxs
+  -- (cn - 1)/(bn + 1) ≤ (G + γ)/(y - γ)
+  have hcn1 : (cn : ℝ) - 1 ≤ (m : ℝ) * (sS + γ) := by
+    rw [hcnd]; have := Nat.ceil_lt_add_one (by positivity : (0:ℝ) ≤ (m:ℝ) * (sS + γ)); linarith
+  have hbn1 : (m : ℝ) * (sU - γ) ≤ (bn : ℝ) + 1 := by
+    rw [hbnd]; have := Nat.lt_floor_add_one ((m : ℝ) * (sU - γ)); linarith
+  have hGγ : (m : ℝ) * (sS + γ) ≤ (m : ℝ) * (G + γ) := by nlinarith [hideal]
+  have hyγ : (m : ℝ) * (y - γ) ≤ (m : ℝ) * (sU - γ) := by nlinarith [hyield]
+  have hbnpos : (0 : ℝ) < (bn : ℝ) + 1 := by positivity
+  have hyγ0 : (0 : ℝ) < y - γ := by linarith
+  rw [div_le_div_iff₀ hbnpos hyγ0]
+  nlinarith [hcn1, hbn1, hGγ, hyγ, mul_pos hmr hyγ0, hsS0, hγ]
+
 end Random
 
 end OrthoDFA
