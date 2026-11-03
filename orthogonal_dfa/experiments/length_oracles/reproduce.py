@@ -29,20 +29,10 @@ def launch(step, gpu, log, *args):
         )
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("out")
-    parser.add_argument("--gpus", nargs="+", type=int, required=True)
-    args = parser.parse_args()
-    os.makedirs(args.out, exist_ok=True)
-
-    # Also fits both oracles into the cache before the runs read it.
-    assert launch("label", args.gpus[0], f"{args.out}/label.log").wait() == 0
-
+def run_all(out, gpus, oracles):
     runs, procs = [], []
-    gpus = itertools.cycle(args.gpus)
-    for oracle, seed in itertools.product(("saw", "flat"), range(4)):
-        run = f"{args.out}/{oracle}_s{seed}"
+    for oracle, seed in itertools.product(oracles, range(4)):
+        run = f"{out}/{oracle}_s{seed}"
         runs.append(run)
         if os.path.exists(f"{run}/run.json"):
             continue
@@ -59,8 +49,25 @@ def main():
         )
     failed = [p.args for p in procs if p.wait() != 0]
     assert not failed, failed
+    return runs
 
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("out")
+    parser.add_argument("--gpus", nargs="+", type=int, required=True)
+    args = parser.parse_args()
+    os.makedirs(args.out, exist_ok=True)
+
+    # Also fits both oracles into the cache before the runs read it.
+    assert launch("label", args.gpus[0], f"{args.out}/label.log").wait() == 0
+
+    gpus = itertools.cycle(args.gpus)
+    runs = run_all(args.out, gpus, ("saw", "flat"))
     extract(runs)
+    # The residual runs read flat's first stage back from the runs.json just written.
+    assert launch("residual", args.gpus[0], f"{args.out}/residual.log").wait() == 0
+    extract(runs + run_all(args.out, gpus, ("residual",)))
     assert launch("random_strings", args.gpus[0], f"{args.out}/random.log").wait() == 0
 
 

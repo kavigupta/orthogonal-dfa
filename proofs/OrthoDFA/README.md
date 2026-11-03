@@ -29,7 +29,7 @@ Each claim is proved from the explicit theorems below.
   `O(nJ log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov² ε_s ε_u² s₀⁴))` and the inverse atom tolerance
   by `O(nJ² log(nJ/(δ pAP εcov ε_s ε_u κ s₀))/(εcov³ ε_s² ε_u³ s₀⁶))`.
 - `Level2Claim` (`Claims/Levels.lean`): over `Level2Inputs`, level 2's one-round probe budget at
-  harvest rate `y = ε/2`, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`.
+  harvest rate `y = ε/2`, `O(|Q||Σ|/ε · log(|Q||Σ|/δ))`.
 - `Level3Claim`, `Level4Claim` and `Level5Claim` (`Claims/Levels.lean`): over `LevelInputs`, at
   harvest rate `y = ε/48`, one round's probe budget at that level, `O(|Q|²|Σ|/ε · log(|Q||Σ|/δ))`,
   its harvest's slope `O(|Q|(1/ε + log L))` and its slack `O((|Q||Σ| log(|Q| + 1) + log(1/δ))/ε)`.
@@ -50,8 +50,8 @@ Each claim is proved from the explicit theorems below.
   `Y = |Q|R/(β δ ξ pAP s₀)`,
 
       1/p₀Tol = O((L + |Q|)⁴ log(X') log(Y) |Q|³R b/ξ
-                  · (R³|Q|⁴b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵) + 1/(δ pAP² s₀²))
-                + (L + |Q|)² log(X') log²(Y) |Q|⁷b²R²/(ξ⁴δ s₀⁴)
+                  · (R³|Q|²b²/ξ³ (1/s₀⁶ + |Q|²b/s₀⁵ + |Q|⁴b/s₀⁴) + 1/(δ pAP² s₀²))
+                + (L + |Q|)² log(X') log²(Y) |Q|⁶b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
   the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
@@ -86,12 +86,12 @@ this (`parity_toggle`, #438).
   polynomial number of queries; `εs` is what the samplers' redraws and the hash's split may cost.
   Every state's band reads its rarer decided side at most `κ` times as often as undecided, for
   any `κ` with `crossLimit ≤ κ⁴`.
-  The samplers draw without replacement, and a draw lands on what a
-  state already holds at most `(|J| + 3)·npref` times the largest atom, so each sampler rejects
-  more than `rejCount` of its draws only on a binomial tail (`SuccessiveDrawsTails`); a tame
-  population need only keep every atom under
-  `(1/2 − η₀)·min(εcov(1/2 − η₀), indecisionLimit)/(2¹⁷(|J| + 3)·npref)` and
-  `εs/(2⁸(|J| + 3)·npref)`, and under
+  The samplers draw without replacement: a table's draws land on what the state already holds
+  at most `O(npref)` times the largest atom, and its certificates' draws at most
+  `(|J| + 3)·npref` times, so each sampler rejects more than `tabCount` or `certCount` of its
+  draws only on a binomial tail (`SuccessiveDrawsTails`); a tame population need only keep every
+  atom under `(1/2 − η₀)·min(εcov(1/2 − η₀), indecisionLimit)/(2¹⁹·npref)` and
+  `min(εs, indecisionLimit)/(2¹⁴(|J| + 3)·npref)`, and under
   `min(εs, indecisionLimit)²/(512 log(64|J|(3 + 2⌊log₂ npref⌋)/δ))` for the hash to split it evenly.
 - `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
   wrongly, or leaves it undecided, only a bounded share of the time. Off the table's prefixes the
@@ -123,7 +123,7 @@ walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
 misclassifies at most `γ + ξ` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`. A run
 that reaches an unlearned edge counts as wrong. The start leaf (`pickLeaf`) is picked as follows: after
-the loop, `n = ⌈32 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
+the loop, `n = ⌈32 log(16(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
 `N = L₁ + 1 − k`, each round runs level 3 at disagreement rate `ε = c/(4(|Σ|+1)N)` and yield
@@ -140,9 +140,9 @@ Bounding `1 + log (L₁ + 1)` by `L₁ + 1` and `log (L₁ + 1)` by its tangent 
 
     L₀ = 2(log (E + E₂ + E₃) + 5 log T)/log |Σ| + 100(log T − 2)/(log |Σ| (T log |Σ| − 10)).
 
-At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 404.5`; the
-least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 393, and the least meeting
-`LearnerLoopDFASimple`'s hypotheses 369.
+At `|Q| = 3`, `|Σ| = 2`, `η₀ = 0.1`, `c = δ = 0.01`, `pAP = 1/3`, `ξ = 0.1`, `L₀ ≈ 410.1`; the
+least `L` with `ℓ⁴ (1 + log ℓ) E + ℓ² (1 + log ℓ) E₂ + ℓ² E₃ ≤ |Σ|^k` is 397, and the least meeting
+`LearnerLoopDFASimple`'s hypotheses 383.
 
 The proof runs over an input distribution `D` (`LearnerLoopDFADist`, `learner_loop_dfa_dist_core`,
 proved in `Proofs/LoopDFA.lean`), from a last round's checks to a leaf that misjudges little taken
@@ -175,7 +175,7 @@ states `edge_of_occupied`'s count (below) charges the disagreeing probes `(Ae+1)
 misled ones `N β'` per state (`wrongEdge_occupancy_le`), and the states read on their wrong side
 hold at most `2εr + εu` of the window (`wrongSide_mass_le`). At `ε = m/(3(|Σ|+|Q|+1)N)`, `m = 3ξ/(8R)`, the wrong states occupy
 the window less than `m`, so the runs from `q` through a wrong state of its zone cost at most
-`Cm ≤ 3ξ/4`, and the pick the other `ξ/4`: `n` is `⌈512 log(16(|Q|+1)(|Q|+2)/δ)/ξ²⌉`. The probe
+`Cm ≤ 3ξ/4`, and the pick the other `ξ/4`: `n` is `⌈512 log(16(|Q|+2)/δ)/ξ²⌉`. The probe
 budget `B₃ ∝ 1/ε` grows as `R(|Σ| + |Q|)N/ξ` and `L₀` as its logarithm.
 
 The probes over a window of lengths are the algorithm's change. Every prefix length is itself a
@@ -223,7 +223,9 @@ with the first `k` letters of a prefix the last round's clustering read or of on
 level 3 reads only short strings beginning with some probe's first `k` letters
 (`level3_congr_zone'`, `Proofs/LoopRenoise.lean`), and the earlier rounds read other suffixes. That
 collision has chance at most `n(6(|Q|+2)RB + B₃ + n) p₀`, `p₀ = |Σ|^-k` for uniform strings, which
-`L ≥ L₀` makes at most `δ/(4(|Q|+1))` for each round that can be last. Off it, given the loop, each
+`L ≥ L₀` makes at most `δ/4`. It and the scores below are charged once, not once per round: at
+most one round ends consistent with every round before it harvested (`selG_unique`,
+`Proofs/LoopSelect.lean`). Off it, given the loop, each
 leaf's score is within `nξ/8` of its mean given the strings, and that within `nξ/8` of `n` times its
 mean over the strings, but for chance `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`), the tree having at most
 `|Q| + 2` leaves, so the picked leaf misjudges at most `γ + ξ/2 + (3/8 + 1025/512)Nεcov ≤ γ + ξ`
@@ -258,7 +260,8 @@ sampler yields at least `ε/96` and finds a string at most as often as the probe
 length-`k` prefix, so a population puts at most `96 prefixMax / ε` on a string, within `cap`, which
 also bounds the suffixes' atoms; its strings are at most `L₁ + |Q|` long, the tree's midfixes at
 most `|Q|`. Against `cap` the clustering's atom conditions hold, every population tame: its
-samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)`; the hash's balance,
+samplers' rejections, `NP·cap` under `s₀·min(εcov s₀, ι)` for the tables and `|J| NP·cap` under
+`ι` for the certificates; the hash's balance,
 `log(|J| log₂ NP/δ)·cap` under `ι²`; the quality's deviation, `log(|J| log₂ NP/δ)·cap` under the
 slack squared, which the hash's term already gives; and the tables' own mass, `NP·cap` under the slack. The earlier rounds' reads, at
 most `6(K+1)NP` prefixes and `NS + 1` suffixes a round, hold at most `m` of any population and `ms`
@@ -332,6 +335,10 @@ the time. Each level says what a state's chance of reading undecided is.
   README's settings `ζ < 0.0625`; level 5's race tail binds, at `ζ ≈ 7.5e-7`. It charges `κ`
   where the read's chance is `κ U` at the state of `y·m`; no claim the loop proves bounds `U` at
   `y·m` under the probes' law, only at the populations' own strings.
+- **Levels 3 to 5 count `|Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` hypotheses** (#574), level 2
+  `|Q|(3|Σ| + 1) + 2|Σ| + 1`. With reads drawn per string a split can drop an edge whose target
+  edge stays live, and `Θ(|Q|²|Σ|)` drops happen with positive chance, so a smaller count there
+  would hold only with high probability.
 - Each one-round theorem is per round, with the family, the seed and the band fixed, and treats the
   noise as fresh; the loop's theorem reads one noise across rounds (above).
 - **The model's loop differs from the Python's.** The round draws its probes avoiding the first `k`
@@ -406,7 +413,7 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/LowLevelClaims/Level2Claim.lean` — `Level2RoundCorrect`: with every state's reads all
   undecided or all on its side (`ReadsByState`), `0 < y < ε < 1` (`harvestRate`,
   `disagreementRate`), `0 < δ < 1` and at least `12 S ε / (ε − y)² · log(2 S (S + 1) / δ) + S`
-  probes, `S = |Q|((|Q| + 2)|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent
+  probes, `S = |Q|(3|Σ| + 1) + 2|Σ| + 1` the most hypotheses, level 2 ends well, consistent
   with its hypothesis and tree parting on at most `ε` of the probes or a harvest whose sampler
   yields `y`, but for chance at most `δ`. A harvest's sampler (`harvestLaw`, defined there) draws a
   fresh probe, walks it under the final hypothesis, and finds the undecided read it stops at.

@@ -158,16 +158,16 @@ def LearnerLoopDFASimple : Prop :=
   let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
-  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
+  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -180,7 +180,7 @@ def LearnerLoopDFASimple : Prop :=
   -- for each round's harvests to concentrate at every state's rate,
   1536 * Real.log (16 * (Q + 1) * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
   -- for the held-out strings to read only fresh strings,
-  (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
@@ -221,7 +221,7 @@ def LearnerLoopDFA : Prop :=
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, `1/ι ≤ ℓ Θι`, `1/τ ≤ ℓ Θ`, the atoms' scale
   -- `1/min(εcov s/2, ι) ≤ ℓ Θa`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget `≤ ℓ K₁`,
@@ -238,14 +238,14 @@ def LearnerLoopDFA : Prop :=
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
-  let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θa * (R₀ + 1) / s
+  let E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
     + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
     + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
-  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let E₂ : ℝ := 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
   -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
   let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
@@ -324,16 +324,16 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
-  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
+  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈512 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -349,7 +349,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- for each round's harvests to concentrate at every state's rate,
   1536 * Real.log (16 * (Q + 1) * Kc / δ') * (A ^ k)⁻¹ ≤ ε →
   -- for the held-out strings to read only fresh strings,
-  (Q + 1) * n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
+  n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
@@ -394,7 +394,7 @@ def LearnerLoopDFARelative : Prop :=
   -- Each round's level-3 probe budget.
   let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈512 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈512 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The rest bound `LearnerLoopDFASimple`'s premises with the length `ℓ = L₁ + 1` absorbed:
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, `1/ι ≤ ℓ Θι`, `1/τ ≤ ℓ Θ`, the atoms' scale
   -- `1/min(εcov s/2, ι) ≤ ℓ Θa`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget `≤ ℓ K₁`,
@@ -411,14 +411,14 @@ def LearnerLoopDFARelative : Prop :=
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
-  let E₁ : ℝ := (Q + 3) ^ 2 * (2 ^ 20 * Θa * (R₀ + 1) / s
+  let E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
     + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
     + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
-  let E₂ : ℝ := 4 * (Q + 1) * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
+  let E₂ : ℝ := 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
   -- `1 + log ℓ` is bounded by `ℓ`, and `log ℓ` by its tangent at `T`.
   let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
@@ -499,16 +499,16 @@ def LearnerLoopDFADist : Prop :=
   let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
   -- No string may hold more than this of a population or of the suffixes.
-  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 18 * (J + 3) * (RB + 1)))
+  let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (12 * J ^ 2 * (RB + 1))))
+    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
-  let n : ℕ := ⌈32 * Real.log (16 * (Q + 1) * (Q + 2) / δ) / ξ ^ 2⌉₊
+  let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -530,7 +530,7 @@ def LearnerLoopDFADist : Prop :=
   -- for each round's harvests to concentrate at every state's rate,
   1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
   -- for the held-out strings to read only fresh strings,
-  (Q + 1) * n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
+  n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most

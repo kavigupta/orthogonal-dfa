@@ -2,12 +2,12 @@ import OrthoDFA.LowLevelClaims.BandKappa
 import OrthoDFA.Proofs.FamilyRead
 
 /-!
-# A band's vote, against `Bin(n, 1/2)`
+# A band's vote, against `Bin(n, q)`
 
-`g(j) = P(X = j) / C(n, j)` is log-concave with no zeros inside its support (Newton's
-inequalities, proved one bit at a time), so from any count `c` it does not rise, or up to `c` it
-does not fall. Where it does not rise, `P(X = j) C(n, i) ≤ C(n, j) P(X = i)` for `c ≤ i < kh ≤ j`,
-and summing,
+`g(j) = P(X = j) / P(Y = j)` is log-concave with no zeros inside its support (Newton's
+inequalities, proved one bit at a time, and a geometric reweighting from `q = 1/2`), so from any
+count `c` it does not rise, or up to `c` it does not fall. Where it does not rise,
+`P(X = j) P(Y = i) ≤ P(Y = j) P(X = i)` for `c ≤ i < kh ≤ j`, and summing,
 
     P(X ≥ kh) · P(c ≤ Y < kh) ≤ P(Y ≥ kh) · P(c ≤ X < kh);
 
@@ -231,6 +231,21 @@ lemma ulcLaw_ulc : ∀ ps : List ℝ, (∀ x ∈ ps, 0 ≤ x ∧ x ≤ 1) → UL
     have hp := h p List.mem_cons_self
     exact (ulcLaw_ulc ps fun x hx => h x (List.mem_cons_of_mem _ hx)).step hp.1 hp.2
 
+lemma ULC.reweight {m : ℕ} {g : ℕ → ℝ} (h : ULC m g) {c r : ℝ} (hc : 0 < c) (hr : 0 < r) :
+    ULC m (fun j => g j * (c * r ^ j)) where
+  nonneg j := mul_nonneg (h.nonneg j) (by positivity)
+  zero j hj := by simp [h.zero j hj]
+  lc j := by
+    have e1 : g j * (c * r ^ j) * (g (j + 2) * (c * r ^ (j + 2)))
+        = g j * g (j + 2) * (c * r ^ (j + 1)) ^ 2 := by ring
+    have e2 : (g (j + 1) * (c * r ^ (j + 1))) ^ 2 = g (j + 1) ^ 2 * (c * r ^ (j + 1)) ^ 2 := by
+      ring
+    rw [e1, e2]
+    exact mul_le_mul_of_nonneg_right (h.lc j) (sq_nonneg _)
+  conn i j k hij hjk hi hk :=
+    mul_pos (h.conn i j k hij hjk ((mul_pos_iff_of_pos_right (by positivity)).1 hi)
+      ((mul_pos_iff_of_pos_right (by positivity)).1 hk)) (by positivity)
+
 /-- A log-concave sequence with no zeros inside its support does not rise from `c`, or does not
 fall up to `c`. -/
 lemma ULC.mono_or {m : ℕ} {g : ℕ → ℝ} (h : ULC m g) (c : ℕ) :
@@ -282,21 +297,19 @@ lemma ULC.mono_or {m : ℕ} {g : ℕ → ℝ} (h : ULC m g) (c : ℕ) :
 noncomputable def win (n t t' : ℕ) (x : ℕ → ℝ) : ℝ :=
   ∑ j ∈ Finset.range (n + 1), if t ≤ j ∧ j < t' then x j else 0
 
-lemma win_choose (n : ℕ) {t t' : ℕ} (h : t ≤ t') :
-    win n t t' (fun j => (n.choose j : ℝ))
-      = 2 ^ n * (binomSfGe n (1 / 2) t - binomSfGe n (1 / 2) t') := by
-  rw [binomSfGe_eq_range, binomSfGe_eq_range, ← Finset.sum_sub_distrib, Finset.mul_sum, win]
-  refine Finset.sum_congr rfl fun j hj => ?_
-  have hjn : j ≤ n := Nat.lt_succ_iff.1 (Finset.mem_range.1 hj)
-  have e : (n.choose j : ℝ) * (1 / 2) ^ j * (1 - 1 / 2) ^ (n - j) = n.choose j * (1 / 2) ^ n := by
-    rw [show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num, mul_assoc, ← pow_add, Nat.add_sub_cancel' hjn]
-  have e2 : (2 : ℝ) ^ n * (n.choose j * (1 / 2) ^ n) = n.choose j := by
-    rw [mul_left_comm, ← mul_pow]; norm_num
+/-- `P(Y = j)` for `Y ~ Bin(n, q)`. -/
+noncomputable def binomPmf (n : ℕ) (q : ℝ) (j : ℕ) : ℝ :=
+  (n.choose j : ℝ) * q ^ j * (1 - q) ^ (n - j)
+
+lemma win_binom (n : ℕ) (q : ℝ) {t t' : ℕ} (h : t ≤ t') :
+    win n t t' (binomPmf n q) = binomSfGe n q t - binomSfGe n q t' := by
+  rw [binomSfGe_eq_range, binomSfGe_eq_range, ← Finset.sum_sub_distrib, win]
+  refine Finset.sum_congr rfl fun j _ => ?_
   by_cases h1 : t ≤ j <;> by_cases h2 : t' ≤ j
-  · rw [if_neg (by omega), if_pos h1, if_pos h2, sub_self, mul_zero]
-  · rw [if_pos ⟨h1, by omega⟩, if_pos h1, if_neg h2, sub_zero, e, e2]
+  · rw [if_neg (by omega), if_pos h1, if_pos h2, sub_self]
+  · rw [if_pos ⟨h1, by omega⟩, if_pos h1, if_neg h2, sub_zero, binomPmf]
   · omega
-  · rw [if_neg (by omega), if_neg h1, if_neg h2, sub_zero, mul_zero]
+  · rw [if_neg (by omega), if_neg h1, if_neg h2, sub_zero]
 
 lemma win_nonneg (n t t' : ℕ) {x : ℕ → ℝ} (hx : ∀ j, 0 ≤ x j) : 0 ≤ win n t t' x :=
   Finset.sum_nonneg fun j _ => by split_ifs; exacts [hx j, le_rfl]
@@ -308,13 +321,21 @@ lemma win_mono (n : ℕ) {t₁ t₁' t₂ t₂' : ℕ} {x : ℕ → ℝ} (hx : �
     · rw [if_pos h2, if_pos ⟨by omega, by omega⟩]
     · rw [if_neg h2]; split_ifs; exacts [hx j, le_rfl]
 
-lemma win_choose_pos {n t c t' : ℕ} (htc : t ≤ c) (hct : c < t') (hcn : c ≤ n) :
-    0 < win n t t' (fun j => (n.choose j : ℝ)) := by
+lemma binomPmf_nonneg {n : ℕ} {q : ℝ} (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (j : ℕ) :
+    0 ≤ binomPmf n q j := by
+  unfold binomPmf
+  exact mul_nonneg (mul_nonneg (Nat.cast_nonneg _) (pow_nonneg hq0 _))
+    (pow_nonneg (by linarith) _)
+
+lemma win_binom_pos {n t c t' : ℕ} {q : ℝ} (hq0 : 0 < q) (hq1 : q < 1) (htc : t ≤ c)
+    (hct : c < t') (hcn : c ≤ n) : 0 < win n t t' (binomPmf n q) := by
   refine lt_of_lt_of_le ?_ (Finset.single_le_sum (f := fun j => if t ≤ j ∧ j < t' then
-    (n.choose j : ℝ) else 0) (fun j _ => by split_ifs <;> positivity)
-    (Finset.mem_range.2 (Nat.lt_succ_of_le hcn)))
-  rw [if_pos ⟨htc, hct⟩]
-  exact_mod_cast Nat.choose_pos hcn
+    binomPmf n q j else 0) (fun j _ => by split_ifs; exacts [binomPmf_nonneg hq0.le hq1.le j,
+      le_rfl]) (Finset.mem_range.2 (Nat.lt_succ_of_le hcn)))
+  rw [if_pos ⟨htc, hct⟩, binomPmf]
+  have : (0 : ℝ) < n.choose c := by exact_mod_cast Nat.choose_pos hcn
+  have : (0 : ℝ) < 1 - q := by linarith
+  positivity
 
 /-- Where `g` is no larger on the window `T` than on the window `S`, and `f = w g`, `T` holds at
 most `w(T)/w(S)` of what `S` holds. -/
@@ -351,7 +372,7 @@ lemma readOf_undecided {kl kh j : ℕ} : readOf kl kh j = .undecided ↔ kl < j 
   unfold readOf; split_ifs <;> simp_all
 
 theorem bandKappaBound_holds : BandKappaBound := by
-  intro N n kl c kh p r hNn hklc hckh hcn hp0 hp1 hr0 hr1 a haN
+  intro N n kl c kh q p r hNn hklc hckh hcn hq0 hq1 hp0 hp1 hr0 hr1 a haN
   classical
   set ps := List.replicate (n - N) (0 : ℝ) ++ (List.replicate a p ++ List.replicate (N - a) r)
     with hps
@@ -363,13 +384,29 @@ theorem bandKappaBound_holds : BandKappaBound := by
     · norm_num
     · exact ⟨hp0, hp1⟩
     · exact ⟨hr0, hr1⟩
-  set g := ulcLaw ps with hgd
-  have hg : ULC n g := hlen ▸ ulcLaw_ulc ps h01
-  have hf : ∀ j, voteLaw N a p r j = (n.choose j : ℝ) * g j := by
+  have hq1' : 0 < 1 - q := by linarith
+  -- `voteLaw` over `Bin(n, q)`'s law: `ulcLaw ps` reweighted by `((1 − q)/q)^j/(1 − q)^n`
+  set g : ℕ → ℝ := fun j => ulcLaw ps j * (((1 - q) ^ n)⁻¹ * ((1 - q) / q) ^ j) with hgd
+  have hg : ULC n g := (hlen ▸ ulcLaw_ulc ps h01).reweight (by positivity) (by positivity)
+  have hw : ∀ j, (n.choose j : ℝ) = binomPmf n q j * (((1 - q) ^ n)⁻¹ * ((1 - q) / q) ^ j) := by
+    intro j
+    rcases Nat.lt_or_ge n j with hj | hj
+    · rw [Nat.choose_eq_zero_of_lt hj, binomPmf, Nat.choose_eq_zero_of_lt hj]; simp
+    · obtain ⟨d, rfl⟩ : ∃ d, n = j + d := ⟨n - j, by omega⟩
+      rw [binomPmf, show j + d - j = d by omega]
+      have e : q ^ j * ((1 - q) / q) ^ j = (1 - q) ^ j := by
+        rw [← mul_pow, mul_div_cancel₀ _ hq0.ne']
+      have hne : (1 - q) ^ (j + d) ≠ 0 := by positivity
+      calc ((j + d).choose j : ℝ)
+          = (j + d).choose j * ((1 - q) ^ j * (1 - q) ^ d) * ((1 - q) ^ (j + d))⁻¹ := by
+            rw [← pow_add, mul_assoc, mul_inv_cancel₀ hne, mul_one]
+        _ = _ := by rw [← e]; ring
+  have hf : ∀ j, voteLaw N a p r j = binomPmf n q j * g j := by
     intro j
     have e : pbLaw ps = (List.replicate a p ++ List.replicate (N - a) r).foldr pbStep pbBase := by
       rw [pbLaw, hps, List.foldr_append, pbLaw_replicate_zero]
-    rw [voteLaw_eq_foldr, ← e, pbLaw_eq_choose_mul, hlen]
+    rw [voteLaw_eq_foldr, ← e, pbLaw_eq_choose_mul, hlen, hw j, hgd]
+    ring
   have hfN : ∀ j, N < j → voteLaw N a p r j = 0 := by
     intro j hj
     rw [voteLaw_eq_foldr, show (List.replicate a p ++ List.replicate (N - a) r).foldr pbStep pbBase
@@ -378,7 +415,7 @@ theorem bandKappaBound_holds : BandKappaBound := by
     simp only [Multiset.coe_card, List.length_append, List.length_replicate]
     omega
   have hf0 : ∀ j, 0 ≤ voteLaw N a p r j := fun j => by
-    rw [hf]; exact mul_nonneg (Nat.cast_nonneg _) (hg.nonneg j)
+    rw [hf]; exact mul_nonneg (binomPmf_nonneg hq0.le hq1.le j) (hg.nonneg j)
   -- the three reads as windows of the count
   have hdist : ∀ (rd : ARU) (t t' : ℕ), (∀ j, j ≤ n → (readOf kl kh j = rd ↔ t ≤ j ∧ j < t')) →
       (∑ j ∈ Finset.range (N + 1), if readOf kl kh j = rd then
@@ -403,53 +440,34 @@ theorem bandKappaBound_holds : BandKappaBound := by
     hdist .undecided (kl + 1) kh (fun j hj => by rw [readOf_undecided]; omega)]
   set U := win n (kl + 1) kh (voteLaw N a p r)
   have hU0 : 0 ≤ U := win_nonneg _ _ _ hf0
-  have h2n : (0 : ℝ) < 2 ^ n := by positivity
   rcases hg.mono_or c with hdown | hup
-  · -- past `c` the law falls at least as fast as `Bin(n, 1/2)`'s
+  · -- past `c` the law falls at least as fast as `Bin(n, q)`'s
     have hx := win_cross (n := n) (s := c) (s' := kh) (t := kh) (t' := kh + n + 1) hf
-      (fun j => Nat.cast_nonneg _) (fun i j hi _ _ _ => hdown i j hi (by omega))
-    have hD := win_choose_pos (n := n) le_rfl hckh hcn
-    rw [win_choose n hckh.le, win_choose n (by omega),
-      binomSfGe_eq_zero n (1 / 2) (show n < kh + n + 1 by omega), sub_zero] at hx
-    rw [win_choose n hckh.le] at hD
-    have hY : 0 < binomSfGe n (1 / 2) c - binomSfGe n (1 / 2) kh := pos_of_mul_pos_right hD h2n.le
-    have hx' : win n kh (kh + n + 1) (voteLaw N a p r)
-        * (binomSfGe n (1 / 2) c - binomSfGe n (1 / 2) kh)
-        ≤ binomSfGe n (1 / 2) kh * win n c kh (voteLaw N a p r) := by
-      have := hx
-      rw [show ∀ A B : ℝ, A * (2 ^ n * B) = 2 ^ n * (A * B) from fun _ _ => by ring,
-        show ∀ C D : ℝ, 2 ^ n * C * D = 2 ^ n * (C * D) from fun _ _ => by ring] at this
-      exact le_of_mul_le_mul_left this h2n
+      (binomPmf_nonneg hq0.le hq1.le) (fun i j hi _ _ _ => hdown i j hi (by omega))
+    have hY := win_binom_pos (n := n) hq0 hq1 le_rfl hckh hcn
+    rw [win_binom n q hckh.le, win_binom n q (by omega),
+      binomSfGe_eq_zero n q (show n < kh + n + 1 by omega), sub_zero] at hx
+    rw [win_binom n q hckh.le] at hY
     have hUc : win n c kh (voteLaw N a p r) ≤ U := win_mono n hf0 (by omega) le_rfl
     have hA : win n kh (kh + n + 1) (voteLaw N a p r)
-        ≤ binomSfGe n (1 / 2) kh / (binomSfGe n (1 / 2) c - binomSfGe n (1 / 2) kh) * U := by
+        ≤ binomSfGe n q kh / (binomSfGe n q c - binomSfGe n q kh) * U := by
       rw [div_mul_eq_mul_div, le_div_iff₀ hY]
-      exact hx'.trans (mul_le_mul_of_nonneg_left hUc
-        (binomSfGe_nonneg (by norm_num) (by norm_num) _))
+      exact hx.trans (mul_le_mul_of_nonneg_left hUc (binomSfGe_nonneg hq0.le hq1.le _))
     exact (min_le_left _ _).trans (hA.trans (mul_le_mul_of_nonneg_right (le_max_left _ _) hU0))
-  · -- up to `c` the law rises at least as fast as `Bin(n, 1/2)`'s
+  · -- up to `c` the law rises at least as fast as `Bin(n, q)`'s
     have hx := win_cross (n := n) (s := kl + 1) (s' := c + 1) (t := 0) (t' := kl + 1) hf
-      (fun j => Nat.cast_nonneg _) (fun i j _ hi _ hj => hup j i (by omega) (by omega))
-    have hD := win_choose_pos (n := n) (show kl + 1 ≤ c by omega) (lt_add_one c) hcn
-    rw [win_choose n (show kl + 1 ≤ c + 1 by omega), win_choose n (Nat.zero_le _),
+      (binomPmf_nonneg hq0.le hq1.le) (fun i j _ hi _ hj => hup j i (by omega) (by omega))
+    have hY := win_binom_pos (n := n) hq0 hq1 (show kl + 1 ≤ c by omega) (lt_add_one c) hcn
+    rw [win_binom n q (show kl + 1 ≤ c + 1 by omega), win_binom n q (Nat.zero_le _),
       binomSfGe_zero_right] at hx
-    rw [win_choose n (show kl + 1 ≤ c + 1 by omega)] at hD
-    have hY : 0 < binomSfGe n (1 / 2) (kl + 1) - binomSfGe n (1 / 2) (c + 1) :=
-      pos_of_mul_pos_right hD h2n.le
-    have hx' : win n 0 (kl + 1) (voteLaw N a p r)
-        * (binomSfGe n (1 / 2) (kl + 1) - binomSfGe n (1 / 2) (c + 1))
-        ≤ (1 - binomSfGe n (1 / 2) (kl + 1)) * win n (kl + 1) (c + 1) (voteLaw N a p r) := by
-      have := hx
-      rw [show ∀ A B : ℝ, A * (2 ^ n * B) = 2 ^ n * (A * B) from fun _ _ => by ring,
-        show ∀ C D : ℝ, 2 ^ n * C * D = 2 ^ n * (C * D) from fun _ _ => by ring] at this
-      exact le_of_mul_le_mul_left this h2n
+    rw [win_binom n q (show kl + 1 ≤ c + 1 by omega)] at hY
     have hUc : win n (kl + 1) (c + 1) (voteLaw N a p r) ≤ U := win_mono n hf0 le_rfl (by omega)
     have hR : win n 0 (kl + 1) (voteLaw N a p r)
-        ≤ (1 - binomSfGe n (1 / 2) (kl + 1))
-          / (binomSfGe n (1 / 2) (kl + 1) - binomSfGe n (1 / 2) (c + 1)) * U := by
+        ≤ (1 - binomSfGe n q (kl + 1))
+          / (binomSfGe n q (kl + 1) - binomSfGe n q (c + 1)) * U := by
       rw [div_mul_eq_mul_div, le_div_iff₀ hY]
-      have hb1 : binomSfGe n (1 / 2) (kl + 1) ≤ 1 := binomSfGe_le_one (by norm_num) (by norm_num) _
-      exact hx'.trans (mul_le_mul_of_nonneg_left hUc (by linarith))
+      have hb1 : binomSfGe n q (kl + 1) ≤ 1 := binomSfGe_le_one hq0.le hq1.le _
+      exact hx.trans (mul_le_mul_of_nonneg_left hUc (by linarith))
     exact (min_le_right _ _).trans (hR.trans (mul_le_mul_of_nonneg_right (le_max_right _ _) hU0))
 
 /-- `RarerBounded` is monotone in `κ`. -/
