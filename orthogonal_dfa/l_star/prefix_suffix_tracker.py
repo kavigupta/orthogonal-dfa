@@ -35,6 +35,9 @@ class SearchConfig:
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
     fnr_limit: float = 0.10
+    #: The tightest `fnr_limit` gets, as a share of where it starts: it halves after
+    #: a round that harvests nothing, down to this floor.
+    fnr_floor: float = 0.25
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
     #: is called indecisive, all indecision counting against it; `cross_limit`
