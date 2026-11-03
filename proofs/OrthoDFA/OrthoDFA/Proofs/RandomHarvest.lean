@@ -93,6 +93,21 @@ theorem harvestSample_apply (site : Level3Site) {m : ℕ} (xs : Fin m → FreeMo
   rw [Measure.finsetSum_apply]
   exact Finset.sum_congr rfl fun i _ => diracSum_apply _ A
 
+/-- A probe harvests a string into `A` (the event one draw adds to the sample's mass on `A`). -/
+def siteHit (site : Level3Site) (A : Set (FreeMonoid α)) (x : FreeMonoid α) : Prop :=
+  ∃ z ∈ siteHarvest read k H site x, z ∈ A
+
+open scoped Classical in
+/-- A probe's harvested strings in `A` number one when it meets `A`, none otherwise. -/
+theorem siteHarvest_filter_length (site : Level3Site) (A : Set (FreeMonoid α))
+    [DecidablePred (· ∈ A)] (x : FreeMonoid α) :
+    ((siteHarvest read k H site x).filter (· ∈ A)).length
+      = if siteHit read k H site A x then 1 else 0 := by
+  have hl := siteHarvest_length read k H site x
+  unfold siteHit
+  rcases h : siteHarvest read k H site x with _ | ⟨a, _ | ⟨b, l⟩⟩ <;> simp_all [List.filter]
+  by_cases ha : a ∈ A <;> simp [ha, decide_eq_true_eq]
+
 theorem harvestLaw_spread [IsFiniteMeasure D] (site : Level3Site) :
     Spread D k (harvestLaw read D k H site) :=
   spread_of_fresh D k _ (siteHarvest_nodup read k H site) fun x z hz =>
