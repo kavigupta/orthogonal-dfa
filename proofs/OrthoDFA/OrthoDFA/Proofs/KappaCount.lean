@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.KappaSteps
 import Mathlib.Analysis.Complex.ExponentialBounds
+import OrthoDFA.Code.Reads
 
 /-!
 # The undecided reads a round makes
@@ -256,8 +257,6 @@ theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMon
     · simp
   all_goals simp
 
-/-- The most prefixes a probe at most `L` long sifts. -/
-def probeSifts (L : ℕ) : ℕ := min (L + 1) (3 + Nat.clog 2 L)
 
 omit [DecidableEq α] in
 theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMonoid α} {L : ℕ}

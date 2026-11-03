@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.Level3Reads
 import OrthoDFA.Proofs.SpurRounds
 import OrthoDFA.Proofs.Allowance
+import OrthoDFA.Code.Reads
 
 /-!
 # A level-3 run's honest reads
@@ -23,17 +24,6 @@ namespace Random
 open Eps Kappa Spur MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
-
-open scoped Classical in
-/-- Every string the run from `s` over `xs` reads. -/
-noncomputable def runReadsFrom (r : FreeMonoid α → ARU) (C : Level3Settings) :
-    Level3State α → List (FreeMonoid α) → Finset (FreeMonoid α)
-  | _, [] => ∅
-  | s, x :: xs =>
-    (probeReads r s.tree s.edges C.walkStart x ∪ splitReads r C s x) ∪
-      (match applyProbe r C s x with
-       | .inl s' => runReadsFrom r C s' xs
-       | .inr _ => ∅)
 
 /-- Reads agreeing on what the run reads give the same run. -/
 theorem runProbes_congr_runReads {r r' : FreeMonoid α → ARU} (C : Level3Settings) :
@@ -106,18 +96,6 @@ theorem runReadsFrom_card_le {r : FreeMonoid α → ARU} (C : Level3Settings) {L
         _ ≤ (x :: xs).length
             * (probeSifts L * (n + 2) + (n + 2) * Fintype.card α * (n + 2)) := by
             simp only [List.length_cons]; nlinarith [xs.length]
-
-open scoped Classical in
-/-- How many strings the run from `s` over `xs` reads, with multiplicity across steps. Each read is
-one `familyRead`, so `|F|` oracle calls. -/
-noncomputable def runReadCount (r : FreeMonoid α → ARU) (C : Level3Settings) :
-    Level3State α → List (FreeMonoid α) → ℕ
-  | _, [] => 0
-  | s, x :: xs =>
-    (probeReads r s.tree s.edges C.walkStart x).card + (splitReads r C s x).card +
-      (match applyProbe r C s x with
-       | .inl s' => runReadCount r C s' xs
-       | .inr _ => 0)
 
 /-- While no step grows the tree past `n + 2` leaves, the run reads at most
 `|xs| · (probeSifts L · (n + 2) + (n + 2)·|Σ|·(n + 2))` strings, counted with multiplicity. -/

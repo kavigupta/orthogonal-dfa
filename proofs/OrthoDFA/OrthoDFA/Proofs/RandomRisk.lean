@@ -1,4 +1,5 @@
 import OrthoDFA.LowLevelClaims.Level3Claim
+import OrthoDFA.Code.Reads
 
 /-!
 # The round's risk at the proof's free parameters
@@ -48,9 +49,6 @@ noncomputable def stretchRisk (C : Level3Settings) (a : ℝ) (Ns N₁ : ℕ) (θ
         + (1 - θpt') * ((1 - C.middleRate) / (1 - C.middleAlternative))) ^ ⌈C.searchShare * Ns⌉₊
       / a
 
-/-- The largest mass the probes' distribution puts on one length-`k` prefix. -/
-noncomputable def prefixMax [Fintype α] (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
-  ⨆ u, D.real {x | prefixOf x k = u}
 
 /-- The proof's free parameters. -/
 structure Knobs where

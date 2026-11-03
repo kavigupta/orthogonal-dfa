@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.Level3Congr
 import OrthoDFA.Proofs.LoopStop
 import OrthoDFA.Proofs.KappaCount
+import OrthoDFA.Code.Reads
 
 /-!
 # A level-3 run's oracle queries
@@ -75,12 +76,6 @@ theorem round_level3_card_le (O : Oracle μ (FreeMonoid α)) (C : Level3Settings
   refine level3Queries_card_le O F kl kh C xs ω hL
     (not_growsRun_of_runProbes_le (List.ofFn xs) initialState ?_)
   exact leaves_length_le_of_mem_classSet nQ _ htree
-
-/-- Oracle calls the level-3 run over `xs` makes: each of its `runReadCount` reads is one
-`familyRead`, hence `|F|` calls. -/
-noncomputable def level3Count (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
-    (kl kh : ℕ) (C : Level3Settings) {P : ℕ} (xs : Fin P → FreeMonoid α) (ω : Ω) : ℕ :=
-  runReadCount (fun z => familyRead O.mq F kl kh z ω) C initialState (List.ofFn xs) * F.card
 
 /-- On `¬GrowsRun`, the level-3 run makes at most
 `|xs| · (probeSifts L · (n + 2) + (n + 2)|Σ|(n + 2)) · |F|` oracle calls. -/
