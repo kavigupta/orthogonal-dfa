@@ -4,9 +4,10 @@ checked-in runs and labels alone.
     python -m orthogonal_dfa.experiments.length_oracles.figure
 
 A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
-is on the read half.  The residual DFA is drawn with the accepting states saved in
-residual_products.json.  Writes to figures/length-oracles/ the panels (lengths.pdf,
-dfa_saw.tex, dfa_residual.tex) and values.tex (macros for the caption's numbers)."""
+is on the read half.  The product DFA keeps the accepting states saved in
+residual_products.json, and its phi is on the flat labels.  Writes to
+figures/length-oracles/ the panels (lengths.pdf, dfa_saw.tex, dfa_product.tex) and
+values.tex (macros for the caption's numbers)."""
 
 import json
 
@@ -35,8 +36,8 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {"saw": ("saw", 1, 0)}
-#: The residual run whose kept DFA is drawn.
-RESIDUAL_SEED = 1
+#: The residual seed whose product with its first stage is drawn.
+PRODUCT_SEED = 3
 
 
 class Strings:
@@ -102,10 +103,16 @@ def minimal_dfa(table, accepting):
     ).minify()
 
 
-def residual_dfa():
+def product(y, data):
     with open(RESIDUAL_PRODUCTS) as f:
-        (run,) = [r for r in json.load(f) if r["seed"] == RESIDUAL_SEED]
-    return minimal_dfa(run["residual"], run["residual"]["accepting"])
+        (run,) = [r for r in json.load(f) if r["seed"] == PRODUCT_SEED]
+    table = run["product"]
+    accepting = np.array(table["accepting"], bool)
+    end = table_end_states(np.array(table["transitions"]), table["start"], data.s)
+    return dict(
+        minimal=minimal_dfa(table, accepting),
+        phi=phi(accepting[end][data.read].astype(float), y["flat"][data.read]),
+    )
 
 
 def compiled_lengths(data):
@@ -193,7 +200,7 @@ def join_words(items, conjunction):
     return ", ".join(items[:-1]) + f" {conjunction} " + items[-1]
 
 
-def values(described, data, residual):
+def values(described, data, drawn_product):
     """Macros for the caption: each drawn DFA's numbers, named after it (saw gives
     \\loSawPhi), and how many kept DFAs of each oracle count wildcards or track the
     phase."""
@@ -229,7 +236,10 @@ def values(described, data, residual):
                 macro(f"{prefix}Lengths", join_words(lengths, "or")),
                 macro(f"{prefix}LengthsAnd", join_words(lengths, "and")),
             ]
-    lines.append(macro("ResidualStates", len(residual.states)))
+    lines += [
+        macro("ProductPhi", f"{drawn_product['phi']:.3f}"),
+        macro("ProductStates", len(drawn_product["minimal"].states)),
+    ]
     for kind in PAPER_NAMES:
         kept = [d for key, d in described.items() if key[0] == kind and d["kept"]]
         counting = sum(counts_wildcards(d["minimal"]) for d in kept)
@@ -258,9 +268,9 @@ def main():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
-    residual = residual_dfa()
-    (OUT_DIR / "dfa_residual.tex").write_text(dfa_tikz(residual))
-    (OUT_DIR / "values.tex").write_text(values(described, data, residual))
+    drawn_product = product(y, data)
+    (OUT_DIR / "dfa_product.tex").write_text(dfa_tikz(drawn_product["minimal"]))
+    (OUT_DIR / "values.tex").write_text(values(described, data, drawn_product))
     write_lengths(data)
 
 
