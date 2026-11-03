@@ -2,6 +2,7 @@ import OrthoDFA.Proofs.RandomHarvest
 import OrthoDFA.Proofs.BinomLaw
 import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.Proofs.BitSum
+import OrthoDFA.Proofs.LoopLaw
 
 /-! The `m`-draw harvest law concentrates to its ideal.
 
@@ -152,6 +153,80 @@ theorem harvestSample_lower_budget [IsProbabilityMeasure D] (site : Level3Site)
     (Measure.pi fun _ : Fin m => D).real
         {xs | harvestSample read k H site xs A ≤ (b : ℝ≥0∞)} ≤ δ :=
   (harvestSample_lower_exp read D k H site A m b hγ hb).trans (exp_neg_two_mul_le m hδ hm)
+
+open scoped Classical in
+/-- Off the two tail events the sample's set-mass ratio on `S` is at most `(cn-1)/(bn+1)`, so the
+chance `popLaw(harvestSample)` puts more than that on `S` is bounded by the numerator overshooting
+(`Bin(m, harvestLaw S)` reaching `cn`) plus the denominator undershooting (`Bin(m, harvestLaw univ)`
+at most `bn`). The empirical set-mass against the ideal, within slack. -/
+theorem harvestSample_ratio_le [IsProbabilityMeasure D] (site : Level3Site)
+    (S : Set (FreeMonoid α)) (m cn bn : ℕ) {γn γd : ℝ} (hγn : 0 ≤ γn) (hγd : 0 ≤ γd)
+    (hcn : (m : ℝ) * ((harvestLaw read D k H site).real S + γn) ≤ cn)
+    (hbn : (bn : ℝ) ≤ m * ((harvestLaw read D k H site).real Set.univ - γd)) :
+    (Measure.pi fun _ : Fin m => D).real
+        {xs | ((cn : ℝ) - 1) / ((bn : ℝ) + 1)
+            < (popLaw (harvestSample read k H site xs)).real S}
+      ≤ Real.exp (-2 * m * γn ^ 2) + Real.exp (-2 * m * γd ^ 2) := by
+  set Enum := {xs : Fin m → FreeMonoid α | (cn : ℝ≥0∞) ≤ harvestSample read k H site xs S} with hEn
+  set Eden := {xs : Fin m → FreeMonoid α | harvestSample read k H site xs Set.univ ≤ (bn : ℝ≥0∞)}
+    with hEd
+  have hsub : {xs : Fin m → FreeMonoid α | ((cn : ℝ) - 1) / ((bn : ℝ) + 1)
+        < (popLaw (harvestSample read k H site xs)).real S} ⊆ Enum ∪ Eden := by
+    intro xs hxs
+    by_contra hcon
+    simp only [hEn, hEd, Set.mem_union, Set.mem_setOf_eq, not_or, not_le] at hcon
+    obtain ⟨hnum, hden⟩ := hcon
+    have hnum' : (Finset.univ.filter fun i => siteHit read k H site S (xs i)).card < cn := by
+      rw [harvestSample_apply_card read k H site S xs] at hnum; exact_mod_cast hnum
+    have hden' : bn < (Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card := by
+      rw [harvestSample_apply_card read k H site Set.univ xs] at hden; exact_mod_cast hden
+    have hSr : (harvestSample read k H site xs).real S
+        = ((Finset.univ.filter fun i => siteHit read k H site S (xs i)).card : ℝ) := by
+      rw [measureReal_def, harvestSample_apply_card read k H site S xs, ENNReal.toReal_natCast]
+    have hUr : (harvestSample read k H site xs).real Set.univ
+        = ((Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card : ℝ) := by
+      rw [measureReal_def, harvestSample_apply_card read k H site Set.univ xs,
+        ENNReal.toReal_natCast]
+    have h0 : harvestSample read k H site xs Set.univ ≠ 0 := by
+      rw [harvestSample_apply_card read k H site Set.univ xs]
+      simp only [ne_eq, Nat.cast_eq_zero]; omega
+    have htop : harvestSample read k H site xs Set.univ ≠ ∞ := by
+      rw [harvestSample_apply_card read k H site Set.univ xs]; exact ENNReal.natCast_ne_top _
+    simp only [Set.mem_setOf_eq] at hxs
+    rw [popLaw_real h0 htop, hSr, hUr] at hxs
+    have hcS_le : ((Finset.univ.filter fun i => siteHit read k H site S (xs i)).card : ℝ)
+        ≤ (cn : ℝ) - 1 := by
+      have : (Finset.univ.filter fun i => siteHit read k H site S (xs i)).card + 1 ≤ cn := hnum'
+      have := Nat.cast_le (α := ℝ).2 this; push_cast at this; linarith
+    have hcU_ge : (bn : ℝ) + 1
+        ≤ ((Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card : ℝ) := by
+      have : bn + 1 ≤ (Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card :=
+        hden'
+      have := Nat.cast_le (α := ℝ).2 this; push_cast at this; linarith
+    have hbn_pos : (0 : ℝ) < (bn : ℝ) + 1 := by positivity
+    have hcU_pos : (0 : ℝ)
+        < ((Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card : ℝ) :=
+      lt_of_lt_of_le hbn_pos hcU_ge
+    have hcn1 : (0 : ℝ) ≤ (cn : ℝ) - 1 := by
+      have : (1 : ℝ) ≤ cn := by exact_mod_cast (show 1 ≤ cn by omega)
+      linarith
+    have hcontra : ((Finset.univ.filter fun i => siteHit read k H site S (xs i)).card : ℝ)
+          / ((Finset.univ.filter fun i => siteHit read k H site Set.univ (xs i)).card : ℝ)
+        ≤ ((cn : ℝ) - 1) / ((bn : ℝ) + 1) := by
+      rw [div_le_div_iff₀ hcU_pos hbn_pos]
+      nlinarith [mul_le_mul_of_nonneg_right hcS_le (le_of_lt hbn_pos),
+        mul_le_mul_of_nonneg_left hcU_ge hcn1]
+    linarith
+  calc (Measure.pi fun _ : Fin m => D).real {xs | ((cn : ℝ) - 1) / ((bn : ℝ) + 1)
+          < (popLaw (harvestSample read k H site xs)).real S}
+      ≤ (Measure.pi fun _ : Fin m => D).real (Enum ∪ Eden) :=
+        measureReal_mono hsub
+    _ ≤ (Measure.pi fun _ : Fin m => D).real Enum
+          + (Measure.pi fun _ : Fin m => D).real Eden := measureReal_union_le _ _
+    _ ≤ Real.exp (-2 * m * γn ^ 2) + Real.exp (-2 * m * γd ^ 2) := by
+        gcongr
+        · exact harvestSample_upper_exp read D k H site S m cn hγn hcn
+        · exact harvestSample_lower_exp read D k H site Set.univ m bn hγd hbn
 
 end Random
 
