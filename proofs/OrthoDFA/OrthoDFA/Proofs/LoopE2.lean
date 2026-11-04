@@ -180,6 +180,7 @@ lemma empirical_atom_le {rS rU b hr0 γ ca : ℝ} (hS0 : 0 ≤ rS) (hSb : rS ≤
 
 end GammaFacts
 
+set_option maxHeartbeats 1000000 in
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
 reads. Its chance is at most `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`, it is fixed
@@ -202,8 +203,8 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ + Fintype.card σ * Fintype.card α
           * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
-            (2 * (Fintype.card σ + 1) * crossLimit) u
-          + 2 * ((Finset.card (hypClass (α := α) P.L (Fintype.card σ)) : ℝ)
+            (2 * (Fintype.card σ + 1) * crossLimit) u)
+          + ENNReal.ofReal (2 * ((Finset.card (hypClass (α := α) P.L (Fintype.card σ)) : ℝ)
               * ((Finset.card (shortStrings (α := α) (P.L + Fintype.card σ)) : ℝ) + 1))
             * (2 * Real.exp (-2 * (settings.level3.probeBudget : ℝ)
               * roundGamma m ca (prefixMax P.D settings.level3.walkStart)
@@ -274,7 +275,19 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
   set γc := roundGamma m ca (prefixMax P.D k) C.harvestRate with hγc
   have hγ0 : 0 < γc := roundGamma_pos hm0 hca0.le hy0 hcap
   have hγlt : γc < C.harvestRate := roundGamma_lt hm0 hca0.le hy0
-  have hT1 : 1 ≤ T := by sorry
+  have hdis0 : 0 < C.disagreementRate := by linarith [hy0, hyρ]
+  have hT1 : 1 ≤ T := by
+    set S : ℕ := Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1
+      with hS
+    have hS1 : 1 ≤ S := by rw [hS]; exact Nat.le_add_left 1 _
+    have hSR1 : (1 : ℝ) ≤ (S : ℝ) := by exact_mod_cast hS1
+    have harg : (1 : ℝ) ≤ 16 * (S : ℝ) * ((S : ℝ) + 1) / C.δ := by
+      rw [le_div_iff₀ hδ0]; nlinarith [hSR1, hδ1, hδ0]
+    have hfirst : 0 ≤ 36 * (S : ℝ) / C.disagreementRate
+        * Real.log (16 * (S : ℝ) * ((S : ℝ) + 1) / C.δ) :=
+      mul_nonneg (div_nonneg (by positivity) hdis0.le) (Real.log_nonneg harg)
+    have : (1 : ℝ) ≤ (C.probeBudget : ℝ) := by linarith [hP, hfirst, hSR1]
+    exact_mod_cast this
   let Hf : HypothesisDFA α × Option (FreeMonoid α) → HypothesisDFA α := fun i => i.1
   let Sset : HypothesisDFA α × Option (FreeMonoid α) → Set (FreeMonoid α) := fun i =>
     (i.2).elim {z | familyReadDist O M F B.lo (B.hi + 1) (M.eval z.toList) .undecided ≤ Tu}
@@ -294,6 +307,18 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
             (Hf i) site p.2)).real (Sset i)}
   have hCBm : ∀ site, MeasurableSet (CBset site) := fun site =>
     Random.measurableSet_harvestSample_prod_bad k fam'.O F B.lo (B.hi + 1) site D' csI Hf Sset γc
+  have hCBle : ∀ site, ((μ.prod μ).prod (Measure.pi fun _ : Fin T => D')) (CBset site)
+      ≤ ENNReal.ofReal ((csI.card : ℝ) * (2 * Real.exp (-2 * (T : ℝ) * γc ^ 2))) := fun site =>
+    Random.harvestSample_prod_biUnion_le D' k (μ.prod μ) csI T hT1 γc hγ0
+      (fun p z => familyRead fam'.O.mq F B.lo (B.hi + 1) z p) Hf site Sset (hCBm site)
+  have hcard : (csI.card : ℝ)
+      = (Finset.card (hypClass (α := α) P.L (Fintype.card σ)) : ℝ)
+        * ((Finset.card (shortStrings (α := α) (P.L + Fintype.card σ)) : ℝ) + 1) := by
+    show ((hypClass (α := α) P.L (Fintype.card σ) ×ˢ
+      insert none ((shortStrings (α := α) (P.L + Fintype.card σ)).image some)).card : ℝ) = _
+    rw [Finset.card_product, Finset.card_insert_of_notMem (by simp),
+      Finset.card_image_of_injective _ (Option.some_injective _)]
+    push_cast; ring
   obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D')
     (Sf ∪ (CBset .ends ∪ CBset .middles)) (hSm.union ((hCBm _).union (hCBm _)))
   have hpr : MeasurePreserving (probesOf settings P.D K₀)
@@ -310,7 +335,10 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
     {q | ((q.1, ω₀), q.2) ∈ Sf ∪ (CBset .ends ∪ CBset .middles)}, hmp.measurable hSω,
     ?_, ?_, ?_⟩
   · rw [hmp.measure_preimage hSω.nullMeasurableSet]
-    sorry
+    refine hω₀.trans ((measure_union_le _ _).trans (add_le_add h4 ?_))
+    refine (measure_union_le _ _).trans ((add_le_add (hCBle _) (hCBle _)).trans ?_)
+    rw [← ENNReal.ofReal_add (by positivity) (by positivity), hcard]
+    exact ENNReal.ofReal_le_ofReal (le_of_eq (by ring))
   · -- the bad draws read only the zone
     intro v ω ω' h hω
     have hread : ∀ z : FreeMonoid α, z.toList.length ≤ max (P.L + T + 2)
