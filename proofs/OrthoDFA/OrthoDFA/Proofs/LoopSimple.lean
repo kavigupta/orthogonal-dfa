@@ -294,7 +294,12 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                     (ε + ε / 96))
                 ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2)
                   (P.L + Fintype.card σ + 3) p)}
-          ≤ (Q + 1) * (5 * δ' / 2) := by
+          ≤ (Q + 1) * (5 * δ' / 2
+            + 2 * (((hypClass (α := α) P.L (Fintype.card σ)).card : ℝ)
+                * (((shortStrings (α := α) (P.L + Fintype.card σ)).card : ℝ) + 1))
+              * (2 * Real.exp (-2 * (settings.level3.probeBudget : ℝ)
+                  * roundGamma (ε / 1536) cap (prefixMax P.D settings.level3.walkStart)
+                      settings.level3.harvestRate ^ 2))) := by
   intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hL1 hk0 hLε hk1 hk2 hk3
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
@@ -637,7 +642,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) (by linarith [hεd])
+    (by show 2 * prefixMax P.D k < cap * (ε / 48); nlinarith [hk1, hcap0, hεd, mul_pos hcap0 hεd])
+    hcr hprem hTu0 hcond
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
@@ -649,12 +656,18 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       hfr⟩
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
+    rw [hC3]
+    set DCONC : ℝ := 2 * (((hypClass (α := α) P.L (Fintype.card σ)).card : ℝ)
+        * (((shortStrings (α := α) (P.L + Fintype.card σ)).card : ℝ) + 1))
+      * (2 * Real.exp (-2 * (C.probeBudget : ℝ)
+          * roundGamma (ε / 1536) cap (prefixMax P.D C.walkStart)
+              C.harvestRate ^ 2)) with hDC
     show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ' + Q * A
-      * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε))
-        ≤ (Q + 1) * (5 * δ' / 2)
+      * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε + DCONC))
+        ≤ (Q + 1) * (5 * δ' / 2 + DCONC)
     have : δ' + δ' / 4 + (δ' + Q * A
-        * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε)
-          ≤ 5 * δ' / 2 := by
+        * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε + DCONC)
+          ≤ 5 * δ' / 2 + DCONC := by
       linarith
     exact mul_le_mul_of_nonneg_left this hQ0
 
