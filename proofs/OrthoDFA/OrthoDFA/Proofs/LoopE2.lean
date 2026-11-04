@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.LoopE2Pre
 import OrthoDFA.Proofs.BandKappa
+import OrthoDFA.Proofs.HarvestConc
 
 /-!
 # A round's level 3 on one noise
