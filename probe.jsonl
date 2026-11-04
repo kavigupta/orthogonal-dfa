@@ -1,0 +1,12 @@
+{"target": "modulo9", "arm": "on", "seed": 0, "certified": true, "wall": 3.194088935852051, "states": 9, "queries": 454661, "rounds": 1, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "modulo9", "arm": "off", "seed": 0, "certified": true, "wall": 3.350935220718384, "states": 9, "queries": 454661, "rounds": 1, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "two1111", "arm": "off", "seed": 0, "certified": true, "wall": 5.939821243286133, "states": 9, "queries": 498847, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "two1111", "arm": "on", "seed": 0, "certified": true, "wall": 5.987389802932739, "states": 9, "queries": 512169, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "alt1111_0000_11", "arm": "off", "seed": 0, "certified": true, "wall": 5.64626407623291, "states": 11, "queries": 373524, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "alt1111_0000_11", "arm": "on", "seed": 0, "certified": true, "wall": 7.110872507095337, "states": 11, "queries": 457674, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "sub1010101", "arm": "off", "seed": 0, "certified": true, "wall": 13.399301528930664, "states": 8, "queries": 923478, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "sub1010101", "arm": "on", "seed": 0, "certified": true, "wall": 19.019076824188232, "states": 8, "queries": 1242178, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "two_alt", "arm": "on", "seed": 0, "certified": true, "wall": 10.31232762336731, "states": 15, "queries": 720994, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "two_alt", "arm": "off", "seed": 0, "certified": true, "wall": 15.00020170211792, "states": 15, "queries": 986236, "rounds": 2, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "alt3sym", "arm": "off", "seed": 0, "certified": true, "wall": 16.18256688117981, "states": 6, "queries": 1196408, "rounds": 3, "acc40": 1.0, "acc80": 1.0, "error": null}
+{"target": "alt3sym", "arm": "on", "seed": 0, "certified": true, "wall": 18.812308073043823, "states": 6, "queries": 1361991, "rounds": 3, "acc40": 1.0, "acc80": 1.0, "error": null}
