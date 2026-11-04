@@ -195,12 +195,19 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
     (B : State) (F K₀ : Finset (FreeMonoid α)) (hsf : SuffixFree F) (hcard : F.card + 1 ≤ B.k)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
       RarerBounded N B.lo (B.hi + 1) p r crossLimit)
-    (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
+    (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) (hm0 : 0 < m)
+    (hcap : 2 * prefixMax P.D settings.level3.walkStart
+      < ca * settings.level3.harvestRate) :
     ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ + Fintype.card σ * Fintype.card α
           * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
-            (2 * (Fintype.card σ + 1) * crossLimit) u)
+            (2 * (Fintype.card σ + 1) * crossLimit) u
+          + 2 * ((Finset.card (hypClass (α := α) P.L (Fintype.card σ)) : ℝ)
+              * ((Finset.card (shortStrings (α := α) (P.L + Fintype.card σ)) : ℝ) + 1))
+            * (2 * Real.exp (-2 * (settings.level3.probeBudget : ℝ)
+              * roundGamma m ca (prefixMax P.D settings.level3.walkStart)
+                  settings.level3.harvestRate ^ 2)))
       ∧ (∀ v ω ω', (∀ w ∈ roundZone (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -259,19 +266,51 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
     nlinarith
   set Sf := level3Fail fam' C D' (roundSlope σ P.L C) (roundSlack σ α C (2 * prefixMax P.D k)) E u
   have hSm : MeasurableSet Sf := measurableSet_level3Fail fam' C D' hA0 hsl0 E u
-  obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D') Sf hSm
+  -- the concentration bad set: where the empirical harvest overshoots the ideal by more than `γc`
+  have hca0 : 0 < ca := by
+    by_contra h
+    push_neg at h
+    nlinarith [hpm0, hy0, hcap, mul_nonpos_of_nonpos_of_nonneg h hy0.le]
+  set γc := roundGamma m ca (prefixMax P.D k) C.harvestRate with hγc
+  have hγ0 : 0 < γc := roundGamma_pos hm0 hca0.le hy0 hcap
+  have hγlt : γc < C.harvestRate := roundGamma_lt hm0 hca0.le hy0
+  have hT1 : 1 ≤ T := by sorry
+  let Hf : HypothesisDFA α × Option (FreeMonoid α) → HypothesisDFA α := fun i => i.1
+  let Sset : HypothesisDFA α × Option (FreeMonoid α) → Set (FreeMonoid α) := fun i =>
+    (i.2).elim {z | familyReadDist O M F B.lo (B.hi + 1) (M.eval z.toList) .undecided ≤ Tu}
+      (fun t => {t})
+  let csI : Finset (HypothesisDFA α × Option (FreeMonoid α)) :=
+    hypClass P.L (Fintype.card σ) ×ˢ
+      insert none ((shortStrings (P.L + Fintype.card σ)).image some)
+  let CBset : Random.Level3Site → Set ((Ω × Ω) × (Fin T → FreeMonoid α)) := fun site =>
+    {p | ∃ i ∈ csI,
+      γc < (Random.harvestLaw (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z p.1) D' k
+          (Hf i) site).real Set.univ ∧
+        ((Random.harvestLaw (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z p.1) D' k
+            (Hf i) site).real (Sset i) + γc)
+          / ((Random.harvestLaw (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z p.1) D' k
+            (Hf i) site).real Set.univ - γc)
+          < (popLaw (Random.harvestSample (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z p.1) k
+            (Hf i) site p.2)).real (Sset i)}
+  have hCBm : ∀ site, MeasurableSet (CBset site) := fun site =>
+    Random.measurableSet_harvestSample_prod_bad k fam'.O F B.lo (B.hi + 1) site D' csI Hf Sset γc
+  obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (Measure.pi fun _ : Fin T => D')
+    (Sf ∪ (CBset .ends ∪ CBset .middles)) (hSm.union ((hCBm _).union (hCBm _)))
   have hpr : MeasurePreserving (probesOf settings P.D K₀)
       (Measure.pi fun _ : Fin T => (volume : Measure unitInterval)) (Measure.pi fun _ => D') :=
     measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
   have hmp : MeasurePreserving (fun q : Ω × (Fin T → unitInterval) =>
       (q.1, probesOf settings P.D K₀ q.2)) (μ.prod (Measure.pi fun _ => volume))
       (μ.prod (Measure.pi fun _ => D')) := (MeasurePreserving.id μ).prod hpr
-  have hSω : MeasurableSet {q : Ω × (Fin T → FreeMonoid α) | ((q.1, ω₀), q.2) ∈ Sf} :=
-    ((measurable_fst.prodMk measurable_const).prodMk measurable_snd) hSm
+  have hSω : MeasurableSet {q : Ω × (Fin T → FreeMonoid α) |
+      ((q.1, ω₀), q.2) ∈ Sf ∪ (CBset .ends ∪ CBset .middles)} :=
+    ((measurable_fst.prodMk measurable_const).prodMk measurable_snd)
+      (hSm.union ((hCBm _).union (hCBm _)))
   refine ⟨(fun q : Ω × (Fin T → unitInterval) => (q.1, probesOf settings P.D K₀ q.2)) ⁻¹'
-    {q | ((q.1, ω₀), q.2) ∈ Sf}, hmp.measurable hSω, ?_, ?_, ?_⟩
+    {q | ((q.1, ω₀), q.2) ∈ Sf ∪ (CBset .ends ∪ CBset .middles)}, hmp.measurable hSω,
+    ?_, ?_, ?_⟩
   · rw [hmp.measure_preimage hSω.nullMeasurableSet]
-    exact hω₀.trans h4
+    sorry
   · -- the bad draws read only the zone
     intro v ω ω' h hω
     have hread : ∀ z : FreeMonoid α, z.toList.length ≤ max (P.L + T + 2)
@@ -288,12 +327,16 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
         rw [renoise_mq_of_notMem Oc hzv, renoise_mq_of_notMem Oc hzv]
         refine h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z, v'), Finset.mem_product.2
           ⟨mem_shortStrings.2 hz, hv⟩, rfl⟩, not_not.1 hzv⟩)
-    exact level3Fail_congr_up fam' C D' hD'len _ _ E u (probesOf settings P.D K₀ v) hread hω
+    rcases hω with hSf | hCB
+    · exact Or.inl (level3Fail_congr_up fam' C D' hD'len _ _ E u
+        (probesOf settings P.D K₀ v) hread hSf)
+    · exact Or.inr (by sorry)
   · -- off the bad draws, the actual round meets its claim
     intro x₀ Pr Sf' ω v hnot
     set xs := probesOf settings P.D K₀ v
     set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z
-    have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := hnot
+    have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := fun h => hnot (Or.inl h)
+    have hnotConc : ((ω, ω₀), xs) ∉ (CBset .ends ∪ CBset .middles) := fun h => hnot (Or.inr h)
     obtain ⟨hE, hcls, hfew⟩ := not_not.1 hgood
     set read : FreeMonoid α → ARU := fun z => familyRead O.mq F B.lo (B.hi + 1) z ω
     have hoff : ∀ z, KeyOff k ↑K₀ z → read z = read' z := fun z hz =>
