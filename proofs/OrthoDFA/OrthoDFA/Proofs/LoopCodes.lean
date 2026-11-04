@@ -171,6 +171,13 @@ def hypClass (L n : ℕ) : Finset (HypothesisDFA α) :=
       (T.leaves.toFinset ×ˢ shortStrings L)).powerset).image fun G => ⟨T, decodeEdges G⟩
 
 open scoped Classical in
+theorem hypClass_tree_mem {L n : ℕ} {hyp : HypothesisDFA α} (h : hyp ∈ hypClass L n) :
+    hyp.tree ∈ Random.classSet n := by
+  obtain ⟨T, hT, hh⟩ := Finset.mem_biUnion.1 h
+  obtain ⟨G, -, rfl⟩ := Finset.mem_image.1 hh
+  exact hT
+
+open scoped Classical in
 theorem hypothesis_mem_hypClass (C : Random.Level3Settings) (read : FreeMonoid α → ARU) {P : ℕ}
     (draws : Fin P → FreeMonoid α) {L n : ℕ} (hlen : ∀ j, (draws j).toList.length ≤ L)
     (hcls : (Random.indecisiveLStarLevel3 C read draws).hypothesis.tree ∈ Random.classSet n) :

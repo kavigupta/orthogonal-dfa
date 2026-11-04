@@ -276,18 +276,24 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
   have hγ0 : 0 < γc := roundGamma_pos hm0 hca0.le hy0 hcap
   have hγlt : γc < C.harvestRate := roundGamma_lt hm0 hca0.le hy0
   have hdis0 : 0 < C.disagreementRate := by linarith [hy0, hyρ]
-  have hT1 : 1 ≤ T := by
-    set S : ℕ := Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1
-      with hS
-    have hS1 : 1 ≤ S := by rw [hS]; exact Nat.le_add_left 1 _
+  set S : ℕ := Fintype.card σ * ((Fintype.card σ + 2) * Fintype.card α + 1) + 2 * Fintype.card α + 1
+    with hS
+  have hS1 : 1 ≤ S := by rw [hS]; exact Nat.le_add_left 1 _
+  have hcσS : Fintype.card σ ≤ S := by
+    rw [hS]
+    have hM : 0 < (Fintype.card σ + 2) * Fintype.card α + 1 := Nat.succ_pos _
+    exact le_trans (Nat.le_mul_of_pos_right _ hM) (by omega)
+  have hST : S ≤ T := by
     have hSR1 : (1 : ℝ) ≤ (S : ℝ) := by exact_mod_cast hS1
     have harg : (1 : ℝ) ≤ 16 * (S : ℝ) * ((S : ℝ) + 1) / C.δ := by
       rw [le_div_iff₀ hδ0]; nlinarith [hSR1, hδ1, hδ0]
     have hfirst : 0 ≤ 36 * (S : ℝ) / C.disagreementRate
         * Real.log (16 * (S : ℝ) * ((S : ℝ) + 1) / C.δ) :=
       mul_nonneg (div_nonneg (by positivity) hdis0.le) (Real.log_nonneg harg)
-    have : (1 : ℝ) ≤ (C.probeBudget : ℝ) := by linarith [hP, hfirst, hSR1]
+    have : (S : ℝ) ≤ (C.probeBudget : ℝ) := by linarith [hP, hfirst]
     exact_mod_cast this
+  have hT1 : 1 ≤ T := le_trans hS1 hST
+  have hcσT : Fintype.card σ ≤ T := le_trans hcσS hST
   let Hf : HypothesisDFA α × Option (FreeMonoid α) → HypothesisDFA α := fun i => i.1
   let Sset : HypothesisDFA α × Option (FreeMonoid α) → Set (FreeMonoid α) := fun i =>
     (i.2).elim {z | familyReadDist O M F B.lo (B.hi + 1) (M.eval z.toList) .undecided ≤ Tu}
@@ -358,7 +364,53 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
     rcases hω with hSf | hCB
     · exact Or.inl (level3Fail_congr_up fam' C D' hD'len _ _ E u
         (probesOf settings P.D K₀ v) hread hSf)
-    · exact Or.inr (by sorry)
+    · refine Or.inr ?_
+      have htrans : ∀ st : Random.Level3Site,
+          ((ω, ω₀), probesOf settings P.D K₀ v) ∈ CBset st →
+          ((ω', ω₀), probesOf settings P.D K₀ v) ∈ CBset st := by
+        intro st hmem
+        obtain ⟨i, hi, hU, hthr⟩ := hmem
+        have hmidLe : Random.MidsLe (Fintype.card σ) (Hf i).tree :=
+          (Random.classSet_props _ _ (hypClass_tree_mem (Finset.mem_product.1 hi).1)).1
+        have hLaw : Random.harvestLaw
+              (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z (ω, ω₀)) D' k (Hf i) st
+            = Random.harvestLaw
+              (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z (ω', ω₀)) D' k (Hf i) st := by
+          refine Random.harvestLaw_congr_zone D' k (Hf i) {x | x.toList.length ≤ P.L}
+            (ae_iff.1 hD'len) (fun x hx j _ hjx mm hmm => ?_) st
+          refine hread _ ?_
+          have hxl : x.toList.length ≤ P.L := hx
+          have h1 : (prefixOf x j).toList.length ≤ x.toList.length := by simp [prefixOf]
+          have h2 : mm.toList.length ≤ Fintype.card σ := hmidLe mm hmm
+          have hle : (prefixOf x j * mm).toList.length ≤ P.L + Fintype.card σ := by
+            simp only [FreeMonoid.toList_mul, List.length_append]; omega
+          exact le_trans hle (le_trans (by omega) (le_max_left _ _))
+        have hSample : Random.harvestSample
+              (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z (ω, ω₀)) k (Hf i) st
+              (probesOf settings P.D K₀ v)
+            = Random.harvestSample
+              (fun z => familyRead fam'.O.mq F B.lo (B.hi + 1) z (ω', ω₀)) k (Hf i) st
+              (probesOf settings P.D K₀ v) := by
+          refine Random.harvestSample_congr_reads _ k (Hf i) st _ (fun z hz => ?_)
+          rw [Random.harvestReads, Finset.mem_biUnion] at hz
+          obtain ⟨j, -, hzj⟩ := hz
+          rw [Random.pot, Finset.mem_biUnion] at hzj
+          obtain ⟨p, hp, hz2⟩ := hzj
+          obtain ⟨mm, hmm, rfl⟩ := Finset.mem_image.1 hz2
+          refine hread _ ?_
+          obtain ⟨-, hpx⟩ := Finset.mem_Icc.1 hp
+          have h1 : (prefixOf (probesOf settings P.D K₀ v j) p).toList.length
+              ≤ (probesOf settings P.D K₀ v j).toList.length := by simp [prefixOf]
+          have h2 : mm.toList.length ≤ Fintype.card σ := hmidLe mm hmm
+          have h3 := le_probesLen (probesOf settings P.D K₀ v) j
+          have hle : (prefixOf (probesOf settings P.D K₀ v j) p * mm).toList.length
+              ≤ probesLen (probesOf settings P.D K₀ v) + Fintype.card σ := by
+            simp only [FreeMonoid.toList_mul, List.length_append]; omega
+          exact le_trans hle (le_trans (by omega) (le_max_right _ _))
+        exact ⟨i, hi, by rw [← hLaw]; exact hU, by rw [← hLaw, ← hSample]; exact hthr⟩
+      rcases hCB with hC | hC
+      · exact Or.inl (htrans _ hC)
+      · exact Or.inr (htrans _ hC)
   · -- off the bad draws, the actual round meets its claim
     intro x₀ Pr Sf' ω v hnot
     set xs := probesOf settings P.D K₀ v
