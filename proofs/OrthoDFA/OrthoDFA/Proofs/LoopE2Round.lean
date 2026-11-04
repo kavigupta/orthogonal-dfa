@@ -262,7 +262,9 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ)
     (hprem : RoundPremises σ α settings.level3 crossLimit
       (2 * prefixMax P.D settings.level3.walkStart))
     (hm : 6 * (K + 1) * NP * prefixMax P.D settings.level3.walkStart ≤ m)
-    (hm1 : m ≤ 1 / 2)
+    (hm1 : m ≤ 1 / 2) (hm0 : 0 < m)
+    (hcap : 2 * prefixMax P.D settings.level3.walkStart
+      < ca * settings.level3.harvestRate)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf N p.1 p.2 r
@@ -278,18 +280,31 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ)
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ + Fintype.card σ * Fintype.card α
         * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
-            (2 * (Fintype.card σ + 1) * crossLimit) u := by
-  set δb := settings.level3.δ + Fintype.card σ * Fintype.card α
+            (2 * (Fintype.card σ + 1) * crossLimit) u
+        + 2 * (((hypClass (α := α) P.L (Fintype.card σ)).card : ℝ)
+            * (((shortStrings (α := α) (P.L + Fintype.card σ)).card : ℝ) + 1))
+          * (2 * Real.exp (-2 * (settings.level3.probeBudget : ℝ)
+              * roundGamma m ca (prefixMax P.D settings.level3.walkStart)
+                  settings.level3.harvestRate ^ 2)) := by
+  set δmis := settings.level3.δ + Fintype.card σ * Fintype.card α
     * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
-      (2 * (Fintype.card σ + 1) * crossLimit) u with hδb
-  have hδb0 : 0 ≤ δb := by
+      (2 * (Fintype.card σ + 1) * crossLimit) u with hδmis
+  set δconc := 2 * (((hypClass (α := α) P.L (Fintype.card σ)).card : ℝ)
+      * (((shortStrings (α := α) (P.L + Fintype.card σ)).card : ℝ) + 1))
+    * (2 * Real.exp (-2 * (settings.level3.probeBudget : ℝ)
+        * roundGamma m ca (prefixMax P.D settings.level3.walkStart)
+            settings.level3.harvestRate ^ 2)) with hδconc
+  set δb := δmis + δconc with hδb
+  have hδmis0 : 0 ≤ δmis := by
     obtain ⟨hδ0, -⟩ := hprem
     have := (prefixMax_pos P.D settings.level3.walkStart).le
     have := misledTail_nonneg (T := (settings.level3.probeBudget : ℝ)) (u := u)
       (by positivity : 0 ≤ 2 * prefixMax P.D settings.level3.walkStart)
       (by positivity : (0 : ℝ) ≤ 2 * (Fintype.card σ + 1) * crossLimit)
     have : (0 : ℝ) ≤ Fintype.card σ * Fintype.card α := by positivity
-    nlinarith
+    rw [hδmis]; nlinarith
+  have hδconc0 : 0 ≤ δconc := by rw [hδconc]; positivity
+  have hδb0 : 0 ≤ δb := by rw [hδb]; linarith
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
@@ -316,12 +331,18 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ)
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D k)) m
           (settings.level3.disagreementRate + m) (settings.level3.harvestRate / 2) Tu ca k E (u + m)
-          (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) :=
-    fun t ht => round_bad_exists M O hL P settings E m u crossLimit Tu ca hu hTu hk hη1 hcross hprem
-      hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
-      ((hband _ _ ht.2.1).2.2) (by
-        have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
-        exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)
+          (mkRound settings O P.D x₀ t.2.1 t.2.2.1 t.2.2.2 Pr Sf (ω, v)) := by
+    intro t ht
+    obtain ⟨Bd, hmeas, hle, hzone, hspec⟩ :=
+      round_bad_exists M O hL P settings E m u crossLimit Tu ca hu hTu hk hη1 hcross hprem
+        hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+        ((hband _ _ ht.2.1).2.2) (by
+          have h1 : (t.2.2.2.card : ℝ) ≤ 6 * (K + 1) * NP := by exact_mod_cast ht.2.2.2.2
+          exact (mul_le_mul_of_nonneg_right h1 hpm0).trans hm)
+        hm0 hcap
+    refine ⟨Bd, hmeas, ?_, hzone, hspec⟩
+    rw [hδb, ENNReal.ofReal_add hδmis0 hδconc0]
+    exact hle
   set Bad : Y → Set (Ω × (Fin T → unitInterval)) := fun y => match y with
     | some t => if h : Good t then Classical.choose (hex t h) else ∅
     | none => ∅ with hBad
