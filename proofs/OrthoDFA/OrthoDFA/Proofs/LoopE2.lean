@@ -152,6 +152,32 @@ lemma roundGamma_atom (hm : 0 < m) (hca : 0 ≤ ca) (hhr : 0 < hr) (hatom : 2 * 
   rw [le_div_iff₀ (by linarith)] at hle
   nlinarith [hle, hg0, hglt]
 
+/-- The normalized sample ratio `(rS+γ)/(rU-γ)`, when `rS ≤ G·rU` and `hr0 ≤ rU`, stays within
+`G` plus the good slack. -/
+lemma empirical_ratio_le {rS rU G hr0 γ slk : ℝ} (hSU : rS ≤ rU) (hgood : rS ≤ G * rU)
+    (hr : hr0 ≤ rU) (hγ : 0 < γ) (hγr : γ < hr0) (hslack : 2 * γ / (hr0 - γ) ≤ slk) :
+    (rS + γ) / (rU - γ) ≤ G + slk := by
+  have hrU : 0 < rU := by linarith
+  have hrU0 : 0 < rU - γ := by linarith
+  have hhr0 : 0 < hr0 - γ := by linarith
+  have hrat : rS / rU ≤ G := by rw [div_le_iff₀ hrU]; linarith
+  have hstep : (rS + γ) / (rU - γ) ≤ rS / rU + 2 * γ / (rU - γ) := by
+    rw [div_add_div _ _ (ne_of_gt hrU) (ne_of_gt hrU0), div_le_div_iff₀ hrU0 (by positivity)]
+    nlinarith [mul_nonneg (mul_nonneg hrU0.le hγ.le) (show (0:ℝ) ≤ rU - rS by linarith)]
+  have hmono : 2 * γ / (rU - γ) ≤ 2 * γ / (hr0 - γ) := by gcongr
+  linarith [hstep, hrat, hmono, hslack]
+
+/-- A single atom's normalized sample stays within `ca` when its ideal mass is at most `b` and the
+slack bound holds. -/
+lemma empirical_atom_le {rS rU b hr0 γ ca : ℝ} (hS0 : 0 ≤ rS) (hSb : rS ≤ b) (hr : hr0 ≤ rU)
+    (hγ : 0 < γ) (hγr : γ < hr0) (hb : (b + γ) / (hr0 - γ) ≤ ca) :
+    (rS + γ) / (rU - γ) ≤ ca := by
+  have hrU0 : 0 < rU - γ := by linarith
+  have hhr0 : 0 < hr0 - γ := by linarith
+  calc (rS + γ) / (rU - γ) ≤ (b + γ) / (rU - γ) := by gcongr
+    _ ≤ (b + γ) / (hr0 - γ) := by gcongr <;> linarith
+    _ ≤ ca := hb
+
 end GammaFacts
 
 include hL in
