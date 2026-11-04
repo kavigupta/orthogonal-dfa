@@ -114,6 +114,46 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Ora
   (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (P : PrefixDistribution α)
   (settings : LoopSettings K)
 
+/-- The Hoeffding slack for a round's empirical harvest: small enough that the normalized sample
+stays within the good bound's `m/(hr/2)` slack and the atom bound `ca`. -/
+def roundGamma (m ca pm hr : ℝ) : ℝ := min (m * hr / (hr + m)) ((ca * hr - 2 * pm) / (1 + ca))
+
+section GammaFacts
+variable {m ca pm hr : ℝ}
+
+lemma roundGamma_pos (hm : 0 < m) (hca : 0 ≤ ca) (hhr : 0 < hr) (hatom : 2 * pm < ca * hr) :
+    0 < roundGamma m ca pm hr := by
+  unfold roundGamma
+  refine lt_min (by positivity) ?_
+  exact div_pos (by linarith) (by linarith)
+
+lemma roundGamma_lt (hm : 0 < m) (hca : 0 ≤ ca) (hhr : 0 < hr) :
+    roundGamma m ca pm hr < hr := by
+  unfold roundGamma
+  refine lt_of_le_of_lt (min_le_left _ _) ?_
+  rw [div_lt_iff₀ (by linarith)]
+  nlinarith
+
+lemma roundGamma_good (hm : 0 < m) (hca : 0 ≤ ca) (hhr : 0 < hr) (hatom : 2 * pm < ca * hr) :
+    2 * roundGamma m ca pm hr / (hr - roundGamma m ca pm hr) ≤ m / (hr / 2) := by
+  have hg0 := roundGamma_pos hm hca hhr hatom
+  have hglt := roundGamma_lt hm hca hhr (pm := pm)
+  have hle : roundGamma m ca pm hr ≤ m * hr / (hr + m) := min_le_left _ _
+  rw [div_le_div_iff₀ (by linarith) (by positivity)]
+  rw [le_div_iff₀ (by linarith) ] at hle
+  nlinarith [hle, hg0, hglt]
+
+lemma roundGamma_atom (hm : 0 < m) (hca : 0 ≤ ca) (hhr : 0 < hr) (hatom : 2 * pm < ca * hr) :
+    (2 * pm + roundGamma m ca pm hr) / (hr - roundGamma m ca pm hr) ≤ ca := by
+  have hg0 := roundGamma_pos hm hca hhr hatom
+  have hglt := roundGamma_lt hm hca hhr (pm := pm)
+  have hle : roundGamma m ca pm hr ≤ (ca * hr - 2 * pm) / (1 + ca) := min_le_right _ _
+  rw [div_le_iff₀ (by linarith)]
+  rw [le_div_iff₀ (by linarith)] at hle
+  nlinarith [hle, hg0, hglt]
+
+end GammaFacts
+
 include hL in
 /-- At a state and family, the round's bad draws: where level 3 fails at re-noised clustering
 reads. Its chance is at most `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`, it is fixed
