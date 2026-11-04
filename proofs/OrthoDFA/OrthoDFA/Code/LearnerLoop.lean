@@ -1,4 +1,5 @@
 import OrthoDFA.Code.Level3Harvest
+import OrthoDFA.Code.Level3HarvestCode
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -227,6 +228,14 @@ def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : 
     Option (Measure (FreeMonoid α)) :=
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
+
+/-- The operational population: the bounded-rejection sampler's law at cap `N`, in place of the
+ideal `harvestLaw`.  Equal in law to `population` (`populationOp_eq_population`), but reading the
+oracle only along the at most `N` probes the sampler walks. -/
+def LoopRound.populationOp {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (o : LoopRound Ω α K) :
+    Option (Measure (FreeMonoid α)) :=
+  o.result.ending.harvested.map fun site =>
+    popLaw (Random.harvestCodeLaw o.read D k o.result.hypothesis site N)
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
