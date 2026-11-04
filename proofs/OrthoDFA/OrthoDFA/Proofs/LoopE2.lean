@@ -362,7 +362,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
   · -- off the bad draws, the actual round meets its claim
     intro x₀ Pr Sf' ω v hnot
     set xs := probesOf settings P.D K₀ v
-    set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z
+    set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z with hrd
     have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := fun h => hnot (Or.inl h)
     have hnotConc : ((ω, ω₀), xs) ∉ (CBset .ends ∪ CBset .middles) := fun h => hnot (Or.inr h)
     obtain ⟨hE, hcls, hfew⟩ := not_not.1 hgood
@@ -419,8 +419,62 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
     · have h := real_inter_le_of_avoiding P.D (E := E q) (hmis a) hu (by linarith)
         (by rw [hH, ← hdist]; exact hfew q a)
       exact h.trans (by linarith)
-    · -- the empirical population's good bound, via concentration (harvestSample_ratio_le)
-      sorry
+    · -- the empirical population's good/atom bounds, via concentration
+      intro site hsite
+      have hsite' : (Random.indecisiveLStarLevel3 C read xs).ending = .harvest site := hsite
+      have hend : (Random.indecisiveLStarLevel3 C read' xs).ending = .harvest site := by
+        rw [← hres]; exact hsite'
+      have hcong : ∀ z ∈ Random.harvestReads k H xs, read z = read' z := by
+        intro z hz
+        rw [Random.harvestReads, Finset.mem_biUnion] at hz
+        obtain ⟨i, -, hzi⟩ := hz
+        obtain ⟨hkx, hpre⟩ := Random.pot_pre hzi
+        have hkz : k ≤ z.toList.length := by
+          have hlen : (prefixOf z k).toList.length = k := by
+            rw [hpre, length_prefixOf, min_eq_left hkx]
+          rw [length_prefixOf] at hlen; omega
+        exact hoff z ⟨hkz, by rw [hpre]; exact hxs i hkx⟩
+      have hbridge : Random.harvestSampleList read k H site (List.ofFn xs)
+          = Random.harvestSample read' k H site xs := by
+        rw [Random.harvestSampleList_ofFn, Random.harvestSample_congr_reads read k H site xs hcong]
+      have hEh := hE
+      rw [← hrd] at hEh
+      simp only [EndsWell, hend] at hEh
+      obtain ⟨hgoodT, hspread, hyield⟩ := hEh
+      rw [← hH] at hgoodT hspread hyield
+      have hUrate : C.harvestRate ≤ (Random.harvestLaw read' D' k H site).real Set.univ := hyield
+      have hUγ : γc < (Random.harvestLaw read' D' k H site).real Set.univ :=
+        lt_of_lt_of_le hγlt hUrate
+      have hUfin : (Random.harvestLaw read' D' k H site) Set.univ ≠ ⊤ :=
+        Random.harvestLaw_univ_ne_top read' D' k H site
+      have hHmem : H ∈ hypClass (α := α) P.L (Fintype.card σ) :=
+        hypothesis_mem_hypClass C read xs
+          (fun j => drawFrom_avoidLaw_len P.D P.length_le k K₀ (v j)) (by rw [hres]; exact hcls)
+      have hns : ((ω, ω₀), xs) ∉ CBset site := by
+        cases site with
+        | ends => exact fun h => hnotConc (Or.inl h)
+        | middles => exact fun h => hnotConc (Or.inr h)
+      show (popLaw (Random.harvestSampleList read k H site (List.ofFn xs))).real
+            {z | familyReadDist O M F B.lo (B.hi + 1) (M.eval z.toList) .undecided ≤ Tu}
+            ≤ roundSlope σ P.L C * Tu + roundSlack σ α C (2 * prefixMax P.D k)
+              + m / (C.harvestRate / 2)
+          ∧ ∀ t, (popLaw (Random.harvestSampleList read k H site (List.ofFn xs))).real {t} ≤ ca
+      rw [hbridge]
+      rw [hdist] at hgoodT
+      refine ⟨?_, fun t => ?_⟩
+      · have hmemG : ((H, none) : HypothesisDFA α × Option (FreeMonoid α)) ∈ csI :=
+          Finset.mk_mem_product hHmem (Finset.mem_insert_self _ _)
+        have hpopG : (popLaw (Random.harvestSample read' k H site xs)).real (Sset (H, none))
+            ≤ ((Random.harvestLaw read' D' k H site).real (Sset (H, none)) + γc)
+              / ((Random.harvestLaw read' D' k H site).real Set.univ - γc) := by
+          by_contra hcon
+          push_neg at hcon
+          exact hns ⟨(H, none), hmemG, hUγ, hcon⟩
+        refine hpopG.trans ?_
+        refine empirical_ratio_le (measureReal_mono (Set.subset_univ _) hUfin) (hgoodT Tu hTu)
+          hUrate hγ0 hγlt ?_
+        rw [hγc]; exact roundGamma_good hm0 hca0.le hy0 hcap
+      · sorry
 
 end Bad
 
