@@ -474,7 +474,44 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit Tu ca 
         refine empirical_ratio_le (measureReal_mono (Set.subset_univ _) hUfin) (hgoodT Tu hTu)
           hUrate hγ0 hγlt ?_
         rw [hγc]; exact roundGamma_good hm0 hca0.le hy0 hcap
-      · sorry
+      · by_cases ht : t ∈ shortStrings (α := α) (P.L + Fintype.card σ)
+        · have hmemA : ((H, some t) : HypothesisDFA α × Option (FreeMonoid α)) ∈ csI :=
+            Finset.mk_mem_product hHmem
+              (Finset.mem_insert_of_mem (Finset.mem_image_of_mem some ht))
+          have hpopA : (popLaw (Random.harvestSample read' k H site xs)).real (Sset (H, some t))
+              ≤ ((Random.harvestLaw read' D' k H site).real (Sset (H, some t)) + γc)
+                / ((Random.harvestLaw read' D' k H site).real Set.univ - γc) := by
+            by_contra hcon
+            push_neg at hcon
+            exact hns ⟨(H, some t), hmemA, hUγ, hcon⟩
+          refine hpopA.trans ?_
+          refine empirical_atom_le (b := 2 * prefixMax P.D k) measureReal_nonneg ?_ hUrate hγ0
+            hγlt ?_
+          · refine (hspread t).trans ?_
+            have hseteq : {p : FreeMonoid α | p.toList.take k = t.toList.take k}
+                = {x | prefixOf x k = prefixOf t k} := by
+              ext p
+              simp only [Set.mem_setOf_eq, prefixOf]
+              constructor
+              · intro h; rw [h]
+              · intro h; have := congrArg FreeMonoid.toList h; simpa using this
+            rw [hseteq]; exact hpre' (prefixOf t k)
+          · rw [hγc]; exact roundGamma_atom hm0 hca0.le hy0 hcap
+        · have htlen : P.L + Fintype.card σ < t.toList.length := by
+            by_contra h; push_neg at h; exact ht (mem_shortStrings.2 h)
+          have ht1 : t ≠ 1 := by intro h; rw [h] at htlen; simp at htlen
+          have hclsH : H.tree ∈ Random.classSet (Fintype.card σ) := by rw [hHd, hres]; exact hcls
+          have hnull : Random.harvestSample read' k H site xs {t} = 0 := by
+            rw [← Random.harvestSampleList_ofFn read' k H site xs]
+            refine measure_mono_null (Set.singleton_subset_iff.2 htlen)
+              (Random.harvestSampleList_short read' k (Random.classSet_props _ _ hclsH).1 site
+                (List.ofFn xs) fun x hx => ?_)
+            obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
+            exact drawFrom_avoidLaw_len P.D P.length_le k K₀ (v i)
+          have h1 : (1 : FreeMonoid α) ∉ ({t} : Set (FreeMonoid α)) := by
+            simp only [Set.mem_singleton_iff]; exact Ne.symm ht1
+          rw [measureReal_def, popLaw_null hnull h1]
+          simpa using hca0.le
 
 end Bad
 
