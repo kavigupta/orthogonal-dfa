@@ -212,7 +212,7 @@ variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace �
 `⌈L/2⌉` to `L` less than `c`, has a leaf from which its hypothesis misjudges at most `γ + Cc`,
 `C = R(L+1)/(L+1−⌈L/2⌉)`, where `q₀` re-roots with accuracy `1 − γ` through its non-start zone. -/
 theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound α)
+    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (o : LoopRound α)
     (L : ℕ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length) {Ae c R εr εu εB εm γ : ℝ}
     (hAe : 0 ≤ Ae)
@@ -418,7 +418,7 @@ theorem summed_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L : ℕ) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] {K : ℕ} {R γ ξ Ae : ℝ} (hR : 0 < R) (hξ : 0 < ξ) (hAe : 2 ≤ Ae)
+    [IsProbabilityMeasure D] {R γ ξ Ae : ℝ} (hR : 0 < R) (hξ : 0 < ξ) (hAe : 2 ≤ Ae)
     (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length)
     (hfl : ∀ i, (L + 1) / 2 ≤ i → i ≤ L → ∀ y a, D.real {w | prefixOf w i = y}
       ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a})
