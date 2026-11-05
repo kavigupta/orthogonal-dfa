@@ -309,7 +309,7 @@ variable [IsProbabilityMeasure μ] (settings : LoopSettings K) (O : Oracle μ (F
 /-- The earlier rounds' harvest data, at the noise `ω`. -/
 def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) :
     List (HarvestCode α) :=
-  codesOf N (loopRounds settings O D Dsf (fun i => (ω, g i)) r)
+  codesOf N (loopRounds settings N O D Dsf (fun i => (ω, g i)) r)
 
 /-- The history the first `i` of the harvest data `c` hand on. -/
 abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : LoopHist α :=
@@ -350,8 +350,8 @@ lemma histReads_mono {c c' : List (HarvestCode α)} {r r' : ℕ}
   · exact absurd hw (Finset.notMem_empty _)
 
 /-- The earlier rounds are fixed by the answers at the strings they read. -/
-theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget ≤ N)
+theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hN : L + settings.level3.probeBudget ≤ N) (hN1 : 0 < N)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     ∀ (r : ℕ) (ω ω' : Ω), HistOK settings O D Dsf N ω g r →
       (∀ w ∈ histReads settings D Dsf N (histCodes settings O D Dsf N ω g r) g r ω,
@@ -372,17 +372,17 @@ theorem hist_congr {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
       · rw [codesOf_append_single]; exact List.prefix_append _ _
       · exact List.prefix_refl _
     have hlenle : c.length ≤ y.length := hpre.length_le
-    obtain ⟨hokω', hc'⟩ := hist_congr hlen hN g r ω ω' hok' fun w hw => h w
+    obtain ⟨hokω', hc'⟩ := hist_congr hlen hN hN1 g r ω ω' hok' fun w hw => h w
       ((histReads_mono settings D Dsf N g ω (Nat.le_succ r) hpre fun i _ hi => hi.trans hlenle) hw)
     by_cases hrK : r < K
     · have hy : y = if c.length = r then c ++ (popCode N (loopRound settings O D Dsf (dec c)
           (ω, g ⟨r, hrK⟩))).toList else c :=
-        codesOf_loopRounds_succ settings O D Dsf hlen hN (fun i => (ω, g i)) r hrK
+        codesOf_loopRounds_succ settings O D Dsf hlen hN hN1 (fun i => (ω, g i)) r hrK
       have hy' : histCodes settings O D Dsf N ω' g (r + 1) = if c.length = r then
           c ++ (popCode N (loopRound settings O D Dsf (dec c) (ω', g ⟨r, hrK⟩))).toList
             else c := by
-        have := codesOf_loopRounds_succ settings O D Dsf hlen hN (fun i => (ω', g i)) r hrK
-        rw [show codesOf N (loopRounds settings O D Dsf (fun i => (ω', g i)) r) = c from hc']
+        have := codesOf_loopRounds_succ settings O D Dsf hlen hN hN1 (fun i => (ω', g i)) r hrK
+        rw [show codesOf N (loopRounds settings N O D Dsf (fun i => (ω', g i)) r) = c from hc']
           at this
         exact this
       by_cases hcl : c.length = r

@@ -216,7 +216,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 
 omit [IsProbabilityMeasure μ] in
 /-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
-lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     ∀ r i, i < (histCodes settings O D Dsf N ω g r).length → ∃ hiK : i < K, ∃ code,
@@ -230,7 +230,8 @@ lemma histCodes_getElem {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   | 0, i, hi => by simp [histCodes, loopRounds, codesOf] at hi
   | r + 1, i, hi => by
     by_cases hrK : r < K
-    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (fun i => (ω, g i)) r hrK
+    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen
+        (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf N ω g r with hcd
       have hy' : histCodes settings O D Dsf N ω g (r + 1) = if c.length = r then
           c ++ (popCode N (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)

@@ -238,30 +238,31 @@ def LoopRound.populationOp {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (
     popLaw (Random.harvestCodeLaw o.read D k o.result.hypothesis site N)
 
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
-def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
+def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (rounds : List (LoopRound Ω α K)) :
     LoopHist α :=
-  ⟨rounds.filterMap fun o => o.population D k,
+  ⟨rounds.filterMap fun o => o.populationOp D k N,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
 /-- The first `r` rounds, cut short at a round that does not end in a harvest. -/
-def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+def loopRounds {K : ℕ} (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) :
     ℕ → List (LoopRound Ω α K)
   | 0 => []
   | r + 1 =>
-    if h : r < K ∧ ∀ o ∈ loopRounds settings O D Dsf draws r, o.result.ending.harvested ≠ none then
-      loopRounds settings O D Dsf draws r
+    if h : r < K ∧ ∀ o ∈ loopRounds settings N O D Dsf draws r, o.result.ending.harvested ≠ none
+    then
+      loopRounds settings N O D Dsf draws r
         ++ [loopRound settings O D Dsf
-          (histOf D settings.level3.walkStart (loopRounds settings O D Dsf draws r))
+          (histOf D settings.level3.walkStart N (loopRounds settings N O D Dsf draws r))
           (draws ⟨r, h.1⟩)]
-    else loopRounds settings O D Dsf draws r
+    else loopRounds settings N O D Dsf draws r
 
 /-- The rounds the loop runs, at most `K`. -/
-def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) : List (LoopRound Ω α K) :=
-  loopRounds settings O D Dsf draws K
+  loopRounds settings N O D Dsf draws K
 
 end OrthoDFA
 

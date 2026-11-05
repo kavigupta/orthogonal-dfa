@@ -329,6 +329,7 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
+    (N : ℕ) (hN : 0 < N)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (k : ℕ)
     (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
     (E : σ → Set (FreeMonoid α)) (u : ℝ)
@@ -337,18 +338,18 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (hcond : A * T + sl + m / y
       + Fintype.card σ * (2 * settings.indecisionLimit + slack) / T < 1)
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
-    (hspec : ∀ i (hi : i < (loopRounds settings O P.D Dsf draws K).length), i ≤ Fintype.card σ →
+    (hspec : ∀ i (hi : i < (loopRounds settings N O P.D Dsf draws K).length), i ≤ Fintype.card σ →
       ClusterSpec settings O P.D εcov slack
-          (harvestsOf P.D k ((loopRounds settings O P.D Dsf draws K).take i))
-          (loopRounds settings O P.D Dsf draws K)[i].run
-        ∧ RoundSpec M O P A sl m εd y k E u (loopRounds settings O P.D Dsf draws K)[i]) :
-    (indecisiveLStarLoop settings O P.D Dsf draws).length ≤ Fintype.card σ + 1
-      ∧ ∃ o ∈ (indecisiveLStarLoop settings O P.D Dsf draws).getLast?,
+          (harvestsOf P.D k ((loopRounds settings N O P.D Dsf draws K).take i))
+          (loopRounds settings N O P.D Dsf draws K)[i].run
+        ∧ RoundSpec M O P A sl m εd y k E u (loopRounds settings N O P.D Dsf draws K)[i]) :
+    (indecisiveLStarLoop settings N O P.D Dsf draws).length ≤ Fintype.card σ + 1
+      ∧ ∃ o ∈ (indecisiveLStarLoop settings N O P.D Dsf draws).getLast?,
         o.Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
           (2 * settings.indecisionLimit + slack) εd E u := by
   classical
   unfold indecisiveLStarLoop
-  set L := loopRounds settings O P.D Dsf draws K with hLdef
+  set L := loopRounds settings N O P.D Dsf draws K with hLdef
   set c := 2 * settings.indecisionLimit + slack with hcd
   -- each round, as the clustering's claim has it
   have hround : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
@@ -359,14 +360,16 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         ∫ p, undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
           ∂(loopDistributions P.D (harvestsOf P.D k (L.take i)) j) ≤ c := by
     intro i hi hiσ
-    obtain ⟨hiK, e⟩ := getElem_loopRounds settings O P.D Dsf draws K i hi
+    obtain ⟨hiK, e⟩ := getElem_loopRounds settings N O P.D Dsf draws K i hi
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf (histOf P.D k (L.take i))
-      (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack) hs
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf (histOf P.D k N (L.take i))
+      (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack)
+      (by rw [histOf_pops N P.D hN]; exact hs)
+    rw [histOf_pops N P.D hN] at hmem hq
     exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O P.D Dsf
-      (histOf P.D k (L.take i)) (draws ⟨i, hiK⟩), hq⟩
+      (histOf P.D k N (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →
@@ -526,7 +529,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       have := Fintype.card_le_of_injective _ hinj
       simp at this
     · -- fewer than `|Q| + 1` rounds, so the last did not harvest
-      have hst := loopRounds_stops settings O P.D Dsf draws
+      have hst := loopRounds_stops settings N O P.D Dsf draws
       rw [← hLdef] at hst
       rcases hst with h | ⟨o, ho, hn⟩
       · omega
@@ -536,7 +539,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
   obtain ⟨i, hi, hiσ, hn⟩ := hstop
   have hlast : i + 1 = L.length := by
     by_contra hne
-    exact harvested_of_lt settings O P.D Dsf draws K i (by rw [← hLdef]; omega) hn
+    exact harvested_of_lt settings N O P.D Dsf draws K i (by rw [← hLdef]; omega) hn
   refine ⟨by omega, L[i], ?_, hagree i hi hiσ hn⟩
   rw [List.getLast?_eq_getElem?, ← hlast]
   simp

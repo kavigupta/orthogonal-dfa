@@ -113,7 +113,7 @@ lemma measurableSet_returns (r : ℕ) (hr : r < K) (h : LoopHist α) :
   exact Finset.measurableSet_biUnion _ fun B _ =>
     measurable_clusterRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
 
-lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma measurableSet_stage4 [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (hr : r < K)
     (y : Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α))) :
@@ -177,7 +177,7 @@ lemma roundKeys_eq_prefsOf (h : LoopHist α) (ω : Ω) (c : ClusterRest α K) :
 
 /-- Where the clustering's state test returned, the answers at the strings the earlier rounds and
 it read fix what reaches level 3. -/
-lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma stage4_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (hr : r < K) (c : List (HarvestCode α)) (B : State) (F K₀ : Finset (FreeMonoid α))
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) (ω ω' ω₀ : Ω)
