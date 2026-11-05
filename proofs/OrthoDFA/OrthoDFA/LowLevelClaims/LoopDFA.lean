@@ -186,12 +186,12 @@ def LearnerLoopDFASimple : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ Npop : ℕ, 0 < Npop ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ harvestReadCap : ℕ, 0 < harvestReadCap ∧
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
+      {q | let rounds := indecisiveLStarLoop settings harvestReadCap O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
@@ -263,12 +263,12 @@ def LearnerLoopDFA : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ Npop : ℕ, 0 < Npop ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ harvestReadCap : ℕ, 0 < harvestReadCap ∧
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
+      {q | let rounds := indecisiveLStarLoop settings harvestReadCap O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
@@ -355,12 +355,12 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ Npop : ℕ, 0 < Npop ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ harvestReadCap : ℕ, 0 < harvestReadCap ∧
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
+      {q | let rounds := indecisiveLStarLoop settings harvestReadCap O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
@@ -439,12 +439,12 @@ def LearnerLoopDFARelative : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ Npop : ℕ, 0 < Npop ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ harvestReadCap : ℕ, 0 < harvestReadCap ∧
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
+      {q | let rounds := indecisiveLStarLoop settings harvestReadCap O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
@@ -535,12 +535,12 @@ def LearnerLoopDFADist : Prop :=
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
   -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ Npop : ℕ, 0 < Npop ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1), ∃ harvestReadCap : ℕ, 0 < harvestReadCap ∧
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-      {q | let rounds := indecisiveLStarLoop settings Npop O (windowLaw D k L₁) (prefixLaw D Ls)
+      {q | let rounds := indecisiveLStarLoop settings harvestReadCap O (windowLaw D k L₁) (prefixLaw D Ls)
             (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
