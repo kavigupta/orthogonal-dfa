@@ -186,7 +186,7 @@ def LearnerLoopDFASimple : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
@@ -263,7 +263,7 @@ def LearnerLoopDFA : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
@@ -355,7 +355,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
@@ -439,7 +439,7 @@ def LearnerLoopDFARelative : Prop :=
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
   -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
@@ -535,7 +535,7 @@ def LearnerLoopDFADist : Prop :=
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
   -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
