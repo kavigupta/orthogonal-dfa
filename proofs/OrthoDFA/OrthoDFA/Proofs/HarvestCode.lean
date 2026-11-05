@@ -368,6 +368,51 @@ theorem harvestCode_reads_card_le {L : ℕ} (hxs : ∀ x ∈ xs, x.toList.length
             + rest.length * ((3 + Nat.clog 2 L) * (mids H.tree).card) := Nat.add_le_add hper hrest
       _ = (rest.length + 1) * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by ring
 
+/-- Per-run locality: with the probe list `xs` fixed, `harvestFirst` depends on the reader only
+through `harvestFirstReads`, so two readers agreeing there return the same string.  This is the
+bounded (per-run) congruence; the per-measure version is false. -/
+theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : HypothesisDFA α)
+    (site : Level3Site) (xs : List (FreeMonoid α))
+    (h : ∀ w ∈ harvestFirstReads read H.tree H.edges k xs, read w = read' w) :
+    harvestFirst read k H site xs = harvestFirst read' k H site xs := by
+  classical
+  have hmem : ∀ (l : List (FreeMonoid α)) (x : FreeMonoid α), x ∈ l →
+      ∀ w ∈ Kappa.probeReads read H.tree H.edges k x,
+        w ∈ harvestFirstReads read H.tree H.edges k l := by
+    intro l
+    induction l with
+    | nil => simp
+    | cons a rest ih =>
+      intro x hx w hw
+      have hfold : harvestFirstReads read H.tree H.edges k (a :: rest)
+          = Kappa.probeReads read H.tree H.edges k a
+            ∪ harvestFirstReads read H.tree H.edges k rest := rfl
+      rw [hfold, Finset.mem_union]
+      rcases List.mem_cons.1 hx with rfl | hxrest
+      · exact Or.inl hw
+      · exact Or.inr (ih x hxrest w hw)
+  have hsite : ∀ x ∈ xs, siteHarvest read k H site x = siteHarvest read' k H site x := by
+    intro x hx
+    have hx' : ∀ w ∈ Kappa.probeReads read H.tree H.edges k x, read w = read' w :=
+      fun w hw => h w (hmem xs x hx w hw)
+    have hpo := (Kappa.probeReads_congr (rd := read) (rd' := read') (T := H.tree)
+      (E := H.edges) (k := k) (x := x) hx').1
+    cases site <;> simp only [siteHarvest, hpo]
+  have key : ∀ (l : List (FreeMonoid α)),
+      (∀ x ∈ l, siteHarvest read k H site x = siteHarvest read' k H site x) →
+      l.findSome? (fun x => (siteHarvest read k H site x).head?)
+        = l.findSome? (fun x => (siteHarvest read' k H site x).head?) := by
+    intro l
+    induction l with
+    | nil => intro _; rfl
+    | cons a rest ih =>
+      intro hl
+      rw [List.findSome?_cons, List.findSome?_cons, hl a (List.mem_cons.2 (Or.inl rfl))]
+      cases hb : (siteHarvest read' k H site a).head? with
+      | none => simp only [hb]; exact ih (fun x hx => hl x (List.mem_cons.2 (Or.inr hx)))
+      | some b => simp only [hb]
+  simpa only [harvestFirst] using key xs hsite
+
 end Random
 
 open MeasureTheory in
