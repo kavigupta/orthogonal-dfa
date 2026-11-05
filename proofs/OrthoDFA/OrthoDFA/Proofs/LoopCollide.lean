@@ -34,28 +34,28 @@ lemma length_mul (z v : FreeMonoid α) : (z * v).toList.length = z.toList.length
 variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 /-- The prefixes a round's clustering reads, after the history `h`. -/
-def prefsOf (h : LoopHist α) (c : ClusterRest α K) : Finset (FreeMonoid α) :=
+def prefsOf (h : LoopHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
   roundPrefs (settings.schedule (loopPopulations K h.pops.length))
     (loopPopulations K h.pops.length)
-    (((), runOf D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))
+    (((), runOf settings D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))
 
 /-- The suffixes a round's clustering reads, after the history `h`, but `ε`. -/
-def suffsOf (h : LoopHist α) (c : ClusterRest α K) : Finset (FreeMonoid α) :=
+def suffsOf (h : LoopHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
   (roundSuffs (settings.schedule (loopPopulations K h.pops.length))
-    (((), runOf D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))).erase 1
+    (((), runOf settings D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))).erase 1
 
 /-- Through round `r`, every suffix read is `Ls` long and every prefix read shorter, and round `r`
 reads no suffix and no prefix an earlier round did. -/
 def NoColl (Ls : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
-  (∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf settings D Dsf (histAt settings D c i) (x i).1,
+    (x : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K) : Prop :=
+  (∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf settings D Dsf (histAt c i) (x i).1,
       v.toList.length = Ls)
-    ∧ (∀ i : Fin K, i.1 ≤ r → ∀ p ∈ prefsOf settings D Dsf (histAt settings D c i) (x i).1,
+    ∧ (∀ i : Fin K, i.1 ≤ r → ∀ p ∈ prefsOf settings D Dsf (histAt c i) (x i).1,
       p.toList.length < Ls)
-    ∧ (∀ i : Fin K, i.1 < r → Disjoint (suffsOf settings D Dsf (histAt settings D c i) (x i).1)
-      (suffsOf settings D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1))
-    ∧ (∀ i : Fin K, i.1 < r → Disjoint (prefsOf settings D Dsf (histAt settings D c i) (x i).1)
-      (prefsOf settings D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1))
+    ∧ (∀ i : Fin K, i.1 < r → Disjoint (suffsOf settings D Dsf (histAt c i) (x i).1)
+      (suffsOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1))
+    ∧ (∀ i : Fin K, i.1 < r → Disjoint (prefsOf settings D Dsf (histAt c i) (x i).1)
+      (prefsOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1))
 
 /-- A string a round reads is one of its prefixes, or one followed by one of its suffixes. -/
 lemma mem_schedReads_shape {sched : Finset State} {pops : Finset (Option (Fin K))} {ω : Ω}
@@ -79,11 +79,11 @@ lemma mem_schedReads_shape {sched : Finset State} {pops : Finset (Option (Fin K)
 /-- A string the rounds before `r` read is one of their prefixes, or a string followed by one of
 their suffixes. -/
 lemma mem_histReads_shape (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (ω : Ω)
+    (x : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (ω : Ω)
     {w : FreeMonoid α} (hw : w ∈ histReads settings D Dsf c x r ω) :
     ∃ i : Fin K, i.1 < r
-      ∧ ((∃ p ∈ prefsOf settings D Dsf (histAt settings D c i) (x i).1, w = p)
-        ∨ ∃ z, ∃ v ∈ suffsOf settings D Dsf (histAt settings D c i) (x i).1, w = z * v) := by
+      ∧ ((∃ p ∈ prefsOf settings D Dsf (histAt c i) (x i).1, w = p)
+        ∨ ∃ z, ∃ v ∈ suffsOf settings D Dsf (histAt c i) (x i).1, w = z * v) := by
   classical
   obtain ⟨i, hi, hw⟩ := Finset.mem_biUnion.1 hw
   split_ifs at hw with h
@@ -101,12 +101,12 @@ lemma mem_histReads_shape (c : List (HarvestCode α))
 
 /-- Off a collision, round `r` reads none of the strings the rounds before it read. -/
 theorem disjoint_hist_round (Ls : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
+    (x : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
     (hnc : NoColl settings D Dsf Ls c x r hr) :
     Disjoint (histReads settings D Dsf c x r ω)
-      (schedReads (settings.schedule (loopPopulations K (histAt settings D c r).pops.length))
-        (loopPopulations K (histAt settings D c r).pops.length)
-        ((ω, runOf D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1) :
+      (schedReads (settings.schedule (loopPopulations K (histAt c r).pops.length))
+        (loopPopulations K (histAt c r).pops.length)
+        ((ω, runOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1) :
           Run Ω (FreeMonoid α) (Option (Fin K)))) := by
   classical
   obtain ⟨hsl, hpl, hsd, hpd⟩ := hnc
@@ -138,16 +138,16 @@ theorem disjoint_hist_round (Ls : ℕ) (c : List (HarvestCode α))
 /-- Off a collision, level 3 reads, through a family of round `r`'s suffixes, none of the strings
 the earlier rounds or round `r`'s clustering read but at round `r`'s prefixes. -/
 theorem disjoint_hist_family (Ls N' : ℕ) (c : List (HarvestCode α))
-    (x : Fin K → RoundDraws α K settings.level3.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
+    (x : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K) (ω : Ω)
     (hnc : NoColl settings D Dsf Ls c x r hr) (F : Finset (FreeMonoid α))
-    (hF : F ⊆ suffsOf settings D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1) :
+    (hF : F ⊆ suffsOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1) :
     Disjoint (histReads settings D Dsf c x r ω
-      ∪ schedReads (settings.schedule (loopPopulations K (histAt settings D c r).pops.length))
-        (loopPopulations K (histAt settings D c r).pops.length)
-        ((ω, runOf D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1) :
+      ∪ schedReads (settings.schedule (loopPopulations K (histAt c r).pops.length))
+        (loopPopulations K (histAt c r).pops.length)
+        ((ω, runOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1) :
           Run Ω (FreeMonoid α) (Option (Fin K))))
       (readStrings (shortStrings N') F
-        \ readSet (prefsOf settings D Dsf (histAt settings D c r) (x ⟨r, hr⟩).1) F) := by
+        \ readSet (prefsOf settings D Dsf (histAt c r) (x ⟨r, hr⟩).1) F) := by
   classical
   obtain ⟨hsl, hpl, hsd, hpd⟩ := hnc
   refine Finset.disjoint_left.2 fun w hw hw' => ?_

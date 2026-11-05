@@ -168,6 +168,11 @@ def LearnerLoopDFASimple : Prop :=
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The clustering's scan cap: twice the distinct draws each population's sides need.
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
+  -- miss but rarely.
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -188,12 +193,14 @@ def LearnerLoopDFASimple : Prop :=
   -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+        (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
@@ -251,6 +258,13 @@ def LearnerLoopDFA : Prop :=
   let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
   let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
+  -- The clustering's scan cap: twice the distinct draws each population's sides need, its prefix
+  -- count bounded as above.
+  let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
+  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
+  -- miss but rarely.
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -265,12 +279,14 @@ def LearnerLoopDFA : Prop :=
   -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+        (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
@@ -334,6 +350,11 @@ def LearnerLoopDFARelativeSimple : Prop :=
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The clustering's scan cap: twice the distinct draws each population's sides need.
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
+  -- miss but rarely.
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -357,12 +378,14 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+        (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
@@ -424,6 +447,13 @@ def LearnerLoopDFARelative : Prop :=
   let T : ℝ := 2 * (Real.log (E + E₂ + E₃) + 10) / Real.log A + Q + 4
   let L₀ : ℝ := 2 * (Real.log (E + E₂ + E₃) + 5 * Real.log T) / Real.log A
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
+  -- The clustering's scan cap: twice the distinct draws each population's sides need, its prefix
+  -- count bounded as above.
+  let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
+  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
+  -- miss but rarely.
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -441,12 +471,14 @@ def LearnerLoopDFARelative : Prop :=
   -- the strings of length `L`, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+        (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
@@ -509,6 +541,11 @@ def LearnerLoopDFADist : Prop :=
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
+  -- The clustering's scan cap: twice the distinct draws each population's sides need.
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
+  -- miss but rarely.
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -537,12 +574,14 @@ def LearnerLoopDFADist : Prop :=
   -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
-    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).prod
+    (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
+    ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-            (persistDraws q.1)
-        ¬ (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+            (persistDraws q.1) = some rounds ∧
+        (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
