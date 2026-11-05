@@ -9,9 +9,9 @@ Fewer than `T` distinct values among `M` i.i.d. draws, each value of mass at mos
 at most `C(M, T) (Tρ)^(M-T)` (`measureReal_card_image_lt`): some `T` of the draws then take every
 value the draws take.  Where each population's two sides offer `(2 + |pops|) NP` distinct strings
 among the first `M` draws, every state reading at most `NP` prefixes scans within `M`
-(`scanWithin_of_card`); a harvested population's sides split its one stream by the hash, which
-past `T ≥ 4 (2 + |pops|) NP` distinct strings leaves a side short with chance at most
-`2 exp(-T/8)` (`runMeasure_not_scanWithin_le`).
+(`scanWithin_of_not_scanShort`); a harvested population's sides split its one stream by the
+hash, which past `T ≥ 4A` distinct strings leaves a side short of `A` with chance at most
+`2 exp(-T/8)`.  Some population falls short with the chance of `runMeasure_scanShort_le`.
 -/
 
 noncomputable section
