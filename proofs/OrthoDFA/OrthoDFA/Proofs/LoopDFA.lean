@@ -431,14 +431,14 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      (∀ (p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget) rounds,
           indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
-      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget),
+      (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget,
         ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
             fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) B₃ SC HN L₁ A) ∧
@@ -819,14 +819,14 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      (∀ (p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget) rounds,
           indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
-      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget),
+      (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget,
         ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
             fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) B₃ SC HN L₁ A) ∧
@@ -930,8 +930,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      (∀ (p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget) rounds,
           indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         ((rounds.map fun o => o.prefs.card).sum : ℝ)
             ≤ (Q + 1) * (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
@@ -939,8 +939,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
             ≤ (Q + 1) * (loopPool (L + Q + 4) Q A Ae δ c ξ pAP η₀ + 1)
           ∧ (rounds.length * settings.level3.probeBudget : ℝ)
             ≤ (Q + 1) * loopBudget (L + Q + 4) Q A Ae δ c) ∧
-      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
-            settings.level3.harvestReadCap settings.level3.probeBudget),
+      (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget,
         ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
             fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)

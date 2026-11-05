@@ -94,16 +94,16 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
       q) →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
-          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+    (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
+          settings.level3.probeBudget) rounds,
       indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     -- The run asks the oracle at most `totalReads` strings, and any answers agreeing with the
     -- oracle's on them give the same rounds and ask the same strings.
-    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
-          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+    (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
+          settings.level3.probeBudget) rounds,
       indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
       let run := loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2
       let asked := run.reads fun w => O.mq w p.1
@@ -179,15 +179,15 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
-          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+    (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
+          settings.level3.probeBudget) rounds,
       indecisiveLStarLoop settings O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
-          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+    (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
+          settings.level3.probeBudget) rounds,
       indecisiveLStarLoop settings O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
       let run := loopQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3)) p.2

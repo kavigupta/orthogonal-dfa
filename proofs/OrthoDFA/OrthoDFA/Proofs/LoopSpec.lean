@@ -51,7 +51,7 @@ abbrev LoopRoundDraws (Ω α : Type*) (K N P : ℕ) := Ω × RoundDraws α K N P
 variable {Ω : Type*} [MeasurableSpace Ω]
 
 /-- The rounds' draws, each read through the run's one noise. -/
-def persistDraws {K N P : ℕ} (p : Ω × (Fin K → RoundDraws α K N P)) :
+def persistDraws {K N P : ℕ} (p : LoopDraws Ω α K N P) :
     Fin K → LoopRoundDraws Ω α K N P :=
   fun i => (p.1, p.2 i)
 

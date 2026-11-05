@@ -126,10 +126,12 @@ def roundLaw (α : Type*) (K N P : ℕ) : Measure (RoundDraws α K N P) :=
 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
+/-- A run's randomness: the oracle's noise, which every round reads, and each round's draws. -/
+abbrev LoopDraws (Ω α : Type*) (K N P : ℕ) := Ω × (Fin K → RoundDraws α K N P)
+
 /-- One noise for the whole run, which every string's read keeps, and `K` rounds' uniforms,
 independent. -/
-def loopMeasure (μ : Measure Ω) (α : Type*) (K N P : ℕ) :
-    Measure (Ω × (Fin K → RoundDraws α K N P)) :=
+def loopMeasure (μ : Measure Ω) (α : Type*) (K N P : ℕ) : Measure (LoopDraws Ω α K N P) :=
   μ.prod (Measure.pi fun _ : Fin K => roundLaw α K N P)
 
 open scoped Classical in
@@ -334,7 +336,7 @@ def loopQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)
 at that noise. -/
 def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)) :
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Option (List (LoopRound α)) :=
   (loopQ settings D Dsf p.2).eval fun w => O.mq w p.1
 
