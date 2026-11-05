@@ -356,29 +356,29 @@ def ScanShort (pops : Finset (Option (Fin K))) (M T A : ℕ)
   ∃ j ∈ pops, dr ∈ popShort M T A j
 
 omit [IsProbabilityMeasure μ] in
-/-- Where no population's sides fall short of `(2 + |pops|) NP ≤ T`, every state reading at most
-`NP` prefixes scans within `M`. -/
-lemma scanWithin_of_not_scanShort {M T NP : ℕ} (sched : Finset State)
+/-- Where no population's sides fall short of `A`, `(2 + |pops|) NP ≤ A ≤ T`, every state reading
+at most `NP` prefixes scans within `M`. -/
+lemma scanWithin_of_not_scanShort {M T A NP : ℕ} (sched : Finset State)
     (pops : Finset (Option (Fin K))) (hNP : ∀ B ∈ sched, B.npref ≤ NP)
-    (hAT : (2 + pops.card) * NP ≤ T) (dr : Draws Ω (FreeMonoid α) (Option (Fin K)))
-    (h : ¬ ScanShort pops M T ((2 + pops.card) * NP) dr) : ScanWithin sched pops M dr := by
+    (hNA : (2 + pops.card) * NP ≤ A) (hAT : A ≤ T) (dr : Draws Ω (FreeMonoid α) (Option (Fin K)))
+    (h : ¬ ScanShort pops M T A dr) : ScanWithin sched pops M dr := by
   classical
   refine scanWithin_of_card sched pops hNP dr fun j hj => ?_
-  have hj' : dr ∉ popShort M T ((2 + pops.card) * NP) j := fun h' => h ⟨j, hj, h'⟩
+  have hj' : dr ∉ popShort M T A j := fun h' => h ⟨j, hj, h'⟩
   rcases j with _ | i
   · simp only [popShort, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
     simp only [seqsOf, toFinset_map_range]
-    exact ⟨hAT.trans hj'.1, hAT.trans hj'.2⟩
+    exact ⟨(hNA.trans hAT).trans hj'.1, (hNA.trans hAT).trans hj'.2⟩
   · simp only [popShort, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
     obtain ⟨h1, h2⟩ := hj'
     have h3 := not_not.1 (fun h => h2 ⟨h1, h⟩)
     simp only [seqsOf, List.toFinset_filter, toFinset_map_range]
-    refine ⟨h3.1, ?_⟩
+    refine ⟨hNA.trans h3.1, ?_⟩
     have : ((Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
         fun s => (!dr.2 s) = true)
         = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
           fun s => dr.2 s = false := Finset.filter_congr fun s _ => by simp
-    rw [this]; exact h3.2
+    rw [this]; exact hNA.trans h3.2
 
 omit [IsProbabilityMeasure μ] in
 lemma measurableSet_popShort (M T A : ℕ) (j : Option (Fin K)) :

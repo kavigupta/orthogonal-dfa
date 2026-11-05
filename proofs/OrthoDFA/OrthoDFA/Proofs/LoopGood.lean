@@ -174,13 +174,12 @@ returning, the round is good. -/
 lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
-    {T NP : ℕ}
+    {T A NP : ℕ}
     (hNP : ∀ B ∈ settings.schedule (loopPopulations K h.pops.length), B.npref ≤ NP)
-    (hAT : (2 + (loopPopulations K h.pops.length).card) * NP ≤ T)
+    (hNA : (2 + (loopPopulations K h.pops.length).card) * NP ≤ A) (hAT : A ≤ T)
     (h1 : ¬ MissAt D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
       h.pops h.prefs d.2.1.2.1)
-    (h2 : ¬ ScanShort (loopPopulations K h.pops.length) settings.scanCap T
-      ((2 + (loopPopulations K h.pops.length).card) * NP)
+    (h2 : ¬ ScanShort (loopPopulations K h.pops.length) settings.scanCap T A
       (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
     (h3 : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
@@ -188,7 +187,7 @@ lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
           settings.εcov settings.gateLevel B) :
     RoundGood settings O D Dsf h d :=
   ⟨clusterDraws_isSome D Dsf _ _ _ h (d.1, d.2.1) h1,
-    scanWithin_of_not_scanShort _ _ hNP hAT _ h2, h3⟩
+    scanWithin_of_not_scanShort _ _ hNP hNA hAT _ h2, h3⟩
 
 omit [IsProbabilityMeasure μ] [DecidableEq α] in
 /-- Falling short reads no noise. -/
@@ -400,6 +399,16 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
       (stageH settings O P.D Dsf r p.1 p.2)
   rw [hst]
   exact ⟨⟨⟨hlen, hpg, hyl, hpm⟩, hbad⟩, Set.mem_univ _⟩
+
+omit [IsProbabilityMeasure μ] [IsProbabilityMeasure Dsf] in
+/-- Where every round the filled draws run is good, the loop runs those rounds. -/
+theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
+      settings.level3.probeBudget)
+    (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf draws r) →
+      RoundGood settings O D Dsf (histOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
+    idealRounds settings O D Dsf draws K ∈ indecisiveLStarLoop settings O D Dsf draws :=
+  loopRounds_eq_some settings O D Dsf draws hg K
 
 end Good
 
