@@ -36,12 +36,24 @@ keys, where every earlier clustering and this one returned. -/
 def stage4 (r : ℕ) (hr : r < K) (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α)) :=
   if HistOK settings O D Dsf ω g r ∧ (histCodes settings O D Dsf ω g r).length = r
-      ∧ Returns settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1) then
+      ∧ Returns settings O D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1) then
     some (histCodes settings O D Dsf ω g r,
-      roundState settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1),
-      clusterAt O.mq (loopPopulations K (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)).pops.length) (clusterRun D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1))
-        (roundState settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1)),
-      roundKeys settings D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1))
+      roundState settings O D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1),
+      clusterAt O.mq (loopPopulations K
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)).pops.length)
+        (clusterRun D Dsf
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+          (ω, (g ⟨r, hr⟩).1))
+        (roundState settings O D Dsf
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+          (ω, (g ⟨r, hr⟩).1)),
+      roundKeys settings D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1))
   else none
 
 omit [IsProbabilityMeasure μ] in

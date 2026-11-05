@@ -254,7 +254,8 @@ def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
     then
       loopRounds settings O D Dsf draws r
         ++ [loopRound settings O D Dsf
-          (histOf D settings.level3.walkStart settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r))
+          (histOf D settings.level3.walkStart settings.level3.harvestReadCap
+            (loopRounds settings O D Dsf draws r))
           (draws ⟨r, h.1⟩)]
     else loopRounds settings O D Dsf draws r
 
