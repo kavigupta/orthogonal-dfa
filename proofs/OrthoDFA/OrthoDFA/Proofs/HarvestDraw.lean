@@ -77,6 +77,17 @@ theorem harvestDraw_miss [IsProbabilityMeasure D] :
   rw [hset, ← Measure.map_apply hg.measurable hTmeas, hg.map_eq]
   rfl
 
+/-- At the cap `N = harvestN y δₛ`, a harvest draw misses on all its probes with chance at most
+`δₛ`: the round's per-draw failure mass, ready to thread as `δₛ'`. -/
+theorem harvestDraw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
+    (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ)
+    (hyield : y ≤ (Random.harvestLaw read D k H site).real Set.univ) :
+    (Measure.pi fun _ : Fin (Random.harvestN y δₛ) => (volume : Measure unitInterval))
+        {u | harvestDraw read D k H site (Random.harvestN y δₛ) u = none}
+      ≤ ENNReal.ofReal δₛ := by
+  rw [harvestDraw_miss]
+  exact Random.harvestCodeLaw_miss_le read D k H site hy0 hy1 hδ hyield
+
 /-- Per-run locality of the draw: with the uniforms fixed, the drawn probe list is fixed (the
 probes come from `D`, not the oracle), so `harvestDraw` depends on the reader only through the
 bounded `harvestFirstReads` of that list. -/
