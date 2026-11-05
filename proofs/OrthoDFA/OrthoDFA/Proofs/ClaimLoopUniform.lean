@@ -117,7 +117,7 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
     ((le_div_iff₀ hs).2 (by linarith)) le_rfl).1
 
 theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
-  obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
+  obtain ⟨p₀Tol, tp, ts, tpr, tr, ho, hp₀, hpref, hsuff, hprobes, hreads, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
@@ -126,7 +126,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
   have hmaps : Set.MapsTo toDist loopRegion loopDistRegion := fun x hx => toDist_mem hx
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
-    fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
+    fun r => tr (toDistRun r), fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
@@ -183,6 +183,15 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
     show _ = r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
+  · refine (isBigO_comp_on hreads hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
+    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+    show _ = ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 50
+    simp only [Function.comp, toDistRun, toDist]
+    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
+        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
+    rw [e]
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -223,7 +232,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+  obtain ⟨settings, hwk, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
     hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
@@ -234,15 +243,15 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       rw [one_div_mul_eq_div, div_le_iff₀ (by positivity), mul_comm]
       exact h)
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
-  rw [hwS, hpS] at hcnt
+  rw [hwS, hpS] at hcnt hcalls
   rw [hwS, hpS, hpL] at hprob
-  exact ⟨settings, hwk, hcnt, hprob⟩
+  exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
 
 theorem loopClaimSimple_of_claim (h : LoopClaimUniform.{u, v, w}) : LoopClaimSimple.{u, v, w} := by
-  obtain ⟨L₀, pref, suff, probes, heldOut, hL₀, hp, hs, hpr, hh, hw⟩ := h
-  exact ⟨L₀, pref, suff, probes, heldOut, hL₀,
+  obtain ⟨L₀, pref, suff, probes, reads, heldOut, hL₀, hp, hs, hpr, hrd, hh, hw⟩ := h
+  exact ⟨L₀, pref, suff, probes, reads, heldOut, hL₀,
     hp.trans (isBigO_on 4 fun r hr => loop_pref_dom hr),
-    hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr, hh, hw⟩
+    hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr, hrd, hh, hw⟩
 
 end OrthoDFA
 
