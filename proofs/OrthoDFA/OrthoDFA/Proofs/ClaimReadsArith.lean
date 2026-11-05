@@ -2,11 +2,11 @@ import OrthoDFA.Proofs.ClaimLoopArith
 import OrthoDFA.Proofs.LoopReadsArith
 
 /-!
-# The loop's calls, asymptotically: the arithmetic
+# The strings the loop asks, asymptotically: the arithmetic
 
 In `ClaimLoopArith`'s inverted coordinates every count and cap is at most `2^c X^k` for
 `X = (L + |Q|) Ae iδ R iξ ip is` (`pb_add`, `pb_mul`, and `pb_log`, which takes a log down to
-`X¹`), so the loop's calls are at most `2^200 X^50` (`rel_reads_le`).
+`X¹`), so the strings the loop asks are at most `2^200 X^50` (`rel_reads_le`).
 -/
 
 noncomputable section
@@ -301,7 +301,7 @@ lemma reads_pow {K a b T M N ℓ A : ℝ} (hX : 1 ≤ X) (hK : 0 ≤ K) (ha : 0 
 
 end Pow
 
-/-- The loop's calls at `ℓ, |Q|, |Σ|, Ae, iδ, ic, iξ, ip, is ≤ X`. -/
+/-- The strings the loop asks at `ℓ, |Q|, |Σ|, Ae, iδ, ic, iξ, ip, is ≤ X`. -/
 lemma reads_coords {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (hQ : 1 ≤ Q) (hA : 1 ≤ A)
     (hAe : 1 ≤ Ae) (hiδ : 1 ≤ iδ) (hic : 1 ≤ ic) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 1 ≤ is)
     (hℓX : ℓ ≤ X) (hQX : Q ≤ X) (hAX : A ≤ X) (hAeX : Ae ≤ X) (hδX : iδ ≤ X) (hcX : ic ≤ X)
@@ -365,7 +365,7 @@ lemma reads_coords {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (hQ 
       (pb_const (X := X) (by norm_num : (6 : ℝ) ≤ 2 ^ 3)) bQ2) hC.2) (by norm_num) (by norm_num))
     (pb_mono hX (pb_add hX bP b1) (by norm_num) (by norm_num)) hT.2 hM.2 hN.2 hℓX hAX
 
-/-- The loop's calls at the summed rates. -/
+/-- The strings the loop asks at the summed rates. -/
 lemma rel_reads_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
     0 ≤ loopReads (Q + 1)
@@ -439,7 +439,7 @@ lemma rel_reads_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q
     (by linarith) (by linarith) (by linarith) hip (by linarith) (by linarith) (by linarith)
     (by linarith) (by linarith) hXδ (by linarith) (by linarith) hXp hXs
 
-/-- The calls `learner_loop_dfa_dist_tol` bounds, at the claim's rates. -/
+/-- The strings asked that `learner_loop_dfa_dist_tol` bounds, at the claim's rates. -/
 def distReads (r : LoopDistRun) : ℝ :=
   loopReads (r.Q + 1)
     (6 * (r.Q + 2) * loopCount (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4)

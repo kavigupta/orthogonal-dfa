@@ -11,12 +11,13 @@ length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, whe
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
 `totalPref` prefixes and `totalSuff` suffixes, its rounds draw at most `totalProbes` probes, and it
-calls the oracle at most `totalReads` times, whatever they draw. Every one is within the big-O
+asks the oracle at most `totalReads` strings, whatever they draw, its rounds the same against any
+answers that agree on those strings. Every one is within the big-O
 shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
-so that log grows as `log log L`. The calls grow as `X^50`, `X = (L + |Q|) R/(β δ ξ pAP s₀)`: each
+so that log grows as `log log L`. The strings asked grow as `X^50`, `X = (L + |Q|) R/(β δ ξ pAP s₀)`: each
 count and cap they multiply is at most a power of `X`. Each bound has one constant over all of
 `loopDistRegion`.
 
@@ -66,8 +67,8 @@ structure LoopDistRun extends LoopDistInputs where
 def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, calls
-the oracle at most `totalReads` times, and is right but for `γ + ξ` on `heldOut` strings. -/
+`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, asks
+the oracle at most `totalReads` strings, and is right but for `γ + ξ` on `heldOut` strings. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -93,26 +94,30 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
       q) →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ draws : Fin (Fintype.card Q + 1)
-        → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
+          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ draws : Fin (Fintype.card Q + 1)
-        → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      (indecisiveLStarLoopCalls settings O (windowLaw D k L₁) (prefixLaw D Ls) draws : ℝ)
-        ≤ totalReads { x with L }) ∧
+    -- The run asks the oracle at most `totalReads` strings, and any answers agreeing with the
+    -- oracle's on them give the same rounds and ask the same strings.
+    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
+          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
+      let run := loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2
+      let asked := run.reads fun w => O.mq w p.1
+      (asked.card : ℝ) ≤ totalReads { x with L }
+        ∧ ∀ o : FreeMonoid A → ℝ, (∀ w ∈ asked, o w = O.mq w p.1) →
+          run.eval o = some rounds ∧ run.reads o = asked) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
-      {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-            (persistDraws q.1),
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+            q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 w
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
                 (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
       ≤ x.δ
 
@@ -153,7 +158,7 @@ def LoopClaim.{u, v, w} : Prop :=
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
 /-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes`, calls the oracle at most `totalReads` times, and is
+`totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most `totalReads` strings, and is
 right but for `γ + ξ` on `heldOut` strings. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes totalReads : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) :
@@ -174,27 +179,30 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ draws : Fin (Fintype.card Q + 1)
-        → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      ∀ rounds ∈ indecisiveLStarLoop settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) draws,
+    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
+          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      indecisiveLStarLoop settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ draws : Fin (Fintype.card Q + 1)
-        → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      (indecisiveLStarLoopCalls settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) draws : ℝ) ≤ totalReads { x with L }) ∧
+    (∀ (p : Ω × (Fin (Fintype.card Q + 1) → RoundDraws A (Fintype.card Q + 1)
+          settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+      indecisiveLStarLoop settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
+      let run := loopQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3)) p.2
+      let asked := run.reads fun w => O.mq w p.1
+      (asked.card : ℝ) ≤ totalReads { x with L }
+        ∧ ∀ o : FreeMonoid A → ℝ, (∀ w ∈ asked, o w = O.mq w p.1) →
+          run.eval o = some rounds ∧ run.reads o = asked) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card Q + 3)) (persistDraws q.1),
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card Q + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 w
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
                 (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
       ≤ x.δ
 

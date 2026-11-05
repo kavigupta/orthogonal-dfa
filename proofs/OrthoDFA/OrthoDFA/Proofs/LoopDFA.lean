@@ -431,26 +431,25 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        (indecisiveLStarLoopCalls settings O (windowLaw D k L₁) (prefixLaw D Ls) draws : ℝ)
+      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget),
+        ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
+            fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) B₃ SC HN L₁ A) ∧
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB cap Kc n SC HN
@@ -579,18 +578,19 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     positivity
   refine ⟨settings, hwalk, hdis, hbud, hHN, hSC,
-    fun draws rounds hr => ?_, ?_, ?_⟩
-  · obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O
+    fun p rounds hr => ?_, ?_, ?_⟩
+  · obtain ⟨rs, hrs, rfl⟩ := indecisiveLStarLoop_some O hr
+    obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O
       (windowLaw D k L₁)
-      (prefixLaw D Ls) draws _ _
-      hreads rounds hr
+      (prefixLaw D Ls) (persistDraws p) _ _
+      hreads rs hrs
+    rw [List.length_map]
     have hQ : Q = (Fintype.card σ : ℝ) := rfl
-    have e : ∀ (f : SpecRound α → ℕ)
-        (l : List (SpecRound α)),
-        (l.map fun o => (f o : ℝ)).sum = ((l.map f).sum : ℝ) := fun f l => by
-      rw [Nat.cast_list_sum, List.map_map]; rfl
-    refine ⟨hlr, (e _ _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
-      (e _ _).trans_le ((Nat.cast_le.2 hsu).trans ?_)⟩
+    have e : ∀ f : LoopRound α → ℕ, ((rs.map SpecRound.data).map fun o => (f o : ℝ)).sum
+        = ((rs.map fun o => f o.data).sum : ℝ) := fun f => by
+      rw [Nat.cast_list_sum, List.map_map, List.map_map]; rfl
+    refine ⟨hlr, (e _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
+      (e _).trans_le ((Nat.cast_le.2 hsu).trans ?_)⟩
     · calc (((Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) : ℕ) : ℝ)
           = (Q + 1) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) := by rw [hQ]; push_cast; ring
         _ ≤ (Q + 1) * (6 * (Q + 2) * RB) :=
@@ -600,10 +600,10 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
           = (Q + 1) * ((⌊PB⌋₊ : ℝ) + 1) := by rw [hQ]; push_cast; ring
         _ ≤ (Q + 1) * (PB + 1) :=
           mul_le_mul_of_nonneg_left (by linarith [Nat.floor_le hPB0]) (by linarith)
-  · intro draws
-    have h := loopCalls_le settings O (windowLaw D k L₁) (prefixLaw D Ls) draws
-      (windowLaw_length D) hreads (Fintype.card σ + 1)
-    refine (Nat.cast_le.2 h).trans ((calls_le_loopReads _ _ _ _ _ _ _ _).trans ?_)
+  · intro p
+    have h := card_reads_loopQ_le O settings (windowLaw D k L₁) (prefixLaw D Ls) p
+      (windowLaw_length D) hreads
+    refine (Nat.cast_le.2 h).trans ((reads_le_loopReads _ _ _ _ _ _ _ _).trans ?_)
     have hQ : Q = (Fintype.card σ : ℝ) := rfl
     have hB₃0 : (0 : ℝ) ≤ settings.level3.probeBudget := Nat.cast_nonneg _
     have hSC0 : (0 : ℝ) ≤ settings.scanCap := Nat.cast_nonneg _
@@ -649,11 +649,11 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
   have hsub : {q : (Ω × (Fin (Fintype.card σ + 1)
         → RoundDraws α (Fintype.card σ + 1) settings.level3.harvestReadCap T))
         × (Fin n → FreeMonoid α) |
-      ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-        (persistDraws q.1),
+      ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+        q.1 = some rounds ∧
       (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-            o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
+            o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis (o.read O q.1.1) q.2) x
               (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
       ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r : Fin (Fintype.card σ + 1),
           selFail settings O P.D Dsf (prefixLaw D L) Ls L n (Fintype.card σ + 2) t r r.2 := by
@@ -669,8 +669,12 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     refine Set.mem_iUnion.2 ⟨⟨r, hr⟩, ?_⟩
     by_contra hnot
     apply hq
-    refine ⟨_, idealRounds_mem_loop settings O Dsf P.D (persistDraws q.1) hrg, hlen, o, ho, hcons,
-      ?_⟩
+    have hloop := idealRounds_mem_loop settings O Dsf P.D (persistDraws q.1) hrg
+    have hro : o.read = o.data.read O q.1.1 :=
+      loopRounds_read O settings P.D Dsf q.1 _ hloop o (List.mem_of_getLast? ho)
+    refine ⟨_, by rw [indecisiveLStarLoop_eq, hloop]; rfl, by rwa [List.length_map], o.data,
+      by rw [List.getLast?_map, ho]; rfl, hcons, ?_⟩
+    rw [← hro]
     have hnot' : (q.1.1, q.2) ∉ SelBad O (prefixLaw D L) n (Fintype.card σ + 2) t
           (some (tt, resCode o.result))
         ∧ (q.1.2, q.2) ∈ SelDk settings P.D L n r hr (some (tt, resCode o.result)) := by
@@ -815,26 +819,25 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        (indecisiveLStarLoopCalls settings O (windowLaw D k L₁) (prefixLaw D Ls) draws : ℝ)
+      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget),
+        ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
+            fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) B₃ SC HN L₁ A) ∧
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB cap Kc n SC HN
@@ -891,7 +894,7 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the explicit theorem's settings
 /-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/loopTolInv ℓ` on any first `k`
-letters, `ℓ = L + |Q| + 4`, with its reads and calls bounded in closed form. -/
+letters, `ℓ = L + |Q| + 4`, with its reads and strings asked bounded in closed form. -/
 theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
     {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (D : Measure (FreeMonoid α))
@@ -927,20 +930,19 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+      (∀ (p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget)) rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
         ((rounds.map fun o => o.prefs.card).sum : ℝ)
             ≤ (Q + 1) * (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ)
             ≤ (Q + 1) * (loopPool (L + Q + 4) Q A Ae δ c ξ pAP η₀ + 1)
           ∧ (rounds.length * settings.level3.probeBudget : ℝ)
             ≤ (Q + 1) * loopBudget (L + Q + 4) Q A Ae δ c) ∧
-      (∀ draws : Fin (Fintype.card σ + 1)
-          → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        (indecisiveLStarLoopCalls settings O (windowLaw D k L₁) (prefixLaw D Ls) draws : ℝ)
+      (∀ p : Ω × (Fin (Fintype.card σ + 1) → RoundDraws α (Fintype.card σ + 1)
+            settings.level3.harvestReadCap settings.level3.probeBudget),
+        ((((loopQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2).reads
+            fun w => O.mq w p.1).card : ℕ) : ℝ)
           ≤ loopReads (Q + 1) (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
             (loopPool (L + Q + 4) Q A Ae δ c ξ pAP η₀ + 1) (loopBudget (L + Q + 4) Q A Ae δ c)
             (loopSC (L + Q + 4) Q A Ae δ c ξ pAP η₀) (loopHN (L + Q + 4) Q A Ae δ c ξ pAP η₀)
@@ -948,11 +950,11 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' S B₃ n SC HN hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hlong hpre hpAPu
@@ -1146,8 +1148,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   have hcount : RB ≤ loopCount ℓ Q A Ae δ c ξ pAP η₀ :=
     count_le hQ0 hι0 hinvι hτ0 hτ1 hinvτ hPB1 hPBf hδ'0 hδ'1 hs0 hpAP hp1
   have hQ1' : (0 : ℝ) ≤ Q + 1 := by linarith
-  refine ⟨settings, hw, hd, hb, hHN.trans ?_, hSC.trans hSCle, fun draws rounds hr => ?_,
-    fun draws => ?_, hprob⟩
+  refine ⟨settings, hw, hd, hb, hHN.trans ?_, hSC.trans hSCle, fun p rounds hr => ?_,
+    fun p => ?_, hprob⟩
   · have hlog : Real.log (4 * (Q + 1) * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2)
         / δ') ≤ Real.log (4 * (Q + 1) * SC / δ') :=
       Real.log_le_log (by positivity) (div_le_div_of_nonneg_right
@@ -1158,7 +1160,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
         ≤ L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
     linarith only [this]
   · rw [hℓe]
-    obtain ⟨hlr, hpr, hsu⟩ := hreads draws rounds hr
+    obtain ⟨hlr, hpr, hsu⟩ := hreads p rounds hr
     refine ⟨hpr.trans ?_, hsu.trans ?_, ?_⟩
     · gcongr
     · gcongr
@@ -1203,7 +1205,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     have hPB1' : (1 : ℝ) ≤ PB := hPB1
     have hPB0' : (0 : ℝ) ≤ PB + 1 := by linarith only [hPB1']
     have hb : PB + 1 ≤ loopPool ℓ Q A Ae δ c ξ pAP η₀ + 1 := by linarith only [hPBf]
-    exact (hcalls draws).trans (loopReads_mono hQ1' (mul_nonneg (by linarith only [hQ0]) hRB0)
+    exact (hcalls p).trans (loopReads_mono hQ1' (mul_nonneg (by linarith only [hQ0]) hRB0)
       hPB0' hB₃0 hSC0.le hN0 (Nat.cast_nonneg _) (Nat.cast_nonneg _)
       le_rfl (mul_le_mul_of_nonneg_left hcount (by linarith only [hQ0])) hb hB₃ hMle hNle hL₁
       le_rfl)

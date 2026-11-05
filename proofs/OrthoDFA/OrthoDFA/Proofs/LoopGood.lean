@@ -407,7 +407,7 @@ theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
       settings.level3.probeBudget)
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf draws r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
-    idealRounds settings O D Dsf draws K ∈ loopRounds settings O D Dsf draws K :=
+    loopRounds settings O D Dsf draws K = some (idealRounds settings O D Dsf draws K) :=
   loopRounds_eq_some settings O D Dsf draws hg K
 
 end Good
@@ -420,13 +420,13 @@ variable {μ : Measure Ω} (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
     settings.level3.probeBudget)
 
 /-- Each round the loop runs is a round after some history and clustering run. -/
-lemma loopRounds_roundOf (n : ℕ) : ∀ rounds ∈ loopRounds settings O D Dsf draws n,
+lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf draws n = some rounds →
     rounds.length ≤ n ∧ ∀ o ∈ rounds, ∃ (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
       (u : Fin settings.level3.probeBudget → unitInterval), o = roundOf settings O D h x u := by
   induction n with
   | zero =>
     intro rounds hr
-    rw [loopRounds, Option.mem_def, Option.some.injEq] at hr
+    rw [loopRounds, Option.some.injEq] at hr
     subst hr
     simp
   | succ r ih =>
@@ -456,7 +456,7 @@ theorem loop_reads_le_op (a b : ℕ)
     (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
-    ∀ rounds ∈ loopRounds settings O D Dsf draws K, rounds.length ≤ K
+    ∀ rounds, loopRounds settings O D Dsf draws K = some rounds → rounds.length ≤ K
       ∧ (rounds.map fun o => o.prefs.card).sum ≤ K * a
       ∧ (rounds.map fun o => o.suffs.card).sum ≤ K * b := by
   intro rounds hr

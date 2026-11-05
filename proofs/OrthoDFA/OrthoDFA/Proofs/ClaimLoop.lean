@@ -7,9 +7,10 @@ import OrthoDFA.Proofs.ClaimReadsArith
 # The learner's costs, asymptotically: the proof
 
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
-`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
-`(|Q| + 1) loopBudget`, and its oracle calls by `loopReads`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/loopTolInv ℓ` on any first `k` letters. The claim runs it at `c = ξ/(2R)`,
+`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
+and the strings it asks the oracle by `loopReads`, all at `ℓ = L + |Q| + 4`, once `D` holds at
+most `1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` is the rest of the reads
+conjunct. The claim runs it at `c = ξ/(2R)`,
 `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
 `ClaimLoopArith` and `ClaimReadsArith` bound those shapes. `LoopClaimUniform` and `LoopClaimSimple` follow
 (`ClaimLoopUniform`).
@@ -68,7 +69,9 @@ theorem loopClaim_holds : LoopClaim := by
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, hw, hcnt, hcalls, ?_⟩
+  refine ⟨settings, hw, hcnt, fun p rounds hr => ⟨hcalls p, fun o ho => ?_⟩, ?_⟩
+  · obtain ⟨e1, e2⟩ := Query.eval_congr _ _ ho
+    exact ⟨e1.trans hr, e2⟩
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   exact hprob
 

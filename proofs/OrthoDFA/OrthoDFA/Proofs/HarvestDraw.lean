@@ -9,9 +9,7 @@ import OrthoDFA.Proofs.LoopRuns
 `N` probes drawn by its own block of uniforms.
 
 * `popDraws_miss_le`: at the cap `harvestN y (δₛ'/M)` the `M` draws miss with chance at most `δₛ'`;
-* `popDraws_eq_some_law`: where they all hit, they are i.i.d. from the population off `T`;
-* `popDraws_congr`, `popDrawReads_card_le`: with the uniforms fixed, the draws read only along
-  their probes, at most `M · N · (3 + clog₂ L) · |mids|` strings.
+* `popDraws_eq_some_law`: where they all hit, they are i.i.d. from the population off `T`.
 -/
 
 namespace OrthoDFA
@@ -225,69 +223,5 @@ lemma measurable_popDraws_getD {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbab
         funext u; simp only [Function.comp, popDraws_some D k N M pops T i s hs]
       rw [this]
       exact (measurable_of_countable _).comp (measurable_probeBlocks D N M)
-
-/-! ## Reads -/
-
-open scoped Classical in
-/-- The strings population `j`'s `M` draws read through its sampler: none for the probes'
-population. -/
-noncomputable def popDrawReads {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ)
-    (pops : List (SpecSampler α)) (j : Option (Fin K))
-    (u : ℕ → unitInterval × (Fin N → unitInterval)) : Finset (FreeMonoid α) :=
-  match j with
-  | none => ∅
-  | some i =>
-    match pops[i.val]? with
-    | some s => Random.drawManyReads s.read s.hyp.tree s.hyp.edges k (probeBlocks D N M u)
-    | none => ∅
-
-/-- With the uniforms fixed, a population's draws depend on its sampler's read only through
-`popDrawReads`. -/
-theorem popDraws_congr {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ)
-    (pops pops' : List (SpecSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
-    (u : ℕ → unitInterval × (Fin N → unitInterval))
-    (hlen : pops.length = pops'.length)
-    (hs : ∀ i : ℕ, ∀ s s', pops[i]? = some s → pops'[i]? = some s' →
-      s.hyp = s'.hyp ∧ s.site = s'.site)
-    (h : ∀ w ∈ popDrawReads D k N M pops j u, ∀ i : Fin K, j = some i → ∀ s s',
-      pops[i.val]? = some s → pops'[i.val]? = some s' → s.read w = s'.read w) :
-    popDraws D k N M pops T j u = popDraws D k N M pops' T j u := by
-  classical
-  rcases j with _ | i
-  · rfl
-  rcases hp : pops[i.val]? with _ | s
-  · have hp' : pops'[i.val]? = none := by
-      rw [List.getElem?_eq_none_iff] at hp ⊢; omega
-    simp only [popDraws, hp, hp']
-  obtain ⟨s', hp'⟩ : ∃ s', pops'[i.val]? = some s' := by
-    refine Option.ne_none_iff_exists'.1 fun h' => ?_
-    rw [List.getElem?_eq_none_iff] at h'
-    have := (List.getElem?_eq_some_iff.1 hp).1
-    omega
-  obtain ⟨hhyp, hsite⟩ := hs i s s' hp hp'
-  rw [popDraws_some D k N M pops T i s hp, popDraws_some D k N M pops' T i s' hp', ← hhyp, ← hsite]
-  unfold Random.drawManyFirst
-  have hi : ∀ n, Random.harvestFirst s.read k s.hyp s.site ↑T
-        (List.ofFn (probeBlocks D N M u n))
-      = Random.harvestFirst s'.read k s.hyp s.site ↑T (List.ofFn (probeBlocks D N M u n)) := by
-    intro n
-    refine Random.harvestFirst_congr k s.hyp s.site _ _ fun w hw => ?_
-    refine h w ?_ i rfl s s' hp hp'
-    simp only [popDrawReads, hp, Random.drawManyReads]
-    exact Finset.mem_biUnion.2 ⟨n, Finset.mem_univ _, hw⟩
-  simp only [hi]
-
-/-- Where `D`'s probes are at most `L` long, a population's `M` draws read at most
-`M · N · (3 + clog₂ L) · |mids|` strings, `mids` its sampler's hypothesis's. -/
-theorem popDrawReads_card_le {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (pops : List (SpecSampler α)) (i : Fin K) (s : SpecSampler α)
-    (hs : pops[i.val]? = some s) {L : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (u : ℕ → unitInterval × (Fin N → unitInterval)) :
-    (popDrawReads D k N M pops (some i) u).card
-      ≤ M * (N * ((3 + Nat.clog 2 L) * (Random.mids s.hyp.tree).card)) := by
-  simp only [popDrawReads, hs]
-  refine Random.drawManyReads_card_le s.read k s.hyp _ fun n x hx => ?_
-  obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
-  exact drawFrom_length_le D hD _
 
 end OrthoDFA

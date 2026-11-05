@@ -2,10 +2,10 @@ import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopQuery
 
 /-!
-# The loop's calls as a real bound
+# The strings the loop asks, as a real bound
 
 `loopReads K a b T M N L A` is `roundCallBound` over `K` rounds with `3 + ⌈log₂ L⌉` and
-`probeSifts L` relaxed to `L + 3` and `L + 1` (`calls_le_loopReads`). `loopSC` and `loopHN` bound
+`probeSifts L` relaxed to `L + 3` and `L + 1` (`reads_le_loopReads`). `loopSC` and `loopHN` bound
 `LearnerLoopDFASimple`'s scan and harvest caps at `ℓ = L₁ + 1`, the prefix count `RB` at
 `loopCount`.
 -/
@@ -14,7 +14,7 @@ noncomputable section
 
 namespace OrthoDFA
 
-/-- `K` rounds' calls, each round's clustering reading at most `a` prefixes and `b` suffixes,
+/-- The strings `K` rounds ask, each round's clustering reading at most `a` prefixes and `b` suffixes,
 at probe budget `T`, scan cap `M`, harvest cap `N`, probes at most `L` long and `A` letters. -/
 def loopReads (K a b T M N L A : ℝ) : ℝ :=
   K * (K * (b * (M * (N * ((L + 3) * (T + 1))))) + a * (b + 1)
@@ -31,7 +31,7 @@ lemma loopReads_mono {K a b T M N L A K' a' b' T' M' N' L' A' : ℝ} (hK0 : 0 �
   gcongr
   all_goals linarith
 
-lemma calls_le_loopReads (K a b T M N L A : ℕ) :
+lemma reads_le_loopReads (K a b T M N L A : ℕ) :
     ((K * roundCallBound K a b T M N L A : ℕ) : ℝ) ≤ loopReads K a b T M N L A := by
   have hc : 3 + Nat.clog 2 L ≤ L + 3 := by
     have := Nat.clog_le_of_le_pow (b := 2) (x := L) (y := L) Nat.lt_two_pow_self.le
