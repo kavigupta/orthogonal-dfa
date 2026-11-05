@@ -1,7 +1,7 @@
 import OrthoDFA.LowLevelClaims.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsTrue
-import OrthoDFA.Code.Reads
+import OrthoDFA.Proofs.Reads
 
 /-!
 # Level 4's steps

@@ -1,6 +1,6 @@
 import OrthoDFA.LowLevelClaims.Level5Claim
 import OrthoDFA.Proofs.EpsSteps
-import OrthoDFA.Code.Reads
+import OrthoDFA.Proofs.Reads
 
 /-!
 # What a probe reads

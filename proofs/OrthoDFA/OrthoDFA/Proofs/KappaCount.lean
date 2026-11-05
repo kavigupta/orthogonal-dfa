@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.KappaSteps
-import OrthoDFA.Code.Reads
+import OrthoDFA.Proofs.Reads
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!

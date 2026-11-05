@@ -157,14 +157,14 @@ theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.L
 
 lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
     {μ : Measure Ω} {O : Oracle μ (FreeMonoid α)} {D : Measure (FreeMonoid α)}
-    {εr εu εr' εu' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') {o : LoopRound α}
+    {εr εu εr' εu' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') {o : SpecRound α}
     (h : o.Agrees O D εr εu) : o.Agrees O D εr' εu' :=
   ⟨h.1, h.2.1.trans hr, h.2.2.trans hu⟩
 
 lemma checks_mono {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {M : _root_.DFA α σ} {O : Oracle μ (FreeMonoid α)}
     {D : Measure (FreeMonoid α)} {k : ℕ} {εr εu εd εr' εu' εd' : ℝ} {E : σ → Set (FreeMonoid α)}
-    {u u' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') (hd : εd ≤ εd') (hm : u ≤ u') {o : LoopRound α}
+    {u u' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') (hd : εd ≤ εd') (hm : u ≤ u') {o : SpecRound α}
     (h : o.Checks M O D k εr εu εd E u) : o.Checks M O D k εr' εu' εd' E u' :=
   ⟨agrees_mono hr hu h.1, h.2.1.trans hd, h.2.2.1, fun q a => (h.2.2.2 q a).trans (by linarith)⟩
 
@@ -360,7 +360,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   (P.L + Fintype.card σ + 3) p
                 ∧ ∀ r (hr : r < Fintype.card σ + 1),
                   AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-                    RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
+                    RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
           ≤ (Q + 1) * (3 * δ') := by
   intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc SC HN

@@ -19,9 +19,9 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
 
 /-- The round after the history `h` on the filled draws. -/
 def idealRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
-    LoopRound α :=
+    SpecRound α :=
   roundOf settings O D h
     (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)) d.2.2
 
@@ -31,19 +31,19 @@ def idealRounds (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
       settings.level3.probeBudget) :
-    ℕ → List (LoopRound α)
+    ℕ → List (SpecRound α)
   | 0 => []
   | r + 1 =>
     if h : r < K ∧ ∀ o ∈ idealRounds settings O D Dsf draws r, o.result.ending.harvested ≠ none
     then idealRounds settings O D Dsf draws r
-      ++ [idealRound settings O D Dsf (histOf (idealRounds settings O D Dsf draws r))
+      ++ [idealRound settings O D Dsf (specHistOf (idealRounds settings O D Dsf draws r))
         (draws ⟨r, h.1⟩)]
     else idealRounds settings O D Dsf draws r
 
 /-- Alike histories make the same round. -/
 theorem idealRound_alike {L : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    {h h' : LoopHist α} (hh : HistAlike L h h')
+    {h h' : SpecHist α} (hh : HistAlike L h h')
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     idealRound settings O D Dsf h d = idealRound settings O D Dsf h' d := by
   unfold idealRound roundOf
@@ -52,7 +52,7 @@ theorem idealRound_alike {L : ℕ} (settings : LoopSettings K) (O : Oracle μ (F
 /-- The round's draws hit, its filled draws scan within `scanCap`, and its clustering on them
 returns at a scheduled state. -/
 def RoundGood (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) : Prop :=
   (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap h
       (d.1, d.2.1)).isSome
@@ -71,7 +71,7 @@ theorem loopRounds_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
       settings.level3.probeBudget)
     (hg : ∀ r (hr : r < K), (∀ o ∈ idealRounds settings O D Dsf draws r,
         o.result.ending.harvested ≠ none) →
-      RoundGood settings O D Dsf (histOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩))
+      RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩))
     (n : ℕ) :
     loopRounds settings O D Dsf draws n = some (idealRounds settings O D Dsf draws n) := by
   induction n with
@@ -93,13 +93,13 @@ def popDists (D : Measure (FreeMonoid α)) (pops : List (Measure (FreeMonoid α)
   | some i => pops.getD i (Measure.dirac 1)
 
 /-- Each sampler's population over probes from `D` walked from `k`. -/
-def samplerLaws (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (HarvestSampler α)) :
+def samplerLaws (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (SpecSampler α)) :
     List (Measure (FreeMonoid α)) :=
   pops.map fun s => popLaw (Random.harvestLaw s.read D k s.hyp s.site)
 
 omit [MeasurableSpace Ω] in
 lemma loopDistributions_eq_popDists (D : Measure (FreeMonoid α)) (k : ℕ)
-    (pops : List (HarvestSampler α)) (j : Option (Fin K)) :
+    (pops : List (SpecSampler α)) (j : Option (Fin K)) :
     loopDistributions D k pops j = popDists D (samplerLaws D k pops) j := by
   rcases j with _ | i
   · rfl
@@ -111,7 +111,7 @@ lemma loopDistributions_eq_popDists (D : Measure (FreeMonoid α)) (k : ℕ)
     simp [hs]
 
 omit [MeasurableSpace Ω] in
-lemma samplerLaws_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma samplerLaws_alike {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
     (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) :
     samplerLaws D k pops = samplerLaws D k pops' := by
@@ -122,7 +122,7 @@ lemma samplerLaws_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
     rw [ih, harvestLaw_alike h D hD k]
 
 omit [MeasurableSpace Ω] in
-lemma samplerLaws_length (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (HarvestSampler α)) :
+lemma samplerLaws_length (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (SpecSampler α)) :
     (samplerLaws D k pops).length = pops.length := List.length_map _
 
 end OrthoDFA

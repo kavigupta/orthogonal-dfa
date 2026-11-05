@@ -50,7 +50,7 @@ lemma histAt_suffs_sub (c : List (HarvestCode α)) (i : ℕ) :
   obtain ⟨a, ha, hx⟩ := (mem_foldr_union _ _ x).1 hx
   exact (mem_foldr_union _ _ x).2 ⟨a, List.mem_of_mem_take ha, hx⟩
 
-lemma loopDistributions_take (k : ℕ) (pops : List (HarvestSampler α)) {i : ℕ}
+lemma loopDistributions_take (k : ℕ) (pops : List (SpecSampler α)) {i : ℕ}
     {j : Option (Fin K)} (hj : j ∈ loopPopulations K i) :
     loopDistributions D k (pops.take i) j = loopDistributions D k pops j := by
   cases j with
@@ -116,7 +116,7 @@ variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A prefix a round's clustering reads is a draw of one of its populations. -/
-lemma mem_prefsOf_draw {h : LoopHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {p : FreeMonoid α}
+lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {p : FreeMonoid α}
     (hp : p ∈ prefsOf settings D Dsf h c) :
     ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
       p = fillDraw D settings.level3.walkStart settings.level3.harvestReadCap h.pops h.prefs j (c.2.1 j n)
@@ -135,7 +135,7 @@ lemma mem_prefsOf_draw {h : LoopHist α} {c : ClusterRest α K settings.level3.h
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A suffix a round's clustering reads, but `ε`, is a draw of the suffix distribution. -/
-lemma mem_suffsOf_draw {h : LoopHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {v : FreeMonoid α}
+lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {v : FreeMonoid α}
     (hv : v ∈ suffsOf settings D Dsf h c) : ∃ n, v = drawFrom (offLaw Dsf h.suffs) (c.1 n) := by
   obtain ⟨hv1, hv⟩ := Finset.mem_erase.1 hv
   obtain ⟨B, -, hv⟩ := Finset.mem_biUnion.1 hv
@@ -355,7 +355,7 @@ omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] [DecidableEq α] in
 /-- Where its uniforms are below `1`, a population's filled draw is off `T`, at a string the
 population gives mass. -/
 lemma fillDraw_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
-    (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (pops : List (SpecSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
     {u : unitInterval × (Fin N → unitInterval)} (h0 : loopDistributions D k pops j (↑T)ᶜ ≠ 0)
     (hu : (u.1 : ℝ) < 1) (hu2 : ∀ t, (u.2 t : ℝ) < 1) :
     fillDraw D k N pops T j u ∉ T

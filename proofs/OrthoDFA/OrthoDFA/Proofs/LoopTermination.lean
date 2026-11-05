@@ -208,7 +208,7 @@ walked from `k`, at its run `x`: it returns at some state of the schedule, and a
 could return at, its family miscuts `D` at most `εcov + slack` of the time and leaves each
 population undecided at most `2·indecisionLimit + slack`. -/
 def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) (k : ℕ) (εcov slack : ℝ) (pops : List (HarvestSampler α))
+    (D : Measure (FreeMonoid α)) (k : ℕ) (εcov slack : ℝ) (pops : List (SpecSampler α))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
   (∃ B ∈ settings.schedule (loopPopulations K pops.length),
       x ∈ ret O.mq (loopPopulations K pops.length) none settings.η₀ settings.indecisionLimit
@@ -225,7 +225,7 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
 
 lemma clusterSpec_alike (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) {L : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ)
-    (εcov slack : ℝ) {pops pops' : List (HarvestSampler α)}
+    (εcov slack : ℝ) {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
     ClusterSpec settings O D k εcov slack pops x ↔ ClusterSpec settings O D k εcov slack pops' x := by
   unfold ClusterSpec
@@ -262,7 +262,7 @@ undecided at most `T` of the time, and a consistent round with at most `ε` of t
 `disagreeSet`; its tree is in `classSet |Q|`; and its misled probes are few in each `E q`. -/
 def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (P : PrefixDistribution α) (A sl m ε y : ℝ) (k : ℕ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
-    (o : LoopRound α) : Prop :=
+    (o : SpecRound α) : Prop :=
   let dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1)
   LooseEndsWell M (fun q => dist q .undecided) A sl m P.D ε
     (disagreeSet o.read k o.result.hypothesis) k
@@ -272,9 +272,9 @@ def RoundSpec [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)
 
 /-- The round agrees, at most `εd` of `D` is in `disagreeSet`, its tree is in `classSet |Q|`, and
 its misled probes are few in each `E q`. -/
-def LoopRound.Checks [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
+def SpecRound.Checks [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) (k : ℕ) (εr εu εd : ℝ) (E : σ → Set (FreeMonoid α)) (u : ℝ)
-    (o : LoopRound α) : Prop :=
+    (o : SpecRound α) : Prop :=
   o.Agrees O D εr εu
     ∧ D.real (disagreeSet o.read k o.result.hypothesis) ≤ εd
     ∧ o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ)
@@ -286,7 +286,7 @@ def LoopRound.Checks [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMon
 section RoundFacts
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  (h : LoopHist α)
+  (h : SpecHist α)
   (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
 
 lemma idealRound_returns
@@ -325,7 +325,7 @@ lemma idealRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
 end RoundFacts
 
 omit [MeasurableSpace Ω] in
-lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (LoopRound α)}
+lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (SpecRound α)}
     (h : AllHarvested rounds) : (harvestsOf D k rounds).length = rounds.length := by
   induction rounds with
   | nil => rfl
@@ -333,7 +333,7 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 (h o (by simp))
     have hpo : o.population D k
         = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis zo)) := by
-      simp [LoopRound.population, hzo]
+      simp [SpecRound.population, hzo]
     simp only [harvestsOf, List.filterMap_cons, hpo, List.length_cons] at ih ⊢
     rw [ih fun o' ho' => h o' (by simp [ho'])]
 
@@ -354,7 +354,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (hspec : ∀ i (hi : i < (idealRounds settings O P.D Dsf draws K).length) (hiK : i < K),
       i ≤ Fintype.card σ →
       ClusterSpec settings O P.D k εcov slack
-          (histOf ((idealRounds settings O P.D Dsf draws K).take i)).pops
+          (specHistOf ((idealRounds settings O P.D Dsf draws K).take i)).pops
           (idealRunAt settings O P.D Dsf draws ⟨i, hiK⟩)
         ∧ RoundSpec M O P A sl m εd y k E u (idealRounds settings O P.D Dsf draws K)[i]) :
     (idealRounds settings O P.D Dsf draws K).length ≤ Fintype.card σ + 1
@@ -377,13 +377,13 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     have hs := (hspec i hi hiK hiσ).1
     rw [idealRunAt, ← take_idealRounds settings O P.D Dsf draws hiK.le, ← hk] at hs
     rw [e]
-    obtain ⟨hmem, hq⟩ := idealRound_quality settings O P.D Dsf (histOf (L.take i))
+    obtain ⟨hmem, hq⟩ := idealRound_quality settings O P.D Dsf (specHistOf (L.take i))
       (draws ⟨i, hiK⟩) (D' := P.D) hs
     rw [hk] at hq
-    rw [← samplerLaws_length P.D k (histOf (L.take i)).pops, histOf_pops] at hmem hq
+    rw [← samplerLaws_length P.D k (specHistOf (L.take i)).pops, histOf_pops] at hmem hq
     simp only [loopDistributions_eq_popDists, histOf_pops] at hq
     exact ⟨hsched _ _ hmem, one_notMem_idealRound_family settings O P.D Dsf
-      (histOf (L.take i)) (draws ⟨i, hiK⟩), hq⟩
+      (specHistOf (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →
@@ -451,7 +451,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       have hpop : ∀ i (hi : i ≤ Fintype.card σ), (L[i]'(by omega)).population P.D k
           = some (ν i hi) := by
         intro i hi
-        unfold LoopRound.population
+        unfold SpecRound.population
         rw [hzs i hi]
         rfl
       have hQ : (0 : ℝ) < Fintype.card σ := by

@@ -1,4 +1,5 @@
 import OrthoDFA.Code.Clustering
+import OrthoDFA.Code.Query
 
 /-!
 # The family's read of a string
@@ -29,6 +30,11 @@ variable {S : Type*} [Stringlike S]
 noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ) (w : S) (ω : Ω) :
     ARU :=
   readOf kl kh (voteCount mq F w ω)
+
+/-- `familyRead` as a program: it asks `w·v` for each `v` of `F`. -/
+noncomputable def familyReadQ (F : Finset S) (kl kh : ℕ) (w : S) : Query S ℝ ARU :=
+  (Query.table (F.toList.map (w * ·))).map fun t =>
+    readOf kl kh (voteCount (fun z (_ : Unit) => t z) F w ())
 
 /-! ## Strings -/
 

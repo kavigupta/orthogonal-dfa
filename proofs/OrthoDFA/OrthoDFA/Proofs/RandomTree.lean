@@ -1,6 +1,6 @@
 import OrthoDFA.Proofs.RandomRisk
 import OrthoDFA.Proofs.Level2Steps
-import OrthoDFA.Code.Reads
+import OrthoDFA.Proofs.Reads
 
 /-!
 # The tree and the steps under reads that are never wrong

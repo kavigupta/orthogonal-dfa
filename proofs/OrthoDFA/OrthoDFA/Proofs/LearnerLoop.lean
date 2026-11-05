@@ -206,11 +206,11 @@ omit [MeasurableSpace Ω] in
 /-- A round whose tree is in `classSet |Q|` hands on a population supported on strings shorter
 than `Ls`. -/
 lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls : ℕ}
-    (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : LoopRound α)
+    (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : SpecRound α)
     (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
     {ν : Measure (FreeMonoid α)} (hν : o.population P.D k = some ν) :
     ν {p | Ls ≤ p.toList.length} = 0 := by
-  unfold LoopRound.population at hν
+  unfold SpecRound.population at hν
   rcases hh : o.result.ending.harvested with _ | site
   · rw [hh] at hν; cases hν
   rw [hh, Option.map_some, Option.some.injEq] at hν
@@ -280,7 +280,7 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.harve
     (hi : i < (idealRounds settings O D Dsf (persistDraws p) K).length) :
     ∃ hK : i < K, (histCodes settings O D Dsf p.1 p.2 i).length = i
       ∧ HistAlike L (decodeHist (histCodes settings O D Dsf p.1 p.2 i))
-        (histOf ((idealRounds settings O D Dsf (persistDraws p) K).take i))
+        (specHistOf ((idealRounds settings O D Dsf (persistDraws p) K).take i))
       ∧ (idealRounds settings O D Dsf (persistDraws p) K)[i] = idealRound settings O D Dsf
         (decodeHist (histCodes settings O D Dsf p.1 p.2 i))
         (p.1, p.2 ⟨i, hK⟩) := by
@@ -314,7 +314,7 @@ lemma histOK_of_specs (εcov slack : ℝ)
     ∀ i, i ≤ (idealRounds settings O D Dsf (persistDraws p) K).length →
       (∀ j (_ : j < (idealRounds settings O D Dsf (persistDraws p) K).length) (hjK : j < K),
         j < i → ClusterSpec settings O D settings.level3.walkStart εcov slack
-          (histOf ((idealRounds settings O D Dsf (persistDraws p) K).take j)).pops
+          (specHistOf ((idealRounds settings O D Dsf (persistDraws p) K).take j)).pops
           (idealRunAt settings O D Dsf (persistDraws p) ⟨j, hjK⟩)) →
       HistOK settings O D Dsf p.1 p.2 i
   | 0, _, _ => trivial
@@ -366,7 +366,7 @@ lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ
     obtain ⟨hK, e⟩ := getElem_idealRounds settings O D Dsf draws K i hi
     rw [e]
     exact h _ _
-  have hsum : ∀ (f : LoopRound α → ℕ) (c : ℕ),
+  have hsum : ∀ (f : SpecRound α → ℕ) (c : ℕ),
       (∀ o ∈ idealRounds settings O D Dsf draws K, f o ≤ c) →
       ((idealRounds settings O D Dsf draws K).map f).sum ≤ K * c := fun f c hf => by
     refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
@@ -462,7 +462,7 @@ def LoopCore : Prop :=
                   (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
               ∧ RoundsFresh settings O P.D Dsf Ls p
               ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-                RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
+                RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                   (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
           + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
@@ -800,7 +800,7 @@ theorem loop_core_holds : LoopCore := by
             (C.disagreementRate + mr) E (u + mr))
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-          RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
+          RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
             (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
@@ -808,7 +808,7 @@ theorem loop_core_holds : LoopCore := by
     simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hno
     set Lr := idealRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ (hi : i < Lr.length) (hK : i < K),
-        (ClusterSpec settings O P.D k (513 / 512 * εcov) slack (histOf (Lr.take i)).pops
+        (ClusterSpec settings O P.D k (513 / 512 * εcov) slack (specHistOf (Lr.take i)).pops
             (idealRunAt settings O P.D Dsf (persistDraws p) ⟨i, hK⟩)
           ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
             Lr[i])
@@ -816,7 +816,7 @@ theorem loop_core_holds : LoopCore := by
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 i))
             (p.1, (p.2 ⟨i, hK⟩).1)
           ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 i) p.2 i hK)
-        ∧ RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf (persistDraws p) i))
+        ∧ RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
           (persistDraws p ⟨i, hK⟩) := by
       intro i
       induction i using Nat.strong_induction_on with
@@ -844,7 +844,7 @@ theorem loop_core_holds : LoopCore := by
           have hji : j < i := by omega
           obtain ⟨h4, hcls, -⟩ := (ih j hji (by omega) (by omega) (by omega)).1.2
           have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hoν
-          unfold LoopRound.population at hoν
+          unfold SpecRound.population at hoν
           rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
           · rw [hh] at hoν; cases hoν
           rw [hh, Option.map_some, Option.some.injEq] at hoν
@@ -911,7 +911,7 @@ theorem loop_core_holds : LoopCore := by
             (idealRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
-        have hcs' : ClusterSpec settings O P.D k (513 / 512 * εcov) slack (histOf (Lr.take i)).pops
+        have hcs' : ClusterSpec settings O P.D k (513 / 512 * εcov) slack (specHistOf (Lr.take i)).pops
             (idealRunAt settings O P.D Dsf (persistDraws p) ⟨i, hK'⟩) := by
           rw [idealRunAt, ← take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le,
             ← idealRun_alike hdec P.D Dsf P.length_le]
@@ -921,13 +921,13 @@ theorem loop_core_holds : LoopCore := by
           intro s hs
           obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hs
           rw [harvestLaw_alike (SamplerAlike.of_forall₂ hdec.1 hj) P.D P.length_le k]
-          have hmem := List.getElem_mem (l := (histOf (Lr.take i)).pops) (hdec.1.length_eq ▸ hj)
+          have hmem := List.getElem_mem (l := (specHistOf (Lr.take i)).pops) (hdec.1.length_eq ▸ hj)
           obtain ⟨o, ho, hos⟩ := List.mem_filterMap.1 hmem
           obtain ⟨j', hj', rfl⟩ := List.getElem_of_mem ho
           simp only [List.length_take] at hj'
           rw [List.getElem_take] at hos
           obtain ⟨h4', -, -⟩ := (ih j' (by omega) (by omega) (by omega) (by omega)).1.2
-          unfold LoopRound.sampler at hos
+          unfold SpecRound.sampler at hos
           rcases hh : (Lr[j']'(by omega)).result.ending.harvested with _ | h
           · rw [hh] at hos; cases hos
           rw [hh, Option.map_some, Option.some.injEq] at hos
@@ -940,10 +940,10 @@ theorem loop_core_holds : LoopCore := by
           dsimp only
           unfold Yields at hyl
           linarith
-        have hnA : (2 + (loopPopulations K (histOf (Lr.take i)).pops.length).card) * NP
+        have hnA : (2 + (loopPopulations K (specHistOf (Lr.take i)).pops.length).card) * NP
             ≤ (K + 3) * NP :=
           Nat.mul_le_mul_right _ (by
-            have := card_loopPopulations_le K (histOf (Lr.take i)).pops.length
+            have := card_loopPopulations_le K (specHistOf (Lr.take i)).pops.length
             omega)
         have hn4' : ¬ (MissAt P.D k settings.level3.harvestReadCap settings.scanCap (dec cH).pops
               (dec cH).prefs (p.2 ⟨i, hK'⟩).1.2.1
@@ -953,9 +953,9 @@ theorem loop_core_holds : LoopCore := by
           fun h => hn4 ⟨hok, hlen, fun ν hν => (hpops ν hν).1, hyl2, hmP, h⟩
         rw [not_or] at hn4'
         have hti := take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le
-        have hl : (histOf (Lr.take i)).pops.length = i := by rw [← hdec.length]; exact hpl
+        have hl : (specHistOf (Lr.take i)).pops.length = i := by rw [← hdec.length]; exact hpl
         have hgood : RoundGood settings O P.D Dsf
-            (histOf (idealRounds settings O P.D Dsf (persistDraws p) i))
+            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
             (persistDraws p ⟨i, hK'⟩) := by
           rw [← hti]
           refine roundGood_of settings O P.D Dsf _ _ (NP := NP) (A := (K + 3) * NP) (T := Tsc)

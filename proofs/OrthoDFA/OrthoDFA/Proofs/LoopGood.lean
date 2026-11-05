@@ -24,13 +24,13 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
 section Miss
 
 /-- Some harvested population's first `M` draws miss. -/
-def MissAt (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
+def MissAt (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (SpecSampler α))
     (T : Finset (FreeMonoid α)) (u : Option (Fin K) → ℕ → unitInterval × (Fin N → unitInterval)) :
     Prop :=
   ∃ i : Fin K, popDraws D k N M pops T (some i) (u (some i)) = none
 
 omit [DecidableEq α] in
-lemma clusterDraws_isSome (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : LoopHist α)
+lemma clusterDraws_isSome (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : SpecHist α)
     (c : ClusterDraws Ω α K N) (hc : ¬ MissAt D k N M h.pops h.prefs c.2.2.1) :
     (clusterDraws D Dsf k N M h c).isSome := by
   classical
@@ -41,7 +41,7 @@ lemma clusterDraws_isSome (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : L
     · exact Option.isSome_iff_ne_none.2 fun he => hc ⟨i, he⟩
   simp only [clusterDraws, allSome, dif_pos hall, Option.map_some, Option.isSome_some]
 
-lemma popDraws_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma popDraws_alike {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k N M : ℕ)
     (T : Finset (FreeMonoid α)) (j : Option (Fin K))
@@ -64,7 +64,7 @@ lemma popDraws_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
     simp only [he]
   · rw [List.getElem?_eq_none (not_lt.1 hi), List.getElem?_eq_none (hlen ▸ not_lt.1 hi)]
 
-lemma missAt_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma missAt_alike {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k N M : ℕ)
     (T : Finset (FreeMonoid α)) (u : Option (Fin K) → ℕ → unitInterval × (Fin N → unitInterval)) :
@@ -73,7 +73,7 @@ lemma missAt_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
 
 omit [DecidableEq α] in
 lemma measurableSet_popDraws_none (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (i : Fin K) :
+    (k N M : ℕ) (pops : List (SpecSampler α)) (T : Finset (FreeMonoid α)) (i : Fin K) :
     MeasurableSet {u : ℕ → unitInterval × (Fin N → unitInterval) |
       popDraws D k N M pops T (some i) u = none} := by
   rcases hs : pops[i.val]? with _ | s
@@ -91,7 +91,7 @@ lemma measurableSet_popDraws_none (D : Measure (FreeMonoid α)) [IsProbabilityMe
 
 omit [DecidableEq α] in
 lemma measurableSet_missAt (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) :
+    (k N M : ℕ) (pops : List (SpecSampler α)) (T : Finset (FreeMonoid α)) :
     MeasurableSet {u : Option (Fin K) → ℕ → unitInterval × (Fin N → unitInterval) |
       MissAt D k N M pops T u} := by
   have : {u : Option (Fin K) → ℕ → unitInterval × (Fin N → unitInterval) |
@@ -107,7 +107,7 @@ omit [DecidableEq α] in
 /-- At the cap `harvestN y (δₘ / M)`, every harvested population yielding at least `y` off `T`,
 some harvested population's `M` draws miss with chance at most `K δₘ`. -/
 theorem restLaw_missAt_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k M : ℕ)
-    (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) {y δₘ : ℝ} (hy0 : 0 < y)
+    (pops : List (SpecSampler α)) (T : Finset (FreeMonoid α)) {y δₘ : ℝ} (hy0 : 0 < y)
     (hy1 : y ≤ 1) (hδ : 0 < δₘ) (hM : 0 < M)
     (hyield : ∀ s ∈ pops, y ≤ (Random.harvestLaw s.read D k s.hyp s.site).real (↑T)ᶜ) :
     (restLaw α K (Random.harvestN y (δₘ / M))).real
@@ -172,7 +172,7 @@ omit [IsProbabilityMeasure μ] in
 /-- No harvested draw missing, no population's sides falling short and a scheduled state
 returning, the round is good. -/
 lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
     {T A NP : ℕ}
     (hNP : ∀ B ∈ settings.schedule (loopPopulations K h.pops.length), B.npref ≤ NP)
@@ -202,7 +202,7 @@ lemma scanShort_noise (pops : Finset (Option (Fin K))) (M T A : ℕ) (ω ω' : �
 
 /-- A harvested population yields at least `(1 - m) ν(univ)` off `T`, `T` holding at most `m`
 of it. -/
-lemma harvestLaw_compl_ge (s : HarvestSampler α) (D : Measure (FreeMonoid α))
+lemma harvestLaw_compl_ge (s : SpecSampler α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (k : ℕ) (T : Finset (FreeMonoid α)) {y m : ℝ} (hy : 0 < y)
     (hmass : 2 * y ≤ (Random.harvestLaw s.read D k s.hyp s.site).real Set.univ) (hm : m ≤ 1 / 2)
     (hT : (popLaw (Random.harvestLaw s.read D k s.hyp s.site)).real ↑T ≤ m) :
@@ -406,8 +406,8 @@ theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
       settings.level3.probeBudget)
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf draws r) →
-      RoundGood settings O D Dsf (histOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
-    idealRounds settings O D Dsf draws K ∈ indecisiveLStarLoop settings O D Dsf draws :=
+      RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
+    idealRounds settings O D Dsf draws K ∈ loopRounds settings O D Dsf draws K :=
   loopRounds_eq_some settings O D Dsf draws hg K
 
 end Good
@@ -421,7 +421,7 @@ variable {μ : Measure Ω} (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
 
 /-- Each round the loop runs is a round after some history and clustering run. -/
 lemma loopRounds_roundOf (n : ℕ) : ∀ rounds ∈ loopRounds settings O D Dsf draws n,
-    rounds.length ≤ n ∧ ∀ o ∈ rounds, ∃ (h : LoopHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+    rounds.length ≤ n ∧ ∀ o ∈ rounds, ∃ (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
       (u : Fin settings.level3.probeBudget → unitInterval), o = roundOf settings O D h x u := by
   induction n with
   | zero =>
@@ -456,12 +456,12 @@ theorem loop_reads_le_op (a b : ℕ)
     (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
-    ∀ rounds ∈ indecisiveLStarLoop settings O D Dsf draws, rounds.length ≤ K
+    ∀ rounds ∈ loopRounds settings O D Dsf draws K, rounds.length ≤ K
       ∧ (rounds.map fun o => o.prefs.card).sum ≤ K * a
       ∧ (rounds.map fun o => o.suffs.card).sum ≤ K * b := by
   intro rounds hr
   obtain ⟨hlen, hro⟩ := loopRounds_roundOf settings O D Dsf draws K rounds hr
-  have hsum : ∀ (f : LoopRound α → ℕ) (c : ℕ), (∀ o ∈ rounds, f o ≤ c) →
+  have hsum : ∀ (f : SpecRound α → ℕ) (c : ℕ), (∀ o ∈ rounds, f o ≤ c) →
       (rounds.map f).sum ≤ K * c := fun f c hf => by
     refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
     · obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hn

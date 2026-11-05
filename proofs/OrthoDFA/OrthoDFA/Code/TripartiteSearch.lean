@@ -1,4 +1,5 @@
 import Mathlib.Data.Nat.Log
+import OrthoDFA.Code.Query
 
 /-! A search for where `agrees` turns from `some true` to `some false`, past `none`s. -/
 
@@ -63,5 +64,43 @@ def tripartiteSearch (recover : Bool) (agrees : ℕ → Option Bool) (lo hi : �
     | some false =>
       let r := bisectBoundary recover agrees lo hi
       (r.1, lo :: hi :: r.2)
+
+section Query
+
+variable {Q R : Type*}
+
+/-- `bisectBoundary` as a program, each position's agreement asked by `agrees`. -/
+def bisectQ (recover : Bool) (agrees : ℕ → Query Q R (Option Bool)) (lo hi : ℕ) :
+    Query Q R SearchResult :=
+  if _h : hi ≤ lo + 1 then .pure (.edge hi)
+  else (agrees ((lo + hi) / 2)).bind fun
+    | some true => bisectQ recover agrees ((lo + hi) / 2) hi
+    | some false => bisectQ recover agrees lo ((lo + hi) / 2)
+    | none =>
+      if recover then
+        (agrees ((lo + hi) / 2 - 1)).bind fun
+          | none => .pure (.pair ((lo + hi) / 2 - 1))
+          | some left => (agrees ((lo + hi) / 2 + 1)).bind fun right =>
+            match right, left with
+            | none, _ => .pure (.pair ((lo + hi) / 2))
+            | some false, true => .pure (.triple ((lo + hi) / 2))
+            | some _, false => bisectQ recover agrees lo ((lo + hi) / 2 - 1)
+            | some true, true => bisectQ recover agrees ((lo + hi) / 2 + 1) hi
+      else .pure (.undecidedMid ((lo + hi) / 2))
+termination_by hi - lo
+decreasing_by all_goals omega
+
+/-- `tripartiteSearch` as a program. -/
+def tripartiteQ (recover : Bool) (agrees : ℕ → Query Q R (Option Bool)) (lo hi : ℕ) :
+    Query Q R SearchResult :=
+  (agrees lo).bind fun
+    | none => .pure .undecidedLo
+    | some false => .pure .disagreeLo
+    | some true => (agrees hi).bind fun
+      | none => .pure .undecidedHi
+      | some true => .pure .allAgree
+      | some false => bisectQ recover agrees lo hi
+
+end Query
 
 end OrthoDFA

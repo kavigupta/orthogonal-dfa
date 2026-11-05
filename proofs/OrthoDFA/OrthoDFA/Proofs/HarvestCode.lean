@@ -1,5 +1,5 @@
 import OrthoDFA.Code.Level3HarvestCode
-import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.Proofs.LoopSpec
 import OrthoDFA.Proofs.RandomHarvest
 import OrthoDFA.Proofs.KappaReads
 import OrthoDFA.Proofs.RandomSearch
