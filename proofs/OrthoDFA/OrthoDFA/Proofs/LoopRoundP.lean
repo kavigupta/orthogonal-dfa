@@ -40,7 +40,7 @@ lemma histCodes_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α 
     (h : ∀ i : Fin K, i.1 < r → g i = g' i) :
     histCodes settings O D Dsf N ω g r = histCodes settings O D Dsf N ω g' r := by
   unfold histCodes
-  rw [loopRounds_congr settings O D Dsf (fun i => (ω, g i)) (fun i => (ω, g' i)) r
+  rw [loopRounds_congr settings N O D Dsf (fun i => (ω, g i)) (fun i => (ω, g' i)) r
     fun i hi => by rw [h i hi]]
 
 omit [IsProbabilityMeasure μ] in
@@ -71,12 +71,12 @@ lemma measurable_persist :
       fun i => ((p.1, p.2 i) : LoopRoundDraws Ω α K settings.level3.probeBudget)) :=
   measurable_pi_lambda _ fun i => measurable_fst.prodMk ((measurable_pi_apply i).comp measurable_snd)
 
-lemma measurableSet_histCodes {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma measurableSet_histCodes [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (c : List (HarvestCode α)) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       histCodes settings O D Dsf N p.1 p.2 r = c} :=
-  measurable_persist settings (measurableSet_codesOf settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) r c)
+  measurable_persist settings (measurableSet_codesOf settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) r c)
 
 omit [IsProbabilityMeasure μ] in
 lemma measurable_clusterRun_at (h : LoopHist α) (i : Fin K) :
@@ -93,7 +93,7 @@ lemma decodePop_prob (c : List (HarvestCode α)) :
   unfold decodePop
   infer_instance
 
-lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) :
     ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
       HistOK settings O D Dsf N p.1 p.2 r}
@@ -157,7 +157,7 @@ lemma measurableSet_histOK {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
       rw [this]
       exact MeasurableSet.univ
 
-lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (y : Option (List (HarvestCode α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
@@ -183,7 +183,7 @@ lemma measurableSet_stageH {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
 
 /-- Where every earlier clustering returned, the answers at the strings the earlier rounds read
 fix the stage. -/
-lemma stageH_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
     (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level3.probeBudget)
     (ω ω' ω₀ : Ω) (hs : stageH settings O D Dsf N r ω g = some c)
@@ -193,7 +193,7 @@ lemma stageH_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   unfold stageH at hs ⊢
   split_ifs at hs with hok
   obtain rfl := Option.some.inj hs
-  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf N hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) g r ω ω' hok h
+  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf N hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) g r ω ω' hok h
   rw [if_pos hok', hc]
 
 end Stage

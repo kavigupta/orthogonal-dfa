@@ -89,17 +89,17 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
   (∃ q, q ∈ nonStartZoneStatesOn (prefixLaw D L) M L x.R q ∧
     1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (nonStartZoneStatesOn (prefixLaw D L) M L x.R q)
       q) →
-  ∃ settings : LoopSettings (Fintype.card Q + 1),
+  ∃ settings : LoopSettings (Fintype.card Q + 1), ∃ Npop : ℕ, 0 < Npop ∧
     settings.level3.walkStart = k ∧
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.probeBudget,
-      let rounds := indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws
+      let rounds := indecisiveLStarLoop settings Npop O (windowLaw D k L₁) (prefixLaw D Ls) draws
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+      {q | let rounds := indecisiveLStarLoop settings Npop O (windowLaw D k L₁) (prefixLaw D Ls)
             (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
@@ -158,18 +158,18 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
   (∃ q, q ∈ nonStartZoneStates M L x.R q ∧
     1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
   L₀ x ≤ L →
-  ∃ settings : LoopSettings (Fintype.card Q + 1),
+  ∃ settings : LoopSettings (Fintype.card Q + 1), ∃ Npop : ℕ, 0 < Npop ∧
     settings.level3.walkStart = k ∧
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.probeBudget,
-      let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+      let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card Q + 3)) draws
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | let rounds := indecisiveLStarLoop settings O (windowStrings k L₁)
+      {q | let rounds := indecisiveLStarLoop settings Npop O (windowStrings k L₁)
             (uniformStrings (L₁ + Fintype.card Q + 3)) (persistDraws q.1)
         ¬ (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬

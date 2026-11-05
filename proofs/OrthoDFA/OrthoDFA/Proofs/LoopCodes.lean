@@ -246,17 +246,20 @@ theorem codesOf_decode {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Lev
     · rw [← h1]; exact h2
     · rw [← h1, List.map_cons, h2]
 
-omit [MeasurableSpace Ω] in
 /-- Where every round harvested, the data hand on the rounds' history. -/
-theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} {L N : ℕ} (C : Random.Level3Settings)
-    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + C.probeBudget ≤ N)
+theorem decodeHist_codesOf {D : Measure (FreeMonoid α)} [IsProbabilityMeasure D] {L N : ℕ}
+    (C : Random.Level3Settings)
+    (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L) (hN : L + C.probeBudget ≤ N) (hN1 : 0 < N)
     (k : ℕ) (rounds : List (LoopRound Ω α K))
     (hr : ∀ o ∈ rounds, ∃ xs : Fin C.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 C o.read xs)
     (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
-    decodeHist D k (codesOf N rounds) = histOf D k rounds := by
+    decodeHist D k (codesOf N rounds) = histOf D k N rounds := by
   have hp := codesOf_decode C hlen hN k rounds hr
   unfold decodeHist histOf
+  have hpop : ∀ o : LoopRound Ω α K, o.populationOp D k N = o.population D k :=
+    fun o => LoopRound.populationOp_eq_population D hN1 k o
+  simp only [hpop]
   congr 1
   · induction rounds with
     | nil => rfl

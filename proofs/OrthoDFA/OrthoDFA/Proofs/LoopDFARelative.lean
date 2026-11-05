@@ -46,9 +46,9 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
     show ∀ x : ℝ, ξ / 4 / (8 * x) = ξ / (32 * x) from fun x => by ring,
     show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
     show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h
-  obtain ⟨settings, h1, h2, h3, -, h4⟩ := h hk1 hk2 hk3 hk4
+  obtain ⟨settings, Npop, hNpop, h1, h2, h3, -, h4⟩ := h hk1 hk2 hk3 hk4
   rw [hpL, hpS, hwS] at h4
-  exact ⟨settings, h1, h2, h3, h4⟩
+  exact ⟨settings, Npop, hNpop, h1, h2, h3, h4⟩
 
 set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
@@ -97,7 +97,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, h1, h2, h3, -, h4⟩ := learner_loop_dfa_dist_tol M O L
+  obtain ⟨settings, Npop, hNpop, h1, h2, h3, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
     (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hη hη₀ hc0 hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
@@ -110,7 +110,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   rw [hε] at h2 h3
   rw [hpL, hpS, hwS, show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
     show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h4
-  exact ⟨settings, h1, h2, h3, h4⟩
+  exact ⟨settings, Npop, hNpop, h1, h2, h3, h4⟩
 
 end OrthoDFA
 
