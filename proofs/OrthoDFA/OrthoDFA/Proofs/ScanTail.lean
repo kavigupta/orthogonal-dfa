@@ -203,6 +203,31 @@ lemma measurable_card_filter (F : Finset S) (b : Bool) :
     Measurable.ite (measurableSet_eq_fun (measurable_pi_apply s) measurable_const)
       measurable_const measurable_const
 
+omit [IsProbabilityMeasure μ] in
+lemma measurableSet_sideShort {M T A : ℕ} (j : J) :
+    MeasurableSet {x : Draws Ω S J | T ≤ (Finset.univ.image fun i : Fin M => x.1.2.1.2 j i).card
+      ∧ ¬ (A ≤ ((Finset.univ.image fun i : Fin M => x.1.2.1.2 j i).filter
+            fun s => x.2 s = true).card
+        ∧ A ≤ ((Finset.univ.image fun i : Fin M => x.1.2.1.2 j i).filter
+            fun s => x.2 s = false).card)} := by
+  classical
+  have hslice : ∀ y : Fin M → S, Measurable fun g : S → Bool =>
+      T ≤ (Finset.univ.image y).card ∧ ¬ (A ≤ ((Finset.univ.image y).filter fun s => g s = true).card
+        ∧ A ≤ ((Finset.univ.image y).filter fun s => g s = false).card) := fun y =>
+    measurable_const.and (Measurable.not
+      ((measurableSet_setOfPred.1 (measurable_card_filter _ true (MeasurableSet.of_discrete
+          (s := {n | A ≤ n})))).and
+        (measurableSet_setOfPred.1 (measurable_card_filter _ false (MeasurableSet.of_discrete
+          (s := {n | A ≤ n}))))))
+  have hW : MeasurableSet {p : (Fin M → S) × (S → Bool) |
+      T ≤ (Finset.univ.image p.1).card ∧ ¬ (A ≤ ((Finset.univ.image p.1).filter
+        fun s => p.2 s = true).card ∧ A ≤ ((Finset.univ.image p.1).filter
+        fun s => p.2 s = false).card)} :=
+    measurableSet_setOfPred.2 (measurable_from_prod_countable_right fun y => hslice y)
+  have hm : Measurable fun x : Draws Ω S J => ((fun i : Fin M => x.1.2.1.2 j i), x.2) := by
+    fun_prop
+  exact hm hW
+
 /-- Past `T ≥ 4A` distinct strings among the first `M` of population `j`'s table draws, the hash
 leaves either side fewer than `A` of them with chance at most `2 exp(-T/8)`. -/
 lemma runMeasure_side_lt (L : J → Measure S) [∀ j, IsProbabilityMeasure (L j)] (Dsf : Measure S)
@@ -312,53 +337,90 @@ lemma toFinset_map_range {β : Type*} [DecidableEq β] (M : ℕ) (f : ℕ → β
     true_and]
   exact ⟨fun ⟨a, ha, e⟩ => ⟨⟨a, ha⟩, e⟩, fun ⟨a, e⟩ => ⟨a.1, a.2, e⟩⟩
 
-/-- The filled draws at the populations' laws `L` scan within `M` but for chance
-`|pops| (2 C(M, T) (Tρ)^(M-T) + 2 exp(-T/8))`, every state reading at most `NP` prefixes, every
-string holding at most `ρ` of each population, and `4 (2 + |pops|) NP ≤ T ≤ M`. -/
-theorem runMeasure_not_scanWithin_le (L : Option (Fin K) → Measure (FreeMonoid α))
+/-- Population `j`'s sides fall short among its first `M` draws: fewer than `T` distinct table
+draws; for the probes' population fewer than `T` distinct certification draws, for a harvested one
+fewer than `A` on a side of the hash past `T` distinct. -/
+def popShort (M T A : ℕ) : Option (Fin K) → Set (Draws Ω (FreeMonoid α) (Option (Fin K)))
+  | none => {x | (Finset.univ.image fun i : Fin M => x.1.2.1.2 none i).card < T}
+      ∪ {x | (Finset.univ.image fun i : Fin M => x.1.2.2 none i).card < T}
+  | some i => {x | (Finset.univ.image fun i' : Fin M => x.1.2.1.2 (some i) i').card < T}
+      ∪ {x | T ≤ (Finset.univ.image fun i' : Fin M => x.1.2.1.2 (some i) i').card
+        ∧ ¬ (A ≤ ((Finset.univ.image fun i' : Fin M => x.1.2.1.2 (some i) i').filter
+              fun s => x.2 s = true).card
+          ∧ A ≤ ((Finset.univ.image fun i' : Fin M => x.1.2.1.2 (some i) i').filter
+              fun s => x.2 s = false).card)}
+
+/-- Some population's sides fall short. -/
+def ScanShort (pops : Finset (Option (Fin K))) (M T A : ℕ)
+    (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
+  ∃ j ∈ pops, dr ∈ popShort M T A j
+
+omit [IsProbabilityMeasure μ] in
+/-- Where no population's sides fall short of `(2 + |pops|) NP ≤ T`, every state reading at most
+`NP` prefixes scans within `M`. -/
+lemma scanWithin_of_not_scanShort {M T NP : ℕ} (sched : Finset State)
+    (pops : Finset (Option (Fin K))) (hNP : ∀ B ∈ sched, B.npref ≤ NP)
+    (hAT : (2 + pops.card) * NP ≤ T) (dr : Draws Ω (FreeMonoid α) (Option (Fin K)))
+    (h : ¬ ScanShort pops M T ((2 + pops.card) * NP) dr) : ScanWithin sched pops M dr := by
+  classical
+  refine scanWithin_of_card sched pops hNP dr fun j hj => ?_
+  have hj' : dr ∉ popShort M T ((2 + pops.card) * NP) j := fun h' => h ⟨j, hj, h'⟩
+  rcases j with _ | i
+  · simp only [popShort, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
+    simp only [seqsOf, toFinset_map_range]
+    exact ⟨hAT.trans hj'.1, hAT.trans hj'.2⟩
+  · simp only [popShort, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
+    obtain ⟨h1, h2⟩ := hj'
+    have h3 := not_not.1 (fun h => h2 ⟨h1, h⟩)
+    simp only [seqsOf, List.toFinset_filter, toFinset_map_range]
+    refine ⟨h3.1, ?_⟩
+    have : ((Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
+        fun s => (!dr.2 s) = true)
+        = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
+          fun s => dr.2 s = false := Finset.filter_congr fun s _ => by simp
+    rw [this]; exact h3.2
+
+omit [IsProbabilityMeasure μ] in
+lemma measurableSet_popShort (M T A : ℕ) (j : Option (Fin K)) :
+    MeasurableSet (popShort (Ω := Ω) (α := α) M T A j) := by
+  classical
+  have htab : ∀ j : Option (Fin K), Measurable fun x : Draws Ω (FreeMonoid α) (Option (Fin K)) =>
+      fun i : Fin M => x.1.2.1.2 j i := fun j => by fun_prop
+  rcases j with _ | i
+  · have hcert : Measurable fun x : Draws Ω (FreeMonoid α) (Option (Fin K)) =>
+        fun i : Fin M => x.1.2.2 none i := by fun_prop
+    exact (htab none (measurableSet_card_image_lt M T)).union
+      (hcert (measurableSet_card_image_lt M T))
+  · refine (htab (some i) (measurableSet_card_image_lt M T)).union ?_
+    exact measurableSet_sideShort (some i)
+
+omit [IsProbabilityMeasure μ] in
+lemma measurableSet_scanShort (pops : Finset (Option (Fin K))) (M T A : ℕ) :
+    MeasurableSet {dr : Draws Ω (FreeMonoid α) (Option (Fin K)) | ScanShort pops M T A dr} := by
+  have : {dr : Draws Ω (FreeMonoid α) (Option (Fin K)) | ScanShort pops M T A dr}
+      = ⋃ j ∈ pops, popShort M T A j := by
+    ext dr; simp [ScanShort]
+  rw [this]
+  exact Finset.measurableSet_biUnion _ fun j _ => measurableSet_popShort M T A j
+
+/-- Some population's sides fall short, at the populations' laws `L`, every string holding at
+most `ρ` of each, `4A ≤ T ≤ M`:
+
+    P ≤ |pops| (2 C(M, T) (Tρ)^(M-T) + 2 exp(-T/8)). -/
+theorem runMeasure_scanShort_le (L : Option (Fin K) → Measure (FreeMonoid α))
     [∀ j, IsProbabilityMeasure (L j)] (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
-    (sched : Finset State) (pops : Finset (Option (Fin K))) {M T NP : ℕ} {ρ : ℝ}
-    (hNP : ∀ B ∈ sched, B.npref ≤ NP) (hρ : ∀ j ∈ pops, ∀ s, (L j).real {s} ≤ ρ)
-    (hA : 4 * ((2 + pops.card) * NP) ≤ T) (hT : T ≤ M) :
-    (runMeasure μ L Dsf).real {dr | ¬ ScanWithin sched pops M dr}
+    (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
+    (hρ : ∀ j ∈ pops, ∀ s, (L j).real {s} ≤ ρ) (hA : 4 * A ≤ T) (hT : T ≤ M) :
+    (runMeasure μ L Dsf).real {dr | ScanShort pops M T A dr}
       ≤ pops.card * (2 * (M.choose T * (T * ρ) ^ (M - T)) + 2 * Real.exp (-(T / 8 : ℝ))) := by
   classical
-  set A := (2 + pops.card) * NP
   set q : ℝ := M.choose T * (T * ρ) ^ (M - T)
   have hρ0 : ∀ j ∈ pops, 0 ≤ ρ := fun j hj => le_trans measureReal_nonneg (hρ j hj 1)
-  set tab : Option (Fin K) → Draws Ω (FreeMonoid α) (Option (Fin K)) → Finset (FreeMonoid α) :=
-    fun j x => Finset.univ.image fun i : Fin M => x.1.2.1.2 j i
-  set cert : Option (Fin K) → Draws Ω (FreeMonoid α) (Option (Fin K)) → Finset (FreeMonoid α) :=
-    fun j x => Finset.univ.image fun i : Fin M => x.1.2.2 j i
-  set Bad : Option (Fin K) → Set (Draws Ω (FreeMonoid α) (Option (Fin K))) := fun j =>
-    match j with
-    | none => {x | (tab none x).card < T} ∪ {x | (cert none x).card < T}
-    | some i => {x | (tab (some i) x).card < T}
-      ∪ {x | T ≤ (tab (some i) x).card ∧ ¬ (A ≤ ((tab (some i) x).filter fun s => x.2 s = true).card
-          ∧ A ≤ ((tab (some i) x).filter fun s => x.2 s = false).card)}
-  have hsub : {dr | ¬ ScanWithin sched pops M dr} ⊆ ⋃ j ∈ pops, Bad j := by
-    intro dr hdr
-    by_contra hno
-    simp only [Set.mem_iUnion, not_exists] at hno
-    refine hdr (scanWithin_of_card sched pops hNP dr fun j hj => ?_)
-    have hj' := hno j hj
-    have hAT : A ≤ T := le_trans (by omega) hA
-    rcases j with _ | i
-    · simp only [Bad, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
-      simp only [seqsOf, toFinset_map_range]
-      exact ⟨hAT.trans hj'.1, hAT.trans hj'.2⟩
-    · simp only [Bad, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at hj'
-      obtain ⟨h1, h2⟩ := hj'
-      have h3 := not_not.1 (fun h => h2 ⟨h1, h⟩)
-      simp only [seqsOf, List.toFinset_filter, toFinset_map_range]
-      refine ⟨h3.1, ?_⟩
-      have : ((Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
-          fun s => (!dr.2 s) = true)
-          = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
-            fun s => dr.2 s = false := Finset.filter_congr fun s _ => by simp
-      rw [this]; exact h3.2
-  have hj : ∀ j ∈ pops,
-      (runMeasure μ L Dsf).real (Bad j) ≤ 2 * q + 2 * Real.exp (-(T / 8 : ℝ)) := by
+  have hsub : {dr | ScanShort pops M T A dr}
+      ⊆ ⋃ j ∈ pops, popShort (Ω := Ω) (α := α) M T A j := by
+    rintro dr ⟨j, hj, h⟩; exact Set.mem_biUnion hj h
+  have hj : ∀ j ∈ pops, (runMeasure μ L Dsf).real (popShort (Ω := Ω) (α := α) M T A j)
+      ≤ 2 * q + 2 * Real.exp (-(T / 8 : ℝ)) := by
     intro j hj
     have hq0 : 0 ≤ q := by have := hρ0 j hj; positivity
     have he0 : 0 ≤ Real.exp (-(T / 8 : ℝ)) := (Real.exp_pos _).le
@@ -371,36 +433,26 @@ theorem runMeasure_not_scanWithin_le (L : Option (Fin K) → Measure (FreeMonoid
       have h1 := runMeasure_table_lt (μ := μ) L Dsf (some i) (hρ (some i) hj) hT
       have h2 := runMeasure_side_lt (μ := μ) L Dsf (some i) (M := M) hA
       exact (add_le_add h1 h2).trans (by linarith)
-  calc _ ≤ (runMeasure μ L Dsf).real (⋃ j ∈ pops, Bad j) :=
+  calc _ ≤ (runMeasure μ L Dsf).real (⋃ j ∈ pops, popShort (Ω := Ω) (α := α) M T A j) :=
         measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ∑ j ∈ pops, (runMeasure μ L Dsf).real (Bad j) := measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ j ∈ pops, (runMeasure μ L Dsf).real (popShort (Ω := Ω) (α := α) M T A j) :=
+        measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _j ∈ pops, (2 * q + 2 * Real.exp (-(T / 8 : ℝ))) := Finset.sum_le_sum hj
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
-/-- After the history `h`, the filled draws scan within `M` but for the chance of
-`runMeasure_not_scanWithin_le`, every string holding at most `ρ` of each population off the
-earlier rounds' prefixes. -/
-theorem clusterLaw_not_scanWithin_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N : ℕ) (h : LoopHist α) (sched : Finset State) (pops : Finset (Option (Fin K)))
-    {M T NP : ℕ} {ρ : ℝ} (hNP : ∀ B ∈ sched, B.npref ≤ NP)
+/-- After the history `h`, some population's filled draws fall short with the chance of
+`runMeasure_scanShort_le`, every string holding at most `ρ` of each population off the earlier
+rounds' prefixes. -/
+theorem clusterLaw_scanShort_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N : ℕ) (h : LoopHist α) (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
     (hρ : ∀ j ∈ pops, ∀ s, (offLaw (loopDistributions D k h.pops j) h.prefs).real {s} ≤ ρ)
-    (hA : 4 * ((2 + pops.card) * NP) ≤ T) (hT : T ≤ M) :
-    (clusterLaw μ α K N).real {c | ¬ ScanWithin sched pops M (idealDraws D Dsf k N h c)}
+    (hA : 4 * A ≤ T) (hT : T ≤ M) :
+    (clusterLaw μ α K N).real {c | ScanShort pops M T A (idealDraws D Dsf k N h c)}
       ≤ pops.card * (2 * (M.choose T * (T * ρ) ^ (M - T)) + 2 * Real.exp (-(T / 8 : ℝ))) := by
   classical
   have hmp := measurePreserving_idealDraws (μ := μ) (K := K) D Dsf k N h
-  set ν := runMeasure μ (fun j => offLaw (loopDistributions D k h.pops j) h.prefs)
-    (offLaw Dsf h.suffs)
-  set s := {dr : Draws Ω (FreeMonoid α) (Option (Fin K)) | ¬ ScanWithin sched pops M dr}
-  have hle : (clusterLaw μ α K N).real (idealDraws D Dsf k N h ⁻¹' s) ≤ ν.real s := by
-    rw [measureReal_def, measureReal_def]
-    refine ENNReal.toReal_mono (measure_ne_top _ _) ?_
-    calc _ ≤ clusterLaw μ α K N (idealDraws D Dsf k N h ⁻¹' toMeasurable ν s) :=
-          measure_mono (Set.preimage_mono (subset_toMeasurable _ _))
-      _ = ν (toMeasurable ν s) :=
-          hmp.measure_preimage (measurableSet_toMeasurable _ _).nullMeasurableSet
-      _ = ν s := measure_toMeasurable _
-  exact hle.trans (runMeasure_not_scanWithin_le _ _ sched pops hNP hρ hA hT)
+  have e := hmp.measureReal_preimage (measurableSet_scanShort pops M T A).nullMeasurableSet
+  exact (le_of_eq e).trans (runMeasure_scanShort_le _ _ pops hρ hA hT)
 
 end Scan
 
