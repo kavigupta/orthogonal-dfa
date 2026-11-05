@@ -412,4 +412,68 @@ theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
 
 end Good
 
+section Reads
+
+variable {μ : Measure Ω} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+  (D Dsf : Measure (FreeMonoid α))
+  (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
+    settings.level3.probeBudget)
+
+/-- Each round the loop runs is a round after some history and clustering run. -/
+lemma loopRounds_roundOf (n : ℕ) : ∀ rounds ∈ loopRounds settings O D Dsf draws n,
+    rounds.length ≤ n ∧ ∀ o ∈ rounds, ∃ (h : LoopHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+      (u : Fin settings.level3.probeBudget → unitInterval), o = roundOf settings O D h x u := by
+  induction n with
+  | zero =>
+    intro rounds hr
+    rw [loopRounds, Option.mem_def, Option.some.injEq] at hr
+    subst hr
+    simp
+  | succ r ih =>
+    intro rounds hr
+    rw [loopRounds] at hr
+    obtain ⟨rs, hrs, hr⟩ := Option.mem_bind_iff.1 hr
+    obtain ⟨hl, hrr⟩ := ih rs hrs
+    split_ifs at hr with hc
+    · obtain ⟨o, ho, rfl⟩ := Option.mem_map.1 hr
+      refine ⟨by rw [List.length_append, List.length_singleton]; omega, fun o' ho' => ?_⟩
+      rcases List.mem_append.1 ho' with h1 | h1
+      · exact hrr o' h1
+      · rw [List.mem_singleton] at h1
+        subst h1
+        unfold loopRound at ho
+        obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        split_ifs at hdr
+        · exact ⟨_, _, _, (Option.mem_some_iff.1 hdr).symm⟩
+        · cases hdr
+    · rw [Option.mem_some_iff] at hr
+      subst hr
+      exact ⟨by omega, hrr⟩
+
+/-- The rounds the loop runs number at most `K`, each reading at most `a` prefixes and `b`
+suffixes where every clustering run does. -/
+theorem loop_reads_le_op (a b : ℕ)
+    (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
+    ∀ rounds ∈ indecisiveLStarLoop settings O D Dsf draws, rounds.length ≤ K
+      ∧ (rounds.map fun o => o.prefs.card).sum ≤ K * a
+      ∧ (rounds.map fun o => o.suffs.card).sum ≤ K * b := by
+  intro rounds hr
+  obtain ⟨hlen, hro⟩ := loopRounds_roundOf settings O D Dsf draws K rounds hr
+  have hsum : ∀ (f : LoopRound α → ℕ) (c : ℕ), (∀ o ∈ rounds, f o ≤ c) →
+      (rounds.map f).sum ≤ K * c := fun f c hf => by
+    refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
+    · obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hn
+      exact hf o ho
+    · rw [List.length_map, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ hlen
+  refine ⟨hlen, hsum _ a fun o ho => ?_, hsum _ b fun o ho => ?_⟩
+  · obtain ⟨hh, x, u, rfl⟩ := hro o ho
+    exact (h _ x).1
+  · obtain ⟨hh, x, u, rfl⟩ := hro o ho
+    exact (h _ x).2
+
+end Reads
+
 end OrthoDFA

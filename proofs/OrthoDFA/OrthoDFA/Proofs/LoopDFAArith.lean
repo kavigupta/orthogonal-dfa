@@ -916,6 +916,17 @@ def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P + 1) / δ') / (1 / 2 - η₀) ^ 4
     + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * Real.log (16 * (Q + 4) * P * Θ * ℓ / (δ' ^ 2 * pAP))
 
+/-- `LearnerLoopDFA`'s `R₀`, edges crossed at rate `Ae`. -/
+def loopR₀ (Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let δ' := δ / (8 * (Q + 1))
+  let s := 1 / 2 - η₀
+  let Θι := loopΘι Q Ae c ξ
+  let Θ := loopΘ Q Ae c ξ η₀
+  let P₀ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * loopW₀ Q A δ / δ')) + 2) / s ^ 2
+      + 20 / s + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
+  2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
+    + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
+
 /-- Bounds the probe budget `B₃` at `ℓ = L₁ + 1`. -/
 def loopBudget (ℓ Q A Ae δ c : ℝ) : ℝ :=
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1

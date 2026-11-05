@@ -169,10 +169,10 @@ def LearnerLoopDFASimple : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
-  let SC : ℝ := 16 * (Q + 4) * RB + 16 * Real.log (8 * (Q + 2) / δ') + 2
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 2) * SC / δ')
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -260,11 +260,11 @@ def LearnerLoopDFA : Prop :=
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The clustering's scan cap: twice the distinct draws each population's sides need, its prefix
   -- count bounded as above.
-  let SC : ℝ := 16 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
-    + 16 * Real.log (8 * (Q + 2) / δ') + 2
+  let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 2) * SC / δ')
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -351,10 +351,10 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
-  let SC : ℝ := 16 * (Q + 4) * RB + 16 * Real.log (8 * (Q + 2) / δ') + 2
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 2) * SC / δ')
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -449,11 +449,11 @@ def LearnerLoopDFARelative : Prop :=
     + 100 * (Real.log T - 2) / (Real.log A * (T * Real.log A - 10))
   -- The clustering's scan cap: twice the distinct draws each population's sides need, its prefix
   -- count bounded as above.
-  let SC : ℝ := 16 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
-    + 16 * Real.log (8 * (Q + 2) / δ') + 2
+  let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 2) * SC / δ')
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -542,10 +542,10 @@ def LearnerLoopDFADist : Prop :=
   -- The held-out strings the start leaf is picked on.
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
-  let SC : ℝ := 16 * (Q + 4) * RB + 16 * Real.log (8 * (Q + 2) / δ') + 2
+  let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 2) * SC / δ')
+  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
