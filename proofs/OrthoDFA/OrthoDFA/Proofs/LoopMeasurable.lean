@@ -719,47 +719,47 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
       simp [ih]
 
 omit [IsProbabilityMeasure μ] in
-lemma loopRounds_result (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
+lemma loopRounds_result (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (r : ℕ) :
-    ∀ o ∈ loopRounds settings N O D Dsf draws r,
+    ∀ o ∈ loopRounds settings O D Dsf draws r,
       ∃ xs : Fin settings.level3.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 settings.level3 o.read xs := by
   intro o ho
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
-  obtain ⟨hK, e⟩ := getElem_loopRounds settings N O D Dsf draws r i hi
+  obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws r i hi
   rw [e]
   exact ⟨_, rfl⟩
 
 omit [IsProbabilityMeasure μ] in
 lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L N : ℕ}
+    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget ≤ N) (hN1 : 0 < N)
+    (hN : L + settings.level3.probeBudget ≤ settings.level3.harvestReadCap) (hN1 : 0 < settings.level3.harvestReadCap)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (r : ℕ) (hrK : r < K) :
-    codesOf N (loopRounds settings N O D Dsf draws (r + 1))
-      = if (codesOf N (loopRounds settings N O D Dsf draws r)).length = r then
-          codesOf N (loopRounds settings N O D Dsf draws r)
-            ++ (popCode N (loopRound settings O D Dsf
+    codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws (r + 1))
+      = if (codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r)).length = r then
+          codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r)
+            ++ (popCode settings.level3.harvestReadCap (loopRound settings O D Dsf
               (decodeHist D settings.level3.walkStart
-                (codesOf N (loopRounds settings N O D Dsf draws r))) (draws ⟨r, hrK⟩))).toList
-        else codesOf N (loopRounds settings N O D Dsf draws r) := by
-  have hlenc := length_codesOf N D settings.level3.walkStart (loopRounds settings N O D Dsf draws r)
+                (codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r))) (draws ⟨r, hrK⟩))).toList
+        else codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r) := by
+  have hlenc := length_codesOf settings.level3.harvestReadCap D settings.level3.walkStart (loopRounds settings O D Dsf draws r)
   rw [loopRounds_succ]
   split_ifs with h1 h2 h2
   · rw [codesOf_append_single, decodeHist_codesOf settings.level3 hlen hN hN1
-      settings.level3.walkStart _ (loopRounds_result settings N O D Dsf draws r) h1.2]
+      settings.level3.walkStart _ (loopRounds_result settings O D Dsf draws r) h1.2]
   · exact absurd (by rw [hlenc, length_harvestsOf h1.2,
-      length_eq_of_allHarvested settings N O D Dsf draws hrK.le h1.2]) h2
+      length_eq_of_allHarvested settings O D Dsf draws hrK.le h1.2]) h2
   · exfalso
     apply h1
     refine ⟨hrK, fun o ho => ?_⟩
-    have hle := length_loopRounds_le settings N O D Dsf draws r
+    have hle := length_loopRounds_le settings O D Dsf draws r
     have hlen' : (harvestsOf D settings.level3.walkStart
-        (loopRounds settings N O D Dsf draws r)).length
-        = (loopRounds settings N O D Dsf draws r).length := by
+        (loopRounds settings O D Dsf draws r)).length
+        = (loopRounds settings O D Dsf draws r).length := by
       have := List.length_filterMap_le (fun o : LoopRound Ω α K =>
-        o.population D settings.level3.walkStart) (loopRounds settings N O D Dsf draws r)
+        o.population D settings.level3.walkStart) (loopRounds settings O D Dsf draws r)
       unfold harvestsOf at hlenc this ⊢
       omega
     unfold harvestsOf at hlen'
@@ -772,11 +772,11 @@ lemma codesOf_loopRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeMo
 
 /-- The earlier rounds' harvest data are a measurable function of the rounds' draws. -/
 theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L N : ℕ}
+    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget ≤ N) (hN1 : 0 < N) (r : ℕ) (c : List (HarvestCode α)) :
+    (hN : L + settings.level3.probeBudget ≤ settings.level3.harvestReadCap) (hN1 : 0 < settings.level3.harvestReadCap) (r : ℕ) (c : List (HarvestCode α)) :
     MeasurableSet {draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget |
-      codesOf N (loopRounds settings N O D Dsf draws r) = c} := by
+      codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r) = c} := by
   classical
   induction r generalizing c with
   | zero =>
@@ -785,11 +785,11 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
   | succ r ih =>
     by_cases hrK : r < K
     · have hset : {draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget |
-          codesOf N (loopRounds settings N O D Dsf draws (r + 1)) = c}
-          = ⋃ c', {draws | codesOf N (loopRounds settings N O D Dsf draws r) = c'}
+          codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws (r + 1)) = c}
+          = ⋃ c', {draws | codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws r) = c'}
             ∩ (fun draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget =>
               draws ⟨r, hrK⟩) ⁻¹' {d | (if c'.length = r then
-                c' ++ (popCode N (loopRound settings O D Dsf
+                c' ++ (popCode settings.level3.harvestReadCap (loopRound settings O D Dsf
                   (decodeHist D settings.level3.walkStart c') d)).toList else c') = c} := by
         ext draws
         simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage,
@@ -800,11 +800,11 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
       by_cases hc : c'.length = r
       · simp only [hc, if_true]
         have : {d : LoopRoundDraws Ω α K settings.level3.probeBudget |
-            c' ++ (popCode N (loopRound settings O D Dsf
+            c' ++ (popCode settings.level3.harvestReadCap (loopRound settings O D Dsf
               (decodeHist D settings.level3.walkStart c') d)).toList = c}
             = ⋃ oc : Option (HarvestCode α),
               if c' ++ oc.toList = c then
-                {d | popCode N (loopRound settings O D Dsf
+                {d | popCode settings.level3.harvestReadCap (loopRound settings O D Dsf
                   (decodeHist D settings.level3.walkStart c') d) = oc} else ∅ := by
           ext d
           simp only [Set.mem_setOf_eq, Set.mem_iUnion]
@@ -818,12 +818,12 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
         rw [this]
         refine MeasurableSet.iUnion fun oc => ?_
         split_ifs
-        · exact measurableSet_roundCode settings O N D Dsf _ oc
+        · exact measurableSet_roundCode settings O settings.level3.harvestReadCap D Dsf _ oc
         · exact MeasurableSet.empty
       · simp only [hc, if_false]
         exact MeasurableSet.const _
     · have hst : ∀ draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget,
-          loopRounds settings N O D Dsf draws (r + 1) = loopRounds settings N O D Dsf draws r :=
+          loopRounds settings O D Dsf draws (r + 1) = loopRounds settings O D Dsf draws r :=
         fun draws => by rw [loopRounds_succ, dif_neg (fun h => hrK h.1)]
       simp only [hst]
       exact ih c

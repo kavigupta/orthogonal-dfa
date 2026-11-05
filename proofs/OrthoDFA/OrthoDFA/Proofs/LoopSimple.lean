@@ -279,6 +279,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
+      P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
         (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
@@ -292,7 +293,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
                     (ε + ε / 96))
-                ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2)
+                ∧ RoundsFresh settings O P.D Dsf
                   (P.L + Fintype.card σ + 3) p)}
           ≤ (Q + 1) * (5 * δ' / 2) := by
   intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc
@@ -331,7 +332,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     show (budget : ℝ) ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     linarith
   have hbud0 : (0 : ℝ) ≤ budget := Nat.cast_nonneg _
-  set C : Random.Level3Settings := ⟨k, δ', ε, budget⟩ with hCd
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget, P.L + budget + 2⟩ with hCd
   -- the band's far side
   have hW1 : 1 ≤ W := le_max_right _ _
   set cross : ℝ := δ' / (8 * W) with hcrossd
@@ -349,7 +350,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, fun _ => by simp,
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, le_rfl, fun _ => by simp,
       fun _ _ => by simp [roundPrefs, roundSuffs], ?_⟩
     intro Dsf hDsf _ hpAPD _
     have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
@@ -637,8 +638,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond
-  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, hnp, hreads, ?_⟩
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond le_rfl
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud,
+    by rw [hC3], hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

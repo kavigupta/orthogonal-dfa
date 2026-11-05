@@ -418,4 +418,20 @@ theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : H
 
 end Random
 
+open MeasureTheory in
+/-- The operational population equals the handed-on one in law: the bounded-rejection sampler at
+any cap `N ≥ 1` reproduces `popLaw (harvestLaw …)` exactly (via `harvestCodeLaw_popLaw_eq`), so the
+loop can be rewired to `populationOp` without changing any population it hands on. -/
+theorem LoopRound.populationOp_eq_population {α : Type*} [Fintype α]
+    {Ω : Type*} [MeasurableSpace Ω] {K N : ℕ}
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hN : 0 < N) (k : ℕ)
+    (o : LoopRound Ω α K) :
+    o.populationOp D k N = o.population D k := by
+  unfold LoopRound.populationOp LoopRound.population
+  rcases o.result.ending.harvested with _ | site
+  · rfl
+  · simp only [Option.map_some]
+    rw [Random.harvestCodeLaw_popLaw_eq (read := o.read) (D := D) (k := k)
+      (H := o.result.hypothesis) (site := site) (N := N) hN]
+
 end OrthoDFA

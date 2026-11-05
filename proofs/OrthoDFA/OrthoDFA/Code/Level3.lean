@@ -61,6 +61,8 @@ structure Level3Settings where
   /-- The rate of disagreements a consistent ending may have. -/
   disagreementRate : ℝ
   probeBudget : ℕ
+  /-- The cap on probes the bounded-rejection harvest sampler draws per population draw. -/
+  harvestReadCap : ℕ
 
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
