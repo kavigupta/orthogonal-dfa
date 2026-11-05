@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.HarvestCode
 import OrthoDFA.Proofs.LoopLaw
+import OrthoDFA.Proofs.DrawMany
 
 /-! # The operational harvest draw matches the sampler law
 
@@ -119,5 +120,47 @@ lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Fin
       unfold popLaw; rw [if_neg (not_or.2 ⟨h0, htop⟩)]
     rw [hpop, Measure.restrict_smul]
     exact Random.popLaw_smul (ENNReal.inv_ne_zero.2 htop) (ENNReal.inv_ne_top.2 h0)
+
+/-- The conditioned operational draw's success law is the abstract conditioned population.  A
+single harvest draw's success event is a hit landing off `prefs`; on that event its law pushes to
+`offLaw populationOp prefs`.  No first-success-over-attempts argument is needed for the law — the
+amplification over attempts only drives the failure mass down, it does not change the hit law. -/
+theorem offLaw_popLaw_harvestDraw [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) :
+    offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs
+      = popLaw (((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
+            {u | (harvestDraw read D k H site N u).isSome = true
+              ∧ (harvestDraw read D k H site N u).getD 1 ∉ (↑prefs : Set (FreeMonoid α))}).map
+          fun u => (harvestDraw read D k H site N u).getD 1) := by
+  classical
+  haveI : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
+    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
+  rw [offLaw_popLaw]
+  congr 1
+  rw [Random.harvestCodeLaw]
+  set f : (Fin N → FreeMonoid α) → FreeMonoid α :=
+    fun xs => (Random.harvestFirst read k H site (List.ofFn xs)).getD 1 with hf_def
+  have hfmeas : Measurable f := measurable_of_countable _
+  rw [Measure.restrict_map hfmeas (Set.to_countable _).measurableSet,
+    Measure.restrict_restrict (Set.to_countable _).measurableSet]
+  set T : Set (Fin N → FreeMonoid α) :=
+    f ⁻¹' (↑prefs)ᶜ ∩ {xs | (Random.harvestFirst read k H site (List.ofFn xs)).isSome = true}
+    with hT_def
+  have hTmeas : MeasurableSet T := (Set.to_countable _).measurableSet
+  have hg : MeasurePreserving (fun (u : Fin N → unitInterval) i => drawFrom D (u i))
+      (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
+      (Measure.pi fun _ : Fin N => D) :=
+    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
+  rw [← hg.map_eq, Measure.restrict_map hg.measurable hTmeas, Measure.map_map hfmeas hg.measurable]
+  have hset : (fun (u : Fin N → unitInterval) i => drawFrom D (u i)) ⁻¹' T
+      = {u | (harvestDraw read D k H site N u).isSome = true
+            ∧ (harvestDraw read D k H site N u).getD 1 ∉ (↑prefs : Set (FreeMonoid α))} := by
+    ext u
+    simp only [hT_def, hf_def, harvestDraw, Set.mem_preimage, Set.mem_inter_iff, Set.mem_setOf_eq,
+      Set.mem_compl_iff, Finset.mem_coe]
+    tauto
+  have hfun : (f ∘ fun (u : Fin N → unitInterval) i => drawFrom D (u i))
+      = fun u => (harvestDraw read D k H site N u).getD 1 := by
+    funext u; rfl
+  rw [hset, hfun]
 
 end OrthoDFA
